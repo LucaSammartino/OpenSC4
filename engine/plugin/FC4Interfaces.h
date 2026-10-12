@@ -26,7 +26,8 @@
 // cISC4DepartmentBudget / cIGZDate / cISCPropertyHolder / cISC4LotManager /
 // cISC4Lot / cIGZVariant / cISC4NeighborsSimulator / cISC4Ordinance /
 // cISC4Demand / cISC4DemandSimulator / cISC4ResidentialSimulator /
-// cISC4RegionalCity - to call the game's objects or to implement ours.
+// cISC4RegionalCity / cISC4PowerSimulator / cISC4NetworkTool - to call the
+// game's objects or to implement ours.
 // tests/abi_conformance_test.cpp checks every declaration against
 // docs/abi/interfaces.tsv (callee-pop bytes and return channel per slot).
 // Besides overload order, they also fix return types the SDK gets wrong
@@ -42,6 +43,7 @@
 #include "cISC4City.h"
 #include "cISC4Lot.h"
 #include "cISC4NeighborsSimulator.h"
+#include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "FC4GameList.h"
 
@@ -916,6 +918,123 @@ public:
     // [abi] std::vector (B) of 12-byte elements (allocators.md); left untouched
     // when the type is absent.
     virtual void GetPointsOfInterest(uint32_t type, fc4::GameVector<FC4PointOfInterest>& list) = 0;  // 72
+};
+
+// ---- power (docs/specs/power.md §10, §11.1) -----------------------------------------------------
+
+class cISC4Occupant;
+// The game's ilist<cISC4Occupant*> (an STLport list with the framework
+// allocator, allocators.md); its layout is an open question (C1), so it is
+// only passed through by reference.
+struct FC4GameIList;
+
+// cISC4PowerSimulator (IID 0xE9E7BFF5), 52 slots in compiled order (power
+// §10.1). Implemented by cFC4PowerSimulator. SDK errors fixed: the overloads
+// are in compiled order with unique names (16 = (x, z), 17 = (); 23 = (type),
+// 24 = ()); 32-34 return bool in AL; 40 returns its argument's address; 45/46
+// return an SC4Percentage through a hidden pointer (pop 8, EAX = the pointer).
+class cFC4ISC4PowerSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                // 3
+    virtual bool Shutdown() = 0;                                                            // 4
+    virtual void PositionToCell(float x, float z, int32_t& cellX, int32_t& cellZ) = 0;       // 5
+    virtual void CellToPosition(int32_t cellX, int32_t cellZ, float& x, float& z) = 0;       // 6
+    virtual void CellToStandardCityCell(int32_t x, int32_t z, int32_t& outX, int32_t& outZ) = 0;  // 7
+    virtual void StandardCityCellToCell(int32_t x, int32_t z, int32_t& outX, int32_t& outZ) = 0;  // 8
+    virtual uint32_t GetAnnualConsumption() = 0;                                            // 9
+    virtual uint32_t GetAnnualConsumptionByPowerType(int32_t powerType) = 0;                // 10
+    virtual int32_t GetMonthlyRequirement() = 0;                                            // 11
+    virtual int32_t GetMonthlyProduction() = 0;                                             // 12
+    virtual int32_t GetMonthlyImport() = 0;                                                 // 13
+    virtual int32_t GetMonthlyExport() = 0;                                                 // 14
+    virtual int32_t GetMonthlyDemand() = 0;                                                 // 15
+    virtual int32_t GetMonthlyConsumptionAt(int32_t x, int32_t z) = 0;                      // 16  (x, z)
+    virtual int32_t GetMonthlyConsumptionTotal() = 0;                                       // 17  ()
+    // 18: the game writes the address of its raw vector<vector<int16>> (power §11.2).
+    virtual void GetMonthlyConsumptionMapPtr(void*& map) = 0;                               // 18
+    virtual bool GetSupplyValue(int32_t x, int32_t z) = 0;                                  // 19
+    virtual void GetSupplyValueMapPtr(cISC4SimGrid<uint8_t>*& grid) = 0;                    // 20
+    virtual int32_t GetUnpoweredConsumerCount() = 0;                                        // 21
+    virtual int32_t GetPoweredConsumerCount() = 0;                                          // 22
+    virtual int32_t GetPowerPlantCountOfType(int32_t powerType) = 0;                        // 23  (type)
+    virtual int32_t GetPowerPlantCountAll() = 0;                                            // 24  ()
+    virtual void GetPowerPlants(FC4GameIList& list) = 0;                                   // 25
+    virtual uint32_t GetPowerPoleCount() = 0;                                               // 26
+    virtual int32_t GetOverworkedPowerPlantCount() = 0;                                     // 27
+    virtual int32_t GetAgedPowerPlantCount() = 0;                                           // 28
+    virtual int32_t GetDistressedPowerPlantCount() = 0;                                     // 29
+    virtual void FindPowerPlants(cISC4Occupant** lowestFunded, SC4Percentage& funding, cISC4Occupant** mostWorn,
+                                 int32_t& wearPercent) = 0;                                 // 30
+    virtual bool IsOccupantPowered(cISC4Occupant* occupant) = 0;                            // 31
+    virtual bool GetOccupantPowerConsumed(cISC4Occupant* occupant, uint32_t& consumed) = 0;  // 32  (SDK: void)
+    virtual bool GetOccupantPowerProduced(cISC4Occupant* occupant, uint32_t& produced,
+                                          uint32_t& used) = 0;                              // 33  (SDK: void)
+    virtual bool GetOccupantMaxPowerProduced(cISC4Occupant* occupant, uint32_t& maxProduced) = 0;  // 34  (SDK: void)
+    virtual cISC4SimGrid<uint8_t>* GetPoweredGridConst() const = 0;                         // 35  GetPoweredGrid() const
+    virtual cISC4SimGrid<uint8_t>* GetPoweredGrid() = 0;                                    // 36
+    virtual bool IsPowered(int32_t x, int32_t z) = 0;                                       // 37
+    virtual bool IsWired(int32_t x, int32_t z) = 0;                                         // 38
+    virtual bool IsOnStrike() = 0;                                                          // 39
+    virtual SC4Percentage* GetChanceOfStrike(SC4Percentage& chance) = 0;                    // 40  (SDK: void)
+    virtual bool BeginStrike() = 0;                                                         // 41
+    virtual bool EndStrike() = 0;                                                           // 42
+    virtual int32_t GetStrikeStartDate() = 0;                                               // 43
+    virtual int32_t GetStrikeLength() = 0;                                                  // 44
+    virtual SC4Percentage* GetCurrentPlantEfficiencyPercent(SC4Percentage* result,
+                                                            cISC4Occupant* occupant) = 0;  // 45  (SDK: float(occ))
+    virtual SC4Percentage* GetCurrentPlantConditionPercent(SC4Percentage* result,
+                                                           cISC4Occupant* occupant) = 0;   // 46  (SDK: float(occ))
+    virtual SC4Percentage* GetStrikeEfficiencyPercent() = 0;                                // 47
+    virtual SC4Percentage* GetFundingPercent() = 0;                                         // 48
+    virtual bool GetMonthlyPowerGenerationCost(cISC4Occupant* occupant, int64_t& cost) = 0;  // 49
+    virtual bool GetPowerPlantFundingPercentage(cISC4Occupant* occupant, SC4Percentage& funding) = 0;  // 50
+    virtual bool SetPowerPlantFundingPercentage(cISC4Occupant* occupant, SC4Percentage const& funding) = 0;  // 51
+};
+
+// cISC4PowerPoleOccupant (IID 0xA8C86142), 19 slots. There is no SDK
+// declaration: the slots the power simulator calls are named after power
+// §11.1, the others are placeholders with the table's argument bytes and
+// return channel (never called).
+class cFC4ISC4PowerPoleOccupant : public cIGZUnknown {
+public:
+    virtual cISC4Occupant* AsOccupant() = 0;                      // 3
+    virtual uint32_t PoleSlot04() = 0;                            // 4
+    virtual uint32_t PoleSlot05(uint32_t a, uint32_t b) = 0;      // 5
+    virtual bool BreakAllConnections(bool flag) = 0;              // 6
+    virtual uint32_t PoleSlot07(uint32_t a) = 0;                  // 7
+    virtual bool GetCell(int32_t& x, int32_t& z) = 0;             // 8
+    virtual uint32_t PoleSlot09() = 0;                            // 9
+    virtual int64_t PoleSlot10() = 0;                             // 10  (edx:eax)
+    virtual bool IsDistressed() = 0;                              // 11  (EAX 0/1)
+    virtual bool SetDistressed(bool on) = 0;                      // 12
+    virtual bool IsIgnoredByPower() = 0;                          // 13  (power §13 question 1)
+    virtual uint32_t PoleSlot14(uint32_t a) = 0;                  // 14
+    virtual uint32_t PoleSlot15(uint32_t a, uint32_t b) = 0;      // 15  Init
+    virtual uint32_t PoleSlot16(uint32_t a, uint32_t b) = 0;      // 16
+    virtual uint32_t PoleSlot17(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) = 0;  // 17
+    virtual uint32_t PoleSlot18(uint32_t a) = 0;                  // 18  ChangeZoomLevel
+};
+
+// The rectangle UpdateOnZoneChange takes by value: the four int32 of the
+// zoning message's void2, passed through in their order.
+struct FC4Int32Quad {
+    int32_t v[4];
+};
+
+// cISC4NetworkTool as the power-line tool's vtable has it (power §11.1), slots
+// 3-10 only (the table has 83; we call 3, 4 and 10). SDK error fixed: slot 10
+// UpdateOnZoneChange takes a rectangle by value and a uint32 (pops 20; SDK: none).
+class cFC4ISC4NetworkTool : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual int64_t ToolSlot05() = 0;                                            // 5  Reset
+    virtual uint32_t ToolSlot06(uint32_t a) = 0;                                 // 6
+    virtual uint32_t ToolSlot07(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e, uint32_t f, uint32_t g,
+                                uint32_t h) = 0;                                 // 7  PlaceNetworkOccupants
+    virtual uint32_t ToolSlot08(uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) = 0;  // 8
+    virtual uint32_t ToolSlot09(uint32_t a, uint32_t b, uint32_t c, uint32_t d) = 0;  // 9
+    virtual void UpdateOnZoneChange(FC4Int32Quad rect, uint32_t data3) = 0;      // 10
 };
 
 class cISC4Simulator;

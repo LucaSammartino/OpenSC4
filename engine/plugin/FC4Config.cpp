@@ -57,6 +57,17 @@ const SwitchInfo kSwitches[kCount] = {
     {"lot_state", "FC4_BUDGET_LOT_STATE"},
     {"lot_release", "FC4_BUDGET_LOT_RELEASE"},
     {"lot_list_free", "FC4_BUDGET_LOT_LIST_FREE"},
+    {"power_occupants", "FC4_POWER_OCCUPANTS"},
+    {"power_poles", "FC4_POWER_POLES"},
+    {"power_lots", "FC4_POWER_LOTS"},
+    {"power_neighbors", "FC4_POWER_NEIGHBORS"},
+    {"power_budget", "FC4_POWER_BUDGET"},
+    {"power_grid_writes", "FC4_POWER_GRID_WRITES"},
+    {"power_posts", "FC4_POWER_POSTS"},
+    {"power_terrain", "FC4_POWER_TERRAIN"},
+    {"power_zone_tool", "FC4_POWER_ZONE_TOOL"},
+    {"power_view", "FC4_POWER_VIEW"},
+    {"power_radiation", "FC4_POWER_RADIATION"},
 };
 
 // Keys that are not switches.
@@ -66,7 +77,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
-volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 31, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

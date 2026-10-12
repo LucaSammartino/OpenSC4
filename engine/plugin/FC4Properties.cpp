@@ -29,6 +29,8 @@
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
 
+#include <cstring>
+
 namespace fc4 {
 namespace props {
 
@@ -177,6 +179,47 @@ bool SetI64s(cISCPropertyHolder* holder, uint32_t id, const std::vector<int64_t>
 bool SetF32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<float>& values) {
     cFC4Variant v;  // never the SDK variant: its slots 8 and 60 differ from the game's
     v.SetRefFloat32(const_cast<float*>(values.data()), static_cast<uint32_t>(values.size()));
+    return Put(holder, id, v);
+}
+
+bool SetTyped(cISCPropertyHolder* holder, uint32_t id, uint16_t memType, bool isArray, const void* data, size_t count) {
+    if (holder == nullptr || (data == nullptr && count != 0) || (!isArray && count != 1) || count > 0x7FFFFFFFu) {
+        return false;
+    }
+    const uint32_t n = static_cast<uint32_t>(count);
+    // The array setters reference the caller's elements; Put copies them into the holder.
+    void* p = const_cast<void*>(data);
+    cFC4Variant v;  // never the SDK variant: its slots 8 and 60 differ from the game's
+    auto scalar = [&](auto t) {
+        decltype(t) value;
+        std::memcpy(&value, data, sizeof(value));
+        return value;
+    };
+    switch (memType) {
+        case 0x01: isArray ? v.SetRefBool(static_cast<bool*>(p), n) : v.SetValBool(scalar(uint8_t{}) != 0); break;
+        case 0x02: isArray ? v.SetRefUint8(static_cast<uint8_t*>(p), n) : v.SetValUint8(scalar(uint8_t{})); break;
+        case 0x03: isArray ? v.SetRefSint8(static_cast<int8_t*>(p), n) : v.SetValSint8(scalar(int8_t{})); break;
+        case 0x04: isArray ? v.SetRefUint16(static_cast<uint16_t*>(p), n) : v.SetValUint16(scalar(uint16_t{})); break;
+        case 0x05: isArray ? v.SetRefSint16(static_cast<int16_t*>(p), n) : v.SetValSint16(scalar(int16_t{})); break;
+        case 0x06: isArray ? v.SetRefUint32(static_cast<uint32_t*>(p), n) : v.SetValUint32(scalar(uint32_t{})); break;
+        case 0x07: isArray ? v.SetRefSint32(static_cast<int32_t*>(p), n) : v.SetValSint32(scalar(int32_t{})); break;
+        case 0x08: isArray ? v.SetRefUint64(static_cast<uint64_t*>(p), n) : v.SetValUint64(scalar(uint64_t{})); break;
+        case 0x09: isArray ? v.SetRefSint64(static_cast<int64_t*>(p), n) : v.SetValSint64(scalar(int64_t{})); break;
+        case 0x0A: isArray ? v.SetRefFloat32(static_cast<float*>(p), n) : v.SetValFloat32(scalar(float{})); break;
+        case 0x0B:
+            if (isArray) {
+                v.SetRefFloat64(static_cast<double*>(p), n);
+            } else {
+                v.SetValFloat64(scalar(double{}));
+            }
+            break;
+        case 0x0C: isArray ? v.SetRefChar(static_cast<char*>(p), n) : v.SetValChar(scalar(char{})); break;
+        case 0x0D:
+            isArray ? v.SetRefRZUnicodeChar(static_cast<uint16_t*>(p), n) : v.SetValRZUnicodeChar(scalar(uint16_t{}));
+            break;
+        case 0x0E: isArray ? v.SetRefRZChar(static_cast<char*>(p), n) : v.SetValRZChar(scalar(char{})); break;
+        default: return false;
+    }
     return Put(holder, id, v);
 }
 

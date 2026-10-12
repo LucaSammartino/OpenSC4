@@ -96,6 +96,20 @@ INTERFACES = [
     ("cISC4PoliceSimulator", "cISC4PoliceSimulator", "cISC4PoliceSimulator.h", True),
     ("cISC4PowerSimulator", "cISC4PowerSimulator", "cISC4PowerSimulator.h", True),
     ("cISC4PollutionSimulator", "cISC4PollutionSimulator", "cISC4PollutionSimulator.h", True),
+    # Power (docs/specs/power.md §10, §11.1): implemented, and the services it calls.
+    ("cIGZSerializable(Power)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Power)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4Occupant", "cISC4Occupant", "cISC4Occupant.h", True),
+    ("cISC4OccupantManager", "cISC4OccupantManager", "cISC4OccupantManager.h", True),
+    ("cISC4BuildingOccupant", "cISC4BuildingOccupant", "cISC4BuildingOccupant.h", True),
+    ("cISC4NetworkOccupant", "cISC4NetworkOccupant", "cISC4NetworkOccupant.h", True),
+    ("cISC4NetworkManager", "cISC4NetworkManager", "cISC4NetworkManager.h", True),
+    ("cISC4NetworkTool(PowerLine)", "cFC4ISC4NetworkTool", FC4, True),
+    ("cISC4NeighborDeal", "cISC4NeighborDeal", "cISC4NeighborDeal.h", True),
+    ("cISC4View3DWin", "cISC4View3DWin", "cISC4View3DWin.h", True),
+    ("cISC4PowerLineOccupant", "cISC4PowerLineOccupant", "cISC4PowerLineOccupant.h", True),
+    ("cISC4PowerPoleOccupant", "cFC4ISC4PowerPoleOccupant", FC4, True),
+    ("cISC4PowerSimulator", "cFC4ISC4PowerSimulator", FC4, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -113,6 +127,7 @@ INTERFACES = [
     ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", False),
     ("cISC4WeatherSimulator", "cISC4WeatherSimulator", "cISC4WeatherSimulator.h", False),
     ("cISC4GameDataRegistry", "cISC4GameDataRegistry", "cISC4GameDataRegistry.h", False),
+    ("cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", "cISC4NetworkTool.h", False),
 ]
 
 BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h"}

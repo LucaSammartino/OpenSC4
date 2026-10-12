@@ -47,6 +47,15 @@
 #include "cIGZVariant.h"
 #include "cISC4App.h"
 #include "cISC4BudgetSimulator.h"
+#include "cISC4View3DWin.h"
+#include "cISC4PowerLineOccupant.h"
+#include "cISC4OccupantManager.h"
+#include "cISC4Occupant.h"
+#include "cISC4NetworkTool.h"
+#include "cISC4NetworkOccupant.h"
+#include "cISC4NetworkManager.h"
+#include "cISC4NeighborDeal.h"
+#include "cISC4BuildingOccupant.h"
 #include "cISC4City.h"
 #include "cISC4ResidentialSimulator.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
@@ -300,6 +309,15 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4LandValueSimulator", 12, 13,
      "slot 12 is unnamed and pops 4, the signature of a scalar deleting destructor: class-private "
      "(landvalue spec: 12 interface slots)"},
+    {"cISC4BuildingOccupant", 20, 24,
+     "the SDK declares slots 0-19; the plugin calls slot 4 (GetBuildingType) only (power §11.1). Slots 20-23 are "
+     "not declared"},
+    {"cISC4NetworkOccupant", 74, 81,
+     "the SDK declares slots 0-73; the plugin calls slots 8, 12 and 59 only (power §11.1). Slots 74-80 are not "
+     "declared"},
+    {"cISC4NetworkTool(PowerLine)", 11, 83,
+     "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
+     "(power §11.1)"},
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
@@ -375,6 +393,21 @@ const Waiver kWaivers[] = {
      "pops 8, returns in eax (SDK: 4 bytes, float)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 46, "GetCurrentPlantConditionPercent",
      "pops 8, returns in eax (SDK: 4 bytes, float)"},
+    // Services called by the power simulator (power §11.1): only the slots it calls must match.
+    {"cISC4OccupantManager", "cISC4OccupantManager", 14, "WorldCellToPosition", "the game returns in ST0"},
+    {"cISC4OccupantManager", "cISC4OccupantManager", 15, "PositionToWorldCell", "the game returns in ST0"},
+    {"cISC4OccupantManager", "cISC4OccupantManager", 16, "OccupantManagerCellToPosition", "the game returns in ST0"},
+    {"cISC4OccupantManager", "cISC4OccupantManager", 17, "PositionToOccupantManagerCell", "the game returns in ST0"},
+    {"cISC4OccupantManager", "cISC4OccupantManager", 18, "StandardCityCellToPosition", "the game returns in ST0"},
+    {"cISC4NetworkOccupant", "cISC4NetworkOccupant", 57, "GetNormal", "pops 12 (SDK: 8 bytes)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 13, "GetAllIntersectionPieces2",
+     "the SDK declares an extra method here: its slots 14-23 are the game's 13-22"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 14, "MapPreviewTexture", "shifted by one (see slot 13)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 15, "MapShadowTexture", "shifted by one (see slot 13)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 18, "UnregisterConstructionCrew", "shifted by one (see slot 13)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 20, "GetSubwayOccupantFilter", "shifted by one (see slot 13)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 21, "CreateConnectionNode", "shifted by one (see slot 13)"},
+    {"cISC4NetworkManager", "cISC4NetworkManager", 22, "AutoconnectLotNodes", "shifted by one (see slot 13)"},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 34, "GetGarbageAbductedPrevMonth",
      "returns 64 bits in edx:eax (SDK: 32)"},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 35, "GetGarbageProducedLastMonth",

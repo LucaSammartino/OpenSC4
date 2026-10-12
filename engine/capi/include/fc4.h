@@ -53,8 +53,9 @@ extern "C" {
  * 8 = adds the land value simulator (fc4_landvalue);
  * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather);
  * 10 = adds fc4_props_set_typed and the ordinances (fc4_ordinance_sim / fc4_ordinance);
- * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node). */
-#define FC4_ABI_VERSION 11u
+ * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node);
+ * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power). */
+#define FC4_ABI_VERSION 12u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1151,6 +1152,247 @@ bool fc4_demand_node_add(fc4_demand_node* n, uint32_t which, float v);
 bool fc4_demand_node_write(const fc4_demand_node* n, const fc4_ostream* out);
 bool fc4_demand_node_read(fc4_demand_node* n, const fc4_istream* in);
 
+/* ---- the game's grids, shared by the grid simulators ----------------------------
+ *
+ * The game's own cSC4SimGrid<T> objects (simgrid.md §6.4), driven by the core.
+ * A grid is a token holding ONE reference (released through `release`). `kind`
+ * is the grid class ID of the element type (0x49B9E602 uint8 ... 0x49B9E60B
+ * double); values cross as doubles (exact for every type up to 32 bits). */
+typedef struct fc4_grid_api {
+    uint32_t struct_size; /* sizeof(fc4_grid_api) */
+    void* user;
+    /* A new grid through GZCOM: Init, SetTractSize(tract_size),
+     * SetInstanceID(instance). 0 = failure. */
+    uint64_t (*create)(void* user, uint32_t kind, uint32_t instance, int32_t tract_size);
+    uint32_t (*class_of)(void* user, uint64_t grid); /* GetGZCLSID, 0 if unknown */
+    void (*geometry)(void* user, uint64_t grid, fc4_grid_geometry* out);
+    double (*get)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz);          /* GetTractValue */
+    void (*set)(void* user, uint64_t grid, uint32_t kind, int32_t tx, int32_t tz, double v);  /* SetTractValue */
+    void (*fill)(void* user, uint64_t grid, uint32_t kind, double v);                         /* SetTractValues */
+    void (*shutdown)(void* user, uint64_t grid);
+    void (*release)(void* user, uint64_t grid);
+} fc4_grid_api;
+
+/* An inclusive cell rectangle. */
+typedef struct fc4_cell_rect {
+    int32_t x1, z1, x2, z2;
+} fc4_cell_rect;
+
+/* ---- power (docs/specs/power.md) -------------------------------------------------
+ *
+ * Tokens: occupants (also poles, lines and plants: the cISC4Occupant
+ * identity), lots, deals, connections, cities, departments, line items; 0 is
+ * null. A message delivered while another call into the same object is
+ * running is queued and handled when that call returns. */
+typedef struct fc4_power fc4_power;
+
+typedef struct fc4_power_post {
+    uint32_t msg_type;
+    uint32_t data[4];
+    uint32_t reserved;
+    uint64_t unknown; /* the IGZUnknown, 0 = none */
+} fc4_power_post;
+
+typedef struct fc4_power_pole {
+    uint32_t ignored; /* pole slot 13 */
+    int32_t cell_x, cell_z;
+} fc4_power_pole;
+
+typedef struct fc4_power_line {
+    uint32_t preview;
+    int32_t cell_x, cell_z;
+} fc4_power_line;
+
+typedef struct fc4_power_deal {
+    uint64_t token;
+    uint64_t city; /* GetCityOnOtherSideOfConnection */
+    int32_t amount;
+    uint32_t reserved;
+} fc4_power_deal;
+typedef void (*fc4_power_deal_callback)(void* ctx, const fc4_power_deal* deal);
+
+typedef struct fc4_power_budget_item {
+    uint32_t department;
+    uint32_t line;
+    int64_t cost;
+    uint32_t index;
+    float local_funding; /* a fraction */
+} fc4_power_budget_item;
+
+typedef struct fc4_power_message {
+    uint32_t msg_type;
+    uint32_t data1, data2, data3, data4;
+    uint32_t reserved;
+    uint64_t void1;     /* the IGZUnknown as a token, 0 = null */
+    fc4_cell_rect rect; /* the four int32 at void2 (zoning changed) */
+} fc4_power_message;
+
+typedef struct fc4_power_found {
+    uint32_t has_lowest_funded;
+    float lowest_funding;
+    uint64_t lowest_funded; /* one reference for the caller */
+    uint32_t has_most_worn;
+    int32_t wear_percent;
+    uint64_t most_worn; /* one reference for the caller */
+} fc4_power_found;
+
+typedef struct fc4_power_state {
+    uint32_t struct_size;
+    uint8_t initialized, running, enabled, recompute;
+    uint32_t state;
+    int32_t plant_count;
+    uint32_t pole_count, consumers, powered, unpowered, requirement;
+    uint32_t last_production, last_consumption, last_import, last_export, last_demand;
+    float deficit;
+    uint32_t reentrant_calls;
+    int64_t cost_base;
+    uint64_t department;
+    uint64_t grid;
+} fc4_power_state;
+
+/* What the power simulator needs from the game: one callback per PowerHost
+ * method (engine/core/src/power/mod.rs, power.md §11.1). Missing callbacks
+ * behave as "nothing there" (0, false, no object). */
+typedef struct fc4_power_host {
+    uint32_t struct_size; /* sizeof(fc4_power_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* city, tuning, ordinance, simulator */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*cell_widths)(void* user, float* x, float* z);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    float (*cumulative_factor)(void* user, uint32_t id, uint32_t index);
+    uint32_t (*sim_time)(void* user);
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t name_len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, const uint32_t* ids, size_t count);
+    void (*unsubscribe)(void* user, const uint32_t* ids, size_t count);
+    void (*post)(void* user, const fc4_power_post* msg);
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+    /* references */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* A reference read from a save (QI'd to iid, one reference) to the object's
+     * canonical token (one reference); 0 = dropped. */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*set_occupant_property)(void* user, uint64_t occ, uint32_t id, uint16_t mem_type, bool is_array,
+                                  const void* data, size_t count);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* min_xyz, float* max_xyz);
+    void (*occupant_bounding_cells)(void* user, uint64_t occ, fc4_cell_rect* out);
+    bool (*occupant_in_manager)(void* user, uint64_t occ);
+    bool (*building_type)(void* user, uint64_t occ, uint32_t* out);
+    bool (*power_pole)(void* user, uint64_t occ, fc4_power_pole* out);
+    void (*break_all_connections)(void* user, uint64_t pole, bool flag);
+    bool (*pole_is_distressed)(void* user, uint64_t pole);
+    void (*set_pole_distressed)(void* user, uint64_t pole, bool on);
+    bool (*power_line)(void* user, uint64_t occ, fc4_power_line* out);
+    bool (*line_connected_poles)(void* user, uint64_t line, uint64_t* first, uint64_t* second);
+    void (*remove_pole_connection)(void* user, uint64_t pole, uint64_t line);
+    bool (*network_occupant_cell)(void* user, uint64_t occ, int32_t* x, int32_t* z);
+    bool (*has_network_flag)(void* user, uint64_t occ, uint32_t flag);
+    uint32_t (*network_flags)(void* user, uint64_t occ);
+    void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    void (*remove_occupant)(void* user, uint64_t occ);
+    /* zones, tools */
+    uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    void (*power_line_tool_zone_change)(void* user, const fc4_cell_rect* rect, uint32_t data3);
+    /* lots */
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z);
+    uint64_t (*occupant_lot)(void* user, uint64_t occ);
+    uint64_t (*as_lot)(void* user, uint64_t token);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    bool (*lot_needs_power)(void* user, uint64_t lot);
+    bool (*lot_has_power)(void* user, uint64_t lot);
+    void (*set_lot_has_power)(void* user, uint64_t lot, bool on);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint32_t condition);
+    void (*demolish_lots)(void* user, const uint64_t* lots, size_t count, uint32_t flags);
+    void (*add_radiation)(void* user, const float* xyz, float strength, float radius);
+    bool (*current_view_input_control)(void* user, uint32_t* id);
+    void (*remove_current_view_input_control)(void* user);
+    /* neighbours */
+    void (*find_deals)(void* user, uint32_t deal_type, fc4_power_deal_callback cb, void* ctx);
+    int32_t (*deal_amount_used)(void* user, uint64_t deal);
+    void (*set_deal_amount_used)(void* user, uint64_t deal, int32_t used);
+    void (*set_deal_flags)(void* user, uint64_t deal, uint32_t flags, bool on);
+    bool (*deal_type)(void* user, uint64_t token, uint32_t* out);
+    void (*mark_deals_dirty)(void* user);
+    void (*connections_of_type)(void* user, uint32_t type, fc4_token_callback cb, void* ctx);
+    void (*connections_to_city)(void* user, uint32_t type, uint64_t city, fc4_token_callback cb, void* ctx);
+    uint64_t (*find_unvisited_connection)(void* user, uint32_t type, uint64_t city);
+    uint64_t (*connection_on_other_side)(void* user, uint64_t conn);
+    void (*connection_cell)(void* user, uint64_t conn, int32_t* x, int32_t* z);
+    void (*set_connection_visited)(void* user, uint64_t conn, bool on);
+    bool (*connection_is_active)(void* user, uint64_t conn);
+    void (*set_connection_active)(void* user, uint64_t conn, bool on);
+    /* budget */
+    uint64_t (*department)(void* user, uint32_t id);
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t group);
+    void (*set_department_name)(void* user, uint64_t dept, uint32_t group, uint32_t instance);
+    void (*set_department_max_funding)(void* user, uint64_t dept, float fraction);
+    float (*department_funding)(void* user, uint64_t dept);
+    int64_t (*budget_funding)(void* user, uint64_t dept);
+    uint64_t (*create_line_item)(void* user, uint64_t dept, uint32_t line, bool locally_funded);
+    uint64_t (*create_line_item_for_building_type)(void* user, uint64_t dept, uint32_t line, bool flag);
+    uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line);
+    void (*set_line_item_name)(void* user, uint64_t item, uint32_t group, uint32_t instance);
+    void (*set_line_item_display_flag)(void* user, uint64_t item, uint32_t flag, bool on);
+    int32_t (*line_item_secondary_info)(void* user, uint64_t item);
+    void (*set_line_item_secondary_info)(void* user, uint64_t item, int32_t value);
+    void (*set_line_item_full_expenses)(void* user, uint64_t item, int64_t value);
+    bool (*budget_item_for_purpose)(void* user, uint64_t occ, uint32_t purpose, fc4_power_budget_item* out);
+    void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);
+    void (*change_budget_item_cost)(void* user, uint64_t occ, uint32_t index, int64_t cost);
+    void (*add_locally_funded_object)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    void (*remove_locally_funded_object)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    bool (*is_locally_funded_object)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    bool (*set_local_funding_percent)(void* user, uint64_t dept, uint64_t occ, float fraction, uint32_t purpose);
+    void (*set_local_full_funding)(void* user, uint64_t dept, uint64_t occ, int64_t amount, uint32_t purpose);
+} fc4_power_host;
+
+/* The host table is copied; `token` is the simulator's own host identity. NULL
+ * on a short table. */
+fc4_power* fc4_power_create(const fc4_power_host* host, uint64_t token);
+void fc4_power_destroy(fc4_power* p);
+bool fc4_power_init(fc4_power* p);                                   /* §4.1 */
+bool fc4_power_shutdown(fc4_power* p);                               /* §4.2 */
+bool fc4_power_do_message(fc4_power* p, const fc4_power_message* m); /* §4.3, §5: always true */
+/* The argument-free numeric slots 9, 11-15, 17, 21, 22, 24, 26-29, 39, 41-44. */
+int64_t fc4_power_slot_value(const fc4_power* p, uint32_t slot);
+void fc4_power_position_to_cell(const fc4_power* p, float x, float z, int32_t* cx, int32_t* cz); /* 5 */
+void fc4_power_cell_to_position(const fc4_power* p, int32_t cx, int32_t cz, float* x, float* z); /* 6 */
+int32_t fc4_power_annual_consumption_by_type(const fc4_power* p, int32_t type);                  /* 10 */
+int32_t fc4_power_consumption_at(const fc4_power* p, int32_t x, int32_t z);                       /* 16 */
+int32_t fc4_power_plant_count_of_type(const fc4_power* p, int32_t type);                           /* 23 */
+/* 25: every plant with one reference for the callback (released if cb is NULL). */
+size_t fc4_power_plants(const fc4_power* p, fc4_token_callback cb, void* ctx);
+bool fc4_power_find_plants(const fc4_power* p, fc4_power_found* out);                          /* 30 */
+bool fc4_power_is_occupant_powered(const fc4_power* p, uint64_t occ);                           /* 31 */
+bool fc4_power_occupant_consumed(const fc4_power* p, uint64_t occ, uint32_t* out);              /* 32 */
+bool fc4_power_occupant_produced(const fc4_power* p, uint64_t occ, uint32_t* produced, uint32_t* used); /* 33 */
+bool fc4_power_occupant_max_produced(const fc4_power* p, uint64_t occ, uint32_t* out);          /* 34 */
+uint64_t fc4_power_powered_grid(const fc4_power* p); /* 20, 35, 36: borrowed token, 0 = none */
+bool fc4_power_is_powered(const fc4_power* p, int32_t x, int32_t z);                             /* 19, 37 */
+bool fc4_power_is_wired(const fc4_power* p, int32_t x, int32_t z);                               /* 38 */
+float fc4_power_chance_of_strike(const fc4_power* p);                                             /* 40 */
+float fc4_power_plant_efficiency(const fc4_power* p, uint64_t occ);                               /* 45 */
+float fc4_power_plant_condition(const fc4_power* p, uint64_t occ);                                /* 46 */
+float fc4_power_strike_efficiency(const fc4_power* p);                                            /* 47 */
+uint64_t fc4_power_department(const fc4_power* p); /* 48 forwards to it; borrowed, 0 = none */
+bool fc4_power_generation_cost(const fc4_power* p, uint64_t occ, int64_t* out);                 /* 49 */
+bool fc4_power_plant_funding(const fc4_power* p, uint64_t occ, float* out);                     /* 50 */
+bool fc4_power_set_plant_funding(const fc4_power* p, uint64_t occ, float fraction);             /* 51 */
+bool fc4_power_get_state(const fc4_power* p, fc4_power_state* out);
+bool fc4_power_write(const fc4_power* p, const fc4_ostream* out); /* §9 */
+bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false only for version > 6 */
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -1193,6 +1435,17 @@ static_assert(sizeof(fc4_demand_connection) == 24, "fc4_demand_connection layout
 static_assert(sizeof(fc4_demand_growth_developer) == 24, "fc4_demand_growth_developer layout");
 static_assert(sizeof(fc4_demand_sim_state) == 44, "fc4_demand_sim_state layout");
 static_assert(sizeof(fc4_demand_host) == (sizeof(void*) == 4 ? 172 : 344), "fc4_demand_host layout");
+static_assert(sizeof(fc4_grid_api) == (sizeof(void*) == 4 ? 40 : 80), "fc4_grid_api layout");
+static_assert(sizeof(fc4_cell_rect) == 16, "fc4_cell_rect layout");
+static_assert(sizeof(fc4_power_post) == 32, "fc4_power_post layout");
+static_assert(sizeof(fc4_power_pole) == 12, "fc4_power_pole layout");
+static_assert(sizeof(fc4_power_line) == 12, "fc4_power_line layout");
+static_assert(sizeof(fc4_power_deal) == 24, "fc4_power_deal layout");
+static_assert(sizeof(fc4_power_budget_item) == 24, "fc4_power_budget_item layout");
+static_assert(sizeof(fc4_power_message) == 48, "fc4_power_message layout");
+static_assert(sizeof(fc4_power_found) == 32, "fc4_power_found layout");
+static_assert(sizeof(fc4_power_state) == 88, "fc4_power_state layout");
+static_assert(sizeof(fc4_power_host) == (sizeof(void*) == 4 ? 400 : 800), "fc4_power_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

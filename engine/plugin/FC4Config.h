@@ -71,6 +71,21 @@ enum class Sw : unsigned {
                        //   lot per scan; the entries are still nulled)
     LotListFree,       // lot_list_free: destroy the SC4List (off: the list is heap-allocated
                        //   and leaked, head and nodes included)
+    // Power simulator host callbacks (cFC4Power.cpp), one per group of game
+    // calls; only used when the power subsystem is enabled.
+    PowerOccupants,   // power_occupants: occupant type, properties, position, bounding box/cells,
+                      //   building type, network occupants (off: occupants look empty)
+    PowerPoles,       // power_poles: pole and line QIs, GetCell, IsPreview, BreakAllConnections,
+                      //   Is/SetDistressed (off: not a pole / line, nothing done)
+    PowerLots,        // power_lots: lot manager and lot calls, SetHasPower (off: no lot)
+    PowerNeighbors,   // power_neighbors: deals and neighbour connections (off: none)
+    PowerBudget,      // power_budget: department, line items, budget items (off: no department)
+    PowerGridWrites,  // power_grid_writes: SetTractValue / SetTractValues on the powered grid
+    PowerPosts,       // power_posts: messages the power simulator posts
+    PowerTerrain,     // power_terrain: RemoveOccupant of poles on terrain changes
+    PowerZoneTool,    // power_zone_tool: the power-line tool's UpdateOnZoneChange
+    PowerView,        // power_view: the 3D view's current input control (Nuclear Free Zone)
+    PowerRadiation,   // power_radiation: AddRadiationToCity (nuclear meltdown)
     Count
 };
 
