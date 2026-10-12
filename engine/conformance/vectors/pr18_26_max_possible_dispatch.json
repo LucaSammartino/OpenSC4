@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "protection_max_possible_dispatch",
+  "spec": ["protection 7.3", "protection 18.26"],
+  "description": "Test 26 (PR1): GetMaxPossibleDispatchCount sums GetDispatchesAtStation(s, null, null, &count) over the station list with one count local that starts at 0 and is never reset, so a station without the unit-count property (0x08F55DC5) adds the previous station's count. Fire stations A (10, 3 units), B (11, count property removed), C (12, 2 units). List order A, B, C -> 3 + 3 + 2 = 8, while GetTotalDispatchCount (absent count -> 0) = 3 + 0 + 2 = 5. A fresh simulator with the order B, A, C -> 0 + 3 + 2 = 5. No stations -> 0. Hand-derived from 7.3.",
+  "steps": [
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "max_possible_dispatch_count", "expect": 0},
+    {"op": "protection_call", "method": "total_dispatch_count", "expect": 0},
+    {"op": "protection_occupants", "10": {"station": ["fire", 10, 0, 50, 3]}, "11": {"station": ["fire", 10, 0, 50, 4], "props": {"0x08F55DC5": null}}, "12": {"station": ["fire", 10, 0, 50, 2]}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 10},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 11},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 12},
+    {"op": "protection_expect", "state": {"stations": [10, 11, 12]}},
+    {"op": "protection_call", "method": "max_possible_dispatch_count", "expect": 8},
+    {"op": "protection_call", "method": "total_dispatch_count", "expect": 5},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 11},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 10},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 12},
+    {"op": "protection_expect", "state": {"stations": [11, 10, 12]}},
+    {"op": "protection_call", "method": "max_possible_dispatch_count", "expect": 5},
+    {"op": "protection_call", "method": "total_dispatch_count", "expect": 5}
+  ]
+}

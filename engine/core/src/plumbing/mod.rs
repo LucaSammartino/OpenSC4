@@ -35,7 +35,7 @@
 //! Host callbacks should not call back into the simulator: a re-entrant call
 //! sees an empty state and its changes are lost, but nothing panics.
 //!
-//! # Choices made where the spec is open (`[choice]`)
+//! # Choices made where the spec is open (`[choice]`), and spec answers
 //!
 //! - Time slicing (§6): states 6 and 7 run whole in one call by default (the
 //!   spec allows deterministic slicing). [`PlumbingSim::set_slice_cells`]
@@ -45,11 +45,14 @@
 //!   used.
 //! - Arithmetic follows foundations §18 (24-bit x87): every float operation
 //!   is one `f32` rounding of the exact result, with integer operands
-//!   entering unrounded. The `0.01` of §7.2 is a `float` constant (the spec's
-//!   own test 5 shows it); the SC4Percentage getter of §8 multiplies by
-//!   `0.01f` too. Truncations to integers ([`trunc_i64`]) give the x87
-//!   "integer indefinite" `i64::MIN` for NaN and out-of-range values (then
-//!   the low 32 bits where the spec says `low32`). The pipe cost (§5.4)
+//!   entering unrounded ([`crate::x87::r24`]). The `0.01` of §7.2 is a
+//!   `float` constant (the spec's own test 5 shows it); the SC4Percentage
+//!   getter of §8 multiplies by `0.01f` too, so the shipped max funding 120
+//!   is 1.1999999 (`0x3F999999`, PL6). Truncations to integers
+//!   ([`trunc_i64`]) are the C runtime's `_ftol` ([`crate::x87::ftol`],
+//!   foundations §18.1): `0x8000000000000000` for NaN and out-of-range
+//!   values, whose low 32 bits (where the spec says `low32`) are 0. These
+//!   are [compat], not choices. The pipe cost (§5.4)
 //!   rounds half to even at every magnitude (the original's `1.5 · 2^23`
 //!   trick is only valid below 2^22).
 //! - Cell counts read from the city are clamped to `0 ..= MAX_TRACTS`
@@ -80,14 +83,28 @@
 //!   a numeric property gives a curve (possibly empty, evaluating to 0); a
 //!   non-numeric or single-value property counts as absent (foundations
 //!   §4.1).
-//! - `NearestWater` (§7.2): the ring number is the Chebyshev distance (spec
-//!   question 3); the result is the smallest ring holding a water cell in the
-//!   clipped box.
-//! - State 3 with a current producer still set (not reachable: states 2 and
-//!   4 clear it) floods from that producer without searching for a seed.
-//! - `Init` step 4 sets the grids-initialized flag; `Shutdown` does not
-//!   clear it (§4.2 lists what it clears), so a second `Init` on the same
-//!   object (never done by the game) finds no grids and no flag map.
+//! - `NearestWater` (§7.2, PL1, [compat]): the box is computed in int32
+//!   arithmetic (a reach ≥ 2^31 is negative), an anchor outside it gives −1
+//!   untested, and the spiral tests the box cells one by one in the
+//!   original's clockwise ring order; the ring counter is the Chebyshev
+//!   distance. [choice] Terrain cell counts are clamped to
+//!   `0 ..= MAX_TRACTS` so the work stays bounded.
+//! - State 3 always seeds (§6.2, PL3): the current producer is always null
+//!   there, so the original's dead "network in progress" branch is not
+//!   reproduced.
+//! - The scanning iterator (§6.6, PL4, [compat]) rests done at
+//!   `(0, countZ)` after a full scan (states 2 and 7), and saves taken
+//!   between passes hold that position. State 2 resets it and scans the
+//!   working grid with it. The plumbing module sets the rest position itself
+//!   after the shared iterator reports the end, so it does not depend on
+//!   where [`crate::grid::ScanIterator`] leaves `z`.
+//! - Re-`Init` (§4.2, PL2): a second `Init` without `Shutdown` changes
+//!   nothing (step 2 creates the generator only when none is held).
+//!   [choice] `Shutdown` also clears the grids-initialized flag (and deletes
+//!   the iterator, as the original does), so an `Init` after `Shutdown`
+//!   rebuilds the grids, flag map, bitmap and iterator as on a new city
+//!   (state 0, recompute set) instead of leaving them null as the original
+//!   does (which then crashes).
 //! - `Read` (§9): fields are stored as they are read and a failing stream
 //!   stops the read (`Read` still returns true once the version matched). A
 //!   producer record whose occupant reference is null or does not resolve is
@@ -99,15 +116,16 @@
 //! - The producer without a lot (§5.3 step 5.2, a [quirk]) keeps the leaked
 //!   reference forever: the core `add_ref`s the occupant and records it in
 //!   [`PlumbingState::leaked`] without ever releasing it.
-//! - The visited bitmap is the shared [`crate::grid::Bitmap`], whose word
-//!   count is `(w · h) / 32`: when the cell count is not a multiple of 32 the
-//!   last cells have no bit and cannot be marked. Flood pushes (§6.2, §6.3)
-//!   mark first and then test the bit, and a cell whose bit does not stick is
-//!   not pushed, so every flood ends (those cells are neither flooded nor
-//!   watered). The bitmap's bit is `x & 31` within word `(w · z + x) >> 5`,
-//!   so for widths that are not multiples of 32 cells of one word with the
-//!   same `x` share a bit and the floods are aliased (kept as the shared
-//!   module defines it). Shipped city sizes are multiples of 32.
+//! - The visited bitmap is the shared [`crate::grid::Bitmap`] (power §2.1),
+//!   whose layout is the original's [compat] (§2, PL5): `side² / 32` words,
+//!   word `(side · z + x) >> 5`, bit `x & 31`. When the cell count is not a
+//!   multiple of 32 the last cells have no bit and cannot be marked. Flood
+//!   pushes (§6.2, §6.3) mark first and then test the bit, and [choice] a
+//!   cell whose bit does not stick is not pushed, so every flood ends (those
+//!   cells are neither flooded nor watered). For sides that are not
+//!   multiples of 32, cells of one word with the same `x` share a bit and
+//!   the floods are aliased, as in the original. The side is always 64, 128
+//!   or 256 for shipped city sizes, where no cell shares a bit.
 
 mod simulator;
 #[cfg(test)]

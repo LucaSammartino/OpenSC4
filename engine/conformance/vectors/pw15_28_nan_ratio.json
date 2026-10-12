@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "power_nan_ratio",
+  "spec": ["power 6.3", "power 6.4", "power 15.28", "foundations 18.1"],
+  "description": "Test 28, by hand from 6.3 and 6.4 as answered for PW13 (_ftol, foundations 18.1). Plant list order: P1 = 281 (capacity 1000, flat condition curve, funding 100 % -> 1000, coal) on network 1 with consumer 282 needing 500; P2 = 283 (gas, type 3) far away on network 2 without 0x8A1E07EE -> output 0, and no consumer. State 1: network 1: total 1100, used 500, MarkPowerPlantsAsVisited(500, 1000) -> ratio 0.5 -> P1 0x08D9763D = 500. Network 2: supply 0, total = 0 - trunc(0 x -1.1f) = 0, avail 0, so every block is a shortfall, used 0, remaining 0; the pass production is 1000 > 0, so ratio = f32(0 / 0) = NaN; 0 x NaN = NaN and _ftol(NaN) = 0x8000000000000000 whose low 32 bits are 0 -> P2 0x08D9763D = 0 (not 0x80000000) and ring[idx][3] gains 0. The ring row is [0, 500, 0, ...]; history 0xAA120D63 (type 3) records 0.",
+  "steps": [
+    {"op": "power_env", "occupants": [
+      {"id": 281, "type": "building", "cells": [8, 0, 9, 1], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1},
+        "0x8A1E07EE": {"f32": [0, 1, 1, 1]}}, "budget": {"line": 7}},
+      {"id": 282, "type": "building", "cells": [12, 0, 13, 1], "props": {"0x27812854": {"u32": 500}}},
+      {"id": 283, "type": "building", "cells": [100, 100, 101, 101], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 3}},
+        "budget": {"line": 8}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_message", "type": "OccupantInserted", "occupants": [281, 282, 283]},
+    {"op": "power_message", "type": "ConnectionsReady"},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_event_count", "filter": {"event": "history", "series": "0xAA120D63", "value": 0}, "count": 1},
+    {"op": "power_expect_event_count", "filter": {"event": "history", "series": "0xAA120D5E", "value": 500}, "count": 1},
+    {"op": "power_expect_events", "filter": {"event": "set_property", "id": "0x08D9763D"}, "events": [
+      {"event": "set_property", "occupant": 281, "id": "0x08D9763D", "value": 500},
+      {"event": "set_property", "occupant": 283, "id": "0x08D9763D", "value": 0}]},
+    {"op": "power_expect_occupant", "occupant": 283, "props": {"0x08D9763D": 0}},
+    {"op": "power_expect", "state": {"ring_row": [0, 500, 0, 0, 0, 0, 0, 0, 0, 0], "last_production": 1000, "last_consumption": 500,
+      "plants": [[2, 281], [2, 283]]}},
+    {"op": "power_call", "method": "annual_consumption", "expect": 500}
+  ]
+}

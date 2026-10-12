@@ -101,6 +101,28 @@ the new record leaks *[quirk]*. Consequences: `IsFloraTypeValid(0)` is true, `Ge
 non-null, and the default record takes part in `GetBestFloraTypeForLocation` and `GetFloraTypesByFilter`
 *[quirk]* (§14).
 
+**The flags byte of the default record** (`Init`, `0x006B2BAA`–`0x006B2BF2`): the record is 376 bytes from the
+game's global heap (`operator new`, the 512-byte pool, `docs/abi/allocators.md` instance C). The inline
+constructor clears the reference count, the held exemplar, the family vector and one float; the defaults
+routine (`0x006B0220`) writes the type, next type, seed type, water flag, the 14 floats, the cluster values, the
+propagation table and the unnamed u32. Nothing writes the flags byte (nor the int64 plop cost). The pool hands
+out recycled blocks without clearing them, so the byte holds whatever the previous user of that memory left
+there: it is not a property of the game and cannot be reproduced. Bit 0 decides whether the default record can
+win `GetBestFloraTypeForLocation` (§6.3); bit 1 is never consulted for it (no flora occupant has type 0, §6.5
+step 1); the brush and wild seeding never see it (they use the type array). *[choice]* FreeCity4 gives the
+default record flags **`0x01`** (bit 0 set: never chosen automatically), so type 0 never shadows a real type in
+`GetBestFloraTypeForLocation` or the `blast` cheat. Exemplar records have the same uninitialised byte, but
+`AddStaticFloraData` clears bit 0 and sets bits 1 and 2 before applying the properties (§3.3), so only bits 3–7
+are left over, and no code reads them; FreeCity4 clears them *[choice]*.
+
+**Registration order** (the type array, §6.7.3 and §6.11): the order of the resource manager's key list for type
+`0x6534284A`. That list is built segment by segment (the resource manager's segments in their registration order;
+a multi-file segment walks its files in order), and each package file lists its index **hash table** in bucket
+order: bucket = `instance mod B` ascending (`B` = the table's prime bucket count, at least 53), most recently
+indexed entry first within a bucket (`0x0096F9AB`, `0x0097C081`, `0x0097C1EA`; hash = the instance,
+`0x0097C0C5`). Flora instances are large hash-like IDs, so the registration order is **not** ascending type ID
+*[compat]*; it decides wild-seed draws (§6.7.3) and seed types (§6.11, quirk 12).
+
 ### 3.3 Static flora record (`cSC4StaticFloraData`)
 
 One reference-counted record per flora type, built from a flora exemplar (resource type `0x6534284A`,
@@ -184,7 +206,9 @@ clears it around the write (§10.3). Flora changes are announced with the occupa
 5. Hold the occupant manager, the weather simulator (may be null), the terrain and the lot manager. Create the
    **blocking filter** (§6.4.1) and hold it.
 6. If the city exists: sizeX, sizeZ := city slots 89/90 (`SizeX`/`SizeZ`, float in ST0); cellsX, cellsZ := city
-   slots 93/94 (cell counts, EAX); `blocksPerMonth := ((cellsX × cellsZ) div period) >> 2` (unsigned).
+   slots 93/94 (cell counts, EAX); `blocksPerMonth := ((cellsX × cellsZ) div period) >> 2` (32-bit product,
+   unsigned division). This uses the period **before** the tuning read of step 9: the constructor's 6 in a new
+   city, the saved value in a loaded one. Period 0 → integer divide fault (§7).
 7. If keepIteratorFlag = 0 (always, §14): set the iterator rectangle to `(0, 0, cellsX/2 − 1, cellsZ/2 − 1)`
    (halving truncates toward zero; the upper corner is clamped to ≥ the lower corner), force **table mode**,
    then `reset(shuffle = true)` (foundations §12.4: table refilled in natural order, then `random_shuffle`d,
@@ -224,7 +248,7 @@ results, so flora's position in the month list (foundations §13.2: registration
 |---|---|
 | SimNewDay `0x66956814` (level 4) | Daily burnt-flora removal (§6.8). |
 | SimNewMonth `0x66956816` (level 6) | `today := data1`; monthly simulation (§6.7) if enabled. |
-| InsertOccupant `0x99EF1142` | `occ := void1`. If its property holder **has** property `0x029244DB` (preview occupant, foundations §5.2): ignore. Else §6.10.1 with `type := data3` *[inferred: data3 carries the occupant type]*. |
+| InsertOccupant `0x99EF1142` | `occ := void1`. If its property holder **has** property `0x029244DB` (preview occupant, foundations §5.2): ignore. Else §6.10.1 with `type := data3` (the occupant type, §9.1). |
 | RemoveOccupant `0x99EF1143` | Same preview test. If `data3` = flora type and the burnt list holds `occ`: remove it from the list and release the list's reference. |
 | TerrainHeightsChanged `0x278E6003` | Only if the terrain is initialized (terrain slot 5): cell rectangle `x0 = max(0, (data1 >> 16) − 1)`, `x1 = min(data1 & 0xFFFF, cellsX − 1)`, `z0 = max(0, (data2 >> 16) − 1)`, `z1 = min(data2 & 0xFFFF, cellsZ − 1)`; §6.10.2. |
 | CityEstablished `0x26D31EC4` | `propagation := propagationForced`. |
@@ -261,7 +285,11 @@ ElevationIndex(x, z, water):
     return clamp(floor(d × elevationScale), 0, 15)
 ```
 
-`floor` is computed with the 1.5·2²³ float trick on a 32-bit float (exact floor for |v| < 2²²). `d`, the
+`floor` is computed with the 1.5·2²³ float trick on a 32-bit float (`0x006B031C`, `0x006B034F`): with `rhe` as in
+crime.md §6 and `v := d × elevationScale`, `n := rhe(f32(v − 0.5f))`, then `n := n + 1` if `float(n + 1) = v`
+(exact floor for |v| ≤ 2²²). For 2²² < |v| < 1.5·2²³ the wrong `n` stays on the same side of 0..15, so the clamp
+hides it; `v < −1.5·2²³` (not reachable with shipped terrain and scale) would give a large positive `n` and index
+15 *[compat]*. `d`, the
 product and the floor's steps are `float32` operations (foundations §18): the product is rounded before the
 floor, so d = 50 with scale 0.02f gives exactly 1.0 and index 1. Shipped
 elevationScale = 16 / 800 = 0.02, so one index step is 50 m; the code default 0.08 gives 12.5 m.
@@ -276,12 +304,19 @@ Score(type, x, z):
     return record.table[e][m] × (1/255 as f32)        (x87 result in ST0)
 ```
 
-The weather pointer is not null-checked here.
+**No weather simulator.** `Init` takes the weather from the game's cached service pointer and holds it only if
+it is non-null (`Shutdown` releases it only if non-null), but neither `Score` (`0x006B0900`) nor
+`GetBestFloraTypeForLocation` (`0x006B07B0`) tests it: both call `GetMoistureType` through it, so without a
+weather simulator the original reads a vtable through a null pointer and crashes at the first score: the first
+monthly visit of a flora occupant that is not reborn, the first seed drop, or the first type-0 / `blast` planting.
+The shipped city always has its weather component (foundations §3.6, slot 38). *[choice]* FreeCity4 uses
+moisture type **0** when there is no weather simulator, the value an uninitialised weather simulator returns
+(`GetMoistureValue` is 0 until `Init`, weather §4).
 
 ### 6.3 Best type for a location (`GetBestFloraTypeForLocation(x, z, &score)`)
 
-Walk the type map in ascending type-ID order (including the key-0 default record, §3.2). Skip records with flag
-bit 0. Compute the score with `m := GetMoistureType(x, z)` and the elevation index for the record's water flag.
+Walk the type map in ascending type-ID order (including the key-0 default record, §3.2, which FreeCity4's flags
+choice always skips). Skip records with flag bit 0. Compute the score with `m := GetMoistureType(x, z)` and the elevation index for the record's water flag.
 Keep the record if its score is **strictly greater** than the best so far (start: type 0, score 0). Store the
 best score, return the best type (0 if none scores above 0).
 
@@ -297,12 +332,20 @@ if not onLot:
 box := min (x − r, h − 16, z − r), max (x + r, h + record.height, z + r),  r = record.clearanceRadius
 if min.x < 0 or min.z < 0 or city.SizeX() < max.x or city.SizeZ() < max.z: return false
 for each occupant in occupantManager.GetOccupantsByBBox(min, max, blockingFilter):
-    if occupant ≠ exclude and its bounding box intersects box (SC4GeometryUtilities::BoundingBoxesIntersect,
-       flags 0, 0): return false   (remaining occupants are still released)
+    if occupant ≠ exclude and Intersects(box, occupant.GetBoundingBox()): return false
+                                    (remaining occupants are still released)
 return true
 ```
 
 On a lot the sea-level and slope tests are skipped. Return in AL only.
+
+`Intersects` is `SC4GeometryUtilities::BoundingBoxesIntersect(aMin, aMax, bMin, bMax, outMin, outMax)`
+(`0x005D6D80`, cdecl, result in AL) called with a = the clearance box, b = the occupant's box and two **null
+output pointers** (the earlier text called them "flags 0, 0"; they receive the overlap box when the first is
+non-null). *[compat]* The test is **strict** on all three axes, in the order x, y, z:
+`aMin < bMax` and `bMin < aMax` for each axis (`float32` compares). Boxes that only touch, for example
+`box.max.x = occupant.min.x`, do **not** intersect, so an occupant whose box ends exactly at the clearance
+radius does not block. An unordered compare (NaN) counts as overlapping on that axis.
 
 #### 6.4.1 Blocking filter
 
@@ -409,7 +452,7 @@ if stage ≠ state:
 if propagation and canSeed:
     now := simulator.GetSimDateNumber()
     if lastSeedingDate + rec.seedingInterval < now:          (float compare)
-        repeat roundHalfEven(rec.seedsPerCycle) times:
+        repeat rhe(rec.seedsPerCycle) times:                  (crime.md §6 rhe, 0x006B0C8A; none if ≤ 0)
             x := rng.RandomDoubleRangeUniform(pos.x − rec.spread, pos.x + rec.spread)
             z := rng.RandomDoubleRangeUniform(pos.z − rec.spread, pos.z + rec.spread)
             if 0 ≤ x < sizeX and 0 ≤ z < sizeZ: DropSeed(rec.seedType, x, z)
@@ -444,7 +487,7 @@ outside the array. Shipped tuning sets wildSeedsPerMonth to 0, so wild seeding i
 burnAccumulator += burnRate
 if burnAccumulator ≥ 1: burnAccumulator −= 1;  burntRemovalAccumulator += burntRemovalStep
 if burntRemovalAccumulator ≥ 1:
-    n := floor(burntRemovalAccumulator);  burntRemovalAccumulator −= n
+    n := floor(burntRemovalAccumulator);  burntRemovalAccumulator −= n      (the §6.1 floor sequence, 0x006B1736)
     repeat n times while the burnt list is not empty:
         o := pop front;  occupantManager.RemoveOccupant(o, true, 0);  release o
 ```
@@ -481,6 +524,14 @@ Re-seat: `h' := GetLotSavvyTerrainAltitude(pos.x, pos.z)`, raised to the sea lev
 
 So without the `preserve` cheat, any flora whose ground moved is removed.
 
+*[compat]* Arithmetic (foundations §18): the tolerance is the **`float32`** constant `0.001f` (`0x3A83126F` =
+0.0010000000474974513, `.rdata 0x00A867A4`, loaded with `fcomp dword`). `h` and `h'` arrive in ST0 (lot manager
+slot 18); `h − pos.y` (`DoTerrainAltitudeChange`, `0x006B1B9F`) and `h' − pos.y` (re-seat, `0x006B1288`) are one
+24-bit subtraction each, then `fabs`, then the compare. Removal/move happens when `|d| ≥ 0.001f` or `d` is NaN
+(re-seat: a NaN `d` does **not** move). Because `d` is itself a `float32` value and no `float32` lies strictly
+between the double 0.001 and `0.001f` (the next value below is `0x3A83126E` = 0.00099999993), "`|d| < 0.001f`"
+and "`|d| < 0.001`" give the same result for every input; an implementation may use either constant.
+
 #### 6.10.3 Demolition functions
 
 `DemolishFloraOccupant(occ, flags)` = `occupantManager.RemoveOccupant(occ, true, 0)` for **any** occupant (no
@@ -492,6 +543,19 @@ ignored *[quirk]*). They return true if every call returned true (true for an em
 
 Only on a true → false change: every flora occupant of the city (`GetOccupantsByStandardCityCells(null, null,
 type flora)`) is passed to slot 19 with flags 0.
+
+**Null corners** *[compat]* (occupant manager, original code): `GetOccupantsByStandardCityCells` (slot 41,
+`0x0049DDC0`) sets its type filter (type 0 → no filter) and continues in the filter version (slot 40,
+`0x0049E250`). That returns false at once if the occupant manager is not initialized. A null **min** corner
+means cell (0, 0); a null **max** corner means cell `(nx, nz)`, the manager's standard-cell counts (not
+`n − 1`). Given corners are clamped to `[0, n − 1]` per axis. The cell box becomes the world box
+`min = (16·x0 + 0.1f, −FLT_MAX, 16·z0 + 0.1f)`, `max = (16·(x1 + 1) − 0.1f, +FLT_MAX, 16·(z1 + 1) − 0.1f)`
+(each a `float32` add or subtract) and the call goes on as `GetOccupantsByBBox` (slot 36). With null corners the
+box therefore covers the whole city and one cell beyond its far edges: **every** flora occupant of the city.
+`GetOccupantsByOccupantManagerCells` (slot 39, `0x0049DD80` → slot 38 `0x004A0A70`, used by the obliteration save,
+§10.3) treats null corners the same way on its own 64 m grid: a null min is that grid's first city cell
+(64, 64) and a null max its last (`count + 63`); given corners are clamped to 0..191 *[inferred: the 192-cell grid
+has a 64-cell margin around the city]*. Both therefore mean "the whole city".
 
 ### 6.11 Cluster chains and seed types
 
@@ -533,6 +597,13 @@ wildSeedsPerMonth := u32( trunc( float(u32(trunc(float(wildSeedsPerMonth) × siz
 
 i.e. seeds per 2²⁰ m² (one 1024 m × 1024 m city). The scaling rewrites the stored value; see §14 quirk 11.
 
+**Period 0** *[quirk]*: `blocksPerMonth` is an x86 `div` by `period` in two places, `Init` step 6
+(`0x006B2B53`, with the constructor's or the **saved** period) and this tuning read (`0x006B01CB`, with the value
+just read). A period of 0 (tuning `0x8761ABD0 = 0`, or a save that holds 0) raises the integer divide-by-zero
+exception there and the game crashes; it is not reachable with shipped data (6 by code, 24 shipped). No other
+code divides by the period. *[choice]* FreeCity4 computes `blocksPerMonth` with a divisor of 1 when the period is
+0 (a full pass every month) and keeps and saves the period as 0.
+
 **No response curves** are loaded (foundations §4.1 patterns do not apply).
 
 Per-type data comes from the flora exemplars (§3.3), loaded once per process.
@@ -561,9 +632,35 @@ restored** with the city (like the weather, unlike foundations §6.2's general r
 | ID | When | Fields |
 |---|---|---|
 | `0x87A6277F` FloraTypesUpdated | after every (re)load of all flora types | `MessagePost` (queued, normal priority); void1 = IGZUnknown = the simulator (primary interface); data2 = number of map entries |
-| `0x99EF1145` ChangeOccupant | rebirth, stage 1/2 changes, burning | through the occupant's `PostOccupantMessage(0x99EF1145, 0)` |
+| `0x99EF1145` ChangeOccupant | rebirth, stage 1/2 changes, burning | through the occupant's `PostOccupantMessage(0x99EF1145, 0)` (§9.1) |
 
 Insert and remove messages for flora come from the occupant manager (`InsertOccupant`/`RemoveOccupant`).
+
+### 9.1 Occupant messages (`cISC4Occupant::PostOccupantMessage`, slot 15) *[compat]*
+
+The flora occupant uses the base implementation `0x005E9010` (its `cISC4Occupant` vtable `0x00A88580`, slot 15;
+the overrides of other occupant classes, `0x00458D10`, `0x0065A980`, `0x00654180`, call it first and then post a
+second, class-specific message). `PostOccupantMessage(type, value)` builds one standard message:
+
+| Field | Value |
+|---|---|
+| type | `type` |
+| void1 | the occupant (`cISC4Occupant*`) |
+| IGZUnknown | the occupant (counted) |
+| data2 | `IsFlagSet(4)` as 0/1 |
+| data3 | the occupant's **type** (`GetType()`, slot 7): `0x74758926` for flora |
+| data4 | `value` |
+
+It is **posted** (`MessagePost(msg, false)`, queued, normal priority) for every type, except `0x99EF1146`, which
+is sent synchronously when a member of the occupant (offset `+0x30` of the interface) is non-null. So the
+`0x99EF1145` of §6.7.2 and §6.9 reach flammability and the other subscribers on a later message-server tick,
+after the simulator has finished the current visit.
+
+The occupant manager's `InsertOccupant(occ, v)` (slot 20, `0x0049EF60`) sets the occupant's flag 1 and then calls
+`occ.PostOccupantMessage(0x99EF1142, v)`; `RemoveOccupant(occ, …, v)` (slot 21, `0x0049F240`) calls
+`occ.PostOccupantMessage(0x99EF1143, v)` and then clears flag 1. **data3 of InsertOccupant / RemoveOccupant is
+therefore the occupant type** (the handlers of §5 read it with `GetData3`), and both messages are delivered
+after the fact, when flag 1 is already set (insert) or already clear (remove).
 
 ---
 
@@ -721,7 +818,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 36 | `+0x90` | GetOccupantsByBBox(list, min, max, **filter**, −1) | 20 | AL |
 | | 37 | `+0x94` | GetOccupantsByBBox(list, min, max, **type**, −1) | 20 | AL |
 | | 39 | `+0x9C` | GetOccupantsByOccupantManagerCells(list, null, null, **type**, −1) | 20 | AL ignored |
-| | 41 | `+0xA4` | GetOccupantsByStandardCityCells(list, &min, &max, **type**, −1) (null corners = whole city *[inferred]*) | 20 | AL |
+| | 41 | `+0xA4` | GetOccupantsByStandardCityCells(list, &min, &max, **type**, −1) (null corners = whole city, §6.10.4) | 20 | AL |
 | | 48 | `+0xC0` | ReleaseOccupantList(list) | 4 | ignored |
 | `cISC4Occupant` (`0x00AA41D8`) | 3 | `+0x0C` | Init | 0 | ignored |
 | | 6 | `+0x18` | AsPropertyHolder (then HasProperty `0x029244DB`) | 0 | EAX ptr |
@@ -733,7 +830,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 12 | `+0x30` | GetNetworkFlag | 0 | EAX |
 | `cISC4FloraOccupant` (`0x00A88608`) | 3–14 | | §11.4 | | |
 | `cIGZCommandParameterSet` / `cIGZVariant` | 5; `+0x60`, `+0x90` | | GetParameter(i); value as u32 / as f32 (ST0) | | |
-| non-virtual | | | `cSC4FloraOccupant` constructor (`0x00472B30`) with the pooled `operator new` (`0x00472960`); `cRZRandom` methods (foundations §6.1); `SC4GeometryUtilities::BoundingBoxesIntersect` (`0x005D6D80`); random cell iterator (`0x0049C820` SetRect, `0x0049CB10` GetNext, `0x0049D1C0` Reset); `cRZCmdLine` | | |
+| non-virtual | | | `cSC4FloraOccupant` constructor (`0x00472B30`) with the pooled `operator new` (`0x00472960`); `cRZRandom` methods (foundations §6.1); `SC4GeometryUtilities::BoundingBoxesIntersect` (`0x005D6D80`, cdecl, 24 bytes of arguments popped by the caller, AL; §6.4); random cell iterator (`0x0049C820` SetRect, `0x0049CB10` GetNext, `0x0049D1C0` Reset); `cRZCmdLine` | | |
 
 ---
 
@@ -800,7 +897,8 @@ Quirks *[quirk]*:
 
 1. The key-0 default record (uninitialised flags) sits in the type map: `IsFloraTypeValid(0)` is true; it can
    win `GetBestFloraTypeForLocation` (score 0.6 in elevation and moisture 5..12) when its flag bit 0 happens to
-   be clear, which makes type-0 planting requests fail there; a second city leaks a new record.
+   be clear, which makes type-0 planting requests fail there; a second city leaks a new record. The byte is heap
+   leftovers; FreeCity4 fixes it at `0x01` *[choice]* (§3.2).
 2. Exemplar-changed handling reloads all types when `data2` is any registered type (including 0), ignores the
    group, leaks the old records, and the cheat message falls into the same handler for any non-flora cheat.
 3. PlaceFlora puts parameter 2 into `y` and `z = −1`, so it never plants.
@@ -818,6 +916,8 @@ Quirks *[quirk]*:
     scaled again on every tuning read.
 12. Seed types depend on exemplar load order (§6.11).
 13. The `blast` cheat accepts `z = sizeZ` (inclusive) but not `x = sizeX`.
+14. A period of 0 is an integer divide fault in `Init` and the tuning read (§7); FreeCity4 divides by 1.
+15. Without a weather simulator the first score computation dereferences null (§6.2); FreeCity4 uses moisture 0.
 
 Corrections to `docs/subsystems/grid-sims.md` §10: the daily removal uses `floor`, not a loop "while acc ≥ 1"
 (one step per day); the monthly pass visits **2×2-cell blocks** from a shuffled table, `blocksPerMonth` per
@@ -830,13 +930,14 @@ the record's seed type; wild seeding is off in the shipped tuning (0 seeds) and 
 
 1. Meaning of flag bit 2 (cleared by `0x6A37EBB6 = true`) and of the unused floats/u32 (`0x083DC35B[11]`,
    `0x083DE16F`); no reader found.
-2. `data3` of Insert/RemoveOccupant is assumed to be the occupant type (the handler compares it with type IDs);
-   the occupant's `PostOccupantMessage` was not traced.
-3. Whether `0x99EF1145` from `PostOccupantMessage` is sent or posted (affects when flammability sees it).
+2. *(resolved)* data3 of Insert/RemoveOccupant is the occupant type (`PostOccupantMessage`, §9.1).
+3. *(resolved)* `0x99EF1145` from `PostOccupantMessage` is **posted** (queued), §9.1.
 4. The god-mode forest brush planting path (terrain) was not traced beyond its type list *[inferred: it plants
    through `AddNewFloraOccupant`]*.
-5. Whether null corner pointers to `GetOccupantsByStandardCityCells` / `…ByOccupantManagerCells` mean "whole
-   city" (assumed from the callers' intent).
+5. *(resolved)* Null corners mean the whole city for both occupant-manager queries (§6.10.4).
+6. *(resolved)* The default record's flags byte is never written (heap leftovers, §3.2; FreeCity4 `0x01`); a
+   missing weather simulator crashes the original (§6.2); period 0 is an integer divide fault (§7);
+   `BoundingBoxesIntersect` is strict (§6.4); the terrain tolerance is `0.001f` (§6.10.2).
 
 ---
 
@@ -854,7 +955,8 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 4. **Score**: table byte 153 → 0.6 (153 × f32(1/255)); byte 25 → 0.0980392; unknown type → 0.0.
 5. **Exemplar table conversion**: 0.6 → 153; 0.1 → 25; 0.9 → 229; 0.4 → 102; 1.0 → 255; 1.2 → 50.
 6. **Best type**: types A (score 0.4), B (0.6), C (0.6, flag bit 0) at a cell → B (first strictly greater, map
-   order); all scores 0 → type 0, score 0.
+   order); all scores 0 → type 0, score 0. The key-0 default record (flags `0x01`, FreeCity4 *[choice]*, §3.2) at
+   elevation and moisture index 8 (its table byte 153 → 0.6) with only type A (0.4) registered → A, score 0.4.
 7. **blocksPerMonth** (period 24): 64² → 42; 128² → 170; 256² → 682. Period 6: 64² → 170.
 8. **Wild seed scaling**: value 5, size 1024 m → 5; 2048 m → 20; 4096 m → 80; shipped value 0 → 0 (no wild
    seeding, no draws).
@@ -869,7 +971,9 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 13. **Slope**: tolerance 0.5, off-lot: normal.y 0.5 → false; 0.51 → passes.
 14. **Under water**: land type at ground 240 m (sea 250, off-lot) → false; water type → passes this test.
 15. **Blocking**: a prop's box overlapping the clearance box → false; a power pole (network flag bit 5 only) →
-    not blocking; a street (bit 3) → blocking; the excluded occupant itself → ignored.
+    not blocking; a street (bit 3) → blocking; the excluded occupant itself → ignored. Strict test (§6.4): flora
+    at x = 100, radius 3 (clearance box x 97..103) and a prop box with min.x = 103.0 → **not** blocking (touching);
+    min.x = 102.99999237 (`0x42CDFFFF`) → blocking; the same on the y axis with the prop's min.y equal to `h + height`.
 16. **Planting altitude**: land type, `pos.y = 0`, ground 240 m (on a lot, so allowed) → y raised to 250; ground
     260 → 260. Orientation = `RandomSint32RangeUniform(0, 4)` (one integer step).
 17. **Cluster merge**: type A (next B, cluster radius 10) planted at (100, 100) with an A tree centred at
@@ -887,7 +991,9 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
     at x 97 kept.
 24. **Terrain change**: data1 = (10 << 16) | 20, data2 = (0 << 16) | 70 → cells x 9..20, z 0..63. Flora with
     unchanged ground → kept (re-seat no-op); ground moved by 2 m → removed; with `preserve` → moved to the new
-    ground, `MoveOccupant` called.
+    ground, `MoveOccupant` called. Tolerance `0.001f` (§6.10.2): flora at y = 250, new ground 250.0009765625
+    (250 + 2⁻¹⁰) → `|d|` = 0.0009765625 → kept, no `MoveOccupant`; new ground 250.001007080078125
+    (250 + 2⁻¹⁰ + 2⁻¹⁵) → `|d|` = 0.00100708 → removed (with `preserve`: moved).
 25. **Cheat**: `Flora off` with 10 flora → all removed, enabled = false, monthly does nothing; `Flora on` →
     enabled, nothing restored; `Flora propogation` → forced and propagation true; `Flora propogation off` →
     both false; `Flora preserve` → preserve true.
@@ -904,3 +1010,15 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 31. **AdvanceClusterType**: chain S → M → L: (S, S) → M; (S, M) → L; (M, S) → L; (L, S) → 0 (next(L) = 0); unrelated
     types → 0.
 32. **Seed types**: chain S → C registered C then S → C seeds S; registered S then C → C seeds C.
+33. **Occupant messages** (§9.1): `InsertOccupant(flora, 0)` → one **queued** message, delivered after the call
+    returns: type `0x99EF1142`, void1 = IGZUnknown = the occupant, data3 = `0x74758926`, data4 = 0, data2 = the
+    occupant's flag 4 (0/1); the flora handler sees the occupant with flag 1 already set. A rebirth during the
+    monthly visit posts `0x99EF1145` with data3 = `0x74758926`, data4 = 0; no subscriber receives it before
+    `DoMessage` returns.
+34. **Null corners** (§6.10.4): flora at (1, 1), (1023, 1), (1, 1023) and (1023, 1023) in a 64² city →
+    `Flora off` removes all four. Corners (10, 10)..(11, 11) → world box (160.1, −FLT_MAX, 160.1) ..
+    (191.9, +FLT_MAX, 191.9); corners (−5, 3)..(70, 3) → cells x 0..63, z 3..3.
+35. **Period 0** *[choice]*: tuning `0x8761ABD0 = 0`, 64² city → FreeCity4 `blocksPerMonth` = 4096 >> 2 = 1024,
+    period saved as 0 (the original faults on the division).
+36. **No weather** *[choice]*: no weather simulator, a type whose table byte at `[e][0]` is 153 → score 0.6
+    (moisture 0); the original crashes.

@@ -952,7 +952,7 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
    used = 1100; plant used 1000; demand 1200. Order B, A: B powered, A not; same used.
 5. **Conservation**: factor 0.9f, supply 1000, need 555 → avail 1222, then 667; leftover 600; used 500; plant
    used 500; history `0xAA11F7D5` = 499 (555 × 0.9f = 499.49998… rounds to 499.5, truncated), `0xAA11F7D2` = **450**
-   (500 × 0.9f = 450.0000067 rounds to 450.0 at 24 bits; the earlier 449 was a 53-bit result), `0xAA11F7D8` = 500.
+   (0.9f = 0.89999998, so the exact product 500 × 0.9f is 449.99998808, which rounds to 450.0 at 24 bits; the earlier 449 was a 53-bit result), `0xAA11F7D8` = 500.
 6. **Import**: no plant; buy deal amount 300 used 0, a PowerPole connection to that city whose cell is wired and
    whose other side is active; block need 200 → powered; deal used 200; import 200.
 7. **Export**: supply 1000, sell deal amount 400 connected; need 100 → exports 400, deal used 400, avail 600,

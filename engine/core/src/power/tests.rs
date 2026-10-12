@@ -41,6 +41,8 @@ struct Host {
     distressed: RefCell<BTreeSet<u64>>,
     expenses: Cell<i64>,
     agents: Cell<u32>,
+    /// `GetDepartmentBudget` calls.
+    lookups: Cell<u32>,
 }
 
 impl Host {
@@ -57,6 +59,7 @@ impl Host {
             distressed: RefCell::default(),
             expenses: Cell::new(-1),
             agents: Cell::new(0),
+            lookups: Cell::new(0),
         })
     }
 
@@ -262,7 +265,7 @@ impl PowerHost for Host {
     fn line_connected_poles(&self, _line: u64) -> Option<(u64, u64)> {
         None
     }
-    fn remove_pole_connection(&self, _pole: u64, _line: u64) {}
+    fn remove_pole_connection(&self, _first: u64, _second: u64) {}
     fn network_occupant_cell(&self, _occ: u64) -> Option<(i32, i32)> {
         None
     }
@@ -353,6 +356,7 @@ impl PowerHost for Host {
     }
     fn set_connection_active(&self, _conn: u64, _on: bool) {}
     fn department(&self, id: u32) -> Option<u64> {
+        self.lookups.set(self.lookups.get() + 1);
         (id == budget::DEPARTMENT && self.has_department.get()).then_some(DEPT)
     }
     fn create_department(&self, _id: u32, _group: u32) -> Option<u64> {
@@ -378,10 +382,10 @@ impl PowerHost for Host {
     }
     fn set_line_item_name(&self, _item: u64, _group: u32, _instance: u32) {}
     fn set_line_item_display_flag(&self, _item: u64, _flag: u32, _on: bool) {}
-    fn line_item_secondary_info(&self, _item: u64) -> i32 {
+    fn line_item_secondary_info(&self, _item: u64) -> i64 {
         0
     }
-    fn set_line_item_secondary_info(&self, _item: u64, _value: i32) {}
+    fn set_line_item_secondary_info(&self, _item: u64, _value: i64) {}
     fn set_line_item_full_expenses(&self, item: u64, value: i64) {
         if item == LINE_ITEM {
             self.expenses.set(value);
@@ -447,9 +451,13 @@ fn cycle(s: &PowerSim) {
 fn ftol_matches_ftol() {
     assert_eq!(ftol32(-2.75), -2);
     assert_eq!(ftol32(4799.9995), 4799);
-    assert_eq!(ftol32(f32::NAN), i32::MIN);
-    assert_eq!(ftol32(3.0e9), i32::MIN);
-    assert_eq!(ftol32(-3.0e9), i32::MIN);
+    // `_ftol` keeps the low 32 bits of an int64 (foundations §18.1): NaN
+    // and ±∞ give 0, values above int32 wrap.
+    assert_eq!(ftol32(f32::NAN), 0);
+    assert_eq!(ftol32(f32::INFINITY), 0);
+    assert_eq!(ftol32(3.0e9), 3_000_000_000u32 as i32);
+    assert_eq!(ftol32(-3.0e9), (-3_000_000_000i64) as i32);
+    assert_eq!(ftol32(0.0 * f32::NAN), 0);
     assert_eq!(ftol64(f32::NAN), i64::MIN);
     assert_eq!(ftol64(f32::INFINITY), i64::MIN);
     assert_eq!(ftol64(3.0e9), 3_000_000_000);
@@ -470,9 +478,13 @@ fn twenty_four_bit_products() {
     assert_eq!(ftol32(div_i(1100.0, 0.9)), 1222);
     assert_eq!(ftol32(mul_i(667.0, 0.9)), 600);
     assert_eq!(ftol32(mul_i(555.0, 0.9)), 499);
-    // The spec question of test 5: 500 x 0.9f rounds to 450.0.
+    // Test 5 (PW1): 500 x 0.9f = 449.99998808 rounds to 450.0.
     assert_eq!(ftol32(mul_i(500.0, 0.9)), 450);
     assert_eq!(div_ii(2.0, 3.0), 2.0f32 / 3.0f32);
+    // §8: 120 x 0.01f = 1.1999999 (0x3F999999), not 1.2 (0x3F99999A).
+    assert_eq!(super::tuning::percent(120.0).to_bits(), 0x3F99_9999);
+    assert_eq!(super::tuning::percent(20.0).to_bits(), 0x3E4C_CCCC);
+    assert_eq!(super::tuning::percent(60.0).to_bits(), 0x3F19_9999);
 }
 
 #[test]
@@ -676,7 +688,8 @@ fn empty_city_does_not_panic() {
     s.occupant_inserted(1);
     cycle(&s);
     s.monthly();
-    assert_eq!(s.flood(0, 0), (0, 0));
+    // §6.3 step 1: rowMax is clamped to CellCountZ − 1 = −1.
+    assert_eq!(s.flood(0, 0), (0, -1));
     assert!(!s.is_powered(0, 0));
 }
 
@@ -754,22 +767,92 @@ fn record_round_trip_versions_and_truncation() {
     assert!(u.read(&mut ByteReader::with_resolver(&v5, &mut res)));
     assert_eq!(u.state().deficit, 0.5);
 
-    // Truncated records change nothing but `running` and release what they took.
-    let refs_before = (h.refs_of(10), h.refs_of(20));
+    // [choice] §9.1: a truncated record fails, leaves `running` clear, changes
+    // nothing and releases what it took.
+    let refs_before = (h.refs_of(10), h.refs_of(20), h.refs_of(DEPT));
     for n in 0..bytes.len() {
         let u = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 5);
         let mut res = Resolver(entries.clone(), h.clone());
-        assert!(u.read(&mut ByteReader::with_resolver(&bytes[..n], &mut res)));
+        assert!(!u.read(&mut ByteReader::with_resolver(&bytes[..n], &mut res)));
         let st = u.state();
-        assert!(st.plants.is_empty() && st.poles.is_empty() && st.consumption_map.is_empty());
+        assert_eq!(*st, PowerState::default());
+        drop(st);
+        assert!(u.powered_grid().is_none());
     }
-    assert_eq!((h.refs_of(10), h.refs_of(20)), refs_before);
+    assert_eq!((h.refs_of(10), h.refs_of(20), h.refs_of(DEPT)), refs_before);
 
     // An oversized consumption map fails the read before allocating it.
     let mut big = bytes.clone();
     big[78..82].copy_from_slice(&u32::MAX.to_le_bytes());
     big[82..86].copy_from_slice(&u32::MAX.to_le_bytes());
     let u = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 6);
-    assert!(u.read(&mut ByteReader::with_resolver(&big, &mut res)));
-    assert!(u.state().consumption_map.is_empty());
+    assert!(!u.read(&mut ByteReader::with_resolver(&big, &mut res)));
+    assert!(u.state().consumption_map.is_empty() && !u.state().running);
+}
+
+#[test]
+fn init_keeps_a_loaded_department() {
+    // §4.1 (PW11): a held department is not looked up again.
+    let h = Host::new(16);
+    let s = sim(&h);
+    assert_eq!((s.state().department, h.refs_of(DEPT)), (Some(DEPT), 1));
+    let (bytes, entries) = record(&s);
+    let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+    let mut res = Resolver(entries, h.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(h.refs_of(DEPT), 2);
+    let lookups = h.lookups.get();
+    assert!(t.init());
+    assert_eq!(h.lookups.get(), lookups);
+    assert_eq!((t.state().department, h.refs_of(DEPT)), (Some(DEPT), 2));
+}
+
+#[test]
+fn removal_counters_and_poles() {
+    let h = Host::new(16);
+    let s = sim(&h);
+    // §3: signed clamps at removal (PW5).
+    h.building(30, CellRect::new(4, 4, 5, 5), &[(prop::REQUIREMENT, u32v(300))], None);
+    s.update_state(|st| {
+        st.consumers = 0;
+        st.requirement = 100;
+    });
+    s.occupant_removed(30);
+    assert_eq!((s.state().consumers, s.state().requirement), (0, 0));
+    s.update_state(|st| {
+        st.consumers = 0x8000_0001;
+        st.requirement = 0x9000_0000;
+    });
+    s.occupant_removed(30);
+    assert_eq!((s.state().consumers, s.state().requirement), (0, 0));
+    // A plant whose type changed while in the city.
+    plant(&h, 31, CellRect::new(8, 8, 9, 9), 1000, 1);
+    s.occupant_inserted(31);
+    h.occs
+        .borrow_mut()
+        .get_mut(&31)
+        .unwrap()
+        .props
+        .add(prop::PLANT_TYPE, i32v(3));
+    s.occupant_removed(31);
+    assert_eq!(
+        (s.power_plant_count_of_type(1), s.power_plant_count_of_type(3)),
+        (1, -1)
+    );
+    assert_eq!(s.power_plant_count(), 0);
+    // §5.2 (PW10): a pole not in the list still lowers costBase.
+    h.pole(40, 2, 2);
+    h.pole(41, 3, 3);
+    s.occupant_inserted(40);
+    s.update_state(|st| {
+        st.recompute = false;
+        st.broken_count = 1;
+    });
+    s.occupant_removed(41);
+    let st = s.state();
+    assert_eq!((st.cost_base, st.pole_count, st.recompute), (0, 1, true));
+    drop(st);
+    s.occupant_removed(40);
+    let st = s.state();
+    assert_eq!((st.cost_base, st.pole_count, st.broken_count), (-1, 0, 1));
 }

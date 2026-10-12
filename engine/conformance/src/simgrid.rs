@@ -469,5 +469,15 @@ fn iter_scan(op: &Json) -> R<()> {
     if it.next_cell().is_some() {
         return Err("GetNext returned true after the end".into());
     }
+    if let Some(rest) = op.get("rests") {
+        let rest = nums(rest)?;
+        if rest.len() != 2 {
+            return Err("'rests' is [x, z]".into());
+        }
+        let want = (rest[0] as i32, rest[1] as i32);
+        if (it.x, it.z) != want {
+            return Err(format!("rests at {:?}, expected {want:?}", (it.x, it.z)));
+        }
+    }
     Ok(())
 }

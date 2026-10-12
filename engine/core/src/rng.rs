@@ -43,6 +43,11 @@ impl SeedSource for FixedSeeds {
     }
 }
 
+/// [choice] `RandomDoubleGaussian` gives up after this many rejected pairs
+/// and returns 0 (a double path stuck at 0, e.g. seeded from a process clock
+/// of 0, would never leave the polar loop).
+pub const MAX_GAUSSIAN_TRIES: u32 = 1000;
+
 /// 2^-32, exact as a `float` and as a `double`.
 const TWO_POW_MINUS_32: f64 = 1.0 / 4_294_967_296.0;
 
@@ -170,12 +175,12 @@ impl RzRandom {
     /// `f := r24(sqrt(r24(r24(ln s / s) × −2)))`. Returns `r24(f × v2)` and
     /// caches `r24(v1 × f)` for the next call. `ln` is the runtime's
     /// double-precision logarithm (only the division is rounded; §6.1
-    /// [choice]).
+    /// [choice]). At most [`MAX_GAUSSIAN_TRIES`] pairs, then 0 [choice].
     pub fn gaussian(&mut self) -> f64 {
         if let Some(g) = self.cached_gaussian.take() {
             return g;
         }
-        loop {
+        for _ in 0..MAX_GAUSSIAN_TRIES {
             let v1 = r24(2.0 * self.uniform_f64() - 1.0);
             let v2 = r24(2.0 * self.uniform_f64() - 1.0);
             let s = r24(r24(v2 * v2) + r24(v1 * v1));
@@ -186,6 +191,7 @@ impl RzRandom {
             self.cached_gaussian = Some(r24(v1 * f));
             return r24(f * v2);
         }
+        0.0
     }
 
     /// `RandomDoubleRangeGaussian(a, b)` ([`gaussian_to_range`]).
@@ -452,6 +458,19 @@ mod tests {
             RzRandom::new(1, &SEEDS).range_gaussian_fast(0.0, 10.0),
             6.625_010_967_254_639
         );
+    }
+
+    #[test]
+    fn gaussian_gives_up_on_a_stuck_double_path() {
+        // Seed 0 with a process clock of 0: mul stays 0, every uniform is
+        // 0.5, v1 = v2 = 0 and s = 0, so the polar loop never accepts a pair.
+        let stuck = FixedSeeds {
+            wall_clock: 0,
+            process_clock: 0,
+        };
+        let mut r = RzRandom::new(0, &stuck);
+        assert_eq!(r.gaussian(), 0.0);
+        assert_eq!((r.mul_state(), r.cached_gaussian()), (0, None));
     }
 
     #[test]

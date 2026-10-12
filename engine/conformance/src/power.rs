@@ -60,6 +60,8 @@ struct Occ {
     in_manager: bool,
     distressed: bool,
     budget: Option<BudgetItem>,
+    /// The cells the occupant query matches (default: the cell or cells).
+    query_rect: Option<CellRect>,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -81,7 +83,7 @@ struct Dept {
 
 #[derive(Clone, Copy, Default)]
 struct LineItem {
-    secondary: i32,
+    secondary: i64,
     expenses: i64,
 }
 
@@ -135,6 +137,9 @@ pub(crate) struct World {
     refs: RefCell<BTreeMap<u64, i64>>,
     grids: RefCell<Vec<Rc<SimGrid<u8>>>>,
     crt_mark: Cell<CrtRand>,
+    /// `GetDepartmentBudget` calls per department ID since the last
+    /// `power_clear_events`.
+    lookups: RefCell<BTreeMap<u32, i64>>,
 }
 
 impl World {
@@ -423,10 +428,10 @@ impl PowerHost for World {
     fn line_connected_poles(&self, line: u64) -> Option<(u64, u64)> {
         self.occ(line, |o| o.line_poles).flatten()
     }
-    fn remove_pole_connection(&self, pole: u64, line: u64) {
+    fn remove_pole_connection(&self, first: u64, second: u64) {
         self.events.push(
             "remove_connection",
-            vec![("pole", ji(pole as i64)), ("line", ji(line as i64))],
+            vec![("pole", ji(first as i64)), ("other", ji(second as i64))],
         );
     }
     fn network_occupant_cell(&self, occ: u64) -> Option<(i32, i32)> {
@@ -445,9 +450,12 @@ impl PowerHost for World {
             .borrow()
             .iter()
             .filter(|(_, o)| {
-                let c = match o.t {
-                    0x2890_D4DE | 0x0990_B2EA | 0xC772_BF98 => CellRect::new(o.cell.0, o.cell.1, o.cell.0, o.cell.1),
-                    _ => o.cells,
+                let c = match (o.query_rect, o.t) {
+                    (Some(r), _) => r,
+                    (None, 0x2890_D4DE | 0x0990_B2EA | 0xC772_BF98) => {
+                        CellRect::new(o.cell.0, o.cell.1, o.cell.0, o.cell.1)
+                    }
+                    (None, _) => o.cells,
                 };
                 o.in_manager && c.x1 <= rect.x2 && c.x2 >= rect.x1 && c.z1 <= rect.z2 && c.z2 >= rect.z1
             })
@@ -617,6 +625,7 @@ impl PowerHost for World {
     }
 
     fn department(&self, id: u32) -> Option<u64> {
+        *self.lookups.borrow_mut().entry(id).or_insert(0) += 1;
         self.depts.borrow().get(&id).map(|d| d.token)
     }
     fn create_department(&self, id: u32, group: u32) -> Option<u64> {
@@ -649,7 +658,11 @@ impl PowerHost for World {
     fn set_department_max_funding(&self, dept: u64, fraction: f32) {
         self.events.push(
             "max_funding",
-            vec![("department", self.dept_json(dept)), ("value", jf(fraction))],
+            vec![
+                ("department", self.dept_json(dept)),
+                ("value", jf(fraction)),
+                ("bits", hx(fraction.to_bits())),
+            ],
         );
     }
     fn department_funding(&self, dept: u64) -> f32 {
@@ -704,10 +717,10 @@ impl PowerHost for World {
             vec![("item", self.line_of(item)), ("flag", ji(flag)), ("on", Json::Bool(on))],
         );
     }
-    fn line_item_secondary_info(&self, item: u64) -> i32 {
+    fn line_item_secondary_info(&self, item: u64) -> i64 {
         self.line_item(item, |l| l.secondary).unwrap_or(0)
     }
-    fn set_line_item_secondary_info(&self, item: u64, value: i32) {
+    fn set_line_item_secondary_info(&self, item: u64, value: i64) {
         self.events.push(
             "secondary_info",
             vec![("item", self.line_of(item)), ("value", ji(value))],
@@ -765,8 +778,13 @@ impl PowerHost for World {
             ],
         );
     }
-    fn is_locally_funded_object(&self, _dept: u64, occ: u64, _purpose: u32) -> bool {
-        self.occ(occ, |o| o.budget.is_some()).unwrap_or(false)
+    /// True when the occupant's budget item belongs to that department.
+    fn is_locally_funded_object(&self, dept: u64, occ: u64, _purpose: u32) -> bool {
+        let Some(id) = self.dept_by_token(dept) else {
+            return false;
+        };
+        self.occ(occ, |o| o.budget.is_some_and(|b| b.department == id))
+            .unwrap_or(false)
     }
     fn set_local_funding_percent(&self, dept: u64, occ: u64, fraction: f32, purpose: u32) -> bool {
         self.events.push(
@@ -833,6 +851,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_event_count" => w.events.expect_count(op),
         "clear_events" => {
             w.events.clear();
+            w.lookups.borrow_mut().clear();
             Ok(())
         }
         "save" => save(&w, op),
@@ -973,6 +992,7 @@ fn occupant(w: &World, e: &Json) -> R<(u64, Occ)> {
             in_manager: flag("in_manager", true)?,
             distressed: flag("distressed", false)?,
             budget: opt(e, "budget").map(budget_of).transpose()?,
+            query_rect: opt(e, "query_rect").map(|v| rect_of(v, "query_rect")).transpose()?,
         },
     ))
 }
@@ -1064,7 +1084,7 @@ fn env(w: &World, op: &Json) -> R<()> {
         }
     }
     if let Some(v) = opt(op, "occupant_state") {
-        // {"id": {in_manager?, distressed?, budget?}}
+        // {"id": {in_manager?, distressed?, ignored?, budget?}}
         for (k, st) in v.as_object().ok_or("occupant_state must be an object")? {
             let id = Json::Str(k.clone()).as_i64().ok_or("bad occupant id")? as u64;
             let mut occs = w.occs.borrow_mut();
@@ -1074,6 +1094,9 @@ fn env(w: &World, op: &Json) -> R<()> {
             }
             if let Some(b) = opt(st, "distressed") {
                 o.distressed = bool_of(b, "distressed")?;
+            }
+            if let Some(b) = opt(st, "ignored") {
+                o.ignored = bool_of(b, "ignored")?;
             }
             if let Some(b) = st.get("budget") {
                 o.budget = match b {
@@ -1117,7 +1140,20 @@ fn env(w: &World, op: &Json) -> R<()> {
             w.depts.borrow_mut().insert(id, dept);
             if let Some(lines) = opt(d, "lines") {
                 for line in arr(lines, "lines")? {
-                    w.make_line_item(token, u32_of(line, "line")?);
+                    // A line number, or {line, secondary} to preset the
+                    // line item's secondary info.
+                    let (n, secondary) = match line {
+                        Json::Object(_) => (
+                            u32_of(field(line, "line")?, "line")?,
+                            opt(line, "secondary").map(|s| i64_of(s, "secondary")).transpose()?,
+                        ),
+                        _ => (u32_of(line, "line")?, None),
+                    };
+                    let item = w.depts.borrow().get(&id).and_then(|d| d.lines.get(&n).copied());
+                    let item = item.or_else(|| w.make_line_item(token, n));
+                    if let (Some(item), Some(s)) = (item, secondary) {
+                        w.line_item(item, |l| l.secondary = s);
+                    }
                 }
             }
         }
@@ -1633,6 +1669,25 @@ fn state_json(w: &World, s: &PowerSim) -> Vec<(String, Json)> {
         ("min_acceptable_funding".into(), jf(st.tuning.min_acceptable_funding)),
         ("strike_duration".into(), ji(st.tuning.strike_duration)),
         ("min_funding_end_strike".into(), jf(st.tuning.min_funding_end_strike)),
+        // Exact float32 bits (the numeric fields compare with a tolerance).
+        ("max_funding_bits".into(), hx(st.tuning.max_funding.to_bits())),
+        (
+            "strike_efficiency_bits".into(),
+            hx(st.tuning.strike_efficiency.to_bits()),
+        ),
+        (
+            "max_production_ratio_bits".into(),
+            hx(st.tuning.max_production_ratio.to_bits()),
+        ),
+        (
+            "min_acceptable_funding_bits".into(),
+            hx(st.tuning.min_acceptable_funding.to_bits()),
+        ),
+        (
+            "min_funding_end_strike_bits".into(),
+            hx(st.tuning.min_funding_end_strike.to_bits()),
+        ),
+        ("deficit_bits".into(), hx(st.deficit.to_bits())),
         (
             "map_size".into(),
             Json::Array(vec![
@@ -1828,7 +1883,9 @@ fn expect_occupant(w: &World, op: &Json) -> R<()> {
 /// (`{"id": {has_power}}`), `deals` (`{"id": {used, flags}}`),
 /// `connections` (`{"id": {visited, active}}`), `line_items`
 /// (`[{department, line, expenses?, secondary?}]`), `distressed` (count of
-/// distressed poles), `departments` (IDs, ascending).
+/// distressed poles), `departments` (IDs, ascending), `department_lookups`
+/// (`{"0xDEPT": n}`: `GetDepartmentBudget` calls since the last
+/// `power_clear_events`).
 fn expect_world(w: &World, op: &Json) -> R<()> {
     let key = |k: &str| -> R<u64> { Ok(Json::Str(k.into()).as_i64().ok_or("bad id")? as u64) };
     if let Some(v) = opt(op, "lots") {
@@ -1895,6 +1952,16 @@ fn expect_world(w: &World, op: &Json) -> R<()> {
         let got: Vec<Json> = w.depts.borrow().keys().map(|&k| hx(k)).collect();
         if !scalar::matches(&Json::Array(got.clone()), v, false) {
             return Err(format!("departments {}", scalar::show(&Json::Array(got))));
+        }
+    }
+    if let Some(v) = opt(op, "department_lookups") {
+        // {"0xID": calls} since the last power_clear_events.
+        for (k, want) in v.as_object().ok_or("department_lookups: object")? {
+            let id = key(k)? as u32;
+            let got = w.lookups.borrow().get(&id).copied().unwrap_or(0);
+            if got != i64_of(want, "department_lookups")? {
+                return Err(format!("{got} GetDepartmentBudget({k}) calls"));
+            }
         }
     }
     Ok(())

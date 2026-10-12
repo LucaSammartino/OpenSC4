@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "power_secondary_int64",
+  "spec": ["power 5.1", "power 5.2"],
+  "description": "Line-item secondary info is int64 (5.1: li.SetSecondaryInfoField(li.GetSecondaryInfoField() + 1), int64; 5.2: Get - 1, int64), so nothing narrows to int32 at the host boundary. By hand: a line item preset to 2^31 - 1 = 2147483647 becomes 2^31 = 2147483648 when a plant naming its line is inserted (an int32 would wrap to -2147483648), and returns to 2147483647 when the plant is removed. The plant names line 4660 directly, so there is no ChangeBudgetItemLine and no CreateLineItemForBuildingType.",
+  "steps": [
+    {"op": "power_env",
+      "occupants": [
+      {"id": 151, "type": "building", "cells": [8, 0, 9, 1], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}},
+        "budget": {"line": 4660, "cost": 250, "index": 3, "funding": 1.0}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_env", "departments": [{"id": "0x8910BC8A", "lines": [{"line": 4660, "secondary": 2147483647}]}]},
+    {"op": "power_clear_events"},
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 151},
+    {"op": "power_expect_events", "events": [
+      {"event": "add_funded", "department": "0x8910BC8A", "occupant": 151, "purpose": "0xCA58E540"},
+      {"event": "secondary_info", "item": ["0x8910BC8A", 4660], "value": 2147483648},
+      {"event": "set_property", "occupant": 151, "id": "0x2A58D350", "value": 250}]},
+    {"op": "power_expect_world", "line_items": [{"department": "0x8910BC8A", "line": 4660, "secondary": 2147483648}]},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 151},
+    {"op": "power_expect_events", "events": [
+      {"event": "remove_funded", "department": "0x8910BC8A", "occupant": 151, "purpose": "0xCA58E540"},
+      {"event": "secondary_info", "item": ["0x8910BC8A", 4660], "value": 2147483647}]},
+    {"op": "power_expect_world", "line_items": [{"department": "0x8910BC8A", "line": 4660, "secondary": 2147483647}]}
+  ]
+}

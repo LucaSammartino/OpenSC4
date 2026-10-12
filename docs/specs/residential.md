@@ -273,8 +273,9 @@ float steps are float32 operations in the order given (foundations §18).
        `buzzard := true`.
 
    Draws: 0, 1 or 2 per wealth level, at most 2 effects' worth per tract (one effect).
-3. **Population**: read `new_w := developer_w.GetPopulationMap().GetTractValue(x, z)` (uint16) for all three
-   levels before any write.
+3. **Population**: read `new_w := developer_w.GetPopulationMap().GetTractValue(x, z)` for all three
+   levels before any write. The grid is a `cISC4SimGrid<int16>` (class `0x49B9E605`, growth-developer.md §1);
+   this read uses the 16 bits as unsigned (corrected: the grid type is not uint16; the values read the same).
 4. For w = R$, R$$, R$$$ (flag `arrived := false`, `total := 0`):
    - total += new_w; old_w := pop_w; pop_w := new_w; running population += new_w.
    - If old_w < new_w: nc_w := new_w − old_w (16-bit); blend EQ_w, then HQ_w, for the newcomers (formula: other
@@ -654,7 +655,7 @@ zero-extended in EAX.
 | `cISC4BuildingDevelopmentSimulator` (`0x00AB0AF8`) | 32 | `+0x80` | GetDeveloper(DeveloperType) | 4 | EAX ptr |
 | | 41 | `+0xA4` | GetBuildingMap() | 0 | EAX `cISC4SimGrid<uint8>*` |
 | | 42 | `+0xA8` | GetBuildingMapKey(PurposeType, WealthType) | 8 | AL |
-| `cISC4GrowthDeveloper` | 15 | `+0x3C` | GetPopulationMap() | 0 | EAX `cISC4SimGrid<uint16>*` |
+| `cISC4GrowthDeveloper` | 15 | `+0x3C` | GetPopulationMap() | 0 | EAX `cISC4SimGrid<int16>*` (class `0x49B9E605`) |
 | `cISC4DemandSimulator` | 6 | `+0x18` | GetDemand(0x1000, 0) | 8 | EAX ptr |
 | `cISC4Simulator` (`0x00AB2FB8`) | 6 | `+0x18` | GetSimDate(year*, month*, day*, dayOfYear*, weekDay*) (only month) | 20 | — |
 | | 19 / 20 | `+0x4C/+0x50` | AddAgent(target, level, name, flags) / RemoveAgent(target) | 16 / 4 | AL |

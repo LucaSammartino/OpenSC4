@@ -7,9 +7,9 @@
 //! The daily simulation (§4.4), the garbage flow (§4.6), the end of cycle
 //! (§4.8) and the monthly simulation (§4.9).
 
-use crate::crime::rhe;
 use crate::props::round_half_even_f32;
 use crate::variant::{Elem, Variant};
+use crate::x87::rhe;
 use crate::x87::{ftol, ftol32};
 
 use super::simulator::{

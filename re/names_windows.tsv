@@ -6601,7 +6601,7 @@ va	name	source	confidence	note
 006e0130	icf::cSC4Advice::GetEventID	folded	folded	3 names: cSC4Advice::GetEventID | cSC4FireProtectionSimulator::GetStrikeStartDate | cSC4PoliceSimulator::GetStrikeStartDate
 006e0140	icf::cSC4FireProtectionSimulator::GetStrikeLength	folded	folded	2 names: cSC4FireProtectionSimulator::GetStrikeLength | cSC4PoliceSimulator::GetStrikeLength
 006e0180	icf::cSC4FireProtectionSimulator::GetFireStations	folded	folded	2 names: cSC4FireProtectionSimulator::GetFireStations | cSC4PoliceSimulator::GetPoliceStations
-006e01a0	cSC4PoliceSimulator::IsJail	auto:C	high	mac 00076024 score 1.0 support 1
+006e01a0	cSC4PoliceSimulator::GetJails	manual	high	mac 00076024 score 1.0 support 1
 006e01c0	cSC4PoliceSimulator::IsPoliceStation	auto:A	high	mac 00075ffe score 1.0 support 0
 006e01e0	cSC4PoliceSimulator::GetArrestCount	auto:C	high	mac 00076090 score 1.0 support 1
 006e0200	icf::cSC4FireProtectionSimulator::GetAverageCoverage	folded	folded	2 names: cSC4FireProtectionSimulator::GetAverageCoverage | cSC4PoliceSimulator::GetAverageCoverage

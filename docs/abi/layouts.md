@@ -39,3 +39,89 @@ Flags byte at +0x08:
 
 The pointer setters (string, IGZUnknown, extra) AddRef the new value and Release the old one. A new object is
 all zeros apart from the vtable.
+
+## Dispatch record (`cISC4DispatchManager::DispatchInfo`, 0x2C bytes)
+
+`cISC4DispatchManager::GetDispatchInfo(uint32_t id, DispatchInfo& info)` (slot 10, `0x00469D40`, pop 8) looks the
+ID up in the manager's own list of records and copies the whole record, 11 dwords, into the caller's struct
+(`rep movsd`). It returns AL = 1, or AL = 0 with the struct untouched when the ID is unknown. The copy takes **no
+references**: the three pointers in it are borrowed from the manager's record, so the caller must not Release
+them and must not keep them after the dispatch ends.
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | dispatch type (`tDispatchType`). `GetDispatchCount` (slot 11) and `GetDispatchIDArray` (slot 12) compare against it. The air dispatch sources handle type 5 (fire plane) and 6 (police helicopter) |
+| +0x04 | 4 | dispatch ID: the key of slot 10, handed out by the manager from a counter |
+| +0x08 | 4 | the station's vehicle slot that serves the dispatch (`uint32_t` field; only the low 16 bits are used) |
+| +0x0C | 4 | handle from the dispatch vehicle view's tracking of the vehicle (0 when not tracked) |
+| +0x10 | 1 | bool: set while the dispatch is in state 5 (`UpdateDispatchState`), followed by 3 bytes of padding |
+| +0x14 | 4 | target x (`float`) |
+| +0x18 | 4 | target y (`float`, the terrain altitude at x, z) |
+| +0x1C | 4 | target z (`float`) |
+| +0x20 | 4 | station occupant (`cISC4Occupant*`); the manager's record holds one reference |
+| +0x24 | 4 | vehicle automaton (`cISC4Automaton*`); the manager's record holds one reference |
+| +0x28 | 4 | pylon occupant; the manager's record holds one reference |
+
+Evidence: Windows `0x00469D40` (copy; ID at record +4), `0x00469D80` and `0x00469DA0` (type at +0),
+`0x0046A630` (`Dispatch`: new record); the Mac build's `GetDispatchInfo` `0x001870CC` (same 11-dword copy),
+`InitDispatch` `0x0018752A`, `Dispatch` `0x0018829C`, `BeginDispatch` `0x00187EAE`, `EndDispatch` `0x00188D4C`
+(releases +0x20, +0x24 and +0x28), `UpdateDispatchState` `0x00186E70` (+0x10).
+
+## Static flora record (`cSC4StaticFloraData`, 0x178 = 376 bytes)
+
+One record per flora type, owned by the flora simulator and handed out by `GetStaticFloraData` (flora slot 7) as
+a raw pointer. **It has no vtable**: +0 is the type ID. It is not a GZCOM object. Its reference count is a plain
+field that holders change directly, and its release function is non-virtual.
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x000 | 4 | type ID (`uint32_t`) |
+| +0x004 | 4 | next cluster type (`uint32_t`) |
+| +0x008 | 4 | seed type (`uint32_t`) |
+| +0x00C | 1 | water flora (`bool`), followed by 3 bytes of padding |
+| +0x010 | 56 | 14 `float`s, the values of property `0x083DC35B` in order: +0x10 maturity age, +0x14 seeding age, +0x18 seeding interval, +0x1C seeds per cycle, +0x20 seed spread, +0x24 lifespan, +0x28 maximum age, +0x2C slope tolerance, +0x30 minimum propagation score, +0x34 seed probability, **+0x38 occupant box half-width**, +0x3C unused, +0x40 clearance radius, **+0x44 height** (names as in the flora spec §3.3) |
+| +0x048 | 4 | cluster radius (`float`) |
+| +0x04C | 4 | cluster height (`float`) |
+| +0x050 | 256 | propagation table, 16 × 16 bytes, `[elevation index][moisture type]` (rows of 16 bytes) |
+| +0x150 | 4 | `uint32_t` from property `0x083DE16F` |
+| +0x154 | 12 | family IDs: `std::vector<uint32_t>` `{begin, end, capacity_end}`; the buffer is a **B** block, or null |
+| +0x160 | 8 | plop cost (`int64_t`) |
+| +0x168 | 4 | the exemplar (`cISCResExemplar*`), a counted reference, or null |
+| +0x16C | 1 | flags byte, followed by 3 bytes of padding |
+| +0x170 | 4 | reference count (`int32_t`) |
+| +0x174 | 4 | no access found: tail padding (the `int64_t` makes the record 8-aligned) |
+
+Defaults: `0x006B0220` writes +0x000 to +0x150 (not the flags byte, not +0x160). The inline constructors at
+`0x006B2BBB` and `0x006B133F` zero +0x34, +0x154, +0x158, +0x15C, +0x168 and +0x170.
+
+**Memory.**
+- The simulator creates records with the game's `operator new(0x178)`, the **global heap (C, `0x005E55E0`)**:
+  `0x006B2BAF` (the key-0 default record in `Init`) and `0x006B1333` (`AddStaticFloraData` from an exemplar). The
+  creator then increments +0x170.
+- There is no AddRef function. Holders increment +0x170 directly.
+- **Release** is `0x00472C70`: non-virtual, `__thiscall`, `this` = the record, no arguments, `ret` with no pop.
+  When the count is ≤ 1 on entry it destroys the record: it releases the exemplar at +0x168 (vtable slot 2) if
+  non-null, frees the family buffer at +0x154 with **B** (`0x0090CF63`) if non-null, and frees the record with
+  **C** (`0x005E5620`). Otherwise it decrements the count.
+- **Code outside the simulator frees records.** `cSC4FloraOccupant` holds one counted reference to its record:
+  its setter (`0x00472CD0`) increments the new record's count (`0x00472CE3`) and calls Release on the old one
+  (`0x00472CF0`), and its destructor calls Release (`0x00472D5F`). When an occupant drops the last reference, the
+  record is freed there with C. Occupants are not tied to one city, so they can outlive the simulator's own
+  references.
+
+**Raw readers outside the simulator's methods** (a record handed to the game must have these fields at these
+offsets):
+
+| Offset | Read by |
+|---|---|
+| +0x038, +0x044 | `cSC4FloraOccupant::GetBoundingBox` `0x00472AB0` (`0x00472AF0`, `0x00472AF3`) |
+| +0x160 | the flora tool's `Init` `0x004BBA20` (`0x004BBA5C`, `0x004BBA65`, as two dwords) |
+| +0x168 | the flora occupant's setter `0x00472CD0` (`0x00472D02`: passes the exemplar to the occupant's model) |
+| +0x16C | the terrain flora brush `0x0074B5E0` (`0x0074B658`) |
+| +0x170 | the flora occupant's setter (increment) and Release (`0x00472C70`) |
+| +0x154 to +0x15C, +0x168 | Release (frees and releases) |
+
+A record that the plugin builds and hands to the game must therefore be 0x178 bytes with this layout. Either the
+record is a C block with a B (or null) family buffer and a counted (or null) exemplar, so that the game's Release
+can free it, or the plugin keeps one reference for the life of the process, so that no game Release ever sees a
+count of 1 or less.

@@ -57,67 +57,70 @@
 //!
 //! - Arithmetic follows foundations §18 (24-bit x87): every float operation
 //!   is one `f32` rounding; an integer operand enters unrounded (the
-//!   operation is computed in `f64` and rounded once). The constants `100`
-//!   and `0.01` of §6, §7 and §9 are taken as `double` constants (`× 0.01`
-//!   is one `f64` product rounded to `f32`); so is the "pct" tuning getter.
-//!   `trunc` is the CRT `_ftol` ([`crate::crime::ftol32`]: low 32 bits,
-//!   NaN/∞ → 0); `roundHalfEven` saturates and maps NaN to 0.
+//!   operation is computed in `f64` and rounded once). Every `× 100` and
+//!   `× 0.01` of §6, §7, §9 and §11 uses the float32 constants `100.0f` and
+//!   `0.01f` (§6.2 PR3, [compat]), and so does the "pct" tuning getter:
+//!   shipped 10 → 0.099999994, 120 → 1.1999999. `trunc` is the CRT `_ftol`
+//!   ([`crate::x87::ftol32`]: low 32 bits, NaN/∞ → 0; `ftol` for the int64
+//!   upkeep cost). The jails' `roundHalfEven` is the `1.5 × 2^23` trick of
+//!   §9.1 ([`crate::crime::rhe`]).
 //! - Occupant properties are read from their first element (`s32`/`u32`:
 //!   the integer value, floats truncated; `f32`: the numeric value); a
 //!   property with no elements counts as absent.
-//! - `GetStationEffect` (§7.1) reads centre, outer, radius and the position
-//!   in that order and does not stop at a failed read; the result is false
-//!   when a read the table marks as failing failed, and the efficiency
-//!   scaling only runs on success. So a failed effect still carries the raw
-//!   values in §5.1 (quirk 3). A prop station without a department uses
-//!   department funding 1.0.
+//! - `GetStationEffect` (§7.1, PR2) is [`ProtectionSim::station_effect_into`]
+//!   on a caller's record, exactly as the original (fire: all three reads,
+//!   fails on a missing centre or radius; police: fails at once on a zero or
+//!   missing centre, a missing outer or radius leaves the caller's field).
+//!   Every FreeCity4 caller passes a zeroed record, so an absent police outer
+//!   or radius reads as 0 ([choice] of §7.1), and `UpdateUnadjusted` (§5.1)
+//!   skips a station whose effect fails ([choice]). A prop station without a
+//!   department uses department funding 1.0.
 //! - `GetDispatchEffect` (§7.2) succeeds when all three properties exist.
 //! - `UpdateBothGridsByPosition` (§5.2) copies the box with the adjusted
 //!   grid's counts; `UpdateUnadjusted` (§5.1) draws with the unadjusted
 //!   grid's counts and inverse widths. Without a grid the step is skipped.
 //! - The daily step (§5.3) tests "zoned" over the cells
-//!   `[tx·S, (tx+1)·S) × [tz·S, (tz+1)·S)` with S the adjusted grid's tract
-//!   size (at least 1, at most 64), through the host's zone-grid read. The
-//!   counters add the adjusted (clamped) value. One day visits at most one
-//!   full pass (`min(tracts per day, countX × countZ)`), and a second
-//!   consecutive empty `GetNext` ends the day without a second end of
-//!   cycle, so a hostile tracts-per-day or a degenerate iterator cannot loop
-//!   forever.
-//! - End of cycle (§5.4): `avg = sum / zoned` and `pct = nonZero / zoned`
-//!   are float divisions of the two integers (one rounding); both are 0
-//!   when nothing zoned was visited.
+//!   `[tx·S, (tx+1)·S) × [tz·S, (tz+1)·S)` with S the simulator's own tract
+//!   size constant 2 (not the grid's), through the host's zone-grid read;
+//!   cells with a negative coordinate are skipped and the host reads cells
+//!   beyond the zone grid as 0 ([choice] of §5.3). The counters add the
+//!   adjusted (clamped) value. One day visits at most one full pass
+//!   (`min(tracts per day, countX × countZ)`), and a second consecutive empty
+//!   `GetNext` ends the day without a second end of cycle, so a hostile
+//!   tracts-per-day or a degenerate iterator cannot loop forever.
 //! - Shift counts of `1 << n` (availability masks, §5.2, §8) are taken
 //!   modulo 32 like the x86 `shl`.
-//! - Base call numbers (§8.2): the IDs of the other stations are marked only
-//!   below `nextCall` (the bit vector's size); the first free run starting
-//!   at 1 is found with interval arithmetic (no allocation of `nextCall`
-//!   bits), in 64 bits, and stored as `u32` (wrapping). `nextCall` grows
-//!   with a saturating add, so a huge base cannot wrap it back to a small
-//!   value.
-//! - `GetMaxPossibleDispatchCount` (dispatch-source slot 5, not described
-//!   by the spec) returns `GetTotalDispatchCount` (spec question).
-//! - `GetStrikingStations` returns the number of stations it appended.
-//! - The nine subscriptions of §4.1 are made in the order of the §5 table.
+//! - A station without the unit-count property gets n = 0 at insert (§5.2;
+//!   the original uses stack garbage).
+//! - Base call numbers (§8.2, PR10): the other stations' ranges come from
+//!   `GetDispatchesAtStation` with locals that carry over between stations
+//!   (starting at 0, 0; the original's start values are uninitialised) as in
+//!   the original; the smallest free run is found with interval arithmetic,
+//!   call IDs at or beyond `nextCall` counting as free (no bit vector).
+//!   `nextCall := max(nextCall, base + n)` saturates `base + n` at
+//!   `2^32 − 1` instead of wrapping.
 //! - The fire end of cycle reads the police percent coverage through the
 //!   host; without a police simulator it reads 0.
 //! - A crime message whose `IGZUnknown` is not a lot (or whose location
 //!   cannot be read) is ignored; the original would dereference null.
-//! - Police removal: `RemoveLocallyFundedObject` for a jail is called when
-//!   the jail department exists and the jail has a jail-purpose budget item
-//!   (mirroring the insert).
+//! - Police removal (§9.4 step 2): `RemoveLocallyFundedObject` is skipped
+//!   when the jail item's department does not exist (the original
+//!   dereferences null).
 //! - Saves (§11): station and jail lists keep only references to host
-//!   objects (null entries are dropped). The base record is committed only
-//!   when it was read completely; on failure the references read so far
-//!   are released and the simulator keeps its previous state. A re-read
-//!   releases what the simulator held before. An unresolvable grid
-//!   reference reads as no grid (`Init` then creates one). A police re-read
-//!   releases the helicopter source it held before taking the one read;
-//!   a v7 record leaves no helicopter source.
-//! - The station statistics vector (§9.2) is read as four elements: a
-//!   shorter vector is padded with zeros, a longer one truncated.
-//! - `GetJailCapacity(occ)` reads an absent capacity property as 0;
-//!   `GetJailCurrentUpkeepCost` maps a NaN or out-of-range product to the
-//!   integer indefinite `i64::MIN` (what `fistp` stores).
+//!   objects (null entries are dropped). The base record, and the police
+//!   lists and counters, are committed only when read completely; on failure
+//!   the references read so far are released and the simulator keeps its
+//!   previous state. A re-read releases what the simulator held before. An
+//!   unresolvable grid reference reads as no grid (`Init` then creates one).
+//!   The air dispatch source follows the original (PR13, foundations §2.7):
+//!   a fire v3 or police v8 record releases the current source first, and a
+//!   failed reference leaves none.
+//! - The station statistics vector (§9.2, PR12): absent → four zeros; a
+//!   shorter vector is padded with zeros to four before it is updated or
+//!   read, and written back padded; a longer one keeps its extra elements.
+//! - `GetJailCapacity(occ)` reads an absent capacity property as 0
+//!   ([compat], PR14); `GetJailCurrentUpkeepCost` truncates with `_ftol`
+//!   (NaN or out of range → `i64::MIN`).
 //! - `ProcessMonthlyCrimeStats` returns true (§15 marks it a choice; the
 //!   original returns garbage); `EndJailbreak` returns false (quirk 13).
 //! - The copies of the station and jail lists the getters return are plain
@@ -135,8 +138,8 @@ mod tuning;
 
 pub use algo::{
     adjusted_value, choose_base_call_number, combine_strike_chance, dispatch_from_station_mask, escapees,
-    jail_capacity, jailed_percentage, occupant_coverage, ratio_share, rehabilitation, reset_unjailed,
-    revoke_dispatch_mask, scale_effect, unit_mask,
+    jail_capacity, jailbreak_ends, jailbreak_starts, jailed_percentage, occupant_coverage, pct, ratio_share,
+    rehabilitation, reset_unjailed, revoke_dispatch_mask, scale_effect, unit_mask, DEFAULT_NAN,
 };
 pub use simulator::{
     CoverageOutputs, CycleCounters, JailState, ProtectionData, ProtectionSim, BASE_RECORD_VERSION, FIRE_RECORD_VERSION,
@@ -208,16 +211,17 @@ pub mod msg {
     pub const RELOAD_TUNING: u32 = 0xC53D_10AA;
     /// Police only: a crime was committed (crime §10).
     pub const CRIME: u32 = 0x0A15_9D95;
-    /// The nine subscriptions of the base `Init` ([choice]: table order).
+    /// The nine subscriptions of the base `Init`, in the original's order
+    /// (§4.1 step 4, [compat]).
     pub const SUBSCRIPTIONS: [u32; 9] = [
         OCCUPANT_INSERTED,
         OCCUPANT_REMOVED,
         OCCUPANT_STATE_CHANGED,
         FUNDING_CHANGED,
         DISPATCH_BEGIN,
+        DISPATCH_END,
         DISPATCH_ACTIVE,
         DISPATCH_INACTIVE,
-        DISPATCH_END,
         RELOAD_TUNING,
     ];
 
@@ -540,18 +544,22 @@ pub struct Effect {
     pub original_centre: i32,
 }
 
-/// What `GetBudgetItemForPurpose(holder, purpose, &item)` gives (§6.1, §6.6).
+/// What `GetBudgetItemForPurpose(holder, purpose, &item)` gives (§6.1, §6.6),
+/// with the item's department looked up by its ID.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct BudgetItem {
-    /// `IsLocallyFundedObjectInDepartment` for the item's department.
+    /// `IsLocallyFundedObjectInDepartment(holder, purpose)` asked of the
+    /// item's department (slot 28); only used when that department exists.
     pub locally_funded: bool,
     /// The item's local funding percentage (a fraction).
     pub local_funding: f32,
     /// The item's cost.
     pub cost: i64,
-    /// `GetFundingPercentage()` of the item's department; `None` when the
-    /// department does not exist.
-    pub department_funding: Option<f32>,
+    /// `budget.GetDepartmentBudget(item.departmentID)` (a host token);
+    /// `None` when the lookup returns null. "The item's department exists"
+    /// (§6.1, §5.2, §9.4) means `Some`; the simulator's own department
+    /// pointer is not used for these calls.
+    pub department: Option<u64>,
 }
 
 /// `cISC4DispatchManager::GetDispatchInfo` (§5, §5.1).

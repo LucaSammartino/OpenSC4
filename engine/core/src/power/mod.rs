@@ -46,28 +46,54 @@
 //! Foundations §18 (24-bit x87): every float add, subtract, multiply and
 //! divide is one `f32` rounding; an integer operand (a capacity, a counter,
 //! a base cost) enters its operation unrounded (computed in `f64`, rounded
-//! once to `f32`). `trunc` is `_ftol`: values that fit truncate toward
-//! zero, NaN and out-of-range values give the integer indefinite
-//! (`0x80000000` for 32-bit results, §6.4's NaN quirk; `0x8000000000000000`
-//! for 64-bit results, of which 32-bit fields keep the low half).
+//! once to `f32`). `trunc` is the C runtime's `_ftol` everywhere (the spec
+//! names no inline `fistp` for power): int64 truncation toward zero through
+//! [`crate::x87`], so NaN and out-of-range values give
+//! `0x8000000000000000`, whose low 32 bits are 0. That makes §6.4's NaN
+//! ratio harmless (`used = 0`, §15 test 28). Examples of the 24-bit rule:
+//! history `0xAA11F7D2` of §15 test 5 is `trunc(r24(500 × 0.9f))` = 450
+//! (449.99998808 rounds to 450.0); the unpowered percentage of §6.6 step 5
+//! is three `f32` roundings (consumers 5, powered 3 → 39); `f32 × 0.01`
+//! tuning values multiply by the `float` 0.01f (120 → 1.1999999,
+//! `0x3F999999`, §8).
+//!
+//! # Bitmaps
+//!
+//! The shared [`Bitmap`] keeps the original's layout (§2.1, confirmed
+//! *[compat]*): word `(width·z + x) >> 5`, bit `x & 31`, `(w·h) / 32`
+//! words. The spec allows `i & 31` and `ceil(w·h / 32)` words instead
+//! *[choice]*; both are identical for every SC4 city size (widths that are
+//! multiples of 32), so the original layout is kept.
+//!
+//! # Counters (§3)
+//!
+//! Counters are 32-bit and wrap. The pass and last totals, `consumers`,
+//! `powered`, `unpowered` and `requirement` are held as `u32` (saved as
+//! `s32`, same bits); the tests the spec writes as `> 0` or `x > y` on them
+//! (§6.4 production, §6.6 steps 4, 5, 7, 8, §7.5 deficit) compare them as
+//! signed `int32`. A removal lowers `consumers` by 1 and `requirement` by
+//! the building's requirement and replaces a result that is negative as
+//! `int32` by 0 (§5.2), also when the old value was already above
+//! 2³¹ − 1. `perType[t]` uses the type read at removal time and can reach
+//! −1 (slot 23 then returns `0xFFFFFFFF`). A removed pole lowers `costBase`
+//! and requests a recompute even when it is not in the pole list; only a
+//! listed pole lowers `poleCount`; `brokenCount` is never lowered by a
+//! removal (§5.2). `avail` and `total` of §6.3 are unsigned (as the spec
+//! says), `give` / `take` use signed minimums, and `avail > 0` (the export
+//! `light` flag) is a signed test. `max(supply, remaining)` (§6.3 step 9) is
+//! unsigned.
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - §15 test 5 lists history `0xAA11F7D2` = 449 for `500 × 0.9f`. At 24
-//!   bits that product (449.999988…) rounds to 450.0 (foundations §18, the
-//!   rule §15 tests 13 and 15 rely on), so the core gives **450**; spec
-//!   question. The other values of test 5 agree with both readings.
-//! - Counters are 32-bit and wrap. The pass and last totals, `consumers`,
-//!   `powered`, `unpowered` and `requirement` are held as `u32` (saved as
-//!   `s32`, same bits); the tests the spec writes as `> 0` or `x > y` on them
-//!   (§6.4 production, §6.6 steps 4, 5, 7, 8, §7.5 deficit) compare them as
-//!   signed `int32`. `avail` and `total` of §6.3 are unsigned (as the spec
-//!   says), `give` / `take` use signed minimums, and `avail > 0` (the export
-//!   `light` flag) is a signed test. `max(supply, remaining)` (§6.3 step 9)
-//!   is unsigned.
-//! - §6.3 step 1: after the grow, `rowMax` is clamped to `CellCountZ − 1`,
-//!   `rowMin` to 0, and an inverted range is reset to `rowMin := rowMax`
-//!   (both 0 when the city has no rows).
+//! - §4.1: `Init` looks the department up only while none is held (after a
+//!   load `Read` has set it). When a loaded city still has no department at
+//!   the end of `Init` (null or unresolvable saved ref, none in the budget),
+//!   FreeCity4 creates it as the new-city step 3 does (the original crashes
+//!   later in state 1).
+//! - §6.3 step 1: after the grow an inverted range is reset to the seeds
+//!   (`z`, `z + 1`) and `rowMax` is clamped to `CellCountZ − 1`, as the spec
+//!   says; then `rowMin` is raised to 0, so a seed outside the map (a plant
+//!   placed off the map) cannot make the block iterator read negative rows.
 //! - Plant types outside 0..9 (the `0x27812853` property) are not counted
 //!   in `perType` nor added to the ring (the original writes out of bounds);
 //!   slots 10 and 23 return 0 for them. `ringIndex` is used modulo 12
@@ -76,47 +102,46 @@
 //! - Consumption-map cells outside the map are not changed (§5.1, §5.2) and
 //!   read 0 (slot 16, §6.3).
 //! - A failed `QueryInterface` (pole, line, network occupant) ignores the
-//!   occupant. A building whose budget item names a department the budget
-//!   does not have skips the budget hookup (the original does not check).
-//!   The budget hookup's line item, `AddLocallyFundedObject`, the secondary
-//!   info field and the base cost `0x2A58D350` are all inside "if
-//!   `line ≠ 0`" (§5.1).
+//!   occupant. §5.1: a budget item naming a department the budget does not
+//!   have (the original does not check) still gets `ChangeBudgetItemLine`
+//!   when its line is 0; the calls on the department and the base cost
+//!   `0x2A58D350` are skipped. A null `CreateLineItemForBuildingType` result
+//!   skips the calls on the line item only.
 //! - The pole list holds one host reference per pole (`AddRef` on insert,
-//!   `Release` on removal, PostCityInit and `Shutdown`). On removal
-//!   `costBase` and `poleCount` change only when the pole was in the list;
-//!   `poleCount`, `consumers` and `requirement` never go below 0.
-//! - `Init` step 1 looks the department up again even after a load: a found
-//!   department replaces (and releases) the one held; otherwise the held one
-//!   is kept.
+//!   `Release` on removal, PostCityInit and `Shutdown`). `poleCount` does
+//!   not go below 0 (it can differ from the list length only after a save
+//!   with unresolvable pole references, see §9 below).
 //! - Without a power department: line item 1 is not written, department
 //!   funding reads 1.0 (100 %, ageing and pole decay), `GetFunding` reads 0
-//!   (history `0xAA11F7DC`), `GetFundingPercent` (slot 48) returns `None`.
-//! - §5.4: the poles and lines "in the rect" are the occupant manager's
-//!   occupants in that cell rectangle, listed once before anything is
-//!   removed; each line is detached at most once, from both of its poles.
+//!   (history `0xAA11F7DC`), `GetFundingPercent` (slot 48) returns `None`,
+//!   and no plant passes the "lowest funded" filter of `FindPowerPlants`.
+//! - §5.4: the host's occupant query returns a list (it cannot report
+//!   "false"), so pass 1 always runs.
 //! - §5.5: `DemolishLots` is called once even when there is no nuclear plant
-//!   (with an empty list).
+//!   (with an empty list); plants without a lot add nothing (no null entry).
 //! - §6 state 2: at most [`MAX_CONNECTIONS_PER_DEAL`] connections are taken
 //!   per deal, in case a host never returns null. Unknown `DoIdle` states
 //!   (only reachable through a hostile save) go to state 4.
 //! - §6.6 step 7 and §7.5 step 3: a zero production cannot divide (the
 //!   deficit is then 0); the division wraps (`int32::MIN / −1`).
 //! - §7.6: a NaN `brokenFraction` clamps to 0.
-//! - §8: `f32 × 0.01` tuning values use the `float` constant 0.01 (one
-//!   rounding). A curve property that is not numeric, or a single scalar,
-//!   counts as absent (foundations §4.1); a present property with no points
-//!   gives an empty curve, which evaluates to 0.0. The per-building curves
-//!   follow the same rule per call.
-//! - §9: `Read` returns true except for a version above 6 (the spec); on a
-//!   stream error nothing but `running` changes (references already taken
-//!   are released). Null or unresolvable plant and pole references are
-//!   skipped (the node is not kept). The bitmaps are sized from the city's
-//!   cell counts and filled from the saved words (missing words 0, extra
-//!   words dropped). A consumption map of more than [`MAX_MAP_CELLS`] cells
-//!   fails the read. A loaded grid reference that does not resolve leaves no
-//!   grid (§5.3 and §6.5 then skip the grid writes; `Init` does not recreate
-//!   it on a loaded city, as the spec says).
+//! - §8: a curve property that is not numeric, or a single scalar, counts as
+//!   absent (foundations §4.1); a present property with no points gives an
+//!   empty curve, which evaluates to 0.0. The per-building curves follow the
+//!   same rule per call.
+//! - §9.1 (the spec's choice): on a stream error `Read` returns false, does
+//!   not set `running`, releases the references it took and leaves every
+//!   member as it was; a version above 6 consumes only the version, sets
+//!   `running` and returns false *[compat]*. Null or unresolvable plant and
+//!   pole references are skipped (the node is not kept). The bitmaps are
+//!   sized from the city's cell counts and filled from the saved words
+//!   (missing words 0, extra words dropped). A consumption map of more than
+//!   [`MAX_MAP_CELLS`] cells fails the read. A loaded grid reference that
+//!   does not resolve leaves no grid (§5.3 and §6.5 then skip the grid
+//!   writes; `Init` does not recreate it on a loaded city, as the spec says).
 //! - `GetStrikeLength` subtracts as `u32` and returns the result as `int32`.
+//! - Line-item secondary info is passed as `int64`, the game's field type
+//!   (§5.1), and changes by ±1 with 64-bit wrapping.
 
 mod cycle;
 mod record;
@@ -241,23 +266,40 @@ pub mod network_flag {
     pub const CONDUCTS: u32 = 0x0004_0000;
 }
 
-/// Per-building properties (§8).
+/// Per-building properties (§8; the quoted names are the community property
+/// list's, where it has one).
 pub mod prop {
+    /// "Power Generated" (u32, default 0).
     pub const CAPACITY: u32 = 0x2781_2852;
+    /// "Power Consumed" (u32, default 0).
     pub const REQUIREMENT: u32 = 0x2781_2854;
+    /// "Power Plant Type" (read as s32, default 0).
     pub const PLANT_TYPE: u32 = 0x2781_2853;
+    /// Power used last cycle (s32, written).
     pub const USED: u32 = 0x08D9_763D;
+    /// Wear / age (f32, written, default 0).
     pub const WEAR: u32 = 0xC910_B4CF;
+    /// "Power plant energy conversion cost" (f32, default 0).
     pub const FUEL_COST: u32 = 0xC910_B4CE;
+    /// "Age degradation rate" (f32, default 0).
     pub const AGEING_RATE: u32 = 0xEA1C_F220;
+    /// "Soft failure threshold" (f32, default 99).
     pub const AGEING_T1: u32 = 0xEA1C_F221;
+    /// "Hard failure threshold" (f32, default 99).
     pub const AGEING_T2: u32 = 0xEA1C_F222;
+    /// "Hard Failure Type" (u32, default 0).
     pub const DESTROY_FLAGS: u32 = 0x6A43_150F;
+    /// "Radiation Spew Intensity" (f32, default 0).
     pub const RADIATION_STRENGTH: u32 = 0xAA5C_04C5;
+    /// "Radiation Spew Radius" (f32, default 0).
     pub const RADIATION_RADIUS: u32 = 0xAA5C_04C8;
+    /// "Age to output level response curve".
     pub const CONDITION_CURVE: u32 = 0x8A1E_07EE;
+    /// "Age to maintenance cost multiplier response curve".
     pub const MAINTENANCE_CURVE: u32 = 0x0911_E2E7;
+    /// Base maintenance (int64, written at insertion).
     pub const BASE_MAINTENANCE: u32 = 0x2A58_D350;
+    /// "Power pole monthly upkeep" (int64).
     pub const POLE_COST: u32 = 0x0913_2DE8;
 }
 
@@ -547,12 +589,12 @@ pub trait PowerHost: GridProvider<u8> {
     fn set_pole_distressed(&self, pole: u64, on: bool);
     /// QI `cISC4PowerLineOccupant` (`0xC98F3B24`); `None` when it fails.
     fn power_line(&self, occ: u64) -> Option<LineInfo>;
-    /// Line slot 3 `GetConnectedPoles`: both poles, or `None` unless both
-    /// ends are connected.
+    /// Line slot 3 `GetConnectedPoles`: (first, second) pole, or `None`
+    /// unless both are non-null.
     fn line_connected_poles(&self, line: u64) -> Option<(u64, u64)>;
-    /// The non-virtual `cSC4PowerPoleOccupant::RemoveConnection` of `pole`
-    /// for `line` (§5.4, §11.2).
-    fn remove_pole_connection(&self, pole: u64, line: u64);
+    /// The non-virtual `cSC4PowerPoleOccupant::RemoveConnection`:
+    /// `first.RemoveConnection(second, 0)` (§5.4 step 3, §11.2).
+    fn remove_pole_connection(&self, first: u64, second: u64);
     /// QI `cISC4NetworkOccupant` (`0xA821EF94`) and `GetOccupiedCell()`;
     /// `None` when the QI fails.
     fn network_occupant_cell(&self, occ: u64) -> Option<(i32, i32)>;
@@ -650,8 +692,9 @@ pub trait PowerHost: GridProvider<u8> {
     fn line_item(&self, dept: u64, line: u32) -> Option<u64>;
     fn set_line_item_name(&self, item: u64, group: u32, instance: u32);
     fn set_line_item_display_flag(&self, item: u64, flag: u32, on: bool);
-    fn line_item_secondary_info(&self, item: u64) -> i32;
-    fn set_line_item_secondary_info(&self, item: u64, value: i32);
+    /// `GetSecondaryInfoField()` / `SetSecondaryInfoField(v)` (`int64`).
+    fn line_item_secondary_info(&self, item: u64) -> i64;
+    fn set_line_item_secondary_info(&self, item: u64, value: i64);
     fn set_line_item_full_expenses(&self, item: u64, value: i64);
     /// `GetBudgetItemForPurpose(holder, purpose)`.
     fn budget_item_for_purpose(&self, occ: u64, purpose: u32) -> Option<BudgetItem>;
@@ -666,27 +709,18 @@ pub trait PowerHost: GridProvider<u8> {
 
 // ---- arithmetic (foundations §18) -------------------------------------------------------------------
 
-/// `_ftol` to 32 bits: truncation toward zero; NaN and values outside
-/// `int32` give `0x80000000`.
+/// `_ftol` kept to 32 bits (foundations §18.1, [`crate::x87::ftol32`]):
+/// int64 truncation toward zero, low half kept. NaN, ±∞ and magnitudes
+/// ≥ 2^63 give `0x8000000000000000`, so **0** here; values outside `int32`
+/// wrap.
 pub fn ftol32(v: f32) -> i32 {
-    let d = f64::from(v);
-    if d.is_nan() || d >= 2_147_483_648.0 || d <= -2_147_483_649.0 {
-        i32::MIN
-    } else {
-        d as i32
-    }
+    crate::x87::ftol32(f64::from(v))
 }
 
-/// `_ftol` to 64 bits: truncation toward zero; NaN and values outside
-/// `int64` give `0x8000000000000000`.
+/// `_ftol` to 64 bits ([`crate::x87::ftol`]): truncation toward zero; NaN
+/// and values outside `int64` give `0x8000000000000000`.
 pub fn ftol64(v: f32) -> i64 {
-    let d = f64::from(v);
-    const TWO_63: f64 = 9_223_372_036_854_775_808.0;
-    if d.is_nan() || !(-TWO_63..TWO_63).contains(&d) {
-        i64::MIN
-    } else {
-        d as i64
-    }
+    crate::x87::ftol(f64::from(v))
 }
 
 /// `int × float`: the integer enters unrounded, one `f32` rounding.

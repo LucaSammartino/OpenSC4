@@ -47,6 +47,7 @@ Rust only (any OS):
 cd engine
 cargo test                                   # host target
 cargo test --target i686-pc-windows-msvc     # 32-bit Windows, the plugin's target
+cargo clippy --workspace --all-targets -- -D warnings   # must be clean, tests included
 ```
 
 Run cargo from `engine/`, so `engine/.cargo/config.toml` applies. It links the C runtime statically
