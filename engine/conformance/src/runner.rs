@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::rc::Rc;
 
-use fc4_core::host::{AgentDelivery, Broadcast, Clock};
+use fc4_core::host::{AgentDelivery, Broadcast, Clock, TimerSource};
 use fc4_core::ids::{cheat, msg, LEVEL_COUNT};
 use fc4_core::julian;
 use fc4_core::{AgentHandle, Message, Simulator, Snapshot, Tuning};
@@ -35,6 +35,7 @@ enum Event {
     Post { msg: Message, t: u32 },
     AddRef { agent: String },
     Release { agent: String },
+    Publish { cycles_to_ms: f32, ms_to_cycles: f32 },
 }
 
 impl Event {
@@ -55,6 +56,12 @@ impl Event {
             Event::Post { msg, t } => format!("{{\"event\":\"post\",{},\"t\":{t}}}", m(msg)),
             Event::AddRef { agent } => format!("{{\"event\":\"add_ref\",\"agent\":\"{agent}\"}}"),
             Event::Release { agent } => format!("{{\"event\":\"release\",\"agent\":\"{agent}\"}}"),
+            Event::Publish {
+                cycles_to_ms,
+                ms_to_cycles,
+            } => {
+                format!("{{\"event\":\"publish\",\"cycles_to_ms\":{cycles_to_ms:e},\"ms_to_cycles\":{ms_to_cycles:e}}}")
+            }
         }
     }
 
@@ -64,13 +71,14 @@ impl Event {
             Event::Post { .. } => "post",
             Event::AddRef { .. } => "add_ref",
             Event::Release { .. } => "release",
+            Event::Publish { .. } => "publish",
         }
     }
 
     fn agent(&self) -> Option<&str> {
         match self {
             Event::Deliver { agent, .. } | Event::AddRef { agent } | Event::Release { agent } => Some(agent),
-            Event::Post { .. } => None,
+            Event::Post { .. } | Event::Publish { .. } => None,
         }
     }
 
@@ -167,6 +175,9 @@ struct HostState {
     names: RefCell<HashMap<AgentHandle, String>>,
     error: RefCell<Option<String>>,
     slots: RefCell<HashMap<String, Vec<u8>>>,
+    qpc: Cell<u64>,
+    qpc_frequency: Cell<u64>,
+    tsc: Cell<u64>,
 }
 
 impl HostState {
@@ -258,6 +269,35 @@ impl AgentDelivery for HostRef {
     fn release(&self, agent: AgentHandle) {
         let h = &self.0;
         h.events.borrow_mut().push(Event::Release { agent: h.label(agent) });
+    }
+}
+
+/// Fake wall clock / TSC for the limit-timer calibration (spec §5.5).
+struct TimerRef(Rc<HostState>);
+
+impl TimerSource for TimerRef {
+    fn qpc(&self) -> u64 {
+        self.0.qpc.get()
+    }
+    fn qpc_frequency(&self) -> u64 {
+        self.0.qpc_frequency.get()
+    }
+    fn tsc(&self) -> u64 {
+        self.0.tsc.get()
+    }
+    fn publish(&self, cycles_to_ms: f32, ms_to_cycles: f32) {
+        self.0.events.borrow_mut().push(Event::Publish {
+            cycles_to_ms,
+            ms_to_cycles,
+        });
+    }
+}
+
+fn rel_close(got: f64, want: f64) -> bool {
+    if want == 0.0 {
+        got == 0.0
+    } else {
+        ((got - want) / want).abs() <= 1e-6
     }
 }
 
@@ -452,6 +492,21 @@ fn event_matches(e: &Event, want: &Json) -> R<bool> {
             "data2" => e.msg().map(|m| m.data2) == v.as_i64(),
             "data3" => e.msg().map(|m| m.data3) == v.as_i64(),
             "t" => e.t().map(i64::from) == v.as_i64(),
+            "cycles_to_ms" | "ms_to_cycles" => match e {
+                Event::Publish {
+                    cycles_to_ms,
+                    ms_to_cycles,
+                } => {
+                    let got = if k == "cycles_to_ms" {
+                        *cycles_to_ms
+                    } else {
+                        *ms_to_cycles
+                    };
+                    let want = v.as_f64().ok_or("publish values must be numbers")?;
+                    rel_close(f64::from(got), want)
+                }
+                _ => false,
+            },
             other => return Err(format!("unknown event key '{other}'")),
         };
         if !ok {
@@ -733,6 +788,73 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             Ok(())
         }
         "expect_state" => check_state(&sim.snapshot(), field(op, "state")?),
+        "set_timer_source" => {
+            h.qpc_frequency.set(int(op, "qpc_frequency")? as u64);
+            let init = field(op, "initial_ms_per_cycle")?
+                .as_f64()
+                .ok_or("initial_ms_per_cycle must be a number")?;
+            check_expect_bool(
+                op,
+                sim.set_timer_source(Box::new(TimerRef(host.0.clone())), init as f32),
+            )
+        }
+        "set_timers" => {
+            if let Some(q) = opt_int(op, "qpc")? {
+                h.qpc.set(q as u64);
+            }
+            if let Some(c) = opt_int(op, "tsc")? {
+                h.tsc.set(c as u64);
+            }
+            Ok(())
+        }
+        "advance_timers" => {
+            if let Some(q) = opt_int(op, "qpc")? {
+                h.qpc.set(h.qpc.get().wrapping_add(q as u64));
+            }
+            if let Some(c) = opt_int(op, "tsc")? {
+                h.tsc.set(h.tsc.get().wrapping_add(c as u64));
+            }
+            Ok(())
+        }
+        "calibrate_tick" => {
+            sim.calibrate_tick();
+            Ok(())
+        }
+        "expect_calibration" => {
+            let cal = sim.calibration();
+            if let Some(none) = op.get("none") {
+                let want_none = boolean(none).ok_or("'none' must be a boolean")?;
+                if want_none != cal.is_none() {
+                    return Err(format!(
+                        "calibration installed = {}, expected {}",
+                        cal.is_some(),
+                        !want_none
+                    ));
+                }
+                if want_none {
+                    return Ok(());
+                }
+            }
+            let cal = cal.ok_or("no timer source installed")?;
+            let pairs = [
+                ("cycles_to_ms", cal.cycles_to_ms()),
+                ("ms_to_cycles", cal.ms_to_cycles()),
+            ];
+            for (k, got) in pairs {
+                if let Some(v) = op.get(k) {
+                    let want = v.as_f64().ok_or("calibration values must be numbers")?;
+                    if !rel_close(f64::from(got), want) {
+                        return Err(format!("{k}: got {got:e}, expected {want:e}"));
+                    }
+                }
+            }
+            if let Some(n) = opt_int(op, "samples")? {
+                if cal.samples() as i64 != n {
+                    return Err(format!("samples: got {}, expected {n}", cal.samples()));
+                }
+            }
+            Ok(())
+        }
         "expect_debug" => {
             // Diagnostics view of the day barrier (spec §5.2 step 8). Does not read
             // the fake clock through auto-step (one read).
@@ -1000,6 +1122,9 @@ pub fn run_vector_text(text: &str) -> R<usize> {
         names: RefCell::new(HashMap::new()),
         error: RefCell::new(None),
         slots: RefCell::new(HashMap::new()),
+        qpc: Cell::new(0),
+        qpc_frequency: Cell::new(0),
+        tsc: Cell::new(0),
     });
     if let Some(c) = v.get("clock") {
         state.now.set(opt_int(c, "start_ms")?.unwrap_or(0) as u32);

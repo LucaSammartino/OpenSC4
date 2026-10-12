@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "limit_timer_calibration",
+  "spec": ["5.5", "10.9"],
+  "description": "CPU-cycle limit-timer calibration with a fake wall clock (1 MHz QPC) and a fake TSC. calib (ms per cycle) starts from the host's estimate and is published with 1/calib at installation. A sample is taken only when STRICTLY more than one second of wall-clock ticks has passed since the last sample point: if the TSC advanced, calib := 0.9 calib + 0.1 (dq * 1000/freq / dc); either way the sample point moves. OnTick calibrates before anything else, even before Init. [choice] Both coefficients are published on every tick; an invalid estimate or a zero frequency is refused. Values are compared with a relative tolerance of 1e-6.",
+  "steps": [
+    {"op": "expect_calibration", "none": true},
+    {"op": "set_timer_source", "qpc_frequency": 0, "initial_ms_per_cycle": 1e-6, "expect": false},
+    {"op": "set_timer_source", "qpc_frequency": 1000000, "initial_ms_per_cycle": -1, "expect": false},
+    {"op": "set_timer_source", "qpc_frequency": 1000000, "initial_ms_per_cycle": 0, "expect": false},
+    {"op": "expect_calibration", "none": true},
+    {"op": "expect_events", "events": []},
+
+    {"op": "set_timers", "qpc": 1000, "tsc": 5000},
+    {"op": "set_timer_source", "qpc_frequency": 1000000, "initial_ms_per_cycle": 1e-6, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "publish", "cycles_to_ms": 1e-6, "ms_to_cycles": 1e6}
+    ]},
+    {"op": "expect_calibration", "none": false, "cycles_to_ms": 1e-6, "ms_to_cycles": 1e6, "samples": 0},
+
+    {"op": "advance_timers", "qpc": 500000, "tsc": 500000000, "note": "0.5 s: no sample"},
+    {"op": "calibrate_tick"},
+    {"op": "set_timers", "qpc": 1001000, "tsc": 1000005000, "note": "exactly 1 s: still no sample"},
+    {"op": "calibrate_tick"},
+    {"op": "expect_events", "events": [
+      {"event": "publish", "cycles_to_ms": 1e-6, "ms_to_cycles": 1e6},
+      {"event": "publish", "cycles_to_ms": 1e-6, "ms_to_cycles": 1e6}
+    ]},
+    {"op": "expect_calibration", "samples": 0},
+
+    {"op": "set_timers", "qpc": 1101000, "tsc": 2200005000, "note": "1.1 s at 2 GHz: sample 5e-7"},
+    {"op": "calibrate_tick"},
+    {"op": "expect_events", "events": [
+      {"event": "publish", "cycles_to_ms": 9.5e-7, "ms_to_cycles": 1052631.5789}
+    ]},
+    {"op": "expect_calibration", "cycles_to_ms": 9.5e-7, "ms_to_cycles": 1052631.5789, "samples": 1},
+
+    {"op": "advance_timers", "qpc": 1200000, "tsc": 0, "note": "TSC stood still: no sample, the sample point moves"},
+    {"op": "calibrate_tick"},
+    {"op": "expect_calibration", "cycles_to_ms": 9.5e-7, "samples": 1},
+    {"op": "advance_timers", "qpc": 1200000, "tsc": 1200000000, "note": "1.2 s at 1 GHz: sample 1e-6"},
+    {"op": "calibrate_tick"},
+    {"op": "expect_calibration", "cycles_to_ms": 9.55e-7, "ms_to_cycles": 1047120.4188, "samples": 2},
+    {"op": "advance_timers", "qpc": 2000000, "tsc": -1000000000, "note": "TSC went backwards: ignored, point moves"},
+    {"op": "calibrate_tick"},
+    {"op": "expect_calibration", "cycles_to_ms": 9.55e-7, "samples": 2},
+    {"op": "clear_events"},
+
+    {"op": "advance_timers", "qpc": 1500000, "tsc": 3000000000, "note": "1.5 s at 2 GHz, through OnTick before Init"},
+    {"op": "tick"},
+    {"op": "expect_events", "events": [
+      {"event": "publish", "cycles_to_ms": 9.095e-7, "ms_to_cycles": 1099505.2227}
+    ]},
+    {"op": "expect_calibration", "samples": 3},
+
+    {"op": "init"},
+    {"op": "clear_events"},
+    {"op": "tick", "note": "hidden-paused after Init: calibration still runs first"},
+    {"op": "expect_events", "events": [
+      {"event": "publish", "cycles_to_ms": 9.095e-7}
+    ]}
+  ]
+}

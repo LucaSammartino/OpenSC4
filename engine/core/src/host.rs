@@ -61,6 +61,19 @@ pub trait Broadcast {
     fn post(&self, msg: &Message);
 }
 
+/// Sources and sink for the CPU-cycle limit-timer calibration (spec §5.5).
+/// Optional: a simulator without one simply does not calibrate.
+pub trait TimerSource {
+    /// High-resolution wall clock, in ticks (`QueryPerformanceCounter`).
+    fn qpc(&self) -> u64;
+    /// Wall-clock ticks per second (`QueryPerformanceFrequency`); must be > 0.
+    fn qpc_frequency(&self) -> u64;
+    /// Processor time-stamp counter, in cycles.
+    fn tsc(&self) -> u64;
+    /// Publish `CyclesToMillisecs` (ms per cycle) and `MillisecsToCycles` (cycles per ms).
+    fn publish(&self, cycles_to_ms: f32, ms_to_cycles: f32);
+}
+
 /// Everything the simulator needs from its environment.
 pub trait Host: Clock + AgentDelivery + Broadcast {}
 impl<T: Clock + AgentDelivery + Broadcast + ?Sized> Host for T {}

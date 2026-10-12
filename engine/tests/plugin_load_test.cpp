@@ -216,6 +216,15 @@ int main(int argc, char** argv) {
     CHECK(text.find("GetSimDate() #1 -> date object") != std::string::npos);
     CHECK(text.find("::Year() -> 2000") != std::string::npos);
     CHECK(text.find("GetSimDateNumber() #1 -> 2451545") != std::string::npos);
+    // Limit-timer calibration (spec 5.5): installed and published, but this test
+    // process is not SimCity 4, so the compat guard must refuse to write.
+    CHECK(text.find("calibration: QPC ") != std::string::npos);
+    CHECK(text.find("installed=1") != std::string::npos);
+    CHECK(text.find("compat: host executable ") != std::string::npos);
+    CHECK(text.find("compat: WARNING unrecognised executable") != std::string::npos);
+    CHECK(text.find("written to the game=yes") == std::string::npos);
+    CHECK(text.find("calibration (Init): installed") != std::string::npos);
+    CHECK(text.find("calibration (status): installed") != std::string::npos);
     CHECK(text.find("QueryInterface(0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("Init() called") != std::string::npos);
     CHECK(text.find("OnTick #1 ") != std::string::npos);

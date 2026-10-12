@@ -17,7 +17,8 @@
 
 use std::cell::RefCell;
 
-use crate::host::{AgentHandle, Host, Message};
+use crate::calibration::Calibration;
+use crate::host::{AgentHandle, Host, Message, TimerSource};
 use crate::ids::{cheat, level, msg, LEVEL_COUNT};
 use crate::julian::{self, DateFields, JULIAN_2000_01_01};
 use crate::save::{LoadError, SaveRecord, SAVE_VERSION};
@@ -434,6 +435,8 @@ impl State {
 pub struct Simulator {
     state: RefCell<State>,
     host: Box<dyn Host>,
+    /// Optional limit-timer calibration (§5.5): its source/sink and state.
+    timers: RefCell<Option<(Box<dyn TimerSource>, Calibration)>>,
 }
 
 impl Simulator {
@@ -441,6 +444,7 @@ impl Simulator {
         Simulator {
             state: RefCell::new(State::new()),
             host,
+            timers: RefCell::new(None),
         }
     }
 
@@ -535,6 +539,8 @@ impl Simulator {
 
     /// `cIGZSystemService::OnTick` (§5.1). Always returns true.
     pub fn on_tick(&self) -> bool {
+        // §5.5: calibrate the limit timers before anything else.
+        self.calibrate_tick();
         let run = self.with(|s, host| {
             let now = host.now_ms();
             let elapsed = now.wrapping_sub(s.frame_timer);
@@ -978,6 +984,44 @@ impl Simulator {
             }
             _ => false,
         }
+    }
+
+    // ---- limit-timer calibration (§5.5) -----------------------------------
+
+    /// Installs the calibration source/sink. `initial_ms_per_cycle` is the
+    /// host's estimate (milliseconds per TSC cycle). Reads the wall clock and
+    /// the TSC as the first sample point and publishes both coefficients.
+    /// Returns false (and changes nothing) for an invalid estimate or a zero
+    /// wall-clock frequency.
+    pub fn set_timer_source(&self, source: Box<dyn TimerSource>, initial_ms_per_cycle: f32) -> bool {
+        if source.qpc_frequency() == 0 {
+            return false;
+        }
+        let Some(cal) = Calibration::new(initial_ms_per_cycle, source.qpc(), source.tsc()) else {
+            return false;
+        };
+        source.publish(cal.cycles_to_ms(), cal.ms_to_cycles());
+        *self.timers.borrow_mut() = Some((source, cal));
+        true
+    }
+
+    /// One calibration step (§5.5), then publish. `on_tick` calls this first;
+    /// it is public for tests. Does nothing without a timer source.
+    pub fn calibrate_tick(&self) {
+        let mut timers = self.timers.borrow_mut();
+        if let Some((source, cal)) = timers.as_mut() {
+            let q = source.qpc();
+            let c = source.tsc();
+            cal.tick(q, c, source.qpc_frequency());
+            // [choice] publish on every tick (cheap; keeps the globals right even
+            // if something else overwrote them).
+            source.publish(cal.cycles_to_ms(), cal.ms_to_cycles());
+        }
+    }
+
+    /// The current calibration, if a timer source is installed.
+    pub fn calibration(&self) -> Option<Calibration> {
+        self.timers.borrow().as_ref().map(|(_, c)| *c)
     }
 
     // ---- inspection --------------------------------------------------------

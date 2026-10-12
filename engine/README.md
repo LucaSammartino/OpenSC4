@@ -95,6 +95,12 @@ plugin.
    - At `PostAppInit`, verbose mode also asks `GZCOM()->GetClassObject(0x2990C1E5)` once. The answer shows whether
      the game's registry resolves the class to our factory. The object it creates is released at once. Set
      `FC4_NO_PROBE=1` to skip this check.
+   - Limit-timer calibration (spec §5.5): the simulator keeps the game's two CPU-cycle coefficients
+     (`CyclesToMillisecs`, `MillisecsToCycles`) up to date. Subsystems such as the lot developer use them to budget
+     their work. Writing them needs the version-specific addresses in `plugin/compat/`, and only happens after the
+     host has been identified as the exact 1.1.641 executable. The log shows each check (`compat: …`) and the
+     published values (`calibration …`), both at `Init` and in every status block. `FC4_DISABLE_CALIBRATION=1`
+     turns off the writes (for A/B tests).
 3. **A/B against the original:** set `FC4_DISABLE_SIMULATOR=1` in the environment that starts the game. The DLL
    still loads and logs `PASSTHROUGH`, but it does not register the class, so the game's own simulator runs.
 
