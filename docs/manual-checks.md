@@ -30,8 +30,9 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 - The checked DLL with the message fix is staged in Plugins. The previous one was renamed `*.pre-msgfix`.
 - Run 8 starts automatically once you close the game: all budget switches on, with the message fix.
   - If it's clean, the message layout was the cause.
-  - If not, the bisection continues. Lane 3 is on the M3 grid simulator cores. Lane 1 is on
-  land value.
+  - If not, the bisection continues.
+- Lane 3 is on the M3 grid simulator cores. Lane 1 is on the plugin glue for weather, ordinance and demand (off
+  by default).
 
 ## To verify in-game (after the bisection finds the culprit)
 
