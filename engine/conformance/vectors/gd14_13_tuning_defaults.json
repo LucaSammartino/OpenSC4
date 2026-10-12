@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "growth_developer_tuning_defaults",
+  "spec": ["growth-developer 4.8", "growth-developer 2", "growth-developer 14.13"],
+  "description": "Test 13 (hand-derived from 4.8): an exemplar with only 0x21 and 0x87CD6310 -> baseline 80, thresholds 80 / 80, phantom off (every read resets it), caps 0/3/3/6, monopoly 1, abandonment 0.2f (0x3E4CCCCD) for keys 1..3 and 0.0 inserted for key 4 by the getter, no curves (W = baseline everywhere), no stage curves (every item keeps maxStage 1); target zone 0 -> no demand queries, size 0. Further exemplars: the decline threshold defaults to the growth threshold; 0x87CD6380 with 2 floats sets keys 1, 2 and keeps 0.2 for 3 ([choice]); 0x87CD6333 with 1 byte keeps the range ([choice]); a missing stage curve and a one-value stage curve both become the constant (0, 0) ([choice] for the latter); a one-value curve property gives an empty curve, treated as absent ([choice]).",
+  "steps": [
+    {"op": "gdev_env", "cells": [16, 16]},
+    {"op": "gdev_create"},
+    {"op": "gdev_init", "props": {"0x21": {"u32": "0x1010"}, "0x87CD6310": {"u8": 4}}, "expect": true},
+    {"op": "gdev_expect", "state": {"baseline": 80, "growth_threshold": 80, "decline_threshold": 80, "phantom_demand": false, "caps": [0, 3, 3, 6], "monopoly_use": 1, "abandonment": {"1": 0.2, "2": 0.2, "3": 0.2}, "curves": [], "stage_count": 0, "target_zone": 0, "purpose": 0, "wealth": 0, "land_value_min": 0, "land_value_max": 0, "use_intrinsic": false, "tract_size": 4, "source_demand": null, "styles": {}, "subjective_min": [], "subjective_max": [], "developer_type": "0x1010"}},
+    {"op": "gdev_call", "method": "abandonment_threshold", "args": [1], "expect_bits": "0x3E4CCCCD"},
+    {"op": "gdev_call", "method": "abandonment_threshold", "args": [4], "expect": 0.0},
+    {"op": "gdev_expect", "state": {"abandonment": {"1": 0.2, "2": 0.2, "3": 0.2, "4": 0.0}}},
+    {"op": "gdev_call", "method": "caps", "expect": [0, 3, 3, 6]},
+    {"op": "gdev_call", "method": "monopoly_use", "expect": 1},
+    {"op": "gdev_call", "method": "desirability_threshold", "expect": 80},
+    {"op": "gdev_set", "grid": "zoned", "fill": 1},
+    {"op": "gdev_clear_events"},
+    {"op": "gdev_update", "calls": 20},
+    {"op": "gdev_expect_grid", "grid": "desirability", "all": 80},
+    {"op": "gdev_expect", "state": {"growth": [[0, 0, 1], [0, 1, 1], [0, 2, 1], [0, 3, 1], [1, 0, 1], [1, 1, 1], [1, 2, 1], [1, 3, 1], [2, 0, 1], [2, 1, 1], [2, 2, 1], [2, 3, 1], [3, 0, 1], [3, 1, 1], [3, 2, 1], [3, 3, 1]], "decline": [], "city_size": 0.0}},
+    {"op": "gdev_expect_event_count", "filter": {"event": "get_demand"}, "count": 0},
+    {"op": "gdev_expect_event_count", "filter": {"event": "stage_multiplier"}, "count": 1},
+    {"op": "gdev_create", "label": "b"},
+    {"op": "gdev_init", "props": {"0x21": {"u32": "0x1010"}, "0x87CD6310": {"u8": 4}, "0x87CD6355": {"i32": 60}, "0x87CD6380": {"f32": [0.5, 0.75]}, "0x87CD6333": {"u8": [7]}, "0x87CD6360": {"u8": 2}, "0x87CD6362": {"f32": [5]}, "0x87CD6381": {"u8": 3}}, "expect": true},
+    {"op": "gdev_expect", "state": {"growth_threshold": 60, "decline_threshold": 60, "abandonment": {"1": 0.5, "2": 0.75, "3": 0.2}, "land_value_min": 0, "land_value_max": 0, "stage_count": 2, "monopoly_use": 3}, "stage_eval": [{"stage": 1, "x": 1000, "y": 0.0}, {"stage": 2, "x": 1000, "y": 0.0}]},
+    {"op": "gdev_create", "label": "c"},
+    {"op": "gdev_init", "props": {"0x21": {"u32": "0x1010"}, "0x87CD6310": {"u8": 4}, "0x87CD6333": {"u8": [9, 200]}, "0x87CD633F": {"bool": true}, "0x87CD6347": {"f32": [3]}, "0x87CD6341": {"f32": [0, 1, 2, 3]}, "0x87CD6354": {"i32": -5}}, "expect": true},
+    {"op": "gdev_expect", "state": {"land_value_min": 9, "land_value_max": 200, "use_intrinsic": true, "curves": ["park"], "growth_threshold": 80, "decline_threshold": -5}}
+  ]
+}

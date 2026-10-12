@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "growth_developer_subjective",
+  "spec": ["growth-developer 10.1", "growth-developer 14.15"],
+  "description": "Test 15: GetSubjectiveThresholds(i) with the R$ vectors [14, 14, -3, -2, 14, 0, 1] / [21, 21, 7, 4, 21, 1, 9] (SimCity_1.dat): index 2 -> (-3, 7); 7 and -1 -> the defaults (-4, 20); each output is checked against its own vector, so vectors of different lengths give a mixed answer.",
+  "steps": [
+    {"op": "gdev_create"},
+    {"op": "gdev_init", "exemplar": "0x1010", "expect": true},
+    {"op": "gdev_expect", "state": {"subjective_min": [14, 14, -3, -2, 14, 0, 1], "subjective_max": [21, 21, 7, 4, 21, 1, 9]}},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [2], "expect": [-3, 7]},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [7], "expect": [-4, 20]},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [-1], "expect": [-4, 20]},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [0], "expect": [14, 21]},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [6], "expect": [1, 9]},
+    {"op": "gdev_create", "label": "u"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0xCAB1CE3A": {"i32": [1, 2, 3]}, "0xCAB1CE3C": {"i32": [9]}}, "expect": true},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [0], "expect": [1, 9]},
+    {"op": "gdev_call", "method": "subjective_thresholds", "args": [2], "expect": [3, 20]}
+  ]
+}
