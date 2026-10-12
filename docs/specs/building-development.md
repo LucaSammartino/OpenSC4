@@ -226,9 +226,11 @@ state := 1
 | 4 | `PlanDecline` (§4.3); state := 0 |
 
 `DoIdle` runs at the start of every day (before the daily growth) and at every idle slice, so the map rebuild
-progresses even when the game is paused. `IsMapUpdateFinished` is where the growth developers do their incremental
-work (growth-developer.md). The decline plan is made on the `DoIdle` call **after** the one that saw every
-developer finished.
+progresses even when the game is paused. `IsMapUpdateFinished` (slot 28, `0x006B75D0`) is a **pure query**: it
+returns `state = 0` and does no work (corrected). The growth developers do their incremental map work in their own
+`DoIdle`, driven by their own idle and day agents (growth-developer.md §3.1–§3.2); this state machine only waits
+for all of them. The decline plan is made on the `DoIdle` call **after** the one that saw every developer
+finished.
 
 ### 4.3 `PlanDecline` (`0x00699890`)
 

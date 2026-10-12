@@ -4,9 +4,6 @@ Questions from engine authors that the spec writers need to answer from the orig
 the relevant spec, and their entry here is deleted.
 
 ## Growth developer (growth-developer.md)
-- GD1. §14 test 11 gives f = 0x3E4CCCCD and a phantom term of 40, but by §5.3's rule r24(20 × 0.01f) is exactly halfway
-  between 0x3E4CCCCC and 0x3E4CCCCD and rounds to even, 0x3E4CCCCC (as protection test 25 has for 20). Then
-  r24(200 × f) = 39.999996 and the term is ftol = 39. The core and gd14_11 follow the rule (39); please correct the test.
 - GD2. §5.5: is supply(0x3301, 0x10000) queried when n2 = 0, and are the city-size queries made when there are no
   growth items? The core always queries (reading "query the neighbours and both C nodes" literally).
 - GD3. §5.4 step 3: which algorithm sorts the decline list? The core assumes the same std::sort as the growth list.
@@ -34,9 +31,6 @@ the relevant spec, and their entry here is deleted.
 - BD10. §4.7.4: an ID in a lot configuration's object list that is neither a family nor a building type adds nothing
   (inferred). Confirm.
 - BD11. §1.4: does `Shutdown` before `Init` do nothing? The core assumes so.
-- BD12. §4.2 says `IsMapUpdateFinished` is where the growth developers do their incremental work, while
-  growth-developer.md §3.1/§3.2 has the work in the developer's own `DoIdle` (its own idle and day agents) and slot 28
-  as a pure `state = 0` query. The cores follow growth-developer.md; please align §4.2.
 - BD13. §4.11 passes the 32-bit terrain-change kind to `UpdateLotElements(lot, bool hadFoundation)` (lot-developer.md,
   slot 37). The core passes `kind & 0xFF ≠ 0` (the callee reads the low byte). Confirm.
 - BD14. §8 gives `GetLotsInCellRect` an AL return; zones.md has an EAX count. (No effect on the BDS.)

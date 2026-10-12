@@ -5,6 +5,8 @@ Status: M4 round 5, written from the Windows 1.1.641 executable (`bin/SimCity4.e
 (zone grid and queries, `PlaceZone`, the dezone on network insertion, parcellization into lots, the lot manager's
 cell → lot map and lot lists, both save records, every slot of the interfaces). The zoning UI (drag colours, the
 highlight preview, plopped lots) is described only as far as it shares state or random draws with growth.
+Round 6 added the exact parcellization geometry: `Parcellize` (§7.6), `DrawStreet` (§7.10), `ExtendAsStreets`
+(§7.11), `LayInJogStreets` (§7.12), the connection test (§7.13) and conformance tests 19–29.
 
 Tags: *[compat]* observable, must match; *[choice]* FreeCity4 decision; *[inferred]* not proven;
 *[quirk]* original behaviour that looks unintended but is reproduced (or that a replacement must survive).
@@ -169,7 +171,7 @@ inserts a zero entry (§11.1), which then appears in the next save *[quirk]*.
 | maximum-capacity grid (`uint16`, tract size 4, instance `0x69D5C456`) | Init | no |
 | options: `alternateOrientation`, `placeStreets`, `customZoneSize` | false, **true**, false | no |
 | lot-size parameters: lot width, lot depth, min depth, max depth, block depth | 2, 2, 1, 3, 6 (overwritten by `DetermineLotSize` before every use) | no |
-| orientation result: flag, dominant side D, perpendicular side Q (§7.3) | 0, 0, 0 | no |
+| orientation result: flag, facing side D, start side Q (§7.3), side scores S[4], side conditions C[4] | 0, 0, 0, —, — | no |
 | current zone type (set during parcellization and dezoning) | 0 | no |
 | real-mode flag (false only inside `HighlightParcels`) | true | no |
 | restriction region (borrowed or owned pointer, §7) | null | no |
@@ -375,10 +377,10 @@ empty). On failure with `out` given, `*out` := a new all-false region over the r
 1. Post DeferOccupantOperations (data1 = 1).
 2. `CreateParcellizableRegion` (§7.4), cropped to its bounding box (`CompressRegion` `0x0072AF30`, new C region).
 3. `DetermineLotSize` (§7.2.1).
-4. If `placeStreets`: `ExtendAsStreets` (`0x00730BA0`) for network kinds 11, 3, 10, 0, 6 (dirt, street, one-way,
-   road, avenue) in that order; if the cropped region is wider and deeper than 2 cells, also `LayInJogStreets`
-   (`0x00730D30`) for the same kinds. Geometry not specified
-   (§14.3). They draw streets into the region (through the network tools).
+4. If `placeStreets`: `ExtendAsStreets` (§7.11) for network kinds 11, 3, 10, 0, 6 (dirt, street, one-way,
+   road, avenue) in that order; then, if the cropped region is wider and deeper than 2 cells, `LayInJogStreets`
+   (§7.12) for the same kinds in the same order. Both receive the cropped region's rect, and the cropped region
+   is the restriction region while they run, so their streets (§7.10) land only on its cells.
 5. `SubdivideTheZone` (`0x0072EC60`): recompute the parcellizable region, split it into **4-connected components**
    (`ExtractConnectedCells` `0x0072CDA0`), each cropped and appended to a component list (B nodes; one empty region if
    there are none).
@@ -412,11 +414,16 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
    `k := (1 << s) << s` with s the desirability map's tract shift (cells per tract);
    `v := ftol(r24(r24(float(k) / float(sx · sz)) × float((min + max) / 2)))` (integer division; the product is
    unsigned); `score := |v − bestDemand|`. Keep the configuration with the smallest score (strict `<`: first wins).
-7. Lot width/depth := the chosen `(sx, sz)`, else (2, 2). `minDepth := maxDepth := depth`; then over all
-   configurations with `width mod sx = 0`, widen `[minDepth, maxDepth]` by `sz`. Every configuration is released.
-   If `maxDepth − minDepth < 2`: `minDepth := (minDepth > 2) ? maxDepth − 2 : 1`; `maxDepth := minDepth + 2`.
-8. Block depth by zone density (`0x00458960`: 1 low, 2 medium, 3 high) when the best developer's purpose is 1
-   (residential): low `3 · depth`, medium `ftol(r24(depth × 2.5))`, high `2 · depth`; otherwise 7, 6, 5.
+7. Lot width/depth := the chosen configuration's size `(sx, sz)` (lot configuration slot 7, first out-parameter =
+   width), else (2, 2). `minDepth := maxDepth := depth`; then over **all** configurations of the hash set (not only
+   those that passed the size filter of step 6), in hash order, with `width mod sx = 0` (unsigned), widen
+   `[minDepth, maxDepth]` to include `sz` (unsigned compares). Every configuration is released.
+   If `maxDepth − minDepth < 2` (unsigned): `minDepth := (minDepth > 2) ? maxDepth − 2 : 1`; `maxDepth := minDepth + 2`.
+8. Block depth by zone density (`0x00458960`: zones 1, 4 → 1; 2, 5 → 2; 3, 6, 7, 8, 9 → 3; any other → 0) when a
+   best developer exists and its purpose (growth developer slot 7) is 1 (residential): density 1 → `3 · depth`,
+   2 → `ftol(r24(float(depth) × 2.5))` (depth converted as unsigned; 2 → 5, 3 → 7, 4 → 10), 3 → `2 · depth`.
+   Otherwise (no best developer, or another purpose): 1 → 7, 2 → 6, 3 → 5. Density 0 leaves the block depth
+   unchanged (unreachable for zones 1–9).
 
 No random draws. Hash-set order depends only on the configuration IDs.
 
@@ -474,7 +481,7 @@ cells are re-parcelled.
 | 3 | x1, + | D = 0: z1, + ; else z2, − |
 
    A counter starts at 0 per pass. On each line: if counter ≥ n and the line is ≥ 2 cells from both rect edges,
-   draw a street (`DrawStreet` `0x0072A2A0`, whole line across the rect) and reset the counter; otherwise
+   draw a street (`DrawStreet` §7.10, whole line across the rect, perCell = 0) and reset the counter; otherwise
    counter += 1. So streets are separated by n lot lines.
 2. For **every cell of the restriction rect**, x ascending (outer), z ascending (inner), regardless of the region's
    bits: `CreateLotToFaceRoad(x, z, 1, 1, emptyList)` (§7.7) → **one random draw per cell** (§9). The created lot's
@@ -487,17 +494,150 @@ Agricultural and industrial zones therefore always become 1×1 lots; growth late
 
 ### 7.6 `Parcellize` (`0x0072EDD0`): residential and commercial
 
-Uses the restriction region, D/Q and flag (§7.3) and the lot-size parameters (§7.2.1). Lots of `width × depth`
-are laid in rows from the road side, with edge adjustments using `minDepth`, `maxDepth`, block depth and halving /
-thirding of left-over strips; jog streets are drawn with `DrawStreet` when `placeStreets`. Each lot attempt calls
-`CreateLotIfPossible` with an **explicit facing** (no random draw); a failed attempt falls back to
-`CreateLotRemnants(rect, facing)` (§7.8; no draw for zones 1–6). In real mode every attempt first calls
-`lotDeveloper.AttemptAreaLevelling(&clampedRect, 0, 1, 1, FLT_MAX, 0)` (slot 21). Created lots get
-`SetVerticesAreLocked(1)` (lot slot 69) and are listed; at the end each is unlocked (0) and released.
+Inputs: the restriction region R (one component, §7.2 step 6) with rect `{x1, z1, x2, z2}`; D, Q, flag and C[4]
+from `ExamineBoundaries` (§7.3; D and Q are always perpendicular); the lot-size parameters of §7.2.1, written here
+`Lw` (lot width), `Ld` (lot depth), `minDepth`, `maxDepth`, `block` (block depth); `ps` := `placeStreets` as 0/1.
+All arithmetic is `int32`; comparisons marked *u* are unsigned 32-bit. No random draws (§9).
 
-The exact row geometry is **not specified here** (§14.3). The Windows structure matches the Mac function
-(`000e365a`); a conforming implementation must reproduce the cell order of lot attempts, but no random draws
-depend on it.
+#### 7.6.1 Frame
+
+Lots face side D (or its opposite) and are laid **back to back along the depth axis**, starting at side D; one
+such strip of lots is a **row**, `Lw` cells wide. Rows are laid side by side along the row axis, starting at side
+Q. The switch is on Q:
+
+| | Q ∈ {0, 2} | Q ∈ {1, 3} |
+|---|---|---|
+| depth axis (coordinate p), range `[a1, a2]` | x, `[x1, x2]` | z, `[z1, z2]` |
+| row axis (coordinate o), range `[b1, b2]` | z, `[z1, z2]` | x, `[x1, x2]` |
+| lot rect at (p, o) with depth size n | x `p..p+n−1`, z `o..o+Lw−1` | x `o..o+Lw−1`, z `p..p+n−1` |
+
+Depth walk, by the position of D on the depth axis:
+
+| | D ∈ {0, 3} (low side) | D ∈ {1, 2} (high side) |
+|---|---|---|
+| start `p0` | `a1` | `a2 − Ld + 1`, **replaced by 0 when negative** *[quirk]* |
+| step `sp` | `+Ld` | `−Ld` |
+| keep while | `a1 ≤ p ≤ a2` | `a1 − Ld + 1 ≤ p ≤ p0` |
+| back-street offset `j` | `+Ld` | `−1` |
+| remaining depth `rem` at p | `a2 − p + 1` | `p − a1 + Ld` |
+
+Row walk, by the position of Q on the row axis:
+
+| | Q ∈ {0, 3} (low side) | Q ∈ {1, 2} (high side) |
+|---|---|---|
+| start `o0` | `b1` | `b2 − Lw + 1` |
+| step `so` | `+Lw` | `−Lw` |
+| keep while | `b1 ≤ o ≤ b2` | `b1 − Lw + 1 ≤ o ≤ o0` |
+| cross-street offset `k` | `+Lw` | `−1` |
+
+Further constants: front facing `A := D`, back facing `B := (D + 2) mod 4`; `first := (C[D] = 1) ? A : B`;
+`farRoad := (C[B] = 1)`; `Lrow := b2 − b1 + 1`; `Ldepth := a2 − a1 + 1`.
+
+**Middle row.** Let `n` be the number of row positions `o0, o0 + so, o0 + 2·so, …` that satisfy the row keep
+condition (counted until the first that does not; 0 if `o0` itself fails). `mid := o0 + (⌊n/2⌋ − 1)·so` when
+`⌊n/2⌋ ≥ 1`, else `mid := o0`. (Example: `o0 = 10`, `so = +2`: range 10..15 gives n = 3, mid = 10; 10..17 gives
+n = 4, mid = 12; 10..21 gives n = 6, mid = 14.)
+
+#### 7.6.2 Lot loop
+
+```
+acc := 0;  backStreet := false;  locked := empty list
+o := o0
+while o satisfies the row keep condition:
+    f := first;  p := p0
+    while p satisfies the depth keep condition:
+        n := Ld;  δ := 0
+        if rem(p) > 0:                                             (always true in practice)
+            n' := DepthRule(rem(p), f, farRoad)                    (§7.6.3)
+            if Ldepth ≤u maxDepth and Lrow <u ps + 2·Lw:  n' := Ldepth
+            if n' ≠ Ld:  δ := n' − Ld;  n := n';  if sp < 0: p := p − δ
+        rect := lot rect at (p, o), depth size n                    (§7.6.1)
+        if not lotManager.CreateLotIfPossible(rect, facing f):     (§8.5)
+            CreateLotRemnants(rect, f)                              (§7.8)
+        if δ ≠ 0 and sp > 0:  p := p + δ
+        if f = A:  f := B
+        else:      f := A
+                   if ps:
+                       s := p + j
+                       if a1 ≤ s ≤ a2:
+                           if o = o0:                               (drawn during the first row only)
+                               DrawStreet(row-axis line at depth s, from b1 to b2,
+                                          perCell = (s = a1 or s = a2))                   (§7.10)
+                               backStreet := true
+                           p := p + 1 if sp > 0 else p − 1          (every row skips the street line)
+        if real mode:  lotDeveloper.AttemptAreaLevelling(rect clamped to the city)
+        if a lot was created:  lock its vertices;  append it to locked
+        p := p + sp
+    if ps:
+        acc := acc + Lw
+        force := flag and backStreet and Lrow ≤u block + Lw + 1 and o = mid
+        if acc ≥u block or force:
+            t := o + k
+            if force or (b1 + Lw ≤u t and t ≤u b2 − Lw):
+                acc := 0
+                DrawStreet(depth-axis line at row coordinate t, from a1 to a2,
+                           perCell = (t = b1 or t = b2))
+                o := o + 1 if so > 0 else o − 1                      (the next row starts after the street)
+    o := o + so
+for each lot in locked, in order:  unlock its vertices;  release the reference
+```
+
+Details *[compat]*:
+
+- The keep conditions are re-tested after every step, so the extra ±1 for a street only shifts the walk; a lot
+  position that fails the keep condition ends the row.
+- When the depth size changes on a high-side walk (`sp < 0`), p moves by −δ first, so the lot keeps its far edge
+  at `p + Ld − 1` (the edge nearer to side D) and grows or shrinks towards the interior. On a low-side walk the lot
+  starts at p and p is advanced by δ afterwards. Either way the next lot starts right after this one.
+- `CreateLotIfPossible` is lot manager slot 22 with the attempted rect, facing f, out lot, and the remaining
+  arguments 0, 0, null (§8.5); it draws no random numbers. On failure `CreateLotRemnants` (§7.8) covers the
+  buildable cells of the rect with 1-cell-deep strips facing f; for zones 1–6 it passes the explicit facing list
+  `{f}`, so `CreateLotToFaceRoad` makes **no** `U(4)` draw here.
+- The levelling call (lot developer slot 21, `lot-developer.md`) runs **after** the attempt, its remnants and the
+  back street, for every attempt including failed ones, on the attempted rect clamped to
+  `[0, cellsX − 1] × [0, cellsZ − 1]` (city slots 93, 94), with arguments `(rect, 0.0f, true, true,
+  FLT_MAX (0x7F7FFFFF), null lot)`. The clamped rect can include cells outside the zone. Not called in highlight
+  mode.
+- Created lots get `SetVerticesAreLocked(1)` (lot slot 69) right after their levelling and keep the lock until the
+  whole region is done, so later levelling in the same region does not move their corners; then each is unlocked
+  (0) in creation order and released.
+- The lot's row-axis size is always `Lw`: a row that overhangs the region (`Lrow` not a multiple of `Lw`, or the
+  narrow arm of an L) fails with code 0 (§8.4) and falls back to remnants. The depth size is adapted (§7.6.3) so
+  that the last lot of a row ends at the region edge or one cell short of it (case (c), leaving room for a street).
+- Lots are created in row order and, within a row, in depth order; remnant lots appear at the point of the attempt
+  that produced them. New lots go to the end of the master list (§8.5), so this is also their master-list order.
+- The back street is drawn once, during the first row, across the whole row range `b1..b2`; later rows only skip
+  its line. The depth positions of all rows are identical because `rem`, `f` and the adjustments do not depend on
+  o.
+- New streets are visible to `CanCreateLot` at once (code 3), so a later attempt overlapping a street fails and
+  falls back to remnants *[inferred: `PlaceNetworkOccupants` inserts the street occupants before it returns; in
+  highlight mode they are drafts, seen through §8.8]*. Cells under new streets stay zoned until the posted
+  InsertOccupant message of each street occupant reaches the zone manager, which dezones them (§5.1) later.
+- `flag` (§7.3) matters only for the forced middle cross street. It is 0 for zones 1–2 with `placeStreets` and a
+  region wider and deeper than 2 cells (§7.3), so low and medium density residential gets cross streets only every
+  `block` cells of rows.
+- The cross-street range test is unsigned, so when `b2 < Lw` the upper bound wraps to a huge value and the test
+  can pass where a signed test would fail, and a negative t (`k = −1` at `o = 0`) fails *[quirk]*. The street
+  itself is still clipped to R by `DrawStreet`.
+- The start clamp `p0 := max(0, a2 − Ld + 1)` for a high-side D changes the layout of a region whose depth range
+  lies within the first `Ld − 1` cells of the map: the walk then starts at 0 instead of a negative position, and
+  the extra lot positions it produces are tried (test 26) *[quirk]*.
+- The forced override `n' := Ldepth` applies when the whole depth range fits in one lot (`Ldepth ≤ maxDepth`) and
+  the row range is narrower than `ps + 2·Lw`; then every lot of the row spans the full depth.
+
+#### 7.6.3 `DepthRule(rem, f, farRoad)`
+
+`m := minDepth`, `M := maxDepth`, `P := Ld`, `s := ps`. The first matching line wins; all compares *u*; `/` is
+integer division (all operands positive).
+
+| Case | Result |
+|---|---|
+| **(a)** `farRoad` and `f = A` | `rem ≤ M` → rem; `rem < 2m` → rem; `rem < 2M − 1` → `(rem + 1)/2`; `rem < s + 3m` → `(rem + 1)/2`; `rem ≥ s + 3P` → P; else `(rem + 1)/3` |
+| **(b)** `farRoad` and `f = B`, or not `farRoad` and `f = A` | `rem < s + 2m` → rem; `rem ≥ s + 2P` → P; `rem ≤ M` → rem; else `rem/2` |
+| **(c)** not `farRoad` and `f = B` | `rem < s + 2m` → (`rem > 1` ? `rem − 1` : P); `rem ≥ s + 2P` → P; `rem − 1 > M` → `rem/2`; else (`rem > 1` ? `rem − 1` : P) |
+
+Case (c) leaves one cell for the back street when no road lies behind the block. A result equal to P means "no
+change". Test 27 tabulates the function.
 
 ### 7.7 `CreateLotToFaceRoad(x, z, w, h, list, out)` (`0x0072D200`)
 
