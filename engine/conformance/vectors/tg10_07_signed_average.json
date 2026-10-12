@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "tgrid_signed_average",
+  "spec": ["simgrid 4.1", "simgrid 10.7"],
+  "description": "Signed values are sign-extended and the quotient truncates toward zero (-1.5 -> -1); unsigned 255 is zero-extended (127.5 -> 127).",
+  "steps": [
+    {"op": "tg_city", "cells": [4, 4], "width": [16, 16]},
+    {"op": "tg_create", "name": "s", "type": "i8", "tract_size": 1},
+    {"op": "tg_set", "grid": "s", "cells": [[0, 0, -3]]},
+    {"op": "tg_call", "grid": "s", "method": "average_in_tract_rect", "args": [0, 0, 2, 1], "expect": -1},
+    {"op": "tg_create", "name": "u", "type": "u8", "tract_size": 1},
+    {"op": "tg_set", "grid": "u", "cells": [[0, 0, 255]]},
+    {"op": "tg_call", "grid": "u", "method": "average_in_tract_rect", "args": [0, 0, 2, 1], "expect": 127},
+    {"op": "tg_create", "name": "w", "type": "i16", "tract_size": 1},
+    {"op": "tg_set", "grid": "w", "cells": [[0, 0, -32768], [1, 0, -32767]]},
+    {"op": "tg_call", "grid": "w", "method": "average_in_tract_rect", "args": [0, 0, 2, 1], "expect": -32767},
+    {"op": "tg_create", "name": "l", "type": "u32", "tract_size": 1},
+    {"op": "tg_set", "grid": "l", "cells": [[0, 0, 4294967295], [0, 1, 4294967295]]},
+    {"op": "tg_call", "grid": "l", "method": "average_in_tract_rect", "args": [0, 0, 1, 2], "expect": 4294967295}
+  ]
+}

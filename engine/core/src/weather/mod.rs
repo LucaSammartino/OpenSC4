@@ -59,10 +59,9 @@
 //!   the reader leaves a grid empty when either count is ≥ 1,000,000 (§10).
 //! - A version 0/1 record's legacy block is read and discarded (§10).
 
-mod iterator;
 mod simulator;
 
-pub use iterator::{CellIterator, IteratorState, PRIME_TABLE};
+pub use crate::grid::{CellIterator, IteratorState, PRIME_TABLE};
 pub use simulator::{shipped_tuning, Grid, WeatherData, WeatherSim, MAX_CELLS, WEATHER_RECORD_VERSION};
 
 use std::rc::Rc;
