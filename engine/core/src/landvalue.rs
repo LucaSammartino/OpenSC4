@@ -21,12 +21,21 @@
 //! code never sees a half-written grid. The scratch grid is core memory
 //! only [choice] (it is neither saved nor handed out, §2).
 //!
+//! The working grids are core [`SimGrid`]s and the map utilities are the
+//! shared ones of [`crate::grid`] (simgrid.md §7). With that module's
+//! bounds rules a desirability map smaller than the land value grid reads 0
+//! outside itself, so those tracts still get the §7.4 term with `d = 0`
+//! [choice] (the original requires both grids to cover the city).
+//!
 //! Precision: f32 throughout, in the spec's operation order; see `[precision]`
-//! tags and simgrid.rs.
+//! tags.
+
+use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
-use crate::simgrid::{
-    add_distance_effect, process_two_grids, GridGeometry, ScanIterator, CLSID_GRID_F32, CLSID_GRID_U8, IID_SIM_GRID,
+use crate::grid::{
+    add_distance_effect, process_two_grids, GridElem, ScanIterator, ScanState, SimGrid, TractGeometry, TractGrid,
+    IID_SIM_GRID,
 };
 use crate::stream::{InStream, OutStream, RefValue};
 
@@ -117,7 +126,7 @@ pub trait LandValueHost {
     /// Creates a grid (`AddRef`, `Init`, `SetTractSize`, `SetInstanceID`);
     /// the core owns the returned reference. 0 on failure.
     fn create_grid(&self, kind: GridKind, tract_size: i32, instance_id: u32) -> u64;
-    fn grid_geometry(&self, grid: u64) -> GridGeometry;
+    fn grid_geometry(&self, grid: u64) -> TractGeometry;
     fn grid_set_tract_size(&self, grid: u64, tract_size: i32);
     /// Tract values, x outer (`count_x × count_z` of the grid's geometry).
     fn grid_read_u8(&self, grid: u64, out: &mut [u8]);
@@ -272,13 +281,13 @@ pub struct LandValueSim {
     total: u64,
     slope: u64,
     /// Geometry of the intrinsic grid (and of scratch) for the current pass.
-    geom: GridGeometry,
-    slope_geom: GridGeometry,
-    scratch: Vec<Vec<u8>>,
-    intrinsic_work: Vec<Vec<u8>>,
-    slope_work: Vec<Vec<f32>>,
+    geom: TractGeometry,
+    slope_geom: TractGeometry,
+    scratch: Rc<SimGrid<u8>>,
+    intrinsic_work: Rc<SimGrid<u8>>,
+    slope_work: Rc<SimGrid<f32>>,
     /// The last total written (state 7); used by state 8.
-    total_work: Vec<Vec<u8>>,
+    total_work: Rc<SimGrid<u8>>,
     tract_iter: ScanIterator,
     slope_iter: ScanIterator,
     sum: i32,
@@ -298,16 +307,23 @@ pub struct LandValueSim {
     cursor: usize,
 }
 
-fn grid_from(flat: &[u8], g: &GridGeometry) -> Vec<Vec<u8>> {
-    let cz = g.count_z.max(0) as usize;
-    if cz == 0 {
-        return vec![Vec::new(); g.count_x.max(0) as usize];
-    }
-    flat.chunks(cz).map(<[u8]>::to_vec).collect()
+/// The tract-rectangle iterator of a geometry (§6, simgrid §7.4).
+fn tract_scan(g: &TractGeometry) -> ScanIterator {
+    ScanIterator::for_counts(g.count_x, g.count_z)
 }
 
-fn flatten<T: Copy>(rows: &[Vec<T>]) -> Vec<T> {
-    rows.iter().flat_map(|r| r.iter().copied()).collect()
+/// The inclusive cell (or, with `extra` 1, vertex) range `[t·S, t·S + S − 1 +
+/// extra]` of tract `t`, computed without overflow and clamped to `i32`.
+fn cell_range(t: i32, s: i32, extra: i64) -> (i32, i32) {
+    let lo = i64::from(t) * i64::from(s);
+    let hi = lo + i64::from(s) - 1 + extra;
+    let c = |v: i64| v.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    (c(lo), c(hi))
+}
+
+/// Whether two geometries have the same tract counts.
+fn same_counts(a: &TractGeometry, b: &TractGeometry) -> bool {
+    a.count_x == b.count_x && a.count_z == b.count_z
 }
 
 fn u8_at(values: &Option<Vec<i64>>, i: usize) -> Option<u8> {
@@ -325,12 +341,12 @@ impl LandValueSim {
             intrinsic: 0,
             total: 0,
             slope: 0,
-            geom: GridGeometry::default(),
-            slope_geom: GridGeometry::default(),
-            scratch: Vec::new(),
-            intrinsic_work: Vec::new(),
-            slope_work: Vec::new(),
-            total_work: Vec::new(),
+            geom: TractGeometry::default(),
+            slope_geom: TractGeometry::default(),
+            scratch: SimGrid::new(),
+            intrinsic_work: SimGrid::new(),
+            slope_work: SimGrid::new(),
+            total_work: SimGrid::new(),
             tract_iter: ScanIterator::default(),
             slope_iter: ScanIterator::default(),
             sum: 0,
@@ -387,7 +403,7 @@ impl LandValueSim {
     }
 
     /// The scratch grid (diagnostics and conformance).
-    pub fn scratch(&self) -> &[Vec<u8>] {
+    pub fn scratch(&self) -> &SimGrid<u8> {
         &self.scratch
     }
 
@@ -496,9 +512,9 @@ impl LandValueSim {
         self.state = 0;
         self.geom = self.host.grid_geometry(self.intrinsic);
         self.slope_geom = self.host.grid_geometry(self.slope);
-        self.scratch = vec![vec![0; self.geom.count_z.max(0) as usize]; self.geom.count_x.max(0) as usize];
-        self.tract_iter = ScanIterator::for_grid(&self.geom);
-        self.slope_iter = ScanIterator::for_grid(&self.slope_geom);
+        self.scratch = SimGrid::from_values(self.geom, &[]);
+        self.tract_iter = tract_scan(&self.geom);
+        self.slope_iter = tract_scan(&self.slope_geom);
         self.hist_shift = 5;
         let bins = (self.host.max_allowed_height() as i32) >> self.hist_shift;
         self.histogram.resize(bins.max(0) as usize, 0);
@@ -536,7 +552,7 @@ impl LandValueSim {
         self.intrinsic = 0;
         self.total = 0;
         self.slope = 0;
-        self.scratch.clear();
+        self.scratch = SimGrid::new();
         self.tuning.altitude_curve = None;
         self.tuning.desirability_curve = None;
         true
@@ -579,12 +595,12 @@ impl LandValueSim {
     fn has_land(&self, tx: i32, tz: i32) -> bool {
         let s = self.geom.tract_size;
         let (cx, cz) = self.host.terrain_cells();
-        for vx in tx * s..=tx * s + s {
-            for vz in tz * s..=tz * s + s {
-                // Vertices outside the terrain are not land.
-                if vx < 0 || vz < 0 || vx > cx || vz > cz {
-                    continue;
-                }
+        // Vertices outside the terrain are not land, so only the part of
+        // `[t·S, t·S + S]` inside `0 ..= cells` is visited.
+        let (x0, x1) = (cell_range(tx, s, 1).0.max(0), cell_range(tx, s, 1).1.min(cx));
+        let (z0, z1) = (cell_range(tz, s, 1).0.max(0), cell_range(tz, s, 1).1.min(cz));
+        for vx in x0..=x1 {
+            for vz in z0..=z1 {
                 if self.host.is_land_vertex(vx as u32, vz as u32) {
                     return true;
                 }
@@ -595,8 +611,10 @@ impl LandValueSim {
 
     fn is_zoned(&self, tx: i32, tz: i32) -> bool {
         let s = self.geom.tract_size;
-        for x in tx * s..tx * s + s {
-            for z in tz * s..tz * s + s {
+        let (x0, x1) = cell_range(tx, s, 0);
+        let (z0, z1) = cell_range(tz, s, 0);
+        for x in x0..=x1 {
+            for z in z0..=z1 {
                 if self.host.zone_type(x, z) != 0 {
                     return true;
                 }
@@ -623,19 +641,19 @@ impl LandValueSim {
             0 => {
                 self.geom = self.host.grid_geometry(self.intrinsic);
                 self.slope_geom = self.host.grid_geometry(self.slope);
-                self.tract_iter = ScanIterator::for_grid(&self.geom);
-                self.slope_iter = ScanIterator::for_grid(&self.slope_geom);
+                self.tract_iter = tract_scan(&self.geom);
+                self.slope_iter = tract_scan(&self.slope_geom);
                 self.tract_iter.reset(0, 0);
-                self.scratch = vec![vec![0; self.geom.count_z.max(0) as usize]; self.geom.count_x.max(0) as usize];
+                self.scratch = SimGrid::from_values(self.geom, &[]);
                 self.state = 1;
             }
             1 => {
                 let base = self.tuning.base;
                 while let Some((x, z)) = self.next_tract(&mut work) {
                     let v = if self.has_land(x, z) { base } else { 0 };
-                    self.scratch[x as usize][z as usize] = v;
+                    self.scratch.set(x, z, v);
                 }
-                if self.tract_iter.state == crate::simgrid::ScanState::Done {
+                if self.tract_iter.state == ScanState::Done {
                     self.state = 2;
                 }
             }
@@ -643,7 +661,9 @@ impl LandValueSim {
                 let (cx, cz) = (self.geom.count_x, self.geom.count_z);
                 let radius = f32::from(self.tuning.water[1]);
                 let near = f32::from(self.tuning.water[0]);
-                add_distance_effect(&mut self.scratch, cx, cz, None, 0, radius, near, 0.0);
+                // The scratch grid is both target and mask.
+                let scratch = &*self.scratch;
+                add_distance_effect(scratch, cx, cz, scratch, 0, radius, near, 0.0);
                 // Deliberately inverted start values (§7.2).
                 self.min_alt = self.host.max_allowed_height();
                 self.max_alt = self.host.min_allowed_height();
@@ -657,28 +677,25 @@ impl LandValueSim {
             3 => self.state3(&mut work),
             5 => {
                 let s = self.slope_geom.tract_size;
-                if self.slope_work.len() != self.slope_geom.count_x.max(0) as usize
-                    || self.slope_work.first().map_or(0, Vec::len) != self.slope_geom.count_z.max(0) as usize
-                {
-                    self.slope_work = vec![
-                        vec![0.0; self.slope_geom.count_z.max(0) as usize];
-                        self.slope_geom.count_x.max(0) as usize
-                    ];
+                if !same_counts(&self.slope_work.geometry(), &self.slope_geom) {
+                    self.slope_work = SimGrid::from_values(self.slope_geom, &[]);
                 }
                 while work > 0 {
-                    let Some((sx, sz)) = self.slope_iter.next() else { break };
+                    let Some((sx, sz)) = self.slope_iter.next_cell() else {
+                        break;
+                    };
                     work -= 1;
-                    let v = self.host.area_slope(sx * s, sz * s, sx * s + s - 1, sz * s + s - 1);
-                    if let Some(c) = self
-                        .slope_work
-                        .get_mut(sx as usize)
-                        .and_then(|r| r.get_mut(sz as usize))
-                    {
-                        *c = v;
-                    }
+                    let (x1, z1) = (sx.wrapping_mul(s), sz.wrapping_mul(s));
+                    let v = self.host.area_slope(
+                        x1,
+                        z1,
+                        x1.wrapping_add(s).wrapping_sub(1),
+                        z1.wrapping_add(s).wrapping_sub(1),
+                    );
+                    self.slope_work.set(sx, sz, v);
                 }
-                if self.slope_iter.state == crate::simgrid::ScanState::Done {
-                    self.host.grid_write_f32(self.slope, &flatten(&self.slope_work));
+                if self.slope_iter.state == ScanState::Done {
+                    self.host.grid_write_f32(self.slope, &self.slope_work.values());
                     self.tract_iter.reset(0, 0);
                     self.state = 4;
                 }
@@ -690,19 +707,17 @@ impl LandValueSim {
                     self.state = 6;
                     return;
                 }
-                if self.intrinsic_work.len() != self.scratch.len()
-                    || self.intrinsic_work.first().map(Vec::len) != self.scratch.first().map(Vec::len)
-                {
-                    self.intrinsic_work = self.scratch.clone();
+                if !same_counts(&self.intrinsic_work.geometry(), &self.scratch.geometry()) {
+                    self.intrinsic_work = self.scratch.duplicate();
                 }
                 while let Some((x, z)) = self.next_tract(&mut work) {
                     let a = self.tract_altitude(x, z);
                     let e = self.alt.effect(self.tuning.altitude_curve.as_ref(), a);
-                    let v = (u32::from(self.scratch[x as usize][z as usize]) + u32::from(e)).min(255) as u8;
-                    self.intrinsic_work[x as usize][z as usize] = v;
+                    let v = (u32::from(self.scratch.get(x, z)) + u32::from(e)).min(255) as u8;
+                    self.intrinsic_work.set(x, z, v);
                 }
-                if self.tract_iter.state == crate::simgrid::ScanState::Done {
-                    self.host.grid_write_u8(self.intrinsic, &flatten(&self.intrinsic_work));
+                if self.tract_iter.state == ScanState::Done {
+                    self.host.grid_write_u8(self.intrinsic, &self.intrinsic_work.values());
                     self.tract_iter.reset(0, 0);
                     self.state = 6;
                 }
@@ -712,7 +727,7 @@ impl LandValueSim {
                 self.geom = self.host.grid_geometry(self.intrinsic);
                 let mut flat = vec![0u8; self.geom.len()];
                 self.host.grid_read_u8(self.intrinsic, &mut flat);
-                self.scratch = grid_from(&flat, &self.geom);
+                self.scratch = SimGrid::from_values(self.geom, &flat);
                 self.cursor = 0;
                 self.state = 7;
             }
@@ -723,8 +738,8 @@ impl LandValueSim {
                     self.apply_developer(dev, weight);
                     return;
                 }
-                self.host.grid_write_u8(self.total, &flatten(&self.scratch));
-                self.total_work = self.scratch.clone();
+                self.host.grid_write_u8(self.total, &self.scratch.values());
+                self.total_work = self.scratch.duplicate();
                 self.tract_iter.reset(0, 0);
                 self.sum = 0;
                 self.count = 0;
@@ -733,17 +748,12 @@ impl LandValueSim {
             8 => {
                 while let Some((x, z)) = self.next_tract(&mut work) {
                     if self.counted(x, z) {
-                        let v = self
-                            .total_work
-                            .get(x as usize)
-                            .and_then(|r| r.get(z as usize))
-                            .copied()
-                            .unwrap_or(0);
+                        let v = self.total_work.get(x, z);
                         self.sum = self.sum.wrapping_add(i32::from(v));
                         self.count += 1;
                     }
                 }
-                if self.tract_iter.state == crate::simgrid::ScanState::Done {
+                if self.tract_iter.state == ScanState::Done {
                     self.average = if self.count > 0 {
                         (self.sum / self.count) as u8
                     } else {
@@ -759,23 +769,19 @@ impl LandValueSim {
         }
     }
 
-    /// The next tract of the tract iterator within the work budget.
+    /// The next tract of the tract iterator within the work budget. Tracts
+    /// outside the scratch grid (a host grid whose geometry changed under the
+    /// pass) are skipped [choice].
     fn next_tract(&mut self, work: &mut u32) -> Option<(i32, i32)> {
-        if *work == 0 {
-            return None;
+        let g = self.scratch.geometry();
+        while *work > 0 {
+            let (x, z) = self.tract_iter.next_cell()?;
+            *work -= 1;
+            if g.index(x, z).is_some() {
+                return Some((x, z));
+            }
         }
-        let t = self.tract_iter.next()?;
-        *work -= 1;
-        // Guard against grids that are smaller than their geometry claims.
-        if self
-            .scratch
-            .get(t.0 as usize)
-            .and_then(|r| r.get(t.1 as usize))
-            .is_none()
-        {
-            return self.next_tract(work);
-        }
-        Some(t)
+        None
     }
 
     fn state3(&mut self, work: &mut u32) {
@@ -801,7 +807,7 @@ impl LandValueSim {
                 }
             }
         }
-        if self.tract_iter.state != crate::simgrid::ScanState::Done {
+        if self.tract_iter.state != ScanState::Done {
             return;
         }
         if self.count == 0 && !self.ignore_zoning {
@@ -866,16 +872,10 @@ impl LandValueSim {
         let bg = self.host.grid_geometry(grid);
         let mut flat = vec![0i16; bg.len()];
         self.host.grid_read_i16(grid, &mut flat);
-        let cz = bg.count_z.max(0) as usize;
-        let b: Vec<Vec<i16>> = if cz == 0 {
-            Vec::new()
-        } else {
-            flat.chunks(cz).map(<[i16]>::to_vec).collect()
-        };
-        let curve = self.tuning.desirability_curve.clone();
-        let geom = self.geom;
-        process_two_grids(&geom, &mut self.scratch, &bg, &b, |v, d| {
-            *v = desirability_term(*v, d, weight, curve.as_ref());
+        let b = SimGrid::from_values(bg, &flat);
+        let curve = self.tuning.desirability_curve.as_ref();
+        process_two_grids(&*self.scratch, &*b, |_, _, v, d| {
+            *v = desirability_term(*v, d, weight, curve);
         });
     }
 
@@ -903,9 +903,9 @@ impl LandValueSim {
             }
         };
         out.put_u16(RECORD_VERSION);
-        out.put_ref(&r(self.intrinsic, CLSID_GRID_U8));
-        out.put_ref(&r(self.total, CLSID_GRID_U8));
-        out.put_ref(&r(self.slope, CLSID_GRID_F32));
+        out.put_ref(&r(self.intrinsic, <u8 as GridElem>::CLSID));
+        out.put_ref(&r(self.total, <u8 as GridElem>::CLSID));
+        out.put_ref(&r(self.slope, <f32 as GridElem>::CLSID));
         out.put_u8(u8::from(self.dirty || self.state != STATE_FINISHED));
         out.put_u8(self.average);
         out.put_f32(self.mean_alt);

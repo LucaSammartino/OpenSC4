@@ -398,8 +398,8 @@ Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `Moist
 `data2`), and with a stub generator `rng` (`kind`: `uniform`, `gaussian`, `int` (with `lo`, `hi`); `value`).
 ## Simgrid ops
 
-The simgrid vectors (`g10_…`) drive the core's model of the game's grid class (`src/simgrid.rs` in both crates).
-Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `f32`, `f64`.
+The simgrid vectors (`g10_…`) drive the core grid class and map utilities of `fc4_core::grid` (`src/simgrid.rs`
+here). Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `f32`, `f64`.
 
 | op | Arguments | Effect / check |
 |---|---|---|
@@ -411,9 +411,9 @@ Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `f32`,
 | `grid_call` | `grid`, `method` (`cell_value`, `tract_value`, `average_cell_rect`, `average_tract_rect`, `tract_in_bounds`, `position_to_tract`, `tract_center`, `tract_corner`, `clsid`, `init`, `set_instance_id`), `args`, `expect` | one method |
 | `grid_write` / `grid_read` | `grid`, `hex`, `zero_tail?`, `position?`, `expect?` | the save record (§5) |
 | `grid_radius_effect` | `grid`, `center`, `radius`, `center_value`, `outer_value` | the radial effect (§4.6) |
-| `grid_distance_effect` | `grid`, `mask`, `mask_value`, `radius`, `near`, `far` | the distance effect (§4.7) |
+| `grid_distance_effect` | `grid`, `mask?` (default the target), `mask_value`, `radius`, `near`, `far` | the distance effect (§4.7) |
 | `grid_two_grids` | `a` (u8), `b` (i16), `expect` (`[[x, z, v]]` in visit order) | the paired walk |
-| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step`, `reset?`, `expect` | the scan iterator |
+| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step` (below 1 counts as 1), `reset?`, `expect` | the scan iterator |
 
 ## Land value ops
 
@@ -632,7 +632,7 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
-   `g10_…` (simgrid §10, `fc4_core::simgrid`), `tg10_…` (simgrid §10, `fc4_core::grid`),
+   `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
@@ -750,7 +750,9 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 | 4–8 values, averages, tract size changes | `g10_04_08_values_averages` |
 | 9–10 persistence | `g10_09_10_persistence` |
 | 11–14 radius effect, rounding, clamping | `g10_11_14_radius_effect` |
+| §7.1 huge radii and centres near the int32 limits (regression) | `g10_11b_radius_overflow` |
 | 15–16 distance effect | `g10_15_16_distance_effect` |
+| §7.2 radius above 255 rounds (regression) | `g10_15b_distance_rounds_cap` |
 | 17 two grids with callback | `g10_17_two_grids` |
 | 18 scanning iterator | `g10_18_scan_iterator` |
 

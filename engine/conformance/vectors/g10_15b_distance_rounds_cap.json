@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "simgrid_distance_effect_round_cap",
+  "spec": ["simgrid 7.2", "foundations 18"],
+  "description": "Regression for AddDistanceEffect with a radius far above the 255 rounds the byte distance field can hold. n = trunc(radius) rounds of expansion stop at 255 ([choice]: the byte field cannot hold more and later rounds change nothing), so a radius of 1e9 finishes at once instead of running 1e9 rounds. A 300 x 1 grid (S = 1), value 1 everywhere, mask value 0 at tract (0, 0). Radius 1000, near 200, far 0: k = float32(200 / 1000) = 0.2f; v = trunc((1 + 200) - d x k), each operation rounded to float32 (foundations 18): d 1 -> 200.8 -> 200, d 100 -> 181, d 254 -> 150.2 -> 150, d 255 -> 51.0000008 rounds to 51 -> 150. Tracts beyond 255 stay at the far marker 255, which reads as distance 255 because 255 < radius [quirk, 7.2: with n >= 255 the far marker collides]: d 256 and 299 -> 150. Radius 1e9: k = float32(2e-7); d 1..5 -> 201 - 2e-7 rounds to 201.0 -> 201; d 100 -> 200.99998 -> 200; the far tracts (d >= 255) also give 200. The mask tract keeps 0. Values from a numpy float32 model.",
+  "steps": [
+    {"op": "grid_city", "cells": [300, 1], "cell_width": 16},
+    {"op": "grid_new", "grid": "a", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "a", "all": 1, "values": [[0, 0, 0]]},
+    {"op": "grid_distance_effect", "grid": "a", "mask_value": 0, "radius": 1000, "near": 200, "far": 0},
+    {"op": "grid_expect", "grid": "a", "values": [[0, 0, 0], [1, 0, 200], [2, 0, 200], [5, 0, 200], [100, 0, 181], [254, 0, 150], [255, 0, 150], [256, 0, 150], [299, 0, 150]]},
+    {"op": "grid_new", "grid": "b", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "b", "all": 1, "values": [[0, 0, 0]]},
+    {"op": "grid_distance_effect", "grid": "b", "mask": "b", "mask_value": 0, "radius": 1e9, "near": 200, "far": 0},
+    {"op": "grid_expect", "grid": "b", "values": [[0, 0, 0], [1, 0, 201], [2, 0, 201], [5, 0, 201], [100, 0, 200], [254, 0, 200], [255, 0, 200], [256, 0, 200], [299, 0, 200]]}
+  ]
+}

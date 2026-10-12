@@ -17,8 +17,11 @@
 //!   trait**: per the ownership rule (§6.4) the plugin implements it over the
 //!   game's own grid objects; simulators never assume Rust-owned memory.
 //! - [`SimGrid`]: the core's own grid (Rust storage, §4.2 resize, §5
-//!   record), for tests and standalone hosts; [`create_for_clsid`] is the
-//!   §2 factory table.
+//!   record), for tests, standalone hosts and working copies
+//!   ([`SimGrid::from_values`], as land value's scratch grids);
+//!   [`create_for_clsid`] is the §2 factory table. `crate::simgrid` only
+//!   keeps the older names `GridGeometry` and `CityCells` for the land value
+//!   C API.
 //! - [`GridProvider`]: the host callback a simulator uses to create grids
 //!   and to resolve grid references read from a save; [`CoreGrids`] makes
 //!   core grids.
@@ -48,7 +51,10 @@
 //!   grids truncate that rounded quotient).
 //! - `AddDistanceEffect` runs at most 255 expansion rounds (the byte field's
 //!   far marker collides beyond that, §7.2) and stops early when a round
-//!   changes nothing; `(target + near) − dist × k` is three `f32` operations.
+//!   changes nothing, so a huge radius costs no more than 255 rounds;
+//!   `(target + near) − dist × k` is three `f32` operations. The cone's
+//!   window `c ± R` is computed in 64 bits, so centres and radii near the
+//!   int32 limits cannot overflow.
 //! - `ProcessTwoGrids` passes A's tract coordinates to the callback (the
 //!   residential-only variants are callers that skip tracts) and writes the
 //!   A value back only when the callback changed it. Float B values are
@@ -190,8 +196,8 @@ mod tests {
     fn distance_effect() {
         let g = SimGrid::<u8>::create(
             &CityDims {
-                cell_count_x: 7,
-                cell_count_z: 1,
+                cells_x: 7,
+                cells_z: 1,
                 ..city()
             },
             0,
@@ -205,6 +211,42 @@ mod tests {
         for r in [f32::NAN, -3.0, 0.0, 1e9] {
             add_distance_effect(&*g, 7, 1, &*g, 0, r, 30.0, 0.0);
         }
+    }
+
+    #[test]
+    fn distance_rounds_stop_at_255() {
+        let city = CityDims {
+            cells_x: 300,
+            cells_z: 1,
+            ..city()
+        };
+        let g = SimGrid::<u8>::create(&city, 0, 1);
+        g.fill(1);
+        g.set(0, 0, 0);
+        let d = distance_field(&*g, 300, 1, 0, i64::MAX);
+        assert_eq!((d[0], d[1], d[254], d[255], d[256], d[299]), (0, 1, 254, FAR, FAR, FAR));
+        add_distance_effect(&*g, 300, 1, &*g, 0, 1000.0, 200.0, 0.0);
+        assert_eq!(
+            (g.get(1, 0), g.get(100, 0), g.get(255, 0), g.get(299, 0)),
+            (200, 181, 150, 150)
+        );
+    }
+
+    #[test]
+    fn working_grids() {
+        let geo = TractGeometry::for_city(&CityDims::square(8), 2);
+        assert_eq!(
+            (geo.len(), geo.index(1, 2), geo.index(4, 0), geo.index(-1, 0)),
+            (16, Some(6), None, None)
+        );
+        let g = SimGrid::<u8>::from_values(geo, &[1, 2, 3]);
+        assert_eq!((g.get(0, 0), g.get(0, 2), g.get(0, 3), g.values().len()), (1, 3, 0, 16));
+        let copy = g.duplicate();
+        g.set(0, 0, 9);
+        assert_eq!((copy.get(0, 0), copy.geometry(), g.get(0, 0)), (1, geo, 9));
+        g.set_values(&[7; 40]);
+        assert_eq!(g.values(), vec![7; 16]);
+        assert_eq!(CityDims::default(), CityDims::square(256));
     }
 
     #[test]

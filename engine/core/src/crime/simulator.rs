@@ -627,7 +627,7 @@ impl CrimeSim {
         let magnitude = f32::from(bytes[0]);
         let value = if sign >= 0 { magnitude } else { -magnitude };
         let geo = grid.geometry();
-        let radius = f32::from(bytes[1]) / geo.size as f32;
+        let radius = f32::from(bytes[1]) / geo.tract_size as f32;
         let pos = self.host.occupant_position(occupant);
         let (tx, tz) = geo.position_to_tract(pos[0], pos[2]);
         add_radius_effect(&*grid, geo.count_x, geo.count_z, tx, tz, radius, value, 0.0);

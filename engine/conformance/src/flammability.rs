@@ -190,8 +190,8 @@ impl GridProvider<u8> for World {
     fn create_grid(&self, instance: u32, tract_size: i32) -> Option<Rc<dyn TractGrid<u8>>> {
         let (x, z) = self.cells.get();
         let city = CityDims {
-            cell_count_x: x,
-            cell_count_z: z,
+            cells_x: x,
+            cells_z: z,
             ..CityDims::square(1)
         };
         self.events.push(
@@ -870,8 +870,8 @@ fn expect_grid(w: &World, op: &Json) -> R<()> {
         }
     }
     if let Some(v) = opt(op, "tract_size") {
-        if geo.size != i32_of(v, "tract_size")? {
-            return Err(format!("tract size {}", geo.size));
+        if geo.tract_size != i32_of(v, "tract_size")? {
+            return Err(format!("tract size {}", geo.tract_size));
         }
     }
     if let Some(v) = opt(op, "instance") {

@@ -430,7 +430,7 @@ impl AuraSim {
         let cone16 = |grid: &G16, mag: i32, radius: i32| {
             let geo = grid.geometry();
             let (tx, tz) = geo.cell_to_tract(cx, cz);
-            let r = (f64::from(radius) / f64::from(geo.size)) as f32;
+            let r = (f64::from(radius) / f64::from(geo.tract_size)) as f32;
             let c = (sign * i64::from(mag)) as f32;
             add_radius_effect(&**grid, geo.count_x, geo.count_z, tx, tz, r, c, 0.0);
         };
@@ -464,7 +464,7 @@ impl AuraSim {
             if let Some(g) = self.building_effect_grid() {
                 let geo = g.geometry();
                 let (tx, tz) = geo.position_to_tract(pos[0], pos[2]);
-                let r = (f64::from(radius) / f64::from(geo.size)) as f32;
+                let r = (f64::from(radius) / f64::from(geo.tract_size)) as f32;
                 let c = (sign * i64::from(mag)) as f32;
                 add_radius_effect(&*g, geo.count_x, geo.count_z, tx, tz, r, c, 0.0);
             }
