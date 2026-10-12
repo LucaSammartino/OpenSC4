@@ -19,10 +19,10 @@
 //! and the land-value core's working grid. The free functions are the
 //! `cSC4MapUtilities` helpers of §7 on plain `[x][z]` data.
 //!
-//! Precision: the original evaluates some expressions in x87 extended
-//! precision. FreeCity4 evaluates them in f32 with the spec's operation order
-//! (the precision a 24-bit x87 precision-control setting gives). Places where
-//! the precision mode can change a result are tagged `[precision]`.
+//! Precision: the game runs the x87 at 24-bit precision (foundations §18), so
+//! every operation rounds like one f32 operation; integer operands enter
+//! unrounded (modelled as an f64 operation rounded to f32). FreeCity4 follows
+//! the spec's operation order; such sites are tagged `[precision]`.
 
 use crate::stream::{InStream, OutStream};
 
@@ -319,7 +319,9 @@ impl<T: GridElem> SimGrid<T> {
             // 0 / 0 [quirk]; FreeCity4 returns 0 [choice].
             return T::default();
         }
-        T::from_quotient(sum as f64 / f64::from(n))
+        // [precision] one division of exact integer operands, rounded to f32
+        // (foundations §18.3); integer grids then truncate that value.
+        T::from_quotient(f64::from((sum as f64 / f64::from(n)) as f32))
     }
 
     /// `GetAverageValueInCellRect(x, z, w, h)` (§4.1).
@@ -483,9 +485,8 @@ pub fn add_radius_effect<T: RadiusElem>(
                 ((dx * dx + dz * dz) as f32).sqrt()
             };
             if d < r {
-                // [precision] the original evaluates c − d·k in extended
-                // precision and rounds once; here d·k and the difference are
-                // each rounded to f32.
+                // [precision] two f32 operations (§7.1): d·k rounded, then
+                // c − that rounded.
                 let delta = round_half_even(c - d * k) as i64;
                 if let Some(cell) = data.get_mut(x as usize).and_then(|row| row.get_mut(z as usize)) {
                     *cell = T::from_i64((cell.as_i64() + delta).clamp(T::MIN, T::MAX));

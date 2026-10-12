@@ -70,8 +70,9 @@ impl ResponseCurve {
         self.segments.is_empty()
     }
 
-    /// Evaluates the curve (§4.3). [choice] computed in f64 and rounded once to
-    /// f32; an empty curve returns 0.0.
+    /// Evaluates the curve (§4.3): `py + (input − px) · slope` as three f32
+    /// operations in that order (the x87 at 24-bit precision, foundations
+    /// §18); an empty curve returns 0.0.
     pub fn eval(&self, input: f32) -> f32 {
         let Some(last) = self.segments.len().checked_sub(1) else {
             return 0.0;
@@ -82,7 +83,7 @@ impl ResponseCurve {
             return self.segments[0].y;
         }
         if k < last || input < self.segments[last].x {
-            return (f64::from(s.py) + (f64::from(input) - f64::from(s.px)) * f64::from(s.slope)) as f32;
+            return s.py + (input - s.px) * s.slope;
         }
         self.segments[last].y
     }
