@@ -290,12 +290,14 @@ struct FakeWorld {
     int demandBadIndex = 0;
     FakeVtable cityVt, resVt, demandSimVt, demandVt;
     FakeObject city{}, res{}, demandSim{};
-    FakeDemand demands[5] = {
+    FakeDemand demands[7] = {
         {nullptr, 0x1010, 1000.0f, 250.5f},  // R$
         {nullptr, 0x3110, 300.0f, -12.0f},   // Cs$
         {nullptr, 0x3320, 200.0f, 40.0f},    // Co$$
         {nullptr, 0x4100, 150.0f, 7.5f},     // I-R
         {nullptr, 0x4400, 50.0f, 0.0f},      // I-HT
+        {nullptr, 0x3001, 480.0f, 0.0f},     // C census (P1: the digest reads its supply)
+        {nullptr, 0x4001, 160.0f, 0.0f},     // I census
     };
 };
 
@@ -706,7 +708,7 @@ int main(int argc, char** argv) {
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
         CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
-        CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/500/200 demand "
+        CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/480/160 demand "
                         "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                         "budget income/expense=-/-") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
@@ -1072,7 +1074,7 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
             seam(kFC4SeamObserverCity, nullptr, nullptr);
-            CHECK(world.demandCalls == 12);
+            CHECK(world.demandCalls == 14);  // 12 groups + 2 census nodes
             CHECK(world.demandBadIndex == 0);
             CHECK(budget3->Shutdown());
         }
@@ -1177,7 +1179,7 @@ int main(int argc, char** argv) {
     // Observer (replacement mode) and the monthly digest.
     CHECK(text.find("autotest: off") != std::string::npos);
     CHECK(text.find("observer: PostCityInit (replacement)") != std::string::npos);
-    CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/500/200 demand "
+    CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/480/160 demand "
                     "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                     "budget income/expense=") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
