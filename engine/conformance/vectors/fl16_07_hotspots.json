@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "flammability_hotspots",
+  "spec": ["flammability 6.7", "flammability 6.6", "flammability 16.7"],
+  "description": "Test 7, derived by hand from 6.7: each candidate, in discovery order, merges into the FIRST hotspot in list order with Manhattan distance < radius (h := ((h * w + c) / (w + 1)) with C integer division, weight + 1), else is appended; then hotspots with weight < min weight are removed. Radius 8, min weight 2, candidates (10,10), (12,13), (30,30), (11,10): (10,10,1); distance 5 -> (11,11,2); distance 38 -> new (30,30,1); distance 1 -> ((22 + 11) / 3, (22 + 10) / 3) = (11,10,3); prune -> [(11,10,3)]. The radius is exclusive: (0,0) and (8,0) stay apart with radius 8, (7,0) merges to (3,0,2). First in list order: (0,0), (10,0), then (5,0) with radius 6 (distance 5 to both) merges into (0,0) -> (2,0,2). Through the simulator, EndOfCycle replaces the old list and clears the candidates.",
+  "steps": [
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[10, 10, 1], [12, 13, 1]], 8, 0], "expect": [[11, 11, 2]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[10, 10, 1], [12, 13, 1], [30, 30, 1]], 8, 0], "expect": [[11, 11, 2], [30, 30, 1]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[10, 10, 1], [12, 13, 1], [30, 30, 1], [11, 10, 1]], 8, 0], "expect": [[11, 10, 3], [30, 30, 1]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[10, 10, 1], [12, 13, 1], [30, 30, 1], [11, 10, 1]], 8, 2], "expect": [[11, 10, 3]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[0, 0, 1], [8, 0, 1]], 8, 1], "expect": [[0, 0, 1], [8, 0, 1]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[0, 0, 1], [7, 0, 1]], 8, 1], "expect": [[3, 0, 2]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[[0, 0, 1], [10, 0, 1], [5, 0, 1]], 6, 1], "expect": [[2, 0, 2], [10, 0, 1]]},
+    {"op": "flam_call", "method": "compute_hotspots", "args": [[], 8, 2], "expect": []},
+
+    {"op": "flam_env", "cells": [64, 64]},
+    {"op": "flam_tuning", "none": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_set", "state": {"hotspot_radius": 8, "hotspot_min_weight": 2, "hotspots": [[1, 1, 99]],
+      "candidates": [[10, 10, 1], [12, 13, 1], [30, 30, 1], [11, 10, 1]]}},
+    {"op": "flam_call", "method": "compute_hotspot_list", "expect": [[11, 10, 3]]},
+    {"op": "flam_set", "state": {"hotspots": [[1, 1, 99]]}},
+    {"op": "flam_call", "method": "end_of_cycle"},
+    {"op": "flam_expect", "state": {"hotspots": [[11, 10, 3]], "candidates": []}},
+    {"op": "flam_call", "method": "end_of_cycle"},
+    {"op": "flam_expect", "state": {"hotspots": [], "candidates": []}}
+  ]
+}
