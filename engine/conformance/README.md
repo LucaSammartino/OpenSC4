@@ -201,7 +201,20 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `curve` | `points` (flat x, y list), `absent?`, `eval`: `[[x, y], ...]`, `tolerance?` (relative, default 1e-6) | response-curve construction and evaluation (§4) |
 | `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}` | outputs and internal states, bit-exact (§6) |
 
+| `variant_write` | `variant`, `hex`, `ok?` (default true), `round_trip?` (default true), `position?`, `error?` | `WriteVariant` (§9.2) gives `hex`; unless `ok` is false or `round_trip` is off, the bytes read back to the same variant |
+| `variant_read` | `hex`, `preset?` (the destination's value before the read), `expect` (a variant, or `null` = the read fails), `unchanged?`, `position?`, `error?` | `ReadVariant` (§9.2) |
+| `holder_write` | `props`: `[{id, value}]` in the order they are added; `hex` | the plain holder record (§10.2) |
+| `holder_read` | `hex`, `preset?` (props), `ok?`, `expect?` (props in holder order), `rewrite?`, `position?`, `error?` | reading the plain holder; `rewrite` writes it back and compares with `hex` |
+| `exemplar_holder` | `exemplars?` (a stub resource manager: `[{key, props}]`), `preset_parent?` (key), `hex`, `ok?`, `own?`, `parent?` (key or `null`), `lookup?` (`[{id, value or null}]`), `rewrite?`, `position?` | reading the exemplar holder (§10.3); keys are `{group, type, instance}` |
+| `crt_rand` | `seed?` (default 1), `srand?`, `expect?` (outputs), `shuffle?` (`{input, expect, calls?}`) | the C runtime `rand()` and `random_shuffle` (§12) |
+
 Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
+
+A **variant** in a vector is `{"type": T, "value": v}` for a scalar (`T` one of `bool`, `u8`, `i8`, `u16`, `i16`,
+`u32`, `i32`, `u64`, `i64`, `f32`, `f64`, `char`, `unichar`, `rzchar`, `voidptr`), `{"type": "T[]", "values": [..]}`
+for an array (also `object[]`), `{"type": "string", "value": "…"}`, `{"type": "bytes", "hex": "…"}` (the void
+array), `{"type": "empty"}`, and `{"type": "object", "id"?, "class"?}` (no `id` = a null reference; written with
+that save ID, read back as the host object whose token is the ID).
 
 ## Budget ops
 
@@ -282,7 +295,7 @@ Budget events: `post` events carry `void1` and `unknown` as object labels (`""` 
 | 7 enabled bits | `s10_7_enabled_bits`, `s10_7_disabled_agents_skipped` |
 | 8 save round trip | `s10_8_save_load` |
 | 9 limit-timer calibration | `s10_9_limit_timer_calibration` |
-| other sections | `s4_reentrancy_and_cursors`, `s5_1_on_tick_guards`, `s5_2_minute_and_hour_levels`, `s5_3_begin_new_interval_flush`, `s5_4_idle_time`, `s6_speed_and_dilation`, `s6_invalid_speed_from_save`, `s9_cheats`, `s9_post_city_init` |
+| other sections | `s4_reentrancy_and_cursors`, `s4_month_registration_order`, `s5_1_on_tick_guards`, `s5_2_minute_and_hour_levels`, `s5_3_begin_new_interval_flush`, `s5_4_idle_time`, `s6_speed_and_dilation`, `s6_invalid_speed_from_save`, `s9_cheats`, `s9_post_city_init` |
 
 ## Coverage (foundations §7)
 
@@ -296,6 +309,11 @@ Budget events: `post` events carry `void1` and `unknown` as object labels (`""` 
 | 11 response curves | `f7_11_response_curves` |
 | 12 messages | `engine/tests/message_test.cpp` (the GZCOM message class) |
 | 13–15 random generators | `f7_13_15_random_generators` |
+| §14 16–17 variants | `f14_16_17_variants` |
+| §14 18–19 property holders | `f14_18_19_property_holders` |
+| §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
+| §14 23 `rand()` | `f14_23_crt_rand` (the prime-step iterator is defined in the weather spec: not yet) |
+| §14 24 month order | `s4_month_registration_order` (registration order within a level; the ordinance-lag scenario needs the ordinance simulator) |
 
 ## Coverage (budget §15)
 

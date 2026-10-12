@@ -105,7 +105,7 @@ pub fn exec(name: &str, op: &Json) -> Option<R<()>> {
         "store_entry" => store_entry(op),
         "curve" => curve(op),
         "rng" => rng(op),
-        _ => return None,
+        _ => return crate::variants::exec(name, op),
     };
     Some(r)
 }

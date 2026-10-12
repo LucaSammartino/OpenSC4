@@ -103,6 +103,10 @@ pub trait OutStream {
     fn put_ref(&mut self, r: &RefValue) -> bool;
     /// 0 while good, non-zero after a failure (sticky).
     fn error(&self) -> i32;
+    /// Puts the stream into its (sticky) error state, for writers that fail
+    /// after emitting part of a value (variants, foundations §9.2). Host
+    /// streams without such a call ignore it.
+    fn set_error(&mut self) {}
 
     fn put_i8(&mut self, v: i8) -> bool {
         self.put_u8(v as u8)
@@ -160,6 +164,9 @@ pub trait InStream {
     /// `Skip(n)`.
     fn skip(&mut self, n: usize) -> bool;
     fn error(&self) -> i32;
+    /// Puts the stream into its (sticky) error state (foundations §9.2:
+    /// unreadable variant tags). Host streams without such a call ignore it.
+    fn set_error(&mut self) {}
 
     fn get_i8(&mut self) -> Option<i8> {
         self.get_u8().map(|v| v as i8)
@@ -371,6 +378,9 @@ impl OutStream for ByteWriter {
     fn error(&self) -> i32 {
         i32::from(!self.good)
     }
+    fn set_error(&mut self) {
+        self.good = false;
+    }
 }
 
 // ---- byte reader --------------------------------------------------------------------------------------
@@ -524,6 +534,9 @@ impl InStream for ByteReader<'_> {
     }
     fn error(&self) -> i32 {
         i32::from(!self.good)
+    }
+    fn set_error(&mut self) {
+        self.good = false;
     }
 }
 

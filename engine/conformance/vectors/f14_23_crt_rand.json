@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "crt_rand",
+  "spec": ["foundations 12.1", "foundations 12.3", "foundations 14.23"],
+  "description": "The C runtime rand(): the sequence from state 1 and after srand(12345); random_shuffle of [0..9] from state 1 gives [8, 1, 9, 2, 0, 5, 7, 3, 4, 6] with exactly 9 calls, and makes no call for 0 or 1 elements. (The prime-step random cell iterator of §12.4 is not covered: its definition is in the weather spec.)",
+  "steps": [
+    {"op": "crt_rand", "expect": [41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464]},
+    {"op": "crt_rand", "srand": 12345, "expect": [7584, 19164, 25795]},
+    {"op": "crt_rand", "shuffle": {"input": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], "expect": [8, 1, 9, 2, 0, 5, 7, 3, 4, 6], "calls": 9}},
+    {"op": "crt_rand", "shuffle": {"input": [7], "expect": [7], "calls": 0}},
+    {"op": "crt_rand", "shuffle": {"input": [], "expect": [], "calls": 0}},
+    {"op": "crt_rand", "seed": 1, "expect": [41], "note": "seed 1 is the default state"}
+  ]
+}

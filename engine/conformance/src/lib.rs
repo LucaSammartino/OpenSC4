@@ -13,5 +13,6 @@ pub(crate) mod budget;
 pub mod foundations;
 pub mod json;
 pub mod runner;
+pub mod variants;
 
 pub use runner::{run_vector_file, run_vector_text};

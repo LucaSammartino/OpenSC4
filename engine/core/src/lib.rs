@@ -26,11 +26,13 @@ pub mod curve;
 pub mod host;
 pub mod ids;
 pub mod julian;
+pub mod property;
 pub mod rng;
 pub mod save;
 pub mod simulator;
 pub mod store;
 pub mod stream;
+pub mod variant;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};

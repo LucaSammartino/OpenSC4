@@ -275,9 +275,64 @@ impl RzRandomSuper {
     }
 }
 
+/// The C runtime `rand()` (foundations §12.1). Each replaced subsystem owns
+/// one, seeded with 1 by default (§12.6 [choice]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CrtRand {
+    state: u32,
+}
+
+impl Default for CrtRand {
+    fn default() -> Self {
+        CrtRand { state: 1 }
+    }
+}
+
+impl CrtRand {
+    pub fn new(seed: u32) -> CrtRand {
+        CrtRand { state: seed }
+    }
+
+    /// `srand(x)`.
+    pub fn srand(&mut self, seed: u32) {
+        self.state = seed;
+    }
+
+    pub fn state(&self) -> u32 {
+        self.state
+    }
+
+    /// `rand()`: 0 … 32767.
+    pub fn rand(&mut self) -> u32 {
+        self.state = self.state.wrapping_mul(214_013).wrapping_add(2_531_011);
+        (self.state >> 16) & 0x7FFF
+    }
+
+    /// `std::random_shuffle(first, last)` (§12.3): exactly `n − 1` calls.
+    pub fn random_shuffle<T>(&mut self, a: &mut [T]) {
+        for i in 1..a.len() {
+            let j = (self.rand() as usize) % (i + 1);
+            a.swap(i, j);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crt_rand_sequences() {
+        let mut r = CrtRand::default();
+        let got: Vec<u32> = (0..10).map(|_| r.rand()).collect();
+        assert_eq!(got, [41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464]);
+        r.srand(12345);
+        assert_eq!([r.rand(), r.rand(), r.rand()], [7584, 19164, 25795]);
+        let mut r = CrtRand::default();
+        let mut a: Vec<u32> = (0..10).collect();
+        r.random_shuffle(&mut a);
+        assert_eq!(a, [8, 1, 9, 2, 0, 5, 7, 3, 4, 6]);
+    }
 
     const SEEDS: FixedSeeds = FixedSeeds {
         wall_clock: 12345,
