@@ -9,6 +9,59 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 - How to contribute (clean-room rules): [CONTRIBUTING.md](CONTRIBUTING.md)
 - Specs for engine authors: [docs/specs/](docs/specs/)
 
+## Progress
+
+Last updated 2026-10-12. "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
+
+**M0: toolchain**
+- [x] CMake project, Rust core, C ABI, conformance runner (364 vector files)
+- [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
+- [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
+
+**M1: the clock**
+- [x] Simulator core and spec
+- [x] Runs in-game: days, weeks and months advance; limit-timer calibration
+- [ ] Save → reload verified in-game
+- [ ] Pause, emergency and all speeds verified in-game (manual checks)
+- [ ] Differential log against the original on the same save
+
+**M2: scalar sims**
+- [x] Budget, demand, ordinance and weather cores
+- [x] Budget, demand, ordinance and weather glue (budget in-game with no heap corruption, runs 17–18)
+- [ ] x87 precision: the game expects 24-bit; something in our process resets it (guard on a branch, not yet merged)
+- [ ] Budget differential: tax by type (types 4, 6, 9 differ) and non-tax income
+- [ ] Budget and demand panels match the original after N months (M2 exit)
+
+**M3: grid sims**
+- [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
+- [x] Land value glue (off by default)
+- [ ] Power glue (in-game without crashing, but production stays 0; on a branch)
+- [ ] Plumbing, protection, flora, pollution, crime, aura and flammability glue
+- [ ] Grid snapshots match within tolerance (M3 exit)
+
+**M4: growth**
+- [x] Specs: building development, growth, tract, lot and zone developers
+- [x] Cores: building development simulator, growth developer, tract developer
+- [ ] Cores: lot developer, zones
+- [ ] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md))
+- [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
+- [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
+
+**M5: traffic**
+- [x] Specs: traffic simulator, traffic network, pathfinder
+- [ ] Cores, glue, calibration; commute and volume maps match (M5 exit)
+
+**M6+: beyond simulation**
+- [ ] Specs: save records, game data formats (DBPF, exemplars), tuning catalogue (in progress)
+- [ ] Formats, rendering, UI, audio, region; a standalone executable
+
+**Cross-cutting**
+- [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](docs/abi/))
+- [ ] SDK errata (289 findings) re-checked against upstream gzcom-dll and reported (needs the owner's OK)
+- [ ] In-game manual checklist ([docs/manual-checks.md](docs/manual-checks.md))
+
 The rest of this README covers the **reverse-engineering workspace** that produces those specs. That material is
 for spec writers only. It contains no game binaries or assets, and decompiled output is never committed.
 
