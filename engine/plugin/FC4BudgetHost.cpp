@@ -17,6 +17,7 @@
 // One table serves the budget simulator, its departments and line items, so
 // objects the game's class factory creates while loading a save work too.
 
+#include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
 #include "FC4Streams.h"
@@ -126,10 +127,10 @@ uint32_t Difficulty(void*) {
 
 void SimDate(void*, int32_t* year, int32_t* month) {
     cISC4City* c = City();
-    cISC4Simulator* s = c ? c->GetSimulator() : nullptr;
+    cFC4ISC4Simulator* s = c ? fc4::AsGame(c->GetSimulator()) : nullptr;
     if (s == nullptr) return;
     uint32_t y = 0, m = 0, d = 0, doy = 0, wd = 0;
-    s->GetSimDate(&y, &m, &d, &doy, &wd);
+    s->GetSimDateParts(&y, &m, &d, &doy, &wd);
     *year = static_cast<int32_t>(y);
     *month = static_cast<int32_t>(m);
 }

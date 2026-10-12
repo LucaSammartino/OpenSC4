@@ -35,4 +35,22 @@ uintptr_t ImageSize();
 // diagnostic last resort.
 bool SehGuard(const char* what, void (*fn)(void* ctx), void* ctx);
 
+// Records an entry into one of our interface methods in a ring buffer of the
+// last 64 calls, and (verbose log level) logs the first 20 calls of each call
+// site. The ring is written to the log when an exception is raised OUTSIDE
+// our image (the first 8 such exceptions: the game may handle some itself),
+// together with the faulting module and offset and any return addresses into
+// our image found on the stack. `counter` is the call site's own counter.
+void CallTrace(const char* what, unsigned* counter);
+
+}  // namespace fc4
+
+#define FC4_TRACE(NAME)                     \
+    do {                                    \
+        static unsigned fc4TraceCount_ = 0; \
+        ::fc4::CallTrace(NAME, &fc4TraceCount_); \
+    } while (0)
+
+namespace fc4 {
+
 }  // namespace fc4

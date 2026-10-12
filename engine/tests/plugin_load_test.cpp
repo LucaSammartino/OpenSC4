@@ -29,6 +29,7 @@
 #include "cISC4Simulator.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "game_abi.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -63,6 +64,17 @@ constexpr uint32_t kIID_cISC4BudgetSimulator = 0x6772BD23;
 constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
+
+// A handled access violation in the HOST's code (not the DLL's): the DLL's
+// vectored handler must log it with the call ring.
+int ForeignFault() {
+    __try {
+        *static_cast<volatile int*>(nullptr) = 1;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        return 1;
+    }
+    return 0;
+}
 
 // A day agent that reports "not finished" for its first 150 calls.
 class SlowAgent final : public cIGZMessageTarget2 {
@@ -204,13 +216,48 @@ int main(int argc, char** argv) {
             CHECK(agent.calls > 150);
             CHECK(agent.badMessages == 0);
             CHECK(agent.lastJulian == day);
-            cIGZDate* date = sim->GetSimDate();
+            // Overloaded methods are only ever called through the game's slots (foundations §16).
+            cIGZDate* date = reinterpret_cast<cIGZDate*>(fc4test::CallSlot(sim, 7, {}).eax);  // GetSimDate()
             CHECK(date != nullptr && date->Year() == 2000 && static_cast<int32_t>(date->DayNumber()) == day);
-            CHECK(sim->RemoveAgent(&agent));
+            {
+                // Overloads through the game's slots (simulator §5.6), with the
+                // game's argument counts: the stack must balance.
+                using fc4test::CallSlot;
+                uint32_t gy = 0, gm = 0, gd = 0, gdoy = 0, gwd = 0;
+                const fc4test::SlotCall s6 = CallSlot(sim, 6, {reinterpret_cast<uint32_t>(&gy), reinterpret_cast<uint32_t>(&gm),
+                                                         reinterpret_cast<uint32_t>(&gd), reinterpret_cast<uint32_t>(&gdoy),
+                                                         reinterpret_cast<uint32_t>(&gwd)});
+                std::printf("slot 6: esp %d, year %u\n", s6.espDelta, gy);
+                CHECK(s6.espDelta == 0 && gy == 2000);
+                const fc4test::SlotCall s7 = CallSlot(sim, 7, {});
+                std::printf("slot 7: esp %d, eax %08X\n", s7.espDelta, s7.eax);
+                CHECK(s7.espDelta == 0 && s7.eax != 0);
+                SlowAgent other;
+                const fc4test::SlotCall s20 = CallSlot(sim, 20, {reinterpret_cast<uint32_t>(static_cast<cIGZMessageTarget2*>(&other))});
+                const fc4test::SlotCall s21 = CallSlot(sim, 21, {reinterpret_cast<uint32_t>(static_cast<cIGZMessageTarget2*>(&other)), 4});
+                const fc4test::SlotCall s22 = CallSlot(sim, 22, {9});
+                std::printf("slots 20/21/22: esp %d %d %d\n", s20.espDelta, s21.espDelta, s22.espDelta);
+                CHECK(s20.espDelta == 0 && s21.espDelta == 0 && s22.espDelta == 0);
+            }
+            {
+                // RemoveAgent(agent, level) at slot 21 removes the day registration.
+                const fc4test::SlotCall r = fc4test::CallSlot(
+                    sim, 21, {reinterpret_cast<uint32_t>(static_cast<cIGZMessageTarget2*>(&agent)), 4});
+                CHECK(r.espDelta == 0 && (r.eax & 0xFF) == 1);
+            }
             CHECK(agent.refs == 0);
+            {
+                // RemoveAllAgents() at slot 23.
+                const fc4test::SlotCall r = fc4test::CallSlot(sim, 23, {});
+                CHECK(r.espDelta == 0);
+            }
 
             uint32_t y = 0, m = 0, d = 0, doy = 0, wd = 0;
-            sim->GetSimDate(&y, &m, &d, &doy, &wd);
+            const fc4test::SlotCall r6 = fc4test::CallSlot(
+                sim, 6,
+                {reinterpret_cast<uint32_t>(&y), reinterpret_cast<uint32_t>(&m), reinterpret_cast<uint32_t>(&d),
+                 reinterpret_cast<uint32_t>(&doy), reinterpret_cast<uint32_t>(&wd)});
+            CHECK(r6.espDelta == 0);
             CHECK(y == 2000 && m == 1 && doy == static_cast<uint32_t>(day - 2451545 + 1));
 
             CHECK(sim->Shutdown());
@@ -234,7 +281,7 @@ int main(int argc, char** argv) {
             CHECK(dept != nullptr);
             if (dept != nullptr) {
                 CHECK(dept->GetDepartmentID() == 0x28F55A9F);
-                CHECK(budget->GetDepartmentBudget(0x28F55A9F) == dept);
+                CHECK(fc4test::CallSlot(budget, 28, {0x28F55A9F}).eax == reinterpret_cast<uint32_t>(dept));
                 cISC4DepartmentBudget* viaClsid = nullptr;
                 CHECK(dept->QueryInterface(kCLSID_Department, reinterpret_cast<void**>(&viaClsid)));
                 CHECK(viaClsid == dept);
@@ -258,20 +305,44 @@ int main(int argc, char** argv) {
                     CHECK(dept->GetLineItem(1) == line);
                 }
                 CHECK(budget->GetTotalMonthlyExpense() == 500u);  // low 32 bits of the 64-bit value
+                {
+                    // Overloads through the game's slots (budget "Verified slot order").
+                    using fc4test::CallSlot;
+                    const fc4test::SlotCall s18 = CallSlot(budget, 18, {0});  // GetTaxIncome(int32)
+                    const fc4test::SlotCall s19 = CallSlot(budget, 19, {});   // GetTaxIncome()
+                    const fc4test::SlotCall s34 = CallSlot(budget, 34, {0x28F55A9F});  // GetFunding(uint32)
+                    const fc4test::SlotCall s35 = CallSlot(budget, 35, {reinterpret_cast<uint32_t>(dept)});
+                    CHECK(s34.espDelta == 0 && s35.espDelta == 0 && s34.eax == 0 && s35.eax == 0);
+                    std::printf("budget slots 18/19: esp %d %d\n", s18.espDelta, s19.espDelta);
+                    CHECK(s18.espDelta == 0 && s19.espDelta == 0);
+                    cRZBaseString empty("");
+                    const fc4test::SlotCall s27 = CallSlot(budget, 27, {reinterpret_cast<uint32_t>(static_cast<cIGZString*>(&empty))});
+                    const fc4test::SlotCall s28 = CallSlot(budget, 28, {0x28F55A9F});
+                    std::printf("budget slots 27/28: esp %d %d, %08X %08X (dept %p)\n", s27.espDelta, s28.espDelta, s27.eax,
+                                s28.eax, static_cast<void*>(dept));
+                    CHECK(s27.espDelta == 0 && s28.espDelta == 0);
+                    CHECK(s27.eax == reinterpret_cast<uint32_t>(dept));  // "" is a prefix of every name
+                    CHECK(s28.eax == reinterpret_cast<uint32_t>(dept));
+                }
                 CHECK(budget->IssueBond(10000));
                 CHECK(budget->GetTotalBorrowed() == 10000);
                 CHECK(budget->GetTotalFunds() == 510100);
                 CHECK(budget->GetTotalMonthlyExpense() == 500u + static_cast<uint32_t>(budget->GetMonthlyPaymentForLoan(10000)));
             }
             CHECK(budget->Shutdown());
-            CHECK(budget->GetDepartmentBudget(0x28F55A9F) == nullptr);
+            CHECK(fc4test::CallSlot(budget, 28, {0x28F55A9F}).eax == 0);
             CHECK(budget->GetTotalFunds() == 510100);  // kept across Shutdown
             CHECK(budget->Release() == 0);
         }
         if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
+    CHECK(ForeignFault() == 1);
     const std::string text = ReadFile(log);
+    CHECK(text.find("first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") != std::string::npos);
+    CHECK(text.find("FreeCity4 interface calls (oldest first):") != std::string::npos);
+    CHECK(text.find("] BudgetSimulator::Shutdown") != std::string::npos);
+    CHECK(text.find("call BudgetSimulator::GetTaxIncomeOfType (#1)") != std::string::npos);
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);

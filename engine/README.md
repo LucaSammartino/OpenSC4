@@ -121,3 +121,14 @@ plugin.
 - Panics never cross the C ABI. Release builds use `panic = "abort"`, and each `fc4_*` entry point also catches
   unwinding.
 - Every spec behaviour needs a conformance vector. See [`conformance/README.md`](conformance/README.md).
+- Game interfaces are called through vtable slots, so slot order is part of the ABI (foundations §16). An
+  interface with overloaded methods is declared in [`plugin/FC4Interfaces.h`](plugin/FC4Interfaces.h) in the
+  spec's verified slot order with a unique name per method, never taken from the SDK header: MSVC regroups and
+  reverses overloads, so with overloads the layout follows the compiler, not the declaration.
+  `tests/vtable_layout_test.cpp` checks every slot of every interface we implement against the spec tables, and
+  `plugin_load_test` calls each overload of the real objects through its slot with the game's argument count and
+  checks that the stack balances. New code must not implement or call overloads of an interface until its spec
+  has a verified slot table. Interfaces still used through SDK declarations that contain overloads, pending
+  verification: `cIGZDate` (implemented by `cFC4Date`), `cISCPropertyHolder`, `cIGZString`, `cISC4LotManager`,
+  `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`, `cISC4Lot`,
+  `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`.

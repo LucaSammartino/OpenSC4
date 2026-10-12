@@ -148,6 +148,13 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME message_test COMMAND fc4_message_test)
 
+    # foundations §16: the slot layout of every game interface we implement.
+    add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
+    target_include_directories(fc4_vtable_layout_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+    target_compile_definitions(fc4_vtable_layout_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_vtable_layout_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME vtable_layout_test COMMAND fc4_vtable_layout_test)
+
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
     target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include")
