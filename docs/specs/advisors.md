@@ -1288,7 +1288,7 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
     record keeps the current landmark map.
 18. **random_chance**: with `mul` = 1 before the call: `mul` becomes `0x278DDE6D`, u = f32(0x278DDE6D/2^32 + 0.5) =
     0.65450847, r = f32(u × 100) = 65.450844 → `random_chance(70)` = 1, `random_chance(60)` = nil (foundations §7
-    test 13 gives the same draw in double: 0.6545084968674928).
+    test 13: 0.6545084714889526).
 19. **Utility counts**: incinerator capacity 1000 → `g_incinerator_capacity_daily` 30000. Garbage: regional
     exported(3) = 5 → `g_garbage_imported` 5.
 20. **HQ empty lists**: no hospitals → `l_hospital_funding_l` = 3.4028234e40 (double), subject null.
