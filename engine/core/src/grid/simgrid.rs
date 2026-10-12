@@ -24,8 +24,8 @@ pub const MAX_TRACTS: i32 = 4096;
 /// What a grid reads from the city to size itself (§3).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CityDims {
-    pub cell_count_x: i32,
-    pub cell_count_z: i32,
+    pub cells_x: i32,
+    pub cells_z: i32,
     pub cell_width_x: f32,
     pub cell_width_z: f32,
 }
@@ -34,11 +34,18 @@ impl CityDims {
     /// A square city of `cells` cells of 16 m.
     pub fn square(cells: i32) -> CityDims {
         CityDims {
-            cell_count_x: cells,
-            cell_count_z: cells,
+            cells_x: cells,
+            cells_z: cells,
             cell_width_x: 16.0,
             cell_width_z: 16.0,
         }
+    }
+}
+
+impl Default for CityDims {
+    /// A large city: 256 × 256 cells of 16 m.
+    fn default() -> CityDims {
+        CityDims::square(256)
     }
 }
 
@@ -46,7 +53,7 @@ impl CityDims {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TractGeometry {
     /// S, the nominal tract size in cells.
-    pub size: i32,
+    pub tract_size: i32,
     pub shift: i32,
     pub count_x: i32,
     pub count_z: i32,
@@ -76,14 +83,33 @@ impl TractGeometry {
         let width_x = city.cell_width_x * s as f32;
         let width_z = city.cell_width_z * s as f32;
         TractGeometry {
-            size: s,
+            tract_size: s,
             shift,
-            count_x: count(city.cell_count_x),
-            count_z: count(city.cell_count_z),
+            count_x: count(city.cells_x),
+            count_z: count(city.cells_z),
             width_x,
             width_z,
             inv_width_x: 1.0 / width_x,
             inv_width_z: 1.0 / width_z,
+        }
+    }
+
+    /// The number of tracts, `count_x × count_z` (each count clamped to
+    /// `0 ..= MAX_TRACTS`).
+    pub fn len(&self) -> usize {
+        self.count_x.clamp(0, MAX_TRACTS) as usize * self.count_z.clamp(0, MAX_TRACTS) as usize
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The index of tract (tx, tz) in x-outer, z-inner order, if in bounds.
+    pub fn index(&self, tx: i32, tz: i32) -> Option<usize> {
+        if self.in_bounds(tx, tz) && self.count_x <= MAX_TRACTS && self.count_z <= MAX_TRACTS {
+            Some(tx as usize * self.count_z as usize + tz as usize)
+        } else {
+            None
         }
     }
 
@@ -240,11 +266,7 @@ pub struct SimGridData<T: GridElem> {
 
 impl<T: GridElem> SimGridData<T> {
     fn index(&self, tx: i32, tz: i32) -> Option<usize> {
-        if self.geom.in_bounds(tx, tz) {
-            Some(tx as usize * self.geom.count_z as usize + tz as usize)
-        } else {
-            None
-        }
+        self.geom.index(tx, tz)
     }
 }
 
@@ -311,7 +333,7 @@ impl<T: GridElem> SimGrid<T> {
     /// Returns true ([choice]).
     pub fn set_tract_size(&self, city: &CityDims, s: i32) -> bool {
         let mut d = self.data.borrow_mut();
-        if d.geom.size == s {
+        if d.geom.tract_size == s {
             return true;
         }
         let ng = TractGeometry::for_city(city, s);
@@ -328,9 +350,39 @@ impl<T: GridElem> SimGrid<T> {
         true
     }
 
+    /// A working grid with a given geometry (for example a copy of a host
+    /// grid's geometry) and values, x outer. Missing values are 0 and extra
+    /// ones are dropped. Initialised, instance 0.
+    pub fn from_values(geom: TractGeometry, values: &[T]) -> Rc<SimGrid<T>> {
+        let g = SimGrid::new();
+        {
+            let mut d = g.data.borrow_mut();
+            d.init = true;
+            d.geom = geom;
+            d.values = vec![T::default(); geom.len()];
+        }
+        g.set_values(values);
+        g
+    }
+
     /// All values, x outer.
     pub fn values(&self) -> Vec<T> {
         self.data.borrow().values.clone()
+    }
+
+    /// Overwrites the values in x-outer order; a short slice leaves the
+    /// remaining tracts unchanged.
+    pub fn set_values(&self, values: &[T]) {
+        for (slot, &v) in self.data.borrow_mut().values.iter_mut().zip(values) {
+            *slot = v;
+        }
+    }
+
+    /// A deep copy (same geometry, values, CLSID and instance).
+    pub fn duplicate(&self) -> Rc<SimGrid<T>> {
+        let g = SimGrid::new();
+        *g.data.borrow_mut() = self.data.borrow().clone();
+        g
     }
 }
 
@@ -378,7 +430,7 @@ impl<T: GridElem> SaveObject for SimGrid<T> {
         out.put_u8(u8::from(d.init));
         out.put_u32(d.clsid);
         out.put_u32(d.instance);
-        for v in [g.size, g.shift, g.count_x, g.count_z] {
+        for v in [g.tract_size, g.shift, g.count_x, g.count_z] {
             out.put_i32(v);
         }
         for v in [g.width_x, g.width_z, g.inv_width_x, g.inv_width_z] {
@@ -420,7 +472,7 @@ fn read_record<T: GridElem>(inp: &mut dyn InStream) -> Option<SimGridData<T>> {
     let clsid = inp.get_u32()?;
     let instance = inp.get_u32()?;
     let geom = TractGeometry {
-        size: inp.get_i32()?,
+        tract_size: inp.get_i32()?,
         shift: inp.get_i32()?,
         count_x: inp.get_i32()?,
         count_z: inp.get_i32()?,

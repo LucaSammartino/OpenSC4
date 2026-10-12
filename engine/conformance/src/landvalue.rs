@@ -13,8 +13,8 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use fc4_core::curve::ResponseCurve;
+use fc4_core::grid::{CityDims, GridElem, SimGrid, TractGeometry, TractGrid};
 use fc4_core::landvalue::{desirability_term, AltitudeParams, GridKind, LandValueHost, LandValueSim, TuningInput};
-use fc4_core::simgrid::{CityCells, GridGeometry, SimGrid};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefResolver, RefValue};
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -51,7 +51,7 @@ struct FakeGrid {
 
 /// The fake game behind the [`LandValueHost`].
 struct Data {
-    city: CityCells,
+    city: CityDims,
     land_default: bool,
     /// Vertex rectangles `[x0, z0, x1, z1]` (inclusive), applied in order.
     land_rects: Vec<([i32; 4], bool)>,
@@ -74,7 +74,7 @@ struct Data {
 impl Data {
     fn new() -> Data {
         Data {
-            city: CityCells::default(),
+            city: CityDims::default(),
             land_default: true,
             land_rects: Vec::new(),
             alt_default: 100.0,
@@ -110,35 +110,13 @@ fn in_rect(r: &[i32; 4], x: i32, z: i32) -> bool {
     x >= r[0] && z >= r[1] && x <= r[2] && z <= r[3]
 }
 
-fn geometry_of(g: &AnyGrid) -> GridGeometry {
-    match g {
-        AnyGrid::U8(g) => g.geometry,
-        AnyGrid::I8(g) => g.geometry,
-        AnyGrid::U16(g) => g.geometry,
-        AnyGrid::I16(g) => g.geometry,
-        AnyGrid::U32(g) => g.geometry,
-        AnyGrid::I32(g) => g.geometry,
-        AnyGrid::U64(g) => g.geometry,
-        AnyGrid::I64(g) => g.geometry,
-        AnyGrid::F32(g) => g.geometry,
-        AnyGrid::F64(g) => g.geometry,
-    }
-}
+/// The class IDs the resolver accepts.
+const CLSID_U8: u32 = <u8 as GridElem>::CLSID;
+const CLSID_F32: u32 = <f32 as GridElem>::CLSID;
 
-fn fill<T: Copy>(rows: &mut [Vec<T>], flat: &[T]) {
-    let mut it = flat.iter();
-    for row in rows.iter_mut() {
-        for v in row.iter_mut() {
-            if let Some(&x) = it.next() {
-                *v = x;
-            }
-        }
-    }
-}
-
-fn read_into<T: Copy>(rows: &[Vec<T>], out: &mut [T]) {
-    for (o, v) in out.iter_mut().zip(rows.iter().flat_map(|r| r.iter())) {
-        *o = *v;
+fn read_into<T: GridElem>(g: &SimGrid<T>, out: &mut [T]) {
+    for (o, v) in out.iter_mut().zip(g.values()) {
+        *o = v;
     }
 }
 
@@ -205,32 +183,21 @@ impl LandValueHost for FakeHost {
     fn create_grid(&self, kind: GridKind, tract_size: i32, instance_id: u32) -> u64 {
         let mut d = self.0.borrow_mut();
         let city = d.city;
+        // Init, SetTractSize, SetInstanceID (simgrid §6.2).
         let (grid, name) = match kind {
-            GridKind::U8 => {
-                let mut g = SimGrid::<u8>::new();
-                g.init();
-                g.set_tract_size(tract_size, &city);
-                g.instance_id = instance_id;
-                (AnyGrid::U8(g), "u8")
-            }
-            GridKind::F32 => {
-                let mut g = SimGrid::<f32>::new();
-                g.init();
-                g.set_tract_size(tract_size, &city);
-                g.instance_id = instance_id;
-                (AnyGrid::F32(g), "f32")
-            }
+            GridKind::U8 => (AnyGrid::U8(SimGrid::create(&city, instance_id, tract_size)), "u8"),
+            GridKind::F32 => (AnyGrid::F32(SimGrid::create(&city, instance_id, tract_size)), "f32"),
         };
         d.events.push(format!("create {name} {tract_size} 0x{instance_id:08X}"));
         d.add_grid(grid, format!("0x{instance_id:08X}"))
     }
 
-    fn grid_geometry(&self, grid: u64) -> GridGeometry {
+    fn grid_geometry(&self, grid: u64) -> TractGeometry {
         self.0
             .borrow()
             .grids
             .get(&grid)
-            .map(|g| geometry_of(&g.grid))
+            .map(|g| g.grid.geometry())
             .unwrap_or_default()
     }
 
@@ -239,43 +206,32 @@ impl LandValueHost for FakeHost {
         let city = d.city;
         let label = d.label(grid);
         d.events.push(format!("set_tract_size {label} {tract_size}"));
-        if let Some(g) = d.grids.get_mut(&grid) {
-            match &mut g.grid {
-                AnyGrid::U8(g) => {
-                    g.set_tract_size(tract_size, &city);
-                }
-                AnyGrid::F32(g) => {
-                    g.set_tract_size(tract_size, &city);
-                }
-                AnyGrid::I16(g) => {
-                    g.set_tract_size(tract_size, &city);
-                }
-                _ => {}
-            }
+        if let Some(g) = d.grids.get(&grid) {
+            g.grid.set_tract_size(tract_size, &city);
         }
     }
 
     fn grid_read_u8(&self, grid: u64, out: &mut [u8]) {
         if let Some(AnyGrid::U8(g)) = self.0.borrow().grids.get(&grid).map(|g| &g.grid) {
-            read_into(&g.data, out);
+            read_into(g, out);
         }
     }
 
     fn grid_read_i16(&self, grid: u64, out: &mut [i16]) {
         if let Some(AnyGrid::I16(g)) = self.0.borrow().grids.get(&grid).map(|g| &g.grid) {
-            read_into(&g.data, out);
+            read_into(g, out);
         }
     }
 
     fn grid_write_u8(&self, grid: u64, values: &[u8]) {
-        if let Some(AnyGrid::U8(g)) = self.0.borrow_mut().grids.get_mut(&grid).map(|g| &mut g.grid) {
-            fill(&mut g.data, values);
+        if let Some(AnyGrid::U8(g)) = self.0.borrow().grids.get(&grid).map(|g| &g.grid) {
+            g.set_values(values);
         }
     }
 
     fn grid_write_f32(&self, grid: u64, values: &[f32]) {
-        if let Some(AnyGrid::F32(g)) = self.0.borrow_mut().grids.get_mut(&grid).map(|g| &mut g.grid) {
-            fill(&mut g.data, values);
+        if let Some(AnyGrid::F32(g)) = self.0.borrow().grids.get(&grid).map(|g| &g.grid) {
+            g.set_values(values);
         }
     }
 
@@ -455,18 +411,16 @@ fn configure(d: &mut Data, op: &Json) -> R<()> {
                     if matches!(spec, Json::Null) {
                         continue;
                     }
-                    let mut g = SimGrid::<i16>::new();
-                    g.init();
-                    g.set_tract_size(opt_int(spec, "size")?.unwrap_or(2) as i32, &d.city);
+                    let g = AnyGrid::I16(SimGrid::create(&d.city, 0, opt_int(spec, "size")?.unwrap_or(2) as i32));
                     if let Some(all) = spec.get("all") {
-                        g.set_all(num_of(all)? as i16);
+                        g.set_all(num_of(all)?);
                     }
                     if let Some(vals) = spec.get("values") {
                         for (x, z, val) in triples(vals)? {
-                            g.set_tract_value(x, z, val as i16);
+                            g.set_tract_value(x, z, val);
                         }
                     }
-                    let grid = d.add_grid(AnyGrid::I16(g), format!("dev:0x{id:04X}"));
+                    let grid = d.add_grid(g, format!("dev:0x{id:04X}"));
                     d.maps.insert(dev, grid);
                 }
             }
@@ -489,15 +443,6 @@ fn grid_token(sim: &LandValueSim, name: &str) -> R<u64> {
         "slope" => sim.slope_grid(),
         other => return Err(format!("unknown grid '{other}'")),
     })
-}
-
-fn tract(g: &AnyGrid, x: i32, z: i32) -> f64 {
-    match g {
-        AnyGrid::U8(g) => g.tract_value(x, z).into(),
-        AnyGrid::F32(g) => g.tract_value(x, z).into(),
-        AnyGrid::I16(g) => g.tract_value(x, z).into(),
-        _ => f64::NAN,
-    }
 }
 
 fn run(w: &World, name: &str, op: &Json) -> R<()> {
@@ -582,26 +527,16 @@ fn run(w: &World, name: &str, op: &Json) -> R<()> {
             let token = with_sim(w, |s| {
                 grid_token(s, field(op, "grid")?.as_str().ok_or("'grid' must be a name")?)
             })?;
-            let mut d = w.data.borrow_mut();
-            let g = d.grids.get_mut(&token).ok_or("grid not created")?;
-            match &mut g.grid {
-                AnyGrid::U8(g) => {
-                    if let Some(all) = op.get("all") {
-                        g.set_all(num_of(all)? as u8);
-                    }
-                    for (x, z, v) in op.get("values").map(triples).transpose()?.unwrap_or_default() {
-                        g.set_tract_value(x, z, v as u8);
-                    }
-                }
-                AnyGrid::F32(g) => {
-                    if let Some(all) = op.get("all") {
-                        g.set_all(num_of(all)? as f32);
-                    }
-                    for (x, z, v) in op.get("values").map(triples).transpose()?.unwrap_or_default() {
-                        g.set_tract_value(x, z, v as f32);
-                    }
-                }
-                _ => return Err("unexpected grid type".into()),
+            let d = w.data.borrow();
+            let g = &d.grids.get(&token).ok_or("grid not created")?.grid;
+            if !matches!(g, AnyGrid::U8(_) | AnyGrid::F32(_)) {
+                return Err("unexpected grid type".into());
+            }
+            if let Some(all) = op.get("all") {
+                g.set_all(num_of(all)?);
+            }
+            for (x, z, v) in op.get("values").map(triples).transpose()?.unwrap_or_default() {
+                g.set_tract_value(x, z, v);
             }
             Ok(())
         }
@@ -788,13 +723,9 @@ fn expect_grid(w: &World, op: &Json) -> R<()> {
     let sim = sim.as_ref().ok_or("no land value simulator")?;
     if name == "scratch" {
         let s = sim.scratch();
-        let cz = s.first().map_or(0, Vec::len) as i32;
-        let get = |x: i32, z: i32| {
-            s.get(x as usize)
-                .and_then(|r| r.get(z as usize))
-                .map_or(f64::NAN, |&v| v.into())
-        };
-        return check(&get, s.len() as i32, cz, false);
+        let geo = s.geometry();
+        let get = |x: i32, z: i32| geo.index(x, z).map_or(f64::NAN, |_| s.get(x, z).into());
+        return check(&get, geo.count_x, geo.count_z, false);
     }
     let token = grid_token(sim, name)?;
     let d = w.data.borrow();
@@ -803,13 +734,13 @@ fn expect_grid(w: &World, op: &Json) -> R<()> {
         .get(&token)
         .ok_or_else(|| format!("grid '{name}' does not exist"))?
         .grid;
-    let geom = geometry_of(g);
+    let geom = g.geometry();
     if let Some(s) = opt_int(op, "tract_size")? {
         if i64::from(geom.tract_size) != s {
             return Err(format!("{name}: tract size {}, expected {s}", geom.tract_size));
         }
     }
-    let get = |x: i32, z: i32| tract(g, x, z);
+    let get = |x: i32, z: i32| g.tract_value(x, z);
     check(&get, geom.count_x, geom.count_z, matches!(g, AnyGrid::F32(_)))
 }
 
@@ -821,7 +752,7 @@ fn query(w: &World, s: &LandValueSim, op: &Json) -> R<()> {
             let c = nums(field(op, "cell")?)?;
             let d = w.data.borrow();
             let v = match d.grids.get(&s.total_grid()).map(|g| &g.grid) {
-                Some(AnyGrid::U8(g)) => g.cell_value(c[0] as i32, c[1] as i32),
+                Some(AnyGrid::U8(g)) => g.get_cell_value(c[0] as i32, c[1] as i32),
                 _ => return Err("no total grid".into()),
             };
             if method == "land_value" {
@@ -963,14 +894,14 @@ impl RefResolver for Resolver {
     fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
         let city = self.0.borrow().city;
         let grid = match class_id {
-            fc4_core::simgrid::CLSID_GRID_U8 => {
-                let mut g = SimGrid::<u8>::new();
-                g.set_tract_size(2, &city);
+            CLSID_U8 => {
+                let g = SimGrid::<u8>::new();
+                g.set_tract_size(&city, 2);
                 AnyGrid::U8(g)
             }
-            fc4_core::simgrid::CLSID_GRID_F32 => {
-                let mut g = SimGrid::<f32>::new();
-                g.set_tract_size(8, &city);
+            CLSID_F32 => {
+                let g = SimGrid::<f32>::new();
+                g.set_tract_size(&city, 8);
                 AnyGrid::F32(g)
             }
             _ => return None,

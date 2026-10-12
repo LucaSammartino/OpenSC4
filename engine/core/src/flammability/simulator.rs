@@ -377,7 +377,7 @@ impl FlammabilitySim {
         for (slot, instance) in [(&self.adjusted, ADJUSTED_GRID_INSTANCE), (&self.raw, RAW_GRID_INSTANCE)] {
             let loaded = slot.borrow().clone();
             if let Some(g) = loaded {
-                if g.geometry().size != 1 {
+                if g.geometry().tract_size != 1 {
                     // [choice] FreeCity4 supports only S = 1 (§14.4).
                     *slot.borrow_mut() = None;
                     self.host.grid_shutdown(&g);
@@ -694,7 +694,7 @@ impl FlammabilitySim {
             for i in order {
                 let h = hotspots[i];
                 if curve.eval(h.weight as f32) > rf {
-                    let s = self.adjusted_grid().map_or(1, |g| g.geometry().size);
+                    let s = self.adjusted_grid().map_or(1, |g| g.geometry().tract_size);
                     let half = s / 2;
                     target = Some((
                         h.x.wrapping_mul(s).wrapping_add(half),
@@ -743,7 +743,7 @@ impl FlammabilitySim {
         if v == 0 {
             return None;
         }
-        let s = g.geometry().size;
+        let s = g.geometry().tract_size;
         Some((v, s.wrapping_mul(best.x), s.wrapping_mul(best.z)))
     }
 

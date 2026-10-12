@@ -454,7 +454,7 @@ impl AuraSim {
             return;
         };
         let geo = aura.geometry();
-        let s = geo.size;
+        let s = geo.tract_size;
         let (nx, nz) = counts(&*aura);
         let threshold = self.d.borrow().tuning.hotspot[0];
         let mut low = Vec::new();
@@ -552,7 +552,7 @@ impl AuraSim {
         if p > roll {
             let s = self
                 .aura_grid()
-                .map_or(super::grid_id::TRACT_SIZE, |g| g.geometry().size);
+                .map_or(super::grid_id::TRACT_SIZE, |g| g.geometry().tract_size);
             let at = |t: i32| t.wrapping_mul(s).wrapping_add(s / 2);
             self.host.attempt_disaster_start(ids::DISASTER_RIOT, at(h.x), at(h.z));
         }

@@ -561,8 +561,8 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         let (x, z) = pair_i(v, "cells")?;
         let mut c = w.city();
-        c.cell_count_x = x;
-        c.cell_count_z = z;
+        c.cells_x = x;
+        c.cells_z = z;
         w.city.set(Some(c));
     }
     if let Some(v) = opt(op, "cell_width") {
@@ -1114,8 +1114,8 @@ fn expect_grid(w: &World, op: &Json) -> R<()> {
     fn check<T: GridElem>(name: &str, g: &dyn TractGrid<T>, op: &Json) -> R<()> {
         let geo = g.geometry();
         if let Some(v) = opt(op, "tract_size") {
-            if i64::from(geo.size) != i64_of(v, "tract_size")? {
-                return Err(format!("{name}: tract size {}", geo.size));
+            if i64::from(geo.tract_size) != i64_of(v, "tract_size")? {
+                return Err(format!("{name}: tract size {}", geo.tract_size));
             }
         }
         if let Some(v) = opt(op, "counts") {

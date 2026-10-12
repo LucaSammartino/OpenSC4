@@ -86,8 +86,8 @@ impl crate::grid::GridProvider<u8> for Fake {
     fn create_grid(&self, instance: u32, tract_size: i32) -> Option<Rc<dyn TractGrid<u8>>> {
         let (x, z) = self.cells.get();
         let city = CityDims {
-            cell_count_x: x,
-            cell_count_z: z,
+            cells_x: x,
+            cells_z: z,
             ..CityDims::square(1)
         };
         self.log(format!("create {instance:08X} {tract_size}"));
@@ -912,7 +912,7 @@ fn loaded_tract_size() {
     assert!(s.read(&mut ByteReader::new(&w.into_bytes())));
     assert!(s.raw_grid().is_none());
     s.init();
-    assert_eq!(s.raw_grid().unwrap().geometry().size, 1);
+    assert_eq!(s.raw_grid().unwrap().geometry().tract_size, 1);
     assert_eq!(f.take(), vec!["create 49D5B953 1", "create 49D5B964 1"]);
 }
 

@@ -5,17 +5,18 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! Conformance ops for `docs/specs/simgrid.md`: named grids of any element
-//! type, the map utilities and the scanning iterator. See README.md
-//! ("Simgrid ops").
+//! type, the map utilities and the scanning iterator, on `fc4_core::grid`.
+//! See README.md ("Simgrid ops").
 
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use fc4_core::simgrid::{
-    add_distance_effect, add_radius_effect, process_two_grids, CityCells, GridElem, ScanIterator, SimGrid,
+use fc4_core::grid::{
+    add_distance_effect, add_radius_effect, process_two_grids, CityDims, GridElem, ScanIterator, SimGrid,
+    TractGeometry, TractGrid,
 };
-use fc4_core::stream::{ByteReader, ByteWriter};
+use fc4_core::stream::{ByteReader, ByteWriter, SaveObject};
 
 use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
@@ -23,19 +24,20 @@ use crate::runner::{check_expect_bool, field, int, opt_int, rel_close, HostRef};
 
 type R<T> = Result<T, String>;
 
-/// A grid of any of the ten element types.
-#[derive(Clone, Debug)]
+/// A core grid of any of the ten element types (shared: cloning an
+/// `AnyGrid` shares the grid).
+#[derive(Clone)]
 pub(crate) enum AnyGrid {
-    U8(SimGrid<u8>),
-    I8(SimGrid<i8>),
-    U16(SimGrid<u16>),
-    I16(SimGrid<i16>),
-    U32(SimGrid<u32>),
-    I32(SimGrid<i32>),
-    U64(SimGrid<u64>),
-    I64(SimGrid<i64>),
-    F32(SimGrid<f32>),
-    F64(SimGrid<f64>),
+    U8(Rc<SimGrid<u8>>),
+    I8(Rc<SimGrid<i8>>),
+    U16(Rc<SimGrid<u16>>),
+    I16(Rc<SimGrid<i16>>),
+    U32(Rc<SimGrid<u32>>),
+    I32(Rc<SimGrid<i32>>),
+    U64(Rc<SimGrid<u64>>),
+    I64(Rc<SimGrid<i64>>),
+    F32(Rc<SimGrid<f32>>),
+    F64(Rc<SimGrid<f64>>),
 }
 
 macro_rules! each {
@@ -55,22 +57,6 @@ macro_rules! each {
     };
 }
 
-/// A grid value as a JSON-comparable number.
-trait Num: GridElem {
-    fn to_f64(self) -> f64;
-    fn from_f64(v: f64) -> Self;
-}
-
-macro_rules! num {
-    ($($t:ty),*) => {$(
-        impl Num for $t {
-            fn to_f64(self) -> f64 { self as f64 }
-            fn from_f64(v: f64) -> Self { v as $t }
-        }
-    )*};
-}
-num!(u8, i8, u16, i16, u32, i32, u64, i64, f32, f64);
-
 impl AnyGrid {
     pub(crate) fn new(type_name: &str) -> R<AnyGrid> {
         Ok(match type_name {
@@ -88,21 +74,40 @@ impl AnyGrid {
         })
     }
 
-    fn is_float(&self) -> bool {
+    pub(crate) fn is_float(&self) -> bool {
         matches!(self, AnyGrid::F32(_) | AnyGrid::F64(_))
+    }
+
+    pub(crate) fn geometry(&self) -> TractGeometry {
+        each!(self, g => g.geometry())
+    }
+
+    pub(crate) fn set_tract_size(&self, s: i32, city: &CityDims) {
+        each!(self, g => { g.set_tract_size(city, s); })
+    }
+
+    /// `GetTractValue` as a number (out of range reads 0).
+    pub(crate) fn tract_value(&self, x: i32, z: i32) -> f64 {
+        each!(self, g => g.get(x, z).to_f64())
+    }
+
+    pub(crate) fn cell_value(&self, x: i32, z: i32) -> f64 {
+        each!(self, g => g.get_cell_value(x, z).to_f64())
+    }
+
+    /// `SetTractValue` from a number (cast as by `as`).
+    pub(crate) fn set_tract_value(&self, x: i32, z: i32, v: f64) {
+        each!(self, g => g.set(x, z, GridElem::from_f64(v)))
+    }
+
+    /// `SetTractValues`.
+    pub(crate) fn set_all(&self, v: f64) {
+        each!(self, g => g.fill(GridElem::from_f64(v)))
     }
 }
 
-fn get_num<T: Num>(g: &SimGrid<T>, x: i32, z: i32) -> f64 {
-    g.tract_value(x, z).to_f64()
-}
-
-fn set_num<T: Num>(g: &mut SimGrid<T>, x: i32, z: i32, v: f64) {
-    g.set_tract_value(x, z, T::from_f64(v));
-}
-
 pub(crate) struct World {
-    city: RefCell<CityCells>,
+    city: RefCell<CityDims>,
     grids: RefCell<HashMap<String, AnyGrid>>,
 }
 
@@ -112,7 +117,7 @@ fn world(host: &HostRef) -> Rc<World> {
         return w.clone();
     }
     let w = Rc::new(World {
-        city: RefCell::new(CityCells::default()),
+        city: RefCell::new(CityDims::default()),
         grids: RefCell::new(HashMap::new()),
     });
     *hs.grids.borrow_mut() = Some(w.clone());
@@ -179,6 +184,9 @@ fn run(w: &World, name: &str, op: &Json) -> R<()> {
             let mut c = w.city.borrow_mut();
             if let Some(cells) = op.get("cells") {
                 let v = nums(cells)?;
+                if v.len() != 2 {
+                    return Err("'cells' is [x, z]".into());
+                }
                 c.cells_x = v[0] as i32;
                 c.cells_z = v[1] as i32;
             }
@@ -191,10 +199,10 @@ fn run(w: &World, name: &str, op: &Json) -> R<()> {
         }
         "grid_new" => {
             let g = grid_name(op, "grid")?;
-            let mut grid = AnyGrid::new(field(op, "type")?.as_str().ok_or("'type' must be a string")?)?;
+            let grid = AnyGrid::new(field(op, "type")?.as_str().ok_or("'type' must be a string")?)?;
             let city = *w.city.borrow();
             if let Some(s) = opt_int(op, "size")? {
-                each!(&mut grid, x => { x.set_tract_size(s as i32, &city); });
+                grid.set_tract_size(s as i32, &city);
             }
             w.grids.borrow_mut().insert(g, grid);
             Ok(())
@@ -205,23 +213,26 @@ fn run(w: &World, name: &str, op: &Json) -> R<()> {
         _ => {
             let g = grid_name(op, "grid")?;
             let city = *w.city.borrow();
-            let mut grids = w.grids.borrow_mut();
-            let grid = grids.get_mut(&g).ok_or_else(|| format!("no grid '{g}'"))?;
-            grid_op(grid, &city, name, op)
+            let grid = w
+                .grids
+                .borrow()
+                .get(&g)
+                .cloned()
+                .ok_or_else(|| format!("no grid '{g}'"))?;
+            grid_op(&grid, &city, name, op)
         }
     }
 }
 
-fn grid_op(grid: &mut AnyGrid, city: &CityCells, name: &str, op: &Json) -> R<()> {
+fn grid_op(grid: &AnyGrid, city: &CityDims, name: &str, op: &Json) -> R<()> {
     let float = grid.is_float();
     match name {
         "grid_set_tract_size" => {
-            let s = int(op, "size")? as i32;
-            each!(grid, g => { g.set_tract_size(s, city); });
+            grid.set_tract_size(int(op, "size")? as i32, city);
             Ok(())
         }
         "grid_expect_geometry" => {
-            let g = each!(grid, g => g.geometry);
+            let g = grid.geometry();
             let checks: [(&str, f64); 8] = [
                 ("size", f64::from(g.tract_size)),
                 ("shift", f64::from(g.shift)),
@@ -244,19 +255,18 @@ fn grid_op(grid: &mut AnyGrid, city: &CityCells, name: &str, op: &Json) -> R<()>
         }
         "grid_set" => {
             if let Some(all) = op.get("all") {
-                let v = num_of(all)?;
-                each!(grid, g => g.set_all(Num::from_f64(v)));
+                grid.set_all(num_of(all)?);
             }
             if let Some(vals) = op.get("values") {
                 for (x, z, v) in triples(vals)? {
-                    each!(grid, g => set_num(g, x, z, v));
+                    grid.set_tract_value(x, z, v);
                 }
             }
             Ok(())
         }
         "grid_expect" => {
             for (x, z, want) in triples(field(op, "values")?)? {
-                let got = each!(grid, g => get_num(g, x, z));
+                let got = grid.tract_value(x, z);
                 if !close(got, want, float) {
                     return Err(format!("tract ({x}, {z}): got {got}, expected {want}"));
                 }
@@ -298,20 +308,19 @@ fn grid_op(grid: &mut AnyGrid, city: &CityCells, name: &str, op: &Json) -> R<()>
         }
         "grid_radius_effect" => {
             let c = nums(field(op, "center")?)?;
+            if c.len() != 2 {
+                return Err("'center' is [x, z]".into());
+            }
             let r = num_of(field(op, "radius")?)? as f32;
             let cv = num_of(field(op, "center_value")?)? as f32;
             let ov = num_of(field(op, "outer_value")?)? as f32;
             let (cx, cz) = (c[0] as i32, c[1] as i32);
+            let geo = grid.geometry();
+            let (nx, nz) = (geo.count_x, geo.count_z);
             match grid {
-                AnyGrid::U8(g) => {
-                    add_radius_effect(&mut g.data, g.geometry.count_x, g.geometry.count_z, cx, cz, r, cv, ov)
-                }
-                AnyGrid::I8(g) => {
-                    add_radius_effect(&mut g.data, g.geometry.count_x, g.geometry.count_z, cx, cz, r, cv, ov)
-                }
-                AnyGrid::I16(g) => {
-                    add_radius_effect(&mut g.data, g.geometry.count_x, g.geometry.count_z, cx, cz, r, cv, ov)
-                }
+                AnyGrid::U8(g) => add_radius_effect(&**g, nx, nz, cx, cz, r, cv, ov),
+                AnyGrid::I8(g) => add_radius_effect(&**g, nx, nz, cx, cz, r, cv, ov),
+                AnyGrid::I16(g) => add_radius_effect(&**g, nx, nz, cx, cz, r, cv, ov),
                 _ => return Err("AddRadiusEffect exists for u8, i8 and i16 grids only".into()),
             }
             Ok(())
@@ -320,7 +329,7 @@ fn grid_op(grid: &mut AnyGrid, city: &CityCells, name: &str, op: &Json) -> R<()>
     }
 }
 
-fn grid_call(grid: &mut AnyGrid, op: &Json) -> R<()> {
+fn grid_call(grid: &AnyGrid, op: &Json) -> R<()> {
     let method = field(op, "method")?.as_str().ok_or("'method' must be a string")?;
     let a = args(op)?;
     let i = |n: usize| -> R<i32> {
@@ -334,9 +343,10 @@ fn grid_call(grid: &mut AnyGrid, op: &Json) -> R<()> {
             .ok_or_else(|| format!("missing argument {n}"))
     };
     let float = grid.is_float();
+    let geo = grid.geometry();
     let got: Json = match method {
-        "cell_value" => Json::Float(each!(grid, g => g.cell_value(i(0)?, i(1)?).to_f64())),
-        "tract_value" => Json::Float(each!(grid, g => g.tract_value(i(0)?, i(1)?).to_f64())),
+        "cell_value" => Json::Float(grid.cell_value(i(0)?, i(1)?)),
+        "tract_value" => Json::Float(grid.tract_value(i(0)?, i(1)?)),
         "average_cell_rect" => {
             Json::Float(each!(grid, g => g.average_in_cell_rect(i(0)?, i(1)?, i(2)?, i(3)?).to_f64()))
         }
@@ -344,26 +354,28 @@ fn grid_call(grid: &mut AnyGrid, op: &Json) -> R<()> {
             Json::Float(each!(grid, g => g.average_in_tract_rect(i(0)?, i(1)?, i(2)?, i(3)?).to_f64()))
         }
         "tract_in_bounds" => {
-            let (x, z) = (a[0] as i64 as u32, a[1] as i64 as u32);
-            Json::Bool(each!(grid, g => g.geometry.tract_in_bounds(x, z)))
+            // The arguments are unsigned in the original (§4 slot 18).
+            i(1)?;
+            // Wrapped to 32 bits: 4294967295 is (u32) −1.
+            Json::Bool(geo.in_bounds(a[0] as i64 as i32, a[1] as i64 as i32))
         }
         "position_to_tract" => {
-            let (x, z) = each!(grid, g => g.geometry.position_to_tract(f(0)?, f(1)?));
+            let (x, z) = geo.position_to_tract(f(0)?, f(1)?);
             Json::Array(vec![Json::Int(x.into()), Json::Int(z.into())])
         }
         "tract_center" | "tract_corner" => {
             let (x, z) = if method == "tract_center" {
-                each!(grid, g => g.geometry.tract_center(i(0)?, i(1)?))
+                geo.tract_center(i(0)?, i(1)?)
             } else {
-                each!(grid, g => g.geometry.tract_corner(i(0)?, i(1)?))
+                geo.tract_corner(i(0)?, i(1)?)
             };
             Json::Array(vec![Json::Float(x.into()), Json::Float(z.into())])
         }
-        "clsid" => Json::Int(each!(grid, g => g.clsid).into()),
+        "clsid" => Json::Int(each!(grid, g => g.class_id()).into()),
         "init" => Json::Bool(each!(grid, g => g.init())),
         "set_instance_id" => {
             let id = a.first().copied().ok_or("missing argument 0")? as u32;
-            each!(grid, g => g.instance_id = id);
+            each!(grid, g => g.set_instance_id(id));
             Json::Bool(true)
         }
         other => return Err(format!("unknown grid method '{other}'")),
@@ -391,47 +403,38 @@ fn grid_call(grid: &mut AnyGrid, op: &Json) -> R<()> {
 
 fn distance(w: &World, op: &Json) -> R<()> {
     let target = grid_name(op, "grid")?;
-    let mask = op.get("mask").and_then(Json::as_str).map(str::to_owned);
+    let mask = op
+        .get("mask")
+        .and_then(Json::as_str)
+        .map_or_else(|| target.clone(), str::to_owned);
     let m = int(op, "mask_value")? as u8;
     let radius = num_of(field(op, "radius")?)? as f32;
     let near = num_of(field(op, "near")?)? as f32;
     let far = num_of(field(op, "far")?)? as f32;
-    let mut grids = w.grids.borrow_mut();
-    let mask_data = match &mask {
-        Some(name) if *name != target => match grids.get(name) {
-            Some(AnyGrid::U8(g)) => Some(g.data.clone()),
-            _ => return Err(format!("mask '{name}' must be a u8 grid")),
-        },
-        _ => None,
-    };
-    let Some(AnyGrid::U8(g)) = grids.get_mut(&target) else {
+    let grids = w.grids.borrow();
+    let Some(AnyGrid::U8(t)) = grids.get(&target) else {
         return Err(format!("target '{target}' must be a u8 grid"));
     };
-    let (cx, cz) = (g.geometry.count_x, g.geometry.count_z);
-    add_distance_effect(&mut g.data, cx, cz, mask_data.as_deref(), m, radius, near, far);
+    let Some(AnyGrid::U8(mk)) = grids.get(&mask) else {
+        return Err(format!("mask '{mask}' must be a u8 grid"));
+    };
+    let geo = t.geometry();
+    add_distance_effect(&**t, geo.count_x, geo.count_z, &**mk, m, radius, near, far);
     Ok(())
 }
 
 fn two_grids(w: &World, op: &Json) -> R<()> {
     let a = grid_name(op, "a")?;
     let b = grid_name(op, "b")?;
-    let mut grids = w.grids.borrow_mut();
-    let (bg, bdata) = match grids.get(&b) {
-        Some(AnyGrid::I16(g)) => (g.geometry, g.data.clone()),
-        _ => return Err(format!("'{b}' must be an i16 grid")),
+    let grids = w.grids.borrow();
+    let Some(AnyGrid::I16(bg)) = grids.get(&b) else {
+        return Err(format!("'{b}' must be an i16 grid"));
     };
-    let Some(AnyGrid::U8(ag)) = grids.get_mut(&a) else {
+    let Some(AnyGrid::U8(ag)) = grids.get(&a) else {
         return Err(format!("'{a}' must be a u8 grid"));
     };
-    // Mark each A tract with its position to record the visit order.
-    let geom = ag.geometry;
-    let mut marks: Vec<Vec<(i32, i32)>> = (0..geom.count_x)
-        .map(|x| (0..geom.count_z).map(|z| (x, z)).collect())
-        .collect();
     let mut visits = Vec::new();
-    process_two_grids(&geom, &mut marks, &bg, &bdata, |cell, v| {
-        visits.push((cell.0, cell.1, f64::from(v)))
-    });
+    process_two_grids(&**ag, &**bg, |x, z, _, v| visits.push((x, z, f64::from(v))));
     let want = triples(field(op, "expect")?)?;
     if visits != want {
         return Err(format!("visits {visits:?}, expected {want:?}"));
@@ -441,11 +444,17 @@ fn two_grids(w: &World, op: &Json) -> R<()> {
 
 fn iter_scan(op: &Json) -> R<()> {
     let r = nums(field(op, "rect")?)?;
-    let mut it = ScanIterator::with_rect(r[0] as i32, r[1] as i32, r[2] as i32, r[3] as i32);
+    if r.len() != 4 {
+        return Err("'rect' is [x0, x1, z0, z1]".into());
+    }
+    let mut it = ScanIterator::new(r[0] as i32, r[2] as i32, r[1] as i32, r[3] as i32);
     if let Some(s) = opt_int(op, "step")? {
-        it.step = s as i32;
+        it.set_step(s as i32);
     }
     let reset = nums(field(op, "reset")?)?;
+    if reset.len() != 2 {
+        return Err("'reset' is [x, z]".into());
+    }
     it.reset(reset[0] as i32, reset[1] as i32);
     let want: Vec<(i32, i32)> = field(op, "expect")?
         .as_array()
@@ -453,11 +462,11 @@ fn iter_scan(op: &Json) -> R<()> {
         .iter()
         .map(|p| nums(p).map(|v| (v[0] as i32, v[1] as i32)))
         .collect::<R<_>>()?;
-    let got: Vec<(i32, i32)> = std::iter::from_fn(|| it.next()).take(want.len() + 8).collect();
+    let got: Vec<(i32, i32)> = std::iter::from_fn(|| it.next_cell()).take(want.len() + 8).collect();
     if got != want {
         return Err(format!("visited {got:?}, expected {want:?}"));
     }
-    if it.next().is_some() {
+    if it.next_cell().is_some() {
         return Err("GetNext returned true after the end".into());
     }
     Ok(())

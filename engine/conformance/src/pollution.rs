@@ -191,7 +191,7 @@ fn vec3(v: [f32; 3]) -> Json {
 impl PollutionHost for World {
     fn cell_counts(&self) -> (i32, i32) {
         let d = self.dims();
-        (d.cell_count_x, d.cell_count_z)
+        (d.cells_x, d.cells_z)
     }
     fn cell_widths(&self) -> (f32, f32) {
         let d = self.dims();
@@ -548,8 +548,8 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         let (x, z) = pair_of(v, "cells")?;
         let mut d = w.dims();
-        d.cell_count_x = x as i32;
-        d.cell_count_z = z as i32;
+        d.cells_x = x as i32;
+        d.cells_z = z as i32;
         w.city.set(Some(d));
     }
     if let Some(v) = opt(op, "cell_width") {

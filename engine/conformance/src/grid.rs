@@ -199,8 +199,8 @@ fn city(w: &World, op: &Json) -> R<()> {
     let mut c = w.city();
     if let Some(v) = opt(op, "cells") {
         let (x, z) = pair(op, "cells").map_err(|e| format!("{e} ({})", show(v)))?;
-        c.cell_count_x = x as i32;
-        c.cell_count_z = z as i32;
+        c.cells_x = x as i32;
+        c.cells_z = z as i32;
     }
     if let Some(v) = opt(op, "width") {
         let a = arr(v, "width")?;
@@ -270,7 +270,7 @@ fn call_typed<T: GridElem>(g: &Rc<SimGrid<T>>, city: &CityDims, m: &str, op: &Js
         }
         "clsid" => ji(g.class_id()),
         "set_tract_size" => Json::Bool(g.set_tract_size(city, a(0)?)),
-        "tract_size" => ji(geo.size),
+        "tract_size" => ji(geo.tract_size),
         "shift" => ji(geo.shift),
         "count_x" => ji(geo.count_x),
         "count_z" => ji(geo.count_z),
@@ -279,7 +279,7 @@ fn call_typed<T: GridElem>(g: &Rc<SimGrid<T>>, city: &CityDims, m: &str, op: &Js
         "inv_width_x" => jf(geo.inv_width_x),
         "inv_width_z" => jf(geo.inv_width_z),
         "geometry" => Json::Object(vec![
-            ("size".into(), ji(geo.size)),
+            ("size".into(), ji(geo.tract_size)),
             ("shift".into(), ji(geo.shift)),
             ("count_x".into(), ji(geo.count_x)),
             ("count_z".into(), ji(geo.count_z)),
