@@ -164,11 +164,11 @@ that FreeCity4 should compute them in `f64` and round once *[choice]* (same conv
 
 ```
 t := occ.GetType()
-if t == building 0x278128A0 or t == flora 0xA823821E:
+if t == building 0x278128A0 or t == prop 0xA823821E:
     m := 1.0
     lot := lotManager.GetOccupantLot(occ)
     if lot ≠ null and lot.GetCondition() == 4:  m := abandonmentMultiplier      (4 = abandoned [inferred])
-else if t == prop 0x74758926:  m := 1.0
+else if t == flora 0x74758926:  m := 1.0
 else: return 0
 p := integer value of occ's property 0x29244DB5 (0 if absent; read through the property holder)
 return clamp(roundHE(p × m), 0, 255)
@@ -182,12 +182,14 @@ Values outside `|p × m| < 2^22` give garbage in the original; *[choice]* FreeCi
 2. Ask the occupant manager for the occupants in it:
    `GetOccupantsByStandardCityCells(list, &{x0, z0}, &{x1, z1}, filter, 0xFFFFFFFF)` (compiled slot 40, the
    filter overload), where `filter` is a ref-counted occupant **type filter** accepting building `0x278128A0`,
-   prop `0x74758926` and flora `0xA823821E`. Each returned occupant carries a reference, released after use.
-3. `B` := max raw value (§6.1) over buildings, `F` := max over flora, `P` := max over the other occupants
-   (props). Result := `B` if `B > 0`, else `F` if `F > 0`, else `P` (clamped to 0..255; already in range).
+   flora `0x74758926` and prop `0xA823821E`. Each returned occupant carries a reference, released after use.
+3. `B` := max raw value (§6.1) over buildings, `P` := max over props (`0xA823821E`), `F` := max over the other
+   occupants (flora). Result := `B` if `B > 0`, else `P` if `P > 0`, else `F` (clamped to 0..255; already in range).
 
-A building or flora whose raw value is 0 counts as absent. (The original evaluates flora only while no
-non-zero building has been seen and props only while neither has; the result is the same as the rule above.)
+A building or prop whose raw value is 0 counts as absent. (The original evaluates props only while no
+non-zero building has been seen and flora only while neither has; the result is the same as the rule above.)
+Erratum (M3): an earlier version of this section swapped the names of the prop and flora type IDs. The numeric
+checks were right; prop is `0xA823821E` and flora is `0x74758926`.
 
 ### 6.3 Occupant update (`OccupantUpdate(occ, add)`) *[compat]*
 

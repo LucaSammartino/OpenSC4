@@ -2247,3 +2247,145 @@ cISC4EffectsManager	cSC4EffectsManager	00a9f264	7	+0x1C	005939b0	cSC4EffectsMana
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	8	+0x20	0058da90	cSC4EffectsManager::GetStatsString	4	1	via-call	low	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	9	+0x24	0058fd40	cSC4EffectsManager::GetEffectMaps	0	0	eax-or-void	medium	
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	10	+0x28	0058fd50	cSC4EffectsManager::GetTallestBuildingAltitude	0	0	x87	high	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	0	+0x0	006afc90	cSC4FloraSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	2	+0x8	006b0480	cSC4FloraSimulator::Release	0	0	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	3	+0xC	006b2960	cSC4FloraSimulator::Init	0	0	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	4	+0x10	006afda0	cSC4FloraSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	5	+0x14	006b12d0	cSC4FloraSimulator::AddStaticFloraData	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	6	+0x18	006b3570	cSC4FloraSimulator::AddStaticFloraData	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	7	+0x1C	006b1040	cSC4FloraSimulator::GetStaticFloraData	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	8	+0x20	006b0e90	cSC4FloraSimulator::GetAllFloraTypes	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	9	+0x24	006b0420	cSC4FloraSimulator::GetAllFloraTypes	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	10	+0x28	006b0f10	cSC4FloraSimulator::GetAllFloraFamilyTypes	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	11	+0x2C	006b0fc0	cSC4FloraSimulator::IsFloraTypeValid	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	12	+0x30	006b0ff0	cSC4FloraSimulator::IsFloraFamilyTypeValid	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	13	+0x34	006b23a0	cSC4FloraSimulator::GetFloraTypesByFilter	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	14	+0x38	006b2460	cSC4FloraSimulator::GetFloraTypesByFamily	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	15	+0x3C	006b1c70	cSC4FloraSimulator::LocationIsOKForNewFlora	16	4	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	16	+0x40	006b07b0	cSC4FloraSimulator::GetBestFloraTypeForLocation	12	3	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	17	+0x44	006b1ea0	cSC4FloraSimulator::AddNewFloraOccupant	12	3	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	18	+0x48	006afc40	cSC4FloraSimulator::AddNewFloraOccupant	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	19	+0x4C	006afc60	cSC4FloraSimulator::DemolishFloraOccupant	8	2	via-call	low	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	20	+0x50	006b24f0	cSC4FloraSimulator::DemolishFloraInCellArea	8	2	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	21	+0x54	006b2620	cSC4FloraSimulator::DemolishFloraInBoundingBox	12	3	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	22	+0x58	006afc80	cSC4FloraSimulator::GetCostOfOccupantDemolition	8	2	edx:eax	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	23	+0x5C	006b1790	cSC4FloraSimulator::KillFloraOccupant	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	24	+0x60	006b2760	cSC4FloraSimulator::SaveObliterated	4	1	eax-or-void	medium	
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	25	+0x64	006b1990	cSC4FloraSimulator::~cSC4FloraSimulator	4	1	eax-or-void	medium	
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	0	+0x0	006b16a0		8	2	eax-or-void	medium	tail->006afc90
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	2	+0x8	006b16c0		0	0	eax-or-void	medium	tail->006b0480
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	3	+0xC	006afee0	cSC4FloraSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	4	+0x10	006affe0	cSC4FloraSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	5	+0x14	006afbd0	cSC4FloraSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Flora)	cSC4FloraSimulator	00ab13ac	0	+0x0	006b1690		8	2	eax-or-void	medium	tail->006afc90
+cIGZMessageTarget2(Flora)	cSC4FloraSimulator	00ab13ac	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(Flora)	cSC4FloraSimulator	00ab13ac	2	+0x8	006b16b0		0	0	eax-or-void	medium	tail->006b0480
+cIGZMessageTarget2(Flora)	cSC4FloraSimulator	00ab13ac	3	+0xC	006b2f70	cSC4FloraSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	0	+0x0	00472910	cSC4FloraOccupant::QueryInterface	8	2	eax-or-void	medium	tail->005e89c0
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	3	+0xC	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	4	+0x10	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	5	+0x14	006ce240	cSC4FloraOccupant::SetLotTag	4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	6	+0x18	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	7	+0x1C	004302d0		4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	8	+0x20	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	9	+0x24	004302c0	cSC4PropOccupant::SetLotTag	4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	10	+0x28	005d6140		0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	11	+0x2C	005d6150		4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	12	+0x30	00472ba0		0	0	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	13	+0x34	00472bb0		4	1	eax-or-void	medium	
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	14	+0x38	00472cd0		4	1	eax-or-void	medium	indirect-jump dword ptr [eax + 0xc]/dword ptr [eax + 0xc]
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	0	+0x0	00920c0a	cGZCheatCodeManager::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	1	+0x4	0094bc3f	icf::cGZCheatCodeManager::AddRef	0	0	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	2	+0x8	00920bf0	icf::cGZCheatCodeManager::Release	0	0	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	3	+0xC	00921b38	cGZCheatCodeManager::RegisterCheatCode	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	4	+0x10	00921817	cGZCheatCodeManager::UnregisterCheatCode	4	1	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	5	+0x14	0092124c	cGZCheatCodeManager::AddNotification	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	6	+0x18	00920fa0	cGZCheatCodeManager::RemoveNotification	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	7	+0x1C	009212a6	cGZCheatCodeManager::AddNotification2	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	8	+0x20	00921000	cGZCheatCodeManager::RemoveNotification2	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	9	+0x24	00920c35	cGZCheatCodeManager::EnableCheatCodeHistory	4	1	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	10	+0x28	00921310	cGZCheatCodeManager::ClearCheatCodeHistory	0	0	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	11	+0x2C	00921060	cGZCheatCodeManager::GetCheatCodeSaveData	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	12	+0x30	009214db	cGZCheatCodeManager::SetCheatCodeSaveData	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	13	+0x34	009211c3	cGZCheatCodeManager::GetListOfAllCheatStrings	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	14	+0x38	00920e7e	cGZCheatCodeManager::HasUserUsedCheat	4	1	edx:eax	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	15	+0x3C	00921215	cGZCheatCodeManager::GetCheatState	4	1	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	16	+0x40	00921150	cGZCheatCodeManager::GetCheatsWithEnabledStates	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	17	+0x44	009215d7	cGZCheatCodeManager::SetCheatState	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	18	+0x48	00920ea8	cGZCheatCodeManager::SetStateShouldBeSaved	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	19	+0x4C	00921300		0	0	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	20	+0x50	00920ece	cGZCheatCodeManager::SendCheatNotifications	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	21	+0x54	0092184b	cGZCheatCodeManager::DoesCheatCodeMatch	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	22	+0x58	00921621	cGZCheatCodeManager::DoDefaultCheatCodeProcessing	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	23	+0x5C	0092131e	cGZCheatCodeManager::EnableCheatCodes	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	24	+0x60	00920c3f	cGZCheatCodeManager::GetCheatCodesEnabled	0	0	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	25	+0x64	00920d52	cGZCheatCodeManager::GetCheatCodePassword	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	26	+0x68	00920da1	cGZCheatCodeManager::SetCheatCodePassword	8	2	eax-or-void	medium	
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	27	+0x6C	00920c43	cGZCheatCodeManager::SetEnableDisableStrings	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	0	+0x0	0092980d	cGZCommandServer::QueryInterface	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	1	+0x4	0094bc3f	icf::cGZCheatCodeManager::AddRef	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	2	+0x8	00920bf0	icf::cGZCheatCodeManager::Release	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	3	+0xC	0092a982	cGZCommandServer::Init	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	4	+0x10	0092ae88	cGZCommandServer::Shutdown	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	5	+0x14	0092a9f8	cGZCommandServer::CreateCommandParameterSet	4	1	via-call	low	
+cIGZCommandServer	cGZCommandServer	00ad17a0	6	+0x18	0092b075	cGZCommandServer::RegisterCommand	12	3	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	7	+0x1C	00929844	cGZCommandServer::RegisterCommands	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	8	+0x20	0092ad10	cGZCommandServer::RegisterCommandParameterInfo	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	9	+0x24	0092ad88	cGZCommandServer::UnregisterCommand	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	10	+0x28	00929881	cGZCommandServer::UnregisterCommands	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	11	+0x2C	0092a1f6	cGZCommandServer::GetCommandInfo	12	3	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	12	+0x30	00929ee0	cGZCommandServer::GetCommandID	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	13	+0x34	0092aa4a	cGZCommandServer::GetCommandIDFromCommandString	8	2	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	14	+0x38	0092aad8	cGZCommandServer::EnumerateCommands	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	15	+0x3C	0092ab0b	cGZCommandServer::RegisterCommandGenerator	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	16	+0x40	0092a236	cGZCommandServer::UnregisterCommandGenerator	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	17	+0x44	009db663	icf::cFreshPlayer::SetZPos	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	18	+0x48	00929b92	cGZCommandServer::SetCommandDispatcher	4	1	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	19	+0x4C	00929bba	cGZCommandServer::ExecuteCommand	12	3	unknown	low	indirect-jump dword ptr [eax + 0x20]
+cIGZCommandServer	cGZCommandServer	00ad17a0	20	+0x50	00929ba8	cGZCommandServer::ExecuteCommand	12	3	unknown	low	indirect-jump dword ptr [eax + 0x14]
+cIGZCommandServer	cGZCommandServer	00ad17a0	21	+0x54	009298ae	cGZCommandServer::ExecuteCommandFormatted	0	0	eax-or-void	medium	
+cIGZCommandServer	cGZCommandServer	00ad17a0	22	+0x58	00929bcc	cGZCommandServer::ConvertStringToCommand	16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x24]
+cIGZCommandServer	cGZCommandServer	00ad17a0	23	+0x5C	00929bdd	cGZCommandServer::ConvertCommandToString	12	3	eax-or-void	medium	indirect-jump dword ptr [eax + 0x28]
+cIGZCommandServer	cGZCommandServer	00ad17a0	24	+0x60	00929bee	cGZCommandServer::ConvertCommandOutputToString	8	2	eax-or-void	medium	indirect-jump dword ptr [eax + 0x2c]
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	0	+0x0	00913292	cRZMessage2Standard::QueryInterface	8	2	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	1	+0x4	00968b60	cRZRefCount::AddRef	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	2	+0x8	009132c1		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	3	+0xC	009134ff		8	2	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	4	+0x10	009cede1	icf::cGZCommandParameterSet::GetParameterCount	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	5	+0x14	009132db		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	6	+0x18	0091337a		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	7	+0x1C	00913394		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	8	+0x20	009132f3		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	9	+0x24	0099be66	cGZWin::GetID	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	10	+0x28	0099be66	cGZWin::GetID	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	11	+0x2C	00913322		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	12	+0x30	00913322		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	13	+0x34	009132fe		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	14	+0x38	009d4714	icf::cGZDBSegmentPackedFile::SetSegmentID	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	15	+0x3C	009d4714	icf::cGZDBSegmentPackedFile::SetSegmentID	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	16	+0x40	00913330		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	17	+0x44	00913330		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	18	+0x48	0091330a		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	19	+0x4C	00995d93		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	20	+0x50	00995d93		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	21	+0x54	0091333e		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	22	+0x58	0091333e		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	23	+0x5C	00913316		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	24	+0x60	009d8539	cGZWinScrollbar2::GetArrowsImage	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	25	+0x64	009d8539	cGZWinScrollbar2::GetArrowsImage	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	26	+0x68	0091334c		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	27	+0x6C	0091334c		4	1	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	28	+0x70	0091335a		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	29	+0x74	00913438		8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	30	+0x78	00913452		4	1	eax-or-void	medium	tail->0094909a
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	31	+0x7C	00913366		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	32	+0x80	009d858f	cRZCOMDllDirector::GZCOM	0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	33	+0x84	0091346b		4	1	eax-or-void	medium	tail->005447b0
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	34	+0x88	0091336e		0	0	eax-or-void	medium	
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	35	+0x8C	00913484		8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	36	+0x90	009134a1		4	1	eax-or-void	medium	tail->005447b0
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	37	+0x94	009134ba		4	1	eax-or-void	medium	

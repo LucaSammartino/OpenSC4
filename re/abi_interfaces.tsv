@@ -82,3 +82,10 @@ cISC4PropManager	cSC4PropManager	00a8f928	40	docs/specs/crime.md
 cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	52	docs/specs/pollution.md
 cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	13	docs/specs/pollution.md
 cISC4EffectsManager	cSC4EffectsManager	00a9f264	11	docs/specs/pollution.md
+cISC4FloraSimulator	cSC4FloraSimulator	00ab13c0	26	docs/specs/flora.md
+cIGZSerializable(Flora)	cSC4FloraSimulator	00ab1394	6	docs/specs/flora.md
+cIGZMessageTarget2(Flora)	cSC4FloraSimulator	00ab13ac	4	docs/specs/flora.md
+cISC4FloraOccupant	cSC4FloraOccupant	00a88608	15	docs/specs/flora.md
+cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	28	docs/specs/flora.md
+cIGZCommandServer	cGZCommandServer	00ad17a0	25	docs/specs/flora.md
+cIGZMessage2Standard	cRZMessage2Standard	00acec00	38	docs/abi/layouts.md
