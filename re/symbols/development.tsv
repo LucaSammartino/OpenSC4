@@ -1,0 +1,136 @@
+va	name	evidence	mac_x86
+00695280	cSC4BuildingDevelopmentSimulator::GetGZCLSID	returns 0x8990BE7A (class_vtables.py); slot 5 of cIGZSerializable vtable 00AB0AC0	006535b4
+0069a000	cSC4BuildingDevelopmentSimulator::cSC4BuildingDevelopmentSimulator	installs vtables 00AB0AF8/00AB0AD8/00AB0AC0 (install site 0069A037); zeroes growth-plan flag +0xDC	000f9d70
+00698b30	cSC4BuildingDevelopmentSimulator::~cSC4BuildingDevelopmentSimulator	second vtable install site 00698B4C; frees containers	000f81a6
+0069d240	cSC4BuildingDevelopmentSimulator::Init	vtable 00AB0AF8 slot 3; calls ReadSimulatorTunableValues 006959E0	000fafaa
+0069a210	cSC4BuildingDevelopmentSimulator::Shutdown	vtable 00AB0AF8 slot 4	000f844e
+00695590	cSC4BuildingDevelopmentSimulator::LocationIsOKForNewBuilding	vtable 00AB0AF8 slot 5 (interface order only)	000f6e30
+006959e0	cSC4BuildingDevelopmentSimulator::ReadSimulatorTunableValues	reads 0x47E2C380..383 from exemplar 0x6534284A/0xE7E2C2DB/0xE8DA7677; defaults 100/2000/0.5 identical to Mac	000f724e
+0069cce0	cSC4BuildingDevelopmentSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB0AD8 slot 3; same switch as Mac (0x66956810/14/16/1A, 0x278E6003, 0x0B99AE81, 0x230E27AC cheats, 0x99EF1142/43, 0xE8BDA2E7)	000fa26e
+00696130	cSC4BuildingDevelopmentSimulator::DoMonthlySimulation	called by DoMessage on SimBegin and NewMonth	000f89d0
+00699ea0	cSC4BuildingDevelopmentSimulator::DoIdle	called on NewDay(5) and SimIdle(data3); state machine 1..4 at +0x74 calls dev+0x70 IsMapUpdateFinished, PlanGrowth, PlanDecline	000f926e
+00699440	cSC4BuildingDevelopmentSimulator::PlanGrowth	DoIdle state 3 when +0xDC set; weighted pick using bias +0xCC	000f8ae2
+00699890	cSC4BuildingDevelopmentSimulator::PlanDecline	DoIdle state 4	000f8f2a
+0069b6d0	cSC4BuildingDevelopmentSimulator::DoDailySimulation	NewDay handler: if(+0xDC) ExecuteGrowthPlan else Grow; then ExecuteDeclinePlan	000fa202
+0069b0b0	cSC4BuildingDevelopmentSimulator::Grow	called from DoDailySimulation; static sTimerHistoryGrow=0x400, 3 ms limit timer	000f932c
+00699270	cSC4BuildingDevelopmentSimulator::ExecuteGrowthPlan	called from DoDailySimulation when +0xDC set	000fa05e
+00696a50	cSC4BuildingDevelopmentSimulator::ExecuteDeclinePlan	called from DoDailySimulation	000f7622
+00698610	cSC4BuildingDevelopmentSimulator::DoTerrainChanged	DoMessage 0x278E6003 handler, same rect clamping	000f77e8
+0069ca80	cSC4BuildingDevelopmentSimulator::DoBuildingChanged	DoMessage 0xE8BDA2E7 handler	000f99ca
+00695390	cSC4BuildingDevelopmentSimulator::BuildingFitsInZone	switch identical to Mac (2<-1, 3<-1/2, 5<-4, 6<-4/5, 9<-8, B/C/F<-0)	000f6daa
+00695340	cSC4BuildingDevelopmentSimulator::GrowthStageFitsInZone	zones 1/4 stage<4, 2/5 stage<7, 3/6..9 any	000f6d6c
+00695790	cSC4BuildingDevelopmentSimulator::GetDeveloperType_Static	constants 0x1010..0x4400; called by slot-30 thunk 00698D60	000f6bfc
+00698d60	cSC4BuildingDevelopmentSimulator::GetDeveloperType	vtable 00AB0AF8 slot 30 (+0x78), thunk to 00695790	006546ee
+00696c80	cSC4BuildingDevelopmentSimulator::GetDeveloper(DeveloperType)	vtable slot 32 (+0x80); lookup in developer map +0x5C. MSVC reversed overload order vs Mac (+0x84)	000f73e6
+006958b0	cSC4BuildingDevelopmentSimulator::GetDeveloper(PurposeType,WealthType)	vtable slot 33 (+0x84); calls +0x78 then +0x80	000f7052
+00696c20	cSC4BuildingDevelopmentSimulator::GetMaxCapacity	vtable slot 45 (+0xB4)	000f7502
+00695430	cSC4BuildingDevelopmentSimulator::IsSuitableForConstruction	vtable slot 46; BuildingFitsInZone + cheat flags + power/water checks	000f7c9a
+00695570	cSC4BuildingDevelopmentSimulator::PlopBuilding	vtable slot 47; forwards to own +0x18 AddNewBuildingOccupant	000f6df8
+006958e0	cSC4BuildingDevelopmentSimulator::GetFreeConstructionResources	slot 48; max(0, supply-demand) of construction cSC4Demand at +0x70	000f708a
+00695910	cSC4BuildingDevelopmentSimulator::GetTotalConstructionResources	slot 49; supply of +0x70	000f70d4
+00695920	cSC4BuildingDevelopmentSimulator::ClaimConstructionResources	slot 50; demand+n<=supply then AddToDemandValue,EndOfCycle	000f70f8
+00695980	cSC4BuildingDevelopmentSimulator::ReleaseConstructionResources	slot 51; AddToDemandValue(-n),EndOfCycle	000f7178
+00696cc0	cSC4BuildingDevelopmentSimulator::GetDayOfLastSuccessfulBuild	slot 52; map lookup	000f73b0
+00696040	cSC4BuildingDevelopmentSimulator::GetStagePopulationMultiplier	slot 53; vector +0xD0 indexed by city difficulty (+0x60)	000f7380
+004cdf80	GrowthOutcomeToString (debug growth dump; cISC4TractDeveloper::Outcome names)	switch 0..0x1B -> "unknown failure".."success" strings
+007045a0	cSC4TractDeveloper::GetGZCLSID	returns 0x2990C142 (class_vtables.py)	0064ba08
+00707780	cSC4TractDeveloper::Init	vtable 00AB3118 slot 3; calls ReadSimulatorTunableValues 00706FC0 and AddAgent twice (month, year)	000ec22c
+0070b210	cSC4TractDeveloper::Shutdown	vtable 00AB3118 slot 4	000eb5f2
+0070d130	cSC4TractDeveloper::Grow	vtable 00AB3118 slot 5; callee sequence identical to Mac Grow	000eb9ea
+00709200	cSC4TractDeveloper::Decline	vtable 00AB3118 slot 6; RandomIterator over tract cells	000e7c60
+00706bc0	cSC4TractDeveloper::UpdatePopulation	vtable 00AB3118 slot 7; RandomDoubleRangeUniform occupancy jitter	000e713c
+0070c8d0	cSC4TractDeveloper::GetCurrentStyle	vtable 00AB3118 slot 8	0064c1c6
+0070c840	cSC4TractDeveloper::GetActiveStyles	slot 9	0064ba12
+00707470	cSC4TractDeveloper::SetActiveStyles	slot 10	000eb49e
+0070c850	cSC4TractDeveloper::IsUsingAllStylesAtOnce	slot 11	0064ba20
+0070c860	cSC4TractDeveloper::UseAllStylesAtOnce	slot 12	0064ba34
+0070c880	cSC4TractDeveloper::SetYearsBetweenStyleChanges	slot 14	0064ba56
+00704b60	cSC4TractDeveloper::Write	cIGZSerializable vtable 00AB30EC slot 3	000e7436
+00707950	cSC4TractDeveloper::Read	cIGZSerializable vtable 00AB30EC slot 4	000eafe2
+007048e0	cSC4TractDeveloper::DoMessage	cIGZMessageTarget2 vtable 00AB3104 slot 3; NewYear 0x66956817 style rotation identical to Mac	000e73b4
+00706fc0	cSC4TractDeveloper::ReadSimulatorTunableValues	reads 0x47E2C500..551 with same defaults/offsets as Mac	000ebf4c
+00705750	cSC4TractDeveloper::ScoreCandidateLots	prior-art hook 0x705863 inside; weights 1/2/10, -2/-5/0, -1/-1/-5 match Mac; Windows adds I-only random*20 term	000e6b30
+00705040	cSC4TractDeveloper::FindNetworks	prior art (sc4-lot-network-scoring-test); called by ListCandidateLots_*	000e63d4
+007055b0	cSC4TractDeveloper::FindExistingCapacity	first callee of ScoreCandidateLots/PickBuilding/IsLotConfigurationCompatible like Mac	000e692e
+00707370	cSC4TractDeveloper::ClearCandidateList	Grow call order (first in loop), returns candidates to pool	000e815a
+00707d90	cSC4TractDeveloper::NewCandidateLot	called by TakeOverAbandoned and all ListCandidateLots_*	000e8c34
+00707fb0	cSC4TractDeveloper::ListExistingLots	Grow call order; static RandomIterator with atexit	000e7e74
+0070a3d0	cSC4TractDeveloper::TakeOverAbandoned	Grow call order; calls ConvertZoneToType, IsLotSuitable, FindExistingCapacity, Score, Sort	000e9d9c
+00709650	cSC4TractDeveloper::ListPossibleLotConfigurations	Grow call order; calls IsLotConfigurationSuitable 00704C00	000e7fce
+00704c00	cSC4TractDeveloper::IsLotConfigurationSuitable	return codes 7,8,0xE,9,0,0xB,0x1B,0xD same as Mac	000e6d50
+00708110	cSC4TractDeveloper::ListCandidateLots_Existing	Grow call order; IsLotSuitable(lot,true) inlined (outcomes 6/0x13/0x16/4/0xF/0x10/0x11/0x15/0x12)	000ea49c
+007097e0	cSC4TractDeveloper::ListCandidateLots_Aggregation	Grow call order; two loops each FindNetworks+IsAggregationLegal+IsLotConfigurationCompatible	000ea80c
+00708c00	cSC4TractDeveloper::ListCandidateLots_Subdivision	Grow call order (skipped for purpose 5)	000eac52
+00709520	cSC4TractDeveloper::SortCandidateLots	std::sort wrapper called after ScoreCandidateLots in TakeOverAbandoned	000e7c1e
+00707f20	std::__introsort_loop<CandidateLot*> (CompareCandidateLots inlined)	recursive; called from SortCandidateLots and inline sort in Grow
+0070b640	cSC4TractDeveloper::BuildFarm	Grow branch for purpose 5; calls Build	000e98e6
+0070b440	cSC4TractDeveloper::Build	calls PickBuilding, PerformSubdivision, PerformAggregation	000e965a
+00709ba0	cSC4TractDeveloper::PickBuilding	calls FindExistingCapacity, IsLotConfigurationCompatible, RandomUint32Uniform, IsBuildingCompatible	000e8d26
+007068e0	cSC4TractDeveloper::PerformAggregation	Build callee, size match (626 vs 591)	000e8864
+0070a9b0	cSC4TractDeveloper::PerformSubdivision	Build callee; calls PickBuilding like Mac	000e92be
+00706500	cSC4TractDeveloper::IsLotConfigurationCompatible	calls FindExistingCapacity then TestForCornerLot like Mac	000e75f6
+00705da0	cSC4TractDeveloper::TestForCornerLot	callee of IsLotConfigurationCompatible	000e7508
+00708700	cSC4TractDeveloper::IsAggregationLegal	calls GetBoundingRect first then IsLotSuitable-style checks	000e85c8
+00704630	cSC4TractDeveloper::GetBoundingRect	first callee of IsAggregationLegal	000e5f5c
+00707a60	cSC4TractDeveloper::IsLotSuitable	called by TakeOverAbandoned; BuildingFitsInZone + same outcome codes	000e8204
+00704e00	cSC4TractDeveloper::IsBuildingCompatible	returns 7,8,9,0xB,0xD,2,0x1B; reads 0x2781283F monopoly flag	000e60ae
+0070ad20	cSC4TractDeveloper::RecordBuildAttempt	called after every Build in Grow	000e8ae0
+0070cfa0	cSC4TractDeveloper::RecordGrowthAttempt	last call of Grow	000eb830
+006b3890	cSC4GrowthDeveloper::ConvertZoneToType	called by TakeOverAbandoned on lot zone	000fcc24
+006b3790	cSC4GrowthDeveloper::GetGZCLSID	returns 0x0990C138 (class_vtables.py)	0065ae70
+006b8510	cSC4GrowthDeveloper::Init	vtable 00AB1488 slot 3; calls ReadSimulatorTunableValues 006B78B0	000ff4ba
+006b59a0	cSC4GrowthDeveloper::Shutdown	vtable 00AB1488 slot 4	000fdc86
+006b78b0	cSC4GrowthDeveloper::ReadSimulatorTunableValues	reads 0x87CD6300..63A0	000fe640
+006b7030	cSC4GrowthDeveloper::DoMessage	cIGZMessageTarget2 vtable 00AB1474 slot 3; handles 0x66956814/0x6695681A/0x07699455/0xE8BDA2E7 like Mac	00101242
+006b5f20	cSC4GrowthDeveloper::DoIdle	DoMessage callee on NewDay and SimIdle; 4245 bytes	000ff9e8
+006b4b90	cSC4GrowthDeveloper::UpdateMaxCapacity	DoMessage ZoningChange 0x07699455 handler	000fd968
+006b51c0	cSC4GrowthDeveloper::UpdatePopulationCount	DoMessage 0xE8BDA2E7 handler	000fd6c6
+006b38e0	cSC4GrowthDeveloper::GetConstructionInfo	vtable 00AB1488 slot 9	000fcc5e
+006b7530	cSC4GrowthDeveloper::GrowthAndDeclineListsAreValid	slot 10	0065ae7a
+006b7540	cSC4GrowthDeveloper::GetDeclineList	slot 12	0065ae9e
+006b7550	cSC4GrowthDeveloper::GetPowerSupplyCap	slot 19	0065af32
+006b7560	cSC4GrowthDeveloper::GetWaterSupplyCap	slot 20	0065af42
+006b7570	cSC4GrowthDeveloper::GetFireCoverageCap	slot 21	0065af52
+006b7580	cSC4GrowthDeveloper::GetParkCap	slot 22	0065af62
+006b75a0	cSC4GrowthDeveloper::GetDesirabilityThreshold	slot 23	0065af8e
+006b7620	cSC4GrowthDeveloper::GetAbandonmentThreshold	slot 24	0065cfb4
+006b7590	cSC4GrowthDeveloper::GetStylePercentages	slot 26	0065af80
+006b75b0	cSC4GrowthDeveloper::StartMapUpdate	slot 27	0065af9c
+006b75d0	cSC4GrowthDeveloper::IsMapUpdateFinished	slot 28	0065afb8
+006b4df0	cSC4GrowthDeveloper::EstimateDesirability	slot 29	000fcfcc
+006b5410	cSC4GrowthDeveloper::GetSubjectiveThresholds	slot 30	000fd540
+006b3960	cSC4GrowthDeveloper::Write	cIGZSerializable vtable 00AB145C slot 3	000fccdc
+006b39f0	cSC4GrowthDeveloper::Read	cIGZSerializable vtable 00AB145C slot 4	000fcd8c
+006c3b00	cSC4LotDeveloper::GetGZCLSID	returns 0xA990BFE0 (class_vtables.py)	0064ff8a
+006cb9a0	cSC4LotDeveloper::Init	vtable 00AB1B98 slot 3	000f1c6c
+006c7380	cSC4LotDeveloper::Shutdown	vtable 00AB1B98 slot 4	000f5034
+006c3c40	cSC4LotDeveloper::GetSimulatorType	slot 5	000ec58e
+006cc490	cSC4LotDeveloper::StartConstruction	slot 6; calls PickUnitToJoin first like Mac	000f48d0
+006ccef0	cSC4LotDeveloper::ConstructDefaultLot	slot 7	000f30f0
+006c3d30	cSC4LotDeveloper::AbandonBuilding	slot 8; lot->SetState(4,0,reason) identical	000ec736
+006c3d50	cSC4LotDeveloper::ReoccupyBuilding	slot 9; body identical (prop 0xE999B11F, SetState(3))	000ec764
+006c5210	cSC4LotDeveloper::ChangeBuilding	slot 10	000ed74a
+006cd940	cSC4LotDeveloper::DoMessage	cIGZMessageTarget2 vtable 00AB1B88 slot 3	000f5d6a
+006c4a20	cSC4LotDeveloper::ReadSimulatorTunableValues	reads 0x47E2C400/401, 0xE900EA24..2C, 0x2A2D7824	000eef60
+006cd770	cSC4LotDeveloper::DoDailySimulation	DoMessage NewDay callee; lotCount/0x1C+1 lots per day	000f45b6
+006cd3a0	cSC4LotDeveloper::UpdateLot	only call of DoDailySimulation loop; callee order matches Mac	000f4116
+006c4910	cSC4LotDeveloper::RotateLotToFaceRoad	UpdateLot callee #1	000ed44e
+006cabb0	cSC4LotDeveloper::TestPower	UpdateLot callee order	000f0de8
+006cafc0	cSC4LotDeveloper::TestTravel	UpdateLot callee order	000f0950
+006c47c0	cSC4LotDeveloper::TestDesirability	prop 0xC999E206 counter, *0.01 vs +0xCC, Random(0,7)	000ed514
+006cae30	cSC4LotDeveloper::TestWater	UpdateLot callee order	000f0c2c
+006c4630	cSC4LotDeveloper::TestCondition	UpdateLot callee order	000ee85c
+006c78d0	cSC4LotDeveloper::TestCoffeeBar	UpdateLot callee order (cheat)	000f3b82
+006c3b10	IsEmptyLotSuitableForZot	UpdateLot callee order	000ec486
+006cb260	cSC4LotDeveloper::PickUnitToJoin	last UpdateLot callee; also StartConstruction	000f3dbc
+00729eb0	cSC4ZoneDeveloper::GetGZCLSID	returns 0x498F9B01 (class_vtables.py)	0064711c
+00734030	cSC4ZoneDeveloper::Init	cISC4ZoneDeveloper vtable 00AB3830 slot 3	000e100c
+007335a0	cSC4ZoneDeveloper::Shutdown	slot 4	000e0c18
+00733f30	cSC4ZoneDeveloper::HighlightParcels	slot 5	000e5daa
+00733fa0	cSC4ZoneDeveloper::DoParcellization	slot 6	000e5e2e
+007347c0	cSC4ZoneDeveloper::SetOptions	slot 7	00647126
+0072fe10	cSC4ZoneDeveloper::ExistsNetworkOfType	slot 8	000dce1c
+0072a030	cSC4ZoneDeveloper::IsCellWater	slot 9	000dacae
+007328d0	cSC4ZoneDeveloper::DoMessage	cIGZMessageTarget2 vtable 00AB37AC slot 3	000e2d6c
+004dc1a0	cSC4ZoneManager::GetGZCLSID	returns 0x298F9B2D (class_vtables.py)	00674e20
+004dca70	cSC4ZoneManager::DoMessage	InsertOccupant handler with 0xA821EF94/0x80200090 then PlaceZone(dezone) like Mac	00130264

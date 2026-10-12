@@ -1,0 +1,41 @@
+va	name	evidence	mac_x86
+00702430	cSC4Simulator::DoSetSimSpeed	speed 0/1/2 -> fps 30/20/15 at +0x84, msPerDay=table[+0xFC+4*speed]; posts 0x4A7FB7E9; called by SetSimSpeed 007026D0 and Init	00167598
+007025b0	cSC4Simulator::ReadSimulatorTunableValues	defaults 5000/1000/100; exemplar 6534284A/E7E2C2DB/E9590E52; props 0x89590E6D, 0x89590E6E; called from Init	001678ec
+00703420	cSC4Simulator::DoCheatCode	handles cheat IDs 0x0AC07E24 (target frame rate) and 0x8A78BEFF (sim date); called from DoMessage on 0x230E27AC	00168aba
+008265c0	cSC4Simulator::GetSimSpeed	cISC4Simulator vtable 00AB2FB8 slot 27; mov eax,[ecx+3Ch] (COMDAT-folded getter)	00692cf2
+0068d1b0	cSC4Simulator::GetSimTime	slot 29; mov eax,[ecx+40h] (COMDAT-folded getter)	00692cfe
+007b62d0	cSC4Simulator::SetSimTime	slot 30; mov [ecx+40h],arg (COMDAT-folded setter)	001674bc
+00445a30	cSC424HourClock::GetGZCLSID	returns 0xA7E7F929; serializable vtable 00A86560 slot 5	0066b578
+00445b70	cSC424HourClock::Init	cISC424HourClock vtable 00A86588 slot 3; registers cheats WhatTimeIzIt 0x281F7858 / Stopwatch 0xC9B73FBB	001225f4
+00445130	cSC424HourClock::Shutdown	vtable 00A86588 slot 4	001219b4
+00445780	cSC424HourClock::SetVisualTimeMode	slot 5; mode 0/1/2 then ChangeVisualTime	0012228a
+00445420	cSC424HourClock::GetTimePercentage	slot 7	00122580
+00445480	cSC424HourClock::SetTimePercentage	slot 8	00121cce
+00445450	cSC424HourClock::GetVisualTimePercentage	slot 9	001225ba
+00444ec0	cSC424HourClock::GetHour	slot 10	00121d50
+004457c0	cSC424HourClock::SetHour	slot 11	00122120
+00444ed0	cSC424HourClock::GetVisualHour	slot 12	00121d66
+00444ee0	cSC424HourClock::GetMinute	slot 13	00121d7c
+00444f40	cSC424HourClock::SetMinute	slot 14	00121df0
+00444f10	cSC424HourClock::GetVisualMinute	slot 15	00121db6
+00444f80	cSC424HourClock::GetSeconds	slot 16	00121e4e
+00444fe0	cSC424HourClock::SetSeconds	slot 17	00121eea
+00444fb0	cSC424HourClock::GetVisualSeconds	slot 18	00121e9c
+00445020	cSC424HourClock::GetEventHour	slot 19	00121f5a
+00445040	cSC424HourClock::GetTimeMagnification	slot 20	00121f7e
+00445050	cSC424HourClock::SetTimeMagnification	slot 21; clamps to [min,max]	00121f8e
+00445090	cSC424HourClock::GetTimeMagnificationMinMax	slot 22	00121fc8
+004450b0	cSC424HourClock::SetTimeMagnificationMinMax	slot 23	00121fe0
+00445540	cSC424HourClock::Pause	slot 24; pause counter, posts 0x44778235	001224f0
+004455b0	cSC424HourClock::HiddenPause	slot 26	00122460
+004453e0	cSC424HourClock::IsNight	slot 28; IsNightHour inlined ((h-start+24)%24 < (end-start+24)%24)	00121cb0
+004450e0	cSC424HourClock::IsNightHour	called twice from ChangeVisualTime before posting 0x44778234	00121c52
+00445620	cSC424HourClock::EnableDayNightTransitionNotifications	slot 29	00122410
+004452d0	cSC424HourClock::Write	serializable vtable 00A86560 slot 3; version 2, 6 fields	00122920
+00445340	cSC424HourClock::Read	serializable vtable 00A86560 slot 4; skips cRZTimer if version<2	001229ac
+00445cc0	cSC424HourClock::DoMessage	cIGZMessageTarget2 vtable 00A86578 slot 3	00122736
+00445820	cSC424HourClock::OnIdle	cIGZSystemService vtable 00A8652C slot 11; elapsed*1e-6*mag, 60..1200 s step, wraps 86400	001222cc
+00445220	cSC424HourClock::ReadSimulatorTunableValues	exemplar E9590E52; props 0x897E709F, 0x09B73421, 0x09B73422	00121b58
+004454b0	cSC424HourClock::PostMessageServerMessage	posts 0x44778230..35	00122002
+00445750	cSC424HourClock::DoHourChanged	posts 0x44778230 then 0x44778231	001220d2
+00445680	cSC424HourClock::ChangeVisualTime	posts 0x44778232/33/34	00122182

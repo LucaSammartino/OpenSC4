@@ -1,0 +1,186 @@
+va	name	evidence	mac_x86
+00407ad0	cSC4PathFinder::SetRouteInfo (folded generic setter [ecx+74h])	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 8; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629ea2
+004ae000	cSC4TrafficNetworkMap::IsIntersection	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 34 = Mac __ZTV21cSC4TrafficNetworkMap slot 36 (non-overloaded, size 45 vs Mac 55)	001e7cf2
+004ae0c0	cSC4TrafficNetworkMap::SafeGetTileInfoAtCell	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 14 = Mac __ZTV21cSC4TrafficNetworkMap slot 16 (non-overloaded, size 40 vs Mac 45)	001e7dec
+004ae0f0	cSC4TrafficNetworkMap::GetTileInfoByNetwork	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 16 = Mac __ZTV21cSC4TrafficNetworkMap slot 18 (non-overloaded, size 67 vs Mac 81)	001e7e1a
+004ae200	cSC4TrafficNetworkMap::ChooseWeightedEdge	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 6 = Mac __ZTV21cSC4TrafficNetworkMap slot 8 (non-overloaded, size 336 vs Mac 325)	001e7f42
+004ae4e0	cSC4TrafficNetworkMap::Init	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 3 = Mac __ZTV21cSC4TrafficNetworkMap slot 5 (non-overloaded, size 495 vs Mac 560)	001e98bc
+004af000	cSC4TrafficNetworkMap::ConstrainPointToNetworkTile	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 43 = Mac __ZTV21cSC4TrafficNetworkMap slot 45 (non-overloaded, size 595 vs Mac 579)	001ea2bc
+004af260	cSC4TrafficNetworkMap::ConstrainVectorToNetworkTile	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 44 = Mac __ZTV21cSC4TrafficNetworkMap slot 46 (non-overloaded, size 967 vs Mac 1006)	001e9154
+004af630	cSC4TrafficNetworkMap::GetRoadAltitude	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 18 = Mac __ZTV21cSC4TrafficNetworkMap slot 20 (non-overloaded, size 389 vs Mac 456)	001e9e62
+004af7c0	cSC4TrafficNetworkMap::GetTileInfoAtNeighborEdge	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 15 = Mac __ZTV21cSC4TrafficNetworkMap slot 17 (non-overloaded, size 407 vs Mac 512)	001e8f54
+004b0000	cSC4TrafficNetworkMap::GetAutomataCountForLane	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 27 = Mac __ZTV21cSC4TrafficNetworkMap slot 29 (non-overloaded, size 100 vs Mac 113)	001e8e6a
+004b02a0	cSC4TrafficNetworkMap::ExitNetwork	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 31 = Mac __ZTV21cSC4TrafficNetworkMap slot 33 (non-overloaded, size 230 vs Mac 242)	001ea1ca
+004b04f0	cSC4TrafficNetworkMap::HandleViewChanged	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 46 = Mac __ZTV21cSC4TrafficNetworkMap slot 54 (non-overloaded, size 503 vs Mac 510)	001ed05e
+004b06f0	cSC4TrafficNetworkMap::CheckIntersection	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 33 = Mac __ZTV21cSC4TrafficNetworkMap slot 35 (non-overloaded, size 321 vs Mac 299)	001ed956
+004b0840	cSC4TrafficNetworkMap::UnmarkTrainInCell	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 39 = Mac __ZTV21cSC4TrafficNetworkMap slot 41 (non-overloaded, size 238 vs Mac 237)	001ee068
+004b0930	cSC4TrafficNetworkMap::GetTrainJunctionPath	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 40 = Mac __ZTV21cSC4TrafficNetworkMap slot 42 (non-overloaded, size 89 vs Mac 88)	001ea500
+004b0990	cSC4TrafficNetworkMap::ToggleTrainJunction	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 42 = Mac __ZTV21cSC4TrafficNetworkMap slot 44 (non-overloaded, size 109 vs Mac 104)	001e9c14
+004b0a00	cSC4TrafficNetworkMap::SwitchStoplightStates	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 37 = Mac __ZTV21cSC4TrafficNetworkMap slot 39 (non-overloaded, size 277 vs Mac 276)	001e9b00
+004b0b20	cSC4TrafficNetworkMap::FindNetworkTile	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 12 = Mac __ZTV21cSC4TrafficNetworkMap slot 14 (non-overloaded, size 188 vs Mac 120)	001e8edc
+004b0c10	cSC4TrafficNetworkMap::DoMessage	message-target vtable 00A8FEB8 slot 3 (1141 vs Mac 1159 bytes)	001ecbd6
+004b1090	cSC4TrafficNetworkMap::HandleTuningParametersChanged	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 5 = Mac __ZTV21cSC4TrafficNetworkMap slot 7 (non-overloaded, size 124 vs Mac 86)	001ebe16
+004b19f0	cSC4TrafficNetworkMap::MarkTrainInCell	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 38 = Mac __ZTV21cSC4TrafficNetworkMap slot 40 (non-overloaded, size 359 vs Mac 286)	001edf4a
+004b1b60	cSC4TrafficNetworkMap::GetTrainJunctionKeys	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 41 = Mac __ZTV21cSC4TrafficNetworkMap slot 43 (non-overloaded, size 160 vs Mac 124)	001eaf70
+004b1c00	cSC4TrafficNetworkMap::EnterNetwork	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 30 = Mac __ZTV21cSC4TrafficNetworkMap slot 32 (non-overloaded, size 222 vs Mac 240)	001ea0da
+004b1ce0	cSC4TrafficNetworkMap::Write	cIGZSerializable vtable 00A8FEA0 slot 3 (1592 vs Mac 1459 bytes)	001eb14a
+004b27e0	cSC4TrafficNetworkMap::UpdateIntersection	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 36 = Mac __ZTV21cSC4TrafficNetworkMap slot 38 (non-overloaded, size 68 vs Mac 60)	001ed91a
+004b2f70	cSC4TrafficNetworkMap::TickIntersections	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 32 = Mac __ZTV21cSC4TrafficNetworkMap slot 34 (non-overloaded, size 478 vs Mac 475)	001ed73e
+004b3380	cSC4TrafficNetworkMap::HandleInsertNetworkOccupant	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 47 = Mac __ZTV21cSC4TrafficNetworkMap slot 55 (non-overloaded, size 287 vs Mac 313)	001eafec
+004b3ab0	cSC4TrafficNetworkMap::GetGZCLSID	returns 0x6A0F82B2 (class_vtables.py); cIGZSerializable vtable 00A8FEA0 slot 5	006c227e
+004b3ac0	cSC4TrafficNetworkMap::GetTileInfoAtCell	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 13 = Mac __ZTV21cSC4TrafficNetworkMap slot 15 (non-overloaded, size 24 vs Mac 26)	006c2294
+004b4000	cSC4TrafficNetworkMap::Shutdown	vtable 00A8FED8 (cSC4TrafficNetworkMap primary) slot 4 = Mac __ZTV21cSC4TrafficNetworkMap slot 6 (non-overloaded, size 279 vs Mac 397)	001ebf48
+004b4de0	cSC4TrafficNetworkMap::Read	cIGZSerializable vtable 00A8FEA0 slot 4	001ec0d6
+005f4250	cSC4ResponseCurve::GetOutputValue	called with congestion*capacity before AddTripNode in FindPath; also DoMessage funding-change	0007da74
+00698ce0	cSC4PathFinder::GetTrafficArrived (folded getter mov eax,[ecx+6Ch])	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 24; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629fd2
+00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 10, matches Mac __ZTV20cSC4TrafficSimulator order	0060876a
+006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 8, matches Mac __ZTV20cSC4TrafficSimulator order	00608752
+006d5d20	cSC4PathFinder::QueryInterface	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 0; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0009867c
+006d5d50	cSC4PathFinder::Shutdown	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 4; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00098716
+006d5e50	cSC4PathFinder::DistanceToRectangle	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 417	000988e4
+006d6030	cSC4PathFinder::GetTripLengthScaledForDisplay	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 26; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00098a38
+006d6040	cSC4PathFinder::SetupDistanceTables	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 201	000987c2
+006d61b0	cSC4PathFinder::Release	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 2; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	000986f0
+006d61e0	cSC4PathFinder::WasTripReversible	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 30; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00098f34
+006d6380	cSC4PathFinder::TripNodePriorityQueue::Pop	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 222	00098bc2
+006d64b0	cSC4CompressedRouteReader::SetData	callee of ApplyRoute/ConfirmRoute (first call) at matching position (Mac callee list)	000990b0
+006d6510	cSC4CompressedRouteReader::GetNext	callee of ApplyRoute/ConfirmRoute at matching position (Mac callee list)	00098d40
+006d6730	cSC4PathFinder::ReleasePathNodes	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 31; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00099826
+006d6780	cSC4PathFinder::RecalculateNodeScores	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 245	0009b71a
+006d6cf0	cSC4PathFinder::SetFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 5; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629e74
+006d6d00	cSC4PathFinder::ClearFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 6; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629e82
+006d6d20	cSC4PathFinder::ClearAllFlags	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 7; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629e92
+006d6d30	cSC4PathFinder::SetTripDestinationFilter	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 9; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629eb0
+006d6d40	cSC4PathFinder::SetDestinationFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 10; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629ec2
+006d6d60	cSC4PathFinder::ClearDestinationFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 11; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629eda
+006d6d80	cSC4PathFinder::ClearAllDestinationFlags	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 12; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629eee
+006d6d90	cSC4PathFinder::SetTravelTypeFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 13; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629efe
+006d6db0	cSC4PathFinder::ClearTravelTypeFlag	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 14; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f18
+006d6dd0	cSC4PathFinder::ClearAllTravelTypeFlags	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 15; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f2e
+006d6de0	cSC4PathFinder::SetStartingCostArray	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 16; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f42
+006d6df0	cSC4PathFinder::SetMaxTripLength	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 17; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f54
+006d6e00	cSC4PathFinder::SetTrafficDensity	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 18; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f62
+006d6e10	cSC4PathFinder::SetStartRect	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 19; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f70
+006d6e40	cSC4PathFinder::SetEndRect	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 20; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629f90
+006d6e70	cSC4PathFinder::SetMaxWorkTime	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 21; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629fb0
+006d6e80	cSC4PathFinder::Reset	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 22; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629fc2
+006d6e90	cSC4PathFinder::GetTripLength	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 25; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629fde
+006d6ea0	cSC4PathFinder::GetEndCell	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 27; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00629fea
+006d6ec0	cSC4PathFinder::GetLastTravelType	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 28; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0062a002
+006d7050	cSC4PathFinder::~cSC4PathFinder (scalar deleting dtor)	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 33; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0009abd8
+006d7070	cSC4PathFinder::GetCompressedRoute	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 32; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0009a614
+006d78b0	cSC4PathFinder::Init	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 3; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	00099860
+006d7960	cSC4PathFinder::AtGoal (nam-dll hook 0x6D79BF inside)	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 1218	0009911a
+006d7e50	cSC4PathFinder::FindNearestStandardDest (nam-dll hooks 0x6D7EBE/0x6D7EF0 inside)	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 2224	00099934
+006d8710	cSC4PathFinder::DoSuccessfulTrip	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 402	000996e4
+006d88b0	cSC4PathFinder::TripNodePriorityQueue::Push	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 138	0009a478
+006d89c0	cSC4PathFinder::cSC4PathFinder	called by CreatePathFinder 0070D860 after new(0x3160); installs vtable 0xAB2150	0009acb8
+006d8a90	cSC4PathFinder::CreateStartNodes	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 1294	0009b09c
+006d8fa0	cSC4PathFinder::AddTripNode	callee of FindPath 006D91B0 at the same position/count as in Mac FindPath; size 330	0009af00
+006d91b0	cSC4PathFinder::FindPath	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 23; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0009b804
+006da060	cSC4PathFinder::ApplyTraffic	vtable 00AB2150 (cSC4PathFinder, installed by ctor 006D89C0) slot 29; matches Mac __ZTV14cSC4PathFinder order; field offsets identical	0009a056
+0070d7d0	cSC4TrafficSimulator::GetGZCLSID	returns 0x6990C1AA; cIGZSerializable vtable 00AB33A4 slot 5	0060873e
+0070d7e0	cSC4TrafficSimulator::QueryInterface	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 0, matches Mac __ZTV20cSC4TrafficSimulator order	000525b2
+0070d860	cSC4TrafficSimulator::CreatePathFinder	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 6, matches Mac __ZTV20cSC4TrafficSimulator order	00052662
+0070d8a0	cSC4TrafficSimulator::UpdateRoadsBudget	callee of WorkOnCreateMaps 0071A0C0 (end sequence) at matching position (Mac callee list)	00052cfe
+0070da40	cSC4TrafficSimulator::UpdateMassTransitBudget	callee of WorkOnCreateMaps 0071A0C0 (end sequence) at matching position (Mac callee list)	00052f4a
+0070dd30	cSC4TrafficSimulator::FindHighwayReturnTile	callee of PerformPathSearch (x2) at matching position (Mac callee list)	0005286a
+0070ddd0	cSC4TrafficSimulator::GetNeighborConnectionInnerCell	callee of GetCompressedRoute 006D7070 (Mac calls it twice)	00052788
+0070df70	cSC4TrafficSimulator::SetMaxTripCapacity	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 19, matches Mac __ZTV20cSC4TrafficSimulator order	00052b36
+0070df90	cSC4TrafficSimulator::GetMaxTripCapacity	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 20, matches Mac __ZTV20cSC4TrafficSimulator order	00052b48
+0070e050	cSC4TrafficSimulator::GetTrafficArrived	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 21, matches Mac __ZTV20cSC4TrafficSimulator order	00052b58
+0070e2f0	cSC4TrafficSimulator::Release	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 2, matches Mac __ZTV20cSC4TrafficSimulator order	0005263a
+0070e320	cSC4TrafficSimulator::ConfirmRoute	callee of ConfirmTrips (x2); uses CompressedRouteReader SetData/GetNext at matching position (Mac callee list)	000549e4
+0070e4f0	cSC4TrafficSimulator::WorkOnClearTripDestinations	WorkOnSimCycle jump table 0x7214EC case 5 (Mac switch case 5)	00066a78
+0070e7d0	cSC4TrafficSimulator::WorkOnFinalCalculations	WorkOnSimCycle jump table 0x7214EC case 8 (Mac switch case 8)	000526be
+0070e870	cSC4TrafficSimulator::GetBackgroundTraffic	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 11, matches Mac __ZTV20cSC4TrafficSimulator order	00054060
+0070ea70	cSC4TrafficSimulator::DoSubwayChanged	called from DoMessage 007241B0 on msg Insert/RemoveOccupant, network type 7 (Mac inlines subway count + UpdateMassTransitBudget) (same position as Mac DoMessage)	
+0070ec10	cSC4TrafficSimulator::GetWaterRoute	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 33, matches Mac __ZTV20cSC4TrafficSimulator order	0005281c
+0070ec40	cSC4TrafficSimulator::SetupTrip	callee of WorkOnFullTrips 0071D440 and WorkOnReRouteTrips 0071D020 at matching position (Mac callee list)	000531c4
+0070f0a0	cSC4TrafficSimulator::CompleteTripSourceCalculations	callee of WorkOnFullTrips (last call) at matching position (Mac callee list)	0005397e
+0070f460	cSC4TrafficSimulator::WorkOnCreateFinalMap	WorkOnSimCycle jump table 0x7214EC case 4 (Mac switch case 4)	0006664e
+0070f6e0	cSC4TrafficSimulator::WorkOnRefreshCommuteMap	WorkOnSimCycle jump table 0x7214EC case 10 (Mac switch case 10)	0006705a
+0070f970	cSC4TrafficSimulator::GetTrafficNeighborConnection	callee of PerformPathSearch (before FindHighwayReturnTile) at matching position (Mac callee list)	00053608
+0070f9c0	cSC4TrafficSimulator::FindFerryLink	callee of ApplyRoute (x2, adjacent) at matching position (Mac callee list)	00053914
+0070f9f0	cSC4TrafficSimulator::FindFerryNeighborLink	callee of ApplyRoute (x2) at matching position (Mac callee list)	0005393c
+0070fb30	cSC4TrafficSimulator::GetNetworkInfo	called from FindPath at each Mac GetNetworkInfo site (52 bytes, list walk)	00053726
+0070fef0	cSC4TrafficSimulator::WorkOnFinishTripMap	WorkOnSimCycle jump table 0x7214EC case 15 (Mac switch case 15)	00065750
+00710320	cSC4TrafficSimulator::GetCapacity	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 23, matches Mac __ZTV20cSC4TrafficSimulator order	000538d0
+00710370	cSC4TrafficSimulator::GetConnectionCount	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 25, matches Mac __ZTV20cSC4TrafficSimulator order	000538a0
+007103b0	cSC4TrafficSimulator::GetTravelTimeRatio	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 24, matches Mac __ZTV20cSC4TrafficSimulator order	00053770
+00710540	cSC4TrafficSimulator::AreLotsConnected	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 36, matches Mac __ZTV20cSC4TrafficSimulator order	000547e4
+007106c0	cSC4TrafficSimulator::GetConnectedDestinationCount	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 38, matches Mac __ZTV20cSC4TrafficSimulator order	000546f0
+007107a0	cSC4TrafficSimulator::TrafficSourceIterator::Reset	WorkOnSimCycle post-transition case 0x10-0x12 calls it on [this+0x908] (Mac [+0x910])	00053fb2
+007107f0	cSC4TrafficSimulator::TrafficSourceIterator::GetNext	callee of WorkOnFullTrips/WorkOnConfirmTrips/WorkOnReRouteTrips at matching position (Mac callee list)	00052b6a
+007110b0	cSC4TrafficSimulator::WorkOnReduceEdgeDensities	WorkOnSimCycle jump table 0x7214EC case 6 (Mac switch case 6)	00066ce8
+00711460	cSC4TrafficSimulator::GetTrafficEdgeDensity	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 12, matches Mac __ZTV20cSC4TrafficSimulator order	00054010
+00711590	cSC4TrafficSimulator::CheckRailAccident	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 17, matches Mac __ZTV20cSC4TrafficSimulator order	00054924
+00711610	cSC4TrafficSimulator::SetupPathFinderForLot	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 7, matches Mac __ZTV20cSC4TrafficSimulator order	00059780
+00711810	cSC4TrafficSimulator::UpdateTravelStrategies	called from DoMessage 007241B0 on msg OrdinanceUpdated 0xC2C09554 (same position as Mac DoMessage)	00054444
+00711a70	cSC4TrafficSimulator::GetConnectedOccupantCount	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 37, matches Mac __ZTV20cSC4TrafficSimulator order	00054bf4
+00711b50	cSC4TrafficSimulator::GetSubnetworksForLot	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 39, matches Mac __ZTV20cSC4TrafficSimulator order	0005a2ae
+00712400	cSC4TrafficSimulator::Write	cIGZSerializable vtable 00AB33A4 slot 3	00061498
+007136b0	cSC4TrafficSimulator::CapacityStillAvailable	callee of WorkOnReRouteTrips 0071D020 at matching position (Mac callee list)	00057702
+00713750	cSC4TrafficSimulator::WorkOnReduceTransitSwitches	WorkOnSimCycle jump table 0x7214EC case 3 (Mac switch case 3)	000543f2
+007137d0	cSC4TrafficSimulator::WorkOnDumpEdgeDensities	WorkOnSimCycle jump table 0x7214EC case 7 (Mac switch case 7)	0005437a
+00713ab0	cSC4TrafficSimulator::RemoveNeighborConnection	called from DoMessage 007241B0 on msg 0xEA0D163E (same position as Mac DoMessage)	00054ddc
+00713b70	cSC4TrafficSimulator::GetFerryRouteBetweenTiles	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 29, matches Mac __ZTV20cSC4TrafficSimulator order	000612e6
+007140e0	cSC4TrafficSimulator::DoTunnelChanged	called from DoMessage 007241B0 on msg Insert/RemoveOccupant after QI 0x8A4BD52B (cSC4NetworkTunnelOccupant) (same position as Mac DoMessage)	0005dcd6
+007143b0	cSC4TrafficSimulator::GetOccupantCountForAllSubnetworks	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 42, matches Mac __ZTV20cSC4TrafficSimulator order	0005a21c
+00714460	cSC4TrafficSimulator::GetTransitSwitches	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 28, matches Mac __ZTV20cSC4TrafficSimulator order	0005497e
+00714740	cSC4TrafficSimulator::ApplyTrafficToDestination	callee of ApplyRoute (last call) at matching position (Mac callee list)	00059f9c
+00714be0	cSC4TrafficSimulator::WorkOnUpdateNeighborConnections	WorkOnSimCycle jump table 0x7214EC case 11 (Mac switch case 11)	00059e0e
+007153c0	cSC4TrafficSimulator::AddNeighborConnection	called from DoMessage 007241B0 on msg 0x8A0D15DA (same position as Mac DoMessage)	00054ea0
+007155d0	cSC4TrafficSimulator::DoRoadChanged	called from DoMessage 007241B0 on msg Insert/RemoveOccupant 0x99EF1142/43, network types 6,0,10/3/2/12 (same position as Mac DoMessage)	0005f986
+00715790	cSC4TrafficSimulator::DoRailChanged	called from DoMessage 007241B0 on msg Insert/RemoveOccupant, network type 1 (same position as Mac DoMessage)	0005f7ac
+00716950	cSC4TrafficSimulator::AddIntersectionToAccidentProneList	callee of WorkOnCreateMaps after two ResponseCurve lookups at matching position (Mac callee list)	00055468
+00716ae0	cSC4TrafficSimulator::ReadSimulatorTunableValues	called from DoMessage 007241B0 on msg ReloadTunableValues 0xC53D10AA (group E7E2C2DB / inst C9133286) (same position as Mac DoMessage); pushes same property IDs 0x491332E6..0x0BD86FD5 in same order	0005671e
+00717c90	cSC4TrafficSimulator::WorkOnStartRecalc	WorkOnSimCycle jump table 0x7214EC case 0 (Mac switch case 0)	0005b5ec
+007183b0	cSC4TrafficSimulator::UpdateSubnetworks	WorkOnSimCycle jump table 0x7214EC case 12 (Mac switch case 12)	000565c4
+00718ac0	cSC4TrafficSimulator::DoMonthlySimulation	called from DoMessage 007241B0 on msg SimNewMonth 0x66956816 (same position as Mac DoMessage)	0005f5d2
+00718bb0	cSC4TrafficSimulator::GetTravelStrategyPercentages	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 26, matches Mac __ZTV20cSC4TrafficSimulator order	00055406
+00718c40	cSC4TrafficSimulator::GetAllFerryRoutes	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 30, matches Mac __ZTV20cSC4TrafficSimulator order	0005834e
+00718d20	cSC4TrafficSimulator::GetSubnetworksInRectangle	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 40, matches Mac __ZTV20cSC4TrafficSimulator order	0005fcd8
+00718f90	cSC4TrafficSimulator::GetSubnetworksInRegion	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 41, matches Mac __ZTV20cSC4TrafficSimulator order	0005fb76
+00719290	cSC4TrafficSimulator::Shutdown	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 4, matches Mac __ZTV20cSC4TrafficSimulator order	0005b694
+00719910	cSC4TrafficSimulator::ApplyRoute	callee of PerformPathSearch 0071C6C0 (x4) and ConfirmTrips 0071D920 (x2); ends with ApplyTrafficToDestination at matching position (Mac callee list)	0005fe28
+0071a0c0	cSC4TrafficSimulator::WorkOnCreateMaps	WorkOnSimCycle jump table 0x7214EC case 2 (Mac switch case 2)	00065b7e
+0071a860	cSC4TrafficSimulator::DoConnectionsChanged	called from DoMessage 007241B0 on msg Insert/RemoveOccupant (last call); contains nam-dll hook 0x71AB60 (same position as Mac DoMessage)	0005c96e
+0071b9a0	cSC4TrafficSimulator::UpdateIntersectionData	called at top of WorkOnSimCycle when pending flag [this+0x81C] set (Mac 0x824)	00055bdc
+0071be50	cSC4TrafficSimulator::RouteAndLinkTerminals	calls water FindPath then two FerryTerminalLink constructions (Mac shape)	000583e0
+0071c0c0	cSC4TrafficSimulator::RouteTerminalToNeighbor	calls GetNeighborConnectionInnerCell, water FindPath, FerryNeighborConnectionLink ctor+dtor (Mac shape)	0005aa68
+0071c250	cSC4TrafficSimulator::GetFerryRoutesInUse	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 31, matches Mac __ZTV20cSC4TrafficSimulator order	00057f92
+0071c6c0	cSC4TrafficSimulator::PerformPathSearch	callee of WorkOnFullTrips and WorkOnReRouteTrips at matching position (Mac callee list)	000607b6
+0071cb20	cSC4TrafficSimulator::TransitSwitchEntryCost	called from FindPath at both Mac TransitSwitchEntryCost sites	00055b5a
+0071cb80	cSC4TrafficSimulator::GetTransitSwitchQueryData	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 35, matches Mac __ZTV20cSC4TrafficSimulator order	00055720
+0071d020	cSC4TrafficSimulator::WorkOnReRouteTrips	WorkOnSimCycle jump table 0x7214EC case 17 (Mac switch case 17)	00064dce
+0071d440	cSC4TrafficSimulator::WorkOnFullTrips	WorkOnSimCycle jump table 0x7214EC case 18 (Mac switch case 18)	00065282
+0071d920	cSC4TrafficSimulator::ConfirmTrips	callee of WorkOnConfirmTrips 0071E1B0 at matching position (Mac callee list)	00060df4
+0071dc50	cSC4TrafficSimulator::WorkOnUpdateSubnetworkInfo	WorkOnSimCycle jump table 0x7214EC case 13 (Mac switch case 13)	0005aa20
+0071dc90	cSC4TrafficSimulator::WorkOnFerryRoutes	WorkOnSimCycle jump table 0x7214EC case 19 (Mac switch case 19)	00067c1e
+0071e1b0	cSC4TrafficSimulator::WorkOnConfirmTrips	WorkOnSimCycle jump table 0x7214EC case 16 (Mac switch case 16)	00064b9a
+0071e2f0	cSC4TrafficSimulator::DoLotDeactivated	called from DoMessage 007241B0 on msg StateChanged 0xE8BDA2E7 (old state==3) (same position as Mac DoMessage)	0005e002
+0071e7e0	cSC4TrafficSimulator::Init	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 3, matches Mac __ZTV20cSC4TrafficSimulator order	00058684
+0071ffa0	cSC4TrafficSimulator::GetSimulatorType	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 5, matches Mac __ZTV20cSC4TrafficSimulator order	00608748
+0071ffb0	cSC4TrafficSimulator::GetTripScale	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 14, matches Mac __ZTV20cSC4TrafficSimulator order	00608782
+0071ffc0	cSC4TrafficSimulator::GetTripScaleForDisplay	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 15, matches Mac __ZTV20cSC4TrafficSimulator order	00608790
+0071ffd0	cSC4TrafficSimulator::GetLastMonthlyIncome	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 18, matches Mac __ZTV20cSC4TrafficSimulator order	0060879e
+0071ffe0	cSC4TrafficSimulator::GetFreightScalingFactor	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 27, matches Mac __ZTV20cSC4TrafficSimulator order	006087ac
+0071fff0	cSC4TrafficSimulator::GetFerryTerminalCount	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 32, matches Mac __ZTV20cSC4TrafficSimulator order	006087ba
+00720000	cSC4TrafficSimulator::GetTrafficStats	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 34, matches Mac __ZTV20cSC4TrafficSimulator order	006087cc
+00720010	cSC4TrafficSimulator::GetDesiredLotInsertionPoint	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 22, matches Mac __ZTV20cSC4TrafficSimulator order	006087da
+00720070	cSC4TrafficSimulator::IsRoadDamaged	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 16, matches Mac __ZTV20cSC4TrafficSimulator order	0060bbb0
+00720430	cSC4TrafficSimulator::DoPostCityInit	called from DoMessage 007241B0 on msg PostCityInit 0x26D31EC1 (same position as Mac DoMessage)	0006732a
+00720f00	cSC4TrafficSimulator::WorkOnSimCycle	called in DoDailySimulation loop; switch on state [this+0x814] with jump table 0x7214EC; next-state table 0xAB3480	00067f66
+007215a0	cSC4TrafficSimulator::~cSC4TrafficSimulator (scalar deleting dtor)	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 43, matches Mac __ZTV20cSC4TrafficSimulator order	00057bac
+007215c0	cSC4TrafficSimulator::DoDailySimulation	called from DoMessage 007241B0 on msg SimNewDay 0x66956814 (return value = agent finished) (same position as Mac DoMessage)	00068714
+00721990	cSC4TrafficSimulator::Read	cIGZSerializable vtable 00AB33A4 slot 4	00062acc
+00723af0	cSC4TrafficSimulator::DoLotActivated	called from DoMessage 007241B0 on msg StateChanged 0xE8BDA2E7 (new state==3) (same position as Mac DoMessage)	0005e9f6
+007241b0	cSC4TrafficSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB33BC slot 3; same message switch as Mac	00068b38
+00724840	cSC4WaterPathFinder::UpdateDepthMap	first callee of water FindPath; also called by water DoMessage (as on Mac)	004d39c0
+007249d0	cSC4WaterPathFinder::DoMessage	only other caller of UpdateDepthMap (Mac DoMessage calls UpdateDepthMap)	004d3bc6
+00724c50	cSC4WaterPathFinder::MakeFinishedPath	called twice at the end of water FindPath (as on Mac)	004d4242
+00725170	cSC4WaterPathFinder::FindPath	only callee of GetWaterRoute 0070EC10; also called by RouteAndLinkTerminals/RouteTerminalToNeighbor (same 3 callers as Mac)	004d455c
+0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 9, matches Mac __ZTV20cSC4TrafficSimulator order	0060875e
+00820250	cSC4TrafficSimulator::GetTripLengthMap (folded getter [ecx+44h])	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 13, matches Mac __ZTV20cSC4TrafficSimulator order	00608776
+00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])	

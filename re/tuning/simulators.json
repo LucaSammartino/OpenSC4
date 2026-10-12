@@ -1,0 +1,3492 @@
+{
+ "0x08ED34DD": {
+  "title": "UI",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "UI"
+   },
+   "0x68F26014": {
+    "name": "Map View Unsigned Colors",
+    "type": "u32",
+    "value": [
+     128,
+     4294967168
+    ]
+   },
+   "0x68F26015": {
+    "name": "Map View Signed Colors",
+    "type": "u32",
+    "value": [
+     128,
+     2155905152,
+     4294967168
+    ]
+   }
+  }
+ },
+ "0x0BFF6824": {
+  "title": "Budget Tuning Parameters",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Budget Tuning Parameters"
+   },
+   "0x090E0A9F": {
+    "name": "Budget: MinAllowableFunds",
+    "type": "s64",
+    "value": [
+     -100000
+    ]
+   },
+   "0x090E0AAC": {
+    "name": "Budget: MaxBonds",
+    "type": "u8",
+    "value": [
+     10
+    ]
+   },
+   "0x0A3FB9A8": {
+    "name": "Budget: BondPaybackMonths",
+    "type": "u32",
+    "value": [
+     120
+    ]
+   },
+   "0x0C032488": {
+    "name": "Budget: Initial Tax Rate",
+    "type": "f32",
+    "value": [
+     9.0,
+     9.0,
+     9.0
+    ]
+   },
+   "0x490E0AA6": {
+    "name": "Budget: BondIncrement",
+    "type": "s64",
+    "value": [
+     5000
+    ]
+   },
+   "0x4918C925": {
+    "name": "Budget: TaxRateOccWeight_R$$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x4918C92C": {
+    "name": "Budget: TaxRateOccWeight_Cs$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x4918C930": {
+    "name": "Budget: TaxRateOccWeight_Cs$$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x4918C93A": {
+    "name": "Budget: TaxRateOccWeight_Co$$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x4998C89D": {
+    "name": "",
+    "type": "u8",
+    "value": [
+     0
+    ]
+   },
+   "0x4AC519B8": {
+    "name": "Budget: Land Value to Simoleans",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     255.0,
+     0.0
+    ]
+   },
+   "0x69A36E40": {
+    "name": "Budget: TaxRateOccWeight_IResource",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x6A9C7718": {
+    "name": "Budget: Initial Funds",
+    "type": "s64",
+    "value": [
+     500000,
+     200000,
+     100000
+    ]
+   },
+   "0x890E0A99": {
+    "name": "Budget: MaxTaxRate",
+    "type": "f32",
+    "value": [
+     25.0
+    ]
+   },
+   "0x890E0AB4": {
+    "name": "Budget: MaxBondAmount",
+    "type": "s64",
+    "value": [
+     200000
+    ]
+   },
+   "0x8918C937": {
+    "name": "Budget: TaxRateOccWeight_Co$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x8918C93E": {
+    "name": "Budget: TaxRateOccWeight_IManufacturing",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x8A3FB98D": {
+    "name": "Budget: BondInterestRate",
+    "type": "f32",
+    "value": [
+     8.5
+    ]
+   },
+   "0x8A480DF7": {
+    "name": "Budget: Waning Wealth Property Tax Multiplier",
+    "type": "f32",
+    "value": [
+     1.0,
+     0.75,
+     0.5
+    ]
+   },
+   "0xA9188EF5": {
+    "name": "Budget: TaxRateOccWeight_R$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xA918C929": {
+    "name": "Budget: TaxRateOccWeight_Cs$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xA918C942": {
+    "name": "Budget: TaxRateOccWeight_IDirty",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xA9A36E47": {
+    "name": "Budget: TaxRateOccWeight_IHighTech",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xE918C920": {
+    "name": "Budget: TaxRateOccWeight_R$$",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xEBFF69E7": {
+    "name": "Budget: Difficulty Tax Multiplier",
+    "type": "f32",
+    "value": [
+     1.2000000476837158,
+     1.100000023841858,
+     1.0
+    ]
+   }
+  }
+ },
+ "0x28DFCF89": {
+  "title": "Police Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Police Simulator"
+   },
+   "0x68DDAE93": {
+    "name": "Police, Funding To Efficiency Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x68DDAE95": {
+    "name": "Police, Max Allowed Funding Percentage",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   },
+   "0x68DDAE97": {
+    "name": "Police, Monthly Criminal Rehabilitation Percent",
+    "type": "f32",
+    "value": [
+     10.0
+    ]
+   },
+   "0x68DDAE9A": {
+    "name": "Police, Strike Efficiency",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x68DDAE9B": {
+    "name": "Police, Max Strike Duration",
+    "type": "s32",
+    "value": [
+     548
+    ]
+   },
+   "0x68DDAE9C": {
+    "name": "Police, Min Funding To End Strikes",
+    "type": "f32",
+    "value": [
+     90.0
+    ]
+   },
+   "0x68DDAE9E": {
+    "name": "Police, Strike Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     100.0,
+     25.0,
+     25.0,
+     50.0,
+     10.0,
+     70.0,
+     0.0
+    ]
+   },
+   "0x68DDAE9F": {
+    "name": "Police, Arrest Threshold",
+    "type": "u32",
+    "value": [
+     20
+    ]
+   },
+   "0x68DDAEA0": {
+    "name": "Jail, Funding To Efficiency Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     10.0,
+     50.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0xEA614F63": {
+    "name": "Jail, Jailbreak Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     80.0,
+     0.0,
+     90.0,
+     10.0,
+     100.0,
+     100.0
+    ]
+   },
+   "0xEA614F64": {
+    "name": "Jail, Jailbreak Escapee Percentage",
+    "type": "f32",
+    "value": [
+     10.0,
+     50.0
+    ]
+   },
+   "0xEA614F65": {
+    "name": "Jail, End Jailbreak Capacity",
+    "type": "f32",
+    "value": [
+     80.0
+    ]
+   }
+  }
+ },
+ "0x48EA97D4": {
+  "title": "Ordinance Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Ordinance Simulator"
+   },
+   "0xA8EAA060": {
+    "name": "",
+    "type": "f32",
+    "value": [
+     5.0
+    ]
+   },
+   "0xA8EAA061": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     200
+    ]
+   },
+   "0xA8EAA062": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     30
+    ]
+   },
+   "0xA8EAA063": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     1960
+    ]
+   },
+   "0xA8EAA064": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0xA8EAA065": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0xA8EAA066": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0xA8EAA067": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x4A1F3CE6": {
+  "title": "Demand Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Demand Simulator"
+   },
+   "0x4A1F38B5": {
+    "name": "Demand: Neutral Tax Rate vs. Population",
+    "type": "f32",
+    "value": [
+     0.0,
+     9.0,
+     150000.0,
+     8.899999618530273,
+     300000.0,
+     8.899999618530273,
+     450000.0,
+     8.800000190734863,
+     600000.0,
+     8.699999809265137,
+     750000.0,
+     8.699999809265137,
+     900000.0,
+     8.600000381469727,
+     1050000.0,
+     8.5,
+     1200000.0,
+     8.5,
+     1350000.0,
+     8.399999618530273,
+     1500000.0,
+     8.300000190734863,
+     1650000.0,
+     8.300000190734863,
+     1800000.0,
+     8.199999809265137,
+     1950000.0,
+     8.100000381469727,
+     2100000.0,
+     8.0,
+     2250000.0,
+     8.0,
+     2400000.0,
+     7.900000095367432,
+     2550000.0,
+     7.800000190734863,
+     2700000.0,
+     7.699999809265137,
+     2850000.0,
+     7.599999904632568,
+     3000000.0,
+     7.5,
+     3150000.0,
+     7.400000095367432,
+     3300000.0,
+     7.400000095367432,
+     3450000.0,
+     7.300000190734863,
+     3600000.0,
+     7.199999809265137,
+     3750000.0,
+     7.099999904632568,
+     3900000.0,
+     7.0,
+     4050000.0,
+     6.900000095367432,
+     4200000.0,
+     6.699999809265137,
+     4350000.0,
+     6.599999904632568,
+     4500000.0,
+     6.5,
+     4650000.0,
+     6.400000095367432,
+     4800000.0,
+     6.199999809265137,
+     4950000.0,
+     6.099999904632568,
+     5100000.0,
+     5.900000095367432,
+     5250000.0,
+     5.800000190734863,
+     5400000.0,
+     5.599999904632568,
+     5550000.0,
+     5.400000095367432,
+     5700000.0,
+     5.099999904632568,
+     5850000.0,
+     4.800000190734863,
+     6000000.0,
+     4.0
+    ]
+   },
+   "0x4A1F38B6": {
+    "name": "Demand: Tax Modifier vs. Rate Variance",
+    "type": "f32",
+    "value": [
+     0.20000000298023224,
+     0.30000001192092896,
+     1.0,
+     0.0,
+     5.0,
+     -3.5
+    ]
+   },
+   "0x4A1F38B7": {
+    "name": "Demand: Days of Tax Penalty",
+    "type": "u32",
+    "value": [
+     90
+    ]
+   },
+   "0x4A1F38C5": {
+    "name": "Demand: Commercical Cap Relief for Connections",
+    "type": "f32",
+    "value": [
+     10000.0,
+     10000.0,
+     100000.0,
+     0.0,
+     0.0,
+     0.0,
+     20000.0,
+     20000.0,
+     20000.0,
+     20000.0,
+     0.0,
+     1000.0,
+     100000.0
+    ]
+   },
+   "0x4A1F38C6": {
+    "name": "Demand: Commercical Cap Relief for Airports",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x4A1F38C7": {
+    "name": "Demand: Commercical Cap Relief for Seaports",
+    "type": "f32",
+    "value": [
+     2.0
+    ]
+   },
+   "0x4A1F38C8": {
+    "name": "Demand: Industrial Cap Relief for Trips",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x4A1F38C9": {
+    "name": "Demand: Industrial Cap Relief for Airports",
+    "type": "f32",
+    "value": [
+     0.10000000149011612
+    ]
+   },
+   "0x4A1F38CA": {
+    "name": "Demand: Industrial Cap Relief for Seaports",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x8A63F2A1": {
+    "name": "Average Salary for Demographic",
+    "type": "u32",
+    "value": [
+     17000,
+     19250,
+     21500,
+     26000,
+     25000,
+     31250,
+     37500,
+     50000,
+     45000,
+     108750,
+     172500,
+     300000
+    ]
+   }
+  }
+ },
+ "0x4A1F6115": {
+  "title": "Nation",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Nation"
+   },
+   "0x4A1F629F": {
+    "name": "Nation: Demand ID list",
+    "type": "u32",
+    "value": [
+     0
+    ]
+   },
+   "0x4A1F62A0": {
+    "name": "Nation: Default Demand Modifier vs. Month",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0
+    ]
+   },
+   "0x4A1F6300": {
+    "name": "Nation: Difficulty Demand Modifier",
+    "type": "f32",
+    "value": [
+     0.05999999865889549,
+     0.029999999329447746,
+     0.009999999776482582
+    ]
+   }
+  }
+ },
+ "0x4AA4047A": {
+  "title": "?",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x2AA405D3": {
+    "name": "",
+    "type": "string",
+    "value": "xa37dd45ffe100bfffcc9753aabac325f07cb3fa231144fe2e33ae4783feead2b8a73ff021fac326df0ef9753ab9cdf6573ddff0312fab0b0ff39779eaff312x"
+   }
+  }
+ },
+ "0x68F5524A": {
+  "title": "Fire Protection Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Fire Protection Simulator"
+   },
+   "0x29233E8D": {
+    "name": "FireProtectionSim, Funding Efficiency Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     10.0,
+     50.0,
+     25.0,
+     75.0,
+     45.0,
+     90.0,
+     75.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x29233E8F": {
+    "name": "FireProtectionSim, Max Allowed Funding",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   },
+   "0x29233E94": {
+    "name": "FireProtectionSim, Strike Efficiency Multiplier",
+    "type": "f32",
+    "value": [
+     0.20000000298023224
+    ]
+   },
+   "0x29233E95": {
+    "name": "FireProtectionSim, Max Strike Duration",
+    "type": "s32",
+    "value": [
+     548
+    ]
+   },
+   "0x29233E96": {
+    "name": "FireProtectionSim, Min Funding To End Strikes",
+    "type": "f32",
+    "value": [
+     90.0
+    ]
+   },
+   "0x29233E98": {
+    "name": "FireProtectionSim, Strike Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     100.0,
+     25.0,
+     25.0,
+     50.0,
+     10.0,
+     70.0,
+     0.0
+    ]
+   },
+   "0x69B425DB": {
+    "name": "FireProtectionSim, StationNoRoad Multiplier",
+    "type": "f32",
+    "value": [
+     0.800000011920929
+    ]
+   }
+  }
+ },
+ "0x69189C84": {
+  "title": "Residential simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Residential simulator"
+   },
+   "0x0929C439": {
+    "name": "HQ Decay",
+    "type": "f32",
+    "value": [
+     0.20000000298023224
+    ]
+   },
+   "0x0929CC30": {
+    "name": "Medium Wealth Average Age",
+    "type": "u8",
+    "value": [
+     30
+    ]
+   },
+   "0x0929CC36": {
+    "name": "High Wealth Average Age",
+    "type": "u8",
+    "value": [
+     35
+    ]
+   },
+   "0x0929CC65": {
+    "name": "Medium Wealth EQ",
+    "type": "u8",
+    "value": [
+     40
+    ]
+   },
+   "0x0A53B2F9": {
+    "name": "Health Funding to Coverage Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     50.0,
+     100.0,
+     100.0
+    ]
+   },
+   "0x2918949E": {
+    "name": "Health Funding To Efficiency Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x2929CC6B": {
+    "name": "High Wealth EQ",
+    "type": "u8",
+    "value": [
+     60
+    ]
+   },
+   "0x2AA84164": {
+    "name": "Maximum HQ Boost",
+    "type": "f32",
+    "value": [
+     1.100000023841858
+    ]
+   },
+   "0x4929CC97": {
+    "name": "High Wealth HQ",
+    "type": "u8",
+    "value": [
+     60
+    ]
+   },
+   "0x4941A92B": {
+    "name": "Life Expectancy to Workforce % Curve",
+    "type": "f32",
+    "value": [
+     50.0,
+     40.0,
+     100.0,
+     60.0
+    ]
+   },
+   "0x4AA84161": {
+    "name": "Maximum EQ Boost",
+    "type": "f32",
+    "value": [
+     1.2999999523162842
+    ]
+   },
+   "0x4AB70DAC": {
+    "name": "Death's door effect chance",
+    "type": "f32",
+    "value": [
+     1.5
+    ]
+   },
+   "0x4AB71659": {
+    "name": "Death's door effect height delta",
+    "type": "f32",
+    "value": [
+     10.0
+    ]
+   },
+   "0x691894A4": {
+    "name": "Health Strike Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     100.0,
+     80.0,
+     0.0
+    ]
+   },
+   "0x691894C0": {
+    "name": "School Min Grade to End Strike",
+    "type": "f32",
+    "value": [
+     90.0
+    ]
+   },
+   "0x691894C6": {
+    "name": "School Funding To Efficiency Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x6929CC92": {
+    "name": "Medium Wealth HQ",
+    "type": "u8",
+    "value": [
+     40
+    ]
+   },
+   "0x6941A67F": {
+    "name": "Health Quotient to Life Expectancy Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     50.0,
+     20.0,
+     55.0,
+     40.0,
+     60.0,
+     60.0,
+     65.0,
+     200.0,
+     100.0
+    ]
+   },
+   "0x6941B022": {
+    "name": "Air Pollution to HQ Decay Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     512.0,
+     0.10000000149011612,
+     1024.0,
+     50.0
+    ]
+   },
+   "0x6A9F6EDD": {
+    "name": "Coverage radius slop multiplier",
+    "type": "f32",
+    "value": [
+     1.100000023841858
+    ]
+   },
+   "0x6AB70DA7": {
+    "name": "Death's door HQ",
+    "type": "f32",
+    "value": [
+     2.0
+    ]
+   },
+   "0x6AB71654": {
+    "name": "Death's door effect height",
+    "type": "f32",
+    "value": [
+     50.0
+    ]
+   },
+   "0x89189482": {
+    "name": "Health Strike Efficiency %",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x8918948B": {
+    "name": "Health Strike Duration",
+    "type": "u32",
+    "value": [
+     500
+    ]
+   },
+   "0x89189495": {
+    "name": "Health Min Grade to End Strike",
+    "type": "f32",
+    "value": [
+     90.0
+    ]
+   },
+   "0x891894AD": {
+    "name": "School Init/Max Allowed Funding",
+    "type": "f32",
+    "value": [
+     25.0,
+     120.0
+    ]
+   },
+   "0x8A891421": {
+    "name": "School Capacity To Staff Divisor",
+    "type": "u32",
+    "value": [
+     30
+    ]
+   },
+   "0x8A89142A": {
+    "name": "Hospital Capacity To Staff Divisor",
+    "type": "u32",
+    "value": [
+     30
+    ]
+   },
+   "0xA9189479": {
+    "name": "Health Init/Max Allowed Funding",
+    "type": "f32",
+    "value": [
+     25.0,
+     120.0
+    ]
+   },
+   "0xA91894BC": {
+    "name": "School Strike Duration",
+    "type": "u32",
+    "value": [
+     500
+    ]
+   },
+   "0xA941B028": {
+    "name": "Water Pollution to HQ Decay Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     512.0,
+     0.10000000149011612,
+     1024.0,
+     50.0
+    ]
+   },
+   "0xAC43826D": {
+    "name": "Hospital Capacity Chunk Size",
+    "type": "u32",
+    "value": [
+     500,
+     500,
+     2000
+    ]
+   },
+   "0xC91894CB": {
+    "name": "School Strike Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     100.0,
+     80.0,
+     0.0
+    ]
+   },
+   "0xC929C433": {
+    "name": "EQ Decay",
+    "type": "f32",
+    "value": [
+     0.20000000298023224
+    ]
+   },
+   "0xC929C652": {
+    "name": "Low Wealth Average Age",
+    "type": "u8",
+    "value": [
+     25
+    ]
+   },
+   "0xC929CC58": {
+    "name": "Low Wealth EQ",
+    "type": "u8",
+    "value": [
+     20
+    ]
+   },
+   "0xC929CC8D": {
+    "name": "Low Wealth HQ",
+    "type": "u8",
+    "value": [
+     20
+    ]
+   },
+   "0xC941B02E": {
+    "name": "Garbage Pollution to HQ Decay Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     512.0,
+     0.20000000298023224,
+     1024.0,
+     20.0
+    ]
+   },
+   "0xCA027307": {
+    "name": "Average Age reset value",
+    "type": "u8",
+    "value": [
+     40
+    ]
+   },
+   "0xCA027325": {
+    "name": "EQ reset percent",
+    "type": "f32",
+    "value": [
+     80.0
+    ]
+   },
+   "0xCA027328": {
+    "name": "HQ reset percent",
+    "type": "f32",
+    "value": [
+     80.0
+    ]
+   },
+   "0xE91894B3": {
+    "name": "School Strike Efficiency %",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0xEA53B30F": {
+    "name": "School Funding to Coverage Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     50.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0xEA540621": {
+    "name": "Avg. Age to 1-10 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     24.0,
+     30.0,
+     6.0,
+     40.0,
+     9.0,
+     50.0,
+     4.0,
+     60.0,
+     0.0
+    ]
+   },
+   "0xEA540622": {
+    "name": "Avg. Age to 11-20 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     28.0,
+     30.0,
+     24.0,
+     40.0,
+     12.0,
+     50.0,
+     6.0,
+     60.0,
+     0.0
+    ]
+   },
+   "0xEA540623": {
+    "name": "Avg. Age to 21-30 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     31.0,
+     30.0,
+     27.0,
+     40.0,
+     12.0,
+     50.0,
+     6.0,
+     60.0,
+     0.0
+    ]
+   },
+   "0xEA540624": {
+    "name": "Avg. Age to 31-40 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     12.0,
+     30.0,
+     20.0,
+     40.0,
+     13.0,
+     50.0,
+     8.0,
+     60.0,
+     3.0
+    ]
+   },
+   "0xEA540625": {
+    "name": "Avg. Age to 41-50 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     5.0,
+     30.0,
+     12.0,
+     40.0,
+     23.0,
+     50.0,
+     19.0,
+     60.0,
+     13.0
+    ]
+   },
+   "0xEA540626": {
+    "name": "Avg. Age to 51-60 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     0.0,
+     30.0,
+     7.0,
+     40.0,
+     14.0,
+     50.0,
+     27.0,
+     60.0,
+     39.0
+    ]
+   },
+   "0xEA540627": {
+    "name": "Avg. Age to 61-70 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     0.0,
+     30.0,
+     4.0,
+     40.0,
+     11.0,
+     50.0,
+     20.0,
+     60.0,
+     31.0
+    ]
+   },
+   "0xEA540628": {
+    "name": "Avg. Age to 71-80 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     0.0,
+     30.0,
+     0.0,
+     40.0,
+     5.0,
+     50.0,
+     8.0,
+     60.0,
+     11.0
+    ]
+   },
+   "0xEA540629": {
+    "name": "Avg. Age to 81-90 Age Group",
+    "type": "f32",
+    "value": [
+     20.0,
+     0.0,
+     30.0,
+     0.0,
+     40.0,
+     1.0,
+     50.0,
+     2.0,
+     60.0,
+     3.0
+    ]
+   },
+   "0xEC43826B": {
+    "name": "School Capacity Chunk Size",
+    "type": "u32",
+    "value": [
+     500,
+     750,
+     1000,
+     1000,
+     10000,
+     300,
+     1200
+    ]
+   }
+  }
+ },
+ "0xA8F41EE3": {
+  "title": "Flammability Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Flammability Simulator"
+   },
+   "0x29B40134": {
+    "name": "Flammability multiplier, abandonment",
+    "type": "f32",
+    "value": [
+     1.5
+    ]
+   },
+   "0x29B4013B": {
+    "name": "Flammability multiplier, no water",
+    "type": "f32",
+    "value": [
+     1.25
+    ]
+   },
+   "0x29B4013C": {
+    "name": "Flammability, hotspot settings",
+    "type": "u32",
+    "value": [
+     54,
+     8,
+     40
+    ]
+   },
+   "0x29B4013D": {
+    "name": "Flammability, hotspot fire probability",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     39.0,
+     0.0,
+     40.0,
+     7.0,
+     50.0,
+     15.0,
+     70.0,
+     20.0,
+     100.0,
+     25.0
+    ]
+   },
+   "0x29B4013E": {
+    "name": "Flammability, random fire probability",
+    "type": "f32",
+    "value": [
+     5.0
+    ]
+   },
+   "0xC9B40128": {
+    "name": "Flammability multiplier, summer",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   }
+  }
+ },
+ "0xAA023079": {
+  "title": "Aura Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Aura Simulator"
+   },
+   "0xEA023270": {
+    "name": "Aura, Park Effect",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     50.0,
+     2.0,
+     100.0,
+     3.0
+    ]
+   },
+   "0xEA023271": {
+    "name": "Aura, Pollution Effect, Air",
+    "type": "f32",
+    "value": [
+     0.0,
+     10.0,
+     200.0,
+     7.0,
+     400.0,
+     0.0,
+     600.0,
+     -10.0,
+     800.0,
+     -20.0,
+     1024.0,
+     -35.0
+    ]
+   },
+   "0xEA023272": {
+    "name": "Aura, Pollution Effect, Water",
+    "type": "f32",
+    "value": [
+     0.0,
+     10.0,
+     200.0,
+     7.0,
+     400.0,
+     0.0,
+     600.0,
+     -10.0,
+     800.0,
+     -20.0,
+     1024.0,
+     -35.0
+    ]
+   },
+   "0xEA023273": {
+    "name": "Aura, Pollution Effect, Garbage",
+    "type": "f32",
+    "value": [
+     0.0,
+     10.0,
+     200.0,
+     7.0,
+     400.0,
+     3.0,
+     1800.0,
+     -4.0,
+     2400.0,
+     -16.0,
+     4096.0,
+     -35.0
+    ]
+   },
+   "0xEA023274": {
+    "name": "Aura, Pollution Effect, Radiation",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     1.0,
+     -50.0
+    ]
+   },
+   "0xEA023275": {
+    "name": "Aura, School Effect",
+    "type": "f32",
+    "value": [
+     0.0,
+     -7.0,
+     1.0,
+     7.0
+    ]
+   },
+   "0xEA023276": {
+    "name": "Aura, Hospital Effect",
+    "type": "f32",
+    "value": [
+     0.0,
+     -7.0,
+     1.0,
+     7.0
+    ]
+   },
+   "0xEA023277": {
+    "name": "Aura, Crime Effect",
+    "type": "f32",
+    "value": [
+     0.0,
+     10.0,
+     40.0,
+     5.0,
+     60.0,
+     2.0,
+     80.0,
+     -3.0,
+     100.0,
+     -5.0,
+     255.0,
+     -50.0
+    ]
+   },
+   "0xEA023278": {
+    "name": "Aura, Trip Length",
+    "type": "f32",
+    "value": [
+     0.0,
+     7.0,
+     255.0,
+     -7.0
+    ]
+   },
+   "0xEA023279": {
+    "name": "Aura, Traffic",
+    "type": "f32",
+    "value": [
+     0.0,
+     7.0,
+     255.0,
+     -7.0
+    ]
+   },
+   "0xEA02327A": {
+    "name": "Aura, Long Term Decay Factor",
+    "type": "f32",
+    "value": [
+     0.8999999761581421
+    ]
+   },
+   "0xEA02327B": {
+    "name": "Aura, Short Term Decay Factor",
+    "type": "f32",
+    "value": [
+     0.75
+    ]
+   },
+   "0xEA02327C": {
+    "name": "Aura, Base Aura (Low)",
+    "type": "s32",
+    "value": [
+     0
+    ]
+   },
+   "0xEA02327D": {
+    "name": "Aura, Base Aura (Med)",
+    "type": "s32",
+    "value": [
+     0
+    ]
+   },
+   "0xEA02327E": {
+    "name": "Aura, Base Aura (High)",
+    "type": "s32",
+    "value": [
+     0
+    ]
+   },
+   "0xEA02327F": {
+    "name": "Aura, Tax Rate Change Effect",
+    "type": "f32",
+    "value": [
+     -20.0,
+     25.0,
+     -10.0,
+     20.0,
+     -5.0,
+     10.0,
+     -2.0,
+     7.0,
+     -1.0,
+     5.0,
+     1.0,
+     -5.0,
+     2.0,
+     -7.0,
+     5.0,
+     -10.0,
+     10.0,
+     -20.0,
+     20.0,
+     -25.0
+    ]
+   },
+   "0xEA023280": {
+    "name": "Aura, Value/Wealth Effect",
+    "type": "f32",
+    "value": [
+     -2.0,
+     5.0,
+     -1.0,
+     3.0,
+     0.0,
+     0.0,
+     1.0,
+     -3.0,
+     2.0,
+     -5.0
+    ]
+   },
+   "0xEA023290": {
+    "name": "Aura, Transient Effect, Fire",
+    "type": "f32",
+    "value": [
+     -20.0,
+     128.0
+    ]
+   },
+   "0xEA023291": {
+    "name": "Aura, Transient Effect, Flora",
+    "type": "f32",
+    "value": [
+     3.0,
+     32.0
+    ]
+   },
+   "0xEA023292": {
+    "name": "Aura, Transient Effect, Civic Plop",
+    "type": "f32",
+    "value": [
+     25.0,
+     128.0
+    ]
+   },
+   "0xEA023293": {
+    "name": "Aura, Transient Effect, Network Plop",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0
+    ]
+   },
+   "0xEA0232A0": {
+    "name": "Aura, Hotspot Settings",
+    "type": "s32",
+    "value": [
+     -50,
+     3,
+     4
+    ]
+   },
+   "0xEA0232A1": {
+    "name": "Aura, Hotspot Riot Probability",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     5.0,
+     10.0,
+     10.0,
+     60.0,
+     20.0,
+     100.0
+    ]
+   }
+  }
+ },
+ "0xC8E8F6C5": {
+  "title": "Crime Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Crime Simulator"
+   },
+   "0x49A34301": {
+    "name": "Crime Prop Request Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.10000000149011612,
+     2.0,
+     0.20000000298023224,
+     4.0,
+     0.4000000059604645,
+     6.0,
+     1.0,
+     10.0
+    ]
+   },
+   "0x8A0CBAA4": {
+    "name": "Crime, R$: EQ -> Base Criminality Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.4000000059604645,
+     100.0,
+     0.30000001192092896,
+     200.0,
+     0.0
+    ]
+   },
+   "0x8A0CBAA5": {
+    "name": "Crime, R$$: EQ -> Base Criminality Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.15000000596046448,
+     100.0,
+     0.10999999940395355,
+     200.0,
+     0.0
+    ]
+   },
+   "0x8A0CBAA6": {
+    "name": "Crime, R$$$: EQ -> Base Criminality Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.10000000149011612,
+     100.0,
+     0.07000000029802322,
+     200.0,
+     0.0
+    ]
+   },
+   "0x8A0CBAA7": {
+    "name": "Crime, R$: Jobless ratio -> Criminality Curve",
+    "type": "f32",
+    "value": [
+     -1.0,
+     0.10000000149011612,
+     -0.699999988079071,
+     0.07000000029802322,
+     0.0,
+     0.0,
+     0.699999988079071,
+     -0.07000000029802322,
+     1.0,
+     -0.10000000149011612
+    ]
+   },
+   "0x8A0CBAA8": {
+    "name": "Crime, R$$: Jobless ratio -> Criminality Curve",
+    "type": "f32",
+    "value": [
+     -1.0,
+     0.07000000029802322,
+     -0.699999988079071,
+     0.05000000074505806,
+     0.0,
+     0.0,
+     0.699999988079071,
+     -0.05000000074505806,
+     1.0,
+     -0.07000000029802322
+    ]
+   },
+   "0x8A0CBAA9": {
+    "name": "Crime, R$$$: Jobless ratio -> Criminality Curve",
+    "type": "f32",
+    "value": [
+     -1.0,
+     0.05000000074505806,
+     -0.699999988079071,
+     0.029999999329447746,
+     0.0,
+     0.0,
+     0.699999988079071,
+     -0.029999999329447746,
+     1.0,
+     -0.05000000074505806
+    ]
+   },
+   "0x8A0CBAAA": {
+    "name": "Crime, Criminality -> Crimes Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     200.0,
+     1.0,
+     5000.0,
+     5.0,
+     10000.0,
+     10.0,
+     20000.0,
+     25.0,
+     200000.0,
+     40.0,
+     400000.0,
+     55.0,
+     600000.0,
+     60.0,
+     900000.0,
+     65.0
+    ]
+   },
+   "0x8A0CBAAB": {
+    "name": "Crime, Police Protection -> Crime Attenuation",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     100.0,
+     0.05000000074505806,
+     200.0,
+     0.20000000298023224,
+     255.0,
+     0.5
+    ]
+   },
+   "0x8A0CBAAC": {
+    "name": "Crime, Crime Grid Decay Factor",
+    "type": "f32",
+    "value": [
+     0.800000011920929
+    ]
+   },
+   "0x8A0CBAAD": {
+    "name": "Crime, Criminal Grid Decay Factor",
+    "type": "f32",
+    "value": [
+     0.6600000262260437
+    ]
+   }
+  }
+ },
+ "0xC911E35B": {
+  "title": "Utilities",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Utilities"
+   },
+   "0x0911E2E6": {
+    "name": "Utility Strike Response Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     20.0,
+     45.0,
+     50.0,
+     75.0,
+     100.0,
+     100.0
+    ]
+   },
+   "0x0911E2E8": {
+    "name": "Funding percentage to decay rate multiplier response curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.100000023841858,
+     1.0,
+     1.0,
+     1.2000000476837158,
+     0.8999999761581421
+    ]
+   },
+   "0x0911E2E9": {
+    "name": "Usage percentage to decay rate multiplier response curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.10000000149011612,
+     0.25,
+     0.20000000298023224,
+     0.5,
+     0.44999998807907104,
+     0.75,
+     0.8500000238418579,
+     0.8999999761581421,
+     1.25,
+     1.0,
+     1.5499999523162842,
+     1.100000023841858,
+     2.0
+    ]
+   },
+   "0x09122027": {
+    "name": "Utility Strike Efficiency %",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x09134BE2": {
+    "name": "Max water pollution value for UI",
+    "type": "u32",
+    "value": [
+     1024
+    ]
+   },
+   "0x0913519B": {
+    "name": "Garbage Pollution Threshold",
+    "type": "u32",
+    "value": [
+     1500
+    ]
+   },
+   "0x091351AE": {
+    "name": "Water Pollution Threshold",
+    "type": "u32",
+    "value": [
+     512
+    ]
+   },
+   "0x09135479": {
+    "name": "Garbage decompostion amount",
+    "type": "u32",
+    "value": [
+     2000
+    ]
+   },
+   "0x09135482": {
+    "name": "Garbage UI scaling factor",
+    "type": "f32",
+    "value": [
+     0.009999999776482582
+    ]
+   },
+   "0x098B25C8": {
+    "name": "Max cells between power poles",
+    "type": "u32",
+    "value": [
+     10
+    ]
+   },
+   "0x098B27D0": {
+    "name": "Minimum power line height",
+    "type": "f32",
+    "value": [
+     7.0
+    ]
+   },
+   "0x0A10C772": {
+    "name": "Water Pollution Effect Strength Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0020000000949949026,
+     0.05000000074505806,
+     0.004999999888241291,
+     0.15000000596046448,
+     0.009999999776482582,
+     0.4000000059604645,
+     0.019999999552965164,
+     1.0
+    ]
+   },
+   "0x0A10C773": {
+    "name": "Air Pollution Effect Strength Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.004999999888241291,
+     0.05000000074505806,
+     0.009999999776482582,
+     0.25,
+     0.019999999552965164,
+     0.5,
+     0.029999999329447746,
+     0.6000000238418579
+    ]
+   },
+   "0x0A10C774": {
+    "name": "Radiation Pollution Effect Strength Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0010000000474974513,
+     1.0,
+     0.009999999776482582,
+     1.0
+    ]
+   },
+   "0x0A10C775": {
+    "name": "Garbage Pollution Effect Strength Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.019999999552965164,
+     0.019999999552965164,
+     0.029999999329447746,
+     0.05999999865889549,
+     0.03999999910593033,
+     0.20000000298023224,
+     0.05000000074505806,
+     0.4000000059604645,
+     0.05999999865889549,
+     0.5299999713897705,
+     0.08500000089406967,
+     0.75,
+     0.12999999523162842,
+     1.0
+    ]
+   },
+   "0x0A2ECED8": {
+    "name": "Power Pole Demolition Cost",
+    "type": "f32",
+    "value": [
+     5.0
+    ]
+   },
+   "0x0A5F596B": {
+    "name": "Power line placement cost",
+    "type": "f32",
+    "value": [
+     2.0
+    ]
+   },
+   "0x29121E8B": {
+    "name": "Power Min Acceptable Funding %",
+    "type": "f32",
+    "value": [
+     60.0
+    ]
+   },
+   "0x2912202E": {
+    "name": "Utility Strike Duration",
+    "type": "u32",
+    "value": [
+     12
+    ]
+   },
+   "0x291351B5": {
+    "name": "Radiation Pollution Threshold",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0x49122036": {
+    "name": "Utility Min Funding to End Strike",
+    "type": "f32",
+    "value": [
+     90.0
+    ]
+   },
+   "0x49134BD4": {
+    "name": "Max garbage value for UI",
+    "type": "u32",
+    "value": [
+     32000
+    ]
+   },
+   "0x49134BDD": {
+    "name": "Max air pollution value for UI",
+    "type": "u32",
+    "value": [
+     1024
+    ]
+   },
+   "0x49A195C0": {
+    "name": "Power line curve distance between points",
+    "type": "f32",
+    "value": [
+     8.0
+    ]
+   },
+   "0x49A1E8C4": {
+    "name": "Power line control horiz. %",
+    "type": "f32",
+    "value": [
+     10.0
+    ]
+   },
+   "0x4A5F5953": {
+    "name": "Power pole placement cost",
+    "type": "u32",
+    "value": [
+     15
+    ]
+   },
+   "0x4A652679": {
+    "name": "Max Garbage on Valve",
+    "type": "u32",
+    "value": [
+     65536
+    ]
+   },
+   "0x4A65267A": {
+    "name": "Landfill Tile Capacity",
+    "type": "u32",
+    "value": [
+     30000
+    ]
+   },
+   "0x68F5436A": {
+    "name": "Water pipe effect radius",
+    "type": "u32",
+    "value": [
+     7
+    ]
+   },
+   "0x68F5436B": {
+    "name": "Fresh water pump reach",
+    "type": "u32",
+    "value": [
+     256
+    ]
+   },
+   "0x68F5436C": {
+    "name": "Salt water pump reach",
+    "type": "u32",
+    "value": [
+     256
+    ]
+   },
+   "0x68F5436D": {
+    "name": "Fresh water distance loss",
+    "type": "u32",
+    "value": [
+     100
+    ]
+   },
+   "0x6911E2DF": {
+    "name": "Power Funding To Efficiency Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     50.0,
+     25.0,
+     90.0,
+     80.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x69501944": {
+    "name": "Traffic air pollution factor",
+    "type": "f32",
+    "value": [
+     0.25
+    ]
+   },
+   "0x69A437F6": {
+    "name": "Garbage Prop Request Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0625,
+     5.0,
+     0.125,
+     10.0
+    ]
+   },
+   "0x6A406201": {
+    "name": "Air Pollution Delta",
+    "type": "u32",
+    "value": [
+     150
+    ]
+   },
+   "0x6A410BF2": {
+    "name": "Water Funding To Efficiency Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     50.0,
+     30.0,
+     90.0,
+     80.0,
+     100.0,
+     100.0,
+     120.0,
+     110.0
+    ]
+   },
+   "0x89135044": {
+    "name": "Max radiation pollution value for UI",
+    "type": "u32",
+    "value": [
+     1024
+    ]
+   },
+   "0x89A18FC4": {
+    "name": "Power line control max vertical distance",
+    "type": "f32",
+    "value": [
+     10.0
+    ]
+   },
+   "0x89A1E8FB": {
+    "name": "Minimum number of curve points",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x8A235C56": {
+    "name": "Pipe burst probability",
+    "type": "f32",
+    "value": [
+     0.029999999329447746
+    ]
+   },
+   "0x8A40620B": {
+    "name": "Water Pollution Delta",
+    "type": "u32",
+    "value": [
+     150
+    ]
+   },
+   "0x8A84778F": {
+    "name": "Monthly Cost Per Pipe",
+    "type": "f32",
+    "value": [
+     0.10000000149011612
+    ]
+   },
+   "0x8C19C3E9": {
+    "name": "Garbage Transport Versus Landfill Tiles",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     65536.0,
+     327680000.0
+    ]
+   },
+   "0xA911E2F1": {
+    "name": "Power radiation radius",
+    "type": "u32",
+    "value": [
+     2
+    ]
+   },
+   "0xA91351A6": {
+    "name": "Air Pollution Threshold",
+    "type": "u32",
+    "value": [
+     512
+    ]
+   },
+   "0xAA161F81": {
+    "name": "Max acceptable pumped water pollution level",
+    "type": "u32",
+    "value": [
+     512
+    ]
+   },
+   "0xAA1F8AB7": {
+    "name": "Garbage service cost per unit of garbage",
+    "type": "f32",
+    "value": [
+     0.004999999888241291
+    ]
+   },
+   "0xAA713782": {
+    "name": "Funding percentage to power pole decay/repair",
+    "type": "f32",
+    "value": [
+     0.0,
+     -0.019999999552965164,
+     25.0,
+     -0.004999999888241291,
+     50.0,
+     0.0,
+     100.0,
+     0.02500000037252903,
+     110.0,
+     0.05000000074505806
+    ]
+   },
+   "0xCA7138C4": {
+    "name": "Funding percentage to pipe decay/repair",
+    "type": "f32",
+    "value": [
+     0.0,
+     -0.009999999776482582,
+     20.0,
+     -0.004999999888241291,
+     50.0,
+     0.0,
+     100.0,
+     0.019999999552965164,
+     110.0,
+     0.05000000074505806
+    ]
+   },
+   "0xE911E2D1": {
+    "name": "Power max allowed funding",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   },
+   "0xE911E2FC": {
+    "name": "Power plant max production ratio",
+    "type": "f32",
+    "value": [
+     110.0
+    ]
+   },
+   "0xE9A18D3F": {
+    "name": "Power line control max horiz. distance",
+    "type": "f32",
+    "value": [
+     16.0
+    ]
+   },
+   "0xE9A1E8D4": {
+    "name": "Power line control vertical %",
+    "type": "f32",
+    "value": [
+     0.15000000596046448
+    ]
+   },
+   "0xE9AC43E7": {
+    "name": "Power line scaling factor",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.0,
+     0.5,
+     0.3499999940395355,
+     0.20000000298023224
+    ]
+   },
+   "0xEA4025A9": {
+    "name": "Water Department Max Funding",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   }
+  }
+ },
+ "0xC9133286": {
+  "title": "Traffic Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Traffic Simulator"
+   },
+   "0x0BD86FD4": {
+    "name": "Funding to Damage Acceleration Curve",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.019999999552965164,
+     100.0,
+     -0.009999999776482582,
+     120.0,
+     -0.03999999910593033
+    ]
+   },
+   "0x0BD86FD5": {
+    "name": "Rail Damage Accident Factor",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0x0CAAAEB8": {
+    "name": "",
+    "type": "f32",
+    "value": [
+     0.12800000607967377
+    ]
+   },
+   "0x29136788": {
+    "name": "Monthly Traffic Density Reduction",
+    "type": "f32",
+    "value": [
+     0.0
+    ]
+   },
+   "0x491332E6": {
+    "name": "Traffic Volume Per Population",
+    "type": "f32",
+    "value": [
+     2.0
+    ]
+   },
+   "0x491332E7": {
+    "name": "Max speed by Network for walking",
+    "type": "f32",
+    "value": [
+     3.5,
+     0.0,
+     0.0,
+     3.5,
+     0.0,
+     0.0,
+     3.5,
+     0.0,
+     0.0,
+     0.0,
+     3.5,
+     0.0,
+     0.0
+    ]
+   },
+   "0x491332E8": {
+    "name": "Max speed by Network for driving",
+    "type": "f32",
+    "value": [
+     31.0,
+     0.0,
+     82.0,
+     21.0,
+     0.0,
+     0.0,
+     40.0,
+     0.0,
+     0.0,
+     0.0,
+     31.0,
+     0.0,
+     82.0
+    ]
+   },
+   "0x491332E9": {
+    "name": "Max speed by Network for a bus",
+    "type": "f32",
+    "value": [
+     46.0,
+     0.0,
+     100.0,
+     31.0,
+     0.0,
+     0.0,
+     60.0,
+     0.0,
+     0.0,
+     0.0,
+     46.0,
+     0.0,
+     100.0
+    ]
+   },
+   "0x491332EA": {
+    "name": "Max speed by Network for a train",
+    "type": "f32",
+    "value": [
+     0.0,
+     110.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0x491332EB": {
+    "name": "Max speed by Network for a truck",
+    "type": "f32",
+    "value": [
+     31.0,
+     0.0,
+     82.0,
+     21.0,
+     0.0,
+     0.0,
+     40.0,
+     0.0,
+     0.0,
+     0.0,
+     31.0,
+     0.0,
+     82.0
+    ]
+   },
+   "0x491332EC": {
+    "name": "Max speed by Network for a freight train",
+    "type": "f32",
+    "value": [
+     0.0,
+     150.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0x491332ED": {
+    "name": "Max speed by Network for subways",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     150.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0x491332EE": {
+    "name": "Max speed by Network for el train",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     150.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0x491332EF": {
+    "name": "Max speed by Network for monorail",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     200.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0x4953E8A3": {
+    "name": "Travel strategy percent WealthNone",
+    "type": "u8",
+    "value": [
+     0,
+     0,
+     100
+    ]
+   },
+   "0x4953E8A4": {
+    "name": "Travel strategy percent Wealth$",
+    "type": "u8",
+    "value": [
+     80,
+     20,
+     0
+    ]
+   },
+   "0x4953E8A5": {
+    "name": "Travel strategy percent Wealth$$",
+    "type": "u8",
+    "value": [
+     30,
+     0,
+     70
+    ]
+   },
+   "0x4953E8A6": {
+    "name": "Travel strategy percent Wealth$$$",
+    "type": "u8",
+    "value": [
+     10,
+     80,
+     10
+    ]
+   },
+   "0x49A2E8BE": {
+    "name": "Freight traffic scaling factor",
+    "type": "f32",
+    "value": [
+     0.05000000074505806
+    ]
+   },
+   "0x4A678060": {
+    "name": "Nearest Destination Attractiveness",
+    "type": "f32",
+    "value": [
+     0.09000000357627869
+    ]
+   },
+   "0x4BE09EC9": {
+    "name": "Congestion to Accident Probability",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.25,
+     0.0,
+     1.0,
+     0.05000000074505806,
+     2.0,
+     0.25
+    ]
+   },
+   "0x4BE09ECA": {
+    "name": "Capacity to Accident Probability",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.0,
+     1000.0,
+     1.0
+    ]
+   },
+   "0x4BE09ECB": {
+    "name": "Accident Duration",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0x4BE09ECC": {
+    "name": "Accident Check Period",
+    "type": "f32",
+    "value": [
+     60.0
+    ]
+   },
+   "0x6A84493E": {
+    "name": "Monthly cost for network tile",
+    "type": "f32",
+    "value": [
+     0.10000000149011612,
+     0.029999999329447746,
+     0.5,
+     0.05000000074505806,
+     0.0,
+     0.0,
+     0.15000000596046448,
+     0.30000001192092896,
+     0.20000000298023224,
+     0.30000001192092896,
+     0.10000000149011612,
+     0.0,
+     0.5
+    ]
+   },
+   "0x8C3CAEF5": {
+    "name": "Ferry Fare",
+    "type": "f32",
+    "value": [
+     0.009999999776482582
+    ]
+   },
+   "0xA92356AE": {
+    "name": "Max roads funding percent",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   },
+   "0xA92356AF": {
+    "name": "Max mass transit funding percent",
+    "type": "f32",
+    "value": [
+     120.0
+    ]
+   },
+   "0xA92356B0": {
+    "name": "Damaged road extra step cost",
+    "type": "f32",
+    "value": [
+     0.10000000149011612
+    ]
+   },
+   "0xA92356B1": {
+    "name": "Income per tile by travel type",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.0010000000474974513,
+     0.0010000000474974513,
+     0.0,
+     0.0,
+     0.0010000000474974513,
+     0.0010000000474974513,
+     0.0010000000474974513
+    ]
+   },
+   "0xA92356B2": {
+    "name": "Mass Transit Usage Chance",
+    "type": "u8",
+    "value": [
+     100
+    ]
+   },
+   "0xA92356B3": {
+    "name": "Network Traffic Capacity",
+    "type": "f32",
+    "value": [
+     1000.0,
+     3000.0,
+     4000.0,
+     100.0,
+     0.0,
+     0.0,
+     2500.0,
+     3000.0,
+     3000.0,
+     3000.0,
+     2000.0,
+     0.0,
+     4000.0
+    ]
+   },
+   "0xA92356B4": {
+    "name": "Travel type generates traffic",
+    "type": "bool",
+    "value": [
+     false,
+     true,
+     false,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true
+    ]
+   },
+   "0xA92356B5": {
+    "name": "Travel type can reach destination",
+    "type": "bool",
+    "value": [
+     true,
+     true,
+     false,
+     false,
+     true,
+     true,
+     false,
+     false,
+     false
+    ]
+   },
+   "0xA92356B8": {
+    "name": "Maximum distance from origin to network",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0xA92356B9": {
+    "name": "Congestion vs Speed",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.0,
+     1.0,
+     1.0,
+     2.0,
+     0.6499999761581421,
+     3.0,
+     0.30000001192092896
+    ]
+   },
+   "0xA92356BA": {
+    "name": "Commute trip max time",
+    "type": "f32",
+    "value": [
+     6.0
+    ]
+   },
+   "0xA92356BB": {
+    "name": "Intersection and Turn Capacity Effect",
+    "type": "f32",
+    "value": [
+     0.699999988079071,
+     0.800000011920929,
+     0.8999999761581421
+    ]
+   },
+   "0xA92356BC": {
+    "name": "Trip Starting Cost by travel type",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.4000000059604645,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0xA92356BD": {
+    "name": "Job Scaling Constant",
+    "type": "f32",
+    "value": [
+     1.2000000476837158
+    ]
+   },
+   "0xA92356BE": {
+    "name": "Population Background Traffic",
+    "type": "f32",
+    "value": [
+     0.05000000074505806,
+     0.20000000298023224,
+     0.20000000298023224
+    ]
+   },
+   "0xA92356BF": {
+    "name": "Travel type affected by traffic",
+    "type": "bool",
+    "value": [
+     false,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     true,
+     false
+    ]
+   },
+   "0xCA5F7821": {
+    "name": "Transit Switch Entry Cost vs. Budget",
+    "type": "f32",
+    "value": [
+     0.0,
+     2.0,
+     100.0,
+     1.0
+    ]
+   },
+   "0xCA76013B": {
+    "name": "Trip Length to Minutes Display Multiplier",
+    "type": "f32",
+    "value": [
+     25.0
+    ]
+   },
+   "0xCAD64136": {
+    "name": "Trip Starting Cost by travel type for Car Pref",
+    "type": "f32",
+    "value": [
+     0.10000000149011612,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "0xEA7B5F06": {
+    "name": "Max Mass Transit Strategy Trip Length",
+    "type": "f32",
+    "value": [
+     4.0
+    ]
+   },
+   "0xEA8C3CDB": {
+    "name": "Trip Starting Cost by travel type for Mass Transit",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.9500000476837158,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   }
+  }
+ },
+ "0xE7E2C8D8": {
+  "title": "Land Value Sim",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Land Value Sim"
+   },
+   "0x47E2C200": {
+    "name": "Tract Size",
+    "type": "u8",
+    "value": [
+     2
+    ]
+   },
+   "0x47E2C300": {
+    "name": "Land Value Intrinsic Min/Max",
+    "type": "u8",
+    "value": [
+     1,
+     64
+    ]
+   },
+   "0x47E2C301": {
+    "name": "Land Value Wealth Boundaries",
+    "type": "u8",
+    "value": [
+     70,
+     120
+    ]
+   },
+   "0x47E2C310": {
+    "name": "Land Value Water Effect",
+    "type": "u8",
+    "value": [
+     50,
+     10
+    ]
+   },
+   "0x47E2C320": {
+    "name": "Land Value Altitude Effect",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     25.0,
+     5.0,
+     50.0,
+     10.0,
+     75.0,
+     21.0,
+     100.0,
+     50.0,
+     125.0,
+     30.0,
+     150.0,
+     0.0
+    ]
+   },
+   "0x47E2C330": {
+    "name": "Land Value Desirability IDs",
+    "type": "u32",
+    "value": [
+     4144
+    ]
+   },
+   "0x47E2C331": {
+    "name": "Land Value Desirability Factors",
+    "type": "f32",
+    "value": [
+     2.5
+    ]
+   },
+   "0x47E2C332": {
+    "name": "Land Value Desirability Curve",
+    "type": "f32",
+    "value": [
+     -255.0,
+     -255.0,
+     255.0,
+     255.0
+    ]
+   }
+  }
+ },
+ "0xE8DA7677": {
+  "title": "Building Development",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Building Development"
+   },
+   "0x2A2D7824": {
+    "name": "Lot Developer: Cost Multiplier vs lot slope",
+    "type": "f32",
+    "value": [
+     0.0,
+     0.0,
+     0.5555559992790222,
+     10.0,
+     1.111111044883728,
+     20.0,
+     1.6666669845581055,
+     40.0,
+     2.222222089767456,
+     80.0,
+     2.777777910232544,
+     170.0,
+     3.3333330154418945,
+     350.0,
+     3.8888890743255615,
+     720.0,
+     4.4444451332092285,
+     1470.0,
+     5.0,
+     3000.0
+    ]
+   },
+   "0x2AB845E7": {
+    "name": "Lot Developer: Cost to Demolish Destroyed Tile",
+    "type": "u32",
+    "value": [
+     2
+    ]
+   },
+   "0x47E2C380": {
+    "name": "Construction Resources Min/Max",
+    "type": "u32",
+    "value": [
+     8192,
+     20480
+    ]
+   },
+   "0x47E2C383": {
+    "name": "Stage Popluation Multiplier",
+    "type": "f32",
+    "value": [
+     1.2000000476837158,
+     1.100000023841858,
+     1.0
+    ]
+   },
+   "0x47E2C400": {
+    "name": "Lot Developer Stay New Time",
+    "type": "u16",
+    "value": [
+     90
+    ]
+   },
+   "0x47E2C401": {
+    "name": "Lot Developer Occupancy Thresholds",
+    "type": "f32",
+    "value": [
+     0.30000001192092896,
+     0.44999998807907104,
+     0.5
+    ]
+   },
+   "0x47E2C500": {
+    "name": "Tract Developer Overbuild",
+    "type": "f32",
+    "value": [
+     1.5
+    ]
+   },
+   "0x47E2C501": {
+    "name": "Tract Developer Reoccupy Thresholds",
+    "type": "f32",
+    "value": [
+     0.0,
+     1.2000000476837158
+    ]
+   },
+   "0x47E2C502": {
+    "name": "Tract Developer Redevelop Size Threshold",
+    "type": "f32",
+    "value": [
+     1.5
+    ]
+   },
+   "0x47E2C510": {
+    "name": "Tract Developer Demolition Costs",
+    "type": "f32",
+    "value": [
+     1.0,
+     0.20000000298023224
+    ]
+   },
+   "0x47E2C511": {
+    "name": "Tract Developer New Lot Costs",
+    "type": "f32",
+    "value": [
+     1.0,
+     1.0
+    ]
+   },
+   "0x47E2C530": {
+    "name": "Tract Developer Occupancy Variation",
+    "type": "f32",
+    "value": [
+     0.0
+    ]
+   },
+   "0x47E2C531": {
+    "name": "Tract Developer Min Vacancy Range",
+    "type": "f32",
+    "value": [
+     0.009999999776482582,
+     0.10000000149011612
+    ]
+   },
+   "0x47E2C540": {
+    "name": "Tract Developer Kick Out Lower Wealth",
+    "type": "bool",
+    "value": [
+     true
+    ]
+   },
+   "0x47E2C550": {
+    "name": "Tract Developer Available Styles",
+    "type": "u32",
+    "value": [
+     8192,
+     8193,
+     8194,
+     8195
+    ]
+   },
+   "0x47E2C551": {
+    "name": "Tract Developer Years Between Styles",
+    "type": "s32",
+    "value": [
+     5
+    ]
+   },
+   "0xE900EA24": {
+    "name": "kMaxCellAltitudeDeltaForFlatnessProperty",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xE900EA25": {
+    "name": "kMaxSlopeForFlatnessProperty",
+    "type": "f32",
+    "value": [
+     1.0
+    ]
+   },
+   "0xE900EA26": {
+    "name": "kDefaultLotFoundationTypeProperty",
+    "type": "u32",
+    "value": [
+     2299228946
+    ]
+   },
+   "0xE900EA27": {
+    "name": "kShouldAttemptLotLevellingProperty",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0xE900EA28": {
+    "name": "kShouldAttemptInternalLotLevellingProperty",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0xE900EA29": {
+    "name": "kLotAutoLevelInternalAltitudeDeltaProperty",
+    "type": "f32",
+    "value": [
+     20.0
+    ]
+   },
+   "0xE900EA2A": {
+    "name": "MaxAreaSlopeAllowedForLevellingProperty",
+    "type": "f32",
+    "value": [
+     40.0
+    ]
+   },
+   "0xE900EA2B": {
+    "name": "Lot Developer: Night Update Interval",
+    "type": "u32",
+    "value": [
+     100
+    ]
+   },
+   "0xE900EA2C": {
+    "name": "Lot Developer: Night Update Count",
+    "type": "u32",
+    "value": [
+     10
+    ]
+   },
+   "0xE900EA2D": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0xE9482490": {
+  "title": "Zone Manager",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Zone Manager"
+   },
+   "0xE94825B2": {
+    "name": "kZM_mZoneMinCellSize",
+    "type": "s32",
+    "value": [
+     0,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     4,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     2,
+     1
+    ]
+   },
+   "0xE94825B3": {
+    "name": "kZM_mZoneMaxCellSize",
+    "type": "s32",
+    "value": [
+     32768,
+     32,
+     32,
+     32,
+     32,
+     32,
+     32,
+     48,
+     32,
+     32,
+     32,
+     32,
+     32,
+     32,
+     32,
+     32
+    ]
+   },
+   "0xE94825B4": {
+    "name": "kZM_mZoneCreationCostArray",
+    "type": "s64",
+    "value": [
+     0,
+     10,
+     20,
+     50,
+     10,
+     20,
+     50,
+     10,
+     20,
+     50,
+     1,
+     1,
+     1,
+     1,
+     50,
+     1
+    ]
+   },
+   "0xE94825B5": {
+    "name": "kZM_mZoneDestructionCostArray",
+    "type": "s64",
+    "value": [
+     0,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ]
+   },
+   "0xE94825B6": {
+    "name": "kZM_mZoneTextureResourceInstanceArray",
+    "type": "u32",
+    "value": [
+     4121,
+     4117,
+     4118,
+     4116,
+     4099,
+     4100,
+     4098,
+     4112,
+     4113,
+     4111,
+     4114,
+     4096,
+     4120,
+     4123,
+     4101,
+     4122
+    ]
+   },
+   "0xE94825B7": {
+    "name": "Zone Display Alpha",
+    "type": "u8",
+    "value": [
+     170
+    ]
+   },
+   "0xE94825B8": {
+    "name": "Zone Drag Color",
+    "type": "u32",
+    "value": [
+     4278190335,
+     12845311,
+     10092799,
+     7471359,
+     1333264383,
+     542375935,
+     337699583,
+     4292555519,
+     4289868799,
+     3465551871,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   "0xE94825B9": {
+    "name": "Zone Max Slope",
+    "type": "f32",
+    "value": [
+     256.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0,
+     16.0
+    ]
+   }
+  }
+ },
+ "0xE9590E52": {
+  "title": "Main Simulator",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     5
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Main Simulator"
+   },
+   "0x09B73421": {
+    "name": "k24HourClockNightBeginProperty",
+    "type": "u32",
+    "value": [
+     20
+    ]
+   },
+   "0x09B73422": {
+    "name": "k24HourClockNightEndProperty",
+    "type": "u32",
+    "value": [
+     1
+    ]
+   },
+   "0x89590E6D": {
+    "name": "Simulator Speeds",
+    "type": "u32",
+    "value": [
+     2000,
+     1000,
+     50
+    ]
+   },
+   "0x89590E6E": {
+    "name": "kAnimationTimeDilationProperty",
+    "type": "f32",
+    "value": [
+     1.0,
+     1.0,
+     1.5,
+     3.0,
+     1.0
+    ]
+   },
+   "0x897E709F": {
+    "name": "24 Hour Clock speed (time magnification)",
+    "type": "f32",
+    "value": [
+     135.0
+    ]
+   }
+  }
+ }
+}

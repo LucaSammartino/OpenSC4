@@ -1,0 +1,5730 @@
+{
+ "0x00001000": {
+  "title": "Residential",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Residential"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     4112,
+     4128,
+     4144
+    ]
+   }
+  }
+ },
+ "0x00001001": {
+  "title": "R Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "R Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     4112,
+     4128,
+     4144
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001010": {
+  "title": "Residential $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Residential $"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     20
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135184,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135184,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001011": {
+  "title": "R$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "R$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     6160,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001020": {
+  "title": "Residential $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Residential $$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135200,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135200,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001021": {
+  "title": "R$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "R$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     6176,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001030": {
+  "title": "Residential $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Residential $$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135216,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135216,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001031": {
+  "title": "R$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "R$$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     6192,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00001810": {
+  "title": "Amenities $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Amenities $"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     50000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     135184
+    ]
+   }
+  }
+ },
+ "0x00001820": {
+  "title": "Amenities $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Amenities $$"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     2000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     135200
+    ]
+   }
+  }
+ },
+ "0x00001830": {
+  "title": "Amenities $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Amenities $$$"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     1000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     135216
+    ]
+   }
+  }
+ },
+ "0x00002000": {
+  "title": "Jobs",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Jobs"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8208,
+     8224,
+     8240
+    ]
+   }
+  }
+ },
+ "0x00002010": {
+  "title": "Jobs $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Jobs $"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139280,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139280,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     2
+    ]
+   }
+  }
+ },
+ "0x00002020": {
+  "title": "Jobs $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Jobs $$"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139296,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139296,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     2
+    ]
+   }
+  }
+ },
+ "0x00002030": {
+  "title": "Jobs $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Jobs $$$"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139312,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139312,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     2
+    ]
+   }
+  }
+ },
+ "0x00002100": {
+  "title": "Workforce",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8464,
+     8480,
+     8496
+    ]
+   }
+  }
+ },
+ "0x00002110": {
+  "title": "Workforce $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8465,
+     8466,
+     8467,
+     8468
+    ]
+   }
+  }
+ },
+ "0x00002111": {
+  "title": "Workforce $ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $ EQ1"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002112": {
+  "title": "Workforce $ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $ EQ2"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002113": {
+  "title": "Workforce $ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $ EQ3"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002114": {
+  "title": "Workforce $ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $ EQ4"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002120": {
+  "title": "Workforce $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8481,
+     8482,
+     8483,
+     8484
+    ]
+   }
+  }
+ },
+ "0x00002121": {
+  "title": "Workforce $$ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$ EQ1"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002122": {
+  "title": "Workforce $$ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$ EQ2"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002123": {
+  "title": "Workforce $$ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$ EQ3"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002124": {
+  "title": "Workforce $$ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$ EQ4"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002130": {
+  "title": "Workforce $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8497,
+     8498,
+     8499,
+     8500
+    ]
+   }
+  }
+ },
+ "0x00002131": {
+  "title": "Workforce $$$ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$$ EQ1"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002132": {
+  "title": "Workforce $$$ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$$ EQ2"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002133": {
+  "title": "Workforce $$$ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$$ EQ3"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00002134": {
+  "title": "Workforce $$$ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Workforce $$$ EQ4"
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003000": {
+  "title": "Commercial",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -30000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     30000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12544,
+     13056
+    ]
+   }
+  }
+ },
+ "0x00003001": {
+  "title": "C Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "C Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12545,
+     13057
+    ]
+   }
+  }
+ },
+ "0x00003100": {
+  "title": "Commercial Services",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Services"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12560,
+     12576,
+     12592
+    ]
+   }
+  }
+ },
+ "0x00003101": {
+  "title": "Cs Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Cs Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12561,
+     12577,
+     12593
+    ]
+   }
+  }
+ },
+ "0x00003110": {
+  "title": "Commercial Services $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Services $"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     14
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143632,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     143632,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003111": {
+  "title": "CS$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "CS$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     100,
+     8224,
+     0,
+     8240,
+     0
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003120": {
+  "title": "Commercial Services $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Services $$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143648,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     143648,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003121": {
+  "title": "CS$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "CS$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     68,
+     8224,
+     27,
+     8240,
+     5,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003130": {
+  "title": "Commercial Services $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Services $$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143664,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     143664,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003131": {
+  "title": "CS$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "CS$$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     62,
+     8224,
+     30,
+     8240,
+     8,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003300": {
+  "title": "Commercial Office",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Office"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -12000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     12000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     13088,
+     13104
+    ]
+   }
+  }
+ },
+ "0x00003301": {
+  "title": "Co Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Co Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     13089,
+     13105
+    ]
+   }
+  }
+ },
+ "0x00003320": {
+  "title": "Commercial Office $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Office $$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     144160,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     144160,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003321": {
+  "title": "CO$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "CO$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     40,
+     8224,
+     50,
+     8240,
+     10,
+     15136,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003330": {
+  "title": "Commercial Office $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Office $$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     144176,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     144176,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003331": {
+  "title": "CO$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "CO$$$ Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     20,
+     8224,
+     65,
+     8240,
+     15,
+     15152,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00003800": {
+  "title": "Commercial Connections",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Commercial Connections"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     15136,
+     100,
+     15152,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     15136,
+     100,
+     15152,
+     100
+    ]
+   }
+  }
+ },
+ "0x00003B20": {
+  "title": "Co$$ Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Co$$ Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     3000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     144160
+    ]
+   }
+  }
+ },
+ "0x00003B30": {
+  "title": "Co$$$ Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Co$$$ Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     2000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     144176
+    ]
+   }
+  }
+ },
+ "0x00004000": {
+  "title": "Industrial",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -24000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     24000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     16896,
+     17152,
+     17408
+    ]
+   }
+  }
+ },
+ "0x00004001": {
+  "title": "I Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "I Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     16897,
+     17153,
+     17409
+    ]
+   }
+  }
+ },
+ "0x00004100": {
+  "title": "Industrial Resource",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial Resource"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     100
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     147712,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     147712,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004101": {
+  "title": "IR Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "IR Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     20,
+     8224,
+     0,
+     8240,
+     0
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004200": {
+  "title": "Industrial Dirty",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial Dirty"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     100
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     147968,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     147968,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004201": {
+  "title": "ID Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "ID Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     100,
+     8224,
+     0,
+     8240,
+     0,
+     18944,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004300": {
+  "title": "Industrial Manufacturing",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial Manufacturing"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     148224,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     148224,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004301": {
+  "title": "IM Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "IM Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     50,
+     8224,
+     45,
+     8240,
+     5,
+     19200,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004400": {
+  "title": "Industrial High Tech",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial High Tech"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     148480,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     148480,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004401": {
+  "title": "IH Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "IH Census"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     8208,
+     10,
+     8224,
+     80,
+     8240,
+     10,
+     19456,
+     100,
+     18688,
+     100
+    ]
+   },
+   "0x47BB3F60": {
+    "name": "Region Use",
+    "type": "u8",
+    "value": [
+     1
+    ]
+   }
+  }
+ },
+ "0x00004800": {
+  "title": "Industrial Connections",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Industrial Connections"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     18944,
+     100,
+     19200,
+     100,
+     19456,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     18944,
+     100,
+     19200,
+     100,
+     19456,
+     100
+    ]
+   }
+  }
+ },
+ "0x00004900": {
+  "title": "I-R Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "I-R Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     30000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     147712
+    ]
+   }
+  }
+ },
+ "0x00004A00": {
+  "title": "I-D Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "I-D Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     14000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     147968
+    ]
+   }
+  }
+ },
+ "0x00004B00": {
+  "title": "I-M Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "I-M Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     7000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     148224
+    ]
+   }
+  }
+ },
+ "0x00004C00": {
+  "title": "I-HT Cap",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "I-HT Cap"
+   },
+   "0x47BB3F20": {
+    "name": "Initial Supply",
+    "type": "s32",
+    "value": [
+     4000
+    ]
+   },
+   "0x47BB3F41": {
+    "name": "Caps demand",
+    "type": "u32",
+    "value": [
+     148480
+    ]
+   }
+  }
+ },
+ "0x00011000": {
+  "title": "Regional Residential",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Residential"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     69648,
+     69664,
+     69680
+    ]
+   }
+  }
+ },
+ "0x00011001": {
+  "title": "Regional R Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     69648,
+     69664,
+     69680
+    ]
+   }
+  }
+ },
+ "0x00011010": {
+  "title": "Regional R$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135184,
+     100
+    ]
+   }
+  }
+ },
+ "0x00011011": {
+  "title": "Regional R$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$ Census"
+   }
+  }
+ },
+ "0x00011020": {
+  "title": "Regional R$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135200,
+     100
+    ]
+   }
+  }
+ },
+ "0x00011021": {
+  "title": "Regional R$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$$ Census"
+   }
+  }
+ },
+ "0x00011030": {
+  "title": "Regional R$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     135216,
+     100
+    ]
+   }
+  }
+ },
+ "0x00011031": {
+  "title": "Regional R$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional R$$$ Census"
+   }
+  }
+ },
+ "0x00012000": {
+  "title": "Regional Jobs",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Jobs"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     73744,
+     73760,
+     73776
+    ]
+   }
+  }
+ },
+ "0x00012010": {
+  "title": "Regional Jobs $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Jobs $"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139280,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139280,
+     100
+    ]
+   }
+  }
+ },
+ "0x00012020": {
+  "title": "Regional Jobs $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Jobs $$"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139296,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139296,
+     100
+    ]
+   }
+  }
+ },
+ "0x00012030": {
+  "title": "Regional Jobs $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Jobs $$$"
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     139312,
+     100
+    ]
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     139312,
+     100
+    ]
+   }
+  }
+ },
+ "0x00012100": {
+  "title": "Regional Workforce",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Workforce"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     74000,
+     74016,
+     74032
+    ]
+   }
+  }
+ },
+ "0x00012110": {
+  "title": "Regional WF$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     74001,
+     74002,
+     74003,
+     74004
+    ]
+   }
+  }
+ },
+ "0x00012111": {
+  "title": "Regional WF$ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$ EQ1"
+   }
+  }
+ },
+ "0x00012112": {
+  "title": "Regional WF$ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$ EQ2"
+   }
+  }
+ },
+ "0x00012113": {
+  "title": "Regional WF$ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$ EQ3"
+   }
+  }
+ },
+ "0x00012114": {
+  "title": "Regional WF$ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$ EQ4"
+   }
+  }
+ },
+ "0x00012120": {
+  "title": "Regional WF$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     74017,
+     74018,
+     74019,
+     74020
+    ]
+   }
+  }
+ },
+ "0x00012121": {
+  "title": "Regional WF$$ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$ EQ1"
+   }
+  }
+ },
+ "0x00012122": {
+  "title": "Regional WF$$ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$ EQ2"
+   }
+  }
+ },
+ "0x00012123": {
+  "title": "Regional WF$$ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$ EQ3"
+   }
+  }
+ },
+ "0x00012124": {
+  "title": "Regional WF$$ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$ EQ4"
+   }
+  }
+ },
+ "0x00012130": {
+  "title": "Regional WF$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     74033,
+     74034,
+     74035,
+     74036
+    ]
+   }
+  }
+ },
+ "0x00012131": {
+  "title": "Regional WF$$$ EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$$ EQ1"
+   }
+  }
+ },
+ "0x00012132": {
+  "title": "Regional WF$$$ EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$$ EQ2"
+   }
+  }
+ },
+ "0x00012133": {
+  "title": "Regional WF$$$ EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$$ EQ3"
+   }
+  }
+ },
+ "0x00012134": {
+  "title": "Regional WF$$$ EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional WF$$$ EQ4"
+   }
+  }
+ },
+ "0x00013000": {
+  "title": "Regional Commercial",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Commercial"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -30000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     30000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78080,
+     78592
+    ]
+   }
+  }
+ },
+ "0x00013001": {
+  "title": "Regional C Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional C Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78081,
+     78593
+    ]
+   }
+  }
+ },
+ "0x00013100": {
+  "title": "Regional Cs",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78096,
+     78112,
+     78128
+    ]
+   }
+  }
+ },
+ "0x00013101": {
+  "title": "Regional Cs Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78097,
+     78113,
+     78129
+    ]
+   }
+  }
+ },
+ "0x00013110": {
+  "title": "Regional Cs$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143632,
+     100
+    ]
+   }
+  }
+ },
+ "0x00013111": {
+  "title": "Regional Cs$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$ Census"
+   }
+  }
+ },
+ "0x00013120": {
+  "title": "Regional Cs$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143648,
+     100
+    ]
+   }
+  }
+ },
+ "0x00013121": {
+  "title": "Regional Cs$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$$ Census"
+   }
+  }
+ },
+ "0x00013130": {
+  "title": "Regional Cs$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     143664,
+     100
+    ]
+   }
+  }
+ },
+ "0x00013131": {
+  "title": "Regional Cs$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Cs$$$ Census"
+   }
+  }
+ },
+ "0x00013300": {
+  "title": "Regional Co",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78624,
+     78640
+    ]
+   }
+  }
+ },
+ "0x00013301": {
+  "title": "Regional Co Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     78625,
+     78641
+    ]
+   }
+  }
+ },
+ "0x00013320": {
+  "title": "Regional Co$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     144160,
+     100
+    ]
+   }
+  }
+ },
+ "0x00013321": {
+  "title": "Regional Co$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co$$ Census"
+   }
+  }
+ },
+ "0x00013330": {
+  "title": "Regional Co$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     144176,
+     100
+    ]
+   }
+  }
+ },
+ "0x00013331": {
+  "title": "Regional Co$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Co$$$ Census"
+   }
+  }
+ },
+ "0x00014000": {
+  "title": "Regional Industrial",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional Industrial"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -24000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     24000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     82432,
+     82688,
+     82944
+    ]
+   }
+  }
+ },
+ "0x00014001": {
+  "title": "Regional I Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional I Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     82433,
+     82689,
+     82945
+    ]
+   }
+  }
+ },
+ "0x00014100": {
+  "title": "Regional I-R",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional I-R"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     147712,
+     100
+    ]
+   }
+  }
+ },
+ "0x00014101": {
+  "title": "Regional IR Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional IR Census"
+   }
+  }
+ },
+ "0x00014200": {
+  "title": "Regional I-D",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional I-D"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     147968,
+     100
+    ]
+   }
+  }
+ },
+ "0x00014201": {
+  "title": "Regional ID Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional ID Census"
+   }
+  }
+ },
+ "0x00014300": {
+  "title": "Regional I-M",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional I-M"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     148224,
+     100
+    ]
+   }
+  }
+ },
+ "0x00014301": {
+  "title": "Regional IM Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional IM Census"
+   }
+  }
+ },
+ "0x00014400": {
+  "title": "Regional I-HT",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional I-HT"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F31": {
+    "name": "Satisfies",
+    "type": "u32",
+    "value": [
+     148480,
+     100
+    ]
+   }
+  }
+ },
+ "0x00014401": {
+  "title": "Regional IH Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Regional IH Census"
+   }
+  }
+ },
+ "0x00021000": {
+  "title": "Total Residential",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Residential"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     135184,
+     135200,
+     135216
+    ]
+   }
+  }
+ },
+ "0x00021001": {
+  "title": "Total R Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     135184,
+     135200,
+     135216
+    ]
+   }
+  }
+ },
+ "0x00021010": {
+  "title": "Total R$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     20
+    ]
+   }
+  }
+ },
+ "0x00021011": {
+  "title": "Total R$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     4113,
+     69649
+    ]
+   }
+  }
+ },
+ "0x00021020": {
+  "title": "Total R$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00021021": {
+  "title": "Total R$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     4129,
+     69665
+    ]
+   }
+  }
+ },
+ "0x00021030": {
+  "title": "Total R$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00021031": {
+  "title": "Total R$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total R$$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     4145,
+     69681
+    ]
+   }
+  }
+ },
+ "0x00022000": {
+  "title": "Total Jobs",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Jobs"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     139280,
+     139296,
+     139312
+    ]
+   }
+  }
+ },
+ "0x00022010": {
+  "title": "Total Jobs $",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Jobs $"
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135184,
+     200
+    ]
+   }
+  }
+ },
+ "0x00022020": {
+  "title": "Total Jobs $$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Jobs $$"
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135200,
+     200
+    ]
+   }
+  }
+ },
+ "0x00022030": {
+  "title": "Total Jobs $$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Jobs $$$"
+   },
+   "0x47BB3F32": {
+    "name": "Contributes",
+    "type": "u32",
+    "value": [
+     135216,
+     200
+    ]
+   }
+  }
+ },
+ "0x00022100": {
+  "title": "Total Workforce",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Workforce"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     139536,
+     139552,
+     139568
+    ]
+   }
+  }
+ },
+ "0x00022110": {
+  "title": "Total WF$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     139537,
+     139538,
+     139539,
+     139540
+    ]
+   }
+  }
+ },
+ "0x00022111": {
+  "title": "Total WF$EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$EQ1"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     37,
+     147712,
+     1500,
+     147968,
+     112
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8465,
+     74001
+    ]
+   }
+  }
+ },
+ "0x00022112": {
+  "title": "Total WF$EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$EQ2"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     37,
+     147968,
+     75,
+     148224,
+     37
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8466,
+     74002
+    ]
+   }
+  }
+ },
+ "0x00022113": {
+  "title": "Total WF$EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$EQ3"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     30,
+     143648,
+     7,
+     144160,
+     22,
+     147968,
+     37,
+     148224,
+     52
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8467,
+     74003
+    ]
+   }
+  }
+ },
+ "0x00022114": {
+  "title": "Total WF$EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$EQ4"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     22,
+     143648,
+     15,
+     144160,
+     67,
+     144176,
+     22,
+     148224,
+     22
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8468,
+     74004
+    ]
+   }
+  }
+ },
+ "0x00022120": {
+  "title": "Total WF$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     139553,
+     139554,
+     139555,
+     139556
+    ]
+   }
+  }
+ },
+ "0x00022121": {
+  "title": "Total WF$$EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$EQ1"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     15,
+     143648,
+     22,
+     144160,
+     30,
+     147712,
+     120,
+     147968,
+     30,
+     148224,
+     52
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8481,
+     74017
+    ]
+   }
+  }
+ },
+ "0x00022122": {
+  "title": "Total WF$$EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$EQ2"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     7,
+     143648,
+     30,
+     144160,
+     44,
+     144176,
+     7,
+     147968,
+     15,
+     148224,
+     44
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8482,
+     74018
+    ]
+   }
+  }
+ },
+ "0x00022123": {
+  "title": "Total WF$$EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$EQ3"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143648,
+     37,
+     144160,
+     22,
+     144176,
+     22,
+     148224,
+     30,
+     148480,
+     37
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8483,
+     74019
+    ]
+   }
+  }
+ },
+ "0x00022124": {
+  "title": "Total WF$$EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$EQ4"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143648,
+     30,
+     143664,
+     7,
+     144160,
+     15,
+     144176,
+     44,
+     148480,
+     52
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8484,
+     74020
+    ]
+   }
+  }
+ },
+ "0x00022130": {
+  "title": "Total WF$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$$"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     139569,
+     139570,
+     139571,
+     139572
+    ]
+   }
+  }
+ },
+ "0x00022131": {
+  "title": "Total WF$$$EQ1",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$$EQ1"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143632,
+     7,
+     143648,
+     22,
+     143664,
+     7,
+     144160,
+     60,
+     144176,
+     22,
+     147968,
+     15,
+     148224,
+     15
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8497,
+     74033
+    ]
+   }
+  }
+ },
+ "0x00022132": {
+  "title": "Total WF$$$EQ2",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$$EQ2"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143648,
+     15,
+     143664,
+     22,
+     144160,
+     60,
+     144176,
+     44,
+     148224,
+     7
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8498,
+     74034
+    ]
+   }
+  }
+ },
+ "0x00022133": {
+  "title": "Total WF$$$EQ3",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$$EQ3"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143648,
+     7,
+     143664,
+     30,
+     144160,
+     30,
+     144176,
+     60,
+     148480,
+     22
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8499,
+     74035
+    ]
+   }
+  }
+ },
+ "0x00022134": {
+  "title": "Total WF$$$EQ4",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total WF$$$EQ4"
+   },
+   "0x47BB3F30": {
+    "name": "Drives",
+    "type": "u32",
+    "value": [
+     143664,
+     37,
+     144176,
+     75,
+     148480,
+     37
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     8500,
+     74036
+    ]
+   }
+  }
+ },
+ "0x00023000": {
+  "title": "Total Commercial ",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Commercial "
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -30000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     30000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     143616,
+     144128
+    ]
+   }
+  }
+ },
+ "0x00023001": {
+  "title": "Total C Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total C Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     143617,
+     144129
+    ]
+   }
+  }
+ },
+ "0x00023100": {
+  "title": "Total Cs",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     143632,
+     143648,
+     143664
+    ]
+   }
+  }
+ },
+ "0x00023101": {
+  "title": "Total Cs Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     143633,
+     143649,
+     143665
+    ]
+   }
+  }
+ },
+ "0x00023110": {
+  "title": "Total Cs$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     14
+    ]
+   }
+  }
+ },
+ "0x00023111": {
+  "title": "Total Cs$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12561,
+     78097
+    ]
+   }
+  }
+ },
+ "0x00023120": {
+  "title": "Total Cs$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00023121": {
+  "title": "Total Cs$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12577,
+     78113
+    ]
+   }
+  }
+ },
+ "0x00023130": {
+  "title": "Total Cs$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00023131": {
+  "title": "Total Cs$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Cs$$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     12593,
+     78129
+    ]
+   }
+  }
+ },
+ "0x00023300": {
+  "title": "Total Co",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -18000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     18000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     144160,
+     144176
+    ]
+   }
+  }
+ },
+ "0x00023301": {
+  "title": "Total Co Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     144161,
+     144177
+    ]
+   }
+  }
+ },
+ "0x00023320": {
+  "title": "Total Co$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00023321": {
+  "title": "Total Co$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     13089,
+     78625
+    ]
+   }
+  }
+ },
+ "0x00023330": {
+  "title": "Total Co$$$",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co$$$"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00023331": {
+  "title": "Total Co$$$ Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Co$$$ Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     13105,
+     78641
+    ]
+   }
+  }
+ },
+ "0x00024000": {
+  "title": "Total Industrial",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total Industrial"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -24000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     24000
+    ]
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     147968,
+     148224,
+     148480
+    ]
+   }
+  }
+ },
+ "0x00024001": {
+  "title": "Total I Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     147969,
+     148225,
+     148481
+    ]
+   }
+  }
+ },
+ "0x00024100": {
+  "title": "Total I-R",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-R"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     100
+    ]
+   }
+  }
+ },
+ "0x00024101": {
+  "title": "Total I-R Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-R Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     16641,
+     82177
+    ]
+   }
+  }
+ },
+ "0x00024200": {
+  "title": "Total I-D",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-D"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   },
+   "0x47BB3F21": {
+    "name": "Initial Demand",
+    "type": "s32",
+    "value": [
+     100
+    ]
+   }
+  }
+ },
+ "0x00024201": {
+  "title": "Total I-D Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-D Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     16897,
+     82433
+    ]
+   }
+  }
+ },
+ "0x00024300": {
+  "title": "Total I-M",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-M"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00024301": {
+  "title": "Total I-M Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-M Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     17153,
+     82689
+    ]
+   }
+  }
+ },
+ "0x00024400": {
+  "title": "Total I-HT",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-HT"
+   },
+   "0x47BB3F10": {
+    "name": "Minimum Value",
+    "type": "s32",
+    "value": [
+     -6000
+    ]
+   },
+   "0x47BB3F11": {
+    "name": "Maximum Value",
+    "type": "s32",
+    "value": [
+     6000
+    ]
+   }
+  }
+ },
+ "0x00024401": {
+  "title": "Total I-HT Census",
+  "package": "SimCity_1.dat",
+  "props": {
+   "0x00000010": {
+    "name": "",
+    "type": "u32",
+    "value": [
+     3
+    ]
+   },
+   "0x00000020": {
+    "name": "",
+    "type": "string",
+    "value": "Total I-HT Census"
+   },
+   "0x47BB3F50": {
+    "name": "Sums",
+    "type": "u32",
+    "value": [
+     17409,
+     82945
+    ]
+   }
+  }
+ }
+}

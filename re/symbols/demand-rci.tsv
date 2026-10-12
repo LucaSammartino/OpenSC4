@@ -1,0 +1,85 @@
+va	name	evidence	mac_x86
+006a2300	cSC4DemandSimulator::GetGZCLSID	mov eax,0x2990BFF2; slot 5 of cIGZSerializable vtable 00AB0E20 (class_vtables.py)	006a12c6
+006a2310	cSC4DemandSimulator::QueryInterface	cISC4DemandSimulator vtable 00AB0E48 slot 0	001915e6
+006a8c20	cSC4DemandSimulator::Init	vtable 00AB0E48 slot 3; pushes agent-name string "cSC4DemandSimulator" (00A898F8); calls ReadSimulatorTunableValues, ResetRegionalDemands, DoDemandIndexLinks	00196f7e
+006a3a20	cSC4DemandSimulator::Shutdown	vtable 00AB0E48 slot 4	001940c6
+006a2390	cSC4DemandSimulator::GetSimulatorType	vtable 00AB0E48 slot 5	00191692
+006a2960	cSC4DemandSimulator::GetDemand	vtable 00AB0E48 slot 6	0019611e
+006a6c90	cSC4DemandSimulator::UpdateOccupantEffects	vtable 00AB0E48 slot 7	0019293a
+006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	vtable 00AB0E48 slot 8	0019528e
+006a3e60	cSC4DemandSimulator::GetJobsBySensus	vtable 00AB0E48 slot 9	0019299a
+006a3dd0	cSC4DemandSimulator::GetNeutralTaxRate	vtable 00AB0E48 slot 10	00192a66
+006a5f80	cSC4DemandSimulator::GetLocalPopulationSummary	vtable 00AB0E48 slot 11	00193138
+006a2680	cSC4DemandSimulator::Write	cIGZSerializable vtable 00AB0E20 slot 3	00193f8e
+006a3c50	cSC4DemandSimulator::Read	cIGZSerializable vtable 00AB0E20 slot 4	001950f6
+006a9470	cSC4DemandSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB0E38 slot 3; dispatch on 0x6695681A/14/16/10, 0x26C63343, 0xE8BDA2E7, 0x8A0D15DA, 0xEA0D163E, 0xCA1B151C identical to Mac	00197514
+006a27e0	cSC4DemandSimulator::SimulatorBegin	called by DoMessage on 0x66956810; iterates demand map calling cISC4Demand vt+0x14 (SimulationBegin)	00194332
+006a7020	cSC4DemandSimulator::DoIdle	called by DoMessage on SimIdle (data3) and on NewDay with arg 5	00195672
+006a7600	cSC4DemandSimulator::DoDailySimulation	called by DoMessage on 0x66956814 after DoIdle(5)	0019463c
+006a9450	cSC4DemandSimulator::DoMonthlySimulation	called on 0x66956816; calls 2 funcs then if state(+0x14)==3 set 0 (Mac identical)	001950c8
+006a3ed0	cSC4DemandSimulator::EvaluateConnectionUtilization	1st call in DoMonthlySimulation	001931da
+006a8ff0	cSC4DemandSimulator::ExportDemand	2nd call in DoMonthlySimulation	00194baa
+006a8790	cSC4DemandSimulator::ReadSimulatorTunableValues	called by DoMessage on 0xCA1B151C	00196ade
+006a5cb0	cSC4DemandSimulator::ResetRegionalDemands	called by DoMessage on 0x8A0D15DA/0xEA0D163E with arg 0	0019494a
+006a4e70	cSC4DemandSimulator::DoDemandIndexLinks	called twice by DoMessage on 0x26C63343 (PreSave)	00194366
+006a5920	cSC4DemandSimulator::AddAgentEffect	called from DoMessage StateChanged branch (id, bool, SC4Percentage)	0019286c
+006a2c80	cSC4DemandSimulator::UpdateCapacity	called from DoMessage StateChanged branch (id, wealth, bool)	0019741e
+005d4ab0	cSC4Demand::GetGZCLSID	mov eax,0x8990C12D; cIGZSerializable vtable 00AA273C slot 5	00698f46
+005d4dc0	cSC4Demand::Init	cISC4Demand vtable 00AA2758 slot 3	0017462e
+005d4b50	cSC4Demand::Shutdown	vtable 00AA2758 slot 4	00174090
+005d4b90	cSC4Demand::SimulationBegin	vtable 00AA2758 slot 5; calls vt+0x8C(0) if not loaded, posts msg 0x426840A0	001740dc
+005d4c30	cSC4Demand::SetId	vtable 00AA2758 slot 7	001741c6
+005d4c40	cSC4Demand::QuerySupplyValue	slot 8; fld [ecx+0x14]	001741da
+005d4c50	cSC4Demand::QueryDemandValue	slot 9; fld [ecx+0x18]	001741e6
+005d4c60	cSC4Demand::AddToSupplyValue	slot 16; [ecx+0x1C] += arg	0017423a
+005d4c70	cSC4Demand::AddToDemandValue	slot 17; [ecx+0x20] += arg	00174256
+005d4c80	cSC4Demand::SetSupplyValue	vtable 00AA2758 slot 18	00174272
+005d4c90	cSC4Demand::SetDemandValue	vtable 00AA2758 slot 19	00174286
+005d4ca0	cSC4Demand::SetActiveDemandMax	vtable 00AA2758 slot 20	0017429a
+005d4cc0	cSC4Demand::SetActiveDemandMin	vtable 00AA2758 slot 21	001742bc
+005d4ce0	cSC4Demand::SetDemandCap	vtable 00AA2758 slot 27	001742fa
+005d4cf0	cSC4Demand::EndOfCycle	slot 30; folds +0x1C/+0x20 into +0x14/+0x18, zeroes them, calls vt+0x8C(0)	0017430a
+005d4d60	cSC4Demand::`scalar deleting destructor'	slot 34; resets vptrs 00AA2758/00AA273C	00173fd6
+005d4e60	cSC4Demand::CalculateActiveDemand	slot 35; identical clamp/cap/7% step logic and msg 0x426840A0	0017438c
+006f6e50	cSC4ResidentialSimulator::GetGZCLSID	mov eax,0x4990C013 (class_vtables.py)	00699010
+0069ea40	cSC4CommercialSimulator::GetGZCLSID	mov eax,0x8990C080 (class_vtables.py)	00697bfc
+006b8960	cSC4IndustrialSimulator::GetGZCLSID	mov eax,0xA990C022 (class_vtables.py)	0069b44a
+006a6070	cSC4DemandSimulator::UpdateTaxAndEconomyModifiers	DoIdle state 0 first call; history IDs 0xAABAAA9F..A9, ordinance factor IDs 0x2A65xxxx, x0.1, (factor-1)+curve; same as Mac	00191b66
+006a37a0	cSC4DemandSimulator::ZeroCensusInfo	DoIdle state 0 second call (arg this+0x1C census map), Init call; Mac order identical	00192e0e
+006a5a00	cSC4DemandSimulator::PerformCensus	called per (x,z) from DoIdle state 1 scanning-iterator loop (iterator at +0x18)	00192b0c
+006a68e0	cSC4DemandSimulator::ExtrapolateResidentialCensus	called from ExportDemand; constants 0x1010/20/30, +0x1101..0x1104, +0x11101.. match Mac	001918c0
+006a6af0	cSC4DemandSimulator::ExtrapolateBusinessCensus	called from ExportDemand; constants 0x3110..0x4400, 0x10001, 0x2010/20/30, 0x12030 match Mac	0019169c
+006a5350	cSC4DemandSimulator::CreateDemandFromExemplar	reads 0x11 (default 0x797A4E8), 0x47BB3F10/11/20/21/30/31/32/41/50/60; sole caller 006a7840	00196168
+006a7840	cSC4DemandSimulator::InitDynamicDataFromExemplar	reads prop 0x10, calls CreateDemandFromExemplar (static RM enumeration callback)	0019672e
+006a8420	cSC4DemandSimulator::AddToAgentEffectMap	reads 0x27812840/41/42/43; sole caller ReadSimulatorTunableValues 006a8790 (Mac: same caller)	001967f2
+0069ea50	cSC4CommercialSimulator::QueryInterface	cISC4CommercialSimulator vtable 00AB0CCC slot 0	00170666
+0069ef90	cSC4CommercialSimulator::Init	vtable 00AB0CCC slot 3; agent-name string "cSC4CommercialSimulator" (00A89920); registers msgs 0x99EF1142/43 and grids 0x89D5B6EF/0x89D5B788 (SimGrid<uint8> clsid 0x49B9E600) like Mac	00170c0a
+0069eb80	cSC4CommercialSimulator::Shutdown	vtable 00AB0CCC slot 4	00170714
+0069ead0	cSC4CommercialSimulator::GetProximityMap	vtable 00AB0CCC slot 5; returns +0x34 for 0x3320, +0x38 for 0x3330 (identical to Mac)	0017094e
+0069eeb0	cSC4CommercialSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB0CBC slot 3; NewDay->DoIdle(5), SimIdle->DoIdle(data3), 0x99EF1142/43 with data3 0x278128A0	00170a98
+0069ed30	cSC4CommercialSimulator::DoIdle	called from DoMessage on NewDay/SimIdle	00170976
+0069ec50	cSC4CommercialSimulator::Write	cIGZSerializable vtable 00AB0CA4 slot 3	00170842
+0069ecb0	cSC4CommercialSimulator::Read	cIGZSerializable vtable 00AB0CA4 slot 4	001708b6
+006b8970	cSC4IndustrialSimulator::QueryInterface	cISC4IndustrialSimulator vtable 00AB1530 slot 0	00186b1a
+006b89f0	cSC4IndustrialSimulator::Init	vtable 00AB1530 slot 3; only sets init flag + static flag (Mac identical)	00186cd2
+006b8a10	cSC4IndustrialSimulator::Shutdown	vtable 00AB1530 slot 4	00186bc6
+006b8aa0	cSC4IndustrialSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB1520 slot 3; calls GetType and returns 1 (no-op, Mac identical)	00186c44
+006b8a70	cSC4IndustrialSimulator::Read	cIGZSerializable vtable 00AB1508 slot 4	00186c0c
+006fead0	cSC4ResidentialSimulator::Init	cISC4ResidentialSimulator vtable 00AB2C10 slot 3; pushes agent-name string "cSC4ResidentialSimulator" (00A897C4) at 006FEC19	0017cf8c
+006f97f0	cSC4ResidentialSimulator::Shutdown	vtable 00AB2C10 slot 4	00177fc4
+006f6f90	cSC4ResidentialSimulator::GetProximityMap	vtable 00AB2C10 slot 5; wealth 1/2/3 -> +0x38/+0x3C/+0x40 (Mac same)	00174ffe
+006f6f10	cSC4ResidentialSimulator::SchoolIsOnStrike	vtable 00AB2C10 slot 6; returns byte [ecx+0x178]!=0	00174b6a
+006f6f70	cSC4ResidentialSimulator::GetPopulation	vtable 00AB2C10 slot 16; mov eax,[ecx+0xA4] (Mac also +0xA4)	00174bd8
+006fc570	cSC4ResidentialSimulator::GetCellLifeExpectancy	vtable 00AB2C10 slot 29; tuning 0x69189C84 curve 0x6941A67F, default pt 200.0 (0x43480000) as Mac	00178da4
+006fc6e0	cSC4ResidentialSimulator::GetCellWorkforcePercent	vtable 00AB2C10 slot 30; curve 0x4941A92B, default pts (200,100) as Mac; called by Demand PerformCensus vt+0x78	00178c40
+006f79c0	cSC4ResidentialSimulator::GetCellEQ	vtable 00AB2C10 slot 35; tract quotient of EQ grids (+0x7C) by pop grids (+0x48); called by PerformCensus vt+0x8C	00175b48
+006f88b0	cSC4ResidentialSimulator::GetAverageNewAgeByWealth	vtable 00AB2C10 slot 42; reads 0xC929C652/0x0929CC30/0x0929CC36 from 0x69189C84	00175cc4
+00700350	cSC4ResidentialSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB2BFC slot 3; Month: state(+0x90)==10 ->0; NewDay -> DoDailySimulation(5); 0x99EF1142/43 -> DoBuildingChanged	0017febc
+006ff520	cSC4ResidentialSimulator::DoDailySimulation	called from DoMessage on NewDay with 5	0017e87c
+006fb120	cSC4ResidentialSimulator::DoBuildingChanged	called from DoMessage on 0x99EF1142/43 (bool = type==0x99EF1142)	001773c2
+006fa450	cSC4ResidentialSimulator::DoPopulationChange	only xref to string "buzzards" (00AB2BD8); 200.0 caps; per-tract EQ/HQ/age update	0017b220
+006fc0c0	cSC4ResidentialSimulator::ReadTunablePopulationValues	tuning 0x6534284A/0xE7E2C2DB/0x69189C84; props 0xC929C433..0x4AB70DAC, curves 0x6941B022/0xA941B028/0xC941B02E	0017a2b8
+006f8070	cSC4ResidentialSimulator::PostPopulationChange	history ID 0x2A5E7009 (avg age); called from DoDailySimulation	00174c86
+006f8c40	cSC4ResidentialSimulator::Write	cIGZSerializable vtable 00AB2BE4 slot 3	0017dd78
+007009a0	cSC4ResidentialSimulator::Read	cIGZSerializable vtable 00AB2BE4 slot 4	0017e2c8
+00497b90	cSC4Nation::ReadSimulatorTunableValues	reads 0x4A1F629F id list, curves at (0x4A1F62A0 + i) for i-th id (linear index), 0x4A1F6300 difficulty vector; matches Mac	001e26ec

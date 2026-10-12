@@ -1,0 +1,249 @@
+va	name	evidence	mac_x86
+0045e110	cSC4SimGrid<T>::Init	cISC4SimGrid vtable 00A878C0/00A87C20 slot 3 (shared by all T, COMDAT-folded)	006092aa
+0045fcc0	cSC4SimGrid<T>::Shutdown	cISC4SimGrid vtable slot 4 (shared)	006092c2
+0040ce70	cSC4SimGrid<T>::GetInstanceID	vtable slot 5; mov eax,[ecx+0x14] (Mac +0x14)	006092da
+0040ce80	cSC4SimGrid<T>::SetInstanceID	vtable slot 6	006092e6
+0045de20	cSC4SimGrid<uint8>::GetCellValue	Uint8 vtable 00A878C0 slot 7; data[x>>shift][z>>shift] with shift=[+0x1c], rows at [+0x38]	(float: 0060c4ee)
+0045de50	cSC4SimGrid<uint8>::GetAverageValueInCellRect	Uint8 vtable slot 8	(float: 0060c3e8)
+00460fc0	cSC4SimGrid<uint8>::SetTractSize	Uint8 vtable slot 9; calls city vt+0x174/0x178 (CellCountX/Z) and +0x16c/0x170 (CellWidthX/Z), stores 1/width at +0x30/+0x34	(float: 00616098)
+0040cf10	cSC4SimGrid<T>::GetTractSize	vtable slot 10 (shared)	006092f4
+00808620	cSC4SimGrid<T>::GetTractShift	vtable slot 11; mov eax,[ecx+0x1c]	00609300
+004ed900	cSC4SimGrid<T>::GetTractCountX	vtable slot 12; mov eax,[ecx+0x20]	0060930c
+006bdd80	cSC4SimGrid<T>::GetTractCountZ	vtable slot 13; mov eax,[ecx+0x24] (folded with cSC4LandValueSimulator::GetIntrinsicLandValueMap)	00609318
+006c2070	cSC4SimGrid<T>::GetTractWidthX	vtable slot 14; fld [ecx+0x28]	00609324
+006c2080	cSC4SimGrid<T>::GetTractWidthZ	vtable slot 15	00609330
+00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	vtable slot 16; fld [ecx+0x30]	0060933c
+00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	vtable slot 17	00609348
+0045e450	cSC4SimGrid<T>::TractIsInBounds	vtable slot 18	00609354
+0045ddf0	cSC4SimGrid<T>::PositionToTract	vtable slot 19	00609376
+0045ece0	cSC4SimGrid<T>::TractCornerToPosition	vtable slot 20	006093a4
+0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	vtable slot 21; (i+0.5)*width (fadd [0xa84d2c]=0.5)	006093ce
+0045e0d0	cSC4SimGrid<uint8>::GetTractValue	Uint8 vtable slot 22	(float: 0060c3ba)
+0045df40	cSC4SimGrid<uint8>::GetAverageValueInTractRect	Uint8 vtable slot 23	(float: 0060c31a)
+006a9750	cSC4SimGrid<T>::GetGridData	vtable slots 24 and 25 (const/non-const overloads folded); lea eax,[ecx+0x38]	00609408/00609414
+0045e0f0	cSC4SimGrid<uint8>::SetTractValue	Uint8 vtable slot 26	(float: 0060a0a6)
+0045e2e0	cSC4SimGrid<uint8>::SetTractValues	Uint8 vtable slot 27	(float: 0060a056)
+0045dff0	cSC4SimGrid<uint8>::Write	Uint8 cIGZSerializable vtable 00A878A4 slot 3; writes ver 1, bool, CLSID, instance, 4 ints, 4 floats, then cells	(float: 0061988e)
+00461620	cSC4SimGrid<uint8>::Read	Uint8 cIGZSerializable vtable slot 4	(float: 00619dac)
+0045ef20	cSC4SimGrid<float>::GetCellValue	Float32 vtable 00A87C20 slot 7	0060c4ee
+0045ef50	cSC4SimGrid<float>::GetAverageValueInCellRect	Float32 vtable slot 8	0060c3e8
+00464050	cSC4SimGrid<float>::SetTractSize	Float32 vtable slot 9	00616098
+0045f210	cSC4SimGrid<float>::GetTractValue	Float32 vtable slot 22	0060c3ba
+0045f050	cSC4SimGrid<float>::GetAverageValueInTractRect	Float32 vtable slot 23	0060c31a
+0045f230	cSC4SimGrid<float>::SetTractValue	Float32 vtable slot 26	0060a0a6
+0045f0f0	cSC4SimGrid<float>::SetTractValues	Float32 vtable slot 27	0060a056
+0045f130	cSC4SimGrid<float>::Write	Float32 cIGZSerializable vtable 00A87C04 slot 3	0061988e
+00464930	cSC4SimGrid<float>::Read	Float32 cIGZSerializable vtable slot 4	00619dac
+006bd4b0	cSC4LandValueSimulator::GetGZCLSID	mov eax,0xE990C18E; ret	00624b14
+006bd4c0	cSC4LandValueSimulator::QueryInterface	cISC4LandValueSimulator vtable 00AB1670 slot 0	0008f632
+006bd8a0	cSC4LandValueSimulator::Release	vtable 00AB1670 slot 2	0008f6b6
+006be3b0	cSC4LandValueSimulator::Init	vtable 00AB1670 slot 3; creates 3 Uint8 grids (inst 0x89D5BB39/51/60) + Float32 slope grid (0x49D5BB6F, tract 8); AddAgent levels 0,10,4,6	000902f2
+006bdf70	cSC4LandValueSimulator::Shutdown	vtable 00AB1670 slot 4	0008fa82
+006bd700	cSC4LandValueSimulator::GetLandValueType	vtable 00AB1670 slot 5	0008fa12
+006bd740	cSC4LandValueSimulator::GetLandValue	vtable 00AB1670 slot 6	0008fa58
+006bdd90	cSC4LandValueSimulator::GetAverageLandValue	vtable 00AB1670 slot 10; mov al,[ecx+0x74]	00624b42
+006bdda0	cSC4LandValueSimulator::GetModeAltitude	vtable 00AB1670 slot 11; fld [ecx+0xa0] (Mac +0xac; MSVC std::map 0xC smaller)	00624b4e
+006bd8d0	cSC4LandValueSimulator::Write	cIGZSerializable vtable 00AB1648 slot 3	00090078
+006bd950	cSC4LandValueSimulator::Read	cIGZSerializable vtable 00AB1648 slot 4	0008ffa6
+006bf0d0	cSC4LandValueSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB1660 slot 3; same message switch (NewMonth resets state 9->0 when dirty; NewDay->DoIdle(5); SimIdle->DoIdle(data3))	00091d1e
+006be7b0	cSC4LandValueSimulator::DoIdle	called by DoMessage; 9-state switch identical to Mac (history id 0x6A663AC8)	000907aa
+006be110	cSC4LandValueSimulator::ReadSimulatorTunableValues	called from Init; reads props 0x47E2C200..0x47E2C332	0008fc98
+006bd540	cSC4LandValueSimulator::TractIsZoned	DoIdle states 3/8 call it before TractHasLand	0008f6dc
+006bd5c0	cSC4LandValueSimulator::TractHasLand	DoIdle state 1 per-tract test	0008f75c
+006bd750	cSC4LandValueSimulator::SetupAltitudeEffect	called at end of DoIdle state 3; clamps to 150 (0x96)	0008f850
+006bd810	cSC4LandValueSimulator::LookupAltitudeEffect	DoIdle state 4 per-tract call with altitude float	0008f916
+006bd6b0	cSC4LandValueSimulator::DoEndOfSimulationCycle	posts message 0x87CC75B3	0008f99e
+006bda30	ProcessTwoGridsWithCallback<uint8,int16>	DoIdle state 7 call with callback 006BD640	00624d9c
+006bd640	AddDesirability	callback: v += curve(d)*weight, clamp [1,255]	0008f7e0
+005e5390	cSC4MapUtilities::AddDistanceEffect	DoIdle state 2 call (water effect)	0009f556
+006e2cd0	cSC4PollutionSimulator::QueryInterface	cISC4PollutionSimulator vtable 00AB2630 slot 0	0006914e
+006e5f20	cSC4PollutionSimulator::Release	cISC4PollutionSimulator vtable 00AB2630 slot 2	0006c4ce
+006e7130	cSC4PollutionSimulator::Init	cISC4PollutionSimulator vtable 00AB2630 slot 3	0006f836
+006e5f50	cSC4PollutionSimulator::Shutdown	cISC4PollutionSimulator vtable 00AB2630 slot 4	0006ed94
+006e3360	cSC4PollutionSimulator::GetPollutionGrid	cISC4PollutionSimulator vtable 00AB2630 slot 5	00069b78
+006e37e0	cSC4PollutionSimulator::GetPollutionValue	cISC4PollutionSimulator vtable 00AB2630 slot 6	00069592
+006e2ef0	cSC4PollutionSimulator::GetAirValue	cISC4PollutionSimulator vtable 00AB2630 slot 7	00069604
+006e2f10	cSC4PollutionSimulator::GetWaterValue	cISC4PollutionSimulator vtable 00AB2630 slot 8	0006962e
+006e2f30	cSC4PollutionSimulator::GetGarbageValue	cISC4PollutionSimulator vtable 00AB2630 slot 9	00069658
+006e3010	cSC4PollutionSimulator::GetAverageWaterValue	cISC4PollutionSimulator vtable 00AB2630 slot 11	00069760
+006e3020	cSC4PollutionSimulator::GetAverageGarbageValue	cISC4PollutionSimulator vtable 00AB2630 slot 12	0006976e
+006e2f60	cSC4PollutionSimulator::IsAirPolluted	cISC4PollutionSimulator vtable 00AB2630 slot 13	00069686
+006e2f90	cSC4PollutionSimulator::IsWaterPolluted	cISC4PollutionSimulator vtable 00AB2630 slot 14	000696be
+006e2fc0	cSC4PollutionSimulator::IsGarbageAccumulated	cISC4PollutionSimulator vtable 00AB2630 slot 15	000696f6
+006e2ed0	cSC4PollutionSimulator::IsRadioactive	cISC4PollutionSimulator vtable 00AB2630 slot 16	000695d6
+006e4fa0	cSC4PollutionSimulator::GetWorstAirTract	cISC4PollutionSimulator vtable 00AB2630 slot 17	0061a05a
+006e4fd0	cSC4PollutionSimulator::GetWorstWaterTract	cISC4PollutionSimulator vtable 00AB2630 slot 18	0061a086
+006e5000	cSC4PollutionSimulator::GetWorstGarbageTract	cISC4PollutionSimulator vtable 00AB2630 slot 19	0061a0b2
+006e3340	cSC4PollutionSimulator::GetGarbageSupply	cISC4PollutionSimulator vtable 00AB2630 slot 20	00069b56
+006e4f10	cSC4PollutionSimulator::GetLandfillTileCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 21	00619fae
+006e5040	cSC4PollutionSimulator::GetGarbageCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 22	0061a116
+006e2ff0	cSC4PollutionSimulator::IsGarbageUncollected	cISC4PollutionSimulator vtable 00AB2630 slot 23	0006972e
+006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	cISC4PollutionSimulator vtable 00AB2630 slot 24	00069744
+006e3030	cSC4PollutionSimulator::SetIsRadioactive	cISC4PollutionSimulator vtable 00AB2630 slot 25	0006977e
+006e3070	cSC4PollutionSimulator::SetAirValue	cISC4PollutionSimulator vtable 00AB2630 slot 26	000697d4
+006e30b0	cSC4PollutionSimulator::SetWaterValue	cISC4PollutionSimulator vtable 00AB2630 slot 27	00069828
+006e30f0	cSC4PollutionSimulator::SetGarbageValue	cISC4PollutionSimulator vtable 00AB2630 slot 28	0006987c
+006e32e0	cSC4PollutionSimulator::AddToGarbageSupply	cISC4PollutionSimulator vtable 00AB2630 slot 29	00069b04
+006e5050	cSC4PollutionSimulator::SetGarbageCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 30	0061a124
+006e3150	cSC4PollutionSimulator::GetRecyclingCenterEffect	cISC4PollutionSimulator vtable 00AB2630 slot 33	0006990e
+006e4f20	cSC4PollutionSimulator::GetGarbageAbductedPrevMonth	cISC4PollutionSimulator vtable 00AB2630 slot 34	00619fb8
+006e4f30	cSC4PollutionSimulator::GetGarbageProducedLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 35	00619fc8
+006e4f40	cSC4PollutionSimulator::GetGarbageImportedLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 36	00619fdc
+006e4f50	cSC4PollutionSimulator::GetGarbageExportedLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 37	00619ff0
+006e4f60	cSC4PollutionSimulator::GetGarbageRecycledLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 38	0061a004
+006e4f70	cSC4PollutionSimulator::GetGarbageIncineratedLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 39	0061a01e
+006e4f80	cSC4PollutionSimulator::GetGarbageConvertedToEnergyLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 40	0061a032
+006e4f90	cSC4PollutionSimulator::GetGarbageLandfilledLastMonth	cISC4PollutionSimulator vtable 00AB2630 slot 41	0061a046
+006e50d0	cSC4PollutionSimulator::GetIncineratorCount	cISC4PollutionSimulator vtable 00AB2630 slot 42	0061ab7e
+006e50f0	cSC4PollutionSimulator::GetWasteToEnergyBuildingCount	cISC4PollutionSimulator vtable 00AB2630 slot 43	0061ab70
+006e5110	cSC4PollutionSimulator::GetRecyclingCenterCount	cISC4PollutionSimulator vtable 00AB2630 slot 44	0061ab62
+006e5130	cSC4PollutionSimulator::GetWaterTreatmentPlantCount	cISC4PollutionSimulator vtable 00AB2630 slot 45	0061ab54
+006e4c70	cSC4PollutionSimulator::GetGarbageBuildings	cISC4PollutionSimulator vtable 00AB2630 slot 46	0006a238
+006e3160	cSC4PollutionSimulator::GetBuildingGarbageCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 47	0006991c
+006e3190	cSC4PollutionSimulator::GetGarbageScalingFactor	cISC4PollutionSimulator vtable 00AB2630 slot 48	00069952
+006e31a0	cSC4PollutionSimulator::IsActiveLandfill	cISC4PollutionSimulator vtable 00AB2630 slot 49	0006995e
+006e31c0	cSC4PollutionSimulator::SetIsActiveLandfill	cISC4PollutionSimulator vtable 00AB2630 slot 50	00069986
+006e3250	cSC4PollutionSimulator::GarbagePutInLandfill	cISC4PollutionSimulator vtable 00AB2630 slot 51	00069a7a
+006e2da0	cSC4PollutionSimulator::GetMaxCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 52	0006935e
+006e4300	cSC4PollutionSimulator::GetCurrentCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 53	0006a994
+006e2d70	cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 54	00069324
+006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 55	0006a1c8
+006e4410	cSC4PollutionSimulator::GetCurrentOccupantCondition	cISC4PollutionSimulator vtable 00AB2630 slot 56	0006ab3a
+006e3770	cSC4PollutionSimulator::GetCurrentOccupantEfficiency	cISC4PollutionSimulator vtable 00AB2630 slot 57	00069c56
+006e2e70	cSC4PollutionSimulator::GetIncineratorUsedCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 58	00069522
+006e2ea0	cSC4PollutionSimulator::GetWasteToEnergyUsedCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 59	0006955a
+006e2dd0	cSC4PollutionSimulator::GetIncineratorCurrentCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 60	00069396
+006e2df0	cSC4PollutionSimulator::GetWasteToEnergyCurrentCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 61	000693cc
+006e2e10	cSC4PollutionSimulator::GetWaterTreatmentMaxCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 62	00069402
+006e2e30	cSC4PollutionSimulator::GetWaterTreatmentCurrentCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 63	00069438
+006e2e50	cSC4PollutionSimulator::GetWaterTreatmentUsedCapacity	cISC4PollutionSimulator vtable 00AB2630 slot 64	0006946e
+006e4530	cSC4PollutionSimulator::CalcOccupantMaintenanceCost	cISC4PollutionSimulator vtable 00AB2630 slot 65	0006a3ea
+006e7040	cSC4PollutionSimulator::AddRadiationToCity	cISC4PollutionSimulator vtable 00AB2630 slot 66	0006e216
+006e5060	cSC4PollutionSimulator::GetMaxAirPollutionLevelForUI	cISC4PollutionSimulator vtable 00AB2630 slot 67	0061a136
+006e5070	cSC4PollutionSimulator::GetMaxWaterPollutionLevelForUI	cISC4PollutionSimulator vtable 00AB2630 slot 68	0061a140
+006e5080	cSC4PollutionSimulator::GetMaxGarbagePollutionLevelForUI	cISC4PollutionSimulator vtable 00AB2630 slot 69	0061a14a
+006e5090	cSC4PollutionSimulator::GetMaxRadiationPollutionLevelForUI	cISC4PollutionSimulator vtable 00AB2630 slot 70	0061a154
+006e2cc0	cSC4PollutionSimulator::GetGZCLSID	mov eax,0x8990C065; ret	00619fa4
+006e3380	cSC4PollutionSimulator::Write	cIGZSerializable vtable 00AB25E8 slot 3	0006e8c8
+006e5270	cSC4PollutionSimulator::Read	cIGZSerializable vtable 00AB25E8 slot 4	0006f320
+006e8e20	cSC4PollutionSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB261C slot 3; same switch as Mac (Month/Begin/Day/PostCityInit/PreViewLevelChange/Insert-Remove occupant/IngredChangesMade)	0006e7d4
+006e7fd0	cSC4PollutionSimulator::DoDailySimulation	DoMessage SimNewDay branch; calls GetUnusedCapacity x3, SetOccupantListUsedCapacity x3, CalcMaintenanceCosts x3, EndOfCycle	0006c4f4
+006e7b60	cSC4PollutionSimulator::DoMonthlySimulation	DoMessage SimNewMonth branch; calls AgeOccupantList x3, ResetOccupantListCapacityUsedProperty x3, UpdatePollutionVisualEffect	0006e32e
+006e44b0	cSC4PollutionSimulator::SimulationBegin	DoMessage SimBegin branch	0006abf2
+006e4680	cSC4PollutionSimulator::DoOccupantChanged	DoMessage Insert/RemoveOccupant branch; reads props 0x27812851/0xAA5832F3/0x68EE9764, default radii {2.5,1.5,0.5,4.0}	0006ad02
+006e63c0	cSC4PollutionSimulator::UpdatePollutionVisualEffect	DoMessage PostCityInit/PreViewLevelChange branch	0006d690
+006e5b10	cSC4PollutionSimulator::ReadSimulatorTunableValues	DoMessage IngredChangesMade branch; reads 0x69501944, 0x49134BD4.. from exemplar 0xC911E35B	0006bab6
+006e7930	cSC4PollutionSimulator::EndOfCycle	called from DoDailySimulation; posts 0xDA6DD35D/0xFA6DD0BB/... map-changed messages	0006b762
+006e3820	cSC4PollutionSimulator::GetUnusedCapacity	called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)	000694a4
+006e3fe0	cSC4PollutionSimulator::SetOccupantListUsedCapacity	called 3x near end of DoDailySimulation	00069e2e
+006e4100	cSC4PollutionSimulator::CalcMaintenanceCosts	called 3x at end of DoDailySimulation	0006a2e0
+006e3d00	cSC4PollutionSimulator::AgeOccupantList	called 3x from DoMonthlySimulation; reads 0xEA1CF220..222	00069f46
+006e3c80	cSC4PollutionSimulator::ResetOccupantListCapacityUsedProperty	called 3x from DoMonthlySimulation	00069cd2
+006e3f50	cSC4PollutionSimulator::ComputeWasteToEnergyListCurrentCapacity	called from DoMonthlySimulation; reads WTE props 0x48EBD0B1/0x88ECF76C	00069d76
+005e4500	cSC4MapUtilities::AddRadiusEffect(short grid)	called from Pollution DoOccupantChanged with grid data, tract coords, radius, centre, outer	0009ed44
+006eabc0	cSC4PowerSimulator::QueryInterface	cISC4PowerSimulator vtable 00AB28B8 slot 0	0017ffba
+006eb190	cSC4PowerSimulator::Release	cISC4PowerSimulator vtable 00AB28B8 slot 2	00180040
+006f03b0	cSC4PowerSimulator::Init	cISC4PowerSimulator vtable 00AB28B8 slot 3	00184be4
+006f0110	cSC4PowerSimulator::Shutdown	cISC4PowerSimulator vtable 00AB28B8 slot 4	0018493a
+006eac40	cSC4PowerSimulator::PositionToCell	cISC4PowerSimulator vtable 00AB28B8 slot 5	001800e6
+006eac90	cSC4PowerSimulator::CellToPosition	cISC4PowerSimulator vtable 00AB28B8 slot 6	00180154
+006eacd0	cSC4PowerSimulator::CellToStandardCityCell/StandardCityCellToCell	cISC4PowerSimulator vtable 00AB28B8 slots 7 and 8 share one (identity) body	001801a8/001801be
+006eacf0	cSC4PowerSimulator::GetAnnualConsumption	cISC4PowerSimulator vtable 00AB28B8 slot 9	001802ee
+006ead30	cSC4PowerSimulator::GetAnnualConsumptionByPowerType	cISC4PowerSimulator vtable 00AB28B8 slot 10	0018030c
+006eba10	cSC4PowerSimulator::GetMonthlyConsumption(x,z)	cISC4PowerSimulator vtable 00AB28B8 slot 16 (MSVC reversed overload; ret 8, reads consumption map +0x84)	00180846
+006ead40	cSC4PowerSimulator::GetMonthlyConsumptionMapPtr	cISC4PowerSimulator vtable 00AB28B8 slot 18	00180366
+006ead50	cSC4PowerSimulator::GetSupplyValue	cISC4PowerSimulator vtable 00AB28B8 slot 19	0018037a
+006ead60	cSC4PowerSimulator::GetSupplyValueMapPtr	cISC4PowerSimulator vtable 00AB28B8 slot 20	001803a2
+006efa00	cSC4PowerSimulator::GetPowerPlantCount(type)	cISC4PowerSimulator vtable 00AB28B8 slot 23 (MSVC reversed overload; ret 4, [ecx+type*4+0x2e0])	0069a81c
+006ef9f0	cSC4PowerSimulator::GetPowerPlantCount()	cISC4PowerSimulator vtable 00AB28B8 slot 24 (MSVC reversed overload)	0069a80e
+006ed120	cSC4PowerSimulator::GetPowerPlants	cISC4PowerSimulator vtable 00AB28B8 slot 25	001813ee
+006efa10	cSC4PowerSimulator::GetPowerPoleCount	cISC4PowerSimulator vtable 00AB28B8 slot 26	0069a82e
+006efa20	cSC4PowerSimulator::GetOverworkedPowerPlantCount	cISC4PowerSimulator vtable 00AB28B8 slot 27	0069a83c
+006efa30	cSC4PowerSimulator::GetAgedPowerPlantCount	cISC4PowerSimulator vtable 00AB28B8 slot 28	0069a84a
+006efa40	cSC4PowerSimulator::GetDistressedPowerPlantCount	cISC4PowerSimulator vtable 00AB28B8 slot 29	0069a858
+006eba30	cSC4PowerSimulator::FindPowerPlants	cISC4PowerSimulator vtable 00AB28B8 slot 30	00181fc2
+006eb3d0	cSC4PowerSimulator::IsOccupantPowered	cISC4PowerSimulator vtable 00AB28B8 slot 31	00180878
+006eb0d0	cSC4PowerSimulator::GetOccupantPowerConsumed	cISC4PowerSimulator vtable 00AB28B8 slot 32	0018074a
+006eb420	cSC4PowerSimulator::GetOccupantPowerProduced	cISC4PowerSimulator vtable 00AB28B8 slot 33	00180b62
+006eb110	cSC4PowerSimulator::GetOccupantMaxPowerProduced	cISC4PowerSimulator vtable 00AB28B8 slot 34	00180794
+006efa50	cSC4PowerSimulator::GetPoweredGrid	cISC4PowerSimulator vtable 00AB28B8 slots 35 and 36 (const/non-const folded); mov eax,[ecx+0x80]	0069a866/0069a874
+006eb070	cSC4PowerSimulator::IsPowered	cISC4PowerSimulator vtable 00AB28B8 slot 37	0018061e
+006eb0a0	cSC4PowerSimulator::IsWired	cISC4PowerSimulator vtable 00AB28B8 slot 38	00180660
+006eb130	cSC4PowerSimulator::GetChanceOfStrike	cISC4PowerSimulator vtable 00AB28B8 slot 40	001807ca
+006eb140	cSC4PowerSimulator::GetStrikeStartDate	cISC4PowerSimulator vtable 00AB28B8 slot 43	001807e6
+006eb150	cSC4PowerSimulator::GetStrikeLength	cISC4PowerSimulator vtable 00AB28B8 slot 44	001807f4
+006eb5f0	cSC4PowerSimulator::GetCurrentPlantEfficiencyPercent	cISC4PowerSimulator vtable 00AB28B8 slot 45	00180da6
+006ec820	cSC4PowerSimulator::GetCurrentPlantConditionPercent	cISC4PowerSimulator vtable 00AB28B8 slot 46	00180f62
+006efa60	cSC4PowerSimulator::GetStrikeEfficiencyPercent	cISC4PowerSimulator vtable 00AB28B8 slot 47	0069a882
+006eb180	cSC4PowerSimulator::GetFundingPercent	cISC4PowerSimulator vtable 00AB28B8 slot 48	00180832
+006eb2f0	cSC4PowerSimulator::GetMonthlyPowerGenerationCost	cISC4PowerSimulator vtable 00AB28B8 slot 49	001808c8
+006eb520	cSC4PowerSimulator::GetPowerPlantFundingPercentage	cISC4PowerSimulator vtable 00AB28B8 slot 50	00180928
+006eb580	cSC4PowerSimulator::SetPowerPlantFundingPercentage	cISC4PowerSimulator vtable 00AB28B8 slot 51	00180986
+006eabb0	cSC4PowerSimulator::GetGZCLSID	mov eax,0x0990C005; ret	0069a804
+006eb6a0	cSC4PowerSimulator::Write	cIGZSerializable vtable 00AB288C slot 3	00185208
+006f0880	cSC4PowerSimulator::Read	cIGZSerializable vtable 00AB288C slot 4	00185636
+006efb70	cSC4PowerSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB28A4 slot 3; same switch as Mac (ConnectionsReady sets enable flag, Day/Idle->DoIdle, Month->DoMonthlySimulation, TerrainHeightsChanged, ZoningChange->CellChanged)	001863f4
+006ee960	cSC4PowerSimulator::DoIdle	DoMessage SimNewDay/SimIdle branch; 5-state switch, calls UpdatePowerGrid twice	00182ec8
+006ee110	cSC4PowerSimulator::UpdatePowerGrid	called 2x from DoIdle; Bit1_SelectionGrow limit 0x258 (600), neighbour deals 0x4773FFE0/1, supply*1.1 (fmul by -1.1 at 00AB2888 then subtracted)	00182616
+006ec570	cSC4PowerSimulator::DoMonthlySimulation	DoMessage SimNewMonth branch; reads ordinance factor 0x0911E117	001842b0
+006ed1c0	cSC4PowerSimulator::ReadSimulatorTunableValues	tunables 0xA911E2F1, 0xE911E2FC, 0x29121E8B ... with same defaults (1.1, 1.2, ...)	00181b3c
+006ebd00	cSC4PowerSimulator::UpdatePoweredLots	called from DoIdle; posts kMessageTractPowerChanged 0x8A07AE00 per 8x8 block	00181012
+006ec8f0	cSC4PowerSimulator::AgePowerPlant	called from DoIdle; props 0x27812852/0x27812853/0x08D9763D	001821de
+006ed6e0	cSC4PowerSimulator::UpdateWireBits	called from DoIdle; compares occupant type with 0x278128A0/0x2890D4DE/0x0990B2EA/0xC772BF98	00181436
+006eb350	cSC4PowerSimulator::CellChanged	DoMessage ZoningChange branch, called with the 4 rect coords	001862bc
+006da3c0	cSC4PlumbingSimulator::QueryInterface	cISC4PlumbingSimulator vtable 00AB2228 slot 0	000700fe
+006da610	cSC4PlumbingSimulator::Release	cISC4PlumbingSimulator vtable 00AB2228 slot 2	00070184
+006df0d0	cSC4PlumbingSimulator::Init	cISC4PlumbingSimulator vtable 00AB2228 slot 3	00075824
+006da900	cSC4PlumbingSimulator::Shutdown	cISC4PlumbingSimulator vtable 00AB2228 slot 4	00071694
+006da440	cSC4PlumbingSimulator::GetSupplyValue	cISC4PlumbingSimulator vtable 00AB2228 slot 5	00070232
+006da450	cSC4PlumbingSimulator::GetSupplyValueMapPtr	cISC4PlumbingSimulator vtable 00AB2228 slot 6	0007025a
+006dad50	cSC4PlumbingSimulator::AreWateredBuildingsInCell	cISC4PlumbingSimulator vtable 00AB2228 slot 8	000704ba
+006da6a0	cSC4PlumbingSimulator::IsBuildingWatered	cISC4PlumbingSimulator vtable 00AB2228 slot 9	0007069c
+006dad80	cSC4PlumbingSimulator::GetWaterProduction	cISC4PlumbingSimulator vtable 00AB2228 slot 10	00070538
+006da460	cSC4PlumbingSimulator::IsCellWatered	cISC4PlumbingSimulator vtable 00AB2228 slot 11	0007026a
+006dc710	cSC4PlumbingSimulator::GetNumWaterSources	cISC4PlumbingSimulator vtable 00AB2228 slot 12	0061d1f0
+006dc680	cSC4PlumbingSimulator::GetWaterExported	cISC4PlumbingSimulator vtable 00AB2228 slot 17	0061ca2a
+006dc690	cSC4PlumbingSimulator::GetNumPipes	cISC4PlumbingSimulator vtable 00AB2228 slot 18	0061ca38
+006dc6a0	cSC4PlumbingSimulator::GetNumDistressedPipes	cISC4PlumbingSimulator vtable 00AB2228 slot 19	0061ca46
+006dc6b0	cSC4PlumbingSimulator::GetNumWateredBuildings	cISC4PlumbingSimulator vtable 00AB2228 slot 21	0061ca62
+006dc6c0	cSC4PlumbingSimulator::GetNumUnwateredBuildings	cISC4PlumbingSimulator vtable 00AB2228 slot 22	0061ca70
+006dadb0	cSC4PlumbingSimulator::GetWaterProducerInfo	cISC4PlumbingSimulator vtable 00AB2228 slot 24	0007070a
+006dbfc0	cSC4PlumbingSimulator::GetWaterProducerConditionPercent	cISC4PlumbingSimulator vtable 00AB2228 slot 25	00070d86
+006da640	cSC4PlumbingSimulator::GetOccupantMonthlyUpkeepCost	cISC4PlumbingSimulator vtable 00AB2228 slot 26	000707a6
+006dab60	cSC4PlumbingSimulator::FindWaterBuildings	cISC4PlumbingSimulator vtable 00AB2228 slot 27	00071a0e
+006dc7d0	cSC4PlumbingSimulator::GetWaterProducers	cISC4PlumbingSimulator vtable 00AB2228 slot 28	00070c4e
+006da3b0	cSC4PlumbingSimulator::GetGZCLSID	mov eax,0x0990C075; ret	0061c9e8
+006db090	cSC4PlumbingSimulator::Write	cIGZSerializable vtable 00AB21FC slot 3	00074c46
+006db620	cSC4PlumbingSimulator::Read	cIGZSerializable vtable 00AB21FC slot 4	00074f7c
+006df570	cSC4PlumbingSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB2214 slot 3; same switch as Mac	00074956
+006dd380	cSC4PlumbingSimulator::DoIdle	DoMessage SimNewDay (arg 5) / SimIdle (data3) branch	0007208a
+006df540	cSC4PlumbingSimulator::DoMonthlySimulation	DoMessage SimNewMonth branch	0007491e
+006dc870	cSC4PlumbingSimulator::DoOccupantInserted	DoMessage InsertOccupant branch (skipped when prop 0x029244DB set)	00071c38
+006dc8f0	cSC4PlumbingSimulator::DoOccupantRemoved	DoMessage RemoveOccupant branch	000715d0
+006dc9e0	cSC4PlumbingSimulator::ReadSimulatorTunableValues	DoMessage IngredChangesMade branch; reads 0x68F5436A..D, 0xAA161F81, 0x8A235C56, ...	00071cfc
+0069f1b0	cSC4CrimeSimulator::QueryInterface	cISC4CrimeSimulator vtable 00AB0DC8 slot 0	00170ede
+0069f5d0	cSC4CrimeSimulator::Release	cISC4CrimeSimulator vtable 00AB0DC8 slot 2	00170f70
+006a15b0	cSC4CrimeSimulator::Init	cISC4CrimeSimulator vtable 00AB0DC8 slot 3	00173b20
+006a1860	cSC4CrimeSimulator::Shutdown	cISC4CrimeSimulator vtable 00AB0DC8 slot 4	001725f4
+006a0050	cSC4CrimeSimulator::GetCrimeGrid	cISC4CrimeSimulator vtable 00AB0DC8 slot 5	00697c92
+0069f350	cSC4CrimeSimulator::GetAverageCrime	cISC4CrimeSimulator vtable 00AB0DC8 slot 6	001710e6
+0069f430	cSC4CrimeSimulator::GetCrimeHotspot	cISC4CrimeSimulator vtable 00AB0DC8 slot 8	0017130c
+006a10f0	cSC4CrimeSimulator::GetNearestCrimeSim	cISC4CrimeSimulator vtable 00AB0DC8 slot 9	0017197e
+006a0e50	cSC4CrimeSimulator::GetNearestCrimeProp	cISC4CrimeSimulator vtable 00AB0DC8 slot 10	00172758
+006a1960	cSC4CrimeSimulator::GetCrimeIncidentArray	cISC4CrimeSimulator vtable 00AB0DC8 slot 11	00173a04
+0069fd40	cSC4CrimeSimulator::SetVisualsCreated	cISC4CrimeSimulator vtable 00AB0DC8 slot 12	001715cc
+0069f9a0	cSC4CrimeSimulator::GetVisualsCreated	cISC4CrimeSimulator vtable 00AB0DC8 slot 13	00171696
+0069f1a0	cSC4CrimeSimulator::GetGZCLSID	mov eax,0x8990C09A; ret	00697c88
+0069f600	cSC4CrimeSimulator::Write	cIGZSerializable vtable 00AB0D84 slot 3	0017389e
+006a05e0	cSC4CrimeSimulator::Read	cIGZSerializable vtable 00AB0D84 slot 4	0017369c
+006a21c0	cSC4CrimeSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB0DB8 slot 3; same switch as Mac	00173e5c
+006a1fd0	cSC4CrimeSimulator::DoIdle	DoMessage Day/Idle branch; 6-state switch identical to Mac	00173278
+0069fb00	cSC4CrimeSimulator::DoCensus	DoIdle state 1, first call	001717fc
+0069f780	cSC4CrimeSimulator::CalculateEconomicFactors	DoIdle state 1, second call	00171106
+0069f360	cSC4CrimeSimulator::ComputeCriminalBase	DoIdle state 2, result stored at +0x94	00171222
+0069fc40	cSC4CrimeSimulator::DecayCrimeGrid	DoIdle state 4, first call	0017137a
+006a1530	cSC4CrimeSimulator::ClearCrimeEvents	DoIdle state 4, second call	001725a0
+006a1de0	cSC4CrimeSimulator::AddCrimes	DoIdle state 4, called with crime count +0x98	001730a2
+0069fd70	cSC4CrimeSimulator::ComputeAverageCrime	DoIdle state 4, last call	001714b4
+0069f260	cSC4CrimeSimulator::DoOccupantChanged	DoMessage Insert/RemoveOccupant branch; reads prop 0xCA5B9306	00170fa2
+006a07a0	cSC4CrimeSimulator::ReadSimulatorTunableValues	DoMessage branch; reads 0x8A0CBAAC etc.	00171c06

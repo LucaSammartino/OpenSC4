@@ -1,0 +1,436 @@
+win	count	mac_names
+00407990	9	cGZWinGen::GetUserArea | cGZWinGen::GetWinGenFlag | cGZWinGen::SetUserArea | cSC4DBSegmentIStream::Skip | cSC4EffectsCollection::EndCollection | cSC4ResidentialSimulator::Read | cSC4ViewInputControl::Activate | cSC4ViewInputControl::Deactivate | nSCRes::cSimpleCommand::RegisterCommands
+00407ab0	2	cSC4Advice::GetPriority | cSC4PylonOccupant::GetSourceOccupant
+00407ac0	5	cSC424HourClock::GetVisualTimeMode | cSC4Advice::GetAdvisorID | cSC4PowerSimulator::GetMonthlyRequirement | cSC4PylonOccupant::GetDispatchType | cSC4ResidentialSimulator::GetHospitalAverageGradeMap
+00407ad0	2	cSC4Advice::SetAdvisorID | cSC4PathFinder::SetRouteInfo
+00407b90	6	cSC4Advice::~cSC4Advice | cSC4AdviceNeghborDeal::~cSC4AdviceNeghborDeal | cSC4CitySituationAdvice::~cSC4CitySituationAdvice | cSC4MySimAdvice::~cSC4MySimAdvice | cSC4MySimBalloonAdvice::~cSC4MySimBalloonAdvice | cSC4RewardAdvice::~cSC4RewardAdvice
+00407ba0	5	cGZGraphicSystem::GetGDriver | cSC4Advice::GetFrequencyInDays | cSC4CrimeSimulator::GetMonthlyCrimeCount | cSC4FireProtectionSimulator::GetDepartmentBudget | cSC4PoliceSimulator::GetDepartmentBudget
+00407bb0	2	cSC4Advice::GetTextMessage | cSC4OrdinanceSimple::GetDescription
+0040ce50	5	cRZVariant::AsBool | cRZVariant::AsChar | cRZVariant::AsRZChar | cRZVariant::AsSint8 | cRZVariant::AsUint8
+0040ce60	6	cGZLua5Thread::GetUserContext | cGZMouseMessage::Position | cRZVariant::GetCount | cSC4AutomataController::GetTemplate | cSC4DBSegmentIStream::GetUserData | nSCRes::cFileParser::Parser
+0040ce70	3	cGZMouseMessage::WheelDelta | cSC4AudioAmbienceManager::GetServiceID | cSC4ViewInputControl::GetCursor
+0040cf10	3	cGZMouseMessage::KeyFlags | cGZMouseMessage::WheelDelta | cSTETerrain::TerrainType
+0040d390	5	cSC4Advisor::GetID | cSC4AdvisorSystem::GetScriptingContext | cSC4AnimationTickManager::GetCurrentTickTime | cSC4AuraSimulator::GetParkMap | cSC4PowerSimulator::GetMonthlyImport
+0040d3a0	2	cSC4Advisor::GetName | cSCParticleSimulatorBase::GetParticles
+0040d3d0	1	cSC4Advisor::GetCurrentAdvices
+0040e9b0	2	cSC4Advisor::RetireAdvice | cSC4AdvisorCitySituations::RetireAdvice
+004186e0	3	cSC4AdvisorSystem::AddRef | cSC4TutorialSystem::AddRef | nSGLDX7::cGDriver::AddRef
+00420d90	2	cSC4AdviceNeghborDeal::Write | cSC4DisasterInstanceFire::GetPhase
+00423650	2	cSC4CitySituationAdvice::GetSituationFlags | cSC4PoliceSimulator::GetJails
+00423700	2	cSC4CitySituationAdvice::GetRewardGuid | cSC4PlumbingSimulator::GetWaterProductionCapacity
+00423710	3	cSC4City::GetOccupantManager | cSC4CitySituationAdvice::GetCoverageType | cSC4PollutionSimulator::GetMonthlyIncineratorCapacity
+00423720	2	cSC4City::GetZoneDeveloper | cSC4CitySituationAdvice::GetCoverageNetworkType
+00423750	2	cSC4City::GetPropDeveloper | cSC4CitySituationAdvice::GetCoverageCellsMax
+00423850	3	cSC4City::GetPollutionSimulator | cSC4CitySituationAdvice::GetScriptTableRef | cSC4PlumbingSimulator::GetNumPollutedWaterSources
+00424b60	5	cSC4DisasterManagerEffect::AddRef | cSC4DisasterManagerToxic::AddRef | cSC4DisasterManagerVolcano::AddRef | cSC4MySim::AddRef | cSCLua::AddRef
+00424b70	5	cSC4DisasterManagerEffect::Release | cSC4DisasterManagerToxic::Release | cSC4DisasterManagerVolcano::Release | cSC4MySim::Release | cSCLua::Release
+0042e440	2	cSC4AutomataScriptSystem::Write | cSC4Nation::Write
+004302a0	2	cSTEOverlayManager::AddRef | nSCRes::cFileParser::AddRef
+004302b0	2	cSTEOverlayManager::Release | nSCRes::cFileParser::Release
+0043d230	2	cSC4City::GetNetworkLotManager | cSC4CitySituationAdvice::GetCoverageSuccessCount
+00447e30	2	cSC4AnimationTickManager::AddRef | cSC4Simulator::AddRef
+00449310	3	cSC4AdvisorSystem::Release | cSC4App::Release | cSC4TutorialSystem::Release
+0044b4f0	2	cSC4App::GetGlyphTextureManager | cSC4App::IsRunFirstTimeAfterInstall
+00459880	2	cSC4City::GetParkManager | cSC4PylonOccupant::GetPylonOwner
+004664a0	9	cRZNetCommandGenerator::AddRef | cSC4BusinessUnit::AddRef | cSC4CivicBuildingSimulator::AddRef | cSC4Demolition::AddRef | cSC4GamePreferencesWinProc::AddRef | cSC4LightingManager::AddRef | cSC4Lot::AddRef | cSC4NetworkManager::AddRef | cSC4VideoPreferencesWinProc::AddRef
+004777e0	6	cGZLua5Thread::GetContext | cGZMouseMessage::GetType | cRZNetSocket::GetSocket | cSC4DBSegmentIStream::GetRecord | cSC4LotConfiguration::GetID | cSCParticleSimulatorBase::RefCount
+00477810	3	cGZWin::GetAreaToDrawTo | cSC4AutomataController::TractRect | cSC4LotConfiguration::GetFamilyIDArray
+00477850	2	cSC4LotConfiguration::GetMinimumSlope | cSC4WeatherSimulator::CellWidthX
+00477860	2	cSC4LotConfiguration::GetMaximumSlopeBeforeFoundation | cSC4WeatherSimulator::CellWidthZ
+00477890	2	cSC4Advice::GetTriggerString | cSC4LotConfiguration::GetLotConfigurationObjectArray
+004778a0	3	cSC4FireProtectionSimulator::GetPercentCoverage | cSC4LotConfiguration::GetRetainingWallIDArray | cSC4PoliceSimulator::GetPercentCoverage
+0049a1e0	2	cSC4WinLotConfigurationChooser::QueryInterface | cSC4WinNetworkLotChooser::QueryInterface
+0049c7b0	7	cSC4ObliterateCity::OnMouseDownL | cSC4ObliterateCity::OnMouseMove | cSC4ObliterateCity::OnMouseUpL | cSC4WinMiniMap::GZOnMouseDownR | cSCPropertyView::GZOnMouseDownL | cSCResKeyInputView::GZOnMouseDownL | cWinBMPView::GZOnMouseMove
+004abad0	4	cSC4CatalogItem::GetCost | cSC4DispatchManager::GetActivePylon | cSC4WeatherSimulator::CellCountX | cSTETerrain::CellCountZ
+004b7ed0	3	cSC4ViewInputControlCityScroll::~cSC4ViewInputControlCityScroll | cSC4ViewInputControlFlora::~cSC4ViewInputControlFlora | cSC4ViewInputControlLevelTerrain::~cSC4ViewInputControlLevelTerrain
+004b8480	3	cSC4ViewInputControlCitySituations::QueryInterface | cSC4ViewInputControlGameOfLife::QueryInterface | cSC4ViewInputControlPlayerDrive::QueryInterface
+004b9de0	2	cSC4MySimInputControlDispatch::QueryInterface | cSC4ViewInputControlDispatch::QueryInterface
+004b9e20	5	cSC4MySimInputControlDispatch::Release | cSC4ViewInputControl::Release | cSC4ViewInputControlDispatch::Release | cSC4ViewInputControlPlaceLot::Release | cSC4ViewInputControlQuery::Release
+004bd280	10	cSC4ObliterateCity::AddRef | cSC4ViewInputControlCitySituations::AddRef | cSC4ViewInputControlGameOfLife::AddRef | cSC4ViewInputControlLabelTool::AddRef | cSC4ViewInputControlNetworkTool::AddRef | cSC4ViewInputControlPlayerDrive::AddRef | cSC4ViewInputControlSignTool::AddRef | cSC4ViewInputControlTerrainScrubber::AddRef | cSC4ViewInputControlTorch::AddRef | cSC4ViewInputControlZone::AddRef
+004bd290	10	cSC4ObliterateCity::Release | cSC4ViewInputControlCitySituations::Release | cSC4ViewInputControlGameOfLife::Release | cSC4ViewInputControlLabelTool::Release | cSC4ViewInputControlNetworkTool::Release | cSC4ViewInputControlPlayerDrive::Release | cSC4ViewInputControlSignTool::Release | cSC4ViewInputControlTerrainScrubber::Release | cSC4ViewInputControlTorch::Release | cSC4ViewInputControlZone::Release
+004bdbe0	5	cSC4ViewInputControlEffect::OnKeyDown | cSC4ViewInputControlFlora::OnKeyDown | cSC4ViewInputControlGameOfLife::OnKeyUp | cSC4ViewInputControlLevelTerrain::OnKeyDown | cSC4ViewInputControlTorch::OnKeyDown
+004bdf00	17	cSC4AdvisorPopupTracker::AddRef | cSC4AdvisorUIAdvisorWinProc::AddRef | cSC4AudioAmbienceLayer::AddRef | cSC4FeatureManager::AddRef | cSC4GraphsViewWinProc::AddRef | cSC4MySimInputControlDispatch::AddRef | cSC4NewsTickerWinProc::AddRef | cSC4OccupantFilter::AddRef | cSC4PathFinder::AddRef | cSC4Region::AddRef | cSC4ViewInputControl::AddRef | cSC4ViewInputControlDispatch::AddRef | cSC4ViewInputControlPlaceLot::AddRef | cSC4ViewInputControlQuery::AddRef | cSC4WealthRequester::AddRef | cSCParticleSimulatorBase::AddRef | cSTEChangeTerrainUI::AddRef
+004bdf10	2	cSC4ViewInputControlPlaceLot::QueryInterface | cSC4ViewInputControlQuery::QueryInterface
+004c44e0	2	cSC4QueryDialogWinProc::QueryInterface | cSC4TutorialUIWinProc::QueryInterface
+004d7aa0	2	cSC4ViewInputControlSignLabelDemolish::~cSC4ViewInputControlSignLabelDemolish | cSC4ViewInputControlTollBooth::~cSC4ViewInputControlTollBooth
+004e13e0	12	cSC43DRender::GetProjectionMatrixEntries | cSC43DRender::GetViewMatrixEntries | cSC4AudioAmbienceManager::GetServicePriority | cSC4DisasterInstanceEarthquake::GetManager | cSC4DisasterInstanceRiot::Read | cSC4DisasterManagerEffect::AttemptDisasterStart | cSC4DisasterManagerFire::AttemptDisasterStart | cSC4DisasterManagerRiot::AttemptDisasterStart | cSC4DisasterManagerToxic::AttemptDisasterStart | cSC4PropOccupant::GetPropPlacementProperties | cSC4ResidentialSimulator::GetTotalCityEducationUpkeepCost | cSC4ResidentialSimulator::GetTotalCityHealthUpkeepCost
+004e76a0	2	cSC4AudioAmbienceLayer::GetLayerId | cSC4City::GetEffectsManager
+004e82a0	2	cSC43DRender::GetDrawContext | cSC4City::CellCountZ
+004ed900	3	cGZLua5::GetErrorReporter | cSC4Nation::GetActiveRegionIndex | cSC4TutorialSystem::GetTutorialTaskNumber
+004f0240	3	cSC4AudioEventHandlerDisasterFire::AddRef | cSC4HistoryWarehouse::AddRef | cSC4NeighborDeal::AddRef
+004f1f30	9	cSC4AudioPreferencesWinProc::QueryInterface | cSC4CreditsWinProc::QueryInterface | cSC4EstablishCityWinProc::QueryInterface | cSC4GamePreferencesWinProc::QueryInterface | cSC4LegendDialogWinProc::QueryInterface | cSC4SubBudgetWindow::QueryInterface | cSC4TipOfTheDayWinProc::QueryInterface | cSC4VideoPreferencesWinProc::QueryInterface | cSC4WinSnapshotAlbum::QueryInterface
+004f7ba0	27	cSC43DRender::AddRef | cSC4AudioAmbienceManager::AddRef | cSC4AudioSoundManager::AddRef | cSC4AuraSimulator::AddRef | cSC4BudgetSimulator::AddRef | cSC4DemandSimulator::AddRef | cSC4DispatchManager::AddRef | cSC4FloraSimulator::AddRef | cSC4LandfillDeveloper::AddRef | cSC4LotConfigurationManager::AddRef | cSC4LotDeveloper::AddRef | cSC4Nation::AddRef | cSC4NeighborsSimulator::AddRef | cSC4NetworkConstructionCrew::AddRef | cSC4NetworkLot::AddRef | cSC4OrdinanceSimulator::AddRef | cSC4PlumbingSimulator::AddRef | cSC4PortDeveloper::AddRef | cSC4PowerSimulator::AddRef | cSC4PropDeveloper::AddRef | cSC4PropManager::AddRef | cSC4RegionalCity::AddRef | cSC4ResidentialSimulator::AddRef | cSC4TrafficSimulator::AddRef | cSC4ZoneManager::AddRef | cSTESurfaceWater::AddRef | cSTETerrain::AddRef
+004fc900	9	cRZNetStreamSocket::DoMessage | cSC4AnimationTickManager::OnTick | cSC4App::OnTick | cSC4AudioAmbienceManager::OnIdle | cSC4DisasterManagerEffect::Init | cSC4LotConfiguration::IsCompatibleWithMonopolyPieceUse | cSC4OccupantFilter::IsOccupantTypeIncluded | cSC4WinSnapshotTaker::GZOnCharacter | cSCLuaCOMDirector::OnStart
+00505be0	2	cWinBMPView::GZOnKeyUp | cWinSC4App::GZOnCommand
+005151f0	2	cSC4AutomataAttractor::QueryInterface | cSC4AutomataGenerator::QueryInterface
+00517f10	3	cSC4AutomataAttractor::Release | cSC4AutomataController::Release | cSC4AutomataGenerator::Release
+00517f70	5	cGZLua5Thread::GetLua | cGZMouseMessage::EventType | cSC4AutomataController::GetOccupant | cSC4DBSegmentIStream::GetSegment | cSC4ViewInputControl::GetID
+00518330	2	cSC4AutomataController::IsTickable | cSC4AutomataGenerator::IsTickable
+00519340	2	cSC4AutomataController::Write | cSC4AutomataGenerator::Write
+00520080	2	cSC4AdvisorSystem::GetAdvisors | cSC4AutomataScriptSystem::GetOccupantGroupNameMap
+00524410	2	cSC4Bus::~cSC4Bus | cSC4GetawayVan::~cSC4GetawayVan
+00524490	2	cSC4CarjackedVehicle::Read | cSC4MayorLimo::Read
+00532270	2	cSC4Ambulance::~cSC4Ambulance | cSC4EmergencyVehicle::~cSC4EmergencyVehicle
+0053cce0	2	cSC4MassTransitTrain::~cSC4MassTransitTrain | cSC4Train::~cSC4Train
+0053ce00	2	cSC4CarjackedVehicle::Write | cSC4MayorLimo::Write
+00547920	2	cSC4RiotPolice::QueryInterface | cSC4SimFireCrew::QueryInterface
+00557040	2	cSC4TrainCar::QueryInterface | cSC4Vehicle::QueryInterface
+00577450	2	cSC4DisasterManager::GetInstances | cSC4Region::GetName
+00577470	2	cSC4DisasterManager::QueryInterface | cSC4DisasterManagerEffect::QueryInterface
+00579100	2	cSC4DisasterManagerFire::AsISC4DisasterManager | cSC4DisasterManagerVolcano::AsISC4DisasterManager
+00579170	2	cSC4DisasterManagerEffect::Shutdown | cSC4DisasterManagerFire::Shutdown
+005792a0	2	cSC4DisasterInstanceFire::GetID | cSC4DisasterManagerFire::GetID
+0057eb00	24	cGZLua5::AddRef | cGZLua5CommandGenerator::AddRef | cGZLua5Thread::AddRef | cSC4AdviceSubject::AddRef | cSC4Advisor::AddRef | cSC4BudgetUIExpenseWinProc::AddRef | cSC4BudgetUIIncomeWinProc::AddRef | cSC4BudgetUIWinProc::AddRef | cSC4COMSerializer::AddRef | cSC4DBSegmentIStream::AddRef | cSC4DBSegmentOStream::AddRef | cSC4DisasterInstanceEarthquake::AddRef | cSC4DisasterInstanceFire::AddRef | cSC4DisasterInstanceRiot::AddRef | cSC4DisasterInstanceToxic::AddRef | cSC4DisasterLayer::AddRef | cSC4DisasterManager::AddRef | cSC4DisasterManagerEffect::AddRef | cSC4DisasterManagerFire::AddRef | cSC4MySimDispatch::AddRef | cSC4PickSimWinProc::AddRef | cSC4QueryDialogWinProc::AddRef | cSC4TutorialUIWinProc::AddRef | cSC4UIHTMLHook::AddRef
+0057eb70	22	cGZLua5::Release | cGZLua5CommandGenerator::Release | cGZLua5Thread::Release | cSC4AdviceSubject::Release | cSC4Advisor::Release | cSC4BudgetUIExpenseWinProc::Release | cSC4BudgetUIIncomeWinProc::Release | cSC4BudgetUIWinProc::Release | cSC4COMSerializer::Release | cSC4DBSegmentIStream::Release | cSC4DBSegmentOStream::Release | cSC4DisasterInstanceEarthquake::Release | cSC4DisasterInstanceRiot::Release | cSC4DisasterInstanceToxic::Release | cSC4DisasterLayer::Release | cSC4DisasterManager::Release | cSC4DisasterManagerEffect::Release | cSC4DisasterManagerFire::Release | cSC4MySimDispatch::Release | cSC4PickSimWinProc::Release | cSC4QueryDialogWinProc::Release | cSC4TutorialUIWinProc::Release
+0057f310	2	cSC4DisasterManagerEffect::QueryInterface | cSC4DisasterManagerVolcano::QueryInterface
+00580500	2	cSC4ViewInputControlLabelTool::QueryInterface | cSC4ViewInputControlTorch::QueryInterface
+005a4de0	2	cSC4City::GetZoneManager | cSC4CitySituationAdvice::GetCoverageOccupantGroup
+005ac030	2	cSC4GeometrySourcedParticlesEffect::Init | cSC4ModelBasedParticlesEffect::Init
+005b9d30	2	cSCParticleSimulatorBase::IsInDelayedStop | cSTETerrain::IsInitialized
+005bcb30	3	cSC4Advice::Release | cSC4CitySituationAdvice::Release | cSTETerrainView3D::Release
+005be2e0	7	cS3DMaterialManager::CreateMaterialVariant | cSC43DRender::GetModelsInVolume | cSC4ViewInputControl::OnMouseDownL | cSC4ViewInputControl::OnMouseDownR | cSC4ViewInputControl::OnMouseMove | cSC4ViewInputControl::OnMouseUpL | cSC4ViewInputControl::OnMouseUpR
+005be3e0	3	cSC4Advice::AddRef | cSC4CitySituationAdvice::AddRef | cSTETerrainView3D::AddRef
+005c1f80	2	cGZAlphaBlt::AddRef | cGZGraphicSystem::AddRef
+005c1f90	2	cGZAlphaBlt::Release | cGZGraphicSystem::Release
+005c3e30	2	cGZCommandSystemSupport::QueryInterface | cSC4NetworkConstructionCrew::QueryInterface
+005d1620	2	cSC4DBSegmentIStream::QueryInterface | cSC4DBSegmentOStream::QueryInterface
+005d16c0	2	cSC4DBSegment::CloseIStream | cSC4DBSegment::CloseOStream
+005d2070	2	cSC4City::GetTutorialSystem | cSC4DBSegment::GetCOMSerializer
+005d25f0	2	cSC4City::GetPedestrianManager | cSC4DBSegment::GetLastError
+005d6360	2	cSC4FloraOccupant::GetPosition | cSC4FoundationOccupant::GetPosition
+005d6380	2	cSC4FloraOccupant::SetPosition | cSC4FoundationOccupant::SetPosition
+005d7b40	2	cSC4GlyphTextureManager::AddRef | cSC4OrdinanceSimple::AddRef
+005dea50	2	cSC4LotBaseTextureOccupant::Init | cSC4PowerLineOccupant::Init
+005deb40	7	cSC4AudioAmbienceLayer::CanHandleOccupant | cSC4FoundationModel::Pick | cSC4LotDeveloper::IsAreaDeveloped | cSC4LotRetainingWallModel::Pick | cSC4Occupant::GetLotTag | cSC4PropOccupant::GetLotTag | cSC4ViewInputControl::OnCharacter
+005ded60	2	cSC4LotBaseTextureOccupant::GetBoundingBox | cSC4PropOccupant::GetBoundingBox
+005e28c0	2	cSC4LotRetainingWallOccupant::QueryInterface | cSC4PowerLineOccupant::QueryInterface
+005e28f0	10	cSC4Automaton::AddRef | cSC4FireOccupant::AddRef | cSC4FloraOccupant::AddRef | cSC4FoundationOccupant::AddRef | cSC4LotBaseTextureOccupant::AddRef | cSC4LotRetainingWallOccupant::AddRef | cSC4NetworkOccupant::AddRef | cSC4PowerLineOccupant::AddRef | cSC4PropOccupant::AddRef | cSC4ToxicOccupant::AddRef
+005e2900	10	cSC4Automaton::Release | cSC4FireOccupant::Release | cSC4FloraOccupant::Release | cSC4FoundationOccupant::Release | cSC4LotBaseTextureOccupant::Release | cSC4LotRetainingWallOccupant::Release | cSC4NetworkOccupant::Release | cSC4PowerLineOccupant::Release | cSC4PropOccupant::Release | cSC4ToxicOccupant::Release
+005e89b0	8	cSC4LotBaseTextureOccupant::AddRef | cSC4Occupant::AddRef | cSC4PropOccupant::AddRef | cSC4PropOccupantBurntBuilding::AddRef | cSC4PropOccupantTerrainDecal::AddRef | cSC4PylonOccupant::AddRef | cSC4SignpostOccupant::AddRef | cSC4TextDecalOccupant::AddRef
+005e8df0	8	cSC4LotBaseTextureOccupant::Release | cSC4Occupant::Release | cSC4PropOccupant::Release | cSC4PropOccupantBurntBuilding::Release | cSC4PropOccupantTerrainDecal::Release | cSC4PylonOccupant::Release | cSC4SignpostOccupant::Release | cSC4TextDecalOccupant::Release
+005ec9e0	2	cSC4PropOccupant::SetOrientation | cSC4PropOccupantAutomataController::SetOrientation
+005ecaf0	5	cSC4PropOccupantAutomataController::AddRef | cSC4PropOccupantTerrainDecal::AddRef | cSC4PropOccupantVisualEffect::AddRef | cSC4SignpostOccupant::AddRef | cSC4TextDecalOccupant::AddRef
+005ecb00	5	cSC4PropOccupantAutomataController::Release | cSC4PropOccupantTerrainDecal::Release | cSC4PropOccupantVisualEffect::Release | cSC4SignpostOccupant::Release | cSC4TextDecalOccupant::Release
+005ede00	2	cSC4PropOccupant::SetPosition | cSC4PropOccupantAutomataController::SetPosition
+005f47f0	23	cGZCommandSystemSupport::AddRef | cGZMouseMessage::AddRef | cSC4AudioListener::AddRef | cSC4AudioSemManager::AddRef | cSC4BuildingSelectWinProc::AddRef | cSC4CreditsWinProc::AddRef | cSC4DecalEffect::AddRef | cSC4EstablishCityWinProc::AddRef | cSC4LegendDialogWinProc::AddRef | cSC4LotConfiguration::AddRef | cSC4LotConfigurationFilter::AddRef | cSC4PanelUIWinProc::AddRef | cSC4ScriptServiceResourceFactory::AddRef | cSC4SubBudgetWindow::AddRef | cSC4TimeDisplayMiniWindowWinProc::AddRef | cSC4TipOfTheDayWinProc::AddRef | cSC4ToolTipManager::AddRef | cSC4WinSnapshotAlbum::AddRef | cSCExemplarPropertyHolder::AddRef | cSCPropertyHolder::AddRef | cSCStringDetokenizer::AddRef | cSLWinLocationSaver::AddRef | cSTEChangeTerrainUI::AddRef
+005f8400	5	cSC4PropOccupantAutomataController::AsOccupant | cSC4PropOccupantVisualEffect::AsOccupant | cSC4SignpostOccupant::AsOccupant | cSC4TextDecalOccupant::AsOccupant | cSC4View3DWin::AsIGZWin
+005fb0e0	3	cSC4MySimInputControlDispatch::FinalRelease | cSC4ViewInputControl::FinalRelease | cSC4ViewInputControlDispatch::FinalRelease
+005fd230	1	cSCPropertyHolder::GetProperty
+005fd260	1	cSCPropertyHolder::GetProperty
+005fd290	2	cSCExemplarPropertyHolder::GetProperty | cSCPropertyHolder::GetProperty
+005fd2d0	1	cSCPropertyHolder::GetProperty
+005fd370	2	cSCExemplarPropertyHolder::Release | cSCPropertyHolder::Release
+005fd610	3	cRZVariant::AsRZUnicodeChar | cRZVariant::AsSint16 | cRZVariant::AsUint16
+005fd620	2	cRZVariant::AsSint64 | cRZVariant::AsUint64
+005fd7e0	2	cSC4CitySituationAdvice::AsAdvice | cSC4LotBaseTextureOccupant::AsOccupant
+0060cb80	2	cSC4Lot::SetLotConfiguration | cSC4NetworkLotManager::SetLotConfigurationForNextPiece
+0060ce80	24	cGZLua5Thread::GetID | cRZNetSocket::GetID | cRZVariant::AsSint32 | cRZVariant::AsUint32 | cRZVariant::AsVoidPtr | cRZVariant::RefBool | cRZVariant::RefChar | cRZVariant::RefFloat32 | cRZVariant::RefFloat64 | cRZVariant::RefIGZUnknown | cRZVariant::RefRZChar | cRZVariant::RefRZUnicodeChar | cRZVariant::RefSint16 | cRZVariant::RefSint32 | cRZVariant::RefSint64 | cRZVariant::RefSint8 | cRZVariant::RefUint16 | cRZVariant::RefUint32 | cRZVariant::RefUint64 | cRZVariant::RefUint8 | cRZVariant::RefVoid | cRZVariant::RefVoidPtr | cSC4NetworkLot::GetNetworkOccupant | cSCExemplarPropertyHolder::GetDefaultExemplar
+0060fb50	15	cRZVariant::AsBool | cRZVariant::AsChar | cRZVariant::AsFloat32 | cRZVariant::AsFloat64 | cRZVariant::AsRZChar | cRZVariant::AsRZUnicodeChar | cRZVariant::AsSint16 | cRZVariant::AsSint32 | cRZVariant::AsSint64 | cRZVariant::AsSint8 | cRZVariant::AsUint16 | cRZVariant::AsUint32 | cRZVariant::AsUint64 | cRZVariant::AsUint8 | cSC4CatalogItem::GetName
+0060fb80	5	cGZDrawContext::GetEngine | cSC4City::GetDifficultyLevel | cSC4DispatchManager::GetDispatchVehicleView | cSC4NeighborsSimulator::GetTuningExemplar | cSTETerrain::CellCountX
+00619100	2	cSC4NetworkOccupant::Shutdown | cSC4PowerLineOccupant::Shutdown
+0062c980	18	cIGZWinProc::DoWinProcMessage | cS3DFSHTextureFactory::SerialWrite | cS3DMaterialManager::CreateMaterialInstance | cS3DMaterialManager::~cS3DMaterialManager | cS3DResSpriteAnimFactory::SerialWrite | cSC4DisasterInstanceFire::GetLocation | cSC4PathInfoFactory::SerialWrite | cSC4View3DWin::GZOnKeyDown | cSC4View3DWin::GZOnKeyUp | cSC4ViewInputControl::OnKeyDown | cSC4ViewInputControl::OnKeyUp | cSC4ViewInputControlCitySituations::OnKeyDown | cSC4ViewInputControlCitySituations::OnKeyUp | cSC4ViewInputControlQuery::OnKeyDown | cSC4WinRegionScreen::GZOnKeyDown | cSC4WinRegionScreen::GZOnKeyUp | cWinSC4App::GZOnKeyDown | cWinSC4App::GZOnKeyUp
+00648070	2	cSC4PipeConnectionOccupant::Shutdown | cSC4SubwayConnectionOccupant::Shutdown
+00648ef0	13	cSC4MySimInputControlChangeJob::ShouldStack | cSC4MySimInputControlDispatch::ShouldStack | cSC4PollutionSimulator::UsesCustomPropSelector | cSC4PowerSimulator::BeginStrike | cSC4PowerSimulator::EndStrike | cSC4PowerSimulator::IsOnStrike | cSC4UndergroundConnectionOccupant::Write | cSC4ViewInputControl::IsSelfScrollingView | cSC4ViewInputControl::OnMouseExit | cSC4ViewInputControlDispatch::ShouldStack | cSC4ViewInputControlEffect::ShouldStack | cSC4ViewInputControlQuery::ShouldStack | cSC4ViewInputControlTorch::ShouldStack
+00648f00	11	cRZCOMDllDirector::OnUnload | cSC4AutomataController::ReadyToExpire | cSC4AutomataGenerator::ReadyToExpire | cSC4CrimeSimulator::UsesCustomPropSelector | cSC4ViewInputControl::ShouldStack | cSC4ViewInputControlCityScroll::IsSelfScrollingView | cSC4ViewInputControlPlayerDrive::IsSelfScrollingView | cSC4WealthRequester::UsesCustomPropSelector | cSCStringDetokenizer::Shutdown | nSCRes::cFileParser::Init | nSGLDX7::cGDriver::IsDeviceReady
+00648f10	13	cGZGraphicSystem::SetEnableRenderToScreen | cSC4ConstructionOccupant::SetPosition | cSC4DecalEffect::ApplyEffect | cSC4Demolition::SetDefaultOccupantFilter | cSC4FireOccupant::SetPosition | cSC4LotBaseTextureOccupant::SetPosition | cSC4NetworkOccupant::SetPosition | cSC4Occupant::SetLotTag | cSC4Occupant::SetPosition | cSC4PropOccupant::SetLotTag | cSC4PropOccupant::SetPropPlacementProperties | cSC4PylonOccupant::SetOwner | cSC4View3DWin::SetErrorReportString
+00648f40	2	cSC4PipeOccupant::GetGZCLSID | cSC4UndergroundConnectionOccupant::Init
+006491c0	5	cSC4ConstructionOccupant::AddRef | cSC4PowerPoleOccupant::AddRef | cSC4PropOccupant::AddRef | cSC4PropOccupantBurntBuilding::AddRef | cSC4PylonOccupant::AddRef
+006491d0	5	cSC4ConstructionOccupant::Release | cSC4PowerPoleOccupant::Release | cSC4PropOccupant::Release | cSC4PropOccupantBurntBuilding::Release | cSC4PylonOccupant::Release
+00652cf0	2	cSC4PipeOccupant::Shutdown | cSC4SubwayOccupant::Shutdown
+00653d90	2	cSC4SubwayOccupant::GetGZCLSID | cSC4UndergroundConnectionOccupant::Init
+00653dc0	2	cSC4UndergroundConnectionOccupant::GetBoundingBox | cSC4UndergroundConnectionOccupant::GetBounds
+00654710	2	cSC4PipeConnectionOccupant::~cSC4PipeConnectionOccupant | cSC4SubwayConnectionOccupant::~cSC4SubwayConnectionOccupant
+0065a860	5	cSC4NetworkBridgeOccupant::AddRef | cSC4NetworkOccupantWithPreBuiltModel::AddRef | cSC4RiotPolice::AddRef | cSC4SimFireCrew::AddRef | cSC4UndergroundOccupant::AddRef
+0065a870	5	cSC4NetworkBridgeOccupant::Release | cSC4NetworkOccupantWithPreBuiltModel::Release | cSC4RiotPolice::Release | cSC4SimFireCrew::Release | cSC4UndergroundOccupant::Release
+00661d70	4	cSC4ObliterateCity::QueryInterface | cSC4ViewInputControlNetworkTool::QueryInterface | cSC4ViewInputControlTerrainScrubber::QueryInterface | cSC4ViewInputControlZone::QueryInterface
+00669260	2	cSC4AudioAmbienceManager::SetServiceRunning | cSCExemplarResourceView::SetReadOnly
+006692d0	3	cSCExemplarResourceView::DoMessage | cSCPropertyView::DoMessage | cSCResKeyTableEntryView::DoMessage
+0066b160	2	cSCEditValueDlg::GZOnCommand | cSCHappinessCurveEntryView::GZOnCommand
+00675d80	5	cSCEditValueDlg::GZPaint | cSCHappinessCurveEntryView::GZPaint | cSCPropertyView::GZPaint | cSCResCatBaseView::GZPaint | cSCResourceCatalogView::GZPaint
+006773d0	3	nSCRes::cBlockCommandT<cSC4EffectsParser>::EndBlock | nSCRes::cBlockCommandT<cSC4RuleParser>::EndBlock | nSCRes::cBlockCommandT<nSCRes::cCommandParser>::EndBlock
+0067cb10	2	cSCResExemplarCohortFactory::SetWriteMode | cSCResExemplarFactory::SetWriteMode
+00682050	4	cSC4WinRegionView::QueryInterface | cSCPropertyView::QueryInterface | cSCResCatBaseView::QueryInterface | cSCResKeyInputView::QueryInterface
+00682100	4	cSCPropertyView::GZOnKeyDown | cSCResCatBaseView::GZOnKeyDown | cSCResKeyInputView::GZOnKeyDown | cSCResourceCatalogView::GZOnKeyDown
+00682120	4	cSCPropertyView::GZOnKeyUp | cSCResCatBaseView::GZOnKeyUp | cSCResKeyInputView::GZOnKeyUp | cSCResourceCatalogView::GZOnKeyUp
+00683dc0	2	cSCExemplarResourceView::Shutdown | cSCResKeyTableEntryView::Shutdown
+0068d1b0	3	cSC4App::GetMainWindow | cSC4AuraSimulator::GetAuraGrid | cSC4Simulator::GetSimTime
+0068d1c0	3	cSC4AuraSimulator::GetTransientAuraGrid | cSC4Lot::GetUnit | cSTESurfaceWater::GetBodyOfWaterMap
+0068fd40	1	cSC4BudgetSimulator::GetFunding
+00691030	2	cSC4BudgetSimulator::FundingPercentageChanged | cSC4BudgetSimulator::NeededFundingChanged
+00695330	7	cSC4AutomataControllerManager::AddRef | cSC4AutomataScriptSystem::AddRef | cSC4BuildingDevelopmentSimulator::AddRef | cSC4CrimeSimulator::AddRef | cSC4PollutionSimulator::AddRef | cSC4WeatherSimulator::AddRef | cSC4ZoneDeveloper::AddRef
+00698ce0	3	cSC4PathFinder::GetTrafficArrived | cSC4PowerSimulator::GetPoweredConsumerCount | cSC4PylonOccupant::GetUIState
+00698cf0	4	cSC4App::GetNation | cSC4City::GetBirthDate | cSC4TrafficSimulator::GetCongestionMap | cSC4ZoneManager::GetZoneGrid
+006a0050	5	cGZGraphicSystem::GetGDriverCount | cRZNetStreamSocket::GetConnectStatus | cSC4AdvisorSystem::~cSC4AdvisorSystem | cSC4CrimeSimulator::GetCrimeGrid | cSC4PowerSimulator::GetMonthlyExport
+006aac50	7	cGZLuaScriptServer::GetLastCreatedScriptID | cGZWinGenDlg::GetStyle | cSC4CatalogItem::GetIcon | cSC4City::GetCitySerialNumber | cSC4Occupant::GetPlaceableObject | cSC4TrafficSimulator::GetAirPollutingTrafficMap | cSC4WeatherSimulator::CellCountZ
+006aaeb0	2	cSC4PowerSimulator::GetMonthlyConsumption | cSC4ResidentialSimulator::GetAverageAgeMap
+006ad1b0	2	cSC4FireProtectionSimulator::Release | cSC4PoliceSimulator::Release
+006ad530	2	cSC4FireProtectionSimulator::SetStationFunding | cSC4PoliceSimulator::SetStationFunding
+006ada30	2	cSC4FireProtectionSimulator::GetFireStationCount | cSC4PoliceSimulator::GetPoliceStationCount
+006b8a70	2	cSC4AutomataScriptSystem::Read | cSC4Nation::Read
+006b9850	2	cSC4BudgetSimulator::GetTotalBorrowed | cSC4LandfillDeveloper::GetMaintenanceCosts
+006bdd80	3	cSC4NeighborConnection::GetType | cSC4Occupant::GetType | cSC4TutorialSystem::GetTutorialGUID
+006c2040	11	cSC4DBSegment::AsIGZPersistDBSegment | cSC4DisasterInstanceEarthquake::AsISC4DisasterInstance | cSC4DisasterInstanceRiot::Write | cSC4DisasterInstanceToxic::AsISC4DisasterInstance | cSC4DisasterManagerEffect::Shutdown | cSC4Lot::AsPropertyHolder | cSC4NeighborConnection::AsISCPropertyHolder | cSC4Occupant::AsPropertyHolder | cSC4OrdinanceSimple::GetMiscProperties | cSC4PropOccupant::AsOccupant | cSC4PylonOccupant::AsOccupant
+006c2050	2	cSC4Lot::AsTrafficSource | cSC4NeighborConnection::AsTrafficSource
+006c4a00	2	cSC4DefaultOccupantFilter::~cSC4DefaultOccupantFilter | cSC4RealisticOccupantFilter::~cSC4RealisticOccupantFilter
+006d6e00	2	cS3DTextureBindingFactory::SetInternalTextureBitDepth | cSC4PathFinder::SetTrafficDensity
+006d6e70	2	cSC4AdviceNeghborDeal::Read | cSC4PathFinder::SetMaxWorkTime
+006dc680	2	cSC4City::GetHistoryWarehouse | cSC4PlumbingSimulator::GetWaterExported
+006dc690	2	cSC4City::GetFireProtectionSimulator | cSC4PlumbingSimulator::GetNumPipes
+006dc6a0	2	cSC4City::GetFlammabilitySimulator | cSC4PlumbingSimulator::GetNumDistressedPipes
+006dc6b0	2	cSC4City::GetOrdinanceSimulator | cSC4PlumbingSimulator::GetNumWateredBuildings
+006e0120	2	cSC4FireProtectionSimulator::IsOnStrike | cSC4PoliceSimulator::IsOnStrike
+006e0130	3	cSC4Advice::GetEventID | cSC4FireProtectionSimulator::GetStrikeStartDate | cSC4PoliceSimulator::GetStrikeStartDate
+006e0140	2	cSC4FireProtectionSimulator::GetStrikeLength | cSC4PoliceSimulator::GetStrikeLength
+006e0180	2	cSC4FireProtectionSimulator::GetFireStations | cSC4PoliceSimulator::GetPoliceStations
+006e0200	2	cSC4FireProtectionSimulator::GetAverageCoverage | cSC4PoliceSimulator::GetAverageCoverage
+006e08d0	2	cSC4FireProtectionSimulator::GetStationFunding | cSC4PoliceSimulator::GetStationFunding
+006e0f60	2	cSC4FireProtectionSimulator::GetStationDispatchRadius | cSC4PoliceSimulator::GetStationDispatchRadius
+006e3000	2	cSC4City::GetLotDeveloper | cSC4PollutionSimulator::GetTotalGarbageUncollected
+006e5050	2	cSC4PollutionSimulator::SetGarbageCapacity | nSGLDX7::cGDriver::TexStage
+006eacd0	2	cSC4PowerSimulator::CellToStandardCityCell | cSC4PowerSimulator::StandardCityCellToCell
+006efa20	2	cSC4App::GetFeatureManager | cSC4PowerSimulator::GetOverworkedPowerPlantCount
+006efa30	2	cSC4App::GetCheatCodeManager | cSC4PowerSimulator::GetAgedPowerPlantCount
+006efa50	4	cSC4Advice::GetTimeOutInDays | cSC4FireProtectionSimulator::GetFireProtectionGrid | cSC4PoliceSimulator::GetPolicePowerGrid | cSC4PowerSimulator::GetPoweredGrid
+006f6f30	2	cSC4FireProtectionSimulator::IsStationOnStrike | cSC4PoliceSimulator::IsStationOnStrike
+006f7dc0	9	cSC4AutomataController::CheckTimeOfDay | cSC4ResidentialSimulator::GetGZCLSID | cSC4ResidentialSimulator::ToggleTractTracking | cSC4UndergroundOccupant::SetHighlight | cSC4View3DWin::DisplayTerrainPickDebugString | nSGLDX7::cGDriver::Fog | nSGLDX7::cGDriver::GetBoolean | nSGLDX7::cGDriver::GetFloat | nSGLDX7::cGDriver::TexStageCombine
+006fea40	2	cSC4ResidentialSimulator::GetMaxEQ | cSC4ResidentialSimulator::GetMaxHQ
+00703d50	2	cSC424HourClock::IsPaused | cSC4Simulator::IsPaused
+00703d60	2	cSC424HourClock::IsHiddenPaused | cSC4Simulator::IsHiddenPaused
+00735290	2	cSC4EffectsManager::Pick | cSC4ViewInputControl::OnMouseWheel
+00741740	2	cGZGraphicSystem::IsPageFlippingEnabled | cSTETerrain::GetWaterSurfaceDisplayState
+0074c6e0	2	cSC4PoliceSimulator::GetJailCount | cSTETerrain::NumberOfWaterVertices
+00762470	6	cGZWinKnob::AddRef | cSC4WinCalloutBox::AddRef | cSC4WinCatalogView::AddRef | cSC4WinRCI::AddRef | cSC4WinTrendBar::AddRef | cSCResourceCatalogView::AddRef
+00762480	6	cGZWinKnob::Release | cSC4WinCalloutBox::Release | cSC4WinCatalogView::Release | cSC4WinRCI::Release | cSC4WinTrendBar::Release | cSCResourceCatalogView::Release
+00762bd0	3	cSC4AdvisorPopupTracker::Release | cSC4GraphsViewWinProc::Release | cSC4NewsTickerWinProc::Release
+00769400	8	cSC4BuildingSelectWinProc::Release | cSC4EstablishCityWinProc::Release | cSC4LegendDialogWinProc::Release | cSC4PanelUIWinProc::Release | cSC4SubBudgetWindow::Release | cSC4TimeDisplayMiniWindowWinProc::Release | cSC4TipOfTheDayWinProc::Release | cSC4WinSnapshotAlbum::Release
+0076aaa0	2	cSC4GamePreferencesWinProc::Shutdown | cSC4VideoPreferencesWinProc::Shutdown
+0076b620	3	cGZGraph::GetHitTestResultData | cSC4City::GetLotConfigurationManager | cSC4CitySituationAdvice::GetCoverageCellsMin
+0076b630	3	cGZLineGraph::AsIGZWin | cSC4WinAdviceList::AsIGZWin | cSC4WinMiniMap::AsIGZWin
+007723f0	2	cSC4GraphsViewWinProc::QueryInterface | cSC4NewsTickerWinProc::QueryInterface
+00774560	4	cSC4BudgetUIExpenseWinProc::QueryInterface | cSC4BudgetUIIncomeWinProc::QueryInterface | cSC4BudgetUIWinProc::QueryInterface | cSC4PickSimWinProc::QueryInterface
+0078c200	2	cSC4PanelUIWinProc::QueryInterface | cSC4TimeDisplayMiniWindowWinProc::QueryInterface
+00798370	4	cSC4City::GetPropManager | cSC4CitySituationAdvice::GetCoverageZone | cSC4PlumbingSimulator::GetWaterDemand | cSC4PollutionSimulator::GetMonthlyWasteToEnergyCapacity
+007a66b0	2	cSC4WinMiniMap::GZOnMouseEnter | cSC4WinMiniMap::GZOnMouseExit
+007be160	13	cSC4WinAdviceList::AddRef | cSC4WinIntroVideoScreen::AddRef | cSC4WinMiniMap::AddRef | cSC4WinRegionScreen::AddRef | cSC4WinRegionView::AddRef | cSC4WinSplashScreen::AddRef | cSCGeneralResponseCurveEntryView::AddRef | cSCHappinessCurveEntryView::AddRef | cSCPropertyView::AddRef | cSCResCatBaseView::AddRef | cSCResKeyInputView::AddRef | cSCStandardTypeEntryView::AddRef | cWinSC4App::AddRef
+007be170	13	cSC4WinAdviceList::Release | cSC4WinIntroVideoScreen::Release | cSC4WinMiniMap::Release | cSC4WinRegionScreen::Release | cSC4WinRegionView::Release | cSC4WinSplashScreen::Release | cSCGeneralResponseCurveEntryView::Release | cSCHappinessCurveEntryView::Release | cSCPropertyView::Release | cSCResCatBaseView::Release | cSCResKeyInputView::Release | cSCStandardTypeEntryView::Release | cWinSC4App::Release
+007c1910	3	cSC43DRender::GetLightingManager | cSC4City::CellCountX | cSC4PlumbingSimulator::GetWaterConsumed
+007c2740	2	cSC43DRender::EnableTransparentBackground | cSC4PropOccupant::SetRandomChance
+007c9fb0	2	cSC43DRender::GetViewUtilities | cSC4ZoneManager::GetAbandonedTileCount
+007c9fd0	3	cSC43DRender::GetCameraControl | cSC4Advice::GetGUID | cSC4OrdinanceSimple::GetAdvisorID
+007e3b10	3	nSCRes::cBlockCommandT<cSC4EffectsParser>::Parse | nSCRes::cBlockCommandT<cSC4RuleParser>::Parse | nSCRes::cBlockCommandT<nSCRes::cCommandParser>::Parse
+007e3c40	9	(anonymous_namespace)::cDecalEffectCommand::~cDecalEffectCommand | (anonymous_namespace)::cDynamicParticleEffectCommand::~cDynamicParticleEffectCommand | (anonymous_namespace)::cGroupEffectCommand::~cGroupEffectCommand | (anonymous_namespace)::cLightEffectCommand::~cLightEffectCommand | (anonymous_namespace)::cOptionGroupCommand::~cOptionGroupCommand | (anonymous_namespace)::cParticleEffectCommand::~cParticleEffectCommand | (anonymous_namespace)::cRuleCommand::~cRuleCommand | (anonymous_namespace)::cShakeEffectCommand::~cShakeEffectCommand | nSCRes::cNamespaceCommand::~cNamespaceCommand
+007e56f0	3	cSC4City::GetDemolitionUtility | cSC4PlumbingSimulator::GetWaterImported | cSC4View3DWin::GetKeyAccelerator
+007fb1d0	2	cSC4Advice::GetEventSubject | nSGLDX7::cGDriver::CountVideoModes
+007ff110	2	cSC4City::GetIndustrialSimulator | nSGLDX7::cGDriver::GetDriverInfo
+00800640	3	cSC4Advice::GetTextTitle | cSC4Advisor::GetPersonalName | cSC4AdvisorSystem::GetRandom
+00800c30	2	cGZDrawSystem::AddRef | cS3DMaterialManager::AddRef
+00800c40	2	cGZDrawSystem::Release | cS3DMaterialManager::Release
+00809240	4	cS3DTextureBindingFactory::GetResGroup | cSC4PowerSimulator::GetUnpoweredConsumerCount | cSC4PylonOccupant::GetDispatchState | cSC4ResidentialSimulator::GetSchoolAverageGradeMap
+00809250	3	cGZBufferSimGLCache::GetLastAccess | cS3DTextureBindingFactory::GetFreePoolMax | cSC4OrdinanceSimple::GetYearFirstAvailable
+0080bc00	4	cSC4App::GetAppState | cSC4CatalogItem::GetItemID | cSC4OrdinanceSimple::GetID | cSC4TrafficSimulator::GetCommercialTrafficMap
+0080be70	3	cSC4OrdinanceFreeClinics::Init | cSC4OrdinanceTouristPromotion::Init | cSC4OrdinanceTrashPresort::Init
+0080c0f0	4	cSC4OrdinanceLandfillGasRecovery::Simulate | cSC4OrdinanceSimple::Simulate | cSC4OrdinanceTouristPromotion::Simulate | cSC4OrdinanceTrashPresort::Simulate
+0080c350	2	cSC4OrdinanceLegalizeGambling::GetCurrentMonthlyIncome | cSC4OrdinanceSimple::GetMonthlyConstantIncome
+0080c750	3	cSC4OrdinanceFreeClinics::Shutdown | cSC4OrdinanceProReadingCampaign::Shutdown | cSC4OrdinanceTouristPromotion::Shutdown
+0080ca30	6	cSC4OrdinanceFreeClinics::~cSC4OrdinanceFreeClinics | cSC4OrdinanceLandfillGasRecovery::~cSC4OrdinanceLandfillGasRecovery | cSC4OrdinanceLegalizeGambling::~cSC4OrdinanceLegalizeGambling | cSC4OrdinanceProReadingCampaign::~cSC4OrdinanceProReadingCampaign | cSC4OrdinanceTouristPromotion::~cSC4OrdinanceTouristPromotion | cSC4OrdinanceTrashPresort::~cSC4OrdinanceTrashPresort
+0081f910	4	cRZNetSocket::GetAsyncNotificationTarget | cSC4App::GetCity | cSC4Lot::GetTravelDesignate | cSC4PowerSimulator::GetMonthlyProduction
+00820250	2	cRZNetSocket::GetLastError | cSC4TrafficSimulator::GetTripLengthMap
+00820840	2	cRZNetSocket::SetDebugOption | cRZNetSocket::SetSendDelayOption
+00820ee0	2	cRZNetSocket::GetDebugOption | cRZNetSocket::GetSendDelayOption
+0082be80	3	cGZDrawContext::AddRef | cSC4FireProtectionSimulator::AddRef | cSC4PoliceSimulator::AddRef
+0082c100	2	cGZDrawContext::Ellipse | cGZDrawContext::FillEllipse
+00875293	2	cGZSndSys::GetServicePriority | cIGZSystemService::GetServiceTickPriority
+0087b103	2	cGZApp::Release | cHitTrackPlayer::GetRegisterFloat
+0087d5e0	2	nSGLDX7::cGDriver::BitBltAlpha | nSGLDX7::cGDriver::BitBltAlphaModulate
+0087d5f0	2	nSGLDX7::cGDriver::StretchBltAlpha | nSGLDX7::cGDriver::StretchBltAlphaModulate
+008802b0	2	cSCLua::ToSint32 | cSCLua::ToUint32
+00882070	2	nSGLDX7::cGDriver::BitBltAlpha | nSGLDX7::cGDriver::BitBltAlphaModulate
+00882080	2	nSGLDX7::cGDriver::StretchBltAlpha | nSGLDX7::cGDriver::StretchBltAlphaModulate
+0088b3e0	2	cSC4DisasterManagerEffect::AttemptDisasterStart | nSGLDX7::cGDriver::Punt
+00894f6d	2	cRZLanguageUtility::SetCountry | cRZSystemService::SetServiceID
+008ae800	7	cGZLuaScriptServer::AddRef | cSC4AudioEventHandler::AddRef | cSC4AutomataAttractor::AddRef | cSC4AutomataController::AddRef | cSC4AutomataGenerator::AddRef | cSC4City::AddRef | cSC4NeighborConnection::AddRef
+008ae960	7	cGZWinLuaScriptConsole::AddRef | cGZWinLuaScriptView::AddRef | cGZWinLuaScriptViewGeneral::AddRef | cSC4CheatCodeEntryDialog::AddRef | cSC4WinLotConfigurationChooser::AddRef | cSC4WinLotConfigurationEditor::AddRef | cSC4WinNetworkLotChooser::AddRef
+008ae970	7	cGZWinLuaScriptConsole::Release | cGZWinLuaScriptView::Release | cGZWinLuaScriptViewGeneral::Release | cSC4CheatCodeEntryDialog::Release | cSC4WinLotConfigurationChooser::Release | cSC4WinLotConfigurationEditor::Release | cSC4WinNetworkLotChooser::Release
+008b7640	2	cGZLua5Thread::ToSint32 | cGZLua5Thread::ToUint32
+008b7af0	2	cGZLua5Thread::PushNewUserData | cSCLua::NewUserData
+008b7c30	2	cGZLua5Thread::PushNewTable | cSCLua::NewTable
+008b7d60	2	cGZLua5Thread::GetGlobalTable | cSCLua::GetGlobals
+008b7f40	2	cGZLua5Thread::Call | cSCLua::RawCall
+008b87a0	2	cGZLua5Thread::PushUserTag | cSCLua::PushUserData
+008d29b9	4	cGZCommandParameterSet::Release | cGZScriptTerp::Release | cRZCmdLine::Release | cRZDiskRadioStation::Release
+008dac10	2	nSGLDX7::cGDriver::ClearStencil | nSGLDX7::cGDriver::StencilMask
+008dac20	2	nSGLDX7::cGDriver::StencilFunc | nSGLDX7::cGDriver::StencilOp
+008dc540	2	cSC4NetworkToolUI::AddRef | nSGLDX7::cGDriver::AddRef
+008dc550	2	cSC4NetworkToolUI::Release | nSGLDX7::cGDriver::Release
+008eae40	2	nSGLDX7::cGDriver::StretchBltAlpha | nSGLDX7::cGDriver::StretchBltAlphaModulate
+008fb729	24	cGZBarGraph::AddRef | cGZGraph::AddRef | cGZLineGraph::AddRef | cGZPieGraph::AddRef | cGZScatterGraph::AddRef | cGZWinBMP::AddRef | cGZWinCombo::AddRef | cGZWinCustom::AddRef | cGZWinDlg::AddRef | cGZWinFlatRect::AddRef | cGZWinGen::AddRef | cGZWinGenDlg::AddRef | cGZWinHTML::AddRef | cGZWinLineInput::AddRef | cGZWinListBox::AddRef | cGZWinOptGrp::AddRef | cGZWinPieMenu::AddRef | cGZWinScrollbar2::AddRef | cGZWinScrollbar::AddRef | cGZWinSlider::AddRef | cGZWinSpinner::AddRef | cGZWinText::AddRef | cGZWinTextEdit::AddRef | cGZWinToolTip::AddRef
+008fb72e	24	cGZBarGraph::Release | cGZGraph::Release | cGZLineGraph::Release | cGZPieGraph::Release | cGZScatterGraph::Release | cGZWinBMP::Release | cGZWinCombo::Release | cGZWinCustom::Release | cGZWinDlg::Release | cGZWinFlatRect::Release | cGZWinGen::Release | cGZWinGenDlg::Release | cGZWinHTML::Release | cGZWinLineInput::Release | cGZWinListBox::Release | cGZWinOptGrp::Release | cGZWinPieMenu::Release | cGZWinScrollbar2::Release | cGZWinScrollbar::Release | cGZWinSlider::Release | cGZWinSpinner::Release | cGZWinText::Release | cGZWinTextEdit::Release | cGZWinToolTip::Release
+00908902	3	cHTMLListItemHangingIndent::~cHTMLListItemHangingIndent | cHTMLTABLE::~cHTMLTABLE | cHTMLTD::~cHTMLTD
+0090c8c4	2	cGZGimexReader::SetInput | cGZGimexWriter::SetOutput
+0090d96b	3	cGZBufferSimGLCache::Release | cSC4NetworkToolUI::Release | cSC4WinAlertBorder::Release
+0090d981	2	cRZRefCount::RemoveRef | cRZUnknown::RemoveRef
+0090d997	7	cRZUnknown::Release | cSC4Advice::Release | cSC4AdvisorSystem::Release | cSC4ConfigRuleManager::Release | cSC4TutorialSystem::Release | cSTETerrainView3D::Release | nSCRes::cFileParser::Release
+0090e117	12	GZSndSysMacCOMDirector::~GZSndSysMacCOMDirector | cFontCOMDirector::~cFontCOMDirector | cGZCOMDirector::~cGZCOMDirector | cGZResManCOMDirector::~cGZResManCOMDirector | cGZResourceCOMDirectorW32::~cGZResourceCOMDirectorW32 | cGZScriptCOMDirector::~cGZScriptCOMDirector | cGZSoundCOMDirector::~cGZSoundCOMDirector | cGZWWWCOMDirector::~cGZWWWCOMDirector | cGZWWWWin32COMDirector::~cGZWWWWin32COMDirector | cGZWin32COMDirector::~cGZWin32COMDirector | cGZWinCOMDirector::~cGZWinCOMDirector | cHitManCOMDirector::~cHitManCOMDirector
+0090e242	2	cRZCOMDllDirector::Release | cRZString::IsEqual
+0091559a	12	cFreshPlayer::SetVolumeNoLock | cFreshnessCOMDirector::OnStart | cGZScriptCOMDirector::OnStart | cGZSndSys::OnIdle | cGZWinDlg::GZOnCharacter | cGZWinIMEServer::SetCompositionEnabled | cPropertySetUint32XmlReader::HandleEndNamespaceDecl | cRZCOMDllDirector::OnStart | cRZLanguageManager::CanSwitchToCountry | cRZSystemService::OnIdle | cRZSystemService::OnTick | cRZVariant::CanGetVal
+0091663f	2	cRZVariant::RefIGZUnknown | cRZVariant::SetValUnknown
+00916644	2	cRZVariant::GetValUnknown | cRZVariant::RefIGZUnknown
+0091dd89	6	cGZUIScriptService::Release | cGZWinDragAndDropManager::Release | cRZLanguageManager::Release | cRZSystemService::Release | cS3DMaterialManager::Release | cS3DTextureBindingFactory::Release
+0091dd91	2	cGZCOM::SetServiceRunning | cRZSystemService::SetServiceRunning
+00920bf0	2	cGZCheatCodeManager::Release | cGZCommandServer::Release
+0092973b	4	cGZStringCommandGenerator::CommandRegistered | cGZStringCommandGenerator::CommandUnregistered | cGZUIScriptService::ApplyProperty | cGZWinBtn::GZOnMouseMove
+009297a0	7	cGZCOM::AddRef | cGZUIScriptService::AddRef | cGZWinDragAndDropManager::AddRef | cRZLanguageManager::AddRef | cRZSystemService::AddRef | cS3DMaterialManager::AddRef | cS3DTextureBindingFactory::AddRef
+0092b267	2	cRZOStream::SetSint8 | cRZOStream::SetUint8
+0092b2df	2	cRZOStream::SetSint8 | cRZOStream::SetUint8
+0092b33a	6	cGZUIScriptService::ScriptLiteral | cGZWinDlg::GZOnKeyUp | cGZWinMsgBox::GZOnKeyUp | cPropertySetUint32XmlReader::HandleInternalEntityReference | cPropertySetUint32XmlReader::HandleStartNamespaceDecl | cRZNullOStream::SetVoid
+0092b640	2	cRZOStream::SetSint16 | cRZOStream::SetUint16
+0092b676	2	cRZOStream::SetSint32 | cRZOStream::SetUint32
+0092b6a3	2	cRZOStream::SetSint64 | cRZOStream::SetUint64
+0092b7b2	2	cRZOStream::SetSint16 | cRZOStream::SetUint16
+0092b7f1	2	cRZOStream::SetSint32 | cRZOStream::SetUint32
+0092b82b	2	cRZOStream::SetSint64 | cRZOStream::SetUint64
+0093056f	2	cGZCOM::AddRef | cGZWinMgrBase::AddRef
+00935ea0	2	cGZLegacyControl::ImplementInterface | cPropertySetUint32XmlReader::HandleNotationDecl
+0093784b	6	cGZApp::AddRef | cGZFileSystem::AddRef | cGZSndMgr::AddRef | cGZWinCtrlMgr::AddRef | cHitMan::AddRef | nGZLog::cService::AddRef
+00937850	4	cGZFileSystem::Release | cGZWinCtrlMgr::Release | cHitMan::Release | nGZLog::cService::Release
+009378bc	9	cGZDBSegmentDirectoryFiles::DoWriteRecord | cGZWin::GZOnMouseDownL | cGZWin::GZOnMouseDownR | cGZWin::GZOnMouseMove | cGZWin::GZOnMouseUpL | cGZWin::GZOnMouseUpR | cHitTrackPlayer::ReadResource | cHitTrackPlayer::SetSoundFile | cHitTrackPlayer::WriteResource
+0093877e	23	cGZFileNameToResKeyConverterDefault::KeyToFileName | cGZGraph::DoHitTest | cGZPersistBufferResourceFactory::SaveToFile | cGZPersistBufferResourceFactory::SerialWrite | cGZPersistDBSerialRecord::SetRZCharStr | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleInternalEntityReference | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleStartNamespaceDecl | cGZWin::GZOnCaptureChanged | cGZWin::GZOnCommand | cGZWin::GZOnKeyDown | cGZWin::GZOnKeyUp | cGZWinToolTip::IsPointInWindowParentCoordinates | cGZWinToolTip::IsPointInWindowScreenCoordinates | cGZWinToolTip::IsPointInWindowWindowCoordinates | cHitResourceFactory::Read | cHitTrackPlayer::SetEffectsLevel | cHitTrackPlayer::SetEffectsType | cHitTrackPlayer::SetSoundFile | cHitTrackPlayer::UpdateView | cRZCursorResourceFactory::SerialWrite | cSCResourceCatalogView::GZOnCommand | cSCResourceCatalogView::GZOnKeyDown | cSCResourceCatalogView::GZOnKeyUp
+00938789	4	cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleNotationDecl | cGZWin::GZOnMouseWheel | cHitTrackPlayer::FadeVolume | cHitTrackPlayer::UpdateArgs
+0093878e	16	cGZDBSDFRecord::SetSize | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleEndNamespaceDecl | cGZSndSys::OnTick | cGZWin::GZOnCharacter | cGZWin::GZOnKillFocus | cGZWin::GZOnMouseEnter | cGZWin::GZOnMouseExit | cGZWinOptGrp::LayoutH | cGZWinOptGrp::LayoutW | cHitPropertySetTrackResource::GetKey | cHitPropertySetTrackResource::SetKey | cHitPropertySetTrackResource::Write_OldFormat | cHitPropertySetTrackResource::Write_XmlFormat | cHitTrackPlayer::GetSourceFilenameAndLineNum | cHitTrackPlayer::SetSoundFile | cHitTrackPlayer::SetTrackDataEntryPoint
+0093e47c	10	cGZPersistSurveyorWriter::WriteBoolArray | cGZPersistSurveyorWriter::WriteFloat32Array | cGZPersistSurveyorWriter::WriteFloat64 | cGZPersistSurveyorWriter::WriteFloat64Array | cGZPersistSurveyorWriter::WriteSint16Array | cGZPersistSurveyorWriter::WriteSint32Array | cGZPersistSurveyorWriter::WriteSint8Array | cGZPersistSurveyorWriter::WriteUint16Array | cGZPersistSurveyorWriter::WriteUint32Array | cGZPersistSurveyorWriter::WriteUint8Array
+0093e536	2	cHitTrackPlayer::GetName | cRZCmdLine::GetCommandLineText
+0093ff03	11	cGZBufferResourceFactory::CreateInstance | cGZGimexFactory::CreateInstance | cGZPersistBufferResourceFactory::CreateInstance | cHitResourceFactory::CreateInstance | cRZCursorResourceFactory::CreateInstance | cS3DFSHTextureFactory::CreateInstance | cS3DResSpriteAnimFactory::CreateInstance | cSC4EffectsResourceFactory::CreateInstance | cSC4PathInfoFactory::CreateInstance | cSCResExemplarCohortFactory::CreateInstance | cSCResExemplarFactory::CreateInstance
+00941664	2	cHitPropertySetTrackResource::Read | cHitPropertySetTrackResource::ReadLegacyFormat
+00945942	5	cFreshCellPlayer::AddRef | cGZGimexFactory::AddRef | cGZGimexReader::AddRef | cGZGimexWriter::AddRef | cGZPersistResourceKeyList::AddRef
+00945e47	2	cGZWinOptGrp::SetBtnCLSID | cHitPropertySetTrackResource::SetGroup
+0094909a	2	cFreshCellPlayer::SetExternalSoundSystemInterface | cFreshPlayer::SetExternalSoundSystemInterface
+00949ade	34	cGZApp::Shutdown | cGZCOM::Init | cGZCOM::Shutdown | cGZCheatCodeManager::Init | cGZCheatCodeManager::Shutdown | cGZDBSegmentDirectoryFiles::GetPath | cGZFileSystem::Init | cGZFileSystem::Shutdown | cGZSndSys::IsServiceRunning | cGZSoundCOMDirector::PostAppInit | cGZWin::GZPaint | cGZWinIMEServer::GetCompositionEnabled | cHTMLContainerElement::IsContainer | cHitDebugInfo::Init | cHitDebugInfo::Shutdown | cHitMan::Unpause | cHitTrackPlayer::Init | cPropertySetUint32XmlReader::HandleEndCdataSection | cPropertySetUint32XmlReader::HandleStartCdataSection | cRZCOMDllDirector::AbortiveQuit | cRZCOMDllDirector::OnInstall | cRZCOMDllDirector::PostAppInit | cRZCOMDllDirector::PostAppShutdown | cRZCOMDllDirector::PostSystemServiceShutdown | cRZCOMDllDirector::PreAppInit | cRZCOMDllDirector::PreFrameWorkInit | cRZDiskRadioStation::Init | cRZDiskRadioStation::Shutdown | cRZLanguageManager::Init | cRZLanguageManager::Shutdown | cRZLanguageUtility::Shutdown | cRZOStream::Shutdown | cRZSystemService::Init | cRZSystemService::Shutdown
+00949b73	11	cGZGraph::SetGraphAreaOutlineAndFill | cGZPersistSurveyorWriter::WriteTypeInfo | cGZSndSys::SetServiceRunning | cGZWinTextTicker::SetCaption | cHTMLElement::Insert | cHTMLElement::OnMouseDownL | cHTMLElement::OnMouseUpL | cHTMLElement::SetLinkColor | cHTMLHR::Draw | cHTMLHR::Layout | cHTMLListItemHangingIndent::Draw
+0094a5ea	9	cGZApp::GZRun | cGZPersistDBSerialRecord::GetError | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleEndCdataSection | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::HandleStartCdataSection | cGZWinIMEServer::IsIMEAvailable | cHTMLElement::IsContainer | cHTMLElement::Selectable | cHitTrackPlayer::StopAllInstances | cRZNullOStream::GetError
+0094bc3f	4	cGZCheatCodeManager::AddRef | cGZCommandServer::AddRef | cGZWinIMEServer::AddRef | cHitDebugInfo::AddRef
+0094bc5d	2	cGZWinIMEComposition::AsIGZWin | cHitTrackPlayer::AsIGZSnd3D
+0094c47c	5	cFreshPlayer::AddRef | cGZLegacyControl::AddRef | cGZWin::AddRef | cSC4View3DWin::AddRef | cSCResourceCatalogView::AddRef
+0094c4b1	6	NetworkFileCache::AddRef | cGZFont::AddRef | cGZPropertySetSerializerXmlT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::AddRef | cPropertySetUint32XmlReader::AddRef | cRZCOMDllDirector::AddRef | cRZCursorManager::AddRef
+0094d34f	3	cGZWinFileBrowser::AddRef | cGZWinGrid::AddRef | cGZWinTreeView::AddRef
+0095ba6f	13	cGZBarGraph::AsIGZWin | cGZGraph::AsIGZWin | cGZPieGraph::AsIGZWin | cGZScatterGraph::AsIGZWin | cGZWinBMP::AsIGZWin | cGZWinCombo::AsIGZWin | cGZWinGen::AsIGZWin | cGZWinHTML::AsIGZWin | cGZWinLineInput::AsIGZWin | cGZWinOptGrp::AsIGZWin | cGZWinScrollbar2::AsIGZWin | cGZWinSpinner::AsIGZWin | cGZWinTextEdit::AsIGZWin
+00968303	2	cGZSndSys::AsIGZSnd3DListener | cHitTrackPlayer::AsIGZSnd
+0096831b	2	cFreshCellPlayer::GetHeadRelative | cGZSndSys::GetInitFlag
+00968b60	34	cGZBufferSimGLCache::AddRef | cGZCommandParameterSet::AddRef | cGZDefaultAllocator::AddRef | cGZMessage2CommandDispatcher::AddRef | cGZPersistASCIIWriter::AddRef | cGZPersistBinaryReader::AddRef | cGZPersistBinaryWriter::AddRef | cGZPersistSurveyorWriter::AddRef | cGZPropertySetT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::AddRef | cGZRESIDtoExtensionMap::AddRef | cGZScriptTerp::AddRef | cGZSndDefaultEventHandler::AddRef | cGZStringCommandGenerator::AddRef | cHitIniFile::AddRef | cHitPropertySetTrackResource::AddRef | cHitResourceFactory::AddRef | cHitTrackDataBlock::AddRef | cRZCmdLine::AddRef | cRZDiskRadioStation::AddRef | cRZExceptionNotification::AddRef | cRZFastCompression3::AddRef | cRZLanguageUtility::AddRef | cRZOStream::AddRef | cRZUnknown::AddRef | cRZWinKeyAccelerator::AddRef | cSC4Advice::AddRef | cSC4AdvisorSystem::AddRef | cSC4ConfigRuleManager::AddRef | cSC4NetworkToolUI::AddRef | cSC4TutorialSystem::AddRef | cSC4WinAlertBorder::AddRef | cSLTokenRecord::AddRef | cSTETerrainView3D::AddRef | nSCRes::cFileParser::AddRef
+0096dfbd	2	cGZDBSegmentDirectoryFiles::Close | cSC4DBSegment::Close
+0096e960	10	cGZPersistSurveyorWriter::WriteBool | cGZPersistSurveyorWriter::WriteFloat32 | cGZPersistSurveyorWriter::WriteSint16 | cGZPersistSurveyorWriter::WriteSint32 | cGZPersistSurveyorWriter::WriteSint8 | cGZPersistSurveyorWriter::WriteString | cGZPersistSurveyorWriter::WriteUint16 | cGZPersistSurveyorWriter::WriteUint32 | cGZPersistSurveyorWriter::WriteUint8 | cRZLanguageManager::SetExchangeRateForLocale
+00972b73	2	cGZPersistDBSerialRecord::GetFieldSint8 | cGZPersistDBSerialRecord::GetFieldUint8
+009753b7	2	cRZStringResource::AddRef | cSC4PathInfo::AddRef
+009753c5	2	cRZStringResource::Release | cSC4PathInfo::Release
+00975436	2	cGZPersistResourceFactory::QueryInterface | cHitResourceFactory::QueryInterface
+0097554f	4	cGZGimexFactory::CreateInstance | cGZPersistBufferResourceFactory::CreateInstance | cGZPersistResourceFactory::CreateInstance | cS3DFSHTextureFactory::CreateInstance
+00975666	2	cGZPersistDBRecord::GetKey | cGZPersistDBSerialRecord::GetKey
+00975929	2	cGZDBSegmentDirectoryFiles::Init | cGZDBSegmentPackedFile::Init
+00975982	2	cGZDBSegmentDirectoryFiles::GetSegmentID | cGZDBSegmentPackedFile::GetSegmentID
+009759ce	2	cGZPersistDBRecord::Release | cGZPersistDBSerialRecord::Release
+00975a67	2	cGZDBSDFRecord::AddRef | cGZPersistDBSerialRecord::AddRef
+00975a70	2	cGZDBSDFRecord::Release | cGZPersistDBSerialRecord::Release
+00975a78	2	cGZPersistDBSerialRecord::GetFieldSint8 | cGZPersistDBSerialRecord::GetFieldUint8
+00975aff	2	cGZPersistDBSerialRecord::SetFieldSint8 | cGZPersistDBSerialRecord::SetFieldUint8
+00975b11	2	cGZPersistDBSerialRecord::SetFieldSint8 | cGZPersistDBSerialRecord::SetFieldUint8
+00975bf2	2	cGZDBSDFRecord::~cGZDBSDFRecord | cGZDBWriteRecordPackedFile::~cGZDBWriteRecordPackedFile
+00975c34	2	cGZDBSDFRecord::Flush | cGZPersistDBSerialRecord::Flush
+00975d13	2	cGZPersistDBSerialRecord::GetFieldSint16 | cGZPersistDBSerialRecord::GetFieldUint16
+00975d4c	2	cGZPersistDBSerialRecord::GetFieldSint16 | cGZPersistDBSerialRecord::GetFieldUint16
+00975d9a	2	cGZPersistDBSerialRecord::GetFieldSint32 | cGZPersistDBSerialRecord::GetFieldUint32
+00975de5	2	cGZPersistDBSerialRecord::GetFieldSint32 | cGZPersistDBSerialRecord::GetFieldUint32
+00975e19	2	cGZPersistDBSerialRecord::GetFieldSint64 | cGZPersistDBSerialRecord::GetFieldUint64
+00975e49	2	cGZPersistDBSerialRecord::GetFieldSint64 | cGZPersistDBSerialRecord::GetFieldUint64
+00975e97	2	cGZPersistDBSerialRecord::SetFieldSint16 | cGZPersistDBSerialRecord::SetFieldUint16
+00975ed0	2	cGZPersistDBSerialRecord::SetFieldSint16 | cGZPersistDBSerialRecord::SetFieldUint16
+00975f74	2	cGZPersistDBSerialRecord::SetFieldSint32 | cGZPersistDBSerialRecord::SetFieldUint32
+00975fa4	2	cGZPersistDBSerialRecord::SetFieldSint32 | cGZPersistDBSerialRecord::SetFieldUint32
+00976049	2	cGZPersistDBSerialRecord::SetFieldSint64 | cGZPersistDBSerialRecord::SetFieldUint64
+0097608b	2	cGZPersistDBSerialRecord::SetFieldSint64 | cGZPersistDBSerialRecord::SetFieldUint64
+009780c0	2	cGZPersistBufferResourceFactory::~cGZPersistBufferResourceFactory | cRZCursorResourceFactory::~cRZCursorResourceFactory
+0097932b	2	cGZDBSegmentDirectoryFiles::Shutdown | cSC4DBSegment::Shutdown
+0097ce34	2	cFreshCellPlayer::Get3DPosY | cGZFont::GetFontColor
+0097dd20	3	cGZBufferResourceFactory::Release | cGZPersistBufferResourceFactory::Release | cRZCursorResourceFactory::Release
+0097e894	3	cGZBufferResourceFactory::AddRef | cGZPersistBufferResourceFactory::AddRef | cRZCursorResourceFactory::AddRef
+0097f258	2	cSLTokenRecord::GetFieldSint8 | cSLTokenRecord::GetFieldUint8
+0097f286	2	cSLTokenRecord::GetFieldSint16 | cSLTokenRecord::GetFieldUint16
+0097f310	2	cSLTokenRecord::GetFieldSint64 | cSLTokenRecord::GetFieldUint64
+00980801	2	cSLTokenRecord::SetFieldSint8 | cSLTokenRecord::SetFieldUint8
+00980841	2	cSLTokenRecord::SetFieldSint16 | cSLTokenRecord::SetFieldUint16
+00980901	2	cSLTokenRecord::SetFieldSint64 | cSLTokenRecord::SetFieldUint64
+00980d81	1	cSLTokenSerialRecordIO_Text::Read
+00980d9c	1	cSLTokenSerialRecordIO_Text::Read
+009811c8	3	cGZPersistASCIIWriter::WriteObjectRef | cGZPersistBinaryWriter::WriteObjectRef | cGZPersistSurveyorWriter::WriteObjectRef
+00981a03	2	cGZPersistBinaryReader::ReadSint8Array | cGZPersistBinaryReader::ReadUint8Array
+00981a40	2	cGZPersistASCIIWriter::Release | cGZPersistBinaryWriter::Release
+00981a52	2	cGZPersistBinaryWriter::WriteSint8Array | cGZPersistBinaryWriter::WriteUint8Array
+00981a8f	2	cGZPersistASCIIWriter::QueryInterface | cGZPersistBinaryWriter::QueryInterface
+00981dac	2	cGZPersistBinaryWriter::WriteBool | cGZPersistBinaryWriter::WriteUint8
+00982f1c	2	cGZPersistASCIIWriter::OutputStream | cGZPersistBinaryWriter::OutputStream
+00989960	3	cGZMouseMessage::Initialize | cSC4ViewInputControl::SetID | cSC4WinAdviceList::SetbgImage
+00989da0	8	cGZDrawCOMDirector::~cGZDrawCOMDirector | cGZGraphicCOMDirector::~cGZGraphicCOMDirector | cGZGraphicWin32COMDirector::~cGZGraphicWin32COMDirector | cSC4AutomataCOMDirector::~cSC4AutomataCOMDirector | cSC4COMDirector::~cSC4COMDirector | cSC4GDriversCOMDirector::~cSC4GDriversCOMDirector | cSC4ResourceLibCOMDirector::~cSC4ResourceLibCOMDirector | cSC4ScriptedWindowCOMDirector::~cSC4ScriptedWindowCOMDirector
+0098ad30	2	cGZGraphicSystem::EnablePageFlipping | cSCResourceCatalogView::SetStandalone
+0098ad70	2	cGZGraphicSystem::SetDriverSettingsIniFilePath | cGZGraphicSystemW32::SetDriverSettingsIniFilePath
+00990010	2	cGZGraphicSystem::SetDefaultDriverClassID | cGZGraphicSystemW32::SetDefaultDriverClassID
+00994e71	2	cGZWinTextEdit::SetMaximumTextToAllow | cRZDiskRadioStation::SetPlaylistMode
+00994ee4	2	cGZWin::GetT | cGZWinTextEdit::GetMaxUndoLevelCount
+00996e39	2	cGZWinCtrlMgr::CreateButton | cGZWinCtrlMgr::CreateFixedButton
+00996e56	2	cGZWinCtrlMgr::CreateFixedToggleButton | cGZWinCtrlMgr::CreateToggleButton
+00996e73	3	cGZWinCtrlMgr::CreateCheckBox | cGZWinCtrlMgr::CreateRadioButton | cGZWinCtrlMgr::CreateRadioCheck
+00998ea0	2	cGZWinGenTitleBar::AddRef | cGZWinMsgBox::AddRef
+00998ea5	2	cGZWinGenTitleBar::Release | cGZWinMsgBox::Release
+00999055	4	cGZWinCombo::IsFlagSet | cGZWinGen::GetWinGenFlag | cGZWinOptGrp::GetOptGrpFlag | cGZWinSpinner::GetSpinnerFlag
+009990a5	2	cGZWinGen::AsIGZWin | cGZWinIMECandidateList::AsIGZWin
+00999165	4	cGZDBSegmentDirectoryFiles::SetSegmentID | cGZFont::GetSize | cGZWWWSystem::GetDefaultCustomData | cGZWinGen::SetUserData
+0099b7a3	3	cGZWin::Release | cSC4View3DWin::Release | cSCResourceCatalogView::Release
+0099b7ee	4	cFreshCellPlayer::Get3DPosZ | cGZFont::GetFontBackgroundColor | cGZWWWSystem::GetNetworkFileCache | cGZWin::GetParentWin
+0099b951	2	cGZWin::GetKeyboardAccelerator | cGZWinCtrlMgr::GetDoubleClickTimeMilliseconds
+0099bc53	2	cGZWin::GetL | cGZWinHTML::GetFlags
+0099be4c	3	cGZFont::GetAntialiasing | cGZWWWSystem::GetHTTPClient | cGZWin::GetNotificationTarget
+0099be66	2	cGZWin::GetID | cRZSystemService::GetServicePriority
+0099bf5e	5	cGZWin::SetFillColor | cGZWinCombo::SetFillColor | cGZWinFlatRect::SetFillColor | cGZWinGrid::SetFillColor | cGZWinText::SetFillColor
+0099bf7a	2	cGZWin::SetFillColor | cGZWinHTML::SetFillColor
+0099bfac	2	cGZWin::SetFillColor | cGZWinTextEdit::SetFillColor
+0099ca1e	2	cGZWin::GetFillColor | cGZWinFlatRect::GetFillColor
+0099ccf0	2	cGZWin::DoMessage | cSCResourceCatalogView::DoMessage
+009b1f4b	2	cGZGraph::SetBackgroundFill | cRZRadio::SetOnDemandState
+009b1f7a	2	cGZGraph::SetGraphAreaOutlineColor | cRZRadio::~cRZRadio
+009b2935	3	cGZLineGraph::CompleteRedraw | cGZPieGraph::CompleteRedraw | cGZScatterGraph::CompleteRedraw
+009b2c1c	2	cGZFileNameToResKeyConverterDefault::SetDBSegment | cGZPieGraph::SetViewType
+009b3e23	2	cGZGraph::SetGraphArea | cGZPieGraph::SetGraphArea
+009b6ae5	2	cGZGraph::SetGraphAreaOutlineAndFill | cGZPieGraph::DrawGraphData
+009bc21d	5	cGZWinBMP::GZOnKeyDown | cGZWinOptGrp::GZOnKeyDown | cGZWinSlider::GZOnKeyDown | cGZWinText::GZOnKeyDown | cGZWinTextTicker::GZOnKeyDown
+009bc237	7	cGZWinBMP::GZOnKeyUp | cGZWinCombo::GZOnKeyUp | cGZWinOptGrp::GZOnKeyUp | cGZWinSlider::GZOnKeyUp | cGZWinSpinner::GZOnKeyUp | cGZWinText::GZOnKeyUp | cGZWinTextTicker::GZOnKeyUp
+009bc8b8	2	cGZWin::GetFillColor | cGZWinTextEdit::SetFillColor
+009bc8db	1	cGZWinTextEdit::SetFillColor
+009bcb20	2	cGZWinLineInput::GetOutlineType | cGZWinTextEdit::GetInsertionIndex
+009bd71a	2	cGZWinIMEComposition::GetFont | cGZWinTextEdit::GetFont
+009bd9f2	2	cGZWinIMEComposition::SetFont | cGZWinTextEdit::SetFont
+009bdec9	2	cGZWinIMEComposition::AsIGZWin | cGZWinTextEdit::AsIGZWin
+009bfca5	2	cGZWin::SetArea | cGZWinTextEdit::SetArea
+009c2ff9	2	cGZWinScrollbar::GetValue | cGZWinSlider::GetValue
+009c32ac	7	cGZApp::ModuleName | cGZLegacyControl::GetControl | cGZWin::GetKeyboard | cGZWinTextEdit::GetText | cHitPropertySetTrackResource::GetGroup | cHitTrackDataBlock::DataStartAddress | cRZCOMDllDirector::RefCount
+009c363b	2	cGZWinScrollbar::AsIGZWin | cGZWinSlider::AsIGZWin
+009c48c0	3	cGZWinLineInput::GetCursorLoc | cGZWinScrollbar2::GetMinimumValue | cGZWinSpinner::GetSpinnerType
+009c5e01	2	cGZWinIMEServer::GetCompositionActive | cGZWinLineInput::IsEditable
+009cc22d	2	cGZWWWSystem::Release | cGZWinDragAndDropManager::Release
+009cc334	2	cGZWinDragAndDropManager::GZOnMouseDownL | cGZWinDragAndDropManager::GZOnMouseDownR
+009cd75c	2	cGZWinCustom::GZOnKeyDown | cGZWinFlatRect::GZOnKeyDown
+009cd789	2	cGZWinCustom::GZOnKeyUp | cGZWinFlatRect::GZOnKeyUp
+009cdc23	3	cFreshPlayer::GetXPos | cRZCOMDllDirector::FrameWork | nGZLog::cService::OutputBackEndList
+009cede1	8	cGZCommandParameterSet::GetParameterCount | cGZPersistSurveyorWriter::Resource | cGZPropertySetT<cKeyStandardTraitsT<unsigned_long,-340718371,1806839612>>::NumValues | cGZRESIDtoExtensionMap::Size | cGZWinCombo::GetSelection | cHitPropertySetTrackResource::GetInstance | cRZOStream::GetUserData | cRZSystemService::GetServiceID
+009cfa36	2	cGZPersistDBSerialRecord::AsIGZPersistDBRecord | cHitTrackPlayer::AsIGZSndRegisterSet
+009d060a	2	cGZFadeTmpWin::~cGZFadeTmpWin | cGZWinTreeViewDrag::~cGZWinTreeViewDrag
+009d41a1	6	cGZCOM::FrameWork | cGZWWWSystem::GetFTPClient | cGZWinTextEdit::GetFlags | cHitResource<cHitTrackPlayer>::GetRefCount | cHitTrackPlayer::GetRefCount | cRZRadio::GetRadioSound
+009d4368	2	cGZWinPieMenu::GZOnMouseDownR | cGZWinPieMenu::GZOnMouseUpR
+009d4714	3	cGZDBSegmentPackedFile::SetSegmentID | cGZSndMgr::GetSystemSndVol | cIGZSystemService::GetServiceTickPriority
+009d6090	4	cGZWinBtn::AddRef | cGZWinFolderRow::AddRef | cGZWinFolders::AddRef | cGZWinTextTicker::AddRef
+009d6098	4	cGZWinBtn::Release | cGZWinFolderRow::Release | cGZWinFolders::Release | cGZWinTextTicker::Release
+009d7d97	23	cGZGraph::SetArea | cGZWin::SetArea | cGZWinBMP::SetArea | cGZWinBtn::SetArea | cGZWinCombo::SetArea | cGZWinFileBrowser::SetArea | cGZWinGen::SetArea | cGZWinGenTitleBar::SetArea | cGZWinGrid::SetArea | cGZWinHTML::SetArea | cGZWinLineInput::SetArea | cGZWinListBox::SetArea | cGZWinOptGrp::SetArea | cGZWinPieMenu::SetArea | cGZWinScrollbar2::SetArea | cGZWinSlider::SetArea | cGZWinSpinner::SetArea | cGZWinText::SetArea | cGZWinTextEdit::SetArea | cGZWinTreeView::SetArea | cSC4WinAdviceList::SetArea | cSC4WinMiniMap::SetArea | cWinBMPView::SetArea
+009d7e63	8	cGZWin::GetWindowManager | cGZWinCombo::GetFlags | cGZWinScrollbar2::GetValue | cHitPropertySetTrackResource::GetType | cRZRefCount::RefCount | cRZString::Data | cRZString::ToChar | cRZUnknown::RefCount
+009d8564	5	cGZScriptTerp::GetContext | cGZWinOptGrp::GetValue | cGZWinScrollbar2::GetContainerImage | cHitTrackDataBlock::DataSize | cRZRadio::GetVolume
+009d858f	4	cFreshCellPlayer::GetCell | cGZWinScrollbar2::GetThumbImage | cRZCOMDllDirector::GZCOM | nGZLog::cService::GroupList
+009db37a	4	cFreshCellPlayer::Get3DPosX | cGZFont::GetStyle | cHitMan::GetSourceDataRequestHandler | cRZCursorManager::GetCursor
+009db663	5	cFreshPlayer::SetZPos | cGZCommandServer::GetCommandDispatcher | cHitMan::RegisterTrackDataBlock | cHitTrackPlayer::GetID | cRZLanguageManager::GetCurrentLanguage
+009db800	7	cFreshPlayer::GetZoom | cGZFont::GetType | cGZSndSys::GetServiceID | cGZWWWSystem::GetDefaultNotificationTarget | cGZWinGen::GetWinProc | cRZIniFile::GetFile | cRZLanguageManager::GetCurrentCountry
+00a6cab0	5	cGZLuaScriptServer::GetLua | cSC4CatalogItem::GetItemType | cSC4Lot::GetLotConfiguration | cSC4PlumbingSimulator::GetWateredGrid | cSC4Region::GetBaseTerrainType
+00a6d837	8	cGZApp::AddApplicationServicesHere | cGZApp::AddCOMDirectorsHere | cGZApp::AddDynamicLibrariesHere | cGZPersistDBSerialRecord::Flush | cHTMLElement::PostLayout | cHTMLTD::PostLayout | cRZDiskRadioStation::UnsetStation | cRZNullOStream::Flush
