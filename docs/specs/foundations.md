@@ -537,7 +537,7 @@ is **`0x46DF45E7`** and it implements:
 | Interface | IID |
 |---|---|
 | `cIGZMessage2Standard` | `0x65297976` |
-| `cIGZMessage2` | `0xA52294B4` *[inferred]* |
+| `cIGZMessage2` | `0xA52294B4` *[compat]* (confirmed: the standard message class answers `QueryInterface` for `1`, `0x65297976` and `0xA52294B4`) |
 | `cIGZUnknown` | `1` |
 
 You get one from `GZCOM()->GetClassObject(0x46DF45E7, 0x65297976, &p)`, from the message server's
