@@ -1,0 +1,49 @@
+va	name	evidence	mac_x86
+00702030	cSC4Simulator::GetGZCLSID	returns 0x2990C1E5; slot 5 of cIGZSerializable vtable 00AB2FA0	00692c68
+00702040	cSC4Simulator::QueryInterface	vtable 00AB2FB8 slot 0	001672a6
+007020a0	cSC4Simulator::Release	vtable 00AB2FB8 slot 2	0016730c
+007020e0	cSC4Simulator::PostMessageServerMessage	body matches Mac (0x2C msg, 4 setters, server+0xF8 vt+0x10)	001674f6
+00702150	cSC4Simulator::GetSimDate(long*,long*,long*,long*,long*)	vtable 00AB2FB8 slot 6 (MSVC reversed overload order)	00167640
+007021e0	cSC4Simulator::Pause	slot 9	001676d0
+00702200	cSC4Simulator::HiddenPause	slot 10	00167712
+00702220	cSC4Simulator::Resume	slot 12	00167754
+00702240	cSC4Simulator::HiddenResume	slot 13	0016779a
+00702260	cSC4Simulator::RemoveAgent (overload)	slot 20
+00702290	cSC4Simulator::Write(cIGZOStream&)	cIGZSerializable vtable 00AB2FA0 slot 3	00168576
+00702340	cSC4Simulator::Read(cIGZIStream&)	cIGZSerializable vtable 00AB2FA0 slot 4	00168696
+007024a0	cSC4Simulator::GetSimStartDate	slot 5	001695c2
+007024c0	cSC4Simulator::SendAgentMessage	called by SimulateIdleTime with 0x6695681A; inlined in SimulateAgents	00167b08
+00702540	cSC4Simulator::EmergencyPause	slot 11	00167ba6
+00702580	cSC4Simulator::EmergencyResume	slot 14	00167bfe
+007026d0	cSC4Simulator::SetSimSpeed	slot 28	00167612
+007026f0	cSC4Simulator::GetAnimationTimeDilation	slot 32	0016781c
+00702950	cSC4Simulator::Shutdown	slot 4	00167334
+00702a80	cSC4Simulator::SimulateTimePassage	control flow and constants match Mac line for line; called from OnTick	0016801e
+00702df0	cSC4Simulator::SimulateIdleTime	posts 0x6695681A; called from OnTick	00168358
+00702f10	cSC4Simulator::BeginNewInterval	called from SimulateAgents	00169054
+00703080	cSC4Simulator::GetAgentEnabled	slot 25	00169432
+00703120	cSC4Simulator::SetAgentEnabled	slot 26	001694ae
+007031c0	cSC4Simulator::SetCityEstablished	slot 33	00167a92
+00703250	cSC4Simulator::Init	slot 3	00167d80
+00703540	cSC4Simulator::DoMessage	cIGZMessageTarget2 vtable 00AB2F44 slot 3	00168c12
+007038b0	cSC4Simulator::SimulateAgents	called from OnTick; builds 0x66956810+level messages	00169124
+00703af0	cSC4Simulator::RemoveAgent (overload)	slot 21
+00703d20	cSC4Simulator::GetSimDate()	slot 7	00692c72
+00703d40	cSC4Simulator::GetSimDateNumber	slot 8	00692c80
+00703d50	cSC4Simulator::IsPaused	slot 15	00692c90
+00703d60	cSC4Simulator::IsHiddenPaused	slot 16	00692ca4
+00703d70	cSC4Simulator::IsEmergencyPaused	slot 17	00692cb8
+00703d80	cSC4Simulator::IsAnyPaused	slot 18	00692ccc
+00703da0	cSC4Simulator::SetMaxMillisecondsPerTick	slot 31	00692d0a
+00703e70	cSC4Simulator::OnTick	cIGZSystemService vtable 00AB2F6C; prior art (sc4 DLL hooks); loop matches Mac	0016928e
+00703fb0	cSC4Simulator::RemoveAllAgents (overload)	slot 22
+00704010	cSC4Simulator::RemoveAllAgents (overload)	slot 23
+00704360	cSC4Simulator::AddAgent	slot 19; checks level < 11	00168fae
+00704450	cSC4Simulator::EnumerateAgentsByName	slot 24	00169528
+005d9370	cSC4LimitTimerCalibrator::Tick	first call in OnTick
+00890198	cRZTimer::GetElapsedTime	timer at this+0x48 / +0x5C
+0089058f	cRZTimer::Restart
+009133da	operator new
+009134d6	cRZMessage2Standard::cRZMessage2Standard	follows new(0x2C)
+005d4a10	_purecall	fills abstract interface vtables
+0070d7d0	cSC4TrafficSimulator::GetGZCLSID	returns 0x6990C1AA
