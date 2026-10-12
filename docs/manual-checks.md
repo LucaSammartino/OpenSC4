@@ -24,7 +24,6 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 - Specs committed:
   - b9da700: fire and police protection.
   - ebc9e88: plumbing.
-  - Power is still being written.
 - Land value simulator and the game-layout message fix merged, e2dc324. Land value is off by default
   (`enable = landvalue`).
 - The checked DLL with the message fix is staged in Plugins. The previous one was renamed `*.pre-msgfix`.
