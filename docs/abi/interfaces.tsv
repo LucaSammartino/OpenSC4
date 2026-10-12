@@ -127,6 +127,7 @@ cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	29	+0x74	006abb50	cSC4Depart
 cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	30	+0x78	006aaef0	cSC4BudgetSimulator::GetYTDExpenses	0	0	edx:eax	medium	
 cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	31	+0x7C	006a9770	cSC4DepartmentBudget::SetTotalSpending	8	2	eax-or-void	medium	
 cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	32	+0x80	006aa9c0		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	33	+0x84	006aa040		4	1	eax-or-void	medium	
 cISC4LineItem	cSC4LineItem	00ab0f58	0	+0x0	006a97d0	cSC4LineItem::QueryInterface	8	2	eax-or-void	medium	
 cISC4LineItem	cSC4LineItem	00ab0f58	1	+0x4	006a9830	cSC4LineItem::AddRef	0	0	eax-or-void	medium	
 cISC4LineItem	cSC4LineItem	00ab0f58	2	+0x8	006a9840	cSC4LineItem::Release	0	0	eax-or-void	medium	
@@ -878,3 +879,1371 @@ cISC4RegionalCity	cSC4RegionalCity	00a8fb20	69	+0x114	004a90d0		4	1	eax-or-void	
 cISC4RegionalCity	cSC4RegionalCity	00a8fb20	70	+0x118	004aa0c0	cSC4RegionalCity::GetLocalDeals	4	1	eax-or-void	medium	
 cISC4RegionalCity	cSC4RegionalCity	00a8fb20	71	+0x11C	004aa200	cSC4RegionalCity::UpdateImportExport	0	0	eax-or-void	medium	
 cISC4RegionalCity	cSC4RegionalCity	00a8fb20	72	+0x120	004a8a40		8	2	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	7	+0x1C	0045de20	cSC4SimGrid<uint8>::GetCellValue	8	2	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	8	+0x20	0045de50	cSC4SimGrid<uint8>::GetAverageValueInCellRect	16	4	edx:eax?	low	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	9	+0x24	00460fc0	cSC4SimGrid<uint8>::SetTractSize	4	1	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	22	+0x58	0045e0d0	cSC4SimGrid<uint8>::GetTractValue	8	2	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	23	+0x5C	0045df40	cSC4SimGrid<uint8>::GetAverageValueInTractRect	16	4	edx:eax?	low	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	26	+0x68	0045e0f0	cSC4SimGrid<uint8>::SetTractValue	12	3	eax-or-void	medium	
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	27	+0x6C	0045e2e0	cSC4SimGrid<uint8>::SetTractValues	4	1	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	7	+0x1C	0045de20	cSC4SimGrid<uint8>::GetCellValue	8	2	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	8	+0x20	0045e140		16	4	edx:eax?	low	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	9	+0x24	004617c0	std::vector<cSC4ResponseCurve*,std::allocator<cSC4ResponseCurve*>>::resize	4	1	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	22	+0x58	0045e0d0	cSC4SimGrid<uint8>::GetTractValue	8	2	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	23	+0x5C	0045e230		16	4	edx:eax?	low	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	26	+0x68	0045e0f0	cSC4SimGrid<uint8>::SetTractValue	12	3	eax-or-void	medium	
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	27	+0x6C	0045e2e0	cSC4SimGrid<uint8>::SetTractValues	4	1	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	7	+0x1C	0045e470		8	2	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	8	+0x20	0045fa10		16	4	edx:eax?	low	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	9	+0x24	00465630		4	1	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	22	+0x58	0045fc80		8	2	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	23	+0x5C	0045fb00		16	4	edx:eax?	low	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	26	+0x68	0045fca0		12	3	eax-or-void	medium	
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	27	+0x6C	0045e630		4	1	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	7	+0x1C	0045e470		8	2	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	8	+0x20	0045e4a0		16	4	edx:eax?	low	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	9	+0x24	00462050	cSC4SimGrid<short>::cSC4SimGrid	4	1	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	22	+0x58	0045fc80		8	2	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	23	+0x5C	0045e590		16	4	edx:eax?	low	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	26	+0x68	0045fca0		12	3	eax-or-void	medium	
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	27	+0x6C	0045e630		4	1	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	7	+0x1C	0045e7f0		8	2	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	8	+0x20	0045fce0		16	4	edx:eax?	low	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	9	+0x24	00465dd0		4	1	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	22	+0x58	0045ff50		8	2	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	23	+0x5C	0045fdc0		16	4	edx:eax?	low	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	26	+0x68	0045ff70		12	3	eax-or-void	medium	
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	27	+0x6C	0045e9b0		4	1	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	7	+0x1C	0045e7f0		8	2	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	8	+0x20	0045e820		16	4	edx:eax?	low	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	9	+0x24	00462880		4	1	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	22	+0x58	0045ff50		8	2	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	23	+0x5C	0045e910		16	4	edx:eax?	low	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	26	+0x68	0045ff70		12	3	eax-or-void	medium	
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	27	+0x6C	0045e9b0		4	1	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	7	+0x1C	0045eae0		8	2	edx:eax	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	8	+0x20	0045ed00		16	4	edx:eax?	low	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	9	+0x24	00463210		4	1	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	22	+0x58	0045eed0		8	2	edx:eax	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	23	+0x5C	0045eb10		16	4	edx:eax?	low	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	26	+0x68	0045eef0		16	4	eax-or-void	medium	
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	27	+0x6C	0045ebb0		8	2	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	7	+0x1C	0045eae0		8	2	edx:eax	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	8	+0x20	0045ed00		16	4	edx:eax?	low	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	9	+0x24	00463aa0		4	1	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	22	+0x58	0045eed0		8	2	edx:eax	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	23	+0x5C	0045eb10		16	4	edx:eax?	low	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	26	+0x68	0045eef0		16	4	eax-or-void	medium	
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	27	+0x6C	0045ebb0		8	2	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	7	+0x1C	0045ef20	cSC4SimGrid<float>::GetCellValue	8	2	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	8	+0x20	0045ef50	cSC4SimGrid<float>::GetAverageValueInCellRect	16	4	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	9	+0x24	00464050	cSC4SimGrid<float>::SetTractSize	4	1	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	22	+0x58	0045f210	cSC4SimGrid<float>::GetTractValue	8	2	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	23	+0x5C	0045f050	cSC4SimGrid<float>::GetAverageValueInTractRect	16	4	x87	high	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	26	+0x68	0045f230	cSC4SimGrid<float>::SetTractValue	12	3	eax-or-void	medium	
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	27	+0x6C	0045f0f0	cSC4SimGrid<float>::SetTractValues	4	1	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	0	+0x0	0045e760		8	2	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	2	+0x8	0045e120		0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	3	+0xC	0045e110	cSC4SimGrid<T>::Init	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	4	+0x10	0045fcc0	cSC4SimGrid<T>::Shutdown	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	5	+0x14	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	6	+0x18	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	7	+0x1C	0045f250		8	2	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	8	+0x20	0045f280		16	4	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	9	+0x24	00464ad0		4	1	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	10	+0x28	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	11	+0x2C	00808620	cSC4SimGrid<T>::GetTractShift	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	12	+0x30	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	13	+0x34	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	14	+0x38	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	15	+0x3C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	16	+0x40	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	17	+0x44	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	18	+0x48	0045e450	cSC4SimGrid<T>::TractIsInBounds	8	2	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	19	+0x4C	0045ddf0	cSC4SimGrid<T>::PositionToTract	16	4	edx:eax?	low	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	20	+0x50	0045ece0	cSC4SimGrid<T>::TractCornerToPosition	16	4	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	21	+0x54	0045e7c0	cSC4SimGrid<T>::TractCenterToPosition	16	4	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	22	+0x58	0045f570		8	2	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	23	+0x5C	0045f380		16	4	x87	high	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	24	+0x60	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	25	+0x64	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	26	+0x68	0045f590		16	4	eax-or-void	medium	
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	27	+0x6C	0045f420		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	3	+0xC	0045dff0	cSC4SimGrid<uint8>::Write	4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	4	+0x10	00461620	cSC4SimGrid<uint8>::Read	4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	3	+0xC	0045e330		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	4	+0x10	00461eb0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	3	+0xC	0045e680		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	4	+0x10	004626e0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	3	+0xC	0045f130	cSC4SimGrid<float>::Write	4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	4	+0x10	00464930	cSC4SimGrid<float>::Read	4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	0	+0x0	006e2cd0	cSC4PollutionSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	2	+0x8	006e5f20	cSC4PollutionSimulator::Release	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	3	+0xC	006e7130	cSC4PollutionSimulator::Init	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	4	+0x10	006e5f50	cSC4PollutionSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	5	+0x14	006e3360	cSC4PollutionSimulator::GetPollutionGrid	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	6	+0x18	006e37e0	cSC4PollutionSimulator::GetPollutionValue	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	7	+0x1C	006e2ef0	cSC4PollutionSimulator::GetAirValue	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	8	+0x20	006e2f10	cSC4PollutionSimulator::GetWaterValue	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	9	+0x24	006e2f30	cSC4PollutionSimulator::GetGarbageValue	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	10	+0x28	007624c0	cSC4PollutionSimulator::GetAverageAirValue	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	11	+0x2C	006e3010	cSC4PollutionSimulator::GetAverageWaterValue	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	12	+0x30	006e3020	cSC4PollutionSimulator::GetAverageGarbageValue	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	13	+0x34	006e2f60	cSC4PollutionSimulator::IsAirPolluted	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	14	+0x38	006e2f90	cSC4PollutionSimulator::IsWaterPolluted	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	15	+0x3C	006e2fc0	cSC4PollutionSimulator::IsGarbageAccumulated	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	16	+0x40	006e2ed0	cSC4PollutionSimulator::IsRadioactive	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	17	+0x44	006e4fa0	cSC4PollutionSimulator::GetWorstAirTract	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	18	+0x48	006e4fd0	cSC4PollutionSimulator::GetWorstWaterTract	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	19	+0x4C	006e5000	cSC4PollutionSimulator::GetWorstGarbageTract	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	20	+0x50	006e3340	cSC4PollutionSimulator::GetGarbageSupply	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	21	+0x54	006e4f10	cSC4PollutionSimulator::GetLandfillTileCapacity	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	22	+0x58	006e5040	cSC4PollutionSimulator::GetGarbageCapacity	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	23	+0x5C	006e2ff0	cSC4PollutionSimulator::IsGarbageUncollected	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	24	+0x60	006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	25	+0x64	006e3030	cSC4PollutionSimulator::SetIsRadioactive	12	3	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	26	+0x68	006e3070	cSC4PollutionSimulator::SetAirValue	12	3	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	27	+0x6C	006e30b0	cSC4PollutionSimulator::SetWaterValue	12	3	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	28	+0x70	006e30f0	cSC4PollutionSimulator::SetGarbageValue	12	3	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	29	+0x74	006e32e0	cSC4PollutionSimulator::AddToGarbageSupply	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	30	+0x78	006e5050	cSC4PollutionSimulator::SetGarbageCapacity	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	31	+0x7C	00423710	icf::cSC4City::GetOccupantManager	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	32	+0x80	00798370	icf::cSC4City::GetPropManager	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	33	+0x84	006e3150	cSC4PollutionSimulator::GetRecyclingCenterEffect	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	34	+0x88	006e4f20	cSC4PollutionSimulator::GetGarbageAbductedPrevMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	35	+0x8C	006e4f30	cSC4PollutionSimulator::GetGarbageProducedLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	36	+0x90	006e4f40	cSC4PollutionSimulator::GetGarbageImportedLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	37	+0x94	006e4f50	cSC4PollutionSimulator::GetGarbageExportedLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	38	+0x98	006e4f60	cSC4PollutionSimulator::GetGarbageRecycledLastMonth	0	0	edx:eax?	low	tail->009eef04
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	39	+0x9C	006e4f70	cSC4PollutionSimulator::GetGarbageIncineratedLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	40	+0xA0	006e4f80	cSC4PollutionSimulator::GetGarbageConvertedToEnergyLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	41	+0xA4	006e4f90	cSC4PollutionSimulator::GetGarbageLandfilledLastMonth	0	0	edx:eax	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	42	+0xA8	006e50d0	cSC4PollutionSimulator::GetIncineratorCount	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	43	+0xAC	006e50f0	cSC4PollutionSimulator::GetWasteToEnergyBuildingCount	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	44	+0xB0	006e5110	cSC4PollutionSimulator::GetRecyclingCenterCount	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	45	+0xB4	006e5130	cSC4PollutionSimulator::GetWaterTreatmentPlantCount	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	46	+0xB8	006e4c70	cSC4PollutionSimulator::GetGarbageBuildings	4	1	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	47	+0xBC	006e3160	cSC4PollutionSimulator::GetBuildingGarbageCapacity	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	48	+0xC0	006e3190	cSC4PollutionSimulator::GetGarbageScalingFactor	0	0	x87	high	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	49	+0xC4	006e31a0	cSC4PollutionSimulator::IsActiveLandfill	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	50	+0xC8	006e31c0	cSC4PollutionSimulator::SetIsActiveLandfill	12	3	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	51	+0xCC	006e3250	cSC4PollutionSimulator::GarbagePutInLandfill	4	1	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	52	+0xD0	006e2da0	cSC4PollutionSimulator::GetMaxCapacity	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	53	+0xD4	006e4300	cSC4PollutionSimulator::GetCurrentCapacity	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	54	+0xD8	006e2d70	cSC4PollutionSimulator::GetRecyclingCenterMaxCapacity	8	2	x87|eax	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	55	+0xDC	006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	8	2	x87	high	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	56	+0xE0	006e4410	cSC4PollutionSimulator::GetCurrentOccupantCondition	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	57	+0xE4	006e3770	cSC4PollutionSimulator::GetCurrentOccupantEfficiency	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	58	+0xE8	006e2e70	cSC4PollutionSimulator::GetIncineratorUsedCapacity	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	59	+0xEC	006e2ea0	cSC4PollutionSimulator::GetWasteToEnergyUsedCapacity	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	60	+0xF0	006e2dd0	cSC4PollutionSimulator::GetIncineratorCurrentCapacity	8	2	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	61	+0xF4	006e2df0	cSC4PollutionSimulator::GetWasteToEnergyCurrentCapacity	8	2	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	62	+0xF8	006e2e10	cSC4PollutionSimulator::GetWaterTreatmentMaxCapacity	8	2	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	63	+0xFC	006e2e30	cSC4PollutionSimulator::GetWaterTreatmentCurrentCapacity	8	2	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	64	+0x100	006e2e50	cSC4PollutionSimulator::GetWaterTreatmentUsedCapacity	8	2	via-call	low	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	65	+0x104	006e4530	cSC4PollutionSimulator::CalcOccupantMaintenanceCost	8	2	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	66	+0x108	006e7040	cSC4PollutionSimulator::AddRadiationToCity	12	3	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	67	+0x10C	006e5060	cSC4PollutionSimulator::GetMaxAirPollutionLevelForUI	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	68	+0x110	006e5070	cSC4PollutionSimulator::GetMaxWaterPollutionLevelForUI	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	69	+0x114	006e5080	cSC4PollutionSimulator::GetMaxGarbagePollutionLevelForUI	0	0	eax-or-void	medium	
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	70	+0x118	006e5090	cSC4PollutionSimulator::GetMaxRadiationPollutionLevelForUI	0	0	eax-or-void	medium	
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	0	+0x0	006e50c0		8	2	eax-or-void	medium	tail->006e2cd0
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	2	+0x8	006e7120		0	0	eax-or-void	medium	tail->006e5f20
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	3	+0xC	006e3380	cSC4PollutionSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	4	+0x10	006e5270	cSC4PollutionSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	5	+0x14	006e2cc0	cSC4PollutionSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	0	+0x0	006e50b0		8	2	eax-or-void	medium	tail->006e2cd0
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	1	+0x4	005200f0		0	0	eax-or-void	medium	tail->00695330
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	2	+0x8	006e7110		0	0	eax-or-void	medium	tail->006e5f20
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	3	+0xC	006e3bc0	cSC4PollutionSimulator::GetRequestedShare	4	1	eax-or-void	medium	
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	4	+0x10	006e5030	cSC4PollutionSimulator::GetRequesterSatisfactionId	0	0	eax-or-void	medium	
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	5	+0x14	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	6	+0x18	0088b410	cSC4PollutionSimulator::SelectProp	12	3	eax-or-void	medium	
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	0	+0x0	006e50a0		8	2	eax-or-void	medium	tail->006e2cd0
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	2	+0x8	006e7100		0	0	eax-or-void	medium	tail->006e5f20
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	3	+0xC	006e8e20	cSC4PollutionSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	0	+0x0	006bd4c0	cSC4LandValueSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	2	+0x8	006bd8a0	cSC4LandValueSimulator::Release	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	3	+0xC	006be3b0	cSC4LandValueSimulator::Init	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	4	+0x10	006bdf70	cSC4LandValueSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	5	+0x14	006bd700	cSC4LandValueSimulator::GetLandValueType	8	2	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	6	+0x18	006bd740	cSC4LandValueSimulator::GetLandValue			forward	medium	indirect-jump dword ptr [eax + 0x1c]
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	8	+0x20	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	10	+0x28	006bdd90	cSC4LandValueSimulator::GetAverageLandValue	0	0	eax-or-void	medium	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	11	+0x2C	006bdda0	cSC4LandValueSimulator::GetModeAltitude	0	0	x87	high	
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	12	+0x30	006bded0		4	1	eax-or-void	medium	
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	0	+0x0	006bddc0		8	2	eax-or-void	medium	tail->006bd4c0
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	2	+0x8	006bdde0		0	0	eax-or-void	medium	tail->006bd8a0
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	3	+0xC	006bd8d0	cSC4LandValueSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	4	+0x10	006bd950	cSC4LandValueSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	5	+0x14	006bd4b0	cSC4LandValueSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	0	+0x0	006bddb0		8	2	eax-or-void	medium	tail->006bd4c0
+cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	2	+0x8	006bddd0		0	0	eax-or-void	medium	tail->006bd8a0
+cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	3	+0xC	006bf0d0	cSC4LandValueSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	0	+0x0	0069f1b0	cSC4CrimeSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	2	+0x8	0069f5d0	cSC4CrimeSimulator::Release	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	3	+0xC	006a15b0	cSC4CrimeSimulator::Init	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	4	+0x10	006a1860	cSC4CrimeSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	5	+0x14	006a0050	cSC4CrimeSimulator::GetCrimeGrid	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	6	+0x18	0069f350	cSC4CrimeSimulator::GetAverageCrime	0	0	edx:eax?	low	tail->009eef04
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	7	+0x1C	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	8	+0x20	0069f430	cSC4CrimeSimulator::GetCrimeHotspot	12	3	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	9	+0x24	006a10f0	cSC4CrimeSimulator::GetNearestCrimeSim	8	2	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	10	+0x28	006a0e50	cSC4CrimeSimulator::GetNearestCrimeProp	8	2	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	11	+0x2C	006a1960	cSC4CrimeSimulator::GetCrimeIncidentArray	4	1	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	12	+0x30	0069fd40	cSC4CrimeSimulator::SetVisualsCreated	8	2	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	13	+0x34	0069f9a0	cSC4CrimeSimulator::GetVisualsCreated	4	1	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	14	+0x38	006a05a0	cSC4CrimeSimulator::~cSC4CrimeSimulator	4	1	eax-or-void	medium	
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	15	+0x3C	0069f250	cSC4CrimeSimulator::GetSimulatorType	0	0	eax-or-void	medium	
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	0	+0x0	006a0090		8	2	eax-or-void	medium	tail->0069f1b0
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	2	+0x8	006a00c0		0	0	eax-or-void	medium	tail->0069f5d0
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	3	+0xC	0069f600	cSC4CrimeSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	4	+0x10	006a05e0	cSC4CrimeSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	5	+0x14	0069f1a0	cSC4CrimeSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	0	+0x0	006a0080		8	2	eax-or-void	medium	tail->0069f1b0
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	1	+0x4	005200f0		0	0	eax-or-void	medium	tail->00695330
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	2	+0x8	006a00b0		0	0	eax-or-void	medium	tail->0069f5d0
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	3	+0xC	0069f710	cSC4CrimeSimulator::GetRequestedShare	4	1	eax-or-void	medium	
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	4	+0x10	006a0060	cSC4CrimeSimulator::GetRequesterSatisfactionId	0	0	eax-or-void	medium	
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	5	+0x14	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	6	+0x18	006a00d0	cSC4CrimeSimulator::SelectProp	12	3	eax-or-void	medium	
+cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	0	+0x0	006a0070		8	2	eax-or-void	medium	tail->0069f1b0
+cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
+cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	2	+0x8	006a00a0		0	0	eax-or-void	medium	tail->0069f5d0
+cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	3	+0xC	006a21c0	cSC4CrimeSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	0	+0x0	006ae390	cSC4FlammabilitySimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	2	+0x8	006ae4a0	cSC4FlammabilitySimulator::Release	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	3	+0xC	006af540	cSC4FlammabilitySimulator::Init	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	4	+0x10	006aed40	cSC4FlammabilitySimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	6	+0x18	006ae460	cSC4FlammabilitySimulator::IsCellFlammable	8	2	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	7	+0x1C	006ae590	cSC4FlammabilitySimulator::GetFlammabilityHotspot	12	3	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	8	+0x20	006ae450	cSC4FlammabilitySimulator::GetAverageFlammability	0	0	eax-or-void	medium	
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	9	+0x24	006aed20		4	1	eax-or-void	medium	
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	0	+0x0	006ae800		8	2	eax-or-void	medium	tail->006ae390
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	2	+0x8	006ae820		0	0	eax-or-void	medium	tail->006ae4a0
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	3	+0xC	006ae620	cSC4FlammabilitySimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	4	+0x10	006ae830	cSC4FlammabilitySimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	5	+0x14	006ae380	cSC4FlammabilitySimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	0	+0x0	006ae7f0		8	2	eax-or-void	medium	tail->006ae390
+cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	2	+0x8	006ae810		0	0	eax-or-void	medium	tail->006ae4a0
+cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	3	+0xC	006afa60	cSC4FlammabilitySimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	0	+0x0	0068b9c0	cSC4AuraSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	2	+0x8	0068bfb0	cSC4AuraSimulator::Release	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	3	+0xC	0068e6b0	cSC4AuraSimulator::Init	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	4	+0x10	0068dec0	cSC4AuraSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	5	+0x14	0068bab0	cSC4AuraSimulator::GetAuraValue			forward	medium	indirect-jump dword ptr [eax + 0x1c]
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	6	+0x18	0068bad0	cSC4AuraSimulator::AddTransientEffect(float,float,TransientAuraEffect)	12	3	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	7	+0x1C	0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	16	4	x87|eax	low	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	8	+0x20	0068bac0	cSC4AuraSimulator::GetMayorRating	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	9	+0x24	0068d1e0	cSC4AuraSimulator::GetMaxMayorRating	4	1	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	10	+0x28	0068d200	cSC4AuraSimulator::GetMinMayorRating	4	1	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	11	+0x2C	0068c0d0	cSC4AuraSimulator::BustStrike	4	1	via-call	low	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	12	+0x30	0068d1b0	cSC4Simulator::GetSimTime	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	13	+0x34	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	14	+0x38	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	15	+0x3C	0068d1d0	cSC4AuraSimulator::GetLandmarkMap	0	0	eax-or-void	medium	
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	16	+0x40	0068d490	cSC4AuraSimulator::~cSC4AuraSimulator	4	1	eax-or-void	medium	
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	0	+0x0	0068d240		8	2	eax-or-void	medium	tail->0068b9c0
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	2	+0x8	0068d270		0	0	eax-or-void	medium	tail->0068bfb0
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	3	+0xC	0068cc50	cSC4AuraSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	4	+0x10	0068e340	cSC4AuraSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	5	+0x14	0068d1a0	cSC4AuraSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	0	+0x0	0068d220		8	2	eax-or-void	medium	tail->0068b9c0
+cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	2	+0x8	0068d260		0	0	eax-or-void	medium	tail->0068bfb0
+cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	3	+0xC	0068fa60	cSC4AuraSimulator::DoMessage	4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	3	+0xC	0045fba0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	4	+0x10	00465c30		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	3	+0xC	0045fe60		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	4	+0x10	00465ee0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	3	+0xC	0045ea00		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	4	+0x10	00463070		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	3	+0xC	0045ec00		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	4	+0x10	004638f0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	3	+0xC	0045edf0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	4	+0x10	00463ea0		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	0	+0x0	0045fcd0		8	2	eax-or-void	medium	
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	2	+0x8	0045ff40		0	0	eax-or-void	medium	
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	3	+0xC	0045f470		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	4	+0x10	00465480		4	1	eax-or-void	medium	
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	5	+0x14	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	0	+0x0	00459300	cSC4City::QueryInterface	8	2	eax-or-void	medium	tail->005fd200
+cISC4City	cSC4City	00a87620	1	+0x4	008ae800	icf::cGZLuaScriptServer::AddRef	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	2	+0x8	004599b0	cSC4City::Release	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	3	+0xC	0045bd20	cSC4City::Init	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	4	+0x10	0045b1d0	cSC4City::Shutdown	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	5	+0x14	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	6	+0x18	006aac60	cSC4City::SetCitySerialNumber	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	7	+0x1C	00459530	cSC4City::GetNewOccupantSerialNumber	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	8	+0x20	00459540	cSC4City::GetOriginalLanguageAndCountry	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	9	+0x24	00459560	cSC4City::GetLastLanguageAndCountry	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	10	+0x28	00459580	cSC4City::GetCitySaveFilePath			forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4City	cSC4City	00a87620	11	+0x2C	004595a0	cSC4City::SetCitySaveFilePath			forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4City	cSC4City	00a87620	12	+0x30	00459dc0	cSC4City::GetCityName	4	1	via-call	low	
+cISC4City	cSC4City	00a87620	13	+0x34	0045a5a0	cSC4City::SetCityName	4	1	via-call	low	
+cISC4City	cSC4City	00a87620	14	+0x38	004595b0	cSC4City::GetCityNameChanged	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	15	+0x3C	004595c0	cSC4City::SetCityNameChanged	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	16	+0x40	00459de0	cSC4City::GetMayorName	4	1	via-call	low	
+cISC4City	cSC4City	00a87620	17	+0x44	0045a660	cSC4City::SetMayorName	4	1	via-call	low	
+cISC4City	cSC4City	00a87620	18	+0x48	00459e10	cSC4City::GetCityDescription	4	1	via-call	low	
+cISC4City	cSC4City	00a87620	19	+0x4C	0045a780	cSC4City::SetCityDescription	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	20	+0x50	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	21	+0x54	006ce0f0	cSC4City::SetBirthDate	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	22	+0x58	004596b0	cSC4City::GetEstablished	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	23	+0x5C	00459a80	cSC4City::SetEstablished	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	24	+0x60	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	25	+0x64	006026a0	cSC4City::SetDifficultyLevel	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	26	+0x68	004595d0	cSC4City::GetWorldPosition	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	27	+0x6C	004595f0	cSC4City::SetWorldPosition	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	28	+0x70	007624f0	cSC4City::GetWorldBaseElevation	0	0	x87	high	
+cISC4City	cSC4City	00a87620	29	+0x74	00459680	cSC4City::SetWorldBaseElevation	4	1	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	30	+0x78	00459690	cSC4City::GetWorldHemisphere	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	31	+0x7C	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	32	+0x80	006dc680	cSC4PlumbingSimulator::GetWaterExported	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	33	+0x84	00472e70	cSC4City::GetLotManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	34	+0x88	00423710	icf::cSC4City::GetOccupantManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	35	+0x8C	00798370	icf::cSC4City::GetPropManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	36	+0x90	005a4de0	icf::cSC4City::GetZoneManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	37	+0x94	0076b620	icf::cGZGraph::GetHitTestResultData	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	38	+0x98	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	39	+0x9C	00459730	cSC4City::GetDispatchManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	40	+0xA0	004596f0	cSC4City::GetTrafficNetwork	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	41	+0xA4	00423750	icf::cSC4City::GetPropDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	42	+0xA8	0043d230	icf::cSC4City::GetNetworkLotManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	43	+0xAC	00647570	cSC4City::GetVehicleManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	44	+0xB0	005d25f0	icf::cSC4City::GetPedestrianManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	45	+0xB4	004596e0	cSC4City::GetAircraftManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	46	+0xB8	00459700	cSC4City::GetWatercraftManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	47	+0xBC	00459710	cSC4City::GetAutomataControllerManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	48	+0xC0	00459720	cSC4City::GetAutomataScriptSystem	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	49	+0xC4	00505100	cSC4City::GetCitySituationManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	50	+0xC8	00459740	cSC4City::GetSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	51	+0xCC	00459750	cSC4City::GetAuraSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	52	+0xD0	00459760	cSC4City::GetBudgetSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	53	+0xD4	006197e0	cSC4City::GetBuildingDevelopmentSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	54	+0xD8	00459770	cSC4City::GetCommercialSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	55	+0xDC	004abce0	cSC4City::GetCrimeSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	56	+0xE0	00459780	cSC4City::GetDemandSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	57	+0xE4	006dc690	cSC4PlumbingSimulator::GetNumPipes	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	58	+0xE8	006dc6a0	cSC4PlumbingSimulator::GetNumDistressedPipes	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	59	+0xEC	007ff120	cSC4City::GetFloraSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	60	+0xF0	007ff110	cS3DCamera::GetProjectionType	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	61	+0xF4	00459790	cSC4City::GetLandValueSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	62	+0xF8	004597a0	cSC4City::GetNeighborsSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	63	+0xFC	006dc6b0	cSC4PlumbingSimulator::GetNumWateredBuildings	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	64	+0x100	004597b0	cSC4City::GetPlumbingSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	65	+0x104	004597c0	cSC4City::GetPoliceSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	66	+0x108	00423850	icf::cSC4City::GetPollutionSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	67	+0x10C	004597d0	cSC4City::GetPowerSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	68	+0x110	004597e0	cSC4City::GetResidentialSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	69	+0x114	004597f0	cSC4City::GetTrafficSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	70	+0x118	00459800	cSC4City::GetWeatherSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	71	+0x11C	00459810	cSC4City::GetMySimAgentSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	72	+0x120	00459830	cSC4City::GetDisasterLayer	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	73	+0x124	00459820	cSC4City::GetCivicBuildingSimulator	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	74	+0x128	00459880	icf::cSC4City::GetParkManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	75	+0x12C	00423720	icf::cSC4City::GetZoneDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	76	+0x130	00459860	cSC4City::GetSeaportDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	77	+0x134	00459850	cSC4City::GetAirportDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	78	+0x138	00459840	cSC4City::GetLandfillDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	79	+0x13C	006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	80	+0x140	00459870	cSC4City::GetTractDeveloper	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	81	+0x144	00459890	cSC4City::GetAdvisorSystem	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	82	+0x148	005d2070	icf::cSC4City::GetTutorialSystem	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	83	+0x14C	004596c0	cSC4City::GetSurfaceWater	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	84	+0x150	00504f70	cSC4City::GetTerrain	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	85	+0x154	004e76a0	icf::cSC4AudioAmbienceLayer::GetLayerId	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	86	+0x158	004596d0	cSC4City::Get24HourClock	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	87	+0x15C	00459390	cSC4City::GetCitySizeType	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	88	+0x160	004593b0	cSC4City::SetSize	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	89	+0x164	0045a370	cSC4City::SizeX	0	0	x87	high	
+cISC4City	cSC4City	00a87620	90	+0x168	0045a380	cSC4City::SizeZ	0	0	x87	high	
+cISC4City	cSC4City	00a87620	91	+0x16C	0045a390	cSC4City::CellWidthX	0	0	x87	high	
+cISC4City	cSC4City	00a87620	92	+0x170	0045a3a0	cSC4City::CellWidthZ	0	0	x87	high	
+cISC4City	cSC4City	00a87620	93	+0x174	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	94	+0x178	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	95	+0x17C	004599e0	cSC4City::PositionToCell	16	4	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	96	+0x180	00459410	cSC4City::CellCornerToPosition	16	4	x87	high	
+cISC4City	cSC4City	00a87620	97	+0x184	00459440	cSC4City::CellCenterToPosition	16	4	x87	high	
+cISC4City	cSC4City	00a87620	98	+0x188	00459470	cSC4City::LocationIsInBounds	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	99	+0x18C	004594d0	cSC4City::CellIsInBounds	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	100	+0x190	00459500	cSC4City::CellCornerIsInBounds	8	2	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	101	+0x194	004598c0	cSC4City::ToggleSimulationMode	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	102	+0x198	004598a0	cSC4City::IsInCityTimeSimulationMode	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	103	+0x19C	004598f0	cSC4City::EnableSave	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	104	+0x1A0	00459910	cSC4City::DisableSave	0	0	unknown	low	
+cISC4City	cSC4City	00a87620	105	+0x1A4	00459920	cSC4City::IsSaveDisabled	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	106	+0x1A8	00459930	cSC4City::UIIncreaseLockCount	0	0	unknown	low	
+cISC4City	cSC4City	00a87620	107	+0x1AC	00459940	cSC4City::UIDecreaseLockCount	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	108	+0x1B0	00459960	cSC4City::UIGetLockCount	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	109	+0x1B4	00459970	cSC4City::SaveObliterated	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	0	+0x0	004dc1b0	cSC4ZoneManager::QueryInterface	8	2	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	2	+0x8	004dc430	cSC4ZoneManager::Release	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	3	+0xC	004de170	cSC4ZoneManager::Init	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	4	+0x10	004dc230	cSC4ZoneManager::Shutdown	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	5	+0x14	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	6	+0x18	004dc2d0	cSC4ZoneManager::GetZoneCount	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	7	+0x1C	004dc2f0	cSC4ZoneManager::GetUndevelopedTileCount	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	8	+0x20	004dc2e0	cSC4ZoneManager::GetUndevelopedTileCount	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	9	+0x24	004de130	cSC4ZoneManager::GetDevelopmentFailureCount	8	2	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	10	+0x28	007c9fb0	icf::cSC43DRender::GetViewUtilities	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	11	+0x2C	004dd780	cSC4ZoneManager::PlaceZone	40	10	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	12	+0x30	004dc740	cSC4ZoneManager::GetZoneType	8	2	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	13	+0x34	004dc300	cSC4ZoneManager::IsRCIZone	4	1	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x4dc324]
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	14	+0x38	004dc340	cSC4ZoneManager::GetTextureForZone	8	2	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	15	+0x3C	004dcd20	cSC4ZoneManager::GetZoneDragColor	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	16	+0x40	004dcd10	cSC4ZoneManager::GetZoneDisplayAlpha	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	17	+0x44	004dc370	cSC4ZoneManager::GetDefaultZoneDisplayAlpha	0	0	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	18	+0x48	004dcf60	cSC4ZoneManager::SetZoneDisplayAlpha	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	19	+0x4C	004dcd30	cSC4ZoneManager::GetMinZoneSize	4	1	eax-or-void	medium	
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	20	+0x50	004dcd40	cSC4ZoneManager::GetMaxZoneSize	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	0	+0x0	00741e90	cSTETerrain::QueryInterface	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	2	+0x8	00741f70	cSTETerrain::Release	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	3	+0xC	0074fea0	cSTETerrain::Init	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	4	+0x10	007435c0	cSTETerrain::Shutdown	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	5	+0x14	005b9d30	icf::cSCParticleSimulatorBase::IsInDelayedStop	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	6	+0x18	0074c5c0	cSTETerrain::CellWidth	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	7	+0x1C	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	9	+0x24	0074c5d0	cSTETerrain::GetVertIndex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	10	+0x28	0074c5e0	cSTETerrain::GetVertex	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	11	+0x2C	0074c610	cSTETerrain::LocationIsInBounds	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	12	+0x30	007413c0	cSTETerrain::GetAltitude	4	1	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	13	+0x34	00741260	cSTETerrain::GetAltitude	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	14	+0x38	007413e0	cSTETerrain::GetAltitudeAtVertex	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	15	+0x3C	00742a00	cSTETerrain::GetAltitudes	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	16	+0x40	007443c0	cSTETerrain::GetWaterDepths	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	17	+0x44	007415f0	cSTETerrain::GetCellCornerAltitudes	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	18	+0x48	00744620	cSTETerrain::GetMaxSurfaceLevel	8	2	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	19	+0x4C	00741420	cSTETerrain::GetAltitudeAtNearestGrid	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	20	+0x50	007414a0	cSTETerrain::GetAltitudeCheckSum	4	1	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	21	+0x54	0074c670	cSTETerrain::MinHeight	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	22	+0x58	0074c680	cSTETerrain::MaxHeight	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	23	+0x5C	0074c690	cSTETerrain::MinAllowedHeight	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	24	+0x60	0074c6a0	cSTETerrain::MaxAllowedHeight	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	25	+0x64	0074c6b0	cSTETerrain::GetTerrainGridIndex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	26	+0x68	00742b10	cSTETerrain::GetFaceNormal	12	3	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	27	+0x6C	00742cf0	cSTETerrain::GetLerpedNormal	12	3	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	28	+0x70	007417d0	cSTETerrain::GetVertexNormal	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	29	+0x74	00741760	cSTETerrain::GetSeaLevel	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	30	+0x78	007449b0	cSTETerrain::GetWaterLevel	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	31	+0x7C	00744980	cSTETerrain::GetWaterLevel	4	1	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	32	+0x80	007444e0	cSTETerrain::GetLerpedWaterLevel	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	33	+0x84	00744ab0	cSTETerrain::GetWaterDepthAtVertex	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	34	+0x88	00743fa0	cSTETerrain::CellHasWater	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	35	+0x8C	00744030	cSTETerrain::CellHasLand	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	36	+0x90	00747680	cSTETerrain::IsLandVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	37	+0x94	007476d0	cSTETerrain::IsWaterVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	38	+0x98	00741b30	cSTETerrain::IsSeaVertex	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	39	+0x9C	00740750	cSTETerrain::AreSeaVertices	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	40	+0xA0	00749540	cSTETerrain::DoPostCityInit	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	41	+0xA4	00749a00	cSTETerrain::SetTerrainType	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	42	+0xA8	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	43	+0xAC	0074a220	cSTETerrain::CreateFlatAreas	4	1	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	44	+0xB0	0074c0f0	cSTETerrain::CreateShoreCliffs	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	45	+0xB4	00743550	cSTETerrain::SetSeaLevel	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	46	+0xB8	00740850	cSTETerrain::ChangeSeaLevel	4	1	via-call	low	
+cISTETerrain	cSTETerrain	00ab3d18	47	+0xBC	0074c660	cSTETerrain::GetDefaultTerrainRaiseLowerAmount	0	0	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	48	+0xC0	00746440	cSTETerrain::ChangeTerrainLevel	8	2	via-call	low	
+cISTETerrain	cSTETerrain	00ab3d18	49	+0xC4	00744f10	cSTETerrain::SetAltitude	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	50	+0xC8	00744e60	cSTETerrain::SetAltitudeAtVertex	8	2	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	51	+0xCC	00744f90	cSTETerrain::SetAltitude	12	3	x87|eax	low	
+cISTETerrain	cSTETerrain	00ab3d18	52	+0xD0	00741f90	cSTETerrain::LockAltitude	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	53	+0xD4	00744b40	cSTETerrain::NumberOfWaterVertices	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	54	+0xD8	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	55	+0xDC	007448c0	cSTETerrain::GetSedimentValue	8	2	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	56	+0xE0	00747720	cSTETerrain::StartFlood	0	0	via-call	low	tail->007467f0
+cISTETerrain	cSTETerrain	00ab3d18	57	+0xE4	0074f0e0	cSTETerrain::ApplyBrush	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	58	+0xE8	007415d0	cSTETerrain::GetBrushExemplarID	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	59	+0xEC	00747a30	cSTETerrain::BeginBrushScrub	8	2	via-call	low	
+cISTETerrain	cSTETerrain	00ab3d18	60	+0xF0	00747bb0	cSTETerrain::EndBrushScrub	8	2	via-call	low	
+cISTETerrain	cSTETerrain	00ab3d18	61	+0xF4	00747ae0	cSTETerrain::BrushRadius	4	1	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	62	+0xF8	00747c90	cSTETerrain::GetCostPerBrushApplication	4	1	edx:eax?	low	
+cISTETerrain	cSTETerrain	00ab3d18	63	+0xFC	00747d60	cSTETerrain::GetUIElementsForBrush	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	64	+0x100	0074bad0	cSTETerrain::UpdateWaveProducers	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	65	+0x104	00747510	cSTETerrain::IsGoodWaveProducerLocation	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	66	+0x108	00741810	cSTETerrain::GetView	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	67	+0x10C	00742930	cSTETerrain::DoLighting	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	68	+0x110	00749850	cSTETerrain::RedisplayTerrain	16	4	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	69	+0x114	00743460	cSTETerrain::RedisplayTerrain	20	5	via-call	low	
+cISTETerrain	cSTETerrain	00ab3d18	70	+0x118	00741c20	cSTETerrain::IsTriangulationFlipped	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	71	+0x11C	007418f0	cSTETerrain::HideTerrainCell	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	72	+0x120	00741830	cSTETerrain::HideEvenTriangle	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	73	+0x124	00741890	cSTETerrain::HideOddTriangle	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	74	+0x128	00741ab0	cSTETerrain::IsEvenTriangleHidden	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	75	+0x12C	00741af0	cSTETerrain::IsOddTriangleHidden	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	76	+0x130	00741c60	cSTETerrain::IsWholeCellHidden	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	77	+0x134	00741cb0	cSTETerrain::IsPointHidden	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	78	+0x138	007420b0	cSTETerrain::StartAccumulatingTextureUpdates	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	79	+0x13C	00749a70	cSTETerrain::StopAccumulatingTextureUpdates	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	80	+0x140	0074c6f0	cSTETerrain::IsAccumulatingTextureUpdates	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	81	+0x144	00742000	cSTETerrain::SetTerrainCellFlags	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	82	+0x148	00741770	cSTETerrain::GetTerrainCellFlags	8	2	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	83	+0x14C	00741740	icf::cGZGraphicSystem::IsPageFlippingEnabled	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	84	+0x150	007434e0	cSTETerrain::SetWaterSurfaceDisplayState	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	85	+0x154	00741750	cSTETerrain::GetPlumbingInfoDisplayState	0	0	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	86	+0x158	00741ff0	cSTETerrain::SetPlumbingInfoDisplayState	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	87	+0x15C	00743b40	cSTETerrain::BeginLongTerrainOperation	0	0	unknown	low	
+cISTETerrain	cSTETerrain	00ab3d18	88	+0x160	007443a0	cSTETerrain::EndLongTerrainOperation	0	0	unknown	low	
+cISTETerrain	cSTETerrain	00ab3d18	89	+0x164	0074ed40	cSTETerrain::ReconcileEdgesWithNeighboringCities	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	90	+0x168	00742150	cSTETerrain::SaveObliterated			forward	medium	indirect-jump dword ptr [edx + 0x184]
+cISTETerrain	cSTETerrain	00ab3d18	91	+0x16C	0074db90	cSTETerrain::~cSTETerrain	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	92	+0x170	00744a80	cSTETerrain::GetWaterDepthAtVertex	4	1	x87	high	
+cISTETerrain	cSTETerrain	00ab3d18	93	+0x174	00741180	cSTETerrain::FlipInternalTriangulation	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	94	+0x178	007411f0	cSTETerrain::FlipExternalTriangulation	12	3	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	95	+0x17C	00742170	cSTETerrain::LoadObliterated			forward	medium	indirect-jump dword ptr [eax + 0x180]
+cISTETerrain	cSTETerrain	00ab3d18	96	+0x180	00747800	cSTETerrain::Load	4	1	eax-or-void	medium	
+cISTETerrain	cSTETerrain	00ab3d18	97	+0x184	007477c0	cSTETerrain::Save	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	0	+0x0	006c3b80	cSC4LotDeveloper::QueryInterface	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	2	+0x8	006c49d0	cSC4LotDeveloper::Release	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	3	+0xC	006cb9a0	cSC4LotDeveloper::Init	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	4	+0x10	006c7380	cSC4LotDeveloper::Shutdown	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	5	+0x14	006c3c40	cSC4LotDeveloper::GetSimulatorType	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	6	+0x18	006cc490	cSC4LotDeveloper::StartConstruction	16	4	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	7	+0x1C	006ccef0	cSC4LotDeveloper::ConstructDefaultLot	16	4	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	8	+0x20	006c3d30	cSC4LotDeveloper::AbandonBuilding	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	9	+0x24	006c3d50	cSC4LotDeveloper::ReoccupyBuilding	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	10	+0x28	006c5210	cSC4LotDeveloper::ChangeBuilding	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	11	+0x2C	006cb940	cSC4LotDeveloper::RemoveBuildingZotProp	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	12	+0x30	006cc1d0	cSC4LotDeveloper::StartDemolishLot	4	1	unknown	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	13	+0x34	006c90a0	cSC4LotDeveloper::EndDemolishLot	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	14	+0x38	006cc250	cSC4LotDeveloper::ExplodeLot	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	15	+0x3C	006c4310	cSC4LotDeveloper::GetTerrainAltitudeByVertex	12	3	x87|eax	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	16	+0x40	006c56c0	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	17	+0x44	006c5620	cSC4LotDeveloper::GetLowestOrHighestAreaAltitude	12	3	x87	high	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	18	+0x48	006c5b70	cSC4LotDeveloper::GetAverageAreaAltitude	8	2	x87	high	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	19	+0x4C	006c43d0	cSC4LotDeveloper::LevelAreaInternalVertices	20	5	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	20	+0x50	006c44b0	cSC4LotDeveloper::LevelBorderingVertices	16	4	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	21	+0x54	006c44f0	cSC4LotDeveloper::AttemptAreaLevelling	24	6	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	22	+0x58	006c4590	cSC4LotDeveloper::GetOccupantCellCoverage	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	23	+0x5C	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	24	+0x60	006c5c00	cSC4LotDeveloper::IsLotDeveloped	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	25	+0x64	006c5c30	cSC4LotDeveloper::IsAreaFlat	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	26	+0x68	006c5cc0	cSC4LotDeveloper::IsLotFlat	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	27	+0x6C	006c5cf0	cSC4LotDeveloper::GetAreaAltitudeRange	8	2	x87	high	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	28	+0x70	006c5d90	cSC4LotDeveloper::GetLotAltitudeRange	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	29	+0x74	006c5dc0	cSC4LotDeveloper::GetAreaSlope	8	2	x87	high	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	30	+0x78	006c5f20	cSC4LotDeveloper::GetLotSlope	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	31	+0x7C	006c5f50	cSC4LotDeveloper::GetOccupantSlope	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	32	+0x80	006c5f80	cSC4LotDeveloper::GetLotDevelopmentCost	4	1	edx:eax?	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	33	+0x84	006c7320	cSC4LotDeveloper::RemoveLotFromItsBusinessUnit	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	34	+0x88	006cb4d0	cSC4LotDeveloper::UpdateTravelDesignates	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	35	+0x8C	006c6340	cSC4LotDeveloper::UpdateTravelPopulations	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	36	+0x90	006c7a70	cSC4LotDeveloper::NeedsAnchorBuilding	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	37	+0x94	006cc880	cSC4LotDeveloper::UpdateLotElements	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	38	+0x98	006c9100	cSC4LotDeveloper::GetFirstBuilding	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	39	+0x9C	006c4ef0	cSC4LotDeveloper::GetPositionForLotConfigurationObject	20	5	eax-or-void	medium	indirect-jump dword ptr [ebp*4 + 0x6c51fc]
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	40	+0xA0	006c3cf0	cSC4LotDeveloper::GetPositionForBuilding	12	3	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	41	+0xA4	006c41a0	cSC4LotDeveloper::GetLotBaseTextureOccupant	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	42	+0xA8	006c6cf0	cSC4LotDeveloper::GetBoundaryLotTexture	16	4	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	43	+0xAC	006cc970	cSC4LotDeveloper::SetEmptyLotBaseTexture	4	1	via-call	low	indirect-jump dword ptr [ecx*4 + 0x6cce14]
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	44	+0xB0	006ca8a0	cSC4LotDeveloper::SetNormalLotBaseTexture	12	3	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x6caad4]
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	45	+0xB4	006c4290	cSC4LotDeveloper::UpdateLotBaseTextureOccupant	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	46	+0xB8	006aaf40	cSC4LotDeveloper::GetForceEmptyLotBaseTextures	0	0	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	47	+0xBC	006c77d0	cSC4LotDeveloper::SetForceEmptyLotBaseTextures	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	48	+0xC0	006c3e10	cSC4LotDeveloper::GetFoundationByOccupant	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	49	+0xC4	006c9480	cSC4LotDeveloper::GetFoundationByStandardCityCell	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	50	+0xC8	006c95e0	cSC4LotDeveloper::GetFoundationByPosition	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	51	+0xCC	006c3e70	cSC4LotDeveloper::GetLotFoundation	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	52	+0xD0	006c54e0	cSC4LotDeveloper::RemoveFoundation	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	53	+0xD4	006c3eb0	cSC4LotDeveloper::RemoveLotFoundation	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	54	+0xD8	006c5460	cSC4LotDeveloper::AddLotFoundation	20	5	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	55	+0xDC	006c8ab0	cSC4LotDeveloper::AddLotFoundation	20	5	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	56	+0xE0	006c3ff0	cSC4LotDeveloper::IsLotObjectFoundationRequired	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	57	+0xE4	006c5590	cSC4LotDeveloper::IsLotObjectFoundationRequired	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	58	+0xE8	006c40e0	cSC4LotDeveloper::AddBuildingFoundation	8	2	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	59	+0xEC	006c4020	cSC4LotDeveloper::AddBuildingFoundation	8	2	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	60	+0xF0	006c4150	cSC4LotDeveloper::RemoveBuildingFoundation	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	61	+0xF4	006c3f80	cSC4LotDeveloper::UpdateLotFoundation	4	1	via-call	low	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	62	+0xF8	006c4190	cSC4LotDeveloper::UpdateLotRetainingWalls	4	1	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	63	+0xFC	006c6230	cSC4LotDeveloper::CreateLotProp	12	3	eax-or-void	medium	
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	64	+0x100	006cb760	cSC4LotDeveloper::GetLotConfigurationObjectOccupant	12	3	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	0	+0x0	006b37a0		8	2	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	2	+0x8	006b3d00		0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	3	+0xC	006b8510	cSC4GrowthDeveloper::Init	4	1	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	4	+0x10	006b59a0	cSC4GrowthDeveloper::Shutdown	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	5	+0x14	00441080	cSC4PoliceSimulator::GetJailDepartmentBudget	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	6	+0x18	00472e50		0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	7	+0x1C	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	8	+0x20	008265c0	cSC4Simulator::GetSimSpeed	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	9	+0x24	006b38e0	cSC4GrowthDeveloper::GetConstructionInfo	4	1	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x6b394c]
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	10	+0x28	006b7530	cSC4GrowthDeveloper::GrowthAndDeclineListsAreValid	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	11	+0x2C	00798040		0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	12	+0x30	006b7540	cSC4GrowthDeveloper::GetDeclineList	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	13	+0x34	007c9fb0	icf::cSC43DRender::GetViewUtilities	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	14	+0x38	004e82a0	icf::cSC43DRender::GetDrawContext	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	15	+0x3C	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	16	+0x40	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	17	+0x44	004236f0	cSC4CitySituationAdvice::GetEvilTwinGuid	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	18	+0x48	00a6cab0	icf::cGZLuaScriptServer::GetLua	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	19	+0x4C	006b7550	cSC4GrowthDeveloper::GetPowerSupplyCap	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	20	+0x50	006b7560	cSC4GrowthDeveloper::GetWaterSupplyCap	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	21	+0x54	006b7570	cSC4GrowthDeveloper::GetFireCoverageCap	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	22	+0x58	006b7580	cSC4GrowthDeveloper::GetParkCap	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	23	+0x5C	006b75a0	cSC4GrowthDeveloper::GetDesirabilityThreshold	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	24	+0x60	006b7620	cSC4GrowthDeveloper::GetAbandonmentThreshold	4	1	x87	high	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	25	+0x64	008216d0	cRZURL::GetPort	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	26	+0x68	006b7590	cSC4GrowthDeveloper::GetStylePercentages	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	27	+0x6C	006b75b0	cSC4GrowthDeveloper::StartMapUpdate	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	28	+0x70	006b75d0	cSC4GrowthDeveloper::IsMapUpdateFinished	0	0	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	29	+0x74	006b4df0	cSC4GrowthDeveloper::EstimateDesirability	8	2	eax-or-void	medium	
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	30	+0x78	006b5410	cSC4GrowthDeveloper::GetSubjectiveThresholds	12	3	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	0	+0x0	0092d091		8	2	eax-or-void	medium	tail->0091dd67
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	3	+0xC	0092ea65		4	1	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	4	+0x10	0092d0bb		8	2	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	5	+0x14	0092e795	cSC4TractDeveloper::PerformAggregation	8	2	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	6	+0x18	0092e560		8	2	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	7	+0x1C	0092ea00		8	2	via-call	low	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	8	+0x20	0092e642		4	1	via-call	low	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	9	+0x24	0092e040		4	1	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	10	+0x28	0092d0f4		0	0	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	11	+0x2C	0092d11f		4	1	eax-or-void	medium	
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	12	+0x30	0092d0b3				forward	medium	indirect-jump dword ptr [eax + 0x14]
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	13	+0x34	0092d1fe	cGZMessageServer2::CreateMessage	12	3	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	0	+0x0	0049d910		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	1	+0x4	0049df80		0	0	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	2	+0x8	0049dfb0		0	0	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	3	+0xC	004a18e0		0	0	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	4	+0x10	0049e000		0	0	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	5	+0x14	0049e050		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	6	+0x18	0049d990	cSC4OccupantManager::GetOccupantManagerCellSizes	8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	7	+0x1C	0049d9b0		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	8	+0x20	0049d9d0		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	9	+0x24	0049db50		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	10	+0x28	0049d9f0		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	11	+0x2C	0049da10		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	12	+0x30	0049da30		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	13	+0x34	0049da50		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	14	+0x38	0049da80		16	4	x87	high	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	15	+0x3C	0049e0e0		16	4	x87	high	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	16	+0x40	0049daf0		16	4	x87	high	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	17	+0x44	0049e150		16	4	x87	high	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	18	+0x48	0049db20		16	4	x87	high	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	19	+0x4C	0049e1b0		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	20	+0x50	0049ef60		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	21	+0x54	0049f240		12	3	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	22	+0x58	0049fcd0		12	3	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	23	+0x5C	0049db80				forward	medium	indirect-jump dword ptr [eax + 0x58]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	24	+0x60	0049f3c0		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	25	+0x64	0049e490		8	2	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	26	+0x68	0049dba0		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	27	+0x6C	0049fb30		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x70]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x78]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800		16	4	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x88]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	37	+0x94	0049dd40		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0x90]/dword ptr [eax + 0x90]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	38	+0x98	004a0a70		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	39	+0x9C	0049dd80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0x98]/dword ptr [eax + 0x98]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	40	+0xA0	0049e250		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	41	+0xA4	0049ddc0		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xa0]/dword ptr [eax + 0xa0]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	42	+0xA8	004a0d70		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	43	+0xAC	0049de00		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xa8]/dword ptr [eax + 0xa8]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xb0]/dword ptr [eax + 0xb0]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xbc]/dword ptr [eax + 0xbc]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370		20	5	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30		4	1	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	0	+0x0	00578910		8	2	eax-or-void	medium	tail->00577400
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	3	+0xC	00578e70	cSC4DisasterLayer::Init	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	4	+0x10	005780a0	cSC4DisasterLayer::Shutdown	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	5	+0x14	005773c0	cSC4DisasterLayer::EnableDisasters	4	1	via-call	low	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	6	+0x18	005773b0	cSC4DisasterLayer::DisastersEnabled	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	7	+0x1C	00578060	cSC4DisasterLayer::GetDisasterManager	4	1	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	8	+0x20	00578fc0	cSC4DisasterLayer::DisasterHasBegun	4	1	via-call	low	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	9	+0x24	00577e90	cSC4DisasterLayer::DisasterHasEnded	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	10	+0x28	005773f0	cSC4DisasterLayer::IsADisasterOngoing	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	11	+0x2C	00577810	cSC4DisasterLayer::GoToNextDisaster	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	12	+0x30	005775e0	cSC4DisasterLayer::GetMostRecentDisasterLocation	12	3	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	13	+0x34	005783d0	cSC4DisasterLayer::RegisterDisasterLocation	24	6	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	14	+0x38	00577d30	cSC4DisasterLayer::UnregisterDisasterLocations	4	1	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	15	+0x3C	00577de0	cSC4DisasterLayer::UnregisterDisasterLocationByOccupant	8	2	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	16	+0x40	00577680	cSC4DisasterLayer::GetDisasterLocationCount	0	0	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	17	+0x44	00577920	cSC4DisasterLayer::GetDisasterLocationByIndex	16	4	eax-or-void	medium	
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	18	+0x48	00578900	cSC4DisasterLayer::GetDisasterCost	0	0	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	0	+0x0	005795c0		8	2	eax-or-void	medium	tail->005790c0
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	1	+0x4	005795d0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	2	+0x8	005795e0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	3	+0xC	00579100	icf::cSC4DisasterManagerFire::AsISC4DisasterManager	0	0	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	4	+0x10	0057b930	cSC4DisasterManagerFire::IgniteOccupant	4	1	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	5	+0x14	0057b980	cSC4DisasterManagerFire::IgniteCell	20	5	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	6	+0x18	00579110	cSC4DisasterManagerFire::ExtinguishCell	12	3	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	7	+0x1C	0057ba00	cSC4DisasterManagerFire::QuickBurnCell	8	2	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	8	+0x20	0057ba70	cSC4DisasterManagerFire::IgniteCellRadius	16	4	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	9	+0x24	0057b850	cSC4DisasterManagerFire::SetCause	4	1	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	10	+0x28	0057b8c0	cSC4DisasterManagerFire::GetCause	0	0	eax-or-void	medium	
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	11	+0x2C	00579ba0	cSC4DisasterManagerFire::GetFireInstance	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	0	+0x0	0043efe0	cSC4TutorialSystem::QueryInterface	8	2	eax-or-void	medium	tail->009457c6
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	1	+0x4	004186e0	icf::cSC4AdvisorSystem::AddRef	0	0	eax-or-void	medium	tail->00968b60
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	2	+0x8	00449310	icf::cSC4AdvisorSystem::Release	0	0	eax-or-void	medium	tail->0090d997
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	3	+0xC	0043f7a0	cSC4TutorialSystem::Init	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	4	+0x10	0043f330	cSC4TutorialSystem::Shutdown	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	5	+0x14	0043f080	cSC4TutorialSystem::startTutorial	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	6	+0x18	0043f110	cSC4TutorialSystem::endTutorial	4	1	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	7	+0x1C	0043f490	cSC4TutorialSystem::GetScriptingContext	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	8	+0x20	0043f650	cSC4TutorialSystem::IsTutorial	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	9	+0x24	0043f500	cSC4TutorialSystem::IsEdgeScrollingAllowed	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	10	+0x28	0043f6d0	cSC4TutorialSystem::GetCurrentTask	0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x24]
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	11	+0x2C	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	12	+0x30	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	13	+0x34	0043f3c0	cSC4TutorialSystem::FilterMessage	4	1	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	14	+0x38	0043f440	cSC4TutorialSystem::ShowUIHintsForUsers	0	0	unknown	low	indirect-jump dword ptr [eax + 0x1c]
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	15	+0x3C	0043f470	cSC4TutorialSystem::HandleCatalogMenu	4	1	eax-or-void	medium	
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	16	+0x40	0043f450	cSC4TutorialSystem::FilterLeftMouseClick	12	3	eax-or-void	medium	indirect-jump dword ptr [eax + 0x28]
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	17	+0x44	0043f410	cSC4TutorialSystem::ResetTutorialNumAndIndex	8	2	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	0	+0x0	005e89c0	cSC4Occupant::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
+cISC4Occupant	cSC4Occupant	00aa41d8	1	+0x4	005e89b0	cSC4Occupant::AddRef	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	2	+0x8	005e8df0	cSC4Occupant::Release	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	3	+0xC	005e8c90	cSC4Occupant::Init	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	4	+0x10	005e8980	cSC4Occupant::Shutdown	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	5	+0x14	00458a40	cSC4Occupant::IsInitialized	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	6	+0x18	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	7	+0x1C	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	8	+0x20	005e8a20	cSC4Occupant::GetPosition	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	9	+0x24	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4Occupant	cSC4Occupant	00aa41d8	10	+0x28	005e8a40	cSC4Occupant::GetBoundingBox	8	2	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	11	+0x2C	005e8e20	cSC4Occupant::GetBoundingCityCells	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	12	+0x30	005e8a60	cSC4Occupant::SetRemovalFlags	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	13	+0x34	005e8aa0	cSC4Occupant::UnsetRemovalFlags	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	14	+0x38	005e8ae0	cSC4Occupant::CanRemove	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	15	+0x3C	005e9010		8	2	via-call	low	
+cISC4Occupant	cSC4Occupant	00aa41d8	16	+0x40	00458a50	cSC4Occupant::GetHighlight	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	17	+0x44	005e90e0	cSC4Occupant::SetHighlight	8	2	via-call	low	
+cISC4Occupant	cSC4Occupant	00aa41d8	18	+0x48	005e8b10	cSC4Occupant::SetVisibility	8	2	eax-or-void	medium	indirect-jump dword ptr [eax + 0x3c]/dword ptr [edx + 0x3c]
+cISC4Occupant	cSC4Occupant	00aa41d8	19	+0x4C	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	20	+0x50	005e91c0	cSC4Occupant::GetOrCreatePlaceableObject	0	0	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	21	+0x54	0078daf0	cSC4Occupant::SetPlaceableObject	4	1	via-call	low	
+cISC4Occupant	cSC4Occupant	00aa41d8	22	+0x58	005e92d0	cSC4Occupant::IsOccupantGroup	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	23	+0x5C	005e9350	cSC4Occupant::AddOccupantGroup	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	24	+0x60	005e9410	cSC4Occupant::GetOccupantGroups	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	25	+0x64	005e8bf0	cSC4Occupant::GetOccupantManagerBBox	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	26	+0x68	005e8c20	cSC4Occupant::SetOccupantManagerBBox	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	27	+0x6C	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	28	+0x70	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4Occupant	cSC4Occupant	00aa41d8	29	+0x74	005e8b70	cSC4Occupant::SetFlag	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x78]
+cISC4Occupant	cSC4Occupant	00aa41d8	30	+0x78	005e8b90	cSC4Occupant::SetAllFlags	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	31	+0x7C	005e8ba0	cSC4Occupant::ClearFlag	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x78]
+cISC4Occupant	cSC4Occupant	00aa41d8	32	+0x80	005e8bc0	cSC4Occupant::IsFlagSet	4	1	eax-or-void	medium	
+cISC4Occupant	cSC4Occupant	00aa41d8	33	+0x84	005e8be0	cSC4Occupant::GetFlags	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	0	+0x0	006da3c0	cSC4PlumbingSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	2	+0x8	006da610	cSC4PlumbingSimulator::Release	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	3	+0xC	006df0d0	cSC4PlumbingSimulator::Init	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	4	+0x10	006da900	cSC4PlumbingSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	5	+0x14	006da440	cSC4PlumbingSimulator::GetSupplyValue			forward	medium	indirect-jump dword ptr [eax + 0x58]
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	6	+0x18	006da450	cSC4PlumbingSimulator::GetSupplyValueMapPtr	4	1	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	7	+0x1C	00a6cab0	icf::cGZLuaScriptServer::GetLua	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	8	+0x20	006dad50	cSC4PlumbingSimulator::AreWateredBuildingsInCell	8	2	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	9	+0x24	006da6a0	cSC4PlumbingSimulator::IsBuildingWatered	4	1	via-call	low	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	10	+0x28	006dad80	cSC4PlumbingSimulator::GetWaterProduction	4	1	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	11	+0x2C	006da460	cSC4PlumbingSimulator::IsCellWatered	8	2	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	12	+0x30	006dc710	cSC4PlumbingSimulator::GetNumWaterSources	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	13	+0x34	00423850	icf::cSC4City::GetPollutionSimulator	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	14	+0x38	00423700	icf::cSC4CitySituationAdvice::GetRewardGuid	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	15	+0x3C	007c1910	icf::cSC43DRender::GetLightingManager	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	16	+0x40	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	17	+0x44	006dc680	cSC4PlumbingSimulator::GetWaterExported	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	18	+0x48	006dc690	cSC4PlumbingSimulator::GetNumPipes	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	19	+0x4C	006dc6a0	cSC4PlumbingSimulator::GetNumDistressedPipes	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	20	+0x50	007ff120	cSC4City::GetFloraSimulator	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	21	+0x54	006dc6b0	cSC4PlumbingSimulator::GetNumWateredBuildings	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	22	+0x58	006dc6c0	cSC4PlumbingSimulator::GetNumUnwateredBuildings	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	23	+0x5C	00798370	icf::cSC4City::GetPropManager	0	0	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	24	+0x60	006dadb0	cSC4PlumbingSimulator::GetWaterProducerInfo	24	6	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	25	+0x64	006dbfc0	cSC4PlumbingSimulator::GetWaterProducerConditionPercent	8	2	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	26	+0x68	006da640	cSC4PlumbingSimulator::GetOccupantMonthlyUpkeepCost	8	2	eax-or-void	medium	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	27	+0x6C	006dab60	cSC4PlumbingSimulator::FindWaterBuildings	16	4	edx:eax?	low	
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	28	+0x70	006dc7d0	cSC4PlumbingSimulator::GetWaterProducers	4	1	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	0	+0x0	006f6e60	cSC4ResidentialSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	2	+0x8	006f7dd0	cSC4ResidentialSimulator::Release	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	3	+0xC	006fead0	cSC4ResidentialSimulator::Init	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	4	+0x10	006f97f0	cSC4ResidentialSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	5	+0x14	006f6f90	cSC4ResidentialSimulator::GetProximityMap	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	6	+0x18	006f6f10	cSC4ResidentialSimulator::SchoolIsOnStrike	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	7	+0x1C	006f6f20	cSC4ResidentialSimulator::HealthIsOnStrike	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	8	+0x20	006f9470	cSC4ResidentialSimulator::EndSchoolStrike	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	9	+0x24	006f94b0	cSC4ResidentialSimulator::EndHealthStrike	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	10	+0x28	006f9670	cSC4ResidentialSimulator::ChanceOfSchoolStrike	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	11	+0x2C	006f9730	cSC4ResidentialSimulator::ChanceOfHealthStrike	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	12	+0x30	006f9f20	cSC4ResidentialSimulator::GetSchoolSystemRating	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	13	+0x34	006f9dd0	cSC4ResidentialSimulator::GetHealthSystemRating	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	14	+0x38	006fa240	cSC4ResidentialSimulator::GetSchoolSystemTotals	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	15	+0x3C	006fa260	cSC4ResidentialSimulator::GetHospitalSystemTotals	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	16	+0x40	006f6f70	cSC4ResidentialSimulator::GetPopulation	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	17	+0x44	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	18	+0x48	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	19	+0x4C	006f8290	cSC4ResidentialSimulator::SetOccupantFundingPercentages	16	4	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	20	+0x50	006f84b0	cSC4ResidentialSimulator::GetOccupantFundingPercentages	16	4	eax-or-void	medium	tail->006f8360
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	21	+0x54	006fcf30	cSC4ResidentialSimulator::GetAverageEQGrid	12	3	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	22	+0x58	006fcfd0	cSC4ResidentialSimulator::GetAverageHQGrid	12	3	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	23	+0x5C	006f72c0	cSC4ResidentialSimulator::GetEQGrids	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	24	+0x60	006f7300	cSC4ResidentialSimulator::GetHQGrids	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	25	+0x64	006f7340	cSC4ResidentialSimulator::GetPopulationGrids	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	26	+0x68	006f91c0	cSC4ResidentialSimulator::GetSchoolQueryData	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	27	+0x6C	006f7e80	cSC4ResidentialSimulator::GetHospitalQueryData	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	28	+0x70	006fd510	cSC4ResidentialSimulator::EstimateCurrentOccupantCapacity	12	3	unknown	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	29	+0x74	006fc570	cSC4ResidentialSimulator::GetCellLifeExpectancy	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	30	+0x78	006fc6e0	cSC4ResidentialSimulator::GetCellWorkforcePercent	12	3	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	31	+0x7C	006fc860	cSC4ResidentialSimulator::GetGlobalWorkforcePercent	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	32	+0x80	006f7720	cSC4ResidentialSimulator::GetGlobalEQ	0	0	x87	high	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	33	+0x84	006f7870	cSC4ResidentialSimulator::GetGlobalHQ	0	0	x87	high	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	34	+0x88	006fc9e0	cSC4ResidentialSimulator::GetGlobalLE	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	35	+0x8C	006f79c0	cSC4ResidentialSimulator::GetCellEQ	8	2	x87	high	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	36	+0x90	006f7a10	cSC4ResidentialSimulator::GetCellHQ	8	2	x87	high	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	37	+0x94	006f7a60	cSC4ResidentialSimulator::GetCellEQByWealth	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	38	+0x98	006f7ab0	cSC4ResidentialSimulator::GetCellHQByWealth	12	3	via-call	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	39	+0x9C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	40	+0xA0	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	41	+0xA4	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	42	+0xA8	006f88b0	cSC4ResidentialSimulator::GetAverageNewAgeByWealth	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	43	+0xAC	006f7380	cSC4ResidentialSimulator::GetEQMinAndMaxCellCoords	24	6	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	44	+0xB0	006f7550	cSC4ResidentialSimulator::GetHQMinAndMaxCellCoords	24	6	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	45	+0xB4	006fd260	cSC4ResidentialSimulator::GetOccupantCoverage	16	4	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	46	+0xB8	006f9590	cSC4ResidentialSimulator::GetSchoolBuildingCount	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	47	+0xBC	006fade0	cSC4ResidentialSimulator::GetSchoolBuildings	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	48	+0xC0	006f9600	cSC4ResidentialSimulator::GetHospitalBuildingCount	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	49	+0xC4	006fae50	cSC4ResidentialSimulator::GetHospitalBuildings	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	50	+0xC8	006fea40	icf::cSC4ResidentialSimulator::GetMaxEQ	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	51	+0xCC	006fea40	icf::cSC4ResidentialSimulator::GetMaxEQ	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	52	+0xD0	006fea50	cSC4ResidentialSimulator::GetGlobalAutoBudgetForSchools	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	53	+0xD4	006fea60	cSC4ResidentialSimulator::SetGlobalAutoBudgetForSchools	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	54	+0xD8	006fea70	cSC4ResidentialSimulator::GetGlobalAutoBudgetForHospitals	0	0	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	55	+0xDC	006fea80	cSC4ResidentialSimulator::SetGlobalAutoBudgetForHospitals	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	56	+0xE0	006f7d70	cSC4ResidentialSimulator::GetAutoBudget	4	1	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	57	+0xE4	006f7da0	cSC4ResidentialSimulator::SetAutoBudget	8	2	unknown	low	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	58	+0xE8	006fd680	cSC4ResidentialSimulator::EstimateIdealFunding	8	2	eax-or-void	medium	
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	59	+0xEC	006f7dc0	icf::cSC4AutomataController::CheckTimeOfDay	8	2	unknown	low	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	0	+0x0	0070d7e0	cSC4TrafficSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	2	+0x8	0070e2f0	cSC4TrafficSimulator::Release	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	3	+0xC	0071e7e0	cSC4TrafficSimulator::Init	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	4	+0x10	00719290	cSC4TrafficSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	5	+0x14	0071ffa0	cSC4TrafficSimulator::GetSimulatorType	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	6	+0x18	0070d860	cSC4TrafficSimulator::CreatePathFinder	4	1	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	7	+0x1C	00711610	cSC4TrafficSimulator::SetupPathFinderForLot	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	8	+0x20	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	9	+0x24	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	10	+0x28	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	11	+0x2C	0070e870	cSC4TrafficSimulator::GetBackgroundTraffic	8	2	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	12	+0x30	00711460	cSC4TrafficSimulator::GetTrafficEdgeDensity	16	4	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	13	+0x34	00820250	cSC4TrafficSimulator::GetTripLengthMap (folded getter [ecx+44h])	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	14	+0x38	0071ffb0	cSC4TrafficSimulator::GetTripScale	0	0	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	15	+0x3C	0071ffc0	cSC4TrafficSimulator::GetTripScaleForDisplay	0	0	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	16	+0x40	00720070	cSC4TrafficSimulator::IsRoadDamaged	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	17	+0x44	00711590	cSC4TrafficSimulator::CheckRailAccident	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	18	+0x48	0071ffd0	cSC4TrafficSimulator::GetLastMonthlyIncome	0	0	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	19	+0x4C	0070df70	cSC4TrafficSimulator::SetMaxTripCapacity	12	3	unknown	low	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	20	+0x50	0070df90	cSC4TrafficSimulator::GetMaxTripCapacity	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	21	+0x54	0070e050	cSC4TrafficSimulator::GetTrafficArrived	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	22	+0x58	00720010	cSC4TrafficSimulator::GetDesiredLotInsertionPoint	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	23	+0x5C	00710320	cSC4TrafficSimulator::GetCapacity	12	3	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	24	+0x60	007103b0	cSC4TrafficSimulator::GetTravelTimeRatio	12	3	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	25	+0x64	00710370	cSC4TrafficSimulator::GetConnectionCount	12	3	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	26	+0x68	00718bb0	cSC4TrafficSimulator::GetTravelStrategyPercentages	8	2	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	27	+0x6C	0071ffe0	cSC4TrafficSimulator::GetFreightScalingFactor	0	0	x87	high	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	28	+0x70	00714460	cSC4TrafficSimulator::GetTransitSwitches	4	1	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	29	+0x74	00713b70	cSC4TrafficSimulator::GetFerryRouteBetweenTiles	16	4	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	30	+0x78	00718c40	cSC4TrafficSimulator::GetAllFerryRoutes	4	1	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	31	+0x7C	0071c250	cSC4TrafficSimulator::GetFerryRoutesInUse	4	1	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	32	+0x80	0071fff0	cSC4TrafficSimulator::GetFerryTerminalCount	4	1	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	33	+0x84	0070ec10	cSC4TrafficSimulator::GetWaterRoute	20	5	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	34	+0x88	00720000	cSC4TrafficSimulator::GetTrafficStats	0	0	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	35	+0x8C	0071cb80	cSC4TrafficSimulator::GetTransitSwitchQueryData	12	3	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	36	+0x90	00710540	cSC4TrafficSimulator::AreLotsConnected	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	37	+0x94	00711a70	cSC4TrafficSimulator::GetConnectedOccupantCount	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	38	+0x98	007106c0	cSC4TrafficSimulator::GetConnectedDestinationCount	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	39	+0x9C	00711b50	cSC4TrafficSimulator::GetSubnetworksForLot	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	40	+0xA0	00718d20	cSC4TrafficSimulator::GetSubnetworksInRectangle	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	41	+0xA4	00718f90	cSC4TrafficSimulator::GetSubnetworksInRegion	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	42	+0xA8	007143b0	cSC4TrafficSimulator::GetOccupantCountForAllSubnetworks	8	2	edx:eax?	low	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	0	+0x0	006e0060	cSC4PoliceSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	1	+0x4	0082be80	icf::cGZDrawContext::AddRef	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	2	+0x8	006ad1b0	cSC4FireProtectionSimulator::Release	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	3	+0xC	006e2740	cSC4PoliceSimulator::Init	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	4	+0x10	006e0310	cSC4PoliceSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	5	+0x14	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	6	+0x18	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	7	+0x1C	006e08d0	icf::cSC4FireProtectionSimulator::GetStationFunding	12	3	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	8	+0x20	006ad530	cSC4FireProtectionSimulator::SetStationFunding	8	2	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	9	+0x24	00441080	cSC4PoliceSimulator::GetJailDepartmentBudget	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	10	+0x28	006e0120	cSC4PoliceSimulator::IsOnStrike	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	11	+0x2C	006e0f90	cSC4PoliceSimulator::GetChanceOfStrike	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	12	+0x30	006e0780	cSC4PoliceSimulator::BeginStrike	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	13	+0x34	006e0830	cSC4PoliceSimulator::EndStrike	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	14	+0x38	006e0130	icf::cSC4Advice::GetEventID	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	15	+0x3C	006e0140	icf::cSC4FireProtectionSimulator::GetStrikeLength	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	16	+0x40	006e1a00	cSC4PoliceSimulator::GetStrikingStations	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	17	+0x44	006f6f30	cSC4ResidentialSimulator::IsBuildingOnStrike	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	18	+0x48	006e0200	icf::cSC4FireProtectionSimulator::GetAverageCoverage	0	0	x87	high	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	19	+0x4C	004778a0	icf::cSC4FireProtectionSimulator::GetPercentCoverage	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	20	+0x50	006e0940	cSC4PoliceSimulator::GetOccupantCoverage	16	4	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	21	+0x54	006e0180	icf::cSC4FireProtectionSimulator::GetFireStations	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	22	+0x58	006e01c0	cSC4PoliceSimulator::IsPoliceStation			forward	medium	indirect-jump dword ptr [edx + 0xc]
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	23	+0x5C	006e0f60	icf::cSC4FireProtectionSimulator::GetStationDispatchRadius	4	1	x87	high	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	24	+0x60	006ada30	cSC4FireProtectionSimulator::GetFireStationCount	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	25	+0x64	006e0e70	cSC4PoliceSimulator::GetStationEfficiency	8	2	x87|eax	low	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	26	+0x68	006e1390	cSC4PoliceSimulator::GetTotalDispatchCount	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	27	+0x6C	006e0a00	cSC4PoliceSimulator::ResetUnjailedCriminals	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	28	+0x70	006e0ac0	cSC4PoliceSimulator::GetJailCapacity	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	29	+0x74	0043fd10	cSC4PoliceSimulator::GetJailPopulation	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	30	+0x78	00762700	cSC4PoliceSimulator::GetCriminalCount	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	31	+0x7C	00423650	icf::cSC4CitySituationAdvice::GetSituationFlags	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	32	+0x80	006e01a0	cSC4PoliceSimulator::IsJail	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	33	+0x84	006e01e0	cSC4PoliceSimulator::GetArrestCount			forward	medium	indirect-jump dword ptr [edx + 0xc]
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	34	+0x88	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	35	+0x8C	006e14b0		0	0	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	36	+0x90	006e0b30	cSC4PoliceSimulator::GetJailedPercentage	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	37	+0x94	006e0a40	cSC4PoliceSimulator::GetJailCurrentUpkeepCost	4	1	edx:eax?	low	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	38	+0x98	006e2b50	cSC4PoliceSimulator::ProcessMonthlyCrimeStats	0	0	via-call	low	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	39	+0x9C	006e1070	cSC4PoliceSimulator::IsInJailbreak	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	40	+0xA0	006e1af0	cSC4PoliceSimulator::BeginJailbreak	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	41	+0xA4	006e1c90	cSC4PoliceSimulator::EndJailbreak	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	42	+0xA8	006e08a0	cSC4PoliceSimulator::GetJailbreakBuildings	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	43	+0xAC	006e14d0	cSC4PoliceSimulator::GetPoliceStationArrestCount	4	1	eax-or-void	medium	
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	44	+0xB0	006e1520	cSC4PoliceSimulator::GetPoliceStationCrimeCount	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	0	+0x0	006aced0	cSC4FireProtectionSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	1	+0x4	0082be80	icf::cGZDrawContext::AddRef	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	2	+0x8	006ad1b0	cSC4FireProtectionSimulator::Release	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	3	+0xC	006ae240	cSC4FireProtectionSimulator::Init	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	4	+0x10	006ad1e0	cSC4FireProtectionSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	5	+0x14	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	6	+0x18	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	7	+0x1C	006acf80	cSC4FireProtectionSimulator::IsFireStation			forward	medium	indirect-jump dword ptr [edx + 0xc]
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	8	+0x20	006e08d0	icf::cSC4FireProtectionSimulator::GetStationFunding	12	3	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	9	+0x24	006ad530	cSC4FireProtectionSimulator::SetStationFunding	8	2	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	10	+0x28	006ad430	cSC4FireProtectionSimulator::GetStationEfficiency	8	2	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	11	+0x2C	006e0120	cSC4PoliceSimulator::IsOnStrike	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	12	+0x30	006ad950	cSC4FireProtectionSimulator::GetChanceOfStrike	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	13	+0x34	006ad060	cSC4FireProtectionSimulator::BeginStrike	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	14	+0x38	006ad100	cSC4FireProtectionSimulator::EndStrike	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	15	+0x3C	006e0130	icf::cSC4Advice::GetEventID	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	16	+0x40	006e0140	icf::cSC4FireProtectionSimulator::GetStrikeLength	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	17	+0x44	006ae170	cSC4FireProtectionSimulator::GetStrikingStations	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	18	+0x48	006f6f30	cSC4ResidentialSimulator::IsBuildingOnStrike	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	19	+0x4C	006e0200	icf::cSC4FireProtectionSimulator::GetAverageCoverage	0	0	x87	high	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	20	+0x50	004778a0	icf::cSC4FireProtectionSimulator::GetPercentCoverage	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	21	+0x54	006ad5e0	cSC4FireProtectionSimulator::GetOccupantCoverage	16	4	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	22	+0x58	006e0180	icf::cSC4FireProtectionSimulator::GetFireStations	4	1	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	23	+0x5C	006ada30	cSC4FireProtectionSimulator::GetFireStationCount	0	0	eax-or-void	medium	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	24	+0x60	006e0f60	icf::cSC4FireProtectionSimulator::GetStationDispatchRadius	4	1	x87	high	
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	25	+0x64	006ad8f0	cSC4FireProtectionSimulator::GetTotalDispatchCount	0	0	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	0	+0x0	00575650		8	2	eax-or-void	medium	tail->00577470
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	3	+0xC	0057d4a0	cSC4DisasterManagerRiot::Init	0	0	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	4	+0x10	0057da20	cSC4DisasterManagerRiot::Shutdown	0	0	eax-or-void	medium	tail->00577a70
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	5	+0x14	0057d1e0	cSC4DisasterManagerRiot::GetID	0	0	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	6	+0x18	0057ea10	cSC4DisasterManagerRiot::AttemptDisasterStart	8	2	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	7	+0x1C	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	8	+0x20	00578230	cSC4DisasterManager::AddInstanceToList	4	1	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	9	+0x24	0057d7e0	cSC4DisasterManagerRiot::RemoveInstanceFromList	4	1	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	10	+0x28	00577990	cSC4DisasterManager::GetActiveInstanceCount	0	0	eax-or-void	medium	
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	11	+0x2C	00577450	icf::cSC4DisasterManager::GetInstances	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	0	+0x0	005ec960	cSC4PropOccupant::QueryInterface	8	2	eax-or-void	medium	tail->005e89c0
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	2	+0x8	006491d0	icf::cSC4ConstructionOccupant::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	4	+0x10	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	6	+0x18	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	7	+0x1C	005ed280	cSC4PropOccupant::GetPropType	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	8	+0x20	005ef4c0	cSC4PropOccupant::SetPropType	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	9	+0x24	005ec9d0	cSC4PropOccupant::GetOrientation	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	10	+0x28	005ec9e0	icf::cSC4PropOccupant::SetOrientation	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	11	+0x2C	005ed290	cSC4PropOccupant::SetState	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	12	+0x30	005ed560	cSC4PropOccupant::GetState	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	13	+0x34	005ed400	cSC4PropOccupant::SetTimeOfDayRange	8	2	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	14	+0x38	005eca10	cSC4PropOccupant::GetTimeOfDayRange	8	2	x87	high	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	15	+0x3C	005eeff0	cSC4PropOccupant::SetSimulatorDateRange	16	4	via-call	low	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	16	+0x40	005ee230	cSC4PropOccupant::TickSimulatorDate	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	17	+0x44	007c2740	icf::cSC43DRender::EnableTransparentBackground	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	18	+0x48	005ed570	cSC4PropOccupant::GetRandomChance	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	19	+0x4C	005ed580	cSC4PropOccupant::GetPropTimerBitfield	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	20	+0x50	005ed590	cSC4PropOccupant::GetPropTimerState	4	1	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	21	+0x54	005eca50	cSC4PropOccupant::SetPropTimerState	8	2	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	22	+0x58	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	23	+0x5C	005ecae0	cSC4PropOccupant::SetPropUsage	4	1	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	0	+0x0	006f0d80	cSC4PropDeveloper::QueryInterface	8	2	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	2	+0x8	006f0ea0	cSC4PropDeveloper::Release	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	3	+0xC	006f1f30	cSC4PropDeveloper::Init	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	4	+0x10	006f2c60	cSC4PropDeveloper::Shutdown	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	5	+0x14	006f21c0	cSC4PropDeveloper::AddPropRequester	4	1	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	6	+0x18	006f1080	cSC4PropDeveloper::RemovePropRequester	4	1	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	7	+0x1C	006f4db0	cSC4PropDeveloper::UpdateAllOptionalProps	0	0	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	8	+0x20	006f1210	cSC4PropDeveloper::ShowSignsAndLabels	4	1	eax-or-void	medium	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	9	+0x24	006f2bf0	cSC4PropDeveloper::ToggleSignsAndLabels	0	0	via-call	low	
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	10	+0x28	006f2c10	cSC4PropDeveloper::AreSignsAndLabelsVisible	0	0	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	0	+0x0	004a1d30	cSC4PropManager::QueryInterface	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	2	+0x8	004a2340	cSC4PropManager::Release	0	0	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	3	+0xC	004a4380	cSC4PropManager::Init	0	0	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	4	+0x10	004a2370	cSC4PropManager::Shutdown	0	0	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	5	+0x14	004a2bf0	cSC4PropManager::GetAllPropTypes	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	6	+0x18	004a2cb0	cSC4PropManager::GetAllPropFamilyTypes	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	7	+0x1C	004a2d70	cSC4PropManager::GetPropKeyFromType	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	8	+0x20	004a2dd0	cSC4PropManager::IsPropTypeValid	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	9	+0x24	004a2e90	cSC4PropManager::GetPropTypesByFamily	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	10	+0x28	004a2f80	cSC4PropManager::IsPropInFamily	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	11	+0x2C	004a2e10	cSC4PropManager::IsPropFamilyTypeValid	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	12	+0x30	004a4360	cSC4PropManager::GetPropName	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	13	+0x34	004a3750	cSC4PropManager::GetPropProfile	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	14	+0x38	004a2ff0	cSC4PropManager::GetPropProfilePtr	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	15	+0x3C	004a3040	cSC4PropManager::CreateProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	16	+0x40	004a24d0	cSC4PropManager::CreateGenericProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	17	+0x44	004a1df0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	18	+0x48	004a1db0	cSC4PropManager::GetCityProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	19	+0x4C	004a1f30	cSC4PropManager::AddCityProp	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	20	+0x50	004a1e70	cSC4PropManager::AddCityProp	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	21	+0x54	004a38f0	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	22	+0x58	004a3850	cSC4PropManager::RemoveCityProps	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	23	+0x5C	004a1fd0	cSC4PropManager::GetLotProps	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	24	+0x60	004a3240	cSC4PropManager::GetLotProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	25	+0x64	004a20c0	cSC4PropManager::AddLotProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	26	+0x68	004a2670	cSC4PropManager::AddLotProp	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	27	+0x6C	004a3af0	cSC4PropManager::RemoveLotProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	28	+0x70	004a3a50	cSC4PropManager::RemoveLotProps	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	29	+0x74	004a27b0	cSC4PropManager::RemovePropA	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	30	+0x78	004a1f90	cSC4PropManager::GetStreetProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	31	+0x7C	004a3150	cSC4PropManager::GetStreetProps	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	32	+0x80	004a2120	cSC4PropManager::AddStreetProp	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	33	+0x84	004a3990	cSC4PropManager::RemoveStreetPropsFromTile	8	2	unknown	low	
+cISC4PropManager	cSC4PropManager	00a8f928	34	+0x88	004a2140	cSC4PropManager::GetBuildingProps	12	3	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	35	+0x8C	004a3770	cSC4PropManager::GetBuildingProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	36	+0x90	004a3b90	cSC4PropManager::AddBuildingProp	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	37	+0x94	004a21a0	cSC4PropManager::RemoveBuildingProps	8	2	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	38	+0x98	004a3390	cSC4PropManager::RemoveBuildingProps	4	1	eax-or-void	medium	
+cISC4PropManager	cSC4PropManager	00a8f928	39	+0x9C	004a27c0	cSC4PropManager::RemoveBuildingProp	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	0	+0x0	006eabc0	cSC4PowerSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	2	+0x8	006eb190	cSC4PowerSimulator::Release	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	3	+0xC	006f03b0	cSC4PowerSimulator::Init	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	4	+0x10	006f0110	cSC4PowerSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	5	+0x14	006eac40	cSC4PowerSimulator::PositionToCell	16	4	edx:eax?	low	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	6	+0x18	006eac90	cSC4PowerSimulator::CellToPosition	16	4	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	7	+0x1C	006eacd0	cSC4PowerSimulator::CellToStandardCityCell/StandardCityCellToCell	16	4	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	8	+0x20	006eacd0	cSC4PowerSimulator::CellToStandardCityCell/StandardCityCellToCell	16	4	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	9	+0x24	006eacf0	cSC4PowerSimulator::GetAnnualConsumption	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	10	+0x28	006ead30	cSC4PowerSimulator::GetAnnualConsumptionByPowerType	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	11	+0x2C	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	12	+0x30	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	13	+0x34	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	14	+0x38	006a0050	cSC4CrimeSimulator::GetCrimeGrid	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	15	+0x3C	00477110	cSC4PowerSimulator::GetMonthlyDemand	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	16	+0x40	006eba10	cSC4PowerSimulator::GetMonthlyConsumption(x,z)	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	17	+0x44	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	18	+0x48	006ead40	cSC4PowerSimulator::GetMonthlyConsumptionMapPtr	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	19	+0x4C	006ead50	cSC4PowerSimulator::GetSupplyValue			forward	medium	indirect-jump dword ptr [eax + 0x94]
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	20	+0x50	006ead60	cSC4PowerSimulator::GetSupplyValueMapPtr	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	21	+0x54	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	22	+0x58	00698ce0	cSC4PathFinder::GetTrafficArrived (folded getter mov eax,[ecx+6Ch])	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	23	+0x5C	006efa00	cSC4PowerSimulator::GetPowerPlantCount(type)	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	24	+0x60	006ef9f0	cSC4PowerSimulator::GetPowerPlantCount()	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	25	+0x64	006ed120	cSC4PowerSimulator::GetPowerPlants	4	1	via-call	low	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	26	+0x68	006efa10	cSC4PowerSimulator::GetPowerPoleCount	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	27	+0x6C	006efa20	cSC4PowerSimulator::GetOverworkedPowerPlantCount	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	28	+0x70	006efa30	cSC4PowerSimulator::GetAgedPowerPlantCount	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	29	+0x74	006efa40	cSC4PowerSimulator::GetDistressedPowerPlantCount	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	30	+0x78	006eba30	cSC4PowerSimulator::FindPowerPlants	16	4	edx:eax?	low	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	31	+0x7C	006eb3d0	cSC4PowerSimulator::IsOccupantPowered	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	32	+0x80	006eb0d0	cSC4PowerSimulator::GetOccupantPowerConsumed	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	33	+0x84	006eb420	cSC4PowerSimulator::GetOccupantPowerProduced	12	3	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	34	+0x88	006eb110	cSC4PowerSimulator::GetOccupantMaxPowerProduced	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	35	+0x8C	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	36	+0x90	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	37	+0x94	006eb070	cSC4PowerSimulator::IsPowered	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	38	+0x98	006eb0a0	cSC4PowerSimulator::IsWired	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	39	+0x9C	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	40	+0xA0	006eb130	cSC4PowerSimulator::GetChanceOfStrike	4	1	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	41	+0xA4	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	42	+0xA8	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	43	+0xAC	006eb140	cSC4PowerSimulator::GetStrikeStartDate	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	44	+0xB0	006eb150	cSC4PowerSimulator::GetStrikeLength	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	45	+0xB4	006eb5f0	cSC4PowerSimulator::GetCurrentPlantEfficiencyPercent	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	46	+0xB8	006ec820	cSC4PowerSimulator::GetCurrentPlantConditionPercent	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	47	+0xBC	006efa60	cSC4PowerSimulator::GetStrikeEfficiencyPercent	0	0	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	48	+0xC0	006eb180	cSC4PowerSimulator::GetFundingPercent			forward	medium	indirect-jump dword ptr [eax + 0x28]
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	49	+0xC4	006eb2f0	cSC4PowerSimulator::GetMonthlyPowerGenerationCost	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	50	+0xC8	006eb520	cSC4PowerSimulator::GetPowerPlantFundingPercentage	8	2	eax-or-void	medium	
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	51	+0xCC	006eb580	cSC4PowerSimulator::SetPowerPlantFundingPercentage	8	2	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	0	+0x0	006b8b20	cSC4LandfillDeveloper::QueryInterface	8	2	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	2	+0x8	006b9d20	cSC4LandfillDeveloper::Release	0	0	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	3	+0xC	006b9d70	cSC4LandfillDeveloper::Init	0	0	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	4	+0x10	006b94b0	cSC4LandfillDeveloper::Shutdown	0	0	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	5	+0x14	006b8d50	cSC4LandfillDeveloper::GetEfficiency	4	1	x87|eax	low	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	6	+0x18	006b9840	cSC4LandfillDeveloper::GetSimulatorType	0	0	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	7	+0x1C	006b9850	icf::cSC4BudgetSimulator::GetTotalBorrowed	0	0	edx:eax	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	8	+0x20	006b8ba0	cSC4LandfillDeveloper::GetCurrentBudget			forward	medium	indirect-jump dword ptr [edx + 0x2c]
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	9	+0x24	006b9030	cSC4LandfillDeveloper::GetZoningCost	4	1	edx:eax	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	10	+0x28	006b9820	cSC4LandfillDeveloper::GetLandfillUsage	8	2	eax-or-void	medium	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	11	+0x2C	006b8f10	cSC4LandfillDeveloper::GetLandfillTileCount	0	0	via-call	low	
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	12	+0x30	006b9400	cSC4LandfillDeveloper::GetLandfillZoneFromCell	8	2	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	0	+0x0	0058d9e0	cSC4EffectsManager::QueryInterface	8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	1	+0x4	0058d840	cSC4EffectsManager::AddRef	0	0	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	2	+0x8	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	3	+0xC	00594a30	cSC4EffectsManager::Init	0	0	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	4	+0x10	00595060	cSC4EffectsManager::Shutdown	0	0	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	5	+0x14	005916c0	cSC4EffectsManager::HasVisualEffect	4	1	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	6	+0x18	00593ae0	cSC4EffectsManager::CreateVisualEffect	12	3	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	7	+0x1C	005939b0	cSC4EffectsManager::CreateVisualEffect	8	2	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	8	+0x20	0058da90	cSC4EffectsManager::GetStatsString	4	1	via-call	low	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	9	+0x24	0058fd40	cSC4EffectsManager::GetEffectMaps	0	0	eax-or-void	medium	
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	10	+0x28	0058fd50	cSC4EffectsManager::GetTallestBuildingAltitude	0	0	x87	high	

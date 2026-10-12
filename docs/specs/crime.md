@@ -1,0 +1,769 @@
+# Crime simulator (`cSC4CrimeSimulator`) — behaviour spec
+
+Status: round 1, written from the Windows 1.1.641 executable. The earlier write-up in
+`docs/subsystems/grid-sims.md` §6 was the starting point. Every fact below was checked against the Windows code,
+and the corrections are listed in §15.
+
+Tags: *[compat]* observable, must match; *[choice]* FreeCity4 decision; *[inferred]* not proven;
+*[quirk]* original behaviour that looks unintended but is reproduced (or that a replacement must survive).
+
+Shared material cited and not repeated here: streams, refs and strings (foundations §2), class store (§3),
+city component table (§3.6), Init order (§3.7), response curves (§4), messages (§5), random generators (§6),
+month order (§13), slot-order rule (§16), framework slot tables (§17); scheduler levels and agent semantics
+(simulator spec); grid classes, geometry, grid slots, grid persistence, lifetime and the map utilities
+(`docs/specs/simgrid.md` §2–§7).
+
+---
+
+## 1. Role and identity
+
+The crime simulator turns census data (residential population by wealth and education, joblessness) into a
+monthly number of crimes. It places each crime on a random lot. Police coverage at the lot, minus the "crime
+effect" of nearby buildings, can stop it. Each crime that happens:
+
+- adds the crime type's **severity** to the crime grid at the lot,
+- is recorded as an **incident** (used by police, crime props, traffic effects and the map),
+- can be **arson**, which sets the building on fire.
+
+The crime grid fades each month. The simulator also requests **crime props** (graffiti etc.) from the prop
+developer, weighted by local crime. It exposes the nearest crime automaton or crime prop to police vehicles.
+
+| Item | Value |
+|---|---|
+| Class ID (`GetGZCLSID`) | `0x8990C09A` |
+| Primary interface | `cISC4CrimeSimulator`, IID `0x67659555`; QI also answers `0x00000001` (cIGZUnknown) with it |
+| `cIGZMessageTarget2` | IID `0x452294AA` |
+| Prop requester | `cISC4PropRequester`, IID `0x89C498BE` (name from the Mac build) |
+| `cIGZSerializable` | IID `0xE4FDA3D4` |
+| Not answered | `cIGZMessageTarget` `0xE98B2F57`, everything else → false, out pointer null |
+| City component | slot **#23** (foundations §3.6); the city gets it with `GetClassObject(0x8990C09A, 0x67659555)` |
+| City getter | `cISC4City` slot 55 (`+0xDC`) `GetCrimeSimulator`, cached by the game as `SL::spCrimeSim` |
+| Init order | after commercial, before fire protection (foundations §3.7) |
+| Extra class slot | slot 15 of the primary vtable (after the destructor) returns the simulator type `0x27567222` |
+
+All four interfaces are one object (one reference count). `AddRef` increments, `Release` decrements. When
+`Release` is called with a count ≤ 1, it calls `Shutdown()` and then destroys the object. It returns 0 then,
+otherwise the new count. *[compat]*
+
+## 2. Grids
+
+Two `uint8` grids (simgrid §2, CLSID `0x49B9E602`). Both use the tuning tract size `S` (property `0x47E2C200`,
+default **2**) and the geometry of simgrid §3.
+
+| Grid | Instance ID | Exposed | Meaning |
+|---|---|---|---|
+| crime grid | `0x89D5B895` | `GetCrimeGrid()` | accumulated crime: severities stamped by crimes, decayed monthly |
+| crime-effect grid | `0x2A5BA1B3` | no | sum of building "crime effect" cones (property `0xCA5B9306`) |
+
+- Created in `Init` when absent (a new city, or a save that did not provide them). Steps: create, `Init()`,
+  `SetTractSize(S)`, `SetInstanceID(id)`, `SetTractValues(0)`. *[compat]* The original builds them with its own
+  allocator and constructor, not through the class registry. *[choice]* FreeCity4 creates them with
+  `GetClassObject(0x49B9E602, 0xC9BD939A)` (see §14.2, replaceability).
+- Saved as **refs** (simgrid §5), so each grid is its own object in the class store.
+- `GetCrimeGrid()` returns the pointer **without** `AddRef`. Callers must not release it. *[compat]*
+- The simulator itself reads and writes cells **directly through `GetGridData`** (row vectors indexed `[x][z]`,
+  simgrid §4). It does not use `SetTractValue`.
+
+## 3. State
+
+| State | Initial | Saved | Notes |
+|---|---|---|---|
+| crime grid, crime-effect grid | absent | yes (refs) | §2 |
+| random cell iterator | rect 0, step 1, state/mode/dirty = 1 | yes | set to the whole crime grid in `Init` of a **new** city; never advanced (unused) |
+| two unused `u32` values | 0 | yes | never set *[inferred]* |
+| average crime (`f32`) | 0 | yes | recomputed monthly (§6.9) |
+| ordinance crime factor (`f32`) | 1.0 | yes, but `Init` resets it to 1.0 | §4.2, §15 |
+| monthly crime count (`u32`) | 0 | yes | crimes that happened last run (§6.6) |
+| hotspot tract x, z, value (`s32` ×3) | 0 | yes, but `Init` resets them to 0 | §6.5, §6.6 |
+| incident list | empty | yes | one record per crime of the last run (§6.8) |
+| pipeline state (0–6) | **6** | no | §5 |
+| criminal base, crimes to commit | 0 | no | §6.3, §6.4 |
+| census table `pop[wealth 0..2][bucket 0..3]` (`u32`) | 0 | no | §6.1 |
+| jobless factor per wealth (`f32` ×3) | 0 | no | §6.2 |
+| tuning values and curves | §8 | no | |
+| visuals-created flag per incident | false | no (false after load) | §11 |
+| `initialized`, `loadedFromSave` flags | false | no | `loadedFromSave` is set by `Read` |
+| crime type list | — | no | **process-wide**, shared by all cities (§7) |
+
+## 4. Lifecycle
+
+### 4.1 `Init()` → true
+
+If already initialized, return true and do nothing. Otherwise, in order:
+
+1. Set `initialized`.
+2. Only the first time in the process: register an application shutdown callback (`cIGZApp` slot `+0x114`)
+   that frees the static crime type list *[inferred: purpose]*, then load all crime types (§7).
+3. Read the tuning (§8). This runs on every `Init`, including after a load.
+4. Register as an agent of the simulator (`cISC4Simulator::AddAgent`, slot `+0x4C`) on the
+   `cIGZMessageTarget2` sub-object, name `"cSC4CrimeSimulator"`, flags **2**, at levels **4** (day), **6**
+   (month) and **10** (idle), in that order.
+5. If it has no message server yet: hold the message server and subscribe to `0x99EF1142`, `0x99EF1143`,
+   `0xC2C09554`, `0xC53D10AA`, in that order.
+6. Hold (AddRef) the city, the occupant manager (`cISC4City +0x88`), the ordinance simulator (`+0xFC`) and the
+   police simulator (`+0x104`).
+7. Create each missing grid (§2).
+8. If **not** `loadedFromSave`: set the iterator rectangle to `(0, 0, countX − 1, countZ − 1)` of the crime
+   grid, and register the prop-requester sub-object with the prop developer (`AddPropRequester`, §11.6). In a
+   loaded city the prop developer restores the registration itself from its own save (§14.2).
+9. Reset the hotspot to (0, 0, value 0) and the ordinance factor to **1.0**, for new and loaded cities alike.
+   *[compat, quirk]*
+
+### 4.2 `Shutdown()` → true
+
+If not initialized, return true. Otherwise clear `initialized`. Shut down and release both grids. Release the
+police, ordinance, occupant manager and city references. Clear the incident list (releasing each incident's lot).
+Unsubscribe `0xC2C09554`, `0xC53D10AA`, `0x99EF1142`, `0x99EF1143`, then release the message server. Remove the
+agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overload).
+*[compat]* It does **not** unregister from the prop developer.
+
+## 5. Scheduling and messages handled
+
+`DoMessage` always returns **true** (finished, simulator spec §4).
+
+| Message | Action |
+|---|---|
+| `0x66956814` SimNewDay (level 4) | `DoIdle()` (one pipeline step) |
+| `0x6695681A` SimIdle (level 10) | `DoIdle()` (data ignored) |
+| `0x66956816` SimNewMonth (level 6) | if state = 6 then state := 0 |
+| `0x99EF1142` occupant inserted | occupant = `void1`. Skip it if it has property `0x029244DB`. Otherwise apply its crime effect with sign + (§6.10) |
+| `0x99EF1143` occupant removed | the same, with sign − |
+| `0xC2C09554` OrdinanceUpdated | ordinance factor := `GetCumulativeFactor(0x28ED0380, 0)` of the ordinance simulator |
+| `0xC53D10AA` exemplar reloaded | data1 = group, data2 = instance. Group `0xE7E2C2DB` and instance `0xC8E8F6C5`: re-read the tuning (§8). Group `0xEA12F32C`: reload all crime types (§7) |
+
+**Pipeline** (`DoIdle`, one step per call):
+
+| State | Step | Next |
+|---|---|---|
+| 0 | wait for `initialized` (always true after `Init`) | 1 |
+| 1 | census (§6.1), then economic factors (§6.2) | 2 |
+| 2 | criminal base (§6.3) | 3 |
+| 3 | crimes to commit (§6.4) | 4 |
+| 4 | decay the crime grid (§6.5); clear the incident list; commit crimes (§6.6) and store the result as the monthly crime count; police `ProcessMonthlyCrimeStats()`; average crime (§6.9) | 5 |
+| 5 | post `0x88EA4DFF` (§10) | 6 |
+| 6 | idle | (month message → 0) |
+
+- A new simulator starts in state 6. The first run starts after the **first month message** and takes the next
+  six day/idle deliveries. *[compat]* The state is not saved, so the same holds after a load.
+- The month handler only resets the state. All work happens on later day/idle deliveries. The crime simulator's
+  rank in the month order (foundations §13) therefore does not matter. It reads police, residential and demand
+  values as they are at the time of each step.
+
+## 6. Algorithms *[compat]*
+
+Notation: `trunc` is conversion toward zero (the CRT `_ftol`). `rhe` is round-half-even, as the original's
+"add 1.5·2²³ and store as `f32`" idiom computes it (valid for |x| < 2²²). Products of a `float32` with an integer
+or another `float32` are formed exactly (x87 extended precision) before truncation. FreeCity4 must compute them
+in `f64` (exact for these operand sizes), not in `f32`.
+
+### 6.1 Census (`DoCensus`)
+
+Get the residential simulator's three **population** grids (`uint16`, R$, R$$, R$$$) and three **EQ** grids
+(`float`). Both getters fill three out-pointers and AddRef them (§13). For each wealth `w`:
+
+```
+pop[w][0..3] := 0
+for every tract (x, z) of population grid w (x < countX, z < countZ):
+    b := trunc(EQ_w[x][z] × 0.02f)          (0.02f = 0.0199999995529651641845703125)
+    pop[w][b] += population_w[x][z]
+```
+
+Release the six grids. Both grids are read through `GetGridData`, at the same tract indices.
+
+- **Bucket boundaries** *[compat]*: because `0.02f < 0.02`, the exact product makes EQ = 50 fall in bucket 0.
+  Bucket 1 starts at the first float above 50 (50.0000038). Buckets: 0 = EQ ≤ 50, 1 = (50, 100],
+  2 = (100, 150], 3 = (150, 200]. EQ in (−50, 0] also gives 0.
+- **EQ > 200** *[quirk]*: the original has no bounds check. Buckets ≥ 4 write past the row, into storage that
+  is cleared or overwritten before use. With extreme values (R$$$ EQ > 350, R$$ > 550, R$ > 750) the write
+  corrupts the tuning tract size, and with larger values the response curves. *[choice]* FreeCity4 ignores
+  populations whose bucket is outside 0..3. This matches the original for every value that does not corrupt
+  memory.
+
+### 6.2 Economic factors (`CalculateEconomicFactors`)
+
+For each wealth, sum three values over a fixed list of demand IDs, using `cISC4DemandSimulator::GetDemand(id, 0)`
+(the result is not null-checked):
+
+| Wealth | Demand IDs |
+|---|---|
+| R$ | `0x4100`, `0x4200`, `0x4300`, `0x3110`, `0x3120` |
+| R$$ | `0x4400`, `0x3320`, `0x3130` |
+| R$$$ | `0x3330` |
+
+`A += QueryActiveDemandValue()`, `B += QueryActiveDemandMax()`, `C += QueryActiveDemandMin()` (`cISC4Demand`
+slots `+0x30`, `+0x38`, `+0x3C`; demand spec §3), accumulated in `float32`.
+
+```
+jobless[w] := 2 · (A − C) / (B − C) − 1
+```
+
+*[quirk]* When `B = C`, this is ±∞ or NaN. The curve of §6.3 then gives its end value for ±∞. For NaN the
+original's comparison order yields the last segment's y *[inferred]*. *[choice]* FreeCity4 uses 0 for the
+factor when `B = C`.
+
+### 6.3 Criminal base (`ComputeCriminalBase`)
+
+```
+for w in R$, R$$, R$$$:
+    acc    := Σ_{b=0..3} EQcurve_w(25 · b) × pop[w][b]        (float32 accumulator; inputs 0, 25, 50, 75)
+    popSum := Σ_b pop[w][b]
+    crim_w := trunc(joblessCurve_w(jobless[w]) × popSum + acc)
+criminalBase := Σ_w crim_w                                     (32-bit integer)
+```
+
+*[compat, quirk]* The EQ curve is sampled at `25·b`, not at the bucket centres, so the shipped curves (defined
+to 200) are only ever read between 0 and 75. The jobless term can be negative, so `crim_w` and the base can be
+negative.
+
+### 6.4 Crimes to commit (state 3)
+
+```
+jailed   := police.GetCriminalCount()           (slot +0x78, u32: criminals held in jails)
+released := police.ResetUnjailedCriminals()      (slot +0x6C, s32; has side effects, called second)
+if criminalBase > jailed (unsigned compare):
+    crimes := trunc(crimesCurve(float(int32(criminalBase − jailed)))) + trunc(released × reoffend)
+else:
+    crimes := trunc(released × reoffend)
+crimesToCommit := rhe(float(uint32 crimes) × ordinanceFactor)
+```
+
+- `reoffend` is property `0x8A0CBAAD` (shipped name "Criminal Grid Decay Factor", 0.66).
+- *[compat]* The two police calls must be made in this order, once per month. Slot `+0x6C` returns the number of
+  criminals released from jails (the jailed count above the current capacity, plus any pending releases) and
+  resets that counter (police spec).
+- A negative base compares as a huge unsigned number, so the first branch runs. The curve input is then
+  negative, and the curve clamps it to its first y (0 with shipped data).
+
+### 6.5 Decay (`DecayCrimeGrid`)
+
+For every **non-zero** cell: `v := low 8 bits of trunc(v × decay)` (`decay` = property `0x8A0CBAAC`, default 0.5,
+shipped 0.8). Then `hotspotValue := crimeGrid[hotspotX][hotspotZ]` (the hotspot tract is kept, its value
+follows the decay).
+
+- 200 → 100 at 0.5, 200 → 160 and 255 → 204 at 0.8f (exact product 204.000003), 1 → 0.
+- *[quirk]* A decay > 1 wraps modulo 256 (200 × 1.5 = 300 → 44). *[choice]* FreeCity4 reproduces the wrap.
+
+### 6.6 Committing crimes (`AddCrimes(n)`)
+
+If `n ≤ 0`, the result is 0. Otherwise repeat `n` times:
+
+1. `lot := lotManager.GetRandomLot()` (slot `+0x34`). If null, this attempt ends. (The lot manager picks random
+   cells with its own generator, up to 999 tries. It is not part of this spec. §9.)
+2. `(x1, z1, x2, z2) := lot.GetBoundingRect()`, inclusive city cells.
+3. `pol := policeGrid.GetAverageValueInCellRect(x1, z1, x2 − x1 + 1, z2 − z1 + 1)`. The police grid comes from
+   police slot `+0x14`.
+   `eff := crimeEffectGrid.GetAverageValueInCellRect(same)`. Both are `uint8` (simgrid §4).
+4. `p := attenuationCurve(float(pol − eff))` (property `0x8A0CBAAB`), stored as `float32`.
+5. `u := RandomDoubleUniform()` on the crime generator (§9).
+6. If `p > u`: the crime is **stopped**, and this attempt ends. Otherwise `s := AddCrimeEvent(lot)` (§6.7,
+   §6.8). If `s = 0`, the attempt ends.
+7. Stamp: shift the bounding rect right by the crime grid's tract shift (arithmetic shift). For every tract
+   `(x, z)` in it, x-outer and z-inner: `cell := min(255, cell + s)`. If `cell > hotspotValue` (strict), the
+   hotspot becomes `(x, z, cell)`.
+8. `count += 1`.
+
+The result `count` (crimes that happened) becomes the monthly crime count.
+
+So `p` is the probability that police **stop** an attempt. The chance that an attempt on a found lot becomes a
+crime is `1 − p` (with `u` in [0, 1), a crime happens when `u ≥ p`).
+
+### 6.7 Lot bits and crime type selection
+
+The lot is classified into four bit sets (`GetLotBits`):
+
+| Set | Source | Value → bits |
+|---|---|---|
+| zone | `zoneManager.GetZoneType(cellX, cellZ)` at `lot.GetLocation()` | 1–3 → `0x1`, 4–6 → `0x2`, 7–9 → `0x4`, other → `0x80000000` |
+| wealth | `lot.GetBuilding()` → `GetBuildingProfile().wealth` | `w ≥ 1` → `1 << (w − 1)`; 0 or no building → `0x80000000` |
+| purpose | same profile, `.purpose` | 0 or no building → `0x100`; `p ≥ 1` → `1 << (p − 1)` |
+| condition | `lot.GetCondition()` (byte) | 0, 1 → `0x1`; 2, 3, 5, 6 → `0x2`; 4 → `0x4`; > 6 → `0x80000000` |
+
+A crime type is a **candidate** when each of its four masks (§7) shares a bit with the lot's set. Candidates
+keep the order of the type list. With `total := Σ weight` over the candidates (`float32`):
+
+- **No candidates**: no crime, result 0, no random draw.
+- Otherwise `r := RandomDoubleRangeUniform(0, total)` (double). Walk the candidates in order:
+  `r := r − weight`, and stop at the first candidate after which `r < 0`. If the walk ends without that
+  (for example, all weights 0), the **last** candidate is chosen. *[compat]*
+
+### 6.8 The crime event (`AddCrimeEvent`)
+
+For the chosen type:
+
+1. Append an incident `{lot (AddRef), type ID, name (copy), icon key, visuals = false}`.
+2. If the type has the **arson** flag: `building := lot.GetBuilding()`. If it is non-null and the city's disaster
+   layer (`cISC4City +0x120`) is non-null, then:
+   - get the fire manager with `GetDisasterManager(0x621CDA33)` and QI it for `cISC4DisasterManagerFire`
+     `0x49B43F57`,
+   - `IgniteOccupant(building as cISC4Occupant)`, then `SetCause(2)` (arson *[inferred]*),
+   - release the manager.
+
+   *[quirk]* The original checks neither the manager nor the QI result for null.
+3. Post `0x0A159D95` (§10).
+4. Return the type's **severity** byte. A type with severity 0 still records and posts the incident, but
+   §6.6 counts nothing and stamps nothing. *[compat]*
+
+### 6.9 Average crime (`ComputeAverageCrime`)
+
+Over all crime-grid tracts `(x, z)` whose corner cell `(x·S, z·S)` has a zone type ≠ 0
+(`zoneManager.GetZoneType`): `average := Σ value / count`, with 64-bit integer sums converted to float and
+stored as `float32`. *[quirk]* With no zoned tract this is 0/0 = NaN. `GetAverageCrime()` then returns
+`0x80000000` (the CRT's integer indefinite). *[choice]* FreeCity4 stores 0 in that case and returns 0, and the
+conformance test for an unzoned city expects 0 from FreeCity4 and documents the original's value.
+
+`GetAverageCrime()` returns `trunc(average)` as `uint32`.
+
+### 6.10 Building crime effect (`DoOccupantChanged(occ, sign)`)
+
+Runs if the occupant (as a property holder) has property **`0xCA5B9306`**. The property is read as a byte
+array `{m, r}`: magnitude and radius in **city cells**. *[quirk]* The original does not check the length, so
+fewer than 2 bytes reads past the data. *[choice]* FreeCity4 skips arrays shorter than 2.
+
+```
+value  := +m when inserted, −m when removed
+radius := float(r) / float(crimeEffectGrid.GetTractSize())          (tracts)
+(tx, tz) := crimeEffectGrid.PositionToTract(position.x, position.z)  (occupant GetPosition)
+AddRadiusEffect<uint8>(crimeEffectGrid data, countX, countZ, tx, tz, radius, centre = float(value), outer = 0)
+```
+
+The helper is simgrid §7.1, `uint8` variant `0x005E3D80`. Summary: the centre is in tracts. The box is
+`±rhe(radius)` clamped to the grid. The slope is `(centre − outer) / radius`, and the distance is Euclidean in
+tract units. A cell changes only if `d < radius` (strict), by `rhe(centre − d · slope)`, with the result clamped
+to 0..255. Removal subtracts the same cone. Because of clamping, an insert/remove pair does not always restore
+the grid. *[compat]*
+
+## 7. Crime types *[compat]*
+
+All exemplars of type `0x6534284A`, group `0xEA12F32C`, in the resource manager's key-list order. This list is
+**static** (one per process), loaded at the first `Init` and reloaded by message `0xC53D10AA`. A reload frees
+the old list first.
+
+| Property | Type | Default | Meaning |
+|---|---|---|---|
+| (exemplar instance) | — | — | crime type ID |
+| `0x8A416B2E` | LTEXT key | — | display name (`SC4LoadExemplarString`); fallback string `0xAA12FCB0` |
+| `0xAA12FCB1` | u32 ×3 | — | icon key (type, group, instance) |
+| `0xAA12FCB2` | u8 array | all bits | zone mask |
+| `0xAA12FCB3` | u8 array | all bits | wealth mask |
+| `0xAA12FCB4` | u8 array | all bits | purpose mask |
+| `0xAA12FCB5` | u8 | 64 | severity (added to the crime grid) |
+| `0xAA12FCB6` | u8 | 0 | arson flag (non-zero = start a fire) |
+| `0xAA12FCB7` | u8 array | all bits | lot condition mask |
+| `0xAA12FCB8` | f32 | 10 | selection weight |
+
+**Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
+but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
+32 wrap the shift count modulo 32 *[compat]*.
+
+Shipped types (`SimCity_1.dat`; no other shipped file defines any). Masks not listed are "any" (`[0]`). Icons
+are type `0x7AB50E44`, group `0x1ABE787D`.
+
+| ID | Name | Severity | Weight | Arson | Masks |
+|---|---|---|---|---|---|
+| 0x01 | Generic | 40 | 0 | — | — |
+| 0x03 | Fighting | 60 | 3 | — | — |
+| 0x04 | Narcotic Deals | 80 | 2 | — | purpose [4, 2, 3] |
+| 0x05 | Arson | 100 | 0.5 | yes | wealth [2, 1]; purpose [9, 1, 2, 3, 4, 6, 7, 8]; condition [3] |
+| 0x06 | Money Snatcher | 60 | 3 | — | purpose [4, 2] |
+| 0x07 | Stickup | 80 | 2 | — | purpose [3, 2] |
+| 0x08 | Car Theft | 60 | 3 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
+| 0x09 | Solicitation | 60 | 3 | — | purpose [4, 2, 3] |
+| 0x0A | Mugging | 80 | 2 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
+| 0x0B | Bank Robbery | 80 | 2 | — | purpose [3, 2] |
+| 0x10 | Flashing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
+| 0x11 | Graffiti | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
+| 0x12 | Pie Throwing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
+| 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] |
+
+Purpose byte 9 is bit 8 (`0x100`), the value used for "no purpose / no building" (§6.7). "Condition [3]" is bit 2,
+which matches lot condition 4 only.
+
+## 8. Tuning *[compat]*
+
+Exemplar type `0x6534284A`, group `0xE7E2C2DB`, instance **`0xC8E8F6C5`** ("Crime Simulator", `SimCity_1.dat`).
+Read on every `Init` and on the reload message. First the scalar defaults are set (tract size 2, decay 0.5,
+reoffend 1.0). If the exemplar exists, each curve is then set to its code default (when it has one) and
+replaced by the property if that is present. A missing curve property **keeps** the default; the curve loader
+used here leaves the curve unchanged when the property is absent.
+
+| Property | Name / role | Code default | Shipped |
+|---|---|---|---|
+| `0x47E2C200` | crime grid tract size (u32) | 2 | absent → 2 |
+| `0x49A34301` | Crime Prop Request Curve (avg crime/255 → share) | none | (0,0) (0.1,2) (0.2,4) (0.4,6) (1,10) |
+| `0x8A0CBAA4` | R$: EQ → base criminality | (0,0.1) (255,0) | (0,0.4) (100,0.3) (200,0) |
+| `0x8A0CBAA5` | R$$: EQ → base criminality | (0,0.1) (255,0) | (0,0.15) (100,0.11) (200,0) |
+| `0x8A0CBAA6` | R$$$: EQ → base criminality | (0,0.1) (255,0) | (0,0.1) (100,0.07) (200,0) |
+| `0x8A0CBAA7` | R$: jobless ratio → criminality | (1,0) (2,0.1) (5,0.5) | (−1,0.1) (−0.7,0.07) (0,0) (0.7,−0.07) (1,−0.1) |
+| `0x8A0CBAA8` | R$$: jobless ratio → criminality | same | (−1,0.07) (−0.7,0.05) (0,0) (0.7,−0.05) (1,−0.07) |
+| `0x8A0CBAA9` | R$$$: jobless ratio → criminality | same | (−1,0.05) (−0.7,0.03) (0,0) (0.7,−0.03) (1,−0.05) |
+| `0x8A0CBAAA` | criminality → crimes | (0,0) (1e6,50000) | (0,0) (200,1) (5000,5) (10000,10) (20000,25) (200000,40) (400000,55) (600000,60) (900000,65) |
+| `0x8A0CBAAB` | (police − crime effect) → attenuation | (0,0) (255,1) | (0,0) (100,0.05) (200,0.2) (255,0.5) |
+| `0x8A0CBAAC` | crime grid decay factor (f32) | 0.5 | 0.8 |
+| `0x8A0CBAAD` | "Criminal Grid Decay Factor": reoffend multiplier for released criminals (f32) | 1.0 | 0.66 |
+
+Other properties used: building `0xCA5B9306` (crime effect `{m, r}`, §6.10); prop `0x8AA864D5` (the prop's
+crime incident type, read by the prop manager into `PropProfile.crimeIncidentID`; 0 = generic crime prop);
+occupant property `0x029244DB` (occupants carrying it are ignored by §6.10 *[inferred: preview or temporary
+occupants]*).
+
+- *[quirk]* If the exemplar is **missing**, only the three scalars are reset. The curves keep their previous
+  contents, which are empty in a fresh process, and an empty curve is undefined (foundations §4.3). *[choice]*
+  FreeCity4 applies the code-default curves in that case. The prop request curve, which has no default,
+  evaluates to 0.
+- *[quirk]* A tract-size change by the reload message affects only later grid creation and the hotspot scaling
+  (§11.2). Existing grids keep their size.
+
+## 9. Random numbers *[compat]*
+
+**Generator**: one file-local `cRZRandomSuper` (MT19937, foundations §6.1), shared by all crime simulator
+instances. It is seeded at static initialization with the local wall-clock seconds XOR `0x6C09C3F6`, it is not
+saved, and only this class uses it.
+
+| Operation | Method | Draws |
+|---|---|---|
+| each crime attempt with a lot found (§6.6 step 5) | `RandomDoubleUniform()` | 1 |
+| type choice (§6.7), only when the attempt is not stopped and there is ≥ 1 candidate | `RandomDoubleRangeUniform(0, total)` | 1 |
+| `SelectProp` (§11.6), when its chosen list is non-empty | `RandomUint32Uniform(n)` | 1 |
+
+`GetRandomLot` uses the **lot manager's** generator (two `RandomUint32Uniform` draws per try, a file-local
+`cRZRandom` of the lot manager code *[inferred: instance]*), not this one. `SelectProp` runs when the prop
+developer calls it, so its draws interleave with the monthly draws in prop-developer timing.
+
+## 10. Messages posted
+
+Both are posted (`MessagePost(msg, false)`, queued) as `cRZMessage2Standard`:
+
+| ID | When | Fields |
+|---|---|---|
+| `0x0A159D95` crime committed | each incident (§6.8 step 3), after an arson fire is started | data1 = crime type ID; IGZUnknown = the lot; string = a new copy of the type name |
+| `0x88EA4DFF` crime map updated | pipeline state 5 | void1 = the simulator (primary interface pointer, no AddRef); IGZUnknown = the simulator |
+
+Subscribers in the shipped game: the police simulator (`0x0A159D95`, station crime statistics) and the map view
+(`0x88EA4DFF`).
+
+## 11. Interface behaviour
+
+### 11.1 `GetCrimeGrid()` → `cISC4SimGrid<uint8>*` (no AddRef; §2)
+
+### 11.2 `GetCrimeHotspot(uint8* value, int32* x, int32* z)` → bool
+
+If `hotspotValue > 0`: write the value, `S · hotspotX` and `S · hotspotZ` (city cells of the tract corner, with
+`S` the **tuning** tract size) through each non-null pointer, and return true. Otherwise return false and write
+nothing.
+
+### 11.3 `GetNearestCrimeSim(const cS3DVector3& pos, float radius)` / `GetNearestCrimeProp(...)`
+
+Query the occupant manager (`GetOccupantsByBBox`, filter overload) with the box `(pos.x − r, −FLT_MAX, pos.z − r)` to
+`(pos.x + r, +FLT_MAX, pos.z + r)`, and with:
+
+- for sims: occupants with `GetType() = 0x496E5783` that are in occupant group `0x4102`;
+- for props: occupants with `GetType() = 0xA823821E` that have property `0x8AA864D5`.
+
+Start with `best := radius`. For each result, `d :=` its 3-D distance to `pos`. If `d < best`, QI it (sim:
+`0xA9B40F05`; prop: `cISC4PropOccupant` `0xE9793A65`, which must also have `GetState() = 0`). When that
+succeeds, it becomes the candidate and `best := d`. Return the candidate as a **borrowed** pointer (the QI
+reference is released before returning), or null.
+
+### 11.4 `GetCrimeIncidentArray(SC4Vector<tCrimeEvent>& out)` → bool
+
+Resize `out` to the incident count. For each incident that has a lot:
+`out[i] = {cellX, cellZ from city.PositionToCell(lot.GetCenter()), type ID, visuals flag, icon key}`.
+Elements of incidents without a lot (possible after a load) keep their previous content. Return `count > 0`.
+
+`tCrimeEvent` is **28 bytes**: `u32 cellX; u32 cellZ; u32 typeID; u8 visualsCreated; 3 bytes padding;
+cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* The traffic effect manager walks the array
+with this stride (§14.1).
+
+### 11.5 `SetVisualsCreated(uint32 i, bool b)` / `GetVisualsCreated(uint32 i)`
+
+Index < count: set and return true / return the flag. Otherwise return false.
+
+### 11.6 Prop requester (`cISC4PropRequester`)
+
+| Slot | Method | Behaviour |
+|---|---|---|
+| 3 | `GetRequestedShare(const SC4Rect<long>& r)` → int32 | `a := crimeGrid.GetAverageValueInCellRect(r.x1, r.z1, r.x2 − r.x1, r.z2 − r.z1)` (no +1, unlike §6.6); return `rhe(propRequestCurve(a × (1/255)))` |
+| 4 | `GetRequesterSatisfactionId()` → u32 | `0x49A1E996` |
+| 5 | `UsesCustomPropSelector()` → bool | true |
+| 6 | `SelectProp(const vector<u32>& props, int32 cellX, int32 cellZ)` → u32 | see below |
+
+**`SelectProp`**: `lot := lotManager.GetLot(cellX, cellZ, false)` (may be null). Split `props` in order:
+
+- props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list;
+- props with a non-zero ID that matches the type of an incident whose lot is `lot` → matching list;
+- other props are dropped.
+
+If the matching list is non-empty, return `matching[RandomUint32Uniform(size)]`. Otherwise, if the generic list
+is non-empty, return `generic[RandomUint32Uniform(size)]`. Otherwise return 0.
+
+*[quirk]* With a 1-wide rect, `GetRequestedShare` asks for a zero-width average. It gets the containing tract's
+value if the cell is not on a tract's first column or row, and 0 otherwise (simgrid §4).
+
+## 12. Persistence (`cIGZSerializable`, `GetGZCLSID() = 0x8990C09A`) *[compat]*
+
+```
+u16  version = 6
+ref  crimeGrid                       (read requests IID 0xC9BD939A)
+ref  crimeEffectGrid                 (same)
+iterator                             (weather.md §10 format: s8 state, s8 mode, u8 dirty, s32 x0, z0, x1, z1,
+                                      s32 count, u32 n, n × u16, s32 index, s32 current, s32 step)
+u32  unused0 = 0
+u32  unused1 = 0
+f32  averageCrime
+f32  ordinanceFactor
+u32  monthlyCrimeCount
+s32  hotspotTractX
+s32  hotspotTractZ
+s32  hotspotValue
+s32  incidentCount
+incidentCount × {
+    ref  lot                         (read requests cISC4Lot IID 0xE818FCED; may be null)
+    u32  crimeTypeID
+    GZStr name                       (foundations §2)
+    ResKey iconKey                   (u32 type, u32 group, u32 instance)
+}
+```
+
+- `Write` returns `!stream.GetError()`.
+- `Read` rejects any version ≠ 6 and returns false after consuming only the version. Otherwise it reads all
+  fields, sets every incident's visuals flag to false, sets `loadedFromSave`, and returns `!GetError()`.
+- On the following `Init`, the hotspot and the ordinance factor are reset (§4.1 step 9), and the tuning is
+  re-read. The pipeline state restarts at 6.
+- *[choice]* FreeCity4 writes the same record, with the two unused values as 0.
+
+## 13. Dependencies
+
+Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Bytes" is callee-pop.
+
+| Interface (vtable used) | Slot | Off | Method | Bytes | Return |
+|---|---|---|---|---|---|
+| `cISC4City` (`0x00A87620`) | 33 | `+0x84` | GetLotManager | 0 | EAX ptr |
+| | 34 | `+0x88` | GetOccupantManager | 0 | EAX ptr |
+| | 36 | `+0x90` | GetZoneManager | 0 | EAX ptr |
+| | 41 | `+0xA4` | GetPropDeveloper | 0 | EAX ptr |
+| | 50 | `+0xC8` | GetSimulator | 0 | EAX ptr |
+| | 56 | `+0xE0` | GetDemandSimulator | 0 | EAX ptr |
+| | 63 | `+0xFC` | GetOrdinanceSimulator | 0 | EAX ptr |
+| | 65 | `+0x104` | GetPoliceSimulator | 0 | EAX ptr |
+| | 68 | `+0x110` | GetResidentialSimulator | 0 | EAX ptr |
+| | 72 | `+0x120` | GetDisasterLayer | 0 | EAX ptr |
+| | 95 | `+0x17C` | PositionToCell(f32 x, f32 z, int& cx, int& cz) | 16 | bool |
+| `cISC4Simulator` (`0x00AB2FB8`) | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | bool |
+| | 20 | `+0x50` | RemoveAgent(target) (all levels) | 4 | bool |
+| `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` | 0 | EAX ptr |
+| | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count | 0 | EAX |
+| | 30 | `+0x78` | GetCriminalCount → u32 jailed | 0 | EAX |
+| | 38 | `+0x98` | ProcessMonthlyCrimeStats (result ignored) | 0 | none used |
+| `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
+| | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
+| `cISC4DemandSimulator` (`0x00AB0E48`) | 6 | `+0x18` | GetDemand(id, 0) | 8 | EAX ptr |
+| `cISC4Demand` (`0x00AA2758`) | 12, 14, 15 | `+0x30/+0x38/+0x3C` | active value / max / min (demand spec §3) | 0 | ST0 float |
+| `cISC4OrdinanceSimulator` (`0x00ABEAC0`) | 25 | `+0x64` | GetCumulativeFactor(id, 0) | 8 | ST0 float |
+| `cISC4LotManager` (`0x00AB37C0`) | 6 | `+0x18` | GetLot(int x, int z, bool) | 12 | EAX ptr |
+| | 13 | `+0x34` | GetRandomLot() | 0 | EAX ptr |
+| `cISC4Lot` (`0x00AB19B0`) | 14 | `+0x38` | GetBoundingRect(SC4Rect<long>&) | 4 | EAX |
+| | 15 | `+0x3C` | GetCenter(cS3DVector3&) (result in the out param; the `x87` tag in docs/abi is a heuristic miss: it ends with `fstp`) | 4 | EAX ptr |
+| | 21 | `+0x54` | GetLocation(int& x, int& z) | 8 | bool |
+| | 35 | `+0x8C` | GetCondition → u8 | 0 | AL |
+| | 48 | `+0xC0` | GetBuilding → `cISC4BuildingOccupant*` | 0 | EAX ptr |
+| `cISC4BuildingOccupant` | 3 | `+0x0C` | AsOccupant *[inferred name]* | 0 | EAX ptr |
+| | 11 | `+0x2C` | GetBuildingProfile (purpose at +0, wealth at +4) | — | EAX ptr |
+| `cISC4ZoneManager` (`0x00A92E00`) | 12 | `+0x30` | GetZoneType(x, z) | 8 | EAX enum |
+| `cISC4OccupantManager` (`0x00A8F7F0`) | 36 | `+0x90` | GetOccupantsByBBox(list&, const float min[3], const float max[3], filter*, 0xFFFFFFFF) *[inferred: last arg]* | 20 | bool |
+| | 48 | `+0xC0` | releases the returned list *[inferred]* | 4 | — |
+| `cISC4Occupant` (`0x00AA41D8`) | 6 | `+0x18` | AsPropertyHolder | 0 | EAX ptr |
+| | 7 | `+0x1C` | GetType | 0 | EAX |
+| | 8 | `+0x20` | GetPosition(cS3DVector3&) | 4 | EAX |
+| | 22 | `+0x58` | IsOccupantGroup(id) | 4 | bool |
+| `cISC4PropOccupant` (`0x00AA4900`) | 12 | `+0x30` | GetState | 0 | EAX |
+| `cISCPropertyHolder` (`0x00AA6CD8`) | 3 | `+0x0C` | HasProperty(id) | 4 | bool |
+| | 9 | `+0x24` | GetProperty(id) | 4 | EAX ptr |
+| `cIGZVariant` (`0x00AA6788`) | 95 | `+0x17C` | RefUint8 (pointer to the u8 data) | 0 | EAX ptr |
+| `cISC4PropDeveloper` (`0x00AB29F8`) | 5 | `+0x14` | AddPropRequester(requester) | 4 | — |
+| `cISC4PropManager` (`0x00A8F928`) | 13 | `+0x34` | GetPropProfile(id) → `PropProfile&` | 4 | EAX ptr |
+| `cISC4DisasterLayer` (`0x00A9E390`) | 7 | `+0x1C` | GetDisasterManager(type) | 4 | EAX ptr |
+| `cISC4DisasterManagerFire` (`0x00A9E4DC`, sub-object of `cSC4DisasterManagerFire`) | 4 | `+0x10` | IgniteOccupant(occ) | 4 | bool |
+| | 9 | `+0x24` | SetCause(cause) | 4 | EAX |
+| `cISC4SimGrid<T>` | — | — | simgrid §4: GetCellValue, GetAverageValueInCellRect, SetTractSize, Get/SetInstanceID, GetTractSize, GetTractShift, GetTractCountX/Z, PositionToTract, GetGridData, SetTractValues, Init, Shutdown | | |
+| message server / `cIGZMessage2` | | | MessagePost `+0x10`, Add/RemoveNotification `+0x14/+0x18`; SetType `+0x14`, GetData1 `+0x24`, GetVoid1 `+0x28`, SetData1 `+0x2C`, SetVoid1 `+0x30`, GetData2 `+0x38`, GetData3 `+0x4C`, SetString `+0x78`, SetIGZUnknown `+0x84` (foundations §5) | | |
+| resource manager | | | exemplar lookup and key lists (foundations §3) | | |
+
+The disaster-manager QI for `0x49B43F57` returns the sub-object at `+0x24` of `cSC4DisasterManagerFire`, whose
+vtable is `0x00A9E4DC`.
+
+## 14. Interactions and replaceability
+
+### 14.1 Consumers (all through `SL::spCrimeSim` or `cISC4City +0xDC`; complete for the global)
+
+| Consumer | Uses |
+|---|---|
+| Safety advisor (`update_variables`) | `GetAverageCrime`, `GetMonthlyCrimeCount`, `GetCrimeHotspot` |
+| Aura simulator `DoIdle` | `GetCrimeGrid` → two-grid walker (simgrid §7.3) that reads the **grid memory** through `GetGridData` |
+| Growth developer `DoIdle` / `EstimateDesirability` | `GetCrimeGrid` → a two-grid walker (raw memory); `GetCellValue` → desirability curve |
+| Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeHotspot` |
+| Query tool | `GetCrimeGrid` → `GetCellValue` |
+| MySim / MyStreetSim trip variables | `GetCrimeGrid` → cell values |
+| Ambience filter | `GetCrimeGrid` → `GetCellValue ≥ 200` (crime ambience) |
+| Getaway van `PostInit` | `GetCrimeGrid` |
+| Helicopter, patrol car | `GetNearestCrimeSim` (`+0x24`), `GetCrimeHotspot` |
+| Traffic effect manager `StopEffect` | `GetCrimeIncidentArray` with a 28-byte stride, then `SetVisualsCreated(i, true)` |
+| Police simulator | subscribes to `0x0A159D95`; called by state 4 (`ProcessMonthlyCrimeStats`) |
+| Prop developer | calls the prop-requester slots; saves the requester by ref |
+| City / class store | creates, `Init`/`Shutdown`, save/load |
+
+No caller of `GetNearestCrimeProp` or `GetVisualsCreated` was found. No code outside the class calls its
+functions directly or reads its members. The only outside references are the COM director's class table
+(factory and `GetGZCLSID`).
+
+### 14.2 Replaceability findings
+
+- **Replaceable** through the GZCOM class registry (CLSID `0x8990C09A`): the city and the class store create it
+  only through GZCOM.
+- **The crime grid must be a real `cSC4SimGrid<uint8>` memory layout** *[compat]*. The aura simulator, the growth
+  developer and the map view read its rows through `GetGridData` (vector of row vectors, three pointers each,
+  indexed `[x][z]`). A replacement should obtain both grids from the original grid class
+  (`GetClassObject(0x49B9E602, 0xC9BD939A)`) or reproduce the layout exactly. The crime-effect grid has no outside
+  reader, but it is saved by ref, so it must be a serializable grid object as well.
+- **Prop requester identity** *[compat]*: the prop developer saves its requesters by ref and restores them on
+  load, with a QI for `0x89C498BE`. `Init` registers only in new cities. A replacement must answer
+  `0x89C498BE` on the **same object** that the class store saves for CLSID `0x8990C09A`. Otherwise loaded cities
+  lose crime props, or the load fails.
+- **`GetCrimeIncidentArray` resizes the caller's vector** *[compat, blocker for a naive port]*. The storage is
+  owned and later freed by game code, so a replacement must allocate it with the **game's** allocator (the same
+  operator new / STLport allocator as the original), not its own CRT heap. The element layout must be exactly the
+  28-byte `tCrimeEvent` of §11.4.
+- `GetCrimeGrid` and `GetNearestCrimeSim/Prop` return borrowed pointers. Callers do not release them.
+- The police simulator depends on `0x0A159D95` with the fields of §10, and on being called once per month
+  through `ProcessMonthlyCrimeStats` after `ResetUnjailedCriminals`. A replacement must keep both.
+
+## 15. Original quirks (reproduced) and corrections to the earlier write-up
+
+Quirks: hotspot and ordinance factor reset by `Init` after load (§4.1); first run only after the first month
+(§5); EQ bucket boundaries and the EQ > 200 overflow (§6.1); `B = C` in the jobless factor (§6.2); EQ curve
+sampled at 0/25/50/75 (§6.3); decay wrap (§6.5); last-candidate fallback (§6.7); severity-0 types (§6.8);
+NaN average in an unzoned city (§6.9); unchecked effect array length (§6.10); empty mask arrays (§7); missing
+exemplar leaves the curves empty (§8); zero-width share rect (§11.6); no prop-developer unregistration on
+`Shutdown` (§4.2).
+
+Corrections to `docs/subsystems/grid-sims.md` §6:
+
+- The jailed count is police slot `+0x78` (`GetCriminalCount`), not `+0x74`.
+- `p` is the probability that an attempt is **stopped**. A crime happens when `u ≥ p`.
+- EQ buckets are "≤ 50, ≤ 100, ≤ 150, ≤ 200", not "0–49, 50–99, …". The criminal base is `trunc(jobless term ×
+  popSum + EQ term)` per wealth, with the EQ curve sampled at `25·b`.
+- The fourth lot bit set is the lot **condition** (`GetCondition`), not density.
+
+## 16. Open questions
+
+1. Does anything post OrdinanceUpdated `0xC2C09554` after a load? If not, a loaded city ignores crime ordinances
+   until one is toggled (§4.1 step 9).
+2. The meaning of lot condition values 0–6 (condition 4 is the only one arson can hit *[inferred: abandoned]*),
+   and of building purposes 1–9 (purpose 5 is the one excluded from most masks).
+3. The meaning of occupant property `0x029244DB` and of occupant group `0x4102`. The IID `0xA9B40F05` is
+   presumably `cISC4Automaton`.
+4. The order of the crime type list depends on the resource manager's key-list order. It decides the walk in
+   §6.7, so it must be confirmed (instance ascending is assumed in test 9).
+5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.
+6. The meaning of the two unused saved `u32` values.
+7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
+
+## 17. Conformance tests (must exist in `engine/conformance`)
+
+1. **Decay**: decay 0.5: 200 → 100, 255 → 127, 1 → 0, 0 stays 0. Decay 0.8f: 200 → 160, 255 → 204, 5 → 4.
+   Decay 1.5: 200 → 44 (wrap). After the decay, the hotspot value equals the decayed value at the hotspot tract.
+2. **Census buckets**: EQ 0 → 0; 49.99 → 0; **50.0 → 0**; 50.0000038 → 1; 100.0 → 1; 100.00001 → 2;
+   150.0 → 2; 199.99 → 3; 200.0 → 3. A tract with EQ 250 contributes to no bucket (FreeCity4 *[choice]*).
+3. **Jobless factor**: A = 0, B = 1000, C = −1000 → 0; A = 500 → 0.5; A = −1000 → −1. R$ shipped curve at
+   0.5 → −0.05; at −1 → 0.1.
+4. **Criminal base** (shipped curves): R$ pop {1000, 0, 0, 0}, jobless −1 → 500. R$ pop {1234, 0, 0, 0},
+   jobless 0 → 493. EQ bucket 1 is evaluated at input 25 (R$ curve 0.375).
+5. **Crimes to commit** (shipped): base − jailed = 200 → 1; 7 500 → 7; 15 000 → 17; 100 → 0; 1 000 000 → 65.
+   With released = 10, reoffend 0.66f → +6. Base ≤ jailed → only the released term. Base 7 500, jailed 0,
+   released 10, factor 1.0 → 13.
+6. **Ordinance rounding**: 10 crimes × 0.95f → **9** (exact product 9.49999988); 50 × 0.95f → 47;
+   15 × 1.2f → 18; 2 × 0.95f → 2.
+7. **Attenuation** (shipped): pol 150, eff 0 → p = 0.125 (±1e-6), so a draw u = 0.12 stops the attempt and
+   u = 0.13 commits it; equality (u = p exactly) commits. pol 255 → 0.5. pol 0, eff 50 → input −50 → p = 0 → always commits. Default curve: p = (pol − eff)/255.
+8. **Stamp and hotspot**: S = 2, lot cells (10, 10)–(13, 11) → tracts x 5..6, z 5. Severity 60 on cells
+   {0, 200} → {60, 255}. The hotspot becomes (tract 6, 5, value 255) if 255 is the first strict maximum.
+   `GetCrimeHotspot` → (255, 12, 10). Hotspot value 0 → returns false, writes nothing.
+9. **Type selection** (shipped types, list in ascending instance order). Residential zone (type 1), wealth $,
+   purpose 1, condition 1: candidates Generic 0, Fighting 3, Car Theft 3, Mugging 2, Flashing 4, Graffiti 4,
+   Pie Throwing 4 (total 20). u = 0.5 → r = 10 → Flashing (0x10, severity 40); u = 0.1 → r = 2 → Fighting;
+   u = 0.0 → r = 0 → Fighting. TPing needs wealth $$ or $$$. Arson needs condition 4. All weights 0 → the last
+   candidate. A lot with no building → wealth `0x80000000` and purpose `0x100`.
+10. **Mask parsing**: [0] → all; [] → 0 (never matches); [1, 3] → `0x5`; [9] → `0x100`; missing → all.
+11. **Crime-effect cone**: `0xCA5B9306 = {100, 8}`, S = 2 → radius 4 tracts, slope 25. The centre +100;
+    d = 1 → +75; d = 2 → +50; d = 3 → +25; d = √2 → +65 (`rhe(64.64)`); d = 4 → unchanged. Removal subtracts and
+    clamps: cell 30 at the centre → 0. A 1-byte property is skipped by FreeCity4.
+12. **Average crime**: zoned tracts with values {10, 20, 0} → 10.0 → `GetAverageCrime` = 10; {1, 2} → 1.5 → 1.
+    Unzoned city → FreeCity4 0 (the original returns `0x80000000`).
+13. **Pipeline**: a new simulator does nothing before the first month message. After it, exactly one step per
+    day/idle delivery. `0x88EA4DFF` is posted once per month, at the 6th delivery. A second month message during
+    the run does not restart it.
+14. **RNG draw count**: 5 attempts, 4 lots found, 1 stopped, 3 with candidates → 4 `RandomDoubleUniform` +
+    3 `RandomDoubleRangeUniform` on the crime generator, in attempt order.
+15. **Incident array**: 3 incidents → the vector has 3 elements of 28 bytes, with cell coordinates from the lot
+    centres, the type IDs, visuals false and the icon keys. Returns true. 0 incidents → false.
+    `SetVisualsCreated(1, true)` → true, then `GetVisualsCreated(1)` → true; index 3 → false.
+16. **Prop requester**: average crime 51 over the rect → input 0.2 → share 4; 255 → 10; 0 → 0.
+    `SelectProp` with props {A (crime ID 0), B (ID 0x11)} on a lot with a Graffiti incident → B. On a lot without
+    one → A. With no props → 0.
+17. **Save**: write → read → write is byte-identical (v6, with 0, 1 and 3 incidents and a null lot). Version 5
+    or 7 → `Read` false. After load and `Init`: hotspot 0, ordinance factor 1.0, visuals flags false,
+    pipeline state 6.
+18. **Lifecycle**: `Init` twice → one set of agent registrations and subscriptions. `Init` on a new city calls
+    `AddPropRequester` once; on a loaded city never. `Shutdown` removes the agent and the four subscriptions.
+
+## Compiled slot tables *[compat]* (see foundations §16, §17)
+
+**`cISC4CrimeSimulator`**, vtable `0x00AB0DC8`, 14 interface slots (3 + 11) + destructor + one class slot.
+No overloads. The SDK order, argument sizes and return types are **correct**. Every pointer return is EAX.
+`GetAverageCrime` returns `uint32` in EAX: the original tail-calls the float-to-int helper, which also leaves the
+high half in EDX. That is harmless, and docs/abi's "edx:eax?" tag is a heuristic artefact. The SDK's
+`tCrimeEvent::unknown1` is the visuals-created flag.
+
+| Slot | Off | Method | Pop | Return |
+|---|---|---|---|---|
+| 0 | `+0x00` | QueryInterface(iid, void**) | 8 | bool |
+| 1 | `+0x04` | AddRef | 0 | u32 |
+| 2 | `+0x08` | Release (≤ 1 → Shutdown, delete, return 0) | 0 | u32 |
+| 3 | `+0x0C` | Init | 0 | bool (true) |
+| 4 | `+0x10` | Shutdown | 0 | bool (true) |
+| 5 | `+0x14` | GetCrimeGrid | 0 | EAX ptr (borrowed) |
+| 6 | `+0x18` | GetAverageCrime | 0 | EAX u32 |
+| 7 | `+0x1C` | GetMonthlyCrimeCount | 0 | EAX u32 |
+| 8 | `+0x20` | GetCrimeHotspot(u8*, s32*, s32*) | 12 | bool |
+| 9 | `+0x24` | GetNearestCrimeSim(const cS3DVector3&, float) | 8 | EAX ptr (borrowed) |
+| 10 | `+0x28` | GetNearestCrimeProp(const cS3DVector3&, float) | 8 | EAX ptr (borrowed) |
+| 11 | `+0x2C` | GetCrimeIncidentArray(SC4Vector<tCrimeEvent>&) | 4 | bool |
+| 12 | `+0x30` | SetVisualsCreated(u32, bool) | 8 | bool |
+| 13 | `+0x34` | GetVisualsCreated(u32) | 4 | bool |
+| 14 | `+0x38` | scalar deleting destructor (class) | 4 | — |
+| 15 | `+0x3C` | GetSimulatorType → `0x27567222` (class) | 0 | EAX |
+
+**`cIGZMessageTarget2`**, vtable `0x00AB0DB8`: slots 0–2 thunks; slot 3 `DoMessage(cIGZMessage2*)`, pop 4,
+returns true (AL = 1).
+
+**`cISC4PropRequester`**, vtable `0x00AB0D9C` (no SDK header): slots 0–2 thunks; 3 `GetRequestedShare(const
+SC4Rect<long>&)` pop 4, EAX int32; 4 `GetRequesterSatisfactionId()` pop 0, EAX; 5 `UsesCustomPropSelector()`
+pop 0, AL (a shared one-instruction function returning true); 6 `SelectProp(const vector<u32>&, int32, int32)`
+pop 12, EAX u32.
+
+**`cIGZSerializable`**, vtable `0x00AB0D84`: slots 0–2 thunks; 3 `Write(cIGZOStream&)` pop 4, bool; 4
+`Read(cIGZIStream&)` pop 4, bool; 5 `GetGZCLSID()` pop 0, EAX `0x8990C09A`.
+
+**SDK errors found in interfaces this class calls** (for the owners of those specs):
+
+- `cISC4PoliceSimulator::GetPolicePowerGrid` returns `cISC4SimGrid<uint8>*` (crime reads a byte average), not
+  `<short>`.
+- `cISC4PoliceSimulator::ResetUnjailedCriminals` (slot 27) returns an **int32 count** of released criminals, not
+  bool. It also has side effects (resets the pending count, trims the jailed count to capacity).
+- `cISC4ResidentialSimulator::GetEQGrids` / `GetPopulationGrids`: **all three** parameters are out pointers
+  (`cISC4SimGrid<T>*&`), each AddRef'd. The SDK declares the 2nd and 3rd as plain pointers. The return value is
+  garbage.
+- `cISC4OccupantManager::GetOccupantsByBBox`: the compiled order is the **filter** overload at slot 36 (`+0x90`)
+  and the type overload at slot 37 (it forwards to 36). The SDK declares them the other way round. The two
+  float pointers are the 3-float **min and max corners**, not "X cells / Z cells".
+- `cISC4LotManager::GetLot`: the compiled order is `GetLot(const cS3DVector3&)` at slot 5 (pop 4) and
+  `GetLot(int, int, bool)` at slot 6 (pop 12). The SDK declares them the other way round.

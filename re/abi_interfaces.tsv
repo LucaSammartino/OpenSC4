@@ -32,14 +32,14 @@ cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	28	docs/specs/simgrid.md (CLSI
 cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	28	docs/specs/simgrid.md (CLSID 0x49B9E609)
 cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	28	docs/specs/simgrid.md (CLSID 0x49B9E60A)
 cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	28	docs/specs/simgrid.md (CLSID 0x49B9E60B)
-cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	7	docs/specs/simgrid.md
-cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	7	docs/specs/simgrid.md
-cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	7	docs/specs/simgrid.md
-cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	7	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	6	docs/specs/simgrid.md
 cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	0	docs/specs/pollution.md
 cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	6	docs/specs/pollution.md
 cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	7	docs/specs/pollution.md
-cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	5	docs/specs/pollution.md
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	4	docs/specs/pollution.md
 cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	0	docs/specs/landvalue.md
 cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	6	docs/specs/landvalue.md
 cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	4	docs/specs/landvalue.md
@@ -53,3 +53,32 @@ cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	4	docs/specs
 cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	0	docs/specs/aura.md
 cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	6	docs/specs/aura.md
 cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	4	docs/specs/aura.md
+cIGZSerializable(SimGrid<uint16>)	cSC4SimGrid<uint16>	00a87d24	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<uint32>)	cSC4SimGrid<uint32>	00a87db4	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int32>)	cSC4SimGrid<int32>	00a87a54	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<uint64>)	cSC4SimGrid<uint64>	00a87ae4	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int64>)	cSC4SimGrid<int64>	00a87b74	6	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<double>)	cSC4SimGrid<double>	00a87c94	6	docs/specs/simgrid.md
+cISC4City	cSC4City	00a87620	110	docs/specs/landvalue.md, flammability.md (SDK count)
+cISC4ZoneManager	cSC4ZoneManager	00a92e00	21	docs/specs/landvalue.md, flammability.md
+cISTETerrain	cSTETerrain	00ab3d18	98	docs/specs/landvalue.md (exe vtable; SDK lists 91)
+cISC4LotDeveloper	cSC4LotDeveloper	00ab1b98	65	docs/specs/landvalue.md
+cISC4GrowthDeveloper	cSC4GrowthDeveloper	00ab1488	31	docs/specs/landvalue.md
+cIGZMessageServer2	cGZMessageServer2	00ad1bf4	14	docs/specs/landvalue.md
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	49	docs/specs/flammability.md
+cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	19	docs/specs/flammability.md
+cISC4DisasterManagerFire	cSC4DisasterManagerFire	00a9e4dc	12	docs/specs/flammability.md
+cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	18	docs/specs/flammability.md
+cISC4Occupant	cSC4Occupant	00aa41d8	34	docs/specs/flammability.md
+cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	29	docs/specs/flammability.md
+cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	60	docs/specs/aura.md, crime.md
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	43	docs/specs/aura.md
+cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	45	docs/specs/crime.md, aura.md
+cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	26	docs/specs/aura.md
+cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	12	docs/specs/aura.md
+cISC4PropOccupant	cSC4PropOccupant	00aa4900	24	docs/specs/crime.md
+cISC4PropDeveloper	cSC4PropDeveloper	00ab29f8	11	docs/specs/crime.md
+cISC4PropManager	cSC4PropManager	00a8f928	40	docs/specs/crime.md
+cISC4PowerSimulator	cSC4PowerSimulator	00ab28b8	52	docs/specs/pollution.md
+cISC4LandfillDeveloper	cSC4LandfillDeveloper	00ab157c	13	docs/specs/pollution.md
+cISC4EffectsManager	cSC4EffectsManager	00a9f264	11	docs/specs/pollution.md

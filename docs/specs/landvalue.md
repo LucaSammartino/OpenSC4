@@ -1,0 +1,528 @@
+# Spec: the land value subsystem (`cISC4LandValueSimulator`)
+
+Status: **implementation spec**, clean-room input. This document describes *behaviour*, not code. It was
+written by the analysis team from observing the original program (Windows build 1.1.641) and its data files.
+Implementers must work from this spec, the public LGPL gzcom-dll SDK headers and general knowledge only. They must
+**not** consult decompiled or disassembled code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
+
+Normative words: **must**, **should**, **may**. Tagged notes: *[compat]* is required for compatibility with the
+original game and its plugins; *[choice]* is a behaviour we chose where the original was arbitrary or undefined;
+*[inferred]* is consistent with all evidence but not proven; *[quirk]* is surprising original behaviour that is
+kept on purpose.
+
+Related specs: [simgrid.md](simgrid.md) (grid objects §2–§6, distance effect §7.2, two-grid helper §7.3,
+scanning iterator §7.4), [foundations.md](foundations.md) (streams §2, references §2.7, class store §3, city
+component table §3.6, response curves §4, messages §5, slot order §16, framework slot tables §17),
+[simulator.md](simulator.md) (agents, calendar messages, CPU-cycle budgets §5.5).
+
+## 1. Role
+
+The land value simulator keeps one byte of **land value** (0..255) per *tract* (a square of S × S cells, S = 2 in
+the shipped game). The value is:
+
+```
+intrinsic(t) = clamp255( base(t) + waterBonus(t) + altitudeEffect(t) )              (§6, states 1–4)
+total(t)     = intrinsic(t), then for each listed growth developer, in turn:
+               total(t) = clamp[1,255]( total(t) + weight_dev × curve(desirability_dev(t)) )   (state 7)
+```
+
+It also publishes a per-8×8-cell **slope** grid for other subsystems, the city-wide **average land value**, and
+the **mode altitude**. Pollution, crime, parks and other services reach land value only *indirectly*, through the
+growth developers' desirability maps *[inferred from data flow]*.
+
+The value is recomputed by a resumable 9-step pipeline, **at most once per month and only when something changed**
+(occupants, terrain, water or zoning), plus once after every `Init` (new city or loaded city).
+
+| Class | CLSID | Interfaces (IID) |
+|---|---|---|
+| land value simulator | `0xE990C18E` | `cISC4LandValueSimulator` (`0xE7781D8C`), `cIGZMessageTarget2` (`0x452294AA`), `cIGZSerializable` (`0xE4FDA3D4`), `cIGZUnknown` (`1`) |
+
+`QueryInterface` answers exactly these four IIDs (the message-target and serializable answers are separate
+sub-objects of the same object; all share one reference count) and `AddRef`s on success. `GetGZCLSID()` returns
+`0xE990C18E`. The city creates it through GZCOM and stores it in reference slot 29 of its save record (foundations
+§3.6); on load the class store creates it from its class record. Other code reaches it through the city
+(`cISC4City::GetLandValueSimulator()`) or a process-wide pointer the game sets at city init (§12).
+
+## 2. Grids and coordinates
+
+| Grid | Element | Tract size | Instance ID | Saved | Getter |
+|---|---|---|---|---|---|
+| intrinsic | `uint8` | tuning `0x47E2C200` (S) | `0x89D5BB39` | yes (ref) | `GetIntrinsicLandValueMap` |
+| total | `uint8` | S | `0x89D5BB51` | yes (ref) | `GetTotalLandValueMap` |
+| scratch (working copy) | `uint8` | S | `0x89D5BB60` | **no** | — |
+| slope | `float` | 8 (fixed) | `0x49D5BB6F` | yes (ref) | `GetSlopeMap` |
+
+All four are `cSC4SimGrid<T>` objects (simgrid.md §2): class IDs `0x49B9E602` (uint8) and `0x49B9E60A` (float).
+Grid geometry (tract shift, tract counts, widths) follows simgrid.md §3. With the shipped S = 2 a 256 × 256-cell
+city has 128 × 128 land value tracts and 32 × 32 slope tracts.
+
+Tract `t = (tx, tz)` covers cells `[tx·S, tx·S + S − 1] × [tz·S, tz·S + S − 1]`. Grids are indexed `[x][z]`.
+
+Two per-tract predicates are used throughout:
+
+- **`HasLand(t)`** *[compat]*: true if **any terrain vertex** `(vx, vz)` with `tx·S ≤ vx ≤ tx·S + S` and
+  `tz·S ≤ vz ≤ tz·S + S` (inclusive, so (S+1)² vertices) satisfies terrain `IsLandVertex(vx, vz)`. Vertices
+  outside the terrain are not land. (`IsLandVertex` is true when the vertex is not under water *[inferred]*.)
+- **`IsZoned(t)`** *[compat]*: true if any **cell** `(x, z)` of the tract's S × S cells (exclusive upper bound) has
+  zone manager `GetZoneType(x, z) ≠ 0`. The comparison uses the full 32-bit result.
+
+Both scan in x-outer, z-inner order and stop at the first hit. Note the different extents (vertices inclusive,
+cells exclusive) *[quirk]*.
+
+**Tract altitude** `alt(t)` = terrain `GetAltitude(px, pz)` where `(px, pz)` = the intrinsic grid's
+`TractCenterToPosition(tx, tz)` (simgrid.md §4), i.e. `((tx + 0.5)·W, (tz + 0.5)·W)` metres with W = S × cell width.
+With S = 2 and 16 m cells the sample point is a terrain vertex.
+
+## 3. State
+
+| Field | Initial (constructor) | Persisted | Meaning |
+|---|---|---|---|
+| initialized | false | no | `Init` done |
+| refCount | 0 | no | |
+| city, terrain, zone manager, message server | null | no | services taken in `Init` (`AddRef`ed) |
+| intrinsic, total, slope grids | null | **ref** (§10) | §2 |
+| scratch grid | null | no | §2 |
+| dirty | false | yes (combined, §10) | something changed since the last pass |
+| pipelineState | **not initialised by the constructor**; `Init` sets 0 | no | 0..8 running, 9 finished |
+| tract iterator, slope iterator | created by `Init` | no | scanning iterators (simgrid.md §7.4) |
+| sum (int32), count (int32) | — | no | accumulators of states 3 and 8 |
+| ignoreZoning (bool) | — | no | set when no zoned land tract exists (state 3) |
+| histogram | empty; `Init` sizes it | no | altitude bins of 2^5 = 32 m |
+| histShift | `Init` sets 5 | no | |
+| minAlt, maxAlt (f32) | — | no | observed land altitude range (state 3) |
+| meanAlt (f32) | 0 | **yes** | mean altitude of counted tracts |
+| modeAlt (f32) | 0 | no | returned by `GetModeAltitude` |
+| pivot, lowRange, highRange (f32), topIndex (int32) | — | no | altitude-effect parameters (§7.3) |
+| averageLandValue (u8) | 0 | **yes** | returned by `GetAverageLandValue` |
+| tuning values | code defaults (§8) | no | re-read by every `Init` |
+| altitude curve, desirability curve | absent | no | response curves (foundations §4) |
+| developer list | empty | no | ordered map *growth developer pointer → weight* (§6, state 7) |
+| developer cursor | — | no | position in the developer list (state 7) |
+
+## 4. Lifecycle
+
+### 4.1 `Init()` → true
+
+If already initialized, return true and do nothing else. Otherwise, in this order:
+
+1. Take the city, the zone manager and the terrain, each only if not already held (`AddRef`).
+2. Read the tuning exemplar (§8). An absent tract-size property leaves S unchanged; the other byte-array
+   properties are required by the original (§8).
+3. For each of the intrinsic, total, scratch grids that is still null (i.e. not restored by `Read`): create a
+   `uint8` grid, `AddRef`, `Init`, `SetTractSize(S)`, `SetInstanceID(id)` (§2). Same for the slope grid with type
+   `float`, tract size 8. Grids restored by `Read` are **not** resized or re-initialised *[quirk]* (§13).
+4. Set **pipelineState := 0** (the pipeline always reruns after `Init`, new or loaded city) *[compat]*.
+5. Create the two scanning iterators if missing and set their rectangles: tract iterator over
+   `[0, countX−1] × [0, countZ−1]` of the intrinsic grid, slope iterator over the slope grid's tract range.
+6. histShift := 5; resize the histogram to `trunc(terrain.MaxAllowedHeight()) >> 5` bins, new bins 0 (78 bins
+   with the shipped terrain tuning, max allowed height 2500 m).
+7. History warehouse: `SetHistoryDataQueueLength(0x6A663AC8, 1)`.
+8. If the simulator exists: `AddAgent(self, L, "cSC4LandValueSimulator", flags 2)` for L = 0, 10, 4, 6 in that
+   order (flags 2 = enabled only once the city is established, simulator.md §4).
+9. If no message server is held yet: take it and subscribe (`AddNotification`) to the five change messages of §5.
+10. initialized := true; return true.
+
+### 4.2 `Shutdown()` → true
+
+If not initialized, return true. Otherwise: initialized := false; `RemoveAgent(self)` (all levels) on the city's
+simulator; unsubscribe the five messages and release the message server; release terrain, zone manager and city;
+for each of the four grids: `Shutdown()`, `Release()`, set null; delete both iterators and both curves. The
+developer list, dirty flag, pipeline state and statistics are **not** cleared *[quirk]* (a later `Init` re-reads
+tuning into the same developer list and resets the state to 0).
+
+### 4.3 Release
+
+`Release()` decrements the count while it is above 1 and returns the new count. At 1 (or below) it calls
+`Shutdown()`, destroys the object and returns 0.
+
+## 5. Schedule and messages *[compat]*
+
+| Message | Delivered as | Action | Returns |
+|---|---|---|---|
+| SimBegin `0x66956810` | agent, level 0 | nothing | true |
+| SimNewDay `0x66956814` | agent, level 4 | `Step(budget = 5 ms)` | true |
+| SimNewMonth `0x66956816` | agent, level 6 | if dirty **and** pipelineState = 9: dirty := false, pipelineState := 0 | true |
+| SimIdle `0x6695681A` | agent, level 10 | `Step(budget = data3 ms)` | true (ignored by the simulator) |
+| InsertOccupant `0x99EF1142`, RemoveOccupant `0x99EF1143`, WaterHeightsChanged `0x678E6E3A`, TerrainHeightsChanged `0x278E6003`, ZoningChange `0x07699455` | subscription | dirty := true | true |
+| anything else | — | nothing | true |
+
+`DoMessage` always returns true, so land value never holds a calendar level open. Consequences:
+
+- A recomputation starts only at the first SimNewMonth after a change (or at `Init`), and only if the previous pass
+  has finished; a change during a pass keeps `dirty` set, so another pass follows at the next month.
+- On the 1st of a month the day level runs before the month level (simulator.md §5.3), so a restarted pass makes
+  its first step on a later SimIdle or SimNewDay.
+- SimIdle is delivered while the game is paused (simulator.md §5.4), so a pass also progresses during a pause
+  *[compat]*.
+
+Order relative to other simulators: land value reads only the growth developers' desirability maps (state 7) and
+terrain/zoning. It does not depend on any other simulator having run earlier in the same day or month.
+
+## 6. The pipeline (`Step(budget)`) *[compat]*
+
+`Step` performs work for the current `pipelineState` and returns. **At most one state completes per call**: states
+0, 2 and 6 always complete in one call; state 7 handles one developer per call; states 1, 3, 4, 5 and 8 loop over
+tracts with the scanning iterator (z outer, x inner, simgrid.md §7.4) until either the iteration ends (the state
+completes) or the time budget runs out (the state stays and the iterator keeps its position for the next call).
+State 9 (and any value above 8) does nothing.
+
+The original's budget is CPU-cycle based (simulator.md §5.5); it checks the clock every *n* iterations with an
+adaptive stride *n* (1..1024, initially 1024, shared per state across calls). *[choice]* FreeCity4 may use any
+deterministic slicing (for example a fixed number of tracts per call, or a whole state per call), as long as each
+call completes at most one state and the results equal those of an uninterrupted pass. Because the grids are
+modified in place, consumers can observe a partially updated intrinsic or slope grid while states 4 and 5 run;
+the total grid only changes at the end of state 7.
+
+| State | Work | Next |
+|---|---|---|
+| 0 | Reset the tract iterator to the first tract. | 1 |
+| 1 | For every tract: scratch(t) := `HasLand(t)` ? **base** : 0, base = tuning `0x47E2C300[0]`. | 2 |
+| 2 | Water bonus (§7.1) on scratch. Then minAlt := terrain `MaxAllowedHeight()`, maxAlt := terrain `MinAllowedHeight()` (deliberately inverted start values); reset the tract iterator; sum := 0, count := 0, ignoreZoning := false; all histogram bins := 0. | 3 |
+| 3 | Altitude statistics (§7.2). | 5 (or 3 again, see §7.2) |
+| 5 | For every slope tract `(sx, sz)`: slope(sx, sz) := lot developer `GetAreaSlope(rect, true)` with the inclusive cell rectangle `{x1 = sx·8, z1 = sz·8, x2 = sx·8 + 7, z2 = sz·8 + 7}` (8 = the slope grid's tract size, shift 3). Then reset the tract iterator. | 4 |
+| 4 | If the altitude curve exists: for every tract, intrinsic(t) := min(255, scratch(t) + `AltitudeEffect(alt(t))`) (§7.3). If the curve is **absent**, the intrinsic grid is **not written at all** and keeps its previous contents *[quirk]*. Then reset the tract iterator. | 6 |
+| 6 | scratch := copy of intrinsic (whole grid, including its dimensions). Developer cursor := first entry of the developer list. | 7 |
+| 7 | If the cursor is not at the end: apply that developer (§7.4), advance the cursor, return (stay in 7). At the end: total := copy of scratch; reset the tract iterator; sum := 0, count := 0. | 8 |
+| 8 | Average (§7.5), history record, post LandValueMapChanged (§9). | 9 |
+
+Note the order 3 → 5 → 4 *[compat]* (slope before the altitude effect). A full pass needs at least
+9 + D calls, D = number of developers in the list (10 + D when the zoning fallback of state 3 triggers).
+
+## 7. Formulas *[compat]*
+
+### 7.1 Water bonus (state 2)
+
+`AddDistanceEffect` (simgrid.md §7.2) with:
+
+| Argument | Value |
+|---|---|
+| target grid | scratch |
+| grid dimensions | the **intrinsic** grid's tract counts (X, Z) |
+| mask grid, mask value | scratch, 0 (tracts without land are the "sources") |
+| radius | float(tuning `0x47E2C310[1]`) (shipped 10) |
+| near value | float(tuning `0x47E2C310[0]`) (shipped 50) |
+| far value | 0 |
+
+The distance is the 4-neighbour (Manhattan) tract distance to the nearest tract without land. For a land tract at
+distance d with 0 < d < radius: scratch(t) := clamp(trunc(scratch(t) + near − d · (near − far)/radius), 0, 255).
+With the shipped values: `base + 50 − 5d` for d = 1..9, unchanged from d = 10 on. Tracts without land stay 0.
+If base were 0, every tract would be a source and nothing would change *[quirk]*.
+
+### 7.2 Altitude statistics (state 3)
+
+For every tract t (iterator order), with a = alt(t):
+
+1. If `HasLand(t)`: if a < minAlt then minAlt := a; if a > maxAlt then maxAlt := a.
+2. If (`ignoreZoning` or `IsZoned(t)`) and `HasLand(t)`:
+   - sum := trunc(sum + a) (int32 sum, added as a float and truncated toward zero at each step);
+   - count := count + 1;
+   - bin := trunc(a) >> histShift (arithmetic shift), clamped to `[0, bins − 1]`; histogram[bin] += 1.
+
+At the end of the iteration:
+
+- If count = 0 and not ignoreZoning: ignoreZoning := true; reset the iterator, sum, count and every bin to 0;
+  **stay in state 3** (the next call recounts every land tract, zoned or not). minAlt/maxAlt are kept.
+- Otherwise:
+  - meanAlt := count > 0 ? float32(sum / count) : 0 (the division is done in floating point).
+  - best := the **lowest** bin index with the strictly largest count (bin 0 if all are 0).
+  - modeAlt := float(2^(histShift−1) + best · 2^histShift) = 16 + 32·best; then if modeAlt < minAlt,
+    modeAlt := minAlt; then if modeAlt > maxAlt, modeAlt := maxAlt.
+  - Altitude-effect setup (§7.3); reset the slope iterator; go to state 5.
+
+If no tract has land at all, minAlt = 2500 and maxAlt = 20 stay inverted (shipped terrain tuning) and modeAlt ends
+at maxAlt *[quirk]*.
+
+### 7.3 Altitude effect
+
+**Setup** (end of state 3), all in `float32` storage:
+
+```
+pivot     := min(modeAlt, meanAlt)               (meanAlt when equal)
+lowRange  := pivot − minAlt ;  if not (lowRange  > 1.0): lowRange  := 1.0
+highRange := maxAlt − pivot ;  if not (highRange > 1.0): highRange := 1.0
+topIndex  := 100
+if highRange > 100:  topIndex := min(150, trunc((highRange − 100) / (terrain.MaxAllowedHeight() − 100) × 100 + 100))
+```
+
+(`highRange − 100` is rounded to float32 before the division; the rest is evaluated in extended precision and
+truncated toward zero.)
+
+**`AltitudeEffect(a)`** → byte:
+
+```
+if a < minAlt:          return 0
+if a >= pivot:          x := (topIndex − 50) / highRange × (a − pivot) + 50
+else:                   x := (a − minAlt) / lowRange × 50
+i := trunc(x)                                     (toward zero)
+return low 8 bits of trunc( altitudeCurve(float(i)) )
+```
+
+The curve input is an integer index: 0 at the lowest land, 50 at the pivot, `topIndex` (100..150) at the highest
+land. The result is truncated toward zero and then **wraps** to 8 bits: a curve output of −10 adds 246, and 300
+adds 44 *[quirk]* (the shipped curve stays in 0..50). State 4 adds this byte to scratch and clamps at 255.
+
+Shipped altitude curve `0x47E2C320`: (0,0) (25,5) (50,10) (75,21) (100,50) (125,30) (150,0): low land gets
+little, land slightly above the typical altitude gets up to +50, the highest land falls back to 0.
+
+### 7.4 Desirability (state 7, one developer per call)
+
+The developer list is built by `Init` (§8): for each ID i in tuning `0x47E2C330`, the growth developer pointer
+`BuildingDevelopmentSimulator.GetDeveloper(ID_i)` is the key and `0x47E2C331[i]` the weight. Later duplicates
+overwrite the weight of an earlier identical key.
+
+**Order** *[compat, see note]*: the list is ordered by the **developer object's address**, not by tuning order.
+Because each application clamps to [1, 255], the order matters when two or more developers are listed. With the
+shipped tuning there is exactly one developer (ID `0x1030`), so order does not matter. *[choice]* FreeCity4 applies
+developers in tuning order. A null developer (unknown ID) is not filtered: the original would crash in state 7
+*[quirk]*; *[choice]* FreeCity4 skips it.
+
+For the current developer, with D = its desirability map (`GetDesirabilityMap()`, an `int16` grid) the helper
+`ProcessTwoGridsWithCallback` (simgrid.md §7.3) maps D onto scratch's tracts and calls, for every scratch tract,
+
+```
+e := desirabilityCurve present ? desirabilityCurve(float(d)) : float(d)
+v := clamp( trunc(v + e × weight), 1, 255 )                 (truncation toward zero, then clamp)
+```
+
+where `d` is the matched desirability value (int16), `v` the scratch byte. Note the lower clamp **1**, not 0
+*[compat]*. With the shipped curve (−255,−255) (255,255) and weight 2.5: `v + 2.5·clamp(d, −255, 255)`.
+
+### 7.5 Average (state 8)
+
+For every tract with (`ignoreZoning` or `IsZoned(t)`) and `HasLand(t)` (ignoreZoning as left by state 3):
+sum += total(t); count += 1 (int32). averageLandValue := count > 0 ? low byte of (sum div count) (truncating
+integer division) : 0. Then `HistoryWarehouse.RecordHistoryData(0x6A663AC8, averageLandValue)`.
+
+### 7.6 Queries
+
+- `GetLandValue(x, z)` = total grid `GetCellValue(x, z)` (**cell** coordinates, simgrid.md §4, no bounds check).
+- `GetLandValueType(x, z)`: v := `GetLandValue(x, z)`; v < `0x47E2C301[0]` → 1 (low); else v < `0x47E2C301[1]` →
+  2 (medium); else 3 (high). Unsigned byte comparisons. Shipped boundaries 70 and 120.
+- `GetAverageLandValue()` = averageLandValue; `GetModeAltitude()` = modeAlt (0 until the first state 3 after
+  creation or load, because it is not saved).
+
+## 8. Tuning *[compat]*
+
+Exemplar TGI (type, group, instance) = `0x6534284A, 0xE7E2C2DB, 0xE7E2C8D8` ("Land Value Sim", SimCity_1.dat),
+loaded through the resource manager as a property holder. If the exemplar is missing, nothing is read and every
+value keeps its current value (code defaults on the first `Init`).
+
+| Property | Name | Type | Code default | Shipped | Use |
+|---|---|---|---|---|---|
+| `0x47E2C200` | Tract Size | u8 | 2 | 2 | S for the three uint8 grids (only when created, §4.1) |
+| `0x47E2C300` | Intrinsic Min/Max | u8[2] | 20, 120 | 1, 64 | [0] = base (state 1); [1] stored, never used |
+| `0x47E2C301` | Wealth Boundaries | u8[2] | 50, 75 | 70, 120 | `GetLandValueType` thresholds |
+| `0x47E2C310` | Water Effect | u8[2] | 100, 5 | 50, 10 | [0] = near value, [1] = radius in tracts (§7.1) |
+| `0x47E2C320` | Altitude Effect | f32 curve | absent | see §7.3 | `AltitudeEffect`; absent → state 4 skipped |
+| `0x47E2C330` | Desirability IDs | u32[] | — | `0x1030` | growth developer types (§7.4) |
+| `0x47E2C331` | Desirability Factors | f32[] | — | 2.5 | weight per ID, same index |
+| `0x47E2C332` | Desirability Curve | f32 curve | absent | (−255,−255) (255,255) | §7.4; absent → identity |
+
+Details *[compat]*:
+- `0x47E2C200` is read with the "optional u8" helper: absent → unchanged.
+- `0x47E2C300`, `0x47E2C301`, `0x47E2C310`, `0x47E2C330`, `0x47E2C331` are read without a presence check: the
+  original requires them (an absent one is a null dereference). *[choice]* FreeCity4 keeps the current values.
+- `0x47E2C330`/`0x47E2C331`: the number of entries is the ID array's count; the weight array is indexed in
+  parallel without a length check. *[choice]* FreeCity4 uses min(count of IDs, count of weights).
+- Curves: a present property (re)builds the curve; an absent property deletes it (foundations §4.1).
+- The terrain values used here come from the terrain tuning (not this exemplar): MaxAllowedHeight =
+  `0x48CD7B26` (shipped 2500), MinAllowedHeight = `0x48CD7B27` (shipped 20), in exemplar
+  `0x6534284A, 0x88CD66E9, 0x00000001`.
+- `0x1030` is a residential growth developer type (high wealth *[inferred]*).
+
+## 9. Messages posted *[compat]*
+
+| ID | When | Fields |
+|---|---|---|
+| `0x87CC75B3` (LandValueMapChanged / kMessageTypeMapChanged) | end of state 8 (every completed pass) | type only; data fields 0; `MessagePost(msg, false)` |
+
+## 10. Persistence (`cIGZSerializable`) *[compat]*
+
+`GetGZCLSID()` = `0xE990C18E`. Little-endian, in this order:
+
+| # | Type | Value |
+|---|---|---|
+| 1 | u16 | version = 1 |
+| 2 | ref | intrinsic grid (foundations §2.7) |
+| 3 | ref | total grid |
+| 4 | ref | slope grid |
+| 5 | u8 | 1 if dirty **or** pipelineState ≠ 9, else 0 |
+| 6 | u8 | averageLandValue |
+| 7 | f32 | meanAlt |
+
+`Write` returns true iff the stream reports no error afterwards. The scratch grid, histogram, modeAlt, ranges and
+tuning are not saved. The grids' own data is written by the class-object store in their own class records
+(`0x49B9E602`, `0x49B9E60A`; simgrid.md §5).
+
+`Read`: reads the version; if it is not exactly 1, returns false and reads nothing else. Otherwise it reads the
+three references, each requesting IID `0xC9BD939A` (`cISC4SimGrid`) with deferred loading, then
+dirty := (byte 5 ≠ 0), averageLandValue := byte 6, meanAlt := field 7, and returns true iff the stream reports no
+error. `Read` does not touch the pipeline state; the following `Init` sets it to 0, so a loaded city always
+recomputes land value once, and once more at the next month if the saved flag was 1.
+
+Byte-exact example: section 16, test 12.
+
+## 11. Interface slot tables *[compat]*
+
+All methods are `__thiscall`; "pop" is the number of argument bytes the callee removes.
+
+### 11.1 `cISC4LandValueSimulator` (original vtable `0x00AB1670`)
+
+| Slot | Offset | Method | Pop | Return |
+|---|---|---|---|---|
+| 0 | +0x00 | `QueryInterface(uint32 iid, void** out)` | 8 | AL bool |
+| 1 | +0x04 | `AddRef()` | 0 | EAX new count |
+| 2 | +0x08 | `Release()` | 0 | EAX new count (0 when destroyed) |
+| 3 | +0x0C | `Init()` | 0 | AL = 1 |
+| 4 | +0x10 | `Shutdown()` | 0 | AL = 1 |
+| 5 | +0x14 | `GetLandValueType(int32 x, int32 z)` | 8 | EAX = 1, 2 or 3 (full 32 bits) |
+| 6 | +0x18 | `GetLandValue(int32 x, int32 z)` | 8 | AL (upper EAX bits undefined) |
+| 7 | +0x1C | `GetIntrinsicLandValueMap()` | 0 | EAX `cISC4SimGrid<uint8>*` (no `AddRef`) |
+| 8 | +0x20 | `GetTotalLandValueMap()` | 0 | EAX `cISC4SimGrid<uint8>*` (no `AddRef`) |
+| 9 | +0x24 | `GetSlopeMap()` | 0 | EAX `cISC4SimGrid<float>*` (no `AddRef`) |
+| 10 | +0x28 | `GetAverageLandValue()` | 0 | AL (upper EAX bits undefined) |
+| 11 | +0x2C | `GetModeAltitude()` | 0 | **ST0** float |
+| 12 | +0x30 | (class destructor, not part of the interface) | 4 | — |
+
+**SDK check** (`cISC4LandValueSimulator.h`): order, argument sizes and return types all match, including the
+float return of `GetModeAltitude` (verified: the value is loaded onto the x87 stack) and the `uint32` enum of
+`GetLandValueType`. No SDK error. The original leaves the upper EAX bits of slots 6 and 10 undefined and its
+callers read only AL, so declaring them `uint8_t` is correct.
+
+### 11.2 `cIGZSerializable` (vtable `0x00AB1648`)
+
+| Slot | Method | Pop | Return |
+|---|---|---|---|
+| 0–2 | QueryInterface / AddRef / Release (adjust to the main object) | 8 / 0 / 0 | as above |
+| 3 | `Write(cIGZOStream&)` | 4 | AL bool (§10) |
+| 4 | `Read(cIGZIStream&)` | 4 | AL bool (§10) |
+| 5 | `GetGZCLSID()` | 0 | EAX `0xE990C18E` |
+
+### 11.3 `cIGZMessageTarget2` (vtable `0x00AB1660`)
+
+| Slot | Method | Pop | Return |
+|---|---|---|---|
+| 0–2 | QueryInterface / AddRef / Release | 8 / 0 / 0 | as above |
+| 3 | `DoMessage(cIGZMessage2*)` | 4 | AL = 1 always (§5) |
+
+## 12. Dependencies (methods the original calls) *[compat]*
+
+| Service (how obtained) | Interface, vtable | Slot | Method | Pop | Return |
+|---|---|---|---|---|---|
+| city (global at city init) | `cISC4City`, `0x00A87620` | 50 | `GetSimulator()` (in `Shutdown`) | 0 | EAX |
+| simulator (global) | `cISC4Simulator`, `0x00AB2FB8` | 19 | `AddAgent(target, level, const cIGZString& name, flags)` | 16 | AL |
+| | | 20 | `RemoveAgent(target)` (all levels) | 4 | AL |
+| message server (global) | `cIGZMessageServer2`, `0x00AD1BF4` | 4 | `MessagePost(msg, bool highPriority)` | 8 | AL |
+| | | 5 / 6 | `AddNotification` / `RemoveNotification(target, type)` | 8 | AL |
+| zone manager (global) | `cISC4ZoneManager`, `0x00A92E00` | 12 | `GetZoneType(int32 x, int32 z)` | 8 | EAX |
+| terrain (city `GetTerrain`) | `cISTETerrain`, `0x00AB3D18` | 13 | `GetAltitude(float x, float z)` | 8 | ST0 |
+| | | 23 | `MinAllowedHeight()` | 0 | ST0 |
+| | | 24 | `MaxAllowedHeight()` | 0 | ST0 |
+| | | 36 | `IsLandVertex(uint32 x, uint32 z)` | 8 | AL |
+| building development simulator (global) | `cISC4BuildingDevelopmentSimulator`, `0x00AB0AF8` | 32 | `GetDeveloper(DeveloperType)` | 4 | EAX |
+| | | 36 | `GetLotDeveloper()` | 0 | EAX |
+| lot developer | `cISC4LotDeveloper`, `0x00AB1B98` | 29 | `GetAreaSlope(const SC4Rect<int32>&, bool)` | 8 | ST0 |
+| growth developer | `cISC4GrowthDeveloper`, `0x00AB1488` | 13 | `GetDesirabilityMap()` | 0 | EAX `cISC4SimGrid<int16>*` |
+| history warehouse (global) | `cISC4HistoryWarehouse`, `0x00A8CCB4` | 12 | `RecordHistoryData(type, value)` | 8 | — |
+| | | 13 | `SetHistoryDataQueueLength(type, length)` | 8 | — |
+| resource manager | `cIGZPersistResourceManager` (foundations §17.6) | 3 | get the tuning exemplar | 20 | AL |
+| property holder / variant | foundations §17.1, §17.2 | | `GetProperty(id)`, value arrays (u8, u32, f32), counts | | |
+| own grids | `cISC4SimGrid<T>` | | simgrid.md §4 slots 3, 6, 7, 9–13, 21, 24/25 | | |
+
+Terrain: the SDK's `cISTETerrainMap` declares `GetAltitude(float, float)` before `GetAltitude(int32)`; in the
+compiled vtable the `(float, float)` overload is slot **13** and `(int32)` slot 12 (foundations §16). Slots 23, 24
+and 36 match the SDK. The terrain interface rows are in `docs/abi/interfaces.tsv` after regeneration.
+
+## 13. Consumers and replaceability
+
+### 13.1 Consumers (all through the vtable; no direct calls to land value code were found)
+
+| Consumer | Uses |
+|---|---|
+| budget (`ComputeTax`) | slot 6 `GetLandValue` (AL) per cell |
+| `cSC4Lot::GetLandValue` | slot 6, summed over the lot's cells |
+| growth developers (`DoIdle`, `EstimateDesirability`) | slots 7/8 (intrinsic or total, chosen by a developer flag) and 9; then grid `GetCellValue` **and** `GetGridData` with **raw reads of the grid's vector memory** |
+| aura simulator | slot 5 `GetLandValueType` at half-resolution cell coordinates |
+| query tool, cell description, debug info | slots 5, 7, 8, 9 + grid `GetCellValue` |
+| ambience | slot 8 + grid `GetCellValue` |
+| map view (land value layer) | slot 8 + grid `GetGridData` (raw vector reads) |
+| budget, building development, tract developer, growth developer `Init` | hold a reference (`AddRef`) |
+
+### 13.2 Replaceability findings
+
+- Created only through GZCOM (city) and the class store (load). The class is **replaceable through the class
+  registry** (register `0xE990C18E`).
+- **The grids it hands out are read as raw memory** by the growth developers and the map view (simgrid.md §6.3):
+  the objects returned by slots 7, 8 and 9 must expose, through `GetGridData`, an STLport-layout
+  `vector<vector<uint8>>` / `vector<vector<float>>` (three pointers per vector, rows indexed by x). *[compat]*
+  The simplest compliant replacement uses the **game's own** grid class: create the four grids with
+  `GZCOM()->GetClassObject(0x49B9E602 / 0x49B9E60A, 0xC9BD939A, &p)` (registered by the game's COM director) and
+  write cells with `SetTractValue` or through `GetGridData`. FreeCity4 must **not** register the SimGrid class IDs
+  itself unless its grids are layout-compatible (simgrid.md §6.3).
+- The original constructs its grids with `new` and direct constructor calls (bypassing GZCOM); on load they come
+  from the class store via their class IDs. A replacement that uses the game's grid class therefore loads old saves
+  unchanged.
+- The original reads the growth developer's desirability grid through `cISC4SimGrid` slots 11–13 and
+  `GetGridData` (slot 25) (simgrid.md §7.3), i.e. it reads that grid's raw memory as well; a replacement may use
+  the interface's `GetTractValue` instead.
+- No original code outside the class reads its members directly.
+
+## 14. Original quirks (reproduced)
+
+Missing altitude curve leaves intrinsic stale and discards the water/base work (§6 state 4); vertices-inclusive vs
+cells-exclusive tract predicates (§2); 8-bit wrap of the altitude effect (§7.3); lower clamp 1 in the
+desirability step (§7.4); inverted min/max start values (§7.2); restored grids keep their saved tract size even if
+the tuning changed (§4.1; with a different size the scratch grid and the intrinsic grid disagree, which the
+original does not guard against: *[choice]* FreeCity4 resizes restored grids that do not match S and then runs a
+full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 0 after load until state 3 runs.
+
+## 15. Open questions
+
+1. x87 precision. Several steps truncate values computed in x87 extended precision (§7.3, §7.4). If the game runs
+   with the x87 precision control set to 24 bits (the Direct3D default unless the device is created with
+   FPU-preserve), intermediate results are rounded to float32 first and values that land within 1e-7 of an integer
+   can truncate differently (e.g. 5 × float32(−0.8) + 50). It is not known which mode the game uses during the
+   simulation. Conformance tests avoid such boundaries.
+2. Shipped tract size of the growth developers' desirability maps (`0x87CD6310` in each developer exemplar) decides
+   which branch of the two-grid helper state 7 uses (simgrid.md §7.3); not needed for correctness.
+3. Whether any shipped content lists more than one desirability developer (only then does the address-order
+   question of §7.4 matter).
+
+## 16. Conformance tests (must exist in `engine/conformance`)
+
+Shipped tuning unless stated; S = 2.
+
+1. `GetLandValueType` with boundaries (70, 120): total value 0 → 1, 69 → 1, 70 → 2, 119 → 2, 120 → 3, 255 → 3.
+2. Code defaults with no exemplar: base 20, boundaries (50, 75), water (100, 5), S = 2.
+3. Water bonus (§7.1), base 1, near 50, radius 10, a straight shoreline: tracts at Manhattan distance 1, 2, 5, 9,
+   10, 15 from the nearest no-land tract get 46, 41, 26, 6, 1, 1; no-land tracts stay 0.
+4. Same with radius 10 and near 100 (code default near, shipped radius): d = 1 → 1 + 100 − 10 = 91; d = 3 → 71.
+5. Altitude statistics: five zoned land tracts with altitudes 270.5, 275, 290, 300, 301 (no other land) →
+   sum 1436, count 5, meanAlt = 287.2 (float32 `0x438F999A`), bins 8,8,9,9,9 → best 9 → mode 16 + 288 = 304 →
+   clamped to maxAlt 301; minAlt = 270.5; pivot = 287.2.
+6. Mode tie: bin counts {8: 2, 9: 2} → best = 8 → mode 272 (before clamping).
+7. Zoning fallback: no zoned tract, land tracts at 300 and 340 → first pass of state 3 counts nothing, state stays
+   3; second pass counts both: meanAlt 320, mode = 16 + 32·9 = 304 (bins 9 and 10 tie → 9).
+8. Altitude effect with minAlt 260, maxAlt 322, modeAlt 272, meanAlt 300 → pivot 272, lowRange 12, highRange 50,
+   topIndex 100. AltitudeEffect: a = 259 → 0; 260 → curve(0) = 0; 263 → i = 12 → curve(12) = 2.4 → 2;
+   266 → i = 25 → 5; 272 → i = 50 → 10; 297 → i = 75 → 21; 322 → i = 100 → 50.
+9. topIndex: highRange 100 → 100; highRange 340 with MaxAllowedHeight 2500 → trunc(240/2400 × 100 + 100) = 110;
+   highRange 3000 → 150 (clamped).
+10. Desirability step, identity curve (shipped), weight 2.5: (v, d) = (100, 40) → 200; (200, 40) → 255;
+    (100, −50) → 1; (10, −3) → trunc(2.5) = 2; (1, 0) → 1; (0, 0) → 1 (clamp from 0 up to 1); (100, 400) →
+    curve clamps d to 255 → 100 + 637.5 → 255.
+11. Average: total values 10, 20, 31 on three counted tracts → sum 61, average 20 (truncation); with no counted
+    tract → 0. History record (0x6A663AC8, 20) and one LandValueMapChanged post per completed pass.
+12. Save bytes with intrinsic objectID 0x11, total 0x12, slope 0x13, dirty false, state 9, average 42,
+    meanAlt 287.2:
+    `01 00 | 11 00 00 00 02 E6 B9 49 | 12 00 00 00 02 E6 B9 49 | 13 00 00 00 0A E6 B9 49 | 00 | 2A | 9A 99 8F 43`.
+    With state 5 (mid-pass) and dirty false, byte 5 is `01`.
+13. `Read` of version 2 → false, nothing else consumed. `Read` of the bytes of test 12 → dirty false, average 42,
+    meanAlt 287.2, `GetModeAltitude()` = 0; after `Init`, pipelineState = 0.
+14. Messages: InsertOccupant sets dirty; SimNewMonth with dirty and state 9 → state 0, dirty false; SimNewMonth with
+    dirty and state 4 → no change; every `DoMessage` returns true.
+15. Pipeline call count: with one developer and at least one zoned land tract, an unlimited budget completes a
+    pass in exactly 10 `Step` calls (states 0, 1, 2, 3, 5, 4, 6, 7 (developer), 7 (end), 8); the 10th call posts
+    LandValueMapChanged. With no zoned tract: 11 calls.
+16. Missing altitude curve: intrinsic keeps its previous contents (all 0 in a new city) and total = clamp[1,255] of
+    the desirability terms only.
