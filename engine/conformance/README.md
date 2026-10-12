@@ -413,7 +413,7 @@ here). Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`,
 | `grid_radius_effect` | `grid`, `center`, `radius`, `center_value`, `outer_value` | the radial effect (§4.6) |
 | `grid_distance_effect` | `grid`, `mask?` (default the target), `mask_value`, `radius`, `near`, `far` | the distance effect (§4.7) |
 | `grid_two_grids` | `a` (u8), `b` (i16), `expect` (`[[x, z, v]]` in visit order) | the paired walk |
-| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step` (below 1 counts as 1), `reset?`, `expect` | the scan iterator |
+| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step` (below 1 counts as 1), `reset?`, `expect`, `rests?` (`[x, z]` after the end) | the scan iterator |
 
 ## Land value ops
 

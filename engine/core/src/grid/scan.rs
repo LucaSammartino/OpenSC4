@@ -74,7 +74,10 @@ impl ScanIterator {
         self.state = if inside { ScanState::Fresh } else { ScanState::Done };
     }
 
-    /// `GetNext(&x, &z)`.
+    /// `GetNext(&x, &z)`. A finished scan rests at `(x0, z1 + step)` with
+    /// state done (§7.4, [compat]); `z` wraps as the original's `int32` does,
+    /// while the end test compares exactly ([choice]: the full-range default
+    /// rectangle therefore ends instead of wrapping around).
     pub fn next_cell(&mut self) -> Option<(i32, i32)> {
         match self.state {
             ScanState::Done => return None,
@@ -85,11 +88,11 @@ impl ScanIterator {
                 if nx > i64::from(self.x1) {
                     self.x = self.x0;
                     let nz = i64::from(self.z) + step;
+                    self.z = nz as i32;
                     if nz > i64::from(self.z1) {
                         self.state = ScanState::Done;
                         return None;
                     }
-                    self.z = nz as i32;
                 } else {
                     self.x = nx as i32;
                 }
@@ -110,6 +113,7 @@ mod tests {
         let got: Vec<_> = std::iter::from_fn(|| it.next_cell()).collect();
         assert_eq!(got, vec![(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]);
         assert_eq!(it.next_cell(), None);
+        assert_eq!((it.x, it.z, it.state), (0, 2, ScanState::Done));
         it.reset(5, 0);
         assert_eq!(it.next_cell(), None);
         let mut it = ScanIterator::new(i32::MAX - 1, i32::MAX - 1, i32::MAX, i32::MAX);

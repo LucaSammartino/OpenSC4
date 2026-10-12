@@ -2,11 +2,12 @@
   "format": 1,
   "name": "simgrid_scan_iterator",
   "spec": ["simgrid 7.4", "simgrid 10.18"],
-  "description": "The scanning iterator: x inner, z outer, inclusive bounds; Reset outside the rectangle makes the first GetNext false; resuming mid-rectangle; a step of 2.",
+  "description": "The scanning iterator: x inner, z outer, inclusive bounds; Reset outside the rectangle makes the first GetNext false; resuming mid-rectangle; a step of 2. A finished scan rests at (x0, z1 + step) (simgrid 7.4 [compat], the position plumbing PL4 saves; by hand from the GetNext rule: the last Running call sets x := x0 and z += step, then finds z > z1). A Reset outside the rectangle leaves the iterator at the reset position.",
   "steps": [
-    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [0, 0], "expect": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]},
-    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [5, 0], "expect": []},
+    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [0, 0], "expect": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]], "rests": [0, 2]},
+    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [5, 0], "expect": [], "rests": [5, 0]},
     {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [1, 1], "expect": [[1, 1], [2, 1]]},
-    {"op": "iter_scan", "rect": [0, 4, 0, 2], "step": 2, "reset": [0, 0], "expect": [[0, 0], [2, 0], [4, 0], [0, 2], [2, 2], [4, 2]]}
+    {"op": "iter_scan", "rect": [0, 4, 0, 2], "step": 2, "reset": [0, 0], "expect": [[0, 0], [2, 0], [4, 0], [0, 2], [2, 2], [4, 2]], "rests": [0, 4]},
+    {"op": "iter_scan", "rect": [3, 3, 7, 7], "reset": [3, 7], "expect": [[3, 7]], "rests": [3, 8]}
   ]
 }
