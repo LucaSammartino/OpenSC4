@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_type_selection",
   "spec": ["crime 6.7", "crime 6.8", "crime 7", "crime 9", "crime 17.9", "foundations 18"],
-  "description": "Test 9. Shipped types in ascending instance order (spec question 16.4). A type is a candidate when its zone, wealth, purpose and condition masks each share a bit with the lot's sets; r = RandomDoubleRangeUniform(0, total); walk r -= weight (each subtraction one float32 operation, foundations 18) and take the first candidate after which r < 0, else the last. Lot 1 (zone 1 -> 0x1, wealth 1 -> 0x1, purpose 1 -> 0x1, condition 1 -> 0x1): Generic 0, Fighting 3, Car Theft 3, Mugging 2, Flashing 4, Graffiti 4, Pie Throwing 4 (total 20; Narcotic, Money Snatcher, Stickup, Solicitation, Bank Robbery fail the purpose mask, Arson the condition mask, TPing the wealth mask). u = 0.5 -> r = 10 -> 10, 7, 4, 2, -2 -> Flashing (0x10, severity 40); u = 0.1 -> r = 2 -> Fighting (60); u = 0 -> r = 0 -> Fighting. Lot 2 (wealth 2): TPing joins, total 24; u = 23.5/24 -> r = 23.5 -> 23.5, 20.5, 17.5, 15.5, 11.5, 7.5, 3.5, -0.5 -> TPing (0x13). Lot 3 (condition 4): Arson joins (0.5), total 20.5; r = 3.25 -> 3.25, 0.25, -0.25 -> Arson (severity 100): AddRef, then the fire (IgniteOccupant on the building, SetCause 2) before the post. Lot 4 (no building): wealth 0x80000000, purpose 0x100; total 20. Lot 5 (zone type 10, purpose 5, condition 7): zone 0x80000000, purpose 0x10, condition 0x80000000 -> only Generic and Fighting (total 3). [choice] Lot 6 (GetLocation fails) reads zone type 0. All weights 0 -> the last candidate (0x22, default severity 64). A type with an empty condition mask never matches: no candidate, result 0, no draw, no post. A severity-0 type records and posts the incident but AddCrimes counts and stamps nothing. Hand-derived.",
+  "description": "Test 9. Shipped types in ascending instance order (spec question 16.4). A type is a candidate when its zone, wealth, purpose and condition masks each share a bit with the lot's sets; r = RandomDoubleRangeUniform(0, total); walk r -= weight (each subtraction one float32 operation, foundations 18) and take the first candidate after which r < 0, else the last. Lot 1 (zone 1 -> 0x1, wealth 1 -> 0x1, purpose 1 -> 0x1, condition 1 -> 0x1): Generic 0, Fighting 3, Car Theft 3, Mugging 2, Flashing 4, Graffiti 4, Pie Throwing 4 (total 20; Narcotic, Money Snatcher, Stickup, Solicitation, Bank Robbery fail the purpose mask, Arson the condition mask, TPing the wealth mask). u = 0.5 -> r = 10 -> 10, 7, 4, 2, -2 -> Flashing (0x10, severity 40); u = 0.1 -> r = 2 -> Fighting (60); u = 0 -> r = 0 -> Fighting. Lot 2 (wealth 2): TPing joins, total 24; u = 23.5/24 -> r = 23.5 -> 23.5, 20.5, 17.5, 15.5, 11.5, 7.5, 3.5, -0.5 -> TPing (0x13). Lot 3 (condition 4): Arson joins (0.5), total 20.5; r = 3.25 -> 3.25, 0.25, -0.25 -> Arson (severity 100): AddRef, then the fire (IgniteOccupant on the building, SetCause 2) before the post. Lot 4 (no building): wealth 0x80000000, purpose 0x100; total 20. Lot 5 (zone type 10, purpose 5, condition 7): zone 0x80000000, purpose 0x10, condition 0x80000000 -> only Generic and Fighting (total 3). [choice] Lot 6 (GetLocation fails) reads zone type 0. All weights 0 -> the last candidate (0x22, default severity 64). A type with an empty condition mask never matches: no candidate, result 0, no draw, no post. A severity-0 type records and posts the incident but AddCrimes counts and stamps nothing. The names come from the shipped name keys (0x2026960B, 0x0A554AE0, instance) of 7, which this host's LTEXT table provides for Fighting, Arson, Flashing and TPing (the shipped locale has none of them; a type without the LTEXT and without 0xAA12FCB0 posts an empty name); TPing's icon is (0x7AB50E44, 0x1ABE787D, 0x2A63A9F9) (spec answer C3). Hand-derived.",
   "steps": [
     {"op": "crime_lots", "lots": [
       {"id": 1, "rect": [10, 10, 11, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
@@ -12,6 +12,11 @@
       {"id": 5, "rect": [50, 10, 51, 11], "condition": 7, "building": {"purpose": 5, "wealth": 1}},
       {"id": 6, "rect": [10, 20, 11, 21], "location": null, "condition": 0, "building": {"purpose": 1, "wealth": 1}}]},
     {"op": "crime_env", "zones": [{"x": 10, "z": 10, "v": 1}, {"x": 20, "z": 10, "v": 1}, {"x": 30, "z": 10, "v": 1}, {"x": 40, "z": 10, "v": 1}, {"x": 50, "z": 10, "v": 10}, {"x": 10, "z": 20, "v": 1}]},
+    {"op": "crime_env", "ltext": [
+      {"key": ["0x2026960B", "0x0A554AE0", "0xDA5EA698"], "text": "Fighting"},
+      {"key": ["0x2026960B", "0x0A554AE0", "0xCA5EA698"], "text": "Arson"},
+      {"key": ["0x2026960B", "0x0A554AE0", "0x5A5EA698"], "text": "Flashing"},
+      {"key": ["0x2026960B", "0x0A554AE0", "0x8A5EA698"], "text": "TPing"}]},
     {"op": "crime_create", "rng": {"stub": {"range": [0.5, 0.1, 0.0]}}},
     {"op": "crime_init"},
     {"op": "crime_call", "method": "lot_bits", "args": [1], "expect": {"zone": 1, "wealth": 1, "purpose": 1, "condition": 1}},
@@ -27,7 +32,7 @@
     {"op": "crime_rng", "stub": {"range": [0.9791666666666666]}},
     {"op": "crime_call", "method": "add_crime_event", "args": [2], "expect": 40},
     {"op": "crime_expect_events", "filter": {"event": "rng"}, "events": [{"kind": "range", "hi": 24}]},
-    {"op": "crime_expect", "state": {"incidents": [{"type": 16}, {"type": 3}, {"type": 3}, {"type": 19, "lot": 2, "name": "TPing", "icon": ["0x7AB50E44", "0x1ABE787D", 0], "visuals": false}]}},
+    {"op": "crime_expect", "state": {"incidents": [{"type": 16}, {"type": 3}, {"type": 3}, {"type": 19, "lot": 2, "name": "TPing", "icon": ["0x7AB50E44", "0x1ABE787D", "0x2A63A9F9"], "visuals": false}]}},
 
     {"op": "crime_call", "method": "lot_bits", "args": [3], "expect": {"zone": 1, "wealth": 1, "purpose": 1, "condition": 4}},
     {"op": "crime_rng", "stub": {"range": [0.15853658536585366]}},

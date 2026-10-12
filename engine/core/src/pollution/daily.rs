@@ -7,8 +7,10 @@
 //! The daily simulation (§4.4), the garbage flow (§4.6), the end of cycle
 //! (§4.8) and the monthly simulation (§4.9).
 
+use crate::crime::rhe;
 use crate::props::round_half_even_f32;
 use crate::variant::{Elem, Variant};
+use crate::x87::{ftol, ftol32};
 
 use super::simulator::{
     fadd_i, fdiv_ii, fmul_i, p_f32, p_u32, u32_prop, PollutionState, Remaining, G_AIR_SRC, G_AIR_VAL, G_GARBAGE_SRC,
@@ -35,19 +37,30 @@ impl Factors {
     }
 }
 
-/// `trunc` of a float to 32 bits (saturating; NaN → 0).
+/// `trunc` of a float through the CRT `_ftol` (foundations §18.1): an
+/// `int64` truncation whose low 32 bits are kept (NaN, ±∞ and |x| ≥ 2^63
+/// give 0).
 fn trunc32(v: f32) -> i32 {
-    v as i32
+    ftol32(f64::from(v))
 }
 
 /// `trunc(counter + x)` for a 64-bit counter: the integer operand enters
-/// unrounded and the sum is rounded to `f32` once (foundations §18.3).
+/// unrounded and the sum is rounded to `f32` once (foundations §18.3), then
+/// `_ftol` (§18.1).
 fn add_i64(counter: i64, x: f32) -> i64 {
-    fadd_i(x, counter as f64) as i64
+    ftol(f64::from(fadd_i(x, counter as f64)))
 }
 
+/// The same for a 32-bit counter (the low 32 bits of `_ftol`).
 fn add_u32(counter: u32, x: f32) -> u32 {
-    fadd_i(x, f64::from(counter)) as u32
+    trunc32(fadd_i(x, f64::from(counter))) as u32
+}
+
+/// A deal's daily share `rhe(f32(amount × 0.1f))` (§4.4.2): the int32
+/// amount enters exactly, the product is rounded to `f32` once, and the
+/// 1.5·2²³ idiom rounds it (crime.md §6 `rhe`, exact up to 2²²).
+fn deal_share(amount: i32) -> i32 {
+    rhe(fmul_i(f64::from(amount), 0.1))
 }
 
 impl PollutionSim {
@@ -73,7 +86,7 @@ impl PollutionSim {
             let mut import_total = 0i64;
             for d in h.find_deals(deal::IMPORT) {
                 if d.amount.wrapping_sub(d.amount_used) > 0 {
-                    let n = round_half_even_f32(fmul_i(f64::from(d.amount), 0.1)) as i32;
+                    let n = deal_share(d.amount);
                     import_total = import_total.wrapping_add(i64::from(n));
                     h.set_deal_amount_used(d.token, d.amount_used.wrapping_add(n));
                     s.month.imported = s.month.imported.wrapping_add(i64::from(n));
@@ -82,7 +95,7 @@ impl PollutionSim {
             for d in h.find_deals(deal::EXPORT) {
                 let room = d.amount.wrapping_sub(d.amount_used);
                 if room > 0 {
-                    let n = (round_half_even_f32(fmul_i(f64::from(d.amount), 0.1)) as i32).min(room);
+                    let n = deal_share(d.amount).min(room);
                     h.set_deal_amount_used(d.token, d.amount_used.wrapping_add(n));
                     s.export_capacity = s.export_capacity.wrapping_add(n);
                 }
@@ -127,10 +140,7 @@ impl PollutionSim {
                 (L_WTE, prop::WASTE_TO_ENERGY, prop::WTE_USED, wte_unused, rem.wte),
             ];
             for (list, cap, used_prop, unused, remaining) in lists {
-                let used = unused.wrapping_sub(remaining);
-                if used != 0 {
-                    self.distribute_used(s, list, cap, used_prop, used);
-                }
+                self.distribute_used(s, list, cap, used_prop, unused, unused.wrapping_sub(remaining));
             }
             // Maintenance costs (not waste-to-energy).
             for list in [L_WTP, L_INC, L_REC] {
@@ -343,7 +353,7 @@ impl PollutionSim {
         ] {
             if *remaining != 0 {
                 let x = if f64::from(*remaining) > f64::from(g) {
-                    *remaining = remaining.wrapping_sub(g as u32);
+                    *remaining = remaining.wrapping_sub(trunc32(g) as u32);
                     let x = g;
                     g = 0.0;
                     x
@@ -495,7 +505,7 @@ impl PollutionSim {
                 .wrapping_add(m.wte)
                 .wrapping_add(m.landfilled)
                 .wrapping_add(exports);
-            let cost = fmul_i(units as f64, t.cost_per_unit) as i64;
+            let cost = ftol(f64::from(fmul_i(units as f64, t.cost_per_unit)));
             if let Some(dept) = s.department {
                 h.set_line_item_full_expenses(dept, budget::LINE_DISPOSAL, cost);
             }
@@ -507,7 +517,7 @@ impl PollutionSim {
                 (history::PRODUCED, m.produced),
                 (history::IMPORTED, m.imported),
                 (history::EXPORTED, m.exported),
-                (history::RECYCLED, m.recycled as i64),
+                (history::RECYCLED, ftol(m.recycled)),
                 (history::INCINERATED, m.incinerated),
                 (history::WTE, m.wte),
                 (history::LANDFILLED, m.landfilled),
@@ -591,40 +601,66 @@ impl PollutionSim {
         }
     }
 
-    /// `SetOccupantListUsedCapacity` (§4.9.3; the arithmetic is a [choice],
-    /// see the module docs).
-    fn distribute_used(&self, s: &PollutionState, list: usize, cap_prop: u32, used_prop: u32, used: u32) {
+    /// `SetOccupantListUsedCapacity` (§4.9.3) on the water-treatment
+    /// ([`L_WTP`]), incinerator ([`L_INC`]) or waste-to-energy ([`L_WTE`])
+    /// list with its capacity and used properties; other lists do nothing.
+    pub fn set_occupant_list_used_capacity(&self, list: usize, total: u32, used: u32) {
+        let (cap, used_prop) = match list {
+            L_WTP => (prop::WATER_TREATMENT, prop::WTP_USED),
+            L_INC => (prop::INCINERATOR, prop::INC_USED),
+            L_WTE => (prop::WASTE_TO_ENERGY, prop::WTE_USED),
+            _ => return,
+        };
+        let s = self.snapshot();
+        self.distribute_used(&s, list, cap, used_prop, total, used);
+    }
+
+    /// `SetOccupantListUsedCapacity` (§4.9.3) *[compat]*: `total` is the
+    /// day's unused total of the list and `used = total − remaining`. All
+    /// arithmetic is unsigned 32-bit; remainders are dropped, a capped
+    /// occupant recomputes the share from the `used` before its take (so the
+    /// next ones can over-allocate and `used` can wrap), every visited
+    /// occupant counts `k` down and gets `usedProp` written, even with 0.
+    pub(super) fn distribute_used(
+        &self,
+        s: &PollutionState,
+        list: usize,
+        cap_prop: u32,
+        used_prop: u32,
+        total: u32,
+        used: u32,
+    ) {
         let h = &*self.host;
         let occs = &s.lists[list];
-        let n = occs.len();
-        if n == 0 {
+        let n = occs.len() as u32;
+        if total == 0 || n == 0 || used == 0 {
             return;
         }
-        let caps: Vec<Option<u32>> = occs
-            .iter()
-            .map(|&o| match self.current_capacity_in(s, cap_prop, o) {
-                (true, c) => Some(c),
-                _ => None,
-            })
-            .collect();
-        let total = caps.iter().flatten().fold(0u32, |a, &c| a.saturating_add(c));
         let mut used = used;
-        let mut share = used.min(total) / n as u32;
-        for (i, &occ) in occs.iter().enumerate() {
+        let mut share = total.min(used) / n;
+        let mut k = n;
+        for &occ in occs {
             if used == 0 {
                 break;
             }
-            let Some(cur) = caps[i] else { continue };
-            let already = p_u32(h, occ, used_prop).unwrap_or(0);
-            let take = share.min(cur.saturating_sub(already)).min(used);
-            if take > 0 {
-                h.set_occupant_property(occ, used_prop, u32_prop(already.wrapping_add(take)));
-                used -= take;
+            k -= 1;
+            let (ok, cur) = self.current_capacity_in(s, cap_prop, occ);
+            if !ok {
+                continue;
             }
-            if take < share {
-                let left = (n - i - 1) as u32;
-                share = used.checked_div(left).unwrap_or(0);
-            }
+            let Some(already) = p_u32(h, occ, used_prop) else {
+                continue;
+            };
+            let headroom = cur.saturating_sub(already);
+            let take = if share as i32 <= headroom as i32 {
+                share
+            } else {
+                // k = 0 keeps the share.
+                share = used.checked_div(k).unwrap_or(share);
+                headroom
+            };
+            used = used.wrapping_sub(take);
+            h.set_occupant_property(occ, used_prop, u32_prop(already.wrapping_add(take)));
         }
     }
 

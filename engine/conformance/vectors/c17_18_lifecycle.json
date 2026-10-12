@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_lifecycle",
   "spec": ["crime 2", "crime 3", "crime 4", "crime 7", "crime 8", "crime 17.18"],
-  "description": "Test 18. Init (4.1): only the first time in the process the crime types are loaded; the tuning is read; AddAgent 'cSC4CrimeSimulator' flags 2 at levels 4, 6, 10; subscribe 0x99EF1142, 0x99EF1143, 0xC2C09554, 0xC53D10AA; hold the services; create the crime grid 0x89D5B895 and the effect grid 0x2A5BA1B3 with tract size S (cleared: the fake host pre-fills new grids with 0xEE); in a new city set the iterator rect to the whole crime grid and AddPropRequester once; reset hotspot and factor. A second Init does nothing. Shutdown (4.2): shut down both grids, release the services, clear the incidents (releasing their lots), unsubscribe 0xC2C09554, 0xC53D10AA, 0x99EF1142, 0x99EF1143, remove the agent; no prop-developer unregistration; a second Shutdown does nothing. A second simulator in the same process does not reload the types; the exemplar-changed message for group 0xEA12F32C does, and for the tuning key re-reads the tuning (other instances are ignored). Tract size 4 from the tuning makes 16 x 16-tract grids on a 64-cell city; a later tract-size change does not resize them but scales GetCrimeHotspot ([quirk]): hotspot (1, 2, 5) with S = 8 -> (5, 8, 16).",
+  "description": "Test 18. Init (4.1): only the first time in the process the crime types are loaded; the tuning is read; AddAgent 'cSC4CrimeSimulator' flags 2 at levels 4, 6, 10; subscribe 0x99EF1142, 0x99EF1143, 0xC2C09554, 0xC53D10AA; hold the services; create the crime grid 0x89D5B895 and the effect grid 0x2A5BA1B3 with tract size S (cleared: the fake host pre-fills new grids with 0xEE); in a new city set the iterator rect to the whole crime grid and AddPropRequester once; reset hotspot and factor. A second Init does nothing. Shutdown (4.2): shut down both grids, release the services, clear the incidents (releasing their lots), unsubscribe 0xC2C09554, 0xC53D10AA, 0x99EF1142, 0x99EF1143, remove the agent; no prop-developer unregistration; a second Shutdown does nothing. A second simulator in the same process does not reload the types; the exemplar-changed message for group 0xEA12F32C does, and for the tuning key re-reads the tuning (other instances are ignored). Tract size 4 from the tuning makes 16 x 16-tract grids on a 64-cell city; a later tract-size change (tuning reload to 8) does not resize them, and GetCrimeHotspot keeps scaling by the grid's own S = 4 (11.2 and 8, corrected spec answer C1; the earlier expectation (5, 8, 16) used the tuning size): hotspot (1, 2, 5) -> (5, 4, 8).",
   "steps": [
     {"op": "crime_create"},
     {"op": "crime_expect", "state": {"state": 6, "ordinance_factor": 1.0, "initialized": false, "has_crime_grid": false, "types": null,
@@ -57,7 +57,7 @@
     {"op": "crime_expect", "state": {"tuning": {"tract_size": 8, "decay": 0.25}}},
     {"op": "crime_expect_grid", "grid": "crime", "counts": [16, 16], "size": 4},
     {"op": "crime_set", "state": {"hotspot": [1, 2, 5]}},
-    {"op": "crime_call", "method": "crime_hotspot", "expect": [5, 8, 16]},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": [5, 4, 8]},
     {"op": "crime_expect_events", "events": []},
 
     {"op": "crime_create", "new_process": true},

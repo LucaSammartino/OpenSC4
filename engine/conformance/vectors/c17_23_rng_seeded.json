@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "crime_rng_seeded",
+  "spec": ["crime 6.6", "crime 6.7", "crime 11.6", "crime 17.14", "foundations 6.1"],
+  "description": "A real cRZRandomSuper (foundations 6.1: MT19937 with the non-standard seeding, doubles at 24-bit precision: uniform = f32(f32(int32(w) x 2^-32) + 0.5), range = f32(f32(u x f32(b - a)) + a), uint(n) = (w x n) >> 32) drives AddCrimes and SelectProp, so the draws are checked against the 6.1 sequences rather than a scripted stub. Lot 1 (zone 1, wealth 1, purpose 1, condition 1) under police 255 with the shipped attenuation curve: p = 0.5; every attempt draws u, p > u stops, otherwise r = range(0, 20) walks the candidates Generic 0 (0x01), Fighting 3 (0x03), Car Theft 3 (0x08), Mugging 2 (0x0A), Flashing 4 (0x10), Graffiti 4 (0x11), Pie Throwing 4 (0x12). Then SelectProp over three generic props (crime ID 0) on a cell without a lot draws uint(3) from the same generator. Expected values from an independent Python model of 6.1 (checked first against the foundations test-14 words: seed 1 -> 0xD3F6B9E5, 0xEF284157, 0x0D3639C7; seed 4357 -> 0xAAE64AC3, ...): seed 1, 12 attempts -> stop, stop, Graffiti, stop, Mugging, stop, Flashing, Graffiti, Graffiti, stop, stop, stop (5 crimes), then props 2, 1, 0, 0; seed 2024 -> stop, Flashing, Flashing, stop, stop, stop, Car Theft, Pie Throwing, stop, stop, stop, Graffiti (5 crimes), then props 0, 0, 1, 2.",
+  "steps": [
+    {"op": "crime_lots", "lots": [{"id": 1, "rect": [10, 10, 11, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}}],
+      "random": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+    {"op": "crime_env", "zones": [{"x": 10, "z": 10, "v": 1}], "police": {"cells": [[5, 5, 255]]}},
+    {"op": "crime_props", "props": {"0xA": 0, "0xB": 0, "0xC": 0}},
+    {"op": "crime_create", "rng": {"seed": 1}},
+    {"op": "crime_init"},
+    {"op": "crime_clear_events"},
+    {"op": "crime_call", "method": "add_crimes", "args": [12], "expect": 5},
+    {"op": "crime_expect_events", "filter": {"event": "post"}, "events": [{"crime": "0x11"}, {"crime": "0x0A"}, {"crime": "0x10"}, {"crime": "0x11"}, {"crime": "0x11"}]},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xC"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xB"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xA"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xA"},
+
+    {"op": "crime_lots", "random": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]},
+    {"op": "crime_create", "rng": {"seed": 2024}},
+    {"op": "crime_init"},
+    {"op": "crime_clear_events"},
+    {"op": "crime_call", "method": "add_crimes", "args": [12], "expect": 5},
+    {"op": "crime_expect_events", "filter": {"event": "post"}, "events": [{"crime": "0x10"}, {"crime": "0x10"}, {"crime": "0x08"}, {"crime": "0x12"}, {"crime": "0x11"}]},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xA"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xA"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xB"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 30, 30], "expect": "0xC"}
+  ]
+}

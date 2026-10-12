@@ -38,26 +38,29 @@
 //! - Economic factors (§6.2): the factor is 0 when `B = C` (spec choice). A
 //!   demand ID the host does not know (`GetDemand` null, not checked by the
 //!   original) is skipped.
-//! - Truncations to 32-bit integers (`trunc` of §6) follow the CRT `_ftol`
-//!   for finite values below 2⁶³ (the low 32 bits of the 64-bit result);
-//!   NaN, ±∞ and larger values give 0, the low half of the "integer
-//!   indefinite".
-//! - Crimes to commit (§6.4): `rhe` of the `f32` product is saturated to
-//!   `i32` (the original idiom is only valid below 2²²); test 6's values
-//!   follow §18 (10 × 0.95f → 9.5f → 10). `AddCrimes` makes at
-//!   most [`MAX_ATTEMPTS`] attempts per call (the original loops `n` times).
+//! - Truncations to 32-bit integers (`trunc` of §6) are the CRT `_ftol` of
+//!   foundations §18.1 ([`ftol32`], shared with `crate::x87`): the low 32
+//!   bits of the int64 truncation; NaN, ±∞ and magnitudes ≥ 2⁶³ give 0 (the
+//!   low half of the int64 indefinite). This is the original's behaviour,
+//!   not a choice.
+//! - `rhe` is the exact bit formula of §6 ([`rhe`]), also beyond 2²²
+//!   (§6.4, §11.6). `crimes` is converted as unsigned with one 24-bit
+//!   rounding ([`u32_to_float`]). `AddCrimes` makes all `n` attempts.
 //! - Stamps (§6.6 step 7) only visit tracts inside the crime grid; the
 //!   original writes outside its rows for lots outside the grid.
 //! - A lot whose `GetLocation` fails reads zone type 0 (bits `0x80000000`).
 //!   Building wealth and purpose are compared as signed integers (`≥ 1`);
 //!   the shift count of `1 << (v − 1)` is taken modulo 32 like the x86
 //!   `shl`.
-//! - Without a police grid the police average reads 0; without an ordinance
-//!   simulator the ordinance factor is left unchanged (the host returns
-//!   `None`).
-//! - Average crime (§6.9): the tract corner cell is `(x·S, z·S)` with S the
-//!   **tuning** tract size (as in §11.2; spec question); with no zoned tract
-//!   the average is 0 (spec choice).
+//! - Missing services (§4.1 step 6, spec choice): without a police grid the
+//!   police average reads 0; without an ordinance simulator the ordinance
+//!   factor is left unchanged (the host returns `None`); without a police
+//!   simulator the host reports 0 jailed and 0 released.
+//! - Average crime (§6.9) and the hotspot (§11.2) use the crime grid's own
+//!   tract size, not the tuning's. With no zoned tract the average is the
+//!   x87 default NaN (`0xFFC00000`), saved as such; `GetAverageCrime` then
+//!   returns 0. Without a crime grid `GetCrimeHotspot` scales by the tuning
+//!   tract size (the original would crash).
 //! - Crime effect (§6.10): arrays shorter than 2 bytes are skipped (spec
 //!   choice). The property is read as a byte array (any numeric element
 //!   type, low 8 bits).
@@ -68,26 +71,30 @@
 //!   present array without a complete point gives an empty curve, which
 //!   evaluates to 0 (foundations §4.1, §4.3).
 //! - Crime types (§7): the display name is the LTEXT string named by the
-//!   three `u32` of `0x8A416B2E` when the host has it, otherwise the string
-//!   property `0xAA12FCB0`, otherwise empty. A mask property that is not
-//!   numeric is treated as missing (all bits); numeric elements are reduced
-//!   to their low 8 bits. A missing or short icon key fills with 0.
-//! - `SelectProp` (§11.6): "the incident's lot is `lot`" compares lot
-//!   identities, so a null lot (a cell without a lot) matches incidents that
-//!   have no lot (possible only after a load), as a pointer comparison
-//!   would.
+//!   three `u32` of `0x8A416B2E` when the host has it, otherwise the inline
+//!   string `0xAA12FCB0` ("Crime Name"), otherwise empty. A mask property
+//!   that is not numeric is treated as missing (all bits); numeric elements
+//!   are reduced to their low 8 bits. A missing or short icon key fills
+//!   with 0. [`shipped_type_exemplars`] carries the shipped name and icon
+//!   keys of §7.
+//! - `SelectProp` (§11.6, [compat]): "the incident's lot is `lot`" compares
+//!   lot identities, so a cell without a lot matches incidents that have no
+//!   lot (possible only after a load), as the original's pointer comparison
+//!   does. Each prop of the input enters the matching list at most once.
 //! - Save (§12): the two unused `u32` are written as 0 (spec choice) and
-//!   ignored on read. A reference to a core object where a lot is expected
-//!   reads as no lot; an unresolvable grid reference reads as no grid (`Init`
-//!   then creates a new one). On a stream error `Read` returns false and
-//!   leaves the simulator unchanged except `loadedFromSave` (lots already
-//!   read are released).
+//!   ignored on read. `Read` appends the loaded incidents to the current
+//!   list and clears every visuals flag. A non-null reference that lacks
+//!   the requested interface (the stream stays good, foundations §2.7)
+//!   reads as no lot / no grid (`Init` then creates the grid). On a stream
+//!   error (which includes an unresolvable reference) `Read` returns false
+//!   and changes nothing, `loadedFromSave` included (spec choice); lots
+//!   already read are released.
 //! - Arithmetic follows foundations §18 (24-bit x87): every float operation
 //!   is one `f32` rounding; an integer or `double` operand enters unrounded
 //!   (`f64` operation rounded to `f32` once, [`mul_f32`]). The distance of
-//!   §11.3 is `sqrt((dx² + dy²) + dz²)` in that order ([choice], the
-//!   original's vector routine is not specified). The generator's own
-//!   double arithmetic (§9) belongs to `RzRandomSuper`.
+//!   §11.3 is `sqrt((dy² + dz²) + dx²)` in `f32`, in that order. The
+//!   generator's own double arithmetic (§9, 24-bit, foundations §6.1)
+//!   belongs to `RzRandomSuper`.
 //! - The process-wide part (shutdown callback freeing the static type list,
 //!   §4.1 step 2) is the plugin's: [`CrimeShared`] lives as long as the host
 //!   keeps it.
@@ -98,16 +105,15 @@ mod tuning;
 mod types;
 
 pub use algo::{
-    census_bucket, crimes_to_commit, criminal_base_term, decay_value, ftol32, jobless_factor, mul_f32, rhe_i32,
-    PROP_SCALE,
+    census_bucket, crimes_to_commit, criminal_base_term, decay_value, ftol32, jobless_factor, mul_f32, rhe,
+    u32_to_float, PROP_SCALE,
 };
-pub use simulator::{
-    CrimeData, CrimeEvent, CrimeMessage, CrimeSim, Incident, CRIME_RECORD_VERSION, MAX_ATTEMPTS, STATE_IDLE,
-};
+pub use simulator::{CrimeData, CrimeEvent, CrimeMessage, CrimeSim, Incident, CRIME_RECORD_VERSION, STATE_IDLE};
 pub use tuning::{shipped_tuning, CrimeTuning};
 pub use types::{
     choose_candidate, condition_bits, mask_of, parse_mask, purpose_bits, shipped_type_exemplars, wealth_bits,
-    zone_bits, CrimeType, LotBits, ANY_BITS, NONE_BIT, NO_PURPOSE_BIT,
+    zone_bits, CrimeType, LotBits, ANY_BITS, NONE_BIT, NO_PURPOSE_BIT, SHIPPED_ICON_GROUP, SHIPPED_ICON_TYPE,
+    SHIPPED_NAME_GROUP, SHIPPED_NAME_TYPE,
 };
 
 use std::cell::RefCell;
