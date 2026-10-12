@@ -3909,3 +3909,37 @@ cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	0	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	1	+0x4	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	2	+0x8	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	3	+0xC	00704950		4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	0	+0x0	006d5d20	cSC4PathFinder::QueryInterface	8	2	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	1	+0x4	004bdf00	cSCParticleSimulatorBase::AddRef	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	2	+0x8	006d61b0	cSC4PathFinder::Release	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	3	+0xC	006d78b0	cSC4PathFinder::Init	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	4	+0x10	006d5d50	cSC4PathFinder::Shutdown	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	5	+0x14	006d6cf0	cSC4PathFinder::SetFlag	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	6	+0x18	006d6d00	cSC4PathFinder::ClearFlag	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	7	+0x1C	006d6d20	cSC4PathFinder::ClearAllFlags	0	0	unknown	low	
+cISC4PathFinder	cSC4PathFinder	00ab2150	8	+0x20	00407ad0	cSC4PathFinder::SetRouteInfo (folded generic setter [ecx+74h])	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	9	+0x24	006d6d30	cSC4PathFinder::SetTripDestinationFilter	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	10	+0x28	006d6d40	cSC4PathFinder::SetDestinationFlag	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	11	+0x2C	006d6d60	cSC4PathFinder::ClearDestinationFlag	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	12	+0x30	006d6d80	cSC4PathFinder::ClearAllDestinationFlags	0	0	unknown	low	
+cISC4PathFinder	cSC4PathFinder	00ab2150	13	+0x34	006d6d90	cSC4PathFinder::SetTravelTypeFlag	8	2	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	14	+0x38	006d6db0	cSC4PathFinder::ClearTravelTypeFlag	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	15	+0x3C	006d6dd0	cSC4PathFinder::ClearAllTravelTypeFlags	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	16	+0x40	006d6de0	cSC4PathFinder::SetStartingCostArray	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	17	+0x44	006d6df0	cSC4PathFinder::SetMaxTripLength	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	18	+0x48	006d6e00	cSC4PathFinder::SetTrafficDensity	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	19	+0x4C	006d6e10	cSC4PathFinder::SetStartRect	16	4	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	20	+0x50	006d6e40	cSC4PathFinder::SetEndRect	16	4	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	21	+0x54	006d6e70	cSC4PathFinder::SetMaxWorkTime	4	1	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	22	+0x58	006d6e80	cSC4PathFinder::Reset	0	0	unknown	low	
+cISC4PathFinder	cSC4PathFinder	00ab2150	23	+0x5C	006d91b0	cSC4PathFinder::FindPath	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	24	+0x60	00698ce0	cSC4PathFinder::GetTrafficArrived (folded getter mov eax,[ecx+6Ch])	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	25	+0x64	006d6e90	cSC4PathFinder::GetTripLength	0	0	x87	high	
+cISC4PathFinder	cSC4PathFinder	00ab2150	26	+0x68	006d6030	cSC4PathFinder::GetTripLengthScaledForDisplay	0	0	x87	high	
+cISC4PathFinder	cSC4PathFinder	00ab2150	27	+0x6C	006d6ea0	cSC4PathFinder::GetEndCell	8	2	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	28	+0x70	006d6ec0	cSC4PathFinder::GetLastTravelType	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	29	+0x74	006da060	cSC4PathFinder::ApplyTraffic	4	1	x87|eax	low	
+cISC4PathFinder	cSC4PathFinder	00ab2150	30	+0x78	006d61e0	cSC4PathFinder::WasTripReversible	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	31	+0x7C	006d6730	cSC4PathFinder::ReleasePathNodes	0	0	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	32	+0x80	006d7070	cSC4PathFinder::GetCompressedRoute	8	2	eax-or-void	medium	
+cISC4PathFinder	cSC4PathFinder	00ab2150	33	+0x84	006d7050	cSC4PathFinder::~cSC4PathFinder (scalar deleting dtor)	4	1	eax-or-void	medium	
