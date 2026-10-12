@@ -157,8 +157,11 @@ manager's zone types as they stand when it runs. No result of another level-4 ag
 ## 6. Algorithms
 
 Rounding: `roundHE(x)` = round to nearest, ties to even (the original adds `1.5 × 2^23` on the x87 and keeps the
-low bits; valid for `|x| < 2^22`). Products of an integer with a `float32` multiplier are formed exactly enough
-that FreeCity4 should compute them in `f64` and round once *[choice]* (same convention as foundations §4.3).
+low bits; valid for `|x| < 2^22`). Every `roundHE(p × m)` of this spec is an integer `p` times a `float32` `m`:
+the product is first rounded to `float32` (foundations §18), and `roundHE` then rounds that value *[compat]*.
+FreeCity4 computes the product in `f64` (exact for |p| < 2^29), rounds it to `f32`, then applies `roundHE`.
+Example: 10 × 0.95f = 9.49999988 rounds to 9.5, and `roundHE` gives **10**, not 9. *(Corrected: the earlier text
+rounded the exact product once.)*
 
 ### 6.1 Occupant raw value (`GetOccupantRawFlammability(occ)`) *[compat]*
 
@@ -519,9 +522,9 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
    unknown.
 3. Whether the occupant manager still lists an occupant while RemoveOccupant is delivered (§6.3).
 4. Who, if anyone, reads SimCycleComplete `0x08F415FE` and history type `0x2A11CB48` (graph data files?).
-5. *(resolved)* The simulation runs the x87 at 24-bit precision (foundations §18). `roundHE` therefore rounds
-   once: the add of 1.5·2²³ is itself rounded to 24 bits, which is round-half-even to an integer for |x| < 2²²;
-   there is no double rounding.
+5. *(resolved)* The simulation runs the x87 at 24-bit precision (foundations §18). The product `p × m` is
+   rounded to `float32` first; the add of 1.5·2²³ is then itself rounded to 24 bits, which is round-half-even to
+   an integer for |x| < 2²² (§6).
 
 ## 16. Conformance tests (must exist in `engine/conformance`)
 
@@ -533,7 +536,8 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
    → 40; empty tract → 0.
 3. **Daily value**: raw 150, global 1.2, unwatered, no-water 1.1 → `roundHE(180 × 1.1)` = **198**; watered →
    180; raw 220, global 1.0, unwatered 1.25 → 275 → **255**; Smoke Detectors (0.95) raw 100 unwatered 1.25 →
-   95 → 118.75 → 119; raw 0 → adjusted cell unchanged.
+   95 → 118.75 → 119; Smoke Detectors raw 10, watered → 10 × 0.95f = 9.49999988 → 9.5 → **10**; raw 0 →
+   adjusted cell unchanged.
 4. **Candidates**: threshold 196: v = 197 → candidate, v = 196 → none; shipped threshold 54: v = 55 → candidate.
 5. **Cadence**: `tractsPerDay` 102 / 409 / 1638 for 64² / 128² / 256²; on a 64² map `EndOfCycle` runs on
    SimNewDays 1, 41, 81, 121, 161 after `Init`; each tract is visited once between two of them; one `rand()` per

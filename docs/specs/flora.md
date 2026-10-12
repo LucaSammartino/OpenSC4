@@ -261,7 +261,9 @@ ElevationIndex(x, z, water):
     return clamp(floor(d × elevationScale), 0, 15)
 ```
 
-`floor` is computed with the 1.5·2²³ float trick on a 32-bit float (exact floor for |v| < 2²²). Shipped
+`floor` is computed with the 1.5·2²³ float trick on a 32-bit float (exact floor for |v| < 2²²). `d`, the
+product and the floor's steps are `float32` operations (foundations §18): the product is rounded before the
+floor, so d = 50 with scale 0.02f gives exactly 1.0 and index 1. Shipped
 elevationScale = 16 / 800 = 0.02, so one index step is 50 m; the code default 0.08 gives 12.5 m.
 
 ### 6.2 Propagation score
@@ -845,8 +847,9 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 1. **Stage**: maturity 730, lifespan 1460, max age 1560: age 364 → 0; 365 → 1; 729 → 1; 730 → 2; 1459 → 2;
    1460 → rebirth (birth := today, state 0, one `0x99EF1145`); 2000 → rebirth.
 2. **Negative age**: birth = today + 10 → age is 2³² − 10 as unsigned → rebirth.
-3. **Elevation index** (scale 0.02): altitude − sea = 75 → 1; 310 → 6; 1000 → 15 (clamped); −30 → 0 (avoid exact multiples of 50: 0.02 is
-   not exact in f32). Water
+3. **Elevation index** (scale 0.02): altitude − sea = 75 → 1; 310 → 6; 1000 → 15 (clamped); −30 → 0; **50 → 1, 100 → 2,
+   150 → 3**: the product d × 0.02f (exactly 0.99999998 for d = 50) rounds to the whole number at 24 bits
+   (foundations §18), and the floor of §6.1 is exact for it. Water
    type 120 m below sea → 2. Code-default scale 0.08: 70 → 5.
 4. **Score**: table byte 153 → 0.6 (153 × f32(1/255)); byte 25 → 0.0980392; unknown type → 0.0.
 5. **Exemplar table conversion**: 0.6 → 153; 0.1 → 25; 0.9 → 229; 0.4 → 102; 1.0 → 255; 1.2 → 50.
