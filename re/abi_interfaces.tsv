@@ -99,3 +99,9 @@ cISC4DispatchManager	cSC4DispatchManager	00a88108	24	docs/specs/protection.md
 cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	25	docs/specs/protection.md
 cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	6	docs/specs/protection.md
 cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	6	docs/specs/protection.md
+cIGZSerializable(Plumbing)	cSC4PlumbingSimulator	00ab21fc	6	docs/specs/plumbing.md
+cIGZMessageTarget2(Plumbing)	cSC4PlumbingSimulator	00ab2214	4	docs/specs/plumbing.md
+cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	15	docs/specs/neighbors.md
+cISC4NeighborDeal	cSC4NeighborDeal	00ab1dd8	41	docs/specs/neighbors.md
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	81	docs/specs/plumbing.md
+cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	12	docs/specs/plumbing.md
