@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "protection_jail_capacity",
+  "spec": ["protection 6.1", "protection 9.1", "protection 18.30"],
+  "description": "Test 30 (PR14, 9.1): police jail 21 with capacity property 500 and no jail budget item (purpose 0xEA56768A): the jail funding is 1.0 (the jail fundingOf returns 1.0 without an item), efficiency curveA0(100) x 0.01f = 100 x 0.01f = 1.0 (shipped curve (100, 100)) -> GetJailCapacity(21) = roundHalfEven(500 x 1.0) = 500; with jailed 100 Recalculate gives capacity 500, ratio f32(100 / 500) = 0.2, the jail's population property roundHalfEven(500 x 0.2) = 100. The capacity property then removed: GetJailCapacity(21) reads it as 0 -> 0; Recalculate with only that jail -> total capacity 0 -> ratio 0 (capacity <= 0), population property 0, total population 0, although jailed (100) is above the capacity. Hand-derived from 6.1 and 9.1.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "21": {"props": {"0x48D71EE0": {"u32": 500}}}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 21},
+    {"op": "protection_expect", "state": {"jails": [21], "funded_jails": []}},
+    {"op": "protection_call", "method": "jail_funding", "args": [21], "expect": 1.0},
+    {"op": "protection_call", "method": "jail_capacity_of", "args": [21], "expect": 500},
+    {"op": "protection_set", "state": {"jailed": 100}},
+    {"op": "protection_call", "method": "recalculate"},
+    {"op": "protection_expect", "state": {"capacity": 500, "population": 100}},
+    {"op": "protection_expect_occupant", "id": 21, "props": {"0x48D71EE1": 100}},
+    {"op": "protection_occupants", "21": {"props": {"0x48D71EE0": null}}},
+    {"op": "protection_call", "method": "jail_capacity_of", "args": [21], "expect": 0},
+    {"op": "protection_call", "method": "recalculate"},
+    {"op": "protection_expect", "state": {"jails": [21], "capacity": 0, "population": 0, "jailed": 100}},
+    {"op": "protection_expect_occupant", "id": 21, "props": {"0x48D71EE1": 0}},
+    {"op": "protection_call", "method": "jail_population", "expect": 0}
+  ]
+}

@@ -755,10 +755,11 @@ police coverage percentage, sea level and altitude, the disaster flag and the da
 
 | op | Arguments | Effect / check |
 |---|---|---|
+| `protection_grids` | `size` (the grids' tract size) | replaces both coverage grids of the current simulator with grids of that tract size on the same city (to show that the simulator uses its own S = 2) |
 | `protection_init` / `protection_shutdown` | `expect?` | `Init` / `Shutdown` |
 | `protection_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `OccupantChanged`, `FundingChanged`, `ReloadTuning`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `Crime` or an ID), `data1?`, `data2?`, `occupant?`, `unknown?` (the IGZUnknown: an occupant or lot ID), `count?` (repeat), `expect?` | `DoMessage` |
-| `protection_call` | `method`, `args?`, `expect?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
-| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `ratio_share`, `escapees`, `jail_capacity` |
+| `protection_call` | `method`, `args?`, `expect?`, `bits?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `station_effect [occ, record?]` (`record` `{x, z, radius, centre, outer, original_centre}` is the caller's record, default zeroed), `funding_of [occ, purpose]`, `jail_funding [occ]`, `jailed_percentage_bits`, `station_stats [occ]` (padded to 4), `max_possible_dispatch_count`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
+| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `jailed_percentage_bits`, `pct` (x × 0.01f), `jailbreak_ends` (`[percentage, threshold]`), `jailbreak_starts` (`[chance, draw]` → `[draw taken, starts]`), `ratio_share`, `escapees`, `jail_capacity`; float arguments of `jailbreak_ends` / `jailbreak_starts` may be `"0x…"` float32 bit patterns |
 | `protection_set` | `state`: any of `tracts_per_day`, `factor`, `counters` (`[zoned, sum, nonZero]`), `avg`, `pct`, `strike_flag`, `strike_date`, `next_call`, `capacity`, `population`, `jailed`, `arrests_last`, `arrests_this`, `unarrested_this`, `crimes_last`, `crimes_this` | pokes state (test setup) |
 | `protection_expect` | `state`: the `protection_set` fields plus `initialized`, `ref_count`, `destroyed`, `loaded`, `department`, `jail_department`, `purpose`, `stations`, `air_source`, `jails`, `funded_jails`, `jailbreaks`, `crt` (the rand() state) and `iterator` (partial `{state, mode, rect, count, index, current, step}`) | the simulator state |
 | `protection_expect_occupant` | `id`, `props` (`{"0xID": value or array}`) | occupant properties |
@@ -766,8 +767,11 @@ police coverage percentage, sea level and altitude, the disaster flag and the da
 | `protection_grid_set` / `protection_expect_grid` | `grid` (`adjusted` or `unadjusted`); set: `cells`; expect: any of `exists`, `size`, `counts`, `instance`, `cells`, `others` | the coverage grids |
 | `protection_expect_events` / `protection_expect_event_count` / `protection_clear_events` | see the shared conventions | host calls |
 | `protection_save` / `protection_load` / `protection_expect_save` | `slot` | the class-object store (load recreates the simulator, its grids and the host objects) |
-| `protection_read` | `slot` or `hex`, `expect`, `position?` | `Read` on the live simulator; `position` is the bytes consumed |
+| `protection_read` | `slot` or `hex`, `expect`, `position?`, `reuse?` | `Read` into a new simulator, or with `reuse` into the current one (a re-read); `position` is the bytes consumed |
 | `protection_patch` / `protection_expect_payload` | see the shared conventions (the simulator's record) | |
+
+With `"bits": true` on a `protection_call` or `protection_eval`, every float in the result becomes its float32 bit
+pattern (`"0x3DCCCCCC"`), compared exactly; other floats compare with the usual relative tolerance.
 
 Protection events: `acquire_services` / `release_services` (`kind`), `create_grid` (`type` u8/i16, `instance`,
 `size`), `set_instance`, `shutdown_grid`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` /
@@ -1201,6 +1205,15 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 20 adjusted copy and funding change | `pr18_20_adjusted_copy` |
 | 21 persistence (layout, versions, store round trip) | `pr18_21_persistence` |
 | 22 slot ABI, QueryInterface, crime-compatible slots | `pr18_22_slot_abi` |
+| 23 stuck jailbreak (capacity 0, NaN percentage) | `pr18_23_stuck_jailbreak` |
+| 24 jailed percentage and the end and start tests | `pr18_24_jailed_percentage` |
+| 25 percentages (float32 0.01f) | `pr18_25_percentages` |
+| 26 GetMaxPossibleDispatchCount | `pr18_26_max_possible_dispatch` |
+| 27 station effect partial reads | `pr18_27_effect_partial_reads` |
+| 28 call-number search | `pr18_28_call_number_search` |
+| 29 station statistics | `pr18_29_station_statistics` |
+| 30 jail capacity without an item or property | `pr18_30_jail_capacity` |
+| 31 locally-funded-jail list | `pr18_31_funded_jail_list` |
 
 ## Coverage (flora §16)
 

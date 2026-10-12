@@ -8,15 +8,27 @@
 //! `f32` rounding (foundations §18); an integer or `double` operand enters
 //! unrounded (the operation is computed in `f64` and rounded once).
 
-use crate::crime::ftol32;
+use crate::crime::rhe as rhe_trick;
 use crate::props::round_half_even_f32;
+use crate::x87::ftol32;
 
 use super::Effect;
 
-/// `x × 0.01` with a `double` constant: one rounding to `f32` ([choice],
-/// also the "pct" tuning getter, §6.7).
-pub(crate) fn pct(x: f32) -> f32 {
-    (f64::from(x) * 0.01) as f32
+/// The float32 constant `0.01f` (`0x3C23D70A` = 0.0099999998, §6.2).
+pub(crate) const ONE_PERCENT: f32 = 0.01;
+/// The float32 constant `100.0f` (§6.2).
+pub(crate) const HUNDRED: f32 = 100.0;
+
+/// `x × 0.01f` (§6.2, PR3): one `f32` rounding of the product with the
+/// float32 constant, so `10 × 0.01f` = 0.099999994, not 0.1. Also the "pct"
+/// tuning getter (§6.7).
+pub fn pct(x: f32) -> f32 {
+    (f64::from(x) * f64::from(ONE_PERCENT)) as f32
+}
+
+/// `x × 100.0f`: one `f32` rounding.
+pub(crate) fn times_hundred(x: f32) -> f32 {
+    (f64::from(x) * f64::from(HUNDRED)) as f32
 }
 
 /// `int × float`: one `f32` rounding of the exact product.
@@ -29,14 +41,18 @@ pub(crate) fn div_ii(a: f64, b: f64) -> f32 {
     (a / b) as f32
 }
 
-/// `roundHalfEven` to an integer, saturating; NaN → 0 ([choice]).
+/// `roundHalfEven` to an integer, saturating; NaN → 0 (the adjusted copy,
+/// §2, whose inputs are `int16` values).
 pub(crate) fn rhe(x: f32) -> i64 {
     round_half_even_f32(x) as i64
 }
 
-/// `roundHalfEven` to a `u32`, saturating at 0 and `u32::MAX`.
-pub(crate) fn rhe_u32(x: f32) -> u32 {
-    rhe(x).clamp(0, i64::from(u32::MAX)) as u32
+/// The jails' `roundHalfEven` (§9.1, [quirk]): add `12582912.0f`, store as
+/// float32, subtract the bit pattern `0x4B400000`. Exact round half to even
+/// for |v| < 2^22; other values above that (never reached by shipped
+/// capacities). The `u32` is the 32-bit result as stored.
+pub(crate) fn rhe_jail(x: f32) -> u32 {
+    rhe_trick(x) as u32
 }
 
 /// `trunc` (the CRT `_ftol`) of an `f32` value to 32 bits.
@@ -157,31 +173,54 @@ pub fn choose_base_call_number(others: &[(u32, u32)], next_call: u32, count: u32
     candidate as u32
 }
 
-/// `capacity(j) := roundHalfEven(capacityProperty × jailEff)` (§9.1).
+/// `capacity(j) := roundHalfEven(capacityProperty × jailEff)` (§9.1): the
+/// `u32` property times the efficiency, one `f32` rounding, then the jails'
+/// rounding trick.
 pub fn jail_capacity(capacity_property: u32, efficiency: f32) -> u32 {
-    rhe_u32(mul_i(f64::from(capacity_property), efficiency))
+    rhe_jail(mul_i(f64::from(capacity_property), efficiency))
 }
 
-/// `GetJailedPercentage` (§9.1): 1.0 when jailed > capacity, else
-/// `jailed / capacity` (0/0 is NaN, quirk 10).
+/// The x87 default NaN `0xFFC00000` that `0 / 0` stores (§9.1).
+pub const DEFAULT_NAN: u32 = 0xFFC0_0000;
+
+/// `GetJailedPercentage` (§9.1, PR15): 1.0 when jailed > capacity (signed),
+/// else `jailed / capacity`, one `f32` rounding, with **no guard**: 0/0 is
+/// the default NaN `0xFFC00000`, a negative jailed over capacity 0 is −∞.
 pub fn jailed_percentage(jailed: i32, capacity: i32) -> f32 {
     if jailed > capacity {
         1.0
+    } else if jailed == 0 && capacity == 0 {
+        f32::from_bits(DEFAULT_NAN)
     } else {
         div_ii(f64::from(jailed), f64::from(capacity))
     }
 }
 
+/// The month's end test for a jail in a jailbreak (§9.5 Comparisons):
+/// `jailedPercentage < endThreshold`, ordered, so a NaN percentage (no jail
+/// capacity and no jailed) never ends a jailbreak, nor does 1.0 (PR15).
+pub fn jailbreak_ends(jailed_percentage: f32, end_threshold: f32) -> bool {
+    jailed_percentage < end_threshold
+}
+
+/// The month's start test (§9.5): a draw is made only when `chance > 0`
+/// (ordered: zero, negative and NaN skip it), and the jailbreak begins when
+/// `draw < chance` (ordered). `draw` is called at most once.
+pub fn jailbreak_starts(chance: f32, draw: impl FnOnce() -> f64) -> bool {
+    chance > 0.0 && draw() < f64::from(chance)
+}
+
 /// One jail's population in `Recalculate` (§9.1):
 /// `roundHalfEven(capacity(j) × ratio)`.
 pub fn ratio_share(capacity: u32, ratio: f32) -> u32 {
-    rhe_u32(mul_i(f64::from(capacity), ratio))
+    rhe_jail(mul_i(f64::from(capacity), ratio))
 }
 
-/// Rehabilitation (§9.5): `k := roundHalfEven(jailed × rate)`;
-/// `jailed := max(0, jailed − k)`. Returns (new jailed, k).
+/// Rehabilitation (§9.5): `k := roundHalfEven(f32(jailed × rate))`;
+/// `jailed := max(0, jailed − k)`. Returns (new jailed, k). With the shipped
+/// rate 0.099999994, 135 → 13.499999 → 13 and jailed ≤ 5 never decreases.
 pub fn rehabilitation(jailed: i32, rate: f32) -> (i32, i32) {
-    let k = rhe(mul_i(f64::from(jailed), rate)).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
+    let k = rhe_trick(mul_i(f64::from(jailed), rate));
     (jailed.wrapping_sub(k).max(0), k)
 }
 
@@ -201,7 +240,7 @@ pub fn reset_unjailed(capacity: i32, jailed: i32, unarrested: i32, overflow: f32
 /// The escapees of a jailbreak (§9.5): `roundHalfEven(capacity(j) × r)`
 /// with `r` the generator's double, one `f32` rounding of the product.
 pub fn escapees(capacity: u32, r: f64) -> i32 {
-    rhe((f64::from(capacity) * r) as f32).clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+    rhe_trick((f64::from(capacity) * r) as f32)
 }
 
 #[cfg(test)]
@@ -242,9 +281,14 @@ mod tests {
 
     #[test]
     fn jail_numbers() {
-        assert_eq!(rehabilitation(600, 0.1), (540, 60));
-        assert_eq!(rehabilitation(125, 0.1), (113, 12));
-        assert_eq!(rehabilitation(135, 0.1), (121, 14));
+        // §18 test 9 with the shipped rate pct(10) = 0.099999994.
+        let rate = pct(10.0);
+        assert_eq!(rate.to_bits(), 0x3DCC_CCCC);
+        assert_eq!(rehabilitation(600, rate), (540, 60));
+        assert_eq!(rehabilitation(125, rate), (113, 12));
+        assert_eq!(rehabilitation(135, rate), (122, 13), "13.499999 -> 13");
+        assert_eq!(rehabilitation(6, rate), (5, 1));
+        assert_eq!(rehabilitation(5, rate), (5, 0), "0.49999997 -> 0");
         assert_eq!(rehabilitation(3, 2.0), (0, 6));
         assert_eq!(reset_unjailed(1000, 1200, 7, 1.1), (107, 1100));
         assert_eq!(reset_unjailed(1000, 900, 7, 1.1), (7, 900));
@@ -254,7 +298,29 @@ mod tests {
         assert_eq!(jailed_percentage(5, 0), 1.0);
         assert_eq!(escapees(600, 0.25), 150);
         assert_eq!(jail_capacity(400, 0.75), 300);
-        assert_eq!(jail_capacity(u32::MAX, f32::NAN), 0);
+        // The rounding trick (§9.1): exact below 2^22, other values above.
+        assert_eq!(jail_capacity(5_000_000, 1.0), 4_597_152);
+        assert_eq!(jailed_percentage(0, 0).to_bits(), DEFAULT_NAN);
+        assert_eq!(jailed_percentage(-1, 0), f32::NEG_INFINITY);
+        assert_eq!(jailed_percentage(800, 1000).to_bits(), 0x3F4C_CCCD);
+        // §18 test 24: ordered comparisons; NaN and 1.0 never end a jailbreak.
+        let end = pct(80.0);
+        assert!(!jailbreak_ends(jailed_percentage(800, 1000), end));
+        assert!(jailbreak_ends(jailed_percentage(799, 1000), end));
+        assert!(!jailbreak_ends(jailed_percentage(0, 0), end));
+        assert!(!jailbreak_ends(jailed_percentage(900, 0), end));
+        let mut draws = 0;
+        assert!(!jailbreak_starts(f32::from_bits(DEFAULT_NAN), || {
+            draws += 1;
+            0.0
+        }));
+        assert!(!jailbreak_starts(0.0, || {
+            draws += 1;
+            0.0
+        }));
+        assert_eq!(draws, 0);
+        assert!(!jailbreak_starts(pct(40.0), || f64::from(pct(40.0))));
+        assert!(jailbreak_starts(pct(40.0), || 0.39));
     }
 
     #[test]
@@ -280,7 +346,8 @@ mod tests {
         assert_eq!(occupant_coverage(&e, 1.1), (0.0, 400.0));
         let h = scale_effect(e, 0.5);
         assert_eq!(occupant_coverage(&h, 0.5), (0.0, 200.0));
-        assert_eq!(combine_strike_chance(&[0.1, 0.4]), 0.46);
+        // §18 test 5: 0.099999994, 0.39999998 -> 0.45999998.
+        assert_eq!(combine_strike_chance(&[pct(10.0), pct(40.0)]).to_bits(), 0x3EEB_851E);
         assert_eq!(combine_strike_chance(&[]), 0.0);
         assert_eq!(
             [
@@ -291,7 +358,17 @@ mod tests {
             [0, 255, 128]
         );
         assert_eq!(adjusted_value(5, f32::NAN), 0);
-        assert_eq!(pct(120.0), 1.2);
-        assert_eq!(pct(10.0), 0.1);
+        // §18 test 25 (float32 0.01f).
+        for (v, b) in [
+            (10.0, 0x3DCC_CCCC),
+            (20.0, 0x3E4C_CCCC),
+            (60.0, 0x3F19_9999),
+            (80.0, 0x3F4C_CCCC),
+            (90.0, 0x3F66_6666),
+            (110.0, 0x3F8C_CCCD),
+            (120.0, 0x3F99_9999),
+        ] {
+            assert_eq!(pct(v).to_bits(), b, "{v}");
+        }
     }
 }

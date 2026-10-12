@@ -21,7 +21,7 @@ use crate::rng::CrtRand;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::{Elem, Variant};
 
-use super::algo::{self, pct, trunc};
+use super::algo::{self, pct, times_hundred, trunc};
 use super::{
     history, msg, prop, BudgetItem, Effect, ObjRef, ProtectionHost, ProtectionKind, ProtectionMessage,
     ProtectionRandom, ProtectionTuning, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AUTOMATA_D, AUTOMATA_FIRE,
@@ -153,9 +153,9 @@ fn as_obj(r: RefValue) -> Option<ObjRef> {
     }
 }
 
-/// `curve(x × 100) × 0.01` with `double` constants (§6).
+/// `curve(x × 100.0f) × 0.01f`, each product one `f32` rounding (§6.2).
 fn curve_pct(curve: &ResponseCurve, x: f32) -> f32 {
-    pct(curve.eval(crate::crime::mul_f32(f64::from(x), 100.0)))
+    pct(curve.eval(times_hundred(x)))
 }
 
 /// What a base record read gives (§11).
@@ -179,7 +179,6 @@ struct PoliceRecord {
     funded_jails: Vec<ObjRef>,
     jails: Vec<ObjRef>,
     values: [i32; 8],
-    helicopter: Option<Option<ObjRef>>,
 }
 
 /// One fire or police simulator object.
@@ -568,23 +567,20 @@ impl ProtectionSim {
         if self.is_jail(o.token) {
             self.host.add_ref(o.token);
             self.d.borrow_mut().jail.jails.push(o);
-            let jail_dept = self.d.borrow().jail.jail_department;
-            if let Some(j) = jail_dept {
-                if self.item_with_department(o.token, JAIL_PURPOSE).is_some() {
-                    self.host.add_ref(o.token);
-                    self.d.borrow_mut().jail.funded_jails.push(o);
-                    self.host.add_locally_funded(j.token, o.token, JAIL_PURPOSE);
-                }
+            if let Some(dept) = self.item_department(o.token, JAIL_PURPOSE) {
+                self.host.add_ref(o.token);
+                self.d.borrow_mut().jail.funded_jails.push(o);
+                self.host.add_locally_funded(dept, o.token, JAIL_PURPOSE);
             }
             self.recalculate();
         }
     }
 
-    /// A budget item whose department exists (§5.2 step 4, §9.4).
-    fn item_with_department(&self, o: u64, purpose: u32) -> Option<BudgetItem> {
-        self.host
-            .budget_item(o, purpose)
-            .filter(|i| i.department_funding.is_some())
+    /// The department of the occupant's budget item for `purpose`, when the
+    /// item exists and `GetDepartmentBudget(item.departmentID)` is not null
+    /// (§5.2 step 4, §6.1, §9.4).
+    fn item_department(&self, o: u64, purpose: u32) -> Option<u64> {
+        self.host.budget_item(o, purpose).and_then(|i| i.department)
     }
 
     fn base_inserted(&self, o: ObjRef) {
@@ -598,7 +594,10 @@ impl ProtectionSim {
         let p = self.kind.params();
         self.host.add_ref(o.token);
         self.d.borrow_mut().stations.push(o);
-        let n = self.prop_u32(o.token, p.unit_count_prop).unwrap_or(0);
+        // [choice] n = 0 when the count is absent (the original's local is
+        // uninitialised).
+        let mut n = 0;
+        self.dispatches_at_station_into(o.token, None, None, &mut n);
         self.set_station_availability_flags(o.token, algo::unit_mask(n));
         let others: Vec<u64> = {
             let d = self.d.borrow();
@@ -608,12 +607,14 @@ impl ProtectionSim {
                 .map(|s| s.token)
                 .collect()
         };
+        // §8.2 step 2: the two locals carry over between stations, so one
+        // without the properties re-marks the previous range ([quirk]).
+        let (mut base, mut count) = (0u32, 0u32);
         let used: Vec<(u32, u32)> = others
             .into_iter()
-            .filter_map(|s| {
-                let count = self.prop_u32(s, p.unit_count_prop)?;
-                let base = self.prop_u32(s, p.base_prop)?;
-                Some((base, count))
+            .map(|s| {
+                self.dispatches_at_station_into(s, None, Some(&mut base), &mut count);
+                (base, count)
             })
             .collect();
         let next_call = self.d.borrow().next_call;
@@ -623,44 +624,50 @@ impl ProtectionSim {
             let mut d = self.d.borrow_mut();
             d.next_call = d.next_call.max(base.saturating_add(n));
         }
-        let dept = self.d.borrow().department;
-        if let Some(dept) = dept {
-            if self.item_with_department(o.token, p.purpose).is_some() {
-                self.host.add_locally_funded(dept.token, o.token, p.purpose);
-            }
+        if let Some(dept) = self.item_department(o.token, p.purpose) {
+            self.host.add_locally_funded(dept, o.token, p.purpose);
         }
         self.update_both_grids_by_position(e.x, e.z, e.radius);
     }
 
     /// `DoOccupantRemoved` (message-target slot 8).
     pub fn occupant_removed(&self, o: ObjRef) {
-        if self.is_police() {
-            let funded = {
-                let mut d = self.d.borrow_mut();
-                let i = d.jail.funded_jails.iter().position(|j| j.token == o.token);
-                i.map(|i| d.jail.funded_jails.remove(i))
-            };
-            if let Some(j) = funded {
-                self.host.release(j.token);
-            }
-            let jail = {
-                let mut d = self.d.borrow_mut();
-                let i = d.jail.jails.iter().position(|j| j.token == o.token);
-                i.map(|i| d.jail.jails.remove(i))
-            };
-            if let Some(j) = jail {
-                let jail_dept = self.d.borrow().jail.jail_department;
-                if let Some(dept) = jail_dept {
-                    if self.item_with_department(o.token, JAIL_PURPOSE).is_some() {
-                        self.host.remove_locally_funded(dept.token, o.token, JAIL_PURPOSE);
-                    }
-                }
-                self.recalculate();
-                self.host.release(j.token);
-            }
+        if !self.is_police() {
+            self.base_removed(o);
+            return;
         }
+        // §9.4 Remove (`0x006E1570`): only buildings.
+        if self.host.occupant_type(o.token) != OCCUPANT_TYPE_BUILDING {
+            return;
+        }
+        // Step 1 (PR8): the first matching entry of the locally-funded-jail
+        // list, with no other condition.
+        let funded = {
+            let mut d = self.d.borrow_mut();
+            let i = d.jail.funded_jails.iter().position(|j| j.token == o.token);
+            i.map(|i| d.jail.funded_jails.remove(i))
+        };
+        if let Some(j) = funded {
+            self.host.release(j.token);
+        }
+        // Step 2.
+        let jail = {
+            let mut d = self.d.borrow_mut();
+            let i = d.jail.jails.iter().position(|j| j.token == o.token);
+            i.map(|i| d.jail.jails.remove(i))
+        };
+        if let Some(j) = jail {
+            self.host.release(j.token);
+            // [choice] skipped when the item's department is missing (the
+            // original dereferences null).
+            if let Some(dept) = self.item_department(o.token, JAIL_PURPOSE) {
+                self.host.remove_locally_funded(dept, o.token, JAIL_PURPOSE);
+            }
+            self.recalculate();
+        }
+        // Step 3.
         self.base_removed(o);
-        if self.is_police() && self.is_station(o.token) {
+        if self.is_station(o.token) {
             self.host.post(msg::POLICE_STATION_CHANGED, None);
         }
     }
@@ -672,11 +679,8 @@ impl ProtectionSim {
         let Some(i) = self.find_station(o.token) else { return };
         let s = self.d.borrow_mut().stations.remove(i);
         let p = self.kind.params();
-        let dept = self.d.borrow().department;
-        if let Some(dept) = dept {
-            if self.item_with_department(o.token, p.purpose).is_some() {
-                self.host.remove_locally_funded(dept.token, o.token, p.purpose);
-            }
+        if let Some(dept) = self.item_department(o.token, p.purpose) {
+            self.host.remove_locally_funded(dept, o.token, p.purpose);
         }
         let (_, e) = self.station_effect(o.token);
         self.update_both_grids_by_position(e.x, e.z, e.radius);
@@ -731,8 +735,12 @@ impl ProtectionSim {
         g.fill(0);
         let stations = self.d.borrow().stations.clone();
         for s in &stations {
-            let (_, e) = self.station_effect(s.token);
-            Self::cone(&*g, &e);
+            // [choice] (§5.1): a station whose effect fails is skipped (the
+            // original draws the shared record's stale values).
+            let (ok, e) = self.station_effect(s.token);
+            if ok {
+                Self::cone(&*g, &e);
+            }
         }
         let t = self.kind.params().dispatch_type;
         let n = self.host.dispatch_count(t);
@@ -783,7 +791,8 @@ impl ProtectionSim {
             return;
         };
         let geom = adj.geometry();
-        let s = i64::from(geom.tract_size.clamp(1, 64));
+        // §5.3: S is the simulator's own tract-size constant, not the grid's.
+        let s = i64::from(TRACT_SIZE);
         let (n, factor) = {
             let d = self.d.borrow();
             (d.tracts_per_day, d.factor)
@@ -835,10 +844,17 @@ impl ProtectionSim {
         }
     }
 
+    /// Whether any zone-grid cell of tract (tx, tz) is zoned (§5.3).
+    /// [choice] cells outside the zone grid are skipped: negative ones here,
+    /// those past its end by the host (which reads them as 0).
     fn tract_zoned(&self, tx: i32, tz: i32, s: i64) -> bool {
         let (x0, z0) = (i64::from(tx) * s, i64::from(tz) * s);
+        let cells = 0..=i64::from(i32::MAX);
         for x in x0..x0 + s {
             for z in z0..z0 + s {
+                if !cells.contains(&x) || !cells.contains(&z) {
+                    continue;
+                }
                 if self.host.zone_value(x as i32, z as i32) != 0 {
                     return true;
                 }
@@ -854,13 +870,15 @@ impl ProtectionSim {
             let d = self.d.borrow();
             (d.pct, d.avg)
         };
-        let pct100 = crate::crime::mul_f32(f64::from(pct_v), 100.0);
+        // §5.4: float32 constants 100.0f and 0.5f, one rounding per
+        // operation, `trunc` = `_ftol`.
+        let pct100 = times_hundred(pct_v);
         self.host.record_history(p.history_pct, trunc(pct100));
         self.host.record_history(p.history_avg, trunc(avg));
         if self.kind == ProtectionKind::Fire {
             let police = self.host.police_percent_coverage().unwrap_or(0.0);
-            let police100 = crate::crime::mul_f32(f64::from(police), 100.0);
-            let safety = (pct100 + police100) * 0.5;
+            let police100 = times_hundred(police);
+            let safety = (pct100 + police100) * 0.5f32;
             self.host.record_history(history::SAFETY, trunc(safety));
         }
         self.host.post(p.msg_cycle, None);
@@ -871,13 +889,27 @@ impl ProtectionSim {
 
     // ---- formulas (§6) -------------------------------------------------------------------------------
 
-    /// `fundingOf(s, purpose)` (§6.1).
+    /// `fundingOf(s, purpose)` (§6.1): no item → 0; the item's department
+    /// missing → 1.0; locally funded in that department → the item's local
+    /// funding; else the department's funding.
     pub fn funding_of(&self, o: u64, purpose: u32) -> f32 {
-        match self.host.budget_item(o, purpose) {
-            None => 0.0,
-            Some(i) if i.locally_funded => i.local_funding,
-            Some(i) => i.department_funding.unwrap_or(1.0),
+        self.host.budget_item(o, purpose).map_or(0.0, |i| self.item_funding(&i))
+    }
+
+    fn item_funding(&self, i: &BudgetItem) -> f32 {
+        match i.department {
+            None => 1.0,
+            Some(_) if i.locally_funded => i.local_funding,
+            Some(dept) => self.host.department_funding(dept),
         }
+    }
+
+    /// `jailFunding(j)` (§9.1, `0x006E06E0`): §6.1 with the jail purpose,
+    /// except that no jail item gives 1.0.
+    pub fn jail_funding(&self, o: u64) -> f32 {
+        self.host
+            .budget_item(o, JAIL_PURPOSE)
+            .map_or(1.0, |i| self.item_funding(&i))
     }
 
     /// `GetStationEfficiency(s)` (§6.2; fire slot 10, police slot 25).
@@ -937,7 +969,7 @@ impl ProtectionSim {
                 }
             }
             None => {
-                let input = crate::crime::mul_f32(f64::from(f), 100.0);
+                let input = times_hundred(f);
                 let start = match self.kind {
                     ProtectionKind::Fire => {
                         let draw = self.rng.borrow_mut().range_f64(0.0, 100.0);
@@ -1086,17 +1118,14 @@ impl ProtectionSim {
             (d.jail.jailbreaks.clone(), d.tuning.end_jailbreak_capacity)
         };
         for j in &breaks {
-            if self.jailed_percentage() < end {
+            if algo::jailbreak_ends(self.jailed_percentage(), end) {
                 self.end_jailbreak(j.token);
             }
         }
         for j in &jails {
             let chance = self.chance_of_jailbreak(j.token);
-            if chance > 0.0 {
-                let draw = self.rng.borrow_mut().uniform_f64();
-                if draw < f64::from(chance) {
-                    self.begin_jailbreak(*j);
-                }
+            if algo::jailbreak_starts(chance, || self.rng.borrow_mut().uniform_f64()) {
+                self.begin_jailbreak(*j);
             }
         }
     }
@@ -1114,7 +1143,7 @@ impl ProtectionSim {
     /// `SetStationFunding(s, p)` (fire slot 9, police slot 8).
     pub fn set_station_funding(&self, o: u64, p: f32) -> bool {
         let purpose = self.kind.params().purpose;
-        if self.item_with_department(o, purpose).is_none() {
+        if self.item_department(o, purpose).is_none() {
             return false;
         }
         let Some(dept) = self.d.borrow().department else {
@@ -1143,34 +1172,76 @@ impl ProtectionSim {
 
     // ---- effects and coverage (§7) -------------------------------------------------------------------
 
-    /// `GetStationEffect(s)` (§7.1, message-target slot 14): (AL, effect).
+    /// `GetStationEffect(s)` on a zeroed record (every FreeCity4 caller):
+    /// (AL, effect). An absent police outer or radius therefore reads as 0
+    /// ([choice] of §7.1).
     pub fn station_effect(&self, o: u64) -> (bool, Effect) {
+        let mut e = Effect::default();
+        let ok = self.station_effect_into(o, &mut e);
+        (ok, e)
+    }
+
+    /// `GetStationEffect(s, record&)` (§7.1, message-target slot 14, PR2) on
+    /// the caller's record; the AL result.
+    ///
+    /// - Fire: centre, outer and radius := 0; all three are read; position
+    ///   and original centre are written; fails when the centre or the
+    ///   radius is absent, leaving the raw values unscaled.
+    /// - Police: centre := 0 and read; a zero or absent centre fails at once
+    ///   (every other field keeps the caller's value). Otherwise an absent
+    ///   outer or radius keeps the caller's value and the call succeeds.
+    pub fn station_effect_into(&self, o: u64, e: &mut Effect) -> bool {
         let p = self.kind.params();
-        let centre = self.prop_s32(o, p.effect_props[0]);
-        let outer = self.prop_s32(o, p.effect_props[1]);
-        let radius = self.prop_f32(o, p.effect_props[2]);
-        let pos = self.host.occupant_position(o);
-        let e = Effect {
-            x: pos[0],
-            z: pos[2],
-            radius: radius.unwrap_or(0.0),
-            centre: centre.unwrap_or(0),
-            outer: outer.unwrap_or(0),
-            original_centre: centre.unwrap_or(0),
-        };
-        let ok = radius.is_some() && (self.kind == ProtectionKind::Fire || centre.is_some_and(|c| c != 0));
-        if !ok {
-            return (false, e);
+        match self.kind {
+            ProtectionKind::Fire => {
+                let centre = self.prop_s32(o, p.effect_props[0]);
+                let outer = self.prop_s32(o, p.effect_props[1]);
+                let radius = self.prop_f32(o, p.effect_props[2]);
+                e.centre = centre.unwrap_or(0);
+                e.outer = outer.unwrap_or(0);
+                e.radius = radius.unwrap_or(0.0);
+                self.effect_position(o, e);
+                if centre.is_none() || radius.is_none() {
+                    return false;
+                }
+            }
+            ProtectionKind::Police => {
+                e.centre = self.prop_s32(o, p.effect_props[0]).unwrap_or(0);
+                if e.centre == 0 {
+                    return false;
+                }
+                if let Some(v) = self.prop_s32(o, p.effect_props[1]) {
+                    e.outer = v;
+                }
+                if let Some(v) = self.prop_f32(o, p.effect_props[2]) {
+                    e.radius = v;
+                }
+                self.effect_position(o, e);
+            }
         }
-        let eff = if self.host.is_prop_occupant(o) {
+        let eff = self.effect_efficiency(o);
+        *e = algo::scale_effect(*e, eff);
+        true
+    }
+
+    /// Writes the occupant's position (x, z) and original centre := centre.
+    fn effect_position(&self, o: u64, e: &mut Effect) {
+        let pos = self.host.occupant_position(o);
+        e.x = pos[0];
+        e.z = pos[2];
+        e.original_centre = e.centre;
+    }
+
+    /// The efficiency a station effect is scaled by (§7.1).
+    fn effect_efficiency(&self, o: u64) -> f32 {
+        if self.host.is_prop_occupant(o) {
             let dept = self.d.borrow().department;
             let funding = dept.map_or(1.0, |d| self.host.department_funding(d.token));
             let curve = self.d.borrow().tuning.funding_curve.clone();
             curve_pct(&curve, funding)
         } else {
             self.station_efficiency(o)
-        };
-        (true, algo::scale_effect(e, eff))
+        }
     }
 
     /// `GetDispatchEffect(automaton)` (§7.2, message-target slot 12).
@@ -1250,15 +1321,45 @@ impl ProtectionSim {
     /// when the count, or a requested flags/base, is absent; values not
     /// requested are 0. Flags are masked to `count` units.
     pub fn dispatches_at_station(&self, o: u64, want_flags: bool, want_base: bool) -> Option<(u32, u32, u32)> {
+        let (mut flags, mut base, mut count) = (0, 0, 0);
+        let ok = self.dispatches_at_station_into(
+            o,
+            want_flags.then_some(&mut flags),
+            want_base.then_some(&mut base),
+            &mut count,
+        );
+        ok.then_some((flags, base, count))
+    }
+
+    /// `GetDispatchesAtStation(s, flags*, base*, count*)` (§8.1) on the
+    /// caller's outputs: each requested output is written as soon as its
+    /// property is read (order count, flags, base); an absent property
+    /// leaves its output unchanged and ends the call with false.
+    pub fn dispatches_at_station_into(
+        &self,
+        o: u64,
+        flags: Option<&mut u32>,
+        base: Option<&mut u32>,
+        count: &mut u32,
+    ) -> bool {
         let p = self.kind.params();
-        let count = self.prop_u32(o, p.unit_count_prop)?;
-        let flags = if want_flags {
-            self.prop_u32(o, p.mask_prop)? & algo::unit_mask(count)
-        } else {
-            0
+        let Some(c) = self.prop_u32(o, p.unit_count_prop) else {
+            return false;
         };
-        let base = if want_base { self.prop_u32(o, p.base_prop)? } else { 0 };
-        Some((flags, base, count))
+        *count = c;
+        if let Some(f) = flags {
+            let Some(v) = self.prop_u32(o, p.mask_prop) else {
+                return false;
+            };
+            *f = v & algo::unit_mask(c);
+        }
+        if let Some(b) = base {
+            let Some(v) = self.prop_u32(o, p.base_prop) else {
+                return false;
+            };
+            *b = v;
+        }
+        true
     }
 
     /// `DispatchFromStation(s, id*)` (slot 9): the call ID, or `None` (AL =
@@ -1331,9 +1432,17 @@ impl ProtectionSim {
         })
     }
 
-    /// `GetMaxPossibleDispatchCount` (slot 5, [choice]).
+    /// `GetMaxPossibleDispatchCount` (dispatch-source slot 5, §7.3, PR1): one
+    /// `count` local starting at 0 and never reset, so a station without the
+    /// count property adds the previous station's count ([quirk]); signed
+    /// 32-bit sum.
     pub fn max_possible_dispatch_count(&self) -> i32 {
-        self.total_dispatch_count()
+        let stations = self.d.borrow().stations.clone();
+        let mut count = 0u32;
+        stations.iter().fold(0i32, |total, s| {
+            self.dispatches_at_station_into(s.token, None, None, &mut count);
+            total.wrapping_add(count as i32)
+        })
     }
 
     /// `GetDispatchAutomataProperties` (slot 11): (`*b`, `*c`, `*d`).
@@ -1356,20 +1465,21 @@ impl ProtectionSim {
     /// `GetJailCapacity(occ)` (slot 28); an absent capacity reads as 0.
     pub fn jail_capacity_of(&self, o: u64) -> u32 {
         let curve = self.d.borrow().tuning.jail_curve.clone();
-        let eff = curve_pct(&curve, self.funding_of(o, JAIL_PURPOSE));
+        let eff = curve_pct(&curve, self.jail_funding(o));
         algo::jail_capacity(self.prop_u32(o, prop::JAIL_CAPACITY).unwrap_or(0), eff)
     }
 
-    /// `Recalculate` (§9.1).
+    /// `Recalculate` (§9.1): capacity ≤ 0 → ratio 0; jailed > capacity →
+    /// 1; else `f32(jailed / capacity)`.
     pub fn recalculate(&self) {
         let jails = self.d.borrow().jail.jails.clone();
         let caps: Vec<u32> = jails.iter().map(|j| self.jail_capacity_of(j.token)).collect();
         let capacity = caps.iter().fold(0u32, |a, &c| a.wrapping_add(c)) as i32;
         let jailed = self.d.borrow().jail.jailed;
-        let ratio = if jailed > capacity {
-            1.0
-        } else if capacity == 0 {
+        let ratio = if capacity <= 0 {
             0.0
+        } else if jailed > capacity {
+            1.0
         } else {
             algo::div_ii(f64::from(jailed), f64::from(capacity))
         };
@@ -1481,19 +1591,14 @@ impl ProtectionSim {
     }
 
     /// `GetJailCurrentUpkeepCost(j)` (slot 37):
-    /// `trunc(float(cost) × localFunding)` as int64; 0 without an item.
-    /// [choice] a NaN or out-of-range product gives the integer indefinite
-    /// `i64::MIN`.
+    /// `trunc(float(cost) × localFunding)` as int64 (`_ftol`: a NaN or
+    /// out-of-range product gives `i64::MIN`); 0 without an item.
     pub fn jail_upkeep_cost(&self, o: u64) -> i64 {
         let Some(item) = self.host.budget_item(o, JAIL_PURPOSE) else {
             return 0;
         };
         let v = ((item.cost as f64) * f64::from(item.local_funding)) as f32;
-        if v.is_finite() && f64::from(v).abs() < 9.223_372_036_854_776e18 {
-            v.trunc() as i64
-        } else {
-            i64::MIN
-        }
+        crate::x87::ftol(f64::from(v))
     }
 
     /// The crime message (§9.2).
@@ -1527,22 +1632,25 @@ impl ProtectionSim {
         }
         if let Some((s, _)) = best {
             let mut stats = self.station_stats(s);
-            stats[2] = stats[2].wrapping_add(1);
             if arrest {
                 stats[3] = stats[3].wrapping_add(1);
             }
+            stats[2] = stats[2].wrapping_add(1);
             self.host.set_occupant_u32s(s, prop::STATION_STATS, &stats);
         }
     }
 
-    /// The station statistics vector (§9.2): four zeros when absent; padded
-    /// with zeros or truncated to four.
-    pub fn station_stats(&self, o: u64) -> [u32; 4] {
-        let mut stats = [0u32; 4];
-        if let Some(v) = self.host.occupant_property(o, prop::STATION_STATS) {
-            for (s, e) in stats.iter_mut().zip(v.items()) {
-                *s = e.as_i64() as u32;
-            }
+    /// The station statistics vector (§9.2, PR12): four zeros when absent; a
+    /// vector that is read keeps its length and extra elements, except that
+    /// a shorter one is padded with zeros to four ([choice]). Always at
+    /// least four elements.
+    pub fn station_stats(&self, o: u64) -> Vec<u32> {
+        let mut stats: Vec<u32> = self
+            .host
+            .occupant_property(o, prop::STATION_STATS)
+            .map_or_else(Vec::new, |v| v.items().iter().map(|e| e.as_i64() as u32).collect());
+        if stats.len() < 4 {
+            stats.resize(4, 0);
         }
         stats
     }
@@ -1577,9 +1685,14 @@ impl ProtectionSim {
             (d.jail.crimes_last, d.jail.arrests_last, d.stations.clone())
         };
         for s in &stations {
-            let v = self.station_stats(s.token);
-            self.host
-                .set_occupant_u32s(s.token, prop::STATION_STATS, &[v[2], v[3], 0, 0]);
+            // §9.2 monthly shift: [1] := [3], [0] := [2], [3] := [2] := 0;
+            // extra elements are written back unchanged.
+            let mut v = self.station_stats(s.token);
+            v[1] = v[3];
+            v[0] = v[2];
+            v[3] = 0;
+            v[2] = 0;
+            self.host.set_occupant_u32s(s.token, prop::STATION_STATS, &v);
         }
         self.host.record_history(history::CRIMES, crimes);
         self.host.record_history(history::ARRESTS, arrests);
@@ -1733,12 +1846,7 @@ impl ProtectionSim {
         inp.error() == 0
     }
 
-    fn read_police_record(
-        &self,
-        inp: &mut dyn InStream,
-        version: u16,
-        owned: &mut Vec<ObjRef>,
-    ) -> Option<PoliceRecord> {
+    fn read_police_record(&self, inp: &mut dyn InStream, owned: &mut Vec<ObjRef>) -> Option<PoliceRecord> {
         let jail_department = as_obj(inp.get_ref_as(IID_DEPARTMENT_BUDGET)?);
         if let Some(d) = jail_department {
             owned.push(d);
@@ -1753,15 +1861,6 @@ impl ProtectionSim {
         for v in &mut values {
             *v = inp.get_i32()?;
         }
-        let helicopter = if version > 7 {
-            let h = as_obj(inp.get_ref_as(IID_DISPATCH_SOURCE)?);
-            if let Some(h) = h {
-                owned.push(h);
-            }
-            Some(h)
-        } else {
-            None
-        };
         if inp.error() != 0 {
             return None;
         }
@@ -1770,13 +1869,12 @@ impl ProtectionSim {
             funded_jails,
             jails,
             values,
-            helicopter,
         })
     }
 
     fn read_police(&self, inp: &mut dyn InStream, version: u16) {
         let mut owned = Vec::new();
-        let Some(r) = self.read_police_record(inp, version, &mut owned) else {
+        let Some(r) = self.read_police_record(inp, &mut owned) else {
             for o in owned {
                 self.host.release(o.token);
             }
@@ -1802,14 +1900,25 @@ impl ProtectionSim {
             j.unarrested_this = unarrested;
             j.crimes_last = crimes_last;
             j.crimes_this = crimes_this;
-            if let Some(h) = r.helicopter {
-                released.extend(d.air_source.take());
-                d.air_source = h;
-            }
         }
         for o in released {
             self.host.release(o.token);
         }
+        if version > 7 {
+            self.read_air_source(inp);
+        }
+    }
+
+    /// The air dispatch source ref (§11, PR13): the current source is
+    /// released first (pointer cleared, then `Release`); a failed reference
+    /// leaves none (foundations §2.7).
+    fn read_air_source(&self, inp: &mut dyn InStream) {
+        let old = self.d.borrow_mut().air_source.take();
+        if let Some(o) = old {
+            self.host.release(o.token);
+        }
+        let source = inp.get_ref_as(IID_DISPATCH_SOURCE).and_then(as_obj);
+        self.d.borrow_mut().air_source = source;
     }
 }
 
@@ -1874,12 +1983,7 @@ impl SaveObject for ProtectionSim {
                 self.d.borrow_mut().loaded = true;
                 let _ = self.read_base(inp);
                 if version > 2 {
-                    let old = self.d.borrow_mut().air_source.take();
-                    if let Some(o) = old {
-                        self.host.release(o.token);
-                    }
-                    let source = inp.get_ref_as(IID_DISPATCH_SOURCE).and_then(as_obj);
-                    self.d.borrow_mut().air_source = source;
+                    self.read_air_source(inp);
                 }
             }
             ProtectionKind::Police => {
