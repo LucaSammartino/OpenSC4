@@ -16,6 +16,9 @@ Legend: **[confirmed]** read in code (Mac pseudocode, and Windows disassembly wh
 > filter 2 has no setter for its occupant filter. §5.5 — the pathfinder's ApplyTraffic does not mirror style 2.
 > From traffic-network.md: in the per-cell connection words the nibble is the **entry** side; `GetCapacity`
 > returns a float equal to `1/invCap`; wormhole bit 1 (subway station) is never set in 1.1.641.
+> From traffic-simulator.md: new trips are marked by status 4, not by a flag; property `0x4A611773` is never read;
+> work-cycle states 1, 9 and 14 are never entered; ferry terminals are saved; slots 11, 23 and 26 have the
+> compiled signatures given in traffic-simulator.md §7.
 
 ## 1. Responsibilities (summary)
 

@@ -900,11 +900,14 @@ The traffic simulator's save record belongs to traffic-simulator.md. For this sp
   - the switch mode-mask grid and the switch ID grid (as serialisable grids);
   - the next switch ID;
   - the switch table: count, then per switch its ID, building reference, load, time factor, capacity, the access
-    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to).
+    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to);
+  - the **ferry terminals** (corrected): `Write` `0x00712400` writes the terminal list after the per-type tables
+    (count, per-terminal fields, link lists with their f32 costs, s16 cells, u16 counters and route vectors), and
+    `Read` `0x00721990` rebuilds them through the same helper as `DoFerryTerminalActivated` (`0x00713DF0`, called
+    at `0x00723593` and `0x007235B1`). The byte layout is in traffic-simulator.md §6.
 - **Not saved** (rebuilt at load):
   - cell connection records and network info (§1, DoPostCityInit);
   - tunnel table: rebuilt from the occupant-insert messages during load *[inferred]*;
-  - ferry terminals (§10 Q2);
   - subnetwork labels and info;
   - the water depth map (recomputed on message `0x26D31EC1`).
 - **Lot property** `0x2A4F9C74` is saved with the lot as an ordinary property. It is rewritten by the next §4.12 pass.
@@ -1041,10 +1044,8 @@ Open questions:
   executable sets it. A scan found every write to that byte: the reset, the tunnel bit and the ferry bit. The
   subway-station branch is therefore dead in 1.1.641 *[inferred]*. Subway access works through transit switches
   instead. FreeCity4 never sets the bit *[compat]*.
-- **Q2** Ferry terminals are not saved and are created only by the lot-activated message. Whether loading a city
-  re-sends "lot state → 3" for every lot is the lot spec's question. If it does not, ferry links are absent after
-  load. Switches are saved and re-read (§1), which suggests the message is not re-sent *[inferred]*. This needs a
-  test in the original.
+- **Q2** *Answered*: ferry terminals are saved and re-read (§6), so they do not depend on the lot-activated message
+  being re-sent at load.
 - **Q3** Network flag meanings: `0x40000` (record flag bit 0), `0x200000` (excluded from the graph), `0x1F4F` (lane
   continuity).
 - **Q4** The off-map reads by pathfinder switch moves (pathfinder.md Q4) index the cell array and the switch grid

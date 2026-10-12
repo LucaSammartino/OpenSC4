@@ -46,10 +46,10 @@ container must release each element once.
 
 | Method (slot) | Container | Game allocator | SDK container compatible? | Notes | Evidence |
 |---|---|---|---|---|---|
-| `cISC4LotManager::GetLotsInCellRect` (7) | list of lots | B | **no**: free the nodes with `0x0090CF63` | clears the list first (B, keeps the head node); one reference each. See below | `0x0072E080` |
+| `cISC4LotManager::GetLotsInCellRect` (7) | list of lots | B | **no**: free the nodes with `0x0090CF63` | clears the list first: **releases every element** (slot 2) and frees its node with B, keeping the head node; then appends with one reference each and returns the number appended. See below | `0x0072E080` → clear `0x00473EC0` |
 | `cISC4LotManager::GetLotsSurroundingCell` (8, the `(x, z, list, flags)` overload) | list of lots | B | **no** | does not clear; appends; one reference per appended lot. Reaches slot 10 through slots 6 and 9 via the vtable | `0x0072A230` |
 | `cISC4LotManager::GetLotsSurroundingLot` (9, the `(lot, list, flags)` overload) | list of lots | B | **no** | does not clear; appends; one reference each. Reaches slot 10 through the vtable | `0x0072A750` |
-| `cISC4LotManager::GetLotsSurroundingRect` (10) | list of lots | B | **no** | does not clear; appends; one reference each | `0x0072E2B0` |
+| `cISC4LotManager::GetLotsSurroundingRect` (10) | list of lots | B | **no** | does not clear; appends only lots that do **not intersect** the rect; uniqueness is checked against the whole list, including elements present before the call; one reference each; returns the number appended in this call | `0x0072E2B0` |
 | `cISC4Lot::GetLotOccupants` (49) | list of occupants | A | yes | does not clear; appends; one reference each | `0x006BFF70` → occupant manager slot 40 `0x0049E250` → slot 36 `0x004A0670`; nodes `0x00413DD0` |
 | `cISC4NeighborsSimulator::GetAllConnections` (16) | list of neighbour connections | A | yes | clears first (A, releases each); one reference each | `0x006CFF00`; clear `0x00411D70`; insert `0x004A86F0` |
 | `cISC4NeighborsSimulator::GetConnectionsOfType` (17), `GetConnectionsOfTypeToCity` (18), `GetConnectionsToCity` (19) | list of neighbour connections | A | yes | clears first; one reference each | `0x006CFF30`, `0x006D0010`, `0x006D0100`; clear `0x00411D70` |
@@ -86,6 +86,14 @@ container must release each element once.
 | `cISC4TrafficSimulator::GetSubnetworksForLot` (39) | `vector<uint32_t>` | B | **no** | clears first, then fills from lot property `0x2A4F9C74` | `0x00711B50` |
 | `cISC4TrafficSimulator::GetSubnetworksInRectangle` (40), `GetSubnetworksInRegion` (41) | `vector<uint32_t>` | B | **no** | clears first, then appends with B. AL is undefined on return | `0x00718D20`, `0x00718F90` |
 | `cISC4TrafficSimulator::GetOccupantCountForAllSubnetworks` (42) | `vector<uint32_t>` | B | **no** | `assign(size, 0)` with B, then counts. AL is undefined on return | `0x007143B0` |
+| `cISC4ZoneManager::PlaceZone` (11), argument 10 `outLots` | `std::set<cRZAutoRefCount<cISC4Lot>>*` (MSVC tree; the SDK says `intptr_t`) | B (nodes) | **no** | does not clear; inserts each lot to be demolished (unique); AddRef only on a new insertion. The caller releases each element and frees the nodes with B | `0x004DDCBB` → `0x00467950` → `0x00467720` |
+| `cISC4ZoneManager::PlaceZone` (11), argument 1 `region` | `SC4CellRegion<long>&` (in/out) | C (row array and rows) | n/a | the game only clears the bits of rejected cells; it never reallocates or frees the region | `0x004DD780` |
+| `cISC4ZoneDeveloper::HighlightParcels` (5), argument 4 `out` | `SC4CellRegion<long>*` stored into `*out` | C (0x24-byte object, row array, rows) | n/a | the game allocates a new region (when it narrows the result it frees its first region and stores a new one). The caller owns the final region and frees rows, row array and object with C *[inferred: caller not traced]* | `0x00733A1C`, `0x00733E89`, `0x00733891` |
+| `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator object `{node, list}` | C | n/a | registered in the manager's iterator list (B node), advanced by lot removal; who frees it is not traced | `0x00734850` → `0x00734860`, `0x0072BA10` |
+| `cISC4LotManager::CreateLot` (23), `CreateLotIfPossible` (22), argument `out` | `cISC4Lot*&` | n/a | n/a | one reference for the caller, who releases it; the manager keeps its own | `0x0072E520` |
+| `cISC4LotManager::GetLot` (5, 6), `GetRandomLot` (13), `GetOccupantLot` (14) | `cISC4Lot*` | n/a | n/a | **no AddRef**; valid until the lot is deleted | `0x0072B410`, `0x0072B3C0`, `0x0072A110` |
+| message ZoningChange `0x07699455`, void2 (posted by `PlaceZone`) | `SC4CellRegion<long>*` | C | n/a | owned by the message; its destructor `0x004DCC30` frees it with C; receivers must neither free nor keep it | `0x004DD780`, `0x004DCC30` |
+| `cISC4TrafficSimulator::GetTravelStrategyPercentages` (26) | `std::vector<float>*` (the SDK passes an `SC4Vector` by value and returns `bool`) | B | **no** | resized to 3 with B, then filled; no return value. Pop 8 | `0x00718BB0` → `0x007169C0` |
 
 The list in slots 25 and 28–30 holds `cISC4NeighborDeal` references, not `cISC4NeighborConnection`.
 
@@ -113,6 +121,8 @@ container that already owns a B buffer, so the implementation also frees or regr
 | `cISC4FloraSimulator::GetAllFloraTypes` (8, the vector overload), `GetAllFloraFamilyTypes` (10) | `std::vector<uint32_t>` | B | **no** | the original clears first (end = begin, keeps the buffer) and appends with B growth (`0x0051CA60`: allocates with `0x0090CF54`, frees the old buffer with `0x0090CF63`). The lot editor passes a zeroed vector (no buffer) and afterwards frees the buffer with `0x0090CF63` | caller `0x00482DC0` (vector zeroed at `0x00482E57`, call `0x00482E6A`, freed `0x004832B2`); originals `0x006B0E90`, `0x006B0F10` |
 | `cISC4FloraSimulator::GetFloraTypesByFilter` (13), `GetFloraTypesByFamily` (14) | STLport `hash_set<uint32_t>` (see *hash_set* below) | B (nodes and bucket vector) | **no**, for both the allocator and the layout | the originals do not clear; they insert (a union). Slot 13's filter may be null. The callers build a fresh set with 193 buckets and destroy it with `0x008EBA60` (frees each node with B) and `0x0090CF63` (bucket vector) | callers `0x006CD010` (`cSC4LotDeveloper::PickFloraTypeForLot`), `0x0048B860` (`cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies`); originals `0x006B23A0`, `0x006B2460` (insert `0x00624DD0`, resize `0x004F0940`) |
 | `cISC4TractDeveloper::Grow` (5), called by the building development simulator's daily `Grow` | list of outcomes (contents never read by the caller) | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`, the tract developer appends, then the caller frees every node and the head with `0x0090CF63`. The original appends int32 outcome codes and never clears | caller `0x0069B0B0`; original appends at `0x0070D557`, `0x0070D65A`, `0x0070D727` |
+| `cISC4ZoneDeveloper::DoParcellization` (6), argument 1 | `const SC4CellRegion<long>&` | C | n/a | the zone manager passes the region it then attaches to ZoningChange (freed by the message with C); an implementation must neither free nor keep it | caller `0x004DD780`; original `0x00733FA0` |
+| `cISC4ZoneManager::PlaceZone` (11): the ZoningChange region it posts | `SC4CellRegion<long>*` | C | n/a | a replacement zone manager must allocate the region with C in the zones.md §11.4 layout (the game's message destructor frees it), or post its own message class | consumers: growth developers `0x006B4B90`; original `0x004DD780` |
 
 A compatible implementation of the B methods must allocate the list nodes, vector buffers and hash nodes and
 buckets with `0x0090CF54`. It must free any buffer it replaces, including one it was handed, with `0x0090CF63`.
@@ -138,6 +148,10 @@ iterator into it.
 | `cISC4TractDeveloper::GetActiveStyles` (9) / `SetActiveStyles` (10) | `std::vector<uint32_t>`: Get returns the member by reference; Set takes the caller's vector and assigns it into the member | B | **no** | Set's vector assignment (`0x00462C10`) may free and reallocate the member's buffer with B | `0x0070C840`, `0x00707470` |
 | `cISC4TrafficSimulator::GetFerryRouteBetweenTiles` (29) | pointer to a terminal link's or neighbour link's `vector<uint8_t>` (the SDK says `int32`) | B | **no** | owned by the simulator; the caller must neither free it nor keep it past the next rebuild | `0x00713B70` |
 | `cISC4TrafficSimulator::GetDesiredLotInsertionPoint` (22) | pointer to the lot manager's safe lot iterator (from lot manager slot 15; the SDK says `uint32`) | n/a | n/a | handed back to the lot manager by the caller | `0x00720010` |
+| `cISC4ZoneManager::GetZoneGrid` (5) | the `int8` zone grid | n/a | n/a | game grid object, no AddRef (simgrid §6.4) | `0x00698CF0` |
+| `cISC4LotManager::GetMaximumCapacityGrid` (27) | the `uint16` grid (class `0x49B9E604`; the SDK says `short`) | n/a | n/a | game grid object, no AddRef (simgrid §6.4) | `0x00809240`; constructor `0x0045F9B0` |
+| `cISC4TrafficSource::GetTripDataList` (3) | the source's `std::list<cSC4TripData>` (0x34-byte nodes), by reference (the SDK says `SC4List`) | B | **no** | owned by the lot or neighbour connection; the traffic simulator appends, erases and inserts split copies in it with B, and each trip's route and return-route `vector<uint8_t>` are B buffers filled by `GetCompressedRoute`. A replacement traffic source must hand out a list with this layout and allocator | `0x0080BC20`; `0x006C27E0`, `0x006D4E6B`, `0x0071D440`, `0x0071C6C0` |
+| `cISC4TrafficSimulator::GetTrafficEdgeDensity` (12) | pointer into the simulator's edge-density map, or to a shared zero record | n/a | n/a | borrowed; the caller owns nothing | `0x00711460`; zero record `0x00AB31D0` |
 | `cISC4BuildingDevelopmentSimulator::GetDevelopers` (34) | `std::map<uint32_t, cISC4GrowthDeveloper*>*` | B (nodes) | **no** | no AddRef; iterated by the demand simulator | `0x00698CD0` |
 | `cISC4BuildingDevelopmentSimulator::GetSpecialBuildings` (44) | `ilist<cISC4Occupant*>*` (this + 0x4C) | A | yes | each entry holds one reference owned by the simulator. The growth developer copies the elements into its own list (one AddRef each) | `0x00520080`; filled by `Read` `0x0069ACB0` (`ilist` ctor `0x00411870`); copied at `0x006B6569`–`0x006B65C1` |
 | `cISC4BuildingDevelopmentSimulator::GetExemplarName` (37), `GetBuildingName` (38) | `cRZString` inside a static hash map | B (character buffer) | n/a | an unknown type inserts an empty string; the caller must not release or free it | `0x0069AB20`, `0x0069AB00` |
@@ -263,8 +277,9 @@ other side's strings.
 ## GetLotsInCellRect
 
 With the last argument `false`, the method:
-1. first clears the list it is given, freeing every node with the STL node allocator (`0x0090CF63`) but keeping
-   the head node;
+1. first clears the list it is given: it **releases every element once** and frees every node with the STL node
+   allocator (`0x0090CF63`), keeping the head node (`0x00473EC0`). Never pass a list holding pointers the caller
+   has not referenced;
 2. then appends one node per lot (lots spanning several cells appear once), allocated with `0x0090CF54`;
 3. takes one reference on each lot;
 4. returns the number of lots appended.

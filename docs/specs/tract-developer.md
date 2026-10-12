@@ -426,7 +426,7 @@ The checks run in order; the first failure is returned. `hist[7][code] += 1` for
 | 2 | `redevelop` **and** `lot.IsInLivableState()` (slot 37) **and** `lot.GetDaysSinceLastStateChange()` (slot 40) `< 180` (unsigned) | 19 |
 | 3 | Construction info land value range: if min ≠ 0 or max ≠ 0, `lv := landValue.GetLandValue(x, z)` (land value slot 6, uint8) at the lot location; `lv < min` or `lv > max` | 22 |
 | 4 | `state := lot.GetState()` (slot 33): `state = 2` (Constructing) or `state ≥ 5` | 4 |
-| 5 | `lotManager.CanCreateLot(x1, z1, w, h, 0, 0, 0)` on the lot's bounding rectangle (slot 20). Result 7 or 8: pass. 0 → 0; 1 → 4; 2 → 6; 3 → 3; any other → 0 | as listed |
+| 5 | `lotManager.CanCreateLot(x1, z1, w, h, 0, 0, 0)` on the lot's bounding rectangle (slot 20). Result 7 (a lot already exists on the cell) or 8 (free): pass. 0 → 0; 1 → 4; 2 → 6; 3 → 3; any other → 0 | as listed |
 | 6 | If `lot.HasCapacity()` (slot 38), a building stands: (6a) `type := lot.GetBuildingType(false)` (slot 46) = 0 → 4; with `P :=` BDS `GetBuildingProfile(type)` (slot 39): (6b) `P.purpose = 5`, or `P.purpose = 7` while the developer's purpose is 6 → **15**; (6c) not kick-out **and** `P.wealth ≠ wealth` → 16; (6d) `wealth < P.wealth` → 16; (6e) `P.wealth = wealth` **and** `P.purpose ≠ purpose` → 16; (6f) `lot.IsHistorical()` (slot 43) → 18; (6g) stage: `s := ` the growth stage of the lot's configuration; equal wealth requires `maxStage > s`, otherwise `maxStage ≥ s`, else 17 | as listed |
 | 7 | Road access: purpose 1 → the traffic simulator's cell value at the lot location (traffic grid, member at `+0x34` of the traffic simulator's data *[inferred: the road-access bitmap]*) ≠ 0; purposes 6–8 → `lot.HasOrganicRoadAccess(purpose)` (slot 29); others → `lot.HasRoadAccess()` (slot 28). Failure | 21 |
 | | otherwise | 27 |
@@ -722,7 +722,8 @@ return r
    - release it.
 2. `built −= c.existing`; `lot := null`.
 3. `facing := c.facing`. If the purpose is 5–8 and the chosen configuration is square, `facing := −1`.
-4. Lot manager slot 22 `CreateLotIfPossible(x1, z1, w, h, facing, &lot, 0, 0, 0)` on `c.rect`.
+4. Lot manager slot 22 `CreateLotIfPossible(x1, z1, w, h, facing, &lot, 0, 0, 0)` on `c.rect`. With facing −1 this
+   costs one `U(4)` draw on the zone developer's generator (R9, zones.md).
 5. Terrain slot 68 `RedisplayTerrain(0, 0, &rect, 0)`.
 6. Return `lot ≠ null`.
 
@@ -927,6 +928,7 @@ if yearsSinceStyleChange ≥ yearsBetweenStyleChanges (signed):
 | R6 | `BuildFarm` field type (§4.15.2) | file-local | `RandomUint32Uniform(count)` | count of `0x29B55F73` (0 → no advance) | after `Build` succeeded, before the fields |
 | R7 | `UpdatePopulation` (§4.18) | temporary `cRZRandom`, seed `((tx<<16)+tz)<<4` | `RandomDoubleRangeUniform(a, b)` (`0x00913761`): 1 multiplicative step | `(−var, +var)`, then `(minVac0, minVac1)` when full | per lot in list order: 1 or 2 draws |
 | R8 | `Decline` (§4.19) | C `rand()` | 1 call (iterator `Reset(true)`) | | start of the call |
+| R9 | `PerformAggregation` (§4.15.3) with facing −1, inside the lot manager's `CreateLotIfPossible` → `CreateLotToFaceRoad` | the **zone developer's** file-local `cRZRandom` `0x00B4B398` (zones.md) | `RandomUint32Uniform(4)`: 1 LCG step | 4 | once per such call, on entry, before the lot is made |
 
 **Order within one `Grow`, per pass:**
 1. R1.

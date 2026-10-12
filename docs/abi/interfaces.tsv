@@ -459,34 +459,34 @@ cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	25	+0x64	00474f70		4	1	eax-o
 cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	26	+0x68	00474020		4	1	eax-or-void	medium	
 cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	27	+0x6C	00473fb0		4	1	eax-or-void	medium	
 cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	28	+0x70	00475630		4	1	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	0	+0x0	007347f0		8	2	eax-or-void	medium	tail->00729ef0
-cISC4LotManager	cSC4LotManager	00ab37c0	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
-cISC4LotManager	cSC4LotManager	00ab37c0	2	+0x8	00734820		0	0	eax-or-void	medium	tail->0072a270
-cISC4LotManager	cSC4LotManager	00ab37c0	3	+0xC	007348c0	__ZThn4_N17cSC4ZoneDeveloper4InitEv	0	0	eax-or-void	medium	tail->00734030
-cISC4LotManager	cSC4LotManager	00ab37c0	4	+0x10	007348b0	__ZThn4_N17cSC4ZoneDeveloper8ShutdownEv	0	0	eax-or-void	medium	tail->007335a0
-cISC4LotManager	cSC4LotManager	00ab37c0	5	+0x14	0072a1c0		4	1	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	6	+0x18	0072b410		12	3	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	7	+0x1C	0072e080		24	6	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	8	+0x20	0072a230		16	4	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	9	+0x24	0072a750		12	3	via-call	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	10	+0x28	0072e2b0		12	3	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	11	+0x2C	0072a790		12	3	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	12	+0x30	0072a820		12	3	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	13	+0x34	0072b3c0		0	0	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	14	+0x38	0072a110		4	1	via-call	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	15	+0x3C	00734850		0	0	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	16	+0x40	00809250	icf::cGZBufferSimGLCache::GetLastAccess	0	0	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	17	+0x44	0072a8f0		16	4	via-call	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	18	+0x48	0072a9f0		12	3	via-call	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	19	+0x4C	0072aac0		12	3	via-call	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	20	+0x50	0072c2d0		28	7	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	21	+0x54	007306c0		24	6	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	22	+0x58	00730a80		36	9	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	23	+0x5C	0072e520		24	6	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	24	+0x60	0072f8e0		4	1	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	25	+0x64	0072cae0		16	4	unknown	low	
-cISC4LotManager	cSC4LotManager	00ab37c0	26	+0x68	0072ae20		16	4	eax-or-void	medium	
-cISC4LotManager	cSC4LotManager	00ab37c0	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	0	+0x0	007347f0		8	2	eax-or-void	medium	tail->00729ef0
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	2	+0x8	00734820		0	0	eax-or-void	medium	tail->0072a270
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	3	+0xC	007348c0	__ZThn4_N17cSC4ZoneDeveloper4InitEv	0	0	eax-or-void	medium	tail->00734030
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	4	+0x10	007348b0	__ZThn4_N17cSC4ZoneDeveloper8ShutdownEv	0	0	eax-or-void	medium	tail->007335a0
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	5	+0x14	0072a1c0		4	1	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	6	+0x18	0072b410		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	7	+0x1C	0072e080		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	8	+0x20	0072a230		16	4	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	9	+0x24	0072a750		12	3	via-call	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	10	+0x28	0072e2b0		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	11	+0x2C	0072a790		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	12	+0x30	0072a820		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	13	+0x34	0072b3c0		0	0	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	14	+0x38	0072a110		4	1	via-call	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	15	+0x3C	00734850		0	0	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	16	+0x40	00809250	icf::cGZBufferSimGLCache::GetLastAccess	0	0	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	17	+0x44	0072a8f0		16	4	via-call	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	18	+0x48	0072a9f0		12	3	via-call	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	19	+0x4C	0072aac0		12	3	via-call	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	20	+0x50	0072c2d0		28	7	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	21	+0x54	007306c0		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	22	+0x58	00730a80		36	9	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	23	+0x5C	0072e520		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	24	+0x60	0072f8e0		4	1	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	25	+0x64	0072cae0		16	4	unknown	low	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	26	+0x68	0072ae20		16	4	eax-or-void	medium	
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
@@ -2013,6 +2013,7 @@ cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	39	+0x9C	00711b50	cSC4Traffi
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	40	+0xA0	00718d20	cSC4TrafficSimulator::GetSubnetworksInRectangle	8	2	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	41	+0xA4	00718f90	cSC4TrafficSimulator::GetSubnetworksInRegion	8	2	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	42	+0xA8	007143b0	cSC4TrafficSimulator::GetOccupantCountForAllSubnetworks	8	2	edx:eax?	low	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	43	+0xAC	007215a0	cSC4TrafficSimulator::~cSC4TrafficSimulator (scalar deleting dtor)	4	1	eax-or-void	medium	
 cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	0	+0x0	006e0060	cSC4PoliceSimulator::QueryInterface	8	2	eax-or-void	medium	
 cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	1	+0x4	0082be80	icf::cGZDrawContext::AddRef	0	0	eax-or-void	medium	
 cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	2	+0x8	006ad1b0	cSC4FireProtectionSimulator::Release	0	0	eax-or-void	medium	
@@ -3958,3 +3959,45 @@ cISTESurfaceWater	cSTESurfaceWater	00ab3b00	11	+0x2C	0073d7c0	cSTESurfaceWater::
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	12	+0x30	0073d7f0	cSTESurfaceWater::GetWaterType	8	2	eax-or-void	medium	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	13	+0x34	0073cdb0	cSTESurfaceWater::HasDraftClearance	8	2	eax-or-void	medium	
 cISTESurfaceWater	cSTESurfaceWater	00ab3b00	14	+0x38	0073e970	cSTESurfaceWater::~cSTESurfaceWater	4	1	eax-or-void	medium	
+cISC4TrafficSource	cSC4Lot	00ab1914	0	+0x0	006c22b0		8	2	eax-or-void	medium	tail->006bf190
+cISC4TrafficSource	cSC4Lot	00ab1914	1	+0x4	006c22c0		0	0	eax-or-void	medium	tail->004664a0
+cISC4TrafficSource	cSC4Lot	00ab1914	2	+0x8	006c2320		0	0	eax-or-void	medium	tail->006bf460
+cISC4TrafficSource	cSC4Lot	00ab1914	3	+0xC	0080bc20	cSC4OrdinanceSimple::GetChanceAvailability	0	0	eax-or-void	medium	
+cISC4TrafficSource	cSC4Lot	00ab1914	4	+0x10	006c27e0		0	0	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x6c2e14]
+cISC4TrafficSource	cSC4Lot	00ab1914	5	+0x14	006c22d0		4	1	eax-or-void	medium	
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	0	+0x0	006d47f0		8	2	eax-or-void	medium	tail->006ce000
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	1	+0x4	006d4800		0	0	eax-or-void	medium	tail->008ae800
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	2	+0x8	006d4810		0	0	eax-or-void	medium	tail->006ce060
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	3	+0xC	006d4790	cSC4Region::GetDirectoryName	0	0	eax-or-void	medium	
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	4	+0x10	006d4c10		0	0	eax-or-void	medium	
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	5	+0x14	006d4820		4	1	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	0	+0x0	00729ef0	cSC4ZoneDeveloper::QueryInterface	8	2	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	2	+0x8	0072a270	cSC4ZoneDeveloper::Release	0	0	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	3	+0xC	00734030	cSC4ZoneDeveloper::Init	0	0	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	4	+0x10	007335a0	cSC4ZoneDeveloper::Shutdown	0	0	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	5	+0x14	00733f30	cSC4ZoneDeveloper::HighlightParcels	16	4	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	6	+0x18	00733fa0	cSC4ZoneDeveloper::DoParcellization	12	3	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	7	+0x1C	007347c0	cSC4ZoneDeveloper::SetOptions	12	3	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	8	+0x20	0072fe10	cSC4ZoneDeveloper::ExistsNetworkOfType	12	3	eax-or-void	medium	
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	9	+0x24	0072a030	cSC4ZoneDeveloper::IsCellWater			forward	medium	indirect-jump dword ptr [eax + 0x88]
+cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	0	+0x0	004dcd50		8	2	eax-or-void	medium	tail->004dc1b0
+cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	2	+0x8	004dcd70		0	0	eax-or-void	medium	tail->004dc430
+cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	3	+0xC	004dca70	cSC4ZoneManager::DoMessage	4	1	eax-or-void	medium	
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	0	+0x0	004dcd60		8	2	eax-or-void	medium	tail->004dc1b0
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	2	+0x8	004dcd80		0	0	eax-or-void	medium	tail->004dc430
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	3	+0xC	004dc7a0	cSC4ZoneManager::Write	4	1	eax-or-void	medium	
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	4	+0x10	004dd400	cSC4ZoneManager::Read	4	1	eax-or-void	medium	
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	5	+0x14	004dc1a0	cSC4ZoneManager::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	0	+0x0	00734800		8	2	eax-or-void	medium	tail->00729ef0
+cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	1	+0x4	005200f0		0	0	eax-or-void	medium	tail->00695330
+cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	2	+0x8	00734830		0	0	eax-or-void	medium	tail->0072a270
+cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	3	+0xC	007328d0	cSC4ZoneDeveloper::DoMessage	4	1	eax-or-void	medium	
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	0	+0x0	00734810		8	2	eax-or-void	medium	tail->00729ef0
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	2	+0x8	00734840		0	0	eax-or-void	medium	tail->0072a270
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	3	+0xC	0072ab40		4	1	eax-or-void	medium	
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	4	+0x10	00734380		4	1	eax-or-void	medium	
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	5	+0x14	00729eb0	cSC4ZoneDeveloper::GetGZCLSID	0	0	eax-or-void	medium	

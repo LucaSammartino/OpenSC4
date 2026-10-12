@@ -28,6 +28,8 @@ GCC ones, so most offsets past the first container are different on Windows.
 > - §5: see tract-developer.md §10.3 for the corrected pass structure (strict first pass, relaxed later passes),
 >   takeover caps, capacity window, minimum-vacancy and years-between defaults, first-compatible-configuration
 >   rule, current-style-only check and road bits 0–2. `Grow` returns the capacity built (int32), not a bool.
+> - §2/§7: the zone manager dezones under a network occupant when the occupant has none of the network flags
+>   `0x80200090` (DoMessage `0x004DCA70`), not by occupant group (zones.md).
 > - Offsets quoted in this file are Mac offsets.
 
 ## 1. Overview

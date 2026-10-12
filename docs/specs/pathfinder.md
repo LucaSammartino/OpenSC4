@@ -748,12 +748,16 @@ Open questions:
 * **Q2** The occupant filter (filter 2) has no setter; filter 2 looks unusable *[inferred]*. Candidate call sites of
   `SetTripDestinationFilter(2)` found by a byte scan (`0x00545328`, `0x0060F588`, `0x006A1D10`, `0x0070E0BE`) are other
   interfaces (stream writes), not the pathfinder.
-* **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*.
+* **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*. The simulator applies routes with its own
+  `ApplyRoute` (`0x00719910`, traffic-simulator.md), which **does** mirror style 2 (the second add uses index
+  4·exit + entry) and adds transit-switch usage once; this slot does not mirror. For the first route cell
+  `ApplyRoute` tests `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
 * **Q4** A switch move towards an off-map cell reads the transit-switch map and the network info outside the map; the
   result there depends on the simulator's accessor bounds handling (traffic-network.md). FreeCity4 treats it as "no
   switch, no info" *[choice]*.
-* **Q5** The meaning of the destination types 0–3 is the traffic simulator's (trip types: three wealth levels and
-  freight *[inferred]*).
+* **Q5** *Answered* (traffic-simulator.md): destination types 0, 1, 2 are commuters of wealth $, $$, $$$ (jobs of
+  that wealth) and 3 is freight; property `0x8A0B4100` holds u16[12] = max [0..3], arrived this cycle [4..7]
+  (`0x0070DFF0` reads it as "used"), arrived last cycle [8..11].
 * **Q6** One grid of the simulator is fetched with GetGridData at the start of the main loop and the result is not
   used *[inferred]*.
 

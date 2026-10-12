@@ -613,7 +613,7 @@ va	name	source	confidence	note
 00441090	cSC4DisasterInstanceFire::GetCause	auto:C	low	mac 0033bd3c score 1.0 support 1
 00441170	cSC4TutorialTask::GetString	auto:D	medium	mac 000d3722 score 0.5 support 1
 00441360	cSC4TutorialTask::Init	auto:A	high	mac 000d49b2 score 0.603 support 0
-00441a60	cRZCellMap<bool>::SetValue	auto:B1	medium	mac 0061fe7a score 0.96 support 5.0
+00441a60	cRZCellMap<bool>::~cRZCellMap	manual:m4zone	medium	zones.md: cell-map destructor (was SetValue)
 00441aa0	cRZCellMap<bool>::cRZCellMap	auto:B7	medium	mac 0061fda6 score 0.876 support 1.0
 00441b50	cSC4TutorialUIWinProc::LoadArrow	auto:B0	medium	mac 00085394 score 0.966 support 2.0
 00441bd0	cSC4TutorialUIWinProc::KillArrow	auto:B0	medium	mac 000851e4 score 0.947 support 1.0
@@ -1008,6 +1008,7 @@ va	name	source	confidence	note
 004664b0	cSC4Demolition::QueryInterface	auto:C	high	mac 000ad23c score 1.0 support 1
 00466530	cSC4OccupantImmovabilityFilter::IsOccupantIncluded	auto:B1	medium	mac 00631c86 score 0.984 support 3.5
 004665c0	cSTETerrainView3D::SetWaterColorUpdateRect	auto:D	medium	mac 004eece0 score 0.5 support 1
+00466610	SC4CellRegion<long>::IncludesCell	manual:m4zone	medium	zones.md
 00466700	cSC4DemolitionOccupantFilter::cSC4DemolitionOccupantFilter	auto:B5	medium	mac 00632e6c score 0.95 support 1.0
 00466730	cSC4DemolitionOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006326f6 score 0.987 support 6.5
 00466920	cSC4Demolition::~cSC4Demolition	auto:C	high	mac 000ad1be score 1.0 support 1
@@ -1021,7 +1022,7 @@ va	name	source	confidence	note
 004670c0	cSC4Demolition::DemolishLots	auto:C	high	mac 000ad730 score 1.0 support 1
 004673b0	cSC4Demolition::DoDemolishGroupEffect	auto:A	high	mac 000ad506 score 1.0 support 0
 004676e0	std::_Rb_tree<cRZAutoRefCount<cISC4Lot>,cRZAutoRefCount<cISC4Lot>,std::_Identity<cRZAutoRefCount<cISC4Lot>>,std::less<cISC4Lot*>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::~_Rb_tree	auto:D	medium	mac 006329b0 score 0.5 support 1
-00467950	SC4CellRegion<long>::IncludesCell	auto:B8	medium	mac 006056b2 score 0.813 support 2.0
+00467950	std::set<cRZAutoRefCount<cISC4Lot>>::insert	manual:m4zone	medium	zones.md: set insert (was SC4CellRegion<long>::IncludesCell; the real one is 0x00466610)
 00467a10	std::list<cRZAutoRefCount<cISC4Lot>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::push_front	auto:D	medium	mac 00632314 score 0.5 support 1
 00467b80	std::set<cRZAutoRefCount<cISC4Occupant>,std::less<cISC4Occupant*>,std::allocator<cRZAutoRefCount<cISC4Occupant>>>::insert	auto:B2	medium	mac 006326b4 score 0.934 support 2.0
 00467bb0	cSC4Demolition::ModifyTerrainHeight	auto:C	high	mac 000ada30 score 1.0 support 1
@@ -1143,7 +1144,7 @@ va	name	source	confidence	note
 00472eb0	cSC4MessageServer2::cSC4MessageServer2	auto:D	medium	mac 0002912c score 0.5 support 1
 004731a0	std::_List_base<cRZAutoRefCount<cIGZWin>,std::allocator<cRZAutoRefCount<cIGZWin>>>::_M_clear	auto:B2	medium	mac 0082daf8 score 0.91 support 1.0
 00473440	SendFatalExceptionNotification	auto:A	high	mac 00028fcc score 1.0 support 0
-00473ec0	std::_List_base<cRZAutoRefCount<cISC4Lot>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::~_List_base	auto:B4	medium	mac 006321e2 score 0.796 support 6.0
+00473ec0	std::list<cRZAutoRefCount<cISC4Lot>>::clear	manual:m4zone	medium	zones.md, allocators.md: releases each element, frees nodes with B, keeps the head
 004744e0	cSC4GameDataRegistry::cEntry::cEntry	auto:B2	medium	mac 007f84ba score 0.934 support 2.0
 004748f0	cSC4GameDataRegistry::cSC4GameDataRegistry	auto:A	high	mac 0048e1be score 0.696 support 0
 00475330	cDumpSubTreeVisitor::sVisit	auto:A	high	mac 007f8964 score 1.0 support 0
@@ -7283,6 +7284,7 @@ va	name	source	confidence	note
 0072c0e0	cSC4ZoneDeveloper::ClearHighlight	auto:B14	medium	mac 000dd426 score 0.911 support 1.0
 0072c200	cSC4ZoneDeveloper::CanCreateLot	auto:B14	medium	mac 000e1e5c score 0.95 support 1.0
 0072c600	std::_Rb_tree<int,std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>,std::_Select1st<std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>>,std::less<int>,std::allocator<std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>>>::insert_unique	auto:B2	medium	mac 00648eae score 0.812 support 1.0
+0072c810	cSC4ZoneDeveloper::InsertLotAtSafeIterator	manual:m4zone	medium	zones.md: inserts at a safe-iterator position
 0072c8e0	cSC4ZoneDeveloper::PlopAllLotTypes	auto:B5	medium	mac 000db8aa score 0.964 support 2.0
 0072cb90	cSC4ZoneDeveloper::CreateParcellizableRegion	auto:D	medium	mac 000e1a36 score 0.5 support 1
 0072cda0	cSC4ZoneDeveloper::ExtractConnectedCells	auto:D	medium	mac 000dd8d2 score 0.5 support 1
@@ -11383,7 +11385,7 @@ va	name	source	confidence	note
 00913a06	cRZRandomSuper::RandomUint32Uniform	auto:B0	medium	mac 00026f36 score 0.882 support 6.0
 00913a14	cRZRandomSuper::RandomSint32RangeUniform	auto:B5	medium	mac 0002709a score 0.861 support 3.0
 00913a29	cRZRandomSuper::RandomDoubleUniform	auto:B0	medium	mac 00026f04 score 0.906 support 6.0
-00913a46	__gnu_cxx::hash_map<unsigned_long,cISC4PathInfo::tPath,__gnu_cxx::hash<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<cISC4PathInfo::tPath>>::hash_map	auto:D	medium	mac 00692092 score 0.5 support 1
+00913a46	cRZRandom::RandomDoubleRangeUniform	manual:m4zone	medium	traffic-simulator.md (was a hash_map method)
 00913a5c	cRZRandom::cRZRandom	auto:B0	medium	mac 00026bd2 score 0.894 support 11.0
 00913a72	cRZRandomSuper::Seed	auto:B1	medium	mac 00026f8c score 0.825 support 1.0
 00913b74	cRZRandomSuper::cRZRandomSuper	auto:B0	medium	mac 00027076 score 1.0 support 2.0

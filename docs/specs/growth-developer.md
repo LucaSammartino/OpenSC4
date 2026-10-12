@@ -734,7 +734,7 @@ SDK comparison (`cISC4GrowthDeveloper.h`): slot order, argument sizes and pointe
 | | 53 `+0xD4` | GetStagePopulationMultiplier | 0 | ST0 | §5.5 |
 | | static `0x00695390` | BuildingFitsInZone(zoneCode, zoneType) (cdecl) | caller | AL | §6.1 |
 | `cISC4TractDeveloper` (`0x00AB3118`) | 7 `+0x1C` | UpdatePopulation(const GrowthProfile&) | 4 | ignored | §5.2 |
-| `cISC4ZoneManager` (`0x00A92E00`) | 12 `+0x30` | GetZoneType(x, z) | 8 | AL (signed) | §6.1 |
+| `cISC4ZoneManager` (`0x00A92E00`) | 12 `+0x30` | GetZoneType(x, z) | 8 | EAX (int8 sign-extended to 32 bits, `0x004DC740`) | §6.1 |
 | `cISC4LandValueSimulator` (`0x00AB1670`) | 7, 8, 9 | intrinsic / total (`uint8`), slope (`float`) maps | 0 | EAX | §4.3 |
 | `cISC4ResidentialSimulator` (`0x00AB2C10`) | 5 `+0x14` | GetProximityMap(wealth 1..3) | 4 | EAX | |
 | | 39 `+0x9C`, 40 `+0xA0` | school / hospital grade maps (`float`) | 0 | EAX | |
