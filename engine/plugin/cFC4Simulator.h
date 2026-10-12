@@ -105,6 +105,8 @@ private:
     void RegisterCheats();
     void UnregisterCheats();
     void Post(const fc4_message& msg);
+    bool QueryInterfaceImpl(uint32_t riid, void** ppvObj);
+    bool TracePause(const char* name, bool ok);
 
     uint32_t refCount_ = 0;
     uint32_t serviceId_;
@@ -117,5 +119,9 @@ private:
     bool commandRegistered_ = false;
     bool addedToFramework_ = false;
     bool postCityInitSubscribed_ = false;
+    // Diagnostics counters (FC4_LOG_LEVEL=2).
+    uint32_t qiLogged_ = 0;
+    uint32_t ticks_ = 0;
+    uint32_t messagesLogged_ = 0;
     uint32_t daysLogged_ = 0;
 };

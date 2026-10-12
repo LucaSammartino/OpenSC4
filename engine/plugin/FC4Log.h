@@ -12,14 +12,36 @@
 // root); if not, see <https://www.gnu.org/licenses/>.
 
 // Plain-text log written to FreeCity4.log next to FreeCity4.dll (falls back
-// to %TEMP%\FreeCity4.log if that directory is not writable).
+// to %TEMP%\FreeCity4.log if that directory is not writable). Every line is
+// flushed and the file closed immediately, so nothing is lost on a crash.
+//
+// Verbosity comes from the environment variable FC4_LOG_LEVEL, read once:
+//   0 = off, 1 = info (lifecycle lines), 2 = verbose (call tracing; default).
 #pragma once
 
 namespace fc4 {
 
+constexpr int kLogOff = 0;
+constexpr int kLogInfo = 1;
+constexpr int kLogVerbose = 2;
+
+int LogLevel();
+
+// Info-level line.
 void Log(const char* format, ...);
 
-// Full path of the log file in use (empty until the first Log call).
+// Verbose line; use the FC4_LOGV macro so arguments are not evaluated when off.
+void LogVerboseImpl(const char* format, ...);
+
+// Full path of the log file in use (empty until the first line is written).
 const char* LogPath();
 
+// Full path of this DLL.
+const char* ModulePath();
+
 }  // namespace fc4
+
+#define FC4_LOGV(...)                                                  \
+    do {                                                               \
+        if (::fc4::LogLevel() >= ::fc4::kLogVerbose) ::fc4::LogVerboseImpl(__VA_ARGS__); \
+    } while (0)
