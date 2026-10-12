@@ -28,14 +28,16 @@
 //!   not know its ID yet); `Init` after a load re-keys every entry by
 //!   `GetID()` (the first entry wins on a clash, entries with ID 0 keep their
 //!   class key), so a plugin ordinance whose class ID differs from its ID is
-//!   found by ID after a load.
+//!   found by ID after a load. This is a documented difference: the original
+//!   never re-keys (ordinance.md §9.1).
 //! - `GetCumulativeOffset` returns the 32-bit sum sign-extended to 64 bits
 //!   (§6.1).
 //! - A missing residential simulator reads as population 0; a missing
 //!   department or line item as 0 expenses (JuniorSports' condition is then
 //!   false); TrashPresort without a budget simulator returns its constant.
-//! - `GetRecyclingCenterEffect` is passed through as `f32` (the SDK declares
-//!   `int32`; the spec's `× 100 > 0` reads as a fraction): spec question.
+//! - `GetRecyclingCenterEffect`: the game's getter returns a pointer to an
+//!   `f32` fraction (ordinance.md §3.6, pollution §8); the host trait passes
+//!   the dereferenced `f32` (the plugin reads through the pointer).
 //! - LegalizeGambling's side effects run on every `SetOn(false)`, also when
 //!   the on flag was already clear (§3.6 "every"). `demolish_lots` is called
 //!   even with an empty list; the host may skip the utility call then.
