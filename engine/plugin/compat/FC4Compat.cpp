@@ -39,6 +39,7 @@ const ExecutableVersion kVersions[] = {
         0x00B0A83C,  // MillisecsToCycles (float)
         0x0090CF54,  // STL node allocator: allocate (docs/abi/allocators.md)
         0x0090CF63,  // STL node allocator: free
+        0x00A80810,  // cRZString vtable (docs/abi/allocators.md, Strings)
     },
 };
 
@@ -255,6 +256,35 @@ bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release) {
     if (allocate != nullptr) *allocate = a;
     if (release != nullptr) *release = f;
     return true;
+}
+
+const void* GameStringVtable() {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static const void* vtable = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        MEMORY_BASIC_INFORMATION mbi{};
+        const uintptr_t va = v ? v->rzStringVtableVA : 0;
+        bool ok = v != nullptr && va % 4 == 0 && VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) == sizeof(mbi) &&
+                  mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                  reinterpret_cast<uintptr_t>(mbi.AllocationBase) == v->imageBase &&
+                  !(mbi.Protect & (PAGE_GUARD | PAGE_NOACCESS));
+        if (ok) {
+            // The first entry (QueryInterface) must be code inside the image.
+            const uintptr_t first = *reinterpret_cast<const uintptr_t*>(va);
+            ok = CheckCode("cRZString vtable entry 0", first, v->imageBase);
+        }
+        if (ok) {
+            vtable = reinterpret_cast<const void*>(va);
+            state = 1;
+            Log("compat: cRZString vtable at 0x%08lX", static_cast<unsigned long>(va));
+        } else {
+            Log("compat: cRZString vtable NOT available (%s); game strings are refused",
+                v ? "address rejected" : "executable not identified");
+        }
+    }
+    return state == 1 ? vtable : nullptr;
 }
 
 const ExecutableVersion* SupportedVersions(int* count) {

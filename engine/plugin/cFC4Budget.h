@@ -89,9 +89,9 @@ public:
     bool RemoveDepartmentBudget(uint32_t dwDepartmentID) override;
     cISC4DepartmentBudget* GetDepartmentBudgetByName(cIGZString const& szDepartmentName) override;
     cISC4DepartmentBudget* GetDepartmentBudget(uint32_t dwDepartmentID) override;
-    bool GetAllGroups(SC4Vector<BudgetGroupInfo>& sGroups) override;
+    bool GetAllGroups(fc4::GameVector<fc4::GameBudgetGroupInfo>& sGroups) override;
     bool SetGroupName(uint32_t dwGroupID, cIGZString& szName) override;
-    bool GetDepartmentBudgetsInGroup(uint32_t dwGroupID, SC4Vector<cISC4DepartmentBudget*>& sGroups) override;
+    bool GetDepartmentBudgetsInGroup(uint32_t dwGroupID, fc4::GameVector<cISC4DepartmentBudget*>& sGroups) override;
     void NeededFundingChanged(cISC4DepartmentBudget* pDepartmentBudget) override;
     void FundingPercentageChanged(cISC4DepartmentBudget* pDepartmentBudget) override;
     int64_t GetFundingById(uint32_t dwUnknownID) override;
@@ -106,11 +106,11 @@ public:
     int64_t GetCurrentBondLimit() override;
     int64_t GetCurrentMaxOutstandingBondsLimit() override;
     int64_t GetTotalMonthlyBondPayments() override;
-    bool GetAllLoans(SC4Vector<LoanInfo>& sLoans) override;
+    bool GetAllLoans(fc4::GameVector<LoanInfo>& sLoans) override;
     int32_t GetLoanTimeInMonths() override;
     int64_t GetMonthlyPaymentForLoan(int64_t llLoanAmount) override;
     int64_t GetFullCostOfLoan(int64_t llLoanAmount) override;
-    bool GetBudgetItemInfo(cISCPropertyHolder* pProperty, SC4Vector<BudgetItem>& sBudgetInfo) override;
+    bool GetBudgetItemInfo(cISCPropertyHolder* pProperty, fc4::GameVector<BudgetItem>& sBudgetInfo) override;
     bool GetBudgetItemForPurpose(cISCPropertyHolder* pProperty, uint32_t dwPurpose, BudgetItem& sBudgetItem) override;
     bool ChangeBudgetItemLine(cISCPropertyHolder* pProperty, uint32_t dwIndex, uint32_t dwLine) override;
     bool ChangeBudgetItemCost(cISCPropertyHolder* pProperty, uint32_t dwIndex, int64_t llCost) override;
@@ -182,7 +182,7 @@ public:
     cISC4LineItem* CreateLineItemForBuildingType(uint32_t buildingIID, bool isLocallyFunded) override;
     bool RemoveLineItem(uint32_t lineNumber) override;
     cISC4LineItem* GetLineItem(uint32_t lineNumber) override;
-    bool GetAllLineItems(SC4Vector<cISC4LineItem*>& destination) override;
+    bool GetAllLineItems(fc4::GameVector<cISC4LineItem*>& destination) override;
     bool AddLocallyFundedObject(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
     bool RemoveLocallyFundedObject(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
     bool SetLocalFundingPercent(cISCPropertyHolder* pPropertyHolder, SC4Percentage* percentage,
@@ -194,7 +194,7 @@ public:
     bool RecalculateAllLineItemCurrentExpenses() override;
     int64_t GetTotalSpending() const override;
     bool SetTotalSpending(int64_t value) override;
-    bool GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4List<cISCPropertyHolder*>& list) override;
+    bool GetLocallyFundedItemsByPurpose(uint32_t purpose, fc4::GameList<cISCPropertyHolder*>& list) override;
     bool HasLocallyFundedItemsByPurpose(uint32_t purpose) override;
 
     bool Write(cIGZOStream& gzOut) override;

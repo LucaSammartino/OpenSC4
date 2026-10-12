@@ -22,7 +22,7 @@
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
-#include "FC4GameContainers.h"
+#include "FC4GameList.h"
 #include "SC4String.h"
 #include "SC4Vector.h"
 #include "cIGZApp.h"
@@ -46,6 +46,7 @@
 #include <windows.h>
 
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 using fc4::FromToken;
@@ -540,21 +541,55 @@ cISC4DepartmentBudget* cFC4BudgetSimulator::GetDepartmentBudgetByName(cIGZString
 }
 
 namespace {
+// The game's containers (allocators.md, table (2)) are only touched with its
+// STL node allocator (and its cRZString vtable for strings). On an unknown
+// executable the method leaves the container untouched and returns false
+// (logged once per method). [choice] false = "no result".
+bool GameMemory(const char* method, bool strings) {
+    const bool ok = fc4::StlNodeAllocator::Available() && (!strings || fc4::StlNodeAllocator::StringVtable() != nullptr);
+    if (!ok) {
+        static std::unordered_set<std::string> logged;
+        if (logged.insert(method).second) {
+            fc4::Log("budget: WARNING %s refused: the game's container allocator is unavailable; no result", method);
+        }
+    }
+    return ok;
+}
+
+struct GroupsFill {
+    fc4::GameVector<fc4::GameBudgetGroupInfo>* v;
+    bool ok;
+};
+
 void PushGroup(void* ctx, const fc4_budget_group* g, const uint8_t* name, size_t len, const uint32_t*) {
-    auto* v = static_cast<SC4Vector<cISC4BudgetSimulator::BudgetGroupInfo>*>(ctx);
-    // The element owns its name's buffer; the vector (the game) must be its
-    // only owner (FC4GameContainers.h). The SC4String temporary is moved
-    // from, so its destructor frees nothing.
-    fc4::PushOwned(*v, g->id, SC4String(reinterpret_cast<const char*>(name), static_cast<uint32_t>(len)),
-                   g->total_expense, g->total_income);
+    auto* f = static_cast<GroupsFill*>(ctx);
+    if (!f->ok) return;
+    fc4::GameBudgetGroupInfo info{};
+    info.groupID = g->id;
+    info.totalExpense = g->total_expense;
+    info.totalIncome = g->total_income;
+    // The name's buffer is B; the vector (the game) becomes its only owner.
+    if (!fc4::GameStringInit(info.groupName, reinterpret_cast<const char*>(name), len)) {
+        f->ok = false;
+        return;
+    }
+    if (!f->v->push_back(info)) {
+        fc4::GameStringDestroy(info.groupName);
+        f->ok = false;
+    }
 }
 }  // namespace
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector<BudgetGroupInfo> and its SC4Strings.
-bool cFC4BudgetSimulator::GetAllGroups(SC4Vector<BudgetGroupInfo>& groups) {
+// [abi] std::vector<BudgetGroupInfo> (B) with cRZString names (B buffers):
+// allocators.md table (2). The callers pass an empty vector and destroy the
+// names inline with B.
+bool cFC4BudgetSimulator::GetAllGroups(fc4::GameVector<fc4::GameBudgetGroupInfo>& groups) {
     FC4_TRACE("BudgetSimulator::GetAllGroups");
+    if (!GameMemory("GetAllGroups", true)) return false;
     groups.clear();
-    fc4_budget_get_all_groups(core_, &PushGroup, &groups);
+    GroupsFill fill{&groups, true};
+    fc4_budget_get_all_groups(core_, &PushGroup, &fill);
+    if (!fill.ok) fc4::Log("budget: WARNING GetAllGroups: out of game memory; %u group(s) returned", static_cast<unsigned>(groups.size()));
     return true;
 }
 
@@ -564,16 +599,19 @@ bool cFC4BudgetSimulator::SetGroupName(uint32_t id, cIGZString& name) {
     return fc4_budget_set_group_name(core_, id, reinterpret_cast<const uint8_t*>(s.data()), s.size());
 }
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
-bool cFC4BudgetSimulator::GetDepartmentBudgetsInGroup(uint32_t id, SC4Vector<cISC4DepartmentBudget*>& out) {
+// [abi] std::vector (B): allocators.md table (2). Cleared as the original
+// does (end = begin, capacity kept, no releases); one reference each.
+bool cFC4BudgetSimulator::GetDepartmentBudgetsInGroup(uint32_t id, fc4::GameVector<cISC4DepartmentBudget*>& out) {
     FC4_TRACE("BudgetSimulator::GetDepartmentBudgetsInGroup");
+    if (!GameMemory("GetDepartmentBudgetsInGroup", false)) return false;
     out.clear();
     std::vector<uint64_t> tokens;
     fc4_budget_get_departments_in_group(core_, id, &PushToken, &tokens);
+    if (!out.reserve(out.size() + tokens.size())) return false;
     for (uint64_t t : tokens) {
         cISC4DepartmentBudget* d = DeptOf(t);
         d->AddRef();  // one reference per element (spec §1)
-        out.push_back(d);
+        out.push_back(d);  // reserved: cannot fail
     }
     return true;
 }
@@ -648,7 +686,19 @@ void PushLoan(void* ctx, const fc4_loan_info* l) {
     info.totalLoanAmount = l->total_loan_amount;
     info.remainingPayment = l->remaining_payment;
     info.monthlyPayment = l->monthly_payment;
-    fc4::PushTrivial(*static_cast<SC4Vector<cISC4BudgetSimulator::LoanInfo>*>(ctx), info);
+    static_cast<std::vector<cISC4BudgetSimulator::LoanInfo>*>(ctx)->push_back(info);
+}
+
+static_assert(sizeof(void*) != 4 || sizeof(cISC4BudgetSimulator::LoanInfo) == 0x20, "LoanInfo: 0x20 bytes (allocators.md)");
+static_assert(sizeof(void*) != 4 || sizeof(cISC4BudgetSimulator::BudgetItem) == 0x20, "BudgetItem: 0x20 bytes (allocators.md)");
+
+// Replaces the contents of a game vector of plain data (B) with `items`.
+template <class T>
+bool FillGameVector(fc4::GameVector<T>& out, const std::vector<T>& items) {
+    out.clear();
+    if (!out.reserve(items.size())) return false;
+    for (const T& x : items) out.push_back(x);  // reserved: cannot fail
+    return true;
 }
 
 cISC4BudgetSimulator::BudgetItem FromC(const fc4_budget_item& i) {
@@ -667,12 +717,15 @@ void PushItem(void* ctx, const fc4_budget_item* i) {
 }
 }  // namespace
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
-bool cFC4BudgetSimulator::GetAllLoans(SC4Vector<LoanInfo>& loans) {
+// [abi] std::vector<LoanInfo> (B): allocators.md table (2). The budget window
+// passes its member vector emptied but still owning a B buffer; reserve()
+// reuses or replaces it with B.
+bool cFC4BudgetSimulator::GetAllLoans(fc4::GameVector<LoanInfo>& loans) {
     FC4_TRACE("BudgetSimulator::GetAllLoans");
-    loans.clear();
-    fc4_budget_get_all_loans(core_, &PushLoan, &loans);
-    return true;
+    if (!GameMemory("GetAllLoans", false)) return false;
+    std::vector<LoanInfo> items;
+    fc4_budget_get_all_loans(core_, &PushLoan, &items);
+    return FillGameVector(loans, items);
 }
 
 int32_t cFC4BudgetSimulator::GetLoanTimeInMonths() {
@@ -688,14 +741,16 @@ int64_t cFC4BudgetSimulator::GetFullCostOfLoan(int64_t l) {
     return fc4_budget_get_full_cost_of_loan(core_, l);
 }
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
-bool cFC4BudgetSimulator::GetBudgetItemInfo(cISCPropertyHolder* holder, SC4Vector<BudgetItem>& out) {
+// [abi] std::vector<BudgetItem> (B): allocators.md table (2).
+bool cFC4BudgetSimulator::GetBudgetItemInfo(cISCPropertyHolder* holder, fc4::GameVector<BudgetItem>& out) {
     FC4_TRACE("BudgetSimulator::GetBudgetItemInfo");
+    if (!GameMemory("GetBudgetItemInfo", false)) return false;
     std::vector<fc4_budget_item> items;
     if (!fc4_budget_get_budget_item_info(core_, TokenOf(holder), &PushItem, &items)) return false;  // untouched
-    out.clear();
-    for (const fc4_budget_item& i : items) fc4::PushTrivial(out, FromC(i));
-    return true;
+    std::vector<BudgetItem> converted;
+    converted.reserve(items.size());
+    for (const fc4_budget_item& i : items) converted.push_back(FromC(i));
+    return FillGameVector(out, converted);
 }
 
 bool cFC4BudgetSimulator::GetBudgetItemForPurpose(cISCPropertyHolder* holder, uint32_t purpose, BudgetItem& item) {
@@ -915,16 +970,20 @@ cISC4LineItem* cFC4DepartmentBudget::GetLineItem(uint32_t id) {
     return LineOf(fc4_department_get_line_item(core_, id));
 }
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
-bool cFC4DepartmentBudget::GetAllLineItems(SC4Vector<cISC4LineItem*>& out) {
+// [abi] std::vector (B): allocators.md table (2). The sub-budget window reuses
+// one vector, so from the second call on it arrives owning a B buffer.
+// Cleared as the original does (end = begin, no releases); one reference each.
+bool cFC4DepartmentBudget::GetAllLineItems(fc4::GameVector<cISC4LineItem*>& out) {
     FC4_TRACE("DepartmentBudget::GetAllLineItems");
+    if (!GameMemory("GetAllLineItems", false)) return false;
     out.clear();
     std::vector<uint64_t> tokens;
     fc4_department_get_all_line_items(core_, &PushToken, &tokens);
+    if (!out.reserve(tokens.size())) return false;
     for (uint64_t t : tokens) {
         cISC4LineItem* l = LineOf(t);
         l->AddRef();
-        out.push_back(l);
+        out.push_back(l);  // reserved: cannot fail
     }
     return true;
 }
@@ -983,15 +1042,17 @@ bool cFC4DepartmentBudget::SetTotalSpending(int64_t v) {
     return fc4_department_set_total_spending(core_, v);
 }
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4List nodes appended for the game.
-bool cFC4DepartmentBudget::GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4List<cISCPropertyHolder*>& list) {
+// [abi] std::list (B, head and nodes): allocators.md table (2). Appended with
+// nodes from B, no clear; one reference each.
+bool cFC4DepartmentBudget::GetLocallyFundedItemsByPurpose(uint32_t purpose, fc4::GameList<cISCPropertyHolder*>& list) {
     FC4_TRACE("DepartmentBudget::GetLocallyFundedItemsByPurpose");
+    if (!GameMemory("GetLocallyFundedItemsByPurpose", false)) return false;
     std::vector<uint64_t> tokens;
     fc4_department_get_locally_funded_items_by_purpose(core_, purpose, &PushToken, &tokens);
     for (uint64_t t : tokens) {  // appended, no clear (§7)
         cISCPropertyHolder* h = reinterpret_cast<cISCPropertyHolder*>(FromToken(t));
-        FC4_ADDREF_FOR_CALLER(h);  // the caller's list owns it
-        list.push_back(h);
+        if (!list.push_back(h)) return false;  // out of game memory
+        FC4_ADDREF_FOR_CALLER(h);              // the caller's list owns it
     }
     return true;
 }

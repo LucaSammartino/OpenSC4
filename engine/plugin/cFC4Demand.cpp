@@ -478,7 +478,7 @@ float NationEconomyModifier(void*, uint32_t demandId) {
 void Connections(void* u, fc4_connection_callback cb, void* ctx) {
     cFC4ISC4NeighborsSimulator* n = Neighbors(u);
     if (n == nullptr || cb == nullptr) return;
-    // [abi] Container crossing pending classification in docs/abi/allocators.md: SDK SC4List filled by the game.
+    // [abi] Compatible: neighbors simulator slot 16 fills an A list (allocators.md).
     FC4_OUT(SC4List<cISC4NeighborConnection*>, list, "SC4List<cISC4NeighborConnection*> (GetAllConnections)");
     n->GetAllConnections(list.get());  // slot 16
     list.Check();
@@ -517,7 +517,7 @@ float SeaportTrips(void* u) {
 void Cities(void* u, bool all, fc4_token_callback cb, void* ctx) {
     cFC4ISC4NeighborsSimulator* n = Neighbors(u);
     if (n == nullptr || cb == nullptr) return;
-    // [abi] Container crossing pending classification in docs/abi/allocators.md: SDK SC4List filled by the game.
+    // [abi] Compatible: neighbors simulator slots 21/22 fill an A list (allocators.md).
     FC4_OUT(SC4List<cISC4RegionalCity*>, list, "SC4List<cISC4RegionalCity*> (GetConnectedCities)");
     if (all) {
         n->GetAllConnectedCities(list.get(), false);  // slot 22

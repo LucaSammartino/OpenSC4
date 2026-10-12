@@ -43,6 +43,7 @@
 #include "cISC4Lot.h"
 #include "cISC4NeighborsSimulator.h"
 #include "cISC4ZoneManager.h"
+#include "FC4GameList.h"
 
 #include <cstdint>
 #include <map>
@@ -91,7 +92,8 @@ public:
     virtual bool RemoveAgent(cIGZMessageTarget2* agent, uint32_t level) = 0;   // 21  RemoveAgent(agent, level)
     virtual bool RemoveAllAgentsAt(uint32_t level) = 0;       // 22  RemoveAllAgents(level)
     virtual bool RemoveAllAgents() = 0;                       // 23  RemoveAllAgents()
-    virtual bool EnumerateAgentsByName(SC4Vector<SC4String>& names) = 0;  // 24
+    // [abi] std::vector<cRZString>: buffer and strings are B (allocators.md).
+    virtual bool EnumerateAgentsByName(fc4::GameVector<fc4::GameString>& names) = 0;  // 24
     virtual bool GetAgentEnabled(cIGZString const& name) = 0;  // 25
     virtual bool SetAgentEnabled(cIGZString const& name, bool enabled) = 0;  // 26
     virtual int32_t GetSimSpeed() = 0;                        // 27
@@ -141,9 +143,11 @@ public:
     virtual bool RemoveDepartmentBudget(uint32_t id) = 0;     // 26
     virtual cISC4DepartmentBudget* GetDepartmentBudgetByName(cIGZString const& name) = 0;  // 27
     virtual cISC4DepartmentBudget* GetDepartmentBudget(uint32_t id) = 0;  // 28
-    virtual bool GetAllGroups(SC4Vector<BudgetGroupInfo>& groups) = 0;    // 29
+    // [abi] 29, 31, 46, 50: std::vector with the default allocator (B); the
+    // group names are cRZStrings with B buffers (allocators.md, table (2)).
+    virtual bool GetAllGroups(fc4::GameVector<fc4::GameBudgetGroupInfo>& groups) = 0;  // 29
     virtual bool SetGroupName(uint32_t id, cIGZString& name) = 0;         // 30
-    virtual bool GetDepartmentBudgetsInGroup(uint32_t id, SC4Vector<cISC4DepartmentBudget*>& out) = 0;  // 31
+    virtual bool GetDepartmentBudgetsInGroup(uint32_t id, fc4::GameVector<cISC4DepartmentBudget*>& out) = 0;  // 31
     virtual void NeededFundingChanged(cISC4DepartmentBudget* dept) = 0;      // 32
     virtual void FundingPercentageChanged(cISC4DepartmentBudget* dept) = 0;  // 33
     virtual int64_t GetFundingById(uint32_t id) = 0;          // 34  GetFunding(uint32) (same body as 35)
@@ -158,11 +162,11 @@ public:
     virtual int64_t GetCurrentBondLimit() = 0;                // 43
     virtual int64_t GetCurrentMaxOutstandingBondsLimit() = 0;  // 44
     virtual int64_t GetTotalMonthlyBondPayments() = 0;        // 45
-    virtual bool GetAllLoans(SC4Vector<LoanInfo>& loans) = 0;  // 46
+    virtual bool GetAllLoans(fc4::GameVector<LoanInfo>& loans) = 0;  // 46
     virtual int32_t GetLoanTimeInMonths() = 0;                // 47
     virtual int64_t GetMonthlyPaymentForLoan(int64_t loan) = 0;  // 48
     virtual int64_t GetFullCostOfLoan(int64_t loan) = 0;      // 49
-    virtual bool GetBudgetItemInfo(cISCPropertyHolder* holder, SC4Vector<BudgetItem>& out) = 0;  // 50
+    virtual bool GetBudgetItemInfo(cISCPropertyHolder* holder, fc4::GameVector<BudgetItem>& out) = 0;  // 50
     virtual bool GetBudgetItemForPurpose(cISCPropertyHolder* holder, uint32_t purpose, BudgetItem& item) = 0;  // 51
     virtual bool ChangeBudgetItemLine(cISCPropertyHolder* holder, uint32_t index, uint32_t line) = 0;  // 52
     virtual bool ChangeBudgetItemCost(cISCPropertyHolder* holder, uint32_t index, int64_t cost) = 0;  // 53
@@ -197,7 +201,8 @@ public:
     virtual cISC4LineItem* CreateLineItemForBuildingType(uint32_t buildingIID, bool isLocallyFunded) = 0;  // 18
     virtual bool RemoveLineItem(uint32_t lineNumber) = 0;     // 19
     virtual cISC4LineItem* GetLineItem(uint32_t lineNumber) = 0;  // 20
-    virtual bool GetAllLineItems(SC4Vector<cISC4LineItem*>& destination) = 0;  // 21
+    // [abi] 21, 32: std::vector / std::list with the default allocator (B).
+    virtual bool GetAllLineItems(fc4::GameVector<cISC4LineItem*>& destination) = 0;  // 21
     virtual bool AddLocallyFundedObject(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 22
     virtual bool RemoveLocallyFundedObject(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 23
     virtual bool SetLocalFundingPercent(cISCPropertyHolder* holder, SC4Percentage* percentage,
@@ -210,7 +215,7 @@ public:
     virtual bool RecalculateAllLineItemCurrentExpenses() = 0;  // 29
     virtual int64_t GetTotalSpending() const = 0;             // 30
     virtual bool SetTotalSpending(int64_t value) = 0;         // 31
-    virtual bool GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4List<cISCPropertyHolder*>& list) = 0;  // 32
+    virtual bool GetLocallyFundedItemsByPurpose(uint32_t purpose, fc4::GameList<cISCPropertyHolder*>& list) = 0;  // 32
     virtual bool HasLocallyFundedItemsByPurpose(uint32_t purpose) = 0;  // 33
 };
 
@@ -453,12 +458,13 @@ public:
     virtual cISC4Lot* GetLotAtPoint(cS3DVector3 const& point) = 0;               // 5  GetLot(cS3DVector3 const&)
     virtual cISC4Lot* GetLot(int32_t cellX, int32_t cellZ, bool b) = 0;          // 6  GetLot(x, z, bool)
     // Returns the number of lots appended (budget Errata round 2, item 5; SDK: bool).
-    virtual uint32_t GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+    // [abi] 7-10: the nodes are B (allocators.md); 8-10 append without clearing.
+    virtual uint32_t GetLotsInCellRect(fc4::GameList<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
                                        bool locationOnly) = 0;                   // 7
-    virtual bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, SC4List<cISC4Lot*>& lots,
+    virtual bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots,
                                         int32_t flags) = 0;                      // 8  GetLotsSurroundingLot(x, z, ...)
-    virtual bool GetLotsSurroundingLot(cISC4Lot const* lot, SC4List<cISC4Lot*>& lots, int32_t flags) = 0;  // 9
-    virtual bool GetLotsSurroundingRect(SC4Rect<long> const& rect, SC4List<cISC4Lot*>& lots, int32_t flags) = 0;  // 10
+    virtual bool GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 9
+    virtual bool GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) = 0;  // 10
     virtual bool GetVerticesAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& vertices) = 0;  // 11
     virtual bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) = 0;  // 12
     virtual cISC4Lot* GetRandomLot() = 0;                                        // 13
@@ -596,13 +602,14 @@ public:
     virtual cISC4NeighborConnection* FindConnectionSuitableForDeal(int32_t dealType,
                                                                    cISC4RegionalCity const* city) = 0;  // 23
     virtual bool ProposeDeal(int32_t dealType, cISC4RegionalCity* otherCity, cISC4NeighborDeal** outDeal) = 0;  // 24
-    virtual bool ProposeDeals(SC4List<cISC4NeighborConnection*>& deals, bool flag) = 0;  // 25
+    // [abi] 25, 28-30 hold neighbour deals (allocators.md); A: SC4List is compatible.
+    virtual bool ProposeDeals(SC4List<cISC4NeighborDeal*>& deals, bool flag) = 0;  // 25
     virtual bool AddDeal(cISC4NeighborDeal* deal) = 0;                           // 26
     virtual void SetUIDisableFlag(bool flag) = 0;                                // 27
-    virtual void FindDealsAll(SC4List<cISC4NeighborConnection*>& deals) = 0;     // 28
+    virtual void FindDealsAll(SC4List<cISC4NeighborDeal*>& deals) = 0;     // 28
     virtual void FindDealsWithCity(int32_t dealType, cISC4RegionalCity* city,
-                                   SC4List<cISC4NeighborConnection*>& deals) = 0;  // 29  FindDeals(3 args)
-    virtual void FindDealsOfType(int32_t dealType, SC4List<cISC4NeighborConnection*>& deals) = 0;  // 30  FindDeals(2 args)
+                                   SC4List<cISC4NeighborDeal*>& deals) = 0;  // 29  FindDeals(3 args)
+    virtual void FindDealsOfType(int32_t dealType, SC4List<cISC4NeighborDeal*>& deals) = 0;  // 30  FindDeals(2 args)
     virtual void MarkDealsDirty() = 0;                                           // 31
     // [choice] signed 32-bit money (sign-extended by the caller); spec question.
     virtual int32_t GetTotalMonthlyNeighborDealIncome() = 0;                     // 32  (SDK: int64)
@@ -828,6 +835,13 @@ public:
 // see the demand host]; slot 48 is the elevation SETTER (the SDK names it
 // GetWorldBaseElevation); the setters 51, 53, 55 ... 63 take a double and
 // return in ST0 (SDK: float argument, void).
+// An element of GetPointsOfInterest's vector: 12 bytes (allocators.md); the
+// fields are not specified.
+struct FC4PointOfInterest {
+    uint32_t raw[3];
+};
+static_assert(sizeof(FC4PointOfInterest) == 12, "12-byte elements");
+
 class cFC4ISC4RegionalCity : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                      // 3
@@ -899,7 +913,9 @@ public:
     virtual bool SetLocalDeals(SC4List<cISC4NeighborDeal*>& list) = 0;            // 69
     virtual bool GetLocalDeals(SC4List<cISC4NeighborDeal*>& list) = 0;            // 70
     virtual bool UpdateImportExport() = 0;                                        // 71
-    virtual void GetPointsOfInterest(uint32_t type, SC4Vector<uint32_t>& list) = 0;  // 72
+    // [abi] std::vector (B) of 12-byte elements (allocators.md); left untouched
+    // when the type is absent.
+    virtual void GetPointsOfInterest(uint32_t type, fc4::GameVector<FC4PointOfInterest>& list) = 0;  // 72
 };
 
 class cISC4Simulator;

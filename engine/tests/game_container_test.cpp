@@ -154,16 +154,28 @@ std::string Str(const SC4String& s) { return std::string(s.ToChar(), s.Strlen())
 
 // A second instance: the game's STL node allocator (docs/abi/allocators.md).
 CountingAllocator g_stl;
+const void* const kFakeStringVtable[4] = {};
 struct TestStlAlloc {
     static bool Available() { return true; }
     static void* Allocate(uint32_t size) { return g_stl.Allocate(size); }
     static void Free(void* p) { g_stl.Deallocate(p); }
+    static const void* StringVtable() { return kFakeStringVtable; }
 };
 struct NoAlloc {
     static bool Available() { return false; }
     static void* Allocate(uint32_t) { return nullptr; }
     static void Free(void*) {}
+    static const void* StringVtable() { return nullptr; }
 };
+
+// A game-owned container: built in raw storage, never destroyed by us.
+template <class T>
+T* GameOwned() {
+    static_assert(sizeof(T) <= 64, "storage");
+    alignas(16) static unsigned char storage[8][64];
+    static int next = 0;
+    return new (storage[next++ % 8]) T();
+}
 
 class FakeLot final : public cIGZUnknown {
 public:
@@ -368,6 +380,114 @@ int main() {
         CHECK(g_stl.Live() == 4);          // and never returned to their own instance
         std::printf("negative control (SDK SC4List): %d foreign frees into the service detected\n",
                     g_alloc.foreignFrees);
+    }
+
+    // 8. GameVector growth from a buffer the game already owns (GetAllLoans,
+    // GetAllLineItems): reserve() frees the old B buffer to B; the game then
+    // frees the final buffer to B.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        auto* v = GameOwned<fc4::GameVector<cISC4BudgetSimulator::LoanInfo, TestStlAlloc>>();
+        CHECK(v->reserve(2));  // the window's member vector from an earlier call
+        cISC4BudgetSimulator::LoanInfo loan{};
+        v->push_back(loan);
+        v->clear();  // arrives emptied, still owning its B buffer
+        CHECK(v->capacity() == 2 && g_stl.Live() == 1);
+        for (int i = 0; i < 9; ++i) {
+            loan.monthlyPayment = i;
+            CHECK(v->push_back(loan));
+        }
+        CHECK(v->size() == 9 && (*v)[8].monthlyPayment == 8);
+        g_stl.Deallocate(v->begin());  // the game destroys it
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0 && g_alloc.frees == 0);
+        std::printf("GameVector growth: STL instance %d allocations / %d frees, service %d / %d\n", g_stl.allocs,
+                    g_stl.frees, g_alloc.allocs, g_alloc.frees);
+    }
+
+    // 9. Strings inside elements (GetAllGroups): B buffers with the game's
+    // vtable; the game destroys them inline (free begin with B), then the
+    // vector's buffer with B.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        auto* v = GameOwned<fc4::GameVector<fc4::GameBudgetGroupInfo, TestStlAlloc>>();
+        for (int i = 0; i < kCount; ++i) {
+            fc4::GameBudgetGroupInfo g{};
+            g.groupID = static_cast<uint32_t>(i + 1);
+            g.totalExpense = 10 * i;
+            CHECK(fc4::GameStringInit<TestStlAlloc>(g.groupName, kNames[i], std::strlen(kNames[i])));
+            CHECK(v->push_back(g));
+        }
+        bool layoutOk = true;
+        for (int i = 0; i < kCount; ++i) {
+            const fc4::GameString& s = (*v)[i].groupName;
+            const size_t n = std::strlen(kNames[i]);
+            layoutOk = layoutOk && s.vtable == kFakeStringVtable && s.size() == n &&
+                       std::memcmp(s.begin, kNames[i], n) == 0 && *s.end == 0 && s.capacityEnd == s.end + 1 &&
+                       s.refCount == 0 && (*v)[i].groupID == static_cast<uint32_t>(i + 1);
+        }
+        CHECK(layoutOk);
+        for (fc4::GameBudgetGroupInfo& g : *v) g_stl.Deallocate(g.groupName.begin);  // the game, inline
+        g_stl.Deallocate(v->begin());
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0 && g_alloc.frees == 0);
+        std::printf("GameBudgetGroupInfo strings: STL instance %d allocations / %d frees, service %d / %d\n",
+                    g_stl.allocs, g_stl.frees, g_alloc.allocs, g_alloc.frees);
+    }
+
+    // 10. EnumerateAgentsByName: clear() destroys the strings with B and keeps
+    // the buffer; refill; our own vector's destructor frees everything to B.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        {
+            fc4::GameVector<fc4::GameString, TestStlAlloc> names;
+            for (int round = 0; round < 2; ++round) {
+                names.clear();
+                for (int i = 0; i < kCount; ++i) {
+                    fc4::GameString s{};
+                    CHECK(fc4::GameStringInit<TestStlAlloc>(s, kNames[i], std::strlen(kNames[i])));
+                    CHECK(names.push_back(s));
+                }
+            }
+            CHECK(names.size() == static_cast<size_t>(kCount));
+        }
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0);
+        fc4::GameString none{};
+        CHECK(!fc4::GameStringInit<NoAlloc>(none, "x", 1));  // unknown exe: refused
+    }
+
+    // 11. GetLocallyFundedItemsByPurpose: the game allocates the head with B,
+    // we append nodes with B (one reference each), the game releases each and
+    // frees nodes and head with B.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        FakeLot lots[3];
+        auto* list = GameOwned<fc4::GameList<cIGZUnknown*, TestStlAlloc>>();  // head: B
+        for (FakeLot& l : lots) {
+            CHECK(list->push_back(&l));
+            l.AddRef();
+        }
+        int n = 0;
+        LotNode* head = list->head();
+        for (LotNode* x = head->next; x != head;) {  // the game destroys it
+            LotNode* next = x->next;
+            x->value->Release();
+            g_stl.Deallocate(x);
+            x = next;
+            ++n;
+        }
+        g_stl.Deallocate(head);
+        CHECK(n == 3);
+        CHECK(lots[0].refs == 1 && lots[1].refs == 1 && lots[2].refs == 1);
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0 && g_alloc.frees == 0);
+        std::printf("GameList append: STL instance %d allocations / %d frees, service %d / %d\n", g_stl.allocs,
+                    g_stl.frees, g_alloc.allocs, g_alloc.frees);
     }
 
     g_stl.Reset();

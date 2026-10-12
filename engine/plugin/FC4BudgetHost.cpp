@@ -305,7 +305,7 @@ void ScanLotList(cFC4ISC4LotManager* lm, GameList<cISC4Lot*>& list, int32_t maxX
                  cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx, long scan) {
     const bool detail = kCheckedBuild && scan <= 3;
     SC4ListNode<cISC4Lot*>* const headBefore = list.head();
-    const uint32_t returned = lm->GetLotsInCellRect(list.Sdk(), 0, 0, maxX, maxZ, false);  // slot 7
+    const uint32_t returned = lm->GetLotsInCellRect(list, 0, 0, maxX, maxZ, false);  // slot 7
     if (detail) {
         SC4ListNode<cISC4Lot*>* head = list.head();
         char nodes[256] = "";

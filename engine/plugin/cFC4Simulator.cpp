@@ -20,7 +20,7 @@
 #include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
-#include "FC4GameContainers.h"
+#include "FC4GameList.h"
 #include "SC4String.h"
 #include "SC4Vector.h"
 #include "cGZPersistResourceKey.h"
@@ -765,18 +765,42 @@ bool cFC4Simulator::RemoveAllAgentsAt(uint32_t agentType) {
 }
 
 namespace {
+struct NamesFill {
+    fc4::GameVector<fc4::GameString>* v;
+    bool ok;
+};
+
 void AppendName(void* ctx, const char* name, size_t len) {
-    auto* v = static_cast<SC4Vector<SC4String>*>(ctx);
-    // SC4Vector::push_back copies the object bitwise: the vector must be the
-    // string's only owner (FC4GameContainers.h).
-    fc4::PushOwned(*v, name, static_cast<uint32_t>(len));
+    auto* f = static_cast<NamesFill*>(ctx);
+    if (!f->ok) return;
+    fc4::GameString s{};
+    if (!fc4::GameStringInit(s, name, len)) {
+        f->ok = false;
+        return;
+    }
+    if (!f->v->push_back(s)) {  // bitwise: the vector owns the B buffer now
+        fc4::GameStringDestroy(s);
+        f->ok = false;
+    }
 }
 }  // namespace
 
-// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector<SC4String> filled for the game.
-bool cFC4Simulator::EnumerateAgentsByName(SC4Vector<SC4String>& sAgents) {
-    fc4_sim_enumerate_agents(sim_, &AppendName, &sAgents);
-    return true;
+// [abi] std::vector<cRZString> (B buffer, B character buffers): allocators.md
+// table (2). Cleared as the original does (strings destroyed with B, capacity
+// kept), then appended.
+bool cFC4Simulator::EnumerateAgentsByName(fc4::GameVector<fc4::GameString>& sAgents) {
+    if (!fc4::StlNodeAllocator::Available() || fc4::StlNodeAllocator::StringVtable() == nullptr) {
+        static bool logged = false;
+        if (!logged) {
+            logged = true;
+            fc4::Log("simulator: WARNING EnumerateAgentsByName refused: the game's container allocator is unavailable");
+        }
+        return false;
+    }
+    sAgents.clear();
+    NamesFill fill{&sAgents, true};
+    fc4_sim_enumerate_agents(sim_, &AppendName, &fill);
+    return fill.ok;
 }
 
 bool cFC4Simulator::GetAgentEnabled(cIGZString const& szAgentName) {

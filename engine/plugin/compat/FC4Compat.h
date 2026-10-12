@@ -36,6 +36,8 @@ struct ExecutableVersion {
     // `void* (uint32_t size)` / `void (void*)`.
     uint32_t stlNodeAllocateVA;
     uint32_t stlNodeFreeVA;
+    // The game's cRZString vtable (docs/abi/allocators.md, Strings).
+    uint32_t rzStringVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -49,6 +51,11 @@ using StlNodeFreeFn = void(__cdecl*)(void* block);
 // false (logged once) if the executable is not identified or the addresses
 // are not executable code inside its image. Never guessed.
 bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release);
+
+// The game's cRZString vtable, or nullptr (logged once) if the executable is
+// not identified or the address is not read-only data inside its image whose
+// first entry is code inside the image.
+const void* GameStringVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

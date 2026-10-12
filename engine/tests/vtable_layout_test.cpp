@@ -92,7 +92,7 @@ struct SimProbe final : cFC4ISC4Simulator {
     P(21, bool, RemoveAgent, (cIGZMessageTarget2*, uint32_t), )
     P(22, bool, RemoveAllAgentsAt, (uint32_t), )
     P(23, bool, RemoveAllAgents, (), )
-    P(24, bool, EnumerateAgentsByName, (SC4Vector<SC4String>&), )
+    P(24, bool, EnumerateAgentsByName, (fc4::GameVector<fc4::GameString>&), )
     P(25, bool, GetAgentEnabled, (cIGZString const&), )
     P(26, bool, SetAgentEnabled, (cIGZString const&, bool), )
     P(27, int32_t, GetSimSpeed, (), )
@@ -150,9 +150,9 @@ struct BudgetProbe final : cFC4ISC4BudgetSimulator {
     P(26, bool, RemoveDepartmentBudget, (uint32_t), )
     P(27, cISC4DepartmentBudget*, GetDepartmentBudgetByName, (cIGZString const&), )
     P(28, cISC4DepartmentBudget*, GetDepartmentBudget, (uint32_t), )
-    P(29, bool, GetAllGroups, (SC4Vector<BudgetGroupInfo>&), )
+    P(29, bool, GetAllGroups, (fc4::GameVector<fc4::GameBudgetGroupInfo>&), )
     P(30, bool, SetGroupName, (uint32_t, cIGZString&), )
-    P(31, bool, GetDepartmentBudgetsInGroup, (uint32_t, SC4Vector<cISC4DepartmentBudget*>&), )
+    P(31, bool, GetDepartmentBudgetsInGroup, (uint32_t, fc4::GameVector<cISC4DepartmentBudget*>&), )
     P(32, void, NeededFundingChanged, (cISC4DepartmentBudget*), )
     P(33, void, FundingPercentageChanged, (cISC4DepartmentBudget*), )
     P(34, int64_t, GetFundingById, (uint32_t), )
@@ -167,11 +167,11 @@ struct BudgetProbe final : cFC4ISC4BudgetSimulator {
     P(43, int64_t, GetCurrentBondLimit, (), )
     P(44, int64_t, GetCurrentMaxOutstandingBondsLimit, (), )
     P(45, int64_t, GetTotalMonthlyBondPayments, (), )
-    P(46, bool, GetAllLoans, (SC4Vector<LoanInfo>&), )
+    P(46, bool, GetAllLoans, (fc4::GameVector<LoanInfo>&), )
     P(47, int32_t, GetLoanTimeInMonths, (), )
     P(48, int64_t, GetMonthlyPaymentForLoan, (int64_t), )
     P(49, int64_t, GetFullCostOfLoan, (int64_t), )
-    P(50, bool, GetBudgetItemInfo, (cISCPropertyHolder*, SC4Vector<BudgetItem>&), )
+    P(50, bool, GetBudgetItemInfo, (cISCPropertyHolder*, fc4::GameVector<BudgetItem>&), )
     P(51, bool, GetBudgetItemForPurpose, (cISCPropertyHolder*, uint32_t, BudgetItem&), )
     P(52, bool, ChangeBudgetItemLine, (cISCPropertyHolder*, uint32_t, uint32_t), )
     P(53, bool, ChangeBudgetItemCost, (cISCPropertyHolder*, uint32_t, int64_t), )
@@ -235,7 +235,7 @@ struct DepartmentProbe final : cFC4ISC4DepartmentBudget {
     P(18, cISC4LineItem*, CreateLineItemForBuildingType, (uint32_t, bool), )
     P(19, bool, RemoveLineItem, (uint32_t), )
     P(20, cISC4LineItem*, GetLineItem, (uint32_t), )
-    P(21, bool, GetAllLineItems, (SC4Vector<cISC4LineItem*>&), )
+    P(21, bool, GetAllLineItems, (fc4::GameVector<cISC4LineItem*>&), )
     P(22, bool, AddLocallyFundedObject, (cISCPropertyHolder*, uint32_t), )
     P(23, bool, RemoveLocallyFundedObject, (cISCPropertyHolder*, uint32_t), )
     P(24, bool, SetLocalFundingPercent, (cISCPropertyHolder*, SC4Percentage*, uint32_t), )
@@ -249,7 +249,7 @@ struct DepartmentProbe final : cFC4ISC4DepartmentBudget {
     P(29, bool, RecalculateAllLineItemCurrentExpenses, (), )
     P(30, int64_t, GetTotalSpending, (), const)
     P(31, bool, SetTotalSpending, (int64_t), )
-    P(32, bool, GetLocallyFundedItemsByPurpose, (uint32_t, SC4List<cISCPropertyHolder*>&), )
+    P(32, bool, GetLocallyFundedItemsByPurpose, (uint32_t, fc4::GameList<cISCPropertyHolder*>&), )
     P(33, bool, HasLocallyFundedItemsByPurpose, (uint32_t), )
 };
 
@@ -417,10 +417,10 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     bool Shutdown() override { g_hit = 4; return static_cast<bool>(0); }
     cISC4Lot* GetLotAtPoint(cS3DVector3 const& point) override { g_hit = 5; return static_cast<cISC4Lot*>(0); }
     cISC4Lot* GetLot(int32_t cellX, int32_t cellZ, bool b) override { g_hit = 6; return static_cast<cISC4Lot*>(0); }
-    uint32_t GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2, bool locationOnly) override { g_hit = 7; return 0; }
-    bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 8; return static_cast<bool>(0); }
-    bool GetLotsSurroundingLot(cISC4Lot const* lot, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 9; return static_cast<bool>(0); }
-    bool GetLotsSurroundingRect(SC4Rect<long> const& rect, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 10; return static_cast<bool>(0); }
+    uint32_t GetLotsInCellRect(fc4::GameList<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2, bool locationOnly) override { g_hit = 7; return 0; }
+    bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 8; return static_cast<bool>(0); }
+    bool GetLotsSurroundingLot(cISC4Lot const* lot, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 9; return static_cast<bool>(0); }
+    bool GetLotsSurroundingRect(SC4Rect<long> const& rect, fc4::GameList<cISC4Lot*>& lots, int32_t flags) override { g_hit = 10; return static_cast<bool>(0); }
     bool GetVerticesAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& vertices) override { g_hit = 11; return static_cast<bool>(0); }
     bool GetNeighborCellsAtEdgeOfLot(SC4Rect<long> const& cells, int32_t flags, SC4Rect<long>& out) override { g_hit = 12; return static_cast<bool>(0); }
     cISC4Lot* GetRandomLot() override { g_hit = 13; return static_cast<cISC4Lot*>(0); }

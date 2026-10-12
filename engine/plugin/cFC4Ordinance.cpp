@@ -377,7 +377,7 @@ void LotsWithBuildingType(void*, uint32_t type, fc4_token_callback cb, void* ctx
     }
     fc4::GameList<cISC4Lot*> lots;
     if (!lots.valid()) return;
-    lm->GetLotsInCellRect(lots.Sdk(), 0, 0, maxX, maxZ, false);  // slot 7
+    lm->GetLotsInCellRect(lots, 0, 0, maxX, maxZ, false);  // slot 7
     for (cISC4Lot*& sdkLot : lots) {
         if (sdkLot == nullptr) continue;
         FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");

@@ -70,7 +70,7 @@ public:
     bool RemoveAgent(cIGZMessageTarget2* pAgent, uint32_t agentType) override;
     bool RemoveAllAgentsAt(uint32_t agentType) override;
     bool RemoveAllAgents() override;
-    bool EnumerateAgentsByName(SC4Vector<SC4String>& sAgents) override;
+    bool EnumerateAgentsByName(fc4::GameVector<fc4::GameString>& sAgents) override;
     bool GetAgentEnabled(cIGZString const& szAgentName) override;
     bool SetAgentEnabled(cIGZString const& szAgentName, bool bEnabled) override;
     int32_t GetSimSpeed() override;

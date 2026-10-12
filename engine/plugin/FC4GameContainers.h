@@ -11,7 +11,11 @@
 // copy of the license along with this program (see LICENSE at the repository
 // root); if not, see <https://www.gnu.org/licenses/>.
 
-// Filling game-owned containers.
+// Filling SDK containers (SC4Vector, framework allocator service A).
+//
+// [abi] Not for the game's std::vector / std::list / cRZString crossings
+// (allocator B, docs/abi/allocators.md): those use FC4GameList.h. No plugin
+// code uses these helpers any more; game_container_test keeps them covered.
 //
 // SC4Vector::push_back copies the element bitwise (memmove), without running
 // a copy constructor, and the container's owner (usually the game) destroys
