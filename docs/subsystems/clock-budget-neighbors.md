@@ -154,7 +154,7 @@ It subscribes to `0x26D31EC1` and `0x8BAC4B43` on the message server, registers 
 (SetTargetFrameRate) and `0x8A78BEFF` (`SimDate`); the second one only when the app's debug flag (vt+0x54) is set.
 
 `DoMessage` `0x703540` [Mac `00168C12`]:
-- `0x26D31EC1`: unsubscribe from it and call `Shutdown` (vt+0x34) **[confirmed]**. This is presumably app shutdown **[inferred]**.
+- `0x26D31EC1` (kSC4MessagePostCityInit): unsubscribe from it and call primary vtable slot `+0x34` = **`HiddenResume`** **[confirmed]**. (Corrected: an earlier revision said `Shutdown`.)
 - `0x8BAC4B43` "GetSimulationDate" command: for each of 6 output slots, matches the names "year", "month",
   "day of month", "day of week", "day of year" and "number" (Julian), and returns the value as a variant.
 - `0x230E27AC` (cheat): `DoCheatCode` `0x703420`. `SetTargetFrameRate n` sets `targetFps = n`.

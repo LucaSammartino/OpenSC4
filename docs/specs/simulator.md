@@ -223,7 +223,7 @@ If `hiddenPauseCount ≤ 0` and the idle level has agents:
 | `IsPaused()` / `IsHiddenPaused()` / `IsEmergencyPaused()` | the matching count > 0 |
 | `IsAnyPaused()` | any of the three counts > 0 |
 | `GetSimSpeed()` / `SetSimSpeed(s)` | `SetSimSpeed` returns false if `!speedChangeEnabled`. Otherwise, if `s ≠ simSpeed`, it applies **DoSetSimSpeed(s)**; return true. |
-| DoSetSimSpeed(s) | `s` 0/1/2 sets `targetFps` to 30/20/15; any other value does nothing. Then `simSpeed := s`, `msPerDay := msPerDayTable[s]`, restart the interval timer, post `0x4A7FB7E9` (data1 = s). |
+| DoSetSimSpeed(s) | For `s` ∈ {0, 1, 2}: set `targetFps` to 30/20/15, `simSpeed := s`, `msPerDay := msPerDayTable[s]`, restart the interval timer, and post `0x4A7FB7E9` (data1 = s). **Any other value changes nothing and posts nothing** *[compat]*. |
 | `GetSimTime()` / `SetSimTime(t)` | plain accessor for `simTime`. It has no other effect. |
 | `SetMaxMillisecondsPerTick(ms)` | accepted and ignored *[compat]*. Return true. |
 | `GetAnimationTimeDilation()` | `dil[4]` if emergency-paused; else `dil[0]` if paused; else `dil[2]` for speed 1, `dil[3]` for speed 2, `dil[1]` otherwise. *[choice]* The original also returns `dil[4]` while the vehicle manager is in "driving" mode. We will add that when the vehicle manager is specified. |
@@ -269,7 +269,7 @@ uint32  julianDay
 `Init()` (does nothing if already initialized):
 1. Set `initialized := true` and `hiddenPauseCount := 1`. The game starts hidden-paused until the city view resumes it.
 2. Read the tuning values (§7).
-3. Subscribe on the message server to `0x26D31EC1` (shutdown request) and `0x8BAC4B43` (command).
+3. Subscribe on the message server to `0x26D31EC1` (**PostCityInit**: the city has finished initializing) and `0x8BAC4B43` (command).
 4. Register the command `0x8BAC4B43` with the name `"GetSimulationDate"` with the command server.
 5. Set every cursor to the start of its level.
 6. If `simSpeed == 3`, call `SetSimSpeed(0)`. Otherwise apply `DoSetSimSpeed(simSpeed)`.
@@ -289,7 +289,9 @@ uint32  julianDay
 7. Set `initialized := false`.
 
 `DoMessage(msg)` handles:
-- `0x26D31EC1`: unsubscribe from it and call `Shutdown()`.
+- `0x26D31EC1` (PostCityInit): unsubscribe from it and call **`HiddenResume()`**. This releases the hidden pause
+  that `Init` set, so the clock starts running once the city is ready *[compat]*. (Erratum: an earlier revision
+  said `Shutdown()`, which was wrong.)
 - `0x8BAC4B43` (GetSimulationDate command): fill the command's output parameters named "year", "month",
   "day of month", "day of week", "day of year" and "number" (Julian) with the current values.
 - Cheat notifications (cheat code manager message `0x230E27AC`, data = cheat ID and argument string):
