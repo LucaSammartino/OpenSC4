@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "flammability_cadence",
+  "spec": ["flammability 4.1", "flammability 6.5", "flammability 7", "flammability 14.1", "flammability 16.5", "weather 6.7"],
+  "description": "Test 5, from 4.1 step 7 and 6.5 (the days are stated by the spec and reproduced by an independent Python model): tractsPerDay = countZ * countX / 40 = 102 / 409 / 1638 for 64 / 128 / 256 cells. The iterator is not reset by Init (count 0), so the first SimNewDay runs an empty EndOfCycle at once; on a 64 x 64 map EndOfCycle runs on days 1, 41, 81, 121, 161 (102 * 40 = 4080 < 4096); 128 and 256 maps also wrap on day 41. One rand() per wrap (no hotspots: nothing is flammable). The prime steps are 3733 / 15683 / 17431 (weather 6.7). With tractsPerDay set to 4096 a day is exactly one cycle: each tract is visited once per cycle (counted through the zone-type queries, one per visit), and the second day starts with the wrap.",
+  "steps": [
+    {"op": "flam_env", "cells": [64, 64]},
+    {"op": "flam_tuning", "shipped": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_expect", "state": {"tracts_per_day": 102, "iterator": {"count": 0}}},
+    {"op": "flam_days", "count": 161, "ends": [1, 41, 81, 121, 161]},
+    {"op": "flam_expect_rand", "calls": 5},
+    {"op": "flam_expect", "state": {"iterator": {"count": 4096, "step": 3733}}},
+    {"op": "flam_expect_event_count", "filter": {"event": "post", "type": "SimCycleComplete"}, "count": 5},
+    {"op": "flam_clear_events"},
+    {"op": "flam_expect_visits", "total": 16422},
+
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_set", "state": {"tracts_per_day": 4096}},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_visits", "all": 1},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_visits", "all": 1},
+    {"op": "flam_expect_rand", "calls": 2},
+
+    {"op": "flam_env", "cells": [128, 128]},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_expect", "state": {"tracts_per_day": 409}},
+    {"op": "flam_days", "count": 41, "ends": [1, 41]},
+    {"op": "flam_expect", "state": {"iterator": {"count": 16384, "step": 15683}}},
+    {"op": "flam_expect_rand", "calls": 2},
+
+    {"op": "flam_env", "cells": [256, 256]},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_expect", "state": {"tracts_per_day": 1638}},
+    {"op": "flam_days", "count": 41, "ends": [1, 41]},
+    {"op": "flam_expect", "state": {"iterator": {"count": 65536, "step": 17431}}},
+    {"op": "flam_expect_rand", "calls": 2}
+  ]
+}

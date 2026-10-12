@@ -32,30 +32,45 @@ pub const MODE_PRIME: i8 = 1;
 /// The largest count the prime-step mode walks.
 const MAX_COUNT: i32 = 130_444;
 
-/// The iterator's run state ([choice] save encoding: 0, 1, 2).
+/// The iterator's run state (weather §10): the saved byte is 1 = running
+/// (also a freshly constructed, never-reset iterator) or 2 = exhausted; the
+/// original never writes 0. A read byte other than 2 counts as running.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum IteratorState {
     #[default]
-    NotStarted,
     Running,
     Exhausted,
 }
 
+/// The saved state byte of a running iterator.
+pub const STATE_RUNNING: i8 = 1;
+/// The saved state byte of an exhausted iterator.
+pub const STATE_EXHAUSTED: i8 = 2;
+
 impl IteratorState {
     fn to_i8(self) -> i8 {
         match self {
-            IteratorState::NotStarted => 0,
-            IteratorState::Running => 1,
-            IteratorState::Exhausted => 2,
+            IteratorState::Running => STATE_RUNNING,
+            IteratorState::Exhausted => STATE_EXHAUSTED,
+        }
+    }
+
+    /// The state a saved byte means.
+    pub fn from_i8(b: i8) -> IteratorState {
+        if b == STATE_EXHAUSTED {
+            IteratorState::Exhausted
+        } else {
+            IteratorState::Running
         }
     }
 }
 
 /// Visits every cell of `[x0, x1] × [z0, z1]` once in a scrambled order.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CellIterator {
     pub state: IteratorState,
-    /// The raw state byte as read (kept for byte-exact saves).
+    /// The raw state byte (1 or 2 when set by the iterator; kept unchanged
+    /// as read, for byte-exact saves).
     pub state_raw: i8,
     /// 1 = prime step (weather, flammability), 0 = table (pollution).
     pub mode: i8,
@@ -70,6 +85,28 @@ pub struct CellIterator {
     pub index: i32,
     pub current: i32,
     pub step: i32,
+}
+
+impl Default for CellIterator {
+    /// A running (never reset) prime-step iterator with an empty rectangle
+    /// at 0 and count 0.
+    fn default() -> CellIterator {
+        CellIterator {
+            state: IteratorState::Running,
+            state_raw: STATE_RUNNING,
+            mode: MODE_PRIME,
+            dirty: 0,
+            x0: 0,
+            z0: 0,
+            x1: 0,
+            z1: 0,
+            count: 0,
+            table: Vec::new(),
+            index: 0,
+            current: 0,
+            step: 0,
+        }
+    }
 }
 
 impl CellIterator {
@@ -263,11 +300,7 @@ impl CellIterator {
     pub fn read(inp: &mut dyn InStream) -> Option<CellIterator> {
         let state_raw = inp.get_i8()?;
         let mut it = CellIterator {
-            state: match state_raw {
-                1 => IteratorState::Running,
-                2 => IteratorState::Exhausted,
-                _ => IteratorState::NotStarted,
-            },
+            state: IteratorState::from_i8(state_raw),
             state_raw,
             mode: inp.get_i8()?,
             dirty: inp.get_u8()?,
@@ -352,6 +385,41 @@ mod tests {
         let got: Vec<_> = std::iter::from_fn(|| it.next_cell()).collect();
         assert_eq!(got, vec![(5, 6), (5, 7), (6, 6), (6, 7)]);
         assert_eq!(CellIterator::constructed().next_cell(), None);
+    }
+
+    #[test]
+    fn state_byte() {
+        use crate::stream::{ByteReader, ByteWriter};
+        let save = |it: &CellIterator| {
+            let mut w = ByteWriter::new();
+            assert!(it.write(&mut w));
+            w.into_bytes()
+        };
+        // Never reset: running (1); 0 is never written.
+        for it in [
+            CellIterator::new(0, 0, 3, 3),
+            CellIterator::new_table(0, 0, 3, 3),
+            CellIterator::constructed(),
+        ] {
+            assert_eq!(save(&it)[0], 1);
+        }
+        let mut it = CellIterator::new(0, 0, 0, 0);
+        it.reset(false, &mut CrtRand::new(1));
+        assert!(it.next_cell().is_some());
+        assert_eq!(save(&it)[0], 2);
+        // A read byte other than 2 counts as running and is kept unchanged.
+        let mut it = CellIterator::new(0, 0, 1, 0);
+        it.reset(false, &mut CrtRand::new(1));
+        let mut bytes = save(&it);
+        bytes[0] = 0;
+        let mut r = CellIterator::read(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!((r.state, r.state_raw), (IteratorState::Running, 0));
+        assert_eq!(save(&r), bytes);
+        assert!(r.next_cell().is_some());
+        bytes[0] = 2;
+        let mut r = CellIterator::read(&mut ByteReader::new(&bytes)).unwrap();
+        assert_eq!(r.state, IteratorState::Exhausted);
+        assert_eq!(r.next_cell(), None);
     }
 
     #[test]
