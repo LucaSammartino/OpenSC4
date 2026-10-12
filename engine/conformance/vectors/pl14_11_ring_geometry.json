@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "plumbing_ring_geometry",
+  "spec": ["plumbing 6.3", "plumbing 14.11"],
+  "description": "Test 11: radius 7, a single-cell network at (50,50) (an unconnected pipe on the pump's own lot), no consumers. Rings 1-3 push the diagonals (ring < 7 >> 1 = 3), later rings only the four sides, so the ring of (dx, dz) is max(|dx|,|dz|) up to 3 and 3 + max(0,|dx|-3) + max(0,|dz|-3) beyond: (53,53) ring 3, (54,54) ring 5, (50,56) ring 6 and (44,50) ring 6 are watered; (55,55) and (50,57) and (43,50) are ring 7 and are not. Counting the cells with 3 + a(dx) + a(dz) <= 6: 7 x 13 + 2 x 11 + 2 x 9 + 2 x 7 = 145 non-zero published cells (the centre is the pump lot with a pipe: 15). The redisplay box is [44, 56] x [44, 56].",
+  "steps": [
+    {"op": "plumbing_env", "water": [[49, 50]]},
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_message", "type": "ConnectionsReady"},
+    {"op": "plumbing_building", "label": "pump", "x": 50, "z": 50, "props": {"0x88ED3303": {"u32": 1000}}},
+    {"op": "plumbing_pipe", "label": "p", "x": 50, "z": 50},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_pass", "calls": 9},
+    {"op": "plumbing_expect_grid", "grid": "published", "nonzero": 145, "cells": [
+      {"x": 53, "z": 53, "v": 1}, {"x": 54, "z": 54, "v": 1}, {"x": 55, "z": 55, "v": 0},
+      {"x": 50, "z": 56, "v": 1}, {"x": 50, "z": 57, "v": 0}, {"x": 44, "z": 50, "v": 1}, {"x": 43, "z": 50, "v": 0},
+      {"x": 47, "z": 47, "v": 1}, {"x": 46, "z": 46, "v": 1}, {"x": 45, "z": 45, "v": 0}, {"x": 50, "z": 50, "v": 15}]},
+    {"op": "plumbing_call", "method": "is_cell_watered", "args": [53, 53], "expect": true},
+    {"op": "plumbing_call", "method": "is_cell_watered", "args": [55, 55], "expect": false},
+    {"op": "plumbing_expect_events", "filter": {"event": "redisplay"}, "events": [{"event": "redisplay", "min": [44, 44], "max": [56, 56]}]}
+  ]
+}
