@@ -354,7 +354,9 @@ The settlement is the **only** place where funds can become negative through nor
 
 Monthly only. First zero every group's `weightedAssessed`. Then for every lot of the city, **each exactly once**.
 The original walks the lot manager's master lot list (`cISC4LotManager` compiled slot 15, `GetSafeLotIterator`,
-opaque in the SDK), in the order the lots were added to it *[inferred: creation/load order]*. It does **not**
+opaque in the SDK), in its list order (corrected, zones.md): a new lot is inserted at the traffic simulator's
+`GetDesiredLotInsertionPoint` (null in practice, so appended), and after a load the list is rebuilt in first-cell
+order (x outer, z inner). It does **not**
 query a cell rectangle. A reimplementation through public interfaces may use
 `GetLotsInCellRect(list, 0, 0, CellCountX − 1, CellCountZ − 1, false)` (see Errata round 2, item 5): same set of
 lots, different order; the order only affects float rounding of the sums *[choice]*.

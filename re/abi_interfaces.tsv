@@ -10,7 +10,7 @@ cIGZDate	cGZDate	00acea38	46	docs/specs/foundations.md 17.4
 cISCResExemplar	cSCResExemplar	00aaf0d0	14	docs/specs/foundations.md 17.5
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	44	docs/specs/foundations.md 17.6
 cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	29	docs/specs/foundations.md 17.7
-cISC4LotManager	cSC4LotManager	00ab37c0	28	docs/specs/foundations.md 17
+cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	28	docs/specs/foundations.md 17
 cISC4Lot	cSC4Lot	00ab19b0	70	docs/specs/foundations.md 17
 cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	59	docs/specs/foundations.md 17
 cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	14	docs/specs/foundations.md 17
@@ -72,7 +72,7 @@ cISC4TutorialSystem	cSC4TutorialSystem	00a861b8	18	docs/specs/flammability.md
 cISC4Occupant	cSC4Occupant	00aa41d8	34	docs/specs/flammability.md
 cISC4PlumbingSimulator	cSC4PlumbingSimulator	00ab2228	29	docs/specs/flammability.md
 cISC4ResidentialSimulator	cSC4ResidentialSimulator	00ab2c10	60	docs/specs/aura.md, crime.md
-cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	43	docs/specs/aura.md
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	44	docs/specs/aura.md; traffic-simulator.md §7 (slot 43 = scalar deleting destructor 0x007215A0)
 cISC4PoliceSimulator	cSC4PoliceSimulator	00ab2490	45	docs/specs/crime.md, aura.md
 cISC4FireProtectionSimulator	cSC4FireProtectionSimulator	00ab1160	26	docs/specs/aura.md
 cISC4DisasterManager(Riot)	cSC4DisasterManagerRiot	00a9e798	12	docs/specs/aura.md
@@ -152,3 +152,14 @@ cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	15	docs/specs/tract-developer.md
 cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	28	docs/specs/tract-developer.md
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	33	docs/specs/tract-developer.md
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	4	docs/specs/tract-developer.md
+cISC4PathFinder	cSC4PathFinder	00ab2150	34	docs/specs/pathfinder.md
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	15	docs/specs/traffic-network.md
+cISC4TrafficSource	cSC4Lot	00ab1914	6	docs/specs/traffic-simulator.md
+cISC4TrafficSource	cSC4NeighborConnection	00ab1fa0	6	docs/specs/traffic-simulator.md
+cISC4ZoneDeveloper	cSC4ZoneDeveloper	00ab3830	10	docs/specs/zones.md
+cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	4	docs/specs/zones.md
+cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	6	docs/specs/zones.md
+cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	4	docs/specs/zones.md
+cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	6	docs/specs/zones.md
+cIGZMessageTarget2(LotDeveloper)	cSC4LotDeveloper	00ab1b88	4	docs/specs/lot-developer.md
+cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	6	docs/specs/lot-developer.md

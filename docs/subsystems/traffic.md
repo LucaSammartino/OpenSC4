@@ -7,6 +7,19 @@ Target: SimCity 4 1.1.641 (GOG) Windows exe, image base `0x400000`. Reference: n
 Legend: **[confirmed]** read in code (Mac pseudocode, and Windows disassembly where a Win address is given) ·
 **[inferred]** consistent with the evidence but not proven.
 
+> **Superseded by the M5 specs** (`docs/specs/pathfinder.md`, `traffic-network.md`, `traffic-simulator.md`), which
+> were checked against the Windows code. Corrections from pathfinder.md so far: §5.4 — the mass-transit strike also
+> skips subway-station transfers and ferries; the neighbour-connection cost applies to filter 0 or 3 on Windows; the
+> sharp-turn rule removes both the entry side and the predecessor's side; the failure fallback considers every
+> stored node; start-node rings have no early stop; the allowed-types mask gates switch moves only; the Windows
+> tunnel and ferry tables are at sim+0xC8 and +0xDC. §2.3 — free-destination counts are at sim+0x1B0. §2.2 —
+> filter 2 has no setter for its occupant filter. §5.5 — the pathfinder's ApplyTraffic does not mirror style 2.
+> From traffic-network.md: in the per-cell connection words the nibble is the **entry** side; `GetCapacity`
+> returns a float equal to `1/invCap`; wormhole bit 1 (subway station) is never set in 1.1.641.
+> From traffic-simulator.md: new trips are marked by status 4, not by a flag; property `0x4A611773` is never read;
+> work-cycle states 1, 9 and 14 are never entered; ferry terminals are saved; slots 11, 23 and 26 have the
+> compiled signatures given in traffic-simulator.md §7.
+
 ## 1. Responsibilities (summary)
 
 The traffic simulator is a **commute / desirability generator**, not the visible car animation (that is

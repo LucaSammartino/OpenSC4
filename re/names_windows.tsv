@@ -596,7 +596,7 @@ va	name	source	confidence	note
 0043fc70	cSC4TutorialTask::GetNumber	auto:D	medium	mac 000d329c score 0.5 support 1
 0043fd00	cSC4View3DWin::GetRenderer	auto:C	low	mac 0051c18e score 1.0 support 1
 0043fd10	cSC4PoliceSimulator::GetJailPopulation	auto:C	low	mac 00076074 score 1.0 support 1
-0043fde0	std::vector<cGZWinTreeView::GZWinTreeView_TreeNode*,std::allocator<cGZWinTreeView::GZWinTreeView_TreeNode*>>::operator[]	auto:D	medium	mac 0074f324 score 0.5 support 1
+0043fde0	RectContainsInclusive	manual:m5path	medium	pathfinder.md: inclusive rect-contains (was vector<TreeNode*>::operator[])
 0043fe10	SpiralIterator::SpiralIterator	auto:B4	medium	mac 0061d480 score 0.948 support 7.0
 0043fe80	SpiralIterator::SetNextEndpoint	auto:B4	medium	mac 0061cb08 score 0.981 support 1.0
 0043ff60	cSC4TutorialTask::GetTargetWindow	auto:A	high	mac 000d4380 score 1.0 support 0
@@ -613,7 +613,7 @@ va	name	source	confidence	note
 00441090	cSC4DisasterInstanceFire::GetCause	auto:C	low	mac 0033bd3c score 1.0 support 1
 00441170	cSC4TutorialTask::GetString	auto:D	medium	mac 000d3722 score 0.5 support 1
 00441360	cSC4TutorialTask::Init	auto:A	high	mac 000d49b2 score 0.603 support 0
-00441a60	cRZCellMap<bool>::SetValue	auto:B1	medium	mac 0061fe7a score 0.96 support 5.0
+00441a60	cRZCellMap<bool>::~cRZCellMap	manual:m4zone	medium	zones.md: cell-map destructor (was SetValue)
 00441aa0	cRZCellMap<bool>::cRZCellMap	auto:B7	medium	mac 0061fda6 score 0.876 support 1.0
 00441b50	cSC4TutorialUIWinProc::LoadArrow	auto:B0	medium	mac 00085394 score 0.966 support 2.0
 00441bd0	cSC4TutorialUIWinProc::KillArrow	auto:B0	medium	mac 000851e4 score 0.947 support 1.0
@@ -1008,6 +1008,7 @@ va	name	source	confidence	note
 004664b0	cSC4Demolition::QueryInterface	auto:C	high	mac 000ad23c score 1.0 support 1
 00466530	cSC4OccupantImmovabilityFilter::IsOccupantIncluded	auto:B1	medium	mac 00631c86 score 0.984 support 3.5
 004665c0	cSTETerrainView3D::SetWaterColorUpdateRect	auto:D	medium	mac 004eece0 score 0.5 support 1
+00466610	SC4CellRegion<long>::IncludesCell	manual:m4zone	medium	zones.md
 00466700	cSC4DemolitionOccupantFilter::cSC4DemolitionOccupantFilter	auto:B5	medium	mac 00632e6c score 0.95 support 1.0
 00466730	cSC4DemolitionOccupantFilter::IsOccupantIncluded	auto:B0	medium	mac 006326f6 score 0.987 support 6.5
 00466920	cSC4Demolition::~cSC4Demolition	auto:C	high	mac 000ad1be score 1.0 support 1
@@ -1021,7 +1022,7 @@ va	name	source	confidence	note
 004670c0	cSC4Demolition::DemolishLots	auto:C	high	mac 000ad730 score 1.0 support 1
 004673b0	cSC4Demolition::DoDemolishGroupEffect	auto:A	high	mac 000ad506 score 1.0 support 0
 004676e0	std::_Rb_tree<cRZAutoRefCount<cISC4Lot>,cRZAutoRefCount<cISC4Lot>,std::_Identity<cRZAutoRefCount<cISC4Lot>>,std::less<cISC4Lot*>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::~_Rb_tree	auto:D	medium	mac 006329b0 score 0.5 support 1
-00467950	SC4CellRegion<long>::IncludesCell	auto:B8	medium	mac 006056b2 score 0.813 support 2.0
+00467950	std::set<cRZAutoRefCount<cISC4Lot>>::insert	manual:m4zone	medium	zones.md: set insert (was SC4CellRegion<long>::IncludesCell; the real one is 0x00466610)
 00467a10	std::list<cRZAutoRefCount<cISC4Lot>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::push_front	auto:D	medium	mac 00632314 score 0.5 support 1
 00467b80	std::set<cRZAutoRefCount<cISC4Occupant>,std::less<cISC4Occupant*>,std::allocator<cRZAutoRefCount<cISC4Occupant>>>::insert	auto:B2	medium	mac 006326b4 score 0.934 support 2.0
 00467bb0	cSC4Demolition::ModifyTerrainHeight	auto:C	high	mac 000ada30 score 1.0 support 1
@@ -1143,7 +1144,7 @@ va	name	source	confidence	note
 00472eb0	cSC4MessageServer2::cSC4MessageServer2	auto:D	medium	mac 0002912c score 0.5 support 1
 004731a0	std::_List_base<cRZAutoRefCount<cIGZWin>,std::allocator<cRZAutoRefCount<cIGZWin>>>::_M_clear	auto:B2	medium	mac 0082daf8 score 0.91 support 1.0
 00473440	SendFatalExceptionNotification	auto:A	high	mac 00028fcc score 1.0 support 0
-00473ec0	std::_List_base<cRZAutoRefCount<cISC4Lot>,std::allocator<cRZAutoRefCount<cISC4Lot>>>::~_List_base	auto:B4	medium	mac 006321e2 score 0.796 support 6.0
+00473ec0	std::list<cRZAutoRefCount<cISC4Lot>>::clear	manual:m4zone	medium	zones.md, allocators.md: releases each element, frees nodes with B, keeps the head
 004744e0	cSC4GameDataRegistry::cEntry::cEntry	auto:B2	medium	mac 007f84ba score 0.934 support 2.0
 004748f0	cSC4GameDataRegistry::cSC4GameDataRegistry	auto:A	high	mac 0048e1be score 0.696 support 0
 00475330	cDumpSubTreeVisitor::sVisit	auto:A	high	mac 007f8964 score 1.0 support 0
@@ -1549,7 +1550,7 @@ va	name	source	confidence	note
 0049d820	cSC4ObliterateCity::DoAnimationTick	auto:B0	medium	mac 0029e1b8 score 0.9 support 1.0
 0049d990	cSC4OccupantManager::GetOccupantManagerCellSizes	auto:A	high	mac 001ad898 score 1.0 support 0
 0049eaa0	std::list<cIGZWin*,std::allocator<cIGZWin*>>::erase	auto:B0	medium	mac 006637c2 score 0.994 support 2.0
-0049fc70	cRZRandom::RandomDoubleRangeUniform	auto:B4	medium	mac 000271d8 score 0.893 support 2.0
+0049fc70	std::vector::resize	manual:m5path	medium	pathfinder.md: vector resize, not an RNG method (was cRZRandom::RandomDoubleRangeUniform)
 004a1d20	cSC4PropManager::GetGZCLSID	auto:C	low	mac 0067390e score 1.0 support 1
 004a1d30	cSC4PropManager::QueryInterface	auto:C	high	mac 0012ce36 score 1.0 support 2
 004a1db0	cSC4PropManager::GetCityProps	auto:C	high	mac 0012d168 score 1.0 support 1
@@ -4137,8 +4138,8 @@ va	name	source	confidence	note
 005e5180	cSC4MapUtilities::FloodFillDistance	auto:B2	medium	mac 0009f376 score 0.993 support 1.0
 005e5200	cSC4MapUtilities::GetTractsInRadius	auto:B4	medium	mac 0009f3ee score 0.984 support 1.0
 005e5390	cSC4MapUtilities::AddDistanceEffect	manual:grid-sims.tsv	high	DoIdle state 2 call (water effect)
-005e55e0	ilist<cISC4Occupant*>::~ilist	auto:B4	medium	mac 006079ae score 0.836 support 16.0
-005e5620	cRZCellMap<bool>::~cRZCellMap	auto:B2	medium	mac 005edf98 score 0.791 support 10.0
+005e55e0	GlobalHeapAlloc	manual:m5path	medium	allocators.md allocator C alloc (was ilist<cISC4Occupant*>::~ilist)
+005e5620	GlobalHeapFree	manual:m5path	medium	allocators.md allocator C free (was cRZCellMap<bool>::~cRZCellMap)
 005e5e30	cRZFastAllocatorGeneralThreadSafe::cRZFastAllocatorGeneralThreadSafe	auto:D	medium	mac 0067918e score 0.5 support 1
 005e8320	cSC4ModelRegEffects::InitEffectsList	auto:B2	medium	mac 00160e6e score 0.961 support 4.0
 005e8980	cSC4Occupant::Shutdown	auto:A	high	mac 00088d88 score 1.0 support 0
@@ -5709,7 +5710,8 @@ va	name	source	confidence	note
 0068bac0	cSC4AuraSimulator::GetMayorRating	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 8
 0068bad0	cSC4AuraSimulator::AddTransientEffect(float,float,TransientAuraEffect)	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 6 (MSVC reversed overload; ret 0xC, forwards to the 4-float overload via vt+0x1C)
 0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 7 (MSVC reversed overload; ret 0x10, calls AddRadiusEffect<int8> 005E4130 on transient grid)
-0068bf80	__gnu_cxx::hashtable<std::pair<unsigned_short_const,cSC4TrafficSimulator::TunnelInfo>,unsigned_short,__gnu_cxx::hash<unsigned_short>,std::_Select1st<std::pair<unsigned_short_const,cSC4TrafficSimulator::TunnelInfo>>,std::equal_to<unsigned_short>,std::allocator<cSC4TrafficSimulator::TunnelInfo>>::find	auto:D	medium	mac 0060b82e score 0.5 support 1
+0068bf50	LimitTimer::Start	manual:m5path	medium	rdtsc deadline start; pathfinder.md, building-development.md
+0068bf80	LimitTimer::Expired	manual:m5path	medium	rdtsc deadline check; pathfinder.md, building-development.md (was hashtable<TunnelInfo>::find)
 0068bfb0	cSC4AuraSimulator::Release	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 2
 0068bfe0	cSC4AuraSimulator::ComputeGlobalEffect	auto:A	high	mac 00189064 score 1.0 support 0
 0068c0d0	cSC4AuraSimulator::BustStrike	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 11
@@ -7098,7 +7100,7 @@ va	name	source	confidence	note
 0070de70	SetTripCapacity	auto:B2	medium	mac 0005295e score 0.939 support 2.5
 0070df70	cSC4TrafficSimulator::SetMaxTripCapacity	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 19, matches Mac __ZTV20cSC4TrafficSimulator order
 0070df90	cSC4TrafficSimulator::GetMaxTripCapacity	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 20, matches Mac __ZTV20cSC4TrafficSimulator order
-0070dff0	GetTripCapacity	auto:B9	medium	mac 00052ac0 score 0.977 support 2.5
+0070dff0	cSC4TrafficSimulator::GetUsedTripCapacity	manual:m5path	medium	pathfinder.md: returns used trip capacity (was GetTripCapacity)
 0070e050	cSC4TrafficSimulator::GetTrafficArrived	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 21, matches Mac __ZTV20cSC4TrafficSimulator order
 0070e0b0	cSC4TripData::Write	auto:B1	medium	mac 000629f2 score 0.947 support 2.0
 0070e160	cSC4TripData::Read	auto:B1	medium	mac 00064ab8 score 0.962 support 2.0
@@ -7282,6 +7284,7 @@ va	name	source	confidence	note
 0072c0e0	cSC4ZoneDeveloper::ClearHighlight	auto:B14	medium	mac 000dd426 score 0.911 support 1.0
 0072c200	cSC4ZoneDeveloper::CanCreateLot	auto:B14	medium	mac 000e1e5c score 0.95 support 1.0
 0072c600	std::_Rb_tree<int,std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>,std::_Select1st<std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>>,std::less<int>,std::allocator<std::pair<int_const,cSC4ZoneDeveloper::BoundaryLotTextureRule>>>::insert_unique	auto:B2	medium	mac 00648eae score 0.812 support 1.0
+0072c810	cSC4ZoneDeveloper::InsertLotAtSafeIterator	manual:m4zone	medium	zones.md: inserts at a safe-iterator position
 0072c8e0	cSC4ZoneDeveloper::PlopAllLotTypes	auto:B5	medium	mac 000db8aa score 0.964 support 2.0
 0072cb90	cSC4ZoneDeveloper::CreateParcellizableRegion	auto:D	medium	mac 000e1a36 score 0.5 support 1
 0072cda0	cSC4ZoneDeveloper::ExtractConnectedCells	auto:D	medium	mac 000dd8d2 score 0.5 support 1
@@ -11382,7 +11385,7 @@ va	name	source	confidence	note
 00913a06	cRZRandomSuper::RandomUint32Uniform	auto:B0	medium	mac 00026f36 score 0.882 support 6.0
 00913a14	cRZRandomSuper::RandomSint32RangeUniform	auto:B5	medium	mac 0002709a score 0.861 support 3.0
 00913a29	cRZRandomSuper::RandomDoubleUniform	auto:B0	medium	mac 00026f04 score 0.906 support 6.0
-00913a46	__gnu_cxx::hash_map<unsigned_long,cISC4PathInfo::tPath,__gnu_cxx::hash<unsigned_long>,std::equal_to<unsigned_long>,std::allocator<cISC4PathInfo::tPath>>::hash_map	auto:D	medium	mac 00692092 score 0.5 support 1
+00913a46	cRZRandom::RandomDoubleRangeUniform	manual:m4zone	medium	traffic-simulator.md (was a hash_map method)
 00913a5c	cRZRandom::cRZRandom	auto:B0	medium	mac 00026bd2 score 0.894 support 11.0
 00913a72	cRZRandomSuper::Seed	auto:B1	medium	mac 00026f8c score 0.825 support 1.0
 00913b74	cRZRandomSuper::cRZRandomSuper	auto:B0	medium	mac 00027076 score 1.0 support 2.0
