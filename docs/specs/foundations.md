@@ -780,7 +780,7 @@ for "clock XOR constant → generator constructor"):
 | `0x00B4A5C0` | `cRZRandomSuper` | `0x4C09C51F` | wealth requester (prop selection) |
 | `0x00B44870` | `cRZRandomSuper` | `0x8C09C379` | network lot manager |
 | `0x00B43E88` | `cRZRandomSuper` | `0x6C09C07B` | network construction crew |
-| `0x00B22FB0` | `cRZRandom` | `0xEC09C32A` | construction occupant |
+| `0x00B22FB0` | `cRZRandom` | **`0x00000000`** | construction occupant. The static seed (clock XOR `0xEC09C32A`) is overwritten before any draw: the first construction occupant's `Init` calls `StaticInit` (`0x005CED80`, once per process), which reseeds it with the plain `cRZTime()` value (`0x005CEDAC`). So `K` = 0 (`derive(0) = S`) |
 | `0x00B23078` | `cRZRandom` | `0x8C09C2D5` | lot base-texture occupant |
 | `0x00B230C8` | `cRZRandom` | `0x0C09C347` | lot retaining-wall occupant |
 | `0x00B231B0` | `cRZRandomSuper` | `0xAC09C2EC` | prop occupant |
@@ -1317,7 +1317,7 @@ which mode it uses and when it resets.
 | lot developer (message handler) | `random_shuffle` of a deque of `cISC4BuildingOccupant*` (the night-light list; n − 1 calls) |
 | landfill zones (monthly landfill developer update) | `rand()` directly: one call per redrawn cell whose tile has all four surrounding heaps active, 0–4 per heap whose active state changes (landfill.md §4.8) |
 | random cell iterator | flammability (daily), flora (init, monthly), pollution (init, daily, visual effects), power grid update, tract developer (lot listing, decline), weather (init, weekly); also obliterate-city, volcano lava, helicopters, audio ambience |
-| linear iterator | construction occupants (props, crews), traffic simulator (accident check), one unnamed simulation function |
+| linear iterator | construction occupants (table mode, n − 1 `rand()` calls per reset; they order lot areas, spark sides and prop lists: lot-developer.md §6.7), traffic simulator (accident check), one unnamed simulation function |
 
 Names come from the symbol port and may be imprecise *[inferred]*.
 

@@ -670,11 +670,15 @@ accident-prone list in the order of a **linear random iterator** (foundations §
 at reset). For each entry: draw `u := RandomDoubleRangeUniform(0.0, 1.0)` on the simulator's generator; if `u < p`
 and the cell is in the visible rect and has an occupant (network-occupant query, `+0x1C` grid slot 14): create an
 accident there (`cSC4TrafficAutomataManager::CreateAccident`, duration `ftol(r24(accidentDuration × 1000))` ms),
-post an accident message (§5) and stop. *[choice]* FreeCity4 replaces the wall-clock period by the simulation clock
+post the accident message `0x0C05E4C3` (§5; data1 = x, data2 = z of the entry, queued) and stop. The result of
+`CreateAccident` is not checked: the message is posted even if the automata manager made no accident. *[choice]* FreeCity4 replaces the wall-clock period by the simulation clock
 (the check runs once per `accidentCheckPeriod` seconds of game time at the current speed) and keeps the draw order.
 
-**CheckRailAccident(x, z)** (slot 17, `0x00711590`): if the cell is in the damaged-cell set (key `z << 8 | x`):
-`RandomDoubleUniform() < railDamageAccidentFactor`; else false.
+**CheckRailAccident(x, z)** (slot 17, `0x00711590`): if the cell is in the damaged-cell set (hash at +0x804, key
+`(x << 8 | z)` truncated to 16 bits, `x` the first argument): `u := RandomDoubleUniform()` on the simulator's
+generator (+0x6FC, `cRZRandomSuper::RandomDoubleUniform` `0x00913A29`) and the result is
+`railDamageAccidentFactor (+0xD04) > u`; else false, no draw. It posts **no** message; its result goes back to the
+caller (train automata *[not traced]*).
 
 **IsRoadDamaged(x, z)** (slot 16, `0x00720070`): membership of `(x << 8 | z)` in the damaged-road list
 (traffic-network.md).
@@ -762,9 +766,9 @@ part draws nothing (traffic-network.md §12).
 
 | Message | When | Data |
 |---|---|---|
-| `0x69247DC7` TrafficMapChanged | end of CreateFinalMap (state 4) | `cRZMessage2Standard`: type, void1 and IGZUnknown = the simulator; sent synchronously (message server `+0x10`, flag 0) |
-| accident message | `CheckForAccident`, when an accident is created | `cRZMessage2Standard` (`0x2C` bytes, operator new), posted through the server at `0x00B43CCC` *[inferred: message ID and data]* |
-| `0x69247DC3`, `0x69247DC4`, `0x69247DC5`, `0x69247DC6` | strike transitions (§4.12) | type, data1 (`+0x30` void1) and IGZUnknown = the simulator; sent through the simulator's message server (`+0x10`, flag 0) |
+| `0x69247DC7` TrafficMapChanged | end of CreateFinalMap (state 4) | `cRZMessage2Standard`: type, void1 and IGZUnknown = the simulator; **posted, queued** (message server `+0x10` = `MessagePost(msg, false)`, `0x0070F6C0`) |
+| `0x0C05E4C3` traffic accident *[inferred name]* | `CheckForAccident` (§4.13), right after `CreateAccident` (`0x0071877E`) | new `cRZMessage2Standard` (`0x2C` bytes); `SetType(0x0C05E4C3)`, `SetData1(x)`, `SetData2(z)` (the accident-prone entry's cell, words +0 and +4); data3, data4, void1 and IGZUnknown are not set (0). **Posted, queued, normal priority** (`MessagePost(msg, false)` on `0x00B43CCC`, call at `0x007187D7`; skipped when the server is null), then released. Receivers: **none compiled**: the constant appears once in the image (`0x007187B2`, also only at the poster in the Mac build), so only wildcard or plug-in subscribers see it. Rail accidents post nothing (`CheckRailAccident` returns a bool). The advisor events CAR_CRASH `0xABF4B4B2` / TRAIN_DERAIL `0xABF4B57F` have no code reference to this path *[not traced]* |
+| `0x69247DC3`, `0x69247DC4`, `0x69247DC5`, `0x69247DC6` | strike transitions (§4.12) | type, data1 (`+0x30` void1) and IGZUnknown = the simulator; posted, queued, through the simulator's message server (`+0x10` = `MessagePost(msg, false)`, `0x0070DD18`) |
 | `0x69247DC8` | a cell becomes damaged or repaired (§4.12) | x, z, damaged flag |
 | `0x2C06BA82` | the ferry pass of state 19 has finished all terminals | traffic-network.md §5 |
 
@@ -941,7 +945,8 @@ Open questions:
   `DoLotDeactivated` were not traced line by line *[inferred]*; their observable outputs (strike state, department
   costs) need differential tests.
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
-* **Q3** The accident message ID and data (§5).
+* **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
+  post nothing. Open: who calls `CheckRailAccident` and what the caller does with a true result.
 * **Q4** Names of the 20 pass counters (sources, merges, confirmed, re-routed, failed, split, …) saved in §6.1 row 15;
   only `toReRoute`, `toSearch`, `passTotal`, `processed` and `rerouteBucket` drive behaviour.
 * **Q5** Full save layout: rows 14–19 of §6.1 are given by type sequence (write trace of `0x00712400`, kept in the

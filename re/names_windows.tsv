@@ -3832,7 +3832,7 @@ va	name	source	confidence	note
 005cf790	cSC4ConstructionOccupant::AddGroundProps	auto:B0	medium	mac 0011c51c score 0.938 support 4.0
 005cfa60	cSC4ConstructionOccupant::CreateConstructionCrew	auto:B0	medium	mac 0011c33a score 0.993 support 2.0
 005cfc40	cSC4ConstructionOccupant::AddRoofProps	auto:D	medium	mac 0011c196 score 0.5 support 1
-005cfe20	cRZRandom::RandomDoubleRangeGaussianFast	auto:B1	medium	mac 0002746a score 0.94 support 1.0
+005cfe20	cSC4ConstructionOccupant::ScatterSparks	manual:m4open	medium	lot-developer.md 6.7 (was RandomDoubleRangeGaussianFast)
 005d00f0	cSC4ConstructionOccupant::cSC4ConstructionOccupant	auto:A	high	mac 0011b892 score 0.689 support 0
 005d04a0	cSC4ConstructionOccupant::GetGZCLSID	auto:C	low	mac 00667e00 score 1.0 support 1
 005d0640	__ZThn60_N24cSC4ConstructionOccupant4DrawEP14SC4DrawContextb	auto:B4	low	mac 0066855c score 0.96 support 1.0
@@ -11377,7 +11377,7 @@ va	name	source	confidence	note
 009136b1	cRZRandom::RandomUint32Uniform	auto:B0	medium	mac 00026c66 score 0.84 support 5.0
 009136ca	cRZRandom::RandomSint32RangeUniform	auto:B0	medium	mac 00026f52 score 0.803 support 2.0
 0091372e	cRZRandom::RandomDoubleUniform	auto:B1	medium	mac 00026bfa score 0.854 support 3.0
-00913761	cSC4ParticlesEffect::RandomRange	auto:B0	medium	mac 007943ec score 0.802 support 4.0
+00913761	cRZRandom::RandomDoubleRangeUniform	manual:m4open	medium	foundations 6.1 (was cSC4ParticlesEffect::RandomRange)
 00913777	cRZRandom::RandomDoubleGaussian	auto:B1	medium	mac 0002726e score 0.84 support 2.0
 0091381f	cRZRandom::RandomDoubleRangeGaussian	auto:B2	medium	mac 000273e6 score 0.892 support 1.0
 009138a9	cRZRandomSuper::Reload	auto:B2	medium	mac 00026da2 score 0.964 support 2.5
@@ -11385,7 +11385,7 @@ va	name	source	confidence	note
 00913a06	cRZRandomSuper::RandomUint32Uniform	auto:B0	medium	mac 00026f36 score 0.882 support 6.0
 00913a14	cRZRandomSuper::RandomSint32RangeUniform	auto:B5	medium	mac 0002709a score 0.861 support 3.0
 00913a29	cRZRandomSuper::RandomDoubleUniform	auto:B0	medium	mac 00026f04 score 0.906 support 6.0
-00913a46	cRZRandom::RandomDoubleRangeUniform	manual:m4zone	medium	traffic-simulator.md (was a hash_map method)
+00913a46	cRZRandomSuper::RandomDoubleRangeUniform	manual:m4open	high	calls cRZRandomSuper::RandomDoubleUniform 0x913A29; traffic-simulator.md
 00913a5c	cRZRandom::cRZRandom	auto:B0	medium	mac 00026bd2 score 0.894 support 11.0
 00913a72	cRZRandomSuper::Seed	auto:B1	medium	mac 00026f8c score 0.825 support 1.0
 00913b74	cRZRandomSuper::cRZRandomSuper	auto:B0	medium	mac 00027076 score 1.0 support 2.0

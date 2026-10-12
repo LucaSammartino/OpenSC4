@@ -118,7 +118,7 @@ If already initialised, return true at once. Otherwise:
    nine messages of §3.2 in this order: `0x44778234`, `0x99EF1142`, `0x99EF1143`, `0xE8BDA2E7`, `0xE99B3D4D`,
    `0x278E6003`, `0x8A07AE00`, `0x26D31EC4`, `0x69247DC7`.
 10. Register with the animation-tick manager (service `0x86AD10EC`, IID `0x86AD10ED`): its slot 5 with
-    (this + 4, `0xC0`) *[inferred: `0xC0` is a tick mask or rate]*.
+    (this + 4, `0xC0`). `0xC0` is a **priority**: ≥ `0xC0` puts the target in the every-frame bucket (§6.7.8).
 11. `InitBoundaryRules` (`0x006CA160`): fills the boundary map used by `GetBoundaryLotTexture` (slot 42). No random
     draw.
 12. **Force a base-texture refresh**: flip the force-empty flag, then call `SetForceEmptyLotBaseTextures(original)`
@@ -205,7 +205,7 @@ IGZUnknown 32 (foundations §5).
 | `0x8A07AE00` | power changed in a rectangle | rect = (data1, data2, data3, data4) = (x1, z1, x2, z2); §9 |
 | `0x26D31EC4` | city established | `noZotUntilDay := GetSimDateNumber() + 31` (simulator slot 8) |
 | `0x69247DC7` | traffic map changed | `canCheckCommute := (demand.GetDemand(0x2000, 0x20000).QueryDemandValue() > 0.0)` (demand simulator slot 6, demand slot 9; the city-total jobs node, demand.md). NaN → false |
-| `0x86AD10EE` | animation tick (delivered by the animation-tick manager, not subscribed) | if `nightMode = 0`: return **false**. Otherwise `ms := data2 / 1000` (unsigned integer division) and run §8.3; return true |
+| `0x86AD10EE` | animation tick (delivered by the animation-tick manager by a direct `DoMessage` call, not subscribed; §6.7.8) | if `nightMode = 0`: return **false**. Otherwise `ms := data2 / 1000` (unsigned integer division; data2 is the clamped frame delta in **µs**, 2000..500000 by default, so `ms` is 2..500) and run §8.3; return true |
 | `0x66956814` | SimNewDay (agent) | §4; returns the pass's "finished" flag |
 | any other | | true |
 
@@ -635,8 +635,8 @@ With `animate = true`:
 
 The lot stays in state 2. The construction occupant's daily update (`0x005D0680`) runs its own phases; when it
 completes, it sets the building completion, removes itself (occupant manager slot 21) and calls
-**`lot.SetState(3, 0, 0)`**. Its timing is the construction occupant's business (a later spec) *[inferred: phase
-lengths not analysed]*. The lot developer only reacts to the resulting state-change message (§6.5).
+**`lot.SetState(3, 0, 0)`**. Its phases, timing and draws are given in §6.7. The lot developer only reacts to the
+resulting state-change message (§6.5).
 
 Without animation the state is set to 3 at once, so §6.5 runs when the queued message is delivered.
 
@@ -724,6 +724,234 @@ and walk every lot with a fresh safe iterator: `f` → `SetEmptyLotBaseTexture(l
 
 `SetEmptyLotBaseTexture` (slot 43) and `GetBoundaryLotTexture` (slot 42) compute empty-lot textures from the
 boundary rules; no draw. Their geometry is not specified here (§12.2 Q4).
+
+### 6.7 Construction occupant (`cSC4ConstructionOccupant`, class `0xA97F909E`) *[compat]*
+
+This is the object of §6.3. It is not part of the lot developer, but it decides **when** the lot developer's
+completion work (§6.5) runs, so its timing is specified here. Everything it builds (scaffold, crane, props, crew
+automata, spark effects, construction lot texture) is visual. The **completion day uses no random draw**: it depends
+only on the building's bounding box, the terrain under it, the construction tuning and the building's construction
+time property.
+
+#### 6.7.1 Identity
+
+| Item | Value |
+|---|---|
+| main vtable | `0x00AA2250` (slot 4 `SetLot`, `0x005D0890`) |
+| occupant sub-object (+8) | vtable `0x00AA21B8`; slot 3 `Init` `0x005D1300`, slot 4 `Shutdown` `0x005D0CE0` |
+| message target | vtable `0x00AA2240`, `DoMessage` `0x005D1090` |
+| serializable | vtable `0x00AA219C`, `Write` `0x005CD250`, `Read` `0x005CE770` (layout not specified, §6.7.10) |
+| size | 0x1A0 bytes (constructor `0x005D00F0`) |
+
+**`Init`**: subscribes (message server `0x00B43CCC`) to `0x66956814` (SimNewDay, the simulator's queued broadcast),
+`0xA6B79602`, `0x06CDB65B` and `0x26D31EC1`; registers with the animation-tick manager at priority **`0x80`**
+(every second frame, §6.7.8); runs the once-per-process `StaticInit` (`0x005CED80`, flag `0x00B22F60`).
+
+`DoMessage` handling: SimNewDay → `DoDailySim` (§6.7.5; **data1 is not used**); `0x86AD10EE` → animation tick with
+`ms := data2 / 1000`; the other three are visual only (`0x26D31EC1` rebuilds the model, crane and renderer entry when a
+pending flag is set; `0x06CDB65B` adds / removes the occupant from the renderer `0x00B43DD0` (slots 28 / 29) and
+toggles occupant flag 2; `0xA6B79602` sets a byte flag at +0xFC) *[inferred: their names]*. All return true.
+
+**`Shutdown`**: posts `0xC9E7B1E8` (data1 = 0) and unsubscribes.
+
+#### 6.7.2 Static tuning (`StaticInit`)
+
+`StaticInit` **reseeds the file RNG `0x00B22FB0` with plain `cRZTime()` (no XOR)** at `0x005CEDAC`. The static
+initialiser `0x00A733A0` seeded it with `cRZTime() XOR 0xEC09C32A`, but that seed is overwritten before any draw
+(correction to foundations §6.2 / §6.3, §12.3).
+
+It then reads the exemplar type `0x6534284A`, group `0x2989FD57`, instance `0x8989DBE3` ("Construction",
+`SimCity_1.dat`). Each property is a float read with `GetPropertyValue` (`0x005FD4F0`); a missing property keeps the
+code default. Names are the Mac build's symbols.
+
+| Property | Global | Name | Code default | Shipped | Stored as |
+|---|---|---|---|---|---|
+| `0x8989EC22` | `0x00B0A7C8` | sfSegmentHeight (`segH`) | 3.0 | 3 | value |
+| `0x8989EC23` | `0x00B0A7CC` | sfPostWidth | 1.0 | 1 | value |
+| `0x8989EC24` | `0x00B0A7D0` | sfScaffoldGap (`gap`) | 1.0 | 2 | value |
+| `0x8989EC25` | `0x00B0A7D4` | sfPlankWidth | 2.0 | 2 | value |
+| `0x8989EC26` | `0x00B22F88` | sfPlankTextureScale | — | 15 | `r24(1 / v)` |
+| `0x8989EC27` | `0x00B22F8C` | sfScaffoldTextureScale | — | 25 | `r24(1 / v)` |
+| `0x8989EC28` | `0x00B22F90` | sfGirderTextureScale | — | 25 | `r24(1 / v)` |
+| `0x8989EC29` | `0x00B0A7D8` | sfScaffoldGrowthRate (`grow`) | 1.0 | 1 | `r24(1 / v)` when present → 1.0 |
+| `0x8989EC2A` | `0x00B0A7DC` | sfScaffoldRemovalRate (`remove`) | 2.0 | 0.5 | `r24(1 / v)` when present → 2.0 |
+| `0x8989EC2B` | `0x00B0A7E0` | sfCranePostWidth | 1.5 | 1.5 | value |
+| `0x8989EC2C` | `0x00B0A7E4` | sfCranePostToBuildingGap | 0.5 | 0.5 | value |
+| `0x8989EC2D` | `0x00B0A7E8` | sfCraneHeightAboveScaffold | 1.0 | 3 | value |
+| `0x8989EC2E` | `0x00B0A7EC` | sfCraneTimeOfFullRotation | 6000 | 6000 | value (ms) |
+
+#### 6.7.3 Geometry (`RebuildModel`, `0x005CAD60`)
+
+All float32 (§18 rule; `0.1` is a double constant entering unrounded):
+- `bbox :=` the building's bounding box (lot slot 48 `GetBuilding` → `AsOccupant` → occupant slot 10).
+- `ground := min(bbox.min.y, altitude at the four bbox corners)` (terrain slot 13); each comparison keeps the current
+  value when the altitude is NaN.
+- `startY := r24(bbox.min.y + 0.1)`, `topY := bbox.max.y`.
+- `f := r24(r24(topY − startY) / segH)`; `N := floor(f) + 1`, and `N = 0` becomes 1. `floor` is the round idiom applied
+  to `r24(f − 0.5)` with a fix-up (+1 when `r + 1 = f`).
+- Scaffold box: min `(bbox.min.x − gap, ground, bbox.min.z − gap)`, max `(bbox.max.x + gap, topY, bbox.max.z + gap)`.
+
+#### 6.7.4 `SetLot(lot)` (`0x005D0890`)
+
+In this order: `Init` if needed; hold the lot and its building (lot slot 48; return if null); `RebuildModel`;
+`DivideLot` (8 areas of 0x18 bytes); `AttemptAddCrane`; `AddGroundProps`; `CreateConstructionCrew(areas, box)`;
+`AddRoofProps(box)`; `CreateDustClouds`; `CreateSparks`; `CreateLotTexture` (the draws of these steps are in §6.7.7);
+`T0 := GetSimDateNumber()` (simulator `0x00B43D5C` slot 8); the timing values below; `state := 0`, `counter := 0`,
+`msAcc := 0`, `nextDay := T0 + A`; `SetBuildingCompletion(0.0)`; scaffold height `r24(ground + 0.001)`; crane state
+(when a crane exists): state 2, accumulator 1, duration 0; post `0x49E7B1E2` (data1 = 1) then `0xC9E7B1E8`
+(data1 = 1); add to the renderer.
+
+Timing values (`round` = the round-half-even idiom of foundations; integers):
+
+```
+D := building property 0x499AFA38 (uint8, profile byte +10); default 30 when absent; D = 0 → 10
+A := min(round(r24(r24(startY − ground) · grow)), 1)
+B := min(round(r24(segH · grow)), 1)
+C := min(round(r24(r24(topY − ground) · remove)), 1)
+E := max_signed(D − B·N − A − C, N) / N            (unsigned integer division)
+```
+
+`D` comes from the building's profile (building occupant slot 11 → BDS slot 39 `GetBuildingProfile`; a static zero
+profile, hence `D = 10`, when the BDS is null). The `min(…, 1)` is a *[quirk]* (`std::min` where `max` was probably
+meant): A, B and C are 0 or 1, so the scaffold phases never last more than a day. `E` is at least 1.
+
+#### 6.7.5 Daily phases (`DoDailySim`, `0x005D0680`)
+
+On each SimNewDay: nothing if there is no building or `state = 4`. `today := GetSimDateNumber()` (the current date,
+not the message's data1). Act only if `today ≥ nextDay`; then `msAcc := 0` and:
+
+| State | Action | Next |
+|---|---|---|
+| 0 or 2 | `counter += 1`. If `counter > N`: remove the roof props (prop manager slot 29) and switch the scaffold object to removal; else post `0x49E7B1E2` (data1 = 1). Then each spark effect slot 8(1) | `counter > N`: state 3, `nextDay := today + C`; else state 1, `nextDay := today + B` |
+| 1 | scatter the sparks (§6.7.7, draws) | state 2, `nextDay := today + E` |
+| 3 | completion, below | state 4 |
+
+**Completion**, in this order: state := 4; `SetBuildingCompletion(1.0)`; if the occupant is in the renderer (bit
+0x02 of byte +0x37), remove it (renderer slot 29) and clear the bit; occupant manager slot 21 `RemoveOccupant(this + 8,
+0, 0)`; **`lot.SetState(3, 0, 0)`** (lot slot 34, call at `0x005D0862`); tail jump to its own `Shutdown` (`0x005D0872`).
+`SetState` posts the queued `0xE8BDA2E7` (2 → 3), so the lot developer's completion work (§6.5) runs when that
+message is delivered, after this day's SimNewDay handlers.
+
+**Closed form.** Since the occupant acts at most once per day and every step lasts at least one day, with `d1` the
+first SimNewDay date it receives and `d1' := max(d1, T0 + A)`:
+
+```
+segment k (1..N) starts on d1' + (k − 1)·(1 + E)
+scaffold removal on       d1' + N·(1 + E)
+completion (SetState 3) on d1' + N·(1 + E) + 1
+```
+
+`d1 = T0 + 1` when `SetLot` runs during a day's processing after the queued SimNewDay(`T0`) was taken from the queue;
+`d1 = T0` only if the occupant subscribed before SimNewDay(`T0`) was delivered *[inferred: depends on whether the
+message server delivers to targets added after posting]*.
+
+`SetBuildingCompletion(p)` (`0x005CA8D0`): if the building's completion (building slot 9) differs from `p`, set it
+(slot 10) and post `0x2977AE2F` queued with IGZUnknown = the building (received by the model maker and the automata
+manager; visual).
+
+#### 6.7.6 Animation tick (visual)
+
+`DoAnimationTick(ms)` (`0x005CE110`) accumulates `msAcc`, interpolates the scaffold height (states 0, 1, 3) and the
+building completion (state 2) between phase boundaries, and runs `AnimateCrane` in states 0–2 when a crane exists. It
+changes no simulation state. *[quirk, visual: the state-2 interpolation uses the elapsed fraction of one day instead of
+dividing by `E`]* *[inferred]*.
+
+`AnimateCrane` (`0x005CD570`): `acc += ms`; when `acc ≥ duration`, `acc := 0` and the crane advances: state 0 → 1
+with `duration := 1000 + Uniform(1000)`; 1 → 2 without draw; 2 → 0 with `mid := r24(r24(r24(max − min) · 0.5) + min)`,
+new target `RDRU(mid, max)` if the previous target is below `mid`, else `RDRU(min, mid)`, and a duration proportional
+to the angle change (`round(|Δ| · 6000 · k)`, `k` the constant at `0x00AA2098`). These draws use the **same** file RNG
+as §6.7.7, at real-time moments.
+
+#### 6.7.7 Random draws
+
+Generator: the file-local `cRZRandom` at `0x00B22FB0` (foundations §6.1 methods; `RDRU` =
+`RandomDoubleRangeUniform` `0x00913761`, `GF` = `RandomDoubleRangeGaussianFast` `0x0091386B`, 3 `RandomDoubleUniform`
+draws each). The occupant's linear iterators (`Reset` `0x005CF610`, `GetNext` `0x005CBD90`) run in **table mode**:
+each reset refills the table with 0..n − 1 and shuffles it with `random_shuffle` (`0x006DB010`), consuming **n − 1 C
+`rand()`** calls. Ghidra names `0x005CFE20` and `0x00913761` wrongly (see §12.3).
+
+`SetLot` order (steps without a listed draw draw nothing; `RebuildModel`, `DivideLot`, `CreateCrane`,
+`CreateDustClouds`, `CreateSparks`, `Read`, `Write` draw nothing):
+
+1. **`AttemptAddCrane`** (`0x005CE360`), building property `0xAA83558F` (uint8): 0 → no crane; 1 → outer; 2 →
+   inner; 3 → outer, then inner if the outer one does not fit; > 3 → no crane.
+   - Outer (`0x005CD710`): tries crane sizes 0..2 (tables `0x00B22F64`, `0x00B22F70`, `0x00B22F7C`). If one fits on
+     `k` usable sides: one `Uniform(k)`; the result `r` picks the (r + 1)-th usable side in side order 0..3. If none
+     fits: no draw.
+   - Inner (`0x005CDDA0`): always one `NextRaw`. If the x extent ≥ the z extent: side 0 if `raw < 0x7FFFFFFF`, else
+     2; otherwise side 1, else 3.
+2. **`AddGroundProps`** (`0x005CF790`), only when the prop table `0x00B22FA0` (12-byte entries: type, dimA, dimB) is
+   not empty: `c := SintRange(1, 4)` (1 `NextRaw`, 1..3). Each round: reset the area iterator (8 areas, 7 `rand()`);
+   for each area with width > 0 and depth > 0: shuffle the ground-prop list (`nGround − 1` `rand()`), take the first
+   prop with `dimA < width` and `dimB < depth` and `CreateAndPlaceProp` it, `c −= 1`, end the round. Rounds repeat
+   while `c > 0` and the previous round attempted a placement.
+3. **`CreateAndPlaceProp`** (`0x005CCF20`): if the prop manager (slot 15) rejects the type: no draw. Otherwise
+   orientation `[0, 2, 1, 3][Uniform(4)]` (table `0x00AA2088`) when `width > dimB` and `depth > dimA`, else
+   `[0, 2][Uniform(2)]`; footprint `(dimA, dimB)` for orientations 0 / 2, swapped for 1 / 3; offset x :=
+   `RDRU(0, width − fx)`, then z := `RDRU(0, depth − fz)`. 3 draws.
+4. **`CreateConstructionCrew`** (`0x005CFA60`), only when the render setting at `0x00B43CC4` → +0x18 → +0x134 is
+   > 2 *[inferred: automata detail level]*:
+   - ground crew: `k := SintRange(2, 4)` (1 `NextRaw`, 2..3); per member: reset the area iterator (7 `rand()`); the
+     first area with width > 2 and depth > 2 gets `Uniform(3)` → type `[0x0210B000, 0x0210C000, 0x0210A000]`
+     (`0x00AA1E68`) and `CreateAutomata(area, 0, type)`; stop when no area qualifies;
+   - roof crew: `m := Uniform(2)`; for `j = 0..m`: stop if the box width or depth ≤ 2; else `Uniform(2)` → type
+     `[0x02109000, 0x0210D000]` (`0x00AA1E74`), `CreateAutomata(box, 1, type)`.
+   - `CreateAutomata` (`0x005CE580`): x := `RDRU(r24(min.x + 0.5), r24(r24(max.x − 0.5) − 1.0))`, then z likewise;
+     the automata manager (city slot +0xB0, its slot 15) creates it; on success `nS3D::RandomDirection2`
+     (`0x0080B680`) makes exactly **2** `RDRU(−1, 1)` draws (its rejection loop never repeats *[quirk]*).
+5. **`AddRoofProps(box)`** (`0x005CFC40`): `c := SintRange(0, 1)` (always 0, but 1 `NextRaw`); `c += 1` if
+   `r24(width · depth) > 256`, `+= 2` if `> 1024`; rounds as in step 2 over the roof-prop list (`nRoof − 1`
+   `rand()` per shuffle), placing on the box.
+6. **`CreateLotTexture`** (`0x005CF380`): for x from x1 to x2 (outer) and z from z1 to z2 (inner) over the lot's
+   cell rectangle (lot slot 14), for cells inside the city and not water (terrain slot 34): `Uniform(4)` → texture
+   instance `0xA990C100 + 0x100·r`.
+
+Daily, state 1 → 2, **scatter** (`0x005CFE20`): `CreateSparks` made 1, 2 or 3 spark effects (max box extent < 20,
+< 30, otherwise). A side iterator over 4 sides is reset first (3 `rand()`); per spark, with box min `(x0, y0, z0)`
+and max `(x1, y1, z1)`:
+
+| Side | x | z | then y |
+|---|---|---|---|
+| 0 | `GF(x0, x1)` | z0 | `GF(y0, y1)` |
+| 1 | x1 | `GF(z0, z1)` | `GF(y0, y1)` |
+| 2 | `GF(x0, x1)` | z1 | `GF(y0, y1)` |
+| 3 | x0 | `GF(z0, z1)` | `GF(y0, y1)` |
+
+then the effect's slot 9(&pos) and slot 7(1).
+
+**Determinism.** The generator is reseeded from the wall clock and also drawn by the crane at frame times, and the
+C `rand()` is shared process-wide, so the original's construction scene is not reproducible. FreeCity4 seeds the
+generator explicitly *[choice]*; conformance covers the draw **sequence and arguments** (§16 tests 23–25), not
+original scenes. Simulation results do not depend on these draws, provided the construction props, automata and lot
+texture are removed or replaced at completion *[inferred: the roof props are removed at state 3 and the base texture
+is re-picked by §6.5; the removal of ground props and automata in `Shutdown` is not traced]*.
+
+#### 6.7.8 Animation-tick manager (`cSC4AnimationTickManager`, service `0x86AD10EC`)
+
+`AddTickableObject(target, priority)` (`0x00448B70`) puts the target in a bucket: priority ≥ `0xC0` → 0; `0x80`–`0xBF`
+→ 1; `0x40`–`0x7F` → 2; < `0x40` → 3. `DoAnimationTick` (`0x004487F0`) pre-increments a frame counter, `phase :=
+counter & 7`, and fires the buckets whose bit is set in the mask `[3, 5, 3, 9, 3, 5, 3, 1][phase]`: bucket 0 every
+frame, bucket 1 on even phases, bucket 2 on phases 1 and 5, bucket 3 on phase 3. For each firing bucket: `delta :=
+now − lastTick[bucket]` in **µs**, clamped to `[min, max]` (defaults 2000 and 500000; `SetMinAndMaxTickTimeDeltas`
+`0x00447F40`), `lastTick[bucket] := now`; step mode uses `last + 100000`. Each target in the bucket receives
+`0x86AD10EE` by a direct `DoMessage` call (not through the server) with void1 = the manager, data2 = the clamped µs,
+data3 = the float32 bits of `delta · 0.001` (ms).
+
+So the lot developer (`0xC0`) ticks every frame and the construction occupant (`0x80`) every second frame.
+
+#### 6.7.9 Messages posted
+
+| Type | When | Fields | Delivery | Receivers |
+|---|---|---|---|---|
+| `0x49E7B1E2` | `SetLot`, and each segment start | data1 = 1, IGZUnknown = the occupant | queued | `cSC4AudioEventHandler::HandleConstructionMessages` (`0x004EEC10`) |
+| `0xC9E7B1E8` | `SetLot` (data1 = 1), `Shutdown` (data1 = 0) | as above | queued | same |
+| `0x2977AE2F` | building completion changed | IGZUnknown = the building | queued | model maker, automata manager |
+
+#### 6.7.10 Open
+
+The crane fit geometry (size tables, usable-side test), `DivideLot`'s area rectangles, the prop table contents, the
+`Read` / `Write` layout, the name of the render setting of step 4 and the cleanup in `Shutdown` are not specified.
+None of them changes the completion day.
 
 ---
 
@@ -871,6 +1099,9 @@ for lot in GetLotsInCellRect(list, x1, z1, x2, z2, true):              (lot mana
 | C `rand()` | process-wide | state 1, never seeded (foundations §12) | R15 |
 
 FreeCity4 seeds the file RNG from the host (foundations §6.3) *[choice]*; tests use fixed seeds.
+
+The construction occupant has its **own** file-local generator (`0x00B22FB0`) and uses C `rand()` for its shuffles;
+its draws are listed in §6.7.7, not here. None of them affects the lot developer's draws above.
 
 ### 10.2 Draws
 
@@ -1080,10 +1311,8 @@ in metres.
 
 ### 12.2 Open questions
 
-1. Q1. The construction occupant's phase lengths and its own random draws (out of scope; needed for the M4
-   construction timing).
-2. Q2. The exact meaning of the animation-tick registration value `0xC0` and of `data2`'s unit (assumed µs, so
-   `/1000` gives ms).
+1. Q1. *Answered* in §6.7 (phase lengths, `SetState(3)` point, draws). What remains open is listed in §6.7.10.
+2. Q2. *Answered* in §6.7.8: `0xC0` is a priority (every-frame bucket); `data2` is the clamped frame delta in µs.
 3. Q3. The object at `0x00B43DD8` (+0x10 gives the zot orientation) *[inferred: view rotation]*.
 4. Q4. Detailed geometry of levelling (slots 19–21), foundations (slots 48–61), `GetPositionForLotConfigurationObject`
    (39) and the boundary-texture rules (42, 43). They draw nothing except slot 54 (R8); a later terrain / lot-content
@@ -1107,7 +1336,10 @@ in metres.
 | `foundations.md` | §5.2 | condition 1 not described | condition 1 = occupied, otherwise normal, but the no-power counter is non-zero (`0x006C4757`), also used while constructing (`0x006CC4D6`) |
 | `tract-developer.md` | §10.2 Q1 | open | answered in §5.7 (`NeedsAnchorBuilding`, `0x006C7A70`) |
 | `tract-developer.md` | §10.2 Q5 | open | `AbandonBuilding` is `lot.SetState(4, 0, reason)` and synchronous (`0x006C3D30`) |
-| `growth-developer.md` | §12 open question 4 | the abandonment-threshold keys are a lot-developer matter | the lot developer never calls growth developer slot 24 (no call in `0x006C3B00`–`0x006CDEF0`); its abandonment threshold is `0x47E2C401[0]` |
+| `growth-developer.md` | §12 open question 4 | the abandonment-threshold keys are a lot-developer matter | the lot developer never calls growth developer slot 24 (no call in `0x006C3B00`–`0x006CDEF0`); its abandonment threshold is `0x47E2C401[0]`. Slot 24 has no caller anywhere in the exe (growth-developer.md §13.3 Q4, now answered) |
+| `foundations.md` | §6.2 / §6.3 | construction occupant's file RNG `0x00B22FB0` seeded `cRZTime() XOR 0xEC09C32A` | that seed (static initialiser `0x00A733A0`) is overwritten before any draw: `StaticInit` reseeds it with plain `cRZTime()` at `0x005CEDAC` (§6.7.2) |
+| `foundations.md` | §12.5 | construction occupant's linear iterators / "crews" | the iterators run in table mode (refill 0..n − 1, `random_shuffle` `0x006DB010`, n − 1 `rand()` per reset); they shuffle the 8 lot areas, the 4 spark sides and the ground / roof prop lists (§6.7.7) |
+| Ghidra project names | `0x005CFE20`, `0x00913761` | `cRZRandom::RandomDoubleRangeGaussianFast`, `cSC4ParticlesEffect::RandomRange` | `0x005CFE20` is the construction occupant's spark scatter (tail-jumped from `DoDailySim` state 1); `0x00913761` is `cRZRandom::RandomDoubleRangeUniform` |
 | gzcom-dll SDK `cISC4Lot.h` | slot 61 | `float GetOccupancy() const` | `void GetOccupancy(float& out)`, pop 4, result written through the pointer (`0x006C0CF0`, store at `0x006C0E8A`) |
 
 ---
@@ -1180,7 +1412,7 @@ Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
 | `cISC4Occupant` | 3, 8, 10, 11, 12, 15, 22, 28, 29, 32 | Init, GetPosition, GetBoundingBox, GetBoundingCityCells, SetRemovalFlags, PostOccupantMessage, IsOccupantGroup, SetLotTag, SetFlag, IsFlagSet | per `interfaces.tsv` | |
 | `cISC4BusinessUnit` | 3 / 4 / 5 | Add / Remove / GetMembers | 4 / 4 / 0 | *[pops from the call sites]* |
 | 24-hour clock (`0x00B43DBC`) | 6 | GetVisualTimeMode | 0 | EAX |
-| animation-tick manager (service `0x86AD10EC`) | 5 / 6 | register / unregister (target, `0xC0`) | 8 | |
+| animation-tick manager (service `0x86AD10EC`) | 5 / 6 | register / unregister (target, priority `0xC0` = every frame, §6.7.8) | 8 | |
 | GZCOM | 3 | CreateInstance(class, iid, void**) | 12 | AL |
 | resource manager (`0x00B43CA8`) | 3 / 14 | get exemplar / resource exists | | |
 
@@ -1308,3 +1540,36 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
     reason 4; `SetState` is called once.
 19. **Interface pops** (§11.1): slot 23 pops 4 and returns 0; slot 53 pops 8; slot 32 returns in EDX:EAX; slot 38
     returns the building interface without a reference.
+20. **Construction timing** (§6.7.3, §6.7.4), shipped construction tuning (`segH` 3, `grow` 1.0, `remove` 2.0),
+    building bbox min.y 100, terrain flat at 100 unless stated, `D` 30 unless stated:
+
+    | max.y | Variation | startY / f | N | A | B | C | E |
+    |---|---|---|---|---|---|---|---|
+    | 110 | — | 100.0999985 (`0x42C83333`) / 3.3000004 (`0x40533335`) | 4 | 0 | 1 | 1 | 6 |
+    | 110 | one corner altitude 99.0 | as above, ground 99 | 4 | 1 | 1 | 1 | 6 |
+    | 110 | one corner altitude 99.5 (`startY − ground` = 0.5999985) | ground 99.5 | 4 | 1 | 1 | 1 | 6 |
+    | 110 | `D` = 0 (→ 10) | | 4 | 0 | 1 | 1 | 1 |
+    | 110 | `D` = 255 | | 4 | 0 | 1 | 1 | 62 |
+    | 160 | — | f 19.9666672 (`0x419FBBBC`) | 20 | 0 | 1 | 1 | 1 |
+    | 100.25 | — | f 0.0500005 | 1 | 0 | 1 | 0 (`round(0.5)` = 0) | 29 |
+    | 103.125 | — | f 1.0083338 | 2 | 0 | 1 | 1 | 13 |
+    | 103.0 | — | f 0.9666672 | 1 | 0 | 1 | 1 | 28 |
+
+21. **Construction schedule** (§6.7.5), `T0` = 0, first SimNewDay delivered on day 1: the first row of test 20 posts
+    `0x49E7B1E2` on days 1, 8, 15, 22, removes the scaffold on day 29 and calls `lot.SetState(3, 0, 0)` on day 30
+    (day 29 if the first delivery is day 0). The other rows complete on: corner 99.0 → 30 (also from day 0); corner 99.5
+    → 30; `D` = 0 → 10 (segments 1, 3, 5, 7, removal 9); `D` = 255 → 254; max.y 160 → 42; 100.25 → 32; 103.125 → 30;
+    103.0 → 31. A SimNewDay whose date is below `nextDay` changes nothing; data1 is ignored.
+22. **Animation-tick buckets** (§6.7.8): priority `0xC0` → bucket 0, fires on all 8 phases; `0x80` → bucket 1, phases
+    0, 2, 4, 6; `0x40` → bucket 2, phases 1, 5; `0x3F` → bucket 3, phase 3. Clamp with defaults: delta 16700 µs →
+    data2 16700, lot developer `ms` 16; 2 000 000 → 500000 (500 ms); 1000 → 2000 (2 ms).
+23. **Construction lot texture** (§6.7.7 step 6), generator seeded 12345 (raws `0x0C63D3DC`, `0xFED6A704`,
+    `0x6E80D665`, `0xC0090DAA`), 2 × 2 dry lot, `CreateLotTexture` alone: `Uniform(4)` = 0, 3, 1, 3 → textures
+    `0xA990C100` (x1, z1), `0xA990C400` (x1, z2), `0xA990C200` (x2, z1), `0xA990C400` (x2, z2).
+24. **Spark scatter** (§6.7.7), generator seeded 12345 (first `RandomDoubleUniform` values 0.9073938, 0.06438741,
+    0.7574713, 0.3998830, 0.2344488, 0.08336106), C `rand()` fresh (41, 18467, 6334), box min (0, 100, 0) max
+    (20, 110, 30), one spark: the side table becomes [0, 1, 3, 2], so side 0: x = `GF(0, 20)` = 11.5283508
+    (`0x41387420`), z = 0, y = `GF(100, 110)` = 102.3923111 (`0x42CCC8DD`). Six `RandomDoubleUniform` and three
+    `rand()` are consumed.
+25. **Crane pause** (§6.7.6), generator seeded 12345: the first state 0 → 1 step sets duration `1000 + Uniform(1000)`
+    = 1048 ms.
