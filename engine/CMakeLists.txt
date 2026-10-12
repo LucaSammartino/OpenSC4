@@ -111,6 +111,8 @@ if(FC4_IS_WIN32_X86)
         plugin/dllmain.cpp
         plugin/FC4Diag.cpp
         plugin/FC4Diag.h
+        plugin/FC4Watchdog.cpp
+        plugin/FC4Watchdog.h
         plugin/compat/FC4Compat.cpp
         plugin/compat/FC4Compat.h
         plugin/FC4Properties.cpp
@@ -158,7 +160,7 @@ if(FC4_IS_WIN32_X86)
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp" "${FC4_GZCOM_DIR}/src/cSCBaseProperty.cpp")
-    target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include")
+    target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_options(fc4_plugin_load_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_dependencies(fc4_plugin_load_test FreeCity4)
     add_test(NAME plugin_load_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>")

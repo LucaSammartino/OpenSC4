@@ -34,12 +34,11 @@ inline void PopX87() {
     __asm fstp st(0)
 }
 
-inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> args) {
+// `count` 32-bit stack arguments from `args` (at most 16).
+inline SlotCall CallSlotArray(void* self, int slot, const uint32_t* args, int count) {
     uint32_t a[16] = {};
     int n = 0;
-    for (uint32_t v : args) {
-        if (n < 16) a[n++] = v;
-    }
+    for (; n < count && n < 16; ++n) a[n] = args[n];
     void* fn = (*reinterpret_cast<void***>(self))[slot];
     uint32_t* pa = a;
     uint32_t rEax = 0, rEdx = 0, before = 0, after = 0;
@@ -71,6 +70,10 @@ inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> a
     // x87 TOP (status word bits 11-13) decreases by one per push.
     r.x87Pushed = ((swBefore >> 11) - (swAfter >> 11)) & 7;
     return r;
+}
+
+inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> args) {
+    return CallSlotArray(self, slot, args.begin(), static_cast<int>(args.size()));
 }
 
 inline int64_t AsI64(const SlotCall& c) {

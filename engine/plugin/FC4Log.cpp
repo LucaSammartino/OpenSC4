@@ -45,6 +45,9 @@ struct LogState {
     wchar_t pathW[MAX_PATH * 2] = {};
     char pathA[MAX_PATH * 2] = {};
     HANDLE file = INVALID_HANDLE_VALUE;
+    // A second append handle on the same file for writers that must not wait
+    // for the lock (exception handler, watchdog). Opened with the first.
+    HANDLE spare = INVALID_HANDLE_VALUE;
     unsigned long failedWrites = 0;
     DWORD lastError = 0;
     bool fellBackToTemp = false;
@@ -77,7 +80,10 @@ void Resolve(LogState& s) {
             slash[1] = L'\0';
             _snwprintf_s(s.pathW, _countof(s.pathW), _TRUNCATE, L"%sFreeCity4.log", dll);
             s.file = OpenShared(s.pathW);
-            if (s.file != INVALID_HANDLE_VALUE) return;
+            if (s.file != INVALID_HANDLE_VALUE) {
+                s.spare = OpenShared(s.pathW);
+                return;
+            }
             s.primaryError = GetLastError();
             WideCharToMultiByte(CP_UTF8, 0, s.pathW, -1, s.primaryPath, sizeof(s.primaryPath), nullptr, nullptr);
         }
@@ -88,6 +94,7 @@ void Resolve(LogState& s) {
     if (n > 0 && n < MAX_PATH) {
         _snwprintf_s(s.pathW, _countof(s.pathW), _TRUNCATE, L"%sFreeCity4.log", tmp);
         s.file = OpenShared(s.pathW);
+        s.spare = OpenShared(s.pathW);
         s.fellBackToTemp = true;
     } else {
         s.pathW[0] = L'\0';
@@ -142,6 +149,23 @@ void WriteLine(LogState& s, const char* text, size_t textLen) {
     }
 }
 
+volatile LONG g_unlocked = 0;  // lines written through the spare handle
+volatile LONG g_dropped = 0;   // lines lost (log not open yet)
+volatile LONG g_resolvedFlag = 0;
+
+// Formats the standard prefix + message into `text` (no allocation).
+size_t Format(char* text, size_t cap, const char* tag, const char* format, va_list args) {
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    int n = _snprintf_s(text, cap, _TRUNCATE, "%04u-%02u-%02u %02u:%02u:%02u.%03u [pid %lu tid %lu] %s", t.wYear,
+                        t.wMonth, t.wDay, t.wHour, t.wMinute, t.wSecond, t.wMilliseconds,
+                        static_cast<unsigned long>(GetCurrentProcessId()),
+                        static_cast<unsigned long>(GetCurrentThreadId()), tag);
+    if (n < 0) n = static_cast<int>(strlen(text));
+    const int m = _vsnprintf_s(text + n, cap - n, _TRUNCATE, format, args);
+    return m < 0 ? strlen(text) : static_cast<size_t>(n + m);
+}
+
 void VLog(const char* tag, const char* format, va_list args) {
     char text[3072];
     SYSTEMTIME t;
@@ -157,7 +181,25 @@ void VLog(const char* tag, const char* format, va_list args) {
     LogState& s = State();
     EnterCriticalSection(&s.lock);
     WriteLine(s, text, total);
+    if (s.resolved) InterlockedExchange(&g_resolvedFlag, 1);
     LeaveCriticalSection(&s.lock);
+}
+
+// Writes without the lock through the spare handle (one WriteFile with
+// FILE_APPEND_DATA is one atomic append). No allocation, no other lock.
+void WriteUnlocked(LogState& s, char* text, size_t len, size_t cap) {
+    if (!g_resolvedFlag || s.spare == INVALID_HANDLE_VALUE) {
+        InterlockedIncrement(&g_dropped);
+        return;
+    }
+    if (len + 2 > cap) len = cap - 2;
+    text[len++] = '\r';
+    text[len++] = '\n';
+    if (WriteAll(s.spare, text, static_cast<DWORD>(len))) {
+        InterlockedIncrement(&g_unlocked);
+    } else {
+        InterlockedIncrement(&g_dropped);
+    }
 }
 
 int ReadLevel() {
@@ -189,6 +231,37 @@ void LogVerboseImpl(const char* format, ...) {
     VLog("[v] ", format, args);
     va_end(args);
 }
+
+void LogWait(unsigned waitMs, const char* format, ...) {
+    if (LogLevel() < kLogInfo) return;
+    char text[3072];
+    va_list args;
+    va_start(args, format);
+    const size_t len = Format(text, sizeof(text) - 2, "", format, args);
+    va_end(args);
+    LogState& s = State();
+    // The lock is never taken recursively here: a line from inside a write
+    // (an exception raised while this thread holds the lock) goes unlocked.
+    const bool ownedHere =
+        reinterpret_cast<DWORD>(s.lock.OwningThread) == GetCurrentThreadId() && s.lock.RecursionCount > 0;
+    if (!ownedHere) {
+        const DWORD start = GetTickCount();
+        for (;;) {
+            if (TryEnterCriticalSection(&s.lock)) {
+                WriteLine(s, text, len);
+                if (s.resolved) InterlockedExchange(&g_resolvedFlag, 1);
+                LeaveCriticalSection(&s.lock);
+                return;
+            }
+            if (GetTickCount() - start >= waitMs) break;
+            Sleep(1);
+        }
+    }
+    WriteUnlocked(s, text, len, sizeof(text));
+}
+
+unsigned long LogUnlockedLines() { return static_cast<unsigned long>(g_unlocked); }
+unsigned long LogDroppedLines() { return static_cast<unsigned long>(g_dropped); }
 
 const char* LogPath() { return State().pathA; }
 

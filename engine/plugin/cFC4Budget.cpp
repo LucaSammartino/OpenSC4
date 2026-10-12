@@ -379,6 +379,8 @@ bool cFC4BudgetSimulator::DoMessage(cIGZMessage2* pMessage) {
         if (messagesLogged_ < 50 && type != kMsgSimNewDay) {
             ++messagesLogged_;
             FC4_LOGV("budget DoMessage(0x%08X, d1=0x%08llX)", type, static_cast<unsigned long long>(data1));
+        } else if (fc4::LogLevel() >= fc4::kLogVerbose) {
+            fc4::NoteSuppressed();
         }
         if (type == kMsgSimBegin || type == kMsgSimNewDay || type == kMsgCityEstablished ||
             type == kMsgToggleBudgetDialog) {

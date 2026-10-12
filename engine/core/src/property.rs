@@ -94,8 +94,11 @@ impl PropertyHolder {
             let Some(v) = Variant::read(inp) else { break };
             let keep = match &v {
                 Variant::Empty => false,
-                // [quirk] object-valued properties are dropped; null ones are kept.
-                Variant::Object(r) => r.is_null(),
+                // [compat] every object-valued entry is dropped (foundations
+                // §10.2, Errata round 2): a non-null one by the IGZUnknown rule;
+                // a null one reads into a fresh Empty value (§9.2) and is
+                // dropped by the "not Empty" rule.
+                Variant::Object(_) => false,
                 _ => true,
             };
             if keep {

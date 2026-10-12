@@ -32,6 +32,7 @@
 #include "cISC4Simulator.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4Interfaces.h"
 #include "game_abi.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -81,11 +82,11 @@ int ForeignFault() {
 }
 
 // A building's property holder with just what the budget reads and writes
-// (budget-item arrays). Both sides are compiled from the same SDK header, so
-// its overloads need no slot table here.
-class FakeHolder final : public cISCPropertyHolder {
+// (budget-item arrays), laid out like the game's (foundations §17.2): the
+// plugin calls holders only through those slots.
+class FakeHolder final : public cFC4ISCPropertyHolder {
 public:
-    ~FakeHolder() { RemoveAllProperties(); }
+    ~FakeHolder() { RemoveAllProperties(false); }
     bool QueryInterface(uint32_t riid, void** pp) override {
         if (riid != GZIID_cISCPropertyHolder && riid != GZIID_cIGZUnknown) return false;
         *pp = this;
@@ -97,48 +98,50 @@ public:
 
     bool HasProperty(uint32_t id) const override { return props.count(id) != 0; }
     bool GetPropertyList(cIGZUnknownList**) const override { return false; }
+    bool GetPropertyData(uint32_t, void*, uint32_t&) const override { return false; }
+    bool GetPropertyInterface(uint32_t, uint32_t, void**) const override { return false; }
+    bool GetPropertyString(uint32_t, cIGZString&) const override { return false; }
+    bool GetPropertyU32(uint32_t, uint32_t&) const override { return false; }
     cISCProperty* GetProperty(uint32_t id) const override {
         auto it = props.find(id);
         return it == props.end() ? nullptr : it->second;
     }
-    bool GetProperty(uint32_t, uint32_t&) const override { return false; }
-    bool GetProperty(uint32_t, cIGZString&) const override { return false; }
-    bool GetProperty(uint32_t, uint32_t, void**) const override { return false; }
-    bool GetProperty(uint32_t, void*, uint32_t&) const override { return false; }
-    bool AddProperty(cISCProperty*, bool) override { return false; }
-    bool AddProperty(uint32_t id, cIGZVariant const* v, bool) override {
-        RemoveProperty(id);
+    bool AddPropertyData(uint32_t, void*, uint32_t, bool) override { return false; }
+    bool AddPropertyObject(uint32_t, cIGZUnknown*, bool) override { return false; }
+    bool AddPropertyString(uint32_t, cIGZString const&, bool) override { return false; }
+    bool AddPropertyU32(uint32_t, uint32_t, bool) override { return false; }
+    bool AddPropertyVariant(uint32_t id, cIGZVariant const* v, bool) override {
+        RemoveProperty(id, false);
         cSCBaseProperty* p = new cSCBaseProperty(id, v);  // deep copy
         p->AddRef();
         props[id] = p;
         return true;
     }
-    bool AddProperty(uint32_t, uint32_t, bool) override { return false; }
-    bool AddProperty(uint32_t, cIGZString const&) override { return false; }
-    bool AddProperty(uint32_t, int32_t, bool) override { return false; }
-    bool AddProperty(uint32_t, void*, uint32_t, bool) override { return false; }
+    bool AddPropertyRecord(cISCProperty*, bool) override { return false; }
     bool CopyAddProperty(cISCProperty*, bool) override { return false; }
-    bool RemoveProperty(uint32_t id) override {
+    bool RemoveProperty(uint32_t id, bool) override {
         auto it = props.find(id);
         if (it == props.end()) return false;
         it->second->Release();
         props.erase(it);
         return true;
     }
-    bool RemoveAllProperties() override {
+    bool RemoveAllProperties(bool) override {
         for (auto& kv : props) kv.second->Release();
         props.clear();
         return true;
     }
-    bool EnumProperties(FunctionPtr1, void*) const override { return false; }
-    bool EnumProperties(FunctionPtr2, FunctionPtr1) const override { return false; }
+    bool EnumPropertiesFiltered(FilterFn, EnumFn, void*) const override { return false; }
+    bool EnumProperties(EnumFn, void*) const override { return false; }
     bool CompactProperties() override { return true; }
+
+    cISCPropertyHolder* AsSdk() { return reinterpret_cast<cISCPropertyHolder*>(static_cast<cFC4ISCPropertyHolder*>(this)); }
 
     template <class T>
     void Set(uint32_t id, T value) {
         cRZBaseVariant v;
         SetArray(v, &value);
-        AddProperty(id, &v, false);
+        AddPropertyVariant(id, &v, false);
     }
     float Get32f(uint32_t id) const {
         const cISCProperty* p = GetProperty(id);
@@ -182,6 +185,26 @@ public:
         return calls > 150;
     }
 };
+
+// A day agent whose first call blocks for 6.5 s (the watchdog's stall threshold is 5 s).
+class BlockingAgent final : public cIGZMessageTarget2 {
+public:
+    uint32_t refs = 0;
+    uint32_t calls = 0;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool DoMessage(cIGZMessage2*) override {
+        if (calls++ == 0) Sleep(6500);
+        return true;
+    }
+};
+
+size_t CountOf(const std::string& text, const std::string& what) {
+    size_t n = 0;
+    for (size_t at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) ++n;
+    return n;
+}
 
 std::string ReadFile(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
@@ -230,6 +253,7 @@ int main(int argc, char** argv) {
     }
     SetEnvironmentVariableA("FC4_DIAG_SELFTEST", "1");
     SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
+    SetEnvironmentVariableA("FC4_HEARTBEAT_MS", "2000");
 
     HMODULE h = LoadLibraryA(dll.c_str());
     CHECK(h != nullptr);
@@ -297,6 +321,36 @@ int main(int argc, char** argv) {
             // Overloaded methods are only ever called through the game's slots (foundations §16).
             cIGZDate* date = reinterpret_cast<cIGZDate*>(fc4test::CallSlot(sim, 7, {}).eax);  // GetSimDate()
             CHECK(date != nullptr && date->Year() == 2000 && static_cast<int32_t>(date->DayNumber()) == day);
+            if (date != nullptr) {
+                // cIGZDate slots 33-36 (foundations §17.4): a uint32 day number in
+                // EAX, one stack argument, nothing on the x87 stack, and the date
+                // itself unchanged.
+                using fc4test::CallSlot;
+                const uint32_t d = static_cast<uint32_t>(day);
+                cIGZDate* other = nullptr;
+                CHECK((CallSlot(date, 9, {reinterpret_cast<uint32_t>(&other)}).eax & 0xFF) == 1);  // Clone
+                CHECK(other != nullptr);
+                if (other != nullptr) {
+                    CHECK((CallSlot(other, 4, {100}).eax & 0xFF) == 1);  // Set(uint32 dayNumber)
+                    const fc4test::SlotCall m1 = CallSlot(date, 33, {7});  // operator-(int32)
+                    const fc4test::SlotCall m2 = CallSlot(date, 34, {reinterpret_cast<uint32_t>(other)});  // operator-(date)
+                    const fc4test::SlotCall p1 = CallSlot(date, 35, {7});  // operator+(int32)
+                    const fc4test::SlotCall p2 = CallSlot(date, 36, {reinterpret_cast<uint32_t>(other)});  // operator+(date)
+                    std::printf("date slots 33-36: %u %u %u %u (day %u)\n", m1.eax, m2.eax, p1.eax, p2.eax, d);
+                    CHECK(m1.eax == d - 7 && m2.eax == d - 100 && p1.eax == d + 7 && p2.eax == d + 100);
+                    for (const fc4test::SlotCall* c : {&m1, &m2, &p1, &p2}) {
+                        CHECK(c->espDelta == 0 && c->x87Pushed == 0);
+                    }
+                    CHECK(date->DayNumber() == d && other->DayNumber() == 100u);  // neither date modified
+                    // Slots 16/17: FirstDayOfMonth(month) / FirstDayOfMonth().
+                    const fc4test::SlotCall f16 = CallSlot(date, 16, {3});
+                    const fc4test::SlotCall f17 = CallSlot(date, 17, {});
+                    CHECK(f16.espDelta == 0 && f17.espDelta == 0);
+                    CHECK(f16.eax == 2451545u + 31u + 29u);  // 2000-03-01
+                    CHECK(f17.eax == 2451545u);              // the sim date is in January 2000
+                    other->Release();
+                }
+            }
             {
                 // Overloads through the game's slots (simulator §5.6), with the
                 // game's argument counts: the stack must balance.
@@ -337,6 +391,26 @@ int main(int argc, char** argv) {
                  reinterpret_cast<uint32_t>(&doy), reinterpret_cast<uint32_t>(&wd)});
             CHECK(r6.espDelta == 0);
             CHECK(y == 2000 && m == 1 && doy == static_cast<uint32_t>(day - 2451545 + 1));
+
+            {
+                // Watchdog: a day agent that blocks for 6.5 s inside OnTick must
+                // produce a stall report (activity, call ring, main-thread sample)
+                // and an "over" line; heartbeats run meanwhile (FC4_HEARTBEAT_MS=2000).
+                BlockingAgent blocker;
+                CHECK(sim->AddAgent(&blocker, cISC4Simulator::AgentTypeSimNewDay, cRZBaseString("blocking test agent"),
+                                    static_cast<cISC4Simulator::eAgentFlags>(3)));
+                cIGZSystemService* svc = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&svc)));
+                if (svc != nullptr) {
+                    const DWORD start = GetTickCount();
+                    while (blocker.calls == 0 && GetTickCount() - start < 3000) svc->OnTick(0);
+                    const DWORD after = GetTickCount();
+                    while (GetTickCount() - after < 2500) svc->OnTick(0);  // let the watchdog see the end
+                    svc->Release();
+                }
+                CHECK(blocker.calls >= 1);
+                fc4test::CallSlot(sim, 20, {reinterpret_cast<uint32_t>(static_cast<cIGZMessageTarget2*>(&blocker))});
+            }
 
             CHECK(sim->Shutdown());
             CHECK(sim->GetSimDateNumber() == 2451545);
@@ -415,9 +489,9 @@ int main(int argc, char** argv) {
                     holder.Set<uint32_t>(0xEA54D285, 7);           // purpose
                     holder.Set<int64_t>(0xEA54D286, 200);          // cost
                     CHECK(dept->CreateLineItem(2, true) != nullptr);
-                    CHECK(dept->AddLocallyFundedObject(&holder, 7));
+                    CHECK(dept->AddLocallyFundedObject(holder.AsSdk(), 7));
                     CHECK(holder.refs == 2);
-                    const uint32_t h = reinterpret_cast<uint32_t>(static_cast<cISCPropertyHolder*>(&holder));
+                    const uint32_t h = reinterpret_cast<uint32_t>(holder.AsSdk());
                     using fc4test::CallSlot;
                     const fc4test::SlotCall found = CallSlot(dept, 26, {h, 7});
                     const fc4test::SlotCall otherPurpose = CallSlot(dept, 26, {h, 8});
@@ -439,7 +513,7 @@ int main(int argc, char** argv) {
                     if (otherPurpose.eax != 0) CHECK(reinterpret_cast<const float*>(otherPurpose.eax)[0] == 0.0f);
                     CHECK(noHolder.eax == otherPurpose.eax);  // the shared constant 0.0
                     CHECK(found.eax != otherPurpose.eax);
-                    CHECK(dept->RemoveLocallyFundedObject(&holder, 7));
+                    CHECK(dept->RemoveLocallyFundedObject(holder.AsSdk(), 7));
                     CHECK(holder.refs == 1);
                     const fc4test::SlotCall gone = CallSlot(dept, 26, {h, 7});
                     CHECK(gone.eax == otherPurpose.eax && gone.espDelta == 0 && gone.x87Pushed == 0);
@@ -453,8 +527,30 @@ int main(int argc, char** argv) {
         if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
+    // The same faulting address three times: reported at most twice.
+    CHECK(ForeignFault() == 1);
+    CHECK(ForeignFault() == 1);
     CHECK(ForeignFault() == 1);
     const std::string text = ReadFile(log);
+    CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 2);
+    CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);
+    // Watchdog (hang diagnostics).
+    CHECK(text.find("watchdog: started for main thread") != std::string::npos);
+    CHECK(text.find("WATCHDOG: main thread (tid ") != std::string::npos);
+    CHECK(text.find("stalled - inside FreeCity4 for ") != std::string::npos);
+    CHECK(text.find("  activity: OnTick (") != std::string::npos);
+    CHECK(text.find("> core fc4_sim_on_tick (") != std::string::npos);
+    CHECK(text.find("| delivering msg 0x66956814 (level 4) to agent ") != std::string::npos);
+    CHECK(text.find("'blocking test agent' for ") != std::string::npos);
+    CHECK(text.find("  context: eip=0x") != std::string::npos);
+    CHECK(text.find("] FreeCity4.dll+0x") != std::string::npos);  // a return address into our image
+    CHECK(text.find("] fc4_plugin_load_test.exe+0x") != std::string::npos);  // ... and into the executable
+    CHECK(text.find("  cpu: process ") != std::string::npos);
+    CHECK(text.find("WATCHDOG: stall over after ") != std::string::npos);
+    CHECK(text.find("heartbeat (periodic): 2000-01-") != std::string::npos);
+    CHECK(text.find("watchdog: stopped") != std::string::npos);
+    CHECK(text.find("SetSimSpeed(2) -> 1 (julian 2451545") != std::string::npos);
+    CHECK(text.find("HiddenResume() -> 1 (pause=0 hidden=0 emergency=0; julian 2451545 speed 2)") != std::string::npos);
     CHECK(text.find("first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") != std::string::npos);
     CHECK(text.find("FreeCity4 interface calls (oldest first):") != std::string::npos);
     CHECK(text.find("] BudgetSimulator::Shutdown") != std::string::npos);
