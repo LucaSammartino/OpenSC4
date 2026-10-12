@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "landvalue_type",
+  "spec": ["landvalue 7.6", "landvalue 8", "landvalue 16.1"],
+  "description": "GetLandValueType with the shipped boundaries (70, 120): 0 -> 1, 69 -> 1, 70 -> 2, 119 -> 2, 120 -> 3, 255 -> 3; GetLandValue reads the total grid in cell coordinates.",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": "shipped", "expect": true},
+    {"op": "lv_expect", "tract_size": 2, "base": 1, "intrinsic_max": 64, "wealth": [70, 120], "water": [50, 10], "altitude_curve": true, "desirability_curve": true, "developers": 1, "developer_weights": [2.5]},
+    {"op": "lv_set_grid", "grid": "total", "values": [[0, 0, 0], [1, 0, 69], [2, 0, 70], [3, 0, 119], [4, 0, 120], [5, 0, 255]]},
+    {"op": "lv_query", "method": "land_value_type", "cell": [0, 0], "expect": 1},
+    {"op": "lv_query", "method": "land_value_type", "cell": [3, 1], "expect": 1},
+    {"op": "lv_query", "method": "land_value_type", "cell": [4, 0], "expect": 2},
+    {"op": "lv_query", "method": "land_value_type", "cell": [7, 1], "expect": 2},
+    {"op": "lv_query", "method": "land_value_type", "cell": [8, 0], "expect": 3},
+    {"op": "lv_query", "method": "land_value_type", "cell": [11, 1], "expect": 3},
+    {"op": "lv_query", "method": "land_value", "cell": [7, 1], "expect": 119}
+  ]
+}

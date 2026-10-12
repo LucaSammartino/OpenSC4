@@ -63,6 +63,18 @@ INTERFACES = [
     ("vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", "cISC4ResidentialSimulator.h", True),
     ("vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
     ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", True),
+    # Land value (docs/specs/landvalue.md §11, §12): implemented, and the game
+    # services and grids it calls. A template instance is named Class<T>.
+    ("cISC4LandValueSimulator", "cISC4LandValueSimulator", "cISC4LandValueSimulator.h", True),
+    ("cIGZSerializable(LandValue)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(LandValue)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", "cISC4SimGrid.h", True),
+    ("cISC4SimGrid<float>", "cISC4SimGrid<float>", "cISC4SimGrid.h", True),
+    ("cISTETerrain", "cISTETerrain", "cISTETerrain.h", True),
+    ("cISC4ZoneManager", "cISC4ZoneManager", "cISC4ZoneManager.h", True),
+    ("cISC4LotDeveloper", "cISC4LotDeveloper", "cISC4LotDeveloper.h", True),
+    ("cISC4GrowthDeveloper", "cISC4GrowthDeveloper", "cISC4GrowthDeveloper.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -88,6 +100,7 @@ def strip_comments(text):
 
 
 def class_body(path, cls):
+    cls = cls.split("<")[0]  # a template instance: the template's declaration
     if not os.path.isabs(path):
         path = os.path.join(SDK, path)
     text = strip_comments(open(path, encoding="utf-8", errors="replace").read())
@@ -156,7 +169,7 @@ def main():
         counts = {}
         for name, _, _, _ in ms:
             counts[name] = counts.get(name, 0) + 1
-        fn = "AbiCollect%d_%s" % (i, cls)
+        fn = "AbiCollect%d_%s" % (i, re.sub(r"\W", "_", cls))
         out.append("")
         out.append("void %s(std::vector<AbiMethod>& m) {" % fn)
         out.append("    using C = %s;" % cls)

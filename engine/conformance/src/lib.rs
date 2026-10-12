@@ -12,7 +12,9 @@
 pub(crate) mod budget;
 pub mod foundations;
 pub mod json;
+pub(crate) mod landvalue;
 pub mod runner;
+pub(crate) mod simgrid;
 pub mod variants;
 
 pub use runner::{run_vector_file, run_vector_text};

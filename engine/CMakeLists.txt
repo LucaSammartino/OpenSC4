@@ -156,6 +156,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Budget.cpp
         plugin/cFC4Budget.h
         plugin/FC4BudgetHost.cpp
+        plugin/cFC4LandValue.cpp
+        plugin/cFC4LandValue.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -226,11 +228,15 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --disabled)
     # FreeCity4.ini `disable =` wins over FC4_DISABLE.
     add_test(NAME plugin_ini_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-disabled)
+    # Default-off subsystems (land value): `enable =` turns them on, `disable =` still wins.
+    add_test(NAME plugin_ini_enable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable)
+    add_test(NAME plugin_ini_enable_disabled_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-disabled)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
-    set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_autotest_test
-        PROPERTIES RUN_SERIAL TRUE)
+    set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
+        plugin_ini_enable_disabled_test plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

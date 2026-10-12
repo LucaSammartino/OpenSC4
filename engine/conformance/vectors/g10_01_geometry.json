@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "simgrid_geometry",
+  "spec": ["simgrid 3", "simgrid 4.2", "simgrid 10.1"],
+  "description": "Tract shift, counts, widths and inverse widths of a 256 x 256-cell city with 16 m cells for S = 2, 8, 3 (counts use the shift, widths use S), 1 and 0.",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "cell_width": 16},
+    {"op": "grid_new", "grid": "a", "type": "u8", "size": 2},
+    {"op": "grid_expect_geometry", "grid": "a", "size": 2, "shift": 1, "count_x": 128, "count_z": 128, "width_x": 32, "width_z": 32, "inv_width_x": 0.03125, "inv_width_z": 0.03125},
+    {"op": "grid_set_tract_size", "grid": "a", "size": 8},
+    {"op": "grid_expect_geometry", "grid": "a", "size": 8, "shift": 3, "count_x": 32, "count_z": 32, "width_x": 128, "width_z": 128},
+    {"op": "grid_set_tract_size", "grid": "a", "size": 3},
+    {"op": "grid_expect_geometry", "grid": "a", "size": 3, "shift": 1, "count_x": 128, "count_z": 128, "width_x": 48, "width_z": 48},
+    {"op": "grid_set_tract_size", "grid": "a", "size": 1},
+    {"op": "grid_expect_geometry", "grid": "a", "size": 1, "shift": 0, "count_x": 256, "count_z": 256, "width_x": 16},
+    {"op": "grid_set_tract_size", "grid": "a", "size": 0},
+    {"op": "grid_expect_geometry", "grid": "a", "size": 0, "shift": 0, "count_x": 256, "count_z": 256}
+  ]
+}

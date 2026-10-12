@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "landvalue_desirability_step",
+  "spec": ["landvalue 7.4", "landvalue 16.10"],
+  "description": "One desirability application, shipped identity curve (-255..255) and weight 2.5: clamp(trunc(v + e*w), 1, 255); the lower clamp is 1; the curve clamps d to 255. Without a curve e = d.",
+  "steps": [
+    {"op": "lv_desirability", "weight": 2.5, "curve": "shipped_desirability", "cases": [[100, 40, 200], [200, 40, 255], [100, -50, 1], [10, -3, 2], [1, 0, 1], [0, 0, 1], [100, 400, 255], [100, -400, 1], [0, 1, 2]]},
+    {"op": "lv_desirability", "weight": 0.5, "cases": [[100, 400, 255], [100, -60, 70], [7, -1, 6]]}
+  ]
+}

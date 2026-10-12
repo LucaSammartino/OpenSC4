@@ -272,6 +272,47 @@ Budget events: `post` events carry `void1` and `unknown` as object labels (`""` 
 `EndGameForBudgetFailure`, `BudgetGroupChanged`, `FundingPercentageChanged`, `IdealMonthlyFundingChanged`,
 `BudgetForOccupantChanged`, `CityEstablished`, `ToggleBudgetDialog`.
 
+## Simgrid ops
+
+The simgrid vectors (`g10_…`) drive the core's model of the game's grid class (`src/simgrid.rs` in both crates).
+Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `f32`, `f64`.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `grid_city` | `cells` (`[x, z]`), `cell_width?` | the city the grids are sized from |
+| `grid_new` | `grid`, `type`, `size` (tract size S) | a new grid, `Init` included |
+| `grid_set_tract_size` | `grid`, `size` | `SetTractSize` (§3.2) |
+| `grid_expect_geometry` | `grid`, any of `size`, `shift`, `count_x`, `count_z`, … | the derived geometry |
+| `grid_set` / `grid_expect` | `grid`, `all?`, `values` (`[[x, z, v]]`) | write / check tract values |
+| `grid_call` | `grid`, `method` (`cell_value`, `tract_value`, `average_cell_rect`, `average_tract_rect`, `tract_in_bounds`, `position_to_tract`, `tract_center`, `tract_corner`, `clsid`, `init`, `set_instance_id`), `args`, `expect` | one method |
+| `grid_write` / `grid_read` | `grid`, `hex`, `zero_tail?`, `position?`, `expect?` | the save record (§5) |
+| `grid_radius_effect` | `grid`, `center`, `radius`, `center_value`, `outer_value` | the radial effect (§4.6) |
+| `grid_distance_effect` | `grid`, `mask`, `mask_value`, `radius`, `near`, `far` | the distance effect (§4.7) |
+| `grid_two_grids` | `a` (u8), `b` (i16), `expect` (`[[x, z, v]]` in visit order) | the paired walk |
+| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step`, `reset?`, `expect` | the scan iterator |
+
+## Land value ops
+
+The land value vectors (`lv16_…`) drive the land value simulator with a fake host: terrain (land vertices,
+altitudes, allowed heights), zones, developers with their desirability maps, and grids created through the host
+(the plugin creates the game's own grid classes). Every op name starts with `lv_`.
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `lv_world` | any of `cells`, `cell_width`, `land`, `water`, `land_vertices`, `clear_land`, `altitude`, `altitudes`, `heights`, `zoned`, `clear_zones`, `developers` (`{"0x1030": {size, all, values} \| null}`) | the fake world |
+| `lv_create` / `lv_init` / `lv_shutdown` | `tuning?` for init (`"shipped"` or an object of §9 values; `null` = absent) | lifecycle (§4) |
+| `lv_step` | `budget`, `count?`, `expect_state?` | SimIdle steps (§6) |
+| `lv_run` | `budget`, `max`, `expect_calls?` | steps until a pass completes |
+| `lv_message` | `type`, `data3?`, `expect?` | `DoMessage` (§5) |
+| `lv_set` | any of `dirty`, `state`, `average`, `mean_alt`, `min_alt`, `max_alt`, `mode_alt` | debug overrides |
+| `lv_expect` | state fields, `histogram`, `mean_alt_bits`, tuning fields, `has_grids`, `developer_weights` | the simulator state |
+| `lv_set_grid` / `lv_expect_grid` | `grid` (`intrinsic`, `total`, `slope`, `scratch`), `all?`, `values?`, `rows?` (`rows[z][x]`), `tract_size?` | grid contents |
+| `lv_query` | `method` (`land_value`, `land_value_type`, `average_land_value`, `mode_altitude`), `args`, `expect` | the interface queries (§11) |
+| `lv_altitude` | `setup` (`[mode, mean, min, max]`), `max_allowed`, `curve?`, `expect?`, `effects?` | the altitude effect (§7.4) |
+| `lv_desirability` | `weight`, `curve?`, `cases` | the desirability step (§7.5) |
+| `lv_save` / `lv_load` | `ids` / `hex`, `position?`, `expect?` | the save record (§10) |
+| `lv_expect_events` / `lv_clear_events` | `events` | host calls: `create`, `set_tract_size`, `grid_shutdown`, `release`, `history_length`, `history`, `post`, `load` |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -336,3 +377,34 @@ Budget events: `post` events carry `void1` and `unknown` as object labels (`""` 
 | 15 estimates | `b15_15_estimates` |
 | 16 save | `b15_16_save` |
 | other sections (4.1, 4.3: messages, cheats, new-city history) | `b4_3_messages_and_cheats` |
+
+## Coverage (simgrid §10)
+
+| §10 item | Vector |
+|---|---|
+| 1 geometry | `g10_01_geometry` |
+| 2–3 positions and bounds | `g10_02_03_positions_bounds` |
+| 4–8 values, averages, tract size changes | `g10_04_08_values_averages` |
+| 9–10 persistence | `g10_09_10_persistence` |
+| 11–14 radius effect, rounding, clamping | `g10_11_14_radius_effect` |
+| 15–16 distance effect | `g10_15_16_distance_effect` |
+| 17 two grids with callback | `g10_17_two_grids` |
+| 18 scanning iterator | `g10_18_scan_iterator` |
+
+## Coverage (land value §16)
+
+| §16 item | Vector |
+|---|---|
+| 1 land value type | `lv16_01_land_value_type` |
+| 2 code defaults, lifecycle | `lv16_02_defaults_lifecycle` |
+| 3–4 water bonus | `lv16_03_04_water_bonus` |
+| 5 altitude statistics | `lv16_05_altitude_statistics` |
+| 6 mode tie | `lv16_06_mode_tie` |
+| 7 zoning fallback | `lv16_07_zoning_fallback` |
+| 8–9 altitude effect, topIndex | `lv16_08_09_altitude_effect` |
+| 10 desirability | `lv16_10_desirability` |
+| 11 average | `lv16_11_average` |
+| 12–13 save and load | `lv16_12_13_save_load` |
+| 14 messages | `lv16_14_messages` |
+| 15 pipeline call count | `lv16_15_pipeline` |
+| 16 missing altitude curve | `lv16_16_missing_altitude_curve` |
