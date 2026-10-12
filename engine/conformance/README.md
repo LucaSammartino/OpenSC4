@@ -397,10 +397,33 @@ cell. Grids are x-major (`rows[x][z]`).
 Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `MoistureMapUpdated` or `other`;
 `data2`), and with a stub generator `rng` (`kind`: `uniform`, `gaussian`, `int` (with `lo`, `hi`); `value`).
 
+## Grid ops
+
+The grid vectors (`g10_…`) drive the core simulation grids and map utilities (`fc4_core::grid`,
+`docs/specs/simgrid.md`). Every op name starts with `grid_`. Grids are named; values are JSON numbers (integers for
+integer grids). Tract coordinates are `[x, z]`; `rows` are x-major (`rows[x][z]`).
+
+| op | Arguments | Effect |
+|---|---|---|
+| `grid_city` | `cells?` (`[countX, countZ]`, default 256 × 256), `width?` (`[x, z]` cell width, default 16) | the city later `SetTractSize` calls read |
+| `grid_create` | `name`, `type` (`u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`) or `clsid` (a §2 factory ID; `expect: false` if none), `expect_type?`, `init?`, `tract_size?`, `instance?` | a new core grid |
+| `grid_call` | `grid`, `method`, `args?`, `expect?` | a slot: `init`, `shutdown`, `is_init`, `instance_id`, `set_instance_id`, `clsid`, `set_tract_size`, `tract_size`, `shift`, `count_x/z`, `width_x/z`, `inv_width_x/z`, `geometry` (an object of all of these), `tract_in_bounds`, `position_to_tract` (`[tx, tz]`), `tract_corner`, `tract_center`, `get_cell_value`, `get_tract_value`, `set_tract_value`, `set_tract_values`, `average_in_cell_rect`, `average_in_tract_rect` |
+| `grid_set` | `grid`, any of `fill` (first), `rows`, `cells` (`[[x, z, v], …]`) | writes values |
+| `grid_expect` | `grid`, any of `counts`, `cells` (`[[x, z, v], …]`), `others` (every unlisted tract), `rows` | checks values |
+| `grid_record` / `grid_read` | `grid`, `hex`, `zeros?` (trailing zero bytes); read: `expect?` | the §5 record written / read |
+| `grid_store_round_trip` | `grid`, `class?` (the record class it must be saved under), `expect_type?` | saves a reference through the class-object store, loads it through the §2 factories, compares records |
+| `grid_radius_effect` | `grid` (`u8`, `i8`, `i16`), `center`, `r`, `c`, `o`, `counts?` (default the grid's) | `AddRadiusEffect` |
+| `grid_table_distance` | `dx`, `dz`, `expect` | the §7.1 distance table |
+| `grid_distance_effect` | `target`, `mask` (`u8` grids, may be equal), `value`, `radius`, `near`, `far` | `AddDistanceEffect` |
+| `grid_two_grids` | `a`, `b`, `add?` (the callback adds B to A), `calls?` (`[[x, z, b], …]` in order) | `ProcessTwoGridsWithCallback` |
+| `grid_scan` | `rect`, `step?`, `resets` (`[{at: [x, z], expect: [[x, z], …]}]`, every cell until false) | the scanning iterator |
+| `grid_random_iterator` | `mode` (`table`, `prime`, `constructed`), `rect`, `crt_seed?`, `first_next?`, `resets` (`[{rect?, shuffle?, rand_calls?, count?, table?, first?, full_pass?}]`) | the random cell iterator |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
-   §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14).
+   §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
+   `g10_…` (simgrid §10).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -507,3 +530,28 @@ Weather events: `post` (`type`: `SeasonChanged`, `WeatherCycleCompleted`, `Moist
 | 7 moisture variation (and §6.4.1 SetManualMoistureAddition) | `w14_07_variation` |
 | 8 accessors | `w14_08_accessors` |
 | 9 save | `w14_09_save` |
+
+
+## Coverage (simgrid §10)
+
+| §10 item | Vector |
+|---|---|
+| 1 geometry | `g10_01_geometry` |
+| 2 positions | `g10_02_positions` |
+| 3 bounds | `g10_03_in_bounds` |
+| 4 cell value | `g10_04_cell_value` |
+| 5 averages | `g10_05_averages` |
+| 6 float average | `g10_06_float_average` |
+| 7 signed average | `g10_07_signed_average` |
+| 8 resize | `g10_08_resize` |
+| 9 record (and store save/load) | `g10_09_record` |
+| 10 read (and the §2 factories) | `g10_10_read` |
+| 11 radius effect | `g10_11_radius_effect` |
+| 12 radius rounding | `g10_12_radius_rounding` |
+| 13 round half even | `g10_13_round_half_even` |
+| 14 clamping and edges | `g10_14_radius_clamp` |
+| 15 distance effect | `g10_15_distance_effect` |
+| 16 land value distance | `g10_16_distance_landvalue` |
+| 17 two grids | `g10_17_two_grids` |
+| 18 scanning iterator | `g10_18_scan_iterator` |
+| §7.4 random cell iterator (table, prime-step, constructed) | `g10_19_random_iterator` |

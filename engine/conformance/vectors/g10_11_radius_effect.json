@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "grid_radius_effect",
+  "spec": ["simgrid 7.1", "simgrid 10.11"],
+  "description": "AddRadiusEffect (int16, all 0) at (10, 10), r = 3, c = 100, o = 0: k = float32(100/3); d from the 3-decimal table; tracts with d < r get roundHalfEven(float32(c - d k)); (13, 10) at d = 3 is unchanged.",
+  "steps": [
+    {"op": "grid_city", "cells": [32, 32], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "i16", "tract_size": 1},
+    {"op": "grid_table_distance", "dx": 1, "dz": 1, "expect": 1.414},
+    {"op": "grid_table_distance", "dx": 2, "dz": 1, "expect": 2.236},
+    {"op": "grid_table_distance", "dx": 2, "dz": 2, "expect": 2.828},
+    {"op": "grid_table_distance", "dx": 15, "dz": 15, "expect": 21.213},
+    {"op": "grid_radius_effect", "grid": "a", "center": [10, 10], "r": 3.0, "c": 100, "o": 0},
+    {"op": "grid_expect", "grid": "a", "cells": [[8, 8, 6], [8, 9, 25], [8, 10, 33], [8, 11, 25], [8, 12, 6], [9, 8, 25], [9, 9, 53], [9, 10, 67], [9, 11, 53], [9, 12, 25], [10, 8, 33], [10, 9, 67], [10, 10, 100], [10, 11, 67], [10, 12, 33], [11, 8, 25], [11, 9, 53], [11, 10, 67], [11, 11, 53], [11, 12, 25], [12, 8, 6], [12, 9, 25], [12, 10, 33], [12, 11, 25], [12, 12, 6]], "others": 0},
+    {"op": "grid_expect", "grid": "a", "cells": [[10, 10, 100], [11, 10, 67], [11, 11, 53], [12, 10, 33], [12, 11, 25], [12, 12, 6], [13, 10, 0], [13, 11, 0]]},
+    {"op": "grid_radius_effect", "grid": "a", "center": [10, 10], "r": 3.0, "c": -100, "o": 0},
+    {"op": "grid_expect", "grid": "a", "others": 0}
+  ]
+}

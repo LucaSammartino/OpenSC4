@@ -12,6 +12,7 @@
 pub(crate) mod budget;
 pub(crate) mod demand;
 pub mod foundations;
+pub(crate) mod grid;
 pub mod json;
 pub(crate) mod ordinance;
 pub mod runner;

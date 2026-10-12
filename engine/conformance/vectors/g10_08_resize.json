@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "grid_resize",
+  "spec": ["simgrid 4.2", "simgrid 10.8"],
+  "description": "SetTractSize keeps existing values where indices still exist (no rescaling, no clearing); new elements are 0.",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "u8"},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_size", "args": [2]},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_value", "args": [1, 1, 7]},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_value", "args": [100, 1, 9]},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_size", "args": [4]},
+    {"op": "grid_expect", "grid": "a", "counts": [64, 64], "cells": [[1, 1, 7]], "others": 0},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_size", "args": [4]},
+    {"op": "grid_call", "grid": "a", "method": "get_tract_value", "args": [1, 1], "expect": 7},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_value", "args": [63, 63, 5]},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_size", "args": [1]},
+    {"op": "grid_expect", "grid": "a", "counts": [256, 256], "cells": [[1, 1, 7], [63, 63, 5]], "others": 0}
+  ]
+}

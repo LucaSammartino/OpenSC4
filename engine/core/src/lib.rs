@@ -24,6 +24,7 @@ pub mod budget;
 pub mod calibration;
 pub mod curve;
 pub mod demand;
+pub mod grid;
 pub mod host;
 pub mod ids;
 pub mod julian;

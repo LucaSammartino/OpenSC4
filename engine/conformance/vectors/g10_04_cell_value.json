@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "grid_cell_value",
+  "spec": ["simgrid 4", "simgrid 10.4"],
+  "description": "GetCellValue(cx, cz) reads the tract (cx >> shift, cz >> shift); SetTractValues fills every tract.",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "u8", "tract_size": 2},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_value", "args": [2, 3, 9]},
+    {"op": "grid_call", "grid": "a", "method": "get_cell_value", "args": [5, 7], "expect": 9},
+    {"op": "grid_call", "grid": "a", "method": "get_cell_value", "args": [4, 6], "expect": 9},
+    {"op": "grid_call", "grid": "a", "method": "get_cell_value", "args": [6, 7], "expect": 0},
+    {"op": "grid_call", "grid": "a", "method": "get_tract_value", "args": [2, 3], "expect": 9},
+    {"op": "grid_call", "grid": "a", "method": "set_tract_values", "args": [4]},
+    {"op": "grid_expect", "grid": "a", "others": 4},
+    {"op": "grid_create", "name": "q", "type": "i16", "tract_size": 4},
+    {"op": "grid_call", "grid": "q", "method": "set_tract_value", "args": [1, 2, -300]},
+    {"op": "grid_call", "grid": "q", "method": "get_cell_value", "args": [7, 11], "expect": -300}
+  ]
+}

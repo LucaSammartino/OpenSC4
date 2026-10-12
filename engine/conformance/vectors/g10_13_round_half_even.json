@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "grid_round_half_even",
+  "spec": ["simgrid 7.1", "simgrid 10.13"],
+  "description": "The per-tract delta rounds half to even: c = o = 0.5 -> 0, 1.5 -> 2, 2.5 -> 2 (r = 1: only the centre has d < r).",
+  "steps": [
+    {"op": "grid_city", "cells": [8, 8], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "i16", "tract_size": 1},
+    {"op": "grid_radius_effect", "grid": "a", "center": [3, 3], "r": 1.0, "c": 0.5, "o": 0.5},
+    {"op": "grid_expect", "grid": "a", "others": 0},
+    {"op": "grid_radius_effect", "grid": "a", "center": [3, 3], "r": 1.0, "c": 1.5, "o": 1.5},
+    {"op": "grid_expect", "grid": "a", "cells": [[3, 3, 2]], "others": 0},
+    {"op": "grid_radius_effect", "grid": "a", "center": [3, 3], "r": 1.0, "c": 2.5, "o": 2.5},
+    {"op": "grid_expect", "grid": "a", "cells": [[3, 3, 4]], "others": 0},
+    {"op": "grid_radius_effect", "grid": "a", "center": [3, 3], "r": 1.0, "c": -2.5, "o": -2.5},
+    {"op": "grid_expect", "grid": "a", "cells": [[3, 3, 2]], "others": 0}
+  ]
+}

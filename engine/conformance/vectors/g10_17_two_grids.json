@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "grid_two_grids",
+  "spec": ["simgrid 7.3", "simgrid 10.17"],
+  "description": "ProcessTwoGridsWithCallback<uint8, int16>: A coarser by d = 1 gets (sum >> d) >> d of its 2 x 2 B block (floor of the mean: {1, 2, 3, -7} -> -1, {1, 1, 1, 2} -> 1); equal shifts pass B[x][z]; A finer gets each B value at every A tract it covers. Every A tract is visited once, x outer.",
+  "steps": [
+    {"op": "grid_city", "cells": [4, 4], "width": [16, 16]},
+    {"op": "grid_create", "name": "A", "type": "u8", "tract_size": 2},
+    {"op": "grid_create", "name": "B", "type": "i16", "tract_size": 1},
+    {"op": "grid_set", "grid": "B", "cells": [[0, 0, 1], [1, 0, 2], [0, 1, 3], [1, 1, -7], [2, 0, 1], [3, 0, 1], [2, 1, 1], [3, 1, 2], [2, 2, -1]]},
+    {"op": "grid_two_grids", "a": "A", "b": "B", "calls": [[0, 0, -1], [0, 1, 0], [1, 0, 1], [1, 1, -1]]},
+    {"op": "grid_create", "name": "C", "type": "i16", "tract_size": 1},
+    {"op": "grid_set", "grid": "A", "cells": [[0, 0, 5], [1, 1, 9]]},
+    {"op": "grid_two_grids", "a": "C", "b": "A", "add": true, "calls": [[0, 0, 5], [0, 1, 5], [1, 0, 5], [1, 1, 5], [0, 2, 0], [0, 3, 0], [1, 2, 0], [1, 3, 0], [2, 0, 0], [2, 1, 0], [3, 0, 0], [3, 1, 0], [2, 2, 9], [2, 3, 9], [3, 2, 9], [3, 3, 9]]},
+    {"op": "grid_expect", "grid": "C", "rows": [[5, 5, 0, 0], [5, 5, 0, 0], [0, 0, 9, 9], [0, 0, 9, 9]]},
+    {"op": "grid_city", "cells": [2, 2], "width": [16, 16]},
+    {"op": "grid_create", "name": "D", "type": "u8", "tract_size": 1},
+    {"op": "grid_create", "name": "E", "type": "i16", "tract_size": 1},
+    {"op": "grid_set", "grid": "E", "rows": [[1, 2], [3, 4]]},
+    {"op": "grid_two_grids", "a": "D", "b": "E", "add": true, "calls": [[0, 0, 1], [0, 1, 2], [1, 0, 3], [1, 1, 4]]},
+    {"op": "grid_expect", "grid": "D", "rows": [[1, 2], [3, 4]]}
+  ]
+}

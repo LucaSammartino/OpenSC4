@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "grid_record",
+  "spec": ["simgrid 5", "simgrid 2", "simgrid 10.9"],
+  "description": "The grid record: u16 version 1, u8 init, u32 CLSID, u32 instance, s32 S, shift, countX, countZ, f32 widths and inverse widths, then the values x outer in native size. The class store saves the grid under its CLSID and loads it back through the factories.",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "u8", "init": true, "tract_size": 2, "instance": 2312485689},
+    {"op": "grid_record", "grid": "a", "hex": "0100 01 02E6B949 39BBD589 02000000 01000000 80000000 80000000 00000042 00000042 0000003D 0000003D", "zeros": 16384},
+    {"op": "grid_store_round_trip", "grid": "a", "class": 1236919810, "expect_type": "u8"},
+    {"op": "grid_call", "grid": "a", "method": "shutdown", "expect": true},
+    {"op": "grid_record", "grid": "a", "hex": "0100 00 02E6B949 39BBD589 02000000 01000000 80000000 80000000 00000042 00000042 0000003D 0000003D", "zeros": 16384},
+    {"op": "grid_city", "cells": [2, 2], "width": [16, 16]},
+    {"op": "grid_create", "name": "s", "type": "i16", "tract_size": 1, "instance": 7},
+    {"op": "grid_set", "grid": "s", "cells": [[0, 1, -2], [1, 0, 4660]]},
+    {"op": "grid_record", "grid": "s", "hex": "0100 00 05E6B949 07000000 01000000 00000000 02000000 02000000 00008041 00008041 0000803D 0000803D 0000 FEFF 3412 0000"},
+    {"op": "grid_store_round_trip", "grid": "s", "class": 1236919813, "expect_type": "i16"},
+    {"op": "grid_create", "name": "d", "type": "f64", "tract_size": 2, "instance": 1},
+    {"op": "grid_set", "grid": "d", "cells": [[0, 0, 1.5]]},
+    {"op": "grid_record", "grid": "d", "hex": "0100 00 0BE6B949 01000000 02000000 01000000 01000000 01000000 00000042 00000042 0000003D 0000003D 000000000000F83F"},
+    {"op": "grid_store_round_trip", "grid": "d", "class": 1236919819, "expect_type": "f64"}
+  ]
+}

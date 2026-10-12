@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "grid_positions",
+  "spec": ["simgrid 3", "simgrid 10.2"],
+  "description": "PositionToTract truncates toward zero (-10 x 0.03125 = -0.3125 -> 0); tract corner = t x width, centre = (t + 0.5) x width.",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "width": [16, 16]},
+    {"op": "grid_create", "name": "a", "type": "u8", "tract_size": 2},
+    {"op": "grid_call", "grid": "a", "method": "position_to_tract", "args": [100.0, -10.0], "expect": [3, 0]},
+    {"op": "grid_call", "grid": "a", "method": "position_to_tract", "args": [-40.0, 63.9], "expect": [-1, 1]},
+    {"op": "grid_call", "grid": "a", "method": "tract_center", "args": [3, 4], "expect": [112.0, 144.0]},
+    {"op": "grid_call", "grid": "a", "method": "tract_corner", "args": [3, 4], "expect": [96.0, 128.0]},
+    {"op": "grid_call", "grid": "a", "method": "tract_corner", "args": [-1, 0], "expect": [-32.0, 0.0]}
+  ]
+}
