@@ -14,6 +14,8 @@ Legend: **[confirmed]** read in code (Mac pseudocode, and Windows disassembly wh
 > stored node; start-node rings have no early stop; the allowed-types mask gates switch moves only; the Windows
 > tunnel and ferry tables are at sim+0xC8 and +0xDC. §2.3 — free-destination counts are at sim+0x1B0. §2.2 —
 > filter 2 has no setter for its occupant filter. §5.5 — the pathfinder's ApplyTraffic does not mirror style 2.
+> From traffic-network.md: in the per-cell connection words the nibble is the **entry** side; `GetCapacity`
+> returns a float equal to `1/invCap`; wormhole bit 1 (subway station) is never set in 1.1.641.
 
 ## 1. Responsibilities (summary)
 

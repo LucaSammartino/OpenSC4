@@ -153,3 +153,4 @@ cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	28	docs/specs/
 cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	33	docs/specs/tract-developer.md
 cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	4	docs/specs/tract-developer.md
 cISC4PathFinder	cSC4PathFinder	00ab2150	34	docs/specs/pathfinder.md
+cISTESurfaceWater	cSTESurfaceWater	00ab3b00	15	docs/specs/traffic-network.md
