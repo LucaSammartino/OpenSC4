@@ -13,6 +13,7 @@
 
 #include "FC4Observer.h"
 
+#include "FC4Autoload.h"
 #include "FC4Autotest.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
@@ -221,6 +222,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        AutoloadOnTick();
         const int speed = AutotestOnTick();
         if (speed != 0) Unpause(speed);
         return true;
@@ -236,6 +238,7 @@ public:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
+                AutoloadOnCityLoaded();
                 break;
             case kMsgSimNewDay: {
                 bool ok = false;

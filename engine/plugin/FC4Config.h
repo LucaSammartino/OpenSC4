@@ -31,6 +31,10 @@
 //                                 city (FC4Autotest.h); 0 = off
 //   autotest_unpause = 0 / 1 / 2  autotest: run the loaded city at speed 1 or 2
 //   digest = 0 / 1                monthly DIGEST line (default 1; FC4Observer.h)
+//   autoload_city = <path.sc4>    load this save once the region view is up
+//                                 (FC4Autoload.h); tooling for unattended runs
+//   autoload_delay_ticks = N      framework ticks to wait once the region is up
+//                                 (default 60)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -52,6 +56,17 @@ enum class Sw : unsigned {
     Cheats,          // cheats: the budget's cheat manager registration
     HolderRefs,      // holder_refs: references the budget core holds on game objects
     Ltext,           // ltext: localized string lookups (LTEXT resources)
+    // Sub-switches of lot_scan (ForEachLot), for bisecting it; lot_scan = 0
+    // still skips the whole scan.
+    LotList,           // lot_list: 1 = GetLotsInCellRect list (one reference per lot,
+                       //   released by us, nodes freed by our SC4List); 0 = walk every
+                       //   cell with GetLot(x, z, true) (borrowed; no list, no releases)
+    LotBuilding,       // lot_building: lot->GetBuilding() (off: no building)
+    LotProfile,        // lot_profile: building->GetBuildingProfile() purpose / wealth
+    LotBuildingValue,  // lot_building_value: QI cISCPropertyHolder + property 0xE91A0B5F
+    LotLandValue,      // lot_land_value: GetLocation + GetLandValue
+    LotSize,           // lot_size: GetSize (off: 1 x 1)
+    LotState,          // lot_state: IsInLivableState + GetOccupantWealth (off: livable, wealth 0)
     Count
 };
 
