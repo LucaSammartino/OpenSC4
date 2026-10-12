@@ -52,7 +52,7 @@ element**; the caller releases them.
 | 27 | `+0x6C` | `cISC4DepartmentBudget* GetDepartmentBudget(cIGZString const& name)` |
 | 28 | `+0x70` | `cISC4DepartmentBudget* GetDepartmentBudget(uint32 departmentID)` |
 
-Both pairs are in the **reverse** of the SDK header's order. A mismatch at slots 18/19 crashes the game as soon as
+This is the compiled layout; MSVC produces it from the SDK header's source order (foundations §16). A mismatch at slots 18/19 would crash the game as soon as
 a city loads, because the per-type tax query is called continuously. All other slots (0–58) match the SDK
 declaration order; slot 32/33 (`NeededFundingChanged`/`FundingPercentageChanged`) and 34/35 (`GetFunding`
 overloads) share bodies in the original, and their SDK order is accepted as is. `cISC4DepartmentBudget` and

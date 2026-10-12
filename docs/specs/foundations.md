@@ -1271,17 +1271,19 @@ the order within a level.
 
 ## 16. Interface slot order *[compat]* (overloads)
 
-Original code calls our objects through vtable **slots**, so each interface's slot order must match the game
-exactly. The public gzcom-dll SDK headers list **overloaded methods in source-declaration order, but the game's
-compiler placed every overload pair in the reverse order**. This was verified for all five pairs in
-`cISC4Simulator` and `cISC4BudgetSimulator`. Calling an overload in the wrong slot is unsafe. Under `__thiscall`
-the callee pops its own arguments, so a mismatched argument count corrupts the caller's stack, and the game crashes
-(observed in-game with the budget simulator).
+Original code calls our objects through vtable **slots**, so each interface's compiled slot order must match the
+game exactly. A mismatched argument count under `__thiscall` corrupts the caller's stack.
 
-Rule: **an implementation must not take overload order from the SDK.** Each interface spec gives a verified
-slot table for its overloaded methods, and those tables are normative. Non-overloaded methods in the SDK headers
-checked so far (simulator, budget, department budget, line item) match the game.
-
+How overloads end up in the vtable: the game was built with an MSVC-compatible compiler, which **groups overloaded
+virtual methods and reverses each group**. The public SDK headers list overloads in source order. Compiled with
+MSVC, they therefore produce the game's layout: it was verified in-game for every overload pair in
+`cISC4Simulator` and `cISC4BudgetSimulator`. Two cautions:
+- The verified tables in the interface specs describe the **compiled** layout (slot N = method). Compare against
+  them, not against header text order.
+- **Non-adjacent overloads** are the real risk. The compiler pulls a later overload up next to the first one, which
+  shifts every method in between. An implementation should declare its interfaces with **unique method names**
+  matching the spec slot tables, so the layout no longer depends on compiler grouping rules. It should also test each
+  slot through the vtable with the game's argument counts.
 
 ## 15. Open questions for §9–§13
 

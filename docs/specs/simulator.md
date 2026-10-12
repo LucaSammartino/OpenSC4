@@ -255,7 +255,7 @@ version-specific addresses in a single compatibility table (`engine/plugin/compa
 | 22 | `+0x58` | `bool RemoveAllAgents(int32 level)` |
 | 23 | `+0x5C` | `bool RemoveAllAgents()` |
 
-All six are in the **reverse** of the SDK header's order. Every other `cISC4Simulator` slot matches the SDK.
+This is the compiled layout; MSVC produces it from the SDK header's source order (foundations §16). Every other `cISC4Simulator` slot matches the SDK.
 
 ## 6. Speed and pause
 
