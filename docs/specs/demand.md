@@ -46,6 +46,13 @@ Both classes are GZCOM objects:
 - The interface method order of both classes must match the SDK headers, because plugins call them through the
   vtable *[compat]*. The SDK has three signature errors, noted in §3.2 and §5.
 
+
+> **Replaceability note *[compat]*:** the original building-development simulator constructs demand-node objects
+> (class `0x8990C12D`) **directly**, not through the GZCOM registry, and hands them to the demand simulator. A
+> replacement demand simulator must therefore work with demand nodes it did not create, using only the
+> `cISC4Demand` interface (no assumptions about their memory layout). It may still create its own nodes for the
+> nodes it owns.
+
 ## 2. Demand keys
 
 Every node is identified by a 32-bit **key**:
