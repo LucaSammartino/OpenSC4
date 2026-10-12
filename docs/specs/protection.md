@@ -581,8 +581,9 @@ grid update; the cone is removed by the inactive message, which the dispatch man
 GZCOM-registered classes, but the simulators create them with `operator new` and call their **non-virtual**
 `Init` (`0x006DF8C0`) and `Shutdown` (`0x006AC860`). `Init` holds the city and the message server, subscribes to
 `0x99EF1142`, `0x99EF1143`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED` and registers the source with
-the dispatch manager. Their save record is `u16 1`, an occupant list (refs), `u32`. Their behaviour belongs to a
-later dispatch spec.
+the dispatch manager. Their save record is `u16 1`, `u32 n` + n occupant refs, `u32` (meaning unknown) (`Write`
+`0x006AC930`). The fire class's Read (`0x006AC970`) accepts version 1 only; the police class's Read (`0x006DF970`)
+accepts 0 and 1 *[quirk]* (save-records.md §7.4). Their behaviour belongs to a later dispatch spec.
 
 ---
 
@@ -888,7 +889,8 @@ All are posted (queued) through the message server with `cRZMessage2Standard`.
   (`0x006DF8C0`) / `Shutdown` (`0x006AC860`). A replacement cannot do that through GZCOM. *[choice]* FreeCity4
   either reimplements both sources (and must then save a ref to an object that answers `0xC9C00435` and
   `cIGZSerializable` under `0x4C0AE114` / `0x0C0B06E8`), or calls those two functions by address while the
-  original classes are in use. Old saves contain refs to these classes, so their class IDs must stay loadable.
+  original classes are in use. No save of the corpus refers to these classes (fire v2 and police v7 have no
+  source ref), but a 1.1.641 save may, so their class IDs must stay loadable (corrected, save-records.md §7.4).
 - **The dispatch-source sub-interface** (IID `0xC9C00435`) is called by the dispatch manager; the replacement
   must implement it with the slot table of §15.4.
 - **Message-target slots 5–17** are protection virtuals; no outside caller was found, but the vtable layout must

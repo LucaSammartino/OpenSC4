@@ -777,7 +777,16 @@ part draws nothing (traffic-network.md §12).
 ### 6.1 Record (`Write` `0x00712400`, `Read` `0x00721990`) *[compat]*
 
 Version **0x29** (41). Read accepts versions ≥ `0x13` and returns false below that; the version gates are listed
-in §6.4. Primitive encodings are foundations §2.2; "grid" = `SetGZSerializable` of the grid object (simgrid.md).
+in §6.4. Primitive encodings are foundations §2.2.
+
+**Corrected (M6):** the authoritative byte layout, with every Read version gate, is save-records.md §7.1.1; it
+parses all 417 corpus records. The table below is kept as a field overview; where it differs, save-records.md
+wins. The differences (§7.1.2 there): the grids (rows 3, 5, 6, 9), the switch building (row 10) and the
+departments (row 11) are **refs** (ref writer `0x005D99A0`, 14 calls in `Write`), not inline objects; row 14 holds
+a fixed `4 × u32` and a `3 × D` u32 table with no count fields; row 17 is the **tunnel table**, not the
+neighbour-connection records; in row 18 the `u32 4` is a count; in row 19 the usage table is a map from u16 to a
+property holder, the two per-travel-type vectors are interleaved pairs, and the link counters come after the route
+vectors.
 
 | # | Field | Encoding |
 |---|---|---|
@@ -831,8 +840,11 @@ way (neighbors.md).
 The reader branches on the version at these points (`m5sim/read_trace.txt` evidence): `0x18`, `0x25`, `0x1C`, `0x1C`
 (the dimension counts, defaulting to 8, 1, 4, 7 for older saves), `0x14`, `0x1D`, `0x17`, `0x1C`, `0x20`, `0x15`,
 `0x1A`, `0x19`, `0x27`, `0x23` (×2), `0x25` (×2), `0x22`, `0x14` (×2), `0x1A`, `0x26`, `0x1D`, `0x20`, `0x25`,
-`0x23`, `0x1E`, `0x23`. *[choice]* FreeCity4 reads version `0x29` byte-exactly; an older record is skipped and the
-simulator starts from a fresh state (the next cycle rebuilds every map; trip data are in the lots).
+`0x23`, `0x1E`, `0x23`. FreeCity4 reads **every version from `0x13` to `0x29`** with these gates (corrected: 403 of
+the 417 corpus saves hold version 19; the gate-by-gate layout is save-records.md §7.1.1) *[compat]*. Skipping an
+older record is not an option: the six published grids are separate objects that would be left unreferenced, and
+the destination map, damage and switch state would be lost. An old record is written back as version `0x29`; a
+byte-exact round trip is expected only for versions 40 and 41 (save-records.md §7.1.4).
 
 ## 7. Interface: cISC4TrafficSimulator (vtable `0x00AB33D0`, 44 slots)
 

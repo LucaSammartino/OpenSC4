@@ -291,6 +291,8 @@ while some registered object has not been written:
 write the index record (from the start of the record)
 ```
 
+- The class loop walks the **live** sorted set of classes: a class registered during a sweep is written in the
+  same sweep when its ID is higher than the current one (save-records.md §5) *[compat]*.
 - Writing an object may register more objects through references. They are written in a later pass and appended
   to their class records. Entries in a class record are therefore sorted by ID within each pass, but not overall.
 - When a class is registered for the first time in a save, any existing record with its key is deleted first.
@@ -298,6 +300,10 @@ write the index record (from the start of the record)
 - *[quirk]* A discarded entry still counts in the index's `objectCount`, and the loader would then miss an entry.
   **Our `Write` must never return false except for a stream error** *[choice]*.
 - If no object was ever registered, nothing is written (no index).
+- *[compat]* Many saved fields hold Microsoft debug-heap fill words that the original never initialised
+  (`0xCDCDCDCD`, `0xBAADF00D`, `0xCCCCCCCC`: budget by-month ordinance arrays, growth developer, residential, flora
+  RNG, traffic, trips). A reader must accept them and a writer must carry loaded values through unchanged
+  (save-records.md §6).
 
 **Loading** runs once, right after the package is opened and **before any other record is read**:
 
@@ -411,14 +417,19 @@ file with it (keeping the old one until the rename succeeds). In order:
    path strings, data4 = the caller's flag), then `0x26C63346` with the same data (name unknown).
 2. Write the app version record (65) and the module version record.
 3. Write the root record. Its reference registers the city. *(The city's `Write`, and through it every subsystem's
-   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1).
+   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1)
+   while the root record is still open, so the regional-city record precedes the root record in the file.
 4. Send `kSC4MessageSave` `0x26C63344` and `kSC4MessagePostSave` `0x26C63345`.
 5. Run the class-object store save (§3.5): the city, the 53 components and everything they reference.
 6. Close the package, then rename it over the city file.
 7. If the save succeeded: rewrite the regional-city record inside the file of every adjacent city (§11.1).
 
 Subscribers to PreSave/Save may write their own records into the package (void1). They run **before** any
-object's `Write`.
+object's `Write`. The View3D record (`0xA9C8647C / 0xE9C8647E / 1`) is written this way during the Save message,
+also before the root record closes, and it holds a ref to the simulator. That ref registers the simulator first,
+which is why the simulator's class record comes first in every save that keeps the write order (410 of 417). A
+replacement simulator must therefore be registered and serializable when the Save message is sent
+(save-records.md §5) *[compat]*.
 
 **Load** (`cSC4App::LoadCity`):
 
@@ -1177,7 +1188,8 @@ Example (sample save, the first 43 bytes): `01 00 0D 00 06 00 00 00 05 00 00 00 
 00 00 29 01 00 00 8C 02 00 00 8F C2 F5 3E 33 02 00 FB CB E3 53` gives helper 1, version 13, position (6, 5),
 size (2, 2), population 2564, 297 commercial jobs, 652 industrial jobs, workforce 0.48, mayor rating 51,
 difficulty 2, moved 0 and serial `0x53E3CBFB`. All 85 city files of the test region parse completely under
-this layout (versions 9, 10 and 13, with the version rules below). None contains a deal.
+this layout (versions 9, 10 and 13, with the version rules below). None contains a deal, but two shipped saves
+(`City - Fulham.sc4`, `City - Kensington.sc4`) hold two deals each and parse with this layout (save-records.md §7.5).
 
 **Read** *[compat]*:
 

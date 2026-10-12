@@ -152,7 +152,7 @@ changes `flags`.
 | switch mode-mask grid (`uint8`, class `0x69D5C424`) | yes | 0 | OR of `1 << from` over the switch's kind-0 rules |
 | next switch ID | yes | 1 | incremented once per created switch |
 | transit-switch table | yes (each record, traffic-simulator.md) | empty | SGI `hash_map<u32 id, TransitSwitch>`, bucket hint 100 |
-| tunnel table | no | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
+| tunnel table | yes (corrected, traffic-simulator §6.1 row 17) | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
 | ferry terminal list | no | empty | list of FerryTerminal (§2.6) |
 | ferry departure / arrival tables | no | empty | two SGI `hash_map<u16 cellKey, list position>`, hint 100 each |
 | ferry terminal count per ferry type [3] | no | 0 | at most 16 terminals per type |
@@ -905,9 +905,10 @@ The traffic simulator's save record belongs to traffic-simulator.md. For this sp
     (count, per-terminal fields, link lists with their f32 costs, s16 cells, u16 counters and route vectors), and
     `Read` `0x00721990` rebuilds them through the same helper as `DoFerryTerminalActivated` (`0x00713DF0`, called
     at `0x00723593` and `0x007235B1`). The byte layout is in traffic-simulator.md §6.
+  - the **tunnel table** (corrected): it is record row 17; `Read` fills the `hash_map<u16, TunnelInfo>` at
+    `0x00722E18` (save-records.md §7.1.1). The occupant-insert messages during load may add the same keys again.
 - **Not saved** (rebuilt at load):
   - cell connection records and network info (§1, DoPostCityInit);
-  - tunnel table: rebuilt from the occupant-insert messages during load *[inferred]*;
   - subnetwork labels and info;
   - the water depth map (recomputed on message `0x26D31EC1`).
 - **Lot property** `0x2A4F9C74` is saved with the lot as an ordinary property. It is rewritten by the next §4.12 pass.
