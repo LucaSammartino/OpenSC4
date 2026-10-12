@@ -711,3 +711,7 @@ RNG-free quantities (clock, budget arithmetic) or distributions (growth statisti
    first outputs).
 7. **Object `Init` order on load** (§3.7): confirmed only from the city's `Init` list. Which `Init`-time
    cross-subsystem calls depend on it is for each subsystem spec.
+
+### Addendum: message vtable slot order *[compat]* (verified against the game)
+
+The standard message class's vtable matches the gzcom-dll `cIGZMessage2Standard` declaration order exactly. The order is: QueryInterface, AddRef, Release, Create, GetType (`+0x10`), SetType, `==`, `<`. Then, for data slots 1-4, `GetHasDataN`/`GetDataN`/`GetVoidN`/`SetDataN`/`SetVoidN`; data 1 starts at `+0x20`. Then String ×3, IGZUnknown ×3 (`GetIGZUnknown` at `+0x80`) and Extra ×3. Game agents read messages through `+0x10`, `+0x20`, `+0x24`, `+0x3C` and `+0x80`.
