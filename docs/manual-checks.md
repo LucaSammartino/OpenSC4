@@ -21,7 +21,16 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
   - Our message object has type and flags at swapped offsets compared with the game's (`docs/abi/layouts.md`).
   - A fix was requested from the plugin lane.
   - This is unproven; the bisection still decides.
-- Power, plumbing and fire/police specs are being written. Lane 3 is on the M3 grid simulator cores. Lane 1 is on
+- Specs committed:
+  - b9da700: fire and police protection.
+  - ebc9e88: plumbing.
+  - Power is still being written.
+- Land value simulator and the game-layout message fix merged, e2dc324. Land value is off by default
+  (`enable = landvalue`).
+- The checked DLL with the message fix is staged in Plugins. The previous one was renamed `*.pre-msgfix`.
+- Run 8 starts automatically once you close the game: all budget switches on, with the message fix.
+  - If it's clean, the message layout was the cause.
+  - If not, the bisection continues. Lane 3 is on the M3 grid simulator cores. Lane 1 is on
   land value.
 
 ## To verify in-game (after the bisection finds the culprit)
