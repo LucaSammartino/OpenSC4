@@ -1,0 +1,230 @@
+{
+  "format": 1,
+  "name": "seed_derivation",
+  "spec": [
+    "foundations 6.3",
+    "foundations 6.1",
+    "zones 9"
+  ],
+  "description": "Foundations 6.3: every generator's seed is derive(K) = S XOR K, moved by XOR 1 when it would be 0 or 0xFFFFFFFF (the values that make the original fall back to the clock). One case per named file-local generator of the 6.3 table at session 0x12345678 (K checked against the table), with the first NextRaw words of the five M4 generators; session 0 for the zone developer gives 0x8C09C68A, the original's seed at clock value 0, whose words 0xF5DF3363, 0x23EC5CA1, 0xC51FC91C, 0x1EACEFC5 are the zones 9 seeded test; S = K gives 1 (words 0x000041C6, 0x59D4967E, 0xBF022781: foundations 7 test 13); S = NOT K gives 0xFFFFFFFE; explicit-K cases cover the member generators (K = a GZCLSID). Expected values from an independent Python model of 6.3 and of 6.1 NextRaw (t = lcg x 0x41C64E6D + 0x3039 in 64 bits, result (t >> 16) mod 2^32), checked first against the two printed sequences.",
+  "steps": [
+    {
+      "op": "derive_seed",
+      "cases": [
+        {
+          "session": 305419896,
+          "generator": "building_development",
+          "k_expect": 201965752,
+          "expect": 507352768,
+          "next_raw": [
+            271383719,
+            1461464398,
+            29548292
+          ]
+        },
+        {
+          "session": 305419896,
+          "generator": "growth_developer",
+          "k_expect": 2886320360,
+          "expect": 3191707280,
+          "next_raw": [
+            19187577,
+            1222725329,
+            1031989105
+          ]
+        },
+        {
+          "session": 305419896,
+          "generator": "tract_developer",
+          "k_expect": 1275707667,
+          "expect": 1581094763,
+          "next_raw": [
+            2750688286,
+            3688919019,
+            2179068673
+          ]
+        },
+        {
+          "session": 305419896,
+          "generator": "lot_developer",
+          "k_expect": 1812578548,
+          "expect": 2117965452,
+          "next_raw": [
+            1837662303,
+            3455059015,
+            1523361146
+          ]
+        },
+        {
+          "session": 305419896,
+          "generator": "zone_developer",
+          "k_expect": 2349450890,
+          "expect": 2654834930,
+          "next_raw": [
+            904245132,
+            2986467698,
+            2632025383
+          ]
+        },
+        {
+          "session": 305419896,
+          "generator": "lot",
+          "k_expect": 201966689,
+          "expect": 507351577
+        },
+        {
+          "session": 305419896,
+          "generator": "budget",
+          "k_expect": 1812579287,
+          "expect": 2117965231
+        },
+        {
+          "session": 305419896,
+          "generator": "crime",
+          "k_expect": 1812579318,
+          "expect": 2117965198
+        },
+        {
+          "session": 305419896,
+          "generator": "pollution",
+          "k_expect": 1275708627,
+          "expect": 1581093547
+        },
+        {
+          "session": 305419896,
+          "generator": "wealth_requester",
+          "k_expect": 1275708703,
+          "expect": 1581093735
+        },
+        {
+          "session": 305419896,
+          "generator": "network_lot_manager",
+          "k_expect": 2349450105,
+          "expect": 2654835969
+        },
+        {
+          "session": 305419896,
+          "generator": "network_construction_crew",
+          "k_expect": 1812578427,
+          "expect": 2117965315
+        },
+        {
+          "session": 305419896,
+          "generator": "construction_occupant",
+          "k_expect": 3960062762,
+          "expect": 4265448786
+        },
+        {
+          "session": 305419896,
+          "generator": "base_texture_occupant",
+          "k_expect": 2349449941,
+          "expect": 2654835885
+        },
+        {
+          "session": 305419896,
+          "generator": "retaining_wall_occupant",
+          "k_expect": 201966407,
+          "expect": 507352383
+        },
+        {
+          "session": 305419896,
+          "generator": "prop_occupant",
+          "k_expect": 2886320876,
+          "expect": 3191706772
+        },
+        {
+          "session": 305419896,
+          "generator": "fire_occupant",
+          "k_expect": 3960062279,
+          "expect": 4265449279
+        },
+        {
+          "session": 305419896,
+          "generator": "earthquake",
+          "k_expect": 1812578731,
+          "expect": 2117965779
+        },
+        {
+          "session": 305419896,
+          "generator": "pipe_burst",
+          "k_expect": 3960062417,
+          "expect": 4265449385
+        },
+        {
+          "session": 305419896,
+          "generator": "riot",
+          "k_expect": 1275707783,
+          "expect": 1581094911
+        },
+        {
+          "session": 305419896,
+          "generator": "automata",
+          "k_expect": 1275707760,
+          "expect": 1581094664
+        },
+        {
+          "session": 305419896,
+          "generator": "region_creation",
+          "k_expect": 2889186041,
+          "expect": 3187747969
+        },
+        {
+          "session": 305419896,
+          "generator": "advice",
+          "k_expect": 738837115,
+          "expect": 1044222979
+        },
+        {
+          "session": 0,
+          "generator": "zone_developer",
+          "expect": 2349450890,
+          "next_raw": [
+            4125045603,
+            602692769,
+            3307194652,
+            514650053
+          ]
+        },
+        {
+          "session": 1812578548,
+          "generator": "lot_developer",
+          "expect": 1,
+          "next_raw": [
+            16838,
+            1507104382,
+            3204589441
+          ]
+        },
+        {
+          "session": 2482388747,
+          "generator": "lot_developer",
+          "expect": 4294967294,
+          "next_raw": [
+            1315732595,
+            3220131478
+          ]
+        },
+        {
+          "session": 4294967295,
+          "k": 0,
+          "expect": 4294967294
+        },
+        {
+          "session": 0,
+          "k": 0,
+          "expect": 1
+        },
+        {
+          "session": 4294967295,
+          "k": 2147483648,
+          "expect": 2147483647
+        },
+        {
+          "session": 3735928559,
+          "k": 3735928558,
+          "expect": 1
+        }
+      ]
+    }
+  ]
+}

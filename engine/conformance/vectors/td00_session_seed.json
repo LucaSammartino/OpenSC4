@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "tract_session_seed",
+  "spec": [
+    "foundations 6.3",
+    "foundations 12",
+    "tract-developer 4.22"
+  ],
+  "description": "Foundations 6.3 [choice]: the file-local generator is seeded with derive(K) = S XOR K, moved by XOR 1 when it would be 0 or 0xFFFFFFFF; K is the original's clock XOR constant. Expected states from an independent Python model of derive(). Tract developers (K = 0x4C09C113, shared): TractDeveloperStatics::from_session gives 0x12345678 -> 0x5E3D976B (an arbitrary session); 0x00000000 -> 0x4C09C113 (session 0 = the original's seed at clock value 0); 0x4C09C113 -> 0x00000001 (S = K: S XOR K = 0 is moved to 1); 0xB3F63EEC -> 0xFFFFFFFE (S = NOT K: 0xFFFFFFFF is moved to 0xFFFFFFFE); both cRZRandom states start at the seed (6.1) and rand() stays at its process-start state 1 (the game never seeds it, 12).",
+  "steps": [
+    {
+      "op": "tdev_developer",
+      "id": 1
+    },
+    {
+      "op": "tdev_create",
+      "session": "0x12345678"
+    },
+    {
+      "op": "tdev_expect",
+      "lcg": "0x5E3D976B",
+      "mul": "0x5E3D976B",
+      "crt": 1
+    },
+    {
+      "op": "tdev_create",
+      "session": "0x00000000"
+    },
+    {
+      "op": "tdev_expect",
+      "lcg": "0x4C09C113",
+      "mul": "0x4C09C113",
+      "crt": 1
+    },
+    {
+      "op": "tdev_create",
+      "session": "0x4C09C113"
+    },
+    {
+      "op": "tdev_expect",
+      "lcg": "0x00000001",
+      "mul": "0x00000001",
+      "crt": 1
+    },
+    {
+      "op": "tdev_create",
+      "session": "0xB3F63EEC"
+    },
+    {
+      "op": "tdev_expect",
+      "lcg": "0xFFFFFFFE",
+      "mul": "0xFFFFFFFE",
+      "crt": 1
+    }
+  ]
+}

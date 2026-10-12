@@ -266,12 +266,16 @@ impl World {
     }
 }
 
+const PROCESS_SEEDS: FixedSeeds = FixedSeeds {
+    wall_clock: 1,
+    process_clock: 1,
+};
+
 fn new_process(seed: u32) -> SharedProcess {
-    let seeds = FixedSeeds {
-        wall_clock: 1,
-        process_clock: 1,
-    };
-    let p = BdsProcess::new(seed, &seeds);
+    traced(BdsProcess::new(seed, &PROCESS_SEEDS))
+}
+
+fn traced(p: SharedProcess) -> SharedProcess {
     p.enable_trace();
     p
 }
@@ -865,9 +869,12 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
     let w = world(host);
     let r = match rest {
         "process" => (|| {
-            let seed = opt(op, "seed").map_or(Ok(0), |s| u32_of(s, "seed"))?;
+            let p = match opt(op, "session") {
+                Some(s) => traced(BdsProcess::from_session(u32_of(s, "session")?, &PROCESS_SEEDS)),
+                None => new_process(opt(op, "seed").map_or(Ok(0), |s| u32_of(s, "seed"))?),
+            };
             w.flush_draws();
-            *w.process.borrow_mut() = Some(new_process(seed));
+            *w.process.borrow_mut() = Some(p);
             Ok(())
         })(),
         "world" => set_world(&w, op),

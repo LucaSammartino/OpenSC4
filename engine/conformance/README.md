@@ -190,7 +190,7 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 
 ## Foundations ops
 
-Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…`.
+Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7).
 
 | op | Arguments | Checks |
 |---|---|---|
@@ -200,6 +200,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `store_entry` | `class_id`, `payload_hex`, `entry_hex`, `index_hex?` | the class-object store entry (and index) written for one object with ID 1 whose `Write` emits the payload (§3.3) |
 | `curve` | `points` (flat x, y list), `absent?`, `eval`: `[[x, y], ...]` (x and y may be `"0x…"` bit patterns; an expected NaN matches any NaN), `tolerance?` (relative, default 1e-6) | response-curve construction and evaluation (§4) |
 | `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}`. Methods: `RzRandom`: `next_raw`, `uniform_u32`, `range_i32`, `uniform_f64`, `range_f64`, `gaussian`, `range_gaussian`, `range_gaussian_fast`, `range_i32_gaussian_fast`, and the pure mappings `uniform_of` (`[i]`, one signed draw) and `gaussian_to_range` (`[g, a, b]`); `RzRandomSuper`: `next_u32`, `uniform_u32`, `uniform_f64`, `range_f64`, `weighted_choice` | outputs and internal states, bit-exact (§6) |
+| `derive_seed` | `cases`: `{session, k or generator, k_expect?, expect, next_raw?}`; `generator` names a file-local generator of the §6.3 table (`building_development`, `growth_developer`, `tract_developer`, `lot_developer`, `zone_developer`, `lot`, `budget`, `crime`, `pollution`, `wealth_requester`, `network_lot_manager`, `network_construction_crew`, `construction_occupant`, `base_texture_occupant`, `retaining_wall_occupant`, `prop_occupant`, `fire_occupant`, `earthquake`, `pipe_burst`, `riot`, `automata`, `region_creation`, `advice`) | the derived seed (§6.3), the generator's `K`, and the first `NextRaw` words of a `cRZRandom` with that seed |
 
 | `variant_write` | `variant`, `hex`, `ok?` (default true), `round_trip?` (default true), `position?`, `error?` | `WriteVariant` (§9.2) gives `hex`; unless `ok` is false or `round_trip` is off, the bytes read back to the same variant |
 | `variant_read` | `hex`, `preset?` (the destination's value before the read), `expect` (a variant, or `null` = the read fails), `unchanged?`, `position?`, `error?` | `ReadVariant` (§9.2) |
@@ -867,7 +868,7 @@ the host object with that number (which the world may not know: unresolved).
 
 | op | Arguments | Effect |
 |---|---|---|
-| `bds_process` | `seed?` (0) | new process statics (empty catalogue and marks, the generator seeded with `seed`) |
+| `bds_process` | `seed?` (0) or `session?` | new process statics (empty catalogue and marks, the generator seeded with `seed`, or `BdsProcess::from_session`: `derive_seed(session, 0x0C09C0B8)`, foundations §6.3) |
 | `bds_world` | any of `day`, `next_token`, `difficulty`, `cell_widths` (`[x, z]`), `cell_counts`, `altitude`, `area_altitude`, `census` (`{id: supply}`), `tuning` (property map, `"shipped"` = {8192, 20480} and {1.2, 1.1, 1.0}, or null), `funds`, `demolish_cost`, `occupant_manager`, `insert_ok` | the scripted city |
 | `bds_exemplars` | `list`: `{building, purpose?, wealth?, capacity? (for its own developer type), families?, size? ([x, y, z]), name?, localized?, group?, props?}`, `{developer: type}` (0: no property `0x21`), `{foundation}`, `{wall}` or raw `{instance, group?, props}`; `append?` | the exemplars, in enumeration order |
 | `bds_lot_configs` | `list`: `{size: [w, h], zones: [...], ids: [...], orientation? (0), pos? ([x, z]; default the lot centre), no_object?}` | lot configurations for the density table |
@@ -931,7 +932,7 @@ property maps, the store).
 |---|---|---|
 | `gdev_env` | any of `cells` (`[x, z]`), `date`, `wall_seed`, `missing_services` (`["city", "bds", "occupant_manager", "zone_manager", "land_value", "traffic"]`), `no_message_server`, `no_simulator`, `no_grids`, `log_population` (log `UpdatePopulation`), `log_zone` (log `GetZoneType`), `log_supply` (default true: log demand and neighbour queries), `tract_developer` (bool), `multiplier`, `connected` (`[n1, n2]`), `demand` (`[{id, index?, supply?, active?, label?}]`; `active` answers `QueryActiveDemandValue`), `clear_demand`, `timer_checks` (the deadline answers "not yet" this many times per call; null = never), `max_capacity` (`{"zoneType": value}`), `purposes` (`{"0xType": purpose}`), `zones` (`[{x, z, w?, d?, zone}]`) | the scripted world |
 | `gdev_source` | `map` (`intrinsic_land_value`, `total_land_value`, `slope`, `r_proximity` + `index` 1..3, `co_proximity` + `index` `0x3320` / `0x3330`, `park`, `pollution` + `index` 0..3, `school`, `hospital`, `crime`, `trip_length`, `commercial_traffic`, `landmark`, `transient`), `size` (tract size), `fill?`, `tracts?` (`[[x, z, v]]`), `none?` (removes it) | a source map with the element type of §4.3 |
-| `gdev_statics` | `seed?` (reseeds the shared generator), `slice_step?`, `misses?`, `fresh?` (a new shared object for developers created later) | the process-wide state |
+| `gdev_statics` | `seed?` (reseeds the shared generator), `session?` (with `fresh`: `GrowthStatics::from_session`, `derive_seed(session, 0xAC09C0E8)`, foundations §6.3), `slice_step?`, `misses?`, `fresh?` (a new shared object for developers created later) | the process-wide state |
 | `gdev_occupant` | `label`, `props?` (`{"0xID": value}`; `{"remove": true}` removes), `position?` (`[x, y, z]`) or `cell?` (`[x, z]`: its centre) | an occupant; `PositionToCell` is `floor(p / 16)` |
 | `gdev_specials` | `list` (occupant labels) | the BDS's special-building list |
 | `gdev_lot` | `label`, `building_type?`, `capacity?`, `size?` (`[w, d]`), `rect?` (`[x0, z0, x1, z1]`), `location?` (`[x, z]`) | a lot |
@@ -997,7 +998,7 @@ that way (the harness has no road model). Draws are traced by kind: R1–R8 by t
 | `tdev_networks` | `cells` (`[[x, z, [types]]]`) | network tiles and their `IsOfType` answers |
 | `tdev_surrounding` | `rect?` (the lots `GetLotsSurroundingRect` appends for flag 1), `lots?` (`{"lot": [lots]}` for `GetLotsSurroundingLot`, flag 1); other flags append nothing | neighbour lists |
 | `tdev_tuning` | `none: true`, or `shipped?` (true) with `props?` (a property map merged over it) and `remove?` (IDs) | the "Building Development" exemplar |
-| `tdev_create` | `seed?` (the file-local generator's seed, injected; default `0x4C09C113`, the original's seed at clock 0), `crt_seed?` (1), `trace?` (true), `histogram?` (true), `shared?` (reuse the previous instance's statics) | a new tract developer |
+| `tdev_create` | `seed?` (the file-local generator's seed exactly; default `0x4C09C113`, the original's seed at clock 0) or `session?` (`TractDeveloperStatics::from_session`, `derive_seed(session, 0x4C09C113)`, foundations §6.3), `crt_seed?` (1), `trace?` (true), `histogram?` (true), `shared?` (reuse the previous instance's statics) | a new tract developer |
 | `tdev_rng` | `seed`, or `lcg` and `mul`; `crt?` | sets the shared generator / `rand()` state |
 | `tdev_set` | any of `styles` (assigned as is), `style_index`, `years_since`, `years_between`, `single_style` | pokes the style state |
 
@@ -1029,6 +1030,14 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 `dev_type`), `demolish` (`lot`), `delete_lot` (`lot`), `zone_draw` (`value`, R9), `create_lot` (`x`, `z`, `w`, `h`,
 `facing`, `lot`), `redisplay` (`rect`), `set_facing` (`lot`, `facing`), `set_state` (`lot`, `state`),
 `set_population` (`lot`, `dev_type`, `population`).
+
+## Lot developer ops
+
+(Being written: `ldev_…` ops for `fc4_core::lot_developer`, `docs/specs/lot-developer.md`.)
+
+## Zones ops
+
+(Being written: `zone_…` ops for `fc4_core::zones`, `docs/specs/zones.md`.)
 
 ## Adding a vector
 
@@ -1072,6 +1081,7 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | 11 response curves | `f7_11_response_curves` |
 | 12 messages | `engine/tests/message_test.cpp` (the GZCOM message class) |
 | 13–15 random generators, 16 uniform rounding and clamped Gaussian | `f7_13_15_random_generators` |
+| §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
@@ -1454,6 +1464,7 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | 15 stage multiplier (and the tuning reads) | `bd11_15_stage_multiplier` |
 | 16 catalogue queries | `bd11_16_catalogue` |
 | Init, Shutdown, Release, QueryInterface (§1) | `bd11_00_lifecycle` |
+| The generator's seed from the session seed (§4.14, foundations §6.3) | `bd11_00_session_seed` |
 | DoIdle / monthly state machine (§3.1, §4.1, §4.2) | `bd11_00_idle_monthly` |
 | messages: cheats, special buildings, terrain unpacking, PlaceBuilding (§3.2, §4.12) | `bd11_00_messages` |
 | DoTerrainChanged (§4.11) | `bd11_00_terrain_changed` |
@@ -1475,6 +1486,7 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | The game's `std::sort` and its tie order | `gd00_sort_ties` |
 | Shipped exemplars (§4.9) | `gd00_shipped_tuning` |
 | Draw sequence over several developers (§7): one draw per industrial update, the shared generator's state, salts as a multiset ([compat-limit]) | `gd00_draw_sequence` |
+| The shared generator's seed from the session seed (§7, foundations §6.3) | `gd00_session_seed` |
 | The BDS's developer operations, one method each (§12, BDS §1.5) | `gd00_replacement_unit` |
 | 1 population | `gd14_01_population` |
 | 2 max capacity | `gd14_02_max_capacity` |
@@ -1524,6 +1536,15 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | extra: STLport hash_set growth and `std::sort` (introsort, ties) | `td00_hash_growth_sort` |
 | extra: per-pass draw order of a full Grow with several scored candidates (R1, R2 × 3, R3, R4, R5) and a scored takeover | `td00_industrial_grow_draws` |
 | extra: lifecycle, messages, QueryInterface, filters, tuning reader | `td00_lifecycle_tuning` |
+| extra: the file-local generator's seed from the session seed (§4.22, foundations §6.3) | `td00_session_seed` |
 | extra: aggregation, Build without a lot [quirk], resource failure | `td00_aggregation_build` |
 | extra: R9 (CreateLotIfPossible with facing −1) in the per-pass order | `td00_aggregation_r9` |
 | extra: kick-out, caps (building developer's power, own fire), style checks [quirk] | `td00_kickout_caps_styles` |
+
+## Coverage (lot developer §16)
+
+(Being written: vectors `ld16_…` and `ld00_…`.)
+
+## Coverage (zones §15)
+
+(Being written: vectors `zn15_…` and `zn00_…`.)

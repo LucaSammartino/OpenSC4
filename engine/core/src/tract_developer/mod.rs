@@ -32,8 +32,8 @@
 //!   manager, land value, power, plumbing, fire, aura, the traffic network,
 //!   demolition, terrain, the simulator and the message server. Objects are
 //!   host tokens (`u64`). The other two M4 cores are reached through it.
-//! - `order.rs`: the STLport `std::sort` ([`stl_sort`], §4.14) and
-//!   `hash_set<uint32>` ([`StlHashSet`], §4.16).
+//! - The STLport `std::sort` (§4.14) and `hash_set<uint32>` (§4.16) are
+//!   the shared [`crate::stl::stl_sort`] and [`crate::stl::StlHashSet`].
 //! - `tuning.rs`: [`Tuning`] (§4.21).
 //!
 //! # Choices (`[choice]`), limits (`[compat-limit]`) and inferences (`[inferred]`)
@@ -47,10 +47,11 @@
 //!   choice for a given seed. A plugin running in the game process may hand
 //!   out the object addresses as tokens to get the original order.
 //! - The **file-local generator** is one [`RzRandom`] shared by every tract
-//!   developer, not saved. Its seed is injected by the host
-//!   ([`TractDeveloperStatics::new`]); the core does not derive it (the
-//!   original uses the local wall clock XOR [`RNG_SEED_XOR`], §4.22; the
-//!   session-seed derivation belongs to foundations §6.3). The **C
+//!   developer, not saved. [`TractDeveloperStatics::from_session`] seeds it
+//!   from the session seed per foundations §6.3 *[choice]*
+//!   (`derive_seed(S, RNG_SEED_XOR)`: the original's local wall clock XOR
+//!   [`RNG_SEED_XOR`], §4.22, with `S` in place of the clock);
+//!   [`TractDeveloperStatics::new`] takes an exact seed. The **C
 //!   `rand()`** used by the iterator resets R1 / R8 is the statics' own
 //!   [`CrtRand`] (seed 1 by default, foundations §12.6).
 //! - **UpdatePopulation's seed** (§4.18 [choice]): tract (0, 0), whose seed
@@ -121,7 +122,7 @@
 //! - **Tuning pairs** shorter than two floats keep the default for the
 //!   missing elements (§4.21 quirk 9).
 //! - **`std::sort`** and the "unguarded" loops never index outside the
-//!   candidate list ([`stl_sort`]).
+//!   candidate list ([`crate::stl::stl_sort`]).
 //! - **Return values** (§7.1 "what a replacement returns"): `grow` returns
 //!   `built`, `decline` the sum, `update_population` nothing (the plugin
 //!   returns 0); slots 10, 12 and 14 are the plugin's (nonzero, `this`,
@@ -129,13 +130,11 @@
 //!
 //! Host callbacks must not call back into the tract developer.
 
-mod order;
 mod simulator;
 #[cfg(test)]
 mod tests;
 mod tuning;
 
-pub use order::{next_prime, stl_sort, StlHashSet, STL_PRIMES};
 pub use simulator::{
     candidate_rect, capacity_window, configuration_filter_includes, corner_ok, desired_of, has_required_roads,
     roads_check, score_candidate, sort_candidates, style_group, style_points, zone_family, Candidate, Draw, DrawKind,
@@ -146,7 +145,7 @@ pub use tuning::{prop, Tuning, TUNING_KEY};
 
 use std::rc::Rc;
 
-pub use crate::development::{ConstructionProfile, GrowthProfile, Outcome};
+pub use crate::development::{BuildingProfile, ConstructionProfile, GrowthProfile, Outcome};
 pub use crate::grid::CellRect;
 use crate::property::PropertyHolder;
 pub use crate::rng::{CrtRand, RzRandom};
@@ -177,7 +176,7 @@ pub const MSG_MONTH: u32 = 0x6695_6816;
 pub const MSG_YEAR: u32 = 0x6695_6817;
 
 /// The XOR constant mixed into the file-local generator's seed (§4.22).
-pub const RNG_SEED_XOR: u32 = 0x4C09_C113;
+pub const RNG_SEED_XOR: u32 = crate::rng::file_seed::TRACT_DEVELOPER;
 
 /// Bool property of a building exemplar: monopoly piece (§4.17).
 pub const PROP_MONOPOLY: u32 = 0x2781_283F;
@@ -207,15 +206,6 @@ pub mod network {
     pub const AVENUE: u32 = 6;
     pub const ONE_WAY_ROAD: u32 = 10;
     pub const DIRT_ROAD: u32 = 11;
-}
-
-/// The part of the BDS `BuildingProfile` the tract developer reads (§4.8,
-/// §4.15, §4.17; `building-development.md` §4.7.1).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BuildingProfile {
-    pub purpose: u32,
-    pub wealth: u32,
-    pub capacity: u16,
 }
 
 /// The four developer caps (growth developer slots 19–22, §4.2).
