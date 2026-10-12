@@ -144,7 +144,8 @@ Per in-city cell and travel type `t`:
 * a wormhole byte: bit 1 = subway station, bit 2 = tunnel entrance, bit 4 = ferry terminal.
 * per transit network `n`: an optional *network info* (absent = network `n` not in this cell) with an inverse
   capacity (float), the network type (0–12) and an extra step cost (float).
-* the transit-switch map (u32 switch ID per cell, 0 = none) and `TransitSwitchEntryCost(id)` (float).
+* the transit-switch map (u32 switch ID per cell, 0 = none) and `TransitSwitchEntryCost(id)` (float). An unknown ID
+  inserts a default switch whose cost is the float `0x7EFFFFFF` (traffic-network.md).
 * the destination bitmask map, `(W+2) × (H+2)` bytes indexed `[x+1][z+1]` (so off-map cells have entries): bit `k`
   (k = 0…3) = the cell has a destination of type `k` with free capacity; plus the number of such destinations per
   type.
@@ -359,12 +360,16 @@ In this order, from the wormhole byte of `c`'s cell:
 
 1. **Tunnel** (bit 2): look the cell up in the simulator's tunnel table; if found and its travel-type mask has `t`:
    AddTripNode(tunnel destination cell, entry side `s` (unchanged), `t`, tunnel cost for `t`, `maxCost[t]`).
+   The tunnel's travel-type mask is always `0x1FE`, so the tunnel cost is +∞ for a travel type whose speed on
+   that network is zero (traffic-network.md).
 2. If a mass-transit strike is on, skip 3 and 4.
 3. **Subway station** (bit 1): `t' = 0` (Walk) if `t = 6` (Subway), else `t' = 6`. For each side `s2` = 0…3: if
    `conn[t] >> 4s` (the **unmasked** shift: all higher nibbles count *[quirk]*) is non-zero: AddTripNode(same cell,
-   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The allowed mask is not checked. *[quirk]*
+   entry side `s2`, `t'`, cost 0.0, `maxCost[t']`). The allowed mask is not checked. *[quirk]* **Unreachable in 1.1.641**: no code sets
+   wormhole bit 1 (the byte is only reset, `|= 2` and `|= 4`; traffic-network.md), so this branch never runs.
+   *[compat]* FreeCity4 keeps the rule but never sets the bit.
 4. **Ferry** (bit 4), unless flag 16: look up the cell's ferry terminal; if its travel-type mask has `t`: for each
-   terminal link, AddTripNode(link cell, side 0, `t`, link cost, `maxCost[t]`); then for each neighbour (off-map) edge
+   terminal link in list order, AddTripNode(the target terminal's arrival cell, side 0, `t`, link cost, `maxCost[t]`); then for each neighbour (off-map) edge
    of the terminal, AddTripNode(exit node at the edge's off-map point, reached from the edge's in-city cell, `t`,
    edge cost, `maxCost[t]`). List order as stored by the simulator (traffic-network.md).
 
@@ -743,12 +748,16 @@ Open questions:
 * **Q2** The occupant filter (filter 2) has no setter; filter 2 looks unusable *[inferred]*. Candidate call sites of
   `SetTripDestinationFilter(2)` found by a byte scan (`0x00545328`, `0x0060F588`, `0x006A1D10`, `0x0070E0BE`) are other
   interfaces (stream writes), not the pathfinder.
-* **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*.
+* **Q3** No caller of `ApplyTraffic` (slot 29) was found *[inferred]*. The simulator applies routes with its own
+  `ApplyRoute` (`0x00719910`, traffic-simulator.md), which **does** mirror style 2 (the second add uses index
+  4·exit + entry) and adds transit-switch usage once; this slot does not mirror. For the first route cell
+  `ApplyRoute` tests `z < sz0 → 3` where this slot tests `z ≤ sz1 → 3`; the two agree for cells outside the rect.
 * **Q4** A switch move towards an off-map cell reads the transit-switch map and the network info outside the map; the
   result there depends on the simulator's accessor bounds handling (traffic-network.md). FreeCity4 treats it as "no
   switch, no info" *[choice]*.
-* **Q5** The meaning of the destination types 0–3 is the traffic simulator's (trip types: three wealth levels and
-  freight *[inferred]*).
+* **Q5** *Answered* (traffic-simulator.md): destination types 0, 1, 2 are commuters of wealth $, $$, $$$ (jobs of
+  that wealth) and 3 is freight; property `0x8A0B4100` holds u16[12] = max [0..3], arrived this cycle [4..7]
+  (`0x0070DFF0` reads it as "used"), arrived last cycle [8..11].
 * **Q6** One grid of the simulator is fetched with GetGridData at the start of the main loop and the result is not
   used *[inferred]*.
 

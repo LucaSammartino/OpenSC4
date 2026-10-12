@@ -730,7 +730,7 @@ Slots 0–2 thunks (this − 4: `0x00698D30`, `0x005200D0`, `0x00698DB0`); slot 
 | `cISC4Simulator` (`0x00B43D5C`) | 7 `+0x1C` | `GetSimDate()` → `cIGZDate*`, then `cIGZDate` slot 26 `+0x68` day number (EAX) | 0 | EAX | dates |
 | | 19 `+0x4C` / 20 `+0x50` | AddAgent / RemoveAgent | | | §1.3, §1.4 |
 | `cISC4City` (`0x00B43CEC`) | 24 `+0x60`, 34 `+0x88`, 50 `+0xC8`, 81 `+0x144`, 91/92 `+0x16C`/`+0x170` (ST0), 95 `+0x17C` (pop 16), 97 `+0x184` (pop 16) | GetDifficultyLevel, GetOccupantManager, GetSimulator, GetAdvisorSystem, CellWidthX/Z, PositionToCell, CellCenterToPosition | | | §4.7–§4.13 |
-| `cISC4ZoneManager` (`0x00B43D14`) | 12 `+0x30` (pop 8, AL int8) / 11 `+0x2C` (pop 40, AL) | `GetZoneType(x, z)` / `PlaceZone(...)` | | | §4.8, §4.11 (zones.md) |
+| `cISC4ZoneManager` (`0x00B43D14`) | 12 `+0x30` (pop 8, EAX = int8 sign-extended, `0x004DC740`) / 11 `+0x2C` (pop 40, AL) | `GetZoneType(x, z)` / `PlaceZone(...)` | | | §4.8, §4.11 (zones.md) |
 | `cISC4LotManager` (`0x00B43D08`) | 6 `+0x18` (pop 12) / 7 `+0x1C` (pop 24) | `GetLot(x, z, bool)` / `GetLotsInCellRect(list, x1, z1, x2, z2, bool)` | | EAX / AL | §4.8, §4.11 |
 | `cISC4Lot` | 9 `+0x24`, 14 `+0x38`, 15 `+0x3C`, 19 `+0x4C` (ST0), 33 `+0x84`, 39 `+0x9C`, 46 `+0xB8` (pop 4), 48 `+0xC0` | GetLotConfiguration, GetBoundingRect, GetCenter, GetSlope, GetState, IsInDemolishableState, GetBuildingType(bool), GetBuilding | | | §3.2, §4.8–§4.11 |
 | `cISC4LotConfiguration` | 7 `+0x1C`, 11 `+0x2C` (AL), 15 `+0x3C`, 24 `+0x60` | GetSize, GetGrowthStage, IsCompatibleWithZoneType, GetPrimaryBuildingConfigurationObject | | | §4.7.4, §4.10 |
