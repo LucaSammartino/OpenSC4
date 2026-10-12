@@ -931,10 +931,10 @@ cSC4App::vftable_3	00a86af0	42	+0xA8	0044b4d0	cSC4App::GetStringDetokenizer	0	0	
 cSC4App::vftable_3	00a86af0	43	+0xAC	0044b4e0	cSC4App::GetWinLocationSaver	0	0	eax-or-void	medium	
 cSC4App::vftable_3	00a86af0	44	+0xB0	0044b660	cSC4App::GetRenderProperties	0	0	eax-or-void	medium	
 cSC4App::vftable_3	00a86af0	45	+0xB4	0044b4f0	icf::cSC4App::GetGlyphTextureManager	0	0	eax-or-void	medium	
-cSC4App::vftable_3	00a86af0	46	+0xB8	0044b500	cSC4App::GetLuaInterpreter	0	0	eax-or-void	medium	
-cSC4App::vftable_3	00a86af0	47	+0xBC	0044b670	cSC4App::GetTutorialRegistry	0	0	eax-or-void	medium	
+cSC4App::vftable_3	00a86af0	46	+0xB8	0044b500	cSC4App::Unknown_B8	0	0	eax-or-void	medium	
+cSC4App::vftable_3	00a86af0	47	+0xBC	0044b670	cSC4App::GetLuaInterpreter	0	0	eax-or-void	medium	
 cSC4App::vftable_3	00a86af0	48	+0xC0	0044b4f0	icf::cSC4App::GetGlyphTextureManager	0	0	eax-or-void	medium	
-cSC4App::vftable_3	00a86af0	49	+0xC4	0044b510	cSC4App::GetAppDirectory	0	0	eax-or-void	medium	
+cSC4App::vftable_3	00a86af0	49	+0xC4	0044b510	cSC4App::GetTutorialRegistry	0	0	eax-or-void	medium	
 cSC4App::vftable_3	00a86af0	50	+0xC8	0044b520	cSC4App::GetCDAppDirectory	0	0	eax-or-void	medium	
 cSC4App::vftable_3	00a86af0	51	+0xCC	00449de0	cSC4App::GetDataDirectory			forward	medium	indirect-jump dword ptr [edx + 0x10]
 cSC4App::vftable_3	00a86af0	52	+0xD0	00449e00	cSC4App::GetCDDataDirectory			forward	medium	indirect-jump dword ptr [edx + 0x10]
@@ -19353,7 +19353,7 @@ cGZLua5Thread::vftable_1	00ac8dd0	20	+0x50	008b6fc0	cGZLua5Thread::Replace	4	1	e
 cGZLua5Thread::vftable_1	00ac8dd0	21	+0x54	008b7010	cGZLua5Thread::Move	8	2	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	22	+0x58	008b7060	cGZLua5Thread::GrowStack	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	23	+0x5C	008b70b0	cGZLua5Thread::Type	4	1	eax-or-void	medium	
-cGZLua5Thread::vftable_1	00ac8dd0	24	+0x60	008b7100	_tag_error	4	1	eax-or-void	medium	
+cGZLua5Thread::vftable_1	00ac8dd0	24	+0x60	008b7100	cGZLua5Thread::TypeName	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	25	+0x64	008b7150	cGZLua5Thread::IsNumber	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	26	+0x68	008b71a0	cGZLua5Thread::IsString	4	1	eax-or-void	medium	
 cGZLua5Thread::vftable_1	00ac8dd0	27	+0x6C	008b71f0	cGZLua5Thread::IsCFunction	4	1	eax-or-void	medium	
@@ -19471,7 +19471,7 @@ cGZLua5::vftable_1	00ac8fc0	20	+0x50	008b6fc0	cGZLua5Thread::Replace	4	1	eax-or-
 cGZLua5::vftable_1	00ac8fc0	21	+0x54	008b7010	cGZLua5Thread::Move	8	2	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	22	+0x58	008b7060	cGZLua5Thread::GrowStack	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	23	+0x5C	008b70b0	cGZLua5Thread::Type	4	1	eax-or-void	medium	
-cGZLua5::vftable_1	00ac8fc0	24	+0x60	008b7100	_tag_error	4	1	eax-or-void	medium	
+cGZLua5::vftable_1	00ac8fc0	24	+0x60	008b7100	cGZLua5Thread::TypeName	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	25	+0x64	008b7150	cGZLua5Thread::IsNumber	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	26	+0x68	008b71a0	cGZLua5Thread::IsString	4	1	eax-or-void	medium	
 cGZLua5::vftable_1	00ac8fc0	27	+0x6C	008b71f0	cGZLua5Thread::IsCFunction	4	1	eax-or-void	medium	

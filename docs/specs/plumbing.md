@@ -102,7 +102,10 @@ is persisted (§9).
 | `0x80` | unused |
 
 **The visited bitmap**: one bit per cell of a `side × side` square, `side = max(countX, countZ)`. It is
-scratch space for the flood and is not persisted.
+scratch space for the flood and is not persisted. It uses the shared 1-bit helpers of power §2.1: `side² / 32`
+words (signed division, `0x006DF468`), word `(side·z + x) >> 5`, bit `x & 31`. This is the original layout
+*[compat]*; the two bit rules agree because `side` is always a multiple of 32 (64, 128 or 256), so no cell shares a
+bit with shipped city sizes. *[choice]* FreeCity4 may use `i & 31` with `ceil(side² / 32)` words.
 
 ## 3. State
 
@@ -136,7 +139,7 @@ scratch space for the flood and is not persisted.
 | recompute flag | false | no | |
 | ageing flag | false | no | |
 | enabled flag | false | no | set by ConnectionsReady; never cleared |
-| initialized flag, grids-initialized flag | false | no | |
+| initialized flag, grids-initialized flag | false | no | `Shutdown` clears only the first (§4.2) |
 | random generator (`cRZRandom`) | none | no | created in `Init` |
 
 ## 4. Lifecycle
@@ -144,9 +147,9 @@ scratch space for the flood and is not persisted.
 ### 4.1 `Init()` → true (AL = 1)
 
 1. Set a process-wide flag (unknown purpose, §13).
-2. Hold the city (from the game's city global). Create a new `cRZRandom` with seed `0xFFFFFFFF` (wall clock,
-   foundations §6.1). Hold the occupant manager (city slot 34), the pollution simulator (slot 66) and the
-   neighbours simulator (slot 62), each AddRef'd.
+2. Each of the following only if it is not already held: hold the city (from the game's city global); create a
+   new `cRZRandom` with seed `0xFFFFFFFF` (wall clock, foundations §6.1); hold the occupant manager (city slot
+   34), the pollution simulator (slot 66) and the neighbours simulator (slot 62), each AddRef'd.
 3. Only on the **first** `Init` of the object (initialized flag false; set true here):
    - `ReadSimulatorTunableValues()` (§8).
    - Register **three agents** with `cISC4Simulator::AddAgent(target, level, "cSC4PlumbingSimulator", flags = 2)`
@@ -177,20 +180,47 @@ On a loaded city the grids, flag map, bitmap and iterator come from `Read` (§9)
 
 ### 4.2 `Shutdown()` → true (AL = 1)
 
-If initialized:
+If initialized (`0x006DA900`):
 
 1. Clear the initialized flag.
 2. Delete the random generator. Release the city, occupant manager, pollution and neighbours simulators and the
    department (all nulled).
 3. `RemoveNotification` for the six messages, then release the message server (nulled).
 4. `RemoveAgent` (simulator slot 20).
-5. `Shutdown` and release both grids. Free the flag map and the bitmap. Release every producer's occupant and
-   empty the producer list. Release every pipe and empty the pipe list.
+5. `Shutdown` and release both grids (nulled). Free the flag map and the bitmap (nulled). Release every
+   producer's occupant and empty the producer list. Delete the scanning iterator (nulled). current producer :=
+   null. Release every pipe and empty the pipe list.
 6. Zero numPipes, numDistressed, numBurst and numPolluted.
 
-The **enabled** flag is not cleared *[compat]*. A second `Init` on the same object skips step 3 of §4.1 (no
-tuning re-read, no new agents) because the initialized flag was set the first time. The game never does this
-*[inferred]*.
+It does **not** clear the **enabled** flag, the **grids-initialized** flag, countX/countZ, the state or the
+recompute flag *[compat]*.
+
+**A second `Init` on the same object** (QUESTIONS PL2, checked in `0x006DF0D0` and `0x006DA900`):
+
+- **Without a `Shutdown` in between**: both flags are set, so steps 3 and 4 are skipped, and step 2 finds
+  everything held. Only the process-wide flag of step 1 is touched. It is a no-op *[compat]*.
+- **After `Shutdown`** *[compat]*: the initialized flag is clear, so step 2 re-acquires the city, a new random
+  generator and the three simulators, and step 3 runs again in full. It re-reads the tuning (the "keep" curve
+  pattern of foundations §4.1 applies), registers the three agents again, and subscribes the six messages
+  again. The department is null, so `CreateDepartmentBudget(0xAA4014B4, …)` runs again (it returns the existing
+  department unchanged, budget §6), followed by `SetDepartmentName`, `SetMaxAllowedFundingPercentage`,
+  `CreateLineItem(2, false)` and `SetName`. The grids-initialized flag is **still set**, so step 4 is
+  skipped. The grids, the flag map, the bitmap and the scanning iterator stay **null**, and the state and
+  recompute flag keep their pre-`Shutdown` values.
+- The original then dereferences null on the first use of any of them. That is the first pass through state 2
+  (or at once if `Shutdown` interrupted a pass in states 2–7), the first building or pipe insertion (§5.3 calls
+  the working grid, §5.4 writes the flag map), the first `IsCellWatered` / `GetSupplyValue` query, or a
+  `Write`. `GetWateredGrid` returns null. It **crashes**; it neither recreates nor reuses the freed grids.
+- `Shutdown`, then `Read`, then `Init` works: `Read` allocates the flag map and the bitmap, creates the
+  iterator, takes the grids from the save and sets the grids-initialized flag (§9).
+
+The game never re-`Init`s a shut-down simulator. `Release` at count ≤ 1 calls `Shutdown` and then destroys the
+object (§1), and every load creates fresh objects (foundations §3.7) *[inferred: no other `Shutdown` caller
+found]*.
+
+*[choice]* FreeCity4's `Shutdown` also clears the grids-initialized flag. A second `Init` after `Shutdown` then
+rebuilds the grids, flag map, bitmap and iterator exactly as on a new city (state := 0, recompute := true). This
+is invisible to the game and removes the crash.
 
 ## 5. Events
 
@@ -357,7 +387,27 @@ A pass needs at least `2N + 7` calls, where `N` is the number of networks floode
 
 ### 6.2 State 3: seed and pipe flood
 
-importOwed := 0. If no network is in progress (current producer null), find a seed:
+importOwed := 0. If no network is in progress (current producer null), find a seed.
+
+The current producer is **always null on entry** *[compat]* (QUESTIONS PL3). Its only writers are:
+
+| Writer | Value |
+|---|---|
+| constructor | null |
+| `Read` (§9) | null, or the matching producer record |
+| `Shutdown` (§4.2) | null |
+| `DoBuildingChanged` removal (§5.3) | null, when the removed record is current |
+| state 2 (`0x006DD766`) | null |
+| state 3, producer seed (`0x006DD92E`) | the producer. State 3 then moves to state 4 in the same call |
+| end of state 4 (`0x006DE5E8`) | null |
+
+The only writers of state 3 are the ends of state 2 (`0x006DD770`) and state 4 (`0x006DE5EE`), and each nulls
+the current producer in the same call. `Read` sets state 0, so a restored current producer is nulled by state 2
+before state 3 can see it. The original's non-null branch (`0x006DD79C`) is therefore dead code. It would skip
+seeding and clearing, and run the pipe flood on the leftover queue A with the old supply. *[choice]* FreeCity4
+always seeds.
+
+To find a seed:
 
 1. **Import seed.** For each deal of type `0x4773FFE2` in `FindDeals` order, with `used < amount` (deal slots
    20 and 10):
@@ -413,7 +463,10 @@ All amounts are signed 64-bit.
       - supply −= take;
       - `deal.SetAmountUsed(used + take)`;
       - exportTaken += take.
-   3. Otherwise: `deal.SetFlags(0x08 NoConnection, true)` (deal slot 37).
+   3. Otherwise: `deal.SetFlags(0x08 NoConnection, true)` (deal slot 37, call at `0x006DDE76`). This is per
+      network: a deal that the current network cannot reach is flagged even if another network of the same
+      pass (earlier or later) delivers it *[compat]* *[quirk]*. A deal skipped by step 1 (nothing owed, or a
+      network with no supply) is not flagged.
 3. **Ring flood**, only if supply > 0 or exportTaken > 0. It runs breadth-first over queue B, which starts as
    all network cells (ring 0). Repeat while B is not empty:
    1. If ringRemaining ≤ 0: ringRemaining := |B|, ring += 1. If ring ≥ radius, stop.
@@ -493,7 +546,21 @@ The cell value is read **live**, so an earlier fill can make a later anchor cell
 
 ### 6.6 State 7: redisplay (time-sliced)
 
-Iterate the cells again:
+Iterate the cells again *[compat]* (QUESTIONS PL4). State 7 does **not** reset the scanning iterator; state 6
+left it fresh at (0, 0). Each call continues with `GetNext` (simgrid §7.4, `0x0060C8D0`):
+
+- rectangle `[0, countX−1] × [0, countZ−1]` (set by `Init` on a new city, or taken from the save, §9);
+- step 1, x inner, z outer: (0, 0), (1, 0) … (countX−1, 0), (0, 1) … (countX−1, countZ−1);
+- end: the `GetNext` after the last cell sets x := x0 = 0 and z := countZ, finds z > z1, sets **done** and
+  returns false.
+
+The iterator stays **done at (0, countZ)** (for example (0, 64) on a 64 × 64 city, not (0, 63)), with step 1
+and the rectangle unchanged. It is not reset at the end of state 7. It keeps that position through states 8
+and 9, and that is what a save between passes writes (§9 field 14: state 2, x 0, z countZ). State 2 of the
+next pass resets it to (0, 0) (`0x0060C860`). State 2 itself scans the whole grid with it and leaves it done
+at the same spot. The nothing-left branch of state 3 then resets it for state 6.
+
+For each cell:
 
 1. Compare the new published grid with the old one (now the working grid), cell by cell.
 2. Track the bounding box of the cells that differ. The minimum starts at (countX, countZ) and the maximum at
@@ -531,8 +598,16 @@ Iterate the cells again:
    | `0x8A78AB06` | building cells − watered |
 
    The values are the low 32 bits.
-7. Each export deal with `used < amount`: `SetFlags(0x20, true)`. neighbors.md calls this flag "NoLandfill"; for
-   water it means the export was not fully delivered.
+7. Each export deal (`FindDeals(0x4773FFE3)`) with `used < amount` (signed 32-bit, deal slots 20 and 10):
+   `SetFlags(0x20, true)` (call at `0x006DEFEF`). neighbors.md calls this flag "NoLandfill"; for water it
+   means the export was not fully delivered.
+
+   **Export flags** *[compat]* (QUESTIONS PL7): the plumbing simulator has exactly two `SetFlags` calls, both
+   with `on = true`, and no `SetFlags(0x28)`. It never clears a deal flag. An export deal with amount > 0 that
+   no network reaches therefore gains `0x08` in state 4 (from the first network with supply > 0) and `0x20`
+   here, so it ends the pass with **`0x28`** set. If no network has supply, only `0x20` is set. A deal that is
+   fully delivered gets no `0x20`, but it can still carry `0x08` from another network (§6.3). `SetFlags` itself
+   drops `0x38` while the deal has Grace (neighbors.md §5.2).
 8. `neighbours.MarkDealsDirty()` (slot 31).
 9. state := 9. Post `0xEA418D8F` with data1 = 8 (`SC4PostMessage2`).
 
@@ -596,16 +671,33 @@ For each producer, in list order:
 
 At the end, if count > 0: averageWaterPollution := sum / count (unsigned).
 
-**`NearestWater(x, z, type, reach)`**:
+**`NearestWater(x, z, type, reach)`** (`0x006DB2B0`) *[compat]*:
 
-1. type 2 → 0. If the city has no terrain → −1.
-2. The box is `[max(0, x − reach), min(x + reach, terrainCellsX − 1)]` × the same in z (terrain slots 7 and 8).
-3. Walk a spiral iterator from `(x, z)` over the box, clockwise.
-4. Return the spiral's ring number at the first cell where `terrain.CellHasWater(cx, cz)` (terrain slot 34, pop
-   8) is true. If there is none, return −1.
+1. type 2 → 0. If the city has no terrain (city slot 84) → −1.
+2. The box is `[max(0, x − reach), min(x + reach, terrainCellsX − 1)]` × the same in z (terrain slots 7 and 8;
+   int32 arithmetic). An upper bound below the lower bound is raised to it.
+3. If `(x, z)` lies outside the box (an anchor outside the terrain) → −1, with no cell tested.
+4. Walk the spiral iterator (`SpiralIterator`, constructor `0x0043FE10`, `GetNext` `0x00440850`) from `(x, z)`
+   over the box, clockwise. The order is (x, z), then ring 1: (x+1, z), (x+1, z+1), (x, z+1),
+   (x−1, z+1), (x−1, z), (x−1, z−1), (x, z−1), (x+1, z−1). Ring r starts at (x+r, z−r+1) and ends at
+   (x+r, z−r).
+5. Return the iterator's ring counter at the first cell where `terrain.CellHasWater(cx, cz)` (terrain slot 34,
+   pop 8) is true. If there is none, return −1.
 
-The ring number is the Chebyshev distance `max(|dx|, |dz|)` *[inferred at clipped box edges]*. Types 0 and 1
-use the same test: the code does not tell fresh from salt water.
+**Clipping** (QUESTIONS PL1, proven by an exact model of `0x0043FE10`, `0x00440850`, `0x00440420` and
+`0x0043FE80`, checked over every anchor of 16 × 16 and 64 × 64 maps for reaches 0, 1, 2, 3, 5, 7, 20 and
+256):
+
+- Out-of-box cells are skipped **individually**. A leg that runs past the box jumps to its endpoint, and a leg
+  lying wholly outside is skipped, but the ring counter still advances. The walk returns **every box cell
+  exactly once** and never an outside cell. `CellHasWater` is never called outside the box.
+- The ring counter equals the Chebyshev distance `max(|cx − x|, |cz − z|)` for every cell returned, including
+  rings cut by the box. Rings come in increasing order, so the result is the **minimum Chebyshev distance** from
+  `(x, z)` to a water cell inside the box, or −1.
+- The walk ends when the spiral has passed all four box edges, after ring `max(x − x0, x1 − x, z − z0,
+  z1 − z)`, which is at most `reach`. There is no other radius limit.
+
+Types 0 and 1 use the same test: the code does not tell fresh from salt water.
 
 ### 7.3 Producer ageing (`AgeWaterProducer`, state 8 after a month) *[compat]*
 
@@ -647,7 +739,7 @@ It is fetched through the resource manager (slot 3, IID `0xA52160F5`) and releas
 | `0x68F5436D` | fresh water distance loss (% of capacity **kept**) | uint32 | 20 | 100 |
 | `0xAA161F81` | max acceptable pumped water pollution | uint32 | 100 | 512 |
 | `0x8A235C56` | pipe burst probability | float (`0x005FD4F0`) | 0.3 | 0.03 |
-| `0xEA4025A9` | water department max funding | **SC4Percentage** getter `0x005FDAC0` (value × 0.01) | 1.2 | 120 → 1.2 |
+| `0xEA4025A9` | water department max funding | **SC4Percentage** getter `0x005FDAC0` (value × the `float32` 0.01f, `fmul dword [0x00A823A4]`, rounded to 24 bits) | 1.2 (`0x3F99999A`) | 120 → **1.1999999** (`0x3F999999`) *[compat]*; the budget clamps the department's funding to it (budget §7.1), so 120 % funding is stored as 1.1999999 |
 | `0x8A84778F` | monthly cost per pipe | float | 0 | 0.1 |
 
 Notes:
@@ -703,8 +795,8 @@ missing.
 | 10 | producer count P | u32 |
 | 11 | numPolluted | u32 |
 | 12 | P producer records, in list order | below |
-| 13 | the current producer's record, or an all-zero record (null occupant) when there is none | below |
-| 14 | scanning iterator: state (0 fresh, 1 running, 2 done) u8; x, z s32; step u32; x0, z0, x1, z1 s32 | 29 bytes |
+| 13 | the current producer's record, or an all-zero record (null occupant) when there is none. It is non-null only in a save taken while state 4 is pending (§6.2) | below |
+| 14 | scanning iterator: state (0 fresh, 1 running, 2 done) u8; x, z s32; step u32; x0, z0, x1, z1 s32. From the end of state 7 until state 2 of the next pass (so in every save taken between passes): 2, 0, countZ, 1, 0, 0, countX−1, countZ−1 (§6.6) | 29 bytes |
 | 15 | demand | s64 |
 | 16 | numPipes, numDistressed, numBurst | u32 × 3 |
 | 17 | numPipes pipe refs, in list order (the pipe's `cIGZSerializable`) | ref × numPipes |
@@ -721,8 +813,12 @@ A **producer record** is: seedX, seedZ, x1, z1, x2, z2 (s32 × 6), maxCapacity (
   department as `0x223E2B67`.
 - The flag map and the bitmap are allocated if absent; the bitmap side is max(countX, countZ).
 - Producers are appended in file order. efficiency := 0, polluted := false.
-- The current producer is matched by occupant against the list; the record read for it is then released.
-- A new scanning iterator is created with the saved fields.
+- The current producer is matched by occupant against the list (first match in list order); the record read
+  for it is then released. A saved all-zero record (null occupant) matches a producer whose own occupant ref
+  read as null *[quirk]*. This only matters for a damaged save, and the match is cleared by state 2 anyway
+  (§6.2).
+- A new scanning iterator is created with the saved fields, rectangle and step included. `Init` does not
+  change them on a loaded city (§4.1 step 4 is skipped).
 - It sets grids-initialized := true and state := 0, and returns **AL = 1** whatever the stream state.
 
 Not saved, and recomputed by the first pass after load:
@@ -943,6 +1039,12 @@ Quirks *[compat]*:
 - Ageing divides by current production, not capacity (§7.3).
 - `RandomSint32RangeGaussianFast` draws 4 values even when the range is empty (§7.1).
 - The published grid alternates between two grid objects (§2).
+- An export deal is flagged NoConnection by any network that cannot reach it, even when another network
+  delivers it (§6.3).
+- `Init` after `Shutdown` leaves the grids, flag map, bitmap and iterator null, and the original crashes on
+  first use (§4.2). FreeCity4 rebuilds them *[choice]*.
+- The scanning iterator is left done at (0, countZ) after state 7, and saves taken between passes hold that
+  position (§6.6).
 
 Open questions:
 
@@ -950,13 +1052,19 @@ Open questions:
    incremented, so it is always 0.
 2. What pipe vtable slot 100 does (called by `SetWateredState` on change). Probably a model or texture swap
    *[inferred]*.
-3. The ring number of the spiral iterator at clipped box edges (§7.2): Chebyshev is inferred.
+3. *(resolved, PL1)* The spiral's ring number at clipped box edges is the Chebyshev distance, and out-of-box
+   cells are skipped one by one (§7.2).
 4. The name of message `0x6946DC34` (a "water map changed" notification *[inferred]*). The process-wide flag
    that `Init` sets is unexplained.
 5. *(resolved)* The game runs the x87 at 24-bit precision (foundations §18). Each operation rounds like one
    `float32` operation. Example: `trunc(100 × 0.01f)` is **1** (the exact product 0.99999997… rounds to 1.0 at 24
    bits), whereas extended precision would give 0. Pipe-cost ties (§5.4) follow the same rule.
 6. Whether a single import deal seeding several networks (one per connection) is intended.
+7. *(resolved, PL2)* A second `Init` after `Shutdown` re-runs the first-`Init` work but leaves the grids null,
+   and the original crashes (§4.2).
+8. *(resolved, PL3)* State 3 never sees a current producer: its non-null branch is dead (§6.2).
+9. *(resolved, PL4)* State 7 ends with the iterator done at (0, countZ) (§6.6).
+10. *(resolved, PL7)* An unreachable export deal gets `0x08` (state 4) and `0x20` (state 8), so `0x28` (§6.7).
 
 ## 14. Conformance tests (must exist in `engine/conformance`)
 
@@ -967,7 +1075,7 @@ Unless stated, tuning is the shipped exemplar, funding is 100 % and the factor i
      pipe 0;
    - `0x0911E2E8` = `0x0911E2E9` = (0,1)(1,1); `0xCA7138C4` = (0,−0.02)(120,0.01);
    - `0x6A410BF2` empty.
-2. **Shipped tuning**: radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 1.2 (from 120),
+2. **Shipped tuning**: radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 1.1999999 (`0x3F999999`, from 120 × 0.01f),
    cost per pipe 0.1. `0x6A410BF2(90) = 80`.
 3. **Pipe flags**:
    - insert a pipe at (10, 20) connecting in directions 0 and 2 → flags 0x15;
@@ -1002,7 +1110,11 @@ Unless stated, tuning is the shipped exemplar, funding is 100 % and the factor i
 12. **Export**: pump 1000, a consumer of 100 within the radius, and an export deal of 400 (used 0) whose
     connection cell is a pipe cell of the network:
     - exported 400; deal used 400; ratio (100 + 400) / 1000 = 0.5 → water used 500.
-    - Connection not on the network → flag 0x08 set, exported 0, water used 100.
+    - Connection not on the network → flag 0x08 set in state 4, exported 0, water used 100. At state 8,
+      used 0 < 400 → flag 0x20 set too: the deal's flags gain **0x28** (starting without Grace).
+    - Two networks, each with pump 1000: the first seeded cannot reach the connection and the second can →
+      exported 400 and used 400, flag 0x08 set (by the first network), flag 0x20 not set.
+    - No producer and no import (no network) → no 0x08; flag 0x20 set at state 8.
     - Export amount 1500: take 1000, used 1000, supply 0. The ring flood still runs (exportTaken > 0), but the
       first consumer stops it (consumed := 0). Ratio 1000 / 1000 → water used 1000. At state 8, used < amount →
       flag 0x20 set.
@@ -1033,6 +1145,14 @@ Unless stated, tuning is the shipped exemplar, funding is 100 % and the factor i
 20. **Grid swap**: after one complete pass, `GetWateredGrid()` returns the grid created with instance
     `0x49D5BB8C`; after the next pass, `0x49D5BBA1`.
 21. **NearestWater**: water at (x+2, z+1) → 2; only water at (x+3, z) with reach 2 → −1; type 2 → 0.
+    Clipped edges, 64 × 64 terrain:
+    - anchor (0, 0), reach 256, water only at (5, 3) → 5;
+    - anchor (62, 10), reach 256, water only at (55, 10) → 7;
+    - anchor (1, 1), reach 2, water only at (0, 3) → 2; water only at (4, 1) → −1 (outside the box
+      [0, 3] × [0, 3]);
+    - anchor (0, 0), reach 2: the cells are tested in the order (0,0); (1,0), (1,1), (0,1); (2,0), (2,1),
+      (2,2), (1,2), (0,2). Exactly 9 `CellHasWater` calls when there is no water;
+    - anchor (64, 10) (outside the terrain), water everywhere → −1; anchor (63, 63), reach 0, water there → 0.
 22. **Ageing** (pollution §4.9.3 rule): production 1000, used 500, `k` 1, shipped curves, funding 1.0 →
     condition 0 → 0.45. With production 0 → usage 0 → condition += 0.1. Condition 99 with default thresholds →
     `SetCondition(4)`.
@@ -1040,3 +1160,13 @@ Unless stated, tuning is the shipped exemplar, funding is 100 % and the factor i
     `Read` returns false.
 24. **SDK return channels**: with last month produced = 2^32 + 5, `GetWaterProductionCapacity` returns EAX = 5.
     `IsCellWatered` sets only AL.
+25. **Iterator after a pass** (PL4): 64 × 64 city, one complete pass → the iterator is done at (0, 64), step 1,
+    rectangle [0, 63] × [0, 63]. A save written now holds field 14 = `02`, x 0, z 64, step 1, 0, 0, 63, 63.
+    Write → read → write is byte-identical, and the next pass runs normally (state 2 resets it to (0, 0)).
+26. **Current producer** (PL3): a save taken while state 4 is pending holds the seeding producer's record in
+    field 13. After loading it, the first pass gives the same grid, totals and water-used values as a load of
+    the same save with an all-zero field 13.
+27. **Re-Init** (PL2, FreeCity4 *[choice]*): `Init`, `Shutdown`, `Init` on one object for a new 64 × 64 city →
+    `GetWateredGrid()` is a fresh grid (instance `0x49D5BBA1`) with all values 0, the flag map is all 0, state 0,
+    recompute true. Three agents and six subscriptions are registered once each (not twice). A pass then runs
+    without a fault. `Init`, `Init` without `Shutdown` → the second `Init` changes nothing.

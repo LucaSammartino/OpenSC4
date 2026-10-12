@@ -2,7 +2,8 @@
 
 Status: round 1, written from the Windows 1.1.641 executable. The earlier write-up in
 `docs/subsystems/grid-sims.md` was the starting point. Every fact below was checked against the Windows code, and
-the corrections are listed in §16.
+the corrections are listed in §16. The implementer questions PR1–PR15 (`QUESTIONS.md`) were answered from the
+exe and folded in (§4.1, §5–§9, §11, §15, §16, tests 1–5, 8, 9, 23–31).
 
 Tags: *[compat]* observable, must match; *[choice]* FreeCity4 decision; *[inferred]* not proven;
 *[quirk]* original behaviour that looks unintended but is reproduced (or that a replacement must survive).
@@ -158,7 +159,11 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
 3. Register two agents with the simulator (`AddAgent`, simulator slot 19): level **4** (day) and level **6**
    (month), both with flags **2** (only while the city is established) and the agent name
    **"cSC4ProtectionSimulator"** — the same name for fire and police.
-4. Subscribe to the nine messages of §5.
+4. Subscribe to the nine messages of §5 (`AddNotification`, one call each) in this order: `0x99EF1142`,
+   `0x99EF1143`, `0xC8DAC052`, `0x08DAC3E7`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED`, `0xC53D10AA`
+   (`0x006F6D93`–`0x006F6E09`). The two day/month IDs are not subscribed; they arrive through the agents. Each ID has
+   one handler in this class, so the order has no effect inside the class; it only fixes this target's position in
+   the server's per-message notification lists, relative to targets that subscribe later. *[compat]*
 5. Register itself (the dispatch-source sub-object) with the dispatch manager (`RegisterDispatchSource`).
 6. tracts per day := `countX × countZ / period`.
 
@@ -216,24 +221,35 @@ for each id:
         cone as above, centred on info's position (x, z)
 ```
 
-When the station effect fails (for example a police station with centre 0), the effect record still holds the
-values that were read before the failure, so the cone may still be drawn *[quirk]*. The radius is divided by the
-tract width (metres → tracts); simgrid §7.1 rounds it for the loop bounds and clamps to `int16`. *[compat]*
+The station loop uses **one** effect record for all stations; it is not initialised before the loop
+(`0x006F5C30`). A station whose effect fails therefore draws a cone from whatever the record holds (§7.1 says which
+fields a failed read leaves alone): for fire, the values read before the failure, unscaled; for police (centre 0
+or absent), the **previous station's whole effect**, so that cone is drawn twice, or uninitialised stack data when
+it is the first station *[quirk]*. *[choice]* FreeCity4 skips a station whose effect fails. Stations whose effect
+fails cannot normally be in the list (insert requires success, §5.2), so this only matters when a station's
+properties change after insertion. The radius is divided by the tract width (metres → tracts); simgrid §7.1
+rounds it for the loop bounds and clamps to `int16`. *[compat]*
 
 ### 5.2 Station insert, remove and change
 
 **Insert** (`0x006F6610`), for occupants of type building `0x278128A0` whose `GetStationEffect` succeeds:
 1. `AddRef` and append to the station list.
-2. n := the station's dispatch-unit count (§8.1); `SetStationAvailabilityFlags(s, (1 << n) − 1)` (all free).
-3. Choose the base call number (§8.2); `SetStationBaseCallNumber(s, base)`; nextCall := max(nextCall, base + n).
-4. Budget: if the station has a budget item for this purpose and its department exists,
-   `department.AddLocallyFundedObject(holder, purpose)`.
+2. n := the station's dispatch-unit count (§8.1), read through `GetDispatchesAtStation(s, null, null, &n)`;
+   `SetStationAvailabilityFlags(s, (1 << n) − 1)` (all free; the shift count is taken mod 32, so n = 32 gives 0).
+   *[quirk]* `n` is not initialised first: when the count property is absent it is stack garbage.
+   *[choice]* FreeCity4 uses n = 0 then.
+3. Choose the base call number (§8.2); `SetStationBaseCallNumber(s, base)`; nextCall := max(nextCall, base + n)
+   (unsigned 32-bit compare; `base + n` wraps mod 2^32).
+4. Budget (§6.1 terms): if `GetBudgetItemForPurpose(holder, purpose, item)` succeeds and
+   `budget.GetDepartmentBudget(item.departmentID)` is not null, call `AddLocallyFundedObject(holder, purpose)` on
+   that department. "Its department exists" always means this lookup by the item's department ID succeeds; the
+   simulator's own department pointer is not used.
 5. `UpdateBothGridsByPosition(e.x, e.z, e.radius)`: tract (tx, tz) := `adjusted.PositionToTract(x, z)`;
    r := trunc(radius × invWidthX); rebuild the unadjusted grid (§5.1); copy the box
    `[tx − r, tx + r] × [tz − r, tz + r]`, clipped to the grid, into the adjusted grid (§2).
 
 **Remove** (`0x006F64F0`): if a building and in the station list: erase it; if it has a budget item and the
-department exists, `RemoveLocallyFundedObject(holder, purpose)`; `UpdateBothGridsByPosition` with its effect;
+item's department exists (as in insert step 4), `RemoveLocallyFundedObject(holder, purpose)`; `UpdateBothGridsByPosition` with its effect;
 `Release`. The availability and call-number properties stay on the occupant.
 
 **Change** (`0x006F6250`): if a building and in the station list: `UpdateBothGridsByPosition` with its current
@@ -255,15 +271,25 @@ while n > 0:
             zoned += 1;  sum += v;  if v ≠ 0: nonZero += 1        (v = the new adjusted value)
         n −= 1
     else:
-        avg := zoned > 0 ? sum / zoned : 0
-        pct := zoned > 0 ? nonZero / zoned : 0                   (float division)
+        avg := zoned > 0 ? f32(sum / zoned) : 0                   (float division, see below)
+        pct := zoned > 0 ? f32(nonZero / zoned) : 0
         zoned := sum := nonZero := 0
         EndOfCycle()                                              (§5.4)
         iterator.Reset(shuffle = true)                            (one C rand() call; simgrid §7.4)
 ```
 
-The zone grid is the zone manager's slot-5 grid (`+0x14`), read raw through `GetGridData() const`; "zoned"
-means any non-zero zone type. Tracts per day: 64-cell city 1024 tracts → fire 20, police 25; 128 → 4096 tracts →
+The averages (`0x006F6B3A`) are **float** divisions: both integers are loaded exactly (`fild`, signed 32-bit, no
+rounding even above 2^24) and divided once, rounded to float32 (foundations §18). `zoned > 0` is a signed test.
+`sum` and `nonZero` are added as signed 32-bit integers (`sum` wraps only past 2^31, about 8.4 million tracts at
+255). *[compat]*
+
+The zone grid is the zone manager's slot-5 grid (`+0x14`), read raw through `GetGridData() const` as rows `[x][z]`;
+"zoned" means any non-zero zone type. **S** is the simulator's own tract-size constant (2, set with the tuning,
+§6.7, and the same value passed to `SetTractSize` when the grids are created), **not** the adjusted grid's tract
+size, and it is not clamped (`0x006F6180`). The cells read are not bounds-checked. With a loaded adjusted grid of
+another tract size (saved geometry, §2) the tract range would no longer match S = 2 and the original would read
+the wrong cells or outside the zone grid. *[choice]* FreeCity4 uses S = 2 and skips cells outside the zone grid
+(identical for every grid the game creates). Tracts per day: 64-cell city 1024 tracts → fire 20, police 25; 128 → 4096 tracts →
 81 / 102; 256 → 16384 tracts → 327 / 409. A full cycle therefore takes about 51 (fire) or 41 (police) days.
 *[compat]*
 
@@ -274,7 +300,9 @@ means any non-zero zone type. Tracts per day: 64-cell city 1024 tracts → fire 
   (the city's police simulator). Then post `0x68F54CE0` (§12).
 - **Police**: history `0x4A11D354` := trunc(pct × 100); `0x4A11D355` := trunc(avg). Then post `0xA8DAF510`.
 
-History values are recorded with `cISC4HistoryWarehouse` slot 12 `RecordHistoryData(id, value)`.
+History values are recorded with `cISC4HistoryWarehouse` slot 12 `RecordHistoryData(id, value)`. The constants
+100 and 0.5 are float32 (`0x00A80AA0`, `0x00A84D2C`); each product and the sum round to float32, and `trunc` is the
+CRT `_ftol` (foundations §18.1).
 
 ---
 
@@ -284,11 +312,17 @@ History values are recorded with `cISC4HistoryWarehouse` slot 12 `RecordHistoryD
 
 ```
 fundingOf(station, purpose):
-    if the station has no budget item for purpose: 0
-    else if the item is locally funded: item.localFundingPercentage
-    else if the item's department exists: department.GetFundingPercentage()
-    else: 1.0
+    if not budget.GetBudgetItemForPurpose(holder, purpose, item): 0
+    dept := budget.GetDepartmentBudget(item.departmentID)
+    if dept is null: 1.0
+    else if dept.IsLocallyFundedObjectInDepartment(holder, purpose): item.localFundingPercentage
+    else: dept.GetFundingPercentage()
 ```
+
+"The item's department exists" (here, in §5.2 and §9.4) means: the lookup by the item's department ID returns a
+non-null department. Whether the station is locally funded is asked of that department (slot 28), not read from the
+item. *[compat]* (`0x006AD430`, `0x006E0E70`). The jail version (§9.1) differs only in its first line: **no jail
+item gives 1.0**, not 0 (`0x006E06E0`).
 
 ### 6.2 Station efficiency (`GetStationEfficiency(s)`, fire slot 10, police slot 25)
 
@@ -297,6 +331,14 @@ e := curve(fundingOf(s, purpose) × 100) × 0.01
 fire:   if the station's lot exists and has no road access: e × noRoadMultiplier
 both:   if IsStationOnStrike(s): e × strikeEfficiency
 ```
+
+Precision (PR3) *[compat]*: every `× 100` and `× 0.01` in this spec is a multiplication by a **float32** constant,
+100.0f (`0x00A80AA0`) or 0.01f = 0x3C23D70A = 0.0099999998 (`0x00A823A4`); no `double` 100 or 0.01 is used
+anywhere in the three classes or in the percentage getter `0x005FDAC0` (every x87 memory operand in
+`0x006AC800`–`0x006AE400`, `0x006DF800`–`0x006E2C00` and `0x006F5000`–`0x006F7100` was listed). Each product is one float32 rounding (foundations §18). So
+`curve × 0.01` is **not** `curve / 100`: for example 10 × 0.01f = 0.099999994 (0x3DCCCCCC, an exact tie rounded to
+even), 20 × 0.01f = 0.19999999, 40 × 0.01f = 0.39999998, 25 × 0.01f = 0.25, 50 × 0.01f = 0.5, 100 × 0.01f = 1.0.
+The only `double` constants are the fire strike draw bounds 0.0 and 100.0 (§6.3), passed as `double` arguments.
 
 curve: fire `0x29233E8D`, police `0x68DDAE93`. The police version has no road factor. The lot comes from the lot
 manager (`GetOccupantLot`), road access from `cISC4Lot::HasRoadAccess`.
@@ -364,8 +406,12 @@ depends on list order and the sticky `changed` flag.
 ### 6.7 Tuning *[compat]*
 
 Exemplar group `0xE7E2C2DB`, type `0x6534284A`; instance fire `0x68F5524A`, police `0x28DFCF89`; loaded through
-the resource manager. Getters: "pct" reads any numeric property and multiplies it by 0.01; "f32" and "s32" read
-the value as is. Every curve uses the **default** pattern of foundations §4.1: the code default is rebuilt from a
+the resource manager. Getters: "pct" (`0x005FDAC0`) reads any numeric property and multiplies it by the float32
+0.01f (one float32 rounding, §6.2), so shipped percentages are **not** the decimal fractions: 10 → 0.099999994
+(0x3DCCCCCC), 20 → 0.19999999 (0x3E4CCCCC), 50 → 0.5, 60 → 0.59999996, 80 → 0.79999995 (0x3F4CCCCC), 90 → 0.9f
+(0x3F666666), 110 → 1.1f (0x3F8CCCCD), 120 → 1.1999999 (0x3F999999, not 1.2f = 0x3F99999A). "f32" and "s32" read
+the value as is. Code defaults are float32 constants stored directly (1.2 = 0x3F99999A, 1.1 = 0x3F8CCCCD,
+0.9 = 0x3F666666, 0.5, 0.01f). The "Shipped → used" columns give the exact float32 values. Every curve uses the **default** pattern of foundations §4.1: the code default is rebuilt from a
 point list on every read, then the key loader replaces it only when the property exists.
 
 **Fire**
@@ -374,9 +420,9 @@ point list on every read, then the key loader replaces it only when the property
 |---|---|---|---|---|
 | `0x29233E8D` | funding efficiency curve | curve | (0,0) (100,100) (120,110) | (0,10) (50,25) (75,45) (90,75) (100,100) (120,110) |
 | `0x29233E98` | strike response curve | curve | (0,20) (100,100) | (0,100) (25,25) (50,10) (70,0) |
-| `0x29233E8F` | max allowed funding | pct | 1.2 | 120 → 1.2 |
-| `0x29233E94` | strike efficiency multiplier | f32 | 0.5 | 0.2 |
-| `0x29233E96` | min funding to end strikes | pct | 0.9 | 90 → 0.9 |
+| `0x29233E8F` | max allowed funding | pct | 1.2 | 120 → 1.1999999 (0x3F999999) |
+| `0x29233E94` | strike efficiency multiplier | f32 | 0.5 | 0.2f (0x3E4CCCCD, not scaled) |
+| `0x29233E96` | min funding to end strikes | pct | 0.9 | 90 → 0.9f (0x3F666666) |
 | `0x29233E95` | max strike duration (days) | s32 | 60 | 548 |
 | `0x69B425DB` | station no-road multiplier | f32 | 0.8 | 0.8 |
 
@@ -388,15 +434,15 @@ point list on every read, then the key loader replaces it only when the property
 | `0x68DDAEA0` | jail funding → efficiency curve | curve | (0,0) (100,100) (120,110) | (0,0) (10,50) (100,100) (120,110) |
 | `0x68DDAE9E` | strike response curve | curve | (0,20) (100,100) | (0,100) (25,25) (50,10) (70,0) |
 | `0xEA614F63` | jailbreak response curve | curve | (0,20) (100,100) | (0,0) (80,0) (90,10) (100,100) |
-| `0x68DDAE95` | max allowed funding | pct | 1.2 | 120 → 1.2 |
-| `0x68DDAE97` | monthly rehabilitation percent | pct | 0.01 | 10 → 0.10 |
-| `0x68DDAE9A` | strike efficiency | pct | 0.5 | 20 → 0.2 |
+| `0x68DDAE95` | max allowed funding | pct | 1.2 | 120 → 1.1999999 (0x3F999999) |
+| `0x68DDAE97` | monthly rehabilitation percent | pct | 0.01f | 10 → 0.099999994 (0x3DCCCCCC) |
+| `0x68DDAE9A` | strike efficiency | pct | 0.5 | 20 → 0.19999999 (0x3E4CCCCC) |
 | `0x68DDAE9B` | max strike duration (days) | s32 | 10 | 548 |
-| `0x68DDAE9C` | min funding to end strikes | pct | 0.9 | 90 → 0.9 |
+| `0x68DDAE9C` | min funding to end strikes | pct | 0.9 | 90 → 0.9f (0x3F666666) |
 | `0x68DDAE9F` | arrest threshold | s32 | 16 | 20 |
-| `0xEA614F64` | jailbreak escapee percentage (lo, hi) | f32 array, ≥ 2 values, each × 0.01 | **1.0, 5.0** (not scaled) *[quirk]* | 10, 50 → 0.1, 0.5 |
-| `0xEA614F65` | end-jailbreak capacity | pct | 0.5 | 80 → 0.8 |
-| `0x68DDAE92` | (unnamed) jail overflow factor | pct | 1.1 | not shipped → 1.1 |
+| `0xEA614F64` | jailbreak escapee percentage (lo, hi) | f32 array, ≥ 2 values, each × 0.01 | **1.0, 5.0** (not scaled) *[quirk]* | 10, 50 → 0.099999994, 0.5 (each × 0.01f, `0x006E2518`) |
+| `0xEA614F65` | end-jailbreak capacity | pct | 0.5 | 80 → 0.79999995 (0x3F4CCCCC, not 0.8f) |
+| `0x68DDAE92` | (unnamed) jail overflow factor | pct | 1.1f | not shipped → 1.1f (0x3F8CCCCD) |
 
 The tract size (2) and the period (fire 50, police 40) are code constants. *[quirk]* The code-default strike
 curves rise with funding (more strikes at full funding); only the shipped curves make sense. A missing exemplar
@@ -410,15 +456,26 @@ An effect is a record (position x, z in metres; radius in metres; centre value; 
 
 ### 7.1 `GetStationEffect(s)` (message-target slot 14)
 
-| | Fire | Police |
+| | Fire (`0x006AD7C0`) | Police (`0x006E0D50`) |
 |---|---|---|
-| centre | s32 `0x08F55DC0` | s32 `0x48D71ED0`; **fails** (AL = 0) when absent or 0 |
-| outer | s32 `0x08F55DC1` | s32 `0x48D71ED1` |
-| radius | f32 `0x08F55DC2`; fails when absent | f32 `0x48D71ED2`; fails when absent |
+| centre | s32 `0x08F55DC0`; **fails** when absent | s32 `0x48D71ED0`; **fails at once** (AL = 0) when absent or 0 |
+| outer | s32 `0x08F55DC1`; absent → 0 | s32 `0x48D71ED1`; absent → field unchanged |
+| radius | f32 `0x08F55DC2`; **fails** when absent | f32 `0x48D71ED2`; absent → field unchanged, **no failure** |
 | position | occupant `GetPosition` (x, z) | same |
 | efficiency e | prop occupants (QI `0xE9793A65`): curve8D(department funding × 100) × 0.01; else §6.2 | prop occupants: curve93(department funding × 100) × 0.01; else §6.2 |
 
-All three values start at 0 before the reads. On success the effect is scaled (`AdjustProtectionEffect`):
+Order and partial failure (PR2) *[compat]*:
+
+- **Fire**: set centre, outer and radius to 0; read centre, outer, radius in that order (all three are always
+  read); then write position and original centre := centre. Fail (AL = 0) if the centre **or** the radius was
+  absent; the record then holds the raw values read and the position, unscaled. Otherwise compute e, scale, AL = 1.
+- **Police**: set only centre to 0 and read it. If it is 0 (absent or zero), return AL = 0 at once: outer, radius,
+  position and original centre keep the caller's previous values. Otherwise read outer and radius (their results
+  are ignored; an absent one leaves the caller's value), write position and original centre, compute e, scale,
+  AL = 1. *[quirk]* A police station without a radius property succeeds with a stale radius. *[choice]* FreeCity4
+  uses 0 for an absent outer or radius.
+
+On success the effect is scaled (`AdjustProtectionEffect`):
 radius := radius × e; centre := trunc(centre × e); outer := trunc(outer × e); the original centre is kept. "Department funding" is the
 department's `GetFundingPercentage()` fraction; prop stations ignore local funding, road access and strikes.
 *[compat]*
@@ -439,7 +496,13 @@ position). No efficiency scaling. AL = 1 if read.
 - `GetStationDispatchRadius(s)`: the dispatch effect's radius (ST0), or 0.0 when it fails.
 - `GetAverageCoverage()` = avg (ST0). `GetPercentCoverage()` returns a **pointer** to `pct` (a fraction).
 - `GetTotalDispatchCount()`: Σ over stations of the dispatch-unit property (fire `0x08F55DC5`, police
-  `0x48D71ED5`).
+  `0x48D71ED5`); a station without the property adds 0. Signed 32-bit sum, EAX.
+- `GetMaxPossibleDispatchCount()` (dispatch-source slot 5, `0x006F5B00`, shared): one local `count := 0`, then
+  for each station in list order: `GetDispatchesAtStation(s, null, null, &count)` through the dispatch-source
+  vtable (slot 7), and `total += count`. The local is **not** reset per station and `GetDispatchesAtStation` only
+  writes it when the property exists, so a station without the count property adds the **previous** station's
+  count (0 before the first station that has one) *[quirk]*. With every station carrying the property (all shipped
+  stations do *[inferred]*) it equals `GetTotalDispatchCount()`. Returns the signed 32-bit sum in EAX. *[compat]*
 
 ---
 
@@ -451,13 +514,40 @@ Each station has `count` units (fire `0x08F55DC5`, police `0x48D71ED5`), an **av
 `0x69B425DE`, police `0x48D71ED8`; bit i set = unit i free) and a **base call number** (fire `0x69B425DD`, police
 `0x48D71ED7`). Unit i has call ID `base + i`. All three are occupant properties written by the simulator.
 `GetDispatchesAtStation(s, u32* flags, u32* base, u32* count)` returns false when `count` is absent, or when a
-requested `flags`/`base` is absent; `flags` is masked with `(1 << count) − 1`.
+requested `flags`/`base` is absent; `flags` is masked with `(1 << count) − 1` (shift count mod 32). Each
+requested output is written as soon as its property is read, in the order count, flags, base, so a call that
+fails on `base` has already written `count` and `flags`; an output whose property is absent is left unchanged.
+*[compat]*
 
 ### 8.2 Allocation
 
 - **Base call numbers**: on insert, mark the call IDs used by the other stations (`[base, base + count)`) in a bit
   vector of size nextCall, then take the first run of `count` free IDs starting at 1. Example: A (2 units) → base
   1; B (3) → base 3; nextCall := 6.
+
+  Exact search (`0x006F6610`; PR10) *[compat]*. `nextCall`, `base`, `count` and the candidate are **unsigned
+  32-bit**; there is no limit and no validation of a loaded `nextCall`.
+  1. A `vector<bool>` of `nextCall` bits is allocated (all false) on **every** insert.
+  2. For each other station (in list order, skipping the new one), `GetDispatchesAtStation(t, null, &base,
+     &count)`; set bits `base … base + count − 1`. The two locals are not reset between stations, so a station
+     without the properties re-marks the previous station's range *[quirk]*. Bit indices are not bounds-checked.
+  3. If `nextCall ≤ 1`: base := 1. Otherwise c := 1 and repeat: look for the first set bit among `c … c + n − 1`
+     (n = the new station's count); if none, stop with base := c; else, with j the first such offset,
+     c := c + j + 1, and stop with base := c as soon as c ≥ nextCall. Bits at or beyond nextCall can be read (when
+     `c + j ≥ nextCall`) without a bounds check: they are 0 inside the vector's last 32-bit word and heap data
+     beyond it.
+  4. nextCall := max(nextCall, base + n), unsigned, `base + n` wrapping mod 2^32.
+
+  When every other station's range lies below nextCall and the out-of-range bits read as 0, the result is simply
+  **the smallest c ≥ 1 such that no other station's call ID lies in `[c, c + n)`**.
+
+  Huge `nextCall`: the game itself keeps `nextCall` at most one more than the highest call ID ever allocated, so a
+  huge value only comes from a save (`u32`, §11). The original then allocates `nextCall / 8` bytes on every insert
+  (512 MiB at 2^32 − 1; an allocation failure ends the game). A sum `base + n` past 2^32 wraps, and nextCall then
+  stays put. *[choice]* FreeCity4 computes the smallest-free-run result above without the bit vector (call IDs at
+  or beyond nextCall count as free), and saturates `base + n` at 2^32 − 1 instead of wrapping. The results are
+  identical whenever the original neither runs out of memory nor reads a non-zero out-of-range bit, and no sum
+  wraps.
 - **`DispatchFromStation(s, u32* id)`** (dispatch-source slot 9): read the unit state. If `*id` > 0: the unit
   `*id − base` is taken (fails if that index > count; the bit is cleared **without checking that it was free**
   *[quirk]*). If `*id` = 0: take the lowest set bit i < count; with no free unit, i := count and no bit changes,
@@ -498,16 +588,31 @@ later dispatch spec.
 ### 9.1 Jail efficiency, capacity and population
 
 ```
-jailEff(j)        := curveA0(fundingOf(j, 0xEA56768A) × 100) × 0.01        (§6.1 with the jail purpose)
-capacity(j)       := roundHalfEven(u32 property 0x48D71EE0 × jailEff(j))   (slot 28)
+jailEff(j)        := curveA0(jailFunding(j) × 100) × 0.01        (0x006E06E0)
+jailFunding(j)    := §6.1 with the jail purpose 0xEA56768A, except: no jail budget item → 1.0 (not 0)
+capacity(j)       := roundHalfEven(u32 property 0x48D71EE0 × jailEff(j))   (slot 28, 0x006E0AC0)
 ```
 
-**Recalculate** (`0x006E1240`): capacity := Σ capacity(j); ratio := 1 if jailed > capacity, else
-jailed / capacity (0 if capacity = 0); each jail's property `0x48D71EE1` := roundHalfEven(capacity(j) × ratio);
-population := Σ of those values.
+The property is read as `u32` (values ≥ 2^31 are converted as unsigned); an **absent** property reads as **0**,
+so the jail has capacity 0 (PR14) *[compat]*. The product rounds to float32. `roundHalfEven` here and in
+Recalculate, rehabilitation and escapes is the "add 1.5 × 2^23 (`12582912.0f`), store as float32, subtract the
+bit pattern `0x4B400000`" trick: exact round-half-to-even for |v| < 2^22; above that it returns other values
+(for 2^22 ≤ v < 2.5 × 2^23, `v/2 + 2^21`, rounded to an integer) *[quirk]*, which shipped capacities never reach.
 
-`GetJailedPercentage()` (slot 36) := 1.0 if jailed > capacity, else jailed / capacity (0/0 gives NaN *[quirk]*),
-returned by value.
+**Recalculate** (`0x006E1240`): capacity := Σ capacity(j); if capacity ≤ 0: ratio := 0; else if jailed > capacity:
+ratio := 1; else ratio := f32(jailed / capacity); each jail's property `0x48D71EE1` := roundHalfEven(capacity(j) ×
+ratio); population := Σ of those values.
+
+`GetJailedPercentage()` (slot 36, `0x006E0B30`), returned by value through the hidden pointer, has **no guard**:
+
+| Case (signed compares) | Result |
+|---|---|
+| jailed > capacity | 1.0 (constant `0x00B0D3FC`) |
+| otherwise | `fild jailed; fidiv capacity`, one float32 rounding |
+| → jailed = capacity = 0 | 0/0 = the x87 default NaN (invalid operation is masked): stored as float32 `0xFFC00000` *[quirk]* |
+| → capacity = 0, jailed < 0 (only from a corrupt save) | −∞ |
+
+capacity = 0 with jailed > 0 gives 1.0, not ±∞, because the first case catches it. *[compat]*
 
 ### 9.2 Crime events (`0x0A159D95`)
 
@@ -521,9 +626,18 @@ crimesThisMonth += 1
 ```
 
 **Station statistics**: occupant property `0x8A70A0B9`, a u32 vector [crimesLast, arrestsLast, crimesThis,
-arrestsThis] (made 4 zeros if absent; truncated to 4). crime: [2] += 1; arrest: [2] += 1 and [3] += 1; monthly
-shift: [0] := [2], [1] := [3], [2] := [3] := 0. Slot 44 returns [0]; slot 43 returns [1]. With no stations the
-statistics update is skipped. *[inferred]*
+arrestsThis]. crime: [2] += 1; arrest: [3] += 1 then [2] += 1; monthly shift: [1] := [3], [0] := [2],
+[3] := [2] := 0. The vector is read, changed and written back (`0x006E2610` for crime/arrest, the same code
+inline in `ProcessMonthlyCrimeStats` for the shift). Slot 44 returns [0]; slot 43 returns [1]; both return 0 when
+the property is absent. With no stations the statistics update is skipped. *[inferred]*
+
+Length handling (PR12) *[compat]*: only when the **read fails** (property absent) is the vector made exactly 4
+zeros. A vector that **is** read is used at its length without any check: a longer one keeps its extra elements
+(written back unchanged); a **shorter** one is indexed past its end, so the original writes into heap memory
+beyond the vector (the out-of-range increments are lost when it is written back at its own length), and slots
+43/44 read past its end (an empty vector has no storage: reading it crashes) *[quirk]*. Shipped content never
+creates the property; only this code does, always with 4 elements. *[choice]* FreeCity4 pads a short vector with
+zeros to 4 before updating or reading it, and writes back the padded vector.
 
 ### 9.3 Monthly crime bookkeeping
 
@@ -547,21 +661,39 @@ No Recalculate follows; the population is refreshed by the next Recalculate.
 - **Insert** (after the base insert): a police station → post `0xA949569A`; a jail (has `0x48D71EE0`) →
   `AddRef`, add to the jail list, add to the locally-funded-jail list when it has a jail-purpose item and that
   department exists, `AddLocallyFundedObject(holder, 0xEA56768A)`, Recalculate.
-- **Remove**: drop it from the locally-funded-jail list; if in the jail list: erase, `RemoveLocallyFundedObject`,
-  Recalculate; then the base removal; a police station → post `0xA949569A`. *[quirk]* The jailbreak list is not
-  cleaned: a demolished jail stays in it (holding a reference) until the end check (§9.5) removes it.
+- **Remove** (`0x006E1570`), only for occupants of type building `0x278128A0`:
+  1. **Locally-funded-jail list** (PR8): search it for the occupant pointer (first match); if found, erase that
+     entry and release its reference. No other condition: not whether it is a jail, has a budget item, or is
+     still locally funded. *[compat]*
+  2. If the occupant is in the jail list: erase it (release); if `GetBudgetItemForPurpose(holder, 0xEA56768A)`
+     succeeds, call `RemoveLocallyFundedObject(holder, 0xEA56768A)` on `GetDepartmentBudget(item.departmentID)`
+     **without a null check** (a missing department would crash *[quirk]*; *[choice]* FreeCity4 skips it);
+     Recalculate.
+  3. The base removal (§5.2); then, for a police station (slot 22), post `0xA949569A`.
+
+  *[quirk]* The jailbreak list is not touched: a demolished jail stays in it (holding a reference) until the end
+  check (§9.5) removes it, which can take until a save and reload (§9.6).
 - **Change**: base handling; a police station → post `0xA949569A`.
 
 ### 9.5 Police `DoMonthly` (`0x006E2A80`)
 
-1. **Rehabilitation**: k := roundHalfEven(jailed × rehabRate); jailed := max(0, jailed − k); Recalculate if
-   k ≠ 0.
+1. **Rehabilitation**: k := roundHalfEven(f32(jailed × rehabRate)); jailed := max(0, jailed − k); Recalculate
+   if k ≠ 0. With the shipped rate 0.099999994 (§6.7) no product is an exact half (checked for every jailed < 5 000 000), and **jailed ≤ 5 never
+   decreases** (5 × rate = 0.49999997 → 0) *[compat]*.
 2. Strike pass (§6.5).
 3. A loop that reads `0x48D71EE0`, `0x48D71EE1` and `0x48D71EE4` of every jail and discards them (no effect).
-4. **Jailbreak end**: for each jail in the jailbreak list, if `GetJailedPercentage()` < endThreshold:
-   `EndJailbreak(j)`.
-5. **Jailbreak start**: for each jail j: chance := `GetChanceOfJailbreak(j)`; if chance > 0: draw :=
-   `rng.RandomDoubleUniform()`; if draw < chance: `BeginJailbreak(j)`.
+4. **Jailbreak end** (`0x006E11F0`): for each jail in the jailbreak list (the next node is taken before the
+   call, so ending one is safe): p := `GetJailedPercentage()` (the **city-wide** value, through the vtable, slot
+   36); if p < endThreshold (ordered compare, below): `EndJailbreak(j)` (slot 41, through the vtable).
+5. **Jailbreak start** (`0x006E1190`): for each jail j: chance := `GetChanceOfJailbreak(j)`; if chance > 0 (ordered;
+   NaN is skipped): draw := `rng.RandomDoubleUniform()`; if draw < chance (ordered): `BeginJailbreak(j)`.
+
+**Comparisons** *[compat]*. Each `<` above is `fld a; fcomp b; fnstsw ax; test ah, 5; jp skip` (C0 = bit 0 and
+C2 = bit 2 of AH). The FPU sets (C3, C2, C0) to (0,0,0) for a > b, (0,0,1) for a < b, (1,0,0) for a = b and
+(1,1,1) for unordered (a NaN operand). `test ah, 5` keeps C0 and C2; the parity flag is set when an even number of
+those bits is set, and `jp` skips the action. Only a < b leaves exactly one bit (C0), so the action runs **only for
+an ordered a < b; NaN never passes**. The `chance > 0` test is `test ah, 0x41; jne skip` (C0 or C3 set → skip),
+which also skips NaN. In FreeCity4: `if (a < b)` with IEEE semantics (false for NaN).
 
 `GetChanceOfJailbreak(j)` := 0 if j is null, not a jail (slot 33), the **total** population ≤ 0, or j is already
 in the jailbreak list;
@@ -576,6 +708,39 @@ post `0x2A614892`, erase and release. Returns AL = **0 always** *[quirk]*.
 
 `GetJailCurrentUpkeepCost(j)` (slot 37): trunc(float(item.cost) × item.localFundingPercentage) for the jail
 purpose, as int64 in EDX:EAX; 0 without an item.
+
+### 9.6 Jails stuck in a jailbreak (PR15) *[compat]*
+
+The end check (§9.5 step 4) compares the **city-wide** jailed percentage, not anything about the jail itself. A
+jail in the jailbreak list (demolished or not) therefore leaves it only when `GetJailedPercentage()` is an ordered
+value below endThreshold (0.79999995 shipped). When the **total** capacity is 0 (the last jail demolished, or every
+jail at capacity 0 through funding or an absent capacity property), §9.1 gives:
+
+- jailed > 0 → 1.0, not below the threshold;
+- jailed = 0 → NaN (`0xFFC00000`), and NaN is never below anything (§9.5 Comparisons).
+
+Either way **the jail stays in the list**. With capacity 0, the crime simulator's monthly `ResetUnjailedCriminals`
+(cap = trunc(0 × 1.1) = 0) sets jailed to 0, giving NaN; arrests booked by `ProcessMonthlyCrimeStats` raise it
+again, giving 1.0 until the next reset. Which of the two the police month agent sees depends on the month order of
+the crime and police agents (foundations §13); both fail the test. No other code removes the entry: `EndJailbreak` (`0x006E1C90`) has no direct caller and its
+only reference is the vtable slot (`0x00AB2534`); the only virtual calls to slot 41 found are the end check's (scan
+of every `call [reg + 0xA4]` near a police-simulator global `0x00B43D98` or `GetPoliceSimulator` call: none);
+occupant removal never touches the list (`0x006E1570`). The entry goes away only when:
+
+1. total capacity becomes positive again (a new or refunded jail) and jailed / capacity < endThreshold at a month
+   end; `EndJailbreak(j)` then still accepts the demolished jail, because it checks only `IsJail(j)` (the
+   occupant still has property `0x48D71EE0` *[inferred: the removed occupant object is kept alive by the list's
+   reference and its properties are not cleared]*) and list membership; it removes the "jailbreak" controllers,
+   posts `0x2A614892` naming the demolished occupant, erases and releases it;
+2. the city is saved and loaded (the list is not saved, §11);
+3. `Shutdown` releases the list.
+
+While stuck, the entry is visible: `IsInJailbreak(j)` is true, `GetJailbreakBuildings` returns it, and its
+"jailbreak" automata controllers stay attached. It does not block jailbreaks at other jails (`GetChanceOfJailbreak`
+only tests the jail's own membership), but with capacity 0 the population is 0, so no jail can start one either.
+A jail stuck with other jails present leaves at the first month end at which the city-wide percentage drops below
+the threshold. *[choice]* FreeCity4 reproduces this exactly, including the NaN (IEEE `<` is false for NaN); it
+must not divide-guard `GetJailedPercentage`.
 
 ---
 
@@ -619,12 +784,25 @@ u32  strike date
 u32  nextCall
 ```
 
-Read: version > 3 → false after reading only the u16. Version < 3: pct := pct × 0.01 (older saves stored a
-percentage). Returns `!stream.GetError()`.
+Read: version > 3 → false after reading only the u16. Version < 3: pct := f32(pct × 0.01f) (older saves stored
+a percentage; 75.0 → 0.75). Returns `!stream.GetError()`.
+
+**Versions Read accepts** (PR9) *[compat]*. The three `Read`s branch on their version only where shown below;
+every accepted older version is read with the **same** field layout as the current one. No other layout is
+handled, so if pre-release saves had another layout the original misreads them; none is known.
+
+| Record | Accepted | Difference by version |
+|---|---|---|
+| base | 0–3 | 0–2: the `pct` field holds a percentage and is scaled by 0.01f; 3: a fraction |
+| fire | 0–3 | 0–2: no plane-source ref after the base record (the record ends there); 3: the ref follows |
+| police | 0–8 | 0–7: no helicopter-source ref (the record ends after `crimesThisMonth`); 8: the ref follows |
+
+The outer version and the nested base version are independent (each record has its own `u16`). Rejection (version
+too high) happens before anything else is read; the fire and police records reject before calling the base Read.
 
 **Fire record** (`0x006AD250` / `0x006AD2A0`): `u16 3`, base record, `ref` plane source. Read: version > 3 →
 false; sets the loaded flag; **ignores the base result** *[quirk]*; for version > 2, releases the current plane
-source and reads the ref with IID `0xC9C00435`. Returns `!GetError()`.
+source (pointer cleared, then `Release`) and reads the ref with IID `0xC9C00435`. Returns `!GetError()`.
 
 **Police record** (`0x006E03F0` / `0x006E04E0`):
 
@@ -646,7 +824,12 @@ ref  helicopter source                   (only read when version > 7)
 ```
 
 Read: version > 8 → false. If the base Read fails, the police fields are skipped but the result is still
-`!GetError()` *[quirk]*. Sets the loaded flag.
+`!GetError()` *[quirk]*. Sets the loaded flag (also when the base Read failed). For version > 7 it **releases the
+current helicopter source** first (pointer cleared, then `Release`), exactly like fire, then reads the ref with
+IID `0xC9C00435` (PR13, `0x006E05BC`) *[compat]*. For version ≤ 7 the current source is kept. On a normal load
+`Read` runs on a freshly constructed simulator before `Init`, so there is no source yet and the release does
+nothing; `Init` then creates a source only if the ref left none (§4.1). Tuning re-reads (§6.7) never touch the
+air dispatch sources.
 
 Recomputed on load: tracts per day, the iterator rectangle (but not its position), the tuning, the jailbreak list
 (empty), the agents and subscriptions. The adjusted grid is not rebuilt on load; it is whatever was saved.
@@ -808,7 +991,7 @@ that pointer on return). "AL" = only AL is meaningful; "EAX 0/1" = the full regi
 | 14 | `+0x38` | `006AD100` | EndStrike | 0 | AL | ok |
 | 15 | `+0x3C` | `006E0130` | GetStrikeStartDate | 0 | EAX | ok |
 | 16 | `+0x40` | `006E0140` | GetStrikeLength (−1 when no date) | 0 | EAX | ok |
-| 17 | `+0x44` | `006AE170` | int32 GetStrikingStations(list&): **appends**, no clear | 4 | EAX count | **error**: SDK `bool` |
+| 17 | `+0x44` | `006AE170` | int32 GetStrikingStations(list&): **appends** every station with `IsStationOnStrike` (slot 18), `AddRef` each, no clear; returns the **number appended** (PR6), not the list size | 4 | EAX count | **error**: SDK `bool` |
 | 18 | `+0x48` | `006F6F30` | IsStationOnStrike(occ) | 4 | AL (EAX 0/1 when the property exists) | ok |
 | 19 | `+0x4C` | `006E0200` | GetAverageCoverage | 0 | ST0 | ok |
 | 20 | `+0x50` | `004778A0` | const SC4Percentage& GetPercentCoverage() | 0 | EAX ptr | **error**: SDK `float` |
@@ -834,7 +1017,7 @@ that pointer on return). "AL" = only AL is meaningful; "EAX 0/1" = the full regi
 | 13 | `+0x34` | `006E0830` | EndStrike | 0 | AL | ok |
 | 14 | `+0x38` | `006E0130` | GetStrikeStartDate | 0 | EAX | ok |
 | 15 | `+0x3C` | `006E0140` | GetStrikeLength | 0 | EAX | ok |
-| 16 | `+0x40` | `006E1A00` | int32 GetStrikingStations(list&): 0 if not IsOnStrike; else appends | 4 | EAX count | **error**: SDK `bool` |
+| 16 | `+0x40` | `006E1A00` | int32 GetStrikingStations(list&): 0 (list untouched) if not `IsOnStrike` (slot 10); else appends as fire (slot 17 test) and returns the number appended | 4 | EAX count | **error**: SDK `bool` |
 | 17 | `+0x44` | `006F6F30` | IsStationOnStrike(occ) | 4 | AL | ok |
 | 18 | `+0x48` | `006E0200` | GetAverageCoverage | 0 | ST0 | ok |
 | 19 | `+0x4C` | `004778A0` | const SC4Percentage& GetPercentCoverage() | 0 | EAX ptr | **error**: SDK `float` |
@@ -896,7 +1079,7 @@ the count in EAX, so a caller reading AL sees false for 256 stations or a multip
 | 0–2 | | thunks | thunks | QI, AddRef, Release | 8, 0, 0 | |
 | 3 | `+0x0C` | `006ACFA0` | `006E0210` | CanHandleDispatchType(t): fire t == 1, police t == 0 | 4 | EAX 0/1 |
 | 4 | `+0x10` | `006F5A80` | same | CanDispatch(float x, float z, bool* allBusy) | 12 | AL |
-| 5 | `+0x14` | `006F5B00` | same | GetMaxPossibleDispatchCount | 0 | EAX |
+| 5 | `+0x14` | `006F5B00` | same | GetMaxPossibleDispatchCount (§7.3) | 0 | EAX |
 | 6 | `+0x18` | `006F6A50` | same | GetStations(list&): clears, copies | 4 | EAX 0/1 (count ≠ 0) |
 | 7 | `+0x1C` | `006ACFB0` | `006E0220` | GetDispatchesAtStation(occ, u32* flags, u32* base, u32* count) | 16 | AL |
 | 8 | `+0x20` | `006F5B40` | same | DispatchFromNearestStation(float x, float z, u32* id) | 12 | EAX ptr |
@@ -932,14 +1115,28 @@ Slots 0–2 thunks; 3 `Write(cIGZOStream&)` (fire `006AD250`, police `006E03F0`)
     rise with funding / are inverted.
 12. A new city's first daily call ends a cycle at once with zero counts (history 0) *[inferred]*.
 13. `EndJailbreak` always returns false; `ProcessMonthlyCrimeStats` returns garbage.
+14. A jail in a jailbreak never leaves the list while the city's total jail capacity is 0 (NaN or 1.0 jailed
+    percentage, §9.6); a save and reload clears it.
+15. All percentages are float32 products with 0.01f: shipped 120 → 1.1999999, 80 → 0.79999995, 20 → 0.19999999,
+    10 → 0.099999994 (§6.7); jailed ≤ 5 is never rehabilitated (§9.5).
+16. `GetMaxPossibleDispatchCount` re-adds the previous station's count for a station without the count property;
+    the call-number search re-marks the previous range the same way (§7.3, §8.2).
+17. The police station effect fails only on the centre; a missing outer or radius keeps the caller's stale value
+    (§7.1). The shared effect record in §5.1 is never reset between stations.
+18. Station statistics vectors are not length-checked once read (§9.2).
+19. Jail efficiency treats "no jail budget item" as full funding (1.0), stations as 0 (§6.1).
 
 **Corrections to `grid-sims.md` and other specs**:
 - The coverage grid every consumer reads is `uint8`; the `int16` grid is internal.
 - Police slots 28–35: see §15.2. Slot 30 (`+0x78`) is `GetJailPopulation`; the jailed count is slot 31 (`+0x7C`).
 - `ResetUnjailedCriminals` releases this month's **unarrested** criminals plus the overflow above
   trunc(capacity × 1.1); it is not a list of "pending releases".
-- foundations §4.1 lists fire and police under the **keep** pattern; their curves use the **default** pattern.
-- foundations §6.2 omits the police `cRZRandom`.
+- *(applied)* foundations §4.1 now lists fire and police under the **default** pattern, and foundations §6.2 lists
+  the police `cRZRandom`.
+- The earlier version of this spec (corrected here): §6.1 tested "locally funded" on the item before the department lookup; the
+  department lookup comes first and "locally funded" is asked of the department. The fire station effect also fails
+  when the centre is absent; the police one does **not** fail when the radius is absent (§7.1). The statistics
+  vector is not truncated to 4 when present (§9.2). Shipped percentages were given as decimal fractions (§6.7).
 
 ---
 
@@ -953,28 +1150,34 @@ Slots 0–2 thunks; 3 `Write(cIGZOStream&)` (fire `006AD250`, police `006E03F0`)
    after a load a jail can be breaking out visually without being in the list *[inferred]*.
 5. The police `0x48D71EE4` (overcapacity cost) read in `DoMonthly` is discarded; the jail cost may be booked
    elsewhere (budget spec).
-6. The base call-number search's behaviour when nextCall is very large (no limit found).
 
 ---
 
 ## 18. Conformance tests (must exist in `engine/conformance`)
 
-Curves are evaluated with foundations §4 (tolerance 1e-6 relative).
+Curves are evaluated with foundations §4 (tolerance 1e-6 relative). Values given with a bit pattern are exact
+float32 results under §6.2 (constants 100.0f and 0.01f) and must match bit for bit.
 
-1. **Fire efficiency curve** (shipped `0x29233E8D`): funding 0.5 → e = 0.25; 0 → 0.10; 1.1 → 1.05; 1.2 → 1.10.
-2. **Fire efficiency modifiers**: funding 1.0, no road access, on strike → 1.0 × 0.8 × 0.2 = 0.16. Same with a
-   road → 0.2. Police at funding 1.0 on strike, no road → 0.2.
+1. **Fire efficiency curve** (shipped `0x29233E8D`): funding 0.5 → e = 0.25; 0 → 0.099999994 (`0x3DCCCCCC`, not
+   0.1f); 1.1f → 1.05f (`0x3F866666`); 1.2f → 1.1f (`0x3F8CCCCD`); the shipped maximum 1.1999999 → 1.1f.
+2. **Fire efficiency modifiers**: funding 1.0, no road access, on strike → 1.0 × 0.8f × 0.2f = 0.16000001
+   (`0x3E23D70B`). Same with a road → 0.2f (`0x3E4CCCCD`; the fire multiplier is a raw f32). Police at funding 1.0
+   on strike, no road → 0.19999999 (`0x3E4CCCCC`; the police multiplier is the percentage 20 × 0.01f).
 3. **Jail efficiency curve** (shipped `0x68DDAEA0`): funding 0.55 → 0.75; 0.05 → 0.25.
-4. **Strike curve** (shipped): f = 0.2 → curve 40 (police chance 0.40); f = 0.5 → 10; f ≥ 0.7 → 0.
-5. **Chance of strike**: two stations with local funding 0.5 and 0.2, no city strike → 0.1 + 0.4 − 0.04 =
-   **0.46**. City strike flag set → 1.0. No stations → 0.
+4. **Strike curve** (shipped): f = 0.2 → curve 40 (police chance 0.39999998, `0x3ECCCCCC`); f = 0.5 → 10 (police
+   0.099999994); f ≥ 0.7 → 0.
+5. **Chance of strike**: two stations with local funding 0.5 and 0.2 (in that list order), no city strike →
+   c = 0.099999994, 0.39999998; p := (p + c) − p·c, each step float32 → **0.45999998** (`0x3EEB851E`). City strike
+   flag set → 1.0. No stations → 0.
 6. **Strike end**: station started day 1000, now day 1549, maxDuration 548 → ends (549 > 548). Now 1548 and
    funding 0.89 → stays; funding 0.9 → ends.
 7. **Monthly strike pass**: two stations, A already striking, B starts this month (A first in the list) →
    BeginStrike(B), one `0xA8DAF511`/`0x68F54CE1` message with B; the unadjusted grid is rebuilt; the adjusted
    grid is unchanged until the iterator reaches each tract.
-8. **Jailbreak curve** (shipped `0xEA614F63`): jailed percentage 0.95 → chance 0.55; 0.85 → 0.05; 0.80 → 0.
-9. **Rehabilitation** (rate 0.10): jailed 600 → 540; 125 → 113 (12.5 → 12); 135 → 121 (13.5 → 14).
+8. **Jailbreak curve** (shipped `0xEA614F63`): jailed percentage 0.95f → chance 0.55f (`0x3F0CCCCD`); 0.85f →
+   0.049999997 (`0x3D4CCCCC`); 0.8f → 0.
+9. **Rehabilitation** (shipped rate 10 → 0.099999994): jailed 600 → 540; 125 → 113 (12.499999 → 12); 135 → 122
+   (13.499999 → 13, not 14); 6 → 5; 5 → 5 (0.49999997 → 0: stays).
 10. **ResetUnjailedCriminals**: capacity 1000, jailed 1200, unarrested 7 → returns 107, jailed 1100,
     unarrested 0. Capacity 1000, jailed 900, unarrested 7 → returns 7, jailed 900.
 11. **Recalculate**: two jails with capacity properties 400 and 600 at full funding (efficiency 1.0), jailed 600 →
@@ -994,10 +1197,40 @@ Curves are evaluated with foundations §4 (tolerance 1e-6 relative).
 18. **Cadence**: 256-cell city: fire 327 tracts per day, police 409; 64-cell city: 20 and 25.
 19. **Cycle averages**: a cycle visiting 4 zoned tracts with adjusted values 0, 10, 20, 50 and any number of
     unzoned tracts → avg 20.0, pct 0.75; fire history `0x2A11D203` = 75, `0x2A11D204` = 20; with police pct 0.5,
-    `0xAAAD4D87` = 62.
+    `0xAAAD4D87` = 62. Three zoned tracts 10, 10, 0 → avg = f32(20 / 3) = 6.6666665 (`0x40D55555`), pct = f32(2 / 3)
+    = 0.6666667 (`0x3F2AAAAB`); history 66 and 6. No zoned tract → avg 0, pct 0.
 20. **Adjusted copy**: unadjusted −5 → 0; 300 → 255; 128 → 128.
 21. **Persistence round trip**: base record v3 of a city with two stations → identical bytes on re-save; a v2
     record with pct 75.0 loads as 0.75; version 4 is rejected after 2 bytes; the police record v7 loads without
-    the helicopter ref.
+    the helicopter ref; base versions 0, 1 and 2 load with the v3 layout (pct scaled); a fire v2 record ends
+    after the base record; police v9 is rejected after 2 bytes; a police v8 Read on an object that already holds
+    a helicopter source releases it before reading the ref.
 22. **Slot ABI**: calling fire slot 10 with a hidden pointer and one occupant pops 8 and returns the pointer in
     EAX; police slot 37 returns the cost in EDX:EAX; police slot 41 returns AL = 0 after ending a jailbreak.
+23. **Stuck jailbreak** (PR15): one jail J (capacity property 1000, full funding), jailed 900, J in the jailbreak
+    list. Demolish J → capacity 0, jailed 900 → `GetJailedPercentage` = 1.0 → month end: J stays, no
+    `0x2A614892`. `ResetUnjailedCriminals` → returns 900 + unarrested, jailed 0 → percentage NaN (`0xFFC00000`) →
+    month end: J stays. Save and reload → the list is empty. Without reloading: insert jail K (capacity 1000, full
+    funding), jailed 0 → percentage 0 → at the next month end `EndJailbreak(J)`: one `0x2A614892` naming J, list
+    empty, `IsInJailbreak(J)` false.
+24. **Jailed percentage and the end test**: (jailed, capacity) = (0, 0) → `0xFFC00000`; (5, 0) → 1.0;
+    (1200, 1000) → 1.0; (800, 1000) → 0.8f (`0x3F4CCCCD`), not below 0.79999995 → no end; (799, 1000) → 0.799
+    (`0x3F4C8B44`) → ends. A NaN jailbreak chance makes no random draw.
+25. **Percentages** (getter `0x005FDAC0`): 10 → `0x3DCCCCCC`, 20 → `0x3E4CCCCC`, 60 → `0x3F199999`, 80 →
+    `0x3F4CCCCC`, 90 → `0x3F666666`, 110 → `0x3F8CCCCD`, 120 → `0x3F999999`. Escapee range (10, 50) →
+    (`0x3DCCCCCC`, 0.5).
+26. **GetMaxPossibleDispatchCount** (PR1): stations in list order A (count 3), B (no count property), C (2) → 3 + 3
+    + 2 = 8, while `GetTotalDispatchCount` = 5. Order B, A, C → 0 + 3 + 2 = 5. No stations → 0.
+27. **Station effect partial reads** (PR2): police, centre property 0 → AL = 0 and the record's outer, radius,
+    position keep the caller's values; police with centre 100, outer 20 and no radius property, record radius
+    previously 250, e = 1 → AL = 1, radius 250. Fire with no centre property, outer 20, radius 300 → AL = 0, record
+    centre 0, outer 20, radius 300 (unscaled), position written.
+28. **Call-number search** (PR10): stations A (base 1, 2 units) and C (base 5, 1 unit), nextCall 6. Insert D (2) →
+    base 3, nextCall 6. Then insert E (3) → candidates 1, 2, 3, 4, 5 are each blocked, 6 ≥ nextCall → base 6,
+    nextCall 9. No other station and a loaded nextCall of 0 → base 1, nextCall := n + 1.
+29. **Station statistics** (PR12): property absent, crime → [0,0,1,0]. Present [5,6,7,8,9], arrest →
+    [5,6,8,9,9]; monthly shift → [8,9,0,0,9]. *[choice]* Present [1,2], crime → [1,2,1,0] (padded).
+30. **Jail capacity** (PR14, §9.1): jail with capacity property 500 and **no** jail budget item → efficiency 1.0,
+    capacity 500. Capacity property absent → capacity 0; Recalculate with only that jail → ratio 0, population 0.
+31. **Locally-funded-jail list** (PR8): removing a building that is in the locally-funded-jail list releases and
+    erases that entry even when it is no longer in the jail list; removing a building not in it changes nothing.

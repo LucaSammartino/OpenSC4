@@ -327,7 +327,9 @@ sources) and **residential-only** variants that call the callback only for tract
 
 - `Reset(x, z)`: current := (x, z); state := fresh, or done if (x, z) is outside the rectangle.
 - `GetNext(&x, &z)`: done → false. Fresh → state := running, return current. Running → x += step; if x > x1:
-  x := x0 and z += step; if z > z1: state := done, return false. Return current.
+  x := x0 and z += step; if z > z1: state := done, return false. Return current. A finished scan therefore rests
+  at `(x0, z1 + step)` with state done (`0x0060C8D0`); savers that write the iterator (plumbing §9) store that
+  position *[compat]*.
 - Order: x inner, z outer. Owners set the rectangle to a grid's tract range `[0, countX−1] × [0, countZ−1]`
   (an empty range is widened to one tract).
 
@@ -340,6 +342,11 @@ needed by grid simulators *[compat]*:
   rectangle's **absolute** packed coordinates `(x mod 256) << 8 | (z mod 256)` in natural order (x outer, z inner)
   at every reset, and `random_shuffle`s it when asked (n − 1 `rand()` calls). A table-mode reset leaves the
   prime-step `current` and `step` unchanged. Details: weather.md §6.7.
+
+**Spiral iterator** (`SpiralIterator`, `0x0043FE10` / `0x00440850` / `0x00440420` / `0x0043FE80`): visits the
+cells of a clipped box ring by ring around a centre. Cells outside the box are skipped one at a time (never
+whole rings), the ring counter equals the Chebyshev distance of every visited cell, and the walk ends once the
+spiral has passed all four box edges. Specified with its plumbing use in plumbing §7.2 (`NearestWater`).
 
 ### 7.5 Other utilities (not specified here)
 

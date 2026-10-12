@@ -13,7 +13,7 @@
 
 // Version-specific interop with the host executable. This is the ONLY place
 // that knows fixed addresses inside a particular SimCity 4 build; every entry
-// comes from docs/specs (never from inspecting the executable). Anything here
+// comes from docs/specs or docs/abi (never from inspecting the executable). Anything here
 // is used only after the running executable has been positively identified.
 #pragma once
 
@@ -32,7 +32,23 @@ struct ExecutableVersion {
     // CPU-cycle limit-timer coefficients (32-bit floats, virtual addresses).
     uint32_t cyclesToMillisecsVA;
     uint32_t millisecsToCyclesVA;
+    // The STL node allocator instance (docs/abi/allocators.md): cdecl
+    // `void* (uint32_t size)` / `void (void*)`.
+    uint32_t stlNodeAllocateVA;
+    uint32_t stlNodeFreeVA;
 };
+
+// The running executable if it is a table entry loaded at its preferred base
+// (once per process, logged), else nullptr.
+const ExecutableVersion* IdentifiedVersion();
+
+using StlNodeAllocateFn = void*(__cdecl*)(uint32_t size);
+using StlNodeFreeFn = void(__cdecl*)(void* block);
+
+// The game's STL node allocator entry points (docs/abi/allocators.md), or
+// false (logged once) if the executable is not identified or the addresses
+// are not executable code inside its image. Never guessed.
+bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release);
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

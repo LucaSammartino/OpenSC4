@@ -37,6 +37,8 @@ const ExecutableVersion kVersions[] = {
         0x00400000,  // image base
         0x00B0A840,  // CyclesToMillisecs (float)
         0x00B0A83C,  // MillisecsToCycles (float)
+        0x0090CF54,  // STL node allocator: allocate (docs/abi/allocators.md)
+        0x0090CF63,  // STL node allocator: free
     },
 };
 
@@ -88,27 +90,20 @@ bool ConsistentPair(float c2m, float m2c) {
     return Plausible(c2m) && Plausible(m2c) && std::fabs(static_cast<double>(c2m) * m2c - 1.0) < 0.01;
 }
 
-void Resolve() {
-    g_resolution = Resolution::Unavailable;
-
-    if (EnvIsOne("FC4_DISABLE_CALIBRATION")) {
-        Log("compat: FC4_DISABLE_CALIBRATION=1: limit-timer globals will NOT be written");
-        return;
-    }
-
+const ExecutableVersion* Identify() {
     // 1. Main module PE headers (as mapped in this process).
     HMODULE exe = GetModuleHandleW(nullptr);
     const uintptr_t base = reinterpret_cast<uintptr_t>(exe);
     const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(exe);
     if (dos == nullptr || dos->e_magic != IMAGE_DOS_SIGNATURE) {
-        Log("compat: WARNING main module has no DOS header; limit-timer globals NOT written");
-        return;
+        Log("compat: WARNING main module has no DOS header");
+        return nullptr;
     }
     const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(reinterpret_cast<const char*>(exe) + dos->e_lfanew);
     if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 ||
         nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
-        Log("compat: WARNING main module is not a 32-bit x86 PE image; limit-timer globals NOT written");
-        return;
+        Log("compat: WARNING main module is not a 32-bit x86 PE image");
+        return nullptr;
     }
     char exePath[MAX_PATH] = {};
     GetModuleFileNameA(nullptr, exePath, MAX_PATH);
@@ -127,19 +122,63 @@ void Resolve() {
     }
     if (v == nullptr) {
         Log("compat: WARNING unrecognised executable (no table entry with TimeDateStamp 0x%08lX and SizeOfImage "
-            "0x%08lX); limit-timer globals NOT written. Subsystems that budget work in CPU cycles may stall.",
+            "0x%08lX); no version-specific interop",
             static_cast<unsigned long>(stamp), static_cast<unsigned long>(size));
-        return;
+        return nullptr;
     }
     Log("compat: identified '%s' (TimeDateStamp and SizeOfImage match)", v->name);
 
     // 3. The addresses assume the executable is loaded at its preferred base.
     if (base != v->imageBase || prefBase != v->imageBase) {
-        Log("compat: WARNING executable loaded at 0x%08lX (preferred 0x%08lX), table expects 0x%08lX; NOT written",
+        Log("compat: WARNING executable loaded at 0x%08lX (preferred 0x%08lX), table expects 0x%08lX; no "
+            "version-specific interop",
             static_cast<unsigned long>(base), static_cast<unsigned long>(prefBase),
             static_cast<unsigned long>(v->imageBase));
+        return nullptr;
+    }
+
+    return v;
+}
+
+bool Executable(DWORD protect) {
+    if (protect & (PAGE_GUARD | PAGE_NOACCESS)) return false;
+    const DWORD base = protect & 0xFF;
+    return base == PAGE_EXECUTE || base == PAGE_EXECUTE_READ || base == PAGE_EXECUTE_READWRITE ||
+           base == PAGE_EXECUTE_WRITECOPY;
+}
+
+// `va` is committed executable code of the main module's image.
+bool CheckCode(const char* what, uintptr_t va, uintptr_t moduleBase) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) != sizeof(mbi)) {
+        Log("compat: %s at 0x%08lX: VirtualQuery failed (error %lu)", what, static_cast<unsigned long>(va),
+            static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
+    const bool ok = mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                    reinterpret_cast<uintptr_t>(mbi.AllocationBase) == moduleBase && Executable(mbi.Protect);
+    Log("compat: %s at 0x%08lX: state=0x%lX type=0x%lX protect=0x%lX -> %s", what, static_cast<unsigned long>(va),
+        static_cast<unsigned long>(mbi.State), static_cast<unsigned long>(mbi.Type),
+        static_cast<unsigned long>(mbi.Protect), ok ? "ok (executable code inside the image)" : "REJECTED");
+    return ok;
+}
+
+void Resolve() {
+    g_resolution = Resolution::Unavailable;
+
+    if (EnvIsOne("FC4_DISABLE_CALIBRATION")) {
+        Log("compat: FC4_DISABLE_CALIBRATION=1: limit-timer globals will NOT be written");
         return;
     }
+
+    const ExecutableVersion* v = IdentifiedVersion();
+    if (v == nullptr) {
+        Log("compat: limit-timer globals NOT written (executable not identified). Subsystems that budget work in "
+            "CPU cycles may stall.");
+        return;
+    }
+    const uintptr_t base = v->imageBase;
+    const uint32_t size = v->sizeOfImage;
 
     // 4. Both addresses: aligned, inside the image, committed and writable.
     const uintptr_t aC2M = v->cyclesToMillisecsVA;
@@ -180,6 +219,43 @@ void Resolve() {
 }
 
 }  // namespace
+
+const ExecutableVersion* IdentifiedVersion() {
+    static bool done = false;
+    static const ExecutableVersion* version = nullptr;
+    if (!done) {
+        done = true;
+        version = Identify();
+    }
+    return version;
+}
+
+bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release) {
+    static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static StlNodeAllocateFn a = nullptr;
+    static StlNodeFreeFn f = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: STL node allocator NOT available (executable not identified); game-filled lists are refused");
+        } else if (!CheckCode("STL node allocate", v->stlNodeAllocateVA, v->imageBase) ||
+                   !CheckCode("STL node free", v->stlNodeFreeVA, v->imageBase)) {
+            Log("compat: STL node allocator NOT available (addresses rejected); game-filled lists are refused");
+        } else {
+            a = reinterpret_cast<StlNodeAllocateFn>(static_cast<uintptr_t>(v->stlNodeAllocateVA));
+            f = reinterpret_cast<StlNodeFreeFn>(static_cast<uintptr_t>(v->stlNodeFreeVA));
+            state = 1;
+            Log("compat: STL node allocator at 0x%08lX / 0x%08lX ('%s')",
+                static_cast<unsigned long>(v->stlNodeAllocateVA), static_cast<unsigned long>(v->stlNodeFreeVA),
+                v->name);
+        }
+    }
+    if (state != 1) return false;
+    if (allocate != nullptr) *allocate = a;
+    if (release != nullptr) *release = f;
+    return true;
+}
 
 const ExecutableVersion* SupportedVersions(int* count) {
     if (count != nullptr) *count = static_cast<int>(sizeof(kVersions) / sizeof(kVersions[0]));

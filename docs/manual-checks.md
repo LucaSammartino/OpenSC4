@@ -4,7 +4,10 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 
 ## Needs you (blocking)
 
-Nothing right now. Bisection runs are fully unattended (autoload).
+Nothing is blocking. **Hold off on the in-game checks below for now.** The allocator classification (ff25561) found
+that the budget window's own queries (`GetAllGroups`, `GetAllLoans`, the line-item lists) still hand the game
+containers with the wrong allocator. Opening the budget window with the current DLL can therefore corrupt the
+heap. A fix is in progress in the plugin lane; this note will say when the checks are safe.
 
 ## Budget corruption bisection
 
@@ -17,7 +20,15 @@ Nothing right now. Bisection runs are fully unattended (autoload).
 | 12 | `lot_list = 0` (lots walked cell by cell, all per-lot reads on), Spandau via autoload | **clean**, two settlements with real tax income |
 | 13 | all on, Spandau | corrupt: the same AV, a week after the first settlement. Reproduces in a built-up city. |
 | 14 | list on, all per-lot reads off | corrupt: the `GetLotsInCellRect` list path alone is enough |
-| next | `lot_release = 0`, then `lot_list_free = 0` | separates our lot releases from the freeing of the list nodes |
+| 15 | `lot_release = 0` | corrupt: releasing the lots is not the cause |
+| 16 | `lot_list_free = 0` | **clean**: freeing the list is the cause |
+| 17 | all on, with the fix (940b3bb, merged in 860d8cf) | **clean** through five month-ends (Sep 2001 to Feb 2002); funds and tax income change each month |
+
+**Root cause:** the game has three separate allocator instances, each with its own pools
+(`docs/abi/allocators.md`). The lot list's nodes come from the game's STL node allocator. The SDK's `SC4List`
+freed them through the framework allocator service, so the two instances later handed out the same memory. The fix
+is a list type that uses the game's allocator. The other places where the plugin and the game share containers
+are being classified now; any mismatch found there is the same kind of bug.
 
 Notes:
 - Auto-load works: `autoload_city = <save path>` in `FreeCity4.ini`, so runs need no click.
