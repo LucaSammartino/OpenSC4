@@ -526,6 +526,11 @@ otherwise:                                  return y of segment last
 - **Exact at the points.** At an interior point `x_i` the search selects the next segment, whose start is
   `(x_i, y_i)`, so the result is exactly `y_i`.
 - **One point**: constant `y0`.
+- **NaN input** *[compat]*: with two or more kept points the result is **NaN**, not an end value. The search
+  compares with `test ah, 5; jp`, which treats an unordered compare like "input ≥ x", so it moves to the last
+  segment; the final "input < x of segment last" test is `test ah, 1`, which an unordered compare passes, so the
+  last segment is interpolated with a NaN input (`0x005F4250`). With one point the result is `y0`. FreeCity4: if
+  the input is NaN and `m ≥ 2`, return NaN (a quiet NaN; callers only compare it or multiply it).
 - **Zero points**: the original evaluator (`0x005F4250`) still reads the first segment. On a curve object that has
   never held points that is a null pointer, and the game crashes; on one that held points before an in-place
   reload it returns the stale first `y` *[inferred]*. *[choice]* Return 0.0. Callers should treat an empty curve as

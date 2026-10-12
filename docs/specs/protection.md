@@ -398,8 +398,11 @@ depends on list order and the sticky `changed` flag.
 - `GetStationFunding(s, int32* cost, SC4Percentage* p)`: false if the station has no item for the purpose; else
   `*p := item.localFundingPercentage`, `*cost := low 32 bits of item.cost`, each only when its pointer is not
   null; true.
-- `SetStationFunding(s, const SC4Percentage& p)`: false if no item or no department for it; else
-  `department.SetLocalFundingPercent(holder, p, purpose)`, true.
+- `SetStationFunding(s, const SC4Percentage& p)`: item := `GetBudgetItemForPurpose(holder, purpose)` (the
+  simulator's purpose); false if there is none. department := `GetDepartmentBudget(item.departmentID)`, i.e. the
+  **item's** department, not the simulator's own (`0x006AD530`); false if null. Else
+  `department.SetLocalFundingPercent(holder, p, purpose)`, true. The two differ only for a building whose budget
+  item names another department.
 - Message-target slot 11 (`ProtectionGetStationFunding(s, float* out)`): `*out := item.localFundingPercentage`,
   true; false without an item.
 
@@ -1207,15 +1210,17 @@ float32 results under §6.2 (constants 100.0f and 0.01f) and must match bit for 
     a helicopter source releases it before reading the ref.
 22. **Slot ABI**: calling fire slot 10 with a hidden pointer and one occupant pops 8 and returns the pointer in
     EAX; police slot 37 returns the cost in EDX:EAX; police slot 41 returns AL = 0 after ending a jailbreak.
-23. **Stuck jailbreak** (PR15): one jail J (capacity property 1000, full funding), jailed 900, J in the jailbreak
-    list. Demolish J → capacity 0, jailed 900 → `GetJailedPercentage` = 1.0 → month end: J stays, no
+23. **Stuck jailbreak** (PR15): rehabilitation rate fixed to 0 (with the shipped rate 0.099999994 the first month
+    end below rehabilitates 90 and the return becomes 810 + unarrested); one jail J (capacity property 1000, full
+    funding), jailed 900, J in the jailbreak list. Demolish J → capacity 0, jailed 900 → `GetJailedPercentage` = 1.0 → month end: J stays, no
     `0x2A614892`. `ResetUnjailedCriminals` → returns 900 + unarrested, jailed 0 → percentage NaN (`0xFFC00000`) →
     month end: J stays. Save and reload → the list is empty. Without reloading: insert jail K (capacity 1000, full
     funding), jailed 0 → percentage 0 → at the next month end `EndJailbreak(J)`: one `0x2A614892` naming J, list
     empty, `IsInJailbreak(J)` false.
 24. **Jailed percentage and the end test**: (jailed, capacity) = (0, 0) → `0xFFC00000`; (5, 0) → 1.0;
     (1200, 1000) → 1.0; (800, 1000) → 0.8f (`0x3F4CCCCD`), not below 0.79999995 → no end; (799, 1000) → 0.799
-    (`0x3F4C8B44`) → ends. A NaN jailbreak chance makes no random draw.
+    (`0x3F4C8B44`) → ends. A NaN jailbreak chance makes no random draw; it arises whenever the city-wide percentage is NaN, because
+    the jailbreak curve returns NaN for a NaN input (foundations §4.3).
 25. **Percentages** (getter `0x005FDAC0`): 10 → `0x3DCCCCCC`, 20 → `0x3E4CCCCC`, 60 → `0x3F199999`, 80 →
     `0x3F4CCCCC`, 90 → `0x3F666666`, 110 → `0x3F8CCCCD`, 120 → `0x3F999999`. Escapee range (10, 50) →
     (`0x3DCCCCCC`, 0.5).
