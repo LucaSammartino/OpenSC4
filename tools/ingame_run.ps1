@@ -32,7 +32,10 @@ if (Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue) {
     exit 2
 }
 
-Set-Content -Path (Join-Path $Plugins "FreeCity4.ini") -Value ("# ingame_run $Label`n" + $Ini) -Encoding ascii
+$auto = ""
+if ($Ini -notmatch "autotest_seconds") { $auto += "autotest_seconds = $AfterLoadSeconds`n" }
+if ($Ini -notmatch "autotest_unpause") { $auto += "autotest_unpause = 1`n" }
+Set-Content -Path (Join-Path $Plugins "FreeCity4.ini") -Value ("# ingame_run $Label`n" + $auto + $Ini) -Encoding ascii
 Set-Content -Path $Log -Value "" -Encoding ascii
 
 $p = Start-Process -FilePath $Exe -ArgumentList "-CPUCount:1", "-w" -WorkingDirectory $GameDir -PassThru
