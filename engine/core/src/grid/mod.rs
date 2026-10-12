@@ -110,6 +110,13 @@ mod tests {
         }
         let g = TractGeometry::for_city(&city(), 2);
         assert_eq!(g.position_to_tract(100.0, -10.0), (3, 0));
+        // `_ftol` kept to 32 bits (foundations §18.1): NaN and ±inf → 0; a
+        // position of 2^32 tracts wraps to 0 and one of −2^31 stays (no saturation).
+        assert_eq!(g.position_to_tract(f32::NAN, f32::NEG_INFINITY), (0, 0));
+        assert_eq!(
+            g.position_to_tract(32.0 * 4_294_967_296.0, -32.0 * 2_147_483_648.0),
+            (0, i32::MIN)
+        );
         assert_eq!(g.tract_center(3, 4), (112.0, 144.0));
         assert_eq!(g.tract_corner(3, 4), (96.0, 128.0));
         assert!(!g.in_bounds(-1, 0) && g.in_bounds(127, 127) && !g.in_bounds(128, 0));
