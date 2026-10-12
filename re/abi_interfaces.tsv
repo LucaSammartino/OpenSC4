@@ -135,3 +135,10 @@ cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	10	docs/specs/landfill.md
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	52	docs/specs/landfill.md
 cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	14	docs/specs/mysims.md
 cISC4MySim	cSC4MySim	00a85080	69	docs/specs/mysims.md
+cIGZLua5	cGZLua5	00ac8f80	15	docs/specs/lua-host.md
+cIGZLua5(SCLua)	cSCLua	00ac4280	15	docs/specs/lua-host.md
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	97	docs/specs/lua-host.md
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	97	docs/specs/lua-host.md
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	25	docs/specs/lua-host.md
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	12	docs/specs/lua-host.md
+cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	4	docs/specs/lua-host.md
