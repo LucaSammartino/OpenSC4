@@ -9,6 +9,7 @@ Tags:
 - *[choice]*: a FreeCity4 decision.
 - *[inferred]*: not proven.
 - *[quirk]*: original behaviour that looks unintended but is reproduced.
+- *[compat-limit]*: depends on object addresses or wall-clock time; only the distribution is matched (foundations).
 
 **Cited, not repeated here**
 - foundations: streams and refs §2, class store and city components §3.6 / §3.7, messages §5, random generators §6,
@@ -456,7 +457,8 @@ for each lot L in the lot set:
 return best
 ```
 
-Only the first compatible configuration of each lot (pointer order) produces a candidate *[compat]*. `PickBuilding`
+Only the first compatible configuration of each lot (pointer order) produces a candidate *[compat]*; which one is
+first follows object addresses *[compat-limit]* (§9.5). `PickBuilding`
 re-filters all configurations later anyway (§4.16).
 
 #### 4.9.2 `ListCandidateLots_Aggregation()` → code (`0x007097E0`)
@@ -1200,7 +1202,8 @@ they decide the outcome and the draws (§10.1).
 
 ### 9.5 Blockers and requirements for an exact replacement
 
-1. **Pointer-ordered sets** (lot set, configuration set, `S_cfg`).
+1. **Pointer-ordered sets** (lot set, configuration set, `S_cfg`) *[compat-limit]*: a seeded run cannot reproduce
+   the exact configuration or candidate the original picks, because the order follows object addresses.
    - In-game, the order is that of the game objects' addresses. A replacement running in the game process reproduces
      it by ordering on the same pointers.
    - Standalone, FreeCity4 orders by object creation sequence *[choice]*. This changes which configuration draw B

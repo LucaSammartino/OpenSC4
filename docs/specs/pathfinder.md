@@ -706,6 +706,8 @@ inclusive), `LengthOfLine` (`0x005D7660`).
 
 ## 9. Replaceability
 
+**Replacement unit** *[choice]*: the pathfinder and the traffic simulator (traffic-simulator.md) are one unit.
+
 * **Not replaceable on its own.** The class is not registered with GZCOM; it is created with `new` inside
   `cSC4TrafficSimulator::CreatePathFinder` and it reads the traffic simulator's members and calls its non-virtual
   functions (§8). A replacement pathfinder therefore comes with a replacement traffic simulator (or a hook of
