@@ -437,10 +437,33 @@ altitudes, allowed heights), zones, developers with their desirability maps, and
 | `lv_save` / `lv_load` | `ids` / `hex`, `position?`, `expect?` | the save record (§10) |
 | `lv_expect_events` / `lv_clear_events` | `events` | host calls: `create`, `set_tract_size`, `grid_shutdown`, `release`, `history_length`, `history`, `post`, `load` |
 
+## Tract grid ops
+
+The tract grid vectors (`tg10_…`) drive the trait-based grid module `fc4_core::grid` (the storage-agnostic
+`TractGrid` used by the M3 grid simulators; `docs/specs/simgrid.md`). Every op name starts with `tg_`. Grids are named; values are JSON numbers (integers for
+integer grids). Tract coordinates are `[x, z]`; `rows` are x-major (`rows[x][z]`).
+
+| op | Arguments | Effect |
+|---|---|---|
+| `tg_city` | `cells?` (`[countX, countZ]`, default 256 × 256), `width?` (`[x, z]` cell width, default 16) | the city later `SetTractSize` calls read |
+| `tg_create` | `name`, `type` (`u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`) or `clsid` (a §2 factory ID; `expect: false` if none), `expect_type?`, `init?`, `tract_size?`, `instance?` | a new core grid |
+| `tg_call` | `grid`, `method`, `args?`, `expect?` | a slot: `init`, `shutdown`, `is_init`, `instance_id`, `set_instance_id`, `clsid`, `set_tract_size`, `tract_size`, `shift`, `count_x/z`, `width_x/z`, `inv_width_x/z`, `geometry` (an object of all of these), `tract_in_bounds`, `position_to_tract` (`[tx, tz]`), `tract_corner`, `tract_center`, `get_cell_value`, `get_tract_value`, `set_tract_value`, `set_tract_values`, `average_in_cell_rect`, `average_in_tract_rect` |
+| `tg_set` | `grid`, any of `fill` (first), `rows`, `cells` (`[[x, z, v], …]`) | writes values |
+| `tg_expect` | `grid`, any of `counts`, `cells` (`[[x, z, v], …]`), `others` (every unlisted tract), `rows` | checks values |
+| `tg_record` / `tg_read` | `grid`, `hex`, `zeros?` (trailing zero bytes); read: `expect?` | the §5 record written / read |
+| `tg_store_round_trip` | `grid`, `class?` (the record class it must be saved under), `expect_type?` | saves a reference through the class-object store, loads it through the §2 factories, compares records |
+| `tg_radius_effect` | `grid` (`u8`, `i8`, `i16`), `center`, `r`, `c`, `o`, `counts?` (default the grid's) | `AddRadiusEffect` |
+| `tg_table_distance` | `dx`, `dz`, `expect` | the §7.1 distance table |
+| `tg_distance_effect` | `target`, `mask` (`u8` grids, may be equal), `value`, `radius`, `near`, `far` | `AddDistanceEffect` |
+| `tg_two_grids` | `a`, `b`, `add?` (the callback adds B to A), `calls?` (`[[x, z, b], …]` in order) | `ProcessTwoGridsWithCallback` |
+| `tg_scan` | `rect`, `step?`, `resets` (`[{at: [x, z], expect: [[x, z], …]}]`, every cell until false) | the scanning iterator |
+| `tg_random_iterator` | `mode` (`table`, `prime`, `constructed`), `rect`, `crt_seed?`, `first_next?`, `resets` (`[{rect?, shuffle?, rand_calls?, count?, table?, first?, full_pass?}]`) | the random cell iterator |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
-   §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14).
+   §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
+   `g10_…` (simgrid §10, `fc4_core::simgrid`), `tg10_…` (simgrid §10, `fc4_core::grid`).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -547,6 +570,7 @@ altitudes, allowed heights), zones, developers with their desirability maps, and
 | 7 moisture variation (and §6.4.1 SetManualMoistureAddition) | `w14_07_variation` |
 | 8 accessors | `w14_08_accessors` |
 | 9 save | `w14_09_save` |
+
 ## Coverage (simgrid §10)
 
 | §10 item | Vector |
@@ -577,3 +601,27 @@ altitudes, allowed heights), zones, developers with their desirability maps, and
 | 14 messages | `lv16_14_messages` |
 | 15 pipeline call count | `lv16_15_pipeline` |
 | 16 missing altitude curve | `lv16_16_missing_altitude_curve` |
+
+## Coverage (simgrid §10, `fc4_core::grid`)
+
+| §10 item | Vector |
+|---|---|
+| 1 geometry | `tg10_01_geometry` |
+| 2 positions | `tg10_02_positions` |
+| 3 bounds | `tg10_03_in_bounds` |
+| 4 cell value | `tg10_04_cell_value` |
+| 5 averages | `tg10_05_averages` |
+| 6 float average | `tg10_06_float_average` |
+| 7 signed average | `tg10_07_signed_average` |
+| 8 resize | `tg10_08_resize` |
+| 9 record (and store save/load) | `tg10_09_record` |
+| 10 read (and the §2 factories) | `tg10_10_read` |
+| 11 radius effect | `tg10_11_radius_effect` |
+| 12 radius rounding | `tg10_12_radius_rounding` |
+| 13 round half even | `tg10_13_round_half_even` |
+| 14 clamping and edges | `tg10_14_radius_clamp` |
+| 15 distance effect | `tg10_15_distance_effect` |
+| 16 land value distance | `tg10_16_distance_landvalue` |
+| 17 two grids | `tg10_17_two_grids` |
+| 18 scanning iterator | `tg10_18_scan_iterator` |
+| §7.4 random cell iterator (table, prime-step, constructed) | `tg10_19_random_iterator` |
