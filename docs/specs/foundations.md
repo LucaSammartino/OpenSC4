@@ -1204,7 +1204,7 @@ which mode it uses and when it resets.
 | power simulator (pole funding), plumbing simulator (pipe funding) | `random_shuffle` of a 32-bit list |
 | prop developer (message handler) | `random_shuffle` of a 32-bit list |
 | lot developer (message handler) | `random_shuffle` of an `int` deque |
-| landfill zones (monthly landfill developer update) | `rand()` directly, up to 5 calls per zone update |
+| landfill zones (monthly landfill developer update) | `rand()` directly: one call per redrawn cell whose tile has all four surrounding heaps active, 0–4 per heap whose active state changes (landfill.md §4.8) |
 | random cell iterator | flammability (daily), flora (init, monthly), pollution (init, daily, visual effects), power grid update, tract developer (lot listing, decline), weather (init, weekly); also obliterate-city, volcano lava, helicopters, audio ambience |
 | linear iterator | construction occupants (props, crews), traffic simulator (accident check), one unnamed simulation function |
 
@@ -1281,6 +1281,11 @@ No other ordering requirement is derived:
 - **Ordinance vs neighbours**: their order differs between the original (neighbours first) and FreeCity4
   (ordinance first). Neither reads the other's month results.
 - **Power, plumbing vs neighbours**: power and plumbing come first in both orders.
+- **Landfill developer** (landfill.md §3.3): in the logged session's address order it runs after pollution and the
+  budget and before neighbours and ordinance; registration order puts it second, before both. It feeds pollution's
+  `landfilled` counter and line item 30, so the two orders shift those by one month. Whether the address order is
+  stable across sessions is not established (only the budget's position was checked in all three logs).
+  *[choice]* Until that is settled, FreeCity4 keeps registration order; §15 question 7.
 - Other pairs that differ between the two orders (for example residential, pollution and power before the budget
   in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
   order.
@@ -1354,6 +1359,8 @@ MSVC, they therefore produce the game's layout: it was verified in-game for ever
    last). Each subsystem spec should check whether its month agent reads another one's month results.
 6. Whether clearing Silent in `UpdateLocalDeals` really posts status reports (§11.3). That depends on the order of
    the check inside `SetFlags`, which a runtime capture would settle.
+7. Whether the landfill developer's month agent reliably runs after pollution and the budget in the original
+   (address order, §13.3, landfill.md §3.3). A runtime capture of the level-6 set in several sessions would settle it.
 
 ## 17. Compiled slot tables of game-framework interfaces *[compat]*
 

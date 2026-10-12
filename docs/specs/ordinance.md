@@ -146,7 +146,7 @@ There is one GZCOM class per shipped ordinance. All derive their behaviour from 
 | `0x00D0723D` | CommunityCPRTraining | — |
 | `0x40D07236` | FreeClinics | monthly base = full expenses of line item `0x03110000` of department `0x09188F42` (health), 0 if missing |
 | `0x815B4CEF` | JuniorSportsLeague | monthly base = total expenses of department `0x8A4260A6`; condition adds "that department's total expenses ≠ 0" |
-| `0x22F6E80C` | LandfillGasRecovery | monthly base = the **second** output of `cISC4LandfillDeveloper::GetLandfillUsage` (SDK name: capacity) *[inferred meaning]*; condition adds "that value ≠ 0 and `cISC4PowerSimulator::GetPowerPlantCount(3) > 0`" |
+| `0x22F6E80C` | LandfillGasRecovery | monthly base = the **second** output of `cISC4LandfillDeveloper::GetLandfillUsage` (SDK name: capacity): the summed heap capacity of the connected landfill zones (landfill.md §4.6.5); condition adds "that value ≠ 0 and `cISC4PowerSimulator::GetPowerPlantCount(3) > 0`" |
 | `0xA0D07129` | LegalizeGambling | `GetCurrentMonthlyIncome` = `monthlyConstantIncome` only (no factor); `SetOn(false)` side effects (below) |
 | `0x62BF1DAA` | MandatorySmokeDetectors | — |
 | `0x62BF1DB9` | NeighborhoodWatch | condition adds `cISC4PoliceSimulator::GetPoliceStationCount() ≠ 0` |

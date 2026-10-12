@@ -3389,3 +3389,65 @@ cISCLua	cSCLua	00ac4148	74	+0x128	00880e80		4	1	eax-or-void	medium	tail->008806b
 cISCLua	cSCLua	00ac4148	75	+0x12C	00880760	cSCLua::ToDataRegistryEntryID	8	2	eax-or-void	medium	
 cISCLua	cSCLua	00ac4148	76	+0x130	008807d0	cSCLua::ToDataRegistryNode	8	2	eax-or-void	medium	
 cISCLua	cSCLua	00ac4148	77	+0x134	00880820	cSCLua::ToDataRegistryValue	8	2	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	0	+0x0	00477130		8	2	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	3	+0xC	004771b0		0	0	eax-or-void	medium	tail->005e8c90
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	4	+0x10	00619100	cSC4NetworkOccupant::Shutdown	0	0	eax-or-void	medium	tail->005e8980
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	5	+0x14	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	6	+0x18	00477450		4	1	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	7	+0x1C	00477110	cSC4PowerSimulator::GetMonthlyDemand	0	0	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	8	+0x20	004771c0		4	1	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	9	+0x24	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	0	+0x0	004ae350		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	2	+0x8	004afaa0		0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	3	+0xC	004ae4e0	cSC4TrafficNetworkMap::Init	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	4	+0x10	004b4000	cSC4TrafficNetworkMap::Shutdown	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	5	+0x14	004b1090	cSC4TrafficNetworkMap::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	6	+0x18	004ae200	cSC4TrafficNetworkMap::ChooseWeightedEdge	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	7	+0x1C	004ae190		12	3	via-call	low	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	8	+0x20	004b0b20	cSC4TrafficNetworkMap::FindNetworkTile	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	9	+0x24	004af970		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	10	+0x28	004ae160		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	11	+0x2C	004ae140		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	12	+0x30	004afa10		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	13	+0x34	004b3ac0	cSC4TrafficNetworkMap::GetTileInfoAtCell	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	14	+0x38	004ae0c0	cSC4TrafficNetworkMap::SafeGetTileInfoAtCell	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	15	+0x3C	004af7c0	cSC4TrafficNetworkMap::GetTileInfoAtNeighborEdge	16	4	eax-or-void	medium	indirect-jump dword ptr [edi*4 + 0x4af958]
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	16	+0x40	004ae0f0	cSC4TrafficNetworkMap::GetTileInfoByNetwork	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	17	+0x44	00520060	cSC4AutomataScriptSystem::GetAutomataGroupMap	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	18	+0x48	004af630	cSC4TrafficNetworkMap::GetRoadAltitude	8	2	x87	high	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	19	+0x4C	004b4af0		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	20	+0x50	004b2970		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	21	+0x54	004b4bf0		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	22	+0x58	004b28c0		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	23	+0x5C	004b4cf0		12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	24	+0x60	004ae1d0		20	5	via-call	low	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	25	+0x64	004b2a20		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	26	+0x68	004b2d10		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	27	+0x6C	004b0000	cSC4TrafficNetworkMap::GetAutomataCountForLane	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	28	+0x70	004ae090		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	29	+0x74	004ae030		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	30	+0x78	004b1c00	cSC4TrafficNetworkMap::EnterNetwork	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	31	+0x7C	004b02a0	cSC4TrafficNetworkMap::ExitNetwork	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	32	+0x80	004b2f70	cSC4TrafficNetworkMap::TickIntersections	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	33	+0x84	004b06f0	cSC4TrafficNetworkMap::CheckIntersection	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	34	+0x88	004ae000	cSC4TrafficNetworkMap::IsIntersection	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	35	+0x8C	007ff0e0	cS3DCamera::LocalXform	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	36	+0x90	004b27e0	cSC4TrafficNetworkMap::UpdateIntersection	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	37	+0x94	004b0a00	cSC4TrafficNetworkMap::SwitchStoplightStates	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	38	+0x98	004b19f0	cSC4TrafficNetworkMap::MarkTrainInCell	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	39	+0x9C	004b0840	cSC4TrafficNetworkMap::UnmarkTrainInCell	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	40	+0xA0	004b0930	cSC4TrafficNetworkMap::GetTrainJunctionPath	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	41	+0xA4	004b1b60	cSC4TrafficNetworkMap::GetTrainJunctionKeys	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	42	+0xA8	004b0990	cSC4TrafficNetworkMap::ToggleTrainJunction	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	43	+0xAC	004af000	cSC4TrafficNetworkMap::ConstrainPointToNetworkTile	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	44	+0xB0	004af260	cSC4TrafficNetworkMap::ConstrainVectorToNetworkTile	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	45	+0xB4	004b3fe0		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	46	+0xB8	004b04f0	cSC4TrafficNetworkMap::HandleViewChanged	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	47	+0xBC	004b3380	cSC4TrafficNetworkMap::HandleInsertNetworkOccupant	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	48	+0xC0	004b4710		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	49	+0xC4	004b4120		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	50	+0xC8	004b48b0		0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	51	+0xCC	004b01c0		8	2	eax-or-void	medium	
