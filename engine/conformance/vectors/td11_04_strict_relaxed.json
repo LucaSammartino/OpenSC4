@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "tract_developer_strict_relaxed",
+  "spec": ["tract-developer 4.3", "tract-developer 4.6", "tract-developer 4.7", "tract-developer 11.4"],
+  "description": "Test 4, by hand from 4.3 and 4.7. Residential developer with demand 10 (desired 10, desiredMax 15), maxStage 3, no lot in the tract, one configuration with max capacity 8. Stage 2: in pass 1 (strict) check 7 fails (8 < 10 and 2 < 3) -> 11, so ListPossibleLotConfigurations returns 11 and the pass lists and pushes nothing; pass 2 (relaxed) gives 27, the lists are empty, best = max(1 from TakeOverAbandoned, 0, 0, 0) = 1 is pushed (row 0 counts it) and, not being 27 after pass 1, ends the call: outcomes [1]; histogram row 7 {11: 1, 27: 1}, row 2 the same, row 1 {1: 2} (nothing to reoccupy in both passes). The filter for (wealth 1, purpose 1) is registered on the first call only (cached afterwards). Stage 3: check 7 does not apply (3 is not < 3) and check 8 passes (min 0 is not > 15 + 0), so 27 in both passes: two empty passes push 1 each: outcomes [1, 1], row 7 {27: 2}.",
+  "steps": [
+    {"op": "tdev_developer", "id": 1, "demand": 10},
+    {"op": "tdev_cfg", "id": 100, "size": [1, 1], "stage": 2, "capacity": [0, 8], "purposes": [1], "wealths": [1], "primary": [500]},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 3, "expect": 0, "outcomes": [1]},
+    {"op": "tdev_expect", "desired": [10, 15]},
+    {"op": "tdev_expect_hist", "row": 7, "counts": {"11": 1, "27": 1}},
+    {"op": "tdev_expect_hist", "row": 2, "counts": {"11": 1, "27": 1}},
+    {"op": "tdev_expect_hist", "row": 1, "counts": {"1": 2}},
+    {"op": "tdev_expect_hist", "row": 0, "counts": {"1": 1}},
+    {"op": "tdev_expect_events", "events": [{"event": "register_filter", "wealth": 1, "purpose": 1}]},
+    {"op": "tdev_expect_draws", "draws": [["R1",16,9], ["R1",16,3]]},
+    {"op": "tdev_cfg", "id": 100, "stage": 3},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 3, "expect": 0, "outcomes": [1, 1]},
+    {"op": "tdev_expect_hist", "row": 7, "counts": {"27": 2}},
+    {"op": "tdev_expect_hist", "row": 0, "counts": {"1": 2}},
+    {"op": "tdev_expect_events", "events": []},
+    {"op": "tdev_expect", "filters": 1}
+  ]
+}

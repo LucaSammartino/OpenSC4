@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "tract_developer_decline",
+  "spec": ["tract-developer 4.19", "tract-developer 4.22", "tract-developer 10.1", "tract-developer 11.18"],
+  "description": "Test 18, by hand from 4.19. Residential developer (purpose 1, wealth 1), tract (0, 0) of 4 x 4 cells. A 2 x 1 lot (location (1, 0), facing 0 -> cells (0, 0) and (1, 0)) in state 3 for 90 days, building 0x200 of purpose 1, occupant wealth 1, capacity 12. The prime-step iterator's Reset(true) makes one rand() (CRT state 1 -> 2745024, rand() = 41, 41 mod 16 = 9, recorded as R8 with the start index); the lot is visited once per cell, but after the first AbandonBuilding(L, 6) its state is 4, so it is counted once: returns 12, one abandon. Second call with a fresh lot at 59 days: nothing qualifies, returns 0, and the next rand() (18467 mod 16 = 3) is still consumed. Third call: lots that fail one condition each (state 2; wealth 2; building of purpose 2; no building) are not abandoned; a qualifying lot at exactly 60 days is (unsigned >= 60). One rand() per call (third rand() 6334 mod 16 = 14).",
+  "steps": [
+    {"op": "tdev_developer", "id": 1},
+    {"op": "tdev_building", "id": "0x200", "purpose": 1, "wealth": 1, "capacity": 12},
+    {"op": "tdev_building", "id": "0x201", "purpose": 2, "wealth": 1, "capacity": 5},
+    {"op": "tdev_lot", "id": 1, "at": [1, 0], "size": [2, 1], "facing": 0, "state": 3, "days": 90, "building": "0x200", "wealth": 1, "capacity": 12},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_decline", "dev": 1, "tract": [0, 0], "expect": 12},
+    {"op": "tdev_expect_events", "events": [{"event": "abandon", "lot": 1, "reason": 6}]},
+    {"op": "tdev_expect_lot", "lot": 1, "state": 4},
+    {"op": "tdev_expect_draws", "draws": [["R8", 16, 9]]},
+    {"op": "tdev_expect", "crt": 2745024},
+    {"op": "tdev_lot", "id": 1, "state": 3, "days": 59},
+    {"op": "tdev_decline", "dev": 1, "tract": [0, 0], "expect": 0},
+    {"op": "tdev_expect_events", "events": []},
+    {"op": "tdev_expect_draws", "draws": [["R8", 16, 3]]},
+    {"op": "tdev_lot", "id": 1, "remove": true},
+    {"op": "tdev_lot", "id": 2, "at": [0, 0], "state": 2, "days": 90, "building": "0x200", "wealth": 1, "capacity": 7},
+    {"op": "tdev_lot", "id": 3, "at": [1, 0], "state": 3, "days": 90, "building": "0x200", "wealth": 2, "capacity": 7},
+    {"op": "tdev_lot", "id": 4, "at": [2, 0], "state": 3, "days": 90, "building": "0x201", "wealth": 1, "capacity": 7},
+    {"op": "tdev_lot", "id": 5, "at": [3, 0], "state": 3, "days": 90, "building": 0, "wealth": 1, "capacity": 7},
+    {"op": "tdev_lot", "id": 6, "at": [0, 1], "state": 3, "days": 60, "building": "0x200", "wealth": 1, "capacity": 4},
+    {"op": "tdev_decline", "dev": 1, "tract": [0, 0], "expect": 4},
+    {"op": "tdev_expect_events", "events": [{"event": "abandon", "lot": 6, "reason": 6}]},
+    {"op": "tdev_expect_draws", "draws": [["R8", 16, 14]]}
+  ]
+}
