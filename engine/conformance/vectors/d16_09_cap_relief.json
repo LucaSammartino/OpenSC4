@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "demand_cap_relief",
+  "spec": ["demand 8.3", "demand 11.1", "demand 16.9"],
+  "description": "EvaluateConnectionUtilization at NewMonth with the shipped tuning: one highway connection to one city gives commercialRelief = 100000; freight trips through road/rail-type connections times reliefPerTrip; ports with the crossed seaport coefficients (0x4A1F38C7 feeds industrial, 0x4A1F38CA commercial); the class-count quirks (avenue cities exclude highway cities, each class adds its connection count, monorail connections are not counted, subway/monorail/light-rail traffic is not freight); the relief is applied as a delta so 0x3800 / 0x4800 / 0x4900 supply always holds the current relief on top of the initial supply.",
+  "steps": [
+    {"op": "demand_tuning", "props": {
+      "0x4A1F38C5": {"f32": [10000, 10000, 100000, 0, 0, 0, 20000, 20000, 20000, 20000, 0, 1000, 100000]},
+      "0x4A1F38C6": {"f32": 1}, "0x4A1F38C7": {"f32": 2}, "0x4A1F38C8": {"f32": 20}, "0x4A1F38C9": {"f32": 0.1}, "0x4A1F38CA": {"f32": 20}}},
+    {"op": "demand_exemplar", "instance": "0x3800"},
+    {"op": "demand_exemplar", "instance": "0x4800"},
+    {"op": "demand_exemplar", "instance": "0x4900", "supply": 30000},
+    {"op": "demand_create"},
+    {"op": "demand_init"},
+
+    {"op": "demand_connections", "connections": [{"type": 3, "city": 5, "traffic": 0}]},
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_expect", "state": {"commercial_relief": 100000, "industrial_relief": 0}},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"new_supply": 100000}},
+    {"op": "demand_call", "method": "propagate"},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"supply": 100000}},
+
+    {"op": "demand_connections", "connections": [{"type": 3, "city": 5, "traffic": 0}, {"type": 2, "city": 5, "traffic": 3}]},
+    {"op": "demand_env", "air": 10, "sea": 4},
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_expect", "state": {"commercial_relief": 110090, "industrial_relief": 69}},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"new_supply": 10090}},
+    {"op": "demand_call", "method": "propagate"},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"supply": 110090}},
+    {"op": "demand_expect_node", "key": "0x4800", "state": {"supply": 69}},
+    {"op": "demand_expect_node", "key": "0x4900", "state": {"supply": 30069}},
+
+    {"op": "demand_connections", "connections": [
+      {"type": 3, "city": 1, "traffic": 1}, {"type": 8, "city": 1, "traffic": 1}, {"type": 8, "city": 2, "traffic": 1},
+      {"type": 11, "city": 3, "traffic": 1}, {"type": 6, "city": 3, "traffic": 1},
+      {"type": 10, "city": 4, "traffic": 1}, {"type": 1, "city": 4, "traffic": 1}]},
+    {"op": "demand_env", "air": 0, "sea": 0},
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_expect", "state": {"commercial_relief": 162699.25, "industrial_relief": 100}},
+    {"op": "demand_call", "method": "propagate"},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"supply": 162699.25}},
+    {"op": "demand_expect_node", "key": "0x4900", "state": {"supply": 30100}},
+
+    {"op": "demand_connections", "connections": [{"type": 12, "city": 7, "traffic": 2}, {"type": 7, "city": 8, "traffic": 0}]},
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_expect", "state": {"commercial_relief": 20000, "industrial_relief": 40}},
+
+    {"op": "demand_connections", "connections": []},
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_expect", "state": {"commercial_relief": 0, "industrial_relief": 0}},
+    {"op": "demand_call", "method": "propagate"},
+    {"op": "demand_expect_node", "key": "0x3800", "state": {"supply": 0}},
+    {"op": "demand_expect_node", "key": "0x4800", "state": {"supply": 0}},
+    {"op": "demand_expect_node", "key": "0x4900", "state": {"supply": 30000}}
+  ]
+}

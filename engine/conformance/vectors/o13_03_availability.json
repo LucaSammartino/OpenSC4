@@ -1,0 +1,102 @@
+{
+  "format": 1,
+  "name": "ordinance_availability",
+  "spec": ["ordinance 3.4", "ordinance 3.6", "ordinance 4.3", "ordinance 5", "ordinance 13.3"],
+  "description": "Availability is re-evaluated at each month-end after the ordinance's own booking: Power Conservation (year 1970) becomes available only in a year >= 1970, Neighborhood Watch only with a police station, a disabled ordinance never; without a simulator (no sim date) nothing is available. Losing availability while on repeals first (OrdinanceUpdated off, repeal amount into pending), then posts OrdinanceAvailabilityChanged; the ordinance was still booked this month. The subclass conditions of Junior Sports, Landfill Gas Recovery and Trash Presort are checked too.",
+  "steps": [
+    {"op": "ordinance_env", "year": 1969, "police": 0, "population": 0},
+    {"op": "ordinance_exemplar", "instance": "0x82B9999B", "year": 1970, "enact": -20, "repeal": -10, "constant": 0, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DB9", "enact": -10, "repeal": -10, "constant": -10, "factor": -0.001},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DAA", "enact": -10, "repeal": -10, "constant": 0, "factor": -0.001},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_enabled", "args": ["0x62BF1DAA", false], "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_enabled", "args": ["0x0BADF00D", false], "expect": false},
+    {"op": "ordinance_call", "method": "is_ordinance_enabled", "args": ["0x62BF1DAA"], "expect": false},
+
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "MonthlyDone", "id": 0, "value": 0}]},
+    {"op": "ordinance_call", "method": "available_count", "expect": 0},
+
+    {"op": "ordinance_env", "year": 1970},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x82B9999B", "value": 1},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_call", "method": "is_ordinance_available", "args": ["0x82B9999B"], "expect": true},
+    {"op": "ordinance_call", "method": "is_ordinance_available_but_off", "args": ["0x82B9999B"], "expect": true},
+
+    {"op": "ordinance_env", "police": 1},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x62BF1DB9", "value": 1},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_call", "method": "available_count", "expect": 2},
+    {"op": "ordinance_call", "method": "available_array", "args": [5], "expect": {"ids": ["0x62BF1DB9", "0x82B9999B"], "total": 2}},
+    {"op": "ordinance_call", "method": "is_ordinance_available", "args": ["0x62BF1DAA"], "expect": false},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x62BF1DB9", true], "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "OrdinanceUpdated", "id": "0x62BF1DB9", "value": 1}]},
+    {"op": "ordinance_expect", "state": {"pending": -10}},
+
+    {"op": "ordinance_env", "police": 0},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "OrdinanceUpdated", "id": "0x62BF1DB9", "value": 0},
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x62BF1DB9", "value": 0},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_expect", "state": {"monthly_expense": 20, "monthly_income": 0, "pending": -10}},
+    {"op": "ordinance_expect_object", "id": "0x62BF1DB9", "state": {"available": false, "on": false, "adjusted": 0}},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect", "state": {"monthly_expense": 10, "monthly_income": 0, "pending": 0}},
+    {"op": "ordinance_clear_events"},
+
+    {"op": "ordinance_call", "method": "set_ordinance_enabled", "args": ["0x62BF1DAA", true], "expect": true},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x62BF1DAA", "value": 1},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_call", "method": "set_ordinance_enabled", "args": ["0x62BF1DAA", false], "expect": true},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x62BF1DAA", "value": 0},
+      {"event": "post", "type": "MonthlyDone"}]},
+
+    {"op": "ordinance_env", "year": null},
+    {"op": "ordinance_object", "id": "0x82B9999B", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x82B9999B", "value": 0},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_env", "year": 2000},
+
+    {"op": "ordinance_new", "ordinance": "junior", "class": "0x815B4CEF"},
+    {"op": "ordinance_object", "ordinance": "junior", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_object", "ordinance": "junior", "method": "init", "expect": true},
+    {"op": "ordinance_object", "ordinance": "junior", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_env", "departments": {"0x8A4260A6": 1}},
+    {"op": "ordinance_object", "ordinance": "junior", "method": "check_conditions", "expect": true},
+    {"op": "ordinance_env", "budget": false},
+    {"op": "ordinance_object", "ordinance": "junior", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_env", "budget": true},
+
+    {"op": "ordinance_new", "ordinance": "landfill", "class": "0x22F6E80C"},
+    {"op": "ordinance_object", "ordinance": "landfill", "method": "init", "expect": true},
+    {"op": "ordinance_env", "landfill_capacity": 100, "power_plants": 0},
+    {"op": "ordinance_object", "ordinance": "landfill", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_env", "landfill_capacity": 0, "power_plants": 1},
+    {"op": "ordinance_object", "ordinance": "landfill", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_env", "landfill_capacity": 100, "power_plants": 1},
+    {"op": "ordinance_object", "ordinance": "landfill", "method": "check_conditions", "expect": true},
+
+    {"op": "ordinance_new", "ordinance": "presort", "class": "0x42BF1E18"},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "init", "expect": true},
+    {"op": "ordinance_env", "recycling": 0},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "check_conditions", "expect": false},
+    {"op": "ordinance_env", "recycling": 0.25},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "check_conditions", "expect": true},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "shutdown", "expect": true},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "is_enabled", "expect": false},
+    {"op": "ordinance_object", "ordinance": "presort", "method": "check_conditions", "expect": false}
+  ]
+}

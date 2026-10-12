@@ -80,6 +80,19 @@ impl RzRandom {
         self.mul
     }
 
+    /// The Gaussian value cached by the last `gaussian()` call, if unused.
+    pub fn cached_gaussian(&self) -> Option<f64> {
+        self.cached_gaussian
+    }
+
+    /// Restores a saved generator (both paths and the Gaussian cache), as
+    /// subsystems that persist their generator do (weather spec §10).
+    pub fn set_state(&mut self, lcg: u32, mul: u32, cached_gaussian: Option<f64>) {
+        self.lcg = lcg;
+        self.mul = mul;
+        self.cached_gaussian = cached_gaussian;
+    }
+
     /// `RandomUint32Uniform()`.
     pub fn next_raw(&mut self) -> u32 {
         let t = u64::from(self.lcg) * 0x41C6_4E6D + 0x3039;

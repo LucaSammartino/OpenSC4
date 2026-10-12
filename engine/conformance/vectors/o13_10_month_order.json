@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "ordinance_month_order",
+  "spec": ["foundations 13.3", "foundations 14.24", "ordinance 5", "4"],
+  "description": "Foundations §14 item 24 with the real ordinance simulator and a stub budget: both month agents are registered in §3.7 order (budget before ordinance). In an established city both get the start-of-simulation delivery of 15 January (data3 = 0), which makes the ordinance available; then an ordinance enacted on 15 January with enactment -100 is booked by the ordinance month pass of 1 February, after the budget agent has already read the ordinance totals, so the budget sees it at the 1 March settlement (0 on 1 February, 100 on 1 March). With the order reversed (budget removed and re-added, so it runs after the ordinance agent), a repeal of -50 in March is seen at the very next settlement (1 April).",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "budget": {"finish_after": 1, "description": "stub budget: reads the ordinance totals at its monthly settlement", "on_call": {
+      "1": [{"op": "ordinance_call", "method": "monthly_expense", "expect": 0}],
+      "2": [{"op": "ordinance_call", "method": "monthly_expense", "expect": 0}],
+      "3": [{"op": "ordinance_call", "method": "monthly_expense", "expect": 100}],
+      "4": [{"op": "ordinance_call", "method": "monthly_expense", "expect": 50}]
+    }},
+    "ordinance": {"finish_after": 1, "description": "the ordinance simulator's month agent", "on_call": {
+      "1": [{"op": "ordinance_message", "type": "SimNewMonth", "expect": true}],
+      "2": [{"op": "ordinance_message", "type": "SimNewMonth", "expect": true}],
+      "3": [{"op": "ordinance_message", "type": "SimNewMonth", "expect": true}],
+      "4": [{"op": "ordinance_message", "type": "SimNewMonth", "expect": true}]
+    }},
+    "Burn": {"finish_after": 1, "cost_ms": 1, "description": "idle agent; makes simulated time pass"}
+  },
+  "steps": [
+    {"op": "ordinance_exemplar", "instance": "0xE0D0722E", "enact": -100, "repeal": -50, "constant": 0, "factor": 0},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+
+    {"op": "load", "record": {"date": {"year": 2000, "month": 1, "day": 15}}, "expect": "ok"},
+    {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "add_agent", "agent": "ordinance", "level": 6, "name": "cSC4OrdinanceSimulator", "flags": 2},
+    {"op": "add_agent", "agent": "Burn", "level": 10},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50], "animation_dilation": [1, 1, 1.5, 3, 1]}},
+    {"op": "set_speed", "speed": 2, "expect": true},
+    {"op": "post_city_init"},
+    {"op": "set_city_established", "value": true},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 1},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "budget", "data1": 2451559, "data3": 0},
+      {"agent": "ordinance", "data1": 2451559, "data3": 0}
+    ]},
+    {"op": "ordinance_call", "method": "is_ordinance_available", "args": ["0xE0D0722E"], "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xE0D0722E", true], "expect": true},
+    {"op": "ordinance_expect", "state": {"pending": -100, "monthly_expense": 0}},
+
+    {"op": "tick", "count": 60},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "budget", "data1": 2451576},
+      {"agent": "ordinance", "data1": 2451576}
+    ]},
+    {"op": "ordinance_expect", "state": {"pending": 0, "monthly_expense": 100}},
+
+    {"op": "tick", "count": 30},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "budget", "data1": 2451605},
+      {"agent": "ordinance", "data1": 2451605}
+    ]},
+    {"op": "ordinance_expect", "state": {"pending": 0, "monthly_expense": 0}},
+
+    {"op": "remove_agent", "agent": "budget", "level": 6},
+    {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xE0D0722E", false], "expect": true},
+    {"op": "ordinance_expect", "state": {"pending": -50}},
+    {"op": "tick", "count": 30},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "ordinance", "data1": 2451636},
+      {"agent": "budget", "data1": 2451636}
+    ]},
+    {"op": "ordinance_expect", "state": {"pending": 0, "monthly_expense": 50}}
+  ]
+}

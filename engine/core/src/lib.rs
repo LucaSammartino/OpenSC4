@@ -23,16 +23,20 @@
 pub mod budget;
 pub mod calibration;
 pub mod curve;
+pub mod demand;
 pub mod host;
 pub mod ids;
 pub mod julian;
+pub mod ordinance;
 pub mod property;
+pub mod props;
 pub mod rng;
 pub mod save;
 pub mod simulator;
 pub mod store;
 pub mod stream;
 pub mod variant;
+pub mod weather;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
