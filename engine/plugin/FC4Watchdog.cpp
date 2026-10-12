@@ -13,7 +13,9 @@
 
 #include "FC4Watchdog.h"
 
+#include "FC4Autotest.h"
 #include "FC4Diag.h"
+#include "FC4DiagLogic.h"
 #include "FC4Log.h"
 #include "fc4.h"
 
@@ -68,6 +70,7 @@ volatile LONG g_deliveries = 0;
 volatile LONG g_ifaceCalls = 0;
 volatile LONG g_suppressed = 0;
 volatile LONG g_foreign = 0;
+volatile LONG g_stallEpisodes = 0;
 
 volatile LONG g_julian = 0;
 volatile LONG g_speed = 0;
@@ -160,13 +163,13 @@ void DescribeActivity(DWORD now, char* out, size_t cap) {
     if (depth <= 0) {
         const DWORD last = g_lastTickMs;
         _snprintf_s(out, cap, _TRUNCATE, "outside FreeCity4 (last OnTick %lu ms ago)",
-                    last ? static_cast<unsigned long>(now - last) : 0ul);
+                    last ? static_cast<unsigned long>(ElapsedMs(now, last)) : 0ul);
         return;
     }
     for (LONG i = 0; i < depth && i < kDepth; ++i) {
         const char* l = g_actLabel[i];
         const int k = _snprintf_s(out + len, cap - len, _TRUNCATE, "%s%s (%lu ms)", i ? " > " : "",
-                                  l ? l : "?", static_cast<unsigned long>(now - g_actSince[i]));
+                                  l ? l : "?", static_cast<unsigned long>(ElapsedMs(now, g_actSince[i])));
         if (k < 0) return;
         len += static_cast<size_t>(k);
     }
@@ -180,7 +183,7 @@ void DescribeActivity(DWORD now, char* out, size_t cap) {
         name[sizeof(name) - 1] = 0;
         _snprintf_s(out + len, cap - len, _TRUNCATE,
                     " | delivering msg 0x%08X (level %u) to agent %p '%s' for %lu ms", g_delType, g_delLevel,
-                    g_delAgent, name, static_cast<unsigned long>(now - g_delSince));
+                    g_delAgent, name, static_cast<unsigned long>(ElapsedMs(now, g_delSince)));
     }
 }
 
@@ -328,39 +331,39 @@ DWORD WINAPI ThreadProc(void*) {
             RefreshModules();
             lastRefresh = now;
         }
-        // Stall rules.
-        const char* kind = nullptr;
-        DWORD key = 0, since = 0;
-        const LONG depth = g_actDepth;
-        if (depth > 0) {
-            since = g_actSince[0];
-            if (now - since > stallMs) {
-                kind = "inside FreeCity4";
-                key = since | 1u;
-            }
-        } else if (g_cityRunning && g_hidden == 0) {
-            since = g_lastTickMs;
-            if (since != 0 && now - since > noTickMs) {
-                kind = "no OnTick";
-                key = since & ~1u;
-            }
-        }
-        if (kind != nullptr) {
+        // Stall rules (FC4DiagLogic.h). Timestamps the main thread wrote after
+        // `now` was read count as 0 ms, not as an unsigned underflow.
+        StallInput in;
+        in.now = now;
+        in.depth = g_actDepth;
+        in.actSince0 = g_actSince[0];
+        in.cityRunning = g_cityRunning != 0;
+        in.hiddenPaused = g_hidden != 0;
+        in.lastTickMs = g_lastTickMs;
+        in.stallMs = stallMs;
+        // Under autotest, a stall outside FreeCity4 is sampled after stallMs
+        // too, so the evidence is in the log before the 10 s verdict.
+        in.noTickMs = AutotestEnabled() && noTickMs > stallMs ? stallMs : noTickMs;
+        const StallResult st = EvaluateStall(in);
+        if (st.kind != StallKind::None) {
+            const DWORD key = st.kind == StallKind::InsideFC4 ? (st.since | 1u) : (st.since & ~1u);
             if (!inEpisode || key != episodeKey) {
                 inEpisode = true;
                 episodeKey = key;
-                episodeStart = since;
+                episodeStart = st.since;
                 samples = 0;
                 nextSample = now;
+                InterlockedIncrement(&g_stallEpisodes);
             }
             if (samples < kMaxSamples && static_cast<LONG>(now - nextSample) >= 0) {
-                Sample(samples, kind, now - episodeStart, samples == 0);
+                Sample(samples, StallKindName(st.kind), ElapsedMs(now, episodeStart), samples == 0);
                 ++samples;
                 nextSample = now + sampleMs;
             }
+            if (st.stalledMs > kAutotestStallMs) AutotestOnStall(StallKindName(st.kind), st.stalledMs);
         } else if (inEpisode) {
             LogWait(1000, "WATCHDOG: stall over after %lu ms (%u sample(s))",
-                    static_cast<unsigned long>(now - episodeStart), samples);
+                    static_cast<unsigned long>(ElapsedMs(now, episodeStart)), samples);
             inEpisode = false;
         }
         if (now - lastHeartbeat >= heartbeatMs) {
@@ -442,6 +445,17 @@ void SetCityRunning(bool running) {
     if (running) g_lastTickMs = GetTickCount();
     InterlockedExchange(&g_cityRunning, running ? 1 : 0);
 }
+
+void NoteFrameworkTick() { g_lastTickMs = GetTickCount(); }
+
+void PublishJulian(int32_t julian) {
+    if (julian != 0) g_julian = julian;
+}
+
+long PublishedJulian() { return g_julian; }
+long ForeignExceptionCount() { return g_foreign; }
+long WatchdogStallCount() { return g_stallEpisodes; }
+uint32_t LastTickMs() { return g_lastTickMs; }
 
 void NoteSuppressed() { InterlockedIncrement(&g_suppressed); }
 void NoteInterfaceCall() { InterlockedIncrement(&g_ifaceCalls); }

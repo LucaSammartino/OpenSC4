@@ -184,6 +184,8 @@ void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefS
     }
 }
 
+long RefWarningCount() { return g_warnings; }
+
 void RefSummary(const char* why) {
     if (g_enabled == 0) return;
     Lock l;

@@ -155,6 +155,39 @@ plugin.
      The log shows `config (…): budget switches OFF (n of 11): …` at each load. At budget `Shutdown` it shows how
      many calls each switch skipped.
    - `refaudit = 0` turns the reference audit off. `refaudit_lines = N` sets its verbose line cap (default 2000).
+   - **Autotest (unattended bisection):** `autotest_seconds = N` (env `FC4_AUTOTEST_SECONDS`, read at game start).
+     N seconds after the first framework tick that follows a city load (`PostCityInit`) the DLL writes one line,
+     flushes the log and ends the game with `TerminateProcess(…, 0)`:
+
+     ```
+     AUTOTEST VERDICT: clean|corrupt|stalled (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
+       ref_warnings=…, julian=…, switches_off=…, disabled=…)
+     ```
+
+     - `clean`: at the deadline, with no foreign exception, RTC failure or out-parameter overrun.
+     - `corrupt`: a first-chance exception outside `FreeCity4.dll` (written at once, after its report; the
+       process ends 5 s later so a stall can still be logged), or RTC failures / overruns at the deadline.
+     - `stalled`: the watchdog saw the main thread stuck for more than 10 s (inside our code, or no tick while
+       a city runs). The watchdog thread writes it and terminates. Under autotest the no-tick threshold is
+       lowered to `FC4_WATCHDOG_STALL_MS`.
+     - `switches_off` lists the budget switches that are off, `disabled` the subsystems left to the game.
+     - `autotest_unpause = 1` or `2` (env `FC4_AUTOTEST_UNPAUSE`): after the load, resume the city's simulator
+       (`Resume` while `IsPaused`) and set that speed, through the simulator's own interface (ours or the
+       original), at the first tick and again after 3 s and 10 s.
+   - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
+     for diffing the original against FreeCity4 on the same save, read only through public interfaces:
+
+     ```
+     DIGEST julian=… (yyyy-mm-dd) funds=… population R/C/I=…/…/… demand
+       R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=…/… budget income/expense=…/…
+     ```
+
+     R is `cISC4ResidentialSimulator::GetPopulation`; C and I are the summed `QuerySupplyValue` of the
+     commercial and industrial demands (jobs); demand values are `QueryDemandValue` of
+     `cISC4DemandSimulator::GetDemand(id, 0)` (`-` when the game has no such demand).
+   - The autotest clock, the digest and the tick feed for the watchdog come from the **observer**
+     (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
+     including `FC4_DISABLE=all`.
    - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every
      reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
      verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as
@@ -204,7 +237,15 @@ plugin.
   interface, run `python tests/gen_abi_entries.py` (from `engine/`) and rebuild; `--dump` prints every slot
   next to its table row. SDK methods that disagree with the game but are never called by the plugin are
   waived (`kWaivers`); the waiver lapses, and the test fails, as soon as a file in `plugin/` calls one.
-  Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`.
+  Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`. Interfaces
+  the plugin only calls, and which `interfaces.tsv` lists under another name, are checked against a game
+  class's vtable in `docs/abi/vtables.tsv` instead (entries named `vt:<class>`, e.g. `vt:cSC4City::vftable`
+  for `cISC4City`); there the class may have more slots than the interface declares.
+- **Test seam:** `FreeCity4.dll` exports `FC4TestSeam` ([`plugin/FC4TestSeam.h`](plugin/FC4TestSeam.h)) for
+  tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
+  IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
+  never calls it. `plugin_autotest_test` runs three child processes (clean, corrupt, stalled) that end through
+  the autotest's `TerminateProcess`.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value

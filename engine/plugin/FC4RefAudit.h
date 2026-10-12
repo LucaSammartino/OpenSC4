@@ -56,6 +56,8 @@ RefTarget RefBefore(cIGZUnknown* obj);
 void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefSite site, bool owned = true);
 
 void RefSummary(const char* why);
+// "released last reference" and over-release warnings so far (any thread).
+long RefWarningCount();
 // Re-reads `refaudit` / `refaudit_lines` (city load).
 void RefAuditReload();
 

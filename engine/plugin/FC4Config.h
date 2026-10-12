@@ -24,6 +24,11 @@
 //                                 objects (below); re-read at every city load
 //   budget_default = 0 / 1        value of every switch the ini/env leave unset
 //   refaudit = 0 / 1              reference-count audit (default 1)
+//   autotest_seconds = N          unattended run: verdict line and process
+//                                 exit N s after the first tick of a loaded
+//                                 city (FC4Autotest.h); 0 = off
+//   autotest_unpause = 0 / 1 / 2  autotest: run the loaded city at speed 1 or 2
+//   digest = 0 / 1                monthly DIGEST line (default 1; FC4Observer.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -63,6 +68,14 @@ void ConfigReload(const char* why);
 // The ini value of `iniKey`, else the environment variable `envName` (may be
 // null), else "". `source` (optional) receives "FreeCity4.ini", `envName` or "".
 std::string Setting(const char* iniKey, const char* envName, const char** source = nullptr);
+
+// Setting() as an integer: "on/true/yes" = 1, "off/false/no" = 0, a number
+// as is; empty or unparsable = `fallback`.
+long SettingInt(const char* iniKey, const char* envName, long fallback);
+
+// The switches off at the last ConfigReload, comma-separated without spaces,
+// or "-" (static buffer; lock-free readers such as the autotest verdict).
+const char* SwitchesOffList();
 
 // Full path of FreeCity4.ini (next to the DLL).
 std::string IniPath();

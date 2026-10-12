@@ -33,6 +33,7 @@
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
 #include "FC4Interfaces.h"
+#include "FC4TestSeam.h"
 #include "game_abi.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -40,11 +41,14 @@
 #endif
 #include <windows.h>
 
+#include <array>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -219,6 +223,189 @@ void WriteTextFile(const std::string& path, const std::string& text) {
     f << text;
 }
 
+// ---- budget §10.1: what the posted messages carry (test seam op 1) ----------------------------
+
+struct PostedMessage {
+    uint32_t type;
+    void* void1;
+    void* unknown;
+    intptr_t d1, d2, d3;
+};
+
+void RecordPost(void* ctx, cIGZMessage2Standard* m) {
+    static_cast<std::vector<PostedMessage>*>(ctx)->push_back(
+        {m->GetType(), m->GetVoid1(), static_cast<void*>(m->GetIGZUnknown()), m->GetData1(), m->GetData2(),
+         m->GetData3()});
+}
+
+size_t CountPosts(const std::vector<PostedMessage>& posts, uint32_t type) {
+    size_t n = 0;
+    for (const PostedMessage& p : posts) n += p.type == type ? 1 : 0;
+    return n;
+}
+
+// ---- a fake city for the observer (test seam op 2) -------------------------------------------
+// Game objects are called through their vtables only, so a fake is a table of
+// __fastcall functions (ECX = this, like __thiscall; callee-pop) with traps in
+// every slot the observer must not call.
+
+template <size_t N>
+void __fastcall Trap(void*, void*) {
+    std::fprintf(stderr, "fake game object: unexpected call of slot %u\n", static_cast<unsigned>(N));
+    std::abort();
+}
+
+template <size_t... I>
+std::array<void*, sizeof...(I)> MakeTraps(std::index_sequence<I...>) {
+    return {{reinterpret_cast<void*>(&Trap<I>)...}};
+}
+
+struct FakeVtable {
+    std::array<void*, 160> slots = MakeTraps(std::make_index_sequence<160>());
+};
+
+struct FakeObject {
+    void** vtbl;
+};
+
+struct FakeDemand {
+    void** vtbl;
+    uint32_t id;
+    float supply;
+    float demand;
+};
+
+struct FakeWorld {
+    void* sim = nullptr;
+    void* budget = nullptr;
+    int demandCalls = 0;
+    int demandBadIndex = 0;
+    FakeVtable cityVt, resVt, demandSimVt, demandVt;
+    FakeObject city{}, res{}, demandSim{};
+    FakeDemand demands[5] = {
+        {nullptr, 0x1010, 1000.0f, 250.5f},  // R$
+        {nullptr, 0x3110, 300.0f, -12.0f},   // Cs$
+        {nullptr, 0x3320, 200.0f, 40.0f},    // Co$$
+        {nullptr, 0x4100, 150.0f, 7.5f},     // I-R
+        {nullptr, 0x4400, 50.0f, 0.0f},      // I-HT
+    };
+};
+
+FakeWorld* g_world = nullptr;
+
+void* __fastcall CityGetSimulator(void*, void*) { return g_world->sim; }                   // cISC4City 50
+void* __fastcall CityGetBudgetSimulator(void*, void*) { return g_world->budget; }          // cISC4City 52
+void* __fastcall CityGetDemandSimulator(void*, void*) { return &g_world->demandSim; }      // cISC4City 56
+void* __fastcall CityGetResidentialSimulator(void*, void*) { return &g_world->res; }       // cISC4City 68
+int32_t __fastcall ResGetPopulation(void*, void*) { return 1234; }                          // residential 16
+void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {           // demand sim 6
+    ++g_world->demandCalls;
+    if (index != 0) ++g_world->demandBadIndex;
+    for (FakeDemand& d : g_world->demands) {
+        if (d.id == id) return &d;
+    }
+    return nullptr;
+}
+float __fastcall DemandQuerySupply(void* self, void*) { return static_cast<FakeDemand*>(self)->supply; }  // 8
+float __fastcall DemandQueryDemand(void* self, void*) { return static_cast<FakeDemand*>(self)->demand; }  // 9
+
+void InitFakeWorld(FakeWorld& w) {
+    g_world = &w;
+    w.cityVt.slots[50] = reinterpret_cast<void*>(&CityGetSimulator);
+    w.cityVt.slots[52] = reinterpret_cast<void*>(&CityGetBudgetSimulator);
+    w.cityVt.slots[56] = reinterpret_cast<void*>(&CityGetDemandSimulator);
+    w.cityVt.slots[68] = reinterpret_cast<void*>(&CityGetResidentialSimulator);
+    w.resVt.slots[16] = reinterpret_cast<void*>(&ResGetPopulation);
+    w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
+    w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
+    w.demandVt.slots[9] = reinterpret_cast<void*>(&DemandQueryDemand);
+    w.city.vtbl = w.cityVt.slots.data();
+    w.res.vtbl = w.resVt.slots.data();
+    w.demandSim.vtbl = w.demandSimVt.slots.data();
+    for (FakeDemand& d : w.demands) d.vtbl = w.demandVt.slots.data();
+}
+
+constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
+constexpr uint32_t kMsgSimNewDay = 0x66956814;
+constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+
+// ---- autotest: child processes that end with TerminateProcess -----------------------------------
+
+// Runs this executable with `args`; returns its exit code (or -1) and the time it took.
+int RunChild(const std::string& args, DWORD timeoutMs, DWORD* elapsedMs) {
+    char exe[MAX_PATH] = {};
+    GetModuleFileNameA(nullptr, exe, MAX_PATH);
+    std::string cmd = "\"" + std::string(exe) + "\" " + args;
+    STARTUPINFOA si{};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi{};
+    const DWORD start = GetTickCount();
+    if (!CreateProcessA(nullptr, &cmd[0], nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi)) return -1;
+    const DWORD w = WaitForSingleObject(pi.hProcess, timeoutMs);
+    *elapsedMs = GetTickCount() - start;
+    DWORD code = static_cast<DWORD>(-1);
+    if (w == WAIT_OBJECT_0) {
+        GetExitCodeProcess(pi.hProcess, &code);
+    } else {
+        TerminateProcess(pi.hProcess, 99);
+        std::fprintf(stderr, "child '%s' did not end within %lu ms\n", args.c_str(), static_cast<unsigned long>(timeoutMs));
+    }
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    return w == WAIT_OBJECT_0 ? static_cast<int>(code) : -1;
+}
+
+// A child: loads the DLL with an autotest FreeCity4.ini and plays the game's
+// part through the test seam. Never returns normally (the DLL terminates it);
+// exit code 3 means it did not.
+int AutotestChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
+    if (scenario == "clean") {
+        WriteTextFile(ini, "[autotest]\nautotest_seconds = 2\nautotest_unpause = 1\n");
+    } else if (scenario == "corrupt") {
+        WriteTextFile(ini, "[autotest]\nautotest_seconds = 60\n");
+    } else {  // stalled: passthrough (the observer alone)
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
+    }
+    HMODULE h = LoadLibraryA(dll.c_str());
+    if (h == nullptr) return 4;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(h, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(h, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    if (director == nullptr || seam == nullptr) return 5;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: configuration and autotest settings
+
+    static FakeWorld world;
+    InitFakeWorld(world);
+    cISC4Simulator* sim = nullptr;
+    if (scenario == "clean") {
+        if (!director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)) ||
+            sim == nullptr) {
+            return 6;
+        }
+        sim->Init();
+        sim->Pause();  // the autotest must resume it
+        world.sim = sim;
+    }
+    seam(kFC4SeamObserverCity, &world.city, nullptr);
+    seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+    seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewDay)),
+         reinterpret_cast<void*>(static_cast<intptr_t>(2451600)));
+    const DWORD start = GetTickCount();
+    bool faulted = false;
+    for (;;) {
+        seam(kFC4SeamObserverTick, nullptr, nullptr);
+        Sleep(20);
+        const DWORD ms = GetTickCount() - start;
+        if (scenario == "corrupt" && ms >= 300 && !faulted) {
+            faulted = true;
+            ForeignFault();  // then keep ticking until the DLL ends the process
+        }
+        if (scenario == "stalled" && ms >= 500) Sleep(INFINITE);  // the main thread stops ticking
+        if (ms > 60000) return 3;
+    }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -234,6 +421,65 @@ int main(int argc, char** argv) {
     DeleteFileA(ini.c_str());  // a leftover from an aborted run must not change this one
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
+
+    const std::string childPrefix = "--autotest-child-";
+    if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
+        return AutotestChild(dll, ini, mode.substr(childPrefix.size()));
+    }
+
+    if (mode == "--autotest") {
+        // Autotest: the verdict line, then TerminateProcess(exit code 0).
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_AUTOTEST_SECONDS", nullptr);
+        SetEnvironmentVariableA("FC4_AUTOTEST_UNPAUSE", nullptr);
+        DWORD ms = 0;
+        const std::string dllArg = "\"" + dll + "\" ";
+
+        // 1. Clean: verdict 2 s after the first tick; the paused simulator is resumed at speed 1.
+        CHECK(RunChild(dllArg + "--autotest-child-clean", 30000, &ms) == 0);
+        std::printf("autotest clean child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms >= 1500 && ms < 15000);
+        std::string text = ReadFile(log);
+        CHECK(text.find("autotest: ON - verdict 2 s after the first tick of a loaded city, then TerminateProcess; "
+                        "unpause to speed 1") != std::string::npos);
+        CHECK(text.find("autotest: city loaded (PostCityInit)") != std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict in 2 s") != std::string::npos);
+        CHECK(text.find("autotest: unpause: 1 Resume call(s), speed 1") != std::string::npos);
+        CHECK(text.find("paused=0 hidden=") != std::string::npos);
+        // julian: our simulator publishes its own date (2000-01-01; it is not ticked here).
+        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451545, switches_off=-, disabled=-)") != std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
+
+        // 2. Corrupt: a first-chance access violation in the host; terminate ~5 s later.
+        CHECK(RunChild(dllArg + "--autotest-child-corrupt", 30000, &ms) == 0);
+        std::printf("autotest corrupt child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms >= 4500 && ms < 20000);
+        text = ReadFile(log);
+        CHECK(text.find("first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") !=
+              std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=-)") != std::string::npos);
+        CHECK(text.find("autotest: terminating in 5000 ms (time for stall evidence)") != std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 3. Stalled (passthrough: our classes off, the observer alone): no tick for > 10 s.
+        CHECK(RunChild(dllArg + "--autotest-child-stalled", 40000, &ms) == 0);
+        std::printf("autotest stalled child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms >= 9000 && ms < 30000);
+        text = ReadFile(log);
+        CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
+        CHECK(text.find("watchdog: started for main thread") != std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: stalled (foreign_exceptions=0, watchdog_stalls=1, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
+        CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+        DeleteFileA(ini.c_str());
+        if (g_failures == 0) std::printf("plugin autotest test: all checks passed\n");
+        return g_failures == 0 ? 0 : 1;
+    }
 
     if (mode == "--ini-disabled") {
         // FreeCity4.ini `disable =` wins over FC4_DISABLE; switches are read at
@@ -285,8 +531,25 @@ int main(int argc, char** argv) {
             CHECK(!director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, &obj));
             CHECK(!director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, &obj));
         }
+        // The observer still runs (passthrough): the digest, read from the city's
+        // simulators (here a fake city without a budget simulator).
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            static FakeWorld world;
+            InitFakeWorld(world);
+            seam(kFC4SeamObserverCity, &world.city, nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
+            seam(kFC4SeamObserverCity, nullptr, nullptr);
+        }
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
+        CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
+        CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/500/200 demand "
+                        "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
+                        "budget income/expense=-/-") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("subsystem 'budget': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("object created") == std::string::npos);
@@ -464,6 +727,10 @@ int main(int argc, char** argv) {
         // (code defaults; difficulty 0 without a city).
         cISC4BudgetSimulator* budget = nullptr;
         CHECK(director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, reinterpret_cast<void**>(&budget)));
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(h, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        std::vector<PostedMessage> posts;  // budget §10: every message the budget posts
+        if (seam != nullptr) seam(kFC4SeamBudgetPostSink, reinterpret_cast<void*>(&RecordPost), &posts);
         if (budget != nullptr) {
             CHECK(budget->Init());
             CHECK(budget->GetTotalFunds() == 500000);
@@ -562,6 +829,38 @@ int main(int argc, char** argv) {
                     CHECK(gone.eax == otherPurpose.eax && gone.espDelta == 0 && gone.x87Pushed == 0);
                 }
             }
+            {
+                // Budget §10.1/§10.2 [compat]: void1 = IGZUnknown = the sender's
+                // primary interface pointer; data1 shares void1's slot.
+                if (seam != nullptr) seam(kFC4SeamBudgetPostSink, nullptr, nullptr);
+                std::printf("budget posted %u message(s)\n", static_cast<unsigned>(posts.size()));
+                void* const b = static_cast<void*>(budget);
+                void* const d = static_cast<void*>(dept);
+                CHECK(CountPosts(posts, 0x0772FAD4) >= 1);  // FundsChanged (DepositFunds)
+                CHECK(CountPosts(posts, 0xC772FADA) >= 1);  // BondIssued
+                CHECK(CountPosts(posts, 0x08DAC3E7) >= 1);  // FundingPercentageChanged
+                CHECK(CountPosts(posts, 0x08DAC3E8) >= 1);  // IdealMonthlyFundingChanged
+                for (const PostedMessage& p : posts) {
+                    std::printf("  post 0x%08X void1=%p unknown=%p d1=0x%08X d2=%d d3=%d\n", p.type, p.void1, p.unknown,
+                                static_cast<unsigned>(p.d1), static_cast<int>(p.d2), static_cast<int>(p.d3));
+                    if (p.type == 0x0772FAD4 || p.type == 0xC772FADA || p.type == 0xCA3FBDCE) {
+                        CHECK(p.void1 == b && p.unknown == b);
+                        CHECK(p.d1 == reinterpret_cast<intptr_t>(b));
+                    }
+                    if (p.type == 0x08DAC3E7 || p.type == 0x08DAC3E8) {
+                        CHECK(p.void1 == d && p.unknown == d);
+                        CHECK(p.d1 == reinterpret_cast<intptr_t>(d));
+                        CHECK(p.d2 == 0x28F55A9F);
+                    }
+                    if (p.type == 0x08DAC3E8) CHECK(p.d3 == 0);
+                    if (p.type == 0x0A3E7624) {  // BudgetGroupChanged: data only, no sender (§10)
+                        CHECK(p.unknown == nullptr && p.d1 == 7);
+                    }
+                }
+                bool sawPercentage = false;  // SetFundingPercentage(half, 0): data3 = the caller's argument
+                for (const PostedMessage& p : posts) sawPercentage |= p.type == 0x08DAC3E7 && p.d3 == 0;
+                CHECK(sawPercentage);
+            }
             CHECK(budget->Shutdown());
             CHECK(fc4test::CallSlot(budget, 28, {0x28F55A9F}).eax == 0);
             CHECK(budget->GetTotalFunds() == 510100);  // kept across Shutdown
@@ -599,6 +898,26 @@ int main(int argc, char** argv) {
         DeleteFileA(ini.c_str());
         SetEnvironmentVariableA("FC4_BUDGET_CHEATS", nullptr);
         SetEnvironmentVariableA("FC4_BUDGET_DISASTER", nullptr);
+
+        // The monthly digest (observer), read through the city's public
+        // interfaces: here a fake city with our budget simulator.
+        cISC4BudgetSimulator* budget3 = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, reinterpret_cast<void**>(&budget3)));
+        if (seam != nullptr && budget3 != nullptr) {
+            CHECK(budget3->Init());
+            static FakeWorld world;
+            InitFakeWorld(world);
+            world.budget = budget3;
+            seam(kFC4SeamObserverCity, &world.city, nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
+            seam(kFC4SeamObserverCity, nullptr, nullptr);
+            CHECK(world.demandCalls == 12);
+            CHECK(world.demandBadIndex == 0);
+            CHECK(budget3->Shutdown());
+        }
+        if (budget3 != nullptr) CHECK(budget3->Release() == 0);
         if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
@@ -687,6 +1006,18 @@ int main(int argc, char** argv) {
     CHECK(text.find("budget Shutdown") != std::string::npos);
     CHECK(text.find("cFC4BudgetSimulator destroyed") != std::string::npos);
 
+    // Budget §10: the verbose post line shows what receivers read.
+    CHECK(text.find("test seam: budget post sink installed") != std::string::npos);
+    CHECK(text.find("budget post 0x0772FAD4 d1=0x") != std::string::npos);
+    CHECK(text.find("not posted (no message server; test sink only)") != std::string::npos);
+    CHECK(text.find(" void1=") != std::string::npos && text.find(" unknown=") != std::string::npos);
+    // Observer (replacement mode) and the monthly digest.
+    CHECK(text.find("autotest: off") != std::string::npos);
+    CHECK(text.find("observer: PostCityInit (replacement)") != std::string::npos);
+    CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/500/200 demand "
+                    "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
+                    "budget income/expense=") != std::string::npos);
+    CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
     CHECK(text.find("config (game start): all 11 budget switches ON") != std::string::npos);
     CHECK(text.find("config (city load: budget Init): all 11 budget switches ON") != std::string::npos);

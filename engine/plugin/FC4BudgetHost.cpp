@@ -30,6 +30,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Streams.h"
+#include "FC4TestSeam.h"
 #include "cFC4Budget.h"
 #include "cFC4Message2Standard.h"
 
@@ -75,6 +76,10 @@ constexpr uint32_t kPropBuildingValue = 0xE91A0B5F;  // spec §5.2
 
 cISC4City* g_city = nullptr;
 
+// Test seam (FC4TestSeam.h): sees every posted message.
+FC4PostSinkFn g_postSink = nullptr;
+void* g_postSinkContext = nullptr;
+
 // Game objects the budget core holds references on through add_ref (holder_refs).
 std::unordered_map<cIGZUnknown*, long> g_coreRefs;
 
@@ -117,18 +122,26 @@ void Post(void*, const fc4_budget_message* m) {
         return;
     }
     cIGZMessageServer2Ptr ms;
-    if (!ms) {
+    if (!ms && g_postSink == nullptr) {
         FC4_LOGV("budget post 0x%08X skipped: no message server", m->type);
         return;
     }
+    // Budget §10.1/§10.2 [compat]: void1 = IGZUnknown = the sender's primary
+    // interface (the budget simulator, or the department as
+    // cISC4DepartmentBudget*). void1 and data1 share one slot, so data1 reads
+    // back as that pointer.
     cFC4Message2Standard* msg = FC4MakeMessage(m->type, static_cast<intptr_t>(m->data1),
                                                static_cast<intptr_t>(m->data2), static_cast<intptr_t>(m->data3));
     if (m->void1 != 0) msg->SetVoid1(FromToken(m->void1));
     if (m->unknown != 0) msg->SetIGZUnknown(FromToken(m->unknown));
-    const bool ok = ms->MessagePost(msg, false);
+    if (g_postSink != nullptr) g_postSink(g_postSinkContext, msg);
+    const bool ok = ms ? ms->MessagePost(msg, false) : false;
+    // What the receivers read (the message's own fields, not the core's request).
+    FC4_LOGV("budget post 0x%08X d1=0x%08lX d2=%ld d3=%ld void1=%p unknown=%p -> %s", m->type,
+             static_cast<unsigned long>(msg->GetData1()), static_cast<long>(msg->GetData2()),
+             static_cast<long>(msg->GetData3()), msg->GetVoid1(), static_cast<void*>(msg->GetIGZUnknown()),
+             ms ? (ok ? "true" : "FALSE") : "not posted (no message server; test sink only)");
     msg->Release();
-    FC4_LOGV("budget post 0x%08X d1=%lld d2=%lld d3=%lld -> %s", m->type, static_cast<long long>(m->data1),
-             static_cast<long long>(m->data2), static_cast<long long>(m->data3), ok ? "true" : "FALSE");
 }
 
 void ShowBudgetWindow(void*, uint32_t panel) {
@@ -480,6 +493,11 @@ const fc4_budget_host* BudgetHost() {
 }
 
 void SetBudgetCity(cISC4City* city) { g_city = city; }
+
+void SetBudgetPostSink(FC4PostSinkFn fn, void* context) {
+    g_postSinkContext = context;
+    g_postSink = fn;
+}
 
 void LogBudgetCoreRefs(const char* why) {
     long total = 0;

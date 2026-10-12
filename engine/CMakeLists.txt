@@ -136,6 +136,13 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp
         plugin/FC4Checked.h
+        plugin/FC4Autotest.cpp
+        plugin/FC4Autotest.h
+        plugin/FC4DiagLogic.h
+        plugin/FC4Observer.cpp
+        plugin/FC4Observer.h
+        plugin/FC4TestSeam.cpp
+        plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
         plugin/cFC4Variant.h
         plugin/compat/FC4Compat.cpp
@@ -167,7 +174,8 @@ if(FC4_IS_WIN32_X86)
     endif()
     target_link_libraries(FreeCity4 PRIVATE fc4_capi)
     set_target_properties(FreeCity4 PROPERTIES OUTPUT_NAME "FreeCity4" PREFIX "")
-    # The only export is GZDllGetGZCOMDirector (from cRZCOMDllDirector.cpp).
+    # Exports: GZDllGetGZCOMDirector (from cRZCOMDllDirector.cpp) and the
+    # test seam FC4TestSeam (plugin/FC4TestSeam.h; never called by the game).
 
     # foundations §7 item 12: the plugin's standard message class.
     add_executable(fc4_message_test
@@ -185,6 +193,12 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(fc4_vtable_layout_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_vtable_layout_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME vtable_layout_test COMMAND fc4_vtable_layout_test)
+
+    # The watchdog's stall arithmetic and the autotest verdict rules.
+    add_executable(fc4_diag_logic_test tests/diag_logic_test.cpp)
+    target_include_directories(fc4_diag_logic_test PRIVATE plugin)
+    target_compile_options(fc4_diag_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME diag_logic_test COMMAND fc4_diag_logic_test)
 
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
@@ -212,8 +226,11 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --disabled)
     # FreeCity4.ini `disable =` wins over FC4_DISABLE.
     add_test(NAME plugin_ini_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-disabled)
-    # Both tests write FreeCity4.log next to the DLL.
-    set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test PROPERTIES RUN_SERIAL TRUE)
+    # Autotest: child processes that end with the verdict and TerminateProcess.
+    add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
+    # All of them write FreeCity4.log next to the DLL.
+    set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_autotest_test
+        PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
