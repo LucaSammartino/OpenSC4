@@ -78,17 +78,36 @@ public:
     uint32_t GetExtra(uint32_t riid, void** ppOut) const override;
     void SetExtra(cIGZSerializable* pSerializable) override;
 
+    // The flags byte at +0x08 (docs/abi/layouts.md: the game's layout).
+    enum Flag : uint8_t {
+        kFlagType = 1u << 0,
+        kFlagData1 = 1u << 1,  // data1..data4: bits 1..4
+        kFlagExtra = 1u << 5,
+        kFlagString = 1u << 6,
+        kFlagUnknown = 1u << 7,
+    };
+
+    // The memory layout matches the game's standard message, because game code
+    // may read the fields of a message it receives directly (layouts.md):
+    //   +0x00 vtable (37 interface slots, slot 37 the scalar deleting destructor)
+    //   +0x04 reference count
+    //   +0x08 flags byte (Flag), +0x0C type
+    //   +0x10..+0x1C data1..data4, +0x20 string, +0x24 unknown, +0x28 extra
+    // (static_asserts in the constructor; message_test checks the flags byte).
+
 private:
     cFC4Message2Standard();
-    ~cFC4Message2Standard();
+    // Virtual, so that it occupies vtable slot 37 like the game's (layouts.md).
+    virtual ~cFC4Message2Standard();
     cFC4Message2Standard(const cFC4Message2Standard&) = delete;
     cFC4Message2Standard& operator=(const cFC4Message2Standard&) = delete;
 
     void SetSlot(int i, intptr_t v);
+    void SetFlag(uint8_t bit, bool on);
 
     uint32_t refCount_ = 0;
+    uint8_t flags_ = 0;  // Flag bits; data bits are never cleared
     uint32_t type_ = 0;
-    uint8_t hasData_ = 0;  // bit i = slot i has been set
     intptr_t data_[4] = {0, 0, 0, 0};
     cIGZString* string_ = nullptr;
     cIGZUnknown* unknown_ = nullptr;
