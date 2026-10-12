@@ -83,7 +83,7 @@ struct Dept {
 
 #[derive(Clone, Copy, Default)]
 struct LineItem {
-    secondary: i32,
+    secondary: i64,
     expenses: i64,
 }
 
@@ -717,10 +717,10 @@ impl PowerHost for World {
             vec![("item", self.line_of(item)), ("flag", ji(flag)), ("on", Json::Bool(on))],
         );
     }
-    fn line_item_secondary_info(&self, item: u64) -> i32 {
+    fn line_item_secondary_info(&self, item: u64) -> i64 {
         self.line_item(item, |l| l.secondary).unwrap_or(0)
     }
-    fn set_line_item_secondary_info(&self, item: u64, value: i32) {
+    fn set_line_item_secondary_info(&self, item: u64, value: i64) {
         self.events.push(
             "secondary_info",
             vec![("item", self.line_of(item)), ("value", ji(value))],
@@ -1140,7 +1140,20 @@ fn env(w: &World, op: &Json) -> R<()> {
             w.depts.borrow_mut().insert(id, dept);
             if let Some(lines) = opt(d, "lines") {
                 for line in arr(lines, "lines")? {
-                    w.make_line_item(token, u32_of(line, "line")?);
+                    // A line number, or {line, secondary} to preset the
+                    // line item's secondary info.
+                    let (n, secondary) = match line {
+                        Json::Object(_) => (
+                            u32_of(field(line, "line")?, "line")?,
+                            opt(line, "secondary").map(|s| i64_of(s, "secondary")).transpose()?,
+                        ),
+                        _ => (u32_of(line, "line")?, None),
+                    };
+                    let item = w.depts.borrow().get(&id).and_then(|d| d.lines.get(&n).copied());
+                    let item = item.or_else(|| w.make_line_item(token, n));
+                    if let (Some(item), Some(s)) = (item, secondary) {
+                        w.line_item(item, |l| l.secondary = s);
+                    }
                 }
             }
         }

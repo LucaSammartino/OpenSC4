@@ -230,7 +230,7 @@ fn state(s: *const fc4_demand_sim) -> fc4_demand_sim_state {
 }
 
 fn destroy_nodes(g: &Game) {
-    for (_, (h, _)) in g.nodes.borrow_mut().iter() {
+    for (h, _) in g.nodes.borrow_mut().values() {
         unsafe { fc4_demand_node_destroy(*h as *mut fc4_demand_node) };
     }
 }
@@ -277,7 +277,7 @@ fn graph_propagation_queries_and_occupancy() {
         for key in ACTIVE_DEMAND_CHANGED_KEYS {
             assert!(g.posts.borrow().iter().any(|p| p.1 == key));
         }
-        assert!(g.posts.borrow().iter().any(|&p| p == (t2010, 0x2010, 113)));
+        assert!(g.posts.borrow().contains(&(t2010, 0x2010, 113)));
 
         // Interface queries (§5).
         let mut j = [9.0f32; 3];

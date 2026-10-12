@@ -382,10 +382,10 @@ impl PowerHost for Host {
     }
     fn set_line_item_name(&self, _item: u64, _group: u32, _instance: u32) {}
     fn set_line_item_display_flag(&self, _item: u64, _flag: u32, _on: bool) {}
-    fn line_item_secondary_info(&self, _item: u64) -> i32 {
+    fn line_item_secondary_info(&self, _item: u64) -> i64 {
         0
     }
-    fn set_line_item_secondary_info(&self, _item: u64, _value: i32) {}
+    fn set_line_item_secondary_info(&self, _item: u64, _value: i64) {}
     fn set_line_item_full_expenses(&self, item: u64, value: i64) {
         if item == LINE_ITEM {
             self.expenses.set(value);

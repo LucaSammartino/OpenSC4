@@ -140,8 +140,8 @@
 //!   does not resolve leaves no grid (§5.3 and §6.5 then skip the grid
 //!   writes; `Init` does not recreate it on a loaded city, as the spec says).
 //! - `GetStrikeLength` subtracts as `u32` and returns the result as `int32`.
-//! - Line-item secondary info is passed as `int32` (the game's field is
-//!   `int64`; the two agree below 2³¹ plants).
+//! - Line-item secondary info is passed as `int64`, the game's field type
+//!   (§5.1), and changes by ±1 with 64-bit wrapping.
 
 mod cycle;
 mod record;
@@ -692,8 +692,9 @@ pub trait PowerHost: GridProvider<u8> {
     fn line_item(&self, dept: u64, line: u32) -> Option<u64>;
     fn set_line_item_name(&self, item: u64, group: u32, instance: u32);
     fn set_line_item_display_flag(&self, item: u64, flag: u32, on: bool);
-    fn line_item_secondary_info(&self, item: u64) -> i32;
-    fn set_line_item_secondary_info(&self, item: u64, value: i32);
+    /// `GetSecondaryInfoField()` / `SetSecondaryInfoField(v)` (`int64`).
+    fn line_item_secondary_info(&self, item: u64) -> i64;
+    fn set_line_item_secondary_info(&self, item: u64, value: i64);
     fn set_line_item_full_expenses(&self, item: u64, value: i64);
     /// `GetBudgetItemForPurpose(holder, purpose)`.
     fn budget_item_for_purpose(&self, occ: u64, purpose: u32) -> Option<BudgetItem>;
