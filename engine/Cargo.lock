@@ -19,3 +19,7 @@ dependencies = [
 [[package]]
 name = "fc4-core"
 version = "0.1.0"
+
+[[package]]
+name = "fc4-formats"
+version = "0.1.0"

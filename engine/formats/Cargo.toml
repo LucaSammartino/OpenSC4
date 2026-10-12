@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[package]
+name = "fc4-formats"
+description = "FreeCity4 readers for SimCity 4 data formats: DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "fc4_formats"
+
+[[bin]]
+name = "fc4-dat"
+path = "src/bin/fc4-dat.rs"
