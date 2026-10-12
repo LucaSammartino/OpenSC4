@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "power_positions_strikes",
+  "spec": ["power 1", "power 10.1", "power 15.12", "power 15.19"],
+  "description": "Tests 12 and 19 plus the identity of section 1, by hand from 10.1: PositionToCell = trunc(x x (1/16)): 100 x 0.0625 = 6.25 -> 6, 250 x 0.0625 = 15.625 -> 15; negative positions truncate toward zero (-8 -> -0.5 -> 0) and are not bounds-checked (5000 -> 312). CellToPosition = 16 x cell (corner): (6, 15) -> (96, 240). CellToStandardCityCell is the identity. Strikes are disabled: IsOnStrike, BeginStrike and EndStrike return false, GetChanceOfStrike 0.0, GetStrikeLength -1 with start 0 and simTime - start otherwise (sim time 150, start 100 -> 50); slot 47 is the tuning's strike efficiency 20 x 0.01f = 0.2 (shipped) or 0.5 (code default, no exemplar). QueryInterface answers 0xE9E7BFF5 and 1 with the primary interface, 0x452294AA and 0xE4FDA3D4 with the sub-objects, nothing else; the class ID is 0x0990C005.",
+  "steps": [
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_call", "method": "position_to_cell", "args": [100.0, 250.0], "expect": [6, 15]},
+    {"op": "power_call", "method": "position_to_cell", "args": [-8.0, 5000.0], "expect": [0, 312]},
+    {"op": "power_call", "method": "cell_to_position", "args": [6, 15], "expect": [96.0, 240.0]},
+    {"op": "power_call", "method": "cell_to_standard_city_cell", "args": [-3, 300], "expect": [-3, 300]},
+
+    {"op": "power_call", "method": "is_on_strike", "expect": false},
+    {"op": "power_call", "method": "begin_strike", "expect": false},
+    {"op": "power_call", "method": "end_strike", "expect": false},
+    {"op": "power_call", "method": "is_on_strike", "expect": false},
+    {"op": "power_call", "method": "chance_of_strike", "expect": 0.0},
+    {"op": "power_call", "method": "strike_start_date", "expect": 0},
+    {"op": "power_call", "method": "strike_length", "expect": -1},
+    {"op": "power_env", "sim_time": 150},
+    {"op": "power_set", "state": {"strike_start": 100}},
+    {"op": "power_call", "method": "strike_start_date", "expect": 100},
+    {"op": "power_call", "method": "strike_length", "expect": 50},
+    {"op": "power_call", "method": "strike_efficiency", "expect": 0.2},
+    {"op": "power_expect", "state": {"strike_duration": 12, "max_production_ratio": 1.1, "min_acceptable_funding": 0.6, "min_funding_end_strike": 0.9}},
+
+    {"op": "power_call", "method": "query_interface", "args": ["0xE9E7BFF5"], "expect": "primary"},
+    {"op": "power_call", "method": "query_interface", "args": [1], "expect": "primary"},
+    {"op": "power_call", "method": "query_interface", "args": ["0x452294AA"], "expect": "message_target"},
+    {"op": "power_call", "method": "query_interface", "args": ["0xE4FDA3D4"], "expect": "serializable"},
+    {"op": "power_call", "method": "query_interface", "args": ["0xC9BD939A"], "expect": false},
+    {"op": "power_call", "method": "query_interface", "args": [0], "expect": false},
+    {"op": "power_call", "method": "class_id", "expect": "0x0990C005"},
+    {"op": "power_call", "method": "slot_pops", "args": [5], "expect": 16},
+    {"op": "power_call", "method": "slot_pops", "args": [16], "expect": 8},
+    {"op": "power_call", "method": "slot_pops", "args": [17], "expect": 0},
+    {"op": "power_call", "method": "slot_pops", "args": [23], "expect": 4},
+    {"op": "power_call", "method": "slot_pops", "args": [24], "expect": 0},
+    {"op": "power_call", "method": "slot_pops", "args": [52], "expect": 4},
+
+    {"op": "power_tuning", "none": true},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_call", "method": "strike_efficiency", "expect": 0.5},
+    {"op": "power_expect", "state": {"strike_duration": 10, "radius": 2, "max_funding": 1.2}}
+  ]
+}
