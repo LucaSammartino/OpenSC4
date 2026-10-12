@@ -129,8 +129,9 @@ not a corner):
    *[quirk]*.
 
 `GetAverageValueInTractRect(tx, tz, w, h)` is the same over tracts `[tx, tx + w) × [tz, tz + h)` (no one-tract
-shortcut). With w or h ≤ 0 the sum is empty and the result is 0 / 0: integer grids then return the integer
-"indefinite" value truncated to T (`0x80000000` for 32-bit grids, hence 0 for 8- and 16-bit grids), float grids
+shortcut). With w or h ≤ 0 the sum is empty and the result is 0 / 0: integer grids then return the C
+runtime conversion's NaN result truncated to T: the conversion (`_ftol`, foundations §18.1) yields the 64-bit
+`0x8000000000000000`, so 8-, 16- and 32-bit grids get **0** and 64-bit grids `0x8000000000000000`; float grids
 NaN *[quirk]*; *[choice]* FreeCity4 returns 0.
 
 ### 4.2 `SetTractSize(S)` *[compat]*

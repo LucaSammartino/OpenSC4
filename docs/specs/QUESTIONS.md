@@ -3,21 +3,6 @@
 Questions from engine authors that the spec writers need to answer from the original. Answered questions move into
 the relevant spec, and their entry here is deleted.
 
-## Aura (aura.md)
-- A1. Test 14 (cadence): the implementation runs one pipeline step in SimNewDay before it compares, so state 3
-  becomes 4 on day D + 5, and 4 < 5 gives false. Is that the intended reading?
-- A2. State 5 step adaptation (§6.5): is `n = lots processed this call / 1024` the original's divisor, and is the
-  step adapted at the end of every state-5 call? The implementation keeps the step per simulator, not
-  process-wide (§6.5 says shared *[inferred]*).
-- A3. With no Parks department the original dereferences null. The implementation uses funding 1.0. Which
-  behaviour should a replacement match?
-- A4. Is an empty curve (no points) treated like an absent one? The implementation treats a curve stored as a
-  single scalar as absent.
-- A5. Overflow when storing into the int16 grids: wrap, saturate, or something else? The implementation
-  saturates and stores NaN as 0.
-- A6. The population grids are assumed to have the aura grid's geometry. Confirm, or give the mapping.
-- A7. Are the riot coordinates (§6.16) cells or tracts? The implementation uses cells.
-
 ## Pollution (pollution.md)
 - PO1. Are `0.1` (deal amounts, §4.4) and `0.01` (efficiency, §4.7, and slot 55) `float` or `double` literals?
   Under foundations §18 this decides whether the constant is rounded to `float32` first. The implementation

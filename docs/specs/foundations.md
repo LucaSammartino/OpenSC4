@@ -476,11 +476,12 @@ neighbours and service simulators.
   | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | budget, traffic, pollution's per-occupant curves |
   | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, fire protection, police (curves with a code default; protection §6), power's five tuning curves (power §8). Plumbing's curve `0x6A410BF2` is a variant: "keep", then (0,0)(100,100) if the curve is still empty after the load (plumbing spec) |
   | **empty** | first empties the curve (or uses a fresh temporary one), then loads as in "keep" | the curve is **empty** | pollution's tuning curves (pollution §9), pollution's temporary curves in `SimulationBegin` / `EndOfCycle` |
-  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`); power's two per-building curves `0x8A1E07EE` / `0x0911E2E7` follow it per call, with a fresh temporary curve (power §8) |
+  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Flammability, and the aura's riot curve, delete first and then create a new object when the property is present; the aura's other 12 curves are reloaded in place (created when missing) or deleted when the property is missing (aura §10) | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`); power's two per-building curves `0x8A1E07EE` / `0x0911E2E7` follow it per call, with a fresh temporary curve (power §8) |
 
   "Keep" differs from the others only when tuning is re-read (another `Init` after `Shutdown`, or a tuning-reload
-  message) after the property disappeared, which shipped content never does. A present property with no points
-  always gives an empty curve. *[choice]* FreeCity4 implements the pattern stated per curve, and treats an empty
+  message) after the property disappeared, which shipped content never does. A present property with no points,
+  or with a single value (the property-pointer loader `0x005F4620` makes `count >> 1` points), always gives an
+  empty curve. *[choice]* FreeCity4 implements the pattern stated per curve, and treats an empty
   curve like an absent one only where the subsystem spec says so.
 
 ### 4.2 Construction *[compat]*
@@ -1599,7 +1600,8 @@ effect, on which threads, and what that means for the specs.
 | Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
 | Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
-| Truncating conversions (`_ftol` `0x009EEF04`, and inline `fistp` sequences) | save the control word, set rounding to "chop", convert, restore | rounding control only, and only for the conversion |
+| Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
+| Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
 The helper's modes are 0 = 24-bit, 1 = 53-bit, 2 = 64-bit. Nothing in the game calls it with mode 2, and nothing
 else writes the precision field. The C library's x87 math helpers (`pow`, `exp`, `log`, …) keep the caller's
