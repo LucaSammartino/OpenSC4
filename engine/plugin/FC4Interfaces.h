@@ -24,7 +24,10 @@
 //
 // Use these types - never the SDK's cISC4Simulator / cISC4BudgetSimulator /
 // cISC4DepartmentBudget / cIGZDate / cISCPropertyHolder / cISC4LotManager /
-// cISC4Lot - to call the game's objects or to implement ours.
+// cISC4Lot / cIGZVariant / cISC4NeighborsSimulator - to call the game's
+// objects or to implement ours.
+// tests/abi_conformance_test.cpp checks every declaration against
+// docs/abi/interfaces.tsv (callee-pop bytes and return channel per slot).
 // Besides overload order, they also fix return types the SDK gets wrong
 // (cISC4DepartmentBudget slot 26).
 #pragma once
@@ -36,6 +39,7 @@
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4BuildingOccupant.h"
 #include "cISC4Lot.h"
+#include "cISC4NeighborsSimulator.h"
 #include "cISC4ZoneManager.h"
 
 #include <cstdint>
@@ -46,6 +50,7 @@ class cIGZDate;
 class cISC4LotManager;
 class cIGZMessageTarget2;
 class cIGZString;
+class cIGZVariant;
 class cISC4DepartmentBudget;
 class cISC4LineItem;
 class cISCPropertyHolder;
@@ -117,10 +122,13 @@ public:
     virtual int64_t GetTotalYearlyIncome() = 0;               // 17
     virtual int64_t GetTaxIncomeOfType(int32_t taxType) = 0;  // 18  GetTaxIncome(int32)
     virtual int64_t GetTaxIncome() = 0;                       // 19  GetTaxIncome()
-    virtual int64_t SetTotalMonthlyExpense(int64_t v) = 0;    // 20
-    virtual int64_t SetTotalYearlyExpense(int64_t v) = 0;     // 21
-    virtual int64_t SetTotalMonthlyIncome(int64_t v) = 0;     // 22
-    virtual int64_t SetTotalYearlyIncome(int64_t v) = 0;      // 23
+    // 20-23: the SDK returns int64; docs/abi says the game's methods return 32
+    // bits in eax. [choice] ours return the low 32 bits of the stored value
+    // (budget spec: "return v"), which is the eax an int64 return gave too.
+    virtual int32_t SetTotalMonthlyExpense(int64_t v) = 0;    // 20
+    virtual int32_t SetTotalYearlyExpense(int64_t v) = 0;     // 21
+    virtual int32_t SetTotalMonthlyIncome(int64_t v) = 0;     // 22
+    virtual int32_t SetTotalYearlyIncome(int64_t v) = 0;      // 23
     virtual bool ShowBudgetWindow() = 0;                      // 24
     virtual cISC4DepartmentBudget* CreateDepartmentBudget(uint32_t id, uint32_t group) = 0;  // 25
     virtual bool RemoveDepartmentBudget(uint32_t id) = 0;     // 26
@@ -264,6 +272,142 @@ public:
     virtual bool LeapYear(uint32_t year) = 0;                                  // 45
 };
 
+// cIGZVariant (IID 0x60FD4D2B, 127 slots; foundations §17.1),
+// in compiled order with unique names. SDK errors fixed: slot 8 takes the
+// type, slot 60 takes (riid, void**). Overload groups as compiled: the
+// value getter comes before GetValXTo(X&), the const AsX() before AsXRef(),
+// and the SetRefX(X*, count) setter before the RefX() getter.
+class cFC4IGZVariant : public cIGZUnknown {
+public:
+    virtual uint16_t GetType() const = 0;                                                  // 3
+    virtual uint32_t GetCount() const = 0;                                                 // 4
+    virtual bool Erase() = 0;                                                              // 5
+    virtual bool CopyFrom(cFC4IGZVariant const& value) = 0;                                // 6
+    virtual bool CreateCopy(cFC4IGZVariant** value) const = 0;                             // 7
+    virtual bool CanGetVal(uint16_t type) const = 0;                                       // 8
+    virtual bool GetValBool() const = 0;                                                   // 9
+    virtual bool GetValBoolTo(bool& value) const = 0;                                      // 10
+    virtual void SetValBool(bool value) = 0;                                               // 11
+    virtual uint8_t GetValUint8() const = 0;                                               // 12
+    virtual bool GetValUint8To(uint8_t& value) const = 0;                                  // 13
+    virtual void SetValUint8(uint8_t value) = 0;                                           // 14
+    virtual int8_t GetValSint8() const = 0;                                                // 15
+    virtual bool GetValSint8To(int8_t& value) const = 0;                                   // 16
+    virtual void SetValSint8(int8_t value) = 0;                                            // 17
+    virtual uint16_t GetValUint16() const = 0;                                             // 18
+    virtual bool GetValUint16To(uint16_t& value) const = 0;                                // 19
+    virtual void SetValUint16(uint16_t value) = 0;                                         // 20
+    virtual int16_t GetValSint16() const = 0;                                              // 21
+    virtual bool GetValSint16To(int16_t& value) const = 0;                                 // 22
+    virtual void SetValSint16(int16_t value) = 0;                                          // 23
+    virtual uint32_t GetValUint32() const = 0;                                             // 24
+    virtual bool GetValUint32To(uint32_t& value) const = 0;                                // 25
+    virtual void SetValUint32(uint32_t value) = 0;                                         // 26
+    virtual int32_t GetValSint32() const = 0;                                              // 27
+    virtual bool GetValSint32To(int32_t& value) const = 0;                                 // 28
+    virtual void SetValSint32(int32_t value) = 0;                                          // 29
+    virtual uint64_t GetValUint64() const = 0;                                             // 30
+    virtual bool GetValUint64To(uint64_t& value) const = 0;                                // 31
+    virtual void SetValUint64(uint64_t value) = 0;                                         // 32
+    virtual int64_t GetValSint64() const = 0;                                              // 33
+    virtual bool GetValSint64To(int64_t& value) const = 0;                                 // 34
+    virtual void SetValSint64(int64_t value) = 0;                                          // 35
+    virtual float GetValFloat32() const = 0;                                               // 36
+    virtual bool GetValFloat32To(float& value) const = 0;                                  // 37
+    virtual void SetValFloat32(float value) = 0;                                           // 38
+    virtual double GetValFloat64() const = 0;                                              // 39
+    virtual bool GetValFloat64To(double& value) const = 0;                                 // 40
+    // [choice] docs/abi: the game's SetValFloat64 returns a double in ST0
+    // (x87, high confidence; the SDK says void). The value is not specified;
+    // ours returns the value stored.
+    virtual double SetValFloat64(double value) = 0;                                        // 41
+    virtual char GetValChar() const = 0;                                                   // 42
+    virtual bool GetValCharTo(char& value) const = 0;                                      // 43
+    virtual void SetValChar(char value) = 0;                                               // 44
+    virtual uint16_t GetValRZUnicodeChar() const = 0;                                      // 45
+    virtual bool GetValRZUnicodeCharTo(uint16_t& value) const = 0;                         // 46
+    virtual void SetValRZUnicodeChar(uint16_t value) = 0;                                  // 47
+    virtual char GetValRZChar() const = 0;                                                 // 48
+    virtual bool GetValRZCharTo(char& value) const = 0;                                    // 49
+    virtual void SetValRZChar(char value) = 0;                                             // 50
+    virtual void* GetValVoidPtr() const = 0;                                               // 51
+    virtual bool GetValVoidPtrTo(void** value) const = 0;                                  // 52
+    virtual void SetValVoidPtr(void* value) = 0;                                           // 53
+    virtual bool CreateValString(cIGZString** value) const = 0;                            // 54
+    virtual bool GetValString(cIGZString& value) const = 0;                                // 55
+    virtual void SetValString(cIGZString const& value) = 0;                                // 56
+    virtual bool GetValVoid(void* value, uint32_t& length) const = 0;                      // 57
+    virtual void SetValVoid(void* value, uint32_t length) = 0;                             // 58
+    virtual cIGZUnknown* GetValUnknown() = 0;                                              // 59
+    virtual bool GetValUnknownAs(uint32_t riid, void** ppvObj) = 0;                        // 60
+    virtual void SetValUnknown(cIGZUnknown* value) = 0;                                    // 61
+    virtual bool AsBool() const = 0;                                                       // 62
+    virtual bool& AsBoolRef() = 0;                                                         // 63
+    virtual uint8_t AsUint8() const = 0;                                                   // 64
+    virtual uint8_t& AsUint8Ref() = 0;                                                     // 65
+    virtual int8_t AsSint8() const = 0;                                                    // 66
+    virtual int8_t& AsSint8Ref() = 0;                                                      // 67
+    virtual uint16_t AsUint16() const = 0;                                                 // 68
+    virtual uint16_t& AsUint16Ref() = 0;                                                   // 69
+    virtual int16_t AsSint16() const = 0;                                                  // 70
+    virtual int16_t& AsSint16Ref() = 0;                                                    // 71
+    virtual uint32_t AsUint32() const = 0;                                                 // 72
+    virtual uint32_t& AsUint32Ref() = 0;                                                   // 73
+    virtual int32_t AsSint32() const = 0;                                                  // 74
+    virtual int32_t& AsSint32Ref() = 0;                                                    // 75
+    virtual uint64_t AsUint64() const = 0;                                                 // 76
+    virtual uint64_t& AsUint64Ref() = 0;                                                   // 77
+    virtual int64_t AsSint64() const = 0;                                                  // 78
+    virtual int64_t& AsSint64Ref() = 0;                                                    // 79
+    virtual float AsFloat32() const = 0;                                                   // 80
+    virtual float& AsFloat32Ref() = 0;                                                     // 81
+    virtual double AsFloat64() const = 0;                                                  // 82
+    virtual double& AsFloat64Ref() = 0;                                                    // 83
+    virtual char AsChar() const = 0;                                                       // 84
+    virtual char& AsCharRef() = 0;                                                         // 85
+    virtual uint16_t AsRZUnicodeChar() const = 0;                                          // 86
+    virtual uint16_t& AsRZUnicodeCharRef() = 0;                                            // 87
+    virtual char AsRZChar() const = 0;                                                     // 88
+    virtual char& AsRZCharRef() = 0;                                                       // 89
+    virtual void* AsVoidPtr() const = 0;                                                   // 90
+    virtual void*& AsVoidPtrRef() = 0;                                                     // 91
+    virtual void SetRefBool(bool* value, uint32_t length) = 0;                             // 92
+    virtual bool* RefBool() const = 0;                                                     // 93
+    virtual void SetRefUint8(uint8_t* value, uint32_t length) = 0;                         // 94
+    virtual uint8_t* RefUint8() const = 0;                                                 // 95
+    virtual void SetRefSint8(int8_t* value, uint32_t length) = 0;                          // 96
+    virtual int8_t* RefSint8() const = 0;                                                  // 97
+    virtual void SetRefUint16(uint16_t* value, uint32_t length) = 0;                       // 98
+    virtual uint16_t* RefUint16() const = 0;                                               // 99
+    virtual void SetRefSint16(int16_t* value, uint32_t length) = 0;                        // 100
+    virtual int16_t* RefSint16() const = 0;                                                // 101
+    virtual void SetRefUint32(uint32_t* value, uint32_t length) = 0;                       // 102
+    virtual uint32_t* RefUint32() const = 0;                                               // 103
+    virtual void SetRefSint32(int32_t* value, uint32_t length) = 0;                        // 104
+    virtual int32_t* RefSint32() const = 0;                                                // 105
+    virtual void SetRefUint64(uint64_t* value, uint32_t length) = 0;                       // 106
+    virtual uint64_t* RefUint64() const = 0;                                               // 107
+    virtual void SetRefSint64(int64_t* value, uint32_t length) = 0;                        // 108
+    virtual int64_t* RefSint64() const = 0;                                                // 109
+    virtual void SetRefFloat32(float* value, uint32_t length) = 0;                         // 110
+    virtual float* RefFloat32() const = 0;                                                 // 111
+    virtual void SetRefFloat64(double* value, uint32_t length) = 0;                        // 112
+    virtual double* RefFloat64() const = 0;                                                // 113
+    virtual void SetRefChar(char* value, uint32_t length) = 0;                             // 114
+    virtual char* RefChar() const = 0;                                                     // 115
+    virtual void SetRefRZUnicodeChar(uint16_t* value, uint32_t length) = 0;                // 116
+    virtual uint16_t* RefRZUnicodeChar() const = 0;                                        // 117
+    virtual void SetRefRZChar(char* value, uint32_t length) = 0;                           // 118
+    virtual char* RefRZChar() const = 0;                                                   // 119
+    virtual void SetRefVoidPtr(void** value, uint32_t length) = 0;                         // 120
+    virtual void** RefVoidPtr() const = 0;                                                 // 121
+    virtual void SetRefVoid(void* value, uint32_t length) = 0;                             // 122
+    virtual void* RefVoid() const = 0;                                                     // 123
+    virtual void SetRefIGZUnknown(cIGZUnknown* value) = 0;                                 // 124
+    virtual bool RefIGZUnknownAs(uint32_t riid, void** ppvObj) = 0;                        // 125
+    virtual cIGZUnknown* RefIGZUnknown() const = 0;                                        // 126
+};
+
 // cISCPropertyHolder (IID 0x25216283, 22 slots; foundations §17.2). The
 // game's holders (buildings, exemplars) are only ever called through this.
 // SDK errors fixed: slots 11, 12, 17, 18, 19. The bools' meaning is unknown;
@@ -284,7 +428,7 @@ public:
     virtual bool AddPropertyObject(uint32_t id, cIGZUnknown* value, bool b) = 0;            // 11  (SDK: int32)
     virtual bool AddPropertyString(uint32_t id, cIGZString const& value, bool b) = 0;        // 12  (SDK: no bool)
     virtual bool AddPropertyU32(uint32_t id, uint32_t value, bool b) = 0;                    // 13
-    virtual bool AddPropertyVariant(uint32_t id, cIGZVariant const* value, bool b) = 0;      // 14
+    virtual bool AddPropertyVariant(uint32_t id, cFC4IGZVariant const* value, bool b) = 0;   // 14
     virtual bool AddPropertyRecord(cISCProperty* property, bool b) = 0;                      // 15
     virtual bool CopyAddProperty(cISCProperty* property, bool b) = 0;                        // 16
     virtual bool RemoveProperty(uint32_t id, bool b) = 0;                                    // 17  (SDK: no bool)
@@ -350,7 +494,9 @@ public:
     virtual uint32_t GetFlags() const = 0;                                       // 12
     virtual bool SetFlags(uint32_t flags) = 0;                                   // 13
     virtual bool GetBoundingRect(SC4Rect<int32_t>& rect) const = 0;              // 14
-    virtual bool GetCenter(float* center) const = 0;                             // 15
+    // docs/abi: returns in ST0 (x87, high confidence; the SDK says bool). What
+    // the value is is not specified; the plugin does not call it.
+    virtual float GetCenter(float* center) const = 0;                            // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17
     virtual float GetSlope() const = 0;                                          // 18
@@ -407,6 +553,59 @@ public:
     virtual bool SetVerticesAreLocked(bool locked) = 0;                          // 69
 };
 
+// cISC4NeighborsSimulator (38 slots), from the SDK declaration with the
+// return channels of docs/abi/interfaces.tsv. SDK errors fixed: slots 32/33
+// return 32 bits in eax (SDK: int64, so the high half read from edx was
+// garbage), slot 35 returns in ST0 (SDK: int64). Overload groups as compiled
+// (13/14 and 29/30, checked by abi_conformance_test).
+class cFC4ISC4NeighborsSimulator : public cIGZUnknown {
+public:
+    using ConnectionType = cISC4NeighborsSimulator::ConnectionType;
+
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual bool RequestCreateConnection(ConnectionType type, int32_t x, int32_t z, bool flag) = 0;  // 5
+    virtual cISC4NeighborConnection* CreateConnection(ConnectionType type, int32_t x, int32_t z, bool flag) = 0;  // 6
+    virtual void DeleteConnection(ConnectionType type, int32_t x, int32_t z) = 0;  // 7
+    virtual void DeleteOccupantConnection(cISC4Occupant* occupant) = 0;          // 8
+    virtual void DeleteAllConnectionsOfType(ConnectionType type) = 0;            // 9
+    virtual bool HasConnection(ConnectionType type, int32_t x, int32_t z) const = 0;  // 10
+    virtual cISC4NeighborConnection* FindConnection(ConnectionType type, int32_t x, int32_t z) = 0;  // 11
+    virtual cISC4RegionalCity* FindCityOnOtherSideOfConnection(int32_t x, int32_t z) = 0;  // 12
+    virtual cISC4NeighborConnection* FindConnectionOnOtherSideOf(cISC4NeighborConnection* connection) = 0;  // 13
+    virtual cISC4NeighborConnection* FindConnectionOnOtherSideAt(ConnectionType type, int32_t x,
+                                                                 int32_t z) = 0;  // 14
+    virtual cISC4NeighborConnection* FindUnvisitedConnection(ConnectionType type,
+                                                             cISC4RegionalCity const* city) = 0;  // 15
+    virtual void GetAllConnections(SC4List<cISC4NeighborConnection*>& list) const = 0;  // 16
+    virtual void GetConnectionsOfType(ConnectionType type, SC4List<cISC4NeighborConnection*>& list) const = 0;  // 17
+    virtual void GetConnectionsOfTypeToCity(ConnectionType type, cISC4RegionalCity const* city,
+                                            SC4List<cISC4NeighborConnection*>& list) const = 0;  // 18
+    virtual void GetConnectionsToCity(cISC4RegionalCity const* city, SC4List<cISC4NeighborConnection*>& list) = 0;  // 19
+    virtual void GetAdjacentCities(SC4List<cISC4RegionalCity*>& list, bool includeUnestablished) = 0;  // 20
+    virtual void GetConnectedCities(SC4List<cISC4RegionalCity*>& list, bool includeUnestablished) = 0;  // 21
+    virtual void GetAllConnectedCities(SC4List<cISC4RegionalCity*>& list, bool includeUnestablished) = 0;  // 22
+    virtual cISC4NeighborConnection* FindConnectionSuitableForDeal(int32_t dealType,
+                                                                   cISC4RegionalCity const* city) = 0;  // 23
+    virtual bool ProposeDeal(int32_t dealType, cISC4RegionalCity* otherCity, cISC4NeighborDeal** outDeal) = 0;  // 24
+    virtual bool ProposeDeals(SC4List<cISC4NeighborConnection*>& deals, bool flag) = 0;  // 25
+    virtual bool AddDeal(cISC4NeighborDeal* deal) = 0;                           // 26
+    virtual void SetUIDisableFlag(bool flag) = 0;                                // 27
+    virtual void FindDealsAll(SC4List<cISC4NeighborConnection*>& deals) = 0;     // 28
+    virtual void FindDealsWithCity(int32_t dealType, cISC4RegionalCity* city,
+                                   SC4List<cISC4NeighborConnection*>& deals) = 0;  // 29  FindDeals(3 args)
+    virtual void FindDealsOfType(int32_t dealType, SC4List<cISC4NeighborConnection*>& deals) = 0;  // 30  FindDeals(2 args)
+    virtual void MarkDealsDirty() = 0;                                           // 31
+    // [choice] signed 32-bit money (sign-extended by the caller); spec question.
+    virtual int32_t GetTotalMonthlyNeighborDealIncome() = 0;                     // 32  (SDK: int64)
+    virtual int32_t GetTotalMonthlyNeighborDealExpense() = 0;                    // 33  (SDK: int64)
+    virtual void UpdateCommodityStats(cISC4City* city) = 0;                      // 34
+    virtual double GetDealCost(int32_t dealType, double amount, cISC4RegionalCity const* city) = 0;  // 35  (SDK: int64)
+    // [choice] the table says x87|eax (low confidence); not called.
+    virtual double GetDealMaxAmount(int32_t dealType, cISC4RegionalCity const* city) = 0;  // 36  (SDK: int64)
+    virtual cISCResExemplar* GetTuningExemplar() = 0;                            // 37
+};
+
 class cISC4Simulator;
 
 namespace fc4 {
@@ -432,6 +631,12 @@ inline cFC4ISCPropertyHolder* AsGame(cISCPropertyHolder* p) { return reinterpret
 inline cFC4ISCPropertyHolder const* AsGame(cISCPropertyHolder const* p) {
     return reinterpret_cast<cFC4ISCPropertyHolder const*>(p);
 }
+inline cFC4IGZVariant* AsGame(cIGZVariant* p) { return reinterpret_cast<cFC4IGZVariant*>(p); }
+inline cFC4IGZVariant const* AsGame(cIGZVariant const* p) { return reinterpret_cast<cFC4IGZVariant const*>(p); }
+inline cIGZVariant const* AsSdk(cFC4IGZVariant const* p) { return reinterpret_cast<cIGZVariant const*>(p); }
 inline cFC4ISC4LotManager* AsGame(cISC4LotManager* p) { return reinterpret_cast<cFC4ISC4LotManager*>(p); }
 inline cFC4ISC4Lot* AsGame(cISC4Lot* p) { return reinterpret_cast<cFC4ISC4Lot*>(p); }
+inline cFC4ISC4NeighborsSimulator* AsGame(cISC4NeighborsSimulator* p) {
+    return reinterpret_cast<cFC4ISC4NeighborsSimulator*>(p);
+}
 }  // namespace fc4

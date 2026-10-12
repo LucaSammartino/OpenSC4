@@ -189,14 +189,25 @@ plugin.
   `plugin_load_test` calls each overload of the real objects through its slot with the game's argument count and
   checks that the stack balances. New code must not implement or call overloads of an interface until its spec
   has a verified slot table. Declared from the foundations §17 tables: `cFC4IGZDate` (implemented by
-  `cFC4Date`), `cFC4ISCPropertyHolder`, `cFC4ISC4LotManager`, `cFC4ISC4Lot`. Interfaces still used through SDK
-  declarations that contain overloads (the methods we call were checked against the MSVC layout rule):
-  `cIGZString`, `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
-  `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`. Known risk: `cRZBaseVariant` (which
-  we pass to the game in `AddPropertyVariant`) still has the SDK's `cIGZVariant` slot 8 and 60 signatures,
-  which §17 lists as wrong.
+  `cFC4Date`), `cFC4IGZVariant` (implemented by `cFC4Variant`, the only variant we hand to the game; never pass
+  the SDK's `cRZBaseVariant`, whose slots 8 and 60 differ from the game's), `cFC4ISCPropertyHolder`,
+  `cFC4ISC4LotManager`, `cFC4ISC4Lot`, and `cFC4ISC4NeighborsSimulator` (from the ABI table: slots 32/33
+  return 32 bits). Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
+  `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
+  `cISC4HistoryWarehouse`, `cISC4OrdinanceSimulator`, `cISCResExemplar`.
+- **ABI conformance** (`tests/abi_conformance_test.cpp`, CTest `abi_conformance_test`): every declaration above
+  is checked against [`docs/abi/interfaces.tsv`](../docs/abi/interfaces.tsv), read at run time. Per slot:
+  argument bytes (each argument rounded up to 4, int64/double 8, plus 4 for a hidden result pointer) ==
+  `callee_pop`; float/double return ⇔ `ret = x87`; int64 return ⇒ `edx:eax`, and `edx:eax` (medium
+  confidence) ⇒ int64. Per interface: slots contiguous and as many as the table's. The slots are decoded from
+  the compiler's vcall thunks, so the test checks what MSVC actually laid out. After adding a method or an
+  interface, run `python tests/gen_abi_entries.py` (from `engine/`) and rebuild; `--dump` prints every slot
+  next to its table row. SDK methods that disagree with the game but are never called by the plugin are
+  waived (`kWaivers`); the waiver lapses, and the test fails, as soon as a file in `plugin/` calls one.
+  Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
-  through a hidden result pointer). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
+  through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
+  ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.

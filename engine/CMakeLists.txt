@@ -136,6 +136,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp
         plugin/FC4Checked.h
+        plugin/cFC4Variant.cpp
+        plugin/cFC4Variant.h
         plugin/compat/FC4Compat.cpp
         plugin/compat/FC4Compat.h
         plugin/FC4Properties.cpp
@@ -183,6 +185,17 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(fc4_vtable_layout_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_vtable_layout_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME vtable_layout_test COMMAND fc4_vtable_layout_test)
+
+    # Every interface we implement or call against docs/abi/interfaces.tsv
+    # (callee-pop bytes, return channel, slot count), read at run time.
+    set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
+    add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp tests/abi_entries.inc)
+    target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+    target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
+        FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
+    target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
+        --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
 
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"

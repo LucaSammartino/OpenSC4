@@ -110,7 +110,8 @@ public:
     bool AddPropertyObject(uint32_t, cIGZUnknown*, bool) override { return false; }
     bool AddPropertyString(uint32_t, cIGZString const&, bool) override { return false; }
     bool AddPropertyU32(uint32_t, uint32_t, bool) override { return false; }
-    bool AddPropertyVariant(uint32_t id, cIGZVariant const* v, bool) override {
+    bool AddPropertyVariant(uint32_t id, cFC4IGZVariant const* fv, bool) override {
+        cIGZVariant const* v = fc4::AsSdk(fv);  // a game holder copies through the SDK slots
         RemoveProperty(id, false);
         cSCBaseProperty* p = new cSCBaseProperty(id, v);  // deep copy
         p->AddRef();
@@ -141,7 +142,7 @@ public:
     void Set(uint32_t id, T value) {
         cRZBaseVariant v;
         SetArray(v, &value);
-        AddPropertyVariant(id, &v, false);
+        AddPropertyVariant(id, fc4::AsGame(static_cast<cIGZVariant const*>(&v)), false);
     }
     float Get32f(uint32_t id) const {
         const cISCProperty* p = GetProperty(id);

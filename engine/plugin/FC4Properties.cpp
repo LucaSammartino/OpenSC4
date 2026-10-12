@@ -18,6 +18,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "cFC4Variant.h"
 
 #include "GZServPtrs.h"
 #include "cGZPersistResourceKey.h"
@@ -26,7 +27,6 @@
 #include "cISCProperty.h"
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
-#include "cRZBaseVariant.h"
 
 namespace fc4 {
 namespace props {
@@ -71,7 +71,8 @@ const cISCPropertyHolder* Exemplar::Holder() const { return res_ ? res_->AsISCPr
 
 namespace {
 
-const cIGZVariant* ValueOf(const cISCPropertyHolder* holder, uint32_t id) {
+// Game variants are read through the compiled slot order (foundations §17.1).
+const cFC4IGZVariant* ValueOf(const cISCPropertyHolder* holder, uint32_t id) {
     if (holder == nullptr) return nullptr;
     if (!On(Sw::PropertyReads)) {
         NoteSkipped(Sw::PropertyReads, "GetProperty (absent)");
@@ -79,11 +80,11 @@ const cIGZVariant* ValueOf(const cISCPropertyHolder* holder, uint32_t id) {
     }
     cISCProperty* p = AsGame(holder)->GetProperty(id);  // slot 9
     if (p == nullptr) return nullptr;
-    return p->GetPropertyValue();
+    return AsGame(p->GetPropertyValue());
 }
 
 template <class T>
-bool ReadNumbers(const cIGZVariant* v, std::vector<T>& out) {
+bool ReadNumbers(const cFC4IGZVariant* v, std::vector<T>& out) {
     out.clear();
     if (v == nullptr) return false;
     const uint16_t type = v->GetType();
@@ -138,7 +139,7 @@ bool Has(const cISCPropertyHolder* holder, uint32_t id) {
 }
 
 uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id) {
-    const cIGZVariant* v = ValueOf(holder, id);
+    const cFC4IGZVariant* v = ValueOf(holder, id);
     return v ? v->GetType() : 0;
 }
 
@@ -146,7 +147,7 @@ uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id) {
 
 namespace {
 
-bool Put(cISCPropertyHolder* holder, uint32_t id, const cIGZVariant& value) {
+bool Put(cISCPropertyHolder* holder, uint32_t id, const cFC4IGZVariant& value) {
     if (holder == nullptr) return false;
     if (!On(Sw::PropertyWrites)) {
         // [choice] Reported as written, so the core's logic runs unchanged.
@@ -161,27 +162,28 @@ bool Put(cISCPropertyHolder* holder, uint32_t id, const cIGZVariant& value) {
 }  // namespace
 
 bool SetU32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<uint32_t>& values) {
-    cRZBaseVariant v;
-    v.RefUint32(const_cast<uint32_t*>(values.data()), static_cast<uint32_t>(values.size()));
+    cFC4Variant v;  // never the SDK variant: its slots 8 and 60 differ from the game's
+    v.SetRefUint32(const_cast<uint32_t*>(values.data()), static_cast<uint32_t>(values.size()));
     return Put(holder, id, v);
 }
 
 bool SetI64s(cISCPropertyHolder* holder, uint32_t id, const std::vector<int64_t>& values) {
-    cRZBaseVariant v;
-    v.RefSint64(const_cast<int64_t*>(values.data()), static_cast<uint32_t>(values.size()));
+    cFC4Variant v;  // never the SDK variant: its slots 8 and 60 differ from the game's
+    v.SetRefSint64(const_cast<int64_t*>(values.data()), static_cast<uint32_t>(values.size()));
     return Put(holder, id, v);
 }
 
 bool SetF32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<float>& values) {
-    cRZBaseVariant v;
-    v.RefFloat32(const_cast<float*>(values.data()), static_cast<uint32_t>(values.size()));
+    cFC4Variant v;  // never the SDK variant: its slots 8 and 60 differ from the game's
+    v.SetRefFloat32(const_cast<float*>(values.data()), static_cast<uint32_t>(values.size()));
     return Put(holder, id, v);
 }
 
 bool Copy(const cISCPropertyHolder* src, cISCPropertyHolder* dst, uint32_t id) {
-    const cIGZVariant* v = ValueOf(src, id);
+    const cFC4IGZVariant* v = ValueOf(src, id);
     if (v == nullptr || dst == nullptr) return false;
-    cRZBaseVariant copy(*v);
+    cFC4Variant copy;
+    copy.CopyFromGame(*v);
     return Put(dst, id, copy);
 }
 

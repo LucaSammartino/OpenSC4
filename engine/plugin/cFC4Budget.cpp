@@ -496,21 +496,21 @@ int64_t cFC4BudgetSimulator::GetTaxIncomeOfType(int32_t t) {
     FC4_TRACE("BudgetSimulator::GetTaxIncomeOfType");
     return fc4_budget_get_tax_income_for(core_, t);
 }
-int64_t cFC4BudgetSimulator::SetTotalMonthlyExpense(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalMonthlyExpense(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalMonthlyExpense");
-    return fc4_budget_set_total_monthly_expense(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_monthly_expense(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalYearlyExpense(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalYearlyExpense(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalYearlyExpense");
-    return fc4_budget_set_total_yearly_expense(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_yearly_expense(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalMonthlyIncome(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalMonthlyIncome(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalMonthlyIncome");
-    return fc4_budget_set_total_monthly_income(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_monthly_income(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalYearlyIncome(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalYearlyIncome(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalYearlyIncome");
-    return fc4_budget_set_total_yearly_income(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_yearly_income(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
 bool cFC4BudgetSimulator::ShowBudgetWindow() {
     FC4_TRACE("BudgetSimulator::ShowBudgetWindow");

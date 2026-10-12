@@ -80,10 +80,10 @@ public:
     int64_t GetTotalYearlyIncome() override;
     int64_t GetTaxIncomeOfType(int32_t nTaxType) override;
     int64_t GetTaxIncome() override;
-    int64_t SetTotalMonthlyExpense(int64_t llExpense) override;
-    int64_t SetTotalYearlyExpense(int64_t llExpense) override;
-    int64_t SetTotalMonthlyIncome(int64_t llIncome) override;
-    int64_t SetTotalYearlyIncome(int64_t llIncome) override;
+    int32_t SetTotalMonthlyExpense(int64_t llExpense) override;
+    int32_t SetTotalYearlyExpense(int64_t llExpense) override;
+    int32_t SetTotalMonthlyIncome(int64_t llIncome) override;
+    int32_t SetTotalYearlyIncome(int64_t llIncome) override;
     bool ShowBudgetWindow() override;
     cISC4DepartmentBudget* CreateDepartmentBudget(uint32_t dwDepartmentID, uint32_t dwBudgetGroup) override;
     bool RemoveDepartmentBudget(uint32_t dwDepartmentID) override;
