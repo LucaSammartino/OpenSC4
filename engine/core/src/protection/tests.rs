@@ -86,7 +86,7 @@ impl Fake {
                 locally_funded,
                 local_funding: local,
                 cost: 1000,
-                department_funding: Some(self.dept_funding.get()),
+                department: Some(0xD0FF),
             },
         );
     }
@@ -358,8 +358,8 @@ fn lifecycle_fire_and_police() {
     shipped(&host, ProtectionKind::Police);
     sim.init();
     let log = host.take();
-    assert!(log.contains(&"department 0xa2963983 0x4a357b40 0xaa493855 1.2".to_string()));
-    assert!(log.contains(&"department 0xa2963984 0x4a357b40 0x4a4fc955 1.2".to_string()));
+    assert!(log.contains(&"department 0xa2963983 0x4a357b40 0xaa493855 1.1999999".to_string()));
+    assert!(log.contains(&"department 0xa2963984 0x4a357b40 0x4a4fc955 1.1999999".to_string()));
     assert_eq!(log.iter().filter(|l| l.starts_with("subscribe")).count(), 2);
     assert_eq!(sim.data().tracts_per_day, 409);
     sim.shutdown();
@@ -386,28 +386,38 @@ fn cadence() {
 #[test]
 fn tuning_shipped_and_defaults() {
     let fire = ProtectionTuning::read(ProtectionKind::Fire, Some(&shipped_tuning(ProtectionKind::Fire)));
-    assert_eq!(fire.max_funding, 1.2);
+    // §6.7: 120 × 0.01f = 1.1999999 (0x3F999999), not 1.2f.
+    assert_eq!(fire.max_funding.to_bits(), 0x3F99_9999);
     assert_eq!(fire.strike_efficiency, 0.2);
+    assert_eq!(fire.min_funding_to_end.to_bits(), 0x3F66_6666);
     assert_eq!(fire.max_strike_duration, 548);
-    // §18 test 1.
-    for (f, e) in [(0.5f32, 0.25f32), (0.0, 0.10), (1.1, 1.05), (1.2, 1.10)] {
+    // §18 test 1 (bit-exact under 100.0f and 0.01f).
+    for (f, e) in [
+        (0.5f32, 0x3E80_0000u32),
+        (0.0, 0x3DCC_CCCC),
+        (1.1, 0x3F86_6666),
+        (1.2, 0x3F8C_CCCD),
+        (fire.max_funding, 0x3F8C_CCCD),
+    ] {
         let got = curve_pct(&fire.funding_curve, f);
-        assert!(close(got, e), "{f} → {got}");
+        assert_eq!(got.to_bits(), e, "{f} → {got}");
     }
     let police = ProtectionTuning::read(ProtectionKind::Police, Some(&shipped_tuning(ProtectionKind::Police)));
-    assert_eq!(police.escapee_range, (0.1, 0.5));
-    assert_eq!(police.rehab_rate, 0.1);
+    assert_eq!(police.escapee_range, (algo::pct(10.0), 0.5));
+    assert_eq!(police.rehab_rate.to_bits(), 0x3DCC_CCCC);
+    assert_eq!(police.strike_efficiency.to_bits(), 0x3E4C_CCCC);
+    assert_eq!(police.end_jailbreak_capacity.to_bits(), 0x3F4C_CCCC);
     assert_eq!(police.arrest_threshold, 20);
     assert_eq!(police.overflow_factor, 1.1);
     // §18 test 3, test 4 and test 8.
     assert!(close(curve_pct(&police.jail_curve, 0.55), 0.75));
     assert!(close(curve_pct(&police.jail_curve, 0.05), 0.25));
-    assert!(close(curve_pct(&police.strike_curve, 0.2), 0.40));
+    assert_eq!(curve_pct(&police.strike_curve, 0.2).to_bits(), 0x3ECC_CCCC);
     assert!(close(police.strike_curve.eval(50.0), 10.0));
     assert_eq!(police.strike_curve.eval(70.0), 0.0);
     assert_eq!(police.strike_curve.eval(100.0), 0.0);
-    assert!(close(curve_pct(&police.jailbreak_curve, 0.95), 0.55));
-    assert!(close(curve_pct(&police.jailbreak_curve, 0.85), 0.05));
+    assert_eq!(curve_pct(&police.jailbreak_curve, 0.95).to_bits(), 0x3F0C_CCCD);
+    assert_eq!(curve_pct(&police.jailbreak_curve, 0.85).to_bits(), 0x3D4C_CCCC);
     assert_eq!(curve_pct(&police.jailbreak_curve, 0.80), 0.0);
     // Defaults (quirk 11).
     let d = ProtectionTuning::read(ProtectionKind::Police, None);
@@ -424,7 +434,7 @@ fn tuning_shipped_and_defaults() {
 }
 
 fn curve_pct(c: &crate::curve::ResponseCurve, x: f32) -> f32 {
-    algo::pct(c.eval(crate::crime::mul_f32(f64::from(x), 100.0)))
+    algo::pct(c.eval(algo::times_hundred(x)))
 }
 
 #[test]
@@ -487,7 +497,31 @@ fn station_effects_and_coverage() {
     );
     let (ok, e) = sim.station_effect(9);
     assert!(!ok);
-    assert_eq!(e.radius, 400.0, "raw values survive a failure (quirk 3)");
+    assert_eq!(e, Effect::default(), "a zeroed record stays zeroed");
+    // §18 test 27: the caller's outer, radius and position survive.
+    let mut rec = Effect {
+        x: 1.0,
+        z: 2.0,
+        radius: 250.0,
+        centre: 7,
+        outer: 3,
+        original_centre: 7,
+    };
+    assert!(!sim.station_effect_into(9, &mut rec));
+    assert_eq!(
+        rec,
+        Effect {
+            centre: 0,
+            ..Effect {
+                x: 1.0,
+                z: 2.0,
+                radius: 250.0,
+                centre: 7,
+                outer: 3,
+                original_centre: 7,
+            }
+        }
+    );
     assert!(!sim.occupant_coverage(9, 0.5, &mut out));
     assert_eq!(out.station_radius, 200.0);
 
@@ -519,6 +553,104 @@ fn station_effects_and_coverage() {
     assert!(ok);
     // §18 test 15 (default curve: 75 → 75 → 0.75).
     assert_eq!((e.centre, e.outer, e.radius, e.original_centre), (75, 15, 225.0, 100));
+}
+
+#[test]
+fn station_effect_partial_reads() {
+    // §18 test 27 (PR2).
+    let (host, sim) = setup(ProtectionKind::Police, 64, &[]);
+    sim.init();
+    let pp = ProtectionKind::Police.params();
+    host.station(5, ProtectionKind::Police, 100, 20, 1.0, [10.0, 0.0, 20.0], 1);
+    host.item(5, pp.purpose, 1.0, true);
+    host.props.borrow_mut().remove(&(5, pp.effect_props[2]));
+    let mut rec = Effect {
+        radius: 250.0,
+        ..Effect::default()
+    };
+    assert!(sim.station_effect_into(5, &mut rec), "no radius: still succeeds");
+    assert_eq!(
+        (rec.radius, rec.centre, rec.outer, rec.x, rec.z),
+        (250.0, 100, 20, 10.0, 20.0)
+    );
+    // FreeCity4's own callers use a zeroed record: radius 0 ([choice]).
+    assert_eq!(sim.station_effect(5).1.radius, 0.0);
+
+    let (host, sim) = setup(ProtectionKind::Fire, 64, &[]);
+    sim.init();
+    let fp = ProtectionKind::Fire.params();
+    host.station(6, ProtectionKind::Fire, 100, 20, 300.0, [40.0, 0.0, 50.0], 1);
+    host.props.borrow_mut().remove(&(6, fp.effect_props[0]));
+    let mut rec = Effect {
+        centre: 9,
+        outer: 9,
+        radius: 9.0,
+        original_centre: 9,
+        ..Effect::default()
+    };
+    assert!(!sim.station_effect_into(6, &mut rec));
+    assert_eq!(
+        rec,
+        Effect {
+            x: 40.0,
+            z: 50.0,
+            radius: 300.0,
+            centre: 0,
+            outer: 20,
+            original_centre: 0,
+        },
+        "raw, unscaled, position written"
+    );
+    // §5.1 [choice]: a station whose effect fails draws nothing.
+    sim.data_mut().stations.push(obj(6));
+    sim.update_unadjusted();
+    let g = sim.unadjusted_grid().unwrap();
+    assert!((0..32).all(|x| (0..32).all(|z| g.get(x, z) == 0)));
+}
+
+#[test]
+fn max_possible_dispatch_count_carries_the_count() {
+    // §18 test 26 (PR1).
+    let (host, sim) = setup(ProtectionKind::Fire, 64, &[]);
+    sim.init();
+    let fp = ProtectionKind::Fire.params();
+    for (o, n) in [(1u64, 3u32), (2, 0), (3, 2)] {
+        host.station(o, ProtectionKind::Fire, 10, 0, 50.0, [0.0; 3], n);
+    }
+    host.props.borrow_mut().remove(&(2, fp.unit_count_prop));
+    sim.data_mut().stations = vec![obj(1), obj(2), obj(3)];
+    assert_eq!(sim.max_possible_dispatch_count(), 8);
+    assert_eq!(sim.total_dispatch_count(), 5);
+    sim.data_mut().stations = vec![obj(2), obj(1), obj(3)];
+    assert_eq!(sim.max_possible_dispatch_count(), 5);
+    sim.data_mut().stations.clear();
+    assert_eq!(sim.max_possible_dispatch_count(), 0);
+}
+
+#[test]
+fn station_statistics_lengths() {
+    // §18 test 29 (PR12).
+    let (host, sim) = setup(ProtectionKind::Police, 64, &[]);
+    shipped(&host, ProtectionKind::Police);
+    sim.init();
+    host.station(7, ProtectionKind::Police, 100, 20, 64.0, [8.0, 0.0, 8.0], 1);
+    sim.data_mut().stations.push(obj(7));
+    host.lots.borrow_mut().insert(0x77, (0, 0));
+    let stats = |v: &[u32]| Variant::array(mem::UINT32, v.iter().map(|&x| Elem::U32(x)).collect());
+    sim.crime_event(Some(0x77));
+    assert_eq!(host.get_u32s(7, prop::STATION_STATS), [0, 0, 1, 0]);
+    host.set(7, prop::STATION_STATS, stats(&[5, 6, 7, 8, 9]));
+    sim.coverage_grid().unwrap().set(0, 0, 200);
+    sim.crime_event(Some(0x77));
+    assert_eq!(host.get_u32s(7, prop::STATION_STATS), [5, 6, 8, 9, 9]);
+    sim.process_monthly_crime_stats();
+    assert_eq!(host.get_u32s(7, prop::STATION_STATS), [8, 9, 0, 0, 9]);
+    host.set(7, prop::STATION_STATS, stats(&[1, 2]));
+    sim.coverage_grid().unwrap().set(0, 0, 0);
+    sim.crime_event(Some(0x77));
+    assert_eq!(host.get_u32s(7, prop::STATION_STATS), [1, 2, 1, 0]);
+    host.set(7, prop::STATION_STATS, stats(&[]));
+    assert_eq!((sim.station_crime_count(7), sim.station_arrest_count(7)), (0, 0));
 }
 
 #[test]
@@ -587,10 +719,11 @@ fn monthly_strike_pass() {
     assert_eq!(sim.strike_start_date(), 100);
     assert_eq!(sim.strike_length(), 0);
     // Unadjusted rebuilt with both stations at strike efficiency; adjusted unchanged.
-    // Each cone: centre trunc(50 × 0.2) = 10 before; trunc(50 × f32(0.2 × 0.2)) = 2 after.
-    assert_eq!(adjusted_before, 20);
-    assert_eq!(sim.coverage_grid().unwrap().get(3, 3), 20);
-    assert_eq!(sim.unadjusted_grid().unwrap().get(3, 3), 4);
+    // Each cone: e = 20 × 0.01f = 0.19999999, centre trunc(9.9999995) = 9
+    // before; trunc(50 × f32(0.19999999²)) = trunc(1.9999998) = 1 after.
+    assert_eq!(adjusted_before, 18);
+    assert_eq!(sim.coverage_grid().unwrap().get(3, 3), 18);
+    assert_eq!(sim.unadjusted_grid().unwrap().get(3, 3), 2);
     let mut out = vec![obj(99)];
     assert_eq!(sim.striking_stations(&mut out), 2);
     assert_eq!(out.len(), 3, "appends");
@@ -799,7 +932,8 @@ fn jails_recalculate_rehab_and_reset() {
     assert_eq!(sim.criminal_count(), 1100);
     assert_eq!(sim.data().jail.unarrested_this, 0);
     // §18 test 9 through DoMonthly (no stations, jailbreak chances 0 below 0.8).
-    for (jailed, after) in [(600, 540), (125, 113), (135, 121)] {
+    // Shipped rate 0.099999994: 135 → 122, and 5 stays (§9.5).
+    for (jailed, after) in [(600, 540), (125, 113), (135, 122), (6, 5), (5, 5)] {
         sim.data_mut().jail.jailed = jailed;
         sim.do_monthly();
         assert_eq!(sim.criminal_count(), after);
@@ -807,8 +941,12 @@ fn jails_recalculate_rehab_and_reset() {
     // Upkeep: trunc(1000 × 1.0).
     assert_eq!(sim.jail_upkeep_cost(21), 1000);
     assert_eq!(sim.jail_upkeep_cost(99), 0);
-    // Removal.
+    // Removal (§9.4): only buildings.
     host.take();
+    sim.occupant_removed(obj(21));
+    assert!(host.take().is_empty(), "not a building: nothing");
+    assert_eq!(sim.jail_count(), 2);
+    host.types.borrow_mut().insert(21, BUILDING);
     sim.occupant_removed(obj(21));
     assert_eq!(host.take(), [format!("remove_funded 21 {JAIL_PURPOSE:#x}")]);
     assert_eq!(sim.jail_capacity(), 600);

@@ -18,11 +18,11 @@ use fc4_core::grid::{create_for_clsid, CityDims, GridProvider, SimGrid, TractGri
 use fc4_core::property::PropertyHolder;
 use fc4_core::protection::{
     adjusted_value, choose_base_call_number, combine_strike_chance, dispatch_from_station_mask, escapees,
-    jail_capacity, jailed_percentage, msg, occupant_coverage, query_interface, ratio_share, rehabilitation,
-    reset_unjailed, revoke_dispatch_mask, scale_effect, shipped_tuning, unit_mask, BudgetItem, CoverageOutputs,
-    DispatchInfo, Effect, ObjRef, ProtectionHost, ProtectionInterface, ProtectionKind, ProtectionMessage,
-    ProtectionRandom, ProtectionRng, ProtectionSim, SlotReturn, CLSID_ADJUSTED_GRID, CLSID_UNADJUSTED_GRID, FIRE_SLOTS,
-    OCCUPANT_TYPE_BUILDING, POLICE_SLOTS,
+    jail_capacity, jailbreak_ends, jailbreak_starts, jailed_percentage, msg, occupant_coverage, pct, query_interface,
+    ratio_share, rehabilitation, reset_unjailed, revoke_dispatch_mask, scale_effect, shipped_tuning, unit_mask,
+    BudgetItem, CoverageOutputs, DispatchInfo, Effect, ObjRef, ProtectionHost, ProtectionInterface, ProtectionKind,
+    ProtectionMessage, ProtectionRandom, ProtectionRng, ProtectionSim, SlotReturn, CLSID_ADJUSTED_GRID,
+    CLSID_UNADJUSTED_GRID, FIRE_SLOTS, OCCUPANT_TYPE_BUILDING, POLICE_SLOTS,
 };
 use fc4_core::rng::FixedSeeds;
 use fc4_core::store::{save_store, Package};
@@ -415,7 +415,7 @@ impl ProtectionHost for World {
             locally_funded,
             local_funding,
             cost,
-            department_funding: dept.then(|| self.dept_funding.borrow().get(&dept_id).copied().unwrap_or(1.0)),
+            department: dept.then_some(DEPARTMENT_TOKEN + u64::from(dept_id)),
         })
     }
     fn occupant_type(&self, occupant: u64) -> u32 {
@@ -551,6 +551,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_occupant" => expect_occupant(&w, op),
         "expect_refs" => expect_refs(&w, op),
         "grid_set" => grid_set(&w, op),
+        "grids" => grids(&w, op),
         "expect_grid" => expect_grid(&w, op),
         "expect_events" => w.events.expect_events(op),
         "expect_event_count" => w.events.expect_count(op),
@@ -888,6 +889,57 @@ fn a_i32(op: &Json, i: usize) -> R<i32> {
     i32_of(arg(op, i)?, "argument")
 }
 
+/// A float32 argument given as a number or as a `"0x3F4CCCCD"` bit pattern.
+fn a_f32_bits(op: &Json, i: usize) -> R<f32> {
+    let v = arg(op, i)?;
+    match v.as_str().and_then(|s| s.strip_prefix("0x")) {
+        Some(h) => u32::from_str_radix(h, 16)
+            .map(f32::from_bits)
+            .map_err(|e| e.to_string()),
+        None => f32_of(v, "argument"),
+    }
+}
+
+/// The float32 bit pattern of `v` as `"0x3DCCCCCC"`.
+fn bits_str(v: f32) -> Json {
+    Json::Str(format!("0x{:08X}", v.to_bits()))
+}
+
+/// With `"bits": true` on a `protection_call` / `protection_eval` op, every
+/// float in the result is replaced by its float32 bit pattern as a string
+/// (compared exactly; §18: "values given with a bit pattern must match bit
+/// for bit").
+fn with_bits(op: &Json, got: Json) -> Json {
+    fn conv(j: Json) -> Json {
+        match j {
+            Json::Float(f) => bits_str(f as f32),
+            Json::Array(a) => Json::Array(a.into_iter().map(conv).collect()),
+            Json::Object(o) => Json::Object(o.into_iter().map(|(k, v)| (k, conv(v))).collect()),
+            other => other,
+        }
+    }
+    if opt(op, "bits").and_then(crate::runner::boolean).unwrap_or(false) {
+        conv(got)
+    } else {
+        got
+    }
+}
+
+/// An effect record given as `{x?, z?, radius?, centre?, outer?,
+/// original_centre?}` (missing fields 0).
+fn effect_of(j: &Json) -> R<Effect> {
+    let fl = |k: &str| opt(j, k).map_or(Ok(0.0), |v| f32_of(v, k));
+    let it = |k: &str| opt(j, k).map_or(Ok(0), |v| i32_of(v, k));
+    Ok(Effect {
+        x: fl("x")?,
+        z: fl("z")?,
+        radius: fl("radius")?,
+        centre: it("centre")?,
+        outer: it("outer")?,
+        original_centre: it("original_centre")?,
+    })
+}
+
 fn effect_json(ok: bool, e: &Effect) -> Json {
     Json::Object(vec![
         ("ok".into(), Json::Bool(ok)),
@@ -1009,9 +1061,16 @@ fn call(w: &World, op: &Json) -> R<()> {
         }
         // effects, efficiency, coverage
         "funding_of" => jf(s.funding_of(a_u64(op, 0)?, a_u32(op, 1)?)),
+        "jail_funding" => jf(s.jail_funding(a_u64(op, 0)?)),
         "station_efficiency" => jf(s.station_efficiency(a_u64(op, 0)?)),
         "station_effect" => {
-            let (ok, e) = s.station_effect(a_u64(op, 0)?);
+            // args: [occupant, record?] (the caller's record, §7.1 PR2;
+            // zeroed when absent).
+            let mut e = match op.get("args").and_then(|a| a.as_array()).and_then(|a| a.get(1)) {
+                None => Effect::default(),
+                Some(r) => effect_of(r)?,
+            };
+            let ok = s.station_effect_into(a_u64(op, 0)?, &mut e);
             effect_json(ok, &e)
         }
         "dispatch_effect" => {
@@ -1143,6 +1202,7 @@ fn call(w: &World, op: &Json) -> R<()> {
         "jail_capacity_of" => ji(s.jail_capacity_of(a_u64(op, 0)?)),
         "recalculate" => unit(&|| s.recalculate()),
         "jailed_percentage" => jf(s.jailed_percentage()),
+        "jailed_percentage_bits" => bits_str(s.jailed_percentage()),
         "jail_capacity" => ji(s.jail_capacity()),
         "jail_population" => ji(s.jail_population()),
         "criminal_count" => ji(s.criminal_count()),
@@ -1166,7 +1226,7 @@ fn call(w: &World, op: &Json) -> R<()> {
         "station_stats" => Json::Array(s.station_stats(a_u64(op, 0)?).iter().map(|&v| ji(v)).collect()),
         other => return Err(format!("unknown protection method '{other}'")),
     };
-    check_expect(op, got)
+    check_expect(op, with_bits(op, got))
 }
 
 /// `protection_eval`: the pure functions of §5–§9 (`fn`, `args`, `expect`).
@@ -1243,12 +1303,26 @@ fn eval(op: &Json) -> R<()> {
                 jf(v)
             }
         }
+        "jailed_percentage_bits" => bits_str(jailed_percentage(a_i32(op, 0)?, a_i32(op, 1)?)),
+        "pct" => jf(pct(a_f32(op, 0)?)),
+        // args: [percentage, threshold], numbers or "0x" float32 bit patterns
+        "jailbreak_ends" => Json::Bool(jailbreak_ends(a_f32_bits(op, 0)?, a_f32_bits(op, 1)?)),
+        // args: [chance, draw]; the result says whether the draw was taken
+        "jailbreak_starts" => {
+            let draw = scalar::num(arg(op, 1)?).ok_or("draw: number")?;
+            let mut drawn = false;
+            let starts = jailbreak_starts(a_f32_bits(op, 0)?, || {
+                drawn = true;
+                draw
+            });
+            Json::Array(vec![Json::Bool(drawn), Json::Bool(starts)])
+        }
         "ratio_share" => ji(ratio_share(a_u32(op, 0)?, a_f32(op, 1)?)),
         "escapees" => ji(escapees(a_u32(op, 0)?, scalar::num(arg(op, 1)?).ok_or("r: number")?)),
         "jail_capacity" => ji(jail_capacity(a_u32(op, 0)?, a_f32(op, 1)?)),
         other => return Err(format!("unknown protection fn '{other}'")),
     };
-    check_expect(op, got)
+    check_expect(op, with_bits(op, got))
 }
 
 fn set(w: &World, op: &Json) -> R<()> {
@@ -1444,6 +1518,24 @@ fn grid_set(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// `protection_grids`: replaces both grids of the current simulator with
+/// fresh core grids of tract size `size` over the scripted city (a loaded
+/// city brings its grids with their saved geometry, §2).
+fn grids(w: &World, op: &Json) -> R<()> {
+    let size = i32_of(field(op, "size")?, "size")?;
+    if !(1..=64).contains(&size) {
+        return Err("size is 1..64".into());
+    }
+    let s = w.sim()?;
+    let p = s.kind().params();
+    let city = w.city.get();
+    s.set_grids(
+        Some(SimGrid::<u8>::create(&city, p.adjusted_instance, size)),
+        Some(SimGrid::<i16>::create(&city, p.unadjusted_instance, size)),
+    );
+    Ok(())
+}
+
 /// Reads one tract of a coverage grid as a number.
 type CellReader = Box<dyn Fn(i32, i32) -> f64>;
 
@@ -1620,9 +1712,10 @@ impl RefResolver for PayloadResolver {
 }
 
 /// `protection_read`: `Read` of the simulator's payload in `slot` by a new
-/// simulator of the current kind, outside the store; checks the result
-/// (`expect`) and the bytes consumed (`position`), then makes the new
-/// simulator current. `hex` replaces the payload.
+/// simulator of the current kind (or, with `reuse`, by the current one),
+/// outside the store; checks the result (`expect`) and the bytes consumed
+/// (`position`), then makes the reading simulator current. `hex` replaces
+/// the payload.
 fn read(w: &World, op: &Json) -> R<()> {
     let kind = w.kind.get();
     let (payload, hosts) = match opt(op, "hex") {
@@ -1635,12 +1728,17 @@ fn read(w: &World, op: &Json) -> R<()> {
             )
         }
     };
-    let sim = ProtectionSim::new(
-        w.rc() as Rc<dyn ProtectionHost>,
-        kind,
-        w.token(),
-        w.rng(opt(op, "rng"))?,
-    );
+    // `reuse`: read into the current simulator (a re-read, §11 PR13).
+    let sim = if opt(op, "reuse").and_then(crate::runner::boolean).unwrap_or(false) {
+        w.sim()?
+    } else {
+        ProtectionSim::new(
+            w.rc() as Rc<dyn ProtectionHost>,
+            kind,
+            w.token(),
+            w.rng(opt(op, "rng"))?,
+        )
+    };
     let mut res = PayloadResolver(hosts, BTreeMap::new());
     let mut r = ByteReader::with_resolver(&payload, &mut res);
     let ok = sim.read(&mut r);
