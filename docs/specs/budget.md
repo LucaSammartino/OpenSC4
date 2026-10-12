@@ -368,18 +368,29 @@ t := TaxType[purpose][lWealth];  skip if untaxed
 value := building property 0xE91A0B5F (sint64, 0 if absent)
 lv    := land value (0..255) at the lot's origin cell
 land  := roundHalfEven(LVCurve(lv) × sizeX × sizeZ)                 (single precision)
-assessed := trunc(float(land + value) × OccWeight[t] × WaningWealth[bWealth − lWealth])
+assessed := trunc(float(land + value) × WaningWealth[bWealth − lWealth] × OccWeight[t])
 weightedAssessed[t] += assessed
-lotTax := rate[t] × DifficultyTaxMultiplier[difficulty] × assessed / 1200
+lotTax := float(assessed) × DifficultyTaxMultiplier[difficulty] × rate[t] × INV1200
 groupTax[t] += lotTax;  total += lotTax
 ```
 
 Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc(total)`.
 
-- `/1200` converts a yearly percentage to a monthly fraction.
-- *[compat]* The per-lot product and the accumulation are single-precision floats in the original Windows build
-  (the multiplication uses the float constant 1/1200). Implementations should use float32 for the product and the
-  running sums so totals match to the simoleon on large cities; tests allow ±1 per 1000 lots (§15).
+- `INV1200` is the `float32` constant nearest to 1/1200 (`0.00083333335`); it converts a yearly percentage to a
+  monthly fraction. The original multiplies by it; it never divides by 1200.
+- *[compat]* **Operation order** (corrected, Errata round 3, item 2): every product above is evaluated **left to
+  right, one `float32` rounding per multiplication** (foundations §18.3). `land + value` and `assessed` are 64-bit
+  integers that enter their first multiplication **exactly** (not rounded to `float32` first; foundations §18.3
+  point 1). The order matters: `(assessed × multiplier) × rate` and `(rate × multiplier) × assessed` differ in the
+  last bit often enough to move a truncated result by 1 (§15 test 2 has a case). The running sums `groupTax[t]` and
+  `total` are `float32` too. Totals then match the original to the simoleon for the same lots in the same order;
+  tests allow ±1 per 1000 lots only for the lot-order freedom above (§15).
+- `rate[t]` is the group's current rate (the original reads it through its own `GetTaxRate(t)`).
+- `value` is read with a converting 64-bit integer read: a scalar of any numeric type converts (a float is
+  truncated). All shipped exemplars store `0xE91A0B5F` as a scalar sint64. *[choice]* An array value uses its first
+  element (the original's result for arrays was not verified). The holder is the building occupant's own property
+  holder (`cISC4Occupant::AsPropertyHolder`, the same object that `QueryInterface(0x25216283)` returns), so instance
+  overrides win over the exemplar.
 - *[choice]* If `bWealth − lWealth` is outside 0..2, use multiplier 1.0 (the original indexes out of range).
 - With the shipped data `LVCurve` is flat zero and every weight is 1, so tax = `rate% × buildingValue / 12 ×
   {1.2, 1.1, 1.0}` per difficulty. Example: a building worth 10,000 at 9 % on hard pays 75 per month.
@@ -483,7 +494,7 @@ moves on days.
 | `GetTotalMonthlyIncome()` | **Live**: Σ_t `GetTaxIncome(t)` + ordinance monthly income + neighbour deal income + Σ departments' `GetTotalIncome()`. 64-bit as above. |
 | `GetTotalYearlyIncome()` | stored `yearlyIncome`. |
 | `GetTaxIncome()` | `lastTaxIncome` (the last `ComputeTax` result). |
-| `GetTaxIncome(t)` | `trunc(DifficultyTaxMultiplier[difficulty] × rate[t] × weightedAssessed[t] / 1200)` in single precision: uses the *current* rate with last month's assessed value, so the budget window reacts to the tax slider at once. *[choice]* 0 for t outside 0..11 (the original does not check). |
+| `GetTaxIncome(t)` | `trunc(float(weightedAssessed[t]) × DifficultyTaxMultiplier[difficulty] × rate[t] × INV1200)`, left to right, one `float32` rounding per multiplication, `weightedAssessed[t]` entering exactly (§5.2; order corrected in Errata round 3, item 2). It uses the *current* rate with last month's assessed value, so the budget window reacts to the tax slider at once. *[choice]* 0 for t outside 0..11 (the original does not check). |
 | `SetTotalMonthlyExpense(v)` / `SetTotalYearlyExpense(v)` / `SetTotalMonthlyIncome(v)` / `SetTotalYearlyIncome(v)` | Store into `lastMonthExpense` / `yearlyExpense` / `lastMonthIncome` / `yearlyIncome`. No other effect (the monthly ones are overwritten at the next settlement). Return `v`. |
 | `ShowBudgetWindow()` | Open the budget window's sub-panel selected by the panel flag (the original builds one of two budget-UI window procedures). *[choice]* UI is outside the simulation; return true. |
 | `CreateDepartmentBudget(id, group)` | If the department exists, return it unchanged (`group` ignored). Otherwise create it, `Init` it, store it under `id`, set its ID, call its `SetFundingPercentage(100 %, 0)` (a no-op since it starts at 100 %), find-or-create group `group` (name from LTEXT `0x6A3FF01C`/`group`, totals 0), add `id` to the group, set the department's budget group, then **group refresh** (§6.1). Return the borrowed department. |
@@ -619,6 +630,16 @@ if F > 0:
 
 This re-synchronises the department slider with the actual per-building funding after individual buildings were
 changed. *[compat]* A holder registered under two purposes of the same department is counted twice.
+
+*[compat]* Precision (confirmed, Errata round 3, item 1): the `sum[line]` step is three `float32`-rounded
+operations, left to right: `cost × localFunding`, then `× 100`, then `+ sum[line]`, each rounded to `float32`
+(foundations §18; `cost` and `sum[line]` are 64-bit integers that enter exactly), then truncation toward zero.
+`div 100` is a signed 64-bit integer division (truncating). Example: cost 300 at local funding `0.41f` (stored as
+41.0 %) gives `300 × 0.41f = 122.999998927…`, rounded to `123.0`, so `12300` and a current expense of **123**;
+at `0.35f`, **105**. Evaluating the same expression in `double` gives 122 and 104 instead, which is **wrong**.
+The original game wrote exactly these values: a city saved by the unmodified game (Spandau, a 300-simoleon clinic
+at 41 % and a 300-simoleon school at 35 %) holds year-to-date department spending of 369 = 3 × 123 and
+315 = 3 × 105 after three settlements.
 
 The single-line variant (used by §7.3) recomputes only one local Expense line the same way, without the
 re-synchronisation step.
@@ -900,7 +921,10 @@ updated by the original; they are kept only so that save records keep their layo
 2. **Tax**: the tax-type table (all 36 cells, untaxed cells skipped); a 10,000 building at 9 % pays 90 / 82 / 75
    (easy / medium / hard; 82 = trunc(82.5)); waning-wealth multipliers 1 / 0.75 / 0.5; land-value curve applied as
    `roundHalfEven(curve(lv) × sizeX × sizeZ)`; `GetTaxIncome(t)` follows a rate change at once; totals within
-   ±1 per 1000 lots of a float64 reference.
+   ±1 per 1000 lots of a float64 reference. **Operation order** (§5.2): on easy (multiplier 1.2) at 7 %, a group
+   with `weightedAssessed` 998,857 gives `GetTaxIncome(t)` = **6992** (`(998857 × 1.2f) × 7 × INV1200` = 6992.0);
+   the order `(7 × 1.2f) × 998857 × INV1200` gives 6991.9995 → 6991, which is wrong. A single lot assessed at
+   998,857 in that group adds 6992.0 to `groupTax`.
 3. **Settlement**: with stub ordinance (income 50, expense 30), neighbours (income 7, expense 11), a department with
    one non-local line (full 1000, p = 0.5) and one bond, funds change by exactly `income − expense`; YTD values,
    last-month values and the three history series are as in §5.1, including the `0xFFFFFFFF` clamp.
@@ -920,7 +944,9 @@ updated by the original; they are kept only so that save records keep their layo
    (§7.3) and posts BudgetForOccupantChanged; `SetLocalFullFunding` and `RemoveLocallyFundedObject` behave as in
    §7.4 and §7, including the cost property set to 0 and the reset to 100 % when the department empties.
 10. **Re-synchronisation**: `RecalculateAllLineItemCurrentExpenses` moves the department percentage only when both
-    thresholds of §7.2 are exceeded.
+    thresholds of §7.2 are exceeded. **Precision** (§7.2): one locally funded building with cost 300 on a local
+    Expense line, local funding property 41.0 → current expense **123** (not 122); 35.0 → **105** (not 104); the
+    department percentages 0.41 and 0.35 stay unchanged (no re-synchronisation).
 11. **Budget items**: `GetBudgetItemInfo` with short arrays (defaults 0 and 100 %), missing department array →
     false; `GetBudgetItemForPurpose` returns the first match; `ChangeBudgetItemLocalFunding` pads with 0.
 12. **Groups**: creating departments in a group, BudgetGroupChanged only when totals change, `GetAllGroups` and
@@ -1014,3 +1040,55 @@ Answers to the implementer's questions of round 2. The main text above has been 
 
    New tables related to the budget's own calls: `cISC4DisasterManager`, `cISC4GameDataRegistry`,
    `cISC4BuildingDevelopmentSimulator` and `cISC4LotManager` are in foundations §17.
+
+## Errata / clarifications (round 3): first in-game differential test
+
+The same save (Spandau, about 2,300 residents) was run once with the original budget (run 19) and once with
+ours (run 20), the original simulator active in both. The first month-end (2001-10) starts from identical state.
+Two differences were reported: health and education expense (122 / 104 in the original, 123 / 105 in ours) and
+tax income by type (types 4, 6 and 9). Findings:
+
+1. **Department expense: the spec and our implementation are right; the run-19 reference is not.** The current
+   expense of a local line is recomputed at every settlement by §7.2, whose `sum[line]` step is
+   `trunc(cost × localFunding × 100 + sum)`, each operation rounded to `float32` (the game sets 24-bit x87
+   precision at start-up, foundations §18). Health and education here each hold one 300-simoleon building
+   (local funding 41 % and 35 %), so the step gives `300 × 0.41f → 123.0` and current expense 123, and
+   `300 × 0.35f → 105.0`, 105. The values 122 and 104 are what the same expression gives in 53- or 64-bit
+   precision (`12299.99989…`, `10499.99982…`). The save itself was written by the unmodified game (before any
+   FreeCity4 build existed) and records 123 / 105 as the current expenses and year-to-date spending of
+   369 = 3 × 123 and 315 = 3 × 105. So the unmodified game produced 123 / 105 at three settlements in a row.
+   In run 19 the main thread's x87 precision was therefore **not** 24-bit when the settlement ran. Something
+   in the test process changed it. Until the harness shows 24-bit precision on the main thread, run-19-style
+   references are not valid for float-sensitive values. §7.2 and §15 test 10 now state the precision and
+   this case. No logic change.
+
+2. **Operation order of the tax products (spec corrected).** §5.2 and `GetTaxIncome(t)` (§6) wrote the
+   products in a different order from the original, and the implementation followed the text. The original
+   evaluates `float(land + value) × WaningWealth × OccWeight` and `float(assessed) × DifficultyTaxMultiplier ×
+   rate × INV1200` from left to right. Each multiplication is rounded to `float32`, and the 64-bit integer
+   enters exactly. A different order can change a truncated result by 1 (§15 test 2). This is a rare ±1
+   effect. It does **not** explain the reported per-type differences (+15, −1 and −4).
+
+3. **Tax by type: no spec defect found.** The following were re-checked against the original and found to
+   agree with §2 and §5.2:
+   - the tax-type table (all 36 cells);
+   - purpose and wealth: the first two 32-bit fields of the building's per-type profile;
+   - lot wealth: the lot's occupant wealth, which is the lot's dominant occupant wealth level, at most the
+     building's;
+   - the livable test, the lot size, and the land value at the lot's location;
+   - the building value: property `0xE91A0B5F` from the occupant's property holder, a scalar sint64 in all
+     shipped data.
+
+   The plugin's lot visitor reads the same values through the same interface slots. The per-type differences
+   therefore come from **different inputs at the moment `ComputeTax` runs**, not from the formula. Candidates,
+   still open:
+   - (a) The month-level agent order. The original simulator orders agents by object address, so the
+     replacement budget can settle before or after other month-level agents that change lot occupancy or wealth.
+     In run 19 the original budget sometimes settled after the observer's month line (2001-12 and 2002-01
+     show last month's values), and ours always settled before it.
+   - (b) A different x87 precision between the two runs, which would make the game's own simulators diverge.
+   - (c) A lot-set difference between the master lot list and `GetLotsInCellRect`.
+
+   A per-lot dump was requested to decide between them. The same runs also differ by 7 simoleons in non-tax
+   monthly income (35 against 28: ordinance, neighbour deals and department line-item income), which is still
+   unexplained.

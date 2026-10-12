@@ -1700,6 +1700,12 @@ precision (they only force round-to-nearest and masked exceptions while they run
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
   from their entry points]*.
+- **Confirmed in a save of the unmodified game**: three monthly budget settlements produced the 24-bit result
+  of a float-sensitive expression (budget.md §7.2 and Errata round 3: `300 × 0.41f × 100` gives 12300, not
+  12299). In an in-game run with the FreeCity4 plugin loaded (run 19), the same original code produced the
+  53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
+  a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
+  shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
 
 ### 18.3 What 24-bit precision means
 
