@@ -158,6 +158,14 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4BudgetHost.cpp
         plugin/cFC4LandValue.cpp
         plugin/cFC4LandValue.h
+        plugin/cFC4Weather.cpp
+        plugin/cFC4Weather.h
+        plugin/cFC4Ordinance.cpp
+        plugin/cFC4Ordinance.h
+        plugin/cFC4Demand.cpp
+        plugin/cFC4Demand.h
+        plugin/FC4CoreProps.cpp
+        plugin/FC4CoreProps.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -188,6 +196,18 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(fc4_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME message_test COMMAND fc4_message_test)
+
+    # Single ownership of elements pushed into game containers
+    # (plugin/FC4GameContainers.h; in-game run 8 heap corruption).
+    add_executable(fc4_game_container_test
+        tests/game_container_test.cpp
+        "${FC4_GZCOM_DIR}/src/SC4String.cpp"
+        "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
+        "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_game_container_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_game_container_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_game_container_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME game_container_test COMMAND fc4_game_container_test)
 
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
@@ -232,11 +252,18 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable)
     add_test(NAME plugin_ini_enable_disabled_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-disabled)
+    add_test(NAME plugin_ini_enable_weather_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-weather)
+    add_test(NAME plugin_ini_enable_ordinance_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ordinance)
+    add_test(NAME plugin_ini_enable_demand_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-demand)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
     set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
-        plugin_ini_enable_disabled_test plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
+        plugin_ini_enable_disabled_test plugin_ini_enable_weather_test plugin_ini_enable_ordinance_test
+        plugin_ini_enable_demand_test plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

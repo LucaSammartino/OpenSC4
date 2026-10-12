@@ -25,6 +25,14 @@ $Exe = Join-Path $GameDir "SimCity 4.exe"
 $Plugins = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Plugins"
 $Log = Join-Path $Plugins "FreeCity4.log"
 $OutDir = Join-Path $PSScriptRoot "..\build-runs"
+
+# The game keeps the log open for writing, so it must be read with FileShare.ReadWrite (ReadAllText fails).
+function ReadShared([string]$path) {
+    try {
+        $fs = [IO.File]::Open($path, 'Open', 'Read', 'ReadWrite,Delete')
+        try { return (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Close() }
+    } catch { return "" }
+}
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
 if (Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue) {
@@ -36,7 +44,11 @@ $auto = ""
 if ($Ini -notmatch "autotest_seconds") { $auto += "autotest_seconds = $AfterLoadSeconds`n" }
 if ($Ini -notmatch "autotest_unpause") { $auto += "autotest_unpause = 1`n" }
 Set-Content -Path (Join-Path $Plugins "FreeCity4.ini") -Value ("# ingame_run $Label`n" + $auto + $Ini) -Encoding ascii
-Set-Content -Path $Log -Value "" -Encoding ascii
+# The log can stay locked for a few seconds while a previous game process finishes exiting.
+for ($i = 0; ; $i++) {
+    try { Set-Content -Path $Log -Value "" -Encoding ascii -ErrorAction Stop; break }
+    catch { if ($i -ge 20) { Write-Output "BLOCKED: $Log is locked: $($_.Exception.Message)"; exit 3 }; Start-Sleep -Seconds 3 }
+}
 
 $p = Start-Process -FilePath $Exe -ArgumentList "-CPUCount:1", "-w" -WorkingDirectory $GameDir -PassThru
 $start = Get-Date
@@ -46,7 +58,7 @@ $verdict = $null
 while ((Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     Start-Sleep -Seconds 3
     $text = ""
-    try { $text = [IO.File]::ReadAllText($Log) } catch { }
+    $text = ReadShared $Log
     if ($text -match "AUTOTEST VERDICT: ([a-z]+)[^\r\n]*") { $verdict = $Matches[0]; break }
     if ($text -match "first-chance exception OUTSIDE FreeCity4\.dll[^\r\n]*") { $verdict = "corrupt (fallback): " + $Matches[0] }
     if ($text -match "WATCHDOG: main thread[^\r\n]*stalled[^\r\n]*") { $verdict = "stalled (fallback): " + $Matches[0]; Start-Sleep -Seconds 5; break }
@@ -70,7 +82,7 @@ if (-not $p.HasExited) {
 Start-Sleep -Seconds 2
 Copy-Item $Log (Join-Path $OutDir "$Label.log") -Force
 Write-Output "[$Label] $verdict"
-$t = [IO.File]::ReadAllText($Log)
+$t = ReadShared $Log
 foreach ($pat in "budget switches OFF[^\r\n]*", "heartbeat \(periodic\)[^\r\n]*") {
     $m = [regex]::Matches($t, $pat)
     if ($m.Count -gt 0) { Write-Output ("  " + $m[$m.Count - 1].Value) }

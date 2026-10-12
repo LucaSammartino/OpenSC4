@@ -307,7 +307,7 @@ On a lot the sea-level and slope tests are skipped. Return in AL only.
 #### 6.4.1 Blocking filter
 
 `cSC4FloraBlockingOccupantFilter` accepts occupant types flora `0x74758926`, building `0x278128A0`, landfill
-`0x6A11BD2B` *[inferred name]* and prop `0xA823821E`, plus network occupants (`0xC772BF98`) whose
+`0x6A11BD2B` (the landfill occupant type, landfill.md §2.3) and prop `0xA823821E`, plus network occupants (`0xC772BF98`) whose
 `cISC4NetworkOccupant::GetNetworkFlag()` & `0x1F4F` ≠ 0 (road, rail, highway, street, avenue, light rail,
 monorail, one-way road, dirt road, ground highway; not pipes, power lines or subway *[inferred from the SDK
 enum]*). Everything else does not block flora.

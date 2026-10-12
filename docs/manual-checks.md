@@ -4,11 +4,18 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 
 ## Needs you (blocking)
 
-1. **Close the running game** (Task Manager → SimCity 4 → End task). It was started elevated, so Claude can't
-   close it. After that, Claude launches the game from its own shell (normal integrity), so it can stop and
-   relaunch it alone and run the budget-corruption bisection unattended.
-2. **Confirm the game opens the last city by itself** at launch. If it opens to the region view instead,
-   unattended runs need one click per run, or a load-on-start option.
+Nothing right now. The game opens to the region view, so the plugin is getting an `autoload_city` option; after
+that, bisection runs need no clicks.
+
+## Budget corruption bisection
+
+| Run | Switches | Result |
+|---|---|---|
+| 8 | all on, message-layout fix | corrupt: NT heap unlink AV right after load. Cause: `GetAllGroups` pushed a vector element holding a string by bitwise copy (double free). Fixed in 8d79c77 (merged). |
+| 9 | all on, with the fix | load and first month OK; crash at month end in the game's sound-event pool (exe+0x1E16F5) |
+| 10 | `message_posting = 0` | same month-end crash, so messages are not the cause |
+| 11 | `lot_scan = 0` | **clean** for two months: the culprit is the lot scan (`ForEachLot`) |
+| next | lot_scan sub-switches | in progress: the plugin lane is adding sub-switches and auto-load |
 
 ## Progress log while you were away
 

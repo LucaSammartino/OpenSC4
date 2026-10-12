@@ -129,8 +129,9 @@ not a corner):
    *[quirk]*.
 
 `GetAverageValueInTractRect(tx, tz, w, h)` is the same over tracts `[tx, tx + w) × [tz, tz + h)` (no one-tract
-shortcut). With w or h ≤ 0 the sum is empty and the result is 0 / 0: integer grids then return the integer
-"indefinite" value truncated to T (`0x80000000` for 32-bit grids, hence 0 for 8- and 16-bit grids), float grids
+shortcut). With w or h ≤ 0 the sum is empty and the result is 0 / 0: integer grids then return the C
+runtime conversion's NaN result truncated to T: the conversion (`_ftol`, foundations §18.1) yields the 64-bit
+`0x8000000000000000`, so 8-, 16- and 32-bit grids get **0** and 64-bit grids `0x8000000000000000`; float grids
 NaN *[quirk]*; *[choice]* FreeCity4 returns 0.
 
 ### 4.2 `SetTractSize(S)` *[compat]*
@@ -306,7 +307,10 @@ void* context)`, context. It reads both grids' shift and counts (slots 11–13) 
 | shiftA > shiftB (A coarser, d = shiftA − shiftB) | for each A tract: sum of the 2^d × 2^d covered B values (signed 32-bit), then `(sum >> d) >> d` (arithmetic shifts, i.e. floor of the mean); `f(&A[x][z], thatMean)` |
 | shiftA < shiftB (A finer, d = shiftB − shiftA) | for each B tract (x < countX(B), z < countZ(B)): `f(&A[x'][z'], B[x][z])` for every A tract (x', z') it covers |
 
-No bounds checks: the grids must cover the same city. The instantiation `<uint8, int16>` is used by land value
+No bounds checks: the grids must cover the same city. If they do not, the cases differ *[compat]*: the
+equal-size and "A coarser" cases loop over A and read B out of range when B is smaller; the "A finer" case loops
+over **B**, so A tracts outside B's area are simply not visited (and a B larger than A writes outside A). Land
+value §7.4 states what a replacement does in each case. The instantiation `<uint8, int16>` is used by land value
 (desirability) and aura. The aura and the growth developers use further instantiations (float, uint8, int8, int16
 sources) and **residential-only** variants that call the callback only for tracts whose lot (lot manager
 `GetLot(x, z, false)`) has zone type 1..3; see aura.md.
@@ -330,8 +334,10 @@ sources) and **residential-only** variants that call the callback only for tract
 **Random cell iterator** (prime-step or table mode): specified in weather.md §6.7 and foundations §12.4. Facts
 needed by grid simulators *[compat]*:
 - A never-reset iterator has count 0: its first `GetNext` returns false.
-- `Reset` in prime-step mode makes exactly **one** `rand()` call; in table mode it refills `0 … n−1` in order
-  when the size changed and `random_shuffle`s it (n − 1 `rand()` calls).
+- `Reset` in prime-step mode makes exactly **one** `rand()` call; in table mode it refills the table with the
+  rectangle's **absolute** packed coordinates `(x mod 256) << 8 | (z mod 256)` in natural order (x outer, z inner)
+  at every reset, and `random_shuffle`s it when asked (n − 1 `rand()` calls). A table-mode reset leaves the
+  prime-step `current` and `step` unchanged. Details: weather.md §6.7.
 
 ### 7.5 Other utilities (not specified here)
 

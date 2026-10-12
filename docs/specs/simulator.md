@@ -244,6 +244,16 @@ addresses, both holding `1.0f` before first use).
 Identification values for the 1.1.641 GOG executable: PE `TimeDateStamp` = `0x4C12BFB7`, `SizeOfImage` = `0x007C8000`. Otherwise it must not write, and must log a warning. Keep such
 version-specific addresses in a single compatibility table (`engine/plugin/compat/`).
 
+**Adaptive slicing helper** *[compat]*. Several agents (aura, growth developer, land value, plumbing, residential)
+use one shared helper (`0x0068CC20` / `0x0068BF50` / `0x0068BF80` / `0x0068B960`) on top of this budget. The
+deadline is `TSC + trunc(float32(ms × MillisecsToCycles))`. Each processed item adds the current `step` to a
+counter, and the clock is read only when the counter reaches a multiple of 1024. At the end of each call,
+`n = counter >> 10`; `n > 20` increments a miss counter (at 16 the step halves), `1 ≤ n < 5` decrements it (at −4
+the step doubles), `n = 0` changes nothing. `step` (initially 1024) and the miss counter are a **process-wide
+static per caller** (aura `0x00B47B60`, growth developer `0x00B49098`, land value `0x00B49104`, plumbing
+`0x00B49B4C`, residential `0x00B4AFB0`). The slicing affects only how much work happens per call, never the
+results; aura §6.5 gives the details. *[choice]* FreeCity4 may keep the step per simulator.
+
 ### 5.6 Verified slot order of `cISC4Simulator` overloads *[compat]* (see foundations §16)
 
 | Slot | vtable offset | Method (as the game expects it) |

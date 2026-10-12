@@ -40,6 +40,8 @@
 
 #include "FC4Interfaces.h"
 
+#include "SC4Vector.h"
+#include "cIGZPersistResourceKeyList.h"
 #include "cIGZPersistResourceManager.h"
 #include "cIGZString.h"
 #include "cIGZVariant.h"
@@ -54,14 +56,21 @@
 #include "cISC4DisasterManager.h"
 #include "cISC4GameDataRegistry.h"
 #include "cISC4HistoryWarehouse.h"
+#include "cISC4LandfillDeveloper.h"
 #include "cISC4LineItem.h"
 #include "cISC4Lot.h"
 #include "cISC4LotManager.h"
+#include "cISC4Nation.h"
+#include "cISC4NeighborConnection.h"
 #include "cISC4NeighborsSimulator.h"
 #include "cISC4Ordinance.h"
 #include "cISC4OrdinanceSimulator.h"
+#include "cISC4PoliceSimulator.h"
+#include "cISC4PollutionSimulator.h"
+#include "cISC4PowerSimulator.h"
 #include "cISC4RegionalCity.h"
 #include "cISC4Simulator.h"
+#include "cISC4TrafficSimulator.h"
 #include "cISC4WeatherSimulator.h"
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
@@ -71,6 +80,7 @@
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LotDeveloper.h"
+#include "cISC4Region.h"
 #include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "cISTETerrain.h"
@@ -325,32 +335,19 @@ const Waiver kWaivers[] = {
     {"cISC4HistoryWarehouse", "cISC4HistoryWarehouse", 9, "Coalesce",
      "the SDK declares 12 argument bytes, the game's method pops 16"},
     {"cISC4OrdinanceSimulator", "cISC4OrdinanceSimulator", 24, "GetCumulativeOffset",
-     "the SDK says int64, the game returns 32 bits in eax"},
+     "the SDK says int64, the game returns 32 bits in eax; cFC4OrdinanceSimulator implements it with the "
+     "sign-extended sum in edx:eax, so a caller reading eax sees the original's value"},
     {"vt:cSC4City::vftable", "cISC4City", 96, "CellCornerToPosition", "the game returns in ST0"},
     {"vt:cSC4City::vftable", "cISC4City", 97, "CellCenterToPosition", "the game returns in ST0"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 10, "ChanceOfSchoolStrike",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 11, "ChanceOfHealthStrike",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 12, "GetSchoolSystemRating",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 13, "GetHealthSystemRating",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 30, "GetCellWorkforcePercent",
-     "pops 12 and returns in eax (SDK: 8 bytes, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 31, "GetGlobalWorkforcePercent",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 34, "GetGlobalLE",
-     "returns in eax (SDK: float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 56, "GetAutoBudget",
-     "pops 4 (SDK: no argument)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 57, "SetAutoBudget",
-     "pops 8 (SDK: 4 bytes)"},
-    {"vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", 8, "CalculateJobsPerUnitOfDemand",
-     "the game returns in ST0 (SDK: void)"},
-    {"cISC4Demand", "cISC4Demand", 16, "AddToSupplyValue", "the game returns in ST0 (SDK: bool)"},
-    {"cISC4Demand", "cISC4Demand", 17, "AddToDemandValue", "the game returns in ST0 (SDK: bool)"},
-    {"cISC4Demand", "cISC4Demand", 30, "EndOfCycle", "the game returns in eax (SDK: float)"},
+    // cISC4ResidentialSimulator, cISC4DemandSimulator, cISC4Demand and
+    // cISC4RegionalCity are declared in FC4Interfaces.h (demand spec §14);
+    // their SDK rows are reported only.
+    // The traffic simulator, read by the demand glue (GetTrafficArrived only).
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 11, "GetBackgroundTraffic",
+     "the game returns in ST0 (SDK: intptr_t)"},
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 23, "GetCapacity", "the game returns in ST0 (SDK: uint32)"},
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 26, "GetTravelStrategyPercentages",
+     "pops 8 and returns in ST0 (SDK: vector by value, bool)"},
     // The game's grids, used by the land value simulator (simgrid.md §4).
     {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
@@ -363,6 +360,38 @@ const Waiver kWaivers[] = {
     {"cISTETerrain", "cISTETerrain", 59, "BeginBrushScrub", "pops 8 (SDK: 4 bytes)"},
     {"cISC4LotDeveloper", "cISC4LotDeveloper", 23, "IsAreaDeveloped", "pops 4 (SDK: no argument)"},
     {"cISC4LotDeveloper", "cISC4LotDeveloper", 53, "RemoveLotFoundation", "pops 8 (SDK: 4 bytes)"},
+    // City services read by the standard ordinances (ordinance.md §3.6); the
+    // plugin calls GetLandfillUsage, GetPoliceStationCount, GetPowerPlantCount(type)
+    // and GetRecyclingCenterEffect only.
+    {"cISC4LandfillDeveloper", "cISC4LandfillDeveloper", 9, "GetZoningCost", "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 11, "GetChanceOfStrike", "pops 4, returns in eax (SDK: none, float)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 19, "GetPercentCoverage", "returns in eax (SDK: float)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 25, "GetStationEfficiency", "pops 8 (SDK: 4 bytes)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 36, "GetJailedPercentage", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 37, "GetJailCurrentUpkeepCost", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 39, "IsInJailbreak", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 40, "BeginJailbreak", "returns in eax (SDK: float)"},
+    {"cISC4PowerSimulator", "cISC4PowerSimulator", 45, "GetCurrentPlantEfficiencyPercent",
+     "pops 8, returns in eax (SDK: 4 bytes, float)"},
+    {"cISC4PowerSimulator", "cISC4PowerSimulator", 46, "GetCurrentPlantConditionPercent",
+     "pops 8, returns in eax (SDK: 4 bytes, float)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 34, "GetGarbageAbductedPrevMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 35, "GetGarbageProducedLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 36, "GetGarbageImportedLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 37, "GetGarbageExportedLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 39, "GetGarbageIncineratedLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 40, "GetGarbageConvertedToEnergyLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 41, "GetGarbageLandfilledLastMonth",
+     "returns 64 bits in edx:eax (SDK: 32)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 51, "GarbagePutInLandfill", "returns in eax (SDK: int64)"},
+    {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
+     "returns in ST0 (SDK: 32-bit)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {

@@ -20,6 +20,7 @@
 #include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
+#include "FC4GameContainers.h"
 #include "SC4String.h"
 #include "SC4Vector.h"
 #include "cGZPersistResourceKey.h"
@@ -766,11 +767,9 @@ bool cFC4Simulator::RemoveAllAgentsAt(uint32_t agentType) {
 namespace {
 void AppendName(void* ctx, const char* name, size_t len) {
     auto* v = static_cast<SC4Vector<SC4String>*>(ctx);
-    // SC4Vector::push_back copies the object bitwise, so build the string in
-    // raw storage and hand its ownership to the vector (no destructor here).
-    alignas(SC4String) unsigned char storage[sizeof(SC4String)];
-    SC4String* s = new (storage) SC4String(name, static_cast<uint32_t>(len));
-    v->push_back(*s);
+    // SC4Vector::push_back copies the object bitwise: the vector must be the
+    // string's only owner (FC4GameContainers.h).
+    fc4::PushOwned(*v, name, static_cast<uint32_t>(len));
 }
 }  // namespace
 

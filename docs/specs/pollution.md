@@ -668,8 +668,9 @@ Curves are evaluated as in foundations §4.3 (clamped at both ends; empty → 0.
 | `0x2A58D350` s64 | base maintenance cost (written by §4.2.4) |
 | `0x48EE7A44` u32 | building garbage capacity (slot 47) |
 
-Budget purpose `0xCA58EDC7`; line item 10 = building maintenance, 20 = garbage disposal, 30 = created but not used
-by this class *[inferred: neighbour deal booking]*.
+Budget purpose `0xCA58EDC7`; line item 10 = building maintenance, 20 = garbage disposal, 30 = **landfill
+maintenance**, created here but booked by the landfill developer (`GetLineItem(30)`, `SetFullExpenses` /
+`GetCurrentExpenses`; landfill.md §4.9). *(Corrected: the earlier text guessed neighbour deal booking.)*
 
 ## 8. Interface slots
 
@@ -851,7 +852,7 @@ Findings:
 4. `SetOccupantListUsedCapacity`: the exact recomputation of the share when a building is capped was not fully
    traced (§4.9.3).
 5. `unused64` (saved int64) is never written in the Windows build; its meaning is unknown.
-6. Line item 30's use (likely neighbour deals) was not traced in this class.
+6. *(resolved)* Line item 30 is the landfill maintenance line, booked by the landfill developer (landfill.md §4.9).
 7. Callers that load the service pointer and call it later (advisor utility, MySim trip variables, street sim,
    ordinance "trash presort") were not followed to the slot they call.
 8. Property names in §7.2 are inferred from use; no Maxis names were available for them.

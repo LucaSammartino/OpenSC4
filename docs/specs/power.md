@@ -487,24 +487,27 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 The ordinance factor is refreshed at every tuning read and every month: `GetCumulativeFactor(0x0911E117, 0)`
 (Power Conservation 0.9 when enacted, ordinance.md).
 
-**Per-building properties** (names by role; the meanings are from the code, the official names are unknown
-*[inferred]*):
+**Per-building properties** (roles from the code; names from the community property list `new_properties.xml`
+where it has one; "—" = not listed there, role name ours *[inferred]*). The list's `Default` column is the
+editor default, **not** the code default used here:
 
-| Property | Type | Role | Shipped examples |
-|---|---|---|---|
-| `0x27812852` | u32 | capacity (produced) | coal 6000, H2 50000, gas 3000, nuclear 16000, oil 7000, solar 5000, WTE 5000, wind 200; civic buildings 1 |
-| `0x27812854` | u32 | requirement (consumed) | |
-| `0x27812853` | s32 | plant type (index 0..9) | 1 coal, 2 hydrogen, 3 gas, 5 nuclear, 6 oil, 7 solar, 8 WTE, 9 wind |
-| `0x08D9763D` | s32 | power used last cycle (written) | |
-| `0xC910B4CF` | f32 | wear (written; "condition" in pollution.md) | starts 0 |
-| `0xC910B4CE` | f32 | fuel cost per unit used | not shipped |
-| `0xEA1CF220/21/22` | f32 | ageing rate, threshold t1, threshold t2 | rate ≈ 0.000833–0.001667; t1 0.9; t2 1.0 |
-| `0x6A43150F` | u32 | demolition flags at t2 | 3 coal/gas/oil/H2, 4 nuclear, 0 solar/wind, absent WTE |
-| `0xAA5C04C5` / `0xAA5C04C8` | f32 | radiation strength / radius at t2 | nuclear 3200 / 15 |
-| `0x8A1E07EE` | curve | wear → condition | (0,1)(0.4,0.95)(0.5,0.92)(0.6,0.86)(0.7,0.77)(0.8,0.6)(0.9,0.35)(1,0); gas 0.88 at 0.6 |
-| `0x0911E2E7` | curve | wear → maintenance multiplier | (0,1)(0.4,1.03)(0.5,1.05)(0.65,1.15)(0.75,1.3)(0.85,1.55)(0.9,1.85)(1,3) |
-| `0x2A58D350` | int64 | base maintenance (written at insertion) | coal 250, WTE 1000, solar 1000, H2 10000, gas 400, wind 50, oil 600, nuclear 3000 |
-| `0x09132DE8` | int64 | pole infrastructure cost | 1 |
+| Property | Name | Type | Role / code default | Shipped examples |
+|---|---|---|---|---|
+| `0x27812852` | Power Generated | u32 | capacity; 0 | coal 6000, H2 50000, gas 3000, nuclear 16000, oil 7000, solar 5000, WTE 5000, wind 200; civic buildings 1 |
+| `0x27812854` | Power Consumed | u32 | requirement; 0 | |
+| `0x27812853` | Power Plant Type | read as s32 | plant type index 0..9; 0 | 1 coal, 2 hydrogen, 3 gas, 5 nuclear, 6 oil, 7 solar, 8 WTE, 9 wind |
+| `0x08D9763D` | — | s32 | power used last cycle (written) | |
+| `0xC910B4CF` | — | f32 | wear / age (written; "condition" in pollution.md); 0 | starts 0 |
+| `0xC910B4CE` | Power plant energy conversion cost | f32 | fuel cost per unit used; 0 | not shipped |
+| `0xEA1CF220` | Age degradation rate | f32 | rate; 0 | ≈ 0.000833–0.001667 |
+| `0xEA1CF221` | Soft failure threshold | f32 | t1; 99 | 0.9 |
+| `0xEA1CF222` | Hard failure threshold | f32 | t2; 99 | 1.0 |
+| `0x6A43150F` | Hard Failure Type | u32 | demolition flags at t2; 0 | 3 coal/gas/oil/H2, 4 nuclear, 0 solar/wind, absent WTE |
+| `0xAA5C04C5` / `0xAA5C04C8` | Radiation Spew Intensity / Radius | f32 | radiation at t2; 0 | nuclear 3200 / 15 |
+| `0x8A1E07EE` | Age to output level response curve | curve | wear → condition | (0,1)(0.4,0.95)(0.5,0.92)(0.6,0.86)(0.7,0.77)(0.8,0.6)(0.9,0.35)(1,0); gas 0.88 at 0.6 |
+| `0x0911E2E7` | Age to maintenance cost multiplier response curve | curve | wear → maintenance multiplier | (0,1)(0.4,1.03)(0.5,1.05)(0.65,1.15)(0.75,1.3)(0.85,1.55)(0.9,1.85)(1,3) |
+| `0x2A58D350` | — | int64 | base maintenance (written at insertion) | coal 250, WTE 1000, solar 1000, H2 10000, gas 400, wind 50, oil 600, nuclear 3000 |
+| `0x09132DE8` | Power pole monthly upkeep | int64 | pole infrastructure cost | 1 |
 
 The two per-building curves are loaded into a fresh temporary curve from the property only when the property
 exists; otherwise the caller takes its "no curve" path (condition 0; no maintenance update): foundations §4.1
@@ -648,8 +651,11 @@ Outputs are `AddRef`ed (or untouched if none); `wearPct := trunc(ratio × 100)`.
    `GetPowerPlantCount()` before `(type)`; the compiled order is reversed (slot 16 = `(x, z)`, slot 23 =
    `(type)`). Checked by reading the bodies `0x006EBA10` (pop 8), `0x006AAEB0` (pop 0), `0x006EFA00` (pop 4),
    `0x006EF9F0` (pop 0).
-4. Slot 40 is declared `void GetChanceOfStrike(SC4Percentage&)`: ABI-compatible (pop 4); EAX happens to hold the
-   argument. Not an error.
+4. Slot 40 is declared `void GetChanceOfStrike(SC4Percentage&)`: ABI-compatible (pop 4), but **the return value
+   is used**: the Utility advisor (`0x0042220F`, advisors.md) loads the float through the returned EAX. *[compat]*
+   A replacement must return the argument's address in EAX (declare it returning `SC4Percentage*`); a `void`
+   replacement makes that caller read through a garbage pointer. *(Corrected: the earlier text said "not an
+   error".)*
 5. All other slots match (argument sizes, pointer returns of 35/36/47/48, `FindPowerPlants`).
 
 ### 10.2 `cIGZSerializable` (vtable `0x00AB288C`)
@@ -769,7 +775,8 @@ practically 0 (§7.4); double ring advance (§7.5); deficit values (§6.6, §7.5
 2. Who posts ConnectionsReady `0x6AC284F3`, and whether it always arrives after a load (otherwise a loaded city
    never recomputes power).
 3. Meaning of lot state 1 in the `0xE8BDA2E7` handler (demand.md §7 describes the message).
-4. The demolition flags `destroy | 0x300` (§7.4) and the meaning of `DemolishLots`' fourth argument values 3/4.
+4. The meaning of the "Hard Failure Type" values 3 and 4 once passed to `DemolishLots` as flags `0x303`/`0x304`
+   (§7.4).
 5. View input control `0x88F154FB` (§5.5): assumed to be the nuclear-plant placement tool.
 6. The exact effect of `RemoveConnection` on the pole and line objects (§5.4).
 7. Whether `0x6A07C2EE` has any subscriber (none found).

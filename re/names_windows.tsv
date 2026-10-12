@@ -6910,7 +6910,7 @@ va	name	source	confidence	note
 006f7dd0	cSC4ResidentialSimulator::Release	auto:C	high	mac 00174ac2 score 1.0 support 1
 006f7e00	cSC4ResidentialSimulator::GetCoveredTractList	auto:B3	medium	mac 00176eb6 score 0.956 support 2.0
 006f7e80	cSC4ResidentialSimulator::GetHospitalQueryData	auto:A	high	mac 00175f9e score 1.0 support 0
-006f8070	cSC4ResidentialSimulator::PostPopulationChange	manual:demand-rci.tsv	high	history ID 0x2A5E7009 (avg age); called from DoDailySimulation
+006f8070	cSC4ResidentialSimulator::PostPopulationChange	manual:demand-rci.tsv	high	history ID 0x2A5E7009 (population-weighted avg life expectancy); called from DoDailySimulation
 006f8290	cSC4ResidentialSimulator::SetOccupantFundingPercentages	auto:C	high	mac 00176136 score 1.0 support 1
 006f8360	cSC4ResidentialSimulator::GetRawOccupantFundingPercentages	auto:D	medium	mac 0017623e score 0.5 support 1
 006f84b0	cSC4ResidentialSimulator::GetOccupantFundingPercentages	auto:C	low	mac 00176388 score 1.0 support 1

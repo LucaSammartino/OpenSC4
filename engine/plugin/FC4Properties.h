@@ -22,6 +22,7 @@
 class cISCPropertyHolder;
 class cISCResExemplar;
 class cIGZVariant;
+struct fc4_props;
 
 namespace fc4 {
 namespace props {
@@ -63,6 +64,15 @@ bool SetF32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<float>& 
 
 // Copies a property (whatever its type) from `src` onto `dst`; false if absent.
 bool Copy(const cISCPropertyHolder* src, cISCPropertyHolder* dst, uint32_t id);
+
+// The IDs of the holder's own properties (EnumProperties, compiled slot 20),
+// in the holder's order. Empty for nullptr.
+std::vector<uint32_t> PropertyIds(const cISCPropertyHolder* holder);
+
+// Copies property `id` into a core property holder with its exact variant type
+// and shape (fc4_props_set_typed). False if absent or of a type the core does
+// not keep (empty, pointers, objects).
+bool CopyToCore(const cISCPropertyHolder* holder, uint32_t id, fc4_props* out);
 
 }  // namespace props
 }  // namespace fc4

@@ -175,8 +175,25 @@ ambientTemp     := baseTemp × (1 + cos(2π(m − 8)/12) × tempAmpA × tempAmpB
 ambientMoisture := baseMoisture × (1 + cos(2π(m − 1)/12) × moistAmpA × moistAmpB)  (peak in month 1)
 ```
 
-followed by the wind update of §6.2 and `windMonth := m`. Shipped values: month 8 → 65 × 1.25 = 81.25,
-month 2 → 65 × 0.75 = 48.75; moisture month 1 → 0.24, month 7 → 0.16.
+followed by the wind update of §6.2 and `windMonth := m`.
+
+Exact operation order *[compat]* (`0x00729350`; foundations §18, `r24` = one rounding to 24 bits):
+
+```
+ambientTemp     := r24( r24(1 + r24(cos(r24(k_T × w)) × r24(tempAmpB × tempAmpA))) × baseTemp )       k_T = m − 8
+ambientMoisture := r24( r24(1 + r24(cos(r24(k_M × w)) × r24(moistAmpB × moistAmpA))) × baseMoisture ) k_M = m − 1
+```
+
+- `k` is an `int32` (exact); `w` is the `float` constant 0.52359879 (`float32(π/6)`, at `0x00A949E8`); 1 is the
+  `float` 1.0. All fields are `float32`.
+- The cosine is the x87 `fcos` instruction, which precision control does **not** affect: its argument is the
+  24-bit angle above and its result is not rounded before the multiply. FreeCity4 evaluates it as a `double`
+  cosine of the rounded angle; this can differ from the original only when the product falls within a `double`
+  error of a `float32` rounding boundary *[choice]*.
+- Because the angle is rounded, months symmetric about the peak do not give identical values (test 21).
+
+Shipped values: month 8 → 65 × 1.25 = 81.25, month 2 → 65 × 0.75 = 48.75; moisture month 1 → 0.24000001,
+month 7 → 0.16000001.
 
 ### 6.2 Monthly wind target *[compat]*
 
@@ -192,6 +209,12 @@ repeat: s := windSpread × rng.RandomDoubleGaussian()  until |s| ≤ 1
 c := sqrt(1 − s²)
 targetWindDir := (c·base.x − s·base.z,  s·base.x + c·base.z)       (rotation by asin(s))
 ```
+
+Precision *[compat]*: `targetWindSpeed` is `RandomDoubleRangeUniform(2.0, 4.0)` with `double` arguments
+(foundations §6.1: `r24(r24(u × 2) + 2)`), stored as `float32`. In the loop `s := r24(g × windSpread)`, accepted
+when `|s| ≤ 1.0`. Then `c := r24(sqrt(r24(1 − r24(s × s))))` (1 is a `double` constant; `fsqrt` rounds to 24 bits)
+and, with `(bx, bz)` the base direction:
+`targetWindDir.x := r24(r24(bx × c) − r24(bz × s))`, `targetWindDir.z := r24(r24(bz × c) + r24(bx × s))`.
 
 The base direction points from the edge with the most water into the city (an onshore wind). With no water at any
 edge the tie-break picks `(1, 0)`. RNG draws per month: one `RandomDoubleRangeUniform` (double path), then one or
@@ -254,8 +277,11 @@ grown by 2 cells on each side and `A4` grown by 4, both clamped. All buffers sta
    unspecified; they are never used by step 4. Order and precision *[compat]*:
    - **Pass 1, along z**, from `H` into a separate buffer `S`: `S[x][z] := (H[x][z−1] + H[x][z+1]) + 2·H[x][z]`,
      not normalised, for every z of the row.
-   - **Pass 2, along x**, in place on `S`: `S[x][z] := ((S[x−1][z] + S[x+1][z]) + 2·S[x][z]) × scale`, with
-     `scale = 0.0625` (= 1/16 ÷ cityCellsPerCell², §6.5 note).
+   - **Pass 2, along x**, back into `S`: `S[x][z] := ((S[x−1][z] + S[x+1][z]) + 2·S[x][z]) × scale`, with
+     `scale = 0.0625` (= 1/16 ÷ cityCellsPerCell², §6.5 note). Each line of `S` along x is first copied, with its
+     mirror cells, into a temporary line buffer, and the filtered values are computed from that copy
+     (`0x007273E0`–`0x007275A6`). The right-hand side therefore always reads the **pass-1** values; a value
+     already filtered in this pass is never read again *[compat]*.
    - Every operation is a `float32` operation in exactly this order (the game runs the x87 at 24-bit precision,
      foundations §18); doubling and the multiply by 1/16 are exact. No rounding to integers happens here.
 4. **Local moisture.** Let `b := roundHalfEven(ambientMoisture × 255)`,
@@ -337,8 +363,31 @@ next(&x, &z):
 
 Steps for SC4 city sizes: 64² = 4096 → 3733; 128² = 16384 → 15683; 256² = 65536 → 17431.
 
-The iterator also has a "table" mode (a shuffled list of packed `(x << 8) | z` 16-bit entries) that the weather
-never selects; its fields are still saved (§10).
+The iterator also has a "table" mode that the weather never selects; its fields are still saved (§10). Table
+mode *[compat]* (Reset `0x0049D1C0`, GetNext `0x0049CB10`):
+
+```
+reset(shuffle):                       (table mode)
+    count := (x1 − x0 + 1)(z1 − z0 + 1);  index := 0;  state := running (1)
+    if table length ≠ count: resize the table to count entries; dirty := true
+    if dirty: for x in x0..x1 (outer), for z in z0..z1 (inner): append (x mod 256) << 8 | (z mod 256)
+    if shuffle: random_shuffle(table)          (C runtime rand, foundations §12.3)
+    current and step are left unchanged
+next(&x, &z):                         (table mode)
+    if state == exhausted (2): return false
+    if index ≥ table length: state := exhausted; return false
+    e := table[index];  index += 1
+    x := e >> 8;  z := e & 0xFF              (absolute coordinates, not relative to x0, z0)
+    if index == table length: state := exhausted
+    return true
+```
+
+- The entries hold **absolute** coordinates, each truncated to its low 8 bits. City grids are at most 256 cells
+  wide, so with in-grid rectangles the values are exact; a rectangle with negative coordinates or coordinates above
+  255 would wrap *[quirk]*.
+- `dirty` is set by `SetClipRect` (`0x0049C820`) and by the resize above and is never cleared, so once a table
+  has been sized it is refilled in natural order at **every** table-mode reset before the shuffle. A reset without shuffling
+  therefore yields natural order (x outer, z inner).
 
 ## 7. Random numbers
 
@@ -495,8 +544,8 @@ ambient values are overridden by `Init` (§8.1); square-only grid writer (§10).
 
 ## 14. Conformance tests (must exist in `engine/conformance`)
 
-1. **Ambient values**: shipped tuning, season month 8 → temp 81.25; month 2 → 48.75; moisture month 1 → 0.24,
-   month 7 → 0.16; code defaults when the exemplar is missing.
+1. **Ambient values**: shipped tuning, season month 8 → temp 81.25; month 2 → 48.75; moisture month 1 →
+   0.24000000953674316, month 7 → 0.1600000113248825; code defaults when the exemplar is missing.
 2. **Season**: months 1–3 → 0 … 10–12 → 3; hemisphere ≠ 1 shifts January to season month 7 (summer);
    SeasonChanged is posted only on change, with data2 = season, and resets the current wind to the defaults.
 3. **Wind**: with a stub RNG returning uniform 0.5 and Gaussian 0, the target speed is 3 and the direction is the
@@ -517,6 +566,15 @@ ambient values are overridden by `Init` (§8.1); square-only grid writer (§10).
    whose rows read back the grid.
 9. **Save**: write → read → write is byte-identical (v2); version 3 is rejected; a version-1 record with a legacy
    block loads; after `Init` on a loaded city, ambient values equal the base values and the iterator is reset.
+10. **Ambient precision** (§6.1, shipped tuning 65 / 0.5 / 0.5 and 0.2 / 0.2 / 1): temperature month 1 →
+    50.92708969116211 but month 3 → 50.927085876464844 (the rounded angles differ); month 7 → 79.07291412353516;
+    month 4 → 56.875. Moisture month 2 → 0.23464103043079376, month 3 → 0.2200000137090683, month 5 →
+    0.17999999225139618.
+11. **Table-mode iterator** (§6.7): rectangle `[2, 3] × [5, 6]`, reset without shuffling → entries `0x0205`,
+    `0x0206`, `0x0305`, `0x0306` in that order, `next` yields (2, 5), (2, 6), (3, 5), (3, 6), then false; the
+    prime-step `current` and `step` are unchanged by the reset. With shuffling, the reset makes 3 `rand()` calls.
+12. **Pass-2 smoothing reads pass-1 values** (§6.5 step 3): a row of pass-1 values `S = [0, 16, 0, 0]` along x
+    (interior cells, scale 1/16) → `[·, 2, 1, ·]` for the two interior cells (from the copy), not `[·, 2, 0.125, ·]`.
 
 ## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
 

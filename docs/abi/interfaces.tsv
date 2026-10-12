@@ -3015,3 +3015,522 @@ cIGZMessageTarget2(Residential)	cSC4ResidentialSimulator	00ab2bfc	0	+0x0	006fea9
 cIGZMessageTarget2(Residential)	cSC4ResidentialSimulator	00ab2bfc	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
 cIGZMessageTarget2(Residential)	cSC4ResidentialSimulator	00ab2bfc	2	+0x8	006feab0		0	0	eax-or-void	medium	tail->006f7dd0
 cIGZMessageTarget2(Residential)	cSC4ResidentialSimulator	00ab2bfc	3	+0xC	00700350	cSC4ResidentialSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	0	+0x0	00418640	cSC4AdvisorSystem::QueryInterface	8	2	eax-or-void	medium	tail->009457c6
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	1	+0x4	004186e0	icf::cSC4AdvisorSystem::AddRef	0	0	eax-or-void	medium	tail->00968b60
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	2	+0x8	00449310	icf::cSC4AdvisorSystem::Release	0	0	eax-or-void	medium	tail->0090d997
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	3	+0xC	0041b570	cSC4AdvisorSystem::Init	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	4	+0x10	0041a3b0	cSC4AdvisorSystem::Shutdown	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	5	+0x14	004197e0	cSC4AdvisorSystem::AddAdvisor	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	6	+0x18	00419bc0	cSC4AdvisorSystem::RemoveAdvisor	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	7	+0x1C	00419070	cSC4AdvisorSystem::GetAdvisor	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	8	+0x20	00520080	icf::cSC4AdvisorSystem::GetAdvisors	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	9	+0x24	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	10	+0x28	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	11	+0x2C	0041b080	cSC4AdvisorSystem::DoLink	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	12	+0x30	00418870	cSC4AdvisorSystem::SetGlobalValue	8	2	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	13	+0x34	004188e0	cSC4AdvisorSystem::SetGlobalValue	12	3	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	14	+0x38	00419520	cSC4AdvisorSystem::SetLocalValue	16	4	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	15	+0x3C	004190b0	cSC4AdvisorSystem::PushEvent	8	2	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	16	+0x40	0041b370	cSC4AdvisorSystem::SubscribeToEvent	8	2	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	17	+0x44	00419eb0	cSC4AdvisorSystem::UnsubscribeFromEvent	8	2	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	18	+0x48	00419840	cSC4AdvisorSystem::PushContextAdvice	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	19	+0x4C	00418ce0	cSC4AdvisorSystem::PopContextAdvice	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	20	+0x50	00418c10	cSC4AdvisorSystem::GetContextAdvice	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	21	+0x54	00418780	cSC4AdvisorSystem::GetAdvicePopupPriorityThreshold	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	22	+0x58	00418c30	cSC4AdvisorSystem::GetDataTag	4	1	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	23	+0x5C	006a0050	cSC4CrimeSimulator::GetCrimeGrid	0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	24	+0x60	004187b0	cSC4AdvisorSystem::startAdvisorWindow	0	0	eax-or-void	medium	tail->0041e320
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	25	+0x64	00418820		0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	26	+0x68	00418830	cSC4AdvisorSystem::HideAdvisorWindow	0	0	eax-or-void	medium	tail->0041d710
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	27	+0x6C	00418810		0	0	eax-or-void	medium	
+cISC4AdvisorSystem	cSC4AdvisorSystem	00a82ac8	28	+0x70	00418840	cSC4AdvisorSystem::IsAdvisorWindowVisible	0	0	unknown	low	indirect-jump dword ptr [eax + 8]
+cISC4Advisor	cSC4Advisor	00a811b0	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor	cSC4Advisor	00a811b0	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor	cSC4Advisor	00a811b0	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor	cSC4Advisor	00a811b0	3	+0xC	00410100	cSC4Advisor::Init	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	4	+0x10	0040ed30	cSC4Advisor::Shutdown	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor	cSC4Advisor	00a811b0	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor	cSC4Advisor	00a811b0	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor	cSC4Advisor	00a811b0	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	3	+0xC	00410e30	cSC4AdvisorBase::Init	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	4	+0x10	0040ef30	cSC4AdvisorBase::Shutdown	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(Base)	cSC4AdvisorBase	00a81278	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	0	+0x0	00411ee0		8	2	eax-or-void	medium	tail->00411810
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	3	+0xC	004118c0	cSC4AdvisorCityPlanning::Init	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	4	+0x10	004119f0	cSC4AdvisorCityPlanning::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(CityPlanning)	cSC4AdvisorCityPlanning	00a814c0	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	3	+0xC	00413970	cSC4AdvisorCitySituations::Init	4	1	eax-or-void	medium	tail->00410e30
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	4	+0x10	004136a0	cSC4AdvisorCitySituations::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(CitySituations)	cSC4AdvisorCitySituations	00a81c48	20	+0x50	00413730	cSC4AdvisorCitySituations::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	3	+0xC	00413970	cSC4AdvisorCitySituations::Init	4	1	eax-or-void	medium	tail->00410e30
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	4	+0x10	004136a0	cSC4AdvisorCitySituations::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(Finance)	cSC4AdvisorFinance	00a81cf8	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	3	+0xC	00415a00	cSC4AdvisorHQ::Init	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	4	+0x10	00413ee0	cSC4AdvisorHQ::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(HQ)	cSC4AdvisorHQ	00a81f88	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	3	+0xC	00415c30	cSC4AdvisorSafety::Init	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	4	+0x10	00415e40	cSC4AdvisorSafety::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(Safety)	cSC4AdvisorSafety	00a82328	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	3	+0xC	0041b800		4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	4	+0x10	0041b850		0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(Traffic)	cSC4AdvisorTraffic	00a82f98	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	0	+0x0	0040f370		8	2	eax-or-void	medium	tail->0040d430
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	3	+0xC	004229c0	cSC4AdvisorUtility::Init	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	4	+0x10	00422aa0	cSC4AdvisorUtility::Shutdown	0	0	eax-or-void	medium	tail->0040ef30
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	5	+0x14	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	6	+0x18	0040d3a0	icf::cSC4Advisor::GetName	0	0	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	7	+0x1C	0040d3b0	cSC4Advisor::SetName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	8	+0x20	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	9	+0x24	0040d3c0	cSC4Advisor::SetPersonalName			forward	medium	indirect-jump dword ptr [eax + 0x38]
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	10	+0x28	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	11	+0x2C	0040d3d0	icf::cSC4Advisor::GetCurrentAdvices	0	0	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	12	+0x30	0040d7a0	cSC4Advisor::GetAdviceByGUID	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	13	+0x34	0040d7e0	cSC4Advisor::GetAdviceBySessionID	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	14	+0x38	0040d820	cSC4Advisor::Simulate	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	15	+0x3C	0040d870	cSC4Advisor::GetHeadAnimCount	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	16	+0x40	0040d3e0	cSC4Advisor::SetHeadAnim	8	2	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	17	+0x44	0040f3a0	cSC4Advisor::GetHeadAnimID	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	18	+0x48	0040eec0	cSC4Advisor::PushEvent	8	2	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	19	+0x4C	0040d8a0	cSC4Advisor::CommandWouldTrigger	4	1	eax-or-void	medium	
+cISC4Advisor(Utility)	cSC4AdvisorUtility	00a83b38	20	+0x50	0040e9b0	cSC4Advisor::RetireAdvice	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	0	+0x0	00407bc0	cSC4Advice::QueryInterface	8	2	eax-or-void	medium	tail->009457c6
+cISC4Advice	cSC4Advice	00a808b8	1	+0x4	005be3e0	std::vector<cRZAutoRefCount<cIGZBuffer>,std::allocator<cRZAutoRefCount<cIGZBuffer>>>::operator[]	0	0	eax-or-void	medium	tail->00968b60
+cISC4Advice	cSC4Advice	00a808b8	2	+0x8	005bcb30	cSC4Advice::Release	0	0	eax-or-void	medium	tail->0090d997
+cISC4Advice	cSC4Advice	00a808b8	3	+0xC	00408c70	cSC4Advice::Init	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	4	+0x10	00407e90	cSC4Advice::Shutdown	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	5	+0x14	00407c50	cSC4Advice::Clone	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	6	+0x18	00407aa0	cSC4Advice::GetMood	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	7	+0x1C	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	8	+0x20	00408970	cSC4Advice::GetTrigger	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	9	+0x24	00477890	icf::cSC4Advice::GetTriggerString	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	10	+0x28	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	11	+0x2C	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	12	+0x30	00407ad0	cSC4PathFinder::SetRouteInfo (folded generic setter [ecx+74h])	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	13	+0x34	004faf50	cSC4Advice::GetSessionID	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	14	+0x38	00407ae0	cSC4Advice::SetFlags	8	2	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	15	+0x3C	00407b70	cSC4Advice::CheckFlags	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	16	+0x40	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	17	+0x44	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	18	+0x48	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	19	+0x4C	00407d70	cSC4Advice::GetTextTitleGUID	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	20	+0x50	00407bb0	icf::cSC4Advice::GetTextMessage	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	21	+0x54	00407da0	cSC4Advice::GetTextMessageGUID	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	22	+0x58	00407ed0	cSC4Advice::DoLink	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	23	+0x5C	00407f40	cSC4Advice::NotifyGlobalEffectTriggerChanged	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	24	+0x60	00407dd0	cSC4Advice::SetEventSubject	4	1	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	25	+0x64	007fb1d0	cSC4Advice::GetEventSubject	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	26	+0x68	006e0130	icf::cSC4Advice::GetEventID	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	27	+0x6C	00407c20	cSC4Advice::GetCommandID	0	0	eax-or-void	medium	
+cISC4Advice	cSC4Advice	00a808b8	28	+0x70	00407c30	cSC4Advice::UpdateText			forward	medium	indirect-jump dword ptr [eax + 0x78]
+cISC4Advice	cSC4Advice	00a808b8	29	+0x74	00407b90	icf::cSC4Advice::~cSC4Advice	0	0	via-call	low	
+cISC4Advice	cSC4Advice	00a808b8	30	+0x78	00409300	cSC4Advice::refresh_text	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	0	+0x0	00420d60	cSC4AdviceNeghborDeal::QueryInterface	8	2	eax-or-void	medium	tail->00407bc0
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	1	+0x4	005be3e0	std::vector<cRZAutoRefCount<cIGZBuffer>,std::allocator<cRZAutoRefCount<cIGZBuffer>>>::operator[]	0	0	eax-or-void	medium	tail->00968b60
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	2	+0x8	005bcb30	cSC4Advice::Release	0	0	eax-or-void	medium	tail->0090d997
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	3	+0xC	004217c0	cSC4AdviceNeghborDeal::Init	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	4	+0x10	00420d50	cSC4AdviceNeghborDeal::Shutdown	0	0	eax-or-void	medium	tail->00407e90
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	5	+0x14	00420ee0	cSC4AdviceNeghborDeal::Clone	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	6	+0x18	00407aa0	cSC4Advice::GetMood	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	7	+0x1C	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	8	+0x20	00408970	cSC4Advice::GetTrigger	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	9	+0x24	00477890	icf::cSC4Advice::GetTriggerString	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	10	+0x28	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	11	+0x2C	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	12	+0x30	00407ad0	cSC4PathFinder::SetRouteInfo (folded generic setter [ecx+74h])	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	13	+0x34	004faf50	cSC4Advice::GetSessionID	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	14	+0x38	00407ae0	cSC4Advice::SetFlags	8	2	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	15	+0x3C	00407b70	cSC4Advice::CheckFlags	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	16	+0x40	00407ba0	icf::cGZGraphicSystem::GetGDriver	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	17	+0x44	006efa50	cSC4PowerSimulator::GetPoweredGrid	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	18	+0x48	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	19	+0x4C	00407d70	cSC4Advice::GetTextTitleGUID	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	20	+0x50	00407bb0	icf::cSC4Advice::GetTextMessage	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	21	+0x54	00407da0	cSC4Advice::GetTextMessageGUID	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	22	+0x58	00407ed0	cSC4Advice::DoLink	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	23	+0x5C	00407f40	cSC4Advice::NotifyGlobalEffectTriggerChanged	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	24	+0x60	00407dd0	cSC4Advice::SetEventSubject	4	1	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	25	+0x64	007fb1d0	cSC4Advice::GetEventSubject	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	26	+0x68	006e0130	icf::cSC4Advice::GetEventID	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	27	+0x6C	00407c20	cSC4Advice::GetCommandID	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	28	+0x70	00407c30	cSC4Advice::UpdateText			forward	medium	indirect-jump dword ptr [eax + 0x78]
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	29	+0x74	00407b90	icf::cSC4Advice::~cSC4Advice	0	0	via-call	low	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	30	+0x78	00409300	cSC4Advice::refresh_text	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	31	+0x7C	00420d90	cSC4DisasterInstanceFire::GetPhase	0	0	eax-or-void	medium	
+cISC4Advice(NeighborDeal)	cSC4AdviceNeghborDeal	00a83be8	32	+0x80	006d6e70	cSC4PathFinder::SetMaxWorkTime	4	1	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	0	+0x0	0040d100		8	2	eax-or-void	medium	tail->0040ce90
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	1	+0x4	007637d0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	2	+0x8	007637e0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	3	+0xC	0040d110		8	2	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	4	+0x10	0040ce10		0	0	x87	high	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	5	+0x14	0040ce30		0	0	x87	high	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	6	+0x18	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	7	+0x1C	0040d130		4	1	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	8	+0x20	0040cf10	cSC4SimGrid<T>::GetTractSize	0	0	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	9	+0x24	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	10	+0x28	008b6de0	cSC4PathView::SetThickness	4	1	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	11	+0x2C	0040ce70	cSC4SimGrid<T>::GetInstanceID	0	0	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	12	+0x30	0040ce80	cSC4SimGrid<T>::SetInstanceID	4	1	eax-or-void	medium	
+cISC4AdviceSubject	cSC4AdviceSubject	00a81090	13	+0x34	0040d180		4	1	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	0	+0x0	00880aa0		8	2	eax-or-void	medium	tail->008806c0
+cISCLua	cSCLua	00ac4148	1	+0x4	00880ab0		0	0	eax-or-void	medium	tail->00424b60
+cISCLua	cSCLua	00ac4148	2	+0x8	00880ac0		0	0	eax-or-void	medium	tail->00424b70
+cISCLua	cSCLua	00ac4148	3	+0xC	00880ec0		4	1	eax-or-void	medium	tail->00880860
+cISCLua	cSCLua	00ac4148	4	+0x10	00880ed0		0	0	eax-or-void	medium	tail->00880950
+cISCLua	cSCLua	00ac4148	5	+0x14	00880a50	cSCLua::AsIGZLua5	0	0	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	6	+0x18	00880ad0		0	0	eax-or-void	medium	tail->008801c0
+cISCLua	cSCLua	00ac4148	7	+0x1C	00880ae0		4	1	eax-or-void	medium	tail->008801d0
+cISCLua	cSCLua	00ac4148	8	+0x20	00880af0		4	1	eax-or-void	medium	tail->008801e0
+cISCLua	cSCLua	00ac4148	9	+0x24	00880b00		4	1	eax-or-void	medium	tail->008801f0
+cISCLua	cSCLua	00ac4148	10	+0x28	00880b10		4	1	eax-or-void	medium	tail->00880200
+cISCLua	cSCLua	00ac4148	11	+0x2C	00880b20		4	1	eax-or-void	medium	tail->00880210
+cISCLua	cSCLua	00ac4148	12	+0x30	00880b30		4	1	eax-or-void	medium	tail->00880220
+cISCLua	cSCLua	00ac4148	13	+0x34	00880b40		4	1	eax-or-void	medium	tail->00880230
+cISCLua	cSCLua	00ac4148	14	+0x38	00880b50		4	1	eax-or-void	medium	tail->00880240
+cISCLua	cSCLua	00ac4148	15	+0x3C	00880b60		4	1	eax-or-void	medium	tail->00880260
+cISCLua	cSCLua	00ac4148	16	+0x40	00880b70		4	1	eax-or-void	medium	tail->00880270
+cISCLua	cSCLua	00ac4148	17	+0x44	00880b80		4	1	eax-or-void	medium	tail->00880280
+cISCLua	cSCLua	00ac4148	18	+0x48	00880b90		4	1	eax-or-void	medium	tail->00880250
+cISCLua	cSCLua	00ac4148	19	+0x4C	00880ba0		8	2	eax-or-void	medium	tail->00880290
+cISCLua	cSCLua	00ac4148	20	+0x50	00880bb0		8	2	eax-or-void	medium	tail->008802a0
+cISCLua	cSCLua	00ac4148	21	+0x54	00880bc0		4	1	eax-or-void	medium	tail->008802b0
+cISCLua	cSCLua	00ac4148	22	+0x58	00880bc0		4	1	eax-or-void	medium	tail->008802b0
+cISCLua	cSCLua	00ac4148	23	+0x5C	00880bd0		4	1	x87	high	tail->008802c0
+cISCLua	cSCLua	00ac4148	24	+0x60	00880be0		4	1	eax-or-void	medium	tail->008802d0
+cISCLua	cSCLua	00ac4148	25	+0x64	00880bf0		4	1	eax-or-void	medium	tail->008802e0
+cISCLua	cSCLua	00ac4148	26	+0x68	00880c00		4	1	eax-or-void	medium	tail->008802f0
+cISCLua	cSCLua	00ac4148	27	+0x6C	00880c10		4	1	eax-or-void	medium	tail->00880300
+cISCLua	cSCLua	00ac4148	28	+0x70	00880c20		4	1	eax-or-void	medium	tail->00880310
+cISCLua	cSCLua	00ac4148	29	+0x74	00880c30		4	1	eax-or-void	medium	tail->00880320
+cISCLua	cSCLua	00ac4148	30	+0x78	00880c40		0	0	eax-or-void	medium	tail->00880330
+cISCLua	cSCLua	00ac4148	31	+0x7C	00880c50		8	2	x87	high	tail->00880340
+cISCLua	cSCLua	00ac4148	32	+0x80	00880c60		8	2	eax-or-void	medium	tail->00880360
+cISCLua	cSCLua	00ac4148	33	+0x84	00880c70		4	1	eax-or-void	medium	tail->00880370
+cISCLua	cSCLua	00ac4148	34	+0x88	00880c80		8	2	eax-or-void	medium	tail->00880380
+cISCLua	cSCLua	00ac4148	35	+0x8C	00880c90		8	2	eax-or-void	medium	tail->00880390
+cISCLua	cSCLua	00ac4148	36	+0x90	00880ca0		4	1	eax-or-void	medium	tail->008803a0
+cISCLua	cSCLua	00ac4148	37	+0x94	00880cb0		4	1	eax-or-void	medium	tail->008803b0
+cISCLua	cSCLua	00ac4148	38	+0x98	00880cc0		4	1	eax-or-void	medium	tail->008803c0
+cISCLua	cSCLua	00ac4148	39	+0x9C	00880cd0		4	1	eax-or-void	medium	tail->008803d0
+cISCLua	cSCLua	00ac4148	40	+0xA0	00880ce0		8	2	eax-or-void	medium	tail->008803e0
+cISCLua	cSCLua	00ac4148	41	+0xA4	008803f0		0	0	eax-or-void	medium	tail->008b7d60
+cISCLua	cSCLua	00ac4148	42	+0xA8	00880cf0		8	2	eax-or-void	medium	tail->00880400
+cISCLua	cSCLua	00ac4148	43	+0xAC	00880d00		4	1	eax-or-void	medium	tail->00880410
+cISCLua	cSCLua	00ac4148	44	+0xB0	00880420		0	0	eax-or-void	medium	tail->008b7c30
+cISCLua	cSCLua	00ac4148	45	+0xB4	00880d10		4	1	eax-or-void	medium	tail->00880430
+cISCLua	cSCLua	00ac4148	46	+0xB8	00880d20		4	1	eax-or-void	medium	tail->00880440
+cISCLua	cSCLua	00ac4148	47	+0xBC	00880d30		4	1	eax-or-void	medium	tail->00880450
+cISCLua	cSCLua	00ac4148	48	+0xC0	00880d40		8	2	eax-or-void	medium	tail->00880460
+cISCLua	cSCLua	00ac4148	49	+0xC4	00880d50		8	2	eax-or-void	medium	tail->00880470
+cISCLua	cSCLua	00ac4148	50	+0xC8	00880480	cSCLua::Ref	4	1	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	51	+0xCC	00880490	cSCLua::CallProtected	8	2	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	52	+0xD0	008804b0		8	2	eax-or-void	medium	tail->008b7f40
+cISCLua	cSCLua	00ac4148	53	+0xD4	00880d60		4	1	eax-or-void	medium	tail->008804c0
+cISCLua	cSCLua	00ac4148	54	+0xD8	00880d70		4	1	eax-or-void	medium	tail->008804d0
+cISCLua	cSCLua	00ac4148	55	+0xDC	00880d80		12	3	eax-or-void	medium	tail->008804e0
+cISCLua	cSCLua	00ac4148	56	+0xE0	00880d90		0	0	eax-or-void	medium	tail->008804f0
+cISCLua	cSCLua	00ac4148	57	+0xE4	00880da0		0	0	eax-or-void	medium	tail->00880500
+cISCLua	cSCLua	00ac4148	58	+0xE8	00880db0		4	1	eax-or-void	medium	tail->00880510
+cISCLua	cSCLua	00ac4148	59	+0xEC	00880dc0		0	0	eax-or-void	medium	tail->00880520
+cISCLua	cSCLua	00ac4148	60	+0xF0	00880dd0		8	2	eax-or-void	medium	tail->00880530
+cISCLua	cSCLua	00ac4148	61	+0xF4	00880de0		4	1	eax-or-void	medium	tail->00880540
+cISCLua	cSCLua	00ac4148	62	+0xF8	00880df0		4	1	eax-or-void	medium	tail->00880550
+cISCLua	cSCLua	00ac4148	63	+0xFC	00880e00		4	1	eax-or-void	medium	tail->00880560
+cISCLua	cSCLua	00ac4148	64	+0x100	00880570	cSCLua::GetN	4	1	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	65	+0x104	00880e10		4	1	eax-or-void	medium	tail->00880620
+cISCLua	cSCLua	00ac4148	66	+0x108	00880e20		4	1	eax-or-void	medium	tail->00880630
+cISCLua	cSCLua	00ac4148	67	+0x10C	00880640		4	1	eax-or-void	medium	tail->008b7af0
+cISCLua	cSCLua	00ac4148	68	+0x110	00880e30		8	2	eax-or-void	medium	tail->00880650
+cISCLua	cSCLua	00ac4148	69	+0x114	00880660		8	2	eax-or-void	medium	tail->008b87a0
+cISCLua	cSCLua	00ac4148	70	+0x118	00880e40		4	1	eax-or-void	medium	tail->00880670
+cISCLua	cSCLua	00ac4148	71	+0x11C	00880e50		4	1	eax-or-void	medium	tail->00880680
+cISCLua	cSCLua	00ac4148	72	+0x120	00880e60		4	1	eax-or-void	medium	tail->00880690
+cISCLua	cSCLua	00ac4148	73	+0x124	00880e70		4	1	eax-or-void	medium	tail->008806a0
+cISCLua	cSCLua	00ac4148	74	+0x128	00880e80		4	1	eax-or-void	medium	tail->008806b0
+cISCLua	cSCLua	00ac4148	75	+0x12C	00880760	cSCLua::ToDataRegistryEntryID	8	2	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	76	+0x130	008807d0	cSCLua::ToDataRegistryNode	8	2	eax-or-void	medium	
+cISCLua	cSCLua	00ac4148	77	+0x134	00880820	cSCLua::ToDataRegistryValue	8	2	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	0	+0x0	00477130		8	2	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	3	+0xC	004771b0		0	0	eax-or-void	medium	tail->005e8c90
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	4	+0x10	00619100	cSC4NetworkOccupant::Shutdown	0	0	eax-or-void	medium	tail->005e8980
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	5	+0x14	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	6	+0x18	00477450		4	1	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	7	+0x1C	00477110	cSC4PowerSimulator::GetMonthlyDemand	0	0	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	8	+0x20	004771c0		4	1	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	9	+0x24	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	0	+0x0	004ae350		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	2	+0x8	004afaa0		0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	3	+0xC	004ae4e0	cSC4TrafficNetworkMap::Init	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	4	+0x10	004b4000	cSC4TrafficNetworkMap::Shutdown	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	5	+0x14	004b1090	cSC4TrafficNetworkMap::HandleTuningParametersChanged	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	6	+0x18	004ae200	cSC4TrafficNetworkMap::ChooseWeightedEdge	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	7	+0x1C	004ae190		12	3	via-call	low	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	8	+0x20	004b0b20	cSC4TrafficNetworkMap::FindNetworkTile	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	9	+0x24	004af970		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	10	+0x28	004ae160		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	11	+0x2C	004ae140		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	12	+0x30	004afa10		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	13	+0x34	004b3ac0	cSC4TrafficNetworkMap::GetTileInfoAtCell	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	14	+0x38	004ae0c0	cSC4TrafficNetworkMap::SafeGetTileInfoAtCell	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	15	+0x3C	004af7c0	cSC4TrafficNetworkMap::GetTileInfoAtNeighborEdge	16	4	eax-or-void	medium	indirect-jump dword ptr [edi*4 + 0x4af958]
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	16	+0x40	004ae0f0	cSC4TrafficNetworkMap::GetTileInfoByNetwork	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	17	+0x44	00520060	cSC4AutomataScriptSystem::GetAutomataGroupMap	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	18	+0x48	004af630	cSC4TrafficNetworkMap::GetRoadAltitude	8	2	x87	high	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	19	+0x4C	004b4af0		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	20	+0x50	004b2970		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	21	+0x54	004b4bf0		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	22	+0x58	004b28c0		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	23	+0x5C	004b4cf0		12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	24	+0x60	004ae1d0		20	5	via-call	low	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	25	+0x64	004b2a20		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	26	+0x68	004b2d10		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	27	+0x6C	004b0000	cSC4TrafficNetworkMap::GetAutomataCountForLane	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	28	+0x70	004ae090		16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	29	+0x74	004ae030		20	5	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	30	+0x78	004b1c00	cSC4TrafficNetworkMap::EnterNetwork	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	31	+0x7C	004b02a0	cSC4TrafficNetworkMap::ExitNetwork	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	32	+0x80	004b2f70	cSC4TrafficNetworkMap::TickIntersections	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	33	+0x84	004b06f0	cSC4TrafficNetworkMap::CheckIntersection	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	34	+0x88	004ae000	cSC4TrafficNetworkMap::IsIntersection	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	35	+0x8C	007ff0e0	cS3DCamera::LocalXform	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	36	+0x90	004b27e0	cSC4TrafficNetworkMap::UpdateIntersection	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	37	+0x94	004b0a00	cSC4TrafficNetworkMap::SwitchStoplightStates	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	38	+0x98	004b19f0	cSC4TrafficNetworkMap::MarkTrainInCell	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	39	+0x9C	004b0840	cSC4TrafficNetworkMap::UnmarkTrainInCell	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	40	+0xA0	004b0930	cSC4TrafficNetworkMap::GetTrainJunctionPath	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	41	+0xA4	004b1b60	cSC4TrafficNetworkMap::GetTrainJunctionKeys	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	42	+0xA8	004b0990	cSC4TrafficNetworkMap::ToggleTrainJunction	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	43	+0xAC	004af000	cSC4TrafficNetworkMap::ConstrainPointToNetworkTile	8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	44	+0xB0	004af260	cSC4TrafficNetworkMap::ConstrainVectorToNetworkTile	12	3	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	45	+0xB4	004b3fe0		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	46	+0xB8	004b04f0	cSC4TrafficNetworkMap::HandleViewChanged	0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	47	+0xBC	004b3380	cSC4TrafficNetworkMap::HandleInsertNetworkOccupant	4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	48	+0xC0	004b4710		8	2	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	49	+0xC4	004b4120		4	1	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	50	+0xC8	004b48b0		0	0	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	51	+0xCC	004b01c0		8	2	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	0	+0x0	0042e310		8	2	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	2	+0x8	0042e410		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	3	+0xC	0042ec30		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	4	+0x10	0042e500		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	5	+0x14	0042f4a0		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	6	+0x18	0042e990		28	7	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	7	+0x1C	0042e9f0		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	8	+0x20	0042ea70		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	9	+0x24	0042eb60		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	10	+0x28	0042e3a0		0	0	via-call	low	indirect-jump dword ptr [eax + 8]
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	11	+0x2C	0042e910		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	12	+0x30	0042e960		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	13	+0x34	0042f450		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	0	+0x0	00429d60		8	2	eax-or-void	medium	tail->00424b00
+cISC4MySim	cSC4MySim	00a85080	1	+0x4	00429d70		0	0	eax-or-void	medium	tail->00424b60
+cISC4MySim	cSC4MySim	00a85080	2	+0x8	00429d80		0	0	eax-or-void	medium	tail->00424b70
+cISC4MySim	cSC4MySim	00a85080	3	+0xC	00429c90		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	4	+0x10	0042d880		28	7	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	5	+0x14	0042a700	cSC4MySim::FindNewResidence	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	6	+0x18	00426c10	cSC4MySim::ChangeResidence	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	7	+0x1C	00425ca0		12	3	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	8	+0x20	00425d70	cSC4MySim::ChangeJob	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	9	+0x24	0042df50	cSC4MySim::DeleteFromGame	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	10	+0x28	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	11	+0x2C	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	12	+0x30	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	13	+0x34	0042e020	cSC4MySim::SetResidence	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	14	+0x38	004265d0	cSC4MySim::GetLocation	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	15	+0x3C	00424c80		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	16	+0x40	00424ca0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	17	+0x44	00424cb0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	18	+0x48	00424d90		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	19	+0x4C	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	20	+0x50	00449550		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	21	+0x54	00698cd0	cSC4MySimDispatch::GetCurrentLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	22	+0x58	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	23	+0x5C	00424cc0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	24	+0x60	0042bdb0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	25	+0x64	00425dd0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	26	+0x68	00425df0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	27	+0x6C	00424bd0	cSC4MySim::GetJobTitle	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	28	+0x70	00425e30		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	29	+0x74	00424cd0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	30	+0x78	00424d00	cSC4MySim::GetHQAsText	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	31	+0x7C	004293b0	cSC4MySim::Find	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	32	+0x80	00429590	cSC4MySim::ShowResidence	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	33	+0x84	00425e70		0	0	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	34	+0x88	0042c820	cSC4MySim::ShowLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	35	+0x8C	004288d0	cSC4MySim::HideLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	36	+0x90	00425f00		4	1	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	37	+0x94	00425ea0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	38	+0x98	00426ef0	cSC4MySim::LeaveForWork	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	39	+0x9C	00426f60	cSC4MySim::ReturnHome	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	40	+0xA0	0042bf70	cSC4MySim::AnnounceMoveIn	0	0	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	41	+0xA4	0042db50	cSC4MySim::DoScriptCommand	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	42	+0xA8	00426060		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	43	+0xAC	0042c020	cSC4MySim::DoBuildingChanged	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	44	+0xB0	0042c940	cSC4MySim::DoBuildingRemoved	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	45	+0xB4	00426120		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	46	+0xB8	004261d0		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	47	+0xBC	00426280		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	48	+0xC0	00426330	cSC4MySim::DoDisaster	12	3	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	49	+0xC4	00426460		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	50	+0xC8	00427600		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	51	+0xCC	00426ae0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	52	+0xD0	00429fe0		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	53	+0xD4	0042a200		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	54	+0xD8	00426ec0		0	0	unknown	low	
+cISC4MySim	cSC4MySim	00a85080	55	+0xDC	00425f20	cSC4MySim::GetCurrentScreenLocationXY	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	56	+0xE0	00424de0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	57	+0xE4	00426660		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	58	+0xE8	004272b0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	59	+0xEC	00429cb0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	60	+0xF0	004275e0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	61	+0xF4	004275f0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	62	+0xF8	00427410		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	63	+0xFC	00427440		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	64	+0x100	00426a00		0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x18]
+cISC4MySim	cSC4MySim	00a85080	65	+0x104	00426a20		0	0	eax-or-void	medium	indirect-jump dword ptr [edx + 0x1c]
+cISC4MySim	cSC4MySim	00a85080	66	+0x108	00426a40		0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x20]
+cISC4MySim	cSC4MySim	00a85080	67	+0x10C	00426830	cSC4MySim::CreateDispatchTool	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	68	+0x110	00429830	cSC4MySim::ActivateLuaContext	0	0	eax-or-void	medium	

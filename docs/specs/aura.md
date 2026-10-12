@@ -173,7 +173,7 @@ scripts not searched]*. *[choice]* Publish the node when the registry is availab
 | Message | Level | Behaviour |
 |---|---|---|
 | SimBegin `0x66956810` | 0 | nothing; returns true, so the simulator removes the level-0 registration after the first delivery (simulator §5.3). |
-| SimNewDay `0x66956814` | 4 | `DoIdle(5 ms)` (§6). Then, if `state ≠ 0` and `state < GetSimDateNumber() − cycleStartDay` (unsigned compare) → return **false**; else true. |
+| SimNewDay `0x66956814` | 4 | `DoIdle(5 ms)` (§6), which performs one step. Then, with the state **after** that step: if `state ≠ 0` and `state < GetSimDateNumber() − cycleStartDay` (unsigned compare) → return **false**; else true. |
 | SimNewMonth `0x66956816` | 6 | if `state == 0`: state := 1 (start a cycle). True. A month that begins while a cycle is still running does **not** restart it. |
 | SimIdle `0x6695681A` | 10 | `DoIdle(data3 ms)` (the time share the simulator offers, simulator §5.4). True (ignored anyway). |
 
@@ -184,6 +184,26 @@ than the state number it has reached. Then the day agent reports unfinished, the
 same day (each call advancing one step), and the calendar cannot advance until the state number catches up with the
 elapsed days or the cycle ends (state 0). In practice idle calls finish a cycle within the first days of a month.
 The day-number source is `cISC4Simulator::GetSimDateNumber()` (compiled slot 8).
+
+**Order of step and comparison *[compat]***: the handler (`DoMessage`, `0x0068FA60`) calls `DoIdle` first and
+reads the state afterwards. The simulator advances the date **before** it delivers SimNewDay (simulator §5.2 step
+8), so on the first delivery of day `D + k` the elapsed value is `k`. Example, cycle started on day D (state 1 ran
+on day D), delivery on day D + 5:
+
+| State before the call | Step performed | State compared | `state < 5` | SimNewDay returns |
+|---|---|---|---|---|
+| 3 (departments left) | one department | 3 | yes | false |
+| 3 (every department already processed) | publish | 4 | yes | false |
+| 4 (lots exist) | prepare | 5 | no | true |
+| 4 (no lots) | prepare | 0 (cycle ends, §6.4) | — | true |
+| 6 (park curve present) | parks | 7 | no | true |
+| 0 | none | 0 | — | true |
+
+On day D + 6, state 5 with lots left after the 5 ms budget stays 5; `5 < 6` holds, so SimNewDay returns false. A "false" makes the
+simulator deliver SimNewDay again in the same day (simulator §5.3), each delivery running one more step.
+
+The day state 1 runs is normally the first of the month: on that day the day agent (level 4) runs before the month
+agent (level 6) sets state 1, so state 1 runs on the next `DoIdle` (usually the same day's idle call).
 
 Data read from other simulators in the same cycle (residential population and education/health grids, crime,
 pollution, traffic, land value) is whatever they hold at the moment of the step; no ordering with their monthly
@@ -203,15 +223,39 @@ work is guaranteed (foundations §13).
 `DoIdle(ms)` executes the step of the current state, then moves to the next state as listed. State 0 does nothing.
 "Clamp" means clamp to **−127..127** (−128 is reserved for "no data"). `trunc` is truncation toward zero. Curves
 are `cSC4ResponseCurve` lookups (foundations §4); a step whose curve is missing does nothing but still advances,
-**except state 6** (§6.6).
+**except state 6** (§6.6). "The curve exists" means the curve **object** exists: the original tests only that, never
+the number of points. An **empty** curve (a present property with fewer than 2 values, §10) therefore runs its stage
+and is evaluated *[quirk]*, which reads the first segment of empty storage: an access violation (`0x005F4289`) when
+the object was created by this tuning read, or the stale first `y` of the previous curve after an in-place reload
+(§10). *[choice]* FreeCity4 treats an empty curve exactly like an absent one (the stage is skipped; for the park
+curve §6.6's choice applies).
+
+**Integer stores**: every float → integer conversion here is the CRT `_ftol` (`0x009EEF04`): a `fistp` to a
+**64-bit** integer in the current rounding mode (round to nearest), then a one-unit correction toward zero when that
+rounded away from zero, so the result is truncation toward zero as an int64 in EDX:EAX. NaN, ±∞ and magnitudes
+≥ 2^63 give the integer indefinite `0x8000000000000000`, whose low 32 and low 16 bits are **0**. Callers keep only
+the low bits they need:
+- int16 grid stores (§6.2, §6.3) store the **low 16 bits**: values wrap modulo 65536 (no clamp), NaN → 0 *[compat]*;
+- int8 stores with "clamp" (§6.13, rule A) clamp the **low 32 bits** to −127..127, so NaN → 0 *[compat]*.
 
 ### 6.1 State 1 — start
 If initialized: `cycleStartDay := simulator.GetSimDateNumber()`; → 2. (If not initialized the state stays 1.)
 
 ### 6.2 State 2 — park map
 `f := *budget.GetDepartmentBudget(0x8A4260A6).GetFundingPercentage()` (department `0x8A4260A6`, Parks and
-Recreation, foundations §5.2; funding as a fraction, 1.0 = 100 %; no null check).
-For every tract: `park := rawPark > 0 ? trunc(rawPark × f) : rawPark`. → 3.
+Recreation, foundations §5.2; funding as a fraction, 1.0 = 100 %).
+For every tract: `park := rawPark > 0 ? low16(trunc(float32(rawPark × f))) : rawPark` (one x87 multiply of the
+int16 value by the `float32` fraction, rounded to `float32` per foundations §18; then the int16 store of §6: wraps,
+NaN → 0). → 3.
+
+*[compat]* The wrap is reachable only when `rawPark × f > 32767` (for example raw 30000 at 120 % funding gives
+36000, stored as −29536); shipped cone sizes do not get near it.
+
+**No Parks department**: the original does not test the department pointer. When `GetDepartmentBudget(0x8A4260A6)`
+returns null it dereferences null (`0x0068F1E7`, reading the vtable of the null department) and the game crashes.
+This cannot happen with the shipped game, because the park manager creates the department at its `Init` when it is
+missing (foundations §5.2) and saves restore it. *[choice]* A replacement uses `f := 1.0` when the department (or the
+budget simulator) is missing, the same rule state 3 applies to landmark departments (§6.3).
 
 ### 6.3 State 3 — landmark map (one department per call)
 If the department map is empty → 4. Otherwise process the department after `departmentCursor` in ascending ID
@@ -220,7 +264,8 @@ order (the first one when the cursor is −1):
 - `f := 1.0` if the department ID is 0 or the budget has no such department; else `*GetFundingPercentage()`.
 - scaled value of a tract: `v > 0 ? v × f : v` (float, not truncated yet).
 - the **first** department: `landmarkWork := trunc(scaled)`; every later one: `landmarkWork := trunc(landmarkWork +
-  scaled)` (int16 store).
+  scaled)` (the sum is one `float32` add; int16 store of §6: the low 16 bits, so a sum above 32767 wraps, for
+  example 20000 + 20000 → −25536 *[compat]*).
 - `departmentCursor := ID`. If no department follows: copy landmark work into the landmark map, cursor := −1, → 4.
 
 So N departments take N + 1 calls. If the cursor's department has disappeared from the map, the cursor is reset to
@@ -235,11 +280,32 @@ the tax-change computation (§6.5.2) and → 5.
 
 Uses the CPU-cycle limit timer (simulator §5.5) with a budget of `ms` milliseconds. For each lot from the iterator:
 `b := LotBaseAura(lot)` (§6.5.1); for every cell in the lot's bounding rectangle (inclusive, cell units):
-`work := max(work, b)` (signed). The timer is checked every `step` lots, where `step` is a process-wide value
-(initially 1024, shared by every caller of this helper *[inferred]*) adapted per call: with `n = lots processed
-this call / 1024` (integer), if `n > 20` a miss counter increases and at 16 the counter resets and `step` halves
-(if > 1); if `n < 5` the counter decreases and at −4 it resets and `step` doubles (if < 1024) *[inferred detail]*.
-When the iterator is exhausted → 6; otherwise the state stays 5 and the next call continues.
+`work := max(work, b)` (signed). When the iterator is exhausted → 6; otherwise the state stays 5 and the next call
+continues.
+
+**Time slicing** (shared timer helper: constructor `0x0068CC20`, deadline `0x0068BF50`, check `0x0068BF80`,
+adaptation `0x0068B960`):
+- Deadline: `TSC now + trunc(float32(ms × MillisecsToCycles))` (simulator §5.5).
+- `step` and a signed `miss` counter are a **process-wide static** of the aura code (`.bss` `0x00B47B60` /
+  `0x00B47B64`, initialised once per process to 1024 and 0 on first use, guard `0x00B47B68`; referenced only by the
+  aura's `DoIdle`). It is not in the object, not saved, not reset by `Init`, `Shutdown` or a load, so it carries
+  over between cities. Every other user of the helper (growth developer, land value, plumbing, residential, …)
+  passes its **own** static.
+- Per call: `count := 0` and a local copy of `step`. For each iteration: `count := count + step` (uint32); if
+  `count mod 1024 == 0` and the TSC has passed the deadline → stop (state stays 5; no lot is taken in this
+  iteration); else take the next lot (none → state 6, stop) and stamp it. With `step` a power of two in 1..1024 the
+  clock is read once every `1024 / step` lots; `step = 1024` reads it before every lot.
+- At the end of **every** state-5 call (both exits): `n := count >> 10`, i.e. `n = step × (lots stamped + 1) / 1024`
+  (unsigned; the number of clock reads), **not** lots / 1024. Then:
+  - `n == 0`: nothing;
+  - `n > 20`: `miss += 1`; if `miss ≥ 16`: `miss := 0` and, if `step > 1`, `step := step / 2` (read the clock less
+    often);
+  - `1 ≤ n < 5`: `miss −= 1`; if `miss ≤ −4`: `miss := 0` and, if `step < 1024`, `step := step × 2`;
+  - `5 ≤ n ≤ 20`: nothing.
+
+None of this changes results: the stamping (`max`) is order-independent and the original's slicing already depends
+on the CPU clock. *[choice]* FreeCity4 may keep `step` and `miss` per simulator instead of per process (the only
+difference is the starting step after a city change).
 
 #### 6.5.1 `LotBaseAura(lot)`
 
@@ -312,9 +378,28 @@ base tract: average the work cells of its S × S block that are ≠ −128 (`avg
 `d × m = 1.00000024` and a step of **2**, not 1. Any non-zero d moves at least one unit. → 15.
 
 ### 6.15 State 15 — aura grid and mayor rating
-Get the three residential population grids (`GetPopulationGrids(&r1, &r2, &r3)`, compiled slot 25, uint16 grids,
-indexed with the **same tract indices** as the aura grid *[inferred: same geometry]*; released afterwards). Clear the
-low-tract list; `maxRating := −128`, `minRating := 127`. For each tract (x outer, z inner):
+Get the three residential population grids (`GetPopulationGrids(&r1, &r2, &r3)`, compiled slot 25, uint16 grids;
+released afterwards). Clear the low-tract list; `maxRating := −128`, `minRating := 127`. For each tract (x outer, z
+inner) of the **aura grid's** counts:
+
+**Population geometry *[compat]***: the population values are read raw (`GetGridData` rows, simgrid §4) at the
+**aura tract indices** `(x, z)`, with no bounds check and no coordinate conversion: `r_w := popGrid_w[x][z]`. The
+population grids' tract size is P (residential spec, Grids: the R$ growth developer's population-map tract size,
+shipped **4**, or the saved value on a load), the aura's is S = 4, and both grids cover the whole city, so with the
+shipped data the geometries are identical and the mapping is the identity:
+
+| | Aura tract (x, z) | Population tract used |
+|---|---|---|
+| tract size | S = 4 | P = 4 |
+| cells covered | `[4x, 4x + 3] × [4z, 4z + 3]` | the same cells |
+| counts | `cellCountX / 4 × cellCountZ / 4` (64 × 64 in a 256-cell city) | the same |
+
+If P ≠ S (a modded developer exemplar), the original reads population tract `(x, z)` anyway: for P > S it reads past
+the end of the population rows (garbage or a crash), for P < S it reads only the low-index part of the population
+grid. *[choice]* FreeCity4 uses the population tract that contains the aura tract's centre cell, `(⌊(x·S + S/2) /
+P⌋, ⌊(z·S + S/2) / P⌋)`, which is the identity when P = S.
+
+For each tract:
 - `base == −128` → `aura := 0`; the tract is skipped for everything else.
 - else `a := clamp(base + transient)`; `aura := a`;
   if `a < minRating` → minRating := a, minLocation := (x × S + S/2, z × S + S/2) (cells); if `a > maxRating` → the
@@ -332,8 +417,16 @@ likewise, `w := w + 1`; else append (x, z, 1). Then remove every hotspot with `w
 **Riot**: `riotRoll := float32(rng.RandomDoubleRangeUniform(0, 100))` (always drawn). If the hotspot list is not
 empty and the riot curve exists: `k := rng.RandomUint32Uniform(n)` (n = number of hotspots), take the k-th hotspot,
 `p := riotCurve(float(w))`; if `p > riotRoll`: `city.GetDisasterLayer().GetDisasterManager(0xCA380B06)` (riot) and,
-if it exists, `AttemptDisasterStart(hx × S + S/2, hz × S + S/2)` (cell coordinates; the riot manager's own limits
-apply; its result is ignored). → 17.
+if it exists, `AttemptDisasterStart(hx × S + S/2, hz × S + S/2)` (its result is ignored). → 17.
+
+**Units *[compat]***: hotspot coordinates are tract indices; the riot position is in **cells** (int32 cell indices,
+not tracts and not metres), `S` being the aura grid's `GetTractSize()` (4), so hotspot (9, 10) starts a riot at cell
+(38, 42). The riot manager (`cSC4DisasterManagerRiot::AttemptDisasterStart`, `0x0057EA10`) reads them as cells: it
+returns without effect when its active instance count has reached its limit, otherwise it creates a riot instance
+and tries to add a riot leader there: the leader searches outward from that cell (spiral, clamped to
+`CellCountX/Z − 1`) for the nearest road tile and converts the found cell to a world position with
+`cISC4City::CellCornerToPosition` (compiled slot 96) plus `16.0 × RandomDoubleUniform()` per axis (a point inside
+the 16 m cell). The riot's own limits and draws belong to the disaster specs.
 
 ### 6.17 State 17 — transient decay and end of cycle
 For every transient tract ≠ 0: `transient := trunc(transient × shortDecay)`. Then `unusedRating := 0` and post the
@@ -406,6 +499,19 @@ Exemplar `0x6534284A / 0xE7E2C2DB / 0xAA023079` "Aura Simulator" (`SimCity_1.dat
 manager as a property holder at `Init` and on message `0xC53D10AA` (§5.2). If it is missing, nothing changes.
 Curves are rebuilt from float pairs (x, y) (foundations §4); a missing property leaves the curve **absent** (the
 stage is skipped, §6). Shipped values are from re/tuning/simulators.md.
+
+**Curve loading *[compat]*** (foundations §4.1, pattern "delete", with two variants):
+- The twelve stage curves (`0xEA023270`, `75`, `76`, `77`, `78`, `79`, `7F`, `80` and the four pollution curves
+  `71`–`74`) go through one helper (`0x0068D700`): property **present** → if the curve object exists it is
+  reloaded **in place**, otherwise a new object is constructed (`0x007D0410`); then the property-pointer loader
+  (`0x005F4620`) loads it. Property **missing** → the object is deleted (absent).
+- The riot curve `0xEA0232A1` is always deleted first; if the holder has the property a new object is constructed
+  and loaded with the key-based loader (`0x005F4700`).
+- The loader pairs the values: `n = count / 2` points (unsigned shift). A property with 0 or 1 values (including a
+  single scalar) therefore gives a curve object with **no** points, which the original treats as existing (§6:
+  crash when the object is new, stale first `y` after an in-place reload). Any non-empty list keeps at least its
+  first point (foundations §4.2), so "empty" means exactly "fewer than 2 values". *[choice]* FreeCity4 treats such a
+  property like a missing one (absent curve).
 
 | Property | Type | Meaning | Shipped | Code default |
 |---|---|---|---|---|
@@ -590,7 +696,9 @@ parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the fir
 
 | Consumer | Uses |
 |---|---|
-| City advisors (city planning) | `GetMayorRating`, `GetMaxMayorRating`, `GetMinMayorRating` |
+| City advisors (city planning) | `GetMayorRating`, `GetMaxMayorRating`, `GetMinMayorRating` → Lua `game` variables (advisors.md §7.3); the Lua reward conditions read the rating and set conditional-building status (advisors.md §6.6) |
+| Regional city cache (`cSC4RegionalCity::UpdateCityCache`) | `GetMayorRating`, stored as a signed byte in the regional-city record (foundations §11) |
+| 3D view (`UpdateMayorRatingBar`, `DoPostCityInit`) | `GetMayorRating` (the latter uses rating + 100) |
 | Query tool | `GetAuraValue` (lot average of cells, mayor-rating percent), `GetMayorRating`; park/landmark/transient maps for its desirability readout |
 | Growth developer, tract developer | `GetParkMap`, `GetLandmarkMap`, `GetTransientAuraGrid` → `GetCellValue` (desirability) |
 | Map view | `GetAuraGrid` and `GetParkMap` → `GetGridData` (raw rows, simgrid §4) for its overlays; subscribes to `0x2A09B21A` |
@@ -624,7 +732,11 @@ empty-city cycles end silently (§6.4); a missing landmark-department cursor ski
 treated as 255 (§6.11); float rounding of `1 − longDecay` makes steps larger (§6.14); `reAddLandmarks` is never
 cleared (§5.2); the landmark-work grid reuses the landmark map's instance ID (§2); Read accepts any version ≥ 8
 (§11.3, FreeCity4 rejects > 9 *[choice]*); no bound check on transient type (§8.1, FreeCity4 ignores ≥ 4
-*[choice]*); a missing park curve stalls the pipeline (§6.6, FreeCity4 advances *[choice]*).
+*[choice]*); a missing park curve stalls the pipeline (§6.6, FreeCity4 advances *[choice]*); int16 park and landmark
+stores wrap modulo 65536 (§6, §6.2, §6.3); the time-slice step is a process-wide static (§6.5). Not reproduced
+(crashes or garbage in the original): a missing Parks department (§6.2, FreeCity4 uses 1.0 *[choice]*), an empty
+curve (§6, §10, FreeCity4 treats it as absent *[choice]*), population grids with a tract size other than 4 (§6.15,
+FreeCity4 maps by centre cell *[choice]*).
 
 ## 16. Open questions
 
@@ -633,18 +745,23 @@ cleared (§5.2); the landmark-work grid reuses the landmark map's instance ID (�
    (foundations §5.2).
 3. *(resolved)* Department `0x8A4260A6` is Parks and Recreation (foundations §5.2); budget §12 is corrected.
 4. *(resolved)* The residential population grids take the R$ growth developer's tract size, shipped 4, the same as
-   the aura's S (residential.md, Grids). The aura's indexing assumes the two are equal; with a modded developer
-   tract size other than 4 they would differ *[inferred]*.
-5. The time-slice helper's adaptive step (§6.5) is shared with other subsystems; its exact constants should be
-   specified once in simulator.md and cited here.
-6. Unit of the riot start position: the aura passes **cell** coordinates; the riot manager's own spec must say how
-   it interprets them (the earthquake's `AttemptDisasterStart` takes world units, budget errata item 6).
+   the aura's S (residential.md, Grids). The aura reads them raw at its own tract indices; the mapping, and the
+   behaviour when the sizes differ, are in §6.15.
+5. *(resolved)* The time-slice helper's code (`0x0068CC20`, `0x0068BF80`, `0x0068B960`) is shared, but each caller
+   passes its own static step; the aura's static and the exact constants are in §6.5. (simulator.md §5.5 may cite
+   §6.5 for the helper's adaptation rule.)
+6. *(resolved)* The riot start position is in **cells**, and the riot manager reads it as cells (§6.16), unlike the
+   earthquake's `AttemptDisasterStart`, which takes world units (budget errata item 6).
 7. Who reads the process-wide base-aura table written at tuning time (§10).
 8. Whether the 0x99EF1142 handler's "has property" test also applies to network occupants (the network transient is
    reached only when the marker is absent).
 9. Occupant effect radii are divided by the tract size in cells (§7), the transient radius by the tract width in
    metres (§8.2). The behaviour is certain; whether the shipped mayor-rating radii (110–440) were meant as metres
    (which would make them 16 times smaller) is a design question only. FreeCity4 reproduces the cell reading.
+10. *(resolved)* SimNewDay compares the state **after** its `DoIdle` step (§5.1, test 14).
+11. *(resolved)* An empty curve is evaluated by the original (crash or stale value); FreeCity4 treats it as absent
+    (§6, §10). int16 stores wrap and NaN stores 0 (§6). A missing Parks department crashes the original; FreeCity4
+    uses funding 1.0 (§6.2).
 
 ## 17. Conformance tests (must exist in `engine/conformance`)
 
@@ -654,10 +771,13 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
    `(x, z, 128.0, 25.0)`; slot 6 with type 3 changes nothing; `GetMaxMayorRating(p)` writes `p` and returns the value
    in AL; `GetGZCLSID` = `0x0990BDD8`; QI for `0x452294AA` / `0xE4FDA3D4` returns the sub-objects; unknown IID →
    false.
-2. **Park funding**: raw park 100 and funding 0.8 → park map 80; raw park −20 → −20; raw 7 at 0.5 → 3.
+2. **Park funding**: raw park 100 and funding 0.8 → park map 80; raw park −20 → −20; raw 7 at 0.5 → 3; raw 30000 at
+   funding 1.2 (`float32` 1.20000005) → `trunc(36000.0) = 36000` stored as **−29536** (wrap); a stub budget whose
+   funding is NaN with raw 100 → 0.
 3. **Landmark funding**: departments A (ID 0x10, funding 0.5, value 30) and B (ID 0x20, funding 1.2, value 10) →
    calls 1 and 2 build 15 and `trunc(15 + 12.0) = 27`, call 3 publishes 27 and moves to state 4 (3 calls for 2
-   departments). Department ID 0 uses factor 1.0.
+   departments). Department ID 0 uses factor 1.0. Two departments with value 20000 each at funding 1.0 → landmark
+   map **−25536** (wrap).
 4. **Tax effect**: first cycle reads rate 9 for index 0 → no effect; rate later 10 → `effectiveBaseAura[R$] =
    trunc(curve(1)) = −5`; rate 7 → `+7`; rate 9 again → 0 (no change, effective = base).
 5. **Lot base aura**: effective R$ = −5, R$$ = 0; lot with R$ 30, R$$ 10 → `trunc(−150 / 40) = −3`; with an extra
@@ -681,11 +801,16 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
 12. **Hotspots** (threshold −50, radius 3, min weight 4): low tracts in order (10,10), (11,10), (10,12), (20,20),
     (9,11) → one hotspot (9, 10, weight 4); the (20,20) hotspot (weight 1) is removed.
 13. **Riot**: hotspot weight 4 → chance `curve(4) = 8`; with a stub generator returning roll 7.5 the riot manager
-    receives `AttemptDisasterStart(38, 42)` for hotspot (9, 10); roll 8.0 → no riot; one double draw per cycle,
-    plus one integer draw only when there is a hotspot.
-14. **Cadence**: cycle started on day D; on day D + 5 with state 3 → SimNewDay returns false; with state 6 → true;
-    state 0 → true. SimNewMonth during a running cycle does not reset the state. With an empty lot list the cycle
-    ends at state 4 with no history record and no `0x2A09B21A`.
+    receives `AttemptDisasterStart(38, 42)` for hotspot (9, 10) (cell indices, not tracts or metres); roll 8.0 → no
+    riot; one double draw per cycle, plus one integer draw only when there is a hotspot.
+14. **Cadence** (state 1 ran on day D, so cycleStartDay = D; SimNewDay delivered with `GetSimDateNumber() = D + 5`;
+    the comparison uses the state **after** the step, §5.1): state 3 with a department left → one department, state
+    3, returns **false**; state 3 with every department processed → publish, state 4, **false**; state 4 with lots
+    → state 5, returns **true** (comparing before the step would give false); state 6 with the park curve → 7,
+    true; state 0 → no step, true. On day D + 6, state 5 with lots left after the 5 ms budget → stays 5, returns
+    false, and the next delivery on the same day continues the lots. SimNewMonth during a running cycle does not
+    reset the state. With an empty lot list the step in state 4 ends the cycle (state 0, SimNewDay returns true)
+    with no history record and no `0x2A09B21A`.
 15. **Occupant cones**: park with `{50, 22}` inserted on an even-width 2×2 lot at x1 = 10 (cells 10..11, edges at
     160 m and 192 m) with the position x = 170 m (left half) → centre cell 10, tract 2; at x = 176 m (exact middle)
     → cell 11; radius `22 / 4 = 5.5` tracts, centre value +50, outer 0; removal subtracts the same cone; a 3-wide lot
@@ -700,3 +825,17 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
     `BustStrike(3)` only the health strike; `BustStrike(5)` nothing.
 18. **Registry**: `sc4game.aura.add_transient_effect(x, z, 48, 10)` equals test 11; `end_strike(1)` equals
     `BustStrike(1)`.
+19. **No Parks department** *[choice]*: a budget without department `0x8A4260A6`, raw park 100 → park map 100
+    (factor 1.0) and the pipeline moves to state 3 (the original crashes).
+20. **Empty curves** *[choice]*: crime curve property `0xEA023277` with one value (5.0), or with none → the crime
+    stage is skipped (work 10 stays 10, crime 255 has no effect); with three values (0, 10, 255) → one point (0, 10),
+    a constant 10 → work 10 becomes 20 for any crime value. An empty park curve property → state 6 advances as in
+    §6.6's choice.
+21. **Population mapping**: shipped P = S = 4; aura tract (3, 5) with population 300 / 50 / 0 in tract (3, 5) of the
+    three grids → `pop = 350` for that tract. FreeCity4 with a population tract size P = 8 *[choice]* reads
+    population tract `(⌊14 / 8⌋, ⌊22 / 8⌋) = (1, 2)` for aura tract (3, 5).
+22. **Time-slice step** (§6.5, run with a stub clock that never expires): process static step 1024, miss 0; a call
+    that stamps 30 lots and exhausts the iterator → `count = 1024 × 31`, `n = 31` → miss 1; after 16 such calls
+    step = 512 and miss = 0. With step 512 a call that stamps 2 lots → `n = 1536 >> 10 = 1` → miss −1; with step
+    256 and 2 lots → `count = 768`, `n = 0` → nothing. With step 256 the clock is read before lots 4, 8, 12, …
+    (iterations whose `count` is a multiple of 1024). Stamping results are the same for every step value.

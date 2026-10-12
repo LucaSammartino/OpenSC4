@@ -134,26 +134,29 @@ void DigestStep(void* p) {
     cISC4ResidentialSimulator* res = city->GetResidentialSimulator();
     cISC4DemandSimulator* demandSim = city->GetDemandSimulator();
     float value[kDemandCount] = {};
-    float supply[kDemandCount] = {};
     bool have[kDemandCount] = {};
-    double supplyC = 0, supplyI = 0;
     for (size_t i = 0; i < kDemandCount && demandSim != nullptr; ++i) {
         cISC4Demand* dm = demandSim->GetDemand(kDemands[i].id, 0);  // [choice] borrowed pointer (no AddRef)
         if (dm == nullptr) continue;
         have[i] = true;
         value[i] = dm->QueryDemandValue();
-        supply[i] = dm->QuerySupplyValue();
-        if (kDemands[i].group == 'C') supplyC += supply[i];
-        if (kDemands[i].group == 'I') supplyI += supply[i];
     }
-    // [choice] R = the residential simulator's population; C and I = the
-    // summed supply of the commercial and industrial demand groups (jobs).
+    // R = the residential simulator's population; C and I = the supply of
+    // the census sum nodes 0x3001 / 0x4001 (demand §10, "population versus
+    // jobs"), as the original's advisors read them.
     if (res != nullptr) {
         AppendF(out, cap, " population R/C/I=%ld", static_cast<long>(res->GetPopulation()));
     } else {
         AppendF(out, cap, " population R/C/I=-");
     }
-    AppendF(out, cap, demandSim ? "/%.0f/%.0f" : "/-/-", supplyC, supplyI);
+    for (uint32_t census : {0x3001u, 0x4001u}) {
+        cISC4Demand* dm = demandSim ? demandSim->GetDemand(census, 0) : nullptr;  // borrowed
+        if (dm != nullptr) {
+            AppendF(out, cap, "/%.0f", static_cast<double>(dm->QuerySupplyValue()));
+        } else {
+            AppendF(out, cap, "/-");
+        }
+    }
     AppendF(out, cap, " demand ");
     for (size_t i = 0; i < kDemandCount; ++i) AppendF(out, cap, "%s%s", i ? "/" : "", kDemands[i].name);
     AppendF(out, cap, "=");

@@ -288,6 +288,16 @@ is **4** in all twelve shipped developer exemplars (`0x67CD5FA1` / `0x1010` … 
 scratch tract size 2, D is the **coarser** grid: each desirability tract is applied unchanged to the 2 × 2
 scratch tracts it covers (the "A finer" case of simgrid §7.3) *[compat]*.
 
+**Coverage** *[compat]*. In that case the helper (`0x006BDA30`) loops over the **desirability** map's tracts and
+calls the step only for the scratch tracts they cover. If the desirability map covers a smaller area than the
+scratch grid, the scratch tracts outside it are **skipped**: the step does not run for them, so their value is
+neither changed nor clamped to 1 (a value 0 stays 0). This is not the same as reading `d = 0`, which would clamp 0
+to 1 and add `curve(0) × weight`. With equal tract sizes, or a scratch grid coarser than the desirability map, the
+original instead loops over the scratch grid and reads the desirability map without bounds checks (out-of-range
+reads; not reachable with shipped data, where both grids cover the same city). *[choice]* FreeCity4 then skips
+every scratch tract whose source tracts are not all inside the desirability map, and also skips covered tracts
+that fall outside the scratch grid when the desirability map is larger.
+
 ```
 e := desirabilityCurve present ? desirabilityCurve(float(d)) : float(d)
 v := clamp( trunc(v + e × weight), 1, 255 )                 (truncation toward zero, then clamp)
@@ -544,3 +554,6 @@ Shipped tuning unless stated; S = 2.
 17. Desirability mapping (shipped tract sizes: scratch 2, desirability 4), identity curve, weight 2.5: a
     desirability tract (1, 2) holding 40 adds 100 to each of the scratch tracts (2, 4), (3, 4), (2, 5), (3, 5)
     and to no other tract; a scratch tract value 100 there becomes 200.
+18. Desirability map smaller than the scratch area (A-finer case): scratch 8 × 8 tracts (size 2), desirability
+    map 2 × 2 tracts (size 4) holding 0 → scratch tracts x < 4 and z < 4 are processed (value 0 → 1), every
+    other scratch tract keeps its value (0 stays 0).

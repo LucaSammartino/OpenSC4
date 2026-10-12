@@ -50,8 +50,11 @@ extern "C" {
  * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref);
  * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item);
  * 7 = adds fc4_department_find_local_funding_percent (budget erratum);
- * 8 = adds the land value simulator (fc4_landvalue). */
-#define FC4_ABI_VERSION 8u
+ * 8 = adds the land value simulator (fc4_landvalue);
+ * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather);
+ * 10 = adds fc4_props_set_typed and the ordinances (fc4_ordinance_sim / fc4_ordinance);
+ * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node). */
+#define FC4_ABI_VERSION 11u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -715,6 +718,439 @@ bool fc4_landvalue_get_state(const fc4_landvalue* lv, fc4_landvalue_state* out);
 bool fc4_landvalue_write(const fc4_landvalue* lv, const fc4_ostream* out);
 bool fc4_landvalue_read(fc4_landvalue* lv, const fc4_istream* in);
 
+/* ---- property holders ---------------------------------------------------------
+ * A plain property holder the host fills with the properties of a game exemplar
+ * (a subsystem's tuning) before handing it to the core, which copies it. A
+ * single value is stored as a scalar, several (or none) as an array; the core
+ * converts numbers between types when it reads them. */
+typedef struct fc4_props fc4_props;
+
+fc4_props* fc4_props_create(void);
+void fc4_props_destroy(fc4_props* p);
+/* Set (replace) property `id`. `values` may be NULL when `count` is 0. */
+bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
+bool fc4_props_set_i32s(fc4_props* p, uint32_t id, const int32_t* values, size_t count);
+bool fc4_props_set_i64s(fc4_props* p, uint32_t id, const int64_t* values, size_t count);
+bool fc4_props_set_f32s(fc4_props* p, uint32_t id, const float* values, size_t count);
+bool fc4_props_set_bools(fc4_props* p, uint32_t id, const bool* values, size_t count);
+/* A string property (bytes, no terminator). */
+bool fc4_props_set_string(fc4_props* p, uint32_t id, const uint8_t* bytes, size_t len);
+size_t fc4_props_count(const fc4_props* p);
+/* Set property `id` exactly as a game variant holds it: mem_type = the
+ * cIGZVariant type without the array bit (0x01 bool .. 0x0E RZChar); data =
+ * `count` elements in that type's layout (bool: 1 byte). A scalar
+ * (is_array false) needs count 1. False for other types or a bad count. */
+bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
+                         size_t count);
+
+/* ---- weather (docs/specs/weather.md) ------------------------------------------
+ * The weather simulator's core. The shim owns the GZCOM object (agents,
+ * PostCityInit subscription, city/terrain references) and keeps the
+ * SC4Vector-compatible mirror of the moisture grid (§11.2). */
+typedef struct fc4_weather fc4_weather;
+
+typedef struct fc4_weather_host {
+    uint32_t struct_size; /* sizeof(fc4_weather_host) */
+    void* user;
+    /* City (§2, §4): SizeX/Z and CellWidthX/Z in world units, GetWorldHemisphere,
+     * and the calendar month (1..12) of the simulation date. */
+    void (*city_size)(void* user, float* x, float* z);
+    void (*city_cell_width)(void* user, float* x, float* z);
+    int32_t (*world_hemisphere)(void* user);
+    int32_t (*sim_month)(void* user);
+    /* cISC4Region::GetWaterPrefs; false = no region (defaults 60, 100). */
+    bool (*water_prefs)(void* user, uint8_t* lo, uint8_t* hi);
+    /* Terrain (vertex/cell indices unless named world). */
+    bool (*terrain_available)(void* user);
+    float (*altitude_at_vertex)(void* user, int32_t x, int32_t z);
+    void (*vertex_normal)(void* user, int32_t x, int32_t z, float* xyz /* 3 floats */);
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);
+    float (*altitude)(void* user, float world_x, float world_z);
+    float (*sea_level)(void* user);
+    /* Posts a message with void1 = the weather simulator (IGZUnknown) and data2. */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2);
+} fc4_weather_host;
+
+typedef struct fc4_weather_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save, post_init_done, pad;
+    int32_t count_x, count_z, last_season, cells_per_week, wind_month;
+    uint32_t water_rect_count;
+    float ambient_temp, ambient_moisture, wind_speed, wind_dir_x, wind_dir_z, target_wind_speed;
+} fc4_weather_state;
+
+/* The host table is copied. The generator is seeded as Seed(0xFFFFFFFF) with
+ * these clock values (§3). NULL if the table is missing or too small. */
+fc4_weather* fc4_weather_create(const fc4_weather_host* host, uint32_t wall_clock_seed, uint32_t process_clock);
+void fc4_weather_destroy(fc4_weather* w);
+/* Init (§8.1, core part); tuning = the tuning exemplar's properties (copied),
+ * NULL = no exemplar. Shutdown (§8.2, core part). */
+bool fc4_weather_init(fc4_weather* w, const fc4_props* tuning);
+bool fc4_weather_shutdown(fc4_weather* w);
+bool fc4_weather_do_post_city_init(fc4_weather* w);
+/* DoMessage (§5): SimNewDay (data1 = Julian day), SimNewWeek, SimNewMonth
+ * (data3 = month), PostCityInit. Always true. */
+bool fc4_weather_handle_message(fc4_weather* w, uint32_t msg_type, uint32_t data1, uint32_t data3);
+/* cISC4WeatherSimulator methods (§4); axis 0 = x, 1 = z. */
+float fc4_weather_cell_width(const fc4_weather* w, uint32_t axis);
+uint32_t fc4_weather_cell_count(const fc4_weather* w, uint32_t axis);
+int32_t fc4_weather_position_to_cell(const fc4_weather* w, float x, float z, int32_t* cx, int32_t* cz);
+void fc4_weather_cell_to_position(const fc4_weather* w, int32_t cx, int32_t cz, float* x, float* z);
+void fc4_weather_cell_to_standard_city_cell(const fc4_weather* w, int32_t cx, int32_t cz, int32_t* sx, int32_t* sz);
+void fc4_weather_standard_city_cell_to_cell(const fc4_weather* w, int32_t sx, int32_t sz, int32_t* cx, int32_t* cz);
+int32_t fc4_weather_season(const fc4_weather* w);
+int32_t fc4_weather_season_month(const fc4_weather* w);
+void fc4_weather_update_moisture(fc4_weather* w, int32_t x0, int32_t z0, int32_t x1, int32_t z1);
+uint8_t fc4_weather_moisture_value(const fc4_weather* w, float x, float z);
+uint8_t fc4_weather_moisture_type(const fc4_weather* w, float x, float z);
+void fc4_weather_set_manual_moisture_addition(fc4_weather* w, float x0, float z0, float x1, float z1, float v);
+float fc4_weather_humidity(const fc4_weather* w, float x, float z);
+/* GetAmbientWind: returns the speed; v (2 floats, may be NULL) = direction x speed. */
+float fc4_weather_ambient_wind(const fc4_weather* w, float* v);
+/* Copies the moisture grid x-major (out[x * count_z + z], at most `capacity`
+ * bytes; out may be NULL) and reports its shape. Returns the cell count. */
+size_t fc4_weather_moisture_grid(const fc4_weather* w, uint8_t* out, size_t capacity, int32_t* count_x,
+                                 int32_t* count_z);
+bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
+/* Persistence (§10). */
+bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
+bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
+
+/* ---- ordinances (docs/specs/ordinance.md) --------------------------------------
+ * The ordinance simulator and the standard ordinance classes (§3.6). The shim
+ * owns the GZCOM objects: the simulator (agent, messages) and one object per
+ * ordinance, each owning an fc4_ordinance. Ordinance tokens are
+ * cISC4Ordinance*; the simulator's token is its IGZUnknown. Foreign
+ * cISC4Ordinance objects (DLL plugins) are called back through ordinance_call,
+ * ordinance_text and ordinance_misc_property. */
+typedef struct fc4_ordinance_sim fc4_ordinance_sim;
+typedef struct fc4_ordinance fc4_ordinance;
+
+/* cISC4Ordinance operations (fc4_ordinance_call, the host's ordinance_call),
+ * in slot order without GetName / GetDescription / GetMiscProperties.
+ * Booleans are 0 / 1; CHANCE_AVAILABILITY and MONTHLY_INCOME_FACTOR return
+ * the float's bits; SET_* / FORCE_* take the value in `arg`. */
+enum {
+    FC4_ORD_INIT = 0,
+    FC4_ORD_SHUTDOWN = 1,
+    FC4_ORD_CURRENT_MONTHLY_INCOME = 2,
+    FC4_ORD_ID = 3,
+    FC4_ORD_YEAR_FIRST_AVAILABLE = 4,
+    FC4_ORD_CHANCE_AVAILABILITY = 5,
+    FC4_ORD_ENACTMENT_INCOME = 6,
+    FC4_ORD_RETRACMENT_INCOME = 7,
+    FC4_ORD_MONTHLY_CONSTANT_INCOME = 8,
+    FC4_ORD_MONTHLY_INCOME_FACTOR = 9,
+    FC4_ORD_ADVISOR_ID = 10,
+    FC4_ORD_IS_AVAILABLE = 11,
+    FC4_ORD_IS_ON = 12,
+    FC4_ORD_IS_ENABLED = 13,
+    FC4_ORD_MONTHLY_ADJUSTED_INCOME = 14,
+    FC4_ORD_CHECK_CONDITIONS = 15,
+    FC4_ORD_IS_INCOME_ORDINANCE = 16,
+    FC4_ORD_SIMULATE = 17,
+    FC4_ORD_SET_AVAILABLE = 18,
+    FC4_ORD_SET_ON = 19,
+    FC4_ORD_SET_ENABLED = 20,
+    FC4_ORD_FORCE_AVAILABLE = 21,
+    FC4_ORD_FORCE_ON = 22,
+    FC4_ORD_FORCE_MONTHLY_ADJUSTED_INCOME = 23
+};
+
+typedef void (*fc4_key_visitor)(void* ctx, uint32_t type_id, uint32_t group, uint32_t instance);
+
+typedef struct fc4_ordinance_host {
+    uint32_t struct_size; /* sizeof(fc4_ordinance_host) */
+    void* user;
+    /* Resources (§8.1, §3.2). for_each_exemplar_key visits exemplar keys (the
+     * host may skip exemplars whose type property 0x10 is not 14; the core checks
+     * again). exemplar returns a NEW fc4_props with all of the exemplar's
+     * properties (the core destroys it), NULL if missing. ltext delivers a
+     * localized LTEXT string; false if not found. */
+    void (*for_each_exemplar_key)(void* user, fc4_key_visitor visit, void* ctx);
+    fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance);
+    bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
+    /* Objects. create_ordinance: a new standard ordinance of `class_id` with one
+     * reference owned by the core (its token in *token), NULL if none.
+     * foreign_ordinance: the cISC4Ordinance of an object read from a save
+     * (token = its IGZUnknown with one reference): on success returns the
+     * ordinance token, carrying one reference, and has dropped the input
+     * reference; 0 = not an ordinance (the input reference is untouched and the
+     * core releases it). */
+    fc4_ordinance* (*create_ordinance)(void* user, uint32_t class_id, uint64_t* token);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*foreign_ordinance)(void* user, uint64_t token);
+    int64_t (*ordinance_call)(void* user, uint64_t token, uint32_t op, int64_t arg);
+    /* which 0 = GetName, 1 = GetDescription. */
+    bool (*ordinance_text)(void* user, uint64_t token, uint32_t which, fc4_bytes_sink sink, void* ctx);
+    /* Copies property `prop` of GetMiscProperties() into `out`; false if absent. */
+    bool (*ordinance_misc_property)(void* user, uint64_t token, uint32_t prop, fc4_props* out);
+    /* Posts a message with void1 = the ordinance simulator (§7.1). */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2, uint32_t data3);
+    /* City (§3.4, §3.6). sim_year: false if there is no simulator; the expense
+     * lookups: false if the department / line item is missing. */
+    bool (*sim_year)(void* user, uint32_t* year);
+    int32_t (*residential_population)(void* user);
+    bool (*has_budget_simulator)(void* user);
+    bool (*department_total_expenses)(void* user, uint32_t dept, int64_t* out);
+    bool (*line_item_full_expenses)(void* user, uint32_t dept, uint32_t line, int64_t* out);
+    uint32_t (*landfill_capacity)(void* user);
+    int32_t (*power_plant_count)(void* user, int32_t power_type);
+    uint32_t (*police_station_count)(void* user);
+    /* The fraction behind GetRecyclingCenterEffect's pointer (§3.6). */
+    float (*recycling_center_effect)(void* user);
+    /* LegalizeGambling's SetOn(false) side effects (§3.6). */
+    void (*lots_with_building_type)(void* user, uint32_t building_type, fc4_token_callback cb, void* ctx);
+    void (*demolish_lots)(void* user, const uint64_t* lots, size_t count);
+    void (*hide_conditional_building)(void* user, uint32_t building_type);
+    void (*remove_view_input_control)(void* user, uint32_t control_id);
+} fc4_ordinance_host;
+
+typedef struct fc4_ordinance_sim_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save;
+    uint16_t pad;
+    uint32_t count; /* map entries */
+    uint32_t pad2;
+    int64_t monthly_expense, monthly_income, pending;
+} fc4_ordinance_sim_state;
+
+/* The simulator (§4). Host tables are copied; NULL if missing or too small. */
+fc4_ordinance_sim* fc4_ordinance_sim_create(const fc4_ordinance_host* host, uint64_t token);
+/* Releases every map entry (§8.2: ordinances live until the simulator dies). */
+void fc4_ordinance_sim_destroy(fc4_ordinance_sim* s);
+/* Init (§8.1, core part: loads the standard ordinances unless loaded from a
+ * save; after a load, re-keys the entries by GetID() [choice]) and Shutdown
+ * (§8.2, core part: the map is kept). */
+bool fc4_ordinance_sim_init(fc4_ordinance_sim* s);
+bool fc4_ordinance_sim_shutdown(fc4_ordinance_sim* s);
+/* AddOrdinance / RemoveOrdinance (§4.2): token = the cISC4Ordinance*, o = its
+ * fc4_ordinance when it is one of ours, NULL for a foreign one. */
+bool fc4_ordinance_sim_add(fc4_ordinance_sim* s, uint64_t token, const fc4_ordinance* o);
+bool fc4_ordinance_sim_remove(fc4_ordinance_sim* s, uint64_t token, const fc4_ordinance* o);
+/* which: 0 IsOrdinanceAvailable, 1 IsOrdinanceOn, 2 IsOrdinanceAvailableButOff,
+ * 3 IsOrdinanceEnabled. */
+bool fc4_ordinance_sim_query(const fc4_ordinance_sim* s, uint32_t which, uint32_t id);
+/* which: 0 SetOrdinanceAvailable (§4.3), 1 SetOrdinanceOn (§4.4), 2 SetOrdinanceEnabled. */
+bool fc4_ordinance_sim_set(fc4_ordinance_sim* s, uint32_t which, uint32_t id, bool value);
+/* which: 0 GetOrdinanceAvailableArray, 1 GetOrdinanceOnArray, 2 GetOrdinanceIDArray:
+ * IDs in key order while fewer than *n were written (out NULL = capacity 0);
+ * *n := the number written; returns the total. */
+uint32_t fc4_ordinance_sim_array(const fc4_ordinance_sim* s, uint32_t which, uint32_t* out, uint32_t* n);
+/* which: 0 GetOrdinanceAvailableCount, 1 GetOrdinanceOnCount. */
+uint32_t fc4_ordinance_sim_count(const fc4_ordinance_sim* s, uint32_t which);
+/* GetOrdinanceByID / ByName: the entry's token (no reference added), 0 if none. */
+uint64_t fc4_ordinance_sim_by_id(const fc4_ordinance_sim* s, uint32_t id);
+uint64_t fc4_ordinance_sim_by_name(const fc4_ordinance_sim* s, const uint8_t* name, size_t len);
+uint32_t fc4_ordinance_sim_id_by_name(const fc4_ordinance_sim* s, const uint8_t* name, size_t len);
+/* which: 0 GetOrdinanceMonthlyExpense, 1 GetOrdinanceMonthlyIncome. */
+int64_t fc4_ordinance_sim_money(const fc4_ordinance_sim* s, uint32_t which);
+/* §6.1: the offset is a 32-bit sum, sign-extended. */
+int64_t fc4_ordinance_sim_cumulative_offset(const fc4_ordinance_sim* s, uint32_t prop, uint32_t index);
+float fc4_ordinance_sim_cumulative_factor(const fc4_ordinance_sim* s, uint32_t prop, uint32_t index);
+/* DoMessage (§5): SimNewMonth, SimBegin. Always true. */
+bool fc4_ordinance_sim_handle_message(fc4_ordinance_sim* s, uint32_t msg_type);
+bool fc4_ordinance_sim_get_state(const fc4_ordinance_sim* s, fc4_ordinance_sim_state* out);
+/* Persistence (§9.1). Ordinances go out as references by token; on read, ours
+ * arrive with their core handle (fc4_ref.core_handle = the fc4_ordinance*),
+ * others with one reference offered to foreign_ordinance. */
+bool fc4_ordinance_sim_write(const fc4_ordinance_sim* s, const fc4_ostream* out);
+bool fc4_ordinance_sim_read(fc4_ordinance_sim* s, const fc4_istream* in);
+
+/* A standard ordinance (§3) of class `class_id` for the GZCOM object `token`;
+ * NULL for a class that is not one of §3.6. */
+fc4_ordinance* fc4_ordinance_create(const fc4_ordinance_host* host, uint32_t class_id, uint64_t token);
+void fc4_ordinance_destroy(fc4_ordinance* o);
+uint32_t fc4_ordinance_class_id(const fc4_ordinance* o);
+/* SetKey (§3.5, concrete class) and the key it holds (false if none). */
+void fc4_ordinance_set_key(fc4_ordinance* o, uint32_t type_id, uint32_t group, uint32_t instance);
+bool fc4_ordinance_get_key(const fc4_ordinance* o, uint32_t* type_id, uint32_t* group, uint32_t* instance);
+/* One cISC4Ordinance operation (FC4_ORD_*). */
+int64_t fc4_ordinance_call(fc4_ordinance* o, uint32_t op, int64_t arg);
+/* which 0 = GetName, 1 = GetDescription: the bytes go to `sink`. */
+bool fc4_ordinance_text(const fc4_ordinance* o, uint32_t which, fc4_bytes_sink sink, void* ctx);
+/* One property of GetMiscProperties() (own, then the parent exemplar), copied
+ * into `out`; false if absent. */
+bool fc4_ordinance_misc_property(const fc4_ordinance* o, uint32_t prop, fc4_props* out);
+/* Persistence (§9.2). Read accepts any version. */
+bool fc4_ordinance_write(const fc4_ordinance* o, const fc4_ostream* out);
+bool fc4_ordinance_read(fc4_ordinance* o, const fc4_istream* in);
+
+/* ---- demand (docs/specs/demand.md) ---------------------------------------------
+ * The demand simulator and demand nodes. The shim owns the GZCOM objects: the
+ * simulator (agents, subscriptions, the services it reads) and one object per
+ * node, each owning an fc4_demand_node. Node tokens are cISC4Demand*; lots,
+ * connections and regional cities cross as their interface pointers.
+ * Re-entrancy: callbacks must not call back into the demand simulator. */
+typedef struct fc4_demand_sim fc4_demand_sim;
+typedef struct fc4_demand_node fc4_demand_node;
+
+/* Node values (fc4_demand_node_get / _set / _add). */
+enum {
+    FC4_DEMAND_SUPPLY = 0,
+    FC4_DEMAND_DEMAND = 1,
+    FC4_DEMAND_NEW_SUPPLY = 2,
+    FC4_DEMAND_NEW_DEMAND = 3,
+    FC4_DEMAND_ACTIVE_DEMAND = 4,
+    FC4_DEMAND_ECONOMY_MODIFIER = 5,
+    FC4_DEMAND_ACTIVE_MAX = 6,
+    FC4_DEMAND_ACTIVE_MIN = 7,
+    FC4_DEMAND_TAX_MODIFIER = 8,
+    FC4_DEMAND_DEMAND_CAP = 9
+};
+
+typedef struct fc4_demand_connection {
+    uint64_t token;     /* the cISC4NeighborConnection* */
+    uint64_t city;      /* GetCityOnOtherSideOfConnection (0 = none) */
+    uint32_t conn_type; /* GetType */
+    uint32_t reserved;
+} fc4_demand_connection;
+
+typedef struct fc4_demand_growth_developer {
+    uint32_t sub_type;    /* GetSubType (the developer type) */
+    uint32_t kind;        /* GetType: 1 R, 2 C, 3 I */
+    uint32_t has_source;  /* 0: GetSourceDemand returned no node */
+    float supply, demand; /* the source node's committed values */
+    uint32_t reserved;
+} fc4_demand_growth_developer;
+
+typedef struct fc4_demand_sim_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save, census_state, pad;
+    uint32_t node_count, link_count;
+    int32_t cursor_x, cursor_z;
+    float co_economy_bonus, i_economy_bonus, commercial_relief, industrial_relief;
+    uint32_t export_city_count;
+} fc4_demand_sim_state;
+
+typedef void (*fc4_capacity_visitor)(void* ctx, uint32_t map_index, uint32_t dev_type, uint16_t capacity);
+typedef void (*fc4_u32_callback)(void* ctx, uint32_t value);
+typedef void (*fc4_connection_callback)(void* ctx, const fc4_demand_connection* c);
+typedef void (*fc4_growth_developer_callback)(void* ctx, const fc4_demand_growth_developer* g);
+typedef void (*fc4_population_visitor)(void* ctx, uint32_t key, int32_t value);
+
+/* The DemandHost trait of fc4_core::demand as callbacks (the exact calls: §14). */
+typedef struct fc4_demand_host {
+    uint32_t struct_size; /* sizeof(fc4_demand_host) */
+    void* user;
+    /* Resources (§4.2): every exemplar key (type 0x6534284A, any group; the host
+     * may skip exemplars whose ExemplarType is not 3, the core checks again);
+     * exemplar returns a NEW fc4_props (the core destroys it), NULL if missing. */
+    void (*for_each_exemplar_key)(void* user, fc4_key_visitor visit, void* ctx);
+    fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance);
+    void (*warn)(void* user, const uint8_t* text, size_t len);
+    /* Nodes. create_node: a new node (class 0x8990C12D) with one reference owned
+     * by the core, its token in *token. post_active_demand: ActiveDemandChanged
+     * (0x426840A0) from `node` with data1 = key and data2 (§3.4). */
+    fc4_demand_node* (*create_node)(void* user, uint64_t* token);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    void (*post_active_demand)(void* user, uint64_t node, uint32_t key, int32_t data2);
+    /* City and clock: CellCountX/Z; today = the simulation date's Julian day;
+     * now_ms = a millisecond wall clock (census slicing, §6.2). */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    uint32_t (*today)(void* user);
+    uint32_t (*now_ms)(void* user);
+    /* Census (§6.3). census_lot: false unless GetLot(x, z, true) exists, has
+     * capacity and a building type. building_profile: false = no profile; the
+     * capacity list goes to `visit` (vector index, developer type, value). */
+    bool (*census_lot)(void* user, int32_t x, int32_t z, uint32_t* building_type, uint32_t* wealth);
+    bool (*building_profile)(void* user, uint32_t building_type, uint32_t* purpose, fc4_capacity_visitor visit,
+                             void* ctx);
+    uint32_t (*developer_type)(void* user, uint32_t purpose, uint32_t wealth);
+    int16_t (*desirability)(void* user, uint32_t dev_type, int32_t x, int32_t z);
+    uint16_t (*lot_capacity)(void* user, int32_t x, int32_t z, uint32_t dev_type);
+    float (*cell_eq)(void* user, int32_t x, int32_t z);
+    float (*cell_workforce_percent)(void* user, int32_t x, int32_t z);
+    /* Occupancy (§7). lot_excluded: the building has bool 0x27812844 = true. */
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    bool (*lot_excluded)(void* user, uint64_t lot);
+    void (*all_building_types)(void* user, fc4_u32_callback cb, void* ctx);
+    fc4_props* (*building_exemplar)(void* user, uint32_t building_type);
+    /* Modifiers (§8.1, §8.2). history_max: false = no data in the window. */
+    bool (*history_max)(void* user, uint32_t series, uint32_t from_day, uint32_t to_day, float* max);
+    float (*ordinance_factor)(void* user, uint32_t prop, uint32_t index);
+    float (*nation_economy_modifier)(void* user, uint32_t demand_id);
+    /* Cap relief (§8.3). */
+    void (*connections)(void* user, fc4_connection_callback cb, void* ctx);
+    float (*traffic_arrived)(void* user, uint64_t connection);
+    float (*airport_trips)(void* user);
+    float (*seaport_trips)(void* user);
+    /* Region (§9). Cities are cISC4RegionalCity tokens (borrowed). */
+    void (*all_connected_cities)(void* user, fc4_token_callback cb, void* ctx);
+    void (*connected_cities)(void* user, fc4_token_callback cb, void* ctx);
+    uint64_t (*own_regional_city)(void* user);
+    int32_t (*city_population)(void* user, uint64_t city, uint32_t pop_type);
+    int32_t (*city_extrapolated_population)(void* user, uint64_t city, uint32_t pop_type);
+    int32_t (*city_allowable_extrapolation)(void* user, uint64_t city, uint32_t pop_type);
+    float (*city_tax_rate)(void* user, uint64_t city, uint32_t tax_type);
+    float (*city_workforce_percentage)(void* user, uint64_t city);
+    void (*city_extrapolate_growth)(void* user, uint64_t city, uint32_t pop_type, float amount);
+    void (*growth_developers)(void* user, fc4_growth_developer_callback cb, void* ctx);
+    uint32_t (*day_of_last_successful_build)(void* user, uint32_t dev_type);
+    /* History (§10.4). */
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+} fc4_demand_host;
+
+/* The simulator (§5, §13). Host tables are copied; NULL if missing or too small. */
+fc4_demand_sim* fc4_demand_sim_create(const fc4_demand_host* host, uint64_t token);
+/* Releases every node in the map. */
+void fc4_demand_sim_destroy(fc4_demand_sim* s);
+/* Init / Shutdown, core part (§13): subscriptions and agents are the shim's. */
+bool fc4_demand_sim_init(fc4_demand_sim* s);
+bool fc4_demand_sim_shutdown(fc4_demand_sim* s);
+/* GetDemand (initializes first if needed): the node's token, no reference
+ * added; 0 if none. */
+uint64_t fc4_demand_sim_get_demand(fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index);
+void fc4_demand_sim_update_occupant_effects(fc4_demand_sim* s, uint32_t building_type, float old_pct, float new_pct);
+/* CalculateJobsPerUnitOfDemand: out = 3 floats (may be NULL). */
+void fc4_demand_sim_jobs_per_unit(const fc4_demand_sim* s, uint32_t demand_id, uint32_t demand_index, float* out);
+uint32_t fc4_demand_sim_jobs_by_census(const fc4_demand_sim* s, uint32_t census_type);
+float fc4_demand_sim_neutral_tax_rate(const fc4_demand_sim* s);
+/* GetLocalPopulationSummary: (key, value) in key order; returns the count. */
+size_t fc4_demand_sim_local_population_summary(const fc4_demand_sim* s, fc4_population_visitor visit, void* ctx);
+/* DoMessage (§10.2) for everything but kMessageStateChanged. Always true. */
+bool fc4_demand_sim_handle_message(fc4_demand_sim* s, uint32_t msg_type, uint32_t data1, uint32_t data2,
+                                   uint32_t data3);
+/* kMessageStateChanged (§7): lot = the message's IGZUnknown; then data1..data4. */
+void fc4_demand_sim_state_changed(fc4_demand_sim* s, uint64_t lot, uint32_t old_state, uint32_t new_state,
+                                  uint32_t building_type, uint32_t wealth);
+void fc4_demand_sim_set_economy_bonuses(fc4_demand_sim* s, float co, float i);
+bool fc4_demand_sim_get_state(const fc4_demand_sim* s, fc4_demand_sim_state* out);
+/* Persistence (§12.1): nodes go out as references by token; on read, ours
+ * arrive with their core handle (fc4_ref.core_handle = the fc4_demand_node*, no
+ * reference: the map takes one with add_ref); anything else is released and
+ * skipped. */
+bool fc4_demand_sim_write(const fc4_demand_sim* s, const fc4_ostream* out);
+bool fc4_demand_sim_read(fc4_demand_sim* s, const fc4_istream* in);
+
+/* A demand node (§3) for the GZCOM object `token`; only post_active_demand of
+ * the host table is used. */
+fc4_demand_node* fc4_demand_node_create(const fc4_demand_host* host, uint64_t token);
+void fc4_demand_node_destroy(fc4_demand_node* n);
+bool fc4_demand_node_init(fc4_demand_node* n);
+bool fc4_demand_node_shutdown(fc4_demand_node* n);
+bool fc4_demand_node_simulation_begin(fc4_demand_node* n);
+uint32_t fc4_demand_node_id(fc4_demand_node* n);
+bool fc4_demand_node_set_id(fc4_demand_node* n, uint32_t id);
+uint32_t fc4_demand_node_region_use(fc4_demand_node* n);
+bool fc4_demand_node_set_region_use(fc4_demand_node* n, uint32_t v);
+/* EndOfCycle: folds the pending values and recalculates (posts); true if a
+ * value was pending. */
+bool fc4_demand_node_end_of_cycle(fc4_demand_node* n);
+/* An FC4_DEMAND_* value. */
+float fc4_demand_node_get(const fc4_demand_node* n, uint32_t which);
+/* Setters: SUPPLY, DEMAND (committed), ACTIVE_MAX, ACTIVE_MIN, ECONOMY_MODIFIER,
+ * TAX_MODIFIER, DEMAND_CAP; false for the others. */
+bool fc4_demand_node_set(fc4_demand_node* n, uint32_t which, float v);
+/* AddToSupplyValue (SUPPLY) / AddToDemandValue (DEMAND). */
+bool fc4_demand_node_add(fc4_demand_node* n, uint32_t which, float v);
+/* Persistence (§12.2): versions 0-2 are read. */
+bool fc4_demand_node_write(const fc4_demand_node* n, const fc4_ostream* out);
+bool fc4_demand_node_read(fc4_demand_node* n, const fc4_istream* in);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -749,6 +1185,14 @@ static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
 static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
+static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
+static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");
+static_assert(sizeof(fc4_ordinance_sim_state) == 40, "fc4_ordinance_sim_state layout");
+static_assert(sizeof(fc4_ordinance_host) == (sizeof(void*) == 4 ? 104 : 208), "fc4_ordinance_host layout");
+static_assert(sizeof(fc4_demand_connection) == 24, "fc4_demand_connection layout");
+static_assert(sizeof(fc4_demand_growth_developer) == 24, "fc4_demand_growth_developer layout");
+static_assert(sizeof(fc4_demand_sim_state) == 44, "fc4_demand_sim_state layout");
+static_assert(sizeof(fc4_demand_host) == (sizeof(void*) == 4 ? 172 : 344), "fc4_demand_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

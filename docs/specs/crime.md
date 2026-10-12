@@ -608,7 +608,7 @@ vtable is `0x00A9E4DC`.
 
 | Consumer | Uses |
 |---|---|
-| Safety advisor (`update_variables`) | `GetAverageCrime`, `GetMonthlyCrimeCount`, `GetCrimeHotspot` |
+| Safety advisor (`update_variables`) | `GetAverageCrime`, `GetMonthlyCrimeCount`, `GetCrimeHotspot`; it is the only writer of history `0xAA662693` (GA_CRIME), recording the low byte of `GetAverageCrime` (advisors.md §7.6) |
 | Aura simulator `DoIdle` | `GetCrimeGrid` → two-grid walker (simgrid §7.3) that reads the **grid memory** through `GetGridData` |
 | Growth developer `DoIdle` / `EstimateDesirability` | `GetCrimeGrid` → a two-grid walker (raw memory); `GetCellValue` → desirability curve |
 | Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeHotspot` |

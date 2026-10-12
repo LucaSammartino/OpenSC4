@@ -461,7 +461,8 @@ neighbours and service simulators.
 - The property's values are taken as `float32` and paired up: `n = count / 2` points. An odd trailing value is
   ignored.
 - *[compat]* Curve properties must be `float32` arrays. The original reinterprets the raw bytes of other value
-  types as floats, and misbehaves for single-value properties. *[choice]* FreeCity4 converts integer arrays to
+  types as floats. A single value (a scalar, whose variant count is 0, or a one-element array) gives **zero**
+  points. *[choice]* FreeCity4 converts integer arrays to
   float, and treats non-numeric or single-value properties as absent.
 - Loading a **present** property first discards the curve's old segments, then builds the new ones (§4.2). It
   returns false when there are no points; the curve is then empty (§4.3, zero points).
@@ -476,11 +477,12 @@ neighbours and service simulators.
   | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | budget, traffic, pollution's per-occupant curves |
   | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, fire protection, police (curves with a code default; protection §6), power's five tuning curves (power §8). Plumbing's curve `0x6A410BF2` is a variant: "keep", then (0,0)(100,100) if the curve is still empty after the load (plumbing spec) |
   | **empty** | first empties the curve (or uses a fresh temporary one), then loads as in "keep" | the curve is **empty** | pollution's tuning curves (pollution §9), pollution's temporary curves in `SimulationBegin` / `EndOfCycle` |
-  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`); power's two per-building curves `0x8A1E07EE` / `0x0911E2E7` follow it per call, with a fresh temporary curve (power §8) |
+  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Flammability, and the aura's riot curve, delete first and then create a new object when the property is present; the aura's other 12 curves are reloaded in place (created when missing) or deleted when the property is missing (aura §10) | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`); power's two per-building curves `0x8A1E07EE` / `0x0911E2E7` follow it per call, with a fresh temporary curve (power §8) |
 
   "Keep" differs from the others only when tuning is re-read (another `Init` after `Shutdown`, or a tuning-reload
-  message) after the property disappeared, which shipped content never does. A present property with no points
-  always gives an empty curve. *[choice]* FreeCity4 implements the pattern stated per curve, and treats an empty
+  message) after the property disappeared, which shipped content never does. A present property with no points,
+  or with a single value (the property-pointer loader `0x005F4620` makes `count >> 1` points), always gives an
+  empty curve. *[choice]* FreeCity4 implements the pattern stated per curve, and treats an empty
   curve like an absent one only where the subsystem spec says so.
 
 ### 4.2 Construction *[compat]*
@@ -521,8 +523,10 @@ otherwise:                                  return y of segment last
 - **Exact at the points.** At an interior point `x_i` the search selects the next segment, whose start is
   `(x_i, y_i)`, so the result is exactly `y_i`.
 - **One point**: constant `y0`.
-- **Zero points**: the original reads garbage (the helper is undefined). *[choice]* Return 0.0. Callers should
-  treat an empty curve as absent.
+- **Zero points**: the original evaluator (`0x005F4250`) still reads the first segment. On a curve object that has
+  never held points that is a null pointer, and the game crashes; on one that held points before an in-place
+  reload it returns the stale first `y` *[inferred]*. *[choice]* Return 0.0. Callers should treat an empty curve as
+  absent (aura §10, flammability §8).
 
 Arithmetic: on the Windows build the expression `py + (input − px) · slope` is evaluated on the x87 at 24-bit
 precision (§18): the subtraction, the product and the sum are each rounded to a 24-bit significand, i.e. three
@@ -606,7 +610,7 @@ These IDs appear in several subsystem specs. Their meaning is defined once here.
 | ID | Kind | Meaning | Evidence |
 |---|---|---|---|
 | `0x029244DB` | occupant property, bool | **Preview occupant** *[inferred name]*. The lot-placement tool (the building model shown under the cursor before a lot is placed) and the toll-booth tool set it to true on the temporary occupants they create. Grid simulators ignore insert / remove / change messages for such occupants. Aura, crime, flammability and plumbing test only that the property **exists**; pollution tests that its value is **true**. The model maker also creates no shadow for them. | setters in the place-lot and toll-booth tools; readers in every grid simulator's occupant handler |
-| `0xC53D10AA` | message | **Exemplar changed** *[inferred name]*. Posted (`MessagePost`, normal priority) by the exemplar resource code when an exemplar resource is written out, and by the exemplar debug view when it updates one. data1 = the exemplar's group, data2 = its instance. Each simulator re-reads its tuning when (data1, data2) equals its tuning exemplar's group and instance. Shipped play never writes exemplars, so the message is not expected in a normal session; FreeCity4 must still handle it. | senders: exemplar factory write path, exemplar resource view |
+| `0xC53D10AA` | message | **Exemplar changed** *[inferred name]*. Posted (`MessagePost`, normal priority) by the exemplar resource code when an exemplar resource is written out, and by the exemplar debug view when it updates one. data1 = the exemplar's group, data2 = its instance. Each **subscribing** simulator re-reads its tuning when (data1, data2) equals its tuning exemplar's group and instance; the message is posted queued, so only subscribers see it. Flammability neither subscribes nor handles it (flammability §5). Shipped play never writes exemplars, so the message is not expected in a normal session; FreeCity4 must still handle it exactly for the simulators that subscribe. | senders: exemplar factory write path, exemplar resource view |
 | `0xC6CDBF1A` / `0xC6CDBF1B` | message | **PreViewLevelChange / PostViewLevelChange** (names from the game's own message-name table). Sent synchronously (`MessageSend`) by the 3D view when its view level changes, Pre first and then Post. void1 points at the **old** level and void2 at the **new** level (u32 values, valid only during delivery). View levels: **1 = surface**, **2 = subway**, **3 = water pipes** *[inferred: the per-occupant view level is 2 for subway occupants and 3 for pipe occupants, otherwise 1]*. | sender: the 3D view's "set current view level"; readers: pollution (effects shown only when the new level is 1), landfill developer, pipe-burst disaster |
 | `0x8A4260A6` | department ID | **Parks and Recreation**. The park manager creates this department budget at `Init` when it does not exist and names it with LTEXT group `0x6A3FF01C`, instance `0xCA49375E` ("Parks and Recreation" in `SimCityLocale.dat`). The cruise-ship reward building's exemplar also charges this department (budget-department property `0xEA54D283`), which is where the earlier "cruise ship" label came from. | park manager `Init`; exemplar `RW43x30_Cruise_Ship_Building_03BC` |
 
@@ -638,11 +642,11 @@ The game has two generator classes. Both are exact algorithms that our engine mu
 | `NextRaw()` (`RandomUint32Uniform()`) | `t := lcg × 0x41C64E6D + 0x3039` computed in **64 bits**; `lcg := t mod 2^32`; result = `(t >> 16) mod 2^32`. The result's high 16 bits come from the upper half of the 64-bit product. |
 | `RandomUint32Uniform(n)` | `n = 0` → 0, no state change. Otherwise `(NextRaw() × n) >> 32` (64-bit product). |
 | `RandomSint32RangeUniform(lo, hi)` | `lo + RandomUint32Uniform(hi − lo)` (unsigned difference). |
-| `RandomDoubleUniform()` | if `mul = 0`, `mul :=` the process clock. Then `mul := mul × 0x278DDE6D mod 2^32`; result = `int32(mul) / 2^32 + 0.5`, in [0, 1). |
+| `RandomDoubleUniform()` | if `mul = 0`, `mul :=` the process clock. Then `mul := mul × 0x278DDE6D mod 2^32`; result = `int32(mul) / 2^32 + 0.5` in [0, **1]**, with 24-bit rounding (precision notes below). |
 | `RandomDoubleRangeUniform(a, b)` | `a + RandomDoubleUniform() × (b − a)` |
 | `RandomDoubleGaussian()` | Marsaglia polar method on two `2·RandomDoubleUniform() − 1` draws, repeated until `0 < s < 1`. It returns one value and caches the other for the next call. |
-| `RandomDoubleRangeGaussian(a, b)` | `g := Gaussian + 3`, clamped to [0, 6) (≥ 6 gives 0.9999833 after scaling), mapped `a + (b − a) · g / 6` |
-| `RandomDoubleRangeGaussianFast(a, b)` | `a + (u1 + u2 + u3) · (b − a) / 3` with three `RandomDoubleUniform` draws |
+| `RandomDoubleRangeGaussian(a, b)` | `g := Gaussian + 3`; if not `g < 6`, `g := 5.9999`; if `g < 0`, `g := 0`; mapped `a + (b − a) · (g × 1/6)` (operation order below; g = 5.9999 gives 0.9999833 after scaling) |
+| `RandomDoubleRangeGaussianFast(a, b)` | `a + ((u3 + u2) + u1) · (b − a) × 1/3` with three `RandomDoubleUniform` draws u1, u2, u3 in draw order |
 | `RandomSint32RangeGaussianFast(lo, hi)` | always exactly 4 `NextRaw()` draws `r1..r4`: `a = (r1 + r2 + r3 + r4 + 2) >> 2` with the sum in 64 bits, then `lo + ((a × (u32)(hi − lo)) >> 32)`. It draws 4 times even when the range is empty. Test: seed 1, `(0, 25)` gives 10, then 7 (plumbing spec) |
 
 The integer methods use only `lcg`. The double methods use only `mul`. A generator seeded with 0 has a
@@ -664,9 +668,36 @@ regenerate all 624 words (standard MT twist); next output is word 0
 | `RandomUint32Uniform()` | next tempered word |
 | `RandomUint32Uniform(n)` | `(next × n) >> 32` |
 | `RandomSint32RangeUniform(lo, hi)` | `lo + ((next × (hi − lo)) >> 32)` |
-| `RandomDoubleUniform()` | `int32(next) / 2^32 + 0.5` |
+| `RandomDoubleUniform()` | `int32(next) / 2^32 + 0.5`, rounded as for `cRZRandom` (below) |
 | `RandomDoubleRangeUniform(a, b)` | `a + RandomDoubleUniform() × (b − a)` |
 | `RandomUint32WeightedChoice(n, w[])` | n < 2 → 0. Otherwise, with `S` = sum of the positive weights: if `S = 0` → `RandomUint32Uniform(n)`. Otherwise `r := RandomDoubleUniform() × S`, walk the positive weights subtracting until `r < w[i]`, return i (n − 1 if none). |
+
+**Precision of the double methods** *[compat]* (§18). The generators run on the caller's thread, so for all
+simulation callers every floating-point step is rounded to 24 bits like any other simulation arithmetic. The
+"double" results are therefore `float32` values (returned in a `double`). `r24(·)` below is one rounding to a
+24-bit significand, round-to-nearest-even; `a` and `b` are the caller's `double` arguments and enter unrounded.
+
+| Operation (both classes where it exists) | Exact sequence |
+|---|---|
+| `RandomDoubleUniform` | `x := r24(i × 2^-32)` with `i` the signed 32-bit value (`mul`, or the Mersenne Twister word); `u := r24(x + 0.5)`. The scale constant is `float` 2^-32 in `cRZRandom` (`0x0091372E`) and `double` 2^-32 in `cRZRandomSuper` (`0x00913A29`); both are exact, so the two classes round the same way |
+| `RandomDoubleRangeUniform` | `r24(r24(u × r24(b − a)) + a)` |
+| `RandomDoubleGaussian` (`0x00913777`) | `v1 := r24(2·u1 − 1)`, `v2 := r24(2·u2 − 1)` (u1 drawn first); `s := r24(r24(v2·v2) + r24(v1·v1))`; redraw both if `s ≥ 1` or `s = 0`. `f := sqrt(r24(r24(ln(s) / s) × −2))`, the square root rounded to 24 bits. Return `r24(f × v2)`; cache `r24(v1 × f)` for the next call |
+| `RandomDoubleRangeGaussian` (`0x0091381F`) | `g := r24(G + 3)`; the clamps of the table above (5.9999 is the `double` constant, unrounded); result `r24(r24(r24(b − a) × r24(g × 1/6)) + a)`, where 1/6 is a `double` constant |
+| `RandomDoubleRangeGaussianFast` (`0x0091386B`) | `r24(r24(r24(r24(r24(u3 + u2) + u1) × r24(b − a)) × 1/3) + a)`, where 1/3 is a `double` constant |
+| `RandomUint32WeightedChoice` (`0x00913AD3`) | `S` sums the positive `double` weights in index order, each addition rounded; `r := RandomDoubleRangeUniform(0, S)`; the walk subtracts with `r := r24(r − w[i])` |
+
+Consequences:
+
+- **`RandomDoubleUniform` can return exactly 1.0.** The first rounding maps `i` to 24 significant bits, and the
+  addition rounds again: the 191 values `i ≥ 2^31 − 191` give 1.0 (probability ≈ 4.4·10^-8 per draw);
+  `i = 2^31 − 192` gives `1 − 2^-24`. At the other end, `i` near `−2^31` gives 0. Callers that scale `u` by a size
+  or a count can therefore reach the upper bound itself; each subsystem spec follows the original there.
+- The logarithm in `RandomDoubleGaussian` is the C runtime's `log` (`0x009F4DF0`), whose result is **not**
+  affected by the precision control: on CPUs with SSE2 (every CPU except Intel family 15, the Pentium 4 line, which
+  takes the x87 `fyl2x` path) it is the runtime's SSE2 double-precision logarithm. FreeCity4 computes `ln(s)` in
+  `double` and rounds only the division. The result can differ from the original only when `ln(s)/s` falls within
+  a `double` rounding error of a `float32` rounding boundary (about 2^-29 per draw) *[choice]*.
+- The square root (`0x009F1D04`) keeps the caller's precision (§18.1), so it is a 24-bit `fsqrt`.
 
 ### 6.2 Which generator the simulation uses
 
@@ -674,7 +705,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 
 | Generator instance | Seed | Used by (examples) |
 |---|---|---|
-| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager; plumbing (created at `Init`) |
+| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager, advisor system (advisors.md §9), each MySim (mysims.md); plumbing (created at `Init`) |
 | a `cRZRandom` member | **0** (integer path deterministic, double path clock-seeded) | flammability |
 | a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, construction, network lots |
 | a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |
@@ -734,13 +765,19 @@ RNG-free quantities (clock, budget arithmetic) or distributions (growth statisti
     clears; `Create` copies the type only; `==` compares type only; reference counting frees at the last
     `Release`.
 13. **`cRZRandom`**: seed 1 → `RandomUint32Uniform()` gives `0x000041C6`, `0x59D4967E`, `0xBF022781` (lcg states
-    `0x41C67EA6`, `0x967EB0E7`, `0x2781E494`). Seed 1 → `RandomDoubleUniform()` gives 0.6545084968674928,
-    0.48173871100880206, 0.851256174268201 (mul states `0x278DDE6D`, `0xFB533A69`, `0x59EBECB5`).
+    `0x41C67EA6`, `0x967EB0E7`, `0x2781E494`). Seed 1 → `RandomDoubleUniform()` gives 0.6545084714889526,
+    0.48173871636390686, 0.8512561321258545 (mul states `0x278DDE6D`, `0xFB533A69`, `0x59EBECB5`; full `double`
+    arithmetic would give 0.6545084968674928, 0.48173871100880206, 0.851256174268201, which is wrong under §18).
+    Seed 1 → `RandomDoubleRangeUniform(0, 100)` gives 65.45084381103516. Seed 1 →
+    `RandomDoubleRangeGaussianFast(0, 10)` gives 6.625010967254639.
     `RandomUint32Uniform(0)` returns 0 without advancing.
 14. **`cRZRandomSuper`**: seed 1 → first words of the initial table `0x00000001`, `0x1C59C359`; first outputs
     `0xD3F6B9E5`, `0xEF284157`, `0x0D3639C7`. Seed 4357 → `0xAAE64AC3`, `0x5E7C47DA`, `0xB98E8121`. These vectors
     were computed from §6.1 and must be confirmed against the original (open question 6).
 15. **Weighted choice**: all weights ≤ 0 falls back to uniform; weights {0, 1, 0} always pick 1.
+16. **Uniform rounding** (§6.1): `i = 0x7FFFFF41` (2^31 − 191) → `RandomDoubleUniform` = 1.0; `i = 0x7FFFFF40` →
+    0.99999994039535522 (1 − 2^-24); `i = 0x80000000` → 0.0. Clamped Gaussian: `g = 5.9999` with `(a, b) = (0, 10)`
+    → 9.999833106994629.
 
 ## 8. Open questions
 
@@ -1191,8 +1228,9 @@ later positions are never fully mixed: the original's behaviour, kept. Example: 
 ### 12.4 Random cell iterators *[compat, summary]*
 
 The random cell iterator of weather §6.7 has two modes: in prime-step mode a reset makes one `rand()` call
-(`start := rand() mod count`); in table mode, at each reset with shuffling requested, the index table is
-`random_shuffle`d (§12.3). The table is refilled in natural order first whenever its size changed. A **linear**
+(`start := rand() mod count`); in table mode, at each reset with shuffling requested, the table of packed absolute coordinates is
+`random_shuffle`d (§12.3). The table is refilled in natural order first at every table-mode reset (its refill
+flag is never cleared; weather §6.7). A **linear**
 variant of the same utility iterates indices `0 … n−1` instead of a rectangle. It uses the same prime table, caps
 `n` at 130,444 in prime-step mode, and is empty for `n = 0`. Each subsystem spec that uses an iterator must say
 which mode it uses and when it resets.
@@ -1204,7 +1242,7 @@ which mode it uses and when it resets.
 | power simulator (pole funding), plumbing simulator (pipe funding) | `random_shuffle` of a 32-bit list |
 | prop developer (message handler) | `random_shuffle` of a 32-bit list |
 | lot developer (message handler) | `random_shuffle` of an `int` deque |
-| landfill zones (monthly landfill developer update) | `rand()` directly, up to 5 calls per zone update |
+| landfill zones (monthly landfill developer update) | `rand()` directly: one call per redrawn cell whose tile has all four surrounding heaps active, 0–4 per heap whose active state changes (landfill.md §4.8) |
 | random cell iterator | flammability (daily), flora (init, monthly), pollution (init, daily, visual effects), power grid update, tract developer (lot listing, decline), weather (init, weekly); also obliterate-city, volcano lava, helicopters, audio ambience |
 | linear iterator | construction occupants (props, crews), traffic simulator (accident check), one unnamed simulation function |
 
@@ -1281,6 +1319,18 @@ No other ordering requirement is derived:
 - **Ordinance vs neighbours**: their order differs between the original (neighbours first) and FreeCity4
   (ordinance first). Neither reads the other's month results.
 - **Power, plumbing vs neighbours**: power and plumbing come first in both orders.
+- *[compat]* **Landfill developer** (landfill.md §3.3): its month agent runs **after** pollution's and the
+  budget's, and **before** the neighbours' and the ordinance simulator's. It feeds pollution's `landfilled` counter
+  and line item 30, so the order decides whether those are seen this month or next. Evidence: in all eight logged
+  level-6 registration sets (test sessions run3–run9 and the current plugin log, 24 agents each) the landfill
+  developer's address rank is 19–20, pollution 3–14, budget 1–11, neighbours 21–22, ordinance 22–23. Registration
+  order puts the landfill developer second, so FreeCity4 must order it explicitly (for example by registering its
+  month agent after the city's other `Init` calls, or by a priority).
+- What the eight logs confirm: the tail of the set is stable. Landfill developer (rank 19–20), port developers
+  (20–21), neighbours (21–22) and ordinance (22–23) always come in that order, after every agent ranked 1–18;
+  commercial (23–24) and land value (19–24) are at the end too. The ranks of the other 18 agents vary between
+  sessions (for example pollution 3–14, budget 1–11, aura 2–18), so their mutual order stays open
+  (§15 questions 5 and 7).
 - Other pairs that differ between the two orders (for example residential, pollution and power before the budget
   in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
   order.
@@ -1354,6 +1404,10 @@ MSVC, they therefore produce the game's layout: it was verified in-game for ever
    last). Each subsystem spec should check whether its month agent reads another one's month results.
 6. Whether clearing Silent in `UpdateLocalDeals` really posts status reports (§11.3). That depends on the order of
    the check inside `SetFlags`, which a runtime capture would settle.
+7. *(partly answered)* The landfill developer's position relative to pollution, budget, neighbours and ordinance
+   is confirmed in all eight logged sessions (§13.3, now *[compat]*). Still open: the positions of the other
+   month agents relative to each other where they vary between sessions, and whether any of those pairs exchange
+   month results.
 
 ## 17. Compiled slot tables of game-framework interfaces *[compat]*
 
@@ -1549,7 +1603,8 @@ effect, on which threads, and what that means for the specs.
 | Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
 | Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
-| Truncating conversions (`_ftol` `0x009EEF04`, and inline `fistp` sequences) | save the control word, set rounding to "chop", convert, restore | rounding control only, and only for the conversion |
+| Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
+| Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
 The helper's modes are 0 = 24-bit, 1 = 53-bit, 2 = 64-bit. Nothing in the game calls it with mode 2, and nothing
 else writes the precision field. The C library's x87 math helpers (`pow`, `exp`, `log`, …) keep the caller's

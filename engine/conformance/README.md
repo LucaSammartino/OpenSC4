@@ -827,6 +827,7 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 14 messages | `lv16_14_messages` |
 | 15 pipeline call count | `lv16_15_pipeline` |
 | 16 missing altitude curve | `lv16_16_missing_altitude_curve` |
+| 17 desirability mapping (scratch 2, desirability 4) | `lv16_17_desirability_mapping` |
 
 ## Coverage (simgrid §10, `fc4_core::grid`)
 
