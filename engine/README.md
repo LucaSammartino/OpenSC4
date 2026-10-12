@@ -132,3 +132,7 @@ plugin.
   verification: `cIGZDate` (implemented by `cFC4Date`), `cISCPropertyHolder`, `cIGZString`, `cISC4LotManager`,
   `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`, `cISC4Lot`,
   `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`.
+- Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
+  `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0). Such interfaces are also
+  declared in `FC4Interfaces.h` (`cFC4ISC4DepartmentBudget`), and the slot tests check the x87 stack: only
+  slots the spec says return a float may leave a value there.

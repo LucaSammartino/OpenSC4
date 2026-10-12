@@ -153,7 +153,7 @@ private:
 
 // ---- department budget -----------------------------------------------------------------------------
 
-class cFC4DepartmentBudget final : public cISC4DepartmentBudget, public cIGZSerializable, public cIFC4CoreObject {
+class cFC4DepartmentBudget final : public cFC4ISC4DepartmentBudget, public cIGZSerializable, public cIFC4CoreObject {
 public:
     cFC4DepartmentBudget();
     ~cFC4DepartmentBudget();
@@ -186,7 +186,7 @@ public:
     bool SetLocalFundingPercent(cISCPropertyHolder* pPropertyHolder, SC4Percentage* percentage,
                                 uint32_t purposeID) override;
     bool SetLocalFullFunding(cISCPropertyHolder* pPropertyHolder, int64_t cost, uint32_t purposeID) override;
-    float GetLocalFundingPercent(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
+    SC4Percentage const* GetLocalFundingPercentPtr(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
     int64_t GetLocalFullFunding(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
     bool IsLocallyFundedObjectInDepartment(cISCPropertyHolder* pPropertyHolder, uint32_t purposeID) override;
     bool RecalculateAllLineItemCurrentExpenses() override;
@@ -212,6 +212,9 @@ private:
     // The SDK returns the percentages by pointer; these mirror the core values.
     mutable SC4Percentage pct_{1.0f};
     mutable SC4Percentage maxPct_{1.0f};
+    // Slot 26 returns a pointer to this, overwritten on each found call
+    // (budget erratum [choice]: valid until the next call on this object).
+    SC4Percentage localPct_{0.0f};
 };
 
 // ---- line item -----------------------------------------------------------------------------------------

@@ -426,10 +426,17 @@ impl Department {
     }
 
     pub fn local_funding_percent(&self, holder: u64, purpose: u32) -> f32 {
+        self.find_local_funding_percent(holder, purpose).unwrap_or(0.0)
+    }
+
+    /// `GetLocalFundingPercent`'s "found" case (budget erratum): the item's
+    /// local funding fraction if the object is registered and its budget item
+    /// exists, else `None`.
+    pub fn find_local_funding_percent(&self, holder: u64, purpose: u32) -> Option<f32> {
         if !self.is_registered(holder, purpose) {
-            return 0.0;
+            return None;
         }
-        item_for_purpose(&*self.host, holder, purpose).map_or(0.0, |i| i.local_funding)
+        item_for_purpose(&*self.host, holder, purpose).map(|i| i.local_funding)
     }
 
     pub fn local_full_funding(&self, holder: u64, purpose: u32) -> i64 {

@@ -26,7 +26,13 @@ struct SlotCall {
     uint32_t eax = 0;
     uint32_t edx = 0;
     int32_t espDelta = 0;  // bytes left on (+) or taken off (-) the stack; 0 = balanced
+    int x87Pushed = 0;     // values the callee left on the x87 stack (1 = returned a float in ST0)
 };
+
+// Pops one value the callee left on the x87 stack (a float result).
+inline void PopX87() {
+    __asm fstp st(0)
+}
 
 inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> args) {
     uint32_t a[16] = {};
@@ -37,7 +43,9 @@ inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> a
     void* fn = (*reinterpret_cast<void***>(self))[slot];
     uint32_t* pa = a;
     uint32_t rEax = 0, rEdx = 0, before = 0, after = 0;
+    uint16_t swBefore = 0, swAfter = 0;
     __asm {
+        fnstsw swBefore
         mov before, esp
         mov ecx, n
         mov esi, pa
@@ -54,11 +62,14 @@ inline SlotCall CallSlot(void* self, int slot, std::initializer_list<uint32_t> a
         mov rEdx, edx
         mov after, esp
         mov esp, before
+        fnstsw swAfter
     }
     SlotCall r;
     r.eax = rEax;
     r.edx = rEdx;
     r.espDelta = static_cast<int32_t>(before - after);
+    // x87 TOP (status word bits 11-13) decreases by one per push.
+    r.x87Pushed = ((swBefore >> 11) - (swAfter >> 11)) & 7;
     return r;
 }
 

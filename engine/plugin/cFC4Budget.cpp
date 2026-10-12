@@ -117,7 +117,7 @@ cIGZUnknown* CreateFC4BudgetSimulator() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4BudgetSimulator*>(new cFC4BudgetSimulator()));
 }
 cIGZUnknown* CreateFC4DepartmentBudget() {
-    return static_cast<cIGZUnknown*>(static_cast<cISC4DepartmentBudget*>(new cFC4DepartmentBudget()));
+    return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4DepartmentBudget*>(new cFC4DepartmentBudget()));
 }
 cIGZUnknown* CreateFC4LineItem() {
     return static_cast<cIGZUnknown*>(static_cast<cISC4LineItem*>(new cFC4LineItem()));
@@ -756,7 +756,7 @@ uint32_t cFC4BudgetSimulator::GetGZCLSID() {
 // ===================================================================================================
 
 cFC4DepartmentBudget::cFC4DepartmentBudget() {
-    core_ = fc4_department_create(fc4::BudgetHost(), TokenOf(static_cast<cISC4DepartmentBudget*>(this)));
+    core_ = fc4_department_create(fc4::BudgetHost(), TokenOf(static_cast<cFC4ISC4DepartmentBudget*>(this)));
 }
 
 cFC4DepartmentBudget::~cFC4DepartmentBudget() { fc4_department_destroy(core_); }
@@ -768,7 +768,7 @@ bool cFC4DepartmentBudget::QueryInterfaceImpl(uint32_t riid, void** ppvObj) {
     switch (riid) {
         case kFC4_IID_cISC4DepartmentBudget:
         case kFC4_CLSID_cSC4DepartmentBudget:  // the CLSID is also accepted as an IID (§1)
-            *ppvObj = static_cast<cISC4DepartmentBudget*>(this);
+            *ppvObj = static_cast<cFC4ISC4DepartmentBudget*>(this);
             break;
         case GZIID_cIGZSerializable:
             *ppvObj = static_cast<cIGZSerializable*>(this);
@@ -777,7 +777,7 @@ bool cFC4DepartmentBudget::QueryInterfaceImpl(uint32_t riid, void** ppvObj) {
             *ppvObj = static_cast<cIFC4CoreObject*>(this);
             break;
         case GZIID_cIGZUnknown:
-            *ppvObj = static_cast<cIGZUnknown*>(static_cast<cISC4DepartmentBudget*>(this));
+            *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4DepartmentBudget*>(this));
             break;
         default:
             *ppvObj = nullptr;
@@ -921,9 +921,14 @@ bool cFC4DepartmentBudget::SetLocalFullFunding(cISCPropertyHolder* h, int64_t co
     return h != nullptr && fc4_department_set_local_full_funding(core_, TokenOf(h), cost, purpose);
 }
 
-float cFC4DepartmentBudget::GetLocalFundingPercent(cISCPropertyHolder* h, uint32_t purpose) {
+SC4Percentage const* cFC4DepartmentBudget::GetLocalFundingPercentPtr(cISCPropertyHolder* h, uint32_t purpose) {
     FC4_TRACE("DepartmentBudget::GetLocalFundingPercent");
-    return fc4_department_get_local_funding_percent(core_, TokenOf(h), purpose);
+    // Budget erratum [compat]: the game dereferences EAX at once.
+    static const SC4Percentage kNotFound{0.0f};  // never written
+    float q = 0.0f;
+    if (h == nullptr || !fc4_department_find_local_funding_percent(core_, TokenOf(h), purpose, &q)) return &kNotFound;
+    localPct_.percentage = q;  // [choice] valid until the next call on this object
+    return &localPct_;
 }
 
 int64_t cFC4DepartmentBudget::GetLocalFullFunding(cISCPropertyHolder* h, uint32_t purpose) {
