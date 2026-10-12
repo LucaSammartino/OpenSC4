@@ -836,6 +836,27 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 `insert`, `remove`, `move`, `read_occupant` (`key`); `seg_write` (`segment`, `key`, `value` or `occupant` and
 `in_manager`).
 
+## Development helper ops
+
+`development_eval`: `fn`, `args`, `expect` for the shared growth helpers of `fc4_core::development`
+(building-development §4.7.3): `developer_type [p, w]`, `wealth [devType]`, `building_map_key [p, w]`,
+`building_fits_in_zone [bz, cz]`, `growth_stage_fits_in_zone [stage, zone]`.
+
+## Building development ops
+
+The building development vectors (`bd11_…`) drive `fc4_core::building_development`. Every op name starts with
+`bds_`. (Being written, M4.)
+
+## Growth developer ops
+
+The growth developer vectors (`gd14_…`) drive `fc4_core::growth_developer`. Every op name starts with `gdev_`.
+(Being written, M4.)
+
+## Tract developer ops
+
+The tract developer vectors (`td11_…`) drive `fc4_core::tract_developer`. Every op name starts with `tdev_`.
+(Being written, M4.)
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -843,7 +864,8 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
-   `pr18_…` (protection §18), `fo16_…` (flora §16).
+   `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
+   `gd14_…` (growth developer §14), `td11_…` (tract developer §11).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1241,3 +1263,19 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 29 GetAllFloraTypes (and the other type queries) | `fo16_29_all_types` |
 | 30 obliteration | `fo16_30_obliteration` |
 | 31 AdvanceClusterType, 32 seed types | `fo16_31_32_clusters_seed_types` |
+
+## Coverage (building development §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 developer types, 2 map keys, 3 zone fits | `bd11_01_03_types_keys_zones` |
+
+## Coverage (growth developer §14)
+
+| §14 item | Vector |
+|---|---|
+
+## Coverage (tract developer §11)
+
+| §11 item | Vector |
+|---|---|
