@@ -17,6 +17,7 @@
 
 #include "FC4Checked.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -33,8 +34,10 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
             fc4::Log("DLL_PROCESS_ATTACH: %s (base %p) loaded into %s (%s load)", fc4::ModulePath(),
                      static_cast<void*>(hinstDLL), exe, lpvReserved ? "static" : "dynamic");
             fc4::Log("log file: %s", fc4::LogPath());
+            fc4::FpuAttach();
             fc4::DiagAttach(hinstDLL);
             fc4::CheckedAttach();
+            fc4::FpuLog("DLL attach (after our initialisation)");
             break;
         }
         case DLL_PROCESS_DETACH:

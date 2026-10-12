@@ -18,6 +18,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Subsystems.h"
@@ -457,6 +458,7 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        FpuTick();
         if (loadSnapshotDue_) {
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
@@ -479,6 +481,7 @@ public:
         switch (msg->GetType()) {
             case kMsgPostCityInit:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
+                FpuLog("city load (PostCityInit)");
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
@@ -499,7 +502,10 @@ public:
                 if (ok) PublishJulian(static_cast<int32_t>(j));
                 const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
                 if (digest_) WriteDigest(julian);
-                if (observe_) WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
+                if (observe_) {
+                    WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
+                    FpuLog("observe month");
+                }
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the

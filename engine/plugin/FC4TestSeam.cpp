@@ -13,6 +13,7 @@
 
 #include "FC4TestSeam.h"
 
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "cFC4Power.h"
@@ -37,6 +38,13 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return 1;
         case kFC4SeamPowerBudgetPath:
             return PowerTestBudgetPath(static_cast<cISC4BudgetSimulator*>(a));
+        case kFC4SeamFpuReference:
+            if (a == nullptr) {
+                fc4::FpuSetReference("test seam");
+            } else {
+                fc4::FpuTick();  // the observer's per-tick check, without the rest of OnTick
+            }
+            return 1;
         default:
             return 0;
     }

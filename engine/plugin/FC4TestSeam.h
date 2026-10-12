@@ -32,6 +32,9 @@
 //         runs the power glue's department / line-item callbacks on it,
 //         including a department reference read back from a save; returns
 //         0, or the first failed step (logged).
+//   op 7  kFC4SeamFpuReference     a = null: the calling thread's x87 control
+//         word becomes the guard's reference (as PreAppInit does in the
+//         game); a != null: the per-tick check alone (FpuTick).
 #pragma once
 
 #include <cstdint>
@@ -45,6 +48,7 @@ enum : uint32_t {
     kFC4SeamObserverMessage = 4,
     kFC4SeamObserverApp = 5,
     kFC4SeamPowerBudgetPath = 6,
+    kFC4SeamFpuReference = 7,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

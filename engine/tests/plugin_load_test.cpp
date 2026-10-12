@@ -317,6 +317,36 @@ size_t CountPosts(const std::vector<PostedMessage>& posts, uint32_t type) {
     return n;
 }
 
+// ---- the x87 control word (foundations §18.2) ---------------------------------------------------
+// The game runs its main thread at 24-bit x87 precision; nothing in
+// FreeCity4.dll may change that. The normal run sets it like the game and
+// checks it after every stage.
+
+uint16_t RawCw() {
+    uint16_t cw = 0;
+    __asm fnstcw cw
+    return cw;
+}
+
+uint16_t g_cwExpected = 0;
+bool g_cwChanged = false;
+
+void SetGamePrecision() {
+    unsigned int unused = 0;
+    _controlfp_s(&unused, _PC_24, _MCW_PC);
+    g_cwExpected = RawCw();
+}
+
+void CheckCw(const char* where) {
+    const uint16_t cw = RawCw();
+    if (cw != g_cwExpected && !g_cwChanged) {
+        g_cwChanged = true;
+        std::fprintf(stderr, "x87 control word changed by FreeCity4.dll (%s): 0x%04X, expected 0x%04X\n", where, cw,
+                     g_cwExpected);
+        ++g_failures;
+    }
+}
+
 // ---- a fake city for the observer (test seam op 2) -------------------------------------------
 // Game objects are called through their vtables only, so a fake is a table of
 // __fastcall functions (ECX = this, like __thiscall; callee-pop) with traps in
@@ -1067,9 +1097,11 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
     SetEnvironmentVariableA("FC4_HEARTBEAT_MS", "2000");
 
+    SetGamePrecision();  // as the game's PreFrameWorkInit does
     HMODULE h = LoadLibraryA(dll.c_str());
     CHECK(h != nullptr);
     if (h == nullptr) return 1;
+    CheckCw("LoadLibrary (CRT, Rust and DllMain initialisation)");
 
     using GetDirectorFn = cIGZCOMDirector* (*)();
     auto getDirector = reinterpret_cast<GetDirectorFn>(GetProcAddress(h, "GZDllGetGZCOMDirector"));
@@ -1425,6 +1457,20 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverCity, nullptr, nullptr);
             CHECK(world.demandCalls == 28);  // digest and observe: 12 groups + 2 census nodes each
             CHECK(world.demandBadIndex == 0);
+            CheckCw("power budget path, observer month, our budget");
+
+            // The always-on guard: the reference as PreAppInit takes it, a
+            // quiet tick, then a 53-bit main thread is reported once.
+            // (FpuTick alone: a full observer tick would start the watchdog,
+            // whose thread pins the DLL.)
+            void* const fpuTick = reinterpret_cast<void*>(1);
+            seam(kFC4SeamFpuReference, nullptr, nullptr);
+            seam(kFC4SeamFpuReference, fpuTick, nullptr);
+            unsigned int unused = 0;
+            _controlfp_s(&unused, _PC_53, _MCW_PC);
+            seam(kFC4SeamFpuReference, fpuTick, nullptr);
+            seam(kFC4SeamFpuReference, fpuTick, nullptr);
+            SetGamePrecision();
             CHECK(budget3->Shutdown());
         }
         if (budget3 != nullptr) CHECK(budget3->Release() == 0);
@@ -1536,6 +1582,15 @@ int main(int argc, char** argv) {
                     "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                     "budget income/expense=") != std::string::npos);
     CHECK(text.find("power budget path test: passed") != std::string::npos);
+    // The x87 control word: logged at attach, the reference, a change seen by
+    // a tick, and the guard's two warnings, each once.
+    CHECK(text.find("fpu DLL attach: x87 CW=0x") != std::string::npos);
+    CHECK(text.find("(PC 24-bit, RC nearest, masks 0x3F) MXCSR=0x") != std::string::npos);
+    CHECK(text.find("[thread ") != std::string::npos && text.find(", main] = the reference for the guard") != std::string::npos);
+    CHECK(text.find(": control word changed from 0x") != std::string::npos);
+    CHECK(CountOf(text, "fpu: WARNING the main thread's control word changed (tick ") == 1);
+    CHECK(CountOf(text, "fpu: WARNING the main thread is not at 24-bit x87 precision (tick ") == 1);
+    CHECK(text.find("(PC 53-bit") != std::string::npos);
     CHECK(text.find("power budget path test: step") == std::string::npos);
     // The observe line (our budget; no game allocator here, so no departments).
     CHECK(text.find("observer: digest on, observe on") != std::string::npos);
@@ -1585,7 +1640,9 @@ int main(int argc, char** argv) {
     }
     CHECK(text.find("OUT-PARAM OVERRUN #2") == std::string::npos);
 
+    CheckCw("the whole normal run");
     FreeLibrary(h);
+    CheckCw("FreeLibrary");
     CHECK(ReadFile(log).find("DLL_PROCESS_DETACH (FreeLibrary)") != std::string::npos);
 
     if (g_failures == 0) std::printf("plugin load test: all checks passed (log: %s)\n", log.c_str());

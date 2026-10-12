@@ -233,6 +233,15 @@ plugin.
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
      including `FC4_DISABLE=all`.
+   - **x87 control word** (always on; foundations §18.2): the game runs its main thread at 24-bit x87 precision and
+     FreeCity4 never changes it. `fpu <where>: x87 CW=0x… (PC 24-bit, RC nearest, masks 0x3F) MXCSR=0x…` is logged at
+     DLL attach (before and after our initialisation), at every framework hook (`PreAppInit` is the guard's
+     reference: the first hook after the game's `PreFrameWorkInit`), at city load, at each observe month line,
+     around our budget settlement, and at the first tick and every tick where the control word changed (with the
+     tick number). The guard writes `fpu: WARNING the main thread's control word changed (…)` the first time the
+     main thread differs from the reference, and `fpu: WARNING the main thread is not at 24-bit x87 precision (…)`
+     the first time its precision is not 24-bit. A run without 24-bit precision is not a valid reference for
+     float-sensitive values.
    - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every
      reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
      verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as

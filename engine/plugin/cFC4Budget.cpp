@@ -15,6 +15,7 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Properties.h"
@@ -391,7 +392,9 @@ bool cFC4BudgetSimulator::DoMessage(cIGZMessage2* pMessage) {
         fc4_budget_state before{};
         before.struct_size = sizeof(before);
         fc4_budget_get_state(core_, &before);
+        fc4::FpuLog("budget settlement (start)");
         result = fc4_budget_handle_message(core_, type, data1);
+        fc4::FpuLog("budget settlement (end)");
         fc4_budget_state after{};
         after.struct_size = sizeof(after);
         fc4_budget_get_state(core_, &after);

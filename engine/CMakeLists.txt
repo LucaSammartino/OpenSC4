@@ -142,7 +142,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Autotest.h
         plugin/FC4DiagLogic.h
         plugin/FC4Observer.cpp
+        plugin/FC4Fpu.cpp
         plugin/FC4Observer.h
+        plugin/FC4Fpu.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
