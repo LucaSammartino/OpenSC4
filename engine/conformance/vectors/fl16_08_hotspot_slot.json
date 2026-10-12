@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "flammability_hotspot_slot",
+  "spec": ["flammability 11.1", "flammability 16.8"],
+  "description": "Test 8, derived by hand from 11.1 (GetFlammabilityHotspot): the hotspot with the largest weight (strictly larger wins, so the first of equal weights; weights must be > 0); v = the adjusted value at it; an empty list or v = 0 gives false and writes nothing (the op returns false); otherwise (v, S * x, S * z) with S = 1. Hotspots [(5,5,40), (20,20,45)]: adjusted (20,20) = 0 -> false even though (5,5) is 70; adjusted (20,20) = 90 -> (90, 20, 20); equal weights [(5,5,45), (20,20,45)] -> the first, (70, 5, 5); weights 0 and -3 only -> false.",
+  "steps": [
+    {"op": "flam_env", "cells": [32, 32]},
+    {"op": "flam_tuning", "none": true},
+    {"op": "flam_create"},
+    {"op": "flam_call", "method": "hotspot", "expect": false},
+    {"op": "flam_init"},
+    {"op": "flam_call", "method": "hotspot", "expect": false},
+    {"op": "flam_set", "state": {"hotspots": [[5, 5, 40], [20, 20, 45]]}, "adjusted": [[5, 5, 70]]},
+    {"op": "flam_call", "method": "hotspot", "expect": false},
+    {"op": "flam_set", "adjusted": [[20, 20, 90]]},
+    {"op": "flam_call", "method": "hotspot", "expect": [90, 20, 20]},
+    {"op": "flam_set", "state": {"hotspots": [[5, 5, 45], [20, 20, 45]]}},
+    {"op": "flam_call", "method": "hotspot", "expect": [70, 5, 5]},
+    {"op": "flam_set", "state": {"hotspots": [[20, 20, 0], [20, 20, -3]]}},
+    {"op": "flam_call", "method": "hotspot", "expect": false}
+  ]
+}

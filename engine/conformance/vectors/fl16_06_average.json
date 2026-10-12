@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "flammability_average",
+  "spec": ["flammability 6.5", "flammability 6.6", "flammability 9", "flammability 16.6"],
+  "description": "Test 6, derived by hand from 6.5 and 6.6 (and the Python model): zoned tracts add their daily value v (0 for raw 0) to zonedSum and count; EndOfCycle sets average = (zonedSum / zonedCount) mod 256 (0 without zoned tracts), zeroes both, posts SimCycleComplete and records history 0x2A11CB48 with the average, in that order, once per EndOfCycle. 2 x 2 city, tractsPerDay forced to 4, g = 1: zoned (0,0) 100, (1,0) 50, (0,1) raw 0, unzoned (1,1) 250 -> 150 / 3 = 50. Day 1 records the empty first cycle (0). With no zoned tract the next average is 0. Direct EndOfCycle calls: 600 / 1 -> 600 mod 256 = 88; -5 / 1 -> -5 mod 256 = 251 (stored as a byte).",
+  "steps": [
+    {"op": "flam_env", "cells": [2, 2], "zoned": [[0, 0], [1, 0], [0, 1]]},
+    {"op": "flam_tuning", "none": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_set", "state": {"tracts_per_day": 4, "global_multiplier": 1}, "raw": [[0, 0, 100], [1, 0, 50], [1, 1, 250]]},
+    {"op": "flam_clear_events"},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"type": "0x2A11CB48", "value": 0}]},
+    {"op": "flam_expect", "state": {"average": 0, "zoned_sum": 150, "zoned_count": 3}},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"type": "0x2A11CB48", "value": 50}]},
+    {"op": "flam_expect", "state": {"average": 50, "zoned_sum": 150, "zoned_count": 3}},
+    {"op": "flam_call", "method": "average", "expect": 50},
+    {"op": "flam_env", "zoned": []},
+    {"op": "flam_days", "count": 2, "ends": [1, 2]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"value": 50}, {"value": 0}]},
+    {"op": "flam_expect", "state": {"average": 0, "zoned_sum": 0, "zoned_count": 0}},
+
+    {"op": "flam_clear_events"},
+    {"op": "flam_set", "state": {"zoned_sum": 600, "zoned_count": 1}},
+    {"op": "flam_call", "method": "end_of_cycle"},
+    {"op": "flam_expect", "state": {"average": 88, "zoned_sum": 0, "zoned_count": 0}},
+    {"op": "flam_set", "state": {"zoned_sum": -5, "zoned_count": 1}},
+    {"op": "flam_call", "method": "end_of_cycle"},
+    {"op": "flam_expect", "state": {"average": 251}},
+    {"op": "flam_expect_events", "events": [
+      {"event": "post", "type": "SimCycleComplete"}, {"event": "history", "type": "0x2A11CB48", "value": 88}, {"event": "rng", "value": 50},
+      {"event": "post", "type": "SimCycleComplete"}, {"event": "history", "type": "0x2A11CB48", "value": 251}, {"event": "rng", "value": 50}]}
+  ]
+}
