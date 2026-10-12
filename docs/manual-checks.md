@@ -10,6 +10,20 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 2. **Confirm the game opens the last city by itself** at launch. If it opens to the region view instead,
    unattended runs need one click per run, or a load-on-start option.
 
+## Progress log while you were away
+
+- M2 core (demand, ordinance, weather) merged, a164fc9. Whole workspace test suite green.
+- Specs committed:
+  - dbf6237: flora spec; foundations §4.1/§5.2 fixes; M3 open questions resolved.
+  - 2412ca3: ABI rows; flammability prop/flora label erratum.
+- Implementer questions are queued in `docs/specs/QUESTIONS.md`.
+- Budget heap corruption, static lead:
+  - Our message object has type and flags at swapped offsets compared with the game's (`docs/abi/layouts.md`).
+  - A fix was requested from the plugin lane.
+  - This is unproven; the bisection still decides.
+- Power, plumbing and fire/police specs are being written. Lane 3 is on the M3 grid simulator cores. Lane 1 is on
+  land value.
+
 ## To verify in-game (after the bisection finds the culprit)
 
 - [ ] Budget replacement, all switches on: 2–3 months at cheetah speed, money changes each month, budget
