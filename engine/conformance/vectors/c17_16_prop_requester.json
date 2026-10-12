@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_prop_requester",
   "spec": ["crime 8", "crime 9", "crime 11.6", "crime 17.16", "simgrid 4"],
-  "description": "Test 16. GetRequestedShare(rect) = rhe(propRequestCurve(a x 1/255)) with a = crimeGrid.GetAverageValueInCellRect(x1, z1, x2 - x1, z2 - z1) (no +1). Shipped curve (0,0)(0.1,2)(0.2,4)(0.4,6)(1,10). By hand: a = 51 -> 51/255 = 0.2 (f32 product 0.20000002) -> 4; a = 255 -> 1 -> 10; a = 0 -> 0; a = 128 -> 0.50196 -> 6 + 0.10196 x 4/0.6 = 6.68 -> 7. [quirk] A zero-width rect asks for a zero-width average: the containing tract's value when the cell is not on a tract's first column or row (cell 3 of S = 2 is column 1 of tract 1 -> 255 -> 10), 0 otherwise (cell 2 -> 0). Slots 4 and 5: satisfaction ID 0x49A1E996, custom selector true; class slot 15: simulator type 0x27567222. SelectProp splits the props in order into generic (crimeIncidentID 0) and matching (non-zero ID equal to the type of an incident whose lot is GetLot(cell)) and returns matching[RandomUint32Uniform(n)], else generic[...], else 0 (no draw). Props A = 0xA (ID 0), B = 0xB (ID 0x11 Graffiti), C = 0xC (ID 0x12). Lot 1 has a Graffiti incident -> B; a cell without a lot -> A; both Graffiti and Pie Throwing incidents -> matching [B, C], draw 1 -> C; no props -> 0; only a non-matching C on a cell without a lot -> 0. [choice] An incident without a lot matches a cell without a lot.",
+  "description": "Test 16. GetRequestedShare(rect) = rhe(propRequestCurve(a x 1/255)) with a = crimeGrid.GetAverageValueInCellRect(x1, z1, x2 - x1, z2 - z1) (no +1). Shipped curve (0,0)(0.1,2)(0.2,4)(0.4,6)(1,10). By hand: a = 51 -> 51/255 = 0.2 (f32 product 0.20000002) -> 4; a = 255 -> 1 -> 10; a = 0 -> 0; a = 128 -> 0.50196 -> 6 + 0.10196 x 4/0.6 = 6.68 -> 7. [quirk] A zero-width rect asks for a zero-width average: the containing tract's value when the cell is not on a tract's first column or row (cell 3 of S = 2 is column 1 of tract 1 -> 255 -> 10), 0 otherwise (cell 2 -> 0). Slots 4 and 5: satisfaction ID 0x49A1E996, custom selector true; class slot 15: simulator type 0x27567222. SelectProp splits the props in order into generic (crimeIncidentID 0) and matching (non-zero ID equal to the type of an incident whose lot is GetLot(cell)) and returns matching[RandomUint32Uniform(n)], else generic[...], else 0 (no draw). Props A = 0xA (ID 0), B = 0xB (ID 0x11 Graffiti), C = 0xC (ID 0x12). Lot 1 has a Graffiti incident -> B; a cell without a lot -> A; both Graffiti and Pie Throwing incidents -> matching [B, C], draw 1 -> C; no props -> 0; only a non-matching C on a cell without a lot -> 0. Test 21 (12, 11.6 [compat], spec answer C5): the lot test compares pointers, so an incident with a null lot (as loaded from a null lot ref) matches a cell without a lot (B), but not a cell whose lot (1) has no incident (A). rhe beyond 2^22 (6 notation, test 19): a modded prop request curve constant 5,000,000 -> rhe(5,000,000) = 4,597,152 (the sum 17,582,912 has spacing 2; bits 0x4B8625A0 - 0x4B400000), not 5,000,000.",
   "steps": [
     {"op": "crime_lots", "lots": [{"id": 1, "rect": [10, 10, 11, 11]}]},
     {"op": "crime_props", "props": {"0xA": 0, "0xB": "0x11", "0xC": "0x12"}},
@@ -35,8 +35,15 @@
     {"op": "crime_rng", "stub": {"uint": [1]}},
     {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB", "0xC"], 11, 11], "expect": "0xC"},
     {"op": "crime_expect_events", "events": [{"event": "rng", "kind": "uint", "n": 2, "value": 1}]},
-    {"op": "crime_set", "state": {"incidents": [{"lot": null, "type": "0x11"}]}},
+    {"op": "crime_set", "state": {"incidents": [{"lot": null, "type": "0x11", "name": "Graffiti"}]}},
+    {"op": "crime_save", "slot": "nolot"},
+    {"op": "crime_load", "slot": "nolot", "expect": true},
+    {"op": "crime_expect", "state": {"incidents": [{"lot": null, "type": "0x11"}]}},
     {"op": "crime_rng", "stub": {"uint": [0]}},
-    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB"], 30, 30], "expect": "0xB"}
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB"], 30, 30], "expect": "0xB"},
+    {"op": "crime_call", "method": "select_prop", "args": [["0xA", "0xB"], 10, 10], "expect": "0xA"},
+    {"op": "crime_tuning", "shipped": true, "props": {"0x49A34301": {"f32": [0, 5000000, 1, 5000000]}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_call", "method": "requested_share", "args": [0, 0, 8, 8], "expect": 4597152}
   ]
 }

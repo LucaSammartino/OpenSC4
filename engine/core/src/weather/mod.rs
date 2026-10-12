@@ -52,12 +52,14 @@
 //! - Without a terrain, altitude reads 0, normals (0, 1, 0) and no cell has
 //!   water (the host decides); `DoMonthlySimulation(1)` skips the water scan
 //!   and `UpdateMoisture` does nothing (§5.3, §4).
-//! - §5.1, §6.3 and §6.5 run in `f32` in the spec's operation order (one
-//!   rounding per operation, foundations §18). Intermediate maths of §6.1,
-//!   §6.2 and the windSpread tuning (cosine, tangent, square root and the
-//!   generator's doubles; the spec gives no operation order or constant
-//!   types for them) still run in `f64` and are stored as `f32`: a spec
-//!   question under §18.
+//! - §5.1, §6.1, §6.2, §6.3 and §6.5 run in `f32` in the spec's operation
+//!   order (one rounding per operation, foundations §18; the generator's
+//!   doubles are 24-bit, foundations §6.1). The cosine of §6.1 is the
+//!   `double` cosine of the rounded angle (x87 `fcos` is not affected by the
+//!   precision control); it can differ from the original only within a
+//!   `double` error of a `float32` rounding boundary. The windSpread tuning
+//!   (`tan(deg × π/360) × 0.5`, §8.1) still runs in `f64` and is stored as
+//!   `f32` (the spec gives no operation order for it).
 //! - The saved Gaussian cache word keeps the last cached value when the
 //!   "has cached" flag is 0, so write → read → write is byte-identical.
 //! - `ambientMoisture` starts at 0 before the first `Init` (spec: "—").

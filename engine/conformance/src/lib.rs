@@ -14,6 +14,7 @@ pub(crate) mod budget;
 pub(crate) mod crime;
 pub(crate) mod demand;
 pub(crate) mod flammability;
+pub(crate) mod flora;
 pub mod foundations;
 pub(crate) mod grid;
 pub mod json;

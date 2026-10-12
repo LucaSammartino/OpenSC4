@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_arson",
   "spec": ["crime 6.8", "crime 10"],
-  "description": "Arson (6.8), not a numbered 17 test. The incident is appended (lot AddRef'd); for a type with the arson flag, when the lot has a building and the city has a disaster layer, the fire manager ignites the building and sets the cause 2; then 0x0A159D95 is posted (data1 = type, the lot, the type name); the severity is returned. Without a disaster layer there is no fire, but the incident and the post remain. The arson type is chosen through the walk (lot condition 4, total 20.5, r = 3.25 -> Arson). Shutdown releases the incident lots. Hand-derived.",
+  "description": "Arson (6.8), not a numbered 17 test. The incident is appended (lot AddRef'd); for a type with the arson flag, when the lot has a building and the city has a disaster layer, the fire manager ignites the building and sets the cause 2; then 0x0A159D95 is posted (data1 = type, the lot, the type name); the severity is returned. Without a disaster layer there is no fire, but the incident and the post remain. The arson type is chosen through the walk (lot condition 4, total 20.5, r = 3.25 -> Arson). Shutdown releases the incident lots. The name is empty: Arson's shipped name key (0x2026960B, 0x0A554AE0, 0xCA5EA698) has no LTEXT here, as in the shipped locale (7). Hand-derived.",
   "steps": [
     {"op": "crime_lots", "lots": [{"id": 3, "rect": [30, 10, 31, 11], "condition": 4, "building": {"token": 33, "purpose": 1, "wealth": 1}}]},
     {"op": "crime_env", "zones": [{"x": 30, "z": 10, "v": 1}], "disaster_layer": false},
@@ -10,11 +10,11 @@
     {"op": "crime_init"},
     {"op": "crime_clear_events"},
     {"op": "crime_call", "method": "add_crime_event", "args": [3], "expect": 100},
-    {"op": "crime_expect_events", "events": [{"event": "rng"}, {"event": "add_ref", "lot": 3}, {"event": "post", "type": "CrimeCommitted", "crime": 5, "lot": 3, "name": "Arson"}]},
+    {"op": "crime_expect_events", "events": [{"event": "rng"}, {"event": "add_ref", "lot": 3}, {"event": "post", "type": "CrimeCommitted", "crime": 5, "lot": 3, "name": ""}]},
     {"op": "crime_env", "disaster_layer": true},
     {"op": "crime_call", "method": "add_crime_event", "args": [3], "expect": 100},
     {"op": "crime_expect_events", "events": [{"event": "rng"}, {"event": "add_ref", "lot": 3}, {"event": "ignite", "building": 33, "cause": 2}, {"event": "post", "crime": 5}]},
-    {"op": "crime_expect", "state": {"incidents": [{"lot": 3, "type": 5, "name": "Arson"}, {"lot": 3, "type": 5}]}},
+    {"op": "crime_expect", "state": {"incidents": [{"lot": 3, "type": 5, "name": ""}, {"lot": 3, "type": 5}]}},
     {"op": "crime_shutdown"},
     {"op": "crime_expect_events", "filter": {"event": "release"}, "events": [{"lot": 3}, {"lot": 3}]}
   ]

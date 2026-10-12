@@ -1,0 +1,224 @@
+{
+  "format": 1,
+  "name": "weather_ambient_precision",
+  "spec": [
+    "weather 6.1",
+    "weather 6.2",
+    "weather 14.1",
+    "weather 14.10",
+    "foundations 18"
+  ],
+  "description": "Ambient values and the wind target at 24-bit precision. 6.1: ambient := r24(r24(1 + r24(cos(r24(k * w)) * r24(ampB * ampA))) * base) with k = m - 8 (temperature) or m - 1 (moisture), w = float32(pi/6) and the cosine of the rounded angle taken in double. Shipped tuning 65 / 0.5 / 0.5 and 0.2 / 0.2 / 1: temperature month 1 -> 50.92708969116211 but month 3 -> 50.927085876464844 (the rounded angles differ), 7 -> 79.07291412353516, 4 -> 56.875, 8 -> 81.25, 2 -> 48.75; moisture 1 -> 0.24000000953674316, 2 -> 0.23464103043079376, 3 -> 0.2200000137090683, 5 -> 0.17999999225139618, 7 -> 0.1600000113248825 (weather tests 1 and 10). 6.2 with stub draws: speed = r24(r24(u * 2) + 2), u = 0.3 -> 2.5999999046325684; s = r24(g * spread) with the shipped spread float32(tan(60 pi/360) * 0.5) = 0.28867513; c = r24(sqrt(r24(1 - r24(s * s)))); direction (r24(r24(bx c) - r24(bz s)), r24(r24(bz c) + r24(bx s))): g = 0.5, base (1, 0) -> (0.9895285367965698, 0.14433756470680237); g = -1.7, base (0, 1) -> (0.49074772000312805, 0.8713017106056213); g = 3 -> s = 0.8660253882408142 is accepted (|s| <= 1), base (0, 1) -> (-0.8660253882408142, 0.5). Values from an independent Python/numpy model; compared exactly.",
+  "steps": [
+    {
+      "op": "weather_env",
+      "size": [
+        16,
+        16
+      ],
+      "month": 1
+    },
+    {
+      "op": "weather_tuning",
+      "shipped": true
+    },
+    {
+      "op": "weather_create",
+      "rng": {
+        "stub": {
+          "uniform": [
+            0.3
+          ],
+          "gaussian": [
+            0.5
+          ],
+          "int": [
+            0
+          ]
+        }
+      }
+    },
+    {
+      "op": "weather_init",
+      "expect": true
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 50.92708969116211,
+        "ambient_moisture": 0.24000000953674316,
+        "target_wind_speed": 2.5999999046325684,
+        "target_wind_dir": [
+          0.9895285367965698,
+          0.14433756470680237
+        ]
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 50.927085876464844,
+        "ambient_moisture": 0.2200000137090683
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        7
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 79.07291412353516,
+        "ambient_moisture": 0.1600000113248825
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        4
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 56.875
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 48.75,
+        "ambient_moisture": 0.23464103043079376
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        5
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_moisture": 0.17999999225139618
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "ambient_temp": 81.25
+      }
+    },
+    {
+      "op": "weather_env",
+      "water": [
+        {
+          "x": 1,
+          "z": 0,
+          "w": 5
+        }
+      ]
+    },
+    {
+      "op": "weather_rng",
+      "stub": {
+        "uniform": [
+          0.5
+        ],
+        "gaussian": [
+          -1.7
+        ]
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "target_wind_speed": 3,
+        "target_wind_dir": [
+          0.49074772000312805,
+          0.8713017106056213
+        ]
+      }
+    },
+    {
+      "op": "weather_rng",
+      "stub": {
+        "uniform": [
+          0.5
+        ],
+        "gaussian": [
+          3
+        ]
+      }
+    },
+    {
+      "op": "weather_call",
+      "method": "new_current_ambient_values",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "weather_expect",
+      "exact": true,
+      "state": {
+        "prev_wind_dir": [
+          0.49074772000312805,
+          0.8713017106056213
+        ],
+        "target_wind_dir": [
+          -0.8660253882408142,
+          0.5
+        ]
+      }
+    }
+  ]
+}

@@ -17,8 +17,7 @@ use crate::grid::{add_radius_effect, CellIterator, TractGrid, IID_SIM_GRID, MAX_
 use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 
 use super::algo::{
-    census_bucket, crimes_to_commit, criminal_base_term, decay_value, ftol32, jobless_factor, mul_f32, rhe_i32,
-    PROP_SCALE,
+    census_bucket, crimes_to_commit, criminal_base_term, decay_value, ftol32, jobless_factor, mul_f32, rhe, PROP_SCALE,
 };
 use super::types::{choose_candidate, CrimeType, LotBits};
 use super::{
@@ -29,8 +28,9 @@ use super::{
 
 /// The record version written and accepted (§12).
 pub const CRIME_RECORD_VERSION: u16 = 6;
-/// [choice] The most attempts one `AddCrimes` call makes.
-pub const MAX_ATTEMPTS: i32 = 1_000_000;
+/// The x87 default NaN (`float32` bits), the average of an unzoned city
+/// (§6.9).
+pub const DEFAULT_NAN: u32 = 0xFFC0_0000;
 /// The idle pipeline state (§5).
 pub const STATE_IDLE: u32 = 6;
 
@@ -485,7 +485,9 @@ impl CrimeSim {
         };
         let police = self.host.police_grid();
         let mut count = 0;
-        for _ in 0..n.min(MAX_ATTEMPTS) {
+        // All `n` attempts (§6.4: up to `rhe(+∞)` = 876,609,536 with
+        // modded tuning, as in the original).
+        for _ in 0..n {
             let Some(lot) = self.host.random_lot() else { continue };
             let [x1, z1, x2, z2] = self.host.lot_bounding_rect(lot.token);
             let w = x2.wrapping_sub(x1).wrapping_add(1);
@@ -589,13 +591,12 @@ impl CrimeSim {
 
     /// `ComputeAverageCrime` (§6.9).
     pub fn compute_average_crime(&self) {
-        let (grid, s) = {
-            let d = self.d.borrow();
-            (d.crime_grid.clone(), d.tuning.tract_size as i32)
-        };
+        let grid = self.d.borrow().crime_grid.clone();
         let mut sum = 0u64;
         let mut count = 0u64;
         if let Some(g) = grid {
+            // S is the grid's own tract size, not the tuning's (§6.9).
+            let s = g.geometry().tract_size;
             for x in 0..clamp_count(g.count_x()) {
                 for z in 0..clamp_count(g.count_z()) {
                     if self.host.zone_type(x.wrapping_mul(s), z.wrapping_mul(s)) != 0 {
@@ -606,7 +607,8 @@ impl CrimeSim {
             }
         }
         let average = if count == 0 {
-            0.0 // [choice] the original's 0/0 is NaN
+            // 0/0: the x87 default NaN, stored and saved as such (§6.9).
+            f32::from_bits(DEFAULT_NAN)
         } else {
             (sum as f64 / count as f64) as f32
         };
@@ -645,7 +647,7 @@ impl CrimeSim {
         self.d.borrow().effect_grid.clone()
     }
 
-    /// `GetAverageCrime()`: `trunc(average)`.
+    /// `GetAverageCrime()`: `trunc(average)` (`_ftol`, so NaN gives 0).
     pub fn average_crime(&self) -> u32 {
         ftol32(f64::from(self.d.borrow().average_crime)) as u32
     }
@@ -655,14 +657,19 @@ impl CrimeSim {
         self.d.borrow().monthly_crime_count
     }
 
-    /// `GetCrimeHotspot` (§11.2): (value, S·x, S·z) with S the tuning tract
-    /// size, or `None` (nothing written) when the value is 0 or less.
+    /// `GetCrimeHotspot` (§11.2): (value, S·x, S·z) with S the crime grid's
+    /// tract size, or `None` (nothing written) when the value is 0 or less.
+    /// [choice] Without a crime grid (the original would crash) S is the
+    /// tuning tract size, the size a grid would be created with.
     pub fn crime_hotspot(&self) -> Option<(u8, i32, i32)> {
         let d = self.d.borrow();
         if d.hotspot_value <= 0 {
             return None;
         }
-        let s = d.tuning.tract_size as i32;
+        let s = d
+            .crime_grid
+            .as_ref()
+            .map_or(d.tuning.tract_size as i32, |g| g.geometry().tract_size);
         Some((
             d.hotspot_value as u8,
             s.wrapping_mul(d.hotspot_x),
@@ -681,9 +688,10 @@ impl CrimeSim {
             if !kind.filter_accepts(&o) {
                 continue;
             }
-            // One f32 operation per step (foundations §18): ((dx² + dy²) + dz²), sqrt.
+            // One f32 operation per step, in the order of §11.3 [compat]:
+            // sqrt((dy² + dz²) + dx²).
             let [dx, dy, dz] = [0, 1, 2].map(|i| o.position[i] - pos[i]);
-            let d = (dx * dx + dy * dy + dz * dz).sqrt();
+            let d = ((dy * dy + dz * dz) + dx * dx).sqrt();
             if d < best && kind.qualifies(&o) {
                 candidate = Some(o.token);
                 best = d;
@@ -754,7 +762,7 @@ impl CrimeSim {
             g.average_in_cell_rect(x1, z1, x2.wrapping_sub(x1), z2.wrapping_sub(z1))
         });
         let input = mul_f32(f64::from(a), f64::from(PROP_SCALE));
-        rhe_i32(f64::from(d.tuning.prop_request_curve.eval(input)))
+        rhe(d.tuning.prop_request_curve.eval(input))
     }
 
     /// `GetRequesterSatisfactionId()`.
@@ -891,8 +899,11 @@ impl SaveObject for CrimeSim {
     }
 
     /// Rejects versions other than 6 after reading only the version;
-    /// otherwise reads the record, clears the visuals flags, sets
-    /// `loadedFromSave` and returns `!GetError()` (§12).
+    /// otherwise reads the record, **appends** its incidents to the current
+    /// list, clears every incident's visuals flag, sets `loadedFromSave` and
+    /// returns true (§12). [choice] On a stream error it returns false and
+    /// changes nothing: `loadedFromSave` stays clear and the lots read are
+    /// released, so the next `Init` sets the city up as new.
     fn read(&self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else { return false };
         if version != CRIME_RECORD_VERSION {
@@ -905,23 +916,23 @@ impl SaveObject for CrimeSim {
                 self.host.release(lot.token);
             }
         }
-        let ok = record.is_some();
-        if let Some(r) = record {
-            self.clear_incidents();
-            let mut d = self.d.borrow_mut();
-            d.crime_grid = r.crime_grid;
-            d.effect_grid = r.effect_grid;
-            d.iterator = r.iterator;
-            d.average_crime = r.average_crime;
-            d.ordinance_factor = r.ordinance_factor;
-            d.monthly_crime_count = r.monthly_crime_count;
-            d.hotspot_x = r.hotspot[0];
-            d.hotspot_z = r.hotspot[1];
-            d.hotspot_value = r.hotspot[2];
-            d.incidents = r.incidents;
+        let Some(r) = record else { return false };
+        let mut d = self.d.borrow_mut();
+        d.crime_grid = r.crime_grid;
+        d.effect_grid = r.effect_grid;
+        d.iterator = r.iterator;
+        d.average_crime = r.average_crime;
+        d.ordinance_factor = r.ordinance_factor;
+        d.monthly_crime_count = r.monthly_crime_count;
+        d.hotspot_x = r.hotspot[0];
+        d.hotspot_z = r.hotspot[1];
+        d.hotspot_value = r.hotspot[2];
+        d.incidents.extend(r.incidents);
+        for i in d.incidents.iter_mut() {
+            i.visuals_created = false;
         }
-        self.d.borrow_mut().loaded_from_save = true;
-        ok && inp.error() == 0
+        d.loaded_from_save = true;
+        true
     }
 
     fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {
@@ -968,6 +979,7 @@ mod tests {
         released: Cell<i32>,
         lots: RefCell<BTreeMap<u64, Lot>>,
         random: RefCell<VecDeque<u64>>,
+        random_calls: Cell<u64>,
         zones: RefCell<BTreeMap<(i32, i32), u32>>,
         occupants: RefCell<BTreeMap<u64, OccupantFacts>>,
         nearby: RefCell<Vec<NearbyOccupant>>,
@@ -1075,6 +1087,7 @@ mod tests {
             Some(0.5)
         }
         fn random_lot(&self) -> Option<LotRef> {
+            self.random_calls.set(self.random_calls.get() + 1);
             let t = self.random.borrow_mut().pop_front()?;
             self.lots.borrow().contains_key(&t).then_some(LotRef {
                 token: t,
@@ -1324,6 +1337,17 @@ mod tests {
         assert_eq!(sim.add_crimes(-3), 0);
     }
 
+    /// §6.6 runs all n attempts (no cap): 1,500,000 attempts ask for
+    /// 1,500,000 random lots (none found, so no draws).
+    #[test]
+    fn add_crimes_runs_every_attempt() {
+        let (f, sim) = setup(&[]);
+        sim.init();
+        f.random_calls.set(0);
+        assert_eq!(sim.add_crimes(1_500_000), 0);
+        assert_eq!(f.random_calls.get(), 1_500_000);
+    }
+
     #[test]
     fn arson() {
         let (f, sim) = setup(&[]);
@@ -1395,7 +1419,21 @@ mod tests {
         assert_eq!((sim.data().average_crime, sim.average_crime()), (1.5, 1));
         f.zones.borrow_mut().clear();
         sim.compute_average_crime();
-        assert_eq!(sim.average_crime(), 0, "unzoned: [choice] 0");
+        assert_eq!(sim.average_crime(), 0, "unzoned: NaN, read back through _ftol as 0");
+        assert_eq!(sim.data().average_crime.to_bits(), DEFAULT_NAN);
+        // A tuning reload to S = 4 keeps the grid's S = 2 for §6.9 and §11.2.
+        sim.data_mut().tuning.tract_size = 4;
+        f.zones.borrow_mut().insert((2, 0), 1);
+        sim.compute_average_crime();
+        assert_eq!(sim.data().average_crime, 2.0, "tract (1, 0) sampled at cell (2, 0)");
+        {
+            let mut d = sim.data_mut();
+            d.hotspot_x = 3;
+            d.hotspot_z = 1;
+            d.hotspot_value = 9;
+        }
+        assert_eq!(sim.crime_hotspot(), Some((9, 6, 2)));
+        f.zones.borrow_mut().clear();
         g.set(3, 3, 200);
         {
             let mut d = sim.data_mut();
@@ -1505,6 +1543,24 @@ mod tests {
         assert_eq!(sim.nearest(NearestKind::Sim, [0.0; 3], 10.0), Some(3));
         assert_eq!(sim.nearest(NearestKind::Sim, [0.0; 3], 4.0), None);
         assert_eq!(sim.nearest(NearestKind::Prop, [0.0; 3], 10.0), None);
+        // Test 22: the f32 order sqrt((dy² + dz²) + dx²) gives 0x459075B3.
+        *f.nearby.borrow_mut() = vec![NearbyOccupant {
+            position: [2109.0, 1812.0, 3693.0],
+            ..occ(9, 0.0, true)
+        }];
+        assert_eq!(
+            sim.nearest(NearestKind::Sim, [0.0; 3], f32::from_bits(0x4590_75B4)),
+            Some(9)
+        );
+        assert_eq!(
+            sim.nearest(NearestKind::Sim, [0.0; 3], f32::from_bits(0x4590_75B3)),
+            None
+        );
+        *f.nearby.borrow_mut() = vec![NearbyOccupant {
+            position: [3.0, 4.0, 0.0],
+            ..occ(8, 0.0, true)
+        }];
+        assert_eq!(sim.nearest(NearestKind::Sim, [0.0; 3], 5.0), None, "strict");
     }
 
     struct Resolver(BTreeMap<(u32, u32), RefValue>);
@@ -1567,6 +1623,12 @@ mod tests {
             let d = loaded.data();
             assert_eq!((d.hotspot_value, d.ordinance_factor, d.state), (0, 1.0, STATE_IDLE));
         }
+        // A second Read appends its incidents and clears every visuals flag.
+        loaded.data_mut().incidents[0].visuals_created = true;
+        let mut res = Resolver(map.clone());
+        assert!(loaded.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+        assert_eq!(loaded.data().incidents.len(), 4);
+        assert!(loaded.data().incidents.iter().all(|i| !i.visuals_created));
         // Version 5 / 7: false after the version only.
         for v in [5u8, 7] {
             let mut b = bytes.clone();
@@ -1583,6 +1645,7 @@ mod tests {
             let mut res = Resolver(map.clone());
             assert!(!s.read(&mut ByteReader::with_resolver(&bytes[..n], &mut res)));
             assert!(s.data().incidents.is_empty() && s.data().crime_grid.is_none());
+            assert!(!s.data().loaded_from_save, "[choice] a failed Read sets nothing");
             assert!(f3.count("release") <= 1);
         }
         // A hostile incident count (offset 89).

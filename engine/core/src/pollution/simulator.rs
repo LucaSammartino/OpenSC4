@@ -16,6 +16,7 @@ use crate::grid::{add_radius_effect, CellIterator, TractGrid, MODE_TABLE};
 use crate::props::round_half_even_f32;
 use crate::rng::{CrtRand, RzRandomSuper, SeedSource};
 use crate::variant::{Elem, Variant};
+use crate::x87::{ftol, ftol32};
 
 use super::tuning::{curve_of, Tuning};
 use super::{budget, history, msg, prop, PollutionHost, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, LANDFILL_FLAG};
@@ -341,9 +342,11 @@ fn p_f32s(h: &dyn PollutionHost, occ: u64, id: u32) -> Option<Vec<f32>> {
     Some(numbers(&v).iter().map(elem_f32).collect())
 }
 
-/// A per-occupant curve property, if present with at least one point.
+/// A per-occupant curve property (foundations §4.1, [`crate::props::curve_of_variant`]):
+/// absent for a missing, non-numeric or single-value property; a present
+/// property without points is an empty curve, which evaluates to 0.
 pub(crate) fn p_curve(h: &dyn PollutionHost, occ: u64, id: u32) -> Option<ResponseCurve> {
-    ResponseCurve::from_flat(&p_f32s(h, occ, id)?)
+    crate::props::curve_of_variant(&h.occupant_property(occ, id)?)
 }
 
 /// `float × int`, `int × float`: the integer enters unrounded and the
@@ -860,7 +863,7 @@ impl PollutionSim {
         self.s.borrow().last_month
     }
     pub fn garbage_recycled_last_month(&self) -> i64 {
-        self.s.borrow().last_month.recycled as i64
+        ftol(self.s.borrow().last_month.recycled)
     }
     /// Slots 42–45: list lengths (duplicates count).
     pub fn incinerator_count(&self) -> u32 {
@@ -946,7 +949,7 @@ impl PollutionSim {
             return (false, 0);
         };
         let mut r = if h.is_occupant_powered(occ) { base } else { 0 };
-        r = fmul_i(f64::from(r), s.efficiency) as u32;
+        r = ftol32(f64::from(fmul_i(f64::from(r), s.efficiency))) as u32;
         if let Some(curve) = p_curve(h, occ, prop::CONDITION_CURVE) {
             let cond = p_f32(h, occ, prop::CONDITION).unwrap_or(0.0);
             r = round_half_even_f32(fmul_i(f64::from(r), curve.eval(cond))) as u32;
@@ -970,7 +973,8 @@ impl PollutionSim {
 
     pub(super) fn recycling_capacity_in(&self, s: &PollutionState, occ: u64) -> (bool, f32) {
         match self.current_capacity_in(s, prop::RECYCLING, occ) {
-            (true, r) => (true, fmul_i(f64::from(r), 0.01)),
+            // `f32(float(uint32 r) × 0.01f)`: the f32 literal 0.01f (§8.1).
+            (true, r) => (true, fmul_i(f64::from(r), 0.01f32)),
             _ => (false, 0.0),
         }
     }
@@ -1033,7 +1037,7 @@ impl PollutionSim {
         else {
             return (false, base);
         };
-        (true, fmul_i(base as f64, curve.eval(cond)) as i64)
+        (true, ftol(f64::from(fmul_i(base as f64, curve.eval(cond)))))
     }
 
     /// Slots 67–70.

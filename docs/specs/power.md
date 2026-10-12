@@ -157,13 +157,43 @@ rectangle.
 | tuning scalars, 5 curves | §8 | no | |
 | a `cRZRandom` member | wall-clock seed | no | **never used** |
 
+The constructor (`0x006EF7B0`) clears every field above except ring, annual, the unused flag, changed, recompute,
+agePlants and state. Those are set only by the new-city `Init` (§4.1 step 3), by `Read` (§9) or, for changed, by
+state 0. This matters only for a failed load (§9.1).
+
+**Counter types** *[compat]*. All counters are 32-bit. The table gives the signedness the instructions use and what
+an underflow does. Every getter slot returns the stored 32 bits unchanged in EAX (`mov eax, [member]`, no
+clamp). The SDK declares them `int32_t`, except `GetPowerPoleCount`, which is `uint32_t`.
+
+| Counter | Changed by | Signedness in the code | Underflow |
+|---|---|---|---|
+| consumers | +1 at insertion (§5.1); −1 at removal (§5.2) | signed: after the decrement, a negative result (`jns` not taken) is replaced by 0 | cannot go below 0 |
+| requirement | += / −= `consumed` (u32) | signed clamp, as for consumers: a result that is negative as `s32` becomes 0 | cannot go below 0. A sum above 2³¹ − 1 also reads as negative and is reset to 0 by the next removal *[quirk, unreachable with shipped values]* |
+| powered count | += n per powered block (§6.3) | plain add | — |
+| unpowered | `consumers − powered` at state 3 (§6.6) | signed: a negative result becomes 0 | never negative |
+| plantCount, perType[t] | ±1 (§5.1, §5.2) | plain `inc`/`dec`, no clamp | plantCount is decremented only for a node found in the plant list, so it stays ≥ 0. `perType[t]` uses the type read **at removal time**: if a plant's `0x27812853` changed while it was in the city, the old type keeps its count and the new one can reach −1. Slot 23 then returns `0xFFFFFFFF` (−1) |
+| poleCount | ±1 (§5.1, §5.2, §5.6) | unsigned: converted with `fild` plus 2³² when negative (§7.6) | decremented only for a pole found in the list, so it stays ≥ 0 |
+| brokenCount | ±1 (§7.6) | unsigned compares with the target (`jbe`/`jae`) | not decremented when a distressed pole is removed (§5.2), so it can exceed the number of distressed poles. It never goes below 0 |
+| overworked, aged, distressed | +1 (§7.4), zeroed before each ageing | plain add | — |
+| consumption cell | `int16` add/sub (§5.1) | wraps | §5.1 |
+
+The state-3 tests `consumers > 0` and `consumption > 0` (§6.6) are signed (`jle`). The building tests
+`consumed > produced`, `consumed > 0` and `produced > consumed` are unsigned (`jbe`).
+
 ## 4. Lifecycle
 
 ### 4.1 `Init()` → true (AL = 1)
 
 1. Take (and `AddRef`) the city (`SL::spCity`) and from it the occupant manager, zone manager, neighbours
-   simulator and budget simulator; take the demolition utility (global). Look up the power department with
-   `budget.GetDepartmentBudget(0x8910BC8A)` and `AddRef` it if found.
+   simulator and budget simulator; take the demolition utility (global). Each one is taken only while its member
+   is still null, so a second `Init` takes no extra references. Then, only if the budget simulator is non-null
+   **and no department is held yet**: look up the power department with `budget.GetDepartmentBudget(0x8910BC8A)`
+   and `AddRef` it if found (`0x006F045C`–`0x006F047D`). *[compat]* After a load, `Read` has already set the
+   department from its saved `ref` (§9), so `Init` does **not** look it up again and keeps the loaded object. The
+   lookup runs after a load only when that ref was null or failed. If it then finds nothing, nobody creates the
+   department, because step 3 is skipped after a load. It stays null, and state 1 later calls `GetLineItem(1)`
+   through it without a null test (`0x006EF066`), which crashes *[quirk]*. *[choice]* FreeCity4 creates the
+   department as in step 3 when it is still null at the end of `Init` after a load.
 2. If not `initialized`: set it; read the tuning (§8); register the agent (§4.3); set the history queue length to
    2 for the nine per-type history IDs (§9.2); subscribe (in this order) to `0x99EF1142`, `0x99EF1143`,
    `0x07699455`, `0xCA1B151C`, `0x278E6003`, `0xC2C09554`, `0xE8BDA2E7`, `0xEA418D8F`, `0x6AC284F3`,
@@ -241,28 +271,41 @@ Dispatch on `occ.GetType()` (occupant slot 7):
     consumers += 1; requirement += consumed; if `IsPowered(centre)` and the building has a lot: `lot.SetHasPower(true)`;
   - if `produced > consumed` (a **plant**): `AddRef`; append a node `{visited 0, occ}`; plantCount += 1;
     `perType[type] += 1` with `type` = s32 `0x27812853` (default 0; **no bounds check** *[quirk]*);
-    recompute := true. Then the budget hookup: `GetBudgetItemForPurpose(holder, 0xCA58E540)`; if found and the
-    occupant is a `cISC4BuildingOccupant` (QI `0x87DDA3A9`): `dept := budget.GetDepartmentBudget(item.department)`
-    (null not checked); if `item.line == 0`: `line := building.GetBuildingType()` and
-    `budget.ChangeBudgetItemLine(holder, item.index, line)`; if `line ≠ 0`: `li := dept.GetLineItem(line)`, or if
-    none `dept.CreateLineItemForBuildingType(line, true)` followed by `li.SetDisplayFlag(2, true)`;
-    `dept.AddLocallyFundedObject(holder, 0xCA58E540)`; `li.SetSecondaryInfoField(li.GetSecondaryInfoField() + 1)`
-    (the plant count shown in the budget window); set int64 property `0x2A58D350 := item.cost` (the base
-    maintenance, §7.3).
+    recompute := true. Then the budget hookup (`0x006ED020`–`0x006ED10E`):
+    1. `GetBudgetItemForPurpose(holder, 0xCA58E540)`; not found → stop. QI `cISC4BuildingOccupant`
+       (`0x87DDA3A9`); fails → stop.
+    2. `dept := budget.GetDepartmentBudget(item.department)`: the **item's** department, not the simulator's own
+       department member (null not checked).
+    3. `line := item.line`. If it is 0: `line := building.GetBuildingType()` and
+       `budget.ChangeBudgetItemLine(holder, item.index, line)`.
+    4. If `line` is (still) 0, stop. **All** of the following are inside this `line ≠ 0` branch, in this order:
+       `li := dept.GetLineItem(line)`, or if none `li := dept.CreateLineItemForBuildingType(line, true)` (result
+       not null-checked) followed by `li.SetDisplayFlag(2, true)`; `dept.AddLocallyFundedObject(holder,
+       0xCA58E540)`; `li.SetSecondaryInfoField(li.GetSecondaryInfoField() + 1)` (int64; the plant count shown in
+       the budget window); set the int64 property `0x2A58D350 := item.cost` (the base maintenance, §7.3).
+    *[compat]* A plant whose item has line 0 and whose building type is 0 is therefore not locally funded, not
+    counted in a line item and has no `0x2A58D350`, so §7.3 computes its maintenance from a base of 0.
   - Equal consumed and produced (including both 0): only the wire bits.
   - *[quirk]* There is no preview-marker (`0x029244DB`) test, unlike the other simulators.
 
 ### 5.2 `DoOccupantRemoved(occ)` *[compat]*
 
-- Pole: the same slot-13 test; mark the neighbourhood dirty (§5.3, without the zone test); find it in the pole
-  list: release, erase, poleCount −= 1; costBase −= `0x09132DE8`; recompute := true.
+- Pole: the same slot-13 test. Mark the neighbourhood dirty (§5.3, without the zone test). Search the pole list:
+  if the pole is there, release it, erase it, poleCount −= 1. Then, **whether or not it was found**: costBase −=
+  int64 `0x09132DE8` of the pole (default 0) and recompute := true (`0x006EC04B`–`0x006EC08C`). *[compat]* So a
+  pole that is not in the list still lowers costBase, for example one whose slot 13 was true at insertion and is
+  false at removal. costBase can then drop below the sum over the list, even below 0. Only PostCityInit (§5.6)
+  recomputes it. brokenCount is **not** decremented when the removed pole was distressed (§3, counter types)
+  *[quirk]*.
 - Power line / network occupant: the same filters as insertion; mark dirty (line: neighbourhood; network: the
   single cell); recompute := true.
-- Building: if `consumed > produced` and `consumed > 0`: `consumption[cx][cz] −= consumed`; consumers −= 1
-  (clamped at 0); requirement −= consumed (clamped at 0). Always mark `GetBoundingCityCells` expanded by R dirty.
-  If the budget item is found: `dept.GetLineItem(item.line)`, `dept.RemoveLocallyFundedObject(holder, 0xCA58E540)`
-  and `li.SetSecondaryInfoField(Get − 1)`. If the occupant is in the plant list: release, unlink, perType[type]
-  −= 1, plantCount −= 1, recompute := true.
+- Building: if `consumed > produced` and `consumed > 0` (unsigned): `consumption[cx][cz] −= consumed` (int16);
+  consumers −= 1 (a negative result becomes 0); requirement −= consumed (a result negative as `s32` becomes 0).
+  Always mark `GetBoundingCityCells` expanded by R dirty. If the budget item is found: `dept :=
+  budget.GetDepartmentBudget(item.department)` (the item's department), and if that is non-null `li :=
+  dept.GetLineItem(item.line)`. Only if both are non-null: `dept.RemoveLocallyFundedObject(holder, 0xCA58E540)`
+  and `li.SetSecondaryInfoField(Get − 1)` (int64). If the occupant is in the plant list: release, unlink,
+  perType[type] −= 1 (type read now), plantCount −= 1, recompute := true.
 
 ### 5.3 Dirty wiring (`CellChanged`, `UpdateWireBits`) *[compat]*
 
@@ -281,16 +324,37 @@ them (`UpdateWireBits(rect)`), then clear wireDirty:
 
 ### 5.4 `DoTerrainHeightsChanged(rect)`
 
-Poles in the rect: `BreakAllConnections(true)` (slot 6), then `occupantManager.RemoveOccupant(pole, true, 0)`.
-Each distinct power line in the rect whose two ends are connected is detached from its poles through the pole
-class's non-virtual `RemoveConnection` (§11.2). The removals then come back as `0x99EF1143` (§5.2).
+*[compat]* (`0x006EDDA0`.) The candidates come from **one occupant-manager query**, not from the simulator's pole
+list: `occupantManager.GetOccupantsByStandardCityCells(list, &(x1, z1), &(x2, z2), 0, −1)` (the global occupant
+manager, slot 40, all types) on the rect of §5. If the query returns false, pass 1 is skipped. Passes 2 and 3
+still run over whatever the list holds.
+
+1. **Poles**, in list order: each occupant that answers QI `cISC4PowerPoleOccupant` (`0xA8C86142`) and whose
+   own `GetCell` (slot 8) lies inside the rect (inclusive, signed compares) gets `BreakAllConnections(true)`
+   (slot 6), then `occupantManager.RemoveOccupant(occ, true, 0)`. There is no slot-13 test. Poles that the
+   query returns but whose cell is outside the rect are kept.
+2. **Lines**: each occupant of the same list that answers QI `cISC4PowerLineOccupant` (`0xC98F3B24`) and whose
+   `GetConnectedPoles` (slot 3) returns two non-null poles is collected, unless a line already collected has
+   the same two poles in the same order. Lines are distinct by pole pair, not by object. This pass runs after
+   the pole removals, so a line whose pole was just removed may no longer report it.
+3. For each collected line: `GetConnectedPoles` again, then `firstPole.RemoveConnection(secondPole, 0)`
+   through the pole class's non-virtual `RemoveConnection` (§11.2).
+
+The removals then come back as `0x99EF1143` (§5.2).
 
 ### 5.5 Nuclear Free Zone *[compat]*
 
-Collect the lots (`lotManager.GetOccupantLot`) of every plant with type `0x27812853 = 5` (nuclear) and demolish
-them: `demolition.DemolishLots(true, list, 0, 1, false, null, null, 0)`. Then, if the 3D view's current input
-control has ID `0x88F154FB` (control slot 5), `RemoveCurrentViewInputControl(false)` *[inferred: the placement
-tool for a nuclear plant]*.
+Collect the lots (`lotManager.GetOccupantLot`) of every plant in the plant list whose `0x27812853` exists and
+equals 5 (nuclear; read as u32), and demolish them: `demolition.DemolishLots(true, list, 0, 1, false, null,
+null, 0)`. **The call is made unconditionally** (`0x006EFED0`), also when the list is empty (a Nuclear Free Zone
+enacted in a city without nuclear plants). The demolition utility (`0x004670C0`) returns true at once for an empty
+list and does nothing, so with the game's demolition utility an empty call has no observable effect.
+*[choice]* FreeCity4 makes the call anyway, so a replaced demolition utility sees the same calls.
+Then, in every case, if the 3D view's current input control has ID `0x88F154FB` (control slot 5),
+`RemoveCurrentViewInputControl(false)` *[inferred: the placement tool for a nuclear plant]*.
+
+*[quirk]* A nuclear plant without a lot adds a **null** entry to the list (no null test). `DemolishLots`
+dereferences the first entry unconditionally, so a null first entry crashes. *[choice]* FreeCity4 skips null lots.
 
 ### 5.6 PostCityInit
 
@@ -329,8 +393,11 @@ agePlants: zero the overworked, aged and distressed counts, agePlants := false, 
 
 ### 6.3 `UpdatePowerGrid(x, z)` — one connected network
 
-1. Clear mark; set bit (x, z); selection grow (§2.1) with mask = wire, `rowMin = z`, `rowMax = z + 1`; clamp
-   rowMax to `CellCountZ − 1` (and reset an inverted range).
+1. Clear mark; set bit (x, z); selection grow (§2.1) with mask = wire, `rowMin = z`, `rowMax = z + 1`. Then,
+   in this order (`0x006EE1B6`–`0x006EE1EA`): if `rowMin > rowMax` (signed), reset both to the **seed values**
+   `rowMin := z`, `rowMax := z + 1` (not the empty range and not the full map); then if `rowMax ≥ CellCountZ`
+   (signed), `rowMax := CellCountZ − 1`. The reset cannot trigger: the grow only lowers rowMin and raises rowMax
+   from `z ≤ z + 1` *[inferred]*.
 2. **Supply**: for every plant with visited = 0 whose cell rectangle (`GetBoundingBox` → `PositionToCell` of min
    and max) has any marked bit: `supply += GetCurrentPowerProduced(plant)` (§7.1, u32), visited := 1.
    production += supply.
@@ -363,10 +430,15 @@ only while `avail ≠ 0`.
 (`GetConnectionsOfTypeToCity(4, city)`), take its connection cell clamped to the map; if that cell is marked:
 if markVisited, `SetVisitedThisCycle(true)`; if light, set the cell's powered-next bit; return true. None → false.
 
-**`MarkPowerPlantsAsVisited(a, b)`**: `ratio := production(pass) > 0 ? f32(u32 a / u32 b) : 0` (stored as f32).
-For each plant with visited = 1: `used := trunc(GetCurrentPowerProduced × ratio)`; set s32 property
-`0x08D9763D := used`; `ring[ringIndex][type] += used`; visited := 2. *[quirk]* With `b = 0` and a positive pass
-production (another network produced), the ratio is NaN and a zero-output plant gets `used = 0x80000000`.
+**`MarkPowerPlantsAsVisited(a, b)`** (`0x006EBC10`): `ratio := production(pass) > 0 (signed) ? f32(u32 a /
+u32 b) : 0`. Both operands are loaded as unsigned (`fild` plus 2³² when negative), divided at 24 bits and stored
+as f32. For each plant with visited = 1: `used := _ftol(f32(s32 GetCurrentPowerProduced) × ratio)` (low 32
+bits; `0x006EBCA7`); set the s32 property `0x08D9763D := used`; `ring[ringIndex][type] += used`; visited := 2.
+*[compat]* When `a = b = 0` while the pass production is positive (this network produced and used nothing, another
+one produced), the ratio is 0/0 = NaN. This network's plants all produce 0, `0 × NaN` is NaN, and `_ftol` turns NaN
+into `0x8000000000000000`, whose low 32 bits are **0** (foundations §18.1). Those plants therefore get `used =
+0`, as they would with a ratio of 0. *(Corrected: an earlier version said `0x80000000`, the result of an
+inline 32-bit `fistp`. This function converts with `_ftol`.)*
 
 ### 6.5 State 2 — neighbours and publishing
 
@@ -394,7 +466,15 @@ rewritten here (only §5.3 does that).
 3. Sell deals with `used < amount`: `SetFlags(0x20, true)`. Then `neighbours.MarkDealsDirty()`.
 4. If consumption > 0: `0xAA11F7DC` ← `budget.GetFunding(dept)` (int64, slot 35) / consumption (int64 division).
    Per budget.md that getter always returns 0, so the value is 0 *[quirk]*.
-5. `0xAA11FB59` ← consumers > 0 ? `trunc((1.0 − powered / consumers) × 100.0)` (double, no clamp) : 0.
+5. `0xAA11FB59` ← consumers > 0 (signed) ? `_ftol(r24(r24(1.0 − r24(powered / consumers)) × 100.0))` (no
+   clamp) : 0. *[compat]* The x87 sequence (`0x006EF39D`–`0x006EF3B2`) is `fild dword powered` (s32), `fidiv
+   dword consumers` (s32), `fsubr qword 1.0` (`0x00A80AB0`), `fmul qword 100.0` (`0x00A80AC0`), `_ftol`. The two
+   constants are doubles, but both are exact, and under the 24-bit precision control each of the three
+   operations rounds to a float32 significand (foundations §18). The computation is therefore **24-bit, not
+   double**, and the truncated result differs from a double evaluation for many ratios: consumers 5, powered 3 →
+   3/5 = 0.60000002, 1 − that = 0.39999998, × 100 = 39.999996 → **39** (double: 40); consumers 10, powered 9 →
+   **10** (double: 9); consumers 20, powered 11 → **45** (double: 44); consumers 5, powered 6 → **−20** (double:
+   −19).
 6. Per type t = 1..9: history `0xAA120D5E, 0xAA120D61, 0xAA120D63, 0xAA120D65, 0xAA120D66, 0xAA120D68,
    0xAA120D6A, 0xAA120D6B, 0xAA120D6D` ← `ring[ringIndex][t]`. Then `annual[t] += ring[ringIndex][t]` for
    t = 0..9.
@@ -432,9 +512,12 @@ property `0x8A1E07EE`: that curve (built fresh per call) at x = f32 `0xC910B4CF`
 
 - Fuel: `total += trunc(s32 0x08D9763D × f32 0xC910B4CE)` (int64). `0xC910B4CE` is not shipped, so 0.
 - Maintenance, only if the plant has curve property `0x0911E2E7`: `maint := trunc(int64 0x2A58D350 ×
-  curve0x0911E2E7(wear))`. If the budget item is found and `maint ≠ item.cost`: `dept.SetLocalFullFunding(holder,
-  maint, 0xCA58E540)` and then `budget.ChangeBudgetItemCost(holder, item.index, maint)` (redundant, budget §7.4
-  already changes it). `0x2A58D350` keeps the base cost, so the multiplier does not compound.
+  curve0x0911E2E7(wear))`. If the budget item is found and `maint ≠ item.cost` (int64): `d :=
+  budget.GetDepartmentBudget(item.department)`. This is the **item's** department, looked up again here, not the
+  simulator's own department member. If `d` is null, nothing more happens. Otherwise `d.SetLocalFullFunding(holder,
+  maint, 0xCA58E540)` and then `budget.ChangeBudgetItemCost(holder, item.index, maint)` (`0x006EEFE0`–`0x006EF022`;
+  redundant, budget §7.4 already changes it). `0x2A58D350` keeps the base cost, so the multiplier does not
+  compound.
 - Poles: `costBase` = Σ int64 `0x09132DE8` per pole (shipped 1 each). The line item 1 gets `costBase + fuel` as
   full expenses.
 
@@ -576,9 +659,39 @@ u32   state
 
 - `Write` always returns true (AL = 1); it does not check the stream error. It writes as many plant nodes as the
   list holds, with the separate `plantCount` before them *[quirk: they agree in practice]*.
-- `Read` sets `running` first; a version > 6 returns false after the version only (`running` stays set). Older
-  versions read the deficit as an integer percentage. It allocates the bitmaps with the saved word count, resets
-  the strike flag to 0 and **always returns true** (AL = 1), ignoring stream errors.
+- `Read` (`0x006F0880`) sets `running` first; a version > 6 returns false after the version only (`running`
+  stays set). Older versions read the deficit as an integer percentage (`s32 × 0.01f`). It reads straight into
+  the members, except where the table below names a local. The plant nodes are **appended** to the list, which is
+  not cleared. The pole vector is resized to `poleCount` null entries and then filled. The four bitmaps are
+  allocated anew with `words × 4` bytes each, without freeing old arrays and without clearing. It resets the strike
+  flag to 0 and **always returns true** (AL = 1), ignoring stream errors.
+
+**Read after a stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5). The
+original never calls `GetError`. Once the version is accepted it reads every field in order and returns **true**
+with `running` set, even if the stream failed part-way (for example on the ref of a plant or pole whose class
+cannot be created). Fields read before the failing call hold the loaded values. After it every read fails. A
+field read directly into a member keeps the member's previous value: on the fresh object the class store
+reads into, that is the constructor value (0 for most fields, §3). The exceptions:
+
+| Field | State after a failed read |
+|---|---|
+| version (failed already, e.g. an empty record) | read into the argument slot that holds the stream pointer, so the "version" is the low 16 bits of the stream object's address. Above 6 → return false. Otherwise the load continues as that version, with every later read failing |
+| `department`, powered grid | **null** (the ref helper clears the destination before reading, without releasing what it held) |
+| deficit | copied from an uninitialised local: garbage (version < 6: garbage × 0.01f) |
+| `nx`, `nz` | uninitialised locals: the consumption map is resized to garbage dimensions (new cells 0), usually a huge allocation or an out-of-memory failure |
+| ring, annual, unused flag, recompute, agePlants | keep what the fresh object held. The constructor does not set these (§3), so they are whatever the allocation contained *[inferred: the game allocator does not clear memory]* |
+| plant nodes | `plantCount` nodes are appended. Each failed occupant ref gives a node with a **null occupant**, and a failed `visited` keeps the previous loop value (or an uninitialised local). If `plantCount` itself failed it stays 0 and no node is read. A null plant crashes state 1 (`GetCurrentPowerProduced` and the property reads dereference it) |
+| poles | if `poleCount` was read, the vector holds that many entries, and every failed ref is **null** (crash in §5.6 and §7.6). If `poleCount` failed it stays 0 |
+| bitmaps | if `words` was read, four new arrays of that size whose unread words are uninitialised heap memory. If `words` failed it stays 0 (zero-size arrays, and every later bit access is out of bounds) |
+| state | copied from an uninitialised local: garbage. `DoIdle` dispatches only states 0–4 (unsigned compare), so any other value stops the recompute cycle for good |
+| strike flag | 0 (set after the reads) |
+
+The result is unusable: `Init` sees `running` and skips the new-city setup. The null powered grid then crashes its
+first user: the map view, the tract developer, the wire rebuild (§5.3 step 3) or UpdatePoweredLots (§6.5). *[choice]* FreeCity4: on a stream error `Read` returns **false**, does **not** set
+`running`, releases any refs it acquired during the call (department, grid, plants, poles) and leaves every
+member as it was before the call. The class store calls `Read` on a fresh object, so the following `Init` runs the
+new-city path. A rejected version (> 6) keeps the original behaviour above (consumes only the version, returns
+false, `running` set) *[compat]*.
 - Recomputed on load: nothing. The tuning, the ordinance factor, enabled, wireDirty and brokenFraction are reset by
   construction/`Init`.
 - The powered grid is saved by `ref` as its own object (simgrid §5).
@@ -656,9 +769,18 @@ All methods are `__thiscall`; "pop" is the number of argument bytes the callee r
 as the first stack argument and the occupant as the second; the callee pops 8, stores the float there, returns
 that pointer in EAX and leaves nothing on the x87 stack.
 
-**FindPowerPlants**: over the plants whose budget item exists and that `dept.IsLocallyFundedObjectInDepartment`:
-the lowest `item.localFunding` (start 2.0, strict `<`) and the largest `wear / max(t1, t2)` (start 0, strict `>`).
-Outputs are `AddRef`ed (or untouched if none); `wearPct := trunc(ratio × 100)`.
+**FindPowerPlants** (`0x006EBA30`) *[compat]*, one pass over the plant list in order, two independent searches:
+
+- **Lowest funded**: only plants whose budget item exists **and** for which `IsLocallyFundedObjectInDepartment(holder,
+  0xCA58E540)` is true. That test is asked of the **simulator's own power department** (the member, §3), not of
+  the item's department (`0x006EBA93`). Keeps the lowest `item.localFunding` (start 2.0, strict `<`).
+- **Most worn**: **every** plant, including those that fail the funding filter. Keeps the largest `wear / d`
+  (start 0, strict `>`). `wear` = f32 `0xC910B4CF` (default 0), `d` = t1 if `t2 < t1` else t2 (defaults 99). The
+  quotient is stored as f32.
+
+Each output pair is written only if a plant was found **and** its first out pointer is non-null: `*lowestFunded
+:= occ` (`AddRef`) and `funding := its localFunding`; `*mostWorn := occ` (`AddRef`) and `wearPct :=
+_ftol(ratio × 100)`. Otherwise the outputs are untouched.
 
 **SDK check** (`cISC4PowerSimulator.h`), errors flagged:
 
@@ -783,10 +905,13 @@ Findings:
 Square-city assumptions in the bitmaps and blocks (§2.1, §6.3, §6.5); 600-iteration flood-fill cap (§2.1);
 zone test on the first rect corner only (§5.3); no preview test for buildings (§5.1); pole slot-13 test missing
 in the rebuild (§5.3); int16 consumption wrap (§5.1); no bounds checks on plant type (§5.1, slots 10/23); 110 %
-literal (§6.3); shortfall consumes all remaining availability (§6.3); NaN ratio (§6.4); overworked count
-practically 0 (§7.4); double ring advance (§7.5); deficit values (§6.6, §7.5); history `0xAA11F7DC` always 0
-(§6.6); brokenFraction not saved (§7.6); plant without a condition curve produces nothing (§7.1); redundant
-`ChangeBudgetItemCost` (§7.3); `Read` ignores stream errors (§9).
+literal (§6.3); shortfall consumes all remaining availability (§6.3); NaN ratio, harmless through `_ftol`
+(§6.4); unpowered percentage at 24 bits (§6.6); overworked count practically 0 (§7.4); double ring advance (§7.5);
+deficit values (§6.6, §7.5); history `0xAA11F7DC` always 0 (§6.6); brokenFraction not saved (§7.6); plant without
+a condition curve produces nothing (§7.1); redundant `ChangeBudgetItemCost` (§7.3); a removed pole lowers
+costBase even when it is not in the list, and brokenCount ignores removed distressed poles (§5.2); null lot in
+the Nuclear Free Zone list (§5.5) and a department missing after a load (§4.1), both crashes and not
+reproduced; `Read` ignores stream errors (§9; FreeCity4 fails cleanly instead).
 
 ## 13. Open questions
 
@@ -854,8 +979,10 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
     **20**; 50 poles → 1. Next month at 100 % → fraction 0 → all repaired.
 16. **Deficit**: state 3 with production 1000, consumption 500 → 0.0; consumption 0 → 1.0. Month with
     production 1000, consumption 2000 → −1.0; consumption 1500 → 0.0.
-17. **Unpowered %**: consumers 4, powered 3 → 25; consumers 3, powered 2 → 33; consumers 0 → 0; consumers 4,
-    powered 5 → −25.
+17. **Unpowered %** (24-bit, §6.6 step 5): consumers 4, powered 3 → 25; consumers 3, powered 2 → 33; consumers 0
+    → 0; consumers 4, powered 5 → −25. Cases where a double evaluation differs: consumers 5, powered 3 → **39**
+    (0.6f = 0.60000002, 1 − that = 0.39999998, × 100 rounds to 39.999996); consumers 10, powered 9 → **10**
+    (10.0000019); consumers 20, powered 11 → **45** (45.0); consumers 5, powered 6 → **−20** (−20.000004).
 18. **Ring**: one cycle with coal used 500 → ring[idx][1] = 500, annual[1] = 500, `GetAnnualConsumption` = 500.
     After 12 more cycles without plants → 0.
 19. **Strikes**: `IsOnStrike`/`BeginStrike`/`EndStrike` → AL 0; `GetChanceOfStrike` writes 0.0;
@@ -867,3 +994,34 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
     `0x49D5BC86`, tract size 1, all 0) and state 4. `Init` twice → one set of agents and subscriptions.
     `DoIdle` before ConnectionsReady does nothing.
 22. **Nuclear Free Zone**: enacting `0xE0D0722E` demolishes every type-5 plant lot with one `DemolishLots` call.
+    With no nuclear plant, `DemolishLots` is still called once, with an empty list, and nothing is demolished. The
+    view input control check runs in both cases.
+23. **Budget hookup** (§5.1): a plant whose item has line 0 and whose `GetBuildingType()` is 0 →
+    `ChangeBudgetItemLine(holder, index, 0)`, then no line item lookup or creation, no `AddLocallyFundedObject`,
+    no secondary-info change, no `0x2A58D350`. With building type `T ≠ 0` and no line item `T` →
+    `CreateLineItemForBuildingType(T, true)`, `SetDisplayFlag(2, true)`, `AddLocallyFundedObject`, secondary info
+    0 → 1, `0x2A58D350 := item.cost`. All calls go to the department named by the item.
+24. **Departments** (§7.3, §10.1): a plant whose budget item belongs to department X (≠ the power department) and
+    whose maintenance changes → `X.SetLocalFullFunding(...)`. If X does not exist (`GetDepartmentBudget` null), neither
+    `SetLocalFullFunding` nor `ChangeBudgetItemCost` is called. `FindPowerPlants`: P1 funded 50 % and locally
+    funded in the power department, wear 0.2; P2 funded 30 % but not in the power department, wear 0.5 (t1 0.9,
+    t2 1.0) → lowest funded P1 (0.5), most worn **P2** with `wearPct` 50. Null out pointers are skipped without a
+    fault.
+25. **Counters** (§3): consumers 0, remove a consumer → consumers stays 0. Requirement 100, remove a consumer of
+    300 → requirement 0. A coal plant (type 1) whose `0x27812853` is set to 3 before removal → perType[1] stays 1,
+    perType[3] = −1, `GetPowerPlantCount(3)` returns `0xFFFFFFFF`, plantCount back to its previous value.
+26. **Pole removal** (§5.2): costBase 10, poleCount 10; removal of a pole that is not in the list → costBase 9,
+    recompute true, poleCount 10. Removing a distressed pole leaves brokenCount unchanged.
+27. **Terrain change** (§5.4): the occupant query returns poles A (cell inside the rect) and B (cell outside) →
+    only A gets `BreakAllConnections(true)` and `RemoveOccupant(A, true, 0)`, also when A is not in the pole list.
+    Two lines with the same pole pair → one `RemoveConnection` call.
+28. **NaN ratio** (§6.4): plant list order: network 1 with a 1000 plant and need 500, then network 2 with one plant
+    without `0x8A1E07EE` (output 0) and no consumer → network 2's plant gets `0x08D9763D` = **0** and its ring
+    entry gains 0.
+29. **Init after load** (§4.1): with the department loaded by `Read`, `Init` makes no `GetDepartmentBudget` call
+    and keeps the loaded object. With a null department ref and an existing department `0x8910BC8A` in the budget,
+    `Init` looks it up and `AddRef`s it.
+30. **Truncated save** *[choice]* (§9.1): a record cut off after the powered-grid ref → `Read` returns false,
+    `running` stays clear, the department and grid refs read during the call are released, every member is as
+    before. The next `Init` runs the new-city path (bitmaps, grid, department, state 4). A record of version 7 →
+    false with `running` set.

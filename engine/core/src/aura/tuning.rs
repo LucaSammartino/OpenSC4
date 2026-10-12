@@ -91,12 +91,15 @@ impl Default for AuraTuning {
     }
 }
 
-/// A curve property under the "delete" pattern: `None` when absent (also
-/// for non-numeric or single values, foundations §4.1 [choice],
-/// [`props::curve`]); otherwise a new curve from its points (empty when it
-/// has none).
+/// A curve property under the "delete" pattern (§10): `None` when absent,
+/// and also ([choice], §6, §10) for a property with fewer than two values
+/// (a scalar, a one-element or an empty array: the original builds a curve
+/// with no points and evaluates it, crashing or reading a stale value) and
+/// for a non-numeric one ([`props::curve`], foundations §4.1). Otherwise a
+/// new curve from its points. Reloading in place (the twelve stage curves)
+/// and delete-then-create (the riot curve) give the same result here.
 fn curve(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
-    props::curve(h, id)
+    props::curve(h, id).filter(|c| !c.is_empty())
 }
 
 impl AuraTuning {
@@ -271,10 +274,7 @@ mod tests {
         assert_eq!((t.long_decay, t.short_decay), (0.6, 0.4));
         assert_eq!(t.base_aura, [3, 4, 5], "kept when absent");
         assert_eq!(t.hotspot, DEFAULT_HOTSPOT);
-        assert!(
-            t.park.as_ref().is_some_and(ResponseCurve::is_empty),
-            "empty, not absent"
-        );
+        assert!(t.park.is_none(), "an empty curve is absent [choice]");
         assert!(t.crime.is_none() && t.riot.is_none() && t.tax_change.is_none());
         assert_eq!((t.transient_magnitude[0], t.transient_radius[0]), (9.0, 0.0));
         assert_eq!(t.transient_magnitude[1], 0.0, "reset before each read");

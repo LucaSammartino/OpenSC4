@@ -300,18 +300,27 @@ fn rng(op: &Json) -> R<()> {
             let mut g = RzRandom::new(seed, &seeds);
             for (i, c) in calls.iter().enumerate() {
                 let m = field(c, "method")?.as_str().ok_or("method")?;
-                let args: Vec<i64> = c
-                    .get("args")
-                    .and_then(Json::as_array)
-                    .unwrap_or(&[])
-                    .iter()
-                    .filter_map(Json::as_i64)
-                    .collect();
+                let args = rng_args(c);
+                let arg = |k: usize| {
+                    args.get(k)
+                        .copied()
+                        .ok_or_else(|| format!("call #{i}: missing args[{k}]"))
+                };
                 let got: f64 = match m {
                     "next_raw" => f64::from(g.next_raw()),
-                    "uniform_u32" => f64::from(g.uniform_u32(args[0] as u32)),
-                    "range_i32" => f64::from(g.range_i32(args[0] as i32, args[1] as i32)),
+                    "uniform_u32" => f64::from(g.uniform_u32(arg(0)? as i64 as u32)),
+                    "range_i32" => f64::from(g.range_i32(arg(0)? as i64 as i32, arg(1)? as i64 as i32)),
                     "uniform_f64" => g.uniform_f64(),
+                    "range_f64" => g.range_f64(arg(0)?, arg(1)?),
+                    "gaussian" => g.gaussian(),
+                    "range_gaussian" => g.range_gaussian(arg(0)?, arg(1)?),
+                    "range_gaussian_fast" => g.range_gaussian_fast(arg(0)?, arg(1)?),
+                    "range_i32_gaussian_fast" => {
+                        f64::from(g.range_i32_gaussian_fast(arg(0)? as i64 as i32, arg(1)? as i64 as i32))
+                    }
+                    // Pure mappings (foundations §6.1 / §7 test 16).
+                    "uniform_of" => fc4_core::rng::double_uniform_of(arg(0)? as i64 as i32),
+                    "gaussian_to_range" => fc4_core::rng::gaussian_to_range(arg(0)?, arg(1)?, arg(2)?),
                     other => return Err(format!("call #{i}: unknown method '{other}'")),
                 };
                 check_value(i, m, got, c)?;
@@ -337,6 +346,13 @@ fn rng(op: &Json) -> R<()> {
                         g.uniform_u32(int(&c.get("args").and_then(Json::as_array).ok_or("args")?[0], "n")? as u32),
                     ),
                     "uniform_f64" => g.uniform_f64(),
+                    "range_f64" => {
+                        let a = rng_args(c);
+                        g.range_f64(
+                            *a.first().ok_or("range_f64: args")?,
+                            *a.get(1).ok_or("range_f64: args")?,
+                        )
+                    }
                     "weighted_choice" => {
                         let w: Vec<f64> = field(c, "weights")?
                             .as_array()
@@ -354,6 +370,18 @@ fn rng(op: &Json) -> R<()> {
         _ => return Err("'generator' must be RzRandom or RzRandomSuper".into()),
     }
     Ok(())
+}
+
+/// A call's numeric `args` (integers given as hex strings are accepted).
+fn rng_args(c: &Json) -> Vec<f64> {
+    c.get("args")
+        .and_then(Json::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| v.as_f64().or_else(|| int(v, "arg").ok().map(|n| n as f64)))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn check_value(i: usize, m: &str, got: f64, c: &Json) -> R<()> {

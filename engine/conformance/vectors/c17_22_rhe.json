@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "crime_rhe_beyond_2_22",
+  "spec": ["crime 6", "crime 6.4", "crime 17.19", "foundations 18"],
+  "description": "Test 19 (spec answer C4). rhe(x) := int32(bits(f32(f32(x) + 12582912.0f)) - 0x4B400000) with a wrapping subtraction; exact round-half-even only for |x| <= 2^22. Beyond that the float32 sum loses bits and its exponent grows, so the bit difference no longer equals x: 4,194,304 -> 4,194,304; 4,194,305 -> sum 16,777,217 rounds to even 16,777,216 (2^24) -> 4,194,304; 4,194,307 -> 16,777,219 -> 16,777,220 = 0x4B800002 -> 4,194,306; 5,000,000 -> 17,582,912 = 0x4B8625A0 -> 4,597,152; 8,388,608 -> 20,971,520 = 0x4BA00000 -> 6,291,456; 100,000,000 -> 112,582,912 = 0x4CD6BC20 -> 26,655,776; -5,000,000 -> 7,582,912 = 0x4AE76980 (exponent 22, below 0x4B400000) -> -5,805,696 (wrapping). Small values keep round-half-even: 2.5 -> 2, 3.5 -> 4, -2.5 -> -2. Special inputs (x87 addition): +inf -> 0x7F800000 -> 876,609,536; -inf -> 0xFF800000 -> -1,270,874,112; a quiet NaN propagates (0x7FC00000 -> 880,803,840; 0xFFC00000 -> -1,266,679,808) and a signalling one is quieted (0x7F800001 -> 0x7FC00001 -> 880,803,841). Crimes to commit (6.4): a modded crimes curve constant -1 (0x8A0CBAAA = (0, -1), (1, -1)) with criminal base 200, no jail, no release and factor 1.0: trunc(-1) = -1, float(uint32 0xFFFFFFFF) = 4,294,967,295 -> f32 2^32, x 1.0, + 12,582,912 -> 4,307,550,208 = 0x4F806000 -> 71,327,744 (the earlier i32 saturation gave 2,147,483,647). A constant 50,000,000 -> 62,582,912 = 0x4C6EBC20 -> 19,840,032. All by hand, cross-checked with an independent numpy float32 model.",
+  "steps": [
+    {"op": "crime_eval", "fn": "rhe", "args": [4194304], "expect": 4194304},
+    {"op": "crime_eval", "fn": "rhe", "args": [4194305], "expect": 4194304},
+    {"op": "crime_eval", "fn": "rhe", "args": [4194307], "expect": 4194306},
+    {"op": "crime_eval", "fn": "rhe", "args": [5000000], "expect": 4597152},
+    {"op": "crime_eval", "fn": "rhe", "args": [8388608], "expect": 6291456},
+    {"op": "crime_eval", "fn": "rhe", "args": [100000000], "expect": 26655776},
+    {"op": "crime_eval", "fn": "rhe", "args": [-5000000], "expect": -5805696},
+    {"op": "crime_eval", "fn": "rhe", "args": [2.5], "expect": 2},
+    {"op": "crime_eval", "fn": "rhe", "args": [3.5], "expect": 4},
+    {"op": "crime_eval", "fn": "rhe", "args": [-2.5], "expect": -2},
+    {"op": "crime_eval", "fn": "rhe", "args": ["0x7F800000"], "expect": 876609536},
+    {"op": "crime_eval", "fn": "rhe", "args": ["0xFF800000"], "expect": -1270874112},
+    {"op": "crime_eval", "fn": "rhe", "args": ["0x7FC00000"], "expect": 880803840},
+    {"op": "crime_eval", "fn": "rhe", "args": ["0xFFC00000"], "expect": -1266679808},
+    {"op": "crime_eval", "fn": "rhe", "args": ["0x7F800001"], "expect": 880803841},
+
+    {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAAA": {"f32": [0, -1, 1, -1]}}},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_set", "state": {"criminal_base": 200, "ordinance_factor": 1.0}},
+    {"op": "crime_call", "method": "compute_crimes_to_commit"},
+    {"op": "crime_expect", "state": {"crimes_to_commit": 71327744}},
+    {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAAA": {"f32": [0, 50000000, 1, 50000000]}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_call", "method": "compute_crimes_to_commit"},
+    {"op": "crime_expect", "state": {"crimes_to_commit": 19840032}}
+  ]
+}

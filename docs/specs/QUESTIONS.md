@@ -3,15 +3,20 @@
 Questions from engine authors that the spec writers need to answer from the original. Answered questions move into
 the relevant spec, and their entry here is deleted.
 
-## Power (power.md)
-- PW2. §6.3 step 1 "reset an inverted range": reset to what (the empty range, or the full map)?
-- PW3. Are `AddLocallyFundedObject`, the secondary info and the base cost all inside the `if line ≠ 0` branch?
-- PW4. Which department do `SetLocalFullFunding` and `IsLocallyFundedObjectInDepartment` use: the item's or the
-  power department?
-- PW5. Are the plant/consumer counters signed or unsigned (matters for the slot return values on underflow)?
-- PW6. Where does the §5.4 "poles in rect" list come from (an occupant-manager query, or the simulator's pole list)?
-- PW7. Is `DemolishLots` called at all when there are no nuclear plants (Nuclear Free Zone)?
-- PW9. What does `Read` do on a stream error part-way (keep partial state, roll back, release references)?
-- PW10. When a removed pole was not in the pole list, do `costBase` and the recompute request still change?
-- PW11. Does `Init` look the department up again after a load?
-- PW12. Is the unpowered-percentage computation `double` or 24-bit?
+## Flora (flora.md)
+- FO1. Is data3 of the Insert/RemoveOccupant messages the occupant type?
+- FO2. Is `BoundingBoxesIntersect` inclusive at the edges (the (0,0) case)?
+- FO3. The flags byte of the default record.
+- FO4. `GetMoistureType` when there is no weather simulator.
+- FO5. Behaviour with period = 0.
+- FO6. Null corner arguments in `GetOccupantsByStandardCityCells`.
+- FO7. Is the 0.001 constant `float` or `double`?
+
+## Aura (aura.md)
+- A8. Does `Read` clear or replace the department map and the hotspot list, or append to them?
+
+## Pollution (pollution.md)
+- PO5. Do the other round-half-even sites also use the `1.5 · 2^23` trick (and so share its range limit)?
+
+## Crime (crime.md)
+- C9. §16 question 4: the order of the crime-type list.

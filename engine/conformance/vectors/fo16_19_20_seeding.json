@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "flora_seeding",
+  "spec": ["flora 6.7.2", "flora 8", "foundations 6.1", "foundations 18"],
+  "description": "Derived by hand from flora 6.7.2 and 8 (tests 19 and 20 of 16). Mature plants (age 5000 - 4200 = 800 >= 730, state 2, score 0.6) with propagation on seed when lastSeed + interval < now (float compare). The seed count is roundHalfEven(seedsPerCycle): 2.5 -> 2, 3.5 -> 4, 0.4 -> 0 (no draw, lastSeedingDate unchanged). Every seed draws RandomDoubleRangeUniform(x - 128, x + 128) then (z - 128, z + 128), even when it falls outside the city, and sets lastSeedingDate := now. The scripted generator returns r24(r24(u * r24(b - a)) + a): at x = 10, u = 0 gives -118 (outside, no DropSeed); u = 0.5 gives z centre. Inside the city (plant at (500, 300)): u = 0.75 -> x = 192 + 372 = 564, z = 192 + 172 = 364 -> DropSeed(seed type, 564, 364) passes, draws its acceptance u = 0 and plants (orientation draw); the second seed (default u 0.5) lands on the plant itself (500, 300), so the location fails without a draw. Test 20: lastSeed 1000, interval 365: now 1365 -> 1365 < 1365 is false, no seeding; now 1366 -> seeding (2 seeds).",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "table": 0.6, "seeds": 2.5}, {"type": "0x2000", "table": 0.6, "seeds": 3.5},
+      {"type": "0x3000", "table": 0.6, "seeds": 0.4}]},
+    {"op": "flora_env", "date": 5000, "occupants": [
+      {"id": 1, "type": "flora", "pos": [10, 260, 500], "flora_type": "0x1000", "birth": 4200, "last_seed": 0, "state": 2},
+      {"id": 2, "type": "flora", "pos": [10, 260, 600], "flora_type": "0x2000", "birth": 4200, "last_seed": 0, "state": 2},
+      {"id": 3, "type": "flora", "pos": [10, 260, 700], "flora_type": "0x3000", "birth": 4200, "last_seed": 0, "state": 2},
+      {"id": 4, "type": "flora", "pos": [10, 260, 800], "flora_type": "0x1000", "birth": 4200, "last_seed": 1000, "state": 2},
+      {"id": 6, "type": "flora", "pos": [500, 260, 300], "flora_type": "0x1000", "birth": 4200, "last_seed": 0, "state": 2}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_set", "state": {"today": 5000}},
+    {"op": "flora_rng", "doubles": [0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5]},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "simulate_existing", "args": [1]},
+    {"op": "flora_expect_events", "events": [
+      {"event": "rng", "method": "range_f64", "a": -118, "b": 138, "value": -118},
+      {"event": "rng", "method": "range_f64", "a": 372, "b": 628, "value": 500},
+      {"event": "set_last_seed", "occupant": 1, "value": 5000},
+      {"event": "rng", "method": "range_f64", "a": -118, "b": 138, "value": -118},
+      {"event": "rng", "method": "range_f64", "a": 372, "b": 628, "value": 500},
+      {"event": "set_last_seed", "occupant": 1, "value": 5000}]},
+    {"op": "flora_call", "method": "simulate_existing", "args": [2]},
+    {"op": "flora_expect_event_count", "filter": {"event": "rng", "method": "range_f64", "a": 472, "b": 728, "value": 600}, "count": 4},
+    {"op": "flora_expect_event_count", "filter": {"event": "rng"}, "count": 8},
+    {"op": "flora_expect_event_count", "filter": {"event": "set_last_seed", "occupant": 2}, "count": 4},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "simulate_existing", "args": [3]},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_expect_occupant", "occupant": 3, "last_seed": 0},
+
+    {"op": "flora_rng", "doubles": [0.75, 0.75, 0]},
+    {"op": "flora_call", "method": "simulate_existing", "args": [6]},
+    {"op": "flora_expect_events", "filter": {"event": "rng"}, "events": [
+      {"event": "rng", "method": "range_f64", "a": 372, "b": 628, "value": 564},
+      {"event": "rng", "method": "range_f64", "a": 172, "b": 428, "value": 364},
+      {"event": "rng", "method": "uniform", "value": 0},
+      {"event": "rng", "method": "range_i32"},
+      {"event": "rng", "method": "range_f64", "value": 500},
+      {"event": "rng", "method": "range_f64", "value": 300}]},
+    {"op": "flora_expect_occupant", "occupant": 1000, "in_manager": true, "flora_type": "0x1000", "pos": [564, 260, 364]},
+    {"op": "flora_expect_occupant", "occupant": 6, "last_seed": 5000},
+
+    {"op": "flora_env", "date": 1365},
+    {"op": "flora_rng", "doubles": [0, 0.5, 0, 0.5]},
+    {"op": "flora_call", "method": "simulate_existing", "args": [4]},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_env", "date": 1366},
+    {"op": "flora_call", "method": "simulate_existing", "args": [4]},
+    {"op": "flora_expect_events", "events": [
+      {"event": "rng", "method": "range_f64", "a": -118, "b": 138},
+      {"event": "rng", "method": "range_f64", "a": 672, "b": 928, "value": 800},
+      {"event": "set_last_seed", "occupant": 4, "value": 1366},
+      {"event": "rng", "method": "range_f64"},
+      {"event": "rng", "method": "range_f64"},
+      {"event": "set_last_seed", "occupant": 4, "value": 1366}]}
+  ]
+}

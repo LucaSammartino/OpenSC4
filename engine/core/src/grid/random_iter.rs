@@ -7,11 +7,18 @@
 //! The random cell iterator (simgrid §7.4, weather §6.7, foundations
 //! §12.4): "prime-step" mode (mode 1) and "table" mode (mode 0).
 //!
-//! [choice]s (spec questions): table entries are packed
-//! `((x − x0) << 8) | (z − z0)`; a refill writes them in natural order, x
-//! outer and z inner (ascending packed values); table mode only covers the
-//! first 256 × 256 cells of a larger rectangle; a table-mode reset leaves
-//! `current` and `step` unchanged and `next` leaves `current` unchanged.
+//! Table mode *[compat]* (weather §6.7, G2): entries hold the **absolute**
+//! coordinates `(x mod 256) << 8 | (z mod 256)`; the `dirty` flag, set by
+//! `SetClipRect` ([`CellIterator::set_rect`]) and by a table resize, is never
+//! cleared, so every table-mode reset refills the table in natural order (x
+//! outer, z inner) before the optional shuffle. A table-mode reset leaves the
+//! prime-step `current` and `step` unchanged, and `next` walks the table by
+//! its length.
+//!
+//! [choice]s: the table is at most [`MAX_TABLE`] entries (a larger
+//! rectangle keeps its count but only the first entries exist, so `next`
+//! stops at the table's end); the reader fails on a stream error (the
+//! original resizes the table to the stream object's address, weather §10).
 
 use crate::rng::CrtRand;
 use crate::stream::{InStream, OutStream};
@@ -31,6 +38,9 @@ pub const MODE_PRIME: i8 = 1;
 
 /// The largest count the prime-step mode walks.
 const MAX_COUNT: i32 = 130_444;
+
+/// The largest table the table mode allocates ([choice]: 1024 × 1024 cells).
+pub const MAX_TABLE: usize = 1 << 20;
 
 /// The iterator's run state (weather §10): the saved byte is 1 = running
 /// (also a freshly constructed, never-reset iterator) or 2 = exhausted; the
@@ -144,11 +154,13 @@ impl CellIterator {
         it
     }
 
+    /// `SetClipRect`: the rectangle; sets `dirty` (weather §6.7).
     pub fn set_rect(&mut self, x0: i32, z0: i32, x1: i32, z1: i32) {
         self.x0 = x0;
         self.z0 = z0;
         self.x1 = x1;
         self.z1 = z1;
+        self.dirty = 1;
     }
 
     fn width(&self) -> i64 {
@@ -165,8 +177,9 @@ impl CellIterator {
     }
 
     /// `reset(shuffle)`: in prime-step mode exactly one `rand()` call when
-    /// shuffling; in table mode the table is refilled when its size changed
-    /// and `random_shuffle`d (n − 1 calls) when shuffling.
+    /// shuffling; in table mode the table is refilled (when `dirty`, which
+    /// is always the case once sized) and `random_shuffle`d (n − 1 calls)
+    /// when shuffling.
     pub fn reset(&mut self, shuffle: bool, crt: &mut CrtRand) {
         if self.mode == MODE_TABLE {
             self.reset_table(shuffle, crt);
@@ -206,44 +219,49 @@ impl CellIterator {
         }
     }
 
-    fn table_dims(&self) -> (i64, i64) {
-        (self.width().clamp(0, 256), self.height().clamp(0, 256))
-    }
-
+    /// Table-mode reset (weather §6.7).
     fn reset_table(&mut self, shuffle: bool, crt: &mut CrtRand) {
-        let (w, h) = self.table_dims();
-        let n = (w * h) as usize;
+        let (w, h) = (self.width(), self.height());
+        let count = if w <= 0 || h <= 0 { 0 } else { w.saturating_mul(h) };
+        self.count = count.min(i64::from(i32::MAX)) as i32;
+        self.index = 0;
+        self.set_state(IteratorState::Running);
+        let n = (count.max(0) as u64).min(MAX_TABLE as u64) as usize;
         if self.table.len() != n {
-            self.table.clear();
-            for x in 0..w {
-                for z in 0..h {
-                    self.table.push(((x << 8) | z) as u16);
-                }
+            self.table.resize(n, 0);
+            self.dirty = 1;
+        }
+        if self.dirty != 0 {
+            let cells = (0..w.max(0)).flat_map(|dx| (0..h.max(0)).map(move |dz| (dx, dz)));
+            for (slot, (dx, dz)) in self.table.iter_mut().zip(cells) {
+                let x = (i64::from(self.x0) + dx) & 0xFF;
+                let z = (i64::from(self.z0) + dz) & 0xFF;
+                *slot = ((x << 8) | z) as u16;
             }
         }
         if shuffle {
             crt.random_shuffle(&mut self.table);
         }
-        self.count = n as i32;
-        self.index = 0;
-        self.set_state(IteratorState::Running);
     }
 
+    /// Table-mode `next` (weather §6.7): absolute coordinates.
     fn next_table(&mut self) -> Option<(i32, i32)> {
-        self.index = self.index.saturating_add(1);
-        let e = match self.table.get(self.index as usize - 1) {
-            Some(&e) if self.index <= self.count => e,
-            _ => {
+        if self.state == IteratorState::Exhausted {
+            return None;
+        }
+        let len = self.table.len();
+        let e = match usize::try_from(self.index).ok().filter(|&i| i < len) {
+            Some(i) => self.table[i],
+            None => {
                 self.set_state(IteratorState::Exhausted);
                 return None;
             }
         };
-        if self.index == self.count {
+        self.index += 1;
+        if self.index as usize == len {
             self.set_state(IteratorState::Exhausted);
         }
-        let x = (i64::from(self.x0) + i64::from(e >> 8)) as i32;
-        let z = (i64::from(self.z0) + i64::from(e & 0xFF)) as i32;
-        Some((x, z))
+        Some((i32::from(e >> 8), i32::from(e & 0xFF)))
     }
 
     /// Whether the iterator ran out (simgrid §7.4 "exhausted").
@@ -253,7 +271,7 @@ impl CellIterator {
 
     /// `next(&x, &z)`.
     pub fn next_cell(&mut self) -> Option<(i32, i32)> {
-        if self.state != IteratorState::Exhausted && self.count > 0 && self.mode == MODE_TABLE {
+        if self.mode == MODE_TABLE {
             return self.next_table();
         }
         if self.state == IteratorState::Exhausted || self.count <= 0 {

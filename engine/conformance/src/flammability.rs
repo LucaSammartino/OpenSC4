@@ -19,7 +19,7 @@ use fc4_core::curve::ResponseCurve;
 use fc4_core::flammability::{
     answers_iid, compute_hotspots, daily_value, msg, occupant_raw_value, occupant_type, prop, CellRect,
     FlammabilityHost, FlammabilityRandom, FlammabilityRng, FlammabilitySim, Hotspot, LotId, Message, OccupantId,
-    Tuning, CLSID_FLAMMABILITY_SIMULATOR,
+    Tuning, CLSID_FLAMMABILITY_SIMULATOR, NOTIFICATIONS,
 };
 use fc4_core::grid::{create_for_clsid, CityDims, GridProvider, IteratorState, SimGrid, TractGrid};
 use fc4_core::property::PropertyHolder;
@@ -64,6 +64,8 @@ pub(crate) struct World {
     zoned: RefCell<BTreeSet<(i32, i32)>>,
     tutorial: Cell<bool>,
     no_fire_manager: Cell<bool>,
+    no_plumbing: Cell<bool>,
+    no_zone_manager: Cell<bool>,
     tuning: RefCell<Option<Rc<PropertyHolder>>>,
     /// Zone-type queries per tract (one per daily visit).
     visits: RefCell<BTreeMap<(i32, i32), u32>>,
@@ -273,12 +275,18 @@ impl FlammabilityHost for World {
     fn current_season(&self) -> Option<i32> {
         self.season.get()
     }
-    fn is_cell_watered(&self, x: i32, z: i32) -> bool {
-        !(self.unwatered_all.get() || self.unwatered.borrow().contains(&(x, z)))
+    fn is_cell_watered(&self, x: i32, z: i32) -> Option<bool> {
+        if self.no_plumbing.get() {
+            return None;
+        }
+        Some(!(self.unwatered_all.get() || self.unwatered.borrow().contains(&(x, z))))
     }
-    fn zone_type(&self, x: i32, z: i32) -> u32 {
+    fn zone_type(&self, x: i32, z: i32) -> Option<u32> {
         *self.visits.borrow_mut().entry((x, z)).or_default() += 1;
-        u32::from(self.zoned_all.get() || self.zoned.borrow().contains(&(x, z)))
+        if self.no_zone_manager.get() {
+            return None;
+        }
+        Some(u32::from(self.zoned_all.get() || self.zoned.borrow().contains(&(x, z))))
     }
     fn record_history(&self, history_type: u32, value: i32) {
         self.events
@@ -412,7 +420,7 @@ fn occupant(e: &Json) -> R<(u64, Occ)> {
     };
     let flam = match e.get("flam") {
         None | Some(Json::Null) => None,
-        Some(v @ Json::Object(_)) => Some(scalar::variant_of(v)?),
+        Some(v @ Json::Object(_)) => Some(flam_variant(v)?),
         Some(v) => Some(Variant::Scalar(Elem::U32(u32_of(v, "flam")?))),
     };
     let pos = match opt(e, "pos") {
@@ -433,6 +441,29 @@ fn occupant(e: &Json) -> R<(u64, Occ)> {
             pos,
         },
     ))
+}
+
+/// A property value: the shared forms of `scalar::variant_of`, plus `i8`,
+/// `i16`, `u64`, `f64` and `char` (scalars or arrays) for the conversion
+/// table of §6.1.
+fn flam_variant(v: &Json) -> R<Variant> {
+    use fc4_core::variant::mem;
+    let Some([(kind, val)]) = v.as_object() else {
+        return scalar::variant_of(v);
+    };
+    let (m, one): (u16, fn(&Json) -> Option<Elem>) = match kind.as_str() {
+        "i8" => (mem::SINT8, |j| j.as_i64().map(|v| Elem::I8(v as i8))),
+        "i16" => (mem::SINT16, |j| j.as_i64().map(|v| Elem::I16(v as i16))),
+        "u64" => (mem::UINT64, |j| j.as_i64().map(|v| Elem::U64(v as u64))),
+        "f64" => (mem::FLOAT64, |j| scalar::num(j).map(Elem::F64)),
+        "char" => (mem::CHAR, |j| j.as_i64().map(|v| Elem::Char(v as u8))),
+        _ => return scalar::variant_of(v),
+    };
+    let conv = |j: &Json| one(j).ok_or_else(|| format!("bad {kind} value"));
+    Ok(match val {
+        Json::Array(a) => Variant::array(m, a.iter().map(conv).collect::<R<Vec<_>>>()?),
+        j => Variant::Scalar(conv(j)?),
+    })
 }
 
 fn env(w: &World, op: &Json) -> R<()> {
@@ -502,6 +533,12 @@ fn env(w: &World, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "fire_manager") {
         w.no_fire_manager.set(!bool_of(v, "fire_manager")?);
+    }
+    if let Some(v) = opt(op, "plumbing") {
+        w.no_plumbing.set(!bool_of(v, "plumbing")?);
+    }
+    if let Some(v) = opt(op, "zone_manager") {
+        w.no_zone_manager.set(!bool_of(v, "zone_manager")?);
     }
     Ok(())
 }
@@ -656,6 +693,7 @@ fn call(w: &World, op: &Json) -> R<()> {
             a_i32(op, 2)?,
         ))),
         "query_interface" => Some(Json::Bool(answers_iid(u32_of(arg(op, 0)?, "iid")?))),
+        "notifications" => Some(Json::Array(NOTIFICATIONS.iter().map(|&m| ji(m)).collect())),
         _ => None,
     };
     if let Some(g) = got {
@@ -987,9 +1025,14 @@ fn load(w: &World, op: &Json) -> R<()> {
     let name = slot(op)?;
     let saved = w.saves.borrow().get(&name).cloned().ok_or("no such slot")?;
     let me = w.rc();
+    let into = opt(op, "into_current").map_or(Ok(false), |v| bool_of(v, "into_current"))?;
+    let current = if into { Some(w.sim()?) } else { None };
     let mut rng = Some(w.rng(opt(op, "rng"))?);
     let mut factory = |class: u32, _id: u32| -> Option<RefValue> {
         if class == CLSID_FLAMMABILITY_SIMULATOR {
+            if let Some(c) = &current {
+                return Some(RefValue::Object(c.clone() as Rc<dyn SaveObject>));
+            }
             let r = rng.take()?;
             let s = FlammabilitySim::new(me.clone() as Rc<dyn FlammabilityHost>, me.token(), r);
             return Some(RefValue::Object(s as Rc<dyn SaveObject>));
@@ -1004,6 +1047,9 @@ fn load(w: &World, op: &Json) -> R<()> {
     let want = opt(op, "expect").map_or(Ok(true), |v| bool_of(v, "expect"))?;
     if ok != want {
         return Err(format!("store load clean = {ok}, expected {want}"));
+    }
+    if into {
+        return Ok(());
     }
     let sim = roots
         .first()

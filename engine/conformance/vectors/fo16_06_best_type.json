@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "flora_best_type",
+  "spec": ["flora 6.3", "flora 3.2", "flora 14"],
+  "description": "Derived by hand from flora 6.3 (test 6 of 16). Types A 0x1000, B 0x2000 and C 0x3000 (never-auto, bit 0) have table cell (elevation 0, moisture 8) = 0.4, 0.6 and 0.6 (bytes 102, 153, 153) and the generated pattern elsewhere (0.6 where both indices are in 5..12, else 0). At ground 260 (elevation 0), moisture 8, the map is walked in ascending order (0, A, B, C): the key-0 record is skipped ([choice] its flags byte has bit 0), A raises the best to 0.4, B to 0.6, C is skipped -> (B, 0.6). Moisture 0 makes every byte of row 0 zero -> (0, 0), and planting type 0 then returns null with nothing created. In a new process with C's never-auto dropped, C's 0.6 is not strictly greater -> still B. [choice] With the default record's flags set to 6 (bit 0 clear; the original's byte is uninitialised) at ground 560 (elevation 6, moisture 8) the key-0 record's code-default byte 0x99 gives 0.6 first in map order and A and B only tie -> (0, 0.6) (quirk 3.2), and planting type 0 returns null.",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "table_cells": [[0, 8, 0.4]]}, {"type": "0x2000", "table_cells": [[0, 8, 0.6]]}, {"type": "0x3000", "table_cells": [[0, 8, 0.6]], "never_auto": true}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_call", "method": "best_type", "args": [500, 500], "expect": ["0x2000", 0.6]},
+    {"op": "flora_call", "method": "score", "args": ["0x1000", 500, 500], "expect": 0.4},
+    {"op": "flora_env", "moisture": 0},
+    {"op": "flora_call", "method": "best_type", "args": [500, 500], "expect": [0, 0]},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "add_new", "args": [0, [500, 0, 500], false], "expect": {"occupant": null, "pos": [500, 0, 500]}},
+    {"op": "flora_expect_events", "events": []},
+
+    {"op": "flora_types", "types": [{"type": "0x1000", "table_cells": [[0, 8, 0.4]]}, {"type": "0x2000", "table_cells": [[0, 8, 0.6]]}, {"type": "0x3000", "table_cells": [[0, 8, 0.6]]}]},
+    {"op": "flora_registry", "reset": true, "default_flags": 6},
+    {"op": "flora_env", "moisture": 8, "ground": 260},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_expect_record", "type": 0, "flags": 6},
+    {"op": "flora_call", "method": "best_type", "args": [500, 500], "expect": ["0x2000", 0.6]},
+    {"op": "flora_env", "ground": 560},
+    {"op": "flora_call", "method": "best_type", "args": [500, 500], "expect": [0, 0.6]},
+    {"op": "flora_call", "method": "add_new", "args": [0, [500, 0, 500], false], "expect": {"occupant": null, "pos": [500, 0, 500]}}
+  ]
+}
