@@ -519,8 +519,9 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
    unknown.
 3. Whether the occupant manager still lists an occupant while RemoveOccupant is delivered (§6.3).
 4. Who, if anyone, reads SimCycleComplete `0x08F415FE` and history type `0x2A11CB48` (graph data files?).
-5. The x87 precision mode in effect during the simulation (double rounding in `roundHE`); irrelevant for
-   shipped values.
+5. *(resolved)* The simulation runs the x87 at 24-bit precision (foundations §18). `roundHE` therefore rounds
+   once: the add of 1.5·2²³ is itself rounded to 24 bits, which is round-half-even to an integer for |x| < 2²²;
+   there is no double rounding.
 
 ## 16. Conformance tests (must exist in `engine/conformance`)
 

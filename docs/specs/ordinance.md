@@ -157,7 +157,7 @@ There is one GZCOM class per shipped ordinance. All derive their behaviour from 
 | `0xA2BF1DE5` | ShuttleService | — |
 | `0xC2F6E81F` | TireRecycling | — |
 | `0x62F6E7CF` | TouristPromotion | monthly base = total expenses of department `0x8A416368` (0 if missing) |
-| `0x42BF1E18` | TrashPresort | monthly base = total expenses of department `0x6A42A8F5` (sanitation); if the budget simulator is missing the result is `monthlyConstantIncome`; condition adds `cISC4PollutionSimulator::GetRecyclingCenterEffect() × 100 > 0` |
+| `0x42BF1E18` | TrashPresort | monthly base = total expenses of department `0x6A42A8F5` (sanitation); if the budget simulator is missing the result is `monthlyConstantIncome`; condition adds `*cISC4PollutionSimulator::GetRecyclingCenterEffect() × 100 > 0`, i.e. "recycling effect > 0". The getter (pollution compiled slot 33, `+0x84`) returns a **pointer to an `f32` fraction** (0.0 … about 1.0) in EAX, not the SDK's `int32` (pollution §8, §4.6.3); the value is computed by the pollution simulator each cycle, not read from tuning |
 | `0xC2BF1E04` | VehicleEmissionStandard ("Car Smogging") | — |
 | `0x02BF1DFA` | WaterConservation | — |
 | `0xC2BF1DC5` | YouthCurfew | — |
@@ -430,10 +430,22 @@ s64   pending
 **Read**: fail (return false) unless `version == 4`. Read the two totals and the count, **clear the map**, then
 for each reference: resolve it as `cIGZSerializable` (`0xE4FDA3D4`); if that succeeds and the object answers
 `cISC4Ordinance` (`0xAA5E2247`), store it under the key **`GetGZCLSID()` of the object** (not `GetID()`).
-*[quirk]* For every shipped class the two are equal. A plugin ordinance whose class ID differs from its ordinance
-ID is re-keyed by class ID after a load, so `find(id)` may miss it; an implementation should key by `GetID()`
-when the class answers it and keep the original behaviour only as a documented difference *[choice]*. Then read
-`pending`, and set `loadedFromSave`.
+Unlike creation (`insert_unique`, the first entry wins), a later duplicate key here replaces the earlier entry.
+Then read `pending`, and set `loadedFromSave`.
+
+*Why the class ID* *[compat]*: the class store reads classes in ascending class-ID order (foundations §2.7,
+§3.5). When this `Read` runs (class `0xA990C08E`), the ordinance objects with higher class IDs (shipped:
+`0xC2BF1DC5`, `0xC2BF1E04`, `0xC2F6E81F`, `0xE0D0722E`, `0xE0D07233`) exist but have not been read yet, so their
+`GetID()` would still be 0. `GetID()` cannot be used inside `Read`.
+
+**Keys after a load** *[quirk]*: the original **never re-keys**. `Init` (which runs after the whole class store has
+been read, foundations §3.7) leaves existing entries alone; it only adds missing standard ordinances when the city
+was not loaded. Entries keep class-ID keys for the life of the city. For every shipped class the class ID equals
+the ordinance ID, so nothing is visible. A plugin ordinance whose class ID differs from its ordinance ID cannot be
+found by `IsOrdinanceOn(id)` / `RemoveOrdinance(id)` after a load, and `AddOrdinance` would add a second entry.
+*[choice]* FreeCity4 keys by class ID in `Read` (as the original) and **re-keys by `GetID()` in `Init`**, when every
+ordinance has been read. This is a documented difference from the original; when two entries end with the same
+ID, the one first in class-ID order wins (as creation would keep the first).
 
 ### 9.2 Ordinance (`GetGZCLSID()` = the class ID of §3.6) *[compat]*
 
@@ -525,8 +537,10 @@ From the caller data of the Windows build (direct calls) and the call-site surve
 1. Byte format of the property value record inside the property-holder sub-record (§9.3). Needed to write saves
    the original can read; shared with every class that saves a property holder.
 2. The enumeration order of exemplar keys at load (§8.1), which only matters for duplicate ordinance IDs.
-3. Exact float behaviour of §3.3 on the Windows build (x87 extended precision before the truncation) versus
-   strict float32. Tests use a ±1 tolerance until a capture settles it.
+3. *(resolved)* Float behaviour of §3.3: the game runs the x87 at 24-bit precision (foundations §18), so each
+   operation rounds like a `float32` operation before the truncation (no extended precision). Strict `float32`
+   arithmetic matches, except where an operand is a `double` constant or an integer above 2^24 (foundations
+   §18.3); the ±1 tolerance can be removed for tests whose operands avoid that case.
 4. Who calls `SetOrdinanceEnabled` / `cISC4Ordinance::SetEnabled` in the shipped game (tutorials, scenarios?).
 5. The meaning of the pollution effect properties (`0x08F79B8E`, `0xE8F79C8B`, `0xE8F79C90`, `0x8A67E37x`) and of the
    residential effect properties; they belong to those subsystems' specs.

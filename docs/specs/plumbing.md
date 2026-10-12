@@ -309,7 +309,9 @@ Producer records hold:
    - The product is formed in x87 arithmetic (numPipes as an **unsigned** 32-bit value).
    - It is rounded to nearest by adding `1.5·2^23` and storing as `float32`, so it is valid only for results
      below 2^22.
-   - Ties: see §13 question 5. *[choice]* FreeCity4 computes it in `f64` and rounds half to even.
+   - Precision (§13 question 5, resolved): the game runs the x87 at 24-bit precision (foundations §18), so the
+     product is first rounded to a 24-bit significand and the add then rounds half to even. *[compat]* FreeCity4
+     computes the product in `f64`, rounds it to `f32`, then rounds half to even.
 6. recompute := true.
 
 ## 6. The pass (`DoIdle(budgetMs)`) *[compat]*
@@ -951,8 +953,9 @@ Open questions:
 3. The ring number of the spiral iterator at clipped box edges (§7.2): Chebyshev is inferred.
 4. The name of message `0x6946DC34` (a "water map changed" notification *[inferred]*). The process-wide flag
    that `Init` sets is unexplained.
-5. The x87 precision control in effect when the game runs. It decides ties in the pipe-cost rounding (§5.4) and
-   borderline truncations such as `trunc(100 × 0.01f)`. Tests avoid such values.
+5. *(resolved)* The game runs the x87 at 24-bit precision (foundations §18). Each operation rounds like one
+   `float32` operation. Example: `trunc(100 × 0.01f)` is **1** (the exact product 0.99999997… rounds to 1.0 at 24
+   bits), whereas extended precision would give 0. Pipe-cost ties (§5.4) follow the same rule.
 6. Whether a single import deal seeding several networks (one per connection) is intended.
 
 ## 14. Conformance tests (must exist in `engine/conformance`)

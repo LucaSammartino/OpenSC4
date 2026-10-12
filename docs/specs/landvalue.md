@@ -103,7 +103,11 @@ With S = 2 and 16 m cells the sample point is a terrain vertex.
 
 ### 4.1 `Init()` → true
 
-If already initialized, return true and do nothing else. Otherwise, in this order:
+If already initialized, return true and do nothing else. Otherwise, in this order (there is no "no city" path:
+the original takes the city, zone manager and terrain from the process-wide pointers that the city sets when it is
+created, and `AddRef`s them without a null check, so `Init` without a city would crash. It only ever runs from the
+city's own `Init` (foundations §3.7). *[choice]* FreeCity4 returns true and creates no grids when there is no
+city; every other method must then tolerate absent grids):
 
 1. Take the city, the zone manager and the terrain, each only if not already held (`AddRef`).
 2. Read the tuning exemplar (§8). An absent tract-size property leaves S unchanged; the other byte-array
@@ -244,8 +248,8 @@ topIndex  := 100
 if highRange > 100:  topIndex := min(150, trunc((highRange − 100) / (terrain.MaxAllowedHeight() − 100) × 100 + 100))
 ```
 
-(`highRange − 100` is rounded to float32 before the division; the rest is evaluated in extended precision and
-truncated toward zero.)
+(Each operation is rounded to a 24-bit significand, like one `float32` operation, because the game runs the
+x87 at 24-bit precision (foundations §18); the result is then truncated toward zero.)
 
 **`AltitudeEffect(a)`** → byte:
 
@@ -270,7 +274,8 @@ The developer list is built by `Init` (§8): for each ID i in tuning `0x47E2C330
 `BuildingDevelopmentSimulator.GetDeveloper(ID_i)` is the key and `0x47E2C331[i]` the weight. Later duplicates
 overwrite the weight of an earlier identical key.
 
-**Order** *[compat, see note]*: the list is ordered by the **developer object's address**, not by tuning order.
+**Order** *[compat, see note]*: the list is a map keyed by the developer pointer, so it is ordered by the
+**developer object's address** (in practice heap-allocation order), not by tuning order.
 Because each application clamps to [1, 255], the order matters when two or more developers are listed. With the
 shipped tuning there is exactly one developer (ID `0x1030`), so order does not matter. *[choice]* FreeCity4 applies
 developers in tuning order. A null developer (unknown ID) is not filtered: the original would crash in state 7
@@ -433,6 +438,13 @@ callers read only AL, so declaring them `uint8_t` is correct.
 | property holder / variant | foundations §17.1, §17.2 | | `GetProperty(id)`, value arrays (u8, u32, f32), counts | | |
 | own grids | `cISC4SimGrid<T>` | | simgrid.md §4 slots 3, 6, 7, 9–13, 21, 24/25 | | |
 
+**Reference counting** *[compat]*: `cISC4City::GetBuildingDevelopmentSimulator` (compiled slot 53, a plain field
+read), `GetDeveloper(DeveloperType)` (slot 32, a map lookup returning null when absent) and `GetLotDeveloper()`
+(slot 36, a plain field read) all return **borrowed** pointers: none of them calls `AddRef`. Land value stores the
+growth-developer pointers in its developer list without `AddRef` and never releases them; it holds no reference
+to the lot developer either. A replacement must not `Release` what these getters return, and a replacement of
+the building development simulator must keep the developers alive for the city's lifetime.
+
 Terrain: the SDK's `cISTETerrainMap` declares `GetAltitude(float, float)` before `GetAltitude(int32)`; in the
 compiled vtable the `(float, float)` overload is slot **13** and `(int32)` slot 12 (foundations §16). Slots 23, 24
 and 36 match the SDK. The terrain interface rows are in `docs/abi/interfaces.tsv` after regeneration.
@@ -482,11 +494,10 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
 
 ## 15. Open questions
 
-1. x87 precision. Several steps truncate values computed in x87 extended precision (§7.3, §7.4). If the game runs
-   with the x87 precision control set to 24 bits (the Direct3D default unless the device is created with
-   FPU-preserve), intermediate results are rounded to float32 first and values that land within 1e-7 of an integer
-   can truncate differently (e.g. 5 × float32(−0.8) + 50). It is not known which mode the game uses during the
-   simulation. Conformance tests avoid such boundaries.
+1. *(resolved)* x87 precision: the game sets 24-bit precision on the main thread at start-up and the whole
+   simulation runs with it (foundations §18). Every step of §7.3 and §7.4 is therefore a chain of `float32`
+   operations, each rounded to nearest-even, then truncated; for example 5 × float32(−0.8) + 50 is evaluated as
+   two `float32` operations. Computing these steps in `f32` (as the implementation does) matches the original.
 2. *(resolved)* The growth developers' desirability maps use tract size 4 (`0x87CD6310` = 4 in every shipped
    developer exemplar), so state 7 uses the "A finer" branch of simgrid §7.3 (§7.4).
 3. Whether any shipped content lists more than one desirability developer (only then does the address-order
