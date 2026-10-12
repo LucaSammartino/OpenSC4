@@ -1,0 +1,121 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. This program is distributed WITHOUT ANY WARRANTY; see
+// the GNU General Public License for more details. You should have received a
+// copy of the license along with this program (see LICENSE at the repository
+// root); if not, see <https://www.gnu.org/licenses/>.
+
+// cFC4Simulator: the GZCOM face of the FreeCity4 simulator
+// (docs/specs/simulator.md §1). All behaviour lives in the Rust core behind
+// the C ABI in fc4.h; this class only adapts GZCOM interfaces to it.
+#pragma once
+
+#include "cFC4Date.h"
+#include "cIGZMessageTarget2.h"
+#include "cIGZSerializable.h"
+#include "cIGZSystemService.h"
+#include "cISC4Simulator.h"
+#include "fc4.h"
+
+class cIGZCheatCodeManager;
+class cIGZMessageServer2;
+
+// Class ID of the simulator (spec §1).
+static const uint32_t kFC4_CLSID_cSC4Simulator = 0x2990C1E5;
+
+class cFC4Simulator final : public cISC4Simulator,
+                            public cIGZSerializable,
+                            public cIGZSystemService,
+                            public cIGZMessageTarget2 {
+public:
+    cFC4Simulator();
+    ~cFC4Simulator();
+
+    // cIGZUnknown
+    bool QueryInterface(uint32_t riid, void** ppvObj) override;
+    uint32_t AddRef() override;
+    uint32_t Release() override;
+
+    // cISC4Simulator (Init/Shutdown also implement cIGZSystemService's)
+    bool Init() override;
+    bool Shutdown() override;
+    bool GetSimStartDate(cIGZDate& sDate) override;
+    cIGZDate* GetSimDate() override;
+    void GetSimDate(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear, uint32_t* weekDay) override;
+    int32_t GetSimDateNumber() override;
+    bool Pause() override;
+    bool HiddenPause() override;
+    bool EmergencyPause() override;
+    bool Resume() override;
+    bool HiddenResume() override;
+    bool EmergencyResume() override;
+    bool IsPaused() override;
+    bool IsHiddenPaused() override;
+    bool IsEmergencyPaused() override;
+    bool IsAnyPaused() override;
+    bool AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, cIGZString const& szAgentName, eAgentFlags flags) override;
+    bool RemoveAgent(cIGZMessageTarget2* pAgent, eAgentType agentType) override;
+    bool RemoveAgent(cIGZMessageTarget2* pAgent) override;
+    bool RemoveAllAgents() override;
+    bool RemoveAllAgents(eAgentType agentType) override;
+    bool EnumerateAgentsByName(SC4Vector<SC4String>& sAgents) override;
+    bool GetAgentEnabled(cIGZString const& szAgentName) override;
+    bool SetAgentEnabled(cIGZString const& szAgentName, bool bEnabled) override;
+    int32_t GetSimSpeed() override;
+    bool SetSimSpeed(int32_t lSpeed) override;
+    int32_t GetSimTime() override;
+    bool SetSimTime(int32_t lTime) override;
+    bool SetMaxMillisecondsPerTick(uint32_t dwTime) override;
+    float GetAnimationTimeDilation() override;
+    bool SetCityEstablished(bool bEstablished) override;
+
+    // cIGZSerializable
+    bool Write(cIGZOStream& gzOut) override;
+    bool Read(cIGZIStream& gzIn) override;
+    uint32_t GetGZCLSID() override;
+
+    // cIGZSystemService
+    uint32_t GetServiceID() override;
+    cIGZSystemService* SetServiceID(uint32_t dwServiceId) override;
+    int32_t GetServicePriority() override;
+    bool IsServiceRunning() override;
+    cIGZSystemService* SetServiceRunning(bool bRunning) override;
+    bool OnTick(uint32_t unknown1) override;
+    bool OnIdle(uint32_t unknown1) override;
+    int32_t GetServiceTickPriority() override;
+
+    // cIGZMessageTarget2
+    bool DoMessage(cIGZMessage2* pMessage) override;
+
+    // Host callbacks for the core (fc4_host).
+    static uint32_t HostNowMs(void* user);
+    static bool HostDeliver(void* user, fc4_sim* sim, fc4_agent agent, const fc4_message* msg);
+    static void HostAddRef(void* user, fc4_agent agent);
+    static void HostRelease(void* user, fc4_agent agent);
+    static void HostPost(void* user, const fc4_message* msg);
+
+private:
+    fc4_tuning ReadTuning(uint32_t (&msPerDay)[3], size_t& msCount, float (&dilation)[5], size_t& dilCount);
+    void RegisterCheats();
+    void UnregisterCheats();
+    void Post(const fc4_message& msg);
+
+    uint32_t refCount_ = 0;
+    uint32_t serviceId_;
+    bool serviceRunning_ = false;
+    fc4_sim* sim_ = nullptr;
+    cFC4Date date_;
+    cIGZMessageServer2* msgServer_ = nullptr;
+    cIGZCheatCodeManager* cheatMgr_ = nullptr;
+    bool simDateCheatRegistered_ = false;
+    bool commandRegistered_ = false;
+    bool addedToFramework_ = false;
+    bool loggedPostFallback_ = false;
+    uint32_t daysLogged_ = 0;
+};
