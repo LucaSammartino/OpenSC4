@@ -16,7 +16,7 @@ use crate::development::{GrowthItem, GrowthProfile};
 use crate::grid::{CityDims, CoreGrids, GridElem, GridProvider, SimGrid, TractGrid};
 use crate::property::PropertyHolder;
 use crate::rng::FixedSeeds;
-use crate::stream::{ByteReader, ByteWriter, SaveObject};
+use crate::stream::{ByteReader, ByteWriter, RefValue, SaveObject};
 use crate::variant::{mem, Elem, Variant};
 
 struct Fake {
@@ -128,6 +128,9 @@ impl GrowthDeveloperHost for Fake {
     }
     fn add_to_demand_value(&self, _n: u64, v: f32) {
         self.demand_added.borrow_mut().push(v);
+    }
+    fn active_demand(&self, n: u64) -> f32 {
+        n as f32 * 0.5
     }
     fn connected_cities(&self) -> u32 {
         0
@@ -418,4 +421,36 @@ fn queries_and_slots() {
         s.adapt(1);
     }
     assert_eq!(s, SliceStep { step: 1024, misses: 0 });
+}
+
+#[test]
+fn replacement_unit_methods() {
+    // The BDS glue's one-to-one operations (module docs, "Replacement unit").
+    let host = Fake::new(64);
+    host.nodes.borrow_mut().insert((0x4100, SOURCE_DEMAND_INDEX), 42);
+    let st = GrowthStatics::new(0, &seeds());
+    let mut ex = exemplar(0x4100, 3, 6);
+    ex.add(prop::SOURCE_DEMAND, Variant::Scalar(Elem::U32(0x4100)));
+    let (d, ok) =
+        GrowthDeveloper::create_from_exemplar(host.clone() as Rc<dyn GrowthDeveloperHost>, st.clone(), 9, Rc::new(ex));
+    assert!(ok);
+    assert_eq!(d.data().ref_count, 1);
+    assert_eq!((d.sub_type(), d.purpose()), (0x4100, 6));
+    assert_eq!(d.source_demand(), Some(42));
+    assert_eq!(d.source_active_demand(), Some(21.0));
+    let zoned = d.zoned_count_map().expect("zoned");
+    zoned.set(1, 1, 1);
+    zoned.set(2, 1, 1);
+    assert!(d.lists_valid());
+    run_update(&d);
+    assert_eq!(d.growth_items(), *d.growth_list());
+    assert_eq!(d.decline_items(), *d.decline_list());
+    let r = d.save_ref();
+    let back = GrowthDeveloper::from_save_ref(&r).expect("resolves");
+    assert!(Rc::ptr_eq(&back, &d));
+    assert!(GrowthDeveloper::from_save_ref(&RefValue::Null).is_none());
+
+    let bare = GrowthDeveloper::create(host.clone() as Rc<dyn GrowthDeveloperHost>, st, 10);
+    assert_eq!(bare.data().ref_count, 1);
+    assert_eq!(bare.source_active_demand(), None);
 }

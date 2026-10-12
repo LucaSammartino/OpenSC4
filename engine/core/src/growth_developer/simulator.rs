@@ -176,6 +176,39 @@ impl GrowthDeveloper {
         })
     }
 
+    /// `CreateDeveloper`'s construction (building-development.md §1.5, §1.1
+    /// here): the constructor, then `AddRef` for the BDS (count 1).
+    pub fn create(host: Rc<dyn GrowthDeveloperHost>, statics: Rc<GrowthStatics>, token: u64) -> Rc<GrowthDeveloper> {
+        let d = GrowthDeveloper::new(host, statics, token);
+        d.add_ref();
+        d
+    }
+
+    /// [`GrowthDeveloper::create`], then `Init(exemplar)` with the developer
+    /// exemplar (§1.2); returns the developer and `Init`'s result.
+    pub fn create_from_exemplar(
+        host: Rc<dyn GrowthDeveloperHost>,
+        statics: Rc<GrowthStatics>,
+        token: u64,
+        exemplar: Rc<PropertyHolder>,
+    ) -> (Rc<GrowthDeveloper>, bool) {
+        let d = GrowthDeveloper::create(host, statics, token);
+        let ok = d.init(Some(exemplar));
+        (d, ok)
+    }
+
+    /// How a save refers to this developer (foundations §2.7; written by
+    /// the class store with class [`CLSID_GROWTH_DEVELOPER`]).
+    pub fn save_ref(self: &Rc<Self>) -> RefValue {
+        RefValue::Object(self.clone() as Rc<dyn SaveObject>)
+    }
+
+    /// The developer a save reference points at (`None` for null or another
+    /// class).
+    pub fn from_save_ref(r: &RefValue) -> Option<Rc<GrowthDeveloper>> {
+        r.object::<GrowthDeveloper>()
+    }
+
     pub fn token(&self) -> u64 {
         self.token.get()
     }
@@ -1069,6 +1102,12 @@ impl GrowthDeveloper {
         self.d.borrow().tuning.developer_type
     }
 
+    /// `GetSubType` (slot 6), under its slot name: [`GrowthDeveloper::developer_type`].
+    pub fn sub_type(&self) -> u32 {
+        self.developer_type()
+    }
+
+    /// `GetPurpose` (slot 7).
     pub fn purpose(&self) -> u32 {
         u32::from(self.d.borrow().tuning.purpose)
     }
@@ -1111,6 +1150,17 @@ impl GrowthDeveloper {
         Ref::map(self.d.borrow(), |d| &d.decline)
     }
 
+    /// An owned copy of the growth list (slot 11), for a caller that must
+    /// not hold a borrow of the developer.
+    pub fn growth_items(&self) -> Vec<GrowthItem> {
+        self.d.borrow().growth.clone()
+    }
+
+    /// An owned copy of the decline list (slot 12).
+    pub fn decline_items(&self) -> Vec<GrowthItem> {
+        self.d.borrow().decline.clone()
+    }
+
     /// `GetDesirabilityMap` (slot 13): D (not W).
     pub fn desirability_map(&self) -> Option<Rc<dyn TractGrid<i16>>> {
         self.g.borrow().desirability.clone()
@@ -1139,6 +1189,14 @@ impl GrowthDeveloper {
     /// `GetSourceDemand` (slot 18).
     pub fn source_demand(&self) -> Option<u64> {
         self.d.borrow().source_demand
+    }
+
+    /// `GetSourceDemand().QueryActiveDemandValue()` (demand slot 12; the
+    /// BDS's `ad(D)`, building-development.md §4.3, §4.4); `None` without a
+    /// source node.
+    pub fn source_active_demand(&self) -> Option<f32> {
+        let node = self.source_demand()?;
+        Some(self.host.active_demand(node))
     }
 
     /// Slots 19–22: power, water, fire, park caps.

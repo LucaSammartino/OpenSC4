@@ -864,7 +864,7 @@ property maps, the store).
 
 | op | Arguments | Effect |
 |---|---|---|
-| `gdev_env` | any of `cells` (`[x, z]`), `date`, `wall_seed`, `missing_services` (`["city", "bds", "occupant_manager", "zone_manager", "land_value", "traffic"]`), `no_message_server`, `no_simulator`, `no_grids`, `log_population` (log `UpdatePopulation`), `log_zone` (log `GetZoneType`), `log_supply` (default true: log demand and neighbour queries), `tract_developer` (bool), `multiplier`, `connected` (`[n1, n2]`), `demand` (`[{id, index?, supply?, label?}]`), `clear_demand`, `timer_checks` (the deadline answers "not yet" this many times per call; null = never), `max_capacity` (`{"zoneType": value}`), `purposes` (`{"0xType": purpose}`), `zones` (`[{x, z, w?, d?, zone}]`) | the scripted world |
+| `gdev_env` | any of `cells` (`[x, z]`), `date`, `wall_seed`, `missing_services` (`["city", "bds", "occupant_manager", "zone_manager", "land_value", "traffic"]`), `no_message_server`, `no_simulator`, `no_grids`, `log_population` (log `UpdatePopulation`), `log_zone` (log `GetZoneType`), `log_supply` (default true: log demand and neighbour queries), `tract_developer` (bool), `multiplier`, `connected` (`[n1, n2]`), `demand` (`[{id, index?, supply?, active?, label?}]`; `active` answers `QueryActiveDemandValue`), `clear_demand`, `timer_checks` (the deadline answers "not yet" this many times per call; null = never), `max_capacity` (`{"zoneType": value}`), `purposes` (`{"0xType": purpose}`), `zones` (`[{x, z, w?, d?, zone}]`) | the scripted world |
 | `gdev_source` | `map` (`intrinsic_land_value`, `total_land_value`, `slope`, `r_proximity` + `index` 1..3, `co_proximity` + `index` `0x3320` / `0x3330`, `park`, `pollution` + `index` 0..3, `school`, `hospital`, `crime`, `trip_length`, `commercial_traffic`, `landmark`, `transient`), `size` (tract size), `fill?`, `tracts?` (`[[x, z, v]]`), `none?` (removes it) | a source map with the element type of §4.3 |
 | `gdev_statics` | `seed?` (reseeds the shared generator), `slice_step?`, `misses?`, `fresh?` (a new shared object for developers created later) | the process-wide state |
 | `gdev_occupant` | `label`, `props?` (`{"0xID": value}`; `{"remove": true}` removes), `position?` (`[x, y, z]`) or `cell?` (`[x, z]`: its centre) | an occupant; `PositionToCell` is `floor(p / 16)` |
@@ -875,16 +875,17 @@ property maps, the store).
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `gdev_create` | `label?` (`dev`), `add_ref?` (true) | a constructed developer; it becomes the current one (other ops take `dev?`) |
+| `gdev_create` | `label?` (`dev`), `add_ref?` (true: `GrowthDeveloper::create`, the constructor + `AddRef` of the BDS's `CreateDeveloper`; false: the bare constructor, count 0) | a constructed developer; it becomes the current one (other ops take `dev?`) |
 | `gdev_init` | `exemplar?` (a shipped developer type; default an empty exemplar), `props?` (added or removed on top), `null?`, `expect?` | `Init` |
 | `gdev_shutdown` | `expect?` | `Shutdown` |
 | `gdev_idle` | `count?` (1), `ms?` (5), `expect?` | SimIdle messages (`DoIdle(ms)`) |
 | `gdev_update` | `ms?`, `calls?` | `StartMapUpdate`, then `DoIdle` until the update finishes; `calls` checks the number of calls |
 | `gdev_message` | `type` (`SimIdle`, `SimNewDay`, `ZoningChange`, `StateChanged` or an ID), `data1..4?`, `rect?`, `lot?`, `expect?` | `DoMessage` |
-| `gdev_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result) | the §10.1 slots (`add_ref`, `release`, `target_zone`, `developer_type`, `purpose`, `wealth`, `construction_info` (`[initial zone code]`), `lists_valid`, `growth_list`, `decline_list` (`[[x, z, maxStage]]`), `desirability_map`, `capacity_map`, `population_map`, `max_capacity_map` (instance IDs), `total_capacity`, `source_demand`, `caps`, `desirability_threshold`, `abandonment_threshold`, `monopoly_use`, `style_percentages`, `start_map_update`, `is_map_update_finished`, `estimate_desirability`, `subjective_thresholds`), the internal steps `new_day_finished`, `city_size`, `update_max_capacity` (`[rect]`), `update_population_count` (`[lot, type, add]`), `do_idle`, the pure helpers `population_of`, `desirability_fraction`, `add_curve`, `commute_add`, `phantom_term`, `round_capacity`, `split_capacity`, `decline_key_seed`, `decline_key` (with the world's wall seed), `style_fraction`, and `query_interface`, `slot` (`[n]` → `[name, pop, return]`), `draw_salt` |
+| `gdev_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result) | the §10.1 slots (`add_ref`, `release`, `target_zone`, `developer_type` / `sub_type`, `purpose`, `wealth`, `construction_info` (`[initial zone code]`), `lists_valid`, `growth_list`, `decline_list` (`[[x, z, maxStage]]`), `growth_items`, `decline_items` (owned copies), `desirability_map`, `capacity_map`, `population_map`, `max_capacity_map` (instance IDs), `total_capacity`, `source_demand`, `source_active_demand` (`GetSourceDemand().QueryActiveDemandValue()`, null without a node), `caps`, `desirability_threshold`, `abandonment_threshold`, `monopoly_use`, `style_percentages`, `start_map_update`, `is_map_update_finished`, `estimate_desirability`, `subjective_thresholds`), the internal steps `new_day_finished`, `city_size`, `update_max_capacity` (`[rect]`), `update_population_count` (`[lot, type, add]`), `do_idle`, the pure helpers `population_of`, `desirability_fraction`, `add_curve`, `commute_add`, `phantom_term`, `round_capacity`, `split_capacity`, `decline_key_seed`, `decline_key` (with the world's wall seed), `style_fraction`, and `query_interface`, `slot` (`[n]` → `[name, pop, return]`), `draw_salt` |
 | `gdev_set` | `state?` (`update_state`, `start_day`, `last_phantom_sum`, `total_capacity`, `ref_count`, `growth`, `decline`), `grid?` (`zoned`, `working`, `desirability`, `population`, `capacity`, `max_capacity`) with `fill?` / `tracts?` | pokes state (test setup) |
 | `gdev_expect` | `state?`: a partial object of `initialized`, `ref_count`, `destroyed`, `holder`, `services`, `message_server`, `update_state`, `start_day`, `iterator` (`x`, `z`, `rect`, `state`; partial), `specials`, `special_cursor`, `growth`, `decline`, `last_phantom_sum`, `total_capacity`, `source_demand`, `last_salt`, `city_size`, `city_size_bits`, `grids` (partial), `rng_lcg`, `draws`, `slice_step`, `slice_misses`, and the tuning (`developer_type`, `target_zone`, `purpose`, `wealth`, `land_value_min`, `land_value_max`, `use_intrinsic`, `tract_size`, `baseline`, `growth_threshold`, `decline_threshold`, `phantom_demand`, `caps`, `monopoly_use`, `stage_count`, `curves` (the present curves in §4.6 order), `styles`, `abandonment`, `subjective_min`, `subjective_max`); `curve_eval?` (`[{curve, x, y}]`), `stage_eval?` (`[{stage, x, y, bits?}]`) | the developer and the shared statics |
 | `gdev_expect_grid` | `grid`, `exists?`, `instance?`, `size?`, `counts?`, `all?`, `tracts?` (`[[x, z, v]]`), `nonzero?` | one of the six grids |
+| `gdev_expect_salts` | `devs` (labels), `salts` | the developers' last salts, as a multiset, are among `salts` (each listed salt used once): which industrial developer gets which salt is a [compat-limit] and is not pinned |
 | `gdev_expect_refs` / `gdev_expect_demand` | refs: `{label: count}` (references held through `AddRef` / `Release`); demand: `totals` (`{label: sum of AddToDemandValue}`) | host objects |
 | `gdev_expect_events` / `gdev_expect_event_count` / `gdev_clear_events` | see the shared conventions | host calls |
 | `gdev_sort` | `keys`, `order?` (`desc` / `asc`), `expect` (original indices in sorted order) | the game's `std::sort` on its own |
@@ -896,7 +897,7 @@ Growth developer events: `acquire_service` (`service`, `ok`), `release_service`,
 `release_message_server`, `subscribe` / `unsubscribe` (`types`), `agent` (`level`, `name`, `flags`), `remove_agent`,
 `create_grid` (`instance`, `size`), `set_tract_size` (`which`, `grid`, `size`), `grid_shutdown` (`which`, `grid`),
 `add_ref` / `release` (`object`), `get_demand` (`id`, `index`, `node`), `query_supply` (`node`), `add_to_demand`
-(`node`, `value`, `bits`), `connected_cities`, `all_connected_cities`, `stage_multiplier`, `tract_developer`,
+(`node`, `value`, `bits`), `active_demand` (`node`), `connected_cities`, `all_connected_cities`, `stage_multiplier`, `tract_developer`,
 `special_buildings`, `max_capacity` (`zone`, `purpose`, `wealth`), `building_purpose` (`building_type`),
 `lot_building_type` (`lot`, `flag`), `lot_capacity` (`lot`, `developer_type`, `flag`), `lot_size`, `lot_rect`,
 `lot_location` (`lot`), `timer_start` (`ms`), `wall_clock_seed`, and with their flags `update_population`
@@ -1331,7 +1332,8 @@ The tract developer vectors (`td11_…`) drive `fc4_core::tract_developer`. Ever
 | Time slicing of state 18 (shared step) | `gd00_slicing` |
 | The game's `std::sort` and its tie order | `gd00_sort_ties` |
 | Shipped exemplars (§4.9) | `gd00_shipped_tuning` |
-| Draw sequence over several developers (§7) | `gd00_draw_sequence` |
+| Draw sequence over several developers (§7): one draw per industrial update, the shared generator's state, salts as a multiset ([compat-limit]) | `gd00_draw_sequence` |
+| The BDS's developer operations, one method each (§12, BDS §1.5) | `gd00_replacement_unit` |
 | 1 population | `gd14_01_population` |
 | 2 max capacity | `gd14_02_max_capacity` |
 | 3 built capacity | `gd14_03_built_capacity` |

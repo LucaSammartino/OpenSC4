@@ -91,6 +91,7 @@ pub(crate) struct World {
     /// (id, index) → node token.
     demand: RefCell<BTreeMap<(u32, u32), u64>>,
     supply: RefCell<BTreeMap<u64, f32>>,
+    active: RefCell<BTreeMap<u64, f32>>,
     /// Running `AddToDemandValue` totals per node.
     demand_added: RefCell<BTreeMap<u64, f64>>,
     specials: RefCell<Vec<u64>>,
@@ -137,6 +138,7 @@ impl World {
             connected: Cell::new((0, 0)),
             demand: RefCell::new(BTreeMap::new()),
             supply: RefCell::new(BTreeMap::new()),
+            active: RefCell::new(BTreeMap::new()),
             demand_added: RefCell::new(BTreeMap::new()),
             specials: RefCell::new(Vec::new()),
             occs: RefCell::new(BTreeMap::new()),
@@ -619,6 +621,10 @@ impl GrowthDeveloperHost for World {
             vec![("node", self.name(node)), ("value", jf(v)), ("bits", hex(v.to_bits()))],
         );
     }
+    fn active_demand(&self, node: u64) -> f32 {
+        self.events.push("active_demand", vec![("node", self.name(node))]);
+        self.active.borrow().get(&node).copied().unwrap_or(0.0)
+    }
     fn connected_cities(&self) -> u32 {
         if self.log_supply.get() {
             self.events.push("connected_cities", vec![]);
@@ -791,6 +797,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "expect_grid" => expect_grid(&w, op),
         "expect_refs" => expect_refs(&w, op),
         "expect_demand" => expect_demand(&w, op),
+        "expect_salts" => expect_salts(&w, op),
         "expect_events" => w.events.expect_events(op),
         "expect_event_count" => w.events.expect_count(op),
         "clear_events" => {
@@ -870,6 +877,9 @@ fn env(w: &World, op: &Json) -> R<()> {
             w.demand.borrow_mut().insert((id, index), t);
             if let Some(s) = opt(e, "supply") {
                 w.supply.borrow_mut().insert(t, f32_of(s, "supply")?);
+            }
+            if let Some(s) = opt(e, "active") {
+                w.active.borrow_mut().insert(t, f32_of(s, "active")?);
             }
         }
     }
@@ -1054,10 +1064,13 @@ fn apply_props(h: &mut PropertyHolder, v: &Json) -> R<()> {
 fn create(w: &World, op: &Json) -> R<()> {
     let label = opt(op, "label").map_or(Ok("dev"), |v| str_of(v, "label"))?.to_owned();
     let t = w.token(&label);
-    let d = GrowthDeveloper::new(w.rc() as Rc<dyn GrowthDeveloperHost>, w.statics(), t);
-    if opt_bool(op, "add_ref", true)? {
-        d.add_ref();
-    }
+    let host = w.rc() as Rc<dyn GrowthDeveloperHost>;
+    // `add_ref` (default true): `CreateDeveloper`'s constructor + `AddRef`.
+    let d = if opt_bool(op, "add_ref", true)? {
+        GrowthDeveloper::create(host, w.statics(), t)
+    } else {
+        GrowthDeveloper::new(host, w.statics(), t)
+    };
     w.devs.borrow_mut().insert(label.clone(), d);
     *w.current.borrow_mut() = label;
     Ok(())
@@ -1228,6 +1241,7 @@ fn call(w: &World, op: &Json) -> R<()> {
         "release" => ji(d.release()),
         "target_zone" => ji(d.target_zone()),
         "developer_type" => ji(d.developer_type()),
+        "sub_type" => ji(d.sub_type()),
         "purpose" => ji(d.purpose()),
         "wealth" => ji(d.wealth()),
         "construction_info" => {
@@ -1250,12 +1264,18 @@ fn call(w: &World, op: &Json) -> R<()> {
         "lists_valid" => Json::Bool(d.lists_valid()),
         "growth_list" => items_json(&d.growth_list()),
         "decline_list" => items_json(&d.decline_list()),
+        "growth_items" => items_json(&d.growth_items()),
+        "decline_items" => items_json(&d.decline_items()),
         "desirability_map" => grid_json(w, d.desirability_map().map(|g| inst_i16(w, &g))),
         "capacity_map" => grid_json(w, d.capacity_map().map(|g| inst_u16(w, &g))),
         "population_map" => grid_json(w, d.population_map().map(|g| inst_i16(w, &g))),
         "max_capacity_map" => grid_json(w, d.max_capacity_map().map(|g| inst_u16(w, &g))),
         "total_capacity" => ji(d.total_capacity()),
         "source_demand" => w.opt_name(d.source_demand()),
+        "source_active_demand" => match d.source_active_demand() {
+            Some(v) => return float_result(op, v),
+            None => Json::Null,
+        },
         "caps" => Json::Array(d.caps().iter().map(|&c| ji(c)).collect()),
         "desirability_threshold" => ji(d.desirability_threshold()),
         "abandonment_threshold" => return float_result(op, d.abandonment_threshold(a_i32(op, 0)?)),
@@ -1596,7 +1616,7 @@ fn save_now(w: &World, op: &Json) -> R<SavedCity> {
     let d = w.dev(op)?;
     let reg = Rc::new(RefCell::new(SaveRegistry::new()));
     let mut root = ByteWriter::with_registry(reg.clone());
-    root.put_ref(&RefValue::Object(d as Rc<dyn SaveObject>));
+    root.put_ref(&d.save_ref());
     let mut pkg = Package::new();
     let rep = save_store(&reg, &mut pkg);
     if rep.aborted || rep.entries_discarded != 0 {
@@ -1646,11 +1666,42 @@ fn load(w: &World, op: &Json) -> R<()> {
     if ok != want {
         return Err(format!("store load clean = {ok}, expected {want}"));
     }
-    if let Some(d) = root.as_ref().and_then(|v| v.object::<GrowthDeveloper>()) {
+    if let Some(d) = root.as_ref().and_then(GrowthDeveloper::from_save_ref) {
         w.devs.borrow_mut().insert(label.clone(), d);
         *w.current.borrow_mut() = label;
     } else if want {
         return Err("the root did not resolve to a growth developer".into());
+    }
+    Ok(())
+}
+
+/// `gdev_expect_salts`: `devs` (labels), `salts` (a list): the developers'
+/// last salts, as a multiset, are contained in `salts` (each listed salt
+/// used at most once). The [compat-limit] check: which industrial developer
+/// got which salt is not pinned, only that the salts handed out are the
+/// drawn ones.
+fn expect_salts(w: &World, op: &Json) -> R<()> {
+    let mut pool = Vec::new();
+    for v in arr(field(op, "salts")?, "salts")? {
+        pool.push(u32_of(v, "salts")?);
+    }
+    for v in arr(field(op, "devs")?, "devs")? {
+        let label = str_of(v, "devs")?;
+        let d = w
+            .devs
+            .borrow()
+            .get(label)
+            .cloned()
+            .ok_or_else(|| format!("no developer '{label}'"))?;
+        let salt = d
+            .data()
+            .last_salt
+            .ok_or_else(|| format!("developer '{label}' has drawn no salt"))?;
+        let i = pool
+            .iter()
+            .position(|&s| s == salt)
+            .ok_or_else(|| format!("developer '{label}' salt {salt:#010X} is not among the remaining {pool:X?}"))?;
+        pool.swap_remove(i);
     }
     Ok(())
 }

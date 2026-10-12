@@ -25,9 +25,13 @@
 //!   [`decline_key`], the capacity helpers) and the game's `std::sort` in
 //!   `sort.rs` ([`stl_sort`]).
 //! - [`GrowthStatics`]: the process-wide state shared by every growth
-//!   developer: the file-local `cRZRandom` of §7 (seeded by the host,
-//!   foundations §6.3 [choice]) and the time-slice step of §5.2. The host
-//!   creates one and hands the same `Rc` to every developer.
+//!   developer: the file-local `cRZRandom` of §7 and the time-slice step of
+//!   §5.2. The host creates one and hands the same `Rc` to every developer.
+//!   Its seed is injected ([`GrowthStatics::new`], [`GrowthStatics::reseed`]):
+//!   the core hard-codes no derivation. The glue derives it from the session
+//!   seed with the per-file constants of foundations §6.3 (not yet written
+//!   there); the original's `cRZTime() XOR 0xAC09C0E8` is only what the game
+//!   does, not something the core computes.
 //! - [`GrowthDeveloperHost`]: everything the developer reads from, or does
 //!   to, the rest of the game: the services of `Init`, the message server
 //!   and the simulator, the source maps (§4.3), the BDS (`GetMaxCapacity`,
@@ -49,6 +53,61 @@
 //!
 //! Host handles are opaque tokens (`u64`). Host callbacks must not call
 //! back into the developer; no `RefCell` borrow is held across a callback.
+//!
+//! # Replacement unit (§12, `building-development.md` §1.5)
+//!
+//! The developer is glued and replaced together with the BDS's developer
+//! creation. Each developer operation of the BDS core's host trait
+//! (`fc4_core::development_simulator::DevelopmentHost`) maps to one method:
+//!
+//! | BDS host method | `GrowthDeveloper` |
+//! |---|---|
+//! | `create_developer` | [`GrowthDeveloper::create`] (constructor + `AddRef`, count 1) |
+//! | `create_developer` + `developer_init` | [`GrowthDeveloper::create_from_exemplar`] |
+//! | `developer_init(dev, exemplar)` | [`GrowthDeveloper::init`]`(Some(exemplar))` |
+//! | `developer_shutdown` / `developer_release` | [`GrowthDeveloper::shutdown`] / [`GrowthDeveloper::release`] |
+//! | `developer_sub_type` / `developer_purpose` | [`GrowthDeveloper::sub_type`] / [`GrowthDeveloper::purpose`] |
+//! | `developer_lists_valid` | [`GrowthDeveloper::lists_valid`] |
+//! | `developer_growth_list` / `developer_decline_list` | [`GrowthDeveloper::growth_items`] / [`GrowthDeveloper::decline_items`] (owned copies; [`GrowthDeveloper::growth_list`] / [`GrowthDeveloper::decline_list`] borrow in place) |
+//! | `developer_active_demand` | [`GrowthDeveloper::source_active_demand`] (`GetSourceDemand` is [`GrowthDeveloper::source_demand`]) |
+//! | `developer_start_map_update` / `developer_map_update_finished` | [`GrowthDeveloper::start_map_update`] / [`GrowthDeveloper::is_map_update_finished`] |
+//! | `developer_ref` / `resolve_developer` | [`GrowthDeveloper::save_ref`] / [`GrowthDeveloper::from_save_ref`] |
+//!
+//! A developer read from a save is made by the class store's factory for
+//! [`CLSID_GROWTH_DEVELOPER`] with [`GrowthDeveloper::new`] (count 0; the
+//! reference the stream hands over is the BDS's).
+//!
+//! # Contracts with the zone manager and lots (`zones.md`, `lot-developer.md`)
+//!
+//! - `GetZoneType(x, z)` (zone manager slot 12, `0x004DC740`) returns the
+//!   cell's `int8` sign-extended to all of EAX (zones.md §2, §11.1). The host
+//!   returns the `int8` ([`GrowthDeveloperHost::zone_type`]); `UpdateMaxCapacity`
+//!   sign-extends it before `BuildingFitsInZone` and `GetMaxCapacity`.
+//! - ZoningChange `0x07699455` is posted (queued) by `PlaceZone`; its void2 is
+//!   an `SC4CellRegion<long>` whose first 16 bytes are the request rectangle
+//!   `{x1, z1, x2, z2}` (inclusive, zones.md §5.3, §11.4). The host passes
+//!   those four words as [`GrowthMessage::rect`]; the region is the
+//!   message's and is neither kept nor freed.
+//! - StateChanged `0xE8BDA2E7` is posted (queued) by `cSC4Lot::SetState`;
+//!   lot states 2 (constructing) and 3 (occupied) count as occupied, 4 is
+//!   vacant (abandoned) (lot-developer.md notation, §3.2, §6.4). Lot slots
+//!   14, 21, 22, 46, 50 as in §11.
+//! - The lot developer reads slots 7 (`GetPurpose`), 13
+//!   (`GetDesirabilityMap`, then the grid's `GetCellValue`) and 20
+//!   (`GetWaterSupplyCap`, unsigned byte); it never calls slot 24
+//!   (`GetAbandonmentThreshold`), whose caller is still open (§13.3 Q4).
+//!
+//! # Compatibility limit (`[compat-limit]`)
+//!
+//! Which industrial developer gets which salt (§7) depends in the original on
+//! the address order of the agents. FreeCity4 matches the specified
+//! distribution — every industrial (purpose 5..8) update draws exactly one
+//! `NextRaw()` from the one shared file-local generator in state 20, before
+//! its decline sort; R, C and other purposes draw nothing — but a seeded run
+//! need not reproduce the assignment of salts to developers. The vectors pin
+//! the draw count per update, the shared generator's state, the key
+//! derivation and the sort; with several industrial developers they check
+//! only that the salts handed out are the drawn ones (`gdev_expect_salts`).
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
@@ -104,6 +163,10 @@
 //!   original's static (kept in [`GrowthStatics`]).
 //! - The salt drawn in state 20 is kept per developer ([`GrowthData::last_salt`])
 //!   and the shared generator counts its draws, for conformance checks.
+//! - [`GrowthDeveloper::create`] and [`GrowthDeveloper::create_from_exemplar`]
+//!   take the BDS's reference (count 1), like `CreateDeveloper`'s
+//!   constructor + `AddRef`; [`GrowthDeveloper::source_active_demand`] is
+//!   `None` without a source node (the BDS core counts that as 0).
 //! - `Release` from a count ≤ 1 calls `Shutdown`, releases the
 //!   special-building copy, returns 0 and marks the object destroyed (the
 //!   plugin then drops it).
@@ -452,6 +515,9 @@ pub trait GrowthDeveloperHost: GridProvider<u8> + GridProvider<i16> + GridProvid
     fn query_supply(&self, node: u64) -> f32;
     /// `cISC4Demand::AddToDemandValue(v)`.
     fn add_to_demand_value(&self, node: u64, v: f32);
+    /// `cISC4Demand::QueryActiveDemandValue()` (slot 12). The developer never calls
+    /// it; [`GrowthDeveloper::source_active_demand`] does for the BDS glue.
+    fn active_demand(&self, node: u64) -> f32;
     /// The counts of `GetConnectedCities(list, 0)` and
     /// `GetAllConnectedCities(list, 0)` (temporary lists, §5.5).
     fn connected_cities(&self) -> u32;
@@ -475,7 +541,9 @@ pub trait GrowthDeveloperHost: GridProvider<u8> + GridProvider<i16> + GridProvid
     fn update_population(&self, tract_developer: u64, profile: &GrowthProfile);
 
     // ---- zones, lots, occupants, city ----
-    /// `cISC4ZoneManager::GetZoneType(x, z)` (slot 12, signed byte).
+    /// `cISC4ZoneManager::GetZoneType(x, z)` (slot 12, `0x004DC740`): the
+    /// cell's `int8` zone type; the original returns it sign-extended to all
+    /// of EAX (zones.md §2, §11.1), which the developer does on its side.
     fn zone_type(&self, cell_x: i32, cell_z: i32) -> i8;
     /// `cISC4Lot::GetBuildingType(flag)` (slot 46).
     fn lot_building_type(&self, lot: u64, flag: bool) -> u32;
@@ -560,8 +628,9 @@ pub struct GrowthStatics {
 }
 
 impl GrowthStatics {
-    /// The generator seeded with `seed` (the host's choice, foundations
-    /// §6.3; `0xFFFFFFFF` takes `seeds`' wall clock).
+    /// The generator seeded with `seed`, injected by the host (derived from
+    /// the session seed per foundations §6.3; no derivation here).
+    /// `0xFFFFFFFF` takes `seeds`' wall clock (foundations §6.1).
     pub fn new(seed: u32, seeds: &dyn SeedSource) -> Rc<GrowthStatics> {
         Rc::new(GrowthStatics {
             rng: RefCell::new(RzRandom::new(seed, seeds)),
