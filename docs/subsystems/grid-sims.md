@@ -389,7 +389,8 @@ Plus `+0x84` `vector<vector<int16>>` **consumption per cell** (`GetMonthlyConsum
 `1` = wired but unpowered, `2` = powered.
 
 **Wire bits** (`UpdateWireBits`, `DoOccupantInserted`) **[confirmed]**: a cell is wired if it lies within
-`R = 0xA911E2F1` (default **2** cells, "Power radiation radius") of
+`R = 0xA911E2F1` (default **2** cells; tuning name "Power radiation radius", but it is the **wire radius** R, see
+docs/specs/power.md §2.2) of
 - any building occupant (`0x278128A0`) footprint,
 - a power pole (`0x2890D4DE`) or the `0x0990B2EA` occupant (power line segment [inferred]),
 - a network occupant (`0xC772BF98`) whose network flags include `0x40000` (power-carrying network) — its own cell only,
@@ -416,7 +417,8 @@ state 4 (idle): if recompute: recompute=false; state=0
 state 0: roll monthly ring slot; reset neighbour import/export deals; zero counters; mark all plants unvisited;
          clear powered(next); state=1
 state 1: for each plant p not yet visited: UpdatePowerGrid(cell(p))      // one call per connected component
-         compute generation cost per plant (funding curve 0x0911E2E7); if agePlants: AgePowerPlant(each)
+         compute generation cost per plant (per-building wear → maintenance curve property 0x0911E2E7, not tuning);
+         if agePlants: AgePowerPlant(each)
          state=2
 state 2: for each neighbour power *import* deal still owed: UpdatePowerGrid(connection cell)   // islands fed only by neighbours
          swap(powered current, powered next); UpdatePoweredLots(); if anything changed post 0x6A07C2EE; state=3
@@ -451,8 +453,8 @@ powered state from these messages / `IsOccupantPowered`. [confirmed / inferred f
 
 | property | default | meaning |
 |---|---|---|
-| `0xA911E2F1` | 2 | power radiation radius (cells) |
-| `0xE911E2FC` | 110 (%) → 1.1 | power plant max production ratio (stored /100 at +0x2B8) |
+| `0xA911E2F1` | 2 | wire radius R (cells) around buildings, poles, lines and zoned cells (tuning name "power radiation radius") |
+| `0xE911E2FC` | 110 (%) → 1.1 | "power plant max production ratio": read and stored, but **never used** (the flow pass uses a literal 1.1) |
 | `0x29121E8B` | 60 → 0.6 | min acceptable funding % |
 | `0xE911E2D1` | 120 → 1.2 | max allowed funding % |
 | `0x09122027` | 50 → 0.5 | efficiency during strike |
@@ -460,11 +462,12 @@ powered state from these messages / `IsOccupantPowered`. [confirmed / inferred f
 | `0x49122036` | 90 → 0.9 | funding needed to end strike |
 | `0x6911E2DF` | {(0,0),(100,100),(120,110)} | funding → efficiency curve |
 | `0x0911E2E6` | {(0,20),(100,100)} | strike response curve |
-| `0x0911E2E8` / `0x0911E2E9` | {(0,1),(1,1)} | funding → decay rate multipliers |
+| `0x0911E2E8` / `0x0911E2E9` | {(0,1),(1,1)} | funding → / usage → decay (wear) rate multipliers |
 | `0xAA713782` | {(0,−0.02),(120,0.01)} | funding → pole decay/repair |
 
-Note: the decompiled `UpdatePowerGrid` uses the literal 1.1 (Windows: `fmul [0x00AB2888]` = −1.1, then subtracts), not
-the `0xE911E2FC` field, so that property may only affect UI/efficiency. [confirmed literal; effect of the property inferred]
+Note: `UpdatePowerGrid` uses the literal 1.1, not the `0xE911E2FC` field, and nothing else reads that field: the
+property is dead [confirmed, docs/specs/power.md §8]. The curve `0x0911E2E7` is a per-building property (wear →
+maintenance multiplier), not a tuning value. docs/specs/power.md supersedes this section.
 
 Building properties: `0x27812852` power produced, `0x27812854` power consumed, `0x27812853` plant type,
 `0x08D9763D` current power used (written by the sim).
