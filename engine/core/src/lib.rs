@@ -28,4 +28,4 @@ pub mod simulator;
 
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message};
 pub use save::{LoadError, SaveRecord};
-pub use simulator::{Simulator, Snapshot, Tuning};
+pub use simulator::{AgentInfo, DebugInfo, Simulator, Snapshot, Tuning};

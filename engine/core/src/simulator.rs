@@ -985,6 +985,99 @@ impl Simulator {
     pub fn snapshot(&self) -> Snapshot {
         self.read(|s| s.snapshot())
     }
+
+    /// Scheduler/barrier state for diagnostics: why the next day can or
+    /// cannot open (§5.2 step 8). Reads the clock once; changes nothing.
+    pub fn debug_info(&self) -> DebugInfo {
+        self.read(|s| {
+            let now = self.host.now_ms();
+            let interval_elapsed_ms = now.wrapping_sub(s.interval_timer);
+            let ready = interval_elapsed_ms >= s.ms_per_day;
+            let done = |l: u32| s.cursors[l as usize].is_none();
+            let tomorrow = julian::date_fields(s.julian + 1);
+            let starts_week = tomorrow.weekday == 1;
+            let starts_month = tomorrow.day_of_month == 1;
+            let starts_year = tomorrow.day_of_year == 1;
+            let blocked_by_week = starts_week && !done(level::WEEK);
+            let blocked_by_month = starts_month && !done(level::MONTH);
+            let blocked_by_year = starts_year && !done(level::YEAR);
+            let one_shot_or_emergency_pending =
+                !s.agents[level::ONE_SHOT as usize].is_empty() || !s.agents[level::EMERGENCY as usize].is_empty();
+            let hours_complete = s.level_counters[level::HOUR as usize] >= 24;
+            let gate_ready = s.gate_level != level::DAY || ready;
+            DebugInfo {
+                interval_elapsed_ms,
+                slice_elapsed_ms: now.wrapping_sub(s.slice_timer),
+                ms_per_day: s.ms_per_day,
+                ready,
+                one_shot_or_emergency_pending,
+                hours_complete,
+                day_level_done: done(level::DAY),
+                tomorrow_starts_week: starts_week,
+                tomorrow_starts_month: starts_month,
+                tomorrow_starts_year: starts_year,
+                blocked_by_week,
+                blocked_by_month,
+                blocked_by_year,
+                day_gate_open: !one_shot_or_emergency_pending
+                    && hours_complete
+                    && gate_ready
+                    && done(level::DAY)
+                    && !blocked_by_week
+                    && !blocked_by_month
+                    && !blocked_by_year,
+                cursors: s.cursors,
+                idle_cursor: s.idle_cursor,
+            }
+        })
+    }
+
+    /// The registration at `index` of `lvl` (registration order), for diagnostics.
+    pub fn agent_info(&self, lvl: u32, index: usize) -> Option<AgentInfo> {
+        self.read(|s| {
+            s.agents.get(lvl as usize)?.get(index).map(|e| AgentInfo {
+                handle: e.handle,
+                name: e.name.clone(),
+                flags: e.flags,
+                enabled: e.enabled,
+            })
+        })
+    }
+}
+
+/// See [`Simulator::debug_info`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DebugInfo {
+    pub interval_elapsed_ms: u32,
+    pub slice_elapsed_ms: u32,
+    pub ms_per_day: u32,
+    /// interval timer >= msPerDay
+    pub ready: bool,
+    /// level 0 or 1 has agents: calendar time is suspended (§5.2 step 2)
+    pub one_shot_or_emergency_pending: bool,
+    /// levelCounter[Hour] >= 24
+    pub hours_complete: bool,
+    /// cursor[Day] at end
+    pub day_level_done: bool,
+    pub tomorrow_starts_week: bool,
+    pub tomorrow_starts_month: bool,
+    pub tomorrow_starts_year: bool,
+    pub blocked_by_week: bool,
+    pub blocked_by_month: bool,
+    pub blocked_by_year: bool,
+    /// all §5.2 step 8 conditions hold right now
+    pub day_gate_open: bool,
+    pub cursors: [Option<usize>; LEVEL_COUNT],
+    pub idle_cursor: Option<usize>,
+}
+
+/// See [`Simulator::agent_info`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AgentInfo {
+    pub handle: AgentHandle,
+    pub name: String,
+    pub flags: u32,
+    pub enabled: bool,
 }
 
 impl Drop for Simulator {

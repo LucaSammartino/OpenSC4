@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 2;
+pub const FC4_ABI_VERSION: u32 = 3;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -137,7 +137,41 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_message>() == 32);
     assert!(std::mem::size_of::<fc4_date>() == 24);
     assert!(std::mem::size_of::<fc4_state>() == 180);
+    assert!(std::mem::size_of::<fc4_debug>() == 76);
+    assert!(std::mem::size_of::<fc4_agent_info>() == 16);
 };
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_debug {
+    pub struct_size: u32,
+    pub interval_elapsed_ms: u32,
+    pub slice_elapsed_ms: u32,
+    pub ms_per_day: u32,
+    pub ready: u8,
+    pub one_shot_or_emergency_pending: u8,
+    pub hours_complete: u8,
+    pub day_level_done: u8,
+    pub tomorrow_starts_week: u8,
+    pub tomorrow_starts_month: u8,
+    pub tomorrow_starts_year: u8,
+    pub day_gate_open: u8,
+    pub blocked_by_week: u8,
+    pub blocked_by_month: u8,
+    pub blocked_by_year: u8,
+    pub reserved: u8,
+    pub cursors: [i32; 11],
+    pub idle_cursor: i32,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_agent_info {
+    pub agent: fc4_agent,
+    pub flags: u32,
+    pub enabled: u8,
+    pub reserved: [u8; 3],
+}
 
 pub type fc4_name_callback = Option<unsafe extern "C" fn(ctx: *mut c_void, name: *const c_char, name_len: usize)>;
 
@@ -555,6 +589,67 @@ pub unsafe extern "C" fn fc4_sim_get_state(sim: *const fc4_sim, out: *mut fc4_st
         st.agent_counts[l] = snap.agent_counts[l] as u32;
     }
     *o = st;
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_debug(sim: *const fc4_sim, out: *mut fc4_debug) -> bool {
+    let Some(o) = out.as_mut() else { return false };
+    if (o.struct_size as usize) < std::mem::size_of::<fc4_debug>() {
+        return false;
+    }
+    let Some(d) = with_sim(sim, None, |s| Some(s.debug_info())) else {
+        return false;
+    };
+    let cur = |c: Option<usize>| c.map_or(-1, |i| i as i32);
+    *o = fc4_debug {
+        struct_size: std::mem::size_of::<fc4_debug>() as u32,
+        interval_elapsed_ms: d.interval_elapsed_ms,
+        slice_elapsed_ms: d.slice_elapsed_ms,
+        ms_per_day: d.ms_per_day,
+        ready: d.ready.into(),
+        one_shot_or_emergency_pending: d.one_shot_or_emergency_pending.into(),
+        hours_complete: d.hours_complete.into(),
+        day_level_done: d.day_level_done.into(),
+        tomorrow_starts_week: d.tomorrow_starts_week.into(),
+        tomorrow_starts_month: d.tomorrow_starts_month.into(),
+        tomorrow_starts_year: d.tomorrow_starts_year.into(),
+        day_gate_open: d.day_gate_open.into(),
+        blocked_by_week: d.blocked_by_week.into(),
+        blocked_by_month: d.blocked_by_month.into(),
+        blocked_by_year: d.blocked_by_year.into(),
+        reserved: 0,
+        cursors: d.cursors.map(cur),
+        idle_cursor: cur(d.idle_cursor),
+    };
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_agent_info(
+    sim: *const fc4_sim,
+    level: u32,
+    index: usize,
+    out: *mut fc4_agent_info,
+    name: *mut c_char,
+    name_capacity: usize,
+) -> bool {
+    let Some(info) = with_sim(sim, None, |s| s.agent_info(level, index)) else {
+        return false;
+    };
+    if let Some(o) = out.as_mut() {
+        *o = fc4_agent_info {
+            agent: info.handle,
+            flags: info.flags,
+            enabled: info.enabled.into(),
+            reserved: [0; 3],
+        };
+    }
+    if !name.is_null() && name_capacity > 0 {
+        let n = info.name.len().min(name_capacity - 1);
+        std::ptr::copy_nonoverlapping(info.name.as_ptr(), name as *mut u8, n);
+        *name.add(n) = 0;
+    }
     true
 }
 

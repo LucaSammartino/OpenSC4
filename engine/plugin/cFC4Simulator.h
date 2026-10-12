@@ -23,6 +23,11 @@
 #include "cISC4Simulator.h"
 #include "fc4.h"
 
+#include <cstdint>
+#include <map>
+#include <string>
+#include <utility>
+
 class cIGZCheatCodeManager;
 class cIGZMessageServer2;
 
@@ -108,6 +113,18 @@ private:
     bool QueryInterfaceImpl(uint32_t riid, void** ppvObj);
     bool TracePause(const char* name, bool ok);
 
+    // Delivery diagnostics (FC4_LOG_LEVEL=2), keyed by (agent, level).
+    struct AgentStats {
+        std::string name;
+        unsigned long long deliveries = 0;
+        unsigned long long falses = 0;
+        uint32_t streak = 0;  // consecutive "not finished" results
+        uint32_t maxStreak = 0;
+    };
+    AgentStats& Stats(cIGZMessageTarget2* agent, uint32_t level);
+    void RecordDelivery(cIGZMessageTarget2* agent, const fc4_message& msg, bool finished);
+    void LogSchedulerStatus();
+
     uint32_t refCount_ = 0;
     uint32_t serviceId_;
     bool serviceRunning_ = false;
@@ -123,5 +140,8 @@ private:
     uint32_t qiLogged_ = 0;
     uint32_t ticks_ = 0;
     uint32_t messagesLogged_ = 0;
-    uint32_t daysLogged_ = 0;
+    uint32_t deliveriesLogged_ = 0;
+    uint32_t postsLogged_ = 0;
+    uint32_t dateCallsLogged_[3] = {0, 0, 0};
+    std::map<std::pair<uintptr_t, uint32_t>, AgentStats> agentStats_;
 };

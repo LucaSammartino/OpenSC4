@@ -43,6 +43,7 @@
 #endif
 #include <windows.h>
 
+#include <cstdlib>
 #include <new>
 #include <string>
 
@@ -63,6 +64,7 @@ constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;  // kSC4MessagePostCityInit (s
 constexpr uint32_t kCmdGetSimulationDate = 0x8BAC4B43;
 constexpr uint32_t kMsgCheatIssued = 0x230E27AC;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+constexpr uint32_t kMsgSimNewYear = 0x66956817;
 
 // Cheats (spec §9).
 constexpr uint32_t kCheatFPS = 0x0AC07E24;
@@ -180,7 +182,7 @@ uint32_t cFC4Simulator::HostNowMs(void*) {
                                  static_cast<unsigned long long>(freq.QuadPart));
 }
 
-bool cFC4Simulator::HostDeliver(void*, fc4_sim*, fc4_agent agent, const fc4_message* msg) {
+bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4_message* msg) {
     cIGZMessageTarget2* target = AgentPtr(agent);
     if (target == nullptr || msg == nullptr) return true;
     // Synchronous delivery (spec §4) with the simulator's pattern from
@@ -189,7 +191,130 @@ bool cFC4Simulator::HostDeliver(void*, fc4_sim*, fc4_agent agent, const fc4_mess
     cFC4Message2Standard* m = MakeMessage(*msg);
     const bool finished = target->DoMessage(m);
     m->Release();
+    if (user != nullptr && fc4::LogLevel() >= fc4::kLogVerbose) {
+        static_cast<cFC4Simulator*>(user)->RecordDelivery(target, *msg, finished);
+    }
     return finished;
+}
+
+// ---- delivery diagnostics -----------------------------------------------------------------
+
+namespace {
+constexpr uint32_t kSimLevelBase = 0x66956810;
+constexpr uint32_t kMaxDeliveryLogs = 300;
+// Status line period in ticks: FC4_STATUS_EVERY (default 500).
+uint32_t StatusEveryTicks() {
+    static const uint32_t every = [] {
+        char value[16] = {};
+        const DWORD n = GetEnvironmentVariableA("FC4_STATUS_EVERY", value, sizeof(value));
+        const long v = (n > 0 && n < sizeof(value)) ? strtol(value, nullptr, 10) : 0;
+        return v > 0 ? static_cast<uint32_t>(v) : 500u;
+    }();
+    return every;
+}
+
+uint32_t LevelOf(uint32_t type) {
+    const uint32_t l = type - kSimLevelBase;
+    return l < FC4_LEVEL_COUNT ? l : 0xFFFFFFFFu;
+}
+}  // namespace
+
+cFC4Simulator::AgentStats& cFC4Simulator::Stats(cIGZMessageTarget2* agent, uint32_t level) {
+    AgentStats& st = agentStats_[std::make_pair(reinterpret_cast<uintptr_t>(agent), level)];
+    if (st.name.empty()) st.name = "?";
+    return st;
+}
+
+void cFC4Simulator::RecordDelivery(cIGZMessageTarget2* agent, const fc4_message& msg, bool finished) {
+    const uint32_t level = LevelOf(msg.type);
+    AgentStats& st = Stats(agent, level);
+    ++st.deliveries;
+    if (finished) {
+        st.streak = 0;
+    } else {
+        ++st.falses;
+        ++st.streak;
+        if (st.streak > st.maxStreak) st.maxStreak = st.streak;
+        if (st.streak == 100 || st.streak == 1000 || st.streak == 10000 || st.streak == 100000 ||
+            st.streak == 1000000) {
+            FC4_LOGV("agent %p '%s' (level %u) has now returned false %u times in a row (msg 0x%08X d1=%lld d2=%lld "
+                     "d3=%lld; total %llu deliveries, %llu false)",
+                     static_cast<void*>(agent), st.name.c_str(), level, st.streak, msg.type,
+                     static_cast<long long>(msg.data1), static_cast<long long>(msg.data2),
+                     static_cast<long long>(msg.data3), static_cast<unsigned long long>(st.deliveries),
+                     static_cast<unsigned long long>(st.falses));
+        }
+    }
+    if (deliveriesLogged_ < kMaxDeliveryLogs) {
+        ++deliveriesLogged_;
+        FC4_LOGV("deliver #%u: level %u type 0x%08X d1=%lld d2=%lld d3=%lld -> agent %p '%s' returned %d",
+                 deliveriesLogged_, level, msg.type, static_cast<long long>(msg.data1),
+                 static_cast<long long>(msg.data2), static_cast<long long>(msg.data3), static_cast<void*>(agent),
+                 st.name.c_str(), finished ? 1 : 0);
+    }
+}
+
+void cFC4Simulator::LogSchedulerStatus() {
+    fc4_state st{};
+    st.struct_size = sizeof(st);
+    fc4_sim_get_state(sim_, &st);
+    fc4_debug dbg{};
+    dbg.struct_size = sizeof(dbg);
+    fc4_sim_get_debug(sim_, &dbg);
+    FC4_LOGV("status @tick %u: julian=%d speed=%d pause=%d hidden=%d emergency=%d budget=%u | interval %u/%u ms "
+             "ready=%u hours_complete=%u day_done=%u level0/1_pending=%u tomorrow week/month/year=%u/%u/%u "
+             "blocked week/month/year=%u/%u/%u DAY_GATE_OPEN=%u | counters m=%u h=%u d=%u w=%u mo=%u y=%u fired=%u%u%u%u%u%u",
+             ticks_, st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count, st.emergency_pause_count,
+             st.frame_budget_ms, dbg.interval_elapsed_ms, dbg.ms_per_day, dbg.ready, dbg.hours_complete,
+             dbg.day_level_done, dbg.one_shot_or_emergency_pending, dbg.tomorrow_starts_week,
+             dbg.tomorrow_starts_month, dbg.tomorrow_starts_year, dbg.blocked_by_week, dbg.blocked_by_month,
+             dbg.blocked_by_year, dbg.day_gate_open, st.level_counters[2], st.level_counters[3], st.level_counters[4],
+             st.level_counters[5], st.level_counters[6], st.level_counters[7], st.level_fired[2], st.level_fired[3],
+             st.level_fired[4], st.level_fired[5], st.level_fired[6], st.level_fired[7]);
+
+    for (uint32_t level = 0; level < FC4_LEVEL_COUNT; ++level) {
+        const uint32_t count = st.agent_counts[level];
+        if (count == 0) continue;
+        const int32_t cursor = level == FC4_LEVEL_IDLE ? dbg.idle_cursor : dbg.cursors[level];
+        char where[160] = "END";
+        if (cursor >= 0) {
+            fc4_agent_info info{};
+            char name[96] = {};
+            if (fc4_sim_get_agent_info(sim_, level, static_cast<size_t>(cursor), &info, name, sizeof(name))) {
+                const AgentStats& s = Stats(AgentPtr(info.agent), level);
+                snprintf(where, sizeof(where), "#%d %p '%s' enabled=%u flags=%u streak=%u", cursor,
+                         reinterpret_cast<void*>(static_cast<uintptr_t>(info.agent)), name, info.enabled, info.flags,
+                         s.streak);
+            } else {
+                snprintf(where, sizeof(where), "#%d (no info)", cursor);
+            }
+        }
+        // Top 5 registrations at this level by current consecutive-false streak.
+        const AgentStats* top[5] = {};
+        for (const auto& kv : agentStats_) {
+            if (kv.first.second != level || kv.second.streak == 0) continue;
+            const AgentStats* cand = &kv.second;
+            for (int i = 0; i < 5; ++i) {
+                if (top[i] == nullptr || cand->streak > top[i]->streak) {
+                    for (int j = 4; j > i; --j) top[j] = top[j - 1];
+                    top[i] = cand;
+                    break;
+                }
+            }
+        }
+        char streaks[600] = "";
+        size_t used = 0;
+        for (int i = 0; i < 5 && top[i] != nullptr; ++i) {
+            const int k = snprintf(streaks + used, sizeof(streaks) - used, "%s'%s' streak=%u false=%llu/%llu",
+                                   i ? ", " : "", top[i]->name.c_str(), top[i]->streak,
+                                   static_cast<unsigned long long>(top[i]->falses),
+                                   static_cast<unsigned long long>(top[i]->deliveries));
+            if (k < 0 || static_cast<size_t>(k) >= sizeof(streaks) - used) break;
+            used += static_cast<size_t>(k);
+        }
+        FC4_LOGV("  level %u: %u agent(s), cursor %s, counter %u, fired %u; top false streaks: %s", level, count, where,
+                 st.level_counters[level], st.level_fired[level], used ? streaks : "none");
+    }
 }
 
 void cFC4Simulator::HostAddRef(void*, fc4_agent agent) {
@@ -205,17 +330,31 @@ void cFC4Simulator::HostPost(void* user, const fc4_message* msg) {
 }
 
 void cFC4Simulator::Post(const fc4_message& msg) {
-    if (msg.type == kMsgSimNewMonth && daysLogged_ < 1000) {
-        ++daysLogged_;
+    const bool calendar = msg.type >= 0x66956814 && msg.type <= kMsgSimNewYear;  // SimNewDay..SimNewYear
+    bool posted = false;
+    if (msgServer_ != nullptr) {
+        // Queued broadcast (spec §5.2): the queue holds its own reference (foundations §5.1).
+        cFC4Message2Standard* m = MakeMessage(msg);
+        posted = msgServer_->MessagePost(m, false);
+        m->Release();
+    }
+    const bool logIt = calendar || postsLogged_ < 200;
+    if (!logIt) return;
+    ++postsLogged_;
+    if (calendar) {
         fc4_date d{};
         fc4_date_from_julian(static_cast<int32_t>(msg.data1), &d);
-        fc4::Log("SimNewMonth %04d-%02d-%02d (julian %d)", d.year, d.month, d.day_of_month, d.julian);
+        fc4::Log("post %s 0x%08X d1=%lld (%04d-%02d-%02d) d2=%lld d3=%lld -> MessagePost %s",
+                 msg.type == 0x66956814 ? "SimNewDay" : msg.type == 0x66956815 ? "SimNewWeek"
+                 : msg.type == kMsgSimNewMonth ? "SimNewMonth" : "SimNewYear",
+                 msg.type, static_cast<long long>(msg.data1), d.year, d.month, d.day_of_month,
+                 static_cast<long long>(msg.data2), static_cast<long long>(msg.data3),
+                 msgServer_ ? (posted ? "true" : "FALSE") : "skipped (no message server)");
+    } else {
+        FC4_LOGV("post 0x%08X d1=%lld d2=%lld d3=%lld -> MessagePost %s", msg.type, static_cast<long long>(msg.data1),
+                 static_cast<long long>(msg.data2), static_cast<long long>(msg.data3),
+                 msgServer_ ? (posted ? "true" : "FALSE") : "skipped (no message server)");
     }
-    if (msgServer_ == nullptr) return;
-    // Queued broadcast (spec §5.2): the queue holds its own reference (foundations §5.1).
-    cFC4Message2Standard* m = MakeMessage(msg);
-    msgServer_->MessagePost(m, false);
-    m->Release();
 }
 
 // ---- lifecycle (spec §9) ---------------------------------------------------------------
@@ -399,6 +538,11 @@ cIGZDate* cFC4Simulator::GetSimDate() {
     // [choice] Returns an object owned by the simulator (no AddRef), refreshed
     // on every call.
     date_.SetJulian(fc4_sim_get_julian_day(sim_));
+    if (dateCallsLogged_[0] < 20) {
+        ++dateCallsLogged_[0];
+        FC4_LOGV("GetSimDate() #%u -> date object %p (julian %d)", dateCallsLogged_[0], static_cast<void*>(&date_),
+                 date_.Julian());
+    }
     return &date_;
 }
 
@@ -410,9 +554,21 @@ void cFC4Simulator::GetSimDate(uint32_t* year, uint32_t* month, uint32_t* day, u
     if (day) *day = static_cast<uint32_t>(d.day_of_month);
     if (dayOfYear) *dayOfYear = static_cast<uint32_t>(d.day_of_year);
     if (weekDay) *weekDay = static_cast<uint32_t>(d.weekday);
+    if (dateCallsLogged_[1] < 20) {
+        ++dateCallsLogged_[1];
+        FC4_LOGV("GetSimDate(5 ptrs) #%u -> %d-%d-%d doy %d weekday %d (julian %d)", dateCallsLogged_[1], d.year,
+                 d.month, d.day_of_month, d.day_of_year, d.weekday, d.julian);
+    }
 }
 
-int32_t cFC4Simulator::GetSimDateNumber() { return fc4_sim_get_julian_day(sim_); }
+int32_t cFC4Simulator::GetSimDateNumber() {
+    const int32_t j = fc4_sim_get_julian_day(sim_);
+    if (dateCallsLogged_[2] < 20) {
+        ++dateCallsLogged_[2];
+        FC4_LOGV("GetSimDateNumber() #%u -> %d", dateCallsLogged_[2], j);
+    }
+    return j;
+}
 
 // ---- pause and speed (spec §6) -------------------------------------------------------------
 
@@ -461,6 +617,9 @@ bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, c
         FC4_LOGV("AddAgent(null, level %u, '%s', flags %u) -> 0", static_cast<uint32_t>(agentType), name.c_str(),
                  static_cast<uint32_t>(flags));
         return false;
+    }
+    if (fc4::LogLevel() >= fc4::kLogVerbose) {
+        Stats(pAgent, static_cast<uint32_t>(agentType)).name = name.empty() ? std::string("(unnamed)") : name;
     }
     const bool ok = fc4_sim_add_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType), name.data(),
                                       name.size(), static_cast<uint32_t>(flags));
@@ -601,7 +760,9 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
                  ticks_, unknown1, st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count,
                  st.emergency_pause_count, st.frame_budget_ms, st.ms_per_day, st.agent_counts[FC4_LEVEL_DAY]);
     }
-    return fc4_sim_on_tick(sim_);
+    const bool r = fc4_sim_on_tick(sim_);
+    if (ticks_ % StatusEveryTicks() == 0 && fc4::LogLevel() >= fc4::kLogVerbose) LogSchedulerStatus();
+    return r;
 }
 bool cFC4Simulator::OnIdle(uint32_t) { return true; }  // [choice] no idle-tick work
 int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  // [choice]

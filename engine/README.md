@@ -84,6 +84,14 @@ plugin.
      structured-exception guard. A first-chance vectored handler also logs every exception raised inside
      `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
      `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at load to prove that both work.
+   - Scheduler tracing: the first 300 agent deliveries are logged with level, message, agent and result. Per
+     agent, the log counts deliveries, "not finished" results and the current streak of consecutive ones, and
+     notes when a streak passes 100, 1,000, 10,000, and so on. Every `FC4_STATUS_EVERY` ticks (default 500) it
+     writes a status block: the day-barrier conditions (`DAY_GATE_OPEN`, interval timer, blocking levels,
+     counters), and for each level its cursor (agent name or END), its size and its top five false streaks. The
+     first 200 broadcast posts are logged, and every SimNewDay, SimNewWeek, SimNewMonth and SimNewYear post. Date
+     reads are logged too: the first 20 calls to each `GetSimDate` variant and `GetSimDateNumber`, and the first
+     200 method calls on our `cIGZDate` objects.
    - At `PostAppInit`, verbose mode also asks `GZCOM()->GetClassObject(0x2990C1E5)` once. The answer shows whether
      the game's registry resolves the class to our factory. The object it creates is released at once. Set
      `FC4_NO_PROBE=1` to skip this check.
