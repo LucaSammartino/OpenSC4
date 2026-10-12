@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "plumbing_reinit",
+  "spec": ["plumbing 4.1", "plumbing 4.2", "plumbing 14.27"],
+  "description": "Test 27 (PL2; FreeCity4 [choice] of 4.2, hand-derived). A new 64 x 64 city with a pump of 1000 at (5,5) (water at (5,4)) runs one pass, so the grids and the flag map hold non-zero values. Shutdown (4.2) clears the initialized flag, deletes the generator, unsubscribes, removes the agent, shuts down and releases both grids, frees the flag map and the bitmap, releases the producers and deletes the scanning iterator; it keeps the enabled flag, countX / countZ, the state and the recompute flag [compat]; FreeCity4 also clears the grids-initialized flag [choice] (the original keeps it, so its next Init leaves the grids null and crashes on first use). A second Init then re-runs step 2 (a new generator from the wall clock, seed 1 -> LCG 1) and step 3 in full: the three agents (levels 6, 4, 10) once each, the six subscriptions once, CreateDepartmentBudget, SetDepartmentName, SetMaxAllowedFundingPercentage (1.1999999), CreateLineItem(2) and its name; and, the grids-initialized flag being clear, step 4 as on a new city: two fresh grids 0x49D5BB8C and 0x49D5BBA1 (all 0), a zeroed 4096-byte flag map, a 64-side bitmap, a fresh iterator at (0,0) over [0,63]^2, state 0, recompute true. GetWateredGrid() returns the fresh 0x49D5BBA1 grid. A pass then runs without a fault (no producers any more: 2N + 7 = 7 calls, pass counter 2, nothing watered). A further Init without Shutdown changes nothing (no events, the state stays 9).",
+  "steps": [
+    {"op": "plumbing_env", "water": [[5, 4]]},
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_message", "type": "ConnectionsReady"},
+    {"op": "plumbing_building", "label": "pump", "x": 5, "z": 5, "props": {"0x88ED3303": {"u32": 1000}}},
+    {"op": "plumbing_pass", "calls": 9},
+    {"op": "plumbing_expect", "state": {"state": 9, "flag_map_nonzero": 1, "pass_counter": 1}},
+    {"op": "plumbing_expect_grid", "grid": "published", "instance": "0x49D5BB8C", "cells": [{"x": 5, "z": 5, "v": 7}]},
+
+    {"op": "plumbing_shutdown"},
+    {"op": "plumbing_expect", "state": {"initialized": false, "grids_initialized": false, "enabled": true, "has_rng": false,
+      "working_grid": null, "published_grid": null, "flag_map_size": 0, "iterator": null, "producers": [], "department": null,
+      "state": 9, "recompute": true, "count_x": 64, "count_z": 64}},
+    {"op": "plumbing_call", "method": "watered_grid", "expect": null},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_init", "expect": true},
+    {"op": "plumbing_expect_events", "events": [
+      {"event": "agent", "level": 6, "name": "cSC4PlumbingSimulator", "flags": 2},
+      {"event": "agent", "level": 4, "name": "cSC4PlumbingSimulator", "flags": 2},
+      {"event": "agent", "level": 10, "name": "cSC4PlumbingSimulator", "flags": 2},
+      {"event": "subscribe", "types": ["0x99EF1142", "0x99EF1143", "0xCA1B151C", "0xEA1F0DCD", "0xEA418D8F", "0x6AC284F3"]},
+      {"event": "create_department", "id": "0xAA4014B4", "group": "0x4A357EAF"},
+      {"event": "department_name", "group": "0x6A3FF01C", "instance": "0x2A4937D3"},
+      {"event": "max_funding", "value": 1.1999999, "bits": "0x3F999999"},
+      {"event": "create_line_item", "line": 2, "locally_funded": false},
+      {"event": "line_item_name", "line": 2, "group": "0x6A3FF01C", "instance": "0x8A75F61E"},
+      {"event": "create_grid", "instance": "0x49D5BB8C", "size": 1},
+      {"event": "create_grid", "instance": "0x49D5BBA1", "size": 1}
+    ]},
+    {"op": "plumbing_expect", "state": {"initialized": true, "grids_initialized": true, "enabled": true, "state": 0, "recompute": true,
+      "count_x": 64, "count_z": 64, "flag_map_size": 4096, "flag_map_nonzero": 0, "bitmap_side": 64,
+      "iterator": {"state": 0, "x": 0, "z": 0, "step": 1, "rect": [0, 0, 63, 63]}, "has_rng": true, "rng_lcg": 1,
+      "working_grid": "0x49D5BB8C", "published_grid": "0x49D5BBA1", "department": "department", "producers": [], "pipes": []}},
+    {"op": "plumbing_call", "method": "watered_grid", "expect": "0x49D5BBA1"},
+    {"op": "plumbing_expect_grid", "grid": "published", "instance": "0x49D5BBA1", "nonzero": 0},
+    {"op": "plumbing_expect_grid", "grid": "working", "instance": "0x49D5BB8C", "nonzero": 0},
+    {"op": "plumbing_pass", "calls": 7},
+    {"op": "plumbing_expect", "state": {"state": 9, "pass_counter": 2, "last_produced": 0}},
+    {"op": "plumbing_expect_grid", "grid": "published", "nonzero": 0},
+
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_init", "expect": true},
+    {"op": "plumbing_expect_events", "events": []},
+    {"op": "plumbing_expect", "state": {"state": 9, "recompute": true, "initialized": true, "pass_counter": 2}}
+  ]
+}

@@ -11,6 +11,7 @@ use crate::property::PropertyHolder;
 use crate::props;
 use crate::stream::ResKey;
 use crate::variant::{mem, Elem, Variant};
+use crate::x87;
 
 /// The "Utilities" exemplar (§8).
 pub const TUNING_KEY: ResKey = ResKey {
@@ -84,17 +85,6 @@ fn identity_100() -> ResponseCurve {
     ResponseCurve::from_points(&[(0.0, 0.0), (100.0, 100.0)])
 }
 
-/// A curve property: `Some` (possibly empty) for a numeric property with
-/// zero or several values; `None` (absent) otherwise (foundations §4.1
-/// [choice]: non-numeric and single-value properties count as absent).
-pub(crate) fn curve_values(values: Option<Vec<f32>>) -> Option<ResponseCurve> {
-    let v = values?;
-    if v.len() == 1 {
-        return None;
-    }
-    Some(ResponseCurve::from_flat(&v).unwrap_or_default())
-}
-
 impl Tuning {
     /// `ReadSimulatorTunableValues` (§8): the three code-default curves
     /// first; without an exemplar nothing else changes; otherwise the
@@ -123,12 +113,14 @@ impl Tuning {
         u(id::MAX_PUMPED_POLLUTION, &mut self.max_pumped_pollution);
         f(id::BURST_PROBABILITY, &mut self.burst_probability);
         if let Some(p) = props::f32_of(h, id::MAX_FUNDING) {
-            // The SC4Percentage getter: value × 0.01 (one f32 operation).
-            self.max_funding = p * 0.01f32;
+            // The SC4Percentage getter (PL6): value × the `float` 0.01f, one
+            // 24-bit rounding, so the shipped 120 gives 1.1999999
+            // (0x3F999999), not 1.2.
+            self.max_funding = x87::r24(f64::from(p) * f64::from(0.01f32)) as f32;
         }
         f(id::COST_PER_PIPE, &mut self.cost_per_pipe);
         let c = |pid: u32, v: &mut ResponseCurve| {
-            if let Some(curve) = curve_values(props::f32s(h, pid)) {
+            if let Some(curve) = props::curve(h, pid) {
                 *v = curve;
             }
         };

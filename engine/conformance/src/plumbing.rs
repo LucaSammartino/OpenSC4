@@ -112,6 +112,8 @@ pub(crate) struct World {
     no_disaster: Cell<bool>,
     no_department: Cell<bool>,
     no_grids: Cell<bool>,
+    /// Log every `CellHasWater` call as a `has_water` event.
+    log_water: Cell<bool>,
     water: RefCell<BTreeMap<(i32, i32), bool>>,
     water_values: RefCell<BTreeMap<(i32, i32), i32>>,
     occs: RefCell<BTreeMap<u64, Occ>>,
@@ -404,6 +406,9 @@ impl PlumbingHost for World {
         (!self.no_terrain.get()).then(|| self.cells.get())
     }
     fn cell_has_water(&self, x: i32, z: i32) -> bool {
+        if self.log_water.get() {
+            self.events.push("has_water", vec![("x", ji(x)), ("z", ji(z))]);
+        }
         self.water.borrow().contains_key(&(x, z))
     }
     fn redisplay_terrain(&self, min: (i32, i32), max: (i32, i32)) {
@@ -513,7 +518,10 @@ impl PlumbingHost for World {
         );
     }
     fn set_department_max_funding(&self, _dept: u64, fraction: f32) {
-        self.events.push("max_funding", vec![("value", jf(fraction))]);
+        self.events.push(
+            "max_funding",
+            vec![("value", jf(fraction)), ("bits", hex(fraction.to_bits()))],
+        );
     }
     fn create_line_item(&self, dept: u64, line: u32, locally_funded: bool) -> Option<u64> {
         self.events.push(
@@ -770,7 +778,8 @@ fn pair_of(v: &Json, k: &str) -> R<(i32, i32)> {
 /// `plumbing_env`: `cells? [x, z]`, `funding?`, `factor?` (null: no
 /// ordinance simulator), `water? [[x, z], …]`, `water_rects? [{x, z, w, d}]`,
 /// `clear_water?`, `water_values? [{x, z, v}]`, `no_terrain?`,
-/// `no_disaster?`, `no_department?`, `no_grids?`, `wall_seed?`,
+/// `no_disaster?`, `no_department?`, `no_grids?`, `log_water?` (log each
+/// `CellHasWater` call as a `has_water` event), `wall_seed?`,
 /// `departments? [{label, id}]`.
 fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
@@ -818,6 +827,7 @@ fn env(w: &World, op: &Json) -> R<()> {
         ("no_disaster", &w.no_disaster),
         ("no_department", &w.no_department),
         ("no_grids", &w.no_grids),
+        ("log_water", &w.log_water),
     ] {
         if let Some(v) = opt(op, k) {
             c.set(bool_of(v, k)?);
@@ -1428,6 +1438,7 @@ fn state_json(w: &World, s: &PlumbingState, sim: &PlumbingSim) -> Vec<(String, J
             ),
             ("x".into(), ji(it.x)),
             ("z".into(), ji(it.z)),
+            ("step".into(), ji(it.step)),
             (
                 "rect".into(),
                 Json::Array(vec![ji(it.x0), ji(it.z0), ji(it.x1), ji(it.z1)]),
@@ -1447,6 +1458,10 @@ fn state_json(w: &World, s: &PlumbingState, sim: &PlumbingSim) -> Vec<(String, J
         ("count_x".into(), ji(s.count_x)),
         ("count_z".into(), ji(s.count_z)),
         ("flag_map_size".into(), ji(s.flags.len() as i64)),
+        (
+            "flag_map_nonzero".into(),
+            ji(s.flags.iter().filter(|&&f| f != 0).count() as i64),
+        ),
         ("bitmap_side".into(), ji(s.visited.width())),
         ("pass_counter".into(), ji(s.pass_counter)),
         ("average_water_pollution".into(), ji(s.average_water_pollution)),
@@ -1599,6 +1614,7 @@ fn expect_tuning(w: &World, op: &Json) -> R<()> {
         ("max_pumped_pollution".into(), ji(t.max_pumped_pollution)),
         ("burst_probability".into(), jf(t.burst_probability)),
         ("max_funding".into(), jf(t.max_funding)),
+        ("max_funding_bits".into(), hex(t.max_funding.to_bits())),
         ("cost_per_pipe".into(), jf(t.cost_per_pipe)),
     ];
     if let Some(v) = opt(op, "fields") {
