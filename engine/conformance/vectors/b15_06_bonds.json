@@ -2,7 +2,7 @@
   "format": 1,
   "name": "budget_bonds",
   "spec": ["budget 5.4", "budget 6", "budget 15.6"],
-  "description": "Bond rounding to the increment (7,499 -> 5,000; 1 -> 5,000), the size, count and total limits (the total limit is reached by re-initialising with smaller limits while bonds are open), the shipped payment (10,000 at 8.5 % over 120 months: 123 a month, full cost 14,760) and a full amortisation: 120 payments, the 119th settlement sets the last payment to the principal left (214), the 120th removes the bond with BondFinished. GetAllLoans and totalBorrowed month by month.",
+  "description": "Bond rounding to the increment (7,499 -> 5,000; 1 -> 5,000), the size, count and total limits (the total limit is reached by re-initialising with smaller limits while bonds are open), the shipped payment (10,000 at 8.5 % over 120 months: 123 a month, full cost 14,760; the payment is a chain of float32 operations, so 6,533 -> 81 and 8,630 -> 107 where double precision gives 80 and 106) and a full amortisation: 120 payments, the 119th settlement sets the last payment to the principal left (214), the 120th removes the bond with BondFinished. GetAllLoans and totalBorrowed month by month.",
   "steps": [
     {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1},
     {"op": "budget_create"},
@@ -15,6 +15,10 @@
     {"op": "budget_call", "method": "loan_time_in_months", "expect": 120},
     {"op": "budget_call", "method": "monthly_payment_for_loan", "args": [10000], "expect": 123},
     {"op": "budget_call", "method": "full_cost_of_loan", "args": [10000], "expect": 14760},
+    {"op": "budget_call", "method": "monthly_payment_for_loan", "args": [6533], "expect": 81,
+     "note": "float32 operations (foundations 18): 81.0001; in double precision it would be 80.99985 -> 80"},
+    {"op": "budget_call", "method": "monthly_payment_for_loan", "args": [8630], "expect": 107,
+     "note": "float32: 107.0000076; double: 106.99965 -> 106"},
 
     {"op": "clear_events"},
     {"op": "budget_call", "method": "issue_bond", "args": [0], "expect": false},
