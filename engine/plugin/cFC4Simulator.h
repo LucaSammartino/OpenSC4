@@ -20,7 +20,7 @@
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
 #include "cIGZSystemService.h"
-#include "cISC4Simulator.h"
+#include "FC4Interfaces.h"
 #include "fc4.h"
 
 #include <cstdint>
@@ -34,7 +34,7 @@ class cIGZMessageServer2;
 // Class ID of the simulator (spec §1).
 static const uint32_t kFC4_CLSID_cSC4Simulator = 0x2990C1E5;
 
-class cFC4Simulator final : public cISC4Simulator,
+class cFC4Simulator final : public cFC4ISC4Simulator,
                             public cIGZSerializable,
                             public cIGZSystemService,
                             public cIGZMessageTarget2 {
@@ -47,12 +47,13 @@ public:
     uint32_t AddRef() override;
     uint32_t Release() override;
 
-    // cISC4Simulator (Init/Shutdown also implement cIGZSystemService's)
+    // cISC4Simulator in the game's slot order (FC4Interfaces.h; Init/Shutdown
+    // also implement cIGZSystemService's)
     bool Init() override;
     bool Shutdown() override;
     bool GetSimStartDate(cIGZDate& sDate) override;
+    void GetSimDateParts(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear, uint32_t* weekDay) override;
     cIGZDate* GetSimDate() override;
-    void GetSimDate(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear, uint32_t* weekDay) override;
     int32_t GetSimDateNumber() override;
     bool Pause() override;
     bool HiddenPause() override;
@@ -64,11 +65,11 @@ public:
     bool IsHiddenPaused() override;
     bool IsEmergencyPaused() override;
     bool IsAnyPaused() override;
-    bool AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, cIGZString const& szAgentName, eAgentFlags flags) override;
-    bool RemoveAgent(cIGZMessageTarget2* pAgent, eAgentType agentType) override;
-    bool RemoveAgent(cIGZMessageTarget2* pAgent) override;
+    bool AddAgent(cIGZMessageTarget2* pAgent, uint32_t agentType, cIGZString const& szAgentName, uint32_t flags) override;
+    bool RemoveAgentAllLevels(cIGZMessageTarget2* pAgent) override;
+    bool RemoveAgent(cIGZMessageTarget2* pAgent, uint32_t agentType) override;
+    bool RemoveAllAgentsAt(uint32_t agentType) override;
     bool RemoveAllAgents() override;
-    bool RemoveAllAgents(eAgentType agentType) override;
     bool EnumerateAgentsByName(SC4Vector<SC4String>& sAgents) override;
     bool GetAgentEnabled(cIGZString const& szAgentName) override;
     bool SetAgentEnabled(cIGZString const& szAgentName, bool bEnabled) override;

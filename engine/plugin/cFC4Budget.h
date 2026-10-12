@@ -16,6 +16,7 @@
 // Rust core behind fc4.h; these classes adapt the SDK interfaces to it.
 #pragma once
 
+#include "FC4Interfaces.h"
 #include "FC4Streams.h"
 #include "SC4Percentage.h"
 #include "cIGZMessageTarget2.h"
@@ -36,75 +37,6 @@ static const uint32_t kFC4_CLSID_cSC4DepartmentBudget = 0xE990BFFC;
 static const uint32_t kFC4_CLSID_cSC4LineItem = 0xAA313C9F;
 static const uint32_t kFC4_IID_cISC4BudgetSimulator = 0x6772BD23;
 static const uint32_t kFC4_IID_cISC4DepartmentBudget = 0x223E2B67;
-
-// cISC4BudgetSimulator as the game implements it. Identical to the SDK's
-// declaration (same slots, same order) except that GetTotalMonthlyExpense and
-// GetTotalMonthlyIncome return 64-bit values (spec §6 [compat]): in EDX:EAX,
-// so callers using the SDK's 32-bit declaration still see the low 32 bits.
-class cFC4ISC4BudgetSimulator : public cIGZUnknown {
-public:
-    using BudgetGroupInfo = cISC4BudgetSimulator::BudgetGroupInfo;
-    using BudgetItem = cISC4BudgetSimulator::BudgetItem;
-    using LoanInfo = cISC4BudgetSimulator::LoanInfo;
-
-    virtual bool Init() = 0;
-    virtual bool Shutdown() = 0;
-    virtual bool SetTotalFunds(int64_t llFunds) = 0;
-    virtual int64_t GetTotalFunds() = 0;
-    virtual bool DepositFunds(int64_t llFunds) = 0;
-    virtual bool WithdrawFunds(int64_t llFunds) = 0;
-    virtual int64_t GetMinAllowableFunds() = 0;
-    virtual int64_t GetYTDIncome() = 0;
-    virtual int64_t GetEstIncome() = 0;
-    virtual int64_t GetYTDExpenses() = 0;
-    virtual int64_t GetEstExpenses() = 0;
-    virtual int64_t GetTotalMonthlyExpense() = 0;  // SDK: uint32_t
-    virtual int64_t GetTotalYearlyExpense() = 0;
-    virtual int64_t GetTotalMonthlyIncome() = 0;  // SDK: int32_t
-    virtual int64_t GetTotalYearlyIncome() = 0;
-    virtual int64_t GetTaxIncome() = 0;
-    virtual int64_t GetTaxIncome(int32_t nTaxType) = 0;
-    virtual int64_t SetTotalMonthlyExpense(int64_t llExpense) = 0;
-    virtual int64_t SetTotalYearlyExpense(int64_t llExpense) = 0;
-    virtual int64_t SetTotalMonthlyIncome(int64_t llIncome) = 0;
-    virtual int64_t SetTotalYearlyIncome(int64_t llIncome) = 0;
-    virtual bool ShowBudgetWindow() = 0;
-    virtual cISC4DepartmentBudget* CreateDepartmentBudget(uint32_t dwDepartmentID, uint32_t dwBudgetGroup) = 0;
-    virtual bool RemoveDepartmentBudget(uint32_t dwDepartmentID) = 0;
-    virtual cISC4DepartmentBudget* GetDepartmentBudget(uint32_t dwDepartmentID) = 0;
-    virtual cISC4DepartmentBudget* GetDepartmentBudget(cIGZString const& szDepartmentName) = 0;
-    virtual bool GetAllGroups(SC4Vector<BudgetGroupInfo>& sGroups) = 0;
-    virtual bool SetGroupName(uint32_t dwGroupID, cIGZString& szName) = 0;
-    virtual bool GetDepartmentBudgetsInGroup(uint32_t dwGroupID, SC4Vector<cISC4DepartmentBudget*>& sGroups) = 0;
-    virtual void NeededFundingChanged(cISC4DepartmentBudget* pDepartmentBudget) = 0;
-    virtual void FundingPercentageChanged(cISC4DepartmentBudget* pDepartmentBudget) = 0;
-    virtual int64_t GetFunding(uint32_t dwUnknownID) = 0;
-    virtual int64_t GetFunding(cISC4DepartmentBudget* pDepartmentBudget) = 0;
-    virtual float GetTaxRate(uint32_t dwTaxGroup) = 0;
-    virtual bool SetTaxRate(uint32_t dwTaxGroup, float fRate) = 0;
-    virtual int64_t GetWeightedAssessedTaxValue(uint32_t dwTaxGroup) = 0;
-    virtual int64_t GetBondIncrement() = 0;
-    virtual bool IssueBond(uint32_t dwBondAmount) = 0;
-    virtual int64_t GetTotalBorrowed() = 0;
-    virtual int64_t GetCurrentBorrowingLimit() = 0;
-    virtual int64_t GetCurrentBondLimit() = 0;
-    virtual int64_t GetCurrentMaxOutstandingBondsLimit() = 0;
-    virtual int64_t GetTotalMonthlyBondPayments() = 0;
-    virtual bool GetAllLoans(SC4Vector<LoanInfo>& sLoans) = 0;
-    virtual int32_t GetLoanTimeInMonths() = 0;
-    virtual int64_t GetMonthlyPaymentForLoan(int64_t llLoanAmount) = 0;
-    virtual int64_t GetFullCostOfLoan(int64_t llLoanAmount) = 0;
-    virtual bool GetBudgetItemInfo(cISCPropertyHolder* pProperty, SC4Vector<BudgetItem>& sBudgetInfo) = 0;
-    virtual bool GetBudgetItemForPurpose(cISCPropertyHolder* pProperty, uint32_t dwPurpose, BudgetItem& sBudgetItem) = 0;
-    virtual bool ChangeBudgetItemLine(cISCPropertyHolder* pProperty, uint32_t dwIndex, uint32_t dwLine) = 0;
-    virtual bool ChangeBudgetItemCost(cISCPropertyHolder* pProperty, uint32_t dwIndex, int64_t llCost) = 0;
-    virtual bool ChangeBudgetItemLocalFunding(cISCPropertyHolder* pProperty, uint32_t dwIndex,
-                                              SC4Percentage const& sFunding) = 0;
-    virtual bool AddBudgetItemToBudget(cISCPropertyHolder* pProperty, uint32_t dwIndex) = 0;
-    virtual bool RemoveBudgetItemFromBudget(cISCPropertyHolder* pProperty, uint32_t dwIndex) = 0;
-    virtual cISC4LineItem* GetLineItemFromBudgetItem(BudgetItem& pBudgetItem) = 0;
-    virtual bool CopyBudgetItemProperties(cISCPropertyHolder* pOriginal, cISCPropertyHolder* pCopy) = 0;
-};
 
 namespace fc4 {
 // The host callbacks every budget object shares (FC4BudgetHost.cpp).
@@ -128,7 +60,7 @@ public:
     uint32_t AddRef() override;
     uint32_t Release() override;
 
-    // cISC4BudgetSimulator (SDK order)
+    // cISC4BudgetSimulator, in the game's slot order (FC4Interfaces.h)
     bool Init() override;
     bool Shutdown() override;
     bool SetTotalFunds(int64_t llFunds) override;
@@ -144,8 +76,8 @@ public:
     int64_t GetTotalYearlyExpense() override;
     int64_t GetTotalMonthlyIncome() override;
     int64_t GetTotalYearlyIncome() override;
+    int64_t GetTaxIncomeOfType(int32_t nTaxType) override;
     int64_t GetTaxIncome() override;
-    int64_t GetTaxIncome(int32_t nTaxType) override;
     int64_t SetTotalMonthlyExpense(int64_t llExpense) override;
     int64_t SetTotalYearlyExpense(int64_t llExpense) override;
     int64_t SetTotalMonthlyIncome(int64_t llIncome) override;
@@ -153,15 +85,15 @@ public:
     bool ShowBudgetWindow() override;
     cISC4DepartmentBudget* CreateDepartmentBudget(uint32_t dwDepartmentID, uint32_t dwBudgetGroup) override;
     bool RemoveDepartmentBudget(uint32_t dwDepartmentID) override;
+    cISC4DepartmentBudget* GetDepartmentBudgetByName(cIGZString const& szDepartmentName) override;
     cISC4DepartmentBudget* GetDepartmentBudget(uint32_t dwDepartmentID) override;
-    cISC4DepartmentBudget* GetDepartmentBudget(cIGZString const& szDepartmentName) override;
     bool GetAllGroups(SC4Vector<BudgetGroupInfo>& sGroups) override;
     bool SetGroupName(uint32_t dwGroupID, cIGZString& szName) override;
     bool GetDepartmentBudgetsInGroup(uint32_t dwGroupID, SC4Vector<cISC4DepartmentBudget*>& sGroups) override;
     void NeededFundingChanged(cISC4DepartmentBudget* pDepartmentBudget) override;
     void FundingPercentageChanged(cISC4DepartmentBudget* pDepartmentBudget) override;
-    int64_t GetFunding(uint32_t dwUnknownID) override;
-    int64_t GetFunding(cISC4DepartmentBudget* pDepartmentBudget) override;
+    int64_t GetFundingById(uint32_t dwUnknownID) override;
+    int64_t GetFundingOf(cISC4DepartmentBudget* pDepartmentBudget) override;
     float GetTaxRate(uint32_t dwTaxGroup) override;
     bool SetTaxRate(uint32_t dwTaxGroup, float fRate) override;
     int64_t GetWeightedAssessedTaxValue(uint32_t dwTaxGroup) override;
@@ -207,6 +139,7 @@ private:
     void RegisterCheats();
     void UnregisterCheats();
     void LogSettlement(const fc4_budget_state& before, const fc4_budget_state& after);
+    void LogDepartments();
 
     uint32_t refCount_ = 0;
     fc4_budget* core_ = nullptr;

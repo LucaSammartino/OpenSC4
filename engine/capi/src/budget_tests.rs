@@ -597,9 +597,11 @@ fn budget_through_the_abi() {
         }
         let (nbt, _) = g.create(CLSID_BUDGET);
         new_of.insert(bt, nbt);
-        // The store reads classes in ascending class ID: line items, the budget, departments.
+        // Records in DESCENDING class ID: departments before the line items they refer to.
+        // A department must not depend on its lines having been read (their IDs are taken on
+        // first use); the conformance vectors cover the ascending order.
         let mut load_order: Vec<&(u64, Vec<u8>)> = recs.iter().collect();
-        load_order.sort_by_key(|(t, _)| g.handle_of(*t).0);
+        load_order.sort_by_key(|(t, _)| std::cmp::Reverse(g.handle_of(*t).0));
         for (t, rec) in load_order {
             let nt = new_of[t];
             let mut i = In {

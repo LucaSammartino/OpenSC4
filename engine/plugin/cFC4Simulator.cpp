@@ -101,7 +101,9 @@ cFC4Message2Standard* MakeMessage(const fc4_message& src) {
 // ---- construction -------------------------------------------------------------
 
 // Factory for the subsystem table (FC4Subsystems.cpp).
-cIGZUnknown* CreateFC4Simulator() { return static_cast<cIGZUnknown*>(static_cast<cISC4Simulator*>(new cFC4Simulator())); }
+cIGZUnknown* CreateFC4Simulator() {
+    return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4Simulator*>(new cFC4Simulator()));
+}
 
 
 cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
@@ -145,7 +147,7 @@ bool cFC4Simulator::QueryInterfaceImpl(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     switch (riid) {
         case kIID_cISC4Simulator:
-            *ppvObj = static_cast<cISC4Simulator*>(this);
+            *ppvObj = static_cast<cFC4ISC4Simulator*>(this);
             break;
         case GZIID_cIGZSerializable:
             *ppvObj = static_cast<cIGZSerializable*>(this);
@@ -157,7 +159,7 @@ bool cFC4Simulator::QueryInterfaceImpl(uint32_t riid, void** ppvObj) {
             *ppvObj = static_cast<cIGZMessageTarget2*>(this);
             break;
         case GZIID_cIGZUnknown:
-            *ppvObj = static_cast<cIGZUnknown*>(static_cast<cISC4Simulator*>(this));
+            *ppvObj = static_cast<cIGZUnknown*>(static_cast<cFC4ISC4Simulator*>(this));
             break;
         default:
             *ppvObj = nullptr;
@@ -626,7 +628,8 @@ cIGZDate* cFC4Simulator::GetSimDate() {
     return &date_;
 }
 
-void cFC4Simulator::GetSimDate(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear, uint32_t* weekDay) {
+void cFC4Simulator::GetSimDateParts(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear,
+                                    uint32_t* weekDay) {
     fc4_date d{};
     fc4_sim_get_date(sim_, &d);
     if (year) *year = static_cast<uint32_t>(d.year);
@@ -690,8 +693,8 @@ bool cFC4Simulator::SetCityEstablished(bool bEstablished) {
 
 // ---- agents (spec §4) --------------------------------------------------------------------------
 
-bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, cIGZString const& szAgentName,
-                             eAgentFlags flags) {
+bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, uint32_t agentType, cIGZString const& szAgentName,
+                             uint32_t flags) {
     const std::string name = ToStd(szAgentName);
     if (pAgent == nullptr) {  // [choice]
         FC4_LOGV("AddAgent(null, level %u, '%s', flags %u) -> 0", static_cast<uint32_t>(agentType), name.c_str(),
@@ -708,14 +711,14 @@ bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, c
     return ok;
 }
 
-bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent, eAgentType agentType) {
+bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent, uint32_t agentType) {
     const bool ok = fc4_sim_remove_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType));
     FC4_LOGV("RemoveAgent(%p, level %u) -> %d", static_cast<void*>(pAgent), static_cast<uint32_t>(agentType),
              ok ? 1 : 0);
     return ok;
 }
 
-bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent) {
+bool cFC4Simulator::RemoveAgentAllLevels(cIGZMessageTarget2* pAgent) {
     const bool ok = fc4_sim_remove_agent_all_levels(sim_, AgentHandle(pAgent));
     FC4_LOGV("RemoveAgent(%p, all levels) -> %d", static_cast<void*>(pAgent), ok ? 1 : 0);
     return ok;
@@ -723,7 +726,7 @@ bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent) {
 
 bool cFC4Simulator::RemoveAllAgents() { return fc4_sim_remove_all_agents(sim_); }
 
-bool cFC4Simulator::RemoveAllAgents(eAgentType agentType) {
+bool cFC4Simulator::RemoveAllAgentsAt(uint32_t agentType) {
     return fc4_sim_remove_all_agents_at(sim_, static_cast<uint32_t>(agentType));
 }
 
