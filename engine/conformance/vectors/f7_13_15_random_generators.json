@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "random_generators",
+  "spec": ["foundations 6.1", "foundations 7.13", "foundations 7.14", "foundations 7.15"],
+  "description": "cRZRandom (integer LCG and double multiplicative paths, with state words) and cRZRandomSuper (MT19937 with the game's seeding) vectors from foundations 7, weighted choice, clock-seed injection. The cRZRandomSuper vectors were computed from 6.1 and await confirmation against the original (foundations open question 6).",
+  "steps": [
+    {"op": "rng", "generator": "RzRandom", "seed": 1, "calls": [
+      {"method": "next_raw", "expect": "0x000041C6", "lcg": "0x41C67EA6"},
+      {"method": "next_raw", "expect": "0x59D4967E", "lcg": "0x967EB0E7"},
+      {"method": "next_raw", "expect": "0xBF022781", "lcg": "0x2781E494"},
+      {"method": "uniform_u32", "args": [0], "expect": 0, "lcg": "0x2781E494"}
+    ]},
+    {"op": "rng", "generator": "RzRandom", "seed": 1, "calls": [
+      {"method": "uniform_f64", "expect": 0.6545084968674928, "mul": "0x278DDE6D"},
+      {"method": "uniform_f64", "expect": 0.48173871100880206, "mul": "0xFB533A69"},
+      {"method": "uniform_f64", "expect": 0.851256174268201, "mul": "0x59EBECB5"}
+    ]},
+    {"op": "rng", "generator": "RzRandom", "seed": "0xFFFFFFFF", "wall_clock_seed": 1, "calls": [
+      {"method": "next_raw", "expect": "0x000041C6"}
+    ], "note": "Seed(0xFFFFFFFF) takes the (injected) wall-clock seed"},
+    {"op": "rng", "generator": "RzRandomSuper", "seed": 1, "calls": [
+      {"method": "next_u32", "expect": "0xD3F6B9E5"},
+      {"method": "next_u32", "expect": "0xEF284157"},
+      {"method": "next_u32", "expect": "0x0D3639C7"}
+    ]},
+    {"op": "rng", "generator": "RzRandomSuper", "seed": 4357, "calls": [
+      {"method": "next_u32", "expect": "0xAAE64AC3"},
+      {"method": "next_u32", "expect": "0x5E7C47DA"},
+      {"method": "next_u32", "expect": "0xB98E8121"}
+    ]},
+    {"op": "rng", "generator": "RzRandomSuper", "seed": 99, "calls": [
+      {"method": "weighted_choice", "weights": [0, 1, 0], "expect": 1},
+      {"method": "weighted_choice", "weights": [0, 1, 0], "expect": 1},
+      {"method": "weighted_choice", "weights": [0, 1, 0], "expect": 1},
+      {"method": "weighted_choice", "weights": [5], "expect": 0}
+    ]}
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "budget_bankruptcy",
+  "spec": ["budget 5.1", "budget 5.6", "budget 6", "budget 15.5"],
+  "description": "EndGameForBudgetFailure (no data fields) is posted at a month-end with funds = MinAllowableFunds (-100,000) and at every later month-end at or below it, not at -99,999, and never by SetTotalFunds or WithdrawFunds (which refuses to overdraw).",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1, "ordinance_expense": 1},
+    {"op": "budget_create"},
+    {"op": "budget_init", "tuning": {"0x6A9C7718": [500000, 200000, 100000], "0x090E0A9F": -100000}},
+    {"op": "budget_call", "method": "min_allowable_funds", "expect": -100000},
+
+    {"op": "budget_call", "method": "set_total_funds", "args": [5]},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [6], "expect": false},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [5], "expect": true},
+    {"op": "budget_call", "method": "set_total_funds", "args": [-250000]},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [1], "expect": false},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 0},
+
+    {"op": "budget_call", "method": "set_total_funds", "args": [-99998]},
+    {"op": "clear_events"},
+    {"op": "budget_env", "month": 2},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": -99999}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 0},
+    {"op": "clear_events"},
+
+    {"op": "budget_env", "month": 3},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": -100000}},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "FundsChanged"},
+      {"type": "EndGameForBudgetFailure", "data1": 0, "data2": 0, "data3": 0, "void1": "", "unknown": ""}
+    ]},
+
+    {"op": "budget_env", "month": 4},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_env", "month": 5},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": -100002}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 2},
+    {"op": "clear_events"},
+
+    {"op": "budget_env", "month": 6, "ordinance_expense": 0, "ordinance_income": 2},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": -100000}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 1},
+    {"op": "clear_events"},
+    {"op": "budget_env", "month": 7},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": -99998}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 0}
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "budget_year_end",
+  "spec": ["budget 5.1", "budget 15.4"],
+  "description": "The settlement on January 1st (m = 11) books December and then zeroes every year-to-date accumulator (tax, ordinance, income, expense, bond payments) and every department's spending, while the by-month ordinance arrays and the last-month values keep their values. Accumulation restarts with the February settlement.",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 11, "ordinance_income": 50, "ordinance_expense": 30},
+    {"op": "budget_create"},
+    {"op": "budget_init", "tuning": {"0x6A9C7718": [500000, 200000, 100000], "0x090E0A9F": -100000,
+      "0x490E0AA6": 5000, "0x090E0AAC": 10, "0x890E0AB4": 200000, "0x8A3FB98D": 8.5, "0x0A3FB9A8": 120,
+      "0x0C032488": [9, 9, 9], "0xEBFF69E7": [1.2, 1.1, 1.0]}},
+    {"op": "budget_lots", "lots": [{"purpose": 1, "building_wealth": 1, "lot_wealth": 1, "value": 10000}]},
+    {"op": "budget_call", "method": "create_department_budget", "args": [4096, 8192], "expect": 4096},
+    {"op": "budget_dept", "dept": 4096, "method": "create_line_item", "args": [1, false], "expect": 1},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "set_full_expenses", "args": [1000]},
+    {"op": "budget_call", "method": "issue_bond", "args": [10000], "expect": true},
+
+    {"op": "budget_env", "month": 12},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": 108972, "ytd_income": 125, "ytd_expense": 1153, "ytd_tax_income": 75,
+      "ytd_ordinance_income": 50, "ytd_ordinance_expense": 30, "ytd_bond_payments": 123,
+      "ordinance_income_by_month": {"10": 50, "11": 0}, "ordinance_expense_by_month": {"10": 30, "11": 0}}},
+    {"op": "budget_dept", "dept": 4096, "method": "total_spending", "expect": 1000},
+    {"op": "budget_call", "method": "ytd_income", "expect": 125},
+    {"op": "budget_call", "method": "ytd_expenses", "expect": 1153},
+
+    {"op": "budget_env", "year": 2001, "month": 1},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": 107944, "shadow_funds": 107944,
+      "ytd_income": 0, "ytd_expense": 0, "ytd_tax_income": 0, "ytd_reserved": [0, 0, 0, 0, 0],
+      "ytd_ordinance_income": 0, "ytd_ordinance_expense": 0, "ytd_bond_payments": 0,
+      "last_month_income": 125, "last_month_expense": 1153, "last_tax_income": 75,
+      "ordinance_income_by_month": {"10": 50, "11": 50}, "ordinance_expense_by_month": {"10": 30, "11": 30}}},
+    {"op": "budget_dept", "dept": 4096, "method": "total_spending", "expect": 0},
+
+    {"op": "budget_env", "month": 2, "ordinance_income": 60},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": 106926, "ytd_income": 135, "ytd_expense": 1153, "ytd_tax_income": 75,
+      "ytd_ordinance_income": 60, "ytd_bond_payments": 123,
+      "ordinance_income_by_month": {"0": 60, "10": 50, "11": 50}}},
+    {"op": "budget_dept", "dept": 4096, "method": "total_spending", "expect": 1000}
+  ]
+}

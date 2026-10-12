@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "name": "budget_groups",
+  "spec": ["budget 6", "budget 6.1", "budget 7", "budget 15.12"],
+  "description": "Departments created in groups (names from LTEXT 0x6A3FF01C / group ID); creating an existing department returns it and ignores the group; BudgetGroupChanged (data1 = group, data2/data3 = low 32 bits of expense/income) only when a group's totals change; GetAllGroups and GetDepartmentBudgetsInGroup in ascending ID; prefix, case-insensitive GetDepartmentBudget(name); SetGroupName creates or renames; RemoveDepartmentBudget refreshes the group. (The one-reference-per-department rule of GetDepartmentBudgetsInGroup is a GZCOM wrapper concern, tested in the plugin.)",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1, "ltext": [
+      {"group": "0x6A3FF01C", "instance": 10, "text": "Safety"},
+      {"group": "0x6A3FF01C", "instance": 20, "text": "Health"},
+      {"group": "0x11110000", "instance": 1, "text": "Police Department"},
+      {"group": "0x11110000", "instance": 2, "text": "police HQ"},
+      {"group": "0x11110000", "instance": 3, "text": "Hospitals"}
+    ]},
+    {"op": "budget_create"},
+    {"op": "budget_init"},
+    {"op": "clear_events"},
+    {"op": "budget_call", "method": "create_department_budget", "args": [2, 10], "expect": 2},
+    {"op": "budget_call", "method": "create_department_budget", "args": [1, 10], "expect": 1},
+    {"op": "budget_call", "method": "create_department_budget", "args": [3, 20], "expect": 3},
+    {"op": "budget_call", "method": "create_department_budget", "args": [3, 10], "expect": 3},
+    {"op": "budget_dept", "dept": 3, "method": "budget_group", "expect": 20},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "BudgetGroupChanged"}, "count": 0},
+    {"op": "budget_expect_groups", "groups": [
+      {"id": 10, "name": "Safety", "total_expense": 0, "total_income": 0, "departments": [1, 2]},
+      {"id": 20, "name": "Health", "total_expense": 0, "total_income": 0, "departments": [3]}
+    ]},
+    {"op": "budget_call", "method": "departments_in_group", "args": [10], "expect": [1, 2]},
+    {"op": "budget_call", "method": "departments_in_group", "args": [99], "expect": []},
+    {"op": "budget_expect", "state": {"department_ids": [1, 2, 3]}},
+
+    {"op": "budget_dept", "dept": 1, "method": "set_department_name", "args": ["0x11110000", 1]},
+    {"op": "budget_dept", "dept": 2, "method": "set_department_name", "args": ["0x11110000", 2]},
+    {"op": "budget_dept", "dept": 3, "method": "set_department_name", "args": ["0x11110000", 3]},
+    {"op": "budget_dept", "dept": 2, "method": "name", "expect": "police HQ"},
+    {"op": "budget_call", "method": "department_by_name", "args": ["POL"], "expect": 1},
+    {"op": "budget_call", "method": "department_by_name", "args": ["Police h"], "expect": 2},
+    {"op": "budget_call", "method": "department_by_name", "args": ["hosp"], "expect": 3},
+    {"op": "budget_call", "method": "department_by_name", "args": [""], "expect": 1},
+    {"op": "budget_call", "method": "department_by_name", "args": ["Hospitals and clinics"], "expect": null},
+
+    {"op": "budget_dept", "dept": 1, "method": "create_line_item", "args": [1, false], "expect": 1},
+    {"op": "clear_events"},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "set_full_expenses", "args": [100]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "set_full_expenses", "args": [100]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "add_to_income", "args": [5]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "set_income", "args": [-3]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "income", "expect": 0},
+    {"op": "expect_events", "filter": {"event": "post", "type": "BudgetGroupChanged"}, "events": [
+      {"data1": 10, "data2": 100, "data3": 0},
+      {"data1": 10, "data2": 100, "data3": 5},
+      {"data1": 10, "data2": 100, "data3": 0}
+    ]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "set_full_expenses", "args": [4294967808], "note": "2^32 + 512, exact in float32"},
+    {"op": "expect_events", "filter": {"event": "post", "type": "BudgetGroupChanged"}, "events": [
+      {"data1": 10, "data2": 512, "data3": 0}
+    ]},
+    {"op": "budget_expect_groups", "groups": [
+      {"id": 10, "total_expense": 4294967808, "total_income": 0},
+      {"id": 20, "total_expense": 0}
+    ]},
+    {"op": "budget_line", "dept": 1, "line": 1, "method": "set_full_expenses", "args": [100]},
+
+    {"op": "budget_call", "method": "set_group_name", "args": [10, "Renamed"], "expect": true},
+    {"op": "budget_call", "method": "set_group_name", "args": [30, "New"], "expect": true},
+    {"op": "budget_expect_groups", "groups": [
+      {"id": 10, "name": "Renamed", "departments": [1, 2]},
+      {"id": 20, "name": "Health"},
+      {"id": 30, "name": "New", "total_expense": 0, "total_income": 0, "departments": []}
+    ]},
+
+    {"op": "clear_events"},
+    {"op": "budget_call", "method": "remove_department_budget", "args": [2], "expect": true},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "BudgetGroupChanged"}, "count": 0},
+    {"op": "budget_call", "method": "remove_department_budget", "args": [1], "expect": true},
+    {"op": "expect_events", "filter": {"event": "post", "type": "BudgetGroupChanged"}, "events": [
+      {"data1": 10, "data2": 0, "data3": 0}
+    ]},
+    {"op": "budget_call", "method": "remove_department_budget", "args": [1], "expect": false},
+    {"op": "budget_expect_groups", "groups": [
+      {"id": 10, "departments": []}, {"id": 20, "departments": [3]}, {"id": 30, "departments": []}
+    ]},
+    {"op": "budget_expect", "state": {"department_ids": [3]}},
+    {"op": "budget_expect_refs", "refs": {"department#1": 0, "department#2": 0, "department#3": 1}}
+  ]
+}

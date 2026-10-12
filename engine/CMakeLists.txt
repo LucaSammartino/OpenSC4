@@ -113,11 +113,22 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Diag.h
         plugin/compat/FC4Compat.cpp
         plugin/compat/FC4Compat.h
+        plugin/FC4Properties.cpp
+        plugin/FC4Properties.h
+        plugin/FC4Streams.cpp
+        plugin/FC4Streams.h
+        plugin/FC4Subsystems.cpp
+        plugin/FC4Subsystems.h
+        plugin/cFC4Budget.cpp
+        plugin/cFC4Budget.h
+        plugin/FC4BudgetHost.cpp
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
-        "${FC4_GZCOM_DIR}/src/SC4String.cpp")
+        "${FC4_GZCOM_DIR}/src/SC4String.cpp"
+        "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp"
+        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp")
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
@@ -143,6 +154,9 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_plugin_load_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_dependencies(fc4_plugin_load_test FreeCity4)
     add_test(NAME plugin_load_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>")
+    add_test(NAME plugin_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --disabled)
+    # Both tests write FreeCity4.log next to the DLL.
+    set_tests_properties(plugin_load_test plugin_disable_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "name": "budget_department_percentage",
+  "spec": ["budget 7", "budget 7.1", "budget 8", "budget 15.7"],
+  "description": "SetFundingPercentage clamps to [0, pMax]; a fixed-funding department ignores changes; an unchanged value does nothing; non-local Expense lines rescale with trunc(full x q + 0.5) while Income lines and local lines keep their current expense; FundingPercentageChanged carries void1 = IGZUnknown = the department, data2 = its ID and data3 = the caller's argument, after the group refresh. SetMaxAllowedFundingPercentage does not re-clamp p; SetFullExpenses truncates without rounding.",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1},
+    {"op": "budget_create"},
+    {"op": "budget_init"},
+    {"op": "budget_call", "method": "create_department_budget", "args": [4096, 8192], "expect": 4096},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 1.0},
+    {"op": "budget_dept", "dept": 4096, "method": "max_funding_percentage", "expect": 1.0},
+    {"op": "budget_dept", "dept": 4096, "method": "create_line_item", "args": [1, false], "expect": 1},
+    {"op": "budget_dept", "dept": 4096, "method": "create_line_item", "args": [2, false], "expect": 2},
+    {"op": "budget_dept", "dept": 4096, "method": "create_line_item", "args": [3, true], "expect": 3},
+    {"op": "budget_line", "dept": 4096, "line": 2, "method": "set_type", "args": [1]},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "set_full_expenses", "args": [1000]},
+    {"op": "budget_line", "dept": 4096, "line": 2, "method": "set_full_expenses", "args": [1000]},
+    {"op": "budget_line", "dept": 4096, "line": 3, "method": "set_full_expenses", "args": [1000]},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 1000},
+    {"op": "budget_line", "dept": 4096, "line": 2, "method": "current_expenses", "expect": 1000},
+    {"op": "budget_line", "dept": 4096, "line": 3, "method": "current_expenses", "expect": 0},
+    {"op": "budget_dept", "dept": 4096, "method": "set_max_funding_percentage", "args": [1.2]},
+
+    {"op": "clear_events"},
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [1.5, 7]},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 1.2},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 1200},
+    {"op": "budget_line", "dept": 4096, "line": 2, "method": "current_expenses", "expect": 1000},
+    {"op": "budget_line", "dept": 4096, "line": 3, "method": "current_expenses", "expect": 0},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "BudgetGroupChanged", "data1": 8192, "data2": 2200, "data3": 0},
+      {"type": "FundingPercentageChanged", "data1": 0, "data2": 4096, "data3": 7, "void1": "department#1",
+       "unknown": "department#1"}
+    ]},
+
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [-0.5, 3]},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 0.0},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 0},
+    {"op": "budget_line", "dept": 4096, "line": 2, "method": "current_expenses", "expect": 1000},
+    {"op": "expect_events", "filter": {"event": "post", "type": "FundingPercentageChanged"}, "events": [
+      {"data2": 4096, "data3": 3}
+    ]},
+
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [0.333, 0]},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 333},
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [0.6667, 0]},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 667, "note": "666.7 + 0.5 -> 667"},
+    {"op": "clear_events"},
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [0.6667, 9], "note": "unchanged"},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+
+    {"op": "budget_dept", "dept": 4096, "method": "set_fixed_funding", "args": [true]},
+    {"op": "budget_dept", "dept": 4096, "method": "is_fixed_funding", "expect": true},
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [0.9, 0]},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 0.6667},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 667},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "budget_dept", "dept": 4096, "method": "set_fixed_funding", "args": [false]},
+
+    {"op": "budget_dept", "dept": 4096, "method": "set_max_funding_percentage", "args": [0.5]},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 0.6667, "note": "not re-clamped"},
+    {"op": "budget_dept", "dept": 4096, "method": "set_funding_percentage", "args": [0.8, 0]},
+    {"op": "budget_dept", "dept": 4096, "method": "funding_percentage", "expect": 0.5},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 500},
+
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "set_full_expenses", "args": [999]},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 499,
+     "note": "SetFullExpenses: trunc(999 x 0.5), no rounding"},
+    {"op": "budget_dept", "dept": 4096, "method": "ideal_monthly_funding", "expect": 2999},
+    {"op": "budget_dept", "dept": 4096, "method": "total_expenses", "expect": 1499}
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "budget_daily",
+  "spec": ["budget 4.3", "budget 5.7", "budget 15.14"],
+  "description": "SimNewDay records roundHalfEven(rate x 10), computed in float32, into the 12 tax-rate history series 0xAABAAA9F + i (9.25 -> 92, 9.35 -> 94, 2.5 -> 25, 0.25 -> 2, 0.35 -> 4 because float32(0.35) x 10 rounds to 3.5); no money moves.",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1, "ordinance_income": 1000, "ordinance_expense": 7},
+    {"op": "budget_create"},
+    {"op": "budget_init", "tuning": {"0x6A9C7718": [500000, 200000, 100000], "0x0C032488": [9, 9, 9]}},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [0, 9.25], "expect": true},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [1, 9.35], "expect": true},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [2, 2.5], "expect": true},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [3, 30], "expect": true, "note": "unclamped"},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [10, 0.25], "expect": true},
+    {"op": "budget_call", "method": "set_tax_rate", "args": [11, 0.35], "expect": true},
+    {"op": "budget_call", "method": "tax_rate", "args": [3], "expect": 30},
+    {"op": "budget_call", "method": "tax_rate", "args": [12], "expect": 0},
+    {"op": "clear_events"},
+    {"op": "budget_message", "type": "SimNewDay", "expect": true},
+    {"op": "expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0xAABAAA9F", "value": 92},
+      {"series": "0xAABAAAA0", "value": 94},
+      {"series": "0xAABAAAA1", "value": 25},
+      {"series": "0xAABAAAA2", "value": 300},
+      {"series": "0xAABAAAA3", "value": 90},
+      {"series": "0xAABAAAA4", "value": 90},
+      {"series": "0xAABAAAA5", "value": 90},
+      {"series": "0xAABAAAA6", "value": 90},
+      {"series": "0xAABAAAA7", "value": 90},
+      {"series": "0xAABAAAA8", "value": 90},
+      {"series": "0xAABAAAA9", "value": 2},
+      {"series": "0xAABAAAAA", "value": 4}
+    ]},
+    {"op": "budget_call", "method": "simulate_day"},
+    {"op": "expect_event_count", "filter": {"event": "history"}, "count": 12},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "budget_expect", "state": {"funds": 100000, "ytd_income": 0, "ytd_expense": 0}}
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "budget_funds",
+  "spec": ["budget 3.1", "budget 4.1", "budget 6", "budget 15.1"],
+  "description": "Deposit/withdraw of positive, zero and negative amounts; overdrawing fails and changes nothing; withdrawing with negative funds fails; deposits saturate at INT64_MAX; FundsChanged (void1 = IGZUnknown = the budget) only on change; shadow funds track every write; a tampered funds != shadow is restored at the next month-end without a message. New-city Init: hard difficulty funds 100,000 (shipped values, the [choice] code default), FundsChanged, the 12 tax-rate series queue lengths and funds/1000 history.",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1},
+    {"op": "budget_create"},
+    {"op": "clear_events"},
+    {"op": "budget_init", "expect": true},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "FundsChanged", "data1": 0, "data2": 0, "data3": 0, "void1": "budget", "unknown": "budget"}
+    ]},
+    {"op": "budget_expect", "state": {"initialized": true, "funds": 100000, "shadow_funds": 100000, "loaded_from_save": false,
+      "tax": {"0": {"rate": 9, "max_rate": 25}, "11": {"rate": 9, "max_rate": 25}}}},
+    {"op": "budget_init", "note": "second Init does nothing", "expect": true},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "clear_events"},
+
+    {"op": "budget_call", "method": "deposit_funds", "args": [500], "expect": true},
+    {"op": "budget_call", "method": "deposit_funds", "args": [0], "expect": true},
+    {"op": "budget_call", "method": "deposit_funds", "args": [-200], "expect": true},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [0], "expect": true},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [-100], "expect": true},
+    {"op": "budget_expect", "state": {"funds": 100400, "shadow_funds": 100400}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "FundsChanged"}, "count": 3},
+    {"op": "clear_events"},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [100401], "expect": false},
+    {"op": "budget_expect", "state": {"funds": 100400, "shadow_funds": 100400}},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [100400], "expect": true},
+    {"op": "budget_call", "method": "set_total_funds", "args": [0], "expect": true, "note": "unchanged: no message"},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [{"type": "FundsChanged"}]},
+    {"op": "budget_call", "method": "set_total_funds", "args": [-5], "expect": true},
+    {"op": "budget_call", "method": "withdraw_funds", "args": [1], "expect": false, "note": "negative funds: every purchase fails"},
+    {"op": "budget_call", "method": "deposit_funds", "args": [-1], "expect": false},
+    {"op": "budget_expect", "state": {"funds": -5, "shadow_funds": -5}},
+    {"op": "budget_call", "method": "set_total_funds", "args": [9223372036854775000], "expect": true},
+    {"op": "budget_call", "method": "deposit_funds", "args": [1000], "expect": true},
+    {"op": "budget_expect", "state": {"funds": 9223372036854775807, "shadow_funds": 9223372036854775807}},
+    {"op": "clear_events"},
+
+    {"op": "budget_call", "method": "set_total_funds", "args": [1000000]},
+    {"op": "budget_call", "method": "tamper_funds", "args": [123]},
+    {"op": "budget_expect", "state": {"funds": 123, "shadow_funds": 1000000}},
+    {"op": "budget_env", "month": 2},
+    {"op": "clear_events"},
+    {"op": "budget_call", "method": "settle_month"},
+    {"op": "budget_expect", "state": {"funds": 1000000, "shadow_funds": 1000000}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "FundsChanged"}, "count": 0},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "EndGameForBudgetFailure"}, "count": 0}
+  ]
+}

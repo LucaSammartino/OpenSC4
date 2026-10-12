@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "month_registration_order",
+  "spec": ["4", "5.3", "foundations 13.3"],
+  "description": "Within the month level, agents run in registration order (simulator §4), which is what keeps the budget's month agent ahead of the ordinance and neighbours agents (foundations §13.3 [compat]): registered as budget, ordinance, neighbours, power, they get SimNewMonth in that order on February 1st. Removing the budget and adding it again moves it to the end, so on March 1st it runs last: the order follows registration, not names. Speed 2, 50 ms days, time consumed only by an idle agent (as in s10_2).",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "budget": {"finish_after": 1},
+    "ordinance": {"finish_after": 1},
+    "neighbours": {"finish_after": 1},
+    "power": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1, "description": "idle agent; makes simulated time pass"}
+  },
+  "steps": [
+    {"op": "load", "record": {"date": {"year": 2000, "month": 1, "day": 28}}, "expect": "ok"},
+    {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "add_agent", "agent": "ordinance", "level": 6},
+    {"op": "add_agent", "agent": "neighbours", "level": 6},
+    {"op": "add_agent", "agent": "power", "level": 6},
+    {"op": "add_agent", "agent": "Burn", "level": 10},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50], "animation_dilation": [1, 1, 1.5, 3, 1]}},
+    {"op": "set_speed", "speed": 2, "expect": true},
+    {"op": "post_city_init"},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 12},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth", "data1": 2451576}, "events": [
+      {"agent": "budget", "data3": 2},
+      {"agent": "ordinance", "data3": 2},
+      {"agent": "neighbours", "data3": 2},
+      {"agent": "power", "data3": 2}
+    ]},
+
+    {"op": "remove_agent", "agent": "budget", "level": 6},
+    {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "tick", "count": 60},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth", "data1": 2451605}, "events": [
+      {"agent": "ordinance", "data3": 3},
+      {"agent": "neighbours", "data3": 3},
+      {"agent": "power", "data3": 3},
+      {"agent": "budget", "data3": 3}
+    ]}
+  ]
+}

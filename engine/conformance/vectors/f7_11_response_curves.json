@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "response_curves",
+  "spec": ["foundations 4", "foundations 7.11"],
+  "description": "Every worked example of foundations 4.4 (relative tolerance 1e-6 unless stated), plus one point (constant), an odd value count (last value ignored) and zero points (0.0, curve treated as absent).",
+  "steps": [
+    {"op": "curve", "points": [0, 0, 100, 100, 120, 110],
+      "eval": [[-10, 0], [0, 0], [50, 50], [100, 100], [110, 105], [150, 110]]},
+    {"op": "curve", "points": [0, 50, 20, 55, 40, 60, 60, 65, 200, 100],
+      "eval": [[10, 52.5], [60, 65], [100, 75], [250, 100]]},
+    {"op": "curve", "points": [-1, 0.1, -0.7, 0.07, 0, 0, 0.7, -0.07, 1, -0.1],
+      "eval": [[-2, 0.1], [-0.85, 0.085], [0.35, -0.035], [1.5, -0.1]], "tolerance": 1e-5},
+    {"op": "curve", "points": [0, 0, 80, 0, 90, 10, 100, 100],
+      "eval": [[50, 0], [85, 5], [95, 55], [100, 100]]},
+    {"op": "curve", "points": [0, 0, 512, 0.1, 1024, 50],
+      "eval": [[256, 0.05], [768, 25.05], [2000, 50]], "tolerance": 1e-4},
+    {"op": "curve", "points": [0, 0, 255, 0], "eval": [[0, 0], [128, 0], [300, 0]]},
+    {"op": "curve", "points": [0, 1e-5, 0.0075, 0.0075, 1, 0.075],
+      "eval": [[0, 1e-5], [0.5, 0.040995], [2, 0.075]], "tolerance": 1e-5},
+    {"op": "curve", "points": [0, 0, 5, 10, 5, 20, 10, 30],
+      "eval": [[4.999, 9.998], [5, 20], [7.5, 25]], "tolerance": 1e-5},
+    {"op": "curve", "points": [0, 0, 5, 20, 5, 10, 10, 0],
+      "eval": [[4.9, 19.6], [5, 10], [7.5, 5]]},
+    {"op": "curve", "points": [0, 0, 10, 10, 5, 20, 20, 40],
+      "eval": [[5, 5], [10, 26.6666667], [15, 33.3333333], [20, 40]]},
+    {"op": "curve", "points": [3, 7], "absent": false, "eval": [[-1e9, 7], [3, 7], [1e9, 7]]},
+    {"op": "curve", "points": [0, 0, 10, 10, 99], "eval": [[20, 10], [5, 5]]},
+    {"op": "curve", "points": [], "absent": true, "eval": [[1, 0]]},
+    {"op": "curve", "points": [5], "absent": true}
+  ]
+}

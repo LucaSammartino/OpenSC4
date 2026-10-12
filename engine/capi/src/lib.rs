@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 4;
+pub const FC4_ABI_VERSION: u32 = 6;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -730,5 +730,11 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
     true
 }
 
+pub mod budget;
+pub mod stream;
+
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod budget_tests;
