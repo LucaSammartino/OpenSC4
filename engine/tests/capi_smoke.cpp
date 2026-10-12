@@ -83,7 +83,9 @@ void TestDays() {
     fc4_tuning t{table, 3, nullptr, 0};
     CHECK(fc4_sim_init(sim, &t));
     CHECK(fc4_sim_set_sim_speed(sim, 2));
-    CHECK(fc4_sim_hidden_resume(sim));
+    CHECK(fc4_sim_is_hidden_paused(sim));  // Init leaves the simulator hidden-paused
+    CHECK(fc4_sim_on_post_city_init(sim));
+    CHECK(!fc4_sim_is_hidden_paused(sim));
     for (int i = 0; i < 100; ++i) CHECK(fc4_sim_on_tick(sim));
 
     fc4_state st{};

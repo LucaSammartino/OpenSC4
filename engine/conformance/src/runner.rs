@@ -634,6 +634,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
         "resume" => check_expect_bool(op, sim.resume()),
         "hidden_pause" => check_expect_bool(op, sim.hidden_pause()),
         "hidden_resume" => check_expect_bool(op, sim.hidden_resume()),
+        "post_city_init" => check_expect_bool(op, sim.on_post_city_init()),
         "emergency_pause" => check_expect_bool(op, sim.emergency_pause()),
         "emergency_resume" => check_expect_bool(op, sim.emergency_resume()),
         "set_speed" => check_expect_bool(op, sim.set_sim_speed(int(op, "speed")? as i32)),

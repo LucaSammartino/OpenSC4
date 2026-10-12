@@ -2,7 +2,7 @@
   "format": 1,
   "name": "speed_and_dilation",
   "spec": ["3", "6", "7", "9"],
-  "description": "Init applies speed 0 when unset; DoSetSimSpeed sets targetFps 30/20/15 and msPerDay from the table; out-of-range speeds keep fps/msPerDay ([choice]); animation dilation selection; sim time accessor; SetMaxMillisecondsPerTick is ignored; tuning arrays of the wrong length are ignored.",
+  "description": "Init applies speed 0 when unset; DoSetSimSpeed sets targetFps 30/20/15 and msPerDay from the table; a speed outside 0..2 changes nothing and posts nothing ([compat], spec revision); animation dilation selection; sim time accessor; SetMaxMillisecondsPerTick is ignored; tuning arrays of the wrong length are ignored.",
   "steps": [
     {"op": "expect_state", "state": {"initialized": false, "sim_speed": 3, "ms_per_day": 100, "target_fps": 15, "frame_budget_ms": 15, "gate_level": 4,
       "ms_per_day_table": [5000, 1000, 100], "animation_dilation": [0, 1, 1.5, 2, 1], "speed_change_enabled": true}},
@@ -29,12 +29,14 @@
     {"op": "emergency_pause"},
     {"op": "expect_dilation", "value": 1.0},
     {"op": "emergency_resume"},
-    {"op": "set_speed", "speed": 7, "expect": true},
-    {"op": "expect_state", "state": {"sim_speed": 7, "ms_per_day": 100, "target_fps": 15}},
-    {"op": "expect_dilation", "value": 1.0},
+    {"op": "set_speed", "speed": 7, "expect": true, "note": "DoSetSimSpeed(7) changes nothing and posts nothing [compat]"},
+    {"op": "set_speed", "speed": -1, "expect": true},
+    {"op": "set_speed", "speed": 3, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 2, "ms_per_day": 100, "target_fps": 15}},
+    {"op": "expect_dilation", "value": 2.0},
     {"op": "set_speed", "speed": 0},
     {"op": "expect_events", "filter": {"type": "SpeedChanged"}, "events": [
-      {"data1": 1}, {"data1": 2}, {"data1": 7}, {"data1": 0}
+      {"data1": 1}, {"data1": 2}, {"data1": 0}
     ]},
 
     {"op": "set_sim_time", "time": 123456, "expect": true},

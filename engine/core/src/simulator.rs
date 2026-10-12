@@ -297,12 +297,12 @@ impl State {
     }
 
     fn do_set_sim_speed(&mut self, speed: i32, host: &dyn Host) {
-        if (0..=2).contains(&speed) {
-            self.target_fps = TARGET_FPS_BY_SPEED[speed as usize];
-            self.ms_per_day = self.ms_per_day_table[speed as usize];
+        // §6 [compat]: any speed outside {0, 1, 2} changes nothing and posts nothing.
+        if !(0..=2).contains(&speed) {
+            return;
         }
-        // [choice] any other speed leaves targetFps and msPerDay unchanged
-        // (the spec's msPerDayTable[s] would be out of range).
+        self.target_fps = TARGET_FPS_BY_SPEED[speed as usize];
+        self.ms_per_day = self.ms_per_day_table[speed as usize];
         self.sim_speed = speed;
         self.interval_timer = host.now_ms();
         self.post(msg::SPEED_CHANGED, i64::from(speed), 0, 0);
@@ -794,6 +794,13 @@ impl Simulator {
             }
             true
         })
+    }
+
+    /// Notification `0x26D31EC1` (PostCityInit, spec §9): the city finished
+    /// initialising, so release the hidden pause that `init` set. Unsubscribing
+    /// from the notification is the host's job.
+    pub fn on_post_city_init(&self) -> bool {
+        self.hidden_resume()
     }
 
     pub fn emergency_pause(&self) -> bool {

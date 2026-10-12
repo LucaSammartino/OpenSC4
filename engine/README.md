@@ -9,8 +9,8 @@ gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anyt
 | [`core/`](core/) | `fc4-core`: the portable simulation core. No GZCOM or OS types, no `unsafe`. | Rust |
 | [`capi/`](capi/) | `fc4-capi`: a stable C ABI over the core (`include/fc4.h`), built as a static library | Rust + C header |
 | [`conformance/`](conformance/) | Language-neutral JSON test vectors (the migration contract) and their Rust runner | JSON + Rust |
-| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director plus the `cISC4Simulator` adapter over the C ABI. Windows, x86 only. | C++17 |
-| [`tests/`](tests/) | `capi_smoke`: drives the C ABI from C++ with the plugin's compiler and CRT | C++17 |
+| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director, the `cISC4Simulator` adapter over the C ABI, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
+| [`tests/`](tests/) | `capi_smoke` (drives the C ABI from C++ with the plugin's compiler and CRT) and `message_test` (foundations §7 item 12) | C++17 |
 | `third_party/gzcom-dll/` | gzcom-dll SDK (LGPL-2.1+), git submodule | C++ |
 
 ```
@@ -71,7 +71,7 @@ plugin.
 2. Start the game. `FreeCity4.log` appears next to the DLL, or in `%TEMP%` if that folder is not writable.
    - On start you should see `FreeCity4 … loaded (… replacement mode)` and `PostAppInit (simulator class 0x2990C1E5
      provided by FreeCity4)`.
-   - When a city opens, you should see `cFC4Simulator created`, `Init: …` and `Read: …`. While the city runs you
+   - When a city opens, you should see `cFC4Simulator created`, `Read: …`, `Init: …` and then `PostCityInit: hidden pause released`. While the city runs you
      should see one `SimNewMonth …` line per game month.
 3. **A/B against the original:** set `FC4_DISABLE_SIMULATOR=1` in the environment that starts the game. The DLL
    still loads and logs `PASSTHROUGH`, but it does not register the class, so the game's own simulator runs.

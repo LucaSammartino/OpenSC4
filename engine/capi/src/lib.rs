@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 1;
+pub const FC4_ABI_VERSION: u32 = 2;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -327,6 +327,7 @@ bool_entry!(fc4_sim_pause, *mut fc4_sim, pause);
 bool_entry!(fc4_sim_resume, *mut fc4_sim, resume);
 bool_entry!(fc4_sim_hidden_pause, *mut fc4_sim, hidden_pause);
 bool_entry!(fc4_sim_hidden_resume, *mut fc4_sim, hidden_resume);
+bool_entry!(fc4_sim_on_post_city_init, *mut fc4_sim, on_post_city_init);
 bool_entry!(fc4_sim_emergency_pause, *mut fc4_sim, emergency_pause);
 bool_entry!(fc4_sim_emergency_resume, *mut fc4_sim, emergency_resume);
 bool_entry!(fc4_sim_is_paused, *const fc4_sim, is_paused);

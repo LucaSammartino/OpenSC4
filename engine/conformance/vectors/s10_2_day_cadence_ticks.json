@@ -16,7 +16,7 @@
     {"op": "set_speed", "speed": 2, "expect": true},
     {"op": "expect_state", "state": {"sim_speed": 2, "ms_per_day": 50, "target_fps": 15}},
     {"op": "expect_dilation", "value": 3.0},
-    {"op": "hidden_resume"},
+    {"op": "post_city_init"},
     {"op": "clear_events"},
 
     {"op": "tick"},

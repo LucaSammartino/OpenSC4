@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "post_city_init",
+  "spec": ["5.1", "9"],
+  "description": "Init leaves the simulator hidden-paused (no work on ticks). Notification 0x26D31EC1 (PostCityInit) calls HiddenResume: HiddenPauseChanged(0) is posted and the clock starts. (Spec erratum: it is not a shutdown request; the simulator stays initialized and keeps its agents.) A second PostCityInit, which cannot happen in the game because the host unsubscribes, would just be another HiddenResume.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {"D": {}, "Burn": {"cost_ms": 1}},
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "add_agent", "agent": "Burn", "level": 10},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50]}},
+    {"op": "set_speed", "speed": 2},
+    {"op": "expect_state", "state": {"initialized": true, "hidden_pause_count": 1}},
+    {"op": "expect_paused", "paused": false, "hidden": true, "emergency": false, "any": true},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 5},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"julian": 2451545, "frame_budget_ms": 33}},
+
+    {"op": "post_city_init", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "HiddenPauseChanged", "data1": 0, "data2": 0, "data3": 0}
+    ]},
+    {"op": "expect_state", "state": {"initialized": true, "hidden_pause_count": 0, "agent_counts": {"4": 1, "10": 1}}},
+    {"op": "expect_paused", "hidden": false, "any": false},
+    {"op": "tick", "count": 5},
+    {"op": "expect_event_count", "filter": {"agent": "D"}, "min": 2},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "min": 1},
+    {"op": "expect_event_count", "filter": {"event": "release"}, "count": 0},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data1", "start": 2451546, "step": 1}
+  ]
+}

@@ -44,7 +44,8 @@
 extern "C" {
 #endif
 
-#define FC4_ABI_VERSION 1u
+/* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init. */
+#define FC4_ABI_VERSION 2u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -170,6 +171,9 @@ bool fc4_sim_pause(fc4_sim* sim);
 bool fc4_sim_resume(fc4_sim* sim);
 bool fc4_sim_hidden_pause(fc4_sim* sim);
 bool fc4_sim_hidden_resume(fc4_sim* sim);
+/* Notification 0x26D31EC1 (PostCityInit, spec §9): releases the hidden pause set
+ * by Init. The caller unsubscribes from the notification itself. */
+bool fc4_sim_on_post_city_init(fc4_sim* sim);
 bool fc4_sim_emergency_pause(fc4_sim* sim);
 bool fc4_sim_emergency_resume(fc4_sim* sim);
 bool fc4_sim_is_paused(const fc4_sim* sim);

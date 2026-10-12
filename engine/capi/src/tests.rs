@@ -66,7 +66,7 @@ fn make(rec: &Recorder) -> *mut fc4_sim {
 
 #[test]
 fn abi_version_and_layout() {
-    assert_eq!(fc4_abi_version(), 1);
+    assert_eq!(fc4_abi_version(), FC4_ABI_VERSION);
     let mut widths: *const u8 = std::ptr::null();
     let n = unsafe { fc4_record_layout(4, &mut widths) };
     assert_eq!(n, 30);
@@ -128,7 +128,9 @@ fn tick_delivers_and_posts_days() {
         assert!(fc4_sim_add_agent(sim, 7, 4, name.as_ptr() as _, name.len(), 3));
         assert!(fc4_sim_init(sim, &tuning));
         assert!(fc4_sim_set_sim_speed(sim, 2));
-        assert!(fc4_sim_hidden_resume(sim));
+        assert!(fc4_sim_is_hidden_paused(sim));
+        assert!(fc4_sim_on_post_city_init(sim));
+        assert!(!fc4_sim_is_hidden_paused(sim));
         for _ in 0..40 {
             fc4_sim_on_tick(sim);
         }

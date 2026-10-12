@@ -54,7 +54,9 @@ pub mod msg {
     pub const EMERGENCY_PAUSE_CHANGED: u32 = 0x4A7F_B807;
     pub const SPEED_CHANGED: u32 = 0x4A7F_B7E9;
 
-    pub const SHUTDOWN_REQUEST: u32 = 0x26D3_1EC1;
+    /// kSC4MessagePostCityInit: posted once the city has finished `Init`
+    /// (spec §9 erratum: it is not a shutdown request).
+    pub const POST_CITY_INIT: u32 = 0x26D3_1EC1;
     pub const CMD_GET_SIMULATION_DATE: u32 = 0x8BAC_4B43;
     pub const CHEAT_ISSUED: u32 = 0x230E_27AC;
 }

@@ -9,7 +9,7 @@
     {"op": "add_agent", "agent": "D", "level": 4},
     {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50]}},
     {"op": "set_speed", "speed": 2},
-    {"op": "hidden_resume"},
+    {"op": "post_city_init"},
     {"op": "clear_events"},
     {"op": "tick", "count": 100},
     {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "min": 20},

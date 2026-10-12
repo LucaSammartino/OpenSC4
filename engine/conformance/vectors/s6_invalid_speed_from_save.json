@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "invalid_speed_from_save",
+  "spec": ["6", "8", "9"],
+  "description": "A save whose simSpeed is neither 3 (unset) nor 0..2: Init applies DoSetSimSpeed(simSpeed), which changes nothing and posts nothing [compat]. simSpeed keeps the loaded value and targetFps / msPerDay keep their defaults. SetSimSpeed(s) with s != simSpeed still returns true.",
+  "steps": [
+    {"op": "load", "record": {"sim_speed": 9}, "expect": "ok"},
+    {"op": "init"},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"sim_speed": 9, "ms_per_day": 100, "target_fps": 15}},
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "set_speed", "speed": 4, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 9}},
+    {"op": "set_speed", "speed": 1, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SpeedChanged", "data1": 1}
+    ]},
+    {"op": "expect_state", "state": {"sim_speed": 1, "ms_per_day": 1000, "target_fps": 20}}
+  ]
+}

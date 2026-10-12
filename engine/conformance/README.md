@@ -121,6 +121,9 @@ the method's return value.
 `pause`, `resume`, `hidden_pause`, `hidden_resume`, `emergency_pause`, `emergency_resume`; `set_speed {speed}`;
 `set_sim_time {time}`; `set_max_ms_per_tick {ms}`; `set_city_established {value}`.
 
+**Notifications** (§9): `post_city_init` delivers notification `0x26D31EC1` (PostCityInit), which calls
+`HiddenResume`. Unsubscribing is the host's job and is not modelled.
+
 **Agents** (§4)
 
 | op | Arguments |
@@ -193,4 +196,4 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 | 6 pause / emergency | `s10_6_pause_and_emergency` |
 | 7 enabled bits | `s10_7_enabled_bits`, `s10_7_disabled_agents_skipped` |
 | 8 save round trip | `s10_8_save_load` |
-| other sections | `s4_reentrancy_and_cursors`, `s5_1_on_tick_guards`, `s5_2_minute_and_hour_levels`, `s5_3_begin_new_interval_flush`, `s5_4_idle_time`, `s6_speed_and_dilation`, `s9_cheats` |
+| other sections | `s4_reentrancy_and_cursors`, `s5_1_on_tick_guards`, `s5_2_minute_and_hour_levels`, `s5_3_begin_new_interval_flush`, `s5_4_idle_time`, `s6_speed_and_dilation`, `s6_invalid_speed_from_save`, `s9_cheats`, `s9_post_city_init` |

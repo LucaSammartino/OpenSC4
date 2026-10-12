@@ -116,6 +116,6 @@ private:
     bool simDateCheatRegistered_ = false;
     bool commandRegistered_ = false;
     bool addedToFramework_ = false;
-    bool loggedPostFallback_ = false;
+    bool postCityInitSubscribed_ = false;
     uint32_t daysLogged_ = 0;
 };

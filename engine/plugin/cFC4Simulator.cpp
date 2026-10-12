@@ -20,7 +20,6 @@
 #include "SC4Vector.h"
 #include "cGZPersistResourceKey.h"
 #include "cIGZApp.h"
-#include "cIGZCOM.h"
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cIGZFrameWork.h"
@@ -36,8 +35,8 @@
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
 #include "cRZBaseString.h"
+#include "cFC4Message2Standard.h"
 #include "cRZCOMDllDirector.h"
-#include "cRZMessage2Standard.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -60,7 +59,7 @@ constexpr uint32_t kServiceID = 0x46956659;
 constexpr int32_t kServicePriority = -2000000;
 
 // Messages (spec §9).
-constexpr uint32_t kMsgShutdownRequest = 0x26D31EC1;
+constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;  // kSC4MessagePostCityInit (spec §9 erratum)
 constexpr uint32_t kCmdGetSimulationDate = 0x8BAC4B43;
 constexpr uint32_t kMsgCheatIssued = 0x230E27AC;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
@@ -84,11 +83,10 @@ std::string ToStd(cIGZString const& s) {
     return p ? std::string(p, s.Strlen()) : std::string();
 }
 
-void FillStandard(cIGZMessage2Standard& m, const fc4_message& src) {
-    m.SetType(src.type);
-    m.SetData1(static_cast<intptr_t>(src.data1));
-    m.SetData2(static_cast<intptr_t>(src.data2));
-    m.SetData3(static_cast<intptr_t>(src.data3));
+// A fresh standard message (foundations §5.1), already AddRef'd once.
+cFC4Message2Standard* MakeMessage(const fc4_message& src) {
+    return FC4MakeMessage(src.type, static_cast<intptr_t>(src.data1), static_cast<intptr_t>(src.data2),
+                          static_cast<intptr_t>(src.data3));
 }
 
 }  // namespace
@@ -172,10 +170,13 @@ uint32_t cFC4Simulator::HostNowMs(void*) {
 bool cFC4Simulator::HostDeliver(void*, fc4_sim*, fc4_agent agent, const fc4_message* msg) {
     cIGZMessageTarget2* target = AgentPtr(agent);
     if (target == nullptr || msg == nullptr) return true;
-    // Synchronous delivery (spec §4): a stack message is enough.
-    cRZMessage2Standard m;
-    FillStandard(m, *msg);
-    return target->DoMessage(static_cast<cIGZMessage2Standard*>(&m));
+    // Synchronous delivery (spec §4) with the simulator's pattern from
+    // foundations §5.1: create, AddRef, set, send, Release. An agent that
+    // keeps the message (AddRef) keeps it alive.
+    cFC4Message2Standard* m = MakeMessage(*msg);
+    const bool finished = target->DoMessage(m);
+    m->Release();
+    return finished;
 }
 
 void cFC4Simulator::HostAddRef(void*, fc4_agent agent) {
@@ -198,27 +199,10 @@ void cFC4Simulator::Post(const fc4_message& msg) {
         fc4::Log("SimNewMonth %04d-%02d-%02d (julian %d)", d.year, d.month, d.day_of_month, d.julian);
     }
     if (msgServer_ == nullptr) return;
-
-    // [choice] A queued post needs a reference-counted message that outlives
-    // this call, so ask GZCOM for the game's own cRZMessage2Standard class.
-    cIGZMessage2Standard* m = nullptr;
-    cIGZCOM* com = GZCOM();
-    if (com != nullptr && com->GetClassObject(GZCLSID_cRZMessage2Standard, GZIID_cIGZMessage2Standard,
-                                              reinterpret_cast<void**>(&m)) &&
-        m != nullptr) {
-        FillStandard(*m, msg);
-        msgServer_->MessagePost(m, false);
-        m->Release();
-        return;
-    }
-    // Fallback: synchronous send with a stack message.
-    if (!loggedPostFallback_) {
-        loggedPostFallback_ = true;
-        fc4::Log("cFC4Simulator: could not create a message object; falling back to MessageSend");
-    }
-    cRZMessage2Standard local;
-    FillStandard(local, msg);
-    msgServer_->MessageSend(static_cast<cIGZMessage2Standard*>(&local));
+    // Queued broadcast (spec §5.2): the queue holds its own reference (foundations §5.1).
+    cFC4Message2Standard* m = MakeMessage(msg);
+    msgServer_->MessagePost(m, false);
+    m->Release();
 }
 
 // ---- lifecycle (spec §9) ---------------------------------------------------------------
@@ -285,7 +269,8 @@ bool cFC4Simulator::Init() {
     if (ms) {
         msgServer_ = ms;
         msgServer_->AddRef();
-        msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), kMsgShutdownRequest);
+        msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), kMsgPostCityInit);
+        postCityInitSubscribed_ = true;
         msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), kCmdGetSimulationDate);
     } else {
         fc4::Log("Init: no message server");
@@ -330,7 +315,10 @@ bool cFC4Simulator::Shutdown() {
     fc4_sim_shutdown(sim_);      // steps 2, 3, 7
 
     if (msgServer_ != nullptr) {  // step 4
-        msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgShutdownRequest);
+        if (postCityInitSubscribed_) {
+            msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgPostCityInit);
+            postCityInitSubscribed_ = false;
+        }
         msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kCmdGetSimulationDate);
         msgServer_->Release();
         msgServer_ = nullptr;
@@ -569,11 +557,19 @@ int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  //
 bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr) return true;
     switch (pMessage->GetType()) {
-        case kMsgShutdownRequest:
-            if (msgServer_ != nullptr) {
-                msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgShutdownRequest);
+        case kMsgPostCityInit:
+            // Spec §9 (erratum): the city finished Init. Unsubscribe and
+            // release the hidden pause set by Init so the clock starts.
+            // [choice] A copy that was already queued when we unsubscribed is
+            // ignored, so the hidden pause is released only once per Init.
+            if (postCityInitSubscribed_) {
+                postCityInitSubscribed_ = false;
+                if (msgServer_ != nullptr) {
+                    msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgPostCityInit);
+                }
+                fc4_sim_on_post_city_init(sim_);
+                fc4::Log("PostCityInit: hidden pause released (hidden=%d)", fc4_sim_is_hidden_paused(sim_) ? 1 : 0);
             }
-            Shutdown();
             break;
 
         case kCmdGetSimulationDate:

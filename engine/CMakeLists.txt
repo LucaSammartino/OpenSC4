@@ -104,13 +104,14 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Simulator.h
         plugin/cFC4Date.cpp
         plugin/cFC4Date.h
+        plugin/cFC4Message2Standard.cpp
+        plugin/cFC4Message2Standard.h
         plugin/FC4Log.cpp
         plugin/FC4Log.h
-        # gzcom-dll SDK sources (LGPL-2.1-or-later)
+        # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
+        # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
-        "${FC4_GZCOM_DIR}/src/cRZMessage2.cpp"
-        "${FC4_GZCOM_DIR}/src/cRZMessage2Standard.cpp"
         "${FC4_GZCOM_DIR}/src/SC4String.cpp")
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
@@ -120,6 +121,16 @@ if(FC4_IS_WIN32_X86)
     target_link_libraries(FreeCity4 PRIVATE fc4_capi)
     set_target_properties(FreeCity4 PROPERTIES OUTPUT_NAME "FreeCity4" PREFIX "")
     # The only export is GZDllGetGZCOMDirector (from cRZCOMDllDirector.cpp).
+
+    # foundations §7 item 12: the plugin's standard message class.
+    add_executable(fc4_message_test
+        tests/message_test.cpp
+        plugin/cFC4Message2Standard.cpp
+        "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp")
+    target_include_directories(fc4_message_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_compile_definitions(fc4_message_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
+    target_compile_options(fc4_message_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME message_test COMMAND fc4_message_test)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()
