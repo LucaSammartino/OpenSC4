@@ -452,8 +452,9 @@ public:
     virtual bool Shutdown() = 0;                                                 // 4
     virtual cISC4Lot* GetLotAtPoint(cS3DVector3 const& point) = 0;               // 5  GetLot(cS3DVector3 const&)
     virtual cISC4Lot* GetLot(int32_t cellX, int32_t cellZ, bool b) = 0;          // 6  GetLot(x, z, bool)
-    virtual bool GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
-                                   bool locationOnly) = 0;                       // 7
+    // Returns the number of lots appended (budget Errata round 2, item 5; SDK: bool).
+    virtual uint32_t GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+                                       bool locationOnly) = 0;                   // 7
     virtual bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, SC4List<cISC4Lot*>& lots,
                                         int32_t flags) = 0;                      // 8  GetLotsSurroundingLot(x, z, ...)
     virtual bool GetLotsSurroundingLot(cISC4Lot const* lot, SC4List<cISC4Lot*>& lots, int32_t flags) = 0;  // 9

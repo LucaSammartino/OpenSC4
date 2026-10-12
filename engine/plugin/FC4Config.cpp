@@ -55,6 +55,8 @@ const SwitchInfo kSwitches[kCount] = {
     {"lot_land_value", "FC4_BUDGET_LOT_LAND_VALUE"},
     {"lot_size", "FC4_BUDGET_LOT_SIZE"},
     {"lot_state", "FC4_BUDGET_LOT_STATE"},
+    {"lot_release", "FC4_BUDGET_LOT_RELEASE"},
+    {"lot_list_free", "FC4_BUDGET_LOT_LIST_FREE"},
 };
 
 // Keys that are not switches.
@@ -64,7 +66,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
-volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

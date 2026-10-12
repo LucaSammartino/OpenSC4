@@ -278,6 +278,62 @@ void VisitLot(cFC4ISC4Lot* lot, cISC4LandValueSimulator* lv, fc4_lot_visitor vis
     visit(ctx, &info);
 }
 
+volatile LONG g_lotScans = 0;  // ForEachLot list scans so far
+
+// The list's head node (SC4List is one pointer: its root).
+SC4ListNode<cISC4Lot*>* ListHead(SC4List<cISC4Lot*>& list) {
+    static_assert(sizeof(SC4List<cISC4Lot*>) == sizeof(void*), "SC4List layout: the root pointer");
+    static_assert(sizeof(SC4ListNode<cISC4Lot*>) == 3 * sizeof(void*), "SC4List node: next, prev, value");
+    return *reinterpret_cast<SC4ListNode<cISC4Lot*>**>(&list);
+}
+
+// The GetLotsInCellRect path of ForEachLot on `list` (owned by the caller).
+void ScanLotList(cFC4ISC4LotManager* lm, SC4List<cISC4Lot*>& list, int32_t maxX, int32_t maxZ,
+                 cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx, long scan) {
+    const bool detail = kCheckedBuild && scan <= 3;
+    SC4ListNode<cISC4Lot*>* const headBefore = ListHead(list);
+    const uint32_t returned = lm->GetLotsInCellRect(list, 0, 0, maxX, maxZ, false);  // slot 7
+    if (detail) {
+        SC4ListNode<cISC4Lot*>* head = ListHead(list);
+        char nodes[256] = "";
+        size_t used = 0;
+        SC4ListNode<cISC4Lot*>* n = head->next;
+        for (int i = 0; i < 3 && n != head; ++i, n = n->next) {
+            const int w = _snprintf_s(nodes + used, sizeof(nodes) - used, _TRUNCATE, "%s%p{next %p, prev %p, value %p}",
+                                      i ? " " : "", static_cast<void*>(n), static_cast<void*>(n->next),
+                                      static_cast<void*>(n->prev), static_cast<void*>(n->value));
+            if (w < 0) break;
+            used += static_cast<size_t>(w);
+        }
+        Log("budget lot scan #%ld: list %p, head %p (before the call %p; head next %p, prev %p), first nodes: %s", scan,
+            static_cast<void*>(&list), static_cast<void*>(head), static_cast<void*>(headBefore),
+            static_cast<void*>(head->next), static_cast<void*>(head->prev), used ? nodes : "-");
+    }
+    uint32_t iterated = 0, nulls = 0;
+    for (cISC4Lot*& sdkLot : list) {
+        ++iterated;
+        if (sdkLot == nullptr) {
+            ++nulls;
+            continue;
+        }
+        FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
+        VisitLot(AsGame(sdkLot), lv, visit, ctx);
+    }
+    const bool release = On(Sw::LotRelease);
+    if (!release) NoteSkipped(Sw::LotRelease, "Release of the list's lots (one reference leaked per lot)");
+    for (cISC4Lot*& sdkLot : list) {
+        if (sdkLot == nullptr) continue;
+        if (release) FC4_RELEASE(sdkLot);
+        sdkLot = nullptr;  // the list destructor then only frees its nodes
+    }
+    if (detail || iterated != returned) {
+        Log("budget lot scan #%ld: GetLotsInCellRect returned %u, ForEachLot iterated %u node(s) (%u null)%s", scan,
+            returned, iterated, nulls, iterated != returned ? " MISMATCH" : "");
+    } else {
+        Log("budget lot scan #%ld: %u lots", scan, iterated);  // one line per scan (expected monthly)
+    }
+}
+
 void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     if (!On(Sw::LotScan)) {
         NoteSkipped(Sw::LotScan, "ForEachLot (no lots: property tax 0)");
@@ -306,18 +362,16 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     // [choice] Every lot of the city through one rectangle query; the game
     // appends one reference per lot (budget Errata round 2, item 5), which we
     // release below (audited) before the list frees its nodes.
-    FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
-    lm->GetLotsInCellRect(lots.get(), 0, 0, maxX, maxZ, false);  // slot 7
-    lots.Check();
-    for (cISC4Lot*& sdkLot : lots.get()) {
-        if (sdkLot == nullptr) continue;
-        FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
-        VisitLot(AsGame(sdkLot), lv, visit, ctx);
-    }
-    for (cISC4Lot*& sdkLot : lots.get()) {
-        if (sdkLot == nullptr) continue;
-        FC4_RELEASE(sdkLot);
-        sdkLot = nullptr;  // the list destructor then only frees its nodes
+    const long scan = InterlockedIncrement(&g_lotScans);
+    if (On(Sw::LotListFree)) {
+        FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
+        ScanLotList(lm, lots.get(), maxX, maxZ, lv, visit, ctx, scan);
+        lots.Check();
+    } else {
+        // Bisection: the list (head and nodes) is never freed.
+        NoteSkipped(Sw::LotListFree, "SC4List destruction (list leaked)");
+        auto* leaked = new SC4List<cISC4Lot*>();
+        ScanLotList(lm, *leaked, maxX, maxZ, lv, visit, ctx, scan);
     }
 }
 

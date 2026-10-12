@@ -67,6 +67,10 @@ enum class Sw : unsigned {
     LotLandValue,      // lot_land_value: GetLocation + GetLandValue
     LotSize,           // lot_size: GetSize (off: 1 x 1)
     LotState,          // lot_state: IsInLivableState + GetOccupantWealth (off: livable, wealth 0)
+    LotRelease,        // lot_release: Release the list's lots (off: leak one reference per
+                       //   lot per scan; the entries are still nulled)
+    LotListFree,       // lot_list_free: destroy the SC4List (off: the list is heap-allocated
+                       //   and leaked, head and nodes included)
     Count
 };
 
