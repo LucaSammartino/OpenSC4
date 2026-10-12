@@ -43,7 +43,10 @@
 #include "cIGZPersistResourceManager.h"
 #include "cIGZString.h"
 #include "cIGZVariant.h"
+#include "cISC4App.h"
 #include "cISC4BudgetSimulator.h"
+#include "cISC4City.h"
+#include "cISC4ResidentialSimulator.h"
 #include "cISC4BuildingDevelopmentSimulator.h"
 #include "cISC4Demand.h"
 #include "cISC4DemandSimulator.h"
@@ -224,7 +227,7 @@ std::vector<std::string> Split(const std::string& line) {
     return out;
 }
 
-bool LoadTable(const char* path, Table& table) {
+bool LoadTable(const char* path, Table& table, const char* keyColumn = "interface", const char* prefix = "") {
     std::ifstream f(path, std::ios::binary);
     if (!f) return false;
     std::string line;
@@ -237,7 +240,7 @@ bool LoadTable(const char* path, Table& table) {
         }
         return -1;
     };
-    const int cIface = col("interface"), cSlot = col("slot"), cPop = col("callee_pop"), cRet = col("ret"),
+    const int cIface = col(keyColumn), cSlot = col("slot"), cPop = col("callee_pop"), cRet = col("ret"),
               cMethod = col("method"), cNotes = col("notes");
     if (cIface < 0 || cSlot < 0 || cPop < 0 || cRet < 0) return false;
     while (std::getline(f, line)) {
@@ -250,7 +253,7 @@ bool LoadTable(const char* path, Table& table) {
         r.ret = v[cRet];
         r.method = cMethod >= 0 ? v[cMethod] : "";
         r.notes = cNotes >= 0 ? v[cNotes] : "";
-        table[v[cIface]][std::atoi(v[cSlot].c_str())] = r;
+        table[prefix + v[cIface]][std::atoi(v[cSlot].c_str())] = r;
     }
     return true;
 }
@@ -309,6 +312,31 @@ const Waiver kWaivers[] = {
      "the SDK declares 12 argument bytes, the game's method pops 16"},
     {"cISC4OrdinanceSimulator", "cISC4OrdinanceSimulator", 24, "GetCumulativeOffset",
      "the SDK says int64, the game returns 32 bits in eax"},
+    {"vt:cSC4City::vftable", "cISC4City", 96, "CellCornerToPosition", "the game returns in ST0"},
+    {"vt:cSC4City::vftable", "cISC4City", 97, "CellCenterToPosition", "the game returns in ST0"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 10, "ChanceOfSchoolStrike",
+     "pops 4 and returns in eax (SDK: no argument, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 11, "ChanceOfHealthStrike",
+     "pops 4 and returns in eax (SDK: no argument, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 12, "GetSchoolSystemRating",
+     "pops 4 and returns in eax (SDK: no argument, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 13, "GetHealthSystemRating",
+     "pops 4 and returns in eax (SDK: no argument, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 30, "GetCellWorkforcePercent",
+     "pops 12 and returns in eax (SDK: 8 bytes, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 31, "GetGlobalWorkforcePercent",
+     "pops 4 and returns in eax (SDK: no argument, float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 34, "GetGlobalLE",
+     "returns in eax (SDK: float)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 56, "GetAutoBudget",
+     "pops 4 (SDK: no argument)"},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 57, "SetAutoBudget",
+     "pops 8 (SDK: 4 bytes)"},
+    {"vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", 8, "CalculateJobsPerUnitOfDemand",
+     "the game returns in ST0 (SDK: void)"},
+    {"cISC4Demand", "cISC4Demand", 16, "AddToSupplyValue", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4Demand", "cISC4Demand", 17, "AddToDemandValue", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4Demand", "cISC4Demand", 30, "EndOfCycle", "the game returns in eax (SDK: float)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {
@@ -358,7 +386,12 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "plugin source directory %s not found\n", pluginDir);
         return 2;
     }
-    std::printf("ABI table: %s (%u interfaces)\n", path, static_cast<unsigned>(table.size()));
+    // vtables.tsv next to it: whole vtables of the game's classes, for interfaces
+    // that interfaces.tsv does not curate (entries named "vt:<vtable>").
+    const std::string vtPath = (std::filesystem::path(path).parent_path() / "vtables.tsv").string();
+    const bool haveVtables = LoadTable(vtPath.c_str(), table, "class", "vt:");
+    std::printf("ABI table: %s (%u interfaces and vtables; vtables.tsv %s)\n", path,
+                static_cast<unsigned>(table.size()), haveVtables ? "loaded" : "NOT FOUND");
 
     int failures = 0, reported = 0, waived = 0, checkedSlots = 0;
     for (const AbiInterface& iface : kAbiInterfaces) {
@@ -410,7 +443,9 @@ int main(int argc, char** argv) {
         } else {
             const std::map<int, Row>& rows = t->second;
             const int tableSlots = rows.empty() ? 0 : rows.rbegin()->first + 1;
-            if (declared != tableSlots) {
+            // A whole class vtable (vt:) may have more slots than the interface.
+            const bool wholeVtable = std::strncmp(iface.table, "vt:", 3) == 0;
+            if (declared != tableSlots && !(wholeVtable && declared < tableSlots)) {
                 if (const SlotCount* k = ReviewedSlotCount(iface.table, declared, tableSlots)) {
                     if (iface.required) {
                         std::printf("  reviewed %s: declares %d slots, the table has %d: %s\n", iface.table,

@@ -277,6 +277,12 @@ const char* ModulePath() {
     return path;
 }
 
+void LogFlush() {
+    LogState& s = State();
+    if (s.file != INVALID_HANDLE_VALUE) FlushFileBuffers(s.file);
+    if (s.spare != INVALID_HANDLE_VALUE) FlushFileBuffers(s.spare);
+}
+
 void LogClose() {
     LogState& s = State();
     EnterCriticalSection(&s.lock);

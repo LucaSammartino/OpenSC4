@@ -21,6 +21,7 @@
 #include <windows.h>
 
 #include <cctype>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <string>
@@ -50,7 +51,11 @@ const SwitchInfo kSwitches[kCount] = {
 };
 
 // Keys that are not switches.
-const char* const kOtherKeys[] = {"disable", "budget_default", "refaudit", "refaudit_lines"};
+const char* const kOtherKeys[] = {"disable", "budget_default", "refaudit", "refaudit_lines", "autotest_seconds",
+                                  "autotest_unpause", "digest"};
+
+// The switches that are off, for lock-free readers (autotest verdict).
+char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
 volatile LONG g_skipped[kCount] = {};
@@ -146,6 +151,19 @@ std::string IniPath() {
 
 bool On(Sw s) { return s < Sw::Count && g_on[static_cast<unsigned>(s)] != 0; }
 
+const char* SwitchesOffList() { return g_offList; }
+
+long SettingInt(const char* iniKey, const char* envName, long fallback) {
+    const std::string v = Trim(Setting(iniKey, envName, nullptr));
+    if (v.empty()) return fallback;
+    const int b = ParseBool(v);
+    if (b == 0) return 0;
+    char* end = nullptr;
+    const long x = strtol(v.c_str(), &end, 10);
+    if (end != nullptr && *end == 0) return x;
+    return b == 1 ? 1 : fallback;
+}
+
 const char* SwitchName(Sw s) { return s < Sw::Count ? kSwitches[static_cast<unsigned>(s)].key : "?"; }
 
 void NoteSkipped(Sw s, const char* what) {
@@ -240,6 +258,18 @@ void ConfigReload(const char* why) {
     Log("config (%s): %s %s; budget_default=%d; set by ini: %s; set by env: %s", why, IniPath().c_str(),
         found ? "found" : "not found", def, fromIni.empty() ? "-" : fromIni.c_str(),
         fromEnv.empty() ? "-" : fromEnv.c_str());
+    strncpy_s(g_offList, off.empty() ? "-" : off.c_str(), _TRUNCATE);
+    for (char* p = g_offList; *p; ++p) {
+        if (*p == ' ') *p = ',';  // "a, b" -> "a,,b" is avoided below
+    }
+    {
+        // Compact "a,,b" (from ", ") to "a,b" for a single-token field.
+        char* w = g_offList;
+        for (const char* r = g_offList; *r; ++r) {
+            if (!(*r == ',' && w > g_offList && w[-1] == ',')) *w++ = *r;
+        }
+        *w = 0;
+    }
     if (offCount == 0) {
         Log("config (%s): all %u budget switches ON", why, kCount);
     } else {

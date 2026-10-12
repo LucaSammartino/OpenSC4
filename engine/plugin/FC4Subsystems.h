@@ -52,4 +52,9 @@ bool SubsystemEnabled(const Subsystem& s);
 // The enabled class entry for `clsid`, or nullptr.
 const ClassEntry* FindEnabledClass(uint32_t clsid, const Subsystem** owner = nullptr);
 
+// The disabled subsystems, comma-separated, or "-" (static buffer, any thread).
+const char* DisabledSubsystemsList();
+// Our simulator class is registered (replacement mode).
+bool SimulatorReplaced();
+
 }  // namespace fc4

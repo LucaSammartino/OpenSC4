@@ -607,11 +607,17 @@ public:
 };
 
 class cISC4Simulator;
+class cISC4BudgetSimulator;
 
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
 inline cFC4ISC4Simulator* AsGame(cISC4Simulator* p) { return reinterpret_cast<cFC4ISC4Simulator*>(p); }
+// The same for cISC4City::GetBudgetSimulator (the SDK's declaration has the
+// 32-bit monthly totals; the verified one returns 64-bit values).
+inline cFC4ISC4BudgetSimulator* AsGame(cISC4BudgetSimulator* p) {
+    return reinterpret_cast<cFC4ISC4BudgetSimulator*>(p);
+}
 
 // Department budgets travel as the SDK's cISC4DepartmentBudget* (the type the
 // SDK's budget signatures and containers use). Both are single-inheritance

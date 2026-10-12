@@ -83,6 +83,18 @@ void NoteInterfaceCall();
 // A first-chance exception outside our image (vectored handler).
 void NoteForeignException();
 
+// A framework tick seen by the observer (FC4Observer; any mode): keeps the
+// "no OnTick" rule meaningful when our simulator is not in use.
+void NoteFrameworkTick();
+// The current sim date from a calendar message (observer; 0 is ignored).
+void PublishJulian(int32_t julian);
+
+// Counters for the autotest verdict (any thread).
+long PublishedJulian();
+long ForeignExceptionCount();
+long WatchdogStallCount();  // stall episodes reported so far
+uint32_t LastTickMs();      // GetTickCount of the last OnTick / framework tick (0 = none)
+
 // A heartbeat line now, from the main thread (month start); `why` is a literal.
 void HeartbeatNow(const char* why);
 

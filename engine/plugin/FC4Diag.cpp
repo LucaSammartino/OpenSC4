@@ -13,6 +13,7 @@
 
 #include "FC4Diag.h"
 
+#include "FC4Autotest.h"
 #include "FC4Log.h"
 #include "FC4Watchdog.h"
 
@@ -174,6 +175,7 @@ LONG CALLBACK VectoredHandler(EXCEPTION_POINTERS* ep) {
         NoteForeignException();
         const LONG report = ClaimForeignReport(addr);
         if (report != 0) LogForeign(ep, report);
+        AutotestOnForeignException();  // verdict "corrupt" under autotest (after the report)
     }
     return EXCEPTION_CONTINUE_SEARCH;  // never swallow
 }

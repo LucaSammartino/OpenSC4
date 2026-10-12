@@ -56,6 +56,13 @@ INTERFACES = [
     ("cISC4NeighborsSimulator", "cFC4ISC4NeighborsSimulator", FC4, True),
     ("cISC4OrdinanceSimulator", "cISC4OrdinanceSimulator", "cISC4OrdinanceSimulator.h", True),
     ("cISCResExemplar", "cISCResExemplar", "cISCResExemplar.h", True),
+    # Not in interfaces.tsv: checked against the implementing class's vtable in
+    # docs/abi/vtables.tsv ("vt:<vtable name>"); the class may have more slots.
+    ("vt:cSC4City::vftable", "cISC4City", "cISC4City.h", True),
+    ("vt:cSC4App::vftable_3", "cISC4App", "cISC4App.h", True),
+    ("vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", "cISC4ResidentialSimulator.h", True),
+    ("vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
+    ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
@@ -66,8 +73,6 @@ INTERFACES = [
     ("cISC4LotManager", "cISC4LotManager", "cISC4LotManager.h", False),
     ("cISC4Lot", "cISC4Lot", "cISC4Lot.h", False),
     ("cISC4NeighborsSimulator", "cISC4NeighborsSimulator", "cISC4NeighborsSimulator.h", False),
-    ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", False),
-    ("cISC4DemandSimulator", "cISC4DemandSimulator", "cISC4DemandSimulator.h", False),
     ("cISC4Ordinance", "cISC4Ordinance", "cISC4Ordinance.h", False),
     ("cISC4RegionalCity", "cISC4RegionalCity", "cISC4RegionalCity.h", False),
     ("cISC4WeatherSimulator", "cISC4WeatherSimulator", "cISC4WeatherSimulator.h", False),

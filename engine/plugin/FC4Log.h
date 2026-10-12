@@ -53,6 +53,8 @@ const char* ModulePath();
 
 // Closes the log handle (DLL detach). A later line reopens the same path.
 void LogClose();
+// FlushFileBuffers on the log handles (no lock; any thread, also before TerminateProcess).
+void LogFlush();
 
 }  // namespace fc4
 

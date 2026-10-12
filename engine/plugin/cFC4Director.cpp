@@ -24,6 +24,7 @@
 
 #include "FC4Diag.h"
 #include "FC4Log.h"
+#include "FC4Observer.h"
 #include "FC4Subsystems.h"
 #include "cFC4Simulator.h"
 
@@ -284,11 +285,14 @@ public:
                      g_factoryCalls != before ? "CALLED" : "NOT called (another factory answered)");
             if (ok && probe != nullptr) probe->Release();
         }
+        // Tooling that runs in every mode (autotest, digest, tick feed).
+        fc4::ObserverStart();
         return true;
     }
 
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
+        fc4::ObserverStop();
         return true;
     }
 

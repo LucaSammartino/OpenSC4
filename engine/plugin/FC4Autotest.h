@@ -1,0 +1,55 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. This program is distributed WITHOUT ANY WARRANTY; see
+// the GNU General Public License for more details. You should have received a
+// copy of the license along with this program (see LICENSE at the repository
+// root); if not, see <https://www.gnu.org/licenses/>.
+
+// Autotest: unattended in-game bisection runs (tooling only; no spec
+// behaviour). Enabled by `autotest_seconds = N` (FreeCity4.ini, else
+// FC4_AUTOTEST_SECONDS), read when the game starts.
+//
+// Exactly one line
+//   AUTOTEST VERDICT: clean|corrupt|stalled (foreign_exceptions=…,
+//   watchdog_stalls=…, rtc=…, overruns=…, ref_warnings=…, julian=…,
+//   switches_off=…, disabled=…)
+// is written, the log is flushed, and the process ends with
+// TerminateProcess(GetCurrentProcess(), 0):
+//   - clean / corrupt: N s after the first framework tick following a city
+//     load (PostCityInit), decided by VerdictAtDeadline (FC4DiagLogic.h);
+//   - corrupt at once on a first-chance exception outside FreeCity4.dll (the
+//     process lives 5 s longer so a following stall is still recorded);
+//   - stalled: the watchdog saw the main thread stalled for more than 10 s
+//     (it terminates from its own thread).
+// `autotest_unpause = 1|2` makes the observer run the loaded city at that
+// speed, unpaused, so month-start code runs too.
+#pragma once
+
+#include <cstdint>
+
+namespace fc4 {
+
+// Reads the settings (game start) and starts the autotest thread when enabled.
+void AutotestReload();
+bool AutotestEnabled();
+
+// PostCityInit seen by the observer (main thread).
+void AutotestOnCityLoaded();
+// Every framework tick (observer, main thread). Starts the clock on the first
+// tick after a city load. Returns the speed (1 or 2) to unpause the city to
+// now, or 0 for nothing to do.
+int AutotestOnTick();
+// A first-chance exception outside our image (vectored handler; lock-free,
+// never blocks).
+void AutotestOnForeignException();
+// The watchdog saw a stall longer than kAutotestStallMs (watchdog thread):
+// verdict "stalled" (unless one was written) and terminate.
+void AutotestOnStall(const char* kind, uint32_t stalledMs);
+
+}  // namespace fc4

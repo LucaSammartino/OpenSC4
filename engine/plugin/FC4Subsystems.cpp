@@ -13,6 +13,7 @@
 
 #include "FC4Subsystems.h"
 
+#include "FC4Autotest.h"
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
@@ -86,6 +87,7 @@ bool ListContains(const std::string& list, const std::string& key) {
 
 bool g_resolved = false;
 bool g_enabled[kSubsystemCount] = {};
+char g_disabledList[128] = "-";
 
 void Resolve() {
     if (g_resolved) return;
@@ -94,6 +96,7 @@ void Resolve() {
     ConfigReload("game start");
     RefAuditReload();
     CheckedStartup();
+    AutotestReload();
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
@@ -107,6 +110,11 @@ void Resolve() {
         }
         g_enabled[i] = !off;
         if (off) {
+            if (strcmp(g_disabledList, "-") == 0) g_disabledList[0] = 0;
+            if (g_disabledList[0] != 0) strncat_s(g_disabledList, ",", _TRUNCATE);
+            strncat_s(g_disabledList, s.key, _TRUNCATE);
+        }
+        if (off) {
             Log("subsystem '%s': DISABLED by %s; the original classes are used", s.key, why);
         } else {
             Log("subsystem '%s': enabled (%u class%s replaced)", s.key, static_cast<unsigned>(s.classCount),
@@ -116,6 +124,13 @@ void Resolve() {
 }
 
 }  // namespace
+
+const char* DisabledSubsystemsList() { return g_disabledList; }
+
+bool SimulatorReplaced() {
+    const Subsystem* owner = nullptr;
+    return FindEnabledClass(0x2990C1E5, &owner) != nullptr;
+}
 
 const Subsystem* Subsystems(size_t* count) {
     if (count != nullptr) *count = kSubsystemCount;
