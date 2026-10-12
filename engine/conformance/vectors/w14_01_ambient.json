@@ -2,7 +2,7 @@
   "format": 1,
   "name": "weather_ambient",
   "spec": ["weather 3", "weather 6.1", "weather 8.1", "weather 9", "weather 14.1"],
-  "description": "Ambient temperature baseTemp*(1 + cos(2pi(m-8)/12)*ampA*ampB) and moisture baseMoisture*(1 + cos(2pi(m-1)/12)*ampA*ampB) of the season month. Shipped tuning (65, 0.5, 0.5 / 0.2, 0.2, 1): month 8 -> 81.25, month 2 -> 48.75, moisture month 1 -> 0.24, month 7 -> 0.16. Without the exemplar the code defaults apply (24, 0.5, 0.5 / 0.5, 0.5, 0.4): 30, 18, 0.6, 0.4. Init sets the ambient values to the base values and reads every tuning field (clamps: subdiv >= 1, tempAmpA and moistAmpA to [0, 1], seaWeight >= 0; slopeK = value*255; windSpread = tan(deg*pi/360)*0.5); cellsPerWeek = cells / subdivX.",
+  "description": "Ambient temperature baseTemp*(1 + cos(2pi(m-8)/12)*ampA*ampB) and moisture baseMoisture*(1 + cos(2pi(m-1)/12)*ampA*ampB) of the season month. Shipped tuning (65, 0.5, 0.5 / 0.2, 0.2, 1): month 8 -> 81.25, month 2 -> 48.75, moisture month 1 -> 0.24000000953674316, month 7 -> 0.1600000113248825 (24-bit, 6.1; compared exactly). Without the exemplar the code defaults apply (24, 0.5, 0.5 / 0.5, 0.5, 0.4): 30, 18, 0.6, 0.4. Init sets the ambient values to the base values and reads every tuning field (clamps: subdiv >= 1, tempAmpA and moistAmpA to [0, 1], seaWeight >= 0; slopeK = value*255; windSpread = tan(deg*pi/360)*0.5); cellsPerWeek = cells / subdivX.",
   "steps": [
     {"op": "weather_env", "size": [16, 16], "month": 8},
     {"op": "weather_tuning", "shipped": true},
@@ -19,9 +19,9 @@
     {"op": "weather_call", "method": "new_current_ambient_values", "args": [2]},
     {"op": "weather_expect", "state": {"ambient_temp": 48.75, "wind_month": 2}},
     {"op": "weather_call", "method": "new_current_ambient_values", "args": [1]},
-    {"op": "weather_expect", "state": {"ambient_moisture": 0.24}},
+    {"op": "weather_expect", "exact": true, "state": {"ambient_moisture": 0.24000000953674316}},
     {"op": "weather_call", "method": "new_current_ambient_values", "args": [7]},
-    {"op": "weather_expect", "state": {"ambient_moisture": 0.16}},
+    {"op": "weather_expect", "exact": true, "state": {"ambient_moisture": 0.1600000113248825}},
     {"op": "weather_message", "type": "SimNewMonth", "data3": 8, "expect": true},
     {"op": "weather_expect", "state": {"ambient_temp": 81.25, "ambient_moisture": 0.16535899, "wind_month": 8, "last_season": 2}},
 

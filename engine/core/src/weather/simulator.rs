@@ -17,6 +17,7 @@ use crate::props::{self, round_half_even_f32};
 use crate::rng::CrtRand;
 use crate::stream::{InStream, OutStream, SaveObject};
 use crate::variant::{Elem, Variant};
+use crate::x87::r24;
 
 use super::{msg, prop, CellIterator, RngState, WeatherHost, WeatherRandom, CLSID_WEATHER_SIMULATOR};
 
@@ -200,6 +201,44 @@ fn filled(nx: i32, nz: i32, v: u8) -> Grid {
 }
 
 /// Mirror reflection at the grid edges (`a[-1] = a[1]`), clamped for tiny grids.
+/// §6.5 step 3 over `a4` (arrays x-major, `nx × nz`): pass 1 along z into a
+/// buffer, `(H[z−1] + H[z+1]) + 2·H[z]`, whose high-z mirror uses countX
+/// [quirk]; pass 2 along x, `((S[x−1] + S[x+1]) + 2·S[x]) × 0.0625`, always
+/// from the pass-1 values (the original filters each line from a copy,
+/// weather test 12) *[compat]*. Every step is one f32 operation.
+fn smoothed_heights(hgt: &[f32], nx: i32, nz: i32, a4: [i32; 4]) -> Vec<f32> {
+    let n = hgt.len();
+    let at = |x: i32, z: i32| (x * nz + z) as usize;
+    let hz = |x: i32, z: i32| -> f32 {
+        let z = if z < 0 {
+            -z
+        } else if z >= nx {
+            2 * (nx - 1) - z
+        } else {
+            z
+        };
+        if (0..nz).contains(&z) {
+            hgt[at(x, z)]
+        } else {
+            0.0
+        }
+    };
+    let mut tz = vec![0f32; n];
+    for x in a4[0]..a4[2] {
+        for z in a4[1]..a4[3] {
+            tz[at(x, z)] = (hz(x, z - 1) + hz(x, z + 1)) + 2.0 * hgt[at(x, z)];
+        }
+    }
+    let mut sm = vec![0f32; n];
+    for x in a4[0]..a4[2] {
+        for z in a4[1]..a4[3] {
+            sm[at(x, z)] =
+                ((tz[at(reflect(x - 1, nx), z)] + tz[at(reflect(x + 1, nx), z)]) + 2.0 * tz[at(x, z)]) * 0.0625;
+        }
+    }
+    sm
+}
+
 fn reflect(i: i32, n: i32) -> i32 {
     let r = if i < 0 {
         -i
@@ -681,15 +720,23 @@ impl WeatherSim {
     // ---- algorithms (§6) ------------------------------------------------------------------------------
 
     /// `GetNewCurrentAmbientValues(m)` (§6.1) and the wind target (§6.2).
+    ///
+    /// Exact operation order *[compat]* (foundations §18):
+    /// `r24(r24(1 + r24(cos(r24(k × w)) × r24(ampB × ampA))) × base)` with
+    /// `k` the exact month offset, `w = float32(π/6)` and the cosine taken
+    /// unrounded (x87 `fcos` ignores the precision control; FreeCity4 takes
+    /// the `double` cosine of the rounded angle [choice]).
     pub fn new_current_ambient_values(&self, m: i32) {
         {
             let mut d = self.d.borrow_mut();
-            let wave = |peak: i32| (2.0 * PI * f64::from(m.wrapping_sub(peak)) / 12.0).cos();
-            d.ambient_temp =
-                (f64::from(d.base_temp) * (1.0 + wave(8) * f64::from(d.temp_amp_a) * f64::from(d.temp_amp_b))) as f32;
-            d.ambient_moisture = (f64::from(d.base_moisture)
-                * (1.0 + wave(1) * f64::from(d.moist_amp_a) * f64::from(d.moist_amp_b)))
-                as f32;
+            let w = f64::from(std::f32::consts::FRAC_PI_6);
+            let wave = |peak: i32, amp_a: f32, amp_b: f32, base: f32| -> f32 {
+                let angle = r24(f64::from(m.wrapping_sub(peak)) * w);
+                let p = r24(angle.cos() * r24(f64::from(amp_b) * f64::from(amp_a)));
+                r24(r24(1.0 + p) * f64::from(base)) as f32
+            };
+            d.ambient_temp = wave(8, d.temp_amp_a, d.temp_amp_b, d.base_temp);
+            d.ambient_moisture = wave(1, d.moist_amp_a, d.moist_amp_b, d.base_moisture);
         }
         self.new_wind_target();
         self.d.borrow_mut().wind_month = m;
@@ -710,6 +757,10 @@ impl WeatherSim {
         (best.1, best.2)
     }
 
+    /// The monthly wind target (§6.2), at 24-bit precision *[compat]*:
+    /// `s := r24(g × windSpread)` until `|s| ≤ 1` ([choice]: at most 100
+    /// draws, else 0); `c := r24(sqrt(r24(1 − r24(s × s))))`;
+    /// `x := r24(r24(bx × c) − r24(bz × s))`, `z := r24(r24(bz × c) + r24(bx × s))`.
     fn new_wind_target(&self) {
         let spread = self.d.borrow().wind_spread;
         let speed = self.rng.borrow_mut().range_f64(2.0, 4.0);
@@ -717,19 +768,22 @@ impl WeatherSim {
         let mut s = 0.0f64;
         for _ in 0..100 {
             let g = self.rng.borrow_mut().gaussian();
-            let c = f64::from(spread) * g;
+            let c = r24(g * f64::from(spread));
             if c.abs() <= 1.0 {
                 s = c;
                 break;
             }
         }
-        let c = (1.0 - s * s).sqrt();
+        let c = r24(r24(1.0 - r24(s * s)).sqrt());
         let (bx, bz) = (f64::from(bx), f64::from(bz));
         let mut d = self.d.borrow_mut();
         d.prev_wind_speed = d.target_wind_speed;
         d.prev_wind_dir = d.target_wind_dir;
         d.target_wind_speed = speed as f32;
-        d.target_wind_dir = [(c * bx - s * bz) as f32, (s * bx + c * bz) as f32];
+        d.target_wind_dir = [
+            r24(r24(bx * c) - r24(bz * s)) as f32,
+            r24(r24(bz * c) + r24(bx * s)) as f32,
+        ];
     }
 
     /// `SimulateCellTemperature(x, z)` (§6.3).
@@ -840,37 +894,8 @@ impl WeatherSim {
                 }
             }
         }
-        // 3. smoothed heights (§6.5 step 3): pass 1 along z into a buffer,
-        // `(H[z−1] + H[z+1]) + 2·H[z]`, whose high-z mirror uses countX
-        // [quirk]; pass 2 along x, `((S[x−1] + S[x+1]) + 2·S[x]) × 0.0625`,
-        // from the pass-1 values. Every step is one f32 operation.
-        let hz = |x: i32, z: i32| -> f32 {
-            let z = if z < 0 {
-                -z
-            } else if z >= nx {
-                2 * (nx - 1) - z
-            } else {
-                z
-            };
-            if (0..nz).contains(&z) {
-                hgt[at(x, z)]
-            } else {
-                0.0
-            }
-        };
-        let mut tz = vec![0f32; n];
-        for x in a4[0]..a4[2] {
-            for z in a4[1]..a4[3] {
-                tz[at(x, z)] = (hz(x, z - 1) + hz(x, z + 1)) + 2.0 * hgt[at(x, z)];
-            }
-        }
-        let mut sm = vec![0f32; n];
-        for x in a4[0]..a4[2] {
-            for z in a4[1]..a4[3] {
-                sm[at(x, z)] =
-                    ((tz[at(reflect(x - 1, nx), z)] + tz[at(reflect(x + 1, nx), z)]) + 2.0 * tz[at(x, z)]) * 0.0625;
-            }
-        }
+        // 3. smoothed heights (§6.5 step 3).
+        let sm = smoothed_heights(&hgt, nx, nz, a4);
         // 4. local moisture
         let (ambient, high_m, threshold, slope_k, wind) = {
             let d = self.d.borrow();
@@ -1239,6 +1264,21 @@ impl SaveObject for WeatherSim {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Weather test 12 (§6.5 step 3): pass 2 reads the pass-1 values. A
+    /// height of 8 at (1, 1) of a 4 × 3 grid gives the pass-1 row
+    /// `S = [0, 16, 0, 0]` along x at z = 1; the two interior cells become
+    /// `(0 + 0 + 32) / 16 = 2` and `(16 + 0 + 0) / 16 = 1` (an in-place
+    /// filter would give 0.125 for the second).
+    #[test]
+    fn pass_two_reads_pass_one() {
+        let (nx, nz) = (4, 3);
+        let mut hgt = vec![0f32; 12];
+        hgt[(nz + 1) as usize] = 8.0;
+        let sm = smoothed_heights(&hgt, nx, nz, [0, 0, nx, nz]);
+        let at = |x: i32, z: i32| (x * nz + z) as usize;
+        assert_eq!((sm[at(1, 1)], sm[at(2, 1)]), (2.0, 1.0));
+    }
     use crate::rng::FixedSeeds;
     use crate::stream::{ByteReader, ByteWriter};
     use crate::weather::WeatherRng;

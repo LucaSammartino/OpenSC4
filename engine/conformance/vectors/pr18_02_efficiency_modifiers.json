@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "protection_efficiency_modifiers",
+  "spec": ["protection 6.1", "protection 6.2", "protection 18.2"],
+  "description": "Test 2: fire at funding 1.0 with a lot without road access and on strike: 1.0 x 0.8 x 0.2 = 0.16 (f32 products); with road 0.2; without a lot no road factor (0.2); no strike and no road 0.8. Police at 1.0 on strike without road: 0.2 (no road factor, strike efficiency pct(20)). fundingOf (6.1): no item -> 0 (efficiency curve8D(0) = 0.10); an item not locally funded -> the department's funding (0.75 -> curve 45 -> 0.45); its department missing -> 1.0. Hand-derived from 6.1, 6.2 and the 6.7 tables.",
+  "steps": [
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "7": {"items": {"0xEA567BC3": {"local": 1.0}}, "road": false, "props": {"0xEAA69F83": {"u32": 5}}}},
+    {"op": "protection_call", "method": "is_station_on_strike", "args": [7], "expect": true},
+    {"op": "protection_call", "method": "station_efficiency", "args": [7], "expect": 0.1600000113248825},
+    {"op": "protection_occupants", "7": {"road": true}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [7], "expect": 0.2},
+    {"op": "protection_occupants", "7": {"road": null}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [7], "expect": 0.2},
+    {"op": "protection_occupants", "7": {"road": false, "props": {"0xEAA69F83": {"u32": 0}}}},
+    {"op": "protection_call", "method": "is_station_on_strike", "args": [7], "expect": false},
+    {"op": "protection_call", "method": "station_efficiency", "args": [7], "expect": 0.8},
+    {"op": "protection_call", "method": "funding_of", "args": [8, "0xEA567BC3"], "expect": 0.0},
+    {"op": "protection_call", "method": "station_efficiency", "args": [8], "expect": 0.1},
+    {"op": "protection_env", "dept_funding": {"0x28F55A9F": 0.75}},
+    {"op": "protection_occupants", "8": {"items": {"0xEA567BC3": {"local": 0.1, "funded": false}}}},
+    {"op": "protection_call", "method": "funding_of", "args": [8, "0xEA567BC3"], "expect": 0.75},
+    {"op": "protection_call", "method": "station_efficiency", "args": [8], "expect": 0.45},
+    {"op": "protection_occupants", "8": {"items": {"0xEA567BC3": {"local": 0.1, "funded": false, "dept": false}}}},
+    {"op": "protection_call", "method": "funding_of", "args": [8, "0xEA567BC3"], "expect": 1.0},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "9": {"items": {"0x0A567BAA": {"local": 1.0}}, "road": false, "props": {"0xEAA69F83": {"u32": 5}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [9], "expect": 0.2}
+  ]
+}

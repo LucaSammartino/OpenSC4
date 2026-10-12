@@ -154,7 +154,10 @@ FreeCity4 numbers objects 1, 2, 3, … in registration order. IDs mean nothing a
    - `classID` not listed in the save's class index (§3.3) → **failure** (the stream enters the error state);
    - otherwise create a new instance with `GZCOM()->GetClassObject(classID, GZIID_cIGZSerializable, &p)`. If
      creation fails → failure. If it succeeds, register it under `(classID, objectID)`.
-3. The new object's `Read` is **not** called here. It is called when the loader reaches the object's entry in its
+3. The destination pointer is set to null **before** anything is read, and the object it held is **not** released
+   (the game's helper `SC4ReadGZSerializable`, `0x005D9730`). A failed read therefore leaves null in the
+   destination. List readers (`0x005DB3C0`) append that null for every failed reference *[compat]*.
+4. The new object's `Read` is **not** called here. It is called when the loader reaches the object's entry in its
    class record (§3.5). The shipped game never sets `loadNow`; when set, the object's entry would be located and
    read immediately *[inferred]*.
 

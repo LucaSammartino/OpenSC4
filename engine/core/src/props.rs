@@ -33,6 +33,31 @@ fn numeric(v: &Variant) -> Option<Vec<Elem>> {
     }
 }
 
+/// A curve from a property value (foundations §4.1). `None` (absent) for a
+/// non-numeric value and for a single value: a scalar or a one-element array
+/// gives zero points in the original, whose evaluator then crashes; FreeCity4
+/// treats it as absent *[choice]*. Otherwise the curve of its points (empty for
+/// an empty array; an odd trailing value is ignored).
+pub fn curve_of_variant(v: &Variant) -> Option<crate::curve::ResponseCurve> {
+    let values = numeric(v)?;
+    if values.len() == 1 {
+        return None;
+    }
+    let values: Vec<f32> = values
+        .iter()
+        .map(|e| match *e {
+            Elem::F32(x) => x,
+            other => other.as_f64() as f32,
+        })
+        .collect();
+    Some(crate::curve::ResponseCurve::from_flat(&values).unwrap_or_default())
+}
+
+/// [`curve_of_variant`] of a property; `None` when it is absent.
+pub fn curve(h: &PropertyHolder, id: u32) -> Option<crate::curve::ResponseCurve> {
+    curve_of_variant(h.get(id)?)
+}
+
 /// All values of a property as `u32` (integers wrap to 32 bits, floats are
 /// truncated toward zero).
 pub fn u32s(h: &PropertyHolder, id: u32) -> Option<Vec<u32>> {
@@ -147,6 +172,28 @@ mod tests {
         assert_eq!(string_of(&h, 3), Some(b"abc".to_vec()));
         assert_eq!(u32_pairs(&h, 4), vec![(7, 8)]);
         assert_eq!(u32_of(&h, 99), None);
+    }
+
+    #[test]
+    fn single_value_curves_are_absent() {
+        // foundations §4.1: a scalar or a one-element array gives zero points
+        // in the original (its evaluator then crashes); FreeCity4 treats it
+        // as absent [choice]. An empty array is a present, empty curve.
+        let mut h = PropertyHolder::new();
+        h.add(1, Variant::Scalar(Elem::F32(5.0)));
+        h.add(2, Variant::array(mem::FLOAT32, vec![Elem::F32(5.0)]));
+        h.add(3, Variant::array(mem::FLOAT32, vec![]));
+        h.add(
+            4,
+            Variant::array(mem::SINT32, vec![Elem::I32(0), Elem::I32(2), Elem::I32(10)]),
+        );
+        h.add(5, Variant::string(b"0 1"));
+        assert_eq!(curve(&h, 1), None);
+        assert_eq!(curve(&h, 2), None);
+        assert!(curve(&h, 3).is_some_and(|c| c.is_empty()));
+        assert_eq!(curve(&h, 4).map(|c| c.eval(7.0)), Some(2.0));
+        assert_eq!(curve(&h, 5), None);
+        assert_eq!(curve(&h, 99), None);
     }
 
     #[test]

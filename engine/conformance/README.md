@@ -199,7 +199,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `crc` | `ascii` or `hex`; `expect` | CRC-32/MPEG-2 (§3.4) |
 | `store_entry` | `class_id`, `payload_hex`, `entry_hex`, `index_hex?` | the class-object store entry (and index) written for one object with ID 1 whose `Write` emits the payload (§3.3) |
 | `curve` | `points` (flat x, y list), `absent?`, `eval`: `[[x, y], ...]`, `tolerance?` (relative, default 1e-6) | response-curve construction and evaluation (§4) |
-| `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}` | outputs and internal states, bit-exact (§6) |
+| `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}`. Methods: `RzRandom`: `next_raw`, `uniform_u32`, `range_i32`, `uniform_f64`, `range_f64`, `gaussian`, `range_gaussian`, `range_gaussian_fast`, `range_i32_gaussian_fast`, and the pure mappings `uniform_of` (`[i]`, one signed draw) and `gaussian_to_range` (`[g, a, b]`); `RzRandomSuper`: `next_u32`, `uniform_u32`, `uniform_f64`, `range_f64`, `weighted_choice` | outputs and internal states, bit-exact (§6) |
 
 | `variant_write` | `variant`, `hex`, `ok?` (default true), `round_trip?` (default true), `position?`, `error?` | `WriteVariant` (§9.2) gives `hex`; unless `ok` is false or `round_trip` is off, the bytes read back to the same variant |
 | `variant_read` | `hex`, `preset?` (the destination's value before the read), `expect` (a variant, or `null` = the read fails), `unchanged?`, `position?`, `error?` | `ReadVariant` (§9.2) |
@@ -377,7 +377,7 @@ cell. Grids are x-major (`rows[x][z]`).
 |---|---|---|
 | `weather_env` | any of `size` (`[cellsX, cellsZ]`; the city is 16 × that in world units; default 16 × 16), `cell_width` (`[x, z]`, city cell width, default 16), `hemisphere` (default 1), `month` (the simulator's calendar month, default 1), `water_prefs` (`[lo, hi]` or `null` = no region), `terrain` (default true), `flat` (the height of every vertex; clears `heights`), `heights` (`[{x, z, w?, d?, h}]`), `water` (`[{x, z, w?, d?}]` cells with `CellHasWater`, or `null`), `normals` (`[{x, z, w?, d?, n: [x, y, z]}]`, default (0, 1, 0)), `sea_level` (default −1) | sets the fake world. `GetAltitude(worldX, worldZ)` reads the vertex `floor(world / 16)` |
 | `weather_tuning` | `shipped` (the §9 values), `props` (a property map merged over them), or `none` (no exemplar) | the tuning exemplar the next `Init` reads |
-| `weather_create` | `seed?` (the wall-clock seed), `rng?`: `{seed}` (a real generator with that seed) or `{stub: {uniform, gaussian, int}}` (queued values; each queue repeats its last value, defaults 0.5 / 0 / 0) | a new simulator (the default generator is wall-clock seeded) |
+| `weather_create` | `seed?` (the wall-clock seed), `rng?`: `{seed}` (a real generator with that seed) or `{stub: {uniform, gaussian, int}}` (queued values; each queue repeats its last value, defaults 0.5 / 0 / 0) | a new simulator (the default generator is wall-clock seeded; a stub maps its uniform u to a range with the 24-bit `r24(r24(u × r24(b − a)) + a)` of foundations §6.1) |
 | `weather_rng` | `seed` or `stub` as in `weather_create` | replaces the simulator's generator |
 
 ### Calls and checks
@@ -388,7 +388,7 @@ cell. Grids are x-major (`rows[x][z]`).
 | `weather_message` | `type` (`SimNewDay`, `SimNewWeek`, `SimNewMonth`, `PostCityInit` or an ID), `date?` (`{year, month, day}`, the day message's data1), `data1?`, `data3?` (the month), `expect?` | `DoMessage` |
 | `weather_call` | `method`, `args?`, `expect?` | a simulator method: `do_post_city_init`, `do_complete_simulation`, `do_monthly_simulation`, `do_weekly_simulation`, `do_daily` (`[julian]`), `new_current_ambient_values` (`[seasonMonth]`), `onshore_direction` (result `[x, z]`), `simulate_cell_temperature`, `simulate_moisture` (`[x0, z0, x1, z1]` cells), `update_moisture` (world units), `generate_moisture_variation`, `rebuild_water`, `set_manual_moisture_addition`, `cell_width_x/z`, `cell_count_x/z`, `position_to_cell` (`[result, cx, cz]`), `cell_to_position`, `cell_to_standard_city_cell`, `standard_city_cell_to_cell`, `current_season`, `current_season_month`, `moisture_value`, `moisture_type`, `moisture_map` (the grid), `humidity`, `ambient_wind` / `wind_at_cell` (`{speed, v}`) |
 | `weather_set` | `state` (scalar fields as in `weather_expect`; `*_fill` fills a grid; `sea_mask_cells`, `moisture_cells`, `moisture_base_cells`, `temperature_cells`: `[{x, z, w?, d?, v?}]`) | pokes state (test setup) |
-| `weather_expect` | `state` (any §3 field in snake case, plus `water_rects`, `iterator` (`state`: `running`/`exhausted`, `mode`, `rect`, `count`, `index`, `current`, `step`) and `rng` (`lcg`, `mul`, `has_cached`, `cached`); `iterator` and `rng` match partially) | the simulator state |
+| `weather_expect` | `state` (any §3 field in snake case, plus `water_rects`, `iterator` (`state`: `running`/`exhausted`, `mode`, `rect`, `count`, `index`, `current`, `step`) and `rng` (`lcg`, `mul`, `has_cached`, `cached`); `iterator` and `rng` match partially), `exact?` (true: the other numbers must be bit-equal, for precision tests) | the simulator state |
 | `weather_expect_grid` | `grid` (`temperature`, `moisture`, `moisture_base`, `sea_mask`) and any of `size`, `rows`, `all`, `cells` (`[{x, z, w?, d?, v}]`), `rect` (`[x0, z0, x1, z1)`) with `inside` / `outside`, `range` (`[lo, hi]`), `min`, `max` | grid contents |
 | `weather_iterator` | `rect` (`[x0, z0, x1, z1]`, inclusive), `shuffle?` (default true), `crt_seed?` (default 1), `rand_calls?`, `step?`, `count?`, `current?`, `first?` (`[[x, z], …]`), `full_pass?` | a free-standing prime-step iterator (§6.7) |
 | `weather_save` / `weather_load` / `weather_expect_save` | `slot`; load: `rng?` (the loaded object's generator before Read), `expect?` | the class-object store; a load makes the loaded simulator current |
@@ -423,7 +423,7 @@ altitudes, allowed heights), zones, developers with their desirability maps, and
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `lv_world` | any of `cells`, `cell_width`, `land`, `water`, `land_vertices`, `clear_land`, `altitude`, `altitudes`, `heights`, `zoned`, `clear_zones`, `developers` (`{"0x1030": {size, all, values} \| null}`) | the fake world |
+| `lv_world` | any of `cells`, `cell_width`, `land`, `water`, `land_vertices`, `clear_land`, `altitude`, `altitudes`, `heights`, `zoned`, `clear_zones`, `developers` (`{"0x1030": {size, cells?, all, values} \| null}`; `cells: [x, z]` makes the map cover a city of that size) | the fake world |
 | `lv_create` / `lv_init` / `lv_shutdown` | `tuning?` for init (`"shipped"` or an object of §9 values; `null` = absent) | lifecycle (§4) |
 | `lv_step` | `budget`, `count?`, `expect_state?` | SimIdle steps (§6) |
 | `lv_run` | `budget`, `max`, `expect_calls?` | steps until a pass completes |
@@ -470,7 +470,7 @@ name starts with `flam_`. Tract coordinates are `[x, z]`; grid cells are `[[x, z
 
 | op | Arguments | Effect |
 |---|---|---|
-| `flam_env` | any of `cells` (`[countX, countZ]`, default 64 × 64), `occupants` (`[{id, type (building, prop, flora or an ID), flam (an integer, a variant object, or null = no property), preview?, lot?, cell or rect ([x0, z0, x1, z1]), pos? ([x, y, z])}]`, added to the listing), `unlist` (ids no longer listed in their cells; still known by id), `forget` (ids removed completely), `lots` (`[{id, condition, building?}]`), `random_lot` (id or null), `factor` (the ordinance factor 0x28F42AA0, null = none; default 1), `season` (null = no weather; default 0), `unwatered` / `unwatered_all`, `zoned` / `zoned_all`, `tutorial`, `fire_manager` (default true) | the fake world |
+| `flam_env` | any of `cells` (`[countX, countZ]`, default 64 × 64), `occupants` (`[{id, type (building, prop, flora or an ID), flam (an integer (a Uint32 scalar), a variant object (the shared types plus `i8`, `i16`, `u64`, `f64`, `char`), or null = no property), preview?, lot?, cell or rect ([x0, z0, x1, z1]), pos? ([x, y, z])}]`, added to the listing), `unlist` (ids no longer listed in their cells; still known by id), `forget` (ids removed completely), `lots` (`[{id, condition, building?}]`), `random_lot` (id or null), `factor` (the ordinance factor 0x28F42AA0, null = none; default 1), `season` (null = no weather; default 0), `unwatered` / `unwatered_all`, `zoned` / `zoned_all`, `tutorial`, `fire_manager` (default true), `plumbing` / `zone_manager` (false = the service is missing; default true) | the fake world |
 | `flam_tuning` | `shipped` (the §8 exemplar), `props` (a property map; merged over the shipped values with `shipped`, else alone), `remove` (property IDs removed afterwards), or `none` (no exemplar) | the tuning exemplar the next `Init` reads |
 | `flam_create` | `rng?` (`{r: [...]}` queued `RzRandom` doubles, repeating 50 when empty, or `{process_clock}` the real generator with that seed; default the queue), `crt_seed?` | a new simulator |
 | `flam_rng` | as `rng` in `flam_create` | replaces the simulator's generator |
@@ -482,14 +482,14 @@ name starts with `flam_`. Tract coordinates are `[x, z]`; grid cells are `[[x, z
 | `flam_init` / `flam_shutdown` | `expect?` | `Init` / `Shutdown` (portable parts) |
 | `flam_message` | `type` (`SimNewDay`, `SimBegin`, `InsertOccupant`, `RemoveOccupant`, `ChangeOccupant`, `SeasonChange`, `OrdinanceUpdated`, `ConditionChanged`, `ExemplarChanged` or an ID), `occupant?`, `lot?`, `expect?` | `DoMessage` |
 | `flam_days` | `count`, `ends?` (the days, 1-based in this op, on which SimCycleComplete was posted) | `count` SimNewDay messages |
-| `flam_call` | `method`, `args?`, `expect?` | pure functions: `occupant_raw_value` (`[p, m]`), `daily_value` (`[r, g, watered, noWater]`), `global_multiplier` (`[factor, season, summer]`, null = missing), `compute_hotspots` (`[candidates, radius, minWeight]`), `query_interface` (`[iid]`); simulator methods: `occupant_raw`, `tract_raw`, `occupant_update` (`[id, add]`), `compute_global_multiplier`, `is_cell_flammable`, `hotspot` (`[v, x, z]` or false), `average`, `flammability_grid` (its instance ID or null), `daily`, `end_of_cycle`, `compute_hotspot_list` (the new list), `fire_roll`, `curve` (`[x]`, null without a curve), `add_ref`, `release` |
+| `flam_call` | `method`, `args?`, `expect?` | pure functions: `occupant_raw_value` (`[p, m]`), `daily_value` (`[r, g, watered, noWater]`), `global_multiplier` (`[factor, season, summer]`, null = missing), `compute_hotspots` (`[candidates, radius, minWeight]`), `query_interface` (`[iid]`), `notifications` (the subscribed message types, in order); simulator methods: `occupant_raw`, `tract_raw`, `occupant_update` (`[id, add]`), `compute_global_multiplier`, `is_cell_flammable`, `hotspot` (`[v, x, z]` or false), `average`, `flammability_grid` (its instance ID or null), `daily`, `end_of_cycle`, `compute_hotspot_list` (the new list), `fire_roll`, `curve` (`[x]`, null without a curve), `add_ref`, `release` |
 | `flam_set` | any of `raw`, `adjusted` (cells), `raw_fill`, `adjusted_fill`, `state` (`global_multiplier`, `average`, `zoned_sum`, `zoned_count`, `tracts_per_day`, `candidates`, `hotspots` (`[[x, z, weight]]`), tuning fields, `curve` (flat pairs or null)) | pokes state (test setup) |
 | `flam_expect` | `state`: any of `initialized`, `ref_count`, `destroyed`, `count_x/z`, `average`, `global_multiplier`, `zoned_sum`, `zoned_count`, `candidates`, `hotspots`, `tracts_per_day`, the tuning fields, `has_curve`, `has_adjusted`, `has_raw`, `iterator` (`state`, `mode`, `dirty`, `rect`, `count`, `index`, `current`, `step`; matches partially) | the simulator state |
 | `flam_expect_grid` | `grid` (`raw`, `adjusted`) and any of `counts`, `tract_size`, `instance`, `cells`, `others` / `all` (every unlisted tract) | grid contents |
 | `flam_expect_rand` | `calls` | the number of `rand()` calls on the subsystem's CRT generator since the last check |
 | `flam_expect_visits` | any of `all`, `cells` (`[[x, z, n]]`), `total` | daily visits (one zone-type query each) since the last check |
 | `flam_expect_events` / `flam_expect_event_count` / `flam_clear_events` | see the shared conventions | host calls |
-| `flam_save` / `flam_load` / `flam_expect_save` | `slot`; load: `rng?`, `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5) | the class-object store; loaded grids are registered with the fake host |
+| `flam_save` / `flam_load` / `flam_expect_save` | `slot`; load: `rng?`, `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5), `into_current?` (read the record into the current simulator instead of a new one) | the class-object store; loaded grids are registered with the fake host |
 | `flam_patch` / `flam_expect_payload` | see the shared conventions; `flam_patch` takes `class?` (default the simulator) to patch a grid record | |
 
 Flammability events: `create_grid` (`instance`, `size`), `grid_shutdown` (`instance`), `random_lot` (`lot`),
@@ -601,7 +601,7 @@ the limit timer and the registry. Every op name starts with `aura_`. The default
 
 | op | Arguments | Effect |
 |---|---|---|
-| `aura_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `date` (default 1000), `tuning` (`"shipped"` (default), `"empty"`, or null = no exemplar), `tuning_props` (a property map merged into the tuning), `tuning_remove` (property IDs), `funding` (`{"0xID": f or null}`; Parks and Recreation is `0x8A4260A6`), `tax` (`{"index": rate}`, default 0), `ordinance_offset`, `land_value_type` (default 1), `timer_expired` (default true), `registry_ok` (default true), `lots` (`[{rect: [x1, z1, x2, z2], zone? (1), building? (occupant ID, 0 by default, null = none), wealth? (1), pops? ([[type, count]])}]`, or null), `occupants` (`{"id": {type?, pos: [x, y, z], props: {"0xID": [ints]}, dept?} or null}`), `grids` (`{name: {size? (4), fill?, cells?} or null}` for `air`, `water`, `garbage`, `radiation`, `school`, `hospital`, `crime`, `trip`, `congestion`, `pop1`..`pop3`) | the scripted city |
+| `aura_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `date` (default 1000), `tuning` (`"shipped"` (default), `"empty"`, or null = no exemplar), `tuning_props` (a property map merged into the tuning), `tuning_remove` (property IDs), `funding` (`{"0xID": f, "nan" or null}`; Parks and Recreation is `0x8A4260A6`), `tax` (`{"index": rate}`, default 0), `ordinance_offset`, `land_value_type` (default 1), `timer_expired` (default false), `timer_reads_before_expiry` (n or null: the clock answers "not expired" to the first n reads after each timer start, then "expired"; overrides `timer_expired`), `log_timer_reads` (log every clock read), `registry_ok` (default true), `lots` (`[{rect: [x1, z1, x2, z2], zone? (1), building? (occupant ID, 0 by default, null = none), wealth? (1), pops? ([[type, count]])}]`, or null), `occupants` (`{"id": {type?, pos: [x, y, z], props: {"0xID": [ints]}, dept?} or null}`), `grids` (`{name: {size? (4), fill?, cells?} or null}` for `air`, `water`, `garbage`, `radiation`, `school`, `hospital`, `crime`, `trip`, `congestion`, `pop1`..`pop3`) | the scripted city |
 | `aura_create` | `rng?`: `{seed}` (a real `cRZRandom`) or `{stub: {uniform: [u…], int: [k…]}}` (a double draw returns `a + u (b − a)`, an integer draw returns `k`; the last value repeats); default a clock-seeded generator. Draws are logged | a new simulator |
 | `aura_rng` | as `rng` above | replaces the generator |
 
@@ -619,12 +619,12 @@ the limit timer and the registry. Every op name starts with `aura_`. The default
 | `aura_set_grid` | `grid` (`aura`, `base`, `transient`, `work`, `building_effect`, `park_map`, `raw_park`, `landmark_map`, `landmark_work`, `dept:0xID`), `fill?`, `cells?` | writes a grid; a missing department grid is first created through a landmark occupant with no cone (§7.2) |
 | `aura_expect_grid` | `grid` and any of `exists`, `tract_size`, `counts`, `cells`, `others` (every unlisted tract) | grid contents |
 | `aura_expect_events` / `aura_expect_event_count` / `aura_clear_events` | see the shared conventions | host calls |
-| `aura_save` / `aura_load` / `aura_expect_save` | `slot`; load: `rng?`, `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5) | the class-object store |
+| `aura_save` / `aura_load` / `aura_expect_save` | `slot`; load: `rng?`, `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5), `into_current?` (read the record into the current simulator instead of a new one) | the class-object store |
 | `aura_patch` / `aura_expect_payload` | see the shared conventions (the simulator's record) | |
 
 Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`values`), `lot_iterator`, `history`
 (`series`, `value`), `disaster` (`manager`, `x`, `z`), `strike` (`service`: police, fire, health, school), `post`
-(`type`), `timer_start` (`ms`), `subscribe` / `unsubscribe` (`types`), `add_agent` (`level`, `name`, `flags`),
+(`type`), `timer_start` (`ms`), `timer_read` (`lots_taken`: lots taken from the current iterator; only with `log_timer_reads`), `subscribe` / `unsubscribe` (`types`), `add_agent` (`level`, `name`, `flags`),
 `remove_agent`, `registry_add`, `registry_remove`, and `rng` (`kind` double with `value`, or int with `n` and
 `value`).
 
@@ -681,13 +681,108 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 `secondary_info` and `full_expenses` (`item` = `[department, line]`, `value`), `budget_line`, `budget_cost`,
 `add_funded` / `remove_funded`, `local_funding`, `local_full_funding`.
 
+## Plumbing ops
+
+The plumbing vectors (`pl14_…`) drive the plumbing (water) simulator (`fc4_core::plumbing`) over a scripted city
+implementing `PlumbingHost`: cells, terrain water, water pollution values, the water department's funding and the
+ordinance factor; building and pipe occupants (properties, lots, network flags, `ConnectsToNeighbor` directions,
+budget items); neighbour deals and connections; and the budget (departments, line items). Every op name starts
+with `plumbing_`. The default city is 64 × 64 cells with the shipped tuning, funding 1.0, ordinance factor 1.0 and
+wall-clock seed 1. Objects are named by label; host objects in a save use the test-only classes `0x0CC00011`
+(occupant) and `0x0CC00012` (department).
+
+### Environment and objects
+
+| op | Arguments | Effect |
+|---|---|---|
+| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
+| `plumbing_tuning` | `none` (no exemplar), `code` (an empty exemplar), or the shipped exemplar plus `props` (`{"0xID": value}`; `{"remove": true}` removes one); `reload?` sends the tuning message | the tuning exemplar |
+| `plumbing_building` | `label`, `x`, `z`, `w?`, `d?`, `anchor?`, `props?`, `lot?` (default true: a lot `<label>_lot` over the rectangle), `lot_rect?`, `needs_power?`, `has_power?`, `building_type?`, `budget?` (`{department, line, cost, index?}`), `local_funding?`, `insert?` (default true) | a building occupant, inserted through the message |
+| `plumbing_pipe` / `plumbing_pipe_row` / `plumbing_pipes` | pipe: `label`, `x`, `z` (or a rectangle), `dirs?`, `flags?`, `insert?`; row: `prefix`, `from`, `to` (connected to each other); pipes: `prefix`, `count`, `width?`, `x0?`, `z0?` (unconnected) | pipe occupants |
+| `plumbing_occupant` | `occupant`, `props?`, `net_flags?`, `budget?` (null removes it), `local_funding?` | changes an occupant |
+| `plumbing_lot` | `lot`, `needs_power?`, `has_power?`; or a new lot with `label` and a rectangle | lots |
+| `plumbing_deal` / `plumbing_connection` | deal: `label` or `deal`, `type` (`import`, `export` or a number), `amount`, `used?`, `city`, `flags?`; connection: `label`, `x`, `z`, `city`, `active?`, `visited?`, `other?` | neighbour deals and connections |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `plumbing_create` / `plumbing_init` / `plumbing_shutdown` | `expect?` | a new simulator, `Init`, `Shutdown` |
+| `plumbing_rng` / `plumbing_gaussian` | rng: `seed`; gaussian: `seed`, `calls` (`[{lo, hi, expect}]`), `raws?` | the generator; `RandomSint32RangeGaussianFast` on a fresh one |
+| `plumbing_slice` | `cells` per call in states 6 and 7 (null = the whole map) | the time slice ([choice]) |
+| `plumbing_message` | `type` (`SimNewMonth`, `SimNewDay`, `SimIdle`, `ConnectionsReady`, `InsertOccupant`, `RemoveOccupant`, `TuningReload`, `PipeBurst`, `DealStatus` or an ID), `data1..3?`, `occupant?`, `deal?`, `expect?` | `DoMessage` |
+| `plumbing_insert` / `plumbing_remove` | `occupant` | the occupant messages |
+| `plumbing_idle` | `count?` (1), `ms?` (5), `expect?` | `DoIdle` calls |
+| `plumbing_pass` | `calls?` | starts a pass and idles until state 9 |
+| `plumbing_month` | `expect?` | the month message |
+| `plumbing_call` | `method`, `args?`, `expect?` | the §10 slots (`query_interface`, `add_ref`, `release`, `supply_value`, `supply_value_map_ptr`, `are_watered_buildings_in_cell`, `is_building_watered`, `water_production`, `is_cell_watered`, `num_water_sources`, `num_polluted_water_sources`, `water_production_capacity`, `water_consumed`, `water_imported`, `water_exported` (EAX), `num_pipes`, `num_distressed_pipes`, `num_burst_pipes`, `num_watered_buildings`, `num_unwatered_buildings`, `water_demand` (EAX), `water_demand_64`, `water_producer_info`, `water_producer_condition_percent`, `occupant_monthly_upkeep_cost`, `find_water_buildings`, `water_producers`), `slot_return` (`[slot]`), and the steps `nearest_water` (`[x, z, type, reach]`), `nearest_water_ring`, `update_water_production`, `age_water_producers`, `building_consumption`, `is_connected_to_current_network`, `pipe_cost`, `trunc`, `eax_of` |
+| `plumbing_set` | `state` (any of `state`, `recompute`, `ageing`, `enabled`, `pipe_condition`, `num_pipes`, `num_distressed`, `num_burst`, `demand`, `pass_counter`, `total_water_cost`, `last_produced`, `last_consumed`, `last_imported`, `last_exported`), `flags?` (`[{x, z, v}]`), `production?` (`[{occupant, production}]`), `crt?` | pokes state (test setup) |
+| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `producers`, `current`, `pipes`, `leaked`, `iterator`, the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
+| `plumbing_expect_tuning` | the scalar fields, `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
+| `plumbing_expect_flags` / `plumbing_expect_grid` | flags: `cells`; grid: `grid` (`published` or `working`), `instance?`, `cells?`, `rects?`, `nonzero?` | the flag map and the u8 grids |
+| `plumbing_expect_occupant` / `_deal` / `_connection` / `_line_item` / `_refs` | occupant: `props?` (null = absent), `net_flags?`, `budget_cost?`; deal: `used?`, `flags?`; connection: `active?`, `visited?`; line item: `line`, `expenses?`, `secondary?`, `display?`, `exists?`; refs: `{label: count}` | host objects |
+| `plumbing_expect_events` / `plumbing_expect_event_count` / `plumbing_clear_events` | see the shared conventions | host calls |
+| `plumbing_save` / `plumbing_load` / `plumbing_expect_save` | `slot`; load: `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5) | the class-object store |
+| `plumbing_patch` / `plumbing_expect_payload` | see the shared conventions (the simulator's record) | |
+
+Plumbing events: `agent`, `remove_agent`, `subscribe`, `unsubscribe`, `post` (`type`, `data1`), `history` (`id`,
+`value`), `create_department`, `department_name`, `max_funding`, `create_line_item`, `line_item_name`,
+`remove_line_item` (`line`), `create_building_line_item`, `display_flag`, `add_expenses` (`line`, `delta`),
+`set_expenses`, `set_secondary`, `change_budget_line`, `change_budget_cost`, `pipe_watered` (`pipe`, `watered`),
+`redisplay` (`min`, `max`), `burst` (`x`, `z`, `manager`), `lot_condition` (`lot`, `condition`), `set_used`,
+`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`) and `grid_shutdown` (`grid`).
+
+## Protection ops
+
+The protection vectors (`pr18_…`) drive the fire and police simulators (`fc4_core::protection`) with a scripted
+city implementing `ProtectionHost`: occupants (type, position, prop flag, lot road access, station effect
+properties, a property map, budget items), lots, zoned cells, dispatches, departments and their funding, the
+police coverage percentage, sea level and altitude, the disaster flag and the date. Every op name starts with
+`protection_`. The default city is 64 × 64 cells of 16 m (32 × 32 tracts at S = 2). Grid cells are
+`[[x, z, v], …]`; IDs may be written as `"0x…"` strings.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `protection_env` | any of `cells` (`[x, z]`), `day` (default 1000), `police_pct` (the police simulator's percent coverage, or null), `sea_level` (250), `altitude` (300), `disaster`, `departments_fail`, `dept_funding` (`{"0xID": f}`, default 1.0), `tuning` (`"shipped"` (default), `"empty"`, or null = no exemplar), `tuning_props` (a property map merged into the tuning), `zones` (`[{x, z, w?, d?, v?}]` cells), `lots` (`{"id": [x, z] or null}`, the lot's cell), `dispatches` (`[{id, station, call, active, automaton, pos: [x, z]}]`) | the scripted city |
+| `protection_occupants` | `{"id": {type?, pos?: [x, y, z], prop?, road? (true/false = a lot with/without road access, null = no lot), station?: [kind, centre, outer, radius, units] (writes the kind's effect, unit count and dispatch properties), props?: {"0xID": {"u32" / "i32" / "f32": value or array} or null}, items?: {"0xPURPOSE": {local, funded? (true), cost?, dept? (true)} or null}} or null}` (merged into existing occupants) | occupants |
+| `protection_create` | `kind` (`fire` or `police`), `rng?`: `{stub: {uniform: [u…], range: [u…]}}` (a range draw returns `a + u (b − a)`; the last value repeats) or `{seed}` | a new simulator; the shipped tuning when none is set |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `protection_init` / `protection_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `protection_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `OccupantChanged`, `FundingChanged`, `ReloadTuning`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `Crime` or an ID), `data1?`, `data2?`, `occupant?`, `unknown?` (the IGZUnknown: an occupant or lot ID), `count?` (repeat), `expect?` | `DoMessage` |
+| `protection_call` | `method`, `args?`, `expect?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
+| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `ratio_share`, `escapees`, `jail_capacity` |
+| `protection_set` | `state`: any of `tracts_per_day`, `factor`, `counters` (`[zoned, sum, nonZero]`), `avg`, `pct`, `strike_flag`, `strike_date`, `next_call`, `capacity`, `population`, `jailed`, `arrests_last`, `arrests_this`, `unarrested_this`, `crimes_last`, `crimes_this` | pokes state (test setup) |
+| `protection_expect` | `state`: the `protection_set` fields plus `initialized`, `ref_count`, `destroyed`, `loaded`, `department`, `jail_department`, `purpose`, `stations`, `air_source`, `jails`, `funded_jails`, `jailbreaks`, `crt` (the rand() state) and `iterator` (partial `{state, mode, rect, count, index, current, step}`) | the simulator state |
+| `protection_expect_occupant` | `id`, `props` (`{"0xID": value or array}`) | occupant properties |
+| `protection_expect_refs` | `all_zero?`, `refs?` (`{"id": count}`) | outstanding host references |
+| `protection_grid_set` / `protection_expect_grid` | `grid` (`adjusted` or `unadjusted`); set: `cells`; expect: any of `exists`, `size`, `counts`, `instance`, `cells`, `others` | the coverage grids |
+| `protection_expect_events` / `protection_expect_event_count` / `protection_clear_events` | see the shared conventions | host calls |
+| `protection_save` / `protection_load` / `protection_expect_save` | `slot` | the class-object store (load recreates the simulator, its grids and the host objects) |
+| `protection_read` | `slot` or `hex`, `expect`, `position?` | `Read` on the live simulator; `position` is the bytes consumed |
+| `protection_patch` / `protection_expect_payload` | see the shared conventions (the simulator's record) | |
+
+Protection events: `acquire_services` / `release_services` (`kind`), `create_grid` (`type` u8/i16, `instance`,
+`size`), `set_instance`, `shutdown_grid`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` /
+`unsubscribe` (`types`), `register_dispatch` / `unregister_dispatch`, `department` (`id`, `group`, `name`, `max`),
+`add_funded` / `remove_funded` (`dept`, `occupant`, `purpose`), `set_funding` (also `p`), `add_controllers` /
+`remove_controllers` (`group`: `striking_fire`, `striking_police`, `jailbreak`; `occupant`), `history`
+(`series`, `value`), `post` (`type`, `subject?`), `air_create`, `air_init` / `air_shutdown` (`source`), and `rng`
+(`kind` uniform or range with `lo`, `hi`, `value`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
-   `pw15_…` (power §15).
+   `pw15_…` (power §15), `pl14_…` (plumbing §14),
+   `pr18_…` (protection §18).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -720,7 +815,7 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 10 city references | not yet (no city object) |
 | 11 response curves | `f7_11_response_curves` |
 | 12 messages | `engine/tests/message_test.cpp` (the GZCOM message class) |
-| 13–15 random generators | `f7_13_15_random_generators` |
+| 13–15 random generators, 16 uniform rounding and clamped Gaussian | `f7_13_15_random_generators` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
@@ -794,6 +889,9 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 7 moisture variation (and §6.4.1 SetManualMoistureAddition) | `w14_07_variation` |
 | 8 accessors | `w14_08_accessors` |
 | 9 save | `w14_09_save` |
+| 10 ambient and wind precision (§6.1, §6.2) | `w14_10_ambient_precision` |
+| 11 table-mode iterator (§6.7) | `tg10_19_random_iterator` |
+| 12 pass-2 smoothing reads pass-1 values (§6.5) | unit test `weather::simulator::tests::pass_two_reads_pass_one` |
 
 ## Coverage (simgrid §10)
 
@@ -827,6 +925,8 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 14 messages | `lv16_14_messages` |
 | 15 pipeline call count | `lv16_15_pipeline` |
 | 16 missing altitude curve | `lv16_16_missing_altitude_curve` |
+| 17 desirability mapping (scratch 2, desirability 4) | `lv16_17_desirability_mapping` |
+| 18 desirability map smaller than the scratch area (skipped tracts; equal and coarser [choice]s) | `lv16_18_desirability_coverage` |
 
 ## Coverage (simgrid §10, `fc4_core::grid`)
 
@@ -867,8 +967,12 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 9 global multiplier | `fl16_09_global_multiplier` |
 | 10–11 fire roll | `fl16_10_11_fire_roll` |
 | 12–13 occupant update | `fl16_12_13_occupant_update` |
-| 14 persistence | `fl16_14_persistence` |
+| 14 persistence (Read appends; failed reference) | `fl16_14_persistence` |
 | 15 interface slots (portable part) | `fl16_15_slots` |
+| 16 property conversion (`GetValSint32`) | `fl16_16_property_conversion` |
+| 17 single-value curve | `fl16_17_single_value_curve` |
+| 18 missing services | `fl16_18_missing_services` |
+| 19 subscriptions, `0xC53D10AA` ignored | `fl16_19_subscriptions` |
 
 ## Coverage (pollution §11)
 
@@ -930,11 +1034,11 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 |---|---|
 | Init, Shutdown, tuning (defaults, "delete" curve pattern, exemplar reload) | `a17_00_lifecycle_tuning` |
 | 1 ABI (slots 6 / 7, getters, class, QueryInterface) | `a17_01_abi` |
-| 2 park funding | `a17_02_park_funding` |
-| 3 landmark funding | `a17_03_landmark_funding` |
+| 2 park funding (int16 wrap, NaN), 19 no Parks department | `a17_02_park_funding` |
+| 3 landmark funding (int16 wrap) | `a17_03_landmark_funding` |
 | 4 tax effect | `a17_04_tax_effect` |
 | 5 lot base aura | `a17_05_lot_base_aura` |
-| 6 work stamping (and the time slice) | `a17_06_work_stamping` |
+| 6 work stamping (and the time slice with an expiring clock) | `a17_06_work_stamping` |
 | 7 curves on cells | `a17_07_curves_on_cells` |
 | 8 long decay | `a17_08_long_decay` |
 | 9 global effect | `a17_09_global_effect` |
@@ -943,10 +1047,14 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 12–13 hotspots and riot | `a17_12_13_hotspots_riot` |
 | 14 cadence | `a17_14_cadence` |
 | 15 occupant cones | `a17_15_occupant_cones` |
-| 16 persistence | `a17_16_persistence` |
+| 16 persistence (and a failed reference, foundations §2.7) | `a17_16_persistence` |
 | 17 BustStrike | `a17_17_bust_strike` |
 | 18 registry | `a17_18_registry` |
 | 17 desirability mapping (scratch 2, desirability 4) | `lv16_17_desirability_mapping` |
+| 20 empty curves | `a17_20_empty_curves` |
+| 21 population mapping | `a17_21_population_mapping` |
+| 22 time-slice step | `a17_22_time_slice` |
+| §6 integer stores (`_ftol`, low bits) | `a17_23_integer_stores` |
 
 ## Coverage (power §15)
 
@@ -969,3 +1077,53 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 20 save | `pw15_20_save` |
 | 21 lifecycle | `pw15_21_lifecycle` |
 | 22 Nuclear Free Zone | `pw15_22_nuclear_free_zone` |
+
+## Coverage (plumbing §14)
+
+| §14 item | Vector |
+|---|---|
+| Init, Shutdown, references, the agent and the department | `pl14_00_lifecycle` |
+| Buildings, budget items, maintenance, the consumer-removal and lotless-producer quirks | `pl14_00_buildings_budget` |
+| Shared seed cells (§6.2) | `pl14_00_seeding` |
+| 1 defaults, 2 shipped tuning | `pl14_01_02_tuning` |
+| 3 pipe flags, 4 pipe cost, 16 burst bookkeeping | `pl14_03_04_16_pipes` |
+| 5 pump capacity, 6 pollution shutdown, 7 power, 8 condition curve | `pl14_05_08_production` |
+| 9 basic flood, 10 shortage | `pl14_09_10_flood` |
+| 11 ring geometry | `pl14_11_ring_geometry` |
+| 12 export | `pl14_12_export` |
+| 13 import | `pl14_13_import` |
+| 14 pipe funding, 15 GaussianFast | `pl14_14_15_pipe_funding` |
+| 17 deal message, 18 disabled | `pl14_17_18_messages` |
+| 19 grid values, 20 grid swap (and the time slice) | `pl14_19_20_grids` |
+| 21 NearestWater | `pl14_21_nearest_water` |
+| 22 ageing | `pl14_22_ageing` |
+| 23 persistence | `pl14_23_persistence` |
+| 24 SDK return channels | `pl14_24_slots` |
+
+## Coverage (protection §18)
+
+| §18 item | Vector |
+|---|---|
+| Init, Shutdown, Release, tuning (code defaults, shipped exemplar, "default" curve pattern, reload filter) | `pr18_00_lifecycle` |
+| 1 fire efficiency curve | `pr18_01_fire_efficiency_curve` |
+| 2 road and strike modifiers, fundingOf | `pr18_02_efficiency_modifiers` |
+| 3 jail efficiency | `pr18_03_jail_efficiency_curve` |
+| 4 strike curve and the single draw | `pr18_04_strike_curve` |
+| 5 chance of strike | `pr18_05_chance_of_strike` |
+| 6 strike end (duration, funding, unsigned days) | `pr18_06_strike_end` |
+| 7 monthly strike pass (posts, unadjusted rebuild only) | `pr18_07_monthly_strike_pass` |
+| 8 jailbreak curve | `pr18_08_jailbreak_curve` |
+| 9 rehabilitation | `pr18_09_rehabilitation` |
+| 10 ResetUnjailedCriminals | `pr18_10_reset_unjailed` |
+| 11 Recalculate and the jail lists | `pr18_11_recalculate` |
+| 12 escapees, jailbreak begin and end | `pr18_12_escapees` |
+| 13 crime events and ProcessMonthlyCrimeStats | `pr18_13_crime_event` |
+| 14 occupant coverage | `pr18_14_occupant_coverage` |
+| 15 effect scaling | `pr18_15_effect_scaling` |
+| 16 dispatch masks, nearest station, dispatch cones | `pr18_16_dispatch` |
+| 17 call numbers | `pr18_17_call_numbers` |
+| 18 cadence | `pr18_18_cadence` |
+| 19 cycle averages and the daily step | `pr18_19_cycle_averages` |
+| 20 adjusted copy and funding change | `pr18_20_adjusted_copy` |
+| 21 persistence (layout, versions, store round trip) | `pr18_21_persistence` |
+| 22 slot ABI, QueryInterface, crime-compatible slots | `pr18_22_slot_abi` |

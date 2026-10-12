@@ -483,6 +483,9 @@ s32 current, s32 step`. For the weather, mode = 1 (prime step) and `n = 0`. **St
 original has only two, **1 = running** (also a freshly constructed, never-reset iterator) and **2 = exhausted**;
 it never writes 0. `Read` stores the byte unchanged, and `next` treats any value other than 2 as running. With the
 shipped tuning the weekly pass consumes exactly `count` cells, so a save normally holds 2 (with `index = count`).
+On a stream error the shared iterator reader (`0x005DB280`) reads the table length into the variable that held the
+stream pointer, so the table is resized to the stream object's address (a huge allocation) *[quirk]*; *[choice]*
+FreeCity4 fails the `Read` instead and leaves the iterator unchanged.
 
 **Generator**: `hasCachedGaussian` and `cachedGaussian` are written as they are. The cached word is **not**
 cleared when the cached value is consumed: with the flag at 0 it holds the second value of the most recent

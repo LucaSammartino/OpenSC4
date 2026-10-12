@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "plumbing_nearest_water",
+  "spec": ["plumbing 7.2", "plumbing 14.21"],
+  "description": "Test 21: NearestWater searches the box [max(0, x - reach), min(x + reach, terrainX - 1)] (same in z) and returns the ring (Chebyshev distance, spec question 3, [inferred] at clipped edges) of the nearest water cell. Water at (x+2, z+1) from (10,10), reach 2 -> 2; only water at (x+3, z) with reach 2 -> -1; type 2 -> 0 without looking (even with no terrain); types 0 and 1 use the same test (water at (13,10), reach 5 -> 3 for both). Clipped at the map corner: water at (0,3) from (0,0), reach 5 -> 3. No terrain -> -1 for types 0 and 1. A cell holding water -> 0.",
+  "steps": [
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_env", "water": [[12, 11]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 0, 2], "expect": 2},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 0, 1], "expect": -1},
+    {"op": "plumbing_env", "clear_water": true, "water": [[13, 10]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 0, 2], "expect": -1},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 2, 2], "expect": 0},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 0, 5], "expect": 3},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 1, 5], "expect": 3},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [13, 10, 1, 0], "expect": 0},
+    {"op": "plumbing_env", "clear_water": true, "water": [[0, 3]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 5], "expect": 3},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 2], "expect": -1},
+    {"op": "plumbing_env", "no_terrain": true},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 5], "expect": -1},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 1, 5], "expect": -1},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 2, 5], "expect": 0}
+  ]
+}

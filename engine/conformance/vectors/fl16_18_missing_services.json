@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "flammability_missing_services",
+  "spec": ["flammability 4.1", "flammability 6.5", "flammability 6.6", "flammability 16.18"],
+  "description": "Test 18 [choice] (the original crashes without these services): 8 x 8 city, every tract zoned, raw 100 at (2,2), global 1.0, shipped no-water 1.25, tractsPerDay set to 64 so each day ends the previous cycle and then visits every tract once. With the plumbing simulator (watered) the daily value is 100. Without it every cell reads 'not watered': roundHE(roundHE(100 x 1.0) x 1.25) = 125; the next end of cycle averages that pass: 125 / 64 = 1. Without a zone manager every tract reads unzoned (0): the zoned sum and count stay 0 (the end of cycle in that day still averages the previous, zoned pass: 1), and after that full unzoned cycle the average is 0 and RecordHistoryData(0x2A11CB48, 0). Every visited tract still asks the zone manager slot (64 queries). Hand-derived.",
+  "steps": [
+    {"op": "flam_env", "cells": [8, 8], "zoned_all": true},
+    {"op": "flam_tuning", "shipped": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_set", "state": {"global_multiplier": 1.0, "tracts_per_day": 64}, "raw": [[2, 2, 100]]},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[2, 2, 100]], "others": 0},
+    {"op": "flam_env", "plumbing": false},
+    {"op": "flam_clear_events"},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"event": "history", "type": "0x2A11CB48", "value": 1}]},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[2, 2, 125]], "others": 0},
+    {"op": "flam_expect", "state": {"zoned_count": 64, "zoned_sum": 125}},
+    {"op": "flam_expect_visits", "total": 128},
+    {"op": "flam_env", "zone_manager": false},
+    {"op": "flam_clear_events"},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"event": "history", "type": "0x2A11CB48", "value": 1}]},
+    {"op": "flam_expect", "state": {"zoned_count": 0, "zoned_sum": 0, "average": 1}},
+    {"op": "flam_expect_visits", "total": 64},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_events", "filter": {"event": "history"}, "events": [{"event": "history", "type": "0x2A11CB48", "value": 0}]},
+    {"op": "flam_expect", "state": {"average": 0, "zoned_count": 0}},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[2, 2, 125]], "others": 0}
+  ]
+}

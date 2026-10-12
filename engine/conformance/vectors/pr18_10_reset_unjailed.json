@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "protection_reset_unjailed",
+  "spec": ["protection 9.3", "protection 18.10"],
+  "description": "Test 10: ResetUnjailedCriminals (slot 27): cap = trunc(capacity x 1.1) = 1100; released = unarrested this month (7), which is cleared; jailed 1200 >= 1100 releases 100 more and jailed := 1100 -> returns 107. Capacity 1000, jailed 900, unarrested 7 -> 7, jailed 900. No Recalculate (population untouched). Hand-derived.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_set", "state": {"capacity": 1000, "jailed": 1200, "unarrested_this": 7, "population": 33}},
+    {"op": "protection_call", "method": "reset_unjailed_criminals", "expect": 107},
+    {"op": "protection_expect", "state": {"jailed": 1100, "unarrested_this": 0, "population": 33}},
+    {"op": "protection_set", "state": {"capacity": 1000, "jailed": 900, "unarrested_this": 7}},
+    {"op": "protection_call", "method": "reset_unjailed_criminals", "expect": 7},
+    {"op": "protection_expect", "state": {"jailed": 900, "unarrested_this": 0}},
+    {"op": "protection_set", "state": {"capacity": 1000, "jailed": 1100, "unarrested_this": 0}},
+    {"op": "protection_call", "method": "reset_unjailed_criminals", "expect": 0},
+    {"op": "protection_expect", "state": {"jailed": 1100}},
+    {"op": "protection_eval", "fn": "reset_unjailed", "args": [1000, 1200, 7, 1.1], "expect": [107, 1100]}
+  ]
+}

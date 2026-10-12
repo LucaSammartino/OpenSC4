@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "protection_effect_scaling",
+  "spec": ["protection 7.1", "protection 16", "protection 18.15"],
+  "description": "Test 15: AdjustProtectionEffect with e 0.75: centre 100 -> 75, outer 21 -> trunc(15.75) = 15, radius 300 -> 225, original centre kept (100). Through GetStationEffect of a fire prop station (quirk 4): department funding 0.75 through the code-default curve (empty exemplar: identity) -> e 0.75, ignoring local funding, road access and strikes. The same station as a non-prop building takes the full path: local 0.1 -> 0.1, no road 0.8, strike at the code-default 0.5 -> e 0.04: centre trunc(4.0) = 4, outer trunc(0.84) = 0, radius 12. A police effect fails without a radius or with centre 0 (raw values kept: quirk 3); a fire effect accepts centre 0. Hand-derived.",
+  "steps": [
+    {"op": "protection_eval", "fn": "scale_effect", "args": [100, 21, 300, 0.75], "expect": [75, 15, 225, 100]},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "empty", "dept_funding": {"0x28F55A9F": 0.75}},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "10": {"station": ["fire", 100, 21, 300, 1], "pos": [64, 0, 96], "prop": true, "road": false, "items": {"0xEA567BC3": {"local": 0.1}}, "props": {"0xEAA69F83": {"u32": 3}}}},
+    {"op": "protection_call", "method": "station_effect", "args": [10], "expect": {"ok": true, "x": 64, "z": 96, "radius": 225, "centre": 75, "outer": 15, "original_centre": 100}},
+    {"op": "protection_occupants", "10": {"prop": false}},
+    {"op": "protection_call", "method": "station_effect", "args": [10], "expect": {"ok": true, "radius": 12.000000953674316, "centre": 4, "outer": 0, "original_centre": 100, "x": 64, "z": 96}},
+    {"op": "protection_occupants", "11": {"station": ["fire", 0, 0, 100, 1]}},
+    {"op": "protection_call", "method": "station_effect", "args": [11], "expect": {"ok": true, "x": 0, "z": 0, "radius": 0, "centre": 0, "outer": 0, "original_centre": 0}},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "empty"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "12": {"station": ["police", 0, 5, 100, 1], "pos": [1, 0, 2]}},
+    {"op": "protection_call", "method": "station_effect", "args": [12], "expect": {"ok": false, "x": 1, "z": 2, "radius": 100, "centre": 0, "outer": 5, "original_centre": 0}},
+    {"op": "protection_occupants", "12": {"props": {"0x48D71ED0": {"i32": 50}, "0x48D71ED2": null}}},
+    {"op": "protection_call", "method": "station_effect", "args": [12], "expect": {"ok": false, "x": 1, "z": 2, "radius": 0, "centre": 50, "outer": 5, "original_centre": 50}}
+  ]
+}

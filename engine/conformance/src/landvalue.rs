@@ -411,7 +411,18 @@ fn configure(d: &mut Data, op: &Json) -> R<()> {
                     if matches!(spec, Json::Null) {
                         continue;
                     }
-                    let g = AnyGrid::I16(SimGrid::create(&d.city, 0, opt_int(spec, "size")?.unwrap_or(2) as i32));
+                    // `cells: [x, z]`: the map covers a city of that size
+                    // (smaller or larger than the land value city, §7.4).
+                    let mut city = d.city;
+                    if let Some(c) = spec.get("cells") {
+                        let c = c
+                            .as_array()
+                            .filter(|c| c.len() == 2)
+                            .ok_or("developer 'cells' must be [x, z]")?;
+                        city.cells_x = num_of(&c[0])? as i32;
+                        city.cells_z = num_of(&c[1])? as i32;
+                    }
+                    let g = AnyGrid::I16(SimGrid::create(&city, 0, opt_int(spec, "size")?.unwrap_or(2) as i32));
                     if let Some(all) = spec.get("all") {
                         g.set_all(num_of(all)?);
                     }

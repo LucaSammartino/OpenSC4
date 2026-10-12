@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "protection_jail_efficiency_curve",
+  "spec": ["protection 9.1", "protection 18.3"],
+  "description": "Test 3: jailEff = curveA0(fundingOf(j, 0xEA56768A) x 100) x 0.01 with the shipped curve (0,0)(10,50)(100,100)(120,110): funding 0.55 -> 75 -> 0.75, 0.05 -> 25 -> 0.25; GetJailCapacity(occ) (slot 28) = roundHalfEven(capacity property 1000 x jailEff) = 750 / 250. Without a jail-purpose item funding is 0 -> capacity 0. Hand-derived; f32 values checked with gen_pr18.py.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "curve", "args": ["jail", 55], "expect": 75.0},
+    {"op": "protection_call", "method": "curve", "args": ["jail", 5], "expect": 25.0},
+    {"op": "protection_occupants", "21": {"props": {"0x48D71EE0": {"u32": 1000}}, "items": {"0xEA56768A": {"local": 0.55}}}},
+    {"op": "protection_call", "method": "is_jail", "args": [21], "expect": true},
+    {"op": "protection_call", "method": "jail_capacity_of", "args": [21], "expect": 750},
+    {"op": "protection_occupants", "21": {"items": {"0xEA56768A": {"local": 0.05}}}},
+    {"op": "protection_call", "method": "jail_capacity_of", "args": [21], "expect": 250},
+    {"op": "protection_occupants", "21": {"items": {"0xEA56768A": null}}},
+    {"op": "protection_call", "method": "jail_capacity_of", "args": [21], "expect": 0},
+    {"op": "protection_call", "method": "is_jail", "args": [22], "expect": false}
+  ]
+}
