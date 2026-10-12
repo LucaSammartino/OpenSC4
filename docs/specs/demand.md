@@ -676,6 +676,22 @@ Values go through `cISC4HistoryWarehouse::RecordHistoryData(id, int32)`. "trunc"
 | | `0x8A63F30C` | average salary: with `n_i := trunc(node[k_i].supply)` for the 12 keys `k = 0x2111, 0x2112, 0x2113, 0x2114, 0x2121, …, 0x2134` (in that order) and `salary[i]` (§11.1): `Σ n_i·salary[i] / Σ n_i` with 64-bit integer arithmetic and truncating division; 0 if `Σ n_i = 0` |
 | every NewMonth | `0xAA772F1D, 0x6A774F64, 0xCA774F69` | exported R / C / I totals (§9.2) |
 
+**"Population" versus "jobs" for C and I** *[compat]* (how the original's other subsystems read these numbers):
+
+- **C / I population** is the **supply** of the census sum nodes: C = `node[0x3001].supply`, I =
+  `node[0x4001].supply` (R = `node[0x1001].supply`); region-wide C / I / R are the supplies of `0x23001`,
+  `0x24001`, `0x21001`. This is what the city-planning advisor's population variables use. Never the demand.
+- **C / I jobs** are the `GetJobsBySensus` sums above (`0x0A4E2056`, `0x4A4E206B`). The regional-city record's
+  commercial and industrial jobs are computed the same way (per census key, trunc(trunc(supply) × the key's
+  summed jobs-per-unit factors), summed over the five C keys and the four I keys).
+- The two agree for commercial (every C census node's job factors sum to 1, up to float truncation). They differ
+  for industry: `0x4001` sums only `0x4201`, `0x4301`, `0x4401` (agriculture excluded), while I jobs count
+  agriculture `0x4101` at its job factor (shipped 0.2). The city's total population figure is the residential
+  simulator's `GetPopulation`, not a demand node.
+- A diagnostic that wants the original's "C and I population" should therefore read the supply of `0x3001` and
+  `0x4001` (local index), not a sum over the developer-type nodes `0x3110 … 0x3330` / `0x4100 … 0x4400`, which
+  are the capacity/demand nodes of §2, not census counts.
+
 ## 11. Tuning
 
 ### 11.1 Demand Simulator exemplar `0x6534284A / 0xE7E2C2DB / 0x4A1F3CE6`
@@ -710,6 +726,22 @@ Read at `Init` and on tuning reload. If the exemplar is missing, the original ke
 | `0x4A1F62A0 + i` | float pairs (curve) | economy modifier vs. months since city start, for the i-th listed ID (plain addition: the 11th–13th curves are `0x4A1F62AA…AC`) | `0x4A1F62A0` = (0, 0) |
 | `0x4A1F6300` | float[3] | difficulty modifier, indexed by `cISC4City::GetDifficultyLevel()` | 0.06, 0.03, 0.01 |
 
+**Missing exemplar or properties** *[compat]*: the original has **no usable code defaults**. The nation reads this
+exemplar once per process (in its first `Init`; its message handler does not handle the tuning-reload message).
+Before reading, it sizes the difficulty vector to 3 (new elements 0.0). Then:
+
+| Situation | Result in the original |
+|---|---|
+| exemplar missing, or `0x4A1F629F` missing or empty | no curves; difficulty [0, 0, 0] (`0x4A1F6300` is read only inside the per-ID loop, so it is never read). `GetEconomyModifier` finds no curve for the demand ID and none for ID 0, and then uses an uninitialised pointer: **undefined behaviour** (most likely a crash). |
+| an ID listed but its curve property missing | an **empty** curve for that ID; evaluating it dereferences null data (crash) when that ID, or ID 0 as the fallback, is used. A one-point curve returns its constant. |
+| `0x4A1F6300` missing | difficulty stays [0, 0, 0]: adds 0 |
+| `0x4A1F6300` with fewer than 3 values | the vector takes that length; the difficulty index is not bounds-checked (reads past the end) |
+
+Neither property is type-checked; the curve and difficulty data are taken from whatever type is stored. An ID
+listed twice rebuilds the same curve with the later index's data. The difficulty term is added only while a city
+exists. *[choice]* FreeCity4 defaults, used only when the exemplar or a property is missing: one curve for ID 0
+equal to the constant 0, and difficulty [0.06, 0.03, 0.01] (the shipped values); an empty curve evaluates to 0.
+
 ### 11.3 Other data
 
 Demand exemplars: §4.1. Building exemplar properties: §7.1.
@@ -729,18 +761,29 @@ float32  iEconomyBonus
 float32  commercialRelief
 float32  industrialRelief
 uint32   nodeCount
-nodeCount × { uint32 key;  <embedded serializable object: the cSC4Demand node> }     ascending key
+nodeCount × { uint32 key;  ref node }        ascending key; ref = foundations §2.7 (u32 objectID, u32 classID)
 uint32   censusCount
 censusCount × { uint32 key;  float32 value }                                         previous census, ascending key
 ```
 
 - `Write` returns false without writing if the stream is already in error. Otherwise it returns "no stream error".
-- `Read` fails for a stream error or `version ≥ 3`. Otherwise it sets **loadedFromSave** (before reading the rest),
-  creates each node from the embedded object (through the class factory of the class ID the object carries
-  *[inferred]*, requesting interface `0x0797A4E8`), stores it under `key`, and fills the previous census. Returns
-  "no stream error".
-- The embedded object goes through the save segment's serializable-object facility (the same one other savable
-  objects use). Its exact byte encoding belongs to the save-file spec (§15 Q1).
+- `Read` fails for a stream error or `version ≥ 3`. Otherwise it sets **loadedFromSave** (after the version
+  check, before reading the rest), reads each key and resolves the reference with a delayed read (foundations
+  §2.7, §3.5), requesting interface `0x0797A4E8`, stores the result under `key`, and fills the previous census.
+  Returns "no stream error".
+- **Node references** *[compat]* (answers the former open question 1): each node is an ordinary object reference,
+  not an embedded record. An entry is `u32 key, u32 objectID, u32 classID` (12 bytes; classID is always
+  `0x8990C12D`), or `u32 key, u32 0` (8 bytes) for a null reference; the original writes objectID 0 only if the
+  node does not answer `cIGZSerializable`, which never happens. The node's own data (§12.2, 55 bytes for version
+  2) is written once by the class-object store into the class record `0x8990C12D` (foundations §3.3); nodes that
+  other subsystems created (for example the building development simulator's own node) share that record but are
+  not referenced from this payload.
+- *[quirk]* `Read` does not clear the existing map, does not check the reference read's result (a null or failed
+  reference stores a **null** node under the key, and a later use of that key crashes), overwrites a duplicate key
+  without releasing the old node, and does not check that the key equals the node's id or that keys ascend.
+  *[choice]* FreeCity4 skips null or failed references and rejects duplicate keys.
+- Checked against two sample saves (version 2, 173 references, all class `0x8990C12D`, keys ascending, every
+  node's id equal to its key; the node class record holds 174 nodes of 55 bytes).
 - Not saved: census state (derived in `Init`), the current census, links, curves, tuning, agent effects, city lists.
 
 ### 12.2 Demand node (`GetGZCLSID() = 0x8990C12D`)
@@ -764,6 +807,8 @@ version 2: float32 demandCap      version 1: uint8 percent, demandCap := percent
 ```
 
 - `Read` sets loadedFromSave first, then fails (returns false) for `version ≥ 3`. It returns "no stream error".
+  Version 0 is read like version 2 (float cap); version 1 reads the cap as a byte × 0.01f. The flag byte is read
+  as a boolean (any non-zero value becomes 1).
 - `regionUse` is not saved. It comes from the exemplar (4.2).
 
 ## 13. Lifecycle
@@ -827,9 +872,8 @@ defines integer rounding.
 
 ## 15. Open questions
 
-1. **Embedded node encoding in the save** (§12.1): the byte format the save segment uses for an embedded
-   serializable object (prior art suggests a class-ID/instance reference with the node stored as its own record of
-   type `0x8990C12D`). It must be pinned down from a sample save before saves can be written.
+1. *(resolved)* Node encoding in the save: object references, with the node data in class record `0x8990C12D`
+   (§12.1).
 2. **Regional sum method** (§9.1): slot 17 of `cISC4RegionalCity` is `GetExtrapolatedPopulation(type)` if the SDK
    order is right. The extrapolation code uses slot 16 (`GetPopulation(type)`), so the two are distinct. Confirm
    with a region test that regional nodes equal the neighbours' extrapolated values, not their real population.
