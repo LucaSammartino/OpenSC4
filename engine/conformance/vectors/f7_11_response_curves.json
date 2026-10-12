@@ -2,7 +2,7 @@
   "format": 1,
   "name": "response_curves",
   "spec": ["foundations 4", "foundations 7.11"],
-  "description": "Every worked example of foundations 4.4 (relative tolerance 1e-6 unless stated), plus one point (constant), an odd value count (last value ignored) and zero points (0.0, curve treated as absent).",
+  "description": "Every worked example of foundations 4.4 (relative tolerance 1e-6 unless stated), plus one point (constant), an odd value count (last value ignored) and zero points (0.0, curve treated as absent). NaN input (foundations 4.3 [compat]): with two or more kept points the result is NaN (the jail curve, a flat curve; either NaN sign as input); with one kept point it is y0 (one input point, and two input points whose second is dropped as a higher vertical step). An expected NaN matches any NaN.",
   "steps": [
     {"op": "curve", "points": [0, 0, 100, 100, 120, 110],
       "eval": [[-10, 0], [0, 0], [50, 50], [100, 100], [110, 105], [150, 110]]},
@@ -26,6 +26,10 @@
     {"op": "curve", "points": [3, 7], "absent": false, "eval": [[-1e9, 7], [3, 7], [1e9, 7]]},
     {"op": "curve", "points": [0, 0, 10, 10, 99], "eval": [[20, 10], [5, 5]]},
     {"op": "curve", "points": [], "absent": true, "eval": [[1, 0]]},
-    {"op": "curve", "points": [5], "absent": true}
+    {"op": "curve", "points": [5], "absent": true},
+    {"op": "curve", "points": [0, 0, 80, 0, 90, 10, 100, 100], "eval": [["0xFFC00000", "0xFFF8000000000000"], ["0x7FC00000", "0x7FF8000000000000"]]},
+    {"op": "curve", "points": [0, 5, 10, 5], "eval": [["0xFFC00000", "0xFFF8000000000000"]]},
+    {"op": "curve", "points": [3, 7], "eval": [["0xFFC00000", 7]]},
+    {"op": "curve", "points": [3, 7, 3, 9], "eval": [["0xFFC00000", 7]]}
   ]
 }

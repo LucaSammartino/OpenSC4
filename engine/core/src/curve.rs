@@ -72,6 +72,8 @@ impl ResponseCurve {
 
     /// Evaluates the curve (§4.3): `py + (input − px) · slope` as three `f32`
     /// operations in that order (foundations §18); an empty curve returns 0.0.
+    /// A NaN input with two or more kept points interpolates the last segment
+    /// and so returns NaN (§4.3 [compat]); with one point it returns `y0`.
     pub fn eval(&self, input: f32) -> f32 {
         let Some(last) = self.segments.len().checked_sub(1) else {
             return 0.0;
@@ -81,7 +83,7 @@ impl ResponseCurve {
         if k == 0 {
             return self.segments[0].y;
         }
-        if k < last || input < self.segments[last].x {
+        if k < last || input < self.segments[last].x || input.is_nan() {
             return s.py + (input - s.px) * s.slope;
         }
         self.segments[last].y
@@ -174,5 +176,14 @@ mod tests {
         assert!(ResponseCurve::from_flat(&[]).is_none());
         assert!(ResponseCurve::from_flat(&[5.0]).is_none());
         assert_eq!(ResponseCurve::default().eval(1.0), 0.0);
+        // §4.3 [compat]: NaN in, NaN out once two points are kept (flat or
+        // not); one kept point stays constant.
+        assert!(c(&[0.0, 0.0, 80.0, 0.0, 90.0, 10.0, 100.0, 100.0])
+            .eval(f32::NAN)
+            .is_nan());
+        assert!(c(&[0.0, 5.0, 10.0, 5.0]).eval(f32::NAN).is_nan());
+        assert_eq!(one.eval(f32::NAN), 7.0);
+        // Two input points with the second dropped (vertical, higher y): one kept.
+        assert_eq!(c(&[3.0, 7.0, 3.0, 9.0]).eval(f32::NAN), 7.0);
     }
 }

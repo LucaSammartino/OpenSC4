@@ -2,7 +2,7 @@
   "format": 1,
   "name": "protection_jailed_percentage",
   "spec": ["protection 9.1", "protection 9.5", "protection 18.24"],
-  "description": "Test 24 (PR15): GetJailedPercentage has no guard: (jailed, capacity) = (0, 0) -> 0/0 = the x87 default NaN 0xFFC00000; (5, 0) and (1200, 1000) -> jailed > capacity (signed) -> 1.0; (800, 1000) -> f32(0.8) = 0x3F4CCCCD; (799, 1000) -> f32(0.799) = 0x3F4C8B44; (-5, 0) -> -inf 0xFF800000 (one float division; bit patterns from an independent numpy float32 model). End test (9.5 Comparisons, ordered <) against the shipped threshold 80 x 0.01f = 0.79999995 (0x3F4CCCCC): 0.8f is not below it -> no end; 0.799 ends; NaN and 1.0 never end; -inf ends. Start test: a draw is taken only when chance > 0 (ordered: 0 and NaN take none), and a jailbreak starts when draw < chance (ordered: an equal draw does not). End to end: police jail 21 (capacity 1000, full funding), the shipped tuning with the rehabilitation rate 0 (so jailed stays fixed), in the jailbreak list (BeginJailbreak with the stub range draw: escapees roundHalfEven(1000 x 0.099999994) = 100), jailed set to 800 -> month end: no 0x2A614892, still in the list, and no uniform draw for it (it is in a jailbreak: chance 0); jailed 799 -> month end: EndJailbreak(21): the 'jailbreak' controllers removed and one 0x2A614892. Hand-derived from 9.1 and 9.5.",
+  "description": "Test 24 (PR15): GetJailedPercentage has no guard: (jailed, capacity) = (0, 0) -> 0/0 = the x87 default NaN 0xFFC00000; (5, 0) and (1200, 1000) -> jailed > capacity (signed) -> 1.0; (800, 1000) -> f32(0.8) = 0x3F4CCCCD; (799, 1000) -> f32(0.799) = 0x3F4C8B44; (-5, 0) -> -inf 0xFF800000 (one float division; bit patterns from an independent numpy float32 model). End test (9.5 Comparisons, ordered <) against the shipped threshold 80 x 0.01f = 0.79999995 (0x3F4CCCCC): 0.8f is not below it -> no end; 0.799 ends; NaN and 1.0 never end; -inf ends. Start test: a draw is taken only when chance > 0 (ordered: 0 and NaN take none), and a jailbreak starts when draw < chance (ordered: an equal draw does not). End to end: police jail 21 (capacity 1000, full funding), the shipped tuning with the rehabilitation rate 0 (so jailed stays fixed), in the jailbreak list (BeginJailbreak with the stub range draw: escapees roundHalfEven(1000 x 0.099999994) = 100), jailed set to 800 -> month end: no 0x2A614892, still in the list, and no uniform draw for it (it is in a jailbreak: chance 0); jailed 799 -> month end: EndJailbreak(21): the 'jailbreak' controllers removed and one 0x2A614892. NaN chance end to end: with the total population above 0 and the city-wide percentage NaN (state poked: capacity 0, jailed 0, population 1), GetChanceOfJailbreak(21) = curveEA614F63(NaN x 100) x 0.01 = NaN, because the jailbreak curve (4 points) returns NaN for a NaN input (foundations 4.3 [compat]; the old end-value reading gave 100 x 0.01 = 1.0, which would draw and start a jailbreak with the stub draw 0.5) -> month end: no uniform draw (no rng event), no jailbreak. Hand-derived from 9.1 and 9.5.",
   "steps": [
     {"op": "protection_eval", "fn": "jailed_percentage_bits", "args": [0, 0], "expect": "0xFFC00000"},
     {"op": "protection_eval", "fn": "jailed_percentage_bits", "args": [5, 0], "expect": "0x3F800000"},
@@ -37,6 +37,13 @@
     {"op": "protection_call", "method": "jailed_percentage_bits", "expect": "0x3F4C8B44"},
     {"op": "protection_message", "type": "SimNewMonth"},
     {"op": "protection_expect_events", "events": [{"event": "remove_controllers", "group": "jailbreak", "occupant": 21}, {"event": "post", "type": "0x2A614892", "subject": 21}]},
-    {"op": "protection_expect", "state": {"jailbreaks": []}}
+    {"op": "protection_expect", "state": {"jailbreaks": []}},
+    {"op": "protection_set", "state": {"capacity": 0, "jailed": 0, "population": 1}},
+    {"op": "protection_call", "method": "jailed_percentage_bits", "expect": "0xFFC00000"},
+    {"op": "protection_call", "method": "chance_of_jailbreak", "args": [21], "expect": "nan"},
+    {"op": "protection_clear_events"},
+    {"op": "protection_message", "type": "SimNewMonth"},
+    {"op": "protection_expect_events", "events": []},
+    {"op": "protection_expect", "state": {"jailbreaks": [], "jailed": 0, "population": 1}}
   ]
 }

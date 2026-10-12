@@ -84,6 +84,10 @@ impl ProtectionRandom for Stub {
     }
 }
 
+/// A budget item's department: `None` = the lookup fails, `Some(None)` =
+/// the purpose's usual department, `Some(Some(id))` = department `id`.
+type ItemDept = Option<Option<u32>>;
+
 #[derive(Clone, Default)]
 struct Occupant {
     occ_type: u32,
@@ -92,9 +96,10 @@ struct Occupant {
     /// `None`: no lot; else `HasRoadAccess`.
     road: Option<bool>,
     props: BTreeMap<u32, Variant>,
-    /// Budget items by purpose: (locally funded, local funding, cost,
-    /// whether the item's department exists).
-    items: BTreeMap<u32, (bool, f32, i64, bool)>,
+    /// Budget items by purpose: (locally funded, local funding, cost, the
+    /// item's department: `None` = the lookup fails, `Some(None)` = the
+    /// purpose's usual department, `Some(Some(id))` = department `id`).
+    items: BTreeMap<u32, (bool, f32, i64, ItemDept)>,
 }
 
 #[derive(Clone)]
@@ -415,7 +420,7 @@ impl ProtectionHost for World {
             locally_funded,
             local_funding,
             cost,
-            department: dept.then_some(DEPARTMENT_TOKEN + u64::from(dept_id)),
+            department: dept.map(|d| DEPARTMENT_TOKEN + u64::from(d.unwrap_or(dept_id))),
         })
     }
     fn occupant_type(&self, occupant: u64) -> u32 {
@@ -732,7 +737,8 @@ fn env(w: &World, op: &Json) -> R<()> {
 /// (building), `pos?` ([x, y, z]), `prop?`, `road?` (true / false / null =
 /// no lot), `props?` (a property map merged into the occupant's; a null
 /// value removes the property), `items?` (`{"0xPURPOSE": {local, funded?
-/// (true), cost? (1000), dept? (true)} or null}`), `station?` (a shorthand
+/// (true), cost? (1000), dept? (true; false = no department, or a
+/// department ID)} or null}`), `station?` (a shorthand
 /// `[kind, centre, outer, radius, units]` writing the kind's effect and unit
 /// properties).
 fn occupants(w: &World, op: &Json) -> R<()> {
@@ -804,7 +810,11 @@ fn occupants(w: &World, op: &Json) -> R<()> {
                         let local = f32_of(field(iv, "local")?, "local")?;
                         let funded = opt(iv, "funded").map_or(Ok(true), |v| bool_of(v, "funded"))?;
                         let cost = opt(iv, "cost").map_or(Ok(1000), |v| i64_of(v, "cost"))?;
-                        let dept = opt(iv, "dept").map_or(Ok(true), |v| bool_of(v, "dept"))?;
+                        let dept = match opt(iv, "dept") {
+                            None => Some(None),
+                            Some(Json::Bool(b)) => b.then_some(None),
+                            Some(v) => Some(Some(u32_of(v, "dept")?)),
+                        };
                         occ.items.insert(purpose, (funded, local, cost, dept));
                     }
                 }
@@ -1215,7 +1225,14 @@ fn call(w: &World, op: &Json) -> R<()> {
             Json::Object(vec![("count".into(), ji(n)), ("list".into(), tokens_json(&list))])
         }
         "is_in_jailbreak" => b(s.is_in_jailbreak(a_u64(op, 0)?)),
-        "chance_of_jailbreak" => jf(s.chance_of_jailbreak(a_u64(op, 0)?)),
+        "chance_of_jailbreak" => {
+            let v = s.chance_of_jailbreak(a_u64(op, 0)?);
+            if v.is_nan() {
+                Json::Str("nan".into())
+            } else {
+                jf(v)
+            }
+        }
         "begin_jailbreak" => b(s.begin_jailbreak(w.obj(a_u64(op, 0)?))),
         "end_jailbreak" => b(s.end_jailbreak(a_u64(op, 0)?)),
         "jail_upkeep_cost" => ji(s.jail_upkeep_cost(a_u64(op, 0)?)),
