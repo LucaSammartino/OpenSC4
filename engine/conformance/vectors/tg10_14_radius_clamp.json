@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "tgrid_radius_clamp",
+  "spec": ["simgrid 7.1", "simgrid 10.14"],
+  "description": "The sum v + delta is clamped to the type's range (no wrap): u8 250 + 10 -> 255, i8 -120 - 20 -> -128, i16 -32760 - 100 -> -32768. A cone at (0, 0) is clipped to the grid. Caller-passed counts smaller than the grid limit the box.",
+  "steps": [
+    {"op": "tg_city", "cells": [8, 8], "width": [16, 16]},
+    {"op": "tg_create", "name": "u", "type": "u8", "tract_size": 1},
+    {"op": "tg_set", "grid": "u", "cells": [[4, 4, 250]]},
+    {"op": "tg_radius_effect", "grid": "u", "center": [4, 4], "r": 1.0, "c": 10, "o": 10},
+    {"op": "tg_expect", "grid": "u", "cells": [[4, 4, 255]], "others": 0},
+    {"op": "tg_radius_effect", "grid": "u", "center": [4, 4], "r": 1.0, "c": -300, "o": 0},
+    {"op": "tg_expect", "grid": "u", "others": 0},
+    {"op": "tg_create", "name": "s", "type": "i8", "tract_size": 1},
+    {"op": "tg_set", "grid": "s", "cells": [[4, 4, -120]]},
+    {"op": "tg_radius_effect", "grid": "s", "center": [4, 4], "r": 1.0, "c": -20, "o": -20},
+    {"op": "tg_expect", "grid": "s", "cells": [[4, 4, -128]], "others": 0},
+    {"op": "tg_create", "name": "w", "type": "i16", "tract_size": 1},
+    {"op": "tg_set", "grid": "w", "cells": [[4, 4, -32760]]},
+    {"op": "tg_radius_effect", "grid": "w", "center": [4, 4], "r": 1.0, "c": -100, "o": -100},
+    {"op": "tg_expect", "grid": "w", "cells": [[4, 4, -32768]], "others": 0},
+    {"op": "tg_create", "name": "e", "type": "i16", "tract_size": 1},
+    {"op": "tg_radius_effect", "grid": "e", "center": [0, 0], "r": 3.0, "c": 100, "o": 0},
+    {"op": "tg_expect", "grid": "e", "cells": [[0, 0, 100], [0, 1, 67], [0, 2, 33], [1, 0, 67], [1, 1, 53], [1, 2, 25], [2, 0, 33], [2, 1, 25], [2, 2, 6]], "others": 0},
+    {"op": "tg_create", "name": "k", "type": "i16", "tract_size": 1},
+    {"op": "tg_radius_effect", "grid": "k", "center": [2, 2], "r": 3.0, "c": 100, "o": 0, "counts": [3, 8]},
+    {"op": "tg_expect", "grid": "k", "cells": [[0, 0, 6], [0, 1, 25], [0, 2, 33], [0, 3, 25], [0, 4, 6], [1, 0, 25], [1, 1, 53], [1, 2, 67], [1, 3, 53], [1, 4, 25], [2, 0, 33], [2, 1, 67], [2, 2, 100], [2, 3, 67], [2, 4, 33]], "others": 0}
+  ]
+}

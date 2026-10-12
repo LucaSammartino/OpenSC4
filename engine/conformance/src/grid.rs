@@ -6,7 +6,7 @@
 
 //! Conformance ops for `docs/specs/simgrid.md`: named core grids of any
 //! element type, the grid slots, the record, the shared map utilities and
-//! the cell iterators. See README.md ("Grid ops").
+//! the cell iterators. See README.md ("Tract grid ops").
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -154,16 +154,16 @@ impl World {
             .borrow()
             .get(name)
             .cloned()
-            .ok_or_else(|| format!("no grid '{name}' (grid_create)"))
+            .ok_or_else(|| format!("no grid '{name}' (tg_create)"))
     }
 }
 
 fn world(host: &HostRef) -> Rc<World> {
-    scalar::world(host, "grid", World::new)
+    scalar::world(host, "tract_grid", World::new)
 }
 
 pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
-    let rest = name.strip_prefix("grid_")?;
+    let rest = name.strip_prefix("tg_")?;
     let w = world(host);
     Some(match rest {
         "city" => city(&w, op),

@@ -1,0 +1,13 @@
+{
+  "format": 1,
+  "name": "landvalue_mode_tie",
+  "spec": ["landvalue 7.2", "landvalue 16.6"],
+  "description": "Histogram bins {8: 2, 9: 2}: the lowest bin with the largest count wins -> mode 16 + 32*8 = 272 (inside [minAlt, maxAlt], no clamping).",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16, "land": false, "land_vertices": [[1, 1], [3, 1], [5, 3], [7, 5]], "altitudes": [[1, 1, 260], [3, 1, 270], [5, 3, 290], [7, 5, 300]], "zoned": [[0, 0], [2, 0], [4, 2], [6, 4]]},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": "shipped"},
+    {"op": "lv_step", "count": 4, "expect_state": 5},
+    {"op": "lv_expect", "sum": 1120, "count": 4, "mean_alt": 280, "histogram": {"8": 2, "9": 2}, "mode_alt": 272, "min_alt": 260, "max_alt": 300, "pivot": 272, "low_range": 12, "high_range": 28}
+  ]
+}

@@ -18,6 +18,10 @@
 // FC4_DISABLE (a comma- or space-separated list of keys, case-insensitive, or
 // "all"), e.g. FC4_DISABLE=budget,simulator. The original game classes are
 // then used. FC4_DISABLE_SIMULATOR=1 still works for the simulator.
+//
+// Subsystems that are off by default (landvalue) are switched on with
+// FreeCity4.ini `enable = landvalue` (or FC4_ENABLE); `disable` still wins.
+// A default-off subsystem that is not enabled is not listed as disabled.
 #pragma once
 
 #include <cstddef>
@@ -42,6 +46,7 @@ struct Subsystem {
     const char* legacyDisableEnv;  // e.g. FC4_DISABLE_SIMULATOR (=1), or nullptr
     const ClassEntry* classes;
     size_t classCount;
+    bool defaultOn;  // false: only with `enable = <key>`
 };
 
 const Subsystem* Subsystems(size_t* count);

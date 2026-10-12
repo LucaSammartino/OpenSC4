@@ -20,6 +20,8 @@
 //
 //   disable = budget, simulator   subsystems left to the game (as FC4_DISABLE);
 //                                 read once, when the game enumerates classes
+//   enable = landvalue            default-off subsystems to use (as FC4_ENABLE);
+//                                 `disable` wins; read once, like `disable`
 //   <switch> = 0 / 1              one budget behaviour that touches game
 //                                 objects (below); re-read at every city load
 //   budget_default = 0 / 1        value of every switch the ini/env leave unset

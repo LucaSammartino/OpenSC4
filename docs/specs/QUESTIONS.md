@@ -21,6 +21,15 @@ the relevant spec, and their entry here is deleted.
 - W4. windSpread is not saved, so a loaded simulator draws a different wind until Init re-reads the tuning. Is
   that what the original does?
 
+## Land value (landvalue.md, simgrid.md)
+- L1. The x87 precision mode the original runs in (24, 53 or 64-bit mantissa). It decides rounding at the
+  radius effect, topIndex, the water bonus, the altitude x, desirability `v + e·w`, the state 3 sum and the mean
+  altitude division. The implementation computes all of them in f32.
+- L2. The tract size of desirability maps.
+- L3. The order in which several developers are applied (the implementation uses tuning order).
+- L4. Does `GetLotDeveloper` / `GetBuildingDevelopmentSimulator` return an AddRef'd reference?
+- L5. What Init does without a city (the implementation returns true and creates no grids).
+
 ## Plugin diagnostics
 - P1. Month digest: what should "C and I population" mean? The implementation uses summed commercial/industrial
   supply (jobs) from the demand nodes. Check the demand IDs it uses against the original.

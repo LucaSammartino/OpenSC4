@@ -683,6 +683,9 @@ From the Windows caller data (direct calls) and the call-site survey:
 3. Which UI calls `ProposeDeals`, `SetUIDisableFlag` and `AddDeal`, and how the deal amount is chosen.
 4. Who sets `SetIsActive` / `SetVisitedThisCycle` on connections and the `inc`/`last`/`used` amounts on deals
    (utility simulators, per their specs).
+   *Answered for water* (plumbing spec): the plumbing simulator sets the connection's active and visited bits and
+   the deal's `AmountUsed`. It also sets deal flag `0x08` on deals it cannot connect, and flag `0x20` on export
+   deals it could not fully deliver. Power: see the power spec.
 5. The interface `0xA8C86142` and its 14th method used on RemoveOccupant for power poles.
 6. The full rule of `UpdateTrafficVolume` (traffic spec).
 7. Order of month agents (budget vs. neighbours), shared with the budget spec.

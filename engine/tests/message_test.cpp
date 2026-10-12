@@ -20,7 +20,9 @@
 #include "cIGZString.h"
 #include "cRZBaseString.h"
 
+#include <cstdint>
 #include <cstdio>
+#include <cstring>
 
 namespace {
 
@@ -163,9 +165,87 @@ void TestTypeCreateCompareAndRefcount() {
     CHECK(cFC4Message2Standard::LiveCount() == base);
 }
 
+// The game's memory layout (docs/abi/layouts.md): a receiver may read the
+// fields directly. Flags byte at +0x08: bit 0 type, 1-4 data1-4, 5 extra,
+// 6 string, 7 unknown; type at +0x0C; data1..4 at +0x10; string +0x20,
+// unknown +0x24, extra +0x28; vtable slot 37 the scalar deleting destructor.
+uint8_t FlagsOf(const cFC4Message2Standard* m) { return reinterpret_cast<const uint8_t*>(m)[0x08]; }
+template <class T>
+T FieldAt(const cFC4Message2Standard* m, int offset) {
+    T v;
+    std::memcpy(&v, reinterpret_cast<const uint8_t*>(m) + offset, sizeof(v));
+    return v;
+}
+
+void TestLayout() {
+    cFC4Message2Standard* m = cFC4Message2Standard::New();
+    m->AddRef();
+    CHECK(static_cast<void*>(static_cast<cIGZMessage2Standard*>(m)) == static_cast<void*>(m));
+    CHECK(FieldAt<uint32_t>(m, 0x04) == 1);  // reference count
+    CHECK(FlagsOf(m) == 0x00);
+    m->SetType(0x26C63341);
+    CHECK(FlagsOf(m) == 0x01 && FieldAt<uint32_t>(m, 0x0C) == 0x26C63341);
+    m->SetData1(11);
+    CHECK(FlagsOf(m) == 0x03 && FieldAt<intptr_t>(m, 0x10) == 11);
+    m->SetData2(0);  // a zero value still sets the bit
+    CHECK(FlagsOf(m) == 0x07 && FieldAt<intptr_t>(m, 0x14) == 0);
+    int x = 0;
+    m->SetVoid3(&x);
+    CHECK(FlagsOf(m) == 0x0F && FieldAt<void*>(m, 0x18) == &x);
+    m->SetData4(-4);
+    CHECK(FlagsOf(m) == 0x1F && FieldAt<intptr_t>(m, 0x1C) == -4);
+
+    CountingSerializable extra;
+    m->SetExtra(&extra);
+    CHECK(FlagsOf(m) == 0x3F && FieldAt<void*>(m, 0x28) == static_cast<cIGZSerializable*>(&extra));
+    cRZBaseString s("layout");
+    s.AddRef();
+    m->SetString(&s);
+    CHECK(FlagsOf(m) == 0x7F && FieldAt<void*>(m, 0x20) == static_cast<cIGZString*>(&s));
+    CountingSerializable unk;
+    m->SetIGZUnknown(&unk);
+    CHECK(FlagsOf(m) == 0xFF && FieldAt<void*>(m, 0x24) == static_cast<cIGZUnknown*>(&unk));
+
+    // Null references and a zero type clear their bits; data bits stay set.
+    m->SetString(nullptr);
+    CHECK(FlagsOf(m) == 0xBF && FieldAt<void*>(m, 0x20) == nullptr);
+    m->SetIGZUnknown(nullptr);
+    CHECK(FlagsOf(m) == 0x3F);
+    m->SetExtra(nullptr);
+    CHECK(FlagsOf(m) == 0x1F && extra.refs == 0);
+    m->SetType(0);
+    CHECK(FlagsOf(m) == 0x1E && FieldAt<uint32_t>(m, 0x0C) == 0);
+    m->SetData1(0);
+    CHECK(FlagsOf(m) == 0x1E);
+    m->SetType(7);
+    CHECK(FlagsOf(m) == 0x1F);
+
+    // Create: a new message with the type only.
+    cFC4Message2Standard* c = nullptr;
+    CHECK(m->Create(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&c)) && c != nullptr);
+    if (c != nullptr) {
+        CHECK(FlagsOf(c) == 0x01 && FieldAt<uint32_t>(c, 0x0C) == 7);
+        c->Release();
+    }
+    m->Release();
+    CHECK(s.Release() == 0);
+
+#if defined(_M_IX86)
+    // Slot 37: the scalar deleting destructor, __thiscall(this, flags); flags 1 frees.
+    const long base = cFC4Message2Standard::LiveCount();
+    cFC4Message2Standard* d = cFC4Message2Standard::New();
+    CHECK(cFC4Message2Standard::LiveCount() == base + 1);
+    void** vtbl = *reinterpret_cast<void***>(d);
+    using DeletingDtor = void*(__thiscall*)(void*, unsigned int);
+    reinterpret_cast<DeletingDtor>(vtbl[37])(d, 1);
+    CHECK(cFC4Message2Standard::LiveCount() == base);
+#endif
+}
+
 }  // namespace
 
 int main() {
+    TestLayout();
     TestSlots();
     TestReferences();
     TestTypeCreateCompareAndRefcount();

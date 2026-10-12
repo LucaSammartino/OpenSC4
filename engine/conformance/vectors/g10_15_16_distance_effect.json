@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "simgrid_add_distance_effect",
+  "spec": ["simgrid 7.2", "simgrid 10.15", "simgrid 10.16"],
+  "description": "AddDistanceEffect: Manhattan distance to the nearest mask tract, near - d*k for 0 < d < radius, truncation; the land value water bonus with the shipped radius 10 and near value 50; a separate mask grid.",
+  "steps": [
+    {"op": "grid_city", "cells": [7, 1], "cell_width": 16},
+    {"op": "grid_new", "grid": "t", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "t", "all": 10, "values": [[0, 0, 0]]},
+    {"op": "grid_distance_effect", "grid": "t", "mask": "t", "mask_value": 0, "radius": 3, "near": 30, "far": 0},
+    {"op": "grid_expect", "grid": "t", "values": [[0, 0, 0], [1, 0, 30], [2, 0, 20], [3, 0, 10], [4, 0, 10], [5, 0, 10], [6, 0, 10]]},
+    {"op": "grid_city", "cells": [12, 1], "cell_width": 16},
+    {"op": "grid_new", "grid": "lv", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "lv", "all": 1, "values": [[0, 0, 0]]},
+    {"op": "grid_distance_effect", "grid": "lv", "mask": "lv", "mask_value": 0, "radius": 10, "near": 50, "far": 0},
+    {"op": "grid_expect", "grid": "lv", "values": [[0, 0, 0], [1, 0, 46], [2, 0, 41], [3, 0, 36], [4, 0, 31], [5, 0, 26], [6, 0, 21], [7, 0, 16], [8, 0, 11], [9, 0, 6], [10, 0, 1], [11, 0, 1]]},
+    {"op": "grid_new", "grid": "m", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "m", "all": 5, "values": [[11, 0, 7]]},
+    {"op": "grid_new", "grid": "t2", "type": "u8", "size": 1},
+    {"op": "grid_set", "grid": "t2", "all": 100},
+    {"op": "grid_distance_effect", "grid": "t2", "mask": "m", "mask_value": 7, "radius": 4, "near": 40, "far": 0},
+    {"op": "grid_expect", "grid": "t2", "values": [[11, 0, 100], [10, 0, 130], [9, 0, 120], [8, 0, 110], [7, 0, 100], [0, 0, 100]]}
+  ]
+}

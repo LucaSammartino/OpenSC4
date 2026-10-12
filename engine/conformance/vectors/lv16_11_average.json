@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "landvalue_average",
+  "spec": ["landvalue 6", "landvalue 7.2", "landvalue 7.5", "landvalue 9", "landvalue 16.11"],
+  "description": "State 8: total values 10, 20, 31 on the three counted tracts -> average 20 (integer division), history record and one LandValueMapChanged post per completed pass. Without an altitude curve and developers, total = the (stale) intrinsic grid. A city without land: average 0, minAlt/maxAlt stay inverted and modeAlt ends at maxAlt.",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16, "land": false, "land_vertices": [[1, 1], [3, 1], [5, 1]], "altitudes": [[1, 1, 100], [3, 1, 100], [5, 1, 100]], "zoned": [[0, 0], [2, 0], [4, 0]]},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": {"shipped": true, "altitude_curve": null, "developer_ids": [], "developer_weights": []}},
+    {"op": "lv_clear_events"},
+    {"op": "lv_set_grid", "grid": "intrinsic", "values": [[0, 0, 10], [1, 0, 20], [2, 0, 31], [5, 3, 200]]},
+    {"op": "lv_run", "expect_calls": 9},
+    {"op": "lv_expect_grid", "grid": "total", "values": [[0, 0, 10], [1, 0, 20], [2, 0, 31], [5, 3, 200]]},
+    {"op": "lv_expect", "state": 9, "sum": 61, "count": 3, "average": 20},
+    {"op": "lv_query", "method": "average_land_value", "expect": 20},
+    {"op": "lv_expect_events", "expect": ["history 0x6A663AC8 20", "post 0x87CC75B3"]},
+    {"op": "lv_world", "clear_land": true},
+    {"op": "lv_message", "type": "0x99EF1142", "expect": true},
+    {"op": "lv_message", "type": "0x66956816", "expect": true},
+    {"op": "lv_run", "expect_calls": 10},
+    {"op": "lv_expect", "average": 0, "count": 0, "ignore_zoning": true, "min_alt": 2500, "max_alt": 20, "mode_alt": 20},
+    {"op": "lv_expect_events", "expect": ["history 0x6A663AC8 0", "post 0x87CC75B3"]}
+  ]
+}

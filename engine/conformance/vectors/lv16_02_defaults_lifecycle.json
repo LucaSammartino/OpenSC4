@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "landvalue_defaults_and_lifecycle",
+  "spec": ["landvalue 4.1", "landvalue 4.2", "landvalue 8", "landvalue 16.2"],
+  "description": "Without the exemplar the code defaults stay (base 20, boundaries 50/75, water 100/5, S = 2); Init creates the two uint8 grids and the float slope grid (size 8), sizes the histogram to trunc(MaxAllowedHeight) >> 5 bins and sets the history queue length; a second Init does nothing; Shutdown shuts down and releases every grid; an exemplar without some properties keeps the current values [choice]; duplicate developer IDs overwrite the weight.",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16},
+    {"op": "lv_create"},
+    {"op": "lv_expect", "initialized": false, "state": 9},
+    {"op": "lv_init", "expect": true},
+    {"op": "lv_expect", "initialized": true, "state": 0, "tract_size": 2, "base": 20, "intrinsic_max": 120, "wealth": [50, 75], "water": [100, 5], "altitude_curve": false, "desirability_curve": false, "developers": 0, "bins": 78, "hist_shift": 5, "has_grids": true},
+    {"op": "lv_expect_events", "expect": ["create u8 2 0x89D5BB39", "create u8 2 0x89D5BB51", "create f32 8 0x49D5BB6F", "history_length 0x6A663AC8 1"]},
+    {"op": "lv_expect_grid", "grid": "intrinsic", "tract_size": 2, "all": 0},
+    {"op": "lv_expect_grid", "grid": "slope", "tract_size": 8, "all": 0},
+    {"op": "lv_set_grid", "grid": "total", "values": [[0, 0, 49], [1, 0, 50], [2, 0, 74], [3, 0, 75]]},
+    {"op": "lv_query", "method": "land_value_type", "cell": [0, 0], "expect": 1},
+    {"op": "lv_query", "method": "land_value_type", "cell": [2, 0], "expect": 2},
+    {"op": "lv_query", "method": "land_value_type", "cell": [4, 0], "expect": 2},
+    {"op": "lv_query", "method": "land_value_type", "cell": [6, 0], "expect": 3},
+    {"op": "lv_init", "tuning": "shipped", "expect": true},
+    {"op": "lv_expect_events", "expect": []},
+    {"op": "lv_expect", "base": 20},
+    {"op": "lv_shutdown", "expect": true},
+    {"op": "lv_expect_events", "expect": ["grid_shutdown 0x89D5BB39", "release 0x89D5BB39", "grid_shutdown 0x89D5BB51", "release 0x89D5BB51", "grid_shutdown 0x49D5BB6F", "release 0x49D5BB6F"]},
+    {"op": "lv_expect", "initialized": false, "has_grids": false, "altitude_curve": false},
+    {"op": "lv_shutdown", "expect": true},
+    {"op": "lv_expect_events", "expect": []},
+    {"op": "lv_world", "developers": {"0x1030": null}},
+    {"op": "lv_init", "tuning": {"wealth": [60, 90], "developer_ids": ["0x1030", "0x1030"], "developer_weights": [1.0, 2.5]}, "expect": true},
+    {"op": "lv_expect", "state": 0, "base": 20, "wealth": [60, 90], "water": [100, 5], "developers": 1, "developer_weights": [2.5]},
+    {"op": "lv_expect_events", "expect": ["create u8 2 0x89D5BB39", "create u8 2 0x89D5BB51", "create f32 8 0x49D5BB6F", "history_length 0x6A663AC8 1"]}
+  ]
+}

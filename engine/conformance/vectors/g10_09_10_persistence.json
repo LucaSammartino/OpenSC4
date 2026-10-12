@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "simgrid_persistence",
+  "spec": ["simgrid 5", "simgrid 10.9", "simgrid 10.10"],
+  "description": "The grid class record: version, init flag, CLSID, instance, geometry and the values (x outer). Read rejects version 2 after the version field; Read takes the stored CLSID and geometry as they are; a short record fails [choice].",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "cell_width": 16},
+    {"op": "grid_new", "grid": "a", "type": "u8"},
+    {"op": "grid_call", "grid": "a", "method": "init", "expect": true},
+    {"op": "grid_call", "grid": "a", "method": "set_instance_id", "args": ["0x89D5BB39"]},
+    {"op": "grid_set_tract_size", "grid": "a", "size": 2},
+    {"op": "grid_write", "grid": "a", "hex": "01000102E6B94939BBD5890200000001000000800000008000000000000042000000420000003D0000003D", "zero_tail": 16384},
+    {"op": "grid_new", "grid": "b", "type": "u8"},
+    {"op": "grid_read", "grid": "b", "hex": "02000102E6B94939BBD5890200000001000000800000008000000000000042000000420000003D0000003D", "expect": false, "position": 2},
+    {"op": "grid_read", "grid": "b", "hex": "01000103E6B94939BBD5890200000001000000020000000200000000000042000000420000003D0000003D01020304", "expect": true, "position": 47},
+    {"op": "grid_call", "grid": "b", "method": "clsid", "expect": "0x49B9E603"},
+    {"op": "grid_expect_geometry", "grid": "b", "size": 2, "shift": 1, "count_x": 2, "count_z": 2, "width_x": 32},
+    {"op": "grid_expect", "grid": "b", "values": [[0, 0, 1], [0, 1, 2], [1, 0, 3], [1, 1, 4]]},
+    {"op": "grid_read", "grid": "b", "hex": "01000103E6B94939BBD5890200000001000000020000000200000000000042000000420000003D0000003D010203", "expect": false}
+  ]
+}

@@ -473,8 +473,8 @@ neighbours and service simulators.
 
   | Pattern | What the caller does | Exemplar or property missing | Users (verified call sites) |
   |---|---|---|---|
-  | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | fire protection, police, power, budget, traffic, pollution's per-occupant curves |
-  | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, plumbing (curves with a code default) |
+  | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | power, budget, traffic, pollution's per-occupant curves |
+  | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, fire protection, police (curves with a code default; protection §6). Plumbing's curve `0x6A410BF2` is a variant: "keep", then (0,0)(100,100) if the curve is still empty after the load (plumbing spec) |
   | **empty** | first empties the curve (or uses a fresh temporary one), then loads as in "keep" | the curve is **empty** | pollution's tuning curves (pollution §9), pollution's temporary curves in `SimulationBegin` / `EndOfCycle` |
   | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`) |
 
@@ -642,7 +642,7 @@ The game has two generator classes. Both are exact algorithms that our engine mu
 | `RandomDoubleGaussian()` | Marsaglia polar method on two `2·RandomDoubleUniform() − 1` draws, repeated until `0 < s < 1`. It returns one value and caches the other for the next call. |
 | `RandomDoubleRangeGaussian(a, b)` | `g := Gaussian + 3`, clamped to [0, 6) (≥ 6 gives 0.9999833 after scaling), mapped `a + (b − a) · g / 6` |
 | `RandomDoubleRangeGaussianFast(a, b)` | `a + (u1 + u2 + u3) · (b − a) / 3` with three `RandomDoubleUniform` draws |
-| `RandomSint32RangeGaussianFast(lo, hi)` | the average of four `NextRaw()` values (summed with carries, rounded, divided by 4) used like `RandomUint32Uniform(hi − lo)` *[inferred]* |
+| `RandomSint32RangeGaussianFast(lo, hi)` | always exactly 4 `NextRaw()` draws `r1..r4`: `a = (r1 + r2 + r3 + r4 + 2) >> 2` with the sum in 64 bits, then `lo + ((a × (u32)(hi − lo)) >> 32)`. It draws 4 times even when the range is empty. Test: seed 1, `(0, 25)` gives 10, then 7 (plumbing spec) |
 
 The integer methods use only `lcg`. The double methods use only `mul`. A generator seeded with 0 has a
 deterministic `lcg`, but its double methods fall back to the clock.
@@ -673,7 +673,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 
 | Generator instance | Seed | Used by (examples) |
 |---|---|---|
-| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, zone manager; plumbing (created at `Init`) |
+| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager; plumbing (created at `Init`) |
 | a `cRZRandom` member | **0** (integer path deterministic, double path clock-seeded) | flammability |
 | a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, construction, network lots |
 | a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |
@@ -1573,3 +1573,7 @@ For the earthquake, the two integers are world coordinates (budget §4.3), whate
    "load by exemplar key and property ID" loader returns false and leaves the curve unchanged, so its callers end
    up with the previous, the code-default or an empty curve, depending on what they did before the load. §4.1 now
    lists the four patterns; every subsystem spec states its pattern per curve.
+2. **Fire and police curves** (§4.1): they use the "default" pattern, not "keep" (protection §6). Police also
+   has its own clock-seeded `cRZRandom` (§6.2).
+3. **Plumbing curve, Gaussian-fast draw** (§4.1, §6.1): plumbing is not plain "default" (see the §4.1 table), and
+   `RandomSint32RangeGaussianFast` is now exact.

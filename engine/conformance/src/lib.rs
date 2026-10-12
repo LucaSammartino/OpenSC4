@@ -17,6 +17,8 @@ pub mod json;
 pub(crate) mod ordinance;
 pub mod runner;
 pub(crate) mod scalar;
+pub(crate) mod landvalue;
+pub(crate) mod simgrid;
 pub mod variants;
 pub(crate) mod weather;
 

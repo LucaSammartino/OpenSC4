@@ -51,7 +51,7 @@ const SwitchInfo kSwitches[kCount] = {
 };
 
 // Keys that are not switches.
-const char* const kOtherKeys[] = {"disable", "budget_default", "refaudit", "refaudit_lines", "autotest_seconds",
+const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaudit", "refaudit_lines", "autotest_seconds",
                                   "autotest_unpause", "digest"};
 
 // The switches that are off, for lock-free readers (autotest verdict).

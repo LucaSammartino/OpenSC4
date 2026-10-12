@@ -66,6 +66,14 @@
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
+#include "cIGZMessageTarget2.h"
+#include "cIGZSerializable.h"
+#include "cISC4GrowthDeveloper.h"
+#include "cISC4LandValueSimulator.h"
+#include "cISC4LotDeveloper.h"
+#include "cISC4SimGrid.h"
+#include "cISC4ZoneManager.h"
+#include "cISTETerrain.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -126,8 +134,8 @@ constexpr int ArgBytes() {
 
 template <class R>
 constexpr Ret RetKind() {
-    if constexpr (std::is_void_v<R>) {
-        return Ret::Eax;
+    if constexpr (std::is_void_v<R> || std::is_reference_v<R>) {
+        return Ret::Eax;  // a reference is a pointer in eax (its type may be incomplete)
     } else if constexpr (std::is_floating_point_v<R>) {
         return Ret::X87;
     } else if constexpr ((std::is_integral_v<R> || std::is_enum_v<R>) && sizeof(R) == 8) {
@@ -279,6 +287,12 @@ const SlotCount kReviewedSlotCounts[] = {
      "the budget spec lists HasLocallyFundedItemsByPurpose as slot 33; the table stops at 32 but its next "
      "vtable (cSC4LineItem::vftable_1 at 00ab0f3c, locator at 00ab0f38) leaves room for one more entry at "
      "00ab0f34. Kept; the game cannot reach a slot it does not have [spec question]"},
+    {"cISC4LandValueSimulator", 12, 13,
+     "slot 12 is unnamed and pops 4, the signature of a scalar deleting destructor: class-private "
+     "(landvalue spec: 12 interface slots)"},
+    {"cISTETerrain", 91, 98,
+     "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
+     "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -337,6 +351,18 @@ const Waiver kWaivers[] = {
     {"cISC4Demand", "cISC4Demand", 16, "AddToSupplyValue", "the game returns in ST0 (SDK: bool)"},
     {"cISC4Demand", "cISC4Demand", 17, "AddToDemandValue", "the game returns in ST0 (SDK: bool)"},
     {"cISC4Demand", "cISC4Demand", 30, "EndOfCycle", "the game returns in eax (SDK: float)"},
+    // The game's grids, used by the land value simulator (simgrid.md §4).
+    {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISTETerrain", "cISTETerrain", 6, "CellWidth", "the game returns in ST0 (SDK: 32-bit)"},
+    {"cISTETerrain", "cISTETerrain", 27, "GetLerpedNormal", "the game returns in ST0 (SDK: 32-bit)"},
+    {"cISTETerrain", "cISTETerrain", 59, "BeginBrushScrub", "pops 8 (SDK: 4 bytes)"},
+    {"cISC4LotDeveloper", "cISC4LotDeveloper", 23, "IsAreaDeveloped", "pops 4 (SDK: no argument)"},
+    {"cISC4LotDeveloper", "cISC4LotDeveloper", 53, "RemoveLotFoundation", "pops 8 (SDK: 4 bytes)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {

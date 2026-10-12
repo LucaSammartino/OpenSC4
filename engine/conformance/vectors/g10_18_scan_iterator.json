@@ -1,10 +1,12 @@
 {
   "format": 1,
-  "name": "grid_scan_iterator",
+  "name": "simgrid_scan_iterator",
   "spec": ["simgrid 7.4", "simgrid 10.18"],
-  "description": "The scanning iterator: x inner, z outer over the inclusive rectangle; Reset outside the rectangle makes the first GetNext return false; a step skips cells.",
+  "description": "The scanning iterator: x inner, z outer, inclusive bounds; Reset outside the rectangle makes the first GetNext false; resuming mid-rectangle; a step of 2.",
   "steps": [
-    {"op": "grid_scan", "rect": [0, 0, 2, 1], "resets": [{"at": [0, 0], "expect": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]}, {"at": [5, 0], "expect": []}, {"at": [1, 1], "expect": [[1, 1], [2, 1]]}, {"at": [0, -1], "expect": []}]},
-    {"op": "grid_scan", "rect": [0, 0, 4, 4], "step": 2, "resets": [{"at": [0, 0], "expect": [[0, 0], [2, 0], [4, 0], [0, 2], [2, 2], [4, 2], [0, 4], [2, 4], [4, 4]]}]}
+    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [0, 0], "expect": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]},
+    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [5, 0], "expect": []},
+    {"op": "iter_scan", "rect": [0, 2, 0, 1], "reset": [1, 1], "expect": [[1, 1], [2, 1]]},
+    {"op": "iter_scan", "rect": [0, 4, 0, 2], "step": 2, "reset": [0, 0], "expect": [[0, 0], [2, 0], [4, 0], [0, 2], [2, 2], [4, 2]]}
   ]
 }
