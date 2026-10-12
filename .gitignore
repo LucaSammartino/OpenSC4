@@ -1,4 +1,4 @@
-bin/
+/bin/
 *.snapshot
 re/strings_*.txt
 re/analyze.json
