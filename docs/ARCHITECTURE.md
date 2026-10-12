@@ -30,17 +30,33 @@ interfaces. We checked this for the simulator: its only external callers are COM
 
 ```
 SimCity 4.exe (original, unmodified)
-  └─ GZCOM registry ──► FreeCity4.dll (GPL)                 engine/plugin  (GZCOM glue, Windows x86)
-                          └─ fc4::sim::SimulatorCore …       engine/core    (portable C++17, unit-tested)
+  └─ GZCOM registry ──► FreeCity4.dll (GPL)        engine/plugin  thin C++ shim over the gzcom-dll SDK (Win32/x86)
+                          └─ C ABI (fc4_sim_*)     engine/capi    stable boundary, fc4.h
+                              └─ fc4-core          engine/core    portable Rust: all engine logic
 ```
+
+### Language: Rust core, C++ shim
+
+- **Rust** holds all engine logic. It is memory-safe, has modern tooling, performs on par with C++ in games, and is a good
+  base for the eventual standalone engine.
+- **C++** is used only for the shim that must match the game's MSVC `__thiscall` vtable ABI. The LGPL gzcom-dll SDK
+  already declares those interfaces in C++, so the shim stays small.
+
+Migration path (to all-Rust, or any other rewrite) built in from day one:
+1. **Specs** in `docs/specs/` are language-neutral and normative.
+2. **Conformance vectors** in `engine/conformance/` are data files (scenario script + expected events and state) that
+   any implementation must pass.
+3. **The C ABI** in `engine/capi/include/fc4.h` is the only contract between core and shim. Replacing the C++ shim with
+   Rust GZCOM bindings means reimplementing just that layer against the same API and vectors.
 
 ## Layout
 
 | Path | Contents |
 |---|---|
-| `engine/core/` | portable simulation code with no GZCOM types. It builds on any OS, and tests run anywhere. |
-| `engine/plugin/` | the GZCOM DLL director and adapters exposing core classes as `cISC4*` interfaces (MSVC, Win32/x86) |
-| `engine/tests/` | conformance tests derived from the spec sections |
+| `engine/core/` | Rust crate `fc4-core`: portable engine logic, no GZCOM types. It builds and tests on any OS. |
+| `engine/capi/` | Rust crate `fc4-capi` (staticlib) and the C header `fc4.h`: the stable boundary |
+| `engine/conformance/` | language-neutral conformance vectors derived from the spec sections |
+| `engine/plugin/` | C++ GZCOM DLL director and adapters exposing the core as `cISC4*` interfaces (MSVC, Win32/x86) |
 | `engine/third_party/gzcom-dll/` | LGPL-2.1+ SDK headers (submodule) |
 | `docs/specs/` | clean-room behaviour specs: the only input for engine authors |
 | `docs/subsystems/`, `re/`, `tools/` | research material for spec writers |

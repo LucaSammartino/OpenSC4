@@ -29,11 +29,12 @@ One person may hold different roles on different subsystems, but **never both ro
 
 ## Engine code
 
-- C++17, no exceptions across GZCOM boundaries, and no dependency on the original program's private memory layout.
-  Replacements plug in through public GZCOM interfaces, such as class factories registered by our DLL director.
-- Platform-independent logic lives in `engine/core` and must build and test on any OS. GZCOM/Windows glue lives in
-  `engine/plugin`.
-- Every behaviour in a spec section should have a test in `engine/tests`.
+- Engine logic is **Rust** (`engine/core`) and must build and test on any OS. The only C++ is the thin GZCOM shim in
+  `engine/plugin`, which talks to the core through the C ABI in `engine/capi`.
+- No panics or exceptions cross the FFI or GZCOM boundaries. There must be no dependency on the original program's
+  private memory layout. Replacements plug in through public GZCOM interfaces, such as class factories registered by
+  our DLL director.
+- Every behaviour in a spec section should have a conformance vector in `engine/conformance`.
 
 ## Never commit
 

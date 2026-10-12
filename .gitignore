@@ -8,3 +8,4 @@ re/symport/*.pkl
 ghidra/project/
 decomp/
 ghidra/logs/
+.claude/worktrees/
