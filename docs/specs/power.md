@@ -648,8 +648,11 @@ Outputs are `AddRef`ed (or untouched if none); `wearPct := trunc(ratio × 100)`.
    `GetPowerPlantCount()` before `(type)`; the compiled order is reversed (slot 16 = `(x, z)`, slot 23 =
    `(type)`). Checked by reading the bodies `0x006EBA10` (pop 8), `0x006AAEB0` (pop 0), `0x006EFA00` (pop 4),
    `0x006EF9F0` (pop 0).
-4. Slot 40 is declared `void GetChanceOfStrike(SC4Percentage&)`: ABI-compatible (pop 4); EAX happens to hold the
-   argument. Not an error.
+4. Slot 40 is declared `void GetChanceOfStrike(SC4Percentage&)`: ABI-compatible (pop 4), but **the return value
+   is used**: the Utility advisor (`0x0042220F`, advisors.md) loads the float through the returned EAX. *[compat]*
+   A replacement must return the argument's address in EAX (declare it returning `SC4Percentage*`); a `void`
+   replacement makes that caller read through a garbage pointer. *(Corrected: the earlier text said "not an
+   error".)*
 5. All other slots match (argument sizes, pointer returns of 35/36/47/48, `FindPowerPlants`).
 
 ### 10.2 `cIGZSerializable` (vtable `0x00AB288C`)

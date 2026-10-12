@@ -590,7 +590,9 @@ parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the fir
 
 | Consumer | Uses |
 |---|---|
-| City advisors (city planning) | `GetMayorRating`, `GetMaxMayorRating`, `GetMinMayorRating` |
+| City advisors (city planning) | `GetMayorRating`, `GetMaxMayorRating`, `GetMinMayorRating` → Lua `game` variables (advisors.md §7.3); the Lua reward conditions read the rating and set conditional-building status (advisors.md §6.6) |
+| Regional city cache (`cSC4RegionalCity::UpdateCityCache`) | `GetMayorRating`, stored as a signed byte in the regional-city record (foundations §11) |
+| 3D view (`UpdateMayorRatingBar`, `DoPostCityInit`) | `GetMayorRating` (the latter uses rating + 100) |
 | Query tool | `GetAuraValue` (lot average of cells, mayor-rating percent), `GetMayorRating`; park/landmark/transient maps for its desirability readout |
 | Growth developer, tract developer | `GetParkMap`, `GetLandmarkMap`, `GetTransientAuraGrid` → `GetCellValue` (desirability) |
 | Map view | `GetAuraGrid` and `GetParkMap` → `GetGridData` (raw rows, simgrid §4) for its overlays; subscribes to `0x2A09B21A` |
