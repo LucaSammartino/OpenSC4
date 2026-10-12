@@ -67,14 +67,24 @@ container must release each element once.
 | `cISC4BuildingDevelopmentSimulator::GetAllFoundationTypes` (21), `GetAllLotRetainingWallTypes` (27) | vector of `uint32_t` | B | **no** | clears first, then appends with B; returns the count | `0x00698050`, `0x00698180` |
 | `cISC4BuildingDevelopmentSimulator::GetBuildingTypesByFamily` (18, the vector overload) | vector of `uint32_t` | B | **no** | for a family ID: vector assignment from the family's member list (B, may free the caller's buffer), returns the count; for a building type: clears, pushes one, returns 0; otherwise untouched | `0x00697EF0`; assign `0x00462C10` |
 | `cISC4BuildingDevelopmentSimulator::GetBuildingTypesByFilter` (17), `GetBuildingTypesByFamily` (19, the set overload) | STLport `hash_set<uint32_t>` (not `std::unordered_set` as the SDK declares) | B (nodes and bucket vector) | **no** | does not clear; inserts; returns a count | `0x00699C50`, `0x00699D20`; insert `0x00624DD0`, resize `0x004F0940` |
+| `cISC4OccupantManager::GetOccupantsByBBox` (36) and `GetOccupantsByOccupantManagerCells` (38): the **filter** overloads `(list&, min, max, cISC4OccupantFilter*, uint32_t flags)` | list of occupants | A | yes | does not clear; appends; one reference each (AddRef before the node is linked). The filter may be null (no filtering). Returns a bool in AL (true when something was appended). Returns false without touching the list when the manager is not initialised or `flags` is 0. Pop 20 | `0x004A0670` (AddRef `0x004A0942`, node `0x004A0991`); `0x004A0A70` (AddRef `0x004A0C3C`, node `0x004A0C8B`) |
+| `cISC4OccupantManager::GetOccupantsByStandardCityCells` (40): the **filter** overload; the 4th argument is a `cISC4OccupantFilter*`, so the call `(list, &min, &max, 0, -1)` means "no filter, all flags" | list of occupants | A | yes | converts the cell rectangle to a box and calls slot 36 through the vtable: same contract as slot 36. Pop 20 | `0x0049E250` → `call [vtbl+0x90]` at `0x0049E357` |
+| `GetOccupantsByBBox` (37), `GetOccupantsByOccupantManagerCells` (39), `GetOccupantsByStandardCityCells` (41): the **typed** overloads `(list&, min, max, uint32_t occupantType, uint32_t flags)` | list of occupants | A | yes | thunks. A non-zero type is written into a filter object owned by the manager, and the call is forwarded (tail jump) to slot 36, 38 or 40 with that filter. Type 0 forwards with a null filter. Same contract as the target slot. Pop 20 | `0x0049DD40`, `0x0049DD80`, `0x0049DDC0` |
+| `cISC4OccupantManager::ReleaseOccupantList` (48) | list of occupants | A | yes | releases every element once (vtable slot 2), then frees every node with A (`0x00413E60`) and leaves the head node self-linked. It does **not** free the head node. Pop 4. Use it only on lists whose nodes are A blocks and whose elements each hold one reference | `0x0049EF30` → `0x00413E60` |
+| `cISC4Demolition::DemolishLots` (7) | `std::list<cRZAutoRefCount<cISC4Lot>> const&` (input) | none used (B by declaration) | yes, read-only | only walks the list: no erase, no node allocation or free, no AddRef or Release of the elements, and the list object is never written. An empty list returns true at once. Each element is one `cISC4Lot*` (a `cRZAutoRefCount` is a single pointer). Any allocator works, because the game never frees a node of this list; the caller keeps its references. Pop 32 | `0x004670C0`: list reads at `0x004670CC`, `0x004670FC`, `0x0046722F`; no allocator call touches the list |
+| `cISC4DispatchManager::GetDispatchIDArray` (12) | caller's `uint32_t` array | none | n/a | nothing is allocated. See *Dispatch ID array* below. Pop 12 | `0x00469DA0` |
+| `cISC4DispatchManager::GetDispatchInfo` (10) | caller's 0x2C-byte struct | none | n/a | plain 11-dword copy (layout in [layouts.md](layouts.md)); no reference is taken on the pointers it copies. Pop 8 | `0x00469D40` |
+| `cISC4LotConfigurationManager::GetLotConfigurationsByFilter` (9) | STLport `hash_set<cISC4LotConfiguration*>` (the SDK says `SC4HashSet`) | B (nodes and buckets) | **no** | does not clear; inserts; one reference each, the caller releases each | `0x0048B1A0`; caller `0x00709650` |
+| `cISC4LotConfiguration::GetRequiredRoads` (21) | `std::vector<bool>` | B (bit buffer) | **no** | the callee fills; the caller frees the bit buffer with B | callers `0x00705E64`, `0x00706838` |
+| `cISC4Demolition::DemolishLots` (7) | list of lots (input) | B (head and nodes) | **no** | the caller (tract developer) builds the list with one referenced lot and frees it afterwards; the demolition code reads it *[inferred: no erase seen]* | callers `0x0070B519`, `0x007069E4`, `0x0070AB59`; original `0x007E98C0` |
 
 The list in slots 25 and 28–30 holds `cISC4NeighborDeal` references, not `cISC4NeighborConnection`.
 
 ### (2) The plugin fills the container (it implements the method), the game frees it
 
-The game's callers declare these with the default allocator. They destroy the container themselves, freeing the
-buffer or nodes with B. Several pass a container that already owns a B buffer, so the implementation also frees
-or regrows memory it did not allocate.
+The game's callers destroy the container themselves, with the allocator of the declared type: B for
+`std::vector`, `std::list` and `hash_set` with the default allocator, A for `ilist<>`. Several B callers pass a
+container that already owns a B buffer, so the implementation also frees or regrows memory it did not allocate.
 
 | Method (slot) | Container | Game allocator | SDK container compatible? | Notes | Evidence (game callers; original implementation) |
 |---|---|---|---|---|---|
@@ -85,12 +95,24 @@ or regrows memory it did not allocate.
 | `cISC4DepartmentBudget::GetAllLineItems` (21) | vector of `cISC4LineItem*` (4-byte) | B | **no** | the sub-budget window reuses one vector for every department: from the second call on it arrives emptied but owning a B buffer. The original clears first, reserves with B (which can free the old buffer with `0x0090CF63`) and takes one reference each | callers `0x007876B0`, `0x007898A0`; original `0x006AAD50` |
 | `cISC4DepartmentBudget::GetLocallyFundedItemsByPurpose` (32) | list of property holders | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`. Afterwards it releases each element and frees each node, and then the head, with `0x0090CF63`. The original does not clear; it appends with one reference each | callers `0x00785740`, `0x00786690`; original `0x006AA9C0` |
 | `cISC4Simulator::EnumerateAgentsByName` (24) | vector of `cRZString` (0x14-byte elements) | B for the buffer and for each string's character buffer | **no** | no game caller found (see *Unresolved*). The original clears first (destroys the strings, freeing their character buffers with B, and keeps capacity) and appends with B | original `0x00704450`; clear `0x004863F0`; append `0x0044EDA0` |
-| `cISC4TractDeveloper::Grow` (5), called by the building development simulator's daily `Grow` | list of outcomes (contents never read by the caller) | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`, the tract developer appends, then the caller frees every node and the head with `0x0090CF63` | caller `0x0069B0B0` |
+| `cISC4PowerSimulator::GetPowerPlants` (25) | `ilist<cISC4Occupant*>` | A | yes | the original does not clear; it appends one node per plant (A) with one reference each. The caller found passes a fresh, empty list (head allocated with A), then calls `ReleaseOccupantList` (occupant manager slot 48: one Release per element, nodes freed with A) and frees the head with A | caller `cSC4WinMapView::UpdateHighlights` `0x007A1A00` (head `0x007A1A5C`, call `0x007A1F50`, slot 48 `0x007A1FDF`, head freed `0x007A2044`); original `0x006ED120` |
+| `cISC4PlumbingSimulator::GetWaterProducers` (28) | `ilist<cISC4Occupant*>` | A | yes | as `GetPowerPlants`: appends, one reference each | caller `0x007A1F81` (same function, same clean-up); original `0x006DC7D0` |
+| `cISC4FireProtectionSimulator::GetStrikingStations` (17), `cISC4PoliceSimulator::GetStrikingStations` (16) | `ilist<cISC4Occupant*>` | A | yes | the originals do not clear; they append (A) with one reference each and return the number appended in EAX. The police version returns 0 without touching the list when no strike is on | originals `0x006AE170`, `0x006E1A00`; no game caller found (see *Unresolved*) |
+| `cISC4FireProtectionSimulator::GetFireStations` (22), `cISC4PoliceSimulator::GetPoliceStations` (21) and `GetJails` (32) | `ilist<cISC4Occupant*>` | A | yes | the original first empties the caller's list with `0x00413E60`, which frees the nodes with A **without releasing the elements**, then appends a copy of its own list (A), one reference each, and returns the count in EAX. Callers test EAX ≠ 0 before walking the list, and the walk is where they release, so the count must be non-zero whenever something was appended. Every caller found passes a fresh, empty list | callers `0x007A1A8E` / `0x007A1AF0` (map highlights; slot 48 afterwards), `0x00416189` / `0x004164B1` (safety advisor; slot 48 afterwards), `0x007D21C0` / `0x007D22F8` (coverage-radius helper `0x007D20E0`: releases each element itself, then `0x00413E60`, then frees the head with A); originals `0x006E0180` (shared by fire 22 and police 21), `0x006E01A0` (police 32; `interfaces.tsv` calls it `IsJail`, but it is `GetJails`) → `0x006DFC70` |
+| `cISC4PoliceSimulator::GetJailbreakBuildings` (42) | `ilist<cISC4Occupant*>` | A | yes | as slot 21, except that when the simulator's own jailbreak list is empty it returns 0 and leaves the caller's list untouched (it is not emptied) | original `0x006E08A0`; no game caller found |
+| `cISC4DispatchSource::GetStations` (6; IID `0xC9C00435`; fire and police simulators and both air sources) | `ilist<cISC4Occupant*>` | A | yes | empties, then copies, as slot 21, but returns a **bool** (AL = count ≠ 0). The dispatch manager passes a fresh, empty list and, when the result is true, ends with `ReleaseOccupantList` (slot 48) | callers `0x0046AF10` (`GetAvailablePylonCount`), `0x0046B060` (`BeginDispatchTool`); originals `0x006F6A50` (protection simulators), `0x006E0010` (air sources) |
+| `cISC4FloraSimulator::GetAllFloraTypes` (8, the vector overload), `GetAllFloraFamilyTypes` (10) | `std::vector<uint32_t>` | B | **no** | the original clears first (end = begin, keeps the buffer) and appends with B growth (`0x0051CA60`: allocates with `0x0090CF54`, frees the old buffer with `0x0090CF63`). The lot editor passes a zeroed vector (no buffer) and afterwards frees the buffer with `0x0090CF63` | caller `0x00482DC0` (vector zeroed at `0x00482E57`, call `0x00482E6A`, freed `0x004832B2`); originals `0x006B0E90`, `0x006B0F10` |
+| `cISC4FloraSimulator::GetFloraTypesByFilter` (13), `GetFloraTypesByFamily` (14) | STLport `hash_set<uint32_t>` (see *hash_set* below) | B (nodes and bucket vector) | **no**, for both the allocator and the layout | the originals do not clear; they insert (a union). Slot 13's filter may be null. The callers build a fresh set with 193 buckets and destroy it with `0x008EBA60` (frees each node with B) and `0x0090CF63` (bucket vector) | callers `0x006CD010` (`cSC4LotDeveloper::PickFloraTypeForLot`), `0x0048B860` (`cSC4LotConfigurationManager::GetMaxFootprintForFloraFamilies`); originals `0x006B23A0`, `0x006B2460` (insert `0x00624DD0`, resize `0x004F0940`) |
+| `cISC4TractDeveloper::Grow` (5), called by the building development simulator's daily `Grow` | list of outcomes (contents never read by the caller) | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`, the tract developer appends, then the caller frees every node and the head with `0x0090CF63`. The original appends int32 outcome codes and never clears | caller `0x0069B0B0`; original appends at `0x0070D557`, `0x0070D65A`, `0x0070D727` |
 
-A compatible implementation of these methods must allocate the list nodes and vector buffers with `0x0090CF54`.
-It must free any buffer it replaces, including one it was handed, with `0x0090CF63`. Every string inside an
-element must have a B character buffer (see *Strings*). `SC4Vector` and `SC4List` cannot be used for these
-containers.
+A compatible implementation of the B methods must allocate the list nodes, vector buffers and hash nodes and
+buckets with `0x0090CF54`. It must free any buffer it replaces, including one it was handed, with `0x0090CF63`.
+Every string inside an element must have a B character buffer (see *Strings*). `SC4Vector`, `SC4List` and
+`SC4HashSet` cannot be used for these containers. The `ilist<>` methods (A) can use `SC4List`: its nodes come
+from the same service.
+
+The game keeps several cached copies of the framework service pointer (one per `ilist<>` instantiation, for
+example `0x00B207E4` and `0x00B207DC`). They all point to the same service object, so they are one instance (A).
 
 ### (3) Internal containers returned by pointer or reference
 
@@ -104,10 +126,77 @@ iterator into it.
 |---|---|---|---|---|---|
 | `cISC4GrowthDeveloper::GetGrowthList` (11), `GetDeclineList` (12) | vector of 12-byte `GrowthItem {int32 x, int32 z, int32 maxStage}`, by reference | B | **no** | read by the building development simulator (begin/end in place) | original `0x00798040`, `0x006B7540`; push `0x006B56F0` → `0x00626240` → `0x0090CF54`; reader `0x00699440` |
 | `cISC4GrowthDeveloper::GetStylePercentages` (26) | `std::map<uint32_t, SC4Percentage>*` (the SDK says a map of `uint32_t`) | B (nodes) | **no** | read by the tract developer *[inferred]* | `0x006B7590`; destructor `0x004C56F0` |
+| `cISC4TractDeveloper::GetActiveStyles` (9) / `SetActiveStyles` (10) | `std::vector<uint32_t>`: Get returns the member by reference; Set takes the caller's vector and assigns it into the member | B | **no** | Set's vector assignment (`0x00462C10`) may free and reallocate the member's buffer with B | `0x0070C840`, `0x00707470` |
 | `cISC4BuildingDevelopmentSimulator::GetDevelopers` (34) | `std::map<uint32_t, cISC4GrowthDeveloper*>*` | B (nodes) | **no** | no AddRef; iterated by the demand simulator | `0x00698CD0` |
 | `cISC4BuildingDevelopmentSimulator::GetSpecialBuildings` (44) | `ilist<cISC4Occupant*>*` (this + 0x4C) | A | yes | each entry holds one reference owned by the simulator. The growth developer copies the elements into its own list (one AddRef each) | `0x00520080`; filled by `Read` `0x0069ACB0` (`ilist` ctor `0x00411870`); copied at `0x006B6569`–`0x006B65C1` |
 | `cISC4BuildingDevelopmentSimulator::GetExemplarName` (37), `GetBuildingName` (38) | `cRZString` inside a static hash map | B (character buffer) | n/a | an unknown type inserts an empty string; the caller must not release or free it | `0x0069AB20`, `0x0069AB00` |
 | `cISC4BuildingDevelopmentSimulator::GetBuildingProfile` (39), `GetBuildingProfilePtr` (40) | profile struct holding a vector of `map<uint32_t, uint16_t>` | B | **no** | read only; slot 39 inserts a zero profile for an unknown type | `0x0069CA60`, `0x006985C0` |
+| `cISC4PowerSimulator::GetMonthlyConsumptionMapPtr` (18) | `std::vector<std::vector<int16_t>>*`, through an out parameter (`vector<…>*&`); outer elements are 12-byte vectors `{begin, end, capacity_end}` of `int16_t` | B (outer buffer and every row) | **no** | the original stores a pointer to its own member (`this + 0x84`) and allocates nothing; a caller would read in place. **No game caller found** (see *Unresolved*) | original `0x006EAD40` |
+
+## Dispatch ID array
+
+`cISC4DispatchManager::GetDispatchIDArray(type, uint32_t* ids, uint32_t& n)` (slot 12, `0x00469DA0`, pop 12):
+
+- Nothing is allocated; the caller owns the array.
+- `n` is **read only**: it is the capacity. The method never writes it.
+- It writes the ID of every active dispatch of that type to `ids[0], ids[1], …` and returns the number written in
+  EAX.
+- It stops when the number written equals `n`. The comparison comes after each write, so **`n = 0` is not "no
+  room"**: it means "no limit", and every matching ID is written.
+- To size the array, call `GetDispatchCount(type)` (slot 11, `0x00469D80`, pop 4, EAX = count) first, and pass a
+  non-zero `n`.
+
+## hash_set
+
+The game's `hash_set<uint32_t>` is STLport's, declared with the default allocator: `hash_set<uint32_t,
+hash<uint32_t>, equal_to<uint32_t>, allocator<uint32_t>>`. Users: flora slots 13 and 14, building development
+slots 17 and 19.
+
+The object is 0x14 bytes:
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | the hasher, key-equal and key-extractor objects (empty, padded to 4 bytes; the code never reads or writes them) |
+| +0x04 | 4 | bucket vector `begin` (`Node**`) |
+| +0x08 | 4 | bucket vector `end`; the bucket count is n = (end − begin) / 4 |
+| +0x0C | 4 | bucket vector `capacity_end` |
+| +0x10 | 4 | element count |
+
+- **Node**: 8 bytes, `{Node* next; uint32_t value}`, allocated with B (`0x0090CF54(8)`, insert `0x00624DD0`) and
+  freed with B.
+- **Buckets**: the bucket vector's buffer is a B block (`0x0051C950`). An empty bucket holds null; each bucket
+  is a singly linked chain ending in null.
+- **Hash**: the identity. A value v belongs to bucket v mod n (unsigned division).
+- **Bucket counts**: the game only creates counts from STLport's 28-entry prime table at `0x00A829B0`: 53, 97,
+  193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433, 1572869, 3145739, 6291469,
+  12582917, 25165843, 50331653, 100663319, 201326611, 402653189, 805306457, 1610612741, 3221225473, 4294967291.
+  A request for h buckets gives the first prime ≥ h (4294967291 above the table). Construction with a hint
+  (`0x00829BC0`) does this; the flora callers pass 100 and get 193 buckets.
+- **Growth**: before each insert the game calls resize(count + 1) (`0x004F0940`). When count + 1 exceeds n, it
+  allocates a new, zeroed bucket vector with B for the first prime ≥ count + 1, moves every existing node (the
+  nodes themselves are kept) to the chain of v mod (new n), and frees the old bucket buffer with B.
+- **Insert**: a value already present is not inserted again. A new node goes to the **head** of its bucket chain,
+  and the count goes up by one.
+- **Destroy** (the callers): `0x008EBA60` frees each node with B, nulls the buckets and zeroes the count; then the
+  bucket buffer is freed with B.
+
+An implementation that inserts into the game's set must leave a state the game's own lookup, iteration, insert,
+clear and destroy accept:
+
+1. every node holding v is in the chain of bucket v mod n, where n = (end − begin) / 4;
+2. no value appears twice;
+3. the count equals the number of nodes;
+4. every node is an 8-byte B block, and the bucket buffer is a B block;
+5. n ≥ 1 (the game divides by n); `capacity_end` ≥ `end` and lies within the bucket block;
+6. if it grows the bucket vector, it frees the old buffer with B and relinks the existing nodes; keeping n a
+   prime from the table and count ≤ n gives a state the game itself can produce.
+
+Iteration order (bucket 0 to n − 1, then chain order) is observable; head insertion and the table's primes
+reproduce the game's order.
+
+**The SDK's `SC4HashSet` is not compatible**: it uses A, and its members start at +0 (`mpStart` at +0, 0x10
+bytes), while the game's object has a 4-byte member first and the bucket vector at +4. The header's own comments
+give the game's offsets (+0x04 to +0x10), but the struct lacks the leading member.
 
 ## Strings
 
@@ -146,6 +235,20 @@ compatible** whenever one side allocated a string's buffer and the other side fr
 A string that only one side ever creates, grows and destroys is safe with either type. Each side may read the
 other side's strings.
 
+### Strings passed into the game
+
+- `cIGZCheatCodeManager::RegisterCheatCode(uint32_t id, const cIGZString& name)` (slot 3, `0x00921B38`, pop 8)
+  only reads the string: it compares it against the registered names through the string's own vtable (slot 10,
+  `+0x28`, two arguments), then copies it into a new `cRZString` (`0x00578390`, then that string's slot 13,
+  `+0x34`) and stores the copy. It never AddRefs, Releases or frees the argument. The caller keeps ownership and
+  may destroy the string after the call. The argument must be a complete `cIGZString`, since its virtual methods
+  are called. Returns AL = 1, or 0 when the name is already registered.
+- `cIGZCommandServer::RegisterCommand` (slot 6, `0x0092B075`, pop 12) takes **`(uint32_t id, const char* name,
+  const char* parameterInfo)`**, not a `cIGZString`. It copies `name` into a `cRZString` of its own (`0x00408480`,
+  B buffer) and passes `parameterInfo` to slot 8 (`RegisterCommandParameterInfo`, `0x0092AD10`, pop 8), which also
+  copies it (`0x00408480`). Neither pointer is kept or freed; both may be temporary. Returns AL = 0 for id 0, a
+  null name or an id already registered, else 1.
+
 ## GetLotsInCellRect
 
 With the last argument `false`, the method:
@@ -173,6 +276,15 @@ allocator. Their caller has the same obligations.
   pointer at slot 24, or functions that use a `cRZString` vector) has one. The classification (B) comes from the
   original implementation and its declared type `std::vector<cRZString>`. Callers built on the SDK pass an
   `SC4Vector<SC4String>` (A), which was already incompatible with the original game.
+- `cISC4PowerSimulator::GetMonthlyConsumptionMapPtr` (slot 18): no game caller was found. On Windows there is no
+  call through the power simulator global (`0x00B43DA0`, set by `SL::OnCityInit` `0x00601F54`) at `+0x48`. In the
+  Mac pseudocode no user of `vector<vector<short>>` outside the power simulator and `cSC4SimGrid<short>` calls the
+  power simulator at that slot. A replacement need only return a pointer to a valid object of that type that it
+  owns.
+- No game caller was found for fire slot 17, police slots 16, 32 and 42, and flora slots 8 and 13, either through
+  the simulator globals on Windows or in the Mac pseudocode. Their rows rest on the declared types (`ilist<>`,
+  `std::vector`, `hash_set` with the default allocator) and on the original implementations, which use the same
+  allocators as their siblings with known callers.
 - The callers in table (2) are the ones found by scanning for calls through the budget simulator pointer and in
   the budget windows. Other callers may exist, but the declared types (`std::vector`/`std::list` with the default
   allocator in every signature) mean they would use B too.

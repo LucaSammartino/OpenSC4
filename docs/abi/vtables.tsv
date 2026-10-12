@@ -12238,7 +12238,7 @@ cSC4PoliceSimulator::vftable	00ab2490	28	+0x70	006e0ac0	cSC4PoliceSimulator::Get
 cSC4PoliceSimulator::vftable	00ab2490	29	+0x74	0043fd10	cSC4PoliceSimulator::GetJailPopulation	0	0	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	30	+0x78	00762700	cSC4PoliceSimulator::GetCriminalCount	0	0	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	31	+0x7C	00423650	icf::cSC4CitySituationAdvice::GetSituationFlags	0	0	eax-or-void	medium	
-cSC4PoliceSimulator::vftable	00ab2490	32	+0x80	006e01a0	cSC4PoliceSimulator::IsJail	4	1	eax-or-void	medium	
+cSC4PoliceSimulator::vftable	00ab2490	32	+0x80	006e01a0	cSC4PoliceSimulator::GetJails	4	1	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	33	+0x84	006e01e0	cSC4PoliceSimulator::GetArrestCount			forward	medium	indirect-jump dword ptr [edx + 0xc]
 cSC4PoliceSimulator::vftable	00ab2490	34	+0x88	0074c6e0	cSC4WinRegionView::GetSelectedCity	0	0	eax-or-void	medium	
 cSC4PoliceSimulator::vftable	00ab2490	35	+0x8C	006e14b0		0	0	eax-or-void	medium	

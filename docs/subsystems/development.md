@@ -25,6 +25,9 @@ GCC ones, so most offsets past the first container are different on Windows.
 > - §4: the special-building triple is (radius in cells, centre value, outer value), applied with
 >   `AddRadiusEffect<int16>`. The scratch grid W is not saved; the published map is. The two saved scalars are
 >   the last phantom sum and the total capacity. The population map is `int16`, not `uint16`.
+> - §5: see tract-developer.md §10.3 for the corrected pass structure (strict first pass, relaxed later passes),
+>   takeover caps, capacity window, minimum-vacancy and years-between defaults, first-compatible-configuration
+>   rule, current-style-only check and road bits 0–2. `Grow` returns the capacity built (int32), not a bool.
 > - Offsets quoted in this file are Mac offsets.
 
 ## 1. Overview
