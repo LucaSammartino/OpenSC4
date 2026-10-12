@@ -711,6 +711,8 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 | a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager, advisor system (advisors.md §9), each MySim (mysims.md); plumbing (created at `Init`) |
 | a `cRZRandom` member | **0** (integer path deterministic, double path clock-seeded) | flammability |
 | a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, construction, network lots |
+| a file-local `cRZRandom` per source file (seeded once at static initialisation, never re-seeded) | `cRZTime()` local wall clock XOR a per-file constant | building development simulator (`0x00B485F0`, XOR `0x0C09C0B8`; building-development.md §4.14), growth developers (`0x00B49080`, XOR `0xAC09C0E8`, shared by all of them; growth-developer.md §7) |
+| a temporary `cRZRandom` | `((x << 16) + z) << 4` XOR a per-month salt | growth developer decline-list ordering (growth-developer.md §7) |
 | a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |
 | a process-wide `cRZRandom` (lazy) | wall clock | neighbours deal propositions |
 | a temporary `cRZRandom` | **cell coordinates** (`a · 65536 + b`) | lot developer desirability test: deterministic per cell *[inferred: which coordinate is `a`]* |
@@ -1573,6 +1575,12 @@ size).
 
 Because slot 9 moves up, everything from `GetAllBuildingTypes` to `DemolishFoundationOccupant` (header order)
 sits one slot later than its header line count suggests.
+
+The compiled return types differ from the SDK's in several more slots (building-development.md §7.1 has the full
+table): slots 6, 7 and 47 return the building-occupant pointer (or null), not `bool`; slots 17, 18, 19, 21 and 27
+return a count, not `bool` (a count that is a multiple of 256 reads as false in AL); slots 11 and 13 leave EAX
+undefined; slots 42 and 43 return the key in AL only; slot 45 (`GetMaxCapacity`) returns a `float` in ST0, not
+`int64`; slots 48 and 49 return `int32`. A replacement must follow the compiled types.
 
 **`cISC4HistoryWarehouse`** (vtable `0x00A8CCB4`, 14 slots)
 

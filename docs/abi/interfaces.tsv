@@ -3799,3 +3799,33 @@ cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	0	+0x0	00880e90		8	2	eax
 cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	1	+0x4	00880ea0		0	0	eax-or-void	medium	tail->00424b60
 cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	2	+0x8	00880eb0		0	0	eax-or-void	medium	tail->00424b70
 cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	3	+0xC	00881650	cSCLua::OnGameDataRegistryNotification	12	3	via-call	low	
+cIGZMessageTarget2(GrowthDeveloper)	cSC4GrowthDeveloper	00ab1474	0	+0x0	006b75e0		8	2	eax-or-void	medium	
+cIGZMessageTarget2(GrowthDeveloper)	cSC4GrowthDeveloper	00ab1474	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(GrowthDeveloper)	cSC4GrowthDeveloper	00ab1474	2	+0x8	006b7600		0	0	eax-or-void	medium	
+cIGZMessageTarget2(GrowthDeveloper)	cSC4GrowthDeveloper	00ab1474	3	+0xC	006b7030	cSC4GrowthDeveloper::DoMessage	4	1	eax-or-void	medium	
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	0	+0x0	006b75f0		8	2	eax-or-void	medium	
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	2	+0x8	006b7610		0	0	eax-or-void	medium	
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	3	+0xC	006b3960	cSC4GrowthDeveloper::Write	4	1	eax-or-void	medium	
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	4	+0x10	006b39f0	cSC4GrowthDeveloper::Read	4	1	eax-or-void	medium	
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	5	+0x14	006b3790	cSC4GrowthDeveloper::GetGZCLSID	0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	0	+0x0	0069ea50	cSC4CommercialSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	2	+0x8	0069eb50		0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	3	+0xC	0069ef90	cSC4CommercialSimulator::Init	0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	4	+0x10	0069eb80	cSC4CommercialSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	5	+0x14	0069ead0	cSC4CommercialSimulator::GetProximityMap	4	1	eax-or-void	medium	
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	0	+0x0	00698d50		8	2	eax-or-void	medium	tail->00695290
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	2	+0x8	00698dd0		0	0	eax-or-void	medium	tail->006959b0
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	3	+0xC	00697800	cSC4BuildingDevelopmentSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	4	+0x10	0069acb0	cSC4BuildingDevelopmentSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	5	+0x14	00695280	cSC4BuildingDevelopmentSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	0	+0x0	00698d40		8	2	eax-or-void	medium	tail->00695290
+cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	1	+0x4	005200f0		0	0	eax-or-void	medium	tail->00695330
+cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	2	+0x8	00698dc0		0	0	eax-or-void	medium	tail->006959b0
+cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	3	+0xC	0069cce0	cSC4BuildingDevelopmentSimulator::DoMessage	4	1	eax-or-void	medium	
+cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	0	+0x0	00698d30		8	2	eax-or-void	medium	tail->00695290
+cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
+cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	2	+0x8	00698db0		0	0	eax-or-void	medium	tail->006959b0
+cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	3	+0xC	004fc900	icf::cRZNetStreamSocket::DoMessage	4	1	eax-or-void	medium	

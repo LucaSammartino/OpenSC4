@@ -142,3 +142,9 @@ cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	97	docs/specs/lua-host.md
 cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	25	docs/specs/lua-host.md
 cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	12	docs/specs/lua-host.md
 cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	4	docs/specs/lua-host.md
+cIGZMessageTarget2(GrowthDeveloper)	cSC4GrowthDeveloper	00ab1474	4	docs/specs/growth-developer.md
+cIGZSerializable(GrowthDeveloper)	cSC4GrowthDeveloper	00ab145c	6	docs/specs/growth-developer.md
+cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	6	docs/specs/growth-developer.md
+cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	6	docs/specs/building-development.md
+cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	4	docs/specs/building-development.md
+cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	4	docs/specs/building-development.md

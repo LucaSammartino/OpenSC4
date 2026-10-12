@@ -63,6 +63,10 @@ container must release each element once.
 | `cISC4RegionalCity::GetPointsOfInterest` (72) | vector, **12-byte elements** | B | **no** | vector assignment: when the type is present, reuses the caller's capacity or frees the old buffer with B and allocates a new one with B; when absent, the vector is left untouched. The elements are 12 bytes, not `uint32_t` | `0x004A8A40` → `0x007AD7A0` |
 | `cISC4ResidentialSimulator::GetSchoolSystemTotals` (14), `GetHospitalSystemTotals` (15) | vector of `uint32_t` (input) | none | n/a | the vector is a read-only input (const reference); the query-data argument receives plain values. No memory crosses | `0x006FA240`, `0x006FA260` → `0x006FA070` |
 | `cISC4ResidentialSimulator::GetSchoolBuildings` (47), `GetHospitalBuildings` (49) | list of occupants; vector of `uint32_t` (input, may be null) | A (list) | yes | does not clear; appends; one reference each. The vector is read-only | `0x006FADE0`, `0x006FAE50` → `0x006FACE0` |
+| `cISC4BuildingDevelopmentSimulator::GetAllBuildingTypes` (11), `GetAllBuildingFamilyTypes` (13) | vector of `uint32_t` | B | **no** | clears first (end = begin, keeps the buffer), then appends in hash order with B. EAX is garbage on return | `0x00697C50`, `0x00697D10` |
+| `cISC4BuildingDevelopmentSimulator::GetAllFoundationTypes` (21), `GetAllLotRetainingWallTypes` (27) | vector of `uint32_t` | B | **no** | clears first, then appends with B; returns the count | `0x00698050`, `0x00698180` |
+| `cISC4BuildingDevelopmentSimulator::GetBuildingTypesByFamily` (18, the vector overload) | vector of `uint32_t` | B | **no** | for a family ID: vector assignment from the family's member list (B, may free the caller's buffer), returns the count; for a building type: clears, pushes one, returns 0; otherwise untouched | `0x00697EF0`; assign `0x00462C10` |
+| `cISC4BuildingDevelopmentSimulator::GetBuildingTypesByFilter` (17), `GetBuildingTypesByFamily` (19, the set overload) | STLport `hash_set<uint32_t>` (not `std::unordered_set` as the SDK declares) | B (nodes and bucket vector) | **no** | does not clear; inserts; returns a count | `0x00699C50`, `0x00699D20`; insert `0x00624DD0`, resize `0x004F0940` |
 
 The list in slots 25 and 28–30 holds `cISC4NeighborDeal` references, not `cISC4NeighborConnection`.
 
@@ -81,11 +85,29 @@ or regrows memory it did not allocate.
 | `cISC4DepartmentBudget::GetAllLineItems` (21) | vector of `cISC4LineItem*` (4-byte) | B | **no** | the sub-budget window reuses one vector for every department: from the second call on it arrives emptied but owning a B buffer. The original clears first, reserves with B (which can free the old buffer with `0x0090CF63`) and takes one reference each | callers `0x007876B0`, `0x007898A0`; original `0x006AAD50` |
 | `cISC4DepartmentBudget::GetLocallyFundedItemsByPurpose` (32) | list of property holders | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`. Afterwards it releases each element and frees each node, and then the head, with `0x0090CF63`. The original does not clear; it appends with one reference each | callers `0x00785740`, `0x00786690`; original `0x006AA9C0` |
 | `cISC4Simulator::EnumerateAgentsByName` (24) | vector of `cRZString` (0x14-byte elements) | B for the buffer and for each string's character buffer | **no** | no game caller found (see *Unresolved*). The original clears first (destroys the strings, freeing their character buffers with B, and keeps capacity) and appends with B | original `0x00704450`; clear `0x004863F0`; append `0x0044EDA0` |
+| `cISC4TractDeveloper::Grow` (5), called by the building development simulator's daily `Grow` | list of outcomes (contents never read by the caller) | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`, the tract developer appends, then the caller frees every node and the head with `0x0090CF63` | caller `0x0069B0B0` |
 
 A compatible implementation of these methods must allocate the list nodes and vector buffers with `0x0090CF54`.
 It must free any buffer it replaces, including one it was handed, with `0x0090CF63`. Every string inside an
 element must have a B character buffer (see *Strings*). `SC4Vector` and `SC4List` cannot be used for these
 containers.
+
+### (3) Internal containers returned by pointer or reference
+
+These methods return the implementing object's own container. The caller reads it in place and never frees or
+modifies it *[inferred: no modifying caller found]*. An implementation in a plugin must therefore hand out a
+container whose layout the game can walk (STLport/MSVC as noted) and must not expect the game to free it; the
+allocator matters only if the plugin's own code later grows or frees that container while the game holds no
+iterator into it.
+
+| Method (slot) | Container | Game allocator | SDK container compatible? | Notes | Evidence |
+|---|---|---|---|---|---|
+| `cISC4GrowthDeveloper::GetGrowthList` (11), `GetDeclineList` (12) | vector of 12-byte `GrowthItem {int32 x, int32 z, int32 maxStage}`, by reference | B | **no** | read by the building development simulator (begin/end in place) | original `0x00798040`, `0x006B7540`; push `0x006B56F0` → `0x00626240` → `0x0090CF54`; reader `0x00699440` |
+| `cISC4GrowthDeveloper::GetStylePercentages` (26) | `std::map<uint32_t, SC4Percentage>*` (the SDK says a map of `uint32_t`) | B (nodes) | **no** | read by the tract developer *[inferred]* | `0x006B7590`; destructor `0x004C56F0` |
+| `cISC4BuildingDevelopmentSimulator::GetDevelopers` (34) | `std::map<uint32_t, cISC4GrowthDeveloper*>*` | B (nodes) | **no** | no AddRef; iterated by the demand simulator | `0x00698CD0` |
+| `cISC4BuildingDevelopmentSimulator::GetSpecialBuildings` (44) | `ilist<cISC4Occupant*>*` (this + 0x4C) | A | yes | each entry holds one reference owned by the simulator. The growth developer copies the elements into its own list (one AddRef each) | `0x00520080`; filled by `Read` `0x0069ACB0` (`ilist` ctor `0x00411870`); copied at `0x006B6569`–`0x006B65C1` |
+| `cISC4BuildingDevelopmentSimulator::GetExemplarName` (37), `GetBuildingName` (38) | `cRZString` inside a static hash map | B (character buffer) | n/a | an unknown type inserts an empty string; the caller must not release or free it | `0x0069AB20`, `0x0069AB00` |
+| `cISC4BuildingDevelopmentSimulator::GetBuildingProfile` (39), `GetBuildingProfilePtr` (40) | profile struct holding a vector of `map<uint32_t, uint16_t>` | B | **no** | read only; slot 39 inserts a zero profile for an unknown type | `0x0069CA60`, `0x006985C0` |
 
 ## Strings
 
