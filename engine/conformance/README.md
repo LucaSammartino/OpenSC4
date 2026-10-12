@@ -423,7 +423,7 @@ altitudes, allowed heights), zones, developers with their desirability maps, and
 
 | op | Arguments | Effect / check |
 |---|---|---|
-| `lv_world` | any of `cells`, `cell_width`, `land`, `water`, `land_vertices`, `clear_land`, `altitude`, `altitudes`, `heights`, `zoned`, `clear_zones`, `developers` (`{"0x1030": {size, all, values} \| null}`) | the fake world |
+| `lv_world` | any of `cells`, `cell_width`, `land`, `water`, `land_vertices`, `clear_land`, `altitude`, `altitudes`, `heights`, `zoned`, `clear_zones`, `developers` (`{"0x1030": {size, cells?, all, values} \| null}`; `cells: [x, z]` makes the map cover a city of that size) | the fake world |
 | `lv_create` / `lv_init` / `lv_shutdown` | `tuning?` for init (`"shipped"` or an object of §9 values; `null` = absent) | lifecycle (§4) |
 | `lv_step` | `budget`, `count?`, `expect_state?` | SimIdle steps (§6) |
 | `lv_run` | `budget`, `max`, `expect_calls?` | steps until a pass completes |
@@ -926,6 +926,7 @@ Protection events: `acquire_services` / `release_services` (`kind`), `create_gri
 | 15 pipeline call count | `lv16_15_pipeline` |
 | 16 missing altitude curve | `lv16_16_missing_altitude_curve` |
 | 17 desirability mapping (scratch 2, desirability 4) | `lv16_17_desirability_mapping` |
+| 18 desirability map smaller than the scratch area (skipped tracts; equal and coarser [choice]s) | `lv16_18_desirability_coverage` |
 
 ## Coverage (simgrid §10, `fc4_core::grid`)
 
