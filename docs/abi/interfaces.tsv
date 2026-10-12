@@ -2681,3 +2681,327 @@ cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	8	+0x20	00
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	9	+0x24	00578310	cSC4DisasterManager::RemoveInstanceFromList	4	1	eax-or-void	medium	
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	10	+0x28	00577990	cSC4DisasterManager::GetActiveInstanceCount	0	0	eax-or-void	medium	
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	11	+0x2C	00577450	icf::cSC4DisasterManager::GetInstances	0	0	eax-or-void	medium	
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	0	+0x0	006efa80		8	2	eax-or-void	medium	tail->006eabc0
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	2	+0x8	006efaa0		0	0	eax-or-void	medium	tail->006eb190
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	3	+0xC	006eb6a0	cSC4PowerSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	4	+0x10	006f0880	cSC4PowerSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	5	+0x14	006eabb0	cSC4PowerSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Power)	cSC4PowerSimulator	00ab28a4	0	+0x0	006efa70		8	2	eax-or-void	medium	tail->006eabc0
+cIGZMessageTarget2(Power)	cSC4PowerSimulator	00ab28a4	1	+0x4	0068d230		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZMessageTarget2(Power)	cSC4PowerSimulator	00ab28a4	2	+0x8	006efa90		0	0	eax-or-void	medium	tail->006eb190
+cIGZMessageTarget2(Power)	cSC4PowerSimulator	00ab28a4	3	+0xC	006efb70	cSC4PowerSimulator::DoMessage	4	1	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	0	+0x0	0064a030	cSC4PowerPoleOccupant::QueryInterface	8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	1	+0x4	006491c0	cSC4PropOccupant::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	2	+0x8	006491d0	icf::cSC4ConstructionOccupant::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	4	+0x10	00649d80		0	0	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	5	+0x14	0064be50		8	2	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	6	+0x18	0064dae0	cSC4PowerPoleOccupant::BreakAllConnectionsAtDestination	4	1	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	7	+0x1C	006499b0		4	1	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	8	+0x20	00649210		8	2	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	9	+0x24	0064a650		0	0	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	10	+0x28	0064dd60		0	0	edx:eax	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	11	+0x2C	00649230		0	0	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	12	+0x30	0064aa40	cSC4PowerPoleOccupant::SetDistressed	4	1	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	13	+0x34	00649240		0	0	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	14	+0x38	00649250		4	1	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	15	+0x3C	0064ce40	cSC4PowerPoleOccupant::Init	8	2	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	16	+0x40	00649dd0		8	2	eax-or-void	medium	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	17	+0x44	00649d00		20	5	via-call	low	
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	18	+0x48	0064c6c0	cSC4PowerPoleOccupant::ChangeZoomLevel	4	1	eax-or-void	medium	
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	0	+0x0	00649350	cSC4PowerLineOccupant::QueryInterface	8	2	eax-or-void	medium	tail->005e89c0
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	3	+0xC	00649290		12	3	eax-or-void	medium	
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	4	+0x10	006492d0		12	3	eax-or-void	medium	
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	5	+0x14	00649330		8	2	eax-or-void	medium	
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	6	+0x18	00649390		0	0	eax-or-void	medium	
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	7	+0x1C	006493a0		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	0	+0x0	004587d0		8	2	eax-or-void	medium	tail->005e89c0
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	1	+0x4	005e28f0	icf::cSC4Automaton::AddRef	0	0	eax-or-void	medium	tail->005e89b0
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	2	+0x8	005e2900	icf::cSC4Automaton::Release	0	0	eax-or-void	medium	tail->005e8df0
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	3	+0xC	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	4	+0x10	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	5	+0x14	006ce240	cSC4FloraOccupant::SetLotTag	4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	6	+0x18	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	7	+0x1C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	8	+0x20	00458c60	cSC4PropOccupant::SetBoundingBox	8	2	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	9	+0x24	00458810		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	10	+0x28	00458820		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	11	+0x2C	00459250		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	12	+0x30	004590e0		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	13	+0x34	00459050		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	14	+0x38	00458830		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	15	+0x3C	00458840		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	16	+0x40	00458870		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	17	+0x44	00458c90	cSC4BuildingOccupant::SetLit	4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	18	+0x48	00458880		4	1	via-call	low	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	19	+0x4C	004588f0		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	20	+0x50	005e16e0		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	21	+0x54	00458f00		4	1	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	22	+0x58	004589b0		0	0	eax-or-void	medium	
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	23	+0x5C	005e5770		4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	0	+0x0	00610750	cSC4NetworkManager::QueryInterface	8	2	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	2	+0x8	006107d0	cSC4NetworkManager::Release	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	3	+0xC	00610c10	cSC4NetworkManager::Init	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	4	+0x10	00611eb0	cSC4NetworkManager::Shutdown	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	5	+0x14	006108d0	cSC4NetworkManager::GetNetworkTool	8	2	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x610a9c]
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	6	+0x18	00612110	cSC4NetworkManager::DestroyNetworkOccupants	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	7	+0x1C	00613450	cSC4NetworkManager::QueueRemovals	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	8	+0x20	006110b0	cSC4NetworkManager::RemoveOrReplaceOccupant	12	3	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	9	+0x24	00610540	cSC4NetworkManager::IsOccupantSubwayStation	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	10	+0x28	00610550	cSC4NetworkManager::FindPipeOccupant	12	3	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	11	+0x2C	00610570	cSC4NetworkManager::FindPipeConnectionOccupant	12	3	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	12	+0x30	00612780	cSC4NetworkManager::GetAllIntersectionPieces	16	4	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	13	+0x34	00610ad0	cSC4NetworkManager::MapPreviewTexture	8	2	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	14	+0x38	00611d50	cSC4NetworkManager::MapShadowTexture	16	4	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	15	+0x3C	00610b40	cSC4NetworkManager::MapPath	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	16	+0x40	006122b0	cSC4NetworkManager::RegisterConstructionCrew	4	1	via-call	low	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	17	+0x44	006112a0	cSC4NetworkManager::UnregisterConstructionCrew	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	18	+0x48	00610590	cSC4NetworkManager::GetWaterOccupantFilter	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	19	+0x4C	006105c0	cSC4NetworkManager::GetSubwayOccupantFilter	0	0	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	20	+0x50	00611300	cSC4NetworkManager::CreateConnectionNode	28	7	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	21	+0x54	00611530	cSC4NetworkManager::AutoconnectLotNodes	8	2	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	22	+0x58	006107f0	cSC4NetworkManager::GetEnglishNetworkName	4	1	eax-or-void	medium	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	23	+0x5C	00612480	cSC4NetworkManager::AddToRetrofitList	4	1	unknown	low	
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	24	+0x60	00612590	cSC4NetworkManager::~cSC4NetworkManager	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	0	+0x0	00623290		8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	2	+0x8	00623270		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	3	+0xC	006269c0	cSC4NetworkTool::Init	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	4	+0x10	00626d30		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	edx:eax?	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	6	+0x18	00623b20		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	9	+0x24	006248d0		16	4	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	10	+0x28	0062c900		20	5	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	11	+0x2C	0062c8c0		0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	12	+0x30	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	13	+0x34	0062c8e0		0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	14	+0x38	0062c8f0		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	15	+0x3C	0062ca40		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	16	+0x40	00625580		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	17	+0x44	00625f10		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	18	+0x48	0063af40	cSC4NetworkTool::DrawNetworkLine	16	4	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	19	+0x4C	0063bdc0	cSC4NetworkTool::PlaceAllSegments	16	4	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x63bf18]
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	20	+0x50	00625640		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	21	+0x54	0062c8d0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	22	+0x58	0062ca20		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	23	+0x5C	0062ca30		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	24	+0x60	0062ca10	cSC4NetworkTool::SetValidStepCount	4	1	eax-or-void	medium	tail->00624bf0
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	25	+0x64	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	26	+0x68	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	28	+0x70	0062c9c0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	29	+0x74	0062c9e0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	30	+0x78	00626e80		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	31	+0x7C	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	32	+0x80	00623b80		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	33	+0x84	00623b90		0	0	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	34	+0x88	00623ba0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	35	+0x8C	00624af0		8	2	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	36	+0x90	00624130		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	37	+0x94	00624180		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	38	+0x98	00624150		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	39	+0x9C	006241b0		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	40	+0xA0	00624b20		12	3	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	41	+0xA4	006241d0		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	42	+0xA8	0062c910		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	43	+0xAC	0062c930		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	44	+0xB0	0062c940		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	45	+0xB4	0062c950		8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	46	+0xB8	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	47	+0xBC	0062c920		0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	48	+0xC0	0062cad0	cSC4NetworkTool::GetPlacementParams	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	49	+0xC4	0062d450	cSC4NetworkTool::QueryUserForPotentialIntersections	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	51	+0xCC	0062cd30		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	52	+0xD0	0062bf60	cSC4NetworkTool::GetFailureReasonString	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	53	+0xD4	0062c980	icf::cIGZWinProc::DoWinProcMessage	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	57	+0xE4	00644530		4	1	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	58	+0xE8	006246a0	cSC4NetworkTool::AddCellPreview	8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	59	+0xEC	006299a0	cSC4NetworkTool::UpdateOccupantHighlights	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	60	+0xF0	00624920				forward	medium	indirect-jump dword ptr [edx + 0x44]
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	61	+0xF4	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	62	+0xF8	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	63	+0xFC	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	64	+0x100	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	65	+0x104	00638680		8	2	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	66	+0x108	00638710		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	67	+0x10C	006392f0		12	3	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	68	+0x110	00639170		12	3	via-call	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	69	+0x114	00638990		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	70	+0x118	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	73	+0x124	006444f0		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	74	+0x128	0062c990		4	1	x87	high	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	75	+0x12C	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	77	+0x134	00637b90		4	1	eax-or-void	medium	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	0	+0x0	00623290		8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	2	+0x8	00623270		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	3	+0xC	00650630	cSC4PowerLineTool::Init	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	4	+0x10	0064f0d0		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	5	+0x14	00626f90	cSC4NetworkTool::Reset	0	0	edx:eax?	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	6	+0x18	00623b20		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	7	+0x1C	00629210	cSC4NetworkTool::PlaceNetworkOccupants	32	8	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	8	+0x20	00624fd0	cSC4NetworkTool::PlaceNetworkOccupantById	20	5	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	9	+0x24	006248d0		16	4	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	10	+0x28	006522f0	cSC4PowerLineTool::UpdateOnZoneChange	20	5	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	11	+0x2C	0062c8c0		0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	12	+0x30	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	13	+0x34	0062c8e0		0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	14	+0x38	0062c8f0		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	15	+0x3C	0062ca40		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	16	+0x40	0064f3f0		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	17	+0x44	00625f10		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	18	+0x48	0063af40	cSC4NetworkTool::DrawNetworkLine	16	4	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	19	+0x4C	0063bdc0	cSC4NetworkTool::PlaceAllSegments	16	4	eax-or-void	medium	indirect-jump dword ptr [edx*4 + 0x63bf18]
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	20	+0x50	0064f0f0		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	21	+0x54	0062c8d0		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	22	+0x58	0062ca20		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	23	+0x5C	0062ca30		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	24	+0x60	0062ca10	cSC4NetworkTool::SetValidStepCount	4	1	eax-or-void	medium	tail->00624bf0
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	25	+0x64	00407ab0	icf::cSC4Advice::GetPriority	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	26	+0x68	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	28	+0x70	0062c9c0		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	29	+0x74	0062c9e0		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	30	+0x78	00626e80		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	31	+0x7C	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	32	+0x80	00623b80		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	33	+0x84	00623b90		0	0	x87	high	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	34	+0x88	00623ba0		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	35	+0x8C	00624af0		8	2	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	36	+0x90	00624130		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	37	+0x94	00624180		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	38	+0x98	00624150		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	39	+0x9C	006241b0		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	40	+0xA0	00624b20		12	3	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	41	+0xA4	006241d0		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	42	+0xA8	0062c910		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	43	+0xAC	0062c930		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	44	+0xB0	0062c940		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	45	+0xB4	0062c950		8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	46	+0xB8	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	47	+0xBC	0062c920		0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	48	+0xC0	0062cad0	cSC4NetworkTool::GetPlacementParams	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	49	+0xC4	0062d450	cSC4NetworkTool::QueryUserForPotentialIntersections	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	50	+0xC8	0062a5c0	cSC4NetworkTool::DestroyOccupantsAndResolve	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	51	+0xCC	00650560		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	52	+0xD0	0064f570	cSC4PowerLineTool::GetFailureReasonString	8	2	edx:eax?	low	tail->0062bf60
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	53	+0xD4	00652980	cSC4PowerLineTool::DoNetworkSpecificPlacement	8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	54	+0xD8	00624210	cSC4NetworkTool::CreateNetworkOccupant	16	4	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	55	+0xDC	006258c0	cSC4NetworkTool::InsertOccupantsForSolvedCells	12	3	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	56	+0xE0	00644b20	cSC4NetworkTool::CanTilesBeSupportedOnTerrain	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	57	+0xE4	00644530		4	1	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	58	+0xE8	006246a0	cSC4NetworkTool::AddCellPreview	8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	59	+0xEC	006299a0	cSC4NetworkTool::UpdateOccupantHighlights	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	60	+0xF0	00624920				forward	medium	indirect-jump dword ptr [edx + 0x44]
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	61	+0xF4	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	62	+0xF8	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	63	+0xFC	00648f00	operator.new	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	64	+0x100	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	65	+0x104	00638680		8	2	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	66	+0x108	00638710		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	67	+0x10C	006392f0		12	3	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	68	+0x110	00639170		12	3	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	69	+0x114	00638990		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	70	+0x118	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	71	+0x11C	00633250	cSC4NetworkTool::CreateCellInfosForCurrentPlacementTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	72	+0x120	006278a0	cSC4NetworkTool::InsertNetworkOccupant	12	3	via-call	low	indirect-jump dword ptr [edx*4 + 0x62836c]
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	73	+0x124	006444f0		4	1	x87	high	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	74	+0x128	0062c990		4	1	x87	high	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	75	+0x12C	00407990	_memset	0	0	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	76	+0x130	006360c0	cSC4NetworkTool::InsertRangeConstraintsForCell	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	77	+0x134	00637b90		4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	78	+0x138	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	79	+0x13C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	80	+0x140	00623ce0	cSC4NetworkTool::SetQuadTrianglesToDraw	8	2	via-call	low	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	81	+0x144	0064fed0	cSC4PowerLineTool::CheckForReservedTiles	4	1	eax-or-void	medium	
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	82	+0x148	0064f2b0	cSC4PowerLineTool::SetTerrainHilight	4	1	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	0	+0x0	004664b0	cSC4Demolition::QueryInterface	8	2	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	2	+0x8	00466950	cSC4Demolition::Release	0	0	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	3	+0xC	00466ef0	cSC4Demolition::Init	0	0	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	4	+0x10	00466980	cSC4Demolition::Shutdown	0	0	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	5	+0x14	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4Demolition	cSC4Demolition	00a88004	6	+0x18	00468410	cSC4Demolition::DemolishRegion	44	11	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	7	+0x1C	004670c0	cSC4Demolition::DemolishLots	32	8	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	8	+0x20	004691f0	cSC4Demolition::DemolishOccupant	28	7	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	9	+0x24	00467bb0	cSC4Demolition::ModifyTerrainHeight	40	10	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	10	+0x28	004673b0	cSC4Demolition::DoDemolishGroupEffect	24	6	eax-or-void	medium	
+cISC4Demolition	cSC4Demolition	00a88004	11	+0x2C	00467530		16	4	via-call	low	
+cISC4Demolition	cSC4Demolition	00a88004	12	+0x30	00466920	cSC4Demolition::~cSC4Demolition	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	0	+0x0	007e5630	cSC4View3DWin::QueryInterface	8	2	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	1	+0x4	007e56d0	cSC4View3DWin::AddRef	0	0	eax-or-void	medium	tail->0094c47c
+cISC4View3DWin	cSC4View3DWin	00abce40	2	+0x8	007e56e0	cSC4View3DWin::Release	0	0	eax-or-void	medium	tail->0099b7a3
+cISC4View3DWin	cSC4View3DWin	00abce40	3	+0xC	005f8400	icf::cSC4PropOccupantAutomataController::AsOccupant	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	4	+0x10	0043fd00	cSC4View3DWin::GetRenderer	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	5	+0x14	007f0fe0	cSC4View3DWin::GetModelMaker	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	6	+0x18	007e60b0	cSC4View3DWin::GetViewManager	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	7	+0x1C	007f1c10	cSC4View3DWin::ProcessCommand	12	3	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x7f3288]/dword ptr [eax*4 + 0x7f32ac]
+cISC4View3DWin	cSC4View3DWin	00abce40	8	+0x20	007e60e0	cSC4View3DWin::SetZoom	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	9	+0x24	007e62c0	cSC4View3DWin::ZoomIn	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	10	+0x28	007e6320	cSC4View3DWin::ZoomOut	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	11	+0x2C	007e6150	cSC4View3DWin::SetZoomLimits	8	2	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	12	+0x30	007e5780	cSC4View3DWin::CanZoomIn	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	13	+0x34	007e57a0	cSC4View3DWin::CanZoomOut	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	14	+0x38	007e61d0	cSC4View3DWin::SetRotation	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	15	+0x3C	007e6220	cSC4View3DWin::RotateLeft	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	16	+0x40	007e6270	cSC4View3DWin::RotateRight	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	17	+0x44	007e6380	cSC4View3DWin::SetZoomAndRotation	8	2	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	18	+0x48	007e57c0	cSC4View3DWin::GetCurrentViewFilterInfo	4	1	via-call	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	19	+0x4C	007e63f0	cSC4View3DWin::SetCurrentViewFilterInfo	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	20	+0x50	007e57e0	cSC4View3DWin::GetCurrentViewLevelInfo	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	21	+0x54	007e6500	cSC4View3DWin::SetCurrentViewLevelInfo	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	22	+0x58	007e57f0	cSC4View3DWin::GetCurrentViewLevel	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	23	+0x5C	007e5800	cSC4View3DWin::SetCurrentViewLevel	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	24	+0x60	007e65e0	cSC4View3DWin::GetCurrentViewInputControl	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	25	+0x64	007ebd70	cSC4View3DWin::SetCurrentViewInputControl	8	2	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	26	+0x68	007e9390	cSC4View3DWin::RemoveCurrentViewInputControl	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	27	+0x6C	007e5820	cSC4View3DWin::RemoveAllViewInputControls	4	1	via-call	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	28	+0x70	007ebea0	cSC4View3DWin::AddPersistentViewInputControl	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	29	+0x74	007e7fb0	cSC4View3DWin::RemovePersistentViewInputControl	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	30	+0x78	007e8030	cSC4View3DWin::RemoveAllPersistentViewInputControls	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	31	+0x7C	007e56f0	icf::cSC4City::GetDemolitionUtility	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	32	+0x80	007e5700	cSC4View3DWin::SetKeyAccelerator	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	33	+0x84	007f64f0	cSC4View3DWin::SetScrolling	12	3	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	34	+0x88	007e5740	cSC4View3DWin::ScrollStop	0	0	x87|eax	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	35	+0x8C	007e7f90	cSC4View3DWin::KillKeyboardScrolling	0	0	eax-or-void	medium	tail->007e6c60
+cISC4View3DWin	cSC4View3DWin	00abce40	36	+0x90	007e5840	cSC4View3DWin::PickTerrain	16	4	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	37	+0x94	007e5890	cSC4View3DWin::PickOccupant	12	3	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	38	+0x98	006f7dc0	icf::cSC4AutomataController::CheckTimeOfDay	8	2	unknown	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	39	+0x9C	007e5900	cSC4View3DWin::GetTerrainQueryEnabled	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	40	+0xA0	007f5cf0	cSC4View3DWin::SetCursorText	20	5	unknown	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	41	+0xA4	007ef7a0	cSC4View3DWin::ClearCursorText	4	1	unknown	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	42	+0xA8	007ec800	cSC4View3DWin::SetCostIndicator	8	2	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	43	+0xAC	007f0ff0	cSC4View3DWin::SetCostIndicator	4	1	via-call	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	44	+0xB0	007ec900	cSC4View3DWin::ClearCostIndicator	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	45	+0xB4	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4View3DWin	cSC4View3DWin	00abce40	46	+0xB8	007eb850	cSC4View3DWin::GetGlobalEffectTriggerState	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	47	+0xBC	007ecce0	cSC4View3DWin::AssertGlobalEffectTrigger	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	48	+0xC0	007eb8a0	cSC4View3DWin::RetractGlobalEffectTrigger	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	49	+0xC4	007f1010	cSC4View3DWin::GetCoverageHelper	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	50	+0xC8	007e90f0	cSC4View3DWin::SetCursorTextPosition3D	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	51	+0xCC	007f1060	cSC4View3DWin::GetLastSelectedBuilding	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	52	+0xD0	007f1080	cSC4View3DWin::GetLastSelectedLot	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	53	+0xD4	007f1020	cSC4View3DWin::SetLastSelectedBuilding	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	54	+0xD8	007f1040	cSC4View3DWin::SetLastSelectedLot	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	55	+0xDC	007e91e0	cSC4View3DWin::MinimizeUI	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	56	+0xE0	007ecf60	cSC4View3DWin::ShowMissionStatusPanel	4	1	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	57	+0xE4	007e77f0	cSC4View3DWin::HideMissionStatusPanel	0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 8]
+cISC4View3DWin	cSC4View3DWin	00abce40	58	+0xE8	007eb970	cSC4View3DWin::UpdateMissionStatusPanel	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	59	+0xEC	007e5d20	cSC4View3DWin::CloseSecondaryMenu	0	0	eax-or-void	medium	
+cISC4View3DWin	cSC4View3DWin	00abce40	60	+0xF0	007e5e90	cSC4View3DWin::CloseTertiaryMenu	0	0	via-call	low	

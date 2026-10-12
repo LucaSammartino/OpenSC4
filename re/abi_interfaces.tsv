@@ -105,3 +105,13 @@ cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	15	docs/specs/neighbors.
 cISC4NeighborDeal	cSC4NeighborDeal	00ab1dd8	41	docs/specs/neighbors.md
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	81	docs/specs/plumbing.md
 cISC4DisasterManager(PipeBurst)	cSC4DisasterManagerPipeBurst	00a9e66c	12	docs/specs/plumbing.md
+cIGZSerializable(Power)	cSC4PowerSimulator	00ab288c	6	docs/specs/power.md
+cIGZMessageTarget2(Power)	cSC4PowerSimulator	00ab28a4	4	docs/specs/power.md
+cISC4PowerPoleOccupant	cSC4PowerPoleOccupant	00aa9eb0	19	docs/specs/power.md
+cISC4PowerLineOccupant	cSC4PowerLineOccupant	00aa9c80	8	docs/specs/power.md
+cISC4BuildingOccupant	cSC4BuildingOccupant	00a872c0	24	docs/specs/power.md
+cISC4NetworkManager	cSC4NetworkManager	00aa7ad0	25	docs/specs/power.md
+cISC4NetworkTool	cSC4NetworkTool	00aa8748	81	docs/specs/power.md
+cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	83	docs/specs/power.md
+cISC4Demolition	cSC4Demolition	00a88004	13	docs/specs/power.md
+cISC4View3DWin	cSC4View3DWin	00abce40	61	docs/specs/power.md

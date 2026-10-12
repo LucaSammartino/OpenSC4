@@ -473,10 +473,10 @@ neighbours and service simulators.
 
   | Pattern | What the caller does | Exemplar or property missing | Users (verified call sites) |
   |---|---|---|---|
-  | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | power, budget, traffic, pollution's per-occupant curves |
-  | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, fire protection, police (curves with a code default; protection §6). Plumbing's curve `0x6A410BF2` is a variant: "keep", then (0,0)(100,100) if the curve is still empty after the load (plumbing spec) |
+  | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | budget, traffic, pollution's per-occupant curves |
+  | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, fire protection, police (curves with a code default; protection §6), power's five tuning curves (power §8). Plumbing's curve `0x6A410BF2` is a variant: "keep", then (0,0)(100,100) if the curve is still empty after the load (plumbing spec) |
   | **empty** | first empties the curve (or uses a fresh temporary one), then loads as in "keep" | the curve is **empty** | pollution's tuning curves (pollution §9), pollution's temporary curves in `SimulationBegin` / `EndOfCycle` |
-  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`) |
+  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`); power's two per-building curves `0x8A1E07EE` / `0x0911E2E7` follow it per call, with a fresh temporary curve (power §8) |
 
   "Keep" differs from the others only when tuning is re-read (another `Init` after `Shutdown`, or a tuning-reload
   message) after the property disappeared, which shipped content never does. A present property with no points
@@ -1577,3 +1577,20 @@ For the earthquake, the two integers are world coordinates (budget §4.3), whate
    has its own clock-seeded `cRZRandom` (§6.2).
 3. **Plumbing curve, Gaussian-fast draw** (§4.1, §6.1): plumbing is not plain "default" (see the §4.1 table), and
    `RandomSint32RangeGaussianFast` is now exact.
+4. **Power curves** (§4.1): power's tuning curves use the "default" pattern, not "keep" (code defaults are rebuilt
+   before every load, power §8). Its per-building curves are read into a fresh temporary curve only when the
+   property exists, so they behave like "delete" for each call.
+5. **SDK signature errors found in M3 (power)**, each checked against the exe (callee-pop and epilogue):
+   - `cISC4PowerSimulator` slots 45 / 46 `GetCurrentPlantEfficiencyPercent` / `GetCurrentPlantConditionPercent`
+     (`0x006EB5F0`, `0x006EC820`): the SDK declares `float f(occupant)`. The game returns an `SC4Percentage` **by
+     value through a hidden pointer** passed as the first stack argument; the callee pops 8 (pointer +
+     occupant), returns that pointer in EAX and leaves nothing in ST0.
+   - `cISC4PowerSimulator` slots 32 / 33 / 34 `GetOccupantPowerConsumed` / `…Produced` / `…MaxPowerProduced`
+     (`0x006EB0D0` pop 8, `0x006EB420` pop 12, `0x006EB110` pop 8): declared `void`, but they return a **bool in AL**
+     (upper EAX undefined).
+   - `cISC4PowerSimulator` overloads compiled in reverse declaration order (§16): slot 16 is
+     `GetMonthlyConsumption(x, z)` (`0x006EBA10`, pop 8) and slot 17 is `GetMonthlyConsumption()` (pop 0); slot 23
+     is `GetPowerPlantCount(type)` (`0x006EFA00`, pop 4) and slot 24 is `GetPowerPlantCount()` (pop 0).
+   - `cISC4NetworkTool` slot 10 `UpdateOnZoneChange`: the SDK declares no parameters. The game takes
+     `(SC4Rect by value, uint32)` and the callee pops 20 (base `0x0062C900` `ret 0x14`; power-line tool override
+     `0x006522F0`, pop 20).
