@@ -162,10 +162,9 @@ Data links on the 1st of a month:
 | budget (4) | the settlement sums department expenses (budget §5.1); the landfill month agent sets line 30's full expenses | budget **before** landfill | the settlement on the 1st of M+1 books the maintenance set on the 1st of M |
 | neighbours (23), ordinance (24) | read `GetLandfillUsage` (neighbour landfill deals; landfill gas recovery) | landfill **before** them | they see this month's capacity |
 
-**Observed order** *[inferred]*: the landfill developer's month agent runs **after** pollution's and the budget's,
-and **before** the neighbours' and the ordinance simulator's. The ranks come from the logged sessions of
-foundations §13.2; that they are stable is not proven (foundations §15 question 7), so foundations §13.3 keeps
-registration order as a *[choice]* for now. FreeCity4's registration order (foundations §13.3, which
+**Requirement** *[compat]*: the landfill developer's month agent runs **after** pollution's and the budget's, and
+**before** the neighbours' and the ordinance simulator's. This order holds in all eight logged sessions
+(foundations §13.3). Registration order alone does not give it, so FreeCity4 orders this agent explicitly. FreeCity4's registration order (foundations §13.3, which
 puts the landfill developer second because it initialises early, §3.7) does not satisfy the first half. See
 §10.2 question 1.
 

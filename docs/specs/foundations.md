@@ -1281,11 +1281,18 @@ No other ordering requirement is derived:
 - **Ordinance vs neighbours**: their order differs between the original (neighbours first) and FreeCity4
   (ordinance first). Neither reads the other's month results.
 - **Power, plumbing vs neighbours**: power and plumbing come first in both orders.
-- **Landfill developer** (landfill.md §3.3): in the logged session's address order it runs after pollution and the
-  budget and before neighbours and ordinance; registration order puts it second, before both. It feeds pollution's
-  `landfilled` counter and line item 30, so the two orders shift those by one month. Whether the address order is
-  stable across sessions is not established (only the budget's position was checked in all three logs).
-  *[choice]* Until that is settled, FreeCity4 keeps registration order; §15 question 7.
+- *[compat]* **Landfill developer** (landfill.md §3.3): its month agent runs **after** pollution's and the
+  budget's, and **before** the neighbours' and the ordinance simulator's. It feeds pollution's `landfilled` counter
+  and line item 30, so the order decides whether those are seen this month or next. Evidence: in all eight logged
+  level-6 registration sets (test sessions run3–run9 and the current plugin log, 24 agents each) the landfill
+  developer's address rank is 19–20, pollution 3–14, budget 1–11, neighbours 21–22, ordinance 22–23. Registration
+  order puts the landfill developer second, so FreeCity4 must order it explicitly (for example by registering its
+  month agent after the city's other `Init` calls, or by a priority).
+- What the eight logs confirm: the tail of the set is stable. Landfill developer (rank 19–20), port developers
+  (20–21), neighbours (21–22) and ordinance (22–23) always come in that order, after every agent ranked 1–18;
+  commercial (23–24) and land value (19–24) are at the end too. The ranks of the other 18 agents vary between
+  sessions (for example pollution 3–14, budget 1–11, aura 2–18), so their mutual order stays open
+  (§15 questions 5 and 7).
 - Other pairs that differ between the two orders (for example residential, pollution and power before the budget
   in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
   order.
@@ -1359,8 +1366,10 @@ MSVC, they therefore produce the game's layout: it was verified in-game for ever
    last). Each subsystem spec should check whether its month agent reads another one's month results.
 6. Whether clearing Silent in `UpdateLocalDeals` really posts status reports (§11.3). That depends on the order of
    the check inside `SetFlags`, which a runtime capture would settle.
-7. Whether the landfill developer's month agent reliably runs after pollution and the budget in the original
-   (address order, §13.3, landfill.md §3.3). A runtime capture of the level-6 set in several sessions would settle it.
+7. *(partly answered)* The landfill developer's position relative to pollution, budget, neighbours and ordinance
+   is confirmed in all eight logged sessions (§13.3, now *[compat]*). Still open: the positions of the other
+   month agents relative to each other where they vary between sessions, and whether any of those pairs exchange
+   month results.
 
 ## 17. Compiled slot tables of game-framework interfaces *[compat]*
 
