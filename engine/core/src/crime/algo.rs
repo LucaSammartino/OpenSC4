@@ -16,13 +16,9 @@ use crate::curve::ResponseCurve;
 /// the low half of the int64 truncation (NaN, ±∞ and magnitudes ≥ 2⁶³ give
 /// 0, the low half of the int64 indefinite).
 pub use crate::x87::ftol32;
-use crate::x87::r24;
 
 /// `1/255` as the prop requester scales the average crime (§11.6).
 pub const PROP_SCALE: f32 = 1.0 / 255.0;
-
-/// 2³², added to a negative `int32` to convert it as unsigned (§6.4).
-const TWO_POW_32: f64 = 4_294_967_296.0;
 
 /// One x87 multiplication at 24-bit precision: the exact product of the two
 /// unrounded operands, rounded once to `float32` (foundations §18.3).
@@ -30,30 +26,9 @@ pub fn mul_f32(a: f64, b: f64) -> f32 {
     (a * b) as f32
 }
 
-/// `rhe` exactly as the original's idiom computes it (§6 notation,
-/// [compat]): `int32(bits(f32(x + 1.5·2²³)) − 0x4B400000)` with a 32-bit
-/// wrapping subtraction. Round half to even for |x| ≤ 2²²; beyond that the
-/// bit pattern of the sum (5,000,000 → 4,597,152; 4,294,967,296 →
-/// 71,327,744; −5,000,000 → −5,805,696). ±∞ give the bits of ±∞; a NaN
-/// input passes through the addition as the same NaN, made quiet (x87).
-pub fn rhe(x: f32) -> i32 {
-    let sum = if x.is_nan() {
-        f32::from_bits(x.to_bits() | 0x0040_0000)
-    } else {
-        x + 12_582_912.0f32
-    };
-    sum.to_bits().wrapping_sub(0x4B40_0000) as i32
-}
-
-/// `float(uint32 v)` (§6.4): the `int32` is loaded exactly; a negative one
-/// has 2³² added, rounded once to 24 bits.
-pub fn u32_to_float(v: i32) -> f64 {
-    if v < 0 {
-        r24(f64::from(v) + TWO_POW_32)
-    } else {
-        f64::from(v)
-    }
-}
+/// `rhe` (§6 notation, [compat]) and `float(uint32 v)` (§6.4) are the
+/// shared [`crate::x87`] helpers.
+pub use crate::x87::{rhe, u32_to_float};
 
 /// The census bucket of an EQ value (§6.1): `trunc(f32(EQ × 0.02f))`;
 /// `None` when it is outside 0..3 ([choice]: such populations are ignored).
