@@ -4,9 +4,9 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Unit tests for the tract developer: the STLport containers, the save
-//! record, the tuning reader, the styles, the pure helpers, a small Grow on
-//! a scripted host, and hostile hosts and records (no panic).
+//! Unit tests for the tract developer: the save record, the tuning reader,
+//! the styles, the pure helpers, a small Grow on a scripted host, and
+//! hostile hosts and records (no panic).
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -44,83 +44,6 @@ impl Lcg {
     fn pick<T: Copy>(&mut self, v: &[T]) -> T {
         v[self.below(v.len() as u32) as usize]
     }
-}
-
-// ---- STLport containers -------------------------------------------------------------------------
-
-#[test]
-fn stl_sort_sorts_and_permutes() {
-    let mut g = Lcg(7);
-    for len in [0usize, 1, 2, 3, 15, 16, 17, 31, 64, 200, 1000] {
-        for range in [1u32, 3, 50, 1_000_000] {
-            let orig: Vec<u32> = (0..len).map(|_| g.below(range)).collect();
-            let mut a = orig.clone();
-            stl_sort(&mut a, &mut |x: &u32, y: &u32| x < y);
-            let mut want = orig.clone();
-            want.sort_unstable();
-            assert_eq!(a, want, "len {len} range {range}");
-        }
-    }
-}
-
-#[test]
-fn stl_sort_survives_inconsistent_comparators() {
-    let mut g = Lcg(11);
-    for len in [2usize, 5, 16, 17, 40, 300] {
-        let mut a: Vec<u32> = (0..len as u32).collect();
-        stl_sort(&mut a, &mut |_: &u32, _: &u32| true);
-        let mut b: Vec<u32> = (0..len as u32).rev().collect();
-        stl_sort(&mut b, &mut |_: &u32, _: &u32| g.next() & 1 == 0);
-        // The contents are a permutation whatever the comparator says.
-        let mut s = a.clone();
-        s.sort_unstable();
-        assert_eq!(s, (0..len as u32).collect::<Vec<_>>());
-        let mut s = b.clone();
-        s.sort_unstable();
-        assert_eq!(s, (0..len as u32).collect::<Vec<_>>());
-    }
-    // NaN scores: unordered pairs compare false.
-    let mut f = [2.0f64, f64::NAN, 1.0, f64::NAN, 0.5];
-    stl_sort(&mut f, &mut |x: &f64, y: &f64| x < y);
-    assert_eq!(f.iter().filter(|v| v.is_nan()).count(), 2);
-}
-
-#[test]
-fn hash_set_bucket_order_and_growth() {
-    let mut s = StlHashSet::with_hint(100);
-    assert_eq!(s.bucket_count(), 193);
-    assert!(s.insert(5));
-    assert!(s.insert(198));
-    assert!(!s.insert(5));
-    assert_eq!(s.iter_order(), vec![198, 5]);
-    // Test 14's order.
-    let mut s = StlHashSet::with_hint(100);
-    for v in [0x100, 0x101, 0x102, 0x2C1, 0x3] {
-        s.insert(v);
-    }
-    assert_eq!(s.iter_order(), vec![0x3, 0x100, 0x101, 0x102, 0x2C1]);
-    // Growth past 193 elements resizes to the next prime and keeps every
-    // element once.
-    let mut s = StlHashSet::with_hint(100);
-    for v in 0..500u32 {
-        s.insert(v.wrapping_mul(2_654_435_761));
-    }
-    assert_eq!(s.len(), 500);
-    assert!(s.bucket_count() >= 500);
-    assert!(STL_PRIMES.contains(&(s.bucket_count() as u32)));
-    let mut o = s.iter_order();
-    o.sort_unstable();
-    o.dedup();
-    assert_eq!(o.len(), 500);
-}
-
-#[test]
-fn next_prime_walks_the_table() {
-    assert_eq!(next_prime(0), 53);
-    assert_eq!(next_prime(100), 193);
-    assert_eq!(next_prime(193), 193);
-    assert_eq!(next_prime(194), 389);
-    assert!(next_prime(usize::MAX) >= 193);
 }
 
 // ---- pure helpers -------------------------------------------------------------------------------
@@ -410,11 +333,7 @@ impl TractDeveloperHost for Script {
         Vec::new()
     }
     fn building_profile(&self, _: u32) -> BuildingProfile {
-        BuildingProfile {
-            purpose: 1,
-            wealth: 1,
-            capacity: 2,
-        }
+        BuildingProfile::basic(1, 1, 2)
     }
     fn building_types_by_family(&self, family: u32) -> Vec<u32> {
         if family == 600 {
@@ -897,11 +816,7 @@ impl TractDeveloperHost for Hostile {
         let wealth = self.h(1, &[0, 2, 4]);
         let cap = self.pick(&[1, 2, 5]);
         let capacity = self.h(cap, &[0, u16::MAX]);
-        BuildingProfile {
-            purpose,
-            wealth,
-            capacity,
-        }
+        BuildingProfile::basic(purpose as u8, wealth as u8, capacity)
     }
     fn building_types_by_family(&self, _: u32) -> Vec<u32> {
         if self.hostile() {

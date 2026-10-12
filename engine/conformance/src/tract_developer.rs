@@ -19,12 +19,12 @@ use std::rc::{Rc, Weak};
 use fc4_core::development::{ConstructionProfile, GrowthProfile, Outcome};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{CrtRand, FixedSeeds, RzRandom};
+use fc4_core::stl::{stl_sort, StlHashSet};
 use fc4_core::stream::{ByteReader, ByteWriter};
 use fc4_core::tract_developer::{
     answers_iid, candidate_rect, capacity_window, configuration_filter_includes, corner_ok, desired_of, roads_check,
-    score_candidate, stl_sort, style_group, style_points, zone_family, BuildingProfile, Candidate, Cap, CellRect,
-    Cheat, DrawKind, SharedStatics, StlHashSet, TractDeveloper, TractDeveloperHost, TractDeveloperStatics, Tuning,
-    RNG_SEED_XOR,
+    score_candidate, style_group, style_points, zone_family, BuildingProfile, Candidate, Cap, CellRect, Cheat,
+    DrawKind, SharedStatics, TractDeveloper, TractDeveloperHost, TractDeveloperStatics, Tuning, RNG_SEED_XOR,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -371,7 +371,7 @@ impl TractDeveloperHost for World {
     }
 
     fn building_profile(&self, building: u32) -> BuildingProfile {
-        self.bld(building, |b| b.profile)
+        self.bld(building, |b| b.profile.clone())
     }
     fn building_types_by_family(&self, family: u32) -> Vec<u32> {
         self.families.borrow().get(&family).cloned().unwrap_or_default()
@@ -1147,16 +1147,17 @@ fn cfg(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// A byte-sized profile field (`BuildingProfile.purpose` / `.wealth`).
+fn byte_of(v: &Json, k: &str) -> R<u8> {
+    u8::try_from(u32_of(v, k)?).map_err(|_| format!("'{k}' must fit a byte"))
+}
+
 /// `tdev_building`: `id` (type), `purpose`, `wealth`, `capacity`, `groups`
 /// (absent: in every group), `monopoly`, `fields` (field IDs).
 fn building(w: &World, op: &Json) -> R<()> {
     let id = u32_of(field(op, "id")?, "id")?;
     let mut b = w.buildings.borrow().get(&id).cloned().unwrap_or(Bld {
-        profile: BuildingProfile {
-            purpose: 1,
-            wealth: 1,
-            capacity: 1,
-        },
+        profile: BuildingProfile::basic(1, 1, 1),
         groups: None,
         monopoly: false,
         fields: None,
@@ -1164,8 +1165,8 @@ fn building(w: &World, op: &Json) -> R<()> {
     for (k, v) in op.as_object().ok_or("op must be an object")? {
         match k.as_str() {
             "op" | "id" | "description" => {}
-            "purpose" => b.profile.purpose = u32_of(v, k)?,
-            "wealth" => b.profile.wealth = u32_of(v, k)?,
+            "purpose" => b.profile.purpose = byte_of(v, k)?,
+            "wealth" => b.profile.wealth = byte_of(v, k)?,
             "capacity" => b.profile.capacity = u32_of(v, k)? as u16,
             "groups" => b.groups = Some(u32_list(v, k)?),
             "monopoly" => b.monopoly = bool_of(v, k)?,

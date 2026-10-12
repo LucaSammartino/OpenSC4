@@ -32,8 +32,8 @@
 //!   manager, land value, power, plumbing, fire, aura, the traffic network,
 //!   demolition, terrain, the simulator and the message server. Objects are
 //!   host tokens (`u64`). The other two M4 cores are reached through it.
-//! - `order.rs`: the STLport `std::sort` ([`stl_sort`], §4.14) and
-//!   `hash_set<uint32>` ([`StlHashSet`], §4.16).
+//! - The STLport `std::sort` (§4.14) and `hash_set<uint32>` (§4.16) are
+//!   the shared [`crate::stl::stl_sort`] and [`crate::stl::StlHashSet`].
 //! - `tuning.rs`: [`Tuning`] (§4.21).
 //!
 //! # Choices (`[choice]`), limits (`[compat-limit]`) and inferences (`[inferred]`)
@@ -121,7 +121,7 @@
 //! - **Tuning pairs** shorter than two floats keep the default for the
 //!   missing elements (§4.21 quirk 9).
 //! - **`std::sort`** and the "unguarded" loops never index outside the
-//!   candidate list ([`stl_sort`]).
+//!   candidate list ([`crate::stl::stl_sort`]).
 //! - **Return values** (§7.1 "what a replacement returns"): `grow` returns
 //!   `built`, `decline` the sum, `update_population` nothing (the plugin
 //!   returns 0); slots 10, 12 and 14 are the plugin's (nonzero, `this`,
@@ -129,13 +129,11 @@
 //!
 //! Host callbacks must not call back into the tract developer.
 
-mod order;
 mod simulator;
 #[cfg(test)]
 mod tests;
 mod tuning;
 
-pub use order::{next_prime, stl_sort, StlHashSet, STL_PRIMES};
 pub use simulator::{
     candidate_rect, capacity_window, configuration_filter_includes, corner_ok, desired_of, has_required_roads,
     roads_check, score_candidate, sort_candidates, style_group, style_points, zone_family, Candidate, Draw, DrawKind,
@@ -146,7 +144,7 @@ pub use tuning::{prop, Tuning, TUNING_KEY};
 
 use std::rc::Rc;
 
-pub use crate::development::{ConstructionProfile, GrowthProfile, Outcome};
+pub use crate::development::{BuildingProfile, ConstructionProfile, GrowthProfile, Outcome};
 pub use crate::grid::CellRect;
 use crate::property::PropertyHolder;
 pub use crate::rng::{CrtRand, RzRandom};
@@ -207,15 +205,6 @@ pub mod network {
     pub const AVENUE: u32 = 6;
     pub const ONE_WAY_ROAD: u32 = 10;
     pub const DIRT_ROAD: u32 = 11;
-}
-
-/// The part of the BDS `BuildingProfile` the tract developer reads (§4.8,
-/// §4.15, §4.17; `building-development.md` §4.7.1).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct BuildingProfile {
-    pub purpose: u32,
-    pub wealth: u32,
-    pub capacity: u16,
 }
 
 /// The four developer caps (growth developer slots 19–22, §4.2).

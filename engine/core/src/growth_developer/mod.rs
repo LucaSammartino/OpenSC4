@@ -22,8 +22,8 @@
 //!   twelve shipped exemplars of §4.9, every property as in `SimCity_1.dat`.
 //! - Pure arithmetic in `algo.rs` ([`population_of`], [`add_curve`],
 //!   [`commute_add`], [`phantom_term`], [`assign_stages`], [`city_size`],
-//!   [`decline_key`], the capacity helpers) and the game's `std::sort` in
-//!   `sort.rs` ([`stl_sort`]).
+//!   [`decline_key`], the capacity helpers); the game's `std::sort` is the shared
+//!   [`crate::stl::stl_sort`].
 //! - [`GrowthStatics`]: the process-wide state shared by every growth
 //!   developer: the file-local `cRZRandom` of §7 and the time-slice step of
 //!   §5.2. The host creates one and hands the same `Rc` to every developer.
@@ -177,7 +177,6 @@
 mod algo;
 mod shipped;
 mod simulator;
-mod sort;
 #[cfg(test)]
 mod tests;
 mod tuning;
@@ -187,7 +186,6 @@ pub use algo::{
     desirability_fraction, low_byte, phantom_term, population_of, round_capacity, split_capacity, CitySizeInputs,
 };
 pub use simulator::{GrowthData, GrowthDeveloper, RECORD_VERSION};
-pub use sort::stl_sort;
 pub use tuning::{shipped_exemplar, shipped_types, style_fraction, DeveloperTuning, ShippedValue, TuningRead};
 
 use std::cell::{Cell, RefCell};

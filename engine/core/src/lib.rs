@@ -47,6 +47,7 @@ pub mod rng;
 pub mod save;
 pub mod simgrid;
 pub mod simulator;
+pub mod stl;
 pub mod store;
 pub mod stream;
 pub mod tract_developer;

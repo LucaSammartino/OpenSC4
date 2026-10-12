@@ -131,9 +131,7 @@ mod simulator;
 #[cfg(test)]
 mod tests;
 
-pub use catalogue::{
-    BuildingCatalogue, BuildingConfigObject, BuildingProfile, LotConfigInfo, StlHashMap, STL_DEFAULT_HINT, STL_PRIMES,
-};
+pub use catalogue::{BuildingCatalogue, BuildingConfigObject, LotConfigInfo};
 pub use simulator::{
     DevelopmentData, DevelopmentSim, PlanEntry, PlannedGrowth, Tuning, DEFAULT_GROW_ATTEMPT_BUDGET, RECORD_VERSION,
 };

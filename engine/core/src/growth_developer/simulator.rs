@@ -31,11 +31,11 @@ use super::algo::{
     add_curve, add_to_capacity, assign_stages, city_size, commute_add, commute_minimum, decline_key, decline_key_seed,
     low_byte, phantom_term, population_of, round_capacity, split_capacity, CitySizeInputs,
 };
-use super::sort::stl_sort;
 use super::{
     msg, prop, Curve, DevGrid, DeveloperTuning, GridHandle, GrowthDeveloperHost, GrowthMessage, GrowthStatics, Service,
     SourceMap, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_GROWTH_DEVELOPER, SOURCE_DEMAND_INDEX,
 };
+use crate::stl::stl_sort;
 
 /// The save record version (§9).
 pub const RECORD_VERSION: u16 = 1;

@@ -16,7 +16,6 @@ use crate::props;
 use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 use crate::x87::ftol32;
 
-use super::catalogue::BuildingProfile;
 use super::{
     cheat, decline_day, exemplar_type, monthly_supply, msg, prop, tuning_min_max, unpack_terrain_rect,
     update_lot_elements_flag, AdviceSubject, CellRect, CommandParam, ConstructionProfile, DemandNode, DeveloperId,
@@ -27,6 +26,7 @@ use super::{
     MAX_PLAN_ENTRIES, MAX_SLOPE_CHANGE, NEW_NODE_DEMAND, NEW_NODE_SUPPLY, PLACE_BUILDING_COMMAND, PLACE_BUILDING_NAME,
     SPECIAL_GROUPS,
 };
+use crate::development::BuildingProfile;
 
 /// The record version (§6); every other version is rejected.
 pub const RECORD_VERSION: u16 = 4;

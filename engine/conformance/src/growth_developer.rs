@@ -19,11 +19,12 @@ use std::rc::{Rc, Weak};
 use fc4_core::development::{ConstructionProfile, GrowthItem, GrowthProfile};
 use fc4_core::grid::{create_for_clsid, CityDims, GridElem, GridProvider, ScanState, SimGrid, TractGrid};
 use fc4_core::growth_developer::{
-    self as gd, msg, query_interface, shipped_exemplar, stl_sort, Curve, DevGrid, GridHandle, GrowthDeveloper,
+    self as gd, msg, query_interface, shipped_exemplar, Curve, DevGrid, GridHandle, GrowthDeveloper,
     GrowthDeveloperHost, GrowthMessage, GrowthStatics, Service, SourceMap, CLSID_GROWTH_DEVELOPER, SLOTS,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::FixedSeeds;
+use fc4_core::stl::stl_sort;
 use fc4_core::store::{load_store, save_store, LoadRegistry, Package};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, SaveRegistry};
 use fc4_core::variant::Variant;

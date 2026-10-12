@@ -7,7 +7,8 @@
 //! Types and pure helpers shared by the growth subsystems:
 //! the building development simulator (`docs/specs/building-development.md`,
 //! "BDS"), the growth developers (`growth-developer.md`) and the tract
-//! developer (`tract-developer.md`).
+//! developer (`tract-developer.md`) and the lot developer
+//! (`lot-developer.md`).
 //!
 //! Section references are to `building-development.md` unless another spec
 //! is named. Everything here is plain data; the modules that use it reach
@@ -165,6 +166,53 @@ pub struct ConstructionProfile {
     /// Cell coordinates.
     pub x: i32,
     pub z: i32,
+}
+
+/// A building's profile (`BuildingProfile`, §4.7.1): what the BDS's
+/// `GetBuildingProfile(type)` (slot 39) returns to the growth developer,
+/// the tract developer and the lot developer. The BDS fills it from the
+/// building exemplar (`BuildingProfile::from_exemplar` in
+/// `development_simulator`); a zero profile stands for an unknown type. The
+/// fields after `capacity` are not used by growth *[inferred: field
+/// mapping]*.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BuildingProfile {
+    /// 0–3 (values outside become 0).
+    pub wealth: u8,
+    /// `cISC4BuildingOccupant::PurposeType` ([`purpose`]).
+    pub purpose: u8,
+    /// Capacities satisfied: developer type → amount (property `0x27812834`).
+    pub capacities: std::collections::BTreeMap<u32, u16>,
+    /// The amount for `GetDeveloperType(purpose, wealth)`, 0 if absent.
+    pub capacity: u16,
+    /// Property `0x27812836`.
+    pub flag_27812836: bool,
+    /// Property `0x499AFA38` (default 30 when loaded from an exemplar).
+    pub value_499afa38: u8,
+    /// The values of property `0xAA1DD396`, kept raw: the 31-entry table
+    /// that turns them into category flags is not in the spec (§4.7.1).
+    pub category_values: Vec<u32>,
+    /// Occupant size (property `0x27812810`), metres.
+    pub occupant_size: [f32; 3],
+    /// Plop cost (property `0x49CAC341`).
+    pub plop_cost: i64,
+}
+
+impl BuildingProfile {
+    /// A profile with only the fields growth reads set.
+    pub fn basic(purpose: u8, wealth: u8, capacity: u16) -> BuildingProfile {
+        BuildingProfile {
+            purpose,
+            wealth,
+            capacity,
+            ..BuildingProfile::default()
+        }
+    }
+
+    /// `GetBuildingMapKey(type)` of this profile: `uint8(4p + w + 1)`.
+    pub fn map_key(&self) -> u8 {
+        building_map_key(u32::from(self.purpose), u32::from(self.wealth))
+    }
 }
 
 /// Growth outcome codes (tract-developer §4.1). "Best" is always the
