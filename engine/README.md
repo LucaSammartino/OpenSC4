@@ -207,7 +207,30 @@ plugin.
      R is `cISC4ResidentialSimulator::GetPopulation`; C and I are the summed `QuerySupplyValue` of the
      commercial and industrial demands (jobs); demand values are `QueryDemandValue` of
      `cISC4DemandSimulator::GetDemand(id, 0)` (`-` when the game has no such demand).
-   - The autotest clock, the digest and the tick feed for the watchdog come from the **observer**
+   - **Observe** (`observe = 1`, env `FC4_OBSERVE`; default on in checked builds, off in release builds): at every
+     `SimNewMonth`, and in every mode, one more line with the month's money:
+
+     ```
+     observe month yyyy-mm: date=yyyy-mm-dd julian=… funds=… income=… expense=… tax[0..11]=…/… dept_expense=0xID:…,…
+       demand R$/…/I-HT=…/… population R/C/I=…/…/…
+     ```
+
+     `income` / `expense` are the budget's total monthly income and expense, `tax[t]` is `GetTaxIncome(t)` for the
+     budget's 12 tax types by index (their zone and wealth names are not verified, so the line does not name
+     them), `dept_expense` is `GetTotalExpenses` of every department of every budget group (sorted by ID; `-`
+     without the game's allocator). At the first tick after every city load it also writes
+     `observe snapshot (after load): date=… julian=… funds=… fundings=0xID:pct,…` (the date from the
+     simulator, `pct` the stored `SC4Percentage`). Only slots checked against `docs/abi` are called; the list is
+     at the top of the observe section of `plugin/FC4Observer.cpp`.
+   - **Save autotest** (`autotest_save_after_months = N`, env `FC4_AUTOTEST_SAVE_AFTER_MONTHS`): at the first tick
+     after the N-th `SimNewMonth` since the city load, write `observe snapshot (before save): …`, save the city in
+     place with `cISC4App::SaveCity(bool)` (a full save; `autotest_save_fast = 1` for a fast one), log
+     `autotest: save after N month(s): SaveCity(full) returned 1 in … ms`, then write the verdict and end the
+     process like the autotest. It needs no `autotest_seconds`; with `autotest_unpause` (which does) the city
+     runs by itself, so set `autotest_seconds` beyond the N months. A second run that loads the saved city
+     (autoload) logs `observe snapshot (after load): …` to compare with the line before the save.
+   - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
+     come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
      including `FC4_DISABLE=all`.
    - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every

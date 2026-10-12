@@ -163,6 +163,11 @@ int AutotestOnTick() {
     return 0;
 }
 
+void AutotestFinish(const char* reason, const char* from) {
+    WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason);
+    Terminate(1000, from);
+}
+
 void AutotestOnForeignException() {
     if (!AutotestEnabled()) return;
     WriteVerdict(Verdict::Corrupt, 0, "first-chance exception outside FreeCity4.dll (see the report above)");

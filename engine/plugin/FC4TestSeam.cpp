@@ -31,6 +31,9 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamObserverMessage:
             fc4::ObserverTestMessage(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(a)), reinterpret_cast<intptr_t>(b));
             return 1;
+        case kFC4SeamObserverApp:
+            fc4::ObserverTestSetApp(static_cast<cISC4App*>(a));
+            return 1;
         default:
             return 0;
     }

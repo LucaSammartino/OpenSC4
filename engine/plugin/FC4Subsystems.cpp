@@ -17,6 +17,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4Observer.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
 #include "cFC4Ordinance.h"
@@ -160,6 +161,7 @@ void Resolve() {
     RefAuditReload();
     CheckedStartup();
     AutotestReload();
+    ObserverReload();
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));

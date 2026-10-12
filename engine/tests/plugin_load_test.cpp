@@ -353,8 +353,9 @@ struct FakeWorld {
     void* budget = nullptr;
     int demandCalls = 0;
     int demandBadIndex = 0;
-    FakeVtable cityVt, resVt, demandSimVt, demandVt;
-    FakeObject city{}, res{}, demandSim{};
+    int saveCalls = 0;
+    FakeVtable cityVt, resVt, demandSimVt, demandVt, appVt;
+    FakeObject city{}, res{}, demandSim{}, app{};
     FakeDemand demands[7] = {
         {nullptr, 0x1010, 1000.0f, 250.5f},  // R$
         {nullptr, 0x3110, 300.0f, -12.0f},   // Cs$
@@ -381,6 +382,12 @@ void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {
     }
     return nullptr;
 }
+// cISC4App 16 = SaveCity(bool) (pop 4); true only for a full save, so the
+// log line "returned 1" shows the argument arrived.
+bool __fastcall AppSaveCity(void*, void*, bool fast) {
+    ++g_world->saveCalls;
+    return !fast;
+}
 float __fastcall DemandQuerySupply(void* self, void*) { return static_cast<FakeDemand*>(self)->supply; }  // 8
 float __fastcall DemandQueryDemand(void* self, void*) { return static_cast<FakeDemand*>(self)->demand; }  // 9
 
@@ -394,6 +401,8 @@ void InitFakeWorld(FakeWorld& w) {
     w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
     w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
     w.demandVt.slots[9] = reinterpret_cast<void*>(&DemandQueryDemand);
+    w.appVt.slots[16] = reinterpret_cast<void*>(&AppSaveCity);
+    w.app.vtbl = w.appVt.slots.data();
     w.city.vtbl = w.cityVt.slots.data();
     w.res.vtbl = w.resVt.slots.data();
     w.demandSim.vtbl = w.demandSimVt.slots.data();
@@ -438,6 +447,8 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_seconds = 2\nautotest_unpause = 1\n");
     } else if (scenario == "corrupt") {
         WriteTextFile(ini, "[autotest]\nautotest_seconds = 60\n");
+    } else if (scenario == "save") {
+        WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\n");
     } else {  // stalled: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
@@ -453,7 +464,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     static FakeWorld world;
     InitFakeWorld(world);
     cISC4Simulator* sim = nullptr;
-    if (scenario == "clean") {
+    if (scenario == "clean" || scenario == "save") {
         if (!director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)) ||
             sim == nullptr) {
             return 6;
@@ -461,6 +472,19 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         sim->Init();
         sim->Pause();  // the autotest must resume it
         world.sim = sim;
+    }
+    if (scenario == "save") {
+        // Two month-ends, then the save at the next tick ends the process.
+        seam(kFC4SeamObserverApp, &world.app, nullptr);
+        seam(kFC4SeamObserverCity, &world.city, nullptr);
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+        seam(kFC4SeamObserverTick, nullptr, nullptr);  // the "after load" snapshot
+        for (intptr_t julian : {2451576, 2451605}) {
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(julian));
+        }
+        seam(kFC4SeamObserverTick, nullptr, nullptr);  // saves and terminates
+        return 3;
     }
     seam(kFC4SeamObserverCity, &world.city, nullptr);
     seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
@@ -496,6 +520,8 @@ int main(int argc, char** argv) {
     DeleteFileA(ini.c_str());  // a leftover from an aborted run must not change this one
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
+    SetEnvironmentVariableA("FC4_OBSERVE", "1");  // the same lines in release and checked builds
+    SetEnvironmentVariableA("FC4_AUTOTEST_SAVE_AFTER_MONTHS", nullptr);
 
     const std::string childPrefix = "--autotest-child-";
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
@@ -551,6 +577,26 @@ int main(int argc, char** argv) {
               std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+
+        // 4. Save after 2 month-ends (no autotest_seconds): snapshot, SaveCity(full), verdict, terminate.
+        CHECK(RunChild(dllArg + "--autotest-child-save", 30000, &ms) == 0);
+        std::printf("autotest save child: %lu ms\n", static_cast<unsigned long>(ms));
+        text = ReadFile(log);
+        CHECK(text.find("autotest: save ON - after 2 month-end(s) of a loaded city: snapshot, SaveCity(full) in place, "
+                        "verdict, TerminateProcess") != std::string::npos);
+        CHECK(text.find("observe snapshot (after load): date=2000-01-01 julian=2451545 funds=- fundings=-") !=
+              std::string::npos);
+        CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=-") != std::string::npos);
+        CHECK(text.find("observe month 2000-03: date=2000-03-01 julian=2451605 funds=-") != std::string::npos);
+        CHECK(text.find("autotest: 2 month-end(s) since the city load; saving at the next tick") != std::string::npos);
+        CHECK(text.find("observe snapshot (before save): date=2000-01-01 julian=2451545 funds=- fundings=-") !=
+              std::string::npos);
+        CHECK(text.find("autotest: save after 2 month(s): SaveCity(full) returned 1 in ") != std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451605, switches_off=-, disabled=-)") != std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (save autotest)") !=
+              std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
         DeleteFileA(ini.c_str());
         if (g_failures == 0) std::printf("plugin autotest test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -993,9 +1039,11 @@ int main(int argc, char** argv) {
             InitFakeWorld(world);
             seam(kFC4SeamObserverCity, &world.city, nullptr);
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+            seam(kFC4SeamObserverTick, nullptr, nullptr);  // the "after load" snapshot
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
             seam(kFC4SeamObserverCity, nullptr, nullptr);
+            CHECK(world.demandCalls == 28);  // digest and observe: 12 groups + 2 census nodes each
         }
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
@@ -1003,6 +1051,10 @@ int main(int argc, char** argv) {
         CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/480/160 demand "
                         "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                         "budget income/expense=-/-") != std::string::npos);
+        CHECK(text.find("observe snapshot (after load): date=- julian=- funds=- fundings=-") != std::string::npos);
+        CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=- income=- expense=- "
+                        "tax[0..11]=- dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
+                        "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("subsystem 'budget': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("object created") == std::string::npos);
@@ -1366,7 +1418,7 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
             seam(kFC4SeamObserverCity, nullptr, nullptr);
-            CHECK(world.demandCalls == 14);  // 12 groups + 2 census nodes
+            CHECK(world.demandCalls == 28);  // digest and observe: 12 groups + 2 census nodes each
             CHECK(world.demandBadIndex == 0);
             CHECK(budget3->Shutdown());
         }
@@ -1478,6 +1530,11 @@ int main(int argc, char** argv) {
     CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/480/160 demand "
                     "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                     "budget income/expense=") != std::string::npos);
+    // The observe line (our budget; no game allocator here, so no departments).
+    CHECK(text.find("observer: digest on, observe on") != std::string::npos);
+    CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=500000 income=") != std::string::npos);
+    CHECK(text.find(" dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
+                    "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
     CHECK(text.find("config (game start): all 34 budget switches ON") != std::string::npos);
