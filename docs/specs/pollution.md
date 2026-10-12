@@ -297,7 +297,8 @@ Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t :
       (`GetAirPollutingTrafficMap`, slot 8; `GetCellValue(c)`), and `trafficAirFactor` is tuning `0x69501944`.
       Landfill cells contribute traffic too.
    3. If the cell's zone type is 14: next cell.
-   4. **Garbage produced**: `gp := float(g) / count`; `produced += roundHalfEven(gp)`.
+   4. **Garbage produced**: `gp := float(g) / count`; `produced += roundHalfEven(gp)` (sign-extended into the
+      int64 counter).
    5. **Recycling**: if `recyclingEffect > default` (0.0) and `gp > 0`: `rec := min(gp × recyclingEffect, gp)`;
       `recycled += rec`; `gp −= rec`.
    6. `total := gp + cur`. Set the cell's garbage amount to 0 (`SetGarbageValue`, keeps the landfill bit). If
@@ -316,7 +317,9 @@ Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t :
 5. `waterSum += W` where `W := w` (the zone-averaged water).
 6. **Water treatment**: if `wtpRemaining > 0` and `W > 0`:
    - if `lastWaterSum > 0`, `lastTreatedSum > 0` and `wtpRemaining ≤ lastTreatedSum`:
-     `t := roundHalfEven(lastTreatedSum / lastWaterSum × W)` (float division), `t := 1` if that is 0;
+     `t := roundHalfEven(lastTreatedSum / lastWaterSum × W)`, `t := 1` if that is 0. The arithmetic is
+     `float(lastTreatedSum)`, divided by the int32 `lastWaterSum` and multiplied by the int32 `W` (integer
+     operands enter exactly, each result rounded to `float32`, foundations §18);
    - otherwise `t := wtpRemaining`;
    - `t := min(t, W)` (signed), then `t := min(t, wtpRemaining)` (unsigned);
    - `treatedSum += t`, `W −= t`, `wtpRemaining −= t`.
@@ -370,13 +373,17 @@ Called with the day's running "remaining" capacities (§4.4.1). `g` is a float.
 1. If `g ≤ 0`: return 0.
 2. **Export**: `room := exportCapacity − exported` (32-bit, the low half of the int64 counter). If `room > 0`:
    `x := min(g, room)`; `exported := trunc(exported + x)`; `g −= x`.
-3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g`: `wteRemaining −= trunc(g)`, `x := g`,
+3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g` (unsigned `wteRemaining` as float):
+   `wteRemaining −= floor(g)` (the 1.5·2²³ floor of §4.12, not `_ftol`), `x := g`,
    `g := 0`; **otherwise `wteRemaining := 0` and nothing is taken** *[quirk]* (a plant with less remaining
    capacity than the offered amount is emptied without burning anything). `wte := trunc(wte + x)`.
 4. **Incinerators**: identical with `incRemaining` and the `incinerated` counter.
 5. **Landfill**: `(usage, capacity) := landfillDeveloper.GetLandfillUsage()`; `room := capacity − usage`;
    `limit := roundHalfEven(efficiency × transportCurve(landfillDeveloper.GetLandfillTileCount())) −
-   garbageSupply`; `n := min(limit, room)`. If `n > 0`: if `g > n`: `AddToGarbageSupply(n)`, `g −= n`; else
+   garbageSupply` (32-bit wrapping subtraction); `n := min(limit, room)` (signed). The rounding is the
+   1.5·2²³ idiom and **does leave its exact range in play**: with the shipped curve (5000 per tile) and efficiency
+   1.0, more than 838 landfill tiles give a product above 2²², so 839 tiles → 4,194,652 (not 4,195,000) and 1000
+   tiles → 4,597,152 (not 5,000,000) *[compat]* (§4.12). If `n > 0`: if `g > n`: `AddToGarbageSupply(n)`, `g −= n`; else
    `AddToGarbageSupply(roundHalfEven(g))`, `g := 0`. (The landfill developer later moves the supply into landfill
    tiles and calls `GarbagePutInLandfill`, which feeds the `landfilled` counter.)
 6. **Decomposition** ("abduction"): `room := decompositionAmount − decomposed`; if `room > 0`:
@@ -554,6 +561,35 @@ divide (unsigned) by the cell count, multiply by 1/32767, evaluate curve `0x69A4
 `roundHalfEven` of it. The satisfaction id is `0xE9A4300B`; it uses no custom selector and `SelectProp` returns 0.
 *[quirk]* Active landfill cells return a large negative value from `GetGarbageValue` (§8), which makes the
 unsigned average enormous and the request maximal.
+
+### 4.12 Rounding sites *[compat]*
+
+Every rounding to the nearest integer in the pollution code uses the 1.5·2²³ idiom: `fadd dword 12582912.0f`,
+store the sum as a `float32`, then subtract `0x4B400000` from its bit pattern as an integer (written
+`add 0xB4C00000`). In crime.md §6 notation that is `rhe(x)`. It is exact (round half to even of the `float32`
+`x`) for −2²² ≤ x ≤ 2²²; outside that range the result follows the formula there (for example
+`rhe(5,000,000) = 4,597,152`), and a replacement must use the formula. The pollution code (`0x006E2CC0`–`0x006E8F09`,
+`GetAverageAirValue` `0x007624C0`, `SelectProp` `0x0088B410`) contains **no** `fistp` / `fist` / `frndint`:
+every other float → integer conversion is the CRT `_ftol` (truncation over the full int64 range, foundations
+§18.1), written `trunc` in this spec.
+
+| Site (spec) | Address | Operand of `rhe` (each step one `float32` operation) | Range in play |
+|---|---|---|---|
+| Import deal `n` (§4.4.2) | `0x006E82AE` | `float(amount) × 0.1f` | exact up to amount 41,943,040; deal amounts are far below |
+| Export deal `n` (§4.4.2) | `0x006E8366` | same | same |
+| Garbage produced (§4.4.4 step 4) | `0x006E877A` | `float(g) / float(count)` (added as `12582912f + gp`, same result) | \|g\| ≤ 32767: always exact |
+| Water treated `t` (§4.4.4 step 6) | `0x006E8907` | `float(lastTreatedSum) ÷ lastWaterSum × W` (`fidiv`, `fimul`) | ≤ W ≤ 32767 (the treated sum never exceeds the water sum): exact |
+| Valve share (§4.4.4 step 8) | `0x006E895F` | `float(g) / float(count)` | \|g\| ≤ 32767: exact |
+| Landfill limit (§4.6.1 step 5) | `0x006E3AB7` | `transportCurve(float(tiles)) × efficiency`, then `− garbageSupply` (int32) | **leaves the range** above 838 tiles at efficiency 1.0 (shipped curve) |
+| Landfill amount (§4.6.1 step 5) | `0x006E3B03` | `g` (only when `g ≤ n`) | exact while `n ≤ 2²²` |
+| Prop share (§4.11) | `0x006E3C63` | `curve(float(avg) × (1/32767)f)` | the curve output, at most 10 shipped: exact |
+| Current capacity (§8 slot 53) | `0x006E43C7` | `float(uint32 r) × curve(condition)` | exact for capacities × multiplier ≤ 2²² |
+
+Two more sites use the same constant for a **floor**, in `Dispose` (§4.6.1 steps 3 and 4: waste-to-energy
+`0x006E390F`, incinerator `0x006E39CA`): `n := rhe(f32(g − 0.5f))`, then `n := n + 1` if `float(n + 1) = g`
+(`fild`, exact compare). This equals `floor(g)` (= `trunc(g)`, since `g > 0` there) up to 2²² and a little
+beyond; for larger `g` it follows the `rhe` formula (`g` = 5,000,000 → 4,597,152). The step runs only when the
+plant's remaining capacity exceeds `g`.
 
 ## 5. Agents and messages
 
@@ -915,6 +951,9 @@ Findings:
 7. Callers that load the service pointer and call it later (advisor utility, MySim trip variables, street sim,
    ordinance "trash presort") were not followed to the slot they call.
 8. Property names in §7.2 are inferred from use; no Maxis names were available for them.
+9. *(resolved)* Every round-half-even site in the pollution code (and the two `Dispose` floors) uses the
+   1.5·2²³ idiom and shares its range limit; there is no `fistp`/`frndint` rounding. Only the landfill limit
+   leaves the exact range in normal play (§4.12).
 
 ### 10.3 Corrections to grid-sims.md §3
 
@@ -933,7 +972,7 @@ special case with its own-tract read and cell-vs-tract bounds; averages divided 
 efficiency 0 for the first cycle; recycling aging ratio always 0; export deal amounts charged per unit; landfill
 cells' negative `GetGarbageValue`; unsigned threshold tests; radiation sum not saved; usage distribution that
 drops remainders and over-allocates after a capped building (§4.9.3); `float32` constants 0.1f and 0.01f
-(§4.4.2, §4.7).
+(§4.4.2, §4.7); the 1.5·2²³ rounding of the landfill limit beyond 2²² (§4.12).
 
 ## 11. Conformance tests (must exist in `engine/conformance`)
 
@@ -1006,3 +1045,12 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
 25. **Read with a stream error** (FreeCity4 *[choice]*): a version-4 record truncated inside the incinerator list
     → `Read` returns false, no grid, list or department is replaced, `loaded` stays clear, and the next `Init`
     creates new grids and a new department as for a new city.
+26. **Landfill limit rounding** (§4.6.1 step 5, §4.12): efficiency 1.0, shipped transport curve, garbage supply 0,
+    landfill room 10,000,000, offer `g` = 6,000,000 (no export, plants or decomposition room) → 1000 tiles:
+    curve 5,000,000 → `limit` = **4,597,152**, `AddToGarbageSupply(4597152)`, `g` left 1,402,848; 839 tiles →
+    limit 4,194,652; 838 tiles → 4,190,000 (exact). With supply 100,000 and 1000 tiles → limit 4,497,152.
+27. **Deal rounding out of range**: an import deal of amount 50,000,000 (amountUsed 0) → `float32` product
+    5,000,000 → n = **4,597,152**; amount 41,943,040 → 4,194,304 (exact).
+28. **Dispose floor** (§4.12): wteRemaining 10, offer 9.99 → wteRemaining 1 (floor 9), the full 9.99 burned;
+    wteRemaining 10, offer 3.0 → 7; incinerator remaining 8,000,000, offer 5,000,000 → remaining
+    8,000,000 − 4,597,152 = 3,402,848.

@@ -275,6 +275,10 @@ for every tract (x, z) with max(0, cx − R) ≤ x ≤ min(countX − 1, cx + R)
   `c −` that is rounded to float32, before rounding to an integer (corrected: not one rounding in extended
   precision).
 - The clamp uses the arithmetic sum `v + delta` (no wrap).
+- *[compat]* Both `roundHalfEven` calls are the add-and-subtract `1.5 × 2^23` idiom (7 sites in each of the
+  three variants, `0x005E3D80`, `0x005E4130`, `0x005E4500`). It is exact round-half-even only for |x| ≤ 2^22;
+  beyond that it returns the result described for the same idiom in crime §6. Radii and effect values in the
+  shipped data stay far below that bound.
 - Negative effects use a negative `c` (callers remove an effect by applying the opposite values).
 
 ### 7.2 `AddDistanceEffect` (Manhattan falloff from a mask)

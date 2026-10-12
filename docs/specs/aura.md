@@ -374,6 +374,10 @@ base tract: average the work cells of its S × S block that are ≠ −128 (`avg
 - else `new := avg + globalEffect`; if `base == −128` → `base := clamp(new)`; else `d := new − base` and
   `base := clamp(base + step)` with `step = ceil(d × m)` for d > 0, `floor(d × m)` for d < 0, 0 for d = 0.
 
+The `ceil` and `floor` are the 1.5·2²³ idiom, not `_ftol` (`0x0068F881`, `0x0068F8B6`): with `p := f32(d × m)`
+and `rhe` as in crime.md §6, `floor(p) = rhe(f32(p − 0.5f))`, plus 1 when `float(that + 1) = p`; `ceil(p) =
+rhe(f32(p + 0.5f))`, minus 1 when `float(that − 1) = p`. That is exact here (|p| < 255 ≪ 2²²).
+
 *[compat]* `m` is a 32-bit float: with the shipped `longDecay` 0.9, `m = 0.100000024`, so `d = 10` gives
 `d × m = 1.00000024` and a step of **2**, not 1. Any non-zero d moves at least one unit. → 15.
 
@@ -579,6 +583,28 @@ hotspotCount × { s32 x, s32 z, s32 weight }              (list order)
 - Version ≥ 9: the department block.
 - Then the remaining fields; return `GetError() == 0`.
 
+What `Read` (`0x0068E340`) does with state already in the object *[compat]*:
+
+- **Grid references** (the seven grids, and each department grid): the reference helper sets the destination to
+  null first and then stores the resolved grid; the grid it held before is **not released** (foundations §2.7
+  item 3). A failed reference leaves null.
+- **Department map: not cleared, merged.** For each saved entry, `map[departmentID] := grid` (map `operator[]`):
+  a new ID is inserted; an ID already present has its grid pointer **replaced** without releasing the old grid
+  (a leak); entries whose IDs are not in the record stay untouched. A version-8 record does not touch the map.
+- **Hotspot list: appended.** Each saved hotspot is appended at the end of the current list in record order; the
+  list is not cleared first, so hotspots already held stay in front (like flammability §10's hotspot read).
+- **Scalars** (`unusedRating`, `mayorRating`, the max/min locations and ratings) are overwritten.
+- The game calls `Read` on the object the class store has just created for the load (foundations §2.7), whose
+  map and list are empty, so merge/append and replace give the same result in play *[inferred: no other caller
+  of this `Read` slot is known]*. A replacement must merge and append, which is what a `Read` on a used object
+  observes. `Read` touches no other state (the low-tract list, cursors, tuning and the grids' contents are kept).
+- *[quirk]* Both counts (`departmentCount`, `hotspotCount`) are read into uninitialised locals, so a record that
+  fails before a count loops over a garbage count (each pass with failed reads: a department entry with a
+  leftover ID and a null grid, or a hotspot node with leftover fields). *[choice]* FreeCity4 treats a failed
+  count as 0.
+- *[quirk]* Version 8: the old landmark grid reference is used without a null check (`Shutdown`, then `Release`);
+  a null or failed reference crashes the original. *[choice]* FreeCity4 skips the shutdown and release for null.
+
 Not saved, rebuilt by the next cycle: work and landmark-work grids, state (set to 1 by `Init`), cycle start,
 department cursor, previous tax rates, effective base auras, globalEffect (recomputed in state 14), the low-tract
 list, the RNG and all tuning.
@@ -762,6 +788,8 @@ FreeCity4 maps by centre cell *[choice]*).
 11. *(resolved)* An empty curve is evaluated by the original (crash or stale value); FreeCity4 treats it as absent
     (§6, §10). int16 stores wrap and NaN stores 0 (§6). A missing Parks department crashes the original; FreeCity4
     uses funding 1.0 (§6.2).
+12. *(resolved)* `Read` merges into the department map (new IDs inserted, existing IDs' grid pointers replaced
+    without release, other entries kept) and appends to the hotspot list; it clears neither (§11.3).
 
 ## 17. Conformance tests (must exist in `engine/conformance`)
 
@@ -820,7 +848,12 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
     from the occupant position (not the lot centre).
 16. **Persistence**: write → read → write is byte-identical (v9, two departments, three hotspots); version 7 →
     false; a version-8 record with one extra grid reference loads, has no departments, and re-stamps landmarks at
-    PostCityInit; version 10 is rejected by FreeCity4 *[choice]*.
+    PostCityInit; version 10 is rejected by FreeCity4 *[choice]*. **Read into a used object** (§11.3): an object
+    holding departments {0x10 → G1, 0x30 → G3} and hotspots [(1, 2, 5)] reads a record with departments
+    {0x10 → H1, 0x20 → H2} and hotspots [(9, 10, 4)] → departments {0x10 → H1, 0x20 → H2, 0x30 → G3} (G1 is not
+    released) and hotspots [(1, 2, 5), (9, 10, 4)]. A record truncated before `hotspotCount` → FreeCity4 reads 0
+    hotspots *[choice]*; a version-8 record whose extra grid reference is 0 → FreeCity4 loads it without the
+    shutdown *[choice]*.
 17. **BustStrike(0)** calls police, fire, residential health, residential school `EndStrike` in that order;
     `BustStrike(3)` only the health strike; `BustStrike(5)` nothing.
 18. **Registry**: `sc4game.aura.add_transient_effect(x, z, 48, 10)` equals test 11; `end_strike(1)` equals

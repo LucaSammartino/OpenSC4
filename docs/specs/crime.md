@@ -382,6 +382,27 @@ All exemplars of type `0x6534284A`, group `0xEA12F32C`, in the resource manager'
 **static** (one per process), loaded at the first `Init` and reloaded by message `0xC53D10AA`. A reload frees
 the old list first.
 
+**Order of the list** *[compat]* (`LoadAllCrimeTypesFromExemplars` `0x006A1450`, `LoadCrimeTypeFromExemplar`
+`0x006A0BA0`): the loader asks the resource manager for the key list of (type, group) (slot 17
+`GetAvailableResourceList`, `0x009739CB`) and loads key 0, 1, 2, … in list order. A key whose instance is already
+in the list updates that entry **in place** (keeping its position); a new instance is appended. The key list is a
+plain sequence without de-duplication, built segment by segment in the resource manager's segment order (a
+multi-file segment walks its files in order, `0x0097E43D`); each package file contributes its index **hash
+table** in bucket order (`0x0096F9AB`): bucket `instance mod B` ascending, where `B` is the table's prime bucket
+count (SGI prime list, at least 53), and within one bucket the most recently indexed key first (the hash is the
+instance itself, `0x0097C0C5`; iteration `0x0097C081`, `0x0097C1EA`). It is **not** sorted by key.
+
+Consequence for shipped data: every crime type is in `SimCity_1.dat`, each in its own bucket, and every instance
+(0x01–0x13) is below 53 ≤ `B`, so the list is in **ascending instance order**: 0x01, 0x03, 0x04, 0x05, 0x06,
+0x07, 0x08, 0x09, 0x0A, 0x0B, 0x10, 0x11, 0x12, 0x13 (the table below). Plug-in crime types with larger instances
+land at `instance mod B` in their own package's table, and a plug-in package's types come before or after the
+shipped ones according to segment order. *[choice]* FreeCity4 orders the list by ascending instance; this equals
+the original for the shipped types (and for any set of types in one package whose instances are all below its
+bucket count).
+
+The order is **observable**: it is the walk order of the weighted selection (§6.7), so it decides which type a
+given random draw commits (test 9). It is not saved (incidents store the type ID) and nothing else reads it.
+
 Names in quotes are the official property names (community property list, re/prior_art_exemplar_props.md).
 
 | Property | Type | Default | Meaning |
@@ -743,8 +764,8 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
    still unknown.
 3. *(partly resolved)* Occupant property `0x029244DB` marks preview occupants (foundations §5.2). The meaning of
    occupant group `0x4102` is unknown. The IID `0xA9B40F05` is presumably `cISC4Automaton`.
-4. The order of the crime type list depends on the resource manager's key-list order. It decides the walk in
-   §6.7, so it must be confirmed (instance ascending is assumed in test 9).
+4. *(resolved)* The crime type list is in the resource manager's key-list order, which for the shipped types is
+   ascending instance (§7); it is observable through §6.7.
 5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.
 6. The meaning of the two unused saved `u32` values.
 7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
@@ -774,11 +795,12 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 8. **Stamp and hotspot**: S = 2, lot cells (10, 10)–(13, 11) → tracts x 5..6, z 5. Severity 60 on cells
    {0, 200} → {60, 255}. The hotspot becomes (tract 6, 5, value 255) if 255 is the first strict maximum.
    `GetCrimeHotspot` → (255, 12, 10). Hotspot value 0 → returns false, writes nothing.
-9. **Type selection** (shipped types, list in ascending instance order). Residential zone (type 1), wealth $,
-   purpose 1, condition 1: candidates Generic 0, Fighting 3, Car Theft 3, Mugging 2, Flashing 4, Graffiti 4,
-   Pie Throwing 4 (total 20). u = 0.5 → r = 10 → Flashing (0x10, severity 40); u = 0.1 → r = 2 → Fighting;
-   u = 0.0 → r = 0 → Fighting. TPing needs wealth $$ or $$$. Arson needs condition 4. All weights 0 → the last
-   candidate. A lot with no building → wealth `0x80000000` and purpose `0x100`.
+9. **Type selection** (shipped types; the list is in ascending instance order, §7). Residential zone (type 1),
+   wealth $, purpose 1, condition 1: candidates Generic 0, Fighting 3, Car Theft 3, Mugging 2, Flashing 4, Graffiti
+   4, Pie Throwing 4 (total 20). u = 0.5 → r = 10 → Flashing (0x10, severity 40); u = 0.1 → r = 2 → Fighting; u =
+   0.0 → r = 0 → Fighting. TPing needs wealth $$ or $$$. Arson needs condition 4. All weights 0 → the last
+   candidate. A lot with no building → wealth `0x80000000` and purpose `0x100`. Order is observable: with the list
+   reversed, u = 0.1 would commit Pie Throwing instead of Fighting.
 10. **Mask parsing**: [0] → all; [] → 0 (never matches); [1, 3] → `0x5`; [9] → `0x100`; missing → all.
 11. **Crime-effect cone**: `0xCA5B9306 = {100, 8}`, S = 2 → radius 4 tracts, slope 25. The centre +100;
     d = 1 → +75; d = 2 → +50; d = 3 → +25; d = √2 → +65 (`rhe(64.64)`); d = 4 → unchanged. Removal subtracts and
