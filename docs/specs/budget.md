@@ -58,6 +58,24 @@ declaration order; slot 32/33 (`NeededFundingChanged`/`FundingPercentageChanged`
 overloads) share bodies in the original, and their SDK order is accepted as is. `cISC4DepartmentBudget` and
 `cISC4LineItem` have no overloads.
 
+### Erratum: `cISC4DepartmentBudget::GetLocalFundingPercent` returns a pointer *[compat]*
+
+Slot 26 (`+0x68`), `GetLocalFundingPercent(holder, purpose)`, returns **`SC4Percentage const*`** (a pointer to
+a 32-bit float) in EAX. The SDK header says it returns `float`. That is wrong. Game callers (for example the
+vehicle manager's funds-changed handler, which runs every month and after any funding change) dereference
+the returned value right away. A float returned in ST0 leaves garbage in EAX, and the game crashes with an
+access violation (observed: a read of address `0x3F800000`, the bit pattern of 1.0f).
+
+- Found (registered and the budget item exists): point to storage holding the item's local-funding fraction.
+  Callers read it immediately and never keep it. The original points to a temporary that is only valid until
+  the next call. The replacement must return a pointer that stays valid at least until the next call on the
+  same object, for example to a member that is overwritten on each call *[choice]*.
+- Not found: point to a constant 0.0f that is never written.
+
+The other float-returning methods we implement are real floats in ST0: `cISC4BudgetSimulator::GetTaxRate`
+(slot 36) and `cISC4Simulator::GetAnimationTimeDilation` (slot 32). `GetLocalFullFunding` (slot 27) returns
+int64 in EDX:EAX, as declared.
+
 ## 2. Concepts and units
 
 - **Money** is a signed 64-bit integer number of simoleons. Funds may be negative.
@@ -472,7 +490,7 @@ data2 = low 32 bits of the expense total, data3 = low 32 bits of the income tota
 | `RemoveLocallyFundedObject(holder, purpose)` | If registered: `SetLocalFullFunding(holder, 0, purpose)` (*[compat]* this sets the building's cost property to 0), release the reference, remove it. Then, if no local objects remain and `GetIdealMonthlyFunding() == 0`: `SetFundingPercentage(100 %, 0)`. |
 | `SetLocalFundingPercent(holder, q, purpose)` | §7.3. |
 | `SetLocalFullFunding(holder, cost, purpose)` | §7.4. |
-| `GetLocalFundingPercent(holder, purpose)` | If registered and the item exists: the item's local funding fraction; else 0. |
+| `GetLocalFundingPercent(holder, purpose)` | **Returns a pointer to a float, not a float** *[compat]* (see the erratum below): if registered and the item exists, a pointer to the item's local funding fraction; else a pointer to a constant 0.0. |
 | `GetLocalFullFunding(holder, purpose)` | If registered and the item exists: the item's cost; else 0. |
 | `IsLocallyFundedObjectInDepartment(holder, purpose)` | set membership. |
 | `RecalculateAllLineItemCurrentExpenses()` | §7.2. |
