@@ -2,7 +2,7 @@
   "format": 1,
   "name": "plumbing_nearest_water",
   "spec": ["plumbing 7.2", "plumbing 14.21"],
-  "description": "Test 21: NearestWater searches the box [max(0, x - reach), min(x + reach, terrainX - 1)] (same in z) and returns the ring (Chebyshev distance, spec question 3, [inferred] at clipped edges) of the nearest water cell. Water at (x+2, z+1) from (10,10), reach 2 -> 2; only water at (x+3, z) with reach 2 -> -1; type 2 -> 0 without looking (even with no terrain); types 0 and 1 use the same test (water at (13,10), reach 5 -> 3 for both). Clipped at the map corner: water at (0,3) from (0,0), reach 5 -> 3. No terrain -> -1 for types 0 and 1. A cell holding water -> 0.",
+  "description": "Test 21: NearestWater searches the box [max(0, x - reach), min(x + reach, terrainX - 1)] (same in z, int32, an upper bound below the lower one raised to it) and returns the spiral's ring counter, the Chebyshev distance (7.2, PL1, now [compat] at clipped edges too), of the nearest water cell. Water at (x+2, z+1) from (10,10), reach 2 -> 2; only water at (x+3, z) with reach 2 -> -1; type 2 -> 0 without looking (even with no terrain); types 0 and 1 use the same test (water at (13,10), reach 5 -> 3 for both). Clipped at the map corner: water at (0,3) from (0,0), reach 5 -> 3. No terrain -> -1 for types 0 and 1. A cell holding water -> 0. Clipped edges on the 64 x 64 terrain (7.2 PL1; values from the spec's test list, cross-checked with an independent Python model of the spiral that walks every ring cell in the order of 7.2 step 4 and skips the cells outside the box one by one): anchor (0,0), reach 256, water only at (5,3) -> 5; anchor (62,10), reach 256, water only at (55,10) -> 7; anchor (1,1), reach 2: water only at (0,3) -> 2, only at (4,1) -> -1 (outside the box [0,3] x [0,3]). Call order with no water, anchor (0,0), reach 2 (box [0,2]^2): (0,0); ring 1 (1,0), (1,1), (0,1); ring 2 (2,0), (2,1), (2,2), (1,2), (0,2): exactly 9 CellHasWater calls. Anchor (10,10), reach 1 (no clipping): (10,10), (11,10), (11,11), (10,11), (9,11), (9,10), (9,9), (10,9), (11,9). Anchor (64,10) outside the terrain with water on every terrain cell: reach 256 -> the box [0,63] x [0,63] excludes the anchor -> -1 with no call; reach 0 -> the x range [64, 63] is raised to [64,64] and holds the anchor, so the one cell (64,10) is tested (no water there) -> -1. Anchor (63,63), reach 0, water there -> 0 after one call.",
   "steps": [
     {"op": "plumbing_create"},
     {"op": "plumbing_init"},
@@ -21,6 +21,36 @@
     {"op": "plumbing_env", "no_terrain": true},
     {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 5], "expect": -1},
     {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 1, 5], "expect": -1},
-    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 2, 5], "expect": 0}
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 2, 5], "expect": 0},
+
+    {"op": "plumbing_env", "no_terrain": false, "clear_water": true, "water": [[5, 3]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 256], "expect": 5},
+    {"op": "plumbing_env", "clear_water": true, "water": [[55, 10]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [62, 10, 0, 256], "expect": 7},
+    {"op": "plumbing_env", "clear_water": true, "water": [[0, 3]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [1, 1, 0, 2], "expect": 2},
+    {"op": "plumbing_env", "clear_water": true, "water": [[4, 1]]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [1, 1, 0, 2], "expect": -1},
+    {"op": "plumbing_env", "clear_water": true, "log_water": true},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [0, 0, 0, 2], "expect": -1},
+    {"op": "plumbing_expect_events", "events": [
+      {"event": "has_water", "x": 0, "z": 0},
+      {"event": "has_water", "x": 1, "z": 0}, {"event": "has_water", "x": 1, "z": 1}, {"event": "has_water", "x": 0, "z": 1},
+      {"event": "has_water", "x": 2, "z": 0}, {"event": "has_water", "x": 2, "z": 1}, {"event": "has_water", "x": 2, "z": 2},
+      {"event": "has_water", "x": 1, "z": 2}, {"event": "has_water", "x": 0, "z": 2}]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [10, 10, 1, 1], "expect": -1},
+    {"op": "plumbing_expect_events", "events": [
+      {"event": "has_water", "x": 10, "z": 10},
+      {"event": "has_water", "x": 11, "z": 10}, {"event": "has_water", "x": 11, "z": 11}, {"event": "has_water", "x": 10, "z": 11},
+      {"event": "has_water", "x": 9, "z": 11}, {"event": "has_water", "x": 9, "z": 10}, {"event": "has_water", "x": 9, "z": 9},
+      {"event": "has_water", "x": 10, "z": 9}, {"event": "has_water", "x": 11, "z": 9}]},
+    {"op": "plumbing_env", "water_rects": [{"x": 0, "z": 0, "w": 64, "d": 64}]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [64, 10, 0, 256], "expect": -1},
+    {"op": "plumbing_expect_events", "events": []},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [64, 10, 0, 0], "expect": -1},
+    {"op": "plumbing_expect_events", "events": [{"event": "has_water", "x": 64, "z": 10}]},
+    {"op": "plumbing_call", "method": "nearest_water", "args": [63, 63, 0, 0], "expect": 0},
+    {"op": "plumbing_expect_events", "events": [{"event": "has_water", "x": 63, "z": 63}]}
   ]
 }

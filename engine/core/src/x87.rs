@@ -37,6 +37,32 @@ pub fn ftol32(x: f64) -> i32 {
     ftol(x) as i32
 }
 
+/// Round half to even exactly as the original's idiom computes it (crime §6
+/// notation `rhe`, pollution deals) *[compat]*:
+/// `int32(bits(f32(x + 1.5·2²³)) − 0x4B400000)` with a 32-bit wrapping
+/// subtraction. Round half to even for |x| ≤ 2²²; beyond that the bit
+/// pattern of the sum (5,000,000 → 4,597,152; 4,294,967,296 → 71,327,744;
+/// −5,000,000 → −5,805,696). ±∞ give the bits of ±∞; a NaN input passes
+/// through the addition as the same NaN, made quiet (x87).
+pub fn rhe(x: f32) -> i32 {
+    let sum = if x.is_nan() {
+        f32::from_bits(x.to_bits() | 0x0040_0000)
+    } else {
+        x + 12_582_912.0f32
+    };
+    sum.to_bits().wrapping_sub(0x4B40_0000) as i32
+}
+
+/// `float(uint32 v)` (crime §6.4): the `int32` is loaded exactly; a negative
+/// one has 2³² added, rounded once to 24 bits.
+pub fn u32_to_float(v: i32) -> f64 {
+    if v < 0 {
+        r24(f64::from(v) + 4_294_967_296.0)
+    } else {
+        f64::from(v)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,6 +79,13 @@ mod tests {
         assert_eq!(ftol32(3.0e9), 3_000_000_000u32 as i32);
         assert_eq!(ftol32(-2_147_483_648.9), i32::MIN);
         assert_eq!(ftol32(4_294_967_296.5), 0);
+    }
+
+    #[test]
+    fn rhe_and_unsigned_load() {
+        assert_eq!((rhe(2.5), rhe(3.5), rhe(-2.5)), (2, 4, -2));
+        assert_eq!((rhe(5_000_000.0), rhe(4_294_967_296.0)), (4_597_152, 71_327_744));
+        assert_eq!((u32_to_float(-1), u32_to_float(7)), (4_294_967_296.0, 7.0));
     }
 
     #[test]

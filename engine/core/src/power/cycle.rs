@@ -203,22 +203,24 @@ impl Cx<'_> {
         }
     }
 
-    /// The flood fill of §6.3 step 1; returns the clamped `(rowMin, rowMax)`.
+    /// The flood fill of §6.3 step 1; returns `(rowMin, rowMax)`: an
+    /// inverted range is reset to the seeds `(z, z + 1)` (it cannot happen,
+    /// the grow only widens), then `rowMax` is clamped to `CellCountZ − 1`,
+    /// then ([choice], for seeds outside the map) `rowMin` is raised to 0.
     pub(crate) fn flood(&mut self, x: i32, z: i32) -> (i32, i32) {
         let (_, cz) = self.cells();
         let s = &mut self.i.s;
         s.mark.clear();
         s.mark.set(x, z);
-        let (lo, hi) = s.mark.selection_grow(&s.wire, GROW_ITERATIONS, z, z.saturating_add(1));
-        let hi = hi.min(cz - 1);
-        let mut lo = lo.max(0);
+        let seed_max = z.saturating_add(1);
+        let (mut lo, mut hi) = s.mark.selection_grow(&s.wire, GROW_ITERATIONS, z, seed_max);
         if lo > hi {
-            lo = hi;
+            (lo, hi) = (z, seed_max);
         }
-        if hi < 0 {
-            return (0, 0);
+        if hi >= cz {
+            hi = cz - 1;
         }
-        (lo, hi)
+        (lo.max(0), hi)
     }
 
     /// `IsNeighborConnected(city, markVisited, light)` (§6.4).
@@ -346,7 +348,9 @@ impl Cx<'_> {
         self.mark_plants_visited(remaining as u32, supply.max(remaining as u32));
     }
 
-    /// `MarkPowerPlantsAsVisited(a, b)` (§6.4).
+    /// `MarkPowerPlantsAsVisited(a, b)` (§6.4): `ratio := f32(u32 a / u32 b)`
+    /// (0/0 is NaN), `used := _ftol(f32(s32 produced) × ratio)`, so a NaN
+    /// product gives 0.
     fn mark_plants_visited(&mut self, a: u32, b: u32) {
         let ratio = if (self.i.s.production as i32) > 0 {
             div_ii(f64::from(a), f64::from(b))
@@ -359,7 +363,7 @@ impl Cx<'_> {
             if node.visited != 1 {
                 continue;
             }
-            let p = self.current_power_produced(node.occupant);
+            let p = self.current_power_produced(node.occupant) as i32;
             let used = ftol32(mul_i(f64::from(p), ratio));
             self.h
                 .set_occupant_property(node.occupant, prop::USED, Variant::Scalar(Elem::I32(used)));
@@ -443,6 +447,7 @@ impl Cx<'_> {
         h.record_history(history::PRODUCTION, p);
         h.record_history(history::IMPORT, imp);
         h.record_history(history::EXPORT, exp);
+        // `_ftol(r24(int32 × factor))`: 500 × 0.9f → 450 (§15 test 5).
         h.record_history(
             history::CONSUMPTION_NET,
             ftol32(mul_i(f64::from(c.wrapping_sub(exp)), factor)),
@@ -461,6 +466,8 @@ impl Cx<'_> {
         }
         let s = &mut self.i.s;
         let (consumers, powered) = (s.consumers as i32, s.powered as i32);
+        // `_ftol(r24(r24(1.0 − r24(powered / consumers)) × 100.0))`: three
+        // 24-bit roundings (the double constants are exact); 3 / 5 → 39.
         let unpowered_pct = if consumers > 0 {
             let q = div_ii(f64::from(powered), f64::from(consumers));
             ftol32((1.0f32 - q) * 100.0f32)
@@ -498,11 +505,12 @@ impl Cx<'_> {
             let wear = self.prop_f32(occ, prop::WEAR).unwrap_or(0.0);
             let maint = ftol64(mul_i(base as f64, curve.eval(wear)));
             if let Some(item) = self.h.budget_item_for_purpose(occ, budget::PURPOSE) {
+                // The item's department, looked up again; null → nothing.
                 if maint != item.cost {
                     if let Some(dept) = self.h.department(item.department) {
                         self.h.set_local_full_funding(dept, occ, maint, budget::PURPOSE);
+                        self.h.change_budget_item_cost(occ, item.index, maint);
                     }
-                    self.h.change_budget_item_cost(occ, item.index, maint);
                 }
             }
         }
@@ -608,29 +616,27 @@ impl Cx<'_> {
         }
     }
 
-    /// `FindPowerPlants` (slot 30).
+    /// `FindPowerPlants` (slot 30), one pass, two independent searches:
+    /// the lowest funded among the plants with a budget item that the
+    /// simulator's **own** department funds locally, and the most worn among
+    /// **all** plants.
     pub(crate) fn find_power_plants(&self) -> FoundPlants {
         let mut found = FoundPlants::default();
         let (mut lowest, mut ratio) = (2.0f32, 0.0f32);
+        let own = self.i.s.department;
         for node in &self.i.s.plants {
             let occ = node.occupant;
-            let Some(item) = self.h.budget_item_for_purpose(occ, budget::PURPOSE) else {
-                continue;
-            };
-            let Some(dept) = self.h.department(item.department) else {
-                continue;
-            };
-            if !self.h.is_locally_funded_object(dept, occ, budget::PURPOSE) {
-                continue;
-            }
-            if item.local_funding < lowest {
-                lowest = item.local_funding;
-                found.lowest_funded = Some((occ, lowest));
+            if let (Some(item), Some(dept)) = (self.h.budget_item_for_purpose(occ, budget::PURPOSE), own) {
+                if self.h.is_locally_funded_object(dept, occ, budget::PURPOSE) && item.local_funding < lowest {
+                    lowest = item.local_funding;
+                    found.lowest_funded = Some((occ, lowest));
+                }
             }
             let wear = self.prop_f32(occ, prop::WEAR).unwrap_or(0.0);
             let t1 = self.prop_f32(occ, prop::AGEING_T1).unwrap_or(DEFAULT_T1);
             let t2 = self.prop_f32(occ, prop::AGEING_T2).unwrap_or(DEFAULT_T2);
-            let r = wear / t1.max(t2);
+            let d = if t2 < t1 { t1 } else { t2 };
+            let r = wear / d;
             if r > ratio {
                 ratio = r;
                 found.most_worn = Some((occ, ftol32(r * 100.0)));

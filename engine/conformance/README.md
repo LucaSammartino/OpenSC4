@@ -413,7 +413,7 @@ here). Grids are named; `type` is one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`,
 | `grid_radius_effect` | `grid`, `center`, `radius`, `center_value`, `outer_value` | the radial effect (§4.6) |
 | `grid_distance_effect` | `grid`, `mask?` (default the target), `mask_value`, `radius`, `near`, `far` | the distance effect (§4.7) |
 | `grid_two_grids` | `a` (u8), `b` (i16), `expect` (`[[x, z, v]]` in visit order) | the paired walk |
-| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step` (below 1 counts as 1), `reset?`, `expect` | the scan iterator |
+| `iter_scan` | `rect` (`[x0, x1, z0, z1]`), `step` (below 1 counts as 1), `reset?`, `expect`, `rests?` (`[x, z]` after the end) | the scan iterator |
 
 ## Land value ops
 
@@ -644,7 +644,7 @@ which would let neighbouring IDs match).
 
 | op | Arguments | Effect |
 |---|---|---|
-| `power_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `factor` (the ordinance factor), `sim_time`, `department_ok` (whether `CreateDepartmentBudget` succeeds), `view_control` (ID or null), `zones` (`[{x, z, w?, d?, zone}]`, zone 0 clears), `occupants` (`[{id, type ("building", "pole", "line", "network" or an ID), cell? ([x, z], poles/lines/network pieces), cells? ([x1, z1, x2, z2], default the cell), bbox? ([[x, y, z], [x, y, z]], default the cells × 16), pos? (default the bbox centre), props? (a property map), lot?, building_type? (null = not a building occupant; default 0x1234 for buildings), qi? (true; the type's QueryInterface), ignored? (pole slot 13), preview? (line), flags? (network flags), poles? ([a, b], a line's connected poles), in_manager? (true), distressed?, budget? ({department? (0x8910BC8A), line? (0), cost? (0), index? (0), funding? (1.0)})}]`), `pole_set` (`{first, count, cost? (1), origin? ([x, z])}`: `count` poles with consecutive IDs at origin + (i mod 50, i div 50)), `occupant_props` (`{"id": {"0xID": value or null}}`), `occupant_state` (`{"id": {in_manager?, distressed?, budget? (or null)}}`), `lots` (`[{id, rect, state? (0), needs_power?, has_power?}]`), `departments` (`[{id, funding? (1.0), budget_funding? (0), lines? ([line…])}]`; an existing department is updated), `deals` (`[{id, type ("buy", "sell" or an ID), city, amount, used? (0)}]` or null; replaces the list), `connections` (`[{id, city, cell, visited?, active?, other? (the connection on the other side)}]` or null; replaces the list) | the scripted city |
+| `power_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `factor` (the ordinance factor), `sim_time`, `department_ok` (whether `CreateDepartmentBudget` succeeds), `view_control` (ID or null), `zones` (`[{x, z, w?, d?, zone}]`, zone 0 clears), `occupants` (`[{id, type ("building", "pole", "line", "network" or an ID), cell? ([x, z], poles/lines/network pieces), cells? ([x1, z1, x2, z2], default the cell), bbox? ([[x, y, z], [x, y, z]], default the cells × 16), pos? (default the bbox centre), props? (a property map), lot?, building_type? (null = not a building occupant; default 0x1234 for buildings), qi? (true; the type's QueryInterface), ignored? (pole slot 13), preview? (line), flags? (network flags), poles? ([a, b], a line's connected poles), query_rect? ([x1, z1, x2, z2]: the rect the occupant-manager query matches it by, default its cells), in_manager? (true), distressed?, budget? ({department? (0x8910BC8A), line? (0), cost? (0), index? (0), funding? (1.0)})}]`), `pole_set` (`{first, count, cost? (1), origin? ([x, z])}`: `count` poles with consecutive IDs at origin + (i mod 50, i div 50)), `occupant_props` (`{"id": {"0xID": value or null}}`), `occupant_state` (`{"id": {in_manager?, distressed?, ignored?, budget? (or null)}}`), `lots` (`[{id, rect, state? (0), needs_power?, has_power?}]`), `departments` (`[{id, funding? (1.0), budget_funding? (0), lines? ([line…])}]`; an existing department is updated), `deals` (`[{id, type ("buy", "sell" or an ID), city, amount, used? (0)}]` or null; replaces the list), `connections` (`[{id, city, cell, visited?, active?, other? (the connection on the other side)}]` or null; replaces the list) | the scripted city |
 | `power_tuning` | `none: true` (no exemplar), or `shipped?` (true; false starts empty), `props?` (merged property map), `remove?` (IDs) | the tuning exemplar |
 | `power_create` | `crt_seed?` (C `rand()` seed, default 1) | a new simulator (the old one is dropped without `Shutdown`) |
 
@@ -658,11 +658,11 @@ which would let neighbouring IDs match).
 | `power_cycle` | `recompute?` (request one first), `count?` (repeat), `max?` (16), `expect_calls?` | `DoIdle` until the state is back at 4 after leaving it |
 | `power_call` | `method`, `args?`, `expect?` | slots: `position_to_cell` (`[x, z]` m), `cell_to_position`, `cell_to_standard_city_cell`, `annual_consumption`, `annual_consumption_by_type`, `monthly_requirement`, `monthly_production`, `monthly_import`, `monthly_export`, `monthly_demand`, `monthly_consumption_at` (`[x, z]`), `monthly_consumption`, `supply_value` / `is_powered`, `is_wired`, `unpowered_consumer_count`, `powered_consumer_count`, `power_plant_count_of_type`, `power_plant_count`, `power_plants` (IDs; each AddRef'ed), `power_pole_count`, `overworked_plant_count`, `aged_plant_count`, `distressed_plant_count`, `find_power_plants` (`{lowest: [id, funding] or null, worn: [id, pct] or null}`), `is_occupant_powered`, `occupant_power_consumed` / `occupant_max_power_produced` (value or false), `occupant_power_produced` (`[produced, used]` or false), `is_on_strike`, `begin_strike`, `end_strike`, `chance_of_strike`, `strike_start_date`, `strike_length`, `current_plant_efficiency`, `current_plant_condition`, `current_power_produced`, `strike_efficiency`, `funding_percent` (null without a department), `monthly_generation_cost`, `plant_funding_percentage` (false without a budget item), `set_plant_funding_percentage` (`[id, fraction]`); internals: `update_power_grid` (`[x, z]`), `flood` (`[x, z]` → `[rowMin, rowMax]`), `age_plant`, `apply_pole_funding` (`[fraction]`), `monthly`, `do_idle`, `occupant_inserted`, `occupant_removed`, `cell_changed` (`[rect]`), `expand` (`[rect]`), `read_tuning`, `curve` (`[name, x]`, name `funding_efficiency`, `funding_decay`, `usage_decay`, `pole_decay`, `strike_response`); identity: `query_interface` (`[iid]` → `"primary"`, `"message_target"`, `"serializable"` or false), `class_id`, `slot_pops` (`[slot]`) |
 | `power_set` | `mark` / `wire` / `powered` / `next` (cells `[x, z]` or rects `[x1, z1, x2, z2]` to set), `consumption` (`[[x, z, v]]`), `state`: any of `enabled`, `initialized`, `running`, `recompute`, `age_plants`, `wire_dirty`, `state`, `ring_index`, `production`, `consumption`, `import`, `export`, `demand`, `consumers`, `powered`, `unpowered`, `requirement`, `cost_base`, `deficit`, `broken_fraction`, `broken_count`, `pole_count`, `factor`, `strike_start`, `strike_flag`, `unused_flag`, `radius`, `annual`, `ring_row` (the current row), `per_type` | pokes state (test setup) |
-| `power_expect` | `state`: the fields above plus `department` (token or null), the `last_*` values, `plants` (`[[visited, id]]`), `plant_count`, `poles`, `dirty_rect`, `changed`, `overworked`, `aged`, `distressed`, the tuning scalars (`max_funding`, `strike_efficiency`, `max_production_ratio`, `min_acceptable_funding`, `strike_duration`, `min_funding_end_strike`), `map_size` (`[rows, columns]`), `bitmap_words`, `has_grid` | the simulator state |
+| `power_expect` | `state`: the fields above plus `department` (token or null), the `last_*` values, `plants` (`[[visited, id]]`), `plant_count`, `poles`, `dirty_rect`, `changed`, `overworked`, `aged`, `distressed`, the tuning scalars (`max_funding`, `strike_efficiency`, `max_production_ratio`, `min_acceptable_funding`, `strike_duration`, `min_funding_end_strike`), their exact f32 bits as `"0x%08X"` strings (`max_funding_bits`, `strike_efficiency_bits`, `max_production_ratio_bits`, `min_acceptable_funding_bits`, `min_funding_end_strike_bits`) and `deficit_bits`, `map_size` (`[rows, columns]`), `bitmap_words`, `has_grid` | the simulator state |
 | `power_expect_bitmap` | `bitmap` (`mark`, `wire`, `powered`, `next`), `cells?` (set), `rects?` (all set), `unset?`, `count?` (set bits), `exact?` (no other bit set) | a bitmap |
 | `power_expect_grid` | any of `exists`, `instance`, `tract_size`, `counts`, `cells` (`[[x, z, v]]`), `rects` (`[[x1, z1, x2, z2, v]]`), `others` (every unlisted cell) | the powered grid |
 | `power_expect_occupant` | `occupant`, `props?` (`{"0xID": value or null}`), `distressed?` | an occupant's properties as the simulator left them |
-| `power_expect_world` | any of `lots` (`{"id": {has_power}}`), `deals` (`{"id": {used, flags}}`), `connections` (`{"id": {visited, active}}`), `line_items` (`[{department, line, exists?, expenses?, secondary?}]`), `distressed` (count of distressed poles), `departments` (IDs) | host objects |
+| `power_expect_world` | any of `lots` (`{"id": {has_power}}`), `deals` (`{"id": {used, flags}}`), `connections` (`{"id": {visited, active}}`), `line_items` (`[{department, line, exists?, expenses?, secondary?}]`), `distressed` (count of distressed poles), `departments` (IDs), `department_lookups` (`{"0xDEPT": n}`: `GetDepartmentBudget` calls since the last `power_clear_events`) | host objects |
 | `power_expect_rand` | `calls` | C `rand()` calls since the last check (or `power_create` / `power_load`) |
 | `power_expect_refs` | `refs` (`{"token": count}`, counts start at 0) | host reference counts |
 | `power_expect_events` / `power_expect_event_count` / `power_clear_events` | see the shared conventions | host calls |
@@ -673,11 +673,11 @@ which would let neighbouring IDs match).
 Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), `add_agent` (`level`, `name`, `flags`),
 `remove_agent`, `subscribe` / `unsubscribe` (`types`), `post` (`type`, `data`, `unknown`), `history` (`series`,
 `value`), `history_queue` (`series`, `length`), `create_grid` (`instance`, `size`), `set_property` (`occupant`, `id`,
-`value`), `break_connections` (`pole`, `flag`), `distressed` (`pole`, `on`), `remove_connection` (`pole`, `line`),
+`value`), `break_connections` (`pole`, `flag`), `distressed` (`pole`, `on`), `remove_connection` (`pole`, `other`: `pole.RemoveConnection(other, 0)`),
 `occupants_in_cells` (`rect`), `remove_occupant`, `tool_zone_change` (`rect`, `data3`), `lot_has_power` (`lot`, `on`),
 `lot_condition` (`lot`, `condition`), `demolish` (`lots`, `flags`), `radiation` (`position`, `strength`, `radius`),
 `remove_view_control`, `deal_used` (`deal`, `used`), `deal_flags` (`deal`, `flags`, `on`), `mark_deals_dirty`,
-`conn_active` (`conn`, `on`), `create_department` (`id`, `group`), `department_name`, `max_funding`,
+`conn_active` (`conn`, `on`), `create_department` (`id`, `group`), `department_name`, `max_funding` (`department`, `value`, `bits`),
 `create_line_item` (`department`, `line`, `local`), `create_line_item_for_type`, `line_item_name`, `display_flag`,
 `secondary_info` and `full_expenses` (`item` = `[department, line]`, `value`), `budget_line`, `budget_cost`,
 `add_funded` / `remove_funded`, `local_funding`, `local_full_funding`.
@@ -696,7 +696,7 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 
 | op | Arguments | Effect |
 |---|---|---|
-| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
+| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `log_water` (log every `CellHasWater` call as a `has_water` event), `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
 | `plumbing_tuning` | `none` (no exemplar), `code` (an empty exemplar), or the shipped exemplar plus `props` (`{"0xID": value}`; `{"remove": true}` removes one); `reload?` sends the tuning message | the tuning exemplar |
 | `plumbing_building` | `label`, `x`, `z`, `w?`, `d?`, `anchor?`, `props?`, `lot?` (default true: a lot `<label>_lot` over the rectangle), `lot_rect?`, `needs_power?`, `has_power?`, `building_type?`, `budget?` (`{department, line, cost, index?}`), `local_funding?`, `insert?` (default true) | a building occupant, inserted through the message |
 | `plumbing_pipe` / `plumbing_pipe_row` / `plumbing_pipes` | pipe: `label`, `x`, `z` (or a rectangle), `dirs?`, `flags?`, `insert?`; row: `prefix`, `from`, `to` (connected to each other); pipes: `prefix`, `count`, `width?`, `x0?`, `z0?` (unconnected) | pipe occupants |
@@ -718,8 +718,8 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 | `plumbing_month` | `expect?` | the month message |
 | `plumbing_call` | `method`, `args?`, `expect?` | the §10 slots (`query_interface`, `add_ref`, `release`, `supply_value`, `supply_value_map_ptr`, `are_watered_buildings_in_cell`, `is_building_watered`, `water_production`, `is_cell_watered`, `num_water_sources`, `num_polluted_water_sources`, `water_production_capacity`, `water_consumed`, `water_imported`, `water_exported` (EAX), `num_pipes`, `num_distressed_pipes`, `num_burst_pipes`, `num_watered_buildings`, `num_unwatered_buildings`, `water_demand` (EAX), `water_demand_64`, `water_producer_info`, `water_producer_condition_percent`, `occupant_monthly_upkeep_cost`, `find_water_buildings`, `water_producers`), `slot_return` (`[slot]`), and the steps `nearest_water` (`[x, z, type, reach]`), `nearest_water_ring`, `update_water_production`, `age_water_producers`, `building_consumption`, `is_connected_to_current_network`, `pipe_cost`, `trunc`, `eax_of` |
 | `plumbing_set` | `state` (any of `state`, `recompute`, `ageing`, `enabled`, `pipe_condition`, `num_pipes`, `num_distressed`, `num_burst`, `demand`, `pass_counter`, `total_water_cost`, `last_produced`, `last_consumed`, `last_imported`, `last_exported`), `flags?` (`[{x, z, v}]`), `production?` (`[{occupant, production}]`), `crt?` | pokes state (test setup) |
-| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `producers`, `current`, `pipes`, `leaked`, `iterator`, the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
-| `plumbing_expect_tuning` | the scalar fields, `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
+| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `flag_map_size`, `flag_map_nonzero`, `producers`, `current`, `pipes`, `leaked`, `iterator` (`state`, `x`, `z`, `step`, `rect`), the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
+| `plumbing_expect_tuning` | the scalar fields (and `max_funding_bits`, the hex float32 bits), `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
 | `plumbing_expect_flags` / `plumbing_expect_grid` | flags: `cells`; grid: `grid` (`published` or `working`), `instance?`, `cells?`, `rects?`, `nonzero?` | the flag map and the u8 grids |
 | `plumbing_expect_occupant` / `_deal` / `_connection` / `_line_item` / `_refs` | occupant: `props?` (null = absent), `net_flags?`, `budget_cost?`; deal: `used?`, `flags?`; connection: `active?`, `visited?`; line item: `line`, `expenses?`, `secondary?`, `display?`, `exists?`; refs: `{label: count}` | host objects |
 | `plumbing_expect_events` / `plumbing_expect_event_count` / `plumbing_clear_events` | see the shared conventions | host calls |
@@ -727,11 +727,12 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 | `plumbing_patch` / `plumbing_expect_payload` | see the shared conventions (the simulator's record) | |
 
 Plumbing events: `agent`, `remove_agent`, `subscribe`, `unsubscribe`, `post` (`type`, `data1`), `history` (`id`,
-`value`), `create_department`, `department_name`, `max_funding`, `create_line_item`, `line_item_name`,
+`value`), `create_department`, `department_name`, `max_funding` (`value`, `bits`), `create_line_item`, `line_item_name`,
 `remove_line_item` (`line`), `create_building_line_item`, `display_flag`, `add_expenses` (`line`, `delta`),
 `set_expenses`, `set_secondary`, `change_budget_line`, `change_budget_cost`, `pipe_watered` (`pipe`, `watered`),
 `redisplay` (`min`, `max`), `burst` (`x`, `z`, `manager`), `lot_condition` (`lot`, `condition`), `set_used`,
-`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`) and `grid_shutdown` (`grid`).
+`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`), `grid_shutdown` (`grid`) and, with `log_water`,
+`has_water` (`x`, `z`).
 
 ## Protection ops
 
@@ -754,10 +755,11 @@ police coverage percentage, sea level and altitude, the disaster flag and the da
 
 | op | Arguments | Effect / check |
 |---|---|---|
+| `protection_grids` | `size` (the grids' tract size) | replaces both coverage grids of the current simulator with grids of that tract size on the same city (to show that the simulator uses its own S = 2) |
 | `protection_init` / `protection_shutdown` | `expect?` | `Init` / `Shutdown` |
 | `protection_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `OccupantChanged`, `FundingChanged`, `ReloadTuning`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `Crime` or an ID), `data1?`, `data2?`, `occupant?`, `unknown?` (the IGZUnknown: an occupant or lot ID), `count?` (repeat), `expect?` | `DoMessage` |
-| `protection_call` | `method`, `args?`, `expect?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
-| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `ratio_share`, `escapees`, `jail_capacity` |
+| `protection_call` | `method`, `args?`, `expect?`, `bits?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `station_effect [occ, record?]` (`record` `{x, z, radius, centre, outer, original_centre}` is the caller's record, default zeroed), `funding_of [occ, purpose]`, `jail_funding [occ]`, `jailed_percentage_bits`, `station_stats [occ]` (padded to 4), `max_possible_dispatch_count`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
+| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `jailed_percentage_bits`, `pct` (x × 0.01f), `jailbreak_ends` (`[percentage, threshold]`), `jailbreak_starts` (`[chance, draw]` → `[draw taken, starts]`), `ratio_share`, `escapees`, `jail_capacity`; float arguments of `jailbreak_ends` / `jailbreak_starts` may be `"0x…"` float32 bit patterns |
 | `protection_set` | `state`: any of `tracts_per_day`, `factor`, `counters` (`[zoned, sum, nonZero]`), `avg`, `pct`, `strike_flag`, `strike_date`, `next_call`, `capacity`, `population`, `jailed`, `arrests_last`, `arrests_this`, `unarrested_this`, `crimes_last`, `crimes_this` | pokes state (test setup) |
 | `protection_expect` | `state`: the `protection_set` fields plus `initialized`, `ref_count`, `destroyed`, `loaded`, `department`, `jail_department`, `purpose`, `stations`, `air_source`, `jails`, `funded_jails`, `jailbreaks`, `crt` (the rand() state) and `iterator` (partial `{state, mode, rect, count, index, current, step}`) | the simulator state |
 | `protection_expect_occupant` | `id`, `props` (`{"0xID": value or array}`) | occupant properties |
@@ -765,8 +767,11 @@ police coverage percentage, sea level and altitude, the disaster flag and the da
 | `protection_grid_set` / `protection_expect_grid` | `grid` (`adjusted` or `unadjusted`); set: `cells`; expect: any of `exists`, `size`, `counts`, `instance`, `cells`, `others` | the coverage grids |
 | `protection_expect_events` / `protection_expect_event_count` / `protection_clear_events` | see the shared conventions | host calls |
 | `protection_save` / `protection_load` / `protection_expect_save` | `slot` | the class-object store (load recreates the simulator, its grids and the host objects) |
-| `protection_read` | `slot` or `hex`, `expect`, `position?` | `Read` on the live simulator; `position` is the bytes consumed |
+| `protection_read` | `slot` or `hex`, `expect`, `position?`, `reuse?` | `Read` into a new simulator, or with `reuse` into the current one (a re-read); `position` is the bytes consumed |
 | `protection_patch` / `protection_expect_payload` | see the shared conventions (the simulator's record) | |
+
+With `"bits": true` on a `protection_call` or `protection_eval`, every float in the result becomes its float32 bit
+pattern (`"0x3DCCCCCC"`), compared exactly; other floats compare with the usual relative tolerance.
 
 Protection events: `acquire_services` / `release_services` (`kind`), `create_grid` (`type` u8/i16, `instance`,
 `size`), `set_instance`, `shutdown_grid`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` /
@@ -1141,6 +1146,11 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 20 save | `pw15_20_save` |
 | 21 lifecycle | `pw15_21_lifecycle` |
 | 22 Nuclear Free Zone | `pw15_22_nuclear_free_zone` |
+| 23 maintenance with departments, 24 FindPowerPlants with departments | `pw15_23_24_budget_departments` |
+| 25 counters below zero, 26 pole removal | `pw15_25_26_counters_poles` |
+| 27 terrain passes | `pw15_27_terrain` |
+| 28 NaN ratio | `pw15_28_nan_ratio` |
+| 29 Init after load, 30 failed Read | `pw15_29_30_init_load` |
 
 ## Coverage (plumbing §14)
 
@@ -1155,6 +1165,7 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 9 basic flood, 10 shortage | `pl14_09_10_flood` |
 | 11 ring geometry | `pl14_11_ring_geometry` |
 | 12 export | `pl14_12_export` |
+| 12 export flags per network, 0x28 (PL7) | `pl14_12_export_flags` |
 | 13 import | `pl14_13_import` |
 | 14 pipe funding, 15 GaussianFast | `pl14_14_15_pipe_funding` |
 | 17 deal message, 18 disabled | `pl14_17_18_messages` |
@@ -1163,6 +1174,9 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 22 ageing | `pl14_22_ageing` |
 | 23 persistence | `pl14_23_persistence` |
 | 24 SDK return channels | `pl14_24_slots` |
+| 25 iterator after a pass (PL4) | `pl14_25_iterator` |
+| 26 current producer in a save (PL3) | `pl14_26_current_producer` |
+| 27 re-Init after Shutdown (PL2) | `pl14_27_reinit` |
 
 ## Coverage (protection §18)
 
@@ -1191,6 +1205,15 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 20 adjusted copy and funding change | `pr18_20_adjusted_copy` |
 | 21 persistence (layout, versions, store round trip) | `pr18_21_persistence` |
 | 22 slot ABI, QueryInterface, crime-compatible slots | `pr18_22_slot_abi` |
+| 23 stuck jailbreak (capacity 0, NaN percentage) | `pr18_23_stuck_jailbreak` |
+| 24 jailed percentage and the end and start tests | `pr18_24_jailed_percentage` |
+| 25 percentages (float32 0.01f) | `pr18_25_percentages` |
+| 26 GetMaxPossibleDispatchCount | `pr18_26_max_possible_dispatch` |
+| 27 station effect partial reads | `pr18_27_effect_partial_reads` |
+| 28 call-number search | `pr18_28_call_number_search` |
+| 29 station statistics | `pr18_29_station_statistics` |
+| 30 jail capacity without an item or property | `pr18_30_jail_capacity` |
+| 31 locally-funded-jail list | `pr18_31_funded_jail_list` |
 
 ## Coverage (flora §16)
 

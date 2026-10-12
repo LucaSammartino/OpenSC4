@@ -2,7 +2,7 @@
   "format": 1,
   "name": "power_terrain_postinit",
   "spec": ["power 4.2", "power 5", "power 5.2", "power 5.4", "power 5.6"],
-  "description": "Sections 5.2, 5.4, 5.6 and 4.2 (compat, no numbered test). Terrain heights changed with data1 = (10 << 16) | 13, data2 = (10 << 16) | 12 -> rect x 9..13, z 9..12. The occupant manager's occupants in that rect (poles 151, 152, lines 153, 155) are listed once; each pole gets BreakAllConnections(true) and RemoveOccupant; [choice] each line whose two poles are known is detached once from both (153 from 151 and 152); 155 has no connected poles. data4 = 4 or 5 ignores the message. x1 = 0 in data1 clamps to 0. PostCityInit: pole 152 is no longer in the occupant manager -> released and erased, poleCount 1; costBase := the low 32 bits of the remaining poles' 0x09132DE8 (151: 0x100000005 -> 5), changed -> recompute. Removing pole 151 marks its neighbourhood dirty and subtracts the full int64 cost (5 - 0x100000005 = -4294967296). A conducting network piece's removal marks only its cell dirty; a skipped one (0x80000000) does nothing. Shutdown breaks every remaining pole's connections (false) and releases it.",
+  "description": "Sections 5.2, 5.4, 5.6 and 4.2 (compat, no numbered test). Terrain heights changed with data1 = (10 << 16) | 13, data2 = (10 << 16) | 12 -> rect x 9..13, z 9..12. One occupant-manager query lists the occupants in that rect (poles 151, 152, lines 153, 155); pass 1: each pole whose own cell is in the rect gets BreakAllConnections(true) and RemoveOccupant; pass 2 collects the lines with two connected poles (153: 151, 152; 155 has none); pass 3 asks 153 for its poles again and calls first.RemoveConnection(second): one call, pole 151 with 152 (5.4 as answered for PW6; test 27 covers the rest). data4 = 4 or 5 ignores the message. x1 = 0 in data1 clamps to 0. PostCityInit: pole 152 is no longer in the occupant manager -> released and erased, poleCount 1; costBase := the low 32 bits of the remaining poles' 0x09132DE8 (151: 0x100000005 -> 5), changed -> recompute. Removing pole 151 marks its neighbourhood dirty and subtracts the full int64 cost (5 - 0x100000005 = -4294967296). A conducting network piece's removal marks only its cell dirty; a skipped one (0x80000000) does nothing. Shutdown breaks every remaining pole's connections (false) and releases it.",
   "steps": [
     {"op": "power_env", "occupants": [
       {"id": 151, "type": "pole", "cell": [10, 10], "props": {"0x09132DE8": {"i64": 4294967301}}},
@@ -27,8 +27,7 @@
       {"event": "remove_occupant", "occupant": 151},
       {"event": "break_connections", "pole": 152, "flag": true},
       {"event": "remove_occupant", "occupant": 152},
-      {"event": "remove_connection", "pole": 151, "line": 153},
-      {"event": "remove_connection", "pole": 152, "line": 153}]},
+      {"event": "remove_connection", "pole": 151, "other": 152}]},
     {"op": "power_message", "type": "TerrainChanged", "data1": 5, "data2": 65541, "data4": 0},
     {"op": "power_expect_events", "filter": {"event": "occupants_in_cells"}, "events": [{"event": "occupants_in_cells", "rect": [0, 0, 5, 5]}]},
 

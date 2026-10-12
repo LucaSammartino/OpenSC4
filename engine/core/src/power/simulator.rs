@@ -359,13 +359,15 @@ impl Cx<'_> {
     // ---- lifecycle (§4) -----------------------------------------------------------------------------
 
     pub(crate) fn init(&mut self) -> bool {
-        // Step 1.
+        // The first Init after a successful Read.
+        let after_load = self.i.s.running && !self.i.s.initialized;
+        // Step 1: the department is looked up only while none is held (a
+        // load has set it from the saved ref).
         self.h.acquire_services();
-        let found = self.h.department(budget::DEPARTMENT);
-        if let Some(d) = found {
-            self.h.add_ref(d);
-            if let Some(old) = self.i.s.department.replace(d) {
-                self.h.release(old);
+        if self.i.s.department.is_none() {
+            if let Some(d) = self.h.department(budget::DEPARTMENT) {
+                self.h.add_ref(d);
+                self.i.s.department = Some(d);
             }
         }
         // Step 2.
@@ -406,23 +408,31 @@ impl Cx<'_> {
             s.ring = [[0; PLANT_TYPES]; 12];
             s.annual = [0; PLANT_TYPES];
             s.state = state::IDLE;
-            if found.is_none() {
-                if let Some(d) = self.h.create_department(budget::DEPARTMENT, budget::DEPARTMENT_GROUP) {
-                    self.h.add_ref(d);
-                    if let Some(old) = self.i.s.department.replace(d) {
-                        self.h.release(old);
-                    }
-                    self.h
-                        .set_department_name(d, budget::NAME_GROUP, budget::DEPARTMENT_NAME);
-                    self.h.set_department_max_funding(d, self.i.s.tuning.max_funding);
-                    if let Some(li) = self.h.create_line_item(d, budget::LINE_POLES, false) {
-                        self.h
-                            .set_line_item_name(li, budget::NAME_GROUP, budget::LINE_POLES_NAME);
-                    }
-                }
+            if self.i.s.department.is_none() {
+                self.create_department();
             }
+        } else if after_load && self.i.s.department.is_none() {
+            // [choice] A loaded city that still has no department gets one
+            // as in step 3 (the original keeps null and crashes in state 1).
+            self.create_department();
         }
         true
+    }
+
+    /// §4.1 step 3: create, name and set up the power department.
+    fn create_department(&mut self) {
+        let Some(d) = self.h.create_department(budget::DEPARTMENT, budget::DEPARTMENT_GROUP) else {
+            return;
+        };
+        self.h.add_ref(d);
+        self.i.s.department = Some(d);
+        self.h
+            .set_department_name(d, budget::NAME_GROUP, budget::DEPARTMENT_NAME);
+        self.h.set_department_max_funding(d, self.i.s.tuning.max_funding);
+        if let Some(li) = self.h.create_line_item(d, budget::LINE_POLES, false) {
+            self.h
+                .set_line_item_name(li, budget::NAME_GROUP, budget::LINE_POLES_NAME);
+        }
     }
 
     pub(crate) fn shutdown(&mut self) -> bool {
@@ -611,7 +621,8 @@ impl Cx<'_> {
         }
     }
 
-    /// The budget hookup of a new plant (§5.1).
+    /// The budget hookup of a new plant (§5.1): every department call goes
+    /// to the department the item names.
     fn plant_budget_hookup(&mut self, occ: u64) {
         let Some(item) = self.h.budget_item_for_purpose(occ, budget::PURPOSE) else {
             return;
@@ -619,9 +630,7 @@ impl Cx<'_> {
         let Some(building_type) = self.h.building_type(occ) else {
             return;
         };
-        let Some(dept) = self.h.department(item.department) else {
-            return;
-        };
+        let dept = self.h.department(item.department);
         let mut line = item.line;
         if line == 0 {
             line = building_type;
@@ -630,6 +639,8 @@ impl Cx<'_> {
         if line == 0 {
             return;
         }
+        // [choice] The original does not test the department for null.
+        let Some(dept) = dept else { return };
         let li = match self.h.line_item(dept, line) {
             Some(li) => Some(li),
             None => {
@@ -660,14 +671,17 @@ impl Cx<'_> {
                 let r = self.neighbourhood(pole.cell.0, pole.cell.1);
                 self.mark_dirty(r, false);
                 if let Some(i) = self.i.s.poles.iter().position(|&p| p == occ) {
-                    let cost = self.prop_i64(occ, prop::POLE_COST).unwrap_or(0);
                     self.h.release(occ);
                     let s = self.s();
                     s.poles.remove(i);
                     s.pole_count = s.pole_count.saturating_sub(1);
-                    s.cost_base = s.cost_base.wrapping_sub(cost);
-                    s.recompute = true;
                 }
+                // Whether or not the pole was listed; brokenCount is not
+                // lowered for a distressed pole (§5.2).
+                let cost = self.prop_i64(occ, prop::POLE_COST).unwrap_or(0);
+                let s = self.s();
+                s.cost_base = s.cost_base.wrapping_sub(cost);
+                s.recompute = true;
             }
             occupant_type::POWER_LINE => {
                 let Some(line) = self.h.power_line(occ) else { return };
@@ -704,16 +718,17 @@ impl Cx<'_> {
             if let Some(c) = s.consumption_mut(cx, cz) {
                 *c = c.wrapping_sub(consumed as i16);
             }
-            s.consumers = s.consumers.saturating_sub(1);
-            s.requirement = s.requirement.saturating_sub(consumed);
+            // Signed clamps (§3): a result negative as int32 becomes 0.
+            let clamp = |v: u32| (v as i32).max(0) as u32;
+            s.consumers = clamp(s.consumers.wrapping_sub(1));
+            s.requirement = clamp(s.requirement.wrapping_sub(consumed));
         }
         let r = self.building_rect(occ);
         self.mark_dirty(r, false);
         if let Some(item) = self.h.budget_item_for_purpose(occ, budget::PURPOSE) {
             if let Some(dept) = self.h.department(item.department) {
-                let li = self.h.line_item(dept, item.line);
-                self.h.remove_locally_funded_object(dept, occ, budget::PURPOSE);
-                if let Some(li) = li {
+                if let Some(li) = self.h.line_item(dept, item.line) {
+                    self.h.remove_locally_funded_object(dept, occ, budget::PURPOSE);
                     let v = self.h.line_item_secondary_info(li);
                     self.h.set_line_item_secondary_info(li, v.wrapping_sub(1));
                 }
@@ -760,28 +775,36 @@ impl Cx<'_> {
         self.mark_dirty(r, zone_test);
     }
 
-    /// `DoTerrainHeightsChanged` (§5.4).
+    /// `DoTerrainHeightsChanged` (§5.4): one occupant query, then three
+    /// passes over its list.
     fn terrain_heights_changed(&mut self, r: CellRect) {
         let occupants = self.h.occupants_in_cells(r);
-        let mut lines = Vec::new();
+        // 1. Poles (QI) whose own cell lies in the rect; no slot-13 test.
         for &occ in &occupants {
-            match self.h.occupant_type(occ) {
-                occupant_type::POWER_POLE => {
-                    if self.h.power_pole(occ).is_some() {
-                        self.h.break_all_connections(occ, true);
-                        self.h.remove_occupant(occ);
-                    }
+            if let Some(p) = self.h.power_pole(occ) {
+                let (x, z) = p.cell;
+                if r.x1 <= x && x <= r.x2 && r.z1 <= z && z <= r.z2 {
+                    self.h.break_all_connections(occ, true);
+                    self.h.remove_occupant(occ);
                 }
-                occupant_type::POWER_LINE if !lines.contains(&occ) && self.h.power_line(occ).is_some() => {
-                    lines.push(occ);
-                }
-                _ => {}
             }
         }
-        for line in lines {
-            if let Some((a, b)) = self.h.line_connected_poles(line) {
-                self.h.remove_pole_connection(a, line);
-                self.h.remove_pole_connection(b, line);
+        // 2. Lines (QI) with two connected poles, distinct by pole pair.
+        let mut lines: Vec<(u64, (u64, u64))> = Vec::new();
+        for &occ in &occupants {
+            if self.h.power_line(occ).is_none() {
+                continue;
+            }
+            if let Some(pair) = self.h.line_connected_poles(occ) {
+                if !lines.iter().any(|&(_, p)| p == pair) {
+                    lines.push((occ, pair));
+                }
+            }
+        }
+        // 3. `first.RemoveConnection(second, 0)` with the poles asked again.
+        for (line, _) in lines {
+            if let Some((first, second)) = self.h.line_connected_poles(line) {
+                self.h.remove_pole_connection(first, second);
             }
         }
     }

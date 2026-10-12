@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "power_terrain_passes",
+  "spec": ["power 5", "power 5.4", "power 15.27"],
+  "description": "Test 27, by hand from 5 and 5.4 as answered for PW6. TerrainChanged with data1 = data2 = (21 << 16) | 25 -> rect x 20..25, z 20..25; one occupant-manager query over that rect. Pass 1, in list order: pole A = 271 (cell (22,22), inside, never inserted, so not in the simulator's pole list) gets BreakAllConnections(true) and RemoveOccupant; pole B = 272 is returned by the query (its query footprint covers the rect) but its own GetCell (40,40) is outside -> kept; building 277 does not answer the pole QI. Pass 2 collects the lines with two connected poles, distinct by pole pair in order: 273 (271, 272) is collected, 274 (271, 272) has the same pair and is skipped, 275 (272, 271) is a different ordered pair and is collected, 276 has no poles. Pass 3 asks each collected line for its poles again and calls first.RemoveConnection(second, 0): (271, 272) then (272, 271). The simulator's own lists do not change (the removals come back as 0x99EF1143).",
+  "steps": [
+    {"op": "power_env", "occupants": [
+      {"id": 271, "type": "pole", "cell": [22, 22]},
+      {"id": 272, "type": "pole", "cell": [40, 40], "query_rect": [20, 20, 25, 25]},
+      {"id": 273, "type": "line", "cell": [23, 22], "poles": [271, 272]},
+      {"id": 274, "type": "line", "cell": [24, 22], "poles": [271, 272]},
+      {"id": 275, "type": "line", "cell": [21, 22], "poles": [272, 271]},
+      {"id": 276, "type": "line", "cell": [25, 25]},
+      {"id": 277, "type": "building", "cells": [20, 24, 21, 25]}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_clear_events"},
+    {"op": "power_message", "type": "TerrainChanged", "data1": 1376281, "data2": 1376281, "data4": 0, "expect": true},
+    {"op": "power_expect_events", "events": [
+      {"event": "occupants_in_cells", "rect": [20, 20, 25, 25]},
+      {"event": "break_connections", "pole": 271, "flag": true},
+      {"event": "remove_occupant", "occupant": 271},
+      {"event": "remove_connection", "pole": 271, "other": 272},
+      {"event": "remove_connection", "pole": 272, "other": 271}]},
+    {"op": "power_expect", "state": {"poles": [], "pole_count": 0, "cost_base": 0}}
+  ]
+}

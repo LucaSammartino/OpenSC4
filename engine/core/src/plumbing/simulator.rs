@@ -15,12 +15,13 @@ use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
 use crate::grid::{Bitmap, ScanIterator, ScanState, MAX_TRACTS};
-use crate::props::round_half_even_f32;
+use crate::props::{self, round_half_even_f32};
 use crate::rng::{CrtRand, FixedSeeds, RzRandom, CLOCK_SEED};
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 use crate::variant::{Elem, Variant};
+use crate::x87;
 
-use super::tuning::{curve_values, Tuning};
+use super::tuning::Tuning;
 use super::{
     budget, deal, flag, history, msg, network, occupant_type, prop, CellRect, GridRc, Message, PlumbingHost,
     AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_PLUMBING_SIMULATOR, IID_DEPARTMENT_BUDGET, IID_NETWORK_OCCUPANT,
@@ -275,30 +276,25 @@ impl PlumbingState {
 
 // ---- arithmetic (foundations §18) -------------------------------------------------------------------
 
-/// `_ftol` / `fistp` truncation to 64 bits: the x87 "integer indefinite"
-/// (`i64::MIN`) for NaN and values out of range ([choice]).
+/// `_ftol` (foundations §18.1): truncation toward zero as an `int64`; NaN,
+/// ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000` ([`x87::ftol`]).
 pub fn trunc_i64(x: f32) -> i64 {
-    const LIMIT: f32 = 9_223_372_036_854_775_808.0; // 2^63
-    if x.is_nan() || x >= LIMIT || x < -LIMIT {
-        i64::MIN
-    } else {
-        x as i64
-    }
+    x87::ftol(f64::from(x))
 }
 
-/// `low32(trunc(x))`, sign-extended.
+/// `low32(trunc(x))`, sign-extended: NaN and out-of-range values give 0.
 fn low32(x: f32) -> i64 {
-    i64::from(trunc_i64(x) as i32)
+    i64::from(x87::ftol32(f64::from(x)))
 }
 
-/// `int × float`: the integer enters unrounded, one `f32` rounding.
+/// `int × float`: the integer enters unrounded, one 24-bit rounding.
 fn fmul_i(i: f64, f: f32) -> f32 {
-    (i * f64::from(f)) as f32
+    x87::r24(i * f64::from(f)) as f32
 }
 
-/// `int / int` in floating point: one `f32` rounding.
+/// `int / int` in floating point: one 24-bit rounding.
 fn fdiv_ii(a: f64, b: f64) -> f32 {
-    (a / b) as f32
+    x87::r24(a / b) as f32
 }
 
 /// The pipe line item's expenses (§5.4): `round(float(u32 numPipes) ×
@@ -307,9 +303,23 @@ pub fn pipe_cost(num_pipes: u32, cost_per_pipe: f32) -> i64 {
     trunc_i64(round_half_even_f32(fmul_i(f64::from(num_pipes), cost_per_pipe)))
 }
 
-/// `NearestWater`'s ring search (§7.2) over the clipped box: the smallest
-/// Chebyshev distance from `(x, z)` of a water cell inside
-/// `[max(0, x − reach), min(x + reach, terrainX − 1)] × (same in z)`, or −1.
+/// One axis of `NearestWater`'s box (§7.2 step 2, int32 arithmetic):
+/// `[max(0, c − reach), min(c + reach, count − 1)]`, an upper bound below
+/// the lower one raised to it.
+fn water_box_axis(c: i32, reach: i32, count: i32) -> (i32, i32) {
+    let lo = c.wrapping_sub(reach).max(0);
+    let hi = c.wrapping_add(reach).min(count - 1).max(lo);
+    (lo, hi)
+}
+
+/// `NearestWater`'s spiral search (§7.2 steps 2–5): the box
+/// `[max(0, x − reach), min(x + reach, terrainX − 1)] × (same in z)`; −1 when
+/// `(x, z)` lies outside it; otherwise the spiral from `(x, z)`, ring by ring
+/// clockwise (ring r: the column `x + r` from `z − r + 1` up to `z + r`,
+/// the row `z + r` back to `x − r`, the column `x − r` back to `z − r`, the
+/// row `z − r` to `x + r`), testing only the cells inside the box, each once,
+/// in that order. The result is the ring (the Chebyshev distance) of the
+/// first water cell, or −1 after the ring that passes the last box edge.
 pub fn nearest_water_ring(
     x: i32,
     z: i32,
@@ -317,50 +327,44 @@ pub fn nearest_water_ring(
     terrain: (i32, i32),
     has_water: &mut dyn FnMut(i32, i32) -> bool,
 ) -> i32 {
-    let (tx, tz) = (
-        i64::from(terrain.0.clamp(0, MAX_TRACTS)),
-        i64::from(terrain.1.clamp(0, MAX_TRACTS)),
-    );
-    let (x, z, r) = (i64::from(x), i64::from(z), i64::from(reach));
-    let (x0, x1) = ((x - r).max(0), (x + r).min(tx - 1));
-    let (z0, z1) = ((z - r).max(0), (z + r).min(tz - 1));
-    if x0 > x1 || z0 > z1 {
+    // [choice] Terrain counts are clamped to 0 ..= MAX_TRACTS (bounded work).
+    let (tx, tz) = (terrain.0.clamp(0, MAX_TRACTS), terrain.1.clamp(0, MAX_TRACTS));
+    let reach = reach as i32;
+    let (x0, x1) = water_box_axis(x, reach, tx);
+    let (z0, z1) = water_box_axis(z, reach, tz);
+    if x < x0 || x > x1 || z < z0 || z > z1 {
         return -1;
     }
-    // The distance to the box (the first ring that can hold a cell) and to
-    // its farthest corner.
-    let gap = |c: i64, lo: i64, hi: i64| {
-        if c < lo {
-            lo - c
-        } else if c > hi {
-            c - hi
-        } else {
-            0
-        }
-    };
-    let first = gap(x, x0, x1).max(gap(z, z0, z1));
-    let last = (x - x0)
-        .abs()
-        .max((x1 - x).abs())
-        .max((z - z0).abs())
-        .max((z1 - z).abs());
-    for d in first..=last {
-        for cz in (z - d).max(z0)..=(z + d).min(z1) {
-            let row = (cz - z).abs() == d;
-            let hit = if row {
-                ((x - d).max(x0)..=(x + d).min(x1)).any(|cx| has_water(cx as i32, cz as i32))
-            } else {
-                [x - d, x + d]
-                    .iter()
-                    .filter(|&&cx| cx >= x0 && cx <= x1)
-                    .any(|&cx| has_water(cx as i32, cz as i32))
-            };
-            if hit {
-                return d.min(i64::from(i32::MAX)) as i32;
-            }
+    let [x, z, x0, x1, z0, z1] = [x, z, x0, x1, z0, z1].map(i64::from);
+    let mut test = |cx: i64, cz: i64| has_water(cx as i32, cz as i32);
+    if test(x, z) {
+        return 0;
+    }
+    let last = (x - x0).max(x1 - x).max(z - z0).max(z1 - z);
+    for d in 1..=last {
+        let found = (x + d <= x1 && ((z - d + 1).max(z0)..=(z + d).min(z1)).any(|cz| test(x + d, cz)))
+            || (z + d <= z1 && ((x - d).max(x0)..=(x + d - 1).min(x1)).rev().any(|cx| test(cx, z + d)))
+            || (x - d >= x0 && ((z - d).max(z0)..=(z + d - 1).min(z1)).rev().any(|cz| test(x - d, cz)))
+            || (z - d >= z0 && ((x - d + 1).max(x0)..=(x + d).min(x1)).any(|cx| test(cx, z - d)));
+        if found {
+            return d as i32;
         }
     }
     -1
+}
+
+/// `GetNext` of the scanning iterator (simgrid §7.4). A finished scan rests
+/// at `(x0, z + step)`, i.e. `(0, countZ)` for the city rectangle, as the
+/// original's `0x0060C8D0` leaves it (§6.6, PL4); the position is set here
+/// explicitly so it does not depend on where the shared iterator stops.
+fn scan_next(it: &mut ScanIterator) -> Option<(i32, i32)> {
+    let (running, z) = (it.state == ScanState::Running, it.z);
+    let r = it.next_cell();
+    if r.is_none() && running {
+        it.x = it.x0;
+        it.z = z.wrapping_add(it.step.max(1));
+    }
+    r
 }
 
 // ---- occupant property readers ----------------------------------------------------------------------
@@ -389,16 +393,11 @@ fn p_f32(h: &dyn PlumbingHost, occ: u64, id: u32) -> Option<f32> {
     numbers(&v).first().map(elem_f32)
 }
 
-/// A per-occupant curve, built for each call ([choice]: as the tuning
-/// curves, a non-numeric or single-value property is absent).
+/// A per-occupant curve, built for each call (foundations §4.1 [choice]: a
+/// non-numeric or single-value property is absent, an empty array is an
+/// empty curve evaluating to 0).
 fn p_curve(h: &dyn PlumbingHost, occ: u64, id: u32) -> Option<ResponseCurve> {
-    let v = h.occupant_property(occ, id)?;
-    let values = match &v {
-        Variant::Scalar(_) => Some(vec![0.0]),
-        Variant::Array { elem, .. } if *elem == crate::variant::mem::RZ_CHAR || *elem == 0 => None,
-        _ => Some(v.items().iter().map(elem_f32).collect()),
-    };
-    curve_values(values)
+    props::curve_of_variant(&h.occupant_property(occ, id)?)
 }
 
 fn var_u32(v: u32) -> Variant {
@@ -505,7 +504,10 @@ impl PlumbingSim {
                 wall_clock: h.wall_clock_seed(),
                 process_clock: 0,
             };
-            s.rng = Some(RzRandom::new(CLOCK_SEED, &seeds));
+            // Step 2: only what is not already held (PL2).
+            if s.rng.is_none() {
+                s.rng = Some(RzRandom::new(CLOCK_SEED, &seeds));
+            }
             if !s.initialized {
                 s.initialized = true;
                 s.tuning.reload(h.tuning().as_deref());
@@ -587,7 +589,12 @@ impl PlumbingSim {
             for p in std::mem::take(&mut s.producers) {
                 h.release(p.occupant);
             }
+            s.iterator = None;
             s.current = None;
+            // [choice] (§4.2, PL2): the original keeps the grids-initialized
+            // flag, so its next `Init` leaves the grids null and crashes;
+            // clearing it makes that `Init` rebuild them as on a new city.
+            s.grids_initialized = false;
             for p in std::mem::take(&mut s.pipes) {
                 h.release(p);
             }
@@ -984,20 +991,26 @@ impl PlumbingSim {
         nearest_water_ring(x, z, reach, terrain, &mut |cx, cz| h.cell_has_water(cx, cz))
     }
 
-    /// State 2 (§6).
+    /// State 2 (§6): the scanning iterator is reset to (0, 0) and runs over
+    /// every cell, so it ends done at (0, countZ) (§6.6).
     fn reset_working(&self, s: &mut PlumbingState) {
-        if let Some(g) = s.working.clone() {
-            for z in 0..s.count_z {
-                for x in 0..s.count_x {
-                    let v = if s.flag(x, z) & flag::PIPE != 0 {
-                        value_pipe()
-                    } else {
-                        0
-                    };
-                    g.set(x, z, v);
-                }
+        s.reset_iterator();
+        let mut it = s
+            .iterator
+            .take()
+            .unwrap_or_else(|| ScanIterator::for_counts(s.count_x, s.count_z));
+        let g = s.working.clone();
+        while let Some((x, z)) = scan_next(&mut it) {
+            if let Some(g) = &g {
+                let v = if s.flag(x, z) & flag::PIPE != 0 {
+                    value_pipe()
+                } else {
+                    0
+                };
+                g.set(x, z, v);
             }
         }
+        s.iterator = Some(it);
         for p in &mut s.producers {
             p.visited = false;
             p.assigned = false;
@@ -1010,37 +1023,33 @@ impl PlumbingSim {
     fn seed_and_flood(&self, s: &mut PlumbingState) {
         let h = &*self.host;
         s.import_owed = 0;
+        // The current producer is always null here (PL3: states 2 and 4 and
+        // every other writer null it), so the original's "network in
+        // progress" branch is dead; [choice] FreeCity4 always seeds.
         let mut seed = None;
-        if let Some(i) = s.current.and_then(|o| s.producer_index(o)) {
-            // [choice] not reachable: states 2 and 4 clear `current`.
-            let p = &s.producers[i];
-            seed = Some((p.seed_x, p.seed_z));
-            s.supply = i64::from(p.production);
-        } else {
-            for d in h.find_deals(deal::IMPORT) {
-                let amount = i64::from(h.deal_amount(d));
-                let used = i64::from(h.deal_amount_used(d));
-                if used >= amount {
-                    continue;
-                }
-                let Some(c) = h.find_unvisited_connection(deal::WATER_CONNECTION, h.deal_city(d)) else {
-                    continue;
-                };
-                h.set_connection_visited(c, true);
-                if h.connection_on_other_side(c).is_some_and(|o| h.connection_is_active(o)) {
-                    seed = Some(s.clamp_cell(h.connection_cell(c)));
-                    s.supply = amount - used;
-                    s.import_owed = s.supply;
-                    break;
-                }
+        for d in h.find_deals(deal::IMPORT) {
+            let amount = i64::from(h.deal_amount(d));
+            let used = i64::from(h.deal_amount_used(d));
+            if used >= amount {
+                continue;
             }
-            if seed.is_none() {
-                if let Some(p) = s.producers.iter_mut().find(|p| !p.visited) {
-                    p.visited = true;
-                    s.current = Some(p.occupant);
-                    seed = Some((p.seed_x, p.seed_z));
-                    s.supply = i64::from(p.production);
-                }
+            let Some(c) = h.find_unvisited_connection(deal::WATER_CONNECTION, h.deal_city(d)) else {
+                continue;
+            };
+            h.set_connection_visited(c, true);
+            if h.connection_on_other_side(c).is_some_and(|o| h.connection_is_active(o)) {
+                seed = Some(s.clamp_cell(h.connection_cell(c)));
+                s.supply = amount - used;
+                s.import_owed = s.supply;
+                break;
+            }
+        }
+        if seed.is_none() {
+            if let Some(p) = s.producers.iter_mut().find(|p| !p.visited) {
+                p.visited = true;
+                s.current = Some(p.occupant);
+                seed = Some((p.seed_x, p.seed_z));
+                s.supply = i64::from(p.production);
             }
         }
         let Some((sx, sz)) = seed else {
@@ -1236,7 +1245,7 @@ impl PlumbingSim {
             if s.slice_cells.is_some_and(|l| n >= l) {
                 break false;
             }
-            let Some((x, z)) = it.next_cell() else { break true };
+            let Some((x, z)) = scan_next(&mut it) else { break true };
             n += 1;
             let f = s.flag(x, z);
             if f & (flag::PRODUCER | flag::CONSUMER) == 0 {
@@ -1300,7 +1309,7 @@ impl PlumbingSim {
             if s.slice_cells.is_some_and(|l| n >= l) {
                 break false;
             }
-            let Some((x, z)) = it.next_cell() else { break true };
+            let Some((x, z)) = scan_next(&mut it) else { break true };
             n += 1;
             let new = s.published.as_ref().map_or(0, |g| g.get(x, z));
             let old = s.working.as_ref().map_or(0, |g| g.get(x, z));

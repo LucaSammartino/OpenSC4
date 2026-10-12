@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "protection_percentages",
+  "spec": ["protection 6.2", "protection 6.7", "protection 18.25"],
+  "description": "Test 25 (PR3): the percentage getter is one float32 product x x 0.01f (0.01f = 0x3C23D70A, a float32 constant): 10 -> 0x3DCCCCCC, 20 -> 0x3E4CCCCC, 50 -> 0x3F000000, 60 -> 0x3F199999, 80 -> 0x3F4CCCCC, 90 -> 0x3F666666, 110 -> 0x3F8CCCCD, 120 -> 0x3F999999 (none of them is the nearest float32 to the decimal fraction except 50 and 110). Through the tuning reader: the rehabilitation rate property 0x68DDAE97 = 60 / 90 / 110 reads back as those patterns; the shipped escapee range (10, 50) reads as (0x3DCCCCCC, 0.5). Bit patterns from an independent numpy float32 model of the single product.",
+  "steps": [
+    {"op": "protection_eval", "fn": "pct", "args": [10], "bits": true, "expect": "0x3DCCCCCC"},
+    {"op": "protection_eval", "fn": "pct", "args": [20], "bits": true, "expect": "0x3E4CCCCC"},
+    {"op": "protection_eval", "fn": "pct", "args": [50], "bits": true, "expect": "0x3F000000"},
+    {"op": "protection_eval", "fn": "pct", "args": [60], "bits": true, "expect": "0x3F199999"},
+    {"op": "protection_eval", "fn": "pct", "args": [80], "bits": true, "expect": "0x3F4CCCCC"},
+    {"op": "protection_eval", "fn": "pct", "args": [90], "bits": true, "expect": "0x3F666666"},
+    {"op": "protection_eval", "fn": "pct", "args": [110], "bits": true, "expect": "0x3F8CCCCD"},
+    {"op": "protection_eval", "fn": "pct", "args": [120], "bits": true, "expect": "0x3F999999"},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "tuning", "bits": true, "expect": {"max_funding": "0x3F999999", "strike_efficiency": "0x3E4CCCCC", "min_funding_to_end": "0x3F666666", "max_strike_duration": 548, "rehab_rate": "0x3DCCCCCC", "arrest_threshold": 20, "escapee_range": ["0x3DCCCCCC", "0x3F000000"], "end_jailbreak_capacity": "0x3F4CCCCC", "overflow_factor": "0x3F8CCCCD", "no_road_multiplier": "0x3F4CCCCD", "funding_curve_empty": false}},
+    {"op": "protection_env", "tuning_props": {"0x68DDAE97": {"f32": 60}}},
+    {"op": "protection_call", "method": "read_tuning"},
+    {"op": "protection_call", "method": "tuning", "bits": true, "expect": {"max_funding": "0x3F999999", "strike_efficiency": "0x3E4CCCCC", "min_funding_to_end": "0x3F666666", "max_strike_duration": 548, "rehab_rate": "0x3F199999", "arrest_threshold": 20, "escapee_range": ["0x3DCCCCCC", "0x3F000000"], "end_jailbreak_capacity": "0x3F4CCCCC", "overflow_factor": "0x3F8CCCCD", "no_road_multiplier": "0x3F4CCCCD", "funding_curve_empty": false}},
+    {"op": "protection_env", "tuning_props": {"0x68DDAE97": {"f32": 90}}},
+    {"op": "protection_call", "method": "read_tuning"},
+    {"op": "protection_call", "method": "tuning", "bits": true, "expect": {"max_funding": "0x3F999999", "strike_efficiency": "0x3E4CCCCC", "min_funding_to_end": "0x3F666666", "max_strike_duration": 548, "rehab_rate": "0x3F666666", "arrest_threshold": 20, "escapee_range": ["0x3DCCCCCC", "0x3F000000"], "end_jailbreak_capacity": "0x3F4CCCCC", "overflow_factor": "0x3F8CCCCD", "no_road_multiplier": "0x3F4CCCCD", "funding_curve_empty": false}},
+    {"op": "protection_env", "tuning_props": {"0x68DDAE97": {"f32": 110}}},
+    {"op": "protection_call", "method": "read_tuning"},
+    {"op": "protection_call", "method": "tuning", "bits": true, "expect": {"max_funding": "0x3F999999", "strike_efficiency": "0x3E4CCCCC", "min_funding_to_end": "0x3F666666", "max_strike_duration": 548, "rehab_rate": "0x3F8CCCCD", "arrest_threshold": 20, "escapee_range": ["0x3DCCCCCC", "0x3F000000"], "end_jailbreak_capacity": "0x3F4CCCCC", "overflow_factor": "0x3F8CCCCD", "no_road_multiplier": "0x3F4CCCCD", "funding_curve_empty": false}}
+  ]
+}
