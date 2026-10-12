@@ -23,7 +23,11 @@
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSystemService.h"
+#include "cISC4BudgetSimulator.h"
+#include "cISC4DepartmentBudget.h"
+#include "cISC4LineItem.h"
 #include "cISC4Simulator.h"
+#include "SC4Percentage.h"
 #include "cRZBaseString.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -52,6 +56,11 @@ int g_failures = 0;
 constexpr uint32_t kCLSID_Simulator = 0x2990C1E5;
 constexpr uint32_t kIID_cISC4Simulator = 0x8695664E;
 constexpr uint32_t kDirectorID = 0x5C7A43E1;
+constexpr uint32_t kCLSID_Budget = 0xE990BE01;
+constexpr uint32_t kCLSID_Department = 0xE990BFFC;
+constexpr uint32_t kCLSID_LineItem = 0xAA313C9F;
+constexpr uint32_t kIID_cISC4BudgetSimulator = 0x6772BD23;
+constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -119,10 +128,12 @@ int main(int argc, char** argv) {
             CHECK(classes.empty());
             void* obj = nullptr;
             CHECK(!director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, &obj));
+            CHECK(!director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, &obj));
         }
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
+        CHECK(text.find("subsystem 'budget': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("object created") == std::string::npos);
         if (g_failures == 0) std::printf("plugin disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -144,7 +155,9 @@ int main(int argc, char** argv) {
 
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
-        CHECK(classes.size() == 1 && classes[0] == kCLSID_Simulator);
+        CHECK(classes.size() == 4);
+        CHECK(classes.size() == 4 && classes[0] == kCLSID_Simulator && classes[1] == kCLSID_Budget &&
+              classes[2] == kCLSID_Department && classes[3] == kCLSID_LineItem);
 
         // Another process (an editor, a tail) holding the log open must not stop the logging.
         HANDLE reader = CreateFileA(log.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
@@ -204,6 +217,57 @@ int main(int argc, char** argv) {
             CHECK(sim->GetSimDateNumber() == 2451545);
             CHECK(sim->Release() == 0);
         }
+
+        // The budget without a game: no city, no message server, no exemplar
+        // (code defaults; difficulty 0 without a city).
+        cISC4BudgetSimulator* budget = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, reinterpret_cast<void**>(&budget)));
+        if (budget != nullptr) {
+            CHECK(budget->Init());
+            CHECK(budget->GetTotalFunds() == 500000);
+            CHECK(budget->DepositFunds(100));
+            CHECK(!budget->WithdrawFunds(600000));
+            CHECK(budget->GetTotalFunds() == 500100);
+            CHECK(budget->GetTaxRate(0) == 9.0f);
+
+            cISC4DepartmentBudget* dept = budget->CreateDepartmentBudget(0x28F55A9F, 7);
+            CHECK(dept != nullptr);
+            if (dept != nullptr) {
+                CHECK(dept->GetDepartmentID() == 0x28F55A9F);
+                CHECK(budget->GetDepartmentBudget(0x28F55A9F) == dept);
+                cISC4DepartmentBudget* viaClsid = nullptr;
+                CHECK(dept->QueryInterface(kCLSID_Department, reinterpret_cast<void**>(&viaClsid)));
+                CHECK(viaClsid == dept);
+                if (viaClsid != nullptr) viaClsid->Release();
+                cISC4DepartmentBudget* viaIid = nullptr;
+                CHECK(dept->QueryInterface(kIID_cISC4DepartmentBudget, reinterpret_cast<void**>(&viaIid)));
+                if (viaIid != nullptr) viaIid->Release();
+
+                cISC4LineItem* line = dept->CreateLineItem(1, false);
+                CHECK(line != nullptr);
+                if (line != nullptr) {
+                    cISC4LineItem* viaLineClsid = nullptr;
+                    CHECK(line->QueryInterface(kCLSID_LineItem, reinterpret_cast<void**>(&viaLineClsid)));
+                    if (viaLineClsid != nullptr) viaLineClsid->Release();
+                    CHECK(line->GetID() == 1);
+                    CHECK(line->SetFullExpenses(1000));
+                    SC4Percentage half{0.5f};
+                    CHECK(dept->SetFundingPercentage(half, 0));
+                    CHECK(dept->GetFundingPercentage()->percentage == 0.5f);
+                    CHECK(line->GetCurrentExpenses() == 500);
+                    CHECK(dept->GetLineItem(1) == line);
+                }
+                CHECK(budget->GetTotalMonthlyExpense() == 500u);  // low 32 bits of the 64-bit value
+                CHECK(budget->IssueBond(10000));
+                CHECK(budget->GetTotalBorrowed() == 10000);
+                CHECK(budget->GetTotalFunds() == 510100);
+                CHECK(budget->GetTotalMonthlyExpense() == 500u + static_cast<uint32_t>(budget->GetMonthlyPaymentForLoan(10000)));
+            }
+            CHECK(budget->Shutdown());
+            CHECK(budget->GetDepartmentBudget(0x28F55A9F) == nullptr);
+            CHECK(budget->GetTotalFunds() == 510100);  // kept across Shutdown
+            CHECK(budget->Release() == 0);
+        }
         if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
@@ -254,6 +318,16 @@ int main(int argc, char** argv) {
     CHECK(text.find("OnTick #1 ") != std::string::npos);
     CHECK(text.find("HiddenResume() -> 1 (pause=0 hidden=0") != std::string::npos);
     CHECK(text.find("cFC4Simulator destroyed") != std::string::npos);
+    CHECK(text.find("subsystem 'budget': enabled (3 classes replaced)") != std::string::npos);
+    CHECK(text.find("cSC4BudgetSimulator object created") != std::string::npos);
+    CHECK(text.find("budget: tuning exemplar unavailable; using the code defaults") != std::string::npos);
+    CHECK(text.find("budget: no simulator; agents not registered") != std::string::npos);
+    CHECK(text.find("budget: game-data registry node 'budget' not published (stub)") != std::string::npos);
+    CHECK(text.find("budget Init: ok=1") != std::string::npos);
+    CHECK(text.find("budget post 0x0772FAD4") != std::string::npos);  // FundsChanged (skipped: no server)
+    CHECK(text.find("budget IssueBond(10000) -> 1 (borrowed 10000)") != std::string::npos);
+    CHECK(text.find("budget Shutdown") != std::string::npos);
+    CHECK(text.find("cFC4BudgetSimulator destroyed") != std::string::npos);
 
     FreeLibrary(h);
     CHECK(ReadFile(log).find("DLL_PROCESS_DETACH (FreeLibrary)") != std::string::npos);

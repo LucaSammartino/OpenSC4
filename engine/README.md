@@ -9,21 +9,23 @@ gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anyt
 | [`core/`](core/) | `fc4-core`: the portable simulation core. No GZCOM or OS types, no `unsafe`. | Rust |
 | [`capi/`](capi/) | `fc4-capi`: a stable C ABI over the core (`include/fc4.h`), built as a static library | Rust + C header |
 | [`conformance/`](conformance/) | Language-neutral JSON test vectors (the migration contract) and their Rust runner | JSON + Rust |
-| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director, the `cISC4Simulator` adapter over the C ABI, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
-| [`tests/`](tests/) | `capi_smoke` (drives the C ABI from C++ with the plugin's compiler and CRT) and `message_test` (foundations §7 item 12) | C++17 |
+| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director with a subsystem table, the `cISC4Simulator` adapter, the budget classes (`cISC4BudgetSimulator`, `cISC4DepartmentBudget`, `cISC4LineItem`), stream and property helpers, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
+| [`tests/`](tests/) | `capi_smoke` (drives the C ABI from C++ with the plugin's compiler and CRT), `message_test` (foundations §7 item 12) and `plugin_load_test` (loads the DLL like a host and drives the simulator and the budget) | C++17 |
 | `third_party/gzcom-dll/` | gzcom-dll SDK (LGPL-2.1+), git submodule | C++ |
 
 ```
 SimCity 4.exe ── GZCOM ──► FreeCity4.dll (plugin/, C++)
-                              cFC4Director  ─ registers CLSID 0x2990C1E5
+                              cFC4Director  ─ registers the classes of FC4Subsystems.cpp
                               cFC4Simulator ─ cISC4Simulator, cIGZSerializable,
                                               cIGZSystemService, cIGZMessageTarget2
+                              cFC4BudgetSimulator, cFC4DepartmentBudget, cFC4LineItem
                                      │  fc4.h (C ABI)
                                      ▼
                            fc4_capi.lib (capi/, Rust staticlib)
                                      │
                                      ▼
-                           fc4-core (core/, Rust): Simulator, julian, save
+                           fc4-core (core/, Rust): simulator, budget, streams, class-object
+                           store, variants and property holders, curves, RNGs
 ```
 
 The C ABI is the seam between the two languages. A future all-Rust GZCOM layer can replace `plugin/` and keep
@@ -101,8 +103,15 @@ plugin.
      host has been identified as the exact 1.1.641 executable. The log shows each check (`compat: …`) and the
      published values (`calibration …`), both at `Init` and in every status block. `FC4_DISABLE_CALIBRATION=1`
      turns off the writes (for A/B tests).
-3. **A/B against the original:** set `FC4_DISABLE_SIMULATOR=1` in the environment that starts the game. The DLL
-   still loads and logs `PASSTHROUGH`, but it does not register the class, so the game's own simulator runs.
+   - Budget: `budget Init: …` when a city opens (funds, departments, bonds, tax rates), `budget Read/Write`,
+     cheats and bonds as they happen, and three `budget settlement: …` lines each month: funds before and after
+     with income and expense, the tax of each of the 12 groups with its rate, and the bonds (count, borrowed,
+     monthly payments). `FC4_BUDGET_FIX_CS3=1` enables the intended CS$$$ tax weight (budget spec §13.1; off by
+     default, as in the original).
+3. **A/B against the original:** `FC4_DISABLE` takes a comma- or space-separated list of subsystems to leave to
+   the game (`simulator`, `budget`, or `all`), e.g. `FC4_DISABLE=budget`. `FC4_DISABLE_SIMULATOR=1` still works.
+   The DLL still loads, but it does not register those classes, so the game's own ones run. The simulator and the
+   budget only talk through the SDK interfaces, so either can be switched off alone.
 
 ## Conventions
 

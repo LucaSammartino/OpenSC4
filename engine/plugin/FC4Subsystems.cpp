@@ -26,6 +26,9 @@
 
 // Factories (defined next to each class).
 cIGZUnknown* CreateFC4Simulator();
+cIGZUnknown* CreateFC4BudgetSimulator();
+cIGZUnknown* CreateFC4DepartmentBudget();
+cIGZUnknown* CreateFC4LineItem();
 
 namespace fc4 {
 namespace {
@@ -36,8 +39,16 @@ const ClassEntry kSimulatorClasses[] = {
     {0x2990C1E5, "cSC4Simulator", &CreateFC4Simulator},
 };
 
+// docs/specs/budget.md §1: the budget simulator, departments and line items.
+const ClassEntry kBudgetClasses[] = {
+    {0xE990BE01, "cSC4BudgetSimulator", &CreateFC4BudgetSimulator},
+    {0xE990BFFC, "cSC4DepartmentBudget", &CreateFC4DepartmentBudget},
+    {0xAA313C9F, "cSC4LineItem", &CreateFC4LineItem},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0])},
+    {"budget", nullptr, kBudgetClasses, sizeof(kBudgetClasses) / sizeof(kBudgetClasses[0])},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

@@ -119,12 +119,16 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Streams.h
         plugin/FC4Subsystems.cpp
         plugin/FC4Subsystems.h
+        plugin/cFC4Budget.cpp
+        plugin/cFC4Budget.h
+        plugin/FC4BudgetHost.cpp
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/SC4String.cpp"
-        "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp")
+        "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp"
+        "${FC4_GZCOM_DIR}/src/StringResourceManager.cpp")
     target_include_directories(FreeCity4 PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_definitions(FreeCity4 PRIVATE
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
