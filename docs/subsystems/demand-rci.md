@@ -352,12 +352,16 @@ scheduler's resume mechanism.
 
 ## 5. cSC4ResidentialSimulator (population, EQ/HQ, age)
 
+> **Superseded by `docs/specs/residential.md`** (Windows-verified, §5.5–§5.6 and §14). This section is kept as
+> background; the corrections listed in residential.md §14 have been applied below.
+
 Registered at levels 0, 10, 6, 4 with flags 2 [Mac Init]. Of those it **handles only NewMonth and NewDay**
 (`00700350`). SimBegin and SimIdle are ignored. It also handles `0x99EF1142/0x99EF1143` (building added/removed,
 data3 must equal `0x278128A0`) → `DoBuildingChanged(occupant, added)`. That keeps the school/hospital lists.
 **[confirmed]**
 
-- NewMonth: `if state(+0x94 Mac / +0x90 Win) == 10: state = 0, overdue = 0 else overdue = 1`.
+- NewMonth: `if state == 10: state = 0, overdue = 0 else overdue = 1`. The state is at the object's offset
+  `+0x94` on Windows (`+0x90` is the same field relative to the message-target sub-object).
 - NewDay: `DoDailySimulation(5)` (`006FF520`), a state machine that does one month of work spread over days.
   Order:
   `0` strike checks (`DoMonthlyStrikeCheck` for schools/hospitals), ordinance effects, sort new school/hospital
@@ -370,7 +374,8 @@ data3 must equal `0x278128A0`) → `DoBuildingChanged(occupant, added)`. That ke
 ### 5.1 DoPopulationChange(tract x, z) (`006FA450`) **[confirmed Mac, Windows matches by constants]**
 Grids: `pop[w]` (u16, +0x48…), `EQ[w]` (float, +0x7C…), `HQ[w]` (float, +0x88…), `age` (u8, +0x54). w = $, $$, $$$.
 ```
-pollHQ = curve_air(airPoll) + curve_water(waterPoll) + curve_garbage(garbage)   // 0x6941B022 / 0xA941B028 / 0xC941B02E
+p_q = (average of pollution.GetPollutionValue(q, ·) over the tract's cells) mod 256  // SOURCE grids, low byte only
+pollHQ = curve_air(p_0) + curve_water(p_1) + curve_garbage(p_2)   // 0x6941B022 / 0xA941B028 / 0xC941B02E
 for w:
     EQ[w] = max(0, EQ[w] - eqDecay)                   // eqDecay = 0xC929C433 × ordinance decay modifiers
     HQ[w] = max(0, HQ[w] - (hqDecay + pollHQ))        // hqDecay = 0x0929C439 × ordinance modifiers
@@ -380,14 +385,17 @@ for w:
     new = growthDeveloper[w].GetPopulationMap()(x, z); old = pop[w]; pop[w] = new; cityPop += new
     if new > old:                                     // newcomers bring the wealth's default EQ/HQ
         k = EQ[w] > 0 ? 2 : 1
-        EQ[w] = min(200, (EQ[w]*old + ((EQ[w] + newEQ[w]) / k) * (new-old)) / new)   // newEQ = 0xC929CC58/0x0929CC65/0x2929CC6B
-        HQ[w] = min(200, same with newHQ[w])                                           // 0xC929CC8D/0x6929CC92/0x4929CC97
+        EQ[w] = min(200, (EQ[w]*old + ((EQ[w] + newEQ[w]) / k) * (new-old)) / new)   // newEQ = 0xC929CC58/0x0929CC65/0x2929CC6B (shipped 20/40/60)
+        HQ[w] = min(200, same with newHQ[w])                                           // 0xC929CC8D/0x6929CC92/0x4929CC97 (shipped 20/40/60)
     if new == 0: EQ[w] = HQ[w] = 0
 age = (Σnew == 0) ? 0 : age + (month == 12 ? 1 : 0)
 if anyone moved in: age = (Σ_w (new-old)_w * newAge[w] + Σ_w old_w * age) / Σ_w new_w   // ages 0xC929C652/0x0929CC30/0x0929CC36 (25/30/35)
-if GetCellLifeExpectancy(x, z) < age:                 // generational reset
-    age = 0xCA027307; EQ[w] *= 0xCA027325 (0.7); HQ[w] *= 0xCA027328 (0.7)
-accumulate Σ age·pop, and per age bucket b = min(19, (age-20)/3): pop and EQ·pop
+LE = low byte of GetCellLifeExpectancy(4x, 4z)        // cell coordinates, evaluated after the EQ/HQ updates
+if LE < age:                                          // generational reset
+    EQ[w] *= 0xCA027325; HQ[w] *= 0xCA027328          // code default 0.7, shipped 80 % → 0.8
+    age = 0xCA027307 (40)
+accumulate Σ LE·pop (not age·pop), and per age bucket b = (age-20)/3 truncated, any b outside 0..19 → 19
+(so ages 0..17 land in the oldest bucket): pop and trunc(EQ)·pop
 ```
 **Residential population is not computed by this class.** It copies the growth developers' population maps.
 Those maps are written by the tract and lot developers when buildings grow and fill; see the development
@@ -396,7 +404,8 @@ subsystem. `GetPopulation()` returns `Σ pop` (+0xA4). **[confirmed]**
 - `GetCellLifeExpectancy = curve_0x6941A67F(GetCellHQ)` (default line (0,0)–(200,200)); `GetCellWorkforcePercent =
   curve_0x4941A92B(LE) / 100` (default (0,0)–(200,100)). Tuning exemplar `0x6534284A/0xE7E2C2DB/0x69189C84`.
   **[confirmed]**
-- **PostPopulationChange** (`006F8070`): history `0x2A5E7009` = population-weighted average age. Then, for 9 age
+- **PostPopulationChange** (`006F8070`): history `0x2A5E7009` = population-weighted **average life expectancy**
+  (Σ LE·pop ÷ pop), not the average age. Then, for 9 age
   groups g, `count_g = Σ_b curve_{0xEA540621+g}(21+3b)/100 · pop_b` → history `0xCA545CAB+g`, and the average EQ of
   that group → `0xCA545CCA+g`. **[confirmed Mac]**
 
