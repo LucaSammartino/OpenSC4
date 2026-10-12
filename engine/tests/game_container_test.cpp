@@ -51,6 +51,7 @@ int g_failures = 0;
 class CountingAllocator final : public cIGZAllocatorService {
 public:
     std::map<void*, bool> blocks;  // pointer -> live
+    std::map<void*, uint32_t> sizes;  // pointer -> bytes requested
     int allocs = 0, frees = 0, doubleFrees = 0, foreignFrees = 0;
 
     bool QueryInterface(uint32_t, void** out) override {
@@ -62,6 +63,7 @@ public:
     void* Allocate(uint32_t size) override {
         void* p = std::malloc(size == 0 ? 1 : size);
         blocks[p] = true;
+        sizes[p] = size;
         ++allocs;
         return p;
     }
@@ -89,6 +91,7 @@ public:
     void Reset() {
         for (auto& b : blocks) std::free(b.first);
         blocks.clear();
+        sizes.clear();
         allocs = frees = doubleFrees = foreignFrees = 0;
     }
 };
@@ -426,6 +429,7 @@ int main() {
             const size_t n = std::strlen(kNames[i]);
             layoutOk = layoutOk && s.vtable == kFakeStringVtable && s.size() == n &&
                        std::memcmp(s.begin, kNames[i], n) == 0 && *s.end == 0 && s.capacityEnd == s.end + 1 &&
+                       g_stl.sizes[s.begin] == n + 1 &&  // exactly n + 1 bytes, as the game allocates
                        s.refCount == 0 && (*v)[i].groupID == static_cast<uint32_t>(i + 1);
         }
         CHECK(layoutOk);
