@@ -127,7 +127,7 @@ If not initialized:
 4. state := **1** (a cycle starts at the next day or idle call).
 5. Read the tuning (§10).
 6. Subscribe on the message server to: occupant inserted `0x99EF1142`, occupant removed `0x99EF1143`, ordinance
-   updated `0xC2C09554`, tuning reload `0xC53D10AA` *[inferred name]*, PostCityInit `0x26D31EC1`.
+   updated `0xC2C09554`, exemplar changed `0xC53D10AA` (foundations §5.2), PostCityInit `0x26D31EC1`.
 7. Register its `cIGZMessageTarget2` with the simulator (`AddAgent(target, level, "cSC4AuraSimulator", flags 2)`)
    at levels **0, 10, 4, 6**, in that order (simulator §4). Flags 2: enabled only when the city is established.
 8. Publish the `"aura"` node in the game-data registry (§4.3).
@@ -194,7 +194,7 @@ work is guaranteed (foundations §13).
 | Message | Behaviour |
 |---|---|
 | PostCityInit `0x26D31EC1` | Only if `reAddLandmarks` (§11.3): for every lot of the lot manager's safe lot iterator whose building's occupant has property `0x2781284F` (landmark): `OccupantChanged(occupant, remove)` then `OccupantChanged(occupant, add)` (§7). The flag is never cleared *[quirk]*; it only matters once per load. |
-| occupant inserted `0x99EF1142` / removed `0x99EF1143` | `occupant := void1`. If its property holder **has** property `0x029244DB` (presence test) → ignore *[inferred: a "not a real building" marker; plumbing does the same]*. Otherwise `OccupantChanged(occupant, add = (type == 0x99EF1142))` (§7). |
+| occupant inserted `0x99EF1142` / removed `0x99EF1143` | `occupant := void1`. If its property holder **has** property `0x029244DB` (presence test; the preview-occupant marker, foundations §5.2) → ignore. Otherwise `OccupantChanged(occupant, add = (type == 0x99EF1142))` (§7). |
 | ordinance updated `0xC2C09554` | `globalEffect := ordinance.GetCumulativeOffset(0xAA5B8407, 0)` (ordinance §6.1; int32). |
 | `0xC53D10AA` | if `data1 == 0xE7E2C2DB` and `data2 == 0xAA023079` (the tuning exemplar's group and instance) → re-read the tuning (§10). |
 
@@ -209,8 +209,8 @@ are `cSC4ResponseCurve` lookups (foundations §4); a step whose curve is missing
 If initialized: `cycleStartDay := simulator.GetSimDateNumber()`; → 2. (If not initialized the state stays 1.)
 
 ### 6.2 State 2 — park map
-`f := *budget.GetDepartmentBudget(0x8A4260A6).GetFundingPercentage()` (department `0x8A4260A6`, the parks
-department *[inferred; budget §12 lists it as "cruise ship"]*; funding as a fraction, 1.0 = 100 %; no null check).
+`f := *budget.GetDepartmentBudget(0x8A4260A6).GetFundingPercentage()` (department `0x8A4260A6`, Parks and
+Recreation, foundations §5.2; funding as a fraction, 1.0 = 100 %; no null check).
 For every tract: `park := rawPark > 0 ? trunc(rawPark × f) : rawPark`. → 3.
 
 ### 6.3 State 3 — landmark map (one department per call)
@@ -628,10 +628,10 @@ cleared (§5.2); the landmark-work grid reuses the landmark map's instance ID (�
 
 ## 16. Open questions
 
-1. Property `0x029244DB`: what it marks (occupants that the aura and plumbing ignore on insert/remove).
-2. Message `0xC53D10AA`: its name and sender (a tuning-reload / exemplar-changed notification is assumed).
-3. Department `0x8A4260A6`: parks & recreation (this spec, ordinance JuniorSportsLeague) versus "cruise ship"
-   (budget §12).
+1. *(resolved)* Property `0x029244DB` marks preview occupants (foundations §5.2).
+2. *(resolved)* Message `0xC53D10AA` is the "exemplar changed" notification posted by the exemplar resource code
+   (foundations §5.2).
+3. *(resolved)* Department `0x8A4260A6` is Parks and Recreation (foundations §5.2); budget §12 is corrected.
 4. The residential population grids' geometry: the aura indexes them with its own tract indices (S = 4); confirm in
    the residential spec that they have the same tract size.
 5. The time-slice helper's adaptive step (§6.5) is shared with other subsystems; its exact constants should be

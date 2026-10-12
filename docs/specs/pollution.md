@@ -113,7 +113,7 @@ loaded).
 | `lastMonthCost` | 0 | yes | int64; last garbage-disposal bill (§4.9) |
 | `costPerUnit` | 0, then tuning | no | `0xAA1F8AB7` |
 | `dirtyRadiation, dirtyAir, dirtyWater, dirtyGarbage` | false | yes | set by grid changes, cleared at end of cycle (§4.8) |
-| `effectsVisible` | **true** | no | toggled by message `0xC6CDBF1A` (§5.3) |
+| `effectsVisible` | **true** | no | set by PreViewLevelChange `0xC6CDBF1A` (§5.3): true only in the surface view |
 | `worstAir, worstWater, worstGarbage` | (0, 0, 0) | no | `(cellX, cellZ, value)` of the worst 8×8 block, refreshed by §4.10 |
 | `efficiency` | **0.0** | yes | sanitation efficiency (§4.7) |
 | `garbageSupply` | 0 | yes | int32 ≥ 0; garbage waiting for landfills ("valve") |
@@ -549,7 +549,7 @@ All are posted (queued) standard messages with data1..4 = 0 unless stated.
 | `0x66956814`, `0x66956816` | §5.1 |
 | `0x99EF1142` / `0x99EF1143` | occupant inserted / removed (§4.2) |
 | `0x26D31EC1` PostCityInit | §4.10 |
-| `0xC6CDBF1A` | `b := (message value == 1)` (standard-message compiled slot 15); if `b ≠ effectsVisible`: store it and run §4.10 |
+| `0xC6CDBF1A` PreViewLevelChange (foundations §5.2) | `b := (new view level == 1)`: the u32 that void2 (standard-message compiled slot 15, `GetVoid2`) points at; level 1 is the surface view, 2 subway, 3 water pipes. If `b ≠ effectsVisible`: store it and run §4.10 |
 | `0xCA1B151C` | re-read tuning (§7.1) |
 
 ## 6. Persistence (`cIGZSerializable`, `GetGZCLSID() = 0x8990C065`) *[compat]*
@@ -652,7 +652,7 @@ Curves are evaluated as in foundations §4.3 (clamped at both ends; empty → 0.
 
 | Property | Use |
 |---|---|
-| `0x029244DB` bool | skip all pollution handling |
+| `0x029244DB` bool | preview occupant (foundations §5.2): skip all pollution handling |
 | `0x27812851` s32[4], `0xAA5832F3` s32[4], `0x68EE9764` f32[4] | centre values, outer values, radii (tracts) |
 | `0xC8EBD131`, `0xA8EBCF0C`, `0x48EBD0B1` u32 | base capacity: water treatment, incinerator, waste-to-energy |
 | `0x88ED1059` | recycling percentage (list membership; capacity via slots 54/55) |
@@ -843,7 +843,8 @@ Findings:
 
 1. **Prop requester after load**: `AddPropRequester` is only called for a new city. Whether the prop developer
    restores requesters from its own save (so loaded cities still get garbage props) was not traced.
-2. `0xC6CDBF1A`: the name and sender of this message (it toggles `effectsVisible`) are unknown.
+2. *(resolved)* `0xC6CDBF1A` is PreViewLevelChange, sent synchronously by the 3D view; effects are visible only in
+   the surface view (foundations §5.2).
 3. The water effect is positioned at height 0 at a jittered block **corner**; whether that is intentional (sea
    level / water surface) is unknown *[inferred]*.
 4. `SetOccupantListUsedCapacity`: the exact recomputation of the share when a building is capped was not fully
@@ -923,6 +924,6 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
 20. **Prop share**: a 4 × 4-cell rect with garbage 2048 everywhere → 2048 / 32767 = 0.062502 → curve 5.0015 → 5.
 21. **Effects**: a block with average water 655 → s = curve(0.019990) = 0.99939 → a water effect is created (2
     `cRZRandomSuper` draws); average 33 → s = 0.0252 → no effect. Air effects are removed when `0xC6CDBF1A`
-    delivers 0, water effects are kept.
+    reports a new view level other than 1 (for example 3, the water-pipe view), water effects are kept.
 22. **Persistence**: write → read round trip is byte-identical; a version-3 record (no `decomposedLastMonth`) loads;
     a version-5 record is rejected; a version-2 record skips the extra string and the extra `u32`.

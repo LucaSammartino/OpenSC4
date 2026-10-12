@@ -278,6 +278,10 @@ developers in tuning order. A null developer (unknown ID) is not filtered: the o
 
 For the current developer, with D = its desirability map (`GetDesirabilityMap()`, an `int16` grid) the helper
 `ProcessTwoGridsWithCallback` (simgrid.md §7.3) maps D onto scratch's tracts and calls, for every scratch tract,
+the step below. The desirability map's tract size is the growth developer's tuning property `0x87CD6310`, which
+is **4** in all twelve shipped developer exemplars (`0x67CD5FA1` / `0x1010` … `0x4400`). With the shipped
+scratch tract size 2, D is the **coarser** grid: each desirability tract is applied unchanged to the 2 × 2
+scratch tracts it covers (the "A finer" case of simgrid §7.3) *[compat]*.
 
 ```
 e := desirabilityCurve present ? desirabilityCurve(float(d)) : float(d)
@@ -483,8 +487,8 @@ full pass); Intrinsic Max (`0x47E2C300[1]`) is never used; `GetModeAltitude` is 
    FPU-preserve), intermediate results are rounded to float32 first and values that land within 1e-7 of an integer
    can truncate differently (e.g. 5 × float32(−0.8) + 50). It is not known which mode the game uses during the
    simulation. Conformance tests avoid such boundaries.
-2. Shipped tract size of the growth developers' desirability maps (`0x87CD6310` in each developer exemplar) decides
-   which branch of the two-grid helper state 7 uses (simgrid.md §7.3); not needed for correctness.
+2. *(resolved)* The growth developers' desirability maps use tract size 4 (`0x87CD6310` = 4 in every shipped
+   developer exemplar), so state 7 uses the "A finer" branch of simgrid §7.3 (§7.4).
 3. Whether any shipped content lists more than one desirability developer (only then does the address-order
    question of §7.4 matter).
 
@@ -526,3 +530,6 @@ Shipped tuning unless stated; S = 2.
     LandValueMapChanged. With no zoned tract: 11 calls.
 16. Missing altitude curve: intrinsic keeps its previous contents (all 0 in a new city) and total = clamp[1,255] of
     the desirability terms only.
+17. Desirability mapping (shipped tract sizes: scratch 2, desirability 4), identity curve, weight 2.5: a
+    desirability tract (1, 2) holding 40 adds 100 to each of the scratch tracts (2, 4), (3, 4), (2, 5), (3, 5)
+    and to no other tract; a scratch tract value 100 there becomes 200.

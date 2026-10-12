@@ -835,7 +835,8 @@ Known department IDs (names inferred from the buildings that use them): `0xA2963
 `0x28F55A9F` fire, `0x09188F4C` education (+`0x4A538CC6` schools), `0x09188F42` health (+`0xAA538CB3`),
 `0x8910BC8A` power, `0xAA4014B4` water, `0x6A42A8F5` sanitation/landfill, `0xC921CEEB` transit, `0xC921CEEA`
 tolls, `0xEA59717A` civic/reward buildings, `0x2A5A723F` business-deal rewards, `0x8A416368` landmarks,
-`0x8A4260A6` cruise ship.
+`0x8A4260A6` Parks and Recreation (created by the park manager; the cruise-ship reward building is also charged to
+it; foundations §5.2, which corrects the earlier "cruise ship" label).
 
 ## 13. Original bugs (reproduced)
 

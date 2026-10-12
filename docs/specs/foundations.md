@@ -463,8 +463,25 @@ neighbours and service simulators.
 - *[compat]* Curve properties must be `float32` arrays. The original reinterprets the raw bytes of other value
   types as floats, and misbehaves for single-value properties. *[choice]* FreeCity4 converts integer arrays to
   float, and treats non-numeric or single-value properties as absent.
-- Loading returns false when there are no points. A **missing property** removes the curve. Each subsystem spec
-  says what an absent curve means for it.
+- Loading a **present** property first discards the curve's old segments, then builds the new ones (§4.2). It
+  returns false when there are no points; the curve is then empty (§4.3, zero points).
+- **A missing property: the behaviour is per caller** *[compat]* (corrects the earlier blanket rule "a missing
+  property removes the curve"; see Errata, M3 item 1). The shared loaders never delete a curve object. What a
+  missing exemplar or property does depends on what the caller does around the load, and there are four
+  patterns. Each subsystem spec must say which pattern applies to each of its curves, and what an absent or empty
+  curve means for it.
+
+  | Pattern | What the caller does | Exemplar or property missing | Users (verified call sites) |
+  |---|---|---|---|
+  | **keep** | loads in place with the "by exemplar key and property ID" loader, which fetches the exemplar, looks up the property and loads only if both exist | the curve keeps its **previous** segments (empty on the first load); the loader returns false | fire protection, police, power, budget, traffic, pollution's per-occupant curves |
+  | **default** | first rebuilds the curve from a code-default point list, then loads as in "keep" | the curve holds the **code default** | crime, plumbing (curves with a code default) |
+  | **empty** | first empties the curve (or uses a fresh temporary one), then loads as in "keep" | the curve is **empty** | pollution's tuning curves (pollution §9), pollution's temporary curves in `SimulationBegin` / `EndOfCycle` |
+  | **delete** | if the property is present, loads it (creating the curve object when needed); otherwise deletes its curve object. Aura and flammability always delete first and then create a new object when the property is present | the curve is **absent** (no object) and the caller takes its "no curve" path | land value (landvalue §8), aura (all curves), flammability (`0x29B4013D`), demand (`0x4A1F38B5`, `0x4A1F38B6`) |
+
+  "Keep" differs from the others only when tuning is re-read (another `Init` after `Shutdown`, or a tuning-reload
+  message) after the property disappeared, which shipped content never does. A present property with no points
+  always gives an empty curve. *[choice]* FreeCity4 implements the pattern stated per curve, and treats an empty
+  curve like an absent one only where the subsystem spec says so.
 
 ### 4.2 Construction *[compat]*
 
@@ -580,6 +597,30 @@ standard message with `SetType(T)` and `SetData1/2/3`. Unset fields stay 0. "voi
 copies strings, does not implement `GetExtra`/`SetExtra`, and its `GetHasData2..4` are wrong because of a bit test
 error. Our shim must implement its own message class or use the game's (through `GetClassObject`). It must not use
 the SDK's implementation.
+
+### 5.2 Shared IDs used by several simulators (resolved in M3)
+
+These IDs appear in several subsystem specs. Their meaning is defined once here.
+
+| ID | Kind | Meaning | Evidence |
+|---|---|---|---|
+| `0x029244DB` | occupant property, bool | **Preview occupant** *[inferred name]*. The lot-placement tool (the building model shown under the cursor before a lot is placed) and the toll-booth tool set it to true on the temporary occupants they create. Grid simulators ignore insert / remove / change messages for such occupants. Aura, crime, flammability and plumbing test only that the property **exists**; pollution tests that its value is **true**. The model maker also creates no shadow for them. | setters in the place-lot and toll-booth tools; readers in every grid simulator's occupant handler |
+| `0xC53D10AA` | message | **Exemplar changed** *[inferred name]*. Posted (`MessagePost`, normal priority) by the exemplar resource code when an exemplar resource is written out, and by the exemplar debug view when it updates one. data1 = the exemplar's group, data2 = its instance. Each simulator re-reads its tuning when (data1, data2) equals its tuning exemplar's group and instance. Shipped play never writes exemplars, so the message is not expected in a normal session; FreeCity4 must still handle it. | senders: exemplar factory write path, exemplar resource view |
+| `0xC6CDBF1A` / `0xC6CDBF1B` | message | **PreViewLevelChange / PostViewLevelChange** (names from the game's own message-name table). Sent synchronously (`MessageSend`) by the 3D view when its view level changes, Pre first and then Post. void1 points at the **old** level and void2 at the **new** level (u32 values, valid only during delivery). View levels: **1 = surface**, **2 = subway**, **3 = water pipes** *[inferred: the per-occupant view level is 2 for subway occupants and 3 for pipe occupants, otherwise 1]*. | sender: the 3D view's "set current view level"; readers: pollution (effects shown only when the new level is 1), landfill developer, pipe-burst disaster |
+| `0x8A4260A6` | department ID | **Parks and Recreation**. The park manager creates this department budget at `Init` when it does not exist and names it with LTEXT group `0x6A3FF01C`, instance `0xCA49375E` ("Parks and Recreation" in `SimCityLocale.dat`). The cruise-ship reward building's exemplar also charges this department (budget-department property `0xEA54D283`), which is where the earlier "cruise ship" label came from. | park manager `Init`; exemplar `RW43x30_Cruise_Ship_Building_03BC` |
+
+**Lot state and lot condition** (`cISC4Lot` compiled slots 33/34 `GetState`/`SetState` and 35/36
+`GetCondition`/`SetCondition`) are two different bytes:
+
+- State 4 is **abandoned**: the lot developer's "abandon building" sets state 4.
+- The condition is updated by the lot developer's per-lot update. A lot in state 3 gets a condition in 0..3, never
+  4. A lot in state 4 (abandoned) moves through conditions 1 → 2 → 3 → 4: it gets 1 at once, and then one more
+  step each time its "days since last state change" exceeds the lot developer's threshold. `SetCondition` on an
+  abandoned lot restarts that day counter, so each step takes the full threshold. Other states keep their
+  condition.
+- So **condition 4 means an abandoned lot at its last decay stage** *[inferred from the update rule; the enum has
+  no names in the binary]*. Crime's arson mask (crime §7) and flammability's abandonment multiplier `0x29B40134` (flammability §6) apply
+  only to such lots. Those specs read the **condition**, not the state.
 
 ## 6. Random numbers
 
@@ -1524,3 +1565,11 @@ For the earthquake, the two integers are world coordinates (budget §4.3), whate
    return), `cISC4BuildingDevelopmentSimulator::GetCostOfOccupantDemolition` (foundation overload),
    `cISC4HistoryWarehouse::Coalesce`, and `cISC4RegionalCity` (neighbors spec: setters take `double`,
    `GetWorldBaseElevation(float)` is a setter).
+
+## Errata / clarifications (M3)
+
+1. **Missing curve properties** (§4.1). The earlier text said that a missing property removes the curve. That is
+   true only for callers that delete their own curve object (land value, aura, flammability, demand). The common
+   "load by exemplar key and property ID" loader returns false and leaves the curve unchanged, so its callers end
+   up with the previous, the code-default or an empty curve, depending on what they did before the load. §4.1 now
+   lists the four patterns; every subsystem spec states its pattern per curve.

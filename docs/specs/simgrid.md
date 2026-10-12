@@ -210,9 +210,38 @@ Consequences:
    load) must expose a compatible `vector<vector<T>>` through slots 24/25.
 2. **FreeCity4 must not register the SimGrid class IDs** in its DLL unless its grids are layout-compatible: the
    class store would then create our grids for the original simulators, which write grid memory directly.
-3. Recommended *[choice]*: replacement simulators use the **game's own** grid class, created with
-   `GZCOM()->GetClassObject(0x49B9E60x, 0xC9BD939A, &p)`, and access values through the interface or through
-   `GetGridData` as described here. Old saves then load unchanged.
+3. Replacement simulators therefore use the **game's own** grid class (§6.4, normative), and access values
+   through the interface or through `GetGridData` as described here. Old saves then load unchanged.
+
+### 6.4 Grid ownership rule *[compat]* (normative)
+
+This rule binds every FreeCity4 replacement of a subsystem that owns, creates or hands out `cISC4SimGrid<T>`
+objects (land value, pollution, crime, aura, flammability, power, plumbing, fire and police protection, flora,
+growth developers, and any later one).
+
+1. **Create grids only through GZCOM, using the game's own grid classes.** A replacement must obtain every grid
+   it owns with `GZCOM()->GetClassObject(clsid, 0xC9BD939A, &p)`, where `clsid` is the class ID of the element type
+   in §2 (`0x49B9E602`..`0x49B9E60B`; never `0x49B9E600`, which is not registered). The returned object already
+   holds one reference for the caller *[inferred: the factory returns a count-0 object and the GZCOM
+   `QueryInterface` adds one]*. Then call `Init()`, `SetTractSize(S)` and `SetInstanceID(id)` in that order, with
+   the S and instance ID the subsystem spec gives. A fresh grid has S = 0 and no data until `SetTractSize`.
+2. **Never register the SimGrid class IDs.** The FreeCity4 DLL must not register a factory for any of
+   `0x49B9E600`..`0x49B9E60B`. GZCOM gives DLL registrations precedence, so a registration would make the class
+   store create FreeCity4 objects for **original** simulators, which read and write grid memory directly (§6.3).
+3. **Never implement `cISC4SimGrid` in FreeCity4 code that original code can reach.** Any grid pointer returned
+   from a replaced interface, or saved by reference, must be a game grid created under rule 1. The FreeCity4 core
+   may keep private grids of its own type (for example a Rust array) only if it copies their values into the
+   game grids before any original code can read them, and it must treat the game grid as the persistent copy
+   (§5 is the save format of the game grid; FreeCity4 writes only references to it).
+4. **Save and load through references.** A replacement writes its grids with `WriteGZSerializable` (foundations
+   §2.7) and reads them with `ReadGZSerializable(…, 0xC9BD939A, …)`; the class store then saves and restores the
+   grid objects with the game's own `Write`/`Read` (§5). A grid restored this way keeps its saved geometry; the
+   subsystem spec states whether `Init` resizes it.
+5. **Access.** Values may be read and written through the interface (slots 7, 22, 26, 27) or through the
+   `GetGridData` pointer with the §6.3 layout. When writing through the pointer, never change the vectors'
+   sizes or reallocate them (only `SetTractSize` and `Read` may); the game's allocator owns that memory.
+6. **Lifetime.** Getters hand out the grid without `AddRef` (as the original does), so the grid must stay alive
+   from `Init` until the owner's `Shutdown`, and the owner releases each grid exactly once in `Shutdown`.
 
 ## 7. Shared map utilities (`cSC4MapUtilities`) *[compat]*
 

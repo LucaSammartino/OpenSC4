@@ -129,7 +129,7 @@ agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overlo
 | `0x99EF1142` occupant inserted | occupant = `void1`. Skip it if it has property `0x029244DB`. Otherwise apply its crime effect with sign + (§6.10) |
 | `0x99EF1143` occupant removed | the same, with sign − |
 | `0xC2C09554` OrdinanceUpdated | ordinance factor := `GetCumulativeFactor(0x28ED0380, 0)` of the ordinance simulator |
-| `0xC53D10AA` exemplar reloaded | data1 = group, data2 = instance. Group `0xE7E2C2DB` and instance `0xC8E8F6C5`: re-read the tuning (§8). Group `0xEA12F32C`: reload all crime types (§7) |
+| `0xC53D10AA` exemplar changed (foundations §5.2) | data1 = group, data2 = instance. Group `0xE7E2C2DB` and instance `0xC8E8F6C5`: re-read the tuning (§8). Group `0xEA12F32C`: reload all crime types (§7) |
 
 **Pipeline** (`DoIdle`, one step per call):
 
@@ -376,7 +376,7 @@ are type `0x7AB50E44`, group `0x1ABE787D`.
 | 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] |
 
 Purpose byte 9 is bit 8 (`0x100`), the value used for "no purpose / no building" (§6.7). "Condition [3]" is bit 2,
-which matches lot condition 4 only.
+which matches lot condition 4 only: an abandoned lot at its last decay stage (foundations §5.2).
 
 ## 8. Tuning *[compat]*
 
@@ -403,8 +403,7 @@ used here leaves the curve unchanged when the property is absent.
 
 Other properties used: building `0xCA5B9306` (crime effect `{m, r}`, §6.10); prop `0x8AA864D5` (the prop's
 crime incident type, read by the prop manager into `PropProfile.crimeIncidentID`; 0 = generic crime prop);
-occupant property `0x029244DB` (occupants carrying it are ignored by §6.10 *[inferred: preview or temporary
-occupants]*).
+occupant property `0x029244DB` (preview occupants, foundations §5.2; occupants carrying it are ignored by §6.10).
 
 - *[quirk]* If the exemplar is **missing**, only the three scalars are reset. The curves keep their previous
   contents, which are empty in a fresh process, and an empty curve is undefined (foundations §4.3). *[choice]*
@@ -657,10 +656,12 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 
 1. Does anything post OrdinanceUpdated `0xC2C09554` after a load? If not, a loaded city ignores crime ordinances
    until one is toggled (§4.1 step 9).
-2. The meaning of lot condition values 0–6 (condition 4 is the only one arson can hit *[inferred: abandoned]*),
-   and of building purposes 1–9 (purpose 5 is the one excluded from most masks).
-3. The meaning of occupant property `0x029244DB` and of occupant group `0x4102`. The IID `0xA9B40F05` is
-   presumably `cISC4Automaton`.
+2. Lot condition values: *(partly resolved)* condition 4, the only one arson can hit, is an abandoned lot at its
+   last decay stage; occupied lots get 0..3 (foundations §5.2). Conditions 5 and 6 (accepted by
+   `CalculateEconomicFactors`) and building purposes 1–9 (purpose 5 is the one excluded from most masks) are
+   still unknown.
+3. *(partly resolved)* Occupant property `0x029244DB` marks preview occupants (foundations §5.2). The meaning of
+   occupant group `0x4102` is unknown. The IID `0xA9B40F05` is presumably `cISC4Automaton`.
 4. The order of the crime type list depends on the resource manager's key-list order. It decides the walk in
    §6.7, so it must be confirmed (instance ascending is assumed in test 9).
 5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.

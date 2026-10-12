@@ -147,8 +147,8 @@ One agent registration: **level 4 (SimNewDay) only, flags 2** (runs only in an e
 | `0xE99B3D4D` ConditionChanged | `u := msg.GetIGZUnknown()`; if null, stop. `QueryInterface(u, 0xE818FCED cISC4Lot)`; if it fails, stop. `b := lot.GetBuilding()`; if non-null, `OccupantUpdate(b.AsOccupant(), add = false)` (a full recompute of the building's tracts). Release the lot. No `0x029244DB` check here. |
 | anything else | nothing. |
 
-Property `0x029244DB` (name unknown) marks occupants every grid simulator skips; it is also tested by the lot
-placement tool, so it plausibly marks preview / ghost occupants *[inferred]*.
+Property `0x029244DB` is the **preview occupant** marker (foundations §5.2): the lot-placement and toll-booth tools
+set it on the temporary occupants they show under the cursor, and every grid simulator skips those occupants.
 
 Same-day ordering: the day agent reads the plumbing simulator's watered state (`IsCellWatered`) and the zone
 manager's zone types as they stand when it runs. No result of another level-4 agent of the same day is needed
@@ -509,9 +509,12 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
 
 ## 15. Open questions
 
-1. Lot condition value 4 is read as "abandoned" from the tuning name; confirm with a save containing an
-   abandoned building (the raw value of its tracts should be ×1.5).
-2. Meaning of occupant property `0x029244DB` (preview/ghost marker?) and of fire cause 5.
+1. *(resolved)* Lot condition 4 is an abandoned lot at its last decay stage (foundations §5.2): the lot developer
+   raises an abandoned lot's condition 1 → 2 → 3 → 4 over time, and occupied lots never reach 4. A freshly
+   abandoned building therefore gets the abandonment multiplier only after the decay delay. A save with a
+   long-abandoned building should still confirm the raw value.
+2. *(resolved)* Occupant property `0x029244DB` marks preview occupants (foundations §5.2). Fire cause 5 is still
+   unknown.
 3. Whether the occupant manager still lists an occupant while RemoveOccupant is delivered (§6.3).
 4. Who, if anyone, reads SimCycleComplete `0x08F415FE` and history type `0x2A11CB48` (graph data files?).
 5. The x87 precision mode in effect during the simulation (double rounding in `roundHE`); irrelevant for
