@@ -49,8 +49,9 @@ extern "C" {
  * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5);
  * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref);
  * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item);
- * 7 = adds fc4_department_find_local_funding_percent (budget erratum). */
-#define FC4_ABI_VERSION 7u
+ * 7 = adds fc4_department_find_local_funding_percent (budget erratum);
+ * 8 = adds the land value simulator (fc4_landvalue). */
+#define FC4_ABI_VERSION 8u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -615,6 +616,105 @@ bool fc4_line_item_set_display_flag(fc4_line_item* l, uint32_t flag, bool on);
 bool fc4_line_item_is_local(fc4_line_item* l);
 uint64_t fc4_line_item_get_owner(const fc4_line_item* l); /* department token or 0 */
 
+/* ---- land value (docs/specs/landvalue.md, docs/specs/simgrid.md) --------------
+ * One core object fronted by the GZCOM land value simulator. Its grids are the
+ * GAME's own cSC4SimGrid objects (simgrid.md §6.3: other subsystems read their
+ * memory directly), created by the host through GZCOM and held by the core as
+ * TOKENS (interface pointers). The core owns one reference per grid token it
+ * holds: the one create_grid returns, or the one a stream read hands over; it
+ * gives it back with host->release. Grid values cross the ABI as flat arrays,
+ * x outer, z inner (count_x * count_z values of the grid's geometry). */
+typedef struct fc4_landvalue fc4_landvalue;
+
+typedef struct fc4_grid_geometry {
+    int32_t tract_size, shift, count_x, count_z;
+    float width_x, width_z, inv_width_x, inv_width_z;
+} fc4_grid_geometry;
+
+#define FC4_GRID_U8  0u /* cSC4SimGrid<uint8_t>, CLSID 0x49B9E602 */
+#define FC4_GRID_F32 1u /* cSC4SimGrid<float>,   CLSID 0x49B9E60A */
+
+/* What land value needs from the game (landvalue.md §12). Missing callbacks
+ * behave as "nothing there" (0, false, no grid). */
+typedef struct fc4_landvalue_host {
+    uint32_t struct_size; /* sizeof(fc4_landvalue_host) */
+    void* user;
+    void (*terrain_cells)(void* user, int32_t* x, int32_t* z); /* CellCountX/Z */
+    bool (*is_land_vertex)(void* user, uint32_t x, uint32_t z);
+    float (*altitude)(void* user, float x, float z);
+    float (*min_allowed_height)(void* user);
+    float (*max_allowed_height)(void* user);
+    uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    /* Lot developer GetAreaSlope({x1, z1, x2, z2}, true), inclusive cells. */
+    float (*area_slope)(void* user, int32_t x1, int32_t z1, int32_t x2, int32_t z2);
+    uint64_t (*developer)(void* user, uint32_t developer_type); /* growth developer or 0 */
+    uint64_t (*desirability_map)(void* user, uint64_t developer); /* int16 grid (borrowed) or 0 */
+    /* AddRef, Init, SetTractSize, SetInstanceID; returns the grid with one
+     * reference for the core, or 0. */
+    uint64_t (*create_grid)(void* user, uint32_t kind, int32_t tract_size, uint32_t instance_id);
+    void (*grid_geometry)(void* user, uint64_t grid, fc4_grid_geometry* out);
+    void (*grid_set_tract_size)(void* user, uint64_t grid, int32_t tract_size);
+    void (*grid_read_u8)(void* user, uint64_t grid, uint8_t* out, size_t count);
+    void (*grid_read_i16)(void* user, uint64_t grid, int16_t* out, size_t count);
+    void (*grid_write_u8)(void* user, uint64_t grid, const uint8_t* values, size_t count);
+    void (*grid_write_f32)(void* user, uint64_t grid, const float* values, size_t count);
+    void (*grid_shutdown)(void* user, uint64_t grid);
+    void (*release)(void* user, uint64_t grid);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*post)(void* user, uint32_t msg_type); /* type-only MessagePost */
+} fc4_landvalue_host;
+
+/* The tuning exemplar (§8). A NULL array means the property is absent (a
+ * present empty array needs a non-NULL pointer). */
+typedef struct fc4_landvalue_tuning {
+    uint32_t struct_size; /* sizeof(fc4_landvalue_tuning) */
+    uint32_t has_tract_size;
+    int64_t tract_size;
+    const int64_t* intrinsic; size_t intrinsic_count;
+    const int64_t* wealth; size_t wealth_count;
+    const int64_t* water; size_t water_count;
+    const float* altitude_curve; size_t altitude_curve_count;
+    const uint32_t* developer_ids; size_t developer_id_count;
+    const float* developer_weights; size_t developer_weight_count;
+    const float* desirability_curve; size_t desirability_curve_count;
+} fc4_landvalue_tuning;
+
+/* Diagnostics. */
+typedef struct fc4_landvalue_state {
+    uint32_t struct_size;
+    uint8_t initialized, dirty, ignore_zoning, average_land_value;
+    uint32_t pipeline_state; /* 0..8 running, 9 finished */
+    uint32_t developer_count;
+    int32_t sum, count;
+    float min_alt, max_alt, mean_alt, mode_alt, pivot, low_range, high_range;
+    int32_t top_index;
+} fc4_landvalue_state;
+
+/* The host table is copied. NULL if it is missing or too small. */
+fc4_landvalue* fc4_landvalue_create(const fc4_landvalue_host* host);
+/* Releases grid references still held (a loaded object never initialised). */
+void fc4_landvalue_destroy(fc4_landvalue* lv);
+/* Init / Shutdown, core part (§4.1 steps 2-7 and 10; §4.2 grids and curves).
+ * tuning NULL = no exemplar (current values stay). */
+bool fc4_landvalue_init(fc4_landvalue* lv, const fc4_landvalue_tuning* tuning);
+bool fc4_landvalue_shutdown(fc4_landvalue* lv);
+/* DoMessage (§5): always true. data3 is the SimIdle budget in ms. */
+bool fc4_landvalue_handle_message(fc4_landvalue* lv, uint32_t msg_type, int64_t data3);
+/* Step(budget) (§6): completes at most one pipeline state. */
+void fc4_landvalue_step(fc4_landvalue* lv, uint32_t budget_ms);
+/* Grid tokens, borrowed (no reference): 0 intrinsic, 1 total, 2 slope. */
+uint64_t fc4_landvalue_grid(const fc4_landvalue* lv, uint32_t which);
+/* GetLandValueType for a land value byte (the caller reads the total grid). */
+uint32_t fc4_landvalue_type_of(const fc4_landvalue* lv, uint8_t value);
+uint8_t fc4_landvalue_average(const fc4_landvalue* lv);
+float fc4_landvalue_mode_altitude(const fc4_landvalue* lv);
+bool fc4_landvalue_get_state(const fc4_landvalue* lv, fc4_landvalue_state* out);
+/* Persistence (§10). Grid references go out as fc4_ref {token, class}; on read
+ * they are requested with IID 0xC9BD939A and arrive with one reference each. */
+bool fc4_landvalue_write(const fc4_landvalue* lv, const fc4_ostream* out);
+bool fc4_landvalue_read(fc4_landvalue* lv, const fc4_istream* in);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -645,6 +745,10 @@ static_assert(sizeof(fc4_bond) == 56, "fc4_bond layout");
 static_assert(sizeof(fc4_budget_group) == 24, "fc4_budget_group layout");
 static_assert(sizeof(fc4_budget_state) == 432, "fc4_budget_state layout");
 static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 124 : 248), "fc4_budget_host layout");
+static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
+static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
+static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
+static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

@@ -33,6 +33,7 @@ cIGZUnknown* CreateFC4Simulator();
 cIGZUnknown* CreateFC4BudgetSimulator();
 cIGZUnknown* CreateFC4DepartmentBudget();
 cIGZUnknown* CreateFC4LineItem();
+cIGZUnknown* CreateFC4LandValueSimulator();
 
 namespace fc4 {
 namespace {
@@ -50,9 +51,18 @@ const ClassEntry kBudgetClasses[] = {
     {0xAA313C9F, "cSC4LineItem", &CreateFC4LineItem},
 };
 
+// docs/specs/landvalue.md §1. Off by default (M3 trial): `enable = landvalue`.
+// The game's own grid classes (0x49B9E602..0x49B9E60B) are never registered
+// (simgrid.md §6.3).
+const ClassEntry kLandValueClasses[] = {
+    {0xE990C18E, "cSC4LandValueSimulator", &CreateFC4LandValueSimulator},
+};
+
 const Subsystem kSubsystems[] = {
-    {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0])},
-    {"budget", nullptr, kBudgetClasses, sizeof(kBudgetClasses) / sizeof(kBudgetClasses[0])},
+    {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
+     true},
+    {"budget", nullptr, kBudgetClasses, sizeof(kBudgetClasses) / sizeof(kBudgetClasses[0]), true},
+    {"landvalue", nullptr, kLandValueClasses, sizeof(kLandValueClasses) / sizeof(kLandValueClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -100,8 +110,17 @@ void Resolve() {
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
+    const char* enableSource = "";
+    const std::string enable = Lower(Setting("enable", "FC4_ENABLE", &enableSource));
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
+        if (!s.defaultOn && !ListContains(enable, s.key)) {
+            // Off by default and not enabled: not "disabled" (the lists and the
+            // autotest verdict stay as without this subsystem).
+            g_enabled[i] = false;
+            Log("subsystem '%s': off by default (enable = %s in FreeCity4.ini to use it)", s.key, s.key);
+            continue;
+        }
         bool off = ListContains(disable, s.key);
         const char* why = off ? (strcmp(source, "FreeCity4.ini") == 0 ? "FreeCity4.ini (disable=)" : "FC4_DISABLE") : "";
         if (!off && s.legacyDisableEnv != nullptr && Env(s.legacyDisableEnv) == "1") {
@@ -117,8 +136,11 @@ void Resolve() {
         if (off) {
             Log("subsystem '%s': DISABLED by %s; the original classes are used", s.key, why);
         } else {
-            Log("subsystem '%s': enabled (%u class%s replaced)", s.key, static_cast<unsigned>(s.classCount),
-                s.classCount == 1 ? "" : "es");
+            Log("subsystem '%s': enabled (%u class%s replaced)%s", s.key, static_cast<unsigned>(s.classCount),
+                s.classCount == 1 ? "" : "es",
+                s.defaultOn ? ""
+                            : (strcmp(enableSource, "FreeCity4.ini") == 0 ? " by FreeCity4.ini (enable=)"
+                                                                         : " by FC4_ENABLE"));
         }
     }
 }

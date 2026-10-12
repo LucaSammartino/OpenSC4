@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "landvalue_missing_altitude_curve",
+  "spec": ["landvalue 6", "landvalue 7.4", "landvalue 14", "landvalue 16.16"],
+  "description": "Without the altitude curve state 4 does not write the intrinsic grid: it keeps its previous contents (all 0 in a new city, or what was there), and total = clamp[1,255] of the desirability terms on top of it. An unknown developer ID gives a null developer, which is skipped [choice] (it still takes a state-7 call).",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16, "zoned": [[0, 0, 15, 7]], "developers": {"0x1030": {"size": 2, "all": 40, "values": [[0, 0, -10], [1, 0, 0]]}}},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": {"shipped": true, "altitude_curve": null}},
+    {"op": "lv_run", "expect_calls": 10},
+    {"op": "lv_expect_grid", "grid": "intrinsic", "all": 0},
+    {"op": "lv_expect_grid", "grid": "total", "values": [[0, 0, 1], [1, 0, 1], [2, 0, 100], [7, 3, 100]]},
+    {"op": "lv_set_grid", "grid": "intrinsic", "all": 7},
+    {"op": "lv_message", "type": "0x99EF1142"},
+    {"op": "lv_message", "type": "0x66956816"},
+    {"op": "lv_run", "expect_calls": 10},
+    {"op": "lv_expect_grid", "grid": "intrinsic", "all": 7},
+    {"op": "lv_expect_grid", "grid": "total", "values": [[0, 0, 1], [1, 0, 7], [2, 0, 107], [7, 3, 107]]},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": {"shipped": true, "altitude_curve": null, "developer_ids": ["0x9999", "0x1030"], "developer_weights": [5.0, 1.0]}},
+    {"op": "lv_expect", "developers": 2, "developer_weights": [5.0, 1.0]},
+    {"op": "lv_run", "expect_calls": 11},
+    {"op": "lv_expect_grid", "grid": "total", "values": [[0, 0, 1], [1, 0, 1], [2, 0, 40]]}
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "landvalue_altitude_effect",
+  "spec": ["landvalue 7.3", "landvalue 16.8", "landvalue 16.9"],
+  "description": "Altitude-effect setup and AltitudeEffect with the shipped curve (minAlt 260, maxAlt 322, mode 272, mean 300: pivot 272, lowRange 12, highRange 50, topIndex 100); topIndex for highRange 100, 340 and 3000; the curve output wraps to 8 bits.",
+  "steps": [
+    {"op": "lv_altitude", "setup": [272, 300, 260, 322], "curve": "shipped_altitude", "expect": {"pivot": 272, "low_range": 12, "high_range": 50, "top_index": 100}, "effects": [[259, 0], [260, 0], [263, 2], [266, 5], [272, 10], [297, 21], [322, 50]]},
+    {"op": "lv_altitude", "setup": [0, 0, 0, 100], "expect": {"high_range": 100, "top_index": 100}},
+    {"op": "lv_altitude", "setup": [0, 0, 0, 340], "max_allowed": 2500, "expect": {"high_range": 340, "top_index": 110}},
+    {"op": "lv_altitude", "setup": [0, 0, 0, 3000], "max_allowed": 2500, "expect": {"top_index": 150}},
+    {"op": "lv_altitude", "setup": [300, 300, 300, 300], "expect": {"pivot": 300, "low_range": 1, "high_range": 1, "top_index": 100}, "curve": "shipped_altitude", "effects": [[300, 10], [299, 0]]},
+    {"op": "lv_altitude", "setup": [100, 100, 0, 200], "curve": [0, -10, 200, -10], "effects": [[150, 246], [10, 246]]},
+    {"op": "lv_altitude", "setup": [100, 100, 0, 200], "curve": [0, 300, 200, 300], "effects": [[150, 44]]},
+    {"op": "lv_altitude", "setup": [100, 100, 0, 200], "effects": [[150, 0]]}
+  ]
+}

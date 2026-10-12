@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "simgrid_positions_and_bounds",
+  "spec": ["simgrid 3", "simgrid 4", "simgrid 10.2", "simgrid 10.3"],
+  "description": "PositionToTract truncates toward zero (-0.3125 -> 0); tract centre and corner positions; TractIsInBounds compares unsigned (negative -> false).",
+  "steps": [
+    {"op": "grid_city", "cells": [256, 256], "cell_width": 16},
+    {"op": "grid_new", "grid": "a", "type": "u8", "size": 2},
+    {"op": "grid_call", "grid": "a", "method": "position_to_tract", "args": [100.0, -10.0], "expect": [3, 0]},
+    {"op": "grid_call", "grid": "a", "method": "tract_center", "args": [3, 4], "expect": [112.0, 144.0]},
+    {"op": "grid_call", "grid": "a", "method": "tract_corner", "args": [3, 4], "expect": [96.0, 128.0]},
+    {"op": "grid_call", "grid": "a", "method": "tract_in_bounds", "args": [-1, 0], "expect": false},
+    {"op": "grid_call", "grid": "a", "method": "tract_in_bounds", "args": [127, 127], "expect": true},
+    {"op": "grid_call", "grid": "a", "method": "tract_in_bounds", "args": [128, 0], "expect": false},
+    {"op": "grid_call", "grid": "a", "method": "tract_in_bounds", "args": [0, 128], "expect": false}
+  ]
+}

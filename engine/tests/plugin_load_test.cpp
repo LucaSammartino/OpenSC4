@@ -22,9 +22,11 @@
 #include "cIGZDate.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
+#include "cIGZSerializable.h"
 #include "cIGZSystemService.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4DepartmentBudget.h"
+#include "cISC4LandValueSimulator.h"
 #include "cISC4LineItem.h"
 #include "cISCPropertyHolder.h"
 #include "cRZBaseVariant.h"
@@ -71,6 +73,8 @@ constexpr uint32_t kCLSID_Department = 0xE990BFFC;
 constexpr uint32_t kCLSID_LineItem = 0xAA313C9F;
 constexpr uint32_t kIID_cISC4BudgetSimulator = 0x6772BD23;
 constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
+constexpr uint32_t kCLSID_LandValue = 0xE990C18E;
+constexpr uint32_t kIID_cISC4LandValueSimulator = 0xE7781D8C;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -514,6 +518,82 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
 
+    if (mode == "--ini-enable" || mode == "--ini-enable-disabled") {
+        // The land value subsystem is off by default; `enable = landvalue`
+        // registers it (and never the game's grid classes); `disable` wins.
+        const bool alsoDisabled = mode == "--ini-enable-disabled";
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, alsoDisabled ? "[subsystems]\nenable = LandValue\ndisable = landvalue\n"
+                                        : "[subsystems]\nenable = LandValue\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);  // simgrid.md §6.3
+            void* obj = nullptr;
+            if (alsoDisabled) {
+                CHECK(classes.size() == 4);
+                CHECK(!director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &obj));
+            } else {
+                CHECK(classes.size() == 5 && classes[4] == kCLSID_LandValue);
+                CHECK(director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &obj));
+                auto* lv = static_cast<cISC4LandValueSimulator*>(obj);
+                if (lv != nullptr) {
+                    // §1: exactly four interfaces, one reference count.
+                    void* p = nullptr;
+                    CHECK(lv->QueryInterface(0x452294AA, &p) && p != nullptr);
+                    if (p) static_cast<cIGZUnknown*>(p)->Release();
+                    cIGZSerializable* ser = nullptr;
+                    CHECK(lv->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                    if (ser) {
+                        CHECK(ser->GetGZCLSID() == kCLSID_LandValue);
+                        ser->Release();
+                    }
+                    CHECK(lv->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<cIGZUnknown*>(lv));
+                    if (p) static_cast<cIGZUnknown*>(p)->Release();
+                    CHECK(!lv->QueryInterface(0xC9BD939A, &p));
+                    CHECK(!lv->QueryInterface(0x6772BD23, &p));
+                    // Before Init: no grids, zero values.
+                    CHECK(lv->GetIntrinsicLandValueMap() == nullptr && lv->GetTotalLandValueMap() == nullptr &&
+                          lv->GetSlopeMap() == nullptr);
+                    CHECK(lv->GetLandValue(3, 4) == 0);
+                    CHECK(lv->GetAverageLandValue() == 0);
+                    CHECK(lv->GetModeAltitude() == 0.0f);
+                    // Init without a city or GZCOM: no grids, but a clean lifecycle.
+                    CHECK(lv->Init());
+                    CHECK(lv->Init());
+                    CHECK(lv->GetLandValueType(0, 0) == cISC4LandValueSimulator::LandValueType::Low);
+                    CHECK(lv->AddRef() == 2);
+                    CHECK(lv->Release() == 1);
+                    CHECK(lv->Release() == 0);  // §4.3: Shutdown, destroy
+                }
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        if (alsoDisabled) {
+            CHECK(text.find("subsystem 'landvalue': DISABLED by FreeCity4.ini (disable=)") != std::string::npos);
+            CHECK(text.find("cFC4LandValueSimulator(") == std::string::npos);
+        } else {
+            CHECK(text.find("subsystem 'landvalue': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+                  std::string::npos);
+            CHECK(text.find("landvalue Init: ok=1") != std::string::npos);
+            CHECK(text.find("landvalue Shutdown (0 passes)") != std::string::npos);
+            CHECK(text.find("cFC4LandValueSimulator destroyed") != std::string::npos);
+        }
+        CHECK(text.find("subsystem 'budget': enabled (3 classes replaced)") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
     if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
@@ -952,6 +1032,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
+    CHECK(text.find("subsystem 'landvalue': off by default") != std::string::npos);
+    CHECK(text.find("cFC4LandValueSimulator(") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);

@@ -17,6 +17,7 @@
 #include "cIGZString.h"
 
 #include <atomic>
+#include <cstddef>
 
 namespace {
 std::atomic<long> g_live{0};
@@ -30,7 +31,20 @@ void Assign(T*& slot, T* value) {
 }
 }  // namespace
 
-cFC4Message2Standard::cFC4Message2Standard() { ++g_live; }
+cFC4Message2Standard::cFC4Message2Standard() {
+#if defined(_M_IX86)
+    // The game's layout (docs/abi/layouts.md); members are private, hence here.
+    static_assert(offsetof(cFC4Message2Standard, refCount_) == 0x04, "reference count at +0x04");
+    static_assert(offsetof(cFC4Message2Standard, flags_) == 0x08, "flags byte at +0x08");
+    static_assert(offsetof(cFC4Message2Standard, type_) == 0x0C, "type at +0x0C");
+    static_assert(offsetof(cFC4Message2Standard, data_) == 0x10, "data1..4 at +0x10");
+    static_assert(offsetof(cFC4Message2Standard, string_) == 0x20, "string at +0x20");
+    static_assert(offsetof(cFC4Message2Standard, unknown_) == 0x24, "unknown at +0x24");
+    static_assert(offsetof(cFC4Message2Standard, extra_) == 0x28, "extra at +0x28");
+    static_assert(sizeof(cFC4Message2Standard) == 0x2C, "size 0x2C");
+#endif
+    ++g_live;
+}
 
 cFC4Message2Standard::~cFC4Message2Standard() {
     if (string_ != nullptr) string_->Release();
@@ -98,7 +112,14 @@ bool cFC4Message2Standard::Create(uint32_t dwTypeIID, void** ppUnknown) const {
 }
 
 uint32_t cFC4Message2Standard::GetType() const { return type_; }
-void cFC4Message2Standard::SetType(uint32_t dwType) { type_ = dwType; }
+void cFC4Message2Standard::SetType(uint32_t dwType) {
+    type_ = dwType;
+    SetFlag(kFlagType, dwType != 0);  // [choice] "has type" means a non-zero type (set and cleared here)
+}
+
+void cFC4Message2Standard::SetFlag(uint8_t bit, bool on) {
+    flags_ = static_cast<uint8_t>(on ? (flags_ | bit) : (flags_ & ~bit));
+}
 
 bool cFC4Message2Standard::operator==(cIGZMessage2 const& o) const { return type_ == o.GetType(); }
 bool cFC4Message2Standard::operator<(cIGZMessage2 const& o) const { return type_ < o.GetType(); }
@@ -107,13 +128,13 @@ bool cFC4Message2Standard::operator<(cIGZMessage2 const& o) const { return type_
 
 void cFC4Message2Standard::SetSlot(int i, intptr_t v) {
     data_[i] = v;
-    hasData_ = static_cast<uint8_t>(hasData_ | (1u << i));
+    SetFlag(static_cast<uint8_t>(kFlagData1 << i), true);  // never cleared
 }
 
-bool cFC4Message2Standard::GetHasData1() const { return (hasData_ & 1u) != 0; }
-bool cFC4Message2Standard::GetHasData2() const { return (hasData_ & 2u) != 0; }
-bool cFC4Message2Standard::GetHasData3() const { return (hasData_ & 4u) != 0; }
-bool cFC4Message2Standard::GetHasData4() const { return (hasData_ & 8u) != 0; }
+bool cFC4Message2Standard::GetHasData1() const { return (flags_ & (kFlagData1 << 0)) != 0; }
+bool cFC4Message2Standard::GetHasData2() const { return (flags_ & (kFlagData1 << 1)) != 0; }
+bool cFC4Message2Standard::GetHasData3() const { return (flags_ & (kFlagData1 << 2)) != 0; }
+bool cFC4Message2Standard::GetHasData4() const { return (flags_ & (kFlagData1 << 3)) != 0; }
 intptr_t cFC4Message2Standard::GetData1() const { return data_[0]; }
 intptr_t cFC4Message2Standard::GetData2() const { return data_[1]; }
 intptr_t cFC4Message2Standard::GetData3() const { return data_[2]; }
@@ -139,11 +160,17 @@ bool cFC4Message2Standard::GetString(uint32_t riid, void** ppStringOut) const {
     return string_ != nullptr && string_->QueryInterface(riid, ppStringOut);
 }
 
-void cFC4Message2Standard::SetString(cIGZString* pString) { Assign(string_, pString); }
+void cFC4Message2Standard::SetString(cIGZString* pString) {
+    Assign(string_, pString);
+    SetFlag(kFlagString, pString != nullptr);
+}
 
 bool cFC4Message2Standard::GetHasIGZUnknown() const { return unknown_ != nullptr; }
 cIGZUnknown* cFC4Message2Standard::GetIGZUnknown() const { return unknown_; }
-void cFC4Message2Standard::SetIGZUnknown(cIGZUnknown* pObj) { Assign(unknown_, pObj); }
+void cFC4Message2Standard::SetIGZUnknown(cIGZUnknown* pObj) {
+    Assign(unknown_, pObj);
+    SetFlag(kFlagUnknown, pObj != nullptr);
+}
 
 bool cFC4Message2Standard::GetHasExtra() const { return extra_ != nullptr; }
 
@@ -151,4 +178,7 @@ uint32_t cFC4Message2Standard::GetExtra(uint32_t riid, void** ppOut) const {
     return (extra_ != nullptr && extra_->QueryInterface(riid, ppOut)) ? 1u : 0u;
 }
 
-void cFC4Message2Standard::SetExtra(cIGZSerializable* pSerializable) { Assign(extra_, pSerializable); }
+void cFC4Message2Standard::SetExtra(cIGZSerializable* pSerializable) {
+    Assign(extra_, pSerializable);
+    SetFlag(kFlagExtra, pSerializable != nullptr);
+}

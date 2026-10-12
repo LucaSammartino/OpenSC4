@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "landvalue_zoning_fallback",
+  "spec": ["landvalue 7.2", "landvalue 16.7"],
+  "description": "No zoned tract: the first pass of state 3 counts nothing and stays in state 3 with ignoreZoning set; the second counts every land tract: meanAlt 320, bins 9 and 10 tie -> mode 304.",
+  "steps": [
+    {"op": "lv_world", "cells": [16, 8], "cell_width": 16, "land": false, "land_vertices": [[3, 3], [13, 7]], "altitudes": [[3, 3, 300], [13, 7, 340]]},
+    {"op": "lv_create"},
+    {"op": "lv_init", "tuning": "shipped"},
+    {"op": "lv_step", "count": 4, "expect_state": 3},
+    {"op": "lv_expect", "ignore_zoning": true, "count": 0, "sum": 0, "histogram": {}, "min_alt": 300, "max_alt": 340},
+    {"op": "lv_step", "expect_state": 5},
+    {"op": "lv_expect", "ignore_zoning": true, "count": 2, "sum": 640, "mean_alt": 320, "histogram": {"9": 1, "10": 1}, "mode_alt": 304, "min_alt": 300, "max_alt": 340}
+  ]
+}
