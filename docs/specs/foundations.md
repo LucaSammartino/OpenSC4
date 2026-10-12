@@ -524,9 +524,10 @@ otherwise:                                  return y of segment last
 - **Zero points**: the original reads garbage (the helper is undefined). *[choice]* Return 0.0. Callers should
   treat an empty curve as absent.
 
-Arithmetic: on the Windows build the expression `py + (input − px) · slope` is computed in x87 extended precision
-from `float32` operands and rounded once to `float32` by the caller *[inferred]*. *[choice]* FreeCity4 computes
-it in `f64` and rounds to `f32` once. Tests compare with a relative tolerance of 1e-6.
+Arithmetic: on the Windows build the expression `py + (input − px) · slope` is evaluated on the x87 at 24-bit
+precision (§18): the subtraction, the product and the sum are each rounded to a 24-bit significand, i.e. three
+`float32` operations. *[compat]* FreeCity4 evaluates it as three `f32` operations in that order. Tests compare
+with a relative tolerance of 1e-6 (corrected: the earlier text assumed one rounding at the end).
 
 ### 4.4 Worked examples (shipped tuning values, `re/tuning/simulators.md`)
 
@@ -1533,6 +1534,64 @@ sits one slot later than its header line count suggests.
 | 7 | `cISC4DisasterInstance* AttemptDisasterStart()` (returns null for the earthquake) |
 
 For the earthquake, the two integers are world coordinates (budget §4.3), whatever the SDK's parameter names say.
+
+## 18. Arithmetic precision (x87) *[compat]*
+
+The Windows build does all floating-point arithmetic on the x87 FPU (no SSE). The precision-control field of the
+x87 control word therefore decides how every intermediate result is rounded. This section says which setting is in
+effect, on which threads, and what that means for the specs.
+
+### 18.1 What the game sets
+
+| When | Where | Effect on the control word |
+|---|---|---|
+| Process start (C runtime init, before `WinMain`) | CRT `_cinit` → `_fpmath(1)` → `_setdefaultprecision` = `_controlfp(_PC_53, _MCW_PC)` | precision **53-bit**; rounding to nearest; all exceptions masked (Windows default) |
+| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
+| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
+| Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
+| Truncating conversions (`_ftol` `0x009EEF04`, and inline `fistp` sequences) | save the control word, set rounding to "chop", convert, restore | rounding control only, and only for the conversion |
+
+The helper's modes are 0 = 24-bit, 1 = 53-bit, 2 = 64-bit. Nothing in the game calls it with mode 2, and nothing
+else writes the precision field. The C library's x87 math helpers (`pow`, `exp`, `log`, …) keep the caller's
+precision (they only force round-to-nearest and masked exceptions while they run).
+
+### 18.2 Threads
+
+- **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
+  agents (simulator.md), every grid simulator, the budget and all message handlers run on this thread, so **the
+  whole simulation runs at 24-bit precision** *[inferred: the simulator is driven by the framework's idle and
+  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls and the exemplar
+  expression evaluator (53-bit), which do not touch simulation state.
+- **Worker threads** created by the game (`cRZThread`: background model loader, HTTP client, name lookup,
+  file-change notification; and the sound driver's thread) start with the Windows default for new threads
+  (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
+  from their entry points]*.
+
+### 18.3 What 24-bit precision means
+
+Under 24-bit precision control, every x87 `fadd`/`fsub`/`fmul`/`fdiv`/`fsqrt` (and their integer-operand forms)
+rounds its **exact** result to a 24-bit significand, round-to-nearest-even. That is the same as one IEEE `float32`
+operation, with three differences that matter for exact reproduction:
+
+1. **Operands are not rounded first.** A `double` or `int32` operand loaded from memory (`fld qword`, `fild`) keeps
+   its full value in the register. `x × 0.1` with a `double` constant rounds once, which can differ from
+   `float32(x) × float32(0.1)`. Likewise `int32` values above 2^24 enter exactly.
+2. **Exponent range.** Results keep the 15-bit x87 exponent while in registers, so intermediate overflow and
+   underflow do not happen where `float32` would overflow or go denormal. Shipped values never get near those
+   limits.
+3. **Loads, stores, compares and conversions are not affected.** Storing a result to a `double` keeps the
+   24-bit value exactly. Storing to a `float` does not round again. Comparisons and `_ftol` truncation see the
+   24-bit register value.
+
+There is no "extended precision" intermediate anywhere in the simulation. Specs that said a value "is computed in
+x87 extended precision" before truncation or rounding mean, for the Windows build: **each operation is rounded
+to 24 bits as above**. *[compat]* FreeCity4 reproduces this by doing every simulation arithmetic step as one
+`float32` operation (rounding each step), with the operand caveat of point 1: where a spec names a `double`
+constant or a large integer operand, that operand is used **unrounded** for that one operation (compute in `f64`
+and round the result to `f32`; for the four basic operations this gives the correctly rounded result, because
+`f64` has more than twice the significand bits of `f32`).
+
+The Mac build (GCC, SSE or x87 at 64-bit) differs; this section applies only to the Windows build.
 
 ## Errata / clarifications (round 2)
 
