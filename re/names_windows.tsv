@@ -22,14 +22,14 @@ va	name	source	confidence	note
 00407ed0	cSC4Advice::DoLink	auto:C	high	mac 0032bbca score 1.0 support 3
 00407f40	cSC4Advice::NotifyGlobalEffectTriggerChanged	auto:C	high	mac 0032c010 score 1.0 support 3
 00408050	std::vector<int,std::allocator<int>>::operator[]	auto:B1	medium	mac 00624ca4 score 0.799 support 4.0
-004081d0	__gnu_cxx::hashtable<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>,SC4Point<long>,cSC4Region::RegionalCellHashFunction,std::_Select1st<std::pair<SC4Point<long>const,cRZAutoRefCount<cISC4RegionalCity>*>>,std::equal_to<SC4Point<long>>,std::allocator<cRZAutoRefCount<cISC4RegionalCity>*>>::begin	auto:B1	medium	mac 006c70b6 score 0.816 support 2.0
+004081d0	cRZString::Append (string append)	manual:lua-host	medium	lua-host.md (was __gnu_cxx::hashtable<std::pair<SC4Point<)
 00408420	cRZString::cRZString	auto:B0	medium	mac 005edd9c score 0.912 support 23.0
 00408480	cRZString::cRZString	auto:B0	medium	mac 005edbf6 score 0.988 support 221.0
 004084e0	cTablePropertyReader::cTablePropertyReader	auto:B0	medium	mac 006bfe8a score 0.999 support 7.0
 00408800	cSC4Advice::get_raw_trigger	auto:A	high	mac 0032ba28 score 1.0 support 0
 00408970	cSC4Advice::GetTrigger	auto:D	medium	mac 0032bb7e score 0.5 support 2
 00408a20	std::vector<cRZString,std::allocator<cRZString>>::operator[]	auto:B0	medium	mac 005eeff8 score 0.847 support 7.0
-00408a70	std::operator+	auto:B2	medium	mac 005eecda score 0.871 support 11.0
+00408a70	cRZString::Assign (string assign)	manual:lua-host	medium	lua-host.md (was std::operator+)
 00408be0	cRZString::cRZString	auto:B1	medium	mac 005eddd8 score 0.957 support 52.0
 00408c40	std::vector<cSC4EffectDescription,std::allocator<cSC4EffectDescription>>::operator[]	auto:B6	medium	mac 0075c108 score 0.877 support 2.0
 00408c70	cSC4Advice::Init	auto:A	high	mac 0032ca64 score 1.0 support 0
@@ -759,12 +759,12 @@ va	name	source	confidence	note
 0044b4d0	cSC4App::GetStringDetokenizer	auto:C	low	mac 005ee106 score 1.0 support 1
 0044b4e0	cSC4App::GetWinLocationSaver	auto:C	low	mac 005ee11e score 1.0 support 1
 0044b4f0	icf::cSC4App::GetGlyphTextureManager	folded	folded	2 names: cSC4App::GetGlyphTextureManager | cSC4App::IsRunFirstTimeAfterInstall
-0044b500	cSC4App::GetLuaInterpreter	auto:C	low	mac 005ee166 score 1.0 support 1
-0044b510	cSC4App::GetAppDirectory	auto:C	low	mac 00006296 score 1.0 support 1
+0044b500	cSC4App::Unknown_B8	manual:lua-host	medium	cISC4App slot +0xB8; not the Lua getter (was cSC4App::GetLuaInterpreter)
+0044b510	cSC4App::GetTutorialRegistry	manual:lua-host	medium	cISC4App slot +0xC4 (was cSC4App::GetAppDirectory)
 0044b520	cSC4App::GetCDAppDirectory	auto:C	low	mac 000062b0 score 1.0 support 1
 0044b620	cSC4App::GetRegionalCity	auto:C	high	mac 005ee098 score 1.0 support 1
 0044b660	cSC4App::GetRenderProperties	auto:C	low	mac 005ee136 score 1.0 support 1
-0044b670	cSC4App::GetTutorialRegistry	auto:C	low	mac 005ee17e score 1.0 support 1
+0044b670	cSC4App::GetLuaInterpreter	manual:lua-host	medium	cISC4App slot +0xBC; lua-host.md §1.4 (was cSC4App::GetTutorialRegistry)
 0044b990	cSCStringDetokenizerDefault::cSCStringDetokenizerDefault	auto:B6	medium	mac 005ee784 score 0.837 support 2.0
 0044ba80	cSC4App::IsStartupResolutionOK	auto:A	high	mac 0000cf50 score 1.0 support 0
 0044bc50	cSC4App::ReadPreferences	auto:B1	medium	mac 00005d68 score 0.999 support 3.0
@@ -6242,7 +6242,7 @@ va	name	source	confidence	note
 006bfe60	std::_Rb_tree<cISC4BuildingOccupant::PurposeType,std::pair<cISC4BuildingOccupant::PurposeType_const,bool>,std::_Select1st<std::pair<cISC4BuildingOccupant::PurposeType_const,bool>>,std::less<cISC4BuildingOccupant::PurposeType>,std::allocator<std::pair<cISC4BuildingOccupant::PurposeType_const,bool>>>::~_Rb_tree	auto:D	medium	mac 0066ab74 score 0.5 support 1
 006bfea0	cSC4Lot::GetLotConfigurationObject	auto:C	high	mac 0011e53e score 1.0 support 1
 006bff70	cSC4Lot::GetLotOccupants	auto:C	high	mac 0011e47a score 1.0 support 1
-006c0030	cGZLuaScriptServer::GetLuaThreadData	auto:B0	medium	mac 00455e82 score 0.923 support 8.0
+006c0030	std::map::find (Lua script server)	manual:lua-host	medium	lua-host.md (was cGZLuaScriptServer::GetLuaThreadData)
 006c0080	cSC4Lot::Write	auto:B0	medium	mac 0012035c score 0.968 support 1.0
 006c0370	cSC4BusinessUnit::Write	auto:C	high	mac 0011e628 score 1.0 support 1
 006c03e0	std::_Rb_tree<cISC4BuildingDevelopmentSimulator::DeveloperType,std::pair<cISC4BuildingDevelopmentSimulator::DeveloperType_const,unsigned_char>,std::_Select1st<std::pair<cISC4BuildingDevelopmentSimulator::DeveloperType_const,unsigned_char>>,std::less<cISC4BuildingDevelopmentSimulator::DeveloperType>,std::allocator<std::pair<cISC4BuildingDevelopmentSimulator::DeveloperType_const,unsigned_char>>>::insert_unique	auto:D	medium	mac 00655b2e score 0.5 support 1
@@ -6691,7 +6691,7 @@ va	name	source	confidence	note
 006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 55
 006e3770	cSC4PollutionSimulator::GetCurrentOccupantEfficiency	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 57
 006e37e0	cSC4PollutionSimulator::GetPollutionValue	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 6
-006e3820	cSC4PollutionSimulator::GetUnusedCapacity	manual:grid-sims.tsv	high	called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)
+006e3820	cSC4PollutionSimulator::Dispose	manual:qdrain	high	formerly misnamed GetUnusedCapacity; called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)
 006e3bc0	cSC4PollutionSimulator::GetRequestedShare	auto:C	high	mac 00069b92 score 1.0 support 1
 006e3c80	cSC4PollutionSimulator::ResetOccupantListCapacityUsedProperty	manual:grid-sims.tsv	high	called 3x from DoMonthlySimulation
 006e3d00	cSC4PollutionSimulator::AgeOccupantList	manual:grid-sims.tsv	high	called 3x from DoMonthlySimulation; reads 0xEA1CF220..222
@@ -10134,7 +10134,7 @@ va	name	source	confidence	note
 008b7010	cGZLua5Thread::Move	auto:C	high	mac 00468ec4 score 1.0 support 1
 008b7060	cGZLua5Thread::GrowStack	auto:B13	medium	mac 00468ed6 score 0.849 support 1.0
 008b70b0	cGZLua5Thread::Type	auto:C	high	mac 00468efc score 1.0 support 1
-008b7100	_tag_error	auto:B15	medium	mac 005b88be score 0.919 support 1.0
+008b7100	cGZLua5Thread::TypeName	manual:lua-host	medium	lua-host.md §5 (was _tag_error)
 008b7150	cGZLua5Thread::IsNumber	auto:C	high	mac 00468f20 score 1.0 support 1
 008b71a0	cGZLua5Thread::IsString	auto:B13	medium	mac 00468f46 score 0.849 support 1.0
 008b71f0	cGZLua5Thread::IsCFunction	auto:C	high	mac 00468f6c score 1.0 support 1

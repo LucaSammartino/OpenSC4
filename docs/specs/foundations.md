@@ -154,7 +154,10 @@ FreeCity4 numbers objects 1, 2, 3, … in registration order. IDs mean nothing a
    - `classID` not listed in the save's class index (§3.3) → **failure** (the stream enters the error state);
    - otherwise create a new instance with `GZCOM()->GetClassObject(classID, GZIID_cIGZSerializable, &p)`. If
      creation fails → failure. If it succeeds, register it under `(classID, objectID)`.
-3. The new object's `Read` is **not** called here. It is called when the loader reaches the object's entry in its
+3. The destination pointer is set to null **before** anything is read, and the object it held is **not** released
+   (the game's helper `SC4ReadGZSerializable`, `0x005D9730`). A failed read therefore leaves null in the
+   destination. List readers (`0x005DB3C0`) append that null for every failed reference *[compat]*.
+4. The new object's `Read` is **not** called here. It is called when the loader reaches the object's entry in its
    class record (§3.5). The shipped game never sets `loadNow`; when set, the object's entry would be located and
    read immediately *[inferred]*.
 
@@ -461,7 +464,8 @@ neighbours and service simulators.
 - The property's values are taken as `float32` and paired up: `n = count / 2` points. An odd trailing value is
   ignored.
 - *[compat]* Curve properties must be `float32` arrays. The original reinterprets the raw bytes of other value
-  types as floats, and misbehaves for single-value properties. *[choice]* FreeCity4 converts integer arrays to
+  types as floats. A single value (a scalar, whose variant count is 0, or a one-element array) gives **zero**
+  points. *[choice]* FreeCity4 converts integer arrays to
   float, and treats non-numeric or single-value properties as absent.
 - Loading a **present** property first discards the curve's old segments, then builds the new ones (§4.2). It
   returns false when there are no points; the curve is then empty (§4.3, zero points).
@@ -522,8 +526,10 @@ otherwise:                                  return y of segment last
 - **Exact at the points.** At an interior point `x_i` the search selects the next segment, whose start is
   `(x_i, y_i)`, so the result is exactly `y_i`.
 - **One point**: constant `y0`.
-- **Zero points**: the original reads garbage (the helper is undefined). *[choice]* Return 0.0. Callers should
-  treat an empty curve as absent.
+- **Zero points**: the original evaluator (`0x005F4250`) still reads the first segment. On a curve object that has
+  never held points that is a null pointer, and the game crashes; on one that held points before an in-place
+  reload it returns the stale first `y` *[inferred]*. *[choice]* Return 0.0. Callers should treat an empty curve as
+  absent (aura §10, flammability §8).
 
 Arithmetic: on the Windows build the expression `py + (input − px) · slope` is evaluated on the x87 at 24-bit
 precision (§18): the subtraction, the product and the sum are each rounded to a 24-bit significand, i.e. three
@@ -607,7 +613,7 @@ These IDs appear in several subsystem specs. Their meaning is defined once here.
 | ID | Kind | Meaning | Evidence |
 |---|---|---|---|
 | `0x029244DB` | occupant property, bool | **Preview occupant** *[inferred name]*. The lot-placement tool (the building model shown under the cursor before a lot is placed) and the toll-booth tool set it to true on the temporary occupants they create. Grid simulators ignore insert / remove / change messages for such occupants. Aura, crime, flammability and plumbing test only that the property **exists**; pollution tests that its value is **true**. The model maker also creates no shadow for them. | setters in the place-lot and toll-booth tools; readers in every grid simulator's occupant handler |
-| `0xC53D10AA` | message | **Exemplar changed** *[inferred name]*. Posted (`MessagePost`, normal priority) by the exemplar resource code when an exemplar resource is written out, and by the exemplar debug view when it updates one. data1 = the exemplar's group, data2 = its instance. Each simulator re-reads its tuning when (data1, data2) equals its tuning exemplar's group and instance. Shipped play never writes exemplars, so the message is not expected in a normal session; FreeCity4 must still handle it. | senders: exemplar factory write path, exemplar resource view |
+| `0xC53D10AA` | message | **Exemplar changed** *[inferred name]*. Posted (`MessagePost`, normal priority) by the exemplar resource code when an exemplar resource is written out, and by the exemplar debug view when it updates one. data1 = the exemplar's group, data2 = its instance. Each **subscribing** simulator re-reads its tuning when (data1, data2) equals its tuning exemplar's group and instance; the message is posted queued, so only subscribers see it. Flammability neither subscribes nor handles it (flammability §5). Shipped play never writes exemplars, so the message is not expected in a normal session; FreeCity4 must still handle it exactly for the simulators that subscribe. | senders: exemplar factory write path, exemplar resource view |
 | `0xC6CDBF1A` / `0xC6CDBF1B` | message | **PreViewLevelChange / PostViewLevelChange** (names from the game's own message-name table). Sent synchronously (`MessageSend`) by the 3D view when its view level changes, Pre first and then Post. void1 points at the **old** level and void2 at the **new** level (u32 values, valid only during delivery). View levels: **1 = surface**, **2 = subway**, **3 = water pipes** *[inferred: the per-occupant view level is 2 for subway occupants and 3 for pipe occupants, otherwise 1]*. | sender: the 3D view's "set current view level"; readers: pollution (effects shown only when the new level is 1), landfill developer, pipe-burst disaster |
 | `0x8A4260A6` | department ID | **Parks and Recreation**. The park manager creates this department budget at `Init` when it does not exist and names it with LTEXT group `0x6A3FF01C`, instance `0xCA49375E` ("Parks and Recreation" in `SimCityLocale.dat`). The cruise-ship reward building's exemplar also charges this department (budget-department property `0xEA54D283`), which is where the earlier "cruise ship" label came from. | park manager `Init`; exemplar `RW43x30_Cruise_Ship_Building_03BC` |
 

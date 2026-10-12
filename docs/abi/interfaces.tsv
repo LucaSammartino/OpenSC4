@@ -3534,3 +3534,268 @@ cISC4MySim	cSC4MySim	00a85080	65	+0x104	00426a20		0	0	eax-or-void	medium	indirec
 cISC4MySim	cSC4MySim	00a85080	66	+0x108	00426a40		0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x20]
 cISC4MySim	cSC4MySim	00a85080	67	+0x10C	00426830	cSC4MySim::CreateDispatchTool	0	0	eax-or-void	medium	
 cISC4MySim	cSC4MySim	00a85080	68	+0x110	00429830	cSC4MySim::ActivateLuaContext	0	0	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	0	+0x0	008b92d0		8	2	eax-or-void	medium	tail->008b8cf0
+cIGZLua5	cGZLua5	00ac8f80	1	+0x4	008b92e0		0	0	eax-or-void	medium	tail->0057eb00
+cIGZLua5	cGZLua5	00ac8f80	2	+0x8	008b92f0		0	0	eax-or-void	medium	tail->0057eb70
+cIGZLua5	cGZLua5	00ac8f80	3	+0xC	00880a40	cGZLua5::AsIGZLua5Thread	0	0	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	4	+0x10	008b8890	cGZLua5::Open	4	1	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	5	+0x14	008b89b0	cGZLua5::Close	0	0	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	6	+0x18	008b8a00	cGZLua5::CreateThread	12	3	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	7	+0x1C	008b8ae0	cGZLua5::DestroyThread	4	1	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	8	+0x20	008b8b30	cGZLua5::ResumeThread	12	3	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	9	+0x24	008b8a80	cGZLua5::GetThread	4	1	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	10	+0x28	008b8c20	cGZLua5::GetGCCount	0	0	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	11	+0x2C	008b8c60	cGZLua5::GetGCThreshold	0	0	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	12	+0x30	008b8ca0	cGZLua5::SetGCThreshold	4	1	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	13	+0x34	008b96d0	cGZLua5::SetErrorReporter	8	2	eax-or-void	medium	
+cIGZLua5	cGZLua5	00ac8f80	14	+0x38	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	0	+0x0	00880a70		8	2	eax-or-void	medium	tail->008806c0
+cIGZLua5(SCLua)	cSCLua	00ac4280	1	+0x4	00880a80		0	0	eax-or-void	medium	tail->00424b60
+cIGZLua5(SCLua)	cSCLua	00ac4280	2	+0x8	00880a90		0	0	eax-or-void	medium	tail->00424b70
+cIGZLua5(SCLua)	cSCLua	00ac4280	3	+0xC	00880a40	cGZLua5::AsIGZLua5Thread	0	0	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	4	+0x10	00880860	cSCLua::Open	4	1	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	5	+0x14	00880950	cSCLua::Close	0	0	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	6	+0x18	008b8a00	cGZLua5::CreateThread	12	3	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	7	+0x1C	008b8ae0	cGZLua5::DestroyThread	4	1	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	8	+0x20	008b8b30	cGZLua5::ResumeThread	12	3	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	9	+0x24	008b8a80	cGZLua5::GetThread	4	1	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	10	+0x28	008804f0	cSCLua::GetGCCount	0	0	eax-or-void	medium	tail->008b8c20
+cIGZLua5(SCLua)	cSCLua	00ac4280	11	+0x2C	00880500	cSCLua::GetGCThreshold	0	0	eax-or-void	medium	tail->008b8c60
+cIGZLua5(SCLua)	cSCLua	00ac4280	12	+0x30	00880510	cSCLua::SetGCThreshold	4	1	eax-or-void	medium	tail->008b8ca0
+cIGZLua5(SCLua)	cSCLua	00ac4280	13	+0x34	008b96d0	cGZLua5::SetErrorReporter	8	2	eax-or-void	medium	
+cIGZLua5(SCLua)	cSCLua	00ac4280	14	+0x38	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	0	+0x0	008b8e10	__ZThn8_N13cGZLua5Thread14QueryInterfaceEmPPv	8	2	eax-or-void	medium	tail->008b8840
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	3	+0xC	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	4	+0x10	004777e0	icf::cGZLua5Thread::GetContext	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	5	+0x14	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	6	+0x18	008b6de0	cSC4PathView::SetThickness	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	7	+0x1C	008b8e20	cGZLua5Thread::OnCreate	12	3	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	8	+0x20	008b8ed0	cGZLua5Thread::OnDestroy	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	9	+0x24	008b6c30	cGZLua5Thread::Pause	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	10	+0x28	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	11	+0x2C	008b6c80	cGZLua5Thread::IsValid	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	12	+0x30	008b6cf0	cGZLua5Thread::Destroy	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	13	+0x34	008b6d70	cGZLua5Thread::Status	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	14	+0x38	008b6df0	cGZLua5Thread::GetTop	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	15	+0x3C	008b6e30	cGZLua5Thread::SetTop	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	16	+0x40	008b6e80	cGZLua5Thread::PushValue	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	17	+0x44	008b6ed0	cGZLua5Thread::Remove	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	18	+0x48	008b6f20	cGZLua5Thread::Insert	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	19	+0x4C	008b6f70	cGZLua5Thread::Pop	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	20	+0x50	008b6fc0	cGZLua5Thread::Replace	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	21	+0x54	008b7010	cGZLua5Thread::Move	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	22	+0x58	008b7060	cGZLua5Thread::GrowStack	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	23	+0x5C	008b70b0	cGZLua5Thread::Type	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	24	+0x60	008b7100	cGZLua5Thread::TypeName	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	25	+0x64	008b7150	cGZLua5Thread::IsNumber	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	26	+0x68	008b71a0	cGZLua5Thread::IsString	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	27	+0x6C	008b71f0	cGZLua5Thread::IsCFunction	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	28	+0x70	008b7240	cGZLua5Thread::IsFunction	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	29	+0x74	008b72a0	cGZLua5Thread::IsTable	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	30	+0x78	008b7300	cGZLua5Thread::IsUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	31	+0x7C	008b7350	cGZLua5Thread::IsLightUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	32	+0x80	008b73b0	cGZLua5Thread::IsBoolean	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	33	+0x84	008b7410	cGZLua5Thread::IsNil	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	34	+0x88	008b7470	cGZLua5Thread::IsNone	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	35	+0x8C	008b74d0	cGZLua5Thread::IsNoneOrNil	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	36	+0x90	008b7520	cGZLua5Thread::Equal	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	37	+0x94	008b7580	cGZLua5Thread::RawEqual	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	38	+0x98	008b75e0	cGZLua5Thread::LessThan	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	39	+0x9C	008b7640	icf::cGZLua5Thread::ToSint32	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	40	+0xA0	008b7640	icf::cGZLua5Thread::ToSint32	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	41	+0xA4	008b7690	cGZLua5Thread::ToNumber	4	1	x87	high	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	42	+0xA8	008b76f0	cGZLua5Thread::ToBoolean	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	43	+0xAC	008b7740	cGZLua5Thread::ToString	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	44	+0xB0	008b7790	cGZLua5Thread::Strlen	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	45	+0xB4	008b77e0	cGZLua5Thread::ToCFunction	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	46	+0xB8	008b7830	cGZLua5Thread::ToUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	47	+0xBC	008b7880	cGZLua5Thread::ToThread	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	48	+0xC0	008b78d0	cGZLua5Thread::PushNil	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	49	+0xC4	008b7910	cGZLua5Thread::PushNumber	8	2	x87	high	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	50	+0xC8	008b7960	cGZLua5Thread::PushLString	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	51	+0xCC	008b79b0	cGZLua5Thread::PushString	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	52	+0xD0	008b7a00	cGZLua5Thread::PushCClosure	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	53	+0xD4	008b7a50	cGZLua5Thread::PushBoolean	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	54	+0xD8	008b7aa0	cGZLua5Thread::PushLightUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	55	+0xDC	008b7af0	icf::cGZLua5Thread::PushNewUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	56	+0xE0	008b7c30	icf::cGZLua5Thread::PushNewTable	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	57	+0xE4	008b7b40	cGZLua5Thread::GetTable	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	58	+0xE8	008b7b90	cGZLua5Thread::RawGet	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	59	+0xEC	008b7be0	cGZLua5Thread::RawGetI	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	60	+0xF0	008b7c70	cGZLua5Thread::GetFunctionEnvironment	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	61	+0xF4	008b7cc0	cGZLua5Thread::GetMetaTable	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	62	+0xF8	008b7d10	cGZLua5Thread::GetRegistryTable	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	63	+0xFC	008b7d60	icf::cGZLua5Thread::GetGlobalTable	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	64	+0x100	008b7db0	cGZLua5Thread::SetTable	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	65	+0x104	008b7e00	cGZLua5Thread::RawSet	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	66	+0x108	008b7e50	cGZLua5Thread::RawSetI	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	67	+0x10C	008b7ea0	cGZLua5Thread::SetFunctionEnvironment	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	68	+0x110	008b7ef0	cGZLua5Thread::SetMetaTable	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	69	+0x114	008b7f40	icf::cGZLua5Thread::Call	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	70	+0x118	008b8f30	cGZLua5Thread::CallProtected	16	4	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	71	+0x11C	008b7f90	cGZLua5Thread::DoFile	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	72	+0x120	008b7fe0	cGZLua5Thread::DoString	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	73	+0x124	008b8030	cGZLua5Thread::DoBuffer	12	3	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	74	+0x128	008b8090	cGZLua5Thread::Load	12	3	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	75	+0x12C	008b9050	cGZLua5Thread::LoadFile	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	76	+0x130	008b90f0	cGZLua5Thread::LoadStringA	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	77	+0x134	008b91a0	cGZLua5Thread::LoadBuffer	12	3	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	78	+0x138	008b80f0	cGZLua5Thread::Error	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	79	+0x13C	008b8130	cGZLua5Thread::Next	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	80	+0x140	008b8180	cGZLua5Thread::Concat	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	81	+0x144	008b81d0	cGZLua5Thread::Register	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	82	+0x148	008b8240	cGZLua5Thread::GetUpValueIndex	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	83	+0x14C	008b8340	cGZLua5Thread::Ref	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	84	+0x150	008b8390	cGZLua5Thread::GetRef	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	85	+0x154	008b83e0	cGZLua5Thread::Unref	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	86	+0x158	008b82e0	cGZLua5Thread::SetGlobal	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	87	+0x15C	008b8280	cGZLua5Thread::GetGlobal	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	88	+0x160	008b8400	cGZLua5Thread::Tag	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	89	+0x164	008b84b0	cGZLua5Thread::GetTagMethod	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	90	+0x168	008b8540	cGZLua5Thread::SetTagMethod	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	91	+0x16C	008b85e0	cGZLua5Thread::NewTag	0	0	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	92	+0x170	008b8670	cGZLua5Thread::SetTag	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	93	+0x174	008b86c0	cGZLua5Thread::CopyTagMethods	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	94	+0x178	008b8750	cGZLua5Thread::CloneTag	4	1	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	95	+0x17C	008b87a0	icf::cGZLua5Thread::PushUserTag	8	2	eax-or-void	medium	
+cIGZLua5Thread	cGZLua5Thread	00ac8dd0	96	+0x180	008b87f0	cGZLua5Thread::ToUserTag	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	0	+0x0	00880a60		8	2	eax-or-void	medium	tail->008806c0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	1	+0x4	00429ce0		0	0	eax-or-void	medium	tail->00424b60
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	2	+0x8	00429cf0		0	0	eax-or-void	medium	tail->00424b70
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	3	+0xC	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	4	+0x10	004777e0	icf::cGZLua5Thread::GetContext	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	5	+0x14	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	6	+0x18	008b6de0	cSC4PathView::SetThickness	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	7	+0x1C	008b8e20	cGZLua5Thread::OnCreate	12	3	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	8	+0x20	008b8ed0	cGZLua5Thread::OnDestroy	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	9	+0x24	008b6c30	cGZLua5Thread::Pause	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	10	+0x28	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	11	+0x2C	008b6c80	cGZLua5Thread::IsValid	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	12	+0x30	008b6cf0	cGZLua5Thread::Destroy	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	13	+0x34	008b6d70	cGZLua5Thread::Status	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	14	+0x38	008801c0	cSCLua::GetTop	0	0	eax-or-void	medium	tail->008b6df0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	15	+0x3C	008801d0	cSCLua::SetTop	4	1	eax-or-void	medium	tail->008b6e30
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	16	+0x40	008801e0	cSCLua::PushValue	4	1	eax-or-void	medium	tail->008b6e80
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	17	+0x44	008801f0	cSCLua::Remove	4	1	eax-or-void	medium	tail->008b6ed0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	18	+0x48	00880200	cSCLua::Insert	4	1	eax-or-void	medium	tail->008b6f20
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	19	+0x4C	00880210	cSCLua::Pop	4	1	eax-or-void	medium	tail->008b6f70
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	20	+0x50	008b6fc0	cGZLua5Thread::Replace	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	21	+0x54	008b7010	cGZLua5Thread::Move	8	2	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	22	+0x58	008b7060	cGZLua5Thread::GrowStack	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	23	+0x5C	00880220	cSCLua::Type	4	1	eax-or-void	medium	tail->008b70b0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	24	+0x60	00880230	cSCLua::TypeName	4	1	eax-or-void	medium	tail->008b7100
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	25	+0x64	00880240	cSCLua::IsNumber	4	1	eax-or-void	medium	tail->008b7150
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	26	+0x68	00880260	cSCLua::IsString	4	1	eax-or-void	medium	tail->008b71a0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	27	+0x6C	00880270	cSCLua::IsCFunction	4	1	eax-or-void	medium	tail->008b71f0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	28	+0x70	00880680	cSCLua::IsFunction	4	1	eax-or-void	medium	tail->008b7240
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	29	+0x74	00880690	cSCLua::IsTable	4	1	eax-or-void	medium	tail->008b72a0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	30	+0x78	008806a0	cSCLua::IsUserData	4	1	eax-or-void	medium	tail->008b7300
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	31	+0x7C	008b7350	cGZLua5Thread::IsLightUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	32	+0x80	00880250	cSCLua::IsBoolean	4	1	eax-or-void	medium	tail->008b73b0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	33	+0x84	008806b0	cSCLua::IsNil	4	1	eax-or-void	medium	tail->008b7410
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	34	+0x88	008b7470	cGZLua5Thread::IsNone	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	35	+0x8C	008b74d0	cGZLua5Thread::IsNoneOrNil	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	36	+0x90	00880290	cSCLua::Equal	8	2	eax-or-void	medium	tail->008b7520
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	37	+0x94	008b7580	cGZLua5Thread::RawEqual	8	2	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	38	+0x98	008802a0	cSCLua::LessThan	8	2	eax-or-void	medium	tail->008b75e0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	39	+0x9C	008802b0	icf::cSCLua::ToSint32	4	1	eax-or-void	medium	tail->008b7640
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	40	+0xA0	008802b0	icf::cSCLua::ToSint32	4	1	eax-or-void	medium	tail->008b7640
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	41	+0xA4	008802c0	cSCLua::ToNumber	4	1	x87	high	tail->008b7690
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	42	+0xA8	00880320	cSCLua::ToBoolean	4	1	eax-or-void	medium	tail->008b76f0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	43	+0xAC	008802d0	cSCLua::ToString	4	1	eax-or-void	medium	tail->008b7740
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	44	+0xB0	008802e0	cSCLua::Strlen	4	1	eax-or-void	medium	tail->008b7790
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	45	+0xB4	008802f0	cSCLua::ToCFunction	4	1	eax-or-void	medium	tail->008b77e0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	46	+0xB8	00880300	cSCLua::ToUserData	4	1	eax-or-void	medium	tail->008b7830
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	47	+0xBC	008b7880	cGZLua5Thread::ToThread	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	48	+0xC0	00880330	cSCLua::PushNil	0	0	eax-or-void	medium	tail->008b78d0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	49	+0xC4	00880340	cSCLua::PushNumber	8	2	x87	high	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	50	+0xC8	00880360	cSCLua::PushLString	8	2	eax-or-void	medium	tail->008b7960
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	51	+0xCC	00880370	cSCLua::PushString	4	1	eax-or-void	medium	tail->008b79b0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	52	+0xD0	00880380	cSCLua::PushCClosure	8	2	eax-or-void	medium	tail->008b7a00
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	53	+0xD4	008803a0	cSCLua::PushBoolean	4	1	eax-or-void	medium	tail->008b7a50
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	54	+0xD8	008b7aa0	cGZLua5Thread::PushLightUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	55	+0xDC	008b7af0	icf::cGZLua5Thread::PushNewUserData	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	56	+0xE0	008b7c30	icf::cGZLua5Thread::PushNewTable	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	57	+0xE4	008803c0	cSCLua::GetTable	4	1	eax-or-void	medium	tail->008b7b40
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	58	+0xE8	008803d0	cSCLua::RawGet	4	1	eax-or-void	medium	tail->008b7b90
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	59	+0xEC	008803e0	cSCLua::RawGetI	8	2	eax-or-void	medium	tail->008b7be0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	60	+0xF0	008b7c70	cGZLua5Thread::GetFunctionEnvironment	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	61	+0xF4	008b7cc0	cGZLua5Thread::GetMetaTable	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	62	+0xF8	008b7d10	cGZLua5Thread::GetRegistryTable	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	63	+0xFC	008b7d60	icf::cGZLua5Thread::GetGlobalTable	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	64	+0x100	00880440	cSCLua::SetTable	4	1	eax-or-void	medium	tail->008b7db0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	65	+0x104	00880450	cSCLua::RawSet	4	1	eax-or-void	medium	tail->008b7e00
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	66	+0x108	00880460	cSCLua::RawSetI	8	2	eax-or-void	medium	tail->008b7e50
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	67	+0x10C	008b7ea0	cGZLua5Thread::SetFunctionEnvironment	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	68	+0x110	008b7ef0	cGZLua5Thread::SetMetaTable	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	69	+0x114	008b7f40	icf::cGZLua5Thread::Call	8	2	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	70	+0x118	008b8f30	cGZLua5Thread::CallProtected	16	4	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	71	+0x11C	008804c0	cSCLua::DoFile	4	1	eax-or-void	medium	tail->008b7f90
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	72	+0x120	008804d0	cSCLua::DoString	4	1	eax-or-void	medium	tail->008b7fe0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	73	+0x124	008804e0	cSCLua::DoBuffer	12	3	eax-or-void	medium	tail->008b8030
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	74	+0x128	008b8090	cGZLua5Thread::Load	12	3	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	75	+0x12C	008b9050	cGZLua5Thread::LoadFile	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	76	+0x130	008b90f0	cGZLua5Thread::LoadStringA	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	77	+0x134	008b91a0	cGZLua5Thread::LoadBuffer	12	3	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	78	+0x138	00880620	cSCLua::Error	4	1	eax-or-void	medium	tail->008b80f0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	79	+0x13C	00880560	cSCLua::Next	4	1	eax-or-void	medium	tail->008b8130
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	80	+0x140	00880630	cSCLua::Concat	4	1	eax-or-void	medium	tail->008b8180
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	81	+0x144	00880650	cSCLua::Register	8	2	eax-or-void	medium	tail->008b81d0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	82	+0x148	008b8240	cGZLua5Thread::GetUpValueIndex	4	1	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	83	+0x14C	008b8340	cGZLua5Thread::Ref	0	0	eax-or-void	medium	
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	84	+0x150	00880410	cSCLua::GetRef	4	1	eax-or-void	medium	tail->008b8390
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	85	+0x154	00880550	cSCLua::Unref	4	1	eax-or-void	medium	tail->008b83e0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	86	+0x158	00880430	cSCLua::SetGlobal	4	1	eax-or-void	medium	tail->008b82e0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	87	+0x15C	008803b0	cSCLua::GetGlobal	4	1	eax-or-void	medium	tail->008b8280
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	88	+0x160	00880280	cSCLua::Tag	4	1	eax-or-void	medium	tail->008b8400
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	89	+0x164	00880400	cSCLua::GetTagMethod	8	2	eax-or-void	medium	tail->008b84b0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	90	+0x168	00880470	cSCLua::SetTagMethod	8	2	eax-or-void	medium	tail->008b8540
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	91	+0x16C	00880520	cSCLua::NewTag	0	0	eax-or-void	medium	tail->008b85e0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	92	+0x170	00880540	cSCLua::SetTag	4	1	eax-or-void	medium	tail->008b8670
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	93	+0x174	00880530	cSCLua::CopyTagMethods	8	2	eax-or-void	medium	tail->008b86c0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	94	+0x178	00880670	cSCLua::CloneTag	4	1	eax-or-void	medium	tail->008b8750
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	95	+0x17C	00880390	cSCLua::PushUserTag	8	2	eax-or-void	medium	tail->008b87a0
+cIGZLua5Thread(SCLua)	cSCLua	00ac42c0	96	+0x180	00880310	cSCLua::ToUserTag	4	1	eax-or-void	medium	tail->008b87f0
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	0	+0x0	008ae7d0	cGZLuaScriptServer::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	1	+0x4	008ae800	icf::cGZLuaScriptServer::AddRef	0	0	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	2	+0x8	008ae810	cGZLuaScriptServer::Release	0	0	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	3	+0xC	008b0860	cGZLuaScriptServer::Init	0	0	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	4	+0x10	008b01c0	cGZLuaScriptServer::Shutdown	0	0	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	5	+0x14	00a6cab0	icf::cGZLuaScriptServer::GetLua	0	0	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	6	+0x18	008b32b0	cGZLuaScriptServer::RunScriptString	12	3	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	7	+0x1C	008b1a80	cGZLuaScriptServer::RunScriptFile	8	2	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	8	+0x20	008b22b0	cGZLuaScriptServer::KillScript	4	1	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	9	+0x24	008b1180	cGZLuaScriptServer::PauseScript	4	1	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	10	+0x28	008b1290	cGZLuaScriptServer::ResumeScript	4	1	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	11	+0x2C	008b4e60	cGZLuaScriptServer::GetBreakpointExists	12	3	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	12	+0x30	008b4ec0	cGZLuaScriptServer::SetBreakpointExists	16	4	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	13	+0x34	008b4f60	cGZLuaScriptServer::ToggleBreakpointExists	12	3	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	14	+0x38	008b5000	cGZLuaScriptServer::GetBreakpointEnabled	12	3	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	15	+0x3C	008b5070	cGZLuaScriptServer::SetBreakpointEnabled	16	4	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	16	+0x40	008b5110	cGZLuaScriptServer::GetBreakpointCondition	16	4	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	17	+0x44	008b51a0	cGZLuaScriptServer::SetBreakpointCondition	16	4	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	18	+0x48	008b4210	cGZLuaScriptServer::GetBreakpointEntryList	12	3	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	19	+0x4C	008b13a0	cGZLuaScriptServer::EnumerateScriptIDs	4	1	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	20	+0x50	008b0410	cGZLuaScriptServer::GetScriptInfo	28	7	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	21	+0x54	008aecf0	cGZLuaScriptServer::GetCurrentRunningScriptID	0	0	eax-or-void	medium	indirect-jump dword ptr [edx + 0x28]
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	22	+0x58	008b04a0	cGZLuaScriptServer::GetScriptAutoYieldEnabled	4	1	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	23	+0x5C	008b04e0	cGZLuaScriptServer::SetScriptAutoYieldEnabled	8	2	eax-or-void	medium	
+cIGZLuaScriptServer	cGZLuaScriptServer	00ac8710	24	+0x60	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	0	+0x0	005ffe60	cSCStringDetokenizer::QueryInterface	8	2	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	1	+0x4	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	2	+0x8	005ffe90	cSCStringDetokenizer::Release	0	0	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	3	+0xC	00648f00	operator.new	0	0	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	4	+0x10	00648f00	operator.new	0	0	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	5	+0x14	00601aa0	cSCStringDetokenizer::SetTokenReplacementValue	8	2	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	6	+0x18	00601b80	cSCStringDetokenizer::SetTokenReplacementMethod	12	3	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	7	+0x1C	00600410	cSCStringDetokenizer::AddUnknownTokenReplacementMethod	12	3	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	8	+0x20	005ffee0	cSCStringDetokenizer::Detokenize	8	2	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	9	+0x24	005ffeb0	cSCStringDetokenizer::Detokenize			forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	10	+0x28	005ffec0	cSCStringDetokenizer::SetHTMLCleanMode	4	1	eax-or-void	medium	
+cISCStringDetokenizer	cSCStringDetokenizer	00aa6dfc	11	+0x2C	005ffed0	cSCStringDetokenizer::GetHTMLCleanMode	0	0	eax-or-void	medium	
+cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	0	+0x0	00880e90		8	2	eax-or-void	medium	tail->008806c0
+cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	1	+0x4	00880ea0		0	0	eax-or-void	medium	tail->00424b60
+cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	2	+0x8	00880eb0		0	0	eax-or-void	medium	tail->00424b70
+cISC4GameDataRegistryNotificationTarget	cSCLua	00ac4138	3	+0xC	00881650	cSCLua::OnGameDataRegistryNotification	12	3	via-call	low	

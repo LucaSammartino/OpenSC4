@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "protection_adjusted_copy",
+  "spec": ["protection 2", "protection 5.2", "protection 5.3", "protection 16", "protection 18.20"],
+  "description": "Test 20: adjusted := clamp(roundHalfEven(unadjusted x 1.0), 0, 255): -5 -> 0, 300 -> 255, 128 -> 128. Police: station 5 at tract (5,5) with an item that is not locally funded uses the department funding (1.0 -> centre 100, radius 16 m = 0.5 tract so only tract (5,5) -> unadjusted and adjusted 100 through the insert's box copy). A funding change of the department (data2 = 0xA2963983, stations present) rebuilds only the unadjusted grid (funding 0.5 -> 50) and leaves the adjusted 100 (quirk 1); another department ID does nothing. A full cycle of the daily step (42 days x 25 >= 1024 + the empty first call) copies every tract, clamping. Hand-derived.",
+  "steps": [
+    {"op": "protection_eval", "fn": "adjusted_value", "args": [-5, 1.0], "expect": 0},
+    {"op": "protection_eval", "fn": "adjusted_value", "args": [300, 1.0], "expect": 255},
+    {"op": "protection_eval", "fn": "adjusted_value", "args": [128, 1.0], "expect": 128},
+    {"op": "protection_eval", "fn": "adjusted_value", "args": [3, 0.5], "expect": 2},
+    {"op": "protection_eval", "fn": "adjusted_value", "args": [5, 0.5], "expect": 2},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "5": {"station": ["police", 100, 100, 16, 1], "pos": [176, 0, 176], "items": {"0x0A567BAA": {"local": 0.1, "funded": false}}}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 5},
+    {"op": "protection_expect_grid", "grid": "unadjusted", "cells": [[5, 5, 100]], "others": 0},
+    {"op": "protection_expect_grid", "grid": "adjusted", "cells": [[5, 5, 100]], "others": 0},
+    {"op": "protection_env", "dept_funding": {"0xA2963983": 0.5}},
+    {"op": "protection_message", "type": "FundingChanged", "data2": "0x12345678"},
+    {"op": "protection_expect_grid", "grid": "unadjusted", "cells": [[5, 5, 100]]},
+    {"op": "protection_message", "type": "FundingChanged", "data2": "0xA2963983"},
+    {"op": "protection_expect_grid", "grid": "unadjusted", "cells": [[5, 5, 50]], "others": 0},
+    {"op": "protection_expect_grid", "grid": "adjusted", "cells": [[5, 5, 100]], "others": 0},
+    {"op": "protection_grid_set", "grid": "unadjusted", "cells": [[0, 0, -5], [1, 0, 300], [2, 0, 128]]},
+    {"op": "protection_grid_set", "grid": "adjusted", "cells": [[0, 0, 7], [1, 0, 7], [2, 0, 7]]},
+    {"op": "protection_message", "type": "SimNewDay", "count": 42},
+    {"op": "protection_expect_grid", "grid": "adjusted", "cells": [[0, 0, 0], [1, 0, 255], [2, 0, 128], [5, 5, 50]], "others": 0}
+  ]
+}

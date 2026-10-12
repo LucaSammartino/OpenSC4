@@ -60,17 +60,11 @@ impl Default for CrimeTuning {
     }
 }
 
-/// A curve property (foundations §4.1): `None` when absent, a scalar or not
-/// numeric ([choice]); a present array gives its points (an empty curve
-/// when it has no complete point).
+/// A curve property (foundations §4.1, [`props::curve`]): `None` when
+/// absent, not numeric or a single value ([choice]); otherwise its points
+/// (an empty curve when it has no complete point).
 fn curve_prop(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
-    match h.get(id)? {
-        Variant::Array { .. } => {
-            let values = props::f32s(h, id)?;
-            Some(ResponseCurve::from_flat(&values).unwrap_or_default())
-        }
-        _ => None,
-    }
+    props::curve(h, id)
 }
 
 impl CrimeTuning {
@@ -182,9 +176,11 @@ mod tests {
         assert_eq!((t.tract_size, t.decay, t.reoffend), (2, 0.5, 1.0));
         assert!(close(t.attenuation_curve.eval(51.0), 0.2));
         assert!(close(t.prop_request_curve.eval(0.2), 4.0));
-        // Missing property: the default; empty array: an empty curve; scalar: absent.
+        // Missing property: the default; empty array: an empty curve; a
+        // scalar or a one-element array: absent (foundations §4.1 [choice]).
         let mut h = PropertyHolder::new();
-        h.add(prop::CRIMES_CURVE, Variant::array(mem::FLOAT32, vec![Elem::F32(1.0)]));
+        h.add(prop::CRIMES_CURVE, Variant::array(mem::FLOAT32, vec![]));
+        h.add(prop::EQ_CURVES[0], Variant::array(mem::FLOAT32, vec![Elem::F32(1.0)]));
         h.add(prop::ATTENUATION_CURVE, Variant::Scalar(Elem::F32(3.0)));
         h.add(prop::TRACT_SIZE, Variant::Scalar(Elem::U32(4)));
         let mut t = CrimeTuning::default();
@@ -192,6 +188,7 @@ mod tests {
         t.read(Some(&h));
         assert_eq!(t.tract_size, 4);
         assert!(t.crimes_curve.is_empty());
+        assert_eq!(t.eq_curves[0], CrimeTuning::default().eq_curves[0]);
         assert!(close(t.attenuation_curve.eval(51.0), 0.2));
         assert!(close(t.eq_curves[1].eval(127.5), 0.05));
         assert!(close(t.prop_request_curve.eval(0.2), 4.0), "keep");

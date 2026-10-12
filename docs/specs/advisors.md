@@ -243,12 +243,13 @@ reach Lua as userdata of the advice-subject tag (§8.1).
 
 If already initialised, only the last step runs. Otherwise:
 
-1. Take the app's Lua context. `Open(0x7E)` (`cISCLua` slot 3).
+1. Take the app's Lua context (instance 1, already opened with `0x7E` by `cSC4App::Init`, lua-host.md §1.4).
+   `Open(0x7E)` (`cISCLua` slot 3) is therefore a no-op returning true.
 2. `register_api(global = true)` (§8.2).
 3. Create two Lua tags with `NewTag`. For each, push the C function **tag-gc** and `SetTagMethod(tag, "gc")`. Tag 0 is
    the advice-subject tag, tag 1 the string tag (§8.1). `GetDataTag(i)` returns them.
 4. Register `gAdviceDetokenizerFunction` with the string detokenizer service (`SL` global, slot `+0x1C(fn, this,
-   1)`). The detokenizer expands `%token%` text in advice titles and messages (UI, §8.5).
+   1)`). The detokenizer expands `#token#` text in advice titles and messages (UI, §8.5).
 5. `reload_data()` (§4.2).
 6. If the advisor map is not empty and the system was **not** loaded from a save: `kill_advisors()` (§4.3).
 7. Register the cheat codes `DollyLlama` (`0xAAB7F42A`) and, only when the app's debug functionality is enabled
@@ -267,11 +268,12 @@ If already initialised, only the last step runs. Otherwise:
 3. Load the script **packages** of group `0x4A5E8EF6` in ascending package ID order (package headers `--#-package:<hex>`
    in the first bytes of the script). Shipped packages: `0x00000001` (system), `0x00002000`, `0x00003000` (advisors),
    `0x00004000`, `0x01001000` (expansion).
-4. `register_api(global = false)` (registers the `game.*` functions). If it fails, return false.
+4. `register_api(global = false)` (registers the `game.*` functions). It always returns true (`0x00418940`), so the
+   "return false" branch never runs.
 5. Hand the Lua context to the tutorial registry (`cISC4App` `+0xC4` → `SetLua`). Return true.
 
 The resource key hash (CRC24, OpenPGP polynomial `0x864CFB`, initial `0xB704CE`), the package loader and
-`_dofile_from_resource` are generic Lua host behaviour and are specified in the Lua host spec (§16 Q8).
+`_dofile_from_resource` are generic Lua host behaviour and are specified in lua-host.md (§7).
 
 `reload_data` runs from `Init` and from the debug cheat `Adv reload` (§5.2). The ticker also calls it when
 reloadPending is set, which never happens (§16 Q2).
@@ -807,7 +809,9 @@ tag 0 or 1, then releases the pointer.
 Every extension is `{name, function, isGlobal}` in one list built by two static collectors (38 simulation entries
 and 9 UI entries). `register_api(true)` registers the global entries as globals; `register_api(false)` registers the
 others into the table `game` (which the scripts must have created; otherwise the protected-less `SetTable` raises a
-Lua error). Registration leaves the global `_tf_` pointing at the last function *[quirk]*.
+Lua error outside any protected call, which goes to the panic path and ends the process with `exit(1)`,
+`0x008BB830`, lua-host.md §4.2). Registration leaves the global `_tf_` pointing at the last function *[quirk]*
+(lua-host.md §8.2).
 
 ### 8.3 `game.*` functions by subsystem *[compat]*
 
@@ -852,9 +856,10 @@ Only the Lua scripts: triggers, reward conditions, text tokens and the MySim scr
 
 ### 8.5 Detokenizer (UI)
 
-`%token%` text in advice texts: `link_id`, `sit_link_id`, mission tokens (city situation data), `advisor`,
+`#token#` text in advice texts (`##` is a literal `#`): `link_id`, `sit_link_id`, mission tokens (city situation data), `advisor`,
 `building_initial_cost`, `building_monthly_cost`, and Lua expressions evaluated as `_dasd_=(expr)` and formatted by a
-type prefix. Unknown tokens become `%%UNKNOWN TOKEN --<token>--%%`. Out of scope beyond this list.
+type prefix (`s@`, `m@`, `d@`, `t@`, `p@`). A token nothing resolves ends up as the bare token text (the
+`UNKNOWN TOKEN` text is built and then overwritten, `0x00600C20`). The host side is in lua-host.md §10.
 
 ---
 
@@ -1122,7 +1127,8 @@ replacement should return true).
 The slot order matches the SDK. Semantic differences (reported by the Lua analysis, for the Lua host spec):
 `ToUserTag` (`+0x70`) returns the boxed pointer of a userdata, not a tag; `PushUserTag` (`+0x8C`) and `PushUserData`
 (`+0x114`) are the same function `(void*, int32 tag)`; `ToUint32`/`ToSint32` are one function (truncate to int32);
-`Register` (`+0x110`) takes `(fn, name)`.
+`Register` (`+0x110`) takes `(fn, name)`. Further return-type differences (`Close` bool, `NewTable` void, `DoFile`/`DoString`/`DoBuffer` int status,
+`CloneTag` returns the tag, `ToDataRegistryEntryID` returns the entry pointer): lua-host.md §5.1.
 
 ---
 

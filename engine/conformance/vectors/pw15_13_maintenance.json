@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "power_maintenance",
+  "spec": ["power 5.1", "power 6.2", "power 7.3", "power 15.13", "foundations 18"],
+  "description": "Test 13, from 5.1, 6.2 and 7.3 (float32 products checked in Python/numpy). Inserting the coal plant (budget item cost 250, line 7) writes the base maintenance 0x2A58D350 := 250. In state 1, maint = trunc(int64 0x2A58D350 x curve0x0911E2E7(wear)) with the shipped coal curve: wear 0 -> 250 x 1 = 250 = item cost, nothing changes; wear 0.5 -> 250 x 1.05f = 262.49999 rounds to 262.5 at 24 bits -> 262: SetLocalFullFunding(plant, 262) then ChangeBudgetItemCost(plant, index 0, 262); wear 0.75 -> 250 x 1.3f = 324.99999 -> 325.0 -> 325 (the base property is not compounded). 300 poles of cost 1 -> costBase 300 -> line item 1 full expenses 300 (no fuel cost shipped). With a fuel cost 0.5 per unit and the plant using 400 (need 400: ratio 400/1000 = 0.4f, trunc(1000 x 0.4f) = 400), the fuel is trunc(400 x 0.5) = 200 and the full expenses 500.",
+  "steps": [
+    {"op": "power_env", "pole_set": {"first": 1000, "count": 300, "cost": 1, "origin": [0, 100]}, "occupants": [
+      {"id": 91, "type": "building", "cells": [8, 0, 9, 1], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1},
+        "0x8A1E07EE": {"f32": [0, 1, 0.5, 0.92, 1, 0]},
+        "0x0911E2E7": {"f32": [0, 1, 0.4, 1.03, 0.5, 1.05, 0.65, 1.15, 0.75, 1.3, 0.85, 1.55, 0.9, 1.85, 1, 3]}},
+        "budget": {"funding": 1.0, "cost": 250, "line": 7, "index": 0}},
+      {"id": 92, "type": "building", "cells": [12, 0, 13, 1], "props": {"0x27812854": {"u32": 400}}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 91},
+    {"op": "power_expect_occupant", "occupant": 91, "props": {"0x2A58D350": 250}},
+    {"op": "power_message", "type": "ConnectionsReady"},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle"},
+    {"op": "power_expect_event_count", "filter": {"event": "local_full_funding"}, "count": 0},
+    {"op": "power_expect_event_count", "filter": {"event": "budget_cost"}, "count": 0},
+    {"op": "power_expect_world", "line_items": [{"department": "0x8910BC8A", "line": 1, "expenses": 0}]},
+
+    {"op": "power_env", "occupant_props": {"91": {"0xC910B4CF": {"f32": 0.5}}}},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_event_count", "filter": {"event": "local_full_funding", "department": "0x8910BC8A", "occupant": 91,
+      "amount": 262, "purpose": "0xCA58E540"}, "count": 1},
+    {"op": "power_expect_events", "filter": {"event": "budget_cost"}, "events": [
+      {"event": "budget_cost", "occupant": 91, "index": 0, "cost": 262}]},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_event_count", "filter": {"event": "budget_cost"}, "count": 0},
+    {"op": "power_expect_occupant", "occupant": 91, "props": {"0x2A58D350": 250}},
+
+    {"op": "power_env", "occupant_props": {"91": {"0xC910B4CF": {"f32": 0.75}}}},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_events", "filter": {"event": "budget_cost"}, "events": [
+      {"event": "budget_cost", "occupant": 91, "index": 0, "cost": 325}]},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupants": {"first": 1000, "count": 300}},
+    {"op": "power_expect", "state": {"pole_count": 300, "cost_base": 300}},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_events", "filter": {"event": "full_expenses"}, "events": [
+      {"event": "full_expenses", "item": ["0x8910BC8A", 1], "value": 300}]},
+    {"op": "power_expect_world", "line_items": [{"department": "0x8910BC8A", "line": 1, "expenses": 300}]},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 92},
+    {"op": "power_env", "occupant_props": {"91": {"0xC910B4CE": {"f32": 0.5}}}},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_occupant", "occupant": 91, "props": {"0x08D9763D": 400}},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect_world", "line_items": [{"department": "0x8910BC8A", "line": 1, "expenses": 500}]}
+  ]
+}

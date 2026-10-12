@@ -92,17 +92,11 @@ impl Default for AuraTuning {
 }
 
 /// A curve property under the "delete" pattern: `None` when absent (also
-/// for non-numeric or single scalar values, foundations §4.1 [choice]);
-/// otherwise a new curve from its points (empty when it has none).
+/// for non-numeric or single values, foundations §4.1 [choice],
+/// [`props::curve`]); otherwise a new curve from its points (empty when it
+/// has none).
 fn curve(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
-    match h.get(id)? {
-        Variant::Scalar(_) => None,
-        _ => {
-            let v = props::f32s(h, id)?;
-            let points: Vec<(f32, f32)> = v.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-            Some(ResponseCurve::from_points(&points))
-        }
-    }
+    props::curve(h, id)
 }
 
 impl AuraTuning {

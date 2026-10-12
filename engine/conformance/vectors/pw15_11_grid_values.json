@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "power_grid_values",
+  "spec": ["power 2", "power 5.2", "power 5.3", "power 6.5", "power 6.6", "power 15.11"],
+  "description": "Test 11, by hand from 2, 5.3 and 6.5. A plant at cells (10,18)-(13,21) wires exactly block (1,2) (x 8..15, z 16..23, R = 2); the cycle powers it (supply 1100, no need), state 2 swaps the bitmaps and UpdatePoweredLots finds changed bits only in block (1,2): its cells get grid value 2 (wired + powered), 0x8A07AE00 is posted once with (8, 16, 15, 23), then 0x6A07C2EE once with no data; state 3 posts 0xEA418D8F with data1 = 8. Every other cell stays 0. Zoning: zones at (100,100), (118,118) and (116,116); ZoningChanged on (100,100) expands to (98..102) and tests only the first corner (98,98), unzoned, so nothing is wired yet; ZoningChanged on (118,118) expands to (116..120) whose first corner (116,116) is zoned, so that whole rect is wired at once. Both go to the power-line tool's UpdateOnZoneChange with data3. The next DoIdle clears the wire bits of the dirty union (98..120), rebuilds them from the zoned cells' neighbourhoods ((100,100) -> 98..102, (118,118) -> 116..120, (116,116) -> 114..118, clipped to the rect) and rewrites the grid of the rect: wired but unpowered -> 1, the rest 0. Removing the plant (no longer in the occupant manager) marks its expanded cells dirty; the rebuild leaves them unwired and writes 0 although powered-current still has them (IsPowered true): unwired reads 0 even if powered.",
+  "steps": [
+    {"op": "power_env", "occupants": [
+      {"id": 81, "type": "building", "cells": [10, 18, 13, 21], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1},
+        "0x8A1E07EE": {"f32": [0, 1, 0.5, 0.92, 1, 0]}}, "budget": {"funding": 1.0, "line": 7}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 81},
+    {"op": "power_expect_bitmap", "bitmap": "wire", "rects": [[8, 16, 15, 23]], "exact": true},
+    {"op": "power_message", "type": "ConnectionsReady"},
+    {"op": "power_clear_events"},
+    {"op": "power_cycle", "expect_calls": 5},
+    {"op": "power_expect_events", "filter": {"event": "post"}, "events": [
+      {"event": "post", "type": "0x8A07AE00", "data": [8, 16, 15, 23], "unknown": null},
+      {"event": "post", "type": "0x6A07C2EE", "data": [0, 0, 0, 0], "unknown": null},
+      {"event": "post", "type": "0xEA418D8F", "data": [8, 0, 0, 0], "unknown": null}]},
+    {"op": "power_expect_bitmap", "bitmap": "powered", "rects": [[8, 16, 15, 23]], "exact": true},
+    {"op": "power_expect_grid", "rects": [[8, 16, 15, 23, 2]], "others": 0},
+    {"op": "power_call", "method": "is_powered", "args": [8, 16], "expect": true},
+    {"op": "power_call", "method": "supply_value", "args": [7, 16], "expect": false},
+
+    {"op": "power_env", "zones": [{"x": 100, "z": 100, "zone": 1}, {"x": 118, "z": 118, "zone": 1}, {"x": 116, "z": 116, "zone": 1}]},
+    {"op": "power_message", "type": "ZoningChanged", "rect": [100, 100, 100, 100], "data3": 5},
+    {"op": "power_expect_bitmap", "bitmap": "wire", "rects": [[8, 16, 15, 23]], "exact": true},
+    {"op": "power_message", "type": "ZoningChanged", "rect": [118, 118, 118, 118], "data3": 6},
+    {"op": "power_expect_bitmap", "bitmap": "wire", "rects": [[8, 16, 15, 23], [116, 116, 120, 120]], "exact": true},
+    {"op": "power_expect_events", "filter": {"event": "tool_zone_change"}, "events": [
+      {"event": "tool_zone_change", "rect": [100, 100, 100, 100], "data3": 5},
+      {"event": "tool_zone_change", "rect": [118, 118, 118, 118], "data3": 6}]},
+    {"op": "power_expect", "state": {"wire_dirty": true, "dirty_rect": [98, 98, 120, 120], "recompute": true}},
+    {"op": "power_idle"},
+    {"op": "power_expect", "state": {"wire_dirty": false, "state": 0}},
+    {"op": "power_expect_bitmap", "bitmap": "wire",
+      "rects": [[8, 16, 15, 23], [98, 98, 102, 102], [116, 116, 120, 120], [114, 114, 118, 118]], "exact": true},
+    {"op": "power_expect_grid", "rects": [[8, 16, 15, 23, 2], [98, 98, 102, 102, 1], [116, 116, 120, 120, 1], [114, 114, 115, 118, 1], [116, 114, 118, 115, 1]], "others": 0},
+
+    {"op": "power_cycle"},
+    {"op": "power_env", "occupant_state": {"81": {"in_manager": false}}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 81},
+    {"op": "power_expect", "state": {"wire_dirty": true, "dirty_rect": [8, 16, 15, 23], "plant_count": 0}},
+    {"op": "power_idle"},
+    {"op": "power_expect_bitmap", "bitmap": "wire", "unset": [[8, 16], [12, 20], [15, 23]]},
+    {"op": "power_call", "method": "is_powered", "args": [12, 20], "expect": true},
+    {"op": "power_expect_grid", "rects": [[8, 16, 15, 23, 0]]}
+  ]
+}

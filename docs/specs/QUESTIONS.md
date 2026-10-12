@@ -3,36 +3,49 @@
 Questions from engine authors that the spec writers need to answer from the original. Answered questions move into
 the relevant spec, and their entry here is deleted.
 
-## Pollution (pollution.md)
-- PO1. Are `0.1` (deal amounts, §4.4) and `0.01` (efficiency, §4.7, and slot 55) `float` or `double` literals?
-  Under foundations §18 this decides whether the constant is rounded to `float32` first. The implementation
-  takes them as `float`. (1/32767 is answered: a `float32` multiply.)
-- PO2. The exact algorithm of `SetOccupantListUsedCapacity` (§4.9.3, the spec's own question 4). The
-  implementation uses its own distribution.
-- PO3. Should a failed `Read` release the current department first? The spec says release-then-read; the
-  implementation leaves the simulator unchanged on failure.
-- PO4. `GetPollutionGrid(4+)`: can the original ever return a grid there? The implementation returns none.
+## Power (power.md)
+- PW1. Test 5 expects 449; computed under foundations §18 (one f32 rounding per operation) the core gets 450.
+  Which is right, and if 449, which operation is not 24-bit?
+- PW2. §6.3 step 1 "reset an inverted range": reset to what (the empty range, or the full map)?
+- PW3. Are `AddLocallyFundedObject`, the secondary info and the base cost all inside the `if line ≠ 0` branch?
+- PW4. Which department do `SetLocalFullFunding` and `IsLocallyFundedObjectInDepartment` use: the item's or the
+  power department?
+- PW5. Are the plant/consumer counters signed or unsigned (matters for the slot return values on underflow)?
+- PW6. Where does the §5.4 "poles in rect" list come from (an occupant-manager query, or the simulator's pole list)?
+- PW7. Is `DemolishLots` called at all when there are no nuclear plants (Nuclear Free Zone)?
+- PW8. Is the tuning `0.01` a `float` or a `double` literal?
+- PW9. What does `Read` do on a stream error part-way (keep partial state, roll back, release references)?
+- PW10. When a removed pole was not in the pole list, do `costBase` and the recompute request still change?
+- PW11. Does `Init` look the department up again after a load?
+- PW12. Is the unpowered-percentage computation `double` or 24-bit?
 
-## Crime (crime.md)
-- C1. §6.9 uses the tuning's tract size, which differs from the grid's after a tract-size reload. Which one does
-  the original use? The implementation uses the tuning's.
-- C2. What is property `0xAA12FCB0`? The implementation uses it as a fallback string for the type name.
-- C3. The icon instances of the shipped crime types are not in the spec. The implementation uses 0.
-- C4. Does `rhe` ever receive values above 2^22 (where the `1.5 × 2^23` trick stops being exact)? The
-  implementation saturates to i32.
-- C5. In `SelectProp`, should a cell with no lot match incidents that have no lot? The implementation says yes.
-- C6. Is `loadedFromSave` set when `Read` fails on a stream error? The implementation sets it.
-- C7. Behaviour with no ordinance simulator. The implementation leaves the factor unchanged.
-- C8. The operation order of the §11.3 distance. The implementation computes `sqrt((dx² + dy²) + dz²)` in f32.
+## Plumbing (plumbing.md)
+- PL1. NearestWater's ring at clipped map edges: Chebyshev rings clipped to the map, or skipped rings?
+- PL2. `Shutdown` does not clear the grids-initialized flag, so a second `Init` finds no grids. Is that right?
+- PL3. Can state 3 ever see a current producer already set? The implementation floods from it.
+- PL4. After state 7 the iterator ends as Done at (0, 63): exactly how does state 7 iterate (rectangle, step,
+  end condition)?
+- PL5. Bitmap word count `(w·h)/32` and bit `x & 31` for city sizes that are not multiples of 32: some cells cannot
+  be marked and some share a bit. Confirm this is the original layout.
+- PL6. Max funding computes as `f32(120 × 0.01f) = 1.1999999`; the spec says 1.2. `float` or `double` 0.01?
+- PL7. The export deal gets flags `0x28` when the city is not connected: confirm.
 
-## Flammability (flammability.md)
-- F1. The prop/flora erratum is not applied everywhere. §1 still says "buildings first, else flora, else props";
-  §14.3 (the add path) and the labels of test 2 also use the old names. The implementation follows the numeric
-  IDs (prop `0xA823821E`, flora `0x74758926`, priority building > prop > flora).
-- F2. Message `0xC53D10AA` is handled by the original but not subscribed. Should it be subscribed?
-- F3. A curve stored as a single value: is it a constant curve or absent?
-- F4. Should `Read` append to the hotspot list or replace it?
-- F5. What happens when the plumbing simulator or the zone manager is missing?
-- F6. The integer conversion of occupant property `0x29244DB5`. The implementation reads the first element and
-  truncates floats toward zero.
-- F7. §15 question 3: is a removed occupant still listed when RemoveOccupant recomputes the tract?
+## Protection (protection.md)
+- PR1. `GetMaxPossibleDispatchCount` is not described. The implementation returns `GetTotalDispatchCount`.
+- PR2. The order of the station-effect property reads, and what happens when one fails part-way. The
+  implementation reads centre, outer, radius, position and does not stop.
+- PR3. Are the constants `0.01` and `100` `double` or `float`? The implementation takes them as `double`.
+- PR4. Which tract size S does the "zoned" check use (grid or tuning)? The implementation uses the grid's,
+  clamped to 1..64.
+- PR5. What exactly does "the item's department exists" mean (non-null item department, or lookup succeeds)?
+- PR6. What does `GetStrikingStations` return? The implementation returns the number appended.
+- PR7. The order of the nine message subscriptions. The implementation uses the §5 table order.
+- PR8. The exact condition for removing a jail from the locally funded list.
+- PR9. The layout of save records older than version 3.
+- PR10. Behaviour with a huge `nextCall` (the spec's Q6). The implementation saturates.
+- PR11. Are the cycle averages integer or float divisions? The implementation divides as float.
+- PR12. A station statistics vector shorter than 4 elements. The implementation pads with zeros.
+- PR13. Does a police re-read release the old helicopter source?
+- PR14. An absent jail capacity property. The implementation reads 0.
+- PR15. A demolished jail stuck in a jailbreak: with capacity 0 the jailed fraction is NaN and `NaN < 0.8` is
+  false, so it may never leave the list. Confirm.

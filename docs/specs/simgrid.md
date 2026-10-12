@@ -334,6 +334,8 @@ sources) and **residential-only** variants that call the callback only for tract
 **Random cell iterator** (prime-step or table mode): specified in weather.md §6.7 and foundations §12.4. Facts
 needed by grid simulators *[compat]*:
 - A never-reset iterator has count 0: its first `GetNext` returns false.
+- Its save reader (`0x005DB280`, weather.md §10) misbehaves on a stream error: the table is resized to the stream
+  object's address *[quirk]*; replacements fail the `Read` instead *[choice]*.
 - `Reset` in prime-step mode makes exactly **one** `rand()` call; in table mode it refills the table with the
   rectangle's **absolute** packed coordinates `(x mod 256) << 8 | (z mod 256)` in natural order (x outer, z inner)
   at every reset, and `random_shuffle`s it when asked (n − 1 `rand()` calls). A table-mode reset leaves the

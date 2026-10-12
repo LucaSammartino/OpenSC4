@@ -29,6 +29,9 @@
 //!   §7.1–§7.3.
 //! - [`ScanIterator`] (§7.4) and [`CellIterator`] (the random cell iterator,
 //!   prime-step and table modes; shared with the weather).
+//! - [`Bitmap`]: one-bit-per-cell maps with the rectangle helpers and the
+//!   selection-grow flood fill of power.md §2.1 (also plumbing's visited
+//!   bitmap).
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
@@ -62,12 +65,14 @@
 //! - The scanning iterator's step is at least 1.
 //! - The random cell iterator's table mode: see [`CellIterator`]'s module.
 
+mod bitmap;
 mod effects;
 mod elem;
 mod random_iter;
 mod scan;
 mod simgrid;
 
+pub use bitmap::{Bitmap, CellRect, GROW_MAX_ITERATIONS, MAX_BITMAP_SIDE};
 pub use effects::{
     add_distance_effect, add_radius_effect, distance_field, exact_distance, process_two_grids, table_distance, FAR,
     TABLE_RADIUS,

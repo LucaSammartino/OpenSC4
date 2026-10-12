@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "protection_fire_efficiency_curve",
+  "spec": ["protection 6.2", "protection 6.7", "protection 18.1"],
+  "description": "Test 1: GetStationEfficiency of a locally funded fire station with no lot and no strike is curve8D(f x 100) x 0.01 with the shipped curve (0,10)(50,25)(75,45)(90,75)(100,100)(120,110): f 0.5 -> 25 -> 0.25, 0 -> 10 -> 0.10, 1.1 -> 105 -> 1.05, 1.2 -> 110 -> 1.10; curve(75) = 45, curve(95) = 75 + 5 x 2.5 = 87.5. With an empty exemplar the code default (0,0)(100,100)(120,110) gives 0.5 at f 0.5. Values computed with the f32 curve rule of foundations 4.3 (scratchpad gen_pr18.py) and checked against the spec's numbers.",
+  "steps": [
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "10": {"items": {"0xEA567BC3": {"local": 0.5}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [10], "expect": 0.25},
+    {"op": "protection_occupants", "10": {"items": {"0xEA567BC3": {"local": 0.0}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [10], "expect": 0.1},
+    {"op": "protection_occupants", "10": {"items": {"0xEA567BC3": {"local": 1.1}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [10], "expect": 1.05},
+    {"op": "protection_occupants", "10": {"items": {"0xEA567BC3": {"local": 1.2}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [10], "expect": 1.1},
+    {"op": "protection_call", "method": "curve", "args": ["funding", 75], "expect": 45.0},
+    {"op": "protection_call", "method": "curve", "args": ["funding", 95], "expect": 87.5},
+    {"op": "protection_env", "tuning": "empty"},
+    {"op": "protection_call", "method": "read_tuning"},
+    {"op": "protection_occupants", "10": {"items": {"0xEA567BC3": {"local": 0.5}}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [10], "expect": 0.5}
+  ]
+}
