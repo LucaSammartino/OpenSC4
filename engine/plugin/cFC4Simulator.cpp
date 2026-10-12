@@ -94,6 +94,7 @@ cFC4Message2Standard* MakeMessage(const fc4_message& src) {
 // ---- construction -------------------------------------------------------------
 
 cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
+    FC4_LOGV("cFC4Simulator(%p) constructor enter", static_cast<void*>(this));
     fc4_host host{};
     host.struct_size = sizeof(fc4_host);
     host.user = this;
@@ -102,8 +103,9 @@ cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
     host.add_ref = &cFC4Simulator::HostAddRef;
     host.release = &cFC4Simulator::HostRelease;
     host.post = &cFC4Simulator::HostPost;
+    FC4_LOGV("cFC4Simulator(%p): calling fc4_sim_create (core ABI %u)", static_cast<void*>(this), fc4_abi_version());
     sim_ = fc4_sim_create(&host);
-    FC4_LOGV("cFC4Simulator(%p) constructed, core %p", static_cast<void*>(this), static_cast<void*>(sim_));
+    FC4_LOGV("cFC4Simulator(%p): fc4_sim_create returned %p", static_cast<void*>(this), static_cast<void*>(sim_));
     if (sim_ == nullptr || fc4_abi_version() != FC4_ABI_VERSION) {
         fc4::Log("cFC4Simulator: core creation failed (abi %u, header %u)", fc4_abi_version(), FC4_ABI_VERSION);
     }

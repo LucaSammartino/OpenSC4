@@ -78,7 +78,12 @@ plugin.
      every `GetClassObject` with the clsid, the iid, the result and whether our factory ran), plus simulator
      `QueryInterface` (the first 200 calls), `Init`, `Read`/`Write`, `OnTick` (the first tick and every 1000th),
      `DoMessage` (the first 50), agent registration and pause calls. Lines marked `[v]` are verbose. Every line is
-     flushed to disk immediately.
+     written straight to the OS. The log is opened with full sharing, so a viewer that holds it open cannot block
+     writes. The path never changes once chosen. Failed writes are retried once and then reported on the next line.
+   - Crash tracing: the class-object path (`GetClassObject`, the factory, `QueryInterface`) runs under a Win32
+     structured-exception guard. A first-chance vectored handler also logs every exception raised inside
+     `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
+     `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at load to prove that both work.
    - At `PostAppInit`, verbose mode also asks `GZCOM()->GetClassObject(0x2990C1E5)` once. The answer shows whether
      the game's registry resolves the class to our factory. The object it creates is released at once. Set
      `FC4_NO_PROBE=1` to skip this check.
