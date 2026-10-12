@@ -1140,16 +1140,15 @@ impl ProtectionSim {
             .map(|i| (i.cost as i32, i.local_funding))
     }
 
-    /// `SetStationFunding(s, p)` (fire slot 9, police slot 8).
+    /// `SetStationFunding(s, p)` (fire slot 9, police slot 8): the item's
+    /// department (`GetDepartmentBudget(item.departmentID)`), not the
+    /// simulator's own (§6.6); false without an item or that department.
     pub fn set_station_funding(&self, o: u64, p: f32) -> bool {
         let purpose = self.kind.params().purpose;
-        if self.item_department(o, purpose).is_none() {
-            return false;
-        }
-        let Some(dept) = self.d.borrow().department else {
+        let Some(dept) = self.item_department(o, purpose) else {
             return false;
         };
-        self.host.set_local_funding(dept.token, o, p, purpose);
+        self.host.set_local_funding(dept, o, p, purpose);
         true
     }
 

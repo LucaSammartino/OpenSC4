@@ -281,7 +281,13 @@ fn curve(op: &Json) -> R<()> {
         let p = pair.as_array().ok_or("each eval entry must be [x, y]")?;
         let (x, want) = (f32_of(&p[0])?, f64_of(&p[1])?);
         let got = f64::from(c.eval(x));
-        if !close(got, want, tol) {
+        // A NaN expectation (any NaN bit pattern) matches any NaN.
+        let ok = if want.is_nan() {
+            got.is_nan()
+        } else {
+            close(got, want, tol)
+        };
+        if !ok {
             return Err(format!("f({x}) = {got}, expected {want}"));
         }
     }
