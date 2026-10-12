@@ -8,7 +8,7 @@
     {"op": "bds_world", "next_token": 4},
     {"op": "bds_exemplars", "list": [{"developer": "0x1010"}]},
     {"op": "bds_developers", "devs": {"0x1010": {"ad": 100, "growth": [[4, 8, 1]]}}},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_init", "expect": true},
     {"op": "bds_set", "state": {"map_id": 7, "node_id": 9, "highest_stage": {"0x1010": 2}}},
     {"op": "bds_call", "method": "grow"},
@@ -21,7 +21,7 @@
       "hex": "0400 07000000 02E6B949 09000000 2DC19089 01000000 10100000 05000000 38C19009 00000000 01000000 10100000 02 01000000 10100000 01000000 04000000 08000000 00000000 000100"},
 
     {"op": "bds_process", "seed": 2},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_expect", "state": {"loaded_from_save": false, "developers": {}, "marks": {}, "has_map": false}},
     {"op": "bds_load", "slot": "a", "expect": true, "consumed": 74},
     {"op": "bds_expect", "state": {"loaded_from_save": true, "developers": {"0x1010": 5}, "highest_stage": {"0x1010": 2},
@@ -32,7 +32,7 @@
       "hex": "0400 07000000 02E6B949 09000000 2DC19089 01000000 10100000 05000000 38C19009 00000000 01000000 10100000 02 01000000 10100000 01000000 04000000 08000000 00000000 000100"},
 
     {"op": "bds_process", "seed": 3},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_patch", "slot": "a", "offset": 0, "hex": "0300"},
     {"op": "bds_load", "slot": "a", "expect": false, "consumed": 2},
     {"op": "bds_expect", "state": {"loaded_from_save": false, "developers": {}, "marks": {}, "has_map": false}},

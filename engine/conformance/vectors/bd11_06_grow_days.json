@@ -12,7 +12,7 @@
       "0x3110": {"ad": 40, "growth": [[5, 5, 2]]},
       "0x4300": {"ad": 250, "growth": [[9, 9, 3], [9, 10, 3], [9, 11, 3]]}}},
     {"op": "bds_tract", "grow": [0, 25, 0, 0, 0, 30, 12, 0, 0]},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_init", "expect": true},
     {"op": "bds_clear_events"},
     {"op": "bds_day"},

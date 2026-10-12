@@ -18,17 +18,24 @@ use crate::x87::ftol32;
 
 use super::catalogue::BuildingProfile;
 use super::{
-    cheat, decline_day, exemplar_type, monthly_supply, msg, prop, tuning_min_max, unpack_terrain_rect, AdviceSubject,
-    CellRect, CommandParam, ConstructionProfile, DemandNode, DeveloperId, DevelopmentHost, GridProvider, GrowthItem,
-    GrowthProfile, LotId, Message, OccupantId, Outcome, SharedProcess, TractGrid, Vec3, AGENT_FLAGS, AGENT_LEVELS,
-    AGENT_NAME, AGRICULTURE, BUILDING_MAP_INSTANCE, BUILDING_MAP_TRACT_SIZE, CENSUS_C, CENSUS_I, CENSUS_R,
-    CITY_PLANNING_ADVISOR, CLSID_BDS, DECLINE_PLAN_THRESHOLD, GROWTH_THRESHOLD, HIGHEST_STAGE_EVENT, IID_DEMAND,
-    IID_GROWTH_DEVELOPER, IID_OCCUPANT, IID_SIM_GRID, MAX_PLAN_ENTRIES, MAX_SLOPE_CHANGE, NEW_NODE_DEMAND,
-    NEW_NODE_SUPPLY, PLACE_BUILDING_COMMAND, PLACE_BUILDING_NAME, SPECIAL_GROUPS,
+    cheat, decline_day, exemplar_type, monthly_supply, msg, prop, tuning_min_max, unpack_terrain_rect,
+    update_lot_elements_flag, AdviceSubject, CellRect, CommandParam, ConstructionProfile, DemandNode, DeveloperId,
+    DevelopmentHost, GridProvider, GrowthDevelopers, GrowthItem, GrowthProfile, LotId, Message, OccupantId, Outcome,
+    SharedProcess, TractGrid, Vec3, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGRICULTURE, BUILDING_MAP_INSTANCE,
+    BUILDING_MAP_TRACT_SIZE, CENSUS_C, CENSUS_I, CENSUS_R, CITY_PLANNING_ADVISOR, CLSID_BDS, DECLINE_PLAN_THRESHOLD,
+    GROWTH_THRESHOLD, HIGHEST_STAGE_EVENT, IID_DEMAND, IID_GROWTH_DEVELOPER, IID_OCCUPANT, IID_SIM_GRID,
+    MAX_PLAN_ENTRIES, MAX_SLOPE_CHANGE, NEW_NODE_DEMAND, NEW_NODE_SUPPLY, PLACE_BUILDING_COMMAND, PLACE_BUILDING_NAME,
+    SPECIAL_GROUPS,
 };
 
 /// The record version (§6); every other version is rejected.
 pub const RECORD_VERSION: u16 = 4;
+
+/// [choice] The default daily work budget of `Grow` (§4.4): the most
+/// tract-developer `Grow` calls one day makes. Effectively unlimited until
+/// it is calibrated from in-game measurement; set it with
+/// [`DevelopmentSim::set_grow_attempt_budget`].
+pub const DEFAULT_GROW_ATTEMPT_BUDGET: u32 = u32::MAX;
 
 /// [choice] The most loop passes one `PlanDecline` makes (wasted draws
 /// included); far above any real plan.
@@ -121,25 +128,44 @@ type Grid = Rc<dyn TractGrid<u8>>;
 /// The building development simulator.
 pub struct DevelopmentSim {
     host: Rc<dyn DevelopmentHost>,
+    devs: Rc<dyn GrowthDevelopers>,
     process: SharedProcess,
     token: Cell<u64>,
     d: RefCell<DevelopmentData>,
     grid: RefCell<Option<Grid>>,
     node: RefCell<Option<Rc<DemandNode>>>,
+    grow_budget: Cell<u32>,
 }
 
 impl DevelopmentSim {
     /// A new BDS with the constructor values of §2, sharing the process
-    /// statics `process`.
-    pub fn new(host: Rc<dyn DevelopmentHost>, process: SharedProcess, token: u64) -> Rc<DevelopmentSim> {
+    /// statics `process`; `devs` provides the growth developers.
+    pub fn new(
+        host: Rc<dyn DevelopmentHost>,
+        devs: Rc<dyn GrowthDevelopers>,
+        process: SharedProcess,
+        token: u64,
+    ) -> Rc<DevelopmentSim> {
         Rc::new(DevelopmentSim {
             host,
+            devs,
             process,
             token: Cell::new(token),
             d: RefCell::new(DevelopmentData::default()),
             grid: RefCell::new(None),
             node: RefCell::new(None),
+            grow_budget: Cell::new(DEFAULT_GROW_ATTEMPT_BUDGET),
         })
+    }
+
+    /// The daily work budget of `Grow` ([choice], §4.4): at most this many
+    /// tract-developer `Grow` calls per day. Not saved.
+    pub fn grow_attempt_budget(&self) -> u32 {
+        self.grow_budget.get()
+    }
+
+    pub fn set_grow_attempt_budget(&self, n: u32) {
+        self.grow_budget.set(n);
     }
 
     pub fn token(&self) -> u64 {
@@ -180,10 +206,13 @@ impl DevelopmentSim {
         self.host.sim_day()
     }
 
-    /// `ad(D)`: `trunc(QueryActiveDemandValue())` as int32 ([choice] 0
-    /// without a node).
+    /// `ad(D)`: `trunc(GetSourceDemand().QueryActiveDemandValue())` as
+    /// int32 ([choice] 0 without a node).
     fn ad(&self, dev: DeveloperId) -> i32 {
-        ftol32(f64::from(self.host.developer_active_demand(dev).unwrap_or(0.0)))
+        match self.devs.developer_source_demand(dev) {
+            Some(node) => ftol32(f64::from(self.host.demand_active_value(node))),
+            None => 0,
+        }
     }
 
     // ---- lifecycle (§1.3–§1.5) ---------------------------------------------------------------------
@@ -275,13 +304,13 @@ impl DevelopmentSim {
         let existing = self.d.borrow().developers.get(&t).copied();
         match existing {
             Some(dev) => {
-                self.host.developer_init(dev, ex);
+                self.devs.developer_init(dev, ex);
             }
             None => {
-                let Some(dev) = self.host.create_developer() else {
+                let Some(dev) = self.devs.create_developer(ex) else {
                     return;
                 };
-                self.host.developer_init(dev, ex);
+                self.devs.developer_init(dev, ex);
                 self.d.borrow_mut().developers.insert(t, dev);
             }
         }
@@ -310,8 +339,8 @@ impl DevelopmentSim {
             )
         };
         for dev in devs.values() {
-            h.developer_shutdown(*dev);
-            h.developer_release(*dev);
+            self.devs.developer_shutdown(*dev);
+            self.devs.developer_release(*dev);
         }
         for occ in special {
             h.release(occ);
@@ -486,7 +515,7 @@ impl DevelopmentSim {
         }
         let devs: Vec<DeveloperId> = self.d.borrow().developers.values().copied().collect();
         for dev in devs {
-            h.developer_start_map_update(dev);
+            self.devs.developer_start_map_update(dev);
         }
         self.d.borrow_mut().state = 1;
     }
@@ -508,7 +537,7 @@ impl DevelopmentSim {
                             .and_then(|c| d.developers.range(c..).next().map(|(&t, &dev)| (t, dev)))
                     };
                     let Some((t, dev)) = next else { break };
-                    if !self.host.developer_map_update_finished(dev) {
+                    if !self.devs.developer_map_update_finished(dev) {
                         self.d.borrow_mut().cursor = Some(t);
                         return;
                     }
@@ -536,7 +565,6 @@ impl DevelopmentSim {
 
     /// `PlanDecline` (§4.3).
     pub fn plan_decline(&self) {
-        let h = self.host.clone();
         let (devs, bias) = {
             let mut d = self.d.borrow_mut();
             d.decline_plan.clear();
@@ -546,11 +574,11 @@ impl DevelopmentSim {
         // (developer, its decline list, cursor)
         let mut qualifying: Vec<(DeveloperId, Vec<GrowthItem>, usize)> = Vec::new();
         for &dev in devs.values() {
-            if h.developer_purpose(dev) != AGRICULTURE {
+            if self.devs.developer_purpose(dev) != AGRICULTURE {
                 let ad = self.ad(dev);
                 if ad < DECLINE_PLAN_THRESHOLD {
                     total = total.wrapping_add(bias.wrapping_sub(ad));
-                    qualifying.push((dev, h.developer_decline_list(dev), 0));
+                    qualifying.push((dev, self.devs.developer_decline_list(dev), 0));
                 }
             }
         }
@@ -594,14 +622,20 @@ impl DevelopmentSim {
         self.d.borrow_mut().decline_plan = plan;
     }
 
-    /// `Grow` (§4.4) on an infinitely fast machine ([choice]).
+    /// `Grow` (§4.4) under a deterministic work budget ([choice]): the
+    /// original's 3 ms timer, spin and step adaptation are not modelled;
+    /// the day ends when [`DevelopmentSim::grow_attempt_budget`]
+    /// tract-developer `Grow` calls have been made or every qualifying
+    /// developer has made its one attempt, whichever comes first.
     pub fn grow(&self) {
         let h = self.host.clone();
         let (mut pending, bias) = {
             let d = self.d.borrow();
             (d.developers.clone(), d.tuning.bias)
         };
-        while !pending.is_empty() {
+        let budget = self.grow_budget.get();
+        let mut attempts: u32 = 0;
+        while !pending.is_empty() && attempts < budget {
             let mut total: i32 = 0;
             for &dev in pending.values() {
                 let ad = self.ad(dev);
@@ -625,9 +659,9 @@ impl DevelopmentSim {
             // [choice] Nothing picked: the original spins until its timer
             // expires; nobody else can be picked.
             let Some(dev) = picked else { break };
-            let t = h.developer_sub_type(dev);
-            if h.developer_lists_valid(dev) {
-                let list = h.developer_growth_list(dev);
+            let t = self.devs.developer_sub_type(dev);
+            if self.devs.developer_lists_valid(dev) {
+                let list = self.devs.developer_growth_list(dev);
                 self.process.touch_marks(t);
                 let mut item = list.iter().find(|it| !self.process.is_marked(t, (it.x, it.z))).copied();
                 if item.is_none() {
@@ -645,6 +679,7 @@ impl DevelopmentSim {
                     let mut outcomes: Vec<Outcome> = Vec::new();
                     let mut flag = false;
                     let built = h.tract_grow(&profile, &mut outcomes, &mut flag);
+                    attempts += 1;
                     if built > 0 {
                         let today = self.today();
                         self.d.borrow_mut().last_successful_build.insert(t, today);
@@ -1126,7 +1161,7 @@ impl DevelopmentSim {
         let lots = h.lots_in_cell_rect(rect);
         if !(1..=3).contains(&kind) {
             for lot in lots {
-                h.update_lot_elements(lot, kind);
+                h.update_lot_elements(lot, update_lot_elements_flag(kind));
             }
             return;
         }
@@ -1141,7 +1176,7 @@ impl DevelopmentSim {
             // NaN counts as inside.
             let inside = d.is_nan() || (-1.0..=2.0).contains(&d);
             if inside && r24(f64::from(a) - f64::from(b)) <= MAX_SLOPE_CHANGE {
-                h.update_lot_elements(lot, kind);
+                h.update_lot_elements(lot, update_lot_elements_flag(kind));
             } else if h.lot_demolishable(lot) {
                 queued.push(lot);
             } else {
@@ -1180,7 +1215,7 @@ impl SaveObject for DevelopmentSim {
         out.put_u32(d.developers.len() as u32);
         for (&t, &dev) in &d.developers {
             out.put_u32(t);
-            out.put_ref(&h.developer_ref(dev));
+            out.put_ref(&self.devs.developer_ref(dev));
         }
         out.put_u32(d.special_buildings.len() as u32);
         for &o in &d.special_buildings {
@@ -1203,7 +1238,7 @@ impl SaveObject for DevelopmentSim {
         }
         out.put_u32(d.planned_growth.len() as u32);
         for (k, &day) in &d.planned_growth {
-            out.put_ref(&h.developer_ref(k.developer));
+            out.put_ref(&self.devs.developer_ref(k.developer));
             out.put_i32(k.x);
             out.put_i32(k.z);
             out.put_u8(k.stage);
@@ -1236,11 +1271,11 @@ impl SaveObject for DevelopmentSim {
             let Some(r) = inp.get_ref_as(IID_GROWTH_DEVELOPER) else {
                 break;
             };
-            if let Some(dev) = h.resolve_developer(&r) {
+            if let Some(dev) = self.devs.resolve_developer(&r) {
                 let old = self.d.borrow_mut().developers.insert(t, dev);
                 // The map holds one reference per slot: the one just read.
                 if let Some(old) = old {
-                    h.developer_release(old);
+                    self.devs.developer_release(old);
                 }
             }
         }
@@ -1281,7 +1316,7 @@ impl SaveObject for DevelopmentSim {
             else {
                 break;
             };
-            if let Some(dev) = h.resolve_developer(&r) {
+            if let Some(dev) = self.devs.resolve_developer(&r) {
                 let key = PlannedGrowth {
                     developer: dev,
                     x,
@@ -1289,7 +1324,7 @@ impl SaveObject for DevelopmentSim {
                     stage,
                 };
                 self.d.borrow_mut().planned_growth.insert(key, day);
-                h.developer_release(dev);
+                self.devs.developer_release(dev);
             }
         }
         let mut d = self.d.borrow_mut();

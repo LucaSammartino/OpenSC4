@@ -7,7 +7,7 @@
     {"op": "bds_process", "seed": 5},
     {"op": "bds_exemplars", "list": [{"developer": "0x1010"}]},
     {"op": "bds_developers", "devs": {"0x1010": {"ad": 100, "growth": [[4, 4, 1], [8, 4, 1], [12, 4, 1]]}}},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_init", "expect": true},
     {"op": "bds_clear_events"},
     {"op": "bds_day", "count": 2},
@@ -23,7 +23,7 @@
     {"op": "bds_expect", "state": {"marks": {}}},
 
     {"op": "bds_process", "seed": 6},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_load", "slot": "day2", "expect": true},
     {"op": "bds_expect", "state": {"marks": {"0x1010": [[4, 4], [8, 4]]}, "developers": {"0x1010": 257}, "loaded_from_save": true}},
     {"op": "bds_clear_events"},

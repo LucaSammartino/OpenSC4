@@ -23,16 +23,19 @@
 //!   catalogue ([`BuildingCatalogue`], §4.7), the tried-tract marks (§4.4)
 //!   and the file-local `cRZRandom` (§4.14). The host keeps one per process
 //!   and hands it ([`SharedProcess`]) to every BDS it creates.
-//! - [`DevelopmentHost`]: everything outside the BDS. The growth developers
-//!   (map values, [`DeveloperId`] tokens), the tract developer, the lot
-//!   developer, lots, the lot manager, the zone manager, land value, power,
-//!   the occupant manager, terrain, demolition, budget, advisors, the
-//!   framework servers, the demand simulator's census nodes and the
+//! - [`GrowthDevelopers`]: the growth developers (map values,
+//!   [`DeveloperId`] tokens), a separate object whose operations map one to
+//!   one onto `crate::growth_developer::GrowthDeveloper`, so the developer
+//!   map, `CreateDeveloper` and the developers can be replaced as one unit.
+//! - [`DevelopmentHost`]: everything else outside the BDS. The tract
+//!   developer, the lot developer, lots, the lot manager, the zone manager,
+//!   land value, power, the occupant manager, terrain, demolition, budget,
+//!   advisors, the framework servers, the demand simulator's nodes and the
 //!   resources are host calls. The building map is created and resolved
 //!   through the [`GridProvider<u8>`] supertrait (simgrid §6.4); the
 //!   construction node is a core [`DemandNode`] the host creates.
 //! - Pure helpers: [`unpack_terrain_rect`], [`monthly_supply`],
-//!   [`decline_day`], [`tuning_min_max`]; the developer-type, key and zone
+//!   [`decline_day`], [`tuning_min_max`], [`update_lot_elements_flag`]; the developer-type, key and zone
 //!   helpers are `crate::development`'s.
 //!
 //! Host tokens are opaque (`cISC4GrowthDeveloper*`, `cISC4Lot*`,
@@ -46,14 +49,21 @@
 //! the spec keeps 32); `0.5`, `0.001` and the 5° limit are `float32`
 //! constants.
 //!
-//! # Inferred contracts (`lot-developer.md` and `zones.md` are not written)
+//! # Contracts of other components
 //!
-//! - *[inferred]* `GetLotsInCellRect`, `GetLot(x, z, true)`, `PlaceZone`,
-//!   `UpdateLotElements`, `GetLotSlope`, `GetLowestOrHighestAreaAltitude`
-//!   and `DemolishLots` are single host calls with exactly the arguments of
-//!   §4.8–§4.11 ([`DevelopmentHost::dezone`] carries only the rectangle and
-//!   the one variable flag; [`DevelopmentHost::demolish_lots`] returns the
-//!   cost).
+//! `GetLot(x, z, true)`, `GetLotsInCellRect(…, false)`, `GetZoneType` and
+//! `PlaceZone` follow `zones.md`; `GetLotSlope`,
+//! `GetLowestOrHighestAreaAltitude` (slot 16) and `UpdateLotElements` follow
+//! `lot-developer.md`. Each is one host call with the arguments of
+//! §4.8–§4.11 ([`DevelopmentHost::dezone`] carries only the rectangle and
+//! the one variable flag).
+//!
+//! - *[inferred]* `UpdateLotElements(lot, bool hadFoundation)` receives the
+//!   BDS's 32-bit `kind`; the callee reads its low byte
+//!   ([`update_lot_elements_flag`]).
+//! - *[inferred]* `DemolishLots` (no demolition spec yet) is one host call
+//!   that returns the cost it writes through its out argument, and it is
+//!   called even with an empty queue (§4.11 as written).
 //! - *[inferred]* `IsBuildingTypeValid` and the type enumerations use the
 //!   building-key map (only building exemplars fill it); a density-table
 //!   type "loads" (§4.7.4) exactly when it has a key, and its occupant size
@@ -69,15 +79,24 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - Seeding (§4.14): [`BdsProcess::new`] takes the generator seed from the
-//!   host (foundations §6.3); [`clock_seed`] is the original's
-//!   `cRZTime() XOR 0x0C09C0B8` for a shim that wants it.
-//! - Grow (§4.4): an infinitely fast machine. Every qualifying developer
-//!   attempts once per day, then `Grow` returns: no timer, no spin, no step
-//!   adaptation. If a pick's `GetSubType()` is not a pending key (the
-//!   original would re-pick the developer until its 3 ms expire), the day's
-//!   loop ends after that attempt. If a draw picks nobody (only possible
-//!   when the signed weights overflow), the loop ends.
+//! - Seeding (§4.14): the generator seed is injected by the host
+//!   ([`BdsProcess::new`], [`BdsProcess::reseed`]); no derivation from a
+//!   session seed is hard-coded (foundations §6.3 will define it).
+//!   [`clock_seed`] is the original's `cRZTime() XOR 0x0C09C0B8` for a shim
+//!   that wants it.
+//! - Grow (§4.4): a deterministic work budget instead of the original's
+//!   3 ms timer (no timer, no spin, no step adaptation): at most
+//!   [`DevelopmentSim::grow_attempt_budget`] attempts (tract-developer
+//!   `Grow` calls) per day; the day ends when the budget is used up or every
+//!   qualifying developer has made its one attempt, whichever comes first.
+//!   A pick whose lists are invalid or whose growth list is empty is not an
+//!   attempt (no `Grow` call). The budget is checked before each draw, so a
+//!   spent budget also skips the final `RandomUint32Uniform(0)`. The default, [`DEFAULT_GROW_ATTEMPT_BUDGET`] = `u32::MAX`, is
+//!   effectively unlimited until it is calibrated from in-game measurement.
+//!   If a pick's `GetSubType()` is not a pending key (the original would
+//!   re-pick the developer until its timer expires), the day's loop ends
+//!   after that attempt. If a draw picks nobody (only possible when the
+//!   signed weights overflow), the loop ends.
 //! - A missing census node (§4.1) counts as 0; a developer without a source
 //!   node has active demand 0 (does not qualify for growth or decline). No
 //!   construction node: the monthly supply is not set, `GetTotal` and
@@ -115,7 +134,9 @@ mod tests;
 pub use catalogue::{
     BuildingCatalogue, BuildingConfigObject, BuildingProfile, LotConfigInfo, StlHashMap, STL_DEFAULT_HINT, STL_PRIMES,
 };
-pub use simulator::{DevelopmentData, DevelopmentSim, PlanEntry, PlannedGrowth, Tuning, RECORD_VERSION};
+pub use simulator::{
+    DevelopmentData, DevelopmentSim, PlanEntry, PlannedGrowth, Tuning, DEFAULT_GROW_ATTEMPT_BUDGET, RECORD_VERSION,
+};
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
@@ -355,6 +376,62 @@ pub struct AdviceSubject {
     pub data1: u32,
 }
 
+/// The growth developers as the BDS uses them (§1.5, §4.1–§4.5, §6).
+///
+/// The developer map, `CreateDeveloper` and the developers' `Init` and
+/// `Shutdown` are replaced together with the growth developer as one unit,
+/// so every operation maps one to one onto a method of
+/// `crate::growth_developer::GrowthDeveloper`:
+///
+/// | here | growth developer core |
+/// |---|---|
+/// | `create_developer` | `GrowthDeveloper::new` + `add_ref` (the BDS's reference) |
+/// | `developer_init` | `init(Some(exemplar))` |
+/// | `developer_shutdown` | `shutdown()` |
+/// | `developer_release` | `release()` |
+/// | `developer_sub_type` | `developer_type()` (`GetSubType`, slot 6) |
+/// | `developer_purpose` | `purpose()` (slot 7) |
+/// | `developer_lists_valid` | `lists_valid()` (slot 10) |
+/// | `developer_growth_list` / `developer_decline_list` | `growth_list()` / `decline_list()` (slots 11 / 12), copied |
+/// | `developer_source_demand` | `source_demand()` (slot 18) |
+/// | `developer_start_map_update` | `start_map_update()` (slot 27) |
+/// | `developer_map_update_finished` | `is_map_update_finished()` (slot 28) |
+/// | `developer_ref` / `resolve_developer` | the developer as a `SaveObject` (`RefValue::Object`, class `0x0990C138`) / `RefValue::object::<GrowthDeveloper>()` |
+pub trait GrowthDevelopers {
+    /// A new `cSC4GrowthDeveloper` (§1.5) holding one reference for the
+    /// BDS; `exemplar` is the developer exemplar it is about to be
+    /// `Init`ed with.
+    fn create_developer(&self, exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId>;
+    /// `Init(holder)` (slot 3).
+    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool;
+    /// `Shutdown()` (slot 4).
+    fn developer_shutdown(&self, dev: DeveloperId) -> bool;
+    /// `Release()`.
+    fn developer_release(&self, dev: DeveloperId);
+    /// `GetSubType()` (slot 6): the developer type.
+    fn developer_sub_type(&self, dev: DeveloperId) -> u32;
+    /// `GetPurpose()` (slot 7).
+    fn developer_purpose(&self, dev: DeveloperId) -> u32;
+    /// `GrowthAndDeclineListsAreValid()` (slot 10).
+    fn developer_lists_valid(&self, dev: DeveloperId) -> bool;
+    /// A copy of `GetGrowthList()` (slot 11).
+    fn developer_growth_list(&self, dev: DeveloperId) -> Vec<GrowthItem>;
+    /// A copy of `GetDeclineList()` (slot 12).
+    fn developer_decline_list(&self, dev: DeveloperId) -> Vec<GrowthItem>;
+    /// `GetSourceDemand()` (slot 18): the demand node, `None` without one.
+    fn developer_source_demand(&self, dev: DeveloperId) -> Option<u64>;
+    /// `StartMapUpdate()` (slot 27).
+    fn developer_start_map_update(&self, dev: DeveloperId);
+    /// `IsMapUpdateFinished()` (slot 28).
+    fn developer_map_update_finished(&self, dev: DeveloperId) -> bool;
+    /// How a save refers to the developer.
+    fn developer_ref(&self, dev: DeveloperId) -> RefValue;
+    /// The developer a save reference (read with
+    /// [`IID_GROWTH_DEVELOPER`]) points at; it holds the reference the
+    /// stream handed over.
+    fn resolve_developer(&self, r: &RefValue) -> Option<DeveloperId>;
+}
+
 /// Everything the BDS reads from, or does to, the rest of the game.
 pub trait DevelopmentHost: GridProvider<u8> {
     // ---- clock, city, terrain ----
@@ -419,37 +496,9 @@ pub trait DevelopmentHost: GridProvider<u8> {
         r.object::<DemandNode>()
     }
 
-    // ---- growth developers ----
-    /// A new `cSC4GrowthDeveloper` holding one reference for the BDS.
-    fn create_developer(&self) -> Option<DeveloperId>;
-    /// `Init(holder)` (slot 3).
-    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool;
-    /// `Shutdown()` (slot 4).
-    fn developer_shutdown(&self, dev: DeveloperId);
-    /// `Release()`.
-    fn developer_release(&self, dev: DeveloperId);
-    /// `GetSubType()` (slot 6).
-    fn developer_sub_type(&self, dev: DeveloperId) -> u32;
-    /// `GetPurpose()` (slot 7).
-    fn developer_purpose(&self, dev: DeveloperId) -> u32;
-    /// `GrowthAndDeclineListsAreValid()` (slot 10).
-    fn developer_lists_valid(&self, dev: DeveloperId) -> bool;
-    /// A copy of `GetGrowthList()` (slot 11).
-    fn developer_growth_list(&self, dev: DeveloperId) -> Vec<GrowthItem>;
-    /// A copy of `GetDeclineList()` (slot 12).
-    fn developer_decline_list(&self, dev: DeveloperId) -> Vec<GrowthItem>;
-    /// `GetSourceDemand().QueryActiveDemandValue()`; `None` without a node.
-    fn developer_active_demand(&self, dev: DeveloperId) -> Option<f32>;
-    /// `StartMapUpdate()` (slot 27).
-    fn developer_start_map_update(&self, dev: DeveloperId);
-    /// `IsMapUpdateFinished()` (slot 28): where the developer works.
-    fn developer_map_update_finished(&self, dev: DeveloperId) -> bool;
-    /// How a save refers to the developer.
-    fn developer_ref(&self, dev: DeveloperId) -> RefValue;
-    /// The developer a save reference (read with
-    /// [`IID_GROWTH_DEVELOPER`]) points at; it holds the reference the
-    /// stream handed over.
-    fn resolve_developer(&self, r: &RefValue) -> Option<DeveloperId>;
+    /// `QueryActiveDemandValue()` of the demand node a developer's
+    /// [`GrowthDevelopers::developer_source_demand`] named.
+    fn demand_active_value(&self, node: u64) -> f32;
 
     // ---- tract developer ----
     /// `Grow(profile, outcomes, flag)` (slot 5): returns the built capacity.
@@ -476,23 +525,34 @@ pub trait DevelopmentHost: GridProvider<u8> {
     fn lot_slope(&self, lot: LotId) -> f32;
     /// `IsInDemolishableState()`.
     fn lot_demolishable(&self, lot: LotId) -> bool;
-    /// `lotManager.GetLot(x, z, true)`.
+    /// `lotManager.GetLot(x, z, originOnly = true)` (zones.md, lot manager
+    /// slot 6): null outside the city; else the cell's lot only if its
+    /// `GetLocation()` is `(x, z)`. No reference is taken.
     fn lot_at(&self, x: i32, z: i32) -> Option<LotId>;
-    /// `lotManager.GetLotsInCellRect(list, rect, false)`.
+    /// `lotManager.GetLotsInCellRect(list, x1, z1, x2, z2, originOnly =
+    /// false)` (zones.md, slot 7): the rectangle clamped to the city, x outer
+    /// and z inner, each lot once, in that order. The references it hands
+    /// over are the host's to release.
     fn lots_in_cell_rect(&self, rect: CellRect) -> Vec<LotId>;
-    /// `lotDeveloper.GetLotSlope(lot, false)`.
+    /// `lotDeveloper.GetLotSlope(lot, water = false)` (lot-developer.md,
+    /// slot 30).
     fn lot_developer_slope(&self, lot: LotId) -> f32;
-    /// `lotDeveloper.UpdateLotElements(lot, kind)`.
-    fn update_lot_elements(&self, lot: LotId, kind: u32);
-    /// `lotDeveloper.GetLowestOrHighestAreaAltitude({x1, z1, x2, z2},
-    /// false, true)`.
+    /// `lotDeveloper.UpdateLotElements(lot, hadFoundation)` (lot-developer.md
+    /// §6.3, slot 37). The BDS passes its 32-bit `kind` as the bool
+    /// argument; see [`update_lot_elements_flag`].
+    fn update_lot_elements(&self, lot: LotId, had_foundation: bool);
+    /// `lotDeveloper.GetLowestOrHighestAreaAltitude(SC4Rect<float>{x1, z1,
+    /// x2, z2}, lowest = false, withWater = true)` (lot-developer.md, slot
+    /// 16): the highest altitude over the rectangle.
     fn area_altitude(&self, rect: [f32; 4]) -> f32;
 
     // ---- zones, land value, power, demolition, budget ----
-    /// `zoneManager.GetZoneType(x, z)` (int8).
+    /// `zoneManager.GetZoneType(x, z)` (zones.md, slot 12): the cell's
+    /// int8 zone type (the BDS sign-extends it).
     fn zone_type(&self, x: i32, z: i32) -> i8;
-    /// `zoneManager.PlaceZone(rect, 0, true, flag, false, true, true, null,
-    /// null, null)`.
+    /// `zoneManager.PlaceZone(region = rect, type 0, commit = true,
+    /// skipFunds = flag, checkSlope = false, skipSizeCheck = true, checkLotInside =
+    /// true, null, null, null)` (zones.md §6).
     fn dezone(&self, rect: CellRect, flag: bool);
     /// Power simulator slot 19: powered at (x, z).
     fn powered(&self, x: i32, z: i32) -> bool;
@@ -577,6 +637,12 @@ impl BdsProcess {
             steps: Cell::new(0),
             trace: RefCell::new(None),
         })
+    }
+
+    /// Re-seeds the generator (the host injects the seed; the step count
+    /// is kept).
+    pub fn reseed(&self, seed: u32, seeds: &dyn SeedSource) {
+        self.rng.borrow_mut().seed(seed, seeds);
     }
 
     pub fn catalogue(&self) -> std::cell::Ref<'_, BuildingCatalogue> {
@@ -692,6 +758,14 @@ pub fn monthly_supply(r: f32, c: f32, i: f32, per_resident: f32, min: u32, max: 
     let u = crate::x87::ftol(f64::from(x)) as u32;
     let u = u.max(min).min(max);
     u as i32 as f32
+}
+
+/// The `hadFoundation` bool `UpdateLotElements` (lot-developer.md §6.3)
+/// receives when the BDS passes its 32-bit terrain-change `kind` (§4.11):
+/// *[inferred]* the callee reads the argument's low byte, so the flag is
+/// `kind & 0xFF ≠ 0` (true for kinds 1–3).
+pub fn update_lot_elements_flag(kind: u32) -> bool {
+    kind & 0xFF != 0
 }
 
 /// The day of decline-plan entry `k` (§4.3): `trunc(r24(float(now) +

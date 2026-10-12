@@ -8,7 +8,7 @@
     {"op": "bds_world", "tuning": "shipped", "census": {"0x1001": 10000, "0x3001": 4000, "0x4001": 2000}},
     {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x3110"}]},
     {"op": "bds_developers", "devs": {"0x1010": {"ad": 0, "finish_after": 2}, "0x3110": {"ad": 0}}},
-    {"op": "bds_create"},
+    {"op": "bds_create", "grow_budget": 4294967295},
     {"op": "bds_init", "expect": true},
     {"op": "bds_clear_events"},
     {"op": "bds_message", "type": "SimBegin", "expect": true},

@@ -21,8 +21,8 @@ use fc4_core::demand::{DemandNode, DemandPoster};
 use fc4_core::development::{ConstructionProfile, GrowthItem, GrowthProfile, Outcome};
 use fc4_core::development_simulator::{
     msg, query_interface, AdviceSubject, BdsInterface, BdsProcess, BuildingConfigObject, CellRect, CommandParam,
-    DeveloperId, DevelopmentHost, DevelopmentSim, LotConfigInfo, LotId, Message, OccupantId, PlanEntry, SharedProcess,
-    Vec3,
+    DeveloperId, DevelopmentHost, DevelopmentSim, GrowthDevelopers, LotConfigInfo, LotId, Message, OccupantId,
+    PlanEntry, SharedProcess, Vec3,
 };
 use fc4_core::grid::{CityDims, GridProvider, SimGrid, TractGrid};
 use fc4_core::property::PropertyHolder;
@@ -421,110 +421,13 @@ impl DevelopmentHost for World {
     fn census_supply(&self, id: u32) -> Option<f32> {
         self.census.borrow().get(&id).copied()
     }
+    fn demand_active_value(&self, node: u64) -> f32 {
+        self.spec(node).ad.unwrap_or(0.0)
+    }
     fn create_demand_node(&self) -> Option<Rc<DemandNode>> {
         let t = self.token();
         self.log("create_node", vec![("id", ji(t as i64))]);
         Some(DemandNode::new(self.rc() as Rc<dyn DemandPoster>, t))
-    }
-
-    fn create_developer(&self) -> Option<DeveloperId> {
-        let t = self.token();
-        self.devs.borrow_mut().insert(
-            t,
-            DevObj {
-                dev_type: 0,
-                refs: 1,
-                busy: 0,
-            },
-        );
-        self.log("create_developer", vec![("dev", ji(t as i64))]);
-        Some(t)
-    }
-    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool {
-        let t = fc4_core::props::u32_of(exemplar, 0x21).unwrap_or(0);
-        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
-            d.dev_type = t;
-        }
-        self.log("developer_init", vec![("dev", ji(dev as i64)), ("type", ji(t))]);
-        true
-    }
-    fn developer_shutdown(&self, dev: DeveloperId) {
-        self.log("developer_shutdown", vec![("dev", ji(dev as i64))]);
-    }
-    fn developer_release(&self, dev: DeveloperId) {
-        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
-            d.refs -= 1;
-        }
-        self.log("developer_release", vec![("dev", ji(dev as i64))]);
-    }
-    fn developer_sub_type(&self, dev: DeveloperId) -> u32 {
-        self.spec(dev).sub_type.unwrap_or_else(|| self.dev_type(dev))
-    }
-    fn developer_purpose(&self, dev: DeveloperId) -> u32 {
-        let t = self.dev_type(dev);
-        self.spec(dev).purpose.unwrap_or(match t >> 8 {
-            0x10 => 1,
-            0x31 => 2,
-            0x33 => 3,
-            0x41 => 5,
-            0x42 => 6,
-            0x43 => 7,
-            0x44 => 8,
-            _ => 0,
-        })
-    }
-    fn developer_lists_valid(&self, dev: DeveloperId) -> bool {
-        self.spec(dev).valid
-    }
-    fn developer_growth_list(&self, dev: DeveloperId) -> Vec<GrowthItem> {
-        self.spec(dev).growth
-    }
-    fn developer_decline_list(&self, dev: DeveloperId) -> Vec<GrowthItem> {
-        self.spec(dev).decline
-    }
-    fn developer_active_demand(&self, dev: DeveloperId) -> Option<f32> {
-        self.spec(dev).ad
-    }
-    fn developer_start_map_update(&self, dev: DeveloperId) {
-        let n = self.spec(dev).finish_after;
-        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
-            d.busy = n;
-        }
-        self.log("start_map_update", vec![("dev", ji(dev as i64))]);
-    }
-    fn developer_map_update_finished(&self, dev: DeveloperId) -> bool {
-        let done = {
-            let mut devs = self.devs.borrow_mut();
-            match devs.get_mut(&dev) {
-                Some(d) if d.busy > 0 => {
-                    d.busy -= 1;
-                    false
-                }
-                _ => true,
-            }
-        };
-        self.log(
-            "map_update_finished",
-            vec![("dev", ji(dev as i64)), ("result", Json::Bool(done))],
-        );
-        done
-    }
-    fn developer_ref(&self, dev: DeveloperId) -> RefValue {
-        RefValue::Host {
-            token: dev,
-            class_id: DEVELOPER_CLASS,
-        }
-    }
-    fn resolve_developer(&self, r: &RefValue) -> Option<DeveloperId> {
-        match r {
-            RefValue::Host { token, .. } => {
-                let mut devs = self.devs.borrow_mut();
-                let d = devs.get_mut(token)?;
-                d.refs += 1;
-                Some(*token)
-            }
-            _ => None,
-        }
     }
 
     fn tract_grow(&self, profile: &GrowthProfile, outcomes: &mut Vec<Outcome>, flag: &mut bool) -> i32 {
@@ -597,8 +500,11 @@ impl DevelopmentHost for World {
     fn lot_developer_slope(&self, lot: LotId) -> f32 {
         self.lot(lot).dev_slope
     }
-    fn update_lot_elements(&self, lot: LotId, kind: u32) {
-        self.log("update_lot_elements", vec![("lot", ji(lot as i64)), ("kind", ji(kind))]);
+    fn update_lot_elements(&self, lot: LotId, had_foundation: bool) {
+        self.log(
+            "update_lot_elements",
+            vec![("lot", ji(lot as i64)), ("had_foundation", Json::Bool(had_foundation))],
+        );
     }
     fn area_altitude(&self, rect: [f32; 4]) -> f32 {
         self.log(
@@ -773,6 +679,111 @@ impl DevelopmentHost for World {
     }
 }
 
+impl GrowthDevelopers for World {
+    fn create_developer(&self, _exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId> {
+        let t = self.token();
+        self.devs.borrow_mut().insert(
+            t,
+            DevObj {
+                dev_type: 0,
+                refs: 1,
+                busy: 0,
+            },
+        );
+        self.log("create_developer", vec![("dev", ji(t as i64))]);
+        Some(t)
+    }
+    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool {
+        let t = fc4_core::props::u32_of(exemplar, 0x21).unwrap_or(0);
+        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
+            d.dev_type = t;
+        }
+        self.log("developer_init", vec![("dev", ji(dev as i64)), ("type", ji(t))]);
+        true
+    }
+    fn developer_shutdown(&self, dev: DeveloperId) -> bool {
+        self.log("developer_shutdown", vec![("dev", ji(dev as i64))]);
+        true
+    }
+    fn developer_release(&self, dev: DeveloperId) {
+        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
+            d.refs -= 1;
+        }
+        self.log("developer_release", vec![("dev", ji(dev as i64))]);
+    }
+    fn developer_sub_type(&self, dev: DeveloperId) -> u32 {
+        self.spec(dev).sub_type.unwrap_or_else(|| self.dev_type(dev))
+    }
+    fn developer_purpose(&self, dev: DeveloperId) -> u32 {
+        let t = self.dev_type(dev);
+        self.spec(dev).purpose.unwrap_or(match t >> 8 {
+            0x10 => 1,
+            0x31 => 2,
+            0x33 => 3,
+            0x41 => 5,
+            0x42 => 6,
+            0x43 => 7,
+            0x44 => 8,
+            _ => 0,
+        })
+    }
+    fn developer_lists_valid(&self, dev: DeveloperId) -> bool {
+        self.spec(dev).valid
+    }
+    fn developer_growth_list(&self, dev: DeveloperId) -> Vec<GrowthItem> {
+        self.spec(dev).growth
+    }
+    fn developer_decline_list(&self, dev: DeveloperId) -> Vec<GrowthItem> {
+        self.spec(dev).decline
+    }
+    /// The fake source node of a developer is named by the developer's own
+    /// token; it exists when the spec's `ad` is set.
+    fn developer_source_demand(&self, dev: DeveloperId) -> Option<u64> {
+        self.spec(dev).ad.map(|_| dev)
+    }
+    fn developer_start_map_update(&self, dev: DeveloperId) {
+        let n = self.spec(dev).finish_after;
+        if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
+            d.busy = n;
+        }
+        self.log("start_map_update", vec![("dev", ji(dev as i64))]);
+    }
+    fn developer_map_update_finished(&self, dev: DeveloperId) -> bool {
+        let done = {
+            let mut devs = self.devs.borrow_mut();
+            match devs.get_mut(&dev) {
+                Some(d) if d.busy > 0 => {
+                    d.busy -= 1;
+                    false
+                }
+                _ => true,
+            }
+        };
+        self.log(
+            "map_update_finished",
+            vec![("dev", ji(dev as i64)), ("result", Json::Bool(done))],
+        );
+        done
+    }
+    fn developer_ref(&self, dev: DeveloperId) -> RefValue {
+        RefValue::Host {
+            token: dev,
+            class_id: DEVELOPER_CLASS,
+        }
+    }
+    fn resolve_developer(&self, r: &RefValue) -> Option<DeveloperId> {
+        match r {
+            RefValue::Host { token, .. } => {
+                let mut devs = self.devs.borrow_mut();
+                let d = devs.get_mut(token)?;
+                d.refs += 1;
+                Some(*token)
+            }
+            _ => None,
+        }
+    }
+}
+
 // ---- save streams -----------------------------------------------------------------------------------
 
 /// A byte stream whose references carry the objects' own host IDs
@@ -866,12 +877,25 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "tract" => tract(&w, op),
         "lots" => lots(&w, op),
         "occupants" => occupants(&w, op),
-        "create" => {
-            let s = DevelopmentSim::new(w.rc() as Rc<dyn DevelopmentHost>, w.process(), w.token());
+        "create" => (|| {
+            let s = DevelopmentSim::new(
+                w.rc() as Rc<dyn DevelopmentHost>,
+                w.rc() as Rc<dyn GrowthDevelopers>,
+                w.process(),
+                w.token(),
+            );
+            if let Some(n) = opt(op, "grow_budget") {
+                s.set_grow_attempt_budget(u32_of(n, "grow_budget")?);
+            }
             s.add_ref();
             *w.sim.borrow_mut() = Some(s);
             Ok(())
-        }
+        })(),
+        "grow_budget" => (|| {
+            let s = w.sim()?;
+            s.set_grow_attempt_budget(u32_of(field(op, "value")?, "value")?);
+            Ok(())
+        })(),
         "init" => w.sim().and_then(|s| check_expect(op, Json::Bool(s.init()))),
         "shutdown" => w.sim().and_then(|s| check_expect(op, Json::Bool(s.shutdown()))),
         "release" => w.sim().and_then(|s| check_expect(op, ji(s.release()))),
@@ -1671,6 +1695,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
         ),
         ("decline_plan".to_owned(), plan_json(&d.decline_plan)),
         ("planned_growth".to_owned(), ji(d.planned_growth.len() as i64)),
+        ("grow_budget".to_owned(), ji(s.grow_attempt_budget())),
         ("cr_min".to_owned(), ji(d.tuning.cr_min)),
         ("cr_max".to_owned(), ji(d.tuning.cr_max)),
         ("cr_per_resident".to_owned(), jf(d.tuning.cr_per_resident)),

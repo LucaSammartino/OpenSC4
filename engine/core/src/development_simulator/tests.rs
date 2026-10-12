@@ -100,6 +100,42 @@ fn monthly_supply_matches_test_4() {
 }
 
 #[test]
+fn update_lot_elements_flag_is_the_low_byte() {
+    assert!(!update_lot_elements_flag(0));
+    assert!(update_lot_elements_flag(1));
+    assert!(update_lot_elements_flag(3));
+    assert!(update_lot_elements_flag(7));
+    assert!(!update_lot_elements_flag(0x100));
+    assert!(update_lot_elements_flag(0x101));
+    assert!(!update_lot_elements_flag(0xFFFF_FF00));
+}
+
+#[test]
+fn grow_budget_defaults_to_unlimited() {
+    assert_eq!(DEFAULT_GROW_ATTEMPT_BUDGET, u32::MAX);
+}
+
+#[test]
+fn process_seed_is_injected_and_reseedable() {
+    let a = BdsProcess::new(12345, &seeds());
+    let first: Vec<u32> = (0..3).map(|_| a.uniform(420)).collect();
+    assert_eq!(first[0], 20);
+    assert_eq!(a.steps(), 3);
+    // Re-seeding restarts the same sequence; the step count is kept.
+    a.reseed(12345, &seeds());
+    assert_eq!(a.rng_state(), 12345);
+    let again: Vec<u32> = (0..3).map(|_| a.uniform(420)).collect();
+    assert_eq!(first, again);
+    assert_eq!(a.steps(), 6);
+    // A different injected seed gives a different stream (seed 1: 0 of 420).
+    let b = BdsProcess::new(1, &seeds());
+    assert_eq!(b.uniform(420), 0);
+    b.reseed(7, &seeds());
+    assert_eq!(b.uniform(66), 0);
+    assert_eq!(b.uniform(50), 42);
+}
+
+#[test]
 fn decline_days_add_in_float32() {
     assert_eq!(decline_day(5000, 2), 5002);
     // 2^24 + 1 is not a float32: the sum rounds to even.
