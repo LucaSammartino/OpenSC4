@@ -103,6 +103,30 @@ int main(int argc, char** argv) {
     DeleteFileA(log.c_str());
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
+
+    if (argc >= 3 && std::string(argv[2]) == "--disabled") {
+        // FC4_DISABLE switches subsystems off: nothing is registered or created.
+        SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.empty());
+            void* obj = nullptr;
+            CHECK(!director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, &obj));
+        }
+        FreeLibrary(hd);
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
+        CHECK(text.find("object created") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin disable test: all checks passed\n");
+        return g_failures == 0 ? 0 : 1;
+    }
     SetEnvironmentVariableA("FC4_DIAG_SELFTEST", "1");
     SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
 
@@ -191,11 +215,11 @@ int main(int argc, char** argv) {
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x12345678, iid=0x8695664E) -> 0") != std::string::npos);
-    CHECK(text.find("CreateSimulator enter (factory call #1") != std::string::npos);
+    CHECK(text.find("factory enter: cSC4Simulator (0x2990C1E5), factory call #1") != std::string::npos);
     CHECK(text.find("constructor enter") != std::string::npos);
     CHECK(text.find("calling fc4_sim_create") != std::string::npos);
     CHECK(text.find("fc4_sim_create returned") != std::string::npos);
-    CHECK(text.find("cFC4Simulator created") != std::string::npos);
+    CHECK(text.find("cSC4Simulator object created") != std::string::npos);
     CHECK(text.find("CreateOurs: after QueryInterface -> 1 (clean=1)") != std::string::npos);
     CHECK(text.find("vectored handler installed") != std::string::npos);
     CHECK(text.find("first-chance exception in FreeCity4.dll: code 0xC0000005 ACCESS_VIOLATION (writing address "

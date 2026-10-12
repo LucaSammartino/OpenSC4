@@ -24,6 +24,7 @@
 
 #include "FC4Diag.h"
 #include "FC4Log.h"
+#include "FC4Subsystems.h"
 #include "cFC4Simulator.h"
 
 #include "cIGZCOM.h"
@@ -76,13 +77,14 @@ void EnumThunk(uint32_t clsid, uint32_t reserved, void* pContext) {
 
 // ---- guarded steps (each runs under fc4::SehGuard) ----------------------------------------
 
-struct NewSimulatorCall {
-    cFC4Simulator* result;
+struct NewObjectCall {
+    fc4::ObjectFactory create;
+    cIGZUnknown* result;
 };
 
-void NewSimulatorStep(void* p) {
-    auto* c = static_cast<NewSimulatorCall*>(p);
-    c->result = new cFC4Simulator();
+void NewObjectStep(void* p) {
+    auto* c = static_cast<NewObjectCall*>(p);
+    c->result = c->create();
 }
 
 struct QueryCall {
@@ -111,13 +113,21 @@ void ReleaseStep(void* p) {
 
 class cFC4Director final : public cRZCOMDllDirector {
 public:
-    cFC4Director() : passthrough_(EnvIsOne("FC4_DISABLE_SIMULATOR")) {
-        fc4::Log("cFC4Director constructed (FreeCity4 %s, %s, dll %s, log level %d)", FC4_VERSION_STRING,
-                 passthrough_ ? "passthrough" : "replacement", fc4::ModulePath(), fc4::LogLevel());
-        if (!passthrough_) {
-            AddCls(kFC4_CLSID_cSC4Simulator, &cFC4Director::CreateSimulator);
-            FC4_LOGV("AddCls(0x%08X) registered", kFC4_CLSID_cSC4Simulator);
+    cFC4Director() {
+        fc4::Log("cFC4Director constructed (FreeCity4 %s, dll %s, log level %d)", FC4_VERSION_STRING,
+                 fc4::ModulePath(), fc4::LogLevel());
+        // Register the classes of every enabled subsystem (FC4Subsystems.cpp).
+        size_t n = 0;
+        const fc4::Subsystem* subsystems = fc4::Subsystems(&n);
+        for (size_t i = 0; i < n; ++i) {
+            const fc4::Subsystem& s = subsystems[i];
+            if (!fc4::SubsystemEnabled(s)) continue;
+            for (size_t k = 0; k < s.classCount; ++k) {
+                AddCls(s.classes[k].clsid, s.classes[k].create);
+                FC4_LOGV("AddCls(0x%08X) registered (%s, subsystem '%s')", s.classes[k].clsid, s.classes[k].name, s.key);
+            }
         }
+        simulatorReplaced_ = fc4::FindEnabledClass(kFC4_CLSID_cSC4Simulator) != nullptr;
         if (EnvIsOne("FC4_DIAG_SELFTEST")) {
             // Deliberate access violation inside our image, to prove that the
             // vectored handler and the SEH guard log it (used by CTest).
@@ -176,7 +186,7 @@ public:
     bool OnStart(cIGZCOM* pCOM) override {
         FC4_LOGV("OnStart enter (com=%p)", static_cast<void*>(pCOM));
         fc4::Log("FreeCity4 %s loaded (core ABI %u, %s mode); dll: %s; log: %s", FC4_VERSION_STRING, fc4_abi_version(),
-                 passthrough_ ? "PASSTHROUGH (FC4_DISABLE_SIMULATOR=1, original simulator in use)" : "replacement",
+                 simulatorReplaced_ ? "replacement" : "PASSTHROUGH (simulator disabled, original simulator in use)",
                  fc4::ModulePath(), fc4::LogPath());
         cIGZFrameWork* fw = RZGetFrameWork();
         FC4_LOGV("OnStart: framework=%p state=%d", static_cast<void*>(fw), fw ? static_cast<int>(fw->GetState()) : -1);
@@ -194,7 +204,7 @@ public:
     }
 
     bool GetClassObject(uint32_t rclsid, uint32_t riid, void** ppvObj) override {
-        const bool ours = rclsid == kFC4_CLSID_cSC4Simulator;
+        const bool ours = fc4::FindEnabledClass(rclsid) != nullptr;
         const bool logIt = ours || otherClassLogs_ < kMaxOtherClassLogs;
         if (!ours && logIt) ++otherClassLogs_;
         if (logIt) {
@@ -202,8 +212,9 @@ public:
                      static_cast<void*>(ppvObj));
         }
         bool ok = false;
-        if (ours && !passthrough_) {
-            ok = CreateOurs(riid, ppvObj);
+        const fc4::ClassEntry* entry = fc4::FindEnabledClass(rclsid);
+        if (entry != nullptr) {
+            ok = CreateOurs(*entry, riid, ppvObj);
         } else {
             struct BaseCall {
                 cFC4Director* self;
@@ -253,12 +264,12 @@ public:
     }
 
     bool PostAppInit() override {
-        fc4::Log("hook PostAppInit (%s)", passthrough_ ? "passthrough: simulator class not registered"
-                                                       : "simulator class 0x2990C1E5 provided by FreeCity4");
+        fc4::Log("hook PostAppInit (%s)", simulatorReplaced_ ? "simulator class 0x2990C1E5 provided by FreeCity4"
+                                                             : "passthrough: simulator class not registered");
         // Ask GZCOM itself whether it now resolves the simulator class, and
         // through which director. This creates (and then releases) one object.
         // Set FC4_NO_PROBE=1 to skip it.
-        if (!passthrough_ && fc4::LogLevel() >= fc4::kLogVerbose && !EnvIsOne("FC4_NO_PROBE")) {
+        if (simulatorReplaced_ && fc4::LogLevel() >= fc4::kLogVerbose && !EnvIsOne("FC4_NO_PROBE")) {
             cIGZCOM* com = GZCOM();
             g_probing = true;
             const uint32_t before = g_factoryCalls;
@@ -304,13 +315,13 @@ public:
 private:
     // Our own class-object path for 0x2990C1E5, so each step can be logged and
     // guarded separately: factory, then QueryInterface for the requested IID.
-    bool CreateOurs(uint32_t riid, void** ppvObj) {
+    bool CreateOurs(const fc4::ClassEntry& entry, uint32_t riid, void** ppvObj) {
         if (ppvObj == nullptr) {
             FC4_LOGV("CreateOurs: null out pointer");
             return false;
         }
         *ppvObj = nullptr;
-        cIGZUnknown* obj = CreateSimulator();
+        cIGZUnknown* obj = CreateGuarded(entry);
         if (obj == nullptr) {
             fc4::Log("CreateOurs: factory produced no object");
             return false;
@@ -329,23 +340,24 @@ private:
         return false;
     }
 
-    static cIGZUnknown* CreateSimulator() {
+    // Runs a class factory under the SEH guard, with logging.
+    static cIGZUnknown* CreateGuarded(const fc4::ClassEntry& entry) {
         ++g_factoryCalls;
-        FC4_LOGV("CreateSimulator enter (factory call #%u%s)", g_factoryCalls,
+        FC4_LOGV("factory enter: %s (0x%08X), factory call #%u%s", entry.name, entry.clsid, g_factoryCalls,
                  g_probing ? ", PostAppInit diagnostic probe" : "");
-        NewSimulatorCall c{nullptr};
-        const bool clean = fc4::SehGuard("cFC4Simulator construction", &NewSimulatorStep, &c);
+        NewObjectCall c{entry.create, nullptr};
+        const bool clean = fc4::SehGuard(entry.name, &NewObjectStep, &c);
         if (!clean || c.result == nullptr) {
-            fc4::Log("CreateSimulator: construction FAILED (clean=%d, obj=%p)", clean ? 1 : 0,
+            fc4::Log("factory %s: construction FAILED (clean=%d, obj=%p)", entry.name, clean ? 1 : 0,
                      static_cast<void*>(c.result));
             return nullptr;
         }
-        fc4::Log("cFC4Simulator created (%p), factory call #%u%s", static_cast<void*>(c.result), g_factoryCalls,
+        fc4::Log("%s object created (%p), factory call #%u%s", entry.name, static_cast<void*>(c.result), g_factoryCalls,
                  g_probing ? " [PostAppInit diagnostic probe; released immediately]" : "");
-        return static_cast<cIGZUnknown*>(static_cast<cISC4Simulator*>(c.result));
+        return c.result;
     }
 
-    bool passthrough_;
+    bool simulatorReplaced_ = false;
     uint32_t otherClassLogs_ = 0;
     uint32_t refLogs_ = 0;
 };

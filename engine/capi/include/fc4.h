@@ -46,8 +46,9 @@ extern "C" {
 
 /* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init;
  * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics);
- * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5). */
-#define FC4_ABI_VERSION 4u
+ * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5);
+ * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref) and the budget. */
+#define FC4_ABI_VERSION 5u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -275,6 +276,56 @@ bool fc4_sim_set_timer_source(fc4_sim* sim, const fc4_timer_source* source, floa
 void fc4_sim_calibrate_tick(fc4_sim* sim);
 /* Current coefficients; false if no timer source is installed. Pointers may be NULL. */
 bool fc4_sim_get_calibration(const fc4_sim* sim, float* cycles_to_ms, float* ms_to_cycles, uint64_t* samples);
+
+/* ---- host streams (foundations §2) ------------------------------------------
+ * The core writes and reads its records through these callbacks; the GZCOM shim
+ * implements them on top of the game's cIGZOStream / cIGZIStream (and the
+ * segment streams for references). Every callback follows the stream model of
+ * foundations §2.1: false once the stream is in its (sticky) error state. */
+
+/* An object reference (foundations §2.7). */
+typedef struct fc4_ref {
+    uint64_t token;    /* host identity: an interface pointer; 0 = null reference */
+    uint32_t class_id; /* the object's GetGZCLSID (writes) / its class (reads) */
+    uint32_t reserved;
+    void* core_handle; /* reads: the core handle if the object is one of ours (e.g. fc4_department*) */
+} fc4_ref;
+
+typedef void (*fc4_bytes_sink)(void* ctx, const uint8_t* data, size_t len);
+
+typedef struct fc4_ostream {
+    uint32_t struct_size; /* = sizeof(fc4_ostream) */
+    void* user;
+    bool (*put_u8)(void* user, uint8_t v);
+    bool (*put_u16)(void* user, uint16_t v);
+    bool (*put_u32)(void* user, uint32_t v);
+    bool (*put_u64)(void* user, uint64_t v);
+    bool (*put_f32)(void* user, float v);
+    bool (*put_f64)(void* user, double v);
+    bool (*put_bytes)(void* user, const uint8_t* data, size_t len); /* SetVoid */
+    bool (*put_str)(void* user, const uint8_t* data, size_t len);   /* SetGZStr */
+    bool (*put_ref)(void* user, const fc4_ref* ref);                /* WriteGZSerializable */
+    int32_t (*error)(void* user);
+} fc4_ostream;
+
+typedef struct fc4_istream {
+    uint32_t struct_size; /* = sizeof(fc4_istream) */
+    void* user;
+    bool (*get_u8)(void* user, uint8_t* out);
+    bool (*get_u16)(void* user, uint16_t* out);
+    bool (*get_u32)(void* user, uint32_t* out);
+    bool (*get_u64)(void* user, uint64_t* out);
+    bool (*get_f32)(void* user, float* out);
+    bool (*get_f64)(void* user, double* out);
+    bool (*get_bytes)(void* user, uint8_t* out, size_t n);           /* GetVoid */
+    bool (*get_str)(void* user, fc4_bytes_sink sink, void* sink_ctx); /* GetGZStr, delivered as UTF-8 */
+    /* ReadGZSerializable, then QueryInterface to `iid` (0 = keep as read). A host
+     * object comes back with ONE reference owned by the caller; a non-null object
+     * lacking `iid` reads as a null reference (the stream stays good). */
+    bool (*get_ref)(void* user, uint32_t iid, fc4_ref* out);
+    bool (*skip)(void* user, size_t n);
+    int32_t (*error)(void* user);
+} fc4_istream;
 
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);

@@ -14,6 +14,7 @@
 #include "cFC4Simulator.h"
 
 #include "FC4Log.h"
+#include "FC4Properties.h"
 #include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
@@ -49,6 +50,7 @@
 #include <cstdlib>
 #include <new>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -97,6 +99,10 @@ cFC4Message2Standard* MakeMessage(const fc4_message& src) {
 }  // namespace
 
 // ---- construction -------------------------------------------------------------
+
+// Factory for the subsystem table (FC4Subsystems.cpp).
+cIGZUnknown* CreateFC4Simulator() { return static_cast<cIGZUnknown*>(static_cast<cISC4Simulator*>(new cFC4Simulator())); }
+
 
 cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
     FC4_LOGV("cFC4Simulator(%p) constructor enter", static_cast<void*>(this));
@@ -452,51 +458,35 @@ fc4_tuning cFC4Simulator::ReadTuning(uint32_t (&msPerDay)[3], size_t& msCount, f
     fc4_tuning t{};
     msCount = 0;
     dilCount = 0;
-    cIGZPersistResourceManagerPtr rm;
-    if (!rm) {
-        fc4::Log("tuning: no resource manager; using defaults");
+    fc4::props::Exemplar ex;
+    if (!ex.Load(kTuningType, kTuningGroup, kTuningInstance)) {
+        fc4::Log("tuning: simulator exemplar unavailable; using defaults");
         return t;
     }
-    cGZPersistResourceKey key(kTuningType, kTuningGroup, kTuningInstance);
-    cISCResExemplar* ex = nullptr;
-    if (!rm->GetResource(key, GZIID_cISCResExemplar, reinterpret_cast<void**>(&ex), 0, nullptr) || ex == nullptr) {
-        fc4::Log("tuning: exemplar %08X-%08X-%08X not found; using defaults", kTuningType, kTuningGroup, kTuningInstance);
-        return t;
-    }
-    const cISCPropertyHolder* ph = ex->AsISCPropertyHolder();
-    if (ph != nullptr) {
-        if (cISCProperty* p = ph->GetProperty(kPropMsPerDay)) {
-            const cIGZVariant* v = p->GetPropertyValue();
-            const uint16_t type = v ? v->GetType() : 0;
-            const uint32_t n = v ? v->GetCount() : 0;
-            const uint32_t* src = nullptr;
-            if (type == cIGZVariant::Uint32Array) src = v->RefUint32();
-            if (type == cIGZVariant::Sint32Array) src = reinterpret_cast<const uint32_t*>(v->RefSint32());
-            // Spec §7: used only with exactly 3 values (any other count keeps
-            // the defaults, which is what passing "missing" does).
-            if (src != nullptr && n == 3) {
-                for (uint32_t i = 0; i < 3; ++i) msPerDay[i] = src[i];
-                msCount = 3;
-                t.ms_per_day = msPerDay;
-                t.ms_per_day_count = 3;
-            }
-            fc4::Log("tuning: msPerDay property type 0x%04X count %u", type, n);
-        }
-        if (cISCProperty* p = ph->GetProperty(kPropAnimationDilation)) {
-            const cIGZVariant* v = p->GetPropertyValue();
-            const uint16_t type = v ? v->GetType() : 0;
-            const uint32_t n = v ? v->GetCount() : 0;
-            // [choice] used only with exactly 5 values.
-            if (type == cIGZVariant::Float32Array && v->RefFloat32() != nullptr && n == 5) {
-                for (uint32_t i = 0; i < n; ++i) dilation[i] = v->RefFloat32()[i];
-                dilCount = n;
-                t.animation_dilation = dilation;
-                t.animation_dilation_count = n;
-            }
-            fc4::Log("tuning: dilation property type 0x%04X count %u", type, n);
+    // Spec §7: msPerDayTable only with exactly 3 values; [choice] the dilation
+    // array only with exactly 5. Other counts keep the defaults ("missing").
+    std::vector<uint32_t> ms;
+    if (fc4::props::GetU32s(ex.Holder(), kPropMsPerDay, ms)) {
+        fc4::Log("tuning: msPerDay property type 0x%04X count %u", fc4::props::TypeOf(ex.Holder(), kPropMsPerDay),
+                 static_cast<unsigned>(ms.size()));
+        if (ms.size() == 3) {
+            for (size_t i = 0; i < 3; ++i) msPerDay[i] = ms[i];
+            msCount = 3;
+            t.ms_per_day = msPerDay;
+            t.ms_per_day_count = 3;
         }
     }
-    ex->Release();
+    std::vector<float> dil;
+    if (fc4::props::GetF32s(ex.Holder(), kPropAnimationDilation, dil)) {
+        fc4::Log("tuning: dilation property type 0x%04X count %u",
+                 fc4::props::TypeOf(ex.Holder(), kPropAnimationDilation), static_cast<unsigned>(dil.size()));
+        if (dil.size() == 5) {
+            for (size_t i = 0; i < 5; ++i) dilation[i] = dil[i];
+            dilCount = 5;
+            t.animation_dilation = dilation;
+            t.animation_dilation_count = 5;
+        }
+    }
     return t;
 }
 

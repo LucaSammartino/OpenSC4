@@ -148,6 +148,15 @@ pub trait InStream {
     fn get_str(&mut self) -> Option<Vec<u8>>;
     /// `ReadGZSerializable` (§2.7).
     fn get_ref(&mut self) -> Option<RefValue>;
+    /// A reference read with the interface the caller needs (the "usual
+    /// helper semantics" of §2.7): a host object is `QueryInterface`d to
+    /// `iid`. A non-null object without that interface reads as `Null` (the
+    /// stream stays good). Host objects come with one reference owned by the
+    /// caller.
+    fn get_ref_as(&mut self, iid: u32) -> Option<RefValue> {
+        let _ = iid;
+        self.get_ref()
+    }
     /// `Skip(n)`.
     fn skip(&mut self, n: usize) -> bool;
     fn error(&self) -> i32;
