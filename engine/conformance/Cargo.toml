@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[package]
+name = "fc4-conformance"
+description = "Runs the language-neutral conformance vectors in engine/conformance/vectors against fc4-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+name = "fc4_conformance"
+
+[dependencies]
+fc4-core = { path = "../core" }

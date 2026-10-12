@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "slow_day_agent",
+  "spec": ["5.2", "5.3", "10.3"],
+  "description": "A day agent that needs 3 calls per day delays the next day until it finishes, even when the interval timer is ready. The clock is frozen far past the frame budget, so each simulate_agents call makes exactly one delivery (the budget check follows every delivery).",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {"D": {"finish_after": 3}},
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "init"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "expect_state", "state": {"ms_per_day": 100, "cursors": [null, null, null, null, 0, null, null, null, null, null, null]}},
+    {"op": "advance", "ms": 1000},
+    {"op": "clear_events"},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"julian": 2451545, "level_counters": {"2": 0, "3": 24, "4": 0}, "level_fired": [0,0,0,0,0,0,0,0,0,0,0]}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451545, "data2": 0, "data3": 0}
+    ]},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451545, "data3": 0},
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451545, "data3": 0}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451545, "cursors": {"4": null}}},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451546, "data2": 0, "data3": 2}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451546, "level_counters": {"3": 0, "4": 2}, "level_fired": {"4": true, "5": false}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451546, "data3": 2}
+    ]},
+
+    {"op": "advance", "ms": 500},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"julian": 2451546}},
+    {"op": "simulate_agents"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "data1": 2451546, "data3": 2},
+      {"event": "deliver", "agent": "D", "data1": 2451546, "data3": 2},
+      {"event": "post", "type": "SimNewDay", "data1": 2451547, "data3": 3},
+      {"event": "post", "type": "SimNewWeek", "data1": 2451547, "data3": 1}
+    ]},
+
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage", "note": "clears levelFired so the next simulate_agents does not flush again"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "data1": 2451547, "data3": 3},
+      {"event": "deliver", "agent": "D", "data1": 2451547, "data3": 3},
+      {"event": "deliver", "agent": "D", "data1": 2451547, "data3": 3}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451547}},
+    {"op": "advance", "ms": 100},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451548, "data3": 4}
+    ]}
+  ]
+}

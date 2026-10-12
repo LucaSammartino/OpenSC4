@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "day_cadence_free_running_clock",
+  "spec": ["5.1", "5.2", "10.2"],
+  "description": "Robustness variant of s10_2: the fake clock advances 1 ms on every read, so exact timings depend on how often an implementation reads the clock. Only bounds are checked: day messages are at least msPerDay (50) apart and not much more, carry consecutive Julian days and day-of-year values, and the day agent sees each day once.",
+  "clock": {"start_ms": 0, "auto_step_ms": 1},
+  "agents": {"D": {"finish_after": 1}},
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50]}},
+    {"op": "set_speed", "speed": 2},
+    {"op": "hidden_resume"},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 100},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "min": 20},
+    {"op": "expect_spacing", "filter": {"event": "post", "type": "SimNewDay"}, "min_ms": 50, "max_ms": 80},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data1", "start": 2451546, "step": 1},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data3", "start": 2, "step": 1},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data1", "start": 2451545, "step": 1}
+  ]
+}

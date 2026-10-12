@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# FreeCity4 engine Cargo workspace.
+[workspace]
+resolver = "2"
+members = ["core", "capi", "conformance"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+rust-version = "1.75"
+
+[profile.release]
+# Panics must never unwind into GZCOM/C++ frames.
+panic = "abort"
+debug = 1
+
+[profile.dev]
+# Tests rely on unwinding (catch_unwind at the C ABI boundary is exercised).
+panic = "unwind"

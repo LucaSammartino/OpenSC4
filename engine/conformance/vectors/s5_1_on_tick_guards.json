@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "on_tick_guards",
+  "spec": ["5.1", "9"],
+  "description": "OnTick always returns true and recomputes the frame budget, but does no work before Init, while hidden-paused (Init sets the hidden pause), or after Shutdown. While paused (not hidden) calendar time does not pass and only idle work runs. Shutdown resets the date and speed and releases every agent, but keeps counters and pause counts.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {"D": {}, "Burn": {"cost_ms": 1}},
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "add_agent", "agent": "Burn", "level": 10},
+    {"op": "tick", "expect": true},
+    {"op": "expect_state", "state": {"frame_budget_ms": 66, "initialized": false, "target_fps": 15}},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50]}},
+    {"op": "tick", "count": 3, "expect": true},
+    {"op": "expect_events", "filter": {"event": "deliver"}, "events": []},
+
+    {"op": "hidden_resume"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "pause"},
+    {"op": "tick", "count": 10},
+    {"op": "expect_event_count", "filter": {"agent": "D"}, "count": 0},
+    {"op": "expect_event_count", "filter": {"agent": "Burn"}, "min": 100},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 0},
+    {"op": "expect_state", "state": {"julian": 2451545, "level_counters": {"3": 0}}},
+    {"op": "resume"},
+    {"op": "clear_events"},
+    {"op": "tick", "count": 10},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "min": 1},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data1", "start": 2451545, "step": 1},
+
+    {"op": "load", "record": {"date": {"year": 2005, "month": 5, "day": 5}, "pause_count": 0, "sim_speed": 2, "level_counters": {"4": 125}}},
+    {"op": "clear_events"},
+    {"op": "shutdown", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "release", "agent": "D"},
+      {"event": "release", "agent": "Burn"}
+    ]},
+    {"op": "expect_state", "state": {"initialized": false, "julian": 2451545, "sim_speed": 3, "agent_counts": [0,0,0,0,0,0,0,0,0,0,0],
+      "level_counters": {"4": 125}, "hidden_pause_count": 0}},
+    {"op": "tick", "count": 2, "expect": true},
+    {"op": "expect_events", "events": []}
+  ]
+}

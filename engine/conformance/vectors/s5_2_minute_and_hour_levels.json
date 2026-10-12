@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "minute_and_hour_levels",
+  "spec": ["2.3", "5.2", "5.3"],
+  "description": "With agents at the minute and hour levels (unused by the shipped game) the counters step one at a time: 60 minutes make an hour, 24 hours make a day, and the day still waits for the interval timer (gate level = Day). The minute counter is reset to 0 by the hour step before agents run, so minute agents see data3 = 0 on the hour. The clock stays at 0 (budget never exhausted) until the final step.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {"Mi": {}, "H": {}},
+  "steps": [
+    {"op": "add_agent", "agent": "Mi", "level": 2},
+    {"op": "add_agent", "agent": "H", "level": 3},
+    {"op": "init"},
+    {"op": "clear_events"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 0}, "level_fired": [0,0,0,0,0,0,0,0,0,0,0]}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "Mi", "type": "SimNewMinute", "data1": 2451545, "data3": 0},
+      {"event": "deliver", "agent": "H", "type": "SimNewHour", "data1": 2451545, "data3": 0}
+    ]},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 1, "3": 0}, "level_fired": {"2": 1, "3": 0}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "Mi", "type": "SimNewMinute", "data3": 1}
+    ]},
+    {"op": "repeat", "count": 58, "steps": [{"op": "simulate_time_passage"}, {"op": "simulate_agents"}]},
+    {"op": "expect_state", "state": {"level_counters": {"2": 59, "3": 0}}},
+    {"op": "expect_sequence", "filter": {"agent": "Mi"}, "field": "data3", "start": 2, "step": 1},
+    {"op": "clear_events"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 1}, "level_fired": {"2": 1, "3": 1}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "Mi", "type": "SimNewMinute", "data3": 0},
+      {"event": "deliver", "agent": "H", "type": "SimNewHour", "data3": 1}
+    ]},
+    {"op": "repeat", "count": 1380, "steps": [{"op": "simulate_time_passage"}, {"op": "simulate_agents"}]},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 24}, "julian": 2451545}},
+    {"op": "expect_event_count", "filter": {"agent": "H"}, "count": 23},
+    {"op": "expect_event_count", "filter": {"agent": "Mi"}, "count": 1380},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "clear_events"},
+    {"op": "simulate_time_passage", "note": "interval timer not ready (msPerDay 5000): no day"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 1, "3": 24}, "julian": 2451545}},
+    {"op": "simulate_agents"},
+    {"op": "advance", "ms": 5000},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 2, "3": 0, "4": 2}, "julian": 2451546, "level_fired": {"2": 1, "3": 0, "4": 1}}},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "SimNewDay", "data1": 2451546, "data3": 2}
+    ]}
+  ]
+}

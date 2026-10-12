@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "name": "pause_and_emergency",
+  "spec": ["6", "10.6"],
+  "description": "Pause/Resume counting with posts only on 0<->1 transitions; the emergency speed lock (Resume and SetSimSpeed are refused while locked); hidden pause; IsXPaused queries.",
+  "steps": [
+    {"op": "init"},
+    {"op": "expect_state", "state": {"pause_count": 0, "hidden_pause_count": 1, "emergency_pause_count": 0, "speed_change_enabled": true}},
+    {"op": "expect_paused", "paused": false, "hidden": true, "emergency": false, "any": true},
+    {"op": "clear_events"},
+
+    {"op": "pause", "expect": true},
+    {"op": "pause", "expect": true},
+    {"op": "expect_paused", "paused": true},
+    {"op": "resume", "expect": true},
+    {"op": "resume", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "PauseChanged", "data1": 1, "data2": 0, "data3": 0},
+      {"event": "post", "type": "PauseChanged", "data1": 0, "data2": 0, "data3": 0}
+    ]},
+    {"op": "resume", "expect": true},
+    {"op": "expect_state", "state": {"pause_count": -1}},
+    {"op": "expect_paused", "paused": false},
+    {"op": "pause"},
+    {"op": "expect_events", "events": []},
+    {"op": "pause"},
+    {"op": "resume"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "PauseChanged", "data1": 1},
+      {"event": "post", "type": "PauseChanged", "data1": 0}
+    ]},
+
+    {"op": "hidden_resume", "expect": true},
+    {"op": "hidden_resume", "expect": true},
+    {"op": "hidden_pause", "expect": true},
+    {"op": "hidden_pause", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "HiddenPauseChanged", "data1": 0},
+      {"event": "post", "type": "HiddenPauseChanged", "data1": 1}
+    ]},
+    {"op": "expect_state", "state": {"hidden_pause_count": 1}},
+    {"op": "expect_paused", "hidden": true, "any": true},
+    {"op": "hidden_resume"},
+    {"op": "expect_paused", "hidden": false, "any": false},
+    {"op": "clear_events"},
+
+    {"op": "emergency_pause", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "PauseChanged", "data1": 1},
+      {"event": "post", "type": "EmergencyPauseChanged", "data1": 1, "data2": 0, "data3": 0}
+    ]},
+    {"op": "expect_state", "state": {"pause_count": 1, "emergency_pause_count": 1, "speed_change_enabled": false}},
+    {"op": "expect_paused", "paused": true, "emergency": true, "any": true},
+    {"op": "set_speed", "speed": 1, "expect": false},
+    {"op": "resume", "expect": true},
+    {"op": "expect_state", "state": {"pause_count": 1, "sim_speed": 0}},
+    {"op": "pause"},
+    {"op": "expect_state", "state": {"pause_count": 2}},
+    {"op": "emergency_pause"},
+    {"op": "expect_state", "state": {"pause_count": 3, "emergency_pause_count": 2}},
+    {"op": "expect_events", "events": []},
+
+    {"op": "emergency_resume", "expect": true},
+    {"op": "expect_state", "state": {"pause_count": 2, "emergency_pause_count": 1, "speed_change_enabled": true}},
+    {"op": "expect_events", "events": []},
+    {"op": "resume"},
+    {"op": "emergency_resume"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "PauseChanged", "data1": 0},
+      {"event": "post", "type": "EmergencyPauseChanged", "data1": 0}
+    ]},
+    {"op": "expect_state", "state": {"pause_count": 0, "emergency_pause_count": 0, "speed_change_enabled": true}},
+    {"op": "expect_paused", "paused": false, "emergency": false, "hidden": false, "any": false},
+    {"op": "set_speed", "speed": 1, "expect": true},
+    {"op": "set_speed", "speed": 1, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SpeedChanged", "data1": 1}
+    ]}
+  ]
+}

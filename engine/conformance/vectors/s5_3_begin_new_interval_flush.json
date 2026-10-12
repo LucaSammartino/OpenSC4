@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "begin_new_interval_flush",
+  "spec": ["5.3"],
+  "description": "BeginNewInterval(L) delivers to every agent from the cursor to the end, repeating each until it reports finished (disabled agents are skipped), then rewinds the cursor to the first agent. SimulateAgents runs it for every level whose levelFired flag is set; the flags are only cleared by SimulateTimePassage, so a second SimulateAgents call in the same frame flushes again.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "P": {"finish_after": 3},
+    "Q": {"finish_after": 2},
+    "R": {"finish_after": 1}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "P", "level": 6},
+    {"op": "add_agent", "agent": "Q", "level": 6, "flags": 2},
+    {"op": "add_agent", "agent": "R", "level": 6},
+    {"op": "init"},
+    {"op": "clear_events"},
+    {"op": "begin_new_interval", "level": 6},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "P", "type": "SimNewMonth", "data1": 2451545, "data3": 0},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "R"}
+    ]},
+    {"op": "expect_state", "state": {"cursors": {"6": 0}}},
+    {"op": "begin_new_interval", "level": 6},
+    {"op": "expect_event_count", "count": 4},
+    {"op": "clear_events"},
+    {"op": "begin_new_interval", "level": 5},
+    {"op": "begin_new_interval", "level": 11},
+    {"op": "expect_events", "events": []},
+
+    {"op": "load", "record": {"date": {"year": 2000, "month": 1, "day": 31}, "pause_count": 0, "sim_speed": 0, "level_counters": {"3": 24}}},
+    {"op": "remove_agent", "agent": "Q"},
+    {"op": "set_clock", "now_ms": 6000},
+    {"op": "simulate_time_passage", "note": "BeginNewInterval left the cursor on the first agent, so the month level is not drained and February cannot start"},
+    {"op": "expect_state", "state": {"julian": 2451575}},
+    {"op": "set_clock", "now_ms": 0},
+    {"op": "clear_events"},
+    {"op": "simulate_agents", "note": "budget never exhausted at clock 0: the walk repeats P until it finishes, then R"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "P", "data1": 2451575, "data3": 0},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "R", "data1": 2451575, "data3": 0}
+    ]},
+    {"op": "set_clock", "now_ms": 6000},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "SimNewDay", "data1": 2451576, "data3": 32},
+      {"type": "SimNewMonth", "data1": 2451576, "data3": 2}
+    ]},
+    {"op": "set_clock", "now_ms": 0},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "P", "type": "SimNewMonth", "data1": 2451576, "data3": 2},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "P"},
+      {"event": "deliver", "agent": "R", "data3": 2}
+    ]},
+    {"op": "simulate_agents", "note": "levelFired still set: flushes again from the cursor (now at the end), rewinds, walks"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "P", "data3": 2},
+      {"event": "deliver", "agent": "P", "data3": 2},
+      {"event": "deliver", "agent": "P", "data3": 2},
+      {"event": "deliver", "agent": "R", "data3": 2}
+    ]}
+  ]
+}

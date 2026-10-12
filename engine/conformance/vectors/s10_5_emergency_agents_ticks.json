@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "emergency_agents_ticks",
+  "spec": ["2.2", "5.1", "5.2", "5.3", "10.5"],
+  "description": "An emergency (level 1) agent runs continuously: it is re-delivered every millisecond of the frame budget, starves later levels and the idle level, and calendar time does not pass while it is registered. Removing it lets the clock resume. Frozen clock; agents cost 1 ms per call. Frame budgets: 66, then alternating 15 / 51 (target 66 minus the previous frame's length, floored at 15), so tick 12 starts at 66 + 5*15 + 5*51 = 396.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "E": {"finish_after": 1, "cost_ms": 1},
+    "D": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "add_agent", "agent": "Burn", "level": 10},
+    {"op": "add_agent", "agent": "E", "level": 1},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50]}},
+    {"op": "set_speed", "speed": 2},
+    {"op": "hidden_resume"},
+    {"op": "clear_events"},
+
+    {"op": "tick"},
+    {"op": "expect_event_count", "filter": {"agent": "E", "type": "SimEmergency"}, "count": 66},
+    {"op": "expect_event_count", "filter": {"agent": "D"}, "count": 0},
+    {"op": "expect_event_count", "filter": {"agent": "Burn"}, "count": 0},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "expect_sequence", "filter": {"agent": "E"}, "field": "data1", "start": 2451545, "step": 0},
+    {"op": "expect_spacing", "filter": {"agent": "E"}, "min_ms": 1, "max_ms": 1},
+    {"op": "tick", "count": 10},
+    {"op": "expect_state", "state": {"julian": 2451545, "level_counters": {"2": 0, "3": 0}}},
+    {"op": "expect_event_count", "filter": {"event": "post"}, "count": 0},
+    {"op": "clear_events"},
+
+    {"op": "remove_agent", "agent": "E", "expect": true},
+    {"op": "remove_agent", "agent": "E", "expect": false},
+    {"op": "expect_events", "events": [{"event": "release", "agent": "E"}]},
+    {"op": "tick"},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data1", "start": 2451545, "step": 1},
+    {"op": "expect_event_count", "filter": {"agent": "D"}, "count": 2},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "SimNewDay", "data1": 2451546, "data3": 2, "t": 397}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451546}}
+  ]
+}

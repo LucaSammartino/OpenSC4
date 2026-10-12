@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[package]
+name = "fc4-capi"
+description = "Stable C ABI over fc4-core, consumed by the GZCOM shim (engine/plugin)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "fc4_capi"
+# staticlib: linked into FreeCity4.dll. rlib: lets `cargo test` exercise the ABI.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+fc4-core = { path = "../core" }

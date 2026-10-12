@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[package]
+name = "fc4-core"
+description = "FreeCity4 portable simulation core (clean-room, written from docs/specs)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "fc4_core"

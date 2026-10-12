@@ -8,3 +8,7 @@ re/symport/*.pkl
 ghidra/project/
 decomp/
 ghidra/logs/
+
+# Engine build outputs
+build*/
+target/

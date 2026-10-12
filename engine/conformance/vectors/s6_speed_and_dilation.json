@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "speed_and_dilation",
+  "spec": ["3", "6", "7", "9"],
+  "description": "Init applies speed 0 when unset; DoSetSimSpeed sets targetFps 30/20/15 and msPerDay from the table; out-of-range speeds keep fps/msPerDay ([choice]); animation dilation selection; sim time accessor; SetMaxMillisecondsPerTick is ignored; tuning arrays of the wrong length are ignored.",
+  "steps": [
+    {"op": "expect_state", "state": {"initialized": false, "sim_speed": 3, "ms_per_day": 100, "target_fps": 15, "frame_budget_ms": 15, "gate_level": 4,
+      "ms_per_day_table": [5000, 1000, 100], "animation_dilation": [0, 1, 1.5, 2, 1], "speed_change_enabled": true}},
+    {"op": "init", "tuning": {"ms_per_day": [1, 2], "animation_dilation": [9, 9, 9, 9]}, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SpeedChanged", "data1": 0, "data2": 0, "data3": 0}
+    ]},
+    {"op": "expect_state", "state": {"initialized": true, "sim_speed": 0, "ms_per_day": 5000, "target_fps": 30,
+      "ms_per_day_table": [5000, 1000, 100], "animation_dilation": [0, 1, 1.5, 2, 1]}},
+    {"op": "init", "tuning": {"ms_per_day": [7, 8, 9]}, "expect": true},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"ms_per_day_table": [5000, 1000, 100]}},
+
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "set_speed", "speed": 1, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 1, "ms_per_day": 1000, "target_fps": 20}},
+    {"op": "expect_dilation", "value": 1.5},
+    {"op": "set_speed", "speed": 2, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 2, "ms_per_day": 100, "target_fps": 15}},
+    {"op": "expect_dilation", "value": 2.0},
+    {"op": "pause"},
+    {"op": "expect_dilation", "value": 0.0},
+    {"op": "resume"},
+    {"op": "emergency_pause"},
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "emergency_resume"},
+    {"op": "set_speed", "speed": 7, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 7, "ms_per_day": 100, "target_fps": 15}},
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "set_speed", "speed": 0},
+    {"op": "expect_events", "filter": {"type": "SpeedChanged"}, "events": [
+      {"data1": 1}, {"data1": 2}, {"data1": 7}, {"data1": 0}
+    ]},
+
+    {"op": "set_sim_time", "time": 123456, "expect": true},
+    {"op": "expect_state", "state": {"sim_time": 123456}},
+    {"op": "set_max_ms_per_tick", "ms": 1, "expect": true},
+    {"op": "expect_events", "events": []},
+
+    {"op": "shutdown", "expect": true},
+    {"op": "expect_state", "state": {"initialized": false, "sim_speed": 3, "julian": 2451545, "sim_time": 123456}},
+    {"op": "shutdown", "expect": true},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50], "animation_dilation": [1, 1, 1.5, 3, 1]}},
+    {"op": "expect_state", "state": {"sim_speed": 0, "ms_per_day": 2000, "target_fps": 30, "ms_per_day_table": [2000, 1000, 50], "animation_dilation": [1, 1, 1.5, 3, 1]}},
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "pause"},
+    {"op": "expect_dilation", "value": 1.0},
+    {"op": "resume"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "expect_dilation", "value": 3.0},
+    {"op": "expect_events", "filter": {"type": "SpeedChanged"}, "events": [
+      {"data1": 0}, {"data1": 2}
+    ]}
+  ]
+}

@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Static CRT everywhere so FreeCity4.dll has no runtime dependencies and the
+# Rust staticlib matches the C++ side compiled with /MT.
+# Note: cargo reads this file relative to the *working directory*, so run cargo
+# from engine/ (the CMake build does).
+[target.i686-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

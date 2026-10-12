@@ -1,0 +1,561 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+// Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
+
+//! Stable C ABI over `fc4-core`. The contract is `include/fc4.h`; keep the two
+//! in sync. This is the only crate of the engine that contains `unsafe` code,
+//! and only to cross the FFI boundary.
+//!
+//! Panics: every entry point runs inside `catch_unwind` and returns a
+//! documented fallback value; release builds additionally use
+//! `panic = "abort"`, so unwinding can never reach C/C++ frames.
+
+#![allow(non_camel_case_types)]
+#![allow(clippy::missing_safety_doc)]
+
+use std::ffi::{c_char, c_void};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+use fc4_core::host::{AgentDelivery, Broadcast, Clock};
+use fc4_core::julian;
+use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
+use fc4_core::{AgentHandle, Message, Simulator, Tuning};
+
+pub const FC4_ABI_VERSION: u32 = 1;
+
+pub const FC4_OK: i32 = 0;
+pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
+pub const FC4_ERR_TRUNCATED: i32 = -2;
+pub const FC4_ERR_INVALID_ARGUMENT: i32 = -3;
+pub const FC4_ERR_PANIC: i32 = -100;
+
+/// Opaque handle type. A `*mut fc4_sim` is really a `*const Simulator`.
+#[repr(C)]
+pub struct fc4_sim {
+    _private: [u8; 0],
+}
+
+pub type fc4_agent = u64;
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_message {
+    pub type_: u32,
+    pub reserved: u32,
+    pub data1: i64,
+    pub data2: i64,
+    pub data3: i64,
+}
+
+impl From<&Message> for fc4_message {
+    fn from(m: &Message) -> Self {
+        fc4_message {
+            type_: m.msg_type,
+            reserved: 0,
+            data1: m.data1,
+            data2: m.data2,
+            data3: m.data3,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fc4_host {
+    pub struct_size: u32,
+    pub user: *mut c_void,
+    pub now_ms: Option<unsafe extern "C" fn(user: *mut c_void) -> u32>,
+    pub deliver: Option<
+        unsafe extern "C" fn(user: *mut c_void, sim: *mut fc4_sim, agent: fc4_agent, msg: *const fc4_message) -> bool,
+    >,
+    pub add_ref: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent)>,
+    pub release: Option<unsafe extern "C" fn(user: *mut c_void, agent: fc4_agent)>,
+    pub post: Option<unsafe extern "C" fn(user: *mut c_void, msg: *const fc4_message)>,
+}
+
+#[repr(C)]
+pub struct fc4_tuning {
+    pub ms_per_day: *const u32,
+    pub ms_per_day_count: usize,
+    pub animation_dilation: *const f32,
+    pub animation_dilation_count: usize,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_date {
+    pub julian: i32,
+    pub year: i32,
+    pub month: i32,
+    pub day_of_month: i32,
+    pub day_of_year: i32,
+    pub weekday: i32,
+}
+
+impl From<julian::DateFields> for fc4_date {
+    fn from(d: julian::DateFields) -> Self {
+        fc4_date {
+            julian: d.julian,
+            year: d.year,
+            month: d.month,
+            day_of_month: d.day_of_month,
+            day_of_year: d.day_of_year,
+            weekday: d.weekday,
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_state {
+    pub struct_size: u32,
+    pub initialized: u8,
+    pub in_tick: u8,
+    pub city_established: u8,
+    pub speed_change_enabled: u8,
+    pub pause_count: i32,
+    pub hidden_pause_count: i32,
+    pub emergency_pause_count: i32,
+    pub sim_speed: i32,
+    pub sim_time: i32,
+    pub frame_budget_ms: u32,
+    pub gate_level: u32,
+    pub ms_per_day: u32,
+    pub target_fps: i32,
+    pub julian_day: i32,
+    pub ms_per_day_table: [u32; 3],
+    pub animation_dilation: [f32; 5],
+    pub level_counters: [u32; 11],
+    pub level_fired: [u8; 11],
+    pub reserved: u8,
+    pub agent_counts: [u32; 11],
+}
+
+const _: () = {
+    assert!(std::mem::size_of::<fc4_message>() == 32);
+    assert!(std::mem::size_of::<fc4_date>() == 24);
+    assert!(std::mem::size_of::<fc4_state>() == 180);
+};
+
+pub type fc4_name_callback = Option<unsafe extern "C" fn(ctx: *mut c_void, name: *const c_char, name_len: usize)>;
+
+// ---- host adapter -----------------------------------------------------------
+
+struct CHost(fc4_host);
+
+impl Clock for CHost {
+    fn now_ms(&self) -> u32 {
+        match self.0.now_ms {
+            // SAFETY: the creator of the simulator promised valid callbacks.
+            Some(f) => unsafe { f(self.0.user) },
+            None => 0,
+        }
+    }
+}
+
+impl AgentDelivery for CHost {
+    fn deliver(&self, sim: &Simulator, agent: AgentHandle, msg: &Message) -> bool {
+        match self.0.deliver {
+            Some(f) => {
+                let m = fc4_message::from(msg);
+                let handle = sim as *const Simulator as *mut fc4_sim;
+                // SAFETY: valid callback; `m` outlives the call.
+                unsafe { f(self.0.user, handle, agent, &m) }
+            }
+            None => true,
+        }
+    }
+    fn add_ref(&self, agent: AgentHandle) {
+        if let Some(f) = self.0.add_ref {
+            // SAFETY: valid callback.
+            unsafe { f(self.0.user, agent) }
+        }
+    }
+    fn release(&self, agent: AgentHandle) {
+        if let Some(f) = self.0.release {
+            // SAFETY: valid callback.
+            unsafe { f(self.0.user, agent) }
+        }
+    }
+}
+
+impl Broadcast for CHost {
+    fn post(&self, msg: &Message) {
+        if let Some(f) = self.0.post {
+            let m = fc4_message::from(msg);
+            // SAFETY: valid callback; `m` outlives the call.
+            unsafe { f(self.0.user, &m) }
+        }
+    }
+}
+
+// ---- helpers ------------------------------------------------------------------
+
+fn guard<R>(fallback: R, f: impl FnOnce() -> R) -> R {
+    catch_unwind(AssertUnwindSafe(f)).unwrap_or(fallback)
+}
+
+/// SAFETY: `sim` must be NULL or a live pointer from `fc4_sim_create`.
+unsafe fn sim_ref<'a>(sim: *const fc4_sim) -> Option<&'a Simulator> {
+    (sim as *const Simulator).as_ref()
+}
+
+fn with_sim<R>(sim: *const fc4_sim, fallback: R, f: impl FnOnce(&Simulator) -> R) -> R {
+    // SAFETY: documented precondition of every entry point.
+    match unsafe { sim_ref(sim) } {
+        Some(s) => guard(fallback, || f(s)),
+        None => fallback,
+    }
+}
+
+/// SAFETY: `ptr` must be NULL (with `len == 0`) or valid for `len` bytes.
+unsafe fn str_arg(ptr: *const c_char, len: usize) -> String {
+    if ptr.is_null() || len == 0 {
+        return String::new();
+    }
+    let bytes = std::slice::from_raw_parts(ptr as *const u8, len);
+    String::from_utf8_lossy(bytes).into_owned()
+}
+
+/// SAFETY: as `str_arg`, for typed slices.
+unsafe fn slice_arg<'a, T>(ptr: *const T, len: usize) -> Option<&'a [T]> {
+    if ptr.is_null() {
+        None
+    } else if len == 0 {
+        Some(&[])
+    } else {
+        Some(std::slice::from_raw_parts(ptr, len))
+    }
+}
+
+// ---- library --------------------------------------------------------------------
+
+#[no_mangle]
+pub extern "C" fn fc4_abi_version() -> u32 {
+    FC4_ABI_VERSION
+}
+
+// ---- lifetime -------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_create(host: *const fc4_host) -> *mut fc4_sim {
+    guard(std::ptr::null_mut(), || {
+        let Some(h) = host.as_ref() else {
+            return std::ptr::null_mut();
+        };
+        if (h.struct_size as usize) < std::mem::size_of::<fc4_host>() || h.now_ms.is_none() {
+            return std::ptr::null_mut();
+        }
+        let sim = Box::new(Simulator::new(Box::new(CHost(*h))));
+        Box::into_raw(sim) as *mut fc4_sim
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_destroy(sim: *mut fc4_sim) {
+    if sim.is_null() {
+        return;
+    }
+    guard((), || drop(Box::from_raw(sim as *mut Simulator)));
+}
+
+// ---- lifecycle ----------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_init(sim: *mut fc4_sim, tuning: *const fc4_tuning) -> bool {
+    let t = match tuning.as_ref() {
+        None => Tuning::default(),
+        Some(t) => Tuning {
+            ms_per_day: slice_arg(t.ms_per_day, t.ms_per_day_count).map(<[u32]>::to_vec),
+            animation_dilation: slice_arg(t.animation_dilation, t.animation_dilation_count).map(<[f32]>::to_vec),
+        },
+    };
+    with_sim(sim, false, |s| s.init(&t))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_shutdown(sim: *mut fc4_sim) -> bool {
+    with_sim(sim, false, Simulator::shutdown)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_is_initialized(sim: *const fc4_sim) -> bool {
+    with_sim(sim, false, Simulator::is_initialized)
+}
+
+// ---- per-frame ----------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_on_tick(sim: *mut fc4_sim) -> bool {
+    with_sim(sim, true, Simulator::on_tick)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_simulate_time_passage(sim: *mut fc4_sim) {
+    with_sim(sim, (), Simulator::simulate_time_passage)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_simulate_agents(sim: *mut fc4_sim) {
+    with_sim(sim, (), Simulator::simulate_agents)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_simulate_idle_time(sim: *mut fc4_sim) {
+    with_sim(sim, (), Simulator::simulate_idle_time)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_begin_new_interval(sim: *mut fc4_sim, level: u32) {
+    with_sim(sim, (), |s| s.begin_new_interval(level))
+}
+
+// ---- pause and speed --------------------------------------------------------------
+
+macro_rules! bool_entry {
+    ($name:ident, $ptr:ty, $method:ident) => {
+        #[no_mangle]
+        pub unsafe extern "C" fn $name(sim: $ptr) -> bool {
+            with_sim(sim, false, Simulator::$method)
+        }
+    };
+}
+
+bool_entry!(fc4_sim_pause, *mut fc4_sim, pause);
+bool_entry!(fc4_sim_resume, *mut fc4_sim, resume);
+bool_entry!(fc4_sim_hidden_pause, *mut fc4_sim, hidden_pause);
+bool_entry!(fc4_sim_hidden_resume, *mut fc4_sim, hidden_resume);
+bool_entry!(fc4_sim_emergency_pause, *mut fc4_sim, emergency_pause);
+bool_entry!(fc4_sim_emergency_resume, *mut fc4_sim, emergency_resume);
+bool_entry!(fc4_sim_is_paused, *const fc4_sim, is_paused);
+bool_entry!(fc4_sim_is_hidden_paused, *const fc4_sim, is_hidden_paused);
+bool_entry!(fc4_sim_is_emergency_paused, *const fc4_sim, is_emergency_paused);
+bool_entry!(fc4_sim_is_any_paused, *const fc4_sim, is_any_paused);
+bool_entry!(fc4_sim_remove_all_agents, *mut fc4_sim, remove_all_agents);
+bool_entry!(fc4_sim_is_city_established, *const fc4_sim, is_city_established);
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_sim_speed(sim: *const fc4_sim) -> i32 {
+    with_sim(sim, 0, Simulator::sim_speed)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_sim_speed(sim: *mut fc4_sim, speed: i32) -> bool {
+    with_sim(sim, false, |s| s.set_sim_speed(speed))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_sim_time(sim: *const fc4_sim) -> i32 {
+    with_sim(sim, 0, Simulator::sim_time)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_sim_time(sim: *mut fc4_sim, time: i32) -> bool {
+    with_sim(sim, false, |s| s.set_sim_time(time))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_max_milliseconds_per_tick(sim: *mut fc4_sim, ms: u32) -> bool {
+    with_sim(sim, false, |s| s.set_max_milliseconds_per_tick(ms))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_animation_time_dilation(sim: *const fc4_sim) -> f32 {
+    with_sim(sim, 1.0, Simulator::animation_time_dilation)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_city_established(sim: *mut fc4_sim, established: bool) -> bool {
+    with_sim(sim, false, |s| s.set_city_established(established))
+}
+
+// ---- agents -----------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_add_agent(
+    sim: *mut fc4_sim,
+    agent: fc4_agent,
+    level: u32,
+    name: *const c_char,
+    name_len: usize,
+    flags: u32,
+) -> bool {
+    let name = guard(String::new(), || str_arg(name, name_len));
+    with_sim(sim, false, |s| s.add_agent(agent, level, &name, flags))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_remove_agent(sim: *mut fc4_sim, agent: fc4_agent, level: u32) -> bool {
+    with_sim(sim, false, |s| s.remove_agent(agent, level))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_remove_agent_all_levels(sim: *mut fc4_sim, agent: fc4_agent) -> bool {
+    with_sim(sim, false, |s| s.remove_agent_all_levels(agent))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_remove_all_agents_at(sim: *mut fc4_sim, level: u32) -> bool {
+    with_sim(sim, false, |s| s.remove_all_agents_at(level))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_agent_enabled(sim: *const fc4_sim, name: *const c_char, name_len: usize) -> bool {
+    let name = guard(String::new(), || str_arg(name, name_len));
+    with_sim(sim, false, |s| s.get_agent_enabled(&name))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_agent_enabled(
+    sim: *mut fc4_sim,
+    name: *const c_char,
+    name_len: usize,
+    enabled: bool,
+) -> bool {
+    let name = guard(String::new(), || str_arg(name, name_len));
+    with_sim(sim, false, |s| s.set_agent_enabled(&name, enabled))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_enumerate_agents(
+    sim: *const fc4_sim,
+    cb: fc4_name_callback,
+    ctx: *mut c_void,
+) -> usize {
+    // Collect first so the callback may re-enter the simulator.
+    let names = with_sim(sim, Vec::new(), Simulator::enumerate_agent_names);
+    if let Some(f) = cb {
+        for n in &names {
+            f(ctx, n.as_ptr() as *const c_char, n.len());
+        }
+    }
+    names.len()
+}
+
+// ---- date ----------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_julian_day(sim: *const fc4_sim) -> i32 {
+    with_sim(sim, julian::JULIAN_2000_01_01, Simulator::julian_day)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_date(sim: *const fc4_sim, out: *mut fc4_date) -> bool {
+    if out.is_null() {
+        return false;
+    }
+    match with_sim(sim, None, |s| Some(s.date_fields())) {
+        Some(d) => {
+            *out = d.into();
+            true
+        }
+        None => false,
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn fc4_julian_from_civil(year: i32, month: i32, day: i32) -> i32 {
+    guard(0, || julian::julian_from_civil(year, month, day))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_date_from_julian(julian_day: i32, out: *mut fc4_date) {
+    if let Some(o) = out.as_mut() {
+        *o = guard(fc4_date::default(), || julian::date_fields(julian_day).into());
+    }
+}
+
+// ---- persistence ---------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_save(sim: *const fc4_sim, buffer: *mut u8, capacity: usize) -> usize {
+    let bytes = with_sim(sim, Vec::new(), Simulator::save);
+    if !buffer.is_null() && capacity >= bytes.len() {
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer, bytes.len());
+    }
+    bytes.len()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_load(sim: *mut fc4_sim, buffer: *const u8, length: usize) -> i32 {
+    if sim.is_null() {
+        return FC4_ERR_INVALID_ARGUMENT;
+    }
+    let Some(bytes) = slice_arg(buffer, length) else {
+        return FC4_ERR_INVALID_ARGUMENT;
+    };
+    with_sim(sim, FC4_ERR_PANIC, |s| match s.load(bytes) {
+        Ok(()) => FC4_OK,
+        Err(LoadError::UnsupportedVersion(_)) => FC4_ERR_UNSUPPORTED_VERSION,
+        Err(LoadError::Truncated) => FC4_ERR_TRUNCATED,
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_record_layout(version: u16, widths: *mut *const u8) -> usize {
+    if version != SAVE_VERSION {
+        return 0;
+    }
+    if let Some(w) = widths.as_mut() {
+        *w = RECORD_LAYOUT_V4.as_ptr();
+    }
+    RECORD_LAYOUT_V4.len()
+}
+
+// ---- cheats ----------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_handle_cheat(
+    sim: *mut fc4_sim,
+    cheat_id: u32,
+    text: *const c_char,
+    text_len: usize,
+) -> bool {
+    let text = guard(String::new(), || str_arg(text, text_len));
+    with_sim(sim, false, |s| s.handle_cheat(cheat_id, &text))
+}
+
+// ---- inspection -------------------------------------------------------------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_state(sim: *const fc4_sim, out: *mut fc4_state) -> bool {
+    let Some(o) = out.as_mut() else { return false };
+    if (o.struct_size as usize) < std::mem::size_of::<fc4_state>() {
+        return false;
+    }
+    let Some(snap) = with_sim(sim, None, |s| Some(s.snapshot())) else {
+        return false;
+    };
+    let mut st = fc4_state {
+        struct_size: std::mem::size_of::<fc4_state>() as u32,
+        ..Default::default()
+    };
+    st.initialized = snap.initialized.into();
+    st.in_tick = snap.in_tick.into();
+    st.city_established = snap.city_established.into();
+    st.speed_change_enabled = snap.speed_change_enabled.into();
+    st.pause_count = snap.pause_count;
+    st.hidden_pause_count = snap.hidden_pause_count;
+    st.emergency_pause_count = snap.emergency_pause_count;
+    st.sim_speed = snap.sim_speed;
+    st.sim_time = snap.sim_time;
+    st.frame_budget_ms = snap.frame_budget_ms;
+    st.gate_level = snap.gate_level;
+    st.ms_per_day = snap.ms_per_day;
+    st.target_fps = snap.target_fps;
+    st.julian_day = snap.julian;
+    st.ms_per_day_table = snap.ms_per_day_table;
+    st.animation_dilation = snap.animation_dilation;
+    st.level_counters = snap.level_counters;
+    for l in 0..11 {
+        st.level_fired[l] = snap.level_fired[l].into();
+        st.agent_counts[l] = snap.agent_counts[l] as u32;
+    }
+    *o = st;
+    true
+}
+
+#[cfg(test)]
+mod tests;
