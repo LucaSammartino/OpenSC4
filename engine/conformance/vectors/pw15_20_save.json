@@ -2,7 +2,7 @@
   "format": 1,
   "name": "power_save",
   "spec": ["power 3", "power 4.1", "power 9.1", "power 15.20", "foundations 2", "foundations 3"],
-  "description": "Test 20, from 9.1. Layout (256 x 256 city, department present): u16 version 6 at 0, department ref (8 bytes) at 2, ringIndex 10, production 14, consumption 18, deficit f32 22, consumers 26, powered 30, unpowered 34, requirement 38, costBase s64 42, last values 50..69, grid ref 70, nx 78, nz 82, 65536 s16 map from 86, ring 120 s32, annual 10 s32, plantCount, perType 10 s32, plant nodes (u32 + ref, 12 bytes each), poleCount, brokenCount, pole refs (8 each), words = 65536 / 32 = 2048, four bitmaps of 2048 u32, then unused u8, strike u8, strike start s32, recompute u8, agePlants u8, state u32: 164514 bytes with no plant and no pole, + 2 x 12 + 3 x 8 = 164562 with 2 plants and 3 poles. Write -> read -> write is byte-identical in both cases (the loaded simulator gets Init after Read, as in a load; Init step 3 is skipped). After a load the strike flag is 0 (saved 1), unused flag, strike start, recompute, agePlants, state, plant and pole lists and the bitmaps are as saved, brokenFraction restarts at 0, enabled is false; with state 4 and no request nothing runs until a change or the month. Version 7 -> Read returns false right after the version (running set, nothing else changed); an empty stream returns true (the store ignores Read's result, so these two call Read directly). Version 5 with an s32 deficit 50 -> 0.5. [choice] A truncated record leaves the new object's state as constructed (only running set).",
+  "description": "Test 20, from 9.1. Layout (256 x 256 city, department present): u16 version 6 at 0, department ref (8 bytes) at 2, ringIndex 10, production 14, consumption 18, deficit f32 22, consumers 26, powered 30, unpowered 34, requirement 38, costBase s64 42, last values 50..69, grid ref 70, nx 78, nz 82, 65536 s16 map from 86, ring 120 s32, annual 10 s32, plantCount, perType 10 s32, plant nodes (u32 + ref, 12 bytes each), poleCount, brokenCount, pole refs (8 each), words = 65536 / 32 = 2048, four bitmaps of 2048 u32, then unused u8, strike u8, strike start s32, recompute u8, agePlants u8, state u32: 164514 bytes with no plant and no pole, + 2 x 12 + 3 x 8 = 164562 with 2 plants and 3 poles. Write -> read -> write is byte-identical in both cases (the loaded simulator gets Init after Read, as in a load; Init step 3 is skipped). After a load the strike flag is 0 (saved 1), unused flag, strike start, recompute, agePlants, state, plant and pole lists and the bitmaps are as saved, brokenFraction restarts at 0, enabled is false; with state 4 and no request nothing runs until a change or the month. Version 7 -> Read returns false right after the version (running set, nothing else changed) [compat]; [choice] 9.1 (PW9): an empty stream fails on the version -> false, running stays clear (the store ignores Read's result, so these two call Read directly). Version 5 with an s32 deficit 50 -> fild 50 x 0.01f = 0.5 (one rounding, exactly 0x3F000000). [choice] 9.1: a truncated record fails, running stays clear and the new object keeps its constructed state (test 30 has the details).",
   "steps": [
     {"op": "power_create"},
     {"op": "power_init"},
@@ -57,18 +57,18 @@
     {"op": "power_read", "slot": "v7", "expect": false},
     {"op": "power_expect", "state": {"running": true, "state": 2, "consumers": 1}},
     {"op": "power_set", "state": {"running": false}},
-    {"op": "power_read", "hex": "", "expect": true},
-    {"op": "power_expect", "state": {"running": true, "state": 2}},
+    {"op": "power_read", "hex": "", "expect": false},
+    {"op": "power_expect", "state": {"running": false, "state": 2}},
 
     {"op": "power_save", "slot": "v5"},
     {"op": "power_patch", "slot": "v5", "offset": 0, "hex": "0500"},
     {"op": "power_patch", "slot": "v5", "offset": 22, "hex": "32000000"},
     {"op": "power_load", "slot": "v5"},
-    {"op": "power_expect", "state": {"deficit": 0.5, "state": 2, "consumers": 1}},
+    {"op": "power_expect", "state": {"deficit": 0.5, "deficit_bits": "0x3F000000", "state": 2, "consumers": 1}},
 
     {"op": "power_save", "slot": "t"},
     {"op": "power_patch", "slot": "t", "offset": 100, "delete": 164000},
     {"op": "power_load", "slot": "t"},
-    {"op": "power_expect", "state": {"running": true, "state": 0, "consumers": 0, "has_grid": false, "map_size": [0, 0], "plants": [], "poles": []}}
+    {"op": "power_expect", "state": {"running": false, "state": 0, "consumers": 0, "has_grid": false, "map_size": [0, 0], "plants": [], "poles": []}}
   ]
 }
