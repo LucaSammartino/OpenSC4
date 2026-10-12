@@ -23,6 +23,7 @@
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cS3DVector2.h"
 #include "cIGZSystemService.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4DepartmentBudget.h"
@@ -43,6 +44,7 @@
 #endif
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -75,6 +77,8 @@ constexpr uint32_t kIID_cISC4BudgetSimulator = 0x6772BD23;
 constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
 constexpr uint32_t kCLSID_LandValue = 0xE990C18E;
 constexpr uint32_t kIID_cISC4LandValueSimulator = 0xE7781D8C;
+constexpr uint32_t kCLSID_Weather = 0x2990C1BC;
+constexpr uint32_t kIID_cISC4WeatherSimulator = 0xC6C66245;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -594,6 +598,81 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
 
+    if (mode == "--ini-enable-weather") {
+        // The weather subsystem is off by default; `enable = weather` registers it.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = weather\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 5 && std::count(classes.begin(), classes.end(), kCLSID_Weather) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Weather, kIID_cISC4WeatherSimulator, &obj));
+            auto* w = static_cast<cFC4ISC4WeatherSimulator*>(obj);
+            if (w != nullptr) {
+                // weather §1: five interfaces.
+                void* p = nullptr;
+                for (uint32_t iid : {0x452294AAu, 0xE98B2F57u}) {
+                    p = nullptr;
+                    CHECK(w->QueryInterface(iid, &p) && p != nullptr);
+                    if (p) static_cast<cIGZUnknown*>(p)->Release();
+                }
+                cIGZSerializable* ser = nullptr;
+                CHECK(w->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_Weather);
+                    ser->Release();
+                }
+                CHECK(w->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<cIGZUnknown*>(w));
+                if (p) static_cast<cIGZUnknown*>(p)->Release();
+                CHECK(!w->QueryInterface(0x6772BD23, &p));
+                // Constructor values (§3): no grid, the code-default humidity.
+                CHECK(w->CellCountX() == 0 && w->GetMoistureValue(10.0f, 10.0f) == 0);
+                CHECK(w->GetHumidity(0.0f, 0.0f) == 0.75f);
+                // Init without a city or GZCOM: an empty city, a clean lifecycle.
+                CHECK(w->Init());
+                CHECK(w->Init());
+                CHECK(w->CellWidthX() == 16.0f && w->CellCountZ() == 0);
+                CHECK(w->GetCurrentSeasonMonth() == 1 && w->GetCurrentSeason() == 0);
+                float x = 0, z = 0;
+                CHECK(w->CellToPosition(2, 3, x, z) == 48.0f && x == 32.0f && z == 48.0f);
+                int32_t a = 0, b = 0;
+                w->CellToStandardCityCell(3, 7, a, b);
+                CHECK(a == 3 && b == 3);  // [quirk]
+                CHECK(w->StandardCityCellToCell(5, 6, a, b) == 6 && a == 5 && b == 6);
+                cS3DVector2 wind(0.0f, 0.0f);
+                CHECK(w->GetAmbientWind(wind) == 3.0f && wind.fX == 3.0f && wind.fY == 0.0f);
+                FC4ByteGridVector* grid = nullptr;
+                w->GetMoistureValueMapPtr(grid);
+                CHECK(grid != nullptr);
+                if (grid != nullptr) {
+                    void* const* v = reinterpret_cast<void* const*>(grid);
+                    CHECK(v[0] == v[1]);  // no rows in an empty city
+                }
+                CHECK(w->Release() == 0);  // Shutdown, destroy
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'weather': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'landvalue': off by default") != std::string::npos);
+        CHECK(text.find("weather Init: ok=1") != std::string::npos);
+        CHECK(text.find("weather Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4WeatherSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
     if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
@@ -1034,6 +1113,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
     CHECK(text.find("subsystem 'landvalue': off by default") != std::string::npos);
     CHECK(text.find("cFC4LandValueSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'weather': off by default") != std::string::npos);
+    CHECK(text.find("cFC4WeatherSimulator(") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);

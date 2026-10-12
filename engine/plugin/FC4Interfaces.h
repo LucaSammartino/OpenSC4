@@ -606,6 +606,40 @@ public:
     virtual cISCResExemplar* GetTuningExemplar() = 0;                            // 37
 };
 
+// cISC4WeatherSimulator (IID 0xC6C66245), 24 slots (weather spec "Compiled
+// slot tables": the SDK order). Implemented by cFC4WeatherSimulator. Two
+// return channels differ from the SDK (docs/abi: CellToPosition returns in
+// ST0, StandardCityCellToCell in EDX:EAX); no game code calls either
+// (weather §11.2), but a replacement keeps the channels so a caller's x87
+// stack stays balanced. GetMoistureValueMapPtr takes the caller's pointer
+// variable (§11.2 [compat]; the SDK says a vector reference).
+struct FC4ByteGridVector;  // SC4Vector<SC4Vector<uint8_t>>-compatible (cFC4Weather.h)
+class cS3DVector2;
+class cFC4ISC4WeatherSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                      // 3
+    virtual bool Shutdown() = 0;                                                  // 4
+    virtual bool DoPostCityInit() = 0;                                            // 5
+    virtual float CellWidthX() = 0;                                               // 6
+    virtual float CellWidthZ() = 0;                                               // 7
+    virtual uint32_t CellCountX() = 0;                                            // 8
+    virtual uint32_t CellCountZ() = 0;                                            // 9
+    virtual int32_t PositionToCell(float x, float z, int32_t& cx, int32_t& cz) = 0;     // 10
+    virtual float CellToPosition(int32_t cx, int32_t cz, float& x, float& z) = 0;       // 11  (SDK: void)
+    virtual void CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) = 0;  // 12
+    virtual int64_t StandardCityCellToCell(int32_t sx, int32_t sz, int32_t& cx, int32_t& cz) = 0;  // 13  (SDK: void)
+    virtual int32_t GetCurrentSeason() = 0;                                       // 14  (SDK: enum Season)
+    virtual int32_t GetCurrentSeasonMonth() = 0;                                  // 15
+    virtual void UpdateMoisture(SC4Rect<int32_t> const& rect) = 0;                // 16
+    virtual uint8_t GetMoistureValue(float x, float z) = 0;                       // 17
+    virtual void GetMoistureValueMapPtr(FC4ByteGridVector*& out) = 0;             // 18
+    virtual uint8_t GetMoistureType(float x, float z) = 0;                        // 19
+    virtual void SetManualMoistureAddition(float x0, float z0, float x1, float z1, float v) = 0;  // 20
+    virtual float GetHumidity(float x, float z) = 0;                              // 21
+    virtual float GetAmbientWind(cS3DVector2& wind) = 0;                          // 22
+    virtual float GetWindAtCell(int32_t x, int32_t z, cS3DVector2& wind) = 0;     // 23
+};
+
 class cISC4Simulator;
 class cISC4BudgetSimulator;
 

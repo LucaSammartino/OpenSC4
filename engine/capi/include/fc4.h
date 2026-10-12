@@ -50,8 +50,9 @@ extern "C" {
  * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref);
  * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item);
  * 7 = adds fc4_department_find_local_funding_percent (budget erratum);
- * 8 = adds the land value simulator (fc4_landvalue). */
-#define FC4_ABI_VERSION 8u
+ * 8 = adds the land value simulator (fc4_landvalue);
+ * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather). */
+#define FC4_ABI_VERSION 9u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -715,6 +716,98 @@ bool fc4_landvalue_get_state(const fc4_landvalue* lv, fc4_landvalue_state* out);
 bool fc4_landvalue_write(const fc4_landvalue* lv, const fc4_ostream* out);
 bool fc4_landvalue_read(fc4_landvalue* lv, const fc4_istream* in);
 
+/* ---- property holders ---------------------------------------------------------
+ * A plain property holder the host fills with the properties of a game exemplar
+ * (a subsystem's tuning) before handing it to the core, which copies it. A
+ * single value is stored as a scalar, several (or none) as an array; the core
+ * converts numbers between types when it reads them. */
+typedef struct fc4_props fc4_props;
+
+fc4_props* fc4_props_create(void);
+void fc4_props_destroy(fc4_props* p);
+/* Set (replace) property `id`. `values` may be NULL when `count` is 0. */
+bool fc4_props_set_u32s(fc4_props* p, uint32_t id, const uint32_t* values, size_t count);
+bool fc4_props_set_i32s(fc4_props* p, uint32_t id, const int32_t* values, size_t count);
+bool fc4_props_set_i64s(fc4_props* p, uint32_t id, const int64_t* values, size_t count);
+bool fc4_props_set_f32s(fc4_props* p, uint32_t id, const float* values, size_t count);
+bool fc4_props_set_bools(fc4_props* p, uint32_t id, const bool* values, size_t count);
+/* A string property (bytes, no terminator). */
+bool fc4_props_set_string(fc4_props* p, uint32_t id, const uint8_t* bytes, size_t len);
+size_t fc4_props_count(const fc4_props* p);
+
+/* ---- weather (docs/specs/weather.md) ------------------------------------------
+ * The weather simulator's core. The shim owns the GZCOM object (agents,
+ * PostCityInit subscription, city/terrain references) and keeps the
+ * SC4Vector-compatible mirror of the moisture grid (§11.2). */
+typedef struct fc4_weather fc4_weather;
+
+typedef struct fc4_weather_host {
+    uint32_t struct_size; /* sizeof(fc4_weather_host) */
+    void* user;
+    /* City (§2, §4): SizeX/Z and CellWidthX/Z in world units, GetWorldHemisphere,
+     * and the calendar month (1..12) of the simulation date. */
+    void (*city_size)(void* user, float* x, float* z);
+    void (*city_cell_width)(void* user, float* x, float* z);
+    int32_t (*world_hemisphere)(void* user);
+    int32_t (*sim_month)(void* user);
+    /* cISC4Region::GetWaterPrefs; false = no region (defaults 60, 100). */
+    bool (*water_prefs)(void* user, uint8_t* lo, uint8_t* hi);
+    /* Terrain (vertex/cell indices unless named world). */
+    bool (*terrain_available)(void* user);
+    float (*altitude_at_vertex)(void* user, int32_t x, int32_t z);
+    void (*vertex_normal)(void* user, int32_t x, int32_t z, float* xyz /* 3 floats */);
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);
+    float (*altitude)(void* user, float world_x, float world_z);
+    float (*sea_level)(void* user);
+    /* Posts a message with void1 = the weather simulator (IGZUnknown) and data2. */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2);
+} fc4_weather_host;
+
+typedef struct fc4_weather_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save, post_init_done, pad;
+    int32_t count_x, count_z, last_season, cells_per_week, wind_month;
+    uint32_t water_rect_count;
+    float ambient_temp, ambient_moisture, wind_speed, wind_dir_x, wind_dir_z, target_wind_speed;
+} fc4_weather_state;
+
+/* The host table is copied. The generator is seeded as Seed(0xFFFFFFFF) with
+ * these clock values (§3). NULL if the table is missing or too small. */
+fc4_weather* fc4_weather_create(const fc4_weather_host* host, uint32_t wall_clock_seed, uint32_t process_clock);
+void fc4_weather_destroy(fc4_weather* w);
+/* Init (§8.1, core part); tuning = the tuning exemplar's properties (copied),
+ * NULL = no exemplar. Shutdown (§8.2, core part). */
+bool fc4_weather_init(fc4_weather* w, const fc4_props* tuning);
+bool fc4_weather_shutdown(fc4_weather* w);
+bool fc4_weather_do_post_city_init(fc4_weather* w);
+/* DoMessage (§5): SimNewDay (data1 = Julian day), SimNewWeek, SimNewMonth
+ * (data3 = month), PostCityInit. Always true. */
+bool fc4_weather_handle_message(fc4_weather* w, uint32_t msg_type, uint32_t data1, uint32_t data3);
+/* cISC4WeatherSimulator methods (§4); axis 0 = x, 1 = z. */
+float fc4_weather_cell_width(const fc4_weather* w, uint32_t axis);
+uint32_t fc4_weather_cell_count(const fc4_weather* w, uint32_t axis);
+int32_t fc4_weather_position_to_cell(const fc4_weather* w, float x, float z, int32_t* cx, int32_t* cz);
+void fc4_weather_cell_to_position(const fc4_weather* w, int32_t cx, int32_t cz, float* x, float* z);
+void fc4_weather_cell_to_standard_city_cell(const fc4_weather* w, int32_t cx, int32_t cz, int32_t* sx, int32_t* sz);
+void fc4_weather_standard_city_cell_to_cell(const fc4_weather* w, int32_t sx, int32_t sz, int32_t* cx, int32_t* cz);
+int32_t fc4_weather_season(const fc4_weather* w);
+int32_t fc4_weather_season_month(const fc4_weather* w);
+void fc4_weather_update_moisture(fc4_weather* w, int32_t x0, int32_t z0, int32_t x1, int32_t z1);
+uint8_t fc4_weather_moisture_value(const fc4_weather* w, float x, float z);
+uint8_t fc4_weather_moisture_type(const fc4_weather* w, float x, float z);
+void fc4_weather_set_manual_moisture_addition(fc4_weather* w, float x0, float z0, float x1, float z1, float v);
+float fc4_weather_humidity(const fc4_weather* w, float x, float z);
+/* GetAmbientWind: returns the speed; v (2 floats, may be NULL) = direction x speed. */
+float fc4_weather_ambient_wind(const fc4_weather* w, float* v);
+/* Copies the moisture grid x-major (out[x * count_z + z], at most `capacity`
+ * bytes; out may be NULL) and reports its shape. Returns the cell count. */
+size_t fc4_weather_moisture_grid(const fc4_weather* w, uint8_t* out, size_t capacity, int32_t* count_x,
+                                 int32_t* count_z);
+bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
+/* Persistence (§10). */
+bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
+bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -749,6 +842,8 @@ static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
 static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
+static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
+static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

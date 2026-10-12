@@ -71,6 +71,7 @@
 #include "cISC4GrowthDeveloper.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LotDeveloper.h"
+#include "cISC4Region.h"
 #include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "cISTETerrain.h"

@@ -75,6 +75,10 @@ INTERFACES = [
     ("cISC4ZoneManager", "cISC4ZoneManager", "cISC4ZoneManager.h", True),
     ("cISC4LotDeveloper", "cISC4LotDeveloper", "cISC4LotDeveloper.h", True),
     ("cISC4GrowthDeveloper", "cISC4GrowthDeveloper", "cISC4GrowthDeveloper.h", True),
+    # Weather (docs/specs/weather.md): implemented, and the region it reads.
+    ("cISC4WeatherSimulator", "cFC4ISC4WeatherSimulator", FC4, True),
+    ("vt:cSC4WeatherSimulator::vftable_3", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("vt:cSC4Region::vftable", "cISC4Region", "cISC4Region.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

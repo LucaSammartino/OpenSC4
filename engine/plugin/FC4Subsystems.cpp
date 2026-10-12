@@ -34,6 +34,7 @@ cIGZUnknown* CreateFC4BudgetSimulator();
 cIGZUnknown* CreateFC4DepartmentBudget();
 cIGZUnknown* CreateFC4LineItem();
 cIGZUnknown* CreateFC4LandValueSimulator();
+cIGZUnknown* CreateFC4WeatherSimulator();
 
 namespace fc4 {
 namespace {
@@ -58,11 +59,17 @@ const ClassEntry kLandValueClasses[] = {
     {0xE990C18E, "cSC4LandValueSimulator", &CreateFC4LandValueSimulator},
 };
 
+// docs/specs/weather.md §1. Off by default (M2 glue trial): `enable = weather`.
+const ClassEntry kWeatherClasses[] = {
+    {0x2990C1BC, "cSC4WeatherSimulator", &CreateFC4WeatherSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
     {"budget", nullptr, kBudgetClasses, sizeof(kBudgetClasses) / sizeof(kBudgetClasses[0]), true},
     {"landvalue", nullptr, kLandValueClasses, sizeof(kLandValueClasses) / sizeof(kLandValueClasses[0]), false},
+    {"weather", nullptr, kWeatherClasses, sizeof(kWeatherClasses) / sizeof(kWeatherClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
