@@ -15,6 +15,18 @@ GCC ones, so most offsets past the first container are different on Windows.
 
 ---
 
+> **Superseded by the M4 specs.** The clean-room specs in `docs/specs/` (building-development.md,
+> growth-developer.md and the later tract, lot and zone specs) were checked against the Windows code and take
+> precedence. Corrections found so far:
+> - §3: every developer whose active demand (truncated) is above 5 makes exactly one tract-developer `Grow`
+>   attempt per day; the weighted pick only orders the attempts. Construction supply is
+>   `clamp(trunc(0.5 × (R + C + I)), 8192, 20480)` from census supplies (shipped values). Decline is planned
+>   monthly and executes at most one success per day.
+> - §4: the special-building triple is (radius in cells, centre value, outer value), applied with
+>   `AddRadiusEffect<int16>`. The scratch grid W is not saved; the published map is. The two saved scalars are
+>   the last phantom sum and the total capacity. The population map is `int16`, not `uint16`.
+> - Offsets quoted in this file are Mac offsets.
+
 ## 1. Overview
 
 ```text
