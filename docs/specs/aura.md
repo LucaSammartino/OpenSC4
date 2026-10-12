@@ -632,8 +632,9 @@ cleared (§5.2); the landmark-work grid reuses the landmark map's instance ID (�
 2. *(resolved)* Message `0xC53D10AA` is the "exemplar changed" notification posted by the exemplar resource code
    (foundations §5.2).
 3. *(resolved)* Department `0x8A4260A6` is Parks and Recreation (foundations §5.2); budget §12 is corrected.
-4. The residential population grids' geometry: the aura indexes them with its own tract indices (S = 4); confirm in
-   the residential spec that they have the same tract size.
+4. *(resolved)* The residential population grids take the R$ growth developer's tract size, shipped 4, the same as
+   the aura's S (residential.md, Grids). The aura's indexing assumes the two are equal; with a modded developer
+   tract size other than 4 they would differ *[inferred]*.
 5. The time-slice helper's adaptive step (§6.5) is shared with other subsystems; its exact constants should be
    specified once in simulator.md and cited here.
 6. Unit of the riot start position: the aura passes **cell** coordinates; the riot manager's own spec must say how

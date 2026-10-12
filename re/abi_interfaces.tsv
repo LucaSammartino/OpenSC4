@@ -115,3 +115,5 @@ cISC4NetworkTool	cSC4NetworkTool	00aa8748	81	docs/specs/power.md
 cISC4NetworkTool(PowerLine)	cSC4PowerLineTool	00aa9f30	83	docs/specs/power.md
 cISC4Demolition	cSC4Demolition	00a88004	13	docs/specs/power.md
 cISC4View3DWin	cSC4View3DWin	00abce40	61	docs/specs/power.md
+cIGZSerializable(Residential)	cSC4ResidentialSimulator	00ab2be4	6	docs/specs/residential.md
+cIGZMessageTarget2(Residential)	cSC4ResidentialSimulator	00ab2bfc	4	docs/specs/residential.md

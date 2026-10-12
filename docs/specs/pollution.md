@@ -817,7 +817,7 @@ global service pointer, always **through the interface**. Observed callers (by s
 | Slot | Callers | Use of the result |
 |---|---|---|
 | 5 `GetPollutionGrid` | aura simulator (each type with a non-zero aura weight), growth developer (desirability, idle), map view (four layers), query tooltips, desirability equation, MySim | aura and growth developer pass the grid to `ProcessTwoGridsWithCallback` (simgrid.md §7.3) and similar helpers, which read it through **`GetGridData`** (raw `vector<vector<int16>>`, simgrid.md §6.3); the map view reads `GetTractWidthX/Z` and **`GetGridData` (const)**; tooltips and MySim call `GetCellValue` (some treat the result as unsigned) |
-| 6 `GetPollutionValue` | residential (hospital query data) | value |
+| 6 `GetPollutionValue` | residential: every tract in the monthly population pass (air, water, garbage; residential.md, `DoPopulationChange`) and the hospital query data | value |
 | 7 `GetAirValue` | cell query | value |
 | 21 | landfill zones (heap capacity) | |
 | 20, 24, 29, 30, 50, 51 | landfill developer / landfill zones | supply, uncollected total, capacity, landfill flags, landfilled counter |
