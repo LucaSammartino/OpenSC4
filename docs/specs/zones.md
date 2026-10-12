@@ -869,6 +869,9 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 
 ## 13. Replaceability
 
+**Headless limit**: the original zone developer's `Init` fails without the 3D view (global `0x00B43DD0`), so it can
+only be exercised in the running game; FreeCity4's zone developer must not depend on the view.
+
 ### 13.1 Who reaches in
 
 - **Zone grid**: built directly (not through GZCOM) and written raw by `PlaceZone`; read raw by `GetZoneType` and,

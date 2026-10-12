@@ -309,11 +309,31 @@ Consequences *[compat]*:
   and `step := step · 2` (if < 1024). This only tunes how often the clock is read.
 - If the attempts take longer than 3 ms in total, the remaining qualifying developers get **no** attempt that day.
   This depends on the machine's speed and cannot be reproduced.
-- *[choice]* FreeCity4 behaves like an infinitely fast machine: every qualifying developer attempts once per day,
-  then `Grow` returns (no spin, no timer, no step adaptation). Draw sequence and choices are identical to the
-  original whenever the original's 3 ms suffice.
+- *[choice]* FreeCity4 replaces the 3 ms timer with a deterministic **daily growth budget** (§4.4.1). There is
+  no spin, no timer and no step adaptation.
 - The outcome list passed to `Grow` is created empty by the BDS, filled by the tract developer and freed by the
   BDS (allocator B, §9.2); its content is not used. `flag` starts false and is not read afterwards.
+
+#### 4.4.1 Daily growth budget *[choice]*
+
+- **Unit of work**: one call of `tractDeveloper.Grow` (the call in the loop above; original call site
+  `0x0069B394`). Picks that end without a call (lists invalid, growth list empty) are not units.
+- **Budget** `growthAttemptsPerDay` (tuning value, unsigned; `0` means unlimited). `Grow` keeps a count of the
+  units done today. Before each loop iteration (before the sum and the draw), if `count = growthAttemptsPerDay` the
+  loop stops and `Grow` returns. Otherwise the loop runs as above until every qualifying developer has been picked
+  once, and then returns (developers with `ad ≤ 5` are skipped, not spun on).
+- Draw sequence: identical to the original's for the iterations that run. A budget stop leaves the generator
+  untouched for the rest of the day (no draw for an iteration that does not run).
+- **Default**: to be calibrated in the original (§12), not guessed. Until then the default is unlimited.
+- **Observable effect of the budget** (for the M4 exit tests):
+  - At or above the number of qualifying developers (at most 13 with the shipped exemplars) the budget has **no
+    effect**: every qualifying developer attempts once per day, as in the original on a fast enough machine.
+  - Below it, fewer attempts happen per day, so **growth is slower** (fewer buildings per game month), and the
+    attempts are biased towards high-demand developers, because they are picked first. Low-demand developer types
+    are starved first, which changes the R/C/I mix of new buildings.
+  - Budget-sensitive statistics: buildings constructed per month by developer type, the time for a zoned area to
+    fill, and how the population curve depends on demand. Budget-insensitive (given the same attempts):
+    what is built where, and the draw-for-draw choices of each attempt.
 - *[compat]* `GetSubType()` must return the developer's map key (property `0x21`); otherwise the developer is never
   removed from `pending`.
 
@@ -754,6 +774,9 @@ No new interface vtables are needed for the dependencies beyond those already in
 
 ## 9. Replaceability
 
+**Replacement unit** *[choice]*: this simulator's developer creation and the growth developer (growth-developer.md
+§12) are one unit; replacing either alone leaves new and loaded cities with different developer classes.
+
 ### 9.1 Who reaches into the BDS
 
 - **Raw containers through the interface** (a replacement must provide the game's layouts): the developer map
@@ -797,8 +820,8 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 
 1. The growth-plan path (`PlanGrowth` `0x00699440`, `ExecuteGrowthPlan` `0x00699270`, the planned-growth map and
    retry days) is dead: its flag is never set. Its map is still saved (always empty).
-2. Grow's 3 ms spin and timer-based cut-off (§4.4); *[choice]* FreeCity4 gives every qualifying developer its
-   attempt and does not spin.
+2. Grow's 3 ms spin and timer-based cut-off (§4.4); *[choice]* FreeCity4 uses the daily growth budget of
+   §4.4.1 and does not spin.
 3. Wasted decline draws for used-up developers (§4.3).
 4. Planner `ad < −20` vs executor `ad ≤ −20` (§4.5).
 5. `GetBuildingProfile` and `GetBuildingMapKey(type)` insert a zero profile for unknown types.
@@ -853,6 +876,8 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
    `RandomUint32Uniform(310)` = 308 → (308 − 50 = 258 < 260) `0x4300`; draw 3 `RandomUint32Uniform(50)` = 21 →
    `0x3110`. Tract-developer `Grow` call order: `0x1010`, `0x4300`, `0x3110`; `0x1020` gets no call; exactly 3
    generator steps. With seed 1 the same day gives draws 0 (of 420), 108 (of 310), 37 (of 50) and the same order.
+   With `growthAttemptsPerDay` = 2 (seed 12345): calls `0x1010`, `0x4300` only; exactly 2 generator steps; the
+   next NextRaw is `0x6E80D665`. With budget 0 (unlimited) or 3 or more: as above.
 7. **Tried-tract marks**: growth list [(4, 4), (8, 4), (12, 4)], one qualifying developer: days 1–3 try (4, 4),
    (8, 4), (12, 4); day 4 clears the marks and tries (4, 4) again. Save after day 2 and load in a fresh process:
    day 3 tries (12, 4).
@@ -886,3 +911,21 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 16. **Catalogue queries**: family F = {A, B}: `GetBuildingTypesByFamily(vector, F)` → [A, B], returns 2;
     `(vector, A)` → [A], returns 0; `(vector, X unknown)` → vector unchanged, 0. `IsBuildingInFamily(A, A)` true.
     `GetAllBuildingTypes(array, n = 1)` with 3 types → n = 1, returns 3.
+
+## 12. Calibration (counters for the observer in the original)
+
+Purpose: set the default of `growthAttemptsPerDay` (§4.4.1) from the original's behaviour on the reference machine.
+The observer logs, **per game day** (one `DoDailySimulation` call, `0x0069B6D0`; `Grow` is called once from it at
+`0x0069B6FD` and has no other caller):
+
+| Counter | Where to count in the original | Meaning |
+|---|---|---|
+| `attempts` | calls to the tract developer's `Grow` (slot 5): the virtual call at `0x0069B394` inside `Grow` `0x0069B0B0` (equivalently, entries of `cSC4TractDeveloper::Grow` `0x0070D130`, which has no other caller) | units of §4.4.1 done that day |
+| `draws` | calls to `RandomUint32Uniform` at `0x0069B1C7` | picks that day (attempts + picks without a call) |
+| `qualifying` | at entry of `Grow`: the number of developers in the developer map (slot 34) with `trunc(active demand) > 5` (§4.3) | attempts the day would have with an unlimited budget |
+| `cut` | `attempts + (picks without a call) < qualifying` at the exit of `Grow` | the 3 ms timer stopped the loop |
+| `elapsed` | rdtsc at `Grow` entry and exit, and at each `0x0069B394` call and return | time per attempt (the observer can compute how many attempts fit in 3 ms) |
+
+The default is the distribution of `attempts` on days with `cut` = true (when no day is cut on the reference
+machine, the budget is unlimited). Log the city size and population with each day; attempt cost grows with the
+number of candidate lots.

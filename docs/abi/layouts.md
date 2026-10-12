@@ -125,3 +125,39 @@ A record that the plugin builds and hands to the game must therefore be 0x178 by
 record is a C block with a B (or null) family buffer and a counted (or null) exemplar, so that the game's Release
 can free it, or the plugin keeps one reference for the life of the process, so that no game Release ever sees a
 count of 1 or less.
+
+## Building profile header (`cISC4BuildingOccupant::BuildingProfile`)
+
+`cISC4BuildingOccupant::GetBuildingProfile` (compiled slot 11, `+0x2C`, body `0x00459250`) returns a reference to
+the building **type's** shared profile. It forwards to `cISC4BuildingDevelopmentSimulator` compiled slot 39
+(`+0x9C`, `0x0069CA60`) with the building type. That call inserts a zero profile for an unknown type
+(allocators.md). Read only; never free or modify it.
+
+| Offset | Type | Field (SDK name) | Read by |
+|---|---|---|---|
+| +0x00 | uint32 | `purpose` (`PurposeType`, 0..9) | `cSC4BudgetSimulator::ComputeTax` `0x00691F04` (table row) |
+| +0x04 | uint32 | `wealth` (`WealthType`, 0..3) | `ComputeTax` `0x00691FC9` (waning-wealth index) |
+
+The SDK struct has these two fields at these offsets (both enums are `uint32_t`). Its later fields were not
+checked here.
+
+## Lot and occupant getters used by the property tax (verified 2026-10-12)
+
+These were checked against `ComputeTax` (`0x00691E20`) and the plugin's `FC4Interfaces.h` declarations. All
+match.
+
+| Call | Compiled slot | Body | Returns |
+|---|---|---|---|
+| `cISC4Lot::GetLocation(int32&, int32&)` | 21 (`+0x54`) | `0x006BF2E0` | the lot's origin cell; `ComputeTax` passes both outputs, in order, to `cISC4LandValueSimulator::GetLandValue(x, z)` (slot 6) |
+| `cISC4Lot::GetSize(uint8&, uint8&)` | 22 (`+0x58`) | `0x006BF300` | the lot size in cells |
+| `cISC4Lot::IsInLivableState()` | 37 (`+0x94`) | `0x006C2150` | `al = (byte [lot+0x7F] == 3)`, with EAX zeroed first |
+| `cISC4Lot::GetOccupantWealth()` | 41 (`+0xA4`) | `0x006C21F0` | `movzx eax, byte [lot+0x82]`: the lot's own occupant wealth, 0..3. This is not the building profile's wealth. `cSC4Lot::UpdatePrimaryOccupantWealth` (`0x006C1430`) maintains it. |
+| `cISC4Lot::GetBuilding()` | 48 (`+0xC0`) | `0x006BFA30` | borrowed `cISC4BuildingOccupant*` or null |
+| `cISC4BuildingOccupant::AsOccupant()` | 3 (`+0x0C`) | `0x005FD7E0` | `this + 4`, or null for null |
+| `cISC4Occupant::AsPropertyHolder()` | 6 (`+0x18`) | `0x006C2040` | `occupant + 8`. `cISC4Occupant::QueryInterface(0x25216283)` (`0x005FD310` via `0x005E89C0`) returns the same pointer, with one reference added. `cISC4BuildingOccupant::QueryInterface` (`0x004587D0`) adds 4 and continues there, so a QI on the building pointer also gives `AsOccupant()->AsPropertyHolder()`. |
+
+The building value `0xE91A0B5F` is read with `cSCPropertyHelp::GetPropertyValue(holder, id, int64&)`
+(`0x005FD4B0`). It calls holder slot 9 `GetProperty`, then property slot 5 (the value variant), then variant
+slot 34 (`+0x88`, `GetValSint64(int64&)`, `0x009177E4`). The variant read copies the value directly if its
+type is `Sint64` (9) and otherwise converts through `0x00917350`. It returns false for a missing property, and
+the caller's 0 then stays.

@@ -615,7 +615,9 @@ discards the result (dead debug code); a replacement need not call them.
   `0xAC09C0E8` (wall clock; not saved). *[choice]* FreeCity4 takes its seed from the host (foundations §6.3).
 - Only the four industrial developers draw. Which salt each one gets depends on the order in which they reach
   state 20, i.e. on the agent order of the idle and day levels (`simulator.md` §4: the original orders agents by
-  address) *[compat: draw count; choice: order]*.
+  address) *[compat: draw count]*. *[compat-limit]* A seeded run cannot reproduce which industrial developer gets
+  which salt, because the original's agent order follows object addresses; FreeCity4 uses agent registration order
+  (simulator.md §4).
 - A key seed equal to `0xFFFFFFFF` would make `Seed` use the clock (foundations §6.1) *[quirk]*; it needs
   `salt = (((x << 16) + z) << 4) XOR 0xFFFFFFFF`, probability 2⁻³² per tract and update.
 - No other draws: no C `rand()`, no random iterators, no shuffles (the population pass uses the scanning
@@ -763,6 +765,10 @@ Shared helpers: response curve constructor `0x007D0410`, loaders `0x005F4620` / 
 ---
 
 ## 12. Replaceability
+
+**Replacement unit** *[choice]*: the growth developer is replaced together with the building development simulator's
+developer creation (building-development.md §9), because the BDS constructs growth developers directly for a new
+city and only uses the GZCOM factory when loading.
 
 - **Construction blocker.** The BDS constructs new developers directly (§1.1), so a GZCOM registration of
   `0x0990C138` affects only loaded saves and mixes original and replacement developers. Replacing the growth
