@@ -323,13 +323,10 @@ impl FloraSim {
         0
     }
 
-    /// Resets the block iterator with shuffling. The table is refilled in
-    /// natural order first while the dirty flag is set (weather §6.7).
+    /// Resets the block iterator with shuffling (the shared iterator
+    /// refills the table in natural order first, weather §6.7).
     fn reset_iterator(&self) {
         let mut d = self.d.borrow_mut();
-        if d.iterator.dirty != 0 {
-            d.iterator.table.clear();
-        }
         let mut crt = self.crt.borrow_mut();
         d.iterator.reset(true, &mut crt);
     }

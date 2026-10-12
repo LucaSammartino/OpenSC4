@@ -551,22 +551,11 @@ pub trait FloraRandom {
     fn set_state(&mut self, s: RngState);
 }
 
-/// 2^-32.
-const TWO_POW_M32: f64 = 1.0 / 4_294_967_296.0;
-/// [choice] The polar method gives up after this many rejected pairs (a
-/// double path stuck at 0 never leaves the loop) and returns 0.
-const MAX_GAUSSIAN_TRIES: u32 = 1000;
-
-/// One 24-bit rounding (foundations §18).
-fn r24(x: f64) -> f32 {
-    x as f32
-}
-
-/// The real generator: a `cRZRandom` with the double methods rounded as
-/// foundations §6.1 describes for 24-bit callers, plus the Gaussian cache.
+/// The real generator: a `cRZRandom` (its double methods are 24-bit,
+/// foundations §6.1; at most [`crate::rng::MAX_GAUSSIAN_TRIES`] polar
+/// pairs, then 0 [choice]), plus the saved Gaussian cache word.
 pub struct FloraRng {
     rz: RzRandom,
-    cached: Option<f64>,
     /// The cached word as the original keeps it (not cleared on use).
     last_cached: f64,
 }
@@ -580,7 +569,6 @@ impl FloraRng {
     pub fn with_seed(seed: u32, seeds: &dyn SeedSource) -> FloraRng {
         FloraRng {
             rz: RzRandom::new(seed, seeds),
-            cached: None,
             last_cached: 0.0,
         }
     }
@@ -595,61 +583,42 @@ impl FloraRandom for FloraRng {
         self.rz.uniform_u32(n)
     }
 
-    /// `x := r24(i × 2^-32)`, `u := r24(x + 0.5)`.
     fn uniform_f64(&mut self) -> f64 {
-        self.rz.uniform_f64();
-        let i = self.rz.mul_state() as i32;
-        let x = r24(f64::from(i) * TWO_POW_M32);
-        f64::from(r24(f64::from(x) + 0.5))
+        self.rz.uniform_f64()
     }
 
-    /// `r24(r24(u × r24(b − a)) + a)`.
     fn range_f64(&mut self, a: f64, b: f64) -> f64 {
-        let u = self.uniform_f64();
-        let d = r24(b - a);
-        let p = r24(u * f64::from(d));
-        f64::from(r24(f64::from(p) + a))
+        self.rz.range_f64(a, b)
     }
 
-    /// The polar method of foundations §6.1 with its 24-bit roundings.
     fn gaussian(&mut self) -> f64 {
-        if let Some(g) = self.cached.take() {
-            return g;
+        let g = self.rz.gaussian();
+        if let Some(c) = self.rz.cached_gaussian() {
+            self.last_cached = c;
         }
-        for _ in 0..MAX_GAUSSIAN_TRIES {
-            let u1 = self.uniform_f64();
-            let u2 = self.uniform_f64();
-            let v1 = r24(2.0 * u1 - 1.0);
-            let v2 = r24(2.0 * u2 - 1.0);
-            let s = r24(f64::from(r24(f64::from(v2) * f64::from(v2))) + f64::from(r24(f64::from(v1) * f64::from(v1))));
-            if s >= 1.0 || s == 0.0 {
-                continue;
-            }
-            let s = f64::from(s);
-            let q = r24(s.ln() / s);
-            let f = r24(f64::from(r24(f64::from(q) * -2.0)).sqrt());
-            let cache = f64::from(r24(f64::from(v1) * f64::from(f)));
-            self.cached = Some(cache);
-            self.last_cached = cache;
-            return f64::from(r24(f64::from(f) * f64::from(v2)));
-        }
-        0.0
+        g
     }
 
     fn state(&self) -> RngState {
+        let cached = self.rz.cached_gaussian();
         RngState {
             lcg: self.rz.lcg_state(),
             mul: self.rz.mul_state(),
-            has_cached_gaussian: i32::from(self.cached.is_some()),
-            cached_gaussian: self.cached.unwrap_or(self.last_cached),
+            has_cached_gaussian: i32::from(cached.is_some()),
+            cached_gaussian: cached.unwrap_or(self.last_cached),
         }
     }
 
     fn set_state(&mut self, s: RngState) {
-        self.rz.set_state(s.lcg, s.mul, None);
-        self.cached = (s.has_cached_gaussian != 0).then_some(s.cached_gaussian);
+        let cached = (s.has_cached_gaussian != 0).then_some(s.cached_gaussian);
+        self.rz.set_state(s.lcg, s.mul, cached);
         self.last_cached = s.cached_gaussian;
     }
+}
+
+/// One 24-bit rounding (foundations §18), as an `f32`.
+fn r24(x: f64) -> f32 {
+    x as f32
 }
 
 // ---- pure helpers -----------------------------------------------------------------------------------
