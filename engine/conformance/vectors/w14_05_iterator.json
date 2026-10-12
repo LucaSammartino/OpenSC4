@@ -2,7 +2,7 @@
   "format": 1,
   "name": "weather_iterator",
   "spec": ["weather 6.7", "weather 5.2", "weather 5.4", "weather 5.5", "weather 7", "weather 14.5", "foundations 14"],
-  "description": "Prime-step cell iterator: the step is the first table prime >= count/4 (from the count's bucket) that does not divide count (64^2 -> 3733, 128^2 -> 15683, 256^2 -> 17431; count is capped at 130444 = 4 * 32611, so the padding entry 20192 is reached); a shuffling reset makes one C-runtime rand() call (seed 1: 41, 18467, ...) and starts at rand() mod count; a full pass visits each cell once and next() then returns false. The weekly pass walks cellsPerWeek cells, resetting and posting WeatherCycleCompleted when the iterator runs out, then runs the full moisture pass; with subdivX 1 the first wrap happens in week 2, with the code default 8 in week 9. PostCityInit runs DoCompleteSimulation (month 1, then weekly passes until one wraps) once per object.",
+  "description": "Prime-step cell iterator: the step is the first table prime >= count/4 (from the count's bucket) that does not divide count (64^2 -> 3733, 128^2 -> 15683, 256^2 -> 17431; count is capped at 130444 = 4 * 32611, so the padding entry 20192 is reached); a shuffling reset makes one C-runtime rand() call (seed 1: 41, 18467, ...) and starts at rand() mod count; a full pass visits each cell once and next() then returns false. The weekly pass walks cellsPerWeek cells, resetting and posting WeatherCycleCompleted when the iterator runs out, then runs the full moisture pass; with subdivX 1 the first wrap happens in week 2, with the code default 8 in week 9. PostCityInit runs DoCompleteSimulation (month 1, then weekly passes until one wraps) once per object. A never-reset iterator is running (§10 state byte 1).",
   "steps": [
     {"op": "weather_iterator", "rect": [0, 0, 63, 63], "step": 3733, "count": 4096, "current": 41, "rand_calls": 1, "first": [[62, 58]]},
     {"op": "weather_iterator", "rect": [0, 0, 63, 63], "full_pass": true},
@@ -21,6 +21,7 @@
     {"op": "weather_env", "size": [16, 16], "month": 1},
     {"op": "weather_tuning", "shipped": true},
     {"op": "weather_create", "rng": {"stub": {"uniform": [0.5], "gaussian": [0], "int": [0]}}},
+    {"op": "weather_expect", "note": "W1: a never-reset iterator is running (state byte 1); 0 is never written", "state": {"iterator": {"state": "running", "mode": 1, "count": 0, "index": 0}}},
     {"op": "weather_init", "expect": true},
     {"op": "weather_expect", "state": {"cells_per_week": 256,
       "iterator": {"state": "running", "mode": 1, "rect": [0, 0, 15, 15], "count": 256, "index": 0, "current": 41, "step": 179}}},
