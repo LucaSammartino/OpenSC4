@@ -47,6 +47,7 @@ pub mod store;
 pub mod stream;
 pub mod variant;
 pub mod weather;
+pub mod x87;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};

@@ -957,9 +957,9 @@ fn real_generator() {
     };
     let mut r = FlammabilityRng::new(&seeds);
     let v = r.range_f64(0.0, 100.0);
-    // mul := 1 × 0x278DDE6D; int32 / 2^32 + 0.5.
-    let want = (f64::from(0x278D_DE6D_u32 as i32) / 4_294_967_296.0 + 0.5) * 100.0;
-    assert_eq!(v, want);
+    // mul := 1 × 0x278DDE6D; 24-bit RandomDoubleRangeUniform (foundations
+    // §6.1, test 13: the same as seed 1).
+    assert_eq!(v, 65.450_843_811_035_16);
     assert_eq!(r.mul_state(), 0x278D_DE6D);
 }
 
