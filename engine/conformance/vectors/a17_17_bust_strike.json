@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "aura_bust_strike",
+  "spec": ["aura 8.4", "aura 17.17"],
+  "description": "BustStrike(0) ends the police, fire, residential health and residential school strikes in that order; 1..4 end exactly one; 5 and 0xFFFFFFFF do nothing. Hand-derived from 8.4.",
+  "steps": [
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_clear_events"},
+    {"op": "aura_call", "method": "bust_strike", "args": [0]},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "police"}, {"event": "strike", "service": "fire"}, {"event": "strike", "service": "health"}, {"event": "strike", "service": "school"}]},
+    {"op": "aura_call", "method": "bust_strike", "args": [1]},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "police"}]},
+    {"op": "aura_call", "method": "bust_strike", "args": [2]},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "fire"}]},
+    {"op": "aura_call", "method": "bust_strike", "args": [3]},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "health"}]},
+    {"op": "aura_call", "method": "bust_strike", "args": [4]},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "school"}]},
+    {"op": "aura_call", "method": "bust_strike", "args": [5]},
+    {"op": "aura_expect_events", "events": []},
+    {"op": "aura_call", "method": "bust_strike", "args": ["0xFFFFFFFF"]},
+    {"op": "aura_expect_events", "events": []}
+  ]
+}

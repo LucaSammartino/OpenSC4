@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "aura_lot_base_aura",
+  "spec": ["aura 6.5.1", "aura 17.5"],
+  "description": "LotBaseAura: sum of effective base aura x count over residential entries, total over every entry, trunc toward zero: R$ 30 at -5 and R$$ 10 at 0 -> trunc(-150 / 40) = -3; an extra commercial 40 -> trunc(-150 / 80) = -1; land value type 2, wealth 1 -> -1 + trunc(curve(1)) = -4; wealth 3 -> -1 + trunc(curve(-1)) = 2; no residential entry, total 0 or no building -> -128; the average is clamped to 127 before the curve; without the value/wealth curve the average is the result. Hand-derived, curves from a Python model.",
+  "steps": [
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_clear_events"},
+    {"op": "aura_set", "state": {"effective_base_aura": [-5, 0, 0]}},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10]]}], "expect": -3},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10], [12560, 40]]}], "expect": -1},
+    {"op": "aura_env", "land_value_type": 2},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10], [12560, 40]], "wealth": 1}], "expect": -4},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10], [12560, 40]], "wealth": 3}], "expect": 2},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[12560, 40]]}], "expect": -128},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": []}], "expect": -128},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 0]]}], "expect": -128},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10]], "building": null}], "expect": -128},
+    {"op": "aura_set", "state": {"effective_base_aura": [200, 300, 0]}},
+    {"op": "aura_env", "land_value_type": 1},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 1], [4128, 1]]}], "expect": 127},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4144, 3]], "wealth": 3}], "expect": 5},
+    {"op": "aura_env", "tuning_remove": ["0xEA023280"], "land_value_type": 3},
+    {"op": "aura_call", "method": "read_tuning"},
+    {"op": "aura_set", "state": {"effective_base_aura": [-5, 0, 0]}},
+    {"op": "aura_call", "method": "lot_base_aura", "args": [{"rect": [4, 4, 5, 6], "pops": [[4112, 30], [4128, 10], [12560, 40]]}], "expect": -1}
+  ]
+}

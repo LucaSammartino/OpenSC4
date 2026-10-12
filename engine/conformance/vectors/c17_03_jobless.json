@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "crime_jobless",
+  "spec": ["crime 6.2", "crime 8", "crime 17.3", "foundations 4.3", "foundations 18"],
+  "description": "Test 3. jobless = 2(A - C)/(B - C) - 1 over the demand IDs of each wealth (R$ 0x4100 0x4200 0x4300 0x3110 0x3120; R$$ 0x4400 0x3320 0x3130; R$$$ 0x3330), A/B/C = active value/max/min summed in float32. By hand: A = 0, B = 1000, C = -1000 -> 0; A = 500 -> 0.5; A = -1000 -> -1. The sums run over several IDs (0x4100 and 0x4300 each [250, 500, -500] -> A 500, B 1000, C -1000 -> 0.5). R$$ 0x3320 = [0, 10, 0] -> -1. A wealth with no demand has B = C = 0: [choice] factor 0. Unknown IDs are skipped. The shipped R$ jobless curve (-1,0.1)(-0.7,0.07)(0,0)(0.7,-0.07)(1,-0.1) at 0.5 -> -0.05, at -1 -> 0.1 (point values; interpolation 0 + 0.5 x (-0.1) = -0.05).",
+  "steps": [
+    {"op": "crime_eval", "fn": "jobless", "args": [0, 1000, -1000], "expect": 0},
+    {"op": "crime_eval", "fn": "jobless", "args": [500, 1000, -1000], "expect": 0.5},
+    {"op": "crime_eval", "fn": "jobless", "args": [-1000, 1000, -1000], "expect": -1},
+    {"op": "crime_eval", "fn": "jobless", "args": [5, 3, 3], "expect": 0},
+
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_env", "demand": {"0x4100": [0, 1000, -1000]}},
+    {"op": "crime_call", "method": "calculate_economic_factors"},
+    {"op": "crime_expect", "state": {"jobless": [0, 0, 0]}},
+    {"op": "crime_env", "demand": {"0x4100": [500, 1000, -1000]}},
+    {"op": "crime_call", "method": "calculate_economic_factors"},
+    {"op": "crime_expect", "state": {"jobless": [0.5, 0, 0]}},
+    {"op": "crime_env", "demand": {"0x4100": [-1000, 1000, -1000]}},
+    {"op": "crime_call", "method": "calculate_economic_factors"},
+    {"op": "crime_expect", "state": {"jobless": [-1, 0, 0]}},
+    {"op": "crime_env", "demand": {"0x4100": [250, 500, -500], "0x4300": [250, 500, -500], "0x3320": [0, 10, 0], "0x9999": [7, 8, 9]}},
+    {"op": "crime_call", "method": "calculate_economic_factors"},
+    {"op": "crime_expect", "state": {"jobless": [0.5, -1, 0]}},
+
+    {"op": "crime_call", "method": "curve", "args": ["jobless", 0.5, 0], "expect": -0.05},
+    {"op": "crime_call", "method": "curve", "args": ["jobless", -1, 0], "expect": 0.1},
+    {"op": "crime_call", "method": "curve", "args": ["jobless", -5, 0], "expect": 0.1, "note": "clamped below the first point"}
+  ]
+}

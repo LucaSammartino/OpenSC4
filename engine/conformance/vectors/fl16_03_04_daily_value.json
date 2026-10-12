@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "flammability_daily_value_candidates",
+  "spec": ["flammability 6.5", "flammability 16.3", "flammability 16.4", "weather 6.7"],
+  "description": "Tests 3 and 4, derived by hand from 6.5 and checked with an independent Python model of 6.5 and weather 6.7. v = roundHE(r * g), then roundHE(v * noWater) when not watered, at most 255; a tract with raw 0 is not written; v > threshold makes a candidate. Pure: 150 * 1.2f = 180.000007 -> 180, * 1.1f = 198.000004 -> 198; watered -> 180; 220 * 1.0 * 1.25 = 275 -> 255; 100 * 0.95f = 94.9999988 -> 95, * 1.25 = 118.75 -> 119. On a 2 x 2 city with tractsPerDay forced to 4 the iterator (count 4, step 3, start rand() mod 4 = 41 mod 4 = 1) visits (0,0), (1,1), (0,1), (1,0) on day 1, after the empty end of cycle. Day 1 (g 1.2, no water 1.1, (0,0) and (1,1) unwatered): 198, 180, raw-0 tract keeps 33, 220 -> 264 -> 290 -> 255; candidates with threshold 196 in visit order: (0,0) 198 and (1,1) 255, not (1,0) 180. Day 2 (g 0.95, no water 1.25, raw (0,0) = 100): start 18467 mod 4 = 3, visits (0,1), (1,0), (0,0), (1,1): (1,0) 150 * 0.95f = 142.4999982 -> 142, (0,0) -> 119, (1,1) 209 -> 261.25 -> 255 (a candidate); the end of cycle cleared day 1's candidates (min weight 16 prunes both). Day 3 (g 1, shipped threshold 54, all watered, raw (0,0) 55, (1,0) 54, (1,1) 0 with adjusted 200): v = 55 -> candidate, v = 54 -> none, (1,1) keeps 200. Three wraps -> three rand() calls.",
+  "steps": [
+    {"op": "flam_call", "method": "daily_value", "args": [150, 1.2, false, 1.1], "expect": 198},
+    {"op": "flam_call", "method": "daily_value", "args": [150, 1.2, true, 1.1], "expect": 180},
+    {"op": "flam_call", "method": "daily_value", "args": [220, 1.0, false, 1.25], "expect": 255},
+    {"op": "flam_call", "method": "daily_value", "args": [100, 0.95, false, 1.25], "expect": 119},
+    {"op": "flam_call", "method": "daily_value", "args": [10, 0.95, true, 1.25], "expect": 10, "note": "6 example: 10 x 0.95f = 9.49999988 -> f32 9.5 -> roundHE 10"},
+    {"op": "flam_call", "method": "daily_value", "args": [50, 0.95, true, 1.25], "expect": 48, "note": "47.4999994 -> f32 47.5 -> 48"},
+    {"op": "flam_call", "method": "daily_value", "args": [100, -2.0, true, 1.25], "expect": 0, "note": "[choice] clamped at 0 (14.6)"},
+
+    {"op": "flam_env", "cells": [2, 2], "unwatered": [[0, 0], [1, 1]]},
+    {"op": "flam_tuning", "none": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_expect", "state": {"tracts_per_day": 0}},
+    {"op": "flam_set", "state": {"tracts_per_day": 4, "global_multiplier": 1.2},
+      "raw": [[0, 0, 150], [1, 0, 150], [1, 1, 220]], "adjusted": [[0, 1, 33]]},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[0, 0, 198], [1, 0, 180], [0, 1, 33], [1, 1, 255]]},
+    {"op": "flam_expect", "state": {"candidates": [[0, 0, 1], [1, 1, 1]], "iterator": {"count": 4, "step": 3, "index": 4, "state": "exhausted"}}},
+    {"op": "flam_expect_visits", "all": 1},
+
+    {"op": "flam_set", "state": {"global_multiplier": 0.95, "no_water_multiplier": 1.25}, "raw": [[0, 0, 100]]},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[0, 0, 119], [1, 0, 142], [0, 1, 33], [1, 1, 255]]},
+    {"op": "flam_expect", "state": {"candidates": [[1, 1, 1]], "hotspots": []}},
+
+    {"op": "flam_env", "unwatered": []},
+    {"op": "flam_set", "state": {"global_multiplier": 1, "hotspot_threshold": 54},
+      "raw": [[0, 0, 55], [1, 0, 54], [1, 1, 0]], "adjusted": [[1, 1, 200]]},
+    {"op": "flam_days", "count": 1, "ends": [1]},
+    {"op": "flam_expect_grid", "grid": "adjusted", "cells": [[0, 0, 55], [1, 0, 54], [0, 1, 33], [1, 1, 200]]},
+    {"op": "flam_expect", "state": {"candidates": [[0, 0, 1]]}},
+    {"op": "flam_expect_rand", "calls": 3}
+  ]
+}

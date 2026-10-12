@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "flammability_slots",
+  "spec": ["flammability 1", "flammability 4.3", "flammability 11.1", "flammability 16.15"],
+  "description": "Test 15, portable part (the vtable argument sizes and return registers are checked by the plugin's slot tests). QueryInterface answers 0x48F41617, 0x452294AA, 0xE4FDA3D4 and 1, not cIGZMessageTarget 0xE98B2F57. GetFlammabilityGrid (slot 5) returns the adjusted grid 0x49D5B953, not the raw one. IsCellFlammable (slot 6) is false outside 0 <= x < countX, 0 <= z < countZ, else adjusted value != 0. GetAverageFlammability (slot 8) returns the average byte. AddRef increments; Release decrements while the count is > 1 and from count 1 calls Shutdown (both grids shut down), destroys the object and returns 0.",
+  "steps": [
+    {"op": "flam_call", "method": "query_interface", "args": ["0x48F41617"], "expect": true},
+    {"op": "flam_call", "method": "query_interface", "args": ["0x452294AA"], "expect": true},
+    {"op": "flam_call", "method": "query_interface", "args": ["0xE4FDA3D4"], "expect": true},
+    {"op": "flam_call", "method": "query_interface", "args": [1], "expect": true},
+    {"op": "flam_call", "method": "query_interface", "args": ["0xE98B2F57"], "expect": false},
+    {"op": "flam_call", "method": "query_interface", "args": ["0xC9BD939A"], "expect": false},
+
+    {"op": "flam_env", "cells": [8, 4]},
+    {"op": "flam_tuning", "none": true},
+    {"op": "flam_create"},
+    {"op": "flam_call", "method": "flammability_grid", "expect": null},
+    {"op": "flam_init"},
+    {"op": "flam_call", "method": "flammability_grid", "expect": "0x49D5B953"},
+    {"op": "flam_set", "adjusted": [[7, 3, 1]], "raw": [[0, 0, 200]]},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [7, 3], "expect": true},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [0, 0], "expect": false},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [8, 3], "expect": false},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [7, 4], "expect": false},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [-1, 0], "expect": false},
+    {"op": "flam_call", "method": "is_cell_flammable", "args": [0, -1], "expect": false},
+    {"op": "flam_set", "state": {"average": 201}},
+    {"op": "flam_call", "method": "average", "expect": 201},
+
+    {"op": "flam_call", "method": "add_ref", "expect": 1},
+    {"op": "flam_call", "method": "add_ref", "expect": 2},
+    {"op": "flam_call", "method": "release", "expect": 1},
+    {"op": "flam_expect", "state": {"initialized": true, "ref_count": 1, "destroyed": false}},
+    {"op": "flam_clear_events"},
+    {"op": "flam_call", "method": "release", "expect": 0},
+    {"op": "flam_expect_events", "events": [
+      {"event": "grid_shutdown", "instance": "0x49D5B953"},
+      {"event": "grid_shutdown", "instance": "0x49D5B964"}]},
+    {"op": "flam_expect", "state": {"initialized": false, "destroyed": true, "ref_count": 1, "average": 201}}
+  ]
+}

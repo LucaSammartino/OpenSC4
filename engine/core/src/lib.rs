@@ -20,14 +20,19 @@
 
 #![forbid(unsafe_code)]
 
+pub mod aura;
 pub mod budget;
 pub mod calibration;
+pub mod crime;
 pub mod curve;
 pub mod demand;
+pub mod flammability;
+pub mod grid;
 pub mod host;
 pub mod ids;
 pub mod julian;
 pub mod ordinance;
+pub mod pollution;
 pub mod landvalue;
 pub mod property;
 pub mod props;

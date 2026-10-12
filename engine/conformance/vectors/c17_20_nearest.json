@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "crime_nearest",
+  "spec": ["crime 11.3", "foundations 18"],
+  "description": "GetNearestCrimeSim / GetNearestCrimeProp (11.3), not a numbered 17 test. The occupant manager is asked for the box (pos.x - r, -FLT_MAX, pos.z - r)..(pos.x + r, +FLT_MAX, pos.z + r) with a filter: sims have type 0x496E5783 and occupant group 0x4102; props have type 0xA823821E and property 0x8AA864D5. best := radius; an occupant whose 3-D distance d < best and whose QI succeeds (sims 0xA9B40F05; props 0xE9793A65 with GetState() = 0) becomes the candidate with best := d. Distances by hand ([choice] sqrt((dx^2 + dy^2) + dz^2) in float32): token 1 at (5,0,0) d 5, token 2 at (3,0,0) d 3 but its QI fails, token 3 at (0,4,0) d 4 (y is unbounded by the box), token 4 at (1,0,0) not in the group, token 5 at (20,0,0) outside the box. Radius 10 -> 3; radius 4 -> none (d < best is strict); radius 4.5 -> 3. Props: token 11 at (2,0,0) state 1 (rejected), token 12 at (0,0,3) state 0, token 13 at (1,0,0) without the property -> 12.",
+  "steps": [
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_nearby", "occupants": [
+      {"token": 1, "type": "0x496E5783", "group": true, "pos": [5, 0, 0]},
+      {"token": 2, "type": "0x496E5783", "group": true, "pos": [3, 0, 0], "iid": false},
+      {"token": 3, "type": "0x496E5783", "group": true, "pos": [0, 4, 0]},
+      {"token": 4, "type": "0x496E5783", "group": false, "pos": [1, 0, 0]},
+      {"token": 5, "type": "0x496E5783", "group": true, "pos": [20, 0, 0]},
+      {"token": 11, "type": "0xA823821E", "incident_property": true, "pos": [2, 0, 0], "state": 1},
+      {"token": 12, "type": "0xA823821E", "incident_property": true, "pos": [0, 0, 3]},
+      {"token": 13, "type": "0xA823821E", "pos": [1, 0, 0]}]},
+    {"op": "crime_call", "method": "nearest_sim", "args": [[0, 0, 0], 10], "expect": 3},
+    {"op": "crime_call", "method": "nearest_sim", "args": [[0, 0, 0], 4], "expect": null},
+    {"op": "crime_call", "method": "nearest_sim", "args": [[0, 0, 0], 4.5], "expect": 3},
+    {"op": "crime_call", "method": "nearest_sim", "args": [[0, 0, 0], 30], "expect": 3},
+    {"op": "crime_call", "method": "nearest_prop", "args": [[0, 0, 0], 10], "expect": 12},
+    {"op": "crime_call", "method": "nearest_prop", "args": [[0, 0, 0], 3], "expect": null}
+  ]
+}

@@ -9,11 +9,16 @@
 //! `engine/conformance/README.md`; this crate is one implementation of it,
 //! running the vectors against `fc4-core`.
 
+pub(crate) mod aura;
 pub(crate) mod budget;
+pub(crate) mod crime;
 pub(crate) mod demand;
+pub(crate) mod flammability;
 pub mod foundations;
+pub(crate) mod grid;
 pub mod json;
 pub(crate) mod ordinance;
+pub(crate) mod pollution;
 pub mod runner;
 pub(crate) mod scalar;
 pub(crate) mod landvalue;

@@ -163,8 +163,9 @@ impl RzRandom {
         a + s * (b - a) / 3.0
     }
 
-    /// `RandomSint32RangeGaussianFast(lo, hi)` [inferred in the spec]: the
-    /// rounded average of four raw values, used like `RandomUint32Uniform(hi − lo)`.
+    /// `RandomSint32RangeGaussianFast(lo, hi)` (foundations §6.1): always
+    /// four raw draws, `a = (r1 + r2 + r3 + r4 + 2) >> 2` in 64 bits, then
+    /// `lo + ((a × (u32)(hi − lo)) >> 32)`.
     pub fn range_i32_gaussian_fast(&mut self, lo: i32, hi: i32) -> i32 {
         let sum: u64 = (0..4).map(|_| u64::from(self.next_raw())).sum();
         let avg = ((sum + 2) / 4) as u32;
@@ -333,6 +334,27 @@ impl CrtRand {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gaussian_fast_int() {
+        // foundations §6.1: seed 1, (0, 25) gives 10, then 7; always 4 draws.
+        let seeds = FixedSeeds {
+            wall_clock: 5,
+            process_clock: 7,
+        };
+        let mut r = RzRandom::new(1, &seeds);
+        assert_eq!(
+            [r.range_i32_gaussian_fast(0, 25), r.range_i32_gaussian_fast(0, 25)],
+            [10, 7]
+        );
+        let before = r.lcg_state();
+        r.range_i32_gaussian_fast(3, 3);
+        let mut probe = RzRandom::new(before, &seeds);
+        for _ in 0..4 {
+            probe.next_raw();
+        }
+        assert_eq!(r.lcg_state(), probe.lcg_state());
+    }
 
     #[test]
     fn crt_rand_sequences() {

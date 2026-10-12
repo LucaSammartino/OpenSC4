@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "crime_decay",
+  "spec": ["crime 6.5", "crime 8", "crime 17.1", "foundations 18"],
+  "description": "Test 1. Every non-zero cell becomes the low 8 bits of trunc(f32(v x decay)), the product rounded to float32 once (foundations 18). By hand: decay 0.5: 200 -> 100, 255 -> 127.5 -> 127, 1 -> 0.5 -> 0, 0 stays 0. Decay 0.8f (0.800000011920929): 200 -> 160.0000024 -> f32 160 -> 160, 255 -> 204.000003 -> f32 204 -> 204, 5 -> 4.00000006 -> 4. Decay 1.5: 200 -> 300 -> low 8 bits 44 (the wrap, [quirk] reproduced). After the decay the hotspot value is the decayed value at the hotspot tract, which is kept even when another tract is now larger. The decay is read from the tuning: shipped 0.8, code default 0.5 without the exemplar, and 1.5 from a property after the reload message (group 0xE7E2C2DB, instance 0xC8E8F6C5). Values cross-checked with an independent Python model of the spec.",
+  "steps": [
+    {"op": "crime_eval", "fn": "decay", "args": [200, 0.5], "expect": 100},
+    {"op": "crime_eval", "fn": "decay", "args": [255, 0.5], "expect": 127},
+    {"op": "crime_eval", "fn": "decay", "args": [1, 0.5], "expect": 0},
+    {"op": "crime_eval", "fn": "decay", "args": [0, 0.5], "expect": 0},
+    {"op": "crime_eval", "fn": "decay", "args": [200, 0.8], "expect": 160},
+    {"op": "crime_eval", "fn": "decay", "args": [255, 0.8], "expect": 204},
+    {"op": "crime_eval", "fn": "decay", "args": [5, 0.8], "expect": 4},
+    {"op": "crime_eval", "fn": "decay", "args": [200, 1.5], "expect": 44},
+    {"op": "crime_eval", "fn": "decay", "args": [0, 1.5], "expect": 0},
+
+    {"op": "crime_tuning", "shipped": true},
+    {"op": "crime_create"},
+    {"op": "crime_init", "expect": true},
+    {"op": "crime_expect", "state": {"tuning": {"decay": 0.8}}},
+    {"op": "crime_grid_set", "grid": "crime", "cells": [[0, 0, 200], [1, 0, 255], [2, 0, 5], [3, 0, 1], [7, 9, 100]]},
+    {"op": "crime_set", "state": {"hotspot": [1, 0, 255]}},
+    {"op": "crime_call", "method": "decay_crime_grid"},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[0, 0, 160], [1, 0, 204], [2, 0, 4], [3, 0, 0], [7, 9, 80]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [1, 0, 204]}},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": [204, 2, 0]},
+
+    {"op": "crime_tuning", "none": true},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5", "expect": true},
+    {"op": "crime_expect", "state": {"tuning": {"decay": 0.5}}},
+    {"op": "crime_grid_set", "grid": "crime", "fill": 0, "cells": [[0, 0, 200], [1, 0, 255], [2, 0, 1], [4, 4, 120]]},
+    {"op": "crime_set", "state": {"hotspot": [4, 4, 120]}},
+    {"op": "crime_call", "method": "decay_crime_grid"},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[0, 0, 100], [1, 0, 127], [2, 0, 0], [4, 4, 60]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [4, 4, 60]}, "note": "the hotspot tract is kept although (1, 0) is now larger"},
+
+    {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAAC": {"f32": 1.5}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_expect", "state": {"tuning": {"decay": 1.5}}},
+    {"op": "crime_grid_set", "grid": "crime", "fill": 0, "cells": [[5, 5, 200]]},
+    {"op": "crime_set", "state": {"hotspot": [5, 5, 200]}},
+    {"op": "crime_call", "method": "decay_crime_grid"},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[5, 5, 44]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [5, 5, 44]}}
+  ]
+}

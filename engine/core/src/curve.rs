@@ -70,8 +70,8 @@ impl ResponseCurve {
         self.segments.is_empty()
     }
 
-    /// Evaluates the curve (§4.3). [choice] computed in f64 and rounded once to
-    /// f32; an empty curve returns 0.0.
+    /// Evaluates the curve (§4.3): `py + (input − px) · slope` as three `f32`
+    /// operations in that order (foundations §18); an empty curve returns 0.0.
     pub fn eval(&self, input: f32) -> f32 {
         let Some(last) = self.segments.len().checked_sub(1) else {
             return 0.0;
@@ -82,7 +82,7 @@ impl ResponseCurve {
             return self.segments[0].y;
         }
         if k < last || input < self.segments[last].x {
-            return (f64::from(s.py) + (f64::from(input) - f64::from(s.px)) * f64::from(s.slope)) as f32;
+            return s.py + (input - s.px) * s.slope;
         }
         self.segments[last].y
     }
@@ -99,6 +99,14 @@ mod tests {
 
     fn c(v: &[f32]) -> ResponseCurve {
         ResponseCurve::from_flat(v).unwrap()
+    }
+
+    #[test]
+    fn three_f32_roundings() {
+        // foundations §4.3 / §18: (input − px), × slope and py + are each
+        // rounded to f32; one rounding of the exact value gives bits 0x3E47EC7F.
+        let c = ResponseCurve::from_points(&[(0.0, 0.1), (3.0, 1.1)]);
+        assert_eq!(c.eval((2.0f64 / 7.0) as f32).to_bits(), 1_044_900_992);
     }
 
     #[test]

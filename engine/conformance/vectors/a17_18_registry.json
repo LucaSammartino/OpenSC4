@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "aura_registry",
+  "spec": ["aura 4.3", "aura 17.18"],
+  "description": "sc4game.aura.add_transient_effect(x, z, 48, 10) equals AddTransientEffect (test 11: centre tract +10; integer parameters are converted like GetValFloat32); end_strike(1) equals BustStrike(1), end_strike(0) ends all four; each callback returns true; missing parameters read as 0 [choice] (end_strike() = BustStrike(0); a radius of 0 adds nothing); a registry failure at Init is not an error [choice]. Hand-derived.",
+  "steps": [
+    {"op": "aura_env", "registry_ok": false},
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_expect", "state": {"initialized": true}},
+    {"op": "aura_clear_events"},
+    {"op": "aura_call", "method": "registry", "command": "add_transient_effect", "args": [100.0, 100.0, 48.0, 10.0], "expect": true},
+    {"op": "aura_call", "method": "registry", "command": "add_transient_effect", "args": [300, 100, 48, -10], "expect": true},
+    {"op": "aura_expect_grid", "grid": "transient", "cells": [[1, 1, 10], [4, 1, -10]], "others": 0},
+    {"op": "aura_call", "method": "registry", "command": "end_strike", "args": [1], "expect": true},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "police"}]},
+    {"op": "aura_call", "method": "registry", "command": "end_strike", "args": [0], "expect": true},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "police"}, {"event": "strike", "service": "fire"}, {"event": "strike", "service": "health"}, {"event": "strike", "service": "school"}]},
+    {"op": "aura_call", "method": "registry", "command": "end_strike", "args": [], "expect": true},
+    {"op": "aura_expect_events", "events": [{"event": "strike", "service": "police"}, {"event": "strike", "service": "fire"}, {"event": "strike", "service": "health"}, {"event": "strike", "service": "school"}]},
+    {"op": "aura_call", "method": "registry", "command": "add_transient_effect", "args": [100.0, 100.0], "expect": true},
+    {"op": "aura_expect_grid", "grid": "transient", "cells": [[1, 1, 10], [4, 1, -10]], "others": 0}
+  ]
+}
