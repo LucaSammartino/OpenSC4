@@ -270,7 +270,9 @@ for every tract (x, z) with max(0, cx − R) ≤ x ≤ min(countX − 1, cx + R)
 
 - `TABLE(dx, dz)` *[compat]*: for |dx|, |dz| ≤ 15 the distance is `float32(sqrt(dx² + dz²))` **rounded half-up to
   three decimals** (1.414 for (1,1), 2.236 for (2,1), 2.828 for (2,2)). Exact distances are used only when R ≥ 16.
-- `c − d × k` is evaluated in extended precision and rounded once to float32 before rounding to an integer.
+- `c − d × k` is two x87 operations at 24-bit precision (foundations §18): `d × k` is rounded to float32, then
+  `c −` that is rounded to float32, before rounding to an integer (corrected: not one rounding in extended
+  precision).
 - The clamp uses the arithmetic sum `v + delta` (no wrap).
 - Negative effects use a negative `c` (callers remove an effect by applying the opposite values).
 
@@ -346,8 +348,8 @@ ignores stream errors and trusts stored geometry (§5); `SetTractSize` keeps old
 
 ## 9. Open questions
 
-1. x87 precision control during simulation (24-bit vs 64-bit mantissa): it changes results only for values within
-   about 1e-7 of a rounding boundary (§7.1 `c − d × k`, §7.2). Conformance tests avoid such values.
+1. *(resolved)* x87 precision control during simulation is 24-bit (foundations §18); §7.1 and §7.2 are chains of
+   `float32` operations.
 2. Whether any original caller ever uses the result of `PositionToTract` (none found).
 
 ## 10. Conformance tests (must exist in `engine/conformance`)

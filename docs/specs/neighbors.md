@@ -164,7 +164,7 @@ u8   flags
 | `0x004` | Cancelled | ended by the player or by the system |
 | `0x008` | NoConnection | no suitable connection to the other city |
 | `0x010` | CannotAfford | the payer's budget is below the cost |
-| `0x020` | NoLandfill | not enough disposal capacity for a garbage-sell deal |
+| `0x020` | NoLandfill | not enough disposal capacity for a garbage-sell deal; the plumbing and power simulators also set it on export deals they could not fully deliver (plumbing spec, power §6.3) |
 | `0x040` | Expired | term ended; renewal pending |
 | `0x080` | Silent | no status messages; not simulated (deals stored in the region, clones, new objects) |
 | `0x100` | Grace | first failure; further failure flags are ignored |
@@ -562,7 +562,7 @@ grid-sims notes; their specs own the details).
 | ConnectionsReady `0x6AC284F3` | `ready := true` |
 | TerrainHeightsChanged `0x278E6003` | rectangle `x0 = (data1 >> 16) − 1`, `x1 = data1 & 0xFFFF`, `z0 = (data2 >> 16) − 1`, `z1 = data2 & 0xFFFF`, clamped to the city: for each connection whose inner cell lies in it, move its marker props to the cell centre at `terrain.GetMaxSurfaceLevel(x, z)` (+15.5 for elevated types) and update them in the occupant manager |
 | PreDemolishNetworkOccupant `0xAA7A014D` | `DeleteOccupantConnection(void1)` |
-| RemoveOccupant `0x99EF1143` | if the occupant's type is `0x2890D4DE` and its interface `0xA8C86142` reports false from its 14th method (meaning unknown, open question 5): `DeleteOccupantConnection` |
+| RemoveOccupant `0x99EF1143` | if the occupant's type is `0x2890D4DE` and its interface `0xA8C86142` (`cISC4PowerPoleOccupant`) reports false from its 14th method (compiled slot 13, a byte flag of unknown meaning; power spec open question 1): `DeleteOccupantConnection` |
 | CityEstablished `0x26D31EC4`, CityObliterated `0x26D31EC5` | clear the deal list; push to the region (both flags) |
 
 ### 11.2 Posted
@@ -685,8 +685,11 @@ From the Windows caller data (direct calls) and the call-site survey:
    (utility simulators, per their specs).
    *Answered for water* (plumbing spec): the plumbing simulator sets the connection's active and visited bits and
    the deal's `AmountUsed`. It also sets deal flag `0x08` on deals it cannot connect, and flag `0x20` on export
-   deals it could not fully deliver. Power: see the power spec.
-5. The interface `0xA8C86142` and its 14th method used on RemoveOccupant for power poles.
+   deals it could not fully deliver. *Answered for power* (power §6.3–§6.5): the power simulator sets
+   `SetIsActive` / `SetVisitedThisCycle` on PowerPole connections (type 4) and the deals' `AmountUsed`, and sets
+   flag `0x20` on sell deals it cannot supply.
+5. *(partly answered)* `0xA8C86142` is `cISC4PowerPoleOccupant` (power spec); the meaning of its 14th method
+   (compiled slot 13, a byte flag that also makes power ignore the pole) is still unknown.
 6. The full rule of `UpdateTrafficVolume` (traffic spec).
 7. Order of month agents (budget vs. neighbours), shared with the budget spec.
 
