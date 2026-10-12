@@ -820,8 +820,10 @@ their source node through `GetSourceDemand` (the development spec). The BDS read
 monthly. The traffic simulator reads regional jobs (`GetDemand(0x2010, 0x10000)`). Lots use
 `CalculateJobsPerUnitOfDemand`. Lot developers and port developers call `UpdateOccupantEffects`.
 
-Arithmetic *[choice]*: 32-bit float throughout. The original's intermediate x87 precision can differ in the last
-bit, so tests compare floats with a relative tolerance of 1e-5, except where this spec defines integer rounding.
+Arithmetic *[choice]*: 32-bit float throughout. The original runs the x87 at 24-bit precision (foundations §18), so
+each operation already rounds like a `float32` operation; differences remain only where an operand is a `double`
+constant or an integer above 2^24. Tests compare floats with a relative tolerance of 1e-5, except where this spec
+defines integer rounding.
 
 ## 15. Open questions
 

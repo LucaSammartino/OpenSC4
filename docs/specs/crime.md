@@ -153,8 +153,10 @@ agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overlo
 
 Notation: `trunc` is conversion toward zero (the CRT `_ftol`). `rhe` is round-half-even, as the original's
 "add 1.5·2²³ and store as `f32`" idiom computes it (valid for |x| < 2²²). Products of a `float32` with an integer
-or another `float32` are formed exactly (x87 extended precision) before truncation. FreeCity4 must compute them
-in `f64` (exact for these operand sizes), not in `f32`.
+or another `float32` are rounded to a 24-bit significand before truncation, because the game runs the x87 at
+24-bit precision (foundations §18; corrected, the earlier text said "exact, extended precision"). FreeCity4 must
+compute such a product in `f64` and round it to `f32` once (this equals the x87 result, since an `int32` operand
+is not rounded first and the `f64` product is exact for integers below 2^29), then truncate.
 
 ### 6.1 Census (`DoCensus`)
 
