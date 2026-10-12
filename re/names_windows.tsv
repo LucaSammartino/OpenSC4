@@ -176,7 +176,7 @@ va	name	source	confidence	note
 00418870	cSC4AdvisorSystem::SetGlobalValue	auto:C	high	mac 001e556a score 1.0 support 1
 004188e0	cSC4AdvisorSystem::SetGlobalValue	auto:C	high	mac 001e5614 score 1.0 support 1
 00418940	cSC4AdvisorSystem::register_api	auto:B1	medium	mac 001e5ae0 score 0.923 support 2.0
-00418a40	cRZCmdLine::operator[]	auto:B2	medium	mac 000115d0 score 0.997 support 6.0
+00418a40	cRZString equality compare	manual:m6data	medium	data-formats.md (was cRZCmdLine::operator[])
 00418a80	sNotify<cISC4Advisor>	auto:B0	medium	mac 001e583c score 0.926 support 3.0
 00418c10	cSC4AdvisorSystem::GetContextAdvice	auto:C	high	mac 001e5a68 score 1.0 support 1
 00418c30	cSC4AdvisorSystem::GetDataTag	auto:C	high	mac 001e581a score 1.0 support 1
@@ -6272,7 +6272,7 @@ va	name	source	confidence	note
 006c2020	cSC4Lot::IsInitialized	auto:C	low	mac 00669e46 score 1.0 support 1
 006c2030	cSC4Lot::GetFlags	auto:C	low	mac 00669ec4 score 1.0 support 1
 006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	folded	folded	11 names: cSC4DBSegment::AsIGZPersistDBSegment | cSC4DisasterInstanceEarthquake::AsISC4DisasterInstance | cSC4DisasterInstanceRiot::Write | cSC4DisasterInstanceToxic::AsISC4DisasterInstance | cSC4DisasterManagerEffect::Shutdown | cSC4Lot::AsPropertyHolder | cSC4NeighborConnection::AsISCPropertyHolder | cSC4Occupant::AsPropertyHolder | cSC4OrdinanceSimple::GetMiscProperties | cSC4PropOccupant::AsOccupant | cSC4PylonOccupant::AsOccupant
-006c2050	cSC4Lot::AsTrafficSource	auto:C	low	mac 00669ee0 score 1.0 support 1
+006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	manual:m6data	medium	data-formats.md (was cSC4Lot::AsTrafficSource)
 006c2060	cSC4Lot::GetAltitude	auto:C	low	mac 00669eec score 1.0 support 1
 006c2070	cSC4SimGrid<T>::GetTractWidthX	manual:grid-sims.tsv	high	vtable slot 14; fld [ecx+0x28]
 006c2080	cSC4SimGrid<T>::GetTractWidthZ	manual:grid-sims.tsv	high	vtable slot 15

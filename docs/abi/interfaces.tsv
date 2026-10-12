@@ -378,14 +378,16 @@ cISCResExemplar	cSCResExemplar	00aaf0d0	2	+0x8	00808610		0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	3	+0xC	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	4	+0x10	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
-cISCResExemplar	cSCResExemplar	00aaf0d0	6	+0x18	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
-cISCResExemplar	cSCResExemplar	00aaf0d0	7	+0x1C	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	6	+0x18	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	7	+0x1C	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	8	+0x20	0067c210		4	1	eax-or-void	medium	tail->005feb20
 cISCResExemplar	cSCResExemplar	00aaf0d0	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	10	+0x28	0067c510		8	2	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	11	+0x2C	0067cd20		4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	12	+0x30	0067c220		4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	13	+0x34	0067cd50		0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	14	+0x38	0067e5b0	cSCResExemplar::DebugInstanceTag	4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	15	+0x3C	0067ddc0		4	1	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	0	+0x0	00972b51		8	2	eax-or-void	medium	tail->0091dd67
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
@@ -491,7 +493,7 @@ cISC4Lot	cSC4Lot	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-voi
 cISC4Lot	cSC4Lot	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	5	+0x14	006bf490	cSC4Lot::Init	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	6	+0x18	006c2020	cSC4Lot::IsInitialized	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	7	+0x1C	006c3060	cSC4Lot::Shutdown	0	0	eax-or-void	medium	
@@ -2537,7 +2539,7 @@ cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	0	+0x0	006ce000	cSC4Neig
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	1	+0x4	008ae800	icf::cGZLuaScriptServer::AddRef	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	2	+0x8	006ce060	cSC4NeighborConnection::Release	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	5	+0x14	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	6	+0x18	006d46f0	cSC4NeighborConnection::GetConnectionCell	8	2	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	7	+0x1C	006cf1b0	cSC4NeighborConnection::GetConnectionInnerCell	8	2	eax-or-void	medium	
@@ -4011,3 +4013,69 @@ cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	2	+0x8	006c7370		0	0	ea
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	3	+0xC	006c66f0		4	1	eax-or-void	medium	
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	4	+0x10	006cd120		4	1	eax-or-void	medium	
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	5	+0x14	006c3b00	cSC4LotDeveloper::GetGZCLSID	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	0	+0x0	0067c150	cSCResExemplarCohort::QueryInterface	8	2	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	1	+0x4	00808600		0	0	eax-or-void	medium	tail->009753b7
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	2	+0x8	00808610		0	0	eax-or-void	medium	tail->009753c5
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	3	+0xC	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	4	+0x10	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	6	+0x18	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	7	+0x1C	0067c430		8	2	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	8	+0x20	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	9	+0x24	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	10	+0x28	0067c210		4	1	eax-or-void	medium	tail->005feb20
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	11	+0x2C	0067cd20		4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	12	+0x30	0067c220		4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	13	+0x34	0067cd50		0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	14	+0x38	0067e3e0	cSCResExemplarCohort::DebugInstanceTag	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	15	+0x3C	0067dae0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	0	+0x0	0067ccd0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	1	+0x4	0067cce0		0	0	eax-or-void	medium	tail->00808600
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	2	+0x8	0067ccf0		0	0	eax-or-void	medium	tail->00808610
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	3	+0xC	0067c620		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	4	+0x10	0067c4b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	5	+0x14	005fd290	icf::cSCExemplarPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	6	+0x18	005fd2d0	icf::cSCPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	7	+0x1C	005fd260	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	8	+0x20	005fd230	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	9	+0x24	0067c670		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	10	+0x28	005ffa40	cSCPropertyHolder::AddProperty	16	4	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	11	+0x2C	005ff950	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	12	+0x30	005ff860	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	13	+0x34	005ff770	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	14	+0x38	005fdef0	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	15	+0x3C	0067dce0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	17	+0x44	0067c8c0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	18	+0x48	0067c9b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	21	+0x54	0067d930		0	0	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	22	+0x58	0067cd00		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	23	+0x5C	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	24	+0x60	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	0	+0x0	0067cc30		8	2	eax-or-void	medium	tail->0067c150
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	1	+0x4	0067cce0		0	0	eax-or-void	medium	tail->00808600
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	2	+0x8	0067ccf0		0	0	eax-or-void	medium	tail->00808610
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	3	+0xC	0067c620		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	4	+0x10	0067c4b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	5	+0x14	005fd290	icf::cSCExemplarPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	6	+0x18	005fd2d0	icf::cSCPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	7	+0x1C	005fd260	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	8	+0x20	005fd230	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	9	+0x24	0067c670		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	10	+0x28	005ffa40	cSCPropertyHolder::AddProperty	16	4	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	11	+0x2C	005ff950	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	12	+0x30	005ff860	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	13	+0x34	005ff770	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	14	+0x38	005fdef0	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	15	+0x3C	0067da00		8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	17	+0x44	0067c6c0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	18	+0x48	0067c7b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	21	+0x54	0067d930		0	0	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	22	+0x58	0067cc40		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	23	+0x5C	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	24	+0x60	0067cd10		4	1	eax-or-void	medium	tail->005deb40

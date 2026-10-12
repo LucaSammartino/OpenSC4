@@ -715,7 +715,7 @@ first and kept for any missing property.
 | `0xA918C929`, `0x4918C92C`, `0x4918C930` | TaxRateOccWeight CS$, CS$$, CS$$$ (see §13.1) | float | 1 | 1 |
 | `0x8918C937`, `0x4918C93A` | TaxRateOccWeight CO$$, CO$$$ | float | 1 | 1 |
 | `0x69A36E40`, `0xA918C942`, `0x8918C93E`, `0xA9A36E47` | TaxRateOccWeight I-R, I-D, I-M, I-HT | float | 1 | 1 |
-| `0x89170C6C`, `0x09170C74`, `0xC9170C78`, `0x49170C7C` | LV→R/C/I tax factors, MinAverageLV | float | — | absent | 
+| `0x89170C6C`, `0x09170C74`, `0xC9170C78`, `0x49170C7C` | LV→R/C/I tax factors, MinAverageLV | float (`0x49170C7C`: read with the u8 getter `0x005FD3C0`, at `0x006923C4`) | — | absent | 
 
 The last row's properties are read into global values but nothing uses them; they need not be implemented.
 The exemplar also holds `0x4998C89D` (uint8 0), which the budget does not read.

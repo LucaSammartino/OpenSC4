@@ -1573,7 +1573,10 @@ return a **uint32 day number**: `DayNumber() − n`, `DayNumber() − other.DayN
 `DayNumber() + other.DayNumber()`. A FreeCity4 `cIGZDate` must return these integers. Callers must not treat the
 result as a pointer.
 
-### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 14 slots)
+### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 16 slots)
+
+Corrected from 14: slots 14 (`0x0067E5B0`) and 15 (`0x0067DDC0`, rebuilds the effective property list; called by
+`SetCohort` `0x0067C510` through `vt+0x3C`) exist (data-formats.md §8).
 
 `AsISCPropertyHolder()` and `AsISCPropertyHolder() const` (slots 6/7) share one body. Their order is
 unobservable. No errors.
