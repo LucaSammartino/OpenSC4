@@ -190,7 +190,7 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 
 ## Foundations ops
 
-Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…`.
+Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7).
 
 | op | Arguments | Checks |
 |---|---|---|
@@ -200,6 +200,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `store_entry` | `class_id`, `payload_hex`, `entry_hex`, `index_hex?` | the class-object store entry (and index) written for one object with ID 1 whose `Write` emits the payload (§3.3) |
 | `curve` | `points` (flat x, y list), `absent?`, `eval`: `[[x, y], ...]` (x and y may be `"0x…"` bit patterns; an expected NaN matches any NaN), `tolerance?` (relative, default 1e-6) | response-curve construction and evaluation (§4) |
 | `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}`. Methods: `RzRandom`: `next_raw`, `uniform_u32`, `range_i32`, `uniform_f64`, `range_f64`, `gaussian`, `range_gaussian`, `range_gaussian_fast`, `range_i32_gaussian_fast`, and the pure mappings `uniform_of` (`[i]`, one signed draw) and `gaussian_to_range` (`[g, a, b]`); `RzRandomSuper`: `next_u32`, `uniform_u32`, `uniform_f64`, `range_f64`, `weighted_choice` | outputs and internal states, bit-exact (§6) |
+| `derive_seed` | `cases`: `{session, k or generator, k_expect?, expect, next_raw?}`; `generator` names a file-local generator of the §6.3 table (`building_development`, `growth_developer`, `tract_developer`, `lot_developer`, `zone_developer`, `lot`, `budget`, `crime`, `pollution`, `wealth_requester`, `network_lot_manager`, `network_construction_crew`, `construction_occupant`, `base_texture_occupant`, `retaining_wall_occupant`, `prop_occupant`, `fire_occupant`, `earthquake`, `pipe_burst`, `riot`, `automata`, `region_creation`, `advice`) | the derived seed (§6.3), the generator's `K`, and the first `NextRaw` words of a `cRZRandom` with that seed |
 
 | `variant_write` | `variant`, `hex`, `ok?` (default true), `round_trip?` (default true), `position?`, `error?` | `WriteVariant` (§9.2) gives `hex`; unless `ok` is false or `round_trip` is off, the bytes read back to the same variant |
 | `variant_read` | `hex`, `preset?` (the destination's value before the read), `expect` (a variant, or `null` = the read fails), `unchanged?`, `position?`, `error?` | `ReadVariant` (§9.2) |
@@ -1030,6 +1031,14 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 `facing`, `lot`), `redisplay` (`rect`), `set_facing` (`lot`, `facing`), `set_state` (`lot`, `state`),
 `set_population` (`lot`, `dev_type`, `population`).
 
+## Lot developer ops
+
+(Being written: `ldev_…` ops for `fc4_core::lot_developer`, `docs/specs/lot-developer.md`.)
+
+## Zones ops
+
+(Being written: `zone_…` ops for `fc4_core::zones`, `docs/specs/zones.md`.)
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1072,6 +1081,7 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | 11 response curves | `f7_11_response_curves` |
 | 12 messages | `engine/tests/message_test.cpp` (the GZCOM message class) |
 | 13–15 random generators, 16 uniform rounding and clamped Gaussian | `f7_13_15_random_generators` |
+| §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
@@ -1527,3 +1537,11 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 | extra: aggregation, Build without a lot [quirk], resource failure | `td00_aggregation_build` |
 | extra: R9 (CreateLotIfPossible with facing −1) in the per-pass order | `td00_aggregation_r9` |
 | extra: kick-out, caps (building developer's power, own fire), style checks [quirk] | `td00_kickout_caps_styles` |
+
+## Coverage (lot developer §16)
+
+(Being written: vectors `ld16_…` and `ld00_…`.)
+
+## Coverage (zones §15)
+
+(Being written: vectors `zn15_…` and `zn00_…`.)

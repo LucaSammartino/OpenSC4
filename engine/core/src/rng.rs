@@ -43,6 +43,72 @@ impl SeedSource for FixedSeeds {
     }
 }
 
+/// A generator's seed from the session seed `session` and the generator's
+/// constant `k` (foundations §6.3 *[choice]*): `session XOR k`, with 0 and
+/// `0xFFFFFFFF` (the values that make the original fall back to the clock)
+/// moved by XOR 1.
+pub fn derive_seed(session: u32, k: u32) -> u32 {
+    let d = session ^ k;
+    if d == 0 || d == CLOCK_SEED {
+        d ^ 1
+    } else {
+        d
+    }
+}
+
+/// The constants `K` of the Windows build's file-local generators
+/// (foundations §6.3 table): the original seeds each with the local wall
+/// clock XOR its constant, FreeCity4 with [`derive_seed`]`(S, K)`. The
+/// rendering-only generators and those with no reader are left out.
+pub mod file_seed {
+    /// Building development simulator (`0x00B485F0`, `cRZRandom`).
+    pub const BUILDING_DEVELOPMENT: u32 = 0x0C09_C0B8;
+    /// Growth developers (`0x00B49080`, `cRZRandom`, shared).
+    pub const GROWTH_DEVELOPER: u32 = 0xAC09_C0E8;
+    /// Tract developers (`0x00B4AFD8`, `cRZRandom`, shared).
+    pub const TRACT_DEVELOPER: u32 = 0x4C09_C113;
+    /// Lot developer (`0x00B49AF0`, `cRZRandom`).
+    pub const LOT_DEVELOPER: u32 = 0x6C09_C0F4;
+    /// Zone developer (`0x00B4B398`, `cRZRandom`).
+    pub const ZONE_DEVELOPER: u32 = 0x8C09_C68A;
+    /// `cSC4Lot` (`0x00B49120`, `cRZRandomSuper`).
+    pub const LOT: u32 = 0x0C09_C461;
+    /// Budget simulator `DoMessage` (`0x00B47B78`, `cRZRandomSuper`).
+    pub const BUDGET: u32 = 0x6C09_C3D7;
+    /// Crime simulator (`0x00B48630`, `cRZRandomSuper`).
+    pub const CRIME: u32 = 0x6C09_C3F6;
+    /// Pollution simulator visual effects (`0x00B49BD0`, `cRZRandomSuper`).
+    pub const POLLUTION: u32 = 0x4C09_C4D3;
+    /// Wealth requester prop selection (`0x00B4A5C0`, `cRZRandomSuper`).
+    pub const WEALTH_REQUESTER: u32 = 0x4C09_C51F;
+    /// Network lot manager (`0x00B44870`, `cRZRandomSuper`).
+    pub const NETWORK_LOT_MANAGER: u32 = 0x8C09_C379;
+    /// Network construction crew (`0x00B43E88`, `cRZRandomSuper`).
+    pub const NETWORK_CONSTRUCTION_CREW: u32 = 0x6C09_C07B;
+    /// Construction occupant (`0x00B22FB0`, `cRZRandom`).
+    pub const CONSTRUCTION_OCCUPANT: u32 = 0xEC09_C32A;
+    /// Lot base-texture occupant (`0x00B23078`, `cRZRandom`).
+    pub const BASE_TEXTURE_OCCUPANT: u32 = 0x8C09_C2D5;
+    /// Lot retaining-wall occupant (`0x00B230C8`, `cRZRandom`).
+    pub const RETAINING_WALL_OCCUPANT: u32 = 0x0C09_C347;
+    /// Prop occupant (`0x00B231B0`, `cRZRandomSuper`).
+    pub const PROP_OCCUPANT: u32 = 0xAC09_C2EC;
+    /// Fire occupant, flames (`0x00B21648`, `cRZRandom`).
+    pub const FIRE_OCCUPANT: u32 = 0xEC09_C147;
+    /// Earthquake disaster (`0x00B22AE8`, `cRZRandom`).
+    pub const EARTHQUAKE: u32 = 0x6C09_C1AB;
+    /// Pipe-burst disaster (`0x00B22B60`, `cRZRandom`).
+    pub const PIPE_BURST: u32 = 0xEC09_C1D1;
+    /// Riot disaster (`0x00B22B80`, `cRZRandom`).
+    pub const RIOT: u32 = 0x4C09_C187;
+    /// Automata (`0x00B21D78`, `cRZRandomSuper`).
+    pub const AUTOMATA: u32 = 0x4C09_C170;
+    /// Region creation (`0x00B217C0`, `cRZRandom`).
+    pub const REGION_CREATION: u32 = 0xAC35_7AF9;
+    /// Advice (`0x00B22E58`, `cRZRandom`).
+    pub const ADVICE: u32 = 0x2C09_C27B;
+}
+
 /// [choice] `RandomDoubleGaussian` gives up after this many rejected pairs
 /// and returns 0 (a double path stuck at 0, e.g. seeded from a process clock
 /// of 0, would never leave the polar loop).

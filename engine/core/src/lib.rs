@@ -36,6 +36,7 @@ pub mod host;
 pub mod ids;
 pub mod julian;
 pub mod landvalue;
+pub mod lot_developer;
 pub mod ordinance;
 pub mod plumbing;
 pub mod pollution;
@@ -54,6 +55,7 @@ pub mod tract_developer;
 pub mod variant;
 pub mod weather;
 pub mod x87;
+pub mod zones;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
