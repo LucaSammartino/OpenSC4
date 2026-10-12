@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "power_ring",
+  "spec": ["power 6.1", "power 6.4", "power 6.6", "power 7.5", "power 15.18"],
+  "description": "Test 18, by hand from 6.1, 6.4, 6.6 and 7.5. One cycle with a coal plant (type 1) using 500: state 0 advances ringIndex 0 -> 1 and clears that row, MarkPowerPlantsAsVisited adds 500 to ring[1][1], state 3 adds the row to annual: ring[1][1] = 500, annual[1] = 500, GetAnnualConsumption = 500, by type 1 = 500, other types 0. Without the plant, each cycle advances the index and subtracts the new row from annual before zeroing it: 11 more cycles reach index 0 (annual still 500), the 12th returns to index 1 and annual[1] = 0. The month also advances the index (7.5 step 2, adding the zeroed row back), so a month plus a cycle move it by 2.",
+  "steps": [
+    {"op": "power_env", "occupants": [
+      {"id": 111, "type": "building", "cells": [8, 0, 9, 1], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1},
+        "0x8A1E07EE": {"f32": [0, 1, 1, 1]}}, "budget": {"funding": 1.0, "line": 7}},
+      {"id": 112, "type": "building", "cells": [12, 0, 13, 1], "props": {"0x27812854": {"u32": 500}}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_message", "type": "OccupantInserted", "occupants": [111, 112]},
+    {"op": "power_message", "type": "ConnectionsReady"},
+    {"op": "power_cycle"},
+    {"op": "power_expect", "state": {"ring_index": 1, "ring_row": [0, 500, 0, 0, 0, 0, 0, 0, 0, 0],
+      "annual": [0, 500, 0, 0, 0, 0, 0, 0, 0, 0]}},
+    {"op": "power_call", "method": "annual_consumption", "expect": 500},
+    {"op": "power_call", "method": "annual_consumption_by_type", "args": [1], "expect": 500},
+    {"op": "power_call", "method": "annual_consumption_by_type", "args": [3], "expect": 0},
+    {"op": "power_call", "method": "annual_consumption_by_type", "args": [10], "expect": 0},
+
+    {"op": "power_env", "occupant_state": {"111": {"in_manager": false}}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 111},
+    {"op": "power_cycle", "recompute": true, "count": 11},
+    {"op": "power_expect", "state": {"ring_index": 0, "annual": [0, 500, 0, 0, 0, 0, 0, 0, 0, 0]}},
+    {"op": "power_cycle", "recompute": true},
+    {"op": "power_expect", "state": {"ring_index": 1, "annual": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}},
+    {"op": "power_call", "method": "annual_consumption", "expect": 0},
+
+    {"op": "power_message", "type": "SimNewMonth"},
+    {"op": "power_expect", "state": {"ring_index": 2, "recompute": true}},
+    {"op": "power_cycle"},
+    {"op": "power_expect", "state": {"ring_index": 3}}
+  ]
+}

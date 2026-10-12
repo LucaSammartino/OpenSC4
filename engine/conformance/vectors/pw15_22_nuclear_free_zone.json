@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "power_nuclear_free_zone",
+  "spec": ["power 5", "power 5.5", "power 15.22"],
+  "description": "Test 22, from 5 and 5.5: OrdinanceUpdated with data2 = 0xE0D0722E (Nuclear Free Zone) and data3 != 0 collects the lots of every plant of type 5 in plant-list order (a plant without a lot adds nothing) and demolishes them with one DemolishLots call (flags argument 1); the coal plant's lot is kept. Then, if the 3D view's current input control is 0x88F154FB, RemoveCurrentViewInputControl. data3 = 0 or another ordinance ID does nothing; another view control is not removed. [choice] With no nuclear plant DemolishLots is still called once, with an empty list.",
+  "steps": [
+    {"op": "power_env", "view_control": "0x88F154FB", "occupants": [
+      {"id": 131, "type": "building", "cells": [8, 0, 9, 1], "lot": 11, "props": {"0x27812852": {"u32": 16000}, "0x27812853": {"i32": 5}}},
+      {"id": 132, "type": "building", "cells": [20, 0, 21, 1], "lot": 12, "props": {"0x27812852": {"u32": 16000}, "0x27812853": {"i32": 5}}},
+      {"id": 133, "type": "building", "cells": [30, 0, 31, 1], "lot": 13, "props": {"0x27812852": {"u32": 6000}, "0x27812853": {"i32": 1}}},
+      {"id": 134, "type": "building", "cells": [40, 0, 41, 1], "props": {"0x27812852": {"u32": 16000}, "0x27812853": {"i32": 5}}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_message", "type": "OccupantInserted", "occupants": [131, 132, 133, 134]},
+    {"op": "power_expect", "state": {"plant_count": 4, "per_type": [0, 1, 0, 0, 0, 3, 0, 0, 0, 0]}},
+    {"op": "power_call", "method": "power_plant_count_of_type", "args": [5], "expect": 3},
+    {"op": "power_call", "method": "power_plant_count", "expect": 4},
+    {"op": "power_clear_events"},
+    {"op": "power_message", "type": "OrdinanceUpdated", "data2": "0xE0D0722E", "data3": 0, "expect": true},
+    {"op": "power_message", "type": "OrdinanceUpdated", "data2": "0x12345678", "data3": 1},
+    {"op": "power_expect_event_count", "count": 0},
+    {"op": "power_message", "type": "OrdinanceUpdated", "data2": "0xE0D0722E", "data3": 1, "expect": true},
+    {"op": "power_expect_events", "events": [
+      {"event": "demolish", "lots": [11, 12], "flags": 1},
+      {"event": "remove_view_control"}]},
+    {"op": "power_env", "view_control": "0x12345678"},
+    {"op": "power_message", "type": "OrdinanceUpdated", "data2": "0xE0D0722E", "data3": 1},
+    {"op": "power_expect_events", "events": [{"event": "demolish", "lots": [11, 12], "flags": 1}]},
+
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_clear_events"},
+    {"op": "power_message", "type": "OrdinanceUpdated", "data2": "0xE0D0722E", "data3": 1},
+    {"op": "power_expect_events", "events": [{"event": "demolish", "lots": [], "flags": 1}]}
+  ]
+}

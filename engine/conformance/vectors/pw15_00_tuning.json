@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "power_tuning",
+  "spec": ["power 8", "foundations 4.1"],
+  "description": "Section 8 (compat, no numbered test): every read restores the code defaults, then loads the exemplar's properties ('default' curve pattern). Without an exemplar: R 2, funding-efficiency curve (0,0)(100,100)(120,110) -> 90 at x = 90, pole curve (0,-0.02)(120,0.01) -> -0.005 at 60, funding-decay (0,1)(1,1) -> 1, usage-decay -> 1, strike response (0,20)(100,100) -> 60 at 50, max funding 1.2, strike efficiency 0.5, strike duration 10. Shipped: efficiency curve 80 at 90, pole curve 0 at 50, 0.025 at 100 and -0.0125 at 12.5, usage-decay 0.45 at 0.5, funding-decay 1.1 at 0, strike response 75 at 50, strike efficiency 20 x 0.01f = 0.2, duration 12. TuningReload re-reads it and refreshes the ordinance factor (0x0911E117). A removed curve property falls back to its code default; [choice] a scalar curve property counts as absent, an empty array gives an empty curve (0.0). Percent values are x 0.01f: 150 -> 1.5. R 3 widens the wiring.",
+  "steps": [
+    {"op": "power_tuning", "none": true},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_expect", "state": {"radius": 2, "max_funding": 1.2, "strike_efficiency": 0.5, "strike_duration": 10,
+      "max_production_ratio": 1.1, "min_acceptable_funding": 0.6, "min_funding_end_strike": 0.9}},
+    {"op": "power_call", "method": "curve", "args": ["funding_efficiency", 90], "expect": 90.0},
+    {"op": "power_call", "method": "curve", "args": ["pole_decay", 60], "expect": -0.005},
+    {"op": "power_call", "method": "curve", "args": ["funding_decay", 0], "expect": 1.0},
+    {"op": "power_call", "method": "curve", "args": ["usage_decay", 0.5], "expect": 1.0},
+    {"op": "power_call", "method": "curve", "args": ["strike_response", 50], "expect": 60.0},
+
+    {"op": "power_tuning", "shipped": true},
+    {"op": "power_env", "factor": 0.8},
+    {"op": "power_clear_events"},
+    {"op": "power_message", "type": "TuningReload", "expect": true},
+    {"op": "power_expect_events", "events": [{"event": "factor", "id": "0x0911E117", "index": 0}]},
+    {"op": "power_expect", "state": {"factor": 0.8, "radius": 2, "strike_efficiency": 0.2, "strike_duration": 12}},
+    {"op": "power_call", "method": "curve", "args": ["funding_efficiency", 90], "expect": 80.0},
+    {"op": "power_call", "method": "curve", "args": ["pole_decay", 50], "expect": 0.0},
+    {"op": "power_call", "method": "curve", "args": ["pole_decay", 12.5], "expect": -0.0125},
+    {"op": "power_call", "method": "curve", "args": ["usage_decay", 0.5], "expect": 0.45},
+    {"op": "power_call", "method": "curve", "args": ["funding_decay", 0], "expect": 1.1},
+    {"op": "power_call", "method": "curve", "args": ["strike_response", 50], "expect": 75.0},
+
+    {"op": "power_tuning", "shipped": true, "remove": ["0x6911E2DF"], "props": {"0xA911E2F1": {"u32": 3},
+      "0xE911E2D1": {"f32": 150}, "0x0911E2E8": {"f32": 5}, "0xAA713782": {"f32": []}}},
+    {"op": "power_message", "type": "TuningReload"},
+    {"op": "power_expect", "state": {"radius": 3, "max_funding": 1.5}},
+    {"op": "power_call", "method": "curve", "args": ["funding_efficiency", 90], "expect": 90.0},
+    {"op": "power_call", "method": "curve", "args": ["funding_decay", 0], "expect": 1.0},
+    {"op": "power_call", "method": "curve", "args": ["pole_decay", 100], "expect": 0.0},
+    {"op": "power_call", "method": "expand", "args": [[10, 10, 10, 10]], "expect": [7, 7, 13, 13]},
+    {"op": "power_call", "method": "read_tuning"},
+    {"op": "power_expect", "state": {"radius": 3}}
+  ]
+}

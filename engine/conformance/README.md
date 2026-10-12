@@ -628,12 +628,66 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 `remove_agent`, `registry_add`, `registry_remove`, and `rng` (`kind` double with `value`, or int with `n` and
 `value`).
 
+## Power ops
+
+The power vectors (`pw15_…`) drive the power simulator (`fc4_core::power`) with a scripted city implementing
+`PowerHost`: occupants (buildings, poles, lines, network pieces) with their properties, footprints and budget
+items; lots; zones; the budget's departments and line items; neighbour deals and PowerPole connections; the
+ordinance factor; the 3D view's input control. Every op name starts with `power_`. The default city is 256 × 256
+cells of 16 m with the shipped "Utilities" tuning and factor 1.0. Host objects are numbers (occupant, lot, deal and
+connection IDs as given); departments and line items get tokens from `0x10001` on (the simulator itself takes one
+token per `power_create`). IDs in events are exact `"0x%08X"` strings (numbers compare with a relative tolerance,
+which would let neighbouring IDs match).
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `power_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `factor` (the ordinance factor), `sim_time`, `department_ok` (whether `CreateDepartmentBudget` succeeds), `view_control` (ID or null), `zones` (`[{x, z, w?, d?, zone}]`, zone 0 clears), `occupants` (`[{id, type ("building", "pole", "line", "network" or an ID), cell? ([x, z], poles/lines/network pieces), cells? ([x1, z1, x2, z2], default the cell), bbox? ([[x, y, z], [x, y, z]], default the cells × 16), pos? (default the bbox centre), props? (a property map), lot?, building_type? (null = not a building occupant; default 0x1234 for buildings), qi? (true; the type's QueryInterface), ignored? (pole slot 13), preview? (line), flags? (network flags), poles? ([a, b], a line's connected poles), in_manager? (true), distressed?, budget? ({department? (0x8910BC8A), line? (0), cost? (0), index? (0), funding? (1.0)})}]`), `pole_set` (`{first, count, cost? (1), origin? ([x, z])}`: `count` poles with consecutive IDs at origin + (i mod 50, i div 50)), `occupant_props` (`{"id": {"0xID": value or null}}`), `occupant_state` (`{"id": {in_manager?, distressed?, budget? (or null)}}`), `lots` (`[{id, rect, state? (0), needs_power?, has_power?}]`), `departments` (`[{id, funding? (1.0), budget_funding? (0), lines? ([line…])}]`; an existing department is updated), `deals` (`[{id, type ("buy", "sell" or an ID), city, amount, used? (0)}]` or null; replaces the list), `connections` (`[{id, city, cell, visited?, active?, other? (the connection on the other side)}]` or null; replaces the list) | the scripted city |
+| `power_tuning` | `none: true` (no exemplar), or `shipped?` (true; false starts empty), `props?` (merged property map), `remove?` (IDs) | the tuning exemplar |
+| `power_create` | `crt_seed?` (C `rand()` seed, default 1) | a new simulator (the old one is dropped without `Shutdown`) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `power_init` / `power_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `power_message` | `type` (`SimNewMonth`, `SimNewDay`, `SimIdle`, `OccupantInserted`, `OccupantRemoved`, `ZoningChanged`, `TuningReload`, `TerrainChanged`, `OrdinanceUpdated`, `StateChanged`, `DealStatus`, `ConnectionsReady`, `PostCityInit` or an ID), `data1..4?`, `occupant?` / `void1?` (the IGZUnknown), `occupants?` (`[id…]` or `{first, count}`: the message once per occupant), `rect?` (zoning), `count?`, `expect?` (the `DoMessage` result) | `DoMessage` |
+| `power_idle` | `count?` (1), `expect_state?` | `DoIdle` calls |
+| `power_cycle` | `recompute?` (request one first), `count?` (repeat), `max?` (16), `expect_calls?` | `DoIdle` until the state is back at 4 after leaving it |
+| `power_call` | `method`, `args?`, `expect?` | slots: `position_to_cell` (`[x, z]` m), `cell_to_position`, `cell_to_standard_city_cell`, `annual_consumption`, `annual_consumption_by_type`, `monthly_requirement`, `monthly_production`, `monthly_import`, `monthly_export`, `monthly_demand`, `monthly_consumption_at` (`[x, z]`), `monthly_consumption`, `supply_value` / `is_powered`, `is_wired`, `unpowered_consumer_count`, `powered_consumer_count`, `power_plant_count_of_type`, `power_plant_count`, `power_plants` (IDs; each AddRef'ed), `power_pole_count`, `overworked_plant_count`, `aged_plant_count`, `distressed_plant_count`, `find_power_plants` (`{lowest: [id, funding] or null, worn: [id, pct] or null}`), `is_occupant_powered`, `occupant_power_consumed` / `occupant_max_power_produced` (value or false), `occupant_power_produced` (`[produced, used]` or false), `is_on_strike`, `begin_strike`, `end_strike`, `chance_of_strike`, `strike_start_date`, `strike_length`, `current_plant_efficiency`, `current_plant_condition`, `current_power_produced`, `strike_efficiency`, `funding_percent` (null without a department), `monthly_generation_cost`, `plant_funding_percentage` (false without a budget item), `set_plant_funding_percentage` (`[id, fraction]`); internals: `update_power_grid` (`[x, z]`), `flood` (`[x, z]` → `[rowMin, rowMax]`), `age_plant`, `apply_pole_funding` (`[fraction]`), `monthly`, `do_idle`, `occupant_inserted`, `occupant_removed`, `cell_changed` (`[rect]`), `expand` (`[rect]`), `read_tuning`, `curve` (`[name, x]`, name `funding_efficiency`, `funding_decay`, `usage_decay`, `pole_decay`, `strike_response`); identity: `query_interface` (`[iid]` → `"primary"`, `"message_target"`, `"serializable"` or false), `class_id`, `slot_pops` (`[slot]`) |
+| `power_set` | `mark` / `wire` / `powered` / `next` (cells `[x, z]` or rects `[x1, z1, x2, z2]` to set), `consumption` (`[[x, z, v]]`), `state`: any of `enabled`, `initialized`, `running`, `recompute`, `age_plants`, `wire_dirty`, `state`, `ring_index`, `production`, `consumption`, `import`, `export`, `demand`, `consumers`, `powered`, `unpowered`, `requirement`, `cost_base`, `deficit`, `broken_fraction`, `broken_count`, `pole_count`, `factor`, `strike_start`, `strike_flag`, `unused_flag`, `radius`, `annual`, `ring_row` (the current row), `per_type` | pokes state (test setup) |
+| `power_expect` | `state`: the fields above plus `department` (token or null), the `last_*` values, `plants` (`[[visited, id]]`), `plant_count`, `poles`, `dirty_rect`, `changed`, `overworked`, `aged`, `distressed`, the tuning scalars (`max_funding`, `strike_efficiency`, `max_production_ratio`, `min_acceptable_funding`, `strike_duration`, `min_funding_end_strike`), `map_size` (`[rows, columns]`), `bitmap_words`, `has_grid` | the simulator state |
+| `power_expect_bitmap` | `bitmap` (`mark`, `wire`, `powered`, `next`), `cells?` (set), `rects?` (all set), `unset?`, `count?` (set bits), `exact?` (no other bit set) | a bitmap |
+| `power_expect_grid` | any of `exists`, `instance`, `tract_size`, `counts`, `cells` (`[[x, z, v]]`), `rects` (`[[x1, z1, x2, z2, v]]`), `others` (every unlisted cell) | the powered grid |
+| `power_expect_occupant` | `occupant`, `props?` (`{"0xID": value or null}`), `distressed?` | an occupant's properties as the simulator left them |
+| `power_expect_world` | any of `lots` (`{"id": {has_power}}`), `deals` (`{"id": {used, flags}}`), `connections` (`{"id": {visited, active}}`), `line_items` (`[{department, line, exists?, expenses?, secondary?}]`), `distressed` (count of distressed poles), `departments` (IDs) | host objects |
+| `power_expect_rand` | `calls` | C `rand()` calls since the last check (or `power_create` / `power_load`) |
+| `power_expect_refs` | `refs` (`{"token": count}`, counts start at 0) | host reference counts |
+| `power_expect_events` / `power_expect_event_count` / `power_clear_events` | see the shared conventions | host calls |
+| `power_save` / `power_load` / `power_expect_save` | `slot`; load: `expect?` (the store-level result), `crt_seed?` | the class-object store; host objects in the save are an occupant class `0x0CC00001` and a department class `0x0CC00002` |
+| `power_patch` / `power_expect_payload` | see the shared conventions (the simulator's record) | |
+| `power_read` | `slot` (the saved record) or `hex`, `expect?` | calls `Read` of the current simulator directly (the store ignores its result) |
+
+Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), `add_agent` (`level`, `name`, `flags`),
+`remove_agent`, `subscribe` / `unsubscribe` (`types`), `post` (`type`, `data`, `unknown`), `history` (`series`,
+`value`), `history_queue` (`series`, `length`), `create_grid` (`instance`, `size`), `set_property` (`occupant`, `id`,
+`value`), `break_connections` (`pole`, `flag`), `distressed` (`pole`, `on`), `remove_connection` (`pole`, `line`),
+`occupants_in_cells` (`rect`), `remove_occupant`, `tool_zone_change` (`rect`, `data3`), `lot_has_power` (`lot`, `on`),
+`lot_condition` (`lot`, `condition`), `demolish` (`lots`, `flags`), `radiation` (`position`, `strength`, `radius`),
+`remove_view_control`, `deal_used` (`deal`, `used`), `deal_flags` (`deal`, `flags`, `on`), `mark_deals_dirty`,
+`conn_active` (`conn`, `on`), `create_department` (`id`, `group`), `department_name`, `max_funding`,
+`create_line_item` (`department`, `line`, `local`), `create_line_item_for_type`, `line_item_name`, `display_flag`,
+`secondary_info` and `full_expenses` (`item` = `[department, line]`, `value`), `budget_line`, `budget_cost`,
+`add_funded` / `remove_funded`, `local_funding`, `local_full_funding`.
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
-   `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17).
+   `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
+   `pw15_…` (power §15).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -892,3 +946,25 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 | 16 persistence | `a17_16_persistence` |
 | 17 BustStrike | `a17_17_bust_strike` |
 | 18 registry | `a17_18_registry` |
+
+## Coverage (power §15)
+
+| §15 item | Vector |
+|---|---|
+| tuning (code defaults, "default" curve pattern, reload, ordinance factor) | `pw15_00_tuning` |
+| budget hookup and removal, FindPowerPlants, GetPowerPlants, lots, deal status (§5, §5.1, §5.2) | `pw15_00_budget_lots_deals` |
+| terrain changes, PostCityInit, pole and network removal, Shutdown (§5.2, §5.4, §5.6, §4.2) | `pw15_00_terrain_postinit` |
+| 1 output, 2 slot 45/46 ABI (and slots 32–34, 49–51) | `pw15_01_02_output_abi` |
+| 3 single network, 4 shortfall, 5 conservation | `pw15_03_05_network_supply` |
+| 6 import, 7 export | `pw15_06_07_import_export` |
+| 8 flood fill, 9 wire radius, 10 centre cell | `pw15_08_10_flood_wire_centre` |
+| 11 grid values (and dirty wiring, §5.3) | `pw15_11_grid_values` |
+| 12 positions, 19 strikes (and identity, §1) | `pw15_12_19_positions_strikes` |
+| 13 maintenance | `pw15_13_maintenance` |
+| 14 ageing | `pw15_14_ageing` |
+| 15 pole decay | `pw15_15_pole_decay` |
+| 16 deficit, 17 unpowered % | `pw15_16_17_deficit_unpowered` |
+| 18 ring | `pw15_18_ring` |
+| 20 save | `pw15_20_save` |
+| 21 lifecycle | `pw15_21_lifecycle` |
+| 22 Nuclear Free Zone | `pw15_22_nuclear_free_zone` |
