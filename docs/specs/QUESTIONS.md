@@ -16,14 +16,6 @@ the relevant spec, and their entry here is deleted.
 - PW11. Does `Init` look the department up again after a load?
 - PW12. Is the unpowered-percentage computation `double` or 24-bit?
 
-## Plumbing (plumbing.md)
-- PL1. NearestWater's ring at clipped map edges: Chebyshev rings clipped to the map, or skipped rings?
-- PL2. `Shutdown` does not clear the grids-initialized flag, so a second `Init` finds no grids. Is that right?
-- PL3. Can state 3 ever see a current producer already set? The implementation floods from it.
-- PL4. After state 7 the iterator ends as Done at (0, 63): exactly how does state 7 iterate (rectangle, step,
-  end condition)?
-- PL7. The export deal gets flags `0x28` when the city is not connected: confirm.
-
 ## Protection (protection.md)
 - PR1. `GetMaxPossibleDispatchCount` is not described. The implementation returns `GetTotalDispatchCount`.
 - PR2. The order of the station-effect property reads, and what happens when one fails part-way. The
