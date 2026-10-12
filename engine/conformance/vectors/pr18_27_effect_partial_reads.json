@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "protection_effect_partial_reads",
+  "spec": ["protection 7.1", "protection 18.27"],
+  "description": "Test 27 (PR2), GetStationEffect into a caller record {x 7, z 8, radius 250, centre 3, outer 4, original 3}. Police centre property 0: only the centre is set to 0 and AL = 0 at once; outer, radius, position and original centre keep the caller's values. Police centre 100, outer 20, no radius property, item local 1.0 (empty exemplar: identity curve93, e = 100 x 0.01f = 0.99999998 -> float32 1.0; police has no road factor): AL = 1, centre trunc(100 x 1) = 100, outer 20, radius the stale 250 x 1 = 250, position (1, 2), original centre 100. Fire with no centre property, outer 20, radius 300: centre, outer and radius are zeroed, all three read, the position and original centre := centre (0) written, AL = 0 (centre absent), unscaled: centre 0, outer 20, radius 300, position (5, 6), original 0. With FreeCity4's own callers (a zeroed record, [choice]) the police stale radius is 0. Hand-derived from the 7.1 table and order rules.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "empty"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "12": {"station": ["police", 0, 5, 100, 1], "pos": [1, 0, 2], "items": {"0x0A567BAA": {"local": 1.0}}}},
+    {"op": "protection_call", "method": "station_effect", "args": [12, {"x": 7, "z": 8, "radius": 250, "centre": 3, "outer": 4, "original_centre": 3}], "expect": {"ok": false, "x": 7, "z": 8, "radius": 250, "centre": 0, "outer": 4, "original_centre": 3}},
+    {"op": "protection_occupants", "12": {"props": {"0x48D71ED0": {"i32": 100}, "0x48D71ED1": {"i32": 20}, "0x48D71ED2": null}}},
+    {"op": "protection_call", "method": "station_efficiency", "args": [12], "bits": true, "expect": "0x3F800000"},
+    {"op": "protection_call", "method": "station_effect", "args": [12, {"x": 7, "z": 8, "radius": 250, "centre": 3, "outer": 4, "original_centre": 3}], "expect": {"ok": true, "x": 1, "z": 2, "radius": 250, "centre": 100, "outer": 20, "original_centre": 100}},
+    {"op": "protection_call", "method": "station_effect", "args": [12], "expect": {"ok": true, "x": 1, "z": 2, "radius": 0, "centre": 100, "outer": 20, "original_centre": 100}},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "empty"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "10": {"station": ["fire", 50, 20, 300, 1], "pos": [5, 0, 6], "props": {"0x08F55DC0": null}, "items": {"0xEA567BC3": {"local": 1.0}}}},
+    {"op": "protection_call", "method": "station_effect", "args": [10, {"x": 7, "z": 8, "radius": 250, "centre": 3, "outer": 4, "original_centre": 3}], "expect": {"ok": false, "x": 5, "z": 6, "radius": 300, "centre": 0, "outer": 20, "original_centre": 0}}
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "protection_station_statistics",
+  "spec": ["protection 9.2", "protection 9.3", "protection 18.29"],
+  "description": "Test 29 (PR12), the police station statistics vector 0x8A70A0B9 ([0] crimes last month, [1] arrests last month, [2] crimes this month, [3] arrests this month). Police, shipped arrest threshold 20; the crime lot 500 at cell (2, 2) reads the adjusted tract (1, 1), nearest station 1 at (40, 40). Property absent, a crime (value 20, unarrested): the vector reads as empty, padded to 4 [choice], [2] += 1 -> [0, 0, 1, 0]. Present [5, 6, 7, 8, 9], an arrest (value 21): [2] += 1 and [3] += 1, the fifth element kept -> [5, 6, 8, 9, 9]; ProcessMonthlyCrimeStats shifts v[1] := v[3], v[0] := v[2], v[3] := 0, v[2] := 0 and writes the whole vector back -> [8, 9, 0, 0, 9]. Present [1, 2] (short), a crime -> padded with zeros to 4 [choice], [1, 2, 1, 0]. Hand-derived from 9.2 and 9.3.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped", "lots": {"500": [2, 2]}},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "1": {"station": ["police", 50, 10, 64, 1], "pos": [40, 0, 40]}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 1},
+    {"op": "protection_call", "method": "station_stats", "args": [1], "expect": [0, 0, 0, 0]},
+    {"op": "protection_grid_set", "grid": "adjusted", "cells": [[1, 1, 20]]},
+    {"op": "protection_message", "type": "Crime", "unknown": 500},
+    {"op": "protection_expect_occupant", "id": 1, "props": {"0x8A70A0B9": [0, 0, 1, 0]}},
+    {"op": "protection_occupants", "1": {"props": {"0x8A70A0B9": {"u32": [5, 6, 7, 8, 9]}}}},
+    {"op": "protection_call", "method": "station_stats", "args": [1], "expect": [5, 6, 7, 8, 9]},
+    {"op": "protection_grid_set", "grid": "adjusted", "cells": [[1, 1, 21]]},
+    {"op": "protection_message", "type": "Crime", "unknown": 500},
+    {"op": "protection_expect_occupant", "id": 1, "props": {"0x8A70A0B9": [5, 6, 8, 9, 9]}},
+    {"op": "protection_call", "method": "process_monthly_crime_stats", "expect": true},
+    {"op": "protection_expect_occupant", "id": 1, "props": {"0x8A70A0B9": [8, 9, 0, 0, 9]}},
+    {"op": "protection_occupants", "1": {"props": {"0x8A70A0B9": {"u32": [1, 2]}}}},
+    {"op": "protection_call", "method": "station_stats", "args": [1], "expect": [1, 2, 0, 0]},
+    {"op": "protection_grid_set", "grid": "adjusted", "cells": [[1, 1, 20]]},
+    {"op": "protection_message", "type": "Crime", "unknown": 500},
+    {"op": "protection_expect_occupant", "id": 1, "props": {"0x8A70A0B9": [1, 2, 1, 0]}}
+  ]
+}
