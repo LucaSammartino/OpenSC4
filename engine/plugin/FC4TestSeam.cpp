@@ -15,6 +15,7 @@
 
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "cFC4Power.h"
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -34,6 +35,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         case kFC4SeamObserverApp:
             fc4::ObserverTestSetApp(static_cast<cISC4App*>(a));
             return 1;
+        case kFC4SeamPowerBudgetPath:
+            return PowerTestBudgetPath(static_cast<cISC4BudgetSimulator*>(a));
         default:
             return 0;
     }

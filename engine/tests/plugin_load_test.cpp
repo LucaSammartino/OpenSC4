@@ -448,7 +448,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     } else if (scenario == "corrupt") {
         WriteTextFile(ini, "[autotest]\nautotest_seconds = 60\n");
     } else if (scenario == "save") {
-        WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\n");
+        WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else {  // stalled: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
@@ -597,6 +597,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (save autotest)") !=
               std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // observe, autotest_save_* are known
         DeleteFileA(ini.c_str());
         if (g_failures == 0) std::printf("plugin autotest test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -1410,6 +1411,10 @@ int main(int argc, char** argv) {
         CHECK(director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, reinterpret_cast<void**>(&budget3)));
         if (seam != nullptr && budget3 != nullptr) {
             CHECK(budget3->Init());
+            // The power glue's department / line-item path on our budget
+            // classes, with a department reference read back from a save
+            // (run 21: the token was the department's cIGZSerializable).
+            CHECK(seam(kFC4SeamPowerBudgetPath, budget3, nullptr) == 0);
             static FakeWorld world;
             InitFakeWorld(world);
             world.budget = budget3;
@@ -1530,6 +1535,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/480/160 demand "
                     "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                     "budget income/expense=") != std::string::npos);
+    CHECK(text.find("power budget path test: passed") != std::string::npos);
+    CHECK(text.find("power budget path test: step") == std::string::npos);
     // The observe line (our budget; no game allocator here, so no departments).
     CHECK(text.find("observer: digest on, observe on") != std::string::npos);
     CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=500000 income=") != std::string::npos);

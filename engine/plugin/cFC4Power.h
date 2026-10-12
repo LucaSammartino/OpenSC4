@@ -130,6 +130,8 @@ public:
     cISC4ZoneManager* ZoneManager() const { return zoneManager_; }
     cISC4NeighborsSimulator* Neighbors() const { return neighbors_; }
     cISC4BudgetSimulator* Budget() const { return budget_; }
+    // Test seam only (PowerTestBudgetPath): a borrowed budget, cleared before release.
+    void TestSetBudget(cISC4BudgetSimulator* b) { budget_ = b; }
     cISC4Demolition* Demolition() const { return demolition_; }
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     void AcquireServices();
@@ -182,3 +184,6 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4PowerSimulator();
+
+// Test seam op 6 (FC4TestSeam.h): 0 = the department / line-item path passed.
+intptr_t PowerTestBudgetPath(cISC4BudgetSimulator* budget);

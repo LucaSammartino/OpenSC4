@@ -137,6 +137,37 @@ IStreamAdapter::~IStreamAdapter() {
     if (seg_ != nullptr) FC4_RELEASE(seg_);
 }
 
+bool OurObjectRef(cIGZSerializable* obj, uint32_t iid, fc4_ref* out) {
+    cIFC4CoreObject* core = nullptr;
+    if (obj == nullptr || !obj->QueryInterface(kFC4_IID_CoreObject, reinterpret_cast<void**>(&core)) ||
+        core == nullptr) {
+        return false;
+    }
+    // One of ours: the core keeps the object alive through its handle.
+    out->class_id = obj->GetGZCLSID();
+    out->core_handle = core->CoreHandle();
+    core->Release();
+    // The token is the interface the reader asked for, as for host objects
+    // (run 21: the cIGZSerializable sub-object, kept as a department token by
+    // the power core, was called as a department and crashed).
+    cIGZUnknown* typed = static_cast<cIGZUnknown*>(obj);
+    if (iid != GZIID_cIGZSerializable) {
+        void* p = nullptr;
+        if (!obj->QueryInterface(iid == 0 ? GZIID_cIGZUnknown : iid, &p) || p == nullptr) {
+            Log("streams: referenced object of class 0x%08X (ours) lacks interface 0x%08X; read as null",
+                out->class_id, iid);
+            *out = fc4_ref{};
+            obj->Release();
+            return true;
+        }
+        typed = static_cast<cIGZUnknown*>(p);
+        typed->Release();  // ours: no reference kept (the object stays alive through `obj`'s owner)
+    }
+    out->token = TokenOf(typed);
+    obj->Release();  // ours: not audited; no reference kept
+    return true;
+}
+
 bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
     if (out == nullptr) return false;
     *out = fc4_ref{};
@@ -154,15 +185,7 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
 
     // [inferred] The object comes back with a reference owned by us.
     out->class_id = obj->GetGZCLSID();
-    cIFC4CoreObject* core = nullptr;
-    if (obj->QueryInterface(kFC4_IID_CoreObject, reinterpret_cast<void**>(&core)) && core != nullptr) {
-        // One of ours: the core keeps the object alive through its handle.
-        out->token = TokenOf(static_cast<cIGZUnknown*>(obj));
-        out->core_handle = core->CoreHandle();
-        core->Release();
-        FC4_RELEASE(obj);  // ours: not audited
-        return true;
-    }
+    if (OurObjectRef(obj, iid, out)) return true;
     if (iid == 0 || iid == GZIID_cIGZSerializable) {
         out->token = TokenOf(static_cast<cIGZUnknown*>(obj));  // the caller owns this reference
         return true;

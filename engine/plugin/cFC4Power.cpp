@@ -274,9 +274,17 @@ void ReleaseToken(void*, uint64_t t) {
 
 // A saved pole comes back as its cISC4PowerPoleOccupant; the core knows
 // occupants by their cISC4Occupant identity (the message's void1, §5.1).
+// The core owns one reference per resolved token (it releases it at Shutdown
+// or when a later Read replaces it). A host object arrives from the stream
+// with that reference; one of ours (our department, when the budget subsystem
+// is on) arrives without one (FC4Streams.h, OurObjectRef), so it is taken here.
 uint64_t ResolveRef(void*, uint64_t t, uint32_t iid) {
     cIGZUnknown* u = FromToken(t);
     if (u == nullptr) return 0;
+    if (fc4::IsOurObject(u)) {
+        u->AddRef();
+        return t;
+    }
     if (iid != kIID_cISC4PowerPoleOccupant) return t;
     cISC4Occupant* occ = Query<cISC4Occupant>(u, kIID_cISC4Occupant);
     FC4_RELEASE(u);
@@ -983,6 +991,69 @@ void AppendPlant(void* ctx, uint64_t t) {
 
 cIGZUnknown* CreateFC4PowerSimulator() {
     return static_cast<cIGZUnknown*>(static_cast<cFC4ISC4PowerSimulator*>(new cFC4PowerSimulator()));
+}
+
+// Test seam (FC4TestSeam.h, op 6): the power glue's department and line-item
+// host callbacks against `budget` (in the tests, our cFC4 budget classes),
+// including a department reference read back from a save. Returns 0, or the
+// number of the first failed step.
+intptr_t PowerTestBudgetPath(cISC4BudgetSimulator* budget) {
+    constexpr uint32_t kDept = 0x8910BC8A;   // the power department (power spec §4.1)
+    constexpr uint32_t kGroup = 0x4A357EAF;  // its budget group
+    constexpr uint32_t kLinePoles = 1;
+    constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
+    if (budget == nullptr) return 1;
+    auto* sim = new cFC4PowerSimulator();
+    sim->AddRef();
+    sim->TestSetBudget(budget);  // borrowed; cleared before the release
+    void* u = sim;
+    intptr_t failed = 0;
+    auto fail = [&](intptr_t step, const char* what) {
+        if (failed == 0) {
+            failed = step;
+            fc4::Log("power budget path test: step %d FAILED: %s", static_cast<int>(step), what);
+        }
+    };
+    const uint64_t dept = CreateDepartment(u, kDept, kGroup);  // borrowed
+    if (dept == 0 || Department(u, kDept) != dept) fail(2, "CreateDepartmentBudget / GetDepartmentBudget");
+    const uint64_t created = failed ? 0 : CreateLineItem(u, dept, kLinePoles, false);
+    if (failed == 0 && (created == 0 || LineItem(u, dept, kLinePoles) != created)) fail(3, "CreateLineItem / GetLineItem");
+    const SC4Percentage* own = failed ? nullptr : DeptOf(dept)->GetFundingPercentage();
+    const float funding = own ? own->percentage : -1.0f;
+    if (failed == 0 && (own == nullptr || DepartmentFunding(u, dept) != funding)) fail(4, "GetFundingPercentage");
+    if (failed == 0) {
+        // A save's department reference, as the stream adapter hands it to
+        // the core, then resolved by the power host.
+        cIGZUnknown* d = FromToken(dept);
+        cIGZSerializable* ser = nullptr;
+        fc4_ref ref{};
+        if (!d->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) || ser == nullptr ||
+            !fc4::OurObjectRef(ser, kIID_cISC4DepartmentBudget, &ref)) {
+            fail(5, "department reference read");
+        } else {
+            const uint32_t before = d->AddRef() - 1;
+            d->Release();
+            const uint64_t t = ResolveRef(u, ref.token, kIID_cISC4DepartmentBudget);
+            if (t != dept) fail(6, "the resolved department token is not the department interface");
+            const uint32_t held = d->AddRef() - 1;
+            d->Release();
+            if (held != before + 1) fail(7, "the resolved department carries no reference for the core");
+            if (failed == 0) {
+                const uint64_t li = LineItem(u, t, kLinePoles);
+                if (li != created) fail(8, "GetLineItem through the resolved department");
+                if (failed == 0) {
+                    SetLineItemFullExpenses(u, li, 12345);
+                    if (ItemOf(li)->GetFullExpenses() != 12345) fail(9, "SetFullExpenses / GetFullExpenses");
+                    if (DepartmentFunding(u, t) != funding) fail(10, "GetFundingPercentage through the resolved department");
+                }
+            }
+            if (t != 0 && held == before + 1) FromToken(t)->Release();  // the core's reference
+        }
+    }
+    sim->TestSetBudget(nullptr);
+    sim->Release();
+    fc4::Log("power budget path test: %s", failed ? "FAILED" : "passed");
+    return failed;
 }
 
 cFC4PowerSimulator::cFC4PowerSimulator() {
