@@ -53,7 +53,9 @@ impl WeatherRandom for Stub {
         let u = self.uniform.pop_front().unwrap_or(self.last.0);
         self.last.0 = u;
         self.log("uniform", Json::Float(u));
-        a + u * (b - a)
+        // RandomDoubleRangeUniform's 24-bit sequence (foundations §6.1).
+        let r24 = fc4_core::x87::r24;
+        r24(r24(u * r24(b - a)) + a)
     }
     fn gaussian(&mut self) -> f64 {
         let g = self.gaussian.pop_front().unwrap_or(self.last.1);
@@ -685,7 +687,36 @@ fn expect(w: &World, op: &Json) -> R<()> {
             return Err(format!("{k}: got {}, expected {}", scalar::show(g), scalar::show(&v)));
         }
     }
+    // `exact: true`: numbers must be bit-equal (the float32 value widened to
+    // a double), for precision tests (§6.1, §6.2).
+    if op.get("exact").and_then(crate::runner::boolean) == Some(true) {
+        for (k, v) in &flat {
+            let g = got
+                .iter()
+                .find(|(gk, _)| gk == k)
+                .map(|e| &e.1)
+                .ok_or_else(|| format!("no such field '{k}'"))?;
+            if !exactly(g, v) {
+                return Err(format!(
+                    "{k}: got {}, expected exactly {}",
+                    scalar::show(g),
+                    scalar::show(v)
+                ));
+            }
+        }
+    }
     check_state(&got, &Json::Object(flat))
+}
+
+/// Numbers bit-equal as doubles, arrays element by element.
+fn exactly(got: &Json, want: &Json) -> bool {
+    match (got, want) {
+        (Json::Array(a), Json::Array(b)) => a.len() == b.len() && a.iter().zip(b).all(|(x, y)| exactly(x, y)),
+        (g, w) => match (scalar::num(g), scalar::num(w)) {
+            (Some(x), Some(y)) => x == y,
+            _ => scalar::matches(g, w, false),
+        },
+    }
 }
 
 /// `weather_expect_grid`: `grid` (`temperature`, `moisture`,
