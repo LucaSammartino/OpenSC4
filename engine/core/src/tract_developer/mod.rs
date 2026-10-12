@@ -47,10 +47,11 @@
 //!   choice for a given seed. A plugin running in the game process may hand
 //!   out the object addresses as tokens to get the original order.
 //! - The **file-local generator** is one [`RzRandom`] shared by every tract
-//!   developer, not saved. Its seed is injected by the host
-//!   ([`TractDeveloperStatics::new`]); the core does not derive it (the
-//!   original uses the local wall clock XOR [`RNG_SEED_XOR`], §4.22; the
-//!   session-seed derivation belongs to foundations §6.3). The **C
+//!   developer, not saved. [`TractDeveloperStatics::from_session`] seeds it
+//!   from the session seed per foundations §6.3 *[choice]*
+//!   (`derive_seed(S, RNG_SEED_XOR)`: the original's local wall clock XOR
+//!   [`RNG_SEED_XOR`], §4.22, with `S` in place of the clock);
+//!   [`TractDeveloperStatics::new`] takes an exact seed. The **C
 //!   `rand()`** used by the iterator resets R1 / R8 is the statics' own
 //!   [`CrtRand`] (seed 1 by default, foundations §12.6).
 //! - **UpdatePopulation's seed** (§4.18 [choice]): tract (0, 0), whose seed
@@ -175,7 +176,7 @@ pub const MSG_MONTH: u32 = 0x6695_6816;
 pub const MSG_YEAR: u32 = 0x6695_6817;
 
 /// The XOR constant mixed into the file-local generator's seed (§4.22).
-pub const RNG_SEED_XOR: u32 = 0x4C09_C113;
+pub const RNG_SEED_XOR: u32 = crate::rng::file_seed::TRACT_DEVELOPER;
 
 /// Bool property of a building exemplar: monopoly piece (§4.17).
 pub const PROP_MONOPOLY: u32 = 0x2781_283F;

@@ -958,13 +958,18 @@ fn source(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
-/// `gdev_statics`: `seed?` (reseeds the shared generator), `slice_step?`,
+/// `gdev_statics`: `seed?` (reseeds the shared generator), `session?` (with
+/// `fresh`: `GrowthStatics::from_session`, foundations §6.3), `slice_step?`,
 /// `misses?`, `fresh?` (a new shared object for developers created later).
 fn statics(w: &World, op: &Json) -> R<()> {
     let s = seeds(w.wall_seed.get());
     if opt_bool(op, "fresh", false)? {
-        let seed = opt_u32(op, "seed", 0)?;
-        *w.statics.borrow_mut() = GrowthStatics::new(seed, &s);
+        *w.statics.borrow_mut() = match opt(op, "session") {
+            Some(v) => GrowthStatics::from_session(u32_of(v, "session")?, &s),
+            None => GrowthStatics::new(opt_u32(op, "seed", 0)?, &s),
+        };
+    } else if opt(op, "session").is_some() {
+        return Err("'session' needs 'fresh': true".into());
     } else if let Some(v) = opt(op, "seed") {
         w.statics().reseed(u32_of(v, "seed")?, &s);
     }
