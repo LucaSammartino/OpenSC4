@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "pollution_read_error",
+  "spec": ["pollution 6", "pollution 11.25", "foundations 2.7", "foundations 3.5"],
+  "description": "Test 25, FreeCity4 [choice] of 6 (spec answer PO3): a version-4 record truncated inside the incinerator list makes Read return false; no grid, list or department of the reading simulator is replaced, loaded stays clear, and the references taken during the call are released. Record by hand (layout of 6, as p11_22, 16 x 16 cells, 64-entry table; the intact record first reads back with both incinerators): water-treatment count 0 at 74, incinerator count 2 at 78, its refs at 82 and 90 (8 bytes each), 504 bytes in all; deleting bytes 90..504 cuts the record at the second incinerator ref. Reading into an initialized simulator (one water-treatment plant, air value 7 at tract (1, 1)): false, the plant list, the grids (air value still 7), the department and every scalar stay; inc1, resolved before the failure, gets its reference back (3 before and after: the test's own, the first simulator's and the one handed to the simulator that read the intact record). A fresh simulator that fails the same read stays unloaded, and its Init runs the new-city path: all eight grids and a department are created. Read is called directly (pollution_read) because the store ignores its result (foundations 3.5).",
+  "steps": [
+    {"op": "pollution_env", "cells": [16, 16]},
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_occupant", "occupant": "inc1", "props": {"0xA8EBCF0C": {"u32": 200}}},
+    {"op": "pollution_occupant", "occupant": "inc2", "props": {"0xA8EBCF0C": {"u32": 300}}},
+    {"op": "pollution_message", "type": "OccupantInserted", "occupant": "inc1"},
+    {"op": "pollution_message", "type": "OccupantInserted", "occupant": "inc2"},
+    {"op": "pollution_save", "slot": "a"},
+    {"op": "pollution_expect_payload", "slot": "a", "length": 504, "at": [{"offset": 74, "hex": "00000000 02000000"}]},
+    {"op": "pollution_read", "slot": "a", "into": "new", "expect": true},
+    {"op": "pollution_expect", "state": {"loaded": true, "incinerators": ["inc1", "inc2"]}},
+    {"op": "pollution_patch", "slot": "a", "offset": 90, "delete": 414},
+
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_occupant", "occupant": "wtp", "props": {"0xC8EBD131": {"u32": 100}}},
+    {"op": "pollution_message", "type": "OccupantInserted", "occupant": "wtp"},
+    {"op": "pollution_set_grid", "grid": "air_val", "tracts": [{"x": 1, "z": 1, "v": 7}]},
+    {"op": "pollution_set", "state": {"avg_air": 5, "efficiency": 0.5}},
+    {"op": "pollution_expect_refs", "refs": {"inc1": 3, "inc2": 3}},
+    {"op": "pollution_read", "slot": "a", "expect": false},
+    {"op": "pollution_expect", "state": {"loaded": false, "initialized": true, "wtp": ["wtp"], "incinerators": [],
+      "department": "department", "avg_air": 5, "efficiency": 0.5, "grids": [true, true, true, true, true, true, true, true]}},
+    {"op": "pollution_expect_grid", "grid": "air_val", "tracts": [{"x": 1, "z": 1, "v": 7}], "others": 0},
+    {"op": "pollution_expect_refs", "refs": {"inc1": 3, "inc2": 3}},
+
+    {"op": "pollution_read", "slot": "a", "into": "new", "expect": false},
+    {"op": "pollution_expect", "state": {"loaded": false, "initialized": false, "incinerators": [], "department": null,
+      "grids": [false, false, false, false, false, false, false, false]}},
+    {"op": "pollution_init"},
+    {"op": "pollution_expect", "state": {"loaded": false, "initialized": true, "department": "department",
+      "grids": [true, true, true, true, true, true, true, true]}}
+  ]
+}

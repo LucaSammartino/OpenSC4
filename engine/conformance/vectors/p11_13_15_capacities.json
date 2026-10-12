@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "pollution_capacities",
-  "spec": ["pollution 4.4.1", "pollution 4.4.4", "pollution 4.7", "pollution 4.9.3", "pollution 4.9.4", "pollution 8.1", "pollution 11.13", "pollution 11.14", "pollution 11.15"],
-  "description": "Test 13: one water-treatment plant (0xC8EBD131 = 30, powered, efficiency 1) gives wtpRemaining 30; a visit with W = 50 and no history treats t = 30 -> W = 20 (water value 0 -> 20, waterSum 50, treatedSum 30, waterSumTreated 20) and the day's usage 30 goes to the plant's 0x28ECF510. With lastTreated 300, lastWater 1000 and remaining 200 (<= 300): t = roundHalfEven(300/1000 x 50 = 15.0) = 15 -> W = 35, used 15. Test 14: a new city has efficiency 0 until the first end of cycle, so GetIncineratorCurrentCapacity = 0; funding 100 % -> curve(100) x 0.01 = 1.0 (capacity 1000), 50 % -> curve(50) = 25 -> 0.25 (capacity 250). Test 15: base 1000, powered, efficiency 0.8, condition curve (0,1)(100,0.5), condition 50 -> trunc(1000 x 0.8) = 800, roundHalfEven(800 x 0.75) = 600; unpowered -> 0; condition 0.75, occupant efficiency 0.8 x 0.75 = 0.6; a missing capacity property -> not found, 0; without a condition curve the condition is (false, 1.0). Maintenance (slot 65): base 1000 x maintenance curve (0,1)(100,2) at 50 = 1.5 -> 1500; the daily update (4.9.4) books the difference to the item's line (+500) and changes the item cost to 1500. Recycling capacity 40 % x efficiency 0.8 = 32 -> x 0.01 = 0.32.",
+  "spec": ["pollution 4.4.1", "pollution 4.4.4", "pollution 4.7", "pollution 4.9.3", "pollution 4.9.4", "pollution 8.1", "pollution 11.13", "pollution 11.14", "pollution 11.15", "foundations 18"],
+  "description": "Test 13: one water-treatment plant (0xC8EBD131 = 30, powered, efficiency 1) gives wtpRemaining 30; a visit with W = 50 and no history treats t = 30 -> W = 20 (water value 0 -> 20, waterSum 50, treatedSum 30, waterSumTreated 20) and the day's usage 30 goes to the plant's 0x28ECF510. With lastTreated 300, lastWater 1000 and remaining 200 (<= 300): t = roundHalfEven(300/1000 x 50 = 15.0) = 15 -> W = 35, used 15. Test 14: a new city has efficiency 0 until the first end of cycle, so GetIncineratorCurrentCapacity = 0; funding 100 % -> curve(100) x 0.01 = 1.0 (capacity 1000), 50 % -> curve(50) = 25 -> 0.25 (capacity 250). Test 15: base 1000, powered, efficiency 0.8, condition curve (0,1)(100,0.5), condition 50 -> trunc(1000 x 0.8) = 800, roundHalfEven(800 x 0.75) = 600; unpowered -> 0; condition 0.75, occupant efficiency 0.8 x 0.75 = 0.6; a missing capacity property -> not found, 0; without a condition curve the condition is (false, 1.0). Maintenance (slot 65): base 1000 x maintenance curve (0,1)(100,2) at 50 = 1.5 -> 1500; the daily update (4.9.4) books the difference to the item's line (+500) and changes the item cost to 1500. Recycling capacity 40 % x efficiency 0.8 = 32 -> x 0.01f = 0.32. Test 14 additions (spec answer PO1, by hand and an independent numpy float32 model): 0.01f is a float32 literal (0.00999999977648), so funding 90 % -> x = f32(0.9f x 100) = 90.0 -> shipped curve 80 -> f32(80 x 0.01f) = 0.79999995 (0x3F4CCCCC, not 0.8f), and the incinerator of base 1000 then reports trunc(f32(1000 x 0.79999995) = 799.99994) = 799. Slot 55 at efficiency 1: current capacity 30 -> f32(30 x 0.01f) = 0.29999998 (0x3E999999); 25 -> 0.25 (0x3E800000).",
   "steps": [
     {"op": "pollution_create"},
     {"op": "pollution_init"},
@@ -67,6 +67,17 @@
     {"op": "pollution_call", "method": "current_capacity", "args": ["0xA8EBCF0C", "aged"], "expect": [true, 0]},
     {"op": "pollution_call", "method": "current_occupant_efficiency", "args": ["aged"], "expect": [false, 0]},
     {"op": "pollution_occupant", "occupant": "rec", "props": {"0x88ED1059": {"f32": 40}}},
-    {"op": "pollution_call", "method": "recycling_center_current_capacity", "args": ["rec"], "expect": [true, 0.32]}
+    {"op": "pollution_call", "method": "recycling_center_current_capacity", "args": ["rec"], "expect": [true, 0.32]},
+
+    {"op": "pollution_env", "funding": 0.9},
+    {"op": "pollution_call", "method": "end_of_cycle"},
+    {"op": "pollution_expect", "state": {"efficiency_bits": "0x3F4CCCCC"}},
+    {"op": "pollution_call", "method": "incinerator_current_capacity", "args": ["inc"], "expect": [true, 799]},
+    {"op": "pollution_env", "funding": 1.0},
+    {"op": "pollution_set", "state": {"efficiency": 1}},
+    {"op": "pollution_occupant", "occupant": "rec30", "props": {"0x88ED1059": {"u32": 30}}},
+    {"op": "pollution_call", "method": "recycling_center_current_capacity_bits", "args": ["rec30"], "expect": [true, "0x3E999999"]},
+    {"op": "pollution_occupant", "occupant": "rec25", "props": {"0x88ED1059": {"u32": 25}}},
+    {"op": "pollution_call", "method": "recycling_center_current_capacity_bits", "args": ["rec25"], "expect": [true, "0x3E800000"]}
   ]
 }

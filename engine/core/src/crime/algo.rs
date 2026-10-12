@@ -12,13 +12,17 @@
 //! rounding the spec names (§6 notation).
 
 use crate::curve::ResponseCurve;
-use crate::props::round_half_even_f64;
+/// `trunc` to 32 bits (§6 notation): the CRT `_ftol` of foundations §18.1,
+/// the low half of the int64 truncation (NaN, ±∞ and magnitudes ≥ 2⁶³ give
+/// 0, the low half of the int64 indefinite).
+pub use crate::x87::ftol32;
+use crate::x87::r24;
 
 /// `1/255` as the prop requester scales the average crime (§11.6).
 pub const PROP_SCALE: f32 = 1.0 / 255.0;
 
-/// 2⁶³: the first magnitude the CRT's 64-bit conversion cannot represent.
-const TWO_POW_63: f64 = 9_223_372_036_854_775_808.0;
+/// 2³², added to a negative `int32` to convert it as unsigned (§6.4).
+const TWO_POW_32: f64 = 4_294_967_296.0;
 
 /// One x87 multiplication at 24-bit precision: the exact product of the two
 /// unrounded operands, rounded once to `float32` (foundations §18.3).
@@ -26,21 +30,29 @@ pub fn mul_f32(a: f64, b: f64) -> f32 {
     (a * b) as f32
 }
 
-/// `trunc` to a 32-bit integer (the CRT `_ftol`, §6 notation): the low 32
-/// bits of the value truncated toward zero. [choice] NaN, ±∞ and magnitudes
-/// ≥ 2⁶³ give 0 (the low half of the "integer indefinite").
-pub fn ftol32(x: f64) -> i32 {
-    if x.is_finite() && x.abs() < TWO_POW_63 {
-        (x.trunc() as i64) as i32
+/// `rhe` exactly as the original's idiom computes it (§6 notation,
+/// [compat]): `int32(bits(f32(x + 1.5·2²³)) − 0x4B400000)` with a 32-bit
+/// wrapping subtraction. Round half to even for |x| ≤ 2²²; beyond that the
+/// bit pattern of the sum (5,000,000 → 4,597,152; 4,294,967,296 →
+/// 71,327,744; −5,000,000 → −5,805,696). ±∞ give the bits of ±∞; a NaN
+/// input passes through the addition as the same NaN, made quiet (x87).
+pub fn rhe(x: f32) -> i32 {
+    let sum = if x.is_nan() {
+        f32::from_bits(x.to_bits() | 0x0040_0000)
     } else {
-        0
-    }
+        x + 12_582_912.0f32
+    };
+    sum.to_bits().wrapping_sub(0x4B40_0000) as i32
 }
 
-/// `rhe` (round half to even) to a 32-bit integer. [choice] saturated (the
-/// original's idiom is valid below 2²²); NaN → 0.
-pub fn rhe_i32(x: f64) -> i32 {
-    round_half_even_f64(x) as i32
+/// `float(uint32 v)` (§6.4): the `int32` is loaded exactly; a negative one
+/// has 2³² added, rounded once to 24 bits.
+pub fn u32_to_float(v: i32) -> f64 {
+    if v < 0 {
+        r24(f64::from(v) + TWO_POW_32)
+    } else {
+        f64::from(v)
+    }
 }
 
 /// The census bucket of an EQ value (§6.1): `trunc(f32(EQ × 0.02f))`;
@@ -102,10 +114,7 @@ pub fn crimes_to_commit(
     } else {
         reoffenders
     };
-    rhe_i32(f64::from(mul_f32(
-        f64::from(crimes as u32),
-        f64::from(ordinance_factor),
-    )))
+    rhe(mul_f32(u32_to_float(crimes), f64::from(ordinance_factor)))
 }
 
 /// One cell of the decay (§6.5): non-zero cells become the low 8 bits of
@@ -229,11 +238,43 @@ mod tests {
         assert_eq!(f(2, 0.95), 2);
         assert_eq!(f(3, 0.5), 2, "1.5 → 2");
         assert_eq!(f(5, 0.5), 2, "2.5 → 2");
+        // crimes = 0 + trunc(−10 × 1) = −10 → 2³² − 10, rounded to 2³² →
+        // rhe beyond 2²² (§6.4, test 19).
         assert_eq!(
             crimes_to_commit(1, 0, -10, 1.0, 1.0, &ResponseCurve::default()),
-            i32::MAX
+            71_327_744
         );
-        assert_eq!(rhe_i32(f64::NAN), 0);
+    }
+
+    /// Test 19 (§6 notation) and the edges of the formula.
+    #[test]
+    fn rhe_beyond_2_22() {
+        let cases: [(f32, i32); 12] = [
+            (4_194_304.0, 4_194_304),
+            (4_194_305.0, 4_194_304),
+            (4_194_307.0, 4_194_306),
+            (5_000_000.0, 4_597_152),
+            (8_388_608.0, 6_291_456),
+            (100_000_000.0, 26_655_776),
+            (4_294_967_296.0, 71_327_744),
+            (-5_000_000.0, -5_805_696),
+            (-4_194_304.0, -4_194_304),
+            (2.5, 2),
+            (-2.5, -2),
+            (0.0, 0),
+        ];
+        for (x, want) in cases {
+            assert_eq!(rhe(x), want, "rhe({x})");
+        }
+        assert_eq!(rhe(f32::INFINITY), 0x7F80_0000 - 0x4B40_0000);
+        assert_eq!(
+            rhe(f32::from_bits(0xFFC0_0000)),
+            0xFFC0_0000u32.wrapping_sub(0x4B40_0000) as i32
+        );
+        assert_eq!(u32_to_float(-1), 4_294_967_296.0);
+        assert_eq!(u32_to_float(7), 7.0);
+        let c = ResponseCurve::from_points(&[(0.0, -1.0)]);
+        assert_eq!(crimes_to_commit(1, 0, 0, 1.0, 1.0, &c), 71_327_744);
     }
 
     #[test]

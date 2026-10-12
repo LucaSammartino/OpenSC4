@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "crime_average",
-  "spec": ["crime 6.9", "crime 17.12"],
-  "description": "Test 12. average = (sum of values) / count over the crime-grid tracts whose corner cell (x S, z S) has a zone type != 0, with integer sums, stored as float32; GetAverageCrime = trunc(average). S = 2: tracts (0,0), (1,0), (2,0) have corner cells (0,0), (2,0), (4,0). Values {10, 20, 0} zoned, plus an unzoned tract of 200 that is ignored -> 30 / 3 = 10.0 -> 10. With only (0,0), (2,0) zoned and values {1, 2} -> 1.5 -> GetAverageCrime 1. A zone on a non-corner cell (1,0) does not count. Unzoned city: [choice] FreeCity4 stores 0 and returns 0 (the original computes 0/0 = NaN and returns 0x80000000). Hand-derived.",
+  "spec": ["crime 6", "crime 6.9", "crime 8", "crime 11.2", "crime 12", "crime 17.12", "foundations 18.1"],
+  "description": "Test 12. average = (sum of values) / count over the crime-grid tracts whose corner cell (x S, z S) has a zone type != 0, with integer sums, stored as float32; GetAverageCrime = trunc(average). S = 2: tracts (0,0), (1,0), (2,0) have corner cells (0,0), (2,0), (4,0). Values {10, 20, 0} zoned, plus an unzoned tract of 200 that is ignored -> 30 / 3 = 10.0 -> 10. With only (0,0), (2,0) zoned and values {1, 2} -> 1.5 -> GetAverageCrime 1. A zone on a non-corner cell (1,0) does not count. Unzoned city (corrected spec, 6.9 and foundations 18.1): 0/0 stores the x87 default NaN (float32 bits 0xFFC00000), which is saved as such (payload offset 65, little-endian 0000C0FF), and GetAverageCrime is the low half of _ftol's int64 indefinite = 0 (the earlier [choice] stored 0). Spec answer C1: S is the crime grid's own tract size. A tuning reload to S = 4 (message 0xC53D10AA for the tuning key) leaves the S = 2 grid alone; with only cell (2,0) zoned, tract (1,0) (value 20) is still sampled at (2,0) -> 20.0 (the tuning's S = 4 would sample (4,0), unzoned, and give NaN), and GetCrimeHotspot with hotspot (3, 4, 9) reports (9, 2 x 3, 2 x 4) = (9, 6, 8). Hand-derived.",
   "steps": [
     {"op": "crime_create"},
     {"op": "crime_init"},
@@ -20,7 +20,27 @@
 
     {"op": "crime_env", "clear_zones": true},
     {"op": "crime_call", "method": "compute_average_crime"},
-    {"op": "crime_expect", "state": {"average_crime": 0}},
-    {"op": "crime_call", "method": "average_crime", "expect": 0}
+    {"op": "crime_expect", "state": {"average_crime_bits": "0xFFC00000"}},
+    {"op": "crime_call", "method": "average_crime", "expect": 0},
+    {"op": "crime_save", "slot": "nan"},
+    {"op": "crime_expect_payload", "slot": "nan", "at": [{"offset": 65, "hex": "0000C0FF"}]},
+    {"op": "crime_load", "slot": "nan", "expect": true},
+    {"op": "crime_expect", "state": {"average_crime_bits": "0xFFC00000"}},
+    {"op": "crime_call", "method": "average_crime", "expect": 0},
+
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_expect_grid", "grid": "crime", "size": 2},
+    {"op": "crime_tuning", "shipped": true, "props": {"0x47E2C200": {"u32": 4}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_expect", "state": {"tuning": {"tract_size": 4}}},
+    {"op": "crime_expect_grid", "grid": "crime", "size": 2},
+    {"op": "crime_env", "clear_zones": true, "zones": [{"x": 2, "z": 0, "v": 1}]},
+    {"op": "crime_grid_set", "grid": "crime", "fill": 0, "cells": [[1, 0, 20], [2, 0, 50]]},
+    {"op": "crime_call", "method": "compute_average_crime"},
+    {"op": "crime_expect", "state": {"average_crime": 20.0}},
+    {"op": "crime_call", "method": "average_crime", "expect": 20},
+    {"op": "crime_set", "state": {"hotspot": [3, 4, 9]}},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": [9, 6, 8]}
   ]
 }
