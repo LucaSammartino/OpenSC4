@@ -86,7 +86,7 @@ every `Init` (§8) even after a load.
 | targetWindSpeed, targetWindDir | 3, (1, 0) | this month's target |
 | rng: `cRZRandom` | seeded from the wall clock (`0xFFFFFFFF`) | foundations §6.1 |
 | windMonth (s32) | −1 | the season month of the current target |
-| windSpread (f32), not saved | 0.25 | `tan(0xA7607D89 × π / 360) × 0.5` |
+| windSpread (f32), not saved | 0.25 | `tan(0xA7607D89 × π / 360) × 0.5`; re-read by every `Init` before any wind draw, so a loaded city draws with the same value as a new one (§8.1, §10) |
 | tuning81 (u32), not saved | 15 | `0xA7607D81`; unused |
 | initialized, loadedFromSave, postInitDone (bool), not saved | false | §8 |
 
@@ -251,7 +251,13 @@ grown by 2 cells on each side and `A4` grown by 4, both clamped. All buffers sta
 3. **Smoothed heights** `S`: a separable `[1 2 1] ⊗ [1 2 1] / 16` filter of `H` over `A4`, with **mirror
    reflection** at the grid edges (the value just outside the edge equals the value one cell inside it, e.g.
    `H[−1] = H[1]`). Values within 2 cells of `A4`'s boundary (when that boundary is not the grid edge) are
-   unspecified; they are never used by step 4.
+   unspecified; they are never used by step 4. Order and precision *[compat]*:
+   - **Pass 1, along z**, from `H` into a separate buffer `S`: `S[x][z] := (H[x][z−1] + H[x][z+1]) + 2·H[x][z]`,
+     not normalised, for every z of the row.
+   - **Pass 2, along x**, in place on `S`: `S[x][z] := ((S[x−1][z] + S[x+1][z]) + 2·S[x][z]) × scale`, with
+     `scale = 0.0625` (= 1/16 ÷ cityCellsPerCell², §6.5 note).
+   - Every operation is a `float32` operation in exactly this order (the game runs the x87 at 24-bit precision,
+     foundations §18); doubling and the multiply by 1/16 are exact. No rounding to integers happens here.
 4. **Local moisture.** Let `b := roundHalfEven(ambientMoisture × 255)`,
    `high := clamp(roundHalfEven(highMoisture × 255) + b, 0, 255)`, and `w := windDir × windSpeed`. For every cell
    of `A2` with `M ≠ 255`:
@@ -278,8 +284,9 @@ water, averages the sub-cell results in step 4 and divides the smoothed height b
 mode it also writes step 2 into the live moisture grid instead of the work buffer *[quirk]*. This mode is
 unreachable with the shipped game; *[choice]* FreeCity4 supports only 1.
 
-The original's edge reflection uses the grid's x size for both directions; it is correct only for square grids
-(all SC4 cities are square).
+*[quirk]* Only step 3's z pass assumes a square grid: its high-z mirror uses countX, so on a non-square grid the
+cell past the last z reads 0 (countZ < countX), or an in-grid value is overwritten by the mirror (countZ >
+countX). The blur (step 5) mirrors each axis with its own size. All SC4 cities are square, so this never shows.
 
 ### 6.6 Water near the city edge (January) *[compat, see note]*
 
@@ -306,7 +313,7 @@ a rectangle `[x0, x1] × [z0, z1]` (inclusive) once in a scrambled order:
 
 ```
 reset(shuffle):
-    count := (x1 − x0 + 1)(z1 − z0 + 1);  index := 0;  state := running
+    count := (x1 − x0 + 1)(z1 − z0 + 1);  index := 0;  state := running (1)
     choose start position k in the prime table P (below) by count:
         count < 29 → 0;  < 71 → 10;  < 113 → 20;  < 857 → 30;  < 3259 → 40;  < 12227 → 50;
         otherwise 60 (and count := min(count, 130444))
@@ -315,7 +322,7 @@ reset(shuffle):
     step := P[k]
     if shuffle: current := rand() mod count             (C runtime rand, §7)
 next(&x, &z):
-    if state == exhausted: return false
+    if state == exhausted (2): return false        (any other value counts as running)
     index += 1;  if index > count: state := exhausted; return false
     current := (current + step) mod count
     x := x0 + current mod (x1 − x0 + 1);  z := z0 + current div (x1 − x0 + 1)
@@ -356,8 +363,9 @@ If not initialized:
 3. If not `loadedFromSave`: set sizes, counts and widths from the city (§2); allocate the grids: temperature
    filled with 127, moisture with 64, `seaMask` false, `moistureBase` 0; run `GenerateMoistureVariation` (§6.4).
 4. Hold the terrain. On the first `Init` of this object, hold the simulator and register the three agents (§5).
-5. Iterator: rectangle `(0, 0, countX − 1, countZ − 1)` (lower bounds clamped to 0), prime-step mode,
-   `reset(shuffle = true)` — this discards any saved iterator position *[compat]*.
+5. Iterator: rectangle `x0 = z0 = 0`, `x1 = countX − 1`, `z1 = countZ − 1`, each upper bound then raised to at
+   least its lower bound; prime-step mode; `reset(shuffle = true)` — this discards any saved iterator position
+   *[compat]*.
 6. `cellsPerWeek := countX × countZ / subdivX` (integer division).
 7. `ambientMoisture := baseMoisture`; `ambientTemp := baseTemp` — this also overrides saved values until the next
    month-end *[compat]*.
@@ -422,11 +430,22 @@ square grids of SC4. The reader reads `rows × cols` bytes and skips the grid en
 ≥ 1,000,000. *[choice]* FreeCity4 writes `rows × cols` and rejects non-square grids on write.
 
 **Iterator**: `s8 state, s8 mode, u8 dirty, s32 x0, z0, x1, z1, s32 count, u32 n, n × u16 table, s32 index,
-s32 current, s32 step`. For the weather, mode = 1 (prime step) and `n = 0`.
+s32 current, s32 step`. For the weather, mode = 1 (prime step) and `n = 0`. **State values** *[compat]*: the
+original has only two, **1 = running** (also a freshly constructed, never-reset iterator) and **2 = exhausted**;
+it never writes 0. `Read` stores the byte unchanged, and `next` treats any value other than 2 as running. With the
+shipped tuning the weekly pass consumes exactly `count` cells, so a save normally holds 2 (with `index = count`).
+
+**Generator**: `hasCachedGaussian` and `cachedGaussian` are written as they are. The cached word is **not**
+cleared when the cached value is consumed: with the flag at 0 it holds the second value of the most recent
+Gaussian pair (already returned). Only a generator that never drew a Gaussian holds uninitialised memory there;
+the weather always draws one at PostCityInit. *[compat]* FreeCity4 keeps the value on consume and writes it
+regardless of the flag; a never-drawn generator writes 0.
 
 **Read**: set `loadedFromSave` first; fail for `version ≥ 3`. Versions 0 and 1 have, after `targetWindDir`, a
 legacy block `u32 n, n × (f32 × 2, f32 × 2)` and two byte grids; read and discard them, then continue with the
-generator and `windMonth`. `windSpread`, `tuning81` and the three flags are not saved.
+generator and `windMonth`. `windSpread`, `tuning81` and the three flags are not saved. `windSpread` needs no
+saving: `Init` (which always runs on a loaded city, because `initialized` is not saved) re-reads the tuning first,
+and every wind draw (month message, PostCityInit) comes after `Init`.
 
 ## 11. Interactions and replaceability
 
