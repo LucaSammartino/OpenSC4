@@ -473,8 +473,10 @@ fn transient_effects_and_decay() {
     let a = t.get(1, 1);
     s.add_transient_effect_type(100.0, 100.0, 3);
     s.add_transient_effect_type(100.0, 100.0, 9);
-    s.add_transient_effect_type(f32::NAN, f32::INFINITY, 0);
     assert_eq!((a, t.get(1, 1)), (25, 25));
+    // Hostile position: no panic. `_ftol` maps NaN and ±inf to tract 0
+    // (foundations §18.1), so the effect lands at (0, 0).
+    s.add_transient_effect_type(f32::NAN, f32::INFINITY, 0);
 }
 
 #[test]

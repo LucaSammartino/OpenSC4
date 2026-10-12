@@ -125,9 +125,12 @@ impl TractGeometry {
         (cx >> s, cz >> s)
     }
 
-    /// `PositionToTract`: truncation toward zero (§3; saturating, NaN → 0).
+    /// `PositionToTract`: truncation toward zero (§3) with `_ftol` kept to
+    /// 32 bits (foundations §18.1: NaN and out-of-range values give the low
+    /// half of `0x8000000000000000`, i.e. 0; values beyond `int32` wrap).
     pub fn position_to_tract(&self, px: f32, pz: f32) -> (i32, i32) {
-        ((px * self.inv_width_x) as i32, (pz * self.inv_width_z) as i32)
+        let t = |p: f32, inv: f32| crate::x87::ftol32(f64::from(p * inv));
+        (t(px, self.inv_width_x), t(pz, self.inv_width_z))
     }
 
     /// `TractCornerToPosition` (§3).
