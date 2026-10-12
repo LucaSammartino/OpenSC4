@@ -20,6 +20,7 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 
@@ -64,7 +65,11 @@ void ResolvePath() {
 
 }  // namespace
 
-void Log(const char* format, ...) {
+namespace {
+
+// The file is opened and closed for every line, so each line reaches the
+// disk even if the game crashes or is killed right after.
+void VLog(const char* tag, const char* format, va_list args) {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (!g_resolved) ResolvePath();
     if (g_path[0] == '\0') return;
@@ -74,16 +79,57 @@ void Log(const char* format, ...) {
 
     SYSTEMTIME t;
     GetLocalTime(&t);
-    fprintf(f, "%04u-%02u-%02u %02u:%02u:%02u.%03u [pid %lu] ", t.wYear, t.wMonth, t.wDay, t.wHour, t.wMinute,
-            t.wSecond, t.wMilliseconds, static_cast<unsigned long>(GetCurrentProcessId()));
-    va_list args;
-    va_start(args, format);
+    fprintf(f, "%04u-%02u-%02u %02u:%02u:%02u.%03u [pid %lu tid %lu] %s", t.wYear, t.wMonth, t.wDay, t.wHour,
+            t.wMinute, t.wSecond, t.wMilliseconds, static_cast<unsigned long>(GetCurrentProcessId()),
+            static_cast<unsigned long>(GetCurrentThreadId()), tag);
     vfprintf(f, format, args);
-    va_end(args);
     fputs("\r\n", f);
+    fflush(f);
     fclose(f);
 }
 
+int ReadLevel() {
+    char value[16] = {};
+    const DWORD n = GetEnvironmentVariableA("FC4_LOG_LEVEL", value, sizeof(value));
+    if (n == 0 || n >= sizeof(value)) return kLogVerbose;  // default: verbose (diagnostic builds)
+    const int v = atoi(value);
+    return v < kLogOff ? kLogOff : (v > kLogVerbose ? kLogVerbose : v);
+}
+
+}  // namespace
+
+int LogLevel() {
+    static const int level = ReadLevel();
+    return level;
+}
+
+void Log(const char* format, ...) {
+    if (LogLevel() < kLogInfo) return;
+    va_list args;
+    va_start(args, format);
+    VLog("", format, args);
+    va_end(args);
+}
+
+void LogVerboseImpl(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    VLog("[v] ", format, args);
+    va_end(args);
+}
+
 const char* LogPath() { return g_path; }
+
+const char* ModulePath() {
+    static char path[MAX_PATH] = {};
+    if (path[0] == '\0') {
+        HMODULE self = nullptr;
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               reinterpret_cast<LPCSTR>(&ModulePath), &self)) {
+            GetModuleFileNameA(self, path, MAX_PATH);
+        }
+    }
+    return path;
+}
 
 }  // namespace fc4

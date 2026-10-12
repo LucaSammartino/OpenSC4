@@ -73,6 +73,15 @@ plugin.
      provided by FreeCity4)`.
    - When a city opens, you should see `cFC4Simulator created`, `Read: …`, `Init: …` and then `PostCityInit: hidden pause released`. While the city runs you
      should see one `SimNewMonth …` line per game month.
+   - Diagnostics: `FC4_LOG_LEVEL` = `0` (off), `1` (lifecycle only) or `2` (default, verbose). Verbose mode traces
+     `DllMain`, every director call (`InitializeCOM`, `OnStart`, `EnumClassObjects` with each class ID reported,
+     every `GetClassObject` with the clsid, the iid, the result and whether our factory ran), plus simulator
+     `QueryInterface` (the first 200 calls), `Init`, `Read`/`Write`, `OnTick` (the first tick and every 1000th),
+     `DoMessage` (the first 50), agent registration and pause calls. Lines marked `[v]` are verbose. Every line is
+     flushed to disk immediately.
+   - At `PostAppInit`, verbose mode also asks `GZCOM()->GetClassObject(0x2990C1E5)` once. The answer shows whether
+     the game's registry resolves the class to our factory. The object it creates is released at once. Set
+     `FC4_NO_PROBE=1` to skip this check.
 3. **A/B against the original:** set `FC4_DISABLE_SIMULATOR=1` in the environment that starts the game. The DLL
    still loads and logs `PASSTHROUGH`, but it does not register the class, so the game's own simulator runs.
 

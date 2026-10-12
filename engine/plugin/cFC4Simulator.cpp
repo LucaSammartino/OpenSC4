@@ -103,6 +103,7 @@ cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
     host.release = &cFC4Simulator::HostRelease;
     host.post = &cFC4Simulator::HostPost;
     sim_ = fc4_sim_create(&host);
+    FC4_LOGV("cFC4Simulator(%p) constructed, core %p", static_cast<void*>(this), static_cast<void*>(sim_));
     if (sim_ == nullptr || fc4_abi_version() != FC4_ABI_VERSION) {
         fc4::Log("cFC4Simulator: core creation failed (abi %u, header %u)", fc4_abi_version(), FC4_ABI_VERSION);
     }
@@ -117,6 +118,16 @@ cFC4Simulator::~cFC4Simulator() {
 // ---- cIGZUnknown ----------------------------------------------------------------
 
 bool cFC4Simulator::QueryInterface(uint32_t riid, void** ppvObj) {
+    const bool ok = QueryInterfaceImpl(riid, ppvObj);
+    if (qiLogged_ < 200) {
+        ++qiLogged_;
+        FC4_LOGV("cFC4Simulator(%p)::QueryInterface(0x%08X) -> %d (refcount now %u)", static_cast<void*>(this), riid,
+                 ok ? 1 : 0, refCount_);
+    }
+    return ok;
+}
+
+bool cFC4Simulator::QueryInterfaceImpl(uint32_t riid, void** ppvObj) {
     if (ppvObj == nullptr) return false;
     switch (riid) {
         case kIID_cISC4Simulator:
@@ -260,6 +271,8 @@ fc4_tuning cFC4Simulator::ReadTuning(uint32_t (&msPerDay)[3], size_t& msCount, f
 }
 
 bool cFC4Simulator::Init() {
+    FC4_LOGV("Init() called (sim=%p, initialized=%d)", static_cast<void*>(sim_),
+             sim_ ? (fc4_sim_is_initialized(sim_) ? 1 : 0) : -1);
     if (sim_ == nullptr) return false;
     if (fc4_sim_is_initialized(sim_)) return true;
 
@@ -308,6 +321,7 @@ bool cFC4Simulator::Init() {
 }
 
 bool cFC4Simulator::Shutdown() {
+    FC4_LOGV("Shutdown() called");
     if (sim_ == nullptr || !fc4_sim_is_initialized(sim_)) return true;
     AddRef();  // the framework may drop its reference while we unregister
 
@@ -400,12 +414,21 @@ int32_t cFC4Simulator::GetSimDateNumber() { return fc4_sim_get_julian_day(sim_);
 
 // ---- pause and speed (spec §6) -------------------------------------------------------------
 
-bool cFC4Simulator::Pause() { return fc4_sim_pause(sim_); }
-bool cFC4Simulator::HiddenPause() { return fc4_sim_hidden_pause(sim_); }
-bool cFC4Simulator::EmergencyPause() { return fc4_sim_emergency_pause(sim_); }
-bool cFC4Simulator::Resume() { return fc4_sim_resume(sim_); }
-bool cFC4Simulator::HiddenResume() { return fc4_sim_hidden_resume(sim_); }
-bool cFC4Simulator::EmergencyResume() { return fc4_sim_emergency_resume(sim_); }
+bool cFC4Simulator::TracePause(const char* name, bool ok) {
+    fc4_state st{};
+    st.struct_size = sizeof(st);
+    fc4_sim_get_state(sim_, &st);
+    FC4_LOGV("%s() -> %d (pause=%d hidden=%d emergency=%d)", name, ok ? 1 : 0, st.pause_count, st.hidden_pause_count,
+             st.emergency_pause_count);
+    return ok;
+}
+
+bool cFC4Simulator::Pause() { return TracePause("Pause", fc4_sim_pause(sim_)); }
+bool cFC4Simulator::HiddenPause() { return TracePause("HiddenPause", fc4_sim_hidden_pause(sim_)); }
+bool cFC4Simulator::EmergencyPause() { return TracePause("EmergencyPause", fc4_sim_emergency_pause(sim_)); }
+bool cFC4Simulator::Resume() { return TracePause("Resume", fc4_sim_resume(sim_)); }
+bool cFC4Simulator::HiddenResume() { return TracePause("HiddenResume", fc4_sim_hidden_resume(sim_)); }
+bool cFC4Simulator::EmergencyResume() { return TracePause("EmergencyResume", fc4_sim_emergency_resume(sim_)); }
 bool cFC4Simulator::IsPaused() { return fc4_sim_is_paused(sim_); }
 bool cFC4Simulator::IsHiddenPaused() { return fc4_sim_is_hidden_paused(sim_); }
 bool cFC4Simulator::IsEmergencyPaused() { return fc4_sim_is_emergency_paused(sim_); }
@@ -422,24 +445,39 @@ int32_t cFC4Simulator::GetSimTime() { return fc4_sim_get_sim_time(sim_); }
 bool cFC4Simulator::SetSimTime(int32_t lTime) { return fc4_sim_set_sim_time(sim_, lTime); }
 bool cFC4Simulator::SetMaxMillisecondsPerTick(uint32_t dwTime) { return fc4_sim_set_max_milliseconds_per_tick(sim_, dwTime); }
 float cFC4Simulator::GetAnimationTimeDilation() { return fc4_sim_get_animation_time_dilation(sim_); }
-bool cFC4Simulator::SetCityEstablished(bool bEstablished) { return fc4_sim_set_city_established(sim_, bEstablished); }
+bool cFC4Simulator::SetCityEstablished(bool bEstablished) {
+    FC4_LOGV("SetCityEstablished(%d)", bEstablished ? 1 : 0);
+    return fc4_sim_set_city_established(sim_, bEstablished);
+}
 
 // ---- agents (spec §4) --------------------------------------------------------------------------
 
 bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, eAgentType agentType, cIGZString const& szAgentName,
                              eAgentFlags flags) {
-    if (pAgent == nullptr) return false;  // [choice]
     const std::string name = ToStd(szAgentName);
-    return fc4_sim_add_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType), name.data(), name.size(),
-                             static_cast<uint32_t>(flags));
+    if (pAgent == nullptr) {  // [choice]
+        FC4_LOGV("AddAgent(null, level %u, '%s', flags %u) -> 0", static_cast<uint32_t>(agentType), name.c_str(),
+                 static_cast<uint32_t>(flags));
+        return false;
+    }
+    const bool ok = fc4_sim_add_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType), name.data(),
+                                      name.size(), static_cast<uint32_t>(flags));
+    FC4_LOGV("AddAgent(%p, level %u, '%s', flags %u) -> %d", static_cast<void*>(pAgent),
+             static_cast<uint32_t>(agentType), name.c_str(), static_cast<uint32_t>(flags), ok ? 1 : 0);
+    return ok;
 }
 
 bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent, eAgentType agentType) {
-    return fc4_sim_remove_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType));
+    const bool ok = fc4_sim_remove_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType));
+    FC4_LOGV("RemoveAgent(%p, level %u) -> %d", static_cast<void*>(pAgent), static_cast<uint32_t>(agentType),
+             ok ? 1 : 0);
+    return ok;
 }
 
 bool cFC4Simulator::RemoveAgent(cIGZMessageTarget2* pAgent) {
-    return fc4_sim_remove_agent_all_levels(sim_, AgentHandle(pAgent));
+    const bool ok = fc4_sim_remove_agent_all_levels(sim_, AgentHandle(pAgent));
+    FC4_LOGV("RemoveAgent(%p, all levels) -> %d", static_cast<void*>(pAgent), ok ? 1 : 0);
+    return ok;
 }
 
 bool cFC4Simulator::RemoveAllAgents() { return fc4_sim_remove_all_agents(sim_); }
@@ -477,6 +515,7 @@ bool cFC4Simulator::SetAgentEnabled(cIGZString const& szAgentName, bool bEnabled
 // ---- persistence (spec §8) -------------------------------------------------------------------------
 
 bool cFC4Simulator::Write(cIGZOStream& gzOut) {
+    FC4_LOGV("Write() called (stream %p, error %d)", static_cast<void*>(&gzOut), gzOut.GetError());
     uint8_t buf[256];
     const size_t size = fc4_sim_save(sim_, buf, sizeof(buf));
     const uint8_t* widths = nullptr;
@@ -501,6 +540,7 @@ bool cFC4Simulator::Write(cIGZOStream& gzOut) {
 }
 
 bool cFC4Simulator::Read(cIGZIStream& gzIn) {
+    FC4_LOGV("Read() called (stream %p, error %d)", static_cast<void*>(&gzIn), gzIn.GetError());
     uint16_t version = 0;
     if (!gzIn.GetUint16(version)) return false;
     const uint8_t* widths = nullptr;
@@ -548,7 +588,19 @@ cIGZSystemService* cFC4Simulator::SetServiceRunning(bool bRunning) {
     return static_cast<cIGZSystemService*>(this);
 }
 
-bool cFC4Simulator::OnTick(uint32_t) { return fc4_sim_on_tick(sim_); }
+bool cFC4Simulator::OnTick(uint32_t unknown1) {
+    ++ticks_;
+    if (ticks_ == 1 || ticks_ % 1000 == 0) {
+        fc4_state st{};
+        st.struct_size = sizeof(st);
+        fc4_sim_get_state(sim_, &st);
+        FC4_LOGV("OnTick #%u (arg %u): julian=%d speed=%d pause=%d hidden=%d emergency=%d budget=%u msPerDay=%u "
+                 "agents[day]=%u",
+                 ticks_, unknown1, st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count,
+                 st.emergency_pause_count, st.frame_budget_ms, st.ms_per_day, st.agent_counts[FC4_LEVEL_DAY]);
+    }
+    return fc4_sim_on_tick(sim_);
+}
 bool cFC4Simulator::OnIdle(uint32_t) { return true; }  // [choice] no idle-tick work
 int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  // [choice]
 
@@ -556,6 +608,10 @@ int32_t cFC4Simulator::GetServiceTickPriority() { return kServicePriority; }  //
 
 bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr) return true;
+    if (messagesLogged_ < 50) {
+        ++messagesLogged_;
+        FC4_LOGV("DoMessage(type=0x%08X)", pMessage->GetType());
+    }
     switch (pMessage->GetType()) {
         case kMsgPostCityInit:
             // Spec §9 (erratum): the city finished Init. Unsubscribe and
