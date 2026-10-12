@@ -63,3 +63,8 @@ the relevant spec, and their entry here is deleted.
   foundations §18. The implementation still computes them in f64.
 - W6. Weather §6.5 pass 2 runs "in place on S". Does `S[x−1]` then read the value already filtered in this pass?
   The implementation reads the pass-1 values (a copy).
+
+## Land value (follow-up)
+- L6. A desirability map smaller in area than the land value grid: do land value tracts outside it read d = 0, or
+  are they skipped? The implementation reads d = 0. Shipped maps use tract size 4 over the same city, so this only
+  matters if the areas differ.
