@@ -148,3 +148,7 @@ cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	6	docs/specs/growth-de
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	6	docs/specs/building-development.md
 cIGZMessageTarget2(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ad8	4	docs/specs/building-development.md
 cIGZMessageTarget(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ae8	4	docs/specs/building-development.md
+cISC4TractDeveloper	cSC4TractDeveloper	00ab3118	15	docs/specs/tract-developer.md
+cISC4LotConfigurationManager	cSC4LotConfigurationManager	00a8ec58	28	docs/specs/tract-developer.md
+cISC4LotConfiguration	cSC4LotConfiguration	00a8ceb8	33	docs/specs/tract-developer.md
+cISC4LotConfigurationFilter	cSC4TractDeveloperLotConfigurationFilter	00ab30dc	4	docs/specs/tract-developer.md

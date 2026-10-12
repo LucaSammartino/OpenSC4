@@ -349,7 +349,8 @@ below posts ActiveDemandChanged (`0x426840A0`, data1 = 0) like any node (demand 
 
 - Units are building capacity units (residents or jobs). `cSC4Lot::SetState` (`0x006C3100`) releases
   `GetBuildingProfile(type).capacity` when a lot leaves state 2 (Constructing) and the building's purpose is not 0;
-  claims are made when construction starts (`tract-developer.md`; claimant not traced here).
+  the tract developer claims `GetBuildingProfile(building).capacity` in `Build` before construction starts, and a
+  farm claims `n + 30`, releases 30 and keeps `n` for its fields (`tract-developer.md` §4.15).
 - The supply is reset monthly, the demand only by claims and releases; both are saved with the node.
 
 ### 4.7 Building catalogue (process-wide) *[compat]*
@@ -812,8 +813,7 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 
 ### 10.2 Open questions
 
-1. Q1. Which caller claims construction resources, and with what amount (tract developer at `StartConstruction`?
-   `tract-developer.md` / `lot-developer.md`).
+1. Q1. *Answered*: the tract developer claims (see §4 construction resources and `tract-developer.md` §4.15).
 2. Q2. Complete list of raw consumers of slots 34, 41 and 44 (most callers cache the BDS pointer; a vtable-offset
    scan with data flow is needed).
 3. Q3. Meaning of the terrain-change kinds 1–3 in `0x278E6003` data4, and the exact packing of data1/data2.
