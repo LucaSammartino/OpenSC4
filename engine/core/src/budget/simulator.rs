@@ -403,8 +403,11 @@ impl BudgetSim {
                 let mut rng = self.rng.borrow_mut();
                 (rng.uniform_f64(), rng.uniform_f64())
             };
-            let x = (f64::from(w) * (3.0 / 8.0 + r1 / 4.0)) as f32;
-            let z = (f64::from(dz) * (3.0 / 8.0 + r2 / 4.0)) as f32;
+            // §4.3: world coordinates, x := trunc(float(W*0.375 + r1*W*0.25))
+            // (the host truncates).
+            let (w, dz) = (f64::from(w), f64::from(dz));
+            let x = (w * 0.375 + r1 * w * 0.25) as f32;
+            let z = (dz * 0.375 + r2 * dz * 0.25) as f32;
             if self.host.try_start_disaster(cheat::RISKY_MONEY_DISASTER, x, z) {
                 self.d.borrow_mut().risky_money_counter = 0;
             }

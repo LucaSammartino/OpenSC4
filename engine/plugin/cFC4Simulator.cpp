@@ -14,6 +14,7 @@
 #include "cFC4Simulator.h"
 
 #include "FC4Log.h"
+#include "FC4Watchdog.h"
 #include "FC4Properties.h"
 #include "compat/FC4Compat.h"
 
@@ -127,6 +128,7 @@ cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
 
 cFC4Simulator::~cFC4Simulator() {
     fc4::Log("cFC4Simulator destroyed");
+    fc4::WatchdogStop();
     fc4_sim_destroy(sim_);  // releases any agents still registered
     sim_ = nullptr;
 }
@@ -139,6 +141,8 @@ bool cFC4Simulator::QueryInterface(uint32_t riid, void** ppvObj) {
         ++qiLogged_;
         FC4_LOGV("cFC4Simulator(%p)::QueryInterface(0x%08X) -> %d (refcount now %u)", static_cast<void*>(this), riid,
                  ok ? 1 : 0, refCount_);
+    } else if (fc4::LogLevel() >= fc4::kLogVerbose) {
+        fc4::NoteSuppressed();
     }
     return ok;
 }
@@ -285,7 +289,15 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // foundations §5.1: create, AddRef, set, send, Release. An agent that
     // keeps the message (AddRef) keeps it alive.
     cFC4Message2Standard* m = MakeMessage(*msg);
+    const char* name = "?";
+    if (user != nullptr) {
+        const auto& stats = static_cast<cFC4Simulator*>(user)->agentStats_;
+        const auto it = stats.find(std::make_pair(reinterpret_cast<uintptr_t>(target), LevelOfType(msg->type)));
+        if (it != stats.end()) name = it->second.name.c_str();
+    }
+    fc4::DeliveryBegin(LevelOfType(msg->type), msg->type, target, name);
     const bool finished = target->DoMessage(m);
+    fc4::DeliveryEnd();
     m->Release();
     if (user != nullptr && fc4::LogLevel() >= fc4::kLogVerbose) {
         static_cast<cFC4Simulator*>(user)->RecordDelivery(target, *msg, finished);
@@ -315,6 +327,8 @@ uint32_t LevelOf(uint32_t type) {
 }
 }  // namespace
 
+uint32_t cFC4Simulator::LevelOfType(uint32_t type) { return LevelOf(type); }
+
 cFC4Simulator::AgentStats& cFC4Simulator::Stats(cIGZMessageTarget2* agent, uint32_t level) {
     AgentStats& st = agentStats_[std::make_pair(reinterpret_cast<uintptr_t>(agent), level)];
     if (st.name.empty()) st.name = "?";
@@ -341,7 +355,9 @@ void cFC4Simulator::RecordDelivery(cIGZMessageTarget2* agent, const fc4_message&
                      static_cast<unsigned long long>(st.falses));
         }
     }
-    if (deliveriesLogged_ < kMaxDeliveryLogs) {
+    if (deliveriesLogged_ >= kMaxDeliveryLogs) {
+        fc4::NoteSuppressed();
+    } else {
         ++deliveriesLogged_;
         FC4_LOGV("deliver #%u: level %u type 0x%08X d1=%lld d2=%lld d3=%lld -> agent %p '%s' returned %d",
                  deliveriesLogged_, level, msg.type, static_cast<long long>(msg.data1),
@@ -435,8 +451,12 @@ void cFC4Simulator::Post(const fc4_message& msg) {
         posted = msgServer_->MessagePost(m, false);
         m->Release();
     }
+    if (msg.type == kMsgSimNewMonth) fc4::HeartbeatNow("month start");
     const bool logIt = calendar || postsLogged_ < 200;
-    if (!logIt) return;
+    if (!logIt) {
+        if (fc4::LogLevel() >= fc4::kLogVerbose) fc4::NoteSuppressed();
+        return;
+    }
     ++postsLogged_;
     if (calendar) {
         fc4_date d{};
@@ -497,6 +517,9 @@ bool cFC4Simulator::Init() {
              sim_ ? (fc4_sim_is_initialized(sim_) ? 1 : 0) : -1);
     if (sim_ == nullptr) return false;
     if (fc4_sim_is_initialized(sim_)) return true;
+    fc4::WatchdogStart();  // this is the simulation thread
+    fc4::ActivityScope activity("Simulator::Init");
+    fc4::SetCityRunning(false);
 
     // Step 3: notifications. (The message server is acquired first so the
     // SpeedChanged post of step 6 can be broadcast.)
@@ -547,6 +570,7 @@ bool cFC4Simulator::Shutdown() {
     FC4_LOGV("Shutdown() called");
     if (sim_ == nullptr || !fc4_sim_is_initialized(sim_)) return true;
     AddRef();  // the framework may drop its reference while we unregister
+    fc4::SetCityRunning(false);
 
     UnregisterCheats();          // step 1
     fc4_sim_shutdown(sim_);      // steps 2, 3, 7
@@ -610,13 +634,13 @@ void cFC4Simulator::UnregisterCheats() {
 
 // ---- date -----------------------------------------------------------------------------------
 
-bool cFC4Simulator::GetSimStartDate(cIGZDate& sDate) {
+bool cFC4Simulator::GetSimStartDate(cFC4IGZDate& sDate) {
     // [choice] The spec does not define the start date; we report the
     // initial simulation date, 2000-01-01.
-    return sDate.Set(1u, 1u, 2000u);
+    return sDate.SetMonthDayYear(1u, 1u, 2000u);  // slot 6
 }
 
-cIGZDate* cFC4Simulator::GetSimDate() {
+cFC4IGZDate* cFC4Simulator::GetSimDate() {
     // [choice] Returns an object owned by the simulator (no AddRef), refreshed
     // on every call.
     date_.SetJulian(fc4_sim_get_julian_day(sim_));
@@ -659,8 +683,9 @@ bool cFC4Simulator::TracePause(const char* name, bool ok) {
     fc4_state st{};
     st.struct_size = sizeof(st);
     fc4_sim_get_state(sim_, &st);
-    FC4_LOGV("%s() -> %d (pause=%d hidden=%d emergency=%d)", name, ok ? 1 : 0, st.pause_count, st.hidden_pause_count,
-             st.emergency_pause_count);
+    fc4::PublishSimState(st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count, st.emergency_pause_count);
+    fc4::Log("%s() -> %d (pause=%d hidden=%d emergency=%d; julian %d speed %d)", name, ok ? 1 : 0, st.pause_count,
+             st.hidden_pause_count, st.emergency_pause_count, st.julian_day, st.sim_speed);
     return ok;
 }
 
@@ -678,7 +703,12 @@ int32_t cFC4Simulator::GetSimSpeed() { return fc4_sim_get_sim_speed(sim_); }
 
 bool cFC4Simulator::SetSimSpeed(int32_t lSpeed) {
     const bool ok = fc4_sim_set_sim_speed(sim_, lSpeed);
-    fc4::Log("SetSimSpeed(%d) -> %d", lSpeed, ok ? 1 : 0);
+    fc4_state st{};
+    st.struct_size = sizeof(st);
+    fc4_sim_get_state(sim_, &st);
+    fc4::PublishSimState(st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count, st.emergency_pause_count);
+    fc4::Log("SetSimSpeed(%d) -> %d (julian %d pause=%d hidden=%d emergency=%d)", lSpeed, ok ? 1 : 0, st.julian_day,
+             st.pause_count, st.hidden_pause_count, st.emergency_pause_count);
     return ok;
 }
 
@@ -701,9 +731,8 @@ bool cFC4Simulator::AddAgent(cIGZMessageTarget2* pAgent, uint32_t agentType, cIG
                  static_cast<uint32_t>(flags));
         return false;
     }
-    if (fc4::LogLevel() >= fc4::kLogVerbose) {
-        Stats(pAgent, static_cast<uint32_t>(agentType)).name = name.empty() ? std::string("(unnamed)") : name;
-    }
+    // Names are kept at every log level: the watchdog reports the agent being delivered to.
+    Stats(pAgent, static_cast<uint32_t>(agentType)).name = name.empty() ? std::string("(unnamed)") : name;
     const bool ok = fc4_sim_add_agent(sim_, AgentHandle(pAgent), static_cast<uint32_t>(agentType), name.data(),
                                       name.size(), static_cast<uint32_t>(flags));
     FC4_LOGV("AddAgent(%p, level %u, '%s', flags %u) -> %d", static_cast<void*>(pAgent),
@@ -833,6 +862,7 @@ cIGZSystemService* cFC4Simulator::SetServiceRunning(bool bRunning) {
 }
 
 bool cFC4Simulator::OnTick(uint32_t unknown1) {
+    fc4::TickScope tick;
     ++ticks_;
     if (ticks_ == 1 || ticks_ % 1000 == 0) {
         fc4_state st{};
@@ -843,7 +873,19 @@ bool cFC4Simulator::OnTick(uint32_t unknown1) {
                  ticks_, unknown1, st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count,
                  st.emergency_pause_count, st.frame_budget_ms, st.ms_per_day, st.agent_counts[FC4_LEVEL_DAY]);
     }
-    const bool r = fc4_sim_on_tick(sim_);
+    bool r;
+    {
+        fc4::ActivityScope core("core fc4_sim_on_tick");
+        r = fc4_sim_on_tick(sim_);
+    }
+    {
+        // Cheap snapshot for the watchdog's heartbeat and stall rule.
+        fc4_state st{};
+        st.struct_size = sizeof(st);
+        fc4_sim_get_state(sim_, &st);
+        fc4::PublishSimState(st.julian_day, st.sim_speed, st.pause_count, st.hidden_pause_count,
+                             st.emergency_pause_count);
+    }
     if (ticks_ % StatusEveryTicks() == 0 && fc4::LogLevel() >= fc4::kLogVerbose) LogSchedulerStatus();
     return r;
 }
@@ -857,6 +899,8 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
     if (messagesLogged_ < 50) {
         ++messagesLogged_;
         FC4_LOGV("DoMessage(type=0x%08X)", pMessage->GetType());
+    } else if (fc4::LogLevel() >= fc4::kLogVerbose) {
+        fc4::NoteSuppressed();
     }
     switch (pMessage->GetType()) {
         case kMsgPostCityInit:
@@ -870,6 +914,7 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
                     msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kMsgPostCityInit);
                 }
                 fc4_sim_on_post_city_init(sim_);
+                fc4::SetCityRunning(true);
                 fc4::Log("PostCityInit: hidden pause released (hidden=%d)", fc4_sim_is_hidden_paused(sim_) ? 1 : 0);
             }
             break;

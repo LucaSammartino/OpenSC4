@@ -14,6 +14,8 @@
 // Crash diagnostics for in-game testing.
 #pragma once
 
+#include "FC4Watchdog.h"
+
 #include <cstdint>
 
 namespace fc4 {
@@ -43,13 +45,25 @@ bool SehGuard(const char* what, void (*fn)(void* ctx), void* ctx);
 // our image found on the stack. `counter` is the call site's own counter.
 void CallTrace(const char* what, unsigned* counter);
 
+// Writes the call ring to the log (waits at most 1 s for the log lock).
+void DumpCallRing(const char* indent);
+
+// CallTrace plus an activity-stack entry for the duration of the call, so the
+// watchdog knows the main thread is inside this method.
+class CallScope {
+public:
+    CallScope(const char* what, unsigned* counter);
+
+private:
+    ActivityScope activity_;
+};
+
 }  // namespace fc4
 
-#define FC4_TRACE(NAME)                     \
-    do {                                    \
-        static unsigned fc4TraceCount_ = 0; \
-        ::fc4::CallTrace(NAME, &fc4TraceCount_); \
-    } while (0)
+// First statement of an interface method: FC4_TRACE("Class::Method");
+#define FC4_TRACE(NAME)                \
+    static unsigned fc4TraceCount_ = 0; \
+    ::fc4::CallScope fc4CallScope_(NAME, &fc4TraceCount_)
 
 namespace fc4 {
 

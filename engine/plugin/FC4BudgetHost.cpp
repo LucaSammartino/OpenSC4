@@ -62,8 +62,6 @@ namespace fc4 {
 namespace {
 
 constexpr uint32_t kPropBuildingValue = 0xE91A0B5F;  // spec §5.2
-constexpr uint32_t kPropUserVisibleName = 0x8A416A99;  // [choice] building-type names (§8)
-constexpr float kMetersPerCell = 16.0f;
 
 cISC4City* g_city = nullptr;
 
@@ -173,7 +171,7 @@ int64_t NeighborExpense(void*) {
 
 void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     cISC4City* c = City();
-    cISC4LotManager* lm = c ? c->GetLotManager() : nullptr;
+    cFC4ISC4LotManager* lm = c ? AsGame(c->GetLotManager()) : nullptr;
     if (lm == nullptr || visit == nullptr) return;
     cISC4LandValueSimulator* lv = c->GetLandValueSimulator();
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
@@ -181,9 +179,10 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     // [choice] Every lot of the city through one rectangle query; the list
     // holds a reference per lot and releases them when it goes away.
     SC4List<cISC4Lot*> lots;
-    lm->GetLotsInCellRect(lots, 0, 0, maxX, maxZ, false);
-    for (cISC4Lot* lot : lots) {
-        if (lot == nullptr) continue;
+    lm->GetLotsInCellRect(lots, 0, 0, maxX, maxZ, false);  // slot 7; budget Errata round 2, item 5
+    for (cISC4Lot* sdkLot : lots) {
+        if (sdkLot == nullptr) continue;
+        cFC4ISC4Lot* lot = AsGame(sdkLot);
         fc4_lot_info info{};
         cISC4BuildingOccupant* b = lot->GetBuilding();
         info.has_building = b != nullptr;
@@ -225,9 +224,9 @@ bool TryStartDisaster(void*, uint32_t id, float x, float z) {
     cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;
     cISC4DisasterManager* dm = layer ? layer->GetDisasterManager(id) : nullptr;
     if (dm == nullptr) return false;
-    // [choice] World coordinates to cells at 16 m per cell.
-    const bool started = dm->AttemptDisasterStart(static_cast<int32_t>(x / kMetersPerCell),
-                                                  static_cast<int32_t>(z / kMetersPerCell)) != nullptr;
+    // Budget §4.3: integer WORLD coordinates, truncated toward zero (the
+    // earthquake converts to cells itself); compiled slot 6, foundations §17.8.
+    const bool started = dm->AttemptDisasterStart(static_cast<int32_t>(x), static_cast<int32_t>(z)) != nullptr;
     Log("budget: disaster 0x%08X at (%.0f, %.0f): %s", id, x, z, started ? "started" : "not started");
     return started;
 }
@@ -241,17 +240,15 @@ bool Ltext(void*, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* 
     return true;
 }
 
-bool BuildingTypeName(void* user, uint32_t type, fc4_bytes_sink sink, void* ctx) {
+bool BuildingTypeName(void*, uint32_t type, fc4_bytes_sink sink, void* ctx) {
+    // Budget Errata round 2, item 2: the building-development simulator's
+    // user-visible name of the type (compiled slot 38). The string belongs to
+    // the simulator: copied, not released. Never-loaded types give "".
     cISC4City* c = City();
     cISC4BuildingDevelopmentSimulator* bd = c ? c->GetBuildingDevelopmentSimulator() : nullptr;
-    cGZPersistResourceKey key;
-    if (bd == nullptr || !bd->GetBuildingKeyFromType(type, key)) return false;
-    props::Exemplar ex;
-    if (!ex.Load(key.type, key.group, key.instance)) return false;
-    // [choice] The exemplar's user-visible name key (type, group, instance of an LTEXT).
-    std::vector<uint32_t> uvnk;
-    if (!props::GetU32s(ex.Holder(), kPropUserVisibleName, uvnk) || uvnk.size() < 3) return false;
-    return Ltext(user, uvnk[1], uvnk[2], sink, ctx);
+    if (bd == nullptr) return false;
+    Sink(bd->GetBuildingName(type), sink, ctx);
+    return true;
 }
 
 int32_t GetU32s(void*, uint64_t h, uint32_t p, uint32_t* out, size_t cap) {

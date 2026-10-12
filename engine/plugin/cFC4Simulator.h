@@ -51,9 +51,9 @@ public:
     // also implement cIGZSystemService's)
     bool Init() override;
     bool Shutdown() override;
-    bool GetSimStartDate(cIGZDate& sDate) override;
+    bool GetSimStartDate(cFC4IGZDate& sDate) override;
     void GetSimDateParts(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear, uint32_t* weekDay) override;
-    cIGZDate* GetSimDate() override;
+    cFC4IGZDate* GetSimDate() override;
     int32_t GetSimDateNumber() override;
     bool Pause() override;
     bool HiddenPause() override;
@@ -130,6 +130,7 @@ private:
         uint32_t maxStreak = 0;
     };
     AgentStats& Stats(cIGZMessageTarget2* agent, uint32_t level);
+    static uint32_t LevelOfType(uint32_t type);
     void RecordDelivery(cIGZMessageTarget2* agent, const fc4_message& msg, bool finished);
     void LogSchedulerStatus();
 

@@ -13,6 +13,7 @@
 
 #include "FC4Properties.h"
 
+#include "FC4Interfaces.h"
 #include "FC4Log.h"
 
 #include "GZServPtrs.h"
@@ -60,7 +61,7 @@ namespace {
 
 const cIGZVariant* ValueOf(const cISCPropertyHolder* holder, uint32_t id) {
     if (holder == nullptr) return nullptr;
-    cISCProperty* p = holder->GetProperty(id);
+    cISCProperty* p = AsGame(holder)->GetProperty(id);  // slot 9
     if (p == nullptr) return nullptr;
     return p->GetPropertyValue();
 }
@@ -111,7 +112,7 @@ bool GetF32s(const cISCPropertyHolder* holder, uint32_t id, std::vector<float>& 
     return ReadNumbers(ValueOf(holder, id), out);
 }
 
-bool Has(const cISCPropertyHolder* holder, uint32_t id) { return holder != nullptr && holder->HasProperty(id); }
+bool Has(const cISCPropertyHolder* holder, uint32_t id) { return holder != nullptr && AsGame(holder)->HasProperty(id); }
 
 uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id) {
     const cIGZVariant* v = ValueOf(holder, id);
@@ -126,7 +127,7 @@ bool Put(cISCPropertyHolder* holder, uint32_t id, const cIGZVariant& value) {
     if (holder == nullptr) return false;
     // [choice] The SDK does not name AddProperty's flag; false is passed. The
     // holder copies the variant.
-    return holder->AddProperty(id, &value, false);
+    return AsGame(holder)->AddPropertyVariant(id, &value, false);  // slot 14
 }
 
 }  // namespace

@@ -36,6 +36,15 @@ void Log(const char* format, ...);
 // Verbose line; use the FC4_LOGV macro so arguments are not evaluated when off.
 void LogVerboseImpl(const char* format, ...);
 
+// Info-level line that never blocks for long on the log lock: it waits at
+// most `waitMs` (0 = not at all), then appends through a second handle
+// without the lock. No heap allocation and no other lock, so it is safe in
+// the vectored exception handler and in the watchdog. Lines before the log
+// was first opened are dropped (counted).
+void LogWait(unsigned waitMs, const char* format, ...);
+unsigned long LogUnlockedLines();
+unsigned long LogDroppedLines();
+
 // Full path of the log file in use (empty until the first line is written).
 const char* LogPath();
 

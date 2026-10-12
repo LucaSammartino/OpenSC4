@@ -85,7 +85,25 @@ plugin.
    - Crash tracing: the class-object path (`GetClassObject`, the factory, `QueryInterface`) runs under a Win32
      structured-exception guard. A first-chance vectored handler also logs every exception raised inside
      `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
-     `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at load to prove that both work.
+     Exceptions outside our image are reported at most twice per faulting address (16 addresses), as
+     `module+offset`, with the return addresses on the stack and the last interface calls. The handler never
+     blocks: it takes the log lock only with a time-limited try-lock and otherwise writes through a spare
+     handle. Stack overflows are only counted. `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at
+     load to prove that both work.
+   - Heartbeat (always on, also at `FC4_LOG_LEVEL=1`): one line per speed or pause change and per month start,
+     and a `heartbeat (periodic)` line every `FC4_HEARTBEAT_MS` (default 10000) with the julian date, speed,
+     the pause/hidden/emergency flags, and since the last heartbeat the `OnTick` count, agent deliveries,
+     interface calls and verbose lines suppressed by caps.
+   - Hang watchdog: a background thread watches markers the simulation thread publishes without locks (inside
+     `OnTick`, the agent delivery in progress with level, message and agent name, core `fc4_*` calls, our
+     interface methods). If the simulation thread stays inside our code for more than `FC4_WATCHDOG_STALL_MS`
+     (default 5000), or no `OnTick` arrives for `FC4_WATCHDOG_NOTICK_MS` (default 15000) while a city runs and
+     is not hidden-paused, it logs `WATCHDOG: … stalled` with that activity, the last 64 interface calls, and a
+     sample of the thread: suspended only to copy EIP/ESP and its stack, then resumed before anything is
+     formatted. The sample lists the return addresses into `SimCity 4.exe` and `FreeCity4.dll` as
+     `module+offset`, plus process and thread CPU time (a thread that waits gains no CPU, a spinning one does).
+     It repeats every `FC4_WATCHDOG_SAMPLE_MS` (default 5000), at most 10 samples per stall, and ends with
+     `WATCHDOG: stall over after …`. `FC4_NO_WATCHDOG=1` disables the thread.
    - Scheduler tracing: the first 300 agent deliveries are logged with level, message, agent and result. Per
      agent, the log counts deliveries, "not finished" results and the current streak of consecutive ones, and
      notes when a streak passes 100, 1,000, 10,000, and so on. Every `FC4_STATUS_EVERY` ticks (default 500) it
@@ -128,11 +146,15 @@ plugin.
   `tests/vtable_layout_test.cpp` checks every slot of every interface we implement against the spec tables, and
   `plugin_load_test` calls each overload of the real objects through its slot with the game's argument count and
   checks that the stack balances. New code must not implement or call overloads of an interface until its spec
-  has a verified slot table. Interfaces still used through SDK declarations that contain overloads, pending
-  verification: `cIGZDate` (implemented by `cFC4Date`), `cISCPropertyHolder`, `cIGZString`, `cISC4LotManager`,
-  `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`, `cISC4Lot`,
-  `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`.
+  has a verified slot table. Declared from the foundations §17 tables: `cFC4IGZDate` (implemented by
+  `cFC4Date`), `cFC4ISCPropertyHolder`, `cFC4ISC4LotManager`, `cFC4ISC4Lot`. Interfaces still used through SDK
+  declarations that contain overloads (the methods we call were checked against the MSVC layout rule):
+  `cIGZString`, `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
+  `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`. Known risk: `cRZBaseVariant` (which
+  we pass to the game in `AddPropertyVariant`) still has the SDK's `cIGZVariant` slot 8 and 60 signatures,
+  which §17 lists as wrong.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
-  `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0). Such interfaces are also
-  declared in `FC4Interfaces.h` (`cFC4ISC4DepartmentBudget`), and the slot tests check the x87 stack: only
-  slots the spec says return a float may leave a value there.
+  `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
+  return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
+  through a hidden result pointer). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
+  the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.

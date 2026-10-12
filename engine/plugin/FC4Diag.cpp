@@ -14,6 +14,7 @@
 #include "FC4Diag.h"
 
 #include "FC4Log.h"
+#include "FC4Watchdog.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -31,8 +32,6 @@ uintptr_t g_size = 0;
 void* g_vehHandle = nullptr;
 volatile LONG g_vehLogged = 0;
 constexpr LONG kMaxVehLogs = 200;
-volatile LONG g_foreignLogged = 0;
-constexpr LONG kMaxForeignLogs = 8;
 
 // Ring of the last interface-method entries (single simulation thread).
 constexpr unsigned kRing = 64;
@@ -42,6 +41,18 @@ unsigned g_ringNext = 0;
 unsigned long long g_ringTotal = 0;
 
 bool InImage(uintptr_t addr) { return g_base != 0 && addr >= g_base && addr - g_base < g_size; }
+
+void DumpCallRingWait(unsigned wait, const char* indent) {
+    const unsigned long long total = g_ringTotal;
+    const unsigned next = g_ringNext;
+    const unsigned n = total < kRing ? static_cast<unsigned>(total) : kRing;
+    LogWait(wait, "%slast %u of %llu FreeCity4 interface calls (oldest first):", indent, n, total);
+    for (unsigned k = 0; k < n; ++k) {
+        const unsigned i = (next + kRing - n + k) % kRing;
+        const char* what = g_ring[i];
+        LogWait(wait, "%s  [%lu ms] %s", indent, static_cast<unsigned long>(g_ringTick[i]), what ? what : "?");
+    }
+}
 
 const char* CodeName(DWORD code) {
     switch (code) {
@@ -57,7 +68,9 @@ const char* CodeName(DWORD code) {
     }
 }
 
-void LogException(const char* prefix, const EXCEPTION_RECORD* rec, const CONTEXT* ctx) {
+// Formats and writes one exception line. `wait` = how long the log lock may
+// be waited for (0 in the vectored handler: never block there).
+void LogException(unsigned wait, const char* prefix, const EXCEPTION_RECORD* rec, const CONTEXT* ctx) {
     const uintptr_t addr = reinterpret_cast<uintptr_t>(rec->ExceptionAddress);
     const bool ours = InImage(addr);
     char detail[96] = "";
@@ -76,59 +89,69 @@ void LogException(const char* prefix, const EXCEPTION_RECORD* rec, const CONTEXT
 #else
     (void)ctx;
 #endif
-    Log("%s: code 0x%08lX %s%s at 0x%08lX (%s FreeCity4.dll base 0x%08lX%s0x%lX) eip=0x%08lX esp=0x%08lX", prefix,
-        static_cast<unsigned long>(rec->ExceptionCode), CodeName(rec->ExceptionCode), detail,
-        static_cast<unsigned long>(addr), ours ? "inside" : "OUTSIDE", static_cast<unsigned long>(g_base),
-        ours ? " + " : ", image size ", static_cast<unsigned long>(ours ? addr - g_base : g_size), eip, esp);
+    LogWait(wait, "%s: code 0x%08lX %s%s at 0x%08lX (%s FreeCity4.dll base 0x%08lX%s0x%lX) eip=0x%08lX esp=0x%08lX",
+            prefix, static_cast<unsigned long>(rec->ExceptionCode), CodeName(rec->ExceptionCode), detail,
+            static_cast<unsigned long>(addr), ours ? "inside" : "OUTSIDE", static_cast<unsigned long>(g_base),
+            ours ? " + " : ", image size ", static_cast<unsigned long>(ours ? addr - g_base : g_size), eip, esp);
 }
 
-void ModuleOf(uintptr_t addr, char* name, size_t cap, uintptr_t* base) {
-    name[0] = 0;
-    *base = 0;
-    HMODULE m = nullptr;
-    if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                           reinterpret_cast<LPCSTR>(addr), &m) &&
-        m != nullptr) {
-        *base = reinterpret_cast<uintptr_t>(m);
-        char path[MAX_PATH] = {};
-        GetModuleFileNameA(m, path, MAX_PATH);
-        const char* slash = strrchr(path, '\\');
-        strncpy_s(name, cap, slash ? slash + 1 : path, _TRUNCATE);
-    } else {
-        strncpy_s(name, cap, "(no module)", _TRUNCATE);
+// Faulting addresses already reported (lock-free claim; at most 2 reports per
+// address, at most kMaxForeignSites addresses).
+constexpr LONG kMaxForeignSites = 16;
+constexpr LONG kReportsPerSite = 2;
+volatile LONG g_siteAddr[kMaxForeignSites] = {};
+volatile LONG g_siteCount[kMaxForeignSites] = {};
+
+// Returns the report number for this address (1-based), or 0 if it must not
+// be reported (over the per-site limit or no free slot).
+LONG ClaimForeignReport(uintptr_t addr) {
+    const LONG key = static_cast<LONG>(addr | 1u);  // never 0
+    for (LONG i = 0; i < kMaxForeignSites; ++i) {
+        LONG cur = g_siteAddr[i];
+        if (cur == 0) cur = InterlockedCompareExchange(&g_siteAddr[i], key, 0);
+        if (cur == 0 || cur == key) {
+            const LONG n = InterlockedIncrement(&g_siteCount[i]);
+            return n <= kReportsPerSite ? n : 0;
+        }
     }
+    return 0;
 }
 
-void LogForeign(EXCEPTION_POINTERS* ep) {
-    char mod[64];
-    uintptr_t base = 0;
+// Runs on the faulting thread, which may hold any lock (the heap, the loader
+// lock, a game lock). So: no allocation, no loader-lock calls (module names
+// come from the watchdog's snapshot), no waiting for the log lock (LogWait 0
+// writes through a second handle when the lock is busy), and the stack is
+// read only within the thread's own stack bounds.
+void LogForeign(EXCEPTION_POINTERS* ep, LONG report) {
     const uintptr_t addr = reinterpret_cast<uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
-    ModuleOf(addr, mod, sizeof(mod), &base);
+    char where[96];
+    DescribeAddress(addr, where, sizeof(where));
     char prefix[160];
-    _snprintf_s(prefix, sizeof(prefix), _TRUNCATE, "first-chance exception OUTSIDE FreeCity4.dll in %s+0x%lX", mod,
-                static_cast<unsigned long>(addr - base));
-    LogException(prefix, ep->ExceptionRecord, ep->ContextRecord);
+    _snprintf_s(prefix, sizeof(prefix), _TRUNCATE, "first-chance exception OUTSIDE FreeCity4.dll in %s (report %ld of "
+                "at most %ld for this address)", where, report, kReportsPerSite);
+    LogException(0, prefix, ep->ExceptionRecord, ep->ContextRecord);
 #if defined(_M_IX86)
     // Return addresses into our image on the faulting stack (who called the game).
     if (ep->ContextRecord != nullptr) {
-        const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(ep->ContextRecord->Esp);
+        const NT_TIB* tib = reinterpret_cast<const NT_TIB*>(NtCurrentTeb());
+        const uintptr_t top = reinterpret_cast<uintptr_t>(tib->StackBase);
+        const uintptr_t esp = ep->ContextRecord->Esp;
+        const uintptr_t* sp = reinterpret_cast<const uintptr_t*>(esp);
         int found = 0;
-        for (int i = 0; i < 256 && found < 8; ++i) {
-            if (IsBadReadPtr(sp + i, sizeof(uintptr_t))) break;
-            if (InImage(sp[i])) {
-                Log("  stack[esp+0x%03X] = FreeCity4.dll+0x%lX", i * 4, static_cast<unsigned long>(sp[i] - g_base));
-                ++found;
+        if (esp >= reinterpret_cast<uintptr_t>(tib->StackLimit) && esp < top) {
+            const unsigned words = static_cast<unsigned>((top - esp) / sizeof(uintptr_t));
+            for (unsigned i = 0; i < 256 && i < words && found < 8; ++i) {
+                if (InImage(sp[i]) && IsLikelyReturnAddress(sp[i])) {
+                    LogWait(0, "  stack[esp+0x%03X] = FreeCity4.dll+0x%lX", i * 4,
+                            static_cast<unsigned long>(sp[i] - g_base));
+                    ++found;
+                }
             }
         }
-        if (found == 0) Log("  no return address into FreeCity4.dll in the top 1 KiB of the stack");
+        if (found == 0) LogWait(0, "  no return address into FreeCity4.dll in the top 1 KiB of the stack");
     }
 #endif
-    const unsigned n = g_ringTotal < kRing ? static_cast<unsigned>(g_ringTotal) : kRing;
-    Log("  last %u of %llu FreeCity4 interface calls (oldest first):", n, g_ringTotal);
-    for (unsigned k = 0; k < n; ++k) {
-        const unsigned i = (g_ringNext + kRing - n + k) % kRing;
-        Log("    [%lu ms] %s", static_cast<unsigned long>(g_ringTick[i]), g_ring[i] ? g_ring[i] : "?");
-    }
+    DumpCallRingWait(0, "  ");
 }
 
 LONG CALLBACK VectoredHandler(EXCEPTION_POINTERS* ep) {
@@ -136,14 +159,21 @@ LONG CALLBACK VectoredHandler(EXCEPTION_POINTERS* ep) {
     const uintptr_t addr = reinterpret_cast<uintptr_t>(ep->ExceptionRecord->ExceptionAddress);
     // 0x406D1388 = thread naming; 0x40010006/0x4001000A = OutputDebugString.
     const DWORD code = ep->ExceptionRecord->ExceptionCode;
+    if (code == EXCEPTION_STACK_OVERFLOW) {
+        // Almost no stack left on this thread: count only.
+        if (!InImage(addr)) NoteForeignException();
+        return EXCEPTION_CONTINUE_SEARCH;
+    }
     if (InImage(addr) && code != 0x406D1388 && code != 0x40010006 && code != 0x4001000A) {
         if (InterlockedIncrement(&g_vehLogged) <= kMaxVehLogs) {
-            LogException("first-chance exception in FreeCity4.dll", ep->ExceptionRecord, ep->ContextRecord);
+            LogException(0, "first-chance exception in FreeCity4.dll", ep->ExceptionRecord, ep->ContextRecord);
         }
     } else if (!InImage(addr) && (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_ILLEGAL_INSTRUCTION ||
-                                  code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_STACK_OVERFLOW ||
-                                  code == EXCEPTION_INT_DIVIDE_BY_ZERO || code == 0xC0000409)) {
-        if (InterlockedIncrement(&g_foreignLogged) <= kMaxForeignLogs) LogForeign(ep);
+                                  code == EXCEPTION_PRIV_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO ||
+                                  code == 0xC0000409)) {
+        NoteForeignException();
+        const LONG report = ClaimForeignReport(addr);
+        if (report != 0) LogForeign(ep, report);
     }
     return EXCEPTION_CONTINUE_SEARCH;  // never swallow
 }
@@ -195,15 +225,26 @@ void DiagDetach() {
 }
 
 void CallTrace(const char* what, unsigned* counter) {
-    g_ring[g_ringNext] = what;
-    g_ringTick[g_ringNext] = GetTickCount();
-    g_ringNext = (g_ringNext + 1) % kRing;
-    ++g_ringTotal;
+    NoteInterfaceCall();
+    if (MainThreadId() == 0 || OnMainThread()) {
+        // The ring records the simulation thread only (single writer); before
+        // the simulator's Init names that thread, every caller.
+        g_ring[g_ringNext] = what;
+        g_ringTick[g_ringNext] = GetTickCount();
+        g_ringNext = (g_ringNext + 1) % kRing;
+        ++g_ringTotal;
+    }
     if (counter != nullptr && *counter < 20) {
         ++*counter;
         if (LogLevel() >= kLogVerbose) LogVerboseImpl("call %s (#%u)", what, *counter);
+    } else if (LogLevel() >= kLogVerbose) {
+        NoteSuppressed();
     }
 }
+
+void DumpCallRing(const char* indent) { DumpCallRingWait(1000, indent); }
+
+CallScope::CallScope(const char* what, unsigned* counter) : activity_(what) { CallTrace(what, counter); }
 
 uintptr_t ImageBase() { return g_base; }
 uintptr_t ImageSize() { return g_size; }
@@ -214,7 +255,7 @@ bool SehGuard(const char* what, void (*fn)(void* ctx), void* ctx) {
     char prefix[160];
     _snprintf_s(prefix, sizeof(prefix), _TRUNCATE, "STRUCTURED EXCEPTION caught in %s", what);
     if (captured.valid) {
-        LogException(prefix, &captured.record, &captured.context);
+        LogException(1000, prefix, &captured.record, &captured.context);
     } else {
         Log("%s (no exception record)", prefix);
     }
