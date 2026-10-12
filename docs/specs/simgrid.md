@@ -335,9 +335,16 @@ needed by grid simulators *[compat]*:
 
 ### 7.5 Other utilities (not specified here)
 
-`FloodFill` (seaport), `FloodFillDistance` (terrain water proximity), `GetTractsInRadius` (residential) and
-`AddRadiusEffectWithCurves` (residential occupant grade) are not used by the M3 grid simulators; their users'
-specs will describe them.
+`FloodFill` (seaport) and `FloodFillDistance` (terrain water proximity) are not used by the specified simulators
+yet; their users' specs will describe them. The residential simulator's helpers are specified where they are used:
+
+- `GetTractsInRadius` (`0x005E5200`, cdecl, 7 arguments; unsigned upper clamp, x-major order, tract centres in
+  `float32`) and `AddRadiusEffectWithCurves` (`0x005E48F0`, cdecl, 13 arguments; signed clamp, distance fraction
+  0..1 as the curve input, reads the population grid raw, *[quirk]* skips the z advance on tracts without
+  population): residential-education-health.md, "Coverage maps" and "EQ and HQ boost".
+- The L1 distance transform used for the proximity maps (`0x005E4FA0` seed from a building-key map, `0x005E4E80`
+  one forward/backward row-then-column pass, `0x005E4D60` repeat until unchanged, `0x005E5130` seed plus full
+  transform): residential.md, "Proximity maps".
 
 ## 8. Original quirks (reproduced)
 
