@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "crime_save",
+  "spec": ["crime 3", "crime 4.1", "crime 12", "crime 17.17", "foundations 2.7", "foundations 3.5", "weather 10"],
+  "description": "Test 17. Record v6: u16 6; ref crimeGrid; ref crimeEffectGrid; iterator (s8 state, s8 mode, u8 dirty, s32 x0 z0 x1 z1, s32 count, u32 n, n x u16, s32 index, current, step); u32 0; u32 0; f32 average; f32 ordinanceFactor; u32 monthly; s32 hotspot x, z, value; s32 n; n x {ref lot, u32 type, GZStr name (u32 length + bytes), ResKey (type, group, instance)}. Object IDs: the root record registers the simulator (1), its write registers the two grids (2, 3, class 0x49B9E602) and then the lots (host objects; the fake lot class is 0x12345678; a lot met twice keeps its ID). A new 64 x 64-cell city has 32 x 32 tracts: the iterator is the constructed one (state 1, mode 1, dirty 1, step 1) with the rect (0, 0, 31, 31) set by Init. Payload offsets by hand: 0 version, 2 and 10 the grid refs, 18 the 39-byte iterator, 57 and 61 the unused words, 65 average, 69 factor, 73 monthly, 77 hotspot, 89 count, 93 the first incident (36 bytes with a lot and an 8-byte name; 32 with a null lot and an 8-byte name; 28 with a lot and no name): 1 incident -> 129 bytes, the 3 below -> 189. Write -> read -> write is byte-identical with 0, 1 and 3 incidents (one with a null lot, written as object ID 0). Read clears the visuals flags and sets loadedFromSave. The following Init does not create grids or call AddPropRequester, resets the hotspot to (0, 0, 0) and the factor to 1.0; the state is 6 (not saved). Version 5 or 7: Read returns false after the version (2 bytes consumed) and leaves loadedFromSave false; Read is called directly (crime_read) because the store ignores its result (foundations 3.5). [choice] A truncated record fails, keeps nothing and releases the lots already read; a hostile incident count fails at the end of the data.",
+  "steps": [
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_save", "slot": "s0"},
+    {"op": "crime_expect_payload", "slot": "s0", "length": 93, "hex": "0600 0200000002E6B949 0300000002E6B949 010101 00000000 00000000 1F000000 1F000000 00000000 00000000 00000000 00000000 01000000 00000000 00000000 00000000 0000803F 00000000 00000000 00000000 00000000 00000000"},
+    {"op": "crime_load", "slot": "s0", "expect": true},
+    {"op": "crime_expect", "state": {"loaded_from_save": true, "initialized": false, "has_crime_grid": true, "has_effect_grid": true, "iterator": {"rect": [0, 0, 31, 31], "state": 1, "step": 1}}},
+    {"op": "crime_expect_save", "slot": "s0"},
+
+    {"op": "crime_set", "state": {"incidents": [{"lot": 7, "type": 3, "name": "Fighting", "icon": ["0x7AB50E44", "0x1ABE787D", 0], "visuals": true}],
+      "average_crime": 2.5, "ordinance_factor": 0.5, "monthly_crime_count": 4, "hotspot": [3, 4, 9]}},
+    {"op": "crime_save", "slot": "s1"},
+    {"op": "crime_expect_payload", "slot": "s1", "length": 129, "at": [
+      {"offset": 65, "hex": "00002040 0000003F 04000000 03000000 04000000 09000000 01000000"},
+      {"offset": 93, "hex": "0400000078563412 03000000 08000000 4669676874696E67 440EB57A 7D78BE1A 00000000"}]},
+    {"op": "crime_load", "slot": "s1", "expect": true},
+    {"op": "crime_expect", "state": {"loaded_from_save": true, "hotspot": [3, 4, 9], "ordinance_factor": 0.5, "average_crime": 2.5, "monthly_crime_count": 4,
+      "incidents": [{"lot": 7, "type": 3, "name": "Fighting", "icon": ["0x7AB50E44", "0x1ABE787D", 0], "visuals": false}]}},
+    {"op": "crime_expect_save", "slot": "s1"},
+    {"op": "crime_clear_events"},
+    {"op": "crime_init"},
+    {"op": "crime_expect_events", "events": [{"event": "agent"}, {"event": "subscribe"}, {"event": "acquire_services"}]},
+    {"op": "crime_expect", "state": {"hotspot": [0, 0, 0], "ordinance_factor": 1.0, "state": 6, "average_crime": 2.5, "monthly_crime_count": 4}},
+
+    {"op": "crime_set", "state": {"incidents": [
+      {"lot": 7, "type": 3, "name": "Fighting", "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"lot": null, "type": "0x11", "name": "Graffiti", "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"lot": 7, "type": "0x10", "name": "", "icon": [1, 2, 3], "visuals": true}]}},
+    {"op": "crime_save", "slot": "s3"},
+    {"op": "crime_expect_payload", "slot": "s3", "length": 189, "at": [
+      {"offset": 89, "hex": "03000000 0400000078563412 03000000"},
+      {"offset": 129, "hex": "00000000 11000000 08000000 4772616666697469"},
+      {"offset": 161, "hex": "0400000078563412 10000000 00000000 01000000 02000000 03000000"}]},
+    {"op": "crime_load", "slot": "s3", "expect": true},
+    {"op": "crime_expect", "state": {"incidents": [{"lot": 7, "visuals": false}, {"lot": null, "type": 17, "visuals": false}, {"lot": 7, "type": 16, "name": "", "icon": [1, 2, 3], "visuals": false}]}},
+    {"op": "crime_expect_save", "slot": "s3"},
+
+    {"op": "crime_read", "slot": "s3", "expect": true, "position": 189},
+    {"op": "crime_read", "slot": "s0", "expect": true, "position": 93},
+
+    {"op": "crime_patch", "slot": "s0", "offset": 0, "hex": "0500"},
+    {"op": "crime_read", "slot": "s0", "expect": false, "position": 2},
+    {"op": "crime_expect", "state": {"loaded_from_save": false, "has_crime_grid": false, "incidents": []}},
+    {"op": "crime_patch", "slot": "s0", "offset": 0, "hex": "0700"},
+    {"op": "crime_read", "slot": "s0", "expect": false, "position": 2},
+    {"op": "crime_expect", "state": {"loaded_from_save": false}},
+    {"op": "crime_load", "slot": "s0", "expect": true, "note": "the store ignores Read's result (foundations 3.5)"},
+    {"op": "crime_expect", "state": {"loaded_from_save": false, "has_crime_grid": false}},
+
+    {"op": "crime_patch", "slot": "s0", "offset": 0, "hex": "0600"},
+    {"op": "crime_patch", "slot": "s0", "offset": 89, "hex": "FFFFFF7F"},
+    {"op": "crime_read", "slot": "s0", "expect": false},
+    {"op": "crime_expect", "state": {"incidents": [], "has_crime_grid": false}},
+
+    {"op": "crime_patch", "slot": "s3", "offset": 185, "delete": 4},
+    {"op": "crime_clear_events"},
+    {"op": "crime_read", "slot": "s3", "expect": false},
+    {"op": "crime_expect", "state": {"incidents": [], "has_crime_grid": false, "loaded_from_save": true}},
+    {"op": "crime_expect_events", "filter": {"event": "release"}, "events": [{"lot": 7}, {"lot": 7}]}
+  ]
+}

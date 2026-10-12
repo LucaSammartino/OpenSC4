@@ -10,6 +10,7 @@
 //! running the vectors against `fc4-core`.
 
 pub(crate) mod budget;
+pub(crate) mod crime;
 pub(crate) mod demand;
 pub(crate) mod flammability;
 pub mod foundations;

@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "crime_rng_draws",
+  "spec": ["crime 6.6", "crime 6.7", "crime 9", "crime 17.14"],
+  "description": "Test 14. Draws on the crime generator: one RandomDoubleUniform per attempt that found a lot, one RandomDoubleRangeUniform(0, total) per attempt that was not stopped and has a candidate, in attempt order; GetRandomLot uses the lot manager's generator (not logged). 5 attempts: lots 1, 2, none, 3, 4. Lot 3 sits on police tract (10,10) = 255 -> p = 0.5 and u = 0.3 stops it. Lots 1, 2 and 4 have candidates (total 20) and u = 0. Expected: uniform, range, uniform, range, uniform (stopped), uniform, range -> 4 uniform + 3 range; AddCrimes returns 3. Hand-derived.",
+  "steps": [
+    {"op": "crime_lots", "lots": [
+      {"id": 1, "rect": [10, 10, 11, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 2, "rect": [12, 10, 13, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 3, "rect": [20, 20, 21, 21], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 4, "rect": [14, 10, 15, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}}],
+     "random": [1, 2, null, 3, 4]},
+    {"op": "crime_env", "zones": [{"x": 10, "z": 10, "w": 6, "v": 1}, {"x": 20, "z": 20, "v": 1}], "police": {"cells": [[10, 10, 255]]}},
+    {"op": "crime_create", "rng": {"stub": {"uniform": [0.0, 0.0, 0.3, 0.0], "range": [0.5]}}},
+    {"op": "crime_init"},
+    {"op": "crime_clear_events"},
+    {"op": "crime_call", "method": "add_crimes", "args": [5], "expect": 3},
+    {"op": "crime_expect_events", "filter": {"event": "rng"}, "events": [
+      {"kind": "uniform", "value": 0}, {"kind": "range", "hi": 20},
+      {"kind": "uniform", "value": 0}, {"kind": "range", "hi": 20},
+      {"kind": "uniform", "value": 0.3},
+      {"kind": "uniform", "value": 0}, {"kind": "range", "hi": 20}]},
+    {"op": "crime_expect", "state": {"incidents": [{"lot": 1}, {"lot": 2}, {"lot": 4}]}},
+    {"op": "crime_call", "method": "add_crimes", "args": [0], "expect": 0},
+    {"op": "crime_call", "method": "add_crimes", "args": [-3], "expect": 0},
+    {"op": "crime_expect_events", "events": []}
+  ]
+}

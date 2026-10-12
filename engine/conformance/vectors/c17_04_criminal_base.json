@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "crime_criminal_base",
+  "spec": ["crime 6.3", "crime 8", "crime 17.4", "foundations 18"],
+  "description": "Test 4. crim_w = trunc(joblessCurve_w(jobless) x popSum + sum_b EQcurve_w(25 b) x pop[b]), every product and sum one float32 operation (foundations 18); base = sum over wealths. Shipped curves. By hand: R$ {1000,0,0,0}, jobless -1: 0.1 x 1000 + 0.4 x 1000 = 500. R$ {1234,0,0,0}, jobless 0: 0 + 0.4 x 1234 = 493.6 -> 493. R$ {0,1001,0,0}, jobless 0: the EQ curve is read at 25 (0.4 + 0.25 x (0.3 - 0.4) = 0.375) -> 375.375 -> 375. Two wealths: R$ 500 + R$$ {0,0,0,1000} jobless 1: EQ R$$ at 75 = 0.15 + 0.75 x (0.11 - 0.15) = 0.12 -> 120, jobless curve at 1 = -0.07 -> -70: 50; sum 550. A negative term: R$ jobless curve replaced by the constant -1 (one point), pop {100,0,0,0}: -100 + 40 = -60, and the crimes curve then clamps the negative input (unsigned compare, crime 6.4) to its first y, 0. Cross-checked with an independent Python model (three-operation curve evaluation of foundations 4.3).",
+  "steps": [
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_call", "method": "curve", "args": ["eq", 25, 0], "expect": 0.375},
+    {"op": "crime_call", "method": "curve", "args": ["eq", 0, 0], "expect": 0.4},
+    {"op": "crime_set", "state": {"census": [[1000, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "jobless": [-1, 0, 0]}},
+    {"op": "crime_call", "method": "compute_criminal_base"},
+    {"op": "crime_expect", "state": {"criminal_base": 500}},
+    {"op": "crime_set", "state": {"census": [[1234, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "jobless": [0, 0, 0]}},
+    {"op": "crime_call", "method": "compute_criminal_base"},
+    {"op": "crime_expect", "state": {"criminal_base": 493}},
+    {"op": "crime_set", "state": {"census": [[0, 1001, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "jobless": [0, 0, 0]}},
+    {"op": "crime_call", "method": "compute_criminal_base"},
+    {"op": "crime_expect", "state": {"criminal_base": 375}},
+    {"op": "crime_set", "state": {"census": [[1000, 0, 0, 0], [0, 0, 0, 1000], [0, 0, 0, 0]], "jobless": [-1, 1, 0]}},
+    {"op": "crime_call", "method": "compute_criminal_base"},
+    {"op": "crime_expect", "state": {"criminal_base": 550}},
+
+    {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAA7": {"f32": [0, -1]}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_set", "state": {"census": [[100, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], "jobless": [0, 0, 0]}},
+    {"op": "crime_call", "method": "compute_criminal_base"},
+    {"op": "crime_expect", "state": {"criminal_base": -60}},
+    {"op": "crime_call", "method": "compute_crimes_to_commit"},
+    {"op": "crime_expect", "state": {"crimes_to_commit": 0}}
+  ]
+}

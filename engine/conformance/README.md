@@ -542,12 +542,59 @@ Pollution events: `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subsc
 `effect_create` (`effect`, `id`, `kind`), `effect_position` (`effect`, `position`), `effect_param` (`effect`,
 `param`, `value`), `effect_start` / `effect_stop` (`effect`, `t`), `effect_release` (`effect`).
 
+## Crime ops
+
+The crime vectors (`c17_…`) drive the crime simulator (`fc4_core::crime`) over a scripted city. Every op name
+starts with `crime_`. The city is 64 × 64 cells (16 m) unless `crime_env` changes it; the tuning defaults to the
+shipped exemplar and the type list to the 14 shipped types. Grids are addressed by tract `[x, z]`; lots, occupants
+and props by integer tokens. The fake lot class (for saves) is `0x12345678`.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `crime_env` | any of `cells` (`[x, z]`), `clear_zones`, `zones` (`[{x, z, w?, d?, v}]` cell zone types), `demand` (`{"0x4100": [value, max, min] \| null}`), `jail` (`GetJailPopulation`), `released` (`ResetUnjailedCriminals`), `ordinance` (the cumulative factor, `null` = no ordinance simulator), `disaster_layer` (default true), `police` (`{size?, fill?, cells?: [[x, z, v]]}` or `null`; default none), `ltext` (`[{key: [t, g, i], text}]`) | the fake world |
+| `crime_residential` | `wealth` (0..2), `size?` (default 2), `pop` / `eq` (`[[x, z, v]]`), or `none` | that wealth's population (u16) and EQ (f32) grids |
+| `crime_lots` | `lots` (`[{id, rect: [x1, z1, x2, z2], location? ([x, z], default the rect corner; `null` = GetLocation fails), condition?, building? ({token?, purpose, wealth}; default none), center? (default the rect middle)}]`), `random` (the `GetRandomLot` results in order, ids or `null`) | lots and the random-lot queue (an exhausted queue gives no lot) |
+| `crime_occupants` | `occupants` (`[{id, preview?, effect? (u8 array for 0xCA5B9306), pos}]`) | occupants for the inserted / removed messages |
+| `crime_nearby` | `occupants` (`[{token, type, group?, incident_property?, pos, iid? (default true), state?}]`) | what the occupant manager's box query sees (it applies the x/z box) |
+| `crime_props` | `props` (`{"0xPROP": crimeIncidentID}`) | prop profiles for `SelectProp` |
+| `crime_types` | `shipped?` (default true), `types` (`[{id, props?}]`, property maps appended in order) | the crime type exemplars the next load reads |
+| `crime_tuning` | `shipped`, `props` (merged over the shipped values when `shipped`), or `none` | the tuning exemplar |
+| `crime_create` | `rng?`: `{seed}` (a real `cRZRandomSuper`) or `{stub: {uniform, range, uint}}`; `new_process?` | a new simulator; the process state (type list, generator) is shared with earlier simulators of the vector unless `new_process`; `rng` replaces the generator |
+| `crime_rng` | `seed` or `stub` | replaces the shared generator |
+
+The stub generator logs `rng` events: `uniform` (`value`), `range` (`lo`, `hi`, `value` = `lo + u(hi − lo)`),
+`uint` (`n`, `value`). Each queue repeats its last value (defaults 0.5, 0.5, 0); `uint` values are returned as
+they are.
+
+### Calls and checks
+
+| op | Arguments | Effect |
+|---|---|---|
+| `crime_init` / `crime_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `crime_message` | `type` (`SimNewDay`, `SimNewMonth`, `SimIdle`, `OccupantInserted`, `OccupantRemoved`, `OrdinanceUpdated`, `ExemplarChanged` or an ID), `data1?`, `data2?`, `occupant?` (void1), `count?`, `expect?` | `DoMessage` |
+| `crime_call` | `method`, `args?`, `expect?` | `do_idle`, `do_census`, `calculate_economic_factors`, `compute_criminal_base`, `compute_crimes_to_commit`, `decay_crime_grid`, `compute_average_crime`, `load_types`, `read_tuning`, `add_crimes` (`[n]`), `add_crime_event` (`[lot]`, the severity), `lot_bits` (`[lot]` → `{zone, wealth, purpose, condition}`), `average_crime`, `monthly_crime_count`, `crime_hotspot` (`[v, x, z]` or false), `nearest_sim` / `nearest_prop` (`[[x, y, z], r]` → token or null), `incident_array` (`[initial length]` → `{result, events: [{cell, type, visuals, icon}]}`; pre-filled elements have type 0xFFFFFFFF), `set_visuals_created`, `visuals_created`, `simulator_type`, `requested_share` (`[x1, z1, x2, z2]`), `requester_satisfaction_id`, `uses_custom_prop_selector`, `select_prop` (`[[props], cx, cz]`), `curve` (`[name, x, wealth?]`, names `eq`, `jobless`, `crimes`, `attenuation`, `prop_request`) |
+| `crime_eval` | `fn`, `args`, `expect` | pure functions: `bucket` (`[eq]`, null outside 0..3), `jobless` (`[a, b, c]`), `decay` (`[v, decay]`), `mask` (`[bytes \| null]`), `lot_bits` (`[zone, [purpose, wealth] \| null, condition]`), `choose` (`[weights, r]`) |
+| `crime_set` | `state`: any of `hotspot` (`[x, z, v]`), `average_crime`, `ordinance_factor`, `monthly_crime_count`, `state`, `criminal_base`, `crimes_to_commit`, `loaded_from_save`, `census`, `jobless`, `incidents` (`[{lot (token or null), type, name?, icon?, visuals?}]`, no AddRef) | pokes state |
+| `crime_expect` | `state`: `initialized`, `loaded_from_save`, `has_message_server`, `has_crime_grid`, `has_effect_grid`, `state`, `criminal_base`, `crimes_to_commit`, `census`, `jobless`, `average_crime`, `ordinance_factor`, `monthly_crime_count`, `hotspot`, and, matched partially, `incidents`, `iterator` (`state`, `mode`, `dirty`, `rect`, `count`, `table`, `index`, `current`, `step`), `tuning` (`tract_size`, `decay`, `reoffend`, `prop_request_empty`), `types` (`id`, `name`, `icon`, `zone`, `wealth`, `purpose`, `condition`, `severity`, `arson`, `weight`; null before the first load) | the simulator state |
+| `crime_grid_set` / `crime_expect_grid` | `grid` (`crime`, `effect`); set: `fill?`, `cells?`; expect: any of `counts`, `size`, `instance`, `cells`, `others` (every unlisted tract) | grid contents |
+| `crime_save` / `crime_load` / `crime_expect_save` | `slot`; load: `expect?` (clean store load) | the class-object store; lots come back as the tokens they had; a load makes the loaded simulator current |
+| `crime_read` | `slot`, `expect`, `position?` | `Read` of the slot's payload by a new simulator outside the store (the store ignores `Read`'s result); makes it current |
+| `crime_patch` / `crime_expect_payload` | see the shared conventions (the class is always the crime simulator) | |
+
+Crime events: `load_types`, `agent` (`name`, `levels`, `flags`), `remove_agent`, `subscribe` / `unsubscribe`
+(`types`), `acquire_services`, `release_services`, `add_prop_requester`, `create` (`instance`, `size`),
+`grid_shutdown` (`instance`), `jail_population`, `reset_unjailed`, `crime_stats`, `add_ref` / `release` (`lot`),
+`ignite` (`building`, `cause`), `post` (`type`: `CrimeCommitted` with `crime`, `lot`, `name`, or
+`CrimeMapUpdated`), and with a stub generator `rng`.
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` (simgrid §10, `fc4_core::simgrid`), `tg10_…` (simgrid §10, `fc4_core::grid`),
-   `fl16_…` (flammability §16), `p11_…` (pollution §11).
+   `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -755,3 +802,32 @@ Pollution events: `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subsc
 | 21 effects | `p11_21_effects` |
 | 22 persistence | `p11_22_persistence` |
 | other sections (lifecycle §4.1, disaster radiation §4.3, tuning §7.1, SimBegin) | `p11_00_lifecycle` |
+
+## Coverage (crime §17)
+
+Tests 2 and 6 follow foundations §18 (24-bit products); the crime.md text of §6.1, test 2 and test 6 still shows
+the pre-§18 values (see the vectors' descriptions).
+
+| §17 item | Vector |
+|---|---|
+| 1 decay | `c17_01_decay` |
+| 2 census buckets | `c17_02_census` |
+| 3 jobless factor | `c17_03_jobless` |
+| 4 criminal base | `c17_04_criminal_base` |
+| 5 crimes to commit | `c17_05_crimes_to_commit` |
+| 6 ordinance rounding | `c17_06_ordinance_rounding` |
+| 7 attenuation | `c17_07_attenuation` |
+| 8 stamp and hotspot | `c17_08_stamp_hotspot` |
+| 9 type selection (and §6.8 severity 0) | `c17_09_type_selection` |
+| 10 mask parsing (and the §7 type list) | `c17_10_masks` |
+| 11 crime-effect cone | `c17_11_crime_effect` |
+| 12 average crime | `c17_12_average` |
+| 13 pipeline | `c17_13_pipeline` |
+| 14 RNG draw count | `c17_14_rng_draws` |
+| 15 incident array (core part; the 28-byte layout is the plugin's) | `c17_15_incident_array` |
+| 16 prop requester | `c17_16_prop_requester` |
+| 17 save | `c17_17_save` |
+| 18 lifecycle | `c17_18_lifecycle` |
+| §8 tuning | `c17_19_tuning` |
+| §11.3 nearest crime sim / prop | `c17_20_nearest` |
+| §6.8 arson | `c17_21_arson` |

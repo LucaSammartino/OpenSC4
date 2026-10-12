@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "crime_effect_cone",
+  "spec": ["crime 5", "crime 6.10", "crime 17.11", "simgrid 7.1", "foundations 18"],
+  "description": "Test 11. Occupant inserted (0x99EF1142) / removed (0x99EF1143): an occupant with property 0xCA5B9306 = {m, r} adds AddRadiusEffect<uint8>(effect grid, centre = PositionToTract(pos), radius = r / S tracts, centre value +-m, outer 0). {100, 8}, S = 2 -> radius 4, k = f32((100 - 0)/4) = 25. Position (257, 0, 257) -> tract (8, 8) (32 world units per tract). Per simgrid 7.1 with foundations 18 (t = f32(d x k), v = f32(c - t), then rhe; d from the 3-decimal table for R < 16): d = 0 -> 100; 1 -> 75; 1.414 -> 64.65 -> 65; 2 -> 50; 2.236 -> 44.1 -> 44; 2.828 -> 29.3 -> 29; 3 -> 25; 3.162 -> 20.95 -> 21; 3.606 -> 9.85 -> 10; d >= 4 (4, 4.123, 4.243) unchanged (strict d < radius). Preview occupants (0x029244DB) are skipped; [choice] a 1-byte property is skipped. Removal subtracts the same cone and clamps: with the centre set to 30 every cell returns to 0. Three inserts saturate the centre at 255 (300), so one removal leaves 155, not 200: insert/remove pairs do not always restore the grid. Values from an independent Python model of simgrid 7.1.",
+  "steps": [
+    {"op": "crime_occupants", "occupants": [
+      {"id": 5, "effect": [100, 8], "pos": [257, 0, 257]},
+      {"id": 6, "preview": true, "effect": [100, 8], "pos": [257, 0, 257]},
+      {"id": 7, "effect": [100], "pos": [257, 0, 257]},
+      {"id": 8, "pos": [257, 0, 257]}]},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 6, "expect": true},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 7},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 8},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 5},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [
+      [5, 6, 10], [5, 7, 21], [5, 8, 25], [5, 9, 21], [5, 10, 10],
+      [6, 5, 10], [6, 6, 29], [6, 7, 44], [6, 8, 50], [6, 9, 44], [6, 10, 29], [6, 11, 10],
+      [7, 5, 21], [7, 6, 44], [7, 7, 65], [7, 8, 75], [7, 9, 65], [7, 10, 44], [7, 11, 21],
+      [8, 5, 25], [8, 6, 50], [8, 7, 75], [8, 8, 100], [8, 9, 75], [8, 10, 50], [8, 11, 25],
+      [9, 5, 21], [9, 6, 44], [9, 7, 65], [9, 8, 75], [9, 9, 65], [9, 10, 44], [9, 11, 21],
+      [10, 5, 10], [10, 6, 29], [10, 7, 44], [10, 8, 50], [10, 9, 44], [10, 10, 29], [10, 11, 10],
+      [11, 6, 10], [11, 7, 21], [11, 8, 25], [11, 9, 21], [11, 10, 10]], "others": 0},
+    {"op": "crime_grid_set", "grid": "effect", "cells": [[8, 8, 30]]},
+    {"op": "crime_message", "type": "OccupantRemoved", "occupant": 5, "expect": true},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0},
+
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 5, "count": 3},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [[8, 8, 255], [9, 8, 225], [10, 8, 150], [9, 9, 195], [11, 8, 75]]},
+    {"op": "crime_message", "type": "OccupantRemoved", "occupant": 5},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [[8, 8, 155], [9, 8, 150], [10, 8, 100], [9, 9, 130], [11, 8, 50], [12, 8, 0]]}
+  ]
+}

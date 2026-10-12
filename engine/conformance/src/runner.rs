@@ -1179,6 +1179,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::grid::exec(host, other, op))
             .or_else(|| crate::flammability::exec(host, other, op))
             .or_else(|| crate::pollution::exec(host, other, op))
+            .or_else(|| crate::crime::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }

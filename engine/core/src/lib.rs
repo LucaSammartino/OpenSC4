@@ -22,6 +22,7 @@
 
 pub mod budget;
 pub mod calibration;
+pub mod crime;
 pub mod curve;
 pub mod demand;
 pub mod flammability;
