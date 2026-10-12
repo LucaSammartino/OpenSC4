@@ -818,8 +818,13 @@ cycle.
 Each lot record (`cSC4Lot::Write` `0x006C0080`) ends with: u32 trip count, the trips, then u8 strategy byte. Each
 trip (`cSC4TripData` Write `0x0070E0B0` / Read `0x0070E160`): u32 version (2), u32 n + n × u8 route, u32 n + n × u8
 returnRoute, u32 count, u8 type, u8 strategy, u8 flags, u8 status, s16 destX, s16 destZ, f32 tripLength, u32
-travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; a vector count ≥ 1,000,000 is skipped
-(the vector stays empty) *[compat]*. Neighbour connections save their lists the same way (neighbors.md).
+travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; for a vector count ≥ 1,000,000
+nothing more is read and the vector keeps its previous contents (corrected, `0x005DB520`) *[compat]*. The lot's
+Read **appends** the trips to its existing list, and its Write stops before the strategy byte when a trip Write
+fails (`0x006C35F0`, `0x006C0334`; lot-records.md). Fields the original never initialises are saved as they are:
+`travelTypesUsed` is `0xCCCCCCCC` in 126 of 8,109 saved trips and destZ holds −13,108 (`0xCCCC`) in some, so a
+writer must copy loaded values back unchanged to round-trip a city. Neighbour connections save their lists the same
+way (neighbors.md).
 
 ### 6.4 Version gates (Read)
 

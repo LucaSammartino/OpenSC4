@@ -1068,7 +1068,9 @@ uint32  instance       all three zero = no parent
 |---|---|---|
 | ordinance | exemplar holder | ordinance §9.3 |
 | neighbour connection, neighbour deal (in the city's neighbours objects and in regional-city records) | plain holder | neighbors §4.3, §5.6; §11 |
-| occupants, lots and many other saved objects | one of the two | their own specs |
+| occupants (inside the occupant base record) | exemplar holder (`0x005E8D60` → `0x005FF420`) | lot-records.md §2.3 |
+| lots | plain holder (`0x006C35F0` → `0x005FF280`) | lot-records.md |
+| many other saved objects | one of the two | their own specs |
 
 The budget's locally funded objects refer to holders through `ref` (§2.7), not inline.
 

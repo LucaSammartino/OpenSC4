@@ -35,7 +35,8 @@ Tags:
 - Lot states (`cISC4Lot::HabitationState`): 0 created, 1 ready (empty), 2 constructing, 3 occupied, 4 vacant
   (abandoned), 5 destructing, 6 destroyed.
 - Vacate reasons (`cISC4Lot::VacateReason`): 0 none, 1 low desirability, 2 no power, 3 no water, 4 commute time,
-  5 kick out occupants, 6 low demand.
+  5 kick out occupants, 6 low demand. The byte is written only on a change to state 4 and is **stale** in every
+  other state (saved lots outside state 4 hold 98 different values, lot-records.md); it is saved as it is.
 - Zone types (`cISC4ZoneManager::ZoneType`): 0 none, 1–3 residential, 4–6 commercial, 7 agriculture, 8–9
   industrial, 10 military, 11 airport, 12 seaport, 13 spaceport, 14 landfill, 15 plopped.
 - Purposes (`BuildingProfile.purpose`): 0 none (civic / plopped), 1 residence, 2 services, 3 office, 4 tourism,
@@ -199,7 +200,7 @@ IGZUnknown 32 (foundations §5).
 | `0x44778234` | day / night changed | §8.2. data2 = 0 starts night, 1 starts day |
 | `0x99EF1142` | occupant inserted | data3 = occupant type. Building (`0x278128A0`): add void1 to the night deque (§8.1). Network (`0xC772BF98`): `netChanged := unitChanged := true` |
 | `0x99EF1143` | occupant removed | building: remove from the night deque (§8.1); network: both latches as above |
-| `0xE8BDA2E7` | lot state changed | posted by `cSC4Lot::SetState` (`0x006C3100`, queued `MessagePost`) with IGZUnknown = lot, data1 = old state, data2 = new state, data3 = building type, data4 = reason. §6.5 |
+| `0xE8BDA2E7` | lot state changed | posted by `cSC4Lot::SetState(state, wealth, reason)` (`0x006C3100`, queued `MessagePost`, only when the state changes) with IGZUnknown = a **copy** of the lot, data1 = old state, data2 = new state, data3 = building type, data4 = the lot's **occupant wealth** (not the reason; corrected, see below). §6.5 |
 | `0xE99B3D4D` | lot condition changed | posted by `cSC4Lot::SetCondition` (`0x006C26D0`). §6.5 |
 | `0x278E6003` | terrain heights changed | reads data1, data2, data4; does nothing *[quirk]* |
 | `0x8A07AE00` | power changed in a rectangle | rect = (data1, data2, data3, data4) = (x1, z1, x2, z2); §9 |
@@ -208,6 +209,32 @@ IGZUnknown 32 (foundations §5).
 | `0x86AD10EE` | animation tick (delivered by the animation-tick manager by a direct `DoMessage` call, not subscribed; §6.7.8) | if `nightMode = 0`: return **false**. Otherwise `ms := data2 / 1000` (unsigned integer division; data2 is the clamped frame delta in **µs**, 2000..500000 by default, so `ms` is 2..500) and run §8.3; return true |
 | `0x66956814` | SimNewDay (agent) | §4; returns the pass's "finished" flag |
 | any other | | true |
+
+**What `cSC4Lot::SetState(state, wealth, reason)` puts in `0xE8BDA2E7`** *[compat]* (`0x006C3100`, pop 12; SDK
+order `(HabitationState, WealthType, VacateReason)` is correct). Nothing is posted when `state` equals the current
+state. Otherwise, with `old` the previous state and `W0` the lot's occupant wealth byte (lot slot 41) before the
+call:
+
+1. The new state is stored. If it is 4, the low byte of `reason` becomes the lot's vacate reason (lot slot 45,
+   `GetVacateReason`); `reason` is used for nothing else and never reaches the message.
+2. The lot recomputes its wealth from its building (`UpdatePrimaryOccupantWealth`, `0x006C1430`, not specified
+   here) → `W1`.
+3. `occOld := old ∈ {2, 3}`, `occNew := state ∈ {2, 3}`. data4 is:
+
+| Case | data4 | Lot wealth afterwards |
+|---|---|---|
+| `occOld = occNew` | `W1` | `W1` |
+| entering 2/3, `wealth ≠ 0` (whole 32-bit value) | low byte of `wealth` | low byte of `wealth` |
+| entering 2/3, `wealth = 0` | `W1` | `W1` |
+| leaving 2/3 | `W0` (the wealth before the call) | `W1` |
+
+So `demand.md` §7, `growth-developer.md` §6.3 and `building-development.md` §3.2 are right to read data4 as the
+occupant wealth; `ReoccupyBuilding`'s `SetState(3, w, 0)` delivers `w`, and `AbandonBuilding`'s `SetState(4, 0,
+reason)` delivers the wealth the lot had while occupied. The IGZUnknown is a new `cSC4Lot` built by the copy
+constructor `0x006C2450` at post time (it copies the scalar fields, including state, building type, wealth and
+vacate reason, and references the configuration; two of its containers start empty *[inferred: the occupant
+list and one other list]*); SetState releases its own reference after posting. This is why §6.5 works on the lot
+found at the copy's location rather than on the message object.
 
 ### 3.3 Messages posted
 
@@ -657,12 +684,18 @@ Without animation the state is set to 3 at once, so §6.5 runs when the queued m
   `d := profile.wealth − w`; condition := 2 if `d = 1`, 3 if `d = 2`, otherwise (counter `0xE999B11F` exists and ≠ 0 ?
   1 : 0); `lot.SetState(3, w, 0)`; `lot.SetCondition(condition)`;
   `lot.SetPopulation(devType, lot.GetAvailableCapacity(devType, 0))` (slots 52, 55); returns its AL.
-- **`UpdateLotElements(lot, hadFoundation)`** (slot 37, `0x006CC880`, pop 8, returns true): state < 2 → nothing.
-  If the lot has a foundation (flags & 3): `UpdateLotFoundation` (61) and `UpdateLotRetainingWalls` (62). Otherwise,
-  when the zone is not 5 and a configuration exists: `s := GetLotSlope(lot, cfg.IsCompatibleWithWater())`; if
-  `cfg.GetMaximumSlopeBeforeFoundation() < s`, `AddLotFoundation(lot, cfg, cfg.HasObjectsOfType(7), false, true)`
-  (slot 54, may draw); if `|s| > 0.25`, `UpdateLotObjectAlitudes`. Then `UpdateLotBaseTextureOccupant(lot,
-  hadFoundation)` (slot 45) and lot slot 20 (`UpdateSlope`).
+- **`UpdateLotElements(lot, uint32 kind)`** (slot 37, `0x006CC880`, pop 8, AL = 1) *[compat]*. The second
+  argument is the BDS's 32-bit terrain-change kind (`building-development.md` §4.11), **not** a bool (corrected;
+  the SDK's `uint32_t` is right). Its only use is a full 32-bit compare `kind ≠ 5` (`0x006CC8C7`); no byte of it is
+  tested on its own. Behaviour: state < 2 → nothing. `added := false`. If the lot has a foundation (flags & 3):
+  `UpdateLotFoundation` (61) and `UpdateLotRetainingWalls` (62). Otherwise, when `kind ≠ 5` and a configuration
+  exists (lot slot 9): `s := GetLotSlope(lot, cfg.IsCompatibleWithWater())`; if
+  `cfg.GetMaximumSlopeBeforeFoundation() < s` (NaN → no), `AddLotFoundation(lot, cfg, cfg.HasObjectsOfType(7),
+  false, true)` (slot 54, may draw) and `added := true`; if `|s| > 0.25` (float `0x00A8821C`; NaN → no),
+  `UpdateLotObjectAlitudes`. Then `UpdateLotBaseTextureOccupant(lot, added)` (slot 45: true only when this call
+  added a foundation) and lot slot 20 (`UpdateSlope`). The original pushes `added` as a dword whose upper three
+  bytes are leftover stack contents; slot 45 reads only the low byte. The kind-5 sender is not identified here
+  (the power simulator also ignores kinds 4 and 5, `power.md`).
 
 ### 6.5 Lot-state and condition messages
 
@@ -702,7 +735,9 @@ and `occ.SetLotTag(obj's tag)` (occupant slot 28).
 - Otherwise for each configuration object of type 2, in array order: position from slot 39; when its ID list is not
   empty, `tex := (first ID ≠ 0) ? PickLotBaseTextureForLot(ids, lot) : 0` (skipping the object when a pick gives 0);
   record `{tex, trunc(r24(pos.x · 0.0625)), trunc(r24(pos.z · 0.0625)), orientation byte, object byte 3}` if the cell is
-  inside the city.
+  inside the city. On disk each texture record is 14 bytes: tex, x, z, orientation, object byte 3, five bytes that
+  default to `0xFF` (`0x005CA770`), and a frame byte; when the frame is `0xFF` and the texture has at least 2 frames,
+  the base-texture occupant draws it with its file-local generator `0x00B23078` (`0x005E0B20`; lot-records.md).
 - If any records: `GetLotBaseTextureOccupant(lot, &occ, true)` (slot 41), `occ.SetTextures(records, count, 0)`
   (its slot 8); if the occupant is already inserted (flag 1), notify the occupant manager (slot 24, (occ, 0)) and
   `PostOccupantMessage(0x99EF1145, 0)`; otherwise insert it (occupant manager slot 20).
@@ -1186,7 +1221,7 @@ verified from the bodies).
 | 34 | +0x88 | `UpdateTravelDesignates(cISC4BusinessUnit*&)` | 4 | **undefined** | `0x006CB4D0` | **error**: SDK `bool` |
 | 35 | +0x8C | `UpdateTravelPopulations(cISC4BusinessUnit*)` | 4 | **undefined** | `0x006C6340` | **error**: SDK `bool` |
 | 36 | +0x90 | `bool NeedsAnchorBuilding(SC4Rect<int32> const&, int32 purpose)` | 8 | AL | `0x006C7A70` | ok |
-| 37 | +0x94 | `bool UpdateLotElements(lot, bool)` | 8 | AL = 1 | `0x006CC880` | ok |
+| 37 | +0x94 | `bool UpdateLotElements(lot, uint32 kind)` (terrain-change kind; only `kind ≠ 5` is tested, §6.4) | 8 | AL = 1 | `0x006CC880` | ok |
 | 38 | +0x98 | `cISC4BuildingOccupant* GetFirstBuilding(lot)` | 4 | EAX, **no reference** | `0x006C9100` | **error**: SDK `cISC4Occupant*` (the pointer is the IID `0x87DDA3A9` interface) |
 | 39 | +0x9C | `bool GetPositionForLotConfigurationObject(lot, cfg, obj, float* pos, int32& orient)` | 20 | AL | `0x006C4EF0` | ok |
 | 40 | +0xA0 | `bool GetPositionForBuilding(lot, float* pos, int32& orient)` | 12 | AL of 39; 0 when no configuration or primary object | `0x006C3CF0` | ok |
