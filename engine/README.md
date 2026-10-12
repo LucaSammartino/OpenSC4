@@ -10,7 +10,7 @@ gzcom-dll SDK. Read [CONTRIBUTING.md](../CONTRIBUTING.md) before you change anyt
 | [`capi/`](capi/) | `fc4-capi`: a stable C ABI over the core (`include/fc4.h`), built as a static library | Rust + C header |
 | [`conformance/`](conformance/) | Language-neutral JSON test vectors (the migration contract) and their Rust runner | JSON + Rust |
 | [`formats/`](formats/) | `fc4-formats`: readers for the game's data files (DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT), the `fc4-dat` inspection tool, and a sweep test over the installed game (`FC4_GAME_DIR`). Groundwork for the standalone engine (M6); not used by the plugin. | Rust |
-| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director with a subsystem table, the `cISC4Simulator` adapter, the budget classes (`cISC4BudgetSimulator`, `cISC4DepartmentBudget`, `cISC4LineItem`), the land value, weather, ordinance and demand simulators, the standard ordinances and the demand nodes (off by default), stream and property helpers, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
+| [`plugin/`](plugin/) | `FreeCity4.dll`: GZCOM director with a subsystem table, the `cISC4Simulator` adapter, the budget classes (`cISC4BudgetSimulator`, `cISC4DepartmentBudget`, `cISC4LineItem`), the land value, weather, ordinance, demand and power simulators, the standard ordinances and the demand nodes (off by default), stream and property helpers, and our own standard message class (foundations §5.1; the SDK's `cRZMessage2Standard` is not used). Windows, x86 only. | C++17 |
 | [`tests/`](tests/) | `capi_smoke` (drives the C ABI from C++ with the plugin's compiler and CRT), `message_test` (foundations §7 item 12) and `plugin_load_test` (loads the DLL like a host and drives the simulator and the budget) | C++17 |
 | `third_party/gzcom-dll/` | gzcom-dll SDK (LGPL-2.1+), git submodule | C++ |
 
@@ -148,6 +148,14 @@ plugin.
      - `demand`: the demand simulator and the demand node class (`cSC4DemandSimulator`, `cSC4Demand`, demand
        spec; the graph comes from the game's demand exemplars; building profile capacity lists and the region
        view's population summary map are not read or written yet, see the code's `[choice]` notes).
+     - `power`: the power simulator (`cSC4PowerSimulator`, power spec; its powered grid is the game's own
+       `cSC4SimGrid<uint8>`, created through GZCOM). Not yet done (logged once): power lines are not detached on
+       terrain changes (the line's `GetConnectedPoles` is not in docs/abi), and the Nuclear Free Zone does not close
+       the 3D view's placement tool. The pole's `RemoveConnection` is a direct call, made only on the identified
+       executable. Its game calls have their own switches (default `1`, environment `FC4_POWER_<KEY>`):
+       `power_occupants`, `power_poles`, `power_lots`, `power_neighbors`, `power_budget`, `power_grid_writes`,
+       `power_posts`, `power_terrain`, `power_zone_tool`, `power_view`, `power_radiation`,
+       `power_occupant_query`, `power_demolish`, `power_direct_calls` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.

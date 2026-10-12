@@ -86,6 +86,11 @@ enum class Sw : unsigned {
     PowerZoneTool,    // power_zone_tool: the power-line tool's UpdateOnZoneChange
     PowerView,        // power_view: the 3D view's current input control (Nuclear Free Zone)
     PowerRadiation,   // power_radiation: AddRadiationToCity (nuclear meltdown)
+    PowerOccupantQuery,  // power_occupant_query: GetOccupantsByStandardCityCells (wire rebuild,
+                         //   terrain changes; off: no occupants)
+    PowerDemolish,       // power_demolish: DemolishLots (Nuclear Free Zone, plant failure)
+    PowerDirectCalls,    // power_direct_calls: the pole's non-virtual RemoveConnection
+                         //   (docs/abi/direct-calls.md; identified executable only)
     Count
 };
 

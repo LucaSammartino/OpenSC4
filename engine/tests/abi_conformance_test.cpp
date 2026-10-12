@@ -48,6 +48,7 @@
 #include "cISC4App.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4View3DWin.h"
+#include "cISC4Demolition.h"
 #include "cISC4PowerLineOccupant.h"
 #include "cISC4OccupantManager.h"
 #include "cISC4Occupant.h"
@@ -318,6 +319,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},
+    {"cISC4Demolition", 12, 13,
+     "slot 12 is cSC4Demolition's destructor (pops 4): class-private. The plugin calls slot 7 (DemolishLots) "
+     "only (power §5.5)"},
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},

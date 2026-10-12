@@ -24,12 +24,14 @@
 // (FC4Subsystems.h); `disable` still wins. The power_* switches (FC4Config.h)
 // turn groups of game calls off for bisecting.
 //
-// Crossings not yet classified in docs/abi (refusing stubs: logged, nothing
-// done): slot 25 GetPowerPlants (the game's ilist), slot 18
-// GetMonthlyConsumptionMapPtr (writes null), the occupant query of §5.3/§5.4
-// (GetOccupantsByStandardCityCells: no occupants), DemolishLots (§5.5, §7.4),
-// the line's GetConnectedPoles and the pole's non-virtual RemoveConnection
-// (§5.4).
+// Containers and direct calls (docs/abi): slot 25 appends to the caller's
+// ilist (A: SC4List); the occupant query (occupant manager slot 40) fills an
+// SC4List (A, one reference each) that is kept until the outermost call into
+// the core returns; DemolishLots reads an SC4List of lots; the pole's
+// non-virtual RemoveConnection is called by address on the identified
+// executable only (docs/abi/direct-calls.md). Still refused (logged): the
+// line's GetConnectedPoles (its outputs are not in docs/abi) and the 3D
+// view's input control (cIGZWin is not in docs/abi/interfaces.tsv).
 #pragma once
 
 #include "FC4HostGrid.h"
@@ -39,9 +41,12 @@
 #include "fc4.h"
 
 #include <cstdint>
+#include <memory>
+#include <vector>
 
 class cIGZMessageServer2;
 class cISC4City;
+class cISC4Demolition;
 class cISC4NeighborsSimulator;
 class cISC4OccupantManager;
 class cISC4ZoneManager;
@@ -82,7 +87,7 @@ public:
     int32_t GetPoweredConsumerCount() override;
     int32_t GetPowerPlantCountOfType(int32_t powerType) override;
     int32_t GetPowerPlantCountAll() override;
-    void GetPowerPlants(FC4GameIList& list) override;
+    void GetPowerPlants(SC4List<cISC4Occupant*>& list) override;
     uint32_t GetPowerPoleCount() override;
     int32_t GetOverworkedPowerPlantCount() override;
     int32_t GetAgedPowerPlantCount() override;
@@ -125,10 +130,30 @@ public:
     cISC4ZoneManager* ZoneManager() const { return zoneManager_; }
     cISC4NeighborsSimulator* Neighbors() const { return neighbors_; }
     cISC4BudgetSimulator* Budget() const { return budget_; }
+    cISC4Demolition* Demolition() const { return demolition_; }
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
     void AcquireServices();
     void ReleaseServices();
     void Subscribe(const uint32_t* ids, size_t count, bool add);
+    // Keeps a game list (and the references it holds) until the outermost
+    // call into the core returns.
+    void Hold(std::shared_ptr<void> list) { held_.push_back(std::move(list)); }
+
+    struct ConsumptionMap;  // slot 18 (cFC4Power.cpp)
+
+    // Counts the calls into the core; the outermost one drops the held lists.
+    class CoreCall {
+    public:
+        explicit CoreCall(cFC4PowerSimulator* s) : s_(s) { ++s_->depth_; }
+        ~CoreCall() {
+            if (--s_->depth_ == 0) s_->held_.clear();
+        }
+        CoreCall(const CoreCall&) = delete;
+        CoreCall& operator=(const CoreCall&) = delete;
+
+    private:
+        cFC4PowerSimulator* s_;
+    };
 
 private:
     uint64_t Occ(cISC4Occupant* occupant) const;
@@ -145,6 +170,10 @@ private:
     cISC4NeighborsSimulator* neighbors_ = nullptr;
     cISC4BudgetSimulator* budget_ = nullptr;
     cIGZMessageServer2* msgServer_ = nullptr;
+    cISC4Demolition* demolition_ = nullptr;
+    std::vector<std::shared_ptr<void>> held_;
+    int depth_ = 0;
+    ConsumptionMap* map_ = nullptr;
     SC4Percentage strikeEfficiency_{};  // slot 47 returns its address
     SC4Percentage noDepartment_{};      // slot 48 without a department [choice]
     uint32_t lastState_ = 4;

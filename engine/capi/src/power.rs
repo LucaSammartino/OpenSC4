@@ -249,8 +249,8 @@ pub struct fc4_power_host {
     pub line_item: Option<unsafe extern "C" fn(U, u64, u32) -> u64>,
     pub set_line_item_name: Option<unsafe extern "C" fn(U, u64, u32, u32)>,
     pub set_line_item_display_flag: Option<unsafe extern "C" fn(U, u64, u32, bool)>,
-    pub line_item_secondary_info: Option<unsafe extern "C" fn(U, u64) -> i32>,
-    pub set_line_item_secondary_info: Option<unsafe extern "C" fn(U, u64, i32)>,
+    pub line_item_secondary_info: Option<unsafe extern "C" fn(U, u64) -> i64>,
+    pub set_line_item_secondary_info: Option<unsafe extern "C" fn(U, u64, i64)>,
     pub set_line_item_full_expenses: Option<unsafe extern "C" fn(U, u64, i64)>,
     pub budget_item_for_purpose: Option<unsafe extern "C" fn(U, u64, u32, *mut fc4_power_budget_item) -> bool>,
     pub change_budget_item_line: Option<unsafe extern "C" fn(U, u64, u32, u32)>,
@@ -465,8 +465,8 @@ impl PowerHost for CHost {
         let ok = cb!(self, line_connected_poles, false, line, &mut a, &mut b);
         (ok && a != 0 && b != 0).then_some((a, b))
     }
-    fn remove_pole_connection(&self, pole: u64, line: u64) {
-        cb!(self, remove_pole_connection, (), pole, line)
+    fn remove_pole_connection(&self, first: u64, second: u64) {
+        cb!(self, remove_pole_connection, (), first, second)
     }
     fn network_occupant_cell(&self, occ: u64) -> Option<(i32, i32)> {
         let (mut x, mut z) = (0, 0);
@@ -621,10 +621,10 @@ impl PowerHost for CHost {
     fn set_line_item_display_flag(&self, item: u64, flag: u32, on: bool) {
         cb!(self, set_line_item_display_flag, (), item, flag, on)
     }
-    fn line_item_secondary_info(&self, item: u64) -> i32 {
+    fn line_item_secondary_info(&self, item: u64) -> i64 {
         cb!(self, line_item_secondary_info, 0, item)
     }
-    fn set_line_item_secondary_info(&self, item: u64, value: i32) {
+    fn set_line_item_secondary_info(&self, item: u64, value: i64) {
         cb!(self, set_line_item_secondary_info, (), item, value)
     }
     fn set_line_item_full_expenses(&self, item: u64, value: i64) {

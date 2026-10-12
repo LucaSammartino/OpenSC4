@@ -68,6 +68,9 @@ const SwitchInfo kSwitches[kCount] = {
     {"power_zone_tool", "FC4_POWER_ZONE_TOOL"},
     {"power_view", "FC4_POWER_VIEW"},
     {"power_radiation", "FC4_POWER_RADIATION"},
+    {"power_occupant_query", "FC4_POWER_OCCUPANT_QUERY"},
+    {"power_demolish", "FC4_POWER_DEMOLISH"},
+    {"power_direct_calls", "FC4_POWER_DIRECT_CALLS"},
 };
 
 // Keys that are not switches.
@@ -78,8 +81,8 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 31, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 34, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

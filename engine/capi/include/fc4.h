@@ -1294,7 +1294,7 @@ typedef struct fc4_power_host {
     void (*set_pole_distressed)(void* user, uint64_t pole, bool on);
     bool (*power_line)(void* user, uint64_t occ, fc4_power_line* out);
     bool (*line_connected_poles)(void* user, uint64_t line, uint64_t* first, uint64_t* second);
-    void (*remove_pole_connection)(void* user, uint64_t pole, uint64_t line);
+    void (*remove_pole_connection)(void* user, uint64_t first, uint64_t second); /* first.RemoveConnection(second, 0) */
     bool (*network_occupant_cell)(void* user, uint64_t occ, int32_t* x, int32_t* z);
     bool (*has_network_flag)(void* user, uint64_t occ, uint32_t flag);
     uint32_t (*network_flags)(void* user, uint64_t occ);
@@ -1344,8 +1344,8 @@ typedef struct fc4_power_host {
     uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line);
     void (*set_line_item_name)(void* user, uint64_t item, uint32_t group, uint32_t instance);
     void (*set_line_item_display_flag)(void* user, uint64_t item, uint32_t flag, bool on);
-    int32_t (*line_item_secondary_info)(void* user, uint64_t item);
-    void (*set_line_item_secondary_info)(void* user, uint64_t item, int32_t value);
+    int64_t (*line_item_secondary_info)(void* user, uint64_t item);
+    void (*set_line_item_secondary_info)(void* user, uint64_t item, int64_t value);
     void (*set_line_item_full_expenses)(void* user, uint64_t item, int64_t value);
     bool (*budget_item_for_purpose)(void* user, uint64_t occ, uint32_t purpose, fc4_power_budget_item* out);
     void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);

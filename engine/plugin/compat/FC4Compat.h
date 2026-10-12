@@ -22,6 +22,15 @@
 namespace fc4 {
 namespace compat {
 
+// Non-virtual game functions called by address (docs/abi/direct-calls.md).
+enum class Direct : unsigned {
+    PoleRemoveConnection,  // cSC4PowerPoleOccupant::RemoveConnection: thiscall (other base, bool), pop 8
+    PipeSetWateredState,   // cSC4PipeOccupant::SetWateredState: thiscall (bool), pop 4
+    AirDispatchInit,       // air dispatch source Init: thiscall (), pop 0, AL
+    AirDispatchShutdown,   // air dispatch source Shutdown: thiscall (), pop 0, AL
+    Count
+};
+
 // One supported executable and its interop addresses (spec §5.5).
 struct ExecutableVersion {
     const char* name;
@@ -38,6 +47,8 @@ struct ExecutableVersion {
     uint32_t stlNodeFreeVA;
     // The game's cRZString vtable (docs/abi/allocators.md, Strings).
     uint32_t rzStringVtableVA;
+    // Direct-call targets, indexed by Direct (docs/abi/direct-calls.md).
+    uint32_t directVA[static_cast<unsigned>(Direct::Count)];
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -56,6 +67,11 @@ bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release);
 // not identified or the address is not read-only data inside its image whose
 // first entry is code inside the image.
 const void* GameStringVtable();
+
+// The address of a direct-call target, or 0 (logged once per target) if the
+// executable is not identified or the address is not executable code inside
+// its image. Never guessed.
+uintptr_t DirectCall(Direct which);
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);

@@ -923,10 +923,6 @@ public:
 // ---- power (docs/specs/power.md §10, §11.1) -----------------------------------------------------
 
 class cISC4Occupant;
-// The game's ilist<cISC4Occupant*> (an STLport list with the framework
-// allocator, allocators.md); its layout is an open question (C1), so it is
-// only passed through by reference.
-struct FC4GameIList;
 
 // cISC4PowerSimulator (IID 0xE9E7BFF5), 52 slots in compiled order (power
 // §10.1). Implemented by cFC4PowerSimulator. SDK errors fixed: the overloads
@@ -958,7 +954,9 @@ public:
     virtual int32_t GetPoweredConsumerCount() = 0;                                          // 22
     virtual int32_t GetPowerPlantCountOfType(int32_t powerType) = 0;                        // 23  (type)
     virtual int32_t GetPowerPlantCountAll() = 0;                                            // 24  ()
-    virtual void GetPowerPlants(FC4GameIList& list) = 0;                                   // 25
+    // [abi] 25: ilist<cISC4Occupant*> with the framework allocator (A, allocators.md
+    // table (2)): SC4List is compatible; appends, one reference each.
+    virtual void GetPowerPlants(SC4List<cISC4Occupant*>& list) = 0;                        // 25
     virtual uint32_t GetPowerPoleCount() = 0;                                               // 26
     virtual int32_t GetOverworkedPowerPlantCount() = 0;                                     // 27
     virtual int32_t GetAgedPowerPlantCount() = 0;                                           // 28

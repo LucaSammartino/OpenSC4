@@ -20,6 +20,7 @@
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
 #include "cFC4Ordinance.h"
+#include "cFC4Power.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -101,6 +102,11 @@ const ClassEntry kDemandClasses[] = {
     {0x8990C12D, "cSC4Demand", &CreateFC4Demand},
 };
 
+// docs/specs/power.md §1. Off by default (M3 glue trial): `enable = power`.
+const ClassEntry kPowerClasses[] = {
+    {0x0990C005, "cSC4PowerSimulator", &CreateFC4PowerSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -109,6 +115,7 @@ const Subsystem kSubsystems[] = {
     {"weather", nullptr, kWeatherClasses, sizeof(kWeatherClasses) / sizeof(kWeatherClasses[0]), false},
     {"ordinance", nullptr, kOrdinanceClasses, sizeof(kOrdinanceClasses) / sizeof(kOrdinanceClasses[0]), false},
     {"demand", nullptr, kDemandClasses, sizeof(kDemandClasses) / sizeof(kDemandClasses[0]), false},
+    {"power", nullptr, kPowerClasses, sizeof(kPowerClasses) / sizeof(kPowerClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

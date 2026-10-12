@@ -110,6 +110,7 @@ INTERFACES = [
     ("cISC4PowerLineOccupant", "cISC4PowerLineOccupant", "cISC4PowerLineOccupant.h", True),
     ("cISC4PowerPoleOccupant", "cFC4ISC4PowerPoleOccupant", FC4, True),
     ("cISC4PowerSimulator", "cFC4ISC4PowerSimulator", FC4, True),
+    ("cISC4Demolition", "cISC4Demolition", "cISC4Demolition.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),
