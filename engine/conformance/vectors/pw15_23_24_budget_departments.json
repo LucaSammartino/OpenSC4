@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "power_budget_departments",
+  "spec": ["power 5.1", "power 7.3", "power 10.1", "power 15.23", "power 15.24"],
+  "description": "Tests 23 and 24, by hand from 5.1, 7.3 and 10.1 (FindPowerPlants) as answered for PW3 and PW4. Test 23: plant 231 has an item with line 0 and GetBuildingType() 0 -> ChangeBudgetItemLine(231, index 5, 0) and nothing else: no line item lookup or creation, no AddLocallyFundedObject, no secondary info, no 0x2A58D350. Plant 232 (building type 0x5000 = 20480) has an item of department X = 0x12345678 with line 0 and no line item 20480 -> ChangeBudgetItemLine(232, 6, 20480), CreateLineItemForBuildingType(20480, true) and SetDisplayFlag(2, true), AddLocallyFundedObject, secondary info 0 -> 1, 0x2A58D350 := 700; every department call goes to X, the department the item names. [choice] Plant 233 names a department the budget does not have (0x0BADBEEF; the original does not test for null): ChangeBudgetItemLine(233, 7, 20481) still happens (a budget call), the department calls and the base cost are skipped. Test 24: in state 1 plant 241 (item department X, cost 100, base 100, maintenance curve constant 2) gets maint = trunc(r24(100 x 2)) = 200 != 100 -> X.SetLocalFullFunding(241, 200) then ChangeBudgetItemCost(241, index 2, 200); plant 242 (same, item department 0x0BADBEEF missing) -> GetDepartmentBudget null, neither call. FindPowerPlants: lowest funded among the plants whose item exists and that the simulator's own power department funds locally (231 at 1.0, then P1 = 243 at 0.5 -> 243, 0.5); most worn over every plant, wear / (t2 < t1 ? t1 : t2): P2 = 244 (item in X, not the power department, funding 0.3) 0.5 / 1.0 = 0.5 > P1 0.2 -> 244 with _ftol(0.5 x 100) = 50. The out-pointer null tests of slot 30 are an ABI matter of the plugin wrapper, not of this API.",
+  "steps": [
+    {"op": "power_env", "departments": [{"id": "0x12345678"}], "occupants": [
+      {"id": 231, "type": "building", "cells": [10, 10, 11, 11], "building_type": 0,
+        "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}}, "budget": {"line": 0, "cost": 300, "index": 5}},
+      {"id": 232, "type": "building", "cells": [20, 10, 21, 11], "building_type": 20480,
+        "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}},
+        "budget": {"department": "0x12345678", "line": 0, "cost": 700, "index": 6}},
+      {"id": 233, "type": "building", "cells": [30, 10, 31, 11], "building_type": 20481,
+        "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}},
+        "budget": {"department": "0x0BADBEEF", "line": 0, "cost": 800, "index": 7}},
+      {"id": 241, "type": "building", "cells": [40, 40, 41, 41],
+        "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}, "0x0911E2E7": {"f32": [0, 2, 1, 2]},
+          "0x2A58D350": {"i64": 100}},
+        "budget": {"department": "0x12345678", "line": 9, "cost": 100, "index": 2}},
+      {"id": 242, "type": "building", "cells": [60, 40, 61, 41],
+        "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}, "0x0911E2E7": {"f32": [0, 2, 1, 2]},
+          "0x2A58D350": {"i64": 100}},
+        "budget": {"department": "0x0BADBEEF", "line": 9, "cost": 100, "index": 3}},
+      {"id": 243, "type": "building", "cells": [80, 80, 81, 81],
+        "props": {"0x27812852": {"u32": 1000}, "0xC910B4CF": {"f32": 0.2}, "0xEA1CF221": {"f32": 0.9}, "0xEA1CF222": {"f32": 1.0}},
+        "budget": {"line": 4, "cost": 10, "funding": 0.5}},
+      {"id": 244, "type": "building", "cells": [100, 80, 101, 81],
+        "props": {"0x27812852": {"u32": 1000}, "0xC910B4CF": {"f32": 0.5}, "0xEA1CF221": {"f32": 0.9}, "0xEA1CF222": {"f32": 1.0}},
+        "budget": {"department": "0x12345678", "line": 4, "cost": 10, "funding": 0.3}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+    {"op": "power_clear_events"},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 231},
+    {"op": "power_expect_events", "events": [{"event": "budget_line", "occupant": 231, "index": 5, "line": 0}]},
+    {"op": "power_expect_occupant", "occupant": 231, "props": {"0x2A58D350": null}},
+    {"op": "power_expect", "state": {"plant_count": 1, "per_type": [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]}},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 232},
+    {"op": "power_expect_events", "events": [
+      {"event": "budget_line", "occupant": 232, "index": 6, "line": 20480},
+      {"event": "create_line_item_for_type", "department": "0x12345678", "line": 20480, "flag": true},
+      {"event": "display_flag", "item": ["0x12345678", 20480], "flag": 2, "on": true},
+      {"event": "add_funded", "department": "0x12345678", "occupant": 232, "purpose": "0xCA58E540"},
+      {"event": "secondary_info", "item": ["0x12345678", 20480], "value": 1},
+      {"event": "set_property", "occupant": 232, "id": "0x2A58D350", "value": 700}]},
+    {"op": "power_expect_world", "line_items": [{"department": "0x12345678", "line": 20480, "secondary": 1},
+      {"department": "0x8910BC8A", "line": 20480, "exists": false}]},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 233},
+    {"op": "power_expect_events", "events": [{"event": "budget_line", "occupant": 233, "index": 7, "line": 20481}]},
+    {"op": "power_expect_occupant", "occupant": 233, "props": {"0x2A58D350": null}},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupants": [241, 242, 243, 244]},
+    {"op": "power_message", "type": "ConnectionsReady"},
+    {"op": "power_set", "state": {"state": 1}},
+    {"op": "power_clear_events"},
+    {"op": "power_idle", "expect_state": 2},
+    {"op": "power_expect_events", "filter": {"event": "local_full_funding"}, "events": [
+      {"event": "local_full_funding", "department": "0x12345678", "occupant": 241, "amount": 200, "purpose": "0xCA58E540"}]},
+    {"op": "power_env", "occupant_state": {"241": {"budget": {"department": "0x12345678", "line": 9, "cost": 100, "index": 2}}}},
+    {"op": "power_set", "state": {"state": 1}},
+    {"op": "power_idle"},
+    {"op": "power_expect_events", "filter": {"event": "budget_cost"}, "events": [
+      {"event": "budget_cost", "occupant": 241, "index": 2, "cost": 200}]},
+
+    {"op": "power_call", "method": "find_power_plants", "expect": {"lowest": [243, 0.5], "worn": [244, 50]}}
+  ]
+}

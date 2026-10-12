@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "power_counters_poles",
+  "spec": ["power 3", "power 5.2", "power 10.1", "power 15.25", "power 15.26"],
+  "description": "Tests 25 and 26, by hand from 3 (counter types), 5.2 and 10.1 as answered for PW5 and PW10. Test 25: a consumer removal decrements consumers by 1 and requirement by the building's requirement (300), each result that is negative as int32 becomes 0: consumers 0 -> -1 -> 0, requirement 100 - 300 -> 0; also above 2^31 - 1: consumers 0x80000001 - 1 = 0x80000000 and requirement 0x90000000 - 300 = 0x8FFFFED4 read as negative -> both 0 (an unsigned saturating clamp would keep them); a normal removal 3 / 1000 -> 2 / 700. A coal plant (type 1) whose 0x27812853 becomes 3 before removal: perType is decremented with the type read at removal -> perType[1] stays 1, perType[3] = -1, GetPowerPlantCount(3) returns 0xFFFFFFFF (-1 as int32), plantCount back to 0. Test 26: 10 poles of cost 1 -> costBase 10, poleCount 10; removing pole 2650, never listed, still subtracts its 0x09132DE8 and requests a recompute (costBase 9, recompute true, poleCount 10, the list unchanged, no Release); the spec's example, pole 2660 ignored (slot 13 true) at insertion and not at removal, does the same (costBase 8). Removing the distressed listed pole 2600 releases it and lowers poleCount (9) and costBase (7) but not brokenCount (2 stays 2).",
+  "steps": [
+    {"op": "power_env", "pole_set": {"first": 2600, "count": 10, "cost": 1, "origin": [50, 50]}, "occupants": [
+      {"id": 251, "type": "building", "cells": [10, 10, 11, 11], "props": {"0x27812854": {"u32": 300}}},
+      {"id": 252, "type": "building", "cells": [20, 10, 21, 11], "props": {"0x27812852": {"u32": 1000}, "0x27812853": {"i32": 1}}},
+      {"id": 2650, "type": "pole", "cell": [70, 70], "props": {"0x09132DE8": {"i64": 1}}},
+      {"id": 2660, "type": "pole", "cell": [80, 70], "ignored": true, "props": {"0x09132DE8": {"i64": 1}}}]},
+    {"op": "power_create"},
+    {"op": "power_init"},
+
+    {"op": "power_set", "state": {"consumers": 0, "requirement": 100}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 251},
+    {"op": "power_expect", "state": {"consumers": 0, "requirement": 0}},
+    {"op": "power_set", "state": {"consumers": 2147483649, "requirement": 2415919104}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 251},
+    {"op": "power_expect", "state": {"consumers": 0, "requirement": 0}},
+    {"op": "power_set", "state": {"consumers": 3, "requirement": 1000}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 251},
+    {"op": "power_expect", "state": {"consumers": 2, "requirement": 700}},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 252},
+    {"op": "power_expect", "state": {"plant_count": 1, "per_type": [0, 1, 0, 0, 0, 0, 0, 0, 0, 0]}},
+    {"op": "power_env", "occupant_props": {"252": {"0x27812853": {"i32": 3}}}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 252},
+    {"op": "power_expect", "state": {"plant_count": 0, "plants": [], "per_type": [0, 1, 0, -1, 0, 0, 0, 0, 0, 0]}},
+    {"op": "power_call", "method": "power_plant_count_of_type", "args": [3], "expect": -1},
+    {"op": "power_call", "method": "power_plant_count_of_type", "args": [1], "expect": 1},
+    {"op": "power_call", "method": "power_plant_count", "expect": 0},
+    {"op": "power_expect_refs", "refs": {"252": 0}},
+
+    {"op": "power_message", "type": "OccupantInserted", "occupants": {"first": 2600, "count": 10}},
+    {"op": "power_message", "type": "OccupantInserted", "occupant": 2660},
+    {"op": "power_expect", "state": {"cost_base": 10, "pole_count": 10}},
+    {"op": "power_set", "state": {"recompute": false, "wire_dirty": false}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 2650},
+    {"op": "power_expect", "state": {"cost_base": 9, "pole_count": 10, "recompute": true, "wire_dirty": true, "dirty_rect": [68, 68, 72, 72],
+      "poles": [2600, 2601, 2602, 2603, 2604, 2605, 2606, 2607, 2608, 2609]}},
+    {"op": "power_expect_refs", "refs": {"2650": 0, "2660": 0}},
+    {"op": "power_env", "occupant_state": {"2660": {"ignored": false}}},
+    {"op": "power_set", "state": {"recompute": false}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 2660},
+    {"op": "power_expect", "state": {"cost_base": 8, "pole_count": 10, "recompute": true}},
+    {"op": "power_expect_refs", "refs": {"2660": 0}},
+
+    {"op": "power_set", "state": {"broken_count": 2}},
+    {"op": "power_env", "occupant_state": {"2600": {"distressed": true}}},
+    {"op": "power_expect_refs", "refs": {"2600": 1}},
+    {"op": "power_message", "type": "OccupantRemoved", "occupant": 2600},
+    {"op": "power_expect", "state": {"cost_base": 7, "pole_count": 9, "broken_count": 2,
+      "poles": [2601, 2602, 2603, 2604, 2605, 2606, 2607, 2608, 2609]}},
+    {"op": "power_expect_refs", "refs": {"2600": 0}}
+  ]
+}

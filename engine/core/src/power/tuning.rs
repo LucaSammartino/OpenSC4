@@ -20,19 +20,31 @@ pub const TUNING_KEY: ResKey = ResKey {
     instance: 0xC911_E35B,
 };
 
-/// Tuning property IDs (§8).
+/// Tuning property IDs (§8, with the names the spec gives).
 pub mod prop {
+    /// "Power radiation radius": R.
     pub const RADIUS: u32 = 0xA911_E2F1;
+    /// "Power Funding To Efficiency Curve".
     pub const FUNDING_EFFICIENCY: u32 = 0x6911_E2DF;
+    /// "Funding % → decay rate multiplier".
     pub const FUNDING_DECAY: u32 = 0x0911_E2E8;
+    /// "Usage % → decay rate multiplier".
     pub const USAGE_DECAY: u32 = 0x0911_E2E9;
+    /// "Funding % → pole decay/repair".
     pub const POLE_DECAY: u32 = 0xAA71_3782;
+    /// "Power max allowed funding" (f32 × 0.01f).
     pub const MAX_FUNDING: u32 = 0xE911_E2D1;
+    /// "Utility Strike Efficiency %" (f32 × 0.01f).
     pub const STRIKE_EFFICIENCY: u32 = 0x0912_2027;
+    /// "Power plant max production ratio" (f32 × 0.01f, dead).
     pub const MAX_PRODUCTION_RATIO: u32 = 0xE911_E2FC;
+    /// "Power Min Acceptable Funding %" (f32 × 0.01f, dead).
     pub const MIN_ACCEPTABLE_FUNDING: u32 = 0x2912_1E8B;
+    /// "Utility Strike Duration" (s32, dead).
     pub const STRIKE_DURATION: u32 = 0x2912_202E;
+    /// "Utility Min Funding to End Strike" (f32 × 0.01f, dead).
     pub const MIN_FUNDING_END_STRIKE: u32 = 0x4912_2036;
+    /// "Utility Strike Response Curve" (dead).
     pub const STRIKE_RESPONSE: u32 = 0x0911_E2E6;
 }
 
@@ -100,8 +112,10 @@ pub(crate) fn curve_of(v: Option<&Variant>) -> Option<ResponseCurve> {
     crate::props::curve_of_variant(v?)
 }
 
-/// `value × 0.01` with the `float` constant (one rounding).
-fn percent(v: f32) -> f32 {
+/// `value × 0.01f`: the `float` constant 0.01f (slightly below 0.01), one
+/// rounding (§8). Shipped 120 → 1.1999999 (`0x3F999999`), 20 →
+/// 0.19999999, 60 → 0.59999996.
+pub(crate) fn percent(v: f32) -> f32 {
     v * 0.01f32
 }
 

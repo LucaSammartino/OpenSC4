@@ -50,8 +50,8 @@ impl PowerSim {
         s.production = inp.get_u32()?;
         s.consumption = inp.get_u32()?;
         s.deficit = if version < 6 {
-            // An integer percentage.
-            inp.get_i32()? as f32 * 0.01f32
+            // An integer percentage: `fild` (exact) × 0.01f, one rounding.
+            super::mul_i(f64::from(inp.get_i32()?), 0.01f32)
         } else {
             inp.get_f32()?
         };
@@ -222,13 +222,17 @@ impl SaveObject for PowerSim {
         true
     }
 
-    /// §9.1: sets `running`; false only for a version above 6.
+    /// §9.1. A version above 6: `running` set, false *[compat]*. A stream
+    /// error *[choice, §9.1]*: false, `running` not set, the references
+    /// taken during the call released, every member as before. Otherwise
+    /// the record replaces the state, `running` is set and the result is
+    /// true.
     fn read(&self, inp: &mut dyn InStream) -> bool {
-        self.inner.borrow_mut().s.running = true;
         let Some(version) = inp.get_u16() else {
-            return true;
+            return false;
         };
         if version > RECORD_VERSION {
+            self.inner.borrow_mut().s.running = true;
             return false;
         }
         let base = self.inner.borrow().s.clone();
@@ -246,15 +250,17 @@ impl SaveObject for PowerSim {
                 }
                 let mut inner = self.inner.borrow_mut();
                 inner.s = new;
+                inner.s.running = true;
                 inner.grid = grid;
+                true
             }
             None => {
                 for t in taken {
                     self.host.release(t);
                 }
+                false
             }
         }
-        true
     }
 
     fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {
