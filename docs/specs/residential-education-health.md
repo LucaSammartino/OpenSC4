@@ -1,0 +1,1028 @@
+# Residential simulator: education and health
+
+Status: round-3 spec. Sources: `bin/SimCity4.exe` (Windows 1.1.641), disassembly checked function by function;
+Ghidra pseudocode and the Mac symbols were used for names only. Every fact below holds for the Windows build.
+
+This spec covers the **education and health half** of `cSC4ResidentialSimulator`. It covers schools and hospitals,
+their coverage, grades, funding, strikes and auto-budget, and the EQ (education quotient), HQ (health quotient)
+and life-expectancy model. The rest of the class is in **residential.md**: `Init`/`Shutdown`, the full tuning
+loader and property table, `DoMessage` and agents, the state-machine overview, population, age, proximity,
+workforce, the byte-exact save record, and the full slot tables. Where the two files overlap (the state frame,
+the save record, `DoPopulationChange` ordering, the tuning loaders), residential.md is normative.
+
+**No other class computes school or hospital coverage.** Checked:
+
+- The civic building simulator does not read the education/health properties below and has no coverage grid.
+- The Lua scripts (`SimCity_1.dat`) only *read* results, through the advisor and query glue.
+- The coverage-radius display helper and the map view only *query* this class (§9).
+
+Tags: *[compat]* observable behaviour a replacement must reproduce. *[quirk]* an original bug that is reproduced.
+*[inferred]* not proven. *[choice]* FreeCity4 decision.
+
+## 1. Role, class, interfaces, creation
+
+| Item | Value |
+|---|---|
+| Class ID | `0x4990C013` (`cSC4ResidentialSimulator`) |
+| City component | #36 (foundations §3.6). Created, initialised and saved by the city like every component (foundations §3.7). |
+| `cISC4ResidentialSimulator` | IID `0x077AC1EE` (and `0x00000001`, IGZUnknown). Primary vtable `0x00AB2C10`, 60 slots, at offset 0. |
+| `cIGZMessageTarget2` | IID `0x452294AA`. Vtable `0x00AB2BFC` (4 slots) at offset +4. |
+| `cIGZSerializable` | IID `0xE4FDA3D4`. Vtable `0x00AB2BE4` (6 slots) at offset +8. |
+| Global | `SL::OnCityInit` stores `city.GetResidentialSimulator()` (city slot 68 `+0x110`) in a global (`0x00B43DA4`). Most readers use that global (§9). |
+
+What the education/health half does:
+
+1. It **recognises service buildings** as they are added and removed: 7 school groups and 3 hospital groups
+   (§4.1). It keeps them in per-group lists and registers them with the education and health departments of the
+   budget.
+2. Once per cycle it **rebuilds per-group coverage maps**: `uint8` "seat units" per tract (§4.4).
+3. It **grades every building**. The grade is effective capacity divided by the population the building serves.
+   It writes the grade, the staff ratio and the served population into the building's properties. It paints a
+   shared grade map per service. It adds an EQ or HQ **boost** around the building into the per-wealth EQ/HQ grids
+   (§4.5, §4.6).
+4. It **ages EQ and HQ** daily, tract by tract, inside the population update. This covers decay, pollution, the
+   newcomer blend, the generational reset and the death's-door effect (§4.7).
+5. It **runs strikes**: a monthly roll per building, a city-level strike flag per service, and messages (§4.9).
+6. It runs **auto-budget**: per-building ideal local funding (§4.10).
+7. It answers **queries**: cell and global EQ/HQ/LE, average grids, ratings, totals, query-tool data, building
+   lists and coverage geometry (§4.8, §4.11).
+8. It **records history**: global EQ/HQ and school/hospital coverage per mille (§4.12).
+
+Init order and timing are in residential.md §4.1 (`Init`), §4.3 (agent registration) and §5.1 (states). In
+`Init` the class:
+
+- reads the simulator tuning (§4.13);
+- reads the ordinance effects (§4.3);
+- creates the four department budgets when they are missing (§4.2);
+- creates the coverage and grade grids when they are missing (§2).
+
+## 2. State (education and health part)
+
+Byte-exact layout and versions are in residential.md §9. The table gives meaning, initial value and whether the
+item is part of the class's save record (residential.md §3 and §9.1 are normative).
+
+| State | Initial | Saved | Notes |
+|---|---|---|---|
+| School coverage grids ×7 (`uint8`) | 0 | yes (grid refs) | Instance IDs, in group order: `0xAA8E1DC1`, `0x8A8DF4B6`, `0xCA8E449E`, `0xAA8DF4BD`, `0x8A8DF4C4`, `0xAA8DF4D4`, `0x69D5C30D`. Tract size = the population tract size S. |
+| Hospital coverage grids ×3 (`uint8`) | 0 | yes | `0xAA8E1DE4`, `0x8A8DF6FC`, `0x69D5C317`. Tract size S. |
+| School grade grid (`float`) | 0 | yes | `0x69D5C324`, tract size S. Returned by slot 39. |
+| Hospital grade grid (`float`) | 0 | yes | `0x69D5C330`, tract size S. Returned by slot 40. |
+| EQ grids ×3 (`float`, R$ / R$$ / R$$$) | 0 | yes | `0x69D5C2D0 + w` (w = 0, 1, 2). Tract size S_EQ. |
+| HQ grids ×3 (`float`) | 0 | yes | `0x69D5C2E0 + w`. Tract size S_EQ. |
+| Tract sizes S (population, age, coverage, grade) and S_EQ (EQ/HQ) | 4 and 4 (constructor) | yes | On a new city both are set to the tract size of the R$ developer's tract grid (growth developer `GetPopulationMap`, residential.md §2, §4.1). |
+| School group lists ×7, hospital group lists ×3 | empty | as references | Buildings in group order (§4.1). Each holds a reference. |
+| Pending school / hospital lists | empty | as references | Buildings added since the last state 0 (§4.1). |
+| Per-service department record ×2 | see below | partly | Strike flag, strike start day, tuning values, curves, department budget pointers. |
+| Strike flag and start day (per service) | false, 0 | saved, but **reset to false / 0 by the next `Init`** | City-level "the service is on strike" (§4.9). Part of the department block; `ReadSimulatorTunableValues` sets them unconditionally, so a city strike does not survive save and load *[quirk]* (residential.md §9.3; checked at `006FBCB0` / `006FBD33`). |
+| Ordinance effect lists ×2 | empty | no | Rebuilt at `Init` and in every state 0 (§4.3). |
+| Served counters ×2 | 0 | no | Population covered for the first time in the cycle (§4.4). They feed the history (§4.12). |
+| Grade totals ×2 (`float`) | 0 | no | Accumulated by the EQ/HQ boost (§4.6), reset in state 0. **Never read** by the class *[inferred]*. |
+| Global auto-budget flags (schools, hospitals) | false, false | yes (version ≥ 7) | Slots 52–55 (§4.10). |
+| `cRZRandom` member | wall-clock seed at construction | no | Strike rolls and death's-door effect (foundations §6.2). |
+| Dirty flag | see residential.md §3 | yes (residential.md §9.1) | Set by the month message when the cycle is late, by every building add/remove and by `SetOccupantFundingPercentages`. **Never read** *[inferred: no reader in the class]*. |
+
+**Per-building state** is kept in the building's own property holder and saved with the building:
+
+| Property | School | Hospital | Type | Written by |
+|---|---|---|---|---|
+| served population | `0x09220161` | `0xC922015C` | u32 | grading (§4.5); `0xFFFFFFFF` on add |
+| effective capacity | `0xE9244B2E` | `0x49244B21` | u32 | grading; = capacity on add |
+| grade | `0x292453C5` | `0x092453CB` | f32 | grading; 1.0 on add |
+| staff ratio | `0x2A976C20` | `0xAA976BE7` | f32 | grading; 1.0 on add |
+| strike start day (0 = not striking) | `0xEAA69F83` | `0xEAA69F83` | u32 | strikes (§4.9) |
+| auto-budget | `0x6C05FC4D` | `0x6C05FC4D` | bool | slot 57 / UI |
+
+## 3. Agents and cadence
+
+Agent registration is described in residential.md §4.3, the state list in §5.1. The education/health work is done in these
+states of the daily state machine. There is **one state per `DoDailySimulation` call**, and the call is driven
+by SimNewDay `0x66956814`:
+
+| State | Work |
+|---|---|
+| 0 | Reset both grade totals. Monthly strike check for schools, then hospitals (§4.9). Clear and re-read the ordinance effects (§4.3). Move pending schools, then pending hospitals, into their group lists (§4.1). Move pending health-affecting buildings (residential.md). Next state: 13. |
+| 13, 1, 14, 2, 15, 3, 11, 4, 12 | Population, age and workforce (residential.md). State 4 (`DoPopulationChange`, per tract) also runs the EQ/HQ update of §4.7. |
+| 5 | Reset the school served counter. `UpdateCoverageMap` for school groups 0..6 in order (§4.4). |
+| 6 | School grade grid := 0 (`SetTractValues(0)`). For each school group 0..6 and each building in list order: auto-budget step (§4.10), then `ComputeOccupantGrade` (§4.5) with the EQ grids, max 200, isSchool = true. |
+| 7 | Reset the hospital served counter. `UpdateCoverageMap` for hospital groups 0..2 (§4.4). |
+| 8 | The same as state 6 for hospitals, with the HQ grids and isSchool = false. |
+| 9 | History (§4.12). Next state: 10. |
+| 10 | Idle. The month message SimNewMonth `0x66956816` sets state 0 when the state is 10. Otherwise it only sets the dirty flag: the running cycle continues, reaches state 10 and then waits for the next month message. |
+
+Consequences *[compat]*:
+
+- Day agents run before month agents on the 1st (simulator spec §5). State 0 therefore runs on the **2nd** of
+  the month at the earliest. State 5 runs at least 10 days later, because states 13, 1, 14, 2, 15, 3, 11, 4
+  and 12 each take at least one day.
+- A cycle that is not back in state 10 by the next 1st skips that month's restart. It restarts on the 1st after
+  it reaches state 10.
+- The monthly strike check (state 0) uses grades and staff ratios from the **previous** cycle's states 6 and 8.
+- An ordinance enacted during a month affects coverage and grades from the next state 0 on.
+- Auto-budget calls `SetLocalFundingPercent` immediately, during state 6 or 8. The budget sees the new
+  percentages at its next settlement (budget spec).
+- Pollution used for the HQ decay (§4.7) is whatever the pollution simulator holds when state 4 reaches a
+  tract.
+
+`DoDailySimulation` returns true (AL = 1) in every state.
+
+## 4. Behaviour and formulas
+
+All float arithmetic is float32 (foundations §18): every add, sub, mul, div and sqrt rounds to float32, in the
+order given. "trunc" is `_ftol` (toward zero). The result is used as a 32-bit integer and reinterpreted as u32
+where noted. "u32→float" means `fild` plus 2^32 when the value is negative as int32. Response curves are
+evaluated with `GetOutputValue(x)` (foundations §4). "%curve" means a curve whose output is a percentage and is
+multiplied by **0.01** afterwards.
+
+### 4.1 Service-building recognition and lists
+
+**Messages.** The occupant-inserted message `0x99EF1142` and occupant-removed message `0x99EF1143` arrive with
+data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class asks the occupant for
+`cISC4BuildingOccupant` (IID `0x87DDA3A9`) and calls `DoBuildingChanged(building, added)`, where added =
+(type == `0x99EF1142`).
+
+**DoBuildingChanged(b, added)** works on the building's property holder (`b.AsOccupant().AsPropertyHolder()`).
+
+1. **Hospital test.** A building is a hospital if `budget.GetBudgetItemForPurpose(holder, 0xCA565486)` (health
+   staff) succeeds. Otherwise (no item) it is a hospital if it is in occupant group `0x1507` or `0x151C`.
+   For a hospital:
+   - Budget registration (only when the staff item exists):
+     - if the item's line is 0, `ChangeBudgetItemLine(holder, item.index, b.GetBuildingType())`;
+     - `dept := GetDepartmentBudget(item.department)`; null **aborts the whole call** (no list change);
+     - when added: if `dept.GetLineItem(line)` is null, `CreateLineItemForBuildingType(line, 1)` then
+       `line.SetDisplayFlag(2, true)`; `AddLocallyFundedObject(holder, 0xCA565486)`;
+     - when removed: `RemoveLocallyFundedObject(holder, 0xCA565486)`;
+     - the line item's 64-bit count (line slot 8 get / slot 9 set) is changed by +1 or −1; when removed and the
+       count reaches 0, `RemoveLineItem(line)`;
+     - then, if the ambulance purpose `0xEA56549E` has an item: its department (null aborts),
+       `AddLocallyFundedObject` or `RemoveLocallyFundedObject` with that purpose.
+   - **Added:** create and set served := `0xFFFFFFFF`, grade := 1.0, staff ratio := 1.0, effective capacity :=
+     capacity (`0x69220415`). AddRef. Append to the pending hospital list. Set the dirty flag.
+   - **Removed:** erase it from the first group list that contains it, else from the pending list. Release.
+     Set the dirty flag.
+2. **School test.** The same with staff purpose `0xEA5654B6`, bus purpose `0x4A5654BA`, groups `0x1503` or
+   `0x151B`, capacity `0x8922041B`, and the pending school list. The school test runs for **every** building,
+   after the hospital test. A building that passes both tests is put in both pending lists *[compat]*.
+3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md.
+4. Finally, the building's slot-11 value is read and the dirty flag set when its first u32 is 1
+   *[inferred meaning]*.
+
+**State 0 distribution** (§3). Each pending school is appended to the **first** group, in the order below, for
+which `IsOccupantGroup(group)` is true. Hospitals are handled the same way. Then the pending list is cleared.
+
+| Service | Group order (coverage-grid index 0..n−1) |
+|---|---|
+| School | `0x150F` (K-6 school), `0x1510` (high school), `0x1514`, `0x1504` (college), `0x1505`, `0x1506` (museum), `0x151B` |
+| Hospital | `0x1512`, `0x1513`, `0x151C` |
+
+Names come from the Lua constants and scripts where they exist. The others are unnamed here.
+
+*[quirk]* A pending building that is in **none** of these groups is dropped from the pending list without
+`Release`. It leaks one reference and never gets coverage or a grade.
+
+**GetBuildings(lists, out, groups)** appends the buildings of each group list to `out` (AddRef each):
+
+- `groups` null → all lists;
+- otherwise only the lists whose group ID is in `groups`;
+- an empty vector → none.
+
+`GetSchoolBuildings` / `GetHospitalBuildings(out, groups)` do this and then **always append the pending list**.
+**Counts** (slots 46/48) = Σ list sizes + pending list size.
+
+### 4.2 Departments and funding
+
+**Departments** (created in `Init` when missing, budget group `0x6A357B7F`):
+
+| Department | ID | Name (LTEXT group `0x6A3FF01C`) | Max | Initial funding |
+|---|---|---|---|---|
+| health | `0x09188F42` | `0xCA493A56` | health max | health initial |
+| health secondary (ambulances) | `0xAA538CB3` | `0xCA538D98` | health max | 100 %; creates line item 1 (local) and clears its display flag 1 |
+| education | `0x09188F4C` | `0x6A493A66` | school max | school initial |
+| education secondary (buses) | `0x4A538CC6` | `0x8A538DAC` | school max | 100 %; line item 1 as above |
+
+Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A3FF01C, name)`,
+`SetMaxAllowedFundingPercentage(&max)`, `SetFundingPercentage(&initial, 0)`.
+
+**GetOccupantFundingPercentages(occ, &a, &b, isSchool)** (slot 20). Purposes: staff = `0xEA5654B6` (school) or
+`0xCA565486` (health); vehicle = `0x4A5654BA` (bus) or `0xEA56549E` (ambulance).
+
+- No staff item → a = b = 1.0.
+- Staff item but its department is null → a and b are left unchanged.
+- Otherwise: a = `item.localFundingPercentage` if `dept.IsLocallyFundedObjectInDepartment(holder, staff)`, else
+  `*dept.GetFundingPercentage()`.
+- b is found the same way with the vehicle purpose; b = 1.0 if there is no vehicle item.
+
+**SetOccupantFundingPercentages(occ, &a, &b, isSchool)** (slot 19):
+
+- For the staff purpose, then the vehicle purpose: `GetBudgetItemForPurpose`; if it succeeds,
+  `GetDepartmentBudget(item.department)`, then `SetLocalFundingPercent(holder, x, purpose)`.
+- A missing item ends the call **with** the dirty flag set. A null department ends it **without**.
+
+**Efficiency ratings** `GetOccupantEfficiencyRatings(occ, &e1, &e2, isSchool, ignoreStrike)`:
+
+```
+e1 := e2 := 1.0
+if the building has no staff budget item: return
+(a, b) := GetOccupantFundingPercentages(occ, isSchool)
+if not ignoreStrike and building strike day ≠ 0:  e1 := a × strikeEfficiency
+else:                                              e1 := effCurve(a × 100) × 0.01
+e2 := coverageCurve(b × 100) × 0.01
+```
+
+**Base staff efficiency** `GetBaseStaffEfficiency(occ, isSchool)`: `effCurve(a × 100) × 0.01` when the staff
+item exists, else a (1.0). It ignores strikes.
+
+### 4.3 Ordinance effects
+
+`GetOrdinanceEffects(healthList, schoolList)` runs at `Init` and in every state 0. State 0 clears both lists
+first. `Init` does not, but the lists are empty then.
+
+- The ordinance list comes from `GetOrdinanceOnCount` and `GetOrdinanceOnArray`, in ascending ID order
+  (ordinance §4).
+- For each ordinance, `GetOrdinanceByID(id)` is called; null skips it.
+- The effect properties are read straight from `GetMiscProperties()`.
+- Each service builds one **effect element**. The element is appended only if **at least one** of its six
+  properties is present:
+
+| Field | School property | Health property | Read | Default |
+|---|---|---|---|---|
+| radius factor | `0xA91B3AF4` | `0x491B3AD5` | f32 × 0.01 | 1.0 |
+| distance curve | `0xA91B3AFA` | `0x891B3AE6` | curve, property-pointer loader | (0,100)(100,100) |
+| effect factor | `0xA92D9D7A` | `0xE91B3AEE` | f32 × 0.01 | 1.0 |
+| capacity factor | `0x892D9D02` | `0x092D909B` | f32 × 0.01 | 1.0 |
+| age curve | `0xC91B3B02` | `0xE92D9DB4` | curve, property-pointer loader | (0,100)(100,100) |
+| decay factor | `0x692EF65A` | `0xC92D9C7A` | f32 × 0.01 | 1.0 |
+| group filter | — | — | — | **always empty** |
+
+Both curves follow the foundations §4.1 **default** pattern. Each is rebuilt from the code default (0,100)(100,100)
+for every ordinance, then loaded from the property when it is present.
+
+Shipped users (ordinance §3.7): Pro-reading campaign (school effect factor 110 → 1.1), CPR Training and Free
+Clinics (health effect factor 110 → 1.1 each).
+
+**Which buildings an element affects.** `GetOrdinanceEffectListForOccupant(occ, kindProperty, list, &out)`
+copies the elements for which `DoesOrdinanceAffectOccupant` is true:
+
+- an element with an empty group filter affects every building;
+- otherwise it affects a building whose u32-array property `kindProperty` contains one of the filter's values.
+
+The filter is never filled (table above), so **every element affects every building of its service**
+*[compat]*. The kind property is `0xA92D8E40` (school) or `0x292D8F9B` (hospital). It matters only for the
+filter.
+
+**Modifiers** `GetOrdinanceModifiers(list)`, products over the occupant's list in list order, starting at 1.0:
+m1 = Π radius factor, m2 = Π capacity factor, m3 = Π effect factor.
+
+**Decay factors** multiply the EQ and HQ decay (§4.7): EQdecay × Π school decay factors and HQdecay × Π health
+decay factors. Each product starts at 1.0 and multiplies in list order.
+
+### 4.4 Coverage maps
+
+`UpdateCoverageMap(service, i)` for group i:
+
+1. `coverage[i].SetTractValues(0)`. chunk := chunk size[i] (§4.13).
+2. For each building of group i in list order:
+   - e2 from `GetOccupantEfficiencyRatings(occ, isSchool, ignoreStrike = false)`;
+   - the occupant's ordinance list (§4.3);
+   - m := e2; then for each element, m := m × radius factor, in list order;
+   - `MarkBuildingCoverage(i, occ, m, chunk, &served[service])`.
+
+**MarkBuildingCoverage**:
+
+1. radius := building property (school `0x691B42B3` "School Coverage Radius", hospital `0x091B42A2`, f32,
+   metres). capacity := `0x8922041B` / `0x69220415` (u32). If either is missing, return.
+2. r := radius × m. If r ≤ 0, return. (There are two dead calls before this test: a position read and a
+   reciprocal tract width.)
+3. units := capacity / chunk (u32 integer division). *[quirk]* chunk = 0 divides by zero (crash).
+4. tracts := `GetCoveredTractList(occ, r, coverage[i])`.
+5. For each listed tract (x, z), with old := `coverage[i](x, z)`:
+   - `coverage[i](x, z) := (low 16 bits of old + units) > 255 ? 255 : low 8 bits of (old + units)`.
+   - if old = 0 and no lower group j < i has a nonzero `coverage[j](x, z)`:
+     `served += pop_R$(x, z) + pop_R$$(x, z) + pop_R$$$(x, z)` (u16 tract values).
+
+*[quirk]* The served test does not look at units. A building with capacity < chunk (units = 0) adds 0 coverage
+but still counts the tract's population. A second such building counts it again.
+
+**GetCoveredTractList(occ, r, grid)**:
+
+- Centre: the lot's centre (`lotManager.GetOccupantLot(occ)` → `lot.GetCenter`). If there is no lot, the
+  occupant's `GetPosition`.
+- Calls `GetTractsInRadius(px, pz, r × slop, grid.GetTractWidthX(), countX, countZ, &list)`. slop = "coverage
+  radius slop multiplier" (§4.13).
+
+**GetTractsInRadius** (`0x005E5200`, cdecl, 7 arguments; new helper facts for simgrid §7):
+
+- Inputs: centre (px, pz) in metres, radius r in metres, tract width w in metres, grid counts.
+- inv := 1/w. x0 := trunc((px − r) × inv), x1 := trunc((px + r) × inv). z0 and z1 the same way.
+- Clamp: x0 < 0 → 0. x1 ≥ countX → countX − 1, with an **unsigned** compare, so a negative x1 also becomes
+  countX − 1. The same for z.
+- The tract centre starts at cx := x0 × w + w × 0.5. It is advanced by `cx += w` in float32, not recomputed.
+  The same for z.
+- A tract is included iff `dz² + dx² ≤ r²`, with dx = cx − px and dz = cz − pz. dx² is stored to float32 first.
+- Tracts are appended as (x, z) pairs, **x-major** (outer loop x, inner loop z).
+
+### 4.5 Grading
+
+`ComputeOccupantGrade(occ, coverage[i], chunk[i], gradeGrid, qGrids, max = 200, isSchool, &total)` runs for every
+building of every group in state 6 or 8. Inputs:
+
+- radius: as in §4.4. If it is missing: served := 0, effective capacity := 0, grade := 0.0. The staff ratio is
+  not touched. Nothing else happens.
+- capacity (u32, `0x8922041B` / `0x69220415`). A missing capacity is treated as 0 *[inferred: the getter's
+  output is pre-set to 0]*.
+- e1, e2 from `GetOccupantEfficiencyRatings(isSchool, ignoreStrike = false)`; base := base staff efficiency.
+- The building's three curves: age (c1), wealth (c2), distance (c3). See the table below. Each is loaded with
+  the property-pointer loader after a rebuild from the code default (0,100)(100,100), so the pattern is
+  **default** (foundations §4.1).
+- Ordinance list and m1, m2, m3 (§4.3).
+
+| Curve | School | Hospital | Input |
+|---|---|---|---|
+| c1 age | `0xC9299662` | `0xA92AE3BD` | tract average age (u8) |
+| c2 wealth | `0xC92D7EC0` | `0xA92D9FCD` | wealth index 0, 1, 2 |
+| c3 distance | `0xE921A936` | `0x2921A9CC` | distance as a percentage of the radius |
+
+Steps (float32 in this order):
+
+```
+r'        := (e2 × m1) × radius
+tracts    := GetCoveredTractList(occ, r', population grid R$ geometry)        (same S as coverage)
+served    := GetPopulationServed(occ, r', capacity, c1, c2, c3, ordinances, coverage[i], chunk, tracts)
+staffCap  := trunc((float(capacity) × base) × m2)            (u32)
+staff     := staffCap = 0 ? 0 : served = 0 ? 1.0 : min(1.0, float(staffCap) / float(served))
+effCap    := trunc((float(capacity) × e1) × m2)              (u32)
+grade     := effCap = 0 ? 0 : served = 0 ? 1.0 : min(1.0, float(effCap) / float(served))
+write staff ratio, grade, effective capacity, served (properties of §2)
+```
+
+*[compat]* The Windows `_ftol` result is used as u32. A negative product would wrap. Capacities are never
+negative in practice.
+
+**Grade grid.** units := capacity / chunk (u32). t := float(units) × grade. For each listed tract with
+n := `coverage[i](x, z)`:
+
+```
+v := (n > 1 ? gradeGrid(x, z) × float(n − 1) : 0) + t / float(n)
+gradeGrid(x, z) := min(1.0, v)
+```
+
+- *[quirk]* This is not a weighted mean. The previous value is multiplied by n − 1 instead of being averaged. In
+  a tract covered by several buildings, the earlier ones are over-weighted and the result reaches 1.0 quickly.
+- *[quirk]* n = 0 can only happen when units = 0. Then t / 0 = NaN (t = 0), and the min keeps NaN *[inferred:
+  min(1.0, NaN) stores NaN with the compare used]*.
+- The grade grid is **shared by all groups of the service** and reset only at the start of state 6 or 8.
+
+**GetPopulationServed** (r' and the tract list from above):
+
+- r' ≤ 0 → 0.
+- (tx, tz) := the building's tract in the R$ population grid (`PositionToTract`).
+- For each listed tract (x, z) with n := `coverage[i](x, z)` > 0:
+
+```
+dx   := float(u32(tx − x))          (*[quirk]* x > tx gives ≈ 4.29e9)
+dz2  := float(u32((tz − z)²))
+d    := sqrt(dz2 + dx × dx)          (tract units)
+xd   := d / r' × 100                 (*[quirk]* r' is in metres: tracts divided by metres)
+md   := c3(xd) × 0.01
+ma   := c1(float(age(x, z))) × 0.01
+for each ordinance element of the occupant: md := (element.distanceCurve(xd) × md) × 0.01
+                                            ma := (element.ageCurve(age) × ma) × 0.01
+for w in 0, 1, 2:
+    share := (float(units) / float(n)) × float(pop_w(x, z))
+    sum   := sum + (((c2(w) × 0.01) × share) × ma) × md
+```
+
+- Result: round-half-even(sum), computed as float32 `sum + 12582912.0` with the bias subtracted from the bits.
+  It is valid for 0 ≤ sum < 2^22.
+- The units mismatch makes xd small: for a 500 m radius and a 30-tract distance, xd = 6. Tracts on the +x side
+  of the building get xd ≈ 8.6e11. So the distance curve is effectively read at its first point on the −x side
+  and at its last point on the +x side *[compat]*.
+
+### 4.6 EQ and HQ boost (AddRadiusEffectWithCurves)
+
+At the end of `ComputeOccupantGrade`, when r' > 0:
+
+- multP := building effect multiplier, school `0xA92AE446` / hospital `0xC9299659`, f32, default 1.0.
+- Before this there is a dead call to `city.PositionToCell`.
+- Centre: lot centre, else occupant position (as §4.4).
+- Curve lists (`GetOrdinanceCurveListsForOccupant`):
+  - listA (distance) = each matching ordinance element's distance curve, then c3;
+  - listB (age) = each element's age curve, then c1.
+  - *[quirk]* This function always filters with the **school** kind property `0xA92D8E40`, even for hospitals.
+    The filter is empty (§4.3), so this has no effect.
+- For w = 0, 1, 2:
+
+```
+value_w := ((grade × (c2(float(w)) × 0.01)) × multP) × m3
+AddRadiusEffectWithCurves(ageGrid, qGrids[w], listB, px, pz, r' × slop, listA,
+                          value_w, 200.0, units, coverage[i], popGrid[w], &total)
+```
+
+qGrids is the EQ grids (schools) or HQ grids (hospitals).
+
+**AddRadiusEffectWithCurves** (`0x005E48F0`, cdecl, 13 arguments; new helper facts for simgrid §7). The
+target is a float grid with tract size S_t and tract width w.
+
+- Tract bounds: as in `GetTractsInRadius`, but the upper clamp uses a **signed** compare.
+- It reads the coverage grid and the target **raw** through `GetGridData`.
+- For each tract in the bounds, in x-major order:
+  1. Skip the tract if pop_w(x, z) = 0 (u16). *[quirk]* On this path the z-centre accumulator is **not**
+     advanced, so every later tract in that column uses a centre one tract too far back.
+  2. d := sqrt(dz² + dx²) (float32). Skip the tract unless d ≤ r.
+  3. mult := 1.0. xd := 1 − (r − d) / r.
+  4. For each curve in listA: mult := (mult × curve(xd)) × 0.01.
+  5. If the age grid is not null, for each curve in listB:
+     mult := (mult × curve(float(ageGrid.GetCellValue(x × S_t, z × S_t)))) × 0.01.
+  6. eff := mult × value.
+  7. n := coverage(x, z) (raw u8). If n ≠ 0: k := float(units) / float(n); eff := eff × k;
+     pop' := trunc(float(pop) × k).
+  8. total := total + float(pop' & 0xFFFF) × eff.
+  9. target(x, z) := min(max, target(x, z) + eff), written raw.
+- Notes:
+  - Units: xd here is a 0..1 fraction of the radius. Curves with x in percent therefore see only their first
+    percent *[compat]*.
+  - EQ and HQ values can only rise here. The cap is 200 (`GetMaxEQ`/`GetMaxHQ`). The tuning values "Maximum EQ
+    Boost" and "Maximum HQ Boost" are never used (§4.13).
+
+### 4.7 Daily EQ/HQ update (inside DoPopulationChange)
+
+`DoPopulationChange(tv, tx, tz)` runs per tract in state 4 (residential.md §5.5). tv holds the
+population tunables read by `ReadTunablePopulationValues` (§4.13); that read multiplies the decays by the ordinance
+decay factors. The education/health steps, in order:
+
+1. **Pollution.** For type 0 (air), 1 (water), 2 (garbage): avg := Σ `pollution.GetPollutionValue(type, x, z)`
+   over the S × S cells of the tract / S² (u32 division). Only the **low byte** of avg is used *[quirk]*.
+   GetPollutionValue returns the pollution **source** grid value (pollution spec, slot 6).
+   ```
+   HQdec := tv.HQdecay
+   HQdec := airCurve(float(avg_air & 0xFF))     + HQdec
+   HQdec := waterCurve(float(avg_water & 0xFF)) + HQdec
+   HQdec := garbageCurve(float(avg_garb & 0xFF))+ HQdec
+   ```
+2. **Decay**, for w = 0, 1, 2:
+   - EQ_w := EQ_w − tv.EQdecay; if the result is < 0 → 0. A NaN is kept.
+   - HQ_w := HQ_w − HQdec; the same clamp.
+3. **Death's door** (visual only), for the same w, right after its decay. It fires when all of these hold:
+   - HQ_w < tv.deathsDoorHQ;
+   - no effect has been started yet for this tract in this call;
+   - pop_w(tx, tz) ≠ 0;
+   - the draw r := `RandomDoubleRangeUniform(0.0, 100.0)` on the class's `cRZRandom` (1 draw) gives
+     tv.deathsDoorChance > r.
+
+   Then the class creates the visual effect "buzzards" (`effectsManager.CreateVisualEffect`):
+   - x = tx × width + width × 0.5, and the same for z;
+   - y = terrain.GetAltitude(x, z) + tv.height + `RandomDoubleRangeUniform(−delta, +delta)` (a 2nd draw);
+   - the effect is positioned, started and released;
+   - only after a successful create is the per-tract flag set.
+4. **New population** (residential.md). If new > old for wealth w, with delta := int16(new − old):
+   ```
+   m      := EQ_old > 0 ? 2 : 1
+   EQ_new := min(200, ((((EQ_old + newEQ_w) / m) × delta) + old × EQ_old) / new)
+   ```
+   The same for HQ with newHQ_w. If new = 0: EQ_w := HQ_w := 0.
+5. **Generational reset.** If the tract's average age > `u8(GetCellLifeExpectancy(S × tx, S × tz))`:
+   - age := tv.ageReset;
+   - for each w: EQ_w := EQ_w × tv.EQreset and HQ_w := HQ_w × tv.HQreset.
+6. **Accumulators**:
+   - a 64-bit sum += LE × total new population;
+   - the age histogram: bucket population += pop and bucket EQ sum += trunc(EQ) × pop, with the bucket rule of
+     residential.md §5.5 step 11 (ages 18..22 → bucket 0; ages 0..17 and ≥ 77 → bucket 19).
+   - Their readers are in residential.md (§5.6, §5.7).
+
+The exact order of these steps relative to the population and age steps (decay before the population read; LE
+after the EQ/HQ updates) is normative in residential.md §5.5.
+
+### 4.8 EQ, HQ and LE queries
+
+**GetTractQuotient(q[3], p[3], x, z)** (internal):
+
+- sum16 := pop_0 + pop_1 + pop_2 as **uint16** (wraps, *[quirk]*). If sum16 = 0 → 0.0.
+- s := q2 × p2; s := q1 × p1 + s; result := (q0 × p0 + s) / float(sum16).
+
+| Method | Behaviour |
+|---|---|
+| `GetCellEQ(x, z)` / `GetCellHQ(x, z)` (slots 35/36) | GetTractQuotient(EQ or HQ, pop, x / S_EQ, z / S_EQ) (unsigned division by the EQ grid's tract size). ST0. |
+| `GetCellEQByWealth(x, z, wealth)` (37/38) | `EQ[wealth − 1].GetTractValue(x / S_EQ, z / S_EQ)`. The wealth byte is decremented as u8, so **wealth 0 or > 3 reads out of bounds** (crash) *[quirk]*. ST0. |
+| `GetGlobalEQ()` / `GetGlobalHQ()` (32/33) | pop := `GetPopulation()`; 0 → 0.0. Otherwise, over the EQ grid's tract counts: a := Q0 × p0; b := Q1 × p1 + a; c := Q2 × p2 + b; sum := c + sum; result := sum / float(pop). ST0. |
+| `GetAverageEQGrid(&g, min*, max*)` / `HQ` (21/22) | Creates a **new** float grid (refcount 1, owned by the caller), tract size S_EQ, ID `0x69D5C351` / `0x69D5C360`. Each tract := float(trunc(quotient)), or 0 when sum16 = 0. min starts at 255.0 and max at 0.0. Each is updated with every tract, populated or not, and written only when its pointer is not null. |
+| `GetEQMinAndMaxCellCoords(&minX, &minZ, &maxX, &maxZ, &min, &max)` / `HQ` (43/44) | If `GetPopulation()` = 0: all six outputs := 0, AL = 0. Otherwise min := 200.0, max := −200.0. For each tract (x outer, z inner) with any pop_w ≠ 0: q := quotient; q < min → min := q and remember (x, z); q > max likewise (strict). Coordinates out := S_EQ/2 + S_EQ × tract (signed /2). AL = 1. *[quirk]* If no tract has population (the population counter disagrees with the grids), the coordinates are uninitialised stack values. |
+| `GetCellLifeExpectancy(x, z)` (29) | Loads the residential tuning exemplar **on every call**; missing → 0. Curve "Health Quotient to Life Expectancy Curve" `0x6941A67F`, **default** pattern, code default (0,0)(200,200). LE := trunc(curve(GetCellHQ(x, z))). Returns **AL only** (§7). |
+| `GetGlobalLE()` (34) | The same with `GetGlobalHQ()`. **AL only**, not a float. |
+| `GetMaxEQ()` / `GetMaxHQ()` (50/51) | 200 (EAX). |
+
+### 4.9 Strikes
+
+Per service there is a department record holding: strike flag, start day, strike efficiency, strike duration,
+"min grade to end", strike curve, max funding and the message type. The message types are `0x077ACCD0`
+(school) and `0x077ACCD2` (health). "today" is `city.GetSimulator().GetSimDate().DayNumber()`.
+
+**DoMonthlyStrikeCheck(dept, groupLists, staffProp, gradeProp, strikeGroup)** (state 0). strikeGroup is
+`0x1A03` for schools and `0x1A02` for health. changed := false, count := 0. For every building of every group
+list, in order:
+
+1. Skip it unless `IsOccupantGroup(strikeGroup)`.
+2. changed := changed | `UpdateStrikingState(occ, dept, staffProp, gradeProp)`.
+3. If the building's strike day is > 0: count += 1, and if changed, `BeginStrike(dept, occ)`.
+   - *[quirk]* changed is sticky. After the first change, every later striking building calls BeginStrike. That
+     call is a no-op while the flag is set.
+
+At the end: if changed and the flag is set and count = 0 → `EndStrike(dept, today − startDay)`.
+
+**UpdateStrikingState(occ, dept, staffProp, gradeProp)**. s := the building's strike day (`0xEAA69F83`, u32,
+default 0).
+
+- **Striking (s ≠ 0).** The strike ends (s := 0) if `today − s > duration` (u32 compare, **days**). Otherwise it
+  ends if staffRatio ≥ minGradeToEnd; staffRatio defaults to 1.0 when missing. A NaN ratio keeps the strike.
+- **Not striking.**
+  - g := grade (default 0.0); p := strikeCurve(g × 100). There is no 0.01 factor: p is a percentage.
+  - r := `RandomDoubleRangeUniform(0.0, 100.0)` on the class's `cRZRandom`, **exactly 1 draw per eligible
+    non-striking building per monthly check**, even when p = 0.
+  - If r < p, the strike starts and s := today.
+- **On a change:**
+  - write s;
+  - `city.GetAutomataControllerManager()`: on start, `AddControllersFromOccupantGroup(name, occ, 0)`; on end,
+    `RemoveControllers(name, occ)`;
+  - name = "striking_health" when the department's message type is `0x077ACCD2`, otherwise
+    "striking_education";
+  - AL = 1. With no change, AL = 0.
+
+**BeginStrike(dept, occ)**: if the flag is set, AL = 0. Otherwise flag := true, start := today, post the strike
+message (§5), AL = 1.
+
+**EndStrike(dept, length)**: if the flag is clear, AL = 0. Otherwise flag := false, start := 0, post the
+end-of-strike message, AL = 1.
+
+**EndSchoolStrike / EndHealthStrike** (slots 8/9): if the service is on strike, `EndStrike(dept, today − start)`.
+Otherwise AL = 0. The aura simulator calls these when a disaster ends (aura spec). The per-building strike days
+are **not** cleared, so the next monthly check re-evaluates them.
+
+**SchoolIsOnStrike / HealthIsOnStrike** (6/7): AL = flag.
+
+**ChanceOfSchoolStrike / ChanceOfHealthStrike** (10/11), returned through a hidden pointer as SC4Percentage:
+
+- On strike → 1.0.
+- Otherwise p := 0. For each group list: c := `GetChanceOfStrike(list)`, then p := (c + p) − c × p.
+- `GetChanceOfStrike` (one list): q := 0, g := 0. For **every** building in the list:
+  - if it is in the strike group: g := grade if the property is present (otherwise g keeps its previous value);
+    c := strikeCurve(g × 100) × 0.01;
+  - then q := (q + c) − q × c.
+  - *[quirk]* A building outside the strike group reuses the previous c (0 before the first member).
+
+### 4.10 Auto-budget and ideal funding
+
+In states 6 and 8, a building is auto-budgeted if the global flag for its service is set (slots 52–55) **or** its
+own property `0x6C05FC4D` is true. For such a building:
+
+```
+(a, b) := (0, 0); GetOccupantFundingPercentages(occ, &a, &b, isSchool)   (slot 20)
+if EstimateIdealFunding(occ, &a):                                        (slot 58)
+    SetOccupantFundingPercentages(occ, a, b, isSchool)                   (slot 19)
+```
+
+Only the staff percentage changes; the vehicle percentage is written back unchanged. The auto-budget step runs
+**before** the building is graded, so it uses last cycle's served population.
+
+**EstimateIdealFunding(occ, &f)**:
+
+- Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet).
+- r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands). A zero divisor gives inf or NaN.
+- effCurve is the service's "Funding To Efficiency" curve and L its max allowed funding.
+
+```
+f := r
+v := effCurve(f × 100) × 0.01
+while v > r:                       # step down
+    f := f − 0.01;  v := effCurve(f × 100) × 0.01
+    if f ≤ 0: f := 0; break
+while v < r:                       # step up
+    f := f + 0.01;  v := effCurve(f × 100) × 0.01
+    if f > L: f := L; break
+```
+
+f is accumulated in float32. The result is the first point of the grid r ± k × 0.01 where the efficiency
+reaches r, clamped to [0, L]. AL = 1.
+
+### 4.11 Query data, ratings, totals, capacity and coverage geometry
+
+**Query data** (`GetSchoolQueryData` / `GetHospitalQueryData(occ, tQueryData*)`, slots 26/27). The record
+begins with a `cRZString` (vtable `0x00A80810`) at offset 0, which these methods do not fill *[inferred]*. The
+fields below follow it and are u32 unless marked:
+
+| Offset | School | Hospital |
+|---|---|---|
+| +0x14 | capacity | capacity |
+| +0x18 | effective capacity (property) | effective capacity |
+| +0x1C | capacity / school divisor (floor) | capacity / hospital divisor (floor) |
+| +0x20 | ceil(effCap / school divisor) | **floor**(effCap / hospital divisor) |
+| +0x24 | served (`0xFFFFFFFF` → 0) | served (same) |
+| +0x28 | grade (f32) | grade (f32) |
+| +0x2C / +0x30 | staff item: funding percentage (f32), cost; without an item 1.0 / 0 | the same, staff item **required** (AL = 0 without it) |
+| +0x34 / +0x38 | bus item: funding, cost; else 1.0 / 0 | ambulance item; else 1.0 / 0 |
+
+The school query fails (AL = 0) only if one of capacity, effective capacity, served or grade is missing. A
+divisor of 0 divides by zero *[quirk]*.
+
+**Ratings** `GetSchoolSystemRating` / `GetHealthSystemRating` (12/13), returned through a hidden pointer as
+SC4Percentage:
+
+- sum := Σ effective capacity (+0x18) of the query data of every building in the group lists.
+- *[quirk]* The record is not reset between buildings. A failed query adds the previous building's value again.
+- rating := sum = 0 ? 0 : pop = 0 ? 1.0 : min(1.0, float(sum) / float(GetPopulation())).
+
+**Totals** `GetSchoolSystemTotals` / `GetHospitalSystemTotals(totals*, groups*)` (14/15):
+
+- Over the group lists whose ID is in `groups`, accumulate the query fields +0x14..+0x24 (u32 sums) and
+  +0x28 (grade sum).
+- Return the **number of buildings counted** in EAX.
+- *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
+
+**EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28):
+
+- e1 from the efficiency ratings with **ignoreStrike = true**.
+- cap := trunc((float(capacity) × e1) × m2).
+- staff := ceil(cap / **school** divisor) for both services *[quirk]*.
+
+**GetOccupantCoverage(occ, const SC4Percentage& level, float& dist, float& radius)** (45):
+
+- Kind: school if the building has `0x8922041B`; hospital if it has `0x69220415` (hospital wins if both).
+  Neither → AL = 0.
+- radius := (e2 × m1) × coverage radius.
+- dist := the distance at which the building's distance curve (c3) falls to level × 100:
+  - walk the points from the second one on, keeping the last point P_prev with y > level × 100;
+  - at the first point P with y ≤ level × 100:
+    dist := (((y_prev − L) / (y_prev − y)) × ((x − x_prev) × 0.01)) × radius + x_prev × radius,
+    with L = level × 100;
+  - if there is no such point, dist := 0.
+  - *[quirk]* The x_prev term has no 0.01 factor.
+  - With the default flat curve (0,100)(100,100): level < 1 gives dist = 0, and level = 1 gives NaN.
+- AL = 1 when found.
+
+### 4.12 History
+
+State 9 records through a synchronous **message**, not the history-warehouse interface:
+
+- `messageServer.MessageSend(m)` with type `0x89EFA536`, data1 = history ID, data2 = value (int32);
+- this type is the history warehouse's class ID *[inferred: the warehouse handles it]*.
+
+| History ID | Value |
+|---|---|
+| `0xAA1A2864` | trunc(GetGlobalEQ()) |
+| `0xAA1A2866` | trunc(GetGlobalHQ()) |
+| `0xAA1A2CCA` | total population (residential.md) |
+| `0x4A8A3FE5` | school coverage ‰: round-half-even((float(servedSchool) / float(pop)) × 1000); 0 if pop ≤ 0 |
+| `0x4A8A3FE2` | health coverage ‰: the same with servedHealth |
+
+Population and served values are loaded as **signed** int32. The last two IDs are registered with the history
+warehouse in `Init` (residential.md).
+
+### 4.13 Tuning (education/health properties)
+
+Residential tuning exemplar (type, group, instance) = (`0x6534284A`, `0xE7E2C2DB`, `0x69189C84`). It is read by
+`ReadSimulatorTunableValues` at `Init`, by `ReadTunablePopulationValues` before every state-4 pass, and by the LE
+queries on every call. Names come from re/tuning/simulators.md. Percent values are read as f32 × 0.01
+("pct"). Read patterns (foundations §4.1; residential.md §7.1–§7.3 is normative for the loaders):
+
+- **Department values and the funding/strike curves** (`ReadSimulatorTunableValues`): the code defaults are set
+  unconditionally (including strike flag := false and strike start := 0, §6), then the properties are read only
+  if the exemplar exists. Curves: **default** pattern (rebuilt from the code point list, then loaded by key). A
+  missing property keeps the code default.
+- **Staff divisors, slop multiplier, maximum boosts and chunk sizes** are set only when the exemplar exists; the
+  "code default" column gives the value set in that branch. Without the exemplar they stay uninitialised
+  (residential.md §7.2, *[choice]* there).
+- **Pollution curves** (`ReadTunablePopulationValues`): **default** when the exemplar exists, **keep** when it
+  is missing (residential.md §7.1).
+- **HQ → LE curve**: a fresh temporary curve per call, **default** pattern; a missing exemplar makes the LE query
+  return 0 (residential.md §7.3).
+
+| ID | Name | Read as | Code default | Shipped |
+|---|---|---|---|---|
+| `0xE918946F` / `0xC91894A8` | (OBS) Health / School Min Acceptable Funding % | pct | 0.6 | absent from the shipped exemplar; loaded, but the value is **never used** *[inferred]* (name from re/prior_art_exemplar_props.md) |
+| `0xA9189479` / `0x891894AD` | Health / School Init/Max Allowed Funding | f32[2] × 0.01 → initial, max | 0.25, 1.2 | 25, 120 |
+| `0x89189482` / `0xE91894B3` | Health / School Strike Efficiency % | pct | 0.2 | 20 |
+| `0x8918948B` / `0xA91894BC` | Health / School Strike Duration | s32 | 10 | 500 (*[compat]* compared in **days**; the name says months) |
+| `0x89189495` / `0x691894C0` | Health / School Min Grade to End Strike | SC4Percentage getter (× 0.01) | 0.9 | 90 → 0.9 (compared with the **staff ratio**) |
+| `0x2918949E` / `0x691894C6` | Health / School Funding To Efficiency Curve | curve | (0,0)(100,100)(120,110) | same |
+| `0x0A53B2F9` / `0xEA53B30F` | Health / School Funding to Coverage Curve | curve | (0,20)(100,100) | health (0,50)(100,100); school (0,50)(100,100)(120,110) |
+| `0x691894A4` / `0xC91894CB` | Health / School Strike Response Curve | curve | (0,20)(100,100) | (0,100)(80,0) |
+| `0x8A891421` | School Capacity To Staff Divisor | u32 | 30 | 30 |
+| `0x8A89142A` | Hospital Capacity To Staff Divisor | u32 | 30 | 30 |
+| `0x6A9F6EDD` | Coverage radius slop multiplier | f32 | 1.1 | 1.1 |
+| `0x4AA84161` / `0x2AA84164` | Maximum EQ / HQ Boost | f32 | 10.0 / 10.0 | 1.3 / 1.1; **loaded, never read** |
+| `0xEC43826B` | School Capacity Chunk Size | u32 array | none (empty) *[quirk: then indexed out of range]* | 500, 750, 1000, 1000, 10000, 300, 1200 |
+| `0xAC43826D` | Hospital Capacity Chunk Size | u32 array | none | 500, 500, 2000 |
+| `0xC929C433` / `0x0929C439` | EQ / HQ Decay | f32 | 1.0 / 1.0 | 0.2 / 0.2 |
+| `0xC929CC58` / `0x0929CC65` / `0x2929CC6B` | Low / Medium / High Wealth EQ (newcomers) | float getter (converts) | 4 / 6 / 8 | u8 20 / 40 / 60 |
+| `0xC929CC8D` / `0x6929CC92` / `0x4929CC97` | Low / Medium / High Wealth HQ | float getter | **none: uninitialised** *[quirk]* | u8 20 / 40 / 60 |
+| `0xCA027325` / `0xCA027328` | EQ / HQ reset percent | SC4Percentage getter | 0.7 / 0.7 | 80 → 0.8 |
+| `0xCA027307` | Average Age reset value | u8 | 40 | 40 |
+| `0x6AB70DA7` | Death's door HQ | f32 | 0 | 2 |
+| `0x4AB70DAC` | Death's door effect chance (%) | f32 | 0 | 1.5 |
+| `0x6AB71654` / `0x4AB71659` | Death's door effect height / height delta | f32 | 0 / 0 | 50 / 10 |
+| `0x6941B022` | Air Pollution to HQ Decay Curve | curve | (0,0)(32000,100) | (0,0)(512,0.1)(1024,50) |
+| `0xA941B028` | Water Pollution to HQ Decay Curve | curve | (0,0)(32000,100) | (0,0)(512,0.1)(1024,50) |
+| `0xC941B02E` | Garbage Pollution to HQ Decay Curve | curve | (0,0)(32000,100) | (0,0)(512,0.2)(1024,20) |
+| `0x6941A67F` | Health Quotient to Life Expectancy Curve | curve (per LE call) | (0,0)(200,200) | (0,50)(20,55)(40,60)(60,65)(200,100) |
+
+Notes:
+
+- The ages (`0xC929C652`, `0x0929CC30`, `0x0929CC36`) and the nine age-group curves are in residential.md.
+- *[compat]* The newcomer EQ/HQ values ship as u8 and are read with the converting float getter.
+  docs/subsystems/demand-rci.md quotes the code defaults (4/6/8, reset 0.7). The shipped values are 20/40/60 and
+  0.8.
+- If the exemplar is missing, `ReadTunablePopulationValues` leaves the newcomer HQ values uninitialised. A
+  replacement should use the shipped values *[choice]*.
+
+**Building properties** (from building exemplars, read per call):
+
+| Property | School | Hospital | Default when missing |
+|---|---|---|---|
+| coverage radius (m) | `0x691B42B3` | `0x091B42A2` | building skipped |
+| capacity | `0x8922041B` | `0x69220415` | skipped (coverage) / 0 |
+| effect multiplier | `0xA92AE446` | `0xC9299659` | 1.0 |
+| age / wealth / distance curves | `0xC9299662` / `0xC92D7EC0` / `0xE921A936` | `0xA92AE3BD` / `0xA92D9FCD` / `0x2921A9CC` | (0,100)(100,100) |
+| ordinance kind (u32 array) | `0xA92D8E40` | `0x292D8F9B` | — (filter unused) |
+
+## 5. Messages posted
+
+| Type | When | Fields | How |
+|---|---|---|---|
+| `0x077ACCD0` (school) / `0x077ACCD2` (health) **strike begins** | `BeginStrike` | void1 = the building's occupant; IGZUnknown = the same occupant; data2 = 1 | `MessagePost(m, 0)` |
+| same types, **strike ends** | `EndStrike` | data2 = 0; data3 = length in days (today − start) | `MessagePost(m, 0)` |
+| `0x89EFA536` history record | state 9 | data1 = history ID; data2 = value | `MessageSend(m)` (synchronous) |
+
+Each message is a new `cRZMessage2Standard` released after posting.
+
+## 6. Persistence
+
+The layout is in residential.md §9. Meaning only:
+
+- **Saved:** the coverage, grade, EQ and HQ grids (as grid references); the per-service department blocks
+  (including the strike flag and start day); the global auto-budget flags (version ≥ 7); the group and pending
+  building lists (as references).
+- *[quirk]* The loaded strike flags and start days are overwritten by the next `Init` (the tuning read resets
+  them), so a city-level strike ends on load without an end-of-strike message. The per-building strike start
+  day (property `0xEAA69F83`) is kept. The city flag is set again only when a later monthly check (§4.9) sees
+  some building change state while a building is striking (BeginStrike is called only after a change).
+- **Not saved:**
+  - the ordinance effect lists (rebuilt in `Init`);
+  - the tuning (re-read);
+  - served counters and grade totals (recomputed in the next cycle);
+  - the RNG (foundations §6.2).
+- Per-building values (served, grade, staff ratio, effective capacity, strike day, auto-budget) live in the
+  buildings' property holders and are saved with the buildings.
+- *[inferred]* After a load, the grades shown before the first state 6/8 are the saved building properties.
+
+## 7. Interface methods (education/health slots of `cISC4ResidentialSimulator`, vtable `0x00AB2C10`)
+
+Callee-pop values were checked with `abi_extract.py --check`; return channels by reading the epilogues.
+
+| Slot | Off | Signature as the game expects it | Pop | Return | Notes / SDK |
+|---|---|---|---|---|---|
+| 6 | +0x18 | `bool SchoolIsOnStrike()` | 0 | AL | — |
+| 7 | +0x1C | `bool HealthIsOnStrike()` | 0 | AL | — |
+| 8 | +0x20 | `bool EndSchoolStrike()` | 0 | AL | — |
+| 9 | +0x24 | `bool EndHealthStrike()` | 0 | AL | — |
+| 10 | +0x28 | `SC4Percentage* ChanceOfSchoolStrike(SC4Percentage* out)` | 4 | EAX = out | **SDK error**: SDK `float ChanceOfSchoolStrike()` (checked `006F9670`). |
+| 11 | +0x2C | `SC4Percentage* ChanceOfHealthStrike(SC4Percentage* out)` | 4 | EAX = out | **SDK error** (`006F9730`). |
+| 12 | +0x30 | `SC4Percentage* GetSchoolSystemRating(SC4Percentage* out)` | 4 | EAX = out | **SDK error**: SDK float (`006F9F20`). |
+| 13 | +0x34 | `SC4Percentage* GetHealthSystemRating(SC4Percentage* out)` | 4 | EAX = out | **SDK error** (`006F9DD0`). |
+| 14 | +0x38 | `uint32 GetSchoolSystemTotals(tQueryData* totals, SC4Vector<uint32>* groups)` | 8 | EAX = count | **SDK error**: SDK `bool`; groups must be non-null (`006FA240` → `006FA070`). |
+| 15 | +0x3C | `uint32 GetHospitalSystemTotals(...)` | 8 | EAX = count | **SDK error** (`006FA260`). |
+| 17 | +0x44 | `int32 GetTotalCityEducationUpkeepCost()` | 0 | EAX = 0 | `004E13E0`: always 0. |
+| 18 | +0x48 | `int32 GetTotalCityHealthUpkeepCost()` | 0 | EAX = 0 | same body. |
+| 19 | +0x4C | `? SetOccupantFundingPercentages(cISC4Occupant*, const SC4Percentage& staff, const SC4Percentage& vehicle, bool isSchool)` | 16 | garbage | `006F8290`: no return value is set. A replacement should return true *[choice]*. The SDK names the arguments "school/health"; they are staff/vehicle of one service. |
+| 20 | +0x50 | `? GetOccupantFundingPercentages(cISC4Occupant*, SC4Percentage& staff, SC4Percentage& vehicle, bool isSchool)` | 16 | garbage | `006F84B0` → `006F8360`. Same remarks. |
+| 21 | +0x54 | `? GetAverageEQGrid(cISC4SimGrid<float>*& out, float* min, float* max)` | 12 | garbage (the `max` pointer) | `006FCF30`. The caller owns `out` (refcount 1). Replacement: return true. |
+| 22 | +0x58 | `GetAverageHQGrid` (same) | 12 | garbage | `006FCFD0`. |
+| 23 | +0x5C | `GetEQGrids(cISC4SimGrid<float>*&, cISC4SimGrid<float>*&, cISC4SimGrid<float>*&)` | 12 | garbage | All three are outputs and **AddRef'd** (caller releases). **SDK error** (2nd/3rd are not references), already reported by crime.md (`006F72C0`). |
+| 24 | +0x60 | `GetHQGrids` (same) | 12 | garbage | `006F7300`. |
+| 26 | +0x68 | `bool GetSchoolQueryData(cISC4Occupant*, tQueryData*)` | 8 | AL | `006F91C0`. |
+| 27 | +0x6C | `bool GetHospitalQueryData(cISC4Occupant*, tQueryData*)` | 8 | AL | `006F7E80`. |
+| 28 | +0x70 | `? EstimateCurrentOccupantCapacity(cISC4Occupant*, uint32& cap, uint32& staff)` | 12 | garbage | `006FD510`. **SDK error** (bool). Replacement: return true. |
+| 29 | +0x74 | `uint8 GetCellLifeExpectancy(uint32 x, uint32 z)` | 8 | **AL only** | **SDK error**: SDK int32; bits 8–31 of EAX are garbage (`006FC570`). |
+| 32 | +0x80 | `float GetGlobalEQ()` | 0 | ST0 | `006F7720`. |
+| 33 | +0x84 | `float GetGlobalHQ()` | 0 | ST0 | `006F7870`. |
+| 34 | +0x88 | `uint8 GetGlobalLE()` | 0 | **AL only** | **SDK error**: SDK `float`; nothing is left on the x87 stack (`006FC9E0`). |
+| 35 | +0x8C | `float GetCellEQ(uint32 x, uint32 z)` | 8 | ST0 | `006F79C0`. |
+| 36 | +0x90 | `float GetCellHQ(uint32 x, uint32 z)` | 8 | ST0 | `006F7A10`. |
+| 37 | +0x94 | `float GetCellEQByWealth(uint32 x, uint32 z, uint8 wealth)` | 12 | ST0 (from `GetTractValue`) | `006F7A60`. wealth 1..3. |
+| 38 | +0x98 | `float GetCellHQByWealth(...)` | 12 | ST0 | `006F7AB0`. |
+| 39 | +0x9C | `cISC4SimGrid<float>* GetSchoolAverageGradeMap()` | 0 | EAX ptr, **no AddRef** | `00809240`. SDK error already reported by aura.md. |
+| 40 | +0xA0 | `cISC4SimGrid<float>* GetHospitalAverageGradeMap()` | 0 | EAX ptr | `00407AC0`. |
+| 41 | +0xA4 | `cISC4SimGrid<uint8>* GetAverageAgeMap()` | 0 | EAX ptr, no AddRef | **SDK error**: SDK int32 (`006AAEB0`). Age grid of residential.md. |
+| 43 | +0xAC | `bool GetEQMinAndMaxCellCoords(uint32&, uint32&, uint32&, uint32&, float&, float&)` | 24 | AL | `006F7380`. |
+| 44 | +0xB0 | `bool GetHQMinAndMaxCellCoords(...)` | 24 | AL | `006F7550`. |
+| 45 | +0xB4 | `bool GetOccupantCoverage(cISC4Occupant*, const SC4Percentage& level, float& distance, float& radius)` | 16 | AL | `006FD260`. **SDK naming error**: the SDK's "fRangeX, fRangeZ" are (distance at `level`, radius). |
+| 46 | +0xB8 | `int32 GetSchoolBuildingCount()` | 0 | EAX | `006F9590`. |
+| 47 | +0xBC | `? GetSchoolBuildings(SC4List<cISC4Occupant*>&, SC4Vector<uint32>* groups)` | 8 | garbage | `006FADE0`. **SDK error** (bool). Appends with AddRef; the caller releases. Replacement: return true. |
+| 48 | +0xC0 | `int32 GetHospitalBuildingCount()` | 0 | EAX | `006F9600`. |
+| 49 | +0xC4 | `? GetHospitalBuildings(...)` | 8 | garbage | `006FAE50`. |
+| 50 | +0xC8 | `int32 GetMaxEQ()` | 0 | EAX = 200 | `006FEA40`. |
+| 51 | +0xCC | `int32 GetMaxHQ()` | 0 | EAX = 200 | same body. |
+| 52 | +0xD0 | `bool GetGlobalAutoBudgetForSchools()` | 0 | AL | `006FEA50`. |
+| 53 | +0xD4 | `bool SetGlobalAutoBudgetForSchools(bool)` | 4 | AL = argument | `006FEA60`. |
+| 54 | +0xD8 | `bool GetGlobalAutoBudgetForHospitals()` | 0 | AL | `006FEA70`. |
+| 55 | +0xDC | `bool SetGlobalAutoBudgetForHospitals(bool)` | 4 | AL = argument | `006FEA80`. |
+| 56 | +0xE0 | `bool GetAutoBudget(cISC4Occupant*)` | 4 | AL | **SDK error**: SDK `GetAutoBudget(void)` (`006F7D70`). Reads `0x6C05FC4D`, default false. |
+| 57 | +0xE4 | `bool SetAutoBudget(cISC4Occupant*, bool)` | 8 | AL (property setter result) | **SDK error**: SDK `SetAutoBudget(bool)` (`006F7DA0`). |
+| 58 | +0xE8 | `bool EstimateIdealFunding(cISC4Occupant*, SC4Percentage& out)` | 8 | AL | `006FD680`. |
+| 59 | +0xEC | `void ToggleTractTracking(int32, int32)` | 8 | none | `006F7DC0`: empty (`ret 8`). |
+
+"garbage" means the original leaves an unrelated value in EAX. No caller found in the game tests it
+*[inferred]*. Slots 39–41 return borrowed pointers.
+
+## 8. Dependencies
+
+| Interface (vtable) | Slot | Off | Method | Pop | Return |
+|---|---|---|---|---|---|
+| `cISC4City` (`0x00A87620`) | 47 | +0xBC | GetAutomataControllerManager | 0 | EAX |
+| | 50 | +0xC8 | GetSimulator | 0 | EAX |
+| | 52 | +0xD0 | GetBudgetSimulator | 0 | EAX |
+| | 95 | +0x17C | PositionToCell (dead call in grading; result unused) | 16 | — |
+| `cISC4Simulator` | 7 | +0x1C | GetSimDate | 0 | EAX |
+| `cIGZDate` | 26 | +0x68 | DayNumber | 0 | EAX |
+| `cIGZMessageServer2` (`0x00AD1BF4`) | 3 | +0x0C | MessageSend(m) | 4 | unused |
+| | 4 | +0x10 | MessagePost(m, 0) | 8 | unused |
+| `cISC4BudgetSimulator` (`0x00AB0908`) | 25 | +0x64 | CreateDepartmentBudget(id, group) | 8 | EAX |
+| | 28 | +0x70 | GetDepartmentBudget(id) | 4 | EAX |
+| | 51 | +0xCC | GetBudgetItemForPurpose(holder, purpose, item&) | 12 | AL |
+| | 52 | +0xD0 | ChangeBudgetItemLine(holder, index, line) | 12 | — |
+| `cISC4DepartmentBudget` (`0x00AB0EB0`) | 5 | +0x14 | SetDepartmentName(group, instance) | 8 | — |
+| | 10 | +0x28 | GetFundingPercentage() | 0 | EAX ptr |
+| | 11 | +0x2C | SetFundingPercentage(const SC4Percentage&, arg) | 8 | — |
+| | 13 | +0x34 | SetMaxAllowedFundingPercentage(const SC4Percentage&) | 4 | — |
+| | 17 | +0x44 | CreateLineItem(id, isLocal) | 8 | EAX |
+| | 18 | +0x48 | CreateLineItemForBuildingType(id, isLocal) | 8 | EAX |
+| | 19 | +0x4C | RemoveLineItem(id) | 4 | — |
+| | 20 | +0x50 | GetLineItem(id) | 4 | EAX |
+| | 22 | +0x58 | AddLocallyFundedObject(holder, purpose) | 8 | — |
+| | 23 | +0x5C | RemoveLocallyFundedObject(holder, purpose) | 8 | — |
+| | 24 | +0x60 | SetLocalFundingPercent(holder, const SC4Percentage&, purpose) | 12 | — |
+| | 28 | +0x70 | IsLocallyFundedObjectInDepartment(holder, purpose) | 8 | AL |
+| `cISC4LineItem` (`0x00AB0F58`) | 8 / 9 | +0x20 / +0x24 | count get (int64, EDX:EAX) / set (int64) | 0 / 8 | — |
+| | 18 | +0x48 | SetDisplayFlag(flag, on) | 8 | — |
+| `cISC4AutomataControllerManager` (`0x00A96058`) | 10 | +0x28 | AddControllersFromOccupantGroup(name, occ, 0) | 12 | — |
+| | 12 | +0x30 | RemoveControllers(name, occ) | 8 | — |
+| `cISC4OrdinanceSimulator` (`0x00ABEAC0`) | 14 | +0x38 | GetOrdinanceOnCount | 0 | EAX |
+| | 15 | +0x3C | GetOrdinanceOnArray(out, &n) | 8 | EAX |
+| | 20 | +0x50 | GetOrdinanceByID(id) | 4 | EAX (no AddRef) |
+| `cISC4Ordinance` (`0x00ABDD38`) | 16 | +0x40 | GetMiscProperties | 0 | EAX |
+| `cISC4PollutionSimulator` (`0x00AB2630`) | 6 | +0x18 | GetPollutionValue(type, x, z) | 12 | AX only |
+| `cISC4EffectsManager` (`0x00A9F264`) | 7 | +0x1C | CreateVisualEffect(const char* name, cISC4VisualEffect** out) | 8 | unused; the class tests `out` |
+| `cISTETerrain` (`0x00AB3D18`) | 13 | +0x34 | GetAltitude(x, z) | 8 | ST0 |
+| `cISC4BuildingOccupant` (`0x00A872C0`) | 3 / 4 | +0x0C / +0x10 | AsOccupant / GetBuildingType | 0 | EAX |
+| `cISC4Occupant` (`0x00AA41D8`) | 6 | +0x18 | AsPropertyHolder | 0 | EAX |
+| | 8 | +0x20 | GetPosition(float*) | 4 | — |
+| | 22 | +0x58 | IsOccupantGroup(id) | 4 | AL |
+| `cISC4LotManager` (`0x00AB37C0`) | 14 | +0x38 | GetOccupantLot(occ) | 4 | EAX |
+| `cISC4Lot` (`0x00AB19B0`) | 15 | +0x3C | GetCenter(float*) | 4 | — |
+| `cISC4SimGrid<T>` (simgrid §5) | | +0x18, +0x1C, +0x24, +0x28, +0x30, +0x34, +0x38, +0x4C, +0x58, +0x60, +0x68, +0x6C | SetInstanceID, GetCellValue, SetTractSize, GetTractSize, counts, GetTractWidthX, PositionToTract, GetTractValue, GetGridData, SetTractValue, SetTractValues | | |
+| `cRZRandom` | — | — | `RandomDoubleRangeUniform` `0x00913761` (named `cSC4ParticlesEffect::RandomRange` in names_windows) | thiscall, 16 | ST0 |
+| Response curves | — | — | ctor `0x007D0410`, point list `0x005F4480`, key loader `0x005F4700`, property-pointer loader `0x005F4620`, `GetOutputValue` `0x005F4250` (pop 4, ST0) | | |
+| Property helpers | — | — | getters `0x005FD480` u32, `0x005FD4F0` f32 (converting), `0x005FD450` s32, `0x005FDAC0` pct, `0x005FD390` bool, `0x005FF510` u32 vector; setters `0x005FE3C0` u32, `0x005FE4F0` f32, `0x005FE210` bool | | |
+| Shared map helpers | — | — | `GetTractsInRadius` `0x005E5200`, `AddRadiusEffectWithCurves` `0x005E48F0` (cdecl, §4.4, §4.6) | caller | — |
+
+## 9. Replaceability
+
+**Readers outside the class.** The survey covered every use of the residential-simulator global and every
+`GetResidentialSimulator()` call next to a city access.
+
+| Reader | What it uses | Raw access? |
+|---|---|---|
+| Aura simulator (`DoIdle`) | slots 39/40 (grade maps) | **Yes**: `ProcessTwoGridsWithCallback` reads the grids through `GetGridData` (aura spec, simgrid §7.3). |
+| Aura (`BustStrike`) | slots 8/9 | no |
+| Crime simulator (`DoCensus`) | slots 23/25 (EQ and population grids) | **Yes**, through `GetGridData` (crime spec). |
+| Map view (`cSC4WinMapView::Update`) | slots 21/22 (average EQ/HQ grids, read through `GetGridData`); slot 41 (age grid, through `GetGridData`) | **Yes** |
+| Map view highlights, coverage-radius effect helper | slots 47/49, 45 | no |
+| Growth developer (`EstimateDesirability`, `DoIdle`) | slots 39/40 via `GetCellValue` | no |
+| Query tool, sub-budget window | slots 39/40 (`GetCellValue`), 35/36, 26/27, 19, 28, 59 | no |
+| Advisors (HQ, Safety), MySim, Lua glue, budget window, tutorial | strike, rating, LE, EQ/HQ, query-data, funding slots | no |
+
+**Grid ownership.**
+
+- Every grid in §2 is created by the class with the game's own `cSC4SimGrid<T>` vtables (class IDs `0x49B9E602`
+  u8 and `0x49B9E60A` float). The original constructs them inline, not through GZCOM.
+- The grade, EQ, average-EQ/HQ and age grids are read raw by the aura, crime and map view.
+- A replacement must therefore follow **simgrid §6.4**: create the grids through GZCOM with those class IDs and
+  keep the tract sizes and instance IDs of §2.
+- `GetAverageEQGrid` / `GetAverageHQGrid` hand the caller a new grid with refcount 1. A replacement must do the
+  same.
+
+**Non-virtual access.**
+
+- No code outside the class calls its non-virtual members or reads its memory directly. Every access in the
+  survey is a virtual call.
+- The strike messages (§5) and the per-building properties (§2) are a contract with the budget window, advisors
+  and query tool. A replacement must keep the property IDs and value conventions: served = `0xFFFFFFFF` until
+  graded, and strike day = start day number.
+
+**GZCOM.** The class is created by the city through GZCOM (class ID `0x4990C013`, foundations §3.6). It is
+replaceable as a whole. This half cannot be replaced without the population half (residential.md), because
+both share the grids and the state machine.
+
+## 10. Quirks and open questions
+
+Quirks reproduced *[compat]*. Each is described in the section given:
+
+1. Coverage units of 0 still count served population, possibly twice (§4.4).
+2. Coverage saturation tests the low 16 bits of the sum (§4.4).
+3. The grade grid blend over-weights earlier buildings (§4.5).
+4. Served-population distance: the unsigned dx and the tracts-per-metres units (§4.5).
+5. `AddRadiusEffectWithCurves` skips the z advance on tracts with no population (§4.6).
+6. `AddRadiusEffectWithCurves` uses a 0..1 distance fraction, unlike the 0..100 used elsewhere (§4.6).
+7. The pollution average for HQ decay uses only its low byte, and reads pollution **sources** (§4.7).
+8. Strike duration is compared in days, although the tuning name says months (§4.9).
+9. "Min grade to end strike" is compared with the staff ratio, not the grade (§4.9).
+10. `GetChanceOfStrike` reuses c for non-members, and g carries over between buildings (§4.9).
+11. The sticky `changed` flag in the monthly strike check (§4.9).
+12. Ratings add stale query data (§4.11).
+13. The capacity estimate uses the school divisor for hospitals; the hospital query floors where the school
+    query rounds up (§4.11).
+14. A null groups pointer crashes the system totals (§4.11).
+15. `GetCellEQByWealth` with wealth 0 reads out of bounds (§4.8).
+16. Unmatched pending buildings are leaked (§4.1).
+17. Maximum EQ/HQ Boost and Min Acceptable Funding are loaded but never used (§4.13).
+18. The newcomer HQ values are uninitialised without the exemplar (§4.13).
+19. `GetOccupantCoverage` distance is missing a 0.01 factor (§4.11).
+20. LE and global LE are byte-valued (§7).
+21. City-level strikes end silently on load: the next `Init` resets the strike flags and start days (§2, §6).
+
+Open questions:
+
+1. Is the dirty flag read anywhere? No reader was found in the class *[inferred: write-only]* (also residential.md
+   §13).
+2. What are the group names of `0x1514`, `0x1505`, `0x151B`, `0x1512`, `0x1513`, `0x151C`, `0x1A02`, `0x1A03`?
+   *[inferred: `0x1A02`/`0x1A03` are "can strike" groups for health/education]*.
+3. Who reads the grade totals (§4.6)? No reader was found. (The age histogram is read by residential.md §5.6.)
+4. What does the building's slot-11 value (§4.1 step 4) mean? (The LE-weighted population sum is the average
+   life expectancy history, residential.md §5.6.)
+5. The population tract size and the EQ tract size are equal on a new city. Does a loaded city keep them equal?
+   This affects aura question 4. *[inferred: yes, both are saved and both start from the same developer tract
+   size]*.
+
+## 11. Conformance tests
+
+These must exist in `engine/conformance`. Unless a test says otherwise:
+
+- tunables are the shipped values;
+- the tract size is S = 4 cells of 16 m (tract width 64 m);
+- there are no ordinances;
+- funding is 100 %.
+
+1. **Coverage units.** K-6 school (chunk 500), capacity 1500 → every covered tract of coverage grid 0 rises by
+   3. Two such schools over the same tract → 6. A tract at 250 plus units 10 → 255.
+2. **Units 0 still serve.** School capacity 400 (chunk 500), tract population (10, 20, 0), tract not covered by a
+   lower group → coverage stays 0, served counter += 30. A second identical school → += 30 again (total 60).
+3. **Tract list** (`GetTractsInRadius`, width 64 m, 8 × 8 tracts, slop 1.0, centre (32, 32) m).
+   - Radius 60 m: the bounds are x, z ∈ 0..1. (0,1) has d² = 4096 > 3600 and (1,1) has 8192, so the list is
+     (0,0) only.
+   - Radius 100 m: the bounds are 0..2. The list is (0,0), (0,1), (1,0), (1,1), in that order (x-major);
+     (0,2) has d² = 16384 > 10000.
+   - Centre (−10, 32), radius 100: x0 = trunc(−1.71875) = −1, clamped to 0.
+4. **Staff ratio and grade.** capacity 1000, efficiency curve at 100 → 1.0, m2 = 1.
+   - served 1250 → staff ratio 0.8, effCap 1000, grade 0.8.
+   - served 0 → both 1.0.
+   - served 500 → both 1.0 (clamp).
+5. **Grade grid blend.**
+   - One building, units 3, grade 0.5, n = 3, previous value 0 → 0.5.
+   - The same tract with a previous value of 0.5 → 1.5, clamped to 1.0.
+6. **Served rounding.** sum 2.5 → 2; 3.5 → 4; 2.4999 → 2.
+7. **Strike roll.** grade 0.4 → p = curve(40) = 50.
+   - draw r = 49.9 → strike starts; the property = today; message `0x077ACCD0` posted with data2 = 1.
+   - draw r = 50.0 → no strike.
+   - Exactly one `cRZRandom` double draw per eligible non-striking building.
+8. **Strike end.**
+   - Start day 1000, today 1501, duration 500 → ends (501 > 500).
+   - Today 1500, staff ratio 0.9 → ends (0.9 ≥ 0.9).
+   - Staff ratio 0.89 → continues.
+   - City-level end with no striking building left: message with data2 = 0, data3 = today − start.
+9. **Chance of strike.** Two groups with chances 0.5 and 0.5 → 0.75. Service on strike → 1.0.
+10. **System rating.** Σ effCap 3000, population 4000 → 0.75. Population 0 → 1.0. Σ effCap 0 → 0.
+11. **History ‰.** served 1234, population 5000 → 246.8 → 247. Population 0 → 0.
+12. **Tract quotient.** EQ (100, 50, 0), population (10, 20, 0) → 2000 / 30 = 66.666664 (float32). The
+    average grid stores 66.0.
+13. **Life expectancy.** GetCellHQ = 30 → curve 57.5 → AL = 57. HQ = 100 → 75. HQ = 0 → 50.
+14. **EQ decay.** EQ 10 → 9.8. EQ 0.1 → 0.
+15. **HQ pollution decay byte.** Average air source 600, no water or garbage pollution → index 88 →
+    HQdec = 0.2 + 0.0171875 = 0.2171875. With average 256 → index 0 → 0.2.
+16. **Newcomer blend.** old 100, EQ_old 50, new 150, newcomer EQ 20 → ((35 × 50) + 5000) / 150 = 45.0. With
+    EQ_old 0 → (20 × 50 + 0) / 150 = 6.6666665.
+17. **Generational reset.** Average age 60 > LE 57 → age 40, EQ 50 → 40, HQ 30 → 24.
+18. **Ideal funding.** School efficiency curve (0,0)(100,100)(120,110), max 1.2.
+    - served 500, capacity 1000 → r = 0.5 → result 0.5.
+    - served 1500 → r = 1.5 → climbs past 1.2 → result 1.2.
+19. **Ordinance.** Pro-reading enacted → every school's m3 = 1.1. EQ boost value_w scales by 1.1 from the next
+    state 0.
+20. **Capacity estimate.**
+    - capacity 1000, school divisor 30 → cap 1000, staff 34.
+    - A hospital with the school divisor set to 25 and the hospital divisor 30 → staff 40.
+21. **Query data.** Hospital capacity 1000, effCap 990, divisor 30 → +0x1C = 33, +0x20 = 33. School with the
+    same numbers → +0x1C = 33, +0x20 = 33 (ceil(990 / 30) = 33). effCap 991 → school 34, hospital 33.
+22. **Min/max coordinates.** S = 4; tract (2,3) quotient 10 and tract (5,1) quotient 80; every other tract empty
+    → min (10, 14) value 10, max (22, 6) value 80, AL = 1. Population 0 → all outputs 0, AL = 0.
+23. **Death's door.** HQ after decay 1.0 < 2, population > 0, draw 1.2 < 1.5 → "buzzards" created, with a second
+    draw for the height. Draw 1.5 → nothing, and a second wealth can still draw.
+24. **ABI.**
+    - Slot 34 returns its value in AL with the x87 stack unchanged.
+    - Slots 10–13 write through the hidden pointer and return it.
+    - Slot 14 returns the number of buildings counted.
+    - Slot 56 pops 4 and slot 57 pops 8.
