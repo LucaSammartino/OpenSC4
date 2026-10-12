@@ -14,6 +14,7 @@
 #include "cFC4Simulator.h"
 
 #include "FC4Log.h"
+#include "compat/FC4Compat.h"
 
 #include "GZServPtrs.h"
 #include "SC4String.h"
@@ -42,6 +43,8 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
+
+#include <intrin.h>
 
 #include <cstdlib>
 #include <new>
@@ -108,6 +111,7 @@ cFC4Simulator::cFC4Simulator() : serviceId_(kServiceID) {
     FC4_LOGV("cFC4Simulator(%p): calling fc4_sim_create (core ABI %u)", static_cast<void*>(this), fc4_abi_version());
     sim_ = fc4_sim_create(&host);
     FC4_LOGV("cFC4Simulator(%p): fc4_sim_create returned %p", static_cast<void*>(this), static_cast<void*>(sim_));
+    InstallTimerSource();
     if (sim_ == nullptr || fc4_abi_version() != FC4_ABI_VERSION) {
         fc4::Log("cFC4Simulator: core creation failed (abi %u, header %u)", fc4_abi_version(), FC4_ABI_VERSION);
     }
@@ -166,6 +170,90 @@ uint32_t cFC4Simulator::Release() {
         return 0;
     }
     return refCount_;
+}
+
+// ---- limit-timer calibration (spec §5.5) -------------------------------------------------
+
+namespace {
+uint64_t QpcFrequency() {
+    static const uint64_t freq = [] {
+        LARGE_INTEGER f;
+        QueryPerformanceFrequency(&f);
+        return static_cast<uint64_t>(f.QuadPart);
+    }();
+    return freq;
+}
+
+uint64_t QpcNow() {
+    LARGE_INTEGER q;
+    QueryPerformanceCounter(&q);
+    return static_cast<uint64_t>(q.QuadPart);
+}
+
+// Initial estimate of milliseconds per TSC cycle: measure the TSC against the
+// wall clock over ~2 ms (spec §5.5 "Initial value").
+float MeasureMsPerCycle(double* measuredMs) {
+    const uint64_t freq = QpcFrequency();
+    const uint64_t q0 = QpcNow();
+    const uint64_t c0 = __rdtsc();
+    uint64_t q1 = q0;
+    uint64_t c1 = c0;
+    const uint64_t span = freq / 500 > 0 ? freq / 500 : 1;  // 2 ms
+    for (int guard = 0; guard < 100000000 && q1 - q0 < span; ++guard) {
+        YieldProcessor();
+        q1 = QpcNow();
+        c1 = __rdtsc();
+    }
+    const double ms = static_cast<double>(q1 - q0) * 1000.0 / static_cast<double>(freq);
+    if (measuredMs != nullptr) *measuredMs = ms;
+    const int64_t dc = static_cast<int64_t>(c1 - c0);
+    if (dc <= 0 || ms <= 0.0) return 0.0f;
+    return static_cast<float>(ms / static_cast<double>(dc));
+}
+}  // namespace
+
+uint64_t cFC4Simulator::TimerQpc(void*) { return QpcNow(); }
+uint64_t cFC4Simulator::TimerTsc(void*) { return __rdtsc(); }
+
+void cFC4Simulator::TimerPublish(void* user, float cyclesToMs, float msToCycles) {
+    auto* self = static_cast<cFC4Simulator*>(user);
+    self->lastCyclesToMs_ = cyclesToMs;
+    self->lastMsToCycles_ = msToCycles;
+    self->limitTimersWritten_ = fc4::compat::PublishLimitTimers(cyclesToMs, msToCycles);
+}
+
+void cFC4Simulator::InstallTimerSource() {
+    if (sim_ == nullptr) return;
+    double measuredMs = 0.0;
+    float estimate = MeasureMsPerCycle(&measuredMs);
+    if (!(estimate > 0.0f)) {
+        // [choice] fall back to a 2 GHz guess; the 0.9/0.1 average corrects it within seconds.
+        fc4::Log("calibration: initial TSC measurement failed (%.3f ms); assuming 2 GHz", measuredMs);
+        estimate = 1.0f / 2.0e6f;
+    }
+    fc4_timer_source src{};
+    src.struct_size = sizeof(src);
+    src.user = this;
+    src.qpc = &cFC4Simulator::TimerQpc;
+    src.tsc = &cFC4Simulator::TimerTsc;
+    src.publish = &cFC4Simulator::TimerPublish;
+    src.qpc_frequency = QpcFrequency();
+    const bool ok = fc4_sim_set_timer_source(sim_, &src, estimate);
+    fc4::Log("calibration: QPC %llu Hz; initial estimate %.6g ms/cycle (%.1f MHz TSC, measured over %.3f ms); "
+             "installed=%d; published CyclesToMillisecs=%.9g MillisecsToCycles=%.9g; written to the game=%s",
+             static_cast<unsigned long long>(src.qpc_frequency), estimate, 1.0 / estimate / 1000.0, measuredMs,
+             ok ? 1 : 0, lastCyclesToMs_, lastMsToCycles_, limitTimersWritten_ ? "yes" : "NO");
+}
+
+void cFC4Simulator::LogCalibration(const char* when) {
+    float c2m = 0.0f, m2c = 0.0f;
+    uint64_t samples = 0;
+    const bool have = fc4_sim_get_calibration(sim_, &c2m, &m2c, &samples);
+    fc4::Log("calibration (%s): %s CyclesToMillisecs=%.9g MillisecsToCycles=%.9g (%.1f MHz), %llu sample(s); "
+             "written to the game=%s (%llu writes)",
+             when, have ? "installed" : "NOT installed", c2m, m2c, m2c / 1000.0,
+             static_cast<unsigned long long>(samples), limitTimersWritten_ ? "yes" : "NO",
+             static_cast<unsigned long long>(fc4::compat::PublishCount()));
 }
 
 // ---- host callbacks ------------------------------------------------------------------
@@ -272,6 +360,7 @@ void cFC4Simulator::LogSchedulerStatus() {
              st.level_counters[5], st.level_counters[6], st.level_counters[7], st.level_fired[2], st.level_fired[3],
              st.level_fired[4], st.level_fired[5], st.level_fired[6], st.level_fired[7]);
 
+    LogCalibration("status");
     for (uint32_t level = 0; level < FC4_LEVEL_COUNT; ++level) {
         const uint32_t count = st.agent_counts[level];
         if (count == 0) continue;
@@ -452,6 +541,7 @@ bool cFC4Simulator::Init() {
     // Step 9: cheats.
     RegisterCheats();
 
+    LogCalibration("Init");
     fc4_state st{};
     st.struct_size = sizeof(st);
     fc4_sim_get_state(sim_, &st);

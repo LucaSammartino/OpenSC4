@@ -242,6 +242,63 @@ fn save_load_and_cheats_through_abi() {
     }
 }
 
+#[derive(Default)]
+struct FakeTimers {
+    qpc: Cell<u64>,
+    tsc: Cell<u64>,
+    published: RefCell<Vec<(f32, f32)>>,
+}
+
+unsafe extern "C" fn fake_qpc(user: *mut c_void) -> u64 {
+    (*(user as *const FakeTimers)).qpc.get()
+}
+unsafe extern "C" fn fake_tsc(user: *mut c_void) -> u64 {
+    (*(user as *const FakeTimers)).tsc.get()
+}
+unsafe extern "C" fn fake_publish(user: *mut c_void, a: f32, b: f32) {
+    (*(user as *const FakeTimers)).published.borrow_mut().push((a, b));
+}
+
+#[test]
+fn limit_timer_calibration_through_abi() {
+    let rec = Recorder::default();
+    let sim = make(&rec);
+    let timers = FakeTimers::default();
+    let mut src = fc4_timer_source {
+        struct_size: std::mem::size_of::<fc4_timer_source>() as u32,
+        user: &timers as *const FakeTimers as *mut c_void,
+        qpc: Some(fake_qpc),
+        tsc: Some(fake_tsc),
+        publish: Some(fake_publish),
+        qpc_frequency: 1_000_000,
+    };
+    unsafe {
+        assert!(!fc4_sim_get_calibration(
+            sim,
+            std::ptr::null_mut(),
+            std::ptr::null_mut(),
+            std::ptr::null_mut()
+        ));
+        assert!(!fc4_sim_set_timer_source(sim, &src, 0.0));
+        src.tsc = None;
+        assert!(!fc4_sim_set_timer_source(sim, &src, 1e-6));
+        src.tsc = Some(fake_tsc);
+        assert!(fc4_sim_set_timer_source(sim, &src, 1e-6));
+        assert_eq!(timers.published.borrow().len(), 1);
+        // 1.1 s at 2 GHz, through OnTick (before Init).
+        timers.qpc.set(1_100_000);
+        timers.tsc.set(2_200_000_000);
+        assert!(fc4_sim_on_tick(sim));
+        let (mut c2m, mut m2c, mut n) = (0f32, 0f32, 0u64);
+        assert!(fc4_sim_get_calibration(sim, &mut c2m, &mut m2c, &mut n));
+        assert!(((c2m as f64 - 9.5e-7) / 9.5e-7).abs() < 1e-6);
+        assert!(((m2c as f64 * 9.5e-7) - 1.0).abs() < 1e-6);
+        assert_eq!(n, 1);
+        assert_eq!(*timers.published.borrow().last().unwrap(), (c2m, m2c));
+        fc4_sim_destroy(sim);
+    }
+}
+
 #[test]
 fn enumerate_names() {
     let rec = Recorder::default();

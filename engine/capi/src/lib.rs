@@ -18,12 +18,12 @@
 use std::ffi::{c_char, c_void};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-use fc4_core::host::{AgentDelivery, Broadcast, Clock};
+use fc4_core::host::{AgentDelivery, Broadcast, Clock, TimerSource};
 use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 3;
+pub const FC4_ABI_VERSION: u32 = 4;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -139,6 +139,7 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_state>() == 180);
     assert!(std::mem::size_of::<fc4_debug>() == 76);
     assert!(std::mem::size_of::<fc4_agent_info>() == 16);
+    assert!(std::mem::size_of::<fc4_timer_source>() == if cfg!(target_pointer_width = "32") { 32 } else { 48 });
 };
 
 #[repr(C)]
@@ -171,6 +172,39 @@ pub struct fc4_agent_info {
     pub flags: u32,
     pub enabled: u8,
     pub reserved: [u8; 3],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct fc4_timer_source {
+    pub struct_size: u32,
+    pub user: *mut c_void,
+    pub qpc: Option<unsafe extern "C" fn(user: *mut c_void) -> u64>,
+    pub tsc: Option<unsafe extern "C" fn(user: *mut c_void) -> u64>,
+    pub publish: Option<unsafe extern "C" fn(user: *mut c_void, cycles_to_ms: f32, ms_to_cycles: f32)>,
+    pub qpc_frequency: u64,
+}
+
+struct CTimers(fc4_timer_source);
+
+impl TimerSource for CTimers {
+    fn qpc(&self) -> u64 {
+        // SAFETY: presence checked at installation; the creator promised validity.
+        self.0.qpc.map_or(0, |f| unsafe { f(self.0.user) })
+    }
+    fn qpc_frequency(&self) -> u64 {
+        self.0.qpc_frequency
+    }
+    fn tsc(&self) -> u64 {
+        // SAFETY: as above.
+        self.0.tsc.map_or(0, |f| unsafe { f(self.0.user) })
+    }
+    fn publish(&self, cycles_to_ms: f32, ms_to_cycles: f32) {
+        if let Some(f) = self.0.publish {
+            // SAFETY: as above.
+            unsafe { f(self.0.user, cycles_to_ms, ms_to_cycles) }
+        }
+    }
 }
 
 pub type fc4_name_callback = Option<unsafe extern "C" fn(ctx: *mut c_void, name: *const c_char, name_len: usize)>;
@@ -589,6 +623,49 @@ pub unsafe extern "C" fn fc4_sim_get_state(sim: *const fc4_sim, out: *mut fc4_st
         st.agent_counts[l] = snap.agent_counts[l] as u32;
     }
     *o = st;
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_timer_source(
+    sim: *mut fc4_sim,
+    source: *const fc4_timer_source,
+    initial_ms_per_cycle: f32,
+) -> bool {
+    let Some(src) = source.as_ref() else { return false };
+    if (src.struct_size as usize) < std::mem::size_of::<fc4_timer_source>() || src.qpc.is_none() || src.tsc.is_none() {
+        return false;
+    }
+    let copy = *src;
+    with_sim(sim, false, |s| {
+        s.set_timer_source(Box::new(CTimers(copy)), initial_ms_per_cycle)
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_calibrate_tick(sim: *mut fc4_sim) {
+    with_sim(sim, (), Simulator::calibrate_tick)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_calibration(
+    sim: *const fc4_sim,
+    cycles_to_ms: *mut f32,
+    ms_to_cycles: *mut f32,
+    samples: *mut u64,
+) -> bool {
+    let Some(cal) = with_sim(sim, None, Simulator::calibration) else {
+        return false;
+    };
+    if let Some(p) = cycles_to_ms.as_mut() {
+        *p = cal.cycles_to_ms();
+    }
+    if let Some(p) = ms_to_cycles.as_mut() {
+        *p = cal.ms_to_cycles();
+    }
+    if let Some(p) = samples.as_mut() {
+        *p = cal.samples();
+    }
     true
 }
 

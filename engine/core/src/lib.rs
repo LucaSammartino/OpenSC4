@@ -20,12 +20,14 @@
 
 #![forbid(unsafe_code)]
 
+pub mod calibration;
 pub mod host;
 pub mod ids;
 pub mod julian;
 pub mod save;
 pub mod simulator;
 
-pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message};
+pub use calibration::Calibration;
+pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};
 pub use save::{LoadError, SaveRecord};
 pub use simulator::{AgentInfo, DebugInfo, Simulator, Snapshot, Tuning};

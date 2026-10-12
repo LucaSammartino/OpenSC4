@@ -1,0 +1,219 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. This program is distributed WITHOUT ANY WARRANTY; see
+// the GNU General Public License for more details. You should have received a
+// copy of the license along with this program (see LICENSE at the repository
+// root); if not, see <https://www.gnu.org/licenses/>.
+
+#include "FC4Compat.h"
+
+#include "FC4Log.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+
+#include <cmath>
+#include <cstring>
+
+namespace fc4 {
+namespace compat {
+namespace {
+
+// ---- the compatibility table (values from docs/specs/simulator.md §5.5) ----------------------
+
+const ExecutableVersion kVersions[] = {
+    {
+        "SimCity 4 Deluxe 1.1.641 (GOG, Windows)",
+        0x4C12BFB7,  // PE TimeDateStamp
+        0x007C8000,  // PE SizeOfImage
+        0x00400000,  // image base
+        0x00B0A840,  // CyclesToMillisecs (float)
+        0x00B0A83C,  // MillisecsToCycles (float)
+    },
+};
+
+// ---- process-wide state ------------------------------------------------------------------------
+
+enum class Resolution { Unknown, Available, Unavailable };
+Resolution g_resolution = Resolution::Unknown;
+const ExecutableVersion* g_version = nullptr;
+volatile float* g_cyclesToMs = nullptr;
+volatile float* g_msToCycles = nullptr;
+bool g_disabledAfterCheck = false;
+uint64_t g_publishCount = 0;
+
+bool EnvIsOne(const char* name) {
+    char value[16] = {};
+    const DWORD n = GetEnvironmentVariableA(name, value, sizeof(value));
+    return n > 0 && n < sizeof(value) && strcmp(value, "1") == 0;
+}
+
+bool Writable(DWORD protect) {
+    if (protect & (PAGE_GUARD | PAGE_NOACCESS)) return false;
+    const DWORD base = protect & 0xFF;
+    return base == PAGE_READWRITE || base == PAGE_WRITECOPY || base == PAGE_EXECUTE_READWRITE ||
+           base == PAGE_EXECUTE_WRITECOPY;
+}
+
+// Checks that `va` is a committed, writable page of the main module's image.
+bool CheckAddress(const char* what, uintptr_t va, uintptr_t moduleBase) {
+    MEMORY_BASIC_INFORMATION mbi{};
+    if (VirtualQuery(reinterpret_cast<const void*>(va), &mbi, sizeof(mbi)) != sizeof(mbi)) {
+        Log("compat: %s at 0x%08lX: VirtualQuery failed (error %lu)", what, static_cast<unsigned long>(va),
+            static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
+    const bool ok = mbi.State == MEM_COMMIT && mbi.Type == MEM_IMAGE &&
+                    reinterpret_cast<uintptr_t>(mbi.AllocationBase) == moduleBase && Writable(mbi.Protect);
+    Log("compat: %s at 0x%08lX: state=0x%lX type=0x%lX protect=0x%lX allocation base=%p -> %s", what,
+        static_cast<unsigned long>(va), static_cast<unsigned long>(mbi.State), static_cast<unsigned long>(mbi.Type),
+        static_cast<unsigned long>(mbi.Protect), mbi.AllocationBase,
+        ok ? "ok (committed, writable, inside the executable image)" : "REJECTED");
+    return ok;
+}
+
+bool Plausible(float v) { return std::isfinite(v) && v > 0.0f; }
+
+// A pair that someone (the original code or we) already calibrated: both
+// positive, finite and reciprocal within 1 %.
+bool ConsistentPair(float c2m, float m2c) {
+    return Plausible(c2m) && Plausible(m2c) && std::fabs(static_cast<double>(c2m) * m2c - 1.0) < 0.01;
+}
+
+void Resolve() {
+    g_resolution = Resolution::Unavailable;
+
+    if (EnvIsOne("FC4_DISABLE_CALIBRATION")) {
+        Log("compat: FC4_DISABLE_CALIBRATION=1: limit-timer globals will NOT be written");
+        return;
+    }
+
+    // 1. Main module PE headers (as mapped in this process).
+    HMODULE exe = GetModuleHandleW(nullptr);
+    const uintptr_t base = reinterpret_cast<uintptr_t>(exe);
+    const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(exe);
+    if (dos == nullptr || dos->e_magic != IMAGE_DOS_SIGNATURE) {
+        Log("compat: WARNING main module has no DOS header; limit-timer globals NOT written");
+        return;
+    }
+    const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS32*>(reinterpret_cast<const char*>(exe) + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 ||
+        nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC) {
+        Log("compat: WARNING main module is not a 32-bit x86 PE image; limit-timer globals NOT written");
+        return;
+    }
+    char exePath[MAX_PATH] = {};
+    GetModuleFileNameA(nullptr, exePath, MAX_PATH);
+    const uint32_t stamp = nt->FileHeader.TimeDateStamp;
+    const uint32_t size = nt->OptionalHeader.SizeOfImage;
+    const uint32_t prefBase = nt->OptionalHeader.ImageBase;
+    Log("compat: host executable %s: loaded at 0x%08lX, PE TimeDateStamp=0x%08lX SizeOfImage=0x%08lX "
+        "ImageBase=0x%08lX",
+        exePath, static_cast<unsigned long>(base), static_cast<unsigned long>(stamp),
+        static_cast<unsigned long>(size), static_cast<unsigned long>(prefBase));
+
+    // 2. Find the table entry: TimeDateStamp + SizeOfImage must both match.
+    const ExecutableVersion* v = nullptr;
+    for (const ExecutableVersion& e : kVersions) {
+        if (e.timeDateStamp == stamp && e.sizeOfImage == size) v = &e;
+    }
+    if (v == nullptr) {
+        Log("compat: WARNING unrecognised executable (no table entry with TimeDateStamp 0x%08lX and SizeOfImage "
+            "0x%08lX); limit-timer globals NOT written. Subsystems that budget work in CPU cycles may stall.",
+            static_cast<unsigned long>(stamp), static_cast<unsigned long>(size));
+        return;
+    }
+    Log("compat: identified '%s' (TimeDateStamp and SizeOfImage match)", v->name);
+
+    // 3. The addresses assume the executable is loaded at its preferred base.
+    if (base != v->imageBase || prefBase != v->imageBase) {
+        Log("compat: WARNING executable loaded at 0x%08lX (preferred 0x%08lX), table expects 0x%08lX; NOT written",
+            static_cast<unsigned long>(base), static_cast<unsigned long>(prefBase),
+            static_cast<unsigned long>(v->imageBase));
+        return;
+    }
+
+    // 4. Both addresses: aligned, inside the image, committed and writable.
+    const uintptr_t aC2M = v->cyclesToMillisecsVA;
+    const uintptr_t aM2C = v->millisecsToCyclesVA;
+    const bool inside = aC2M % 4 == 0 && aM2C % 4 == 0 && aC2M >= base && aC2M + 4 <= base + size && aM2C >= base &&
+                        aM2C + 4 <= base + size;
+    if (!inside) {
+        Log("compat: WARNING table addresses 0x%08lX/0x%08lX are not aligned floats inside the image; NOT written",
+            static_cast<unsigned long>(aC2M), static_cast<unsigned long>(aM2C));
+        return;
+    }
+    if (!CheckAddress("CyclesToMillisecs", aC2M, base) || !CheckAddress("MillisecsToCycles", aM2C, base)) {
+        Log("compat: WARNING limit-timer globals are not in writable image memory; NOT written");
+        return;
+    }
+
+    // 5. Current values: the unmaintained static value 1.0f in both, or an
+    //    already-calibrated reciprocal pair.
+    const float c2m = *reinterpret_cast<const volatile float*>(aC2M);
+    const float m2c = *reinterpret_cast<const volatile float*>(aM2C);
+    const bool pristine = c2m == 1.0f && m2c == 1.0f;
+    const bool calibrated = ConsistentPair(c2m, m2c);
+    Log("compat: current values CyclesToMillisecs=%.9g MillisecsToCycles=%.9g -> %s", c2m, m2c,
+        pristine ? "ok (both 1.0f, never calibrated)"
+                 : (calibrated ? "ok (already a calibrated reciprocal pair)" : "REJECTED (not plausible)"));
+    if (!pristine && !calibrated) {
+        Log("compat: WARNING unexpected contents at the limit-timer addresses; NOT written");
+        return;
+    }
+
+    g_version = v;
+    g_cyclesToMs = reinterpret_cast<volatile float*>(aC2M);
+    g_msToCycles = reinterpret_cast<volatile float*>(aM2C);
+    g_resolution = Resolution::Available;
+    Log("compat: limit-timer globals will be maintained at 0x%08lX (CyclesToMillisecs) and 0x%08lX "
+        "(MillisecsToCycles)",
+        static_cast<unsigned long>(aC2M), static_cast<unsigned long>(aM2C));
+}
+
+}  // namespace
+
+const ExecutableVersion* SupportedVersions(int* count) {
+    if (count != nullptr) *count = static_cast<int>(sizeof(kVersions) / sizeof(kVersions[0]));
+    return kVersions;
+}
+
+bool LimitTimersAvailable() {
+    if (g_resolution == Resolution::Unknown) Resolve();
+    return g_resolution == Resolution::Available && !g_disabledAfterCheck;
+}
+
+bool PublishLimitTimers(float cyclesToMs, float msToCycles) {
+    if (!LimitTimersAvailable()) return false;
+    if (!Plausible(cyclesToMs) || !Plausible(msToCycles)) return false;
+    // Re-check before every write that the cells still hold plausible floats
+    // (1.0f or a calibrated pair); stop for good if not.
+    const float c2m = *g_cyclesToMs;
+    const float m2c = *g_msToCycles;
+    if (!((c2m == 1.0f && m2c == 1.0f) || ConsistentPair(c2m, m2c))) {
+        g_disabledAfterCheck = true;
+        Log("compat: WARNING limit-timer globals changed to implausible values (%.9g, %.9g); writes stopped", c2m,
+            m2c);
+        return false;
+    }
+    *g_cyclesToMs = cyclesToMs;
+    *g_msToCycles = msToCycles;
+    if (g_publishCount++ == 0) {
+        Log("compat: first publish: CyclesToMillisecs=%.9g MillisecsToCycles=%.9g (%s)", cyclesToMs, msToCycles,
+            g_version ? g_version->name : "?");
+    }
+    return true;
+}
+
+uint64_t PublishCount() { return g_publishCount; }
+
+}  // namespace compat
+}  // namespace fc4

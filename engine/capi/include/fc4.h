@@ -45,8 +45,9 @@ extern "C" {
 #endif
 
 /* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init;
- * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics). */
-#define FC4_ABI_VERSION 3u
+ * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics);
+ * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5). */
+#define FC4_ABI_VERSION 4u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -174,6 +175,18 @@ typedef struct fc4_agent_info {
     uint8_t reserved[3];
 } fc4_agent_info;
 
+/* Sources and sink for the CPU-cycle limit-timer calibration (spec §5.5).
+ * `qpc` and `tsc` are required; `publish` may be NULL. */
+typedef struct fc4_timer_source {
+    uint32_t struct_size; /* = sizeof(fc4_timer_source) */
+    void* user;
+    uint64_t (*qpc)(void* user); /* high-resolution wall clock, ticks */
+    uint64_t (*tsc)(void* user); /* processor time-stamp counter, cycles */
+    /* CyclesToMillisecs (ms per cycle) and MillisecsToCycles (cycles per ms). */
+    void (*publish)(void* user, float cycles_to_ms, float ms_to_cycles);
+    uint64_t qpc_frequency; /* wall-clock ticks per second, > 0 */
+} fc4_timer_source;
+
 typedef void (*fc4_name_callback)(void* ctx, const char* name, size_t name_len);
 
 /* ---- library ---------------------------------------------------------- */
@@ -251,6 +264,18 @@ size_t fc4_record_layout(uint16_t version, const uint8_t** widths);
 /* `text` is the full cheat line ("FPS 30"). Returns true if the id is handled. */
 bool fc4_sim_handle_cheat(fc4_sim* sim, uint32_t cheat_id, const char* text, size_t text_len);
 
+/* ---- limit-timer calibration (spec §5.5) ------------------------------------ */
+/* Installs the calibration source/sink (copied). `initial_ms_per_cycle` is the
+ * host's estimate of milliseconds per TSC cycle. Takes the first sample point
+ * and publishes both coefficients. From then on fc4_sim_on_tick calibrates and
+ * publishes before doing anything else. Returns false (nothing installed) for
+ * an invalid source, a zero frequency or an estimate that is not positive. */
+bool fc4_sim_set_timer_source(fc4_sim* sim, const fc4_timer_source* source, float initial_ms_per_cycle);
+/* One calibration step without the rest of OnTick (tests). */
+void fc4_sim_calibrate_tick(fc4_sim* sim);
+/* Current coefficients; false if no timer source is installed. Pointers may be NULL. */
+bool fc4_sim_get_calibration(const fc4_sim* sim, float* cycles_to_ms, float* ms_to_cycles, uint64_t* samples);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -271,6 +296,7 @@ static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
 static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
 static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
+static_assert(sizeof(fc4_timer_source) == (sizeof(void*) == 4 ? 32 : 48), "fc4_timer_source layout");
 static_assert(sizeof(fc4_state) == 4 + 4 + 5 * 4 + 5 * 4 + 3 * 4 + 5 * 4 + 11 * 4 + 12 + 11 * 4, "fc4_state layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");

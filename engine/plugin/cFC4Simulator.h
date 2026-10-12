@@ -105,6 +105,11 @@ public:
     static void HostRelease(void* user, fc4_agent agent);
     static void HostPost(void* user, const fc4_message* msg);
 
+    // Limit-timer calibration sources/sink (fc4_timer_source, spec §5.5).
+    static uint64_t TimerQpc(void* user);
+    static uint64_t TimerTsc(void* user);
+    static void TimerPublish(void* user, float cyclesToMs, float msToCycles);
+
 private:
     fc4_tuning ReadTuning(uint32_t (&msPerDay)[3], size_t& msCount, float (&dilation)[5], size_t& dilCount);
     void RegisterCheats();
@@ -112,6 +117,8 @@ private:
     void Post(const fc4_message& msg);
     bool QueryInterfaceImpl(uint32_t riid, void** ppvObj);
     bool TracePause(const char* name, bool ok);
+    void InstallTimerSource();
+    void LogCalibration(const char* when);
 
     // Delivery diagnostics (FC4_LOG_LEVEL=2), keyed by (agent, level).
     struct AgentStats {
@@ -136,6 +143,9 @@ private:
     bool commandRegistered_ = false;
     bool addedToFramework_ = false;
     bool postCityInitSubscribed_ = false;
+    float lastCyclesToMs_ = 0.0f;
+    float lastMsToCycles_ = 0.0f;
+    bool limitTimersWritten_ = false;
     // Diagnostics counters (FC4_LOG_LEVEL=2).
     uint32_t qiLogged_ = 0;
     uint32_t ticks_ = 0;
