@@ -18,6 +18,7 @@ pub mod foundations;
 pub(crate) mod grid;
 pub mod json;
 pub(crate) mod ordinance;
+pub(crate) mod plumbing;
 pub(crate) mod pollution;
 pub(crate) mod power;
 pub mod runner;

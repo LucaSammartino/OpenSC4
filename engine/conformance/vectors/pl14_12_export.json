@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "plumbing_export",
+  "spec": ["plumbing 6.1", "plumbing 6.3", "plumbing 6.7", "plumbing 14.12"],
+  "description": "Test 12: the 9-test city (pump 1000 at (5,5), pipes x = 5..9 at z = 5) with a consumer of 100 at (12,5) and an export deal of 400 (used 0) whose connection cell (9,5) is a pipe of the network. State 0 zeroes the deal's used amount. Exports: take = min(400 - 0, supply 1000) = 400, connected (the bitmap holds the pipes) -> exported 400, supply 600, used 400. The flood consumes 100; consumed + exportTaken = 500, ratio f32(500 / 1000) = 0.5 -> water used 500. The connection cell is watered, so state 5 sets it active. Export of 1500: take = min(1500, 1000) = 1000, supply 0; the ring flood still runs (exportTaken > 0) and the first consumer (100 > 0) stops it with consumed := 0, so (12,5) is not watered; ratio 1000 / 1000 -> water used 1000; at state 8 used 1000 < 1500 -> SetFlags(0x20, true). A second export deal of 400 to another city whose only connection (40,40) is off the network: SetFlags(0x08, true), exported 0, water used 100 (and at state 8, used 0 < 400 -> 0x20 too: flags 0x28); the first deal, now 0, is skipped (take <= 0).",
+  "steps": [
+    {"op": "plumbing_env", "water": [[5, 4]]},
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_message", "type": "ConnectionsReady"},
+    {"op": "plumbing_building", "label": "pump", "x": 5, "z": 5, "props": {"0x88ED3303": {"u32": 1000}}},
+    {"op": "plumbing_pipe_row", "prefix": "w", "from": [5, 5], "to": [9, 5]},
+    {"op": "plumbing_building", "label": "house", "x": 12, "z": 5, "props": {"0xC8ED2D84": {"u32": 100}}},
+    {"op": "plumbing_connection", "label": "ex_conn", "x": 9, "z": 5, "city": "nb"},
+    {"op": "plumbing_deal", "label": "ex", "type": "export", "amount": 400, "used": 77, "city": "nb"},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_pass", "calls": 9},
+    {"op": "plumbing_expect_events", "filter": {"event": "set_used"}, "events": [
+      {"event": "set_used", "deal": "ex", "used": 0}, {"event": "set_used", "deal": "ex", "used": 400}]},
+    {"op": "plumbing_expect_deal", "deal": "ex", "used": 400, "flags": 0},
+    {"op": "plumbing_expect_connection", "connection": "ex_conn", "active": true},
+    {"op": "plumbing_expect", "state": {"last_exported": 400, "last_consumed": 100, "last_produced": 1000}},
+    {"op": "plumbing_call", "method": "water_exported", "expect": 400},
+    {"op": "plumbing_expect_occupant", "occupant": "pump", "props": {"0x08D9763D": 500}},
+    {"op": "plumbing_expect_grid", "grid": "published", "cells": [{"x": 12, "z": 5, "v": 3}]},
+
+    {"op": "plumbing_deal", "deal": "ex", "amount": 1500},
+    {"op": "plumbing_pass", "calls": 9},
+    {"op": "plumbing_expect_deal", "deal": "ex", "used": 1000, "flags": "0x20"},
+    {"op": "plumbing_expect_events", "filter": {"event": "deal_flags"}, "events": [{"event": "deal_flags", "deal": "ex", "flags": "0x20", "on": true}]},
+    {"op": "plumbing_expect", "state": {"last_exported": 1000, "last_consumed": 0, "last_produced": 1000}},
+    {"op": "plumbing_expect_occupant", "occupant": "pump", "props": {"0x08D9763D": 1000}},
+    {"op": "plumbing_expect_grid", "grid": "published", "cells": [{"x": 12, "z": 5, "v": 2}, {"x": 9, "z": 5, "v": 9}]},
+
+    {"op": "plumbing_deal", "deal": "ex", "amount": 0, "flags": 0},
+    {"op": "plumbing_connection", "label": "far_conn", "x": 40, "z": 40, "city": "far"},
+    {"op": "plumbing_deal", "label": "ex2", "type": "export", "amount": 400, "city": "far"},
+    {"op": "plumbing_pass", "calls": 9},
+    {"op": "plumbing_expect_events", "filter": {"event": "deal_flags"}, "events": [
+      {"event": "deal_flags", "deal": "ex2", "flags": 8, "on": true},
+      {"event": "deal_flags", "deal": "ex2", "flags": "0x20", "on": true}]},
+    {"op": "plumbing_expect_deal", "deal": "ex2", "used": 0, "flags": "0x28"},
+    {"op": "plumbing_expect_deal", "deal": "ex", "used": 0, "flags": 0},
+    {"op": "plumbing_expect", "state": {"last_exported": 0, "last_consumed": 100}},
+    {"op": "plumbing_expect_occupant", "occupant": "pump", "props": {"0x08D9763D": 100}},
+    {"op": "plumbing_expect_connection", "connection": "far_conn", "active": false}
+  ]
+}

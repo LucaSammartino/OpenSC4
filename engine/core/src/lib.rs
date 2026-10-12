@@ -32,6 +32,7 @@ pub mod host;
 pub mod ids;
 pub mod julian;
 pub mod ordinance;
+pub mod plumbing;
 pub mod pollution;
 pub mod power;
 pub mod landvalue;

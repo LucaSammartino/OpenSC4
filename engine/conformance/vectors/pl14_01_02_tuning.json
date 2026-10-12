@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "plumbing_tuning",
+  "spec": ["plumbing 8", "plumbing 14.1", "plumbing 14.2"],
+  "description": "Test 1 (no exemplar): the code defaults radius 7, reaches 2 / 1, loss 20, max pumped pollution 100, burst probability 0.3, max funding 1.2, cost per pipe 0; 0x0911E2E8 = 0x0911E2E9 = (0,1)(1,1) (1 everywhere); 0xCA7138C4 = (0,-0.02)(120,0.01) (at 60: -0.02 + 0.5 x 0.03 = -0.005); 0x6A410BF2 empty. Test 2 (shipped exemplar, reloaded by 0xCA1B151C): radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 120 x 0.01f = f32 1.1999999 (the spec's 1.2), cost per pipe 0.1; the shipped curves evaluated at their points and between them by linear interpolation (efficiency (50,30)(90,80): 70 -> 55; usage (0.5,0.45)(0.75,0.85): 0.6 -> 0.61). Patterns (8): an exemplar holding only the radius keeps the other scalars and the loaded efficiency curve (keep), resets 0x0911E2E8 / 0x0911E2E9 / 0xCA7138C4 to the code defaults (default); an exemplar whose curves exist with no points turns the efficiency, funding-decay and usage-decay curves into (0,0)(100,100) and leaves the pipe-decay curve empty; a missing exemplar on reload changes only the three defaulted curves.",
+  "steps": [
+    {"op": "plumbing_tuning", "none": true},
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_expect_events", "filter": {"event": "max_funding"}, "events": [{"event": "max_funding", "value": 1.2}]},
+    {"op": "plumbing_expect_tuning", "fields": {"radius": 7, "fresh_reach": 2, "salt_reach": 1, "distance_loss": 20,
+      "max_pumped_pollution": 100, "burst_probability": 0.3, "max_funding": 1.2, "cost_per_pipe": 0},
+      "eval": [
+        {"curve": "funding_decay", "x": 0, "y": 1}, {"curve": "funding_decay", "x": 0.5, "y": 1}, {"curve": "funding_decay", "x": 7, "y": 1},
+        {"curve": "usage_decay", "x": 0, "y": 1}, {"curve": "usage_decay", "x": 2, "y": 1},
+        {"curve": "pipe_decay", "x": 0, "y": -0.02}, {"curve": "pipe_decay", "x": 60, "y": -0.005}, {"curve": "pipe_decay", "x": 120, "y": 0.01},
+        {"curve": "efficiency", "x": 100, "y": 0}
+      ],
+      "empty": ["efficiency"]},
+
+    {"op": "plumbing_tuning", "reload": true},
+    {"op": "plumbing_expect_tuning", "fields": {"radius": 7, "fresh_reach": 256, "salt_reach": 256, "distance_loss": 100,
+      "max_pumped_pollution": 512, "burst_probability": 0.03, "max_funding": 1.1999999, "cost_per_pipe": 0.1},
+      "eval": [
+        {"curve": "efficiency", "x": 0, "y": 0}, {"curve": "efficiency", "x": 50, "y": 30}, {"curve": "efficiency", "x": 70, "y": 55},
+        {"curve": "efficiency", "x": 90, "y": 80}, {"curve": "efficiency", "x": 100, "y": 100}, {"curve": "efficiency", "x": 120, "y": 110},
+        {"curve": "funding_decay", "x": 0, "y": 1.1}, {"curve": "funding_decay", "x": 1, "y": 1}, {"curve": "funding_decay", "x": 1.2, "y": 0.9},
+        {"curve": "usage_decay", "x": 0, "y": 0.1}, {"curve": "usage_decay", "x": 0.5, "y": 0.45}, {"curve": "usage_decay", "x": 0.6, "y": 0.61},
+        {"curve": "usage_decay", "x": 1.1, "y": 2},
+        {"curve": "pipe_decay", "x": 0, "y": -0.01}, {"curve": "pipe_decay", "x": 50, "y": 0}, {"curve": "pipe_decay", "x": 100, "y": 0.02},
+        {"curve": "pipe_decay", "x": 110, "y": 0.05}
+      ]},
+
+    {"op": "plumbing_tuning", "code": true, "props": {"0x68F5436A": {"u32": 9}}, "reload": true},
+    {"op": "plumbing_expect_tuning", "fields": {"radius": 9, "fresh_reach": 256, "salt_reach": 256, "distance_loss": 100,
+      "max_pumped_pollution": 512, "burst_probability": 0.03, "max_funding": 1.1999999, "cost_per_pipe": 0.1},
+      "eval": [
+        {"curve": "efficiency", "x": 90, "y": 80},
+        {"curve": "funding_decay", "x": 1.2, "y": 1},
+        {"curve": "usage_decay", "x": 0, "y": 1},
+        {"curve": "pipe_decay", "x": 0, "y": -0.02}
+      ]},
+
+    {"op": "plumbing_tuning", "code": true, "props": {"0x6A410BF2": {"f32": []}, "0x0911E2E8": {"f32": []},
+      "0x0911E2E9": {"f32": []}, "0xCA7138C4": {"f32": []}}, "reload": true},
+    {"op": "plumbing_expect_tuning", "fields": {"radius": 9},
+      "eval": [
+        {"curve": "efficiency", "x": 40, "y": 40},
+        {"curve": "funding_decay", "x": 40, "y": 40},
+        {"curve": "usage_decay", "x": 40, "y": 40},
+        {"curve": "pipe_decay", "x": 40, "y": 0}
+      ],
+      "empty": ["pipe_decay"]},
+
+    {"op": "plumbing_tuning", "none": true, "reload": true},
+    {"op": "plumbing_expect_tuning", "fields": {"radius": 9, "fresh_reach": 256},
+      "eval": [
+        {"curve": "efficiency", "x": 40, "y": 40},
+        {"curve": "funding_decay", "x": 40, "y": 1},
+        {"curve": "pipe_decay", "x": 120, "y": 0.01}
+      ]}
+  ]
+}

@@ -681,13 +681,64 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 `secondary_info` and `full_expenses` (`item` = `[department, line]`, `value`), `budget_line`, `budget_cost`,
 `add_funded` / `remove_funded`, `local_funding`, `local_full_funding`.
 
+## Plumbing ops
+
+The plumbing vectors (`pl14_…`) drive the plumbing (water) simulator (`fc4_core::plumbing`) over a scripted city
+implementing `PlumbingHost`: cells, terrain water, water pollution values, the water department's funding and the
+ordinance factor; building and pipe occupants (properties, lots, network flags, `ConnectsToNeighbor` directions,
+budget items); neighbour deals and connections; and the budget (departments, line items). Every op name starts
+with `plumbing_`. The default city is 64 × 64 cells with the shipped tuning, funding 1.0, ordinance factor 1.0 and
+wall-clock seed 1. Objects are named by label; host objects in a save use the test-only classes `0x0CC00011`
+(occupant) and `0x0CC00012` (department).
+
+### Environment and objects
+
+| op | Arguments | Effect |
+|---|---|---|
+| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
+| `plumbing_tuning` | `none` (no exemplar), `code` (an empty exemplar), or the shipped exemplar plus `props` (`{"0xID": value}`; `{"remove": true}` removes one); `reload?` sends the tuning message | the tuning exemplar |
+| `plumbing_building` | `label`, `x`, `z`, `w?`, `d?`, `anchor?`, `props?`, `lot?` (default true: a lot `<label>_lot` over the rectangle), `lot_rect?`, `needs_power?`, `has_power?`, `building_type?`, `budget?` (`{department, line, cost, index?}`), `local_funding?`, `insert?` (default true) | a building occupant, inserted through the message |
+| `plumbing_pipe` / `plumbing_pipe_row` / `plumbing_pipes` | pipe: `label`, `x`, `z` (or a rectangle), `dirs?`, `flags?`, `insert?`; row: `prefix`, `from`, `to` (connected to each other); pipes: `prefix`, `count`, `width?`, `x0?`, `z0?` (unconnected) | pipe occupants |
+| `plumbing_occupant` | `occupant`, `props?`, `net_flags?`, `budget?` (null removes it), `local_funding?` | changes an occupant |
+| `plumbing_lot` | `lot`, `needs_power?`, `has_power?`; or a new lot with `label` and a rectangle | lots |
+| `plumbing_deal` / `plumbing_connection` | deal: `label` or `deal`, `type` (`import`, `export` or a number), `amount`, `used?`, `city`, `flags?`; connection: `label`, `x`, `z`, `city`, `active?`, `visited?`, `other?` | neighbour deals and connections |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `plumbing_create` / `plumbing_init` / `plumbing_shutdown` | `expect?` | a new simulator, `Init`, `Shutdown` |
+| `plumbing_rng` / `plumbing_gaussian` | rng: `seed`; gaussian: `seed`, `calls` (`[{lo, hi, expect}]`), `raws?` | the generator; `RandomSint32RangeGaussianFast` on a fresh one |
+| `plumbing_slice` | `cells` per call in states 6 and 7 (null = the whole map) | the time slice ([choice]) |
+| `plumbing_message` | `type` (`SimNewMonth`, `SimNewDay`, `SimIdle`, `ConnectionsReady`, `InsertOccupant`, `RemoveOccupant`, `TuningReload`, `PipeBurst`, `DealStatus` or an ID), `data1..3?`, `occupant?`, `deal?`, `expect?` | `DoMessage` |
+| `plumbing_insert` / `plumbing_remove` | `occupant` | the occupant messages |
+| `plumbing_idle` | `count?` (1), `ms?` (5), `expect?` | `DoIdle` calls |
+| `plumbing_pass` | `calls?` | starts a pass and idles until state 9 |
+| `plumbing_month` | `expect?` | the month message |
+| `plumbing_call` | `method`, `args?`, `expect?` | the §10 slots (`query_interface`, `add_ref`, `release`, `supply_value`, `supply_value_map_ptr`, `are_watered_buildings_in_cell`, `is_building_watered`, `water_production`, `is_cell_watered`, `num_water_sources`, `num_polluted_water_sources`, `water_production_capacity`, `water_consumed`, `water_imported`, `water_exported` (EAX), `num_pipes`, `num_distressed_pipes`, `num_burst_pipes`, `num_watered_buildings`, `num_unwatered_buildings`, `water_demand` (EAX), `water_demand_64`, `water_producer_info`, `water_producer_condition_percent`, `occupant_monthly_upkeep_cost`, `find_water_buildings`, `water_producers`), `slot_return` (`[slot]`), and the steps `nearest_water` (`[x, z, type, reach]`), `nearest_water_ring`, `update_water_production`, `age_water_producers`, `building_consumption`, `is_connected_to_current_network`, `pipe_cost`, `trunc`, `eax_of` |
+| `plumbing_set` | `state` (any of `state`, `recompute`, `ageing`, `enabled`, `pipe_condition`, `num_pipes`, `num_distressed`, `num_burst`, `demand`, `pass_counter`, `total_water_cost`, `last_produced`, `last_consumed`, `last_imported`, `last_exported`), `flags?` (`[{x, z, v}]`), `production?` (`[{occupant, production}]`), `crt?` | pokes state (test setup) |
+| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `producers`, `current`, `pipes`, `leaked`, `iterator`, the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
+| `plumbing_expect_tuning` | the scalar fields, `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
+| `plumbing_expect_flags` / `plumbing_expect_grid` | flags: `cells`; grid: `grid` (`published` or `working`), `instance?`, `cells?`, `rects?`, `nonzero?` | the flag map and the u8 grids |
+| `plumbing_expect_occupant` / `_deal` / `_connection` / `_line_item` / `_refs` | occupant: `props?` (null = absent), `net_flags?`, `budget_cost?`; deal: `used?`, `flags?`; connection: `active?`, `visited?`; line item: `line`, `expenses?`, `secondary?`, `display?`, `exists?`; refs: `{label: count}` | host objects |
+| `plumbing_expect_events` / `plumbing_expect_event_count` / `plumbing_clear_events` | see the shared conventions | host calls |
+| `plumbing_save` / `plumbing_load` / `plumbing_expect_save` | `slot`; load: `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5) | the class-object store |
+| `plumbing_patch` / `plumbing_expect_payload` | see the shared conventions (the simulator's record) | |
+
+Plumbing events: `agent`, `remove_agent`, `subscribe`, `unsubscribe`, `post` (`type`, `data1`), `history` (`id`,
+`value`), `create_department`, `department_name`, `max_funding`, `create_line_item`, `line_item_name`,
+`remove_line_item` (`line`), `create_building_line_item`, `display_flag`, `add_expenses` (`line`, `delta`),
+`set_expenses`, `set_secondary`, `change_budget_line`, `change_budget_cost`, `pipe_watered` (`pipe`, `watered`),
+`redisplay` (`min`, `max`), `burst` (`x`, `z`, `manager`), `lot_condition` (`lot`, `condition`), `set_used`,
+`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`) and `grid_shutdown` (`grid`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
-   `pw15_…` (power §15).
+   `pw15_…` (power §15), `pl14_…` (plumbing §14).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -969,3 +1020,25 @@ Power events: `acquire_services`, `release_services`, `factor` (`id`, `index`), 
 | 20 save | `pw15_20_save` |
 | 21 lifecycle | `pw15_21_lifecycle` |
 | 22 Nuclear Free Zone | `pw15_22_nuclear_free_zone` |
+
+## Coverage (plumbing §14)
+
+| §14 item | Vector |
+|---|---|
+| Init, Shutdown, references, the agent and the department | `pl14_00_lifecycle` |
+| Buildings, budget items, maintenance, the consumer-removal and lotless-producer quirks | `pl14_00_buildings_budget` |
+| Shared seed cells (§6.2) | `pl14_00_seeding` |
+| 1 defaults, 2 shipped tuning | `pl14_01_02_tuning` |
+| 3 pipe flags, 4 pipe cost, 16 burst bookkeeping | `pl14_03_04_16_pipes` |
+| 5 pump capacity, 6 pollution shutdown, 7 power, 8 condition curve | `pl14_05_08_production` |
+| 9 basic flood, 10 shortage | `pl14_09_10_flood` |
+| 11 ring geometry | `pl14_11_ring_geometry` |
+| 12 export | `pl14_12_export` |
+| 13 import | `pl14_13_import` |
+| 14 pipe funding, 15 GaussianFast | `pl14_14_15_pipe_funding` |
+| 17 deal message, 18 disabled | `pl14_17_18_messages` |
+| 19 grid values, 20 grid swap (and the time slice) | `pl14_19_20_grids` |
+| 21 NearestWater | `pl14_21_nearest_water` |
+| 22 ageing | `pl14_22_ageing` |
+| 23 persistence | `pl14_23_persistence` |
+| 24 SDK return channels | `pl14_24_slots` |

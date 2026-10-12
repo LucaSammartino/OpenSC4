@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "plumbing_pipe_funding",
+  "spec": ["plumbing 7.1", "plumbing 14.14", "plumbing 14.15", "foundations 6.1", "foundations 12.3"],
+  "description": "Expected values from an independent Python model of 7.1 (cRZRandom LCG x 0x41C64E6D + 0x3039, raw = bits 16-47; GaussianFast = lo + (((r1+r2+r3+r4+2) >> 2) x (hi - lo)) >> 32; CRT rand 214013 / 2531011 with random_shuffle j = rand() % (i + 1)). Test 14: curve 0xCA7138C4 = (0,-0.25)(120,0.25), burst probability 0.5, 100 unconnected pipes p0..p99 at (i mod 64, i div 64), funding 0, generator seeded with 1. Month 1: cond 0 - (-0.25) = 0.25, target trunc(100 x 0.25) = 25, hi trunc(2 x 25 x 0.5) = 25, bursts = 10 (raws 16838, 1507104382, 3204589441, 2509948011; LCG state 3295386429); 99 rand calls shuffle the copy (CRT state 1502690714); 25 pipes get 0x10000, the backward walk bursts 10 (the first at p65 = (1,1)). Month 2: cond 0.5, target 50, hi 50 -> 15 (raws 2043738443, 1622775291, 117692898, 1481547003), numBurst 25. Month 3 (curve flat 0, probability 0): target 50 = numDistressed and hi = 0 -> no shuffle, but still 4 raws (LCG 836760821). Month 4 (curve -0.25, probability 0.5, no disaster manager): cond 0.75, target 75, hi 75 -> 41 bursts, each still sets 0x20000 and counts (numBurst 66), events with manager false. Month 5 (curve +0.5): cond 0.25, target 25 < 75: 50 pipes lose 0x10000 (their burst flags stay), bursts 18 but only one distressed pipe without 0x20000 is left -> numBurst 67 (p65, burst in month 1, is still distressed). Month 6 (curve +2): cond clamps to 0, target 0: every distressed flag is cleared, burst flags stay (p65 keeps 0x20000). Test 15: GaussianFast on seed 1: (0,25) -> 10, (0,25) -> 7 (draws 5-8), (0,0) -> 0 after four more draws (the next raw is the 13th, 2142315388). The month runs while not enabled (test 18).",
+  "steps": [
+    {"op": "plumbing_gaussian", "seed": 1, "calls": [{"lo": 0, "hi": 25, "expect": 10}, {"lo": 0, "hi": 25, "expect": 7}, {"lo": 0, "hi": 0, "expect": 0}], "raws": [2142315388]},
+    {"op": "plumbing_gaussian", "seed": 1, "calls": [{"lo": 0, "hi": 25, "expect": 10}, {"lo": 0, "hi": 50, "expect": 15}]},
+    {"op": "plumbing_tuning", "props": {"0xCA7138C4": {"f32": [0, -0.25, 120, 0.25]}, "0x8A235C56": {"f32": 0.5}}},
+    {"op": "plumbing_env", "funding": 0},
+    {"op": "plumbing_create"},
+    {"op": "plumbing_init"},
+    {"op": "plumbing_pipes", "prefix": "p", "count": 100},
+    {"op": "plumbing_rng", "seed": 1},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_month", "expect": true},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0.25, "num_pipes": 100, "num_distressed": 25, "num_burst": 10,
+      "rng_lcg": 3295386429, "crt_state": 1502690714, "recompute": true, "ageing": true, "enabled": false}},
+    {"op": "plumbing_expect_events", "filter": {"event": "burst"}, "events": [
+      {"event": "burst", "x": 1, "z": 1, "manager": true}, {"event": "burst", "x": 2, "z": 1}, {"event": "burst", "x": 0, "z": 1},
+      {"event": "burst", "x": 47, "z": 0}, {"event": "burst", "x": 8, "z": 0}, {"event": "burst", "x": 17, "z": 0},
+      {"event": "burst", "x": 30, "z": 1}, {"event": "burst", "x": 41, "z": 0}, {"event": "burst", "x": 27, "z": 1},
+      {"event": "burst", "x": 51, "z": 0}]},
+    {"op": "plumbing_expect_occupant", "occupant": "p65", "net_flags": "0x30000"},
+    {"op": "plumbing_call", "method": "num_distressed_pipes", "expect": 25},
+
+    {"op": "plumbing_month"},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0.5, "num_distressed": 50, "num_burst": 25, "rng_lcg": 2633739833, "crt_state": 433661943}},
+    {"op": "plumbing_expect_event_count", "filter": {"event": "burst"}, "count": 15},
+    {"op": "plumbing_expect_event_count", "filter": {"event": "burst", "x": 18, "z": 0}, "count": 1},
+    {"op": "plumbing_clear_events"},
+
+    {"op": "plumbing_tuning", "props": {"0xCA7138C4": {"f32": [0, 0, 120, 0]}, "0x8A235C56": {"f32": 0}}, "reload": true},
+    {"op": "plumbing_month"},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0.5, "num_distressed": 50, "num_burst": 25, "rng_lcg": 836760821, "crt_state": 433661943}},
+    {"op": "plumbing_expect_event_count", "filter": {"event": "burst"}, "count": 0},
+
+    {"op": "plumbing_tuning", "props": {"0xCA7138C4": {"f32": [0, -0.25, 120, -0.25]}, "0x8A235C56": {"f32": 0.5}}, "reload": true},
+    {"op": "plumbing_env", "no_disaster": true},
+    {"op": "plumbing_month"},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0.75, "num_distressed": 75, "num_burst": 66, "rng_lcg": 3297241969, "crt_state": 273256360}},
+    {"op": "plumbing_expect_event_count", "filter": {"event": "burst", "manager": false}, "count": 41},
+    {"op": "plumbing_expect_event_count", "filter": {"event": "burst"}, "count": 41},
+
+    {"op": "plumbing_tuning", "props": {"0xCA7138C4": {"f32": [0, 0.5, 120, 0.5]}, "0x8A235C56": {"f32": 0.5}}, "reload": true},
+    {"op": "plumbing_clear_events"},
+    {"op": "plumbing_month"},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0.25, "num_distressed": 25, "num_burst": 67, "rng_lcg": 3823029677, "crt_state": 1839631741}},
+    {"op": "plumbing_expect_events", "filter": {"event": "burst"}, "events": [{"event": "burst", "x": 6, "z": 0, "manager": false}]},
+    {"op": "plumbing_expect_occupant", "occupant": "p65", "net_flags": "0x30000"},
+
+    {"op": "plumbing_tuning", "props": {"0xCA7138C4": {"f32": [0, 2, 120, 2]}}, "reload": true},
+    {"op": "plumbing_month"},
+    {"op": "plumbing_expect", "state": {"pipe_condition": 0, "num_distressed": 0, "num_burst": 67, "rng_lcg": 675780521, "crt_state": 8125318}},
+    {"op": "plumbing_expect_occupant", "occupant": "p65", "net_flags": "0x20000"}
+  ]
+}
