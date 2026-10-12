@@ -591,7 +591,7 @@ Details *[compat]*:
   starts at p and p is advanced by δ afterwards. Either way the next lot starts right after this one.
 - `CreateLotIfPossible` is lot manager slot 22 with the attempted rect, facing f, out lot, and the remaining
   arguments 0, 0, null (§8.5); it draws no random numbers. On failure `CreateLotRemnants` (§7.8) covers the
-  buildable cells of the rect with 1-cell-deep strips facing f; for zones 1–6 it passes the explicit facing list
+  buildable cells of the rect with 1-cell-wide strips facing f; for zones 1–6 it passes the explicit facing list
   `{f}`, so `CreateLotToFaceRoad` makes **no** `U(4)` draw here.
 - The levelling call (lot developer slot 21, `lot-developer.md`) runs **after** the attempt, its remnants and the
   back street, for every attempt including failed ones, on the attempted rect clamped to
@@ -605,7 +605,8 @@ Details *[compat]*:
   narrow arm of an L) fails with code 0 (§8.4) and falls back to remnants. The depth size is adapted (§7.6.3) so
   that the last lot of a row ends at the region edge or one cell short of it (case (c), leaving room for a street).
 - Lots are created in row order and, within a row, in depth order; remnant lots appear at the point of the attempt
-  that produced them. New lots go to the end of the master list (§8.5), so this is also their master-list order.
+  that produced them. This is the order of the `CreateLot` calls; where each lot lands in the master list is
+  decided by `CreateLot` (§8.5).
 - The back street is drawn once, during the first row, across the whole row range `b1..b2`; later rows only skip
   its line. The depth positions of all rows are identical because `rem`, `f` and the adjustments do not depend on
   o.
@@ -662,10 +663,12 @@ Re-creates lots on the cells of a deleted lot. By the **current zone type**:
 
 - 7, 8, 9: every cell, z outer, x inner: `CreateLotToFaceRoad(cell, 1, 1, emptyList)` → **one draw per cell**.
   Returns 1.
-- otherwise: strips one cell deep, perpendicular to the facing side, with the list `{facing}` (no draw). Scan order
-  by facing: 3 → rows of z, x ascending; 1 → rows of z, x descending; 0 → columns of x, z ascending; 2 → columns of
-  x, z descending. A run of consecutive buildable cells (inside the city and the restriction region, not water, zoned
-  in real mode, no `0x1F4F` network, not occupied) becomes one lot.
+- otherwise: strips one cell wide that run along the facing direction (facing 1 or 3: a strip is `run × 1`
+  cells on one z row; facing 0 or 2: `1 × run` cells on one x column), each made with
+  `CreateLotToFaceRoad(strip, {facing})` (no draw; the strip faces `facing` whether or not that side has a road,
+  §7.7). Scan order by facing: 3 → rows of z, x ascending; 1 → rows of z, x descending; 0 → columns of x, z
+  ascending; 2 → columns of x, z descending. A run of consecutive buildable cells (inside the city and the
+  restriction region, not water, zoned in real mode, no `0x1F4F` network, not occupied) becomes one lot.
 
 ### 7.9 `OnDezone(region, flag)` (`0x0072E6A0`)
 
@@ -676,6 +679,121 @@ Re-creates lots on the cells of a deleted lot. By the **current zone type**:
 3. If `flag`: collect the set cells that have a `0x808` network (street, dirt) and no `0x1747` network into a region;
    if any, `demolition.DemolishRegion(1, &region, 1, 1, 0, 0, 0, 0, 0, 0, 0)` (demolition slot 6, 11 arguments).
 4. Post DeferOccupantOperations (data1 = 0).
+
+### 7.10 `DrawStreet(x1, z1, x2, z2, perCell)` (`0x0072A2A0`, pop 20)
+
+Draws an automatic street along one cell line from `(x1, z1)` to `(x2, z2)` (the callers always pass a horizontal or
+vertical line; the end may be below or above the start), but only on cells of the current restriction region R.
+`u` := the unit step from start to end (per axis: sign of the difference). "Place(a, b)" is the street tool's
+`PlaceNetworkOccupants(a.x, a.z, b.x, b.z, 0xC49, callback = the street tool, realMode, −1)` (network tool slot 7,
+pop 32, bool in AL; §12): one street segment from a to b. In highlight mode the street is a draft.
+
+1. **Single cell** (start = end): if the cell is in R, Place(cell, cell). Done.
+2. Otherwise c := start, and repeat:
+   - Skip cells not in R (advance c by u while `c ∉ R` and c ≠ end).
+   - **c = end**: if `end ∉ R` stop. Else try, in order, until one succeeds: Place(end, end); Place(end + u, end);
+     Place(end, end − u); Place(end + u, end − u). Stop.
+   - Else the **run** is the maximal set of consecutive in-R cells from c towards the end: `[c, r]`.
+   - Unless `perCell` and the run is a single cell: try Place(c, r); on failure Place(c + u, **end**); on failure
+     Place(c, **end − u**); on failure Place(c + u, end − u) *[quirk: the fallbacks use the line's end, not the
+     run's end, so they can lay street on cells outside R]*.
+   - If `perCell`: Place(cell, cell) for every cell of the run, in order (after the segment, so a segment and the
+     single-cell placements overlap; their only purpose is to add the cells one by one when the segment fails or
+     is a draft) *[inferred purpose]*.
+   - If r = end stop; else c := r + u and repeat.
+
+Return values of Place are only used for the fallback chain; `DrawStreet` returns nothing. The callers' choice of
+`perCell`: `Parcellize` sets it when the line lies on the region's outer edge (§7.6.2), `LayInJogStreets` always,
+`ExtendAsStreets` and `SimpleParcellize` never.
+
+### 7.11 `ExtendAsStreets(rect, k)` (`0x00730BA0`, pop 8)
+
+Prolongs every dead end of network kind k that lies inside the region's rect across the region. `flags := 1 << k`
+(table `0x00AB3680`: kind k ↦ network flag bit k). For every cell (x, z) of the rect, x ascending (outer), z ascending
+(inner), including cells not in R:
+
+1. Skip unless `ExistsNetworkOfType(x, z, flags)`.
+2. Count the connected sides: for side s = 0, 1, 2, 3 (facing sides: 0 = −z, 1 = +x, 2 = +z, 3 = −x), the side
+   counts once if `ExistsConnectionOfType(x, z, flags, s, t)` (§7.13) holds for **any** t of road (0), one-way (10),
+   street (3), dirt road (11), or avenue (6) — avenue only when `x + z` is odd *[quirk]*. Stop counting at 2.
+3. If exactly one side d connects, the cell is a dead end; draw a street from the cell to the
+   rect edge in that direction, `perCell = 0`:
+
+| d | street | skipped when |
+|---|---|---|
+| 0 (−z) | (x, z) → (x, z2) | z = z2 |
+| 1 (+x) | (x, z) → (x1, z) | x = x1 |
+| 2 (+z) | (x, z) → (x, z1) | z = z1 |
+| 3 (−x) | (x, z) → (x2, z) | x = x2 |
+
+The dead-end cell itself is not in R (it holds a network), so `DrawStreet` starts at the next cell. Cells scanned
+later see streets drawn earlier in the same scan *[inferred: synchronous insertion, §7.6.2]*; a fully extended
+street ends on the rect edge, where the table above skips it.
+
+### 7.12 `LayInJogStreets(rect, k)` (`0x00730D30`, pop 8)
+
+Connects dead ends of kind k that stop just **outside** the region by laying a street along the region's edge.
+`flags := 1 << k`. The four outside lines are processed in this order, each only when it lies inside the city:
+
+| # | line (outside cells) | condition | wanted dead-end side | parallel edges | street drawn |
+|---|---|---|---|---|---|
+| 1 | z = z1 − 1, x = x1..x2 | z1 > 0 | 0 (−z) | −x, +x | (x1, z1) → (x2, z1) |
+| 2 | z = z2 + 1, x = x1..x2 | z2 < cellsZ − 1 | 2 (+z) | −x, +x | (x1, z2) → (x2, z2) |
+| 3 | x = x1 − 1, z = z1..z2 | x1 > 0 | 3 (−x) | −z, +z | (x1, z1) → (x1, z2) |
+| 4 | x = x2 + 1, z = z1..z2 | x2 < cellsX − 1 | 1 (+x) | −z, +z | (x2, z1) → (x2, z2) |
+
+Per line: `dead := false`, `parallel := false`. For each outside cell in ascending order that has a network of kind
+k (`ExistsNetworkOfType(flags)`):
+
+- Count its sides s = 0..3 with `ExistsConnectionOfType(x, z, flags, s, k)` (§7.13), stopping at 2. If the count is
+  1 and that side is the wanted side (the network comes from outside and stops at the region): `dead := true`
+  (sticky for the line).
+- Parallel test: for each kind in the order avenue (flag `0x40`, type 6), road (`0x1`, 0), one-way (`0x400`, 10),
+  street (`0x8`, 3), dirt road (`0x800`, 11): if the cell has that network, take it (`GetNetwork`, §7.13) and ask
+  `ConnectsToNeighbor` for either of the two parallel edges with that type. Any yes: `parallel := true` and the
+  scan of this line stops. This test uses the real network only (no highlight-mode draft fallback).
+
+After the scan, if `dead` and not `parallel`: `DrawStreet(street drawn, perCell = 1)`. So a jog street is laid when
+some dead end points at the region and no network cell on that line runs along the region edge.
+
+### 7.13 `ExistsConnectionOfType(x, z, flags, side, type)` (`0x0072FE80`, pop 20, AL) and `GetNetwork` (`0x0072FCA0`, pop 12)
+
+`GetNetwork(x, z, flags)`: the first occupant in the cell (occupant manager slot 41, type `0xC772BF98` = network
+occupant, list order) whose `HasAnyNetworkFlag(flags)` is true; null if none. No AddRef (the list is released, the
+pointer stays valid because the occupant manager keeps a reference).
+
+`ExistsConnectionOfType`: map the facing side to a network edge `e := (side + 1) mod 4` (network edges: 0 = −x,
+1 = −z, 2 = +x, 3 = +z; a side outside 0..3 gives e = −1). If `GetNetwork(x, z, flags)` is non-null and its
+`ConnectsToNeighbor(e, type)` (network occupant slot 47, `+0xBC`, pop 8, AL: true when the occupant is of network
+type `type` and has a connection on edge e for that type) is true → true. Otherwise, **only in highlight mode** and
+only when `flags & 0x808` (street or dirt road): ask the street tool `OccupantExists(x, z, 0x8, &mask)` (network tool
+slot 9, pop 16, AL); if it reports a draft, the result is `byte e of mask ≠ 0`; else ask the dirt tool
+`OccupantExists(x, z, 0x800, &mask)` the same way; else false. (The mask is 4 bytes, one per network edge; the SDK
+calls it `outOccupantId`.) In real mode the second branch is not taken.
+
+### 7.14 Worked example
+
+Zone 1 (low density residential), `SetOptions(0, 1, 0)` (place streets), lot 2 × 2 with `minDepth` 1, `maxDepth` 3,
+block 6; a road on (8..17, 9); zone x 10..15, z 10..13 (6 × 4), nothing else.
+
+- `ExtendAsStreets`/`LayInJogStreets`: the road row z = 9 is outside the rect; its cells (10..15, 9) connect on both
+  ±x sides, so no dead end, no street.
+- `ExamineBoundaries`: S = {600, 4, 6, 4}, C = {1, 0, 0, 0}: D = 0 (the road), Q = 3 (S[1] ≤ S[3]); zone 1 with
+  `placeStreets` and a 6 × 4 region → flag 0, swap: **D = 3, Q = 0**.
+- Frame (§7.6.1): Q = 0 → depth axis x (a = 10..15), row axis z (b = 10..13). D = 3 → low side: p0 = 10, sp = +2,
+  j = +2. Q = 0 → o0 = 10, so = +2, k = +2. A = 3, B = 1; C[3] = 0 → first = B = 1; farRoad = (C[1] = 1) = false.
+  Lrow = 4, Ldepth = 6.
+- Row o = 10, p = 10: rem = 6, f = B, case (c): 6 ≥ 1 + 2·2 → P (no change): lot **(10, 10)–(11, 11) facing 1**.
+  f was B → f := A, and s = p + j = 12 ∈ [10, 15]: first row → `DrawStreet((12, 10) → (12, 13), perCell 0)`, one
+  street segment (12, 10)–(12, 13); p := 11. Levelling; p := 11 + 2 = 13.
+- p = 13: rem = 3, f = A, case (b): 3 ≤ maxDepth → n = 3, δ = 1: lot **(13, 10)–(15, 11) facing 3**; p := 14;
+  f := B; p := 16 > 15, the row ends.
+- acc = 2 < 6 and flag = 0: no cross street. Row o = 12: same depth positions: lots **(10, 12)–(11, 13) facing 1**
+  and **(13, 12)–(15, 13) facing 3**; the back-street line is skipped without drawing. acc = 4. Row o = 14 > 13 ends.
+
+Result: four lots, two west of the new street facing it (facing 1 = +x) and two east of it facing it (facing
+3 = −x); the road on z = 9 is only a scoring input (the lots at z = 10 touch it on their −z side but face the
+street). Conformance test 19.
 
 ---
 
@@ -813,8 +931,10 @@ random iterator or `cRZRandomSuper` is used by either class.
 | Z2c | … from `CreateLotIfPossible` with facing −1, real mode, code 8 | | tract developer aggregation (`tract-developer.md` §4.15.3, purposes 5–8 with a square configuration) | 1 per call |
 
 Paths that reach Z2b: `OnDezone` (zoning to 0 over agricultural or industrial lots, including the zone manager's
-dezone under new networks, §5.1) and the zone developer's InsertOccupant handler (§5.2). `Parcellize` (zones 1–6) and
-`CreateLotRemnants` for zones 1–6 never draw.
+dezone under new networks, §5.1) and the zone developer's InsertOccupant handler (§5.2). `Parcellize` (zones 1–6),
+`CreateLotRemnants` for zones 1–6, `DrawStreet`, `ExtendAsStreets`, `LayInJogStreets` and the connection tests
+(§7.6, §7.10–§7.13) never draw from this generator. Whether the street tool's `PlaceNetworkOccupants` draws from
+any generator while placing automatic streets is not traced (§14.3).
 
 The draw result fixes only the **orientation order** tried by `CreateLotToFaceRoad`; it decides a lot's facing when
 two or more sides have roads (the first in `r, r+1, …` order wins) and when none has (facing r).
@@ -1004,6 +1124,12 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 | `cIGZMessageServer2` (`0x00B43CCC`) | 4 (+0x10) | `MessagePost(m, 0)` | 8 | | ZoningChange, Defer |
 | 3D view global (`0x00B43DD0`) | 10 (+0x28) | cached value (UI) | 0 | EAX | zone developer Init |
 | `cISC4NetworkManager` | 5 (+0x14) | `GetNetworkTool(type, 1)` | 8 | EAX | PostCityInit |
+| `cISC4NetworkTool` (street tool, type 3; dirt tool, type 11; vtable `0x00AA8748`) | 7 (+0x1C) | `PlaceNetworkOccupants(x1, z1, x2, z2, 0xC49, callback = the tool, realMode, −1)` (`0x00629210`) | 32 | **AL only** (SDK: `uint32_t`; upper EAX bytes are garbage) | DrawStreet (street tool) |
+| | 9 (+0x24) | `OccupantExists(x, z, networkFlags, &mask)` (`0x006248D0`); `mask` = 4 bytes, one per network edge | 16 | **AL only** (SDK: `uint32_t`) | ExistsConnectionOfType, highlight mode |
+| `cISC4NetworkOccupant` | 47 (+0xBC) | `ConnectsToNeighbor(edge, type)` | 8 | AL | ExistsConnectionOfType, LayInJogStreets |
+| `cISC4OccupantManager` | 41 (+0xA4) | `GetOccupantsByStandardCityCells(list, &cell, &cell, 0xC772BF98, −1)` | 20 | | GetNetwork |
+| `cISC4LotDeveloper` | 21 (+0x54) | `AttemptAreaLevelling(&rect, 0.0f, 1, 1, FLT_MAX, null)` | 24 | ignored | Parcellize, real mode only |
+| `cISC4Lot` | 69 | `SetVerticesAreLocked(1 / 0)` | 4 | | Parcellize |
 
 ---
 
@@ -1084,6 +1210,13 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 8. DeferOccupantOperations is posted, not sent (§5.3).
 9. `CreateLot` does not count a lot when the traffic simulator's iterator has no list (§8.5).
 10. Re-zoning a cell to its own type posts ZoningChange and re-parcels it (§6).
+11. `Parcellize` clamps a high-side depth start to 0, which changes the layout of regions in the first `Ld − 1`
+    cells of the map (§7.6.1, test 26).
+12. `Parcellize`'s cross-street range test is unsigned (§7.6.2).
+13. `DrawStreet`'s fallback placements run to the line's end, not the run's end, so they can lay street outside
+    the restriction region (§7.10).
+14. `ExtendAsStreets` counts an avenue connection only on cells with `x + z` odd (§7.11).
+15. `Parcellize` levels every attempted rect, also failed attempts, clamped to the city but not to the zone (§7.6.2).
 
 ### 14.2 Corrections to earlier notes
 
@@ -1092,11 +1225,17 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 - foundations §6.2: the zone manager's member `cRZRandom` is never drawn; add the zone developer's file-local
   `cRZRandom` `0x00B4B398` (XOR `0x8C09C68A`).
 - `re/abi_interfaces.tsv`: the `cISC4LotManager` row (`00ab37c0`) belongs to class `cSC4ZoneDeveloper`.
+- This spec, round 5 §7.6: the levelling call does not run "first" in each lot step; it runs after the attempt,
+  its remnants and the back street (fixed in §7.6.2). §7.8: remnant strips are one cell **wide** along the facing
+  direction, not one cell deep (fixed).
 
 ### 14.3 Open questions
 
-1. Exact geometry of `Parcellize`, `ExtendAsStreets`, `LayInJogStreets`, `DrawStreet` (cell order of lot attempts
-   and street cells). No random draws depend on them.
+1. *Answered in round 6* (§7.6, §7.10–§7.14, tests 19–29). Remaining unknowns of the street path:
+   (a) the internals of the street tool's `PlaceNetworkOccupants` (when it fails, what it costs, whether it draws
+   random numbers, whether it inserts occupants before returning *[inferred: yes]* and whether it auto-connects
+   neighbouring networks); the conformance tests below replace it by a stub; (b) the exact semantics of the network
+   occupant's `ConnectsToNeighbor` (slot 47) for mixed network types in one cell.
 2. `CanCreatePloppedLot` (slot 21) and the highlight texture code (UI).
 3. Who frees the `GetSafeLotIterator` object, and with what.
 4. Identity of `0x00731F60` / `0x00732450` (InsertOccupant data4 1/2 and 3) and of `0x0072B180` (end of `OnZone`).
@@ -1160,3 +1299,76 @@ City 64 × 64 unless stated; shipped tuning (§4); options `SetOptions(0, 0, 0)`
     undeveloped 16 × 4096, unnamed 16 × 4096, `{4096, 0, 0, 0}`, tuning arrays as §4, alpha 170, `0`, `0`, five
     references. Zone developer record: version 1, 64, 64, 4096 references. After reload, the master list order is
     first-cell order.
+
+**Parcellization geometry (tests 19–29).** Common setup unless stated: city 64 × 64, flat and dry, real mode, no
+lots; roads (type 0) and streets (type 3) are laid as straight network runs whose cells connect to the neighbouring
+cells of the same run; zones are written with `PlaceZone(commit, skipFunds, skipSizeCheck)` and parcelled by
+`DoParcellization(zoned cells, type, 0)`. The lot-size parameters are forced to **width 2, depth 2, minDepth 1,
+maxDepth 3, block 6** (the harness bypasses `DetermineLotSize`, §7.2.1). The street tool is a **stub**: Place(a, b)
+always succeeds and immediately puts a street on every cell of a..b that has no network (cells keep their zone; the
+posted dezone is not run). The expected output is the ordered log of lot creations (rect `x1, z1, x2, z2`, facing)
+and Place calls; levelling calls are not logged. Lots are written `(x1, z1)–(x2, z2) fN`.
+
+19. **6 × 4 low-density residential along a road** (worked example §7.14). Road (8..17, 9); zone 1 on x 10..15,
+    z 10..13; `SetOptions(0, 1, 0)`. S = {600, 4, 6, 4}, C = {1, 0, 0, 0}, D = 3, Q = 0, flag 0. Log:
+    (10, 10)–(11, 11) f1; Place(12, 10, 12, 13); (13, 10)–(15, 11) f3; (10, 12)–(11, 13) f1; (13, 12)–(15, 13) f3.
+20. **Same with zone 4 (CS$): back street and forced middle cross street.** S, C as test 19; D = 0, Q = 3, flag 1
+    (no swap). Middle row = 10. Log: (10, 10)–(11, 11) f0; (10, 12)–(11, 12) f2 (case (c): depth 1);
+    Place(10, 13, 15, 13), then Place(x, 13, x, 13) for x = 10..15 (back street on the region edge, perCell);
+    Place(12, 10, 12, 13) (forced cross street at row 10 + 2); (13, 10)–(14, 11) f0; (13, 12)–(14, 12) f2;
+    attempt (15, 10)–(16, 11) fails (x = 16 not zoned) → remnant (15, 10)–(15, 11) f0; attempt (15, 12)–(16, 12)
+    fails → remnant (15, 12)–(15, 12) f2. 6 lots, 8 Place calls.
+21. **No automatic streets.** Test 19 with `SetOptions(0, 0, 0)`: C = {1, 1, 1, 1}, S = {600, 0, 0, 0}, D = 0,
+    Q = 3, flag 1, farRoad. Log: (10, 10)–(11, 11) f0; (10, 12)–(11, 13) f2; (12, 10)–(13, 11) f0;
+    (12, 12)–(13, 13) f2; (14, 10)–(15, 11) f0; (14, 12)–(15, 13) f2. No Place.
+22. **L-shaped region.** Road (8..17, 9); zone 1 on {x 10..15, z 10..11} ∪ {x 10..11, z 12..15};
+    `SetOptions(0, 1, 0)`. S = {600, 2, 2, 6}, D = 3, Q = 0, flag 0. Log: (10, 10)–(11, 11) f1;
+    Place(12, 10, 12, 11) (the back street `DrawStreet((12, 10) → (12, 15))` clipped to the region);
+    (13, 10)–(15, 11) f3; (10, 12)–(11, 13) f1; attempt (13, 12)–(15, 13) f3 fails with no remnant;
+    (10, 14)–(11, 15) f1; attempt (13, 14)–(15, 15) fails with no remnant. No cross street (after the third row
+    acc = 6 but t = 16 > b2 − 2 = 13). 5 lots.
+23. **Jog street.** Street (12, 5..9) ending one cell north of the zone; zone 4 on x 10..15, z 10..13;
+    `SetOptions(0, 1, 0)`. `ExtendAsStreets` finds nothing (no network inside the rect); `LayInJogStreets(3)`
+    line 1 (z = 9): cell (12, 9) connects only on side 0 → dead end, no parallel connection → Place(10, 10, 15, 10)
+    and Place(x, 10, x, 10) for x = 10..15. Component: x 10..15, z 11..13 (18 cells); S = {180, 3, 6, 3},
+    C = {1, 0, 0, 0}, D = 0, Q = 3, flag 1. Lots: (10, 11)–(11, 13) f0; (12, 11)–(13, 13) f0; (14, 11)–(15, 13) f0
+    (depth 3 by case (b): rem 3 ≤ maxDepth). No further Place.
+24. **Extended street.** Street (12, 5..10) ending inside the zone rect; zone 4 on x 10..15, z 10..13 except
+    (12, 10); `SetOptions(0, 1, 0)`. `ExtendAsStreets(3)`: (12, 10) connects only on side 0 → `DrawStreet((12, 10)
+    → (12, 13), 0)` → Place(12, 11, 12, 13). `LayInJogStreets` draws nothing ((12, 9) connects on two sides).
+    Components in first-cell order: x 10..11, z 10..13 then x 13..15, z 10..13. First: S = {2, 120, 2, 4},
+    D = 1, Q = 2, flag 1; lots (10, 12)–(11, 13) f1, (10, 10)–(11, 11) f1 (rows from the high side, full-depth
+    override). Second: S = {3, 4, 3, 120}, D = 3, Q = 2; lots (13, 12)–(15, 13) f3, (13, 10)–(15, 11) f3.
+25. **Large block with back and cross streets.** Road (4..29, 9); zone 1 on x 10..21, z 10..19 (12 × 10);
+    `SetOptions(0, 1, 0)`. S = {1200, 10, 12, 10}, D = 3, Q = 0, flag 0. Back streets (first row only):
+    Place(12, 10, 12, 19); Place(17, 10, 17, 19); Place(21, 10, 21, 19) followed by Place(21, z, 21, z) for
+    z = 10..19 (on the region edge). Cross street after the third row: Place(10, 16, 21, 16). Rows start at
+    z = 10, 12, 14, 17 and 19. In each of the rows 10, 12, 14, 17 (o = row start): (10, o)–(11, o+1) f1;
+    (13, o)–(14, o+1) f3; (15, o)–(16, o+1) f1; (18, o)–(19, o+1) f3 (case (b): rem 4 → 2); (20, o)–(20, o+1) f1
+    (case (c): rem 2 → 1). In row 19 every attempt overhangs (z = 20 not zoned) and leaves a remnant one cell deep
+    in z: (10, 19)–(11, 19) f1; (13, 19)–(14, 19) f3; (15, 19)–(16, 19) f1; (18, 19)–(19, 19) f3;
+    (20, 19)–(20, 19) f1. Order: row 10's lots interleaved with its streets (lot (10,10), street x = 12, lot
+    (13,10), lot (15,10), street x = 17, lot (18,10), lot (20,10), street x = 21), then rows 12 and 14, the cross
+    street, rows 17 and 19. 25 lots.
+26. **Map edge (start clamp).** Lot width 1, depth 3, minDepth 1, maxDepth 3; `SetOptions(0, 0, 0)`; road
+    (2, 3..7); zone 4 on (0..1, 5). S = {0, 100, 0, 0}, C = {1, 1, 1, 1}, D = 1, Q = 2, flag 1. p0 = max(0, −1) = 0;
+    full-depth override (Ldepth 2 ≤ 3, Lrow 1 < 2) → depth 2. Attempt (1, 5)–(2, 5) f1 fails (road) → remnant
+    (1, 5)–(1, 5) f1; attempt (−1, 5)–(0, 5) f3 fails (outside) → remnant (0, 5)–(0, 5) f3. Two 1 × 1 lots (without
+    the clamp it would be one (0, 5)–(1, 5) f1). Control: road (3, 3..7), zone on (1..2, 5) → p0 = 0 needs no clamp
+    → one lot (1, 5)–(2, 5) f1.
+27. **DepthRule** (§7.6.3), results for rem = 1..12, as (a) far/front, (b) far/back = (b) near/front, (c) near/back:
+    - Ld 2, min 1, max 3, ps 1: (a) 1,2,3,2,2,2,2,2,2,2,2,2; (b) same; (c) 2,1,2,3,2,2,2,2,2,2,2,2.
+      ps 0: (c) 2,1,2,2,2,2,2,2,2,2,2,2.
+    - Ld 3, min 2, max 4, ps 1: (a) 1,2,3,4,3,3,2,3,3,3,3,3; (b) 1,2,3,4,2,3,3,3,3,3,3,3; (c) 3,1,2,3,4,3,3,3,3,3,3,3.
+    - Ld 4, min 3, max 5, ps 1: (a) 1,2,3,4,5,3,4,4,5,3,4,4; (b) 1,2,3,4,5,6,3,4,4,4,4,4;
+      (c) 4,1,2,3,4,5,3,4,4,4,4,4. ps 0: (a) 1,2,3,4,5,3,4,4,3,3,4,4; (b) 1,2,3,4,5,3,3,4,4,4,4,4; (c) as ps 1.
+28. **DrawStreet.** Restriction region = x 10..15 on z = 5 minus (12, 5). `DrawStreet(9, 5, 16, 5, 1)` →
+    Place(10, 5, 11, 5), Place(10,5,10,5), Place(11,5,11,5), Place(13, 5, 15, 5), Place(13,5,13,5), Place(14,5,14,5),
+    Place(15,5,15,5); with perCell 0 → Place(10, 5, 11, 5), Place(13, 5, 15, 5). Region {10, 11, 13} on z = 5:
+    `DrawStreet(10, 5, 13, 5, 1)` → Place(10, 5, 11, 5), (10,5,10,5), (11,5,11,5), Place(13, 5, 13, 5) (end cell);
+    `DrawStreet(13, 5, 10, 5, 0)` → Place(13, 5, 13, 5), Place(11, 5, 10, 5); `DrawStreet(11, 5, 11, 5, x)` →
+    Place(11, 5, 11, 5); `DrawStreet(12, 5, 12, 5, x)` → nothing. Fallback: region x 10..15 on z = 5, stub fails
+    every segment containing (15, 5): `DrawStreet(10, 5, 15, 5, 0)` → Place(10, 5, 15, 5) fails, Place(11, 5, 15, 5)
+    fails, Place(10, 5, 14, 5) succeeds, stop.
+29. **Middle row.** `o0 = 10`, row step +2: row range 10..15 → mid 10; 10..17 → 12; 10..21 → 14; 10..11 → 10.
+    In test 20 the forced cross street therefore follows the first row.
