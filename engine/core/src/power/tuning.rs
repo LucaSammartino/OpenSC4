@@ -92,24 +92,12 @@ impl Default for PowerTuning {
     }
 }
 
-/// A curve property: `None` when absent, not numeric, or a single scalar
-/// (foundations §4.1 [choice]); otherwise the curve of its points (empty
+/// A curve property: `None` when absent, not numeric, or a single value (a
+/// scalar or a one-element array; foundations §4.1 [choice],
+/// [`props::curve_of_variant`]); otherwise the curve of its points (empty
 /// when it has none).
 pub(crate) fn curve_of(v: Option<&Variant>) -> Option<ResponseCurve> {
-    let v = v?;
-    let items = match v {
-        Variant::Array { elem, items } if *elem != mem::RZ_CHAR && *elem != 0 => items,
-        _ => return None,
-    };
-    let values: Vec<f32> = items
-        .iter()
-        .map(|e| match *e {
-            Elem::F32(x) => x,
-            other => other.as_f64() as f32,
-        })
-        .collect();
-    let points: Vec<(f32, f32)> = values.chunks_exact(2).map(|c| (c[0], c[1])).collect();
-    Some(ResponseCurve::from_points(&points))
+    crate::props::curve_of_variant(v?)
 }
 
 /// `value × 0.01` with the `float` constant (one rounding).

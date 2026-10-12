@@ -46,17 +46,11 @@ pub struct ProtectionTuning {
     pub overflow_factor: f32,
 }
 
-/// A curve property (foundations §4.1): `None` when absent, a scalar or not
-/// numeric ([choice]); a present array gives its points (an empty curve
-/// when it has no complete point).
+/// A curve property (foundations §4.1, [`props::curve`]): `None` when
+/// absent, not numeric or a single value ([choice]); otherwise its points
+/// (an empty curve when it has no complete point).
 fn curve_prop(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
-    match h.get(id)? {
-        Variant::Array { .. } => {
-            let values = props::f32s(h, id)?;
-            Some(ResponseCurve::from_flat(&values).unwrap_or_default())
-        }
-        _ => None,
-    }
+    props::curve(h, id)
 }
 
 impl ProtectionTuning {
