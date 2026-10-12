@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "growth_developer_style_map",
+  "spec": ["growth-developer 4.8", "growth-developer 14.12"],
+  "description": "Test 12: the style map 0x87CD63A0 = [0x3001, 50, 0x3002, 50] (I-R shipped) -> map[group] = r24(float(pct) x 0.01f) = 0.5f (0x3F000000) each; pct 120 -> 1.1999999 (0x3F999999); the percentage is converted as unsigned (0xFFFFFFFF -> 4294967296 x 0.01f). An odd count drops the last group ([choice], quirk 9). R$ has none. Python float32 model.",
+  "steps": [
+    {"op": "gdev_create", "label": "ir"},
+    {"op": "gdev_init", "exemplar": "0x4100", "expect": true},
+    {"op": "gdev_expect", "state": {"styles": {"0x3001": 0.5, "0x3002": 0.5}}},
+    {"op": "gdev_call", "method": "style_percentages", "expect": {"0x3001": 0.5, "0x3002": 0.5}},
+    {"op": "gdev_call", "method": "style_fraction", "args": [50], "expect_bits": "0x3F000000"},
+    {"op": "gdev_call", "method": "style_fraction", "args": [120], "expect": 1.1999999284744263, "expect_bits": 1067030937},
+    {"op": "gdev_call", "method": "style_fraction", "args": [100], "expect_bits": 1065353216},
+    {"op": "gdev_call", "method": "style_fraction", "args": ["0xFFFFFFFF"], "expect_bits": 1277417226},
+    {"op": "gdev_create", "label": "odd"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x4100"}, "0x87CD6300": {"u8": 3}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 5}, "0x87CD63A0": {"u32": ["0x3001", 120, "0x3002"]}}, "expect": true},
+    {"op": "gdev_expect", "state": {"styles": {"0x3001": 1.1999999284744263}}},
+    {"op": "gdev_create", "label": "r"},
+    {"op": "gdev_init", "exemplar": "0x1010", "expect": true},
+    {"op": "gdev_expect", "state": {"styles": {}}}
+  ]
+}

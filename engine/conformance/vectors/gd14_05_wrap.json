@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "growth_developer_wrap",
+  "spec": ["growth-developer 4.1", "growth-developer 4.3", "growth-developer 14.5"],
+  "description": "Test 5: W = low16(baseline 32760) + ftol(10.7) = 10 wraps to -32766 (no clamping, quirk 1), both through a full update (flat park curve 10.7 over a park map of 0) and AddCurve itself; EstimateDesirability wraps the same way and returns the int16 sign-extended ([choice]). -32768 + ftol(-1.5) wraps to 32767. Hand-derived.",
+  "steps": [
+    {"op": "gdev_env", "cells": [16, 16]},
+    {"op": "gdev_source", "map": "park", "size": 4, "fill": 0},
+    {"op": "gdev_create"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0x87CD6357": {"i32": 32760}, "0x87CD6341": {"f32": [-100, 10.7, 100, 10.7]}}, "expect": true},
+    {"op": "gdev_update", "calls": 20},
+    {"op": "gdev_expect_grid", "grid": "desirability", "all": -32766},
+    {"op": "gdev_expect_grid", "grid": "working", "all": -32766},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [5, 9], "expect": -32766},
+    {"op": "gdev_call", "method": "add_curve", "args": [32760, 10.7], "expect": -32766},
+    {"op": "gdev_call", "method": "add_curve", "args": [-32768, -1.5], "expect": 32767}
+  ]
+}
