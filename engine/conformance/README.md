@@ -696,7 +696,7 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 
 | op | Arguments | Effect |
 |---|---|---|
-| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
+| `plumbing_env` | any of `cells` (`[x, z]`), `funding`, `factor` (null = no ordinance simulator), `water` (`[[x, z]]`), `water_rects` (`[{x, z, w, d}]`), `clear_water`, `water_values` (`[{x, z, v}]`), `no_terrain`, `no_disaster`, `no_department`, `no_grids`, `log_water` (log every `CellHasWater` call as a `has_water` event), `wall_seed`, `departments` (`[{label, id}]`) | the scripted city |
 | `plumbing_tuning` | `none` (no exemplar), `code` (an empty exemplar), or the shipped exemplar plus `props` (`{"0xID": value}`; `{"remove": true}` removes one); `reload?` sends the tuning message | the tuning exemplar |
 | `plumbing_building` | `label`, `x`, `z`, `w?`, `d?`, `anchor?`, `props?`, `lot?` (default true: a lot `<label>_lot` over the rectangle), `lot_rect?`, `needs_power?`, `has_power?`, `building_type?`, `budget?` (`{department, line, cost, index?}`), `local_funding?`, `insert?` (default true) | a building occupant, inserted through the message |
 | `plumbing_pipe` / `plumbing_pipe_row` / `plumbing_pipes` | pipe: `label`, `x`, `z` (or a rectangle), `dirs?`, `flags?`, `insert?`; row: `prefix`, `from`, `to` (connected to each other); pipes: `prefix`, `count`, `width?`, `x0?`, `z0?` (unconnected) | pipe occupants |
@@ -718,8 +718,8 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 | `plumbing_month` | `expect?` | the month message |
 | `plumbing_call` | `method`, `args?`, `expect?` | the §10 slots (`query_interface`, `add_ref`, `release`, `supply_value`, `supply_value_map_ptr`, `are_watered_buildings_in_cell`, `is_building_watered`, `water_production`, `is_cell_watered`, `num_water_sources`, `num_polluted_water_sources`, `water_production_capacity`, `water_consumed`, `water_imported`, `water_exported` (EAX), `num_pipes`, `num_distressed_pipes`, `num_burst_pipes`, `num_watered_buildings`, `num_unwatered_buildings`, `water_demand` (EAX), `water_demand_64`, `water_producer_info`, `water_producer_condition_percent`, `occupant_monthly_upkeep_cost`, `find_water_buildings`, `water_producers`), `slot_return` (`[slot]`), and the steps `nearest_water` (`[x, z, type, reach]`), `nearest_water_ring`, `update_water_production`, `age_water_producers`, `building_consumption`, `is_connected_to_current_network`, `pipe_cost`, `trunc`, `eax_of` |
 | `plumbing_set` | `state` (any of `state`, `recompute`, `ageing`, `enabled`, `pipe_condition`, `num_pipes`, `num_distressed`, `num_burst`, `demand`, `pass_counter`, `total_water_cost`, `last_produced`, `last_consumed`, `last_imported`, `last_exported`), `flags?` (`[{x, z, v}]`), `production?` (`[{occupant, production}]`), `crt?` | pokes state (test setup) |
-| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `producers`, `current`, `pipes`, `leaked`, `iterator`, the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
-| `plumbing_expect_tuning` | the scalar fields, `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
+| `plumbing_expect` | `state`: a partial object (nested objects match partially) of the state fields (`state`, `recompute`, `initialized`, the counters and totals, `flag_map_size`, `flag_map_nonzero`, `producers`, `current`, `pipes`, `leaked`, `iterator` (`state`, `x`, `z`, `step`, `rect`), the grids, `rng_lcg`, `crt_state`, …) | the simulator state |
+| `plumbing_expect_tuning` | the scalar fields (and `max_funding_bits`, the hex float32 bits), `eval?` (`[{curve, x, y}]`), `empty?` | the tuning |
 | `plumbing_expect_flags` / `plumbing_expect_grid` | flags: `cells`; grid: `grid` (`published` or `working`), `instance?`, `cells?`, `rects?`, `nonzero?` | the flag map and the u8 grids |
 | `plumbing_expect_occupant` / `_deal` / `_connection` / `_line_item` / `_refs` | occupant: `props?` (null = absent), `net_flags?`, `budget_cost?`; deal: `used?`, `flags?`; connection: `active?`, `visited?`; line item: `line`, `expenses?`, `secondary?`, `display?`, `exists?`; refs: `{label: count}` | host objects |
 | `plumbing_expect_events` / `plumbing_expect_event_count` / `plumbing_clear_events` | see the shared conventions | host calls |
@@ -727,11 +727,12 @@ wall-clock seed 1. Objects are named by label; host objects in a save use the te
 | `plumbing_patch` / `plumbing_expect_payload` | see the shared conventions (the simulator's record) | |
 
 Plumbing events: `agent`, `remove_agent`, `subscribe`, `unsubscribe`, `post` (`type`, `data1`), `history` (`id`,
-`value`), `create_department`, `department_name`, `max_funding`, `create_line_item`, `line_item_name`,
+`value`), `create_department`, `department_name`, `max_funding` (`value`, `bits`), `create_line_item`, `line_item_name`,
 `remove_line_item` (`line`), `create_building_line_item`, `display_flag`, `add_expenses` (`line`, `delta`),
 `set_expenses`, `set_secondary`, `change_budget_line`, `change_budget_cost`, `pipe_watered` (`pipe`, `watered`),
 `redisplay` (`min`, `max`), `burst` (`x`, `z`, `manager`), `lot_condition` (`lot`, `condition`), `set_used`,
-`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`) and `grid_shutdown` (`grid`).
+`deal_flags`, `deals_dirty`, `create_grid` (`instance`, `size`), `grid_shutdown` (`grid`) and, with `log_water`,
+`has_water` (`x`, `z`).
 
 ## Protection ops
 
@@ -1155,6 +1156,7 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 9 basic flood, 10 shortage | `pl14_09_10_flood` |
 | 11 ring geometry | `pl14_11_ring_geometry` |
 | 12 export | `pl14_12_export` |
+| 12 export flags per network, 0x28 (PL7) | `pl14_12_export_flags` |
 | 13 import | `pl14_13_import` |
 | 14 pipe funding, 15 GaussianFast | `pl14_14_15_pipe_funding` |
 | 17 deal message, 18 disabled | `pl14_17_18_messages` |
@@ -1163,6 +1165,9 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 22 ageing | `pl14_22_ageing` |
 | 23 persistence | `pl14_23_persistence` |
 | 24 SDK return channels | `pl14_24_slots` |
+| 25 iterator after a pass (PL4) | `pl14_25_iterator` |
+| 26 current producer in a save (PL3) | `pl14_26_current_producer` |
+| 27 re-Init after Shutdown (PL2) | `pl14_27_reinit` |
 
 ## Coverage (protection §18)
 

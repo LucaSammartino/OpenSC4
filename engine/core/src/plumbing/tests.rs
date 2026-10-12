@@ -570,10 +570,66 @@ fn nearest_water_rings() {
     // Clipped at the map edge: the ring is still the Chebyshev distance.
     let mut d = w(&[(0, 3)]);
     assert_eq!(nearest_water_ring(0, 0, 5, (64, 64), &mut d), 3);
-    // Outside the terrain (a hostile position) and huge reaches end.
+    // PL1 (§14 test 21): clipped edges on 64 × 64.
+    assert_eq!(nearest_water_ring(0, 0, 256, (64, 64), &mut w(&[(5, 3)])), 5);
+    assert_eq!(nearest_water_ring(62, 10, 256, (64, 64), &mut w(&[(55, 10)])), 7);
+    assert_eq!(nearest_water_ring(1, 1, 2, (64, 64), &mut w(&[(0, 3)])), 2);
+    assert_eq!(nearest_water_ring(1, 1, 2, (64, 64), &mut w(&[(4, 1)])), -1);
+    assert_eq!(nearest_water_ring(63, 63, 0, (64, 64), &mut w(&[(63, 63)])), 0);
+    // The spiral order inside the box, each box cell once.
+    let mut order = Vec::new();
+    assert_eq!(
+        nearest_water_ring(0, 0, 2, (64, 64), &mut |x, z| {
+            order.push((x, z));
+            false
+        }),
+        -1
+    );
+    assert_eq!(
+        order,
+        [(0, 0), (1, 0), (1, 1), (0, 1), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2)]
+    );
+    let mut order = Vec::new();
+    nearest_water_ring(10, 10, 1, (64, 64), &mut |x, z| {
+        order.push((x, z));
+        false
+    });
+    assert_eq!(
+        order,
+        [
+            (10, 10),
+            (11, 10),
+            (11, 11),
+            (10, 11),
+            (9, 11),
+            (9, 10),
+            (9, 9),
+            (10, 9),
+            (11, 9)
+        ]
+    );
+    let mut n = 0;
+    nearest_water_ring(30, 40, 7, (64, 64), &mut |_, _| {
+        n += 1;
+        false
+    });
+    assert_eq!(n, 15 * 15);
+    // An anchor outside the box (outside the terrain) → −1 with no test;
+    // with reach 0 the raised box holds the anchor, which is tested.
+    let mut calls = Vec::new();
+    let mut log = |x, z| {
+        calls.push((x, z));
+        true
+    };
+    assert_eq!(nearest_water_ring(64, 10, 256, (64, 64), &mut log), -1);
+    assert_eq!(nearest_water_ring(-100, -100, 10, (64, 64), &mut log), -1);
+    assert_eq!(nearest_water_ring(64, 10, 0, (64, 64), &mut log), 0);
+    assert_eq!(calls, [(64, 10)]);
+    // int32 arithmetic: a reach of 2^32 − 1 is −1, so the box [1, 1]
+    // excludes the anchor.
     let mut e = w(&[(63, 63)]);
-    assert_eq!(nearest_water_ring(-100, -100, 10, (64, 64), &mut e), -1);
-    assert_eq!(nearest_water_ring(0, 0, u32::MAX, (64, 64), &mut e), 63);
+    assert_eq!(nearest_water_ring(0, 0, u32::MAX, (64, 64), &mut e), -1);
+    assert_eq!(nearest_water_ring(0, 0, i32::MAX as u32, (64, 64), &mut e), 63);
     assert_eq!(nearest_water_ring(5, 5, 3, (0, 0), &mut e), -1);
 }
 
@@ -600,7 +656,8 @@ fn tuning_defaults_and_shipped() {
         (7, 256, 256, 100)
     );
     assert_eq!((t.max_pumped_pollution, t.burst_probability), (512, 0.03));
-    assert_eq!(t.max_funding, 120.0f32 * 0.01f32);
+    // PL6: 120 × 0.01f = 1.1999999 (0x3F999999), not 1.2 (0x3F99999A).
+    assert_eq!(t.max_funding.to_bits(), 0x3F99_9999);
     assert_eq!(t.cost_per_pipe, 0.1);
     assert_eq!(t.efficiency_curve.eval(90.0), 80.0);
     // An exemplar with empty curves: "empty → (0,0)(100,100)" for three.
@@ -647,13 +704,28 @@ fn init_and_shutdown() {
     // Disabled (§14 test 18): DoIdle is true and changes nothing.
     assert!(s.do_idle(5));
     assert_eq!(s.snapshot().state, 0);
-    // A second Init registers nothing more.
+    // A second Init changes nothing, not even the generator (PL2).
     f.log.borrow_mut().clear();
+    s.set_random(RzRandom::new(77, &seeds()));
     assert!(s.init());
     assert!(f.log.borrow().is_empty());
+    assert_eq!(s.random().map(|r| r.lcg_state()), Some(77));
     assert!(s.shutdown());
     assert_eq!(f.refs.borrow()[&DEPT], 0);
-    assert!(s.snapshot().flags.is_empty());
+    let st = s.snapshot();
+    assert!(st.flags.is_empty());
+    assert!(st.iterator.is_none() && st.rng.is_none() && !st.grids_initialized);
+    // [choice] Init after Shutdown rebuilds everything as on a new city.
+    s.with_state(|st| (st.state, st.recompute) = (5, false));
+    f.log.borrow_mut().clear();
+    assert!(s.init());
+    let st = s.snapshot();
+    assert_eq!((st.state, st.recompute, st.flags.len()), (0, true, 4096));
+    assert!(st.working.is_some() && st.published.is_some() && st.rng.is_some());
+    assert_eq!(st.iterator, Some(crate::grid::ScanIterator::for_counts(64, 64)));
+    assert_eq!(f.grids.borrow().len(), 4);
+    assert_eq!(f.log.borrow().iter().filter(|l| l.starts_with("agent")).count(), 3);
+    assert!(s.shutdown());
     assert_eq!(s.add_ref(), 1);
     assert_eq!(s.add_ref(), 2);
     assert_eq!(s.release(), 1);
@@ -1202,8 +1274,21 @@ fn persistence() {
     consumer(&s, &f, 3, 12, 5, 30);
     f.water.borrow_mut().insert((0, 0));
     pass(&s);
+    // PL4: the iterator rests done at (0, countZ) and is saved there.
+    let it = s.snapshot().iterator.unwrap();
+    assert_eq!(
+        (it.state, it.x, it.z, it.step),
+        (crate::grid::ScanState::Done, 0, 64, 1)
+    );
+    assert_eq!((it.x0, it.z0, it.x1, it.z1), (0, 0, 63, 63));
     let (bytes, entries) = record(&s);
     assert_eq!(bytes.len(), 4375);
+    let at = 2 + 16 + 8 + 4096 + 4 + 4 + 8 + 4 + 4 + 80 + 36;
+    let mut want = vec![2u8];
+    for v in [0i32, 64, 1, 0, 0, 63, 63] {
+        want.extend_from_slice(&v.to_le_bytes());
+    }
+    assert_eq!(&bytes[at..at + 29], &want[..]);
     assert_eq!(&bytes[..2], &[4, 0]);
     let g = Fake::new(64);
     let t = PlumbingSim::new(g.clone(), 2);

@@ -2,14 +2,14 @@
   "format": 1,
   "name": "plumbing_tuning",
   "spec": ["plumbing 8", "plumbing 14.1", "plumbing 14.2"],
-  "description": "Test 1 (no exemplar): the code defaults radius 7, reaches 2 / 1, loss 20, max pumped pollution 100, burst probability 0.3, max funding 1.2, cost per pipe 0; 0x0911E2E8 = 0x0911E2E9 = (0,1)(1,1) (1 everywhere); 0xCA7138C4 = (0,-0.02)(120,0.01) (at 60: -0.02 + 0.5 x 0.03 = -0.005); 0x6A410BF2 empty. Test 2 (shipped exemplar, reloaded by 0xCA1B151C): radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 120 x 0.01f = f32 1.1999999 (the spec's 1.2), cost per pipe 0.1; the shipped curves evaluated at their points and between them by linear interpolation (efficiency (50,30)(90,80): 70 -> 55; usage (0.5,0.45)(0.75,0.85): 0.6 -> 0.61). Patterns (8): an exemplar holding only the radius keeps the other scalars and the loaded efficiency curve (keep), resets 0x0911E2E8 / 0x0911E2E9 / 0xCA7138C4 to the code defaults (default); an exemplar whose curves exist with no points turns the efficiency, funding-decay and usage-decay curves into (0,0)(100,100) and leaves the pipe-decay curve empty; a missing exemplar on reload changes only the three defaulted curves.",
+  "description": "Test 1 (no exemplar): the code defaults radius 7, reaches 2 / 1, loss 20, max pumped pollution 100, burst probability 0.3, max funding 1.2, cost per pipe 0; 0x0911E2E8 = 0x0911E2E9 = (0,1)(1,1) (1 everywhere); 0xCA7138C4 = (0,-0.02)(120,0.01) (at 60: -0.02 + 0.5 x 0.03 = -0.005); 0x6A410BF2 empty. Test 2 (shipped exemplar, reloaded by 0xCA1B151C): radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 120 x 0.01f = f32 1.1999999 (bits 0x3F999999: 0.01f is the float 0.0099999998, the exact product 1.19999997 rounds once to 24 bits, 8 PL6; the code default stays 1.2 = 0x3F99999A), cost per pipe 0.1; the shipped curves evaluated at their points and between them by linear interpolation (efficiency (50,30)(90,80): 70 -> 55; usage (0.5,0.45)(0.75,0.85): 0.6 -> 0.61). Patterns (8): an exemplar holding only the radius keeps the other scalars and the loaded efficiency curve (keep), resets 0x0911E2E8 / 0x0911E2E9 / 0xCA7138C4 to the code defaults (default); an exemplar whose curves exist with no points turns the efficiency, funding-decay and usage-decay curves into (0,0)(100,100) and leaves the pipe-decay curve empty; a missing exemplar on reload changes only the three defaulted curves.",
   "steps": [
     {"op": "plumbing_tuning", "none": true},
     {"op": "plumbing_create"},
     {"op": "plumbing_init"},
-    {"op": "plumbing_expect_events", "filter": {"event": "max_funding"}, "events": [{"event": "max_funding", "value": 1.2}]},
+    {"op": "plumbing_expect_events", "filter": {"event": "max_funding"}, "events": [{"event": "max_funding", "value": 1.2, "bits": "0x3F99999A"}]},
     {"op": "plumbing_expect_tuning", "fields": {"radius": 7, "fresh_reach": 2, "salt_reach": 1, "distance_loss": 20,
-      "max_pumped_pollution": 100, "burst_probability": 0.3, "max_funding": 1.2, "cost_per_pipe": 0},
+      "max_pumped_pollution": 100, "burst_probability": 0.3, "max_funding": 1.2, "max_funding_bits": "0x3F99999A", "cost_per_pipe": 0},
       "eval": [
         {"curve": "funding_decay", "x": 0, "y": 1}, {"curve": "funding_decay", "x": 0.5, "y": 1}, {"curve": "funding_decay", "x": 7, "y": 1},
         {"curve": "usage_decay", "x": 0, "y": 1}, {"curve": "usage_decay", "x": 2, "y": 1},
@@ -20,7 +20,7 @@
 
     {"op": "plumbing_tuning", "reload": true},
     {"op": "plumbing_expect_tuning", "fields": {"radius": 7, "fresh_reach": 256, "salt_reach": 256, "distance_loss": 100,
-      "max_pumped_pollution": 512, "burst_probability": 0.03, "max_funding": 1.1999999, "cost_per_pipe": 0.1},
+      "max_pumped_pollution": 512, "burst_probability": 0.03, "max_funding": 1.1999999, "max_funding_bits": "0x3F999999", "cost_per_pipe": 0.1},
       "eval": [
         {"curve": "efficiency", "x": 0, "y": 0}, {"curve": "efficiency", "x": 50, "y": 30}, {"curve": "efficiency", "x": 70, "y": 55},
         {"curve": "efficiency", "x": 90, "y": 80}, {"curve": "efficiency", "x": 100, "y": 100}, {"curve": "efficiency", "x": 120, "y": 110},
