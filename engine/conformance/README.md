@@ -892,3 +892,4 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 | 16 persistence | `a17_16_persistence` |
 | 17 BustStrike | `a17_17_bust_strike` |
 | 18 registry | `a17_18_registry` |
+| 17 desirability mapping (scratch 2, desirability 4) | `lv16_17_desirability_mapping` |

@@ -954,8 +954,20 @@ impl BudgetSim {
         if r == 0.0 {
             return loan / i64::from(n);
         }
-        let rm = f64::from(r / 12.0); // r/12 taken from the float r
-        (loan as f64 * rm / (1.0 - (1.0 + rm).powi(-(n as i32)))) as i64
+        // [compat] §5.4: the original's doubles run at 24-bit x87 precision
+        // (foundations §18), so every step, the CRT pow included, rounds to
+        // f32, in this order: q := r × 1/12; L × q; 1 + q; −(n + 0); pow;
+        // 1 − that; divide. Each step is an f64 operation on f32 operands
+        // rounded once to f32 (exact for +, −, ×, ÷); pow is the f64 pow
+        // rounded to f32 ([inferred]: may differ by 1 near integer boundaries).
+        let f = |x: f64| f64::from(x as f32);
+        let q = f(f64::from(r) * (1.0 / 12.0));
+        let num = f(loan as f64 * q);
+        let base = f(1.0 + q);
+        let exp = f(-(f64::from(n) + 0.0));
+        let p = f(base.powf(exp));
+        let den = f(1.0 - p);
+        f(num / den) as i64
     }
 
     pub fn full_cost_of_loan(&self, loan: i64) -> i64 {

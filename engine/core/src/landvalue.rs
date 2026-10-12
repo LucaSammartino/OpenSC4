@@ -209,8 +209,7 @@ impl AltitudeParams {
         }
         let mut top_index = 100;
         if high_range > 100.0 {
-            // [precision] the original rounds only (highRange − 100) to f32
-            // and evaluates the rest in extended precision.
+            // [precision] four f32 operations in this order (§7.3, foundations §18).
             let t = (high_range - 100.0) / (max_allowed - 100.0) * 100.0 + 100.0;
             top_index = (t as i32).min(150);
         }
@@ -797,9 +796,9 @@ impl LandValueSim {
                 }
             }
             if (self.ignore_zoning || self.is_zoned(x, z)) && land {
-                // [precision] int32 sum added as a float and truncated: f32
-                // loses integers above 2^24 (an extended-precision x87 does not).
-                self.sum = (self.sum as f32 + a) as i32;
+                // [precision] the int32 sum enters unrounded (foundations
+                // §18.3): one addition rounded to f32, then truncated.
+                self.sum = ((self.sum as f64 + f64::from(a)) as f32) as i32;
                 self.count += 1;
                 if !self.histogram.is_empty() {
                     let bin = ((a as i32) >> self.hist_shift).clamp(0, self.histogram.len() as i32 - 1);
@@ -819,9 +818,9 @@ impl LandValueSim {
             self.histogram.fill(0);
             return;
         }
-        // [precision] f32 division of the int32 sum.
+        // [precision] one division of the exact int32 operands, rounded to f32.
         self.mean_alt = if self.count > 0 {
-            self.sum as f32 / self.count as f32
+            (f64::from(self.sum) / f64::from(self.count)) as f32
         } else {
             0.0
         };

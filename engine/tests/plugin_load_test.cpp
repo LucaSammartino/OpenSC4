@@ -23,11 +23,14 @@
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
+#include "cS3DVector2.h"
 #include "cIGZSystemService.h"
 #include "cISC4BudgetSimulator.h"
 #include "cISC4DepartmentBudget.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LineItem.h"
+#include "cISC4Ordinance.h"
+#include "cISC4OrdinanceSimulator.h"
 #include "cISCPropertyHolder.h"
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
@@ -43,9 +46,12 @@
 #endif
 #include <windows.h>
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <map>
 #include <sstream>
@@ -75,6 +81,15 @@ constexpr uint32_t kIID_cISC4BudgetSimulator = 0x6772BD23;
 constexpr uint32_t kIID_cISC4DepartmentBudget = 0x223E2B67;
 constexpr uint32_t kCLSID_LandValue = 0xE990C18E;
 constexpr uint32_t kIID_cISC4LandValueSimulator = 0xE7781D8C;
+constexpr uint32_t kCLSID_Weather = 0x2990C1BC;
+constexpr uint32_t kIID_cISC4WeatherSimulator = 0xC6C66245;
+constexpr uint32_t kCLSID_OrdinanceSim = 0xA990C08E;
+constexpr uint32_t kIID_cISC4OrdinanceSimulator = 0x41193C3A;
+constexpr uint32_t kCLSID_FreeClinics = 0x40D07236;
+constexpr uint32_t kCLSID_DemandSim = 0x2990BFF2;
+constexpr uint32_t kIID_cISC4DemandSimulator = 0x47967E16;
+constexpr uint32_t kCLSID_Demand = 0x8990C12D;
+constexpr uint32_t kIID_cISC4Demand = 0x0797A4E8;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -209,6 +224,60 @@ public:
     }
 };
 
+// A DLL plugin's ordinance (ordinance §10.1): the simulator calls it through
+// the interface only.
+class FakeOrdinance final : public cFC4ISC4Ordinance {
+public:
+    uint32_t refs = 0;
+    bool available = true, on = false, enabled = true;
+    cRZBaseString name{"Fake Ordinance"};
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool Init() override { return true; }
+    bool Shutdown() override { return true; }
+    int64_t GetCurrentMonthlyIncome() override { return -7; }
+    uint32_t GetID() const override { return 0x12345678; }
+    cIGZString* GetName() override { return &name; }
+    cIGZString* GetDescription() override { return &name; }
+    uint32_t GetYearFirstAvailable() override { return 0; }
+    uint32_t GetChanceAvailability() override { return 0; }
+    int64_t GetEnactmentIncome() override { return -10; }
+    int64_t GetRetracmentIncome() override { return -5; }
+    int64_t GetMonthlyConstantIncome() override { return -7; }
+    float GetMonthlyIncomeFactor() override { return 0.0f; }
+    uint32_t GetAdvisorID() override { return 0; }
+    cISCPropertyHolder* GetMiscProperties() override { return nullptr; }
+    bool IsAvailable() override { return available; }
+    bool IsOn() override { return available && on; }
+    bool IsEnabled() override { return enabled; }
+    int64_t GetMonthlyAdjustedIncome() override { return -7; }
+    bool CheckConditions() override { return enabled; }
+    bool IsIncomeOrdinance() override { return false; }
+    bool Simulate() override { return true; }
+    bool SetAvailable(bool v) override { return available = v, true; }
+    bool SetOn(bool v) override { return on = v, true; }
+    bool SetEnabled(bool v) override { return enabled = v, true; }
+    bool ForceAvailable(bool v) override { return SetAvailable(v); }
+    bool ForceOn(bool v) override { return SetOn(v); }
+    bool ForceMonthlyAdjustedIncome(int64_t) override { return true; }
+};
+
+// A message with only a type (the ordinance simulator reads nothing else, §5).
+class TypeMessage final : public cIGZMessage2 {
+public:
+    explicit TypeMessage(uint32_t t) : type(t) {}
+    uint32_t type;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return type; }
+    void SetType(uint32_t t) override { type = t; }
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
 size_t CountOf(const std::string& text, const std::string& what) {
     size_t n = 0;
     for (size_t at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) ++n;
@@ -286,12 +355,14 @@ struct FakeWorld {
     int demandBadIndex = 0;
     FakeVtable cityVt, resVt, demandSimVt, demandVt;
     FakeObject city{}, res{}, demandSim{};
-    FakeDemand demands[5] = {
+    FakeDemand demands[7] = {
         {nullptr, 0x1010, 1000.0f, 250.5f},  // R$
         {nullptr, 0x3110, 300.0f, -12.0f},   // Cs$
         {nullptr, 0x3320, 200.0f, 40.0f},    // Co$$
         {nullptr, 0x4100, 150.0f, 7.5f},     // I-R
         {nullptr, 0x4400, 50.0f, 0.0f},      // I-HT
+        {nullptr, 0x3001, 480.0f, 0.0f},     // C census (P1: the digest reads its supply)
+        {nullptr, 0x4001, 160.0f, 0.0f},     // I census
     };
 };
 
@@ -594,6 +665,308 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
 
+    if (mode == "--ini-enable-weather") {
+        // The weather subsystem is off by default; `enable = weather` registers it.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = weather\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 5 && std::count(classes.begin(), classes.end(), kCLSID_Weather) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Weather, kIID_cISC4WeatherSimulator, &obj));
+            auto* w = static_cast<cFC4ISC4WeatherSimulator*>(obj);
+            if (w != nullptr) {
+                // weather §1: five interfaces.
+                void* p = nullptr;
+                for (uint32_t iid : {0x452294AAu, 0xE98B2F57u}) {
+                    p = nullptr;
+                    CHECK(w->QueryInterface(iid, &p) && p != nullptr);
+                    if (p) static_cast<cIGZUnknown*>(p)->Release();
+                }
+                cIGZSerializable* ser = nullptr;
+                CHECK(w->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_Weather);
+                    ser->Release();
+                }
+                CHECK(w->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<cIGZUnknown*>(w));
+                if (p) static_cast<cIGZUnknown*>(p)->Release();
+                CHECK(!w->QueryInterface(0x6772BD23, &p));
+                // Constructor values (§3): no grid, the code-default humidity.
+                CHECK(w->CellCountX() == 0 && w->GetMoistureValue(10.0f, 10.0f) == 0);
+                CHECK(w->GetHumidity(0.0f, 0.0f) == 0.75f);
+                // Init without a city or GZCOM: an empty city, a clean lifecycle.
+                CHECK(w->Init());
+                CHECK(w->Init());
+                CHECK(w->CellWidthX() == 16.0f && w->CellCountZ() == 0);
+                CHECK(w->GetCurrentSeasonMonth() == 1 && w->GetCurrentSeason() == 0);
+                float x = 0, z = 0;
+                CHECK(w->CellToPosition(2, 3, x, z) == 48.0f && x == 32.0f && z == 48.0f);
+                int32_t a = 0, b = 0;
+                w->CellToStandardCityCell(3, 7, a, b);
+                CHECK(a == 3 && b == 3);  // [quirk]
+                CHECK(w->StandardCityCellToCell(5, 6, a, b) == 6 && a == 5 && b == 6);
+                cS3DVector2 wind(0.0f, 0.0f);
+                CHECK(w->GetAmbientWind(wind) == 3.0f && wind.fX == 3.0f && wind.fY == 0.0f);
+                FC4ByteGridVector* grid = nullptr;
+                w->GetMoistureValueMapPtr(grid);
+                CHECK(grid != nullptr);
+                if (grid != nullptr) {
+                    void* const* v = reinterpret_cast<void* const*>(grid);
+                    CHECK(v[0] == v[1]);  // no rows in an empty city
+                }
+                CHECK(w->Release() == 0);  // Shutdown, destroy
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'weather': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'landvalue': off by default") != std::string::npos);
+        CHECK(text.find("weather Init: ok=1") != std::string::npos);
+        CHECK(text.find("weather Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4WeatherSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
+    if (mode == "--ini-enable-ordinance") {
+        // The ordinance subsystem is off by default; `enable = ordinance`
+        // registers the simulator and the 21 ordinance classes.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = ordinance\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 26);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_OrdinanceSim) == 1);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_FreeClinics) == 1);
+            CHECK(std::count(classes.begin(), classes.end(), 0x8BD4FC74u) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_OrdinanceSim, kIID_cISC4OrdinanceSimulator, &obj));
+            auto* sim = static_cast<cISC4OrdinanceSimulator*>(obj);
+            if (sim != nullptr) {
+                // ordinance §1: four interfaces.
+                void* p = nullptr;
+                CHECK(sim->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                auto* target = static_cast<cIGZMessageTarget2*>(p);
+                cIGZSerializable* ser = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_OrdinanceSim);
+                    ser->Release();
+                }
+                void* u = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(sim));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                CHECK(!sim->QueryInterface(GZIID_cISC4Ordinance, &u));
+                // Init without a city or GZCOM: no exemplars, so no standard ordinances.
+                CHECK(sim->Init());
+                CHECK(sim->Init());
+                uint32_t n = 0;
+                CHECK(sim->GetOrdinanceIDArray(nullptr, n) == 0 && n == 0);
+
+                // One of our ordinances, created through GZCOM (as the class store does).
+                void* o = nullptr;
+                CHECK(director->GetClassObject(kCLSID_FreeClinics, GZIID_cISC4Ordinance, &o));
+                cFC4ISC4Ordinance* ord = fc4::AsGame(static_cast<cISC4Ordinance*>(o));
+                if (ord != nullptr) {
+                    cIGZSerializable* os = nullptr;
+                    CHECK(ord->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&os)) && os);
+                    if (os) {
+                        CHECK(os->GetGZCLSID() == kCLSID_FreeClinics);
+                        os->Release();
+                    }
+                    CHECK(!ord->QueryInterface(0x8BD4FC74u, &u));  // [choice]
+                    // No exemplar: the zero ordinance (§3.1).
+                    CHECK(ord->GetID() == 0 && !ord->IsAvailable() && !ord->IsOn());
+                    CHECK(ord->GetChanceAvailability() == 0 && ord->GetEnactmentIncome() == 0);
+                    CHECK(ord->GetName() != nullptr && ord->GetName()->Strlen() == 0);
+                    CHECK(ord->GetMiscProperties() == nullptr);
+                    CHECK(sim->AddOrdinance(*fc4::AsSdk(ord)));
+                    CHECK(sim->GetOrdinanceIDArray(nullptr, n) == 1);
+                    CHECK(sim->GetOrdinanceByID(0) == fc4::AsSdk(ord));
+                    CHECK(ord->AddRef() == 3);  // ours, the map's, this one
+                    CHECK(ord->Release() == 2);
+                }
+
+                // A foreign (DLL plugin) ordinance, available when added (§4.2).
+                FakeOrdinance fake;
+                CHECK(sim->AddOrdinance(*fc4::AsSdk(&fake)));
+                CHECK(fake.refs == 1);
+                CHECK(sim->IsOrdinanceAvailable(0x12345678) && sim->IsOrdinanceAvailableButOff(0x12345678));
+                CHECK(sim->SetOrdinanceOn(0x12345678, true) && fake.on && sim->IsOrdinanceOn(0x12345678));
+                CHECK(sim->GetOrdinanceOnCount() == 1 && sim->GetOrdinanceAvailableCount() == 1);
+                uint32_t ids[4] = {};
+                n = 4;
+                CHECK(sim->GetOrdinanceIDArray(ids, n) == 2 && n == 2 && ids[0] == 0 && ids[1] == 0x12345678);
+                const cRZBaseString name("FAKE ordinance");
+                CHECK(sim->GetOrdinanceByName(name) == fc4::AsSdk(&fake));
+                CHECK(sim->GetOrdinanceIDByName(name) == 0x12345678);
+                CHECK(sim->GetCumulativeFactor(0x28ED0380, 0) == 1.0f && sim->GetCumulativeOffset(0xAA5B8407, 0) == 0);
+                // Month end (§5): the enactment (-10) and the fake's -7.
+                if (target != nullptr) {
+                    TypeMessage month(0x66956816);
+                    CHECK(target->DoMessage(&month));
+                    target->Release();
+                }
+                CHECK(sim->GetOrdinanceMonthlyExpense() == 17 && sim->GetOrdinanceMonthlyIncome() == 0);
+                CHECK(sim->RemoveOrdinance(*fc4::AsSdk(&fake)));
+                CHECK(fake.refs == 0 && !fake.on && !fake.available);
+                CHECK(sim->Release() == 0);  // Shutdown, destroy: the map lets go
+                if (ord != nullptr) CHECK(ord->Release() == 0);
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'ordinance': enabled (22 classes replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'weather': off by default") != std::string::npos);
+        CHECK(text.find("ordinance Init: ok=1") != std::string::npos);
+        CHECK(text.find("ordinance month: 2 ordinances (1 available, 1 on)") != std::string::npos);
+        CHECK(text.find("ordinance Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4OrdinanceSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
+    if (mode == "--ini-enable-demand") {
+        // The demand subsystem is off by default; `enable = demand` registers
+        // the simulator and the node class.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = demand\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 6);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_DemandSim) == 1);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_Demand) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_DemandSim, kIID_cISC4DemandSimulator, &obj));
+            auto* sim = static_cast<cFC4ISC4DemandSimulator*>(obj);
+            if (sim != nullptr) {
+                // demand §1: four interfaces (not the fourth message-target IID [choice]).
+                void* p = nullptr;
+                CHECK(sim->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                auto* target = static_cast<cIGZMessageTarget2*>(p);
+                cIGZSerializable* ser = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_DemandSim);
+                    ser->Release();
+                }
+                void* u = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(sim));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                CHECK(!sim->QueryInterface(0x452294ABu, &u));
+                CHECK(!sim->QueryInterface(kIID_cISC4Demand, &u));
+                CHECK(sim->GetSimulatorType() == 0x279681D7u);
+                // Init without a city or GZCOM: no demand exemplars, so no nodes.
+                CHECK(sim->Init());
+                CHECK(sim->Init());
+                CHECK(sim->GetDemand(0x1010, 0x20000) == nullptr);
+                CHECK(sim->GetJobsBySensus(0x3121) == 0);
+                CHECK(sim->GetNeutralTaxRate() == 0.0f);
+                float jobs[3] = {1.0f, 1.0f, 1.0f};
+                CHECK(sim->CalculateJobsPerUnitOfDemand(jobs, 0x3121, 0) == 0.0f);
+                CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
+                SC4Percentage full{1.0f}, half{0.5f};
+                sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
+                std::map<uint32_t, int32_t> summary;
+                sim->GetLocalPopulationSummary(summary);
+                CHECK(summary.empty());  // [choice] the caller's map is not written
+
+                // A node, created through GZCOM (as the class store does).
+                void* o = nullptr;
+                CHECK(director->GetClassObject(kCLSID_Demand, kIID_cISC4Demand, &o));
+                cFC4ISC4Demand* node = fc4::AsGame(static_cast<cISC4Demand*>(o));
+                if (node != nullptr) {
+                    cIGZSerializable* ns = nullptr;
+                    CHECK(node->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ns)) && ns);
+                    if (ns) {
+                        CHECK(ns->GetGZCLSID() == kCLSID_Demand);
+                        ns->Release();
+                    }
+                    CHECK(node->Init());
+                    // §3.1 defaults: activeMax = +8.507059e37 (0x7E7FFFFF), min its negative.
+                    const float dmax = node->QueryActiveDemandMax();
+                    uint32_t bits = 0;
+                    std::memcpy(&bits, &dmax, sizeof(bits));
+                    CHECK(bits == 0x7E7FFFFFu && node->QueryActiveDemandMin() == -dmax);
+                    CHECK(node->SetId(0x1010) && node->GetId() == 0x1010);
+                    CHECK(node->SetRegionUse(1) && node->GetRegionUse() == 1);
+                    // §16 test 2: min/max ±6000, demand 1000, supply 400 + 10 pending.
+                    CHECK(node->SetActiveDemandMin(-6000.0f) && node->SetActiveDemandMax(6000.0f));
+                    CHECK(node->SetDemandValue(1000.0f) && node->SetSupplyValue(400.0f));
+                    CHECK(node->AddToSupplyValue(10.0f) == 1.0f);  // [choice] 1.0 in ST0
+                    CHECK(node->QuerySupplyValue() == 400.0f && node->QueryNewSupply() == 10.0f);
+                    CHECK(node->EndOfCycle());
+                    CHECK(!node->EndOfCycle());
+                    CHECK(node->QuerySupplyValue() == 410.0f && node->QueryActiveDemandValue() == 590.0f);
+                    CHECK(node->SetEconomyModifier(0.03f) && node->QueryEconomyModifier() == 0.03f);
+                    CHECK(!node->EndOfCycle() && std::fabs(node->QueryActiveDemandValue() - 620.0f) < 0.01f);
+                    const SC4Percentage cap{0.95f};
+                    CHECK(node->SetDemandCap(cap) && node->GetDemandCap() != nullptr &&
+                          node->GetDemandCap()->percentage == 0.95f);
+                    node->EndOfCycle();
+                    CHECK(std::fabs(node->QueryActiveDemandValue() - 300.0f) < 0.01f);
+                    // §16 test 3: the minimum clamps to the maximum.
+                    CHECK(node->SetActiveDemandMin(7000.0f) && node->QueryActiveDemandMin() == 6000.0f);
+                    CHECK(!node->DebugIsValueLocked());
+                    CHECK(node->Shutdown());
+                    CHECK(node->Release() == 0);
+                }
+                // A month (§10.2): relief and export with no city; logs the state.
+                if (target != nullptr) {
+                    TypeMessage month(0x66956816);
+                    CHECK(target->DoMessage(&month));
+                    target->Release();
+                }
+                CHECK(sim->Release() == 0);  // Shutdown, destroy
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'demand': enabled (2 classes replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
+        CHECK(text.find("demand Init: ok=1") != std::string::npos);
+        CHECK(text.find("demand month: 0 nodes") != std::string::npos);
+        CHECK(text.find("GetLocalPopulationSummary: 0 entries not copied") != std::string::npos);
+        CHECK(text.find("demand Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4DemandSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
     if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
@@ -627,7 +1000,7 @@ int main(int argc, char** argv) {
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
         CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
-        CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/500/200 demand "
+        CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=- population R/C/I=1234/480/160 demand "
                         "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                         "budget income/expense=-/-") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
@@ -993,7 +1366,7 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
             seam(kFC4SeamObserverCity, nullptr, nullptr);
-            CHECK(world.demandCalls == 12);
+            CHECK(world.demandCalls == 14);  // 12 groups + 2 census nodes
             CHECK(world.demandBadIndex == 0);
             CHECK(budget3->Shutdown());
         }
@@ -1034,6 +1407,12 @@ int main(int argc, char** argv) {
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
     CHECK(text.find("subsystem 'landvalue': off by default") != std::string::npos);
     CHECK(text.find("cFC4LandValueSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'weather': off by default") != std::string::npos);
+    CHECK(text.find("cFC4WeatherSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
+    CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'demand': off by default") != std::string::npos);
+    CHECK(text.find("cFC4DemandSimulator(") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -1096,7 +1475,7 @@ int main(int argc, char** argv) {
     // Observer (replacement mode) and the monthly digest.
     CHECK(text.find("autotest: off") != std::string::npos);
     CHECK(text.find("observer: PostCityInit (replacement)") != std::string::npos);
-    CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/500/200 demand "
+    CHECK(text.find("DIGEST julian=2451576 (2000-02-01) funds=500000 population R/C/I=1234/480/160 demand "
                     "R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT=250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 "
                     "budget income/expense=") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
