@@ -154,6 +154,29 @@ fn tick_delivers_and_posts_days() {
         let deliveries = rec.deliveries.borrow();
         assert!(deliveries.iter().all(|(a, m)| *a == 7 && m.type_ == 0x6695_6814));
 
+        let mut dbg = fc4_debug {
+            struct_size: std::mem::size_of::<fc4_debug>() as u32,
+            ..Default::default()
+        };
+        assert!(fc4_sim_get_debug(sim, &mut dbg));
+        assert_eq!(dbg.ms_per_day, 50);
+        assert_eq!(dbg.one_shot_or_emergency_pending, 0);
+        assert_eq!(dbg.cursors[4], -1);
+        let mut info = fc4_agent_info::default();
+        let mut name = [0 as c_char; 3];
+        assert!(fc4_sim_get_agent_info(
+            sim,
+            4,
+            0,
+            &mut info,
+            name.as_mut_ptr(),
+            name.len()
+        ));
+        assert_eq!((info.agent, info.flags, info.enabled), (7, 3, 1));
+        assert_eq!(name.map(|c| c as u8), *b"da\0"); // "day" truncated to the buffer
+        assert!(!fc4_sim_get_agent_info(sim, 4, 1, &mut info, std::ptr::null_mut(), 0));
+        assert!(!fc4_sim_get_agent_info(sim, 99, 0, &mut info, std::ptr::null_mut(), 0));
+
         let mut date = fc4_date::default();
         assert!(fc4_sim_get_date(sim, &mut date));
         assert_eq!(date.julian, st.julian_day);

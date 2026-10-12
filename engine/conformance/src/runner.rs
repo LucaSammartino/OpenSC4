@@ -733,6 +733,43 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             Ok(())
         }
         "expect_state" => check_state(&sim.snapshot(), field(op, "state")?),
+        "expect_debug" => {
+            // Diagnostics view of the day barrier (spec §5.2 step 8). Does not read
+            // the fake clock through auto-step (one read).
+            let d = sim.debug_info();
+            let flags: [(&str, bool); 11] = [
+                ("ready", d.ready),
+                ("one_shot_or_emergency_pending", d.one_shot_or_emergency_pending),
+                ("hours_complete", d.hours_complete),
+                ("day_level_done", d.day_level_done),
+                ("tomorrow_starts_week", d.tomorrow_starts_week),
+                ("tomorrow_starts_month", d.tomorrow_starts_month),
+                ("tomorrow_starts_year", d.tomorrow_starts_year),
+                ("blocked_by_week", d.blocked_by_week),
+                ("blocked_by_month", d.blocked_by_month),
+                ("blocked_by_year", d.blocked_by_year),
+                ("day_gate_open", d.day_gate_open),
+            ];
+            for (k, v) in field(op, "debug")?.as_object().ok_or("'debug' must be an object")? {
+                let got = if let Some((_, b)) = flags.iter().find(|(n, _)| n == k) {
+                    i64::from(*b)
+                } else {
+                    match k.as_str() {
+                        "interval_elapsed_ms" => i64::from(d.interval_elapsed_ms),
+                        "ms_per_day" => i64::from(d.ms_per_day),
+                        other => return Err(format!("unknown debug field '{other}'")),
+                    }
+                };
+                let want = v
+                    .as_i64()
+                    .or_else(|| boolean(v).map(i64::from))
+                    .ok_or("bad debug value")?;
+                if got != want {
+                    return Err(format!("debug {k}: got {got}, expected {want}"));
+                }
+            }
+            Ok(())
+        }
         "expect_date" => {
             let d = sim.date_fields();
             expect_date_fields(op, &d)

@@ -133,10 +133,22 @@ void TestTypeCreateCompareAndRefcount() {
     b->Release();
     CHECK(cFC4Message2Standard::LiveCount() == base + 1);
 
+    // One object, one vtable: every interface pointer is the same address, so a
+    // receiver may cast cIGZMessage2* to cIGZMessage2Standard* directly.
     void* p = nullptr;
     CHECK(a->QueryInterface(cFC4Message2Standard::kIID_cIGZMessage2, &p) && p != nullptr);
+    CHECK(p == static_cast<void*>(static_cast<cIGZMessage2Standard*>(a)));
     CHECK(a->QueryInterface(GZIID_cIGZUnknown, &p));
+    CHECK(p == static_cast<void*>(static_cast<cIGZMessage2Standard*>(a)));
     CHECK(!a->QueryInterface(0x12345678, &p) && p == nullptr);
+    {
+        // Read back through the base interfaces exactly as a receiving agent would.
+        cIGZMessage2* base = a;
+        CHECK(base->GetType() == 0x66956814);
+        auto* std2 = static_cast<cIGZMessage2Standard*>(base);
+        CHECK(std2->GetData1() == 1 && std2->GetData2() == 2 && std2->GetData3() == 3);
+        CHECK(std2->GetHasData1() && std2->GetHasData2() && std2->GetHasData3() && !std2->GetHasData4());
+    }
     CHECK(a->Release() == 2);
     CHECK(a->Release() == 1);
     CHECK(cFC4Message2Standard::LiveCount() == base + 1);

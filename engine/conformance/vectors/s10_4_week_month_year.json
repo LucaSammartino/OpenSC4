@@ -48,6 +48,10 @@
     {"op": "simulate_agents"},
     {"op": "simulate_agents"},
     {"op": "expect_state", "state": {"julian": 2451910}},
+    {"op": "expect_debug", "debug": {"ready": true, "hours_complete": true, "day_level_done": true,
+      "tomorrow_starts_week": true, "tomorrow_starts_month": true, "tomorrow_starts_year": true,
+      "blocked_by_week": false, "blocked_by_month": false, "blocked_by_year": true,
+      "one_shot_or_emergency_pending": false, "day_gate_open": false, "interval_elapsed_ms": 100, "ms_per_day": 100}},
     {"op": "simulate_agents"},
     {"op": "expect_events", "events": [
       {"event": "deliver", "agent": "W", "type": "SimNewWeek", "data1": 2451910, "data3": 0},
@@ -56,6 +60,7 @@
       {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451910, "data3": 0},
       {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451910, "data3": 0}
     ]},
+    {"op": "expect_debug", "debug": {"blocked_by_year": false, "day_gate_open": true}},
 
     {"op": "simulate_time_passage"},
     {"op": "expect_events", "events": [

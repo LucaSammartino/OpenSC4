@@ -44,8 +44,9 @@
 extern "C" {
 #endif
 
-/* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init. */
-#define FC4_ABI_VERSION 2u
+/* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init;
+ * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics). */
+#define FC4_ABI_VERSION 3u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -143,6 +144,36 @@ typedef struct fc4_state {
     uint32_t agent_counts[FC4_LEVEL_COUNT];
 } fc4_state;
 
+/* Scheduler/barrier state for diagnostics (spec §5.2 step 8). */
+typedef struct fc4_debug {
+    uint32_t struct_size; /* set by the caller to sizeof(fc4_debug) */
+    uint32_t interval_elapsed_ms;
+    uint32_t slice_elapsed_ms;
+    uint32_t ms_per_day;
+    uint8_t ready;                         /* interval timer >= msPerDay */
+    uint8_t one_shot_or_emergency_pending; /* level 0 or 1 has agents: time suspended */
+    uint8_t hours_complete;                /* levelCounter[Hour] >= 24 */
+    uint8_t day_level_done;                /* cursor[Day] at end */
+    uint8_t tomorrow_starts_week;
+    uint8_t tomorrow_starts_month;
+    uint8_t tomorrow_starts_year;
+    uint8_t day_gate_open; /* every condition for the next day holds now */
+    uint8_t blocked_by_week;
+    uint8_t blocked_by_month;
+    uint8_t blocked_by_year;
+    uint8_t reserved;
+    int32_t cursors[FC4_LEVEL_COUNT]; /* index in registration order, -1 = at end */
+    int32_t idle_cursor;
+} fc4_debug;
+
+/* One agent registration (diagnostics). */
+typedef struct fc4_agent_info {
+    fc4_agent agent;
+    uint32_t flags;
+    uint8_t enabled;
+    uint8_t reserved[3];
+} fc4_agent_info;
+
 typedef void (*fc4_name_callback)(void* ctx, const char* name, size_t name_len);
 
 /* ---- library ---------------------------------------------------------- */
@@ -222,6 +253,13 @@ bool fc4_sim_handle_cheat(fc4_sim* sim, uint32_t cheat_id, const char* text, siz
 
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
+/* Diagnostics: reads the clock once, changes nothing. */
+bool fc4_sim_get_debug(const fc4_sim* sim, fc4_debug* out);
+/* Diagnostics: the registration at `index` of `level` (registration order).
+ * The name is copied NUL-terminated (truncated to name_capacity - 1); `name`
+ * may be NULL. Returns false if there is no such registration. */
+bool fc4_sim_get_agent_info(const fc4_sim* sim, uint32_t level, size_t index, fc4_agent_info* out, char* name,
+                            size_t name_capacity);
 
 #ifdef __cplusplus
 } /* extern "C" */
@@ -231,10 +269,14 @@ bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 #ifdef __cplusplus
 static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
+static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
+static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
 static_assert(sizeof(fc4_state) == 4 + 4 + 5 * 4 + 5 * 4 + 3 * 4 + 5 * 4 + 11 * 4 + 12 + 11 * 4, "fc4_state layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
+_Static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
+_Static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
 #endif
 
 #endif /* FC4_H */

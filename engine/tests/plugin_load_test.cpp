@@ -19,8 +19,12 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cIGZDate.h"
+#include "cIGZMessage2Standard.h"
+#include "cIGZMessageTarget2.h"
 #include "cIGZSystemService.h"
 #include "cISC4Simulator.h"
+#include "cRZBaseString.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -51,6 +55,35 @@ constexpr uint32_t kDirectorID = 0x5C7A43E1;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
+// A day agent that reports "not finished" for its first 150 calls.
+class SlowAgent final : public cIGZMessageTarget2 {
+public:
+    uint32_t refs = 0;
+    uint32_t calls = 0;
+    uint32_t badMessages = 0;
+    int32_t lastJulian = 0;
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid == GZIID_cIGZUnknown) {
+            *pp = static_cast<cIGZUnknown*>(this);
+            AddRef();
+            return true;
+        }
+        return false;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool DoMessage(cIGZMessage2* msg) override {
+        ++calls;
+        // Read the message the way game agents do: cast to the standard interface.
+        auto* m = static_cast<cIGZMessage2Standard*>(msg);
+        if (msg->GetType() != 0x66956814 || !m->GetHasData1() || m->GetData2() != 0 || m->GetData1() < 2451545) {
+            ++badMessages;
+        }
+        lastJulian = static_cast<int32_t>(m->GetData1());
+        return calls > 150;
+    }
+};
+
 std::string ReadFile(const std::string& path) {
     std::ifstream f(path, std::ios::binary);
     std::stringstream ss;
@@ -71,6 +104,7 @@ int main(int argc, char** argv) {
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
     SetEnvironmentVariableA("FC4_DIAG_SELFTEST", "1");
+    SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
 
     HMODULE h = LoadLibraryA(dll.c_str());
     CHECK(h != nullptr);
@@ -112,6 +146,11 @@ int main(int argc, char** argv) {
             CHECK(sim->HiddenResume());
             CHECK(!sim->IsAnyPaused());
 
+            SlowAgent agent;
+            CHECK(sim->AddAgent(&agent, cISC4Simulator::AgentTypeSimNewDay, cRZBaseString("test day agent"),
+                                static_cast<cISC4Simulator::eAgentFlags>(3)));
+            CHECK(agent.refs == 1);
+
             cIGZSystemService* service = nullptr;
             CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)));
             if (service != nullptr) {
@@ -123,8 +162,15 @@ int main(int argc, char** argv) {
                 service->Release();
             }
             const int32_t day = sim->GetSimDateNumber();
-            std::printf("simulated %d day(s) in ~600 ms\n", day - 2451545);
+            std::printf("simulated %d day(s) in ~600 ms; agent called %u times\n", day - 2451545, agent.calls);
             CHECK(day > 2451545 + 2);
+            CHECK(agent.calls > 150);
+            CHECK(agent.badMessages == 0);
+            CHECK(agent.lastJulian == day);
+            cIGZDate* date = sim->GetSimDate();
+            CHECK(date != nullptr && date->Year() == 2000 && static_cast<int32_t>(date->DayNumber()) == day);
+            CHECK(sim->RemoveAgent(&agent));
+            CHECK(agent.refs == 0);
 
             uint32_t y = 0, m = 0, d = 0, doy = 0, wd = 0;
             sim->GetSimDate(&y, &m, &d, &doy, &wd);
@@ -157,6 +203,19 @@ int main(int argc, char** argv) {
     CHECK(text.find("STRUCTURED EXCEPTION caught in diagnostics self-test: code 0xC0000005") != std::string::npos);
     CHECK(text.find("diagnostics self-test: guard returned 0 (expected 0)") != std::string::npos);
     CHECK(text.find("could not be written") == std::string::npos);
+    CHECK(text.find("AddAgent(") != std::string::npos);
+    CHECK(text.find("deliver #1: level 4 type 0x66956814 d1=2451546 d2=0 d3=2 -> agent") != std::string::npos);
+    CHECK(text.find("'test day agent' returned 0") != std::string::npos);
+    CHECK(text.find("'test day agent' (level 4) has now returned false 100 times in a row") != std::string::npos);
+    CHECK(text.find("status @tick 5:") != std::string::npos);
+    CHECK(text.find("DAY_GATE_OPEN=") != std::string::npos);
+    CHECK(text.find("  level 4: 1 agent(s), cursor") != std::string::npos);
+    CHECK(text.find("post SimNewDay 0x66956814 d1=2451546 (2000-01-02) d2=0 d3=2 -> MessagePost skipped") !=
+          std::string::npos);
+    CHECK(text.find("post 0x4A7FB7E9 d1=2") != std::string::npos);  // SpeedChanged
+    CHECK(text.find("GetSimDate() #1 -> date object") != std::string::npos);
+    CHECK(text.find("::Year() -> 2000") != std::string::npos);
+    CHECK(text.find("GetSimDateNumber() #1 -> 2451545") != std::string::npos);
     CHECK(text.find("QueryInterface(0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("Init() called") != std::string::npos);
     CHECK(text.find("OnTick #1 ") != std::string::npos);
