@@ -1,7 +1,7 @@
 interface	class	vtable	slots	source
 cISC4Simulator	cSC4Simulator	00ab2fb8	0	re/labels_windows.tsv (cSC4Simulator::vftable)
 cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	61	docs/specs/budget.md
-cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	33	re/symbols/clock-budget-neighbors.tsv
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	34	re/symbols/clock-budget-neighbors.tsv
 cISC4LineItem	cSC4LineItem	00ab0f58	0	serializable vtable 00AB0F3C + 0x1C
 cIGZVariant	cRZVariant	00aa6788	127	docs/specs/foundations.md 17.1
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	22	docs/specs/foundations.md 17.2
@@ -22,3 +22,34 @@ cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	30	docs/specs/ordinance.md
 cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	24	docs/specs/weather.md
 cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	38	docs/specs/neighbors.md
 cISC4RegionalCity	cSC4RegionalCity	00a8fb20	73	docs/specs/neighbors.md
+cISC4SimGrid<uint8>	cSC4SimGrid<uint8>	00a878c0	28	docs/specs/simgrid.md (CLSID 0x49B9E602)
+cISC4SimGrid<int8>	cSC4SimGrid<int8>	00a87950	28	docs/specs/simgrid.md (CLSID 0x49B9E603)
+cISC4SimGrid<uint16>	cSC4SimGrid<uint16>	00a87d40	28	docs/specs/simgrid.md (CLSID 0x49B9E604)
+cISC4SimGrid<int16>	cSC4SimGrid<int16>	00a879e0	28	docs/specs/simgrid.md (CLSID 0x49B9E605)
+cISC4SimGrid<uint32>	cSC4SimGrid<uint32>	00a87dd0	28	docs/specs/simgrid.md (CLSID 0x49B9E606)
+cISC4SimGrid<int32>	cSC4SimGrid<int32>	00a87a70	28	docs/specs/simgrid.md (CLSID 0x49B9E607)
+cISC4SimGrid<uint64>	cSC4SimGrid<uint64>	00a87b00	28	docs/specs/simgrid.md (CLSID 0x49B9E608)
+cISC4SimGrid<int64>	cSC4SimGrid<int64>	00a87b90	28	docs/specs/simgrid.md (CLSID 0x49B9E609)
+cISC4SimGrid<float>	cSC4SimGrid<float>	00a87c20	28	docs/specs/simgrid.md (CLSID 0x49B9E60A)
+cISC4SimGrid<double>	cSC4SimGrid<double>	00a87cb0	28	docs/specs/simgrid.md (CLSID 0x49B9E60B)
+cIGZSerializable(SimGrid<uint8>)	cSC4SimGrid<uint8>	00a878a4	7	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int8>)	cSC4SimGrid<int8>	00a87934	7	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<int16>)	cSC4SimGrid<int16>	00a879c4	7	docs/specs/simgrid.md
+cIGZSerializable(SimGrid<float>)	cSC4SimGrid<float>	00a87c04	7	docs/specs/simgrid.md
+cISC4PollutionSimulator	cSC4PollutionSimulator	00ab2630	0	docs/specs/pollution.md
+cIGZSerializable(Pollution)	cSC4PollutionSimulator	00ab25e8	6	docs/specs/pollution.md
+cISC4PropRequester(Pollution)	cSC4PollutionSimulator	00ab2600	7	docs/specs/pollution.md
+cIGZMessageTarget2(Pollution)	cSC4PollutionSimulator	00ab261c	5	docs/specs/pollution.md
+cISC4LandValueSimulator	cSC4LandValueSimulator	00ab1670	0	docs/specs/landvalue.md
+cIGZSerializable(LandValue)	cSC4LandValueSimulator	00ab1648	6	docs/specs/landvalue.md
+cIGZMessageTarget2(LandValue)	cSC4LandValueSimulator	00ab1660	4	docs/specs/landvalue.md
+cISC4CrimeSimulator	cSC4CrimeSimulator	00ab0dc8	0	docs/specs/crime.md
+cIGZSerializable(Crime)	cSC4CrimeSimulator	00ab0d84	6	docs/specs/crime.md
+cISC4PropRequester(Crime)	cSC4CrimeSimulator	00ab0d9c	7	docs/specs/crime.md
+cIGZMessageTarget2(Crime)	cSC4CrimeSimulator	00ab0db8	4	docs/specs/crime.md
+cISC4FlammabilitySimulator	cSC4FlammabilitySimulator	00ab128c	0	docs/specs/flammability.md
+cIGZSerializable(Flammability)	cSC4FlammabilitySimulator	00ab1264	6	docs/specs/flammability.md
+cIGZMessageTarget2(Flammability)	cSC4FlammabilitySimulator	00ab127c	4	docs/specs/flammability.md
+cISC4AuraSimulator	cSC4AuraSimulator	00ab07c8	0	docs/specs/aura.md
+cIGZSerializable(Aura)	cSC4AuraSimulator	00ab07a0	6	docs/specs/aura.md
+cIGZMessageTarget2(Aura)	cSC4AuraSimulator	00ab07b8	4	docs/specs/aura.md
