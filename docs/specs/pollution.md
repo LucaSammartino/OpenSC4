@@ -490,7 +490,8 @@ Runs monthly, on PostCityInit `0x26D31EC1`, when `effectsVisible` changes, and a
      amount (`& 0x7FFF`);
    - worst tracts: if an average is **strictly greater** than the stored worst value, store
      `(8bx + 4, 8bz + 4, average)` (cell coordinates of the block centre);
-   - four effects, each driven by `s := strengthCurve(average / 32767)` (curves `0x0A10C772` water, `0x0A10C773`
+   - four effects, each driven by `s := strengthCurve(average × k)`, `k` = the `float32` constant 1/32767 (a multiply, rounded to
+     `float32`, foundations §18; not a division) (curves `0x0A10C772` water, `0x0A10C773`
      air, `0x0A10C774` radiation, `0x0A10C775` garbage):
 
      | Effect | Shown when | Position (world) | Effect id, kind | Float parameter |
@@ -921,9 +922,10 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
     value −5 → 0; `GetGarbageValue` on a landfill cell with raw `0x8064` → −65,436; `IsAirPolluted` with air
     value −1 → true; `GetRecyclingCenterEffect` returns a pointer to 0.25 after `recyclingEffect = 0.25`;
     `GetGarbageProducedLastMonth` returns 5,000,000,000 in EDX:EAX.
-20. **Prop share**: a 4 × 4-cell rect with garbage 2048 everywhere → 2048 / 32767 = 0.062502 → curve 5.0015 → 5.
-21. **Effects**: a block with average water 655 → s = curve(0.019990) = 0.99939 → a water effect is created (2
-    `cRZRandomSuper` draws); average 33 → s = 0.0252 → no effect. Air effects are removed when `0xC6CDBF1A`
+20. **Prop share**: a 4 × 4-cell rect with garbage 2048 everywhere → 2048 × k = 0.0625019 → curve 5.0001526 → 5.
+21. **Effects**: a block with average water 655 → 655 × k = 0.019989625 → s = **0.9993775** (three `float32`
+    operations, foundations §4.3; 0.99939 was the unrounded value) → a water effect is created (2
+    `cRZRandomSuper` draws); average 33 → s = 0.0251778 → no effect. Air effects are removed when `0xC6CDBF1A`
     reports a new view level other than 1 (for example 3, the water-pipe view), water effects are kept.
 22. **Persistence**: write → read round trip is byte-identical; a version-3 record (no `decomposedLastMonth`) loads;
     a version-5 record is rejected; a version-2 record skips the extra string and the extra `u32`.

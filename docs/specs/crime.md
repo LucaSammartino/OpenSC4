@@ -172,14 +172,18 @@ for every tract (x, z) of population grid w (x < countX, z < countZ):
 
 Release the six grids. Both grids are read through `GetGridData`, at the same tract indices.
 
-- **Bucket boundaries** *[compat]*: because `0.02f < 0.02`, the exact product makes EQ = 50 fall in bucket 0.
-  Bucket 1 starts at the first float above 50 (50.0000038). Buckets: 0 = EQ ≤ 50, 1 = (50, 100],
-  2 = (100, 150], 3 = (150, 200]. EQ in (−50, 0] also gives 0.
-- **EQ > 200** *[quirk]*: the original has no bounds check. Buckets ≥ 4 write past the row, into storage that
-  is cleared or overwritten before use. With extreme values (R$$$ EQ > 350, R$$ > 550, R$ > 750) the write
+- **Bucket boundaries** *[compat]*: the constant is a `float32` (`fmul dword`, 0.02f). The product is rounded to
+  `float32` before the truncation (§6 notation, foundations §18), and every multiple of 50 rounds up to the whole
+  number: the exact product 50 × 0.02f = 0.99999997765 rounds to 1.0. Buckets: 0 = EQ < 50, 1 = [50, 100),
+  2 = [100, 150), 3 = [150, 200), and **EQ = 200 gives bucket 4**. EQ in (−50, 0] also gives 0. *(Corrected
+  for foundations §18: the earlier text used the unrounded product, which put each multiple of 50 in the
+  bucket below.)*
+- **EQ ≥ 200** *[quirk]*: the original has no bounds check. Buckets ≥ 4 write past the row, into storage that
+  is cleared or overwritten before use. With extreme values (R$$$ EQ ≥ 350, R$$ ≥ 550, R$ ≥ 750) the write
   corrupts the tuning tract size, and with larger values the response curves. *[choice]* FreeCity4 ignores
   populations whose bucket is outside 0..3. This matches the original for every value that does not corrupt
-  memory.
+  memory. Consequence *[compat]*: population in tracts at EQ exactly 200 (the EQ cap) is not counted by the
+  census at all.
 
 ### 6.2 Economic factors (`CalculateEconomicFactors`)
 
@@ -227,10 +231,15 @@ if criminalBase > jailed (unsigned compare):
     crimes := trunc(crimesCurve(float(int32(criminalBase − jailed)))) + trunc(released × reoffend)
 else:
     crimes := trunc(released × reoffend)
-crimesToCommit := rhe(float(uint32 crimes) × ordinanceFactor)
+crimesToCommit := rhe(f32(float(uint32 crimes) × ordinanceFactor))
 ```
 
 - `reoffend` is property `0x8A0CBAAD` (shipped name "Criminal Grid Decay Factor", 0.66).
+- *[compat]* Rounding of the last line (foundations §18): the factor and the rounding constant 1.5·2²³ are both
+  `float32` operands. The product is rounded to `float32` first; adding 1.5·2²³ then rounds half to even at the
+  integer. So 10 × 0.95f (exact 9.49999988) becomes 9.5 and then **10**, not 9. Likewise `trunc(released ×
+  reoffend)` truncates the `float32`-rounded product. *(Corrected; the earlier test values assumed one rounding
+  of the exact product.)*
 - *[compat]* The two police calls must be made in this order, once per month. Slot `+0x6C` returns the number of
   criminals released from jails (the jailed count above the current capacity, plus any pending releases) and
   resets that counter (police spec).
@@ -243,7 +252,7 @@ For every **non-zero** cell: `v := low 8 bits of trunc(v × decay)` (`decay` = p
 shipped 0.8). Then `hotspotValue := crimeGrid[hotspotX][hotspotZ]` (the hotspot tract is kept, its value
 follows the decay).
 
-- 200 → 100 at 0.5, 200 → 160 and 255 → 204 at 0.8f (exact product 204.000003), 1 → 0.
+- 200 → 100 at 0.5, 200 → 160 and 255 → 204 at 0.8f (the product 204.000003 rounds to 204.0 in `float32`), 1 → 0.
 - *[quirk]* A decay > 1 wraps modulo 256 (200 × 1.5 = 300 → 44). *[choice]* FreeCity4 reproduces the wrap.
 
 ### 6.6 Committing crimes (`AddCrimes(n)`)
@@ -678,8 +687,10 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 
 1. **Decay**: decay 0.5: 200 → 100, 255 → 127, 1 → 0, 0 stays 0. Decay 0.8f: 200 → 160, 255 → 204, 5 → 4.
    Decay 1.5: 200 → 44 (wrap). After the decay, the hotspot value equals the decayed value at the hotspot tract.
-2. **Census buckets**: EQ 0 → 0; 49.99 → 0; **50.0 → 0**; 50.0000038 → 1; 100.0 → 1; 100.00001 → 2;
-   150.0 → 2; 199.99 → 3; 200.0 → 3. A tract with EQ 250 contributes to no bucket (FreeCity4 *[choice]*).
+2. **Census buckets** (product rounded to `float32`): EQ 0 → 0; 49.99 → 0; 49.999996 (the float below 50) → 0;
+   **50.0 → 1**; 99.99999 → 1; **100.0 → 2**; 149.99998 → 2; **150.0 → 3**; 199.99998 → 3. **EQ 200.0 → bucket 4**:
+   the tract contributes to no bucket, and neither does a tract with EQ 250 (FreeCity4 *[choice]*, same result
+   as the original).
 3. **Jobless factor**: A = 0, B = 1000, C = −1000 → 0; A = 500 → 0.5; A = −1000 → −1. R$ shipped curve at
    0.5 → −0.05; at −1 → 0.1.
 4. **Criminal base** (shipped curves): R$ pop {1000, 0, 0, 0}, jobless −1 → 500. R$ pop {1234, 0, 0, 0},
@@ -687,7 +698,8 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 5. **Crimes to commit** (shipped): base − jailed = 200 → 1; 7 500 → 7; 15 000 → 17; 100 → 0; 1 000 000 → 65.
    With released = 10, reoffend 0.66f → +6. Base ≤ jailed → only the released term. Base 7 500, jailed 0,
    released 10, factor 1.0 → 13.
-6. **Ordinance rounding**: 10 crimes × 0.95f → **9** (exact product 9.49999988); 50 × 0.95f → 47;
+6. **Ordinance rounding** (product rounded to `float32`, then round half to even): 10 crimes × 0.95f → **10**
+   (9.49999988 → 9.5 → 10); 50 × 0.95f → **48** (47.4999994 → 47.5 → 48); 30 × 0.95f → 28 (28.5, tie to even);
    15 × 1.2f → 18; 2 × 0.95f → 2.
 7. **Attenuation** (shipped): pol 150, eff 0 → p = 0.125 (±1e-6), so a draw u = 0.12 stops the attempt and
    u = 0.13 commits it; equality (u = p exactly) commits. pol 255 → 0.5. pol 0, eff 50 → input −50 → p = 0 → always commits. Default curve: p = (pol − eff)/255.

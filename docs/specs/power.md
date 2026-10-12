@@ -789,7 +789,8 @@ practically 0 (§7.4); double ring advance (§7.5); deficit values (§6.6, §7.5
 Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16.
 
 1. **Output**: capacity 6000, local funding 100 %, wear 0 → efficiency 1.0, condition 1.0 → 6000. Funding 50 %
-   → 1500; 90 % → 4800; 120 % → 6600 (no clamp). Funding 100 %, wear 0.5 → condition 0.92 → 5520. No
+   → 1500; 90 % → **4799** (curve 80 × 0.01f = 0.79999998 exactly, a tie that rounds to even, 0.79999995; × 6000
+   rounds to 4799.9995); 120 % → 6600 (no clamp). Funding 100 %, wear 0.5 → condition 0.92 → 5520. No
    `0x8A1E07EE` → 0. No budget item → 0. Wind (200) at 50 % → 50.
 2. **Slot 45/46 ABI**: calling slot 45 with (out*, occ) pops 8, returns out in EAX, writes 1.0f for case 1.
 3. **Single network**: one plant (supply 1000), one block need 500 → total 1100, avail 1100 → 600, leftover
@@ -813,14 +814,16 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
 11. **Grid values**: wired + powered → 2; wired only → 1; unwired → 0 (even if powered). After a power change in
     block (1, 2), `0x8A07AE00` is posted with (8, 16, 15, 23) and `0x6A07C2EE` once.
 12. **Positions**: `PositionToCell(100.0, 250.0)` → (6, 15); `CellToPosition(6, 15)` → (96.0, 240.0).
-13. **Maintenance**: coal base 250: wear 0 → 250; wear 0.5 → 262; wear 0.75 → 324. 300 poles → line item 1
+13. **Maintenance**: coal base 250: wear 0 → 250; wear 0.5 → 262 (262.49999 rounds to 262.5); wear 0.75 → **325**
+    (250 × 1.3f = 324.99999 rounds to 325.0 at 24 bits; the curve result stays on the FPU stack, `fmulp`). 300 poles → line item 1
     full expenses 300 (no fuel cost shipped).
 14. **Ageing**: rate 0.001, used/effCap 0.5, department funding 100 % → wear += 0.45 × 1.0 × 0.001 = 0.00045.
     Wear reaching 0.9 (t1 0.9, t2 1.0) → distressed += 1 and `SetCondition(2)`; reaching 1.0 with flags 3 →
     `DemolishLots` with flags `0x303`; nuclear (flags 4, radiation 3200/15) also adds radiation and posts
     `0xAA552F77`. Wear ≥ 0.8 → aged += 1.
-15. **Pole decay**: 100 poles, brokenFraction 0, funding 0 % → fraction 0.02f → target `trunc(100 × 0.02f)` = **1**
-    (not 2); 99 `rand()` calls. 1000 poles → 19. Next month at 100 % → fraction 0 → all repaired.
+15. **Pole decay**: 100 poles, brokenFraction 0, funding 0 % → fraction 0.02f → target `trunc(100 × 0.02f)` = **2**
+    (the exact product 1.99999996 rounds to 2.0 at 24 bits, foundations §18); 99 `rand()` calls. 1000 poles →
+    **20**; 50 poles → 1. Next month at 100 % → fraction 0 → all repaired.
 16. **Deficit**: state 3 with production 1000, consumption 500 → 0.0; consumption 0 → 1.0. Month with
     production 1000, consumption 2000 → −1.0; consumption 1500 → 0.0.
 17. **Unpowered %**: consumers 4, powered 3 → 25; consumers 3, powered 2 → 33; consumers 0 → 0; consumers 4,
