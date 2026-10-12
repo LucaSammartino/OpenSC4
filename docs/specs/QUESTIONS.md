@@ -4,8 +4,6 @@ Questions from engine authors that the spec writers need to answer from the orig
 the relevant spec, and their entry here is deleted.
 
 ## Power (power.md)
-- PW1. Test 5 expects 449; computed under foundations §18 (one f32 rounding per operation) the core gets 450.
-  Which is right, and if 449, which operation is not 24-bit?
 - PW2. §6.3 step 1 "reset an inverted range": reset to what (the empty range, or the full map)?
 - PW3. Are `AddLocallyFundedObject`, the secondary info and the base cost all inside the `if line ≠ 0` branch?
 - PW4. Which department do `SetLocalFullFunding` and `IsLocallyFundedObjectInDepartment` use: the item's or the
@@ -13,7 +11,6 @@ the relevant spec, and their entry here is deleted.
 - PW5. Are the plant/consumer counters signed or unsigned (matters for the slot return values on underflow)?
 - PW6. Where does the §5.4 "poles in rect" list come from (an occupant-manager query, or the simulator's pole list)?
 - PW7. Is `DemolishLots` called at all when there are no nuclear plants (Nuclear Free Zone)?
-- PW8. Is the tuning `0.01` a `float` or a `double` literal?
 - PW9. What does `Read` do on a stream error part-way (keep partial state, roll back, release references)?
 - PW10. When a removed pole was not in the pole list, do `costBase` and the recompute request still change?
 - PW11. Does `Init` look the department up again after a load?
@@ -25,9 +22,6 @@ the relevant spec, and their entry here is deleted.
 - PL3. Can state 3 ever see a current producer already set? The implementation floods from it.
 - PL4. After state 7 the iterator ends as Done at (0, 63): exactly how does state 7 iterate (rectangle, step,
   end condition)?
-- PL5. Bitmap word count `(w·h)/32` and bit `x & 31` for city sizes that are not multiples of 32: some cells cannot
-  be marked and some share a bit. Confirm this is the original layout.
-- PL6. Max funding computes as `f32(120 × 0.01f) = 1.1999999`; the spec says 1.2. `float` or `double` 0.01?
 - PL7. The export deal gets flags `0x28` when the city is not connected: confirm.
 
 ## Protection (protection.md)

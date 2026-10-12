@@ -102,7 +102,10 @@ is persisted (§9).
 | `0x80` | unused |
 
 **The visited bitmap**: one bit per cell of a `side × side` square, `side = max(countX, countZ)`. It is
-scratch space for the flood and is not persisted.
+scratch space for the flood and is not persisted. It uses the shared 1-bit helpers of power §2.1: `side² / 32`
+words (signed division, `0x006DF468`), word `(side·z + x) >> 5`, bit `x & 31`. This is the original layout
+*[compat]*; the two bit rules agree because `side` is always a multiple of 32 (64, 128 or 256), so no cell shares a
+bit with shipped city sizes. *[choice]* FreeCity4 may use `i & 31` with `ceil(side² / 32)` words.
 
 ## 3. State
 
@@ -647,7 +650,7 @@ It is fetched through the resource manager (slot 3, IID `0xA52160F5`) and releas
 | `0x68F5436D` | fresh water distance loss (% of capacity **kept**) | uint32 | 20 | 100 |
 | `0xAA161F81` | max acceptable pumped water pollution | uint32 | 100 | 512 |
 | `0x8A235C56` | pipe burst probability | float (`0x005FD4F0`) | 0.3 | 0.03 |
-| `0xEA4025A9` | water department max funding | **SC4Percentage** getter `0x005FDAC0` (value × 0.01) | 1.2 | 120 → 1.2 |
+| `0xEA4025A9` | water department max funding | **SC4Percentage** getter `0x005FDAC0` (value × the `float32` 0.01f, `fmul dword [0x00A823A4]`, rounded to 24 bits) | 1.2 (`0x3F99999A`) | 120 → **1.1999999** (`0x3F999999`) *[compat]*; the budget clamps the department's funding to it (budget §7.1), so 120 % funding is stored as 1.1999999 |
 | `0x8A84778F` | monthly cost per pipe | float | 0 | 0.1 |
 
 Notes:
@@ -967,7 +970,7 @@ Unless stated, tuning is the shipped exemplar, funding is 100 % and the factor i
      pipe 0;
    - `0x0911E2E8` = `0x0911E2E9` = (0,1)(1,1); `0xCA7138C4` = (0,−0.02)(120,0.01);
    - `0x6A410BF2` empty.
-2. **Shipped tuning**: radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 1.2 (from 120),
+2. **Shipped tuning**: radius 7, reaches 256 / 256, loss 100, max 512, burst 0.03, max funding 1.1999999 (`0x3F999999`, from 120 × 0.01f),
    cost per pipe 0.1. `0x6A410BF2(90) = 80`.
 3. **Pipe flags**:
    - insert a pipe at (10, 20) connecting in directions 0 and 2 → flags 0x15;

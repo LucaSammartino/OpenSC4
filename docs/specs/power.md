@@ -72,7 +72,18 @@ powered but not wired reads 0. The tract developer treats any value `< 2` as "no
 A bitmap holds one bit per cell in 32-bit words. Bit index `i = width · z + x` with `width = CellCountX`; word
 `i >> 5`, bit `x & 31` (LSB first). The word count is `(CellCountX · CellCountZ) / 32` (signed division). The
 "clear" and "xor" helpers process `width²` bits, i.e. they assume a **square** city *[quirk]*; every shipped city
-size is square. Rectangles are inclusive `{x1, z1, x2, z2}`. The helpers used (their exact semantics are part of
+size is square.
+
+*Layout confirmed* *[compat]*: this is the original's layout, not a transcription error. The shared 1-bit helpers
+(`Bit1_PixelTest` `0x00603DD0`, `Bit1_Clear` `0x00603E00`, rect set `0x00604180`, rect clear `0x00604260`,
+rect test `0x00604350`, xor `0x00603E20`; used by power and plumbing) compute the word as `(width·z + x) >> 5`
+but the bit as `1 << (x & 31)`, not `i & 31`; `InitMarkAndWireBits` (`0x006EAED0`) allocates
+`(CellCountZ · CellCountX) / 32` words (signed division) and clears `CellCountX²` bits. The two bit rules agree
+whenever `width` is a multiple of 32, which every SC4 city size is (64, 128, 256 cells). For other widths cells
+would share bits and the last partial word would not be allocated; this cannot happen with real cities.
+*[choice]* FreeCity4 may use `i & 31` and `ceil(w·h / 32)` words, which is identical for all reachable sizes.
+
+Rectangles are inclusive `{x1, z1, x2, z2}`. The helpers used (their exact semantics are part of
 §6 and the report to simgrid §7):
 
 | Helper | Behaviour |
@@ -376,7 +387,9 @@ rewritten here (only §5.3 does that).
 
 1. last production/consumption/import/export/demand := the pass values.
 2. History (`RecordHistoryData`): `0xAA11F7CE` ← production; `0x0AB2F224` ← import; `0x4AB2F236` ← export;
-   `0xAA11F7D2` ← `trunc((consumption − export) × factor)`; `0xAA11F7D5` ← `trunc(demand × factor)`;
+   `0xAA11F7D2` ← `trunc(r24(int32(consumption − export) × factor))`; `0xAA11F7D5` ← `trunc(r24(int32(demand) ×
+   factor))` (one x87 multiply by the `float32` ordinance factor, rounded to 24 bits per foundations §18, then
+   `_ftol`; `0x006EF293`–`0x006EF2B8`);
    `0xAA11F7D8` ← production − consumption.
 3. Sell deals with `used < amount`: `SetFlags(0x20, true)`. Then `neighbours.MarkDealsDirty()`.
 4. If consumption > 0: `0xAA11F7DC` ← `budget.GetFunding(dept)` (int64, slot 35) / consumption (int64 division).
@@ -465,6 +478,13 @@ visual only]*. *[quirk]* brokenFraction is not saved, so after a load it restart
 
 ## 8. Tuning *[compat]*
 
+**"f32 × 0.01" properties** *[compat]*: the value is read with the float getter and multiplied by the `float32`
+constant 0.01f (`0x00A823A4`, `fmul dword`, e.g. `0x006ED5E8`), rounded to 24 bits (foundations §18). 0.01f is
+slightly below 0.01, so several shipped percentages land one unit below the decimal value: 120 → 1.1999999
+(`0x3F999999`), not 1.2. The budget clamps the department's funding to this maximum (budget §7.1, `SetPct`:
+`q := clamp(q, 0, pMax)`), so the highest power funding a player can set is 1.1999999. Code defaults are the `float32` literals
+shown (1.2 = `0x3F99999A`).
+
 Exemplar type `0x6534284A`, group `0xE7E2C2DB`, instance **`0xC911E35B`** ("Utilities", SimCity_1.dat). Read at
 `Init` and on `0xCA1B151C`. Every read first restores the code defaults; curves are rebuilt from code-default
 points and then loaded by exemplar key → foundations §4.1 pattern **default** for all five curves.
@@ -476,10 +496,10 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 | `0x0911E2E8` | Funding % → decay rate multiplier | curve | (0,1)(1,1) | (0,1.1)(1,1)(1.2,0.9) | §7.4 |
 | `0x0911E2E9` | Usage % → decay rate multiplier | curve | (0,1)(1,1) | (0,0.1)(0.25,0.2)(0.5,0.45)(0.75,0.85)(0.9,1.25)(1,1.55)(1.1,2) | §7.4 |
 | `0xAA713782` | Funding % → pole decay/repair | curve | (0,−0.02)(120,0.01) | (0,−0.02)(25,−0.005)(50,0)(100,0.025)(110,0.05) | §7.6 |
-| `0xE911E2D1` | Power max allowed funding | f32 × 0.01 | 1.2 | 1.2 | `SetMaxAllowedFundingPercentage` (new city) |
-| `0x09122027` | Utility Strike Efficiency % | f32 × 0.01 | 0.5 | 0.2 | only exposed by slot 47 |
-| `0xE911E2FC` | Power plant max production ratio | f32 × 0.01 | 1.1 | 1.1 | **dead** (§6.3 uses a literal 1.1) |
-| `0x29121E8B` | Power Min Acceptable Funding % | f32 × 0.01 | 0.6 | 0.6 | dead |
+| `0xE911E2D1` | Power max allowed funding | f32 × 0.01 | 1.2 | 120 → **1.1999999** (`0x3F999999`) | `SetMaxAllowedFundingPercentage` (new city) |
+| `0x09122027` | Utility Strike Efficiency % | f32 × 0.01 | 0.5 | 20 → 0.19999999 (`0x3E4CCCCC`) | only exposed by slot 47 |
+| `0xE911E2FC` | Power plant max production ratio | f32 × 0.01 | 1.1 | 110 → 1.1 | **dead** (§6.3 uses a literal 1.1) |
+| `0x29121E8B` | Power Min Acceptable Funding % | f32 × 0.01 | 0.6 | 60 → 0.59999996 | dead |
 | `0x2912202E` | Utility Strike Duration | s32 | 10 | 12 | dead |
 | `0x49122036` | Utility Min Funding to End Strike | f32 × 0.01 | 0.9 | 0.9 | dead |
 | `0x0911E2E6` | Utility Strike Response Curve | curve | (0,20)(100,100) | (0,0)(20,45)(50,75)(100,100) | dead |
@@ -806,7 +826,8 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
 4. **Shortfall**: supply 1000 (total 1100), blocks A need 700 and B need 500. Order A, B: A powered, B not;
    used = 1100; plant used 1000; demand 1200. Order B, A: B powered, A not; same used.
 5. **Conservation**: factor 0.9f, supply 1000, need 555 → avail 1222, then 667; leftover 600; used 500; plant
-   used 500; history `0xAA11F7D5` = 499, `0xAA11F7D2` = 449, `0xAA11F7D8` = 500.
+   used 500; history `0xAA11F7D5` = 499 (555 × 0.9f = 499.49998… rounds to 499.5, truncated), `0xAA11F7D2` = **450**
+   (500 × 0.9f = 450.0000067 rounds to 450.0 at 24 bits; the earlier 449 was a 53-bit result), `0xAA11F7D8` = 500.
 6. **Import**: no plant; buy deal amount 300 used 0, a PowerPole connection to that city whose cell is wired and
    whose other side is active; block need 200 → powered; deal used 200; import 200.
 7. **Export**: supply 1000, sell deal amount 400 connected; need 100 → exports 400, deal used 400, avail 600,
