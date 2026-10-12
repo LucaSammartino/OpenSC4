@@ -1427,6 +1427,9 @@ bool cFC4PowerSimulator::DoMessage(cIGZMessage2* pMessage) {
             m.void1 = TokenOf(s->GetIGZUnknown());  // §5: the message's IGZUnknown
         }
         if (m.msg_type == kMsgZoningChanged) {
+            // [abi] void2 is the message's SC4CellRegion<long>* (allocators.md;
+            // owned by the message, C): its first member is the SC4Rect<long>
+            // bounds {x1, z1, x2, z2}, read here and not kept.
             const int32_t* r = static_cast<const int32_t*>(s->GetVoid2());
             if (r != nullptr) {
                 m.rect.x1 = r[0];

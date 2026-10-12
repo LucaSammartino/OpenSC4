@@ -319,6 +319,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},
+    {"cISC4TrafficSimulator", 43, 44,
+     "slot 43 is cSC4TrafficSimulator's scalar deleting destructor (pops 4; docs/abi rows added in main): "
+     "class-private"},
     {"cISC4Demolition", 12, 13,
      "slot 12 is cSC4Demolition's destructor (pops 4): class-private. The plugin calls slot 7 (DemolishLots) "
      "only (power §5.5)"},
