@@ -496,12 +496,58 @@ Flammability events: `create_grid` (`instance`, `size`), `grid_shutdown` (`insta
 `history` (`type`, `value`), `ignite` (`x`, `z`, `use_probability`, `teleport`, `fire_iid`), `cause` (`cause`),
 `post` (`type`: `SimCycleComplete`), and with a queued generator `rng` (`value`, `a`, `b`).
 
+## Pollution ops
+
+The pollution vectors (`p11_…`) drive the pollution simulator (`fc4_core::pollution`) over a scripted city. Every
+op name starts with `pollution_`. The city defaults to 128 × 128 cells of 16 m (64 × 64 tracts), the shipped tuning,
+ordinance factors 1.0, zone 0 everywhere, no traffic, no deals, no landfill, funding 100 %, a budget department and
+working visual effects. Grid coordinates are tracts unless an argument says cells; the garbage value grid has
+1-cell tracts.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `pollution_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]`), `altitude` (terrain height everywhere), `zone_default`, `zones` (`[{x, z, w?, d?, zone}]` cells), `traffic` (`[{x, z, w?, d?, v}]` air-polluting traffic per cell), `factors` (`[{id, index?, value}]` cumulative ordinance factors; no `index` = indices 0..15), `deals` (`[{deal, type: import/export/ID, amount, used?}]`, replaces all; `null` = none), `population`, `landfill` (`[usage, capacity]`), `landfill_tiles`, `funding` (the department's funding fraction), `department` (whether `CreateDepartmentBudget` succeeds), `effects` (whether `CreateVisualEffect` succeeds) | sets the fake world |
+| `pollution_tuning` | `shipped?` (default true), `props?` (merged over it), `remove?` (property IDs), or `none` | the tuning exemplar read at Init / TuningChanged |
+| `pollution_occupant` | `occupant` (label), `props?` (property map), `tract?` (`[tx, tz]`: position at the tract centre), `position?` (`[x, y, z]`), `cells?` (`[x0, z0, x1, z1]` inclusive footprint → bounding box; default the position as a point), `bbox?` (`[[x, y, z], [x, y, z]]`), `powered?` (default true), `budget?` (`{line, cost?, index?, purpose?}`, the item `GetBudgetItemForPurpose` returns) | defines or redefines an occupant (the test holds one reference) |
+
+### Calls and checks
+
+| op | Arguments | Effect |
+|---|---|---|
+| `pollution_create` | `fx_seed?` (the effect generator's seed, default 1) | a new simulator (its `rand()` seeded 1) |
+| `pollution_init` / `pollution_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `pollution_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `PostCityInit`, `TuningChanged`, `PreViewLevelChange` or an ID), `occupant?`, `view_level?` (PreViewLevelChange), `count?` (repeat), `expect?` | `DoMessage` |
+| `pollution_call` | `method`, `args?` (occupants by label), `expect?` | a simulator method: `simulate_day`, `simulate_month`, `end_of_cycle`, `update_visual_effects`, `reload_tuning`, `add_radiation_to_city` (`[x, y, z, strength, radius]`), `dispose` (`[g]`, `remaining?: {wtp, inc, wte}`; result `{taken, remaining}`), `pollution_grid` (result the grid name or `null`), `pollution_value`, `air_value`, `water_value`, `garbage_value`, `average_*_value`, `is_air_polluted`, `is_water_polluted`, `is_garbage_accumulated`, `is_radioactive`, `worst_*_tract` (`[x, z, value]`), `garbage_supply`, `landfill_tile_capacity`, `garbage_capacity`, `is_garbage_uncollected`, `total_garbage_uncollected`, `set_is_radioactive`, `set_air_value`, `set_water_value`, `set_garbage_value`, `add_to_garbage_supply`, `set_garbage_capacity`, `monthly_incinerator_capacity`, `monthly_wte_capacity`, `recycling_center_effect`, `garbage_abducted_prev_month`, `garbage_{produced,imported,exported,recycled,incinerated,wte,landfilled}_last_month`, the four counts, `garbage_buildings` (labels), `building_garbage_capacity`, `garbage_scaling_factor`, `is_active_landfill`, `set_is_active_landfill`, `garbage_put_in_landfill`, `max_capacity` / `current_capacity` (`[prop, occupant]`, result `[found, value]`), `recycling_center_max_capacity`, `recycling_center_current_capacity`, `current_occupant_condition`, `current_occupant_efficiency`, `incinerator_used_capacity`, `wte_used_capacity`, `incinerator_current_capacity`, `wte_current_capacity`, `water_treatment_{max,current,used}_capacity`, `calc_occupant_maintenance_cost`, `max_level_for_ui`, `requested_share` (`[x0, z0, x1, z1]` cells), `requester_satisfaction_id`, `uses_custom_prop_selector`, `select_prop` |
+| `pollution_set` | `state` (scalar fields as in `pollution_expect`) | pokes state (test setup) |
+| `pollution_expect` | `state` (partial: `initialized`, `loaded`, `cell_x`, `cell_z`, `tracts_per_day`, `iterator` (`mode`, `rect`, `count`, `index`, `table_len`, `exhausted`; partial), the §3.1 scalars in snake case, this month's counters `produced` … `landfilled` and last month's `last_produced` … `last_landfilled`, `worst_air` / `worst_water` / `worst_garbage` (`[x, z, value]`), `department` (label or `null`), the lists `wtp`, `incinerators`, `wte_plants`, `recycling` (labels), `blocks_x`, `blocks_z`, `grids` (eight booleans)) | the simulator state |
+| `pollution_set_grid` | `grid` (`air_src`, `water_src`, `garbage_src`, `rad_src`, `air_val`, `water_val`, `garbage_val`, `rad_val`), `fill?`, `tracts?` / `cells?` (`[{x, z, w?, d?, v}]`; `v` may be a raw `"0x8064"`) | writes grid tracts directly (no dirty flags) |
+| `pollution_expect_grid` | `grid`, `tracts?` / `cells?`, `others?` (every tract not listed), `nonzero?` (count), `size?` (tract counts) | grid contents |
+| `pollution_expect_occupant` | `occupant`, `props` (`{"0xID": value or null for absent}`) | the occupant's properties |
+| `pollution_expect_refs` | `refs` (`{"label": count}`; occupants start at 1, the department at 0) | host reference counts |
+| `pollution_expect_effects` | `water?`, `air?`, `radiation?`, `garbage?` (effects the simulator holds), `live?` (effect objects not yet released) | visual effects |
+| `pollution_crt` | `seed?`, `mark?`, `rand_calls?` (the simulator's `rand()` calls since the last mark) | the iterators' generator |
+| `pollution_expect_fx` | `seed?` (default 1), `draws` | the effect generator equals a fresh one after `draws` draws |
+| `pollution_save` / `pollution_load` / `pollution_expect_save` | `slot`; load: `expect?` (clean store load), `fx_seed?` | the class-object store (grids are saved as their own objects; occupants and the department are host objects that come back with a reference); a load makes the loaded simulator current |
+| `pollution_patch` / `pollution_expect_payload` | see the shared conventions (the class is always the pollution simulator); `expect_payload` takes `hex?`, `at?` (`[{offset, hex}]`), `length?` | |
+
+Pollution events: `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`types`),
+`add_prop_requester`, `remove_prop_requester`, `post` (`type`: `RadiationChanged`, `AirChanged`, `WaterChanged`,
+`GarbageChanged`, `DealStatus` or the ID; `data1`), `history` (`series`, `value`), `history_queue` (`series`,
+`length`), `deal_used` (`deal`, `used`), `mark_deals_dirty`, `lot_condition` (`x`, `z`, `condition`),
+`create_department` (`id`, `group`), `department_name` (`group`, `instance`), `max_funding` (`value`), `line_item`
+(`line`, `local`, `group`, `instance`), `full_expenses` (`line`, `value`), `budget_add` / `budget_remove`
+(`occupant`, `index`), `budget_cost` (`occupant`, `index`, `cost`), `line_expenses` (`line`, `delta`),
+`effect_create` (`effect`, `id`, `kind`), `effect_position` (`effect`, `position`), `effect_param` (`effect`,
+`param`, `value`), `effect_start` / `effect_stop` (`effect`, `t`), `effect_release` (`effect`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` (simgrid §10, `fc4_core::simgrid`), `tg10_…` (simgrid §10, `fc4_core::grid`),
-   `fl16_…` (flammability §16).
+   `fl16_…` (flammability §16), `p11_…` (pollution §11).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -681,3 +727,31 @@ Flammability events: `create_grid` (`instance`, `size`), `grid_shutdown` (`insta
 | 12–13 occupant update | `fl16_12_13_occupant_update` |
 | 14 persistence | `fl16_14_persistence` |
 | 15 interface slots (portable part) | `fl16_15_slots` |
+
+## Coverage (pollution §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 cone | `p11_01_03_cones` |
+| 2 default radii | `p11_01_03_cones` |
+| 3 garbage rectangle | `p11_01_03_cones` |
+| 4 skip (and the lists and budget of §4.2.3–4.2.4) | `p11_04_skip_lists_budget` |
+| 5 relaxation | `p11_05_08_tract_visit` |
+| 6 water stop at 1 | `p11_05_08_tract_visit` |
+| 7 traffic | `p11_05_08_tract_visit` |
+| 8 zone averaging | `p11_05_08_tract_visit` |
+| 9 garbage production | `p11_09_12_garbage` |
+| 10 Dispose waste-to-energy quirk (and export, landfill) | `p11_09_12_garbage` |
+| 11 valve | `p11_09_12_garbage` |
+| 12 valve closed in a cell | `p11_09_12_garbage` |
+| 13 water treatment | `p11_13_15_capacities` |
+| 14 efficiency | `p11_13_15_capacities` |
+| 15 current capacity (and maintenance cost, §4.9.4) | `p11_13_15_capacities` |
+| 16 monthly cost (and aging, usage roll, waste-to-energy output) | `p11_16_monthly` |
+| 17 cadence | `p11_17_18_cycle` |
+| 18 end of cycle | `p11_17_18_cycle` |
+| 19 slots | `p11_19_20_slots` |
+| 20 prop share | `p11_19_20_slots` |
+| 21 effects | `p11_21_effects` |
+| 22 persistence | `p11_22_persistence` |
+| other sections (lifecycle §4.1, disaster radiation §4.3, tuning §7.1, SimBegin) | `p11_00_lifecycle` |

@@ -16,6 +16,7 @@ pub mod foundations;
 pub(crate) mod grid;
 pub mod json;
 pub(crate) mod ordinance;
+pub(crate) mod pollution;
 pub mod runner;
 pub(crate) mod scalar;
 pub(crate) mod landvalue;
