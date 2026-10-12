@@ -575,7 +575,6 @@ fn set(w: &World, op: &Json) -> R<()> {
 
 fn iterator_json(it: &CellIterator) -> Json {
     let state = match it.state {
-        IteratorState::NotStarted => "not_started",
         IteratorState::Running => "running",
         IteratorState::Exhausted => "exhausted",
     };

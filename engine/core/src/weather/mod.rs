@@ -38,8 +38,8 @@
 //!   the rectangle keeps the narrowest run.
 //! - The iterator start uses a per-simulator C-runtime `rand()` seeded with 1
 //!   (§7); it is not saved. With an empty rectangle `reset` still makes its
-//!   one `rand()` call and starts at 0. Iterator `state` bytes in the save
-//!   are 0 = never reset, 1 = running, 2 = exhausted (spec question).
+//!   one `rand()` call and starts at 0. The iterator's saved state byte is
+//!   1 = running (also never reset) or 2 = exhausted (§10, [compat]).
 //! - Endless loops of the original are bounded: the wind-angle draw (§6.2)
 //!   gives up after 100 draws (then `s = 0`), a weekly pass walks at most
 //!   `countX × countZ` cells (Init never sets `cellsPerWeek` higher; only a
