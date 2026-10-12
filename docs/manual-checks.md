@@ -4,8 +4,10 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 
 ## Needs you (blocking)
 
-Nothing is blocking. When you have 10 minutes, please do the in-game checks below with the staged DLL
-(`budget_default = 1`, any city). Claude can't judge the budget window by eye.
+Nothing is blocking. **Hold off on the in-game checks below for now.** The allocator classification (ff25561) found
+that the budget window's own queries (`GetAllGroups`, `GetAllLoans`, the line-item lists) still hand the game
+containers with the wrong allocator. Opening the budget window with the current DLL can therefore corrupt the
+heap. A fix is in progress in the plugin lane; this note will say when the checks are safe.
 
 ## Budget corruption bisection
 
