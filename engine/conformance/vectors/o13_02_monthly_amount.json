@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "ordinance_monthly_amount",
+  "spec": ["ordinance 3.3", "ordinance 3.5", "ordinance 3.6", "ordinance 13.2"],
+  "description": "GetCurrentMonthlyIncome = trunc_s64(float(constant) + float(base) * factor) in f32, truncated toward zero. The base is the residential population for plain ordinances, a line item / department total for the budget-based classes and the landfill capacity for Landfill Gas Recovery; Gambling is the constant alone; Trash Presort without a budget simulator is the constant. Simulate stores the amount in adjusted; GetCurrentMonthlyIncome does not.",
+  "steps": [
+    {"op": "ordinance_env", "population": 20000},
+    {"op": "ordinance_exemplar", "instance": "0x00D0723D", "constant": -50, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0xA0D07129", "enact": 0, "repeal": -20, "constant": 100, "factor": 1, "income": true},
+    {"op": "ordinance_exemplar", "instance": "0x40D07236", "constant": -50, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0x42BF1E18", "constant": -20, "factor": -0.003},
+    {"op": "ordinance_exemplar", "instance": "0x815B4CEF", "constant": -100, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0x62F6E7CF", "constant": -50, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0xE0D07233", "constant": -50, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0x22F6E80C", "constant": -20, "factor": -0.001},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DAA", "constant": 0, "factor": -0.001},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DB9", "constant": -10, "factor": -0.001},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "current_monthly_income", "expect": -150},
+    {"op": "ordinance_object", "id": "0x62BF1DB9", "method": "current_monthly_income", "expect": -30},
+    {"op": "ordinance_object", "id": "0xA0D07129", "method": "current_monthly_income", "expect": 100},
+    {"op": "ordinance_object", "id": "0xA0D07129", "method": "is_income_ordinance", "expect": true},
+    {"op": "ordinance_env", "population": 1500},
+    {"op": "ordinance_object", "id": "0x62BF1DAA", "method": "current_monthly_income", "expect": -1},
+    {"op": "ordinance_object", "id": "0xA0D07129", "method": "current_monthly_income", "expect": 100},
+    {"op": "ordinance_env", "population": 20000},
+
+    {"op": "ordinance_object", "id": "0x40D07236", "method": "current_monthly_income", "expect": -50},
+    {"op": "ordinance_env", "departments": {"0x09188F42": 9999}, "line_items": {"0x09188F42": {"0x03110000": 4000}}},
+    {"op": "ordinance_object", "id": "0x40D07236", "method": "current_monthly_income", "expect": -70},
+
+    {"op": "ordinance_env", "departments": {"0x6A42A8F5": 10000, "0x8A4260A6": 2000, "0x8A416368": 3000}},
+    {"op": "ordinance_object", "id": "0x42BF1E18", "method": "current_monthly_income", "expect": -50},
+    {"op": "ordinance_object", "id": "0x815B4CEF", "method": "current_monthly_income", "expect": -110},
+    {"op": "ordinance_object", "id": "0x62F6E7CF", "method": "current_monthly_income", "expect": -65},
+    {"op": "ordinance_object", "id": "0x40D07236", "method": "current_monthly_income", "expect": -50},
+    {"op": "ordinance_object", "id": "0xE0D07233", "method": "current_monthly_income", "expect": -50},
+    {"op": "ordinance_env", "departments": {"0x09188F4C": 1}, "line_items": {"0x09188F4C": {"0x03190000": 1000, "0x0034A000": 3000}}},
+    {"op": "ordinance_object", "id": "0xE0D07233", "method": "current_monthly_income", "expect": -70},
+    {"op": "ordinance_object", "id": "0x62F6E7CF", "method": "current_monthly_income", "expect": -50},
+
+    {"op": "ordinance_env", "budget": false},
+    {"op": "ordinance_object", "id": "0x42BF1E18", "method": "current_monthly_income", "expect": -20},
+    {"op": "ordinance_object", "id": "0xE0D07233", "method": "current_monthly_income", "expect": -50},
+    {"op": "ordinance_object", "id": "0x815B4CEF", "method": "current_monthly_income", "expect": -100},
+
+    {"op": "ordinance_env", "landfill_capacity": 5000},
+    {"op": "ordinance_object", "id": "0x22F6E80C", "method": "current_monthly_income", "expect": -25},
+
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "monthly_adjusted_income", "expect": 0},
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "simulate", "expect": true},
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "monthly_adjusted_income", "expect": -150},
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "force_monthly_adjusted_income", "args": [7], "expect": true},
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "monthly_adjusted_income", "expect": 7},
+    {"op": "ordinance_object", "id": "0x00D0723D", "method": "set_available", "args": [true], "expect": true},
+    {"op": "ordinance_expect_object", "id": "0x00D0723D", "state": {"available": true, "on": false, "adjusted": 0}},
+    {"op": "ordinance_expect_events", "events": []}
+  ]
+}

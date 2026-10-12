@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "ordinance_messages",
+  "spec": ["ordinance 4.3", "ordinance 4.4", "ordinance 5", "ordinance 7.1", "ordinance 13.5"],
+  "description": "SetOrdinanceOn posts OrdinanceUpdated 0xC2C09554 only when IsOn changes, with data2 = the ID and data3 = the new IsOn; SetOrdinanceAvailable posts OrdinanceAvailabilityChanged 0xA2D1C5B9 only on change; unknown IDs return false and post nothing. Each month-end posts OrdinanceMonthlyDone 0xC8EA5018 exactly once, after the availability messages.",
+  "steps": [
+    {"op": "ordinance_exemplar", "instance": "0x00D0723D", "enact": -10, "repeal": -10, "constant": -50, "factor": -0.005},
+    {"op": "ordinance_exemplar", "instance": "0x02BF1DFA", "enact": -10, "repeal": -10, "constant": -50, "factor": -0.005},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+    {"op": "ordinance_expect_events", "events": []},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x00D0723D", "value": 1},
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x02BF1DFA", "value": 1},
+      {"event": "post", "type": "MonthlyDone", "id": 0, "value": 0}]},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x00D0723D", true], "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "OrdinanceUpdated", "id": "0x00D0723D", "value": 1}]},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x00D0723D", true], "expect": true},
+    {"op": "ordinance_expect_events", "events": []},
+    {"op": "ordinance_expect", "state": {"pending": -10}},
+    {"op": "ordinance_call", "method": "is_ordinance_on", "args": ["0x00D0723D"], "expect": true},
+    {"op": "ordinance_call", "method": "is_ordinance_available_but_off", "args": ["0x00D0723D"], "expect": false},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x00D0723D", false], "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "OrdinanceUpdated", "id": "0x00D0723D", "value": 0}]},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x00D0723D", false], "expect": true},
+    {"op": "ordinance_expect_events", "events": []},
+    {"op": "ordinance_expect", "state": {"pending": -20}},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x0BADF00D", true], "expect": false},
+    {"op": "ordinance_call", "method": "set_ordinance_available", "args": ["0x0BADF00D", true], "expect": false},
+    {"op": "ordinance_call", "method": "is_ordinance_on", "args": ["0x0BADF00D"], "expect": false},
+    {"op": "ordinance_call", "method": "is_ordinance_available", "args": ["0x0BADF00D"], "expect": false},
+    {"op": "ordinance_expect_events", "events": []},
+
+    {"op": "ordinance_call", "method": "set_ordinance_available", "args": ["0x02BF1DFA", true], "expect": true},
+    {"op": "ordinance_expect_events", "events": []},
+    {"op": "ordinance_call", "method": "set_ordinance_available", "args": ["0x02BF1DFA", false], "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "AvailabilityChanged", "id": "0x02BF1DFA", "value": 0}]},
+    {"op": "ordinance_call", "method": "set_ordinance_available", "args": ["0x02BF1DFA", false], "expect": true},
+    {"op": "ordinance_expect_events", "events": []},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x00D0723D", true], "expect": true},
+    {"op": "ordinance_clear_events"},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_event_count", "filter": {"type": "MonthlyDone"}, "count": 1},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x02BF1DFA", "value": 1},
+      {"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_expect_events", "events": [{"event": "post", "type": "MonthlyDone"}]},
+    {"op": "ordinance_call", "method": "set_ordinance_available", "args": ["0x00D0723D", false], "expect": true},
+    {"op": "ordinance_expect_events", "events": [
+      {"event": "post", "type": "OrdinanceUpdated", "id": "0x00D0723D", "value": 0},
+      {"event": "post", "type": "AvailabilityChanged", "id": "0x00D0723D", "value": 0}]}
+  ]
+}

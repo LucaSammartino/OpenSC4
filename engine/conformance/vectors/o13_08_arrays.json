@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "ordinance_arrays",
+  "spec": ["ordinance 4.2", "ordinance 13.8"],
+  "description": "The array queries walk the map in ascending key order, write IDs while fewer than the caller's capacity have been written, report the number written and return the total: GetOrdinanceOnArray with room for 2 of 3 on ordinances writes the 2 lowest IDs and returns 3. GetOrdinanceByName / GetOrdinanceIDByName ignore ASCII case and return the first match in key order (null / 0 when none); GetOrdinanceByID returns null for an unknown ID.",
+  "steps": [
+    {"op": "ordinance_env", "ltext": [{"instance": "0xC2BF1DC5", "text": "Youth Curfew"}]},
+    {"op": "ordinance_exemplar", "instance": "0xC2BF1DC5", "name_ltext": true},
+    {"op": "ordinance_exemplar", "instance": "0x02BF1DFA", "name": "Water Conservation"},
+    {"op": "ordinance_exemplar", "instance": "0x22F6E81B", "name": "Paper Reduction"},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DAA", "name": "SMOKE detectors"},
+    {"op": "ordinance_exemplar", "instance": "0xE0D0722E", "name": "Smoke Detectors"},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+    {"op": "ordinance_call", "method": "id_array", "args": [10], "expect": {"ids": ["0x02BF1DFA", "0x22F6E81B", "0x62BF1DAA", "0xC2BF1DC5", "0xE0D0722E"], "total": 5}},
+    {"op": "ordinance_call", "method": "id_array", "args": [2], "expect": {"ids": ["0x02BF1DFA", "0x22F6E81B"], "total": 5}},
+    {"op": "ordinance_call", "method": "available_array", "args": [10], "expect": {"ids": [], "total": 0}},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xE0D0722E", true], "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x22F6E81B", true], "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xC2BF1DC5", true], "expect": true},
+    {"op": "ordinance_call", "method": "on_count", "expect": 3},
+    {"op": "ordinance_call", "method": "on_array", "args": [2], "expect": {"ids": ["0x22F6E81B", "0xC2BF1DC5"], "total": 3}},
+    {"op": "ordinance_call", "method": "on_array", "args": [3], "expect": {"ids": ["0x22F6E81B", "0xC2BF1DC5", "0xE0D0722E"], "total": 3}},
+    {"op": "ordinance_call", "method": "on_array", "args": [0], "expect": {"ids": [], "total": 3}},
+    {"op": "ordinance_call", "method": "available_count", "expect": 5},
+    {"op": "ordinance_call", "method": "available_array", "args": [4], "expect": {"ids": ["0x02BF1DFA", "0x22F6E81B", "0x62BF1DAA", "0xC2BF1DC5"], "total": 5}},
+
+    {"op": "ordinance_call", "method": "ordinance_by_name", "args": ["youth curfew"], "expect": "0xC2BF1DC5"},
+    {"op": "ordinance_call", "method": "ordinance_id_by_name", "args": ["WATER CONSERVATION"], "expect": "0x02BF1DFA"},
+    {"op": "ordinance_call", "method": "ordinance_by_name", "args": ["smoke detectors"], "expect": "0x62BF1DAA"},
+    {"op": "ordinance_call", "method": "ordinance_by_name", "args": ["Smoke Detector"], "expect": null},
+    {"op": "ordinance_call", "method": "ordinance_id_by_name", "args": ["nothing"], "expect": 0},
+    {"op": "ordinance_call", "method": "ordinance_by_id", "args": ["0x22F6E81B"], "expect": "0x22F6E81B"},
+    {"op": "ordinance_call", "method": "ordinance_by_id", "args": ["0x0BADF00D"], "expect": null}
+  ]
+}

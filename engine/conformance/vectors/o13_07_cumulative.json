@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "ordinance_cumulative",
+  "spec": ["ordinance 6.1", "ordinance 11", "ordinance 13.7"],
+  "description": "GetCumulativeFactor multiplies (float32) the property over the on ordinances in ascending ID order: Float32 scalars ignore the index, Float32 arrays contribute v[index] or 1.0 past the end, any other type 1.0; off, available-but-off and unavailable (on flag set) ordinances are ignored. GetCumulativeOffset sums Uint32/Sint32 scalars and arrays (0 past the end, 0 for other types) as a 32-bit integer, returned sign-extended [choice].",
+  "steps": [
+    {"op": "ordinance_env", "police": 1},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DB9", "props": {"0x28ED0380": {"f32": 0.95}, "0xAA5B8407": {"i32": -10}}},
+    {"op": "ordinance_exemplar", "instance": "0xA0D07129", "constant": 100, "factor": 1, "props": {"0x28ED0380": {"f32": 1.2}, "0xAA5B8407": {"i32": -5}}},
+    {"op": "ordinance_exemplar", "instance": "0xE0D0722E", "props": {"0xAA5B8407": {"u32": 5}, "0x28ED0380": {"u32": 7}}},
+    {"op": "ordinance_exemplar", "instance": "0xA2BF1E43", "props": {"0xAA5B8407": {"f32": 3.0}, "0x28ED0380": {"f32": [2.0]}}},
+    {"op": "ordinance_exemplar", "instance": "0xA2BF1DE5", "props": {"0x8A612FEE": {"i32": [5, -5, 0, 5, 0, -5, 5, -5, 0]}, "0x2A654200": {"f32": [0.5, 0.25]}}},
+    {"op": "ordinance_exemplar", "instance": "0x815B4CEF", "props": {"0x28ED0380": {"f32": 0.5}}},
+    {"op": "ordinance_exemplar", "instance": "0x22F6E81B", "props": {"0x28ED0380": {"f32": 0.1}, "0xAA5B8407": {"i32": 1000}}},
+    {"op": "ordinance_exemplar", "instance": "0x02BF1DFA", "props": {"0x11110000": {"i32": 2147483647}}},
+    {"op": "ordinance_exemplar", "instance": "0x62BF1DAA", "props": {"0x11110000": {"u32": 1}, "0x11110001": {"u32": [4294967295, 7]}}},
+    {"op": "ordinance_create"},
+    {"op": "ordinance_init", "expect": true},
+    {"op": "ordinance_message", "type": "SimNewMonth", "expect": true},
+    {"op": "ordinance_call", "method": "is_ordinance_available", "args": ["0x815B4CEF"], "expect": false},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x815B4CEF", true], "expect": true},
+
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 0], "expect": 1.0},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 0], "expect": 0},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x62BF1DB9", true], "expect": true},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xA0D07129", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 0], "expect": 1.14},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 7], "expect": 1.14},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 0], "expect": -15},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 3], "expect": -15},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xE0D0722E", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 0], "expect": -10},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 0], "expect": 1.14},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xA2BF1E43", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 0], "expect": 2.28},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 1], "expect": 1.14},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 0], "expect": -10},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xA2BF1DE5", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x8A612FEE", 0], "expect": 5},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x8A612FEE", 1], "expect": -5},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x8A612FEE", 9], "expect": 0},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x2A654200", 1], "expect": 0.25},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x2A654200", 2], "expect": 1.0},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x8A612FEE", 0], "expect": 1.0},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x0BADF00D", 0], "expect": 1.0},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x0BADF00D", 0], "expect": 0},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x02BF1DFA", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x11110000", 0], "expect": 2147483647},
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x62BF1DAA", true], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x11110000", 0], "expect": -2147483648},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x11110001", 0], "expect": -1},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0x11110001", 1], "expect": 7},
+
+    {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0x62BF1DB9", false], "expect": true},
+    {"op": "ordinance_call", "method": "cumulative_factor", "args": ["0x28ED0380", 0], "expect": 2.4},
+    {"op": "ordinance_call", "method": "cumulative_offset", "args": ["0xAA5B8407", 0], "expect": 0},
+    {"op": "ordinance_call", "method": "on_count", "expect": 6},
+    {"op": "ordinance_call", "method": "is_ordinance_available_but_off", "args": ["0x22F6E81B"], "expect": true}
+  ]
+}

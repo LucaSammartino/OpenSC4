@@ -331,10 +331,44 @@ starts with `demand_`.
 Demand events: `post` (`key`, `data2`: ActiveDemandChanged), `history` (`series`, `value`), `history_queue`
 (`series`, `length`), `extrapolate` (`city`, `type`, `amount`: `cRegionalCity::ExtrapolateGrowth`), `warn` (`text`).
 
+## Ordinance ops
+
+The ordinance vectors (`o13_…`) drive the ordinance simulator and the standard ordinance classes
+(`fc4_core::ordinance`) over a scripted city. Every op name starts with `ordinance_`. Ordinance ops also work
+inside scheduler agents' `on_call` (see `o13_10_month_order`).
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ordinance_env` | any of `year` (sim year; `null` = no simulator; default 2000), `population`, `budget` (budget simulator present; default true), `departments` (`{"0xDEPT": totalExpenses}`), `line_items` (`{"0xDEPT": {"0xLINE": fullExpenses}}`), `landfill_capacity`, `power_plants` (type-3 count), `police`, `recycling` (recycling-center effect), `lots` (`[{lot, building_type}]`), `view_control` (current input control ID), `ltext` (`[{type?, group?, instance, text}]`, default type `0x2026960B`, group `0x6A231EAA`), `classes` (registered ordinance classes; `null` = all 21 standard classes) | sets the fake world |
+| `ordinance_exemplar` | `instance`, `group?` (default `0xA9C2C209`), `exemplar_type?` (default 14), `id?` (default the instance; `null` omits it), `enact?`, `repeal?`, `constant?` (s32), `factor?`, `chance?` (f32), `year?`, `advisor?`, `income?`, `name?`, `description?` (string properties), `name_ltext?` / `description_ltext?` (`true` = the shipped LTEXT key for the instance, or `[type, group, instance]`), `props?`, `replace?`, `remove?` | adds (or replaces / removes) an ordinance exemplar; enumeration order is the order of these ops |
+
+### Calls and checks
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ordinance_create` | | a new ordinance simulator |
+| `ordinance_init` / `ordinance_shutdown` | `expect?` | `Init` / `Shutdown` (core parts) |
+| `ordinance_message` | `type` (`SimNewMonth`, `SimBegin` or an ID), `expect?` | `DoMessage` |
+| `ordinance_call` | `method`, `args?`, `expect?` | a simulator method: `add_ordinance` / `remove_ordinance` (`args: [label]`), `is_ordinance_available`, `is_ordinance_on`, `is_ordinance_available_but_off`, `set_ordinance_available`, `set_ordinance_on`, `available_count`, `available_array`, `on_count`, `on_array`, `id_array` (`args: [capacity]`, result `{ids, total}`), `is_ordinance_enabled`, `set_ordinance_enabled`, `ordinance_id_by_name`, `ordinance_by_id` / `ordinance_by_name` (result: the ID or `null`), `monthly_expense`, `monthly_income`, `cumulative_factor`, `cumulative_offset` (`args: [prop, index]`), `do_monthly_simulation`, `simulation_begin` |
+| `ordinance_new` | `ordinance` (label), `class`, `instance?`, `group?` | a free-standing standard ordinance (class factory), optionally `SetKey` |
+| `ordinance_foreign` | `ordinance` (label), `id`, `name?`, `enact?`, `repeal?`, `monthly?`, `conditions?`, `available?`, `on?`, `props?` | a scripted plugin `cISC4Ordinance` |
+| `ordinance_object` | `ordinance` (label) or `id`, `method`, `args?`, `expect?` | an ordinance method by snake-case name (`init`, `current_monthly_income`, `check_conditions`, `simulate`, `set_on`, `force_available`, `has_misc_property`, …; `set_key` / `from_data` take `[instance]` and `group?`) |
+| `ordinance_expect_object` | `ordinance` or `id`, `state` (partial: `class`, `plain`, `initialized`, `key` (`[type, group, instance]` or `null`), `id`, `name`, `description`, `year_first_available`, `chance_availability`, `enactment_income`, `retracment_income`, `monthly_constant_income`, `monthly_income_factor`, `advisor_id`, `is_income_ordinance`, `available`, `on` (the raw flag), `enabled`, `adjusted`, `misc_parent` (the parent exemplar's instance or `null`)) | a standard ordinance's state |
+| `ordinance_expect` | `state` (partial: `initialized`, `loaded_from_save`, `keys`, `monthly_expense`, `monthly_income`, `pending`) | the simulator state |
+| `ordinance_expect_refs` | `refs` (`{"label" or "0xID": count}`) | host reference counts |
+| `ordinance_save` / `ordinance_load` / `ordinance_expect_save` | `slot`; load: `expect?` (clean store load) | the class-object store; a load makes the loaded simulator current |
+| `ordinance_patch` / `ordinance_expect_payload` | see the shared conventions; `class` is `simulator` or a class ID | |
+| `ordinance_record` | `ordinance`/`id`, `hex`, `read?`, `expect?` | with `read`, reads the bytes into the ordinance (`expect` = the result); otherwise its record must equal `hex` |
+
+Ordinance events: `post` (`type`: `OrdinanceUpdated`, `AvailabilityChanged`, `MonthlyDone`; `id` = data2, `value` =
+data3), `demolish` (`lots`), `hide` (`building_type`), `remove_control` (`id`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
-   §7) or `b15_…` (budget §15), `d16_…` (demand §16).
+   §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -372,7 +406,7 @@ Demand events: `post` (`key`, `data2`: ActiveDemandChanged), `history` (`series`
 | §14 18–19 property holders | `f14_18_19_property_holders` |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
 | §14 23 `rand()` | `f14_23_crt_rand` (the prime-step iterator is defined in the weather spec: not yet) |
-| §14 24 month order | `s4_month_registration_order` (registration order within a level; the ordinance-lag scenario needs the ordinance simulator) |
+| §14 24 month order | `s4_month_registration_order` (registration order within a level), `o13_10_month_order` (the ordinance-lag scenario with the real ordinance simulator and a stub budget, in both orders) |
 
 ## Coverage (budget §15)
 
@@ -412,3 +446,18 @@ Demand events: `post` (`key`, `data2`: ActiveDemandChanged), `history` (`series`
 | 10 region | `d16_10_region` |
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
+
+## Coverage (ordinance §13)
+
+| §13 item | Vector |
+|---|---|
+| 1 loading | `o13_01_loading` |
+| 2 monthly amount | `o13_02_monthly_amount` |
+| 3 availability | `o13_03_availability` |
+| 4 enact/repeal accounting | `o13_04_accounting` |
+| 5 messages | `o13_05_messages` |
+| 6 quirks | `o13_06_quirks` |
+| 7 cumulative queries | `o13_07_cumulative` |
+| 8 array queries | `o13_08_arrays` |
+| 9 save | `o13_09_save` |
+| foundations §14 item 24 | `o13_10_month_order` |

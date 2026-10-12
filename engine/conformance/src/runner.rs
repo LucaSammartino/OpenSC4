@@ -1168,6 +1168,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
         other => crate::foundations::exec(other, op)
             .or_else(|| crate::budget::exec(sim, host, other, op))
             .or_else(|| crate::demand::exec(host, other, op))
+            .or_else(|| crate::ordinance::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }

@@ -27,6 +27,7 @@ pub mod demand;
 pub mod host;
 pub mod ids;
 pub mod julian;
+pub mod ordinance;
 pub mod property;
 pub mod props;
 pub mod rng;
