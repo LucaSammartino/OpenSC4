@@ -628,12 +628,56 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 `remove_agent`, `registry_add`, `registry_remove`, and `rng` (`kind` double with `value`, or int with `n` and
 `value`).
 
+## Protection ops
+
+The protection vectors (`pr18_…`) drive the fire and police simulators (`fc4_core::protection`) with a scripted
+city implementing `ProtectionHost`: occupants (type, position, prop flag, lot road access, station effect
+properties, a property map, budget items), lots, zoned cells, dispatches, departments and their funding, the
+police coverage percentage, sea level and altitude, the disaster flag and the date. Every op name starts with
+`protection_`. The default city is 64 × 64 cells of 16 m (32 × 32 tracts at S = 2). Grid cells are
+`[[x, z, v], …]`; IDs may be written as `"0x…"` strings.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `protection_env` | any of `cells` (`[x, z]`), `day` (default 1000), `police_pct` (the police simulator's percent coverage, or null), `sea_level` (250), `altitude` (300), `disaster`, `departments_fail`, `dept_funding` (`{"0xID": f}`, default 1.0), `tuning` (`"shipped"` (default), `"empty"`, or null = no exemplar), `tuning_props` (a property map merged into the tuning), `zones` (`[{x, z, w?, d?, v?}]` cells), `lots` (`{"id": [x, z] or null}`, the lot's cell), `dispatches` (`[{id, station, call, active, automaton, pos: [x, z]}]`) | the scripted city |
+| `protection_occupants` | `{"id": {type?, pos?: [x, y, z], prop?, road? (true/false = a lot with/without road access, null = no lot), station?: [kind, centre, outer, radius, units] (writes the kind's effect, unit count and dispatch properties), props?: {"0xID": {"u32" / "i32" / "f32": value or array} or null}, items?: {"0xPURPOSE": {local, funded? (true), cost?, dept? (true)} or null}} or null}` (merged into existing occupants) | occupants |
+| `protection_create` | `kind` (`fire` or `police`), `rng?`: `{stub: {uniform: [u…], range: [u…]}}` (a range draw returns `a + u (b − a)`; the last value repeats) or `{seed}` | a new simulator; the shipped tuning when none is set |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `protection_init` / `protection_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `protection_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `OccupantChanged`, `FundingChanged`, `ReloadTuning`, `DispatchBegin`, `DispatchActive`, `DispatchInactive`, `DispatchEnd`, `Crime` or an ID), `data1?`, `data2?`, `occupant?`, `unknown?` (the IGZUnknown: an occupant or lot ID), `count?` (repeat), `expect?` | `DoMessage` |
+| `protection_call` | `method`, `args?`, `expect?` | a simulator method by its snake-case name (for example `station_efficiency [occ]`, `dispatch_from_station [occ, id]`, `occupant_coverage [occ, p, cover_before?, station_before?]`, `striking_stations [list_len]`, `jailbreak_buildings [list_len]`, `dispatches_at_station [occ, flags?, base?]`), plus `add_ref`, `release`, `slot [n]` (name, pops, return convention), `slot_count`, `query_interface [iid]`, `class_id`, `curve [funding/strike/jail/jailbreak, x]`, `tuning` and `read_tuning` |
+| `protection_eval` | `fn`, `args`, `expect` | the pure helpers: `adjusted_value`, `scale_effect`, `occupant_coverage`, `combine_strike_chance`, `unit_mask`, `dispatch_mask`, `revoke_mask`, `base_call_number`, `rehabilitation`, `reset_unjailed`, `jailed_percentage` (NaN is `"nan"`), `ratio_share`, `escapees`, `jail_capacity` |
+| `protection_set` | `state`: any of `tracts_per_day`, `factor`, `counters` (`[zoned, sum, nonZero]`), `avg`, `pct`, `strike_flag`, `strike_date`, `next_call`, `capacity`, `population`, `jailed`, `arrests_last`, `arrests_this`, `unarrested_this`, `crimes_last`, `crimes_this` | pokes state (test setup) |
+| `protection_expect` | `state`: the `protection_set` fields plus `initialized`, `ref_count`, `destroyed`, `loaded`, `department`, `jail_department`, `purpose`, `stations`, `air_source`, `jails`, `funded_jails`, `jailbreaks`, `crt` (the rand() state) and `iterator` (partial `{state, mode, rect, count, index, current, step}`) | the simulator state |
+| `protection_expect_occupant` | `id`, `props` (`{"0xID": value or array}`) | occupant properties |
+| `protection_expect_refs` | `all_zero?`, `refs?` (`{"id": count}`) | outstanding host references |
+| `protection_grid_set` / `protection_expect_grid` | `grid` (`adjusted` or `unadjusted`); set: `cells`; expect: any of `exists`, `size`, `counts`, `instance`, `cells`, `others` | the coverage grids |
+| `protection_expect_events` / `protection_expect_event_count` / `protection_clear_events` | see the shared conventions | host calls |
+| `protection_save` / `protection_load` / `protection_expect_save` | `slot` | the class-object store (load recreates the simulator, its grids and the host objects) |
+| `protection_read` | `slot` or `hex`, `expect`, `position?` | `Read` on the live simulator; `position` is the bytes consumed |
+| `protection_patch` / `protection_expect_payload` | see the shared conventions (the simulator's record) | |
+
+Protection events: `acquire_services` / `release_services` (`kind`), `create_grid` (`type` u8/i16, `instance`,
+`size`), `set_instance`, `shutdown_grid`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` /
+`unsubscribe` (`types`), `register_dispatch` / `unregister_dispatch`, `department` (`id`, `group`, `name`, `max`),
+`add_funded` / `remove_funded` (`dept`, `occupant`, `purpose`), `set_funding` (also `p`), `add_controllers` /
+`remove_controllers` (`group`: `striking_fire`, `striking_police`, `jailbreak`; `occupant`), `history`
+(`series`, `value`), `post` (`type`, `subject?`), `air_create`, `air_init` / `air_shutdown` (`source`), and `rng`
+(`kind` uniform or range with `lo`, `hi`, `value`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
-   `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17).
+   `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
+   `pr18_…` (protection §18).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -892,3 +936,31 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 | 16 persistence | `a17_16_persistence` |
 | 17 BustStrike | `a17_17_bust_strike` |
 | 18 registry | `a17_18_registry` |
+
+## Coverage (protection §18)
+
+| §18 item | Vector |
+|---|---|
+| Init, Shutdown, Release, tuning (code defaults, shipped exemplar, "default" curve pattern, reload filter) | `pr18_00_lifecycle` |
+| 1 fire efficiency curve | `pr18_01_fire_efficiency_curve` |
+| 2 road and strike modifiers, fundingOf | `pr18_02_efficiency_modifiers` |
+| 3 jail efficiency | `pr18_03_jail_efficiency_curve` |
+| 4 strike curve and the single draw | `pr18_04_strike_curve` |
+| 5 chance of strike | `pr18_05_chance_of_strike` |
+| 6 strike end (duration, funding, unsigned days) | `pr18_06_strike_end` |
+| 7 monthly strike pass (posts, unadjusted rebuild only) | `pr18_07_monthly_strike_pass` |
+| 8 jailbreak curve | `pr18_08_jailbreak_curve` |
+| 9 rehabilitation | `pr18_09_rehabilitation` |
+| 10 ResetUnjailedCriminals | `pr18_10_reset_unjailed` |
+| 11 Recalculate and the jail lists | `pr18_11_recalculate` |
+| 12 escapees, jailbreak begin and end | `pr18_12_escapees` |
+| 13 crime events and ProcessMonthlyCrimeStats | `pr18_13_crime_event` |
+| 14 occupant coverage | `pr18_14_occupant_coverage` |
+| 15 effect scaling | `pr18_15_effect_scaling` |
+| 16 dispatch masks, nearest station, dispatch cones | `pr18_16_dispatch` |
+| 17 call numbers | `pr18_17_call_numbers` |
+| 18 cadence | `pr18_18_cadence` |
+| 19 cycle averages and the daily step | `pr18_19_cycle_averages` |
+| 20 adjusted copy and funding change | `pr18_20_adjusted_copy` |
+| 21 persistence (layout, versions, store round trip) | `pr18_21_persistence` |
+| 22 slot ABI, QueryInterface, crime-compatible slots | `pr18_22_slot_abi` |

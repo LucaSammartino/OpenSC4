@@ -36,6 +36,7 @@ pub mod pollution;
 pub mod landvalue;
 pub mod property;
 pub mod props;
+pub mod protection;
 pub mod rng;
 pub mod save;
 pub mod simgrid;
