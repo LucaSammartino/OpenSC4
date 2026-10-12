@@ -240,7 +240,8 @@ Calibration (`calib`, a float):
 `CyclesToMillisecs` is the 32-bit float at virtual address `0x00B0A840`, and `MillisecsToCycles` is the float at
 `0x00B0A83C` (image base `0x00400000`). An implementation **must** confirm it is running inside exactly that
 executable before writing (for example, check the module's PE timestamp/size or a byte signature at those
-addresses, both holding `1.0f` before first use). Otherwise it must not write, and must log a warning. Keep such
+addresses, both holding `1.0f` before first use).
+Identification values for the 1.1.641 GOG executable: PE `TimeDateStamp` = `0x4C12BFB7`, `SizeOfImage` = `0x007C8000`. Otherwise it must not write, and must log a warning. Keep such
 version-specific addresses in a single compatibility table (`engine/plugin/compat/`).
 
 ## 6. Speed and pause
