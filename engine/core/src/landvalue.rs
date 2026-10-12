@@ -22,10 +22,16 @@
 //! only [choice] (it is neither saved nor handed out, §2).
 //!
 //! The working grids are core [`SimGrid`]s and the map utilities are the
-//! shared ones of [`crate::grid`] (simgrid.md §7). With that module's
-//! bounds rules a desirability map smaller than the land value grid reads 0
-//! outside itself, so those tracts still get the §7.4 term with `d = 0`
-//! [choice] (the original requires both grids to cover the city).
+//! shared ones of [`crate::grid`] (simgrid.md §7).
+//!
+//! Desirability coverage (§7.4, L6): scratch tracts that a smaller
+//! desirability map does not cover are **skipped** (their value is neither
+//! changed nor clamped to 1) *[compat]* in the "scratch finer" case, where
+//! the original loops over the map's tracts. In the equal-size and "scratch
+//! coarser" cases the original reads the map out of range; FreeCity4 skips
+//! every scratch tract whose source tracts are not all inside the map, and
+//! ignores covered tracts outside the scratch grid when the map is larger
+//! [choice].
 //!
 //! Precision: f32 throughout, in the spec's operation order; see `[precision]`
 //! tags.
@@ -873,8 +879,21 @@ impl LandValueSim {
         self.host.grid_read_i16(grid, &mut flat);
         let b = SimGrid::from_values(bg, &flat);
         let curve = self.tuning.desirability_curve.as_ref();
-        process_two_grids(&*self.scratch, &*b, |_, _, v, d| {
-            *v = desirability_term(*v, d, weight, curve);
+        // §7.4 coverage: with the scratch grid finer, process_two_grids
+        // already visits only covered tracts; otherwise a scratch tract is
+        // processed only when all its source tracts lie inside the map.
+        let (sa, sb) = (self.scratch.geometry().shift.clamp(0, 31), bg.shift.clamp(0, 31));
+        let covered = |x: i32, z: i32| -> bool {
+            if sa < sb {
+                return true;
+            }
+            let d = (sa - sb) as u32;
+            ((i64::from(x) + 1) << d) <= i64::from(bg.count_x) && ((i64::from(z) + 1) << d) <= i64::from(bg.count_z)
+        };
+        process_two_grids(&*self.scratch, &*b, |x, z, v, d| {
+            if covered(x, z) {
+                *v = desirability_term(*v, d, weight, curve);
+            }
         });
     }
 

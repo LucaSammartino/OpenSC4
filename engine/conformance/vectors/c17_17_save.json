@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_save",
   "spec": ["crime 3", "crime 4.1", "crime 12", "crime 17.17", "foundations 2.7", "foundations 3.5", "weather 10"],
-  "description": "Test 17. Record v6: u16 6; ref crimeGrid; ref crimeEffectGrid; iterator (s8 state, s8 mode, u8 dirty, s32 x0 z0 x1 z1, s32 count, u32 n, n x u16, s32 index, current, step); u32 0; u32 0; f32 average; f32 ordinanceFactor; u32 monthly; s32 hotspot x, z, value; s32 n; n x {ref lot, u32 type, GZStr name (u32 length + bytes), ResKey (type, group, instance)}. Object IDs: the root record registers the simulator (1), its write registers the two grids (2, 3, class 0x49B9E602) and then the lots (host objects; the fake lot class is 0x12345678; a lot met twice keeps its ID). A new 64 x 64-cell city has 32 x 32 tracts: the iterator is the constructed one (state 1, mode 1, dirty 1, step 1) with the rect (0, 0, 31, 31) set by Init. Payload offsets by hand: 0 version, 2 and 10 the grid refs, 18 the 39-byte iterator, 57 and 61 the unused words, 65 average, 69 factor, 73 monthly, 77 hotspot, 89 count, 93 the first incident (36 bytes with a lot and an 8-byte name; 32 with a null lot and an 8-byte name; 28 with a lot and no name): 1 incident -> 129 bytes, the 3 below -> 189. Write -> read -> write is byte-identical with 0, 1 and 3 incidents (one with a null lot, written as object ID 0). Read clears the visuals flags and sets loadedFromSave. The following Init does not create grids or call AddPropRequester, resets the hotspot to (0, 0, 0) and the factor to 1.0; the state is 6 (not saved). Version 5 or 7: Read returns false after the version (2 bytes consumed) and leaves loadedFromSave false; Read is called directly (crime_read) because the store ignores its result (foundations 3.5). [choice] A truncated record fails, keeps nothing and releases the lots already read; a hostile incident count fails at the end of the data.",
+  "description": "Test 17. Record v6: u16 6; ref crimeGrid; ref crimeEffectGrid; iterator (s8 state, s8 mode, u8 dirty, s32 x0 z0 x1 z1, s32 count, u32 n, n x u16, s32 index, current, step); u32 0; u32 0; f32 average; f32 ordinanceFactor; u32 monthly; s32 hotspot x, z, value; s32 n; n x {ref lot, u32 type, GZStr name (u32 length + bytes), ResKey (type, group, instance)}. Object IDs: the root record registers the simulator (1), its write registers the two grids (2, 3, class 0x49B9E602) and then the lots (host objects; the fake lot class is 0x12345678; a lot met twice keeps its ID). A new 64 x 64-cell city has 32 x 32 tracts: the iterator is the constructed one (state 1, mode 1, dirty 1, step 1) with the rect (0, 0, 31, 31) set by Init. Payload offsets by hand: 0 version, 2 and 10 the grid refs, 18 the 39-byte iterator, 57 and 61 the unused words, 65 average, 69 factor, 73 monthly, 77 hotspot, 89 count, 93 the first incident (36 bytes with a lot and an 8-byte name; 32 with a null lot and an 8-byte name; 28 with a lot and no name): 1 incident -> 129 bytes, the 3 below -> 189. Write -> read -> write is byte-identical with 0, 1 and 3 incidents (one with a null lot, written as object ID 0). Read appends the loaded incidents to the current list (it does not clear it; 12), clears every incident's visuals flag (the old ones too) and sets loadedFromSave. The following Init does not create grids or call AddPropRequester, resets the hotspot to (0, 0, 0) and the factor to 1.0; the state is 6 (not saved). Version 5 or 7: Read returns false after the version (2 bytes consumed) and leaves loadedFromSave false; Read is called directly (crime_read) because the store ignores its result (foundations 3.5). Test 20, FreeCity4 [choice] of 12 (spec answer C6): a record truncated inside the incident list makes Read return false, leaves loadedFromSave clear, replaces no grid, incident or field of the reading simulator (an initialized one keeps its marked grid, hotspot and incident) and releases the two lots already read (lot 7 twice); a fresh simulator that failed to read is set up as a new city by the next Init (both grids created, iterator rect set, AddPropRequester). A hostile incident count fails at the end of the data.",
   "steps": [
     {"op": "crime_create"},
     {"op": "crime_init"},
@@ -57,10 +57,34 @@
     {"op": "crime_read", "slot": "s0", "expect": false},
     {"op": "crime_expect", "state": {"incidents": [], "has_crime_grid": false}},
 
+    {"op": "crime_read", "slot": "s1", "expect": true},
+    {"op": "crime_set", "state": {"incidents": [{"lot": 5, "type": 4, "visuals": true}]}},
+    {"op": "crime_read", "slot": "s3", "into": "current", "expect": true, "position": 189},
+    {"op": "crime_expect", "state": {"loaded_from_save": true, "incidents": [
+      {"lot": 5, "type": 4, "visuals": false}, {"lot": 7, "type": 3, "visuals": false},
+      {"lot": null, "type": 17, "visuals": false}, {"lot": 7, "type": 16, "visuals": false}]}},
+
     {"op": "crime_patch", "slot": "s3", "offset": 185, "delete": 4},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_grid_set", "grid": "crime", "cells": [[1, 1, 77]]},
+    {"op": "crime_set", "state": {"incidents": [{"lot": 5, "type": 4}], "hotspot": [1, 1, 77]}},
+    {"op": "crime_clear_events"},
+    {"op": "crime_read", "slot": "s3", "into": "current", "expect": false},
+    {"op": "crime_expect", "state": {"loaded_from_save": false, "has_crime_grid": true, "hotspot": [1, 1, 77],
+      "incidents": [{"lot": 5, "type": 4}]}},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[1, 1, 77]], "others": 0},
+    {"op": "crime_expect_events", "filter": {"event": "release"}, "events": [{"lot": 7}, {"lot": 7}]},
+
     {"op": "crime_clear_events"},
     {"op": "crime_read", "slot": "s3", "expect": false},
-    {"op": "crime_expect", "state": {"incidents": [], "has_crime_grid": false, "loaded_from_save": true}},
-    {"op": "crime_expect_events", "filter": {"event": "release"}, "events": [{"lot": 7}, {"lot": 7}]}
+    {"op": "crime_expect", "state": {"incidents": [], "has_crime_grid": false, "loaded_from_save": false}},
+    {"op": "crime_expect_events", "filter": {"event": "release"}, "events": [{"lot": 7}, {"lot": 7}]},
+    {"op": "crime_clear_events"},
+    {"op": "crime_init"},
+    {"op": "crime_expect_events", "events": [{"event": "agent"}, {"event": "subscribe"}, {"event": "acquire_services"},
+      {"event": "create", "instance": "0x89D5B895", "size": 2}, {"event": "create", "instance": "0x2A5BA1B3", "size": 2},
+      {"event": "add_prop_requester"}]},
+    {"op": "crime_expect", "state": {"has_crime_grid": true, "has_effect_grid": true, "iterator": {"rect": [0, 0, 31, 31]}}}
   ]
 }

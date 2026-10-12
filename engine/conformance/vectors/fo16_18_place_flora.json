@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "flora_place_flora_command",
+  "spec": ["flora 5", "flora 6.5", "flora 14"],
+  "description": "Derived by hand from flora 5 (PlaceFlora) and 6.5 (test 18 of 16). The command's parameters are (type, 500, 600): the handler builds {p1, p2, -1} = {500, 600, -1}, so z = -1 (quirk). The merge pass leaves pos = (500, -1, -1) and the location test fails (clearance box min z = -4 < 0): AddNewFloraOccupant returns null, nothing is created, no generator draw. DoMessage returns true. [choice] Fewer than three parameters are ignored. The same type planted with the intended coordinates (500, 0, 600) succeeds, showing the type and place are valid.",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "table": 0.6}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_clear_events"},
+    {"op": "flora_message", "type": "PlaceFlora", "params": [["0x1000", 0], [500, 500], [600, 600]], "expect": true},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_message", "type": "PlaceFlora", "params": [["0x1000", 0], [500, 500]], "expect": true},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_call", "method": "add_new", "args": ["0x1000", [500, 0, 600], false], "expect": {"occupant": 1000, "pos": [500, 260, 600]}}
+  ]
+}

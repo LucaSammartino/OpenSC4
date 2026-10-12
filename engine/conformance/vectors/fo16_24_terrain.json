@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "flora_terrain_change",
+  "spec": ["flora 5", "flora 6.10.2"],
+  "description": "Derived by hand from the TerrainHeightsChanged row of 5 and 6.10.2 (test 24 of 16). data1 = (10 << 16) | 20, data2 = (0 << 16) | 70 -> cells x 9..20 (max(0, 10 - 1), min(20, 63)), z 0..63 (max(0, -1), min(70, 63)); cells are floor(position / 16) in this host. Flora at x 152 (cell 9) on unchanged ground 260 -> kept, the re-seat finds |260 - 260| < 0.001 and does nothing; at x 200 (cell 12) and at (330, 1000) (cell 20, 62) whose ground moved by 2 m (y 258, ground 260) -> RemoveOccupant; at x 136 (cell 8) and x 344 (cell 21) -> untouched; y = 260.0005 (|d| = 0.000488 < 0.001) -> kept without a move. data1 = 100, data2 = (63 << 16) | 63 -> x 0..63, z 62..63: the tree at cell (63, 63) is removed. With preserve: a tree at y 258 on ground 260 -> SetPosition(y 260) and MoveOccupant; a land tree at y 250 on ground 240 -> the new height is raised to the sea level 250, equal, no move; a water tree at y 250 on ground 240 -> moved to 240. Terrain not initialized -> nothing.",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "table": 0.6}, {"type": "0x2000", "table": 0.6, "water": true}]},
+    {"op": "flora_env", "occupants": [
+      {"id": 1, "type": "flora", "flora_type": "0x1000", "pos": [152, 260, 100]},
+      {"id": 2, "type": "flora", "flora_type": "0x1000", "pos": [200, 258, 100]},
+      {"id": 3, "type": "flora", "flora_type": "0x1000", "pos": [136, 258, 100]},
+      {"id": 4, "type": "flora", "flora_type": "0x1000", "pos": [344, 258, 100]},
+      {"id": 5, "type": "flora", "flora_type": "0x1000", "pos": [330, 258, 1000]},
+      {"id": 6, "type": "flora", "flora_type": "0x1000", "pos": [250, 260.0005, 100]},
+      {"id": 10, "type": "flora", "flora_type": "0x1000", "pos": [1016, 258, 1016]}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_clear_events"},
+    {"op": "flora_message", "type": "TerrainHeightsChanged", "data1": 655380, "data2": 70, "expect": true},
+    {"op": "flora_expect_events", "events": [{"event": "remove", "occupant": 2}, {"event": "remove", "occupant": 5}]},
+    {"op": "flora_expect_occupant", "occupant": 1, "in_manager": true, "pos": [152, 260, 100]},
+    {"op": "flora_expect_occupant", "occupant": 3, "in_manager": true},
+    {"op": "flora_expect_occupant", "occupant": 4, "in_manager": true},
+    {"op": "flora_expect_occupant", "occupant": 6, "in_manager": true},
+    {"op": "flora_message", "type": "TerrainHeightsChanged", "data1": 100, "data2": 4128831, "expect": true},
+    {"op": "flora_expect_events", "events": [{"event": "remove", "occupant": 10}]},
+
+    {"op": "flora_env", "grounds": [[210, 0, 240, 1024, 240]], "occupants": [
+      {"id": 7, "type": "flora", "flora_type": "0x1000", "pos": [200, 258, 200]},
+      {"id": 8, "type": "flora", "flora_type": "0x1000", "pos": [216, 250, 200]},
+      {"id": 9, "type": "flora", "flora_type": "0x2000", "pos": [232, 250, 200]}]},
+    {"op": "flora_message", "type": "Cheat", "data1": "0x095BDC9C", "text": "Flora preserve", "expect": true},
+    {"op": "flora_expect", "state": {"preserve": true}},
+    {"op": "flora_clear_events"},
+    {"op": "flora_env", "terrain_initialized": false},
+    {"op": "flora_message", "type": "TerrainHeightsChanged", "data1": 655380, "data2": 70, "expect": true},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_env", "terrain_initialized": true},
+    {"op": "flora_message", "type": "TerrainHeightsChanged", "data1": 655380, "data2": 70, "expect": true},
+    {"op": "flora_expect_events", "events": [
+      {"event": "set_position", "occupant": 7, "pos": [200, 260, 200]}, {"event": "move", "occupant": 7},
+      {"event": "set_position", "occupant": 9, "pos": [232, 240, 200]}, {"event": "move", "occupant": 9}]},
+    {"op": "flora_expect_occupant", "occupant": 7, "in_manager": true, "pos": [200, 260, 200]},
+    {"op": "flora_expect_occupant", "occupant": 8, "in_manager": true, "pos": [216, 250, 200]},
+    {"op": "flora_call", "method": "terrain_change", "args": [[0, 0, 63, 63]], "note": "the whole city: only the two trees outside the first rectangle still sit 2 m low"},
+    {"op": "flora_expect_events", "events": [
+      {"event": "set_position", "occupant": 3, "pos": [136, 260, 100]}, {"event": "move", "occupant": 3},
+      {"event": "set_position", "occupant": 4, "pos": [344, 260, 100]}, {"event": "move", "occupant": 4}]}
+  ]
+}

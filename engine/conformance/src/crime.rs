@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::crime::{
-    census_bucket, choose_candidate, decay_value, jobless_factor, msg, parse_mask, shipped_tuning,
+    census_bucket, choose_candidate, decay_value, jobless_factor, msg, parse_mask, rhe, shipped_tuning,
     shipped_type_exemplars, BuildingInfo, CrimeEvent, CrimeHost, CrimeMessage, CrimeRandom, CrimeShared, CrimeSim,
     DemandValues, GridProvider, Incident, LotBits, LotRef, NearbyOccupant, NearestKind, RzRandomSuper, TractGrid,
     CLSID_CRIME_SIMULATOR,
@@ -1044,6 +1044,15 @@ fn eval(op: &Json) -> R<()> {
                 None => Json::Null,
             }
         }
+        "rhe" => {
+            // args: [x] with x a number (taken as float32) or a hex string of
+            // float32 bits (for infinities and NaN).
+            let x = match arg(op, 0)? {
+                v @ Json::Str(_) => f32::from_bits(u32_of(v, "bits")?),
+                v => f32_of(v, "x")?,
+            };
+            ji(rhe(x))
+        }
         other => return Err(format!("unknown crime function '{other}'")),
     };
     check_expect(op, got)
@@ -1162,6 +1171,7 @@ fn expect(w: &World, op: &Json) -> R<()> {
             Json::Array(d.jobless.iter().map(|&v| jf(v)).collect()),
         ),
         f("average_crime", d.average_crime),
+        i("average_crime_bits", d.average_crime.to_bits().into()),
         f("ordinance_factor", d.ordinance_factor),
         i("monthly_crime_count", d.monthly_crime_count.into()),
         (
@@ -1417,15 +1427,19 @@ impl RefResolver for PayloadResolver {
     }
 }
 
-/// `crime_read`: `Read` of the simulator's payload in `slot` by a new
-/// simulator (sharing the process state), outside the store; checks the
-/// result (`expect`) and the bytes consumed (`position`), then makes the
-/// new simulator current.
+/// `crime_read`: `Read` of the simulator's payload in `slot`, outside the
+/// store, by a new simulator (sharing the process state) or, with `into:
+/// "current"`, by the current one; checks the result (`expect`) and the
+/// bytes consumed (`position`), then makes the reading simulator current.
 fn read(w: &World, op: &Json) -> R<()> {
     let saved = w.saves.borrow().get(&slot(op)?).cloned().ok_or("no such slot")?;
     let payload = scalar::entry_payload(&saved.saved, CLSID_CRIME_SIMULATOR, 0)?;
     let shared = w.shared.borrow().clone().ok_or("no process state (crime_create)")?;
-    let sim = CrimeSim::new(w.rc() as Rc<dyn CrimeHost>, w.token(), shared);
+    let sim = match opt(op, "into").map(|v| str_of(v, "into")).transpose()? {
+        None | Some("new") => CrimeSim::new(w.rc() as Rc<dyn CrimeHost>, w.token(), shared),
+        Some("current") => w.sim()?,
+        Some(other) => return Err(format!("into: '{other}' (new, current)")),
+    };
     let mut res = PayloadResolver(saved.hosts.clone(), BTreeMap::new());
     let mut r = ByteReader::with_resolver(&payload, &mut res);
     let ok = sim.read(&mut r);

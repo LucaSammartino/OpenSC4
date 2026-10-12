@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_attenuation",
   "spec": ["crime 6.6", "crime 8", "crime 9", "crime 17.7"],
-  "description": "Test 7. For each attempt with a lot: pol and eff are the police / crime-effect grid averages over the lot's cell rect (x1, z1, x2-x1+1, z2-z1+1); p = attenuationCurve(float(pol - eff)); u = RandomDoubleUniform; p > u stops the attempt (no type draw), otherwise the crime happens. Lot 1 covers cells (10,10)-(11,11) = tract (5,5) with S = 2; it is residential (zone 1), wealth 1, purpose 1, condition 1, so it has candidates (total weight 20). Shipped curve (0,0)(100,0.05)(200,0.2)(255,0.5): pol 150, eff 0 -> 0.05 + 50 x 0.0015 = 0.125 (exact in float32), so u = 0.12 stops, u = 0.13 commits and u = 0.125 (equality) commits. pol 255 -> 0.5: u = 0.49 stops, u = 0.5 commits. pol 0, eff 50 -> input -50 -> clamped to 0 -> u = 0 commits. Code-default curve (no exemplar) (0,0)(255,1): p = (pol - eff)/255; pol 51 -> 0.2: u = 0.19 stops, u = 0.21 commits; pol 255 -> 1: u = 0.99 stops. Hand-derived; cross-checked with an independent Python model.",
+  "description": "Test 7. For each attempt with a lot: pol and eff are the police / crime-effect grid averages over the lot's cell rect (x1, z1, x2-x1+1, z2-z1+1); p = attenuationCurve(float(pol - eff)); u = RandomDoubleUniform; p > u stops the attempt (no type draw), otherwise the crime happens. Lot 1 covers cells (10,10)-(11,11) = tract (5,5) with S = 2; it is residential (zone 1), wealth 1, purpose 1, condition 1, so it has candidates (total weight 20). Shipped curve (0,0)(100,0.05)(200,0.2)(255,0.5): pol 150, eff 0 -> 0.05 + 50 x 0.0015 = 0.125 (exact in float32), so u = 0.12 stops, u = 0.13 commits and u = 0.125 (equality) commits. pol 255 -> 0.5: u = 0.49 stops, u = 1.0 commits (the 24-bit uniform can return exactly 1.0, foundations 6.1; p > u is false), u = 0.5 commits. pol 0, eff 50 -> input -50 -> clamped to 0 -> u = 0 commits. Code-default curve (no exemplar) (0,0)(255,1): p = (pol - eff)/255; pol 51 -> 0.2: u = 0.19 stops, u = 0.21 commits; pol 255 -> 1: u = 0.99 stops, u = 1.0 commits (p > u is false at equality). Hand-derived; cross-checked with an independent Python model.",
   "steps": [
     {"op": "crime_lots", "lots": [{"id": 1, "rect": [10, 10, 11, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}}]},
     {"op": "crime_env", "zones": [{"x": 10, "z": 10, "v": 1}], "police": {"cells": [[5, 5, 150]]}},
@@ -26,6 +26,9 @@
     {"op": "crime_rng", "stub": {"uniform": [0.49]}},
     {"op": "crime_lots", "random": [1]},
     {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 0},
+    {"op": "crime_rng", "stub": {"uniform": [1.0]}},
+    {"op": "crime_lots", "random": [1]},
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1},
     {"op": "crime_rng", "stub": {"uniform": [0.5]}},
     {"op": "crime_lots", "random": [1]},
     {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1},
@@ -50,6 +53,9 @@
     {"op": "crime_env", "police": {"cells": [[5, 5, 255]]}},
     {"op": "crime_rng", "stub": {"uniform": [0.99]}},
     {"op": "crime_lots", "random": [1]},
-    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 0}
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 0},
+    {"op": "crime_rng", "stub": {"uniform": [1.0]}},
+    {"op": "crime_lots", "random": [1]},
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1}
   ]
 }

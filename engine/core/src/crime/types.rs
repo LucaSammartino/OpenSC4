@@ -184,42 +184,179 @@ pub fn choose_candidate(weights: &[f32], r: f64) -> Option<usize> {
     Some(last)
 }
 
+/// The type and group of the shipped crime icons (§7).
+pub const SHIPPED_ICON_TYPE: u32 = 0x7AB5_0E44;
+pub const SHIPPED_ICON_GROUP: u32 = 0x1ABE_787D;
+/// The type and group of the shipped crime name keys (LTEXT, §7).
+pub const SHIPPED_NAME_TYPE: u32 = 0x2026_960B;
+pub const SHIPPED_NAME_GROUP: u32 = 0x0A55_4AE0;
+/// The exemplar name property (`0x20`), which the simulator does not read.
+const EXEMPLAR_NAME: u32 = 0x20;
+
 /// The shipped crime type exemplars of §7 (`SimCity_1.dat`), in ascending
-/// instance order (§16 question 4), as property maps. The name is given as
-/// the fallback string `0xAA12FCB0`; the icon instance is not in the spec
-/// and is 0 here. Masks not listed are `[0]`.
+/// instance order (§16 question 4), as property maps: the name key
+/// `0x8A416B2E` and the icon key `0xAA12FCB1` of the spec's table, no
+/// inline name `0xAA12FCB0` (none is shipped), and the exemplar name as
+/// property `0x20`. Masks not listed are `[0]`. The names therefore load
+/// from the host's LTEXT strings (empty when it has none, as in the shipped
+/// game for every type but Generic).
 pub fn shipped_type_exemplars() -> Vec<(u32, PropertyHolder)> {
     const ALL_BUT_5: &[u8] = &[9, 1, 2, 3, 4, 6, 7, 8];
     #[allow(clippy::type_complexity)]
-    let rows: [(u32, &str, u8, f32, bool, &[u8], &[u8], &[u8], &[u8]); 14] = [
-        (0x01, "Generic", 40, 0.0, false, &[0], &[0], &[0], &[0]),
-        (0x03, "Fighting", 60, 3.0, false, &[0], &[0], &[0], &[0]),
-        (0x04, "Narcotic Deals", 80, 2.0, false, &[0], &[0], &[4, 2, 3], &[0]),
-        (0x05, "Arson", 100, 0.5, true, &[0], &[2, 1], ALL_BUT_5, &[3]),
-        (0x06, "Money Snatcher", 60, 3.0, false, &[0], &[0], &[4, 2], &[0]),
-        (0x07, "Stickup", 80, 2.0, false, &[0], &[0], &[3, 2], &[0]),
-        (0x08, "Car Theft", 60, 3.0, false, &[0], &[0], ALL_BUT_5, &[0]),
-        (0x09, "Solicitation", 60, 3.0, false, &[0], &[0], &[4, 2, 3], &[0]),
-        (0x0A, "Mugging", 80, 2.0, false, &[0], &[0], ALL_BUT_5, &[0]),
-        (0x0B, "Bank Robbery", 80, 2.0, false, &[0], &[0], &[3, 2], &[0]),
-        (0x10, "Flashing", 40, 4.0, false, &[0], &[0], ALL_BUT_5, &[0]),
-        (0x11, "Graffiti", 40, 4.0, false, &[0], &[0], ALL_BUT_5, &[0]),
-        (0x12, "Pie Throwing", 40, 4.0, false, &[0], &[0], ALL_BUT_5, &[0]),
-        (0x13, "TPing", 40, 4.0, false, &[1], &[3, 2], &[1], &[0]),
+    let rows: [(u32, &str, u8, f32, bool, [&[u8]; 4], u32, u32); 14] = [
+        (
+            0x01,
+            "Generic",
+            40,
+            0.0,
+            false,
+            [&[0], &[0], &[0], &[0]],
+            0x8A1D_C833,
+            0xEA5E_A698,
+        ),
+        (
+            0x03,
+            "Fighting",
+            60,
+            3.0,
+            false,
+            [&[0], &[0], &[0], &[0]],
+            0xCA63_A970,
+            0xDA5E_A698,
+        ),
+        (
+            0x04,
+            "Narcotic Deals",
+            80,
+            2.0,
+            false,
+            [&[0], &[0], &[4, 2, 3], &[0]],
+            0x0A63_9636,
+            0xEA5E_A697,
+        ),
+        (
+            0x05,
+            "Arson",
+            100,
+            0.5,
+            true,
+            [&[0], &[2, 1], ALL_BUT_5, &[3]],
+            0x2A63_95EF,
+            0xCA5E_A698,
+        ),
+        (
+            0x06,
+            "Money Snatcher",
+            60,
+            3.0,
+            false,
+            [&[0], &[0], &[4, 2], &[0]],
+            0x4A63_9681,
+            0xAA5E_A698,
+        ),
+        (
+            0x07,
+            "Stickup",
+            80,
+            2.0,
+            false,
+            [&[0], &[0], &[3, 2], &[0]],
+            0x2A63_9653,
+            0x2A5E_A698,
+        ),
+        (
+            0x08,
+            "Car Theft",
+            60,
+            3.0,
+            false,
+            [&[0], &[0], ALL_BUT_5, &[0]],
+            0xAA63_A98D,
+            0x3A5E_A698,
+        ),
+        (
+            0x09,
+            "Solicitation",
+            60,
+            3.0,
+            false,
+            [&[0], &[0], &[4, 2, 3], &[0]],
+            0x6A63_A9A4,
+            0x4A5E_A698,
+        ),
+        (
+            0x0A,
+            "Mugging",
+            80,
+            2.0,
+            false,
+            [&[0], &[0], ALL_BUT_5, &[0]],
+            0xAA63_966B,
+            0x0A5E_A698,
+        ),
+        (
+            0x0B,
+            "Bank Robbery",
+            80,
+            2.0,
+            false,
+            [&[0], &[0], &[3, 2], &[0]],
+            0xAA63_966B,
+            0x0A5E_A698,
+        ),
+        (
+            0x10,
+            "Flashing",
+            40,
+            4.0,
+            false,
+            [&[0], &[0], ALL_BUT_5, &[0]],
+            0x8A63_A9BA,
+            0x5A5E_A698,
+        ),
+        (
+            0x11,
+            "Graffiti",
+            40,
+            4.0,
+            false,
+            [&[0], &[0], ALL_BUT_5, &[0]],
+            0xCA63_A9D1,
+            0x6A5E_A698,
+        ),
+        (
+            0x12,
+            "Pie Throwing",
+            40,
+            4.0,
+            false,
+            [&[0], &[0], ALL_BUT_5, &[0]],
+            0x4A63_A9E4,
+            0x7A5E_A698,
+        ),
+        (
+            0x13,
+            "TPing",
+            40,
+            4.0,
+            false,
+            [&[1], &[3, 2], &[1], &[0]],
+            0x2A63_A9F9,
+            0x8A5E_A698,
+        ),
     ];
     let bytes = |b: &[u8]| Variant::array(mem::UINT8, b.iter().map(|&x| Elem::U8(x)).collect());
+    let key = |t: u32, g: u32, i: u32| Variant::array(mem::UINT32, vec![Elem::U32(t), Elem::U32(g), Elem::U32(i)]);
     rows.iter()
         .map(
-            |&(id, name, severity, weight, arson, zone, wealth, purpose, condition)| {
+            |&(id, name, severity, weight, arson, [zone, wealth, purpose, condition], icon, name_key)| {
                 let mut h = PropertyHolder::new();
-                h.add(prop::TYPE_NAME, Variant::string(name.as_bytes()));
+                h.add(EXEMPLAR_NAME, Variant::string(name.as_bytes()));
                 h.add(
-                    prop::TYPE_ICON,
-                    Variant::array(
-                        mem::UINT32,
-                        vec![Elem::U32(0x7AB5_0E44), Elem::U32(0x1ABE_787D), Elem::U32(0)],
-                    ),
+                    prop::TYPE_NAME_KEY,
+                    key(SHIPPED_NAME_TYPE, SHIPPED_NAME_GROUP, name_key),
                 );
+                h.add(prop::TYPE_ICON, key(SHIPPED_ICON_TYPE, SHIPPED_ICON_GROUP, icon));
                 h.add(prop::TYPE_ZONE_MASK, bytes(zone));
                 h.add(prop::TYPE_WEALTH_MASK, bytes(wealth));
                 h.add(prop::TYPE_PURPOSE_MASK, bytes(purpose));
@@ -336,6 +473,35 @@ mod tests {
         let arson = types.iter().find(|t| t.id == 0x05).unwrap();
         assert!(arson.arson && !arson.matches(&bits));
         assert!(arson.matches(&LotBits::new(1, Some((1, 1)), 4)));
+        // Shipped keys (§7): no LTEXT → empty names; Bank Robbery shares
+        // Mugging's icon.
+        let flashing = types.iter().find(|t| t.id == 0x10).unwrap();
+        assert!(flashing.name.is_empty());
+        assert_eq!(
+            flashing.icon,
+            ResKey {
+                type_id: SHIPPED_ICON_TYPE,
+                group: SHIPPED_ICON_GROUP,
+                instance: 0x8A63_A9BA
+            }
+        );
+        let icon = |id: u32| types.iter().find(|t| t.id == id).unwrap().icon;
+        assert_eq!(icon(0x0B), icon(0x0A));
+        let named = shipped_type_exemplars()
+            .iter()
+            .map(|(id, h)| {
+                CrimeType::from_exemplar(*id, h, &|k| {
+                    (k == ResKey {
+                        type_id: SHIPPED_NAME_TYPE,
+                        group: SHIPPED_NAME_GROUP,
+                        instance: 0xEA5E_A698,
+                    })
+                    .then(|| b"text".to_vec())
+                })
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(named[0].name, b"text", "Generic");
+        assert!(named[1].name.is_empty(), "Fighting");
         // No building: wealth 0x80000000, purpose 0x100.
         let none = LotBits::new(1, None, 0);
         assert_eq!((none.wealth, none.purpose), (NONE_BIT, NO_PURPOSE_BIT));

@@ -110,14 +110,11 @@ impl Default for Tuning {
     }
 }
 
-/// A curve property as an `f32` list, if present (foundations §4.1; a
-/// present property with no points gives an empty curve).
+/// A curve property ([`props::curve`], foundations §4.1/§4.3): absent when
+/// missing, non-numeric or a single value (the caller keeps its default);
+/// a present property with no points is an empty curve (evaluates to 0).
 pub(crate) fn curve_of(h: &PropertyHolder, id: u32) -> Option<ResponseCurve> {
-    if !h.has(id) {
-        return None;
-    }
-    let values = props::f32s(h, id).unwrap_or_default();
-    Some(ResponseCurve::from_flat(&values).unwrap_or_default())
+    props::curve(h, id)
 }
 
 impl Tuning {

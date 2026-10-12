@@ -34,7 +34,11 @@
 //!   keeps its value when absent ("keep"). The per-occupant curves
 //!   `0x8A1E07EE` / `0x0911E2E7` are read fresh per call and skipped when
 //!   absent; the efficiency curve `0x6911E2DF` is read fresh at each end of
-//!   cycle (absent or empty → efficiency 0).
+//!   cycle (absent or empty → efficiency 0). Curve properties are read with
+//!   [`crate::props::curve`] (foundations §4.1, §4.3): a single value (a
+//!   scalar or a one-element array) counts as absent, so the caller keeps its
+//!   default (the decay curves stay constant 1); a present property without
+//!   points is an empty curve, which evaluates to 0.
 //! - Float arithmetic follows foundations §18 (24-bit x87): every float
 //!   add, subtract, multiply and divide is one `f32` rounding; an integer
 //!   operand (a counter, a capacity, a deal amount) enters that operation
@@ -42,10 +46,16 @@
 //!   `f64` `recycled` counter, whose sums are rounded to `f32` before being
 //!   stored back. The effect strength (§4.10) and the prop share (§4.11)
 //!   multiply the average by the `float32` constant 1/32767 (one rounding;
-//!   not a division), as the spec now states. The spec does not say whether
-//!   `0.1`, `0.01` and `32767` are `float` or `double` literals; they are
-//!   taken as `float` (spec question). `trunc` saturates (Rust `as`; NaN →
-//!   0), then wraps to the field's width where the spec says "held as int16".
+//!   not a division). `0.1f` (deals, §4.4.2) and `0.01f` (efficiency §4.7,
+//!   slot 55) are `float32` literals *[compat]*, so funding 90 % gives
+//!   efficiency `0x3F4CCCCC` and a base capacity of 1000 gives 799. The deal
+//!   share is rounded with the 1.5·2²³ idiom (crime.md §6 `rhe`, exact only
+//!   up to 2²²). Every `trunc` is the CRT `_ftol` (foundations §18.1,
+//!   [`crate::x87::ftol`]): an `int64` truncation whose low bits are kept
+//!   (NaN, ±∞ and |x| ≥ 2⁶³ give 0), wrapped to the field's width where the
+//!   spec says "held as int16". The other `roundHalfEven` sites (§4.4.4,
+//!   §4.6.1, slot 53, §4.11) round the `f32` exactly, half to even (the
+//!   spec names the idiom only for the deals; the two agree below 2²²).
 //! - Arrays shorter than four elements (centre, outer, radii) read missing
 //!   elements as 0 (§4.2.2 states this one).
 //! - Zone types ≥ 16 use the multipliers 1.0 (the day reads 16 entries).
@@ -56,13 +66,6 @@
 //!   differences (a usage above capacity gives no room).
 //! - The waste-to-energy capacity added on insert / subtracted on removal
 //!   (§4.2.3) is the base property `0x48EBD0B1`.
-//! - Usage distribution (`SetOccupantListUsedCapacity`, §4.9.3, question 4):
-//!   `total` is the sum of the list's known current capacities; `share :=
-//!   min(total, used) / listLength`; walking the list while `used > 0`, an
-//!   occupant whose capacity query fails is skipped; each other one takes
-//!   `min(share, headroom, used)`; after an occupant is capped (takes less
-//!   than the share), the share becomes `used / occupants left` (0 when none
-//!   are left). The remainder of the integer divisions stays undistributed.
 //! - The recycling re-order drops (and releases) a member whose capacity
 //!   query fails.
 //! - The water "stop at 1" bounds use the water value grid's tract counts.
@@ -85,9 +88,13 @@
 //!   clamped to `0 ..= 8192` for loops over cells.
 //! - `Read` parses the whole record first and changes nothing when the
 //!   version is rejected or the stream fails (references already taken are
-//!   released); `loaded` is set only by a successful read. Null or
-//!   unresolvable list references are skipped. The department reference is
-//!   only replaced (and the old one released) by a successful read.
+//!   released); `loaded` is set only by a successful read (§6 *[choice]*,
+//!   spec test 25). A null grid reference reads as no grid (foundations
+//!   §2.7). Null or unresolvable list references are skipped, where the
+//!   original list reader appends a null entry (foundations §2.7): a list
+//!   holding null crashes the original's first day, and the lists here hold
+//!   host tokens only. The department reference is only replaced (and the
+//!   old one released) by a successful read.
 //! - The department created at `Init` is `AddRef`ed (the budget returns a
 //!   borrowed pointer) and released at `Shutdown`; a loaded one comes with
 //!   the reference the stream handed over.

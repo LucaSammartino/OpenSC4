@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "aura_persistence",
-  "spec": ["aura 11.2", "aura 11.3", "aura 5.2", "aura 17.16"],
-  "description": "Record v9 (154 bytes): u16 9, seven grid references (object IDs in registration order: the simulator is 1, then aura 2, park 3, raw park 4, base 5, transient 6, building effect 7, landmark map 8 with int8 CLSID 0x49B9E603 / int16 0x49B9E605), department count 2 and (ID, ref) in ascending ID (0x10 -> 9, 0x20 -> 10), unusedRating, mayorRating, max x, z, s16 rating, min x, z, s16 rating, hotspot count and (x, z, w) triples; write -> read -> write is byte-identical and the work grid is not saved. Version 7 is rejected and version 10 is rejected [choice]: Read returns false and changes nothing (the store ignores the result, so the object keeps its constructor state with no grids) [choice: atomic read]. A version-8 record (no department block, one extra grid reference after the landmark map) loads with no departments and sets reAddLandmarks; PostCityInit then removes and re-adds every lot occupant with the landmark property (department 0x10, cone {40, 20} at tract (2, 5)), only landmarks, and with reAddLandmarks false nothing happens; the flag is never cleared, and the remove-then-add pair leaves the grid unchanged on later deliveries. Payload bytes written by hand from 11.2.",
+  "spec": ["aura 11.2", "aura 11.3", "aura 5.2", "aura 17.16", "foundations 2.7"],
+  "description": "Record v9 (154 bytes): u16 9, seven grid references (object IDs in registration order: the simulator is 1, then aura 2, park 3, raw park 4, base 5, transient 6, building effect 7, landmark map 8 with int8 CLSID 0x49B9E603 / int16 0x49B9E605), department count 2 and (ID, ref) in ascending ID (0x10 -> 9, 0x20 -> 10), unusedRating, mayorRating, max x, z, s16 rating, min x, z, s16 rating, hotspot count and (x, z, w) triples; write -> read -> write is byte-identical and the work grid is not saved. Version 7 is rejected and version 10 is rejected [choice]: Read returns false and changes nothing (the store ignores the result, so the object keeps its constructor state with no grids) [choice: atomic read]. A version-8 record (no department block, one extra grid reference after the landmark map) loads with no departments and sets reAddLandmarks; PostCityInit then removes and re-adds every lot occupant with the landmark property (department 0x10, cone {40, 20} at tract (2, 5)), only landmarks, and with reAddLandmarks false nothing happens; the flag is never cleared, and the remove-then-add pair leaves the grid unchanged on later deliveries. Payload bytes written by hand from 11.2. Read writes each field as it reads it, and a reference read sets its slot to null first (foundations 2.7): a record whose base-grid reference names a class the save does not know (class ID patched to 0x12345678) puts the stream in error there; Read into a used simulator then holds the record's aura, park and raw park grids, no base, transient, building effect or landmark grid (each later reference fails too and leaves null), and keeps the department map, the ratings and the hotspots it had (their reads fail).",
   "steps": [
     {"op": "aura_create"},
     {"op": "aura_init", "expect": true},
@@ -49,6 +49,24 @@
     {"op": "aura_expect_grid", "grid": "dept:0x10", "cells": [[0, 1, 4], [0, 2, 11], [0, 3, 17], [0, 4, 22], [0, 5, 24], [0, 6, 22], [0, 7, 17], [0, 8, 11], [0, 9, 4], [1, 1, 7], [1, 2, 15], [1, 3, 22], [1, 4, 29], [1, 5, 32], [1, 6, 29], [1, 7, 22], [1, 8, 15], [1, 9, 7], [2, 1, 8], [2, 2, 16], [2, 3, 24], [2, 4, 32], [2, 5, 40], [2, 6, 32], [2, 7, 24], [2, 8, 16], [2, 9, 8], [3, 1, 7], [3, 2, 15], [3, 3, 22], [3, 4, 29], [3, 5, 32], [3, 6, 29], [3, 7, 22], [3, 8, 15], [3, 9, 7], [4, 1, 4], [4, 2, 11], [4, 3, 17], [4, 4, 22], [4, 5, 24], [4, 6, 22], [4, 7, 17], [4, 8, 11], [4, 9, 4], [5, 2, 6], [5, 3, 11], [5, 4, 15], [5, 5, 16], [5, 6, 15], [5, 7, 11], [5, 8, 6], [6, 3, 4], [6, 4, 7], [6, 5, 8], [6, 6, 7], [6, 7, 4]], "others": 0},
     {"op": "aura_expect_grid", "grid": "raw_park", "others": 0},
     {"op": "aura_message", "type": "PostCityInit", "expect": true},
-    {"op": "aura_expect_grid", "grid": "dept:0x10", "cells": [[0, 1, 4], [0, 2, 11], [0, 3, 17], [0, 4, 22], [0, 5, 24], [0, 6, 22], [0, 7, 17], [0, 8, 11], [0, 9, 4], [1, 1, 7], [1, 2, 15], [1, 3, 22], [1, 4, 29], [1, 5, 32], [1, 6, 29], [1, 7, 22], [1, 8, 15], [1, 9, 7], [2, 1, 8], [2, 2, 16], [2, 3, 24], [2, 4, 32], [2, 5, 40], [2, 6, 32], [2, 7, 24], [2, 8, 16], [2, 9, 8], [3, 1, 7], [3, 2, 15], [3, 3, 22], [3, 4, 29], [3, 5, 32], [3, 6, 29], [3, 7, 22], [3, 8, 15], [3, 9, 7], [4, 1, 4], [4, 2, 11], [4, 3, 17], [4, 4, 22], [4, 5, 24], [4, 6, 22], [4, 7, 17], [4, 8, 11], [4, 9, 4], [5, 2, 6], [5, 3, 11], [5, 4, 15], [5, 5, 16], [5, 6, 15], [5, 7, 11], [5, 8, 6], [6, 3, 4], [6, 4, 7], [6, 5, 8], [6, 6, 7], [6, 7, 4]], "others": 0}
+    {"op": "aura_expect_grid", "grid": "dept:0x10", "cells": [[0, 1, 4], [0, 2, 11], [0, 3, 17], [0, 4, 22], [0, 5, 24], [0, 6, 22], [0, 7, 17], [0, 8, 11], [0, 9, 4], [1, 1, 7], [1, 2, 15], [1, 3, 22], [1, 4, 29], [1, 5, 32], [1, 6, 29], [1, 7, 22], [1, 8, 15], [1, 9, 7], [2, 1, 8], [2, 2, 16], [2, 3, 24], [2, 4, 32], [2, 5, 40], [2, 6, 32], [2, 7, 24], [2, 8, 16], [2, 9, 8], [3, 1, 7], [3, 2, 15], [3, 3, 22], [3, 4, 29], [3, 5, 32], [3, 6, 29], [3, 7, 22], [3, 8, 15], [3, 9, 7], [4, 1, 4], [4, 2, 11], [4, 3, 17], [4, 4, 22], [4, 5, 24], [4, 6, 22], [4, 7, 17], [4, 8, 11], [4, 9, 4], [5, 2, 6], [5, 3, 11], [5, 4, 15], [5, 5, 16], [5, 6, 15], [5, 7, 11], [5, 8, 6], [6, 3, 4], [6, 4, 7], [6, 5, 8], [6, 6, 7], [6, 7, 4]], "others": 0},
+    {"op": "aura_load", "slot": "a"},
+    {"op": "aura_save", "slot": "bad"},
+    {"op": "aura_patch", "slot": "bad", "offset": 30, "hex": "78563412"},
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_set_grid", "grid": "aura", "cells": [[7, 7, 1]]},
+    {"op": "aura_set_grid", "grid": "dept:0x55", "cells": [[7, 7, 3]]},
+    {"op": "aura_set", "state": {"mayor_rating": 77, "unused_rating": 6, "hotspots": [[1, 1, 1]]}},
+    {"op": "aura_load", "slot": "bad", "into_current": true},
+    {"op": "aura_expect_grid", "grid": "aura", "cells": [[2, 2, 5]], "others": 0},
+    {"op": "aura_expect_grid", "grid": "park_map", "exists": true},
+    {"op": "aura_expect_grid", "grid": "raw_park", "exists": true},
+    {"op": "aura_expect_grid", "grid": "base", "exists": false},
+    {"op": "aura_expect_grid", "grid": "transient", "exists": false},
+    {"op": "aura_expect_grid", "grid": "building_effect", "exists": false},
+    {"op": "aura_expect_grid", "grid": "landmark_map", "exists": false},
+    {"op": "aura_expect_grid", "grid": "work", "exists": true},
+    {"op": "aura_expect", "state": {"departments": [85], "mayor_rating": 77, "unused_rating": 6, "hotspots": [[1, 1, 1]]}}
   ]
 }

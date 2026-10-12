@@ -44,24 +44,32 @@
 //!   elements and convert them with the element's numeric value (the
 //!   plugin performs the game's `GetValFloat32` / `GetValUint32` reads);
 //!   missing parameters read as 0.
-//! - §6.2: a missing Parks and Recreation department uses funding 1.0 (the
-//!   original dereferences null); §6.3 the same for a department that does
-//!   not exist, as the spec states.
-//! - Float → integer stores (`trunc`) saturate at the target type's range;
-//!   NaN becomes 0. Float arithmetic follows foundations §18: every
-//!   operation is one `f32` rounding; an `int32` operand is used unrounded
-//!   (computed in `f64`, rounded once to `f32`).
+//! - §6.2: a missing Parks and Recreation department (or budget) uses
+//!   funding 1.0 (the spec's [choice]; the original dereferences null);
+//!   §6.3 the same for a department that does not exist, as the spec states.
+//! - Float → integer stores follow the CRT `_ftol` (§6 "Integer stores",
+//!   foundations §18.1, [compat]): truncation to an `int64`, of which the
+//!   int16 grid stores keep the low 16 bits (wrap, NaN → 0), the clamped
+//!   int8 stores and every other `trunc` the low 32 bits (NaN → 0), and the
+//!   transient decay (§6.17) the low 8 bits. Float arithmetic follows
+//!   foundations §18: every operation is one `f32` rounding; an `int32`
+//!   operand is used unrounded (computed in `f64`, rounded once to `f32`).
 //! - §6.3: the department cursor is `Option<u32>` (`None` = −1), so a
 //!   department with ID `0xFFFFFFFF` is processed like any other.
-//! - §6.5: the adaptive lot step (process-wide in the original) is kept per
-//!   simulator. One `DoIdle` call processes at most [`MAX_LOTS_PER_CALL`]
-//!   lots even if the host's timer never expires. The step adaptation runs
-//!   at the end of every state-5 call, including the one that exhausts the
-//!   iterator. A state-5 call without an iterator ends the walk.
+//! - §6.5: the time-slice `step` and miss counter (a process-wide static
+//!   in the original) are kept per simulator (simulator §5.5 allows it);
+//!   they are not reset by `Init`, `Shutdown` or a load. One `DoIdle` call
+//!   processes at most [`MAX_LOTS_PER_CALL`] lots even if the host's timer
+//!   never expires (the call then ends like a timer stop). A state-5 call
+//!   without an iterator ends the walk (no adaptation).
 //! - §6.5: a lot's bounding rectangle is clamped to the work grid; cells
 //!   outside are skipped.
 //! - §6.5.1, §6.15: 32-bit sums wrap (`sum`, `total`, `weighted`, the
 //!   population total); a negative wrapped total counts as "≤ 0".
+//! - §6.15: the population grids are read at the population tract that
+//!   contains the aura tract's centre cell, `⌊(x·S + S/2) / P⌋` (the
+//!   identity for the shipped P = S = 4; the original reads raw aura
+//!   indices, garbage when P ≠ S).
 //! - §6.7–§6.12, §6.15: a grid of another simulator the host cannot supply
 //!   skips its stage (pollution, school, hospital, crime, trip, congestion)
 //!   or counts as population 0 (residential population grids).
@@ -73,17 +81,21 @@
 //!   values as 0 (the original reads past the array); `PositionToCell`'s
 //!   result flag is ignored; "distance to the edge" is the absolute
 //!   difference in `f32`.
-//! - §10: a property that is not numeric, or a single scalar value, counts
-//!   as absent for curves (foundations §4.1 [choice]); a present property
-//!   with no points gives an **empty** curve, which evaluates to 0.0
-//!   (foundations §4.3) and so still runs its stage. Missing elements of the
-//!   transient arrays read as 0.
-//! - §11.3: a failed `Read` leaves the simulator unchanged (fields are
-//!   committed only when the whole record was read). A grid reference that
-//!   does not resolve to a grid of the expected element type counts as
-//!   missing (`Init` recreates it). A duplicate department ID in a record
-//!   keeps the later grid. Counts are bounded by the stream: reading stops
-//!   at the first stream error.
+//! - §6, §10: a curve property with fewer than two values (a scalar, a
+//!   one-element or an empty array) or a non-numeric one is **absent**: the
+//!   stage is skipped (state 6 still advances). The original builds a curve
+//!   with no points and evaluates it (a crash, or a stale value after an
+//!   in-place reload). Missing elements of the transient arrays read as 0.
+//! - §11.3: `Read` writes each field as it reads it. Grid references are
+//!   null-first (foundations §2.7): a reference that fails, or that does not
+//!   resolve to a grid of the expected element type, leaves its slot empty
+//!   (`Init` recreates it), and so does every later reference once the
+//!   stream is in error; the grid the slot held is released (the original
+//!   leaks it; on the game's load path the slots are empty). A plain field
+//!   whose read fails keeps its value. The department map is replaced by
+//!   the entries read in full (a null reference adds none, a duplicate ID
+//!   keeps the later grid); the hotspot list likewise. Counts are bounded
+//!   by the stream: reading stops at the first stream error.
 //! - Unknown pipeline states (only reachable through debug setters) reset
 //!   the state to 0.
 
@@ -433,8 +445,26 @@ pub(crate) fn clamp_aura(v: i64) -> i8 {
     v.clamp(-127, 127) as i8
 }
 
-/// Truncation toward zero (`_ftol`) of a float value, saturating at
-/// `i64` ([choice]: NaN → 0).
-pub(crate) fn trunc(v: f64) -> i64 {
-    v as i64
+/// `_ftol` kept to 32 bits (§6 "Integer stores", foundations §18.1):
+/// truncation toward zero as an `int64`, low 32 bits (NaN, ±∞ and
+/// |x| ≥ 2^63 give 0).
+pub(crate) fn trunc32(v: f64) -> i32 {
+    crate::x87::ftol32(v)
+}
+
+/// An int8 store with "clamp" (§6, rule A): the low 32 bits of `_ftol`,
+/// clamped to −127..127 (NaN → 0).
+pub(crate) fn clamp_store(v: f32) -> i8 {
+    clamp_aura(i64::from(trunc32(f64::from(v))))
+}
+
+/// An int16 grid store (§6.2, §6.3): the low 16 bits of `_ftol` (wraps
+/// modulo 65536, NaN → 0).
+pub(crate) fn store_i16(v: f32) -> i16 {
+    crate::x87::ftol(f64::from(v)) as i16
+}
+
+/// An int8 store without clamp (§6.17): the low 8 bits of `_ftol`.
+pub(crate) fn store_i8(v: f32) -> i8 {
+    crate::x87::ftol(f64::from(v)) as i8
 }

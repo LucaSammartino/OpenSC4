@@ -98,7 +98,9 @@ impl Tuning {
                 t.hotspot_min_weight = min_weight as i32;
             }
         }
-        t.hotspot_fire_curve = props::f32s(h, prop::HOTSPOT_FIRE_CURVE).and_then(|v| ResponseCurve::from_flat(&v));
+        // "delete" pattern (§8): rebuilt at each read; [choice] a curve with
+        // no points (fewer than two values) is absent (§6.8, §8).
+        t.hotspot_fire_curve = props::curve(h, prop::HOTSPOT_FIRE_CURVE).filter(|c| !c.is_empty());
         if let Some(v) = props::f32_of(h, prop::RANDOM_FIRE_PROBABILITY) {
             t.random_fire_probability = v;
         }
@@ -262,9 +264,38 @@ pub fn compute_hotspots(candidates: &[Hotspot], radius: i32, min_weight: i32) ->
     hotspots
 }
 
-/// The integer value of a property (its first element; 0 if absent).
-fn int_value(v: Option<Variant>) -> i64 {
-    v.and_then(|v| v.items().first().map(Elem::as_i64)).unwrap_or(0)
+/// `cIGZVariant::GetValSint32` of one scalar element (§6.1): unsigned
+/// types zero-extended, signed types and the 8-bit character types
+/// sign-extended, `Uint32` by bit pattern, 64-bit integers by their low 32
+/// bits, floats truncated toward zero through an `int64` (`_ftol`,
+/// foundations §18.1) and then their low 32 bits. A pointer gives 0.
+pub fn sint32_of_elem(e: Elem) -> i32 {
+    match e {
+        Elem::Bool(b) => i32::from(b),
+        Elem::U8(v) => i32::from(v),
+        Elem::U16(v) | Elem::UnicodeChar(v) => i32::from(v),
+        Elem::I8(v) => i32::from(v),
+        Elem::Char(v) | Elem::RzChar(v) => i32::from(v as i8),
+        Elem::I16(v) => i32::from(v),
+        Elem::U32(v) => v as i32,
+        Elem::I32(v) => v,
+        Elem::U64(v) => v as i32,
+        Elem::I64(v) => v as i32,
+        Elem::F32(v) => crate::x87::ftol32(f64::from(v)),
+        Elem::F64(v) => crate::x87::ftol32(v),
+        Elem::VoidPtr(_) => 0,
+    }
+}
+
+/// `p` of §6.1: the property's value through `GetValSint32`; 0 when the
+/// property is absent. [choice] An array reads its first element with the
+/// scalar rule (an empty array gives 0); any other value gives 0.
+pub fn property_sint32(v: Option<&Variant>) -> i32 {
+    match v {
+        Some(Variant::Scalar(e)) => sint32_of_elem(*e),
+        Some(Variant::Array { items, .. }) => items.first().map_or(0, |e| sint32_of_elem(*e)),
+        _ => 0,
+    }
 }
 
 type GridRc = Rc<dyn TractGrid<u8>>;
@@ -494,8 +525,8 @@ impl FlammabilitySim {
         } else {
             return 0;
         };
-        let p = int_value(self.host.occupant_property(occ, prop::FLAMMABILITY));
-        occupant_raw_value(p, m)
+        let p = property_sint32(self.host.occupant_property(occ, prop::FLAMMABILITY).as_ref());
+        occupant_raw_value(i64::from(p), m)
     }
 
     /// `GetOccupantRawFlammability(occ)` (§6.1).
@@ -615,14 +646,16 @@ impl FlammabilitySim {
                         d.tuning.hotspot_threshold,
                     )
                 };
-                let watered = self.host.is_cell_watered(x, z);
+                // [choice] No plumbing simulator: not watered (§4.1 step 5).
+                let watered = self.host.is_cell_watered(x, z).unwrap_or(false);
                 v = daily_value(r, g, watered, no_water);
                 self.adjusted_set(x, z, v);
                 if i32::from(v) > threshold {
                     self.d.borrow_mut().candidates.push(Hotspot::new(x, z, 1));
                 }
             }
-            if self.host.zone_type(x, z) != 0 {
+            // [choice] No zone manager: unzoned (§4.1 step 5).
+            if self.host.zone_type(x, z).unwrap_or(0) != 0 {
                 let mut d = self.d.borrow_mut();
                 d.zoned_count = d.zoned_count.wrapping_add(1);
                 d.zoned_sum = d.zoned_sum.wrapping_add(i32::from(v));

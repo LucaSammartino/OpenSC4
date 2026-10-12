@@ -21,7 +21,7 @@ use fc4_core::pollution::{
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{CrtRand, FixedSeeds, RzRandomSuper};
 use fc4_core::store::{load_store, save_store, LoadRegistry, Package};
-use fc4_core::stream::{ByteReader, ByteWriter, InStream, OutStream, RefValue, SaveObject, SaveRegistry};
+use fc4_core::stream::{ByteReader, ByteWriter, InStream, OutStream, RefResolver, RefValue, SaveObject, SaveRegistry};
 use fc4_core::variant::{Elem, Variant};
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -54,6 +54,8 @@ struct Occupant {
     bbox: ([f32; 3], [f32; 3]),
     powered: bool,
     budget: Option<BudgetItem>,
+    /// How many times the simulator wrote each property.
+    writes: BTreeMap<u32, u32>,
 }
 
 #[derive(Default)]
@@ -294,7 +296,10 @@ impl PollutionHost for World {
         self.occupants.borrow().get(&occ)?.props.get(id).cloned()
     }
     fn set_occupant_property(&self, occ: u64, id: u32, value: Variant) {
-        self.with_occ(occ, |o| o.props.add(id, value));
+        self.with_occ(occ, |o| {
+            o.props.add(id, value);
+            *o.writes.entry(id).or_insert(0) += 1;
+        });
     }
     fn remove_occupant_property(&self, occ: u64, id: u32) {
         self.with_occ(occ, |o| {
@@ -507,6 +512,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         }
         "save" => save(&w, op),
         "load" => load(&w, op),
+        "read" => read(&w, op),
         "expect_save" => expect_save(&w, op),
         "patch" => patch(&w, op),
         "expect_payload" => expect_payload(&w, op),
@@ -959,6 +965,15 @@ fn call(w: &World, op: &Json) -> R<()> {
         "current_capacity" => found_u(s.current_capacity(a_u32(op, 0)?, a_occ(w, op, 1)?)),
         "recycling_center_max_capacity" => found_f(s.recycling_center_max_capacity(a_occ(w, op, 0)?)),
         "recycling_center_current_capacity" => found_f(s.recycling_center_current_capacity(a_occ(w, op, 0)?)),
+        "recycling_center_current_capacity_bits" => {
+            let (ok, p) = s.recycling_center_current_capacity(a_occ(w, op, 0)?);
+            Json::Array(vec![Json::Bool(ok), ji(p.to_bits())])
+        }
+        "set_occupant_list_used_capacity" => {
+            // args: [list (0 water treatment, 1 incinerators, 2 waste-to-energy), total, used]
+            s.set_occupant_list_used_capacity(a_u32(op, 0)? as usize, a_u32(op, 1)?, a_u32(op, 2)?);
+            Json::Null
+        }
         "current_occupant_condition" => found_f(s.current_occupant_condition(a_occ(w, op, 0)?)),
         "current_occupant_efficiency" => found_f(s.current_occupant_efficiency(a_occ(w, op, 0)?)),
         "incinerator_used_capacity" => found_u(s.incinerator_used_capacity(a_occ(w, op, 0)?)),
@@ -1055,6 +1070,7 @@ fn state_json(w: &World, s: &PollutionState) -> Vec<(String, Json)> {
         ("worst_water".into(), worst(s.worst_water)),
         ("worst_garbage".into(), worst(s.worst_garbage)),
         ("efficiency".into(), jf(s.efficiency)),
+        i("efficiency_bits", s.efficiency.to_bits().into()),
         i("garbage_supply", s.garbage_supply.into()),
         i("garbage_capacity", s.garbage_capacity.into()),
         ("department".into(), s.department.map_or(Json::Null, |d| w.name(d))),
@@ -1283,7 +1299,21 @@ fn expect_occupant(w: &World, op: &Json) -> R<()> {
     let occ = w.occupant(field(op, "occupant")?)?;
     let occs = w.occupants.borrow();
     let o = occs.get(&occ).ok_or("no such occupant")?;
-    for (k, want) in field(op, "props")?.as_object().ok_or("props must be an object")? {
+    if let Some(v) = opt(op, "writes") {
+        for (k, want) in v.as_object().ok_or("writes must be an object")? {
+            let id = Json::Str(k.clone()).as_i64().ok_or("bad property ID")? as u32;
+            let got = o.writes.get(&id).copied().unwrap_or(0);
+            if i64::from(got) != i64_of(want, k)? {
+                return Err(format!("{} property {k}: written {got} times", o.label));
+            }
+        }
+    }
+    let empty = Vec::new();
+    let props = match opt(op, "props") {
+        Some(v) => v.as_object().ok_or("props must be an object")?,
+        None => &empty,
+    };
+    for (k, want) in props {
         let id = Json::Str(k.clone()).as_i64().ok_or("bad property ID")? as u32;
         let got = o.props.get(id).map_or(Json::Null, prop_json);
         if !scalar::matches(&got, want, false) {
@@ -1453,6 +1483,65 @@ fn load(w: &World, op: &Json) -> R<()> {
         .as_ref()
         .and_then(|v| v.object::<PollutionSim>())
         .ok_or("the root did not resolve to a pollution simulator")?;
+    *w.sim.borrow_mut() = Some(sim);
+    Ok(())
+}
+
+/// Resolves references while `pollution_read` reads one payload: grids
+/// become fresh core grids (one per object ID), host objects the tokens they
+/// had when saved, each resolution handing the reader one reference.
+struct PayloadResolver<'a> {
+    world: &'a World,
+    hosts: HashMap<u32, u64>,
+    grids: BTreeMap<(u32, u32), RefValue>,
+}
+
+impl RefResolver for PayloadResolver<'_> {
+    fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
+        match class_id {
+            OCCUPANT_CLASS | DEPARTMENT_CLASS => {
+                let token = *self.hosts.get(&object_id)?;
+                self.world.add_ref(token);
+                Some(RefValue::Host { token, class_id })
+            }
+            _ => {
+                if let Some(v) = self.grids.get(&(class_id, object_id)) {
+                    return Some(v.clone());
+                }
+                let v = RefValue::Object(create_for_clsid(class_id)?);
+                self.grids.insert((class_id, object_id), v.clone());
+                Some(v)
+            }
+        }
+    }
+}
+
+/// `pollution_read`: `Read` of the simulator's payload in `slot`, outside
+/// the store, by the current simulator (`into: "current"`, the default) or a
+/// new one (`into: "new"`, made current); checks the result (`expect`).
+fn read(w: &World, op: &Json) -> R<()> {
+    let saved = w.saves.borrow().get(&slot(op)?).cloned().ok_or("no such slot")?;
+    let tmp = scalar::Saved {
+        pkg: saved.pkg.clone(),
+        root: Vec::new(),
+    };
+    let payload = scalar::entry_payload(&tmp, CLSID_POLLUTION_SIMULATOR, 0)?;
+    let sim = match opt(op, "into").map(|v| str_of(v, "into")).transpose()? {
+        None | Some("current") => w.sim()?,
+        Some("new") => {
+            let me = w.rc();
+            PollutionSim::new(me.clone() as Rc<dyn PollutionHost>, me.token("pollution"), 1, &seeds())
+        }
+        Some(other) => return Err(format!("into: '{other}' (current, new)")),
+    };
+    let mut res = PayloadResolver {
+        world: w,
+        hosts: saved.hosts.clone(),
+        grids: BTreeMap::new(),
+    };
+    let mut r = ByteReader::with_resolver(&payload, &mut res);
+    let ok = sim.read(&mut r);
+    check_expect(op, Json::Bool(ok))?;
     *w.sim.borrow_mut() = Some(sim);
     Ok(())
 }

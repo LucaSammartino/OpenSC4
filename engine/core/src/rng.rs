@@ -7,6 +7,14 @@
 //! The game's two random generators, bit-exact (`docs/specs/foundations.md`
 //! §6.1). Clock-derived seeds are injected (`SeedSource`) so runs are
 //! reproducible in tests (§6.3).
+//!
+//! The "double" methods run at the game's 24-bit x87 precision (§6.1
+//! precision table, §18): every step is rounded to a 24-bit significand, so
+//! their results are `float32` values returned as `f64`, and
+//! `RandomDoubleUniform` can return exactly 1.0. The caller's `double`
+//! arguments enter unrounded.
+
+use crate::x87::r24;
 
 /// Seed value that means "derive from the clock" (§6.1).
 pub const CLOCK_SEED: u32 = 0xFFFF_FFFF;
@@ -35,7 +43,35 @@ impl SeedSource for FixedSeeds {
     }
 }
 
-const TWO_POW_32: f64 = 4_294_967_296.0;
+/// 2^-32, exact as a `float` and as a `double`.
+const TWO_POW_MINUS_32: f64 = 1.0 / 4_294_967_296.0;
+
+/// `RandomDoubleUniform` of one signed 32-bit draw `i` (§6.1, both classes):
+/// `r24(r24(i × 2^-32) + 0.5)`, in [0, 1] (`i ≥ 2^31 − 191` gives 1.0).
+pub fn double_uniform_of(i: i32) -> f64 {
+    r24(r24(f64::from(i) * TWO_POW_MINUS_32) + 0.5)
+}
+
+/// `RandomDoubleRangeUniform(a, b)` of a uniform value `u`:
+/// `r24(r24(u × r24(b − a)) + a)`.
+fn range_of(u: f64, a: f64, b: f64) -> f64 {
+    r24(r24(u * r24(b - a)) + a)
+}
+
+/// The range mapping of `RandomDoubleRangeGaussian(a, b)` (§6.1) for a
+/// Gaussian value `gauss`: `g := r24(gauss + 3)`; if not `g < 6`,
+/// `g := 5.9999` (a `double`, unrounded); if `g < 0`, `g := 0`; result
+/// `r24(r24(r24(b − a) × r24(g × 1/6)) + a)` with 1/6 a `double`.
+pub fn gaussian_to_range(gauss: f64, a: f64, b: f64) -> f64 {
+    let mut g = r24(gauss + 3.0);
+    if g >= 6.0 || g.is_nan() {
+        g = 5.9999;
+    }
+    if g < 0.0 {
+        g = 0.0;
+    }
+    r24(r24(r24(b - a) * r24(g * (1.0 / 6.0))) + a)
+}
 
 /// `cRZRandom`: an LCG for the integer methods (`lcg`) and a multiplicative
 /// generator for the double methods (`mul`).
@@ -113,54 +149,60 @@ impl RzRandom {
         lo.wrapping_add(self.uniform_u32(hi.wrapping_sub(lo) as u32) as i32)
     }
 
-    /// `RandomDoubleUniform()`: [0, 1).
+    /// `RandomDoubleUniform()`: [0, 1], 24-bit ([`double_uniform_of`]).
     pub fn uniform_f64(&mut self) -> f64 {
         if self.mul == 0 {
             self.mul = self.process_clock;
         }
         self.mul = self.mul.wrapping_mul(0x278D_DE6D);
-        f64::from(self.mul as i32) / TWO_POW_32 + 0.5
+        double_uniform_of(self.mul as i32)
     }
 
-    /// `RandomDoubleRangeUniform(a, b)`.
+    /// `RandomDoubleRangeUniform(a, b)`: `r24(r24(u × r24(b − a)) + a)`.
     pub fn range_f64(&mut self, a: f64, b: f64) -> f64 {
-        a + self.uniform_f64() * (b - a)
+        let u = self.uniform_f64();
+        range_of(u, a, b)
     }
 
-    /// `RandomDoubleGaussian()`: Marsaglia polar method; one value is
-    /// returned, the other cached for the next call. [choice] The first
-    /// coordinate is returned and the second cached.
+    /// `RandomDoubleGaussian()` (§6.1): Marsaglia polar method at 24 bits.
+    /// `v1 := r24(2·u1 − 1)`, `v2 := r24(2·u2 − 1)` (u1 drawn first);
+    /// `s := r24(r24(v2²) + r24(v1²))`, redrawn while `s ≥ 1` or `s = 0`;
+    /// `f := r24(sqrt(r24(r24(ln s / s) × −2)))`. Returns `r24(f × v2)` and
+    /// caches `r24(v1 × f)` for the next call. `ln` is the runtime's
+    /// double-precision logarithm (only the division is rounded; §6.1
+    /// [choice]).
     pub fn gaussian(&mut self) -> f64 {
         if let Some(g) = self.cached_gaussian.take() {
             return g;
         }
         loop {
-            let u = 2.0 * self.uniform_f64() - 1.0;
-            let v = 2.0 * self.uniform_f64() - 1.0;
-            let s = u * u + v * v;
-            if s > 0.0 && s < 1.0 {
-                let m = (-2.0 * s.ln() / s).sqrt();
-                self.cached_gaussian = Some(v * m);
-                return u * m;
+            let v1 = r24(2.0 * self.uniform_f64() - 1.0);
+            let v2 = r24(2.0 * self.uniform_f64() - 1.0);
+            let s = r24(r24(v2 * v2) + r24(v1 * v1));
+            if s >= 1.0 || s == 0.0 {
+                continue;
             }
+            let f = r24(r24(r24(s.ln() / s) * -2.0).sqrt());
+            self.cached_gaussian = Some(r24(v1 * f));
+            return r24(f * v2);
         }
     }
 
-    /// `RandomDoubleRangeGaussian(a, b)`.
+    /// `RandomDoubleRangeGaussian(a, b)` ([`gaussian_to_range`]).
     pub fn range_gaussian(&mut self, a: f64, b: f64) -> f64 {
-        let mut g = self.gaussian() + 3.0;
-        if g < 0.0 {
-            g = 0.0;
-        } else if g >= 6.0 {
-            g = 6.0 * 0.999_983_3;
-        }
-        a + (b - a) * g / 6.0
+        let g = self.gaussian();
+        gaussian_to_range(g, a, b)
     }
 
-    /// `RandomDoubleRangeGaussianFast(a, b)`.
+    /// `RandomDoubleRangeGaussianFast(a, b)` (§6.1): draws u1, u2, u3 in
+    /// order, then `r24(r24(r24(r24(r24(u3 + u2) + u1) × r24(b − a)) × 1/3) + a)`
+    /// with 1/3 a `double`.
     pub fn range_gaussian_fast(&mut self, a: f64, b: f64) -> f64 {
-        let s = self.uniform_f64() + self.uniform_f64() + self.uniform_f64();
-        a + s * (b - a) / 3.0
+        let u1 = self.uniform_f64();
+        let u2 = self.uniform_f64();
+        let u3 = self.uniform_f64();
+        let sum = r24(r24(u3 + u2) + u1);
+        r24(r24(r24(sum * r24(b - a)) * (1.0 / 3.0)) + a)
     }
 
     /// `RandomSint32RangeGaussianFast(lo, hi)` (foundations §6.1): always
@@ -256,33 +298,37 @@ impl RzRandomSuper {
         lo.wrapping_add(self.uniform_u32(hi.wrapping_sub(lo) as u32) as i32)
     }
 
-    /// `RandomDoubleUniform()`.
+    /// `RandomDoubleUniform()`: [0, 1], 24-bit ([`double_uniform_of`]).
     pub fn uniform_f64(&mut self) -> f64 {
-        f64::from(self.next_u32() as i32) / TWO_POW_32 + 0.5
+        double_uniform_of(self.next_u32() as i32)
     }
 
-    /// `RandomDoubleRangeUniform(a, b)`.
+    /// `RandomDoubleRangeUniform(a, b)`: `r24(r24(u × r24(b − a)) + a)`.
     pub fn range_f64(&mut self, a: f64, b: f64) -> f64 {
-        a + self.uniform_f64() * (b - a)
+        let u = self.uniform_f64();
+        range_of(u, a, b)
     }
 
-    /// `RandomUint32WeightedChoice(n, w)`.
+    /// `RandomUint32WeightedChoice(n, w)` (§6.1): `S` sums the positive
+    /// weights in index order, each addition rounded to 24 bits;
+    /// `r := RandomDoubleRangeUniform(0, S)`; the walk subtracts with
+    /// `r := r24(r − w[i])` until `r < w[i]`.
     pub fn weighted_choice(&mut self, weights: &[f64]) -> u32 {
         let n = weights.len();
         if n < 2 {
             return 0;
         }
-        let total: f64 = weights.iter().filter(|&&w| w > 0.0).sum();
+        let total = weights.iter().filter(|&&w| w > 0.0).fold(0.0, |s, &w| r24(s + w));
         if total == 0.0 {
             return self.uniform_u32(n as u32);
         }
-        let mut r = self.uniform_f64() * total;
+        let mut r = self.range_f64(0.0, total);
         for (i, &w) in weights.iter().enumerate() {
             if w > 0.0 {
                 if r < w {
                     return i as u32;
                 }
-                r -= w;
+                r = r24(r - w);
             }
         }
         (n - 1) as u32
@@ -391,14 +437,38 @@ mod tests {
     #[test]
     fn rz_random_double_vectors() {
         let mut r = RzRandom::new(1, &SEEDS);
+        // foundations §7 test 13 (24-bit, §6.1).
         let expect = [
-            (0.654_508_496_867_492_8, 0x278D_DE6D),
-            (0.481_738_711_008_802_06, 0xFB53_3A69),
-            (0.851_256_174_268_201, 0x59EB_ECB5),
+            (0.654_508_471_488_952_6, 0x278D_DE6D),
+            (0.481_738_716_363_906_86, 0xFB53_3A69),
+            (0.851_256_132_125_854_5, 0x59EB_ECB5),
         ];
         for (v, state) in expect {
             assert_eq!(r.uniform_f64(), v);
             assert_eq!(r.mul_state(), state);
+        }
+        assert_eq!(RzRandom::new(1, &SEEDS).range_f64(0.0, 100.0), 65.450_843_811_035_16);
+        assert_eq!(
+            RzRandom::new(1, &SEEDS).range_gaussian_fast(0.0, 10.0),
+            6.625_010_967_254_639
+        );
+    }
+
+    #[test]
+    fn uniform_rounding_and_gaussian_clamp() {
+        // foundations §7 test 16.
+        assert_eq!(double_uniform_of(0x7FFF_FF41), 1.0);
+        assert_eq!(double_uniform_of(0x7FFF_FF40), 0.999_999_940_395_355_2);
+        assert_eq!(double_uniform_of(i32::MIN), 0.0);
+        assert_eq!(gaussian_to_range(3.5, 0.0, 10.0), 9.999_833_106_994_629);
+        assert_eq!(gaussian_to_range(-4.0, 0.0, 10.0), 0.0);
+        // Every value is a float32.
+        let mut r = RzRandom::new(7, &SEEDS);
+        for _ in 0..200 {
+            let g = r.gaussian();
+            assert_eq!(f64::from(g as f32), g);
+            let u = r.range_gaussian(-3.0, 9.0);
+            assert!((-3.0..=9.0).contains(&u) && f64::from(u as f32) == u);
         }
     }
 

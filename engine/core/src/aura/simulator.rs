@@ -34,12 +34,15 @@ pub struct Hotspot {
     pub weight: i32,
 }
 
-/// The adaptive lot step of the time-slice helper (§6.5).
+/// The adaptive step of the time-slice helper (§6.5). In the original it
+/// is a process-wide static; FreeCity4 keeps it per simulator ([choice],
+/// simulator §5.5). `Init`, `Shutdown` and a load do not reset it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SliceStep {
-    /// Lots between two timer checks (1..=1024).
+    /// Added to the call's counter per iteration; the clock is read when the
+    /// counter is a multiple of 1024 (1..=1024, a power of two).
     pub step: u32,
-    /// The miss counter (−4..16).
+    /// The signed miss counter.
     pub misses: i32,
 }
 
@@ -50,19 +53,21 @@ impl Default for SliceStep {
 }
 
 impl SliceStep {
-    /// The adaptation after a call that processed `lots` lots (§6.5).
-    pub fn adapt(&mut self, lots: u32) {
-        let n = lots / 1024;
+    /// The adaptation at the end of a state-5 call, with `n = count >> 10`
+    /// (the number of clock reads, §6.5): `n > 20` counts a miss (at 16 the
+    /// step halves), `1 ≤ n < 5` counts down (at −4 the step doubles), and
+    /// `n = 0` or `5 ≤ n ≤ 20` changes nothing.
+    pub fn adapt(&mut self, n: u32) {
         if n > 20 {
-            self.misses += 1;
+            self.misses = self.misses.saturating_add(1);
             if self.misses >= 16 {
                 self.misses = 0;
                 if self.step > 1 {
                     self.step /= 2;
                 }
             }
-        } else if n < 5 {
-            self.misses -= 1;
+        } else if (1..5).contains(&n) {
+            self.misses = self.misses.saturating_sub(1);
             if self.misses <= -4 {
                 self.misses = 0;
                 if self.step < 1024 {
@@ -589,19 +594,6 @@ fn axis_centre(x1: i32, x2: i32, p: f32, cell_width: f32) -> i32 {
 
 // ---- persistence (§11) --------------------------------------------------------------------------------
 
-/// What a record holds, read before anything is committed.
-struct Record {
-    grids8: [Option<G8>; 4],
-    grids16: [Option<G16>; 3],
-    departments: Option<BTreeMap<u32, G16>>,
-    unused_rating: i32,
-    mayor_rating: i32,
-    max: (i32, i32, i16),
-    min: (i32, i32, i16),
-    hotspots: Vec<Hotspot>,
-    version8: bool,
-}
-
 fn put_grid<T: crate::grid::GridElem>(out: &mut dyn OutStream, g: &Option<Rc<dyn TractGrid<T>>>) {
     out.put_ref(&g.as_ref().map_or(RefValue::Null, |g| g.save_ref()));
 }
@@ -617,58 +609,21 @@ impl AuraSim {
         Some(GridProvider::<i16>::resolve_grid(&*self.host, &r))
     }
 
-    fn read_record(&self, inp: &mut dyn InStream, version: u16) -> Option<Record> {
-        // Order: aura, park map, raw park, base, transient, building effect,
-        // landmark map.
-        let aura = self.get8(inp)?;
-        let park = self.get16(inp)?;
-        let raw = self.get16(inp)?;
-        let base = self.get8(inp)?;
-        let transient = self.get8(inp)?;
-        let building = self.get8(inp)?;
-        let landmark = self.get16(inp)?;
-        let departments = if version == 8 {
-            // The old single landmark grid: read, then Shutdown + Release.
-            drop(self.get16(inp)?);
-            None
-        } else {
-            let count = inp.get_u32()?;
-            let mut map = BTreeMap::new();
-            for _ in 0..count {
-                let id = inp.get_u32()?;
-                if let Some(g) = self.get16(inp)? {
-                    map.insert(id, g);
-                }
-            }
-            Some(map)
-        };
-        let unused_rating = inp.get_i32()?;
-        let mayor_rating = inp.get_i32()?;
-        let max = (inp.get_i32()?, inp.get_i32()?, inp.get_i16()?);
-        let min = (inp.get_i32()?, inp.get_i32()?, inp.get_i16()?);
-        let count = inp.get_u32()?;
-        let mut hotspots = Vec::with_capacity((count as usize).min(1024));
+    /// The department block (§11.2): replaces the map with the entries read
+    /// in full ([choice]: a null or failed reference adds no entry; a
+    /// duplicate ID keeps the later grid). Nothing changes when the count
+    /// cannot be read.
+    fn read_departments(&self, inp: &mut dyn InStream) {
+        let Some(count) = inp.get_u32() else { return };
+        let mut map = BTreeMap::new();
         for _ in 0..count {
-            hotspots.push(Hotspot {
-                x: inp.get_i32()?,
-                z: inp.get_i32()?,
-                weight: inp.get_i32()?,
-            });
+            let Some(id) = inp.get_u32() else { break };
+            let Some(g) = self.get16(inp) else { break };
+            if let Some(g) = g {
+                map.insert(id, g);
+            }
         }
-        if inp.error() != 0 {
-            return None;
-        }
-        Some(Record {
-            grids8: [aura, base, transient, building],
-            grids16: [park, raw, landmark],
-            departments,
-            unused_rating,
-            mayor_rating,
-            max,
-            min,
-            hotspots,
-            version8: version == 8,
-        })
+        self.g.borrow_mut().departments = map;
     }
 }
 
@@ -712,41 +667,74 @@ impl SaveObject for AuraSim {
     }
 
     /// §11.3: versions 8 and 9; anything else is false [choice above 9].
+    /// Fields are written as they are read. A grid reference sets its slot
+    /// to null first (foundations §2.7), so a reference that fails, and
+    /// every later one once the stream is in error, leaves its slot empty
+    /// (the previous grid is released, [choice]: the original leaks it). A
+    /// plain field whose read fails keeps its value.
     fn read(&self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else { return false };
         if !(8..=AURA_RECORD_VERSION).contains(&version) {
             return false;
         }
-        let Some(r) = self.read_record(inp, version) else {
-            return false;
-        };
+        // Order: aura, park map, raw park, base, transient, building effect,
+        // landmark map.
+        let aura = self.get8(inp).flatten();
+        self.g.borrow_mut().aura = aura;
+        let park = self.get16(inp).flatten();
+        self.g.borrow_mut().park_map = park;
+        let raw = self.get16(inp).flatten();
+        self.g.borrow_mut().raw_park = raw;
+        let base = self.get8(inp).flatten();
+        self.g.borrow_mut().base = base;
+        let transient = self.get8(inp).flatten();
+        self.g.borrow_mut().transient = transient;
+        let building = self.get8(inp).flatten();
+        self.g.borrow_mut().building_effect = building;
+        let landmark = self.get16(inp).flatten();
+        self.g.borrow_mut().landmark_map = landmark;
+        if version == 8 {
+            // The old single landmark grid: read, then Shutdown + Release.
+            drop(self.get16(inp));
+            self.d.borrow_mut().re_add_landmarks = true;
+        } else {
+            self.read_departments(inp);
+        }
         {
-            let mut g = self.g.borrow_mut();
-            let [aura, base, transient, building] = r.grids8;
-            let [park, raw, landmark] = r.grids16;
-            g.aura = aura;
-            g.base = base;
-            g.transient = transient;
-            g.building_effect = building;
-            g.park_map = park;
-            g.raw_park = raw;
-            g.landmark_map = landmark;
-            if let Some(map) = r.departments {
-                g.departments = map;
+            let mut d = self.d.borrow_mut();
+            let mut set_i32 = |slot: &mut i32| {
+                if let Some(v) = inp.get_i32() {
+                    *slot = v;
+                }
+            };
+            set_i32(&mut d.unused_rating);
+            set_i32(&mut d.mayor_rating);
+            set_i32(&mut d.max_location.0);
+            set_i32(&mut d.max_location.1);
+            if let Some(v) = inp.get_i16() {
+                d.max_rating = v;
+            }
+            let mut set_i32 = |slot: &mut i32| {
+                if let Some(v) = inp.get_i32() {
+                    *slot = v;
+                }
+            };
+            set_i32(&mut d.min_location.0);
+            set_i32(&mut d.min_location.1);
+            if let Some(v) = inp.get_i16() {
+                d.min_rating = v;
+            }
+            if let Some(count) = inp.get_u32() {
+                d.hotspots.clear();
+                for _ in 0..count {
+                    let (Some(x), Some(z), Some(weight)) = (inp.get_i32(), inp.get_i32(), inp.get_i32()) else {
+                        break;
+                    };
+                    d.hotspots.push(Hotspot { x, z, weight });
+                }
             }
         }
-        let mut d = self.d.borrow_mut();
-        if r.version8 {
-            d.re_add_landmarks = true;
-        }
-        d.unused_rating = r.unused_rating;
-        d.mayor_rating = r.mayor_rating;
-        d.max_location = (r.max.0, r.max.1);
-        d.max_rating = r.max.2;
-        d.min_location = (r.min.0, r.min.1);
-        d.min_rating = r.min.2;
-        d.hotspots = r.hotspots;
-        true
+        inp.error() == 0
     }
 
     fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {

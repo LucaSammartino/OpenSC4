@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "flora_table_conversion",
+  "spec": ["flora 3.3", "flora 14", "foundations 18"],
+  "description": "Derived by hand from flora 3.3 (test 5 of 16): byte := low 8 bits of trunc(v * 255) with v * 255 rounded to float32 (checked with numpy float32). 0.6f * 255 = 153.0000061 -> 153; 0.1f * 255 = 25.5000004 -> 25.5f -> 25; 0.9f * 255 = 229.4999939 -> 229.5f -> 229; 0.4f * 255 = 102.0000015 -> 102; 1.0 -> 255; 1.2f * 255 = 306.0000122 -> 306 -> low byte 50 (quirk); 0 -> 0. The same bytes appear in a record built from an exemplar table (cells at elevation 0, moisture 0..6). The record's other fields: the exemplar floats fill fields 1-14 in order; never-auto (0xE9D117C3) sets bit 0; 0x6A37EBB6 true clears bit 2, false clears bit 1; families and plop cost are copied.",
+  "steps": [
+    {"op": "flora_call", "method": "table_byte", "args": [0.6], "expect": 153},
+    {"op": "flora_call", "method": "table_byte", "args": [0.1], "expect": 25},
+    {"op": "flora_call", "method": "table_byte", "args": [0.9], "expect": 229},
+    {"op": "flora_call", "method": "table_byte", "args": [0.4], "expect": 102},
+    {"op": "flora_call", "method": "table_byte", "args": [1.0], "expect": 255},
+    {"op": "flora_call", "method": "table_byte", "args": [1.2], "expect": 50},
+    {"op": "flora_call", "method": "table_byte", "args": [0], "expect": 0},
+    {"op": "flora_types", "types": [
+      {"type": "0x1000", "table_cells": [[0, 0, 0.6], [0, 1, 0.1], [0, 2, 0.9], [0, 3, 0.4], [0, 4, 1.0], [0, 5, 1.2], [0, 6, 0]],
+       "floats": [1, 2, 3, 4, 5, 6, 7, 0.25, 0.125, 0.75, 9, 10, 11, 12], "never_auto": true, "flag_switch": true,
+       "families": ["0xF1", "0xF2"], "plop_cost": 77, "next": "0x2000", "cluster_radius": 10, "cluster_height": 2.5, "water": true},
+      {"type": "0x2000", "flag_switch": false, "never_auto": false},
+      {"type": "0x3000", "floats": [100, 200]}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_expect_record", "type": "0x1000",
+      "table": [[0, 0, 153], [0, 1, 25], [0, 2, 229], [0, 3, 102], [0, 4, 255], [0, 5, 50], [0, 6, 0], [5, 5, 153], [4, 5, 0]],
+      "maturity": 1, "seeding_age": 2, "interval": 3, "seeds": 4, "spread": 5, "lifespan": 6, "max_age": 7, "slope": 0.25,
+      "min_score": 0.125, "probability": 0.75, "half_width": 9, "unused": 10, "clearance": 11, "height": 12,
+      "flags": 3, "families": ["0xF1", "0xF2"], "plop_cost": 77, "next": "0x2000", "cluster_radius": 10, "cluster_height": 2.5, "water": true},
+    {"op": "flora_expect_record", "type": "0x2000", "flags": 4, "water": false, "table": [[5, 5, 153], [12, 12, 153], [4, 4, 0]]},
+    {"op": "flora_expect_record", "type": "0x3000", "maturity": 100, "seeding_age": 200, "interval": 365, "height": 3, "flags": 6}
+  ]
+}

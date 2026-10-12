@@ -184,8 +184,11 @@ impl AuraHost for Fake {
         self.log(format!("post {msg_type:#X}"));
     }
     fn limit_timer_start(&self, _ms: u32) {}
+    /// A clock that never reaches the deadline: with the initial step 1024
+    /// the clock is read before every lot (§6.5), so an expired timer would
+    /// stop every call before its first lot.
     fn limit_timer_expired(&self) -> bool {
-        true
+        false
     }
     fn subscribe(&self, msgs: &[u32]) {
         self.log(format!("subscribe {}", msgs.len()));
@@ -473,8 +476,10 @@ fn transient_effects_and_decay() {
     let a = t.get(1, 1);
     s.add_transient_effect_type(100.0, 100.0, 3);
     s.add_transient_effect_type(100.0, 100.0, 9);
-    s.add_transient_effect_type(f32::NAN, f32::INFINITY, 0);
     assert_eq!((a, t.get(1, 1)), (25, 25));
+    // Hostile position: no panic. `_ftol` maps NaN and ±inf to tract 0
+    // (foundations §18.1), so the effect lands at (0, 0).
+    s.add_transient_effect_type(f32::NAN, f32::INFINITY, 0);
 }
 
 #[test]
@@ -665,4 +670,59 @@ fn hostile_host_values() {
     s.data_mut().state = 99;
     s.do_idle(5);
     assert_eq!(s.data().state, 0);
+}
+
+/// §6.5: the adaptation uses `n = count >> 10`, the number of clock reads.
+#[test]
+fn slice_step_adaptation() {
+    let mut s = SliceStep::default();
+    s.adapt(31);
+    assert_eq!(s, SliceStep { step: 1024, misses: 1 });
+    for _ in 0..15 {
+        s.adapt(21);
+    }
+    assert_eq!(s, SliceStep { step: 512, misses: 0 });
+    s.adapt(0);
+    s.adapt(5);
+    s.adapt(20);
+    assert_eq!(s, SliceStep { step: 512, misses: 0 }, "n = 0 and 5..=20 change nothing");
+    for _ in 0..4 {
+        s.adapt(1);
+    }
+    assert_eq!(s, SliceStep { step: 1024, misses: 0 });
+    for _ in 0..4 {
+        s.adapt(4);
+    }
+    assert_eq!(s, SliceStep { step: 1024, misses: 0 }, "the step stays at most 1024");
+    let mut one = SliceStep { step: 1, misses: 15 };
+    one.adapt(100);
+    assert_eq!(one, SliceStep { step: 1, misses: 0 }, "the step stays at least 1");
+}
+
+/// §6, foundations §18.1: `_ftol` stores keep the low bits.
+#[test]
+fn integer_stores() {
+    assert_eq!(store_i16(36000.0), -29536);
+    assert_eq!(store_i16(40000.0), -25536);
+    assert_eq!(store_i16(f32::NAN), 0);
+    assert_eq!(store_i16(-2.9), -2);
+    assert_eq!(clamp_store(3e9), -127);
+    assert_eq!(clamp_store(-3e9), 127);
+    assert_eq!(clamp_store(1e19), 0);
+    assert_eq!(clamp_store(f32::NAN), 0);
+    assert_eq!(clamp_store(-200.5), -127);
+    assert_eq!(store_i8(128.0), -128);
+    assert_eq!(store_i8(-150.0), 106);
+    assert_eq!(trunc32(f64::INFINITY), 0);
+}
+
+/// §6.15 [choice]: the population tract containing the aura tract's centre.
+#[test]
+fn population_mapping() {
+    use super::pipeline::population_tract;
+    assert_eq!(population_tract(3, 5, 4, 4), (3, 5));
+    assert_eq!(population_tract(3, 5, 4, 8), (1, 2));
+    assert_eq!(population_tract(3, 5, 4, 2), (7, 11));
+    assert_eq!(population_tract(3, 5, 4, 0), (3, 5));
+    assert_eq!(population_tract(i32::MAX, 0, 4, 1), (i32::MAX, 2));
 }

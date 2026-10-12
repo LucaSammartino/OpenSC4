@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "flora_low_score",
+  "spec": ["flora 6.7.2", "flora 3.3"],
+  "description": "Derived by hand from flora 6.7.2 (test 21 of 16). Type 0x1000 has table 0.2 (score 0.2 < minimum 0.3) and the default flags (bits 1 and 2); 0x2000 the same table with 0x6A37EBB6 = false (bit 1 cleared). A maturing plant (age 400, state 1) with propagation on: the score test gives stage 4 -> SetState(4) and RemoveOccupant. With propagation off and bit 1 set, the score test is skipped: stage 1 = state 1, nothing happens. With propagation off and bit 1 clear the score test runs again -> removed. A score of 0.4 keeps the plant (note a table value of 0.3 would give byte 76 -> 0.298, below the minimum).",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1000", "table": 0.2}, {"type": "0x2000", "table": 0.2, "flag_switch": false},
+      {"type": "0x3000", "table": 0.4}]},
+    {"op": "flora_env", "date": 5000, "occupants": [
+      {"id": 1, "type": "flora", "pos": [100, 260, 100], "flora_type": "0x1000", "birth": 4600, "last_seed": 5000, "state": 1},
+      {"id": 2, "type": "flora", "pos": [200, 260, 100], "flora_type": "0x1000", "birth": 4600, "last_seed": 5000, "state": 1},
+      {"id": 3, "type": "flora", "pos": [300, 260, 100], "flora_type": "0x2000", "birth": 4600, "last_seed": 5000, "state": 1},
+      {"id": 4, "type": "flora", "pos": [400, 260, 100], "flora_type": "0x3000", "birth": 4600, "last_seed": 5000, "state": 1}]},
+    {"op": "flora_create"},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_set", "state": {"today": 5000}},
+    {"op": "flora_expect_record", "type": "0x1000", "flags": 6},
+    {"op": "flora_expect_record", "type": "0x2000", "flags": 4},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "simulate_existing", "args": [1]},
+    {"op": "flora_expect_events", "events": [{"event": "set_state", "occupant": 1, "value": 4}, {"event": "remove", "occupant": 1}]},
+    {"op": "flora_expect_occupant", "occupant": 1, "in_manager": false, "state": 4},
+    {"op": "flora_call", "method": "simulate_existing", "args": [4]},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_set", "state": {"propagation": false}},
+    {"op": "flora_call", "method": "simulate_existing", "args": [2]},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_expect_occupant", "occupant": 2, "in_manager": true, "state": 1},
+    {"op": "flora_call", "method": "simulate_existing", "args": [3]},
+    {"op": "flora_expect_events", "events": [{"event": "set_state", "occupant": 3, "value": 4}, {"event": "remove", "occupant": 3}]}
+  ]
+}

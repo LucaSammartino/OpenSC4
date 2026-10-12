@@ -589,7 +589,8 @@ fn scan(op: &Json) -> R<()> {
 
 /// `grid_random_iterator`: a random cell iterator in `mode` "table" or
 /// "prime" (or "constructed"); `resets` is a list of
-/// {"shuffle", "rand_calls", "first", "count", "full_pass"} checks.
+/// {"rect", "set_current_step", "shuffle", "rand_calls", "count", "table",
+/// "current_step", "first", "then_false", "full_pass"} steps and checks.
 fn random_iterator(op: &Json) -> R<()> {
     let seed = opt(op, "crt_seed").map_or(Ok(1), |v| u32_of(v, "crt_seed"))?;
     let mut crt = CrtRand::new(seed);
@@ -617,6 +618,14 @@ fn random_iterator(op: &Json) -> R<()> {
             let r = rect(&Json::Object(vec![("rect".into(), r.clone())]))?;
             it.set_rect(r[0], r[1], r[2], r[3]);
         }
+        if let Some(v) = opt(step, "set_current_step") {
+            let a = arr(v, "set_current_step")?;
+            if a.len() != 2 {
+                return Err("set_current_step must be [current, step]".into());
+            }
+            it.current = i64_of(&a[0], "current")? as i32;
+            it.step = i64_of(&a[1], "step")? as i32;
+        }
         let shuffle = opt(step, "shuffle").map_or(Ok(true), |v| bool_of(v, "shuffle"))?;
         let before = crt;
         it.reset(shuffle, &mut crt);
@@ -643,6 +652,12 @@ fn random_iterator(op: &Json) -> R<()> {
                 return Err(format!("table {}, expected {}", show(&got), show(t)));
             }
         }
+        if let Some(v) = opt(step, "current_step") {
+            let got = Json::Array(vec![ji(it.current), ji(it.step)]);
+            if !scalar::matches(&got, v, false) {
+                return Err(format!("current/step {}, expected {}", show(&got), show(v)));
+            }
+        }
         let mut seen = Vec::new();
         if let Some(f) = opt(step, "first") {
             let n = arr(f, "first")?.len();
@@ -655,6 +670,14 @@ fn random_iterator(op: &Json) -> R<()> {
             let got = cells_json(&seen);
             if !scalar::matches(&got, f, false) {
                 return Err(format!("first cells {}, expected {}", show(&got), show(f)));
+            }
+            if opt(step, "then_false").map_or(Ok(false), |v| bool_of(v, "then_false"))? {
+                if let Some(c) = it.next_cell() {
+                    return Err(format!("next() after the listed cells returned {c:?}"));
+                }
+                if !it.is_exhausted() {
+                    return Err("iterator not exhausted".into());
+                }
             }
         }
         if opt(step, "full_pass").map_or(Ok(false), |v| bool_of(v, "full_pass"))? {

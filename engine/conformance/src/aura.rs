@@ -134,6 +134,15 @@ pub(crate) struct World {
     offset: Cell<i32>,
     land_value_type: Cell<i32>,
     timer_expired: Cell<bool>,
+    /// Clock reads that answer "not expired" after each timer start before
+    /// the timer expires (`None`: `timer_expired` answers every read).
+    timer_budget: Cell<Option<u32>>,
+    /// Clock reads since the last timer start.
+    timer_reads: Cell<u32>,
+    /// Log every clock read as a `timer_read` event.
+    log_timer: Cell<bool>,
+    /// Lots taken from the current lot iterator.
+    lots_taken: Cell<u32>,
     registry_ok: Cell<bool>,
     sources: RefCell<Sources>,
     seed: Cell<u32>,
@@ -146,7 +155,7 @@ impl World {
             date: Cell::new(1000),
             tuning: RefCell::new(Some(Rc::new(shipped_tuning()))),
             land_value_type: Cell::new(1),
-            timer_expired: Cell::new(true),
+            timer_expired: Cell::new(false),
             registry_ok: Cell::new(true),
             seed: Cell::new(1),
             ..Default::default()
@@ -246,11 +255,15 @@ impl GridProvider<i16> for World {
 }
 
 /// A snapshot of the world's lots at the time the iterator was taken.
-struct Lots(std::vec::IntoIter<IteratedLot>);
+struct Lots(std::vec::IntoIter<IteratedLot>, Weak<World>);
 
 impl LotIterator for Lots {
     fn next_lot(&mut self) -> Option<IteratedLot> {
-        self.0.next()
+        let l = self.0.next();
+        if let (Some(_), Some(w)) = (&l, self.1.upgrade()) {
+            w.lots_taken.set(w.lots_taken.get() + 1);
+        }
+        l
     }
 }
 
@@ -284,7 +297,8 @@ impl AuraHost for World {
     }
     fn lot_iterator(&self) -> Box<dyn LotIterator> {
         self.log("lot_iterator", vec![]);
-        Box::new(Lots(self.lots.borrow().clone().into_iter()))
+        self.lots_taken.set(0);
+        Box::new(Lots(self.lots.borrow().clone().into_iter(), self.me.borrow().clone()))
     }
     fn lot_at(&self, x: i32, z: i32) -> Option<LotInfo> {
         self.lots
@@ -364,10 +378,19 @@ impl AuraHost for World {
         self.log("post", vec![("type", ji(msg_type))]);
     }
     fn limit_timer_start(&self, ms: u32) {
+        self.timer_reads.set(0);
         self.log("timer_start", vec![("ms", ji(ms))]);
     }
     fn limit_timer_expired(&self) -> bool {
-        self.timer_expired.get()
+        let n = self.timer_reads.get();
+        self.timer_reads.set(n + 1);
+        if self.log_timer.get() {
+            self.log("timer_read", vec![("lots_taken", ji(self.lots_taken.get()))]);
+        }
+        match self.timer_budget.get() {
+            Some(b) => n >= b,
+            None => self.timer_expired.get(),
+        }
     }
     fn subscribe(&self, msgs: &[u32]) {
         self.log(
@@ -612,6 +635,9 @@ fn env(w: &World, op: &Json) -> R<()> {
                 Json::Null => {
                     w.funding.borrow_mut().remove(&id);
                 }
+                Json::Str(s) if s == "nan" => {
+                    w.funding.borrow_mut().insert(id, f32::NAN);
+                }
                 f => {
                     w.funding.borrow_mut().insert(id, f32_of(f, "funding")?);
                 }
@@ -634,6 +660,15 @@ fn env(w: &World, op: &Json) -> R<()> {
     }
     if let Some(v) = opt(op, "timer_expired") {
         w.timer_expired.set(bool_of(v, "timer_expired")?);
+    }
+    if let Some(v) = op.get("timer_reads_before_expiry") {
+        w.timer_budget.set(match v {
+            Json::Null => None,
+            v => Some(u32_of(v, "timer_reads_before_expiry")?),
+        });
+    }
+    if let Some(v) = opt(op, "log_timer_reads") {
+        w.log_timer.set(bool_of(v, "log_timer_reads")?);
     }
     if let Some(v) = opt(op, "registry_ok") {
         w.registry_ok.set(bool_of(v, "registry_ok")?);
@@ -1190,9 +1225,14 @@ fn load(w: &World, op: &Json) -> R<()> {
     let name = slot(op)?;
     let saved = w.saves.borrow().get(&name).cloned().ok_or("no such slot")?;
     let me = w.rc();
+    let into = opt(op, "into_current").map_or(Ok(false), |v| bool_of(v, "into_current"))?;
+    let current = if into { Some(w.sim()?) } else { None };
     let mut rng = Some(w.rng(opt(op, "rng"))?);
     let mut factory = |class: u32, _id: u32| -> Option<RefValue> {
         if class == CLSID_AURA_SIMULATOR {
+            if let Some(c) = &current {
+                return Some(RefValue::Object(c.clone() as Rc<dyn SaveObject>));
+            }
             let r = rng.take()?;
             return Some(RefValue::Object(
                 AuraSim::new(me.clone() as Rc<dyn AuraHost>, me.token(), r) as Rc<dyn SaveObject>,
@@ -1205,7 +1245,7 @@ fn load(w: &World, op: &Json) -> R<()> {
     if ok != want {
         return Err(format!("store load clean = {ok}, expected {want}"));
     }
-    if !ok {
+    if !ok || into {
         return Ok(());
     }
     let sim = roots

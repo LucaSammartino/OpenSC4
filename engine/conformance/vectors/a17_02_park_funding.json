@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "aura_park_funding",
-  "spec": ["aura 6.2", "aura 17.2"],
-  "description": "State 2: park map = rawPark > 0 ? trunc(rawPark x funding) : rawPark. 100 x 0.8 -> 80, 7 x 0.8 = 5.6 -> 5, -20 and 0 kept; at 0.5: 50 and 3; without a Parks and Recreation department the factor is 1.0 [choice]. Products are one f32 multiply (foundations 18), values from a Python model.",
+  "spec": ["aura 6", "aura 6.2", "aura 17.2", "aura 17.19", "foundations 18.1"],
+  "description": "State 2: park map = rawPark > 0 ? low16(trunc(float32(rawPark x funding))) : rawPark. 100 x 0.8 -> 80, 7 x 0.8 = 5.6 -> 5, -20 and 0 kept; at 0.5: 50 and 3; without a Parks and Recreation department the factor is 1.0 and the pipeline still moves to state 3 (test 19 [choice]; the original crashes). The int16 store is the low 16 bits of the CRT _ftol (6 'Integer stores', [compat]): at funding 1.2 (float32 1.20000005) raw 30000 gives trunc(36000.0) = 36000, stored as -29536 (wrap, not 32767); 100 -> 120.000005 -> 120 and 7 -> 8.4 -> 8. A stub budget whose funding is NaN gives NaN products, and _ftol of NaN is 0x8000000000000000, low 16 bits 0 -> 0 (non-positive raw values are not multiplied). Products are one f32 multiply (foundations 18), values from a Python/numpy float32 model.",
   "steps": [
     {"op": "aura_create"},
     {"op": "aura_init", "expect": true},
@@ -20,6 +20,15 @@
     {"op": "aura_env", "funding": {"0x8A4260A6": null}},
     {"op": "aura_set", "state": {"state": 2}},
     {"op": "aura_idle", "expect_state": 3},
-    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 100], [1, 0, -20], [2, 0, 7], [3, 0, 0]], "others": 0}
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 100], [1, 0, -20], [2, 0, 7], [3, 0, 0]], "others": 0},
+    {"op": "aura_set_grid", "grid": "raw_park", "cells": [[4, 0, 30000]]},
+    {"op": "aura_env", "funding": {"0x8A4260A6": 1.2}},
+    {"op": "aura_set", "state": {"state": 2}},
+    {"op": "aura_idle", "expect_state": 3},
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 120], [1, 0, -20], [2, 0, 8], [3, 0, 0], [4, 0, -29536]], "others": 0},
+    {"op": "aura_env", "funding": {"0x8A4260A6": "nan"}},
+    {"op": "aura_set", "state": {"state": 2}},
+    {"op": "aura_idle", "expect_state": 3},
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 0], [1, 0, -20], [2, 0, 0], [3, 0, 0], [4, 0, 0]], "others": 0}
   ]
 }

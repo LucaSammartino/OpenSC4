@@ -27,6 +27,7 @@ pub mod crime;
 pub mod curve;
 pub mod demand;
 pub mod flammability;
+pub mod flora;
 pub mod grid;
 pub mod host;
 pub mod ids;
@@ -47,6 +48,7 @@ pub mod store;
 pub mod stream;
 pub mod variant;
 pub mod weather;
+pub mod x87;
 
 pub use calibration::Calibration;
 pub use host::{AgentDelivery, AgentHandle, Broadcast, Clock, Host, Message, TimerSource};

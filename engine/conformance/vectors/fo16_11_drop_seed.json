@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "flora_drop_seed",
+  "spec": ["flora 6.6", "flora 8", "foundations 18"],
+  "description": "Derived by hand from flora 6.6 (test 11 of 16) in float32: minimum 0.3f, probability 0.5, so the right side (1 - 0.3f) * 0.5 = 0.34999999 (0.7f is exact as 1 - 0.3f). Score 0.6 (type 0x1006, table 0.6): (0.6f - 0.3f) * u <= 0.3 * 0.999 < 0.35 -> accepted, one RandomDoubleUniform, then planting (one orientation draw) at (100, 260, 100). Score 1.0 (type 0x1010, byte 255 * f32(1/255) = 1.0000000591 -> 1.0f): 0.7f * 0.49 = 0.343 < 0.35 -> accepted; u = 0.5 gives 0.34999999 which is not < 0.34999999 -> rejected after its one draw (accepted iff u < 0.5). Score 0.2 (type 0x1002, byte 51 -> 0.2) < 0.3 -> rejected with no draw. A location that is not OK (x = 1, the clearance box starts at -2) -> rejected with no draw. DropSeed returns true once accepted even when the planting fails (the occupant manager refuses the insert).",
+  "steps": [
+    {"op": "flora_types", "types": [{"type": "0x1006", "table": 0.6}, {"type": "0x1010", "table": 1.0}, {"type": "0x1002", "table": 0.2}]},
+    {"op": "flora_create", "rng": {"doubles": [0.999, 0.49, 0.5, 0]}},
+    {"op": "flora_init", "expect": true},
+    {"op": "flora_call", "method": "score", "args": ["0x1010", 200, 200], "expect": 1.0},
+    {"op": "flora_call", "method": "score", "args": ["0x1002", 200, 200], "expect": 0.2},
+    {"op": "flora_clear_events"},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1006", 100, 100], "expect": true},
+    {"op": "flora_expect_events", "filter": {"event": "rng"}, "events": [
+      {"event": "rng", "method": "uniform", "value": 0.999}, {"event": "rng", "method": "range_i32", "lo": 0, "hi": 4}]},
+    {"op": "flora_expect_occupant", "occupant": 1000, "in_manager": true, "flora_type": "0x1006", "pos": [100, 260, 100]},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1010", 200, 200], "expect": true},
+    {"op": "flora_expect_events", "filter": {"event": "rng"}, "events": [
+      {"event": "rng", "method": "uniform", "value": 0.49}, {"event": "rng", "method": "range_i32"}]},
+    {"op": "flora_expect_occupant", "occupant": 1001, "in_manager": true, "flora_type": "0x1010", "pos": [200, 260, 200]},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1010", 300, 300], "expect": false},
+    {"op": "flora_expect_events", "events": [{"event": "rng", "method": "uniform", "value": 0.5}]},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1002", 400, 400], "expect": false},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1006", 1, 500], "expect": false},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x5555", 500, 500], "expect": false},
+    {"op": "flora_expect_events", "events": []},
+    {"op": "flora_env", "insert_ok": false},
+    {"op": "flora_call", "method": "drop_seed", "args": ["0x1006", 600, 600], "expect": true},
+    {"op": "flora_expect_events", "filter": {"event": "insert"}, "events": [{"event": "insert", "occupant": 1002}]},
+    {"op": "flora_expect_occupant", "occupant": 1002, "in_manager": false},
+    {"op": "flora_expect_refs", "refs": {"1002": 0, "1000": 1}}
+  ]
+}

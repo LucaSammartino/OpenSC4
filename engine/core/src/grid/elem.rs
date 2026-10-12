@@ -60,8 +60,9 @@ macro_rules! int_elem {
             fn sum_term(self) -> i64 {
                 self as i64
             }
+            /// `_ftol` (foundations §18.1), kept to the type's width.
             fn from_quotient(q: f64) -> Self {
-                (q as i64) as $t
+                crate::x87::ftol(q) as $t
             }
             fn mean_term(self) -> i32 {
                 self as i32
@@ -100,8 +101,9 @@ impl GridElem for u64 {
     fn sum_term(self) -> i64 {
         self as i64
     }
+    /// `_ftol` (foundations §18.1).
     fn from_quotient(q: f64) -> Self {
-        (q as i64) as u64
+        crate::x87::ftol(q) as u64
     }
     fn mean_term(self) -> i32 {
         self as i32
@@ -129,14 +131,16 @@ macro_rules! float_elem {
             const CLSID: u32 = $clsid;
             const NAME: &'static str = $name;
             const FLOAT: bool = true;
+            /// Truncated with `_ftol` (simgrid §4.1, foundations §18.1).
             fn sum_term(self) -> i64 {
-                self as i64
+                crate::x87::ftol(self as f64)
             }
             fn from_quotient(q: f64) -> Self {
                 q as $t
             }
+            /// `_ftol` kept to 32 bits (foundations §18.1).
             fn mean_term(self) -> i32 {
-                self as i32
+                crate::x87::ftol32(self as f64)
             }
             fn from_mean(v: i32) -> Self {
                 v as $t

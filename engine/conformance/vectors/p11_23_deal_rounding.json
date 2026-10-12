@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "pollution_deal_rounding",
+  "spec": ["pollution 4.4.2", "pollution 11.23", "crime 6", "foundations 18"],
+  "description": "Test 23 (spec answer PO1). n := rhe(f32(amount x 0.1f)): 0.1f is the float32 constant 0.100000001490116, the int32 amount enters the multiply exactly, the product is rounded to float32 once, then rounded half to even with the 1.5 x 2^23 idiom (crime.md 6 rhe). By hand and an independent numpy float32 model: 25 -> 2.5000000372 -> f32 2.5 -> 2 (a single rounding of the exact product would give 3); 35 -> 3.5 -> 4; 15 -> 1.5 -> 2; 1000 -> 100. importTotal 108, imported += 108, each import deal's amountUsed = n; a deal with amountUsed = amount (10 of 10) is skipped. Export deal 25 with amountUsed 24: room 1 -> n = min(2, 1) = 1 -> amountUsed 25, exportCapacity 1. Beyond 2^22 the idiom is not exact (test 19 of crime): amount 41,943,040 -> f32 4,194,304 -> 4,194,304 (the largest exact case); amount 50,000,000 -> f32 5,000,000 -> rhe 4,597,152 (17,582,912 = 0x4B8625A0 - 0x4B400000). No tract visits (tractsPerDay 0).",
+  "steps": [
+    {"op": "pollution_env", "cells": [16, 16]},
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_set", "state": {"tracts_per_day": 0, "efficiency": 1}},
+    {"op": "pollution_env", "deals": [
+      {"deal": "imp25", "type": "import", "amount": 25},
+      {"deal": "imp35", "type": "import", "amount": 35},
+      {"deal": "full", "type": "import", "amount": 10, "used": 10},
+      {"deal": "imp15", "type": "import", "amount": 15},
+      {"deal": "imp1000", "type": "import", "amount": 1000},
+      {"deal": "exp25", "type": "export", "amount": 25, "used": 24}]},
+    {"op": "pollution_clear_events"},
+    {"op": "pollution_message", "type": "SimNewDay"},
+    {"op": "pollution_expect_events", "filter": {"event": "deal_used"}, "events": [
+      {"deal": "imp25", "used": 2}, {"deal": "imp35", "used": 4}, {"deal": "imp15", "used": 2}, {"deal": "imp1000", "used": 100},
+      {"deal": "exp25", "used": 25}]},
+    {"op": "pollution_expect", "state": {"imported": 108, "export_capacity": 1}},
+
+    {"op": "pollution_set", "state": {"imported": 0, "export_capacity": 0}},
+    {"op": "pollution_env", "deals": [
+      {"deal": "edge", "type": "import", "amount": 41943040},
+      {"deal": "big", "type": "import", "amount": 50000000}]},
+    {"op": "pollution_clear_events"},
+    {"op": "pollution_message", "type": "SimNewDay"},
+    {"op": "pollution_expect_events", "filter": {"event": "deal_used"}, "events": [
+      {"deal": "edge", "used": 4194304}, {"deal": "big", "used": 4597152}]},
+    {"op": "pollution_expect", "state": {"imported": 8791456}}
+  ]
+}
