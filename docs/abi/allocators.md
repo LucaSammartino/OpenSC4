@@ -97,6 +97,17 @@ containers.
   a buffer: the default constructor allocates 8 bytes. Evidence: default constructor `0x00578390`; constructor from
   `char*` `0x00408480` (→ `0x00407FA0`); assign/grow `0x0040EBC0`; deleting destructor (vtable slot 28)
   `0x0044BF10`.
+- **Buffer pointers** (the STLport string layout):
+  - `begin` is the first character, and `end` points at the terminating zero byte, so the length is `end − begin`.
+  - `capacity_end` is `begin` plus the number of bytes allocated, so it points one past the last usable byte,
+    including the terminator's slot. The usable capacity is therefore `capacity_end − begin − 1`.
+  - A string built from n characters allocates exactly n + 1 bytes and sets `capacity_end = begin + n + 1`
+    (constructor from a range, `0x00407FA0`).
+  - The default constructor allocates 8 bytes and sets `capacity_end = begin + 8` (`0x00578390`).
+  - Over-allocating is harmless, provided `capacity_end` does not point past the allocation.
+- **Reference count** (+0x10): the game's constructors set it to **0** (`0x00578390`, and the `char*` constructor).
+  A `cRZString` embedded in a container element is never reference-counted. It is destroyed inline (see below),
+  so 0 is the value to store.
 - **A heap-allocated `cRZString` object** is freed with C (`0x005E5620`) by the deleting destructor. This happens
   when `Release` drops the last reference (`0x0090E1F3` → slot 28).
 - **The game often destroys strings inline**, without calling through the vtable: it stores `0x00A80810` in the
