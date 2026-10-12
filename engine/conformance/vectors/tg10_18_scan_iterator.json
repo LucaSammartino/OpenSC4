@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "tgrid_scan_iterator",
+  "spec": ["simgrid 7.4", "simgrid 10.18"],
+  "description": "The scanning iterator: x inner, z outer over the inclusive rectangle; Reset outside the rectangle makes the first GetNext return false; a step skips cells.",
+  "steps": [
+    {"op": "tg_scan", "rect": [0, 0, 2, 1], "resets": [{"at": [0, 0], "expect": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]}, {"at": [5, 0], "expect": []}, {"at": [1, 1], "expect": [[1, 1], [2, 1]]}, {"at": [0, -1], "expect": []}]},
+    {"op": "tg_scan", "rect": [0, 0, 4, 4], "step": 2, "resets": [{"at": [0, 0], "expect": [[0, 0], [2, 0], [4, 0], [0, 2], [2, 2], [4, 2], [0, 4], [2, 4], [4, 4]]}]}
+  ]
+}

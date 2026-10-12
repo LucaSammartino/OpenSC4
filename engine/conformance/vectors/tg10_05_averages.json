@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "tgrid_averages",
+  "spec": ["simgrid 4.1", "simgrid 10.5"],
+  "description": "Averages of a u8 grid with shift 1: a cell rectangle inside one tract returns that tract; otherwise every covered cell adds its tract's value and the sum is divided by w x h and truncated; the tract average has no shortcut. w or h <= 0 returns 0 ([choice]).",
+  "steps": [
+    {"op": "tg_city", "cells": [256, 256], "width": [16, 16]},
+    {"op": "tg_create", "name": "a", "type": "u8", "tract_size": 2},
+    {"op": "tg_set", "grid": "a", "cells": [[0, 0, 10], [1, 0, 20], [0, 1, 30], [1, 1, 41]]},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [0, 0, 2, 2], "expect": 10},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [0, 0, 4, 4], "expect": 25},
+    {"op": "tg_call", "grid": "a", "method": "average_in_tract_rect", "args": [0, 0, 2, 2], "expect": 25},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [1, 1, 2, 2], "expect": 25},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [3, 0, 1, 1], "expect": 20},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [0, 1, 1, 2], "expect": 20},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [1, 0, 3, 1], "expect": 16},
+    {"op": "tg_call", "grid": "a", "method": "average_in_tract_rect", "args": [1, 1, 1, 1], "expect": 41},
+    {"op": "tg_call", "grid": "a", "method": "average_in_tract_rect", "args": [0, 0, 0, 2], "expect": 0},
+    {"op": "tg_call", "grid": "a", "method": "average_in_cell_rect", "args": [0, 0, 2, -1], "expect": 0}
+  ]
+}
