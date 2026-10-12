@@ -775,6 +775,61 @@ Protection events: `acquire_services` / `release_services` (`kind`), `create_gri
 (`series`, `value`), `post` (`type`, `subject?`), `air_create`, `air_init` / `air_shutdown` (`source`), and `rng`
 (`kind` uniform or range with `lo`, `hi`, `value`).
 
+## Flora ops
+
+The flora vectors (`fo16_…`) drive the flora simulator (`fc4_core::flora`) with a scripted city implementing
+`FloraHost`. Every op name starts with `flora_`. The default city is 1024 m with 64 × 64 cells (cell =
+floor(position / 16)), sea level 250 m, flat ground 260 m (normal.y 1), moisture type 8, no lots, the terrain
+initialized, an occupant manager that accepts inserts, the shipped "Flora Tuning Parameters" (burn rate 1, removal
+step 1, period 24, wild seeds 0, elevation scale 800) and a process-wide registry shared by every simulator of the
+vector (`flora_registry reset` starts a new process). Occupants are numbers; the simulator's new occupants get IDs
+from 1000 on. A flora occupant's bounding box is its position ± its record's half width (1) in x and z and
+[y, y + height (3)], unless `bbox` is given. The occupant manager lists only inserted occupants (flag 1). Host
+references are counted per occupant (an inserted occupant holds one). The scripted generator returns queued
+integers (`range_i32`, `uniform_u32`; empty → the lower bound / 0), queued uniforms `u` (`uniform`; `range_f64`
+returns `r24(r24(u × r24(b − a)) + a)`; empty → 0.5) and queued Gaussians (empty → 0); every draw is an `rng` event.
+`rng: {seed, process_clock?}` uses the real generator (`FloraRng`) instead.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `flora_env` | any of `exists`, `size` (`[x, z]` m), `cells` (`[x, z]`), `established`, `date` (the sim date number), `terrain_initialized`, `sea`, `ground`, `grounds` (`[[x0, z0, x1, z1, h]]`, last match wins), `normal_y`, `normals` (`[[x0, z0, x1, z1, y]]`), `lots` (`[[x0, z0, x1, z1]]`), `moisture`, `moistures` (`[[x0, z0, x1, z1, m]]`), `manager` (an occupant manager exists), `insert_ok`, `segment` (the new-city specification's obliterated segment, or null), `occupants` (`[{id, type ("flora", "building", "prop", "landfill", "network" or an ID), pos?, bbox? ([[x, y, z], [x, y, z]]), in_manager? (true), preview?, network? (flags), flora_type?, birth?, last_seed?, state?, orientation?, record? (type or null; default the flora type)}]`), `forget` (IDs to drop) | the scripted city |
+| `flora_types` | `types` (`[{type, exemplar_type? (0x0F), next?, water?, floats? (values of 0x083DC35B) or the named floats maturity, seeding_age, interval, seeds, spread, lifespan, max_age, slope, min_score, probability, half_width, unused, clearance, height, cluster_radius?, cluster_height?, table? (one value for all 256 cells), table_cells? ([[e, m, v]]; without `table` the rest is 0.6 where both indices are in 5..12, else 0), never_auto?, flag_switch?, families?, plop_cost?, props? (extra property map)}]`), `append?` | the flora exemplars, in enumeration order |
+| `flora_tuning` | `none: true` (no exemplar), or `shipped?` (true), `props?`, `remove?` | the tuning exemplar |
+| `flora_registry` | `reset?` (a new process registry), `default_flags?` (the key-0 record's flags, [choice] default 7), `app_shutdown?` | the process-wide registry |
+| `flora_create` | `rng?` (`{ints?, doubles?, gauss?}` or `{seed, process_clock?}`), `crt_seed?` | a new simulator (the old one is dropped without `Shutdown`) |
+| `flora_rng` | as `rng` above | replaces the simulator's generator |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `flora_init` / `flora_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `flora_message` | `type` (`SimNewDay`, `SimNewMonth`, `InsertOccupant`, `RemoveOccupant`, `TerrainHeightsChanged`, `ExemplarChanged`, `CityEstablished`, `CityObliterated`, `PlaceFlora`, `Cheat` or an ID), `data1..3?` (`data3` may be an occupant type name), `occupant?` (void1), `text?` (the cheat line), `params?` (`[[as_u32, as_f32]]`), `expect?` | `DoMessage` |
+| `flora_days` | `count?` (1) | SimNewDay messages |
+| `flora_call` | `method`, `args?`, `expect?` | pure: `elevation_index` (`[alt, sea, water, scale]`), `table_byte`, `blocks_per_month` (`[cx, cz, period]`), `scale_wild_seeds` (`[w, sx, sz]`), `blocks_flora` (`[type, flags or null]`), `query_interface` (`"primary"`, `"message_target"`, `"serializable"` or false), `advance_cluster_type`; simulator: `elevation_index_at` (`[x, z, water]`), `score` (`[type, x, z]`), `best_type` (→ `[type, score]`), `location_ok` (`[type, x, z, exclude?]`), `add_new` (`[type, [x, y, z], force]` → `{occupant, pos}`), `add_flora_occupant`, `drop_seed`, `simulate_existing` (`[occupant]`), `monthly`, `wild_seeds`, `daily`, `kill`, `occupant_inserted` (`[occupant, type]`), `terrain_change` (`[[x0, z0, x1, z1]]`), `demolish`, `demolish_cells`, `demolish_bbox` (`[min, max]`), `cost`, `enable_flora`, `blast` (`[n, m, s]`), `static_data` (→ type or null), `all_types`, `all_types_into` (`[buffer length or null, count]` → `{ret, count, copied}`), `family_types`, `is_valid`, `is_family_valid`, `types_by_filter` (`[accepted types or null]` → `{ret, set}`), `types_by_family`, `add_static` (`[type spec or null]`), `save_obliterated` / `restore_obliterated` (`[segment]`), `read_tuning`, `exemplar_changed` (`[inst]`), `add_ref`, `release`, `draw_uniform` |
+| `flora_set` | `state`: any of `enabled`, `propagation`, `propagation_forced`, `preserve`, `size`, `cells`, `today`, `period`, `blocks_per_month`, `wild_seeds_per_month`, `keep_iterator_flag`, `elevation_scale`, `burn_accumulator`, `burnt_removal_accumulator`, `burn_rate`, `burnt_removal_step` | pokes state (test setup) |
+| `flora_expect` | `state`: the fields above plus `initialized`, `ref_count`, `destroyed`, `burnt` (occupant IDs), `simulator_held`, `rng` (`[lcg, mul, flag, cached]`), `iterator` (partial: `state`, `mode`, `dirty`, `rect`, `count`, `table_len`, `index`, `current`, `step`) | the simulator state |
+| `flora_expect_occupant` | `occupant`, any of `exists`, `in_manager`, `type`, `flora_type`, `birth`, `last_seed`, `state`, `orientation`, `record`, `pos` | an occupant |
+| `flora_expect_record` | `type`, any of `exists`, `next`, `seed_type`, `water`, `flags`, the named floats, `cluster_radius`, `cluster_height`, `unnamed`, `families`, `plop_cost`, `table` (`[[e, m, byte]]`) | a static flora record |
+| `flora_expect_registry` | any of `types` (the type array), `keys` (map keys, ascending), `families`, `family` (`{id: [types]}`), `loaded`, `default_flags` | the registry |
+| `flora_expect_rand` | `calls` | C `rand()` calls (block shuffles) since the last check (or `flora_create` / `flora_load`) |
+| `flora_expect_refs` | `refs` (`{"id": count}`) | host reference counts |
+| `flora_expect_segment` | `segment`, `count?`, `records?` (`[{key: [t, g, i], u32? or flora_type?}]`) | an obliteration segment |
+| `flora_expect_events` / `flora_expect_event_count` / `flora_clear_events` | see the shared conventions | host calls |
+| `flora_save` / `flora_load` / `flora_expect_save` | `slot`; load: `rng?`, `expect?`, `crt_seed?` | the class-object store; burnt-list occupants are host objects of class `0x0CC00001` |
+| `flora_patch` / `flora_expect_payload` | see the shared conventions (the simulator's record) | |
+| `flora_read` | `slot` or `hex`, `expect?`, `consumed?` | calls `Read` of the current simulator directly |
+
+Flora events: `app_callback`, `post` (`type`, `data2`), `subscribe` / `unsubscribe` (`types`), `register_command` /
+`unregister_command` (`id`, `name`), `add_agent` (`level`, `name`, `flags`), `remove_agent`, `acquire_services`,
+`release_services`, `register_cheat` / `unregister_cheat` (`id`, `name`), `rng` (`method`, arguments, `value`), and
+per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` / `set_state` / `set_orientation`
+(`value`), `set_record` (`record`), `set_position` (`pos`), `set_flag` (`on`), `change` (0x99EF1145), `init`,
+`insert`, `remove`, `move`, `read_occupant` (`key`); `seg_write` (`segment`, `key`, `value` or `occupant` and
+`in_manager`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -782,7 +837,7 @@ Protection events: `acquire_services` / `release_services` (`kind`), `create_gri
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
-   `pr18_…` (protection §18).
+   `pr18_…` (protection §18), `fo16_…` (flora §16).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1127,3 +1182,29 @@ Protection events: `acquire_services` / `release_services` (`kind`), `create_gri
 | 20 adjusted copy and funding change | `pr18_20_adjusted_copy` |
 | 21 persistence (layout, versions, store round trip) | `pr18_21_persistence` |
 | 22 slot ABI, QueryInterface, crime-compatible slots | `pr18_22_slot_abi` |
+
+## Coverage (flora §16)
+
+| §16 item | Vector |
+|---|---|
+| constructor, Init, Shutdown, tuning (shipped and code defaults), QueryInterface, reference count (§1, §3.1, §4, §7) | `fo16_00_init_tuning` |
+| 1 stage, 2 negative age | `fo16_01_02_stage` |
+| 3 elevation index, 4 score | `fo16_03_04_elevation_score` |
+| 5 exemplar table conversion (and the record's other fields) | `fo16_05_table_conversion` |
+| 6 best type (and the key-0 record) | `fo16_06_best_type` |
+| 7 blocksPerMonth (and the monthly iterator), 8 wild seed scaling (and wild seeding) | `fo16_07_08_blocks_wild` |
+| 9 daily, 10 daily with rate > 1 | `fo16_09_10_daily` |
+| 11 DropSeed | `fo16_11_drop_seed` |
+| 12 location bounds, 13 slope, 14 under water, 15 blocking | `fo16_12_15_location` |
+| 16 planting altitude, 17 cluster merge | `fo16_16_17_planting` |
+| 18 PlaceFlora | `fo16_18_place_flora` |
+| 19 seeding, 20 seeding interval | `fo16_19_20_seeding` |
+| 21 low score | `fo16_21_low_score` |
+| 22 kill (and RemoveOccupant) | `fo16_22_kill` |
+| 23 building insert (and networks) | `fo16_23_building_insert` |
+| 24 terrain change | `fo16_24_terrain` |
+| 25 cheat (and blast, exemplar-changed routing), 26 established | `fo16_25_26_cheat_established` |
+| 27 persistence, 28 Init after load | `fo16_27_28_persistence` |
+| 29 GetAllFloraTypes (and the other type queries) | `fo16_29_all_types` |
+| 30 obliteration | `fo16_30_obliteration` |
+| 31 AdvanceClusterType, 32 seed types | `fo16_31_32_clusters_seed_types` |

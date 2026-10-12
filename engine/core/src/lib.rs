@@ -27,6 +27,7 @@ pub mod crime;
 pub mod curve;
 pub mod demand;
 pub mod flammability;
+pub mod flora;
 pub mod grid;
 pub mod host;
 pub mod ids;
