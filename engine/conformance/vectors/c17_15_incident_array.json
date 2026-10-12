@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "crime_incident_array",
+  "spec": ["crime 11.4", "crime 11.5", "crime 17.15"],
+  "description": "Test 15. GetCrimeIncidentArray resizes the caller's vector to the incident count and fills each element of an incident with a lot with {cell of the lot centre, type ID, visuals flag, icon key}; it returns count > 0. Three crimes on lots whose centres are cells (11,10), (21,20), (31,30), types Flashing (u = 0.5), Fighting (0.1), Fighting (0.0), shipped icons (0x7AB50E44, 0x1ABE787D, 0). 0 incidents -> false and an empty vector. SetVisualsCreated(1, true) -> true, GetVisualsCreated(1) -> true; index 3 (= count) -> false for both. An incident without a lot (possible after a load) leaves its element unchanged: the op pre-fills the vector with markers of type 0xFFFFFFFF. The 28-byte tCrimeEvent layout and the game allocator are the plugin's (not testable in the core).",
+  "steps": [
+    {"op": "crime_lots", "lots": [
+      {"id": 1, "rect": [10, 10, 12, 11], "center": [11, 10], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 2, "rect": [20, 20, 22, 21], "center": [21, 20], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 3, "rect": [30, 30, 32, 31], "center": [31, 30], "condition": 1, "building": {"purpose": 1, "wealth": 1}}],
+     "random": [1, 2, 3]},
+    {"op": "crime_env", "zones": [{"x": 10, "z": 10, "v": 1}, {"x": 20, "z": 20, "v": 1}, {"x": 30, "z": 30, "v": 1}]},
+    {"op": "crime_create", "rng": {"stub": {"uniform": [0.0], "range": [0.5, 0.1, 0.0]}}},
+    {"op": "crime_init"},
+    {"op": "crime_call", "method": "incident_array", "args": [2], "expect": {"result": false, "events": []}},
+    {"op": "crime_call", "method": "add_crimes", "args": [3], "expect": 3},
+    {"op": "crime_call", "method": "incident_array", "expect": {"result": true, "events": [
+      {"cell": [11, 10], "type": 16, "visuals": false, "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"cell": [21, 20], "type": 3, "visuals": false, "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"cell": [31, 30], "type": 3, "visuals": false, "icon": ["0x7AB50E44", "0x1ABE787D", 0]}]}},
+    {"op": "crime_call", "method": "set_visuals_created", "args": [1, true], "expect": true},
+    {"op": "crime_call", "method": "visuals_created", "args": [1], "expect": true},
+    {"op": "crime_call", "method": "visuals_created", "args": [0], "expect": false},
+    {"op": "crime_call", "method": "set_visuals_created", "args": [3, true], "expect": false},
+    {"op": "crime_call", "method": "visuals_created", "args": [3], "expect": false},
+    {"op": "crime_call", "method": "incident_array", "args": [5], "expect": {"result": true, "events": [
+      {"type": 16, "visuals": false, "cell": [11, 10], "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"type": 3, "visuals": true, "cell": [21, 20], "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"type": 3, "visuals": false, "cell": [31, 30], "icon": ["0x7AB50E44", "0x1ABE787D", 0]}]}},
+
+    {"op": "crime_set", "state": {"incidents": [{"lot": null, "type": 4, "name": "Narcotic Deals"}, {"lot": 2, "type": 7, "icon": [1, 2, 3]}]}},
+    {"op": "crime_call", "method": "incident_array", "args": [1], "expect": {"result": true, "events": [
+      {"cell": [0, 0], "type": "0xFFFFFFFF", "visuals": false, "icon": [0, 0, 0]},
+      {"cell": [21, 20], "type": 7, "visuals": false, "icon": [1, 2, 3]}]}}
+  ]
+}

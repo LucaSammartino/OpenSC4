@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "crime_masks",
+  "spec": ["crime 7", "crime 17.10"],
+  "description": "Test 10 and the type list of 7. Mask parsing: each byte b sets bit (b - 1) mod 32; a byte 0 makes the mask 0xFFFFFFFF; a present but empty array gives 0 (never matches, [quirk]); a missing property gives 0xFFFFFFFF. By hand: [0] -> all; [] -> 0; [1, 3] -> 0x5; [9] -> 0x100; [33] -> shift 32 mod 32 = 0 -> 0x1; missing -> all. The shipped list (14 exemplars in ascending instance order) yields the 7 table: purpose [9,1,2,3,4,6,7,8] -> 0x1EF, [4,2,3] -> 0xE, [4,2] -> 0xA, [3,2] -> 0x6, [1] -> 0x1; wealth [2,1] -> 0x3, [3,2] -> 0x6; zone [1] -> 0x1; condition [3] -> 0x4. Defaults of a bare exemplar: severity 64, arson off, weight 10, masks all. [choice] The display name is the LTEXT string named by 0x8A416B2E when the host has it, else the string property 0xAA12FCB0, else empty. Icons are (0x7AB50E44, 0x1ABE787D, instance) with instance 0 in the shipped model (not in the spec; spec question).",
+  "steps": [
+    {"op": "crime_eval", "fn": "mask", "args": [[0]], "expect": "0xFFFFFFFF"},
+    {"op": "crime_eval", "fn": "mask", "args": [[]], "expect": 0},
+    {"op": "crime_eval", "fn": "mask", "args": [[1, 3]], "expect": 5},
+    {"op": "crime_eval", "fn": "mask", "args": [[9]], "expect": "0x100"},
+    {"op": "crime_eval", "fn": "mask", "args": [[33]], "expect": 1},
+    {"op": "crime_eval", "fn": "mask", "args": [[32]], "expect": "0x80000000"},
+    {"op": "crime_eval", "fn": "mask", "args": [null], "expect": "0xFFFFFFFF"},
+    {"op": "crime_eval", "fn": "lot_bits", "args": [5, [2, 3], 3], "expect": {"zone": 2, "wealth": 4, "purpose": 2, "condition": 2}},
+    {"op": "crime_eval", "fn": "lot_bits", "args": [9, null, 6], "expect": {"zone": 4, "wealth": "0x80000000", "purpose": "0x100", "condition": 2}},
+    {"op": "crime_eval", "fn": "lot_bits", "args": [0, [0, 0], 0], "expect": {"zone": "0x80000000", "wealth": "0x80000000", "purpose": "0x100", "condition": 1}},
+
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_expect", "state": {"types": [
+      {"id": 1, "name": "Generic", "severity": 40, "weight": 0, "arson": false, "zone": "0xFFFFFFFF", "wealth": "0xFFFFFFFF", "purpose": "0xFFFFFFFF", "condition": "0xFFFFFFFF", "icon": ["0x7AB50E44", "0x1ABE787D", 0]},
+      {"id": 3, "name": "Fighting", "severity": 60, "weight": 3, "arson": false},
+      {"id": 4, "name": "Narcotic Deals", "severity": 80, "weight": 2, "purpose": "0xE"},
+      {"id": 5, "name": "Arson", "severity": 100, "weight": 0.5, "arson": true, "wealth": 3, "purpose": "0x1EF", "condition": 4},
+      {"id": 6, "name": "Money Snatcher", "severity": 60, "weight": 3, "purpose": "0xA"},
+      {"id": 7, "name": "Stickup", "severity": 80, "weight": 2, "purpose": 6},
+      {"id": 8, "name": "Car Theft", "severity": 60, "weight": 3, "purpose": "0x1EF"},
+      {"id": 9, "name": "Solicitation", "severity": 60, "weight": 3, "purpose": "0xE"},
+      {"id": 10, "name": "Mugging", "severity": 80, "weight": 2, "purpose": "0x1EF"},
+      {"id": 11, "name": "Bank Robbery", "severity": 80, "weight": 2, "purpose": 6},
+      {"id": 16, "name": "Flashing", "severity": 40, "weight": 4, "purpose": "0x1EF"},
+      {"id": 17, "name": "Graffiti", "severity": 40, "weight": 4, "purpose": "0x1EF"},
+      {"id": 18, "name": "Pie Throwing", "severity": 40, "weight": 4, "purpose": "0x1EF"},
+      {"id": 19, "name": "TPing", "severity": 40, "weight": 4, "zone": 1, "wealth": 6, "purpose": 1, "condition": "0xFFFFFFFF"}]}},
+
+    {"op": "crime_env", "ltext": [{"key": ["0x2026960B", "0x6A231EAA", "0x1234"], "text": "Jaywalking"}]},
+    {"op": "crime_types", "shipped": false, "types": [
+      {"id": "0x40", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x1234"]}, "0xAA12FCB0": {"str": "Fallback"},
+        "0xAA12FCB2": {"u8": []}, "0xAA12FCB3": {"u8": [1, 3]}, "0xAA12FCB4": {"u8": [9]}}},
+      {"id": "0x41", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x9999"]}, "0xAA12FCB0": {"str": "Fallback"}, "0xAA12FCB6": {"u8": 7}}},
+      {"id": "0x42"}]},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xEA12F32C", "data2": "0x40"},
+    {"op": "crime_expect", "state": {"types": [
+      {"id": "0x40", "name": "Jaywalking", "zone": 0, "wealth": 5, "purpose": "0x100", "condition": "0xFFFFFFFF", "severity": 64, "weight": 10, "arson": false},
+      {"id": "0x41", "name": "Fallback", "arson": true},
+      {"id": "0x42", "name": "", "zone": "0xFFFFFFFF", "severity": 64, "weight": 10, "icon": [0, 0, 0]}]}}
+  ]
+}

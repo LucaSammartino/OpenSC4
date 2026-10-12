@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "crime_stamp_hotspot",
+  "spec": ["crime 6.6", "crime 11.2", "crime 17.8"],
+  "description": "Test 8. The stamp shifts the lot's inclusive cell rect right by the tract shift (S = 2, shift 1) and adds the severity to each tract, x outer and z inner, saturating at 255; a cell strictly above the hotspot value becomes the hotspot. Lot (10,10)-(13,11) -> tracts x 5..6, z 5. The type draw u = 0 gives r = 0 -> Fighting (Generic has weight 0, so r stays 0; Fighting takes it below 0), severity 60. Cells {0, 200} -> {60, 255}: (5,5) = 60 > 0 becomes the hotspot, then (6,5) = 255 > 60 does. GetCrimeHotspot -> (255, S x 6, S x 5) = (255, 12, 10). Before any crime the hotspot value is 0 and GetCrimeHotspot returns false. A later stamp that reaches 255 at (0,0) is not strictly larger, so the hotspot stays. [choice] A lot reaching past the grid edge (cells 62..65 -> tracts 31..32) stamps only the tracts inside the grid (31). Hand-derived.",
+  "steps": [
+    {"op": "crime_lots", "lots": [
+      {"id": 1, "rect": [10, 10, 13, 11], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 2, "rect": [0, 0, 1, 1], "condition": 1, "building": {"purpose": 1, "wealth": 1}},
+      {"id": 3, "rect": [62, 62, 65, 65], "condition": 1, "building": {"purpose": 1, "wealth": 1}}]},
+    {"op": "crime_env", "zones": [{"x": 10, "z": 10, "v": 1}, {"x": 0, "z": 0, "v": 2}, {"x": 62, "z": 62, "v": 3}]},
+    {"op": "crime_create", "rng": {"stub": {"uniform": [0.0], "range": [0.0]}}},
+    {"op": "crime_init"},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": false},
+    {"op": "crime_grid_set", "grid": "crime", "cells": [[6, 5, 200], [0, 0, 195]]},
+    {"op": "crime_clear_events"},
+    {"op": "crime_lots", "random": [1]},
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[5, 5, 60], [6, 5, 255], [0, 0, 195]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [6, 5, 255]}},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": [255, 12, 10]},
+    {"op": "crime_expect_events", "filter": {"event": "post"}, "events": [{"type": "CrimeCommitted", "crime": 3, "lot": 1, "name": "Fighting"}]},
+
+    {"op": "crime_lots", "random": [2]},
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[5, 5, 60], [6, 5, 255], [0, 0, 255]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [6, 5, 255]}},
+
+    {"op": "crime_lots", "random": [3]},
+    {"op": "crime_call", "method": "add_crimes", "args": [1], "expect": 1},
+    {"op": "crime_expect_grid", "grid": "crime", "cells": [[5, 5, 60], [6, 5, 255], [0, 0, 255], [31, 31, 60]], "others": 0},
+    {"op": "crime_expect", "state": {"hotspot": [6, 5, 255]}},
+
+    {"op": "crime_set", "state": {"hotspot": [6, 5, 0]}},
+    {"op": "crime_call", "method": "crime_hotspot", "expect": false}
+  ]
+}

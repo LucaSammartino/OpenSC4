@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "crime_tuning",
+  "spec": ["crime 8", "foundations 4.1"],
+  "description": "Tuning (8), not a numbered 17 test. Read on every Init and on the reload message: the scalars are reset (tract size 2, decay 0.5, reoffend 1.0) and read from the exemplar; each curve with a code default is rebuilt from it and replaced by its property when present ('default' pattern); the prop request curve has no default and is replaced only when present ('keep'). Shipped: decay 0.8, reoffend 0.66, tract size absent -> 2, curves as in 8. [choice] Without the exemplar the code-default curves apply (EQ (0,0.1)(255,0) -> 0.05 at 127.5; jobless (1,0)(2,0.1)(5,0.5) -> 0.3 at 3.5; crimes (0,0)(1e6,50000) -> 25000 at 500000; attenuation (0,0)(255,1) -> 0.2 at 51) and the prop request curve keeps its content: empty in a new simulator (share 0), the shipped curve after it was loaded once. A curve property present as an empty array gives an empty curve (0); [choice] a scalar where a curve is expected counts as absent (the default stays). Hand-derived.",
+  "steps": [
+    {"op": "crime_tuning", "none": true},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_expect", "state": {"tuning": {"tract_size": 2, "decay": 0.5, "reoffend": 1.0, "prop_request_empty": true}}},
+    {"op": "crime_call", "method": "curve", "args": ["eq", 127.5, 1], "expect": 0.05},
+    {"op": "crime_call", "method": "curve", "args": ["jobless", 3.5, 2], "expect": 0.3},
+    {"op": "crime_call", "method": "curve", "args": ["crimes", 500000], "expect": 25000},
+    {"op": "crime_call", "method": "curve", "args": ["attenuation", 51], "expect": 0.2},
+    {"op": "crime_grid_set", "grid": "crime", "fill": 255},
+    {"op": "crime_call", "method": "requested_share", "args": [0, 0, 8, 8], "expect": 0},
+
+    {"op": "crime_tuning", "shipped": true},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_expect", "state": {"tuning": {"tract_size": 2, "decay": 0.8, "reoffend": 0.66, "prop_request_empty": false}}},
+    {"op": "crime_call", "method": "curve", "args": ["eq", 25, 0], "expect": 0.375},
+    {"op": "crime_call", "method": "curve", "args": ["attenuation", 150], "expect": 0.125},
+    {"op": "crime_call", "method": "curve", "args": ["prop_request", 0.2], "expect": 4},
+    {"op": "crime_call", "method": "requested_share", "args": [0, 0, 8, 8], "expect": 10},
+
+    {"op": "crime_tuning", "none": true},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_expect", "state": {"tuning": {"decay": 0.5, "reoffend": 1.0, "prop_request_empty": false}}},
+    {"op": "crime_call", "method": "curve", "args": ["attenuation", 51], "expect": 0.2},
+    {"op": "crime_call", "method": "requested_share", "args": [0, 0, 8, 8], "expect": 10, "note": "keep: the prop request curve survives"},
+
+    {"op": "crime_tuning", "props": {"0x8A0CBAAA": {"f32": []}, "0x8A0CBAAB": {"f32": 3}, "0x8A0CBAAD": {"f32": 0.5}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_expect", "state": {"tuning": {"decay": 0.5, "reoffend": 0.5}}},
+    {"op": "crime_call", "method": "curve", "args": ["crimes", 500000], "expect": 0},
+    {"op": "crime_call", "method": "curve", "args": ["attenuation", 51], "expect": 0.2}
+  ]
+}
