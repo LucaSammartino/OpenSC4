@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "enabled_bits",
+  "spec": ["4", "10.7"],
+  "description": "Enabled bit = cityEstablished ? (flags & 2) : (flags & 1); SetAgentEnabled overrides every registration with that name until SetCityEstablished changes the value; GetAgentEnabled is true if any registration with the name is enabled. Registration bookkeeping: duplicate adds, invalid levels, AddRef/Release pairing, enumeration order.",
+  "steps": [
+    {"op": "add_agent", "agent": "A", "level": 4, "name": "a", "flags": 1, "expect": true},
+    {"op": "add_agent", "agent": "B", "level": 4, "name": "b", "flags": 2, "expect": true},
+    {"op": "add_agent", "agent": "C", "level": 6, "name": "c", "flags": 3, "expect": true},
+    {"op": "add_agent", "agent": "Z", "level": 10, "name": "z", "flags": 0, "expect": true},
+    {"op": "add_agent", "agent": "A", "level": 4, "name": "a-again", "flags": 2, "expect": true},
+    {"op": "add_agent", "agent": "A", "level": 7, "name": "a", "flags": 2, "expect": true},
+    {"op": "add_agent", "agent": "Q", "level": 11, "name": "q", "flags": 3, "expect": true},
+    {"op": "add_agent", "agent": "Q", "level": 4000000000, "name": "q", "flags": 3, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "add_ref", "agent": "A"},
+      {"event": "add_ref", "agent": "B"},
+      {"event": "add_ref", "agent": "C"},
+      {"event": "add_ref", "agent": "Z"},
+      {"event": "add_ref", "agent": "A"}
+    ]},
+    {"op": "expect_state", "state": {"agent_counts": [0, 0, 0, 0, 2, 0, 1, 1, 0, 0, 1]}},
+    {"op": "expect_agent_names", "names": ["a", "b", "c", "a", "z"]},
+
+    {"op": "expect_agent_enabled", "name": "a", "value": true},
+    {"op": "expect_agent_enabled", "name": "b", "value": false},
+    {"op": "expect_agent_enabled", "name": "c", "value": true},
+    {"op": "expect_agent_enabled", "name": "z", "value": false},
+    {"op": "expect_agent_enabled", "name": "A", "value": false},
+    {"op": "expect_agent_enabled", "name": "nobody", "value": false},
+
+    {"op": "set_city_established", "value": true, "expect": true},
+    {"op": "expect_agent_enabled", "name": "a", "value": true},
+    {"op": "expect_agent_enabled", "name": "b", "value": true},
+    {"op": "expect_agent_enabled", "name": "c", "value": true},
+    {"op": "expect_agent_enabled", "name": "z", "value": false},
+
+    {"op": "set_agent_enabled", "name": "a", "enabled": false, "expect": true},
+    {"op": "expect_agent_enabled", "name": "a", "value": false},
+    {"op": "set_agent_enabled", "name": "z", "enabled": true},
+    {"op": "expect_agent_enabled", "name": "z", "value": true},
+    {"op": "set_city_established", "value": true},
+    {"op": "expect_agent_enabled", "name": "a", "value": false},
+    {"op": "expect_agent_enabled", "name": "z", "value": true},
+
+    {"op": "set_city_established", "value": false},
+    {"op": "expect_agent_enabled", "name": "a", "value": true},
+    {"op": "expect_agent_enabled", "name": "b", "value": false},
+    {"op": "expect_agent_enabled", "name": "z", "value": false},
+    {"op": "set_agent_enabled", "name": "b", "enabled": true},
+    {"op": "expect_agent_enabled", "name": "b", "value": true},
+    {"op": "set_city_established", "value": true},
+    {"op": "expect_agent_enabled", "name": "b", "value": true},
+    {"op": "expect_agent_enabled", "name": "a", "value": true, "note": "the level-7 registration named 'a' has flags 2"},
+    {"op": "set_agent_enabled", "name": "a", "enabled": false},
+    {"op": "expect_agent_enabled", "name": "a", "value": false},
+
+    {"op": "remove_agent", "agent": "A", "level": 4, "expect": true},
+    {"op": "remove_agent", "agent": "A", "level": 4, "expect": false},
+    {"op": "remove_agent", "agent": "A", "level": 11, "expect": false},
+    {"op": "remove_agent", "agent": "B", "level": 5, "expect": false},
+    {"op": "remove_agent", "agent": "A", "expect": true},
+    {"op": "remove_agent", "agent": "A", "expect": false},
+    {"op": "remove_all_agents", "level": 6, "expect": true},
+    {"op": "remove_all_agents", "level": 99, "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "release", "agent": "A"},
+      {"event": "release", "agent": "A"},
+      {"event": "release", "agent": "C"}
+    ]},
+    {"op": "expect_agent_names", "names": ["b", "z"]},
+    {"op": "remove_all_agents", "expect": true},
+    {"op": "expect_events", "events": [
+      {"event": "release", "agent": "B"},
+      {"event": "release", "agent": "Z"}
+    ]},
+    {"op": "expect_agent_names", "names": []}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "date_conversions",
+  "spec": ["2.1", "10.1"],
+  "description": "Julian Day Number <-> proleptic Gregorian, weekday (1 = Monday), day of year, leap years, and the initial simulation date.",
+  "steps": [
+    {"op": "expect_julian", "year": 2000, "month": 1, "day": 1, "julian": 2451545, "weekday": 6, "day_of_year": 1, "leap_year": true, "days_in_february": 29},
+    {"op": "expect_julian", "year": 2100, "month": 3, "day": 1, "day_of_year": 60, "leap_year": false, "days_in_february": 28},
+    {"op": "expect_julian", "year": 2400, "month": 12, "day": 31, "day_of_year": 366, "leap_year": true, "days_in_february": 29},
+    {"op": "expect_julian", "year": 1900, "month": 12, "day": 31, "day_of_year": 365, "leap_year": false, "days_in_february": 28},
+    {"op": "expect_julian", "year": 2000, "month": 2, "day": 29, "julian": 2451604, "weekday": 2, "day_of_year": 60},
+    {"op": "expect_julian", "year": 2000, "month": 12, "day": 31, "julian": 2451910, "weekday": 7, "day_of_year": 366},
+    {"op": "expect_julian", "year": 2001, "month": 1, "day": 1, "julian": 2451911, "weekday": 1, "day_of_year": 1},
+    {"op": "expect_julian", "year": 1970, "month": 1, "day": 1, "julian": 2440588, "weekday": 4},
+    {"op": "expect_julian", "year": 1858, "month": 11, "day": 17, "julian": 2400001, "weekday": 3},
+    {"op": "expect_date", "julian": 2451545, "year": 2000, "month": 1, "day": 1, "day_of_year": 1, "weekday": 6},
+    {"op": "expect_state", "state": {"julian": 2451545}}
+  ]
+}

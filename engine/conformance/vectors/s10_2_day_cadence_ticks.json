@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "name": "day_cadence_ticks",
+  "spec": ["5.1", "5.2", "5.3", "5.4", "10.2"],
+  "description": "Speed 2 with msPerDay = 50 (shipped tuning). The clock is frozen; the only thing that consumes time is an idle agent costing 1 ms per call, so results do not depend on how often an implementation reads the clock. Exactly one day per 50 ms; posts and deliveries carry data1 = Julian day, data3 = day of year. Tick 1 has a 66 ms budget (1000/15); afterwards the budget is 66 minus the previous frame length, floored at 15, so it alternates 15, 51, 15, ...",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "D": {"finish_after": 1},
+    "Burn": {"finish_after": 1, "cost_ms": 1, "description": "idle agent; makes simulated time pass"}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4, "flags": 3},
+    {"op": "add_agent", "agent": "Burn", "level": 10, "flags": 3},
+    {"op": "init", "tuning": {"ms_per_day": [2000, 1000, 50], "animation_dilation": [1, 1, 1.5, 3, 1]}},
+    {"op": "expect_state", "state": {"sim_speed": 0, "ms_per_day": 2000, "target_fps": 30, "hidden_pause_count": 1, "ms_per_day_table": [2000, 1000, 50]}},
+    {"op": "set_speed", "speed": 2, "expect": true},
+    {"op": "expect_state", "state": {"sim_speed": 2, "ms_per_day": 50, "target_fps": 15}},
+    {"op": "expect_dilation", "value": 3.0},
+    {"op": "hidden_resume"},
+    {"op": "clear_events"},
+
+    {"op": "tick"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 66, "julian": 2451546, "in_tick": false}},
+    {"op": "expect_event_count", "filter": {"agent": "Burn"}, "count": 66},
+    {"op": "expect_event_count", "filter": {"agent": "Burn", "type": "SimIdle"}, "count": 66},
+    {"op": "expect_events", "filter": {"agent": "D"}, "events": [
+      {"event": "deliver", "type": "SimNewDay", "data1": 2451545, "data2": 0, "data3": 0, "t": 0},
+      {"event": "deliver", "type": "SimNewDay", "data1": 2451546, "data2": 0, "data3": 2, "t": 50}
+    ]},
+
+    {"op": "tick"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 15}},
+    {"op": "expect_events", "filter": {"agent": "Burn"}, "events": [
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 66},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 67},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 68},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 69},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 70},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 71},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 72},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 73},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 74},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 75},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 5, "t": 76},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 4, "t": 77},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 3, "t": 78},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 2, "t": 79},
+      {"event": "deliver", "type": "SimIdle", "data1": 2451546, "data2": 0, "data3": 1, "t": 80}
+    ]},
+
+    {"op": "tick", "note": "frame elapsed 15 -> budget 66 - 15 = 51"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 51}},
+    {"op": "tick", "count": 18, "note": "budgets alternate 15, 51, ...; the 21st tick ends at 726"},
+    {"op": "expect_state", "state": {"frame_budget_ms": 51, "julian": 2451559}},
+    {"op": "expect_event_count", "filter": {"event": "post", "type": "SimNewDay"}, "count": 13},
+    {"op": "expect_spacing", "filter": {"event": "post", "type": "SimNewDay"}, "min_ms": 50, "max_ms": 50},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data1", "start": 2451547, "step": 1},
+    {"op": "expect_sequence", "filter": {"event": "post", "type": "SimNewDay"}, "field": "data3", "start": 3, "step": 1},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data1", "start": 2451547, "step": 1},
+    {"op": "expect_sequence", "filter": {"agent": "D"}, "field": "data3", "start": 3, "step": 1},
+    {"op": "expect_spacing", "filter": {"agent": "D"}, "min_ms": 50, "max_ms": 50},
+    {"op": "expect_events", "filter": {"event": "post"}, "events": [
+      {"type": "SimNewDay", "data1": 2451547, "data3": 3, "t": 100},
+      {"type": "SimNewWeek", "data1": 2451547, "data3": 1, "t": 100},
+      {"type": "SimNewDay", "data1": 2451548, "data3": 4, "t": 150},
+      {"type": "SimNewDay", "data1": 2451549, "data3": 5, "t": 200},
+      {"type": "SimNewDay", "data1": 2451550, "data3": 6, "t": 250},
+      {"type": "SimNewDay", "data1": 2451551, "data3": 7, "t": 300},
+      {"type": "SimNewDay", "data1": 2451552, "data3": 8, "t": 350},
+      {"type": "SimNewDay", "data1": 2451553, "data3": 9, "t": 400},
+      {"type": "SimNewDay", "data1": 2451554, "data3": 10, "t": 450},
+      {"type": "SimNewWeek", "data1": 2451554, "data3": 2, "t": 450},
+      {"type": "SimNewDay", "data1": 2451555, "data3": 11, "t": 500},
+      {"type": "SimNewDay", "data1": 2451556, "data3": 12, "t": 550},
+      {"type": "SimNewDay", "data1": 2451557, "data3": 13, "t": 600},
+      {"type": "SimNewDay", "data1": 2451558, "data3": 14, "t": 650},
+      {"type": "SimNewDay", "data1": 2451559, "data3": 15, "t": 700}
+    ]}
+  ]
+}

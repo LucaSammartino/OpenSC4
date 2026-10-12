@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "cheats",
+  "spec": ["9"],
+  "description": "FPS <n> sets targetFps. SimDate <m> <d> [<y>] sets the date (keeping the year if omitted) and then runs SimulateTimePassage once. [choice] The leading cheat word is skipped case-insensitively; invalid dates and non-positive/non-numeric fps values are ignored; unknown cheat IDs are not handled (false).",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "steps": [
+    {"op": "init"},
+    {"op": "expect_state", "state": {"target_fps": 30}},
+    {"op": "cheat", "id": "FPS", "text": "FPS 40", "expect": true},
+    {"op": "expect_state", "state": {"target_fps": 40}},
+    {"op": "cheat", "id": "0x0AC07E24", "text": "fps 12", "expect": true},
+    {"op": "expect_state", "state": {"target_fps": 12}},
+    {"op": "cheat", "id": "FPS", "text": "FPS 0", "expect": true},
+    {"op": "cheat", "id": "FPS", "text": "FPS -3", "expect": true},
+    {"op": "cheat", "id": "FPS", "text": "FPS abc", "expect": true},
+    {"op": "cheat", "id": "FPS", "text": "FPS", "expect": true},
+    {"op": "expect_state", "state": {"target_fps": 12}},
+    {"op": "cheat", "id": 12345, "text": "FPS 99", "expect": false},
+    {"op": "expect_state", "state": {"target_fps": 12}},
+    {"op": "clear_events"},
+
+    {"op": "cheat", "id": "SimDate", "text": "SimDate 3 15", "expect": true},
+    {"op": "expect_date", "year": 2000, "month": 3, "day": 15, "julian": 2451619, "weekday": 3, "day_of_year": 75},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 24}}},
+    {"op": "expect_events", "events": []},
+    {"op": "cheat", "id": "SimDate", "text": "SimDate 2 30 2001", "expect": true},
+    {"op": "cheat", "id": "SimDate", "text": "SimDate 13 1", "expect": true},
+    {"op": "cheat", "id": "SimDate", "text": "SimDate 5", "expect": true},
+    {"op": "cheat", "id": "SimDate", "text": "SimDate x y", "expect": true},
+    {"op": "expect_date", "julian": 2451619},
+
+    {"op": "advance", "ms": 6000},
+    {"op": "cheat", "id": "0x8A78BEFF", "text": "simdate 2 28 2001", "expect": true},
+    {"op": "expect_date", "year": 2001, "month": 3, "day": 1, "julian": 2451970, "day_of_year": 60, "weekday": 4},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451970, "data3": 60},
+      {"event": "post", "type": "SimNewMonth", "data1": 2451970, "data3": 3}
+    ]},
+    {"op": "cheat", "id": "SimDate", "text": "SimDate 12 31 1999", "expect": true},
+    {"op": "expect_date", "year": 1999, "month": 12, "day": 31, "julian": 2451544, "weekday": 5},
+    {"op": "expect_events", "events": []}
+  ]
+}

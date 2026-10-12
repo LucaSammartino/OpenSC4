@@ -9,3 +9,7 @@ ghidra/project/
 decomp/
 ghidra/logs/
 .claude/worktrees/
+
+# Engine build outputs
+build*/
+target/

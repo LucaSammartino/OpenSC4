@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "one_shot_agents",
+  "spec": ["2.2", "4", "5.2", "5.3", "10.5"],
+  "description": "One-shot (level 0) agents block calendar time until they finish; a finished one-shot agent is removed (and released). Calendar levels are not visited while level-0 work is pending. Frozen clock past the budget: one delivery per simulate_agents.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "O": {"finish_after": 2},
+    "P": {"finish_after": 1},
+    "D": {"finish_after": 1}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "add_agent", "agent": "O", "level": 0},
+    {"op": "init"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "advance", "ms": 1000},
+    {"op": "clear_events"},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 0}, "julian": 2451545}},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 0}, "julian": 2451545, "agent_counts": {"0": 1}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "O", "type": "SimBegin", "data1": 2451545, "data2": 0, "data3": 0},
+      {"event": "deliver", "agent": "O", "type": "SimBegin", "data1": 2451545, "data2": 0, "data3": 0},
+      {"event": "release", "agent": "O"}
+    ]},
+    {"op": "expect_state", "state": {"agent_counts": {"0": 0}, "cursors": {"0": null}}},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"level_counters": {"2": 0, "3": 24}, "julian": 2451545}},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451545, "data3": 0},
+      {"event": "post", "type": "SimNewDay", "data1": 2451546, "data3": 2}
+    ]},
+
+    {"op": "add_agent", "agent": "O", "level": 0, "note": "added after Init: cursor[0] is at end and wraps to the first agent"},
+    {"op": "add_agent", "agent": "P", "level": 0},
+    {"op": "advance", "ms": 1000},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "add_ref", "agent": "O"},
+      {"event": "add_ref", "agent": "P"}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451546, "level_fired": [0,0,0,0,0,0,0,0,0,0,0]}},
+    {"op": "simulate_agents"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_state", "state": {"julian": 2451546, "agent_counts": {"0": 1}, "cursors": {"0": 0}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "O", "type": "SimBegin", "data1": 2451546},
+      {"event": "deliver", "agent": "O", "type": "SimBegin", "data1": 2451546},
+      {"event": "release", "agent": "O"},
+      {"event": "deliver", "agent": "P", "type": "SimBegin", "data1": 2451546},
+      {"event": "release", "agent": "P"}
+    ]},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451547, "data3": 3},
+      {"event": "post", "type": "SimNewWeek", "data1": 2451547, "data3": 1},
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451547, "data3": 3}
+    ]}
+  ]
+}

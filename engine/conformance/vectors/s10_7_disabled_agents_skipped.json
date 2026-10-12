@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "disabled_agents_skipped",
+  "spec": ["4", "5.3", "5.4", "10.7"],
+  "description": "Disabled agents are not delivered to and count as finished: a disabled day agent does not hold the clock. Skipping one is a scheduler step (the budget check follows it). A disabled idle agent is skipped. [choice] A disabled one-shot agent is skipped but not removed, so it keeps blocking calendar time.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {"X": {"finish_after": 0, "description": "never finishes - must never be called"}},
+  "steps": [
+    {"op": "add_agent", "agent": "X", "level": 4, "flags": 2},
+    {"op": "add_agent", "agent": "Y", "level": 4, "flags": 1},
+    {"op": "add_agent", "agent": "I", "level": 10, "flags": 2},
+    {"op": "init"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "advance", "ms": 1000},
+    {"op": "clear_events"},
+
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"cursors": {"4": 1}}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "Y", "type": "SimNewDay", "data1": 2451545}
+    ]},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451546}
+    ]},
+    {"op": "hidden_resume"},
+    {"op": "set_clock", "now_ms": 0},
+    {"op": "clear_events"},
+    {"op": "simulate_idle_time"},
+    {"op": "expect_events", "events": []},
+    {"op": "expect_state", "state": {"idle_cursor": -1}},
+
+    {"op": "add_agent", "agent": "O", "level": 0, "flags": 2},
+    {"op": "advance", "ms": 1000},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "filter": {"event": "deliver"}, "events": []},
+    {"op": "expect_state", "state": {"julian": 2451546, "agent_counts": {"0": 1}}},
+    {"op": "set_agent_enabled", "name": "O", "enabled": true},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "O", "type": "SimBegin", "data1": 2451546},
+      {"event": "release", "agent": "O"}
+    ]},
+    {"op": "advance", "ms": 100, "note": "the previous day restarted the interval timer at 1000"},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451547, "data3": 3},
+      {"event": "post", "type": "SimNewWeek", "data1": 2451547, "data3": 1}
+    ]},
+    {"op": "expect_state", "state": {"agent_counts": {"0": 0}}}
+  ]
+}

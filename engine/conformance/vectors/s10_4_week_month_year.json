@@ -1,0 +1,93 @@
+{
+  "format": 1,
+  "name": "week_month_year",
+  "spec": ["2.3", "5.2", "5.3", "10.4"],
+  "description": "Starting on Saturday 2000-12-30. Week/month/year messages fire on Monday / the 1st / January 1st with data3 = week of year / month / year, and the day that opens a period waits until that period's agents have drained their previous interval. A pending week/month/year agent does not hold back days that do not open its period. Frozen clock past the budget: one delivery per simulate_agents.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "D": {"finish_after": 1},
+    "W": {"finish_after": 2},
+    "M": {"finish_after": 1},
+    "Y": {"finish_after": 3}
+  },
+  "steps": [
+    {"op": "load", "record": {"date": {"year": 2000, "month": 12, "day": 30}}, "expect": "ok"},
+    {"op": "expect_date", "year": 2000, "month": 12, "day": 30, "weekday": 6, "day_of_year": 365},
+    {"op": "add_agent", "agent": "D", "level": 4},
+    {"op": "add_agent", "agent": "W", "level": 5},
+    {"op": "add_agent", "agent": "M", "level": 6},
+    {"op": "add_agent", "agent": "Y", "level": 7},
+    {"op": "init"},
+    {"op": "set_speed", "speed": 2},
+    {"op": "advance", "ms": 100},
+    {"op": "clear_events"},
+
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451909, "data3": 0},
+      {"event": "deliver", "agent": "W", "type": "SimNewWeek", "data1": 2451909, "data3": 0}
+    ]},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451910, "data2": 0, "data3": 366}
+    ]},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451910, "data3": 366}
+    ]},
+
+    {"op": "advance", "ms": 100},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_agents"},
+    {"op": "expect_state", "state": {"julian": 2451910}},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "W", "type": "SimNewWeek", "data1": 2451910, "data3": 0},
+      {"event": "deliver", "agent": "M", "type": "SimNewMonth", "data1": 2451910, "data3": 0},
+      {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451910, "data3": 0},
+      {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451910, "data3": 0},
+      {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451910, "data3": 0}
+    ]},
+
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451911, "data2": 0, "data3": 1},
+      {"event": "post", "type": "SimNewWeek", "data1": 2451911, "data2": 0, "data3": 1},
+      {"event": "post", "type": "SimNewMonth", "data1": 2451911, "data2": 0, "data3": 1},
+      {"event": "post", "type": "SimNewYear", "data1": 2451911, "data2": 0, "data3": 2001}
+    ]},
+    {"op": "expect_state", "state": {"julian": 2451911, "level_counters": {"4": 1, "5": 1, "6": 1, "7": 2001}, "level_fired": [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0]}},
+
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "simulate_time_passage"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "events": [
+      {"event": "deliver", "agent": "D", "type": "SimNewDay", "data1": 2451911, "data3": 1},
+      {"event": "deliver", "agent": "W", "type": "SimNewWeek", "data1": 2451911, "data3": 1},
+      {"event": "deliver", "agent": "W", "type": "SimNewWeek", "data1": 2451911, "data3": 1},
+      {"event": "deliver", "agent": "M", "type": "SimNewMonth", "data1": 2451911, "data3": 1},
+      {"event": "deliver", "agent": "Y", "type": "SimNewYear", "data1": 2451911, "data3": 2001}
+    ]},
+
+    {"op": "advance", "ms": 100},
+    {"op": "simulate_time_passage"},
+    {"op": "expect_events", "events": [
+      {"event": "post", "type": "SimNewDay", "data1": 2451912, "data3": 2}
+    ]},
+    {"op": "expect_state", "state": {"level_counters": {"4": 2, "5": 1, "6": 1, "7": 2001}, "level_fired": {"4": 1, "5": 0}}}
+  ]
+}
