@@ -791,7 +791,6 @@ fn expect(w: &World, op: &Json) -> R<()> {
     let t = &d.tuning;
     let it = &d.iterator;
     let state = match it.state {
-        IteratorState::NotStarted => "not_started",
         IteratorState::Running => "running",
         IteratorState::Exhausted => "exhausted",
     };
