@@ -1269,6 +1269,20 @@ the order within a level.
     15 January with enactment cost 100 is charged at the 1 March settlement, not at the 1 February one. With
     registration order reversed the test detects the difference.
 
+## 16. Interface slot order *[compat]* (overloads)
+
+Original code calls our objects through vtable **slots**, so each interface's slot order must match the game
+exactly. The public gzcom-dll SDK headers list **overloaded methods in source-declaration order, but the game's
+compiler placed every overload pair in the reverse order**. This was verified for all five pairs in
+`cISC4Simulator` and `cISC4BudgetSimulator`. Calling an overload in the wrong slot is unsafe. Under `__thiscall`
+the callee pops its own arguments, so a mismatched argument count corrupts the caller's stack, and the game crashes
+(observed in-game with the budget simulator).
+
+Rule: **an implementation must not take overload order from the SDK.** Each interface spec gives a verified
+slot table for its overloaded methods, and those tables are normative. Non-overloaded methods in the SDK headers
+checked so far (simulator, budget, department budget, line item) match the game.
+
+
 ## 15. Open questions for §9–§13
 
 1. The meaning of the regional-city record's unknown strings `s1`–`s3`, of the connection-change entries, and the

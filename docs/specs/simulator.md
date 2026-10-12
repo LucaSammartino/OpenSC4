@@ -244,6 +244,19 @@ addresses, both holding `1.0f` before first use).
 Identification values for the 1.1.641 GOG executable: PE `TimeDateStamp` = `0x4C12BFB7`, `SizeOfImage` = `0x007C8000`. Otherwise it must not write, and must log a warning. Keep such
 version-specific addresses in a single compatibility table (`engine/plugin/compat/`).
 
+### 5.6 Verified slot order of `cISC4Simulator` overloads *[compat]* (see foundations §16)
+
+| Slot | vtable offset | Method (as the game expects it) |
+|---|---|---|
+| 6 | `+0x18` | `void GetSimDate(uint32* year, uint32* month, uint32* day, uint32* dayOfYear, uint32* weekDay)` |
+| 7 | `+0x1C` | `cIGZDate* GetSimDate()` |
+| 20 | `+0x50` | `bool RemoveAgent(cIGZMessageTarget2* agent)` |
+| 21 | `+0x54` | `bool RemoveAgent(cIGZMessageTarget2* agent, int32 level)` |
+| 22 | `+0x58` | `bool RemoveAllAgents(int32 level)` |
+| 23 | `+0x5C` | `bool RemoveAllAgents()` |
+
+All six are in the **reverse** of the SDK header's order. Every other `cISC4Simulator` slot matches the SDK.
+
 ## 6. Speed and pause
 
 | Method | Behaviour |

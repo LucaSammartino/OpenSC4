@@ -42,6 +42,22 @@ The city creates the budget simulator with `GZCOM()->GetClassObject(0xE990BE01, 
 (`GetDepartmentBudgetsInGroup`, `GetAllLineItems`, `GetLocallyFundedItemsByPurpose`) **add one reference per
 element**; the caller releases them.
 
+
+## Verified slot order of `cISC4BudgetSimulator` overloads *[compat]* (see foundations §16)
+
+| Slot | vtable offset | Method (as the game expects it) |
+|---|---|---|
+| 18 | `+0x48` | `int64 GetTaxIncome(int32 taxType)` |
+| 19 | `+0x4C` | `int64 GetTaxIncome()` |
+| 27 | `+0x6C` | `cISC4DepartmentBudget* GetDepartmentBudget(cIGZString const& name)` |
+| 28 | `+0x70` | `cISC4DepartmentBudget* GetDepartmentBudget(uint32 departmentID)` |
+
+Both pairs are in the **reverse** of the SDK header's order. A mismatch at slots 18/19 crashes the game as soon as
+a city loads, because the per-type tax query is called continuously. All other slots (0–58) match the SDK
+declaration order; slot 32/33 (`NeededFundingChanged`/`FundingPercentageChanged`) and 34/35 (`GetFunding`
+overloads) share bodies in the original, and their SDK order is accepted as is. `cISC4DepartmentBudget` and
+`cISC4LineItem` have no overloads.
+
 ## 2. Concepts and units
 
 - **Money** is a signed 64-bit integer number of simoleons. Funds may be negative.
