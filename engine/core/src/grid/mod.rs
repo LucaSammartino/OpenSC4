@@ -39,12 +39,16 @@
 //!   per-cell sum of §4.1 because the 64-bit sum wraps the same way.
 //! - `SetTractSize` returns true (§4.2). `Read` returns false on a stream
 //!   error and then leaves the grid unchanged (§5).
-//! - `AddRadiusEffect` evaluates `c − d × k` in `f64` (the x87's extended
-//!   precision, §9 question 1) and rounds once to `f32`. With R ≥ 16 the
-//!   distance is `float32(sqrt(dx² + dz²))`.
+//! - Arithmetic follows foundations §18 (the x87 at 24-bit precision): every
+//!   float operation rounds to `f32` once. `AddRadiusEffect` computes
+//!   `k = (c − o) / r`, then `d × k` and `c − d × k` in `f32`; with R ≥ 16
+//!   the distance is the correctly rounded `float32(sqrt(dx² + dz²))`.
+//!   Averages divide the exact 64-bit sum by `w × h` once, rounded to
+//!   `f32` (a `double` grid therefore returns a 24-bit quotient, and integer
+//!   grids truncate that rounded quotient).
 //! - `AddDistanceEffect` runs at most 255 expansion rounds (the byte field's
 //!   far marker collides beyond that, §7.2) and stops early when a round
-//!   changes nothing; `target + near − dist × k` is evaluated in `f64`.
+//!   changes nothing; `(target + near) − dist × k` is three `f32` operations.
 //! - `ProcessTwoGrids` passes A's tract coordinates to the callback (the
 //!   residential-only variants are callers that skip tracts) and writes the
 //!   A value back only when the callback changed it. Float B values are
