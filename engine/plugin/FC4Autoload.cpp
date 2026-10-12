@@ -64,6 +64,7 @@ cISC4App* App() {
 // the game and deliberately never freed here (a one-time leak of a few
 // bytes), so this tool adds no cross-module deallocation to a bisection run.
 using Locations = SC4Vector<cISC4Region::cLocation>;
+// [abi] Container crossing pending classification in docs/abi/allocators.md: the game fills this SC4Vector (never freed here).
 Locations* NewLocations() {
     alignas(Locations) static unsigned char storage[sizeof(Locations)];
     return new (storage) Locations();  // never destroyed
@@ -103,6 +104,7 @@ void Attempt(cISC4App* sc4, cISC4Region* region, const Locations& locations) {
         return;
     }
     Log("autoload: calling LoadCity(%s) with the region's city entry %p", g_path.c_str(), static_cast<void*>(entry));
+    // [abi] Container crossing pending classification in docs/abi/allocators.md: SC4String argument (service-allocated).
     SC4String path(g_path.c_str(), static_cast<uint32_t>(g_path.size()));
     g_busy = true;
     const bool ok = sc4->LoadCity(path, entry);  // slot 13

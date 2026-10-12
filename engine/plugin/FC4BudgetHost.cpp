@@ -25,6 +25,7 @@
 
 #include "FC4Checked.h"
 #include "FC4Config.h"
+#include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
@@ -280,21 +281,33 @@ void VisitLot(cFC4ISC4Lot* lot, cISC4LandValueSimulator* lv, fc4_lot_visitor vis
 
 volatile LONG g_lotScans = 0;  // ForEachLot list scans so far
 
-// The list's head node (SC4List is one pointer: its root).
-SC4ListNode<cISC4Lot*>* ListHead(SC4List<cISC4Lot*>& list) {
-    static_assert(sizeof(SC4List<cISC4Lot*>) == sizeof(void*), "SC4List layout: the root pointer");
-    static_assert(sizeof(SC4ListNode<cISC4Lot*>) == 3 * sizeof(void*), "SC4List node: next, prev, value");
-    return *reinterpret_cast<SC4ListNode<cISC4Lot*>**>(&list);
+static_assert(sizeof(SC4ListNode<cISC4Lot*>) == 3 * sizeof(void*), "list node: next, prev, value");
+
+// Every lot through GetLot(x, z, true) (borrowed, demand §6.3), each once; no
+// game list, no references taken or released.
+void WalkLotCells(cFC4ISC4LotManager* lm, int32_t maxX, int32_t maxZ, cISC4LandValueSimulator* lv,
+                  fc4_lot_visitor visit, void* ctx) {
+    std::unordered_set<cISC4Lot*> seen;
+    for (int32_t x = 0; x <= maxX; ++x) {
+        for (int32_t z = 0; z <= maxZ; ++z) {
+            cISC4Lot* sdkLot = lm->GetLot(x, z, true);  // slot 6
+            if (sdkLot == nullptr || !seen.insert(sdkLot).second) continue;
+            VisitLot(AsGame(sdkLot), lv, visit, ctx);
+        }
+    }
 }
 
 // The GetLotsInCellRect path of ForEachLot on `list` (owned by the caller).
-void ScanLotList(cFC4ISC4LotManager* lm, SC4List<cISC4Lot*>& list, int32_t maxX, int32_t maxZ,
+// [abi] The game allocates the list's nodes from its STL node allocator
+// (docs/abi/allocators.md), so the list is a GameList: its head and nodes are
+// allocated and freed there too, never through the allocator service.
+void ScanLotList(cFC4ISC4LotManager* lm, GameList<cISC4Lot*>& list, int32_t maxX, int32_t maxZ,
                  cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx, long scan) {
     const bool detail = kCheckedBuild && scan <= 3;
-    SC4ListNode<cISC4Lot*>* const headBefore = ListHead(list);
-    const uint32_t returned = lm->GetLotsInCellRect(list, 0, 0, maxX, maxZ, false);  // slot 7
+    SC4ListNode<cISC4Lot*>* const headBefore = list.head();
+    const uint32_t returned = lm->GetLotsInCellRect(list.Sdk(), 0, 0, maxX, maxZ, false);  // slot 7
     if (detail) {
-        SC4ListNode<cISC4Lot*>* head = ListHead(list);
+        SC4ListNode<cISC4Lot*>* head = list.head();
         char nodes[256] = "";
         size_t used = 0;
         SC4ListNode<cISC4Lot*>* n = head->next;
@@ -324,7 +337,7 @@ void ScanLotList(cFC4ISC4LotManager* lm, SC4List<cISC4Lot*>& list, int32_t maxX,
     for (cISC4Lot*& sdkLot : list) {
         if (sdkLot == nullptr) continue;
         if (release) FC4_RELEASE(sdkLot);
-        sdkLot = nullptr;  // the list destructor then only frees its nodes
+        sdkLot = nullptr;  // the list's destructor then only frees its nodes
     }
     if (detail || iterated != returned) {
         Log("budget lot scan #%ld: GetLotsInCellRect returned %u, ForEachLot iterated %u node(s) (%u null)%s", scan,
@@ -346,17 +359,19 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
     const int32_t maxZ = static_cast<int32_t>(c->CellCountZ()) - 1;
     if (!On(Sw::LotList)) {
-        // Bisection: every lot through GetLot(x, z, true) (borrowed, demand
-        // §6.3), each once; no game list, no references taken or released.
+        // Bisection: no game list.
         NoteSkipped(Sw::LotList, "GetLotsInCellRect (lots walked cell by cell instead)");
-        std::unordered_set<cISC4Lot*> seen;
-        for (int32_t x = 0; x <= maxX; ++x) {
-            for (int32_t z = 0; z <= maxZ; ++z) {
-                cISC4Lot* sdkLot = lm->GetLot(x, z, true);  // slot 6
-                if (sdkLot == nullptr || !seen.insert(sdkLot).second) continue;
-                VisitLot(AsGame(sdkLot), lv, visit, ctx);
-            }
+        WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
+        return;
+    }
+    if (!StlNodeAllocator::Available()) {
+        // [choice] Without the game's STL node allocator (unknown exe) the list
+        // query is refused; the cell walk visits the same lots.
+        static LONG logged = 0;
+        if (InterlockedExchange(&logged, 1) == 0) {
+            Log("budget: WARNING GetLotsInCellRect refused (STL node allocator unavailable); lots walked cell by cell");
         }
+        WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
         return;
     }
     // [choice] Every lot of the city through one rectangle query; the game
@@ -364,14 +379,13 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     // release below (audited) before the list frees its nodes.
     const long scan = InterlockedIncrement(&g_lotScans);
     if (On(Sw::LotListFree)) {
-        FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
-        ScanLotList(lm, lots.get(), maxX, maxZ, lv, visit, ctx, scan);
-        lots.Check();
+        GameList<cISC4Lot*> lots;
+        if (lots.valid()) ScanLotList(lm, lots, maxX, maxZ, lv, visit, ctx, scan);
     } else {
         // Bisection: the list (head and nodes) is never freed.
-        NoteSkipped(Sw::LotListFree, "SC4List destruction (list leaked)");
-        auto* leaked = new SC4List<cISC4Lot*>();
-        ScanLotList(lm, *leaked, maxX, maxZ, lv, visit, ctx, scan);
+        NoteSkipped(Sw::LotListFree, "lot list destruction (list leaked)");
+        auto* leaked = new GameList<cISC4Lot*>();
+        if (leaked->valid()) ScanLotList(lm, *leaked, maxX, maxZ, lv, visit, ctx, scan);
     }
 }
 

@@ -22,6 +22,7 @@
 #include "cFC4Message2Standard.h"
 
 #include "GZServPtrs.h"
+#include "FC4GameList.h"
 #include "SC4List.h"
 #include "StringResourceKey.h"
 #include "StringResourceManager.h"
@@ -368,15 +369,21 @@ void LotsWithBuildingType(void*, uint32_t type, fc4_token_callback cb, void* ctx
     if (lm == nullptr || cb == nullptr) return;
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
     const int32_t maxZ = static_cast<int32_t>(c->CellCountZ()) - 1;
-    FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
-    lm->GetLotsInCellRect(lots.get(), 0, 0, maxX, maxZ, false);  // slot 7
-    lots.Check();
-    for (cISC4Lot*& sdkLot : lots.get()) {
+    // [abi] The game allocates the list's nodes from its STL node allocator
+    // (docs/abi/allocators.md): a GameList, never the SDK SC4List.
+    if (!fc4::StlNodeAllocator::Available()) {
+        fc4::Log("ordinance: WARNING lot scan refused (STL node allocator unavailable); no lots");
+        return;
+    }
+    fc4::GameList<cISC4Lot*> lots;
+    if (!lots.valid()) return;
+    lm->GetLotsInCellRect(lots.Sdk(), 0, 0, maxX, maxZ, false);  // slot 7
+    for (cISC4Lot*& sdkLot : lots) {
         if (sdkLot == nullptr) continue;
         FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
         if (fc4::AsGame(sdkLot)->GetBuildingType(false) == type) cb(ctx, TokenOf(sdkLot));  // slot 46
     }
-    for (cISC4Lot*& sdkLot : lots.get()) {
+    for (cISC4Lot*& sdkLot : lots) {
         if (sdkLot == nullptr) continue;
         FC4_RELEASE(sdkLot);
         sdkLot = nullptr;
