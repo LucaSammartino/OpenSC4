@@ -1,4 +1,4 @@
-# Spec: foundations (streams, save file, response curves, messages, random numbers)
+# Spec: foundations (streams, save file, response curves, messages, random numbers, variants, property holders, regional records, agent order)
 
 Status: **implementation spec**, clean-room input. This document describes *behaviour*, not code. It was
 written by the analysis team from observing the original program and sample saves. Implementers must work from
@@ -11,7 +11,8 @@ original game and its plugins; *[choice]* is a behaviour we chose where the orig
 behaviour that is surprising and documented so that nobody "fixes" it by accident.
 
 Other specs refer to this one for the meaning of `str`, `ref`, `reskey`, "response curve", "standard message"
-and the random number generators.
+and the random number generators, and (§9–§13) for variants, the "property holder record", the regional-city
+record, the C runtime `rand()` and the order of agents within a level.
 
 ## 1. Two contexts
 
@@ -58,7 +59,7 @@ All multi-byte values are **little-endian** (confirmed on sample saves). There i
 | `WriteResKey` / `ReadResKey` | 12 | §2.5 |
 | `SetGZSerializable` / `GetGZSerializable` | payload | inline object, §2.6 |
 | `WriteGZSerializable` / `ReadGZSerializable` | 4 or 8 | object reference, §2.7 |
-| `WriteVariant` / `ReadVariant` | varies | §2.8 (partly known) |
+| `WriteVariant` / `ReadVariant` | 8 + value | §9 |
 
 - **Booleans** have no method of their own. By convention they are written with `SetUint8` as 0 or 1
   *[compat]*. *[choice]* Readers treat any non-zero byte as true.
@@ -173,11 +174,12 @@ Consequences for every `Read` implementation *[compat]*:
   later initialisation message.
 - Cycles (A refers to B, B refers to A) are allowed and common, for example a department and its line items.
 
-### 2.8 Variants *[inferred, partial]*
+### 2.8 Variants
 
-`WriteVariant` writes a `uint32` type tag (bit 15 set = array) and then the value. Arrays are a `uint32` count
-followed by the elements, each in its primitive encoding. The mapping from variant types to tags is not yet
-documented (open question 3). No simulator record specified so far uses variants directly.
+`WriteVariant` writes a `uint32` **marker** (0, or `0xA9BEE9AC` for an object-valued variant) and then a
+`uint32` **disk type tag** (bit 15 set = array) and the value. Arrays are a `uint32` count followed by the
+elements, each in its primitive encoding. The disk tags are **not** the in-memory `cIGZVariant` type numbers.
+The full format is §9. Variants appear in saves inside property holders (§10).
 
 ### 2.9 Error behaviour summary
 
@@ -230,8 +232,8 @@ located by its key alone**. It is reached through a reference from the city (§3
 class ID.
 
 Other records in a city file (region thumbnails and views, terrain data, city name strings `0x2026960B` in groups
-`0x6AAEE931`/`0x6AAEE932`, region information, a record `0x89D9B9EE/0x69D9B9F1/0` written by the city) are outside
-this spec.
+`0x6AAEE931`/`0x6AAEE932`, a record `0x89D9B9EE/0x69D9B9F1/0` written by the city) are outside this spec, except
+the **regional-city record** `0xCA027EDB/0xCA027EE1/0`, which is specified in §11.
 
 ### 3.3 Class-object store
 
@@ -404,10 +406,11 @@ file with it (keeping the old one until the rename succeeds). In order:
    path strings, data4 = the caller's flag), then `0x26C63346` with the same data (name unknown).
 2. Write the app version record (65) and the module version record.
 3. Write the root record. Its reference registers the city. *(The city's `Write`, and through it every subsystem's
-   `Write`, runs later, in step 5.)*
+   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1).
 4. Send `kSC4MessageSave` `0x26C63344` and `kSC4MessagePostSave` `0x26C63345`.
 5. Run the class-object store save (§3.5): the city, the 53 components and everything they reference.
 6. Close the package, then rename it over the city file.
+7. If the save succeeded: rewrite the regional-city record inside the file of every adjacent city (§11.1).
 
 Subscribers to PreSave/Save may write their own records into the package (void1). They run **before** any
 object's `Write`.
@@ -636,7 +639,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 | a process-wide `cRZRandom` (lazy) | wall clock | neighbours deal propositions |
 | a temporary `cRZRandom` | **cell coordinates** (`a · 65536 + b`) | lot developer desirability test: deterministic per cell *[inferred: which coordinate is `a`]* |
 | a temporary `cRZRandom` | wall clock | civic building monthly simulation |
-| the C runtime `rand()` | unknown (open question 5) | `std::random_shuffle` of power poles, pipes, props and building lists; landfill tiles |
+| the C runtime `rand()` | state 1 at process start, **never seeded** by the game (§12) | `std::random_shuffle` of power poles, pipes, props and lot lists; landfill tiles; the random cell iterators (§12.5) |
 
 - **No RNG state is saved** in any record specified so far (simulator, budget, demand), and seeding never reads
   the save. Loading the same save twice in the original gives different random streams *[compat]*: a saved city
@@ -703,10 +706,10 @@ RNG-free quantities (clock, budget arithmetic) or distributions (growth statisti
    analysis suggests? A save with a deliberately corrupted early class record would settle it.
 2. **Text encoding** of `SetGZStr` for non-ASCII city, mayor and department names. A save with an accented city
    name would confirm UTF-8 (or reveal a code page).
-3. **Variant tags** (§2.8): the type-tag table for `WriteVariant` and the records that use it.
+3. ~~**Variant tags** (§2.8)~~: answered in §9 (tag table) and §10 (property holders, the records that use them).
 4. **Other city-file records** (§3.2): `0x89D9B9EE/0x69D9B9F1`, region, thumbnail and terrain records, and
    unnamed message `0x26C63346`. Not needed for simulator replacement, but needed for standalone mode.
-5. **C runtime `rand()`** seeding: whether the game calls `srand`, and with what. This affects the shuffles in §6.2.
+5. ~~**C runtime `rand()`** seeding~~: answered in §12 (never seeded by the game; algorithm and users listed).
 6. **RNG vectors** (§7 items 13–14): confirm with a runtime capture from the original (force a seed and log the
    first outputs).
 7. **Object `Init` order on load** (§3.7): confirmed only from the city's `Init` list. Which `Init`-time
@@ -715,3 +718,569 @@ RNG-free quantities (clock, budget arithmetic) or distributions (growth statisti
 ### Addendum: message vtable slot order *[compat]* (verified against the game)
 
 The standard message class's vtable matches the gzcom-dll `cIGZMessage2Standard` declaration order exactly. The order is: QueryInterface, AddRef, Release, Create, GetType (`+0x10`), SetType, `==`, `<`. Then, for data slots 1-4, `GetHasDataN`/`GetDataN`/`GetVoidN`/`SetDataN`/`SetVoidN`; data 1 starts at `+0x20`. Then String ×3, IGZUnknown ×3 (`GetIGZUnknown` at `+0x80`) and Extra ×3. Game agents read messages through `+0x10`, `+0x20`, `+0x24`, `+0x3C` and `+0x80`.
+
+## 9. Variants (`cIGZVariant`)
+
+Sources: the gzcom-dll `cIGZVariant` header (in-memory type numbers), the original reader and writer, and the
+bytes of property holders in sample saves (§10.6), which confirm the marker, the tag width and the tag values
+for `Uint8`, `Uint32`, `Sint32`, `Sint64`, `Float32` and the `Uint16`, `Uint32` and `Float32` arrays.
+
+### 9.1 In-memory types *[compat]*
+
+A variant holds one value or an array of values of one type. `GetType()` returns a 16-bit **memory type**; bit 15
+(`0x8000`) marks an array, whose length is `GetCount()`. The numbers are those of the SDK header and are what
+command parameter sets (`cIGZCommandParameterSet`), messages, Lua glue and property values see:
+
+| Memory type | Name | Memory type | Name |
+|---|---|---|---|
+| `0x00` | Empty | `0x09` | Sint64 |
+| `0x01` | Bool | `0x0A` | Float32 |
+| `0x02` | Uint8 | `0x0B` | Float64 |
+| `0x03` | Sint8 | `0x0C` | Char |
+| `0x04` | Uint16 | `0x0D` | RZUnicodeChar (UTF-16 unit) |
+| `0x05` | Sint16 | `0x0E` | RZChar (8-bit char) |
+| `0x06` | Uint32 | `0x0F` | VoidPtr |
+| `0x07` | Sint32 | `0x10` | IGZUnknown (an object reference) |
+| `0x08` | Uint64 | `0x8000 \| t` | array of `t`; `0x8000` alone = raw bytes ("void array") |
+
+A **string** value is an `RZChar` array (`0x800E`) whose count is the string length (no terminator) *[inferred]*.
+Exemplar string properties load as this type.
+
+### 9.2 On-disk encoding (`WriteVariant` / `ReadVariant`) *[compat]*
+
+```
+uint32  marker          0xA9BEE9AC if the memory type is exactly IGZUnknown (0x0010), otherwise 0
+if marker = 0xA9BEE9AC:
+    ref   object        (§2.7) the held object QueryInterface'd to cIGZSerializable; null if none or not serializable
+else:
+    uint32  diskTag     from the table below (array bit 0x8000 kept)
+    value               scalar: one element.   diskTag 0x800C: a string (§2.3).
+                        other arrays: uint32 count, then count elements.  diskTag 0: nothing.
+```
+
+The **disk tag is a different numbering** from the memory type. It is the property type numbering of exemplar
+files (`diskTag << 8` = the exemplar's type code: `0x0100` Uint8, `0x0300` Uint32, `0x0900` Float32, `0x0B00`
+Bool, `0x0C00` string, ...).
+
+| Memory type | Disk tag | Element bytes | Read back |
+|---|---|---|---|
+| Empty `0x00` | `0x00` | none | yes (empty variant) |
+| Bool `0x01` | `0x0B` | 1 (0 or 1) | yes; any non-zero byte is true |
+| Uint8 `0x02` | `0x01` | 1 | yes |
+| Sint8 `0x03` | `0x05` | 1 | yes |
+| Uint16 `0x04` | `0x02` | 2 | yes |
+| Sint16 `0x05` | `0x06` | 2 | yes |
+| Uint32 `0x06` | `0x03` | 4 | yes |
+| Sint32 `0x07` | `0x07` | 4 | yes |
+| Uint64 `0x08` | `0x04` | 8 | yes |
+| Sint64 `0x09` | `0x08` | 8 | yes |
+| Float32 `0x0A` | `0x09` | 4 (IEEE bits) | yes |
+| Float64 `0x0B` | `0x0A` | 8 (IEEE bits) | yes |
+| Char `0x0C` | `0x11` | 1 | **no** *[quirk]* |
+| RZUnicodeChar `0x0D` | `0x10` | 2 | **no** *[quirk]* |
+| RZChar `0x0E` | `0x0C` | 1 | yes |
+| VoidPtr `0x0F` | `0x12` | write fails | — |
+| IGZUnknown `0x10` | (marker path) | `ref` | yes |
+| void array `0x8000` | `0x8000` | count raw bytes | yes |
+| Bool array `0x8001` | `0x800B` | 1 each | yes |
+| Uint8 … Float64 arrays `0x8002`–`0x800B` | `0x8001`, `0x8005`, `0x8002`, `0x8006`, `0x8003`, `0x8007`, `0x8004`, `0x8008`, `0x8009`, `0x800A` (same order as the scalar rows) | as the scalar | yes |
+| Char array `0x800C` | `0x8011` | 1 each | yes |
+| RZUnicodeChar array `0x800D` | `0x8010` | 2 each | yes |
+| RZChar array (string) `0x800E` | `0x800C` | §2.3 string: `uint32` header + bytes | yes |
+| VoidPtr array `0x800F`, IGZUnknown array `0x8010` | `0x8012`, `0x800D` | write fails | — |
+
+Details *[compat]*:
+
+- **String arrays** (`0x800C`) have no separate count: the §2.3 header is the count. For 8-bit text the bytes are
+  therefore identical to "count, then count bytes". The reader applies §2.3 completely (including the UTF-16
+  header `0x10` and its quirks) and stores the result as an `RZChar` array.
+- **Write failures**: for the unsupported types the marker and the disk tag are written first, then the call fails
+  and the stream enters the error state (§2.1). Writers must not store `VoidPtr` values or arrays of `VoidPtr` or
+  `IGZUnknown` in anything that is saved.
+- *[quirk]* `Char` and `RZUnicodeChar` **scalars** are written (tags `0x11`, `0x10`) but the reader does not accept
+  these tags. Reading one fails. Writers should store such values as `Uint8` / `Uint16` *[choice]*.
+- **Reader tag set**: scalar tags `0x00`–`0x0C`; array tags `0x8000`–`0x800C`, `0x8010`, `0x8011`. Any other tag
+  fails (stream error).
+- **Marker on read**: only `0xA9BEE9AC` selects the object path; *[quirk]* **any** other value, not just 0, is
+  treated as 0. *[choice]* Standalone readers may reject markers other than 0 and `0xA9BEE9AC`.
+- **Object path on read**: read the reference (§2.7, without `loadNow`). A null reference succeeds and leaves the
+  destination variant **unchanged** *[quirk]*. Otherwise the variant becomes an `IGZUnknown` holding the object.
+- **Array counts** have no upper limit in the original. *[choice]* FreeCity4 rejects a count whose elements
+  would extend past the end of the record.
+- The array path stores the **elements only**. There is no terminator, alignment or padding.
+- `WriteVariant`/`ReadVariant` exist only on the segment streams (§2.1). The `<<` / `>>` helpers that property code
+  uses ask the stream for the segment interface. *[quirk]* On a plain stream they write or read **nothing** and
+  do not fail.
+
+### 9.3 Worked examples
+
+| Value | Bytes |
+|---|---|
+| Uint32 7 | `00 00 00 00` `03 00 00 00` `07 00 00 00` |
+| Float32 6.0 (sample save) | `00 00 00 00` `09 00 00 00` `00 00 C0 40` |
+| Sint64 50 (sample save) | `00 00 00 00` `08 00 00 00` `32 00 00 00 00 00 00 00` |
+| Bool true | `00 00 00 00` `0B 00 00 00` `01` |
+| Uint16 array {0x5C, 0x253} | `00 00 00 00` `02 80 00 00` `02 00 00 00` `5C 00 53 02` |
+| Float32 array {100.0} (sample save) | `00 00 00 00` `09 80 00 00` `01 00 00 00` `00 00 C8 42` |
+| string "Abc" | `00 00 00 00` `0C 80 00 00` `03 00 00 00` `41 62 63` |
+| Empty | `00 00 00 00` `00 00 00 00` |
+| IGZUnknown, null | `AC E9 BE A9` `00 00 00 00` |
+| IGZUnknown, object ID 5 of class `0x8990C12D` | `AC E9 BE A9` `05 00 00 00` `2D C1 90 89` |
+
+## 10. Properties and property holders in saves
+
+### 10.1 Property (`cISCProperty`) *[compat]*
+
+A property is a 32-bit **property ID** plus a variant value (§9). `Write(stream)`:
+
+```
+uint32   propertyID
+variant  value         (§9.2)
+```
+
+`Read` reads the same fields into the property. Both return "the stream is not in the error state" (§2.1).
+
+### 10.2 Plain holder (`cISCPropertyHolder`, the "property holder record") *[compat]*
+
+In memory a holder keeps its properties **sorted by ascending unsigned property ID**, at most one per ID.
+Adding a property whose ID is already present **replaces** that property in place. Adding never fails. The
+`bool` argument of the SDK's `AddProperty(cISCProperty*, bool)` has no effect.
+
+```
+uint16  version = 2
+uint32  count
+count × {
+    uint32    key          the ID under which the holder files the property (= its propertyID in every sample)
+    property  (§10.1)      uint32 propertyID; variant
+}
+```
+
+- **Write**: entries in the holder's order (ascending ID). The property ID therefore appears **twice** in each
+  entry. The result is "stream not in error".
+- **Read**:
+  1. Read `version`. If it is not 2, return false. The stream is **not** put into the error state, and
+     only the 2 version bytes have been consumed.
+  2. Read `count`. **Remove all** existing properties.
+  3. Repeat `count` times: read `key` (it is **ignored**), then read a property. If the property read succeeded,
+     and its value is not Empty, and it is not an `IGZUnknown` value holding a non-null object, add it under its
+     **own** `propertyID`. A duplicate ID in the stream therefore replaces the earlier entry.
+  4. Return "stream not in error". There is no upper limit on `count`. After a failed property read every later
+     read also fails (§2.1), so the loop ends quickly in effect.
+- *[quirk]* Object-valued properties (`IGZUnknown` with an object) are written (§9.2) but **dropped** on read.
+  Null-object ones are kept. No sample save contains either kind.
+- *[choice]* FreeCity4 writers use `key = propertyID`. Standalone readers may reject `count` values that cannot fit
+  in the remaining record.
+
+### 10.3 Exemplar holder (`cISCExemplarPropertyHolder`) *[compat]*
+
+An exemplar holder is a plain holder with an optional **parent exemplar** (the "default exemplar"). `HasProperty`
+and `GetProperty` look at the holder's **own** properties first and then at the parent's. Only the own
+properties are saved: inherited values are **not** copied into the save, only the parent's key is.
+
+```
+uint16  version = 2
+...     plain holder record (§10.2)
+uint32  group          parent exemplar key, in the order GROUP, TYPE, INSTANCE
+uint32  type           (note: not the type, group, instance order of §2.5)
+uint32  instance       all three zero = no parent
+```
+
+- **Read**: `version` must be 2 and the plain holder's `Read` must succeed. Otherwise return false (nothing after
+  the failing part is read). Read the key. If all three fields are zero, the parent becomes none. Otherwise the
+  holder asks the resource manager for the resource with that key, requesting `cISCResExemplar` (`0xA52160F5`).
+  If it is found, it becomes the parent. If it is missing, the parent is **left unchanged** (none for a freshly
+  constructed holder) and the read still succeeds. Return "stream not in error".
+- Consequence *[compat]*: the parent is resolved against the **current** data files and plugins at load time.
+  Changing an exemplar changes the inherited values of every saved object that refers to it. Removing it leaves
+  the saved object with its own properties only.
+- **Write side extra** *[inferred]*: if the parent has a non-zero property `0x6A871B82` (the same property the
+  game's missing-plugin reporting checks, believed to be a plugin-pack ID), the writer also stores the parent
+  exemplar itself as a resource in the save package, under the parent's own key. The city package is a resource
+  source while the city is loaded, so the saved copy resolves even without the plugin. No sample save contains
+  one. *[choice]* FreeCity4 writes the same in standalone mode once exemplar writing exists, and never in plug-in
+  mode (the original writer does it there).
+
+### 10.4 Which records use which holder
+
+| Record | Holder | Spec |
+|---|---|---|
+| ordinance | exemplar holder | ordinance §9.3 |
+| neighbour connection, neighbour deal (in the city's neighbours objects and in regional-city records) | plain holder | neighbors §4.3, §5.6; §11 |
+| occupants, lots and many other saved objects | one of the two | their own specs |
+
+The budget's locally funded objects refer to holders through `ref` (§2.7), not inline.
+
+### 10.5 Duplicates, order and the parent *[compat]*
+
+- A writer emits at most one entry per ID, in ascending unsigned ID order. A reader tolerates duplicates (the last
+  one wins) and any order (it re-sorts).
+- Saving loses nothing that a lookup can observe, except dropped object-valued properties (§10.2) and parent
+  values that change in the data files (§10.3).
+
+### 10.6 Worked examples
+
+(a) **Ordinance holder without own properties** (sample save, Commuter Shuttle). The parent is group
+`0xA9C2C209`, type `0x6534284A` (exemplar), instance `0xA2BF1DE5`:
+
+```
+02 00                    exemplar-holder version 2
+02 00 00 00 00 00        plain holder: version 2, count 0
+09 C2 C2 A9 4A 28 34 65 E5 1D BF A2
+```
+
+(b) **Neighbour-connection holder** (sample save, 8 properties). The first and the last entries:
+
+```
+02 00 08 00 00 00
+00 41 0B 8A  00 41 0B 8A  00 00 00 00  02 80 00 00  0C 00 00 00  (12 × uint16: 00 00 … 5C 00 00 00 00 00 53 02)
+…            (IDs 0xAA9EA81A … 0xAA9EA81F: Uint32 arrays of 7 zeros, tag 03 80 00 00)
+77 70 94 CA  77 70 94 CA  00 00 00 00  09 00 00 00  00 00 C0 40        (0xCA947077 = Float32 6.0)
+```
+
+(c) **Synthetic** plain holder {`0x00000010` = Uint8 41, `0x80000001` = Float32 1.5}. The order is by unsigned ID:
+
+```
+02 00 02 00 00 00
+10 00 00 00 10 00 00 00 00 00 00 00 01 00 00 00 29
+01 00 00 80 01 00 00 80 00 00 00 00 09 00 00 00 00 00 C0 3F
+```
+
+The same properties as an exemplar holder with the parent of (a) add `02 00` in front and the 12 key bytes of (a)
+at the end (57 bytes in total).
+
+## 11. Regional-city record
+
+### 11.1 Where it lives *[compat]*
+
+The region stores **nothing per city outside the city files**. A region folder holds `region.ini`, `config.bmp`
+and one `.sc4` file per city tile. Each city file contains one **regional-city record**, type `0xCA027EDB`,
+group `0xCA027EE1`, instance 0. It is opened with the auto-stream helper, so its payload starts with
+`uint16 1` (§2.10). The region's regional-city objects (`cISC4RegionalCity`) are created with
+`GZCOM()->GetClassObject(0x6A037C24, 0x69D2BE1D)` (the IID is the one the reader requests; the SDK names no IID).
+If that fails, they are constructed directly. Their `Read` is then called on this record. The objects are
+built from these records:
+
+- when the region loads, from every city file in the folder;
+- by `cISC4Region::ReloadCity`, which re-reads one city's file (the neighbours simulator does this for every
+  adjacent established city in its `Init`, neighbors §14.1);
+- by moves in the region view.
+
+It is written:
+
+1. while the current city is saved: into the new package, right after the root record (§3.7 step 3);
+2. after a **successful** save of the current city: into the existing file of **every adjacent city**,
+   established or not, that has a save path. Only this record is replaced in the neighbour's file (§3.7 step 7).
+   This is how deals and connections reach the neighbours' files;
+3. when a city is moved in the region view.
+
+### 11.2 Layout (version 13) *[compat]*
+
+All values are little-endian. `str` is §2.3, `f32`/`f64` are IEEE.
+
+```
+u16  1                            auto-stream helper version
+u16  version = 13
+s32  posX, posZ                   region cell of the city's corner (GetPosition)
+s32  sizeX, sizeZ                 size in region cells (GetCitySize)
+s32  population, commercialJobs, industrialJobs
+f32  workforcePercentage          a fraction (0.48 = 48 %)
+s8   mayorRating
+u8   difficulty
+u8   moved                        set when the city is moved in the region; cleared by its next TerrainReconciliation (§11.3)
+u32  serialNumber
+s32  originalLanguage, originalCountry, lastLanguage, lastCountry
+u32  birthDate
+u8   established
+str  cityName, s1, mayorName, s2, utilityAdvisorName, description, s3      (s1..s3: unknown, empty in samples)
+f32  worldLongitude, worldLatitude, worldBaseElevation
+s32  tutorialID                   −1 = none
+u32  n;  n × { u32 populationType; s32 value }     population by type (ascending type)
+u32  n;  n × { u32 populationType; s32 value }     extrapolated population
+u32  n;  n × { u32 populationType; s32 value }     potential population
+u32  12; 12 × f32                 tax rates (percent)
+u32  n;  n × connection record    (neighbors §4.3, including its plain holder §10.2)
+u32  n;  n × { u32 a; s32 x; s32 z; u8 flag }       pending connection changes (meaning partly unknown)
+f64  budget
+f64  income
+s32  n;  n × { s32 commodity; f64 produced; f64 demanded; f64 imported; f64 exported; f64 costPerUnit }
+                                  ascending commodity: 1 power, 2 water, 3 garbage
+s32  n;  n × deal record          "other" deal list O (neighbors §5.6)
+s32  n;  n × deal record          "local" deal list L
+u32  n;  n × { u32 poiType; u32 m; m × { f32, f32, f32 } }     points of interest: type 0 airports, 1 seaports
+```
+
+Example (sample save, the first 43 bytes): `01 00 0D 00 06 00 00 00 05 00 00 00 02 00 00 00 02 00 00 00 04 0A
+00 00 29 01 00 00 8C 02 00 00 8F C2 F5 3E 33 02 00 FB CB E3 53` gives helper 1, version 13, position (6, 5),
+size (2, 2), population 2564, 297 commercial jobs, 652 industrial jobs, workforce 0.48, mayor rating 51,
+difficulty 2, moved 0 and serial `0x53E3CBFB`. All 85 city files of the test region parse completely under
+this layout (versions 9, 10 and 13, with the version rules below). None contains a deal.
+
+**Read** *[compat]*:
+
+- `version ≥ 14` → fail. Older versions: without `workforcePercentage` below 10 (0.5 is used); version 10 stores
+  it as a **percentage** (multiplied by 0.01 on read); without `difficulty` below 13 (2 is used); without the
+  points of interest below 12.
+- `difficulty` is applied only when `established` is set.
+- Limits: each population map ≤ `0x20000000` entries, tax rates ≤ 12, connections, changes and commodities each
+  ≤ `0x100000`. Exceeding a limit makes the read return false. Deal counts are not limited.
+- `tutorialID` is passed through the tutorial registry's ID mapping.
+- If the city is not established, `cityName` is replaced by the localized default name. Then the city-name and
+  mayor-name string records of the same package (§3.2, groups `0x6AAEE931` / `0x6AAEE932`, current language),
+  when present, override `cityName` and `mayorName`.
+- Connections are read into new **original** connection objects, constructed directly.
+- Deals: each deal is read into a new **original** deal object. Deals that read successfully are appended to **O**.
+  This holds for **both** saved lists, the first and then the second. Every deal read gets `SetFlags(Silent, true)`.
+- The save-file path is not stored. The region sets it from the file name.
+
+### 11.3 The two deal lists *[compat]*
+
+- **O ("other")**: deals loaded from disk that no simulator has claimed yet, plus the deals of the record's city
+  with third cities.
+- **L ("local")**: the deals between the record's city and the **current** city (for the current city's own
+  record: all of its deals). `GetLocalDeals(out)` replaces `out` with a copy of L (references).
+
+**Claiming** (`extract(src, dst, removeClaimed)`): does nothing unless a current city with a neighbours
+simulator exists. Let `cur` be the current city's regional record and `this` the record being updated. For each
+deal `d` of `src`, in list order:
+
+```
+A := region city at d's city-side region cell;  B := region city at d's other-side region cell
+if A or B is missing:   remove d from src (always, whatever removeClaimed says)
+else if (this = cur and (A = cur or B = cur)) or (this ≠ cur and {A, B} = {cur, this}):
+    append d to dst (a reference, AddRef);  if removeClaimed: remove d from src
+```
+
+| Method | Behaviour |
+|---|---|
+| `UpdateLocalDeals()` | `extract(O, L, true)`. L is **not** cleared first. Then `SetFlags(Silent, false)` on every deal that is **still in O** (third-party deals become visible to `UpdateImportExport`). *[inferred]* Under neighbors §5.4, clearing Silent may post a status report for those deals. Returns true. |
+| `SetLocalDeals(list)` | `L := empty`; `extract(list, L, false)`; `UpdateImportExport()`. Returns true. L holds **references to the caller's objects**. *[quirk]* The caller's list loses every deal with a missing region city. The neighbours simulator passes **its own deal list**, so such deals disappear from the simulator. |
+| `GetLocalDeals(out)` | `out := L` (copy of the references). |
+| `UpdateImportExport()` | For commodities 1–3: `imported := 0`, `exported := 0`. Then for every deal of O, then of L: skip it if its other-side city is missing or it has any flag of `0xBC` (Cancelled, NoConnection, CannotAfford, NoLandfill, Silent). The commodity is E0/E1 → 1, E2/E3 → 2, E4/E5 → 3; other types are skipped. For a **buy** type (E0, E2, E4): if the other side is `this`, `exported[c] += amount`, else `imported[c] += amount`. For a **sell** type: if the other side is `this`, `imported[c] += amount`, else `exported[c] += amount`. Produced, demanded and cost per unit are not touched. |
+
+**Messages** handled by every regional-city object *[compat]*:
+
+| Message | Action |
+|---|---|
+| PostLoad `0x26C63342`; PostCityShutdown `0x26D31EC3` for the current city | Move all of L into O: repeatedly take the **last** deal of L and append it to O. L's order is therefore **reversed** at the end of O. |
+| PostCityInit `0x26D31EC1`, only on the current city's record | Refresh the cached statistics from the city (`UpdateCityCache`). |
+| PreSave `0x26C63343`, only on the current city's record | `UpdateCityCache`, then recompute the potential and extrapolated populations. |
+| TerrainReconciliation `0xCA63D517`, only on the current city's record | Rebuild symmetric connections; when `moved` is set, existing connections are first marked for removal and incoming ones treated as new; then `moved` is cleared (details: a region spec). |
+
+`Write` writes O, then L (§11.2).
+
+### 11.4 Life of a deal across the region
+
+1. **Load** of city X: the records come from disk, with every deal in O and Silent. PostLoad moves any L back
+   into O.
+2. **Neighbours `Init`** (neighbors §14.1): `ReloadCity` each adjacent established city; `R.UpdateLocalDeals()`
+   (X's own record claims every deal involving X); for each adjacent city C: `C.UpdateLocalDeals()` (claims the
+   X–C deals), then the simulator clones C's L into its own list (as seen from X).
+3. **Push** (neighbors §9.2): for the adjacent established cities, then X's record: `SetLocalDeals(simulator
+   list)` and/or `UpdateImportExport()`. The original visits the adjacent cities in **reverse** of the
+   `GetAdjacentCities` order. That order is not observable, because each city's result depends only on the list.
+   `SetLocalDeals` runs `UpdateImportExport` itself, so with both flags set the totals are computed twice
+   (harmless).
+4. **Save** of X: X's record is written into X's file, with L = the simulator's live deal objects, written with
+   their own `Write`. Each adjacent city's record is rewritten into its file: O = its deals with third cities,
+   L = its deals with X (again the simulator's objects).
+5. Later, loading neighbour C: C's simulator rebuilds its X–C deals from X's record (step 2 with roles
+   swapped). The copy in C's own file is used for C's import/export totals.
+
+### 11.5 Consequences for FreeCity4
+
+- Plug-in mode *[compat]*: the original region objects hold our deal objects (through `SetLocalDeals`) and write
+  them with our `Write`. Our deals must produce neighbors §5.6 exactly and must tolerate `SetFlags` / `Clone`
+  calls from region code at any time. FreeCity4 does not replace the regional-city class in plug-in mode
+  *[choice]*, although the GZCOM creation path (§11.1) would allow it. It uses the region objects only through
+  `cISC4RegionalCity`.
+- Standalone mode: FreeCity4 implements §11.2–§11.4 itself, including the PostLoad reversal and the
+  `SetLocalDeals` pruning, so that saves and the deal life cycle match.
+
+## 12. The C runtime `rand()`
+
+### 12.1 Algorithm *[compat]*
+
+The executable links the multithreaded C runtime statically. `rand()` keeps a **per-thread** 32-bit state `s`.
+A thread's state is set to **1** when the runtime first creates that thread's data.
+
+```
+srand(x):  s := x
+rand():    s := (s × 214013 + 2531011) mod 2^32;   return (s >> 16) & 0x7FFF          (0 … 32767)
+```
+
+From state 1: 41, 18467, 6334, 26500, 19169, 15724, 11478, 29358, 26962, 24464. After `srand(12345)`: 7584,
+19164, 25795.
+
+### 12.2 Seeding *[compat]*
+
+- **The game never calls `srand`.** The only call site is Lua's `math.randomseed(n)` (`srand(trunc(n))`), and
+  `math.random` draws from the same generator. No shipped Lua script uses `math.random` or `math.randomseed`. All
+  Lua resources in the shipped `.dat` files were searched. Plugin scripts may use them.
+- The main thread's sequence therefore starts at state 1 when the process starts. It is **shared** by every
+  caller on that thread, including non-simulation ones: radio-station playlist shuffles and idle handling,
+  audio ambience and automata audio events, helicopter AI and others. The values that a subsystem gets depend on
+  every earlier `rand()` call in the process: menu time, music settings, the cities played before. In practice
+  they are **not reproducible** from a save. This is consistent with §6.2 (no RNG state is saved).
+- Whether any `rand()` caller runs on a thread other than the simulation's is unknown (§15 question 4).
+  Such a caller would have its own state, starting at 1.
+
+### 12.3 `random_shuffle` *[compat]*
+
+The library's `std::random_shuffle(first, last)` without a generator argument does:
+
+```
+for i in 1 .. n−1:   j := rand() mod (i + 1);   swap(a[i], a[j])
+```
+
+It makes exactly `n − 1` calls (none for `n ≤ 1`). The modulo is of non-negative values. For `n > 32768` the
+later positions are never fully mixed: the original's behaviour, kept. Example: `a = [0, 1, …, 9]` from state 1
+→ `[8, 1, 9, 2, 0, 5, 7, 3, 4, 6]`. The same algorithm is used on vectors and deques.
+
+### 12.4 Random cell iterators *[compat, summary]*
+
+The random cell iterator of weather §6.7 has two modes: in prime-step mode a reset makes one `rand()` call
+(`start := rand() mod count`); in table mode, at each reset with shuffling requested, the index table is
+`random_shuffle`d (§12.3). The table is refilled in natural order first whenever its size changed. A **linear**
+variant of the same utility iterates indices `0 … n−1` instead of a rectangle. It uses the same prime table, caps
+`n` at 130,444 in prime-step mode, and is empty for `n = 0`. Each subsystem spec that uses an iterator must say
+which mode it uses and when it resets.
+
+### 12.5 Users in the simulation (Windows build call sites)
+
+| User | Use |
+|---|---|
+| power simulator (pole funding), plumbing simulator (pipe funding) | `random_shuffle` of a 32-bit list |
+| prop developer (message handler) | `random_shuffle` of a 32-bit list |
+| lot developer (message handler) | `random_shuffle` of an `int` deque |
+| landfill zones (monthly landfill developer update) | `rand()` directly, up to 5 calls per zone update |
+| random cell iterator | flammability (daily), flora (init, monthly), pollution (init, daily, visual effects), power grid update, tract developer (lot listing, decline), weather (init, weekly); also obliterate-city, volcano lava, helicopters, audio ambience |
+| linear iterator | construction occupants (props, crews), traffic simulator (accident check), one unnamed simulation function |
+
+Names come from the symbol port and may be imprecise *[inferred]*.
+
+### 12.6 FreeCity4 *[choice]*
+
+- The game's runtime state cannot be reached through public interfaces, so FreeCity4 must not try to use it.
+  The core provides a `CrtRand` generator implementing §12.1, plus `random_shuffle` per §12.3.
+- Each replaced subsystem owns one `CrtRand` instance, seeded with 1 by default and overridable by the host. This
+  matches a fresh process in which nothing else drew numbers. Subsystem specs must state the number of `rand()`
+  calls for each operation, so that differential tests can align sequences once the observer forces the
+  original's state.
+
+## 13. Order of agents within a level (month level)
+
+### 13.1 The original rule
+
+The original simulator keeps the agents of each level in a **set ordered by the unsigned value of the
+`cIGZMessageTarget2` pointer** passed to `AddAgent`. Adding the same pointer twice is a no-op. Delivery walks the
+set in ascending order (simulator spec §5). The order is therefore fixed by heap addresses, not by the program.
+FreeCity4's simulator runs agents in **registration order** (simulator spec §4).
+
+### 13.2 Observation
+
+Month-level (level 6) registrations, from a logged session with the FreeCity4 simulator in the test region
+(registration order, and the rank of each agent's target pointer):
+
+| Reg. | Agent | Addr. rank | Reg. | Agent | Addr. rank |
+|---|---|---|---|---|---|
+| 1 | terrain | 10 | 14 | lot developer | 18 |
+| 2 | landfill developer | 20 | 15 | aura | 6 |
+| 3 | airport/seaport developer | 21 | 16 | commercial | 25 |
+| 4 | airport/seaport developer | 22 | 17 | crime | 19 |
+| 5 | park manager | 7 | 18 | fire protection | 11 |
+| 6 | **budget** | **4** | 19 | flora | 15 |
+| 7 | **ordinance** | **24** | 20 | land value | 26 |
+| 8 | power | 1 | 21 | police protection | 17 |
+| 9 | plumbing | 5 | 22 | traffic | 8 |
+| 10 | **neighbours** | **23** | 23 | pollution | 3 |
+| 11 | demand | 16 | 24 | residential | 2 |
+| 12 | building development | 14 | 25 | weather | 13 |
+| 13 | tract developer | 12 | 26 | civic buildings | 9 |
+
+In all three logged sessions the budget simulator's pointer was far below the neighbours' and the ordinance
+simulator's (for example `0x0A9AAF70` against `0x17787798` and `0x17787818`). The budget is created before
+both in a new and in a loaded city (city slot 20 against slots 30 and 31, §3.6).
+
+### 13.3 Dependencies and the requirement
+
+The budget's month agent books `GetOrdinanceMonthlyIncome/Expense` and the neighbour deal totals (budget §5.1,
+§5.5). The ordinance simulator recomputes those totals in **its** month agent (ordinance §5). The neighbours
+simulator activates, renews (re-prices), cancels and removes deals in **its** month agent (neighbors §7.3).
+
+*[compat]* **Within the month level, the budget simulator's agent runs before the ordinance simulator's and the
+neighbours simulator's agents.** Both the observed original order and FreeCity4's registration order give this,
+because the city initialises the budget before the ordinance and neighbours simulators (§3.7) and each registers
+its month agent in `Init`. Consequences, which tests must check:
+
+- The settlement on the 1st of month M+1 books the ordinance totals computed on the 1st of month M (the
+  previous run). An ordinance enacted during month M has its enactment amount folded into the totals on the 1st
+  of M+1, and the budget books it on the 1st of **M+2**. The same one-month lag applies to repeal amounts and
+  monthly ordinance costs.
+- Neighbour deals are booked as they stood **before** this month's `simulate_deals`. That is the state left by
+  the previous month-end run and by the re-runs that status reports triggered in between. A deal activated or
+  renewed at this month-end is booked from the next settlement on. A deal removed at this month-end is still
+  booked at this one if it had none of the excluded flags at that moment.
+- A replacement budget, ordinance or neighbours simulator must register its month agent **in `Init`** (not lazily
+  later), and a FreeCity4 city must keep the §3.7 `Init` order, so that registration order keeps the budget
+  first.
+
+No other ordering requirement is derived:
+
+- **Ordinance vs neighbours**: their order differs between the original (neighbours first) and FreeCity4
+  (ordinance first). Neither reads the other's month results.
+- **Power, plumbing vs neighbours**: power and plumbing come first in both orders.
+- Other pairs that differ between the two orders (for example residential, pollution and power before the budget
+  in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
+  order.
+
+Day-level agents run before month-level ones on the 1st of a month (simulator spec §5); this is independent of
+the order within a level.
+
+## 14. Conformance tests for §9–§13 (must exist in `engine/conformance`)
+
+16. **Variant encoding**: every row of §9.3 encodes to and decodes from the given bytes. Every readable tag of
+    §9.2 round-trips, including arrays of length 0. A Bool byte `02` reads as true.
+17. **Variant failures**: writing a `VoidPtr` emits `00 00 00 00 12 00 00 00` and then fails (sticky error).
+    Reading tag `0x11` or `0x10` (scalar) fails. Marker `0x00000001` is read like 0. A null object reference
+    leaves a pre-set Uint32 variant unchanged. A string variant with header `0x10000002` and bytes `41 00 E9 00`
+    reads as "Aé" (§2.3).
+18. **Plain holder**: example (c) of §10.6 round-trips. Adding properties in the order `0x80000001`, `0x10` writes
+    them in the order `0x10`, `0x80000001`. A stream with duplicate IDs keeps the last value. An entry whose key
+    differs from its property ID is filed under the property ID. Empty and object-valued entries are dropped,
+    while a null-object entry is kept. Version 3 returns false with only 2 bytes consumed and the stream still
+    good.
+19. **Exemplar holder**: example (a) of §10.6 round-trips. A stub resource manager resolves the parent, and a
+    lookup of a property only the parent has succeeds. An unknown parent key still loads the own properties and
+    leaves the parent unset. A key of zeros gives no parent. The key is read as group, type, instance.
+20. **Regional-city record**: a synthetic version-13 record with two connections, two commodities, one deal in
+    each list and two points of interest round-trips byte for byte. The header example of §11.2 decodes to the
+    stated values. Version 10 reads the workforce as a percentage, version 9 has no workforce, version 12 has no
+    difficulty, and version 14 fails. Both saved deal lists load into O, and every loaded deal is Silent.
+21. **Deal claiming**: with region cells for cities X (current), C and D, and deals X–C, C–D, X–D and one with a
+    missing cell: `C.UpdateLocalDeals()` moves X–C to L, keeps C–D in O with Silent cleared, and drops the
+    broken deal. `X.SetLocalDeals(list)` keeps X–C and X–D and removes the broken deal **from the caller's
+    list**. PostLoad moves L = [d1, d2] to the end of O as [d2, d1].
+22. **Import/export**: a buy-power deal of amount 100 from X (city side) with C (other side): on C's record
+    `exported[1] = 100`, on X's record `imported[1] = 100`. The same deal flagged Silent or Cancelled counts
+    nothing. A deal of an unknown type counts nothing.
+23. **`rand()`**: the sequences of §12.1. The shuffle example of §12.3 makes exactly 9 calls. A prime-step
+    iterator reset makes exactly one call.
+24. **Month order**: with stub budget and ordinance simulators registered in §3.7 order, an ordinance enacted on
+    15 January with enactment cost 100 is charged at the 1 March settlement, not at the 1 February one. With
+    registration order reversed the test detects the difference.
+
+## 15. Open questions for §9–§13
+
+1. The meaning of the regional-city record's unknown strings `s1`–`s3`, of the connection-change entries, and the
+   exact meaning of the twelve tax-rate slots.
+2. Who keeps the regional record's `budget` and `income` current. The neighbours simulator's affordability checks
+   read them, and `UpdateCityCache` does not set them.
+3. Whether the original ever stores object-valued (`IGZUnknown`) or `Char` / `RZUnicodeChar` scalar properties in
+   a saved holder. If it does, those values are lost or break the load (§9.2, §10.2).
+4. Which thread runs the radio-station and audio callers of `rand()`. This decides whether they share the
+   simulation thread's state (§12.2).
+5. Month-level pairs other than budget/ordinance/neighbours whose order differs between the original's address
+   order and registration order (residential, pollution and power before the budget; commercial and land value
+   last). Each subsystem spec should check whether its month agent reads another one's month results.
+6. Whether clearing Silent in `UpdateLocalDeals` really posts status reports (§11.3). That depends on the order of
+   the check inside `SetFlags`, which a runtime capture would settle.
