@@ -596,7 +596,7 @@ va	name	source	confidence	note
 0043fc70	cSC4TutorialTask::GetNumber	auto:D	medium	mac 000d329c score 0.5 support 1
 0043fd00	cSC4View3DWin::GetRenderer	auto:C	low	mac 0051c18e score 1.0 support 1
 0043fd10	cSC4PoliceSimulator::GetJailPopulation	auto:C	low	mac 00076074 score 1.0 support 1
-0043fde0	std::vector<cGZWinTreeView::GZWinTreeView_TreeNode*,std::allocator<cGZWinTreeView::GZWinTreeView_TreeNode*>>::operator[]	auto:D	medium	mac 0074f324 score 0.5 support 1
+0043fde0	RectContainsInclusive	manual:m5path	medium	pathfinder.md: inclusive rect-contains (was vector<TreeNode*>::operator[])
 0043fe10	SpiralIterator::SpiralIterator	auto:B4	medium	mac 0061d480 score 0.948 support 7.0
 0043fe80	SpiralIterator::SetNextEndpoint	auto:B4	medium	mac 0061cb08 score 0.981 support 1.0
 0043ff60	cSC4TutorialTask::GetTargetWindow	auto:A	high	mac 000d4380 score 1.0 support 0
@@ -1549,7 +1549,7 @@ va	name	source	confidence	note
 0049d820	cSC4ObliterateCity::DoAnimationTick	auto:B0	medium	mac 0029e1b8 score 0.9 support 1.0
 0049d990	cSC4OccupantManager::GetOccupantManagerCellSizes	auto:A	high	mac 001ad898 score 1.0 support 0
 0049eaa0	std::list<cIGZWin*,std::allocator<cIGZWin*>>::erase	auto:B0	medium	mac 006637c2 score 0.994 support 2.0
-0049fc70	cRZRandom::RandomDoubleRangeUniform	auto:B4	medium	mac 000271d8 score 0.893 support 2.0
+0049fc70	std::vector::resize	manual:m5path	medium	pathfinder.md: vector resize, not an RNG method (was cRZRandom::RandomDoubleRangeUniform)
 004a1d20	cSC4PropManager::GetGZCLSID	auto:C	low	mac 0067390e score 1.0 support 1
 004a1d30	cSC4PropManager::QueryInterface	auto:C	high	mac 0012ce36 score 1.0 support 2
 004a1db0	cSC4PropManager::GetCityProps	auto:C	high	mac 0012d168 score 1.0 support 1
@@ -4137,8 +4137,8 @@ va	name	source	confidence	note
 005e5180	cSC4MapUtilities::FloodFillDistance	auto:B2	medium	mac 0009f376 score 0.993 support 1.0
 005e5200	cSC4MapUtilities::GetTractsInRadius	auto:B4	medium	mac 0009f3ee score 0.984 support 1.0
 005e5390	cSC4MapUtilities::AddDistanceEffect	manual:grid-sims.tsv	high	DoIdle state 2 call (water effect)
-005e55e0	ilist<cISC4Occupant*>::~ilist	auto:B4	medium	mac 006079ae score 0.836 support 16.0
-005e5620	cRZCellMap<bool>::~cRZCellMap	auto:B2	medium	mac 005edf98 score 0.791 support 10.0
+005e55e0	GlobalHeapAlloc	manual:m5path	medium	allocators.md allocator C alloc (was ilist<cISC4Occupant*>::~ilist)
+005e5620	GlobalHeapFree	manual:m5path	medium	allocators.md allocator C free (was cRZCellMap<bool>::~cRZCellMap)
 005e5e30	cRZFastAllocatorGeneralThreadSafe::cRZFastAllocatorGeneralThreadSafe	auto:D	medium	mac 0067918e score 0.5 support 1
 005e8320	cSC4ModelRegEffects::InitEffectsList	auto:B2	medium	mac 00160e6e score 0.961 support 4.0
 005e8980	cSC4Occupant::Shutdown	auto:A	high	mac 00088d88 score 1.0 support 0
@@ -5709,7 +5709,8 @@ va	name	source	confidence	note
 0068bac0	cSC4AuraSimulator::GetMayorRating	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 8
 0068bad0	cSC4AuraSimulator::AddTransientEffect(float,float,TransientAuraEffect)	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 6 (MSVC reversed overload; ret 0xC, forwards to the 4-float overload via vt+0x1C)
 0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 7 (MSVC reversed overload; ret 0x10, calls AddRadiusEffect<int8> 005E4130 on transient grid)
-0068bf80	__gnu_cxx::hashtable<std::pair<unsigned_short_const,cSC4TrafficSimulator::TunnelInfo>,unsigned_short,__gnu_cxx::hash<unsigned_short>,std::_Select1st<std::pair<unsigned_short_const,cSC4TrafficSimulator::TunnelInfo>>,std::equal_to<unsigned_short>,std::allocator<cSC4TrafficSimulator::TunnelInfo>>::find	auto:D	medium	mac 0060b82e score 0.5 support 1
+0068bf50	LimitTimer::Start	manual:m5path	medium	rdtsc deadline start; pathfinder.md, building-development.md
+0068bf80	LimitTimer::Expired	manual:m5path	medium	rdtsc deadline check; pathfinder.md, building-development.md (was hashtable<TunnelInfo>::find)
 0068bfb0	cSC4AuraSimulator::Release	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 2
 0068bfe0	cSC4AuraSimulator::ComputeGlobalEffect	auto:A	high	mac 00189064 score 1.0 support 0
 0068c0d0	cSC4AuraSimulator::BustStrike	manual:grid-sims.tsv	high	cISC4AuraSimulator vtable 00AB07C8 slot 11
@@ -7098,7 +7099,7 @@ va	name	source	confidence	note
 0070de70	SetTripCapacity	auto:B2	medium	mac 0005295e score 0.939 support 2.5
 0070df70	cSC4TrafficSimulator::SetMaxTripCapacity	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 19, matches Mac __ZTV20cSC4TrafficSimulator order
 0070df90	cSC4TrafficSimulator::GetMaxTripCapacity	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 20, matches Mac __ZTV20cSC4TrafficSimulator order
-0070dff0	GetTripCapacity	auto:B9	medium	mac 00052ac0 score 0.977 support 2.5
+0070dff0	cSC4TrafficSimulator::GetUsedTripCapacity	manual:m5path	medium	pathfinder.md: returns used trip capacity (was GetTripCapacity)
 0070e050	cSC4TrafficSimulator::GetTrafficArrived	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 21, matches Mac __ZTV20cSC4TrafficSimulator order
 0070e0b0	cSC4TripData::Write	auto:B1	medium	mac 000629f2 score 0.947 support 2.0
 0070e160	cSC4TripData::Read	auto:B1	medium	mac 00064ab8 score 0.962 support 2.0
