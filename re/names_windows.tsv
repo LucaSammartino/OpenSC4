@@ -6691,7 +6691,7 @@ va	name	source	confidence	note
 006e3720	cSC4PollutionSimulator::GetRecyclingCenterCurrentCapacity	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 55
 006e3770	cSC4PollutionSimulator::GetCurrentOccupantEfficiency	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 57
 006e37e0	cSC4PollutionSimulator::GetPollutionValue	manual:grid-sims.tsv	high	cISC4PollutionSimulator vtable 00AB2630 slot 6
-006e3820	cSC4PollutionSimulator::GetUnusedCapacity	manual:grid-sims.tsv	high	called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)
+006e3820	cSC4PollutionSimulator::Dispose	manual:qdrain	high	formerly misnamed GetUnusedCapacity; called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)
 006e3bc0	cSC4PollutionSimulator::GetRequestedShare	auto:C	high	mac 00069b92 score 1.0 support 1
 006e3c80	cSC4PollutionSimulator::ResetOccupantListCapacityUsedProperty	manual:grid-sims.tsv	high	called 3x from DoMonthlySimulation
 006e3d00	cSC4PollutionSimulator::AgeOccupantList	manual:grid-sims.tsv	high	called 3x from DoMonthlySimulation; reads 0xEA1CF220..222

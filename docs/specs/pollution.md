@@ -255,10 +255,15 @@ Order within one day *[compat]*:
 #### 4.4.2 Neighbour deals (neighbors.md)
 
 - **Import** (deal type `0x4773FFE5`, "sell garbage disposal": this city accepts trash): for each deal with
-  `amount − amountUsed > 0`: `n := roundHalfEven(amount × 0.1)` (not capped by the room left *[quirk]*);
+  `amount − amountUsed > 0`: `n := roundHalfEven(amount × 0.1f)` (not capped by the room left *[quirk]*);
   `importTotal += n`; `SetAmountUsed(amountUsed + n)`; `imported += n`.
 - **Export** (deal type `0x4773FFE4`, "buy garbage disposal"): for each deal with `room := amount − amountUsed >
-  0`: `n := min(roundHalfEven(amount × 0.1), room)`; `SetAmountUsed(amountUsed + n)`; `exportCapacity += n`.
+  0`: `n := min(roundHalfEven(amount × 0.1f), room)`; `SetAmountUsed(amountUsed + n)`; `exportCapacity += n`.
+- **Rounding** *[compat]* (foundations §18): `0.1f` is a `float32` constant (0.100000001490116…). The int32 amount
+  enters the multiply exactly, the product is rounded to `float32`, and that `float32` is rounded half to even
+  with the 1.5·2²³ idiom (crime.md §6 notation; exact for products up to 2²², i.e. amounts up to 41,943,040).
+  So amount 25 → 2.5 → **2** (a single rounding of the exact product 2.50000004 would give 3), 35 → 4, 15 → 2,
+  1000 → 100.
 - Then `eaten := Dispose(importTotal)` (§4.6.1) and `AddToGarbageSupply(trunc(importTotal − eaten))`.
 
 #### 4.4.3 Factors
@@ -401,9 +406,16 @@ The decomposition allowance (`0x09135479`, shipped 2000 per month) is consumed f
 ### 4.7 Sanitation efficiency
 
 At each end of cycle (and in the unreachable SimBegin handler): load curve `0x6911E2DF` from the tuning exemplar
-(fresh each time) and set `efficiency := curve(fundingFraction × 100) × 0.01`, where `fundingFraction` is
+(fresh each time) and set `efficiency := curve(fundingFraction × 100) × 0.01f`, where `fundingFraction` is
 `*department.GetFundingPercentage()` (a pointer return, budget.md). Shipped: funding 100 % → 1.0; 50 % → 0.25.
 *[quirk]* The shipped curve with that ID is labelled "Power Funding To Efficiency Curve".
+
+*[compat]* Arithmetic (foundations §18): three `float32` operations. `x := f32(fundingFraction × 100.0f)` (the
+curve input is passed as a `float32`), `y := curve(x)`, `efficiency := f32(y × 0.01f)`. Both constants are
+`float32` literals; `0.01f` = 0.00999999977648258…, slightly **below** 0.01, so the result is not always the
+nearest `float32` to `y / 100`: `y` = 100 → 1.0, 50 → 0.25, 25 → 0.25, but **80** (shipped funding 90 %) →
+**0.79999995** (`0x3F4CCCCC`, not 0.8f = `0x3F4CCCCD`). Because `GetCurrentCapacity` truncates (§8 slot 53), a
+base capacity of 1000 at 90 % funding gives **799**, not 800.
 
 *[quirk]* `efficiency` starts at **0.0** in a new city and stays 0 until the first end of cycle (about 15 days):
 all `GetCurrentCapacity` results are 0 and no garbage goes to landfills until then.
@@ -463,11 +475,38 @@ waste-to-energy resets, each waste-to-energy plant with properties `0x08FD1613`,
 gets `0x27812852 := used × 0x08FD1613 / capacity` (unsigned integer arithmetic) *[inferred: its power output for
 the power simulator]*.
 
-**Usage distribution** (`SetOccupantListUsedCapacity`, daily §4.4.5): `share := min(total, used) / listLength`;
-walking the list while `used > 0`, each occupant whose current capacity is known takes `min(share, headroom)`
-where `headroom := max(0, current − alreadyUsed)`; when an occupant is capped, the share is recomputed from the
-remaining `used` over the remaining occupants; the taken amount is added to its used property and subtracted
-from `used`. *[inferred: the exact redistribution arithmetic is an open question, §10.2 question 4]*
+**Usage distribution** (`SetOccupantListUsedCapacity`, daily §4.4.5) *[compat]*. Inputs: the list, its capacity
+property `capProp` and used property `usedProp` (water treatment `0xC8EBD131`/`0x28ECF510`, incinerators
+`0xA8EBCF0C`/`0xE8ECF641`, waste-to-energy `0x48EBD0B1`/`0x88ECF76C`), `total` := the day's unused total for that
+list (§4.4.1), `used` := `total − remaining` (u32), and `n` := the list length (every node, duplicates and
+occupants without the properties included). All arithmetic is unsigned 32-bit integer.
+
+```
+if total = 0 or n = 0 or used = 0: return
+share := min(total, used) / n                    (integer division, remainder dropped)
+k := n
+for each occupant in list order, while used > 0 (checked before the first and after every occupant):
+    k := k − 1                                   (also for occupants skipped below)
+    if not GetCurrentCapacity(capProp, occ, cur): next      (slot 53)
+    if the occupant has no property usedProp:      next
+    already  := its u32 value of usedProp
+    headroom := cur − already if cur > already, else 0
+    if share ≤ headroom (signed 32-bit compare): take := share
+    else: take := headroom; if k ≠ 0: share := used / k     (used BEFORE this take is subtracted)
+    used := used − take                          (u32, may wrap)
+    usedProp := already + take                   (written even when take = 0)
+```
+
+Consequences *[compat, quirk]*:
+
+- **Remainders are dropped.** `used = 10` over three plants with room gives 3 + 3 + 3; 1 unit is never recorded.
+  If `used < n` the share is 0 and nothing is recorded at all.
+- **A capped occupant over-allocates the next ones.** The new share divides the `used` value from before the
+  capped occupant's take, so the following occupants can be given more than is left. `used` then wraps to a huge
+  unsigned value, which keeps the walk going to the end of the list. Example: `used = 100`, two plants with
+  headroom 10 and 1000 → the first takes 10, `share := 100 / 1 = 100`, the second takes 100: 110 recorded.
+- Occupants failing the capacity query or lacking `usedProp` take nothing but still count down `k`.
+- Whatever is left in `used` is discarded by the caller.
 
 #### 4.9.4 Maintenance cost (daily, §4.4.5)
 
@@ -607,6 +646,26 @@ and the table holds the shuffled packed `(tx << 8) | tz` entries (32 KB for a la
 - `version < 4`: `decomposedLastMonth` is absent (left unchanged).
 - Sets `loaded`, returns true.
 
+**Read after a stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5). The
+original never calls `GetError`: once the version is accepted it reads every field in order and returns **true**
+and sets `loaded` even if the stream failed part-way (for example on a list ref to an occupant whose class cannot
+be created). Fields read before the failing call hold the loaded values. After it every read fails and leaves its
+destination unchanged, with these exceptions:
+
+| Field | State after a failed read |
+|---|---|
+| each grid ref | **null** (the ref helper clears the destination before reading; the previous grid, if any, is neither released nor kept) |
+| each occupant list | cleared first; each failed ref is still **appended as a null entry**; if the count itself fails, the count is an uninitialised local and that many null entries are appended (garbage) |
+| `recyclingEffect`, `efficiency` | copied from an uninitialised (or stale) local (garbage) |
+| iterator | the table length is left in the slot that held the stream pointer, so the table is resized to *(the stream object's address)* entries: a multi-hundred-MB allocation or an out-of-memory failure |
+| `department` | the current department is **released and cleared** just before its ref is read, so after an earlier error it is null (Init then creates a new one) |
+
+The result is unusable: `Init` sees `loaded`, skips the new-city setup, and the null grids crash the first day.
+*[choice]* FreeCity4: on a stream error `Read` returns **false**, sets nothing (`loaded` stays clear), releases
+any refs it acquired during the call and leaves every member, including the current department, as it was before
+the call. The class store calls `Read` on a fresh object, so the following `Init` runs the new-city path. A
+rejected version (> 4) consumes only the version and also leaves everything unchanged *[compat]*.
+
 **Not saved** (recomputed or reset after load): `radiationSum` (restarts at 0 mid-cycle *[quirk]*), tuning and
 `costPerUnit`, `effectsVisible` (back to true), effect objects and the effect iterator, worst tracts (refreshed by
 PostCityInit), `initialized`.
@@ -686,7 +745,7 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 | 2 | +0x8 | `Release()` | 0 | EAX | | |
 | 3 | +0xC | `Init()` | 0 | AL true | §4.1 | |
 | 4 | +0x10 | `Shutdown()` | 0 | AL true | §4.1 | |
-| 5 | +0x14 | `cISC4SimGrid<int16>* GetPollutionGrid(type)` | 4 | EAX | 0 → air **value**, 1 → water value, 2 → garbage value, **3 → radiation source**; no `AddRef`. Types ≥ 4 read past the array *[quirk]*. | semantics undocumented |
+| 5 | +0x14 | `cISC4SimGrid<int16>* GetPollutionGrid(type)` | 4 | EAX | 0 → air **value**, 1 → water value, 2 → garbage value, **3 → radiation source**; no `AddRef`. Other types read the member at `valueGrids[type]` (mod 2³²) *[quirk]*: 4 and 5 return `cellX` / `cellZ` as a pointer, 6–9 the four occupant lists' internal head pointers, higher values later members; **no type ≥ 4 ever yields a grid**. (Only the wrapped values `0xFFFFFFFC`–`0xFFFFFFFF` reach the air/water/garbage/radiation **source** grids.) No original caller passes a type outside 0..3 *[inferred: aura, MySim and map view use 0..3]*. *[choice]* Return null for every type other than 0..3. | semantics undocumented |
 | 6 | +0x18 | `uint16 GetPollutionValue(type, cellX, cellZ)` | 12 | **AX only** | max(0, **source** grid `type` value). Upper 16 bits of EAX are garbage. Types 4–7 read the value grids *[quirk]*. | type OK; reads sources, not values |
 | 7 | +0x1C | `GetAirValue(cellX, cellZ, int32& v)` | 12 | none | `v :=` air value (sign-extended) | **SDK `bool`**: EAX = v. Replacement returns true. |
 | 8 | +0x20 | `GetWaterValue(...)` | 12 | none | water value | same |
@@ -731,7 +790,7 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 | 52 | +0xD0 | `bool GetMaxCapacity(prop, occ, u32& r)` | 12 | AL | `r := 0`, then u32 property `prop`; returns found | |
 | 53 | +0xD4 | `bool GetCurrentCapacity(prop, occ, u32& r)` | 12 | AL | missing → `r := 0`, false. Else `r := base`; 0 if not powered (`IsOccupantPowered`); `r := trunc(r × efficiency)`; if curve property `0x8A1E07EE` exists, `r := roundHalfEven(r × curve(condition))`; true | |
 | 54 | +0xD8 | `bool GetRecyclingCenterMaxCapacity(occ, SC4Percentage&)` | 8 | AL | `p := default`, then property `0x88ED1059`; returns found | |
-| 55 | +0xDC | `bool GetRecyclingCenterCurrentCapacity(occ, SC4Percentage&)` | 8 | AL | slot 53 with `0x88ED1059`: success → `p := r × 0.01`, true; else `p := default`, false | |
+| 55 | +0xDC | `bool GetRecyclingCenterCurrentCapacity(occ, SC4Percentage&)` | 8 | AL | slot 53 with `0x88ED1059`: success → `p := f32(float(uint32 r) × 0.01f)` (§4.7: `0.01f` is a `float32` literal, so r = 30 → 0.29999998 `0x3E999999`, not 0.3f), true; else `p := default`, false | |
 | 56 | +0xE0 | `bool GetCurrentOccupantCondition(occ, SC4Percentage&)` | 8 | AL | `p := 1.0`; with curve `0x8A1E07EE`: `p := curve(condition) × 1.0`, true; else false | |
 | 57 | +0xE4 | `bool GetCurrentOccupantEfficiency(occ, SC4Percentage&)` | 8 | AL | powered and slot 56 succeeds → `p := efficiency × condition`, true; else `p := default`, false | |
 | 58 | +0xE8 | `bool GetIncineratorUsedCapacity(occ, u32&)` | 8 | AL | `r := 0`, then `0xE8ECF641` | |
@@ -849,8 +908,8 @@ Findings:
    the surface view (foundations §5.2).
 3. The water effect is positioned at height 0 at a jittered block **corner**; whether that is intentional (sea
    level / water surface) is unknown *[inferred]*.
-4. `SetOccupantListUsedCapacity`: the exact recomputation of the share when a building is capped was not fully
-   traced (§4.9.3).
+4. *(resolved)* `SetOccupantListUsedCapacity` is specified exactly in §4.9.3 (remainders dropped, the share after
+   a capped building recomputed from the pre-take `used`).
 5. `unused64` (saved int64) is never written in the Windows build; its meaning is unknown.
 6. *(resolved)* Line item 30 is the landfill maintenance line, booked by the landfill developer (landfill.md §4.9).
 7. Callers that load the service pointer and call it later (advisor utility, MySim trip variables, street sim,
@@ -872,7 +931,9 @@ rectangle; uncapped import deal usage; `Dispose` emptying a waste-to-energy or i
 smaller than the offer; garbage flowing back from the supply when the valve is closed; the water "stop at 1"
 special case with its own-tract read and cell-vs-tract bounds; averages divided by the developed count only;
 efficiency 0 for the first cycle; recycling aging ratio always 0; export deal amounts charged per unit; landfill
-cells' negative `GetGarbageValue`; unsigned threshold tests; radiation sum not saved.
+cells' negative `GetGarbageValue`; unsigned threshold tests; radiation sum not saved; usage distribution that
+drops remainders and over-allocates after a capped building (§4.9.3); `float32` constants 0.1f and 0.01f
+(§4.4.2, §4.7).
 
 ## 11. Conformance tests (must exist in `engine/conformance`)
 
@@ -909,8 +970,10 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
     over 100 → take 100; supply 1000; cell amount 150.
 13. **Water treatment, first cycle**: wtpRemaining 30, W = 50 (no history) → t = 30, W = 20. With history
     `lastTreated 300, lastWater 1000`, remaining 200, W = 50 → t = roundHalfEven(15.0) = 15.
-14. **Efficiency**: funding 100 % → 1.0; 50 % → 0.25; a new city before its first end of cycle → 0.0 and
-    `GetIncineratorCurrentCapacity` = 0.
+14. **Efficiency**: funding 100 % → 1.0; 50 % → 0.25; 90 % → curve 80 → **0.79999995** (`0x3F4CCCCC`), and a
+    powered incinerator with base 1000 and no condition curve then reports `GetIncineratorCurrentCapacity` =
+    **799**; a new city before its first end of cycle → 0.0 and `GetIncineratorCurrentCapacity` = 0.
+    `GetRecyclingCenterCurrentCapacity` with a current capacity of 30 → 0.29999998 (`0x3E999999`); 25 → 0.25.
 15. **Current capacity**: base 1000, powered, efficiency 0.8, condition curve (0,1)(100,0.5), condition 50 →
     trunc(800) then roundHalfEven(800 × 0.75) = 600.
 16. **Monthly cost**: incinerated 1000, wte 0, landfilled 3000, one export deal of amount 1000, costPerUnit 0.005
@@ -922,7 +985,8 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
 19. **Slots**: `GetPollutionGrid(3)` is the radiation source grid; `GetPollutionValue(0, x, z)` with a source
     value −5 → 0; `GetGarbageValue` on a landfill cell with raw `0x8064` → −65,436; `IsAirPolluted` with air
     value −1 → true; `GetRecyclingCenterEffect` returns a pointer to 0.25 after `recyclingEffect = 0.25`;
-    `GetGarbageProducedLastMonth` returns 5,000,000,000 in EDX:EAX.
+    `GetGarbageProducedLastMonth` returns 5,000,000,000 in EDX:EAX. FreeCity4 `GetPollutionGrid(4)` and
+    `GetPollutionGrid(0xFFFFFFFF)` return null *[choice]*.
 20. **Prop share**: a 4 × 4-cell rect with garbage 2048 everywhere → 2048 × k = 0.0625019 → curve 5.0001526 → 5.
 21. **Effects**: a block with average water 655 → 655 × k = 0.019989625 → s = **0.9993775** (three `float32`
     operations, foundations §4.3; 0.99939 was the unrounded value) → a water effect is created (2
@@ -930,3 +994,15 @@ Unless stated: shipped tuning, all ordinance factors and zone multipliers 1.0, n
     reports a new view level other than 1 (for example 3, the water-pipe view), water effects are kept.
 22. **Persistence**: write → read round trip is byte-identical; a version-3 record (no `decomposedLastMonth`) loads;
     a version-5 record is rejected; a version-2 record skips the extra string and the extra `u32`.
+23. **Deal rounding**: import deals with amount 25, 35, 15 and 1000 (amountUsed 0) → n = 2, 4, 2, 100
+    (`importTotal` 108, `imported` += 108, each deal's `amountUsed` = n). An export deal of amount 25 with
+    amountUsed 24 → n = min(2, 1) = 1.
+24. **Usage distribution** (efficiency 1.0, all powered, no condition curves, `0x28ECF510` = 0 unless stated):
+    - three water-treatment plants of capacity 1000, `total` 3000, `used` 10 → `0x28ECF510` = 3, 3, 3;
+    - five plants, `used` 3 → all stay 0 (share 0), each property still written;
+    - two plants of capacity 10 and 1000, `total` 1010, `used` 100 → 10 and **100** (110 recorded);
+    - two plants of capacity 1000, the first with `0x28ECF510` = 1000 already, `used` 200 → share 100, the first
+      takes 0 and the share becomes 200 / 1 = 200, the second takes 200 → 1000 and 200.
+25. **Read with a stream error** (FreeCity4 *[choice]*): a version-4 record truncated inside the incinerator list
+    → `Read` returns false, no grid, list or department is replaced, `loaded` stays clear, and the next `Init`
+    creates new grids and a new department as for a new city.

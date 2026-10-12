@@ -48,7 +48,8 @@ otherwise the new count. *[compat]*
 ## 2. Grids
 
 Two `uint8` grids (simgrid §2, CLSID `0x49B9E602`). Both use the tuning tract size `S` (property `0x47E2C200`,
-default **2**) and the geometry of simgrid §3.
+default **2**) at creation and the geometry of simgrid §3. Later code reads the size back from the grid
+(`GetTractSize`/`GetTractShift`), never from the tuning (§8).
 
 | Grid | Instance ID | Exposed | Meaning |
 |---|---|---|---|
@@ -82,7 +83,7 @@ default **2**) and the geometry of simgrid §3.
 | jobless factor per wealth (`f32` ×3) | 0 | no | §6.2 |
 | tuning values and curves | §8 | no | |
 | visuals-created flag per incident | false | no (false after load) | §11 |
-| `initialized`, `loadedFromSave` flags | false | no | `loadedFromSave` is set by `Read` |
+| `initialized`, `loadedFromSave` flags | false | no | `loadedFromSave` is set by `Read` once the version is accepted, even on a stream error (§12) |
 | crime type list | — | no | **process-wide**, shared by all cities (§7) |
 
 ## 4. Lifecycle
@@ -101,7 +102,11 @@ If already initialized, return true and do nothing. Otherwise, in order:
 5. If it has no message server yet: hold the message server and subscribe to `0x99EF1142`, `0x99EF1143`,
    `0xC2C09554`, `0xC53D10AA`, in that order.
 6. Hold (AddRef) the city, the occupant manager (`cISC4City +0x88`), the ordinance simulator (`+0xFC`) and the
-   police simulator (`+0x104`).
+   police simulator (`+0x104`). The city, ordinance and police pointers are taken from the game's cached service
+   pointers (filled from those city getters at city init) and are AddRef'd **without a null check**: with no
+   ordinance or police simulator the original crashes here. *[choice]* FreeCity4 holds null, treats a missing
+   ordinance simulator as "factor unchanged" (§5), a missing police simulator as 0 jailed and 0 released (§6.4)
+   and a missing police grid as 0 coverage (§6.6).
 7. Create each missing grid (§2).
 8. If **not** `loadedFromSave`: set the iterator rectangle to `(0, 0, countX − 1, countZ − 1)` of the crime
    grid, and register the prop-requester sub-object with the prop developer (`AddPropRequester`, §11.6). In a
@@ -128,7 +133,7 @@ agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overlo
 | `0x66956816` SimNewMonth (level 6) | if state = 6 then state := 0 |
 | `0x99EF1142` occupant inserted | occupant = `void1`. Skip it if it has property `0x029244DB`. Otherwise apply its crime effect with sign + (§6.10) |
 | `0x99EF1143` occupant removed | the same, with sign − |
-| `0xC2C09554` OrdinanceUpdated | ordinance factor := `GetCumulativeFactor(0x28ED0380, 0)` of the ordinance simulator |
+| `0xC2C09554` OrdinanceUpdated | ordinance factor := `GetCumulativeFactor(0x28ED0380, 0)` of the held ordinance simulator, stored as `float32`. No null check (with no ordinance simulator the original has already crashed in `Init`, §4.1). *[choice]* FreeCity4: no ordinance simulator → the factor is left unchanged |
 | `0xC53D10AA` exemplar changed (foundations §5.2) | data1 = group, data2 = instance. Group `0xE7E2C2DB` and instance `0xC8E8F6C5`: re-read the tuning (§8). Group `0xEA12F32C`: reload all crime types (§7) |
 
 **Pipeline** (`DoIdle`, one step per call):
@@ -151,8 +156,22 @@ agent from all levels (`cISC4Simulator` slot `+0x50`, the single-argument overlo
 
 ## 6. Algorithms *[compat]*
 
-Notation: `trunc` is conversion toward zero (the CRT `_ftol`). `rhe` is round-half-even, as the original's
-"add 1.5·2²³ and store as `f32`" idiom computes it (valid for |x| < 2²²). Products of a `float32` with an integer
+Notation: `trunc` is conversion toward zero (the CRT `_ftol`: it converts to a 64-bit integer, truncating, and
+the callers keep the low 32 bits; NaN and out-of-range values give the int64 indefinite `0x8000000000000000`,
+whose low 32 bits are **0**). `rhe` is the original's "add 1.5·2²³ and store as `f32`" idiom. Exactly *[compat]*:
+
+```
+rhe(x) := int32( bits(f32(f32(x) + 12582912.0f)) − 0x4B400000 )      (32-bit wrapping subtraction)
+```
+
+For −2²² ≤ x ≤ 2²² this is round-half-to-even of the `float32` `x`. Outside that range the sum's spacing is
+2 or more and the bit pattern no longer encodes `x`: for sums in [2²⁴, 2²⁵) (2²² ≤ x < 20,971,520) the result is
+`2²² + (s − 2²⁴)/2` with `s` the sum rounded to an even integer, about `x/2 + 2²¹` (5,000,000 → 4,597,152;
+8,388,608 → 6,291,456); each further power of two halves the slope again (100,000,000 → 26,655,776;
+4,294,967,296 → 71,327,744). Below −2²² it is about `2x + 2²²` (−5,000,000 → −5,805,696). A replacement must
+use the formula, not a saturating conversion. §6.4 and §11.6 say where such inputs can arise.
+
+Products of a `float32` with an integer
 or another `float32` are rounded to a 24-bit significand before truncation, because the game runs the x87 at
 24-bit precision (foundations §18; corrected, the earlier text said "exact, extended precision"). FreeCity4 must
 compute such a product in `f64` and round it to `f32` once (this equals the x87 result, since an `int32` operand
@@ -245,6 +264,14 @@ crimesToCommit := rhe(f32(float(uint32 crimes) × ordinanceFactor))
   resets that counter (police spec).
 - A negative base compares as a huge unsigned number, so the first branch runs. The curve input is then
   negative, and the curve clamps it to its first y (0 with shipped data).
+- **Range at `rhe`** *[compat]*. `crimes` is an `int32` (the sum of two `trunc` low halves) converted to
+  `float32` as **unsigned**: a negative value has 2³² added in `float32` (so −1 becomes 4,294,967,296.0). With
+  shipped data the input stays far below 2²²: the crimes curve is clamped to at most 65, and `released` counts
+  last month's unarrested crimes plus the jail overflow (protection §9.3), both bounded by the crimes of earlier
+  months (a few hundred). Values above 2²² are reachable only with modded tuning: a crimes curve with a y above
+  2²² or **below 0** (the unsigned conversion then gives about 4.29·10⁹ → `rhe` 71,327,744 at factor 1), a
+  negative or huge reoffend factor, or a huge ordinance factor. The exact formula of §6 is the *[compat]* result;
+  `AddCrimes` then runs that many attempts.
 
 ### 6.5 Decay (`DecayCrimeGrid`)
 
@@ -277,7 +304,8 @@ If `n ≤ 0`, the result is 0. Otherwise repeat `n` times:
 The result `count` (crimes that happened) becomes the monthly crime count.
 
 So `p` is the probability that police **stop** an attempt. The chance that an attempt on a found lot becomes a
-crime is `1 − p` (with `u` in [0, 1), a crime happens when `u ≥ p`).
+crime is `1 − p`: a crime happens when `u ≥ p`. `u` is in [0, **1**] (foundations §6.1: 1.0 is reachable), so
+a draw of exactly 1.0 always commits whenever `p ≤ 1` (every curve with y ≤ 1, as shipped).
 
 ### 6.7 Lot bits and crime type selection
 
@@ -317,13 +345,17 @@ For the chosen type:
 
 ### 6.9 Average crime (`ComputeAverageCrime`)
 
-Over all crime-grid tracts `(x, z)` whose corner cell `(x·S, z·S)` has a zone type ≠ 0
-(`zoneManager.GetZoneType`): `average := Σ value / count`, with 64-bit integer sums converted to float and
-stored as `float32`. *[quirk]* With no zoned tract this is 0/0 = NaN. `GetAverageCrime()` then returns
-`0x80000000` (the CRT's integer indefinite). *[choice]* FreeCity4 stores 0 in that case and returns 0, and the
-conformance test for an unzoned city expects 0 from FreeCity4 and documents the original's value.
+Over all crime-grid tracts `(x, z)` (x < the grid's `GetTractCountX`, z < `GetTractCountZ`) whose corner cell
+`(x·S, z·S)` has a zone type ≠ 0 (`zoneManager.GetZoneType`): `average := Σ value / count`, with 64-bit integer
+sums converted to float, one division, stored as `float32`. Here `S` is the **crime grid's** `GetTractSize()`,
+not the tuning value *[compat]*: after a reload message changes the tuning tract size, the existing grid keeps
+its own size (§8) and this pass keeps using it.
 
-`GetAverageCrime()` returns `trunc(average)` as `uint32`.
+*[compat, quirk]* With no zoned tract this is 0/0 = NaN: the stored value is the x87 default NaN (`float32` bits
+`0xFFC00000`), and it is saved as such (§12). `GetAverageCrime()` returns `trunc(average)` as `uint32` (a tail
+call of `_ftol`, §6 notation); for NaN that is the low half of the int64 indefinite, **0**. *(Corrected: the
+earlier text said `0x80000000`, which only an inline 32-bit `fistp` would give, and chose to store 0; storing
+the NaN keeps saves byte-identical and the getter result is 0 either way.)*
 
 ### 6.10 Building crime effect (`DoOccupantChanged(occ, sign)`)
 
@@ -350,42 +382,54 @@ All exemplars of type `0x6534284A`, group `0xEA12F32C`, in the resource manager'
 **static** (one per process), loaded at the first `Init` and reloaded by message `0xC53D10AA`. A reload frees
 the old list first.
 
+Names in quotes are the official property names (community property list, re/prior_art_exemplar_props.md).
+
 | Property | Type | Default | Meaning |
 |---|---|---|---|
 | (exemplar instance) | — | — | crime type ID |
-| `0x8A416B2E` | LTEXT key | — | display name (`SC4LoadExemplarString`); fallback string `0xAA12FCB0` |
-| `0xAA12FCB1` | u32 ×3 | — | icon key (type, group, instance) |
-| `0xAA12FCB2` | u8 array | all bits | zone mask |
-| `0xAA12FCB3` | u8 array | all bits | wealth mask |
-| `0xAA12FCB4` | u8 array | all bits | purpose mask |
-| `0xAA12FCB5` | u8 | 64 | severity (added to the crime grid) |
-| `0xAA12FCB6` | u8 | 0 | arson flag (non-zero = start a fire) |
-| `0xAA12FCB7` | u8 array | all bits | lot condition mask |
-| `0xAA12FCB8` | f32 | 10 | selection weight |
+| `0x8A416B2E` | u32 ×3 LTEXT key | — | display name, loaded with `SC4LoadExemplarString` (the key's group and instance select the LTEXT) |
+| `0xAA12FCB0` | **string** | empty | "Crime Name": an inline name, read **only when** the LTEXT load fails (no key property, or no such LTEXT). If it is absent too, the name stays empty |
+| `0xAA12FCB1` | u32 ×3 | `(0, 0, 0)` | "Icon Resource Key" (type, group, instance) |
+| `0xAA12FCB2` | u8 array | all bits | "Zone Filter" (zone mask) |
+| `0xAA12FCB3` | u8 array | all bits | "Wealth Filter" |
+| `0xAA12FCB4` | u8 array | all bits | "Zone Purpose Filter" |
+| `0xAA12FCB5` | u8 | 64 | "Crime Grid Value": severity, added to the crime grid |
+| `0xAA12FCB6` | u8 | 0 | "Trigger Fire": arson flag (non-zero = start a fire) |
+| `0xAA12FCB7` | u8 array | all bits | "Lot Condition Filter" |
+| `0xAA12FCB8` | f32 | 10 | "Relative Occurrance": selection weight |
 
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.
 
-Shipped types (`SimCity_1.dat`; no other shipped file defines any). Masks not listed are "any" (`[0]`). Icons
-are type `0x7AB50E44`, group `0x1ABE787D`.
+Shipped types (`SimCity_1.dat`; no other shipped file defines any). Masks not listed are "any" (`[0]`). Icon
+keys are type `0x7AB50E44`, group `0x1ABE787D` and the instance below. Name keys are type `0x2026960B`, group
+`0x0A554AE0` and the instance below. No shipped exemplar has `0xAA12FCB0`. The "Name" column is the exemplar
+name (property `0x20`), which the simulator does not read.
 
-| ID | Name | Severity | Weight | Arson | Masks |
-|---|---|---|---|---|---|
-| 0x01 | Generic | 40 | 0 | — | — |
-| 0x03 | Fighting | 60 | 3 | — | — |
-| 0x04 | Narcotic Deals | 80 | 2 | — | purpose [4, 2, 3] |
-| 0x05 | Arson | 100 | 0.5 | yes | wealth [2, 1]; purpose [9, 1, 2, 3, 4, 6, 7, 8]; condition [3] |
-| 0x06 | Money Snatcher | 60 | 3 | — | purpose [4, 2] |
-| 0x07 | Stickup | 80 | 2 | — | purpose [3, 2] |
-| 0x08 | Car Theft | 60 | 3 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
-| 0x09 | Solicitation | 60 | 3 | — | purpose [4, 2, 3] |
-| 0x0A | Mugging | 80 | 2 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
-| 0x0B | Bank Robbery | 80 | 2 | — | purpose [3, 2] |
-| 0x10 | Flashing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
-| 0x11 | Graffiti | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
-| 0x12 | Pie Throwing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] |
-| 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] |
+| ID | Name | Severity | Weight | Arson | Masks | Icon instance | Name key instance |
+|---|---|---|---|---|---|---|---|
+| 0x01 | Generic | 40 | 0 | — | — | `0x8A1DC833` | `0xEA5EA698` |
+| 0x03 | Fighting | 60 | 3 | — | — | `0xCA63A970` | `0xDA5EA698` |
+| 0x04 | Narcotic Deals | 80 | 2 | — | purpose [4, 2, 3] | `0x0A639636` | `0xEA5EA697` |
+| 0x05 | Arson | 100 | 0.5 | yes | wealth [2, 1]; purpose [9, 1, 2, 3, 4, 6, 7, 8]; condition [3] | `0x2A6395EF` | `0xCA5EA698` |
+| 0x06 | Money Snatcher | 60 | 3 | — | purpose [4, 2] | `0x4A639681` | `0xAA5EA698` |
+| 0x07 | Stickup | 80 | 2 | — | purpose [3, 2] | `0x2A639653` | `0x2A5EA698` |
+| 0x08 | Car Theft | 60 | 3 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0xAA63A98D` | `0x3A5EA698` |
+| 0x09 | Solicitation | 60 | 3 | — | purpose [4, 2, 3] | `0x6A63A9A4` | `0x4A5EA698` |
+| 0x0A | Mugging | 80 | 2 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0xAA63966B` | `0x0A5EA698` |
+| 0x0B | Bank Robbery | 80 | 2 | — | purpose [3, 2] | `0xAA63966B` | `0x0A5EA698` |
+| 0x10 | Flashing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0x8A63A9BA` | `0x5A5EA698` |
+| 0x11 | Graffiti | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0xCA63A9D1` | `0x6A5EA698` |
+| 0x12 | Pie Throwing | 40 | 4 | — | purpose [9, 1, 2, 3, 4, 6, 7, 8] | `0x4A63A9E4` | `0x7A5EA698` |
+| 0x13 | TPing | 40 | 4 | — | zone [1]; wealth [3, 2]; purpose [1] | `0x2A63A9F9` | `0x8A5EA698` |
+
+*[compat]* Shipped data quirks: Bank Robbery has the same icon and name key as Mugging. In the English
+`SimCityLocale.DAT` only `0xEA5EA698` exists in group `0x0A554AE0` (and its text is an unrelated building
+description); none of the other name keys exists in any shipped package. The other types' names therefore load
+empty (no `0xAA12FCB0` fallback), and Generic's name is that unrelated text *[inferred: `SC4LoadString`'s lookup
+order (other languages, LTEXT sources outside the packages) not traced]*. The name only feeds the incident
+record, the `0x0A159D95` message string and the save.
 
 Purpose byte 9 is bit 8 (`0x100`), the value used for "no purpose / no building" (§6.7). "Condition [3]" is bit 2,
 which matches lot condition 4 only: an abandoned lot at its last decay stage (foundations §5.2).
@@ -421,8 +465,9 @@ occupant property `0x029244DB` (preview occupants, foundations §5.2; occupants 
   contents, which are empty in a fresh process, and an empty curve is undefined (foundations §4.3). *[choice]*
   FreeCity4 applies the code-default curves in that case. The prop request curve, which has no default,
   evaluates to 0.
-- *[quirk]* A tract-size change by the reload message affects only later grid creation and the hotspot scaling
-  (§11.2). Existing grids keep their size.
+- *[quirk]* A tract-size change by the reload message affects only later grid creation. Existing grids keep
+  their size, and every later use (§6.6 stamping, §6.9, §6.10, §11.2) reads the size from the grid itself.
+  *(Corrected: the hotspot scaling also uses the grid's size, not the tuning value.)*
 
 ## 9. Random numbers *[compat]*
 
@@ -458,9 +503,9 @@ Subscribers in the shipped game: the police simulator (`0x0A159D95`, station cri
 
 ### 11.2 `GetCrimeHotspot(uint8* value, int32* x, int32* z)` → bool
 
-If `hotspotValue > 0`: write the value, `S · hotspotX` and `S · hotspotZ` (city cells of the tract corner, with
-`S` the **tuning** tract size) through each non-null pointer, and return true. Otherwise return false and write
-nothing.
+If `hotspotValue > 0` (signed): write the value's low byte, `S · hotspotX` and `S · hotspotZ` (city cells of
+the tract corner, with `S` the **crime grid's** `GetTractSize()`) through each non-null pointer, and return
+true. Otherwise return false and write nothing. *(Corrected: the earlier text said the tuning tract size.)*
 
 ### 11.3 `GetNearestCrimeSim(const cS3DVector3& pos, float radius)` / `GetNearestCrimeProp(...)`
 
@@ -470,7 +515,11 @@ Query the occupant manager (`GetOccupantsByBBox`, filter overload) with the box 
 - for sims: occupants with `GetType() = 0x496E5783` that are in occupant group `0x4102`;
 - for props: occupants with `GetType() = 0xA823821E` that have property `0x8AA864D5`.
 
-Start with `best := radius`. For each result, `d :=` its 3-D distance to `pos`. If `d < best`, QI it (sim:
+Start with `best := radius`. For each result, `d :=` its 3-D distance to `pos` (`GetPosition`), computed as
+`float32` operations in this order *[compat]* (foundations §18): `dx := occ.x − pos.x`, `dy := occ.y − pos.y`,
+`dz := occ.z − pos.z`, then `d := sqrt((dy·dy + dz·dz) + dx·dx)`, every subtraction, product, sum and the square
+root rounded to `float32`. The query box corners `pos.x ∓ r`, `pos.z ∓ r` are `float32` too. The test is strict
+(`d < best`; equal or NaN distances never win). If `d < best`, QI it (sim:
 `0xA9B40F05`; prop: `cISC4PropOccupant` `0xE9793A65`, which must also have `GetState() = 0`). When that
 succeeds, it becomes the candidate and `best := d`. Return the candidate as a **borrowed** pointer (the QI
 reference is released before returning), or null.
@@ -493,7 +542,7 @@ Index < count: set and return true / return the flag. Otherwise return false.
 
 | Slot | Method | Behaviour |
 |---|---|---|
-| 3 | `GetRequestedShare(const SC4Rect<long>& r)` → int32 | `a := crimeGrid.GetAverageValueInCellRect(r.x1, r.z1, r.x2 − r.x1, r.z2 − r.z1)` (no +1, unlike §6.6); return `rhe(propRequestCurve(a × (1/255)))` |
+| 3 | `GetRequestedShare(const SC4Rect<long>& r)` → int32 | `a := crimeGrid.GetAverageValueInCellRect(r.x1, r.z1, r.x2 − r.x1, r.z2 − r.z1)` (no +1, unlike §6.6); return `rhe(propRequestCurve(f32(a × k)))`, `k` the `float32` constant 1/255. The curve output lies between its smallest and largest y (clamped at both ends), at most 10 with shipped data; `rhe` leaves the exact range only for a modded curve with \|y\| > 2²² (§6 notation gives the result) |
 | 4 | `GetRequesterSatisfactionId()` → u32 | `0x49A1E996` |
 | 5 | `UsesCustomPropSelector()` → bool | true |
 | 6 | `SelectProp(const vector<u32>& props, int32 cellX, int32 cellZ)` → u32 | see below |
@@ -501,7 +550,9 @@ Index < count: set and return true / return the flag. Otherwise return false.
 **`SelectProp`**: `lot := lotManager.GetLot(cellX, cellZ, false)` (may be null). Split `props` in order:
 
 - props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list;
-- props with a non-zero ID that matches the type of an incident whose lot is `lot` → matching list;
+- props with a non-zero ID that matches the type of an incident whose lot is `lot` → matching list (each
+  prop at most once). The lot test compares the pointers, so when the cell has **no lot** (`lot` null),
+  incidents whose lot is null (after a load with a null lot ref, §12) match *[compat]*;
 - other props are dropped.
 
 If the matching list is non-empty, return `matching[RandomUint32Uniform(size)]`. Otherwise, if the generic list
@@ -536,8 +587,21 @@ incidentCount × {
 ```
 
 - `Write` returns `!stream.GetError()`.
-- `Read` rejects any version ≠ 6 and returns false after consuming only the version. Otherwise it reads all
-  fields, sets every incident's visuals flag to false, sets `loadedFromSave`, and returns `!GetError()`.
+- `Read` rejects any version ≠ 6 and returns false after consuming only the version (`loadedFromSave` stays
+  clear). Otherwise it reads all fields, appends the incidents to the current list (it does not clear it), sets
+  every incident's visuals flag to false, sets `loadedFromSave`, and returns `!GetError()`.
+- **Stream error** (foundations §2.1, §2.9; the loader ignores the result, foundations §3.5). The original does
+  not stop at the first failure: it keeps calling the stream (each failed read leaves its destination
+  unchanged), **sets `loadedFromSave` anyway** and returns false. Fields read before the failure hold the loaded
+  values. The exceptions after it: a grid ref becomes **null** (the ref helper clears the destination first, without
+  releasing an old grid); the iterator's table is resized to *(the stream object's address)* entries (the count
+  is read into the argument slot that held the stream pointer), a multi-hundred-MB allocation or an out-of-memory
+  failure; if `incidentCount` fails it is an uninitialised local, and each of that many loop passes allocates an
+  incident with a null lot, an uninitialised type ID and empty name and icon key. With null grids the next
+  `Init` (which skips new-city setup, §4.1 step 8) leaves the simulator unusable. *[choice]* FreeCity4: on a
+  stream error `Read` returns false, does **not** set `loadedFromSave`, releases any refs it acquired and leaves
+  the simulator as before the call, so the next `Init` sets the city up as new (grids, iterator, prop-requester
+  registration).
 - On the following `Init`, the hotspot and the ordinance factor are reset (§4.1 step 9), and the tuning is
   re-read. The pipeline state restarts at 6.
 - *[choice]* FreeCity4 writes the same record, with the two unused values as 0.
@@ -652,9 +716,11 @@ functions directly or reads its members. The only outside references are the COM
 Quirks: hotspot and ordinance factor reset by `Init` after load (§4.1); first run only after the first month
 (§5); EQ bucket boundaries and the EQ > 200 overflow (§6.1); `B = C` in the jobless factor (§6.2); EQ curve
 sampled at 0/25/50/75 (§6.3); decay wrap (§6.5); last-candidate fallback (§6.7); severity-0 types (§6.8);
-NaN average in an unzoned city (§6.9); unchecked effect array length (§6.10); empty mask arrays (§7); missing
-exemplar leaves the curves empty (§8); zero-width share rect (§11.6); no prop-developer unregistration on
-`Shutdown` (§4.2).
+NaN average in an unzoned city, read back as 0 (§6.9); `rhe` beyond 2²² (§6, §6.4); grid tract size used after
+a tuning reload (§6.9, §11.2); null-lot incidents matching lot-less cells (§11.6); unchecked effect array
+length (§6.10); empty mask arrays (§7); missing exemplar leaves the curves empty (§8); zero-width share rect
+(§11.6); no prop-developer unregistration on `Shutdown` (§4.2); `Read` setting `loadedFromSave` after a
+stream error (§12).
 
 Corrections to `docs/subsystems/grid-sims.md` §6:
 
@@ -682,6 +748,8 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
 5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.
 6. The meaning of the two unused saved `u32` values.
 7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
+8. Crime type names (§7): the shipped name keys are missing from the shipped locale packages. Whether
+   `SC4LoadString` finds them elsewhere (for example in another language package) was not traced.
 
 ## 17. Conformance tests (must exist in `engine/conformance`)
 
@@ -702,7 +770,7 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
    (9.49999988 → 9.5 → 10); 50 × 0.95f → **48** (47.4999994 → 47.5 → 48); 30 × 0.95f → 28 (28.5, tie to even);
    15 × 1.2f → 18; 2 × 0.95f → 2.
 7. **Attenuation** (shipped): pol 150, eff 0 → p = 0.125 (±1e-6), so a draw u = 0.12 stops the attempt and
-   u = 0.13 commits it; equality (u = p exactly) commits. pol 255 → 0.5. pol 0, eff 50 → input −50 → p = 0 → always commits. Default curve: p = (pol − eff)/255.
+   u = 0.13 commits it; equality (u = p exactly) commits; u = 1.0 commits even at pol 255 (p = 0.5). pol 255 → 0.5. pol 0, eff 50 → input −50 → p = 0 → always commits. Default curve: p = (pol − eff)/255.
 8. **Stamp and hotspot**: S = 2, lot cells (10, 10)–(13, 11) → tracts x 5..6, z 5. Severity 60 on cells
    {0, 200} → {60, 255}. The hotspot becomes (tract 6, 5, value 255) if 255 is the first strict maximum.
    `GetCrimeHotspot` → (255, 12, 10). Hotspot value 0 → returns false, writes nothing.
@@ -716,7 +784,9 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
     d = 1 → +75; d = 2 → +50; d = 3 → +25; d = √2 → +65 (`rhe(64.64)`); d = 4 → unchanged. Removal subtracts and
     clamps: cell 30 at the centre → 0. A 1-byte property is skipped by FreeCity4.
 12. **Average crime**: zoned tracts with values {10, 20, 0} → 10.0 → `GetAverageCrime` = 10; {1, 2} → 1.5 → 1.
-    Unzoned city → FreeCity4 0 (the original returns `0x80000000`).
+    Unzoned city → the stored average is NaN (`0xFFC00000`, saved as such) and `GetAverageCrime` = **0**. A grid
+    created with S = 2, then a tuning reload to S = 4: §6.9 still samples zone types at `(2x, 2z)`, and
+    `GetCrimeHotspot` reports `2 · hotspotTract`.
 13. **Pipeline**: a new simulator does nothing before the first month message. After it, exactly one step per
     day/idle delivery. `0x88EA4DFF` is posted once per month, at the 6th delivery. A second month message during
     the run does not restart it.
@@ -733,6 +803,19 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
     pipeline state 6.
 18. **Lifecycle**: `Init` twice → one set of agent registrations and subscriptions. `Init` on a new city calls
     `AddPropRequester` once; on a loaded city never. `Shutdown` removes the agent and the four subscriptions.
+19. **`rhe` beyond 2²²** (§6 notation): x = 4,194,304 → 4,194,304; 4,194,305 → 4,194,304; 4,194,307 →
+    4,194,306; 5,000,000 → 4,597,152; 8,388,608 → 6,291,456; 100,000,000 → 26,655,776; −5,000,000 →
+    −5,805,696. Crimes to commit with a modded crimes curve giving `crimes` = −1 and factor 1.0 → 71,327,744.
+20. **Read with a stream error** (FreeCity4 *[choice]*): a v6 record truncated inside the incident list →
+    `Read` false, `loadedFromSave` clear, no grid or incident replaced; the next `Init` creates both grids and
+    calls `AddPropRequester`.
+21. **SelectProp, no lot**: an incident of type Graffiti (0x11) with a null lot (loaded from a save with a null
+    lot ref); `SelectProp({A (ID 0), B (ID 0x11)}, x, z)` on a cell with no lot → B; on a cell whose lot has no
+    incident → A.
+22. **Nearest crime sim distance** (`float32`, order of §11.3): `pos = (0, 0, 0)`, a qualifying sim at
+    `(2109, 1812, 3693)` → `d = 4622.7124` (`0x459075B3`); the order `(dx² + dy²) + dz²` would give 4622.7129
+    (`0x459075B4`). With radius 4622.712890625 (`0x459075B4`) the sim is returned. A sim at `(3, 4, 0)` with
+    radius 5 is not returned (`d = 5`, strict test).
 
 ## Compiled slot tables *[compat]* (see foundations §16, §17)
 
