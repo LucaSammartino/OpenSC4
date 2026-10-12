@@ -188,8 +188,9 @@ pub trait InStream {
 
 // ---- references: save-side registry (§2.7) ----------------------------------------------------
 
-/// One registration: (class ID, object ID, the object if it is a core object).
-pub type RegisteredObject = (u32, u32, Option<Rc<dyn SaveObject>>);
+/// One registration: (class ID, object ID, the object if it is a core object,
+/// the host token if it is a host object).
+pub type RegisteredObject = (u32, u32, Option<Rc<dyn SaveObject>>, u64);
 
 /// Assigns object IDs during one save: the same object always gets the same
 /// ID; [choice] IDs are 1, 2, 3, … in registration order (§2.7).
@@ -231,11 +232,12 @@ impl SaveRegistry {
         let id = self.next_id;
         self.next_id += 1;
         self.by_identity.insert(key, id);
-        let obj = match r {
-            RefValue::Object(o) => Some(o.clone()),
-            _ => None,
+        let (obj, token) = match r {
+            RefValue::Object(o) => (Some(o.clone()), 0),
+            RefValue::Host { token, .. } => (None, *token),
+            RefValue::Null => (None, 0),
         };
-        self.entries.push((class, id, obj));
+        self.entries.push((class, id, obj, token));
         Some((id, class))
     }
 }

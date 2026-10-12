@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "name": "budget_items",
+  "spec": ["budget 2", "budget 6", "budget 15.11"],
+  "description": "GetBudgetItemInfo over the five parallel arrays: short arrays default to 0 and 100 %, a missing or empty department array gives no items; GetBudgetItemForPurpose returns the first match; ChangeBudgetItemLine / Cost write the whole array back and ignore an index outside the array; ChangeBudgetItemLocalFunding pads with 0 %; CopyBudgetItemProperties copies only the properties present; Add/RemoveBudgetItemToBudget move the line's full expense by the item cost when the department and line exist.",
+  "steps": [
+    {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 1},
+    {"op": "budget_create"},
+    {"op": "budget_init"},
+    {"op": "budget_call", "method": "create_department_budget", "args": [4096, 8192], "expect": 4096},
+    {"op": "budget_dept", "dept": 4096, "method": "create_line_item", "args": [1, false], "expect": 1},
+
+    {"op": "budget_holder", "holder": "B", "props": {"0xEA54D283": {"u32": [4096, 4097, 4096]},
+      "0xEA54D284": {"u32": [1, 2]}, "0xEA54D285": {"u32": [7]}, "0xEA54D286": {"i64": [500, 600]}}},
+    {"op": "budget_expect_items", "holder": "B", "items": [
+      {"department": 4096, "line": 1, "purpose": 7, "cost": 500, "index": 0, "local_funding": 1.0},
+      {"department": 4097, "line": 2, "purpose": 0, "cost": 600, "index": 1, "local_funding": 1.0},
+      {"department": 4096, "line": 0, "purpose": 0, "cost": 0, "index": 2, "local_funding": 1.0}
+    ]},
+    {"op": "budget_holder", "holder": "None", "props": {"0xEA54D286": {"i64": [500]}}},
+    {"op": "budget_expect_items", "holder": "None", "items": null},
+    {"op": "budget_holder", "holder": "Empty", "props": {"0xEA54D283": {"u32": []}, "0xEA54D286": {"i64": [500]}}},
+    {"op": "budget_expect_items", "holder": "Empty", "items": null},
+
+    {"op": "budget_holder", "holder": "C", "props": {"0xEA54D283": {"u32": [1, 2, 3]},
+      "0xEA54D285": {"u32": [9, 7, 7]}, "0xEA54D286": {"i64": [10, 20, 30]}, "0xEA54D287": {"f32": [100, 40, 60]}}},
+    {"op": "budget_expect_items", "holder": "C", "purpose": 7, "items": [
+      {"department": 2, "purpose": 7, "cost": 20, "index": 1, "local_funding": 0.4}
+    ]},
+    {"op": "budget_expect_items", "holder": "C", "purpose": 8, "items": null},
+
+    {"op": "budget_call", "method": "change_budget_item_local_funding", "args": ["B", 2, 0.5]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D287", "values": {"f32": [0, 0, 50]}},
+    {"op": "budget_expect_items", "holder": "B", "items": [
+      {"index": 0, "local_funding": 0.0}, {"index": 1, "local_funding": 0.0}, {"index": 2, "local_funding": 0.5}
+    ]},
+    {"op": "budget_call", "method": "change_budget_item_local_funding", "args": ["B", 0, 0.25]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D287", "values": {"f32": [25, 0, 50]}},
+
+    {"op": "budget_call", "method": "change_budget_item_line", "args": ["B", 1, 9]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D284", "values": {"u32": [1, 9]}},
+    {"op": "budget_call", "method": "change_budget_item_line", "args": ["B", 2, 5]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D284", "values": {"u32": [1, 9]},
+     "note": "index outside the line array: unchanged"},
+    {"op": "budget_call", "method": "change_budget_item_cost", "args": ["B", 0, 700]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D286", "values": {"i64": [700, 600]}},
+    {"op": "budget_call", "method": "change_budget_item_cost", "args": ["B", 7, 1]},
+    {"op": "budget_expect_holder", "holder": "B", "prop": "0xEA54D286", "values": {"i64": [700, 600]}},
+
+    {"op": "budget_call", "method": "copy_budget_item_properties", "args": ["B", "D"]},
+    {"op": "budget_expect_holder", "holder": "D", "prop": "0xEA54D283", "values": {"u32": [4096, 4097, 4096]}},
+    {"op": "budget_expect_holder", "holder": "D", "prop": "0xEA54D284", "values": {"u32": [1, 9]}},
+    {"op": "budget_expect_holder", "holder": "D", "prop": "0xEA54D285", "values": {"u32": [7]}},
+    {"op": "budget_expect_holder", "holder": "D", "prop": "0xEA54D286", "values": {"i64": [700, 600]}},
+    {"op": "budget_expect_holder", "holder": "D", "prop": "0xEA54D287", "values": {"f32": [25, 0, 50]}},
+    {"op": "budget_call", "method": "copy_budget_item_properties", "args": ["None", "E"]},
+    {"op": "budget_expect_holder", "holder": "E", "prop": "0xEA54D286", "values": {"i64": [500]}},
+    {"op": "budget_expect_holder", "holder": "E", "prop": "0xEA54D283", "absent": true},
+    {"op": "budget_expect_holder", "holder": "E", "prop": "0xEA54D287", "absent": true},
+
+    {"op": "budget_call", "method": "add_budget_item_to_budget", "args": ["B", 0], "expect": true},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "full_expenses", "expect": 700},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "current_expenses", "expect": 700},
+    {"op": "budget_call", "method": "add_budget_item_to_budget", "args": ["B", 1], "expect": false,
+     "note": "department 4097 does not exist"},
+    {"op": "budget_call", "method": "add_budget_item_to_budget", "args": ["B", 2], "expect": false,
+     "note": "line 0 does not exist"},
+    {"op": "budget_call", "method": "add_budget_item_to_budget", "args": ["B", 3], "expect": false},
+    {"op": "budget_call", "method": "remove_budget_item_from_budget", "args": ["B", 0], "expect": true},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "full_expenses", "expect": 0},
+    {"op": "budget_call", "method": "remove_budget_item_from_budget", "args": ["B", 0], "expect": true},
+    {"op": "budget_line", "dept": 4096, "line": 1, "method": "full_expenses", "expect": -700, "note": "no clamp"}
+  ]
+}

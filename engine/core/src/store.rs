@@ -72,8 +72,8 @@ pub fn save_store(registry: &Rc<RefCell<SaveRegistry>>, pkg: &mut Package) -> Sa
             let mut v: Vec<_> = reg
                 .entries
                 .iter()
-                .filter(|(c, id, o)| o.is_some() && !written.contains(&(*c, *id)))
-                .map(|(c, id, o)| (*c, *id, o.clone().unwrap()))
+                .filter(|(c, id, o, _)| o.is_some() && !written.contains(&(*c, *id)))
+                .map(|(c, id, o, _)| (*c, *id, o.clone().unwrap()))
                 .collect();
             v.sort_by_key(|(c, id, _)| (*c, *id));
             v
@@ -114,12 +114,10 @@ pub fn save_store(registry: &Rc<RefCell<SaveRegistry>>, pkg: &mut Package) -> Sa
         }
     }
 
-    // objectCount = distinct objects registered per class (core objects only;
-    // host objects are written by their host).
-    for (class, _, obj) in registry.borrow().entries.iter() {
-        if obj.is_some() {
-            *registered_per_class.entry(*class).or_insert(0) += 1;
-        }
+    // objectCount = distinct objects registered per class (§3.3), host
+    // objects included (their host writes their records).
+    for (class, _, _, _) in registry.borrow().entries.iter() {
+        *registered_per_class.entry(*class).or_insert(0) += 1;
     }
     for (class, w) in writers {
         pkg.insert((class, STORE_GROUP, 0), w.into_bytes());
@@ -139,14 +137,15 @@ pub fn save_store(registry: &Rc<RefCell<SaveRegistry>>, pkg: &mut Package) -> Sa
     report
 }
 
-/// Creates a fresh object of a class while loading (the host's
-/// `GZCOM()->GetClassObject(classID, GZIID_cIGZSerializable)`).
-pub type Factory<'a> = dyn FnMut(u32) -> Option<Rc<dyn SaveObject>> + 'a;
+/// Creates a fresh object for `(classID, objectID)` while loading (the host's
+/// `GZCOM()->GetClassObject(classID, GZIID_cIGZSerializable)`). Core objects
+/// come back as `RefValue::Object`, host objects as `RefValue::Host`.
+pub type Factory<'a> = dyn FnMut(u32, u32) -> Option<RefValue> + 'a;
 
 /// Load-side registry (§2.7 "Reading").
 pub struct LoadRegistry<'a> {
     pub index: BTreeMap<u32, u32>,
-    pub objects: HashMap<(u32, u32), Rc<dyn SaveObject>>,
+    pub objects: HashMap<(u32, u32), RefValue>,
     factory: Box<Factory<'a>>,
 }
 
@@ -167,14 +166,14 @@ impl<'a> LoadRegistry<'a> {
 impl RefResolver for LoadRegistry<'_> {
     fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
         if let Some(o) = self.objects.get(&(class_id, object_id)) {
-            return Some(RefValue::Object(o.clone()));
+            return Some(o.clone());
         }
         if !self.index.contains_key(&class_id) {
             return None; // class not in the save's index: failure
         }
-        let obj = (self.factory)(class_id)?;
+        let obj = (self.factory)(class_id, object_id)?;
         self.objects.insert((class_id, object_id), obj.clone());
-        Some(RefValue::Object(obj))
+        Some(obj)
     }
 }
 
@@ -364,23 +363,14 @@ mod tests {
         assert_eq!(&rec_b[8..12], &[2, 0, 0, 0]);
 
         // Load into fresh objects; the cycle resolves to one instance each.
-        let mut factory = |c: u32| -> Option<Rc<dyn SaveObject>> { Some(node(c, 0) as Rc<dyn SaveObject>) };
+        let mut factory =
+            |c: u32, _: u32| -> Option<RefValue> { Some(RefValue::Object(node(c, 0) as Rc<dyn SaveObject>)) };
         let mut lreg = LoadRegistry::new(BTreeMap::new(), Box::new(&mut factory));
         let lrep = load_store(&pkg, &mut lreg);
         assert!(lrep.index_ok && lrep.failed_classes.is_empty());
         assert_eq!(lrep.entries_read, 2);
-        let la = lreg.objects[&(2, 1)]
-            .clone()
-            .as_any_rc()
-            .downcast::<Node>()
-            .ok()
-            .unwrap();
-        let lb = lreg.objects[&(1, 2)]
-            .clone()
-            .as_any_rc()
-            .downcast::<Node>()
-            .ok()
-            .unwrap();
+        let la = lreg.objects[&(2, 1)].object::<Node>().unwrap();
+        let lb = lreg.objects[&(1, 2)].object::<Node>().unwrap();
         assert_eq!((la.value.get(), lb.value.get()), (10, 20));
         assert!(Rc::ptr_eq(&la.next.borrow().object::<Node>().unwrap(), &lb));
         assert!(Rc::ptr_eq(&lb.next.borrow().object::<Node>().unwrap(), &la));
@@ -404,7 +394,8 @@ mod tests {
         let mut pkg = Package::new();
         save_store(&reg, &mut pkg);
         pkg.get_mut(&(1, STORE_GROUP, 0)).unwrap()[12] ^= 0xFF; // corrupt class 1's payload
-        let mut factory = |c: u32| -> Option<Rc<dyn SaveObject>> { Some(node(c, 0) as Rc<dyn SaveObject>) };
+        let mut factory =
+            |c: u32, _: u32| -> Option<RefValue> { Some(RefValue::Object(node(c, 0) as Rc<dyn SaveObject>)) };
         let mut lreg = LoadRegistry::new(BTreeMap::new(), Box::new(&mut factory));
         let lrep = load_store(&pkg, &mut lreg);
         assert_eq!(lrep.failed_classes, vec![1]);
@@ -414,7 +405,8 @@ mod tests {
     #[test]
     fn unknown_class_reference_fails_the_stream() {
         let data = [5, 0, 0, 0, 0x2D, 0xC1, 0x90, 0x89];
-        let mut factory = |c: u32| -> Option<Rc<dyn SaveObject>> { Some(node(c, 0) as Rc<dyn SaveObject>) };
+        let mut factory =
+            |c: u32, _: u32| -> Option<RefValue> { Some(RefValue::Object(node(c, 0) as Rc<dyn SaveObject>)) };
         let mut lreg = LoadRegistry::new(BTreeMap::new(), Box::new(&mut factory));
         let mut r = ByteReader::with_resolver(&data, &mut lreg);
         assert!(r.get_ref().is_none());
@@ -422,7 +414,8 @@ mod tests {
         // With the class in the index it resolves, and twice to the same instance.
         let mut idx = BTreeMap::new();
         idx.insert(0x8990_C12D, 1);
-        let mut factory2 = |c: u32| -> Option<Rc<dyn SaveObject>> { Some(node(c, 0) as Rc<dyn SaveObject>) };
+        let mut factory2 =
+            |c: u32, _: u32| -> Option<RefValue> { Some(RefValue::Object(node(c, 0) as Rc<dyn SaveObject>)) };
         let mut lreg2 = LoadRegistry::new(idx, Box::new(&mut factory2));
         let twice = [data, data].concat();
         let mut r = ByteReader::with_resolver(&twice, &mut lreg2);

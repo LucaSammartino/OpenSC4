@@ -1,12 +1,13 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # Conformance vectors
 
-Language-neutral test scenarios for the simulator (`docs/specs/simulator.md`). Each file in
+Language-neutral test scenarios for the simulator (`docs/specs/simulator.md`), the shared foundations
+(`docs/specs/foundations.md`) and the budget (`docs/specs/budget.md`). Each file in
 [`vectors/`](vectors/) is a JSON document that describes a starting configuration, a script of operations, and the
 expected observable results: agent deliveries, broadcast posts, reference-count calls, return values, and state
 snapshots.
 
-The vectors are the **migration contract**. Any implementation of the simulator, in any language, must pass every
+The vectors are the **migration contract**. Any implementation of these subsystems, in any language, must pass every
 vector unchanged. The Rust runner in this crate (`cargo test -p fc4-conformance`) is one implementation of this
 document. When the runner and this README disagree, fix the runner.
 
@@ -92,7 +93,7 @@ The runner records, in order:
 | `SimNewMonth` | 0x66956816 | `SpeedChanged` | 0x4A7FB7E9 |
 | `SimNewYear` | 0x66956817 | | |
 
-A **filter** is an object with any of `event`, `agent` and `type`. An event matches when every given key is equal.
+A **filter** is an object with any of `event`, `agent`, `type`, or any other event key (as in `expect_events`). An event matches when every given key is equal.
 
 ### Operations
 
@@ -187,9 +188,81 @@ written as objects keyed by level, such as `{"4": 125}`. Unlisted levels are the
 `idle_cursor`. Cursor values are the index of the agent under the cursor in registration order, or `null` (or -1)
 for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 
+## Foundations ops
+
+Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…`.
+
+| op | Arguments | Checks |
+|---|---|---|
+| `stream_write` | `values`: list of one-key objects (`u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`, `bool`, `str`, `bytes` (hex), `res_key` (`[type, group, instance]`), `null_ref`); `hex` | the bytes written (§2.2) equal `hex` |
+| `stream_read` | `hex`; `reads`: list of `{get, expect?, position?}` with `get` one of `u8`, `u16`, `u32`, `i32`, `u64`, `i64`, `f32`, `f64`, `str`, `rz_char_str` (+ `max_bytes`, result as hex), `skip` (+ `n`); `error?` | each read's value; `expect: null` means the read must fail without consuming; `position` after the read; the sticky error flag at the end |
+| `crc` | `ascii` or `hex`; `expect` | CRC-32/MPEG-2 (§3.4) |
+| `store_entry` | `class_id`, `payload_hex`, `entry_hex`, `index_hex?` | the class-object store entry (and index) written for one object with ID 1 whose `Write` emits the payload (§3.3) |
+| `curve` | `points` (flat x, y list), `absent?`, `eval`: `[[x, y], ...]`, `tolerance?` (relative, default 1e-6) | response-curve construction and evaluation (§4) |
+| `rng` | `generator` (`RzRandom` or `RzRandomSuper`), `seed`, `wall_clock_seed?`, `process_clock?`, `calls`: `{method, args?, weights?, expect?, lcg?, mul?}` | outputs and internal states, bit-exact (§6) |
+
+Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
+
+## Budget ops
+
+The budget vectors (`b15_…`) drive the budget simulator with a fake host: property holders (named by label), a lot
+list, ordinance and neighbour stubs, LTEXT strings, the history warehouse, the disaster layer and the save store.
+Every op name starts with `budget_`.
+
+### Environment and objects
+
+| op | Arguments | Effect |
+|---|---|---|
+| `budget_env` | any of `difficulty`, `year`, `month`, `established`, `city_size` (`[x, z]`), `ordinance_income`, `ordinance_expense`, `neighbor_income`, `neighbor_expense`, `rng_seed`, `advance_month` (true: next month), `disasters` (IDs that exist), `ltext` (`[{group, instance, text}]`) | sets the fake world. Defaults: hard, 2000-01, established, seed 1, everything else 0. Missing LTEXT reads as `LT:gggggggg:iiiiiiii`, building-type names as `BT:iiiiiiii`. |
+| `budget_create` | | a new budget simulator (label `budget`); it replaces the current one |
+| `budget_init` | `tuning?` (`{"0xPROPID": value or [values]}`, the exemplar of §9; without it, the code defaults), `fix_cs3?` (§13.1 fix), `expect?` | `Init` (core part) |
+| `budget_shutdown` | `expect?` | `Shutdown` (core part) |
+| `budget_message` | `type` (name or ID), `data1?`, `expect?` | `DoMessage` (§4.3) |
+| `budget_cheat` | `id` (`RiskyMoney`, `WeaknessPays`, `Moolah` or an ID), `text?`, `expect?` | the cheat notification |
+| `budget_holder` | `holder` (label), `props?` (`{"0xPROPID": {"u32"\|"i64"\|"f32": [...]}}`, replaces all properties), `occupant?` | creates or changes a property holder |
+| `budget_lots` | `lots`: `[{purpose, building_wealth, lot_wealth, value, land_value, size_x, size_z, has_building, livable, repeat}]` (defaults 1, 1, 1, 0, 0, 1, 1, true, true, 1) | the lot list `ComputeTax` iterates |
+
+### Calls
+
+`budget_call` (`method`, `args?`) calls the budget simulator, `budget_dept` (`dept`, `method`, `args?`) a department
+and `budget_line` (`dept`, `line`, `method`, `args?`) a line item. Methods are the snake-case names of the spec
+methods (`deposit_funds`, `issue_bond`, `set_funding_percentage`, `set_local_funding_percent`, `full_expenses`, …;
+see `src/budget.rs` for the list) plus `settle_month` (§5.1), `simulate_day` (§5.7), `compute_tax` (§5.2) and
+`tamper_funds` (writes `funds` only, for the shadow check). Holders are passed by label. Results are checked with
+`expect` (booleans, integers, floats with relative tolerance 1e-6, strings, lists, `null` for a null pointer) and,
+for integers, `expect_min` / `expect_max`. Departments and line items return their IDs; holders their labels.
+
+### Checks
+
+| op | Arguments | Checks |
+|---|---|---|
+| `budget_expect` | `state`: any of `initialized`, `loaded_from_save`, `agriculture_rate_fix`, `panel_flag`, `funds`, `shadow_funds`, `total_borrowed`, `last_tax_income`, `ytd_income`, `ytd_expense`, `ytd_tax_income`, `ytd_reserved`, `ytd_ordinance_income`, `ytd_ordinance_expense`, `ordinance_income_by_month`, `ordinance_expense_by_month`, `ytd_bond_payments`, `last_month_income`, `last_month_expense`, `yearly_income`, `yearly_expense`, `bond_count`, `risky_money_counter`, `department_ids`, `tax` (`{"i": {rate, max_rate, weighted_assessed, monthly_tax, reserved, history}}`), `bonds` (list of partial bonds) | the budget state (§3.1). Arrays may be given as `{"index": value}` objects. |
+| `budget_expect_items` | `holder`, `purpose?`, `items` (list of partial `{department, line, purpose, cost, index, local_funding}`, or `null` for none) | `GetBudgetItemInfo`, or `GetBudgetItemForPurpose` when `purpose` is given |
+| `budget_expect_loans` | `loans` (partial `{months_remaining, years_remaining, total_loan_amount, remaining_payment, monthly_payment}`) | `GetAllLoans` |
+| `budget_expect_groups` | `groups` (partial `{id, name, total_expense, total_income, departments}`) | `GetAllGroups` plus each group's department set |
+| `budget_expect_tuning` | `tuning`: any of the §9 values by snake-case name; `land_value_curve` as `[[x, y], ...]` evaluations | the tuning in effect |
+| `budget_expect_holder` | `holder`, `prop`, `values` (`{"u32"\|"i64"\|"f32": [...]}`) or `absent: true` | a property of a holder (floats relative 1e-6) |
+| `budget_expect_refs` | `refs`: `{"label": count}` | the reference count of a holder or object (1 = only the world's own) |
+
+### Persistence
+
+| op | Arguments | Effect |
+|---|---|---|
+| `budget_save` | `slot` | saves the budget through the class-object store (foundations §3.5) |
+| `budget_load` | `slot`, `expect?` (default true: the store reports a clean load), `read_ok?` (whether the budget record was accepted) | loads a new budget from the slot and makes it current. Holders come back as the same objects, with one reference each. Record `Read` results are ignored by the store, so a rejected record leaves its object in the initial state. |
+| `budget_expect_save` | `slot` | saving now gives byte-identical records |
+| `budget_patch` | `slot`, `class` (`budget`, `department`, `line` or an ID), `entry?` (default 0), `offset` (into the payload), `hex` | overwrites bytes of a saved entry and fixes its CRC |
+
+Budget events: `post` events carry `void1` and `unknown` as object labels (`""` for none); `history` (`series`,
+`value`), `history_queue` (`series`, `length`), `show_budget_window` (`panel`), `disaster` (`id`, `x`, `z`),
+`add_ref` / `release` (`agent` = label). Message names: `FundsChanged`, `BondIssued`, `BondFinished`,
+`EndGameForBudgetFailure`, `BudgetGroupChanged`, `FundingPercentageChanged`, `IdealMonthlyFundingChanged`,
+`BudgetForOccupantChanged`, `CityEstablished`, `ToggleBudgetDialog`.
+
 ## Adding a vector
 
-1. Name it after the spec section it mainly covers, for example `s5_3_….json`.
+1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
+   §7) or `b15_…` (budget §15).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -210,3 +283,38 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 | 8 save round trip | `s10_8_save_load` |
 | 9 limit-timer calibration | `s10_9_limit_timer_calibration` |
 | other sections | `s4_reentrancy_and_cursors`, `s5_1_on_tick_guards`, `s5_2_minute_and_hour_levels`, `s5_3_begin_new_interval_flush`, `s5_4_idle_time`, `s6_speed_and_dilation`, `s6_invalid_speed_from_save`, `s9_cheats`, `s9_post_city_init` |
+
+## Coverage (foundations §7)
+
+| §7 item | Covered by |
+|---|---|
+| 1–4 primitives, sticky error, strings, resource key | `f7_01_04_stream_primitives` |
+| 5 references | `fc4-core` unit tests (`stream`, `store`): null/object bytes, shared instances, cycles, unknown class |
+| 6–7 CRC and class record | `f7_06_07_crc_and_class_record` |
+| 8–9 store save order and load | `fc4-core` unit tests (`store`); `b15_16_save` (three real classes, renumbered IDs) |
+| 10 city references | not yet (no city object) |
+| 11 response curves | `f7_11_response_curves` |
+| 12 messages | `engine/tests/message_test.cpp` (the GZCOM message class) |
+| 13–15 random generators | `f7_13_15_random_generators` |
+
+## Coverage (budget §15)
+
+| §15 item | Vector |
+|---|---|
+| 1 funds | `b15_01_funds` |
+| 2 tax | `b15_02_tax` |
+| 3 settlement | `b15_03_settlement` |
+| 4 year end | `b15_04_year_end` |
+| 5 bankruptcy | `b15_05_bankruptcy` |
+| 6 bonds | `b15_06_bonds` |
+| 7 department percentage | `b15_07_department_pct` |
+| 8 redistribution | `b15_08_redistribution` |
+| 9 per-building funding | `b15_09_local_funding` |
+| 10 re-synchronisation | `b15_10_resync` |
+| 11 budget items | `b15_11_budget_items` |
+| 12 groups | `b15_12_groups` |
+| 13 tuning | `b15_13_tuning` |
+| 14 daily | `b15_14_daily` |
+| 15 estimates | `b15_15_estimates` |
+| 16 save | `b15_16_save` |
+| other sections (4.1, 4.3: messages, cheats, new-city history) | `b4_3_messages_and_cheats` |

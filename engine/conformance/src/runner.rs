@@ -30,12 +30,48 @@ const MAX_CLOCK_READS_PER_STEP: u64 = 50_000_000;
 // ---- events -------------------------------------------------------------------
 
 #[derive(Clone, Debug)]
-enum Event {
-    Deliver { agent: String, msg: Message, t: u32 },
-    Post { msg: Message, t: u32 },
-    AddRef { agent: String },
-    Release { agent: String },
-    Publish { cycles_to_ms: f32, ms_to_cycles: f32 },
+pub(crate) enum Event {
+    Deliver {
+        agent: String,
+        msg: Message,
+        t: u32,
+    },
+    Post {
+        msg: Message,
+        t: u32,
+    },
+    AddRef {
+        agent: String,
+    },
+    Release {
+        agent: String,
+    },
+    Publish {
+        cycles_to_ms: f32,
+        ms_to_cycles: f32,
+    },
+    /// A budget post (kind "post"), with the labels of its void1 / IGZUnknown objects.
+    BudgetPost {
+        msg: Message,
+        void1: String,
+        unknown: String,
+    },
+    History {
+        series: u32,
+        value: i32,
+    },
+    HistoryQueue {
+        series: u32,
+        length: u32,
+    },
+    ShowBudgetWindow {
+        panel: u32,
+    },
+    Disaster {
+        id: u32,
+        x: f32,
+        z: f32,
+    },
 }
 
 impl Event {
@@ -62,6 +98,22 @@ impl Event {
             } => {
                 format!("{{\"event\":\"publish\",\"cycles_to_ms\":{cycles_to_ms:e},\"ms_to_cycles\":{ms_to_cycles:e}}}")
             }
+            Event::BudgetPost { msg, void1, unknown } => {
+                format!(
+                    "{{\"event\":\"post\",{},\"void1\":\"{void1}\",\"unknown\":\"{unknown}\"}}",
+                    m(msg)
+                )
+            }
+            Event::History { series, value } => {
+                format!("{{\"event\":\"history\",\"series\":\"0x{series:08X}\",\"value\":{value}}}")
+            }
+            Event::HistoryQueue { series, length } => {
+                format!("{{\"event\":\"history_queue\",\"series\":\"0x{series:08X}\",\"length\":{length}}}")
+            }
+            Event::ShowBudgetWindow { panel } => format!("{{\"event\":\"show_budget_window\",\"panel\":{panel}}}"),
+            Event::Disaster { id, x, z } => {
+                format!("{{\"event\":\"disaster\",\"id\":\"0x{id:08X}\",\"x\":{x},\"z\":{z}}}")
+            }
         }
     }
 
@@ -72,19 +124,24 @@ impl Event {
             Event::AddRef { .. } => "add_ref",
             Event::Release { .. } => "release",
             Event::Publish { .. } => "publish",
+            Event::BudgetPost { .. } => "post",
+            Event::History { .. } => "history",
+            Event::HistoryQueue { .. } => "history_queue",
+            Event::ShowBudgetWindow { .. } => "show_budget_window",
+            Event::Disaster { .. } => "disaster",
         }
     }
 
     fn agent(&self) -> Option<&str> {
         match self {
             Event::Deliver { agent, .. } | Event::AddRef { agent } | Event::Release { agent } => Some(agent),
-            Event::Post { .. } | Event::Publish { .. } => None,
+            _ => None,
         }
     }
 
     fn msg(&self) -> Option<&Message> {
         match self {
-            Event::Deliver { msg, .. } | Event::Post { msg, .. } => Some(msg),
+            Event::Deliver { msg, .. } | Event::Post { msg, .. } | Event::BudgetPost { msg, .. } => Some(msg),
             _ => None,
         }
     }
@@ -115,6 +172,16 @@ const TYPE_NAMES: &[(&str, u32)] = &[
     ("HiddenPauseChanged", msg::HIDDEN_PAUSE_CHANGED),
     ("EmergencyPauseChanged", msg::EMERGENCY_PAUSE_CHANGED),
     ("SpeedChanged", msg::SPEED_CHANGED),
+    ("FundsChanged", 0x0772_FAD4),
+    ("BondIssued", 0xC772_FADA),
+    ("BondFinished", 0xCA3F_BDCE),
+    ("EndGameForBudgetFailure", 0xAA5C_F1E3),
+    ("BudgetGroupChanged", 0x0A3E_7624),
+    ("FundingPercentageChanged", 0x08DA_C3E7),
+    ("IdealMonthlyFundingChanged", 0x08DA_C3E8),
+    ("BudgetForOccupantChanged", 0x6A5F_D3FD),
+    ("CityEstablished", 0x26D3_1EC4),
+    ("ToggleBudgetDialog", 0x2922_2F02),
 ];
 
 fn type_name(t: u32) -> String {
@@ -125,7 +192,7 @@ fn type_name(t: u32) -> String {
         .unwrap_or_else(|| format!("0x{t:08X}"))
 }
 
-fn parse_type(j: &Json) -> R<u32> {
+pub(crate) fn parse_type(j: &Json) -> R<u32> {
     if let Some(s) = j.as_str() {
         if let Some((_, v)) = TYPE_NAMES.iter().find(|(n, _)| *n == s) {
             return Ok(*v);
@@ -169,7 +236,7 @@ pub(crate) struct HostState {
     now: Cell<u32>,
     auto_step: Cell<u32>,
     reads: Cell<u64>,
-    events: RefCell<Vec<Event>>,
+    pub(crate) events: RefCell<Vec<Event>>,
     agents: RefCell<HashMap<AgentHandle, AgentRuntime>>,
     labels: RefCell<HashMap<String, AgentHandle>>,
     names: RefCell<HashMap<AgentHandle, String>>,
@@ -178,6 +245,8 @@ pub(crate) struct HostState {
     qpc: Cell<u64>,
     qpc_frequency: Cell<u64>,
     tsc: Cell<u64>,
+    /// The budget world (budget vectors), created on first use.
+    pub(crate) budget: RefCell<Option<Rc<crate::budget::World>>>,
 }
 
 impl HostState {
@@ -293,7 +362,7 @@ impl TimerSource for TimerRef {
     }
 }
 
-fn rel_close(got: f64, want: f64) -> bool {
+pub(crate) fn rel_close(got: f64, want: f64) -> bool {
     if want == 0.0 {
         got == 0.0
     } else {
@@ -313,17 +382,17 @@ impl Broadcast for HostRef {
 
 // ---- helpers -----------------------------------------------------------------------------
 
-fn field<'a>(op: &'a Json, key: &str) -> R<&'a Json> {
+pub(crate) fn field<'a>(op: &'a Json, key: &str) -> R<&'a Json> {
     op.get(key).ok_or_else(|| format!("missing field '{key}'"))
 }
 
-fn int(op: &Json, key: &str) -> R<i64> {
+pub(crate) fn int(op: &Json, key: &str) -> R<i64> {
     field(op, key)?
         .as_i64()
         .ok_or_else(|| format!("field '{key}' is not an integer"))
 }
 
-fn opt_int(op: &Json, key: &str) -> R<Option<i64>> {
+pub(crate) fn opt_int(op: &Json, key: &str) -> R<Option<i64>> {
     match op.get(key) {
         None => Ok(None),
         Some(v) => v
@@ -333,11 +402,11 @@ fn opt_int(op: &Json, key: &str) -> R<Option<i64>> {
     }
 }
 
-fn boolean(j: &Json) -> Option<bool> {
+pub(crate) fn boolean(j: &Json) -> Option<bool> {
     j.as_bool().or_else(|| j.as_i64().map(|v| v != 0))
 }
 
-fn check_expect_bool(op: &Json, got: bool) -> R<()> {
+pub(crate) fn check_expect_bool(op: &Json, got: bool) -> R<()> {
     if let Some(e) = op.get("expect") {
         let want = boolean(e).ok_or("'expect' must be a boolean")?;
         if want != got {
@@ -472,7 +541,8 @@ fn matches_filter(h: &HostState, e: &Event, filter: Option<&Json>) -> R<bool> {
             }
             "agent" => e.agent() == Some(v.as_str().ok_or("filter.agent must be a string")?),
             "type" => e.msg().map(|m| m.msg_type) == Some(parse_type(v)?),
-            other => return Err(format!("unknown filter key '{other}'")),
+            // Any other event key matches as in `expect_events`.
+            _ => event_matches(e, &Json::Object(vec![(k.clone(), v.clone())]))?,
         };
         if !ok {
             return Ok(false);
@@ -492,6 +562,41 @@ fn event_matches(e: &Event, want: &Json) -> R<bool> {
             "data2" => e.msg().map(|m| m.data2) == v.as_i64(),
             "data3" => e.msg().map(|m| m.data3) == v.as_i64(),
             "t" => e.t().map(i64::from) == v.as_i64(),
+            "void1" | "unknown" => match e {
+                Event::BudgetPost { void1, unknown, .. } => {
+                    v.as_str() == Some(if k == "void1" { void1.as_str() } else { unknown.as_str() })
+                }
+                _ => false,
+            },
+            "series" => match e {
+                Event::History { series, .. } | Event::HistoryQueue { series, .. } => {
+                    v.as_i64().map(|x| x as u32) == Some(*series)
+                }
+                _ => false,
+            },
+            "value" => match e {
+                Event::History { value, .. } => v.as_i64() == Some(i64::from(*value)),
+                _ => false,
+            },
+            "length" => match e {
+                Event::HistoryQueue { length, .. } => v.as_i64() == Some(i64::from(*length)),
+                _ => false,
+            },
+            "panel" => match e {
+                Event::ShowBudgetWindow { panel } => v.as_i64() == Some(i64::from(*panel)),
+                _ => false,
+            },
+            "id" => match e {
+                Event::Disaster { id, .. } => v.as_i64().map(|x| x as u32) == Some(*id),
+                _ => false,
+            },
+            "x" | "z" => match e {
+                Event::Disaster { x, z, .. } => {
+                    let got = f64::from(if k == "x" { *x } else { *z });
+                    v.as_f64().is_some_and(|w| rel_close(got, w))
+                }
+                _ => false,
+            },
             "cycles_to_ms" | "ms_to_cycles" => match e {
                 Event::Publish {
                     cycles_to_ms,
@@ -1127,6 +1232,7 @@ pub fn run_vector_text(text: &str) -> R<usize> {
         qpc: Cell::new(0),
         qpc_frequency: Cell::new(0),
         tsc: Cell::new(0),
+        budget: RefCell::new(None),
     });
     if let Some(c) = v.get("clock") {
         state.now.set(opt_int(c, "start_ms")?.unwrap_or(0) as u32);

@@ -20,6 +20,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod budget;
 pub mod calibration;
 pub mod curve;
 pub mod host;
