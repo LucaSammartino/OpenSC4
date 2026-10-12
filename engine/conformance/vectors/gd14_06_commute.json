@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "growth_developer_commute",
+  "spec": ["growth-developer 4.3", "growth-developer 14.6"],
+  "description": "Test 6, the commute layer (state 12): per W tract the smallest non-zero trip length over its S x S cells read with GetCellValue (255 when none), then W := low16(ftol(r24(W + curve(m)))). Curve (0,10)(255,-10), W = 25: tract (0,0) has cells 100 and 200 -> m = 100 -> curve 2.1568623 -> 27; tract (1,0) only 200 -> curve -5.6862755 (0xC0B5F5F8) -> r24(25 + c) = 19.313725 -> 19 (per-curve truncation would give 20); empty tracts -> 255 -> -10 -> 15. Values from the Python curve model. EstimateDesirability has no commute term.",
+  "steps": [
+    {"op": "gdev_env", "cells": [16, 16]},
+    {"op": "gdev_source", "map": "trip_length", "size": 1, "tracts": [[1, 1, 100], [2, 3, 200], [5, 2, 200], [7, 3, 0]]},
+    {"op": "gdev_create"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0x87CD6357": {"i32": 25}, "0x87CD6347": {"f32": [0, 10, 255, -10]}}, "expect": true},
+    {"op": "gdev_update"},
+    {"op": "gdev_expect_grid", "grid": "desirability", "tracts": [[0, 0, 27], [1, 0, 19], [2, 0, 15], [3, 3, 15]]},
+    {"op": "gdev_expect", "curve_eval": [{"curve": "commute", "x": 100, "y": 2.156862258911133}, {"curve": "commute", "x": 200, "y": -5.686275482177734}]},
+    {"op": "gdev_call", "method": "commute_add", "args": [25, -5.686275482177734], "expect": 19},
+    {"op": "gdev_call", "method": "add_curve", "args": [25, -5.686275482177734], "expect": 20},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [5, 2], "expect": 25}
+  ]
+}

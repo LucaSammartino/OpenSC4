@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "bds_catalogue_queries",
+  "spec": ["building-development 4.7.1", "building-development 4.7.2", "building-development 11.16"],
+  "description": "Test 16, by hand from the query table of 4.7.2. Buildings A = 0x100, B = 0x200 (family F = 0x7000), C = 0x2C1 (family G = 0x70C1), inserted in that order. GetBuildingTypesByFamily(vector [9, 9], F) -> [A, B], returns 2; (vector [9], A) -> [A], returns 0 [quirk]; (vector [9], X = 0x9999) -> [9], 0. Set form: inserts without clearing ({9} + F -> {9, A, B}, 2; {9} + A -> {9, A}, 0; X -> unchanged, 0). IsBuildingInFamily(A, A) true, (A, F) true, (C, F) false, (X, X) true (b = f). IsBuildingFamilyTypeValid: F, G and the building A true, X false; IsBuildingTypeValid(F) false. GetBuildingTypesByFilter: null filter -> every type, 3; a filter passing {A, C, X} -> 2. Hash order (STLport hash_map, 193 buckets, bucket = key mod 193, a new node goes to the head of its bucket): A -> bucket 63, B and C -> bucket 126 (C inserted later, so first) -> GetAllBuildingTypes = [A, C, B]; F and G both land in bucket 108 -> GetAllBuildingFamilyTypes = [G, F]. GetAllBuildingTypes(array, n = 1) with 3 types -> n = 1, the array holds A, returns 3; n = 5 -> n = 3, [A, C, B]; null array, n = 2 -> n = 2, returns 3. The vector forms clear first (a prefilled vector is replaced).",
+  "steps": [
+    {"op": "bds_process", "seed": 1},
+    {"op": "bds_exemplars", "list": [
+      {"building": "0x100", "purpose": 1, "wealth": 1, "families": ["0x7000"]},
+      {"building": "0x200", "purpose": 1, "wealth": 2, "families": ["0x7000"]},
+      {"building": "0x2C1", "purpose": 2, "wealth": 1, "families": ["0x70C1"]}]},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_expect", "state": {"building_count": 3, "catalogue_loaded": true}},
+
+    {"op": "bds_call", "method": "types_by_family", "args": ["0x7000", [9, 9]], "expect": {"count": 2, "vector": [256, 512]}},
+    {"op": "bds_call", "method": "types_by_family", "args": ["0x100", [9]], "expect": {"count": 0, "vector": [256]}},
+    {"op": "bds_call", "method": "types_by_family", "args": ["0x9999", [9]], "expect": {"count": 0, "vector": [9]}},
+    {"op": "bds_call", "method": "types_by_family_set", "args": ["0x7000", [9]], "expect": {"count": 2, "set": [9, 256, 512]}},
+    {"op": "bds_call", "method": "types_by_family_set", "args": ["0x100", [9]], "expect": {"count": 0, "set": [9, 256]}},
+    {"op": "bds_call", "method": "types_by_family_set", "args": ["0x9999", [9]], "expect": {"count": 0, "set": [9]}},
+
+    {"op": "bds_call", "method": "is_building_in_family", "args": ["0x100", "0x100"], "expect": true},
+    {"op": "bds_call", "method": "is_building_in_family", "args": ["0x100", "0x7000"], "expect": true},
+    {"op": "bds_call", "method": "is_building_in_family", "args": ["0x2C1", "0x7000"], "expect": false},
+    {"op": "bds_call", "method": "is_building_in_family", "args": ["0x9999", "0x9999"], "expect": true},
+    {"op": "bds_call", "method": "is_building_family_type_valid", "args": ["0x7000"], "expect": true},
+    {"op": "bds_call", "method": "is_building_family_type_valid", "args": ["0x70C1"], "expect": true},
+    {"op": "bds_call", "method": "is_building_family_type_valid", "args": ["0x100"], "expect": true},
+    {"op": "bds_call", "method": "is_building_family_type_valid", "args": ["0x9999"], "expect": false},
+    {"op": "bds_call", "method": "is_building_type_valid", "args": ["0x7000"], "expect": false},
+    {"op": "bds_call", "method": "is_building_type_valid", "args": ["0x2C1"], "expect": true},
+
+    {"op": "bds_call", "method": "types_by_filter", "args": [null, []], "expect": {"count": 3, "set": [256, 512, 705]}},
+    {"op": "bds_call", "method": "types_by_filter", "args": [["0x100", "0x2C1", "0x9999"], [7]], "expect": {"count": 2, "set": [7, 256, 705]}},
+
+    {"op": "bds_call", "method": "all_building_types", "args": [[1, 2, 3, 4, 5]], "expect": {"count": 3, "vector": [256, 705, 512]}},
+    {"op": "bds_call", "method": "all_family_types", "args": [[1]], "expect": {"count": 2, "vector": [28865, 28672]}},
+    {"op": "bds_call", "method": "all_building_types_array", "args": [1, 1], "expect": {"ret": 3, "n": 1, "array": [256]}},
+    {"op": "bds_call", "method": "all_building_types_array", "args": [5, 5], "expect": {"ret": 3, "n": 3, "array": [256, 705, 512, 0, 0]}},
+    {"op": "bds_call", "method": "all_building_types_array", "args": [2, null], "expect": {"ret": 3, "n": 2, "array": []}},
+    {"op": "bds_call", "method": "all_building_types_array", "args": [0, 2], "expect": {"ret": 3, "n": 0, "array": [0, 0]}}
+  ]
+}

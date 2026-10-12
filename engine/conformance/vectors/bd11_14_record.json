@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "bds_record",
+  "spec": ["building-development 6", "foundations 2.7", "building-development 11.14"],
+  "description": "Test 14, the bytes written out by hand from the layout of 6 (references as objectID u32 + classID u32, foundations 2.7). The world hands out IDs from 4: BDS 4, developer 0x1010 = 5 (then grid 6 and node 7, renumbered to 7 and 9 as in the test). highestStage {0x1010: 2} is set; one Grow with growth list [(4, 8)] marks (4, 8); FightThePower sets ignore power. Record: 0400 | 07000000 02E6B949 (grid, class 0x49B9E602) | 09000000 2DC19089 (node, class 0x8990C12D) | 01000000 10100000 05000000 38C19009 (developer, class 0x0990C138) | 00000000 (no special buildings) | 01000000 10100000 02 | 01000000 10100000 01000000 04000000 08000000 | 00000000 (planned growth) | 00 01 00. A fresh process and BDS reading it back: true, all 74 bytes consumed, loadedFromSave, the same developer map, stages, marks, cheats (coffee bar not saved), map 7 and node 9; writing again gives the same bytes. Version 3 -> Read false after exactly 2 bytes and loadedFromSave stays false.",
+  "steps": [
+    {"op": "bds_process", "seed": 1},
+    {"op": "bds_world", "next_token": 4},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}]},
+    {"op": "bds_developers", "devs": {"0x1010": {"ad": 100, "growth": [[4, 8, 1]]}}},
+    {"op": "bds_create", "grow_budget": 4294967295},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_set", "state": {"map_id": 7, "node_id": 9, "highest_stage": {"0x1010": 2}}},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_message", "type": "Cheat", "data1": "0x08DAD89A"},
+    {"op": "bds_message", "type": "Cheat", "data1": "0x6AB6A2D7"},
+    {"op": "bds_expect", "state": {"developers": {"0x1010": 5}, "map_id": 7, "node_id": 9,
+      "marks": {"0x1010": [[4, 8]]}, "ignore_power": true, "coffee_bar": true}},
+    {"op": "bds_save", "slot": "a", "expect": true},
+    {"op": "bds_expect_record", "slot": "a", "length": 74,
+      "hex": "0400 07000000 02E6B949 09000000 2DC19089 01000000 10100000 05000000 38C19009 00000000 01000000 10100000 02 01000000 10100000 01000000 04000000 08000000 00000000 000100"},
+
+    {"op": "bds_process", "seed": 2},
+    {"op": "bds_create", "grow_budget": 4294967295},
+    {"op": "bds_expect", "state": {"loaded_from_save": false, "developers": {}, "marks": {}, "has_map": false}},
+    {"op": "bds_load", "slot": "a", "expect": true, "consumed": 74},
+    {"op": "bds_expect", "state": {"loaded_from_save": true, "developers": {"0x1010": 5}, "highest_stage": {"0x1010": 2},
+      "marks": {"0x1010": [[4, 8]]}, "ignore_plumbing": false, "ignore_power": true, "ignore_caps": false,
+      "coffee_bar": false, "special_buildings": [], "planned_growth": 0, "map_id": 7, "node_id": 9}},
+    {"op": "bds_save", "slot": "b", "expect": true},
+    {"op": "bds_expect_record", "slot": "b",
+      "hex": "0400 07000000 02E6B949 09000000 2DC19089 01000000 10100000 05000000 38C19009 00000000 01000000 10100000 02 01000000 10100000 01000000 04000000 08000000 00000000 000100"},
+
+    {"op": "bds_process", "seed": 3},
+    {"op": "bds_create", "grow_budget": 4294967295},
+    {"op": "bds_patch", "slot": "a", "offset": 0, "hex": "0300"},
+    {"op": "bds_load", "slot": "a", "expect": false, "consumed": 2},
+    {"op": "bds_expect", "state": {"loaded_from_save": false, "developers": {}, "marks": {}, "has_map": false}},
+    {"op": "bds_patch", "slot": "a", "offset": 0, "hex": "0500"},
+    {"op": "bds_load", "slot": "a", "expect": false, "consumed": 2},
+    {"op": "bds_expect", "state": {"loaded_from_save": false}}
+  ]
+}

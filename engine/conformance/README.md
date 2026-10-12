@@ -836,6 +836,200 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 `insert`, `remove`, `move`, `read_occupant` (`key`); `seg_write` (`segment`, `key`, `value` or `occupant` and
 `in_manager`).
 
+## Development helper ops
+
+`development_eval`: `fn`, `args`, `expect` for the shared growth helpers of `fc4_core::development`
+(building-development §4.7.3): `developer_type [p, w]`, `wealth [devType]`, `building_map_key [p, w]`,
+`building_fits_in_zone [bz, cz]`, `growth_stage_fits_in_zone [stage, zone]`.
+
+## Building development ops
+
+The building development vectors (`bd11_…`) drive `fc4_core::development_simulator` with a scripted city
+implementing `DevelopmentHost` and `GrowthDevelopers` (the growth developers, one to one with
+`fc4_core::growth_developer`). Every op name starts with `bds_`. The default city: day 1000, difficulty 1,
+64 × 64 cells of 16 m (cell = floor(position / 16), centre = (c + 0.5) × 16), terrain altitude 300, area altitude
+250, no tuning exemplar, no census, funds 100000, demolition cost 0, an occupant manager that accepts inserts.
+Host objects are numbers handed out from 256 (`bds_world next_token` moves the counter): the BDS itself at
+`bds_create`, then developers, the building map and the construction node as `Init` creates them, then created
+occupants. Growth developers are scripted per developer type (the type is the exemplar's property `0x21`, read at
+the developer's `Init`): active demand (default 0, the value the developer's source node answers
+`QueryActiveDemandValue` with; the fake node is named by the developer's number; `no_node` = no source node), purpose (default from the type),
+sub-type (default the type), lists valid, growth and decline lists (`[[x, z, stage]]`), and how many times
+`IsMapUpdateFinished` answers false after each `StartMapUpdate`. The tract developer returns queued values
+(`grow`, `decline`; then the defaults, 0). The process statics (catalogue, tried-tract marks, generator) are one
+`BdsProcess` per `bds_process` (seed default 0); every generator draw is a `draw` event (`n`, `value`, `stepped`)
+logged at the moment it happens, so the events show how draws interleave with the tract developer's calls.
+Saves write references as `objectID, classID` (foundations §2.7): the map `0x49B9E602`, the node `0x8990C12D`,
+developers `0x0990C138`, occupants `0x0CC00001`; `bds_load` resolves an ID to the object saved under it, else to
+the host object with that number (which the world may not know: unresolved).
+
+### City
+
+| op | Arguments | Effect |
+|---|---|---|
+| `bds_process` | `seed?` (0) | new process statics (empty catalogue and marks, the generator seeded with `seed`) |
+| `bds_world` | any of `day`, `next_token`, `difficulty`, `cell_widths` (`[x, z]`), `cell_counts`, `altitude`, `area_altitude`, `census` (`{id: supply}`), `tuning` (property map, `"shipped"` = {8192, 20480} and {1.2, 1.1, 1.0}, or null), `funds`, `demolish_cost`, `occupant_manager`, `insert_ok` | the scripted city |
+| `bds_exemplars` | `list`: `{building, purpose?, wealth?, capacity? (for its own developer type), families?, size? ([x, y, z]), name?, localized?, group?, props?}`, `{developer: type}` (0: no property `0x21`), `{foundation}`, `{wall}` or raw `{instance, group?, props}`; `append?` | the exemplars, in enumeration order |
+| `bds_lot_configs` | `list`: `{size: [w, h], zones: [...], ids: [...], orientation? (0), pos? ([x, z]; default the lot centre), no_object?}` | lot configurations for the density table |
+| `bds_developers` | `devs`: `{"type": {ad?, no_node?, purpose?, sub_type?, valid?, growth?, decline?, finish_after?}}` (merged) | scripted growth developers |
+| `bds_tract` | `grow?`, `decline?` (queues), `grow_default?`, `decline_default?` | tract developer returns |
+| `bds_lots` | `lots`: `[{id, building_type?, rect? ([x1, z1, x2, z2]), stage? (or null), building? (or null), state?, center?, slope?, dev_slope?, demolishable?}]` (merged), `cells`: `[{x, z, zone?, powered?, lv_type?, lv?, lot? (or null)}]`, `cell_default?` | lots and cells |
+| `bds_occupants` | `list`: `[{id, groups?, preview?, pos?, bbox? ([min, max]), cost?, load_fails?}]` (occupant 0 is the template for created occupants), `building_cells?` (`[[x, z]]`) | occupants |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `bds_create` | `grow_budget?` (u32; default u32::MAX) | a new BDS (reference count 1; the old one is dropped without `Shutdown`) with that daily Grow attempt budget ([choice]: at most N tract-developer Grow calls per `Grow`; vectors that run `Grow` set it explicitly) |
+| `bds_grow_budget` | `value` | sets the Grow attempt budget of the current BDS |
+| `bds_init` / `bds_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `bds_add_ref` / `bds_release` | `expect?` (the count) | |
+| `bds_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `Cheat`, `PlaceBuilding`, `TerrainChanged`, `OccupantInserted`, `OccupantRemoved`, `StateChanged` or an ID), `data1..4?`, `occupant?`, `lot?`, `params?` (`[[as_u32, as_f32]]`), `expect?` | `DoMessage` |
+| `bds_day` | `count?` (1) | SimNewDay, then day + 1 |
+| `bds_call` | `method`, `args?`, `expect?` | `grow`, `plan_decline`, `execute_decline_plan`, `do_idle`, `monthly`, `daily`, `read_tuning`; `total_resources`, `free_resources`, `claim` / `release` (`[n]`); catalogue: `is_building_type_valid`, `is_building_family_type_valid`, `is_building_in_family`, `types_by_family` (`[f, vector?]` → `{count, vector}`), `types_by_family_set` (`{count, set}`), `types_by_filter` (`[accepted or null, set?]`), `profile` / `profile_ptr` (→ `{purpose, wealth, capacity, size}` or null), `building_key` / `foundation_key` / `wall_key` (→ `[t, g, i]` or null), `exemplar_name`, `building_name`, `all_building_types` / `all_family_types` / `all_foundation_types` / `all_wall_types` (`[vector?]`), `all_building_types_array` (`[n, length or null]` → `{ret, n, array}`), `density` (the table, `[[zone, key, value]]`), `max_capacity` (`[zone, p, w]`), `app_shutdown`; `developer_type`, `wealth`, `developer`, `developer_by` (`[p, w]`), `developers`, `map_key`, `map_key_of_type`, `day_of_last_build`, `stage_multiplier`, `cheats`; `suitable` (`[profile]` → `{result, reason}`, reason starts at -1), `location_ok` (`[type, x, z]`), `add_occupant` (`[type, [x, y, z], orientation]`), `add_occupant_at_cell` (`[type, cx, cz, orientation]`), `plop` (`[profile]`), `insert_occupant`, `demolish_foundation`, `demolition_cost`, `foundation_cost`, `building_changed` (`[lot, wealth, built]`), `terrain_changed` (`[rect, kind]`), `unpack_terrain_rect` (`[data1, data2, cx, cz]`), `query_interface` (→ `"primary"`, `"message_target"`, `"message_target2"`, `"serializable"` or null), `class_id`, `special_buildings`. A profile is `{zone, wealth, purpose, lv_min, lv_max, type, x, z}` |
+| `bds_set` | `state`: any of `supply`, `demand`, `map_id`, `node_id`, `decline_plan` (`[[day, x, z, developer, stage?]]`), `state`, `ignore_plumbing`, `ignore_power`, `ignore_caps`, `coffee_bar`, `bias`, `loaded_from_save`, `special_buildings`, `highest_stage` (`{type: stage}`, merged) | pokes state (test setup) |
+| `bds_expect` | `state`: any of `initialized`, `loaded_from_save`, `destroyed`, `ref_count`, `state`, `cursor`, `developers`, `highest_stage`, `last_build` (`{type: value}`), `special_buildings`, `decline_plan`, `planned_growth` (count), `grow_budget`, `cr_min`, `cr_max`, `cr_per_resident`, `bias`, `stage_multiplier`, the four stored cheats, `cell_counts`, `has_map`, `map_id`, `node_id`, `supply`, `demand`, `marks` (`{type: [[x, z]]}`), `steps` (generator steps), `rng_state`, `catalogue_loaded`, `building_count`, `funds`, `day` | the BDS, process and city state |
+| `bds_expect_map` | `cells`: `[[x, z, value]]` | building map cells |
+| `bds_expect_refs` | `developers?`, `occupants?` (`{"id": count}`) | host reference counts |
+| `bds_expect_events` / `bds_expect_event_count` / `bds_clear_events` | see the shared conventions | host calls and draws |
+| `bds_save` | `slot`, `expect?` | `Write` |
+| `bds_expect_record` | `slot`, `hex?`, `length?`, `at?` (`[{offset, hex}]`) | the record bytes |
+| `bds_patch` | `slot`, `offset` + `hex`, or `truncate` | edits a saved record |
+| `bds_load` | `slot` or `hex`, `expect?`, `consumed?` | `Read` into the current BDS |
+
+Building development events: `draw` (`n`, `value`, `stepped`), `static_cleanup`, `post` (`type`, `data2`),
+`subscribe` / `unsubscribe` (`types`), `register_command` (`id`, `name`), `unregister_command` (`id`), `add_agent`
+(`level`, `name`, `flags`), `remove_agent`, `register_cheat` (`id`, `name`), `unregister_cheat` (`id`),
+`acquire_services`, `release_services`, `create_grid` (`instance`, `tract_size`, `id`), `create_node` (`id`),
+`active_demand_changed` (`node`, `key`, `data2`), `create_developer`, `developer_init` (`dev`, `type`),
+`developer_shutdown`, `developer_release`, `start_map_update`, `map_update_finished` (`dev`, `result`),
+`tract_grow` (`dev`, `x`, `z`, `stage`, `type`, `outcomes_in`, `flag_in`, `built`), `tract_decline` (`dev`, `x`,
+`z`, `stage`, `type`, `result`), `update_lot_elements` (`lot`, `had_foundation`: the low byte of the terrain-change
+kind ≠ 0, [inferred]), `area_altitude` (`rect`), `dezone` (`rect`,
+`flag`), `demolish_lots` (`lots`, `cost`), `set_funds` (`value`), `insert_occupant` (`occ`, `result`),
+`remove_occupant`, `create_occupant`, `set_building_type` (`occ`, `type`), `load_occupant` (`occ`, `type`,
+`result`), `set_bbox` (`occ`, `min`, `max`), `set_position` (`occ`, `pos`), `set_orientation` (`occ`,
+`orientation`), `init_occupant`, `add_ref`, `release` (`occ`), `advisor_event` (`advisor`, `id`, `subject` (null),
+`discarded`: `{x, z, lot, data1}`).
+
+## Growth developer ops
+
+The growth developer vectors (`gd14_…`, extras `gd00_…`) drive `fc4_core::growth_developer` over a scripted world
+implementing `GrowthDeveloperHost`: the services, message server and simulator of `Init`, the date, source maps,
+demand nodes (`GetDemand` / `QuerySupplyValue` / `AddToDemandValue`) and neighbour counts, the BDS's answers
+(`GetMaxCapacity` by zone type, `GetBuildingProfile` purposes, `GetSpecialBuildings`, `GetStagePopulationMultiplier`,
+`GetTractDeveloper`), the tract developer, zone types, lots, special-building occupants and the time-slice deadline.
+Every op name starts with `gdev_`. All developers of a vector share one `GrowthStatics` (the file-local generator,
+seed 0 until `gdev_statics`, and the slice step). The default city is 64 × 64 cells, date 0, wall-clock seed 1,
+multiplier 1.0, no neighbours, no deadline, and a tract developer named `tract_developer`. Objects are named by
+label, grids by their instance ID (`"0x02001010"`). The shared conventions of "Scalar simulator ops" apply (events,
+property maps, the store).
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `gdev_env` | any of `cells` (`[x, z]`), `date`, `wall_seed`, `missing_services` (`["city", "bds", "occupant_manager", "zone_manager", "land_value", "traffic"]`), `no_message_server`, `no_simulator`, `no_grids`, `log_population` (log `UpdatePopulation`), `log_zone` (log `GetZoneType`), `log_supply` (default true: log demand and neighbour queries), `tract_developer` (bool), `multiplier`, `connected` (`[n1, n2]`), `demand` (`[{id, index?, supply?, active?, label?}]`; `active` answers `QueryActiveDemandValue`), `clear_demand`, `timer_checks` (the deadline answers "not yet" this many times per call; null = never), `max_capacity` (`{"zoneType": value}`), `purposes` (`{"0xType": purpose}`), `zones` (`[{x, z, w?, d?, zone}]`) | the scripted world |
+| `gdev_source` | `map` (`intrinsic_land_value`, `total_land_value`, `slope`, `r_proximity` + `index` 1..3, `co_proximity` + `index` `0x3320` / `0x3330`, `park`, `pollution` + `index` 0..3, `school`, `hospital`, `crime`, `trip_length`, `commercial_traffic`, `landmark`, `transient`), `size` (tract size), `fill?`, `tracts?` (`[[x, z, v]]`), `none?` (removes it) | a source map with the element type of §4.3 |
+| `gdev_statics` | `seed?` (reseeds the shared generator), `slice_step?`, `misses?`, `fresh?` (a new shared object for developers created later) | the process-wide state |
+| `gdev_occupant` | `label`, `props?` (`{"0xID": value}`; `{"remove": true}` removes), `position?` (`[x, y, z]`) or `cell?` (`[x, z]`: its centre) | an occupant; `PositionToCell` is `floor(p / 16)` |
+| `gdev_specials` | `list` (occupant labels) | the BDS's special-building list |
+| `gdev_lot` | `label`, `building_type?`, `capacity?`, `size?` (`[w, d]`), `rect?` (`[x0, z0, x1, z1]`), `location?` (`[x, z]`) | a lot |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `gdev_create` | `label?` (`dev`), `add_ref?` (true: `GrowthDeveloper::create`, the constructor + `AddRef` of the BDS's `CreateDeveloper`; false: the bare constructor, count 0) | a constructed developer; it becomes the current one (other ops take `dev?`) |
+| `gdev_init` | `exemplar?` (a shipped developer type; default an empty exemplar), `props?` (added or removed on top), `null?`, `expect?` | `Init` |
+| `gdev_shutdown` | `expect?` | `Shutdown` |
+| `gdev_idle` | `count?` (1), `ms?` (5), `expect?` | SimIdle messages (`DoIdle(ms)`) |
+| `gdev_update` | `ms?`, `calls?` | `StartMapUpdate`, then `DoIdle` until the update finishes; `calls` checks the number of calls |
+| `gdev_message` | `type` (`SimIdle`, `SimNewDay`, `ZoningChange`, `StateChanged` or an ID), `data1..4?`, `rect?`, `lot?`, `expect?` | `DoMessage` |
+| `gdev_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result) | the §10.1 slots (`add_ref`, `release`, `target_zone`, `developer_type` / `sub_type`, `purpose`, `wealth`, `construction_info` (`[initial zone code]`), `lists_valid`, `growth_list`, `decline_list` (`[[x, z, maxStage]]`), `growth_items`, `decline_items` (owned copies), `desirability_map`, `capacity_map`, `population_map`, `max_capacity_map` (instance IDs), `total_capacity`, `source_demand`, `source_active_demand` (`GetSourceDemand().QueryActiveDemandValue()`, null without a node), `caps`, `desirability_threshold`, `abandonment_threshold`, `monopoly_use`, `style_percentages`, `start_map_update`, `is_map_update_finished`, `estimate_desirability`, `subjective_thresholds`), the internal steps `new_day_finished`, `city_size`, `update_max_capacity` (`[rect]`), `update_population_count` (`[lot, type, add]`), `do_idle`, the pure helpers `population_of`, `desirability_fraction`, `add_curve`, `commute_add`, `phantom_term`, `round_capacity`, `split_capacity`, `decline_key_seed`, `decline_key` (with the world's wall seed), `style_fraction`, and `query_interface`, `slot` (`[n]` → `[name, pop, return]`), `draw_salt` |
+| `gdev_set` | `state?` (`update_state`, `start_day`, `last_phantom_sum`, `total_capacity`, `ref_count`, `growth`, `decline`), `grid?` (`zoned`, `working`, `desirability`, `population`, `capacity`, `max_capacity`) with `fill?` / `tracts?` | pokes state (test setup) |
+| `gdev_expect` | `state?`: a partial object of `initialized`, `ref_count`, `destroyed`, `holder`, `services`, `message_server`, `update_state`, `start_day`, `iterator` (`x`, `z`, `rect`, `state`; partial), `specials`, `special_cursor`, `growth`, `decline`, `last_phantom_sum`, `total_capacity`, `source_demand`, `last_salt`, `city_size`, `city_size_bits`, `grids` (partial), `rng_lcg`, `draws`, `slice_step`, `slice_misses`, and the tuning (`developer_type`, `target_zone`, `purpose`, `wealth`, `land_value_min`, `land_value_max`, `use_intrinsic`, `tract_size`, `baseline`, `growth_threshold`, `decline_threshold`, `phantom_demand`, `caps`, `monopoly_use`, `stage_count`, `curves` (the present curves in §4.6 order), `styles`, `abandonment`, `subjective_min`, `subjective_max`); `curve_eval?` (`[{curve, x, y}]`), `stage_eval?` (`[{stage, x, y, bits?}]`) | the developer and the shared statics |
+| `gdev_expect_grid` | `grid`, `exists?`, `instance?`, `size?`, `counts?`, `all?`, `tracts?` (`[[x, z, v]]`), `nonzero?` | one of the six grids |
+| `gdev_expect_salts` | `devs` (labels), `salts` | the developers' last salts, as a multiset, are among `salts` (each listed salt used once): which industrial developer gets which salt is a [compat-limit] and is not pinned |
+| `gdev_expect_refs` / `gdev_expect_demand` | refs: `{label: count}` (references held through `AddRef` / `Release`); demand: `totals` (`{label: sum of AddToDemandValue}`) | host objects |
+| `gdev_expect_events` / `gdev_expect_event_count` / `gdev_clear_events` | see the shared conventions | host calls |
+| `gdev_sort` | `keys`, `order?` (`desc` / `asc`), `expect` (original indices in sorted order) | the game's `std::sort` on its own |
+| `gdev_save` / `gdev_load` / `gdev_expect_save` | `slot`, `dev?`; load: `label?` (`dev`), `expect?` (the store-level result) | the class-object store; the loaded developer becomes current |
+| `gdev_patch` / `gdev_expect_payload` | see the shared conventions (the developer's record) | |
+| `gdev_read` | `hex` (a record with null references), `expect?` | `Read` on the current developer |
+
+Growth developer events: `acquire_service` (`service`, `ok`), `release_service`, `acquire_message_server` (`ok`),
+`release_message_server`, `subscribe` / `unsubscribe` (`types`), `agent` (`level`, `name`, `flags`), `remove_agent`,
+`create_grid` (`instance`, `size`), `set_tract_size` (`which`, `grid`, `size`), `grid_shutdown` (`which`, `grid`),
+`add_ref` / `release` (`object`), `get_demand` (`id`, `index`, `node`), `query_supply` (`node`), `add_to_demand`
+(`node`, `value`, `bits`), `active_demand` (`node`), `connected_cities`, `all_connected_cities`, `stage_multiplier`, `tract_developer`,
+`special_buildings`, `max_capacity` (`zone`, `purpose`, `wealth`), `building_purpose` (`building_type`),
+`lot_building_type` (`lot`, `flag`), `lot_capacity` (`lot`, `developer_type`, `flag`), `lot_size`, `lot_rect`,
+`lot_location` (`lot`), `timer_start` (`ms`), `wall_clock_seed`, and with their flags `update_population`
+(`tract_developer`, `developer`, `x`, `z`, `stage`) and `zone_type` (`x`, `z`).
+
+## Tract developer ops
+
+The tract developer vectors (`td11_…`, extras `td00_…`) drive `fc4_core::tract_developer` with a scripted world
+implementing `TractDeveloperHost`. Every op name starts with `tdev_`. Objects are tokens: developers, lots and
+configurations take the `id` the vector gives; lots and filters the host creates get tokens from 65536 on. The
+default world: a 64 × 64-cell city, construction resources 10⁹ (none used), no cheats, no anchor needed, every grid
+at its default (zone 1, land value 0, powered 2, watered 1, fire 1, park 1, road access 1), no networks, no
+surrounding lots, the shipped tuning exemplar (§4.21), services, simulator and message server present. A lot's
+rectangle is computed from its location, size and facing (§4.10.1 table). `StartConstruction` puts the lot in
+state 2 with the building; `AbandonBuilding` sets state 4 (synchronous, `lot-developer.md` §4.3);
+`ReoccupyBuilding` sets state 3; `DemolishLots` clears the building; `CreateLotIfPossible` makes a state-1 lot whose
+location is the inverse of the §4.10.1 table. With facing −1 on a free rectangle it first draws `U(4)` on the zone
+developer's generator (R9, zones.md §7.7 / §9), records it in the tract developer's draw trace and faces the new lot
+that way (the harness has no road model). Draws are traced by kind: R1–R8 by the core (§4.22), R9 by the host.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `tdev_world` | any of `city` (`[x, z]` cells), `supply`, `used`, `cheats` (`{ignore_plumbing, ignore_power, ignore_caps, debug_growth}`), `anchor` (NeedsAnchorBuilding's answer), `construction_sets_state` (true), `no_services`, `no_simulator`, `no_message_server`, `create_fails` (CreateLotIfPossible gives no lot and no draw; the event still shows `lot: null`), `zone_seed` (the zone developer generator's state; default `0x8C09C68A`, its seed at clock 0) | the world |
+| `tdev_developer` | `id`; any of `target_zone` (1), `subtype` (`0x1010`), `purpose` (1), `wealth` (1), `zone_code` (1), `land_value` (`[min, max]`, `[0, 0]`), `tract_size` (4), `shift` (2), `desirability` / `capacity` (`[[tx, tz, v]]`), `demand` (number, `"nan"` or null = no source demand; 1), `caps` (`[power, water, fire, park]`, 255 each), `monopoly_use` (−1), `styles` (`[[group, fraction]]`, ascending keys) | a growth developer (fields not given keep their value) |
+| `tdev_lot` | `id`; any of `at` (location `[x, z]`), `size` (`[w, h]`, 1 × 1), `facing` (0), `slope`, `zone` (1), `state` (1), `livable`, `has_capacity` (default: a building stands), `days`, `wealth`, `historical`, `building`, `capacity`, `available` (default: the capacity), `road`, `organic` (true), `cfg_stage` (number or null), `can_create` (7); `remove: true` | a lot |
+| `tdev_cfg` | `id` (token); any of `cfg_id` (the configuration ID, for `GetLotConfiguration`), `size`, `slope` (`[min, max]`, ±100), `stage` (1), `capacity` (`[min, max]`), `zones`, `wealths`, `purposes`, `styles` (absent = compatible with all), `roads` (required-road bits), `primary` (family IDs; null = no primary object) | a lot configuration (all are visible to the configuration manager, filtered by `IsLotConfigurationIncluded`) |
+| `tdev_building` | `id` (type); any of `purpose` (1), `wealth` (1), `capacity` (1), `groups` (absent = every occupant group), `monopoly`, `fields` (`0x29B55F73` IDs) | a building type |
+| `tdev_family` | `id`, `members` (BDS insertion order) | a building family |
+| `tdev_cells` | `grid` (`zone`, `land_value`, `powered`, `watered`, `fire`, `park`, `road_access`), `default?`, `cells?` (`[[x, z, v]]`), `rects?` (`[[x1, z1, x2, z2, v]]`) | grid values |
+| `tdev_networks` | `cells` (`[[x, z, [types]]]`) | network tiles and their `IsOfType` answers |
+| `tdev_surrounding` | `rect?` (the lots `GetLotsSurroundingRect` appends for flag 1), `lots?` (`{"lot": [lots]}` for `GetLotsSurroundingLot`, flag 1); other flags append nothing | neighbour lists |
+| `tdev_tuning` | `none: true`, or `shipped?` (true) with `props?` (a property map merged over it) and `remove?` (IDs) | the "Building Development" exemplar |
+| `tdev_create` | `seed?` (the file-local generator's seed, injected; default `0x4C09C113`, the original's seed at clock 0), `crt_seed?` (1), `trace?` (true), `histogram?` (true), `shared?` (reuse the previous instance's statics) | a new tract developer |
+| `tdev_rng` | `seed`, or `lcg` and `mul`; `crt?` | sets the shared generator / `rand()` state |
+| `tdev_set` | any of `styles` (assigned as is), `style_index`, `years_since`, `years_between`, `single_style` | pokes the style state |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tdev_init` / `tdev_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `tdev_message` | `msg`, `expect?` | `DoMessage` |
+| `tdev_new_year` | `count?` (1) | `NewYear` |
+| `tdev_set_active_styles` | `styles` | `SetActiveStyles` |
+| `tdev_use_all_styles` | `value` | `UseAllStylesAtOnce` |
+| `tdev_grow` | `dev`, `tract` (`[x, z]`), `stage`, `append?` (keep the previous outcome list), `out_flag_in?`; checks `expect` (built), `outcomes` (the whole list), `out_flag` | `Grow` |
+| `tdev_decline` | `dev`, `tract`, `expect?` (the sum) | `Decline` |
+| `tdev_update_population` | `dev`, `tract` | `UpdatePopulation` |
+| `tdev_save` | `expect?` (hex), `ok?` | `Write` |
+| `tdev_load` | `hex`, `expect?` | `Read` |
+| `tdev_expect` | any of `style_index`, `years_since`, `years_between`, `single_style`, `all_styles`, `styles`, `current_style`, `desired` (`[desired, desiredMax]` of the last Grow), `chosen_cfg`, `chosen_building`, `lcg`, `mul`, `crt`, `initialised`, `configured`, `filters` (cached count), `tuning` (partial: `overbuild`, `reoccupy`, `redevelop_size_threshold`, `demolition`, `new_lot`, `occupancy_variation`, `min_vacancy`, `kick_out`, `available_styles`), `used` (resources), `lots` (existing tokens) | state |
+| `tdev_expect_lot` | `lot`; any of `exists`, `state`, `facing`, `building`, `population` (`{devType: n}`), `rect` | a lot |
+| `tdev_expect_hist` | `row`, `counts` (`{code: n}`; every other counter of the row is 0) | the debug histogram of the last Grow (§4.1) |
+| `tdev_expect_draws` | `draws`: each `"Rn"` (kind only) or `["Rn", arg, value]` (exact); `keep?` | the draws since the last check |
+| `tdev_expect_events` / `tdev_expect_event_count` / `tdev_clear_events` | see the shared conventions | host calls |
+| `tdev_eval` | `fn`, `args`, `expect`: `outcome_codes`, `best [codes]`, `desired [demand, overbuild]`, `capacity_window [candidate, desiredMax, built]`, `rect [x, z, w, h, facing]`, `corner [bits, candidate]`, `roads_check [bits, candidate, requireRoads]` (21 or `[27, corner]`), `style_points [fraction]`, `style_group [[[key, fraction]], r]`, `score [candidate, zone, tuning {demolition, new_lot}, seed]` (`{score, bits, mul}`), `hash_order [values]`, `stl_sort [scores]` (sorted indices), `query_interface [iid]`, `zone_family [zone]`; a candidate is `{kind, existing, abandoned, n, facing, lots, street, road, avenue, rail}` | pure functions |
+
+Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `acquire_message_server`,
+`release_message_server`, `remove_agent`, `release_services`, `register_filter` (`wealth`, `purpose`, `filter`),
+`unregister_filter` (`filter`), `claim` (`amount`, `ok`), `release` (`amount`), `needs_anchor` (`rect`, `purpose`),
+`start_construction` (`lot`, `cfg`, `building`, `flag`), `abandon` (`lot`, `reason`), `reoccupy` (`lot`,
+`dev_type`), `demolish` (`lot`), `delete_lot` (`lot`), `zone_draw` (`value`, R9), `create_lot` (`x`, `z`, `w`, `h`,
+`facing`, `lot`), `redisplay` (`rect`), `set_facing` (`lot`, `facing`), `set_state` (`lot`, `state`),
+`set_population` (`lot`, `dev_type`, `population`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -843,7 +1037,8 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
    `g10_…` and `tg10_…` (simgrid §10, `fc4_core::grid`),
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
-   `pr18_…` (protection §18), `fo16_…` (flora §16).
+   `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
+   `gd14_…` (growth developer §14), `td11_…` (tract developer §11).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1241,3 +1436,94 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 | 29 GetAllFloraTypes (and the other type queries) | `fo16_29_all_types` |
 | 30 obliteration | `fo16_30_obliteration` |
 | 31 AdvanceClusterType, 32 seed types | `fo16_31_32_clusters_seed_types` |
+
+## Coverage (building development §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 developer types, 2 map keys, 3 zone fits | `bd11_01_03_types_keys_zones` |
+| 4 monthly supply | `bd11_04_monthly_supply` |
+| 5 claim / release | `bd11_05_construction_resources` |
+| 6 grow order (seeds 12345 and 1); the multi-day draw sequence | `bd11_06_grow_order`, `bd11_06_grow_days` |
+| 7 tried-tract marks (and their save / Shutdown) | `bd11_07_tried_tract_marks` |
+| 8 decline plan (seed 99), 9 decline execution | `bd11_08_09_decline` |
+| 10 max density | `bd11_10_max_density` |
+| 11 suitability | `bd11_11_suitability` |
+| 12 building map, 13 highest stage | `bd11_12_13_building_map_stage` |
+| 14 record | `bd11_14_record` |
+| 15 stage multiplier (and the tuning reads) | `bd11_15_stage_multiplier` |
+| 16 catalogue queries | `bd11_16_catalogue` |
+| Init, Shutdown, Release, QueryInterface (§1) | `bd11_00_lifecycle` |
+| DoIdle / monthly state machine (§3.1, §4.1, §4.2) | `bd11_00_idle_monthly` |
+| messages: cheats, special buildings, terrain unpacking, PlaceBuilding (§3.2, §4.12) | `bd11_00_messages` |
+| DoTerrainChanged (§4.11) | `bd11_00_terrain_changed` |
+| placing buildings (§4.9) | `bd11_00_placing` |
+| Grow and decline edges (§4.3–§4.5) | `bd11_00_grow_edges` |
+| the daily Grow attempt budget ([choice] replacing the 3 ms timer, §4.4) | `bd11_06_grow_budget` |
+| persistence beyond test 14 (§6) | `bd11_00_persistence` |
+| catalogue loading, names, keys (§4.7.1–§4.7.3); hash order and resize | `bd11_00_catalogue_extras`, `bd11_00_catalogue_hash_order` |
+
+## Coverage (growth developer §14)
+
+| §14 item | Vector |
+|---|---|
+| Creation, Init, Shutdown, references, QueryInterface, slot table | `gd00_lifecycle` |
+| Getters, construction info, state machine bounds | `gd00_getters` |
+| Every desirability layer and EstimateDesirability against a model | `gd00_layers` |
+| Special buildings (states 14 → 16) | `gd00_special_buildings` |
+| Time slicing of state 18 (shared step) | `gd00_slicing` |
+| The game's `std::sort` and its tie order | `gd00_sort_ties` |
+| Shipped exemplars (§4.9) | `gd00_shipped_tuning` |
+| Draw sequence over several developers (§7): one draw per industrial update, the shared generator's state, salts as a multiset ([compat-limit]) | `gd00_draw_sequence` |
+| The BDS's developer operations, one method each (§12, BDS §1.5) | `gd00_replacement_unit` |
+| 1 population | `gd14_01_population` |
+| 2 max capacity | `gd14_02_max_capacity` |
+| 3 built capacity | `gd14_03_built_capacity` |
+| 4 stage assignment | `gd14_04_stage_assignment` |
+| 5 AddCurve wrap | `gd14_05_wrap` |
+| 6 commute | `gd14_06_commute` |
+| 7 EstimateDesirability vs update | `gd14_07_estimate` |
+| 8 lists | `gd14_08_lists` |
+| 9 industrial decline order (seeded RNG) | `gd14_09_industrial_decline_rng` |
+| 10 NewDay rule | `gd14_10_newday` |
+| 11 phantom demand (by the rules: 39, see the vector) | `gd14_11_phantom` |
+| 12 style map | `gd14_12_style_map` |
+| 13 tuning defaults | `gd14_13_tuning_defaults` |
+| 14 save round trip | `gd14_14_save` |
+| 15 subjective thresholds | `gd14_15_subjective` |
+| 16 StateChanged | `gd14_16_state_changed` |
+
+## Coverage (tract developer §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 outcome codes and `best` | `td11_01_02_codes_desired` |
+| 2 desired / desiredMax | `td11_01_02_codes_desired` |
+| 3 pass budget (18 passes; a failed relaxed pass ends the call) | `td11_03_pass_budget` |
+| 4 strict vs relaxed (rule 7) | `td11_04_strict_relaxed` |
+| 5 takeover thresholds | `td11_05_takeover` |
+| 6 score, residential type 2 | `td11_06_09_score` |
+| 7 score, commercial | `td11_06_09_score` |
+| 8 score, aggregation and subdivision lot costs | `td11_06_09_score` |
+| 9 industrial random term | `td11_06_09_score` |
+| 10 bounding rectangle | `td11_10_15_geometry_window_styles` |
+| 11 corner test | `td11_10_15_geometry_window_styles` |
+| 12 capacity window | `td11_10_15_geometry_window_styles` |
+| 13 style percentages → group | `td11_10_15_geometry_window_styles` |
+| 14 seeded PickBuilding draws (R3–R5), inside a full Grow | `td11_14_pick_building_draws` |
+| 15 hash order tie | `td11_10_15_geometry_window_styles`, `td00_hash_growth_sort` |
+| 16 seeded UpdatePopulation (R7), incl. the shipped variation 0 and tract (0, 0) (seed 1, [choice]) | `td11_16_17_update_population` |
+| 17 population clamps | `td11_16_17_update_population` |
+| 18 Decline (R8, multi-cell lot counted once) | `td11_18_decline` |
+| 19 save record (v3 bytes, v1 / v2 loads, v4 rejected, truncated records) | `td11_19_save_record` |
+| 20 style rotation | `td11_20_21_styles` |
+| 21 SetActiveStyles | `td11_20_21_styles` |
+| 22 subdivision geometry (facings 2 and 0, inside full Grows) | `td11_22_subdivision` |
+| 23 farm minimum (14 → 0, 15 → Claim(45), Release(30); R6) | `td11_23_farm` |
+| 24 IsLotSuitable order | `td11_24_lot_suitable_order` |
+| extra: STLport hash_set growth and `std::sort` (introsort, ties) | `td00_hash_growth_sort` |
+| extra: per-pass draw order of a full Grow with several scored candidates (R1, R2 × 3, R3, R4, R5) and a scored takeover | `td00_industrial_grow_draws` |
+| extra: lifecycle, messages, QueryInterface, filters, tuning reader | `td00_lifecycle_tuning` |
+| extra: aggregation, Build without a lot [quirk], resource failure | `td00_aggregation_build` |
+| extra: R9 (CreateLotIfPossible with facing −1) in the per-pass order | `td00_aggregation_r9` |
+| extra: kick-out, caps (building developer's power, own fire), style checks [quirk] | `td00_kickout_caps_styles` |

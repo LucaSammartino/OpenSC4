@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "growth_developer_estimate",
+  "spec": ["growth-developer 4.6", "growth-developer 4.3", "growth-developer 14.7"],
+  "description": "Test 7, EstimateDesirability vs the update (Python curve model). Baseline 25. Transient curve (-127,-100)(127,100), transient -1: the estimate reads the low byte unsigned (255) -> 25 + 100 = 125; the update uses -1 -> -0.7874069 -> 0 -> 25. Park curve (-100,-10)(100,10), park 300: estimate uses 44 -> 4.4000006 -> +4 (29); the update uses 300 -> +10 (35). Garbage (R$ shipped curve) on a landfill cell (bit 15 set, value -32768 + 300): the estimate reads it unsigned (33068 -> clamped -25 -> 0); the update's walker passes -32468 -> clamped +25 -> 50 (quirks 2 and 5).",
+  "steps": [
+    {"op": "gdev_env", "cells": [16, 16]},
+    {"op": "gdev_source", "map": "transient", "size": 4, "tracts": [[0, 0, -1]]},
+    {"op": "gdev_source", "map": "park", "size": 4, "tracts": [[0, 0, 300]]},
+    {"op": "gdev_source", "map": "pollution", "index": 2, "size": 4, "tracts": [[0, 0, -32468]]},
+    {"op": "gdev_create", "label": "a"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0x87CD6357": {"i32": 25}, "0x87CD6397": {"f32": [-127, -100, 127, 100]}}, "expect": true},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [0, 0], "expect": 125},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [3, 3], "expect": 125},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [4, 0], "expect": 25},
+    {"op": "gdev_update"},
+    {"op": "gdev_expect_grid", "grid": "desirability", "tracts": [[0, 0, 25], [1, 0, 25]]},
+    {"op": "gdev_create", "label": "b"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0x87CD6357": {"i32": 25}, "0x87CD6341": {"f32": [-100, -10, 100, 10]}}, "expect": true},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [0, 0], "expect": 29},
+    {"op": "gdev_update"},
+    {"op": "gdev_expect_grid", "grid": "desirability", "tracts": [[0, 0, 35]]},
+    {"op": "gdev_create", "label": "c"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x1010"}, "0x87CD6300": {"u8": 1}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 1}, "0x87CD6357": {"i32": 25}, "0x87CD634D": {"f32": [0.0, 25.0, 241.0, 24.0, 482.0, 22.0, 723.0, 20.0, 964.0, 19.0, 1205.0, 17.0, 1446.0, 15.0, 1687.0, 13.0, 1928.0, 11.0, 2168.0, 9.0, 2409.0, 7.0, 2650.0, 5.0, 2891.0, 2.0, 3132.0, -1.0, 3373.0, -4.0, 3614.0, -8.0, 3855.0, -13.0, 4096.0, -25.0]}}, "expect": true},
+    {"op": "gdev_call", "method": "estimate_desirability", "args": [0, 0], "expect": 0},
+    {"op": "gdev_update"},
+    {"op": "gdev_expect_grid", "grid": "desirability", "tracts": [[0, 0, 50], [2, 2, 50]]}
+  ]
+}

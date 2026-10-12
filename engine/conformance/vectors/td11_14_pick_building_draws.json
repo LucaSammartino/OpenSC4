@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "tract_developer_pick_building_draws",
+  "spec": ["tract-developer 4.16", "tract-developer 4.17", "tract-developer 4.22", "tract-developer 11.14"],
+  "description": "Test 14 inside a full Grow, by hand from 4.16 / 4.22 with the Python cRZRandom model. Residential developer, demand 1 (desired 1, desiredMax 1), style map {0x2000: 0.3, 0x2001: 0.7}, no anchor, one empty 1 x 1 lot, three compatible configurations C1 < C2 < C3 (tokens 101, 102, 103), all with primary family 600 whose members are inserted in the order 0x100, 0x101, 0x102, 0x2C1, 0x3, all of capacity 1 (window lo 1, hi max(1, 2) = 2). The file-local generator is forced to lcg = mul = 12345 after R1. Existing-lot listing keeps only the first compatible configuration (one candidate). PickBuilding: draw A RandomUint32Uniform(100) = 4 (lcg 0xD3DC167E) -> 4 < 30 -> group 0x2000; S_cfg = {C1, C2, C3}; draw B RandomUint32Uniform(3) = 2 (lcg 0xA70427DF) -> C3; the 193-bucket hash order of the family is 0x3, 0x100, 0x101, 0x102, 0x2C1; draw C RandomUint32Uniform(5) = 2 (lcg 0xD6651C2C) -> building 0x101. Build claims 1, demolishes the lot, starts construction (lot, C3, 0x101); built 1 >= desired ends the call. The mul state is untouched (12345).",
+  "steps": [
+    {"op": "tdev_developer", "id": 1, "demand": 1, "styles": [["0x2000", 0.3], ["0x2001", 0.7]]},
+    {"op": "tdev_lot", "id": 1, "at": [0, 0]},
+    {"op": "tdev_cfg", "id": 101, "size": [1, 1], "stage": 1, "purposes": [1], "wealths": [1], "primary": [600]},
+    {"op": "tdev_cfg", "id": 102, "size": [1, 1], "stage": 1, "purposes": [1], "wealths": [1], "primary": [600]},
+    {"op": "tdev_cfg", "id": 103, "size": [1, 1], "stage": 1, "purposes": [1], "wealths": [1], "primary": [600]},
+    {"op": "tdev_family", "id": 600, "members": ["0x100", "0x101", "0x102", "0x2C1", "0x3"]},
+    {"op": "tdev_building", "id": "0x100", "capacity": 1},
+    {"op": "tdev_building", "id": "0x101", "capacity": 1},
+    {"op": "tdev_building", "id": "0x102", "capacity": 1},
+    {"op": "tdev_building", "id": "0x2C1", "capacity": 1},
+    {"op": "tdev_building", "id": "0x3", "capacity": 1},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_rng", "seed": 12345},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 1, "expect": 1, "outcomes": [27]},
+    {"op": "tdev_expect_draws", "draws": [["R1", 16, 9], ["R3", 100, 4], ["R4", 3, 2], ["R5", 5, 2]]},
+    {"op": "tdev_expect", "lcg": "0xD6651C2C", "mul": 12345, "chosen_cfg": 103, "chosen_building": "0x101"},
+    {"op": "tdev_expect_events", "events": [
+      {"event": "register_filter", "wealth": 1, "purpose": 1},
+      {"event": "needs_anchor", "rect": [0, 0, 0, 0], "purpose": 1},
+      {"event": "claim", "amount": 1, "ok": true},
+      {"event": "demolish", "lot": 1},
+      {"event": "start_construction", "lot": 1, "cfg": 103, "building": "0x101", "flag": true}]}
+  ]
+}

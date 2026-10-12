@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "bds_decline_plan_and_execution",
+  "spec": ["building-development 4.3", "building-development 4.5", "building-development 4.14", "building-development 11.8", "building-development 11.9"],
+  "description": "Tests 8 and 9, from 4.3 / 4.5, the draws recomputed with an independent Python model (seed 99: NextRaw 0x00196FB0, 0x565A18BD, 0x5B7457A4, 0x9064E2E8, 0xBD542D09). Bias 10; 0x1010 ad -50 (purpose 1, decline [(4,8), (12,8)], weight 60), 0x3110 ad -30 (purpose 2, [(20,4)], weight 40), 0x4100 ad -90 (agriculture: excluded), 0x4200 ad -10 (not < -20: excluded). Total 100. Draws 0 -> 0x1010 (4,8); 33 -> 0x1010 (12,8); 35 -> 0x1010, used up: wasted; 56 -> wasted; 73 -> 73 - 60 = 13 < 40 -> 0x3110 (20,4); every list used up -> stop. 5 steps. now = 5000: plan (4,8) day 5000, (12,8) 5001, (20,4) 5002 (float32 sum, exact), stage 0, developers 257 (0x1010) and 258 (0x3110). Test 9: day 5000: Decline((4,8)) returns 0 -> dropped; the other two are not due -> kept. Day 5001: Decline((12,8), stage 0) returns 50 -> dropped and the day stops. Day 5002 with 0x3110's ad now -15 (> -20) -> (20,4) dropped without a call. Extra: the executor runs entries with ad exactly -20 (ad <= -20) while the planner skips ad -20 (needs < -20) [quirk 10.1.4]: a plan of two due entries whose first Decline succeeds keeps the second for the next day; PlanDecline with no qualifying developer makes one non-stepping RandomUint32Uniform(0) call and an empty plan.",
+  "steps": [
+    {"op": "bds_process", "seed": 99},
+    {"op": "bds_world", "day": 5000},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x3110"}, {"developer": "0x4100"}, {"developer": "0x4200"}]},
+    {"op": "bds_developers", "devs": {
+      "0x1010": {"ad": -50, "purpose": 1, "decline": [[4, 8, 9], [12, 8, 9]]},
+      "0x3110": {"ad": -30, "purpose": 2, "decline": [[20, 4, 9]]},
+      "0x4100": {"ad": -90, "purpose": 5, "decline": [[0, 0, 9]]},
+      "0x4200": {"ad": -10, "purpose": 6, "decline": [[1, 1, 9]]}}},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_expect", "state": {"developers": {"0x1010": 257, "0x3110": 258, "0x4100": 259, "0x4200": 260}}},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "plan_decline"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 100, "value": 0, "stepped": true},
+      {"event": "draw", "n": 100, "value": 33, "stepped": true},
+      {"event": "draw", "n": 100, "value": 35, "stepped": true},
+      {"event": "draw", "n": 100, "value": 56, "stepped": true},
+      {"event": "draw", "n": 100, "value": 73, "stepped": true}]},
+    {"op": "bds_expect", "state": {"steps": 5, "decline_plan": [[5000, 4, 8, 257, 0], [5001, 12, 8, 257, 0], [5002, 20, 4, 258, 0]]}},
+
+    {"op": "bds_tract", "decline": [0, 50]},
+    {"op": "bds_call", "method": "execute_decline_plan"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "tract_decline", "dev": 257, "x": 4, "z": 8, "stage": 0, "result": 0}]},
+    {"op": "bds_expect", "state": {"decline_plan": [[5001, 12, 8, 257, 0], [5002, 20, 4, 258, 0]]}},
+    {"op": "bds_world", "day": 5001},
+    {"op": "bds_call", "method": "execute_decline_plan"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "tract_decline", "dev": 257, "x": 12, "z": 8, "stage": 0, "result": 50}]},
+    {"op": "bds_expect", "state": {"decline_plan": [[5002, 20, 4, 258, 0]]}},
+    {"op": "bds_developers", "devs": {"0x3110": {"ad": -15}}},
+    {"op": "bds_world", "day": 5002},
+    {"op": "bds_call", "method": "execute_decline_plan"},
+    {"op": "bds_expect_events", "events": []},
+    {"op": "bds_expect", "state": {"decline_plan": [], "steps": 5}},
+
+    {"op": "bds_developers", "devs": {"0x1010": {"ad": -20}, "0x3110": {"ad": -20}}},
+    {"op": "bds_set", "state": {"decline_plan": [[5001, 1, 1, 257], [5002, 2, 2, 258], [5003, 3, 3, 258]]}},
+    {"op": "bds_tract", "decline": [7]},
+    {"op": "bds_call", "method": "execute_decline_plan"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "tract_decline", "dev": 257, "x": 1, "z": 1, "result": 7}]},
+    {"op": "bds_expect", "state": {"decline_plan": [[5002, 2, 2, 258, 0], [5003, 3, 3, 258, 0]]}},
+    {"op": "bds_tract", "decline": [-3]},
+    {"op": "bds_call", "method": "execute_decline_plan"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "tract_decline", "dev": 258, "x": 2, "z": 2, "result": -3}]},
+    {"op": "bds_expect", "state": {"decline_plan": [[5003, 3, 3, 258, 0]]}},
+    {"op": "bds_call", "method": "plan_decline"},
+    {"op": "bds_expect_events", "events": [{"event": "draw", "n": 0, "value": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"decline_plan": [], "steps": 5}}
+  ]
+}

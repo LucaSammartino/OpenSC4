@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "growth_developer_industrial_decline",
+  "spec": ["growth-developer 5.4", "growth-developer 7", "growth-developer 14.9"],
+  "description": "Test 9 (draw sequence): the shared generator seeded 12345 gives salt NextRaw() = 0x0C63D3DC (Python LCG model). An I-R developer (purpose 5) with zoned tracts (3,5) W 10, (4,5) 20, (10,2) 30, (0,0) 40 (thresholds 50): the decline list is built from the end of the W-sorted list, (3,5), (4,5), (10,2), (0,0), then sorted by descending key, key = NextRaw() of a fresh generator seeded (((x << 16) + z) << 4) XOR salt: seeds 0x0C53D38C, 0x0C23D38C, 0x0CC3D3FC, 0x0C63D3DC, keys 0xD552F46D, 0x80243FFD, 0x9C320AE0, 0xF1CC6936 -> (0,0), (3,5), (10,2), (4,5). The generator advanced exactly once. A key seed of 0xFFFFFFFF takes the wall clock (quirk; wall seed 777 here). The I zone queries only (0x4001, 0x20000). This is the only developer that draws, so its salt is the stream's first value whatever the salt-assignment order ([compat-limit]: only the draw count, the key derivation and the sort are pinned).",
+  "steps": [
+    {"op": "gdev_env", "cells": [64, 64]},
+    {"op": "gdev_source", "map": "park", "size": 4, "tracts": [[3, 5, 10], [4, 5, 20], [10, 2, 30], [0, 0, 40]]},
+    {"op": "gdev_statics", "seed": 12345},
+    {"op": "gdev_create"},
+    {"op": "gdev_init", "props": {"0x00000021": {"u32": "0x4100"}, "0x87CD6300": {"u8": 3}, "0x87CD6310": {"u8": 4}, "0x87CD6330": {"u8": 1}, "0x87CD6332": {"u8": 5}, "0x87CD6357": {"i32": 0}, "0x87CD6355": {"i32": 50}, "0x87CD6354": {"i32": 50}, "0x87CD6341": {"f32": [-40000, -40000, 40000, 40000]}}, "expect": true},
+    {"op": "gdev_set", "grid": "zoned", "tracts": [[3, 5, 1], [4, 5, 1], [10, 2, 1], [0, 0, 1]]},
+    {"op": "gdev_expect", "state": {"draws": 0, "rng_lcg": 12345}},
+    {"op": "gdev_clear_events"},
+    {"op": "gdev_update"},
+    {"op": "gdev_expect", "state": {"decline": [[0, 0, 1], [3, 5, 1], [10, 2, 1], [4, 5, 1]], "growth": [], "last_salt": "0xC63D3DC", "draws": 1, "rng_lcg": "0xD3DC167E"}},
+    {"op": "gdev_expect_event_count", "filter": {"event": "wall_clock_seed"}, "count": 0},
+    {"op": "gdev_expect_events", "filter": {"event": "get_demand"}, "events": [{"event": "get_demand", "id": "0x00004001", "index": "0x00020000", "node": null}]},
+    {"op": "gdev_call", "method": "decline_key_seed", "args": [3, 5, "0xC63D3DC"], "expect": "0xC53D38C"},
+    {"op": "gdev_call", "method": "decline_key_seed", "args": [4, 5, "0xC63D3DC"], "expect": "0xC23D38C"},
+    {"op": "gdev_call", "method": "decline_key_seed", "args": [10, 2, "0xC63D3DC"], "expect": "0xCC3D3FC"},
+    {"op": "gdev_call", "method": "decline_key_seed", "args": [0, 0, "0xC63D3DC"], "expect": "0xC63D3DC"},
+    {"op": "gdev_call", "method": "decline_key", "args": [3, 5, "0xC63D3DC"], "expect": "0xD552F46D"},
+    {"op": "gdev_call", "method": "decline_key", "args": [4, 5, "0xC63D3DC"], "expect": "0x80243FFD"},
+    {"op": "gdev_call", "method": "decline_key", "args": [10, 2, "0xC63D3DC"], "expect": "0x9C320AE0"},
+    {"op": "gdev_call", "method": "decline_key", "args": [0, 0, "0xC63D3DC"], "expect": "0xF1CC6936"},
+    {"op": "gdev_call", "method": "decline_key_seed", "args": [0, 0, "0xFFFFFFFF"], "expect": "0xFFFFFFFF"},
+    {"op": "gdev_env", "wall_seed": 777},
+    {"op": "gdev_call", "method": "decline_key", "args": [0, 0, "0xFFFFFFFF"], "expect": "0xC7A2E4"}
+  ]
+}

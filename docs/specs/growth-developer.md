@@ -864,8 +864,10 @@ city and only uses the GZCOM factory when loading.
 10. **NewDay rule**: start day 100; today 103: state 2 → false (2 < 3); state 3 → true; state 0 → true;
     today 100 → true for every state.
 11. **Phantom demand**: flag on, growth threshold 50, item with W 30 and population 200: f = r24(20 × 0.01f) =
-    0.2 (`0x3E4CCCCD`), term `ftol`(40.0) = 40 (r24(200 × 0.2f) = 40.0); last 0 → `AddToDemandValue(40.0)`.
-    Flag off with last = 40 → `AddToDemandValue(−40.0)`, last 0.
+    `0x3E4CCCCC` (0.19999999; the exact product 0.199999995529651641845703125 lies exactly halfway between
+    `0x3E4CCCCC` and `0x3E4CCCCD` and rounds to even, as protection test 25 has for 20), r24(200 × f) = 39.999996,
+    term `ftol` = **39** (corrected: not 40); last 0 → `AddToDemandValue(39.0)`. Flag off with last = 39 →
+    `AddToDemandValue(−39.0)`, last 0.
 12. **Style map**: pairs [0x3001, 50, 0x3002, 50] → 0.5f each (`0x3F000000`); pct 120 → 1.1999999.
 13. **Tuning defaults**: an exemplar with only `0x21` and `0x87CD6310`: baseline 80, thresholds 80 / 80, phantom
     off, caps 0/3/3/6 (power, water, fire, park), monopoly 1, abandonment 0.2 for keys 1..3 and 0.0 (inserted) for

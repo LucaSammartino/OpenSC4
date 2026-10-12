@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "name": "bds_grow_budget",
+  "spec": ["building-development 4.4", "building-development 4.14", "foundations 6.1"],
+  "description": "[choice] The daily Grow work budget that replaces the original's 3 ms timer: at most N tract-developer Grow attempts per Grow call; the day ends at N attempts or when every qualifying developer has had its one attempt, whichever comes first. A pick whose lists are invalid or whose growth list is empty is not an attempt. Draws recomputed with the independent Python model of the cRZRandom LCG and the Grow loop. Test-6 setup (bias 10; ad 0x1010 100, 0x1020 3 (excluded), 0x3110 40, 0x4300 250), seed 12345. N = 2: 20 of 420 -> 0x1010 attempts (1, 1); 308 of 310 -> 0x4300 attempts (4, 4); the budget is spent: no further draw, 0x3110 gets no attempt (2 steps). Next day, N = 1 (set with bds_grow_budget): 181 of 420 -> 181 - 110 - 50 = 21 < 260 -> 0x4300 again (its only item was marked, so the marks clear and it reuses (4, 4)); 3 steps, the same state as the unlimited test 6 after its day. N = 0: Grow draws nothing. N = 3: 315 of 420 -> 0x4300, 144 of 160 -> 0x3110, 29 of 110 -> 0x1010; the third attempt spends the budget, so unlike the unlimited case no RandomUint32Uniform(0) follows for the leftover 0x1020 (6 steps). A fresh BDS with N = 0 makes no draw at all. Seed 7, scenario A of bd11_00_grow_edges with N = 1: 0 of 66 -> 0x1020 with invalid lists (no attempt, not counted); 42 of 50 -> 0x3120 attempts (7, 7) and the budget is spent: the 20-draw for 0x3110 and the final 0-draw are not made (2 steps).",
+  "steps": [
+    {"op": "bds_process", "seed": 12345},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x1020"}, {"developer": "0x3110"}, {"developer": "0x4300"}]},
+    {"op": "bds_developers", "devs": {
+      "0x1010": {"ad": 100, "growth": [[1, 1, 1]]},
+      "0x1020": {"ad": 3, "growth": [[2, 2, 1]]},
+      "0x3110": {"ad": 40, "growth": [[3, 3, 2]]},
+      "0x4300": {"ad": 250, "growth": [[4, 4, 3]]}}},
+    {"op": "bds_create", "grow_budget": 2},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_expect", "state": {"grow_budget": 2, "steps": 0}},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 20, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "x": 1, "z": 1, "stage": 1},
+      {"event": "draw", "n": 310, "value": 308, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 4, "z": 4, "stage": 3}]},
+    {"op": "bds_expect", "state": {"steps": 2, "rng_state": "0xA70427DF", "marks": {"0x1010": [[1, 1]], "0x4300": [[4, 4]]}}},
+
+    {"op": "bds_grow_budget", "value": 1},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 181, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 4, "z": 4, "stage": 3}]},
+    {"op": "bds_expect", "state": {"grow_budget": 1, "steps": 3, "rng_state": "0xD6651C2C"}},
+
+    {"op": "bds_grow_budget", "value": 0},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": []},
+    {"op": "bds_expect", "state": {"grow_budget": 0, "steps": 3}},
+
+    {"op": "bds_grow_budget", "value": 3},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 315, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 4, "z": 4},
+      {"event": "draw", "n": 160, "value": 144, "stepped": true},
+      {"event": "tract_grow", "type": "0x3110", "x": 3, "z": 3},
+      {"event": "draw", "n": 110, "value": 29, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "x": 1, "z": 1}]},
+    {"op": "bds_expect", "state": {"steps": 6, "rng_state": "0x3EAD62FB"}},
+
+    {"op": "bds_process", "seed": 12345},
+    {"op": "bds_create", "grow_budget": 0},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": []},
+    {"op": "bds_expect", "state": {"steps": 0, "rng_state": "0x3039"}},
+
+    {"op": "bds_process", "seed": 7},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x1020"}, {"developer": "0x1030"},
+      {"developer": "0x3110"}, {"developer": "0x3120"}, {"developer": "0x4300"}]},
+    {"op": "bds_developers", "devs": {
+      "0x1010": {"ad": 5.9, "growth": [[1, 1, 1]]},
+      "0x1020": {"ad": 6, "valid": false, "growth": [[3, 3, 1]]},
+      "0x1030": {"no_node": true, "growth": [[4, 4, 1]]},
+      "0x3110": {"ad": 10, "growth": []},
+      "0x3120": {"ad": 20, "growth": [[7, 7, 2]]},
+      "0x4300": {"ad": 0, "growth": [[8, 8, 1]]}}},
+    {"op": "bds_create", "grow_budget": 1},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 66, "value": 0, "stepped": true},
+      {"event": "draw", "n": 50, "value": 42, "stepped": true},
+      {"event": "tract_grow", "type": "0x3120", "x": 7, "z": 7, "stage": 2}]},
+    {"op": "bds_expect", "state": {"steps": 2, "rng_state": "0x264E4F5D", "marks": {"0x3120": [[7, 7]]}}}
+  ]
+}
