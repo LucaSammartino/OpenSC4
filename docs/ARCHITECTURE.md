@@ -65,8 +65,8 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 
 | Milestone | Scope | Exit criteria |
 |---|---|---|
-| **M0: toolchain** | CMake project, core library, tests, a plugin DLL that loads in the game | the DLL loads in SC4 and its director logs `PostAppInit`; tests pass |
-| **M1: the clock** | `cSC4Simulator` replacement ([spec](specs/simulator.md)) | a city runs at all speeds; pause/emergency/save/load work; a differential log of agent messages matches the original on the same save |
+| **M0: toolchain** ✅ | CMake project, core library, tests, a plugin DLL that loads in the game | the DLL loads in SC4 and its director logs `PostAppInit`; tests pass |
+| **M1: the clock** 🟡 runs in-game | `cSC4Simulator` replacement ([spec](specs/simulator.md)) | a city runs at all speeds; pause/emergency/save/load work; a differential log of agent messages matches the original on the same save |
 | M2: scalar sims | Budget, Demand, Ordinance, Weather | the budget and demand panels match the original after N months on reference saves |
 | M3: grid sims | SimGrid, LandValue, Pollution, Crime, Aura, Power, Plumbing, Protection, Flora, Flammability | grid snapshots match within tolerance |
 | M4: growth | BuildingDevelopment and the lot/tract/growth/zone developers | the growth statistics distribution matches across seeded runs |
@@ -75,3 +75,12 @@ Migration path (to all-Rust, or any other rewrite) built in from day one:
 
 Verification uses **differential testing**: run the same save in the original and with our replacement, log messages
 and grid states from a small observer plugin, and diff the results.
+
+## Status log
+
+- **2026-10-12, M0 done:** `FreeCity4.dll` loads in SimCity 4 1.1.641 and its class factory replaces `cSC4Simulator`.
+- **2026-10-12, M1 runs in-game:** a saved city loads into our simulator. About 100 original subsystems register as
+  agents and are scheduled by our code. Days, weeks (Mondays) and months advance with the correct message data. Key
+  finding: the simulator also owns the CPU-cycle limit-timer calibration (spec §5.5). Without it, original
+  subsystems never finish their daily work. Still to do for M1 exit: verify save → reload in-game, pause and
+  emergency flows, and a differential comparison against the original on the same save.
