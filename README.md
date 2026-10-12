@@ -1,11 +1,16 @@
 # FreeCity4
 
-Reverse engineering of **SimCity 4 Deluxe 1.1.641** (GOG Windows exe,
-SHA-256 `3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`), starting from the
-simulation engine and working toward a full, named decompilation.
+An **open-source (GPL-3.0-or-later) reimplementation of the SimCity 4 engine**. It is built the way OpenRCT2 was:
+original code replaces the game piece by piece, verified against the real game, until it no longer needs the
+original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-256
+`3bc5c7fe807fe5aa24a3abb06e40f13486670bc1150612c09baf4ecedafe1a4b`). You need your own copy of the game.
 
-You need your own copy of the game. This repo contains analysis, tools and derived notes. It does not
-contain game binaries or assets.
+- How it works and the roadmap: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- How to contribute (clean-room rules): [CONTRIBUTING.md](CONTRIBUTING.md)
+- Specs for engine authors: [docs/specs/](docs/specs/)
+
+The rest of this README covers the **reverse-engineering workspace** that produces those specs. That material is
+for spec writers only. It contains no game binaries or assets, and decompiled output is never committed.
 
 ## Start here
 

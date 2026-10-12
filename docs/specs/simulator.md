@@ -1,0 +1,311 @@
+# Spec: the simulator service (`cISC4Simulator`)
+
+Status: **implementation spec**, clean-room input. This document describes *behaviour*, not code. It was
+written by the analysis team from observing the original program. Implementers must work from this spec,
+the public LGPL gzcom-dll SDK headers and general knowledge only. They must **not** consult decompiled or
+disassembled code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
+
+Normative words: **must**, **should**, **may**. Tagged notes: *[compat]* is required for compatibility with the
+original game and its plugins; *[choice]* is a behaviour we chose where the original was arbitrary or undefined.
+
+## 1. Role
+
+The simulator is the game's master clock and work scheduler. It:
+
+1. keeps the **simulation date** (a day count) and advances it;
+2. runs every subsystem ("agent") at its registered cadence, within a per-frame CPU **budget**, letting long jobs
+   continue across frames;
+3. broadcasts calendar messages (new day/week/month/year) and state changes (pause/speed);
+4. persists its state in the city save file.
+
+It is a GZCOM object with class ID `0x2990C1E5`. It implements these interfaces, each reachable through
+`QueryInterface`:
+
+| Interface | IID | Notes |
+|---|---|---|
+| `cISC4Simulator` | `0x8695664E` | primary |
+| `cIGZSerializable` | gzcom-dll `GZIID_cIGZSerializable` | save/load (§8) |
+| `cIGZSystemService` | per SDK | service ID `0x46956659`, service priority `-2000000` *[compat]* |
+| `cIGZMessageTarget2` | per SDK | receives notifications, commands and cheats (§9) |
+| `cIGZUnknown` | | |
+
+The city object obtains the simulator through `GZCOM()->GetClassObject(0x2990C1E5, 0x8695664E, &p)`. Sub-systems
+then reach it through `cISC4City::GetSimulator()`. Nothing in the game depends on the simulator's private memory
+layout. Only these interfaces are used.
+
+## 2. Time model
+
+### 2.1 Date
+- The date is a **Julian day number** (an integer day count). 2000-01-01 is day **2451545** *[compat]*.
+- Calendar fields use the proleptic Gregorian calendar:
+  - **day of month** 1..31, **month** 1..12, **year** (e.g. 2000);
+  - **day of year** 1..366;
+  - **weekday** 1..7 with **1 = Monday** and 7 = Sunday, so 2000-01-01 is weekday 6 *[compat]*.
+- The date exposed through `GetSimDate()` is a `cIGZDate` object reflecting the current day.
+
+### 2.2 Levels
+Agents run at one of **11 levels**. The scheduler message for level *L* has type `0x66956810 + L`.
+
+| L | Name | Message | Cadence |
+|---|---|---|---|
+| 0 | OneShot | `0x66956810` (SimBegin) | continuous: every frame until the agent finishes, then the agent is removed |
+| 1 | Emergency | `0x66956811` | continuous: every frame while registered |
+| 2 | Minute | `0x66956812` | each sim minute (see 2.3) |
+| 3 | Hour | `0x66956813` | each sim hour |
+| 4 | Day | `0x66956814` | each sim day |
+| 5 | Week | `0x66956815` | each Monday |
+| 6 | Month | `0x66956816` | each 1st of the month |
+| 7 | Year | `0x66956817` | each 1st of January |
+| 8 | SpecificDay | `0x66956818` | reserved; never fired by the clock *[compat]* |
+| 9 | SpecificTime | `0x66956819` | reserved; never fired by the clock *[compat]* |
+| 10 | Idle | `0x6695681A` | leftover frame time (§5.4) |
+
+### 2.3 Interval counters
+The simulator keeps a 32-bit **counter per level**. For the minute and hour levels this is a progress count. For
+day/week/month/year it holds the value last announced, and is sent as `data3` of that level's messages:
+
+- minute counter: 0..60. The hour can roll when it reaches 60.
+- hour counter: 0..24. The day can roll when it reaches 24.
+- day counter := day of year of the new date
+- week counter := `(dayOfYear − 1) / 7 + 1` (integer division)
+- month counter := month (1..12)
+- year counter := year
+
+If **no agent is registered** at the minute level, the minute counter jumps straight to 60 in one step. The same
+applies to the hour level and 24. In the shipped game no agent uses minutes or hours, so the day is the effective
+step *[compat]*.
+
+## 3. State
+
+| State | Initial value | Persisted (§8) |
+|---|---|---|
+| initialized | false | no |
+| inTick (re-entrancy guard) | false | yes (written as a byte; ignored on read) |
+| cityEstablished | false | yes |
+| pauseCount | 0 | yes |
+| hiddenPauseCount | 0 (set to 1 by `Init`) | no |
+| emergencyPauseCount | 0 | no |
+| simSpeed | 3 (= unset) | yes |
+| simTime | 0 | yes |
+| speedChangeEnabled | true | no |
+| frameBudgetMs | 15 | yes |
+| gateLevel | 4 (Day) | no |
+| msPerDay | 100 | no (recomputed) |
+| targetFps | 15 | no (recomputed) |
+| msPerDayTable[3] | {5000, 1000, 100} (overridden by tuning, §7) | no |
+| animationDilation[5] | {0, 1, 1.5, 2, 1} (overridden by tuning) | no |
+| levelCounter[11] | all 0 | yes |
+| levelFired[11] | all false | yes |
+| date | 2000-01-01 | yes (as a Julian day) |
+| agents[11] | empty ordered collections | no |
+| cursor[11] | position in agents[L], initially at end | no |
+| idleCursor | at end | no |
+| three timers | frameTimer, intervalTimer, sliceTimer (millisecond resolution) | no |
+
+## 4. Agents
+
+An **agent** is a `cIGZMessageTarget2*` plus a level, a name (string) and flags.
+
+- `AddAgent(target, level, name, flags) -> bool` *[compat]*:
+  - If `level ≥ 11`, do nothing. In both cases return true.
+  - The agent is **enabled** if `cityEstablished ? (flags & 2) : (flags & 1)`.
+  - A target may appear at most once per level. Adding it again is a no-op.
+  - The simulator holds a reference: `AddRef` on add, `Release` on removal.
+  - Order within a level: *[choice]* **registration order**. The original ordered agents by object address, which is
+    effectively arbitrary, so no behaviour may depend on it.
+- `RemoveAgent(target, level) -> bool`: removes that registration. If the level's cursor is on it, the cursor first
+  moves to the next agent. Returns true if something was removed, false otherwise (including `level ≥ 11`).
+- `RemoveAgent(target) -> bool`: the same for every level. Returns true if any registration was removed.
+- `RemoveAllAgents(level)` and `RemoveAllAgents()`: clear the level (or all levels). Their cursors move to end. Return true.
+- `SetCityEstablished(b)`: if the value changes, store it and recompute every agent's *enabled* bit from its flags
+  (overwriting any `SetAgentEnabled` override). Returns true.
+- `GetAgentEnabled(name) -> bool`: true if **any** registration whose name equals `name` (case-sensitive) is
+  enabled.
+- `SetAgentEnabled(name, b)`: sets *enabled* on **every** registration with that name. Returns true.
+- `EnumerateAgentsByName(vector<SC4String>&)`: appends the name of every registration, level by level. Returns true.
+
+**Delivering an agent message**: create a `cIGZMessage2Standard`-compatible message with
+`type = 0x66956810 + L`, `data1 = current Julian day`, `data2 = 0`, `data3 = levelCounter[L]`, then call the agent's
+`DoMessage` synchronously. Its **boolean result means "finished"**:
+- **true**: the agent completed this interval's work;
+- **false**: it wants to be called again with the same message on a later frame.
+
+Disabled agents are skipped and count as finished.
+
+## 5. Per-frame behaviour
+
+### 5.1 `OnTick` (cIGZSystemService)
+
+```
+elapsed := frameTimer.elapsedMs();  frameTimer.restart()
+target  := (pauseCount ≤ 0 and hiddenPauseCount ≤ 0) ? 1000 / targetFps : 33
+frameBudgetMs := max(15, target − elapsed)
+if initialized and not inTick:
+    inTick := true;  sliceTimer.restart()
+    repeat:
+        if hiddenPauseCount > 0: stop
+        if pauseCount ≤ 0:
+            SimulateTimePassage();  SimulateAgents();  SimulateIdleTime()
+        else:
+            SimulateIdleTime()
+    until sliceTimer.elapsedMs() ≥ frameBudgetMs
+    inTick := false
+return true
+```
+
+A higher speed gives the simulator *more* time per frame (a lower target fps means a larger budget).
+
+### 5.2 `SimulateTimePassage`
+
+1. Clear all `levelFired[]`.
+2. If any agent is registered at level 0 or level 1, return. Calendar time does not pass while one-shot or
+   emergency work is pending.
+3. `ready := intervalTimer.elapsedMs() ≥ msPerDay`.
+4. `done[L] := (cursor[L] is at end of agents[L])` for L = 2..10.
+5. Let `tomorrow := date + 1`. Compute `startsWeek := tomorrow.weekday == 1`, `startsMonth := tomorrow.day == 1`,
+   `startsYear := tomorrow.dayOfYear == 1`.
+6. **Minute**: if `done[2]` and (`gateLevel ≠ 2` or `ready`):
+   - if `gateLevel == 2`, restart the interval timer;
+   - if level 2 has no agents, set `levelCounter[2] := 60`; otherwise set `levelFired[2] := true` and increment
+     `levelCounter[2]`.
+7. **Hour**: if `levelCounter[2] ≥ 60` and `done[3]` and (`gateLevel ≠ 3` or `ready`):
+   - set `levelCounter[2] := 0`; if `gateLevel == 3`, restart the interval timer;
+   - if level 3 has no agents, set `levelCounter[3] := 24`; otherwise set `levelFired[3] := true` and increment
+     `levelCounter[3]`.
+8. **Day**: if `levelCounter[3] ≥ 24` and (`gateLevel ≠ 4` or `ready`) and `done[4]` and none of
+   (`startsWeek and not done[5]`, `startsMonth and not done[6]`, `startsYear and not done[7]`):
+   - set `levelCounter[3] := 0`; if `gateLevel == 4`, restart the interval timer;
+   - set `levelFired[4] := true`; advance `date` by one day;
+   - set `levelCounter[4] := dayOfYear`, then **post** `SimNewDay(0x66956814, data1 = julian, data2 = 0, data3 = dayOfYear)`;
+   - if weekday == 1: `levelFired[5] := true`, `levelCounter[5] := weekOfYear` (2.3), post `SimNewWeek`;
+   - if day == 1: `levelFired[6] := true`, `levelCounter[6] := month`, post `SimNewMonth`;
+   - if dayOfYear == 1: `levelFired[7] := true`, `levelCounter[7] := year`, post `SimNewYear`.
+
+"Post" means a broadcast through the message server's `MessagePost(msg, false)` (queued), so it is visible to
+every subscriber. This is separate from the synchronous agent delivery in §4.
+
+### 5.3 `SimulateAgents`
+
+1. For each level L = 2..7 with `levelFired[L]`: **BeginNewInterval(L)**:
+   - if level L has agents: deliver the level-L message to every agent from `cursor[L]` to the end, **repeating
+     each agent until it reports finished** (a synchronous flush of the previous interval's unfinished work);
+     then set `cursor[L]` to the first agent.
+2. Then walk levels in order, starting at L = 0:
+   - If `cursor[L]` is at end:
+     - for L ∈ {0, 1} with agents registered: *[choice]* set `cursor[L]` to the first agent and keep going at that
+       level (these levels run continuously);
+     - otherwise go to L + 1. Stop when L reaches 10. The idle level is not handled here.
+   - Otherwise deliver the level-L message to the agent at `cursor[L]`. If it is disabled, or reports finished,
+     advance `cursor[L]`. A finished level-0 agent is then **removed** from level 0.
+   - After each delivery, stop if `sliceTimer.elapsedMs() ≥ frameBudgetMs`.
+
+Consequence *[compat]*: a level's work for one interval can span many frames, but the clock (5.2) will not open the
+next day until the day level, and any week/month/year level due tomorrow, has drained.
+
+### 5.4 `SimulateIdleTime`
+If `hiddenPauseCount ≤ 0` and the idle level has agents:
+- If `idleCursor` is at end, move it to the first idle agent. Let `share := frameBudgetMs / 3`.
+- Repeat until `idleCursor` returns to end:
+  - Let `t := sliceTimer.elapsedMs()`. Stop if `t ≥ frameBudgetMs`.
+  - Take the agent at `idleCursor`, then advance the cursor.
+  - If it is enabled, deliver `SimIdle(0x6695681A, data1 = julian, data2 = (pauseCount > 0 ? 1 : 0),
+    data3 = min(frameBudgetMs − t, share))`. Its result is ignored.
+
+## 6. Speed and pause
+
+| Method | Behaviour |
+|---|---|
+| `Pause()` | `pauseCount += 1`; on 0→1, post `0xAA7FB7E0` (data1 = 1). Return true. |
+| `Resume()` | **only if `speedChangeEnabled`**: `pauseCount −= 1`; on reaching 0, post `0xAA7FB7E0` (data1 = 0). Return true. |
+| `HiddenPause()` / `HiddenResume()` | the same with `hiddenPauseCount` and message `0x4A7FB7E2`. There is no speed-lock check. |
+| `EmergencyPause()` | call `Pause()`; set `speedChangeEnabled := false`; `emergencyPauseCount += 1`; on 0→1 post `0x4A7FB807` (data1 = 1). |
+| `EmergencyResume()` | set `speedChangeEnabled := true`; call `Resume()`; `emergencyPauseCount −= 1`; on reaching 0 post `0x4A7FB807` (data1 = 0). |
+| `IsPaused()` / `IsHiddenPaused()` / `IsEmergencyPaused()` | the matching count > 0 |
+| `IsAnyPaused()` | any of the three counts > 0 |
+| `GetSimSpeed()` / `SetSimSpeed(s)` | `SetSimSpeed` returns false if `!speedChangeEnabled`. Otherwise, if `s ≠ simSpeed`, it applies **DoSetSimSpeed(s)**; return true. |
+| DoSetSimSpeed(s) | `s` 0/1/2 sets `targetFps` to 30/20/15; any other value does nothing. Then `simSpeed := s`, `msPerDay := msPerDayTable[s]`, restart the interval timer, post `0x4A7FB7E9` (data1 = s). |
+| `GetSimTime()` / `SetSimTime(t)` | plain accessor for `simTime`. It has no other effect. |
+| `SetMaxMillisecondsPerTick(ms)` | accepted and ignored *[compat]*. Return true. |
+| `GetAnimationTimeDilation()` | `dil[4]` if emergency-paused; else `dil[0]` if paused; else `dil[2]` for speed 1, `dil[3]` for speed 2, `dil[1]` otherwise. *[choice]* The original also returns `dil[4]` while the vehicle manager is in "driving" mode. We will add that when the vehicle manager is specified. |
+
+Mapping to the UI: turtle = speed 0, llama = 1, cheetah = 2.
+
+## 7. Tuning
+
+`Init` reads the exemplar with TGI type `0x6534284A`, group `0xE7E2C2DB`, instance `0xE9590E52` ("Main
+Simulator"), through the game's resource manager, as a property holder:
+
+| Property | Type | Effect |
+|---|---|---|
+| `0x89590E6D` | uint32[3] | `msPerDayTable`. It is only used if it has exactly 3 values. Shipped data: {2000, 1000, 50}. |
+| `0x89590E6E` | float[5] | `animationDilation`. Shipped data: {1, 1, 1.5, 3, 1}. |
+
+If the exemplar or a property is missing, the defaults in §3 apply.
+
+## 8. Persistence (`cIGZSerializable`)
+
+`GetGZCLSID()` returns `0x2990C1E5`. The record is little-endian and written in this order *[compat]*. Existing
+saves must load, and saves we write must load in the original game:
+
+```
+uint16  version = 4
+uint8   inTick
+uint8   cityEstablished
+int32   pauseCount
+int32   simSpeed
+int32   simTime
+uint32  frameBudgetMs
+11 × { uint32 levelCounter[L]; uint8 levelFired[L] }     L = 0..10
+uint32  julianDay
+```
+
+- `Read` must fail (return false) for `version ≥ 5`.
+- For `version < 4`, a serialized timer sits between the level entries and `julianDay`. Read it with the stream's
+  timer format and discard it. *[choice]* We may reject versions below 4 until a sample save is available.
+- After `Read`, the speed is re-applied by `Init` (`msPerDay` and `targetFps` are derived, not saved).
+
+## 9. Lifecycle, notifications, commands and cheats
+
+`Init()` (does nothing if already initialized):
+1. Set `initialized := true` and `hiddenPauseCount := 1`. The game starts hidden-paused until the city view resumes it.
+2. Read the tuning values (§7).
+3. Subscribe on the message server to `0x26D31EC1` (shutdown request) and `0x8BAC4B43` (command).
+4. Register the command `0x8BAC4B43` with the name `"GetSimulationDate"` with the command server.
+5. Set every cursor to the start of its level.
+6. If `simSpeed == 3`, call `SetSimSpeed(0)`. Otherwise apply `DoSetSimSpeed(simSpeed)`.
+7. Start the frame timer and the interval timer.
+8. Register with the framework as a system service and add it to the tick list.
+9. With the cheat code manager:
+   - register cheat `0x0AC07E24` with the text `"FPS"` and subscribe to it;
+   - if the app is in debug mode, also register `0x8A78BEFF` with the text `"SimDate"` and subscribe to it.
+
+`Shutdown()` (does nothing if not initialized):
+1. Unregister both cheats.
+2. Reset the date to 2000-01-01 and set `simSpeed := 3`.
+3. Remove all agents.
+4. Unsubscribe the notifications and release the message server.
+5. Unregister the command.
+6. Remove the service from the tick list and from the framework.
+7. Set `initialized := false`.
+
+`DoMessage(msg)` handles:
+- `0x26D31EC1`: unsubscribe from it and call `Shutdown()`.
+- `0x8BAC4B43` (GetSimulationDate command): fill the command's output parameters named "year", "month",
+  "day of month", "day of week", "day of year" and "number" (Julian) with the current values.
+- Cheat notifications (cheat code manager message `0x230E27AC`, data = cheat ID and argument string):
+  - `FPS <n>`: set `targetFps := n`.
+  - `SimDate <m> <d> [<y>]`: set the date (keep the year if omitted), then run `SimulateTimePassage` once.
+- Anything else is ignored. Return true.
+
+## 10. Conformance tests (must exist in `engine/tests`)
+
+1. Date conversions: 2000-01-01 ↔ 2451545 and weekday 6. Leap years 2000 (leap), 2100 (not), 2400 (leap).
+2. With a day agent that always finishes, speed 2 and `msPerDay = 50`: after enough simulated time, exactly one
+   day message per ≥ 50 ms, carrying data1 = Julian day and data3 = day of year.
+3. A day agent that needs 3 calls per day delays the next day until it finishes, even when `ready` is true.
+4. Week, month and year messages fire on Monday / the 1st / January 1st with the documented `data3`, and only
+   after their own agents have drained.
+5. One-shot agents block calendar time until they finish, and are then removed.
+6. Pause/Resume counting, the emergency speed lock, and posting on 0↔1 transitions only.
+7. Enabled-bit selection by `cityEstablished` and the `SetAgentEnabled` override.
+8. Save round-trip (write → read → write gives identical bytes) and rejection of version 5.
