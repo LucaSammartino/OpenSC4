@@ -11,16 +11,27 @@ use crate::curve::ResponseCurve;
 use crate::grid::{process_two_grids, GridElem, TractGrid, MAX_TRACTS};
 
 use super::simulator::{AuraSim, Hotspot, MAX_LOTS_PER_CALL};
-use super::{clamp_aura, ids, msg, trunc, IteratedLot};
-
-/// `trunc` to `i16`, saturating ([choice]).
-fn to_i16(v: f32) -> i16 {
-    trunc(f64::from(v)).clamp(i64::from(i16::MIN), i64::from(i16::MAX)) as i16
-}
+use super::{clamp_aura, clamp_store, ids, msg, store_i16, store_i8, trunc32, IteratedLot};
 
 /// The residential developer types' wealth index (§6.5.1).
 fn wealth_of(developer_type: u32) -> Option<usize> {
     ids::DEVELOPER_RESIDENTIAL.iter().position(|&t| t == developer_type)
+}
+
+/// The population tract read for aura tract `(x, z)` (§6.15): the one that
+/// contains the aura tract's centre cell, `⌊(x·S + S/2) / P⌋` ([choice]; the
+/// identity when P = S, the original's raw indexing). A tract size ≤ 0
+/// reads the aura indices.
+pub(super) fn population_tract(x: i32, z: i32, s: i32, p: i32) -> (i32, i32) {
+    if p <= 0 || p == s {
+        return (x, z);
+    }
+    let at = |t: i32| {
+        let c = i64::from(t) * i64::from(s) + i64::from(s / 2);
+        c.div_euclid(i64::from(p))
+            .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+    };
+    (at(x), at(z))
 }
 
 /// Tract counts clamped for loops.
@@ -158,7 +169,8 @@ impl AuraSim {
         for x in 0..nx {
             for z in 0..nz {
                 let v = raw.get(x, z);
-                park.set(x, z, if v > 0 { to_i16(f32::from(v) * f) } else { v });
+                // One f32 multiply, then the int16 store (wraps, NaN → 0).
+                park.set(x, z, if v > 0 { store_i16(f32::from(v) * f) } else { v });
             }
         }
     }
@@ -223,10 +235,11 @@ impl AuraSim {
                     for z in 0..nz {
                         let v = grid.get(x, z);
                         let scaled = if v > 0 { f32::from(v) * f } else { f32::from(v) };
+                        // int16 stores: the low 16 bits (§6.3, wraps).
                         let w = if first {
-                            to_i16(scaled)
+                            store_i16(scaled)
                         } else {
-                            to_i16(f32::from(work.get(x, z)) + scaled)
+                            store_i16(f32::from(work.get(x, z)) + scaled)
                         };
                         work.set(x, z, w);
                     }
@@ -268,7 +281,7 @@ impl AuraSim {
                 } else {
                     let delta = rate - d.previous_tax_rate[t];
                     if delta != 0.0 {
-                        let e = trunc(f64::from(c.eval(delta))) as i32;
+                        let e = trunc32(f64::from(c.eval(delta)));
                         if t < 3 {
                             eff[t] = base[t].wrapping_add(e);
                         }
@@ -280,35 +293,38 @@ impl AuraSim {
     }
 
     /// State 5 (§6.5): stamp lots until the iterator ends or the time
-    /// budget is used up.
+    /// budget is used up. Each iteration adds `step` to a counter and reads
+    /// the clock only when the counter is a multiple of 1024; the step
+    /// adapts to `count >> 10` at the end of every call.
     fn step_lots(&self, ms: u32) {
         let mut slice = self.slice.get();
-        let step = slice.step.max(1);
+        let step = slice.step.clamp(1, 1024);
         self.host.limit_timer_start(ms);
         let Some(mut it) = self.lots.borrow_mut().take() else {
+            // [choice] No iterator: the walk ends.
             self.set_state(6);
             return;
         };
-        let mut processed = 0u32;
-        let mut done = false;
-        'outer: while processed < MAX_LOTS_PER_CALL {
-            for _ in 0..step {
-                match it.next_lot() {
-                    None => {
-                        done = true;
-                        break 'outer;
-                    }
-                    Some(lot) => {
-                        self.stamp_lot(&lot);
-                        processed += 1;
-                    }
+        let mut count = 0u32;
+        let mut taken = 0u32;
+        let done = loop {
+            count = count.wrapping_add(step);
+            if count % 1024 == 0 && self.host.limit_timer_expired() {
+                break false;
+            }
+            // [choice] A cap per call, whatever the host's clock says.
+            if taken >= MAX_LOTS_PER_CALL {
+                break false;
+            }
+            match it.next_lot() {
+                None => break true,
+                Some(lot) => {
+                    self.stamp_lot(&lot);
+                    taken += 1;
                 }
             }
-            if self.host.limit_timer_expired() {
-                break;
-            }
-        }
-        slice.adapt(processed);
+        };
+        slice.adapt(count >> 10);
         self.slice.set(slice);
         if done {
             self.set_state(6);
@@ -358,7 +374,9 @@ impl AuraSim {
                 let cx = ((i64::from(r.x1) + i64::from(r.x2)) / 2) as i32;
                 let cz = ((i64::from(r.z1) + i64::from(r.z2)) / 2) as i32;
                 let d = self.host.land_value_type(cx, cz).wrapping_sub(lot.occupant_wealth);
-                clamp_aura(i64::from(avg) + trunc(f64::from(c.eval(d as f32))))
+                // 32-bit add of the low 32 bits of `_ftol`, then clamp (§6).
+                let e = trunc32(f64::from(c.eval(d as f32)));
+                clamp_aura(i64::from(i32::from(avg).wrapping_add(e)))
             }
             None => avg,
         }
@@ -387,7 +405,7 @@ impl AuraSim {
                 Some(c) => c.eval(v),
                 None => v,
             };
-            *w = clamp_aura(trunc(f64::from(f32::from(*w) + add)));
+            *w = clamp_store(f32::from(*w) + add);
         });
     }
 
@@ -432,13 +450,13 @@ impl AuraSim {
                     // One 24-bit rounding of the exact product (foundations §18).
                     let p = (d as f64 * f64::from(m)) as f32;
                     let step = if d > 0 {
-                        trunc(f64::from(p.ceil()))
+                        trunc32(f64::from(p.ceil()))
                     } else if d < 0 {
-                        trunc(f64::from(p.floor()))
+                        trunc32(f64::from(p.floor()))
                     } else {
                         0
                     };
-                    clamp_aura(i64::from(old).saturating_add(step))
+                    clamp_aura(i64::from(i32::from(old).wrapping_add(step)))
                 };
                 base.set(tx, tz, v);
             }
@@ -491,7 +509,10 @@ impl AuraSim {
                     low.push((x, z, 1));
                 }
                 let pop = pops.as_ref().map_or(0i32, |p| {
-                    p.iter().fold(0i32, |acc, g| acc.wrapping_add(i32::from(g.get(x, z))))
+                    p.iter().fold(0i32, |acc, g| {
+                        let (px, pz) = population_tract(x, z, s, g.geometry().tract_size);
+                        acc.wrapping_add(i32::from(g.get(px, pz)))
+                    })
                 });
                 total = total.wrapping_add(pop);
                 weighted = weighted.wrapping_add(i32::from(a).wrapping_mul(pop));
@@ -567,7 +588,8 @@ impl AuraSim {
                 for z in 0..nz {
                     let v = t.get(x, z);
                     if v != 0 {
-                        t.set(x, z, trunc(f64::from(f32::from(v) * short)).clamp(-128, 127) as i8);
+                        // int8 store: the low 8 bits of `_ftol` (§6).
+                        t.set(x, z, store_i8(f32::from(v) * short));
                     }
                 }
             }

@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "aura_population_mapping",
+  "spec": ["aura 6.15", "aura 17.21"],
+  "description": "Test 21: with the shipped geometry (population tract size P = aura S = 4) the population of aura tract (x, z) is r1 + r2 + r3 at tract (x, z): tract (3, 5) with 300 / 50 / 0 has pop 350, tract (0, 0) pop 50; with auras 20 and -10 the rating is trunc((20 * 350 - 10 * 50) / 400) = trunc(16.25) = 16, recorded in history 0x0A5CBF37. [choice] With P = 8 FreeCity4 reads the population tract containing the aura tract's centre cell, (floor((4x + 2) / 8), floor((4z + 2) / 8)): aura (3, 5) reads (1, 2) and (0, 0) reads (0, 0), so the same populations placed there give 16 again, and the 1000 at the raw index (3, 5) is not read; without population at (1, 2) the rating is -10. Hand-derived.",
+  "steps": [
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_set_grid", "grid": "base", "fill": -128, "cells": [[3, 5, 20], [0, 0, -10]]},
+    {"op": "aura_set_grid", "grid": "transient", "fill": 0},
+    {"op": "aura_env", "grids": {"pop1": {"size": 4, "cells": [[3, 5, 300], [0, 0, 50]]}, "pop2": {"size": 4, "cells": [[3, 5, 50]]}, "pop3": {"size": 4}}},
+    {"op": "aura_clear_events"},
+    {"op": "aura_set", "state": {"state": 15}},
+    {"op": "aura_idle", "expect_state": 16},
+    {"op": "aura_expect", "state": {"mayor_rating": 16}},
+    {"op": "aura_expect_events", "filter": {"event": "history"}, "events": [{"event": "history", "series": "0x0A5CBF37", "value": 16}]},
+    {"op": "aura_env", "grids": {"pop1": {"size": 8, "cells": [[1, 2, 300], [0, 0, 50], [3, 5, 1000]]}, "pop2": {"size": 8, "cells": [[1, 2, 50]]}, "pop3": {"size": 8}}},
+    {"op": "aura_set", "state": {"state": 15}},
+    {"op": "aura_idle", "expect_state": 16},
+    {"op": "aura_expect", "state": {"mayor_rating": 16}},
+    {"op": "aura_env", "grids": {"pop1": {"size": 8, "cells": [[0, 0, 50], [3, 5, 1000]]}, "pop2": {"size": 8}, "pop3": {"size": 8}}},
+    {"op": "aura_set", "state": {"state": 15}},
+    {"op": "aura_idle", "expect_state": 16},
+    {"op": "aura_expect", "state": {"mayor_rating": -10}}
+  ]
+}
