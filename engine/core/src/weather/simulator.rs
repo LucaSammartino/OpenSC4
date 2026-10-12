@@ -840,18 +840,35 @@ impl WeatherSim {
                 }
             }
         }
-        // 3. smoothed heights: [1 2 1] along z, then along x, / 16
+        // 3. smoothed heights (§6.5 step 3): pass 1 along z into a buffer,
+        // `(H[z−1] + H[z+1]) + 2·H[z]`, whose high-z mirror uses countX
+        // [quirk]; pass 2 along x, `((S[x−1] + S[x+1]) + 2·S[x]) × 0.0625`,
+        // from the pass-1 values. Every step is one f32 operation.
+        let hz = |x: i32, z: i32| -> f32 {
+            let z = if z < 0 {
+                -z
+            } else if z >= nx {
+                2 * (nx - 1) - z
+            } else {
+                z
+            };
+            if (0..nz).contains(&z) {
+                hgt[at(x, z)]
+            } else {
+                0.0
+            }
+        };
         let mut tz = vec![0f32; n];
         for x in a4[0]..a4[2] {
             for z in a4[1]..a4[3] {
-                tz[at(x, z)] = hgt[at(x, reflect(z - 1, nz))] + 2.0 * hgt[at(x, z)] + hgt[at(x, reflect(z + 1, nz))];
+                tz[at(x, z)] = (hz(x, z - 1) + hz(x, z + 1)) + 2.0 * hgt[at(x, z)];
             }
         }
         let mut sm = vec![0f32; n];
         for x in a4[0]..a4[2] {
             for z in a4[1]..a4[3] {
                 sm[at(x, z)] =
-                    (tz[at(reflect(x - 1, nx), z)] + 2.0 * tz[at(x, z)] + tz[at(reflect(x + 1, nx), z)]) / 16.0;
+                    ((tz[at(reflect(x - 1, nx), z)] + tz[at(reflect(x + 1, nx), z)]) + 2.0 * tz[at(x, z)]) * 0.0625;
             }
         }
         // 4. local moisture

@@ -28,9 +28,12 @@
 //! - `PositionToCell` returns 0 (§4).
 //! - `SetManualMoistureAddition` also clamps the unclamped upper bound to the
 //!   grid (§6.4.1).
-//! - `SimulateMoisture` supports only `cityCellsPerCell = 1` (§6.5) and
-//!   reflects at each axis' own size. The `[1 2 1]` height filter runs along
-//!   z first, then along x, and divides by 16 at the end, in `f32`. The work
+//! - `SimulateMoisture` supports only `cityCellsPerCell = 1` (§6.5). The
+//!   height filter follows §6.5 step 3 exactly (z pass into a buffer, its
+//!   high-z mirror using countX [quirk]; x pass `× 0.0625`; all `f32`).
+//!   [choice] "in place" for the x pass is read as using the pass-1 values
+//!   of the neighbours (a separable filter), not values already updated in
+//!   the same pass. The blur mirrors each axis at its own size. The work
 //!   buffer is `i32`; the result is clamped to 0..255 when it is written.
 //!   An empty rectangle changes nothing but still posts MoistureMapUpdated.
 //! - The water-rectangle scan (§6.6) implements the intended algorithm: the
@@ -49,9 +52,12 @@
 //! - Without a terrain, altitude reads 0, normals (0, 1, 0) and no cell has
 //!   water (the host decides); `DoMonthlySimulation(1)` skips the water scan
 //!   and `UpdateMoisture` does nothing (§5.3, §4).
-//! - Intermediate maths of §6.1, §6.2 and the windSpread tuning run in `f64`
-//!   and are stored as `f32`; §5.1 and §6.3 run in `f32` in the spec's
-//!   operation order.
+//! - §5.1, §6.3 and §6.5 run in `f32` in the spec's operation order (one
+//!   rounding per operation, foundations §18). Intermediate maths of §6.1,
+//!   §6.2 and the windSpread tuning (cosine, tangent, square root and the
+//!   generator's doubles; the spec gives no operation order or constant
+//!   types for them) still run in `f64` and are stored as `f32`: a spec
+//!   question under §18.
 //! - The saved Gaussian cache word keeps the last cached value when the
 //!   "has cached" flag is 0, so write → read → write is byte-identical.
 //! - `ambientMoisture` starts at 0 before the first `Init` (spec: "—").

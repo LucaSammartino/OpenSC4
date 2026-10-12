@@ -10,7 +10,7 @@
 
 use super::elem::{GridElem, RadiusElem};
 use super::simgrid::{TractGrid, MAX_TRACTS};
-use crate::props::round_half_even_f64;
+use crate::props::{round_half_even_f32, round_half_even_f64};
 
 /// The largest |dx|, |dz| of the distance table (§7.1).
 pub const TABLE_RADIUS: i64 = 15;
@@ -23,7 +23,8 @@ pub fn table_distance(dx: i64, dz: i64) -> f32 {
     ((f64::from(s) * 1000.0 + 0.5).floor() / 1000.0) as f32
 }
 
-/// `float32(sqrt(dx² + dz²))` (used when R ≥ 16).
+/// `float32(sqrt(dx² + dz²))` (used when R ≥ 16): one correctly rounded
+/// `fsqrt` of the exact integer (foundations §18).
 pub fn exact_distance(dx: i64, dz: i64) -> f32 {
     ((dx as f64) * (dx as f64) + (dz as f64) * (dz as f64)).sqrt() as f32
 }
@@ -57,7 +58,8 @@ pub fn add_radius_effect<T: RadiusElem>(
         return;
     }
     let big_r = round_half_even_f64(f64::from(r)) as i64;
-    let k = ((f64::from(c) - f64::from(o)) / f64::from(r)) as f32;
+    // Each operation rounds to float32 (foundations §18).
+    let k = (c - o) / r;
     let (x0, x1) = span(cx, big_r, count_x);
     let (z0, z1) = span(cz, big_r, count_z);
     for x in x0..=x1 {
@@ -69,8 +71,8 @@ pub fn add_radius_effect<T: RadiusElem>(
                 exact_distance(dx, dz)
             };
             if d < r {
-                let v = (f64::from(c) - f64::from(d) * f64::from(k)) as f32;
-                let delta = round_half_even_f64(f64::from(v)) as i64;
+                let v = c - d * k;
+                let delta = round_half_even_f32(v) as i64;
                 let (x, z) = (x as i32, z as i32);
                 let old = grid.get(x, z);
                 grid.set(x, z, T::clamped(old.to_i64().saturating_add(delta)));
@@ -139,7 +141,7 @@ pub fn add_distance_effect(
 ) {
     let n = radius as i64;
     let dist = distance_field(mask, count_x, count_z, m, n);
-    let k = ((f64::from(near) - f64::from(far)) / f64::from(radius)) as f32;
+    let k = (near - far) / radius;
     let nz = count_z.clamp(0, MAX_TRACTS) as usize;
     for (i, &d) in dist.iter().enumerate() {
         let inside = f32::from(d) < radius;
@@ -148,7 +150,7 @@ pub fn add_distance_effect(
         }
         let (x, z) = ((i / nz.max(1)) as i32, (i % nz.max(1)) as i32);
         let t = target.get(x, z);
-        let v = (f64::from(t) + f64::from(near)) - f64::from(d) * f64::from(k);
+        let v = (f32::from(t) + near) - f32::from(d) * k;
         target.set(x, z, (v as i64).clamp(0, 255) as u8);
     }
 }

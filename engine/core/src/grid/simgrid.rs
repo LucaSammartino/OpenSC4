@@ -221,7 +221,9 @@ fn quotient<T: GridElem>(sum: i64, w: i32, h: i32) -> T {
     if w <= 0 || h <= 0 || n == 0 {
         return T::default();
     }
-    T::from_quotient(sum as f64 / f64::from(n))
+    // One x87 division at 24-bit precision with exact integer operands
+    // (foundations §18): the correctly rounded float32 quotient.
+    T::from_quotient(f64::from((sum as f64 / f64::from(n)) as f32))
 }
 
 /// The mutable state of a core grid.
