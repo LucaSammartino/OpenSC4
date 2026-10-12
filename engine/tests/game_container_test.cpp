@@ -11,7 +11,8 @@
 // copy of the license along with this program (see LICENSE at the repository
 // root); if not, see <https://www.gnu.org/licenses/>.
 
-// Single ownership through SC4Vector::push_back (FC4GameContainers.h).
+// Single ownership through SC4Vector::push_back (FC4GameContainers.h), and
+// game-filled lists that stay in one allocator instance (FC4GameList.h).
 //
 // SC4Vector and SC4String allocate through the framework's allocator service;
 // this test provides a counting one that never really frees, so a double free
@@ -19,6 +20,8 @@
 // let its destructor run) is the negative control: it must be caught.
 
 #include "FC4GameContainers.h"
+#include "FC4GameList.h"
+#include "SC4List.h"
 #include "SC4String.h"
 #include "SC4Vector.h"
 #include "cIGZAllocatorService.h"
@@ -149,6 +152,53 @@ using GroupInfo = cISC4BudgetSimulator::BudgetGroupInfo;
 
 std::string Str(const SC4String& s) { return std::string(s.ToChar(), s.Strlen()); }
 
+// A second instance: the game's STL node allocator (docs/abi/allocators.md).
+CountingAllocator g_stl;
+struct TestStlAlloc {
+    static bool Available() { return true; }
+    static void* Allocate(uint32_t size) { return g_stl.Allocate(size); }
+    static void Free(void* p) { g_stl.Deallocate(p); }
+};
+struct NoAlloc {
+    static bool Available() { return false; }
+    static void* Allocate(uint32_t) { return nullptr; }
+    static void Free(void*) {}
+};
+
+class FakeLot final : public cIGZUnknown {
+public:
+    bool QueryInterface(uint32_t, void** out) override {
+        *out = nullptr;
+        return false;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    uint32_t refs = 1;  // the lot manager's
+};
+
+using LotNode = SC4ListNode<cIGZUnknown*>;
+
+// What GetLotsInCellRect does (allocators.md): clear the list keeping its
+// head (nodes freed to the STL node allocator), then append one node per lot
+// from that allocator, with one reference each.
+void GameFill(LotNode* head, FakeLot* lots, int n) {
+    for (LotNode* x = head->next; x != head;) {
+        LotNode* next = x->next;
+        g_stl.Deallocate(x);
+        x = next;
+    }
+    head->next = head->prev = head;
+    for (int i = 0; i < n; ++i) {
+        auto* node = static_cast<LotNode*>(g_stl.Allocate(sizeof(LotNode)));
+        lots[i].AddRef();
+        node->value = &lots[i];
+        node->next = head;
+        node->prev = head->prev;
+        head->prev->next = node;
+        head->prev = node;
+    }
+}
+
 // The game's side: destroy every element once, then the vector's storage.
 // (SC4Vector<SC4String>'s own destructor calls Release, not ~SC4String.)
 void GameDestroysStrings(SC4Vector<SC4String>* v) {
@@ -245,6 +295,82 @@ int main() {
         std::printf("negative control (old pattern): %d double frees detected\n", g_alloc.doubleFrees);
     }
 
+    // 4. GameList: every node, head included, stays in the STL node instance;
+    // the service sees nothing. Filled twice (the second fill clears first),
+    // released the plugin's way (release, null), then destroyed.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        FakeLot lots[5];
+        {
+            fc4::GameList<cIGZUnknown*, TestStlAlloc> list;
+            CHECK(list.valid());
+            GameFill(list.head(), lots, 3);
+            for (cIGZUnknown*& v : list) {  // a first scan, released the plugin's way
+                v->Release();
+                v = nullptr;
+            }
+            GameFill(list.head(), lots, 5);  // clears the 3 nodes, keeps the head
+            int n = 0;
+            for (cIGZUnknown*& v : list) {
+                ++n;
+                v->Release();
+                v = nullptr;
+            }
+            CHECK(n == 5);
+        }
+        CHECK(g_stl.allocs == 1 + 3 + 5);
+        CHECK(g_stl.frees == g_stl.allocs);
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+        CHECK(g_alloc.allocs == 0 && g_alloc.frees == 0 && g_alloc.foreignFrees == 0);
+        bool refsOk = true;
+        for (const FakeLot& l : lots) refsOk = refsOk && l.refs == 1;
+        CHECK(refsOk);
+        std::printf("GameList: STL instance %d allocations / %d frees, service %d / %d, foreign frees %d / %d\n",
+                    g_stl.allocs, g_stl.frees, g_alloc.allocs, g_alloc.frees, g_stl.foreignFrees, g_alloc.foreignFrees);
+    }
+
+    // 5. GameList destructor: values left in the list are released once.
+    {
+        g_stl.Reset();
+        FakeLot lots[2];
+        {
+            fc4::GameList<cIGZUnknown*, TestStlAlloc> list;
+            GameFill(list.head(), lots, 2);
+            CHECK(lots[0].refs == 2 && lots[1].refs == 2);
+        }
+        CHECK(lots[0].refs == 1 && lots[1].refs == 1);
+        CHECK(g_stl.Live() == 0 && g_stl.doubleFrees == 0 && g_stl.foreignFrees == 0);
+    }
+
+    // 6. No allocator (unknown exe): not valid, nothing allocated or freed.
+    {
+        fc4::GameList<cIGZUnknown*, NoAlloc> list;
+        CHECK(!list.valid());
+    }
+
+    // 7. Negative control: the SDK SC4List frees the game's nodes to the
+    // service, a different instance. The counters must see every crossing.
+    {
+        g_alloc.Reset();
+        g_stl.Reset();
+        FakeLot lots[4];
+        {
+            SC4List<cIGZUnknown*> list;  // head from the service
+            LotNode* head = *reinterpret_cast<LotNode**>(&list);
+            GameFill(head, lots, 4);
+            for (cIGZUnknown*& v : list) {
+                v->Release();
+                v = nullptr;
+            }
+        }
+        CHECK(g_alloc.foreignFrees == 4);  // the 4 STL nodes freed to the service
+        CHECK(g_stl.Live() == 4);          // and never returned to their own instance
+        std::printf("negative control (SDK SC4List): %d foreign frees into the service detected\n",
+                    g_alloc.foreignFrees);
+    }
+
+    g_stl.Reset();
     g_alloc.Reset();
     if (g_failures != 0) {
         std::printf("%d failure(s)\n", g_failures);

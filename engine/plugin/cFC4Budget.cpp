@@ -550,6 +550,7 @@ void PushGroup(void* ctx, const fc4_budget_group* g, const uint8_t* name, size_t
 }
 }  // namespace
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector<BudgetGroupInfo> and its SC4Strings.
 bool cFC4BudgetSimulator::GetAllGroups(SC4Vector<BudgetGroupInfo>& groups) {
     FC4_TRACE("BudgetSimulator::GetAllGroups");
     groups.clear();
@@ -563,6 +564,7 @@ bool cFC4BudgetSimulator::SetGroupName(uint32_t id, cIGZString& name) {
     return fc4_budget_set_group_name(core_, id, reinterpret_cast<const uint8_t*>(s.data()), s.size());
 }
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
 bool cFC4BudgetSimulator::GetDepartmentBudgetsInGroup(uint32_t id, SC4Vector<cISC4DepartmentBudget*>& out) {
     FC4_TRACE("BudgetSimulator::GetDepartmentBudgetsInGroup");
     out.clear();
@@ -665,6 +667,7 @@ void PushItem(void* ctx, const fc4_budget_item* i) {
 }
 }  // namespace
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
 bool cFC4BudgetSimulator::GetAllLoans(SC4Vector<LoanInfo>& loans) {
     FC4_TRACE("BudgetSimulator::GetAllLoans");
     loans.clear();
@@ -685,6 +688,7 @@ int64_t cFC4BudgetSimulator::GetFullCostOfLoan(int64_t l) {
     return fc4_budget_get_full_cost_of_loan(core_, l);
 }
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
 bool cFC4BudgetSimulator::GetBudgetItemInfo(cISCPropertyHolder* holder, SC4Vector<BudgetItem>& out) {
     FC4_TRACE("BudgetSimulator::GetBudgetItemInfo");
     std::vector<fc4_budget_item> items;
@@ -911,6 +915,7 @@ cISC4LineItem* cFC4DepartmentBudget::GetLineItem(uint32_t id) {
     return LineOf(fc4_department_get_line_item(core_, id));
 }
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector filled for the game.
 bool cFC4DepartmentBudget::GetAllLineItems(SC4Vector<cISC4LineItem*>& out) {
     FC4_TRACE("DepartmentBudget::GetAllLineItems");
     out.clear();
@@ -978,6 +983,7 @@ bool cFC4DepartmentBudget::SetTotalSpending(int64_t v) {
     return fc4_department_set_total_spending(core_, v);
 }
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4List nodes appended for the game.
 bool cFC4DepartmentBudget::GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4List<cISCPropertyHolder*>& list) {
     FC4_TRACE("DepartmentBudget::GetLocallyFundedItemsByPurpose");
     std::vector<uint64_t> tokens;

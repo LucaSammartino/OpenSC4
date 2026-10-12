@@ -773,6 +773,7 @@ void AppendName(void* ctx, const char* name, size_t len) {
 }
 }  // namespace
 
+// [abi] Container crossing pending classification in docs/abi/allocators.md: SC4Vector<SC4String> filled for the game.
 bool cFC4Simulator::EnumerateAgentsByName(SC4Vector<SC4String>& sAgents) {
     fc4_sim_enumerate_agents(sim_, &AppendName, &sAgents);
     return true;

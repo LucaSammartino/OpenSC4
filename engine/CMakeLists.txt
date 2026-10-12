@@ -136,6 +136,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4RefAudit.h
         plugin/FC4Checked.cpp
         plugin/FC4Checked.h
+        plugin/FC4Autoload.cpp
+        plugin/FC4Autoload.h
         plugin/FC4Autotest.cpp
         plugin/FC4Autotest.h
         plugin/FC4DiagLogic.h

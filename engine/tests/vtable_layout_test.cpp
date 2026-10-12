@@ -417,7 +417,7 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     bool Shutdown() override { g_hit = 4; return static_cast<bool>(0); }
     cISC4Lot* GetLotAtPoint(cS3DVector3 const& point) override { g_hit = 5; return static_cast<cISC4Lot*>(0); }
     cISC4Lot* GetLot(int32_t cellX, int32_t cellZ, bool b) override { g_hit = 6; return static_cast<cISC4Lot*>(0); }
-    bool GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2, bool locationOnly) override { g_hit = 7; return static_cast<bool>(0); }
+    uint32_t GetLotsInCellRect(SC4List<cISC4Lot*>& lots, int32_t x1, int32_t z1, int32_t x2, int32_t z2, bool locationOnly) override { g_hit = 7; return 0; }
     bool GetLotsSurroundingCell(int32_t cellX, int32_t cellZ, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 8; return static_cast<bool>(0); }
     bool GetLotsSurroundingLot(cISC4Lot const* lot, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 9; return static_cast<bool>(0); }
     bool GetLotsSurroundingRect(SC4Rect<long> const& rect, SC4List<cISC4Lot*>& lots, int32_t flags) override { g_hit = 10; return static_cast<bool>(0); }

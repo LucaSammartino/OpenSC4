@@ -25,6 +25,7 @@
 
 #include "FC4Checked.h"
 #include "FC4Config.h"
+#include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
@@ -67,6 +68,7 @@
 #include <windows.h>
 
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace fc4 {
@@ -209,6 +211,142 @@ int64_t NeighborExpense(void*) {
     return n ? n->GetTotalMonthlyNeighborDealExpense() : 0;
 }
 
+// One lot of ForEachLot (§5.2), each read behind its lot_* sub-switch; an
+// off switch leaves the neutral value in `info`.
+void VisitLot(cFC4ISC4Lot* lot, cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx) {
+    fc4_lot_info info{};
+    cISC4BuildingOccupant* b = nullptr;
+    if (On(Sw::LotBuilding)) {
+        b = lot->GetBuilding();  // borrowed
+    } else {
+        NoteSkipped(Sw::LotBuilding, "cISC4Lot::GetBuilding (no building)");
+    }
+    info.has_building = b != nullptr;
+    if (On(Sw::LotState)) {
+        info.livable = lot->IsInLivableState();
+        info.lot_wealth = lot->GetOccupantWealth();
+    } else {
+        NoteSkipped(Sw::LotState, "IsInLivableState / GetOccupantWealth (livable, wealth 0)");
+        info.livable = true;  // [choice] so the rest of the scan still runs
+    }
+    if (On(Sw::LotSize)) {
+        FC4_OUT(uint8_t, sx, "uint8 sizeX (cISC4Lot::GetSize)");
+        FC4_OUT(uint8_t, sz, "uint8 sizeZ (cISC4Lot::GetSize)");
+        sx.get() = 1;
+        sz.get() = 1;
+        lot->GetSize(sx.get(), sz.get());
+        sx.Check();
+        sz.Check();
+        info.size_x = sx.get();
+        info.size_z = sz.get();
+    } else {
+        NoteSkipped(Sw::LotSize, "cISC4Lot::GetSize (1 x 1)");
+        info.size_x = 1;
+        info.size_z = 1;
+    }
+    if (lv != nullptr && On(Sw::LotLandValue)) {
+        FC4_OUT(int32_t, x, "int32 x (cISC4Lot::GetLocation)");
+        FC4_OUT(int32_t, z, "int32 z (cISC4Lot::GetLocation)");
+        const bool located = lot->GetLocation(x.get(), z.get());
+        x.Check();
+        z.Check();
+        if (located) info.land_value = lv->GetLandValue(x.get(), z.get());
+    } else if (lv != nullptr) {
+        NoteSkipped(Sw::LotLandValue, "GetLocation / GetLandValue (land value 0)");
+    }
+    if (b != nullptr) {
+        if (On(Sw::LotProfile)) {
+            const cISC4BuildingOccupant::BuildingProfile& p = b->GetBuildingProfile();
+            info.purpose = static_cast<uint32_t>(p.purpose);
+            info.building_wealth = static_cast<uint32_t>(p.wealth);
+        } else {
+            NoteSkipped(Sw::LotProfile, "GetBuildingProfile (purpose 0, wealth 0)");
+        }
+        if (On(Sw::LotBuildingValue)) {
+            FC4_OUT(cISCPropertyHolder*, h, "cISCPropertyHolder* (QueryInterface out pointer)");
+            const bool has = b->QueryInterface(GZIID_cISCPropertyHolder, reinterpret_cast<void**>(h.ptr()));
+            h.Check();
+            if (has && h.get() != nullptr) {
+                FC4_ACQUIRED(h.get(), "QueryInterface");
+                std::vector<int64_t> v;
+                if (props::GetI64s(h.get(), kPropBuildingValue, v) && !v.empty()) info.building_value = v[0];
+                FC4_RELEASE(h.get());
+            }
+        } else {
+            NoteSkipped(Sw::LotBuildingValue, "building QI + property 0xE91A0B5F (value 0)");
+        }
+    }
+    visit(ctx, &info);
+}
+
+volatile LONG g_lotScans = 0;  // ForEachLot list scans so far
+
+static_assert(sizeof(SC4ListNode<cISC4Lot*>) == 3 * sizeof(void*), "list node: next, prev, value");
+
+// Every lot through GetLot(x, z, true) (borrowed, demand §6.3), each once; no
+// game list, no references taken or released.
+void WalkLotCells(cFC4ISC4LotManager* lm, int32_t maxX, int32_t maxZ, cISC4LandValueSimulator* lv,
+                  fc4_lot_visitor visit, void* ctx) {
+    std::unordered_set<cISC4Lot*> seen;
+    for (int32_t x = 0; x <= maxX; ++x) {
+        for (int32_t z = 0; z <= maxZ; ++z) {
+            cISC4Lot* sdkLot = lm->GetLot(x, z, true);  // slot 6
+            if (sdkLot == nullptr || !seen.insert(sdkLot).second) continue;
+            VisitLot(AsGame(sdkLot), lv, visit, ctx);
+        }
+    }
+}
+
+// The GetLotsInCellRect path of ForEachLot on `list` (owned by the caller).
+// [abi] The game allocates the list's nodes from its STL node allocator
+// (docs/abi/allocators.md), so the list is a GameList: its head and nodes are
+// allocated and freed there too, never through the allocator service.
+void ScanLotList(cFC4ISC4LotManager* lm, GameList<cISC4Lot*>& list, int32_t maxX, int32_t maxZ,
+                 cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx, long scan) {
+    const bool detail = kCheckedBuild && scan <= 3;
+    SC4ListNode<cISC4Lot*>* const headBefore = list.head();
+    const uint32_t returned = lm->GetLotsInCellRect(list.Sdk(), 0, 0, maxX, maxZ, false);  // slot 7
+    if (detail) {
+        SC4ListNode<cISC4Lot*>* head = list.head();
+        char nodes[256] = "";
+        size_t used = 0;
+        SC4ListNode<cISC4Lot*>* n = head->next;
+        for (int i = 0; i < 3 && n != head; ++i, n = n->next) {
+            const int w = _snprintf_s(nodes + used, sizeof(nodes) - used, _TRUNCATE, "%s%p{next %p, prev %p, value %p}",
+                                      i ? " " : "", static_cast<void*>(n), static_cast<void*>(n->next),
+                                      static_cast<void*>(n->prev), static_cast<void*>(n->value));
+            if (w < 0) break;
+            used += static_cast<size_t>(w);
+        }
+        Log("budget lot scan #%ld: list %p, head %p (before the call %p; head next %p, prev %p), first nodes: %s", scan,
+            static_cast<void*>(&list), static_cast<void*>(head), static_cast<void*>(headBefore),
+            static_cast<void*>(head->next), static_cast<void*>(head->prev), used ? nodes : "-");
+    }
+    uint32_t iterated = 0, nulls = 0;
+    for (cISC4Lot*& sdkLot : list) {
+        ++iterated;
+        if (sdkLot == nullptr) {
+            ++nulls;
+            continue;
+        }
+        FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
+        VisitLot(AsGame(sdkLot), lv, visit, ctx);
+    }
+    const bool release = On(Sw::LotRelease);
+    if (!release) NoteSkipped(Sw::LotRelease, "Release of the list's lots (one reference leaked per lot)");
+    for (cISC4Lot*& sdkLot : list) {
+        if (sdkLot == nullptr) continue;
+        if (release) FC4_RELEASE(sdkLot);
+        sdkLot = nullptr;  // the list's destructor then only frees its nodes
+    }
+    if (detail || iterated != returned) {
+        Log("budget lot scan #%ld: GetLotsInCellRect returned %u, ForEachLot iterated %u node(s) (%u null)%s", scan,
+            returned, iterated, nulls, iterated != returned ? " MISMATCH" : "");
+    } else {
+        Log("budget lot scan #%ld: %u lots", scan, iterated);  // one line per scan (expected monthly)
+    }
+}
+
 void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     if (!On(Sw::LotScan)) {
         NoteSkipped(Sw::LotScan, "ForEachLot (no lots: property tax 0)");
@@ -220,60 +358,34 @@ void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
     cISC4LandValueSimulator* lv = c->GetLandValueSimulator();
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
     const int32_t maxZ = static_cast<int32_t>(c->CellCountZ()) - 1;
+    if (!On(Sw::LotList)) {
+        // Bisection: no game list.
+        NoteSkipped(Sw::LotList, "GetLotsInCellRect (lots walked cell by cell instead)");
+        WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
+        return;
+    }
+    if (!StlNodeAllocator::Available()) {
+        // [choice] Without the game's STL node allocator (unknown exe) the list
+        // query is refused; the cell walk visits the same lots.
+        static LONG logged = 0;
+        if (InterlockedExchange(&logged, 1) == 0) {
+            Log("budget: WARNING GetLotsInCellRect refused (STL node allocator unavailable); lots walked cell by cell");
+        }
+        WalkLotCells(lm, maxX, maxZ, lv, visit, ctx);
+        return;
+    }
     // [choice] Every lot of the city through one rectangle query; the game
     // appends one reference per lot (budget Errata round 2, item 5), which we
     // release below (audited) before the list frees its nodes.
-    FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
-    lm->GetLotsInCellRect(lots.get(), 0, 0, maxX, maxZ, false);  // slot 7
-    lots.Check();
-    for (cISC4Lot*& sdkLot : lots.get()) {
-        if (sdkLot == nullptr) continue;
-        FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
-        cFC4ISC4Lot* lot = AsGame(sdkLot);
-        fc4_lot_info info{};
-        cISC4BuildingOccupant* b = lot->GetBuilding();
-        info.has_building = b != nullptr;
-        info.livable = lot->IsInLivableState();
-        info.lot_wealth = lot->GetOccupantWealth();
-        {
-            FC4_OUT(uint8_t, sx, "uint8 sizeX (cISC4Lot::GetSize)");
-            FC4_OUT(uint8_t, sz, "uint8 sizeZ (cISC4Lot::GetSize)");
-            sx.get() = 1;
-            sz.get() = 1;
-            lot->GetSize(sx.get(), sz.get());
-            sx.Check();
-            sz.Check();
-            info.size_x = sx.get();
-            info.size_z = sz.get();
-        }
-        if (lv != nullptr) {
-            FC4_OUT(int32_t, x, "int32 x (cISC4Lot::GetLocation)");
-            FC4_OUT(int32_t, z, "int32 z (cISC4Lot::GetLocation)");
-            const bool located = lot->GetLocation(x.get(), z.get());
-            x.Check();
-            z.Check();
-            if (located) info.land_value = lv->GetLandValue(x.get(), z.get());
-        }
-        if (b != nullptr) {
-            const cISC4BuildingOccupant::BuildingProfile& p = b->GetBuildingProfile();
-            info.purpose = static_cast<uint32_t>(p.purpose);
-            info.building_wealth = static_cast<uint32_t>(p.wealth);
-            FC4_OUT(cISCPropertyHolder*, h, "cISCPropertyHolder* (QueryInterface out pointer)");
-            const bool has = b->QueryInterface(GZIID_cISCPropertyHolder, reinterpret_cast<void**>(h.ptr()));
-            h.Check();
-            if (has && h.get() != nullptr) {
-                FC4_ACQUIRED(h.get(), "QueryInterface");
-                std::vector<int64_t> v;
-                if (props::GetI64s(h.get(), kPropBuildingValue, v) && !v.empty()) info.building_value = v[0];
-                FC4_RELEASE(h.get());
-            }
-        }
-        visit(ctx, &info);
-    }
-    for (cISC4Lot*& sdkLot : lots.get()) {
-        if (sdkLot == nullptr) continue;
-        FC4_RELEASE(sdkLot);
-        sdkLot = nullptr;  // the list destructor then only frees its nodes
+    const long scan = InterlockedIncrement(&g_lotScans);
+    if (On(Sw::LotListFree)) {
+        GameList<cISC4Lot*> lots;
+        if (lots.valid()) ScanLotList(lm, lots, maxX, maxZ, lv, visit, ctx, scan);
+    } else {
+        // Bisection: the list (head and nodes) is never freed.
+        NoteSkipped(Sw::LotListFree, "lot list destruction (list leaked)");
+        auto* leaked = new GameList<cISC4Lot*>();
+        if (leaked->valid()) ScanLotList(lm, *leaked, maxX, maxZ, lv, visit, ctx, scan);
     }
 }
 

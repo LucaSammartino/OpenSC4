@@ -48,16 +48,26 @@ const SwitchInfo kSwitches[kCount] = {
     {"cheats", "FC4_BUDGET_CHEATS"},
     {"holder_refs", "FC4_BUDGET_HOLDER_REFS"},
     {"ltext", "FC4_BUDGET_LTEXT"},
+    {"lot_list", "FC4_BUDGET_LOT_LIST"},
+    {"lot_building", "FC4_BUDGET_LOT_BUILDING"},
+    {"lot_profile", "FC4_BUDGET_LOT_PROFILE"},
+    {"lot_building_value", "FC4_BUDGET_LOT_BUILDING_VALUE"},
+    {"lot_land_value", "FC4_BUDGET_LOT_LAND_VALUE"},
+    {"lot_size", "FC4_BUDGET_LOT_SIZE"},
+    {"lot_state", "FC4_BUDGET_LOT_STATE"},
+    {"lot_release", "FC4_BUDGET_LOT_RELEASE"},
+    {"lot_list_free", "FC4_BUDGET_LOT_LIST_FREE"},
 };
 
 // Keys that are not switches.
 const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaudit", "refaudit_lines", "autotest_seconds",
-                                  "autotest_unpause", "digest"};
+                                  "autotest_unpause", "digest", "autoload_city", "autoload_delay_ticks"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
-volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};
 
