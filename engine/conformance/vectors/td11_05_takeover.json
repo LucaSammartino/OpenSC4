@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "tract_developer_takeover",
+  "spec": ["tract-developer 4.3", "tract-developer 4.4", "tract-developer 11.5"],
+  "description": "Test 5, by hand from 4.4 (float32 by numpy). Residential developer, demand 10 (desired 10, desiredMax 15), built 0, shipped reoccupy {0, 1.2}: T0 = trunc(r24(10 x 0)) = 0, T1 = trunc(r24(15 x 1.2f)) = trunc(18.0000007 -> 18.0) = 18. Four abandoned (state 4) residential lots of capacity 10, 6, 5, 1 (building 0x200 of purpose 1, wealth 1; configuration stage 1 < maxStage 3; lot token order = list order). Each is suitable (IsLotSuitable(L, false) = 27) and passes the caps; sum 22 > T0. Type-1 candidates score 0 (no capacity term, no networks), so the sort keeps the list order. Takeover: 10 (taken 10), 6 (16, not > 18, continue), 5 (21 > 18, stop): built 21, the fourth lot is not taken. No kick-out (state 4), so ReoccupyBuilding(lot, 0x1010) only. TakeOverAbandoned returns 27, which Grow pushes and returns at once: outcomes [27], built 21, row 1 {27: 1}. One R1, no other draw.",
+  "steps": [
+    {"op": "tdev_developer", "id": 1, "demand": 10},
+    {"op": "tdev_building", "id": "0x200", "purpose": 1, "wealth": 1, "capacity": 10},
+    {"op": "tdev_lot", "id": 1, "at": [0, 0], "state": 4, "building": "0x200", "capacity": 10, "wealth": 1, "cfg_stage": 1},
+    {"op": "tdev_lot", "id": 2, "at": [1, 0], "state": 4, "building": "0x200", "capacity": 6, "wealth": 1, "cfg_stage": 1},
+    {"op": "tdev_lot", "id": 3, "at": [2, 0], "state": 4, "building": "0x200", "capacity": 5, "wealth": 1, "cfg_stage": 1},
+    {"op": "tdev_lot", "id": 4, "at": [3, 0], "state": 4, "building": "0x200", "capacity": 1, "wealth": 1, "cfg_stage": 1},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 3, "expect": 21, "outcomes": [27]},
+    {"op": "tdev_expect_events", "events": [
+      {"event": "reoccupy", "lot": 1, "dev_type": "0x1010"},
+      {"event": "reoccupy", "lot": 2, "dev_type": "0x1010"},
+      {"event": "reoccupy", "lot": 3, "dev_type": "0x1010"}]},
+    {"op": "tdev_expect_hist", "row": 1, "counts": {"27": 1}},
+    {"op": "tdev_expect_hist", "row": 8, "counts": {"27": 4}},
+    {"op": "tdev_expect_lot", "lot": 4, "state": 4},
+    {"op": "tdev_expect_draws", "draws": [["R1", 16, 9]]}
+  ]
+}

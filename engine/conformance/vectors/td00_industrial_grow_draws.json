@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "tract_developer_industrial_grow_draws",
+  "spec": ["tract-developer 4.3", "tract-developer 4.4", "tract-developer 4.14", "tract-developer 4.16", "tract-developer 4.22"],
+  "description": "Draw order of a full Grow with several scored candidates (4.22), values from the Python cRZRandom model. File-local generator seed 0x5E3D976B (injected through tdev_create; the core derives no seed). Manufacturing developer (purpose 7, wealth 2, subtype 0x4300, zone code 8 on zone 8 cells, target zone 3), demand 5 (desired 5, desiredMax trunc(7.5) = 7), style map {0x2000: 0.5, 0x2001: 0.5}. Three empty 1 x 1 lots (tokens 1, 2, 3), two configurations 101 < 102 (family 800 = {0x500 .. 0x504}, purpose 7, wealth 2, capacity 5). Pass 1: R1 (CRT, 16 cells, 9); the existing listing gives one candidate per lot (first compatible configuration, 101); aggregation is 5 (equal sizes). ScoreCandidateLots draws one RandomDouble per candidate in list order (purposes 5-8): u = 0.7361947298049927, 0.11038738489151001, 0.10686793923377991 -> scores 14.723894119262695, 2.2077476978302, 2.1373586654663086; the ascending sort puts lot 3 first. PickBuilding: draw A RandomUint32Uniform(100) = 64 -> 64 >= 50, 14 < 50 -> group 0x2001; draw B RandomUint32Uniform(2) = 1 -> configuration 102; the 193-bucket hash order of the family is 0x500 .. 0x504 (buckets 122 .. 126); draw C RandomUint32Uniform(5) = 2 -> 0x502. Build claims 5, demolishes lot 3, starts construction; purpose 7 stops after a success: outcomes [27], built 5. Second Grow, stage 2, with an abandoned lot 4 (building 0x500 of purpose 7 wealth 2, capacity 5, configuration stage 1 < 2): R1 (second CRT value, 3), then TakeOverAbandoned scores its type-1 candidate with one draw (u = 0.007612407207489014); T0 = trunc(5 x 0) = 0, T1 = trunc(r24(7 x 1.2f)) = 8, sum 5 > 0: lot 4 is reoccupied by 0x4300, Grow returns 5 with outcomes [27] and no PickBuilding draw.",
+  "steps": [
+    {"op": "tdev_cells", "grid": "zone", "default": 8},
+    {"op": "tdev_developer", "id": 1, "purpose": 7, "target_zone": 3, "subtype": "0x4300", "wealth": 2, "zone_code": 8, "demand": 5, "styles": [["0x2000", 0.5], ["0x2001", 0.5]]},
+    {"op": "tdev_lot", "id": 1, "at": [0, 0], "zone": 8},
+    {"op": "tdev_lot", "id": 2, "at": [1, 0], "zone": 8},
+    {"op": "tdev_lot", "id": 3, "at": [2, 0], "zone": 8},
+    {"op": "tdev_cfg", "id": 101, "size": [1, 1], "stage": 1, "purposes": [7], "wealths": [2], "primary": [800]},
+    {"op": "tdev_cfg", "id": 102, "size": [1, 1], "stage": 1, "purposes": [7], "wealths": [2], "primary": [800]},
+    {"op": "tdev_family", "id": 800, "members": ["0x500", "0x501", "0x502", "0x503", "0x504"]},
+    {"op": "tdev_building", "id": "0x500", "purpose": 7, "wealth": 2, "capacity": 5},
+    {"op": "tdev_building", "id": "0x501", "purpose": 7, "wealth": 2, "capacity": 5},
+    {"op": "tdev_building", "id": "0x502", "purpose": 7, "wealth": 2, "capacity": 5},
+    {"op": "tdev_building", "id": "0x503", "purpose": 7, "wealth": 2, "capacity": 5},
+    {"op": "tdev_building", "id": "0x504", "purpose": 7, "wealth": 2, "capacity": 5},
+    {"op": "tdev_create", "seed": "0x5E3D976B"},
+    {"op": "tdev_expect", "lcg": "0x5E3D976B", "mul": "0x5E3D976B", "crt": 1},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 1, "expect": 5, "outcomes": [27]},
+    {"op": "tdev_expect", "desired": [5, 7], "chosen_cfg": 102, "chosen_building": "0x502"},
+    {"op": "tdev_expect_draws", "draws": [
+      ["R1", 16, 9],
+      ["R2", 0, 0.7361947298049927], ["R2", 0, 0.11038738489151001], ["R2", 0, 0.10686793923377991],
+      ["R3", 100, 64], ["R4", 2, 1], ["R5", 5, 2]]},
+    {"op": "tdev_expect_events", "events": [
+      {"event": "register_filter", "wealth": 2, "purpose": 7},
+      {"event": "needs_anchor", "rect": [2, 0, 2, 0], "purpose": 7},
+      {"event": "claim", "amount": 5, "ok": true},
+      {"event": "demolish", "lot": 3},
+      {"event": "start_construction", "lot": 3, "cfg": 102, "building": "0x502", "flag": true}]},
+    {"op": "tdev_lot", "id": 4, "at": [3, 0], "zone": 8, "state": 4, "building": "0x500", "capacity": 5, "wealth": 2, "cfg_stage": 1},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 2, "expect": 5, "outcomes": [27]},
+    {"op": "tdev_expect_draws", "draws": [["R1", 16, 3], ["R2", 0, 0.007612407207489014]]},
+    {"op": "tdev_expect_events", "events": [{"event": "reoccupy", "lot": 4, "dev_type": "0x4300"}]}
+  ]
+}

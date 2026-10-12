@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "tract_developer_save_record",
+  "spec": ["tract-developer 6", "tract-developer 4.21", "tract-developer 11.19"],
+  "description": "Test 19, bytes laid out by hand from the section 6 table (little-endian). Index 1, years since 2, singleStyle true, styles {0x2000, 0x2001, 0x2002, 0x2003}, years between 5 -> 35 bytes: version 3 (u16), 1 (i32), 2 (i32), 01 (u8), count 4 (u32), the four styles (u32), 5 (i32). The record loads into a new instance and saves back to the same bytes. A version-1 record (version, index 2, years since 7) sets singleStyle true and styles {0x2000, 0x2001, 0x2002} and keeps yearsBetween (5); a version-2 record (flag 0, two styles 0x3000, 0x3001) keeps yearsBetween. Version 4 is rejected with no change. Truncated records return false; fields read before the failure are stored ([choice] for the count: a failed count read resizes to 0, the original uses an uninitialised local). A short style list is zero-filled to the count (count 3, one style -> {0x2000, 0, 0}). A loaded empty style list is filled from the tuning by Init (shipped {0x2000..0x2003}) and the index is clamped to 0; a loaded yearsBetween of 0 becomes the tuning's 5 in Init.",
+  "steps": [
+    {"op": "tdev_tuning", "shipped": true},
+    {"op": "tdev_create"},
+    {"op": "tdev_set", "styles": ["0x2000", "0x2001", "0x2002", "0x2003"], "style_index": 1, "years_since": 2, "single_style": true, "years_between": 5},
+    {"op": "tdev_save", "ok": true, "expect": "0300010000000200000001040000000020000001200000022000000320000005000000"},
+    {"op": "tdev_create"},
+    {"op": "tdev_load", "hex": "0300010000000200000001040000000020000001200000022000000320000005000000", "expect": true},
+    {"op": "tdev_expect", "style_index": 1, "years_since": 2, "single_style": true, "styles": [8192, 8193, 8194, 8195], "years_between": 5, "current_style": 8193},
+    {"op": "tdev_save", "expect": "0300010000000200000001040000000020000001200000022000000320000005000000"},
+    {"op": "tdev_load", "hex": "01000200000007000000", "expect": true},
+    {"op": "tdev_expect", "style_index": 2, "years_since": 7, "single_style": true, "styles": [8192, 8193, 8194], "years_between": 5},
+    {"op": "tdev_load", "hex": "0200000000000100000000020000000030000001300000", "expect": true},
+    {"op": "tdev_expect", "style_index": 0, "years_since": 1, "single_style": false, "styles": [12288, 12289], "years_between": 5},
+    {"op": "tdev_load", "hex": "04000900000009000000010000000009000000", "expect": false},
+    {"op": "tdev_expect", "style_index": 0, "years_since": 1, "single_style": false, "styles": [12288, 12289], "years_between": 5},
+    {"op": "tdev_load", "hex": "030003000000", "expect": false},
+    {"op": "tdev_expect", "style_index": 3},
+    {"op": "tdev_load", "hex": "03000000000000000000", "expect": false},
+    {"op": "tdev_expect", "styles": [], "single_style": false},
+    {"op": "tdev_load", "hex": "03000000000000000000010300000000200000", "expect": false},
+    {"op": "tdev_expect", "styles": [8192, 0, 0], "single_style": true, "years_between": 5},
+    {"op": "tdev_create"},
+    {"op": "tdev_load", "hex": "03000200000000000000000000000000000000", "expect": true},
+    {"op": "tdev_expect", "styles": [], "style_index": 2, "years_between": 0},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_expect", "styles": [8192, 8193, 8194, 8195], "style_index": 0, "years_between": 5, "single_style": false}
+  ]
+}

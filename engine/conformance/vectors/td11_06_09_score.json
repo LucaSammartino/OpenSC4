@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "tract_developer_score",
+  "spec": ["tract-developer 4.14", "tract-developer 11.6", "tract-developer 11.7", "tract-developer 11.8", "tract-developer 11.9"],
+  "description": "Tests 6-9, by hand / numpy float32 from 4.14. Test 6: residential (zone 1), type 2, existing 30, abandoned 10, demolition {1, 0.2}: r24(r24(r24(10 x 0.2f) + r24(30 x 1)) + 0) = r24(2.0000000298 -> 2.0, + 30) = 32.0; with road {1,0,0,0} and avenue {0,1,0,0}, weights (1, 2, 10): side 0 adds r24(r24(0 + 0) + 1) = 1, side 1 adds r24(r24(0 + 2) + 0) = 2 -> 35.0. Streets are never weighted, rail on side 2 with weight 10 adds 10 (42.0). Test 7: commercial (zone 2): the network guard is the rail weight 0, so 32.0 whatever the networks. Test 8: aggregation of 3 lots, no capacity, shipped newLot {1, 1}: r24(0 + r24(float(3 - 1) x 1)) = 2.0; subdivision 1.0; code defaults {10, 5}: 20.0 and 5.0. Industrial (zone 3) has no lot costs: an aggregation scores only its random term. Test 9: industrial type-1 candidate, generator seeded 12345 (lcg = mul = 12345): one RandomDoubleUniform, mul 12345 x 0x278DDE6D = 0x684AF645, u = r24(r24(0x684AF645 / 2^32) + 0.5) = 0.9073938131332397; score r24(u x 20) = 18.147876739501953 (bits 0x41912EDA; numpy float32 model).",
+  "steps": [
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 2, "existing": 30, "abandoned": 10}, 1, {"demolition": [1, 0.2]}], "expect": {"score": 32.0, "bits": "0x42000000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 2, "existing": 30, "abandoned": 10, "road": [1,0,0,0], "avenue": [0,1,0,0]}, 1, {"demolition": [1, 0.2]}], "expect": {"score": 35.0, "bits": "0x420C0000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 2, "existing": 30, "abandoned": 10, "road": [1,0,0,0], "avenue": [0,1,0,0], "street": [5,5,5,5]}, 2, {"demolition": [1, 0.2]}], "expect": {"score": 32.0, "bits": "0x42000000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 2, "existing": 30, "abandoned": 10, "street": [1,1,1,1], "rail": [0,0,1,0]}, 1, {"demolition": [1, 0.2]}], "expect": {"score": 42.0, "bits": "0x42280000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 3, "existing": 0, "abandoned": 0, "lots": 3}, 1, {"new_lot": [1, 1]}], "expect": {"score": 2.0, "bits": "0x40000000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 4, "existing": 0, "abandoned": 0}, 1, {"new_lot": [1, 1]}], "expect": {"score": 1.0, "bits": "0x3F800000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 3, "existing": 0, "abandoned": 0, "lots": 3}, 1, {"new_lot": [10, 5]}], "expect": {"score": 20.0, "bits": "0x41A00000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 4, "existing": 0, "abandoned": 0}, 1, {"new_lot": [10, 5]}], "expect": {"score": 5.0, "bits": "0x40A00000", "draws": 0, "mul": 1}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 1}, 3, {}, 12345], "expect": {"score": 18.147876739501953, "bits": "0x41912EDA", "draws": 1, "mul": "0x684AF645"}},
+    {"op": "tdev_eval", "fn": "score", "args": [{"kind": 3, "existing": 0, "abandoned": 0, "lots": 3}, 3, {"new_lot": [10, 5]}, 12345], "expect": {"score": 18.147876739501953, "bits": "0x41912EDA", "draws": 1, "mul": "0x684AF645"}}
+  ]
+}

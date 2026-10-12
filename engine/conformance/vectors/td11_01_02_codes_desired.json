@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "tract_developer_codes_desired",
+  "spec": ["tract-developer 4.1", "tract-developer 4.2", "tract-developer 11.1", "tract-developer 11.2"],
+  "description": "Tests 1 and 2, by hand from 4.1 and 4.2. The outcome codes are 0..27 in table order and 'best' is the numeric maximum (Success 27 is the largest). desired = max(1, trunc(demand)), desiredMax = trunc(r24(float(desired) x overbuild)): 7.9 -> 7, trunc(r24(7 x 1.5)) = trunc(10.5) = 10; 0.3 -> trunc 0 -> 1, desiredMax trunc(1.5) = 1; -5.0 -> 1, 1; NaN -> _ftol gives 0 (low 32 bits of 0x8000000000000000) -> max(1, 0) = 1, 1; no demand node [choice] reads 0 -> 1, 1. Overbuild 2.25 with demand 3 -> 3, trunc(6.75) = 6. Then one Grow with demand 7.9 and no lot configuration at all (ListPossibleLotConfigurations returns 5, nothing is listed or pushed, two passes) leaves desired / desiredMax 7 / 10 in the working state and an empty outcome list.",
+  "steps": [
+    {"op": "tdev_eval", "fn": "outcome_codes", "expect": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27]},
+    {"op": "tdev_eval", "fn": "best", "args": [[3, 27, 20]], "expect": 27},
+    {"op": "tdev_eval", "fn": "best", "args": [[0, 5, 4]], "expect": 5},
+    {"op": "tdev_eval", "fn": "best", "args": [[26, 21]], "expect": 26},
+    {"op": "tdev_eval", "fn": "desired", "args": [7.9, 1.5], "expect": [7, 10]},
+    {"op": "tdev_eval", "fn": "desired", "args": [0.3, 1.5], "expect": [1, 1]},
+    {"op": "tdev_eval", "fn": "desired", "args": [-5.0, 1.5], "expect": [1, 1]},
+    {"op": "tdev_eval", "fn": "desired", "args": ["nan", 1.5], "expect": [1, 1]},
+    {"op": "tdev_eval", "fn": "desired", "args": [null, 1.5], "expect": [1, 1]},
+    {"op": "tdev_eval", "fn": "desired", "args": [3, 2.25], "expect": [3, 6]},
+    {"op": "tdev_developer", "id": 1, "demand": 7.9},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 1, "expect": 0, "outcomes": []},
+    {"op": "tdev_expect", "desired": [7, 10]},
+    {"op": "tdev_expect_draws", "draws": [["R1", 16, 9], ["R1", 16, 3]]}
+  ]
+}

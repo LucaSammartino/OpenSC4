@@ -854,8 +854,65 @@ The growth developer vectors (`gd14_…`) drive `fc4_core::growth_developer`. Ev
 
 ## Tract developer ops
 
-The tract developer vectors (`td11_…`) drive `fc4_core::tract_developer`. Every op name starts with `tdev_`.
-(Being written, M4.)
+The tract developer vectors (`td11_…`, extras `td00_…`) drive `fc4_core::tract_developer` with a scripted world
+implementing `TractDeveloperHost`. Every op name starts with `tdev_`. Objects are tokens: developers, lots and
+configurations take the `id` the vector gives; lots and filters the host creates get tokens from 65536 on. The
+default world: a 64 × 64-cell city, construction resources 10⁹ (none used), no cheats, no anchor needed, every grid
+at its default (zone 1, land value 0, powered 2, watered 1, fire 1, park 1, road access 1), no networks, no
+surrounding lots, the shipped tuning exemplar (§4.21), services, simulator and message server present. A lot's
+rectangle is computed from its location, size and facing (§4.10.1 table). `StartConstruction` puts the lot in
+state 2 with the building; `AbandonBuilding` sets state 4 (synchronous, `lot-developer.md` §4.3);
+`ReoccupyBuilding` sets state 3; `DemolishLots` clears the building; `CreateLotIfPossible` makes a state-1 lot whose
+location is the inverse of the §4.10.1 table. With facing −1 on a free rectangle it first draws `U(4)` on the zone
+developer's generator (R9, zones.md §7.7 / §9), records it in the tract developer's draw trace and faces the new lot
+that way (the harness has no road model). Draws are traced by kind: R1–R8 by the core (§4.22), R9 by the host.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `tdev_world` | any of `city` (`[x, z]` cells), `supply`, `used`, `cheats` (`{ignore_plumbing, ignore_power, ignore_caps, debug_growth}`), `anchor` (NeedsAnchorBuilding's answer), `construction_sets_state` (true), `no_services`, `no_simulator`, `no_message_server`, `create_fails` (CreateLotIfPossible gives no lot and no draw; the event still shows `lot: null`), `zone_seed` (the zone developer generator's state; default `0x8C09C68A`, its seed at clock 0) | the world |
+| `tdev_developer` | `id`; any of `target_zone` (1), `subtype` (`0x1010`), `purpose` (1), `wealth` (1), `zone_code` (1), `land_value` (`[min, max]`, `[0, 0]`), `tract_size` (4), `shift` (2), `desirability` / `capacity` (`[[tx, tz, v]]`), `demand` (number, `"nan"` or null = no source demand; 1), `caps` (`[power, water, fire, park]`, 255 each), `monopoly_use` (−1), `styles` (`[[group, fraction]]`, ascending keys) | a growth developer (fields not given keep their value) |
+| `tdev_lot` | `id`; any of `at` (location `[x, z]`), `size` (`[w, h]`, 1 × 1), `facing` (0), `slope`, `zone` (1), `state` (1), `livable`, `has_capacity` (default: a building stands), `days`, `wealth`, `historical`, `building`, `capacity`, `available` (default: the capacity), `road`, `organic` (true), `cfg_stage` (number or null), `can_create` (7); `remove: true` | a lot |
+| `tdev_cfg` | `id` (token); any of `cfg_id` (the configuration ID, for `GetLotConfiguration`), `size`, `slope` (`[min, max]`, ±100), `stage` (1), `capacity` (`[min, max]`), `zones`, `wealths`, `purposes`, `styles` (absent = compatible with all), `roads` (required-road bits), `primary` (family IDs; null = no primary object) | a lot configuration (all are visible to the configuration manager, filtered by `IsLotConfigurationIncluded`) |
+| `tdev_building` | `id` (type); any of `purpose` (1), `wealth` (1), `capacity` (1), `groups` (absent = every occupant group), `monopoly`, `fields` (`0x29B55F73` IDs) | a building type |
+| `tdev_family` | `id`, `members` (BDS insertion order) | a building family |
+| `tdev_cells` | `grid` (`zone`, `land_value`, `powered`, `watered`, `fire`, `park`, `road_access`), `default?`, `cells?` (`[[x, z, v]]`), `rects?` (`[[x1, z1, x2, z2, v]]`) | grid values |
+| `tdev_networks` | `cells` (`[[x, z, [types]]]`) | network tiles and their `IsOfType` answers |
+| `tdev_surrounding` | `rect?` (the lots `GetLotsSurroundingRect` appends for flag 1), `lots?` (`{"lot": [lots]}` for `GetLotsSurroundingLot`, flag 1); other flags append nothing | neighbour lists |
+| `tdev_tuning` | `none: true`, or `shipped?` (true) with `props?` (a property map merged over it) and `remove?` (IDs) | the "Building Development" exemplar |
+| `tdev_create` | `seed?` (the file-local generator's seed, injected; default `0x4C09C113`, the original's seed at clock 0), `crt_seed?` (1), `trace?` (true), `histogram?` (true), `shared?` (reuse the previous instance's statics) | a new tract developer |
+| `tdev_rng` | `seed`, or `lcg` and `mul`; `crt?` | sets the shared generator / `rand()` state |
+| `tdev_set` | any of `styles` (assigned as is), `style_index`, `years_since`, `years_between`, `single_style` | pokes the style state |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tdev_init` / `tdev_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `tdev_message` | `msg`, `expect?` | `DoMessage` |
+| `tdev_new_year` | `count?` (1) | `NewYear` |
+| `tdev_set_active_styles` | `styles` | `SetActiveStyles` |
+| `tdev_use_all_styles` | `value` | `UseAllStylesAtOnce` |
+| `tdev_grow` | `dev`, `tract` (`[x, z]`), `stage`, `append?` (keep the previous outcome list), `out_flag_in?`; checks `expect` (built), `outcomes` (the whole list), `out_flag` | `Grow` |
+| `tdev_decline` | `dev`, `tract`, `expect?` (the sum) | `Decline` |
+| `tdev_update_population` | `dev`, `tract` | `UpdatePopulation` |
+| `tdev_save` | `expect?` (hex), `ok?` | `Write` |
+| `tdev_load` | `hex`, `expect?` | `Read` |
+| `tdev_expect` | any of `style_index`, `years_since`, `years_between`, `single_style`, `all_styles`, `styles`, `current_style`, `desired` (`[desired, desiredMax]` of the last Grow), `chosen_cfg`, `chosen_building`, `lcg`, `mul`, `crt`, `initialised`, `configured`, `filters` (cached count), `tuning` (partial: `overbuild`, `reoccupy`, `redevelop_size_threshold`, `demolition`, `new_lot`, `occupancy_variation`, `min_vacancy`, `kick_out`, `available_styles`), `used` (resources), `lots` (existing tokens) | state |
+| `tdev_expect_lot` | `lot`; any of `exists`, `state`, `facing`, `building`, `population` (`{devType: n}`), `rect` | a lot |
+| `tdev_expect_hist` | `row`, `counts` (`{code: n}`; every other counter of the row is 0) | the debug histogram of the last Grow (§4.1) |
+| `tdev_expect_draws` | `draws`: each `"Rn"` (kind only) or `["Rn", arg, value]` (exact); `keep?` | the draws since the last check |
+| `tdev_expect_events` / `tdev_expect_event_count` / `tdev_clear_events` | see the shared conventions | host calls |
+| `tdev_eval` | `fn`, `args`, `expect`: `outcome_codes`, `best [codes]`, `desired [demand, overbuild]`, `capacity_window [candidate, desiredMax, built]`, `rect [x, z, w, h, facing]`, `corner [bits, candidate]`, `roads_check [bits, candidate, requireRoads]` (21 or `[27, corner]`), `style_points [fraction]`, `style_group [[[key, fraction]], r]`, `score [candidate, zone, tuning {demolition, new_lot}, seed]` (`{score, bits, mul}`), `hash_order [values]`, `stl_sort [scores]` (sorted indices), `query_interface [iid]`, `zone_family [zone]`; a candidate is `{kind, existing, abandoned, n, facing, lots, street, road, avenue, rail}` | pure functions |
+
+Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `acquire_message_server`,
+`release_message_server`, `remove_agent`, `release_services`, `register_filter` (`wealth`, `purpose`, `filter`),
+`unregister_filter` (`filter`), `claim` (`amount`, `ok`), `release` (`amount`), `needs_anchor` (`rect`, `purpose`),
+`start_construction` (`lot`, `cfg`, `building`, `flag`), `abandon` (`lot`, `reason`), `reoccupy` (`lot`,
+`dev_type`), `demolish` (`lot`), `delete_lot` (`lot`), `zone_draw` (`value`, R9), `create_lot` (`x`, `z`, `w`, `h`,
+`facing`, `lot`), `redisplay` (`rect`), `set_facing` (`lot`, `facing`), `set_state` (`lot`, `state`),
+`set_population` (`lot`, `dev_type`, `population`).
 
 ## Adding a vector
 
@@ -1279,3 +1336,33 @@ The tract developer vectors (`td11_…`) drive `fc4_core::tract_developer`. Ever
 
 | §11 item | Vector |
 |---|---|
+| 1 outcome codes and `best` | `td11_01_02_codes_desired` |
+| 2 desired / desiredMax | `td11_01_02_codes_desired` |
+| 3 pass budget (18 passes; a failed relaxed pass ends the call) | `td11_03_pass_budget` |
+| 4 strict vs relaxed (rule 7) | `td11_04_strict_relaxed` |
+| 5 takeover thresholds | `td11_05_takeover` |
+| 6 score, residential type 2 | `td11_06_09_score` |
+| 7 score, commercial | `td11_06_09_score` |
+| 8 score, aggregation and subdivision lot costs | `td11_06_09_score` |
+| 9 industrial random term | `td11_06_09_score` |
+| 10 bounding rectangle | `td11_10_15_geometry_window_styles` |
+| 11 corner test | `td11_10_15_geometry_window_styles` |
+| 12 capacity window | `td11_10_15_geometry_window_styles` |
+| 13 style percentages → group | `td11_10_15_geometry_window_styles` |
+| 14 seeded PickBuilding draws (R3–R5), inside a full Grow | `td11_14_pick_building_draws` |
+| 15 hash order tie | `td11_10_15_geometry_window_styles`, `td00_hash_growth_sort` |
+| 16 seeded UpdatePopulation (R7), incl. the shipped variation 0 and tract (0, 0) (seed 1, [choice]) | `td11_16_17_update_population` |
+| 17 population clamps | `td11_16_17_update_population` |
+| 18 Decline (R8, multi-cell lot counted once) | `td11_18_decline` |
+| 19 save record (v3 bytes, v1 / v2 loads, v4 rejected, truncated records) | `td11_19_save_record` |
+| 20 style rotation | `td11_20_21_styles` |
+| 21 SetActiveStyles | `td11_20_21_styles` |
+| 22 subdivision geometry (facings 2 and 0, inside full Grows) | `td11_22_subdivision` |
+| 23 farm minimum (14 → 0, 15 → Claim(45), Release(30); R6) | `td11_23_farm` |
+| 24 IsLotSuitable order | `td11_24_lot_suitable_order` |
+| extra: STLport hash_set growth and `std::sort` (introsort, ties) | `td00_hash_growth_sort` |
+| extra: per-pass draw order of a full Grow with several scored candidates (R1, R2 × 3, R3, R4, R5) and a scored takeover | `td00_industrial_grow_draws` |
+| extra: lifecycle, messages, QueryInterface, filters, tuning reader | `td00_lifecycle_tuning` |
+| extra: aggregation, Build without a lot [quirk], resource failure | `td00_aggregation_build` |
+| extra: R9 (CreateLotIfPossible with facing −1) in the per-pass order | `td00_aggregation_r9` |
+| extra: kick-out, caps (building developer's power, own fire), style checks [quirk] | `td00_kickout_caps_styles` |

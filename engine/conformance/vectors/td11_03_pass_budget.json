@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "tract_developer_pass_budget",
+  "spec": ["tract-developer 4.3", "tract-developer 4.5", "tract-developer 4.22", "tract-developer 11.3"],
+  "description": "Test 3, by hand from 4.3. Residential developer, tract size 4, demand 1000 (desired 1000, desiredMax 1500), maxStage 1 (so the strict check 7 of 4.7 never applies: stage 1 is not < 1). Part 1: the scripted lot developer does not change the lot's state, so every pass finds the same empty 1 x 1 lot, builds a capacity-10 building on it and ends at its success without reaching desired: passesLeft 17 -> -1 gives exactly 18 passes, 18 outcomes 27 and built 180. Each pass draws R1 (one rand(); start = rand() mod 16 from state 1: 9, 3, 14, 4, 1, 12, 6, 14, 2, 0, 9, 1, 1, 11, 9, 11, 3, 6), then PickBuilding's R4 = RandomUint32Uniform(1) and R5 = RandomUint32Uniform(1) (no style map, so no R3). The out flag is set (an existing lot not in state 3 that does not fail with 6). Part 2: StartConstruction now puts lots in state 2. Two empty lots: pass 1 builds the first (equal scores 0 keep list order), pass 2 finds the first in state 2 (code 4) and builds the second, pass 3 has no candidate: best = max(1 takeover, 4 existing, 5 aggregation (equal sizes count 5), 4 subdivision) = 5 is pushed and, from pass 2 on, a pass without success ends the call: outcomes [27, 27, 5], built 20; row 0 of the histogram counts the one empty pass with 5. rand() continues: 11, 12, 7.",
+  "steps": [
+    {"op": "tdev_world", "construction_sets_state": false},
+    {"op": "tdev_developer", "id": 1, "demand": 1000},
+    {"op": "tdev_lot", "id": 1, "at": [0, 0]},
+    {"op": "tdev_cfg", "id": 100, "size": [1, 1], "stage": 1, "capacity": [0, 100], "purposes": [1], "wealths": [1], "primary": [500]},
+    {"op": "tdev_family", "id": 500, "members": [256]},
+    {"op": "tdev_building", "id": 256, "purpose": 1, "wealth": 1, "capacity": 10},
+    {"op": "tdev_create"},
+    {"op": "tdev_init", "expect": true},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 1, "expect": 180, "out_flag": true,
+     "outcomes": [27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27,27]},
+    {"op": "tdev_expect", "desired": [1000, 1500], "chosen_cfg": 100, "chosen_building": 256, "used": 180},
+    {"op": "tdev_expect_event_count", "filter": {"event": "start_construction", "lot": 1, "cfg": 100, "building": 256, "flag": true}, "count": 18},
+    {"op": "tdev_expect_event_count", "filter": {"event": "demolish", "lot": 1}, "count": 18},
+    {"op": "tdev_expect_event_count", "filter": {"event": "claim", "amount": 10, "ok": true}, "count": 18},
+    {"op": "tdev_expect_draws", "draws": [
+      ["R1",16,9],"R4","R5", ["R1",16,3],"R4","R5", ["R1",16,14],"R4","R5", ["R1",16,4],"R4","R5",
+      ["R1",16,1],"R4","R5", ["R1",16,12],"R4","R5", ["R1",16,6],"R4","R5", ["R1",16,14],"R4","R5",
+      ["R1",16,2],"R4","R5", ["R1",16,0],"R4","R5", ["R1",16,9],"R4","R5", ["R1",16,1],"R4","R5",
+      ["R1",16,1],"R4","R5", ["R1",16,11],"R4","R5", ["R1",16,9],"R4","R5", ["R1",16,11],"R4","R5",
+      ["R1",16,3],"R4","R5", ["R1",16,6],["R4",1,0],["R5",1,0]]},
+    {"op": "tdev_world", "construction_sets_state": true},
+    {"op": "tdev_lot", "id": 2, "at": [1, 0]},
+    {"op": "tdev_clear_events"},
+    {"op": "tdev_grow", "dev": 1, "tract": [0, 0], "stage": 1, "expect": 20, "outcomes": [27, 27, 5]},
+    {"op": "tdev_expect_events", "filter": {"event": "start_construction"}, "events": [
+      {"event": "start_construction", "lot": 1, "cfg": 100, "building": 256, "flag": true},
+      {"event": "start_construction", "lot": 2, "cfg": 100, "building": 256, "flag": true}]},
+    {"op": "tdev_expect_hist", "row": 0, "counts": {"5": 1}},
+    {"op": "tdev_expect_lot", "lot": 1, "state": 2},
+    {"op": "tdev_expect_lot", "lot": 2, "state": 2},
+    {"op": "tdev_expect_draws", "draws": [["R1",16,11],"R4","R5", ["R1",16,12],"R4","R5", ["R1",16,7]]}
+  ]
+}
