@@ -226,10 +226,38 @@ FinishTripMap (on entering 2) and after ClearTripDestinations (on entering 11).
 *[compat]* The amount of work done on a given day in the original depends on wall-clock time: the per-day share is
 tested only when a 4 ms slice ends without finishing the phase, so the last slice of a day overshoots the share by
 a timing-dependent amount, and a fast machine may finish a whole phase inside one slice. *[choice]* FreeCity4 makes
-this deterministic: no wall-clock deadline; the slice boundary is **one traffic source** in ConfirmTrips and **one
-trip** in ReRouteTrips / FullTrips (pathfinder max work time 0 = unlimited, so a search never suspends), and the
-share test of step 3 runs after every slice. The cell-scanning phases run to completion in one call. Differential
-tests compare per-cycle results, not per-day progress (§11).
+this deterministic with a work budget per slice (§3.4). Differential tests compare per-cycle results, not per-day
+progress (§11).
+
+### 3.4 Traffic work budget *[choice]*
+
+The original tests its 4 ms deadline once per **unit**: before each traffic source in ConfirmTrips (`0x0071E222`)
+and before each trip in ReRouteTrips (`0x0071D1D9`) and FullTrips (`0x0071D607`). FreeCity4 replaces the deadline
+with a count of those units.
+
+- **Unit of work**: in ConfirmTrips, one traffic source (`UpdateTrafficVolume` + `ConfirmTrips(source)`); in
+  ReRouteTrips and FullTrips, one trip examined (with `SetupTrip` + `PerformPathSearch` when it is searched). A
+  search never suspends (pathfinder max work time 0), so a trip is atomic.
+- **Budget** `trafficUnitsPerSlice` = N (tuning value, ≥ 1). One `WorkOnSimCycle` call in states 16–18 is a
+  slice: it ends unfinished after N units (where the original's deadline would fire). Step 3 of §3.3 then applies
+  unchanged: the share test runs at each unfinished slice end; when the share is not reached the day continues
+  with another slice (the original's "return false, called again within the same day"). A slice that finishes its
+  phase and continues into the next one (state 16) starts the next phase with a fresh N *[choice: the original
+  shares one deadline]*. The other phases run to completion in one call (their slicing does not change results).
+- Consequently the work of one trip-phase day is the shortest run of whole slices whose end reaches the share
+  `total · (dayIndex + 1) / days`: at least the share, and at most N − 1 units more.
+- **Default**: to be calibrated in the original (§12). N = 1 is the minimum (the day ends exactly at the share).
+- **Observable effect of the budget** (for the M5 exit tests):
+  - Larger N means more work per day than the share, so the trip phases finish in fewer days and the **traffic
+    cycle is shorter** (in game days). The commute, congestion, air-polluting and commercial maps are then
+    republished more often and converge faster after a change to the network or the zoning. Monthly sums that
+    accumulate per applied route (toll and transit income, edge-density counters, accident draws per entry) grow
+    with the number of cycles per month.
+  - Smaller N has the opposite effect. The cycle length tends to `days(16) + days(17) + days(18)` plus the fixed
+    day ends after phases 15 and 5 (§3.3).
+  - Budget-sensitive statistics: cycle length, maps sampled at a fixed date, convergence time after a change, and
+    monthly income and accident counts. Budget-insensitive: the result of one cycle given the same inputs (routes,
+    volumes and the maps it publishes), and the draw sequence of each operation.
 
 ## 4. Behaviour
 
@@ -878,6 +906,9 @@ Pathfinder: every slot listed in pathfinder.md §7 that §4.4 names, plus the di
 
 ## 9. Replaceability
 
+**Replacement unit** *[choice]*: the traffic simulator and the pathfinder (pathfinder.md) are one unit; each reads and
+writes the other's members directly.
+
 * **Raw readers of this class's memory** (simgrid.md §6.4): the pathfinder reads the simulator's members directly
   through its owner pointer (cell connection array, destination map and `freeDest`, volume-grid vector, transit
   switch grid, strike state, per-travel-type tables, start-cost arrays, `MaxDistanceOriginToNetwork`,
@@ -936,8 +967,12 @@ Shipped tuning unless stated. Exact values are float32 bit patterns where given.
 1. **Cycle order.** From state 0 with an empty city, successive finished phases visit
    `0, 16, 17, 18, 15, 2, 4, 5, 11, 3, 7, 6, 10, 12, 13, 19, 8, 0` (12 skipped when no subnetwork rebuild is
    needed). `DoDailySimulation` returns true on entering 17, 18, 2 and 11.
-2. **Day pacing.** `passTotal = 100` at the start of ConfirmTrips: `days = 5`; with the FreeCity4 slicing (one source
-   per slice) the first day ends after the first source that brings `processed ≥ 20`. `toReRoute = 17` → `days = 1`.
+2. **Day pacing.** `passTotal = 100` at the start of ConfirmTrips: `days = 5`; with `trafficUnitsPerSlice` = 1 the
+   first day ends after the first source that brings `processed ≥ 20`. `toReRoute = 17` → `days = 1`. With 10
+   sources of 4 trips each (same `passTotal = 100`, shares 20, 40, …) and N = 3: day 1 runs slices of sources 1–3
+   (processed 12 < 20, continue) and 4–6 (24 ≥ 20, day ends); day 2 runs sources 7–9 (36 < 40, continue), then
+   source 10, after which the phase finishes and the day ends on entering 17. With N = 1 day 1 ends after source 5
+   (processed 20).
 3. **Congestion scale.** Shipped curve: inverted points `(2, 0x3FC4EC4F)`, `(3, 0x40555555)`; `congestionScale =
    0x42DA924A` (109.28572).
 4. **Congestion map.** Peak ratio `D` → congestion: 0.5 → 1; 1.0 → 1; 1.5 → `c = 0x3FA27628` (1.2692308) → 29;
@@ -984,3 +1019,22 @@ Shipped tuning unless stated. Exact values are float32 bit patterns where given.
 15. **Save round trip.** Write then Read of a fresh simulator gives the same bytes; the header is
     `29 00 0D 00 00 00 01 00 00 00 0D 00 00 00 09 00 00 00`; a trip record with empty routes is
     `02 00 00 00 | 00 00 00 00 | 00 00 00 00 | count | type strategy flags status | destX destZ | length | mask`.
+
+## 12. Calibration (counters for the observer in the original)
+
+Purpose: set the default of `trafficUnitsPerSlice` (§3.4) from the original's behaviour on the reference machine.
+The observer logs, for every `WorkOnSimCycle` call (`0x00720F00`) made from `DoDailySimulation` (`0x007215C0`):
+
+| Counter | Where to count in the original | Meaning |
+|---|---|---|
+| `state` | the simulator's current work-cycle state at the call's entry and exit | which phase the slice ran |
+| `sources` | calls to `ConfirmTrips(source)` `0x0071D920` from ConfirmTrips `0x0071E1B0` (call at `0x0071E294`) | units of state 16 in the slice |
+| `trips` | trips examined by ReRouteTrips `0x0071D020` and FullTrips `0x0071D440`: each passage through the deadline checks at `0x0071D1D9` and `0x0071D607`; searches: calls to `PerformPathSearch` `0x0071C6C0` (at `0x0071D257`, `0x0071D672`) | units of states 17 and 18 in the slice |
+| `finished` | the return value of `WorkOnSimCycle` | the slice finished its phase |
+| `suspended` | `PerformPathSearch` returning with the search incomplete (pathfinder work-time limit) | a trip split across slices (FreeCity4 has none) |
+| `elapsed` | rdtsc at the call's entry and exit | slice length |
+
+and, per game day (all `DoDailySimulation` calls with the same simulation date until one returns true): the
+number of slices, `processed`, `total`, `days` and `dayIndex` before and after (§6, save row 15). The default is
+the distribution of units per unfinished slice in states 16–18; log the city population and trip count with it,
+because the cost of a unit grows with the network size.

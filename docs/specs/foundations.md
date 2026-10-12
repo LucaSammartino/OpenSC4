@@ -8,7 +8,9 @@ or disassembled code (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 Normative words: **must**, **should**, **may**. Tagged notes: *[compat]* is required for compatibility with the
 original game and its plugins; *[choice]* is a behaviour we chose where the original was arbitrary or undefined;
 *[inferred]* marks a finding that is consistent with all evidence but not proven; *[quirk]* marks original
-behaviour that is surprising and documented so that nobody "fixes" it by accident.
+behaviour that is surprising and documented so that nobody "fixes" it by accident; *[compat-limit]* marks original
+behaviour that depends on something FreeCity4 cannot reproduce (object addresses, wall-clock time), so only its
+distribution is matched, not each individual outcome.
 
 Other specs refer to this one for the meaning of `str`, `ref`, `reskey`, "response curve", "standard message"
 and the random number generators, and (§9–§13) for variants, the "property holder record", the regional-city
@@ -715,7 +717,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 |---|---|---|
 | a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager, advisor system (advisors.md §9), each MySim (mysims.md); plumbing (created at `Init`). The zone manager's member is never drawn (zones.md) |
 | a `cRZRandom` member | **0** (integer path deterministic, double path clock-seeded) | flammability |
-| a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, construction, network lots |
+| a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, network lots (full list in §6.3) |
 | a file-local `cRZRandom` per source file (seeded once at static initialisation, never re-seeded) | `cRZTime()` local wall clock XOR a per-file constant | building development simulator (`0x00B485F0`, XOR `0x0C09C0B8`; building-development.md §4.14), growth developers (`0x00B49080`, XOR `0xAC09C0E8`, shared by all of them; growth-developer.md §7), tract developers (`0x00B4AFD8`, XOR `0x4C09C113`, shared; tract-developer.md §4.22), zone developer (`0x00B4B398`, XOR `0x8C09C68A`; zones.md), lot developer (`0x00B49AF0`, XOR `0x6C09C0F4`; lot-developer.md) |
 | a temporary `cRZRandom` | `((x << 16) + z) << 4` XOR a per-month salt | growth developer decline-list ordering (growth-developer.md §7) |
 | a temporary `cRZRandom` | `((tx << 16) + tz) << 4` (tract (0, 0) seeds 0, so its multiplicative path is clock-seeded) | tract developer `UpdatePopulation` (tract-developer.md §4.18) |
@@ -733,8 +735,68 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 
 ### 6.3 Seeding in FreeCity4 *[choice]*
 
-- The core takes an explicit seed per generator instance from the host (`fc4.h`). The shim seeds from the wall
-  clock like the original, unless a test or replay asks for fixed seeds.
+- The core takes one 32-bit **session seed** `S` from the host (`fc4.h`) and derives every generator's seed from it
+  with a fixed per-generator constant `K`:
+
+  ```
+  derive(K) := S XOR K;   if derive(K) = 0 or derive(K) = 0xFFFFFFFF: derive(K) := derive(K) XOR 1
+  ```
+
+  The fix-up avoids the two values that make the original fall back to the clock (`Seed(0xFFFFFFFF)`, and a zero
+  multiplicative state, §6.1). The shim takes `S` from the wall clock like the original, unless a test or replay
+  fixes it.
+- **Which `K`**, by the kinds of §6.2:
+  - *File-local generators* (seeded once at static initialisation with the clock XOR a constant): `K` = the
+    original's constant, so `derive(K)` is exactly what the original computes with `S` in place of the clock. The
+    table below lists all of them.
+  - *Member generators seeded from the clock* (`0xFFFFFFFF` at construction, or the clock at `Init`): `K` = the
+    owning class's GZCLSID. Classes with several instances (MySims) use `GZCLSID XOR i`, where `i` is the instance's
+    creation index from 0. A further transformation the original applies to the clock value (the prop developer's
+    × 28) is applied to `derive(K)` instead.
+  - *Members seeded with a constant* (flammability: 0) keep the constant. Where a zero multiplicative state later
+    reseeds from the clock (§6.1), FreeCity4 uses `derive(GZCLSID)` for that reseed.
+  - *Temporaries seeded from the clock* (civic building monthly simulation, the neighbours' process-wide
+    generator): `K` = the owner's GZCLSID XOR `n`, where `n` counts earlier creations at that site in this
+    session (not saved).
+  - *Temporaries seeded from coordinates*: unchanged, because they are deterministic already. The one case whose
+    seed is 0 (tract developer `UpdatePopulation` for tract (0, 0)) uses `0x00000001` *[choice]*
+    (tract-developer.md §4.18).
+  - The C runtime `rand()` is not seeded by the game and stays unseeded (§12).
+
+**File-local generators of the Windows build** (static initialisers at `0x00A71000`–`0x00A75300`; found by scanning
+for "clock XOR constant → generator constructor"):
+
+| Static | Class | `K` | Used by |
+|---|---|---|---|
+| `0x00B485F0` | `cRZRandom` | `0x0C09C0B8` | building development simulator |
+| `0x00B49080` | `cRZRandom` | `0xAC09C0E8` | growth developers |
+| `0x00B4AFD8` | `cRZRandom` | `0x4C09C113` | tract developers |
+| `0x00B49AF0` | `cRZRandom` | `0x6C09C0F4` | lot developer |
+| `0x00B4B398` | `cRZRandom` | `0x8C09C68A` | zone developer |
+| `0x00B49120` | `cRZRandomSuper` | `0x0C09C461` | `cSC4Lot` |
+| `0x00B47B78` | `cRZRandomSuper` | `0x6C09C3D7` | budget simulator (`DoMessage`) |
+| `0x00B48630` | `cRZRandomSuper` | `0x6C09C3F6` | crime simulator |
+| `0x00B49BD0` | `cRZRandomSuper` | `0x4C09C4D3` | pollution simulator (visual effects) |
+| `0x00B4A5C0` | `cRZRandomSuper` | `0x4C09C51F` | wealth requester (prop selection) |
+| `0x00B44870` | `cRZRandomSuper` | `0x8C09C379` | network lot manager |
+| `0x00B43E88` | `cRZRandomSuper` | `0x6C09C07B` | network construction crew |
+| `0x00B22FB0` | `cRZRandom` | `0xEC09C32A` | construction occupant |
+| `0x00B23078` | `cRZRandom` | `0x8C09C2D5` | lot base-texture occupant |
+| `0x00B230C8` | `cRZRandom` | `0x0C09C347` | lot retaining-wall occupant |
+| `0x00B231B0` | `cRZRandomSuper` | `0xAC09C2EC` | prop occupant |
+| `0x00B21648` | `cRZRandom` | `0xEC09C147` | fire occupant (flames) |
+| `0x00B22AE8` | `cRZRandom` | `0x6C09C1AB` | earthquake disaster |
+| `0x00B22B60` | `cRZRandom` | `0xEC09C1D1` | pipe-burst disaster |
+| `0x00B22B80` | `cRZRandom` | `0x4C09C187` | riot disaster |
+| `0x00B21D78` | `cRZRandomSuper` | `0x4C09C170` | automata |
+| `0x00B217C0` | `cRZRandom` | `0xAC357AF9` | region creation |
+| `0x00B22BE8`, `0x00B22C10`, `0x00B22C38`, `0x00B22DF8` | `cRZRandom` | `0xAC09C1EF`, `0xAC09C20E`, `0xAC09C22B`, `0xEC09C261` | brush, decal, dynamic-particle and geometry-particle effects (rendering) |
+| `0x00B22E58` | `cRZRandom` | `0x2C09C27B` | advice |
+| `0x00B4BC78`, `0x00B4D530` | `cRZRandom` | `0x4C09C543`, `0x8C09C57A` | terrain, water ripples (rendering) |
+| `0x00B228A0`, `0x00B22E28`, `0x00B4B3D0`, `0x00B4C7C8`, `0x00B4D5D0` | `cRZRandom` | `0x6C09BFC3`, `0xCC09C24E`, `0x6C09C5C8`, `0xAC09C558`, `0xAC09C596` | no reader found (constructed only) |
+
+  The owners come from the functions that read each static (`re/names_windows.tsv`); several are UI or rendering
+  and only matter beyond M5.
 - Generators are separate objects per subsystem, exactly as in §6.2. Merging them would change the sequence each
   subsystem sees.
 
@@ -1638,6 +1700,12 @@ precision (they only force round-to-nearest and masked exceptions while they run
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
   from their entry points]*.
+- **Confirmed in a save of the unmodified game**: three monthly budget settlements produced the 24-bit result
+  of a float-sensitive expression (budget.md §7.2 and Errata round 3: `300 × 0.41f × 100` gives 12300, not
+  12299). In an in-game run with the FreeCity4 plugin loaded (run 19), the same original code produced the
+  53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
+  a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
+  shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
 
 ### 18.3 What 24-bit precision means
 
