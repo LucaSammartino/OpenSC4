@@ -40,6 +40,8 @@
 
 #include "FC4Interfaces.h"
 
+#include "SC4Vector.h"
+#include "cIGZPersistResourceKeyList.h"
 #include "cIGZPersistResourceManager.h"
 #include "cIGZString.h"
 #include "cIGZVariant.h"
@@ -58,6 +60,8 @@
 #include "cISC4LineItem.h"
 #include "cISC4Lot.h"
 #include "cISC4LotManager.h"
+#include "cISC4Nation.h"
+#include "cISC4NeighborConnection.h"
 #include "cISC4NeighborsSimulator.h"
 #include "cISC4Ordinance.h"
 #include "cISC4OrdinanceSimulator.h"
@@ -66,6 +70,7 @@
 #include "cISC4PowerSimulator.h"
 #include "cISC4RegionalCity.h"
 #include "cISC4Simulator.h"
+#include "cISC4TrafficSimulator.h"
 #include "cISC4WeatherSimulator.h"
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
@@ -334,29 +339,15 @@ const Waiver kWaivers[] = {
      "sign-extended sum in edx:eax, so a caller reading eax sees the original's value"},
     {"vt:cSC4City::vftable", "cISC4City", 96, "CellCornerToPosition", "the game returns in ST0"},
     {"vt:cSC4City::vftable", "cISC4City", 97, "CellCenterToPosition", "the game returns in ST0"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 10, "ChanceOfSchoolStrike",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 11, "ChanceOfHealthStrike",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 12, "GetSchoolSystemRating",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 13, "GetHealthSystemRating",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 30, "GetCellWorkforcePercent",
-     "pops 12 and returns in eax (SDK: 8 bytes, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 31, "GetGlobalWorkforcePercent",
-     "pops 4 and returns in eax (SDK: no argument, float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 34, "GetGlobalLE",
-     "returns in eax (SDK: float)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 56, "GetAutoBudget",
-     "pops 4 (SDK: no argument)"},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", 57, "SetAutoBudget",
-     "pops 8 (SDK: 4 bytes)"},
-    {"vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", 8, "CalculateJobsPerUnitOfDemand",
-     "the game returns in ST0 (SDK: void)"},
-    {"cISC4Demand", "cISC4Demand", 16, "AddToSupplyValue", "the game returns in ST0 (SDK: bool)"},
-    {"cISC4Demand", "cISC4Demand", 17, "AddToDemandValue", "the game returns in ST0 (SDK: bool)"},
-    {"cISC4Demand", "cISC4Demand", 30, "EndOfCycle", "the game returns in eax (SDK: float)"},
+    // cISC4ResidentialSimulator, cISC4DemandSimulator, cISC4Demand and
+    // cISC4RegionalCity are declared in FC4Interfaces.h (demand spec §14);
+    // their SDK rows are reported only.
+    // The traffic simulator, read by the demand glue (GetTrafficArrived only).
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 11, "GetBackgroundTraffic",
+     "the game returns in ST0 (SDK: intptr_t)"},
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 23, "GetCapacity", "the game returns in ST0 (SDK: uint32)"},
+    {"cISC4TrafficSimulator", "cISC4TrafficSimulator", 26, "GetTravelStrategyPercentages",
+     "pops 8 and returns in ST0 (SDK: vector by value, bool)"},
     // The game's grids, used by the land value simulator (simgrid.md §4).
     {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<uint8>", "cISC4SimGrid<uint8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},

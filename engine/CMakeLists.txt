@@ -162,6 +162,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Weather.h
         plugin/cFC4Ordinance.cpp
         plugin/cFC4Ordinance.h
+        plugin/cFC4Demand.cpp
+        plugin/cFC4Demand.h
         plugin/FC4CoreProps.cpp
         plugin/FC4CoreProps.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
@@ -242,12 +244,14 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-weather)
     add_test(NAME plugin_ini_enable_ordinance_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ordinance)
+    add_test(NAME plugin_ini_enable_demand_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-demand)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
     set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
         plugin_ini_enable_disabled_test plugin_ini_enable_weather_test plugin_ini_enable_ordinance_test
-        plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
+        plugin_ini_enable_demand_test plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

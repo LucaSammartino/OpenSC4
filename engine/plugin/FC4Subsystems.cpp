@@ -18,6 +18,7 @@
 #include "FC4Config.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "cFC4Demand.h"
 #include "cFC4Ordinance.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -93,6 +94,13 @@ const ClassEntry kOrdinanceClasses[] = {
     {0xC2BF1DC5, "cSC4OrdinanceYouthCurfew", &CreateFC4Ordinance<0xC2BF1DC5>},
 };
 
+// docs/specs/demand.md §1. Off by default (M2 glue trial): `enable = demand`.
+// The node class is registered because saves store nodes by class (§1).
+const ClassEntry kDemandClasses[] = {
+    {0x2990BFF2, "cSC4DemandSimulator", &CreateFC4DemandSimulator},
+    {0x8990C12D, "cSC4Demand", &CreateFC4Demand},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -100,6 +108,7 @@ const Subsystem kSubsystems[] = {
     {"landvalue", nullptr, kLandValueClasses, sizeof(kLandValueClasses) / sizeof(kLandValueClasses[0]), false},
     {"weather", nullptr, kWeatherClasses, sizeof(kWeatherClasses) / sizeof(kWeatherClasses[0]), false},
     {"ordinance", nullptr, kOrdinanceClasses, sizeof(kOrdinanceClasses) / sizeof(kOrdinanceClasses[0]), false},
+    {"demand", nullptr, kDemandClasses, sizeof(kDemandClasses) / sizeof(kDemandClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

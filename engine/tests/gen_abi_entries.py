@@ -60,9 +60,17 @@ INTERFACES = [
     # docs/abi/vtables.tsv ("vt:<vtable name>"); the class may have more slots.
     ("vt:cSC4City::vftable", "cISC4City", "cISC4City.h", True),
     ("vt:cSC4App::vftable_3", "cISC4App", "cISC4App.h", True),
-    ("vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", "cISC4ResidentialSimulator.h", True),
-    ("vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),
-    ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", True),
+    ("vt:cSC4ResidentialSimulator::vftable", "cFC4ISC4ResidentialSimulator", FC4, True),
+    # Demand (docs/specs/demand.md): the simulator and the nodes are implemented;
+    # the services of §14 that the plugin calls.
+    ("vt:cSC4DemandSimulator::vftable", "cFC4ISC4DemandSimulator", FC4, True),
+    ("vt:cSC4DemandSimulator::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cISC4Demand", "cFC4ISC4Demand", FC4, True),
+    ("cISC4RegionalCity", "cFC4ISC4RegionalCity", FC4, True),
+    ("vt:cSC4Nation::vftable", "cISC4Nation", "cISC4Nation.h", True),
+    ("cISC4NeighborConnection", "cISC4NeighborConnection", "cISC4NeighborConnection.h", True),
+    ("cISC4TrafficSimulator", "cISC4TrafficSimulator", "cISC4TrafficSimulator.h", True),
+    ("vt:cGZPersistResourceKeyList::vftable", "cIGZPersistResourceKeyList", "cIGZPersistResourceKeyList.h", True),
     # Land value (docs/specs/landvalue.md §11, §12): implemented, and the game
     # services and grids it calls. A template instance is named Class<T>.
     ("cISC4LandValueSimulator", "cISC4LandValueSimulator", "cISC4LandValueSimulator.h", True),
@@ -100,6 +108,9 @@ INTERFACES = [
     ("cISC4NeighborsSimulator", "cISC4NeighborsSimulator", "cISC4NeighborsSimulator.h", False),
     ("cISC4Ordinance", "cISC4Ordinance", "cISC4Ordinance.h", False),
     ("cISC4RegionalCity", "cISC4RegionalCity", "cISC4RegionalCity.h", False),
+    ("vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", "cISC4ResidentialSimulator.h", False),
+    ("vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", "cISC4DemandSimulator.h", False),
+    ("cISC4Demand", "cISC4Demand", "cISC4Demand.h", False),
     ("cISC4WeatherSimulator", "cISC4WeatherSimulator", "cISC4WeatherSimulator.h", False),
     ("cISC4GameDataRegistry", "cISC4GameDataRegistry", "cISC4GameDataRegistry.h", False),
 ]
