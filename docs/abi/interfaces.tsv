@@ -1,0 +1,880 @@
+interface	game_class	vtable	slot	offset	target	method	callee_pop	arg_dwords	ret	ret_confidence	notes
+cISC4Simulator	cSC4Simulator	00ab2fb8	0	+0x0	00702040	cSC4Simulator::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67
+cISC4Simulator	cSC4Simulator	00ab2fb8	1	+0x4	00447e30	cSC4Simulator::AddRef	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	2	+0x8	007020a0	cSC4Simulator::Release	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	3	+0xC	00703250	cSC4Simulator::Init	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	4	+0x10	00702950	cSC4Simulator::Shutdown	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	5	+0x14	007024a0	cSC4Simulator::GetSimStartDate	4	1	via-call	low	
+cISC4Simulator	cSC4Simulator	00ab2fb8	6	+0x18	00702150	cSC4Simulator::GetSimDate(long*,long*,long*,long*,long*)	20	5	via-call	low	
+cISC4Simulator	cSC4Simulator	00ab2fb8	7	+0x1C	00703d20	cSC4Simulator::GetSimDate()	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	8	+0x20	00703d40	cSC4Simulator::GetSimDateNumber			forward	medium	indirect-jump dword ptr [eax + 0x68]
+cISC4Simulator	cSC4Simulator	00ab2fb8	9	+0x24	007021e0	cSC4Simulator::Pause	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	10	+0x28	00702200	cSC4Simulator::HiddenPause	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	11	+0x2C	00702540	cSC4Simulator::EmergencyPause	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	12	+0x30	00702220	cSC4Simulator::Resume	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	13	+0x34	00702240	cSC4Simulator::HiddenResume	0	0	unknown	low	
+cISC4Simulator	cSC4Simulator	00ab2fb8	14	+0x38	00702580	cSC4Simulator::EmergencyResume	0	0	via-call	low	
+cISC4Simulator	cSC4Simulator	00ab2fb8	15	+0x3C	00703d50	cSC4Simulator::IsPaused	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	16	+0x40	00703d60	cSC4Simulator::IsHiddenPaused	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	17	+0x44	00703d70	cSC4Simulator::IsEmergencyPaused	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	18	+0x48	00703d80	cSC4Simulator::IsAnyPaused	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	19	+0x4C	00704360	cSC4Simulator::AddAgent	16	4	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	20	+0x50	00702260	cSC4Simulator::RemoveAgent (overload)	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	21	+0x54	00703af0	cSC4Simulator::RemoveAgent (overload)	8	2	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	22	+0x58	00703fb0	cSC4Simulator::RemoveAllAgents (overload)	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	23	+0x5C	00704010	cSC4Simulator::RemoveAllAgents (overload)	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	24	+0x60	00704450	cSC4Simulator::EnumerateAgentsByName	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	25	+0x64	00703080	cSC4Simulator::GetAgentEnabled	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	26	+0x68	00703120	cSC4Simulator::SetAgentEnabled	8	2	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	27	+0x6C	008265c0	cSC4Simulator::GetSimSpeed	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	28	+0x70	007026d0	cSC4Simulator::SetSimSpeed	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	29	+0x74	0068d1b0	cSC4Simulator::GetSimTime	0	0	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	30	+0x78	007b62d0	cSC4Simulator::SetSimTime	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	31	+0x7C	00703da0	cSC4Simulator::SetMaxMillisecondsPerTick	4	1	eax-or-void	medium	
+cISC4Simulator	cSC4Simulator	00ab2fb8	32	+0x80	007026f0	cSC4Simulator::GetAnimationTimeDilation	0	0	x87	high	
+cISC4Simulator	cSC4Simulator	00ab2fb8	33	+0x84	007031c0	cSC4Simulator::SetCityEstablished	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	0	+0x0	0068fc80	cSC4BudgetSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	2	+0x8	006900c0	cSC4BudgetSimulator::Release	0	0	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	3	+0xC	00692ff0	cSC4BudgetSimulator::Init	0	0	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	4	+0x10	00690cb0	cSC4BudgetSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	5	+0x14	00690140	cSC4BudgetSimulator::SetTotalFunds	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	6	+0x18	0068fd10	cSC4BudgetSimulator::GetTotalFunds	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	7	+0x1C	00690170	cSC4BudgetSimulator::DepositFunds	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	8	+0x20	00690200	cSC4BudgetSimulator::WithdrawFunds	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	9	+0x24	0068fd20	cSC4BudgetSimulator::GetMinAllowableFunds	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	10	+0x28	006aaf00	cSC4BudgetSimulator::GetYTDIncome	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	11	+0x2C	00690270		0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	12	+0x30	006aaef0	cSC4BudgetSimulator::GetYTDExpenses	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	13	+0x34	006902d0		0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	14	+0x38	00690990	cSC4BudgetSimulator::GetTotalMonthlyExpense	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	15	+0x3C	00694260	cSC4BudgetSimulator::GetTotalYearlyExpense	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	16	+0x40	00690a30	cSC4BudgetSimulator::GetTotalMonthlyIncome	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	17	+0x44	00694270	cSC4BudgetSimulator::GetTotalYearlyIncome	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	18	+0x48	006904c0	cSC4BudgetSimulator::GetTaxIncome	4	1	edx:eax?	low	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	19	+0x4C	0068fd30	cSC4BudgetSimulator::GetTaxIncome	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	20	+0x50	00694280	cSC4BudgetSimulator::SetTotalMonthlyExpense	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	21	+0x54	006942a0	cSC4BudgetSimulator::SetTotalYearlyExpense	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	22	+0x58	006942c0	cSC4BudgetSimulator::SetTotalMonthlyIncome	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	23	+0x5C	006942e0	cSC4BudgetSimulator::SetTotalYearlyIncome	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	24	+0x60	00690330	cSC4BudgetSimulator::ShowBudgetWindow	0	0	eax-or-void	medium	indirect-jump dword ptr [edx + 8]/dword ptr [edx + 8]
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	25	+0x64	006951a0	cSC4BudgetSimulator::CreateDepartmentBudget	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	26	+0x68	00692ba0	cSC4BudgetSimulator::RemoveDepartmentBudget	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	27	+0x6C	00691b50	cSC4BudgetSimulator::GetDepartmentBudget	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	28	+0x70	00691000	cSC4BudgetSimulator::GetDepartmentBudget	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	29	+0x74	00694990	cSC4BudgetSimulator::GetAllGroups	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	30	+0x78	00695160	cSC4BudgetSimulator::SetGroupName	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	31	+0x7C	00691d00	cSC4BudgetSimulator::GetDepartmentBudgetsInGroup	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	32	+0x80	00691030	icf::cSC4BudgetSimulator::FundingPercentageChanged	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	33	+0x84	00691030	icf::cSC4BudgetSimulator::FundingPercentageChanged	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	34	+0x88	0068fd40	icf::cSC4BudgetSimulator::GetFunding	4	1	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	35	+0x8C	0068fd40	icf::cSC4BudgetSimulator::GetFunding	4	1	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	36	+0x90	0068fd50	cSC4BudgetSimulator::GetTaxRate	4	1	x87	high	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	37	+0x94	0068fd70	cSC4BudgetSimulator::SetTaxRate	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	38	+0x98	0068fde0	cSC4BudgetSimulator::GetWeightedAssessedTaxValue	4	1	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	39	+0x9C	0068fd90	cSC4BudgetSimulator::GetBondIncrement	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	40	+0xA0	006916f0	cSC4BudgetSimulator::IssueBond	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	41	+0xA4	006b9850	icf::cSC4BudgetSimulator::GetTotalBorrowed	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	42	+0xA8	0068fda0	cSC4BudgetSimulator::GetCurrentBorrowingLimit	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	43	+0xAC	0068fdc0	cSC4BudgetSimulator::GetCurrentBondLimit	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	44	+0xB0	0068fdd0	cSC4BudgetSimulator::GetCurrentMaxOutstandingBondsLimit	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	45	+0xB4	00690500	cSC4BudgetSimulator::GetTotalMonthlyBondPayments	0	0	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	46	+0xB8	00692c70	cSC4BudgetSimulator::GetAllLoans	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	47	+0xBC	00694250	cSC4BudgetSimulator::GetLoanTimeInMonths	0	0	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	48	+0xC0	0068fef0	cSC4BudgetSimulator::GetMonthlyPaymentForLoan	8	2	edx:eax?	low	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	49	+0xC4	0068ff50	cSC4BudgetSimulator::GetFullCostOfLoan	8	2	edx:eax	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	50	+0xC8	006937b0	cSC4BudgetSimulator::GetBudgetItemInfo	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	51	+0xCC	00691880	cSC4BudgetSimulator::GetBudgetItemForPurpose	12	3	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	52	+0xD0	00691050	cSC4BudgetSimulator::ChangeBudgetItemLine	12	3	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	53	+0xD4	00691100	cSC4BudgetSimulator::ChangeBudgetItemCost	16	4	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	54	+0xD8	00692d50	cSC4BudgetSimulator::ChangeBudgetItemLocalFunding	12	3	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	55	+0xDC	00691910	cSC4BudgetSimulator::AddBudgetItemToBudget	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	56	+0xE0	006919b0	cSC4BudgetSimulator::RemoveBudgetItemFromBudget	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	57	+0xE4	0068ff80	cSC4BudgetSimulator::GetLineItemFromBudgetItem	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x50]
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	58	+0xE8	006911d0	cSC4BudgetSimulator::CopyBudgetItemProperties	8	2	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	59	+0xEC	00694950	cSC4BudgetSimulator::~cSC4BudgetSimulator	4	1	eax-or-void	medium	
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	60	+0xF0	0068fd00	cSC4BudgetSimulator::GetSimulatorType	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	0	+0x0	006a96c0		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	2	+0x8	006a9730		0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	3	+0xC	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	4	+0x10	0060fb60				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	5	+0x14	006ac3f0		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	6	+0x18	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	7	+0x1C	006aac60	cSC4City::SetCitySerialNumber	4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	8	+0x20	006aac70		0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	9	+0x24	006aac80		4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	10	+0x28	0051a310	cSC4AutomataControllerManager::GetControllerTime	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	11	+0x2C	006ac1b0	cSC4DepartmentBudget::SetFundingPercentage	8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	12	+0x30	006a9750	cSC4SimGrid<T>::GetGridData	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	13	+0x34	006a9760		4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	14	+0x38	006a9ef0	cSC4DepartmentBudget::GetIdealMonthlyFunding	0	0	edx:eax	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	15	+0x3C	006a9f60	cSC4DepartmentBudget::GetTotalExpenses	0	0	edx:eax	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	16	+0x40	006a9fd0	cSC4DepartmentBudget::GetTotalIncome	0	0	edx:eax	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	17	+0x44	006ab040		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	18	+0x48	006a9790		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	19	+0x4C	006aa480		4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	20	+0x50	006aa500		4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	21	+0x54	006aad50		4	1	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	22	+0x58	006ab0c0		8	2	via-call	low	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	23	+0x5C	006aa530		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	24	+0x60	006ab940	cSC4DepartmentBudget::SetLocalFundingPercent	12	3	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	25	+0x64	006abfd0	cSC4DepartmentBudget::SetLocalFullFunding	16	4	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	26	+0x68	006aa610		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	27	+0x6C	006aa680		8	2	edx:eax	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	28	+0x70	006aa5d0		8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	29	+0x74	006abb50	cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses	0	0	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	30	+0x78	006aaef0	cSC4BudgetSimulator::GetYTDExpenses	0	0	edx:eax	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	31	+0x7C	006a9770	cSC4DepartmentBudget::SetTotalSpending	8	2	eax-or-void	medium	
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	32	+0x80	006aa9c0		8	2	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	0	+0x0	006a97d0	cSC4LineItem::QueryInterface	8	2	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	1	+0x4	006a9830	cSC4LineItem::AddRef	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	2	+0x8	006a9840	cSC4LineItem::Release	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	3	+0xC	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	4	+0x10	00809250	icf::cGZBufferSimGLCache::GetLastAccess	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	5	+0x14	00990010	icf::cGZGraphicSystem::SetDefaultDriverClassID	4	1	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	6	+0x18	006ac4f0		4	1	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	7	+0x1C	006ac460		8	2	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	8	+0x20	006aaec0		0	0	edx:eax	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	9	+0x24	006aaed0		8	2	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	10	+0x28	006b9850	icf::cSC4BudgetSimulator::GetTotalBorrowed	0	0	edx:eax	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	11	+0x2C	006aaef0	cSC4BudgetSimulator::GetYTDExpenses	0	0	edx:eax	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	12	+0x30	006a9a00		8	2	unknown	low	
+cISC4LineItem	cSC4LineItem	00ab0f58	13	+0x34	006a9860		8	2	via-call	low	
+cISC4LineItem	cSC4LineItem	00ab0f58	14	+0x38	006aaf00	cSC4BudgetSimulator::GetYTDIncome	0	0	edx:eax	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	15	+0x3C	006a9a40		8	2	unknown	low	
+cISC4LineItem	cSC4LineItem	00ab0f58	16	+0x40	006a9a70		8	2	unknown	low	
+cISC4LineItem	cSC4LineItem	00ab0f58	17	+0x44	0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	18	+0x48	006aaf10		8	2	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	19	+0x4C	006aaf40	cSC4LotDeveloper::GetForceEmptyLotBaseTextures	0	0	eax-or-void	medium	
+cISC4LineItem	cSC4LineItem	00ab0f58	20	+0x50	006ab7c0		4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	0	+0x0	005fd6f0		8	2	eax-or-void	medium	tail->00914e56
+cIGZVariant	cRZVariant	00aa6788	1	+0x4	005fd700		0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	2	+0x8	005fd710		0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	3	+0xC	005fd600	cRZVariant::GetType	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	4	+0x10	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	5	+0x14	00915592	cRZVariant::Erase	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	6	+0x18	00916649	cRZVariant::CopyFrom	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	7	+0x1C	00916768	cRZVariant::CreateCopy	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	8	+0x20	0091559a	icf::cFreshPlayer::SetVolumeNoLock	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	9	+0x24	0091559f	cRZVariant::GetValBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	10	+0x28	009174f6	cRZVariant::GetValBool	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	11	+0x2C	00916657	cRZVariant::SetValBool	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	12	+0x30	009155b5	cRZVariant::GetValUint8	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	13	+0x34	0091754f	cRZVariant::GetValUint8	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	14	+0x38	0091665c	cRZVariant::SetValUint8	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	15	+0x3C	009155cb	cRZVariant::GetValSint8	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	16	+0x40	009175a8	cRZVariant::GetValSint8	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	17	+0x44	00916661	cRZVariant::SetValSint8	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	18	+0x48	009155e1	cRZVariant::GetValUint16	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	19	+0x4C	00917607	cRZVariant::GetValUint16	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	20	+0x50	00916666	cRZVariant::SetValUint16	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	21	+0x54	009155f8	cRZVariant::GetValSint16	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	22	+0x58	00917664	cRZVariant::GetValSint16	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	23	+0x5C	0091666b	cRZVariant::SetValSint16	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	24	+0x60	0091560f	cRZVariant::GetValUint32	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	25	+0x64	009176c8	cRZVariant::GetValUint32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	26	+0x68	00916670	cRZVariant::SetValUint32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	27	+0x6C	00915625	cRZVariant::GetValSint32	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	28	+0x70	00917721	cRZVariant::GetValSint32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	29	+0x74	00916675	cRZVariant::SetValSint32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	30	+0x78	0091563b	cRZVariant::GetValUint64	0	0	edx:eax	medium	
+cIGZVariant	cRZVariant	00aa6788	31	+0x7C	00917780	cRZVariant::GetValUint64	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	32	+0x80	0091667a	cRZVariant::SetValUint64	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	33	+0x84	00915659	cRZVariant::GetValSint64	0	0	edx:eax	medium	
+cIGZVariant	cRZVariant	00aa6788	34	+0x88	009177e4	cRZVariant::GetValSint64	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	35	+0x8C	0091668a	cRZVariant::SetValSint64	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	36	+0x90	0091567a	cRZVariant::GetValFloat32	0	0	x87	high	
+cIGZVariant	cRZVariant	00aa6788	37	+0x94	00917852	cRZVariant::GetValFloat32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	38	+0x98	0091669a	cRZVariant::SetValFloat32	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	39	+0x9C	00915694	cRZVariant::GetValFloat64	0	0	x87	high	
+cIGZVariant	cRZVariant	00aa6788	40	+0xA0	009178b2	cRZVariant::GetValFloat64	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	41	+0xA4	009166aa	cRZVariant::SetValFloat64	8	2	x87	high	
+cIGZVariant	cRZVariant	00aa6788	42	+0xA8	009156af	cRZVariant::GetValChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	43	+0xAC	00917911	cRZVariant::GetValChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	44	+0xB0	009166bb	cRZVariant::SetValChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	45	+0xB4	009156c8	cRZVariant::GetValRZUnicodeChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	46	+0xB8	00917970	cRZVariant::GetValRZUnicodeChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	47	+0xBC	009166c0	cRZVariant::SetValRZUnicodeChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	48	+0xC0	009156e2	cRZVariant::GetValRZChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	49	+0xC4	009179d4	cRZVariant::GetValRZChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	50	+0xC8	009166c5	cRZVariant::SetValRZChar	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	51	+0xCC	009156fb	cRZVariant::GetValVoidPtr	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	52	+0xD0	00917a33	cRZVariant::GetValVoidPtr	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	53	+0xD4	009166ca	cRZVariant::SetValVoidPtr	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	54	+0xD8	00917a8c	cRZVariant::CreateValString	4	1	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	55	+0xDC	00917adb	cRZVariant::GetValString	4	1	eax-or-void	medium	tail->009172a1
+cIGZVariant	cRZVariant	00aa6788	56	+0xE0	009166cf	cRZVariant::SetValString	4	1	via-call	low	
+cIGZVariant	cRZVariant	00aa6788	57	+0xE4	00915714	cRZVariant::GetValVoid	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	58	+0xE8	00915743	cRZVariant::SetValVoid	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	59	+0xEC	009157a3	cRZVariant::GetValUnknown	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	60	+0xF0	00916644	icf::cRZVariant::GetValUnknown	8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cIGZVariant	cRZVariant	00aa6788	61	+0xF4	0091663f	icf::cRZVariant::RefIGZUnknown	4	1	eax-or-void	medium	tail->00915a5f
+cIGZVariant	cRZVariant	00aa6788	62	+0xF8	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	63	+0xFC	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	64	+0x100	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	65	+0x104	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	66	+0x108	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	67	+0x10C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	68	+0x110	005fd610	icf::cRZVariant::AsRZUnicodeChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	69	+0x114	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	70	+0x118	005fd610	icf::cRZVariant::AsRZUnicodeChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	71	+0x11C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	72	+0x120	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	73	+0x124	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	74	+0x128	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	75	+0x12C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	76	+0x130	005fd620	icf::cRZVariant::AsSint64	0	0	edx:eax	medium	
+cIGZVariant	cRZVariant	00aa6788	77	+0x134	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	78	+0x138	005fd620	icf::cRZVariant::AsSint64	0	0	edx:eax	medium	
+cIGZVariant	cRZVariant	00aa6788	79	+0x13C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	80	+0x140	005fd630	cRZVariant::AsFloat32	0	0	x87	high	
+cIGZVariant	cRZVariant	00aa6788	81	+0x144	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	82	+0x148	005fd640	cRZVariant::AsFloat64	0	0	x87	high	
+cIGZVariant	cRZVariant	00aa6788	83	+0x14C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	84	+0x150	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	85	+0x154	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	86	+0x158	005fd610	icf::cRZVariant::AsRZUnicodeChar	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	87	+0x15C	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	88	+0x160	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	89	+0x164	0060fb50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	90	+0x168	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	91	+0x16C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	92	+0x170	00914ee4	cRZVariant::RefBool	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	93	+0x174	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	94	+0x178	00914f45	cRZVariant::RefUint8	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	95	+0x17C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	96	+0x180	009150f8	cRZVariant::RefSint8	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	97	+0x184	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	98	+0x188	00914fa6	cRZVariant::RefUint16	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	99	+0x18C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	100	+0x190	00915159	cRZVariant::RefSint16	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	101	+0x194	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	102	+0x198	00915014	cRZVariant::RefUint32	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	103	+0x19C	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	104	+0x1A0	009151c7	cRZVariant::RefSint32	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	105	+0x1A4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	106	+0x1A8	00915086	cRZVariant::RefUint64	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	107	+0x1AC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	108	+0x1B0	00915239	cRZVariant::RefSint64	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	109	+0x1B4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	110	+0x1B8	009152ab	cRZVariant::RefFloat32	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	111	+0x1BC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	112	+0x1C0	0091531d	cRZVariant::RefFloat64	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	113	+0x1C4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	114	+0x1C8	0091538f	cRZVariant::RefChar	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	115	+0x1CC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	116	+0x1D0	009153f0	cRZVariant::RefRZUnicodeChar	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	117	+0x1D4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	118	+0x1D8	0091545e	cRZVariant::RefRZChar	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	119	+0x1DC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	120	+0x1E0	009154bf	cRZVariant::RefVoidPtr	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	121	+0x1E4	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	122	+0x1E8	00915531	cRZVariant::RefVoid	8	2	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	123	+0x1EC	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cIGZVariant	cRZVariant	00aa6788	124	+0x1F0	0091663f	icf::cRZVariant::RefIGZUnknown	4	1	eax-or-void	medium	tail->00915a5f
+cIGZVariant	cRZVariant	00aa6788	125	+0x1F4	00916644	icf::cRZVariant::GetValUnknown	8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cIGZVariant	cRZVariant	00aa6788	126	+0x1F8	0060ce80	icf::cGZLua5Thread::GetID	0	0	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	0	+0x0	005fd200	cSCPropertyHolder::QueryInterface	8	2	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	1	+0x4	005f47f0	icf::cGZCommandSystemSupport::AddRef	0	0	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	2	+0x8	005fd370	icf::cSCExemplarPropertyHolder::Release	0	0	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	3	+0xC	005feb20		4	1	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	4	+0x10	005fd9f0	cSCPropertyHolder::GetPropertyList	4	1	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	5	+0x14	005fd290	icf::cSCExemplarPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	6	+0x18	005fd2d0	icf::cSCPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	7	+0x1C	005fd260	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	8	+0x20	005fd230	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	9	+0x24	005feb70	cSCPropertyHolder::GetProperty	4	1	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	10	+0x28	005ffa40	cSCPropertyHolder::AddProperty	16	4	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	11	+0x2C	005ff950	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	12	+0x30	005ff860	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	13	+0x34	005ff770	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	14	+0x38	005fdef0	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	15	+0x3C	005ff6d0	cSCPropertyHolder::AddProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	17	+0x44	005febc0	cSCPropertyHolder::RemoveProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	18	+0x48	005ff3c0	cSCPropertyHolder::RemoveAllProperties	4	1	eax-or-void	medium	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	21	+0x54	005ff160	cSCPropertyHolder::CompactProperties	0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	0	+0x0	0090e1d1	cRZString::QueryInterface	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	1	+0x4	0094d34f	icf::cGZWinFileBrowser::AddRef	0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	2	+0x8	0090e1f3		0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	3	+0xC	0090f546	cRZString::FromChar	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	4	+0x10	0090f50f	cRZString::FromChar	4	1	eax-or-void	medium	
+cIGZString	cRZString	00a80810	5	+0x14	009d7e63	cRZString::ToChar	0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	6	+0x18	009d7e63	cRZString::ToChar	0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	7	+0x1C	0090e4b6	cRZString::Strlen	0	0	eax-or-void	medium	
+cIGZString	cRZString	00a80810	8	+0x20	0090ed5d	cRZString::IsEqual	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	9	+0x24	0090e242	cRZCOMDllDirector::Release			forward	medium	indirect-jump dword ptr [eax + 0x28]
+cIGZString	cRZString	00a80810	10	+0x28	0090ec57	cRZString::IsEqual	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	11	+0x2C	0090ef5b	cRZString::CompareTo	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	12	+0x30	0090ee61	cRZString::CompareTo	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	13	+0x34	0090e230		4	1	eax-or-void	medium	
+cIGZString	cRZString	00a80810	14	+0x38	0090e20a	cRZString::Copy	4	1	via-call	low	
+cIGZString	cRZString	00a80810	15	+0x3C	0090f042	cRZString::Resize	4	1	eax-or-void	medium	
+cIGZString	cRZString	00a80810	16	+0x40	0090f06c	cRZString::Append	4	1	eax-or-void	medium	
+cIGZString	cRZString	00a80810	17	+0x44	0090f053	cRZString::Append	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	18	+0x48	0090f0b0	cRZString::Insert	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	19	+0x4C	0090f093	cRZString::Insert	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	20	+0x50	0090fc30	cRZString::Replace	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	21	+0x54	0090fc13	cRZString::Replace	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	22	+0x58	0090e4d8	cRZString::Erase	8	2	eax-or-void	medium	
+cIGZString	cRZString	00a80810	23	+0x5C	0090f16c	cRZString::Find	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	24	+0x60	0090f0db	cRZString::Find	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	25	+0x64	0090f28c	cRZString::RFind	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	26	+0x68	0090f1fb	cRZString::RFind	12	3	eax-or-void	medium	
+cIGZString	cRZString	00a80810	27	+0x6C	0090f574	cRZString::Sprintf	0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	0	+0x0	009128e7		8	2	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	1	+0x4	00968b60	cRZRefCount::AddRef	0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	2	+0x8	00912912		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	3	+0xC	009131dd		12	3	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	4	+0x10	0091292e		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	5	+0x14	0091323d		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	6	+0x18	009131d5		12	3	eax-or-void	medium	tail->00913113
+cIGZDate	cGZDate	00acea38	7	+0x1C	009131cd		8	2	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	8	+0x20	009128cd		4	1	via-call	low	
+cIGZDate	cGZDate	00acea38	9	+0x24	00912e9f		4	1	via-call	low	
+cIGZDate	cGZDate	00acea38	10	+0x28	00912ed7		8	2	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	11	+0x2C	00912938		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	12	+0x30	0091295c		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	13	+0x34	00912964		0	0	eax-or-void	medium	tail->009128a3
+cIGZDate	cGZDate	00acea38	14	+0x38	00912f0b	cGZDate::DayOfYear	0	0	eax-or-void	medium	tail->00912bcc
+cIGZDate	cGZDate	00acea38	15	+0x3C	00912f13		0	0	eax-or-void	medium	tail->00912beb
+cIGZDate	cGZDate	00acea38	16	+0x40	00912f1b		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	17	+0x44	009131e5		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	18	+0x48	0091297e	cGZDate::DayNumber	0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	19	+0x4C	0091296c		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	20	+0x50	00912f23		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	21	+0x54	00912f33		8	2	via-call	low	
+cIGZDate	cGZDate	00acea38	22	+0x58	00912f71		8	2	via-call	low	
+cIGZDate	cGZDate	00acea38	23	+0x5C	00912976		0	0	eax-or-void	medium	tail->0091286f
+cIGZDate	cGZDate	00acea38	24	+0x60	00912faf		8	2	via-call	low	
+cIGZDate	cGZDate	00acea38	25	+0x64	00912fdd		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	26	+0x68	0091297e	cGZDate::DayNumber	0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	27	+0x6C	00912982		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	28	+0x70	009129a4		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	29	+0x74	009129c5		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	30	+0x78	009129e7		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	31	+0x7C	00912a08		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	32	+0x80	00912a2b		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	33	+0x84	00912a78		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	34	+0x88	00912a4e		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	35	+0x8C	00912a82		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	36	+0x90	00912a65		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	37	+0x94	00912a8c		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	38	+0x98	00912a99		0	0	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	39	+0x9C	00912aa6		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	40	+0xA0	00912ab9		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	41	+0xA4	00913245	cGZDate::DateString	8	2	via-call	low	
+cIGZDate	cGZDate	00acea38	42	+0xA8	00913041	cGZDate::DayWithinMonth	12	3	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	43	+0xAC	00913058		4	1	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	44	+0xB0	00913065		12	3	eax-or-void	medium	
+cIGZDate	cGZDate	00acea38	45	+0xB4	00912acc		4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	0	+0x0	0067c1b0		8	2	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	1	+0x4	00808600		0	0	eax-or-void	medium	tail->009753b7
+cISCResExemplar	cSCResExemplar	00aaf0d0	2	+0x8	00808610		0	0	eax-or-void	medium	tail->009753c5
+cISCResExemplar	cSCResExemplar	00aaf0d0	3	+0xC	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	4	+0x10	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	6	+0x18	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	7	+0x1C	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	8	+0x20	0067c210		4	1	eax-or-void	medium	tail->005feb20
+cISCResExemplar	cSCResExemplar	00aaf0d0	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	10	+0x28	0067c510		8	2	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	11	+0x2C	0067cd20		4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	12	+0x30	0067c220		4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	13	+0x34	0067cd50		0	0	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	0	+0x0	00972b51		8	2	eax-or-void	medium	tail->0091dd67
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	3	+0xC	009732eb		20	5	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	4	+0x10	00972d60		20	5	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	5	+0x14	009730cc		20	5	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	6	+0x18	00972da2		20	5	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	7	+0x1C	00972e4b		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	8	+0x20	00972e2b		8	2	via-call	low	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	9	+0x24	0097341b		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	10	+0x28	00973485		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	11	+0x2C	00972cdc		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	12	+0x30	00972bdc		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	13	+0x34	00972c24		12	3	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	14	+0x38	00973964		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	15	+0x3C	009731c2		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	16	+0x40	00973239		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	17	+0x44	009739cb		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	18	+0x48	00973280		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	19	+0x4C	00974407		12	3	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	20	+0x50	00973fd6		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	21	+0x54	00974042		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	22	+0x58	00972d4e		8	2	via-call	low	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	23	+0x5C	00972d30		8	2	via-call	low	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	24	+0x60	009732c7		0	0	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	25	+0x64	0097409e		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	26	+0x68	00972b73	icf::cGZPersistDBSerialRecord::GetFieldSint8			forward	medium	indirect-jump dword ptr [eax + 0x6c]
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	27	+0x6C	0097437b		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	28	+0x70	009743c1		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	29	+0x74	009742b7		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	30	+0x78	0097371f		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	31	+0x7C	009737fa		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	32	+0x80	0097377f		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	33	+0x84	00973873		0	0	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	34	+0x88	00973d88		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	35	+0x8C	0097391b		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	36	+0x90	009738a2		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	37	+0x94	00972b78		12	3	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	38	+0x98	00972bbf		8	2	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	39	+0x9C	009740f1		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	40	+0xA0	00973a57		4	1	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	41	+0xA4	009734dc		0	0	eax-or-void	medium	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	42	+0xA8	00973526		4	1	via-call	low	
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	43	+0xAC	009735b8		0	0	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	0	+0x0	00473a40		8	2	eax-or-void	medium	tail->0091dd67
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	1	+0x4	00800c30	icf::cGZDrawSystem::AddRef	0	0	eax-or-void	medium	tail->009297a0
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	2	+0x8	00800c40	icf::cGZDrawSystem::Release	0	0	eax-or-void	medium	tail->0091dd89
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	3	+0xC	00474c50		24	6	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	4	+0x10	00474b30		24	6	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	5	+0x14	00474a50		20	5	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	6	+0x18	00474da0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	7	+0x1C	00474d70		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	8	+0x20	0080e040	cSC4OrdinanceSimulator::GetOrdinanceByID	4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	9	+0x24	00474270		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	10	+0x28	00473aa0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	11	+0x2C	00473ac0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	12	+0x30	00473f00		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	13	+0x34	00473ae0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	14	+0x38	00473b00		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	15	+0x3C	00473ce0		12	3	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	16	+0x40	00473b20		12	3	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	17	+0x44	00473b70		8	2	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	18	+0x48	00473b90		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	19	+0x4C	00473b50		8	2	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	20	+0x50	00473bb0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	21	+0x54	004ed900	cSC4SimGrid<T>::GetTractCountX	0	0	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	22	+0x58	004750f0		12	3	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	23	+0x5C	00473e60		12	3	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	24	+0x60	00475030		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	25	+0x64	00474f70		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	26	+0x68	00474020		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	27	+0x6C	00473fb0		4	1	eax-or-void	medium	
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	28	+0x70	00475630		4	1	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	0	+0x0	007347f0		8	2	eax-or-void	medium	tail->00729ef0
+cISC4LotManager	cSC4LotManager	00ab37c0	1	+0x4	005200d0		0	0	eax-or-void	medium	tail->00695330
+cISC4LotManager	cSC4LotManager	00ab37c0	2	+0x8	00734820		0	0	eax-or-void	medium	tail->0072a270
+cISC4LotManager	cSC4LotManager	00ab37c0	3	+0xC	007348c0	__ZThn4_N17cSC4ZoneDeveloper4InitEv	0	0	eax-or-void	medium	tail->00734030
+cISC4LotManager	cSC4LotManager	00ab37c0	4	+0x10	007348b0	__ZThn4_N17cSC4ZoneDeveloper8ShutdownEv	0	0	eax-or-void	medium	tail->007335a0
+cISC4LotManager	cSC4LotManager	00ab37c0	5	+0x14	0072a1c0		4	1	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	6	+0x18	0072b410		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	7	+0x1C	0072e080		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	8	+0x20	0072a230		16	4	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	9	+0x24	0072a750		12	3	via-call	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	10	+0x28	0072e2b0		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	11	+0x2C	0072a790		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	12	+0x30	0072a820		12	3	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	13	+0x34	0072b3c0		0	0	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	14	+0x38	0072a110		4	1	via-call	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	15	+0x3C	00734850		0	0	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	16	+0x40	00809250	icf::cGZBufferSimGLCache::GetLastAccess	0	0	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	17	+0x44	0072a8f0		16	4	via-call	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	18	+0x48	0072a9f0		12	3	via-call	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	19	+0x4C	0072aac0		12	3	via-call	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	20	+0x50	0072c2d0		28	7	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	21	+0x54	007306c0		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	22	+0x58	00730a80		36	9	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	23	+0x5C	0072e520		24	6	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	24	+0x60	0072f8e0		4	1	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	25	+0x64	0072cae0		16	4	unknown	low	
+cISC4LotManager	cSC4LotManager	00ab37c0	26	+0x68	0072ae20		16	4	eax-or-void	medium	
+cISC4LotManager	cSC4LotManager	00ab37c0	27	+0x6C	00809240	icf::cS3DTextureBindingFactory::GetResGroup	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	5	+0x14	006bf490	cSC4Lot::Init	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	6	+0x18	006c2020	cSC4Lot::IsInitialized	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	7	+0x1C	006c3060	cSC4Lot::Shutdown	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	8	+0x20	006bf200	cSC4Lot::PostCityInit	0	0	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	9	+0x24	00a6cab0	icf::cGZLuaScriptServer::GetLua	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	10	+0x28	0060cb80	icf::cSC4Lot::SetLotConfiguration	4	1	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	11	+0x2C	006bfea0	cSC4Lot::GetLotConfigurationObject	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	12	+0x30	006c2030	cSC4Lot::GetFlags	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	13	+0x34	006bf220	cSC4Lot::SetFlags	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	14	+0x38	006bf320	cSC4Lot::GetBoundingRect	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	15	+0x3C	006bf560	cSC4Lot::GetCenter	4	1	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	16	+0x40	006c2060	cSC4Lot::GetAltitude	0	0	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	17	+0x44	006bf5c0	cSC4Lot::SetAltitude	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	18	+0x48	006c2070	cSC4SimGrid<T>::GetTractWidthX	0	0	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	19	+0x4C	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	20	+0x50	006bf610	cSC4Lot::UpdateSlope	0	0	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	21	+0x54	006bf2e0	cSC4Lot::GetLocation	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	22	+0x58	006bf300	cSC4Lot::GetSize	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	23	+0x5C	006c2090	cSC4Lot::GetFacing	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	24	+0x60	006c20a0	cSC4Lot::SetFacing	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	25	+0x64	0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	26	+0x68	006c20b0	cSC4Lot::SetUnit	4	1	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	27	+0x6C	006bfce0	cSC4Lot::HasJobAccess	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	28	+0x70	006c20e0	cSC4Lot::HasRoadAccess	0	0	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	29	+0x74	006c1d10	cSC4Lot::HasOrganicRoadAccess	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	30	+0x78	006c1da0	cSC4Lot::UpdateRoadAccess	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	31	+0x7C	006c20f0	cSC4Lot::GetZoneType	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	32	+0x80	006bfc40	cSC4Lot::UpdateZoneType	0	0	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	33	+0x84	006c2100	cSC4Lot::GetState	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	34	+0x88	006c3100	cSC4Lot::SetState	12	3	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	35	+0x8C	006c2110	cSC4Lot::GetCondition	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	36	+0x90	006c26d0	cSC4Lot::SetCondition	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	37	+0x94	006c2150	cSC4Lot::IsInLivableState	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	38	+0x98	006c2160	cSC4Lot::HasCapacity	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	39	+0x9C	006c2180	cSC4Lot::IsInDemolishableState	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	40	+0xA0	006bf630	cSC4Lot::GetDaysSinceLastStateChange	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	41	+0xA4	006c21f0	cSC4Lot::GetOccupantWealth	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	42	+0xA8	006bfc60	cSC4Lot::GetLandValue	0	0	edx:eax?	low	
+cISC4Lot	cSC4Lot	00ab19b0	43	+0xAC	006c2220	cSC4Lot::IsHistorical	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	44	+0xB0	006c2230	cSC4Lot::SetHistorical	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	45	+0xB4	006c2250	cSC4Lot::GetVacateReason	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	46	+0xB8	006bfa00	cSC4Lot::GetBuildingType	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	47	+0xBC	006c2200	cSC4Lot::SetBuildingType	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	48	+0xC0	006bfa30	cSC4Lot::GetBuilding	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	49	+0xC4	006bff70	cSC4Lot::GetLotOccupants	4	1	via-call	low	
+cISC4Lot	cSC4Lot	00ab19b0	50	+0xC8	006c05a0	cSC4Lot::GetCapacity	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	51	+0xCC	006bf9b0	cSC4Lot::GetCapacity	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	52	+0xD0	006c0640	cSC4Lot::GetAvailableCapacity	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	53	+0xD4	006c04a0	cSC4Lot::GetPopulation	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	54	+0xD8	006c21e0	cSC4Lot::GetPopulations	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	55	+0xDC	006c1940	cSC4Lot::SetPopulation	8	2	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	56	+0xE0	006c0510	cSC4Lot::GetTravelPopulation	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	57	+0xE4	006c0550	cSC4Lot::ResetTravelPopulation	0	0	eax-or-void	medium	tail->006bf6a0
+cISC4Lot	cSC4Lot	00ab19b0	58	+0xE8	006c0ba0	cSC4Lot::AddTravelPopulation	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	59	+0xEC	0081f910	icf::cRZNetSocket::GetAsyncNotificationTarget	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	60	+0xF0	006bf660	cSC4Lot::SetTravelDesignate	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	61	+0xF4	006c0cf0	cSC4Lot::GetOccupancy	4	1	x87|eax	low	
+cISC4Lot	cSC4Lot	00ab19b0	62	+0xF8	006c10f0	cSC4Lot::GetOccupancyByType	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	63	+0xFC	006bf350	cSC4Lot::GetTravelJobs	4	1	x87	high	
+cISC4Lot	cSC4Lot	00ab19b0	64	+0x100	006bf800	cSC4Lot::GetJobs	4	1	x87|eax	low	
+cISC4Lot	cSC4Lot	00ab19b0	65	+0x104	006c21a0	cSC4Lot::GetNeedsPower	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	66	+0x108	006c21b0	cSC4Lot::GetHasPower	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	67	+0x10C	006c21c0	cSC4Lot::SetHasPower	4	1	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	68	+0x110	006c2120	cSC4Lot::GetVerticesAreLocked	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	69	+0x114	006c2130	cSC4Lot::SetVerticesAreLocked	4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	0	+0x0	00695290	cSC4BuildingDevelopmentSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	2	+0x8	006959b0	cSC4BuildingDevelopmentSimulator::Release	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	3	+0xC	0069d240	cSC4BuildingDevelopmentSimulator::Init	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	4	+0x10	0069a210	cSC4BuildingDevelopmentSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	5	+0x14	00695590	cSC4BuildingDevelopmentSimulator::LocationIsOKForNewBuilding	12	3	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	6	+0x18	006956a0		16	4	via-call	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	7	+0x1C	00698de0		12	3	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	8	+0x20	00695740		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	9	+0x24	006afc80	cSC4FloraSimulator::GetCostOfOccupantDemolition	8	2	edx:eax	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	10	+0x28	00695700	cSC4BuildingDevelopmentSimulator::GetCostOfOccupantDemolition	8	2	edx:eax	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	11	+0x2C	00697c50		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	12	+0x30	00697b80		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	13	+0x34	00697d10		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	14	+0x38	00697dd0		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	15	+0x3C	00697e30		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	16	+0x40	00697e70		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	17	+0x44	00699c50		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	18	+0x48	00697ef0		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	19	+0x4C	00699d20		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	20	+0x50	00697fe0		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	21	+0x54	00698050		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	22	+0x58	00698120		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	23	+0x5C	00695af0	cSC4BuildingDevelopmentSimulator::AddNewFoundationOccupant	28	7	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	24	+0x60	00695740		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	25	+0x64	00695770		8	2	via-call	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	26	+0x68	006982b0	cSC4BuildingDevelopmentSimulator::LoadFoundationProperties	8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	27	+0x6C	00698180		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	28	+0x70	00698250		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	29	+0x74	006983c0		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	30	+0x78	00698d60	cSC4BuildingDevelopmentSimulator::GetDeveloperType	8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	31	+0x7C	00698d80		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	32	+0x80	00696c80	cSC4BuildingDevelopmentSimulator::GetDeveloper(DeveloperType)	4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	33	+0x84	006958b0	cSC4BuildingDevelopmentSimulator::GetDeveloper(PurposeType,WealthType)	8	2	via-call	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	34	+0x88	00698cd0	cSC4MySimDispatch::GetCurrentLocation	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	35	+0x8C	0068d1d0	cSC4AuraSimulator::GetLandmarkMap	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	36	+0x90	00698ce0	cSC4PathFinder::GetTrafficArrived (folded getter mov eax,[ecx+6Ch])	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	37	+0x94	0069ab20		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	38	+0x98	0069ab00		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	39	+0x9C	0069ca60		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	40	+0xA0	006985c0		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	41	+0xA4	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	42	+0xA8	00698d90		8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	43	+0xAC	0069ccb0		4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	44	+0xB0	00520080	icf::cSC4AdvisorSystem::GetAdvisors	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	45	+0xB4	00696c20	cSC4BuildingDevelopmentSimulator::GetMaxCapacity	12	3	x87	high	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	46	+0xB8	00695430	cSC4BuildingDevelopmentSimulator::IsSuitableForConstruction	8	2	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	47	+0xBC	00695570	cSC4BuildingDevelopmentSimulator::PlopBuilding	4	1	via-call	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	48	+0xC0	006958e0	cSC4BuildingDevelopmentSimulator::GetFreeConstructionResources	0	0	edx:eax?	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	49	+0xC4	00695910	cSC4BuildingDevelopmentSimulator::GetTotalConstructionResources	0	0	edx:eax?	low	tail->009eef04
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	50	+0xC8	00695920	cSC4BuildingDevelopmentSimulator::ClaimConstructionResources	4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	51	+0xCC	00695980	cSC4BuildingDevelopmentSimulator::ReleaseConstructionResources	4	1	via-call	low	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	52	+0xD0	00696cc0	cSC4BuildingDevelopmentSimulator::GetDayOfLastSuccessfulBuild	4	1	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	53	+0xD4	00696040	cSC4BuildingDevelopmentSimulator::GetStagePopulationMultiplier	0	0	x87	high	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	54	+0xD8	00741740	icf::cGZGraphicSystem::IsPageFlippingEnabled	0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	55	+0xDC	00698d00		0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	56	+0xE0	00698d10		0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	57	+0xE4	0098ad60		0	0	eax-or-void	medium	
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	58	+0xE8	00698d20		0	0	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	0	+0x0	00475660	cSC4HistoryWarehouse::QueryInterface	8	2	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	1	+0x4	004f0240	icf::cSC4AudioEventHandlerDisasterFire::AddRef	0	0	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	2	+0x8	00476aa0	cSC4HistoryWarehouse::Release	0	0	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	3	+0xC	004766f0	cSC4HistoryWarehouse::Init	0	0	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	4	+0x10	004758d0	cSC4HistoryWarehouse::Shutdown	0	0	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	5	+0x14	00476160	cSC4HistoryWarehouse::GetCount	16	4	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	6	+0x18	004761f0	cSC4HistoryWarehouse::GetTrend	20	5	x87|eax	low	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	7	+0x1C	00476280	cSC4HistoryWarehouse::GetMinMaxAverage	24	6	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	8	+0x20	00476490	cSC4HistoryWarehouse::GetPoint	12	3	x87|eax	low	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	9	+0x24	00476520	cSC4HistoryWarehouse::Coalesce	16	4	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	10	+0x28	00476650	cSC4HistoryWarehouse::Dispose	4	1	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	11	+0x2C	004765c0	cSC4HistoryWarehouse::Dispose	12	3	eax-or-void	medium	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	12	+0x30	00475aa0	cSC4HistoryWarehouse::RecordHistoryData	8	2	via-call	low	
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	13	+0x34	00477040	cSC4HistoryWarehouse::SetHistoryDataQueueLength	8	2	eax-or-void	medium	tail->00476fc0
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	0	+0x0	00575650		8	2	eax-or-void	medium	tail->00577470
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	3	+0xC	00576e60	cSC4DisasterManagerEffect::Init	0	0	eax-or-void	medium	tail->00577460
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	4	+0x10	00579170	cSC4DisasterManagerEffect::Shutdown	0	0	eax-or-void	medium	tail->00577a70
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	5	+0x14	00575610		0	0	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	6	+0x18	00576d80	cSC4DisasterManagerEffect::AttemptDisasterStart	8	2	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	7	+0x1C	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	8	+0x20	00578230	cSC4DisasterManager::AddInstanceToList	4	1	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	9	+0x24	00578310	cSC4DisasterManager::RemoveInstanceFromList	4	1	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	10	+0x28	00577990	cSC4DisasterManager::GetActiveInstanceCount	0	0	eax-or-void	medium	
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	11	+0x2C	00577450	icf::cSC4DisasterManager::GetInstances	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	0	+0x0	006a2310	cSC4DemandSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	2	+0x8	006bd8a0	cSC4LandValueSimulator::Release	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	3	+0xC	006a8c20	cSC4DemandSimulator::Init	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	4	+0x10	006a3a20	cSC4DemandSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	5	+0x14	006a2390	cSC4DemandSimulator::GetSimulatorType	0	0	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	6	+0x18	006a2960	cSC4DemandSimulator::GetDemand	8	2	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	7	+0x1C	006a6c90	cSC4DemandSimulator::UpdateOccupantEffects	12	3	eax-or-void	medium	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	8	+0x20	006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	12	3	x87	high	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	edx:eax?	low	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	10	+0x28	006a3dd0	cSC4DemandSimulator::GetNeutralTaxRate	0	0	x87	high	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	11	+0x2C	006a5f80	cSC4DemandSimulator::GetLocalPopulationSummary	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	0	+0x0	005d4af0		8	2	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	2	+0x8	005d4d90		0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	3	+0xC	005d4dc0	cSC4Demand::Init	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	4	+0x10	005d4b50	cSC4Demand::Shutdown	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	5	+0x14	005d4b90	cSC4Demand::SimulationBegin	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	6	+0x18	0040ce60	icf::cGZLua5Thread::GetUserContext	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	7	+0x1C	005d4c30	cSC4Demand::SetId	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	8	+0x20	005d4c40	cSC4Demand::QuerySupplyValue	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	9	+0x24	005d4c50	cSC4Demand::QueryDemandValue	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	10	+0x28	007d6670	cSC4LightingManager::GetTimeOfDay	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	11	+0x2C	007aa300		0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	12	+0x30	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	13	+0x34	005d4ac0		0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	14	+0x38	006c2080	cSC4SimGrid<T>::GetTractWidthZ	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	15	+0x3C	00477840	cSC4SimGrid<T>::GetOneOverTractWidthX	0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	16	+0x40	005d4c60	cSC4Demand::AddToSupplyValue	4	1	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	17	+0x44	005d4c70	cSC4Demand::AddToDemandValue	4	1	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	18	+0x48	005d4c80	cSC4Demand::SetSupplyValue	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	19	+0x4C	005d4c90	cSC4Demand::SetDemandValue	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	20	+0x50	005d4ca0	cSC4Demand::SetActiveDemandMax	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	21	+0x54	005d4cc0	cSC4Demand::SetActiveDemandMin	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	22	+0x58	005d4ac0		0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	23	+0x5C	006ce230		4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	24	+0x60	005d4ad0		0	0	x87	high	
+cISC4Demand	cSC4Demand	00aa2758	25	+0x64	007b62d0	cSC4Simulator::SetSimTime	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	26	+0x68	005d4ae0		0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	27	+0x6C	005d4ce0	cSC4Demand::SetDemandCap	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	28	+0x70	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	29	+0x74	006ce0f0	cSC4City::SetBirthDate	4	1	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	30	+0x78	005d4cf0	cSC4Demand::EndOfCycle	0	0	eax-or-void	medium	
+cISC4Demand	cSC4Demand	00aa2758	31	+0x7C	00648f10	cSC4NetworkTool::DebugDumpEdgeTypes	4	1	unknown	low	
+cISC4Demand	cSC4Demand	00aa2758	32	+0x80	00407990	_memset	0	0	unknown	low	
+cISC4Demand	cSC4Demand	00aa2758	33	+0x84	00648ef0	cSC4ViewInputControl::OnMouseExit	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	0	+0x0	0080d340	cSC4OrdinanceSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	2	+0x8	0080d520	cSC4OrdinanceSimulator::Release	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	3	+0xC	0080e760	cSC4OrdinanceSimulator::Init	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	4	+0x10	0080d550	cSC4OrdinanceSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	5	+0x14	0080e280	cSC4OrdinanceSimulator::AddOrdinance	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	6	+0x18	0080e130	cSC4OrdinanceSimulator::RemoveOrdinance	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	7	+0x1C	0080d440	cSC4OrdinanceSimulator::IsOrdinanceAvailable	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	8	+0x20	0080d470	cSC4OrdinanceSimulator::IsOrdinanceOn	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	9	+0x24	0080d4a0	cSC4OrdinanceSimulator::IsOrdinanceAvailableButOff	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	10	+0x28	0080d580	cSC4OrdinanceSimulator::SetOrdinanceAvailable	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	11	+0x2C	0080dae0	cSC4OrdinanceSimulator::GetOrdinanceAvailableCount	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	12	+0x30	0080db40	cSC4OrdinanceSimulator::GetOrdinanceAvailableArray	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	13	+0x34	0080d690	cSC4OrdinanceSimulator::SetOrdinanceOn	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	14	+0x38	0080dbe0	cSC4OrdinanceSimulator::GetOrdinanceOnCount	0	0	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	15	+0x3C	0080dc40	cSC4OrdinanceSimulator::GetOrdinanceOnArray	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	16	+0x40	0080d3e0	cSC4OrdinanceSimulator::IsOrdinanceEnabled	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	17	+0x44	0080d410	cSC4OrdinanceSimulator::SetOrdinanceEnabled	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	18	+0x48	0080dce0	cSC4OrdinanceSimulator::GetOrdinanceIDArray	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	19	+0x4C	0080d4e0	cSC4OrdinanceSimulator::GetOrdinanceIDByName	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	20	+0x50	0080e040	cSC4OrdinanceSimulator::GetOrdinanceByID	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	21	+0x54	0080e4f0	cSC4OrdinanceSimulator::GetOrdinanceByName	4	1	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	22	+0x58	0080d500	cSC4OrdinanceSimulator::GetOrdinanceMonthlyExpense	0	0	edx:eax	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	23	+0x5C	0080d510	cSC4OrdinanceSimulator::GetOrdinanceMonthlyIncome	0	0	edx:eax	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	24	+0x60	0080dd70	cSC4OrdinanceSimulator::GetCumulativeOffset	8	2	eax-or-void	medium	
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	25	+0x64	0080deb0	cSC4OrdinanceSimulator::GetCumulativeFactor	8	2	x87	high	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	0	+0x0	0080c920	cSC4OrdinanceSimple::QueryInterface	8	2	eax-or-void	medium	tail->005fd310
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	1	+0x4	005d7b40	icf::cSC4GlyphTextureManager::AddRef	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	2	+0x8	0080c990	cSC4OrdinanceSimple::Release	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	3	+0xC	0080be70	icf::cSC4OrdinanceFreeClinics::Init	0	0	eax-or-void	medium	tail->0080c9b0
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	4	+0x10	0080c750	icf::cSC4OrdinanceFreeClinics::Shutdown	0	0	eax-or-void	medium	tail->0080c9d0
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	5	+0x14	0080be90	cSC4OrdinanceFreeClinics::GetCurrentMonthlyIncome	0	0	edx:eax?	low	tail->009eef04
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	6	+0x18	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	7	+0x1C	0080bc10	cSC4OrdinanceSimple::GetName	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	8	+0x20	00407bb0	icf::cSC4Advice::GetTextMessage	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	9	+0x24	00809250	icf::cGZBufferSimGLCache::GetLastAccess	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	10	+0x28	0080bc20	cSC4OrdinanceSimple::GetChanceAvailability	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	11	+0x2C	0080bc30	cSC4OrdinanceSimple::GetEnactmentIncome	0	0	edx:eax	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	12	+0x30	0080bc40	cSC4OrdinanceSimple::GetRetracmentIncome	0	0	edx:eax	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	13	+0x34	0080c350	icf::cSC4OrdinanceLegalizeGambling::GetCurrentMonthlyIncome	0	0	edx:eax	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	14	+0x38	0080bc50	cSC4OrdinanceSimple::GetMonthlyIncomeFactor	0	0	x87	high	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	15	+0x3C	007c9fd0	icf::cSC43DRender::GetCameraControl	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	16	+0x40	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	17	+0x44	0080bc60	cSC4OrdinanceSimple::IsAvailable	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	18	+0x48	0080bc70	cSC4OrdinanceSimple::IsOn	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	19	+0x4C	0080bc90	cSC4OrdinanceSimple::IsEnabled	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	20	+0x50	0080bca0	cSC4OrdinanceSimple::GetMonthlyAdjustedIncome	0	0	edx:eax	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	21	+0x54	0080cab0	cSC4OrdinanceSimple::CheckConditions	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	22	+0x58	007d2a10	cSC4OrdinanceSimple::IsIncomeOrdinance	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	23	+0x5C	0080c0f0	icf::cSC4OrdinanceLandfillGasRecovery::Simulate	0	0	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	24	+0x60	0080c9f0	cSC4OrdinanceSimple::SetAvailable	4	1	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	25	+0x64	0080ca50	cSC4OrdinanceSimple::SetOn	4	1	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	26	+0x68	0080bbb0	cSC4OrdinanceSimple::SetEnabled	4	1	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	27	+0x6C	0080bbc0	cSC4OrdinanceSimple::ForceAvailable	4	1	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	28	+0x70	0080bbd0	cSC4OrdinanceSimple::ForceOn	4	1	eax-or-void	medium	
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	29	+0x74	0080bbe0	cSC4OrdinanceSimple::ForceMonthlyAdjustedIncome	8	2	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	0	+0x0	00725720	cSC4WeatherSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	2	+0x8	00725a40	cSC4WeatherSimulator::Release	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	3	+0xC	00729900	cSC4WeatherSimulator::Init	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	4	+0x10	00725940	cSC4WeatherSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	5	+0x14	007296f0	cSC4WeatherSimulator::DoCompleteSimulation	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	6	+0x18	00477850	cSC4SimGrid<T>::GetOneOverTractWidthZ	0	0	x87	high	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	7	+0x1C	00477860	icf::cSC4LotConfiguration::GetMaximumSlopeBeforeFoundation	0	0	x87	high	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	8	+0x20	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	10	+0x28	007255c0	cSC4WeatherSimulator::PositionToCell	16	4	edx:eax?	low	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	11	+0x2C	007255f0	cSC4WeatherSimulator::CellToPosition	16	4	x87	high	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	12	+0x30	00725610	cSC4WeatherSimulator::CellToStandardCityCell	16	4	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	13	+0x34	00725640	cSC4WeatherSimulator::StandardCityCellToCell	16	4	edx:eax	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	14	+0x38	00725660	cSC4WeatherSimulator::GetCurrentSeason	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	15	+0x3C	00725680	cSC4WeatherSimulator::GetCurrentSeasonMonth	0	0	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	16	+0x40	00727f90	cSC4WeatherSimulator::UpdateMoisture	4	1	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	17	+0x44	00726150	cSC4WeatherSimulator::GetMoistureValue	8	2	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	18	+0x48	007256c0	cSC4WeatherSimulator::GetMoistureValueMapPtr	4	1	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	19	+0x4C	007256d0	cSC4WeatherSimulator::GetMoistureType	8	2	eax-or-void	medium	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	20	+0x50	00726250	cSC4WeatherSimulator::SetManualMoistureAddition	20	5	edx:eax?	low	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	21	+0x54	007256f0	cSC4WeatherSimulator::GetHumidity	8	2	x87	high	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	22	+0x58	00725a00	cSC4WeatherSimulator::GetAmbientWind	4	1	x87	high	
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	23	+0x5C	00725710	cSC4WeatherSimulator::GetWindAtCell	12	3	via-call	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	0	+0x0	006cdf00	cSC4NeighborsSimulator::QueryInterface	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	2	+0x8	006ce770	cSC4NeighborsSimulator::Release	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	3	+0xC	006d38f0	cSC4NeighborsSimulator::Init	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	4	+0x10	006cfbc0	cSC4NeighborsSimulator::Shutdown	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	5	+0x14	006d15e0	cSC4NeighborsSimulator::RequestCreateConnection	16	4	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	6	+0x18	006d4860	cSC4NeighborsSimulator::CreateConnection	16	4	via-call	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	7	+0x1C	006d4640	cSC4NeighborsSimulator::DeleteConnection	12	3	via-call	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	8	+0x20	006cee40	cSC4NeighborsSimulator::DeleteOccupantConnection	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	9	+0x24	006d19f0	cSC4NeighborsSimulator::DeleteAllConnectionsOfType	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	10	+0x28	006cdf80	cSC4NeighborsSimulator::HasConnection	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	11	+0x2C	006cf6b0	cSC4NeighborsSimulator::FindConnection	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	12	+0x30	006cf030	cSC4NeighborsSimulator::FindCityOnOtherSideOfConnection	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	13	+0x34	006cdfa0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	4	1	via-call	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	14	+0x38	006cede0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	15	+0x3C	006cf720	cSC4NeighborsSimulator::FindUnvisitedConnection	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	16	+0x40	006cff00	cSC4NeighborsSimulator::GetAllConnections	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	17	+0x44	006cff30	cSC4NeighborsSimulator::GetConnectionsOfType	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	18	+0x48	006d0010	cSC4NeighborsSimulator::GetConnectionsOfTypeToCity	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	19	+0x4C	006d0100	cSC4NeighborsSimulator::GetConnectionsToCity	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	20	+0x50	006d01e0	cSC4NeighborsSimulator::GetAdjacentCities	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	21	+0x54	006d1e00	cSC4NeighborsSimulator::GetConnectedCities	8	2	via-call	low	indirect-jump dword ptr [eax*4 + 0x6d1fac]
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	22	+0x58	006d1ab0	cSC4NeighborsSimulator::GetAllConnectedCities	8	2	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x6d1de8]
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	23	+0x5C	006d1fc0	cSC4NeighborsSimulator::FindConnectionSuitableForDeal	8	2	eax-or-void	medium	indirect-jump dword ptr [ecx*4 + 0x6d2180]
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	24	+0x60	006cf780	cSC4NeighborsSimulator::ProposeDeal	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	25	+0x64	006d21a0	cSC4NeighborsSimulator::ProposeDeals	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	26	+0x68	006d2870	cSC4NeighborsSimulator::AddDeal	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	27	+0x6C	006cdfe0	cSC4NeighborsSimulator::SetUIDisableFlag	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	28	+0x70	006d4670	cSC4NeighborsSimulator::FindDealsAll	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	29	+0x74	006d0840	cSC4NeighborsSimulator::FindDeals	12	3	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	30	+0x78	006d0760	cSC4NeighborsSimulator::FindDeals	8	2	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	31	+0x7C	006cfd70	cSC4NeighborsSimulator::MarkDealsDirty	0	0	unknown	low	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	32	+0x80	006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	33	+0x84	006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	0	0	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	34	+0x88	006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	4	1	eax-or-void	medium	
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	35	+0x8C	006d3250	cSC4NeighborsSimulator::GetDealCost	16	4	x87	high	indirect-jump dword ptr [eax*4 + 0x6d35fc]
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	36	+0x90	006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	8	2	x87|eax	low	indirect-jump dword ptr [eax*4 + 0x6d38b8]
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	37	+0x94	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	0	+0x0	004a74e0	cSC4RegionalCity::QueryInterface	8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	2	+0x8	004a7800	cSC4RegionalCity::Release	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	3	+0xC	004a7830		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	4	+0x10	004a8470		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	5	+0x14	004aba70		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	6	+0x18	004a99f0		12	3	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	7	+0x1C	004aba90		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	8	+0x20	004abab0		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	9	+0x24	004a8500		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	10	+0x28	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	11	+0x2C	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	12	+0x30	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	13	+0x34	00800640	icf::cSC4Advice::GetTextTitle	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	14	+0x38	00680920	nSCRes::cFileParser::ParseFilesModified	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	15	+0x3C	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	16	+0x40	004a7580		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	17	+0x44	004a8530		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	18	+0x48	004a9820		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	19	+0x4C	004a9860		8	2	edx:eax?	low	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	20	+0x50	004a7b40		12	3	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	21	+0x54	004a8db0	cSC4RegionalCity::GetAllConnections	4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	22	+0x58	004a8df0	cSC4RegionalCity::ChangeSymmetricConnection	8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	23	+0x5C	004a78a0		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	24	+0x60	004ad290		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	25	+0x64	004aa4f0	cSC4RegionalCity::UpdateCityCache	4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	26	+0x68	004a8960	cSC4RegionalCity::SetupCity	4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	27	+0x6C	006f6f70	cSC4ResidentialSimulator::GetPopulation	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	28	+0x70	004abae0		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	29	+0x74	004abaf0		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	30	+0x78	004abb10		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	31	+0x7C	004abb30				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	32	+0x80	004abb50				forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	33	+0x84	004abb60				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	34	+0x88	004abb80				forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	35	+0x8C	004abb90				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	36	+0x90	004abbb0				forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	37	+0x94	004abbc0				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	38	+0x98	004abbe0				forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	39	+0x9C	004abbf0				forward	medium	indirect-jump dword ptr [edx + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	40	+0xA0	004abc10				forward	medium	indirect-jump dword ptr [eax + 0x34]
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	41	+0xA4	004abc20		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	42	+0xA8	004abc30		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	43	+0xAC	004abc40		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	44	+0xB0	004abc50		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	45	+0xB4	004abc60		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	46	+0xB8	004abc80		8	2	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	47	+0xBC	004abca0		0	0	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	48	+0xC0	004abcb0		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	49	+0xC4	004abcc0		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	50	+0xC8	004a7640		0	0	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	51	+0xCC	004a7650		8	2	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	52	+0xD0	004a7660		0	0	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	53	+0xD4	004a7670		8	2	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	54	+0xD8	004a9ee0		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	55	+0xDC	004a9f00		12	3	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	56	+0xE0	004a9f40		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	57	+0xE4	004a9f60		12	3	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	58	+0xE8	004a9fa0		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	59	+0xEC	004a9fc0		12	3	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	60	+0xF0	004aa000		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	61	+0xF4	004aa020		12	3	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	62	+0xF8	004aa060		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	63	+0xFC	004aa080		12	3	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	64	+0x100	004a7680		4	1	x87	high	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	65	+0x104	004abce0	cSC4City::GetCrimeSimulator	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	66	+0x108	004abcf0		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	67	+0x10C	004a76e0		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	68	+0x110	004a9110		0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	69	+0x114	004a90d0		4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	70	+0x118	004aa0c0	cSC4RegionalCity::GetLocalDeals	4	1	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	71	+0x11C	004aa200	cSC4RegionalCity::UpdateImportExport	0	0	eax-or-void	medium	
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	72	+0x120	004a8a40		8	2	eax-or-void	medium	

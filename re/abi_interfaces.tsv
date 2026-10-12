@@ -1,0 +1,24 @@
+interface	class	vtable	slots	source
+cISC4Simulator	cSC4Simulator	00ab2fb8	0	re/labels_windows.tsv (cSC4Simulator::vftable)
+cISC4BudgetSimulator	cSC4BudgetSimulator	00ab0908	61	docs/specs/budget.md
+cISC4DepartmentBudget	cSC4DepartmentBudget	00ab0eb0	33	re/symbols/clock-budget-neighbors.tsv
+cISC4LineItem	cSC4LineItem	00ab0f58	0	serializable vtable 00AB0F3C + 0x1C
+cIGZVariant	cRZVariant	00aa6788	127	docs/specs/foundations.md 17.1
+cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	22	docs/specs/foundations.md 17.2
+cIGZString	cRZString	00a80810	28	docs/specs/foundations.md 17.3
+cIGZDate	cGZDate	00acea38	46	docs/specs/foundations.md 17.4
+cISCResExemplar	cSCResExemplar	00aaf0d0	14	docs/specs/foundations.md 17.5
+cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	44	docs/specs/foundations.md 17.6
+cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	29	docs/specs/foundations.md 17.7
+cISC4LotManager	cSC4LotManager	00ab37c0	28	docs/specs/foundations.md 17
+cISC4Lot	cSC4Lot	00ab19b0	70	docs/specs/foundations.md 17
+cISC4BuildingDevelopmentSimulator	cSC4BuildingDevelopmentSimulator	00ab0af8	59	docs/specs/foundations.md 17
+cISC4HistoryWarehouse	cSC4HistoryWarehouse	00a8ccb4	14	docs/specs/foundations.md 17
+cISC4DisasterManager	cSC4EarthquakeManager	00a9e090	12	docs/specs/foundations.md 17
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	12	docs/specs/demand.md
+cISC4Demand	cSC4Demand	00aa2758	34	docs/specs/demand.md
+cISC4OrdinanceSimulator	cSC4OrdinanceSimulator	00abeac0	26	docs/specs/ordinance.md
+cISC4Ordinance	cSC4OrdinanceFreeClinics	00abdd38	30	docs/specs/ordinance.md
+cISC4WeatherSimulator	cSC4WeatherSimulator	00ab3610	24	docs/specs/weather.md
+cISC4NeighborsSimulator	cSC4NeighborsSimulator	00ab1ee0	38	docs/specs/neighbors.md
+cISC4RegionalCity	cSC4RegionalCity	00a8fb20	73	docs/specs/neighbors.md

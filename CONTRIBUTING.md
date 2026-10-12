@@ -11,11 +11,19 @@ who study the original program from the people who write engine code.
 
 | | Analysis (spec writers) | Implementation (engine authors) |
 |---|---|---|
-| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `external/extracted/`, everything in `re/` | `docs/specs/`, `docs/subsystems/` (behaviour descriptions), public SDK headers (gzcom-dll, LGPL), the game's data files, general literature |
+| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `external/extracted/`, everything in `re/` | `docs/specs/`, `docs/subsystems/` (behaviour descriptions), `docs/abi/` (interface facts), public SDK headers (gzcom-dll, LGPL), the game's data files, general literature |
 | Produces | **behaviour specs** in `docs/specs/` (what happens, in prose, tables and pseudo-math) | code in `engine/`, plus tests that check it against the specs |
 | Must not | write or edit `engine/` code | open decompiled output, disassembly, `decomp/`, `external/extracted/`, `ghidra/project/`, or paste anything from them |
 
 One person may hold different roles on different subsystems, but **never both roles on the same subsystem**.
+
+## The wall covers logic, not interfaces
+
+How the game *calls* things is an interoperability fact, and engine authors may use it directly. That covers
+vtable slots, argument sizes, return registers, struct sizes and message IDs. `docs/abi/` holds these facts,
+generated from the executable by an analysis-side tool. Every interface the engine implements or calls must agree
+with it, and a test checks this. What a method *does* (algorithms, formulas, state changes, ordering) still reaches
+engine authors only as a behaviour spec.
 
 ## Specs
 
