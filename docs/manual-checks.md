@@ -5,7 +5,7 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 ## Needs you (blocking)
 
 Nothing is blocking. When you have 10 minutes, please do the in-game checks below. The DLL staged in Plugins
-is 6f9dc97, which includes every allocator fix, and `FreeCity4.ini` is set for normal play (`budget_default = 1`, no
+is 641cfda (run 18's budget plus the monthly observer; power is off by default), which includes every allocator fix, and `FreeCity4.ini` is set for normal play (`budget_default = 1`, no
 autoload, no auto-close). Open the budget window and its sub-windows (departments, loans) a few times: they were
 the last place the allocator bug could still bite.
 
@@ -24,6 +24,9 @@ the last place the allocator bug could still bite.
 | 16 | `lot_list_free = 0` | **clean**: freeing the list is the cause |
 | 17 | all on, with the fix (940b3bb, merged in 860d8cf) | **clean** through five month-ends (Sep 2001 to Feb 2002); funds and tax income change each month |
 | 18 | all on, every incompatible crossing fixed (6f9dc97: budget vectors, lists and strings in the game's allocator) | **clean** through five month-ends; `GetAllGroups` exercised daily |
+| 19 | original simulator and budget, observer only (641cfda) | clean; the baseline for the differential test |
+| 20 | our budget, original simulator, observer | clean. **Differential vs run 19, first month** (identical start): health and education expense +1 each (123/122, 105/104); tax by type differs in types 4, 6 and 9 (total income 947 vs 944). Being investigated against the exe. |
+| 21 | `enable = power` (our simulator and budget) | **crash** 0.5 s after load, inside our DLL: a line-item handle of `0x3F800000` (the float 1.0 used as a pointer) reached `SetFullExpenses`. Sent to the plugin lane. Power stays off by default, so manual play is unaffected. |
 
 **Root cause:** the game has three separate allocator instances, each with its own pools
 (`docs/abi/allocators.md`). The lot list's nodes come from the game's STL node allocator. The SDK's `SC4List`
