@@ -31,8 +31,15 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 - Run 8 starts automatically once you close the game: all budget switches on, with the message fix.
   - If it's clean, the message layout was the cause.
   - If not, the bisection continues.
-- Lane 3 is on the M3 grid simulator cores. Lane 1 is on the plugin glue for weather, ordinance and demand (off
-  by default).
+- Specs: power (b06e048). All open questions are answered (80d86eb … 0d45db2).
+- New foundations §18: the simulation runs at 24-bit x87 precision. The specs' worked examples were recomputed
+  (cde56f4).
+- M3 cores merged (4e7ccbb): grid module, pollution, crime, flammability and aura. 181 conformance vectors and
+  155 core tests are green.
+- Now running:
+  - lane 1: budget test 14 recheck, then the in-game glue for weather, ordinance and demand (off by default);
+  - lane 3: grid reconciliation, then the cores for power, plumbing, fire/police and flora;
+  - spec lane: education, health and mayor rating.
 
 ## To verify in-game (after the bisection finds the culprit)
 
