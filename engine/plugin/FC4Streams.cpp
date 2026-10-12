@@ -13,7 +13,9 @@
 
 #include "FC4Streams.h"
 
+#include "FC4Checked.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 
 #include "cIGZSerializable.h"
 #include "cIGZString.h"
@@ -74,6 +76,7 @@ int32_t IError(void* u) { return I(u).GetError(); }
 
 OStreamAdapter::OStreamAdapter(cIGZOStream& s) : s_(s) {
     if (!s.QueryInterface(kFC4_IID_cISC4DBSegmentOStream, reinterpret_cast<void**>(&seg_))) seg_ = nullptr;
+    FC4_ACQUIRED(seg_, "QueryInterface");
     api_.struct_size = sizeof(api_);
     api_.user = this;
     api_.put_u8 = &PutU8;
@@ -89,7 +92,7 @@ OStreamAdapter::OStreamAdapter(cIGZOStream& s) : s_(s) {
 }
 
 OStreamAdapter::~OStreamAdapter() {
-    if (seg_ != nullptr) seg_->Release();
+    if (seg_ != nullptr) FC4_RELEASE(seg_);
 }
 
 bool OStreamAdapter::WriteRef(uint64_t token) {
@@ -104,8 +107,9 @@ bool OStreamAdapter::WriteRef(uint64_t token) {
             static_cast<void*>(FromToken(token)));
         return seg_->WriteGZSerializable(nullptr);
     }
+    FC4_ACQUIRED(ser, "QueryInterface");
     const bool ok = seg_->WriteGZSerializable(ser);
-    ser->Release();
+    FC4_RELEASE(ser);
     return ok;
 }
 
@@ -113,6 +117,7 @@ bool OStreamAdapter::WriteRef(uint64_t token) {
 
 IStreamAdapter::IStreamAdapter(cIGZIStream& s) : s_(s) {
     if (!s.QueryInterface(kFC4_IID_cISC4DBSegmentIStream, reinterpret_cast<void**>(&seg_))) seg_ = nullptr;
+    FC4_ACQUIRED(seg_, "QueryInterface");
     api_.struct_size = sizeof(api_);
     api_.user = this;
     api_.get_u8 = &GetU8;
@@ -129,7 +134,7 @@ IStreamAdapter::IStreamAdapter(cIGZIStream& s) : s_(s) {
 }
 
 IStreamAdapter::~IStreamAdapter() {
-    if (seg_ != nullptr) seg_->Release();
+    if (seg_ != nullptr) FC4_RELEASE(seg_);
 }
 
 bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
@@ -139,9 +144,13 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
         Log("streams: WARNING reference read on a stream without the segment interface");
         return false;
     }
-    cIGZSerializable* obj = nullptr;
-    if (!seg_->ReadGZSerializable(&obj, false)) return false;
+    FC4_OUT(cIGZSerializable*, read, "cIGZSerializable* (ReadGZSerializable out pointer)");
+    const bool readOk = seg_->ReadGZSerializable(read.ptr(), false);
+    read.Check();
+    if (!readOk) return false;
+    cIGZSerializable* obj = read.get();
     if (obj == nullptr) return true;  // null reference
+    FC4_ACQUIRED(obj, "ReadGZSerializable");
 
     // [inferred] The object comes back with a reference owned by us.
     out->class_id = obj->GetGZCLSID();
@@ -151,7 +160,7 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
         out->token = TokenOf(static_cast<cIGZUnknown*>(obj));
         out->core_handle = core->CoreHandle();
         core->Release();
-        obj->Release();
+        FC4_RELEASE(obj);  // ours: not audited
         return true;
     }
     if (iid == 0 || iid == GZIID_cIGZSerializable) {
@@ -160,7 +169,8 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
     }
     void* typed = nullptr;
     const bool has = obj->QueryInterface(iid, &typed) && typed != nullptr;
-    obj->Release();
+    if (has) FC4_ACQUIRED(static_cast<cIGZUnknown*>(typed), "QueryInterface");
+    FC4_RELEASE(obj);
     if (!has) {
         Log("streams: referenced object of class 0x%08X lacks interface 0x%08X; read as null", out->class_id, iid);
         out->class_id = 0;

@@ -15,6 +15,7 @@
 // tracing for our image range, unload). Keep it minimal: it runs under the
 // loader lock.
 
+#include "FC4Checked.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
 
@@ -33,6 +34,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
                      static_cast<void*>(hinstDLL), exe, lpvReserved ? "static" : "dynamic");
             fc4::Log("log file: %s", fc4::LogPath());
             fc4::DiagAttach(hinstDLL);
+            fc4::CheckedAttach();
             break;
         }
         case DLL_PROCESS_DETACH:

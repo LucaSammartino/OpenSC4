@@ -13,8 +13,11 @@
 
 #include "FC4Properties.h"
 
+#include "FC4Checked.h"
+#include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 
 #include "GZServPtrs.h"
 #include "cGZPersistResourceKey.h"
@@ -31,13 +34,18 @@ namespace props {
 // ---- exemplars -----------------------------------------------------------------------------------
 
 Exemplar::~Exemplar() {
-    if (res_ != nullptr) res_->Release();
+    if (res_ != nullptr) FC4_RELEASE(res_);
 }
 
 bool Exemplar::Load(uint32_t type, uint32_t group, uint32_t instance) {
     if (res_ != nullptr) {
-        res_->Release();
+        FC4_RELEASE(res_);
         res_ = nullptr;
+    }
+    if (!On(Sw::ExemplarLoads)) {
+        NoteSkipped(Sw::ExemplarLoads, "exemplar load (not found)");
+        Log("props: exemplar %08X-%08X-%08X not loaded: switch exemplar_loads is off", type, group, instance);
+        return false;
     }
     cIGZPersistResourceManagerPtr rm;
     if (!rm) {
@@ -45,11 +53,15 @@ bool Exemplar::Load(uint32_t type, uint32_t group, uint32_t instance) {
         return false;
     }
     cGZPersistResourceKey key(type, group, instance);
-    if (!rm->GetResource(key, GZIID_cISCResExemplar, reinterpret_cast<void**>(&res_), 0, nullptr) || res_ == nullptr) {
-        res_ = nullptr;
+    FC4_OUT(cISCResExemplar*, out, "cISCResExemplar* (GetResource out pointer)");
+    const bool ok = rm->GetResource(key, GZIID_cISCResExemplar, reinterpret_cast<void**>(out.ptr()), 0, nullptr);
+    out.Check();
+    if (!ok || out.get() == nullptr) {
         Log("props: exemplar %08X-%08X-%08X not found", type, group, instance);
         return false;
     }
+    res_ = out.get();
+    FC4_ACQUIRED(res_, "GetResource");
     return true;
 }
 
@@ -61,6 +73,10 @@ namespace {
 
 const cIGZVariant* ValueOf(const cISCPropertyHolder* holder, uint32_t id) {
     if (holder == nullptr) return nullptr;
+    if (!On(Sw::PropertyReads)) {
+        NoteSkipped(Sw::PropertyReads, "GetProperty (absent)");
+        return nullptr;
+    }
     cISCProperty* p = AsGame(holder)->GetProperty(id);  // slot 9
     if (p == nullptr) return nullptr;
     return p->GetPropertyValue();
@@ -112,7 +128,14 @@ bool GetF32s(const cISCPropertyHolder* holder, uint32_t id, std::vector<float>& 
     return ReadNumbers(ValueOf(holder, id), out);
 }
 
-bool Has(const cISCPropertyHolder* holder, uint32_t id) { return holder != nullptr && AsGame(holder)->HasProperty(id); }
+bool Has(const cISCPropertyHolder* holder, uint32_t id) {
+    if (holder == nullptr) return false;
+    if (!On(Sw::PropertyReads)) {
+        NoteSkipped(Sw::PropertyReads, "HasProperty (absent)");
+        return false;
+    }
+    return AsGame(holder)->HasProperty(id);
+}
 
 uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id) {
     const cIGZVariant* v = ValueOf(holder, id);
@@ -125,6 +148,11 @@ namespace {
 
 bool Put(cISCPropertyHolder* holder, uint32_t id, const cIGZVariant& value) {
     if (holder == nullptr) return false;
+    if (!On(Sw::PropertyWrites)) {
+        // [choice] Reported as written, so the core's logic runs unchanged.
+        NoteSkipped(Sw::PropertyWrites, "AddPropertyVariant (reported as written)");
+        return true;
+    }
     // [choice] The SDK does not name AddProperty's flag; false is passed. The
     // holder copies the variant.
     return AsGame(holder)->AddPropertyVariant(id, &value, false);  // slot 14

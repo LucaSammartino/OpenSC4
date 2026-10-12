@@ -86,6 +86,9 @@ void NoteForeignException();
 // A heartbeat line now, from the main thread (month start); `why` is a literal.
 void HeartbeatNow(const char* why);
 
+// The main thread's activity stack and delivery, as in the stall report.
+void DescribeCurrentActivity(char* out, unsigned cap);
+
 // Module containing `addr` from a snapshot refreshed by the watchdog thread
 // (lock-free; safe in the exception handler). Writes "name+0xOFFSET" or the
 // plain address. Returns true if a module was found.

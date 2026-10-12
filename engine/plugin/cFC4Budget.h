@@ -43,6 +43,8 @@ namespace fc4 {
 const fc4_budget_host* BudgetHost();
 // The city the budget simulator serves (set by its Init, cleared by Shutdown).
 void SetBudgetCity(cISC4City* city);
+// Diagnostics: the references the budget core holds on game objects.
+void LogBudgetCoreRefs(const char* why);
 }  // namespace fc4
 
 // ---- budget simulator ------------------------------------------------------------------------------

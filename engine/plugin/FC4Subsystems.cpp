@@ -13,7 +13,10 @@
 
 #include "FC4Subsystems.h"
 
+#include "FC4Checked.h"
+#include "FC4Config.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -87,11 +90,17 @@ bool g_enabled[kSubsystemCount] = {};
 void Resolve() {
     if (g_resolved) return;
     g_resolved = true;
-    const std::string disable = Lower(Env("FC4_DISABLE"));
+    // First call outside DllMain: configuration, audit settings, checked-build self-tests.
+    ConfigReload("game start");
+    RefAuditReload();
+    CheckedStartup();
+    // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
+    const char* source = "";
+    const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));
     for (size_t i = 0; i < kSubsystemCount; ++i) {
         const Subsystem& s = kSubsystems[i];
         bool off = ListContains(disable, s.key);
-        const char* why = off ? "FC4_DISABLE" : "";
+        const char* why = off ? (strcmp(source, "FreeCity4.ini") == 0 ? "FreeCity4.ini (disable=)" : "FC4_DISABLE") : "";
         if (!off && s.legacyDisableEnv != nullptr && Env(s.legacyDisableEnv) == "1") {
             off = true;
             why = s.legacyDisableEnv;

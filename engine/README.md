@@ -130,6 +130,48 @@ plugin.
    the game (`simulator`, `budget`, or `all`), e.g. `FC4_DISABLE=budget`. `FC4_DISABLE_SIMULATOR=1` still works.
    The DLL still loads, but it does not register those classes, so the game's own ones run. The simulator and the
    budget only talk through the SDK interfaces, so either can be switched off alone.
+4. **Bisection (`FreeCity4.ini`):** a `key = value` file next to `FreeCity4.dll` (`#` or `;` after whitespace
+   starts a comment, `[sections]` are ignored). A key in the ini wins over the environment variable.
+   - `disable = budget` means the same as `FC4_DISABLE`. It is read once, when the game enumerates the classes,
+     so a change needs a game restart.
+   - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
+     (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
+     matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
+
+     | Key | When off |
+     |---|---|
+     | `lot_scan` | `ForEachLot` sees no lots, so property tax is 0 |
+     | `property_writes` | `AddPropertyVariant` and property copies are skipped but reported as written |
+     | `property_reads` | properties read as absent |
+     | `message_posting` | no budget messages are posted |
+     | `history` | no history records or queue lengths |
+     | `building_name` | empty line-item names |
+     | `exemplar_loads` | the tuning exemplar is not loaded (code defaults) |
+     | `disaster` | RiskyMoney never starts the earthquake |
+     | `cheats` | the budget's cheats are not registered |
+     | `holder_refs` | the budget core holds no references on game objects (references taken while the switch was on are still given back) |
+     | `ltext` | LTEXT lookups return "not found" |
+
+     The log shows `config (…): budget switches OFF (n of 11): …` at each load. At budget `Shutdown` it shows how
+     many calls each switch skipped.
+   - `refaudit = 0` turns the reference audit off. `refaudit_lines = N` sets its verbose line cap (default 2000).
+   - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every
+     reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
+     verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as
+     module+offset, the count returned and our call site.
+     - Always logged: `WARNING: released last reference to game object …` and `WARNING: over-release …`.
+     - At each simulator or budget `Shutdown`: the net count per class and the objects we still hold.
+5. **Checked build:** `cmake -S engine -B build-x86-checked -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   -DFC4_CHECKED=ON`.
+   - The plugin is built with `/Od /RTC1`, so an argument-count or callee-pop mismatch on any vtable call is
+     caught at the call.
+   - RTC failures go to the log, not a dialog: the kind, the call site as `FreeCity4.dll+offset` with our
+     function and line, the frames, the activity and the last interface calls. Copy `FreeCity4.pdb` next to the
+     DLL for the names.
+   - Small buffers we pass to game methods (`GetSize`, `GetLocation`, `GetSimDateParts`, QueryInterface and
+     `GetResource` out-pointers, the lot list, `ReadGZSerializable`) are surrounded by canaries. A write past
+     them logs `OUT-PARAM OVERRUN`.
+   - `FC4_CHECKED_SELFTEST=1` provokes one of each at start-up.
 
 ## Conventions
 

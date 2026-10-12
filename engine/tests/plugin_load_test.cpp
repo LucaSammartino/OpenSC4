@@ -213,6 +213,11 @@ std::string ReadFile(const std::string& path) {
     return ss.str();
 }
 
+void WriteTextFile(const std::string& path, const std::string& text) {
+    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    f << text;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -221,12 +226,48 @@ int main(int argc, char** argv) {
         return 2;
     }
     const std::string dll = argv[1];
+    const std::string mode = argc >= 3 ? argv[2] : "--normal";
     const std::string log = dll.substr(0, dll.find_last_of("\\/") + 1) + "FreeCity4.log";
+    const std::string ini = dll.substr(0, dll.find_last_of("\\/") + 1) + "FreeCity4.ini";
     DeleteFileA(log.c_str());
+    DeleteFileA(ini.c_str());  // a leftover from an aborted run must not change this one
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
 
-    if (argc >= 3 && std::string(argv[2]) == "--disabled") {
+    if (mode == "--ini-disabled") {
+        // FreeCity4.ini `disable =` wins over FC4_DISABLE; switches are read at
+        // game start; unknown keys are reported.
+        SetEnvironmentVariableA("FC4_DISABLE", "simulator");
+        WriteTextFile(ini, "; bisection test\n[subsystems]\ndisable = Budget   # the original budget\nlot_scan = off\n"
+                       "bogus_key = 1\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 1 && classes[0] == kCLSID_Simulator);
+            void* obj = nullptr;
+            CHECK(!director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, &obj));
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'budget': DISABLED by FreeCity4.ini (disable=)") != std::string::npos);
+        CHECK(text.find("subsystem 'simulator': enabled (1 class replaced)") != std::string::npos);
+        CHECK(text.find("config (game start): ") != std::string::npos);
+        CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
+              std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 11): lot_scan") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
+        if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
+        return g_failures == 0 ? 0 : 1;
+    }
+
+    if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
         HMODULE hd = LoadLibraryA(dll.c_str());
@@ -252,6 +293,7 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
     SetEnvironmentVariableA("FC4_DIAG_SELFTEST", "1");
+    SetEnvironmentVariableA("FC4_CHECKED_SELFTEST", "1");
     SetEnvironmentVariableA("FC4_STATUS_EVERY", "5");
     SetEnvironmentVariableA("FC4_HEARTBEAT_MS", "2000");
 
@@ -524,6 +566,38 @@ int main(int argc, char** argv) {
             CHECK(budget->GetTotalFunds() == 510100);  // kept across Shutdown
             CHECK(budget->Release() == 0);
         }
+
+        // Bisection switches: FreeCity4.ini is re-read at city load (budget
+        // Init) and wins over the environment; a switch that is off makes its
+        // behaviour a no-op.
+        SetEnvironmentVariableA("FC4_BUDGET_CHEATS", "0");    // overridden by the ini
+        SetEnvironmentVariableA("FC4_BUDGET_DISASTER", "0");  // not in the ini: applies
+        WriteTextFile(ini, "[budget]\r\nholder_refs = 0\r\nproperty_writes=off ; no writes\r\ncheats = 1\r\n");
+        cISC4BudgetSimulator* budget2 = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Budget, kIID_cISC4BudgetSimulator, reinterpret_cast<void**>(&budget2)));
+        if (budget2 != nullptr) {
+            CHECK(budget2->Init());
+            cISC4DepartmentBudget* dept = budget2->CreateDepartmentBudget(0x28F55A9F, 7);
+            CHECK(dept != nullptr);
+            if (dept != nullptr) {
+                CHECK(dept->CreateLineItem(2, true) != nullptr);
+                FakeHolder holder;
+                holder.Set<uint32_t>(0xEA54D283, 0x28F55A9F);
+                holder.Set<uint32_t>(0xEA54D284, 2);
+                holder.Set<uint32_t>(0xEA54D285, 7);
+                holder.Set<int64_t>(0xEA54D286, 200);
+                CHECK(dept->AddLocallyFundedObject(holder.AsSdk(), 7));
+                CHECK(holder.refs == 1);                             // holder_refs off: no reference held
+                CHECK(holder.Get32f(0xEA54D287) == -1.0f);           // property_writes off: nothing written
+                CHECK(dept->RemoveLocallyFundedObject(holder.AsSdk(), 7));
+                CHECK(holder.refs == 1);
+            }
+            CHECK(budget2->Shutdown());
+            CHECK(budget2->Release() == 0);
+        }
+        DeleteFileA(ini.c_str());
+        SetEnvironmentVariableA("FC4_BUDGET_CHEATS", nullptr);
+        SetEnvironmentVariableA("FC4_BUDGET_DISASTER", nullptr);
         if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
@@ -611,6 +685,48 @@ int main(int argc, char** argv) {
     CHECK(text.find("budget IssueBond(10000) -> 1 (borrowed 10000)") != std::string::npos);
     CHECK(text.find("budget Shutdown") != std::string::npos);
     CHECK(text.find("cFC4BudgetSimulator destroyed") != std::string::npos);
+
+    // Bisection configuration.
+    CHECK(text.find("config (game start): all 11 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 11 budget switches ON") != std::string::npos);
+    CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
+          std::string::npos);
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 11): property_writes, disaster, "
+                    "holder_refs") != std::string::npos);
+    CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
+          std::string::npos);
+    CHECK(text.find("switch 'property_writes' off: AddPropertyVariant (reported as written) skipped") !=
+          std::string::npos);
+    CHECK(text.find("switches (budget Shutdown): calls skipped since the last report: property_writes ") !=
+          std::string::npos);
+    CHECK(text.find("budget core (before budget Shutdown): holds 0 reference(s)") != std::string::npos);
+    // Reference-count audit: the fake holder and the test agents are "game" objects.
+    CHECK(text.find("refaudit: on (verbose line cap 2000") != std::string::npos);
+    CHECK(text.find("ref +1 AddRef ") != std::string::npos);
+    CHECK(text.find("ref -1 Release ") != std::string::npos);
+    CHECK(text.find("[class ?, vtable fc4_plugin_load_test.exe+0x") != std::string::npos);
+    CHECK(text.find("at fc4::`anonymous-namespace'::AddRefToken:") != std::string::npos);
+    CHECK(text.find("refaudit (budget Shutdown): ") != std::string::npos);
+    CHECK(text.find("refaudit (simulator Shutdown): ") != std::string::npos);
+    CHECK(text.find("objects we still hold references to: 0") != std::string::npos);
+    CHECK(text.find("WARNING: released last reference to game object ") != std::string::npos);  // test agents
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    // Checked build: RTC failures and out-parameter overruns reach the log.
+    if (mode == "--checked") {
+        CHECK(text.find("build: CHECKED (/Od /RTC1") != std::string::npos);
+        CHECK(text.find("RTC ERROR #1 (report 1 for this call site): ESP not preserved across a call") !=
+              std::string::npos);
+        CHECK(text.find("  call site: FreeCity4.dll+0x") != std::string::npos);
+        CHECK(text.find("ProvokeEspMismatch") != std::string::npos);  // our function name (FreeCity4.pdb)
+        CHECK(text.find("OUT-PARAM OVERRUN #1: the callee wrote outside the 1-byte self-test uint8 out-parameter") !=
+              std::string::npos);
+        CHECK(text.find("(canary C5: before C5C5C5C5C5C5C5C5C5C5C5C5C5C5C5C5 | after 332211C5") != std::string::npos);
+    } else {
+        CHECK(text.find("build: normal") != std::string::npos);
+        CHECK(text.find("FC4_CHECKED_SELFTEST ignored: this is not a checked build") != std::string::npos);
+        CHECK(text.find("RTC ERROR") == std::string::npos);
+    }
+    CHECK(text.find("OUT-PARAM OVERRUN #2") == std::string::npos);
 
     FreeLibrary(h);
     CHECK(ReadFile(log).find("DLL_PROCESS_DETACH (FreeLibrary)") != std::string::npos);

@@ -449,6 +449,8 @@ void NoteForeignException() { InterlockedIncrement(&g_foreign); }
 
 void HeartbeatNow(const char* why) { Heartbeat(why, false); }
 
+void DescribeCurrentActivity(char* out, unsigned cap) { DescribeActivity(GetTickCount(), out, cap); }
+
 bool InMainExe(uintptr_t addr) {
     EnsureExeRange();
     return InRange(addr, g_exeBase, g_exeSize);

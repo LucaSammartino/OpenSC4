@@ -14,6 +14,7 @@
 #include "cFC4Simulator.h"
 
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
 #include "FC4Properties.h"
 #include "compat/FC4Compat.h"
@@ -431,11 +432,11 @@ void cFC4Simulator::LogSchedulerStatus() {
 }
 
 void cFC4Simulator::HostAddRef(void*, fc4_agent agent) {
-    if (cIGZMessageTarget2* t = AgentPtr(agent)) t->AddRef();
+    if (cIGZMessageTarget2* t = AgentPtr(agent)) FC4_ADDREF(t);
 }
 
 void cFC4Simulator::HostRelease(void*, fc4_agent agent) {
-    if (cIGZMessageTarget2* t = AgentPtr(agent)) t->Release();
+    if (cIGZMessageTarget2* t = AgentPtr(agent)) FC4_RELEASE(t);
 }
 
 void cFC4Simulator::HostPost(void* user, const fc4_message* msg) {
@@ -526,7 +527,7 @@ bool cFC4Simulator::Init() {
     cIGZMessageServer2Ptr ms;
     if (ms) {
         msgServer_ = ms;
-        msgServer_->AddRef();
+        FC4_ADDREF(msgServer_);
         msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), kMsgPostCityInit);
         postCityInitSubscribed_ = true;
         msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), kCmdGetSimulationDate);
@@ -581,7 +582,7 @@ bool cFC4Simulator::Shutdown() {
             postCityInitSubscribed_ = false;
         }
         msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), kCmdGetSimulationDate);
-        msgServer_->Release();
+        FC4_RELEASE(msgServer_);
         msgServer_ = nullptr;
     }
     if (commandRegistered_) {  // step 5
@@ -598,6 +599,7 @@ bool cFC4Simulator::Shutdown() {
     }
     serviceRunning_ = false;
     fc4::Log("Shutdown");
+    fc4::RefSummary("simulator Shutdown");
     Release();  // may delete this; nothing may touch members afterwards
     return true;
 }
@@ -607,8 +609,10 @@ void cFC4Simulator::RegisterCheats() {
     cIGZApp* app = fw ? fw->Application() : nullptr;
     cISC4App* sc4 = nullptr;
     if (app == nullptr || !app->QueryInterface(kIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) return;
+    FC4_ACQUIRED(sc4, "QueryInterface");
     cIGZCheatCodeManager* cm = sc4->GetCheatCodeManager();
     if (cm != nullptr && cm->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cheatMgr_))) {
+        FC4_ACQUIRED(cheatMgr_, "QueryInterface");
         cheatMgr_->RegisterCheatCode(kCheatFPS, cRZBaseString("FPS"));
         if (sc4->GetDebugFunctionalityEnabled()) {
             cheatMgr_->RegisterCheatCode(kCheatSimDate, cRZBaseString("SimDate"));
@@ -618,7 +622,7 @@ void cFC4Simulator::RegisterCheats() {
         // message-ID argument as unused, so subscribing twice could double-deliver.
         cheatMgr_->AddNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     }
-    sc4->Release();
+    FC4_RELEASE(sc4);
 }
 
 void cFC4Simulator::UnregisterCheats() {
@@ -628,7 +632,7 @@ void cFC4Simulator::UnregisterCheats() {
     simDateCheatRegistered_ = false;
     // [choice] Also unsubscribe so the manager never calls a dead object.
     cheatMgr_->RemoveNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
-    cheatMgr_->Release();
+    FC4_RELEASE(cheatMgr_);
     cheatMgr_ = nullptr;
 }
 
@@ -930,6 +934,7 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
         case kMsgCheatIssued: {
             cIGZMessage2Standard* m = nullptr;
             if (pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m)) && m != nullptr) {
+                FC4_ACQUIRED(m, "QueryInterface");
                 const uint32_t id = static_cast<uint32_t>(m->GetData1());
                 const cIGZString* text = static_cast<const cIGZString*>(m->GetVoid2());
                 const std::string s = text ? ToStd(*text) : std::string();
@@ -937,7 +942,7 @@ bool cFC4Simulator::DoMessage(cIGZMessage2* pMessage) {
                     fc4_sim_handle_cheat(sim_, id, s.data(), s.size());
                     fc4::Log("cheat %08X '%s'", id, s.c_str());
                 }
-                m->Release();
+                FC4_RELEASE(m);
             }
             break;
         }
