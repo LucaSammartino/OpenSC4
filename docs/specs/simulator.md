@@ -211,6 +211,38 @@ If `hiddenPauseCount ≤ 0` and the idle level has agents:
   - If it is enabled, deliver `SimIdle(0x6695681A, data1 = julian, data2 = (pauseCount > 0 ? 1 : 0),
     data3 = min(frameBudgetMs − t, share))`. Its result is ignored.
 
+### 5.5 CPU-cycle limit-timer calibration *[compat]*
+
+Several original subsystems (for example the lot developer's daily pass) time-slice their own work with a
+**CPU-cycle budget**: they read the processor's time-stamp counter (TSC) and stop after a number of cycles equal to
+"N milliseconds" (5 ms for the lot developer). They convert milliseconds to cycles with two **process-wide
+coefficients** that the simulator owns and refreshes:
+
+| Global | Meaning |
+|---|---|
+| `CyclesToMillisecs` | milliseconds per TSC cycle (`calib`) |
+| `MillisecsToCycles` | TSC cycles per millisecond (`1 / calib`) |
+
+If the simulator does not maintain them they keep their static value of 1.0. A "5 ms" budget then becomes 5 cycles,
+those subsystems make no progress, return "not finished" forever, and the day never advances (observed in-game).
+
+Calibration (`calib`, a float):
+- **Initial value**: an estimate of milliseconds per TSC cycle (for example, measure the TSC against a
+  high-resolution wall clock over a few milliseconds at construction). Publish both globals at construction.
+- **On every `OnTick`, before anything else**: read the wall clock (`QueryPerformanceCounter`, ticks `q`) and the TSC
+  (`c`). If more than **one second** of wall-clock ticks (`qpcFrequency`) has passed since the last sample:
+  `sample = (q − q_last) × (1000 / qpcFrequency) / (c − c_last)` (ms per cycle), and if `c − c_last > 0`:
+  `calib := 0.9 × calib + 0.1 × sample`. Then set `q_last := q` and `c_last := c`. Before the first sample, the last
+  values come from construction.
+- After the update, publish `CyclesToMillisecs := calib` and `MillisecsToCycles := 1 / calib`.
+
+**Locating the globals** (an interop fact for the 1.1.641 Windows executable; there is no GZCOM interface for them):
+`CyclesToMillisecs` is the 32-bit float at virtual address `0x00B0A840`, and `MillisecsToCycles` is the float at
+`0x00B0A83C` (image base `0x00400000`). An implementation **must** confirm it is running inside exactly that
+executable before writing (for example, check the module's PE timestamp/size or a byte signature at those
+addresses, both holding `1.0f` before first use). Otherwise it must not write, and must log a warning. Keep such
+version-specific addresses in a single compatibility table (`engine/plugin/compat/`).
+
 ## 6. Speed and pause
 
 | Method | Behaviour |
@@ -311,3 +343,5 @@ uint32  julianDay
 6. Pause/Resume counting, the emergency speed lock, and posting on 0↔1 transitions only.
 7. Enabled-bit selection by `cityEstablished` and the `SetAgentEnabled` override.
 8. Save round-trip (write → read → write gives identical bytes) and rejection of version 5.
+9. Limit-timer calibration: with a fake clock and fake TSC, `calib` follows the 0.9/0.1 average once per second of
+   wall time, and both published coefficients are updated (the publish target is injectable for tests).
