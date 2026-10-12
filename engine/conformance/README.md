@@ -496,12 +496,51 @@ Flammability events: `create_grid` (`instance`, `size`), `grid_shutdown` (`insta
 `history` (`type`, `value`), `ignite` (`x`, `z`, `use_probability`, `teleport`, `fire_iid`), `cause` (`cause`),
 `post` (`type`: `SimCycleComplete`), and with a queued generator `rng` (`value`, `a`, `b`).
 
+## Aura ops
+
+The aura vectors (`a17_…`) drive the aura simulator (`fc4_core::aura`) with a scripted city implementing
+`AuraHost`: lots (rectangles, zone, building occupant, wealth, populations), occupants and their Sint32-array
+properties, budget funding, tax rates, the ordinance offset, the land value type, the grids of other simulators,
+the limit timer and the registry. Every op name starts with `aura_`. The default city is 64 × 64 cells of 16 m
+(16 × 16 tracts at S = 4; the work grid has one tract per cell). Grid cells are `[[x, z, v], …]`.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `aura_env` | any of `cells` (`[x, z]`), `cell_width` (`[x, z]` m), `date` (default 1000), `tuning` (`"shipped"` (default), `"empty"`, or null = no exemplar), `tuning_props` (a property map merged into the tuning), `tuning_remove` (property IDs), `funding` (`{"0xID": f or null}`; Parks and Recreation is `0x8A4260A6`), `tax` (`{"index": rate}`, default 0), `ordinance_offset`, `land_value_type` (default 1), `timer_expired` (default true), `registry_ok` (default true), `lots` (`[{rect: [x1, z1, x2, z2], zone? (1), building? (occupant ID, 0 by default, null = none), wealth? (1), pops? ([[type, count]])}]`, or null), `occupants` (`{"id": {type?, pos: [x, y, z], props: {"0xID": [ints]}, dept?} or null}`), `grids` (`{name: {size? (4), fill?, cells?} or null}` for `air`, `water`, `garbage`, `radiation`, `school`, `hospital`, `crime`, `trip`, `congestion`, `pop1`..`pop3`) | the scripted city |
+| `aura_create` | `rng?`: `{seed}` (a real `cRZRandom`) or `{stub: {uniform: [u…], int: [k…]}}` (a double draw returns `a + u (b − a)`, an integer draw returns `k`; the last value repeats); default a clock-seeded generator. Draws are logged | a new simulator |
+| `aura_rng` | as `rng` above | replaces the generator |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `aura_init` / `aura_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `aura_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `PostCityInit`, `OccupantInserted`, `OccupantRemoved`, `OrdinanceUpdated`, `ExemplarChanged` or an ID), `data1..3?`, `occupant?`, `expect?` (the `DoMessage` result) | `DoMessage` |
+| `aura_idle` | `ms?` (5), `count?` (1), `expect_state?` | `DoIdle` calls |
+| `aura_run` | `ms?`, `max?`, `expect_calls?` | `DoIdle` until state 0 |
+| `aura_call` | `method`, `args?`, `expect?` | `add_transient_effect` (`[x, z, radius, magnitude]`), `add_transient_effect_type` (`[x, z, type]`), `aura_value` (`[x, z]` cells), `mayor_rating`, `max_mayor_rating` / `min_mayor_rating` (`[rating, x, z]`), `bust_strike` (`[type]`), `registry` (`command`, `args`: floats are Float32 variants, integers Sint64), `occupant_changed` (`[id, add]`), `centre_cell` (`[x, z]` m), `lot_base_aura` (`[lot]` as in `lots`), `tax_change`, `read_tuning`, `query_interface` (`[iid]` → `"primary"`, `"message_target"`, `"serializable"` or false), `class_id`, `slot_pops` (`[slot]`) |
+| `aura_set` | `state`: any of `state`, `cycle_start_day`, `department_cursor` (null = none), `mayor_rating`, `unused_rating`, `global_effect`, `effective_base_aura`, `base_aura`, `hotspot`, `long_decay`, `short_decay`, `max_rating`, `min_rating`, `max_location`, `min_location`, `low_tracts`, `hotspots` (`[[x, z, w]]`), `re_add_landmarks`, `previous_tax_rate`, `slice_step` (`[step, misses]`) | pokes state (test setup) |
+| `aura_expect` | `state`: the `aura_set` fields plus `initialized`, `riot_roll`, `transient_magnitude`, `transient_radius`, `curves` (partial `{park, air, water, garbage, radiation, school, hospital, crime, trip, congestion, tax_change, value_wealth, riot}` booleans: whether the curve exists), `departments` (IDs, ascending), `lot_iterator` | the simulator state |
+| `aura_set_grid` | `grid` (`aura`, `base`, `transient`, `work`, `building_effect`, `park_map`, `raw_park`, `landmark_map`, `landmark_work`, `dept:0xID`), `fill?`, `cells?` | writes a grid; a missing department grid is first created through a landmark occupant with no cone (§7.2) |
+| `aura_expect_grid` | `grid` and any of `exists`, `tract_size`, `counts`, `cells`, `others` (every unlisted tract) | grid contents |
+| `aura_expect_events` / `aura_expect_event_count` / `aura_clear_events` | see the shared conventions | host calls |
+| `aura_save` / `aura_load` / `aura_expect_save` | `slot`; load: `rng?`, `expect?` (the store-level result; the simulator's Read result is ignored, foundations §3.5) | the class-object store |
+| `aura_patch` / `aura_expect_payload` | see the shared conventions (the simulator's record) | |
+
+Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`values`), `lot_iterator`, `history`
+(`series`, `value`), `disaster` (`manager`, `x`, `z`), `strike` (`service`: police, fire, health, school), `post`
+(`type`), `timer_start` (`ms`), `subscribe` / `unsubscribe` (`types`), `add_agent` (`level`, `name`, `flags`),
+`remove_agent`, `registry_add`, `registry_remove`, and `rng` (`kind` double with `value`, or int with `n` and
+`value`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
    §7) or `b15_…` (budget §15), `d16_…` (demand §16), `o13_…` (ordinance §13), `w14_…` (weather §14),
    `g10_…` (simgrid §10, `fc4_core::simgrid`), `tg10_…` (simgrid §10, `fc4_core::grid`),
-   `fl16_…` (flammability §16).
+   `fl16_…` (flammability §16), `a17_…` (aura §17).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -681,3 +720,26 @@ Flammability events: `create_grid` (`instance`, `size`), `grid_shutdown` (`insta
 | 12–13 occupant update | `fl16_12_13_occupant_update` |
 | 14 persistence | `fl16_14_persistence` |
 | 15 interface slots (portable part) | `fl16_15_slots` |
+
+## Coverage (aura §17)
+
+| §17 item | Vector |
+|---|---|
+| Init, Shutdown, tuning (defaults, "delete" curve pattern, exemplar reload) | `a17_00_lifecycle_tuning` |
+| 1 ABI (slots 6 / 7, getters, class, QueryInterface) | `a17_01_abi` |
+| 2 park funding | `a17_02_park_funding` |
+| 3 landmark funding | `a17_03_landmark_funding` |
+| 4 tax effect | `a17_04_tax_effect` |
+| 5 lot base aura | `a17_05_lot_base_aura` |
+| 6 work stamping (and the time slice) | `a17_06_work_stamping` |
+| 7 curves on cells | `a17_07_curves_on_cells` |
+| 8 long decay | `a17_08_long_decay` |
+| 9 global effect | `a17_09_global_effect` |
+| 10 aura and rating | `a17_10_aura_rating` |
+| 11 transient | `a17_11_transient` |
+| 12–13 hotspots and riot | `a17_12_13_hotspots_riot` |
+| 14 cadence | `a17_14_cadence` |
+| 15 occupant cones | `a17_15_occupant_cones` |
+| 16 persistence | `a17_16_persistence` |
+| 17 BustStrike | `a17_17_bust_strike` |
+| 18 registry | `a17_18_registry` |

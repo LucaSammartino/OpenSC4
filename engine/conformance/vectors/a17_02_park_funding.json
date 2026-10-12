@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "aura_park_funding",
+  "spec": ["aura 6.2", "aura 17.2"],
+  "description": "State 2: park map = rawPark > 0 ? trunc(rawPark x funding) : rawPark. 100 x 0.8 -> 80, 7 x 0.8 = 5.6 -> 5, -20 and 0 kept; at 0.5: 50 and 3; without a Parks and Recreation department the factor is 1.0 [choice]. Products are one f32 multiply (foundations 18), values from a Python model.",
+  "steps": [
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_clear_events"},
+    {"op": "aura_env", "funding": {"0x8A4260A6": 0.8}},
+    {"op": "aura_set_grid", "grid": "raw_park", "cells": [[0, 0, 100], [1, 0, -20], [2, 0, 7], [3, 0, 0]]},
+    {"op": "aura_set", "state": {"state": 2}},
+    {"op": "aura_idle", "expect_state": 3},
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 80], [1, 0, -20], [2, 0, 5], [3, 0, 0]], "others": 0},
+    {"op": "aura_expect_grid", "grid": "raw_park", "cells": [[0, 0, 100], [1, 0, -20], [2, 0, 7], [3, 0, 0]], "others": 0},
+    {"op": "aura_env", "funding": {"0x8A4260A6": 0.5}},
+    {"op": "aura_set", "state": {"state": 2}},
+    {"op": "aura_idle", "expect_state": 3},
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 50], [1, 0, -20], [2, 0, 3], [3, 0, 0]], "others": 0},
+    {"op": "aura_env", "funding": {"0x8A4260A6": null}},
+    {"op": "aura_set", "state": {"state": 2}},
+    {"op": "aura_idle", "expect_state": 3},
+    {"op": "aura_expect_grid", "grid": "park_map", "cells": [[0, 0, 100], [1, 0, -20], [2, 0, 7], [3, 0, 0]], "others": 0}
+  ]
+}

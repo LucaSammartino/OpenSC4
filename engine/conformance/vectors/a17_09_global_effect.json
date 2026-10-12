@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "aura_global_effect",
+  "spec": ["aura 5.2", "aura 6.14", "aura 17.9"],
+  "description": "globalEffect = the ordinance's cumulative offset for 0xAA5B8407 (Youth Curfew -10 + Nuclear Free Zone +5 = -5, summed by the ordinance simulator; the scripted host returns the sum), read on OrdinanceUpdated and again in state 14, and added to every block average before the decay: old 0, average 10 -> new 5 -> ceil(5 x 0.100000024) = 1; old -128 -> 5; old 10 -> new 5 -> floor(-0.5) = -1 -> 9; -125 - 5 clamps to -127. Hand-derived.",
+  "steps": [
+    {"op": "aura_env", "cells": [16, 16]},
+    {"op": "aura_create"},
+    {"op": "aura_init", "expect": true},
+    {"op": "aura_clear_events"},
+    {"op": "aura_env", "ordinance_offset": -5},
+    {"op": "aura_message", "type": "OrdinanceUpdated", "expect": true},
+    {"op": "aura_expect", "state": {"global_effect": -5}},
+    {"op": "aura_env", "ordinance_offset": 0},
+    {"op": "aura_set_grid", "grid": "work", "fill": -128, "cells": [[0, 0, 10], [0, 1, 10], [0, 2, 10], [0, 3, 10], [1, 0, 10], [1, 1, 10], [1, 2, 10], [1, 3, 10], [2, 0, 10], [2, 1, 10], [2, 2, 10], [2, 3, 10], [3, 0, 10], [3, 1, 10], [3, 2, 10], [3, 3, 10], [4, 0, 10], [4, 1, 10], [4, 2, 10], [4, 3, 10], [5, 0, 10], [5, 1, 10], [5, 2, 10], [5, 3, 10], [6, 0, 10], [6, 1, 10], [6, 2, 10], [6, 3, 10], [7, 0, 10], [7, 1, 10], [7, 2, 10], [7, 3, 10], [8, 0, 10], [8, 1, 10], [8, 2, 10], [8, 3, 10], [9, 0, 10], [9, 1, 10], [9, 2, 10], [9, 3, 10], [10, 0, 10], [10, 1, 10], [10, 2, 10], [10, 3, 10], [11, 0, 10], [11, 1, 10], [11, 2, 10], [11, 3, 10], [12, 0, -125], [12, 1, -125], [12, 2, -125], [12, 3, -125], [13, 0, -125], [13, 1, -125], [13, 2, -125], [13, 3, -125], [14, 0, -125], [14, 1, -125], [14, 2, -125], [14, 3, -125], [15, 0, -125], [15, 1, -125], [15, 2, -125], [15, 3, -125]]},
+    {"op": "aura_set_grid", "grid": "base", "fill": -128, "cells": [[0, 0, 0], [1, 0, -128], [2, 0, 10], [3, 0, -128]]},
+    {"op": "aura_set", "state": {"state": 14}},
+    {"op": "aura_idle", "expect_state": 15},
+    {"op": "aura_expect", "state": {"global_effect": 0}},
+    {"op": "aura_expect_grid", "grid": "base", "cells": [[0, 0, 2], [1, 0, 10], [2, 0, 10], [3, 0, -125]], "others": -128},
+    {"op": "aura_env", "ordinance_offset": -5},
+    {"op": "aura_set_grid", "grid": "base", "fill": -128, "cells": [[0, 0, 0], [1, 0, -128], [2, 0, 10], [3, 0, -128]]},
+    {"op": "aura_set", "state": {"state": 14, "global_effect": 0}},
+    {"op": "aura_idle", "expect_state": 15},
+    {"op": "aura_expect", "state": {"global_effect": -5}},
+    {"op": "aura_expect_grid", "grid": "base", "cells": [[0, 0, 1], [1, 0, 5], [2, 0, 9], [3, 0, -127]], "others": -128}
+  ]
+}
