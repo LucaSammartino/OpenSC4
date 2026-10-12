@@ -247,3 +247,86 @@ va	name	evidence	mac_x86
 0069fd70	cSC4CrimeSimulator::ComputeAverageCrime	DoIdle state 4, last call	001714b4
 0069f260	cSC4CrimeSimulator::DoOccupantChanged	DoMessage Insert/RemoveOccupant branch; reads prop 0xCA5B9306	00170fa2
 006a07a0	cSC4CrimeSimulator::ReadSimulatorTunableValues	DoMessage branch; reads 0x8A0CBAAC etc.	00171c06
+0068b9c0	cSC4AuraSimulator::QueryInterface	cISC4AuraSimulator vtable 00AB07C8 slot 0	00188fb6
+0068bfb0	cSC4AuraSimulator::Release	cISC4AuraSimulator vtable 00AB07C8 slot 2	0018903c
+0068e6b0	cSC4AuraSimulator::Init	cISC4AuraSimulator vtable 00AB07C8 slot 3	0018c4c0
+0068dec0	cSC4AuraSimulator::Shutdown	cISC4AuraSimulator vtable 00AB07C8 slot 4	0018a0ca
+0068bab0	cSC4AuraSimulator::GetAuraValue	cISC4AuraSimulator vtable 00AB07C8 slot 5	0018912c
+0068bac0	cSC4AuraSimulator::GetMayorRating	cISC4AuraSimulator vtable 00AB07C8 slot 8	00189154
+0068d1e0	cSC4AuraSimulator::GetMaxMayorRating	cISC4AuraSimulator vtable 00AB07C8 slot 9	0069c32e
+0068d200	cSC4AuraSimulator::GetMinMayorRating	cISC4AuraSimulator vtable 00AB07C8 slot 10	0069c352
+0068c0d0	cSC4AuraSimulator::BustStrike	cISC4AuraSimulator vtable 00AB07C8 slot 11	0018966a
+0068d1b0	cSC4AuraSimulator::GetAuraGrid	cISC4AuraSimulator vtable 00AB07C8 slot 12	0069c2fe
+0068d1c0	cSC4AuraSimulator::GetTransientAuraGrid	cISC4AuraSimulator vtable 00AB07C8 slot 13	0069c30a
+0068d1d0	cSC4AuraSimulator::GetLandmarkMap	cISC4AuraSimulator vtable 00AB07C8 slot 15	0069c322
+0068bad0	cSC4AuraSimulator::AddTransientEffect(float,float,TransientAuraEffect)	cISC4AuraSimulator vtable 00AB07C8 slot 6 (MSVC reversed overload; ret 0xC, forwards to the 4-float overload via vt+0x1C)	00189164
+0068bb30	cSC4AuraSimulator::AddTransientEffect(float,float,float,float)	cISC4AuraSimulator vtable 00AB07C8 slot 7 (MSVC reversed overload; ret 0x10, calls AddRadiusEffect<int8> 005E4130 on transient grid)	001891c0
+0040d390	cSC4AuraSimulator::GetParkMap / cSC4FlammabilitySimulator::GetFlammabilityGrid (COMDAT-folded mov eax,[ecx+0x58])	cISC4AuraSimulator vtable 00AB07C8 slot 14 and cISC4FlammabilitySimulator vtable 00AB128C slot 5 share this body	0069c316/00624312
+005e4130	cSC4MapUtilities::AddRadiusEffect(int8 grid)	called by Aura AddTransientEffect(4 floats) with transient grid data	0009ea8a
+0068d1a0	cSC4AuraSimulator::GetGZCLSID	mov eax,0x0990BDD8; ret	0069c2f4
+0068cc50	cSC4AuraSimulator::Write	cIGZSerializable vtable 00AB07A0 slot 3	0018b2ea
+0068e340	cSC4AuraSimulator::Read	cIGZSerializable vtable 00AB07A0 slot 4	0018b4c8
+0068fa60	cSC4AuraSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB07B8 slot 3; NewDay->DoIdle(5), SimIdle->DoIdle(data3)	0018c268
+0068f190	cSC4AuraSimulator::DoIdle	DoMessage Day/Idle branch	0018b778
+0068da80	cSC4AuraSimulator::UpdateAuraGrid	called from DoIdle; records history 0x0A5CBF37 (mayor rating)	0018a608
+006aced0	cSC4FireProtectionSimulator::QueryInterface	cISC4FireProtectionSimulator vtable 00AB1160 slot 0	002367b2
+006ad1b0	cSC4FireProtectionSimulator::Release	cISC4FireProtectionSimulator vtable 00AB1160 slot 2	0023684a
+006ae240	cSC4FireProtectionSimulator::Init	cISC4FireProtectionSimulator vtable 00AB1160 slot 3	00237e72
+006ad1e0	cSC4FireProtectionSimulator::Shutdown	cISC4FireProtectionSimulator vtable 00AB1160 slot 4	002370d6
+006acf80	cSC4FireProtectionSimulator::IsFireStation	cISC4FireProtectionSimulator vtable 00AB1160 slot 7	00236998
+006ad530	cSC4FireProtectionSimulator::SetStationFunding	cISC4FireProtectionSimulator vtable 00AB1160 slot 9	002378fa
+006ad430	cSC4FireProtectionSimulator::GetStationEfficiency	cISC4FireProtectionSimulator vtable 00AB1160 slot 10	00237736
+006ad950	cSC4FireProtectionSimulator::GetChanceOfStrike	cISC4FireProtectionSimulator vtable 00AB1160 slot 12	002379a0
+006ad060	cSC4FireProtectionSimulator::BeginStrike	cISC4FireProtectionSimulator vtable 00AB1160 slot 13	00236b02
+006ad100	cSC4FireProtectionSimulator::EndStrike	cISC4FireProtectionSimulator vtable 00AB1160 slot 14	00236bd6
+006ae170	cSC4FireProtectionSimulator::GetStrikingStations	cISC4FireProtectionSimulator vtable 00AB1160 slot 17	0023733e
+006ad5e0	cSC4FireProtectionSimulator::GetOccupantCoverage	cISC4FireProtectionSimulator vtable 00AB1160 slot 21	00237168
+006ada30	cSC4FireProtectionSimulator::GetFireStationCount	cISC4FireProtectionSimulator vtable 00AB1160 slot 23	00237330
+006ad8f0	cSC4FireProtectionSimulator::GetTotalDispatchCount	cISC4FireProtectionSimulator vtable 00AB1160 slot 25	002373a2
+006e0060	cSC4PoliceSimulator::QueryInterface	cISC4PoliceSimulator vtable 00AB2490 slot 0	00075d82
+006e2740	cSC4PoliceSimulator::Init	cISC4PoliceSimulator vtable 00AB2490 slot 3	00077ae4
+006e0310	cSC4PoliceSimulator::Shutdown	cISC4PoliceSimulator vtable 00AB2490 slot 4	000766e2
+006e0120	cSC4PoliceSimulator::IsOnStrike	cISC4PoliceSimulator vtable 00AB2490 slot 10	00075ed8
+006acec0	cSC4FireProtectionSimulator::GetGZCLSID	mov eax,0x2990C05A; ret	006d47e2
+006ad250	cSC4FireProtectionSimulator::Write	cIGZSerializable vtable 00AB10D0 slot 3	00236876
+006ad2a0	cSC4FireProtectionSimulator::Read	cIGZSerializable vtable 00AB10D0 slot 4	002368d0
+006ae070	cSC4FireProtectionSimulator::DoMessage	vtable 00AB1118 slot 3; calls base DoMessage 006F62C0 then handles exemplar reload (0xC53D10AA, instance 0x68F5524A)	00237e0a
+006ae0c0	cSC4FireProtectionSimulator::DoMonthlySimulation	vtable 00AB1118 slot 6 (base DoMessage calls vt+0x18 on SimNewMonth); calls UpdateUnadjustedProtectionGrid	0023767e
+006adda0	cSC4FireProtectionSimulator::ReadSimulatorTunableValues	called from Fire DoMessage on exemplar 0x68F5524A reload	00237b58
+006f62c0	cSC4ProtectionSimulator::DoMessage	called by Fire DoMessage; NewDay->vt+0x14(data1), NewMonth->vt+0x18, funding-changed 0x08DAC3E7->UpdateUnadjustedProtectionGrid, dispatch-end 0x894671F6	0007cace
+006f5c30	cSC4ProtectionSimulator::UpdateUnadjustedProtectionGrid	2 calls to AddRadiusEffect<int16> 005E4500 (stations, active dispatches) like Mac	0007c4b2
+006f6110	cSC4ProtectionSimulator::UpdateBothGridsByPosition	calls UpdateUnadjustedProtectionGrid then CalculateAndWriteAdjustedGridDataByCell(rect)	0007c77a
+006f5eb0	cSC4ProtectionSimulator::CalculateAndWriteAdjustedGridDataByCell(x,z,r)	called after UpdateUnadjustedProtectionGrid in UpdateBothGridsByPosition	0007c37c
+006f56f0	cSC4ProtectionSimulator::ProtectionShutdown	unsubscribes 0x99EF1142, 0x08DAC3E7, 0x894671F6, ...	0007bedc
+006e0050	cSC4PoliceSimulator::GetGZCLSID	mov eax,0x6990C04F; ret	0061e084
+0068ecf0	cSC4AuraSimulator::DoOccupantChanged	2 AddRadiusEffect<int16> (park, landmark) + 1 AddRadiusEffect<int8> (0xCA5B9305 effect), matches Mac shape	0018acc0
+006ae390	cSC4FlammabilitySimulator::QueryInterface	cISC4FlammabilitySimulator vtable 00AB128C slot 0	0008daee
+006ae4a0	cSC4FlammabilitySimulator::Release	cISC4FlammabilitySimulator vtable 00AB128C slot 2	0008db74
+006af540	cSC4FlammabilitySimulator::Init	cISC4FlammabilitySimulator vtable 00AB128C slot 3	0008f2ac
+006aed40	cSC4FlammabilitySimulator::Shutdown	cISC4FlammabilitySimulator vtable 00AB128C slot 4	0008e02e
+006ae460	cSC4FlammabilitySimulator::IsCellFlammable	cISC4FlammabilitySimulator vtable 00AB128C slot 6	0008dcd8
+006ae590	cSC4FlammabilitySimulator::GetFlammabilityHotspot	cISC4FlammabilitySimulator vtable 00AB128C slot 7	0008dd20
+006ae450	cSC4FlammabilitySimulator::GetAverageFlammability	cISC4FlammabilitySimulator vtable 00AB128C slot 8	0008dccc
+006ae380	cSC4FlammabilitySimulator::GetGZCLSID	mov eax,0xE990C045; ret	00624308
+006ae620	cSC4FlammabilitySimulator::Write	cIGZSerializable vtable 00AB1264 slot 3	0008e44c
+006ae830	cSC4FlammabilitySimulator::Read	cIGZSerializable vtable 00AB1264 slot 4	0008e354
+006afa60	cSC4FlammabilitySimulator::DoMessage	cIGZMessageTarget2 vtable 00AB127C slot 3; Insert/Remove/Change occupant -> DoOccupantUpdate(occ, bool), NewDay -> DoDailySimulation	0008f130
+006af380	cSC4FlammabilitySimulator::DoOccupantUpdate	called from DoMessage with (occupant, 0/1)	0008ef1a
+006af8d0	cSC4FlammabilitySimulator::DoDailySimulation	DoMessage SimNewDay branch	0008eb68
+006ae410	cSC4FlammabilitySimulator::ComputeGlobalMultiplier	Ordinance.GetCumulativeFactor(0x28F42AA0) x summer multiplier when Weather vt+0x38 == 2	0008db9a
+006afc90	cSC4FloraSimulator::QueryInterface	cISC4FloraSimulator vtable 00AB13C0 slot 0	00089c90
+006b0480	cSC4FloraSimulator::Release	cISC4FloraSimulator vtable 00AB13C0 slot 2	00089c6a
+006b2960	cSC4FloraSimulator::Init	cISC4FloraSimulator vtable 00AB13C0 slot 3	0008b49e
+006afda0	cSC4FloraSimulator::Shutdown	cISC4FloraSimulator vtable 00AB13C0 slot 4	0008a0fa
+006b1040	cSC4FloraSimulator::GetStaticFloraData	cISC4FloraSimulator vtable 00AB13C0 slot 7	0008a2bc
+006b0f10	cSC4FloraSimulator::GetAllFloraFamilyTypes	cISC4FloraSimulator vtable 00AB13C0 slot 10	0008b8ba
+006b0fc0	cSC4FloraSimulator::IsFloraTypeValid	cISC4FloraSimulator vtable 00AB13C0 slot 11	0008da72
+006b0ff0	cSC4FloraSimulator::IsFloraFamilyTypeValid	cISC4FloraSimulator vtable 00AB13C0 slot 12	0008da98
+006afbd0	cSC4FloraSimulator::GetGZCLSID	mov eax,0xC990C034; ret	00623880
+006afee0	cSC4FloraSimulator::Write	cIGZSerializable vtable 00AB1394 slot 3	0008b080
+006affe0	cSC4FloraSimulator::Read	cIGZSerializable vtable 00AB1394 slot 4	0008af26
+006b2f70	cSC4FloraSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB13AC slot 3; same switch shape as Mac	0008cb78
+006b2cb0	cSC4FloraSimulator::DoMonthlySimulation	DoMessage SimNewMonth branch	0008c352
+006b16d0	cSC4FloraSimulator::DoDailySimulation	DoMessage SimNewDay branch	0008abcc
+006b04f0	cSC4FloraSimulator::DoOccupantInserted	DoMessage InsertOccupant (0x99EF1142) branch	0008a2e6
+006b1190	cSC4FloraSimulator::DoOccupantRemoved	DoMessage RemoveOccupant (0x99EF1143) branch	0008ac80

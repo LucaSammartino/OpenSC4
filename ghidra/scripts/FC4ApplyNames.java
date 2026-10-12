@@ -51,6 +51,41 @@ public class FC4ApplyNames extends GhidraScript {
         return p.isEmpty() ? "_" : p;
     }
 
+    /** True if the 32-bit register (or a sub-register) is read on the straight-line entry path before
+     *  being written. Stops at the first branch, call or return. */
+    boolean readsBeforeWrite(Function fn, String reg) {
+        ghidra.program.model.lang.Register r = currentProgram.getRegister(reg);
+        ghidra.program.model.listing.Instruction ins = getInstructionAt(fn.getEntryPoint());
+        for (int n = 0; ins != null && n < 40; n++) {
+            for (Object o : ins.getInputObjects()) {
+                if (o instanceof ghidra.program.model.lang.Register
+                        && ((ghidra.program.model.lang.Register) o).getBaseRegister().equals(r.getBaseRegister())) {
+                    // `xor ecx,ecx` style idioms read and write the same register: treat as a write
+                    String m = ins.getMnemonicString().toUpperCase();
+                    if ((m.equals("XOR") || m.equals("SUB")) && ins.getNumOperands() == 2
+                            && ins.getDefaultOperandRepresentation(0).equals(ins.getDefaultOperandRepresentation(1))) {
+                        return false;
+                    }
+                    if (m.equals("PUSH") || m.equals("CALL")) {
+                        // pushing ECX is a save only if it's later popped; be conservative: a read
+                    }
+                    return true;
+                }
+            }
+            for (Object o : ins.getResultObjects()) {
+                if (o instanceof ghidra.program.model.lang.Register
+                        && ((ghidra.program.model.lang.Register) o).getBaseRegister().equals(r.getBaseRegister())) {
+                    return false;
+                }
+            }
+            if (ins.getFlowType().isCall() || ins.getFlowType().isTerminal() || ins.getFlowType().isJump()) {
+                return false;
+            }
+            ins = ins.getNext();
+        }
+        return false;
+    }
+
     @Override
     protected void run() throws Exception {
         String[] args = getScriptArgs();
@@ -110,16 +145,9 @@ public class FC4ApplyNames extends GhidraScript {
                     // type `this` with them. Instead, methods that Ghidra already sees taking ECX (and not
                     // EDX) become __thiscall; Ghidra then gives `this` a Windows-native placeholder struct.
                     if (isClassMethod && ns instanceof GhidraClass && !fn.hasCustomVariableStorage()
-                            && "__fastcall".equals(fn.getCallingConventionName())) {
-                        boolean usesEdx = false;
-                        for (ghidra.program.model.listing.Parameter p : fn.getParameters()) {
-                            if (p.isRegisterVariable() && p.getRegister() != null
-                                    && p.getRegister().getName().equalsIgnoreCase("EDX")) usesEdx = true;
-                        }
-                        if (!usesEdx) {
-                            fn.setCallingConvention("__thiscall");
-                            typed++;
-                        }
+                            && readsBeforeWrite(fn, "ECX") && !readsBeforeWrite(fn, "EDX")) {
+                        fn.setCallingConvention("__thiscall");
+                        typed++;
                     }
                     StringBuilder c = new StringBuilder();
                     c.append("FreeCity4: ").append(f[1]).append("\nsource=").append(f[2])

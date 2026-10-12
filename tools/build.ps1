@@ -4,7 +4,8 @@
 # Prereqs: Ghidra 12.1.x at C:\tools\ghidra_12.1.4_PUBLIC, JDK 21+, Python with pefile + capstone,
 # extracted KillaVolt packages under external\extracted, project copy under ghidra\project.
 param([switch]$SkipExport, [switch]$Refeature)
-$ErrorActionPreference = "Stop"
+# native tools (Ghidra/Java) write warnings to stderr; do not treat them as fatal
+$ErrorActionPreference = "Continue"
 $root = Split-Path -Parent $PSScriptRoot
 if (-not $env:JAVA_HOME) { $env:JAVA_HOME = "C:\Program Files\Java\jdk-26.0.1" }
 $ghidra = "C:\tools\ghidra_12.1.4_PUBLIC\support\analyzeHeadless.bat"

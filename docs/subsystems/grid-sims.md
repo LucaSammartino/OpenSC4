@@ -15,6 +15,46 @@ Conventions used below:
 - All the simulators' tuning lives in the simulator-tuning exemplar group `0xE7E2C2DB` (type `0x6534284A`); each
   simulator reads its own instance in `ReadSimulatorTunableValues`.
 
+## 0. Overview
+
+### Grid inventory **[confirmed]**
+
+| simulator | grid (getter) | element | tract (cells) | how it is computed | cadence |
+|---|---|---|---|---|---|
+| Land value | intrinsic / total / scratch | uint8 | `0x47E2C200` | base + water distance + altitude curve + Σ weighted desirability | full recompute, at most monthly, only when dirty |
+| Land value | slope | float | 8 | `LotDeveloper.GetAreaSlope` per 8×8 | same |
+| Pollution | air, water, radiation (value + source) | int16 | 2 | source = Σ linear cones from buildings; value relaxes toward source+traffic (±50 per visit) | each tract visited every ~15 days |
+| Pollution | garbage | int16 | 1 | produced garbage not disposed | same |
+| Power | power map (`GetPoweredGrid`) + 4 bitmaps | uint8 / 1 bit | 1 | flood fill per network, all-or-nothing per 8×8 block | when dirty, once per month max |
+| Plumbing | watered map + flag map | uint8 | 1 | BFS from producers along pipes, nearest-first allocation, ring limit | when dirty |
+| Crime | crime grid | uint8 | `0x47E2C200` (crime exemplar) | random crime events stamped on lots, ×0.5 per month | monthly |
+| Crime | crime-effect field | uint8 | same | Σ building cones (`0xCA5B9306`) | on occupant change |
+| Fire / police | unadjusted / adjusted coverage | int16 / uint8 | 2 | Σ station + dispatch cones, × efficiency | on change; adjusted copy refreshed over 50 / 40 days |
+| Flammability | raw / adjusted | uint8 | 1 | max occupant flammability × global × no-water | refreshed over 40 days |
+| Aura | aura, base, transient, work | int8 | tunable (work: 1) | Σ response curves of many fields per cell, smoothed | monthly |
+| Aura | park map, landmark map | int16 | tunable | Σ building cones × department funding | monthly |
+
+### Common building blocks **[confirmed]**
+- **Radius cones** (`cSC4MapUtilities::AddRadiusEffect`): every "effect radius" in SC4 (pollution, police, fire,
+  crime effect, parks, landmarks, mayor-rating effects, transient aura) is a linear cone added to an accumulator grid
+  when the occupant appears and subtracted when it disappears. There is no diffusion pass anywhere in these simulators.
+- **Response curves** (`cSC4ResponseCurve`): piecewise-linear `(x, y)` lists from exemplar float arrays.
+- **Shuffled incremental refresh** (`RandomIterator`): pollution, protection and flammability update
+  `cells / period` tracts per day in random order, so changes spread over a 15–50-day window.
+- **Time-sliced pipelines**: land value, aura, plumbing and power keep a state index and do one step (or one
+  cycle-budgeted chunk) per SimNewDay / SimIdle call.
+
+### Data flow between simulators [confirmed reads; arrows = "is read by"]
+```text
+buildings ─(cones)─> pollution sources, crime effect, park/landmark maps, fire/police coverage
+traffic (air-polluting traffic, trip length, congestion) ─> pollution air, aura
+pollution grids ─> aura (curves), plumbing (pump shutdown), developers' desirability [inferred]
+police coverage − crime effect ─> crime probability;  crime grid ─> aura
+plumbing watered map ─> flammability (no-water multiplier)
+land value type ─> aura (value/wealth curve);  aura ─> mayor rating, riots
+developers' desirability maps (built from the fields above, see development.md) ─> land value
+```
+
 ---
 
 ## 1. cSC4SimGrid<T>
@@ -568,3 +608,222 @@ month, and the probability of a crime at a lot depends on police coverage minus 
 | `0x8A0CBAAD` | 1.0 | fraction of unjailed criminals who reoffend |
 | `0x49A34301` | — | crime prop request curve |
 Building property: `0xCA5B9306` crime effect `{magnitude, radius}`.
+
+---
+
+## 7. cSC4AuraSimulator (`0x0990BDD8`): mayor rating / "aura"
+
+Code: Windows `0x0068B9C0–0x0068FB00`. Vtables: `cISC4AuraSimulator` `0x00AB07C8` (the two `AddTransientEffect`
+overloads are reversed by MSVC: slot 6 = `(x, z, TransientAuraEffect)`, slot 7 = `(x, z, magnitude, radius)`),
+`cIGZSerializable` `0x00AB07A0`, `cIGZMessageTarget2` `0x00AB07B8`. Tuning: Aura Simulator exemplar (props `0xEA0232xx`).
+
+### Grids **[confirmed on Mac; Windows member offsets differ by the MSVC map size]**
+
+| Mac member | getter | type | tract | instance | role |
+|---|---|---|---|---|---|
+| +0x38 | `GetAuraGrid`, `GetAuraValue` | Sint8 | tunable | `0x69D5B600` | final aura = base + transient |
+| +0x40 | — | Sint8 | tunable | `0x69D5B604` | smoothed base aura |
+| +0x44 | `GetTransientAuraGrid` | Sint8 | tunable | `0x69D5B605` | transient effects (fires, plops), decays each cycle |
+| +0x3C | — | Sint8 | 1 | `0x69D5B606` | per-cell work grid, `−128` = "no residential lot" |
+| +0x48 | — | Sint8 | tunable | `0x49D5B607` | buildings' mayor-rating effect cones (prop `0xCA5B9305`) |
+| +0x4C / +0x50 | `GetParkMap` (+0x50) | Sint16 | tunable | `0x2A674CA5` / `0x49D5B602` | raw park effect cones / × parks budget funding |
+| +0x54 | — | `map<deptID, SimGrid<int16>*>` | | | landmark/civic effect per budget department |
+| +0x70 / +0x6C | `GetLandmarkMap` (+0x6C) | Sint16 | tunable | `0x8A674CAF` | funding-weighted sum of the department maps (work / published) |
+
+Building effects (`DoOccupantChanged`) are `AddRadiusEffect` cones from the occupant's park (`0x27812850`) and
+landmark (`0x2781284F`) effect properties into +0x4C / the department map, and from `0xCA5B9305` into +0x48. [confirmed]
+
+### Schedule **[confirmed]**
+
+Agent levels 0, 10, 4, 6. SimNewMonth: if `state == 0` → `state = 1` (start a cycle). SimNewDay → `DoIdle(5)`, and while
+a cycle is running and has taken more days than expected it returns *false*, so the scheduler keeps calling it
+(forcing the cycle to finish). SimIdle → `DoIdle(data3)`. `OrdinanceUpdated` → `ComputeGlobalEffect`.
+`PostCityInit` re-adds landmark effects.
+
+### Monthly pipeline (`DoIdle`, 18 states) **[confirmed order; per-state maths confirmed where shown]**
+
+```text
+1  wait for city-ready; remember start day
+2  parkMap = rawParkMap × parksBudget(0x8A4260A6).funding%            (AssignWithFactor)
+3  one department per call: landmarkWork (+)= deptGrid × dept.funding%; at the end publish landmarkMap
+4  work[c] = −128 for all cells; ComputeTaxRateChangeEffect()
+5  (time-sliced) for every lot: work[cells of lot] = GetLotBaseAura(lot)
+       GetLotBaseAura: only lots with residential occupancy; pop-weighted mean of base aura by wealth
+       (0xEA02327C/D/E = low/med/high), + valueWealthCurve(0xEA023280)(LandValueType(lot centre) − wealth), clamp ±127
+6  work += parkCurve(0xEA023270)(parkMap)
+7  work += pollutionCurve_i(PollutionGrid(i)) for air/water/garbage/radiation (0xEA023271..274)
+8  work += schoolCurve(0xEA023275)(average R EQ grid)     — residential cells only ("ForROnly")
+9  work += hospitalCurve(0xEA023276)(average R HQ grid)   — residential cells only
+10 work += crimeCurve(0xEA023277)(CrimeGrid)
+11 work += tripLengthCurve(0xEA023278)(Traffic.GetTripLengthMap)  — residential cells only
+12 work += trafficCurve(0xEA023279)(Traffic.GetCongestionMap)     — residential cells only
+13 work += buildingEffectGrid (+0x48)
+14 for each aura tract: n = valid (≠−128) cells under it
+       if n == 0: base[t] = −128
+       else: new = mean(valid) + globalEffect   (tax-rate change curve 0xEA02327F, ordinances)
+             base[t] = old*longDecay + new*(1 − longDecay)          // 0xEA02327A
+15 UpdateAuraGrid: aura[t] = (base[t] == −128) ? 0 : clamp(base[t] + transient[t], −127, 127)
+       mayorRating = Σ aura[t]·(R$+R$$+R$$$ pop)[t] / Σ pop  → history 0x0A5CBF37; track min/max cells
+16 ComputeHotspotList (cells below threshold 0xEA0232A0); CheckForStartingRiot (probability curve 0xEA0232A1)
+17 transient[t] *= shortDecay (0xEA02327B); DoEndOfSimulationCycle; state = 0
+```
+
+The curves map each input field to an additive aura contribution, so mayor rating is a **population-weighted
+average of a per-cell sum of response curves**, low-pass filtered month to month. **[confirmed]**
+`AddTransientEffect(x,z,type)` looks up `{magnitude, radius m}` from `0xEA023290..293` (fire, flora, civic plop,
+network plop) and stamps a cone into the transient grid.
+
+### Tuning (Aura exemplar) **[confirmed IDs]**
+`0xEA023270–279` effect curves (park, air/water/garbage/radiation, school, hospital, crime, trip length, traffic);
+`0xEA02327A/B` long/short term decay (defaults 0.6 / 0.4 from the ctor [inferred pairing]); `0xEA02327C–E` base aura
+low/med/high; `0xEA02327F` tax-rate change effect; `0xEA023280` value/wealth effect; `0xEA023290–293` transient
+effects; `0xEA0232A0` hotspot settings {threshold, radius, min weight}; `0xEA0232A1` riot probability;
+`0xAA023079` (unidentified).
+
+---
+
+## 8. cSC4ProtectionSimulator base, cSC4FireProtectionSimulator (`0x2990C05A`), cSC4PoliceSimulator (`0x6990C04F`)
+
+The class-ID table lists `0x2990C05A` for both cSC4ProtectionSimulator and cSC4FireProtectionSimulator: the base
+class has no CLSID of its own. Base code is at Windows `0x006F5570–0x006F7000`; fire at `0x006ACEC0–0x006AE380`;
+police at `0x006E0050–0x006E2B00`. Fire vtables: `cISC4FireProtectionSimulator` `0x00AB1160`, `cIGZSerializable`
+`0x00AB10D0`, message target + protection virtuals `0x00AB1118`. Police: `cISC4PoliceSimulator` `0x00AB2490` (the
+community slot order for this interface does **not** fit the Windows bodies past slot 26, so only a few slots are
+mapped), protection/message vtable `0x00AB2448`. Fire tuning exemplar `0x68F5524A`, police `0x28DFCF89`.
+
+### Grids **[confirmed]**
+
+Each derived simulator owns two grids (base members +0x70 / +0x74), with tract size from base+0x24 (set to **2** by both
+`ReadSimulatorTunableValues`):
+
+| member | type | role |
+|---|---|---|
+| +0x74 | Sint16 | **unadjusted** coverage: sum of station cones |
+| +0x70 | Uint8 | **adjusted** coverage = `clamp(round(unadjusted × factor), 0, 255)` (factor +0x94, default 1.0); this is `GetFireProtectionGrid` / `GetPolicePowerGrid` |
+
+### Algorithm **[confirmed]**
+
+```text
+UpdateUnadjustedProtectionGrid():
+    unadjusted = 0
+    for each station s:  e = ProtectionGetStationEffect(s)
+        AddRadiusEffect(unadjusted, tract(e.pos), e.radiusMetres / tractWidth, e.centre, e.outer)
+    for each active dispatch (vehicle) of this department with an effect:
+        AddRadiusEffect(... at the vehicle's position, dispatch centre/outer/radius ...)
+ProtectionGetStationEffect(s)  (fire: 0x08F55DC0 centre, 0x08F55DC1 outer, 0x08F55DC2 radius m;
+                                police: 0x48D71ED0 / 0x48D71ED1 / 0x48D71ED2):
+    eff = station efficiency (funding curve, strike multiplier; fire: "no road" multiplier 0x69B425DB)
+    centre *= eff; outer *= eff; radius *= eff          // AdjustProtectionEffect — the cone shrinks too
+```
+The unadjusted grid is rebuilt whenever a station is inserted/removed/changed, a dispatch becomes active or ends,
+department funding changes (`0x08DAC3E7`), a strike starts/ends (police), and monthly (fire). After a local change,
+`UpdateBothGridsByPosition` immediately recomputes the adjusted tracts inside the affected radius.
+
+Daily (`DoDailySimulation`): `tractsPerDay = countX*countZ / updatePeriod` (fire 50, police 40 days) tracts are
+picked by a `RandomIterator`; each gets `adjusted = clamp(unadjusted × factor)`, and for zoned tracts the
+average and "percent covered" statistics are accumulated. When the iterator wraps: `averageCoverage =
+Σ/zonedTracts`, `percentCoverage = nonZero/zonedTracts`, and `ProtectionEndOfCycle` runs. **[confirmed]**
+
+Agent levels: 4 and 6 (from `ProtectionInit`). Messages: Insert/Remove/Change occupant (`0xC8DAC052`), funding changed
+`0x08DAC3E7`, dispatch messages `0xE94671EB/EC/ED`, `0x894671F6` (dispatch end), exemplar reload `0xC53D10AA`.
+
+### Police extras **[confirmed names; algorithms not traced in detail]**
+Jails (capacity, overcrowding `0x68DDAE92`), monthly rehabilitation (`0x68DDAE97`), arrests (a crime in a cell whose
+police value exceeds the arrest threshold `0x68DDAE9F` (default 16) leads to an arrest [from the Maxis description]),
+jailbreaks, strikes (`0x68DDAE9A–9E`). `ProcessMonthlyCrimeStats` is called by the crime simulator after `AddCrimes`.
+
+### Tuning **[confirmed IDs]**
+Fire: `0x29233E8D` funding→efficiency curve, `0x29233E8F` max funding, `0x29233E94` strike efficiency, `0x29233E95`
+max strike duration, `0x29233E96` min funding to end strike, `0x29233E98` strike response curve, `0x69B425DB` station
+without road multiplier (default 0.8); per-station `0x08F55DC0–2`, dispatch `0x29233E9A–C`, `0x08F55DC5` trucks.
+Police: `0x68DDAE92–9F` (see above), per-station `0x48D71ED0–2`, dispatch `0x48D71ED9–DB`, `0x48D71ED5` cars.
+
+---
+
+## 9. cSC4FlammabilitySimulator (`0xE990C045`)
+
+Code: Windows `0x006AE380–0x006AFB00`. Vtables: `cISC4FlammabilitySimulator` `0x00AB128C`, `cIGZSerializable`
+`0x00AB1264`, `cIGZMessageTarget2` `0x00AB127C`.
+
+### Grids **[confirmed]** (tract size +0x88, default 1 cell)
+
+| Mac member | type | instance | role |
+|---|---|---|---|
+| +0x54 | Uint8 | `0x49D5B964` | raw flammability, updated when occupants change |
+| +0x50 | Uint8 | `0x49D5B953` | adjusted flammability (`GetFlammabilityGrid`) |
+
+### Algorithm **[confirmed]**
+
+```text
+DoOccupantUpdate(occ): for each tract under occ: raw[t] = ComputeTractRawFlammability(t)
+ComputeTractRawFlammability(t): over occupants in the tract of types building (0x278128A0),
+        flora (0xA823821E) and prop (0x74758926):
+    if any building: max over buildings of RawFlammability(b)
+    else if any flora: max flora value; else max prop value
+RawFlammability(o) = clamp(round(o.0x29244DB5 × m), 0, 255),
+    m = abandonmentMultiplier (0x29B40134, default 1.1) if o is a building/flora on a lot whose state == 4
+        (abandoned [inferred]), else 1
+ComputeGlobalMultiplier() = Ordinance.GetCumulativeFactor(0x28F42AA0) × (Weather season == 2 ? summer 0xC9B40128 (1.2) : 1)
+DoDailySimulation: tractsPerDay = countX*countZ / 40, random order:
+    v = round(raw[t] × global); if !Plumbing.IsCellWatered(t): v = round(v × noWater (0x29B4013B, 1.1))
+    adjusted[t] = min(v, 255); collect hotspots (v > threshold, default 196); zoned-cell averages
+EndOfCycle: averageFlammability → history; ComputeHotspotList; unless fires are disabled:
+    with probability randomFire% (0x29B4013E, default 0.01) start a fire on a random lot,
+    else pick a hotspot with probability from 0x29B4013D(weight)
+```
+Agent level 4 only (flags 2) [confirmed]; NewDay → `DoDailySimulation`; Insert/Remove/Change occupant
+→ `DoOccupantUpdate`; `OrdinanceUpdated`/`0xE99B3D4D`/`0x6716A4E5`/`0xE818FCED` → `ComputeGlobalMultiplier` and related.
+
+Tuning (exemplar `0xA8F41EE3` [inferred: the only other ID in the reader]): `0xC9B40128` summer, `0x29B40134`
+abandonment, `0x29B4013B` no water, `0x29B4013C` hotspot settings {threshold 196, radius 8, min weight 16},
+`0x29B4013D` hotspot fire probability, `0x29B4013E` random fire probability. Building prop `0x29244DB5` = flammability.
+
+---
+
+## 10. cSC4FloraSimulator (`0xC990C034`)
+
+Code: Windows `0x006AFBD0–0x006B3600`. Vtables: `cISC4FloraSimulator` `0x00AB13C0` (two overload pairs, not mapped),
+`cIGZSerializable` `0x00AB1394`, `cIGZMessageTarget2` `0x00AB13AC`. Flora is **occupant-based, not a SimGrid field**;
+it is listed here because it feeds flammability and aura transient effects.
+
+Agent levels 4 and 6, flags 3 (runs before the city is established too). [confirmed]
+
+### Behaviour **[confirmed]**
+
+- **Daily** (`DoDailySimulation`): a fractional accumulator removes burnt flora at a configured rate
+  (`acc += rate; while acc >= 1: RemoveBurntFlora(n)`).
+- **Monthly** (`DoMonthlySimulation`, only when enabled): visits `N` random 2×2-cell blocks (`RandomIterator`); for each
+  flora occupant there, `SimulateExistingFloraOccupant`:
+  ```text
+  age = today − birthDate
+  if stage > 2 or age >= maxAge or age >= lifespan: birthDate = today; stage = 0   // regrows from a seedling; post ChangeOccupant
+  stage = age < matureAge ? (age >= matureAge/2 ? 1 : 0) : 2       // growth stages, swaps the model
+  score = GetPropagationScoreForFlora(type, x, z)
+        = table[elevationBand(x,z)][terrainClass(x,z)] / 255           // per-type 16-entry tables
+  if score < minScore: stage = 4 (dying)
+  if propagation enabled and age >= seedAge and enough days since last seeding:
+      repeat seedsPerCycle: DropSeed(type, x ± spread, z ± spread)
+  DropSeed: accept if LocationIsOKForNewFlora and score >= minScore and
+            random()*(score − minScore) < (1 − minScore)*seedProbability → AddNewFloraOccupant
+  ```
+  It also drops `M` random seeds of random flora types anywhere in the city when wild propagation is on.
+- Terrain edits re-seat or demolish flora (`DoTerrainAltitudeChange`, `DemolishFloraInCellArea`).
+
+Static per-type data (`cSC4StaticFloraData`) comes from flora exemplars; field meanings above are from code use
+(offsets +0x10 mature age, +0x14 seed age, +0x18/+0x1C seed interval / count, +0x20 spread, +0x24/+0x28 lifespan,
++0x30 min score, +0x34 seed probability) and are **[inferred]** as names.
+
+
+---
+
+## 11. Open questions
+
+- Terrain interface slots used by land value (`+0x30` height at position, `+0x5C`, `+0x60`, `+0x90`) are named from use only.
+- Exact BFS neighbour rule for plumbing buildings (4- vs 8-connected) and the role of the second plumbing grid
+  instance; plumbing states 6–8 were skimmed, not traced line by line.
+- Police interface slot order: the community header disagrees with the Windows bodies after slot 26 (e.g. slot 33
+  reads occupant property `0x48D71EE0`), so most police methods are unmapped.
+- Which crime-simulator police calls (`vt+0x6C`, `vt+0x74`) are "unjailed criminals" vs "jailed": inferred from use.
+- `0x006B5F20` calls `AddRadiusEffect<int16>` too; its owner (probably another field simulator) was not identified.
+- Developer desirability maps (the main land-value input) are documented in `development.md`, not here.
+- Pollution `eatGarbage` and landfill flow were summarized, not traced in full.

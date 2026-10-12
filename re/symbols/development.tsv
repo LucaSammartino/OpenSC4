@@ -32,7 +32,7 @@ va	name	evidence	mac_x86
 00695980	cSC4BuildingDevelopmentSimulator::ReleaseConstructionResources	slot 51; AddToDemandValue(-n),EndOfCycle	000f7178
 00696cc0	cSC4BuildingDevelopmentSimulator::GetDayOfLastSuccessfulBuild	slot 52; map lookup	000f73b0
 00696040	cSC4BuildingDevelopmentSimulator::GetStagePopulationMultiplier	slot 53; vector +0xD0 indexed by city difficulty (+0x60)	000f7380
-004cdf80	GrowthOutcomeToString (debug growth dump; cISC4TractDeveloper::Outcome names)	switch 0..0x1B -> "unknown failure".."success" strings
+004cdf80	GrowthOutcomeToString (debug growth dump; cISC4TractDeveloper::Outcome names)	switch 0..0x1B -> "unknown failure".."success" strings	-
 007045a0	cSC4TractDeveloper::GetGZCLSID	returns 0x2990C142 (class_vtables.py)	0064ba08
 00707780	cSC4TractDeveloper::Init	vtable 00AB3118 slot 3; calls ReadSimulatorTunableValues 00706FC0 and AddAgent twice (month, year)	000ec22c
 0070b210	cSC4TractDeveloper::Shutdown	vtable 00AB3118 slot 4	000eb5f2
@@ -62,7 +62,7 @@ va	name	evidence	mac_x86
 007097e0	cSC4TractDeveloper::ListCandidateLots_Aggregation	Grow call order; two loops each FindNetworks+IsAggregationLegal+IsLotConfigurationCompatible	000ea80c
 00708c00	cSC4TractDeveloper::ListCandidateLots_Subdivision	Grow call order (skipped for purpose 5)	000eac52
 00709520	cSC4TractDeveloper::SortCandidateLots	std::sort wrapper called after ScoreCandidateLots in TakeOverAbandoned	000e7c1e
-00707f20	std::__introsort_loop<CandidateLot*> (CompareCandidateLots inlined)	recursive; called from SortCandidateLots and inline sort in Grow
+00707f20	std::__introsort_loop<CandidateLot*> (CompareCandidateLots inlined)	recursive; called from SortCandidateLots and inline sort in Grow	-
 0070b640	cSC4TractDeveloper::BuildFarm	Grow branch for purpose 5; calls Build	000e98e6
 0070b440	cSC4TractDeveloper::Build	calls PickBuilding, PerformSubdivision, PerformAggregation	000e965a
 00709ba0	cSC4TractDeveloper::PickBuilding	calls FindExistingCapacity, IsLotConfigurationCompatible, RandomUint32Uniform, IsBuildingCompatible	000e8d26
