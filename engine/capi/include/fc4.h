@@ -47,8 +47,9 @@ extern "C" {
 /* ABI history: 1 = initial; 2 = adds fc4_sim_on_post_city_init;
  * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics);
  * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5);
- * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref) and the budget. */
-#define FC4_ABI_VERSION 5u
+ * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref);
+ * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item). */
+#define FC4_ABI_VERSION 6u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -327,6 +328,289 @@ typedef struct fc4_istream {
     int32_t (*error)(void* user);
 } fc4_istream;
 
+/* ---- budget (docs/specs/budget.md) -------------------------------------------
+ * Three core objects, each fronted by one GZCOM object that owns its handle:
+ * the budget simulator (fc4_budget), departments (fc4_department) and line
+ * items (fc4_line_item). Objects the core hands back - departments, line items,
+ * property holders, occupants - cross the ABI as TOKENS: the host identity
+ * (interface pointer) the object was created with or passed in as. Returned
+ * tokens are borrowed unless stated otherwise.
+ *
+ * Reference counting: the core calls host->add_ref / host->release on tokens it
+ * keeps (departments in the budget's map, line items in a department, locally
+ * funded property holders). host->create_object creates a department or line
+ * item through the class registry and returns its core handle; the core then
+ * owns the one reference that object was created with.
+ *
+ * Every function tolerates a NULL handle and returns its fallback (0 / false). */
+
+typedef struct fc4_budget fc4_budget;
+typedef struct fc4_department fc4_department;
+typedef struct fc4_line_item fc4_line_item;
+
+/* A message the budget posts (MessagePost, spec §10.1). */
+typedef struct fc4_budget_message {
+    uint32_t type;
+    uint32_t reserved;
+    int64_t data1, data2, data3;
+    uint64_t void1;   /* SetVoid1: a token, 0 = none */
+    uint64_t unknown; /* SetIGZUnknown: a token, 0 = none */
+} fc4_budget_message;
+
+/* One lot for ComputeTax (spec §5.2). */
+typedef struct fc4_lot_info {
+    uint8_t has_building;
+    uint8_t livable;
+    uint8_t land_value; /* 0..255 at the lot's origin cell */
+    uint8_t reserved;
+    uint32_t purpose;         /* building profile PurposeType */
+    uint32_t building_wealth; /* building profile wealth */
+    uint32_t lot_wealth;      /* cISC4Lot::GetOccupantWealth */
+    int64_t building_value;   /* building property 0xE91A0B5F, 0 if absent */
+    uint32_t size_x, size_z;
+} fc4_lot_info;
+
+/* cISC4BudgetSimulator::BudgetItem, with a 32-bit reserved tail. */
+typedef struct fc4_budget_item {
+    uint32_t department_id;
+    uint32_t line_item;
+    uint32_t purpose;
+    int32_t index;
+    int64_t cost;
+    float local_funding; /* fraction (1.0 = 100 %) */
+    uint32_t reserved;
+} fc4_budget_item;
+
+typedef struct fc4_loan_info {
+    uint32_t months_remaining;
+    uint32_t years_remaining;
+    int64_t total_loan_amount;
+    int64_t remaining_payment;
+    int64_t monthly_payment;
+} fc4_loan_info;
+
+typedef struct fc4_bond {
+    int32_t due_month, due_year;
+    int64_t amount, full_cost, remaining, paid, monthly_payment, principal_left;
+} fc4_bond;
+
+typedef struct fc4_budget_group {
+    uint32_t id;
+    uint32_t department_count;
+    int64_t total_expense;
+    int64_t total_income;
+} fc4_budget_group;
+
+/* Diagnostics view of the budget simulator (spec §3.1). */
+typedef struct fc4_budget_state {
+    uint32_t struct_size; /* caller sets = sizeof(fc4_budget_state) */
+    uint8_t initialized, loaded_from_save, agriculture_rate_fix, reserved0;
+    uint32_t panel_flag;
+    uint32_t bond_count;
+    int64_t funds, shadow_funds, total_borrowed, last_tax_income;
+    int64_t ytd_income, ytd_expense, ytd_tax_income, ytd_ordinance_income, ytd_ordinance_expense, ytd_bond_payments;
+    int64_t last_month_income, last_month_expense, yearly_income, yearly_expense;
+    float tax_rate[12];
+    float max_tax_rate[12];
+    int64_t weighted_assessed[12];
+    int64_t monthly_tax[12];
+    uint32_t department_count, group_count;
+    uint32_t risky_money_counter, reserved1;
+} fc4_budget_state;
+
+typedef void (*fc4_lot_visitor)(void* ctx, const fc4_lot_info* lot);
+typedef void (*fc4_token_callback)(void* ctx, uint64_t token);
+typedef void (*fc4_budget_item_callback)(void* ctx, const fc4_budget_item* item);
+typedef void (*fc4_loan_callback)(void* ctx, const fc4_loan_info* loan);
+typedef void (*fc4_group_callback)(void* ctx, const fc4_budget_group* group, const uint8_t* name, size_t name_len,
+                                   const uint32_t* department_ids);
+
+/* What the budget needs from the game. Copied at creation. Any callback may be
+ * NULL: it then reads as "nothing there" (0 / false / absent). Property and
+ * query callbacks must not call back into the budget. */
+typedef struct fc4_budget_host {
+    uint32_t struct_size; /* = sizeof(fc4_budget_host) */
+    void* user;
+    void (*post)(void* user, const fc4_budget_message* msg);
+    void (*show_budget_window)(void* user, uint32_t panel);
+    uint32_t (*difficulty)(void* user);                       /* 0..2 */
+    void (*sim_date)(void* user, int32_t* year, int32_t* month); /* month 1..12 */
+    bool (*city_established)(void* user);
+    void (*city_size)(void* user, float* x, float* z);
+    int64_t (*ordinance_income)(void* user);
+    int64_t (*ordinance_expense)(void* user);
+    int64_t (*neighbor_income)(void* user);
+    int64_t (*neighbor_expense)(void* user);
+    void (*for_each_lot)(void* user, fc4_lot_visitor visit, void* ctx);
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+    bool (*try_start_disaster)(void* user, uint32_t id, float x, float z); /* false if it does not exist */
+    uint32_t (*rng_seed)(void* user);
+    bool (*ltext)(void* user, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
+    bool (*building_type_name)(void* user, uint32_t building_type, fc4_bytes_sink sink, void* ctx);
+    /* Array properties of a property holder: return the number of values the
+     * property has (copying at most `capacity` into `out`), or -1 if absent. */
+    int32_t (*get_u32s)(void* user, uint64_t holder, uint32_t prop, uint32_t* out, size_t capacity);
+    int32_t (*get_i64s)(void* user, uint64_t holder, uint32_t prop, int64_t* out, size_t capacity);
+    int32_t (*get_f32s)(void* user, uint64_t holder, uint32_t prop, float* out, size_t capacity);
+    bool (*set_u32s)(void* user, uint64_t holder, uint32_t prop, const uint32_t* values, size_t count);
+    bool (*set_i64s)(void* user, uint64_t holder, uint32_t prop, const int64_t* values, size_t count);
+    bool (*set_f32s)(void* user, uint64_t holder, uint32_t prop, const float* values, size_t count);
+    bool (*copy_property)(void* user, uint64_t src, uint64_t dst, uint32_t prop);
+    uint64_t (*occupant_of)(void* user, uint64_t holder); /* 0 = not an occupant */
+    uint32_t (*class_of)(void* user, uint64_t token);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* Creates a department (0xE990BFFC) or line item (0xAA313C9F) through the
+     * class registry; returns its core handle (fc4_department* / fc4_line_item*). */
+    void* (*create_object)(void* user, uint32_t class_id);
+} fc4_budget_host;
+
+/* Lifetime: called by the GZCOM object that fronts the core object; `token` is
+ * that object's identity. Destroy drops the GZCOM object's share. */
+fc4_budget* fc4_budget_create(const fc4_budget_host* host, uint64_t token);
+void fc4_budget_destroy(fc4_budget* b);
+fc4_department* fc4_department_create(const fc4_budget_host* host, uint64_t token);
+void fc4_department_destroy(fc4_department* d);
+fc4_line_item* fc4_line_item_create(const fc4_budget_host* host, uint64_t token);
+void fc4_line_item_destroy(fc4_line_item* l);
+
+/* Persistence (spec §11). References read back as our own objects arrive as
+ * core handles through fc4_ref.core_handle. */
+bool fc4_budget_write(const fc4_budget* b, const fc4_ostream* out);
+bool fc4_budget_read(fc4_budget* b, const fc4_istream* in);
+bool fc4_department_write(const fc4_department* d, const fc4_ostream* out);
+bool fc4_department_read(fc4_department* d, const fc4_istream* in);
+bool fc4_line_item_write(const fc4_line_item* l, const fc4_ostream* out);
+bool fc4_line_item_read(fc4_line_item* l, const fc4_istream* in);
+
+/* Budget simulator: lifecycle (§4). `tuning_holder` is the tuning exemplar as a
+ * property-holder token (read through get_i64s / get_f32s), 0 = code defaults.
+ * `fix_cs3_weight` enables the intended behaviour of §13.1 (off = compat). */
+bool fc4_budget_init(fc4_budget* b, uint64_t tuning_holder, bool fix_cs3_weight);
+bool fc4_budget_shutdown(fc4_budget* b);
+bool fc4_budget_is_initialized(fc4_budget* b);
+bool fc4_budget_handle_message(fc4_budget* b, uint32_t type, int64_t data1); /* DoMessage minus cheats */
+bool fc4_budget_handle_cheat(fc4_budget* b, uint32_t cheat_id, const char* text, size_t text_len);
+void fc4_budget_simulate_day(fc4_budget* b);   /* §5.7 */
+void fc4_budget_settle_month(fc4_budget* b);   /* §5.1 */
+int64_t fc4_budget_compute_tax(fc4_budget* b); /* §5.2 */
+
+/* Budget simulator: methods of cISC4BudgetSimulator (§6), in SDK order. */
+bool fc4_budget_set_total_funds(fc4_budget* b, int64_t v);
+int64_t fc4_budget_get_total_funds(fc4_budget* b);
+bool fc4_budget_deposit_funds(fc4_budget* b, int64_t v);
+bool fc4_budget_withdraw_funds(fc4_budget* b, int64_t v);
+int64_t fc4_budget_get_min_allowable_funds(fc4_budget* b);
+int64_t fc4_budget_get_ytd_income(fc4_budget* b);
+int64_t fc4_budget_get_est_income(fc4_budget* b);
+int64_t fc4_budget_get_ytd_expenses(fc4_budget* b);
+int64_t fc4_budget_get_est_expenses(fc4_budget* b);
+int64_t fc4_budget_get_total_monthly_expense(fc4_budget* b); /* 64-bit; see spec §6 [compat] */
+int64_t fc4_budget_get_total_yearly_expense(fc4_budget* b);
+int64_t fc4_budget_get_total_monthly_income(fc4_budget* b);
+int64_t fc4_budget_get_total_yearly_income(fc4_budget* b);
+int64_t fc4_budget_get_tax_income(fc4_budget* b);
+int64_t fc4_budget_get_tax_income_for(fc4_budget* b, int32_t tax_group);
+int64_t fc4_budget_set_total_monthly_expense(fc4_budget* b, int64_t v);
+int64_t fc4_budget_set_total_yearly_expense(fc4_budget* b, int64_t v);
+int64_t fc4_budget_set_total_monthly_income(fc4_budget* b, int64_t v);
+int64_t fc4_budget_set_total_yearly_income(fc4_budget* b, int64_t v);
+bool fc4_budget_show_budget_window(fc4_budget* b);
+uint64_t fc4_budget_create_department(fc4_budget* b, uint32_t id, uint32_t group); /* token, 0 on failure */
+bool fc4_budget_remove_department(fc4_budget* b, uint32_t id);
+uint64_t fc4_budget_get_department(const fc4_budget* b, uint32_t id);
+uint64_t fc4_budget_get_department_by_name(const fc4_budget* b, const uint8_t* name, size_t name_len);
+size_t fc4_budget_get_all_groups(const fc4_budget* b, fc4_group_callback cb, void* ctx);
+bool fc4_budget_set_group_name(fc4_budget* b, uint32_t id, const uint8_t* name, size_t name_len);
+/* Department tokens in ascending ID; the caller takes its own references. */
+size_t fc4_budget_get_departments_in_group(const fc4_budget* b, uint32_t id, fc4_token_callback cb, void* ctx);
+void fc4_budget_needed_funding_changed(fc4_budget* b, const fc4_department* d);
+void fc4_budget_funding_percentage_changed(fc4_budget* b, const fc4_department* d);
+int64_t fc4_budget_get_funding(fc4_budget* b); /* always 0 [compat] */
+float fc4_budget_get_tax_rate(fc4_budget* b, uint32_t tax_group);
+bool fc4_budget_set_tax_rate(fc4_budget* b, uint32_t tax_group, float rate);
+int64_t fc4_budget_get_weighted_assessed_tax_value(fc4_budget* b, uint32_t tax_group);
+int64_t fc4_budget_get_bond_increment(fc4_budget* b);
+bool fc4_budget_issue_bond(fc4_budget* b, uint32_t amount);
+int64_t fc4_budget_get_total_borrowed(fc4_budget* b);
+int64_t fc4_budget_get_current_borrowing_limit(fc4_budget* b);
+int64_t fc4_budget_get_current_bond_limit(fc4_budget* b);
+int64_t fc4_budget_get_current_max_outstanding_bonds_limit(fc4_budget* b);
+int64_t fc4_budget_get_total_monthly_bond_payments(fc4_budget* b);
+size_t fc4_budget_get_all_loans(const fc4_budget* b, fc4_loan_callback cb, void* ctx);
+int32_t fc4_budget_get_loan_time_in_months(fc4_budget* b);
+int64_t fc4_budget_get_monthly_payment_for_loan(fc4_budget* b, int64_t loan);
+int64_t fc4_budget_get_full_cost_of_loan(fc4_budget* b, int64_t loan);
+bool fc4_budget_get_budget_item_info(const fc4_budget* b, uint64_t holder, fc4_budget_item_callback cb, void* ctx);
+bool fc4_budget_get_budget_item_for_purpose(const fc4_budget* b, uint64_t holder, uint32_t purpose,
+                                            fc4_budget_item* out);
+bool fc4_budget_change_budget_item_line(fc4_budget* b, uint64_t holder, uint32_t index, uint32_t line);
+bool fc4_budget_change_budget_item_cost(fc4_budget* b, uint64_t holder, uint32_t index, int64_t cost);
+bool fc4_budget_change_budget_item_local_funding(fc4_budget* b, uint64_t holder, uint32_t index, float fraction);
+bool fc4_budget_add_budget_item_to_budget(fc4_budget* b, uint64_t holder, uint32_t index);
+bool fc4_budget_remove_budget_item_from_budget(fc4_budget* b, uint64_t holder, uint32_t index);
+uint64_t fc4_budget_get_line_item_from_budget_item(const fc4_budget* b, const fc4_budget_item* item);
+bool fc4_budget_copy_budget_item_properties(fc4_budget* b, uint64_t src, uint64_t dst);
+
+/* Budget simulator: inspection. */
+bool fc4_budget_get_state(const fc4_budget* b, fc4_budget_state* out);
+bool fc4_budget_get_bond(const fc4_budget* b, size_t index, fc4_bond* out); /* issue order */
+
+/* Departments: cISC4DepartmentBudget (§7), in SDK order. */
+uint32_t fc4_department_get_id(fc4_department* d);
+bool fc4_department_get_name(const fc4_department* d, fc4_bytes_sink sink, void* ctx);
+bool fc4_department_set_name(fc4_department* d, uint32_t ltext_group, uint32_t ltext_instance);
+uint32_t fc4_department_get_budget_group(fc4_department* d);
+bool fc4_department_set_budget_group(fc4_department* d, uint32_t group);
+bool fc4_department_is_fixed_funding(fc4_department* d);
+bool fc4_department_set_fixed_funding(fc4_department* d, bool fixed);
+float fc4_department_get_funding_percentage(fc4_department* d);
+bool fc4_department_set_funding_percentage(fc4_department* d, float q, uint32_t arg);
+float fc4_department_get_max_funding_percentage(fc4_department* d);
+bool fc4_department_set_max_funding_percentage(fc4_department* d, float q);
+int64_t fc4_department_get_ideal_monthly_funding(fc4_department* d);
+int64_t fc4_department_get_total_expenses(fc4_department* d);
+int64_t fc4_department_get_total_income(fc4_department* d);
+uint64_t fc4_department_create_line_item(fc4_department* d, uint32_t id, bool is_local); /* token */
+uint64_t fc4_department_create_line_item_for_building_type(fc4_department* d, uint32_t building_type, bool is_local);
+bool fc4_department_remove_line_item(fc4_department* d, uint32_t id);
+uint64_t fc4_department_get_line_item(const fc4_department* d, uint32_t id);
+size_t fc4_department_get_all_line_items(const fc4_department* d, fc4_token_callback cb, void* ctx);
+bool fc4_department_add_locally_funded_object(fc4_department* d, uint64_t holder, uint32_t purpose);
+bool fc4_department_remove_locally_funded_object(fc4_department* d, uint64_t holder, uint32_t purpose);
+bool fc4_department_set_local_funding_percent(fc4_department* d, uint64_t holder, float q, uint32_t purpose);
+bool fc4_department_set_local_full_funding(fc4_department* d, uint64_t holder, int64_t cost, uint32_t purpose);
+float fc4_department_get_local_funding_percent(fc4_department* d, uint64_t holder, uint32_t purpose);
+int64_t fc4_department_get_local_full_funding(fc4_department* d, uint64_t holder, uint32_t purpose);
+bool fc4_department_is_locally_funded_object(fc4_department* d, uint64_t holder, uint32_t purpose);
+bool fc4_department_recalculate(fc4_department* d); /* RecalculateAllLineItemCurrentExpenses */
+int64_t fc4_department_get_total_spending(fc4_department* d);
+bool fc4_department_set_total_spending(fc4_department* d, int64_t v);
+size_t fc4_department_get_locally_funded_items_by_purpose(const fc4_department* d, uint32_t purpose,
+                                                          fc4_token_callback cb, void* ctx);
+bool fc4_department_has_locally_funded_items_by_purpose(fc4_department* d, uint32_t purpose);
+
+/* Line items: cISC4LineItem (§8), in SDK order. */
+uint32_t fc4_line_item_get_id(fc4_line_item* l);
+uint32_t fc4_line_item_get_type(fc4_line_item* l);
+bool fc4_line_item_set_type(fc4_line_item* l, uint32_t type);
+bool fc4_line_item_get_name(const fc4_line_item* l, fc4_bytes_sink sink, void* ctx);
+bool fc4_line_item_set_name(fc4_line_item* l, uint32_t group, uint32_t instance);
+int64_t fc4_line_item_get_secondary_info(fc4_line_item* l);
+bool fc4_line_item_set_secondary_info(fc4_line_item* l, int64_t v);
+int64_t fc4_line_item_get_full_expenses(fc4_line_item* l);
+int64_t fc4_line_item_get_current_expenses(fc4_line_item* l);
+bool fc4_line_item_set_full_expenses(fc4_line_item* l, int64_t v);
+bool fc4_line_item_add_to_full_expenses(fc4_line_item* l, int64_t v);
+int64_t fc4_line_item_get_income(fc4_line_item* l);
+bool fc4_line_item_set_income(fc4_line_item* l, int64_t v);
+bool fc4_line_item_add_to_income(fc4_line_item* l, int64_t v);
+uint32_t fc4_line_item_get_display_flags(fc4_line_item* l);
+bool fc4_line_item_set_display_flag(fc4_line_item* l, uint32_t flag, bool on);
+bool fc4_line_item_is_local(fc4_line_item* l);
+uint64_t fc4_line_item_get_owner(const fc4_line_item* l); /* department token or 0 */
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -349,6 +633,14 @@ static_assert(sizeof(fc4_debug) == 76, "fc4_debug layout");
 static_assert(sizeof(fc4_agent_info) == 16, "fc4_agent_info layout");
 static_assert(sizeof(fc4_timer_source) == (sizeof(void*) == 4 ? 32 : 48), "fc4_timer_source layout");
 static_assert(sizeof(fc4_state) == 4 + 4 + 5 * 4 + 5 * 4 + 3 * 4 + 5 * 4 + 11 * 4 + 12 + 11 * 4, "fc4_state layout");
+static_assert(sizeof(fc4_budget_message) == 48, "fc4_budget_message layout");
+static_assert(sizeof(fc4_lot_info) == 32, "fc4_lot_info layout");
+static_assert(sizeof(fc4_budget_item) == 32, "fc4_budget_item layout");
+static_assert(sizeof(fc4_loan_info) == 32, "fc4_loan_info layout");
+static_assert(sizeof(fc4_bond) == 56, "fc4_bond layout");
+static_assert(sizeof(fc4_budget_group) == 24, "fc4_budget_group layout");
+static_assert(sizeof(fc4_budget_state) == 432, "fc4_budget_state layout");
+static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 124 : 248), "fc4_budget_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
