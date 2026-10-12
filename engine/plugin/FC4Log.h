@@ -11,9 +11,12 @@
 // copy of the license along with this program (see LICENSE at the repository
 // root); if not, see <https://www.gnu.org/licenses/>.
 
-// Plain-text log written to FreeCity4.log next to FreeCity4.dll (falls back
-// to %TEMP%\FreeCity4.log if that directory is not writable). Every line is
-// flushed and the file closed immediately, so nothing is lost on a crash.
+// Plain-text log written to FreeCity4.log next to FreeCity4.dll (or, if that
+// file cannot be opened at all, %TEMP%\FreeCity4.log, which then says so in
+// its first line). The path never changes afterwards. The file is opened with
+// full sharing; each line is written straight to the OS, so nothing is lost
+// on a crash. Failed writes are retried once and reported on the next line
+// that succeeds.
 //
 // Verbosity comes from the environment variable FC4_LOG_LEVEL, read once:
 //   0 = off, 1 = info (lifecycle lines), 2 = verbose (call tracing; default).
@@ -38,6 +41,9 @@ const char* LogPath();
 
 // Full path of this DLL.
 const char* ModulePath();
+
+// Closes the log handle (DLL detach). A later line reopens the same path.
+void LogClose();
 
 }  // namespace fc4
 

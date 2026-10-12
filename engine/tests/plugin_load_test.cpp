@@ -70,6 +70,7 @@ int main(int argc, char** argv) {
     DeleteFileA(log.c_str());
     SetEnvironmentVariableA("FC4_LOG_LEVEL", "2");
     SetEnvironmentVariableA("FC4_DISABLE_SIMULATOR", nullptr);
+    SetEnvironmentVariableA("FC4_DIAG_SELFTEST", "1");
 
     HMODULE h = LoadLibraryA(dll.c_str());
     CHECK(h != nullptr);
@@ -86,6 +87,16 @@ int main(int argc, char** argv) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         CHECK(classes.size() == 1 && classes[0] == kCLSID_Simulator);
+
+        // Another process (an editor, a tail) holding the log open must not stop the logging.
+        HANDLE reader = CreateFileA(log.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+        CHECK(reader != INVALID_HANDLE_VALUE);
+
+        // Our class with an interface it does not implement: refused, object destroyed.
+        void* nope = reinterpret_cast<void*>(1);
+        CHECK(!director->GetClassObject(kCLSID_Simulator, 0x0BADF00D, &nope));
+        CHECK(nope == nullptr);
 
         cISC4Simulator* sim = nullptr;
         CHECK(director->GetClassObject(kCLSID_Simulator, kIID_cISC4Simulator, reinterpret_cast<void**>(&sim)));
@@ -123,15 +134,29 @@ int main(int argc, char** argv) {
             CHECK(sim->GetSimDateNumber() == 2451545);
             CHECK(sim->Release() == 0);
         }
+        if (reader != INVALID_HANDLE_VALUE) CloseHandle(reader);
     }
 
     const std::string text = ReadFile(log);
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
-    CHECK(text.find("GetClassObject(clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
-    CHECK(text.find("factory CALLED") != std::string::npos);
+    CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
+    CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
+    CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
+    CHECK(text.find("GetClassObject exit (clsid=0x12345678, iid=0x8695664E) -> 0") != std::string::npos);
+    CHECK(text.find("CreateSimulator enter (factory call #1") != std::string::npos);
+    CHECK(text.find("constructor enter") != std::string::npos);
+    CHECK(text.find("calling fc4_sim_create") != std::string::npos);
+    CHECK(text.find("fc4_sim_create returned") != std::string::npos);
     CHECK(text.find("cFC4Simulator created") != std::string::npos);
+    CHECK(text.find("CreateOurs: after QueryInterface -> 1 (clean=1)") != std::string::npos);
+    CHECK(text.find("vectored handler installed") != std::string::npos);
+    CHECK(text.find("first-chance exception in FreeCity4.dll: code 0xC0000005 ACCESS_VIOLATION (writing address "
+                    "0x00000000) at") != std::string::npos);
+    CHECK(text.find("STRUCTURED EXCEPTION caught in diagnostics self-test: code 0xC0000005") != std::string::npos);
+    CHECK(text.find("diagnostics self-test: guard returned 0 (expected 0)") != std::string::npos);
+    CHECK(text.find("could not be written") == std::string::npos);
     CHECK(text.find("QueryInterface(0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("Init() called") != std::string::npos);
     CHECK(text.find("OnTick #1 ") != std::string::npos);
