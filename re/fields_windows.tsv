@@ -1,0 +1,296 @@
+class	offset	name	type	confidence	source
+cSC4Simulator	0x2c	initialized	bool	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x2d	inOnTick	bool	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x2e	unknownFlag2E	byte	inferred	clock-budget-neighbors.md A.1 (persisted, meaning unknown)
+cSC4Simulator	0x30	pauseCount	int	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x34	hiddenPauseCount	int	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x38	emergencyPauseCount	int	confirmed	clock-budget-neighbors.md A.1 (confirmed Mac)
+cSC4Simulator	0x3c	simSpeed	int	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x40	simTime	int	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x44	speedChangeEnabled	bool	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x48	dayTimer	cRZTimer	confirmed	clock-budget-neighbors.md A.2 (dayTimer); offset from decomp DoSetSimSpeed 0x702430 / SimulateTimePassage 0x702A80 (re/decomp_702a80.md)
+cSC4Simulator	0x60	frameTimer	cRZTimer	confirmed	sim-engine.md OnTick (frameTimer); offset from decomp OnTick 0x703E70 (this=primary+8, +0x58) and ctor 0x704120
+cSC4Simulator	0x78	frameBudgetMs	uint	confirmed	clock-budget-neighbors.md A.1 + A.6
+cSC4Simulator	0x7c	stepGranularity	int	confirmed	clock-budget-neighbors.md A.1 (gate level, ctor value 4)
+cSC4Simulator	0x80	msPerDay	uint	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x84	targetFps	int	confirmed	clock-budget-neighbors.md A.1
+cSC4Simulator	0x88	timerCalibrator	undefined	inferred	sim-engine.md OnTick (calibrate cycle timer); decomp OnTick cSC4LimitTimerCalibrator::Tick(this+0x80), this=primary+8
+cSC4Simulator	0xb0	levelCounterOneShot	uint	inferred	clock-budget-neighbors.md A.1 (u32[11] level counters, index 0)
+cSC4Simulator	0xb4	levelCounterEmergency	uint	inferred	clock-budget-neighbors.md A.1 (level counters, index 1)
+cSC4Simulator	0xb8	minuteCounter	uint	confirmed	clock-budget-neighbors.md A.1/A.2 (+0xB0[2]); re/decomp_702a80.md rolls at 60
+cSC4Simulator	0xbc	hourCounter	uint	confirmed	clock-budget-neighbors.md A.1/A.2 (+0xB0[3]); re/decomp_702a80.md rolls at 24
+cSC4Simulator	0xc0	dayOfYearCounter	uint	confirmed	clock-budget-neighbors.md A.1 (index 4); re/decomp_702a80.md stores date.DayOfYear, sent as SimNewDay data3
+cSC4Simulator	0xc4	weekCounter	uint	confirmed	clock-budget-neighbors.md A.1 (index 5); re/decomp_702a80.md (dayOfYear-1)/7+1, SimNewWeek data3
+cSC4Simulator	0xc8	monthCounter	uint	confirmed	clock-budget-neighbors.md A.1 (index 6); re/decomp_702a80.md SimNewMonth data3
+cSC4Simulator	0xcc	yearCounter	uint	confirmed	clock-budget-neighbors.md A.1 (index 7); re/decomp_702a80.md SimNewYear data3
+cSC4Simulator	0xd0	levelCounterSpecificDay	uint	inferred	clock-budget-neighbors.md A.1 (level counters, index 8)
+cSC4Simulator	0xd4	levelCounterSpecificTime	uint	inferred	clock-budget-neighbors.md A.1 (level counters, index 9)
+cSC4Simulator	0xd8	levelCounterIdle	uint	inferred	clock-budget-neighbors.md A.1 (level counters, index 10)
+cSC4Simulator	0xdc	firedOneShot	bool	inferred	clock-budget-neighbors.md A.1 (u8[11] fired flags, index 0)
+cSC4Simulator	0xdd	firedEmergency	bool	inferred	clock-budget-neighbors.md A.1 (fired flags, index 1)
+cSC4Simulator	0xde	firedMinute	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 2); re/decomp_702a80.md
+cSC4Simulator	0xdf	firedHour	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 3); re/decomp_702a80.md
+cSC4Simulator	0xe0	firedDay	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 4); re/decomp_702a80.md
+cSC4Simulator	0xe1	firedWeek	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 5); re/decomp_702a80.md
+cSC4Simulator	0xe2	firedMonth	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 6); re/decomp_702a80.md
+cSC4Simulator	0xe3	firedYear	bool	confirmed	clock-budget-neighbors.md A.1 (fired flags, index 7); re/decomp_702a80.md
+cSC4Simulator	0xe4	firedSpecificDay	bool	inferred	clock-budget-neighbors.md A.1 (fired flags, index 8)
+cSC4Simulator	0xe5	firedSpecificTime	bool	inferred	clock-budget-neighbors.md A.1 (fired flags, index 9)
+cSC4Simulator	0xe6	firedIdle	bool	inferred	clock-budget-neighbors.md A.1 (fired flags, index 10)
+cSC4Simulator	0xe8	simDate	cGZDate	confirmed	clock-budget-neighbors.md A.1/A.4; ctor 0x704120 cGZDate(this+0xE8,1,1,2000)
+cSC4Simulator	0xf8	messageServer	ptr	confirmed	re/symbols_windows.tsv PostMessageServerMessage 0x7020E0 (server+0xF8); sim-engine.md SimulateTimePassage
+cSC4Simulator	0xfc	msPerDaySpeed0	uint	confirmed	clock-budget-neighbors.md A.1/A.3 (ms-per-day table[0], turtle); re/symbols/clock-budget-neighbors.tsv DoSetSimSpeed
+cSC4Simulator	0x100	msPerDaySpeed1	uint	confirmed	clock-budget-neighbors.md A.1/A.3 (ms-per-day table[1], llama)
+cSC4Simulator	0x104	msPerDaySpeed2	uint	confirmed	clock-budget-neighbors.md A.1/A.3 (ms-per-day table[2], cheetah)
+cSC4Simulator	0x108	animationTimeDilation	undefined	confirmed	clock-budget-neighbors.md A.1/A.5 (vector<float>(5))
+cSC4Simulator	0x114	agentSets	undefined	inferred	sim-engine.md Agents (11 x std::set<AgentInfo>); Win offset from ctor 0x704120 / SetAgentEnabled 0x703120
+cSC4Simulator	0x198	sliceTimer	cRZTimer	inferred	sim-engine.md OnTick (sliceTimer); decomp OnTick this+400 (=primary+0x198), SimulateIdleTime
+cSC4Simulator	0x1b0	agentCursors	undefined	inferred	sim-engine.md SimulateAgents (per-level cursors); decomp SimulateTimePassage/Init 0x703250
+cSC424HourClock	0x30	pauseCount	int	confirmed	clock-budget-neighbors.md A.8 (Mac +0x2C); Win from decomp Pause 0x445540 / ctor 0x445940
+cSC424HourClock	0x34	hiddenPauseCount	int	confirmed	clock-budget-neighbors.md A.8 (Mac +0x30); Win from decomp Pause 0x445540
+cSC424HourClock	0x38	timeMagnification	float	confirmed	clock-budget-neighbors.md A.8 (Mac +0x34); Win ctor 0x445940 = 100.0f, GetTimeMagnification
+cSC424HourClock	0x3c	timeMagnificationMin	float	confirmed	clock-budget-neighbors.md A.8 (Mac +0x38); Win ctor = 0.05f
+cSC424HourClock	0x40	timeMagnificationMax	float	confirmed	clock-budget-neighbors.md A.8 (Mac +0x3C); Win ctor = 2000.0f
+cSC424HourClock	0x44	secondsSinceMidnight	uint	confirmed	clock-budget-neighbors.md A.8 (Mac +0x40); Win ctor = 43200, GetHour 0x444EC0
+cSC424HourClock	0x48	visualSeconds	uint	confirmed	clock-budget-neighbors.md A.8 (Mac +0x44); Win GetVisualHour 0x444ED0
+cSC424HourClock	0x50	realTimeTimer	cRZTimer	confirmed	clock-budget-neighbors.md A.8 (Mac +0x48); Win Pause 0x445540 starts/stops this+0x50
+cSC424HourClock	0x68	nightStartHour	uint	confirmed	clock-budget-neighbors.md A.8 (Mac +0x5C); Win ctor = 20, IsNightHour 0x4450E0
+cSC424HourClock	0x6c	nightEndHour	uint	confirmed	clock-budget-neighbors.md A.8 (Mac +0x60); Win ctor = 4
+cSC424HourClock	0x70	dayNightNotificationsEnabled	bool	confirmed	clock-budget-neighbors.md A.8 (Mac +0x64); Win EnableDayNightTransitionNotifications 0x445620
+cSC424HourClock	0x74	visualTimeMode	int	confirmed	clock-budget-neighbors.md A.8 (Mac +0x68); Win SetVisualTimeMode 0x445780
+cSC4BudgetSimulator	0x28	totalFunds	undefined	confirmed	clock-budget-neighbors.md B.2 (s64); Win GetTotalFunds 0x68FD10 / SetTotalFunds 0x690140
+cSC4BudgetSimulator	0x30	shadowFunds	undefined	confirmed	clock-budget-neighbors.md B.2 (s64 shadow copy); Win SetTotalFunds 0x690140
+cSC4BudgetSimulator	0x38	totalBorrowed	undefined	confirmed	clock-budget-neighbors.md B.5 (s64); Win IssueBond 0x6916F0
+cSC4BudgetSimulator	0x70	taxRateR1	float	confirmed	clock-budget-neighbors.md B intro/B.3 (Win rate at +0x70+0x80*i, group 0 R$); GetTaxRate 0x68FD50
+cSC4BudgetSimulator	0xf0	taxRateR2	float	confirmed	clock-budget-neighbors.md B.3 (group 1 R$$)
+cSC4BudgetSimulator	0x170	taxRateR3	float	confirmed	clock-budget-neighbors.md B.3 (group 2 R$$$)
+cSC4BudgetSimulator	0x1f0	taxRateCS1	float	confirmed	clock-budget-neighbors.md B.3 (group 3 CS$)
+cSC4BudgetSimulator	0x270	taxRateCS2	float	confirmed	clock-budget-neighbors.md B.3 (group 4 CS$$)
+cSC4BudgetSimulator	0x2f0	taxRateCS3	float	confirmed	clock-budget-neighbors.md B.3 (group 5 CS$$$)
+cSC4BudgetSimulator	0x370	taxRateCO2	float	confirmed	clock-budget-neighbors.md B.3 (group 6 CO$$)
+cSC4BudgetSimulator	0x3f0	taxRateCO3	float	confirmed	clock-budget-neighbors.md B.3 (group 7 CO$$$)
+cSC4BudgetSimulator	0x470	taxRateIR	float	confirmed	clock-budget-neighbors.md B.3 (group 8 I-R)
+cSC4BudgetSimulator	0x4f0	taxRateID	float	confirmed	clock-budget-neighbors.md B.3 (group 9 I-D)
+cSC4BudgetSimulator	0x570	taxRateIM	float	confirmed	clock-budget-neighbors.md B.3 (group 10 I-M)
+cSC4BudgetSimulator	0x5f0	taxRateIHT	float	confirmed	clock-budget-neighbors.md B.3 (group 11 I-HT)
+cSC4BudgetSimulator	0x784	bondCount	uint	inferred	clock-budget-neighbors.md B.5 (Mac +0x798, Win shift -0x14); Win IssueBond compares with maxBonds
+cSC4BudgetSimulator	0x790	initialFunds	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x6A9C7718); Win ReadSimulatorTunableValues 0x692210
+cSC4BudgetSimulator	0x79c	maxTaxRate	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x890E0A99); Win 0x692210
+cSC4BudgetSimulator	0x7a0	minAllowableFunds	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x090E0A9F, s64); Win 0x692210
+cSC4BudgetSimulator	0x7a8	bondIncrement	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x490E0AA6, s64); Win 0x692210
+cSC4BudgetSimulator	0x7b0	maxBonds	uint	confirmed	clock-budget-neighbors.md B.7 (prop 0x090E0AAC); Win 0x692210
+cSC4BudgetSimulator	0x7b8	maxBondAmount	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x890E0AB4, s64); Win 0x692210
+cSC4BudgetSimulator	0x7c0	bondInterestRate	float	confirmed	clock-budget-neighbors.md B.7 (prop 0x8A3FB98D); Win 0x692210
+cSC4BudgetSimulator	0x7c4	bondPaybackMonths	uint	confirmed	clock-budget-neighbors.md B.7 (prop 0x0A3FB9A8); Win 0x692210
+cSC4BudgetSimulator	0x7c8	occWeightR1	float	confirmed	clock-budget-neighbors.md B.7 (TaxRateOccWeight R$ 0xA9188EF5); Win 0x692210
+cSC4BudgetSimulator	0x7cc	occWeightR2	float	confirmed	clock-budget-neighbors.md B.7 (R$$ 0xE918C920); Win 0x692210
+cSC4BudgetSimulator	0x7d0	occWeightR3	float	confirmed	clock-budget-neighbors.md B.7 (R$$$ 0x4918C925); Win 0x692210
+cSC4BudgetSimulator	0x7d4	occWeightCS1	float	confirmed	clock-budget-neighbors.md B.7 (CS$ 0xA918C929); Win 0x692210
+cSC4BudgetSimulator	0x7d8	occWeightCS2	float	confirmed	clock-budget-neighbors.md B.7 (CS$$ 0x4918C92C); Win 0x692210
+cSC4BudgetSimulator	0x7dc	occWeightCS3	float	confirmed	clock-budget-neighbors.md B.7 (CS$$$ slot, never written due to bug; ctor 1.0)
+cSC4BudgetSimulator	0x7e0	occWeightCO2	float	confirmed	clock-budget-neighbors.md B.7 (CO$$ 0x8918C937); Win 0x692210
+cSC4BudgetSimulator	0x7e4	occWeightCO3	float	confirmed	clock-budget-neighbors.md B.7 (CO$$$ slot, Win +0x7E4 explicitly)
+cSC4BudgetSimulator	0x7e8	occWeightIR	float	confirmed	clock-budget-neighbors.md B.7 (I-R 0x69A36E40); Win 0x692210
+cSC4BudgetSimulator	0x7ec	occWeightID	float	confirmed	clock-budget-neighbors.md B.7 (I-D 0xA918C942); Win 0x692210
+cSC4BudgetSimulator	0x7f0	occWeightIM	float	confirmed	clock-budget-neighbors.md B.7 (I-M 0x8918C93E); Win 0x692210
+cSC4BudgetSimulator	0x7f4	occWeightIHT	float	confirmed	clock-budget-neighbors.md B.7 (I-HT 0xA9A36E47); Win 0x692210
+cSC4BudgetSimulator	0x7f8	waningWealthMultipliers	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x8A480DF7); Win 0x692210
+cSC4BudgetSimulator	0x814	difficultyTaxMultipliers	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0xEBFF69E7); Win 0x692210
+cSC4BudgetSimulator	0x820	initialTaxRates	undefined	confirmed	clock-budget-neighbors.md B.7 (prop 0x0C032488); Win 0x692210
+cSC4Demand	0x8	loadedFromSave	bool	confirmed	demand-rci.md 3 Layout (identical both builds)
+cSC4Demand	0x9	initialized	bool	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x10	id	uint	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x14	supply	float	confirmed	demand-rci.md 3 Layout; re/symbols/demand-rci.tsv QuerySupplyValue
+cSC4Demand	0x18	demand	float	confirmed	demand-rci.md 3 Layout; re/symbols/demand-rci.tsv QueryDemandValue
+cSC4Demand	0x1c	newSupply	float	confirmed	demand-rci.md 3 Layout; re/symbols/demand-rci.tsv AddToSupplyValue
+cSC4Demand	0x20	newDemand	float	confirmed	demand-rci.md 3 Layout; re/symbols/demand-rci.tsv AddToDemandValue
+cSC4Demand	0x24	debugLockValue	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x28	debugLockFlag	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x2c	activeMax	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x30	activeMin	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x34	activeDemand	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x38	unknownFlag38	bool	confirmed	demand-rci.md 3 Layout (=1, meaning unknown)
+cSC4Demand	0x3c	economyModifier	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x40	taxModifier	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x44	demandCap	float	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x48	regionUse	uint	inferred	demand-rci.md 3 Layout (meaning inferred)
+cSC4Demand	0x4c	city	ptr	confirmed	demand-rci.md 3 Layout
+cSC4Demand	0x50	messageServer	ptr	confirmed	demand-rci.md 3 Layout
+cSC4DemandSimulator	0xc	loadedFromSave	bool	inferred	demand-rci.md 4.1 (Mac +0x0C); Win ctor 0x6A35E0 zeroes byte +0x0C
+cSC4DemandSimulator	0xd	initialized	bool	inferred	demand-rci.md 4.1 (Mac +0x0D); Win ctor 0x6A35E0 zeroes byte +0x0D
+cSC4DemandSimulator	0x14	censusState	int	confirmed	demand-rci.md 4.1; re/symbols/demand-rci.tsv DoMonthlySimulation
+cSC4DemandSimulator	0x18	censusIterator	ptr	confirmed	demand-rci.md 4.1; re/symbols/demand-rci.tsv PerformCensus
+cSC4DemandSimulator	0x1c	currentCensus	undefined	confirmed	demand-rci.md 4.1 (map<key,float>); re/symbols/demand-rci.tsv ZeroCensusInfo
+cSC4DemandSimulator	0x28	previousCensus	undefined	inferred	demand-rci.md 4.1 (map<key,float>)
+cSC4DemandSimulator	0x3c	buildingDevelopmentSim	ptr	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0x40	lotManager	ptr	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0x44	neighborsSim	ptr	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0x48	ordinanceSim	ptr	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0x4c	residentialSim	ptr	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0x50	demandNodes	undefined	inferred	demand-rci.md 4.1 (map<key,cISC4Demand*> head ptr)
+cSC4DemandSimulator	0x68	salaryTable	undefined	inferred	demand-rci.md 4.1 (u32 salary[12], +0x68..+0x94); Win ReadSimulatorTunableValues 0x6A8790 default 100
+cSC4DemandSimulator	0xa0	extraCommercialEconomyBonus	undefined	inferred	demand-rci.md 4.1 / open question 3
+cSC4DemandSimulator	0xa4	extraIndustrialEconomyBonus	undefined	inferred	demand-rci.md 4.1 / open question 3
+cSC4DemandSimulator	0xa8	commercialCapRelief	undefined	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0xac	industrialCapRelief	undefined	inferred	demand-rci.md 4.1
+cSC4DemandSimulator	0xb0	neutralTaxRateCurve	ptr	confirmed	demand-rci.md 4.1 (prop 0x4A1F38B5); Win ReadSimulatorTunableValues 0x6A8790
+cSC4DemandSimulator	0xb4	taxModifierCurve	ptr	confirmed	demand-rci.md 4.1 (prop 0x4A1F38B6); Win 0x6A8790
+cSC4DemandSimulator	0xb8	taxPenaltyDays	uint	confirmed	demand-rci.md 4.1 (prop 0x4A1F38B7, default 90); Win 0x6A8790
+cSC4DemandSimulator	0xbc	connectionCapRelief	undefined	confirmed	demand-rci.md 4.1 (vector<float>[13], prop 0x4A1F38C5); Win 0x6A8790
+cSC4DemandSimulator	0xc8	reliefCoefficient0	float	confirmed	demand-rci.md 4.1 (prop 0x4A1F38C6, default 1.0); Win 0x6A8790
+cSC4DemandSimulator	0xcc	reliefCoefficient1	float	confirmed	demand-rci.md 4.1 (prop 0x4A1F38C7, default 2.0); Win 0x6A8790
+cSC4DemandSimulator	0xd0	reliefCoefficient2	float	confirmed	demand-rci.md 4.1 (prop 0x4A1F38C8, default 20.0); Win 0x6A8790
+cSC4DemandSimulator	0xd4	reliefCoefficient3	float	confirmed	demand-rci.md 4.1 (prop 0x4A1F38C9, default 0.1); Win 0x6A8790
+cSC4DemandSimulator	0xd8	reliefCoefficient4	float	confirmed	demand-rci.md 4.1 (prop 0x4A1F38CA, default 20.0); Win 0x6A8790
+cSC4ResidentialSimulator	0x38	proximityMapR1	ptr	confirmed	demand-rci.md 5; re/symbols/demand-rci.tsv GetProximityMap wealth 1
+cSC4ResidentialSimulator	0x3c	proximityMapR2	ptr	confirmed	demand-rci.md 5; re/symbols/demand-rci.tsv GetProximityMap wealth 2
+cSC4ResidentialSimulator	0x40	proximityMapR3	ptr	confirmed	demand-rci.md 5; re/symbols/demand-rci.tsv GetProximityMap wealth 3
+cSC4ResidentialSimulator	0x48	populationGridR1	ptr	confirmed	demand-rci.md 5.1 (pop[w] +0x48); re/symbols/demand-rci.tsv GetCellEQ
+cSC4ResidentialSimulator	0x4c	populationGridR2	ptr	inferred	demand-rci.md 5.1 (pop[w])
+cSC4ResidentialSimulator	0x50	populationGridR3	ptr	inferred	demand-rci.md 5.1 (pop[w])
+cSC4ResidentialSimulator	0x54	ageGrid	ptr	inferred	demand-rci.md 5.1 (age u8 grid; Windows matches by constants)
+cSC4ResidentialSimulator	0x7c	eqGridR1	ptr	confirmed	demand-rci.md 5.1 (EQ[w] +0x7C); re/symbols/demand-rci.tsv GetCellEQ
+cSC4ResidentialSimulator	0x80	eqGridR2	ptr	confirmed	demand-rci.md 5.1; Win decomp indexes (wealth-1)*4+0x7C
+cSC4ResidentialSimulator	0x84	eqGridR3	ptr	confirmed	demand-rci.md 5.1; Win decomp indexes (wealth-1)*4+0x7C
+cSC4ResidentialSimulator	0x88	hqGridR1	ptr	confirmed	demand-rci.md 5.1 (HQ[w] +0x88); Win GetCellHQ
+cSC4ResidentialSimulator	0x8c	hqGridR2	ptr	inferred	demand-rci.md 5.1 (HQ[w])
+cSC4ResidentialSimulator	0x90	hqGridR3	ptr	inferred	demand-rci.md 5.1 (HQ[w])
+cSC4ResidentialSimulator	0x94	monthlyState	int	confirmed	demand-rci.md 5 (doc says Win +0x90, but that is relative to the MessageTarget2 subobject; DoMessage 0x700350 runs with this=primary+4)
+cSC4ResidentialSimulator	0xa0	monthOverdue	bool	inferred	demand-rci.md 5 (overdue flag); DoMessage 0x700350 this[0x9C], this=primary+4
+cSC4ResidentialSimulator	0xa4	population	int	confirmed	demand-rci.md 5.1; re/symbols/demand-rci.tsv GetPopulation
+cSC4ResidentialSimulator	0x178	schoolOnStrike	bool	confirmed	re/symbols/demand-rci.tsv SchoolIsOnStrike 0x6F6F10
+cSC4CommercialSimulator	0x20	officeMapDirty	bool	confirmed	demand-rci.md 6 (doc says Win +0x1C, relative to MessageTarget2 subobject; DoMessage 0x69EEB0 runs with this=primary+4)
+cSC4CommercialSimulator	0x24	officeMapState	int	confirmed	demand-rci.md 6 (Mac +0x24); Win DoIdle 0x69ED30 switch on this+0x24
+cSC4CommercialSimulator	0x34	proximityMapCO2	ptr	confirmed	demand-rci.md 6; re/symbols/demand-rci.tsv GetProximityMap 0x3320
+cSC4CommercialSimulator	0x38	proximityMapCO3	ptr	confirmed	demand-rci.md 6; re/symbols/demand-rci.tsv GetProximityMap 0x3330
+cSC4BuildingDevelopmentSimulator	0x58	developerMap	undefined	inferred	development.md 3 Fields (W+0x58/0x5C); re/symbols/development.tsv GetDeveloper (map +0x5C)
+cSC4BuildingDevelopmentSimulator	0x70	constructionResources	ptr	confirmed	development.md 3 Fields (cSC4Demand*); re/symbols/development.tsv GetFreeConstructionResources
+cSC4BuildingDevelopmentSimulator	0x74	monthlyState	int	confirmed	development.md 3 Fields; re/symbols/development.tsv DoIdle state machine at +0x74
+cSC4BuildingDevelopmentSimulator	0x78	developerIterator	undefined	inferred	development.md 3 Fields
+cSC4BuildingDevelopmentSimulator	0x7c	growthPlanLists	undefined	inferred	development.md 3 Fields (dead code)
+cSC4BuildingDevelopmentSimulator	0xb0	lastBuildDayByDeveloper	undefined	inferred	development.md 3 Fields (map<DeveloperType,day>)
+cSC4BuildingDevelopmentSimulator	0xbc	failedPlanRetryDays	uint	inferred	development.md 3 Fields
+cSC4BuildingDevelopmentSimulator	0xc0	constructionResourcesMin	undefined	inferred	development.md 3 Fields (prop 0x47E2C380)
+cSC4BuildingDevelopmentSimulator	0xc4	constructionResourcesMax	undefined	inferred	development.md 3 Fields (prop 0x47E2C380)
+cSC4BuildingDevelopmentSimulator	0xc8	constructionResourcesPerResident	float	inferred	development.md 3 Fields (prop 0x47E2C381, default 0.5)
+cSC4BuildingDevelopmentSimulator	0xcc	typeSelectionBias	undefined	confirmed	development.md 3 Fields (prop 0x47E2C382); re/symbols/development.tsv PlanGrowth
+cSC4BuildingDevelopmentSimulator	0xd0	stagePopulationMultipliers	undefined	confirmed	development.md 3 Fields (prop 0x47E2C383); re/symbols/development.tsv GetStagePopulationMultiplier
+cSC4BuildingDevelopmentSimulator	0xdc	useGrowthPlan	bool	confirmed	development.md 3 Fields [confirmed-W]; re/symbols/development.tsv ctor
+cSC4BuildingDevelopmentSimulator	0xdd	cheatIgnorePlumbing	bool	inferred	development.md 3 Fields
+cSC4BuildingDevelopmentSimulator	0xde	cheatIgnorePower	bool	inferred	development.md 3 Fields
+cSC4BuildingDevelopmentSimulator	0xe1	cheatCoffeeBar	bool	inferred	development.md 3 Fields
+CandidateLot	0x0	candidateType	int	inferred	development.md 5 (CandidateLot+0: 1 refurbish, 2 build, 3 aggregate, 4 subdivide)
+CandidateLot	0x70	streetCountsBySide	undefined	confirmed	development.md 5 FindNetworks (v0, W +0x70); decomp FindNetworks 0x705040 param_2[0x1C]
+CandidateLot	0x7c	roadCountsBySide	undefined	confirmed	development.md 5 FindNetworks (v1, W +0x7C)
+CandidateLot	0x88	avenueCountsBySide	undefined	confirmed	development.md 5 FindNetworks (v2, W +0x88)
+CandidateLot	0x94	railCountsBySide	undefined	confirmed	development.md 5 FindNetworks (v3, W +0x94)
+cSC4TrafficSimulator	0x30	airPollutingTrafficMap	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x38	commercialTrafficMap	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x44	tripLengthMap	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x48	congestionMap	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x58	cellConnections	undefined	confirmed	traffic.md 2.3 (TrafficSimCellConnections[256*256])
+cSC4TrafficSimulator	0x1e4	trafficStats	undefined	confirmed	traffic.md 2.3 (TrafficStats)
+cSC4TrafficSimulator	0x720	transitSwitchCostMultiplier	undefined	confirmed	traffic.md 2.3 (derived from +4-biased DoMessage offset)
+cSC4TrafficSimulator	0x724	roadsDepartment	ptr	confirmed	traffic.md 2.3 (derived from +4-biased DoMessage offset)
+cSC4TrafficSimulator	0x728	massTransitDepartment	ptr	confirmed	traffic.md 2.3 (derived from +4-biased DoMessage offset)
+cSC4TrafficSimulator	0x788	lastMonthlyIncome	undefined	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x7a4	massTransitStrike	bool	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x814	workCycleState	int	confirmed	traffic.md 2.3/4.2; re/symbols/traffic.tsv WorkOnSimCycle
+cSC4TrafficSimulator	0x81c	intersectionUpdatePending	bool	inferred	re/symbols/traffic.tsv UpdateIntersectionData (pending flag [this+0x81C], Mac 0x824); traffic.md 4.2
+cSC4TrafficSimulator	0x830	outboundPathFinder	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x834	returnPathFinder	ptr	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x908	trafficSourceIterator	ptr	confirmed	traffic.md 2.3; re/symbols/traffic.tsv TrafficSourceIterator::Reset
+cSC4TrafficSimulator	0x914	sourcesProcessedToday	uint	confirmed	traffic.md 2.3 (daily pacing: processed)
+cSC4TrafficSimulator	0x918	pacingDayIndex	uint	confirmed	traffic.md 2.3 (daily pacing: day index)
+cSC4TrafficSimulator	0x91c	pacingTotalSources	uint	confirmed	traffic.md 2.3 (daily pacing: total)
+cSC4TrafficSimulator	0x920	simBeginSeen	bool	confirmed	traffic.md 2.3 (derived from +4-biased DoMessage offset)
+cSC4TrafficSimulator	0x928	tripReselectionBucket	uint	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x92c	pacingDays	uint	confirmed	traffic.md 2.3 (daily pacing: days)
+cSC4TrafficSimulator	0x93c	tripsToConfirmCount	uint	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x940	tripsToRerouteCount	uint	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x944	tripsFullRouteCount	uint	confirmed	traffic.md 2.3
+cSC4TrafficSimulator	0x974	trafficVolumePerPopulation	undefined	confirmed	traffic.md 6 (prop 0x491332E6, Mac +0x97C, Win = Mac-8)
+cSC4TrafficSimulator	0x978	tuning29136789	undefined	confirmed	traffic.md 6 (prop 0x29136789 unnamed, Mac +0x980, Win = Mac-8)
+cSC4TrafficSimulator	0xc6c	intersectionTurnCapacityRecip	undefined	confirmed	traffic.md 6 (prop 0xA92356BB reciprocals, Mac +0xC74, Win = Mac-8)
+cSC4PathFinder	0xc	trafficSim	ptr	confirmed	traffic.md 2.6 (same on both builds)
+cSC4PathFinder	0x10	currentNode	ptr	confirmed	traffic.md 2.6 (goal/current TripNode*)
+cSC4PathFinder	0x14	heuristicWeight	float	confirmed	traffic.md 2.6
+cSC4PathFinder	0x18	startRect	undefined	confirmed	traffic.md 2.6 (SC4Rect)
+cSC4PathFinder	0x28	endRect	undefined	confirmed	traffic.md 2.6 (SC4Rect)
+cSC4PathFinder	0x38	searchRect	undefined	confirmed	traffic.md 2.6 (start expanded by 4)
+cSC4PathFinder	0x48	originatingEdgeRect	undefined	confirmed	traffic.md 2.6 (SC4Rect)
+cSC4PathFinder	0x58	endCellX	int	confirmed	traffic.md 2.6
+cSC4PathFinder	0x5c	endCellZ	int	confirmed	traffic.md 2.6
+cSC4PathFinder	0x60	maxTripLength	float	confirmed	traffic.md 2.6 (max trip length in / trip length out)
+cSC4PathFinder	0x64	allowedTravelTypes	undefined	confirmed	traffic.md 2.6 (u16)
+cSC4PathFinder	0x66	startingTravelTypes	undefined	confirmed	traffic.md 2.6 (u16)
+cSC4PathFinder	0x68	trafficDensity	uint	confirmed	traffic.md 2.6
+cSC4PathFinder	0x6c	trafficArrived	uint	confirmed	traffic.md 2.6; re/symbols/traffic.tsv GetTrafficArrived
+cSC4PathFinder	0x70	flags	uint	confirmed	traffic.md 2.6
+cSC4PathFinder	0x74	routeDeque	ptr	confirmed	traffic.md 2.6; re/symbols/traffic.tsv SetRouteInfo [ecx+74h]
+cSC4PathFinder	0x80	destinationFilter	int	confirmed	traffic.md 2.6 / 2.2
+cSC4PathFinder	0x84	destinationFlags	byte	confirmed	traffic.md 2.6
+cSC4PathFinder	0x88	occupantFilter	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x8c	destinationTypeReached	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x90	startingCost	ptr	confirmed	traffic.md 2.6 (float*)
+cSC4PathFinder	0x94	maxCost	undefined	confirmed	traffic.md 2.6 (float[9])
+cSC4PathFinder	0xb8	citySizeX	int	confirmed	traffic.md 2.6
+cSC4PathFinder	0xbc	citySizeZ	int	confirmed	traffic.md 2.6
+cSC4PathFinder	0xc0	maxWorkTimeMs	uint	confirmed	traffic.md 2.6
+cSC4PathFinder	0xc4	suspended	bool	confirmed	traffic.md 2.6
+cSC4PathFinder	0xc8	overBudgetCount	undefined	confirmed	traffic.md 2.6 (u32[9])
+cSC4PathFinder	0xec	disabledTravelTypes	byte	confirmed	traffic.md 2.6
+cSC4PathFinder	0xee	parkAndRideCellX	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0xf0	parkAndRideCellZ	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0xf2	parkAndRideSide	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x10c	distanceTableX	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x110	distanceTableZ	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x114	priorityQueue	undefined	confirmed	traffic.md 2.6
+cSC4PathFinder	0x128	nodeHashMap	undefined	confirmed	traffic.md 2.6
+cSC4SimGrid	0x8	serializedFlag	bool	confirmed	grid-sims.md 1 Layout (identical Mac/Windows)
+cSC4SimGrid	0xc	refCount	uint	confirmed	grid-sims.md 1 Layout
+cSC4SimGrid	0x10	clsid	uint	confirmed	grid-sims.md 1 Layout
+cSC4SimGrid	0x14	instanceId	uint	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetInstanceID
+cSC4SimGrid	0x18	tractSize	int	confirmed	grid-sims.md 1 Layout
+cSC4SimGrid	0x1c	tractShift	int	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetTractShift
+cSC4SimGrid	0x20	tractCountX	int	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetTractCountX
+cSC4SimGrid	0x24	tractCountZ	int	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetTractCountZ
+cSC4SimGrid	0x28	tractWidthX	float	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetTractWidthX
+cSC4SimGrid	0x2c	tractWidthZ	float	confirmed	grid-sims.md 1 Layout
+cSC4SimGrid	0x30	invTractWidthX	float	confirmed	grid-sims.md 1 Layout; re/symbols/grid-sims.tsv GetOneOverTractWidthX
+cSC4SimGrid	0x34	invTractWidthZ	float	confirmed	grid-sims.md 1 Layout
+cSC4SimGrid	0x38	gridData	undefined	confirmed	grid-sims.md 1 Layout (vector<vector<T>>); re/symbols/grid-sims.tsv GetGridData
+cSC4LandValueSimulator	0x24	intrinsicLandValueMap	ptr	confirmed	grid-sims.md 2 Grids; re/symbols/grid-sims.tsv GetIntrinsicLandValueMap folded [ecx+0x24]
+cSC4LandValueSimulator	0x28	totalLandValueMap	ptr	confirmed	grid-sims.md 2 Grids; Win GetLandValue 0x6BD740 reads this+0x28
+cSC4LandValueSimulator	0x2c	scratchLandValueMap	ptr	inferred	grid-sims.md 2 Grids
+cSC4LandValueSimulator	0x30	slopeMap	ptr	inferred	grid-sims.md 2 Grids
+cSC4LandValueSimulator	0x74	averageLandValue	byte	confirmed	re/symbols/grid-sims.tsv GetAverageLandValue mov al,[ecx+0x74]
+cSC4LandValueSimulator	0xa0	modeAltitude	float	confirmed	re/symbols/grid-sims.tsv GetModeAltitude fld [ecx+0xa0] (Mac +0xac)
+cSC4PollutionSimulator	0x40	airSourceMap	ptr	inferred	grid-sims.md 3 Grids (source maps +0x40..+0x4C)
+cSC4PollutionSimulator	0x44	waterSourceMap	ptr	inferred	grid-sims.md 3 Grids
+cSC4PollutionSimulator	0x48	garbageSourceMap	ptr	inferred	grid-sims.md 3 Grids
+cSC4PollutionSimulator	0x4c	radiationSourceMap	ptr	confirmed	grid-sims.md 3 Grids; Win GetPollutionGrid 0x6E3360 returns +0x4C for type 3
+cSC4PollutionSimulator	0x50	airValueMap	ptr	confirmed	grid-sims.md 3 Grids; Win GetAirValue 0x6E2EF0
+cSC4PollutionSimulator	0x54	waterValueMap	ptr	confirmed	grid-sims.md 3 Grids; Win GetWaterValue 0x6E2F10
+cSC4PollutionSimulator	0x58	garbageValueMap	ptr	confirmed	grid-sims.md 3 Grids; Win GetGarbageValue 0x6E2F30
+cSC4PollutionSimulator	0x5c	radiationValueMap	ptr	inferred	grid-sims.md 3 Grids (allocated, unused)
+cSC4PowerSimulator	0x80	poweredGrid	ptr	confirmed	grid-sims.md 4 Data; re/symbols/grid-sims.tsv GetPoweredGrid
+cSC4PowerSimulator	0x84	consumptionPerCell	undefined	confirmed	grid-sims.md 4 Data (vector<vector<int16>>); re/symbols/grid-sims.tsv GetMonthlyConsumption(x,z)
+cSC4PlumbingSimulator	0x30	waterMarkMap	ptr	inferred	grid-sims.md 5 Data
+cSC4PlumbingSimulator	0x34	wateredMap	ptr	confirmed	grid-sims.md 5 Data; Win GetSupplyValueMapPtr 0x6DA450 / IsCellWatered 0x6DA460
+cSC4CrimeSimulator	0x5c	crimeGrid	ptr	confirmed	grid-sims.md 6 Grids; Win GetCrimeGrid 0x6A0050
+cSC4CrimeSimulator	0x60	crimeEffectGrid	ptr	inferred	grid-sims.md 6 Grids
+cSC4CrimeSimulator	0x94	criminalBase	int	confirmed	re/symbols/grid-sims.tsv ComputeCriminalBase (result stored at +0x94); grid-sims.md 6 DoIdle state 2-3
+cSC4CrimeSimulator	0x98	crimeCount	int	confirmed	re/symbols/grid-sims.tsv AddCrimes (called with +0x98); grid-sims.md 6 DoIdle state 3-4
+cSC4AuraSimulator	0x40	auraGrid	ptr	confirmed	grid-sims.md 7 Grids (Mac +0x38); Win GetAuraValue 0x68BAB0 reads this+0x40
+cSC4AuraSimulator	0x44	auraWorkGrid	ptr	inferred	grid-sims.md 7 Grids (Mac +0x3C; Win = Mac+8 before the dept map)
+cSC4AuraSimulator	0x48	smoothedBaseAuraGrid	ptr	inferred	grid-sims.md 7 Grids (Mac +0x40; Win = Mac+8)
+cSC4AuraSimulator	0x4c	transientAuraGrid	ptr	confirmed	grid-sims.md 7 Grids (Mac +0x44); Win GetTransientAuraGrid 0x68D1C0
+cSC4AuraSimulator	0x50	buildingEffectGrid	ptr	inferred	grid-sims.md 7 Grids (Mac +0x48; Win = Mac+8)
+cSC4AuraSimulator	0x54	rawParkEffectGrid	ptr	inferred	grid-sims.md 7 Grids (Mac +0x4C; Win = Mac+8)
+cSC4AuraSimulator	0x58	parkMap	ptr	confirmed	grid-sims.md 7 Grids (Mac +0x50); re/symbols/grid-sims.tsv GetParkMap folded [ecx+0x58]
+cSC4AuraSimulator	0x5c	departmentEffectMaps	undefined	inferred	grid-sims.md 7 Grids (Mac +0x54 map<deptID,SimGrid<int16>*>; MSVC map 0xC)
+cSC4AuraSimulator	0x68	landmarkMap	ptr	confirmed	grid-sims.md 7 Grids (Mac +0x6C); Win GetLandmarkMap 0x68D1D0
+cSC4AuraSimulator	0x6c	landmarkWorkMap	ptr	inferred	grid-sims.md 7 Grids (Mac +0x70; Win = Mac-4 after the map)
+cSC4FlammabilitySimulator	0x58	flammabilityGrid	ptr	confirmed	grid-sims.md 9 Grids (Mac +0x50 adjusted); re/symbols/grid-sims.tsv GetFlammabilityGrid folded [ecx+0x58]
+cSC4FlammabilitySimulator	0x5c	rawFlammabilityGrid	ptr	inferred	grid-sims.md 9 Grids (Mac +0x54 raw; Win = Mac+8 like the adjusted grid)

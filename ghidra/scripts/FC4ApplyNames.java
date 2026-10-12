@@ -119,6 +119,13 @@ public class FC4ApplyNames extends GhidraScript {
                 if (f.length < 4) continue;
                 Address addr = toAddr(Long.parseLong(f[0], 16));
                 Function fn = getFunctionAt(addr);
+                if (fn == null && f[2].startsWith("manual") && getInstructionAt(addr) == null) {
+                    disassemble(addr);
+                }
+                if (fn == null && f[2].startsWith("manual") && getInstructionAt(addr) != null
+                        && getFunctionContaining(addr) == null) {
+                    fn = createFunction(addr, null); // hand-verified entry the deep pass missed
+                }
                 if (fn == null) { missing++; continue; }
                 String full = f[1];
                 String note = "";

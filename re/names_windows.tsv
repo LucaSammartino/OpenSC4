@@ -5746,23 +5746,25 @@ va	name	source	confidence	note
 0068fdc0	cSC4BudgetSimulator::GetCurrentBondLimit	auto:C	high	mac 0018d068 score 1.0 support 1
 0068fdd0	cSC4BudgetSimulator::GetCurrentMaxOutstandingBondsLimit	auto:C	low	mac 0018d07c score 1.0 support 1
 0068fde0	cSC4BudgetSimulator::GetWeightedAssessedTaxValue	auto:C	high	mac 0018d08c score 1.0 support 1
-0068fe10	cSC4BudgetSimulator::PostFundsChangedMessage	auto:A	high	mac 0018cd66 score 1.0 support 0
+0068fe10	cSC4BudgetSimulator::PostFundsChangedMessage	manual:clock-budget-neighbors.tsv	high	posts 0x0772FAD4; called on SimBegin
 0068fef0	cSC4BudgetSimulator::GetMonthlyPaymentForLoan	auto:C	high	mac 0018d0b4 score 1.0 support 1
 0068ff50	cSC4BudgetSimulator::GetFullCostOfLoan	auto:C	high	mac 0018d166 score 1.0 support 1
 0068ff80	cSC4BudgetSimulator::GetLineItemFromBudgetItem	auto:C	high	mac 0018d1ae score 1.0 support 1
 006900c0	cSC4BudgetSimulator::Release	auto:C	high	mac 0018cca2 score 1.0 support 2
+006900f0	cSC4BudgetSimulator::DoDailySimulation	manual:clock-budget-neighbors.tsv	high	called from DoMessage on 0x66956814; 12x history 0xAABAAA9F+i <- rate*10
 00690140	cSC4BudgetSimulator::SetTotalFunds	auto:C	high	mac 0018cdfe score 1.0 support 1
 00690170	cSC4BudgetSimulator::DepositFunds	auto:C	high	mac 0018ce44 score 1.0 support 1
 00690200	cSC4BudgetSimulator::WithdrawFunds	auto:C	high	mac 0018ceea score 1.0 support 1
 00690330	cSC4BudgetSimulator::ShowBudgetWindow	auto:B2	medium	mac 0018d1ec score 0.996 support 2.0
 006903a0	std::_Rb_tree<unsigned_long,std::pair<unsigned_long_const,cSC4DepartmentBudget*>,std::_Select1st<std::pair<unsigned_long_const,cSC4DepartmentBudget*>>,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cSC4DepartmentBudget*>>>::clear	auto:D	medium	mac 0069f19c score 0.5 support 1
-00690450	cSC4BudgetSimulator::ResetFundsToStartingLevel	auto:B0	medium	mac 0018d608 score 0.884 support 2.0
+00690450	cSC4BudgetSimulator::ResetFundsToStartingLevel	manual:clock-budget-neighbors.tsv	high	funds=shadow=InitialFunds[difficulty]; called on 0x26D31EC4
+00690490	cSC4BudgetSimulator::ResetTaxRatesToDefault	manual:clock-budget-neighbors.tsv	high	12 groups rate=InitialTaxRate[difficulty]; called on 0x26D31EC4
 006904c0	cSC4BudgetSimulator::GetTaxIncome	auto:C	high	mac 0018d6ca score 1.0 support 1
 00690500	cSC4BudgetSimulator::GetTotalMonthlyBondPayments	auto:C	high	mac 0018d5da score 1.0 support 1
-00690530	cSC4BudgetSimulator::Write	auto:C	high	mac 00190a50 score 1.0 support 1
+00690530	cSC4BudgetSimulator::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB08E0 slot 3; version 5
 00690990	cSC4BudgetSimulator::GetTotalMonthlyExpense	auto:C	high	mac 0018f3b6 score 1.0 support 1
 00690a30	cSC4BudgetSimulator::GetTotalMonthlyIncome	auto:C	high	mac 0018f440 score 1.0 support 1
-00690cb0	cSC4BudgetSimulator::Shutdown	auto:A	high	mac 0018eb3c score 0.584 support 0
+00690cb0	cSC4BudgetSimulator::Shutdown	manual:clock-budget-neighbors.tsv	high	vtable 00AB0908 slot 4; unsubscribes 0x29222F02
 00690e80	cSC4BudgetSimulator::DoBudgetGroupChanged	auto:A	high	mac 0018f50c score 1.0 support 0
 00691000	cSC4BudgetSimulator::GetDepartmentBudget	auto:C	high	mac 0018f4dc score 1.0 support 1
 00691030	icf::cSC4BudgetSimulator::FundingPercentageChanged	folded	folded	2 names: cSC4BudgetSimulator::FundingPercentageChanged | cSC4BudgetSimulator::NeededFundingChanged
@@ -5771,22 +5773,22 @@ va	name	source	confidence	note
 006911d0	cSC4BudgetSimulator::CopyBudgetItemProperties	auto:B2	medium	mac 0018d81a score 0.959 support 6.5
 00691410	std::list<cSC4BudgetSimulator::Bond,std::allocator<cSC4BudgetSimulator::Bond>>::push_back	auto:B1	medium	mac 0069f0a0 score 0.893 support 1.0
 00691500	std::vector<double,std::allocator<double>>::_M_fill_assign	auto:B15	medium	mac 0069ff86 score 1.0 support 1.0
-006916f0	cSC4BudgetSimulator::IssueBond	auto:A	high	mac 0018de54 score 0.584 support 0
+006916f0	cSC4BudgetSimulator::IssueBond	manual:clock-budget-neighbors.tsv	high	vtable slot 40; posts 0xC772FADA
 00691880	cSC4BudgetSimulator::GetBudgetItemForPurpose	auto:C	high	mac 0018dd86 score 1.0 support 1
 00691910	cSC4BudgetSimulator::AddBudgetItemToBudget	auto:C	high	mac 0018dccc score 1.0 support 1
 006919b0	cSC4BudgetSimulator::RemoveBudgetItemFromBudget	auto:C	high	mac 0018dc0c score 1.0 support 1
 00691b50	cSC4BudgetSimulator::GetDepartmentBudget	auto:C	high	mac 0018d4c0 score 1.0 support 1
 00691d00	cSC4BudgetSimulator::GetDepartmentBudgetsInGroup	auto:C	high	mac 0018ea88 score 1.0 support 1
-00691e20	cSC4BudgetSimulator::ComputeTax	auto:A	high	mac 0018e626 score 0.569 support 0
-00692210	cSC4BudgetSimulator::ReadSimulatorTunableValues	auto:A	high	mac 0018f898 score 0.938 support 0
-00692510	cSC4BudgetSimulator::DoMonthlySimulation	auto:A	high	mac 0018ed64 score 1.0 support 0
+00691e20	cSC4BudgetSimulator::ComputeTax	manual:clock-budget-neighbors.tsv	high	reads 0xE91A0B5F; table kTaxTypeByPurposeAndWealth at 00AB0840; called by DoMonthlySimulation
+00692210	cSC4BudgetSimulator::ReadSimulatorTunableValues	manual:clock-budget-neighbors.tsv	high	exemplar 0BFF6824; props 0x6A9C7718, 0xEBFF69E7, 0x8A3FB98D, 0x4AC519B8...
+00692510	cSC4BudgetSimulator::DoMonthlySimulation	manual:clock-budget-neighbors.tsv	high	called on 0x66956816; posts 0xAA5CF1E3/0xCA3FBDCE; history 0x6A51178B
 00692ba0	cSC4BudgetSimulator::RemoveDepartmentBudget	auto:B5	medium	mac 0018f6e4 score 0.982 support 2.0
 00692c70	cSC4BudgetSimulator::GetAllLoans	auto:C	high	mac 0018e9c6 score 1.0 support 1
 00692d50	cSC4BudgetSimulator::ChangeBudgetItemLocalFunding	auto:A	high	mac 0018f798 score 1.0 support 0
-00692ff0	cSC4BudgetSimulator::Init	auto:A	high	mac 0018ff94 score 0.785 support 0
-00693450	cSC4BudgetSimulator::DoMessage	auto:A	high	mac 0019071e score 0.716 support 0
-006937b0	cSC4BudgetSimulator::GetBudgetItemInfo	auto:B3	medium	mac 0018fcb2 score 0.853 support 5.5
-00694240	cSC4BudgetSimulator::GetGZCLSID	auto:C	low	mac 0069e10e score 1.0 support 1
+00692ff0	cSC4BudgetSimulator::Init	manual:clock-budget-neighbors.tsv	high	cISC4BudgetSimulator vtable 00AB0908 slot 3; AddAgent levels 0/6/4; cheat strings RiskyMoney/WeaknessPays/Moolah
+00693450	cSC4BudgetSimulator::DoMessage	manual:clock-budget-neighbors.tsv	high	cIGZMessageTarget2 vtable 00AB08F8 slot 3; dispatches 0x66956810/14/16, 0x26D31EC4, 0x29222F02, cheats
+006937b0	cSC4BudgetSimulator::GetBudgetItemInfo	manual:clock-budget-neighbors.tsv	high	vtable slot 50; reads 0xEA54D283..87
+00694240	cSC4BudgetSimulator::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0xE990BE01; serializable vtable 00AB08E0 slot 5
 00694250	cSC4BudgetSimulator::GetLoanTimeInMonths	auto:C	low	mac 0069e118 score 1.0 support 1
 00694260	cSC4BudgetSimulator::GetTotalYearlyExpense	auto:C	high	mac 0069e126 score 1.0 support 1
 00694270	cSC4BudgetSimulator::GetTotalYearlyIncome	auto:C	high	mac 0069e13a score 1.0 support 1
@@ -5799,7 +5801,7 @@ va	name	source	confidence	note
 00694970	GZCOM_CreatecSC4BudgetSimulator	auto:B2	medium	mac 0018e5e8 score 0.919 support 1.0
 00694990	cSC4BudgetSimulator::GetAllGroups	auto:C	high	mac 001904fc score 1.0 support 1
 00694a50	std::map<unsigned_long,cSC4BudgetSimulator::BudgetGroup,std::less<unsigned_long>,std::allocator<std::pair<unsigned_long_const,cSC4BudgetSimulator::BudgetGroup>>>::operator[]	auto:B1	medium	mac 0069fd76 score 0.979 support 2.0
-00694b00	cSC4BudgetSimulator::Read	auto:B1	medium	mac 00190faa score 0.986 support 2.0
+00694b00	cSC4BudgetSimulator::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB08E0 slot 4; version < 5 handling
 006950b0	cSC4BudgetSimulator::GetBudgetGroup	auto:B0	medium	mac 00190552 score 0.994 support 3.5
 00695160	cSC4BudgetSimulator::SetGroupName	auto:C	high	mac 00190604 score 1.0 support 1
 006951a0	cSC4BudgetSimulator::CreateDepartmentBudget	auto:C	high	mac 00190634 score 1.0 support 1
@@ -5969,15 +5971,21 @@ va	name	source	confidence	note
 006a8ff0	cSC4DemandSimulator::ExportDemand	manual:demand-rci.tsv	high	2nd call in DoMonthlySimulation
 006a9450	cSC4DemandSimulator::DoMonthlySimulation	manual:demand-rci.tsv	high	called on 0x66956816; calls 2 funcs then if state(+0x14)==3 set 0 (Mac identical)
 006a9470	cSC4DemandSimulator::DoMessage	manual:demand-rci.tsv	high	cIGZMessageTarget2 vtable 00AB0E38 slot 3; dispatch on 0x6695681A/14/16/10, 0x26C63343, 0xE8BDA2E7, 0x8A0D15DA, 0xEA0D163E, 0xCA1B151C identical to Mac
+006a96b0	cSC4DepartmentBudget::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0xE990BFFC; serializable vtable 00AB0E94 slot 5
 006a9750	cSC4SimGrid<T>::GetGridData	manual:grid-sims.tsv	high	vtable slots 24 and 25 (const/non-const overloads folded); lea eax,[ecx+0x38]
-006a97c0	cSC4LineItem::GetGZCLSID	auto:C	low	mac 006a8abc score 1.0 support 1
+006a9770	cSC4DepartmentBudget::SetTotalSpending	manual:clock-budget-neighbors.tsv	high	slot 31; stores s64; called by DoMonthlySimulation vt+0x7C
+006a97c0	cSC4LineItem::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0xAA313C9F; serializable vtable 00AB0F3C slot 5
 006a97d0	cSC4LineItem::QueryInterface	auto:A	high	mac 001ab49a score 0.606 support 0
 006a9830	cSC4LineItem::AddRef	auto:C	low	mac 001ab4dc score 1.0 support 1
 006a9840	cSC4LineItem::Release	auto:C	high	mac 001ab4ee score 1.0 support 1
 006a98d0	cSC4DepartmentBudget::SendBudgetChangeMessage	auto:B0	medium	mac 001ab624 score 0.945 support 2.0
-006a9aa0	cSC4LineItem::Write	auto:C	high	mac 001acd36 score 1.0 support 1
-006a9b60	cSC4LineItem::Read	auto:A	high	mac 001aca96 score 1.0 support 0
+006a9aa0	cSC4LineItem::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB0F3C slot 3; version 4, field order matches Mac
+006a9b60	cSC4LineItem::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB0F3C slot 4
 006a9d10	std::set<std::pair<cISCPropertyHolder*,unsigned_long>,std::less<std::pair<cISCPropertyHolder*,unsigned_long>>,std::allocator<std::pair<cISCPropertyHolder*,unsigned_long>>>::count	auto:D	medium	mac 006a952e score 0.5 support 1
+006a9d70	cSC4DepartmentBudget::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB0E94 slot 3; version 10
+006a9ef0	cSC4DepartmentBudget::GetIdealMonthlyFunding	manual:clock-budget-neighbors.tsv	high	vtable 00AB0EB0 slot 14; sums lineItem vt+0x28 (full expenses)
+006a9f60	cSC4DepartmentBudget::GetTotalExpenses	manual:clock-budget-neighbors.tsv	high	slot 15; sums lineItem vt+0x2C (current expenses); called by DoMonthlySimulation vt+0x3C
+006a9fd0	cSC4DepartmentBudget::GetTotalIncome	manual:clock-budget-neighbors.tsv	high	slot 16; sums lineItem vt+0x38
 006aa300	cSC4DepartmentBudget::Shutdown	auto:B6	medium	mac 001ad362 score 0.846 support 2.0
 006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	manual:traffic.tsv	high	vtable 00AB33D0 (cISC4TrafficSimulator primary) slot 8, matches Mac __ZTV20cSC4TrafficSimulator order
 006aac60	cSC4City::SetCitySerialNumber	auto:C	low	mac 0002fcd2 score 1.0 support 1
@@ -5992,9 +6000,10 @@ va	name	source	confidence	note
 006ab340	cSC4DepartmentBudget::DoDepartmentFundingChanged	auto:D	medium	mac 001abea0 score 0.5 support 1
 006ab810	cSC4DepartmentBudget::SetFundingPercentage	auto:D	medium	mac 001ac31e score 0.5 support 1
 006ab940	cSC4DepartmentBudget::SetLocalFundingPercent	auto:A	high	mac 001ac7ee score 0.576 support 0
+006abb50	cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses	manual:clock-budget-neighbors.tsv	high	slot 29; called by DoMonthlySimulation vt+0x74
 006abfd0	cSC4DepartmentBudget::SetLocalFullFunding	auto:B0	medium	mac 001ad476 score 0.954 support 2.0
 006ac1b0	cSC4DepartmentBudget::SetFundingPercentage	auto:B0	medium	mac 006aa4cc score 0.861 support 1.0
-006ac1d0	cSC4DepartmentBudget::Read	auto:A	high	mac 001ad0f2 score 1.0 support 0
+006ac1d0	cSC4DepartmentBudget::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB0E94 slot 4
 006ac710	cSC4FirePlaneDispatchSource::GetDispatchesAtStation	auto:A	high	mac 004d1fc6 score 1.0 support 0
 006ac860	cSC4PoliceHelicopterDispatchSource::Shutdown	auto:B1	medium	mac 004d31aa score 0.926 support 4.0
 006acbb0	cSC4FirePlaneDispatchSource::DoOccupantInserted	auto:B1	medium	mac 004d28c6 score 0.964 support 2.0
@@ -6397,22 +6406,23 @@ va	name	source	confidence	note
 006cd3a0	cSC4LotDeveloper::UpdateLot	manual:development.tsv	high	only call of DoDailySimulation loop; callee order matches Mac
 006cd770	cSC4LotDeveloper::DoDailySimulation	manual:development.tsv	high	DoMessage NewDay callee; lotCount/0x1C+1 lots per day
 006cd940	cSC4LotDeveloper::DoMessage	manual:development.tsv	high	cIGZMessageTarget2 vtable 00AB1B88 slot 3
+006cdef0	cSC4NeighborsSimulator::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0xC990C0A4; serializable vtable 00AB1EB8 slot 5
 006cdf00	cSC4NeighborsSimulator::QueryInterface	auto:C	high	mac 0004b442 score 1.0 support 1
 006cdf80	cSC4NeighborsSimulator::HasConnection	auto:C	high	mac 0004b500 score 1.0 support 1
 006cdfa0	cSC4NeighborsSimulator::FindConnectionOnOtherSide	auto:C	high	mac 0004b530 score 1.0 support 1
 006cdfe0	cSC4NeighborsSimulator::SetUIDisableFlag	auto:C	low	mac 0004b584 score 1.0 support 1
-006cdff0	cSC4NeighborConnection::GetGZCLSID	auto:C	low	mac 00606e2e score 1.0 support 1
+006cdff0	cSC4NeighborConnection::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0x0A134F24
 006ce000	cSC4NeighborConnection::QueryInterface	auto:C	high	mac 0004b59c score 1.0 support 2
 006ce060	cSC4NeighborConnection::Release	auto:C	high	mac 0004b5f0 score 1.0 support 2
-006ce080	cSC4NeighborDeal::GetGZCLSID	auto:C	low	mac 00606f2e score 1.0 support 1
+006ce080	cSC4NeighborDeal::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0x2A134F42; serializable vtable 00AB1DBC slot 5
 006ce0f0	cSC4City::SetBirthDate	auto:C	low	mac 0002fd92 score 1.0 support 1
 006ce100	cSC4TutorialSystem::~cSC4TutorialSystem	auto:C	low	mac 0003fa4a score 1.0 support 1
 006ce240	cSC4FloraOccupant::SetLotTag	auto:C	low	mac 00094eca score 1.0 support 1
 006ce260	cSC4NeighborDeal::QueryInterface	auto:C	high	mac 0004b6b6 score 1.0 support 2
 006ce2c0	cSC4NeighborDeal::Release	auto:C	high	mac 0004b70a score 1.0 support 2
 006ce2e0	cSC4NeighborDeal::Copy	auto:B2	medium	mac 0004b732 score 0.96 support 3.0
-006ce400	cSC4NeighborDeal::Write	auto:C	high	mac 0004d968 score 1.0 support 2
-006ce4e0	cSC4NeighborDeal::Read	auto:B4	medium	mac 0004d750 score 0.953 support 2.0
+006ce400	cSC4NeighborDeal::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB1DBC slot 3; version 5
+006ce4e0	cSC4NeighborDeal::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB1DBC slot 4
 006ce740	__ZThn8_N16cSC4NeighborDealD0Ev	auto:B0	low	mac 006071de score 0.96 support 1.0
 006ce770	cSC4NeighborsSimulator::Release	auto:C	high	mac 0004b4ca score 1.0 support 1
 006ce7a0	cSC4NeighborsSimulator::IsValidConnectionCell	auto:B0	medium	mac 0004b982 score 0.961 support 2.0
@@ -6432,35 +6442,38 @@ va	name	source	confidence	note
 006cf6b0	cSC4NeighborsSimulator::FindConnection	auto:C	high	mac 0004c91a score 1.0 support 1
 006cf720	cSC4NeighborsSimulator::FindUnvisitedConnection	auto:C	high	mac 0004c97a score 1.0 support 1
 006cf780	cSC4NeighborsSimulator::ProposeDeal	auto:B5	medium	mac 0004fac8 score 0.973 support 1.0
-006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	auto:C	high	mac 0004c89e score 1.0 support 1
-006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	auto:C	high	mac 0004c562 score 1.0 support 1
+006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	manual:clock-budget-neighbors.tsv	high	vtable slot 32
+006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	manual:clock-budget-neighbors.tsv	high	vtable slot 33
 006cf940	GZCOM_CreatecSC4NeighborDeal	auto:B4	medium	mac 0004d2a6 score 0.919 support 1.0
-006cfbc0	cSC4NeighborsSimulator::Shutdown	auto:C	high	mac 00050226 score 1.0 support 1
+006cfb60	cSC4NeighborsSimulator::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB1EB8 slot 3
+006cfbc0	cSC4NeighborsSimulator::Shutdown	manual:clock-budget-neighbors.tsv	high	vtable 00AB1EE0 slot 4
 006cfd70	cSC4NeighborsSimulator::MarkDealsDirty	auto:C	low	mac 00606e18 score 1.0 support 1
+006cfdc0	cSC4NeighborsSimulator::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB1EB8 slot 4
 006cff00	cSC4NeighborsSimulator::GetAllConnections	auto:C	high	mac 0004cbee score 1.0 support 1
 006cff30	cSC4NeighborsSimulator::GetConnectionsOfType	auto:C	high	mac 0005240c score 1.0 support 1
 006d0010	cSC4NeighborsSimulator::GetConnectionsOfTypeToCity	auto:C	high	mac 00052490 score 1.0 support 1
 006d0100	cSC4NeighborsSimulator::GetConnectionsToCity	auto:C	high	mac 00052522 score 1.0 support 1
 006d01e0	cSC4NeighborsSimulator::GetAdjacentCities	auto:C	high	mac 0004eb00 score 1.0 support 1
-006d0520	cSC4NeighborsSimulator::create_deal_proposition	auto:A	high	mac 0004fbee score 0.632 support 0
+006d0520	cSC4NeighborsSimulator::create_deal_proposition	manual:clock-budget-neighbors.tsv	high	reads 0xAA46934B (only user)
 006d0760	cSC4NeighborsSimulator::FindDeals	auto:C	high	mac 0004ff78 score 1.0 support 1
 006d0840	cSC4NeighborsSimulator::FindDeals	auto:C	high	mac 0004fee6 score 1.0 support 1
 006d09d0	cSC4NeighborsSimulator::~cSC4NeighborsSimulator	auto:C	high	mac 0005180c score 1.0 support 1
+006d0a40	cSC4NeighborsSimulator::update_deals_in_regional_cities	manual:clock-budget-neighbors.tsv	high	calls regional city vt+0x11C UpdateImportExport; called from DoMessage
 006d0be0	cSC4NeighborsSimulator::DoTerrainChanged	auto:B1	medium	mac 0004c9cc score 0.968 support 2.5
-006d0e50	cSC4NeighborsSimulator::simulate_deals	auto:A	high	mac 0004f0f0 score 0.709 support 0
+006d0e50	cSC4NeighborsSimulator::simulate_deals	manual:clock-budget-neighbors.tsv	high	reads 0x6B588FAD/0x8B58C59E; called from DoMessage
 006d15e0	cSC4NeighborsSimulator::RequestCreateConnection	auto:A	high	mac 0004ce32 score 0.818 support 0
 006d17b0	cSC4NeighborsSimulator::DeleteConnection	auto:A	high	mac 0005211c score 0.543 support 0
 006d19f0	cSC4NeighborsSimulator::DeleteAllConnectionsOfType	auto:C	high	mac 0005239a score 1.0 support 1
 006d1ab0	cSC4NeighborsSimulator::GetAllConnectedCities	auto:C	high	mac 0004ed82 score 1.0 support 1
 006d1e00	cSC4NeighborsSimulator::GetConnectedCities	auto:C	high	mac 0004ef8e score 1.0 support 1
-006d1fc0	cSC4NeighborsSimulator::FindConnectionSuitableForDeal	auto:C	high	mac 00051a5a score 1.0 support 1
-006d21a0	cSC4NeighborsSimulator::ProposeDeals	auto:A	high	mac 00050ae4 score 0.787 support 0
+006d1fc0	cSC4NeighborsSimulator::FindConnectionSuitableForDeal	manual:clock-budget-neighbors.tsv	high	vtable slot 23
+006d21a0	cSC4NeighborsSimulator::ProposeDeals	manual:clock-budget-neighbors.tsv	high	vtable slot 25; reads 0xEA4AE9EF
 006d2870	cSC4NeighborsSimulator::AddDeal	auto:C	high	mac 0004fe52 score 1.0 support 1
-006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	auto:A	high	mac 0004e0c8 score 0.853 support 0
-006d3250	cSC4NeighborsSimulator::GetDealCost	auto:A	high	mac 00050692 score 0.74 support 0
-006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	auto:A	high	mac 00050370 score 0.662 support 0
-006d38f0	cSC4NeighborsSimulator::Init	auto:B1	medium	mac 00050fea score 0.944 support 8.5
-006d42b0	cSC4NeighborsSimulator::DoMessage	auto:B0	medium	mac 0004fffc score 0.894 support 6.0
+006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	manual:clock-budget-neighbors.tsv	high	vtable slot 34; reloads curve 0x4B61FFC9 into this+0x2C at 006D3117
+006d3250	cSC4NeighborsSimulator::GetDealCost	manual:clock-budget-neighbors.tsv	high	vtable slot 35; reads 0x6A469342; curve at this+0x2C
+006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	manual:clock-budget-neighbors.tsv	high	vtable slot 36
+006d38f0	cSC4NeighborsSimulator::Init	manual:clock-budget-neighbors.tsv	high	cISC4NeighborsSimulator vtable 00AB1EE0 slot 3; loads exemplar 6A469021 / curve 0x0A469353
+006d42b0	cSC4NeighborsSimulator::DoMessage	manual:clock-budget-neighbors.tsv	high	cIGZMessageTarget2 vtable 00AB1ED0 slot 3; calls simulate_deals 006D0E50
 006d4640	cSC4NeighborsSimulator::DeleteConnection	auto:C	high	mac 00052352 score 1.0 support 1
 006d4670	cSC4NeighborsSimulator::FindDealsAll	auto:C	high	mac 0004f0d2 score 1.0 support 1
 006d4680	cSC4NeighborConnection::cSC4NeighborConnection	auto:B5	medium	mac 0004d2e2 score 0.945 support 2.0
@@ -7215,7 +7228,7 @@ va	name	source	confidence	note
 00724c50	cSC4WaterPathFinder::MakeFinishedPath	manual:traffic.tsv	high	called twice at the end of water FindPath (as on Mac)
 00725170	cSC4WaterPathFinder::FindPath	manual:traffic.tsv	high	only callee of GetWaterRoute 0070EC10; also called by RouteAndLinkTerminals/RouteTerminalToNeighbor (same 3 callers as Mac)
 00725490	cSC4WaterPathFinder::Init	auto:B6	medium	mac 004d4126 score 0.998 support 5.5
-007255b0	cSC4WeatherSimulator::GetGZCLSID	auto:C	low	mac 0062e90a score 1.0 support 1
+007255b0	cSC4WeatherSimulator::GetGZCLSID	manual:clock-budget-neighbors.tsv	high	returns 0x2990C1BC; serializable vtable 00AB35D4 slot 5
 007255c0	cSC4WeatherSimulator::PositionToCell	auto:C	high	mac 000a7f7e score 1.0 support 1
 007255f0	cSC4WeatherSimulator::CellToPosition	auto:C	high	mac 000a7fac score 1.0 support 1
 00725610	cSC4WeatherSimulator::CellToStandardCityCell	auto:C	high	mac 000a7fd6 score 1.0 support 1
@@ -7228,12 +7241,12 @@ va	name	source	confidence	note
 00725710	cSC4WeatherSimulator::GetWindAtCell	auto:C	high	mac 000a8108 score 1.0 support 1
 00725720	cSC4WeatherSimulator::QueryInterface	auto:C	high	mac 000a8234 score 1.0 support 2
 007257c0	std::vector<cSC4Watercraft::TravelPoint,std::allocator<cSC4Watercraft::TravelPoint>>::clear	auto:B8	medium	mac 00746f8c score 0.831 support 3.0
-00725940	cSC4WeatherSimulator::Shutdown	auto:C	high	mac 000a8840 score 1.0 support 1
+00725940	cSC4WeatherSimulator::Shutdown	manual:clock-budget-neighbors.tsv	high	primary vtable 00AB3610 slot 4
 00725a00	cSC4WeatherSimulator::GetAmbientWind	auto:C	high	mac 000a8484 score 1.0 support 1
 00725a40	cSC4WeatherSimulator::Release	auto:C	high	mac 000a820e score 1.0 support 2
 00725a70	cSC4WeatherSimulator::PostMessageServerMessage	auto:B0	medium	mac 000a8126 score 0.954 support 2.0
-00725af0	cSC4WeatherSimulator::ReadSimulatorTunableValues	auto:A	high	mac 000a84c6 score 0.941 support 0
-00725e80	cSC4WeatherSimulator::Write	auto:C	high	mac 000ab29a score 1.0 support 1
+00725af0	cSC4WeatherSimulator::ReadSimulatorTunableValues	manual:clock-budget-neighbors.tsv	high	exemplar 1A2FDB6B; props 0xA7607D70..89
+00725e80	cSC4WeatherSimulator::Write	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB35D4 slot 3
 00726150	cSC4WeatherSimulator::GetMoistureValue	auto:C	high	mac 000a88d6 score 1.0 support 1
 00726250	cSC4WeatherSimulator::SetManualMoistureAddition	auto:C	high	mac 000a8f94 score 1.0 support 1
 00726360	cSC4WeatherSimulator::WriteTemperatureValue	auto:D	medium	mac 000a83ca score 0.5 support 1
@@ -7243,16 +7256,16 @@ va	name	source	confidence	note
 00727f90	cSC4WeatherSimulator::UpdateMoisture	auto:B0	medium	mac 000aa3d4 score 0.966 support 1.0
 00728220	cSC4WeatherSimulator::RemoveWaterThatIsNotAtCityEdge	auto:D	medium	mac 000aade2 score 0.5 support 1
 007283d0	MakeWaterAreaList	auto:D	medium	mac 000aa914 score 0.5 support 1
-00728a40	cSC4WeatherSimulator::DoWeeklySimulation	auto:A	high	mac 000aa44c score 1.0 support 0
+00728a40	cSC4WeatherSimulator::DoWeeklySimulation	manual:clock-budget-neighbors.tsv	high	posts 0x6716A4E6; called from DoMessage
 00728c40	cSC4WeatherSimulator::cSC4WeatherSimulator	auto:A	high	mac 000aa610 score 0.505 support 0
-00728f40	cSC4WeatherSimulator::Read	auto:B4	medium	mac 000ab69a score 0.955 support 1.0
+00728f40	cSC4WeatherSimulator::Read	manual:clock-budget-neighbors.tsv	high	serializable vtable 00AB35D4 slot 4
 00729310	GZCOM_CreatecSC4WeatherSimulator	auto:B0	medium	mac 000aa8d6 score 0.919 support 1.0
 00729330	cSC4WeatherSimulator::~cSC4WeatherSimulator	auto:C	high	mac 000aa510 score 1.0 support 1
 00729350	cSC4WeatherSimulator::GetNewCurrentAmbientValues	auto:B0	medium	mac 000a8b24 score 0.915 support 2.0
-00729630	cSC4WeatherSimulator::DoMonthlySimulation	auto:A	high	mac 000aaeaa score 1.0 support 0
+00729630	cSC4WeatherSimulator::DoMonthlySimulation	manual:clock-budget-neighbors.tsv	high	posts 0x6716A4E5; called from DoMessage
 007296f0	cSC4WeatherSimulator::DoCompleteSimulation	auto:B0	medium	mac 000ab02e score 0.905 support 2.0
-00729720	cSC4WeatherSimulator::DoMessage	auto:B0	medium	mac 000ab09a score 0.987 support 4.0
-00729900	cSC4WeatherSimulator::Init	auto:B0	medium	mac 000abb76 score 0.938 support 2.5
+00729720	cSC4WeatherSimulator::DoMessage	manual:clock-budget-neighbors.tsv	high	cIGZMessageTarget2 vtable 00AB35EC slot 3; handles 0x66956814/15/16, 0x26D31EC1
+00729900	cSC4WeatherSimulator::Init	manual:clock-budget-neighbors.tsv	high	primary vtable 00AB3610 slot 3; AddAgent levels 6/5/4
 00729eb0	cSC4ZoneDeveloper::GetGZCLSID	manual:development.tsv	high	returns 0x498F9B01 (class_vtables.py)
 00729ef0	cSC4ZoneDeveloper::QueryInterface	auto:A	high	mac 000daaa8 score 0.596 support 0
 0072a030	cSC4ZoneDeveloper::IsCellWater	manual:development.tsv	high	slot 9
@@ -15769,4 +15782,5 @@ va	name	source	confidence	note
 00a7947a	__static_initialization_and_destruction_0	auto:A	high	mac 00a8f768 score 0.5 support 0
 00a7c140	___tcf_1	auto:B1	medium	mac 00122ff2 score 0.974 support 1.0
 00a7f220	___tcf_3	auto:B2	medium	mac 0045b2e6 score 0.9 support 1.0
+00ab0840	kTaxTypeByPurposeAndWealth	manual:clock-budget-neighbors.tsv	high	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax
 00ab3480	cSC4TrafficSimulator::WorkOnSimCycle::kNextState (data, uint32[20])	manual:traffic.tsv	high	indexed by state in WorkOnSimCycle (mov edi,[edx*4+0xAB3480])

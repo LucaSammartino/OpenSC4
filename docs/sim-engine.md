@@ -118,12 +118,21 @@ traffic routing, get spread across frames.
 | GrowthDeveloper, PropDeveloper | | ✓ | | | | ✓ | 2 |
 | STESurfaceWater | | ✓ | | | | | 2 |
 
+### Object layout (Windows)
+
+The verified Windows field offsets are in [`re/fields_windows.tsv`](../re/fields_windows.tsv). Key fields: real-time
+timers at `+0x48`, `+0x60` and `+0x198`; the step granularity at `+0x7C`; minute and hour counters at `+0xB8` and
+`+0xBC`; the sim date `cGZDate` at **`+0xE8`** (its `cIGZDate` interface vtable is at `+0xF0`, which is why code
+calls through `this+0xF0`); the message server at `+0xF8`. Interface methods such as `OnTick` (cIGZSystemService)
+and `DoMessage` receive an adjusted `this`, so offsets inside them are shifted (`OnTick` +8). Mac/GCC offsets
+differ throughout.
+
 ### Frame loop: `OnTick` `0x703E70` [Mac `0016928e`]
 
 ```text
 calibrate cycle timer; dt = frameTimer.elapsed(); frameTimer.restart()
 target = paused ? 33 ms : 1000 / ticksPerSecond            // ticksPerSecond is a member
-budget = max(15, target - dt)                               // this+0x70
+budget = max(15, target - dt)                               // object+0x78 (OnTick receives this+8, so its own code says +0x70)
 if (simEnabled && !reentrant):
     sliceTimer.restart()
     do:

@@ -78,6 +78,30 @@ def main():
         for a in sorted(names):
             n, s, c, note = names[a]
             fh.write(f"{a:08x}\t{n}\t{s}\t{c}\t{note.replace(chr(9), ' ')}\n")
+    # Data labels: paired vtables, plus hand-verified addresses that are not function entries.
+    labels = {}
+    for r in rows(os.path.join(ROOT, "re", "symport", "vtable_pairs.tsv")):
+        if r["class"].startswith("__ZTV"):
+            continue
+        sub = int(r["sub"])
+        labels[int(r["win_vtable"], 16)] = (f"{r['class']}::vftable" + (f"_{sub}" if sub else ""),
+                                            int(r["win_slots"]), f"paired with Mac {r['mac_vtable']}#{sub}, "
+                                            f"{r['votes']} agreeing slots")
+    for p in manual:
+        for r in rows(p):
+            try:
+                a = int(r["va"], 16)
+            except (ValueError, KeyError, TypeError):
+                continue
+            if a not in win and r.get("name"):
+                labels.setdefault(a, (r["name"].split(" (")[0].strip(), 0, r.get("evidence") or ""))
+    with open(os.path.join(ROOT, "re", "labels_windows.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("va\tname\tslots\tnote\n")
+        for a in sorted(labels):
+            n, k, note = labels[a]
+            fh.write(f"{a:08x}\t{n}\t{k}\t{note.replace(chr(9), ' ')}\n")
+    print(f"data labels: {len(labels)}")
+
     by = collections.Counter(v[1].split(":")[0] for v in names.values())
     conf = collections.Counter(v[2] for v in names.values())
     total = sum(1 for f in win.values() if not f["thunk"])

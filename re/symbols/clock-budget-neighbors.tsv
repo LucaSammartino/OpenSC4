@@ -39,3 +39,59 @@ va	name	evidence	mac_x86
 004454b0	cSC424HourClock::PostMessageServerMessage	posts 0x44778230..35	00122002
 00445750	cSC424HourClock::DoHourChanged	posts 0x44778230 then 0x44778231	001220d2
 00445680	cSC424HourClock::ChangeVisualTime	posts 0x44778232/33/34	00122182
+00694240	cSC4BudgetSimulator::GetGZCLSID	returns 0xE990BE01; serializable vtable 00AB08E0 slot 5	0069e10e
+00692ff0	cSC4BudgetSimulator::Init	cISC4BudgetSimulator vtable 00AB0908 slot 3; AddAgent levels 0/6/4; cheat strings RiskyMoney/WeaknessPays/Moolah	0018ff94
+00690cb0	cSC4BudgetSimulator::Shutdown	vtable 00AB0908 slot 4; unsubscribes 0x29222F02	0018eb3c
+00693450	cSC4BudgetSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB08F8 slot 3; dispatches 0x66956810/14/16, 0x26D31EC4, 0x29222F02, cheats	0019071e
+006900f0	cSC4BudgetSimulator::DoDailySimulation	called from DoMessage on 0x66956814; 12x history 0xAABAAA9F+i <- rate*10	0018d664
+00692510	cSC4BudgetSimulator::DoMonthlySimulation	called on 0x66956816; posts 0xAA5CF1E3/0xCA3FBDCE; history 0x6A51178B	0018ed64
+00691e20	cSC4BudgetSimulator::ComputeTax	reads 0xE91A0B5F; table kTaxTypeByPurposeAndWealth at 00AB0840; called by DoMonthlySimulation	0018e626
+00692210	cSC4BudgetSimulator::ReadSimulatorTunableValues	exemplar 0BFF6824; props 0x6A9C7718, 0xEBFF69E7, 0x8A3FB98D, 0x4AC519B8...	0018f898
+0068fe10	cSC4BudgetSimulator::PostFundsChangedMessage	posts 0x0772FAD4; called on SimBegin	0018cd66
+00690450	cSC4BudgetSimulator::ResetFundsToStartingLevel	funds=shadow=InitialFunds[difficulty]; called on 0x26D31EC4	0018d608
+00690490	cSC4BudgetSimulator::ResetTaxRatesToDefault	12 groups rate=InitialTaxRate[difficulty]; called on 0x26D31EC4	0018d590
+006916f0	cSC4BudgetSimulator::IssueBond	vtable slot 40; posts 0xC772FADA	0018de54
+006937b0	cSC4BudgetSimulator::GetBudgetItemInfo	vtable slot 50; reads 0xEA54D283..87	0018fcb2
+00690530	cSC4BudgetSimulator::Write	serializable vtable 00AB08E0 slot 3; version 5	00190a50
+00694b00	cSC4BudgetSimulator::Read	serializable vtable 00AB08E0 slot 4; version < 5 handling	00190faa
+00ab0840	kTaxTypeByPurposeAndWealth	s16[9][4] data table indexed purpose*4+wealth; read by ComputeTax	
+006a96b0	cSC4DepartmentBudget::GetGZCLSID	returns 0xE990BFFC; serializable vtable 00AB0E94 slot 5	006a8a74
+006a9d70	cSC4DepartmentBudget::Write	serializable vtable 00AB0E94 slot 3; version 10	001acbbc
+006ac1d0	cSC4DepartmentBudget::Read	serializable vtable 00AB0E94 slot 4	001ad0f2
+006a9ef0	cSC4DepartmentBudget::GetIdealMonthlyFunding	vtable 00AB0EB0 slot 14; sums lineItem vt+0x28 (full expenses)	001ab99a
+006a9f60	cSC4DepartmentBudget::GetTotalExpenses	slot 15; sums lineItem vt+0x2C (current expenses); called by DoMonthlySimulation vt+0x3C	001ab9e0
+006a9fd0	cSC4DepartmentBudget::GetTotalIncome	slot 16; sums lineItem vt+0x38	001ab5de
+006abb50	cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses	slot 29; called by DoMonthlySimulation vt+0x74	001ac42c
+006a9770	cSC4DepartmentBudget::SetTotalSpending	slot 31; stores s64; called by DoMonthlySimulation vt+0x7C	001ab3e2
+006a97c0	cSC4LineItem::GetGZCLSID	returns 0xAA313C9F; serializable vtable 00AB0F3C slot 5	006a8abc
+006a9aa0	cSC4LineItem::Write	serializable vtable 00AB0F3C slot 3; version 4, field order matches Mac	001acd36
+006a9b60	cSC4LineItem::Read	serializable vtable 00AB0F3C slot 4	001aca96
+006cdef0	cSC4NeighborsSimulator::GetGZCLSID	returns 0xC990C0A4; serializable vtable 00AB1EB8 slot 5	00606e0e
+006cfb60	cSC4NeighborsSimulator::Write	serializable vtable 00AB1EB8 slot 3	0004cdcc
+006cfdc0	cSC4NeighborsSimulator::Read	serializable vtable 00AB1EB8 slot 4	00051c0a
+006d38f0	cSC4NeighborsSimulator::Init	cISC4NeighborsSimulator vtable 00AB1EE0 slot 3; loads exemplar 6A469021 / curve 0x0A469353	00050fea
+006cfbc0	cSC4NeighborsSimulator::Shutdown	vtable 00AB1EE0 slot 4	00050226
+006d42b0	cSC4NeighborsSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB1ED0 slot 3; calls simulate_deals 006D0E50	0004fffc
+006d0e50	cSC4NeighborsSimulator::simulate_deals	reads 0x6B588FAD/0x8B58C59E; called from DoMessage	0004f0f0
+006d0a40	cSC4NeighborsSimulator::update_deals_in_regional_cities	calls regional city vt+0x11C UpdateImportExport; called from DoMessage	0004dfac
+006d0520	cSC4NeighborsSimulator::create_deal_proposition	reads 0xAA46934B (only user)	0004fbee
+006d21a0	cSC4NeighborsSimulator::ProposeDeals	vtable slot 25; reads 0xEA4AE9EF	00050ae4
+006d1fc0	cSC4NeighborsSimulator::FindConnectionSuitableForDeal	vtable slot 23	00051a5a
+006cf860	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealIncome	vtable slot 32	0004c89e
+006cf8d0	cSC4NeighborsSimulator::GetTotalMonthlyNeighborDealExpense	vtable slot 33	0004c562
+006d2a20	cSC4NeighborsSimulator::UpdateCommodityStats	vtable slot 34; reloads curve 0x4B61FFC9 into this+0x2C at 006D3117	0004e0c8
+006d3250	cSC4NeighborsSimulator::GetDealCost	vtable slot 35; reads 0x6A469342; curve at this+0x2C	00050692
+006d3620	cSC4NeighborsSimulator::GetDealMaxAmount	vtable slot 36	00050370
+006ce080	cSC4NeighborDeal::GetGZCLSID	returns 0x2A134F42; serializable vtable 00AB1DBC slot 5	00606f2e
+006ce400	cSC4NeighborDeal::Write	serializable vtable 00AB1DBC slot 3; version 5	0004d968
+006ce4e0	cSC4NeighborDeal::Read	serializable vtable 00AB1DBC slot 4	0004d750
+006cdff0	cSC4NeighborConnection::GetGZCLSID	returns 0x0A134F24	00606e2e
+007255b0	cSC4WeatherSimulator::GetGZCLSID	returns 0x2990C1BC; serializable vtable 00AB35D4 slot 5	0062e90a
+00725e80	cSC4WeatherSimulator::Write	serializable vtable 00AB35D4 slot 3	000ab29a
+00728f40	cSC4WeatherSimulator::Read	serializable vtable 00AB35D4 slot 4	000ab69a
+00729900	cSC4WeatherSimulator::Init	primary vtable 00AB3610 slot 3; AddAgent levels 6/5/4	000abb76
+00725940	cSC4WeatherSimulator::Shutdown	primary vtable 00AB3610 slot 4	000a8840
+00729720	cSC4WeatherSimulator::DoMessage	cIGZMessageTarget2 vtable 00AB35EC slot 3; handles 0x66956814/15/16, 0x26D31EC1	000ab09a
+00725af0	cSC4WeatherSimulator::ReadSimulatorTunableValues	exemplar 1A2FDB6B; props 0xA7607D70..89	000a84c6
+00728a40	cSC4WeatherSimulator::DoWeeklySimulation	posts 0x6716A4E6; called from DoMessage	000aa44c
+00729630	cSC4WeatherSimulator::DoMonthlySimulation	posts 0x6716A4E5; called from DoMessage	000aaeaa

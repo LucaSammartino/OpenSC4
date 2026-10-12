@@ -21,8 +21,11 @@ try {
     $env:MAXMEM = "12G"
     & $ghidra ghidra\project FreeCity4 -process "SimCity 4.exe" -noanalysis -scriptPath ghidra\scripts `
         -postScript FC4ApplyNames.java (Resolve-Path re\names_windows.tsv) "$gdt\SimCity4.gdt" "$gdt\Lua5.0.gdt" `
-        "$gdt\Gimex.gdt" "$gdt\DirectX7.gdt" *> ghidra\logs\apply.log
-    Select-String ghidra\logs\apply.log -Pattern "renamed=" | ForEach-Object { $_.Line }
+        "$gdt\Gimex.gdt" "$gdt\DirectX7.gdt" `
+        -postScript FC4ApplyLabels.java (Resolve-Path re\labels_windows.tsv) `
+        -postScript FC4FillStructs.java `
+        -postScript FC4FieldNames.java (Resolve-Path re\fields_windows.tsv) *> ghidra\logs\apply.log
+    Select-String ghidra\logs\apply.log -Pattern "renamed=|labels=|classes=|fieldsRenamed=" | ForEach-Object { $_.Line }
 
     if (-not $SkipExport) {
         if (Test-Path decomp) { Remove-Item -Recurse -Force decomp }

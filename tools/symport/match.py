@@ -151,6 +151,7 @@ def win_thunk_targets(win_addrs):
 
 
 PURECALL = 0x005D4A10
+VT_PAIRS = {}  # win vtable start -> (mac ZTV name#sub, votes, win len, mac len)
 FOLDED = {}  # win addr -> distinct Mac names proposed by different vtables (identical-code folding)
 
 
@@ -181,6 +182,7 @@ def stage_c(win, mac, matched, vt, thunks):
         if v1 <= v2 or v1 < 0.6 * known:
             continue
         paired += 1
+        VT_PAIRS[s] = (mvt[k1][0], v1, len(slots), len(msl))
         for i, w in enumerate(slots[:len(msl)]):
             name, b = msl[i]
             if b and name != "?" and w != PURECALL and w in win:
@@ -199,6 +201,25 @@ def stage_c(win, mac, matched, vt, thunks):
         added += 1
     print(f"  stage C: {paired} vtables paired, +{added} (total {len(matched)})")
     return added
+
+
+def demangle_ztv(z):
+    """__ZTV13cSC4Simulator -> cSC4Simulator; __ZTVN4nSC46cFooE -> nSC4::cFoo (simple cases only)."""
+    s = z[5:] if z.startswith("__ZTV") else z
+    nested = s.startswith("N")
+    if nested:
+        s = s[1:]
+    parts, i = [], 0
+    while i < len(s) and s[i].isdigit():
+        j = i
+        while j < len(s) and s[j].isdigit():
+            j += 1
+        n = int(s[i:j])
+        parts.append(s[j:j + n])
+        i = j + n
+        if not nested:
+            break
+    return "::".join(parts) if parts and i <= len(s) and (not nested or s[i:i + 1] == "E") else z
 
 
 def stage_d(win, mac, matched, max_gap=3):
@@ -267,6 +288,13 @@ def main():
         for a in sorted(FOLDED):
             fh.write(f"{a:08x}\t{len(FOLDED[a])}\t{' | '.join(FOLDED[a][:40])}\n")
     print(f"folded (ICF) functions: {len(FOLDED)}")
+    with open(os.path.join(OUT, "vtable_pairs.tsv"), "w", encoding="utf-8") as fh:
+        fh.write("win_vtable\tmac_vtable\tclass\tsub\tvotes\twin_slots\tmac_slots\n")
+        for s in sorted(VT_PAIRS):
+            z, v, lw, lm = VT_PAIRS[s]
+            name, sub = z.split("#")
+            fh.write(f"{s:08x}\t{name}\t{demangle_ztv(name)}\t{sub}\t{v}\t{lw}\t{lm}\n")
+    print(f"vtable pairs: {len(VT_PAIRS)}")
     # validation against hand-verified mappings
     truth = {}
     for path in [os.path.join(ROOT, "re", "symbols_windows.tsv")] + [
