@@ -38,6 +38,11 @@ struct DeptData {
     total_spending: i64,
     fixed: bool,
     lines: BTreeMap<u32, Rc<LineItem>>,
+    /// Line items read from a save but not yet keyed: their records may be
+    /// read after this department's (references are created before they are
+    /// loaded), so the key - the line's own ID (§11.2) - is taken on first use.
+    /// Each holds one host reference.
+    pending_lines: Vec<Rc<LineItem>>,
     /// Locally funded objects (property holder token, purpose), [choice] in
     /// insertion order (§7.1). Each holds one host reference.
     locals: Vec<(u64, u32)>,
@@ -57,6 +62,7 @@ impl Default for DeptData {
             total_spending: 0,
             fixed: false,
             lines: BTreeMap::new(),
+            pending_lines: Vec::new(),
             locals: Vec::new(),
         }
     }
@@ -125,7 +131,20 @@ impl Department {
         self.d.borrow_mut().id = id;
     }
 
+    /// Keys the line items read from a save by their IDs (see `pending_lines`).
+    /// A later line with the same ID replaces an earlier one, as at read time.
+    fn settle_lines(&self) {
+        let pending = std::mem::take(&mut self.d.borrow_mut().pending_lines);
+        for l in pending {
+            let old = self.d.borrow_mut().lines.insert(l.id(), l);
+            if let Some(old) = old {
+                self.host.release(old.token());
+            }
+        }
+    }
+
     fn lines_snapshot(&self) -> Vec<Rc<LineItem>> {
+        self.settle_lines();
         self.d.borrow().lines.values().cloned().collect()
     }
 
@@ -251,6 +270,7 @@ impl Department {
         };
         line.init(id, is_local);
         line.set_owner(self.me().as_ref());
+        self.settle_lines();
         let old = self.d.borrow_mut().lines.insert(id, line.clone());
         if let Some(old) = old {
             old.set_owner(None);
@@ -267,6 +287,7 @@ impl Department {
     }
 
     pub fn remove_line_item(&self, id: u32) -> bool {
+        self.settle_lines();
         let removed = self.d.borrow_mut().lines.remove(&id);
         match removed {
             Some(line) => {
@@ -279,6 +300,7 @@ impl Department {
     }
 
     pub fn line_item(&self, id: u32) -> Option<Rc<LineItem>> {
+        self.settle_lines();
         self.d.borrow().lines.get(&id).cloned()
     }
 
@@ -631,6 +653,7 @@ impl Department {
 
     /// Releases every line item and locally funded object (budget shutdown).
     pub(crate) fn release_all(&self) {
+        self.settle_lines();
         let (lines, locals) = {
             let mut d = self.d.borrow_mut();
             (std::mem::take(&mut d.lines), std::mem::take(&mut d.locals))
@@ -651,6 +674,9 @@ impl Drop for Department {
         for (_, l) in std::mem::take(&mut d.lines) {
             self.host.release(l.token());
         }
+        for l in std::mem::take(&mut d.pending_lines) {
+            self.host.release(l.token());
+        }
         for (h, _) in std::mem::take(&mut d.locals) {
             self.host.release(h);
         }
@@ -663,6 +689,7 @@ impl SaveObject for Department {
     }
 
     fn write(&self, out: &mut dyn OutStream) -> bool {
+        self.settle_lines();
         let d = self.d.borrow().clone();
         out.put_u16(DEPARTMENT_RECORD_VERSION);
         out.put_bool(d.initialized);
@@ -759,12 +786,11 @@ impl SaveObject for Department {
         self.release_all();
         let me = self.me();
         for l in lines {
-            // Keyed by the line item's own ID (§11.2); the map holds a reference.
+            // Keyed by the line item's own ID (§11.2) on first use; the
+            // department holds a reference from now on.
             self.host.add_ref(l.token());
             l.set_owner(me.as_ref());
-            if let Some(old) = d.lines.insert(l.id(), l) {
-                self.host.release(old.token());
-            }
+            d.pending_lines.push(l);
         }
         d.locals = locals;
         *self.d.borrow_mut() = d;
