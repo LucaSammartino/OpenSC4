@@ -40,12 +40,9 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - Labels: §1, §14.3 and §16 tests 1–2 still use the labels the M3
-//!   erratum of §6.2 corrected (prop and flora swapped). The code follows the
-//!   type IDs: prop `0xA823821E` gets the abandonment multiplier with
-//!   buildings, flora `0x74758926` does not; the tract priority is
-//!   building, then prop, then flora. The vectors are written with type IDs
-//!   and keep the numbers of §16.
+//! - Occupant types (§1, §6.1, §6.2): buildings `0x278128A0` and props
+//!   `0xA823821E` get the abandonment multiplier, flora `0x74758926` never
+//!   does (no lot lookup); the tract priority is building > prop > flora.
 //! - Arithmetic follows foundations §18 (24-bit x87 precision, [compat]):
 //!   a product of an integer and a `float32` multiplier is the exact product
 //!   rounded once to `float32`, then `roundHE` rounds that to an integer,
@@ -54,13 +51,19 @@
 //!   Results are clamped
 //!   to 0..255 with NaN reading as 0, also in the daily refresh, which has no
 //!   lower clamp in the original (§14.6).
-//! - The occupant property `0x29244DB5` is read as the integer value of its
-//!   first element (floats truncated toward zero); a missing or empty
-//!   property reads as 0 (§6.1).
+//! - The occupant property `0x29244DB5` is read with the `GetValSint32`
+//!   table of §6.1 ([`sint32_of_elem`]): e.g. `Uint32` 0xFFFFFFFF is −1,
+//!   floats truncate through `_ftol` (low 32 bits). The spec's [choice]: an
+//!   array reads its first element with the scalar rule (an empty array is
+//!   0), any other value (empty, object) is 0, and so is a missing property.
 //! - City cell counts are clamped to `0 ..= MAX_TRACTS` (4096).
-//! - Missing services: a missing ordinance simulator reads as factor 1.0, a
-//!   missing weather simulator as "not summer"; the plumbing, zone manager,
-//!   lot manager and tutorial answers are the host's. A missing fire manager
+//! - Missing services (§4.1 step 5, §6.4, §6.5; the original crashes): a
+//!   missing ordinance simulator reads as factor 1.0, a missing weather
+//!   simulator as "not summer", a missing plumbing simulator as "not
+//!   watered" for every cell (the no-water multiplier applies), a missing
+//!   zone manager as "unzoned" for every tract (zoned sum and count stay 0,
+//!   the average is 0); the lot manager and tutorial answers are the
+//!   host's. A missing fire manager
 //!   (disaster layer, manager or interface) skips the ignition and
 //!   `SetCause` (§6.8, the spec's own [choice]).
 //! - Occupant messages whose void1 is null are ignored (the original would
@@ -71,22 +74,27 @@
 //!   dropped at `Init` (`Shutdown` through the host, then released) and a new
 //!   one is created (§14.4: FreeCity4 supports only S = 1). A reference that
 //!   fails to read or does not resolve to a `u8` grid leaves its slot empty.
-//! - The hotspot fire curve `0x29B4013D` ("delete" pattern, foundations
-//!   §4.1): a property with no points (fewer than two numeric values, or not
-//!   numeric) counts as absent, like the other curve users of the core
-//!   ([`ResponseCurve::from_flat`]).
+//! - The hotspot fire curve `0x29B4013D` ("delete" pattern, §8): a property
+//!   with fewer than two values (a scalar, a one-element or an empty array)
+//!   or a non-numeric one counts as absent (§6.8, §8: the original builds a
+//!   curve with no points and crashes when it evaluates it); two values make
+//!   a one-point, constant curve.
 //! - The hotspot settings `0x29B4013C` are read as `u32` and stored as `s32`
 //!   (wrapping), only when the property has exactly three values.
 //! - The daily loop runs while `n > 0` (a negative `tractsPerDay` cannot
 //!   occur) and stops after a second iterator wrap without a visit in
 //!   between, so a degenerate iterator cannot loop forever.
 //! - With no adjusted grid, a hotspot fire uses tract size 1 (§6.8).
-//! - `Read` appends the saved hotspots to the current list (the list is
-//!   empty on a fresh object, §10), sets each field as it is read, and
-//!   initialises the count to 0 (the spec's own [choice]). Reads of a grid
-//!   slot replace the previous grid without calling its `Shutdown`.
-//! - The exemplar-changed message `0xC53D10AA` (foundations §5.2) is not
-//!   handled: the spec does not subscribe it (spec question).
+//! - `Read` appends the saved hotspots to the current list (§10 [compat];
+//!   the list is empty on a fresh object), sets each field as it is read,
+//!   and initialises the count to 0 (the spec's own [choice]). A grid
+//!   reference is null-first (foundations §2.7): a reference that fails, or
+//!   does not resolve to a `u8` grid, leaves its slot empty, as does every
+//!   later one once the stream is in error; the previous grid is dropped
+//!   without its `Shutdown`.
+//! - Removal (§6.3): the tract recompute asks the host for the occupants
+//!   now listed; the host must already have unlinked the removed occupant
+//!   (the occupant manager does so before it posts RemoveOccupant).
 //! - Reference count: `Release` from a count ≤ 1 calls `Shutdown`, returns 0
 //!   and marks the object destroyed; the plugin then drops it (§4.3).
 //! - `GetFlammabilityHotspot` multiplies the tract coordinates by the tract
@@ -97,8 +105,8 @@ mod simulator;
 mod tests;
 
 pub use simulator::{
-    adjusted_value, compute_hotspots, daily_value, global_multiplier, occupant_raw_value, FlammabilityData,
-    FlammabilitySim, Hotspot, Tuning, FLAMMABILITY_RECORD_VERSION,
+    adjusted_value, compute_hotspots, daily_value, global_multiplier, occupant_raw_value, property_sint32,
+    sint32_of_elem, FlammabilityData, FlammabilitySim, Hotspot, Tuning, FLAMMABILITY_RECORD_VERSION,
 };
 
 use std::rc::Rc;
@@ -161,11 +169,13 @@ pub mod msg {
     pub const CONDITION_CHANGED: u32 = 0xE99B_3D4D;
     /// Posted at every `EndOfCycle`: void1 = IGZUnknown = the simulator.
     pub const SIM_CYCLE_COMPLETE: u32 = 0x08F4_15FE;
-    /// Foundations §5.2; not subscribed by this simulator.
+    /// Exemplar changed (foundations §5.2): neither subscribed nor handled
+    /// by this simulator (§5, [compat]); listed for hosts and tests only.
     pub const EXEMPLAR_CHANGED: u32 = 0xC53D_10AA;
 }
 
-/// The notifications `Init` subscribes, in order (§4.1 step 3).
+/// The notifications `Init` subscribes, in order (§4.1 step 3): exactly
+/// these six ([compat]; in particular not [`msg::EXEMPLAR_CHANGED`]).
 pub const NOTIFICATIONS: [u32; 6] = [
     msg::INSERT_OCCUPANT,
     msg::REMOVE_OCCUPANT,
@@ -285,10 +295,12 @@ pub trait FlammabilityHost: GridProvider<u8> {
     fn cumulative_factor(&self, prop: u32, index: u32) -> Option<f32>;
     /// `cISC4WeatherSimulator::GetCurrentSeason()`; `None` without one.
     fn current_season(&self) -> Option<i32>;
-    /// `cISC4PlumbingSimulator::IsCellWatered(x, z)`.
-    fn is_cell_watered(&self, x: i32, z: i32) -> bool;
-    /// `cISC4ZoneManager::GetZoneType(x, z)`.
-    fn zone_type(&self, x: i32, z: i32) -> u32;
+    /// `cISC4PlumbingSimulator::IsCellWatered(x, z)`; `None` without a
+    /// plumbing simulator (the simulator then reads "not watered", §4.1).
+    fn is_cell_watered(&self, x: i32, z: i32) -> Option<bool>;
+    /// `cISC4ZoneManager::GetZoneType(x, z)`; `None` without a zone manager
+    /// (the simulator then reads "unzoned", §4.1).
+    fn zone_type(&self, x: i32, z: i32) -> Option<u32>;
     /// `cISC4HistoryWarehouse::RecordHistoryData(type, value)`.
     fn record_history(&self, history_type: u32, value: i32);
 

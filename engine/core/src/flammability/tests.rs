@@ -160,12 +160,12 @@ impl FlammabilityHost for Fake {
     fn current_season(&self) -> Option<i32> {
         self.season.get()
     }
-    fn is_cell_watered(&self, x: i32, z: i32) -> bool {
-        !self.unwatered.borrow().contains(&(x, z))
+    fn is_cell_watered(&self, x: i32, z: i32) -> Option<bool> {
+        Some(!self.unwatered.borrow().contains(&(x, z)))
     }
-    fn zone_type(&self, x: i32, z: i32) -> u32 {
+    fn zone_type(&self, x: i32, z: i32) -> Option<u32> {
         *self.visits.borrow_mut().entry((x, z)).or_default() += 1;
-        u32::from(self.all_zoned.get() || self.zoned.borrow().contains(&(x, z)))
+        Some(u32::from(self.all_zoned.get() || self.zoned.borrow().contains(&(x, z))))
     }
     fn record_history(&self, t: u32, v: i32) {
         self.log(format!("history {t:08X} {v}"));
@@ -713,7 +713,7 @@ fn occupant_update() {
         "adjusted from the new occupant's v"
     );
     // Remove the building: a full recompute from the occupants the manager
-    // still lists (the building is no longer listed, §6.3 [inferred]).
+    // still lists (the building is no longer listed, §6.3).
     f.unlisted.borrow_mut().insert(1);
     ins(1, msg::REMOVE_OCCUPANT);
     assert_eq!((raw.get(2, 3), adj.get(2, 3)), (120, 114), "flora 120 still present");
@@ -983,4 +983,44 @@ fn hostile() {
     let mut b = vec![2u8, 0];
     b.extend([0xFF; 3]);
     assert!(!s.read(&mut ByteReader::new(&b)));
+}
+
+/// §6.1: `GetValSint32` per variant type.
+#[test]
+fn property_conversion() {
+    let s = |v: Variant| property_sint32(Some(&v));
+    let f32s = crate::variant::mem::FLOAT32;
+    assert_eq!(s(Variant::Scalar(Elem::U8(150))), 150);
+    assert_eq!(s(Variant::Scalar(Elem::U32(0xFFFF_FFFF))), -1);
+    assert_eq!(s(Variant::Scalar(Elem::I8(-3))), -3);
+    assert_eq!(s(Variant::Scalar(Elem::Char(200))), -56);
+    assert_eq!(s(Variant::Scalar(Elem::RzChar(0x80))), -128);
+    assert_eq!(s(Variant::Scalar(Elem::UnicodeChar(0xFFFF))), 0xFFFF);
+    assert_eq!(s(Variant::Scalar(Elem::U64((1 << 32) + 7))), 7);
+    assert_eq!(s(Variant::Scalar(Elem::I64(-1))), -1);
+    assert_eq!(s(Variant::Scalar(Elem::F32(150.9))), 150);
+    assert_eq!(s(Variant::Scalar(Elem::F32(-2.7))), -2);
+    assert_eq!(s(Variant::Scalar(Elem::F64(f64::NAN))), 0);
+    assert_eq!(s(Variant::Scalar(Elem::F64(1e10))), 1_410_065_408);
+    assert_eq!(s(Variant::Scalar(Elem::VoidPtr(5))), 0);
+    assert_eq!(s(Variant::array(f32s, vec![Elem::F32(99.75), Elem::F32(1.0)])), 99);
+    assert_eq!(s(Variant::array(f32s, vec![])), 0);
+    assert_eq!(s(Variant::Empty), 0);
+    assert_eq!(property_sint32(None), 0);
+}
+
+/// §8: a hotspot curve with fewer than two values is absent [choice].
+#[test]
+fn hotspot_curve_values() {
+    let read = |v: Variant| {
+        let mut h = PropertyHolder::new();
+        h.add(prop::HOTSPOT_FIRE_CURVE, v);
+        Tuning::read(Some(&h)).hotspot_fire_curve
+    };
+    let f = crate::variant::mem::FLOAT32;
+    assert!(read(Variant::Scalar(Elem::F32(12.0))).is_none());
+    assert!(read(Variant::array(f, vec![Elem::F32(12.0)])).is_none());
+    assert!(read(Variant::array(f, vec![])).is_none());
+    let c = read(Variant::array(f, vec![Elem::F32(0.0), Elem::F32(12.0)])).expect("one point");
+    assert_eq!((c.eval(-5.0), c.eval(1.0), c.eval(1e6)), (12.0, 12.0, 12.0));
 }

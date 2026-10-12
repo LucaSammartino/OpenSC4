@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "flammability_subscriptions",
+  "spec": ["flammability 4.1", "flammability 5", "flammability 14.10", "flammability 16.19", "foundations 5.2"],
+  "description": "Test 19 [compat]: Init subscribes exactly InsertOccupant 0x99EF1142, RemoveOccupant 0x99EF1143, ChangeOccupant 0x99EF1145, SeasonChange 0x6716A4E5, OrdinanceUpdated 0xC2C09554, ConditionChanged 0xE99B3D4D, in that order, and not the exemplar-changed message 0xC53D10AA. DoMessage of 0xC53D10AA (the core's message carries no group / instance: the original has no branch for it at all) returns true and changes nothing: after the tuning exemplar changes (random fire 9, abandonment 2.0) the simulator keeps 5 and 1.5 until Shutdown + Init re-reads the tuning. Hand-derived.",
+  "steps": [
+    {"op": "flam_call", "method": "notifications", "expect": ["0x99EF1142", "0x99EF1143", "0x99EF1145", "0x6716A4E5", "0xC2C09554", "0xE99B3D4D"]},
+    {"op": "flam_env", "cells": [8, 8]},
+    {"op": "flam_tuning", "shipped": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_tuning", "shipped": true, "props": {"0x29B4013E": {"f32": 9.0}, "0x29B40134": {"f32": 2.0}}},
+    {"op": "flam_clear_events"},
+    {"op": "flam_message", "type": "ExemplarChanged", "expect": true},
+    {"op": "flam_message", "type": "0xC53D10AA", "expect": true},
+    {"op": "flam_expect_events", "events": []},
+    {"op": "flam_expect", "state": {"random_fire_probability": 5, "abandonment_multiplier": 1.5, "has_curve": true}},
+    {"op": "flam_shutdown"},
+    {"op": "flam_init"},
+    {"op": "flam_expect", "state": {"random_fire_probability": 9, "abandonment_multiplier": 2}}
+  ]
+}

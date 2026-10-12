@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "flammability_property_conversion",
+  "spec": ["flammability 6.1", "flammability 16.16", "foundations 18.1"],
+  "description": "Test 16: p is the occupant property 0x29244DB5 through cIGZVariant::GetValSint32 (6.1 table), then clamp(roundHE(p * 1), 0, 255) for a building on no lot. Uint8 150 -> 150; Sint32 -5 -> 0 (clamp); Uint32 0xFFFFFFFF -> bit pattern -1 -> 0, 0x80000064 -> negative -> 0; Float32 150.9 -> 150; Float32 -2.7 -> -2 -> 0; Uint32 array [120, 7] -> 120; Float32 array [99.75] -> 99; empty array -> 0. Further rows of the table: Sint8 -1 -> 0; Sint16 300 -> 255; Uint64 2^32 + 100 -> low 32 bits 100; Float64 2^32 + 100 -> int64 truncation, low 32 bits 100; Float64 1e10 -> 10000000000, low 32 bits 1410065408 -> 255; Float64 1e19 (>= 2^63) -> 0x8000000000000000, low 32 bits 0 (foundations 18.1); Char 200 -> sign-extended -56 -> 0; Uint16 200 -> 200; Bool true -> 1. [choice] arrays read their first element with the scalar rule. Hand-derived from the table.",
+  "steps": [
+    {"op": "flam_env", "cells": [8, 8], "occupants": [{"id": 100, "type": "building", "flam": {"u8": 150}, "cell": [0, 0]}, {"id": 101, "type": "building", "flam": {"i32": -5}, "cell": [0, 0]}, {"id": 102, "type": "building", "flam": {"u32": 4294967295}, "cell": [0, 0]}, {"id": 103, "type": "building", "flam": {"u32": 2147483748}, "cell": [0, 0]}, {"id": 104, "type": "building", "flam": {"f32": 150.9}, "cell": [0, 0]}, {"id": 105, "type": "building", "flam": {"f32": -2.7}, "cell": [0, 0]}, {"id": 106, "type": "building", "flam": {"u32": [120, 7]}, "cell": [0, 0]}, {"id": 107, "type": "building", "flam": {"f32": [99.75]}, "cell": [0, 0]}, {"id": 108, "type": "building", "flam": {"f32": []}, "cell": [0, 0]}, {"id": 109, "type": "building", "flam": {"i8": -1}, "cell": [0, 0]}, {"id": 110, "type": "building", "flam": {"i16": 300}, "cell": [0, 0]}, {"id": 111, "type": "building", "flam": {"u64": 4294967396}, "cell": [0, 0]}, {"id": 112, "type": "building", "flam": {"f64": 4294967396.0}, "cell": [0, 0]}, {"id": 113, "type": "building", "flam": {"f64": 10000000000.0}, "cell": [0, 0]}, {"id": 114, "type": "building", "flam": {"f64": 1e+19}, "cell": [0, 0]}, {"id": 115, "type": "building", "flam": {"char": 200}, "cell": [0, 0]}, {"id": 116, "type": "building", "flam": {"u16": 200}, "cell": [0, 0]}, {"id": 117, "type": "building", "flam": {"bool": true}, "cell": [0, 0]}]},
+    {"op": "flam_tuning", "shipped": true},
+    {"op": "flam_create"},
+    {"op": "flam_init"},
+    {"op": "flam_call", "method": "occupant_raw", "args": [100], "expect": 150},
+    {"op": "flam_call", "method": "occupant_raw", "args": [101], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [102], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [103], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [104], "expect": 150},
+    {"op": "flam_call", "method": "occupant_raw", "args": [105], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [106], "expect": 120},
+    {"op": "flam_call", "method": "occupant_raw", "args": [107], "expect": 99},
+    {"op": "flam_call", "method": "occupant_raw", "args": [108], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [109], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [110], "expect": 255},
+    {"op": "flam_call", "method": "occupant_raw", "args": [111], "expect": 100},
+    {"op": "flam_call", "method": "occupant_raw", "args": [112], "expect": 100},
+    {"op": "flam_call", "method": "occupant_raw", "args": [113], "expect": 255},
+    {"op": "flam_call", "method": "occupant_raw", "args": [114], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [115], "expect": 0},
+    {"op": "flam_call", "method": "occupant_raw", "args": [116], "expect": 200},
+    {"op": "flam_call", "method": "occupant_raw", "args": [117], "expect": 1}
+  ]
+}
