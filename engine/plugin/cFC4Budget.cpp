@@ -13,8 +13,10 @@
 
 #include "cFC4Budget.h"
 
+#include "FC4Config.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 #include "FC4Properties.h"
 #include "FC4Streams.h"
 
@@ -190,14 +192,18 @@ bool cFC4BudgetSimulator::Init() {
     FC4_TRACE("BudgetSimulator::Init");
     if (core_ == nullptr) return false;
     if (fc4_budget_is_initialized(core_)) return true;
+    // City load: re-read FreeCity4.ini (bisection switches) and the audit settings.
+    fc4::ConfigReload("city load: budget Init");
+    fc4::RefAuditReload();
 
     // Step 5: the city (and through it the land-value and ordinance simulators).
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
     cISC4App* sc4 = nullptr;
     if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
+        FC4_ACQUIRED(sc4, "QueryInterface");
         city_ = sc4->GetCity();
-        sc4->Release();
+        FC4_RELEASE(sc4);
     }
     fc4::SetBudgetCity(city_);
 
@@ -206,10 +212,15 @@ bool cFC4BudgetSimulator::Init() {
     cIGZMessageServer2Ptr ms;
     if (ms) {
         msgServer_ = ms;
-        msgServer_->AddRef();
+        FC4_ADDREF(msgServer_);
         for (uint32_t id : kNotifications) msgServer_->AddNotification(static_cast<cIGZMessageTarget2*>(this), id);
     }
-    RegisterCheats();
+    if (fc4::On(fc4::Sw::Cheats)) {
+        RegisterCheats();
+    } else {
+        fc4::NoteSkipped(fc4::Sw::Cheats, "cheat manager registration");
+        fc4::Log("budget: cheats not registered: switch cheats is off");
+    }
 
     // Steps 1, 2, 7, 8 (core): tuning from the exemplar, new-city setup.
     fc4::props::Exemplar ex;
@@ -285,14 +296,18 @@ bool cFC4BudgetSimulator::Shutdown() {
     UnregisterCheats();
     if (msgServer_ != nullptr) {
         for (uint32_t id : kNotifications) msgServer_->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), id);
-        msgServer_->Release();
+        FC4_RELEASE(msgServer_);
         msgServer_ = nullptr;
     }
+    fc4::LogBudgetCoreRefs("before budget Shutdown");
     fc4_budget_shutdown(core_);  // shuts down and releases every department
     RegisterAgents(false);
     city_ = nullptr;
     fc4::SetBudgetCity(nullptr);
     fc4::Log("budget Shutdown");
+    fc4::LogBudgetCoreRefs("after budget Shutdown");
+    fc4::LogSkipCounts("budget Shutdown");
+    fc4::RefSummary("budget Shutdown");
     Release();
     return true;
 }
@@ -321,8 +336,10 @@ void cFC4BudgetSimulator::RegisterCheats() {
     cIGZApp* app = fw ? fw->Application() : nullptr;
     cISC4App* sc4 = nullptr;
     if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) return;
+    FC4_ACQUIRED(sc4, "QueryInterface");
     cIGZCheatCodeManager* cm = sc4->GetCheatCodeManager();
     if (cm != nullptr && cm->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cheatMgr_))) {
+        FC4_ACQUIRED(cheatMgr_, "QueryInterface");
         cheatMgr_->RegisterCheatCode(kCheatRiskyMoney, cRZBaseString("RiskyMoney"));
         cheatMgr_->RegisterCheatCode(kCheatWeaknessPays, cRZBaseString("WeaknessPays"));
         if (sc4->GetDebugFunctionalityEnabled()) {
@@ -331,7 +348,7 @@ void cFC4BudgetSimulator::RegisterCheats() {
         }
         cheatMgr_->AddNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     }
-    sc4->Release();
+    FC4_RELEASE(sc4);
 }
 
 void cFC4BudgetSimulator::UnregisterCheats() {
@@ -341,7 +358,7 @@ void cFC4BudgetSimulator::UnregisterCheats() {
     if (moolahRegistered_) cheatMgr_->UnregisterCheatCode(kCheatMoolah);
     moolahRegistered_ = false;
     cheatMgr_->RemoveNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
-    cheatMgr_->Release();
+    FC4_RELEASE(cheatMgr_);
     cheatMgr_ = nullptr;
 }
 
@@ -352,7 +369,9 @@ bool cFC4BudgetSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     const uint32_t type = pMessage->GetType();
     cIGZMessage2Standard* m = nullptr;
-    pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m));
+    if (pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m))) {
+        FC4_ACQUIRED(m, "QueryInterface");
+    }
     // data1 travels as a 32-bit slot; the panel IDs are unsigned (zero-extend).
     const int64_t data1 = m ? static_cast<int64_t>(static_cast<uint32_t>(m->GetData1())) : 0;
     bool result = true;
@@ -388,7 +407,7 @@ bool cFC4BudgetSimulator::DoMessage(cIGZMessage2* pMessage) {
         }
         // IdealMonthlyFundingChanged / FundingPercentageChanged: subscribed, ignored (§4.1 step 4).
     }
-    if (m != nullptr) m->Release();
+    if (m != nullptr) FC4_RELEASE(m);
     return result;
 }
 
@@ -477,21 +496,21 @@ int64_t cFC4BudgetSimulator::GetTaxIncomeOfType(int32_t t) {
     FC4_TRACE("BudgetSimulator::GetTaxIncomeOfType");
     return fc4_budget_get_tax_income_for(core_, t);
 }
-int64_t cFC4BudgetSimulator::SetTotalMonthlyExpense(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalMonthlyExpense(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalMonthlyExpense");
-    return fc4_budget_set_total_monthly_expense(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_monthly_expense(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalYearlyExpense(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalYearlyExpense(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalYearlyExpense");
-    return fc4_budget_set_total_yearly_expense(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_yearly_expense(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalMonthlyIncome(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalMonthlyIncome(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalMonthlyIncome");
-    return fc4_budget_set_total_monthly_income(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_monthly_income(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
-int64_t cFC4BudgetSimulator::SetTotalYearlyIncome(int64_t v) {
+int32_t cFC4BudgetSimulator::SetTotalYearlyIncome(int64_t v) {
     FC4_TRACE("BudgetSimulator::SetTotalYearlyIncome");
-    return fc4_budget_set_total_yearly_income(core_, v);
+    return static_cast<int32_t>(fc4_budget_set_total_yearly_income(core_, v));  // [choice] low 32 bits (FC4Interfaces.h slots 20-23)
 }
 bool cFC4BudgetSimulator::ShowBudgetWindow() {
     FC4_TRACE("BudgetSimulator::ShowBudgetWindow");
@@ -738,6 +757,9 @@ bool cFC4BudgetSimulator::Write(cIGZOStream& s) {
 
 bool cFC4BudgetSimulator::Read(cIGZIStream& s) {
     FC4_TRACE("BudgetSimulator::Read");
+    // A saved city loads (Read comes before Init): re-read FreeCity4.ini.
+    fc4::ConfigReload("city load: budget Read");
+    fc4::RefAuditReload();
     fc4::IStreamAdapter a(s);
     const bool ok = fc4_budget_read(core_, a.Get());
     fc4_budget_state st{};
@@ -962,7 +984,7 @@ bool cFC4DepartmentBudget::GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4L
     fc4_department_get_locally_funded_items_by_purpose(core_, purpose, &PushToken, &tokens);
     for (uint64_t t : tokens) {  // appended, no clear (§7)
         cISCPropertyHolder* h = reinterpret_cast<cISCPropertyHolder*>(FromToken(t));
-        h->AddRef();
+        FC4_ADDREF_FOR_CALLER(h);  // the caller's list owns it
         list.push_back(h);
     }
     return true;

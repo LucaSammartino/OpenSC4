@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. This program is distributed WITHOUT ANY WARRANTY; see
+// the GNU General Public License for more details. You should have received a
+// copy of the license along with this program (see LICENSE at the repository
+// root); if not, see <https://www.gnu.org/licenses/>.
+
+#include "cFC4Variant.h"
+
+bool cFC4Variant::QueryInterface(uint32_t riid, void** ppvObj) {
+    if (ppvObj == nullptr) return false;
+    if (riid == GZIID_cIGZVariant || riid == GZIID_cIGZUnknown) {
+        *ppvObj = static_cast<cFC4IGZVariant*>(this);
+        AddRef();
+        return true;
+    }
+    return false;
+}
+
+uint32_t cFC4Variant::Release() {
+    if (refs_ > 0) --refs_;
+    const uint32_t left = refs_;
+    if (left == 0 && heap_) delete this;  // only CreateCopy's objects
+    return left;
+}
+
+bool cFC4Variant::CopyFrom(cFC4IGZVariant const& value) {
+    if (&value == this) return true;
+    v_.CopyFrom(*fc4::AsSdk(&value));
+    return true;
+}
+
+bool cFC4Variant::CreateCopy(cFC4IGZVariant** value) const {
+    if (value == nullptr) return false;
+    // [choice] A heap copy with one reference for the caller.
+    cFC4Variant* c = new cFC4Variant();
+    c->heap_ = true;
+    c->v_.CopyFrom(v_);
+    c->AddRef();
+    *value = c;
+    return true;
+}
+
+// foundations §17.1: slot 8 takes the type and always answers true.
+bool cFC4Variant::CanGetVal(uint16_t) const { return true; }
+
+// foundations §17.1: slot 60 is GetValUnknown(riid, void**).
+// [choice] The stored object queried for `riid`.
+bool cFC4Variant::GetValUnknownAs(uint32_t riid, void** ppvObj) {
+    if (ppvObj == nullptr) return false;
+    *ppvObj = nullptr;
+    cIGZUnknown* u = v_.GetValUnknown();
+    return u != nullptr && u->QueryInterface(riid, ppvObj);
+}

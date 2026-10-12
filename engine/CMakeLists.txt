@@ -26,6 +26,23 @@ set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
 enable_testing()
 
+# Checked plugin build (in-game bisection tooling): no optimisation and the
+# MSVC run-time checks (/RTC1: ESP verified after every call through a
+# pointer or vtable, local-variable frames guarded), plus out-parameter
+# canaries (plugin/FC4Checked.h). Use a separate build directory, e.g.
+#   cmake -S engine -B build-x86-checked -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DFC4_CHECKED=ON
+option(FC4_CHECKED "Build the checked plugin (/Od /RTC1, out-parameter canaries)" OFF)
+if(FC4_CHECKED AND MSVC)
+    # /RTC1 cannot be combined with optimisation: strip /O* from every configuration.
+    foreach(fc4_lang C CXX)
+        foreach(fc4_cfg "" _DEBUG _RELEASE _RELWITHDEBINFO _MINSIZEREL)
+            string(REGEX REPLACE "/O[0-9a-z]+" "" CMAKE_${fc4_lang}_FLAGS${fc4_cfg} "${CMAKE_${fc4_lang}_FLAGS${fc4_cfg}}")
+            string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_${fc4_lang}_FLAGS${fc4_cfg} "${CMAKE_${fc4_lang}_FLAGS${fc4_cfg}}")
+        endforeach()
+    endforeach()
+    message(STATUS "FC4_CHECKED: plugin built with /Od /RTC1 and out-parameter canaries")
+endif()
+
 # ---- Rust core (cargo) ----------------------------------------------------------
 
 find_program(CARGO_EXECUTABLE cargo
@@ -113,6 +130,14 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Diag.h
         plugin/FC4Watchdog.cpp
         plugin/FC4Watchdog.h
+        plugin/FC4Config.cpp
+        plugin/FC4Config.h
+        plugin/FC4RefAudit.cpp
+        plugin/FC4RefAudit.h
+        plugin/FC4Checked.cpp
+        plugin/FC4Checked.h
+        plugin/cFC4Variant.cpp
+        plugin/cFC4Variant.h
         plugin/compat/FC4Compat.cpp
         plugin/compat/FC4Compat.h
         plugin/FC4Properties.cpp
@@ -136,6 +161,10 @@ if(FC4_IS_WIN32_X86)
         _CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN
         FC4_VERSION_STRING="${PROJECT_VERSION}")
     target_compile_options(FreeCity4 PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    if(FC4_CHECKED)
+        target_compile_definitions(FreeCity4 PRIVATE FC4_CHECKED=1)
+        target_compile_options(FreeCity4 PRIVATE /Od /Oy- /RTC1)
+    endif()
     target_link_libraries(FreeCity4 PRIVATE fc4_capi)
     set_target_properties(FreeCity4 PROPERTIES OUTPUT_NAME "FreeCity4" PREFIX "")
     # The only export is GZDllGetGZCOMDirector (from cRZCOMDllDirector.cpp).
@@ -157,16 +186,34 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_vtable_layout_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME vtable_layout_test COMMAND fc4_vtable_layout_test)
 
+    # Every interface we implement or call against docs/abi/interfaces.tsv
+    # (callee-pop bytes, return channel, slot count), read at run time.
+    set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
+    add_executable(fc4_abi_conformance_test tests/abi_conformance_test.cpp tests/abi_entries.inc)
+    target_include_directories(fc4_abi_conformance_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin tests)
+    target_compile_definitions(fc4_abi_conformance_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX
+        FC4_ABI_TSV="${FC4_ABI_TSV}" FC4_PLUGIN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/plugin")
+    target_compile_options(fc4_abi_conformance_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME abi_conformance_test COMMAND fc4_abi_conformance_test
+        --plugin-dir "${CMAKE_CURRENT_SOURCE_DIR}/plugin" "${FC4_ABI_TSV}")
+
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp" "${FC4_GZCOM_DIR}/src/cSCBaseProperty.cpp")
     target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
     target_compile_options(fc4_plugin_load_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_dependencies(fc4_plugin_load_test FreeCity4)
-    add_test(NAME plugin_load_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>")
+    if(FC4_CHECKED)
+        set(FC4_LOAD_TEST_MODE --checked)
+    else()
+        set(FC4_LOAD_TEST_MODE --normal)
+    endif()
+    add_test(NAME plugin_load_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" ${FC4_LOAD_TEST_MODE})
     add_test(NAME plugin_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --disabled)
+    # FreeCity4.ini `disable =` wins over FC4_DISABLE.
+    add_test(NAME plugin_ini_disable_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-disabled)
     # Both tests write FreeCity4.log next to the DLL.
-    set_tests_properties(plugin_load_test plugin_disable_test PROPERTIES RUN_SERIAL TRUE)
+    set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

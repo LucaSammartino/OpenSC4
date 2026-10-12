@@ -130,6 +130,48 @@ plugin.
    the game (`simulator`, `budget`, or `all`), e.g. `FC4_DISABLE=budget`. `FC4_DISABLE_SIMULATOR=1` still works.
    The DLL still loads, but it does not register those classes, so the game's own ones run. The simulator and the
    budget only talk through the SDK interfaces, so either can be switched off alone.
+4. **Bisection (`FreeCity4.ini`):** a `key = value` file next to `FreeCity4.dll` (`#` or `;` after whitespace
+   starts a comment, `[sections]` are ignored). A key in the ini wins over the environment variable.
+   - `disable = budget` means the same as `FC4_DISABLE`. It is read once, when the game enumerates the classes,
+     so a change needs a game restart.
+   - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
+     (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
+     matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
+
+     | Key | When off |
+     |---|---|
+     | `lot_scan` | `ForEachLot` sees no lots, so property tax is 0 |
+     | `property_writes` | `AddPropertyVariant` and property copies are skipped but reported as written |
+     | `property_reads` | properties read as absent |
+     | `message_posting` | no budget messages are posted |
+     | `history` | no history records or queue lengths |
+     | `building_name` | empty line-item names |
+     | `exemplar_loads` | the tuning exemplar is not loaded (code defaults) |
+     | `disaster` | RiskyMoney never starts the earthquake |
+     | `cheats` | the budget's cheats are not registered |
+     | `holder_refs` | the budget core holds no references on game objects (references taken while the switch was on are still given back) |
+     | `ltext` | LTEXT lookups return "not found" |
+
+     The log shows `config (…): budget switches OFF (n of 11): …` at each load. At budget `Shutdown` it shows how
+     many calls each switch skipped.
+   - `refaudit = 0` turns the reference audit off. `refaudit_lines = N` sets its verbose line cap (default 2000).
+   - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every
+     reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
+     verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as
+     module+offset, the count returned and our call site.
+     - Always logged: `WARNING: released last reference to game object …` and `WARNING: over-release …`.
+     - At each simulator or budget `Shutdown`: the net count per class and the objects we still hold.
+5. **Checked build:** `cmake -S engine -B build-x86-checked -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+   -DFC4_CHECKED=ON`.
+   - The plugin is built with `/Od /RTC1`, so an argument-count or callee-pop mismatch on any vtable call is
+     caught at the call.
+   - RTC failures go to the log, not a dialog: the kind, the call site as `FreeCity4.dll+offset` with our
+     function and line, the frames, the activity and the last interface calls. Copy `FreeCity4.pdb` next to the
+     DLL for the names.
+   - Small buffers we pass to game methods (`GetSize`, `GetLocation`, `GetSimDateParts`, QueryInterface and
+     `GetResource` out-pointers, the lot list, `ReadGZSerializable`) are surrounded by canaries. A write past
+     them logs `OUT-PARAM OVERRUN`.
+   - `FC4_CHECKED_SELFTEST=1` provokes one of each at start-up.
 
 ## Conventions
 
@@ -147,14 +189,25 @@ plugin.
   `plugin_load_test` calls each overload of the real objects through its slot with the game's argument count and
   checks that the stack balances. New code must not implement or call overloads of an interface until its spec
   has a verified slot table. Declared from the foundations §17 tables: `cFC4IGZDate` (implemented by
-  `cFC4Date`), `cFC4ISCPropertyHolder`, `cFC4ISC4LotManager`, `cFC4ISC4Lot`. Interfaces still used through SDK
-  declarations that contain overloads (the methods we call were checked against the MSVC layout rule):
-  `cIGZString`, `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
-  `cISC4HistoryWarehouse`, `cISC4NeighborsSimulator`, `cISCResExemplar`. Known risk: `cRZBaseVariant` (which
-  we pass to the game in `AddPropertyVariant`) still has the SDK's `cIGZVariant` slot 8 and 60 signatures,
-  which §17 lists as wrong.
+  `cFC4Date`), `cFC4IGZVariant` (implemented by `cFC4Variant`, the only variant we hand to the game; never pass
+  the SDK's `cRZBaseVariant`, whose slots 8 and 60 differ from the game's), `cFC4ISCPropertyHolder`,
+  `cFC4ISC4LotManager`, `cFC4ISC4Lot`, and `cFC4ISC4NeighborsSimulator` (from the ABI table: slots 32/33
+  return 32 bits). Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
+  `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
+  `cISC4HistoryWarehouse`, `cISC4OrdinanceSimulator`, `cISCResExemplar`.
+- **ABI conformance** (`tests/abi_conformance_test.cpp`, CTest `abi_conformance_test`): every declaration above
+  is checked against [`docs/abi/interfaces.tsv`](../docs/abi/interfaces.tsv), read at run time. Per slot:
+  argument bytes (each argument rounded up to 4, int64/double 8, plus 4 for a hidden result pointer) ==
+  `callee_pop`; float/double return ⇔ `ret = x87`; int64 return ⇒ `edx:eax`, and `edx:eax` (medium
+  confidence) ⇒ int64. Per interface: slots contiguous and as many as the table's. The slots are decoded from
+  the compiler's vcall thunks, so the test checks what MSVC actually laid out. After adding a method or an
+  interface, run `python tests/gen_abi_entries.py` (from `engine/`) and rebuild; `--dump` prints every slot
+  next to its table row. SDK methods that disagree with the game but are never called by the plugin are
+  waived (`kWaivers`); the waiver lapses, and the test fails, as soon as a file in `plugin/` calls one.
+  Reviewed slot-count differences (class-private trailing virtuals) are in `kReviewedSlotCounts`.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
-  through a hidden result pointer). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
+  through a hidden result pointer; from the ABI table: `cIGZVariant` slot 41 and `cISC4Lot` slot 15 return in
+  ST0, `cISC4BudgetSimulator` slots 20–23 in EAX only). Such interfaces are declared in `FC4Interfaces.h`, and the slot tests check
   the x87 stack and the stack balance: only slots the spec says return a float may leave a value there.

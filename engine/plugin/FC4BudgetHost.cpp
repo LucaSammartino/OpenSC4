@@ -16,10 +16,19 @@
 // LTEXT names §2/§7/§8, holder properties §2, disasters §4.3, objects §1).
 // One table serves the budget simulator, its departments and line items, so
 // objects the game's class factory creates while loading a save work too.
+//
+// Bisection tooling (FC4Config.h): each behaviour that touches game objects
+// has a switch; when it is off the callback is a no-op with a neutral result.
+// References on game objects go through the audit (FC4RefAudit.h), and small
+// buffers the game writes into are canary-guarded in checked builds
+// (FC4Checked.h).
 
+#include "FC4Checked.h"
+#include "FC4Config.h"
 #include "FC4Interfaces.h"
 #include "FC4Properties.h"
 #include "FC4Log.h"
+#include "FC4RefAudit.h"
 #include "FC4Streams.h"
 #include "cFC4Budget.h"
 #include "cFC4Message2Standard.h"
@@ -56,6 +65,7 @@
 #endif
 #include <windows.h>
 
+#include <unordered_map>
 #include <vector>
 
 namespace fc4 {
@@ -65,17 +75,21 @@ constexpr uint32_t kPropBuildingValue = 0xE91A0B5F;  // spec §5.2
 
 cISC4City* g_city = nullptr;
 
+// Game objects the budget core holds references on through add_ref (holder_refs).
+std::unordered_map<cIGZUnknown*, long> g_coreRefs;
+
 cISC4City* City() {
     if (g_city != nullptr) return g_city;
     // Before the budget's Init (e.g. objects created while a save loads).
     cIGZFrameWork* fw = RZGetFrameWork();
     cIGZApp* app = fw ? fw->Application() : nullptr;
-    cISC4App* sc4 = nullptr;
-    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr) {
-        return nullptr;
-    }
-    cISC4City* city = sc4->GetCity();
-    sc4->Release();
+    FC4_OUT(cISC4App*, sc4, "cISC4App* (QueryInterface out pointer)");
+    const bool ok = app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(sc4.ptr()));
+    sc4.Check();
+    if (!ok || sc4.get() == nullptr) return nullptr;
+    FC4_ACQUIRED(sc4.get(), "QueryInterface");
+    cISC4City* city = sc4.get()->GetCity();
+    FC4_RELEASE(sc4.get());
     return city;
 }
 
@@ -98,6 +112,10 @@ void Sink(const cIGZString* s, fc4_bytes_sink sink, void* ctx) {
 
 void Post(void*, const fc4_budget_message* m) {
     if (m == nullptr) return;
+    if (!On(Sw::MessagePosting)) {
+        NoteSkipped(Sw::MessagePosting, "budget message post");
+        return;
+    }
     cIGZMessageServer2Ptr ms;
     if (!ms) {
         FC4_LOGV("budget post 0x%08X skipped: no message server", m->type);
@@ -127,10 +145,19 @@ void SimDate(void*, int32_t* year, int32_t* month) {
     cISC4City* c = City();
     cFC4ISC4Simulator* s = c ? fc4::AsGame(c->GetSimulator()) : nullptr;
     if (s == nullptr) return;
-    uint32_t y = 0, m = 0, d = 0, doy = 0, wd = 0;
-    s->GetSimDateParts(&y, &m, &d, &doy, &wd);
-    *year = static_cast<int32_t>(y);
-    *month = static_cast<int32_t>(m);
+    FC4_OUT(uint32_t, y, "uint32 year (GetSimDateParts)");
+    FC4_OUT(uint32_t, m, "uint32 month (GetSimDateParts)");
+    FC4_OUT(uint32_t, d, "uint32 day (GetSimDateParts)");
+    FC4_OUT(uint32_t, doy, "uint32 day of year (GetSimDateParts)");
+    FC4_OUT(uint32_t, wd, "uint32 weekday (GetSimDateParts)");
+    s->GetSimDateParts(y.ptr(), m.ptr(), d.ptr(), doy.ptr(), wd.ptr());
+    y.Check();
+    m.Check();
+    d.Check();
+    doy.Check();
+    wd.Check();
+    *year = static_cast<int32_t>(y.get());
+    *month = static_cast<int32_t>(m.get());
 }
 
 bool Established(void*) {
@@ -159,67 +186,107 @@ int64_t OrdinanceExpense(void*) {
 
 int64_t NeighborIncome(void*) {
     cISC4City* c = City();
-    cISC4NeighborsSimulator* n = c ? c->GetNeighborsSimulator() : nullptr;
+    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // 32-bit returns (docs/abi)
     return n ? n->GetTotalMonthlyNeighborDealIncome() : 0;
 }
 
 int64_t NeighborExpense(void*) {
     cISC4City* c = City();
-    cISC4NeighborsSimulator* n = c ? c->GetNeighborsSimulator() : nullptr;
+    cFC4ISC4NeighborsSimulator* n = c ? fc4::AsGame(c->GetNeighborsSimulator()) : nullptr;  // 32-bit returns (docs/abi)
     return n ? n->GetTotalMonthlyNeighborDealExpense() : 0;
 }
 
 void ForEachLot(void*, fc4_lot_visitor visit, void* ctx) {
+    if (!On(Sw::LotScan)) {
+        NoteSkipped(Sw::LotScan, "ForEachLot (no lots: property tax 0)");
+        return;
+    }
     cISC4City* c = City();
     cFC4ISC4LotManager* lm = c ? AsGame(c->GetLotManager()) : nullptr;
     if (lm == nullptr || visit == nullptr) return;
     cISC4LandValueSimulator* lv = c->GetLandValueSimulator();
     const int32_t maxX = static_cast<int32_t>(c->CellCountX()) - 1;
     const int32_t maxZ = static_cast<int32_t>(c->CellCountZ()) - 1;
-    // [choice] Every lot of the city through one rectangle query; the list
-    // holds a reference per lot and releases them when it goes away.
-    SC4List<cISC4Lot*> lots;
-    lm->GetLotsInCellRect(lots, 0, 0, maxX, maxZ, false);  // slot 7; budget Errata round 2, item 5
-    for (cISC4Lot* sdkLot : lots) {
+    // [choice] Every lot of the city through one rectangle query; the game
+    // appends one reference per lot (budget Errata round 2, item 5), which we
+    // release below (audited) before the list frees its nodes.
+    FC4_OUT(SC4List<cISC4Lot*>, lots, "SC4List<cISC4Lot*> (GetLotsInCellRect)");
+    lm->GetLotsInCellRect(lots.get(), 0, 0, maxX, maxZ, false);  // slot 7
+    lots.Check();
+    for (cISC4Lot*& sdkLot : lots.get()) {
         if (sdkLot == nullptr) continue;
+        FC4_ACQUIRED(sdkLot, "GetLotsInCellRect list entry");
         cFC4ISC4Lot* lot = AsGame(sdkLot);
         fc4_lot_info info{};
         cISC4BuildingOccupant* b = lot->GetBuilding();
         info.has_building = b != nullptr;
         info.livable = lot->IsInLivableState();
         info.lot_wealth = lot->GetOccupantWealth();
-        uint8_t sx = 1, sz = 1;
-        lot->GetSize(sx, sz);
-        info.size_x = sx;
-        info.size_z = sz;
-        int32_t x = 0, z = 0;
-        if (lv != nullptr && lot->GetLocation(x, z)) info.land_value = lv->GetLandValue(x, z);
+        {
+            FC4_OUT(uint8_t, sx, "uint8 sizeX (cISC4Lot::GetSize)");
+            FC4_OUT(uint8_t, sz, "uint8 sizeZ (cISC4Lot::GetSize)");
+            sx.get() = 1;
+            sz.get() = 1;
+            lot->GetSize(sx.get(), sz.get());
+            sx.Check();
+            sz.Check();
+            info.size_x = sx.get();
+            info.size_z = sz.get();
+        }
+        if (lv != nullptr) {
+            FC4_OUT(int32_t, x, "int32 x (cISC4Lot::GetLocation)");
+            FC4_OUT(int32_t, z, "int32 z (cISC4Lot::GetLocation)");
+            const bool located = lot->GetLocation(x.get(), z.get());
+            x.Check();
+            z.Check();
+            if (located) info.land_value = lv->GetLandValue(x.get(), z.get());
+        }
         if (b != nullptr) {
             const cISC4BuildingOccupant::BuildingProfile& p = b->GetBuildingProfile();
             info.purpose = static_cast<uint32_t>(p.purpose);
             info.building_wealth = static_cast<uint32_t>(p.wealth);
-            cISCPropertyHolder* h = nullptr;
-            if (b->QueryInterface(GZIID_cISCPropertyHolder, reinterpret_cast<void**>(&h)) && h != nullptr) {
+            FC4_OUT(cISCPropertyHolder*, h, "cISCPropertyHolder* (QueryInterface out pointer)");
+            const bool has = b->QueryInterface(GZIID_cISCPropertyHolder, reinterpret_cast<void**>(h.ptr()));
+            h.Check();
+            if (has && h.get() != nullptr) {
+                FC4_ACQUIRED(h.get(), "QueryInterface");
                 std::vector<int64_t> v;
-                if (props::GetI64s(h, kPropBuildingValue, v) && !v.empty()) info.building_value = v[0];
-                h->Release();
+                if (props::GetI64s(h.get(), kPropBuildingValue, v) && !v.empty()) info.building_value = v[0];
+                FC4_RELEASE(h.get());
             }
         }
         visit(ctx, &info);
     }
+    for (cISC4Lot*& sdkLot : lots.get()) {
+        if (sdkLot == nullptr) continue;
+        FC4_RELEASE(sdkLot);
+        sdkLot = nullptr;  // the list destructor then only frees its nodes
+    }
 }
 
 void RecordHistory(void*, uint32_t series, int32_t value) {
+    if (!On(Sw::History)) {
+        NoteSkipped(Sw::History, "RecordHistoryData");
+        return;
+    }
     cISC4City* c = City();
     if (cISC4HistoryWarehouse* h = c ? c->GetHistoryWarehouse() : nullptr) h->RecordHistoryData(series, value);
 }
 
 void SetHistoryQueueLength(void*, uint32_t series, uint32_t length) {
+    if (!On(Sw::History)) {
+        NoteSkipped(Sw::History, "SetHistoryDataQueueLength");
+        return;
+    }
     cISC4City* c = City();
     if (cISC4HistoryWarehouse* h = c ? c->GetHistoryWarehouse() : nullptr) h->SetHistoryDataQueueLength(series, length);
 }
 
 bool TryStartDisaster(void*, uint32_t id, float x, float z) {
+    if (!On(Sw::Disaster)) {
+        NoteSkipped(Sw::Disaster, "AttemptDisasterStart (not started)");
+        return false;
+    }
     cISC4City* c = City();
     cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;
     cISC4DisasterManager* dm = layer ? layer->GetDisasterManager(id) : nullptr;
@@ -234,6 +301,11 @@ bool TryStartDisaster(void*, uint32_t id, float x, float z) {
 uint32_t RngSeed(void*) { return GetTickCount(); }  // foundations §6.2: wall clock
 
 bool Ltext(void*, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
+    if (!On(Sw::Ltext)) {
+        NoteSkipped(Sw::Ltext, "LTEXT lookup (not found)");
+        return false;
+    }
+    // The SDK helper owns the reference (cRZAutoRefCount; not audited).
     cRZAutoRefCount<cIGZString> s;
     if (!StringResourceManager::GetLocalizedString(StringResourceKey(group, instance), s)) return false;
     Sink(s, sink, ctx);
@@ -241,6 +313,10 @@ bool Ltext(void*, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* 
 }
 
 bool BuildingTypeName(void*, uint32_t type, fc4_bytes_sink sink, void* ctx) {
+    if (!On(Sw::BuildingName)) {
+        NoteSkipped(Sw::BuildingName, "GetBuildingName (empty name)");
+        return true;
+    }
     // Budget Errata round 2, item 2: the building-development simulator's
     // user-visible name of the type (compiled slot 38). The string belongs to
     // the simulator: copied, not released. Never-loaded types give "".
@@ -251,6 +327,7 @@ bool BuildingTypeName(void*, uint32_t type, fc4_bytes_sink sink, void* ctx) {
     return true;
 }
 
+// Property reads and writes: the switches live in FC4Properties.cpp.
 int32_t GetU32s(void*, uint64_t h, uint32_t p, uint32_t* out, size_t cap) {
     std::vector<uint32_t> v;
     return CopyOut(props::GetU32s(Holder(h), p, v), v, out, cap);
@@ -282,31 +359,64 @@ bool CopyProperty(void*, uint64_t src, uint64_t dst, uint32_t p) { return props:
 
 uint64_t OccupantOf(void*, uint64_t h) {
     cIGZUnknown* u = FromToken(h);
-    void* occ = nullptr;
-    if (u == nullptr || !u->QueryInterface(GZIID_cISC4Occupant, &occ) || occ == nullptr) return 0;
-    cISC4Occupant* o = static_cast<cISC4Occupant*>(occ);
+    if (u == nullptr) return 0;
+    FC4_OUT(void*, occ, "cISC4Occupant* (QueryInterface out pointer)");
+    const bool ok = u->QueryInterface(GZIID_cISC4Occupant, occ.ptr());
+    occ.Check();
+    if (!ok || occ.get() == nullptr) return 0;
+    cISC4Occupant* o = static_cast<cISC4Occupant*>(occ.get());
+    FC4_ACQUIRED(o, "QueryInterface");
     const uint64_t t = TokenOf(static_cast<cIGZUnknown*>(o));
-    o->Release();  // borrowed: the holder keeps the occupant alive
+    FC4_RELEASE(o);  // borrowed: the holder keeps the occupant alive
     return t;
 }
 
 uint32_t ClassOf(void*, uint64_t token) {
     cIGZUnknown* u = FromToken(token);
-    cIGZSerializable* s = nullptr;
-    if (u == nullptr || !u->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) || s == nullptr) {
-        return 0;
-    }
-    const uint32_t c = s->GetGZCLSID();
-    s->Release();
+    if (u == nullptr) return 0;
+    FC4_OUT(cIGZSerializable*, s, "cIGZSerializable* (QueryInterface out pointer)");
+    const bool ok = u->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(s.ptr()));
+    s.Check();
+    if (!ok || s.get() == nullptr) return 0;
+    FC4_ACQUIRED(s.get(), "QueryInterface");
+    const uint32_t c = s.get()->GetGZCLSID();
+    FC4_RELEASE(s.get());
     return c;
 }
 
+// The core's own references. Our objects always pass through. Game objects
+// (locally funded holders, objects read from the save) obey holder_refs; a
+// reference taken while the switch was on is always given back.
 void AddRefToken(void*, uint64_t t) {
-    if (cIGZUnknown* u = FromToken(t)) u->AddRef();
+    cIGZUnknown* u = FromToken(t);
+    if (u == nullptr) return;
+    if (IsOurObject(u)) {
+        u->AddRef();
+        return;
+    }
+    if (!On(Sw::HolderRefs)) {
+        NoteSkipped(Sw::HolderRefs, "AddRef of a game object for the budget core");
+        return;
+    }
+    ++g_coreRefs[u];
+    FC4_ADDREF(u);
 }
 
 void ReleaseToken(void*, uint64_t t) {
-    if (cIGZUnknown* u = FromToken(t)) u->Release();
+    cIGZUnknown* u = FromToken(t);
+    if (u == nullptr) return;
+    if (IsOurObject(u)) {
+        u->Release();
+        return;
+    }
+    auto it = g_coreRefs.find(u);
+    if (it != g_coreRefs.end()) {
+        if (--it->second == 0) g_coreRefs.erase(it);
+    } else if (!On(Sw::HolderRefs)) {
+        NoteSkipped(Sw::HolderRefs, "Release of a game object for the budget core");
+        return;
+    }
+    FC4_RELEASE(u);
 }
 
 void* CreateObject(void*, uint32_t classId) {
@@ -370,5 +480,12 @@ const fc4_budget_host* BudgetHost() {
 }
 
 void SetBudgetCity(cISC4City* city) { g_city = city; }
+
+void LogBudgetCoreRefs(const char* why) {
+    long total = 0;
+    for (const auto& kv : g_coreRefs) total += kv.second;
+    Log("budget core (%s): holds %ld reference(s) on %u game object(s) taken through add_ref", why, total,
+        static_cast<unsigned>(g_coreRefs.size()));
+}
 
 }  // namespace fc4
