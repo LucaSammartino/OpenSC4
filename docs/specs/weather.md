@@ -498,3 +498,9 @@ ambient values are overridden by `Init` (§8.1); square-only grid writer (§10).
    whose rows read back the grid.
 9. **Save**: write → read → write is byte-identical (v2); version 3 is rejected; a version-1 record with a legacy
    block loads; after `Init` on a loaded city, ambient values equal the base values and the iterator is reset.
+
+## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
+
+`cISC4WeatherSimulator`, original vtable `0x00AB3610`, 24 interface slots (3 + 21). It has no overloads, and
+every slot's argument size matches the SDK. Slot 14 `GetCurrentSeason()` returns an enum in a register (no hidden
+pointer). The slot after the interface is the class's own destructor. The SDK order can be used as is.

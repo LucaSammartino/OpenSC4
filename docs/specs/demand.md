@@ -885,3 +885,16 @@ bit, so tests compare floats with a relative tolerance of 1e-5, except where thi
 12. **Save round-trip.** Write → read → write gives identical bytes for both record types. Version 1 node records
     (byte cap) load. Version ≥ 3 is rejected. A loaded simulator starts its census immediately, and loaded nodes
     keep their totals when the exemplars are re-applied.
+
+## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
+
+Verified slot by slot against the original Windows vtables (each slot's `ret` operand = stack-argument bytes,
+compared with the SDK header compiled under the MSVC overload rule):
+
+| Interface | Original vtable | Interface slots | Result |
+|---|---|---|---|
+| `cISC4DemandSimulator` | `0x00AB0E48` | 12 (3 + 9) | no overloads; order and argument sizes match the SDK |
+| `cISC4Demand` (demand node) | `0x00AA2758` | 34 (3 + 31) | no overloads; order and argument sizes match the SDK |
+
+The slot after the interface is the class's own destructor in both cases. A FreeCity4 implementation may take
+the SDK declaration order as is for these two interfaces.

@@ -720,3 +720,51 @@ From the Windows caller data (direct calls) and the call-site survey:
     a Cancelled clone; the Silent flag follows the argument.
 12. **Deal record**: write → read → write is byte-identical for version 5; a version-4 record reads without the
     suspension date.
+
+## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
+
+Verified slot by slot against the original Windows vtables (`ret` operand = stack-argument bytes, SDK header
+compiled under the MSVC overload rule). Equal-size pairs were told apart by what the body does.
+
+### `cISC4NeighborsSimulator` (original vtable `0x00AB1EE0`, 38 interface slots)
+
+| Slot | Offset | Method (compiled layout) |
+|---|---|---|
+| 7 | `+0x1C` | `void DeleteConnection(ConnectionType, int32 x, int32 z)` |
+| 8 | `+0x20` | `void DeleteOccupantConnection(cISC4Occupant*)` |
+| 13 | `+0x34` | `cISC4NeighborConnection* FindConnectionOnOtherSide(cISC4NeighborConnection*)` |
+| 14 | `+0x38` | `cISC4NeighborConnection* FindConnectionOnOtherSide(ConnectionType, int32 x, int32 z)` |
+| 28 | `+0x70` | `void FindDealsAll(SC4List<…>& deals)` |
+| 29 | `+0x74` | `void FindDeals(int32 dealType, cISC4RegionalCity*, SC4List<…>& deals)` |
+| 30 | `+0x78` | `void FindDeals(int32 dealType, SC4List<…>& deals)` |
+
+In the original source, `DeleteOccupantConnection` and `FindDealsAll` were overloads of `DeleteConnection` and
+`FindDeals`, under different groupings. The SDK gives them unique names, and the compiled SDK reproduces the
+slots above exactly. Keep these slots when renaming. All other slots match the SDK order and argument sizes.
+
+### `cISC4NeighborConnection` (`0x00AB2034`, 15 slots) and `cISC4NeighborDeal` (`0x00AB1DD8`, 41 slots)
+
+No overloads. Order and argument sizes match the SDK. The deal's date getters (`GetStartDate`, …) fill a caller's
+`cIGZDate&` through that date's `Set(uint32 dayNumber)` (`cIGZDate` slot 4, foundations §17.4).
+
+### `cISC4RegionalCity` (the game's regional-city object, vtable `0x00A8FB20`, 73 slots)
+
+The neighbours simulator **calls** this interface, so its compiled layout and true signatures matter:
+
+| Slot | Offset | Method (compiled layout) | Note |
+|---|---|---|---|
+| 9 | `+0x24` | `int32 GetPopulation(uint32 populationType) const` | **non-adjacent** overload (the SDK declares it 9 lines later) |
+| 10 | `+0x28` | `int32 GetPopulation() const` | non-adjacent; `GetCommercialJobs` … `GetTaxRate` follow at 11–16 |
+| 24 | `+0x60` | `void UpdateCityCache(cISC4City*)` | **non-adjacent** (checked by body: it calls city methods) |
+| 25 | `+0x64` | `void UpdateCityCache(SC4NewCityPreferences*)` | non-adjacent; `SetupCity` follows at 26 |
+| 47 | `+0xBC` | `float GetWorldBaseElevation() const` | **SDK error**: the SDK declares a `GetWorldBaseElevation(float)` overload, which MSVC would put **first** (slot 47). In the game, 47 is the getter |
+| 48 | `+0xC0` | `void SetWorldBaseElevation(float)` | the SDK's `GetWorldBaseElevation(float)` is this setter |
+| 50 / 51 | `+0xC8` / `+0xCC` | `double GetBudget()` / `void SetBudget(double)` | **SDK error**: `double`, not `float` (the setter pops 8 bytes) |
+| 52 / 53 | `+0xD0` / `+0xD4` | `double GetIncome()` / `void SetIncome(double)` | same |
+| 54–63 | `+0xD8`–`+0xFC` | `double GetX(int32 commodity)` / `void SetX(int32 commodity, double)` for X = Exported, Imported, Produced, Demanded, CostPerUnit | **SDK error**: `double` values (setters pop 12 bytes) |
+| 64 | `+0x100` | `double GetCommodityBalance(int32 commodity)` | computed in double precision |
+
+The getters return the value on the x87 stack, so a caller that declares `float` still reads a correct value,
+rounded. The setters must be called with `double` arguments, or the stack is corrupted. §8.2
+(`UpdateCommodityStats`) calls `SetBudget`, `SetIncome`, `SetProduced` and the other setters. The stored values are the `f64` fields of the
+regional-city record (foundations §11.2).

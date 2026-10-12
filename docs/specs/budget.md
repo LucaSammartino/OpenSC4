@@ -233,12 +233,12 @@ Does nothing if already initialized. Otherwise, in this order *[compat]*:
    - set the history-warehouse queue length of the 12 tax-rate series `0xAABAAA9F + i` to **365**;
    - record `funds / 1000` (integer division toward zero) into history series `0x4A5BA3D0`.
 8. If `agricultureRateFix`: set tax group 8's rate to `InitialTaxRate[difficulty]`.
-9. Publish to the game-data registry (used by the UI scripts) a node `"budget"` with a read/write value
-   `"total_funds"` (read = funds, write = `SetTotalFunds`) and a command `"deposit_funds"` (argument 0 as a 64-bit
-   integer → `DepositFunds`).
+9. Publish the Lua table `sc4game.budget` in the **game-data registry** (§4.4): a node `"budget"` with a
+   read/write value `"total_funds"` (read = funds, write = `SetTotalFunds`) and a command `"deposit_funds"`
+   (parameter 0 read as a 64-bit integer → `DepositFunds`).
 
 ### 4.2 `Shutdown()` → true
-Does nothing if not initialized. Otherwise: clear `initialized`; remove the `"budget"` registry node; unregister
+Does nothing if not initialized. Otherwise: clear `initialized`; remove the `"budget"` registry node (§4.4); unregister
 and unsubscribe all three cheats; release the city; unsubscribe the four notifications and release the message
 server; release the land-value and ordinance simulators; shut down and release every department and empty the
 department map; remove all of its agent registrations from the simulator. Funds, bonds, groups and tax data are
@@ -259,9 +259,59 @@ left as they are.
 Every agent message is finished in one call (the budget never asks to be called again).
 
 **RiskyMoney** *[compat]*: only if the city is established. `DepositFunds(10000)`; `riskyMoneyCounter += 1`;
-draw `u` uniform in [0,1); if `u < 1 − 1/(0.2·counter + 1)`, ask the disaster layer for disaster `0x42963812`; if
-it exists, try to start it at `x = W·(3/8 + r1/4)`, `z = D·(3/8 + r2/4)` (W, D = city size along x and z from the
-city object; r1, r2 uniform); if it starts, reset the counter to 0.
+draw `u` uniform in [0,1); if `u < 1 − 1/(0.2·counter + 1)`, ask the disaster layer
+(`cISC4DisasterLayer::GetDisasterManager`) for the **earthquake** manager (`0x42963812`); if it exists, call its
+`AttemptDisasterStart(x, z)` (the two-integer overload, compiled slot 6, foundations §17) with
+
+```
+W := city.SizeX();  D := city.SizeZ()                 (world units, metres; 16 per cell)
+x := trunc(float(W·0.375 + r1·W·0.25))                (r1, then r2: two further uniform draws)
+z := trunc(float(D·0.375 + r2·D·0.25))
+```
+
+If the call returns an instance (non-null), reset the counter to 0. All three draws (`u`, `r1`, `r2`, in that
+order) come from the budget source file's own `cRZRandomSuper` with `RandomDoubleUniform` (foundations §6.2).
+The arguments are **world coordinates**, not cells, although the SDK names them `nCellX`/`nCellZ`: the earthquake
+clamps them to `[0, W − 1]` × `[0, D − 1]` and converts to a cell itself with the city's `PositionToCell`. The
+result is a point in the middle half of the map. The earthquake manager refuses to start while another
+earthquake is active (returns null), so the counter then keeps growing.
+
+### 4.4 The `"budget"` node in the game-data registry
+
+**What the registry is.** `cISC4GameDataRegistry` (public SDK header) is an application **system service**: get
+it with `RZGetFramework()->GetSystemService(0xEBE0E860, 0xE898ED03, &p)` (service ID `0xEBE0E860`, interface ID
+`0xE898ED03`; the SDK calls the first `GZCLSID_cISC4GameDataRegistry`). It is a tree of named entries that the
+Lua scripting layer exposes to scripts as the table `sc4game`: a node becomes a sub-table, a value entry becomes
+a getter/setter function, a call entry becomes a function. Several subsystems publish nodes the same way
+(automata, aura, civic buildings, ...). Overloads in this interface are compiled in reverse groups; the slots used
+here are in foundations §17.
+
+**What the budget publishes** *[compat]* (end of `Init`), giving the Lua functions `sc4game.budget.total_funds()`
+and `sc4game.budget.deposit_funds(simoleons)`:
+
+| Step | Call (compiled slot) | Arguments |
+|---|---|---|
+| node | `AddChildEntry(cIGZUnknown* key, name, parent, flags, context)` (slot 5) | key = the budget simulator as `cIGZUnknown`; name `"budget"`; parent = `GetRootNodeEntry()` (slot 21); flags 0; context null |
+| value | `AddChildEntry(void* key, name, exchangeCallback, parent, flags, context)` (slot 4) | key = any address unique to this simulator (the original uses the address of its funds field); name `"total_funds"`; parent = `GetEntryID(budget as cIGZUnknown)` (slot 9); flags 0; context = the budget simulator |
+| command | `AddChildEntry(void* key, name, callCallback, parent, flags, context)` (slot 3) | key = the callback's own address; name `"deposit_funds"`; same parent; flags **1** (`EntryFlagCallFunction`); context = the budget simulator |
+
+Callbacks (each returns true):
+
+- exchange(key, variant, set, registry): `sim := registry.GetEntryContext(registry.GetEntryID(key))` (slots 18 and
+  8); if `set`: read the variant as Sint64 (`GetValSint64(int64&)`, a converting read; if it fails `v` stays 0,
+  so the funds become 0) → `sim.SetTotalFunds(v)`; else `variant.SetValSint64(sim.GetTotalFunds())`.
+- call(key, input, output, registry): `sim` as above; `p := input.GetParameter(0)`; if `p` exists, read it as
+  Sint64 → `sim.DepositFunds(v)`. Nothing is written to `output`.
+
+`Shutdown` removes the node with `RemoveChildEntry(cIGZUnknown* key = the budget simulator)` (slot 7); its
+children go with it.
+
+**Who reads it.** Only Lua scripts. The shipped scripts **never call** these functions: a script in
+`SimCity_1.dat` only declares empty placeholder definitions of the two names (as it does for every registry
+function), and no other shipped script (base game or Rush Hour, all `.dat` files searched) refers to them. No C++ code reads the
+node. Therefore *[choice]*: omitting the node has **no observable effect with the shipped data**. FreeCity4
+should still publish it when the registry service is available, because third-party Lua mods may call
+`sc4game.budget.*`; failure to get the service is not an error.
 
 ## 5. Money flow
 
@@ -302,8 +352,12 @@ The settlement is the **only** place where funds can become negative through nor
 
 ### 5.2 Property tax (`ComputeTax`)
 
-Monthly only. First zero every group's `weightedAssessed`. Then for every lot in the lot manager (its own
-iteration order):
+Monthly only. First zero every group's `weightedAssessed`. Then for every lot of the city, **each exactly once**.
+The original walks the lot manager's master lot list (`cISC4LotManager` compiled slot 15, `GetSafeLotIterator`,
+opaque in the SDK), in the order the lots were added to it *[inferred: creation/load order]*. It does **not**
+query a cell rectangle. A reimplementation through public interfaces may use
+`GetLotsInCellRect(list, 0, 0, CellCountX − 1, CellCountZ − 1, false)` (see Errata round 2, item 5): same set of
+lots, different order; the order only affects float rounding of the sums *[choice]*.
 
 ```
 building := lot.GetBuilding();  skip if none or if not lot.IsInLivableState()
@@ -597,7 +651,7 @@ once from the department); we may post it once *[choice]*.
 | `GetID()` | its ID. |
 | `GetType()` / `SetType(t)` | plain (0 Expense, 1 Income). |
 | `GetName(name)` | If the name still needs resolving after a load, resolve it first (as `SetName`). Copy it out. *[compat]* The SDK warns that the original takes the game's internal string type. |
-| `SetName(group, instance)` | Store both. `group == 0` → name := display name of building type `instance` (from the building-development simulator); otherwise the LTEXT string. |
+| `SetName(group, instance)` | Store both. `group == 0` → name := `cISC4BuildingDevelopmentSimulator::GetBuildingName(instance)` (compiled slot 38), the building type's **user-visible name** (rule in Errata round 2, item 2); otherwise the LTEXT string (`group`, `instance`). |
 | `GetSecondaryInfoField()` / `SetSecondaryInfoField(v)` | plain. |
 | `GetFullExpenses()` / `GetCurrentExpenses()` | plain. |
 | `SetFullExpenses(v)` | `full := v`; if not local: `current := trunc(v × owner.p)` (no rounding, no clamp; Income lines too). Then the owner's `Notify(0x08DAC3E8, 0)`. |
@@ -659,6 +713,13 @@ With the shipped data the borrowing limit is 10 × 200,000 = 2,000,000.
 | `0x6A5FD3FD` | BudgetForOccupantChanged | a building's local funding amount changed (§7.3) | IGZUnknown = the occupant |
 
 FundsChanged, BondIssued and BondFinished are only posted once `Init` has acquired the message server.
+
+"void1 = X" *[compat]*: `SetVoid1(X)` with X the sender's **primary interface pointer** (the
+`cISC4BudgetSimulator*` or `cISC4DepartmentBudget*` that callers get from `GetBudgetSimulator()` /
+`GetDepartmentBudget()`). Because void1 and data1 share one slot (foundations §5.1), data1 reads back as that
+pointer's 32-bit value, not 0. The IGZUnknown slot holds a counted reference to the same object. No receiver in
+the shipped game reads void1/data1 of these messages (details: Errata round 2, item 4); FreeCity4 sets it anyway
+for plugins.
 
 ### 10.2 Handled
 §4.3. History series written: `0xAABAAA9F`–`0xAABAAAAA` (tax rate × 10, daily), `0x6A51178B` (income),
@@ -807,7 +868,7 @@ updated by the original; they are kept only so that save records keep their layo
 2. Agent order inside the month level decides whether the neighbours simulator prices this month's deals before
    or after the budget books them. Our simulator spec runs agents in registration order *[choice]*; the original
    orders them by object address. Which order did the shipped game normally produce?
-3. Disaster `0x42963812` (started by the `RiskyMoney` cheat) is not identified.
+3. ~~Disaster `0x42963812` is not identified.~~ Resolved: it is the earthquake (§4.3).
 4. Response-curve evaluation (interpolation, clamping, empty curves) needs its own shared spec.
 5. Who calls `SetTotalMonthlyIncome/Expense` and `SetTotalYearlyIncome/Expense`? Is `yearlyIncome`/`yearlyExpense`
    ever non-zero in the shipped game?
@@ -862,3 +923,83 @@ updated by the original; they are kept only so that save records keep their layo
 16. **Save**: write → read → write is byte-identical for all three records; budget version 3 and line-item
     version 3 or 5 are rejected; a version-4 budget with agriculture rate 0 gets the default rate at `Init`; a
     version-9 department converts percent to fraction; group names come from LTEXT after loading.
+
+## Errata / clarifications (round 2)
+
+Answers to the implementer's questions of round 2. The main text above has been corrected where it was wrong
+(§4.1 step 9, §4.3 RiskyMoney, new §4.4, §5.2, §8 `SetName`, §10.1, §14 question 3).
+
+1. **Null object values in property holders**: see foundations, Errata round 2, item 1 (a null-object entry is
+   *dropped* on load, like every object-valued entry). It does not affect the budget's own records, which hold
+   holders only by reference.
+
+2. **Display name of a building type** (`cISC4LineItem::SetName(0, buildingType)`) *[compat]*. The
+   building-development simulator keeps one name per building type, computed when it loads that building's
+   exemplar (`LoadBuildingProperties`; a reload replaces the entry):
+
+   ```
+   if exemplar has 0x8A416A99 "User Visible Name Key" (uint32[3] = {type, group, instance})
+      and the LTEXT (group, instance) loads in the current language:   name := that LTEXT string
+   else if exemplar has 0x899AFBAD "Item Name" (string):             name := that string
+   else:                                                             name := "Building"
+   ```
+
+   The type word of the key is ignored (it is the LTEXT type `0x2026960B` in the data). Inherited values count
+   (the lookup goes through the exemplar's parent). A building type that was never loaded has the **empty**
+   name. The budget obtains the name with `GetBuildingName(buildingType)` (compiled slot 38 of
+   `cISC4BuildingDevelopmentSimulator`); the returned string belongs to the simulator, so copy it and do not
+   release it. (Slot 37, `GetExemplarName`, is a different string: property `0x20` "Exemplar Name", else
+   "Building".) A reimplementation may either call the game's `GetBuildingName` or apply the rule above to the
+   exemplar itself; both give the same text.
+
+3. **Game-data registry**: §4.4. Identity: system service `0xEBE0E860`, IID `0xE898ED03` (`cISC4GameDataRegistry`).
+   It feeds the Lua table `sc4game.budget`. No shipped script or C++ code reads it, so leaving it out changes
+   nothing in the shipped game. Publish it anyway for Lua mods *[choice]*.
+
+4. **void1 of budget and department messages**: it holds the sending object (the budget simulator for
+   FundsChanged / BondIssued / BondFinished, the department for FundingPercentageChanged /
+   IdealMonthlyFundingChanged), as its primary interface pointer. The same object is in the IGZUnknown slot (a
+   counted reference). Shipped receivers ignore it:
+   - FundingPercentageChanged: police, fire protection and traffic compare **data2** (department ID) with their
+     own department's ID; the budget window only sets a "dirty" flag.
+   - FundsChanged: the 3D view, the vehicle manager and the landfill developer query the budget simulator (or
+     their department) directly.
+   - BudgetForOccupantChanged: the animation coordinator reads the **IGZUnknown** slot and queries it for
+     `cISC4Occupant` (`0x26BB767E`).
+   - BudgetGroupChanged and the bond messages: nothing reads their fields.
+   *[compat]* FreeCity4 sets void1 (and therefore data1) as specified so that plugins see the same values.
+
+5. **`GetLotsInCellRect`**: the budget does not call it (§5.2). For reference, as used by other subsystems:
+   `GetLotsInCellRect(list, x1, z1, x2, z2, bool)` clears `list`, clamps the rectangle to
+   `[0, CellCountX − 1] × [0, CellCountZ − 1]` (bounds **inclusive**, cell units), returns 0 if it is empty, and
+   otherwise appends lots with one reference each and returns their number:
+   - `bool = false`: every lot that **overlaps** the rectangle, each once, ordered by its first overlapped cell
+     with x as the outer loop and z as the inner loop (both ascending);
+   - `bool = true`: only lots whose **location cell** (`cISC4Lot::GetLocation`) is inside the rectangle, ordered
+     with z outer and x inner.
+
+   The whole-city query that matches the budget's lot set is therefore `(0, 0, CellCountX − 1, CellCountZ − 1,
+   false)`.
+
+6. **RiskyMoney**: §4.3. The disaster is the **earthquake** (`0x42963812`). The budget does not convert to
+   cells. It passes integer **world** coordinates, truncated toward zero, to the earthquake manager's
+   `AttemptDisasterStart(int32, int32)`. The earthquake clamps them to the city and converts them with
+   `cISC4City::PositionToCell` (16 m cells, origin at the city's (0, 0) corner, floor).
+
+7. **Stream errors**: confirmed. None of the three budget classes ever sets an error on a stream. Their `Read`
+   returns `GetError() == 0` (compiled slot 18 of `cIGZIStream`) after reading everything. A rejected version
+   returns false without consuming more and without changing the stream state. Every other failure (short
+   record, unknown referenced class, unreadable string) is the stream's own sticky error state (foundations
+   §2.1 and §2.9). Partial-failure handling needs nothing more.
+
+8. **Slot table re-verified** *[compat]*. All 61 slots of the original budget vtable (`0x00AB0908`) were compared
+   by `ret` operand with the SDK header compiled under the MSVC rule (foundations §16). All 59 interface slots
+   match, and the table at the top of this spec is correct. Slots 27 and 28 have the same argument size. The
+   body tells them apart: slot 28 is a map lookup on an integer, and slot 27 calls string methods on its
+   argument. Also checked: the `FreeCity4.dll` deployed at 14:50 on 2026-10-12 (the one that crashed in-game)
+   already had `GetTaxIncome(int32)` at slot 18 and `GetTaxIncome()` at slot 19, and all its readable `ret`
+   operands match the game. **The in-game crash was therefore not caused by overload order** and its cause is
+   still open.
+
+   New tables related to the budget's own calls: `cISC4DisasterManager`, `cISC4GameDataRegistry`,
+   `cISC4BuildingDevelopmentSimulator` and `cISC4LotManager` are in foundations §17.

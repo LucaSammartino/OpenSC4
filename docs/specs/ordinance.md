@@ -562,3 +562,16 @@ From the caller data of the Windows build (direct calls) and the call-site surve
    version 3 and 5 are rejected; an ordinance record of version 3 reads the chance as a percentage; version 1
    derives `isIncomeOrdinance` from the ID; after reading, exemplar-derived fields come from the current exemplar
    when it exists and from the record otherwise; `Init` after a load does not reload standard ordinances.
+
+## Compiled slot tables (round 2) *[compat]* (see foundations §16, §17)
+
+Verified slot by slot against the original Windows vtables (`ret` operand = stack-argument bytes, SDK header
+compiled under the MSVC overload rule):
+
+| Interface | Original vtable | Interface slots | Result |
+|---|---|---|---|
+| `cISC4OrdinanceSimulator` | `0x00ABEAC0` | 26 (3 + 23) | no overloads; order and argument sizes match the SDK |
+| `cISC4Ordinance` | `0x00ABDD38` (Free Clinics; all ordinance classes share the layout) | 30 (3 + 27) | no overloads; order and argument sizes match the SDK |
+
+The SDK declaration order can be used as is. Ordinance code also calls the property-holder interface of its
+"misc properties". That interface has overloads and several SDK signature errors (foundations §17.2).

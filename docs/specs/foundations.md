@@ -805,6 +805,8 @@ Details *[compat]*:
   treated as 0. *[choice]* Standalone readers may reject markers other than 0 and `0xA9BEE9AC`.
 - **Object path on read**: read the reference (§2.7, without `loadNow`). A null reference succeeds and leaves the
   destination variant **unchanged** *[quirk]*. Otherwise the variant becomes an `IGZUnknown` holding the object.
+  Every reader in the game reads into a **freshly constructed (Empty)** variant, so a null reference in practice
+  yields an Empty value. A property holder then drops it (§10.2).
 - **Array counts** have no upper limit in the original. *[choice]* FreeCity4 rejects a count whose elements
   would extend past the end of the record.
 - The array path stores the **elements only**. There is no terminator, alignment or padding.
@@ -861,13 +863,21 @@ count × {
   1. Read `version`. If it is not 2, return false. The stream is **not** put into the error state, and
      only the 2 version bytes have been consumed.
   2. Read `count`. **Remove all** existing properties.
-  3. Repeat `count` times: read `key` (it is **ignored**), then read a property. If the property read succeeded,
-     and its value is not Empty, and it is not an `IGZUnknown` value holding a non-null object, add it under its
-     **own** `propertyID`. A duplicate ID in the stream therefore replaces the earlier entry.
+  3. Repeat `count` times: read `key` (it is **ignored**), then read a property into a **new** property whose
+     value starts Empty. If the property read succeeded, its value is not Empty, and it is not an `IGZUnknown`
+     value holding a non-null object, add it under its **own** `propertyID`. A duplicate ID in the stream
+     therefore replaces the earlier entry.
   4. Return "stream not in error". There is no upper limit on `count`. After a failed property read every later
      read also fails (§2.1), so the loop ends quickly in effect.
-- *[quirk]* Object-valued properties (`IGZUnknown` with an object) are written (§9.2) but **dropped** on read.
-  Null-object ones are kept. No sample save contains either kind.
+- *[quirk]* **Every** object-valued property is written (§9.2) but **dropped** on read *[compat]*:
+  - with a non-null object, the value reads back as `IGZUnknown` holding the object, and the rule above drops it;
+  - with a null object (marker plus null reference), the variant stays Empty (§9.2), and the "not Empty" rule
+    drops it.
+
+  A holder therefore **never** comes out of a load with an `IGZUnknown` property. The holder's test "not an
+  `IGZUnknown` with a non-null object" can only matter for variants that are already `IGZUnknown`/null before the
+  read, and no reader produces those. On save, both kinds are written (marker `0xA9BEE9AC` + reference, null =
+  reference 0). No sample save contains either kind. (Corrects round 1, which said null-object entries survive.)
 - *[choice]* FreeCity4 writers use `key = propertyID`. Standalone readers may reject `count` values that cannot fit
   in the remaining record.
 
@@ -1246,8 +1256,8 @@ the order within a level.
     reads as "Aé" (§2.3).
 18. **Plain holder**: example (c) of §10.6 round-trips. Adding properties in the order `0x80000001`, `0x10` writes
     them in the order `0x10`, `0x80000001`. A stream with duplicate IDs keeps the last value. An entry whose key
-    differs from its property ID is filed under the property ID. Empty and object-valued entries are dropped,
-    while a null-object entry is kept. Version 3 returns false with only 2 bytes consumed and the stream still
+    differs from its property ID is filed under the property ID. Empty entries, object-valued entries and
+    null-object entries (`AC E9 BE A9 00 00 00 00`) are all dropped. Version 3 returns false with only 2 bytes consumed and the stream still
     good.
 19. **Exemplar holder**: example (a) of §10.6 round-trips. A stub resource manager resolves the parent, and a
     lookup of a property only the parent has succeeds. An unknown parent key still loads the own properties and
@@ -1284,6 +1294,8 @@ MSVC, they therefore produce the game's layout: it was verified in-game for ever
   shifts every method in between. An implementation should declare its interfaces with **unique method names**
   matching the spec slot tables, so the layout no longer depends on compiler grouping rules. It should also test each
   slot through the vtable with the game's argument counts.
+- Verified compiled tables of framework and shared-service interfaces are in §17. They also list the places where
+  the SDK **signature** itself is wrong (argument count or return type), independent of order.
 
 ## 15. Open questions for §9–§13
 
@@ -1300,3 +1312,215 @@ MSVC, they therefore produce the game's layout: it was verified in-game for ever
    last). Each subsystem spec should check whether its month agent reads another one's month results.
 6. Whether clearing Silent in `UpdateLocalDeals` really posts status reports (§11.3). That depends on the order of
    the check inside `SetFlags`, which a runtime capture would settle.
+
+## 17. Compiled slot tables of game-framework interfaces *[compat]*
+
+Method (applies to every table here and in the subsystem specs). Each interface's SDK header was laid out by the
+MSVC rule of §16: every overload group sits at the position of its first declaration, and its members are in
+reverse declaration order (rule re-checked with MSVC 2022, including a group whose members are not adjacent).
+Each slot was then compared with the original Windows vtable named below. The callee's `ret N` operand gives
+its stack-argument bytes (`int64`/`double` = 8, everything else 4; a by-value class return adds a hidden 4-byte
+pointer). When an overload pair has the same byte count, its members were told apart by what the body does with
+the argument. "Non-adjacent" marks overloads whose SDK declarations are separated by other methods: under MSVC
+the later one moves up and shifts every method in between. An implementation that gives overloads unique names
+(as §16 recommends) must place each one at the slot listed here.
+
+**SDK signature errors** found by this check are listed with each interface. Calling them through the SDK
+declaration corrupts the stack or returns garbage. The tables list only the overloaded and the wrong methods.
+Every other slot matches the SDK in both order and argument size.
+
+### 17.1 `cIGZVariant` (original vtable `0x00AA6788`, 127 interface slots)
+
+| Slots | Group (compiled order) |
+|---|---|
+| 9/10, 12/13, 15/16, 18/19, 21/22, 24/25, 27/28, 30/31, 33/34, 36/37, 39/40, 42/43, 45/46, 48/49, 51/52 | `GetValX()` (no argument, returns the value) **then** `bool GetValX(X&)`, for X = Bool, Uint8, Sint8, Uint16, Sint16, Uint32, Sint32, Uint64, Sint64, Float32, Float64, Char, RZUnicodeChar, RZChar, VoidPtr. Example: `+0x84` = `int64 GetValSint64()`, `+0x88` = `bool GetValSint64(int64&)`, `+0x8C` = `SetValSint64` |
+| 59/60 | `cIGZUnknown* GetValUnknown()`, then `bool GetValUnknown(uint32 riid, void** ppv)` |
+| 62/63 … 90/91 | `AsX() const` (value), then `X& AsX()` (reference), for the 15 types in the order above |
+| 92/93 … 122/123 | `RefX(X* p, uint32 count)`, then `X* RefX()`, for the 15 types and `RefVoid` |
+| 124/125/126 | `RefIGZUnknown(cIGZUnknown*)`, `bool RefIGZUnknown(uint32 riid, void** ppv)`, `cIGZUnknown* RefIGZUnknown()` |
+
+SDK errors: slot 8 is `bool CanGetVal(uint16 type) const` (one argument, always true in the original), not
+`CanGetVal()`. Slot 60 takes `(riid, void**)`, not `(cIGZUnknown**)`.
+
+### 17.2 `cISCPropertyHolder` (original vtable `0x00AA6CD8`, 22 interface slots)
+
+| Slot | Method |
+|---|---|
+| 5 | `bool GetProperty(uint32 id, void* buffer, uint32& length)` |
+| 6 | `bool GetProperty(uint32 id, uint32 riid, void** ppv)` |
+| 7 | `bool GetProperty(uint32 id, cIGZString& value)` |
+| 8 | `bool GetProperty(uint32 id, uint32& value)` |
+| 9 | `cISCProperty* GetProperty(uint32 id)` |
+| 10 | `bool AddProperty(uint32 id, void* data, uint32 length, bool)` |
+| 11 | `bool AddProperty(uint32 id, cIGZUnknown* value, bool)`: **SDK error**, the SDK says `int32 lValue`. The original stores an object value |
+| 12 | `bool AddProperty(uint32 id, cIGZString const& value, bool)`: **SDK error**, the SDK omits the `bool` (the callee pops 12 bytes) |
+| 13 | `bool AddProperty(uint32 id, uint32 value, bool)` |
+| 14 | `bool AddProperty(uint32 id, cIGZVariant const* value, bool)` |
+| 15 | `bool AddProperty(cISCProperty* property, bool)` |
+| 17 | `bool RemoveProperty(uint32 id, bool)`: **SDK error**, the `bool` is missing |
+| 18 | `bool RemoveAllProperties(bool)`: **SDK error**, the `bool` is missing |
+| 19 | `bool EnumProperties(bool (*filter)(cISCProperty*, void*), void (*fn)(cISCProperty*, void*), void* data) const`: **SDK error**, the SDK has 2 parameters |
+| 20 | `bool EnumProperties(void (*fn)(cISCProperty*, void*), void* data) const` |
+
+The `bool` arguments' meaning is not established. The callers seen pass 0 (false). The exemplar's property-holder
+vtable (`0x00AAF038`) has the same layout.
+
+### 17.3 `cIGZString` (cRZString vtable `0x00A80810`, 28 slots)
+
+| Slot | Method |
+|---|---|
+| 3 / 4 | `FromChar(char const*, uint32 len)` / `FromChar(char const*)` |
+| 8 / 9 / 10 | `IsEqual(char const*, uint32 len, bool cs)` / `IsEqual(cIGZString const&, bool cs)` / `IsEqual(cIGZString const*, bool cs)` |
+| 11 / 12 | `CompareTo(char const*, uint32, bool)` / `CompareTo(cIGZString const&, bool)` |
+| 16 / 17 | `Append(cIGZString const&)` / `Append(char const*, uint32)` |
+| 18 / 19 | `Insert(uint32, cIGZString const&)` / `Insert(uint32, char const*, uint32)` |
+| 20 / 21 | `Replace(uint32, cIGZString const&)` / `Replace(uint32, char const*, uint32)` |
+| 23 / 24 | `Find(cIGZString const&, uint32, bool)` / `Find(char const*, uint32, bool)` (same size: told apart by the body, slot 23 calls `ToChar` on its argument) |
+| 25 / 26 | `RFind(cIGZString const&, uint32, bool)` / `RFind(char const*, uint32, bool)` (same check) |
+| 27 | `Sprintf(char const*, ...)`: variadic, so **cdecl**, caller cleans |
+
+No SDK errors.
+
+### 17.4 `cIGZDate` (cGZDate vtable `0x00ACEA38`, 46 slots; the date the simulator returns from `GetSimDate()`)
+
+| Slot | Method |
+|---|---|
+| 3 | `bool Set(char const* monthName, uint32 day, uint32 year)` (compares month names) |
+| 4 | `bool Set(uint32 dayNumber)` |
+| 5 | `bool Set(cRZTime const&)` |
+| 6 | `bool Set(uint32 month, uint32 day, uint32 year)` |
+| 7 | `bool Set(uint32 day, uint32 year)` |
+| 16 / 17 | `FirstDayOfMonth(uint32 month)` / `FirstDayOfMonth()` |
+| 33 | `operator-(int32 days)` (**non-adjacent**) |
+| 34 | `operator-(cIGZDate const&)` (**non-adjacent**) |
+| 35 | `operator+(int32 days)` (**non-adjacent**) |
+| 36 | `operator+(cIGZDate const&)` (**non-adjacent**) |
+
+In the SDK the two `operator-` and the two `operator+` are interleaved (`-`, `+`, `-`, `+`). MSVC compiles them as
+`-(int)`, `-(date)`, `+(int)`, `+(date)` at slots 33–36. Slots 37–40 (`++`, `--`, `+=`, `-=`) follow unchanged.
+
+**SDK error (return type)**: slots 33–36 do **not** return `cIGZDate&`, and they do not modify the date. They
+return a **uint32 day number**: `DayNumber() − n`, `DayNumber() − other.DayNumber()`, `DayNumber() + n`,
+`DayNumber() + other.DayNumber()`. A FreeCity4 `cIGZDate` must return these integers. Callers must not treat the
+result as a pointer.
+
+### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 14 slots)
+
+`AsISCPropertyHolder()` and `AsISCPropertyHolder() const` (slots 6/7) share one body. Their order is
+unobservable. No errors.
+
+### 17.6 `cIGZPersistResourceManager` (vtable `0x00AD89D0`, 44 slots)
+
+| Slot | Method |
+|---|---|
+| 5 / 6 | `GetNewResource(uint32 type, uint32 riid, void**, uint32, cIGZUnknown*)` / `GetNewResource(cGZPersistResourceKey const&, uint32 riid, void**, uint32, cIGZUnknown*)` *(same size; by rule)* |
+| 7 / 8 | `RegisterResource(cIGZPersistResource*)` / `RegisterResource(cGZPersistResourceKey const&, cIGZPersistResource&)` |
+| 11 / 12 | `Save(cIGZPersistResourceKeyList*, cIGZPersistDBSegment*)` / `Save(cGZPersistResourceKey const&, cIGZPersistDBSegment*)` (checked: slot 12 calls `GetResource` with its key) |
+| 21 | `FindObjectFactory(uint32 type, cIGZPersistResourceFactory**)` |
+| 22 | `FindObjectFactory(cGZPersistResourceKey const& key, cIGZPersistResourceFactory**)`: **SDK error**, the SDK has a single `factory**` parameter. The original forwards `key.type` to slot 21 |
+| 23 | `FindObjectFactory(cIGZPersistResource*, cIGZPersistResourceFactory**)` |
+| 31 / 32 | `FindDBSegment(uint32, cIGZPersistDBSegment**)` / `FindDBSegment(cGZPersistResourceKey const&, cIGZPersistDBSegment**)` *(same size; by rule)* |
+| 35 / 36 | `bool EnumerateDBSegments(callback*, cIGZPersistDBSegment*)` / `uint32 EnumerateDBSegments(cIGZPersistDBSegment**, uint32*)` *(same size; by rule)* |
+
+`GetResource` (slot 3), which the simulation uses for exemplars and LTEXT, is not overloaded.
+
+### 17.7 `cISC4GameDataRegistry` (vtable `0x00A8CBF8`, 29 slots)
+
+| Slot | Method |
+|---|---|
+| 3 | `AddChildEntry(void* key, char const* name, callCallback (input/output parameter sets), cEntry* parent, flags, void* context)` |
+| 4 | `AddChildEntry(void* key, char const* name, exchangeCallback (variant, set), cEntry* parent, flags, void* context)` |
+| 5 | `AddChildEntry(cIGZUnknown* key, char const* name, cEntry* parent, flags, void* context)` |
+| 6 / 7 | `RemoveChildEntry(void*)` / `RemoveChildEntry(cIGZUnknown*)` |
+| 8 / 9 | `GetEntryID(void*)` / `GetEntryID(cIGZUnknown*)` |
+| 24 / 25 | `AddNotificationTarget(cIGZMessageTarget2*)` / `AddNotificationTarget(cISC4GameDataRegistryNotificationTarget*)` |
+| 26 / 27 | `RemoveNotificationTarget(cIGZMessageTarget2*)` / `RemoveNotificationTarget(cISC4GameDataRegistryNotificationTarget*)` |
+
+Slots 3–9 were confirmed by the budget's own calls (budget §4.4). Slots 24–27 were placed by the rule only (same
+size).
+
+### 17.8 Shared simulation services
+
+**`cISC4LotManager`** (zone developer's lot-manager vtable `0x00AB37C0`, 28 slots)
+
+| Slot | Method |
+|---|---|
+| 5 / 6 | `GetLot(cS3DVector3 const&)` / `GetLot(int32 x, int32 z, bool)` |
+| 7 | `GetLotsInCellRect(list, x1, z1, x2, z2, bool)`: not overloaded (meaning in budget Errata round 2, item 5) |
+| 8 / 9 | `GetLotsSurroundingLot(int32 x, int32 z, list, int32 flags)` / `GetLotsSurroundingLot(cISC4Lot const*, list, int32 flags)` |
+| 15 | `GetSafeLotIterator()` (the master lot list, budget §5.2) |
+| 22 | `CreateLotIfPossible(int32 x, int32 z, int32 w, int32 h, int32, cISC4Lot*& lot, bool, bool, cISC4LotConfiguration*)`: **SDK error**, the `cISC4Lot*&` out-parameter is missing (36 bytes, not 32) |
+
+**`cISC4Lot`** (vtable `0x00AB19B0`, 70 slots)
+
+| Slot | Method |
+|---|---|
+| 50 / 51 | `GetCapacity(DeveloperType, bool forceCalculation)` / `GetCapacity(WealthType)` |
+| 61 | `GetOccupancy() const`: **SDK error**, the method returns an `SC4Percentage` **by value**. MSVC passes a hidden result pointer, so the callee pops 4 bytes and writes the float through that pointer. Declare it as returning a one-float class type (or call it with a pointer argument). The SDK's `float` return is wrong |
+
+**`cISC4BuildingDevelopmentSimulator`** (vtable `0x00AB0AF8`, 59 slots)
+
+| Slot | Method |
+|---|---|
+| 6 / 7 / 8 | `AddNewBuildingOccupant(uint32, int32, int32, int32)` / `(uint32, float*, int32)` / `(cISC4BuildingOccupant*)` |
+| 9 | `int64 GetCostOfOccupantDemolition(cISC4FoundationOccupant*, uint32)` (**non-adjacent**: declared after `DemolishFoundationOccupant`. **SDK error**: the SDK says `(void)`, but the method takes 8 bytes) |
+| 10 | `int64 GetCostOfOccupantDemolition(cISC4BuildingOccupant*, uint32)` (non-adjacent) |
+| 11 / 12 | `GetAllBuildingTypes(SC4Vector<uint32>&)` / `GetAllBuildingTypes(uint32* array, uint32& count)` |
+| 18 / 19 | `GetBuildingTypesByFamily(SC4Vector<uint32>&, family)` / `GetBuildingTypesByFamily(hash set&, family)` (checked by body). The original's set is an STLport `hash_set`, **not** `std::unordered_set` as in the SDK, so never pass one |
+| 23 / 24 | `AddNewFoundationOccupant(uint32, int32, float*, float, float, int, float)` / `(cISC4FoundationOccupant*)` |
+| 32 / 33 | `GetDeveloper(DeveloperType)` / `GetDeveloper(PurposeType, WealthType)` |
+| 37 / 38 | `GetExemplarName(type)` / `GetBuildingName(type)` (not overloaded; budget Errata round 2, item 2) |
+| 42 / 43 | `GetBuildingMapKey(PurposeType, WealthType)` / `GetBuildingMapKey(uint32 type)` |
+
+Because slot 9 moves up, everything from `GetAllBuildingTypes` to `DemolishFoundationOccupant` (header order)
+sits one slot later than its header line count suggests.
+
+**`cISC4HistoryWarehouse`** (vtable `0x00A8CCB4`, 14 slots)
+
+| Slot | Method |
+|---|---|
+| 9 | `Coalesce(uint32 type, cIGZDate const& start, cIGZDate const& end, int32)`: **SDK error**, the SDK has one date (16 bytes, not 12) |
+| 10 / 11 | `Dispose(uint32 type)` / `Dispose(uint32 type, cIGZDate const& start, cIGZDate const& end)` |
+
+`RecordHistoryData` (12) and `SetHistoryDataQueueLength` (13), which the budget uses, are not overloaded.
+
+**`cISC4DisasterManager`** (earthquake manager vtable `0x00A9E090`, 12 slots)
+
+| Slot | Method |
+|---|---|
+| 6 | `cISC4DisasterInstance* AttemptDisasterStart(int32 x, int32 z)` (the budget's RiskyMoney call, `+0x18`) |
+| 7 | `cISC4DisasterInstance* AttemptDisasterStart()` (returns null for the earthquake) |
+
+For the earthquake, the two integers are world coordinates (budget §4.3), whatever the SDK's parameter names say.
+
+## Errata / clarifications (round 2)
+
+1. **Null object values in property holders** (§9.2 vs §10.2, §14 test 18) *[compat]*. Both statements were about
+   different things, and §10.2 / test 18 were wrong; they are corrected above. `ReadVariant` on a null reference
+   leaves its destination unchanged, but the holder reader always reads into a **fresh, Empty** property, so the
+   entry arrives Empty and is dropped by the "not Empty" rule. Non-null object entries arrive as `IGZUnknown`
+   with an object and are dropped by the other rule. Result: **on load, every object-valued entry (null or not)
+   is dropped; on save, both are written** (marker `0xA9BEE9AC` plus the reference, 0 for null). Loading such a
+   holder and saving it again therefore removes those entries.
+
+2. **Stream error handling** (implementer's question 7): confirmed. The game's streams expose only
+   `GetError()` (compiled slot 18 of `cIGZIStream`) and no `SetError`. Serializable
+   objects never put a stream into the error state themselves. A `Read` returns "`GetError() == 0` after
+   reading everything", or false for a rejected version (with the stream untouched). All partial-failure
+   behaviour comes from the stream's own sticky flag (§2.1, §2.9).
+
+3. **Overload order** (§16): the deployed `FreeCity4.dll` of 14:50 (built with MSVC from SDK-order declarations)
+   was compared slot by slot with the original budget vtable. Every slot with a readable `ret` matches, including
+   18/19 and 27/28. The MSVC rule therefore held in practice, and the crash attributed to overload order must
+   have had another cause.
+
+4. **Variant overloads**: §17.1 shows that `cIGZVariant` follows the same rule (for example `GetValSint64(int64&)`
+   is `+0x88`, not `+0x84`). It also lists two SDK signature errors there (`CanGetVal`, `GetValUnknown`).
+
+5. **SDK signature errors** found in round 2 (details in §17 and the subsystem specs): `cISCPropertyHolder`
+   (`AddProperty` ×2, `RemoveProperty`, `RemoveAllProperties`, `EnumProperties`), `cIGZVariant` (`CanGetVal`,
+   `GetValUnknown`), `cIGZDate` (`operator±` return a day number), `cIGZPersistResourceManager`
+   (`FindObjectFactory(key, …)`), `cISC4LotManager::CreateLotIfPossible`, `cISC4Lot::GetOccupancy` (by-value
+   return), `cISC4BuildingDevelopmentSimulator::GetCostOfOccupantDemolition` (foundation overload),
+   `cISC4HistoryWarehouse::Coalesce`, and `cISC4RegionalCity` (neighbors spec: setters take `double`,
+   `GetWorldBaseElevation(float)` is a setter).
