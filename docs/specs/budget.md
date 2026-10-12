@@ -411,8 +411,13 @@ shipped limits (≤ 200,000) this never matters. Funds are not checked: bonds ca
 
 **Payment formula** (annuity), `r = BondInterestRate` (fraction), `n = BondPaybackMonths`:
 
-`GetMonthlyPaymentForLoan(L) = trunc( L · (r/12) / (1 − (1 + r/12)^(−n)) )` computed in double precision, with
-`r/12` taken from the float `r`. `GetFullCostOfLoan(L) = GetMonthlyPaymentForLoan(L) × n`.
+`GetMonthlyPaymentForLoan(L) = trunc( L · (r/12) / (1 − (1 + r/12)^(−n)) )`, with `r/12` taken from the float `r`.
+The constants and intermediates are doubles, but the x87 runs at 24-bit precision (foundations §18), so every
+operation, including the C runtime `pow`, rounds to a 24-bit significand: the result is only float-accurate.
+*(Corrected: the earlier text said "computed in double precision".)* *[compat]* FreeCity4 evaluates the
+expression as a sequence of `float32`-rounded operations in this order (q := r × 1/12; L × q; 1 + q; −(n + 0);
+pow; 1 − that; divide); with `pow` from a correctly rounded `f64` routine rounded to `f32`, results may differ
+from the original by 1 simoleon near integer boundaries *[inferred]*. `GetFullCostOfLoan(L) = GetMonthlyPaymentForLoan(L) × n`.
 *[choice]* If `r == 0`, the payment is `L div n` (the original divides 0 by 0).
 
 Shipped data (r = 0.085, n = 120): 10,000 → 123 per month, full cost 14,760.
@@ -454,7 +459,7 @@ to overdraw (§6).
 
 ### 5.7 Daily simulation (on SimNewDay)
 
-For each tax group i: record `roundHalfEven(rate[i] × 10)` (float) into history series `0xAABAAA9F + i`. No money
+For each tax group i: record `roundHalfEven(rate[i] × 10)` (the product rounded to `float32` first, foundations §18) into history series `0xAABAAA9F + i`. No money
 moves on days.
 
 ## 6. `cISC4BudgetSimulator` methods (SDK order)
@@ -874,8 +879,9 @@ updated by the original; they are kept only so that save records keep their layo
 5. Who calls `SetTotalMonthlyIncome/Expense` and `SetTotalYearlyIncome/Expense`? Is `yearlyIncome`/`yearlyExpense`
    ever non-zero in the shipped game?
 6. The per-group `maxRate` is stored and saved but nothing in the budget enforces it. Does the tax UI clamp to it?
-7. Exact floating-point results of the Windows tax computation (x87 with float casts) versus a strict float32
-   implementation; a sample city with a known month-end tax total would settle this.
+7. *(resolved)* Exact floating-point results of the Windows tax computation: the x87 runs at 24-bit precision
+   (foundations §18), so the tax computation is a sequence of `float32` operations; a strict float32
+   implementation in the original order matches it.
 8. Which departments are locally funded in the shipped game, and each department's `pMax` (set by the service
    simulators; out of scope here).
 9. What the budget-failure sequence in the 3D view does (UI end-game), and whether anything else listens for
@@ -919,7 +925,9 @@ updated by the original; they are kept only so that save records keep their layo
     `GetDepartmentBudgetsInGroup` order and reference counts; prefix, case-insensitive `GetDepartmentBudget(name)`.
 13. **Tuning**: code defaults with no exemplar; shipped values with the exemplar, including BondInterestRate × 0.01
     and the CS$$$/CO$$$ weight behaviour of §13.1.
-14. **Daily**: history value `roundHalfEven(rate × 10)` (9.25 → 92, 9.35 → 94).
+14. **Daily**: history value `roundHalfEven(f32(rate × 10))`: the product is rounded to `float32` first
+    (foundations §18), so most one-decimal rates become exact ties. 9.25 → 92, 9.35 → 94, **9.15 → 92**
+    (9.15f × 10 = 91.4999962 rounds to 91.5, then to even), **9.05 → 90** (90.5000019 → 90.5 → 90).
 15. **Estimates**: `GetEstIncome/Expenses = YTD + live monthly × (13 − month)`.
 16. **Save**: write → read → write is byte-identical for all three records; budget version 3 and line-item
     version 3 or 5 are rejected; a version-4 budget with agriculture rate 0 gets the default rate at `Init`; a
