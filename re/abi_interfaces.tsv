@@ -161,3 +161,5 @@ cIGZMessageTarget2(ZoneManager)	cSC4ZoneManager	00a92df0	4	docs/specs/zones.md
 cIGZSerializable(ZoneManager)	cSC4ZoneManager	00a92dd8	6	docs/specs/zones.md
 cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	4	docs/specs/zones.md
 cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	6	docs/specs/zones.md
+cIGZMessageTarget2(LotDeveloper)	cSC4LotDeveloper	00ab1b88	4	docs/specs/lot-developer.md
+cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	6	docs/specs/lot-developer.md

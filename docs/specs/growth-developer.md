@@ -823,7 +823,8 @@ Shared helpers: response curve constructor `0x007D0410`, loaders `0x005F4620` / 
 1. Who calls `EstimateDesirability` and `GetSubjectiveThresholds`, and what the 7 subjective indices mean.
 2. Names of `0x4A5F7C4B` / `0x4A5F7315` and which buildings carry them.
 3. Whether any caller modifies the growth or decline vectors (assumed read-only).
-4. Meaning of the abandonment-threshold keys 1..3 *[inferred: density]* (`lot-developer.md`).
+4. Meaning of the abandonment-threshold keys 1..3 *[inferred: density]*. The lot developer never calls slot 24
+   (`lot-developer.md`); the caller is still unknown.
 
 ---
 

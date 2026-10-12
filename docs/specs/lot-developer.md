@@ -1,0 +1,1310 @@
+# Lot developer (`cSC4LotDeveloper`) — behaviour spec
+
+Status: round 1 (M4), written from the Windows 1.1.641 executable (`bin/SimCity4.exe`). The Mac-based notes in
+`docs/subsystems/development.md` §6 were the starting point only; every fact below was checked on the Windows code.
+Corrections to that write-up and to other specs are listed in §12.3.
+
+Tags:
+- *[compat]*: observable, must match.
+- *[choice]*: a FreeCity4 decision.
+- *[inferred]*: not proven.
+- *[quirk]*: original behaviour that looks unintended but is reproduced.
+
+**Cited, not repeated here**
+- foundations: streams and object references §2, city components and load order §3.6 / §3.7, response curves §4,
+  messages §5, lot state and condition §5.2, random generators §6, C `rand()` and `random_shuffle` §12, slot-order
+  rule §16, x87 precision §18.
+- simulator spec: agent levels and re-delivery §4 / §5.3, the CPU-cycle time slicer §5.5.
+- simgrid spec: grid ownership rule §6.4.
+- allocators.md: allocator instances A / B / C, `GetLotsInCellRect`, STLport `hash_set` iteration order.
+- `building-development.md` (BDS): building profiles (slot 39), construction resources (slots 50 / 51), cheats
+  (slots 54–58), `AddNewBuildingOccupant` (slot 7), `GetLotDeveloper` (slot 36).
+- `growth-developer.md`: `GetPurpose` (slot 7), `GetDesirabilityMap` (slot 13), `GetWaterSupplyCap` (slot 20).
+- `tract-developer.md`: the callers of `StartConstruction`, `AbandonBuilding`, `ReoccupyBuilding`,
+  `NeedsAnchorBuilding`, `GetAreaSlope`.
+- `zones.md`: zone types, the lot manager and its lot lists.
+- `advisors.md`: the `LotDeveloperNotification` message `0x4C04DE69`.
+
+**Notation**
+- `r24(·)` rounds to float32 (foundations §18). Every x87 operation below is one `r24`.
+- `trunc(·)` is the CRT `_ftol` (`0x009EEF04`, mislabelled `_lua_gettop` in the symbol port): int64 truncation toward
+  zero; callers keep the low 32 bits unless stated. NaN gives 0 (foundations §18.1).
+- `Uniform(n)` is `cRZRandom::RandomUint32Uniform(n)` (foundations §6.1): one `NextRaw` step, `(raw · n) >> 32`;
+  `n = 0` returns 0 without a step.
+- **File RNG** = the file-local `cRZRandom` at `0x00B49AF0` (§10).
+- Lot states (`cISC4Lot::HabitationState`): 0 created, 1 ready (empty), 2 constructing, 3 occupied, 4 vacant
+  (abandoned), 5 destructing, 6 destroyed.
+- Vacate reasons (`cISC4Lot::VacateReason`): 0 none, 1 low desirability, 2 no power, 3 no water, 4 commute time,
+  5 kick out occupants, 6 low demand.
+- Zone types (`cISC4ZoneManager::ZoneType`): 0 none, 1–3 residential, 4–6 commercial, 7 agriculture, 8–9
+  industrial, 10 military, 11 airport, 12 seaport, 13 spaceport, 14 landfill, 15 plopped.
+- Purposes (`BuildingProfile.purpose`): 0 none (civic / plopped), 1 residence, 2 services, 3 office, 4 tourism,
+  5 agriculture, 6 processing, 7 manufacturing, 8 high tech.
+- Lot properties used as per-lot counters and flags (all `uint32`, read through variant slot 73, written through
+  variant slot 26; created with value 0 by holder slot 13 when a counter is first needed):
+
+  | ID | Meaning (name *[inferred]*) | Written by |
+  |---|---|---|
+  | `0xC999E206` | low-desirability counter | TestDesirability |
+  | `0xE999B11F` | no-power counter | TestPower |
+  | `0x8999B20B` | no-water counter | TestWater |
+  | `0x8999B10B` | travel counter (road access and commute) | TestTravel |
+  | `0xC999C45E` | current zot: 0 none, 4 power, 5 water, 6 road, 7 commute | the zot helpers (§5.6) |
+  | `0x48E95539` | (on a zot prop occupant) the zot number it shows | AddBuildingZotProp |
+
+---
+
+## 1. Role and identity
+
+The lot developer looks after **lots that already exist**:
+
+1. a **daily pass** that visits about 1/28 of all lots per day (§4) and, for each, re-tests desirability, power,
+   water and travel, **abandons** buildings that keep failing, updates the lot's visual **condition**, shows or
+   hides **zots** (the floating "no power / no water / no road / commute" icons) and maintains **business units**
+   (groups of adjoining industrial or farm lots that share road access);
+2. **construction** on behalf of the tract developer and others (`StartConstruction`, slot 6), the hand-off to the
+   construction occupant, and the lot content (props, flora, base texture, network nodes) added when the building
+   is finished (§6);
+3. **demolition** and **explosion** of lots, including rubble (§7);
+4. the **night lights**: buildings are switched lit / unlit in small batches on animation ticks after the day /
+   night change (§8);
+5. reaction to **power changes** in a cell rectangle (§9);
+6. terrain helpers used by other subsystems: altitude, slope and flatness queries, levelling, foundations and
+   development cost (§11, slot table).
+
+### 1.1 Identity
+
+| Item | Value |
+|---|---|
+| Class | `cSC4LotDeveloper`, class ID `0xA990BFE0` (`GetGZCLSID` `0x006C3B00`) |
+| Object | `0x108` bytes, allocated with allocator C (`0x005E55E0`) by the factory `0x006C8DF0`; constructor `0x006C8650`; deleting destructor (slot 65, `0x006C8810`) destroys the night deque and frees with C (`0x005E5620`) |
+| Primary interface | `cISC4LotDeveloper`, IID `0x4818E5D2`, vtable `0x00AB1B98` (65 slots + destructor) |
+| `QueryInterface` (`0x006C3B80`) | `0x4818E5D2` and `1` (`cIGZUnknown`) → the object; `0x452294AA` (`cIGZMessageTarget2`) → object + 4; `0xE4FDA3D4` (`cIGZSerializable`) → object + 8; anything else → false. Each success AddRefs |
+| Sub-objects | +4 `cIGZMessageTarget2` (vtable `0x00AB1B88`), +8 `cIGZSerializable` (vtable `0x00AB1B70`) |
+| `GetSimulatorType` (slot 5) | returns `0x6818E5C9` |
+| Owner | the city: component slot 16 (foundations §3.6), IID `0x4818E5D2`. The global pointer `0x00B43D20` is set by the city's init code (`0x00601CF4`) and cleared at shutdown (`0x00602033`); the BDS returns it as `GetLotDeveloper()` (BDS slot 36) |
+| Agent name | `"cSC4LotDeveloper"` (string `0x00A89850`) |
+
+### 1.2 Creation, Read and Init order
+
+- The city creates the object through GZCOM (new city) or the class store creates it and calls `Read` (load); `Read`
+  happens **before** `Init` (foundations §3.7). The lot manager and its lots are therefore already loaded when
+  `Init` runs *[inferred from the foundations order]*.
+- The constructor sets the defaults of §2 (daily state 3 = "start a cycle", both change latches set, tuning
+  defaults of §3.5, an empty response curve, an empty boundary map).
+
+### 1.3 `Init()` → bool (slot 3, `0x006CB9A0`)
+
+If already initialised, return true at once. Otherwise:
+
+1. Set the static byte `0x00B49AE8` to 1 on the first call (never read: dead) *[quirk]*.
+2. Read the tuning (§3.5).
+3. For each service pointer that is still null, take the global and AddRef it; **if any of them is null, return
+   false** (nothing is subscribed): city `0x00B43CEC`, lot manager `0x00B43D08`, occupant manager `0x00B43D0C`,
+   prop manager `0x00B43D10`, BDS `0x00B43D68`, power `0x00B43DA0`, plumbing `0x00B43D94`, flora `0x00B43D80`,
+   terrain `0x00B43CF4`, traffic `0x00B43DA8`. The demolition utility `0x00B43D00` is taken without a null check.
+4. Cell counts from the city: X = city slot 93, Z = city slot 94 (stored on every `Init`).
+5. Only when the terrain pointer was taken in this call: `vertsX := terrain slot 7 + 1`;
+   `extentX := r24(float(terrain slot 7) · CellWidth)`, `extentZ := r24(float(terrain slot 8) · CellWidth)`
+   (`CellWidth` = terrain slot 6). After a load these overwrite nothing (the terrain pointer is null before the first
+   `Init`, so the values from `Read` are replaced) *[inferred: `Read` runs on a fresh object]*.
+6. Create the blocking filter (a `cSC4BlockingLotOccupantFilter`, 12 bytes from C, vtables `0x00AB1B28` /
+   `0x00AB1B10`) if absent. It accepts occupant type `0x74758926` (flora) only (`0x006C3C20`).
+7. Daily state := 0. Create a `ScanningIterator` (0x20 bytes from C, `0x0060CE90`) over the rectangle
+   `{0, 0, CellCountX / 4 − 1, CellCountZ / 4 − 1}` (C division) if absent. It is never used afterwards (dead).
+8. If the simulator global `0x00B43D5C` is null, return false. Otherwise register the agent (§3.1) at levels 0, 4
+   and 6.
+9. If the message server is not yet held: take `0x00B43CCC` (return false if null), AddRef it, and subscribe the
+   nine messages of §3.2 in this order: `0x44778234`, `0x99EF1142`, `0x99EF1143`, `0xE8BDA2E7`, `0xE99B3D4D`,
+   `0x278E6003`, `0x8A07AE00`, `0x26D31EC4`, `0x69247DC7`.
+10. Register with the animation-tick manager (service `0x86AD10EC`, IID `0x86AD10ED`): its slot 5 with
+    (this + 4, `0xC0`) *[inferred: `0xC0` is a tick mask or rate]*.
+11. `InitBoundaryRules` (`0x006CA160`): fills the boundary map used by `GetBoundaryLotTexture` (slot 42). No random
+    draw.
+12. **Force a base-texture refresh**: flip the force-empty flag, then call `SetForceEmptyLotBaseTextures(original)`
+    (slot 47). Because the value differs, slot 47 walks **every lot** (§6.6). With the default flag (false) this
+    calls `SetNormalLotBaseTexture(lot, lot.GetLotConfiguration(), true)` on each lot, which **draws the file RNG**
+    for every lot that has a configuration with texture objects (§10). On a new city there are no lots yet.
+13. `canCheckCommute := false`, `noZotUntilDay := 0`, initialised := true. Return true.
+
+### 1.4 `Shutdown()` → true (slot 4, `0x006C7380`)
+
+Only when initialised: clear the flag; release every building in the night deque and clear it; `RemoveAgent(this+4)`
+(simulator slot 20, all levels); unregister from the animation-tick manager (slot 6, (this + 4, `0xC0`));
+unsubscribe the nine messages (message server slot 6) and release the server; release all services and the
+blocking filter; clear the boundary map; unregister and free the safe lot iterator (§4.1) and delete the scanning
+iterator (both C); release the BDS. Returns true. Because `Init` subscribes only when it holds no server, a later
+`Init` subscribes again.
+
+`Release` (slot 2, `0x006C49D0`): if the count is above 1, decrement; otherwise call `Shutdown` (slot 4) and the
+deleting destructor (slot 65, flag 1). It returns 0 in both cases *[quirk: not the new count]*.
+
+---
+
+## 2. State
+
+### 2.1 Persistent (saved, §13)
+
+| Field | Type | Default | Meaning |
+|---|---|---|---|
+| `vertsX` | int32 | terrain cell count X + 1 | row stride for vertex altitude reads (slot 15) |
+| `extentX`, `extentZ` | float32 | cell counts × cell width | city size in metres (saved; not read elsewhere in the class *[inferred]*) |
+| night deque | `deque<cISC4BuildingOccupant*>` | empty | every building, one reference each (§8) |
+| night cursor | index into the deque | 0 | next building of the current batch run |
+| `nightMode` | uint32 (saved as uint8) | 0 | 0 idle, 1 switching to day, 2 switching to night |
+| `litFlag` | bool | false | lit state given to newly inserted buildings |
+
+### 2.2 Not saved
+
+| Field | Default | Meaning |
+|---|---|---|
+| `dailyState` | 3 (constructor), 0 (`Init`) | 0 / 3 start a cycle, 1 in a cycle (§4.1) |
+| lot iterator | none | the lot manager's safe iterator (§4.1) |
+| `visited` | 0 | lots updated so far today |
+| `netChanged`, `unitChanged` | true, true | set by network insert / remove messages (§3.2); snapshotted at the start of each cycle |
+| `netSnap`, `unitSnap`, `zotsAllowed` | false | cycle snapshots: `netSnap := netChanged`, `unitSnap := unitChanged`, `zotsAllowed := today > noZotUntilDay` |
+| `noZotUntilDay` | 0 | set to today + 31 by CityEstablished |
+| `canCheckCommute` | false | set by TrafficMapChanged |
+| `forceEmpty` | false | force-empty base textures (slots 46 / 47) |
+| `nightAcc` | 200 (constructor), tuning `0xE900EA2B` | animation-time accumulator in ms (§8) |
+| `nightBatch` | 8 (constructor), tuning `0xE900EA2C` | buildings per batch |
+| tuning | §3.5 | |
+| response curve | empty | development cost vs slope |
+| boundary map | built by `Init` | boundary-type key → (texture, byte, bool) |
+
+The RNG is not saved (foundations §6.2).
+
+---
+
+## 3. Agents, messages and tuning
+
+### 3.1 Agent registration
+
+`AddAgent(this+4, level, "cSC4LotDeveloper", flags 2)` (simulator slot 19) for levels **0, 4 and 6**. Flags 2: the
+agent runs only once the city is established (simulator §4).
+
+| Level | Message | `DoMessage` result | Effect |
+|---|---|---|---|
+| 0 (one-shot) | `0x66956810` | true (default branch) | nothing; the level-0 registration is removed after its first delivery. While it is registered, calendar time does not pass (simulator §5.2) |
+| 4 (day) | `0x66956814` | the daily pass's result | §4 |
+| 6 (month) | `0x66956816` | true (default branch) | nothing |
+
+### 3.2 Subscribed messages (`DoMessage`, `0x006CD940`, sub-object +4)
+
+All return true unless stated. Message slots: type 4, data1 9, data2 14, data3 19, data4 24, void1 10,
+IGZUnknown 32 (foundations §5).
+
+| Type | Name *[inferred]* | Handling |
+|---|---|---|
+| `0x44778234` | day / night changed | §8.2. data2 = 0 starts night, 1 starts day |
+| `0x99EF1142` | occupant inserted | data3 = occupant type. Building (`0x278128A0`): add void1 to the night deque (§8.1). Network (`0xC772BF98`): `netChanged := unitChanged := true` |
+| `0x99EF1143` | occupant removed | building: remove from the night deque (§8.1); network: both latches as above |
+| `0xE8BDA2E7` | lot state changed | posted by `cSC4Lot::SetState` (`0x006C3100`, queued `MessagePost`) with IGZUnknown = lot, data1 = old state, data2 = new state, data3 = building type, data4 = reason. §6.5 |
+| `0xE99B3D4D` | lot condition changed | posted by `cSC4Lot::SetCondition` (`0x006C26D0`). §6.5 |
+| `0x278E6003` | terrain heights changed | reads data1, data2, data4; does nothing *[quirk]* |
+| `0x8A07AE00` | power changed in a rectangle | rect = (data1, data2, data3, data4) = (x1, z1, x2, z2); §9 |
+| `0x26D31EC4` | city established | `noZotUntilDay := GetSimDateNumber() + 31` (simulator slot 8) |
+| `0x69247DC7` | traffic map changed | `canCheckCommute := (demand.GetDemand(0x2000, 0x20000).QueryDemandValue() > 0.0)` (demand simulator slot 6, demand slot 9; the city-total jobs node, demand.md). NaN → false |
+| `0x86AD10EE` | animation tick (delivered by the animation-tick manager, not subscribed) | if `nightMode = 0`: return **false**. Otherwise `ms := data2 / 1000` (unsigned integer division) and run §8.3; return true |
+| `0x66956814` | SimNewDay (agent) | §4; returns the pass's "finished" flag |
+| any other | | true |
+
+### 3.3 Messages posted
+
+| Message | When | Payload | Delivery |
+|---|---|---|---|
+| `0x4C04DE69` LotDeveloperNotification | `AddBuildingZotProp` with zot 6 (data1 = 1), `RemoveBuildingZotProp` with zot 6 (data1 = 2), `StartConstruction` when the lot has a zot property (data1 = 2) | data2–4 = 0; IGZUnknown = the lot | `SC4PostMessage2` (`0x005F98C0`): new standard message, `MessagePost(msg, false)` (queued) |
+| `0xA6B79621` | after an immediate whole-city night-light update (§8.2) | type only | `MessagePost(msg, false)` |
+| `0x09D8E0B6` (occupant message) | to night-light props during a light update (§8.4) | `PostOccupantMessage(0x09D8E0B6, 0)` (occupant slot 15) | |
+| `0x99EF1145` (occupant message / occupant-manager change) | after a base-texture occupant is updated (§6.6) | `PostOccupantMessage(0x99EF1145, 0)` | |
+
+The lot itself posts `0xE8BDA2E7` and `0xE99B3D4D` when the lot developer changes state or condition.
+
+### 3.4 Message handling order matters
+
+`0xE8BDA2E7` and `0xE99B3D4D` arrive **queued**, after the call that changed the lot has returned. The content and
+texture work of §6.5 (and its draws) therefore happens when the message server dispatches them, not inside
+`StartConstruction` or `UpdateLot` *[compat]*.
+
+### 3.5 Tuning (`ReadSimulatorTunableValues`, `0x006C4A20`)
+
+Exemplar key: type `0x6534284A`, group `0xE7E2C2DB`, instance `0xE8DA7677` ("Building Development",
+`re/tuning/simulators.md`), fetched with resource manager `0x00B43CA8` slot 3 (IID `0xA52160F5`). If it is missing,
+nothing is read and every value keeps its previous (constructor) value. Readers: uint16 `0x005FD420`, float
+`0x005FD4F0`, uint32 `0x005FD480`, bool `0x005FD390`; each leaves the member unchanged when the property is absent.
+
+| Property | Name | Type | Use | Code default | Shipped |
+|---|---|---|---|---|---|
+| `0x47E2C400` | Lot Developer Stay New Time | uint16 | days threshold in TestCondition (§5.5) | 90 | 90 |
+| `0x47E2C401` | Lot Developer Occupancy Thresholds | float32 ×3 | [0] **abandon**: desirability threshold (§5.1); [1] **distress**: occupancy threshold; [2] **renew**: occupancy threshold for mismatched wealth (§5.5) | 0.2, 0.4, 0.6 (re-set to these before every read) | 0.3, 0.45, 0.5 |
+| `0xE900EA24` | kMaxCellAltitudeDeltaForFlatness | float32 | `IsAreaFlat` (slot 25) | 1.0 | 1 |
+| `0xE900EA25` | kMaxSlopeForFlatness | float32 | slope above which levelling / foundations are attempted (§6.1) | 1.0 | 1 |
+| `0xE900EA26` | kDefaultLotFoundationType | uint32 | `AddLotFoundation` (slot 54) | `0x890B7312` | `0x890B7312` |
+| `0x6916516B` | (unnamed) | uint32 | default building foundation type (slots 58 / 59) *[inferred]* | `0x890B7312` | absent |
+| `0xE900EA27` | kShouldAttemptLotLevelling | bool | `StartConstruction` | true | 1 |
+| `0xE900EA28` | kShouldAttemptInternalLotLevelling | bool | `StartConstruction` | true | 1 |
+| `0xE900EA29` | kLotAutoLevelInternalAltitudeDelta | float32 | **read but never used** *[quirk]* | 0.0 | 20 |
+| `0xE900EA2A` | MaxAreaSlopeAllowedForLevelling | float32 | `AttemptAreaLevelling` callers | 0.0 | 40 |
+| `0xE900EA2B` | Night Update Interval | uint32 | written into the night **accumulator**, not a threshold; the threshold is a hard-coded 200 *[quirk]* | 200 | 100 |
+| `0xE900EA2C` | Night Update Count | uint32 | buildings per night batch | 8 | 10 |
+| `0x2A2D7824` | Cost Multiplier vs lot slope | curve | `GetLotDevelopmentCost` (slot 32) | empty | (0,0) (0.555556,10) (1.11111,20) (1.66667,40) (2.22222,80) (2.77778,170) (3.33333,350) (3.88889,720) (4.44445,1470) (5,3000) |
+
+- `0x47E2C401`: the three values are copied from the property's float data without checking its count
+  *[quirk]*: a shorter array reads past its end. FreeCity4 uses the defaults for missing elements *[choice]*.
+- `0x2A2D7824` follows the **keep** pattern (foundations §4.1): the curve object is constructed empty and loaded
+  in place with `0x005F4620` only when the property exists. Missing property → previous segments (empty on the
+  first load). The original evaluates an empty curve through a null segment and crashes; FreeCity4 returns 0
+  (foundations §4.3) *[choice]*.
+- `0xE900EA2D` is in the shipped exemplar but not read by this class.
+
+---
+
+## 4. The daily pass (`DoDailySimulation`, `0x006CD770`) *[compat]*
+
+### 4.1 Cycle
+
+```
+if dailyState ∈ {0, 3}:                               -- start a cycle
+    if no iterator: iterator := lotManager.GetSafeLotIterator()      (slot 15)
+    else:           iterator.cur := first node of the lot list
+    n := lotManager.GetLotCount()                     (slot 16)
+    if n ≤ 0: return true
+    visited := 0
+    netSnap := netChanged;  unitSnap := unitChanged;  netChanged := unitChanged := false
+    zotsAllowed := (GetSimDateNumber() > noZotUntilDay)          (unsigned)
+    dailyState := 1                                   -- falls through
+if dailyState ≠ 1: return true
+start the 5 ms slicer (simulator §5.5; statics: step 0x00B49B08, initial 1024; miss counter 0x00B49B0C; guard 0x00B49B10)
+n := lotManager.GetLotCount()
+if n ≤ 0: dailyState := 3; return true
+perDay := n / 28 + 1                                  (signed integer division)
+counter := 0
+while visited < perDay:
+    counter += step
+    if (counter & 0x3FF) = 0 and the slicer has expired: break
+    if iterator is at the end of the lot list: dailyState := 3; byte 0x00B49AE9 := 0; break
+    lot := iterator.cur; advance;  UpdateLot(lot);  visited += 1
+finish the slicer
+if visited ≥ perDay: visited := 0; return true        -- finished for today
+return false                                          -- re-delivered later the same day
+```
+
+- A `false` return makes the simulator deliver the same day message again before the day advances (simulator §5.3),
+  so every day processes exactly `perDay` lots, except **on the day the end of the list is reached**: the pass then
+  returns false with `dailyState = 3`, the re-delivery starts a new cycle (resetting `visited := 0` and re-taking the
+  snapshots), and processes `perDay` more lots from the start. That day updates the remaining lots **plus** `perDay`
+  lots *[quirk]*.
+- The order of lots is the lot manager's internal lot-list order (`zones.md`). The time slicer only changes how much
+  work is done per call, never which lots are visited or in what order.
+- The iterator is the lot manager's **safe lot iterator**: an 8-byte block `{current node, owner}` from allocator C,
+  registered in the owner's iterator list so that lot deletions can move it *[inferred]*. The lot developer walks the
+  owner's `std::list` nodes **directly** (next = node[0], lot = node + 8, end = the owner's head node), see §14.
+
+### 4.2 `UpdateLot(lot)` (`0x006CD3A0`, non-virtual, pop 4, AL = "state changed")
+
+`(x, z) := lot.GetLocation()` (lot slot 21). `changed := false`.
+
+1. **Network refresh**: if `netSnap`: `lot.UpdateRoadAccess()` (slot 30). Then, only if the static byte
+   `0x00B49AE9` is set, and the lot has a building, no travel designate, no road access and zone 7–9:
+   `RotateLotToFaceRoad(lot)`. The byte is only ever cleared (§4.1), so this branch is **dead** *[quirk]*.
+2. `type := lot.GetBuildingType(false)` (slot 46).
+3. **Developed lot** (`type ≠ 0`): `P := BDS.GetBuildingProfile(type)` (BDS slot 39; inserts a zero profile for an
+   unknown type).
+   - **Purpose 0** (civic / plopped):
+     ```
+     powered := (TestPower(lot, x, z) = 2)
+     c := lot.GetCondition()
+     c = 0:        if not powered: SetCondition(1); stop (no travel test)
+     c = 1:        if powered: SetCondition(0)
+     c ∈ {5, 6}:   SetCondition(0)
+     if powered: TestTravel(lot, P, x, z)               (result ignored)
+     ```
+   - **Purpose ≠ 0** (grown building):
+     ```
+     s := lot.GetState();  new := s;  reason := 0
+     if not TestDesirability(lot, x, z):  new := 4; reason := 1
+     if TestPower(lot, x, z) = 0:         new := 4; reason := 2
+     if not TestWater(lot, x, z):         new := 4; reason := 3
+     if not TestTravel(lot, P, x, z):     new := 4; reason := 4
+     if new ≠ s: lot.SetState(new, 0, reason); changed := true
+     lot.SetCondition(TestCondition(lot, x, z))
+     if BDS.CheatCoffeeBar() and P.purpose = 2: TestCoffeeBar(lot)
+     ```
+     All four tests always run, in this order; the **last** failing test gives the reason *[compat]*. Passing tests
+     never restore a lot: only the tract developer re-occupies (slot 9).
+4. **Empty lot** (`type = 0`), only when `zotsAllowed`:
+   - if `lot.GetDaysSinceLastStateChange() > 30` (unsigned) and `canCheckCommute`: for zones 1–3, `TestTravel` with a
+     temporary profile of purpose 1; for zones 4–6, purpose 3 (constructor `0x004591E0`, destructor `0x00459220`).
+     Results ignored.
+   - if `IsEmptyLotSuitableForZot(lot, x, z)`: `TestPower(lot, x, z)` (result ignored).
+5. **Business unit** (§5.7): `u := lot.GetUnit()` (slot 25).
+   - `u` set and `lot` is its first member: if `unitSnap`, `UpdateTravelDesignates(&u)` (slot 34); then, re-reading
+     `u := lot.GetUnit()`, if `lot` is still its first member, `UpdateTravelPopulations(u)` (slot 35).
+   - `u` set, not first member: nothing.
+   - no unit: `lot.ResetTravelPopulation()` (slot 57), `lot.AddTravelPopulation(lot)` (slot 58); then if
+     `lot.IsInLivableState()` (slot 37) and not `lot.HasRoadAccess()` (slot 28): `PickUnitToJoin(lot)` (draw, §10).
+6. Return `changed`.
+
+### 4.3 Abandonment reasons
+
+| Reason | Set by | Rule |
+|---|---|---|
+| 1 low desirability | UpdateLot | TestDesirability failed (§5.1) |
+| 2 no power | UpdateLot | TestPower returned 0: third consecutive unpowered visit (§5.2) |
+| 3 no water | UpdateLot | TestWater failed: third consecutive dry visit (§5.3) |
+| 4 commute time | UpdateLot | TestTravel failed: third visit without road access, or seventh occupied visit without a commute (§5.4) |
+| 5 kick out occupants | tract developer through slot 8 | `tract-developer.md` §4.4 |
+| 6 low demand | tract developer through slot 8 | `tract-developer.md` §4.19 |
+
+"Visit" is one `UpdateLot`, about every 28 days per lot. `AbandonBuilding(lot, reason)` (slot 8) is exactly
+`lot.SetState(4, 0, reason)`, so the state changes **synchronously** (answers tract-developer Q5).
+
+---
+
+## 5. Tests and helpers *[compat]*
+
+### 5.1 `TestDesirability(lot, x, z)` → bool (`0x006C47C0`, pop 12)
+
+```
+n := counter 0xC999E206 (created as 0)
+if not lot.IsInLivableState():                         counter := 0; return true
+P := BDS.GetBuildingProfile(lot.GetBuildingType(false))
+dev := BDS.GetDeveloper(BDS.GetDeveloperType(P.purpose, lot.GetOccupantWealth()))   (slots 30, 32)
+if dev = null:                                         counter := 0; return true
+if dev.GetPurpose() = 5:                               return true          -- counter untouched
+v := dev.GetDesirabilityMap().GetCellValue(x, z)       (int16; growth developer slot 13, grid slot 7)
+d := r24(float(v) · 0.01f)
+if not (d < abandonThreshold):                         counter := 0; return true      -- NaN impossible
+r := cRZRandom(seed = (x << 16) + z).RandomSint32RangeUniform(0, 7)        -- 0..6, one step
+n' := n + 1;  counter := n'
+return n' ≤ r + 2                                      (unsigned)
+```
+
+- The generator is a **temporary** `cRZRandom` constructed on the stack with the seed `(x << 16) + z` (32-bit wrap;
+  `x`, `z` are the lot's `GetLocation` outputs). Its first draw is the same at every visit, so each lot location has a
+  fixed tolerance of `r + 2` consecutive low-desirability visits (3 to 9) *[compat]*.
+- With the shipped threshold 0.3: `v = 30` gives `d = 0.29999998 < 0.3` (**low**), `v = 31` gives 0.31 (not low).
+
+### 5.2 `TestPower(lot, x, z)` → int32 0 / 1 / 2 (`0x006CABB0`, pop 12)
+
+```
+n := counter 0xE999B11F (created as 0)
+b := lot.GetBuilding()                                 (slot 48)
+needs := (b = null) or lot.GetNeedsPower()             (slot 65)
+lot.GetBoundingRect(&r)                                (result unused)
+powered := BDS.CheatIgnorePower() or not needs or power.IsPowered(cx, cz)    (BDS slot 55, power slot 37)
+    (cx, cz) := building centre cell when b exists, else lot.GetLocation():
+        (min, max) := b.AsOccupant().GetBoundingBox()   (occupant slot 10)
+        cx := trunc(r24(r24(min.x + max.x) / r24(CellWidthX + CellWidthX)))   (city slot 91)
+        cz := the same with z and CellWidthZ (city slot 92)
+if powered ≠ lot.GetHasPower():                         (slot 66)
+    lot.SetHasPower(powered)                            (slot 67)
+    if not powered and lot.GetCondition() = 0: lot.SetCondition(1)
+    if powered     and lot.GetCondition() = 1: lot.SetCondition(0)
+if not powered (needs is then true):
+    n' := n + 1; counter := n'
+    AddBuildingZotProp(lot, 0x0FD10000, 4)
+    return (n' ≤ 2) ? 1 : 0
+counter := 0
+if b ≠ null and zot = 4: RemoveLotProp(lot, 4); zot := 0
+return 2
+```
+
+- 2 = powered, 1 = unpowered within the grace of two visits, 0 = unpowered for the third time or more.
+- The zot prop is added on **every** unpowered visit (the priority rule of §5.6 makes repeats no-ops).
+- An empty lot's power zot is **not** removed here when power returns (`b = null`); only the power-changed handler
+  (§9) removes it *[quirk]*.
+
+### 5.3 `TestWater(lot, x, z)` → bool (`0x006CAE30`, pop 12)
+
+```
+n := counter 0x8999B20B (created as 0)
+needs := false
+if 2 ≤ lot.GetState() ≤ 4:
+    P := BDS.GetBuildingProfile(lot.GetBuildingType(false))
+    if P.purpose = 0: needs := true
+    else:
+        dev := BDS.GetDeveloper(P.purpose, P.wealth)    (slot 33);  cfg := lot.GetLotConfiguration()  (slot 9)
+        if dev and cfg: needs := cfg.GetGrowthStage() > dev.GetWaterSupplyCap()   (bytes, unsigned; cfg slot 11, growth developer slot 20)
+watered := BDS.CheatIgnorePlumbing() or plumbing.IsCellWatered(x, z)          (BDS slot 54, plumbing slot 11)
+if not watered and needs:
+    n' := n + 1; counter := n'
+    AddBuildingZotProp(lot, 0x1C430000, 5)
+    return n' ≤ 2
+counter := 0
+if zot = 5: RemoveLotProp(lot, 5); zot := 0
+return true
+```
+
+The water test uses the lot's location cell, not the building centre.
+
+### 5.4 `TestTravel(lot, P, x, z)` → bool (`0x006CAFC0`, pop 16)
+
+```
+s := lot.GetState()
+if s ∉ {1, 3, 4}: goto PASS
+tripOK := true
+if P.purpose = 1:
+    road := lot.HasRoadAccess() and lot.HasJobAccess()                    (slots 28, 27)
+    tripOK := (traffic.GetTripLengthMap().GetCellValue(x, z) ≠ 0)           (traffic slot 13, uint8 grid slot 7)
+elif 5 ≤ P.purpose ≤ 8:
+    road := lot.HasOrganicRoadAccess(P.purpose)                            (slot 29)
+else:
+    lot.GetJobs(&tmp)                                                      (slot 64, result unused)
+    if not (GetTravelJobs(1) > 0 or GetTravelJobs(2) > 0 or GetTravelJobs(3) > 0): goto PASS     (slot 63, NaN → not > 0)
+    road := lot.HasRoadAccess()
+if road and tripOK: goto PASS
+n' := counter 0x8999B10B + 1 (created as 0); counter := n'
+if not road:
+    AddBuildingZotProp(lot, 0x107A0000, 6);  return n' ≤ 2
+if s = 3 and n' > 6: AddBuildingZotProp(lot, 0x1C440000, 7); return false
+if s = 3 and n' > 2: AddBuildingZotProp(lot, 0x1C440000, 7); return true
+goto PASS_KEEP_COUNTER
+PASS:              if counter 0x8999B10B exists: counter := 0
+PASS_KEEP_COUNTER: RemoveBuildingZotProp(lot, 6);  if zot = 7: RemoveLotProp(lot, 7); zot := 0
+                   return true
+```
+
+- Road access and commute share one counter. No road: grace of 2 visits. A residence with a road but trip length 0:
+  the commute zot appears from the 3rd visit and the building is abandoned on the 7th (occupied lots only).
+- Purposes 2–4 and 0 with no travel jobs at any wealth pass without a road test.
+- `PASS_KEEP_COUNTER` keeps the incremented counter *[compat]*.
+
+### 5.5 `TestCondition(lot, x, z)` → condition (`0x006C4630`, pop 12)
+
+```
+s := lot.GetState();  c := lot.GetCondition()
+if s = 3:
+    P := BDS.GetBuildingProfile(lot.GetBuildingType(false))
+    d := P.wealth − lot.GetOccupantWealth()             (int32)
+    b := (c − 1) > d                                    (signed)
+    if b or lot.GetDaysSinceLastStateChange() > stayNewTime:            (unsigned vs uint16)
+        lot.GetOccupancy(&f)                            (slot 61, writes a float; see §11.4)
+        if f < distress:            d += 1
+        elif b and f < renew:       d += 1              (NaN: no change)
+    if d > 2:  return 3
+    if d = 0:  return (counter 0xE999B11F exists and ≠ 0) ? 1 : 0
+    if d < 0:  return c
+    return d + 1                                        (d = 1 → 2, d = 2 → 3)
+if s = 4:
+    if c = 0: c := 1
+    if lot.GetDaysSinceLastStateChange() > stayNewTime and c ≤ 3: return c + 1
+    return c
+return c
+```
+
+- Occupied lots get 0–3: 0 normal, 1 normal but recently unpowered, 2 / 3 run down by a wealth mismatch or low
+  occupancy. Abandoned lots step 1 → 2 → 3 → 4, one step per visit after `stayNewTime` days since the last state
+  change (`SetCondition` on an abandoned lot restarts that count, foundations §5.2).
+- UpdateLot always calls `SetCondition` with the result; `SetCondition` is a no-op when unchanged.
+
+### 5.6 Zots
+
+**`AddBuildingZotProp(lot, propType, zot)`** (`0x006C98C0`, pop 12):
+1. `b := lot.GetBuilding()`, `cfg := lot.GetLotConfiguration()`, `obj := cfg ? cfg.GetPrimaryBuildingConfigurationObject() : null`.
+2. If `zot = 6`: post `0x4C04DE69` with data1 = 1 (§3.3). This happens **before** the priority check *[quirk]*.
+3. Zot property `0xC999C45E` (created as 0). If `cur ≠ 0` and `zot ≥ cur` (unsigned): return. Otherwise
+   `RemoveLotProp(lot, cur)` and set the property to `zot`. **Lower numbers win**: power 4 < water 5 < road 6 <
+   commute 7.
+4. Position: when `b`, `cfg` and `obj` exist, x and z from `GetPositionForBuilding` (slot 40) and `y := b`'s bounding
+   box max y; otherwise the lot centre (`lot.GetCenter`, slot 15). Then `y := r24(y + 3.0)`.
+5. Orientation from the global object at `0x00B43DD8`, field +0x10 *[inferred: the current view rotation]*.
+6. `occ := propManager.AddLotProp(propType, &pos, orientation)` (prop manager slot 26; not null-checked);
+   `occ.SetRemovalFlags(3)` (occupant slot 12); add property `0x48E95539 = zot` to `occ`.
+
+**`RemoveBuildingZotProp(lot, zot)`** (`0x006C9A40`, non-virtual, pop 8): if `zot = 6`, post `0x4C04DE69` with
+data1 = 2. Then if `zot = 0` or the current zot equals `zot`: `RemoveLotProp(lot, cur)` when `cur ≠ 0`, and set the
+property to 0. Slot 11 (`0x006CB940`) removes whatever zot is shown.
+
+**`RemoveLotProp(lot, zot)`** (`0x006C9780`, pop 8): gets the lot's props (prop manager slot 24, a fresh A list),
+removes **every** prop whose `0x48E95539` equals `zot` (prop manager slot 29), and returns true if any was removed.
+
+**`IsEmptyLotSuitableForZot(lot, x, z)`** (`0x006C3B10`, register arguments: lot in ECX, z in EAX, x in EDX):
+zones 1–6 → `(x + z) mod 4 = 0`; zones 7–9 → `x mod 4 = 0 and z mod 4 = 0`; other zones → false (C remainder). Empty
+lots therefore show zots on a sparse diagonal (R, C) or grid (I, A) pattern.
+
+### 5.7 Business units
+
+**`PickUnitToJoin(lot)`** (`0x006CB260`, pop 4):
+1. Return if the lot already has a unit, if `lot.GetBuildingType(true) = 0`, or if the profile's purpose is not
+   5–8.
+2. `L :=` a B list filled by `lotManager.GetLotsSurroundingLot(lot, L, f)` (slot 9) for `f` = 1, 2, 4, 8 in that
+   order (appending).
+3. Candidates (a B vector, list order): neighbours with a building type, with (state > 1 or a unit), and with the
+   same purpose; for purpose 5 the neighbour must have a building (slot 48), for 6–8 it must have road access or a
+   travel designate with road access.
+4. If there is at least one candidate: `c := cand[Uniform(count)]` (**file RNG**); `u := c.GetUnit()`, or a new
+   `cSC4BusinessUnit` (0x20 bytes from C, constructor `0x006C0800`) with `u.Add(c)`; then `u.Add(lot)`.
+5. Purpose 5: `lot.SetTravelDesignate(first member of u)` (slot 60). Otherwise `unitChanged := true`.
+
+**`UpdateTravelDesignates(u&)`** (slot 34): `anchor :=` the first member with road access and a building. With an
+anchor, each member's designate is cleared and re-pointed to the anchor when it is a member or null, kept when it is
+a non-member with road access, re-pointed when it is a non-member without road access; the anchor itself gets no
+designate. Without an anchor the unit is **dissolved**: each member in turn is removed (unit slot 4) and offered to
+`PickUnitToJoin` (draws); as soon as one joins a unit `u'`, all lots of the copy move into `u'` and the reference
+becomes `u'` (or null).
+
+**`UpdateTravelPopulations(u)`** (slot 35): `ResetTravelPopulation` on every member, then each member adds its travel
+population to its designate (or itself).
+
+**`RemoveLotFromItsBusinessUnit(lot)`** (slot 33): `lot.GetUnit().Remove(lot)` (no null check),
+`unitChanged := true`, returns `Remove`'s AL.
+
+**`NeedsAnchorBuilding(rect, purpose)`** (slot 36, pop 8, AL) — answers tract-developer Q1:
+- purpose not 6–8 → false;
+- any lot in `GetLotsInCellRect(rect, false)` whose building is in **occupant group `0x3000`** (occupant slot 22) →
+  true;
+- else, any lot from `GetLotsSurroundingRect(rect, f)` (lot manager slot 10, f = 1, 2, 4, 8) with a building type,
+  (state > 1 or a unit) and the same purpose → false (an existing neighbour can serve as the unit's anchor);
+- else true.
+
+### 5.8 `TestCoffeeBar(lot)` (`0x006C78D0`, cheat only)
+
+Called from UpdateLot when BDS slot 58 (CheatCoffeeBar) is on and the purpose is 2:
+1. `r := Uniform(100)` (**file RNG**, always drawn first).
+2. Stop if the lot is historical (slot 43), its state is not 3 or 4, `r ≥ 9`, its configuration is null or is
+   `0x60000C40`, its growth stage > 3, or its size differs from configuration `0x60000C40`'s
+   (lot configuration manager slot 8).
+3. `demolition.DemolishLots(1, [lot], 0, 0x800, 0, 0, 0, 0)` (a B `std::list<cRZAutoRefCount<cISC4Lot>>` built and
+   freed by the caller).
+4. If `BDS.ClaimConstructionResources(profile(0x05B80000).capacity)`: `StartConstruction(lot, cfg 0x60000C40,
+   0x05B80000, false)` and `lot.SetHistorical(true)`.
+
+---
+
+## 6. Construction *[compat]*
+
+### 6.1 `StartConstruction(lot, cfg, type, animate)` → bool (slot 6, `0x006CC490`, pop 16)
+
+```
+lot.AddRef();  ok := false
+lot.SetLotConfiguration(cfg); lot.SetBuildingType(type)                 (slots 10, 47)
+lot.SetState(2, 0, 0); lot.SetCondition(1)                               -- condition 1 while building
+PickUnitToJoin(lot)                                                      -- may draw
+lot.SetFlags(lot.GetFlags() & ~7);  lot.SetVerticesAreLocked(true)       (slots 12, 13, 69)
+if the lot has zot property 0xC999C45E:
+    post 0x4C04DE69 (data1 = 2, lot)                                     -- whatever the zot value
+    if zot = 6: RemoveLotProp(lot, 6); zot := 0                         -- other zots stay *[quirk]*
+if type = 0: ok := true; goto END
+notFarm := (BDS.GetBuildingProfile(type).purpose ≠ 5)
+water := cfg.IsCompatibleWithWater()                                     (cfg slot 14)
+found := false
+if water and cfg.GetMaximumSlopeBeforeFoundation() = 0.0:                (cfg slot 10)
+    found := AddLotFoundation(lot, cfg, false, true, true)               (slot 54, may draw)
+if not found:
+    if notFarm and internalLevelling and lot is wider and deeper than 2 cells (x2 − x1 > 1 and z2 − z1 > 1):
+        LevelAreaInternalVertices(rect, −1.0, water, false, lot)        (slot 19)
+    s := GetLotSlope(lot, water)                                         (slot 30)
+    m := cfg.GetMaximumSlopeBeforeFoundation()
+    if s > maxSlopeForFlatness and s > m:                                (NaN: no)
+        if notFarm and lotLevelling and AttemptAreaLevelling(rect, m, true, water, maxAreaSlopeForLevelling, lot):   (slot 21)
+            s := GetLotSlope(lot, water)
+        if s > m: found := AddLotFoundation(lot, cfg, false, true, true)   (slot 54, may draw)
+ClearLotBlockingObjects(lot, cfg, type, found)                           -- §6.2
+GetPositionForBuilding(lot, &pos, &orient := 0)                          (slot 40)
+b := BDS.AddNewBuildingOccupant(type, &pos, orient)                      (BDS slot 7)
+if b = null: goto END                                                    -- ok stays false
+if not found:
+    so := GetOccupantSlope(b, water)                                     (slot 31)
+    if so > maxSlopeForFlatness:
+        if AttemptAreaLevelling(GetOccupantCellCoverage(b), maxSlopeForFlatness, true, water, maxAreaSlopeForLevelling, lot):
+            so := GetOccupantSlope(b, water)
+        if so > maxSlopeForFlatness: AddBuildingFoundation(b, cfg)       (slot 58)
+if animate: construction-occupant hand-off (§6.3)
+ok := true
+END:
+if not animate: lot.SetState(3, 0, 0)            -- even when no building was created *[quirk]*
+lot.Release();  return ok
+```
+
+### 6.2 `ClearLotBlockingObjects(lot, …)` (`0x006C9AD0`, pop 16)
+
+Bulldozes flora on the lot: box from `(x1·16 + 0.5, 0, z1·16 + 0.5)` to `((x2+1)·16 − 0.5, top, (z2+1)·16 − 0.5)`
+with `top := r24(GetLowestOrHighestAreaAltitude(rect, highest, true) + 32.0)` (slot 17); the hard-coded 16 is the
+cell size in metres. Occupants from `occupantManager.GetOccupantsByBBox(list, min, max, blockingFilter, −1)` (slot
+36; the filter keeps flora `0x74758926`) are each demolished with `demolition.DemolishOccupant(1, occ, 0, 1, 0, 0, 0)`
+(demolition slot 8) and released. The other three arguments are not used.
+
+### 6.3 Construction-occupant hand-off
+
+With `animate = true`:
+1. `GZCOM()->CreateInstance(0xA97F909E, 0x496E7636)` (`cSC4ConstructionOccupant`); if that fails, a direct
+   `new cSC4ConstructionOccupant` (0x1A0 bytes, constructor `0x005D00F0` with argument 1) is AddRef'd.
+2. `co.SetLot(lot)` (its slot 4, `0x005D0890`): it builds the construction scene and records the start day.
+3. `occupantManager.InsertOccupant(co.AsOccupant(), 0)` (occupant manager slot 20); release `co`.
+
+The lot stays in state 2. The construction occupant's daily update (`0x005D0680`) runs its own phases; when it
+completes, it sets the building completion, removes itself (occupant manager slot 21) and calls
+**`lot.SetState(3, 0, 0)`**. Its timing is the construction occupant's business (a later spec) *[inferred: phase
+lengths not analysed]*. The lot developer only reacts to the resulting state-change message (§6.5).
+
+Without animation the state is set to 3 at once, so §6.5 runs when the queued message is delivered.
+
+### 6.4 Other construction slots
+
+- **`ConstructDefaultLot(lot, cfg, type, animate)`** (slot 7, `0x006CCEF0`, pop 16): when `cfg` is set and
+  `type = 0`, takes the primary building object's ID list; builds a `hash_set` (hint 100 → 193 buckets): each ID that
+  is a valid building type (BDS slot 15) is inserted, otherwise its family members are added (BDS slot 19). If the set
+  is not empty, `type :=` its **first element in STLport iteration order** (allocators.md, *hash_set*). Then returns
+  `StartConstruction(lot, cfg, type, animate)`. No random draw.
+- **`ChangeBuilding(lot, type)`** (slot 10, `0x006C5210`, pop 8): no-op when the lot has no configuration (returns
+  0). Otherwise `ClearLotBuildings(lot, 1, true, 0)` (§7.1), place `type` with BDS slot 7 at `GetPositionForBuilding`,
+  and, when the lot has no foundation (flags & 3 = 0), the occupant-slope levelling / `AddBuildingFoundation` step
+  of §6.1. Finally `lot.SetState(3, 0, 0)` (also when no building was created *[quirk]*); returns its AL. The lot's
+  building type is not changed here.
+- **`AbandonBuilding(lot, reason)`** (slot 8): `lot.SetState(4, 0, reason)`, returns its AL.
+- **`ReoccupyBuilding(lot, devType)`** (slot 9, `0x006C3D50`, pop 8): `w := BDS.GetWealth(devType)` (slot 31);
+  `d := profile.wealth − w`; condition := 2 if `d = 1`, 3 if `d = 2`, otherwise (counter `0xE999B11F` exists and ≠ 0 ?
+  1 : 0); `lot.SetState(3, w, 0)`; `lot.SetCondition(condition)`;
+  `lot.SetPopulation(devType, lot.GetAvailableCapacity(devType, 0))` (slots 52, 55); returns its AL.
+- **`UpdateLotElements(lot, hadFoundation)`** (slot 37, `0x006CC880`, pop 8, returns true): state < 2 → nothing.
+  If the lot has a foundation (flags & 3): `UpdateLotFoundation` (61) and `UpdateLotRetainingWalls` (62). Otherwise,
+  when the zone is not 5 and a configuration exists: `s := GetLotSlope(lot, cfg.IsCompatibleWithWater())`; if
+  `cfg.GetMaximumSlopeBeforeFoundation() < s`, `AddLotFoundation(lot, cfg, cfg.HasObjectsOfType(7), false, true)`
+  (slot 54, may draw); if `|s| > 0.25`, `UpdateLotObjectAlitudes`. Then `UpdateLotBaseTextureOccupant(lot,
+  hadFoundation)` (slot 45) and lot slot 20 (`UpdateSlope`).
+
+### 6.5 Lot-state and condition messages
+
+**`0xE8BDA2E7`** (old = data1, new = data2): let `a := new ∈ {3, 4}` and `b := (old = 2 and new = 3)`. If neither,
+nothing. Otherwise `L :=` the message lot (QueryInterface `0xE818FCED`), `(x, z) := L.GetLocation()`, and
+`L2 := lotManager.GetLot(x, z, true)` (slot 6). Continue only if `L2` has a configuration and the **same size** as
+`L` (lot slot 22) *[quirk: the work is applied to the lot found at that location]*:
+1. if `a`: `SetNormalLotBaseTexture(L2, cfg, true)` (slot 44; draws);
+2. if `b`, in this order: `AddLotProps(L2, cfg, 1)` (draws), `AddLotFlora(L2, cfg, 1)` (draws),
+   `AddNetworkConnectionNodes(L2, cfg, 1)`.
+
+**`0xE99B3D4D`**: `L2 := lotManager.GetLot` at the message lot's location; if its state is 3 or 4:
+`SetNormalLotBaseTexture(L2, L2.GetLotConfiguration(), true)` (draws). Every condition change of an occupied or
+abandoned lot therefore re-picks its base texture.
+
+**`AddLotProps(lot, cfg, 1)`** (`0x006C7860`): for each configuration object (0x34-byte records,
+`GetLotConfigurationObjectArray`, cfg slot 23) of type 1 whose flag byte has bit 0 clear, in array order:
+`CreateRandomLotProp(lot, index)` (`0x006C6D70`): position from slot 39; `ids :=`
+`lotConfigurationManager.GetObjectIDArray(obj, ids)` (slot 27; families expanded in hash order); if not empty,
+`id := ids[Uniform(n)]` (**file RNG**); if `id ≠ 0`, `occ := propManager.AddLotProp(id, &pos, orientation)` (slot 26)
+and `occ.SetLotTag(obj's tag)` (occupant slot 28).
+
+**`AddLotFlora(lot, cfg, 1)`** (`0x006CD2B0`): for each object of type 4 in array order: position from slot 39;
+`t := PickFloraTypeForLot(obj's ID list, &pos)`; if `t ≠ 0`, `occ := flora.AddNewFloraOccupant(t, &pos, false)`
+(flora slot 17) and `occ.SetLotTag(obj's tag)`.
+
+**`PickFloraTypeForLot(ids, pos)`** (`0x006CD010`): empty → 0. `id := ids[Uniform(n)]` (**file RNG**). If
+`flora.IsFloraTypeValid(id)` (slot 11) → `id`. Otherwise fill a `hash_set` (193 buckets) with
+`flora.GetFloraTypesByFamily(set, id)` (slot 14); if that returns 0 or the set is empty → 0; otherwise
+`k := Uniform(size)` (**file RNG**) and return the element reached after `k` steps of the set's iteration order.
+
+### 6.6 Base textures
+
+**`SetNormalLotBaseTexture(lot, cfg, flag)`** (slot 44, `0x006CA8A0`, pop 12, no defined return):
+- null lot or `cfg` → nothing.
+- If `forceEmpty` and the zone is not 0, 11, 12 or 15: `SetEmptyLotBaseTexture(lot)` (slot 43) instead.
+- Otherwise for each configuration object of type 2, in array order: position from slot 39; when its ID list is not
+  empty, `tex := (first ID ≠ 0) ? PickLotBaseTextureForLot(ids, lot) : 0` (skipping the object when a pick gives 0);
+  record `{tex, trunc(r24(pos.x · 0.0625)), trunc(r24(pos.z · 0.0625)), orientation byte, object byte 3}` if the cell is
+  inside the city.
+- If any records: `GetLotBaseTextureOccupant(lot, &occ, true)` (slot 41), `occ.SetTextures(records, count, 0)`
+  (its slot 8); if the occupant is already inserted (flag 1), notify the occupant manager (slot 24, (occ, 0)) and
+  `PostOccupantMessage(0x99EF1145, 0)`; otherwise insert it (occupant manager slot 20).
+
+**`PickLotBaseTextureForLot(ids, lot)`** (`0x006C60C0`):
+```
+base := ids[Uniform(n)]                                                  (file RNG)
+wealth := lot.GetOccupantWealth(), or the building profile's wealth, else 1
+decay := condition 0–1 → 0, 2–3 → 1, 4–6 → 2
+hi := base & 0xFFFF0000
+for cand in (hi | (((wealth << 4) | decay) << 8)), (hi | (wealth << 12)), (hi | (decay << 8)):
+    if a resource (type 0x7AB50E44, group 0x0986135E, instance cand) exists (resource manager slot 14): return cand
+return base
+```
+
+**`SetForceEmptyLotBaseTextures(f)`** (slot 47, `0x006C77D0`): if `f` equals the flag, nothing. Otherwise store it
+and walk every lot with a fresh safe iterator: `f` → `SetEmptyLotBaseTexture(lot)`; else
+`SetNormalLotBaseTexture(lot, lot.GetLotConfiguration(), true)` (draws). The iterator is unregistered and freed.
+
+`SetEmptyLotBaseTexture` (slot 43) and `GetBoundaryLotTexture` (slot 42) compute empty-lot textures from the
+boundary rules; no draw. Their geometry is not specified here (§12.2 Q4).
+
+---
+
+## 7. Demolition and explosion *[compat]*
+
+### 7.1 `ClearLotBuildings(lot, state, removeFoundation, flags)` (`0x006C3C50`, pop 16)
+
+`lot.SetState(state, 0, 0)`; then while `b := GetFirstBuilding(lot)` (slot 38) is not null: AddRef `b`;
+`propManager.RemoveBuildingProps(b)` (slot 38); if `removeFoundation`, `RemoveBuildingFoundation(b)` (slot 60);
+`occupantManager.RemoveOccupant(b, 1, flags)` (slot 21); release. Finally returns `RemoveBuildingZotProp(lot)`
+(slot 11).
+
+### 7.2 Slots
+
+| Slot | Behaviour |
+|---|---|
+| 12 `StartDemolishLot(lot)` | if lot flags & 1: `flora.DemolishFloraInCellArea(rect, 0)` (flora slot 20); `propManager.RemoveLotProps(lot)` (slot 28); zot := 0; `RemoveNetworkConnectionNodes(lot)`; `ClearLotBuildings(lot, 5, true, 0)`. Returns its AL |
+| 13 `EndDemolishLot(lot)` | if `lot.IsInitialized()`: `SetState(6, 0, 0)`; `ClearLot(lot)`; if zone ∈ {0, 11, 12, 15}: `lotManager.DeleteLot(lot)` (slot 24) |
+| 14 `ExplodeLot(lot, burnt)` | below |
+
+**`ClearLot(lot)`** (`0x006C8A20`): retaining-wall helper `0x005E3070(lot, 0)`; `RemoveLotFoundation(x, z)`
+(slot 53); `UpdateSurroundingLotFoundations(lot)`; `0x005E3960(lot)` (surrounding retaining walls);
+`SetVerticesAreLocked(false)`; `SetState(1, 0, 0)`; `SetBuildingType(0)`; `SetLotConfiguration(null)`;
+`SetEmptyLotBaseTexture(lot)`. So `EndDemolishLot` leaves a non-deleted lot in state **1**, not 6.
+
+**`ExplodeLot(lot, burnt)`** (`0x006CC250`, pop 8):
+1. State 5 or 6 → nothing.
+2. `b := GetFirstBuilding(lot)`. If `b`: create a `cSC4PropOccupantBurntBuilding` (0xD8 bytes) from it
+   (`SetBoundsFromOccupant`, flag `0x40`, `Init`); `s :=` the larger of its bounding box's x and z extents.
+3. `ClearLotBuildings(lot, 6, false, 4)`; `RemoveLotProps(lot)`; `RemoveNetworkConnectionNodes(lot)`.
+4. If there was a building: a terrain-decal prop with key `{0x7AB50E44, 0x1ABE787D, burnt ? 0x49C80EC7 : 0x2A2EF55D}`,
+   size `2s`, alpha 0.7, at the building position, added with `AddLotProp(lot, decal)`; then
+   **`AddLotRubbleProps(lot, bboxMin, bboxMax, burnt)`** (draws); then `AddLotProp(lot, burnt building)`.
+5. If `burnt`: `SetCondition(6)`. Finally `SetBuildingType(0)`.
+
+### 7.3 `AddLotRubbleProps(lot, min, max, burnt)` (`0x006C4BD0`, pop 16)
+
+```
+dx := r24(max.x − min.x);  dz := r24(max.z − min.z);  area := r24(dz · dx)
+small := dx < 10 or dz < 10;  large := dx > 12 and dz > 12           (NaN: false)
+count := trunc(r24(area · 0.0078125)) + 4                             (0.0078125 = 2^-7, exact)
+for i in 0 .. count−1:
+    if i < 4:                                                         -- corners
+        if small: continue                                            (no draw)
+        if Uniform(2) = 0: continue                                   (file RNG)
+        d2 := large ? Uniform(burnt ? 2 : 6) : 0                      (draw only when large)
+        orient := (d2 = 0) ? (i + 2) mod 4 : i
+        type := burnt ? {0x1C480000, 0x1C460000}[d2] : T6[d2]
+        pos := (xf[i] ? max.x : min.x, min.y, zf[i] ? max.z : min.z)  with xf = {1,0,0,1}, zf = {1,1,0,0}
+    else:                                                             -- interior
+        orient := Uniform(4)
+        type := burnt ? {0x1C470000, 0x1C490000}[Uniform(2)] : T6[Uniform(6)]
+        pos.x := float(RandomDoubleRangeGaussian(min.x, max.x));  pos.z := float(RandomDoubleRangeGaussian(min.z, max.z));  pos.y := min.y
+    if type = 0: continue
+    occ := propManager.CreateProp(type)                               (slot 15; skip if it fails)
+    Init; SetFlag(0x40); SetOrientation(orient); SetPosition(pos); (bbMin, bbMax) := GetBoundingBox()
+    clamp x: if bbMin.x < min.x: pos.x := r24(pos.x + r24(min.x − bbMin.x))
+             elif bbMax.x > max.x: pos.x := r24(pos.x + r24(max.x − bbMax.x))      (same for z)
+    SetPosition(pos);  propManager.AddLotProp(lot, occ) (slot 25);  release
+T6 = {0x1DCF0000, 0x1DD00000, 0x1DD10000, 0x1DD20000, 0x1DD30000, 0x1DD30000}
+```
+
+The Gaussian draws use the file RNG's multiplicative state (foundations §6.1 `RandomDoubleRangeGaussian`, with its
+cached second value), so they interleave with the integer draws only through the shared object.
+
+---
+
+## 8. Night lights *[compat]*
+
+### 8.1 The deque
+
+- Building inserted (`0x006C8F80`): QueryInterface the occupant for `cISC4BuildingOccupant` (`0x87DDA3A9`), AddRef,
+  append at the back, call `b.SetLit(litFlag)` (building slot 17), then re-derive the cursor from its index.
+  `litFlag` is written only by the constructor (false) and by `Read`, so new buildings are inserted **unlit** even at
+  night *[quirk]*.
+- Building removed (`0x006C8830`): find its first occurrence; if the cursor is on it, the cursor moves to the next
+  element; otherwise the cursor keeps its position (its index is decremented if it was after the erased element).
+  Release once.
+- The symbol port names the container `std::deque<int>` (identical code folding); it holds building pointers.
+
+### 8.2 Day / night change (`0x44778234`)
+
+With `mode := clock.GetVisualTimeMode()` (24-hour clock `0x00B43DBC`, slot 6):
+- night (data2 = 0) and `mode = 2`, or day (data2 = 1) and `mode = 1`: **immediate** update `UpdateAll(mode)`
+  (`0x006CBE50`): `isNight := (mode = 2)`; apply §8.4 to every building from the front; cursor := front;
+  `nightMode := 0`. Then post `0xA6B79621`.
+- otherwise: `nightMode := 2` (night) or 1 (day); **`random_shuffle`** of the whole deque (`0x006C68C0`: for i = 1 ..
+  n−1, `j := rand() mod (i + 1)`, swap elements i and j; n − 1 `rand()` calls, foundations §12.3); cursor := front.
+
+### 8.3 Batches (animation tick)
+
+```
+nightAcc += ms
+if nightAcc ≤ 200: return                       (hard-coded 200; unsigned)
+isNight := (nightMode = 2);  nightAcc := 0
+repeat nightBatch times (none if nightBatch = 0):
+    if cursor = end: nightMode := 0; stop
+    b := *cursor; advance cursor; Light(b, isNight)
+```
+
+### 8.4 `Light(b, isNight)` (`0x006C8E10`)
+
+1. `b.SetLit(isNight)`.
+2. `(x1, z1, x2, z2) := b.AsOccupant().GetBoundingCityCells()` (occupant slot 11);
+   centre `((x1 + x2) >> 1, (z1 + z2) >> 1)` (arithmetic shift).
+3. `lot := lotManager.GetLot(cx, cz, false)`; none → stop.
+4. Props in the lot's cell rectangle: `occupantManager.GetOccupantsByStandardCityCells(list, &(x1, z1), &(x2, z2),
+   0xA823821E, −1)` (slot 41; A list).
+5. For each prop with property `0x4A9F188B` present and true (variant slot 63): `PostOccupantMessage(0x09D8E0B6, 0)`
+   (the same message for day and night). Release each; free the list.
+
+---
+
+## 9. Power changed (`DoPowerChanged`, `0x006CBF40`) *[compat]*
+
+For the rectangle `(x1, z1, x2, z2)` of message `0x8A07AE00`:
+
+```
+for lot in GetLotsInCellRect(list, x1, z1, x2, z2, true):              (lot manager slot 7; B list, freed with B)
+    b := lot.GetBuilding()
+    (cx, cz) := b ? building centre (as in §5.2) : lot.GetLocation()
+    powered := BDS.CheatIgnorePower() or power.IsPowered(cx, cz)       -- no "needs power" test here
+    if powered ≠ lot.GetHasPower():
+        lot.SetHasPower(powered)
+        if not powered and condition = 0: SetCondition(1)
+        if powered and condition = 1: SetCondition(0)
+    needs := (b = null) or lot.GetNeedsPower()
+    if not powered and needs:
+        if b or IsEmptyLotSuitableForZot(lot, x, z): AddBuildingZotProp(lot, 0x0FD10000, 4)
+    elif zot = 4: RemoveLotProp(lot, 4); zot := 0                        -- also for empty lots
+```
+
+`(x, z)` in the empty-lot test is the lot location. No counters change and no state changes here.
+
+---
+
+## 10. Random draws *[compat]*
+
+### 10.1 Generators
+
+| Generator | Instance | Seed | Used by |
+|---|---|---|---|
+| **file RNG** | file-local `cRZRandom` at `0x00B49AF0` (static initialiser `0x00A74E00`) | `cRZTime()` (local wall clock, `0x00470B50`) **XOR `0x6C09C0F4`**, once at program start; never re-seeded | every draw in R2–R14 below; it is referenced only by this class (13 code references: `0x006C4C89`, `0x006C4CB7`, `0x006C4D31`, `0x006C4D42`, `0x006C4D73`, `0x006C4D93`, `0x006C5496`, `0x006C60E3`, `0x006C6E12`, `0x006C78F3`, `0x006CB433`, `0x006CD030`, `0x006CD088`) |
+| temporary | stack `cRZRandom` | `(x << 16) + z` of the lot location | R1 |
+| C `rand()` | process-wide | state 1, never seeded (foundations §12) | R15 |
+
+FreeCity4 seeds the file RNG from the host (foundations §6.3) *[choice]*; tests use fixed seeds.
+
+### 10.2 Draws
+
+| # | Operation | Generator | Method (steps) | Arguments | Condition |
+|---|---|---|---|---|---|
+| R1 | TestDesirability | temporary | `RandomSint32RangeUniform(0, 7)` (1) | | lot livable, developer not purpose 5, desirability low |
+| R2 | PickUnitToJoin | file | `Uniform(count)` (1) | candidates | purpose 5–8, no unit, ≥ 1 candidate |
+| R3 | TestCoffeeBar | file | `Uniform(100)` (1) | | cheat on, purpose 2; drawn before any other test |
+| R4 | PickLotBaseTextureForLot | file | `Uniform(n)` (1) | object's ID count | per texture object with ≥ 1 ID whose first ID ≠ 0 |
+| R5 | CreateRandomLotProp | file | `Uniform(n)` (1) | expanded ID count | per prop object (bit 0 clear) with a non-empty expanded list |
+| R6 | PickFloraTypeForLot | file | `Uniform(n)` (1) | object's ID count | per flora object with ≥ 1 ID |
+| R7 | PickFloraTypeForLot | file | `Uniform(size)` (1) | family set size | only when R6's ID is a family with ≥ 1 member |
+| R8 | AddLotFoundation (slot 54) | file | `Uniform(n)` (1) | foundation object's ID count | the foundation object has an ID list |
+| R9 | rubble corner | file | `Uniform(2)` (1) | | corner, not small |
+| R10 | rubble corner | file | `Uniform(burnt ? 2 : 6)` (1) | | corner, R9 ≠ 0, large |
+| R11 | rubble interior orientation | file | `Uniform(4)` (1) | | interior |
+| R12 | rubble interior type | file | `Uniform(burnt ? 2 : 6)` (1) | | interior |
+| R13 | rubble interior x | file | `RandomDoubleRangeGaussian(min.x, max.x)` (multiplicative state; polar method, may consume a cached value) | | interior |
+| R14 | rubble interior z | file | `RandomDoubleRangeGaussian(min.z, max.z)` | | interior |
+| R15 | night shuffle | `rand()` | `random_shuffle`: n − 1 calls | deque size n | day / night message without immediate update |
+
+### 10.3 Order inside an operation
+
+- **UpdateLot** (grown building): R1 → R3 → (business unit) R2. The tests between them draw nothing.
+- **UpdateTravelDesignates** dissolution: R2 per member tried, in member order, until one joins.
+- **StartConstruction**: R2 (PickUnitToJoin, right after `SetState(2)`) → R8 at the water branch → R8 at the slope
+  branch (at most two R8, the second only if the first did not place a foundation).
+- **Completion** (queued `0xE8BDA2E7` 2 → 3): R4 for each texture object in array order → R5 for each prop object →
+  R6 / R7 for each flora object. A queued `0xE99B3D4D` (condition change of a lot in state 3 or 4) adds R4 draws.
+- **Init on a loaded city**: R4 for every lot with a configuration, in lot-list order (§1.3 step 12).
+- **ExplodeLot**: rubble draws per index i: corners R9 [R10]; interiors R11, R12, R13, R14.
+- **UpdateLotElements** (slot 37, called by the BDS): R8 when it adds a foundation.
+
+---
+
+## 11. Interfaces *[compat]*
+
+All slots are `__thiscall`. Pops come from `docs/abi/vtables.tsv` and were re-checked with
+`tools/abi_extract.py --check` on the addresses below; returns were read from the epilogues.
+
+### 11.1 `cISC4LotDeveloper` (vtable `0x00AB1B98`, 65 interface slots + slot 65 destructor)
+
+Overload pairs are compiled in reverse header order (foundations §16): 16 / 17, 54 / 55, 56 / 57, 58 / 59 (each
+verified from the bodies).
+
+| Slot | Off | As compiled | Pop | Return | Address | SDK |
+|---|---|---|---|---|---|---|
+| 0 | +0x00 | `QueryInterface(iid, void**)` | 8 | AL | `0x006C3B80` | ok |
+| 1 | +0x04 | `AddRef` | 0 | EAX | `0x004F7BA0` (shared) | ok |
+| 2 | +0x08 | `Release` | 0 | EAX = 0 always | `0x006C49D0` | ok in shape (count not returned) |
+| 3 | +0x0C | `bool Init()` | 0 | AL | `0x006CB9A0` | ok |
+| 4 | +0x10 | `bool Shutdown()` | 0 | AL (1) | `0x006C7380` | ok |
+| 5 | +0x14 | `uint32 GetSimulatorType()` → `0x6818E5C9` | 0 | EAX | `0x006C3C40` | ok |
+| 6 | +0x18 | `bool StartConstruction(lot, cfg, uint32 type, bool animate)` | 16 | AL | `0x006CC490` | ok |
+| 7 | +0x1C | `bool ConstructDefaultLot(lot, cfg, uint32 type, bool)` | 16 | AL of slot 6 | `0x006CCEF0` | ok |
+| 8 | +0x20 | `bool AbandonBuilding(lot, int32 reason)` | 8 | AL of `SetState` | `0x006C3D30` | ok |
+| 9 | +0x24 | `bool ReoccupyBuilding(lot, int32 devType)` | 8 | AL of `SetPopulation` | `0x006C3D50` | ok |
+| 10 | +0x28 | `bool ChangeBuilding(lot, uint32 type)` | 8 | AL of `SetState`; **0** when the lot has no configuration | `0x006C5210` | ok |
+| 11 | +0x2C | `bool RemoveBuildingZotProp(lot)` | 4 | AL of the variant setter; 0 when no zot property | `0x006CB940` | ok |
+| 12 | +0x30 | `StartDemolishLot(lot)` | 4 | AL of `ClearLotBuildings` (slot 11's) | `0x006CC1D0` | declared bool: value is incidental |
+| 13 | +0x34 | `EndDemolishLot(lot)` | 4 | **undefined** (last call's EAX) | `0x006C90A0` | **error**: SDK `bool` |
+| 14 | +0x38 | `ExplodeLot(lot, bool burnt)` | 8 | **undefined** | `0x006CC250` | **error**: SDK `bool` |
+| 15 | +0x3C | `float GetTerrainAltitudeByVertex(int32 x, int32 z, bool withWater)` | 12 | ST0 | `0x006C4310` | ok |
+| 16 | +0x40 | `float GetLowestOrHighestAreaAltitude(SC4Rect<float> const&, bool lowest, bool withWater)` | 12 | ST0 | `0x006C56C0` | order reversed vs header |
+| 17 | +0x44 | `float GetLowestOrHighestAreaAltitude(SC4Rect<int32> const&, bool lowest, bool withWater)` | 12 | ST0 | `0x006C5620` | order reversed |
+| 18 | +0x48 | `float GetAverageAreaAltitude(SC4Rect<float> const&, bool)` | 8 | ST0 | `0x006C5B70` | ok |
+| 19 | +0x4C | `bool LevelAreaInternalVertices(SC4Rect<int32> const&, float, bool, bool, lot)` | 20 | AL | `0x006C43D0` | ok |
+| 20 | +0x50 | `bool LevelBorderingVertices(SC4Rect<int32> const&, float, bool, lot)` | 16 | AL (via call) | `0x006C44B0` | ok |
+| 21 | +0x54 | `bool AttemptAreaLevelling(SC4Rect<int32> const&, float maxSlope, bool, bool water, float maxAreaSlope, lot)` | 24 | AL | `0x006C44F0` | ok |
+| 22 | +0x58 | `bool GetOccupantCellCoverage(occupant, SC4Rect<int32>&)` | 8 | AL (via call) | `0x006C4590` | ok |
+| 23 | +0x5C | `bool IsAreaDeveloped(SC4Rect<int32> const&)` → always false | **4** | AL = 0 | `0x005DEB40` (shared stub) | **error**: SDK `(void)`, pop 0 |
+| 24 | +0x60 | `bool IsLotDeveloped(lot)` = slot 23 on the lot rectangle → false | 4 | AL | `0x006C5C00` | ok |
+| 25 | +0x64 | `bool IsAreaFlat(SC4Rect<int32> const&, bool)` | 8 | AL | `0x006C5C30` | ok |
+| 26 | +0x68 | `bool IsLotFlat(lot, bool)` | 8 | AL of 25 | `0x006C5CC0` | ok |
+| 27 | +0x6C | `float GetAreaAltitudeRange(SC4Rect<int32> const&, bool)` | 8 | ST0 | `0x006C5CF0` | ok |
+| 28 | +0x70 | `float GetLotAltitudeRange(lot, bool)` | 8 | ST0 (of 27) | `0x006C5D90` | ok |
+| 29 | +0x74 | `float GetAreaSlope(SC4Rect<int32> const&, bool)` | 8 | ST0 | `0x006C5DC0` | ok; §11.3 |
+| 30 | +0x78 | `float GetLotSlope(lot, bool)` | 8 | ST0 (of 29) | `0x006C5F20` | ok |
+| 31 | +0x7C | `float GetOccupantSlope(occupant, bool)` | 8 | ST0 (of 29 on slot 22's rectangle) | `0x006C5F50` | ok |
+| 32 | +0x80 | `int64 GetLotDevelopmentCost(SC4Rect<int32> const&)` | 4 | EDX:EAX | `0x006C5F80` | ok; §11.3 |
+| 33 | +0x84 | `bool RemoveLotFromItsBusinessUnit(lot)` | 4 | AL of unit `Remove` | `0x006C7320` | ok |
+| 34 | +0x88 | `UpdateTravelDesignates(cISC4BusinessUnit*&)` | 4 | **undefined** | `0x006CB4D0` | **error**: SDK `bool` |
+| 35 | +0x8C | `UpdateTravelPopulations(cISC4BusinessUnit*)` | 4 | **undefined** | `0x006C6340` | **error**: SDK `bool` |
+| 36 | +0x90 | `bool NeedsAnchorBuilding(SC4Rect<int32> const&, int32 purpose)` | 8 | AL | `0x006C7A70` | ok |
+| 37 | +0x94 | `bool UpdateLotElements(lot, bool)` | 8 | AL = 1 | `0x006CC880` | ok |
+| 38 | +0x98 | `cISC4BuildingOccupant* GetFirstBuilding(lot)` | 4 | EAX, **no reference** | `0x006C9100` | **error**: SDK `cISC4Occupant*` (the pointer is the IID `0x87DDA3A9` interface) |
+| 39 | +0x9C | `bool GetPositionForLotConfigurationObject(lot, cfg, obj, float* pos, int32& orient)` | 20 | AL | `0x006C4EF0` | ok |
+| 40 | +0xA0 | `bool GetPositionForBuilding(lot, float* pos, int32& orient)` | 12 | AL of 39; 0 when no configuration or primary object | `0x006C3CF0` | ok |
+| 41 | +0xA4 | `bool GetLotBaseTextureOccupant(lot, cISC4LotBaseTextureOccupant*&, bool create)` | 12 | AL | `0x006C41A0` | ok |
+| 42 | +0xA8 | `GetBoundaryLotTexture(BoundaryType*, uint32&, uint8&, bool&)` | 16 | **EAX = a map node pointer** (AL meaningless) | `0x006C6CF0` | **error**: SDK `bool` |
+| 43 | +0xAC | `void SetEmptyLotBaseTexture(lot)` | 4 | none | `0x006CC970` | ok |
+| 44 | +0xB0 | `SetNormalLotBaseTexture(lot, cfg, bool)` | 12 | **undefined** | `0x006CA8A0` | **error**: SDK returns `cISC4Lot*` |
+| 45 | +0xB4 | `bool UpdateLotBaseTextureOccupant(lot, bool)` | 8 | AL (via call) | `0x006C4290` | ok |
+| 46 | +0xB8 | `bool GetForceEmptyLotBaseTextures()` | 0 | AL | `0x006AAF40` (shared getter) | ok |
+| 47 | +0xBC | `void SetForceEmptyLotBaseTextures(bool)` | 4 | none | `0x006C77D0` | ok |
+| 48 | +0xC0 | `cISC4FoundationOccupant* GetFoundationByOccupant(occupant)` | 4 | EAX (via slot 50) | `0x006C3E10` | SDK `intptr_t` |
+| 49 | +0xC4 | `cISC4FoundationOccupant* GetFoundationByStandardCityCell(int32, int32 x, int32 z)` | 12 | EAX | `0x006C9480` | SDK `intptr_t` |
+| 50 | +0xC8 | `cISC4FoundationOccupant* GetFoundationByPosition(int32, float x, float z)` | 12 | EAX | `0x006C95E0` | SDK `intptr_t` |
+| 51 | +0xCC | `cISC4FoundationOccupant* GetLotFoundation(lot)` | 4 | EAX (via slot 49) | `0x006C3E70` | SDK `intptr_t` |
+| 52 | +0xD0 | `bool RemoveFoundation(int32, float x, float z)` | 12 | AL | `0x006C54E0` | ok |
+| 53 | +0xD4 | `bool RemoveLotFoundation(int32 x, int32 z)` | **8** | AL | `0x006C3EB0` | **error**: SDK `(cISC4Lot*)`, pop 4. Removes the foundation found by slot 49 (occupant manager slot 21) and clears the lot's flags & 3 |
+| 54 | +0xD8 | `bool AddLotFoundation(lot, cfg, bool, bool, bool)` | 20 | AL | `0x006C5460` | order reversed; draws R8 |
+| 55 | +0xDC | `bool AddLotFoundation(lot, uint32 type, bool, bool, bool)` | 20 | AL | `0x006C8AB0` | order reversed |
+| 56 | +0xE0 | `bool IsLotObjectFoundationRequired(occupant)` | 4 | AL | `0x006C3FF0` | order reversed |
+| 57 | +0xE4 | `bool IsLotObjectFoundationRequired(float* min, float* max)` | 8 | AL | `0x006C5590` | order reversed |
+| 58 | +0xE8 | `bool AddBuildingFoundation(building, cfg)` | 8 | AL | `0x006C40E0` | order reversed |
+| 59 | +0xEC | `bool AddBuildingFoundation(building, uint32 type)` | 8 | AL (via call) | `0x006C4020` | order reversed |
+| 60 | +0xF0 | `bool RemoveBuildingFoundation(occupant)` | 4 | AL (via slot 52) | `0x006C4150` | ok |
+| 61 | +0xF4 | `bool UpdateLotFoundation(lot)` | 4 | AL (via call) | `0x006C3F80` | ok |
+| 62 | +0xF8 | `bool UpdateLotRetainingWalls(lot)` | 4 | AL of `0x005E37F0` | `0x006C4190` | ok |
+| 63 | +0xFC | `bool CreateLotProp(lot, uint32, uint32)` | 12 | AL | `0x006C6230` | ok |
+| 64 | +0x100 | `bool GetLotConfigurationObjectOccupant(lot, uint32, cISC4Occupant*&)` | 12 | AL | `0x006CB760` | ok |
+| 65 | +0x104 | scalar deleting destructor | 4 | EAX | `0x006C8810` | not in the interface |
+
+**What a replacement returns where the original is undefined**: slots 13, 14, 34, 35 → true; slot 44 → the lot;
+slot 42 → nonzero when a map entry was found; slot 2 → 0. No game caller reads those values *[inferred: the callers
+found discard EAX]*.
+
+Behaviour of the geometry and foundation slots (15–31, 39–41, 45, 48–64), in short *[compat for the stated parts;
+the levelling and foundation geometry is not specified further, §12.2 Q4]*:
+- 15: `alt := terrain.GetAltitude(x + z · vertsX)` (terrain slot 12, vertex index); with `withWater`, the larger of
+  `alt` and `terrain.GetWaterLevel` at the same index (slot 31; NaN → `alt`).
+- 16 / 17: minimum (start `+FLT_MAX`) or maximum (start `−FLT_MAX`) of slot 15 over the vertices `x1 .. x2 + 1`,
+  `z1 .. z2 + 1` (the float overload converts the rectangle first).
+- 18: average of slot 15 over the vertices. 25: altitude range within `0xE900EA24`. 27: max − min over the vertices.
+- 22: the occupant's bounding box shrunk by 0.05 on each side, converted with `city.PositionToCell` (slot 95).
+- 19 / 20 / 21: terrain levelling inside / around a rectangle; 21 compares the area's slope with its arguments
+  before levelling.
+- 39: position and orientation of a configuration object on a lot (×0.0625 cell maths, `CellCornerToPosition`,
+  lot facing). 40: slot 39 for the primary building object.
+- 41: finds the lot's base-texture occupant (`0x497F6D9D`), creating a `cSC4LotBaseTextureOccupant` (class
+  `0xC97F987C`) when `create`. 45: refreshes it.
+- 48–53, 55–61: foundation occupants (type `0x68FD0C69`, IID `0xC8FCE101`) found by occupant, cell, position or
+  lot; added through BDS slot 23; building foundation type from building property `0x88FCD877`, else the
+  `0x6916516B` default.
+
+### 11.2 `cIGZMessageTarget2` (vtable `0x00AB1B88`, sub-object +4, 4 slots)
+
+| Slot | Method | Pop | Return | Address |
+|---|---|---|---|---|
+| 0 | QueryInterface (this − 4) | 8 | AL | `0x006C7340` |
+| 1 | AddRef (this − 4) | 0 | EAX | `0x0068D230` |
+| 2 | Release (this − 4) | 0 | EAX | `0x006C7360` |
+| 3 | `bool DoMessage(cIGZMessage2*)` | 4 | AL (§3.2) | `0x006CD940` |
+
+### 11.3 `cIGZSerializable` (vtable `0x00AB1B70`, sub-object +8, 6 slots)
+
+| Slot | Method | Pop | Return | Address |
+|---|---|---|---|---|
+| 0 | QueryInterface (this − 8) | 8 | AL | `0x006C7350` |
+| 1 | AddRef (this − 8) | 0 | EAX | `0x0068D250` |
+| 2 | Release (this − 8) | 0 | EAX | `0x006C7370` |
+| 3 | `bool Write(cIGZOStream&)` | 4 | AL = `GetError() = 0` | `0x006C66F0` |
+| 4 | `bool Read(cIGZIStream&)` | 4 | AL | `0x006CD120` |
+| 5 | `uint32 GetGZCLSID()` → `0xA990BFE0` | 0 | EAX | `0x006C3B00` |
+
+### 11.4 Formulas of the cost slots
+
+**`GetAreaSlope(rect, withWater)`** (slot 29, `0x006C5DC0`):
+```
+over vertices x = x1 .. x2+1 (outer), z = z1 .. z2+1 (inner):  a := GetTerrainAltitudeByVertex(x, z, withWater)
+    lo := a and loPos := (x, z) when a < lo (strict; first minimum wins)
+    hi := a and hiPos := (x, z) when a > hi (strict; first maximum wins)
+d := r24(sqrt(r24(r24(dx·dx) + r24(dz·dz))))          (SC4GeometryUtilities::LengthOfLine2D 0x005D76A0; dx, dz = hiPos − loPos)
+if d = 0: return 0.0
+if d > 6: d := r24(d · 0.25)
+if d > 5: d := r24(d · 0.3f)
+if d > 4: d := r24(d · 0.35f); return r24(r24(hi − lo) / d)
+if d > 3: d := r24(d · 0.4f)
+return r24(r24(hi − lo) / d)
+```
+The scale steps are applied **in cascade** to the running value *[quirk]*. Distances are in vertex units, altitudes
+in metres.
+
+**`GetLotDevelopmentCost(rect)`** (slot 32, `0x006C5F80`):
+`w := x2 − x1 + 1`, `h := z2 − z1 + 1`, `s := r24(GetAreaSlope(rect, true) · 0.0625)`,
+`cost := trunc64(r24(r24(curve(s) · w) · h))` (both products by `fimul`), returned in EDX:EAX.
+
+**`cISC4Lot::GetOccupancy`** (lot slot 61, `0x006C0CF0`), used by TestCondition, is compiled as
+`GetOccupancy(float& out)` with pop 4: it writes the result through the pointer and returns nothing in ST0
+(SDK: `float GetOccupancy() const`; §12.3).
+
+---
+
+## 12. Quirks, open questions, corrections
+
+### 12.1 Quirks (reproduced unless marked *[choice]*)
+
+1. The day the lot list wraps, the pass visits the rest of the list plus `perDay` lots (§4.1).
+2. `RotateLotToFaceRoad` is dead: its enabling byte `0x00B49AE9` is never set (§4.2).
+3. Desirability tolerance is fixed per lot location by a coordinate-seeded generator (§5.1).
+4. `AddBuildingZotProp(…, 6)` posts the "add" notification even when a higher-priority zot blocks the road zot
+   (§5.6).
+5. TestPower never removes an empty lot's power zot; the power-changed handler does (§5.2, §9).
+6. `StartConstruction` removes only a road zot; other zots stay until their tests pass (§6.1).
+7. `StartConstruction(…, animate = false)` and `ChangeBuilding` set state 3 even when no building was created.
+8. The state-change handler applies its work to the lot found at the message lot's location, and only when the
+   sizes match (§6.5).
+9. New buildings join the night deque unlit; `litFlag` is never set at run time (§8.1).
+10. The night interval property only seeds the accumulator; the threshold is a hard-coded 200 (§3.5, §8.3).
+11. `0xE900EA29` is read but unused; `0x47E2C401` is read without a count check (§3.5).
+12. `GetAreaSlope` scales the distance in cascade (§11.4).
+13. `EndDemolishLot` leaves a kept lot in state 1, after setting 6 (§7.2).
+14. `Release` returns 0, not the remaining count (§1.4).
+15. The message `0x278E6003` is subscribed but ignored.
+16. `Init` on a loaded city re-picks every lot's base texture, consuming file-RNG draws (§1.3).
+
+### 12.2 Open questions
+
+1. Q1. The construction occupant's phase lengths and its own random draws (out of scope; needed for the M4
+   construction timing).
+2. Q2. The exact meaning of the animation-tick registration value `0xC0` and of `data2`'s unit (assumed µs, so
+   `/1000` gives ms).
+3. Q3. The object at `0x00B43DD8` (+0x10 gives the zot orientation) *[inferred: view rotation]*.
+4. Q4. Detailed geometry of levelling (slots 19–21), foundations (slots 48–61), `GetPositionForLotConfigurationObject`
+   (39) and the boundary-texture rules (42, 43). They draw nothing except slot 54 (R8); a later terrain / lot-content
+   spec should own them.
+5. Q5. Whether `GetLotsSurroundingLot` can return a lot twice across the four side flags (it would weigh that lot
+   twice in R2).
+6. Q6. `GetLotsInCellRect`'s last argument (`true` in §9, `false` in `NeedsAnchorBuilding`): allocators.md documents
+   `false`; the lot developer always passes an empty list, so the clearing step does not matter here.
+7. Q7. Which game code calls slots 12–14 and 63–64 (demolition tool, disasters, lot editor) *[not traced]*.
+
+### 12.3 Corrections to other documents
+
+| Document | Section | Wrong | Right (evidence) |
+|---|---|---|---|
+| `docs/subsystems/development.md` | §6 TestDesirability | `Random(...).Sint32RangeUniform(0, 7)` described as giving a 2..9 tolerance "≈3..10 months" | range is 0..6 (`RandomSint32RangeUniform(0, 7)` = `0 + Uniform(7)`), tolerance `r + 2` = 2..8 passes, failing on the 3rd–9th consecutive low visit (`0x006C48C5`–`0x006C48E8`) |
+| same | §6 TestCondition | thresholds "distress 0.4, renew 0.6" | those are code defaults; shipped 0.45 / 0.5, and `[0]` (0.3 shipped) is the desirability threshold (`0x006C4A85`–`0x006C4AD8`) |
+| same | §6 StartConstruction | "picks a business unit and clears zots" | only a road zot is removed; condition is set to 1; foundation / levelling order as §6.1 (`0x006CC490`) |
+| same | §6 DoDailySimulation | "empty-lot checks when `noZotUntilDay < today`" | `today > noZotUntilDay`, with `noZotUntilDay = today + 31` set by CityEstablished `0x26D31EC4` (`0x006CDB5F`) |
+| `foundations.md` | §6.2 | lists "lots" under the file-local `cRZRandomSuper` row; temporary-seed row marks `a` as inferred | the lot developer uses a file-local **`cRZRandom`** at `0x00B49AF0`, seed `cRZTime() XOR 0x6C09C0F4` (static initialiser `0x00A74E00`); the temporary generator's seed is `(x << 16) + z` with `x`, `z` from `GetLocation` (`0x006C48B6`) |
+| `foundations.md` | §12.5 | "lot developer: `random_shuffle` of an `int` deque" | a deque of `cISC4BuildingOccupant*` (identical-code-folded `deque<int>` symbol), shuffled on the day / night message `0x44778234` (`0x006CDA36`, `0x006C68C0`) |
+| `foundations.md` | §5.2 | condition 1 not described | condition 1 = occupied, otherwise normal, but the no-power counter is non-zero (`0x006C4757`), also used while constructing (`0x006CC4D6`) |
+| `tract-developer.md` | §10.2 Q1 | open | answered in §5.7 (`NeedsAnchorBuilding`, `0x006C7A70`) |
+| `tract-developer.md` | §10.2 Q5 | open | `AbandonBuilding` is `lot.SetState(4, 0, reason)` and synchronous (`0x006C3D30`) |
+| `growth-developer.md` | §12 open question 4 | the abandonment-threshold keys are a lot-developer matter | the lot developer never calls growth developer slot 24 (no call in `0x006C3B00`–`0x006CDEF0`); its abandonment threshold is `0x47E2C401[0]` |
+| gzcom-dll SDK `cISC4Lot.h` | slot 61 | `float GetOccupancy() const` | `void GetOccupancy(float& out)`, pop 4, result written through the pointer (`0x006C0CF0`, store at `0x006C0E8A`) |
+
+---
+
+## 13. Persistence (`cIGZSerializable`, sub-object +8, class ID `0xA990BFE0`) *[compat]*
+
+**Write** (`0x006C66F0`), in this order (foundations §2.2 encodings):
+
+| # | Field | Encoding |
+|---|---|---|
+| 1 | version = 1 | `SetUint16` |
+| 2 | `vertsX` | `SetSint32` |
+| 3 | `extentX` | `SetFloat32` |
+| 4 | `extentZ` | `SetFloat32` |
+| 5 | n = night deque size | `SetUint32` |
+| 6 | each building, front to back | object reference, `SC4WriteGZSerializable` (`0x005D99A0`, foundations §2.7) |
+| 7 | cursor index (cursor − front) | `SetUint32` |
+| 8 | `nightMode` | `SetUint8` (low byte) |
+| 9 | `litFlag` | `SetUint8` 0 / 1 (`operator<<` `0x005D9FD0`) |
+
+Returns `GetError() = 0` (stream slot 18).
+
+**Read** (`0x006CD120`): reads the version; any value other than 1 → return false with nothing more read. Then
+fields 2–4 (overwriting), resizes the deque to n (null-filled, `0x006CCE30`), reads each element with
+`SC4ReadGZSerializable(stream, 0x87DDA3A9, &elem, 0)`, the cursor index (cursor := front + index), `nightMode`
+(uint8 into the 32-bit field), `litFlag` (`operator>>` `0x005D9FA0`: byte ≠ 0); sets `nightAcc := 0`; returns
+`GetError() = 0`.
+
+Not saved: daily state and iterator, the latches and snapshots, `noZotUntilDay`, `canCheckCommute`, tuning, the RNG.
+A loaded city therefore starts a fresh daily cycle at the front of the lot list.
+
+---
+
+## 14. Dependencies *[compat]*
+
+Pops from `docs/abi/interfaces.tsv` (checked rows) unless noted.
+
+| Interface (global) | Slot | Method | Pop | Return |
+|---|---|---|---|---|
+| `cISC4City` (`0x00B43CEC`) | 31 / 33 / 34 / 35 / 50 / 53 / 56 / 59 / 64 / 67 / 69 / 84 / 86 | service getters | 0 | EAX |
+| | 91 / 92 | CellWidthX / Z | 0 | ST0 |
+| | 93 / 94 | cell counts X / Z | 0 | EAX |
+| | 95 / 96 | PositionToCell / CellCornerToPosition | 16 | EAX / ST0 |
+| `cISC4Simulator` (`0x00B43D5C`) | 8 | GetSimDateNumber | 0 | EAX |
+| | 19 / 20 | AddAgent(target, level, name, flags) / RemoveAgent(target) | 16 / 4 | AL |
+| `cIGZMessageServer2` (`0x00B43CCC`) | 4 / 5 / 6 | MessagePost(msg, bool) / AddNotification / RemoveNotification | 8 | AL |
+| `cISC4LotManager` (`0x00B43D08`) | 6 | GetLot(x, z, bool) | 12 | EAX |
+| | 7 | GetLotsInCellRect(list, x1, z1, x2, z2, bool) | 24 | EAX |
+| | 9 / 10 | GetLotsSurroundingLot(lot, list, flags) / GetLotsSurroundingRect(rect, list, flags) | 12 | |
+| | 15 / 16 | GetSafeLotIterator / GetLotCount | 0 | EAX |
+| | 24 | DeleteLot(lot) | 4 | AL |
+| `cISC4Lot` (vtable `0x00AB19B0`) | 3, 9, 10, 12–15, 20–22, 25–31, 33–37, 40, 41, 43, 44, 46–48, 52, 55, 57–61, 63–67, 69 | as named in this spec | per `interfaces.tsv` (e.g. 34 SetState 12, 36 SetCondition 4, 61 GetOccupancy 4, 63 GetTravelJobs 4 ST0) | |
+| `cISC4OccupantManager` (`0x00B43D0C`) | 20 / 21 / 24 | InsertOccupant(occ, 0) / RemoveOccupant(occ, a, b) / occupant changed (occ, 0) | 8 / 12 / 8 | AL |
+| | 36 | GetOccupantsByBBox(list, min, max, filter, flags) | 20 | AL |
+| | 41 | GetOccupantsByStandardCityCells(list, min, max, type, flags) | 20 | AL |
+| | 48 | ReleaseOccupantList(list) | 4 | |
+| `cISC4PropManager` (`0x00B43D10`) | 15 / 24 / 25 / 26 / 28 / 29 / 38 | CreateProp / GetLotProps(list, lot) / AddLotProp(lot, occ) / AddLotProp(type, pos, orient) → occ / RemoveLotProps(lot) / RemovePropA / RemoveBuildingProps | 8 / 8 / 8 / 12 / 4 / 4 / 4 | AL or EAX |
+| `cISC4BuildingDevelopmentSimulator` (`0x00B43D68`) | 7 / 15 / 19 / 23 / 30–33 / 39 / 50 / 54 / 55 / 58 | building-development.md §7.1 | 12 / 4 / 8 / 28 / 8, 4, 4, 8 / 4 / 4 / 0 | |
+| `cISC4PowerSimulator` (`0x00B43DA0`) | 37 | IsPowered(x, z) | 8 | AL |
+| `cISC4PlumbingSimulator` (`0x00B43D94`) | 11 | IsCellWatered(x, z) | 8 | AL |
+| `cISC4TrafficSimulator` (`0x00B43DA8`) | 13 | GetTripLengthMap | 0 | EAX (uint8 grid, read with grid slot 7) |
+| `cISC4DemandSimulator` (city slot 56) / `cISC4Demand` | 6 / 9 | GetDemand(0x2000, 0x20000) / QueryDemandValue | 8 / 0 | EAX / ST0 |
+| `cISC4FloraSimulator` (`0x00B43D80`) | 11 / 14 / 17 / 20 | IsFloraTypeValid / GetFloraTypesByFamily / AddNewFloraOccupant / DemolishFloraInCellArea | 4 / 8 / 12 / 8 | |
+| `cISC4GrowthDeveloper` | 7 / 13 / 20 | GetPurpose / GetDesirabilityMap / GetWaterSupplyCap | 0 | EAX |
+| `cISTETerrain` (`0x00B43CF4`) | 6 / 7 / 8 / 12 / 31 | CellWidth / counts / GetAltitude(index) / GetWaterLevel(index) | 0 / 0 / 0 / 4 / 4 | ST0 / EAX / EAX / ST0 / ST0 |
+| `cISC4Demolition` (`0x00B43D00`) | 7 / 8 | DemolishLots (8 args) / DemolishOccupant (7 args) | 32 / 28 | AL |
+| `cISC4LotConfigurationManager` (`0x00B43D18`) | 8 / 27 | GetLotConfiguration / GetObjectIDArray | 4 / 8 | EAX |
+| `cISC4LotConfiguration` | 3, 7, 10, 11, 14, 23, 24, 26, 27 | GetID, GetSize, GetMaximumSlopeBeforeFoundation (ST0), GetGrowthStage (AL), IsCompatibleWithWater, GetLotConfigurationObjectArray, GetPrimaryBuildingConfigurationObject, GetPrimaryFoundationConfigurationObject, HasObjectsOfType | | |
+| `cISC4BuildingOccupant` | 3 / 11 / 17 | AsOccupant / (struct getter) / SetLit(bool) | 0 / 0 / 4 | |
+| `cISC4Occupant` | 3, 8, 10, 11, 12, 15, 22, 28, 29, 32 | Init, GetPosition, GetBoundingBox, GetBoundingCityCells, SetRemovalFlags, PostOccupantMessage, IsOccupantGroup, SetLotTag, SetFlag, IsFlagSet | per `interfaces.tsv` | |
+| `cISC4BusinessUnit` | 3 / 4 / 5 | Add / Remove / GetMembers | 4 / 4 / 0 | *[pops from the call sites]* |
+| 24-hour clock (`0x00B43DBC`) | 6 | GetVisualTimeMode | 0 | EAX |
+| animation-tick manager (service `0x86AD10EC`) | 5 / 6 | register / unregister (target, `0xC0`) | 8 | |
+| GZCOM | 3 | CreateInstance(class, iid, void**) | 12 | AL |
+| resource manager (`0x00B43CA8`) | 3 / 14 | get exemplar / resource exists | | |
+
+---
+
+## 15. Replaceability
+
+### 15.1 Who reaches into the lot developer
+
+- Only through `cISC4LotDeveloper`: the tract developer (slots 6, 8, 9, 29, 36), the BDS (16, 30, 37), the coffee
+  bar path of this class, and other tools *[Q7]*. The two direct readers of the global `0x00B43D20` (BDS `Init`
+  `0x0069D496`, tract developer `Init` `0x0070780B`) only store and AddRef the pointer.
+- No code outside the class reads its members *[inferred: no raw access found next to the global's readers]*.
+- The file-local generator `0x00B49AF0`, the slicer statics `0x00B49B08`–`0x00B49B10`, the dead bytes
+  `0x00B49AE8` / `0x00B49AE9` and the cached lot-configuration-manager pointer `0x00B49AEC` are private to the class's
+  translation unit.
+
+The class is replaceable through the GZCOM registry (class ID `0xA990BFE0`) provided the replacement:
+- implements the compiled slot table (§11.1), including the pop-8 slot 53 and pop-4 slot 23;
+- posts and handles the messages of §3 with the same queued timing;
+- walks the lot manager's safe iterator **the way the original does** (it reads the iterator's two words and the
+  owner's `std::list` nodes raw: next = node[0], lot = node + 8; and frees the iterator by removing it from the
+  owner's iterator list at owner + 4 and calling C free). A replacement must either do the same or, standalone,
+  iterate the lot list in the same order *[blocker for a pure-interface replacement: `GetSafeLotIterator` returns a
+  raw structure, not an interface]*;
+- uses allocator B / A for every crossing container as in §15.2.
+
+### 15.2 Containers crossing an interface (allocators.md format; rows for the lead to paste)
+
+Section (1), the game fills, the caller frees:
+
+| Method (slot) | Container | Game allocator | SDK container compatible? | Notes | Evidence |
+|---|---|---|---|---|---|
+| `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator block `{current node, owner}` | C (`0x005E55E0`) | n/a (raw struct) | registered in the owner's iterator list (owner + 4, insert `0x0072BA10`); the caller walks the owner's list nodes raw, then unregisters (`std::list::remove` `0x00809580` on owner + 4) and frees the block with C (`0x005E5620`) | `0x00734850` → `0x00734860`; callers `0x006CD7A3`, `0x006C77E8`; free in `Shutdown` `0x006C7380` |
+| `cISC4PropManager::GetLotProps` (24) | `ilist<cISC4Occupant*>` | A | yes | appends through occupant manager slot 40 (one reference each), then erases (Release, free node A) every element whose position is outside the lot's world rectangle, over the **whole** list. The lot developer passes a fresh list (head 12 bytes from the cached service `0x00B207E4`), releases each element, frees nodes with `0x00413E60` and the head with A slot 4 | `0x004A3240`; caller `0x006C9780` |
+| `cISC4LotConfigurationManager::GetObjectIDArray` (27) | `std::vector<uint32>` | B | **no** | clears (end = begin), then appends the object's IDs with families expanded in hash order, B growth. The caller passes a zeroed vector and frees the buffer with `0x0090CF63` | `0x0048BA10`; caller `0x006C6D70` |
+| `cISC4LotManager::GetLotsInCellRect` (7), `GetLotsSurroundingLot` (9), `GetLotsSurroundingRect` (10) | `std::list<cISC4Lot*>` | B | **no** | as the existing rows; the lot developer allocates the 12-byte head with `0x0090CF54`, releases each lot, frees nodes and head with `0x0090CF63` | callers `0x006CBF40`, `0x006C7A70`, `0x006CB260` |
+| `cISC4OccupantManager::GetOccupantsByStandardCityCells` (41, typed) / `GetOccupantsByBBox` (36, filter) | `ilist<cISC4Occupant*>` | A | yes | as the existing rows; callers allocate the head with A (cached `0x00B207E4`) and end with slot 48 or `0x00413E60` + A free | callers `0x006C9100`, `0x006C8E10`, `0x006C9AD0`, `0x006C9480`, `0x006C95E0` |
+| `cISC4BuildingDevelopmentSimulator::GetBuildingTypesByFamily` (19), `cISC4FloraSimulator::GetFloraTypesByFamily` (14) | STLport `hash_set<uint32>` | B | **no** | as the existing rows; caller-built sets of 193 buckets | callers `0x006CCEF0`, `0x006CD010` |
+| `cISC4Demolition::DemolishLots` (7) | `std::list<cRZAutoRefCount<cISC4Lot>>` (input) | B (caller's) | read only | as the existing row; the coffee-bar caller builds a one-lot list and destroys it (`0x00427670`) | caller `0x006C78D0` |
+
+Section (2): the lot developer's own interface passes **no** game-owned container across (slot 34 takes a
+`cISC4BusinessUnit*&`, slot 41 a `cISC4LotBaseTextureOccupant*&`, slot 64 a `cISC4Occupant*&`; no lists).
+
+### 15.3 Internal containers (no allocator row)
+
+The night deque (`deque<cISC4BuildingOccupant*>`, B node buffers), the boundary map (B), the candidate vector and
+lot-list copies of `PickUnitToJoin` / `UpdateTravelDesignates` (B), the texture record buffer of
+`SetNormalLotBaseTexture` (B), and the business-unit objects (C). A replacement may use any containers, but must
+keep the **orders** they impose: deque order and shuffle (R15), candidate order (R2), configuration-object array
+order (R4–R6), hash-set iteration (R7, `ConstructDefaultLot`).
+
+### 15.4 Grids
+
+The lot developer **owns no grid** and reads none raw. Desirability (growth developer slot 13 → grid slot 7), trip
+length (traffic slot 13 → grid slot 7), power (`IsPowered`) and water (`IsCellWatered`) are all read through
+interface calls, one cell at a time. Grid ownership is the owners' business (simgrid §6.4).
+
+---
+
+## 16. Conformance tests (must exist in `engine/conformance`)
+
+Unless stated, tuning is the shipped exemplar and the file RNG is seeded explicitly.
+
+1. **Desirability tolerance** (§5.1). Temporary generator seeds and outcomes:
+
+   | Location (x, z) | Seed | First raw | r | Passes while counter ≤ | Fails at counter |
+   |---|---|---|---|---|---|
+   | (0, 0) | `0x00000000` | `0x00000000` | 0 | 2 | 3 |
+   | (1, 0) | `0x00010000` | `0x41C64E6D` | 1 | 3 | 4 |
+   | (17, 3) | `0x00110003` | `0x5E2BFA90` | 2 | 4 | 5 |
+   | (10, 20) | `0x000A0014` | `0x91C433C0` | 3 | 5 | 6 |
+   | (64, 37) | `0x00400025` | `0x719D1CE9` | 3 | 5 | 6 |
+   | (255, 255) | `0x00FF00FF` | `0x84C9A31B` | 3 | 5 | 6 |
+
+2. **Desirability threshold** (§5.1, shipped 0.3): cell value 29 → `0.29` low; 30 → `0.29999998` (`0x3E999999`) low;
+   31 → `0.31` not low. Not low resets the counter to 0.
+3. **Daily quota** (§4.1): `n = 100` → 4 lots per day; `n = 27` → 1; `n = 28` → 2; `n = 0` → no work, true.
+4. **Wrap day**: 29 lots, `perDay = 2`. Days 1–14 update L1–L28 (two per day). Day 15 updates L29, returns false
+   (state 3), and on re-delivery updates L1 and L2: three lots that day. Day 16 updates L3, L4.
+5. **Power grace** (§5.2): an unpowered building lot (needs power) visited three times returns 1, 1, 0; the zot
+   property is 4 after the first visit; abandonment reason 2 on the third (if no later test fails). Powering it
+   resets the counter, removes the zot and returns 2.
+6. **Travel** (§5.4): residence in state 3 with road and job access but trip length 0: visits return true, true,
+   true (zot 7 appears), true, true, true, **false** (counter 7). The same lot without road access: true, true, false
+   with zot 6 from the first visit and one `0x4C04DE69` data1 = 1 per visit.
+7. **Zot priority** (§5.6): current zot 4; request 6 → still 4 (a `0x4C04DE69` data1 = 1 is posted); request 7 →
+   still 4; current 7, request 5 → every `0x48E95539 = 7` prop is removed, zot := 5.
+8. **Empty-lot zot pattern** (§5.6): zone 1 at (2, 2) → yes; (1, 2) → no; zone 8 at (4, 8) → yes; (4, 6) → no;
+   zone 10 → no.
+9. **Condition** (§5.5, stay-new 90, thresholds 0.45 / 0.5):
+   - state 3, building wealth 3, occupant wealth 1, condition 0, days 10 → 3;
+   - wealth equal, condition 0, days 100, occupancy 0.40 → 2;
+   - wealth equal, condition 0, days 100, occupancy 0.47, no-power counter 0 → 0; counter 1 → 1;
+   - building wealth 2, occupant wealth 1 (d = 1), condition 3, days 10, occupancy 0.48 → `b` is true → d = 2 → 3;
+   - state 4: condition 0, days 0 → 1; condition 2, days 91 → 3; condition 4 → 4.
+10. **Development cost** (§11.4), water below terrain:
+    - 1×1 lot (vertices (0,0)…(1,1)), altitude 100 except (1, 0) = 104: slope 4.0, `s = 0.25`, curve value
+      `4.499996`, cost **4**.
+    - 2×3 lot (x 0–1, z 0–2), altitude 100 except vertex (2, 3) = 260: `d = 3.6055512 → 1.4422205`,
+      slope ≈ 110.94, `s ≈ 6.934` (clamped to 3000), cost **18000**.
+    - Any flat rectangle: 0.
+11. **Rubble count** (§7.3): bounding box 11 × 11 → area 121, count `trunc(0.9453125) + 4 = 4` (corners only, not
+    small, not large); 8 × 8 → small, no draws, no props; 16 × 16 → count 6 (two interior props), large.
+12. **Seeded rubble** (§7.3), file RNG seed 12345, non-burnt 11 × 11 box: draws `Uniform(2)` ×4 → 0, 1, 0, 1 (raw
+    `0x0C63D3DC`, `0xFED6A704`, `0x6E80D665`, `0xC0090DAA`). Props: corner 1 → type `0x1DCF0000`, orientation 3, at
+    (min.x, min.y, max.z); corner 3 → `0x1DCF0000`, orientation 1, at (max.x, min.y, min.z) (before clamping).
+    Corners 0 and 2 get nothing.
+13. **Seeded completion content** (§6.5, §10.3), file RNG seed 12345. Configuration objects in array order: one
+    texture object with IDs {T0, T1, T2} (T0 ≠ 0, no wealth / decay variants present), one prop object (bit 0 clear)
+    whose expanded list is {P0, P1, P2, P3}, one flora object with valid flora types {F0, F1}. On the 2 → 3 message:
+    draws `Uniform(3) = 0`, `Uniform(4) = 3`, `Uniform(2) = 0` → base texture T0, prop P3, flora F0, in that order.
+14. **Coffee-bar draw first** (§5.8): seed 12345, cheat on, purpose 2, lot historical: one draw `Uniform(100) = 4`
+    is consumed even though the lot is rejected.
+15. **Night batch** (§8.3): shipped tuning (accumulator 100, batch 10), 25 buildings, night mode 2: tick
+    data2 = 150000 → `ms = 150`, acc 250 > 200 → 10 buildings lit, acc 0. Ticks of 99999 (acc 99) then 101000
+    (acc 200) → nothing; then 2000 (acc 202) → next 10. After the 25th building the next batch sets mode 0. With
+    mode 0 the tick message returns false.
+16. **Shuffle** (§8.2): deque of 4 buildings, C `rand()` state fresh (state 1, first outputs 41, 18467, 6334): swaps
+    (1, 41 mod 2 = 1), (2, 18467 mod 3 = 2), (3, 6334 mod 4 = 2) → order [b0, b1, b2, b3] becomes [b0, b1, b3, b2].
+17. **Save record** (§13): 64 × 64-cell city (cell width 16), empty deque, mode 0, unlit: 24 bytes
+    `01 00 | 41 00 00 00 | 00 00 80 44 | 00 00 80 44 | 00 00 00 00 | 00 00 00 00 | 00 | 00`. A version-2 record
+    is rejected after 2 bytes.
+18. **Abandonment order** (§4.2): a lot failing desirability and water records reason 3; failing all four records
+    reason 4; `SetState` is called once.
+19. **Interface pops** (§11.1): slot 23 pops 4 and returns 0; slot 53 pops 8; slot 32 returns in EDX:EAX; slot 38
+    returns the building interface without a reference.

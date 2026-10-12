@@ -862,7 +862,7 @@ release every lot in L; free the list
   (slot 8).
 - Returns `sum` (EAX).
 - A multi-cell lot is visited once per cell. After the first abandonment its state is no longer 3, so it is
-  counted once *[inferred: AbandonBuilding sets the state synchronously; lot-developer.md]*.
+  counted once (AbandonBuilding sets the state synchronously; lot-developer.md).
 - The caller uses the result as described in `building-development.md` §4.5.
 
 ### 4.20 Styles
@@ -1237,13 +1237,15 @@ they decide the outcome and the draws (§10.1).
 
 ### 10.2 Open questions
 
-1. Q1. Meaning of occupant group `0x3000` and of lot developer slot 36 (`NeedsAnchorBuilding`): which configurations
-   need an anchor? (`lot-developer.md`)
+1. Q1. *Answered* (`lot-developer.md`, `NeedsAnchorBuilding`): industrial purposes 6–8 need an anchor unless the
+   rect already holds a building of occupant group `0x3000` (then true) or a neighbouring lot of the same purpose
+   with a building that is past state 1 or is a unit can serve as the anchor (then false).
 2. Q2. Is `0x29B55F73` (farm field IDs) always both a building type and a lot configuration ID in shipped data?
 3. Q3. The exact semantics of the traffic simulator's road-access value used for purpose 1 (§4.8 row 7) *[inferred]*.
 4. Q4. Order in which `GetStylePercentages` values are expressed: fraction 0–1 (× 100 here) is assumed from the code;
    shipped values not checked against `growth-developer.md` §4.8.
-5. Q5. Whether `AbandonBuilding` changes the lot state synchronously (affects §4.19 multi-cell counting).
+5. Q5. *Answered*: `AbandonBuilding` is a synchronous `lot.SetState(4, 0, reason)` (`lot-developer.md`), so §4.19
+   counts a multi-cell lot once.
 6. Q6. `0x47E2C502` (Redevelop Size Threshold) is read but no consumer was found.
 7. Q7. Game callers of slots 8–14 (UI / Lua) and whether any reads the garbage returns of 10, 12 and 14.
 
