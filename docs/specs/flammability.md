@@ -20,9 +20,9 @@ persistence §5, lifetime §6, iterators §7.4), [weather.md](weather.md) (seaso
 
 The flammability simulator keeps two per-tract byte maps of how easily the city burns, and starts fires:
 
-1. a **raw** map: per tract, the flammability of what stands there (buildings first, else flora, else props),
-   taken from occupant property `0x29244DB5`, raised for buildings and flora on abandoned lots. It is updated
-   whenever an occupant is inserted, removed or changed;
+1. a **raw** map: per tract, the flammability of what stands there (buildings `0x278128A0` first, else props
+   `0xA823821E`, else flora `0x74758926`), taken from occupant property `0x29244DB5`, raised for buildings and
+   props on abandoned lots. It is updated whenever an occupant is inserted, removed or changed;
 2. an **adjusted** map (the one other subsystems see, `GetFlammabilityGrid`): raw × a city-wide multiplier
    (ordinances, summer) × a no-water multiplier, refreshed over a **40-day cycle** in random tract order;
 3. at the end of each cycle: the **average** flammability of zoned tracts (also recorded in the history
@@ -97,10 +97,19 @@ If already initialized, return true. Otherwise:
 2. `simulator.AddAgent(this as cIGZMessageTarget2, level 4, "cSC4FlammabilitySimulator", flags 2)` (§5).
 3. If no message server is held: hold it and `AddNotification` for, in this order, InsertOccupant `0x99EF1142`,
    RemoveOccupant `0x99EF1143`, ChangeOccupant `0x99EF1145`, SeasonChange `0x6716A4E5`, OrdinanceUpdated
-   `0xC2C09554`, ConditionChanged `0xE99B3D4D`.
+   `0xC2C09554`, ConditionChanged `0xE99B3D4D`. These six are the whole subscription set *[compat]*: a
+   replacement must subscribe exactly these types (the day agent of step 2 is registered separately), and in
+   particular **not** the exemplar-changed message `0xC53D10AA` (§5).
 4. Hold the city (if not held); `countX := city.CellCountX()`, `countZ := city.CellCountZ()`.
 5. Hold (each only if not yet held) the ordinance simulator, weather simulator, plumbing simulator, occupant
-   manager and lot manager.
+   manager and lot manager. The original takes each from the pointer the game cached from the city's getter at
+   city init and `AddRef`s it **without a null check**: if the city has no such service (for example no plumbing
+   simulator), the original crashes here (a call through a null pointer) *[compat: crash]*. The zone manager is
+   not held: the daily refresh (§6.5) calls the cached city zone manager directly, also without a null check.
+   *[choice]* FreeCity4 tolerates a missing service: a missing plumbing simulator answers "not watered" for every
+   cell (what the plumbing simulator answers in a city without water, so the no-water multiplier applies); a
+   missing zone manager answers "unzoned" (0) for every tract, so the zoned sum and count stay 0 and the average
+   is 0. Every other step runs unchanged. (Missing ordinance and weather simulators: §6.4.)
 6. If there is no adjusted grid: create a `cSC4SimGrid<uint8>`, hold it, `Init()`, `SetTractSize(tractSize)`,
    `SetInstanceID(0x49D5B953)`, `SetTractValues(0)`. Same for the raw grid with `0x49D5B964`. (The original
    constructs the grid objects directly; a replacement must create them through GZCOM, class `0x49B9E602`, so that
@@ -145,7 +154,16 @@ One agent registration: **level 4 (SimNewDay) only, flags 2** (runs only in an e
 | `0x99EF1143` RemoveOccupant | same filter, then `OccupantUpdate(occ, add = false)`. |
 | `0x6716A4E5` SeasonChange, `0xC2C09554` OrdinanceUpdated | `globalMultiplier := ComputeGlobalMultiplier()` (§6.4). The grids are not touched; the daily refresh spreads the change over the next cycle. |
 | `0xE99B3D4D` ConditionChanged | `u := msg.GetIGZUnknown()`; if null, stop. `QueryInterface(u, 0xE818FCED cISC4Lot)`; if it fails, stop. `b := lot.GetBuilding()`; if non-null, `OccupantUpdate(b.AsOccupant(), add = false)` (a full recompute of the building's tracts). Release the lot. No `0x029244DB` check here. |
+| `0xC53D10AA` exemplar changed (foundations §5.2) | **not subscribed and not handled** *[compat]*: falls under "anything else". |
 | anything else | nothing. |
+
+**Exemplar changed `0xC53D10AA`** *[compat]*. Unlike the crime, protection, aura and flora simulators, the
+flammability simulator neither subscribes to this message nor handles it: `DoMessage` (`0x006AFA60`) has no branch
+for it (the Mac build's `DoMessage` has none either), and the tuning reader (`0x006AEB50`) has exactly one caller,
+`Init` (`0x006AF55A`). The message is posted (`MessagePost`) by the exemplar resource code and the exemplar debug
+view (foundations §5.2), so it reaches only subscribers; there is no handler to reach. The flammability tuning is
+therefore re-read only by an `Init` after a `Shutdown` (a new or loaded city). A replacement must keep the
+subscription set of §4.1 exactly and must not re-read its tuning on `0xC53D10AA`.
 
 Property `0x029244DB` is the **preview occupant** marker (foundations §5.2): the lot-placement and toll-booth tools
 set it on the temporary occupants they show under the cursor, and every grid simulator skips those occupants.
@@ -171,11 +189,36 @@ if t == building 0x278128A0 or t == prop 0xA823821E:
     m := 1.0
     lot := lotManager.GetOccupantLot(occ)
     if lot ≠ null and lot.GetCondition() == 4:  m := abandonmentMultiplier      (4 = abandoned [inferred])
-else if t == flora 0x74758926:  m := 1.0
+else if t == flora 0x74758926:  m := 1.0                                      (no lot lookup)
 else: return 0
-p := integer value of occ's property 0x29244DB5 (0 if absent; read through the property holder)
+p := Sint32 value of occ's property 0x29244DB5 (below; 0 if absent)
 return clamp(roundHE(p × m), 0, 255)
 ```
+
+Buildings and props get the abandonment multiplier; flora never does (confirmed in `0x006AE4D0`: the building and
+prop type IDs share the lot-lookup branch, the flora ID skips it).
+
+**Reading `p`** *[compat]* (`0x006AE4D0` through the property helper `0x005FD450`). `p` starts at 0. The helper
+asks the occupant's property holder (`AsPropertyHolder()`) for the property object (`cISCPropertyHolder` slot 9,
+`GetProperty(uint32)`); if there is none, `p` stays 0. Otherwise it takes the property's value variant and calls
+the variant's converting getter `bool GetValSint32(int32&)` (`cIGZVariant` slot 28, `+0x70`; foundations §17.1),
+which writes `p` only when the conversion succeeds. The conversion, by the variant's memory type (foundations §9.1):
+
+| Variant holds | `p` |
+|---|---|
+| `Sint32` scalar | the value |
+| `Bool`, `Uint8`, `Uint16`, `RZUnicodeChar` scalar | zero-extended |
+| `Sint8`, `Sint16`, `Char`, `RZChar` scalar | sign-extended |
+| `Uint32` scalar | its bit pattern (values ≥ 2³¹ become negative, then clamp to 0 below) |
+| `Uint64`, `Sint64` scalar | the low 32 bits |
+| `Float32`, `Float64` scalar | truncated toward zero to a 64-bit integer, then the low 32 bits (150.9 → 150, −2.7 → −2) |
+| an **array** of any type | converted through text: the **first element** is formatted (integers in decimal, floats with the game's float formatter; an array with no elements gives `"0"`), then the text is parsed: with a `.` or an exponent it is parsed as a double and truncated toward zero, otherwise as a 64-bit integer, low 32 bits. For a numeric first element this gives the same `p` as the scalar rule for that element *[inferred for floats: the formatter keeps enough digits for every float32]*. A conversion that fails leaves `p` = 0 |
+
+`Empty`, `VoidPtr` and `IGZUnknown` values also go through the text path; they cannot come from an exemplar
+property and are not specified. Shipped data: all 619 exemplars and cohorts of the installed `.dat` files that
+carry `0x29244DB5` store it as a `Uint8` scalar, so `p` is simply that byte. *[choice]* FreeCity4 implements the
+table for scalars, reads the first element of an array with the same scalar rule (identical results for numeric
+arrays) and treats any other value as 0.
 
 Values outside `|p × m| < 2^22` give garbage in the original; *[choice]* FreeCity4 clamps properly.
 
@@ -189,10 +232,14 @@ Values outside `|p × m| < 2^22` give garbage in the original; *[choice]* FreeCi
 3. `B` := max raw value (§6.1) over buildings, `P` := max over props (`0xA823821E`), `F` := max over the other
    occupants (flora). Result := `B` if `B > 0`, else `P` if `P > 0`, else `F` (clamped to 0..255; already in range).
 
-A building or prop whose raw value is 0 counts as absent. (The original evaluates props only while no
-non-zero building has been seen and flora only while neither has; the result is the same as the rule above.)
-Erratum (M3): an earlier version of this section swapped the names of the prop and flora type IDs. The numeric
-checks were right; prop is `0xA823821E` and flora is `0x74758926`.
+A building or prop whose raw value is 0 counts as absent. (The original, `0x006AEE90`, evaluates props only while
+no non-zero building has been seen and flora only while neither has; the result is the same as the rule above.)
+The priority is **building > prop > flora**.
+Erratum (M3, applied throughout this spec in M4): an earlier version swapped the names of the prop and flora type
+IDs in §1, §6.2, §14.3 and tests 1 and 2. The numeric checks were right: prop is `0xA823821E` (the type the
+prop occupant's constructor `0x005EE050` stores), flora is `0x74758926` (stored by the flora occupant's
+constructor `0x00472B30`). The type filter of step 2 is built in the order building, flora, prop, which does not
+affect the result.
 
 ### 6.3 Occupant update (`OccupantUpdate(occ, add)`) *[compat]*
 
@@ -210,8 +257,15 @@ for x in x0..x1, z in z0..z1:
     adjusted[x][z] := clamp(roundHE(w × globalMultiplier), 0, 255)       (no no-water factor)
 ```
 
-On removal the original recomputes from the occupant manager's current contents; whether the removed occupant is
-still listed at that moment is the occupant manager's behaviour *[inferred: it is already gone]*.
+**Removal order** *[compat]*. On removal the tract is recomputed from the occupant manager's current contents,
+and the removed occupant is **no longer listed** there: the occupant manager's `RemoveOccupant` (compiled slot
+21, `0x0049F240`) first unlinks the occupant from every cell it covers, and only then has the occupant post
+RemoveOccupant `0x99EF1143` (the occupant's post helper `0x005E9010`, with `MessagePost`, normal priority). The
+message is queued and delivered on a later message-server tick (foundations §5.1), after `RemoveOccupant` has
+returned. The message holds a reference, so the occupant object itself is still valid for `GetType`,
+`GetBoundingCityCells` and the property reads; when the remover asked for it, the occupant has already been shut
+down by then. So the recompute of the occupant's tracts never counts the removed occupant: a tract that held only
+that occupant becomes 0 (unless something else was inserted there in between).
 
 ### 6.4 Global multiplier (`ComputeGlobalMultiplier()`) *[compat]*
 
@@ -222,6 +276,9 @@ globalMultiplier := float32(f)
 ```
 
 Shipped: summer multiplier 1.0, so only Smoke Detectors matter (0.95). Code default summer 1.2.
+
+The original calls both simulators without a null check (and could not get here without them, §4.1 step 5).
+*[choice]* FreeCity4: a missing ordinance simulator gives factor 1.0, a missing weather simulator "not summer".
 
 ### 6.5 Daily refresh (`DoDailySimulation`, SimNewDay) *[compat]*
 
@@ -243,6 +300,11 @@ while n ≠ 0:
     if zoneManager.GetZoneType(x, z) ≠ 0:  zonedCount += 1;  zonedSum += v
     n -= 1
 ```
+
+`IsCellWatered` is called only for tracts with `r > 0`; `GetZoneType` for every visited tract. Neither the held
+plumbing simulator nor the cached zone manager is null-checked (§4.1 step 5): without a zone manager the original
+crashes at the first visited tract. *[choice]* FreeCity4: missing plumbing → not watered; missing zone manager →
+unzoned.
 
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
@@ -312,6 +374,12 @@ IGNITE:
   flammability at the cell and its own generator. A hotspot fire ignites without that check.
 - The original does not check the fire manager for null before calling it. *[choice]* FreeCity4 skips the
   ignition if the layer, the manager or the interface is missing.
+- The hotspot test checks only that a curve **object** exists, not that it has points. A curve loaded from a
+  property with fewer than two values has no points (§8), and evaluating such a freshly built curve reads through
+  a null pointer: the original **crashes** at the first fire roll that reaches the hotspot loop with a non-empty
+  hotspot list *[compat: crash]*. *[choice]* FreeCity4 treats a curve with no points as absent (no hotspot fires).
+  A curve with **one point** `(x0, y0)` is the constant `y0` (foundations §4.3): every hotspot passes the test
+  when `y0 > float32(r)`, so the first one in shuffled order ignites.
 - The property descriptions call these probabilities "monthly". They are **per cycle** (about 40 days).
 - Shipped odds per cycle: random fire 5 %; otherwise, with `M` = the largest curve value over the hotspots, a
   hotspot fire happens when `r < M`, i.e. with probability `(M − 5) / 95` for `M > 5` (weight 40 → 7 → 2.1 %;
@@ -344,11 +412,19 @@ Code defaults are set first; a missing property keeps the default; a missing exe
 | `0x29B40134` | Flammability multiplier, abandonment | f32 | 1.5 | 1.1 | abandonmentMultiplier |
 | `0x29B4013B` | Flammability multiplier, no water | f32 | 1.25 | 1.1 | noWaterMultiplier |
 | `0x29B4013C` | Flammability, hotspot settings | u32[3] | 54, 8, 40 | 196, 8, 16 | {threshold, radius (tracts, Manhattan, exclusive), minimum weight}; used only if the array has **exactly 3** values |
-| `0x29B4013D` | Flammability, hotspot fire probability | f32 curve | (0,0) (39,0) (40,7) (50,15) (70,20) (100,25) | none | weight → % per cycle (foundations §4); deleted and rebuilt at each read; absent → no hotspot fires |
+| `0x29B4013D` | Flammability, hotspot fire probability | f32 curve | (0,0) (39,0) (40,7) (50,15) (70,20) (100,25) | none | weight → % per cycle (foundations §4); "delete" pattern: deleted and rebuilt at each read; absent → no hotspot fires; present with < 2 values → a curve with no points (below) |
 | `0x29B4013E` | Flammability, random fire probability | f32 | 5 | 0.01 | % per cycle |
 | — | (not tunable) | | | 1 / 40 | tract size / cycle period (days per full refresh) |
 
 Shipped curve values: f(40) = 7, f(45) = 11, f(60) = 17.5, f(≥ 100) = 25.
+
+**Hotspot curve loading** *[compat]* (`0x006AEB50`). The old curve object is deleted. If the tuning holder has
+`0x29B4013D`, a new empty curve is constructed and loaded with the key-based loader (foundations §4.1), which
+pairs the property's float32 values into `count / 2` points. A **single value** has count 0 as a scalar (a
+variant's count field is 0 for scalars) and count 1 as a one-element array; either way it gives **no points**,
+and so does an empty array. The curve object then exists but is empty, and evaluating it crashes the original
+(§6.8). Two values make a one-point curve, a constant. *[choice]* FreeCity4 treats a curve with no points as
+absent (foundations §4.1 already lets FreeCity4 treat single-value curve properties as absent).
 
 ## 9. Messages posted
 
@@ -375,8 +451,14 @@ hotspotCount × (s32 x, s32 z, s32 weight)        (list order)
 - **Write** returns `GetError() == 0`. The two grids are written as their own objects through the reference
   mechanism (foundations §2.7): adjusted first, then raw.
 - **Read**: the version must be exactly **2**; otherwise return false without reading further. Then read the two
-  references into the adjusted and raw slots, the multiplier, the average, the count and the hotspots, appending
-  to the (empty) list. Return `GetError() == 0`.
+  references into the adjusted and raw slots, the multiplier, the average, the count and the hotspots. Return
+  `GetError() == 0`.
+- **Hotspots on Read: append** *[compat]* (`0x006AE830`). Each saved hotspot is appended to the end of the
+  current list; the list is **not** cleared first, so any hotspots already held stay in front of the loaded ones.
+  The game calls `Read` on the object the class store has just created for the load (foundations §2.7), whose
+  list is empty, so append and replace give the same result there *[inferred: no other caller of the `Read`
+  slot on this class is known]*. A replacement must append, which is also what a direct `Read` on a used object
+  observes. `Read` touches no other state (the candidates, zoned sum and count are kept).
   *[quirk]* The original reads the count into an uninitialised variable, so a truncated record can make it loop
   over a garbage count; *[choice]* FreeCity4 initialises it to 0. If the version read itself fails, the original
   compares garbage (practically always rejects).
@@ -452,6 +534,9 @@ value. Parameter names `param_1..3` of `GetFlammabilityHotspot` are `value, x, z
 | `cISC4BuildingOccupant` | 3 `+0x0C` | `AsOccupant()` (vtable not located; slot from the SDK and use) | 0 | EAX |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 / 7 / 8 / 11 | `AsPropertyHolder()` / `GetType()` / `GetPosition(cS3DVector3*)` (4) / `GetBoundingCityCells(SC4Rect<long>&)` (4) | | EAX/AL |
 | `cISCPropertyHolder` | 3 `+0x0C` | `HasProperty(uint32)` | 4 | AL |
+| | 9 `+0x24` | `cISCProperty* GetProperty(uint32 id)` (foundations §17.2; used for `0x29244DB5`, §6.1) | 4 | EAX |
+| `cISCProperty` | 5 `+0x14` | `GetPropertyValue()` → `cIGZVariant*` (the SDK declares a const / non-const pair; both return the value) | 0 | EAX |
+| `cIGZVariant` (`0x00AA6788`) | 28 `+0x70` | `bool GetValSint32(int32&)` (the converting getter, §6.1; foundations §17.1) | 4 | AL |
 | `cISC4TutorialSystem` (`0x00A861B8`) | 8 `+0x20` | `IsTutorial()` | 0 | AL |
 | `cISC4DisasterLayer` (`0x00A9E390`) | 7 `+0x1C` | `GetDisasterManager(uint32 type)` | 4 | EAX |
 | `cISC4DisasterManagerFire` (IID `0x49B43F57`, vtable `0x00A9E4DC`) | 5 `+0x14` / 9 `+0x24` | `IgniteCell(uint32 x, uint32 z, bool useProbability, bool teleport, uint32 fireIID)` / `SetCause(uint32)` | 20 / 4 | AL / EAX |
@@ -498,7 +583,7 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
 2. **Global multiplier 0 in a new city** *[compat]*: until the first SeasonChange (weather posts one at its first
    month-end, weather §5.3) or OrdinanceUpdated, every adjusted value written is 0. So a new city has no
    flammability, no hotspots and `IsCellFlammable` false everywhere for its first month.
-3. **Add path** *[compat]*: insert and change take `max(raw, v)` without the building > flora > prop priority,
+3. **Add path** *[compat]*: insert and change take `max(raw, v)` without the building > prop > flora priority,
    and write `adjusted` from the new occupant's `v`, not from the tract's raw value (a lower `v` lowers the
    adjusted value until the next daily visit). A change that lowers an occupant's flammability is not reflected
    in `raw` until a removal or condition change recomputes the tract.
@@ -511,6 +596,11 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
 7. Probabilities are per cycle, not per month (§6.8); the first fire test uses the unrounded `r`, the hotspot
    test the `float32`-rounded `r`.
 8. ChangeOccupant is treated as an insertion; ConditionChanged recomputes only the lot's building tracts.
+9. **Crashes, not reproduced** *[choice]*: a city without one of the held services or the zone manager (§4.1 step
+   5, §6.5), and a hotspot curve property with fewer than two values (§6.8, §8), crash the original. FreeCity4
+   follows the stated choices instead.
+10. The exemplar-changed message `0xC53D10AA` is ignored (§5): tuning changes reach the simulator only through the
+    next `Init`.
 
 ## 15. Open questions
 
@@ -520,7 +610,8 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
    long-abandoned building should still confirm the raw value.
 2. *(resolved)* Occupant property `0x029244DB` marks preview occupants (foundations §5.2). Fire cause 5 is still
    unknown.
-3. Whether the occupant manager still lists an occupant while RemoveOccupant is delivered (§6.3).
+3. *(resolved)* The occupant manager no longer lists an occupant when RemoveOccupant is delivered: it unlinks the
+   occupant before the message is posted, and the message is queued (§6.3).
 4. Who, if anyone, reads SimCycleComplete `0x08F415FE` and history type `0x2A11CB48` (graph data files?).
 5. *(resolved)* The simulation runs the x87 at 24-bit precision (foundations §18). The product `p × m` is
    rounded to `float32` first; the add of 1.5·2²³ is then itself rounded to 24 bits, which is round-half-even to
@@ -530,10 +621,12 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
 
 1. **Occupant raw value**: building with `0x29244DB5 = 150` on a normal lot → 150; same on a condition-4 lot →
    165 (code default 1.1) / 225 (shipped 1.5); 200 abandoned with 1.5 → 255 (clamp); 3 × 1.5 → **4** and
-   5 × 1.5 → **8** (ties to even); a prop on an abandoned lot → no multiplier; a network occupant → 0; property
-   absent → 0.
-2. **Tract priority**: building 0 + flora 80 + prop 120 → 80; building 30 + flora 200 → 30; props 10 and 40 only
-   → 40; empty tract → 0.
+   5 × 1.5 → **8** (ties to even); a prop (`0xA823821E`) with 100 on a condition-4 lot → 150 (shipped 1.5, like
+   a building); a flora occupant (`0x74758926`) with 100 → 100 whatever the lot (no lot lookup); a network
+   occupant → 0; property absent → 0.
+2. **Tract priority** (building `0x278128A0` > prop `0xA823821E` > flora `0x74758926`): building 0 + prop 80 +
+   flora 120 → 80; building 30 + flora 200 → 30; building 30 + prop 200 → 30; flora 10 and 40 only → 40; props 10
+   and 40 only → 40; prop 0 + flora 60 → 60; empty tract → 0.
 3. **Daily value**: raw 150, global 1.2, unwatered, no-water 1.1 → `roundHE(180 × 1.1)` = **198**; watered →
    180; raw 220, global 1.0, unwatered 1.25 → 275 → **255**; Smoke Detectors (0.95) raw 100 unwatered 1.25 →
    95 → 118.75 → 119; Smoke Detectors raw 10, watered → 10 × 0.95f = 9.49999988 → 9.5 → **10**; raw 0 →
@@ -556,14 +649,29 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
     (7 > 7 is false); tutorial running → no fire and no generator draw; no curve → only random fires.
 11. **`rand()` count**: an `EndOfCycle` with 4 hotspots that reaches the hotspot test makes 3 shuffle calls, then
     the wrap makes 1; with r < prob and a building found, only the wrap's call.
-12. **Occupant update**: tract raw 100 from a building; insert flora 120 → raw 120, adjusted `roundHE(120 × g)`;
-    insert flora 50 → raw stays 100, adjusted `roundHE(50 × g)` (§14.3); remove the building → recompute (flora
-    120 if still present). An occupant with property `0x029244DB` is ignored on insert/change/remove.
+12. **Occupant update**, in sequence on one tract: raw 100 from a building; insert flora 50 → raw stays 100,
+    adjusted `roundHE(50 × g)` (§14.3); insert flora 120 → raw 120, adjusted `roundHE(120 × g)`; remove the
+    building through the occupant manager, then deliver the queued RemoveOccupant → the recompute no longer sees
+    the building (§6.3) → raw 120 (the larger flora). A building alone on its tracts, removed the same way → those
+    tracts become 0. An occupant with property `0x029244DB` is ignored on insert/change/remove.
 13. **ConditionChanged**: a message whose IGZUnknown is a lot with a building recomputes the building's tracts
     (abandonment applied); a non-lot IGZUnknown does nothing.
 14. **Persistence**: write → read → write is byte-identical; the payload after the references for
     (0.95, 50, [(11,10,3)]) is `33 33 73 3F 32 01 00 00 00 0B 00 00 00 0A 00 00 00 03 00 00 00`; versions 1 and 3
     are rejected; after `Init` on a loaded city the first SimNewDay clears the hotspots and the average (§14.1).
+    `Read` of that record into an object that already holds hotspots [(1,2,5)] → [(1,2,5), (11,10,3)] (append).
 15. **Slots**: through the vtable with the game's argument sizes: slot 6 pops 8, slot 7 pops 12, slot 8 returns
     the byte in AL, slot 5 returns the adjusted grid pointer (not the raw one) without `AddRef`;
     `QueryInterface(0xE98B2F57)` fails; `Release` from count 1 calls `Shutdown`.
+16. **Property conversion** (§6.1, building on a normal lot): `0x29244DB5` as `Uint8` 150 → 150; `Sint32` −5 → 0
+    (clamp); `Uint32` 0xFFFFFFFF → −1 → 0; `Float32` 150.9 → 150; `Float32` −2.7 → −2 → 0; `Uint32` array
+    [120, 7] → 120; `Float32` array [99.75] → 99; empty array → 0.
+17. **Single-value curve**: hotspot curve property `0x29B4013D` = [12.0] (one value) → FreeCity4 treats the curve
+    as absent: with hotspots present and r ≥ random probability, no fire and no shuffle draws; property
+    = [0, 12] (one point) → constant 12: one hotspot of any weight and no random fire (r ≥ the random fire
+    probability, or no lot), r = 11 → hotspot fire, r = 12 → none.
+18. **Missing services** (*[choice]*): no plumbing simulator, raw 100, global 1.0, no-water 1.25 → 125; no zone
+    manager → after a full cycle the average is 0 and `RecordHistoryData(0x2A11CB48, 0)`.
+19. **Subscriptions**: after `Init` the simulator is subscribed to exactly `0x99EF1142`, `0x99EF1143`,
+    `0x99EF1145`, `0x6716A4E5`, `0xC2C09554`, `0xE99B3D4D` (in that order); `DoMessage` of `0xC53D10AA` with the
+    tuning exemplar's group and instance returns true and changes nothing (the tuning is not re-read).
