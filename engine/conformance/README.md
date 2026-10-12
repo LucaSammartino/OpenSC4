@@ -844,7 +844,7 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 
 ## Building development ops
 
-The building development vectors (`bd11_…`) drive `fc4_core::building_development`. Every op name starts with
+The building development vectors (`bd11_…`) drive `fc4_core::development_simulator`. Every op name starts with
 `bds_`. (Being written, M4.)
 
 ## Growth developer ops

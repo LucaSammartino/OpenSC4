@@ -1186,7 +1186,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::protection::exec(host, other, op))
             .or_else(|| crate::flora::exec(host, other, op))
             .or_else(|| crate::development::exec(host, other, op))
-            .or_else(|| crate::building_development::exec(host, other, op))
+            .or_else(|| crate::development_simulator::exec(host, other, op))
             .or_else(|| crate::growth_developer::exec(host, other, op))
             .or_else(|| crate::tract_developer::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),

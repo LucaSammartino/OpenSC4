@@ -4,7 +4,7 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Conformance ops `bds_…` for `fc4_core::building_development` (`docs/specs/building-development.md`).
+//! Conformance ops `bds_…` for `fc4_core::development_simulator` (`docs/specs/building-development.md`).
 
 use crate::json::Json;
 use crate::runner::HostRef;
