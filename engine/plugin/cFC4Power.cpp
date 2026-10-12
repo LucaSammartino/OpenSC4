@@ -14,6 +14,7 @@
 #include "cFC4Power.h"
 
 #include "FC4Config.h"
+#include "FC4Checked.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
 #include "FC4GameList.h"
@@ -56,6 +57,7 @@
 #include "cS3DVector3.h"
 
 #include <cstring>
+#include <string>
 
 using fc4::FromToken;
 using fc4::TokenOf;
@@ -1196,7 +1198,35 @@ bool cFC4PowerSimulator::Init() {
     CoreCall call(this);
     fc4_power_init(core_);
     LogState("Init");
+    // Tooling: one report per recompute (plants, floods, consumers).
+    report_ = fc4::SettingInt("power_report", "FC4_POWER_REPORT", fc4::kCheckedBuild ? 1 : 0) != 0;
+    fc4_power_set_report(core_, report_);
     return true;
+}
+
+// The first kReportsInFull cycles are logged, then the first after each
+// month.
+void cFC4PowerSimulator::LogReport() {
+    constexpr uint32_t kReportsInFull = 40;
+    if (!report_) return;
+    std::string text;
+    auto sink = [](void* ctx, const uint8_t* data, size_t len) {
+        static_cast<std::string*>(ctx)->append(reinterpret_cast<const char*>(data), len);
+    };
+    if (!fc4_power_take_report(core_, sink, &text)) return;
+    if (reports_ >= kReportsInFull && !reportAfterMonth_) return;
+    reportAfterMonth_ = false;
+    ++reports_;
+    size_t at = 0;
+    while (at <= text.size()) {
+        size_t nl = text.find('\n', at);
+        if (nl == std::string::npos) nl = text.size();
+        fc4::Log("%s", text.substr(at, nl - at).c_str());
+        at = nl + 1;
+    }
+    if (reports_ == kReportsInFull) {
+        fc4::Log("power: %u recompute reports logged; from now on the first after each month", reports_);
+    }
 }
 
 bool cFC4PowerSimulator::Shutdown() {
@@ -1453,9 +1483,11 @@ bool cFC4PowerSimulator::DoMessage(cIGZMessage2* pMessage) {
     fc4_power_do_message(core_, &m);
     Drop(occ);
     Drop(s);
+    LogReport();
     if (m.msg_type == kMsgSimNewMonth) {
         ++cycles_;
         LogState("month");
+        reportAfterMonth_ = true;
     } else {
         fc4_power_state st{};
         st.struct_size = sizeof(st);

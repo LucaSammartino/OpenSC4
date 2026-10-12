@@ -160,6 +160,8 @@ public:
 private:
     uint64_t Occ(cISC4Occupant* occupant) const;
     void LogState(const char* what);
+    // The recompute report (power_report): logs the last complete cycle's.
+    void LogReport();
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
@@ -180,6 +182,9 @@ private:
     SC4Percentage noDepartment_{};      // slot 48 without a department [choice]
     uint32_t lastState_ = 4;
     uint32_t cycles_ = 0;
+    bool report_ = false;
+    uint32_t reports_ = 0;        // reports logged
+    bool reportAfterMonth_ = false;  // log the first report after a month
 };
 
 // Factory for the subsystem table (reference count 0).

@@ -1390,6 +1390,12 @@ bool fc4_power_generation_cost(const fc4_power* p, uint64_t occ, int64_t* out); 
 bool fc4_power_plant_funding(const fc4_power* p, uint64_t occ, float* out);                     /* 50 */
 bool fc4_power_set_plant_funding(const fc4_power* p, uint64_t occ, float fraction);             /* 51 */
 bool fc4_power_get_state(const fc4_power* p, fc4_power_state* out);
+/* Tooling: the recompute report (one line per cycle, then one per plant and per
+ * flood). Collected only while switched on; take delivers the last complete
+ * cycle's text (UTF-8, lines separated by '\n') once and returns false when
+ * there is none. */
+void fc4_power_set_report(const fc4_power* p, bool on);
+bool fc4_power_take_report(const fc4_power* p, fc4_bytes_sink sink, void* ctx);
 bool fc4_power_write(const fc4_power* p, const fc4_ostream* out); /* §9 */
 bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false only for version > 6 */
 

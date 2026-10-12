@@ -37,7 +37,7 @@ use crate::hostgrid::{
     take_props,
 };
 use crate::props::fc4_props;
-use crate::stream::{fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut};
+use crate::stream::{fc4_bytes_sink, fc4_istream, fc4_ostream, istream_ok, ostream_ok, CIn, COut};
 
 type U = *mut c_void;
 
@@ -1095,6 +1095,29 @@ pub unsafe extern "C" fn fc4_power_get_state(p: *const fc4_power, out: *mut fc4_
         drop(st);
         o.grid = grid_token(&h.sim.powered_grid());
         true
+    })
+}
+
+/// Tooling: switches the recompute report on or off.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_power_set_report(p: *const fc4_power, on: bool) {
+    with_power(p, (), |h| h.sim.set_report(on))
+}
+
+/// Tooling: the last complete recompute report as text, once; false when
+/// there is none (or for NULL).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_power_take_report(p: *const fc4_power, sink: fc4_bytes_sink, ctx: *mut c_void) -> bool {
+    with_power(p, false, |h| match h.sim.take_report() {
+        Some(r) => {
+            let text = r.text();
+            if let Some(f) = sink {
+                // SAFETY: the caller's sink and context.
+                unsafe { f(ctx, text.as_ptr(), text.len()) };
+            }
+            true
+        }
+        None => false,
     })
 }
 

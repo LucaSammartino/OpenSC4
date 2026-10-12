@@ -74,6 +74,36 @@ impl Bitmap {
         b
     }
 
+    /// A bitmap over exactly the saved words (power.md §9.1: `Read`
+    /// allocates `words × 4` bytes, whatever the city's size). The sides are
+    /// only the view: the original takes the width from the city at each use,
+    /// so a load before the cell counts are known keeps every word, and
+    /// [`Bitmap::set_size`] supplies the sides later.
+    pub fn from_saved(width: i32, height: i32, words: Vec<u32>) -> Bitmap {
+        Bitmap {
+            width: width.clamp(0, MAX_BITMAP_SIDE),
+            height: height.clamp(0, MAX_BITMAP_SIDE),
+            words,
+        }
+    }
+
+    /// Changes the sides the bits are addressed with. The stored words are
+    /// kept; [choice] if fewer than the new sides need, cleared words are
+    /// appended (a bitmap made while the sides were unknown).
+    pub fn set_size(&mut self, width: i32, height: i32) {
+        self.width = width.clamp(0, MAX_BITMAP_SIDE);
+        self.height = height.clamp(0, MAX_BITMAP_SIDE);
+        let need = Bitmap::word_count(self.width, self.height);
+        if self.words.len() < need {
+            self.words.resize(need, 0);
+        }
+    }
+
+    /// The number of set bits in the stored words (diagnostics).
+    pub fn count_ones(&self) -> u32 {
+        self.words.iter().map(|w| w.count_ones()).sum()
+    }
+
     pub fn width(&self) -> i32 {
         self.width
     }

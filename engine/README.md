@@ -242,6 +242,13 @@ plugin.
      main thread differs from the reference, and `fpu: WARNING the main thread is not at 24-bit x87 precision (…)`
      the first time its precision is not 24-bit. A run without 24-bit precision is not a valid reference for
      float-sensitive values.
+   - **Power recompute report** (`power_report = 1`, env `FC4_POWER_REPORT`; default on in checked builds, off in
+     release builds; our power simulator only): after each recompute cycle
+     `power recompute N: cells …x… widths … ; wire …x… words … bits set …; consumption cells …; plants …, floods …;
+     production … consumption … demand … powered … unpowered …`, then one `plant 0x…: visited … position (…) seed
+     (x, z) cells [x1,z1..x2,z2] capacity … funding … condition … efficiency … produced … connected …` line per
+     plant and one `flood from (x, z) wired …: reached … cells, rows …; supply … import … available …; consumers …
+     need …; powered …` line per flood. The first 40 cycles are logged, then the first after each month.
    - **Reference audit:** every `AddRef`/`Release` we do on a game object (vtable outside our DLL), and every
      reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
      verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as

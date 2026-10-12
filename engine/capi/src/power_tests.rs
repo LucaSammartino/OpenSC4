@@ -479,6 +479,32 @@ fn a_plant_powers_its_consumer_through_the_game_grid() {
     assert_eq!(unsafe { fc4_power_plants(p, None, std::ptr::null_mut()) }, 1);
     assert_eq!(g.refs_of(PLANT), 1);
 
+    // The recompute report: off by default; switched on, the next cycle's
+    // text (a removal and reinsertion asks for the recompute).
+    unsafe extern "C" fn text(ctx: *mut c_void, data: *const u8, len: usize) {
+        (*(ctx as *mut Vec<u8>)).extend_from_slice(std::slice::from_raw_parts(data, len));
+    }
+    let mut t: Vec<u8> = Vec::new();
+    let ctx = &mut t as *mut Vec<u8> as *mut c_void;
+    unsafe {
+        assert!(!fc4_power_take_report(p, Some(text), ctx));
+        fc4_power_set_report(p, true);
+    }
+    message(p, msg::OCCUPANT_REMOVED, CONSUMER);
+    message(p, msg::OCCUPANT_INSERTED, CONSUMER);
+    cycle(p);
+    unsafe {
+        assert!(fc4_power_take_report(p, Some(text), ctx));
+        assert!(!fc4_power_take_report(p, Some(text), ctx));
+        assert!(!fc4_power_take_report(std::ptr::null(), None, std::ptr::null_mut()));
+        fc4_power_set_report(p, false);
+    }
+    let t = String::from_utf8(t).unwrap();
+    assert!(
+        t.starts_with("power recompute 1: ") && t.contains("production 1000"),
+        "{t}"
+    );
+
     unsafe {
         fc4_power_shutdown(p);
         fc4_power_destroy(p);
