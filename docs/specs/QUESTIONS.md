@@ -18,6 +18,9 @@ the relevant spec, and their entry here is deleted.
 - PW10. When a removed pole was not in the pole list, do `costBase` and the recompute request still change?
 - PW11. Does `Init` look the department up again after a load?
 - PW12. Is the unpowered-percentage computation `double` or 24-bit?
+- PW13. §6.4 says a NaN ratio gives `used = 0x80000000` (and the core's `ftol32` returns `0x80000000` for NaN and
+  out-of-range values), but foundations §18.1 now says `_ftol` truncates to `int64`, so NaN keeps the low 32 bits
+  **0**. Is this truncation (and power's other `trunc` sites) an inline 32-bit `fistp` or `_ftol`?
 
 ## Plumbing (plumbing.md)
 - PL1. NearestWater's ring at clipped map edges: Chebyshev rings clipped to the map, or skipped rings?
