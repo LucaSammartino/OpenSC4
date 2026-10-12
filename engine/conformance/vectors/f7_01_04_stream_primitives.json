@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "stream_primitives",
+  "spec": ["foundations 2.1", "foundations 2.2", "foundations 2.3", "foundations 2.4", "foundations 2.5", "foundations 7.1-7.5"],
+  "description": "Byte-exact little-endian primitives, edge values (including NaN bit patterns and -0.0, written unchanged), the sticky all-or-nothing read model, SetGZStr / GetGZStr (8-bit and UTF-16 headers, the 200,000 limit), GetRZCharStr truncation, resource keys and the null reference. Standalone-mode read semantics [choice]: legacy encodings and short headers are errors.",
+  "steps": [
+    {"op": "stream_write", "values": [{"u32": "0x11223344"}, {"f32": 1.0}, {"f64": 1.0}],
+      "hex": "44332211 0000803f 000000000000f03f"},
+    {"op": "stream_write", "values": [
+      {"u8": 0}, {"u8": 255}, {"i8": -1}, {"u16": 65535}, {"i16": -32768}, {"u32": 4294967295}, {"i32": -1},
+      {"i64": -9223372036854775808}, {"i64": 9223372036854775807}, {"u64": 0},
+      {"f32": "0x7fc00001"}, {"f32": "0x80000000"}, {"f64": "0x7ff8000000000001"}, {"bool": true}, {"bool": false}],
+      "hex": "00 ff ff ffff 0080 ffffffff ffffffff 0000000000000080 ffffffffffffff7f 0000000000000000 0100c07f 00000080 010000000000f87f 01 00"},
+    {"op": "stream_read", "hex": "00 ff ff ffff 0080 ffffffff ffffffff 0000000000000080 0100c07f 00000080 010000000000f87f",
+      "reads": [
+        {"get": "u8", "expect": 0}, {"get": "u8", "expect": 255}, {"get": "u8", "expect": 255},
+        {"get": "u16", "expect": 65535}, {"get": "u16", "expect": 32768}, {"get": "u32", "expect": 4294967295},
+        {"get": "i32", "expect": -1}, {"get": "i64", "expect": -9223372036854775808},
+        {"get": "f32", "expect": "0x7fc00001"}, {"get": "f32", "expect": "0x80000000"}, {"get": "f64", "expect": "0x7ff8000000000001"}
+      ], "error": false},
+
+    {"op": "stream_read", "hex": "01000000 0708", "description_note": "a 6-byte record",
+      "reads": [
+        {"get": "u32", "expect": 1, "position": 4},
+        {"get": "u32", "expect": null, "position": 4},
+        {"get": "u8", "expect": null, "position": 4}
+      ], "error": true},
+
+    {"op": "stream_write", "values": [{"str": "Fire Dept."}], "hex": "0a000000 46697265204465 70742e"},
+    {"op": "stream_write", "values": [{"str": ""}], "hex": "00000000"},
+    {"op": "stream_read", "hex": "0a000000 466972652044657074 2e 00000000", "reads": [
+      {"get": "str", "expect": "Fire Dept."}, {"get": "str", "expect": ""}], "error": false},
+    {"op": "stream_read", "hex": "02000010 4100e900", "reads": [{"get": "str", "expect": "Aé"}], "error": false},
+    {"op": "stream_read", "hex": "410d0300", "reads": [{"get": "str", "expect": null}], "error": true,
+      "note": "count 200,001 fails (header consumed)"},
+    {"op": "stream_read", "hex": "02000020 4142", "reads": [{"get": "str", "expect": null}], "error": true,
+      "note": "[choice] legacy encoding byte: error in standalone mode"},
+    {"op": "stream_read", "hex": "0a00", "reads": [{"get": "str", "expect": null, "position": 0}], "error": true,
+      "note": "[choice] short header: error in standalone mode"},
+    {"op": "stream_read", "hex": "0a000000 466972652044657074 2e", "reads": [
+      {"get": "rz_char_str", "max_bytes": 4, "expect": "46697265"}], "note": "truncated: not NUL-terminated"},
+    {"op": "stream_read", "hex": "0a000000 466972652044657074 2e", "reads": [
+      {"get": "rz_char_str", "max_bytes": 64, "expect": "4669726520446570742e00"}]},
+
+    {"op": "stream_write", "values": [{"res_key": [1, 2, 3]}], "hex": "01000000 02000000 03000000"},
+    {"op": "stream_write", "values": [{"null_ref": true}], "hex": "00000000"}
+  ]
+}

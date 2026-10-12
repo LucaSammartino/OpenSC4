@@ -165,7 +165,7 @@ struct AgentRuntime {
     pending_calls: u32,
 }
 
-struct HostState {
+pub(crate) struct HostState {
     now: Cell<u32>,
     auto_step: Cell<u32>,
     reads: Cell<u64>,
@@ -204,7 +204,7 @@ impl HostState {
 }
 
 #[derive(Clone)]
-struct HostRef(Rc<HostState>);
+pub(crate) struct HostRef(pub(crate) Rc<HostState>);
 
 impl Clock for HostRef {
     fn now_ms(&self) -> u32 {
@@ -1057,7 +1057,9 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             }
             Ok(())
         }
-        other => Err(format!("unknown op '{other}'")),
+        other => crate::foundations::exec(other, op)
+            .or_else(|| crate::budget::exec(sim, host, other, op))
+            .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }
 

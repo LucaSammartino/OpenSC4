@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "crc_and_class_record",
+  "spec": ["foundations 3.3", "foundations 3.4", "foundations 7.6", "foundations 7.7"],
+  "description": "CRC-32/MPEG-2 check values, and the class-object store entry and index bytes for one object (ID 1) whose Write emits 01 00. Store save order, cycles, load, CRC mismatch and unknown classes are covered by the core's unit tests (they need live objects).",
+  "steps": [
+    {"op": "crc", "ascii": "123456789", "expect": "0x0376E6E7"},
+    {"op": "crc", "hex": "", "expect": "0xFFFFFFFF"},
+    {"op": "crc", "hex": "010000000100", "expect": "0xF34B70D6"},
+    {"op": "store_entry", "class_id": "0x12345678", "payload_hex": "0100",
+      "entry_hex": "0e000000 d6704bf3 01000000 0100",
+      "index_hex": "01000000 01000000 01000000 78563412 01000000"}
+  ]
+}
