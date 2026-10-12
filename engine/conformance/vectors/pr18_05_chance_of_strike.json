@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "protection_chance_of_strike",
+  "spec": ["protection 6.4", "protection 18.5"],
+  "description": "Test 5: GetChanceOfStrike over two stations with local funding 0.5 and 0.2 (c = 0.1 and 0.4): p = p + c - p c from 0 -> 0.1 + 0.4 - 0.04 = 0.46; with the city strike flag set 1.0; with no stations 0 (both classes). A station without an item counts f = 1.0 (c = 0). Hand-derived.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "chance_of_strike", "expect": 0.0},
+    {"op": "protection_occupants", "1": {"station": ["police", 50, 10, 64, 1], "pos": [100, 0, 100], "items": {"0x0A567BAA": {"local": 0.5}}}, "2": {"station": ["police", 50, 10, 64, 1], "pos": [300, 0, 300], "items": {"0x0A567BAA": {"local": 0.2}}}, "3": {"station": ["police", 50, 10, 64, 1], "pos": [500, 0, 500]}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 1},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 2},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 3},
+    {"op": "protection_expect", "state": {"stations": [1, 2, 3]}},
+    {"op": "protection_call", "method": "chance_of_strike", "expect": 0.46000000834465027},
+    {"op": "protection_set", "state": {"strike_flag": true}},
+    {"op": "protection_call", "method": "chance_of_strike", "expect": 1.0},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "chance_of_strike", "expect": 0.0},
+    {"op": "protection_occupants", "1": {"station": ["fire", 50, 10, 64, 1], "pos": [100, 0, 100], "items": {"0xEA567BC3": {"local": 0.5}}}, "2": {"station": ["fire", 50, 10, 64, 1], "pos": [300, 0, 300], "items": {"0xEA567BC3": {"local": 0.2}}}},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 1},
+    {"op": "protection_message", "type": "OccupantInserted", "occupant": 2},
+    {"op": "protection_call", "method": "chance_of_strike", "expect": 0.46000000834465027}
+  ]
+}

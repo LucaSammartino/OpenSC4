@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "protection_occupant_coverage",
+  "spec": ["protection 7.1", "protection 7.3", "protection 18.14"],
+  "description": "Test 14 (police, shipped funding curve: f 1.0 -> efficiency 1): centre 100, outer 20, radius 400 m: p 0.5 -> t 50, (100-50) x 400 / 80 = (250, 400); p 0.1 -> t 10 < 20 -> (400, 400); p 1.1 -> t 110 > 100 -> (0, 400). Funding 0.5 -> efficiency 0.5 (centre 50, outer 10, radius 200, original centre 100): p 0.5 -> t 50, (50-50) x 200 / 40 = (0, 200). The t > centre test is unsigned (p -0.5 -> t -50 -> 0). A failing effect (police centre 0) returns false and leaves the outputs untouched; fire sets both to 0 first (quirk of 7.3). GetStationDispatchRadius: the dispatch effect radius, or 0. Hand-derived.",
+  "steps": [
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "9": {"station": ["police", 100, 20, 400, 1], "pos": [0, 0, 0], "items": {"0x0A567BAA": {"local": 1.0}}}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 0.5], "expect": {"result": true, "cover": 250, "station": 400}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 0.1], "expect": {"result": true, "cover": 400, "station": 400}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 1.1], "expect": {"result": true, "cover": 0, "station": 400}},
+    {"op": "protection_occupants", "9": {"items": {"0x0A567BAA": {"local": 0.5}}}},
+    {"op": "protection_call", "method": "station_effect", "args": [9], "expect": {"ok": true, "x": 0, "z": 0, "radius": 200, "centre": 50, "outer": 10, "original_centre": 100}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 0.5], "expect": {"result": true, "cover": 0, "station": 200}},
+    {"op": "protection_eval", "fn": "occupant_coverage", "args": [100, 20, 400, 100, -0.5], "expect": [0, 400]},
+    {"op": "protection_eval", "fn": "occupant_coverage", "args": [100, 20, 400, 100, 0.5], "expect": [250, 400]},
+    {"op": "protection_occupants", "9": {"props": {"0x48D71ED0": {"i32": 0}}}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 0.5, 7, 8], "expect": {"result": false, "cover": 7, "station": 8}},
+    {"op": "protection_call", "method": "station_dispatch_radius", "args": [9], "expect": 0.0},
+    {"op": "protection_occupants", "9": {"props": {"0x48D71ED9": {"i32": 30}, "0x48D71EDA": {"i32": 5}, "0x48D71EDB": {"f32": 150}}}},
+    {"op": "protection_call", "method": "station_dispatch_radius", "args": [9], "expect": 150.0},
+    {"op": "protection_call", "method": "dispatch_effect", "args": [9], "expect": {"ok": true, "x": 0, "z": 0, "radius": 150, "centre": 30, "outer": 5, "original_centre": 30}},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "9": {"props": {"0x08F55DC2": null}}},
+    {"op": "protection_call", "method": "occupant_coverage", "args": [9, 0.5, 7, 8], "expect": {"result": false, "cover": 0, "station": 0}}
+  ]
+}

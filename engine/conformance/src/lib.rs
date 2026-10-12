@@ -21,6 +21,7 @@ pub(crate) mod ordinance;
 pub(crate) mod plumbing;
 pub(crate) mod pollution;
 pub(crate) mod power;
+pub(crate) mod protection;
 pub mod runner;
 pub(crate) mod scalar;
 pub(crate) mod landvalue;

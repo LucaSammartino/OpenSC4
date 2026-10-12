@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "protection_strike_curve",
+  "spec": ["protection 6.3", "protection 6.7", "protection 10", "protection 18.4"],
+  "description": "Test 4: the shipped strike curve (0,100)(25,25)(50,10)(70,0): f 0.2 -> 40 (police chance 0.40), 0.5 -> 10, >= 0.7 -> 0. A non-striking station makes exactly one draw (10): fire RandomDoubleRangeUniform(0, 100) compared with curve98(f x 100) (stub u 0.41 -> 41, no strike; u 0.39 -> 39 < 40, strike: the start property := today, controllers 'striking_fire' added); police RandomDoubleUniform() compared with curve9E x 0.01 (0.41 no, 0.39 yes). Hand-derived.",
+  "steps": [
+    {"op": "protection_create", "kind": "fire", "rng": {"stub": {"range": [0.41, 0.39]}}},
+    {"op": "protection_init"},
+    {"op": "protection_call", "method": "curve", "args": ["strike", 20], "expect": 40.0},
+    {"op": "protection_call", "method": "curve", "args": ["strike", 50], "expect": 10.0},
+    {"op": "protection_call", "method": "curve", "args": ["strike", 70], "expect": 0.0},
+    {"op": "protection_call", "method": "curve", "args": ["strike", 100], "expect": 0.0},
+    {"op": "protection_env", "day": 1200},
+    {"op": "protection_occupants", "3": {"items": {"0xEA567BC3": {"local": 0.2}}}},
+    {"op": "protection_clear_events"},
+    {"op": "protection_call", "method": "update_striking_state", "args": [3], "expect": false},
+    {"op": "protection_expect_events", "events": [{"event": "rng", "kind": "range", "lo": 0, "hi": 100, "value": 41}]},
+    {"op": "protection_call", "method": "update_striking_state", "args": [3], "expect": true},
+    {"op": "protection_expect_events", "events": [{"event": "rng", "kind": "range", "lo": 0, "hi": 100, "value": 39}, {"event": "add_controllers", "group": "striking_fire", "occupant": 3}]},
+    {"op": "protection_expect_occupant", "id": 3, "props": {"0xEAA69F83": 1200}},
+    {"op": "protection_create", "kind": "police", "rng": {"stub": {"uniform": [0.41, 0.39]}}},
+    {"op": "protection_env", "tuning": "shipped"},
+    {"op": "protection_init"},
+    {"op": "protection_occupants", "4": {"items": {"0x0A567BAA": {"local": 0.2}}}},
+    {"op": "protection_clear_events"},
+    {"op": "protection_call", "method": "update_striking_state", "args": [4], "expect": false},
+    {"op": "protection_call", "method": "update_striking_state", "args": [4], "expect": true},
+    {"op": "protection_expect_events", "events": [{"event": "rng", "kind": "uniform", "value": 0.41}, {"event": "rng", "kind": "uniform", "value": 0.39}, {"event": "add_controllers", "group": "striking_police", "occupant": 4}]}
+  ]
+}

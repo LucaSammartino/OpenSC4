@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "protection_cadence",
+  "spec": ["protection 3", "protection 4.1", "protection 5.3", "protection 18.18"],
+  "description": "Test 18: tracts per day = countX x countZ / period (integer division), fire 50, police 40, S = 2: 256 cells -> 16384 tracts -> 327 / 409; 64 -> 1024 -> 20 / 25; 128 -> 4096 -> 81 / 102. The iterator rectangle is [0, count - 1] on both axes. Hand-derived.",
+  "steps": [
+    {"op": "protection_env", "cells": [256, 256]},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 327, "iterator": {"rect": [0, 0, 127, 127]}}},
+    {"op": "protection_env", "cells": [256, 256]},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 409, "iterator": {"rect": [0, 0, 127, 127]}}},
+    {"op": "protection_env", "cells": [64, 64]},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 20, "iterator": {"rect": [0, 0, 31, 31]}}},
+    {"op": "protection_env", "cells": [64, 64]},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 25, "iterator": {"rect": [0, 0, 31, 31]}}},
+    {"op": "protection_env", "cells": [128, 128]},
+    {"op": "protection_create", "kind": "fire"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 81, "iterator": {"rect": [0, 0, 63, 63]}}},
+    {"op": "protection_env", "cells": [128, 128]},
+    {"op": "protection_create", "kind": "police"},
+    {"op": "protection_init"},
+    {"op": "protection_expect", "state": {"tracts_per_day": 102, "iterator": {"rect": [0, 0, 63, 63]}}}
+  ]
+}
