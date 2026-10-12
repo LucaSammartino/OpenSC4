@@ -4,21 +4,19 @@ Questions from engine authors that the spec writers need to answer from the orig
 the relevant spec, and their entry here is deleted.
 
 ## Flora (flora.md)
-- FO1. Is `data3` of InsertOccupant / RemoveOccupant really the occupant type (§15 Q2)? The core assumes so.
-- FO2. `BoundingBoxesIntersect` with flags (0, 0): are the boxes closed (touching faces overlap) or open? The core
-  uses closed boxes.
-- FO3. What flags byte does the key-0 default record really have (the original leaves it uninitialised)? Its §14
-  quirk only shows when bit 0 is clear. The core uses 7.
-- FO4. `GetMoistureType` with no weather simulator: does the original crash (no null check)?
-- FO5. Does `period = 0` really fault (division by zero)? The core gives `blocksPerMonth = 0`.
-- FO6. Do null corners in `GetOccupantsByStandardCityCells` mean the whole city (§15 Q5)?
-- FO7. Is the terrain tolerance 0.001 a `double` or a `float` constant? The core compares it as a `double`.
+- FO1. Is data3 of the Insert/RemoveOccupant messages the occupant type?
+- FO2. Is `BoundingBoxesIntersect` inclusive at the edges (the (0,0) case)?
+- FO3. The flags byte of the default record.
+- FO4. `GetMoistureType` when there is no weather simulator.
+- FO5. Behaviour with period = 0.
+- FO6. Null corner arguments in `GetOccupantsByStandardCityCells`.
+- FO7. Is the 0.001 constant `float` or `double`?
 
 ## Aura (aura.md)
-- A8. Does the aura's `Read` clear (or replace) the department map and the hotspot list before reading, or append?
-  The core replaces both, which is identical on a fresh object.
+- A8. Does `Read` clear or replace the department map and the hotspot list, or append to them?
 
 ## Pollution (pollution.md)
-- PO5. The spec names the `1.5 × 2^23` round-half-even trick only for the deal amounts. Do the other
-  `roundHalfEven` sites (§4.4.4, Dispose, slot 53, §4.11) use it too? The core rounds the f32 exactly there (the
-  two agree below 2^22).
+- PO5. Do the other round-half-even sites also use the `1.5 · 2^23` trick (and so share its range limit)?
+
+## Crime (crime.md)
+- C9. §16 question 4: the order of the crime-type list.
