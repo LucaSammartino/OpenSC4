@@ -89,3 +89,13 @@ cISC4FloraOccupant	cSC4FloraOccupant	00a88608	15	docs/specs/flora.md
 cIGZCheatCodeManager	cGZCheatCodeManager	00acfcd0	28	docs/specs/flora.md
 cIGZCommandServer	cGZCommandServer	00ad17a0	25	docs/specs/flora.md
 cIGZMessage2Standard	cRZMessage2Standard	00acec00	38	docs/abi/layouts.md
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	6	docs/specs/protection.md
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	18	docs/specs/protection.md
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	12	docs/specs/protection.md
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	6	docs/specs/protection.md
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	18	docs/specs/protection.md
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	12	docs/specs/protection.md
+cISC4DispatchManager	cSC4DispatchManager	00a88108	24	docs/specs/protection.md
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	25	docs/specs/protection.md
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	6	docs/specs/protection.md
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	6	docs/specs/protection.md

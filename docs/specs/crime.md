@@ -218,7 +218,8 @@ negative.
 ### 6.4 Crimes to commit (state 3)
 
 ```
-jailed   := police.GetCriminalCount()           (slot +0x78, u32: criminals held in jails)
+jailed   := police.GetJailPopulation()          (slot +0x78, u32: Σ over jails of the rounded jail population
+                                                 property 0x48D71EE1; protection §9, §15.2)
 released := police.ResetUnjailedCriminals()      (slot +0x6C, s32; has side effects, called second)
 if criminalBase > jailed (unsigned compare):
     crimes := trunc(crimesCurve(float(int32(criminalBase − jailed)))) + trunc(released × reoffend)
@@ -551,7 +552,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 20 | `+0x50` | RemoveAgent(target) (all levels) | 4 | bool |
 | `cISC4PoliceSimulator` (`0x00AB2490`) | 5 | `+0x14` | GetPolicePowerGrid → `cISC4SimGrid<uint8>*` | 0 | EAX ptr |
 | | 27 | `+0x6C` | ResetUnjailedCriminals → s32 released count | 0 | EAX |
-| | 30 | `+0x78` | GetCriminalCount → u32 jailed | 0 | EAX |
+| | 30 | `+0x78` | GetJailPopulation → u32 (Σ rounded per-jail populations; protection §15.2) | 0 | EAX |
 | | 38 | `+0x98` | ProcessMonthlyCrimeStats (result ignored) | 0 | none used |
 | `cISC4ResidentialSimulator` (`0x00AB2C10`) | 23 | `+0x5C` | GetEQGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
 | | 25 | `+0x64` | GetPopulationGrids(g0*&, g1*&, g2*&) | 12 | none (garbage) |
@@ -646,7 +647,10 @@ exemplar leaves the curves empty (§8); zero-width share rect (§11.6); no prop-
 
 Corrections to `docs/subsystems/grid-sims.md` §6:
 
-- The jailed count is police slot `+0x78` (`GetCriminalCount`), not `+0x74`.
+- The value subtracted is police slot `+0x78`, not `+0x74`. Erratum (M3): an earlier version of this spec called
+  slot `+0x78` `GetCriminalCount`. It is `GetJailPopulation`, the sum of the rounded per-jail populations
+  (protection §9). The jailed-criminal counter is slot `+0x7C`, and crime does not read it. The slot crime
+  calls was right.
 - `p` is the probability that an attempt is **stopped**. A crime happens when `u ≥ p`.
 - EQ buckets are "≤ 50, ≤ 100, ≤ 150, ≤ 200", not "0–49, 50–99, …". The criminal base is `trunc(jobless term ×
   popSum + EQ term)` per wealth, with the EQ curve sampled at `25·b`.

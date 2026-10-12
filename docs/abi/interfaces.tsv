@@ -2389,3 +2389,136 @@ cIGZMessage2Standard	cRZMessage2Standard	00acec00	34	+0x88	0091336e		0	0	eax-or-
 cIGZMessage2Standard	cRZMessage2Standard	00acec00	35	+0x8C	00913484		8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
 cIGZMessage2Standard	cRZMessage2Standard	00acec00	36	+0x90	009134a1		4	1	eax-or-void	medium	tail->005447b0
 cIGZMessage2Standard	cRZMessage2Standard	00acec00	37	+0x94	009134ba		4	1	eax-or-void	medium	
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	0	+0x0	006adb10		8	2	eax-or-void	medium	tail->006aced0
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	1	+0x4	006e17f0		0	0	eax-or-void	medium	tail->0082be80
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	2	+0x8	006e1820		0	0	eax-or-void	medium	tail->006ad1b0
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	3	+0xC	006ad250	cSC4FireProtectionSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	4	+0x10	006ad2a0	cSC4FireProtectionSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Fire)	cSC4FireProtectionSimulator	00ab10d0	5	+0x14	006acec0	cSC4FireProtectionSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	0	+0x0	006adae0		8	2	eax-or-void	medium	tail->006aced0
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	1	+0x4	006e17a0		0	0	eax-or-void	medium	tail->0082be80
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	2	+0x8	006e1800		0	0	eax-or-void	medium	tail->006ad1b0
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	3	+0xC	006ae070	cSC4FireProtectionSimulator::DoMessage	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	4	+0x10	006adaf0		4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	5	+0x14	006acf70		4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	6	+0x18	006ae0c0	cSC4FireProtectionSimulator::DoMonthlySimulation	0	0	eax-or-void	medium	tail->006f5c30
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	7	+0x1C	006f6610	cSC4ProtectionSimulator::DoOccupantInserted	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	8	+0x20	006f64f0	cSC4ProtectionSimulator::DoOccupantRemoved	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	9	+0x24	006f6250	cSC4ProtectionSimulator::DoOccupantChanged	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	10	+0x28	006ad190	cSC4FireProtectionSimulator::ProtectionSetStationAvailabilityFlags	8	2	unknown	low	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	11	+0x2C	006ad6b0		8	2	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	12	+0x30	006ad720	cSC4FireProtectionSimulator::ProtectionGetDispatchEffect	8	2	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	13	+0x34	008cd450	cSC4EffectsManager::Release	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	14	+0x38	006ad7c0	cSC4FireProtectionSimulator::ProtectionGetStationEffect	8	2	eax-or-void	medium	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	15	+0x3C	006ad170	cSC4FireProtectionSimulator::ProtectionSetStationBaseCallNumber	8	2	unknown	low	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	16	+0x40	00657730		12	3	unknown	low	
+cIGZMessageTarget2(Fire)	cSC4FireProtectionSimulator	00ab1118	17	+0x44	006ad320	cSC4FireProtectionSimulator::ProtectionEndOfCycle	0	0	via-call	low	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	0	+0x0	006adb00		8	2	eax-or-void	medium	tail->006aced0
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	1	+0x4	006e17d0		0	0	eax-or-void	medium	tail->0082be80
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	2	+0x8	006e1810		0	0	eax-or-void	medium	tail->006ad1b0
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	3	+0xC	006acfa0	cSC4FireProtectionSimulator::CanHandleDispatchType	4	1	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	4	+0x10	006f5a80	cSC4ProtectionSimulator::CanDispatch	12	3	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	5	+0x14	006f5b00	cSC4ProtectionSimulator::GetMaxPossibleDispatchCount	0	0	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	6	+0x18	006f6a50	cSC4ProtectionSimulator::GetStations	4	1	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	7	+0x1C	006acfb0	cSC4FireProtectionSimulator::GetDispatchesAtStation	16	4	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	8	+0x20	006f5b40	cSC4ProtectionSimulator::DispatchFromNearestStation	12	3	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	9	+0x24	006f5570	cSC4ProtectionSimulator::DispatchFromStation	8	2	eax-or-void	medium	
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	10	+0x28	006f56e0	__ZThn4_N23cSC4ProtectionSimulator25RevokeDispatchFromStationEP13cISC4Occupantm	8	2	eax-or-void	medium	tail->006f5620
+cISC4DispatchSource(Fire)	cSC4FireProtectionSimulator	00ab10e8	11	+0x2C	006ad5b0	cSC4FireProtectionSimulator::GetDispatchAutomataProperties	20	5	eax-or-void	medium	
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	0	+0x0	006e17e0		8	2	eax-or-void	medium	tail->006e0060
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	1	+0x4	006e17f0		0	0	eax-or-void	medium	tail->0082be80
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	2	+0x8	006e1820		0	0	eax-or-void	medium	tail->006ad1b0
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	3	+0xC	006e03f0	cSC4PoliceSimulator::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	4	+0x10	006e04e0	cSC4PoliceSimulator::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Police)	cSC4PoliceSimulator	00ab23fc	5	+0x14	006e0050	cSC4PoliceSimulator::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	0	+0x0	006e1790		8	2	eax-or-void	medium	tail->006e0060
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	1	+0x4	006e17a0		0	0	eax-or-void	medium	tail->0082be80
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	2	+0x8	006e1800		0	0	eax-or-void	medium	tail->006ad1b0
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	3	+0xC	006e2920	cSC4PoliceSimulator::DoMessage	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	4	+0x10	006e17b0		4	1	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	5	+0x14	006acf70		4	1	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	6	+0x18	006e2a80	cSC4PoliceSimulator::DoMonthlySimulation	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	7	+0x1C	006e1db0	cSC4PoliceSimulator::DoOccupantInserted	4	1	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	8	+0x20	006e1570	cSC4PoliceSimulator::DoOccupantRemoved	4	1	via-call	low	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	9	+0x24	006e0b80	cSC4PoliceSimulator::DoOccupantChanged	4	1	via-call	low	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	10	+0x28	006e02f0	cSC4PoliceSimulator::ProtectionSetStationAvailabilityFlags	8	2	unknown	low	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	11	+0x2C	006e0c50		8	2	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	12	+0x30	006e0cb0	cSC4PoliceSimulator::ProtectionGetDispatchEffect	8	2	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	13	+0x34	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	14	+0x38	006e0d50	cSC4PoliceSimulator::ProtectionGetStationEffect	8	2	eax-or-void	medium	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	15	+0x3C	006e02d0	cSC4PoliceSimulator::ProtectionSetStationBaseCallNumber	8	2	unknown	low	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	16	+0x40	00657730		12	3	unknown	low	
+cIGZMessageTarget2(Police)	cSC4PoliceSimulator	00ab2448	17	+0x44	006e0610	cSC4PoliceSimulator::ProtectionEndOfCycle	0	0	via-call	low	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	0	+0x0	006e17c0		8	2	eax-or-void	medium	tail->006e0060
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	1	+0x4	006e17d0		0	0	eax-or-void	medium	tail->0082be80
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	2	+0x8	006e1810		0	0	eax-or-void	medium	tail->006ad1b0
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	3	+0xC	006e0210	cSC4PoliceSimulator::CanHandleDispatchType	4	1	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	4	+0x10	006f5a80	cSC4ProtectionSimulator::CanDispatch	12	3	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	5	+0x14	006f5b00	cSC4ProtectionSimulator::GetMaxPossibleDispatchCount	0	0	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	6	+0x18	006f6a50	cSC4ProtectionSimulator::GetStations	4	1	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	7	+0x1C	006e0220	cSC4PoliceSimulator::GetDispatchesAtStation	16	4	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	8	+0x20	006f5b40	cSC4ProtectionSimulator::DispatchFromNearestStation	12	3	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	9	+0x24	006f5570	cSC4ProtectionSimulator::DispatchFromStation	8	2	eax-or-void	medium	
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	10	+0x28	006f56e0	__ZThn4_N23cSC4ProtectionSimulator25RevokeDispatchFromStationEP13cISC4Occupantm	8	2	eax-or-void	medium	tail->006f5620
+cISC4DispatchSource(Police)	cSC4PoliceSimulator	00ab2414	11	+0x2C	006e0c00	cSC4PoliceSimulator::GetDispatchAutomataProperties	20	5	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	0	+0x0	004695b0	cSC4DispatchManager::QueryInterface	8	2	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	2	+0x8	00469760	cSC4DispatchManager::Release	0	0	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	3	+0xC	0046a050	cSC4DispatchManager::Init	0	0	eax-or-void	medium	indirect-jump dword ptr [eax*4 + 0x46a188]
+cISC4DispatchManager	cSC4DispatchManager	00a88108	4	+0x10	0046a1a0	cSC4DispatchManager::Shutdown	0	0	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	5	+0x14	00469680	cSC4DispatchManager::CanDispatch	12	3	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	6	+0x18	0046a630	cSC4DispatchManager::Dispatch	12	3	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	7	+0x1C	0046aec0	cSC4DispatchManager::RevokeDispatchByID	4	1	edx:eax?	low	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	8	+0x20	0046ae70	cSC4DispatchManager::RevokeDispatchByPylon	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	9	+0x24	00469d10	cSC4DispatchManager::RevokeAllDispatches	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	10	+0x28	00469d40	cSC4DispatchManager::GetDispatchInfo	8	2	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	11	+0x2C	00469d80	cSC4DispatchManager::GetDispatchCount	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	12	+0x30	00469da0	cSC4DispatchManager::GetDispatchIDArray	12	3	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	13	+0x34	0046ae00	cSC4DispatchManager::RegisterDispatchSource	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	14	+0x38	0046a5d0	cSC4DispatchManager::UnregisterDispatchSource	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	15	+0x3C	004698b0	cSC4DispatchManager::GetDispatchSource	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	16	+0x40	0046b060	cSC4DispatchManager::BeginDispatchTool	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	17	+0x44	0046a4e0	cSC4DispatchManager::EndDispatchTool	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	18	+0x48	004abad0	icf::cSC4CatalogItem::GetCost	0	0	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	19	+0x4C	00469630	cSC4DispatchManager::SetActivePylon	4	1	via-call	low	indirect-jump dword ptr [edx + 0x18]
+cISC4DispatchManager	cSC4DispatchManager	00a88108	20	+0x50	00469de0	cSC4DispatchManager::GetAutomatonFromPylon	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	21	+0x54	0046af10	cSC4DispatchManager::GetAvailablePylonCount	4	1	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	22	+0x58	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4DispatchManager	cSC4DispatchManager	00a88108	23	+0x5C	0046a7d0	cSC4DispatchManager::~cSC4DispatchManager	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	0	+0x0	00514d10	cSC4AutomataControllerManager::QueryInterface	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	1	+0x4	00695330	icf::cSC4AutomataControllerManager::AddRef	0	0	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	2	+0x8	0051b1c0	cSC4AutomataControllerManager::Release	0	0	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	3	+0xC	0051c140	cSC4AutomataControllerManager::Init	0	0	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	4	+0x10	0051b3e0	cSC4AutomataControllerManager::Shutdown	0	0	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	5	+0x14	00514ca0	cSC4AutomataControllerManager::AddControllerFromTemplateName	12	3	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	6	+0x18	0051ad20	cSC4AutomataControllerManager::AddControllerFromTemplate	12	3	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	7	+0x1C	00517880	cSC4AutomataControllerManager::RemoveController	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	8	+0x20	0051a530	cSC4AutomataControllerManager::RemoveController	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	9	+0x24	00517190	cSC4AutomataControllerManager::AddControllersFromOccupantGroup	12	3	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	10	+0x28	00517150	cSC4AutomataControllerManager::AddControllersFromOccupantGroup	12	3	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	11	+0x2C	0051ab40	cSC4AutomataControllerManager::RemoveControllersFromOccupantGroup	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	12	+0x30	0051ab00	cSC4AutomataControllerManager::RemoveControllersFromOccupantGroup	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	13	+0x34	00517060	cSC4AutomataControllerManager::AddControllers	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	14	+0x38	0051a520	cSC4AutomataControllerManager::RemoveControllers	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	15	+0x3C	005188c0	cSC4AutomataControllerManager::MoveControllers	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	16	+0x40	00518930	cSC4AutomataControllerManager::MoveController	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	17	+0x44	00516410	cSC4AutomataControllerManager::GetController	20	5	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	18	+0x48	005173a0	cSC4AutomataControllerManager::GetController	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	19	+0x4C	00514ce0	cSC4AutomataControllerManager::GetController	8	2	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	20	+0x50	005179c0	cSC4AutomataControllerManager::GetRelevantControllersByWorldPos	16	4	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	21	+0x54	00516800	cSC4AutomataControllerManager::ReleaseControllerList	4	1	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	22	+0x58	00516530	cSC4AutomataControllerManager::GetCompositeAttractionEffect	16	4	eax-or-void	medium	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	23	+0x5C	00516720	cSC4AutomataControllerManager::GetCompositeAttractionCommotion	4	1	x87	high	
+cISC4AutomataControllerManager	cSC4AutomataControllerManager	00a96058	24	+0x60	0051a310	cSC4AutomataControllerManager::GetControllerTime	0	0	eax-or-void	medium	
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	0	+0x0	006dfc40		8	2	eax-or-void	medium	
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	2	+0x8	006dfc60		0	0	eax-or-void	medium	tail->006dfaf0
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	3	+0xC	006ac930		4	1	eax-or-void	medium	
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	4	+0x10	006ac970		4	1	eax-or-void	medium	
+cIGZSerializable(FirePlane)	cSC4FirePlaneDispatchSource	00ab0fe0	5	+0x14	006ac540		0	0	eax-or-void	medium	
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	0	+0x0	006dfc40		8	2	eax-or-void	medium	
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	1	+0x4	0068d250		0	0	eax-or-void	medium	tail->004f7ba0
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	2	+0x8	006dfc60		0	0	eax-or-void	medium	tail->006dfaf0
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	3	+0xC	006ac930		4	1	eax-or-void	medium	
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	4	+0x10	006df970		4	1	eax-or-void	medium	
+cIGZSerializable(PoliceHeli)	cSC4PoliceHelicopterDispatchSource	00ab22a4	5	+0x14	006df750		0	0	eax-or-void	medium	
