@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "demand_node_arithmetic",
+  "spec": ["demand 3.1", "demand 3.2", "demand 3.4", "demand 16.1"],
+  "description": "A fresh node has the 3.1 defaults (max/min +-8.507059e37, flag 1). AddToSupplyValue/AddToDemandValue change only the pending values; EndOfCycle folds them, returns true iff a pending value was non-zero, and posts one ActiveDemandChanged with data1 = key; Set*Value overwrite the committed totals without posting; the debug lock calls do nothing; Init of a node not loaded from a save resets every value.",
+  "steps": [
+    {"op": "demand_new_node", "node": "A"},
+    {"op": "demand_expect_node", "node": "A", "state": {"id": 0, "supply": 0, "demand": 0, "new_supply": 0, "new_demand": 0,
+      "active_demand": 0, "active_max": 8.507059e37, "active_min": -8.507059e37, "economy_modifier": 0, "tax_modifier": 0,
+      "demand_cap": 0, "region_use": 0, "flag": 1, "loaded_from_save": false, "initialized": false}},
+    {"op": "demand_node", "node": "A", "method": "init", "expect": true},
+    {"op": "demand_node", "node": "A", "method": "set_id", "args": ["0x21010"], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "get_id", "expect": "0x21010"},
+    {"op": "demand_node", "node": "A", "method": "set_active_min", "args": [-6000], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "set_active_max", "args": [6000], "expect": true},
+
+    {"op": "demand_node", "node": "A", "method": "add_to_supply", "args": [400], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "add_to_demand", "args": [1000], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "add_to_demand", "args": [0.5], "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"supply": 0, "demand": 0, "new_supply": 400, "new_demand": 1000.5, "active_demand": 0}},
+    {"op": "demand_node", "node": "A", "method": "new_supply", "expect": 400},
+    {"op": "demand_node", "node": "A", "method": "new_demand", "expect": 1000.5},
+    {"op": "demand_expect_events", "events": []},
+
+    {"op": "demand_node", "node": "A", "method": "end_of_cycle", "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"supply": 400, "demand": 1000.5, "new_supply": 0, "new_demand": 0, "active_demand": 600.5}},
+    {"op": "demand_expect_events", "events": [{"event": "post", "key": "0x21010", "data2": 100}]},
+
+    {"op": "demand_node", "node": "A", "method": "end_of_cycle", "expect": false},
+    {"op": "demand_expect_events", "events": [{"event": "post", "key": "0x21010", "data2": 100}]},
+
+    {"op": "demand_node", "node": "A", "method": "add_to_supply", "args": [-25], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "end_of_cycle", "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"supply": 375, "active_demand": 625.5}},
+    {"op": "demand_clear_events"},
+
+    {"op": "demand_node", "node": "A", "method": "set_supply", "args": [10], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "set_demand", "args": [20], "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"supply": 10, "demand": 20, "new_supply": 0, "new_demand": 0, "active_demand": 625.5}},
+    {"op": "demand_node", "node": "A", "method": "supply", "expect": 10},
+    {"op": "demand_node", "node": "A", "method": "demand", "expect": 20},
+    {"op": "demand_node", "node": "A", "method": "active_demand", "expect": 625.5},
+    {"op": "demand_node", "node": "A", "method": "debug_is_value_locked", "expect": false},
+    {"op": "demand_expect_events", "events": []},
+
+    {"op": "demand_node", "node": "A", "method": "shutdown", "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"initialized": false, "supply": 10}},
+    {"op": "demand_node", "node": "A", "method": "init", "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"initialized": true, "id": 0, "supply": 0, "demand": 0, "active_demand": 0, "active_max": 8.507059e37}}
+  ]
+}

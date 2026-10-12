@@ -10,9 +10,11 @@
 //! running the vectors against `fc4-core`.
 
 pub(crate) mod budget;
+pub(crate) mod demand;
 pub mod foundations;
 pub mod json;
 pub mod runner;
+pub(crate) mod scalar;
 pub mod variants;
 
 pub use runner::{run_vector_file, run_vector_text};

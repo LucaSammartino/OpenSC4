@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "name": "demand_occupancy",
+  "spec": ["demand 5", "demand 7", "demand 7.1", "demand 7.2", "demand 16.7"],
+  "description": "kMessageStateChanged: 1 -> 3 adds the building's agent effects (created amounts overridden by 0x27812843, pairs to missing nodes dropped) and its capacity for the developer type (summed over the capacity maps); 3 -> 2 does nothing (both occupied); 3 -> 4 removes them; data3 = 0 takes the lot's building type, and a type of 0 does nothing; a lot whose building has 0x27812844 is ignored. UpdateOccupantEffects(bt, 1.0, 0.5) nets -50 % and does nothing for equal percentages. A tuning reload with an empty effect list keeps the previous list [compat].",
+  "steps": [
+    {"op": "demand_exemplar", "instance": "0x1010", "region_use": 1},
+    {"op": "demand_exemplar", "instance": "0x1810"},
+    {"op": "demand_exemplar", "instance": "0x2010", "region_use": 2},
+    {"op": "demand_building", "type": "0x100", "purpose": 1,
+      "capacities": [[["0x1010", 120], ["0x1020", 7]], [["0x1010", 30]]],
+      "creates": [["0x2010", 10]], "creates_amounts": [12.5],
+      "satisfies": [["0x1810", 40], ["0xBEEF", 5]]},
+    {"op": "demand_building", "type": "0x200", "purpose": 2, "capacities": [[["0x3120", 50]]]},
+    {"op": "demand_lot", "lot": 7, "building_type": "0x100"},
+    {"op": "demand_lot", "lot": 8, "building_type": "0x100", "excluded": true},
+    {"op": "demand_lot", "lot": 9, "building_type": 0},
+    {"op": "demand_create"},
+    {"op": "demand_init", "expect": true},
+    {"op": "demand_expect", "state": {"effect_building_types": ["0x100"]}},
+
+    {"op": "demand_state_changed", "lot": 7, "old": 1, "new": 3, "building_type": 0, "wealth": 1},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 12.5, "new_supply": 0}},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 40, "new_demand": 0}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 150}},
+
+    {"op": "demand_state_changed", "lot": 7, "old": 3, "new": 2, "building_type": 0, "wealth": 1},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 12.5}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 150}},
+
+    {"op": "demand_state_changed", "lot": 7, "old": 3, "new": 4, "building_type": 0, "wealth": 1},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 0}},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 0}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 0}},
+
+    {"op": "demand_state_changed", "lot": 8, "old": 1, "new": 3, "building_type": "0x100", "wealth": 1},
+    {"op": "demand_state_changed", "lot": 9, "old": 1, "new": 3, "building_type": 0, "wealth": 1},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 0}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 0}},
+
+    {"op": "demand_state_changed", "lot": 99, "old": 0, "new": 2, "building_type": "0x100", "wealth": 1},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 12.5}},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 40}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 150}},
+    {"op": "demand_state_changed", "lot": 98, "old": 0, "new": 3, "building_type": "0x100", "wealth": 2},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 150}},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 25}},
+    {"op": "demand_state_changed", "lot": 98, "old": 3, "new": 0, "building_type": "0x100", "wealth": 2},
+
+    {"op": "demand_call", "method": "update_occupant_effects", "args": ["0x100", 1.0, 0.5]},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 6.25}},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 20}},
+    {"op": "demand_expect_node", "key": "0x1010", "state": {"new_supply": 150}},
+    {"op": "demand_call", "method": "update_occupant_effects", "args": ["0x100", 0.5, 0.5]},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 6.25}},
+
+    {"op": "demand_call", "method": "update_capacity", "args": ["0x200", 2, true]},
+    {"op": "demand_call", "method": "update_capacity", "args": ["0x300", 2, true]},
+
+    {"op": "demand_building", "type": "0x100", "purpose": 1, "capacities": [[["0x1010", 120], ["0x1020", 7]], [["0x1010", 30]]]},
+    {"op": "demand_message", "type": "IngredChangesMade", "expect": true},
+    {"op": "demand_expect", "state": {"effect_building_types": ["0x100"]}},
+    {"op": "demand_call", "method": "add_agent_effect", "args": ["0x100", true, 2.0]},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 31.25}},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 100}},
+
+    {"op": "demand_building", "type": "0x100", "purpose": 1, "creates": [["0x1810", 3]]},
+    {"op": "demand_message", "type": "IngredChangesMade"},
+    {"op": "demand_call", "method": "add_agent_effect", "args": ["0x100", false, 1.0]},
+    {"op": "demand_expect_node", "key": "0x1810", "state": {"new_supply": 100, "new_demand": -3}},
+    {"op": "demand_expect_node", "key": "0x2010", "state": {"new_demand": 31.25}}
+  ]
+}

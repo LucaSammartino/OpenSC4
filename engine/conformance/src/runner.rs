@@ -247,6 +247,9 @@ pub(crate) struct HostState {
     tsc: Cell<u64>,
     /// The budget world (budget vectors), created on first use.
     pub(crate) budget: RefCell<Option<Rc<crate::budget::World>>>,
+    /// Worlds of the scalar-simulator vectors (demand, ordinance, weather),
+    /// by name, created on first use.
+    pub(crate) ext: RefCell<HashMap<&'static str, Rc<dyn std::any::Any>>>,
 }
 
 impl HostState {
@@ -1164,6 +1167,7 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
         }
         other => crate::foundations::exec(other, op)
             .or_else(|| crate::budget::exec(sim, host, other, op))
+            .or_else(|| crate::demand::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }
@@ -1233,6 +1237,7 @@ pub fn run_vector_text(text: &str) -> R<usize> {
         qpc_frequency: Cell::new(0),
         tsc: Cell::new(0),
         budget: RefCell::new(None),
+        ext: RefCell::new(HashMap::new()),
     });
     if let Some(c) = v.get("clock") {
         state.now.set(opt_int(c, "start_ms")?.unwrap_or(0) as u32);

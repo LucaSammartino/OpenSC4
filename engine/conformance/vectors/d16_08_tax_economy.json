@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "demand_tax_and_economy",
+  "spec": ["demand 5", "demand 8.1", "demand 11.1", "demand 16.8"],
+  "description": "Census state 0 runs the tax/economy update on the 12 total nodes: neutral rate 9.0 (curve at population 0), shipped tax curve; highest tax rate in the window 90 -> modifier 0, 180 -> curve(2.0) = -0.875, 18 -> curve(0.2) = 0.3, no history -> ratio 1 -> 0 [choice]; ordinance factor - 1 is added; the economy modifier is the nation value plus coEconomyBonus for CO$$/CO$$$ and iEconomyBonus for I only; missing total nodes are skipped; the modifiers take effect at the next recalculation. GetNeutralTaxRate is the neutral curve of the summed census supplies, unclamped.",
+  "steps": [
+    {"op": "demand_tuning", "props": {
+      "0x4A1F38B5": {"f32": [0, 9.0, 3000000, 7.5]},
+      "0x4A1F38B6": {"f32": [0.2, 0.3, 1, 0, 5, -3.5]}}},
+    {"op": "demand_exemplar", "instance": "0x1001"},
+    {"op": "demand_exemplar", "instance": "0x3001"},
+    {"op": "demand_exemplar", "instance": "0x21010", "min": -6000, "max": 6000, "demand": 1000},
+    {"op": "demand_exemplar", "instance": "0x23110", "min": -6000, "max": 6000},
+    {"op": "demand_exemplar", "instance": "0x23320", "min": -6000, "max": 6000},
+    {"op": "demand_exemplar", "instance": "0x24200", "min": -6000, "max": 6000},
+    {"op": "demand_exemplar", "instance": "0x24400", "min": -6000, "max": 6000},
+    {"op": "demand_env", "history_max": {"0xAABAAA9F": 90, "0xAABAAAA2": 180, "0xAABAAAA8": 18, "0xAABAAAAA": 45},
+      "ordinance": {"0x2A653320": 1.25},
+      "nation": {"0x1010": 0.06, "0x3110": 0.03, "0x3320": 0.01, "0x4200": 0.02, "0x4400": -0.01}},
+    {"op": "demand_create"},
+    {"op": "demand_init"},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 9.0},
+    {"op": "demand_call", "method": "set_economy_bonuses", "args": [0.5, 0.25]},
+    {"op": "demand_expect", "state": {"co_economy_bonus": 0.5, "i_economy_bonus": 0.25}},
+    {"op": "demand_expect_node", "key": "0x21010", "state": {"active_demand": 1000}},
+
+    {"op": "demand_message", "type": "SimNewMonth"},
+    {"op": "demand_message", "type": "SimIdle", "data3": 0},
+    {"op": "demand_expect_node", "key": "0x21010", "state": {"tax_modifier": 0, "economy_modifier": 0.06, "active_demand": 1000}},
+    {"op": "demand_expect_node", "key": "0x23110", "state": {"tax_modifier": -0.875, "economy_modifier": 0.03}},
+    {"op": "demand_expect_node", "key": "0x23320", "state": {"tax_modifier": 0.25, "economy_modifier": 0.51}},
+    {"op": "demand_expect_node", "key": "0x24200", "state": {"tax_modifier": 0.3, "economy_modifier": 0.27}},
+    {"op": "demand_expect_node", "key": "0x24400", "state": {"tax_modifier": 0.1875, "economy_modifier": 0.24}},
+    {"op": "demand_call", "method": "propagate"},
+    {"op": "demand_expect_node", "key": "0x21010", "state": {"active_demand": 1060}},
+
+    {"op": "demand_node", "key": "0x1001", "method": "set_supply", "args": [1000000]},
+    {"op": "demand_node", "key": "0x3001", "method": "set_supply", "args": [500000]},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 8.25},
+    {"op": "demand_node", "key": "0x1001", "method": "set_supply", "args": [30000000]},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 7.5},
+    {"op": "demand_env", "history_max": {}},
+    {"op": "demand_call", "method": "update_modifiers"},
+    {"op": "demand_expect_node", "key": "0x23110", "state": {"tax_modifier": 0}},
+
+    {"op": "demand_tuning", "props": null},
+    {"op": "demand_message", "type": "IngredChangesMade"},
+    {"op": "demand_call", "method": "neutral_tax_rate", "expect": 0},
+    {"op": "demand_env", "history_max": {"0xAABAAAA2": 180}},
+    {"op": "demand_call", "method": "update_modifiers"},
+    {"op": "demand_expect_node", "key": "0x23110", "state": {"tax_modifier": 0}}
+  ]
+}

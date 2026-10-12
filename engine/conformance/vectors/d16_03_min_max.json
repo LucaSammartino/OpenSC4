@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "demand_min_max_ordering",
+  "spec": ["demand 3.2", "demand 16.3"],
+  "description": "SetActiveDemandMin above the maximum clamps to the maximum; SetActiveDemandMax below the minimum clamps to the minimum; both return true.",
+  "steps": [
+    {"op": "demand_new_node", "node": "A"},
+    {"op": "demand_node", "node": "A", "method": "set_active_max", "args": [100], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "set_active_min", "args": [200], "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"active_min": 100, "active_max": 100}},
+    {"op": "demand_node", "node": "A", "method": "set_active_min", "args": [-50], "expect": true},
+    {"op": "demand_node", "node": "A", "method": "set_active_max", "args": [-80], "expect": true},
+    {"op": "demand_expect_node", "node": "A", "state": {"active_min": -50, "active_max": -50}},
+    {"op": "demand_node", "node": "A", "method": "set_active_max", "args": [6000]},
+    {"op": "demand_node", "node": "A", "method": "set_active_min", "args": [-6000]},
+    {"op": "demand_node", "node": "A", "method": "active_min", "expect": -6000},
+    {"op": "demand_node", "node": "A", "method": "active_max", "expect": 6000},
+
+    {"op": "demand_new_node", "node": "B"},
+    {"op": "demand_node", "node": "B", "method": "set_active_min", "args": [10]},
+    {"op": "demand_node", "node": "B", "method": "set_active_max", "args": [5]},
+    {"op": "demand_expect_node", "node": "B", "state": {"active_min": 10, "active_max": 10}}
+  ]
+}
