@@ -844,8 +844,73 @@ per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` 
 
 ## Building development ops
 
-The building development vectors (`bd11_…`) drive `fc4_core::development_simulator`. Every op name starts with
-`bds_`. (Being written, M4.)
+The building development vectors (`bd11_…`) drive `fc4_core::development_simulator` with a scripted city
+implementing `DevelopmentHost` and `GrowthDevelopers` (the growth developers, one to one with
+`fc4_core::growth_developer`). Every op name starts with `bds_`. The default city: day 1000, difficulty 1,
+64 × 64 cells of 16 m (cell = floor(position / 16), centre = (c + 0.5) × 16), terrain altitude 300, area altitude
+250, no tuning exemplar, no census, funds 100000, demolition cost 0, an occupant manager that accepts inserts.
+Host objects are numbers handed out from 256 (`bds_world next_token` moves the counter): the BDS itself at
+`bds_create`, then developers, the building map and the construction node as `Init` creates them, then created
+occupants. Growth developers are scripted per developer type (the type is the exemplar's property `0x21`, read at
+the developer's `Init`): active demand (default 0, the value the developer's source node answers
+`QueryActiveDemandValue` with; the fake node is named by the developer's number; `no_node` = no source node), purpose (default from the type),
+sub-type (default the type), lists valid, growth and decline lists (`[[x, z, stage]]`), and how many times
+`IsMapUpdateFinished` answers false after each `StartMapUpdate`. The tract developer returns queued values
+(`grow`, `decline`; then the defaults, 0). The process statics (catalogue, tried-tract marks, generator) are one
+`BdsProcess` per `bds_process` (seed default 0); every generator draw is a `draw` event (`n`, `value`, `stepped`)
+logged at the moment it happens, so the events show how draws interleave with the tract developer's calls.
+Saves write references as `objectID, classID` (foundations §2.7): the map `0x49B9E602`, the node `0x8990C12D`,
+developers `0x0990C138`, occupants `0x0CC00001`; `bds_load` resolves an ID to the object saved under it, else to
+the host object with that number (which the world may not know: unresolved).
+
+### City
+
+| op | Arguments | Effect |
+|---|---|---|
+| `bds_process` | `seed?` (0) | new process statics (empty catalogue and marks, the generator seeded with `seed`) |
+| `bds_world` | any of `day`, `next_token`, `difficulty`, `cell_widths` (`[x, z]`), `cell_counts`, `altitude`, `area_altitude`, `census` (`{id: supply}`), `tuning` (property map, `"shipped"` = {8192, 20480} and {1.2, 1.1, 1.0}, or null), `funds`, `demolish_cost`, `occupant_manager`, `insert_ok` | the scripted city |
+| `bds_exemplars` | `list`: `{building, purpose?, wealth?, capacity? (for its own developer type), families?, size? ([x, y, z]), name?, localized?, group?, props?}`, `{developer: type}` (0: no property `0x21`), `{foundation}`, `{wall}` or raw `{instance, group?, props}`; `append?` | the exemplars, in enumeration order |
+| `bds_lot_configs` | `list`: `{size: [w, h], zones: [...], ids: [...], orientation? (0), pos? ([x, z]; default the lot centre), no_object?}` | lot configurations for the density table |
+| `bds_developers` | `devs`: `{"type": {ad?, no_node?, purpose?, sub_type?, valid?, growth?, decline?, finish_after?}}` (merged) | scripted growth developers |
+| `bds_tract` | `grow?`, `decline?` (queues), `grow_default?`, `decline_default?` | tract developer returns |
+| `bds_lots` | `lots`: `[{id, building_type?, rect? ([x1, z1, x2, z2]), stage? (or null), building? (or null), state?, center?, slope?, dev_slope?, demolishable?}]` (merged), `cells`: `[{x, z, zone?, powered?, lv_type?, lv?, lot? (or null)}]`, `cell_default?` | lots and cells |
+| `bds_occupants` | `list`: `[{id, groups?, preview?, pos?, bbox? ([min, max]), cost?, load_fails?}]` (occupant 0 is the template for created occupants), `building_cells?` (`[[x, z]]`) | occupants |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `bds_create` | `grow_budget?` (u32; default u32::MAX) | a new BDS (reference count 1; the old one is dropped without `Shutdown`) with that daily Grow attempt budget ([choice]: at most N tract-developer Grow calls per `Grow`; vectors that run `Grow` set it explicitly) |
+| `bds_grow_budget` | `value` | sets the Grow attempt budget of the current BDS |
+| `bds_init` / `bds_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `bds_add_ref` / `bds_release` | `expect?` (the count) | |
+| `bds_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `Cheat`, `PlaceBuilding`, `TerrainChanged`, `OccupantInserted`, `OccupantRemoved`, `StateChanged` or an ID), `data1..4?`, `occupant?`, `lot?`, `params?` (`[[as_u32, as_f32]]`), `expect?` | `DoMessage` |
+| `bds_day` | `count?` (1) | SimNewDay, then day + 1 |
+| `bds_call` | `method`, `args?`, `expect?` | `grow`, `plan_decline`, `execute_decline_plan`, `do_idle`, `monthly`, `daily`, `read_tuning`; `total_resources`, `free_resources`, `claim` / `release` (`[n]`); catalogue: `is_building_type_valid`, `is_building_family_type_valid`, `is_building_in_family`, `types_by_family` (`[f, vector?]` → `{count, vector}`), `types_by_family_set` (`{count, set}`), `types_by_filter` (`[accepted or null, set?]`), `profile` / `profile_ptr` (→ `{purpose, wealth, capacity, size}` or null), `building_key` / `foundation_key` / `wall_key` (→ `[t, g, i]` or null), `exemplar_name`, `building_name`, `all_building_types` / `all_family_types` / `all_foundation_types` / `all_wall_types` (`[vector?]`), `all_building_types_array` (`[n, length or null]` → `{ret, n, array}`), `density` (the table, `[[zone, key, value]]`), `max_capacity` (`[zone, p, w]`), `app_shutdown`; `developer_type`, `wealth`, `developer`, `developer_by` (`[p, w]`), `developers`, `map_key`, `map_key_of_type`, `day_of_last_build`, `stage_multiplier`, `cheats`; `suitable` (`[profile]` → `{result, reason}`, reason starts at -1), `location_ok` (`[type, x, z]`), `add_occupant` (`[type, [x, y, z], orientation]`), `add_occupant_at_cell` (`[type, cx, cz, orientation]`), `plop` (`[profile]`), `insert_occupant`, `demolish_foundation`, `demolition_cost`, `foundation_cost`, `building_changed` (`[lot, wealth, built]`), `terrain_changed` (`[rect, kind]`), `unpack_terrain_rect` (`[data1, data2, cx, cz]`), `query_interface` (→ `"primary"`, `"message_target"`, `"message_target2"`, `"serializable"` or null), `class_id`, `special_buildings`. A profile is `{zone, wealth, purpose, lv_min, lv_max, type, x, z}` |
+| `bds_set` | `state`: any of `supply`, `demand`, `map_id`, `node_id`, `decline_plan` (`[[day, x, z, developer, stage?]]`), `state`, `ignore_plumbing`, `ignore_power`, `ignore_caps`, `coffee_bar`, `bias`, `loaded_from_save`, `special_buildings`, `highest_stage` (`{type: stage}`, merged) | pokes state (test setup) |
+| `bds_expect` | `state`: any of `initialized`, `loaded_from_save`, `destroyed`, `ref_count`, `state`, `cursor`, `developers`, `highest_stage`, `last_build` (`{type: value}`), `special_buildings`, `decline_plan`, `planned_growth` (count), `grow_budget`, `cr_min`, `cr_max`, `cr_per_resident`, `bias`, `stage_multiplier`, the four stored cheats, `cell_counts`, `has_map`, `map_id`, `node_id`, `supply`, `demand`, `marks` (`{type: [[x, z]]}`), `steps` (generator steps), `rng_state`, `catalogue_loaded`, `building_count`, `funds`, `day` | the BDS, process and city state |
+| `bds_expect_map` | `cells`: `[[x, z, value]]` | building map cells |
+| `bds_expect_refs` | `developers?`, `occupants?` (`{"id": count}`) | host reference counts |
+| `bds_expect_events` / `bds_expect_event_count` / `bds_clear_events` | see the shared conventions | host calls and draws |
+| `bds_save` | `slot`, `expect?` | `Write` |
+| `bds_expect_record` | `slot`, `hex?`, `length?`, `at?` (`[{offset, hex}]`) | the record bytes |
+| `bds_patch` | `slot`, `offset` + `hex`, or `truncate` | edits a saved record |
+| `bds_load` | `slot` or `hex`, `expect?`, `consumed?` | `Read` into the current BDS |
+
+Building development events: `draw` (`n`, `value`, `stepped`), `static_cleanup`, `post` (`type`, `data2`),
+`subscribe` / `unsubscribe` (`types`), `register_command` (`id`, `name`), `unregister_command` (`id`), `add_agent`
+(`level`, `name`, `flags`), `remove_agent`, `register_cheat` (`id`, `name`), `unregister_cheat` (`id`),
+`acquire_services`, `release_services`, `create_grid` (`instance`, `tract_size`, `id`), `create_node` (`id`),
+`active_demand_changed` (`node`, `key`, `data2`), `create_developer`, `developer_init` (`dev`, `type`),
+`developer_shutdown`, `developer_release`, `start_map_update`, `map_update_finished` (`dev`, `result`),
+`tract_grow` (`dev`, `x`, `z`, `stage`, `type`, `outcomes_in`, `flag_in`, `built`), `tract_decline` (`dev`, `x`,
+`z`, `stage`, `type`, `result`), `update_lot_elements` (`lot`, `had_foundation`: the low byte of the terrain-change
+kind ≠ 0, [inferred]), `area_altitude` (`rect`), `dezone` (`rect`,
+`flag`), `demolish_lots` (`lots`, `cost`), `set_funds` (`value`), `insert_occupant` (`occ`, `result`),
+`remove_occupant`, `create_occupant`, `set_building_type` (`occ`, `type`), `load_occupant` (`occ`, `type`,
+`result`), `set_bbox` (`occ`, `min`, `max`), `set_position` (`occ`, `pos`), `set_orientation` (`occ`,
+`orientation`), `init_occupant`, `add_ref`, `release` (`occ`), `advisor_event` (`advisor`, `id`, `subject` (null),
+`discarded`: `{x, z, lot, data1}`).
 
 ## Growth developer ops
 
@@ -1320,6 +1385,26 @@ The tract developer vectors (`td11_…`) drive `fc4_core::tract_developer`. Ever
 | §11 item | Vector |
 |---|---|
 | 1 developer types, 2 map keys, 3 zone fits | `bd11_01_03_types_keys_zones` |
+| 4 monthly supply | `bd11_04_monthly_supply` |
+| 5 claim / release | `bd11_05_construction_resources` |
+| 6 grow order (seeds 12345 and 1); the multi-day draw sequence | `bd11_06_grow_order`, `bd11_06_grow_days` |
+| 7 tried-tract marks (and their save / Shutdown) | `bd11_07_tried_tract_marks` |
+| 8 decline plan (seed 99), 9 decline execution | `bd11_08_09_decline` |
+| 10 max density | `bd11_10_max_density` |
+| 11 suitability | `bd11_11_suitability` |
+| 12 building map, 13 highest stage | `bd11_12_13_building_map_stage` |
+| 14 record | `bd11_14_record` |
+| 15 stage multiplier (and the tuning reads) | `bd11_15_stage_multiplier` |
+| 16 catalogue queries | `bd11_16_catalogue` |
+| Init, Shutdown, Release, QueryInterface (§1) | `bd11_00_lifecycle` |
+| DoIdle / monthly state machine (§3.1, §4.1, §4.2) | `bd11_00_idle_monthly` |
+| messages: cheats, special buildings, terrain unpacking, PlaceBuilding (§3.2, §4.12) | `bd11_00_messages` |
+| DoTerrainChanged (§4.11) | `bd11_00_terrain_changed` |
+| placing buildings (§4.9) | `bd11_00_placing` |
+| Grow and decline edges (§4.3–§4.5) | `bd11_00_grow_edges` |
+| the daily Grow attempt budget ([choice] replacing the 3 ms timer, §4.4) | `bd11_06_grow_budget` |
+| persistence beyond test 14 (§6) | `bd11_00_persistence` |
+| catalogue loading, names, keys (§4.7.1–§4.7.3); hash order and resize | `bd11_00_catalogue_extras`, `bd11_00_catalogue_hash_order` |
 
 ## Coverage (growth developer §14)
 
