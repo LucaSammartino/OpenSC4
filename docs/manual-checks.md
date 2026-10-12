@@ -4,10 +4,10 @@ Things only a human can do or decide. Newest at the top of each section. Claude 
 
 ## Needs you (blocking)
 
-Nothing is blocking. **Hold off on the in-game checks below for now.** The allocator classification (ff25561) found
-that the budget window's own queries (`GetAllGroups`, `GetAllLoans`, the line-item lists) still hand the game
-containers with the wrong allocator. Opening the budget window with the current DLL can therefore corrupt the
-heap. A fix is in progress in the plugin lane; this note will say when the checks are safe.
+Nothing is blocking. When you have 10 minutes, please do the in-game checks below. The DLL staged in Plugins
+is 6f9dc97, which includes every allocator fix, and `FreeCity4.ini` is set for normal play (`budget_default = 1`, no
+autoload, no auto-close). Open the budget window and its sub-windows (departments, loans) a few times: they were
+the last place the allocator bug could still bite.
 
 ## Budget corruption bisection
 
@@ -23,6 +23,7 @@ heap. A fix is in progress in the plugin lane; this note will say when the check
 | 15 | `lot_release = 0` | corrupt: releasing the lots is not the cause |
 | 16 | `lot_list_free = 0` | **clean**: freeing the list is the cause |
 | 17 | all on, with the fix (940b3bb, merged in 860d8cf) | **clean** through five month-ends (Sep 2001 to Feb 2002); funds and tax income change each month |
+| 18 | all on, every incompatible crossing fixed (6f9dc97: budget vectors, lists and strings in the game's allocator) | **clean** through five month-ends; `GetAllGroups` exercised daily |
 
 **Root cause:** the game has three separate allocator instances, each with its own pools
 (`docs/abi/allocators.md`). The lot list's nodes come from the game's STL node allocator. The SDK's `SC4List`
