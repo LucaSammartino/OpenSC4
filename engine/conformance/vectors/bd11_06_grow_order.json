@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "bds_grow_order",
+  "spec": ["building-development 4.4", "building-development 4.14", "foundations 6.1", "building-development 11.6"],
+  "description": "Test 6, from 4.4 and 4.14; the draws were recomputed with an independent Python model of the cRZRandom LCG (NextRaw for seed 12345: 0x0C63D3DC, 0xFED6A704, 0x6E80D665; for seed 1: 0x000041C6, 0x59D4967E, 0xBF022781). Bias 10; active demand 0x1010 100, 0x1020 3 (not > 5: excluded), 0x3110 40, 0x4300 250. Seed 12345: RandomUint32Uniform(420) = 20 < 110 -> 0x1010; (310) = 308 -> 308 - 50 = 258 < 260 -> 0x4300; (50) = 21 -> 0x3110. Tract-developer Grow calls 0x1010 (1, 1), 0x4300 (4, 4), 0x3110 (3, 3), each with the item's stage, an empty outcome list and flag false; 0x1020 gets none. Then only 0x1020 is pending: RandomUint32Uniform(0) is called, does not step, picks nobody, and Grow returns ([choice] infinitely fast machine: no spin). Exactly 3 generator steps. Seed 1 (a fresh process and BDS): draws 0 of 420, 108 of 310, 37 of 50, the same order. Built 0 everywhere, so lastSuccessfulBuild stays at the Init day.",
+  "steps": [
+    {"op": "bds_process", "seed": 12345},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x1020"}, {"developer": "0x3110"}, {"developer": "0x4300"}]},
+    {"op": "bds_developers", "devs": {
+      "0x1010": {"ad": 100, "growth": [[1, 1, 1]]},
+      "0x1020": {"ad": 3, "growth": [[2, 2, 1]]},
+      "0x3110": {"ad": 40, "growth": [[3, 3, 2]]},
+      "0x4300": {"ad": 250, "growth": [[4, 4, 3]]}}},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_expect", "state": {"developers": {"0x1010": 257, "0x1020": 258, "0x3110": 259, "0x4300": 260}, "steps": 0}},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 20, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "dev": 257, "x": 1, "z": 1, "stage": 1, "outcomes_in": 0, "flag_in": false},
+      {"event": "draw", "n": 310, "value": 308, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "dev": 260, "x": 4, "z": 4, "stage": 3, "outcomes_in": 0, "flag_in": false},
+      {"event": "draw", "n": 50, "value": 21, "stepped": true},
+      {"event": "tract_grow", "type": "0x3110", "dev": 259, "x": 3, "z": 3, "stage": 2, "outcomes_in": 0, "flag_in": false},
+      {"event": "draw", "n": 0, "value": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"steps": 3, "rng_state": "0xD6651C2C",
+      "last_build": {"0x1010": 1000, "0x1020": 1000, "0x3110": 1000, "0x4300": 1000}}},
+
+    {"op": "bds_process", "seed": 1},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_clear_events"},
+    {"op": "bds_call", "method": "grow"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 0},
+      {"event": "tract_grow", "type": "0x1010"},
+      {"event": "draw", "n": 310, "value": 108},
+      {"event": "tract_grow", "type": "0x4300"},
+      {"event": "draw", "n": 50, "value": 37},
+      {"event": "tract_grow", "type": "0x3110"},
+      {"event": "draw", "n": 0, "value": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"steps": 3}}
+  ]
+}

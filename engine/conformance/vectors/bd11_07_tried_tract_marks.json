@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "bds_tried_tract_marks",
+  "spec": ["building-development 4.4", "building-development 6", "building-development 1.4", "building-development 11.7"],
+  "description": "Test 7, by hand from 4.4 and 6. One qualifying developer 0x1010 (ad 100, weight 110: every day one draw of 110 and one non-stepping draw of 0 after it), growth list [(4,4), (8,4), (12,4)], built 0: days 1-3 try (4,4), (8,4), (12,4); on day 4 every tract is marked, so marks[0x1010] is cleared and (4,4) is tried again (marks then {(4,4)}). The marks are saved in the BDS record (6): a save after day 2 holds {(4,4), (8,4)}; Shutdown clears the process-wide marks (1.4); a fresh process (new statics, empty marks) that loads that record merges them back and its first day tries (12,4). The loaded record also brings developer 257 back into the map, and Init only calls its Init again (1.5: no second creation).",
+  "steps": [
+    {"op": "bds_process", "seed": 5},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}]},
+    {"op": "bds_developers", "devs": {"0x1010": {"ad": 100, "growth": [[4, 4, 1], [8, 4, 1], [12, 4, 1]]}}},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_clear_events"},
+    {"op": "bds_day", "count": 2},
+    {"op": "bds_expect_events", "filter": {"event": "tract_grow"}, "events": [
+      {"x": 4, "z": 4}, {"x": 8, "z": 4}]},
+    {"op": "bds_expect", "state": {"marks": {"0x1010": [[4, 4], [8, 4]]}, "steps": 2}},
+    {"op": "bds_save", "slot": "day2", "expect": true},
+    {"op": "bds_day", "count": 2},
+    {"op": "bds_expect_events", "filter": {"event": "tract_grow"}, "events": [
+      {"x": 12, "z": 4}, {"x": 4, "z": 4}]},
+    {"op": "bds_expect", "state": {"marks": {"0x1010": [[4, 4]]}, "steps": 4}},
+    {"op": "bds_shutdown", "expect": true},
+    {"op": "bds_expect", "state": {"marks": {}}},
+
+    {"op": "bds_process", "seed": 6},
+    {"op": "bds_create"},
+    {"op": "bds_load", "slot": "day2", "expect": true},
+    {"op": "bds_expect", "state": {"marks": {"0x1010": [[4, 4], [8, 4]]}, "developers": {"0x1010": 257}, "loaded_from_save": true}},
+    {"op": "bds_clear_events"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_expect_event_count", "filter": {"event": "create_developer"}, "count": 0},
+    {"op": "bds_expect_event_count", "filter": {"event": "developer_init", "dev": 257, "type": "0x1010"}, "count": 1},
+    {"op": "bds_clear_events"},
+    {"op": "bds_day"},
+    {"op": "bds_expect_events", "filter": {"event": "tract_grow"}, "events": [{"x": 12, "z": 4, "dev": 257}]},
+    {"op": "bds_expect", "state": {"marks": {"0x1010": [[4, 4], [8, 4], [12, 4]]}}}
+  ]
+}

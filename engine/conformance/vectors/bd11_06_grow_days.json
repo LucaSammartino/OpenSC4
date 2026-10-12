@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "bds_grow_days",
+  "spec": ["building-development 4.4", "building-development 4.14", "building-development 3.1", "building-development 11.6"],
+  "description": "Draw sequence over three days (SimNewDay: DoIdle(5) in state 0 does nothing, then Grow and an empty ExecuteDeclinePlan), computed with an independent Python model of 4.4 and the cRZRandom LCG. Seed 12345, bias 10, ad 0x1010 100, 0x1020 3, 0x3110 40, 0x4300 250 (weights 110, -, 50, 260); growth lists 0x1010 [(1,1),(2,1)], 0x3110 [(5,5)], 0x4300 [(9,9),(9,10),(9,11)]; the tract developer returns 0, 25, 0 | 0, 0, 30 | 12, 0, 0 in call order. Day 1000: 20/420 -> 0x1010 (1,1) built 0; 308/310 -> 0x4300 (9,9) built 25; 21/50 -> 0x3110 (5,5). Day 1001: 315/420 -> 0x4300 (9,10); 144/160 -> 0x3110: its only tract is marked, so marks[0x3110] is cleared and (5,5) tried again; 29/110 -> 0x1010 (2,1) built 30. Day 1002: 241/420 -> 0x4300 (9,11) built 12; 73/160 -> 0x1010: both tracts marked -> cleared, (1,1); 42/50 -> 0x3110 (5,5). Every day: exactly 3 generator steps, each draw directly before the Grow call it decides, then one non-stepping RandomUint32Uniform(0) for the lone 0x1020. lastSuccessfulBuild: 0x4300 1000 then 1002, 0x1010 1001, the others stay at the Init day 1000 (built 0 does not count). Marks after day 1002: 0x1010 {(1,1)}, 0x3110 {(5,5)}, 0x4300 {(9,9),(9,10),(9,11)}; 9 steps, LCG state 0x20DA7756.",
+  "steps": [
+    {"op": "bds_process", "seed": 12345},
+    {"op": "bds_exemplars", "list": [{"developer": "0x1010"}, {"developer": "0x1020"}, {"developer": "0x3110"}, {"developer": "0x4300"}]},
+    {"op": "bds_developers", "devs": {
+      "0x1010": {"ad": 100, "growth": [[1, 1, 1], [2, 1, 1]]},
+      "0x1020": {"ad": 3, "growth": [[2, 2, 1]]},
+      "0x3110": {"ad": 40, "growth": [[5, 5, 2]]},
+      "0x4300": {"ad": 250, "growth": [[9, 9, 3], [9, 10, 3], [9, 11, 3]]}}},
+    {"op": "bds_tract", "grow": [0, 25, 0, 0, 0, 30, 12, 0, 0]},
+    {"op": "bds_create"},
+    {"op": "bds_init", "expect": true},
+    {"op": "bds_clear_events"},
+    {"op": "bds_day"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 20, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "x": 1, "z": 1, "built": 0},
+      {"event": "draw", "n": 310, "value": 308, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 9, "z": 9, "built": 25},
+      {"event": "draw", "n": 50, "value": 21, "stepped": true},
+      {"event": "tract_grow", "type": "0x3110", "x": 5, "z": 5, "built": 0},
+      {"event": "draw", "n": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"steps": 3, "last_build": {"0x1010": 1000, "0x1020": 1000, "0x3110": 1000, "0x4300": 1000}}},
+    {"op": "bds_day"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 315, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 9, "z": 10, "built": 0},
+      {"event": "draw", "n": 160, "value": 144, "stepped": true},
+      {"event": "tract_grow", "type": "0x3110", "x": 5, "z": 5, "built": 0},
+      {"event": "draw", "n": 110, "value": 29, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "x": 2, "z": 1, "built": 30},
+      {"event": "draw", "n": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"steps": 6, "last_build": {"0x1010": 1001, "0x1020": 1000, "0x3110": 1000, "0x4300": 1000}}},
+    {"op": "bds_day"},
+    {"op": "bds_expect_events", "events": [
+      {"event": "draw", "n": 420, "value": 241, "stepped": true},
+      {"event": "tract_grow", "type": "0x4300", "x": 9, "z": 11, "built": 12},
+      {"event": "draw", "n": 160, "value": 73, "stepped": true},
+      {"event": "tract_grow", "type": "0x1010", "x": 1, "z": 1, "built": 0},
+      {"event": "draw", "n": 50, "value": 42, "stepped": true},
+      {"event": "tract_grow", "type": "0x3110", "x": 5, "z": 5, "built": 0},
+      {"event": "draw", "n": 0, "stepped": false}]},
+    {"op": "bds_expect", "state": {"steps": 9, "rng_state": "0x20DA7756", "day": 1003,
+      "last_build": {"0x1010": 1001, "0x1020": 1000, "0x3110": 1000, "0x4300": 1002},
+      "marks": {"0x1010": [[1, 1]], "0x3110": [[5, 5]], "0x4300": [[9, 9], [9, 10], [9, 11]]}}},
+    {"op": "bds_call", "method": "day_of_last_build", "args": ["0x4300"], "expect": 1002},
+    {"op": "bds_call", "method": "day_of_last_build", "args": ["0x4400"], "expect": 0}
+  ]
+}
