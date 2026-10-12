@@ -674,7 +674,7 @@ There is **no** single simulation RNG. Each subsystem uses its own instance:
 
 | Generator instance | Seed | Used by (examples) |
 |---|---|---|
-| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager; plumbing (created at `Init`) |
+| a `cRZRandom` member of the subsystem | wall clock (`0xFFFFFFFF`) at construction | residential, weather, flora, power, aura, fire protection, police, zone manager, advisor system (advisors.md §9), each MySim (mysims.md); plumbing (created at `Init`) |
 | a `cRZRandom` member | **0** (integer path deterministic, double path clock-seeded) | flammability |
 | a file-local `cRZRandomSuper` per source file | local wall-clock seconds XOR a per-file constant | budget (the `RiskyMoney` disaster roll), crime, pollution effects, lots, construction, network lots |
 | a `cRZRandomSuper` member | wall clock at `Init` | traffic simulator, traffic network map, prop developer (clock × 28) |

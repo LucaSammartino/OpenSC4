@@ -1205,11 +1205,13 @@ through `GetCellValue` (simgrid §6.4 applies to the traffic simulator, not to t
 
 ### 14.3 MySim touch points (for the MySim spec)
 
-- CitySituations `UpdateMySimAdvices` (class slot 10) reads `cISC4City` `+0x11C` → MySim agent simulator `+0x30` →
-  `+0x110`; it activates or deactivates its advices that are city-situation advices (`0x6BEB1E8A`) with situation flag
+- CitySituations `UpdateMySimAdvices` (class slot 10) reads `cISC4City` `+0x11C` → MySim agent simulator `+0x30`
+  (`GetActiveUIPanelSim`, which returns a `cISC4MySim*`; mysims.md §7.1) → `+0x110` (`ActivateLuaContext`); it activates or deactivates its advices that are city-situation advices (`0x6BEB1E8A`) with situation flag
   `0x20` (MySim mission) by their trigger. Its caller is not identified (§16 Q5).
 - Lua: `mysim_*` functions QI the context advisor to `0x0A1DA42F` and call MySim slots `+0xC8`, `+0xCC`, `+0xD0`,
-  `+0xD4`, `+0x10C` (the compiled slots `+0xC4..+0xD4` are SDK + 4).
+  `+0xD4`, `+0x10C` (`DistanceToClosest`, `DistanceToClosestSpecial`, `LocalSchoolGrade`, `LocalHospitalGrade`,
+  `CreateDispatchTool`). The `GetJobTitle` overloads are compiled in reverse order (foundations §16), so SDK slots
+  28–54 sit 4 bytes later in the compiled table; from slot 56 on they match (mysims.md §7.2).
 - Event `0xCA4E8986` (MySim building added): MySim stores the distance in metres in the subject's data1 for
   `event_building_distance`.
 - The system creates the MySim advisors (ids 1–5, class `0x4A1DBBBF`) and My Street sim (30, `0x0BF606A5`) from the

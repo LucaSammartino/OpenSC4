@@ -133,3 +133,5 @@ cISC4AdviceSubject	cSC4AdviceSubject	00a81090	14	docs/specs/advisors.md
 cISCLua	cSCLua	00ac4148	78	docs/specs/advisors.md
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	10	docs/specs/landfill.md
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	52	docs/specs/landfill.md
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	14	docs/specs/mysims.md
+cISC4MySim	cSC4MySim	00a85080	69	docs/specs/mysims.md

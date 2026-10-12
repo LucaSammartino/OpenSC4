@@ -3451,3 +3451,86 @@ cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	48	+0xC0	004b4710		8	2	eax
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	49	+0xC4	004b4120		4	1	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	50	+0xC8	004b48b0		0	0	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	51	+0xCC	004b01c0		8	2	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	0	+0x0	0042e310		8	2	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	1	+0x4	004f7ba0	icf::cSC43DRender::AddRef	0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	2	+0x8	0042e410		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	3	+0xC	0042ec30		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	4	+0x10	0042e500		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	5	+0x14	0042f4a0		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	6	+0x18	0042e990		28	7	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	7	+0x1C	0042e9f0		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	8	+0x20	0042ea70		0	0	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	9	+0x24	0042eb60		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	10	+0x28	0042e3a0		0	0	via-call	low	indirect-jump dword ptr [eax + 8]
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	11	+0x2C	0042e910		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	12	+0x30	0042e960		4	1	eax-or-void	medium	
+cISC4MySimAgentSimulator	cSC4MySimAgentSimulator	00a85544	13	+0x34	0042f450		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	0	+0x0	00429d60		8	2	eax-or-void	medium	tail->00424b00
+cISC4MySim	cSC4MySim	00a85080	1	+0x4	00429d70		0	0	eax-or-void	medium	tail->00424b60
+cISC4MySim	cSC4MySim	00a85080	2	+0x8	00429d80		0	0	eax-or-void	medium	tail->00424b70
+cISC4MySim	cSC4MySim	00a85080	3	+0xC	00429c90		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	4	+0x10	0042d880		28	7	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	5	+0x14	0042a700	cSC4MySim::FindNewResidence	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	6	+0x18	00426c10	cSC4MySim::ChangeResidence	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	7	+0x1C	00425ca0		12	3	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	8	+0x20	00425d70	cSC4MySim::ChangeJob	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	9	+0x24	0042df50	cSC4MySim::DeleteFromGame	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	10	+0x28	0040ce50	icf::cRZVariant::AsBool	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	11	+0x2C	00517f70	icf::cGZLua5Thread::GetLua	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	12	+0x30	0060fb80	icf::cGZDrawContext::GetEngine	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	13	+0x34	0042e020	cSC4MySim::SetResidence	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	14	+0x38	004265d0	cSC4MySim::GetLocation	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	15	+0x3C	00424c80		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	16	+0x40	00424ca0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	17	+0x44	00424cb0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	18	+0x48	00424d90		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	19	+0x4C	006aaeb0	icf::cSC4PowerSimulator::GetMonthlyConsumption	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	20	+0x50	00449550		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	21	+0x54	00698cd0	cSC4MySimDispatch::GetCurrentLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	22	+0x58	00407ac0	icf::cSC424HourClock::GetVisualTimeMode	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	23	+0x5C	00424cc0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	24	+0x60	0042bdb0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	25	+0x64	00425dd0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	26	+0x68	00425df0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	27	+0x6C	00424bd0	cSC4MySim::GetJobTitle	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	28	+0x70	00425e30		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	29	+0x74	00424cd0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	30	+0x78	00424d00	cSC4MySim::GetHQAsText	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	31	+0x7C	004293b0	cSC4MySim::Find	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	32	+0x80	00429590	cSC4MySim::ShowResidence	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	33	+0x84	00425e70		0	0	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	34	+0x88	0042c820	cSC4MySim::ShowLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	35	+0x8C	004288d0	cSC4MySim::HideLocation	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	36	+0x90	00425f00		4	1	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	37	+0x94	00425ea0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	38	+0x98	00426ef0	cSC4MySim::LeaveForWork	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	39	+0x9C	00426f60	cSC4MySim::ReturnHome	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	40	+0xA0	0042bf70	cSC4MySim::AnnounceMoveIn	0	0	via-call	low	
+cISC4MySim	cSC4MySim	00a85080	41	+0xA4	0042db50	cSC4MySim::DoScriptCommand	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	42	+0xA8	00426060		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	43	+0xAC	0042c020	cSC4MySim::DoBuildingChanged	4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	44	+0xB0	0042c940	cSC4MySim::DoBuildingRemoved	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	45	+0xB4	00426120		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	46	+0xB8	004261d0		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	47	+0xBC	00426280		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	48	+0xC0	00426330	cSC4MySim::DoDisaster	12	3	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	49	+0xC4	00426460		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	50	+0xC8	00427600		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	51	+0xCC	00426ae0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	52	+0xD0	00429fe0		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	53	+0xD4	0042a200		8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	54	+0xD8	00426ec0		0	0	unknown	low	
+cISC4MySim	cSC4MySim	00a85080	55	+0xDC	00425f20	cSC4MySim::GetCurrentScreenLocationXY	8	2	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	56	+0xE0	00424de0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	57	+0xE4	00426660		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	58	+0xE8	004272b0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	59	+0xEC	00429cb0		4	1	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	60	+0xF0	004275e0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	61	+0xF4	004275f0		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	62	+0xF8	00427410		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	63	+0xFC	00427440		0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	64	+0x100	00426a00		0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x18]
+cISC4MySim	cSC4MySim	00a85080	65	+0x104	00426a20		0	0	eax-or-void	medium	indirect-jump dword ptr [edx + 0x1c]
+cISC4MySim	cSC4MySim	00a85080	66	+0x108	00426a40		0	0	eax-or-void	medium	indirect-jump dword ptr [eax + 0x20]
+cISC4MySim	cSC4MySim	00a85080	67	+0x10C	00426830	cSC4MySim::CreateDispatchTool	0	0	eax-or-void	medium	
+cISC4MySim	cSC4MySim	00a85080	68	+0x110	00429830	cSC4MySim::ActivateLuaContext	0	0	eax-or-void	medium	
