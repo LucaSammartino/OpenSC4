@@ -187,6 +187,12 @@ pub(crate) struct Inner {
     pub(crate) s: PowerState,
     pub(crate) grid: Option<G>,
     pub(crate) crt: CrtRand,
+    /// The recompute report (tooling): switched on by the host; the cycle
+    /// being collected and the last complete one.
+    pub(crate) report_on: bool,
+    pub(crate) report_cycles: u32,
+    pub(crate) report: Option<super::Report>,
+    pub(crate) last_report: Option<super::Report>,
 }
 
 /// The working context of one call: the host and the state taken out of
@@ -416,7 +422,24 @@ impl Cx<'_> {
             // as in step 3 (the original keeps null and crashes in state 1).
             self.create_department();
         }
+        self.fit_bitmaps();
         true
+    }
+
+    /// The four bitmaps addressed with the city's current cell counts
+    /// (§2.1: the original reads CellCountX at each use; a loaded bitmap
+    /// keeps its saved words). Nothing while the city reports no cells.
+    pub(crate) fn fit_bitmaps(&mut self) {
+        let (cx, cz) = self.cells();
+        if cx <= 0 || cz <= 0 {
+            return;
+        }
+        let s = &mut self.i.s;
+        for b in [&mut s.mark, &mut s.wire, &mut s.powered_current, &mut s.powered_next] {
+            if b.width() != cx || b.height() != cz {
+                b.set_size(cx, cz);
+            }
+        }
     }
 
     /// §4.1 step 3: create, name and set up the power department.
@@ -896,6 +919,22 @@ impl PowerSim {
     /// Replaces parts of the state (tests, hosts restoring state).
     pub fn update_state(&self, f: impl FnOnce(&mut PowerState)) {
         f(&mut self.inner.borrow_mut().s);
+    }
+
+    /// Switches the recompute report on or off (tooling; see
+    /// [`super::Report`]).
+    pub fn set_report(&self, on: bool) {
+        let mut i = self.inner.borrow_mut();
+        i.report_on = on;
+        if !on {
+            i.report = None;
+        }
+    }
+
+    /// The last complete recompute report, taken (None if no cycle completed
+    /// since the last call).
+    pub fn take_report(&self) -> Option<super::Report> {
+        self.inner.borrow_mut().last_report.take()
     }
 
     /// The subsystem's `rand()` generator.

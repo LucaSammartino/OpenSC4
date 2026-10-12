@@ -29,6 +29,9 @@
 //     (it terminates from its own thread).
 // `autotest_unpause = 1|2` makes the observer run the loaded city at that
 // speed, unpaused, so month-start code runs too.
+// `autotest_save_after_months = N` (the observer, FC4Observer.h): after N
+// month-ends the city is saved in place, then AutotestFinish (verdict as at
+// the deadline, TerminateProcess) - with or without autotest_seconds.
 #pragma once
 
 #include <cstdint>
@@ -45,6 +48,10 @@ void AutotestOnCityLoaded();
 // tick after a city load. Returns the speed (1 or 2) to unpause the city to
 // now, or 0 for nothing to do.
 int AutotestOnTick();
+// Ends a run that finished its own task (the save autotest, main thread):
+// the verdict as at the deadline (unless one was written), then
+// TerminateProcess like every autotest ending.
+[[noreturn]] void AutotestFinish(const char* reason, const char* from);
 // A first-chance exception outside our image (vectored handler; lock-free,
 // never blocks).
 void AutotestOnForeignException();

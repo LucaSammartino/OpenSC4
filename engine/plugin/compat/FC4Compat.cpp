@@ -40,6 +40,12 @@ const ExecutableVersion kVersions[] = {
         0x0090CF54,  // STL node allocator: allocate (docs/abi/allocators.md)
         0x0090CF63,  // STL node allocator: free
         0x00A80810,  // cRZString vtable (docs/abi/allocators.md, Strings)
+        {
+            0x0064DA00,  // cSC4PowerPoleOccupant::RemoveConnection (docs/abi/direct-calls.md)
+            0x00648540,  // cSC4PipeOccupant::SetWateredState
+            0x006DF8C0,  // air dispatch source Init
+            0x006AC860,  // air dispatch source Shutdown
+        },
     },
 };
 
@@ -285,6 +291,29 @@ const void* GameStringVtable() {
         }
     }
     return state == 1 ? vtable : nullptr;
+}
+
+uintptr_t DirectCall(Direct which) {
+    static const char* const kNames[] = {"RemoveConnection", "SetWateredState", "air dispatch Init",
+                                         "air dispatch Shutdown"};
+    static_assert(sizeof(kNames) / sizeof(kNames[0]) == static_cast<unsigned>(Direct::Count), "one name per target");
+    static int state[static_cast<unsigned>(Direct::Count)] = {};  // 0 unknown, 1 available, -1 refused
+    static uintptr_t address[static_cast<unsigned>(Direct::Count)] = {};
+    const unsigned i = static_cast<unsigned>(which);
+    if (i >= static_cast<unsigned>(Direct::Count)) return 0;
+    if (state[i] == 0) {
+        state[i] = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: direct call %s NOT available (executable not identified)", kNames[i]);
+        } else if (v->directVA[i] == 0 || !CheckCode(kNames[i], v->directVA[i], v->imageBase)) {
+            Log("compat: direct call %s NOT available (address rejected)", kNames[i]);
+        } else {
+            address[i] = static_cast<uintptr_t>(v->directVA[i]);
+            state[i] = 1;
+        }
+    }
+    return state[i] == 1 ? address[i] : 0;
 }
 
 const ExecutableVersion* SupportedVersions(int* count) {

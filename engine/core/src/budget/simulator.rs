@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::{Rc, Weak};
 
 use crate::rng::{FixedSeeds, RzRandomSuper};
+use crate::x87::mul_i64_f32;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::items::{
@@ -459,9 +460,11 @@ impl BudgetSim {
                 .checked_sub(lot.lot_wealth)
                 .and_then(|i| tuning.waning_wealth.get(i as usize).copied())
                 .unwrap_or(1.0);
-            let assessed = ((land.wrapping_add(lot.building_value)) as f32 * tuning.occ_weight[t] * waning) as i64;
+            // §5.2 [compat]: left to right, one f32 rounding per product, the
+            // 64-bit integers entering exactly (Errata round 3, item 2).
+            let assessed = (mul_i64_f32(land.wrapping_add(lot.building_value), waning) * tuning.occ_weight[t]) as i64;
             weighted[t] = weighted[t].wrapping_add(assessed);
-            let lot_tax = rates[t] * mult * assessed as f32 * INV_1200;
+            let lot_tax = mul_i64_f32(assessed, mult) * rates[t] * INV_1200;
             group_tax[t] += lot_tax;
             total += lot_tax;
         };
@@ -739,7 +742,8 @@ impl BudgetSim {
             return 0;
         };
         let mult = BudgetTuning::by_difficulty(&d.tuning.difficulty_tax_multiplier, diff);
-        (mult * g.rate * g.weighted_assessed as f32 * INV_1200) as i64
+        // §6 [compat]: float(assessed) × multiplier × rate × INV1200, left to right.
+        (mul_i64_f32(g.weighted_assessed, mult) * g.rate * INV_1200) as i64
     }
 
     pub fn set_total_monthly_expense(&self, v: i64) -> i64 {

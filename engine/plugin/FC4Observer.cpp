@@ -15,8 +15,10 @@
 
 #include "FC4Autoload.h"
 #include "FC4Autotest.h"
+#include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Subsystems.h"
@@ -33,6 +35,7 @@
 #include "cIGZSystemService.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4DepartmentBudget.h"
 #include "cISC4Demand.h"
 #include "cISC4DemandSimulator.h"
 #include "cISC4ResidentialSimulator.h"
@@ -43,6 +46,7 @@
 #endif
 #include <windows.h>
 
+#include <algorithm>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -183,6 +187,238 @@ void WriteDigest(int32_t julian) {
     Log("%s%s", c.line, clean ? "" : " [INCOMPLETE: structured exception while reading]");
 }
 
+// ---- observe: the monthly line and the save/load snapshot ------------------------------------------
+// Read only through FC4's interface declarations, at slots checked against
+// docs/abi/interfaces.tsv (cISC4App: docs/abi/vtables.tsv, cSC4App::vftable_3;
+// it is not in interfaces.tsv):
+//   budget 6 GetTotalFunds, 14 GetTotalMonthlyExpense, 16 GetTotalMonthlyIncome,
+//     18 GetTaxIncome(int32) (return channel "edx:eax?", low confidence),
+//     29 GetAllGroups, 31 GetDepartmentBudgetsInGroup;
+//   department budget 3 GetDepartmentID, 10 GetFundingPercentage, 15 GetTotalExpenses;
+//   demand simulator 6 GetDemand; demand 8 QuerySupplyValue, 9 QueryDemandValue;
+//   residential simulator 16 GetPopulation; simulator 8 GetSimDateNumber;
+//   app 16 SaveCity(bool) (pop 4; slot 15 is SaveCity(path, bool)).
+// Nothing unverified is called. Not read: the names of the tax types (the
+// line gives GetTaxIncome(0..11) by index), and a per-department "monthly"
+// expense other than GetTotalExpenses. [choice]
+
+constexpr int32_t kTaxTypes = 12;  // GetTaxIncome(type), types 0..11
+
+cISC4App* g_testApp = nullptr;  // test seam
+
+// The application: a counted reference (released at scope end), or the
+// test's fake (borrowed).
+struct AppRef {
+    cISC4App* app = nullptr;
+    bool counted = false;
+    AppRef() {
+        if (g_testApp != nullptr) {
+            app = g_testApp;
+            return;
+        }
+        cIGZFrameWork* fw = RZGetFrameWork();
+        cIGZApp* a = fw ? fw->Application() : nullptr;
+        cISC4App* sc4 = nullptr;
+        if (a != nullptr && a->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
+            app = sc4;
+            counted = true;
+        }
+    }
+    ~AppRef() {
+        if (counted) app->Release();
+    }
+    AppRef(const AppRef&) = delete;
+    AppRef& operator=(const AppRef&) = delete;
+};
+
+struct DeptRow {
+    uint32_t id;
+    int64_t expense;
+    float funding;
+    bool haveFunding;
+};
+constexpr size_t kMaxDepts = 96;
+struct Depts {
+    DeptRow rows[kMaxDepts];
+    size_t count;
+    bool listed;     // false: no budget, no game allocator, or GetAllGroups failed
+    bool truncated;  // more than kMaxDepts
+};
+
+// Every department of every budget group, deduplicated by ID and sorted.
+// [abi] GetAllGroups / GetDepartmentBudgetsInGroup fill B vectors
+// (allocators.md table (2)); the departments come with one reference each,
+// released here. Without the game's allocator (unknown executable, tests)
+// nothing is listed.
+void ReadDepartments(cFC4ISC4BudgetSimulator* budget, Depts& out) {
+    out.count = 0;
+    out.listed = false;
+    out.truncated = false;
+    if (budget == nullptr || !StlNodeAllocator::Available()) return;
+    GameVector<GameBudgetGroupInfo> groups;
+    if (!budget->GetAllGroups(groups)) return;
+    out.listed = true;
+    for (GameBudgetGroupInfo& g : groups) {
+        GameVector<cISC4DepartmentBudget*> depts;
+        if (!budget->GetDepartmentBudgetsInGroup(g.groupID, depts)) continue;
+        for (cISC4DepartmentBudget* raw : depts) {
+            if (raw == nullptr) continue;
+            cFC4ISC4DepartmentBudget* d = AsGame(raw);
+            const uint32_t id = d->GetDepartmentID();
+            bool seen = false;
+            for (size_t i = 0; i < out.count && !seen; ++i) seen = out.rows[i].id == id;
+            if (!seen && out.count < kMaxDepts) {
+                DeptRow& r = out.rows[out.count++];
+                r.id = id;
+                r.expense = d->GetTotalExpenses();
+                const SC4Percentage* pct = d->GetFundingPercentage();
+                r.haveFunding = pct != nullptr;
+                r.funding = pct != nullptr ? pct->percentage : 0.0f;
+            } else if (!seen) {
+                out.truncated = true;
+            }
+            raw->Release();
+        }
+    }
+    std::sort(out.rows, out.rows + out.count, [](const DeptRow& a, const DeptRow& b) { return a.id < b.id; });
+}
+
+void AppendDepts(char* out, size_t cap, const char* key, const Depts& depts, bool funding) {
+    AppendF(out, cap, " %s=", key);
+    if (!depts.listed) {
+        AppendF(out, cap, "-");
+    } else if (depts.count == 0) {
+        AppendF(out, cap, "none");
+    }
+    for (size_t i = 0; i < depts.count; ++i) {
+        const DeptRow& r = depts.rows[i];
+        if (!funding) {
+            AppendF(out, cap, "%s0x%08X:%lld", i ? "," : "", r.id, static_cast<long long>(r.expense));
+        } else if (r.haveFunding) {
+            AppendF(out, cap, "%s0x%08X:%.4f", i ? "," : "", r.id, static_cast<double>(r.funding));
+        } else {
+            AppendF(out, cap, "%s0x%08X:-", i ? "," : "", r.id);
+        }
+    }
+    if (depts.truncated) AppendF(out, cap, ",...");
+}
+
+struct ObserveCall {
+    int32_t julian;
+    const char* when;  // snapshot only
+    char line[3000];
+    Depts depts;
+};
+
+// observe month YYYY-MM: date=… julian=… funds=… income=… expense=…
+// tax[0..11]=… dept_expense=0xID:…,… demand R$/…/I-HT=… population R/C/I=…
+void ObserveMonthStep(void* p) {
+    auto* c = static_cast<ObserveCall*>(p);
+    char* out = c->line;
+    const size_t cap = sizeof(c->line);
+    fc4_date d{};
+    fc4_date_from_julian(c->julian, &d);
+    _snprintf_s(out, cap, _TRUNCATE, "observe month %04d-%02d: date=%04d-%02d-%02d julian=%d", d.year, d.month, d.year,
+                d.month, d.day_of_month, c->julian);
+    cISC4City* city = CurrentCity();
+    if (city == nullptr) {
+        AppendF(out, cap, " no city");
+        return;
+    }
+    cFC4ISC4BudgetSimulator* budget = AsGame(city->GetBudgetSimulator());
+    if (budget != nullptr) {
+        AppendF(out, cap, " funds=%lld income=%lld expense=%lld tax[0..%d]=",
+                static_cast<long long>(budget->GetTotalFunds()), static_cast<long long>(budget->GetTotalMonthlyIncome()),
+                static_cast<long long>(budget->GetTotalMonthlyExpense()), kTaxTypes - 1);
+        for (int32_t t = 0; t < kTaxTypes; ++t) {
+            AppendF(out, cap, "%s%lld", t ? "/" : "", static_cast<long long>(budget->GetTaxIncomeOfType(t)));
+        }
+    } else {
+        AppendF(out, cap, " funds=- income=- expense=- tax[0..%d]=-", kTaxTypes - 1);
+    }
+    ReadDepartments(budget, c->depts);
+    AppendDepts(out, cap, "dept_expense", c->depts, false);
+
+    cFC4ISC4DemandSimulator* demandSim = AsGame(city->GetDemandSimulator());
+    AppendF(out, cap, " demand ");
+    for (size_t i = 0; i < kDemandCount; ++i) AppendF(out, cap, "%s%s", i ? "/" : "", kDemands[i].name);
+    AppendF(out, cap, "=");
+    for (size_t i = 0; i < kDemandCount; ++i) {
+        cFC4ISC4Demand* dm = demandSim ? AsGame(demandSim->GetDemand(kDemands[i].id, 0)) : nullptr;  // borrowed
+        if (dm != nullptr) {
+            AppendF(out, cap, "%s%.1f", i ? "/" : "", static_cast<double>(dm->QueryDemandValue()));
+        } else {
+            AppendF(out, cap, "%s-", i ? "/" : "");
+        }
+    }
+    cFC4ISC4ResidentialSimulator* res = AsGame(city->GetResidentialSimulator());
+    if (res != nullptr) {
+        AppendF(out, cap, " population R/C/I=%ld", static_cast<long>(res->GetPopulation()));
+    } else {
+        AppendF(out, cap, " population R/C/I=-");
+    }
+    for (uint32_t census : {0x3001u, 0x4001u}) {
+        cFC4ISC4Demand* dm = demandSim ? AsGame(demandSim->GetDemand(census, 0)) : nullptr;  // borrowed
+        if (dm != nullptr) {
+            AppendF(out, cap, "/%.0f", static_cast<double>(dm->QuerySupplyValue()));
+        } else {
+            AppendF(out, cap, "/-");
+        }
+    }
+}
+
+// observe snapshot (<when>): date=… julian=… funds=… fundings=0xID:pct,…
+// (pct = SC4Percentage::percentage as stored; the date from the simulator).
+void SnapshotStep(void* p) {
+    auto* c = static_cast<ObserveCall*>(p);
+    char* out = c->line;
+    const size_t cap = sizeof(c->line);
+    _snprintf_s(out, cap, _TRUNCATE, "observe snapshot (%s):", c->when);
+    cISC4City* city = CurrentCity();
+    if (city == nullptr) {
+        AppendF(out, cap, " no city");
+        return;
+    }
+    cFC4ISC4Simulator* sim = AsGame(city->GetSimulator());
+    if (sim != nullptr) {
+        const int32_t j = sim->GetSimDateNumber();
+        fc4_date d{};
+        fc4_date_from_julian(j, &d);
+        AppendF(out, cap, " date=%04d-%02d-%02d julian=%d", d.year, d.month, d.day_of_month, j);
+    } else {
+        AppendF(out, cap, " date=- julian=-");
+    }
+    cFC4ISC4BudgetSimulator* budget = AsGame(city->GetBudgetSimulator());
+    if (budget != nullptr) {
+        AppendF(out, cap, " funds=%lld", static_cast<long long>(budget->GetTotalFunds()));
+    } else {
+        AppendF(out, cap, " funds=-");
+    }
+    ReadDepartments(budget, c->depts);
+    AppendDepts(out, cap, "fundings", c->depts, true);
+}
+
+// Main thread only (the record is static: the department table is large).
+void WriteObserve(void (*step)(void*), const char* what, int32_t julian, const char* when) {
+    static ObserveCall c;
+    c.julian = julian;
+    c.when = when;
+    c.line[0] = '\0';
+    const bool clean = SehGuard(what, step, &c);
+    Log("%s%s", c.line, clean ? "" : " [INCOMPLETE: structured exception while reading]");
+}
+
+struct SaveCall {
+    cISC4App* app;
+    bool fast;
+    bool result;
+};
+
+void SaveStep(void* p) {
+    auto* c = static_cast<SaveCall*>(p);
+    c->result = c->app->SaveCity(c->fast);  // the SDK's SaveCity(bool) compiles to slot 16 (pop 4), as the game's
+}
+
 // ---- the observer object ----------------------------------------------------------------------------
 
 class cFC4Observer final : public cIGZSystemService, public cIGZMessageTarget2 {
@@ -222,6 +458,15 @@ public:
     bool OnTick(uint32_t) override {
         WatchdogStart();  // once; this is the main thread
         NoteFrameworkTick();
+        FpuTick();
+        if (loadSnapshotDue_) {
+            loadSnapshotDue_ = false;
+            WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
+        }
+        if (saveDue_) {
+            saveDue_ = false;
+            SaveAndEnd();  // does not return
+        }
         AutoloadOnTick();
         const int speed = AutotestOnTick();
         if (speed != 0) Unpause(speed);
@@ -236,9 +481,14 @@ public:
         switch (msg->GetType()) {
             case kMsgPostCityInit:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");
+                FpuLog("city load (PostCityInit)");
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
+                // The snapshot at the next tick (outside the city's init
+                // message), for comparison with the one before a save.
+                loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
+                monthsSinceLoad_ = 0;
                 break;
             case kMsgSimNewDay: {
                 bool ok = false;
@@ -250,7 +500,20 @@ public:
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
-                if (digest_) WriteDigest(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
+                const int32_t julian = ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian());
+                if (digest_) WriteDigest(julian);
+                if (observe_) {
+                    WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
+                    FpuLog("observe month");
+                }
+                ++monthsSinceLoad_;
+                if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
+                    // [choice] Saved at the next framework tick, not inside the
+                    // simulator's month-change message.
+                    saveStarted_ = true;
+                    saveDue_ = true;
+                    Log("autotest: %ld month-end(s) since the city load; saving at the next tick", monthsSinceLoad_);
+                }
                 break;
             }
             default:
@@ -259,9 +522,26 @@ public:
         return true;
     }
 
+    // The settings (game start, before the observer starts; tests have no
+    // framework, so they never start it but use these).
+    void Reload() {
+        settingsRead_ = true;
+        digest_ = SettingInt("digest", "FC4_DIGEST", 1) != 0;
+        observe_ = SettingInt("observe", "FC4_OBSERVE", kCheckedBuild ? 1 : 0) != 0;
+        saveAfterMonths_ = SettingInt("autotest_save_after_months", "FC4_AUTOTEST_SAVE_AFTER_MONTHS", 0);
+        if (saveAfterMonths_ < 0) saveAfterMonths_ = 0;
+        saveFast_ = SettingInt("autotest_save_fast", "FC4_AUTOTEST_SAVE_FAST", 0) != 0;  // [choice] full save
+        Log("observer: digest %s, observe %s", digest_ ? "on" : "off (digest=0)", observe_ ? "on" : "off (observe=0)");
+        if (saveAfterMonths_ > 0) {
+            Log("autotest: save ON - after %ld month-end(s) of a loaded city: snapshot, SaveCity(%s) in place, "
+                "verdict, TerminateProcess",
+                saveAfterMonths_, saveFast_ ? "fast" : "full");
+        }
+    }
+
     bool Start() {
         if (started_) return true;
-        digest_ = SettingInt("digest", "FC4_DIGEST", 1) != 0;
+        if (!settingsRead_) Reload();
         cIGZFrameWork* fw = RZGetFrameWork();
         if (fw == nullptr) {
             Log("observer: no framework; not started");
@@ -280,9 +560,9 @@ public:
             notes = ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), id) && notes;
         }
         started_ = true;
-        Log("observer: started (service %d, tick %d, notifications %d; digest %s; %s mode)", service ? 1 : 0,
-            tick ? 1 : 0, notes ? 1 : 0, digest_ ? "on" : "off (digest=0)",
-            SimulatorReplaced() ? "replacement" : "passthrough");
+        Log("observer: started (service %d, tick %d, notifications %d; digest %s; observe %s; %s mode)",
+            service ? 1 : 0, tick ? 1 : 0, notes ? 1 : 0, digest_ ? "on" : "off (digest=0)",
+            observe_ ? "on" : "off (observe=0)", SimulatorReplaced() ? "replacement" : "passthrough");
         return true;
     }
 
@@ -325,11 +605,40 @@ private:
             sim->IsEmergencyPaused() ? 1 : 0);
     }
 
+    // The save autotest: snapshot, SaveCity in place, verdict, TerminateProcess.
+    [[noreturn]] void SaveAndEnd() {
+        WriteObserve(&SnapshotStep, "observe snapshot", 0, "before save");
+        char reason[160];
+        AppRef app;
+        if (app.app == nullptr) {
+            _snprintf_s(reason, sizeof(reason), _TRUNCATE, "save after %ld month(s) NOT done: no cISC4App",
+                        saveAfterMonths_);
+        } else {
+            SaveCall call{app.app, saveFast_, false};
+            Log("autotest: SaveCity(%s) ...", saveFast_ ? "fast" : "full");
+            const DWORD start = GetTickCount();
+            const bool clean = SehGuard("SaveCity", &SaveStep, &call);
+            _snprintf_s(reason, sizeof(reason), _TRUNCATE, "save after %ld month(s): SaveCity(%s) returned %d in %lu ms%s",
+                        saveAfterMonths_, saveFast_ ? "fast" : "full", call.result ? 1 : 0,
+                        static_cast<unsigned long>(GetTickCount() - start),
+                        clean ? "" : " [structured exception]");
+        }
+        AutotestFinish(reason, "observer (save autotest)");
+    }
+
     volatile LONG refs_ = 0;
     uint32_t serviceId_ = kObserverServiceID;
     bool running_ = true;
     bool started_ = false;
+    bool settingsRead_ = false;
     bool digest_ = true;
+    bool observe_ = false;
+    long saveAfterMonths_ = 0;  // autotest_save_after_months
+    bool saveFast_ = false;
+    long monthsSinceLoad_ = 0;
+    bool loadSnapshotDue_ = false;
+    bool saveStarted_ = false;
+    bool saveDue_ = false;
 };
 
 cFC4Observer& Observer() {
@@ -339,12 +648,17 @@ cFC4Observer& Observer() {
 
 }  // namespace
 
+void ObserverReload() { Observer().Reload(); }
 void ObserverStart() { Observer().Start(); }
 void ObserverStop() { Observer().Stop(); }
 
 void ObserverTestSetCity(cISC4City* city) {
     g_testCity = city;
     Log("test seam: observer city %p", static_cast<void*>(city));
+}
+void ObserverTestSetApp(cISC4App* app) {
+    g_testApp = app;
+    Log("test seam: observer app %p", static_cast<void*>(app));
 }
 void ObserverTestTick() { Observer().OnTick(0); }
 void ObserverTestMessage(uint32_t type, intptr_t data1) {

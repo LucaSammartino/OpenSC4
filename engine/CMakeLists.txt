@@ -142,7 +142,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Autotest.h
         plugin/FC4DiagLogic.h
         plugin/FC4Observer.cpp
+        plugin/FC4Fpu.cpp
         plugin/FC4Observer.h
+        plugin/FC4Fpu.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
@@ -168,6 +170,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Demand.h
         plugin/FC4CoreProps.cpp
         plugin/FC4CoreProps.h
+        plugin/FC4HostGrid.cpp
+        plugin/FC4HostGrid.h
+        plugin/cFC4Power.cpp
+        plugin/cFC4Power.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

@@ -26,6 +26,15 @@
 //   op 3  kFC4SeamObserverTick     the observer's OnTick.
 //   op 4  kFC4SeamObserverMessage  the observer's DoMessage with a standard
 //         message of type (uint32_t)a and data1 (intptr_t)b.
+//   op 5  kFC4SeamObserverApp      a = cISC4App* the observer's save autotest
+//         uses instead of the framework's application (null: back to it).
+//   op 6  kFC4SeamPowerBudgetPath  a = cISC4BudgetSimulator* (initialised):
+//         runs the power glue's department / line-item callbacks on it,
+//         including a department reference read back from a save; returns
+//         0, or the first failed step (logged).
+//   op 7  kFC4SeamFpuReference     a = null: the calling thread's x87 control
+//         word becomes the guard's reference (as PreAppInit does in the
+//         game); a != null: the per-tick check alone (FpuTick).
 #pragma once
 
 #include <cstdint>
@@ -37,6 +46,9 @@ enum : uint32_t {
     kFC4SeamObserverCity = 2,
     kFC4SeamObserverTick = 3,
     kFC4SeamObserverMessage = 4,
+    kFC4SeamObserverApp = 5,
+    kFC4SeamPowerBudgetPath = 6,
+    kFC4SeamFpuReference = 7,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
