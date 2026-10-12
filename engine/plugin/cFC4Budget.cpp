@@ -22,6 +22,7 @@
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
+#include "FC4GameContainers.h"
 #include "SC4String.h"
 #include "SC4Vector.h"
 #include "cIGZApp.h"
@@ -541,12 +542,11 @@ cISC4DepartmentBudget* cFC4BudgetSimulator::GetDepartmentBudgetByName(cIGZString
 namespace {
 void PushGroup(void* ctx, const fc4_budget_group* g, const uint8_t* name, size_t len, const uint32_t*) {
     auto* v = static_cast<SC4Vector<cISC4BudgetSimulator::BudgetGroupInfo>*>(ctx);
-    cISC4BudgetSimulator::BudgetGroupInfo info;
-    info.groupID = g->id;
-    info.groupName = SC4String(reinterpret_cast<const char*>(name), static_cast<uint32_t>(len));
-    info.totalExpense = g->total_expense;
-    info.totalIncome = g->total_income;
-    v->push_back(info);
+    // The element owns its name's buffer; the vector (the game) must be its
+    // only owner (FC4GameContainers.h). The SC4String temporary is moved
+    // from, so its destructor frees nothing.
+    fc4::PushOwned(*v, g->id, SC4String(reinterpret_cast<const char*>(name), static_cast<uint32_t>(len)),
+                   g->total_expense, g->total_income);
 }
 }  // namespace
 
@@ -646,7 +646,7 @@ void PushLoan(void* ctx, const fc4_loan_info* l) {
     info.totalLoanAmount = l->total_loan_amount;
     info.remainingPayment = l->remaining_payment;
     info.monthlyPayment = l->monthly_payment;
-    static_cast<SC4Vector<cISC4BudgetSimulator::LoanInfo>*>(ctx)->push_back(info);
+    fc4::PushTrivial(*static_cast<SC4Vector<cISC4BudgetSimulator::LoanInfo>*>(ctx), info);
 }
 
 cISC4BudgetSimulator::BudgetItem FromC(const fc4_budget_item& i) {
@@ -690,7 +690,7 @@ bool cFC4BudgetSimulator::GetBudgetItemInfo(cISCPropertyHolder* holder, SC4Vecto
     std::vector<fc4_budget_item> items;
     if (!fc4_budget_get_budget_item_info(core_, TokenOf(holder), &PushItem, &items)) return false;  // untouched
     out.clear();
-    for (const fc4_budget_item& i : items) out.push_back(FromC(i));
+    for (const fc4_budget_item& i : items) fc4::PushTrivial(out, FromC(i));
     return true;
 }
 
