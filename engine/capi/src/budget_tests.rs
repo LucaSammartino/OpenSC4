@@ -533,6 +533,15 @@ fn budget_through_the_abi() {
             100,
             "starts at the department's 50 %"
         );
+        // GetLocalFundingPercent's found / not-found cases (budget erratum).
+        let mut q = -1.0f32;
+        assert!(fc4_department_find_local_funding_percent(d, ht, 7, &mut q));
+        assert_eq!(q, fc4_department_get_local_funding_percent(d, ht, 7));
+        assert_eq!(q, 0.5, "AddLocallyFundedObject wrote the department's 50 %");
+        let mut untouched = -1.0f32;
+        assert!(!fc4_department_find_local_funding_percent(d, ht, 8, &mut untouched));
+        assert_eq!(untouched, -1.0);
+        assert!(!fc4_department_find_local_funding_percent(d, ht, 7, std::ptr::null_mut()));
 
         // A month: tax from one lot plus ordinance income; a bond.
         g.lots.borrow_mut().push(fc4_lot_info {

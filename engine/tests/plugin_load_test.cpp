@@ -26,6 +26,9 @@
 #include "cISC4BudgetSimulator.h"
 #include "cISC4DepartmentBudget.h"
 #include "cISC4LineItem.h"
+#include "cISCPropertyHolder.h"
+#include "cRZBaseVariant.h"
+#include "cSCBaseProperty.h"
 #include "cISC4Simulator.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
@@ -38,6 +41,7 @@
 
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -75,6 +79,80 @@ int ForeignFault() {
     }
     return 0;
 }
+
+// A building's property holder with just what the budget reads and writes
+// (budget-item arrays). Both sides are compiled from the same SDK header, so
+// its overloads need no slot table here.
+class FakeHolder final : public cISCPropertyHolder {
+public:
+    ~FakeHolder() { RemoveAllProperties(); }
+    bool QueryInterface(uint32_t riid, void** pp) override {
+        if (riid != GZIID_cISCPropertyHolder && riid != GZIID_cIGZUnknown) return false;
+        *pp = this;
+        AddRef();
+        return true;
+    }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return --refs; }  // stack object: never deleted
+
+    bool HasProperty(uint32_t id) const override { return props.count(id) != 0; }
+    bool GetPropertyList(cIGZUnknownList**) const override { return false; }
+    cISCProperty* GetProperty(uint32_t id) const override {
+        auto it = props.find(id);
+        return it == props.end() ? nullptr : it->second;
+    }
+    bool GetProperty(uint32_t, uint32_t&) const override { return false; }
+    bool GetProperty(uint32_t, cIGZString&) const override { return false; }
+    bool GetProperty(uint32_t, uint32_t, void**) const override { return false; }
+    bool GetProperty(uint32_t, void*, uint32_t&) const override { return false; }
+    bool AddProperty(cISCProperty*, bool) override { return false; }
+    bool AddProperty(uint32_t id, cIGZVariant const* v, bool) override {
+        RemoveProperty(id);
+        cSCBaseProperty* p = new cSCBaseProperty(id, v);  // deep copy
+        p->AddRef();
+        props[id] = p;
+        return true;
+    }
+    bool AddProperty(uint32_t, uint32_t, bool) override { return false; }
+    bool AddProperty(uint32_t, cIGZString const&) override { return false; }
+    bool AddProperty(uint32_t, int32_t, bool) override { return false; }
+    bool AddProperty(uint32_t, void*, uint32_t, bool) override { return false; }
+    bool CopyAddProperty(cISCProperty*, bool) override { return false; }
+    bool RemoveProperty(uint32_t id) override {
+        auto it = props.find(id);
+        if (it == props.end()) return false;
+        it->second->Release();
+        props.erase(it);
+        return true;
+    }
+    bool RemoveAllProperties() override {
+        for (auto& kv : props) kv.second->Release();
+        props.clear();
+        return true;
+    }
+    bool EnumProperties(FunctionPtr1, void*) const override { return false; }
+    bool EnumProperties(FunctionPtr2, FunctionPtr1) const override { return false; }
+    bool CompactProperties() override { return true; }
+
+    template <class T>
+    void Set(uint32_t id, T value) {
+        cRZBaseVariant v;
+        SetArray(v, &value);
+        AddProperty(id, &v, false);
+    }
+    float Get32f(uint32_t id) const {
+        const cISCProperty* p = GetProperty(id);
+        return p != nullptr ? p->GetPropertyValue()->RefFloat32()[0] : -1.0f;
+    }
+
+    uint32_t refs = 1;
+
+private:
+    static void SetArray(cRZBaseVariant& v, uint32_t* x) { v.RefUint32(x, 1); }
+    static void SetArray(cRZBaseVariant& v, int64_t* x) { v.RefSint64(x, 1); }
+    static void SetArray(cRZBaseVariant& v, float* x) { v.RefFloat32(x, 1); }
+    std::map<uint32_t, cSCBaseProperty*> props;
+};
 
 // A day agent that reports "not finished" for its first 150 calls.
 class SlowAgent final : public cIGZMessageTarget2 {
@@ -328,6 +406,44 @@ int main(int argc, char** argv) {
                 CHECK(budget->GetTotalBorrowed() == 10000);
                 CHECK(budget->GetTotalFunds() == 510100);
                 CHECK(budget->GetTotalMonthlyExpense() == 500u + static_cast<uint32_t>(budget->GetMonthlyPaymentForLoan(10000)));
+                {
+                    // Slot 26, GetLocalFundingPercent, returns a POINTER to a float
+                    // in EAX (budget erratum): the game dereferences it at once.
+                    FakeHolder holder;
+                    holder.Set<uint32_t>(0xEA54D283, 0x28F55A9F);  // department
+                    holder.Set<uint32_t>(0xEA54D284, 2);           // line item
+                    holder.Set<uint32_t>(0xEA54D285, 7);           // purpose
+                    holder.Set<int64_t>(0xEA54D286, 200);          // cost
+                    CHECK(dept->CreateLineItem(2, true) != nullptr);
+                    CHECK(dept->AddLocallyFundedObject(&holder, 7));
+                    CHECK(holder.refs == 2);
+                    const uint32_t h = reinterpret_cast<uint32_t>(static_cast<cISCPropertyHolder*>(&holder));
+                    using fc4test::CallSlot;
+                    const fc4test::SlotCall found = CallSlot(dept, 26, {h, 7});
+                    const fc4test::SlotCall otherPurpose = CallSlot(dept, 26, {h, 8});
+                    const fc4test::SlotCall noHolder = CallSlot(dept, 26, {0, 7});
+                    for (const fc4test::SlotCall* c : {&found, &otherPurpose, &noHolder}) {
+                        for (int i = 0; i < c->x87Pushed; ++i) fc4test::PopX87();
+                    }
+                    std::printf("department slot 26: found %08X (%d x87), not found %08X / %08X\n", found.eax,
+                                found.x87Pushed, otherPurpose.eax, noHolder.eax);
+                    CHECK(found.espDelta == 0 && otherPurpose.espDelta == 0 && noHolder.espDelta == 0);
+                    CHECK(found.x87Pushed == 0 && otherPurpose.x87Pushed == 0 && noHolder.x87Pushed == 0);
+                    CHECK(found.eax != 0 && otherPurpose.eax != 0 && noHolder.eax != 0);
+                    if (found.eax != 0) {
+                        // The item's local-funding fraction: property value / 100.
+                        const float q = reinterpret_cast<const float*>(found.eax)[0];
+                        CHECK(q == holder.Get32f(0xEA54D287) / 100.0f);
+                        CHECK(q == 0.5f);  // AddLocallyFundedObject wrote the department's 50 %
+                    }
+                    if (otherPurpose.eax != 0) CHECK(reinterpret_cast<const float*>(otherPurpose.eax)[0] == 0.0f);
+                    CHECK(noHolder.eax == otherPurpose.eax);  // the shared constant 0.0
+                    CHECK(found.eax != otherPurpose.eax);
+                    CHECK(dept->RemoveLocallyFundedObject(&holder, 7));
+                    CHECK(holder.refs == 1);
+                    const fc4test::SlotCall gone = CallSlot(dept, 26, {h, 7});
+                    CHECK(gone.eax == otherPurpose.eax && gone.espDelta == 0 && gone.x87Pushed == 0);
+                }
             }
             CHECK(budget->Shutdown());
             CHECK(fc4test::CallSlot(budget, 28, {0x28F55A9F}).eax == 0);

@@ -43,7 +43,7 @@ int g_hit = -1;
 struct Expect {
     int slot;
     int dwords;       // 32-bit stack arguments the game pushes
-    bool floatResult;  // returns in ST0 (popped by the test)
+    bool floatResult;  // returns in ST0 (checked, then popped); otherwise nothing may be left on the x87 stack
     const char* name;
 };
 
@@ -62,12 +62,10 @@ void Check(const char* iface, void* probe, const Expect (&table)[N]) {
             case 5: r = fc4test::CallSlot(probe, e.slot, {0, 0, 0, 0, 0}); break;
             default: break;
         }
-        if (e.floatResult) {
-            __asm fstp st(0)
-        }
-        if (g_hit != e.slot || r.espDelta != 0) {
-            std::fprintf(stderr, "%s slot %d (%s, %d dwords): ran slot %d's method, stack off by %d bytes\n", iface,
-                         e.slot, e.name, e.dwords, g_hit, r.espDelta);
+        for (int i = 0; i < r.x87Pushed; ++i) fc4test::PopX87();
+        if (g_hit != e.slot || r.espDelta != 0 || r.x87Pushed != (e.floatResult ? 1 : 0)) {
+            std::fprintf(stderr, "%s slot %d (%s, %d dwords): ran slot %d's method, stack off by %d bytes, %d x87 values\n",
+                         iface, e.slot, e.name, e.dwords, g_hit, r.espDelta, r.x87Pushed);
             ++g_failures;
         }
         ++checked;
@@ -219,9 +217,11 @@ const Expect kBudget[] = {
     {57, 1, false, "GetLineItemFromBudgetItem"}, {58, 2, false, "CopyBudgetItemProperties"},
 };
 
-// ---- cISC4DepartmentBudget (no overloads: SDK order, foundations §16) --------------------------------
+// ---- cISC4DepartmentBudget (no overloads: SDK order; slot 26 per the budget erratum) --------------------
 
-struct DepartmentProbe final : cISC4DepartmentBudget {
+const SC4Percentage kProbePct{0.25f};
+
+struct DepartmentProbe final : cFC4ISC4DepartmentBudget {
     bool QueryInterface(uint32_t, void**) override { return false; }
     uint32_t AddRef() override { return 1; }
     uint32_t Release() override { return 1; }
@@ -248,7 +248,10 @@ struct DepartmentProbe final : cISC4DepartmentBudget {
     P(23, bool, RemoveLocallyFundedObject, (cISCPropertyHolder*, uint32_t), )
     P(24, bool, SetLocalFundingPercent, (cISCPropertyHolder*, SC4Percentage*, uint32_t), )
     P(25, bool, SetLocalFullFunding, (cISCPropertyHolder*, int64_t, uint32_t), )
-    P(26, float, GetLocalFundingPercent, (cISCPropertyHolder*, uint32_t), )
+    SC4Percentage const* GetLocalFundingPercentPtr(cISCPropertyHolder*, uint32_t) override {
+        g_hit = 26;
+        return &kProbePct;
+    }
     P(27, int64_t, GetLocalFullFunding, (cISCPropertyHolder*, uint32_t), )
     P(28, bool, IsLocallyFundedObjectInDepartment, (cISCPropertyHolder*, uint32_t), )
     P(29, bool, RecalculateAllLineItemCurrentExpenses, (), )
@@ -268,7 +271,7 @@ const Expect kDepartment[] = {
     {18, 2, false, "CreateLineItemForBuildingType"}, {19, 1, false, "RemoveLineItem"}, {20, 1, false, "GetLineItem"},
     {21, 1, false, "GetAllLineItems"}, {22, 2, false, "AddLocallyFundedObject"},
     {23, 2, false, "RemoveLocallyFundedObject"}, {24, 3, false, "SetLocalFundingPercent"},
-    {25, 4, false, "SetLocalFullFunding"}, {26, 2, true, "GetLocalFundingPercent"},
+    {25, 4, false, "SetLocalFullFunding"}, {26, 2, false, "GetLocalFundingPercent (pointer)"},
     {27, 2, false, "GetLocalFullFunding"}, {28, 2, false, "IsLocallyFundedObjectInDepartment"},
     {29, 0, false, "RecalculateAllLineItemCurrentExpenses"}, {30, 0, false, "GetTotalSpending"},
     {31, 2, false, "SetTotalSpending"}, {32, 2, false, "GetLocallyFundedItemsByPurpose"},
@@ -318,7 +321,18 @@ int main() {
     LineProbe line;
     Check("cISC4Simulator", static_cast<cFC4ISC4Simulator*>(&sim), kSimulator);
     Check("cISC4BudgetSimulator", static_cast<cFC4ISC4BudgetSimulator*>(&budget), kBudget);
-    Check("cISC4DepartmentBudget", static_cast<cISC4DepartmentBudget*>(&dept), kDepartment);
+    Check("cISC4DepartmentBudget", static_cast<cFC4ISC4DepartmentBudget*>(&dept), kDepartment);
+    {
+        // Slot 26 returns the pointer in EAX, not a float in ST0 (budget erratum).
+        const fc4test::SlotCall r = fc4test::CallSlot(static_cast<cFC4ISC4DepartmentBudget*>(&dept), 26, {0, 0});
+        for (int i = 0; i < r.x87Pushed; ++i) fc4test::PopX87();
+        if (r.eax != reinterpret_cast<uint32_t>(&kProbePct) || r.x87Pushed != 0) {
+            std::fprintf(stderr, "cISC4DepartmentBudget slot 26: EAX %08X (want %p), %d x87 values\n", r.eax,
+                         static_cast<const void*>(&kProbePct), r.x87Pushed);
+            ++g_failures;
+        }
+    }
+    static_assert(sizeof(SC4Percentage) == sizeof(float), "slot 26 points to a 32-bit float");
     Check("cISC4LineItem", static_cast<cISC4LineItem*>(&line), kLineItem);
     if (g_failures == 0) std::printf("vtable layout test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;

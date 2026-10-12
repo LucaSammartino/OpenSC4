@@ -48,8 +48,9 @@ extern "C" {
  * 3 = adds fc4_sim_get_debug and fc4_sim_get_agent_info (diagnostics);
  * 4 = adds the limit-timer calibration (fc4_timer_source, spec §5.5);
  * 5 = adds host streams (fc4_ostream / fc4_istream / fc4_ref);
- * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item). */
-#define FC4_ABI_VERSION 6u
+ * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item);
+ * 7 = adds fc4_department_find_local_funding_percent (budget erratum). */
+#define FC4_ABI_VERSION 7u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -582,6 +583,9 @@ bool fc4_department_remove_locally_funded_object(fc4_department* d, uint64_t hol
 bool fc4_department_set_local_funding_percent(fc4_department* d, uint64_t holder, float q, uint32_t purpose);
 bool fc4_department_set_local_full_funding(fc4_department* d, uint64_t holder, int64_t cost, uint32_t purpose);
 float fc4_department_get_local_funding_percent(fc4_department* d, uint64_t holder, uint32_t purpose);
+/* True and *out = the item's local funding fraction if the object is registered and its budget item exists;
+ * false otherwise (*out untouched). */
+bool fc4_department_find_local_funding_percent(fc4_department* d, uint64_t holder, uint32_t purpose, float* out);
 int64_t fc4_department_get_local_full_funding(fc4_department* d, uint64_t holder, uint32_t purpose);
 bool fc4_department_is_locally_funded_object(fc4_department* d, uint64_t holder, uint32_t purpose);
 bool fc4_department_recalculate(fc4_department* d); /* RecalculateAllLineItemCurrentExpenses */

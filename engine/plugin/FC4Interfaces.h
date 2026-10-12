@@ -22,8 +22,10 @@
 // counting QueryInterface, AddRef and Release as slots 0-2.
 // tests/vtable_layout_test.cpp checks every slot against the spec tables.
 //
-// Use these types - never the SDK's cISC4Simulator / cISC4BudgetSimulator -
-// to call the game's objects or to implement ours.
+// Use these types - never the SDK's cISC4Simulator / cISC4BudgetSimulator /
+// cISC4DepartmentBudget - to call the game's objects or to implement ours.
+// Besides overload order, they also fix return types the SDK gets wrong
+// (cISC4DepartmentBudget slot 26).
 #pragma once
 
 #include "SC4Percentage.h"
@@ -39,6 +41,7 @@ class cISC4DepartmentBudget;
 class cISC4LineItem;
 class cISCPropertyHolder;
 class SC4String;
+template <typename T> class SC4List;
 template <typename T> class SC4Vector;
 
 // cISC4Simulator (IID 0x8695664E), 34 slots.
@@ -147,10 +150,59 @@ public:
     virtual bool CopyBudgetItemProperties(cISCPropertyHolder* src, cISCPropertyHolder* dst) = 0;  // 58
 };
 
+// cISC4DepartmentBudget (IID 0x223E2B67), 34 slots. No overloads; this
+// declaration exists because the SDK declares slot 26 with the wrong return
+// type (budget "Erratum: GetLocalFundingPercent returns a pointer").
+class cFC4ISC4DepartmentBudget : public cIGZUnknown {
+public:
+    virtual uint32_t GetDepartmentID() const = 0;             // 3
+    virtual bool GetDepartmentName(cIGZString& name) = 0;     // 4
+    virtual bool SetDepartmentName(uint32_t ltextGroupID, uint32_t ltextInstanceID) = 0;  // 5
+    virtual uint32_t GetBudgetGroup() const = 0;              // 6
+    virtual bool SetBudgetGroup(uint32_t budgetGroup) = 0;    // 7
+    virtual bool GetIsFixedFunding() const = 0;               // 8
+    virtual bool SetFixedFunding(bool value) = 0;             // 9
+    virtual SC4Percentage* GetFundingPercentage() const = 0;  // 10
+    virtual bool SetFundingPercentage(SC4Percentage const& percentage, uint32_t lineItem) = 0;  // 11
+    virtual SC4Percentage* GetMaxAllowedFundingPercentage() const = 0;  // 12
+    virtual bool SetMaxAllowedFundingPercentage(SC4Percentage const& percentage) = 0;  // 13
+    virtual int64_t GetIdealMonthlyFunding() const = 0;       // 14
+    virtual int64_t GetTotalExpenses() const = 0;             // 15
+    virtual int64_t GetTotalIncome() const = 0;               // 16
+    virtual cISC4LineItem* CreateLineItem(uint32_t lineNumber, bool isLocallyFunded) = 0;  // 17
+    virtual cISC4LineItem* CreateLineItemForBuildingType(uint32_t buildingIID, bool isLocallyFunded) = 0;  // 18
+    virtual bool RemoveLineItem(uint32_t lineNumber) = 0;     // 19
+    virtual cISC4LineItem* GetLineItem(uint32_t lineNumber) = 0;  // 20
+    virtual bool GetAllLineItems(SC4Vector<cISC4LineItem*>& destination) = 0;  // 21
+    virtual bool AddLocallyFundedObject(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 22
+    virtual bool RemoveLocallyFundedObject(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 23
+    virtual bool SetLocalFundingPercent(cISCPropertyHolder* holder, SC4Percentage* percentage,
+                                        uint32_t purpose) = 0;  // 24
+    virtual bool SetLocalFullFunding(cISCPropertyHolder* holder, int64_t cost, uint32_t purpose) = 0;  // 25
+    // 26: returns a POINTER in EAX (SDK: float). Never null.
+    virtual SC4Percentage const* GetLocalFundingPercentPtr(cISCPropertyHolder* holder, uint32_t purpose) = 0;
+    virtual int64_t GetLocalFullFunding(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 27
+    virtual bool IsLocallyFundedObjectInDepartment(cISCPropertyHolder* holder, uint32_t purpose) = 0;  // 28
+    virtual bool RecalculateAllLineItemCurrentExpenses() = 0;  // 29
+    virtual int64_t GetTotalSpending() const = 0;             // 30
+    virtual bool SetTotalSpending(int64_t value) = 0;         // 31
+    virtual bool GetLocallyFundedItemsByPurpose(uint32_t purpose, SC4List<cISCPropertyHolder*>& list) = 0;  // 32
+    virtual bool HasLocallyFundedItemsByPurpose(uint32_t purpose) = 0;  // 33
+};
+
 class cISC4Simulator;
 
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
 inline cFC4ISC4Simulator* AsGame(cISC4Simulator* p) { return reinterpret_cast<cFC4ISC4Simulator*>(p); }
+
+// Department budgets travel as the SDK's cISC4DepartmentBudget* (the type the
+// SDK's budget signatures and containers use). Both are single-inheritance
+// interfaces whose vtable is at offset 0, so the pointer is the same; only
+// the view of the slots differs. Never call slot 26 through the SDK type.
+inline cFC4ISC4DepartmentBudget* AsGame(cISC4DepartmentBudget* p) {
+    return reinterpret_cast<cFC4ISC4DepartmentBudget*>(p);
+}
+inline cISC4DepartmentBudget* AsSdk(cFC4ISC4DepartmentBudget* p) { return reinterpret_cast<cISC4DepartmentBudget*>(p); }
 }  // namespace fc4

@@ -1017,6 +1017,29 @@ dept_fn!(
     purpose: u32
 );
 dept_fn!(fc4_department_get_local_funding_percent, f32, 0.0, local_funding_percent, holder: u64, purpose: u32);
+
+/// `GetLocalFundingPercent` with the found/not-found distinction of the
+/// budget erratum: true and `*out` = the fraction if registered and the item
+/// exists; false (and `*out` untouched) otherwise.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_department_find_local_funding_percent(
+    d: *mut fc4_department,
+    holder: u64,
+    purpose: u32,
+    out: *mut f32,
+) -> bool {
+    if out.is_null() {
+        return false;
+    }
+    match with_dept(d, None, |x| x.find_local_funding_percent(holder, purpose)) {
+        Some(q) => {
+            // SAFETY: checked non-null; the caller passes a valid float.
+            unsafe { *out = q };
+            true
+        }
+        None => false,
+    }
+}
 dept_fn!(fc4_department_get_local_full_funding, i64, 0, local_full_funding, holder: u64, purpose: u32);
 dept_fn!(fc4_department_is_locally_funded_object, bool, false, is_locally_funded_object, holder: u64, purpose: u32);
 dept_fn!(
