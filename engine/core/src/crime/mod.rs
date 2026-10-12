@@ -33,9 +33,8 @@
 //!
 //! - Census (§6.1): a bucket outside 0..3 (with the 24-bit product of
 //!   foundations §18: EQ ≥ 200, EQ ≤ −50, NaN, ±∞) is ignored (spec
-//!   choice). The §6.1 text and test 2 still show the pre-§18 boundaries
-//!   (EQ 50 → 0); this module follows §18 (EQ 50 → 1, spec question). A wealth level whose population or EQ grid the
-//!   host does not supply contributes nothing.
+//!   choice); EQ 50 falls in bucket 1 (§6.1, test 2). A wealth level whose
+//!   population or EQ grid the host does not supply contributes nothing.
 //! - Economic factors (§6.2): the factor is 0 when `B = C` (spec choice). A
 //!   demand ID the host does not know (`GetDemand` null, not checked by the
 //!   original) is skipped.

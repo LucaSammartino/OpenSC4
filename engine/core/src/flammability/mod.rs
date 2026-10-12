@@ -49,9 +49,9 @@
 //! - Arithmetic follows foundations §18 (24-bit x87 precision, [compat]):
 //!   a product of an integer and a `float32` multiplier is the exact product
 //!   rounded once to `float32`, then `roundHE` rounds that to an integer,
-//!   ties to even (§15.5). This supersedes the older §6 sentence "compute
-//!   them in `f64` and round once" (spec question): e.g. `roundHE(50 ×
-//!   0.95f)` is 48 (the product rounds to 47.5), not 47. Results are clamped
+//!   ties to even (§6, §15.5): e.g. `roundHE(10 × 0.95f)` is 10 and
+//!   `roundHE(50 × 0.95f)` is 48 (the products round to 9.5 and 47.5).
+//!   Results are clamped
 //!   to 0..255 with NaN reading as 0, also in the daily refresh, which has no
 //!   lower clamp in the original (§14.6).
 //! - The occupant property `0x29244DB5` is read as the integer value of its

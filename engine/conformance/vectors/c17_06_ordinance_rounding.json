@@ -2,7 +2,7 @@
   "format": 1,
   "name": "crime_ordinance_rounding",
   "spec": ["crime 5", "crime 6.4", "crime 17.6", "foundations 18"],
-  "description": "Test 6. crimesToCommit = rhe(f32(crimes x ordinanceFactor)), the product rounded to float32 once (foundations 18) and then rounded half to even. Per foundations 18; crime.md test 6 text still shows the pre-18 values (10 -> 9, 50 -> 47). By hand: 10 x 0.95f (0.949999988079071) = 9.49999988 -> f32 9.5 -> rhe 10; 50 x 0.95f = 47.4999994 -> f32 47.5 -> 48; 15 x 1.2f = 18.0000007 -> 18.0 -> 18; 2 x 0.95f = 1.9 -> 2; 3 x 0.5 = 1.5 -> 2; 5 x 0.5 = 2.5 -> 2 (half to even). The crime count comes from a one-point crimes curve (constant k, foundations 4.3) with base 1. The factor is GetCumulativeFactor(0x28ED0380) read on OrdinanceUpdated (0xC2C09554); with no ordinance simulator the factor is left unchanged ([choice]).",
+  "description": "Test 6. crimesToCommit = rhe(f32(crimes x ordinanceFactor)), the product rounded to float32 once (foundations 18) and then rounded half to even. Matches crime.md test 6 (10 -> 10, 50 -> 48, 30 -> 28, 15 x 1.2f -> 18). By hand: 10 x 0.95f (0.949999988079071) = 9.49999988 -> f32 9.5 -> rhe 10; 50 x 0.95f = 47.4999994 -> f32 47.5 -> 48; 30 x 0.95f = 28.4999996 -> f32 28.5 -> 28 (tie to even); 15 x 1.2f = 18.0000007 -> 18.0 -> 18; 2 x 0.95f = 1.9 -> 2; 3 x 0.5 = 1.5 -> 2; 5 x 0.5 = 2.5 -> 2 (half to even). The crime count comes from a one-point crimes curve (constant k, foundations 4.3) with base 1. The factor is GetCumulativeFactor(0x28ED0380) read on OrdinanceUpdated (0xC2C09554); with no ordinance simulator the factor is left unchanged ([choice]).",
   "steps": [
     {"op": "crime_create"},
     {"op": "crime_init"},
@@ -21,6 +21,11 @@
     {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
     {"op": "crime_call", "method": "compute_crimes_to_commit"},
     {"op": "crime_expect", "state": {"crimes_to_commit": 48}},
+
+    {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAAA": {"f32": [0, 30]}}},
+    {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},
+    {"op": "crime_call", "method": "compute_crimes_to_commit"},
+    {"op": "crime_expect", "state": {"crimes_to_commit": 28}, "note": "30 x 0.95f = 28.4999996 -> f32 28.5 -> tie to even 28"},
 
     {"op": "crime_tuning", "shipped": true, "props": {"0x8A0CBAAA": {"f32": [0, 2]}}},
     {"op": "crime_message", "type": "ExemplarChanged", "data1": "0xE7E2C2DB", "data2": "0xC8E8F6C5"},

@@ -844,9 +844,6 @@ Aura events: `create_grid` (`type` i8/i16, `instance`, `size`), `base_aura` (`va
 
 ## Coverage (crime §17)
 
-Tests 2 and 6 follow foundations §18 (24-bit products); the crime.md text of §6.1, test 2 and test 6 still shows
-the pre-§18 values (see the vectors' descriptions).
-
 | §17 item | Vector |
 |---|---|
 | 1 decay | `c17_01_decay` |

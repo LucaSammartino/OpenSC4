@@ -40,8 +40,10 @@
 //!   operand (a counter, a capacity, a deal amount) enters that operation
 //!   unrounded (computed in `f64`, rounded once to `f32`), and so does the
 //!   `f64` `recycled` counter, whose sums are rounded to `f32` before being
-//!   stored back. The spec does not say whether its constants (`0.1`,
-//!   `0.01`, `1/32767`, `32767`) are `float` or `double` literals; they are
+//!   stored back. The effect strength (§4.10) and the prop share (§4.11)
+//!   multiply the average by the `float32` constant 1/32767 (one rounding;
+//!   not a division), as the spec now states. The spec does not say whether
+//!   `0.1`, `0.01` and `32767` are `float` or `double` literals; they are
 //!   taken as `float` (spec question). `trunc` saturates (Rust `as`; NaN →
 //!   0), then wraps to the field's width where the spec says "held as int16".
 //! - Arrays shorter than four elements (centre, outer, radii) read missing

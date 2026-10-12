@@ -7,7 +7,7 @@
 //! The visual effects and worst tracts (`UpdatePollutionVisualEffect`,
 //! §4.10).
 
-use super::simulator::{fdiv_ii, PollutionState, WorstTract, EFFECT_KINDS, G_RAD_SRC};
+use super::simulator::{fmul_i, PollutionState, WorstTract, EFFECT_KINDS, G_RAD_SRC};
 use super::{effect, PollutionSim};
 
 /// Strictly greater replaces the stored worst block.
@@ -54,7 +54,7 @@ impl PollutionSim {
                 };
                 let Some(idx) = idx else { continue };
                 for k in [effect::WATER, effect::AIR, effect::RADIATION, effect::GARBAGE] {
-                    let strength = t.effect_curves[k].eval(fdiv_ii(f64::from(avg[k]), 32767.0));
+                    let strength = t.effect_curves[k].eval(fmul_i(f64::from(avg[k]), 1.0f32 / 32767.0));
                     let shown = strength > effect::THRESHOLD && (k == effect::WATER || s.effects_visible);
                     let Some(slot) = s.effects[k].get_mut(idx) else {
                         continue;

@@ -8,6 +8,8 @@
     {"op": "flam_call", "method": "daily_value", "args": [150, 1.2, true, 1.1], "expect": 180},
     {"op": "flam_call", "method": "daily_value", "args": [220, 1.0, false, 1.25], "expect": 255},
     {"op": "flam_call", "method": "daily_value", "args": [100, 0.95, false, 1.25], "expect": 119},
+    {"op": "flam_call", "method": "daily_value", "args": [10, 0.95, true, 1.25], "expect": 10, "note": "6 example: 10 x 0.95f = 9.49999988 -> f32 9.5 -> roundHE 10"},
+    {"op": "flam_call", "method": "daily_value", "args": [50, 0.95, true, 1.25], "expect": 48, "note": "47.4999994 -> f32 47.5 -> 48"},
     {"op": "flam_call", "method": "daily_value", "args": [100, -2.0, true, 1.25], "expect": 0, "note": "[choice] clamped at 0 (14.6)"},
 
     {"op": "flam_env", "cells": [2, 2], "unwatered": [[0, 0], [1, 1]]},
