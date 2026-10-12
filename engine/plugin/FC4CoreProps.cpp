@@ -46,4 +46,12 @@ fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t co
     return p;
 }
 
+fc4_props* ToCoreAll(const cISCPropertyHolder* holder) {
+    if (holder == nullptr) return nullptr;
+    fc4_props* p = fc4_props_create();
+    if (p == nullptr) return nullptr;
+    for (uint32_t id : PropertyIds(holder)) CopyToCore(holder, id, p);
+    return p;
+}
+
 }  // namespace fc4::props

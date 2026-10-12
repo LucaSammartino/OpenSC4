@@ -51,8 +51,9 @@ extern "C" {
  * 6 = adds the budget (fc4_budget / fc4_department / fc4_line_item);
  * 7 = adds fc4_department_find_local_funding_percent (budget erratum);
  * 8 = adds the land value simulator (fc4_landvalue);
- * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather). */
-#define FC4_ABI_VERSION 9u
+ * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather);
+ * 10 = adds fc4_props_set_typed and the ordinances (fc4_ordinance_sim / fc4_ordinance). */
+#define FC4_ABI_VERSION 10u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -734,6 +735,12 @@ bool fc4_props_set_bools(fc4_props* p, uint32_t id, const bool* values, size_t c
 /* A string property (bytes, no terminator). */
 bool fc4_props_set_string(fc4_props* p, uint32_t id, const uint8_t* bytes, size_t len);
 size_t fc4_props_count(const fc4_props* p);
+/* Set property `id` exactly as a game variant holds it: mem_type = the
+ * cIGZVariant type without the array bit (0x01 bool .. 0x0E RZChar); data =
+ * `count` elements in that type's layout (bool: 1 byte). A scalar
+ * (is_array false) needs count 1. False for other types or a bad count. */
+bool fc4_props_set_typed(fc4_props* p, uint32_t id, uint16_t mem_type, bool is_array, const void* data,
+                         size_t count);
 
 /* ---- weather (docs/specs/weather.md) ------------------------------------------
  * The weather simulator's core. The shim owns the GZCOM object (agents,
@@ -808,6 +815,167 @@ bool fc4_weather_get_state(const fc4_weather* w, fc4_weather_state* out);
 bool fc4_weather_write(const fc4_weather* w, const fc4_ostream* out);
 bool fc4_weather_read(fc4_weather* w, const fc4_istream* in);
 
+/* ---- ordinances (docs/specs/ordinance.md) --------------------------------------
+ * The ordinance simulator and the standard ordinance classes (§3.6). The shim
+ * owns the GZCOM objects: the simulator (agent, messages) and one object per
+ * ordinance, each owning an fc4_ordinance. Ordinance tokens are
+ * cISC4Ordinance*; the simulator's token is its IGZUnknown. Foreign
+ * cISC4Ordinance objects (DLL plugins) are called back through ordinance_call,
+ * ordinance_text and ordinance_misc_property. */
+typedef struct fc4_ordinance_sim fc4_ordinance_sim;
+typedef struct fc4_ordinance fc4_ordinance;
+
+/* cISC4Ordinance operations (fc4_ordinance_call, the host's ordinance_call),
+ * in slot order without GetName / GetDescription / GetMiscProperties.
+ * Booleans are 0 / 1; CHANCE_AVAILABILITY and MONTHLY_INCOME_FACTOR return
+ * the float's bits; SET_* / FORCE_* take the value in `arg`. */
+enum {
+    FC4_ORD_INIT = 0,
+    FC4_ORD_SHUTDOWN = 1,
+    FC4_ORD_CURRENT_MONTHLY_INCOME = 2,
+    FC4_ORD_ID = 3,
+    FC4_ORD_YEAR_FIRST_AVAILABLE = 4,
+    FC4_ORD_CHANCE_AVAILABILITY = 5,
+    FC4_ORD_ENACTMENT_INCOME = 6,
+    FC4_ORD_RETRACMENT_INCOME = 7,
+    FC4_ORD_MONTHLY_CONSTANT_INCOME = 8,
+    FC4_ORD_MONTHLY_INCOME_FACTOR = 9,
+    FC4_ORD_ADVISOR_ID = 10,
+    FC4_ORD_IS_AVAILABLE = 11,
+    FC4_ORD_IS_ON = 12,
+    FC4_ORD_IS_ENABLED = 13,
+    FC4_ORD_MONTHLY_ADJUSTED_INCOME = 14,
+    FC4_ORD_CHECK_CONDITIONS = 15,
+    FC4_ORD_IS_INCOME_ORDINANCE = 16,
+    FC4_ORD_SIMULATE = 17,
+    FC4_ORD_SET_AVAILABLE = 18,
+    FC4_ORD_SET_ON = 19,
+    FC4_ORD_SET_ENABLED = 20,
+    FC4_ORD_FORCE_AVAILABLE = 21,
+    FC4_ORD_FORCE_ON = 22,
+    FC4_ORD_FORCE_MONTHLY_ADJUSTED_INCOME = 23
+};
+
+typedef void (*fc4_key_visitor)(void* ctx, uint32_t type_id, uint32_t group, uint32_t instance);
+
+typedef struct fc4_ordinance_host {
+    uint32_t struct_size; /* sizeof(fc4_ordinance_host) */
+    void* user;
+    /* Resources (§8.1, §3.2). for_each_exemplar_key visits exemplar keys (the
+     * host may skip exemplars whose type property 0x10 is not 14; the core checks
+     * again). exemplar returns a NEW fc4_props with all of the exemplar's
+     * properties (the core destroys it), NULL if missing. ltext delivers a
+     * localized LTEXT string; false if not found. */
+    void (*for_each_exemplar_key)(void* user, fc4_key_visitor visit, void* ctx);
+    fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance);
+    bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
+    /* Objects. create_ordinance: a new standard ordinance of `class_id` with one
+     * reference owned by the core (its token in *token), NULL if none.
+     * foreign_ordinance: the cISC4Ordinance of an object read from a save
+     * (token = its IGZUnknown with one reference): on success returns the
+     * ordinance token, carrying one reference, and has dropped the input
+     * reference; 0 = not an ordinance (the input reference is untouched and the
+     * core releases it). */
+    fc4_ordinance* (*create_ordinance)(void* user, uint32_t class_id, uint64_t* token);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*foreign_ordinance)(void* user, uint64_t token);
+    int64_t (*ordinance_call)(void* user, uint64_t token, uint32_t op, int64_t arg);
+    /* which 0 = GetName, 1 = GetDescription. */
+    bool (*ordinance_text)(void* user, uint64_t token, uint32_t which, fc4_bytes_sink sink, void* ctx);
+    /* Copies property `prop` of GetMiscProperties() into `out`; false if absent. */
+    bool (*ordinance_misc_property)(void* user, uint64_t token, uint32_t prop, fc4_props* out);
+    /* Posts a message with void1 = the ordinance simulator (§7.1). */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2, uint32_t data3);
+    /* City (§3.4, §3.6). sim_year: false if there is no simulator; the expense
+     * lookups: false if the department / line item is missing. */
+    bool (*sim_year)(void* user, uint32_t* year);
+    int32_t (*residential_population)(void* user);
+    bool (*has_budget_simulator)(void* user);
+    bool (*department_total_expenses)(void* user, uint32_t dept, int64_t* out);
+    bool (*line_item_full_expenses)(void* user, uint32_t dept, uint32_t line, int64_t* out);
+    uint32_t (*landfill_capacity)(void* user);
+    int32_t (*power_plant_count)(void* user, int32_t power_type);
+    uint32_t (*police_station_count)(void* user);
+    /* The fraction behind GetRecyclingCenterEffect's pointer (§3.6). */
+    float (*recycling_center_effect)(void* user);
+    /* LegalizeGambling's SetOn(false) side effects (§3.6). */
+    void (*lots_with_building_type)(void* user, uint32_t building_type, fc4_token_callback cb, void* ctx);
+    void (*demolish_lots)(void* user, const uint64_t* lots, size_t count);
+    void (*hide_conditional_building)(void* user, uint32_t building_type);
+    void (*remove_view_input_control)(void* user, uint32_t control_id);
+} fc4_ordinance_host;
+
+typedef struct fc4_ordinance_sim_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded_from_save;
+    uint16_t pad;
+    uint32_t count; /* map entries */
+    uint32_t pad2;
+    int64_t monthly_expense, monthly_income, pending;
+} fc4_ordinance_sim_state;
+
+/* The simulator (§4). Host tables are copied; NULL if missing or too small. */
+fc4_ordinance_sim* fc4_ordinance_sim_create(const fc4_ordinance_host* host, uint64_t token);
+/* Releases every map entry (§8.2: ordinances live until the simulator dies). */
+void fc4_ordinance_sim_destroy(fc4_ordinance_sim* s);
+/* Init (§8.1, core part: loads the standard ordinances unless loaded from a
+ * save; after a load, re-keys the entries by GetID() [choice]) and Shutdown
+ * (§8.2, core part: the map is kept). */
+bool fc4_ordinance_sim_init(fc4_ordinance_sim* s);
+bool fc4_ordinance_sim_shutdown(fc4_ordinance_sim* s);
+/* AddOrdinance / RemoveOrdinance (§4.2): token = the cISC4Ordinance*, o = its
+ * fc4_ordinance when it is one of ours, NULL for a foreign one. */
+bool fc4_ordinance_sim_add(fc4_ordinance_sim* s, uint64_t token, const fc4_ordinance* o);
+bool fc4_ordinance_sim_remove(fc4_ordinance_sim* s, uint64_t token, const fc4_ordinance* o);
+/* which: 0 IsOrdinanceAvailable, 1 IsOrdinanceOn, 2 IsOrdinanceAvailableButOff,
+ * 3 IsOrdinanceEnabled. */
+bool fc4_ordinance_sim_query(const fc4_ordinance_sim* s, uint32_t which, uint32_t id);
+/* which: 0 SetOrdinanceAvailable (§4.3), 1 SetOrdinanceOn (§4.4), 2 SetOrdinanceEnabled. */
+bool fc4_ordinance_sim_set(fc4_ordinance_sim* s, uint32_t which, uint32_t id, bool value);
+/* which: 0 GetOrdinanceAvailableArray, 1 GetOrdinanceOnArray, 2 GetOrdinanceIDArray:
+ * IDs in key order while fewer than *n were written (out NULL = capacity 0);
+ * *n := the number written; returns the total. */
+uint32_t fc4_ordinance_sim_array(const fc4_ordinance_sim* s, uint32_t which, uint32_t* out, uint32_t* n);
+/* which: 0 GetOrdinanceAvailableCount, 1 GetOrdinanceOnCount. */
+uint32_t fc4_ordinance_sim_count(const fc4_ordinance_sim* s, uint32_t which);
+/* GetOrdinanceByID / ByName: the entry's token (no reference added), 0 if none. */
+uint64_t fc4_ordinance_sim_by_id(const fc4_ordinance_sim* s, uint32_t id);
+uint64_t fc4_ordinance_sim_by_name(const fc4_ordinance_sim* s, const uint8_t* name, size_t len);
+uint32_t fc4_ordinance_sim_id_by_name(const fc4_ordinance_sim* s, const uint8_t* name, size_t len);
+/* which: 0 GetOrdinanceMonthlyExpense, 1 GetOrdinanceMonthlyIncome. */
+int64_t fc4_ordinance_sim_money(const fc4_ordinance_sim* s, uint32_t which);
+/* §6.1: the offset is a 32-bit sum, sign-extended. */
+int64_t fc4_ordinance_sim_cumulative_offset(const fc4_ordinance_sim* s, uint32_t prop, uint32_t index);
+float fc4_ordinance_sim_cumulative_factor(const fc4_ordinance_sim* s, uint32_t prop, uint32_t index);
+/* DoMessage (§5): SimNewMonth, SimBegin. Always true. */
+bool fc4_ordinance_sim_handle_message(fc4_ordinance_sim* s, uint32_t msg_type);
+bool fc4_ordinance_sim_get_state(const fc4_ordinance_sim* s, fc4_ordinance_sim_state* out);
+/* Persistence (§9.1). Ordinances go out as references by token; on read, ours
+ * arrive with their core handle (fc4_ref.core_handle = the fc4_ordinance*),
+ * others with one reference offered to foreign_ordinance. */
+bool fc4_ordinance_sim_write(const fc4_ordinance_sim* s, const fc4_ostream* out);
+bool fc4_ordinance_sim_read(fc4_ordinance_sim* s, const fc4_istream* in);
+
+/* A standard ordinance (§3) of class `class_id` for the GZCOM object `token`;
+ * NULL for a class that is not one of §3.6. */
+fc4_ordinance* fc4_ordinance_create(const fc4_ordinance_host* host, uint32_t class_id, uint64_t token);
+void fc4_ordinance_destroy(fc4_ordinance* o);
+uint32_t fc4_ordinance_class_id(const fc4_ordinance* o);
+/* SetKey (§3.5, concrete class) and the key it holds (false if none). */
+void fc4_ordinance_set_key(fc4_ordinance* o, uint32_t type_id, uint32_t group, uint32_t instance);
+bool fc4_ordinance_get_key(const fc4_ordinance* o, uint32_t* type_id, uint32_t* group, uint32_t* instance);
+/* One cISC4Ordinance operation (FC4_ORD_*). */
+int64_t fc4_ordinance_call(fc4_ordinance* o, uint32_t op, int64_t arg);
+/* which 0 = GetName, 1 = GetDescription: the bytes go to `sink`. */
+bool fc4_ordinance_text(const fc4_ordinance* o, uint32_t which, fc4_bytes_sink sink, void* ctx);
+/* One property of GetMiscProperties() (own, then the parent exemplar), copied
+ * into `out`; false if absent. */
+bool fc4_ordinance_misc_property(const fc4_ordinance* o, uint32_t prop, fc4_props* out);
+/* Persistence (§9.2). Read accepts any version. */
+bool fc4_ordinance_write(const fc4_ordinance* o, const fc4_ostream* out);
+bool fc4_ordinance_read(fc4_ordinance* o, const fc4_istream* in);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -844,6 +1012,8 @@ static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc
 static_assert(sizeof(fc4_landvalue_tuning) == (sizeof(void*) == 4 ? 72 : 128), "fc4_landvalue_tuning layout");
 static_assert(sizeof(fc4_weather_state) == 56, "fc4_weather_state layout");
 static_assert(sizeof(fc4_weather_host) == (sizeof(void*) == 4 ? 56 : 112), "fc4_weather_host layout");
+static_assert(sizeof(fc4_ordinance_sim_state) == 40, "fc4_ordinance_sim_state layout");
+static_assert(sizeof(fc4_ordinance_host) == (sizeof(void*) == 4 ? 104 : 208), "fc4_ordinance_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

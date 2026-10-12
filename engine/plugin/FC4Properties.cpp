@@ -19,6 +19,7 @@
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "cFC4Variant.h"
+#include "fc4.h"
 
 #include "GZServPtrs.h"
 #include "cGZPersistResourceKey.h"
@@ -185,6 +186,79 @@ bool Copy(const cISCPropertyHolder* src, cISCPropertyHolder* dst, uint32_t id) {
     cFC4Variant copy;
     copy.CopyFromGame(*v);
     return Put(dst, id, copy);
+}
+
+// ---- copies into the core ----------------------------------------------------------------------
+
+namespace {
+
+void CollectId(cISCProperty* p, void* ctx) {
+    if (p != nullptr) static_cast<std::vector<uint32_t>*>(ctx)->push_back(p->GetPropertyID());  // slot 3
+}
+
+// One element type: an array through its Ref pointer, a scalar through GetVal.
+template <class T>
+bool Typed(fc4_props* out, uint32_t id, uint16_t base, bool isArray, uint32_t n, const T* ref, T scalar) {
+    if (isArray) return fc4_props_set_typed(out, id, base, true, n > 0 ? ref : nullptr, n);
+    return fc4_props_set_typed(out, id, base, false, &scalar, 1);
+}
+
+}  // namespace
+
+std::vector<uint32_t> PropertyIds(const cISCPropertyHolder* holder) {
+    std::vector<uint32_t> ids;
+    if (holder == nullptr) return ids;
+    if (!On(Sw::PropertyReads)) {
+        NoteSkipped(Sw::PropertyReads, "EnumProperties (none)");
+        return ids;
+    }
+    AsGame(holder)->EnumProperties(&CollectId, &ids);  // slot 20
+    return ids;
+}
+
+bool CopyToCore(const cISCPropertyHolder* holder, uint32_t id, fc4_props* out) {
+    const cFC4IGZVariant* v = ValueOf(holder, id);
+    if (v == nullptr || out == nullptr) return false;
+    const uint16_t type = v->GetType();
+    const bool a = (type & cIGZVariant::TypeArray) != 0;
+    const uint16_t base = static_cast<uint16_t>(type & ~cIGZVariant::TypeArray);
+    const uint32_t n = a ? v->GetCount() : 1;
+    switch (base) {
+        case cIGZVariant::Bool: {
+            // bool is one byte (MSVC), as fc4_props_set_typed expects.
+            static_assert(sizeof(bool) == 1, "bool layout");
+            return Typed<bool>(out, id, base, a, n, a ? v->RefBool() : nullptr, a ? false : v->GetValBool());
+        }
+        case cIGZVariant::Uint8:
+            return Typed<uint8_t>(out, id, base, a, n, a ? v->RefUint8() : nullptr, a ? 0 : v->GetValUint8());
+        case cIGZVariant::Sint8:
+            return Typed<int8_t>(out, id, base, a, n, a ? v->RefSint8() : nullptr, a ? 0 : v->GetValSint8());
+        case cIGZVariant::Uint16:
+            return Typed<uint16_t>(out, id, base, a, n, a ? v->RefUint16() : nullptr, a ? 0 : v->GetValUint16());
+        case cIGZVariant::Sint16:
+            return Typed<int16_t>(out, id, base, a, n, a ? v->RefSint16() : nullptr, a ? 0 : v->GetValSint16());
+        case cIGZVariant::Uint32:
+            return Typed<uint32_t>(out, id, base, a, n, a ? v->RefUint32() : nullptr, a ? 0 : v->GetValUint32());
+        case cIGZVariant::Sint32:
+            return Typed<int32_t>(out, id, base, a, n, a ? v->RefSint32() : nullptr, a ? 0 : v->GetValSint32());
+        case cIGZVariant::Uint64:
+            return Typed<uint64_t>(out, id, base, a, n, a ? v->RefUint64() : nullptr, a ? 0 : v->GetValUint64());
+        case cIGZVariant::Sint64:
+            return Typed<int64_t>(out, id, base, a, n, a ? v->RefSint64() : nullptr, a ? 0 : v->GetValSint64());
+        case cIGZVariant::Float32:
+            return Typed<float>(out, id, base, a, n, a ? v->RefFloat32() : nullptr, a ? 0.0f : v->GetValFloat32());
+        case cIGZVariant::Float64:
+            return Typed<double>(out, id, base, a, n, a ? v->RefFloat64() : nullptr, a ? 0.0 : v->GetValFloat64());
+        case cIGZVariant::Char:
+            return Typed<char>(out, id, base, a, n, a ? v->RefChar() : nullptr, a ? '\0' : v->GetValChar());
+        case cIGZVariant::RZUnicodeChar:
+            return Typed<uint16_t>(out, id, base, a, n, a ? v->RefRZUnicodeChar() : nullptr,
+                                   a ? 0 : v->GetValRZUnicodeChar());
+        case cIGZVariant::RZChar:
+            return Typed<char>(out, id, base, a, n, a ? v->RefRZChar() : nullptr, a ? '\0' : v->GetValRZChar());
+        default:
+            return false;  // empty, pointers, objects: not kept by the core
+    }
 }
 
 }  // namespace props

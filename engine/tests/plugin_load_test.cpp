@@ -29,6 +29,8 @@
 #include "cISC4DepartmentBudget.h"
 #include "cISC4LandValueSimulator.h"
 #include "cISC4LineItem.h"
+#include "cISC4Ordinance.h"
+#include "cISC4OrdinanceSimulator.h"
 #include "cISCPropertyHolder.h"
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
@@ -79,6 +81,9 @@ constexpr uint32_t kCLSID_LandValue = 0xE990C18E;
 constexpr uint32_t kIID_cISC4LandValueSimulator = 0xE7781D8C;
 constexpr uint32_t kCLSID_Weather = 0x2990C1BC;
 constexpr uint32_t kIID_cISC4WeatherSimulator = 0xC6C66245;
+constexpr uint32_t kCLSID_OrdinanceSim = 0xA990C08E;
+constexpr uint32_t kIID_cISC4OrdinanceSimulator = 0x41193C3A;
+constexpr uint32_t kCLSID_FreeClinics = 0x40D07236;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -211,6 +216,60 @@ public:
         if (calls++ == 0) Sleep(6500);
         return true;
     }
+};
+
+// A DLL plugin's ordinance (ordinance §10.1): the simulator calls it through
+// the interface only.
+class FakeOrdinance final : public cFC4ISC4Ordinance {
+public:
+    uint32_t refs = 0;
+    bool available = true, on = false, enabled = true;
+    cRZBaseString name{"Fake Ordinance"};
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return ++refs; }
+    uint32_t Release() override { return refs > 0 ? --refs : 0; }
+    bool Init() override { return true; }
+    bool Shutdown() override { return true; }
+    int64_t GetCurrentMonthlyIncome() override { return -7; }
+    uint32_t GetID() const override { return 0x12345678; }
+    cIGZString* GetName() override { return &name; }
+    cIGZString* GetDescription() override { return &name; }
+    uint32_t GetYearFirstAvailable() override { return 0; }
+    uint32_t GetChanceAvailability() override { return 0; }
+    int64_t GetEnactmentIncome() override { return -10; }
+    int64_t GetRetracmentIncome() override { return -5; }
+    int64_t GetMonthlyConstantIncome() override { return -7; }
+    float GetMonthlyIncomeFactor() override { return 0.0f; }
+    uint32_t GetAdvisorID() override { return 0; }
+    cISCPropertyHolder* GetMiscProperties() override { return nullptr; }
+    bool IsAvailable() override { return available; }
+    bool IsOn() override { return available && on; }
+    bool IsEnabled() override { return enabled; }
+    int64_t GetMonthlyAdjustedIncome() override { return -7; }
+    bool CheckConditions() override { return enabled; }
+    bool IsIncomeOrdinance() override { return false; }
+    bool Simulate() override { return true; }
+    bool SetAvailable(bool v) override { return available = v, true; }
+    bool SetOn(bool v) override { return on = v, true; }
+    bool SetEnabled(bool v) override { return enabled = v, true; }
+    bool ForceAvailable(bool v) override { return SetAvailable(v); }
+    bool ForceOn(bool v) override { return SetOn(v); }
+    bool ForceMonthlyAdjustedIncome(int64_t) override { return true; }
+};
+
+// A message with only a type (the ordinance simulator reads nothing else, §5).
+class TypeMessage final : public cIGZMessage2 {
+public:
+    explicit TypeMessage(uint32_t t) : type(t) {}
+    uint32_t type;
+    bool QueryInterface(uint32_t, void**) override { return false; }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return type; }
+    void SetType(uint32_t t) override { type = t; }
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
 };
 
 size_t CountOf(const std::string& text, const std::string& what) {
@@ -675,6 +734,115 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
 
+    if (mode == "--ini-enable-ordinance") {
+        // The ordinance subsystem is off by default; `enable = ordinance`
+        // registers the simulator and the 21 ordinance classes.
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = ordinance\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            CHECK(classes.size() == 26);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_OrdinanceSim) == 1);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_FreeClinics) == 1);
+            CHECK(std::count(classes.begin(), classes.end(), 0x8BD4FC74u) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_OrdinanceSim, kIID_cISC4OrdinanceSimulator, &obj));
+            auto* sim = static_cast<cISC4OrdinanceSimulator*>(obj);
+            if (sim != nullptr) {
+                // ordinance §1: four interfaces.
+                void* p = nullptr;
+                CHECK(sim->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                auto* target = static_cast<cIGZMessageTarget2*>(p);
+                cIGZSerializable* ser = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_OrdinanceSim);
+                    ser->Release();
+                }
+                void* u = nullptr;
+                CHECK(sim->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(sim));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                CHECK(!sim->QueryInterface(GZIID_cISC4Ordinance, &u));
+                // Init without a city or GZCOM: no exemplars, so no standard ordinances.
+                CHECK(sim->Init());
+                CHECK(sim->Init());
+                uint32_t n = 0;
+                CHECK(sim->GetOrdinanceIDArray(nullptr, n) == 0 && n == 0);
+
+                // One of our ordinances, created through GZCOM (as the class store does).
+                void* o = nullptr;
+                CHECK(director->GetClassObject(kCLSID_FreeClinics, GZIID_cISC4Ordinance, &o));
+                cFC4ISC4Ordinance* ord = fc4::AsGame(static_cast<cISC4Ordinance*>(o));
+                if (ord != nullptr) {
+                    cIGZSerializable* os = nullptr;
+                    CHECK(ord->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&os)) && os);
+                    if (os) {
+                        CHECK(os->GetGZCLSID() == kCLSID_FreeClinics);
+                        os->Release();
+                    }
+                    CHECK(!ord->QueryInterface(0x8BD4FC74u, &u));  // [choice]
+                    // No exemplar: the zero ordinance (§3.1).
+                    CHECK(ord->GetID() == 0 && !ord->IsAvailable() && !ord->IsOn());
+                    CHECK(ord->GetChanceAvailability() == 0 && ord->GetEnactmentIncome() == 0);
+                    CHECK(ord->GetName() != nullptr && ord->GetName()->Strlen() == 0);
+                    CHECK(ord->GetMiscProperties() == nullptr);
+                    CHECK(sim->AddOrdinance(*fc4::AsSdk(ord)));
+                    CHECK(sim->GetOrdinanceIDArray(nullptr, n) == 1);
+                    CHECK(sim->GetOrdinanceByID(0) == fc4::AsSdk(ord));
+                    CHECK(ord->AddRef() == 3);  // ours, the map's, this one
+                    CHECK(ord->Release() == 2);
+                }
+
+                // A foreign (DLL plugin) ordinance, available when added (§4.2).
+                FakeOrdinance fake;
+                CHECK(sim->AddOrdinance(*fc4::AsSdk(&fake)));
+                CHECK(fake.refs == 1);
+                CHECK(sim->IsOrdinanceAvailable(0x12345678) && sim->IsOrdinanceAvailableButOff(0x12345678));
+                CHECK(sim->SetOrdinanceOn(0x12345678, true) && fake.on && sim->IsOrdinanceOn(0x12345678));
+                CHECK(sim->GetOrdinanceOnCount() == 1 && sim->GetOrdinanceAvailableCount() == 1);
+                uint32_t ids[4] = {};
+                n = 4;
+                CHECK(sim->GetOrdinanceIDArray(ids, n) == 2 && n == 2 && ids[0] == 0 && ids[1] == 0x12345678);
+                const cRZBaseString name("FAKE ordinance");
+                CHECK(sim->GetOrdinanceByName(name) == fc4::AsSdk(&fake));
+                CHECK(sim->GetOrdinanceIDByName(name) == 0x12345678);
+                CHECK(sim->GetCumulativeFactor(0x28ED0380, 0) == 1.0f && sim->GetCumulativeOffset(0xAA5B8407, 0) == 0);
+                // Month end (§5): the enactment (-10) and the fake's -7.
+                if (target != nullptr) {
+                    TypeMessage month(0x66956816);
+                    CHECK(target->DoMessage(&month));
+                    target->Release();
+                }
+                CHECK(sim->GetOrdinanceMonthlyExpense() == 17 && sim->GetOrdinanceMonthlyIncome() == 0);
+                CHECK(sim->RemoveOrdinance(*fc4::AsSdk(&fake)));
+                CHECK(fake.refs == 0 && !fake.on && !fake.available);
+                CHECK(sim->Release() == 0);  // Shutdown, destroy: the map lets go
+                if (ord != nullptr) CHECK(ord->Release() == 0);
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'ordinance': enabled (22 classes replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'weather': off by default") != std::string::npos);
+        CHECK(text.find("ordinance Init: ok=1") != std::string::npos);
+        CHECK(text.find("ordinance month: 2 ordinances (1 available, 1 on)") != std::string::npos);
+        CHECK(text.find("ordinance Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4OrdinanceSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
     if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
@@ -1117,6 +1285,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4LandValueSimulator(") == std::string::npos);
     CHECK(text.find("subsystem 'weather': off by default") != std::string::npos);
     CHECK(text.find("cFC4WeatherSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
+    CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);

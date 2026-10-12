@@ -640,8 +640,45 @@ public:
     virtual float GetWindAtCell(int32_t x, int32_t z, cS3DVector2& wind) = 0;     // 23
 };
 
+// cISC4Ordinance (IID 0xAA5E2247), 30 slots (ordinance spec "Compiled slot
+// tables": the SDK order). Implemented by cFC4Ordinance and called on foreign
+// ordinances (DLL plugins). One return channel differs from the SDK: slot 10
+// returns the SC4Percentage's f32 bits in EAX and pops nothing (docs/abi); the
+// SDK's by-value SC4Percentage would be a hidden result pointer under MSVC.
+class cFC4ISC4Ordinance : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                      // 3
+    virtual bool Shutdown() = 0;                                                  // 4
+    virtual int64_t GetCurrentMonthlyIncome() = 0;                                // 5
+    virtual uint32_t GetID() const = 0;                                           // 6
+    virtual cIGZString* GetName() = 0;                                            // 7
+    virtual cIGZString* GetDescription() = 0;                                     // 8
+    virtual uint32_t GetYearFirstAvailable() = 0;                                 // 9
+    virtual uint32_t GetChanceAvailability() = 0;                                 // 10  (SDK: SC4Percentage)
+    virtual int64_t GetEnactmentIncome() = 0;                                     // 11
+    virtual int64_t GetRetracmentIncome() = 0;                                    // 12
+    virtual int64_t GetMonthlyConstantIncome() = 0;                               // 13
+    virtual float GetMonthlyIncomeFactor() = 0;                                   // 14
+    virtual uint32_t GetAdvisorID() = 0;                                          // 15
+    virtual cISCPropertyHolder* GetMiscProperties() = 0;                          // 16
+    virtual bool IsAvailable() = 0;                                               // 17
+    virtual bool IsOn() = 0;                                                      // 18
+    virtual bool IsEnabled() = 0;                                                 // 19
+    virtual int64_t GetMonthlyAdjustedIncome() = 0;                               // 20
+    virtual bool CheckConditions() = 0;                                           // 21
+    virtual bool IsIncomeOrdinance() = 0;                                         // 22
+    virtual bool Simulate() = 0;                                                  // 23
+    virtual bool SetAvailable(bool isAvailable) = 0;                              // 24
+    virtual bool SetOn(bool isOn) = 0;                                            // 25
+    virtual bool SetEnabled(bool isEnabled) = 0;                                  // 26
+    virtual bool ForceAvailable(bool isAvailable) = 0;                            // 27
+    virtual bool ForceOn(bool isOn) = 0;                                          // 28
+    virtual bool ForceMonthlyAdjustedIncome(int64_t monthlyAdjustedIncome) = 0;   // 29
+};
+
 class cISC4Simulator;
 class cISC4BudgetSimulator;
+class cISC4Ordinance;
 
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
@@ -679,4 +716,8 @@ inline cFC4ISC4Lot* AsGame(cISC4Lot* p) { return reinterpret_cast<cFC4ISC4Lot*>(
 inline cFC4ISC4NeighborsSimulator* AsGame(cISC4NeighborsSimulator* p) {
     return reinterpret_cast<cFC4ISC4NeighborsSimulator*>(p);
 }
+// Ordinances travel as the SDK's cISC4Ordinance* (single inheritance, vtable
+// at offset 0); slot 10 is only ever called through cFC4ISC4Ordinance.
+inline cFC4ISC4Ordinance* AsGame(cISC4Ordinance* p) { return reinterpret_cast<cFC4ISC4Ordinance*>(p); }
+inline cISC4Ordinance* AsSdk(cFC4ISC4Ordinance* p) { return reinterpret_cast<cISC4Ordinance*>(p); }
 }  // namespace fc4

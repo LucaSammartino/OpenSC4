@@ -79,6 +79,15 @@ INTERFACES = [
     ("cISC4WeatherSimulator", "cFC4ISC4WeatherSimulator", FC4, True),
     ("vt:cSC4WeatherSimulator::vftable_3", "cIGZSerializable", "cIGZSerializable.h", True),
     ("vt:cSC4Region::vftable", "cISC4Region", "cISC4Region.h", True),
+    # Ordinances (docs/specs/ordinance.md): the simulator (cISC4OrdinanceSimulator
+    # above) and the ordinance objects are implemented; the city services the
+    # standard ordinances read (§3.6).
+    ("cISC4Ordinance", "cFC4ISC4Ordinance", FC4, True),
+    ("vt:cSC4OrdinanceSimulator::vftable_2", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cISC4LandfillDeveloper", "cISC4LandfillDeveloper", "cISC4LandfillDeveloper.h", True),
+    ("cISC4PoliceSimulator", "cISC4PoliceSimulator", "cISC4PoliceSimulator.h", True),
+    ("cISC4PowerSimulator", "cISC4PowerSimulator", "cISC4PowerSimulator.h", True),
+    ("cISC4PollutionSimulator", "cISC4PollutionSimulator", "cISC4PollutionSimulator.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

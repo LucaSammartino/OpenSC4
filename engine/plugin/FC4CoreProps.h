@@ -36,6 +36,11 @@ struct Spec {
 // nullptr. The caller destroys it (fc4_props_destroy) or uses CoreProps.
 fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t count);
 
+// A new fc4_props with ALL of the holder's own properties, each with its exact
+// variant type and shape (FC4Properties.h CopyToCore). Properties of a parent
+// cohort are not included [choice]. nullptr if `holder` is nullptr.
+fc4_props* ToCoreAll(const cISCPropertyHolder* holder);
+
 // Owns an fc4_props.
 class CoreProps {
 public:
