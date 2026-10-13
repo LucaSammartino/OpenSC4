@@ -348,6 +348,38 @@ if funds <= MinAllowableFunds: post 0xAA5CF1E3 EndGameForBudgetFailure   (§5.6)
 `H(v)` *[compat]*: if `v ≥ 2^32` the value recorded is `0xFFFFFFFF`; otherwise the low 32 bits of `v`
 (the history warehouse takes a signed 32-bit value, so `0xFFFFFFFF` reads back as −1).
 
+**Year end: what the YTD getters return on January 1st (BQ2, from the exe).** The order above is the
+original's:
+1. The month's amounts are added to `ytdIncome` (`+0x48`) and `ytdExpense` (`+0x40`) at `0x00692994`–`0x006929B3`.
+2. The three history values are recorded at `0x00692A24`–`0x00692A4B`.
+3. **Only then** does the `m == 11` test (`0x00692A4E`) zero the year-to-date fields, at `0x00692A65`–`0x00692AB9`.
+
+So the reset comes **after** the month is added. December's income and expense, booked by the settlement on
+January 1st, are added and wiped in the same call. They never appear in `GetYTDIncome()` (slot 10, `0x006AAF00`)
+or `GetYTDExpenses()` (slot 12, `0x006AAEF0`):
+- just before that settlement, both getters hold the sum of the eleven settlements from February 1st to
+  December 1st;
+- just after it, both return **0**.
+
+The January 1st amounts can be observed in two ways:
+- **History**: series `0x6A51178B` (income) and `0xCA5BA3FB` (expense). The same settlement writes them before the
+  reset, as `H(income)` and `H(expense)`. This works for every month, so a shadow can compare all twelve.
+- **Funds**: the change of `GetTotalFunds()` across the settlement is exactly `income − expense` (net only),
+  provided nothing else moves funds between the two reads.
+
+They **cannot** be observed through:
+- `GetTotalMonthlyIncome`/`GetTotalMonthlyExpense`, which are live projections (§6);
+- the stored `lastMonthIncome` (`+0x830`) and `lastMonthExpense` (`+0x840`). These have setters (§6) but no
+  getter, and the only other code that reads them is `Write`.
+
+Example: before the settlement on 2002-01-01, `GetYTDIncome() = 118,000` and `GetYTDExpenses() = 104,500`. The
+settlement books income 10,700 and expense 9,900. Afterwards:
+- both getters return 0;
+- the history's newest points are 10,700 (`0x6A51178B`) and 9,900 (`0xCA5BA3FB`);
+- funds rose by 800.
+
+A YTD difference across that settlement would give `0 − 118,000`, which is meaningless.
+
 The settlement is the **only** place where funds can become negative through normal play.
 
 ### 5.2 Property tax (`ComputeTax`)
@@ -929,7 +961,8 @@ updated by the original; they are kept only so that save records keep their layo
    one non-local line (full 1000, p = 0.5) and one bond, funds change by exactly `income − expense`; YTD values,
    last-month values and the three history series are as in §5.1, including the `0xFFFFFFFF` clamp.
 4. **Year end**: after the settlement on January 1st every YTD accumulator and department spending is 0, while
-   the by-month ordinance arrays keep their values.
+   the by-month ordinance arrays keep their values. The history series `0x6A51178B`/`0xCA5BA3FB` hold that
+   settlement's income and expense, written before the reset. The funds changed by their difference (§5.1, BQ2).
 5. **Bankruptcy**: EndGameForBudgetFailure is posted at month-end with funds = −100,000 and at every later
    month-end while still at or below it; not posted at −99,999; never posted by `WithdrawFunds`.
 6. **Bonds**: rounding to the increment (7,499 → 5,000; 1 → 5,000 with increment 5,000); count, size and total

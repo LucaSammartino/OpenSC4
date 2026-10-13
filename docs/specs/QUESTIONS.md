@@ -95,11 +95,11 @@ mid-transition, preview/placement lots, or lots outside the city bounds could be
 counted 413–417 lots and matched exactly, so no difference showed up on Spandau. Answer from the settlement's lot
 iteration: which container it walks and which lots it filters out.
 
-**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**
-The shadow reads the month's income and expense as the change in the year-to-date values across the settlement. On
-January 1 the year-to-date is reset, so that month's income/expense is reported as `year end: … not observable`
-(run 39, 2002-01-01). Does the reset happen before or after that month's amounts are added? If after, the January
-values are readable directly as the new YTD, and the shadow can compare that month too.
+~~**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**~~ **ANSWERED 2026-10-13** from
+the exe and written into budget.md §5.1 and §15 test 4. **Both return 0.** The settlement adds the month first, then
+records history, and only then resets the year (`0x00692A4E`), so December's amounts are added and wiped in the same
+call. The January 1 amounts are readable from history series `0x6A51178B`/`0xCA5BA3FB` (written before the reset),
+and their net from the funds change.
 
 ## From the demand shadow differential (filed by the coordinator, 2026-10-13; runs 42/43)
 
