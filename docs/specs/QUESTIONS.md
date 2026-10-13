@@ -142,7 +142,11 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   bits. Also corrected while tracing: the destination bits are **stored** over the lot rectangle, not ORed. The
   "byte size" is a raw byte count: the property is a u8 array in every shipped switch (§4.7.2), so no shipped
   building stops.
-- **TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]
+- ~~**TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe and written into the §4.7.1 intro and step 6. **Yes:** a missing property jumps straight to step 6
+  (`0x00723B7B` → `0x00723ED0`). Ferry activation and its `DoConnectionsChanged` run if the building has
+  `0x0BD86FD3`. Otherwise there is no rebuild, because no switch was created. Step 7 (traffic-simulator.md
+  §4.1.3) follows in both cases.
 - ~~**TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
   so DoPostCityInit re-reads them. Which is right? [none]~~ **ANSWERED 2026-10-13** from the exe and written into
   §4.7.2 and §6. **§6 is right:** `Write` saves the rules and `Read` reads them for versions above `0x1C`.

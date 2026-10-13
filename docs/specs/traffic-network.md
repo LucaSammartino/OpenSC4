@@ -451,7 +451,9 @@ With the shipped values, a Street (100) gives:
 
 #### 4.7.1 Activation (DoLotActivated `0x00723AF0`, network part)
 
-This applies when the lot's building has property `0xE90E25A1` (raw bytes, 4 per rule, §4.7.2):
+Steps 1–5 apply when the lot's building has property `0xE90E25A1` (raw bytes, 4 per rule, §4.7.2). Without it,
+DoLotActivated jumps straight to step 6 (`0x00723B7B` → `0x00723ED0`) with no switch created. Steps 6 and 7 run for
+every activated lot that has a building, unless step 1 returned (TN2).
 
 1. If the property's byte size is not a multiple of 4, **return from DoLotActivated** (`0x00723BAC` jumps to
    `0x00724188`, which only frees the copied bytes). Everything after this point is skipped (TN1):
@@ -475,7 +477,9 @@ This applies when the lot's building has property `0xE90E25A1` (raw bytes, 4 per
 5. Write `id = next switch ID` into the ID grid and the mode mask into the mask grid over the lot rectangle. Insert
    the switch under `id`, then increment the next switch ID.
 6. If the building has `0x0BD86FD3`, run ferry activation (§4.9.1), then `DoConnectionsChanged(lot rectangle)`.
-   Otherwise, if a switch was created, run `DoConnectionsChanged(lot rectangle)`.
+   Otherwise, if a switch was created, run `DoConnectionsChanged(lot rectangle)`. A switch is always created once
+   step 1 passes (`0x00723EBC`), even from an empty property with no rules. So a building that has neither
+   property gets no rebuild here, and step 7 still follows.
 7. The strategy-bucket registration, the one random draw, the budget items and the destination bits follow. They
    belong to traffic-simulator.md §4.1.3 (see §12).
 
