@@ -478,8 +478,10 @@ developer's own per-cell test `IsCellOccupied(x, z)` (`0x0072C050`, pop 8, AL), 
 
 In real mode the result is "a real lot is on the cell". In highlight mode it is "a real lot that is not virtually
 deleted, or a virtual lot". This is exactly the cell condition of code 7 in §8.4, **without** the earlier codes 0–3.
-So `CanCreateLot(x, z, 1, 1, …) == 7` is not equivalent: it also fails for cells that code 0, 2 or 3 catches first.
-Code 1 (water) cannot arise here, because water cells are skipped first.
+So `CanCreateLot(x, z, 1, 1, …) == 7` is not equivalent. In highlight mode, the only mode where the test is called,
+it also fails for cells that code 0 catches first (outside the city, or outside a set restriction region), and for
+code-3 network cells when the current zone is 0. Code 2 applies only in real mode. Code 1 (water) cannot arise here,
+because water cells are skipped first.
 
 The lot that the cell test then examines is always the **real** lot: `GetLot(x, z, false)`, which ignores both
 highlight maps. Consequences in highlight mode:
