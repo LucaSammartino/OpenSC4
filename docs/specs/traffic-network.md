@@ -278,7 +278,7 @@ traffic-simulator.md has the full list.
 | Message | Condition | Effect |
 |---|---|---|
 | `0x99EF1142` occupant inserted / `0x99EF1143` removed | data3 = `0xC772BF98` (network occupant), void1 = occupant, QI `0xA821EF94` (cISC4NetworkOccupant) succeeds | Simulator bookkeeping first: per-network-type counts and budget (DoRoadChanged for types 6, 0, then the first of 10/3/2/12; DoRailChanged for 1; DoSubwayChanged for 7 unless network flag `0x80000000`). If the occupant is of any network type that takes part (§4.1): (a) if it is a tunnel (QI `0x8A4BD52B`), §4.8; (b) cell = city `PositionToCell(occupant position)`; on **remove**, erase the 18 edge-density keys of that cell (traffic-simulator.md); (c) `DoConnectionsChanged(x, z, x, z)`. Always sets the simulator's "occupants changed" byte. |
-| `0xE8BDA2E7` lot state changed | void1 QI `0xE818FCED` (lot) | data1 = 3 → **lot deactivated** (§4.7.5, §4.9.4). Otherwise data2 = 3 → **lot activated** (§4.7.1, §4.9.1). |
+| `0xE8BDA2E7` lot state changed | void1 QI `0xE818FCED` (a **copy** of the lot with empty trip list, lot-developer.md §3.2) | data1 = 3 → **lot deactivated** (§4.7.5, §4.9.4). Otherwise data2 = 3 → **lot activated** (§4.7.1, §4.9.1). |
 | `0x26D31EC1` post city init | | DoPostCityInit (§1) |
 
 The water pathfinder subscribes separately (§4.10.1).
