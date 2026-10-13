@@ -330,16 +330,26 @@ exemplar is missing, the re-read is skipped and the ordinance offsets accumulate
 
 #### 4.1.3 Lot activation and deactivation
 
-`DoLotActivated` (`0x00723AF0`): building := lot slot 48 (none → return). Transit-switch and ferry-terminal rules
-from the building's properties are traffic-network.md. If the lot is found again at its corner:
+`DoLotActivated` (`0x00723AF0`):
+- building := lot slot 48 (none → return);
+- lot := the lot manager's `GetLot` at the lot rectangle's corner (slot 6, bool false), which may be null;
+- the transit-switch and ferry-terminal steps from the building's properties are traffic-network.md §4.7.1.
 
-1. `b := strategyBucket counter`; counter := `(counter + 1) mod strategyBuckets`; lot property `0x691C863C` := `b`;
-   the lot cell is added to the bucket multimap under `b`.
-2. `RandomUint32Uniform(100)` → lot property `0x4A611773` (u8).
-3. Budget items for properties `0xCA550301` / `0x0C3BF549` (budget simulator slots 51/58/55), added to an int64 total
-   (saved, §6).
-4. Unless the cycle is in state 10: for `k` = 0…3, if `GetMaxTripCapacity(holder, k) > 0` set bit `k` and
-   `freeDest[k] += 1`; OR the bits into the destination map over the lot rect.
+If the building's `0xE90E25A1` has a byte size that is not a multiple of 4, DoLotActivated returns inside the switch
+step, and **none of the steps below runs**, not even the draw (TN1, traffic-network.md §4.7.1 step 1). Otherwise
+(the property is missing or well formed), in order:
+
+1. Only if the lot was found: `b := strategyBucket counter`; counter := `(counter + 1) mod strategyBuckets`; lot
+   property `0x691C863C` := `b`; the lot cell is added to the bucket multimap under `b`.
+2. Only if the lot was found: `RandomUint32Uniform(100)` (`0x00723FBE`) → lot property `0x4A611773` (u8).
+3. Budget items. Budget simulator slot 51 is asked with the building's property holder for `0xCA550301` first, and
+   for `0x0C3BF549` only when that fails. If one succeeds and the lot was found, slots 58 and 55 follow. Only on the
+   `0xCA550301` path is the int64 at `+0x10` of the record that slot 51 filled added to the total `E` (`+0x778`,
+   saved, §6).
+4. Unless the cycle is in state 10, and whether or not the lot was found: `bits := 0`; for `k` = 0…3, if
+   `GetMaxTripCapacity(holder of the message's lot, k) > 0`, set bit `k` and `freeDest[k] += 1`. Then **store**
+   `bits` into the destination byte of every cell of the lot rectangle (`0x00724167`). *(Corrected: the byte is
+   replaced, not ORed into.)*
 
 `DoLotDeactivated` (`0x0071E2F0`) removes what activation added (destination bits, bucket entry, network rules)
 *[inferred: not traced line by line]*.
@@ -776,7 +786,7 @@ from the wall clock. *[choice]* FreeCity4 seeds it from the host-supplied seed f
 | # | Operation | Generator | Method (advances) | Arguments | Position |
 |---|---|---|---|---|---|
 | 1 | strategy re-draw (§3.3) | simulator's `cRZRandomSuper` | `RandomUint32Uniform(100)` (1 word) | — | once per lot of the day's bucket, in multimap order, before any cycle work of that day |
-| 2 | `DoLotActivated` (§4.1.3) | same | `RandomUint32Uniform(100)` (1) | — | after the bucket registration |
+| 2 | `DoLotActivated` (§4.1.3) | same | `RandomUint32Uniform(100)` (1) | — | after the bucket registration; only when the lot is found again and the building's `0xE90E25A1`, if present, has a byte size that is a multiple of 4 |
 | 3 | `CheckForAccident` (§4.13) | C `rand()` (one call at iterator reset), then the simulator's generator | `RandomDoubleRangeUniform(0.0, 1.0)` (1 word per visited entry) | doubles 0.0, 1.0 | per accident-prone entry visited, until the first accident |
 | 4 | `CheckRailAccident` (slot 17) | same generator | `RandomDoubleUniform()` (1) | — | only for damaged cells; caller-driven (train automata) |
 | 6 | `ApplyPotholeChanges` (§4.12) | same generator | `RandomUint32Uniform(sourceCount)` (1 per moved cell) | current size of the source set | monthly: road moves first, then rail |

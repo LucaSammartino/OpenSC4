@@ -453,7 +453,16 @@ With the shipped values, a Street (100) gives:
 
 This applies when the lot's building has property `0xE90E25A1` (a u32 array):
 
-1. If the property's byte size is not a multiple of 4, stop.
+1. If the property's byte size is not a multiple of 4, **return from DoLotActivated** (`0x00723BAC` jumps to
+   `0x00724188`, which only frees the copied bytes). Everything after this point is skipped (TN1):
+   - the switch and the grid writes;
+   - step 6: ferry activation and `DoConnectionsChanged`;
+   - all of step 7, including the `RandomUint32Uniform(100)` draw (`0x00723FBE`), the budget items and the
+     destination bits (traffic-simulator.md §4.1.3).
+
+   The byte size is the raw data size of the property: `0x005FFB40` copies the bytes. A u32 array always passes, so
+   only a property of another type whose data length is not a multiple of 4 stops here (custom content). *[compat]*
+   because of the skipped draw.
 2. Build a switch:
    - the building reference;
    - properties `0xE90E25A2`, `0xE90E25A3`, `0x0BFC0A4C`, `0x4BFC47B0`;
@@ -466,7 +475,8 @@ This applies when the lot's building has property `0xE90E25A1` (a u32 array):
    the switch under `id`, then increment the next switch ID.
 6. If the building has `0x0BD86FD3`, run ferry activation (§4.9.1), then `DoConnectionsChanged(lot rectangle)`.
    Otherwise, if a switch was created, run `DoConnectionsChanged(lot rectangle)`.
-7. The traffic-source registration and the one random draw that follow belong to traffic-simulator.md (§12).
+7. The strategy-bucket registration, the one random draw, the budget items and the destination bits follow. They
+   belong to traffic-simulator.md §4.1.3 (see §12).
 
 #### 4.7.2 Rules (ReadTransitSwitchRules `0x00715CB0`)
 
@@ -1212,6 +1222,8 @@ call no `rand()`.
 The only draw near this code is in DoLotActivated: after the switch, ferry and rebuild steps,
 `RandomUint32Uniform(100)` on the simulator's `cRZRandomSuper` is stored in lot property `0x4A611773`. That
 generator is seeded from the wall clock at Init (foundations §6.2/§6.3), and the draw belongs to traffic-simulator.md.
+A lot whose `0xE90E25A1` has a byte size that is not a multiple of 4 returns before the draw (§4.7.1 step 1), so it
+makes none.
 
 Hash iteration orders are deterministic: SGI hash containers with identity hashes, bucket hint 100 → 193 buckets.
 
