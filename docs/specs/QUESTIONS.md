@@ -380,3 +380,33 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
 - **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
   fails only on depth is retried when reached shallower]
 - **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
+
+## From the protection glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The glue's current answer is in brackets.
+
+- **PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
+  `+0x10` flag (state 5). [inferred]
+- **PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
+  as borrowed. Right identity? [as stated]
+- **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
+  and 12. Right overload? [yes]
+- **PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
+  only police slot 65. [57]
+- **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
+  compared]
+- **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
+- **PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
+  untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
+  from the month-end snapshot? [as stated]
+- **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
+  its elements, which leaks the caller's references as the original does. Intended? [reproduced]
+- **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]
+- **PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
+  instead, 0 outside the city. Same values? [slot 12]
+- **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
+- **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
+  counts differ. Acceptable? [not held]
+- **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
+  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
+- Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).
