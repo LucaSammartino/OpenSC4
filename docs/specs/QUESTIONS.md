@@ -190,6 +190,19 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   CellWidthX 16 are now in traffic-simulator.md §4.14, and test 7 states its speeds. Walk on Road is **3.5**, as the
   core inferred. Pipe, PowerPole and DirtRoad are 0 for every travel type.
 
+## From the coordinator (run 61, 2026-10-14)
+
+- ~~**CR1 — power.md §13 Q2: who posts ConnectionsReady `0x6AC284F3`, and what triggers it?** In run 61 it never
+  arrived after loading Konradshohe.~~ **ANSWERED 2026-10-14** from the exe and written into foundations.md §11.6,
+  with pointers in power.md (§4 table and §13 Q2), plumbing.md, neighbors.md and advisors.md §6.8.1.
+  - The only poster is `cSC4RegionalCity::CreateSymmetricConnections` (`0x004AB778`): queued, no data, on
+    TerrainReconciliation for the current city.
+  - TerrainReconciliation comes from the terrain's second animation tick after its PostCityInit, so once per load.
+    The player's reconcile-edges command also posts it.
+  - With the default preference the tick defers to `ReconcileEdgesWithNeighboringCities`. That function waits while
+    a modal window is open and **posts nothing while popup dialogs are disabled** (`SetPopupDialogsEnabled(false)`).
+  - None of land value, weather, ordinance or demand appears in this chain.
+
 ## From the residential tests and record (filed by the coordinator from the lane's report, 2026-10-14; merged with the core)
 
 About `docs/specs/residential.md` and `residential-education-health.md` (REH). All 24 §15 tests pass. REH tests
