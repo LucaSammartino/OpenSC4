@@ -337,7 +337,8 @@ float steps are float32 operations in the order given (foundations §18).
    lets the date change in the middle of a pass must still read the date per tract, as the original would.
 6. **Newcomers' age**: if arrived and Σ new_w ≠ 0:
    `age := (Σ_w old_w × age + Σ_w nc_w × newAge_w) ÷ Σ_w new_w` (signed 32-bit, truncated), with newAge_w the
-   tuning ages (§7.1). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
+   tuning ages (§7.1). The original sets age := 0 when arrived and Σ new_w = 0, but arrivals imply Σ new_w ≥ 1
+   (§5.6, Zero divisors). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
    tract whose residents changed wealth level gets older (test 6).
 7. LE := low byte of own slot 29 `GetCellLifeExpectancy(S·x, S·z)` (§6.4), evaluated **after** the EQ/HQ updates.
 8. **Generational reset**: if age > LE (signed): for every w, `EQ_w := EQ_w × EQreset`, `HQ_w := HQ_w × HQreset`
@@ -353,7 +354,8 @@ The pass ends when the iterator is done; state 12 follows.
 ### 5.6 `PostPopulationChange` (state 12)
 
 1. population := running population.
-2. History `0x2A5E7009` := population > 0 ? leSum ÷ population (unsigned 64-bit) : 0. This is the
+2. History `0x2A5E7009` := population ≠ 0 ? the low 32 bits of leSum ÷ population : 0. The division is unsigned
+   64-bit (`__aulldiv` `0x009F0710`), with the population **sign-extended** to 64 bits as the divisor. This is the
    **population-weighted average life expectancy**.
 3. For each bucket b: `avg_b := ageCount[b] > 0 ? float(ageEqSum[b]) / float(ageCount[b]) : 0` (both read as
    unsigned).
@@ -371,6 +373,30 @@ The pass ends when the iterator is done; state 12 follows.
    implementation that keeps the product unrounded (double arithmetic with the float constant) gets 11.99999973 →
    **11**, which is wrong. Because `0.01f` is 2.2 × 10⁻⁸ below 0.01 relatively (less than half an ulp), `100k × 0.01f`
    rounds to exactly k for every integer k up to 2^24.
+
+*[compat]* **Zero divisors** (RS16, from the exe). Every average of this simulator gives 0 when its divisor is 0, and
+none of them faults. The only divide that can fault is `S·S` in §5.5 step 1 (RS15). The guards differ, as follows:
+
+| Average | Divisor | Divides only when | Otherwise | Address |
+|---|---|---|---|---|
+| `0x2A5E7009` (step 2) | population (s32) | ≠ 0 | 0 | `0x006F8080`–`0x006F808D`, `0x006F80A8` |
+| avg_b (step 3) | ageCount[b] | ≠ 0 (unsigned) | 0.0 | `0x006F80C2`, `0x006F80F0` |
+| `0xCA545CCA` + g (step 4) | popSum | > 0 (signed) | 0 | `0x006F81F3`, `0x006F8202` |
+| `0x4A8A3FE2` / `0x4A8A3FE5` (§5.7) | population | > 0 (signed) | 0 and 0 | `0x00700106`, `0x00700174` |
+| newcomers' age (§5.5 step 6) | Σ new_w | ≠ 0 | age := 0, never reached | `0x006FAAC7`, `0x006FAB27` |
+| `GetTractQuotient` (§6.1) | Σp (16 bits) | ≠ 0 | 0.0 (`0x00A81054`) | `0x006F7005`, `0x006F70CA` |
+| `GetGlobalEQ` / `GetGlobalHQ` (REH §4.8) | `GetPopulation()` | ≠ 0 | 0.0 | `0x006F772D`, `0x006F787D` |
+
+Step 4 also skips the buckets whose ageCount is 0 (`0x006F8137`), so their avg_b of 0.0 is never used.
+
+The newcomers' row cannot be reached. A tract has arrivals only when some new_w > old_w (an unsigned 16-bit compare,
+`0x006FA8FF`), and Σ new_w is a 32-bit sum of three zero-extended uint16 values, so it is then at least 1.
+
+The life-expectancy guard is `≠ 0`, not `> 0`, so a **negative population** is divided. A pass sums uint16 tract
+values, so a negative population needs a damaged record. The divisor is then the unsigned value 2^64 − |population|,
+and the quotient is 0 unless leSum ≥ 2^64 − |population|, when it is 1. For example, population −5 and leSum 28600
+give 28600 ÷ (2^64 − 5) = **0**, the same as a zero population. The §5.7 guard is a signed `> 0`, so there a
+negative population takes the "0 and 0" branch directly.
 
 ### 5.7 History (state 9)
 

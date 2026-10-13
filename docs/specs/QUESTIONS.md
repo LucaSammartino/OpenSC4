@@ -332,7 +332,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   the exe (`0x006F7FF0`) and written into residential.md §5.5 step 1. **The bracket is right: no cap.** S² calls
   are made per tract and type. A wrapped `S·x + S` empties the loop. For S = 0 or S ≡ 0 (mod 65536), `S·S` is 0
   and the `div` at `0x006F8062` faults. **Choice:** Read rejects P = 0 or P > 256 as a damaged record.
-- **RS16:** what does a zero divisor give in the averages? [0]
+- ~~**RS16:** what does a zero divisor give in the averages? [0]~~ **ANSWERED 2026-10-14** from the exe
+  (`PostPopulationChange` `0x006F8070`, `DoDailySimulation` state 9 `0x007000B5`, `DoPopulationChange`
+  `0x006FAAC7`, `GetTractQuotient` `0x006F6FC0`, `GetGlobalEQ`/`HQ` `0x006F7720`/`0x006F7870`) and written into
+  residential.md §5.6 (new "Zero divisors" table) and §5.5 step 6. **The bracket is right: 0 everywhere, and none
+  of them faults.** One correction: the life-expectancy guard is `population ≠ 0`, not `> 0`. A negative population
+  (damaged record only) divides as unsigned 64-bit by 2^64 − |population|, which also gives 0.
 - **RS17:** does a version-3 record keep the running population the constructor set? [yes]
 
 ## From the pollution glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
