@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "zn15_07_failure_count",
+  "spec": [
+    "zones 11.1",
+    "zones 15.7"
+  ],
+  "description": "Conformance test 7 (GetDevelopmentFailureCount, \u00a711.1 slot 9, quirk 2). The parameters are (zone, result), not (x, z). GetDevelopmentFailureCount(16, 0) returns 0 and the map stays empty (zone >= 16 is out of bounds). GetDevelopmentFailureCount(0, 0) returns 0 and inserts a zero entry {zone 0, result 0, count 0}, so map 1 then holds one entry (which the next save writes as count 1).",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0,
+      "manager": true,
+      "developer": false
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_call",
+      "target": "manager",
+      "method": "development_failure_count",
+      "args": [
+        16,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "failure_map1_count": 0
+      }
+    },
+    {
+      "op": "zone_call",
+      "target": "manager",
+      "method": "development_failure_count",
+      "args": [
+        0,
+        19
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "failure_map1_count": 0
+      }
+    },
+    {
+      "op": "zone_call",
+      "target": "manager",
+      "method": "development_failure_count",
+      "args": [
+        0,
+        0
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_expect",
+      "state": {
+        "failure_map1_count": 1
+      }
+    }
+  ]
+}

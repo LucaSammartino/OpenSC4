@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "zn15_30_simple_parcellize_streets",
+  "spec": ["zones 7.5", "zones 7.3", "zones 14.1", "zones 15.27"],
+  "description": "Extra vector: SimpleParcellize's street lines (§7.5 step 1), the one part of §7.5 that §15's tests do not reach (tests 19-26 all go through Parcellize, and test 14 runs SimpleParcellize with placeStreets off). Industrial zone 8 -> SimpleParcellize(6) on a 12 x 12 region at x 10..21, z 10..21 with SetOptions(0, 1, 0) and the lot size forced. Nothing else is on the map, so ExamineBoundaries scores every side by the final C = 0 -> S += 1 rule: S = {12, 12, 12, 12}, C = {0, 0, 0, 0}; D = argmax S = 0 (first of equal maxima), Q = for D in {0,2}: S[1] <= S[3] ? 3 : 1 -> Q = 3, flag 1 (zone 8 is not 1 or 2, so no swap). With Q = 3 the §7.5 table starts both passes low and ascending: the x-line pass from x = 10 and the z-line pass from z = 10. Each pass counts from 0 and, once the counter reaches n = 6 and the line is at least 2 cells from both rect edges, draws a street across the whole rect and resets: the counter reaches 6 on the 7th line (x = 16, z = 16), which is 6 cells from the low edge and 5 from the high edge, so exactly one street per pass. The zone grid is left at 0, so CanCreateLot gives code 2 (not zoned) and every one of the 144 CreateLotToFaceRoad calls fails to make a lot while still consuming its U(4) draw (§14.1 quirk 4) - the parcel log therefore holds only the two Place calls, and the draw count is the region's 144 cells.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": true, "custom": false},
+    {"op": "zone_lot_size", "width": 2, "depth": 2, "min_depth": 1, "max_depth": 3, "block": 6},
+
+    {"op": "zone_do_parcellization", "region": {"rect": [10, 10, 21, 21]}, "type": 8, "flag": false},
+
+    {"op": "zone_expect", "state": {
+      "orientation_d": 0, "orientation_q": 3, "orientation_flag": true,
+      "scores": [12, 12, 12, 12], "conditions": [0, 0, 0, 0],
+      "lot_count": 0, "place_count": 2, "draw_count": 144}},
+    {"op": "zone_expect_parcel_log", "log": [
+      "P(16,10,16,21)",
+      "P(10,16,21,16)"
+    ]},
+    {"op": "zone_expect", "zones": [[10, 10, 0], [16, 16, 0]]}
+  ]
+}
