@@ -111,8 +111,15 @@ An **agent** is a `cIGZMessageTarget2*` plus a level, a name (string) and flags.
   - The agent is **enabled** if `cityEstablished ? (flags & 2) : (flags & 1)`.
   - A target may appear at most once per level. Adding it again is a no-op.
   - The simulator holds a reference: `AddRef` on add, `Release` on removal.
-  - Order within a level: *[choice]* **registration order**. The original ordered agents by object address, which is
-    effectively arbitrary, so no behaviour may depend on it.
+  - Order within a level: *[choice]* **registration order**, with a fixed-rank tail for month-level agents decided
+    in `foundations.md` §13.4. The original ordered agents by object address, which is not reproducible. **Order is
+    behaviourally significant** — `landfill.md` §3.3 and `foundations.md` §13.3 derive observable requirements from
+    it (whether this month's landfill intake is reported and charged this month or next; whether the budget books
+    this month's or last month's ordinance and neighbour-deal totals) — so the earlier claim that "no behaviour may
+    depend on it" was wrong and is corrected here. **The tail mechanism is deferred until a tail agent's glue
+    actually lands** (§13.4 "Sequencing"): the core is merged and verified in-game with plain registration order,
+    and none of the tail agents is wired up yet, so adding ranks now would rework verified code for no behavioural
+    change. Until then, registration order alone is correct and must keep passing.
 - `RemoveAgent(target, level) -> bool`: removes that registration. If the level's cursor is on it, the cursor first
   moves to the next agent. Returns true if something was removed, false otherwise (including `level ≥ 11`).
 - `RemoveAgent(target) -> bool`: the same for every level. Returns true if any registration was removed.

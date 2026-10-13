@@ -143,6 +143,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DiagLogic.h
         plugin/FC4Observer.cpp
         plugin/FC4Fpu.cpp
+        plugin/FC4FailFast.cpp
+        plugin/FC4FailFast.h
         plugin/FC4Observer.h
         plugin/FC4Fpu.h
         plugin/FC4TestSeam.cpp

@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "lot_developer_geometry_cost_rubble_count",
+  "spec": ["lot-developer 11.4", "lot-developer 7.3", "lot-developer 3.5", "lot-developer 16"],
+  "description": "Tests 10 and 11 (§11.4, §7.3, §16), shipped cost curve. GetAreaSlope walks the vertices x1..x2+1 (outer), z1..z2+1 (inner); the first strict minimum and maximum give lo/hi and their vertices; the distance between them is scaled in cascade (quirk 12): >6 x0.25, >5 x0.3, >4 x0.35 (then return), >3 x0.4. GetLotDevelopmentCost: s = slope x 0.0625, cost = trunc(curve(s) x w x h). Test 10, 1x1 lot (vertices (0,0)..(1,1)), altitude 100 except vertex (1,0) = 104: lo 100 at (0,0) [first], hi 104 at (1,0); dx 1, dz 0, d = 1.0, not > 3 so no scaling; slope = (104-100)/1 = 4.0; s = 0.25; curve(0.25) interpolates the (0,0)-(0.555556,10) segment -> 4.499996; cost = trunc(4.499996 x 1 x 1) = 4. A flat rectangle gives slope 0 (lo = hi, distance 0) -> cost 0. Test 11, rubble count: area = dz x dx, count = trunc(area x 2^-7) + 4; small = dx<10 or dz<10 (corners get nothing); large = dx>12 and dz>12 (corners draw a type). 11x11 -> area 121, count 4 (trunc(0.9453125) + 4), not small, not large; 8x8 -> small; 16x16 -> area 256, count 6 (two interior props), large.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64], "terrain_width": 16},
+    {"op": "ldev_tuning", "shipped": true},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+
+    {"op": "ldev_terrain", "alt": [[1, 104]], "note": "vertex index 1 = (x=1, z=0) since vertsX = 65; all others default 100"},
+    {"op": "ldev_area_slope", "rect": [0, 0, 0, 0], "water": true, "expect": 4.0, "note": "test 10 row 1: slope 4.0"},
+    {"op": "ldev_dev_cost", "rect": [0, 0, 0, 0], "expect": 4, "note": "s = 0.25, curve 4.499996, cost 4"},
+
+    {"op": "ldev_area_slope", "rect": [0, 0, 3, 3], "water": true, "expect": 4.0, "note": "a larger flat rectangle with the same single peak still has lo 100 hi 104"},
+    {"op": "ldev_terrain", "alt": [[1, 100]], "note": "flatten: no peak anywhere"},
+    {"op": "ldev_area_slope", "rect": [0, 0, 1, 1], "water": true, "expect": 0.0, "note": "flat: lo = hi, distance 0"},
+    {"op": "ldev_dev_cost", "rect": [0, 0, 4, 4], "expect": 0, "note": "flat rectangle: curve(0) = 0 -> cost 0"},
+
+    {"op": "ldev_terrain", "alt": [[197, 260]], "note": "test 10 row 2: a 2x3 lot (x 0-1, z 0-2), altitude 100 except vertex (2,3) = 260; index 2 + 3*65 = 197"},
+    {"op": "ldev_area_slope", "rect": [0, 0, 1, 2], "water": true, "expect": 110.94,
+      "note": "lo 100 at (0,0), hi 260 at (2,3): dx 2, dz 3, d = 3.6055512 -> cascade -> 1.4422205, slope (260-100)/1.4422205 ~ 110.94"},
+    {"op": "ldev_dev_cost", "rect": [0, 0, 1, 2], "expect": 18000,
+      "note": "s ~ 6.934 clamps the curve to 3000; cost trunc(3000 * w2 * h3) = 18000"},
+
+    {"op": "ldev_eval", "fn": "rubble_count", "args": [0, 0, 0, 11, 0, 11], "expect": {"count": 4, "small": false, "large": false}, "note": "test 11: 11x11 -> area 121, count 4"},
+    {"op": "ldev_eval", "fn": "rubble_count", "args": [0, 0, 0, 8, 0, 8], "expect": {"count": 4, "small": true, "large": false}, "note": "8x8 -> small, no draws"},
+    {"op": "ldev_eval", "fn": "rubble_count", "args": [0, 0, 0, 16, 0, 16], "expect": {"count": 6, "small": false, "large": true}, "note": "16x16 -> area 256, count 6, large"},
+    {"op": "ldev_eval", "fn": "rubble_count", "args": [0, 0, 0, 12, 0, 12], "expect": {"count": 5, "small": false, "large": false}, "note": "12x12 -> area 144, count trunc(1.125)+4 = 5, not large (>12 strict)"},
+    {"op": "ldev_eval", "fn": "rubble_count", "args": [0, 0, 0, 10, 0, 20], "expect": {"count": 5, "small": false, "large": false}, "note": "10x20 -> area 200, count 5, neither side > 12 so not large"}
+  ]
+}

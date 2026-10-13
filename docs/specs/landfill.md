@@ -824,10 +824,14 @@ and need not be reproduced beyond that.
 
 ### 10.2 Open questions
 
-1. **Month order**: §3.3 derives that the landfill month agent must run after pollution and budget and before
-   neighbours and ordinance. Foundations §13.3 says no other ordering requirement is derived and keeps
-   registration order, in which the landfill developer runs second. The lead should decide the FreeCity4 order
-   (e.g. register the landfill agent late, or order by a fixed rank table).
+1. **Month order**: *Decided* — `foundations.md` §13.4 (2026-10-13). The landfill developer's month agent gets a
+   fixed rank in the stable tail (landfill developer, port developers, neighbours, ordinance), which runs after the
+   first 18 registration-order agents; that satisfies "after pollution and budget, before neighbours and ordinance"
+   without depending on when the city calls `Init`. **The rank mechanism is deferred until the landfill glue
+   actually lands** (§13.4 "Sequencing"): the merged simulator core uses plain registration order and is verified
+   in-game, and no tail agent is wired up yet. So implement the landfill core against the ordering requirement in
+   §3.3 as a *contract to be satisfied later*, and pin it with a conformance vector that asserts the relative order
+   rather than assuming the simulator already ranks agents.
 2. The exact semantics of `AttemptAreaLevelling(rect, 0.0, true, true, FLT_MAX, null)` (lot developer spec).
 3. `data4` values 1–3 of `0x278E6003` are assumed to be the terraforming tools; the other senders (and whether the
    lot developer's levelling uses reason 5 here) were not traced.

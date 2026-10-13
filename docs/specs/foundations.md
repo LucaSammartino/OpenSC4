@@ -1422,6 +1422,63 @@ No other ordering requirement is derived:
   in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
   order.
 
+### 13.4 Decision: how FreeCity4 orders agents (2026-10-13)
+
+`simulator.md` §4 originally asserted that because the original orders agents by object address, "no behaviour may
+depend on it". **That assertion is false** and is corrected there: `landfill.md` §3.3 derives an observable
+requirement from the order (whether this month's landfill intake is reported and charged this month or next), and
+§13.3 above derives a second one for the budget. Order is therefore behaviourally significant, and FreeCity4 must
+choose one deliberately.
+
+**Decision.** The original's order is *not reproducible*: it is heap-address order, and the ranks of the first 18
+month agents vary between sessions (pollution 3–14, budget 1–11, aura 2–18). FreeCity4 does not attempt to
+reproduce it, because there is nothing stable to reproduce. Instead it satisfies the two properties that the
+evidence does support:
+
+1. **Determinism.** Within one FreeCity4 build the order is fixed and reproducible, so conformance vectors and
+   seeded runs are meaningful. Registration order gives this; address order cannot.
+2. **The derived data dependencies hold.** Every *[compat]* ordering requirement derived in this section and in the
+   subsystem specs must be satisfied.
+
+Concretely, month-level (level 6) agents are ordered by:
+
+- **A fixed rank for the stable tail** — *[compat]* for the four-agent run that the evidence pins, *[choice]* for
+  the two appended after it:
+  - *[compat]* **landfill developer, port developers (×2), neighbours, ordinance**, in that order. The eight logged
+    sessions agree on this run and agree that it comes after every agent ranked 1–18, and §13.3 derives an
+    observable requirement from it (landfill after pollution and budget; landfill before neighbours and ordinance).
+  - *[choice]* **commercial, then land value**, appended after that run. The logs put commercial at rank 23–24 and
+    land value at 19–24, so land value's range overlaps the whole *[compat]* run above and its position is **not**
+    pinned by evidence. No derived requirement involves either agent, so the order between them, and theirs against
+    the four above, is FreeCity4's to choose. It is recorded here so it is chosen once and pinned by a vector, not
+    left to registration accident.
+- **Registration order for everything else**, i.e. the first 18 agents, whose relative order is genuinely unknown
+  (§15 questions 5 and 7).
+
+That placement satisfies all three derived requirements at once: pollution and budget are both in the first 18, so
+they precede the landfill developer; the landfill developer precedes neighbours and ordinance because all three are
+in the fixed tail in that order; and budget precedes ordinance and neighbours for the same reason (§13.3).
+
+**Implementation note for the core:** this needs an explicit ordering mechanism, not a change to registration order
+alone — registering the landfill agent late would also work but is fragile, because it depends on when the city
+happens to call `Init`. A rank or priority attached to the agent (defaulting to registration order) is the robust
+form. Whatever is chosen must be pinned by conformance vectors: a test that the landfill month agent runs after
+pollution's and the budget's and before the neighbours' and the ordinance's, and a test that the other agents keep
+registration order.
+
+**Sequencing — do not retrofit this ahead of need.** The simulator core is already written, merged and verified
+in-game (budget and power run correctly with it, runs 27/28). None of the six tail agents exists as a core yet
+except ordinance and land value; landfill is being written now, and neighbours, the port developers and commercial
+do not exist. So the ordering mechanism is **not needed until a tail agent's glue actually lands**. Introducing it
+earlier means reworking verified, in-game-tested code for no behavioural gain, and risks the budget and power paths
+that currently work. When it is needed, the change must be made with the existing month-agent behaviour pinned by
+vectors first, so a regression in the verified budget settlement is caught rather than discovered in-game.
+
+**What this does not settle:** the relative order of the first 18 agents, which is unobservable in the original and
+therefore unconstrained except where a later analysis derives a requirement (as landfill §3.3 did). If a future
+differential shows a value depending on, say, residential-before-budget, add the requirement here and to the rank
+table rather than reordering registrations ad hoc.
+
 Day-level agents run before month-level ones on the 1st of a month (simulator spec §5); this is independent of
 the order within a level.
 
@@ -1856,6 +1913,72 @@ and round the result to `f32`; for the four basic operations this gives the corr
 `f64` has more than twice the significand bits of `f32`).
 
 The Mac build (GCC, SSE or x87 at 64-bit) differs; this section applies only to the Windows build.
+
+## 19. Threading model *[compat]*
+
+No other spec states one, and getting it wrong is expensive: it decides whether core state must be `Sync`, and it
+caused the run-23 and run-26 crashes (`0xC0000409`) that took two sessions to diagnose.
+
+### 19.1 The original is single-threaded on the simulation path
+
+The master clock and every simulator run on the main thread and have **no locking of any kind**. Verified by
+searching the decompilation of `cSC4Simulator` and every `cSC4*Simulator` for `EnterCriticalSection`,
+`LeaveCriticalSection`, `InitializeCriticalSection`, `InterlockedExchange`, `InterlockedCompareExchange` and
+`WaitForSingleObject`: **zero hits**. Message delivery is synchronous on the calling thread — `cGZMessageQueue` and
+`cGZMessageQueue2` only construct a `cRZThreadSignal`; there is no dispatch thread that would deliver messages from
+elsewhere.
+
+The game's worker threads (`cRZThread`: background model loader, HTTP client, name lookup, file-change
+notification; and the sound driver's thread — §18.2) do not reach the clock or the simulators. *[inferred: from the
+`cRZThread` users in the decompilation — `cRZHTTPClient`, `cRZNameLookup`, `cGZDBSegmentPackedFile` — none of which
+holds a simulator or city reference]*
+
+**Consequence:** the original needs no re-entrancy tolerance, so a replacement must not assume the game will
+serialise calls for it, and equally must not assume the game will call it concurrently.
+
+### 19.2 FreeCity4 adds concurrent readers of its own
+
+The plugin runs two threads besides the main one, and both are ours:
+
+- **A watchdog thread** (`FC4Autotest`/`FC4Diag`) that emits `heartbeat (periodic)` lines. Its heartbeat is **not a
+  cached snapshot** — across runs 8–28 the values it prints advance with the simulation: the julian date walks
+  `2452170 → 2452180 → 2452191 → 2452201 …`, the pause/hidden/emergency flags change (`pause 1 hidden 2
+  emergency 1` in the last run-28 heartbeat against `pause 0 hidden 0 emergency 0` earlier), and it reports what the
+  main thread is doing *at that moment*: `delivering msg 0x6695681A (level 10) to agent 00E1E36C
+  'cSC4PowerSimulator' for 16 ms`, `main: OnTick (15 ms) > core fc4_sim_on_tick (15 ms)`. That is simulator state
+  the main thread mutates inside `OnTick`, read from another thread.
+- **An autotest thread** that decides when the verdict is due and terminates the process. In run 26 the panicking
+  thread (`tid 23860`) was neither the main thread (`8328`) nor the watchdog (`22672`), and the panic reported
+  `(thread unnamed)` — the form a plain `std::thread::spawn` produces. Every run has exactly three threads, so the
+  autotest thread is the likely identity. *[inferred: not proven; the process aborted before that thread logged
+  anything else. Naming the threads would settle it in one run.]*
+
+**Consequence:** core state reachable from the clock *is* read concurrently in FreeCity4, so it must be `Sync`. A
+`RefCell` there panics under a concurrent read, and because the release build uses `panic = "abort"` the process dies
+with `0xC0000409` — which is what run 23 and run 26 did. The fix is a `Mutex` held for exactly one `with()`/`read()`
+section and **never** across a `deliver`/`post`/refcount hook, so a blocked getter waits microseconds rather than a
+whole tick and cannot deadlock against a game lock that a delivering agent needs.
+
+### 19.3 Rules for a core author
+
+1. Any state the clock exposes to the diagnostic threads must be `Sync`: `Mutex`/`RwLock`/atomics, not `RefCell` or
+   `Cell`. Main-thread-only state (for example the timer list, which `Init` installs and only `OnTick` reads) may
+   stay a `RefCell` and should be documented as such.
+2. Prefer **not** to have the diagnostic threads read core state at all. Publishing a few values as atomics from the
+   main thread and letting the heartbeat read those removes the contention instead of merely making it safe. Where
+   both are cheap, do both.
+3. Name your threads (`thread::Builder::name`) so a panic names the thread that faulted. Unnamed threads turn a
+   one-run diagnosis into a log forensics session.
+4. Never hold a core lock across a call into the game — a delivery, a message post, an `AddRef`/`Release`, or any
+   vtable call. The game may re-enter us.
+
+### 19.4 What this does not settle
+
+Which thread panicked in run 26 is inferred, not proven (§19.2), and whether the original master clock is *ever*
+called from a non-main thread by game code is answered only as "no evidence of it, and no locking to support it". If
+a future run shows a genuine game thread inside a `cISC4Simulator` method, §19.1 must be revised — that would mean
+the original tolerates cross-thread reads despite having no locks, which would be worth understanding before copying
+it.
 
 ## Errata / clarifications (round 2)
 

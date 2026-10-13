@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "lot_developer_demolition_explosion",
+  "spec": ["lot-developer 7.1", "lot-developer 7.2", "lot-developer 11.1"],
+  "description": "Demolition and explosion (§7). StartDemolishLot: with lot flags & 1 it demolishes flora in the cell area, removes the lot props, writes the zot property 0, removes the network connection nodes, then ClearLotBuildings(lot, 5, true, 0), which sets state 5, and for each building removes its props, its foundation (removeFoundation true) and the occupant, and finally removes whatever zot is shown. EndDemolishLot: only when the lot is initialized, SetState(6), ClearLot (which leaves a kept lot in state 1 after setting 6, quirk 13), and for zones {0,11,12,15} DeleteLot. ClearLot resets the vertices lock, sets state 1, building type 0, configuration null and the empty base texture. ExplodeLot: state 5 or 6 does nothing; otherwise a burnt-building prop is made from the first building, ClearLotBuildings(lot, 6, false, 4), the props and network nodes are removed, and with a building a terrain decal (instance 0x49C80EC7 burnt / 0x2A2EF55D not), the rubble props and the burnt building are added; burnt also sets condition 6; finally the building type is cleared.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64]},
+    {"op": "ldev_tuning", "shipped": true},
+    {"op": "ldev_occ", "id": 500, "is_building": true, "bbox": [[0, 0, 0], [16, 10, 16]], "cells": [0, 0, 0, 0]},
+    {"op": "ldev_profile", "building": "0x3001", "purpose": 1, "wealth": 1},
+    {"op": "ldev_cfg", "id": 9, "cfg_id": "0x60000009", "w": 1, "h": 1},
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "state": 3, "building_type": "0x3001", "building": 500,
+      "cfg": 9, "flags": 1, "counter": {"zot": 6}},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_demolish", "lot": 1},
+    {"op": "ldev_expect_lot", "lot": 1, "state": 5, "prop": {"zot": 0},
+      "note": "ClearLotBuildings sets state 5 (destructing) and slot 11 clears the zot"},
+    {"op": "ldev_expect_events", "note": "flags & 1: flora demolished; then the lot props, the network nodes, and ClearLotBuildings",
+      "events": [
+        {"event": "flora_demolish"},
+        {"event": "remove_lot_props", "lot": 1},
+        {"event": "remove_network_nodes", "lot": 1},
+        {"event": "set_state", "lot": 1, "state": 5, "wealth": 0, "reason": 0},
+        {"event": "remove_building_props", "building": 500},
+        {"event": "remove_building_foundation", "building": 500},
+        {"event": "remove_occupant", "occ": 500, "a": 1, "flags": 0}]},
+
+    {"op": "ldev_lot", "id": 2, "x": 5, "z": 5, "zone": 1, "state": 5, "building_type": "0x3001", "building": 500, "cfg": 9},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_end_demolish", "lot": 2, "expect": true},
+    {"op": "ldev_expect_lot", "lot": 2, "state": 1, "building_type": 0, "cfg": null,
+      "note": "ClearLot leaves a kept lot in state 1 after SetState(6) (quirk 13), building type 0, configuration null"},
+    {"op": "ldev_expect_event_count", "filter": {"event": "delete_lot"}, "count": 0, "note": "zone 1 is not in {0,11,12,15}: not deleted"},
+    {"op": "ldev_expect_event_count", "filter": {"event": "set_empty_texture"}, "count": 1},
+
+    {"op": "ldev_lot", "id": 3, "x": 6, "z": 6, "zone": 0, "state": 5, "building_type": 0, "no_building": true, "no_cfg": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_end_demolish", "lot": 3, "expect": true},
+    {"op": "ldev_expect_events", "filter": {"event": "delete_lot"}, "events": [{"event": "delete_lot", "lot": 3}],
+      "note": "zone 0: deleted"},
+
+    {"op": "ldev_lot", "id": 4, "x": 7, "z": 7, "zone": 1, "state": 3, "building_type": "0x3001", "building": 500, "cfg": 9},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_explode_lot", "lot": 4, "burnt": false, "expect": true},
+    {"op": "ldev_expect_lot", "lot": 4, "state": 6, "building_type": 0},
+    {"op": "ldev_expect_events", "filter": {"event": "rubble_decal"}, "events": [{"event": "rubble_decal", "instance": "0x2A2EF55D"}],
+      "note": "not burnt: decal instance 0x2A2EF55D"},
+
+    {"op": "ldev_lot", "id": 5, "x": 8, "z": 8, "zone": 1, "state": 3, "building_type": "0x3001", "building": 500, "cfg": 9},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_explode_lot", "lot": 5, "burnt": true, "expect": true},
+    {"op": "ldev_expect_lot", "lot": 5, "condition": 6, "building_type": 0, "note": "burnt sets condition 6"},
+    {"op": "ldev_expect_events", "filter": {"event": "rubble_decal"}, "events": [{"event": "rubble_decal", "instance": "0x49C80EC7"}]},
+
+    {"op": "ldev_lot", "id": 6, "x": 9, "z": 9, "state": 5},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_explode_lot", "lot": 6, "burnt": false, "expect": true, "note": "state 5: nothing happens"},
+    {"op": "ldev_expect_events", "events": []}
+  ]
+}

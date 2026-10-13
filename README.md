@@ -43,8 +43,8 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
-- [x] Cores: building development simulator, growth developer, tract developer
-- [ ] Cores: lot developer, zones (in progress on their branches)
+- [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors)
+- [ ] Cores: zones (in flight on its branch — 8 commits, ~8.1k lines, tests being verified)
 - [x] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) now empty; GD/BD/TD answered in the named specs, 8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)

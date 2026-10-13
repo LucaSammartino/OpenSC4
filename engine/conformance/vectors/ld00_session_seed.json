@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "lot_developer_session_seed",
+  "spec": ["foundations 6.3", "foundations 12", "lot-developer 10.1"],
+  "description": "Foundations 6.3 [choice]: the lot developer's file-local generator (0x00B49AF0) is seeded with derive(K) = S XOR K, moved by XOR 1 when it would be 0 or 0xFFFFFFFF; K is the original's clock XOR constant 0x6C09C0F4 (the seed of the file-local cRZRandom at program start, §10.1). Expected states from an independent model of derive(): 0x12345678 -> 0x7E3D968C (an arbitrary session); 0x00000000 -> 0x6C09C0F4 (session 0 = the original's seed at clock value 0); 0x6C09C0F4 -> 0x00000001 (S = K: S XOR K = 0 is moved to 1); 0x93F63F0B -> 0xFFFFFFFE (S = NOT K: 0xFFFFFFFF is moved to 0xFFFFFFFE). Both cRZRandom states start at the seed (§6.1) and rand() stays at its process-start state 1 (the game never seeds it, foundations §12).",
+  "steps": [
+    {"op": "ldev_create", "session": "0x12345678"},
+    {"op": "ldev_expect", "lcg": "0x7E3D968C", "mul": "0x7E3D968C", "crt": 1},
+    {"op": "ldev_create", "session": "0x00000000"},
+    {"op": "ldev_expect", "lcg": "0x6C09C0F4", "mul": "0x6C09C0F4", "crt": 1},
+    {"op": "ldev_create", "session": "0x6C09C0F4"},
+    {"op": "ldev_expect", "lcg": "0x00000001", "mul": "0x00000001", "crt": 1},
+    {"op": "ldev_create", "session": "0x93F63F0B"},
+    {"op": "ldev_expect", "lcg": "0xFFFFFFFE", "mul": "0xFFFFFFFE", "crt": 1}
+  ]
+}
