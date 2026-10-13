@@ -328,7 +328,7 @@ The full table is in the data files. FreeCity4 must not embed it.
 | `CalculateJobsPerUnitOfDemand(float out[3], demandID, demandIndex)` | Set `out[0..2] := 0`. Load the exemplar `0x6534284A / 0xC7BB4816 / (demandID + demandIndex)` from the resource manager (the current data, not the link table). For each Drives pair `(target, percent)`: if `target = demandIndex + 0x2010` then `out[0] := percent / 100`; `+0x2020` → `out[1]`; `+0x2030` → `out[2]`. Missing exemplar or property: all zero. |
 | `GetJobsBySensus(type)` | 0 if `type` ∈ {`0x1011`, `0x1021`, `0x1031`}. Otherwise `CalculateJobsPerUnitOfDemand(j, type, 0)`; `x := (j0 + j1 + j2) · node[type].supply`; return `x ≤ 0 ? 0 : trunc(x)` as uint32. *[choice]* A missing node returns 0 (the original crashes). |
 | `GetNeutralTaxRate()` | `curveNeutral(node[0x1001].supply + node[0x3001].supply + node[0x4001].supply)` (§11.1), **unclamped**. *[choice]* If the curve is absent or a node is missing, its term is 0 and an absent curve yields 0 (the original crashes). |
-| `GetLocalPopulationSummary(map<uint32,int32>&)` | Clear the map. For each node in key order: regionUse 1 → `map[key] := trunc(supply)`; regionUse 2 → `map[key] := trunc(demand)`; others skipped. This is the per-city summary the region view stores for neighbours *[inferred]*. |
+| `GetLocalPopulationSummary(map<uint32,int32>&)` | Clear the map. For each node in key order: regionUse 1 → `map[key] := trunc(supply)`; regionUse 2 → `map[key] := trunc(demand)`; others skipped. This is the per-city summary the region view stores for neighbours *[inferred]*. The game's map layout, the original's insert and a worked example: [docs/abi/allocators.md](../abi/allocators.md) *map and set*, *GetLocalPopulationSummary*. |
 
 "Curve" means a response curve (§11.1).
 
@@ -392,6 +392,7 @@ Notes *[compat]*:
   contributes once per cell it covers, unless `GetCapacity` itself returns a per-cell share (§15 Q3). FreeCity4 must
   reproduce the per-cell visit and use whatever the lot interface returns.
 - `GetCellWorkforcePercent` returns a fraction (0…1) despite its name *[inferred from the residential spec notes]*.
+- The profile fields used here (`purpose` at +0x00) and the whole profile: [docs/abi/layouts.md](../abi/layouts.md) *Building profile*.
 
 ### 6.4 Applying the census
 
@@ -458,6 +459,8 @@ if node devType exists: node.AddToSupplyValue(occupied ? +c : −c)
 ```
 
 So the supply of a local R$/CS$/… node is the total capacity of occupied (or constructing) buildings of that type.
+
+The profile and its capacity list (offsets, element type, who fills it, a worked example): [docs/abi/layouts.md](../abi/layouts.md) *Building profile*, *How `UpdateCapacity` reads it*.
 
 ## 8. Monthly modifiers and cap relief
 
