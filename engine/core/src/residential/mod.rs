@@ -146,9 +146,13 @@
 //! Host callbacks must not call back into the residential simulator.
 
 mod geometry;
+mod simulator;
 mod tuning;
 
 pub use geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR, MAX_PASSES};
+pub use simulator::{
+    query_interface, Grids, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, SlotRow, SLOTS,
+};
 pub use tuning::{
     id, le_curve, new_ages_by_wealth, pct, shipped_tuning, workforce_curve, PopulationTuning, SimulatorTuning,
     AGE_GROUPS, TUNING_KEY,
@@ -348,6 +352,15 @@ pub const BUILDING_PURPOSE_RESIDENTIAL: u32 = 1;
 /// The death's-door visual effect's name (§5.5 step 2).
 pub const BUZZARDS_EFFECT: &str = "buzzards";
 
+/// The occupant auto-budget bool property (§6.6, REH §2).
+pub const PROP_AUTO_BUDGET: u32 = 0x6C05_FC4D;
+
+/// [`PROP_AUTO_BUDGET`], as a function so the simulator reads it through one
+/// name.
+pub fn prop_auto_budget() -> u32 {
+    PROP_AUTO_BUDGET
+}
+
 /// The number of age histogram buckets (§3, §5.4).
 pub const AGE_BUCKETS: usize = 20;
 
@@ -372,35 +385,11 @@ impl ResidentialMessage {
 }
 
 /// The shared random stream (§3): the buzzards rolls (§5.5) and the monthly
-/// strike rolls (REH §4.9) draw from one `cRZRandom`.
+/// strike rolls (REH §4.9) draw from one `cRZRandom`. The generator itself is
+/// [`ResidentialRng`] (re-exported from `simulator`).
 pub trait ResidentialRandom {
     /// `RandomDoubleRangeUniform(a, b)` (foundations §6.1).
     fn range_f64(&mut self, a: f64, b: f64) -> f64;
-}
-
-/// The class's own `cRZRandom` (§3): seeded from the wall clock at
-/// construction in the original, and one stream shared by the buzzards rolls
-/// and the strike rolls.
-pub struct ResidentialRng(pub RzRandom);
-
-impl ResidentialRng {
-    /// The original's clock-seeded generator.
-    pub fn new(seeds: &dyn crate::rng::SeedSource) -> ResidentialRng {
-        ResidentialRng(RzRandom::new(crate::rng::CLOCK_SEED, seeds))
-    }
-
-    /// The session-seeded generator (foundations §6.3 *[choice]*): a member
-    /// generator seeded from the clock uses the owning class's GZCLSID as its
-    /// constant, so `derive_seed(session, 0x4990C013)`.
-    pub fn from_session(session: u32, seeds: &dyn crate::rng::SeedSource) -> ResidentialRng {
-        ResidentialRng(RzRandom::new(crate::rng::derive_seed(session, CLSID_RESIDENTIAL_SIMULATOR), seeds))
-    }
-}
-
-impl ResidentialRandom for ResidentialRng {
-    fn range_f64(&mut self, a: f64, b: f64) -> f64 {
-        self.0.range_f64(a, b)
-    }
 }
 
 /// One education or health department's record: the saved scalars of §9.1
@@ -587,16 +576,22 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// State 0: move the pending school, then pending hospital, then pending
     /// health-affecting buildings into their group lists (REH §4.1).
     fn distribute_pending_buildings(&self, lists: &mut OccupantLists);
+    /// §4.3 `DoBuildingChanged(building, inserted)`: recognise the building,
+    /// register it with the budget and append it to (added) or erase it from
+    /// (removed) the pending list in `lists` (REH §4.1). The caller sets the
+    /// dirty flag afterwards.
+    fn building_changed(&self, building: u64, inserted: bool, lists: &mut OccupantLists);
     /// State 5: `UpdateCoverageMap` for the school groups 0..6 in order
-    /// (REH §4.4). The served counter is zeroed by the simulator first and
-    /// read back from [`ResidentialState`] at state 9.
-    fn update_school_coverage(&self);
+    /// (REH §4.4). The simulator zeroes the school-covered counter first and
+    /// stores the returned served count for state 9 (§5.7).
+    fn update_school_coverage(&self) -> i32;
     /// State 6: for each school group and each building in list order the
     /// auto-budget step, then `ComputeOccupantGrade` with the EQ grids
     /// (REH §4.5, §4.6, §4.10). The grade grid is zeroed first.
     fn grade_schools(&self);
-    /// State 7: `UpdateCoverageMap` for the hospital groups 0..2 (REH §4.4).
-    fn update_hospital_coverage(&self);
+    /// State 7: `UpdateCoverageMap` for the hospital groups 0..2 (REH §4.4);
+    /// returns the served count for state 9.
+    fn update_hospital_coverage(&self) -> i32;
     /// State 8: as [`ResidentialHost::grade_schools`] for hospitals, with the
     /// HQ grids.
     fn grade_hospitals(&self);

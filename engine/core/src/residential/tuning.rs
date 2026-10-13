@@ -96,14 +96,19 @@ const WORKFORCE_DEFAULT: &[(f32, f32)] = &[(0.0, 0.0), (200.0, 100.0)];
 /// The nine age groups of §5.6.
 pub const AGE_GROUPS: usize = 9;
 
-/// `0.01f` as one `f32` rounding: "pct" and "% × 0.01" properties (§7).
-/// Matches `protection::algo::pct` (the same property-getter family); see
-/// `docs/specs/QUESTIONS.md` on whether the getter's `0.01` is the `float` or
-/// the `double` constant (it changes an `SC4Percentage` like 80 → 0.8 by one
-/// ulp: `0x3F4CCCCC` vs `0x3F4CCCCD`). Conformance vectors compare with a
-/// 1e-5 relative tolerance, so the two agree there.
+/// "% × 0.01" / SC4Percentage properties (§7): one `f32` rounding of
+/// `x × 0.01`. The `0.01` is the **double** constant, so `pct(80.0)` is
+/// exactly `0.8f32` (`0x3F4CCCCD`) — which §15 test 8 requires (EQ 50 →
+/// 40, HQ 60 → 48 exactly). With the `float` `0.01` the product would be
+/// `0.79999995` (`0x3F4CCCCC`) and `50 × 0.79999995` would round to
+/// `39.999996`, failing the worked example.
+///
+/// This deliberately differs from `protection::algo::pct`, which multiplies
+/// by the `float` `0.01`; see `docs/specs/QUESTIONS.md` (the SC4Percentage
+/// getter's constant is not pinned by the specs, and the two subsystems' own
+/// worked examples point different ways).
 pub fn pct(x: f32) -> f32 {
-    (f64::from(x) * f64::from(0.01f32)) as f32
+    (f64::from(x) * 0.01f64) as f32
 }
 
 /// The population tuning T of §7.1, read at `Init` and at the first state-4
@@ -545,12 +550,12 @@ mod tests {
         assert_eq!(t.new_hq, [20.0, 40.0, 60.0]);
         assert_eq!((t.deaths_door_hq, t.effect_chance), (2.0, 1.5));
         assert_eq!((t.effect_height, t.effect_delta), (50.0, 10.0));
-        // "% × 0.01" properties: `pct(80.0)` is one `f32` rounding of the
-        // product. With the float `0.01` (protection's convention) this is
-        // `0x3F4CCCCC`, one ulp below the double-`0.01` result `0x3F4CCCCD`;
-        // the §15 worked examples (EQ 50 → 40, HQ 60 → 48) are unaffected.
+        // "% × 0.01" properties with the double constant: `pct(80.0)` is
+        // exactly `0.8f32` (`0x3F4CCCCD`), which §15 test 8 needs (EQ 50 →
+        // 40, HQ 60 → 48).
         assert_eq!(t.eq_reset, pct(80.0));
-        assert_eq!(t.eq_reset.to_bits(), 0x3F4C_CCCC);
+        assert_eq!(t.eq_reset.to_bits(), 0.8f32.to_bits());
+        assert_eq!(t.eq_reset.to_bits(), 0x3F4C_CCCD);
         // The ordinance products scale the decays in float32.
         let o = PopulationTuning::read(Some(&e), 1.1, 0.5);
         assert_eq!((o.eq_decay, o.hq_decay), (0.2 * 1.1f32, 0.1));
@@ -601,10 +606,11 @@ mod tests {
         let e = shipped_tuning();
         let t = SimulatorTuning::read(Some(&e), &mut health, &mut education);
         assert_eq!(health.strike_duration, 500);
-        assert_eq!(health.max_funding, pct(120.0));
-        assert_eq!(health.init_funding, pct(25.0));
-        assert_eq!(health.strike_efficiency, pct(20.0));
-        assert_eq!(health.min_grade, pct(90.0));
+        // With the double 0.01 these land exactly on the code defaults.
+        assert_eq!(health.max_funding, 1.2);
+        assert_eq!(health.init_funding, 0.25);
+        assert_eq!(health.strike_efficiency, 0.2);
+        assert_eq!(health.min_grade, 0.9);
         assert_eq!(health.f0, 0.6); // OBS property absent from the exemplar
         assert_eq!(t.school_chunks, vec![500, 750, 1000, 1000, 10000, 300, 1200]);
         assert_eq!(t.hospital_chunks, vec![500, 500, 2000]);
