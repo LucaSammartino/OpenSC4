@@ -37,6 +37,7 @@ pub mod ids;
 pub mod julian;
 pub mod landfill;
 pub mod landvalue;
+pub mod neighbors;
 pub mod lot_developer;
 pub mod ordinance;
 pub mod plumbing;
