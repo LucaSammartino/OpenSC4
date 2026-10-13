@@ -156,6 +156,17 @@ plugin.
        `power_occupants`, `power_poles`, `power_lots`, `power_neighbors`, `power_budget`, `power_grid_writes`,
        `power_posts`, `power_terrain`, `power_zone_tool`, `power_view`, `power_radiation`,
        `power_occupant_query`, `power_demolish`, `power_direct_calls` (see `plugin/FC4Config.h`).
+     - `pollution`: the pollution and garbage simulator (`cSC4PollutionSimulator`, pollution spec; its eight grids
+       are the game's own `cSC4SimGrid<int16>`, created through GZCOM). The getters are answered from any thread
+       (the game asks from a second thread during a day or a month). Not yet done (logged once): the visual effects
+       of §4.10 (`cISC4VisualEffect` / `cS3DTransform` are not in docs/abi). The log has a status line at `Init`,
+       `Read` and every month (`pollution month: init=… cells=… lists wtp/inc/wte/rec=… avg air/water/garbage=…
+       supply=… capacity=… last month produced/…/landfilled=… cost=…; grids airSrc nonzero/tracts sum [min..max],
+       …`). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
+       `pollution_occupants`, `pollution_lots`, `pollution_neighbors`, `pollution_budget`,
+       `pollution_grid_writes`, `pollution_posts`, `pollution_history`, `pollution_ordinance`,
+       `pollution_traffic`, `pollution_zoning`, `pollution_power`, `pollution_landfill`, `pollution_population`,
+       `pollution_props`, `pollution_terrain` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -313,6 +324,31 @@ plugin.
        mismatches=M; checks=K clean=C
      demand shadow yyyy-mm-dd modifiers R$ (0x21010): tax …; econ …; before …; ours: max rate … ratio … curve …
      ```
+   - **Pollution shadow** (`pollution_shadow = 1`, env `FC4_POLLUTION_SHADOW`; off by default;
+     `pollution_shadow_cells = N`, env `FC4_POLLUTION_SHADOW_CELLS`, default 4, 1..64): a same-process differential
+     of the eight pollution grids. It needs **our simulator and the original pollution simulator** (do not enable
+     `pollution`); otherwise it logs `pollution shadow: requested … but INACTIVE` at game start. Our simulator wraps
+     each `SimNewDay` and `SimNewMonth` delivery to the original's agent (`cSC4PollutionSimulator`): just before it,
+     the original's own `Write` (`cIGZSerializable`) goes into a memory stream, and FreeCity4's core loads that
+     record, copies the eight live grids it refers to and runs its own day or month on the copies, reading every
+     other input (city geometry, tuning, terrain, zones, air traffic, ordinances, deals, power, population,
+     landfill, occupant properties, budget items) through a read-only host table; just after it, the record is
+     captured again and our grids are compared with the live ones cell by cell, with the saved fields, and with
+     the occupant properties and deal usage. Nothing is written to the game (the shadow's host table has no write
+     callbacks; its grid table only reads). Not readable read-only, hence not compared (said in the start line):
+     the radiation sum (not saved), the posted messages, history and budget values, the visual effects and the
+     worst tracts. Lines (always written; longer ones continue on `pollution shadow (cont.)` lines):
+
+     ```
+     pollution shadow yyyy-mm-dd day|month: …    a delivery with a difference (at most 8 a month), a rerun with
+                                                 the original's tract order, or INCOMPLETE (why); not compared
+     pollution shadow month to yyyy-mm-dd: deliveries=N (days D, months M) clean=C incomplete=I reruns=R
+       uncached=U; cells=X mismatches=Y; airSrc y/x max|d|=…, waterSrc …, garbageSrc …, radSrc …, airVal …,
+       waterVal …, garbageVal …, radVal …; first differing cells: …; fields: …; props compared=… mismatched=…;
+       deals compared=… mismatched=… [; incomplete because: …]
+     ```
+
+     Success is `clean` equal to `deliveries` and `mismatches=0` on every month line.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "pollution_rhe_sites",
+  "spec": ["pollution 4.6.1", "pollution 4.12", "pollution 11.26", "pollution 11.28"],
+  "description": "Test 26: efficiency 1.0, shipped transport curve (5000 per tile), landfill room 10,000,000, no export, plants or decomposition room (decomposed 2000), offer 6,000,000 -> 1000 tiles: curve 5,000,000 -> rhe gives the limit 4,597,152 (the 1.5*2^23 idiom outside its exact range), AddToGarbageSupply(4597152); 839 tiles -> 4,194,652; 838 tiles -> 4,190,000 (exact); supply 100,000 and 1000 tiles -> limit 4,497,152 (supply 4,597,152 after). Test 28: the Dispose floor rhe(g - 0.5f) (+1 when float(n+1) = g): wteRemaining 10, offer 9.99 -> remaining 1, all 9.99 burned; wteRemaining 10, offer 3.0 -> 7; incinerator remaining 8,000,000, offer 5,000,000 -> 8,000,000 - 4,597,152 = 3,402,848.",
+  "steps": [
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_env", "landfill": [0, 10000000], "landfill_tiles": 1000},
+    {"op": "pollution_set", "state": {"efficiency": 1, "garbage_supply": 0, "decomposed": 2000}},
+    {"op": "pollution_call", "method": "dispose", "args": [6000000], "expect": {"taken": 4597152, "remaining": {"wtp": 0, "inc": 0, "wte": 0}}},
+    {"op": "pollution_expect", "state": {"garbage_supply": 4597152}},
+    {"op": "pollution_env", "landfill_tiles": 839},
+    {"op": "pollution_set", "state": {"garbage_supply": 0}},
+    {"op": "pollution_call", "method": "dispose", "args": [6000000], "expect": {"taken": 4194652, "remaining": {"wtp": 0, "inc": 0, "wte": 0}}},
+    {"op": "pollution_expect", "state": {"garbage_supply": 4194652}},
+    {"op": "pollution_env", "landfill_tiles": 838},
+    {"op": "pollution_set", "state": {"garbage_supply": 0}},
+    {"op": "pollution_call", "method": "dispose", "args": [6000000], "expect": {"taken": 4190000, "remaining": {"wtp": 0, "inc": 0, "wte": 0}}},
+    {"op": "pollution_expect", "state": {"garbage_supply": 4190000}},
+    {"op": "pollution_env", "landfill_tiles": 1000},
+    {"op": "pollution_set", "state": {"garbage_supply": 100000}},
+    {"op": "pollution_call", "method": "dispose", "args": [6000000], "expect": {"taken": 4497152, "remaining": {"wtp": 0, "inc": 0, "wte": 0}}},
+    {"op": "pollution_expect", "state": {"garbage_supply": 4597152}},
+    {"op": "pollution_env", "landfill": [0, 0], "landfill_tiles": 0},
+
+    {"op": "pollution_create"},
+    {"op": "pollution_init"},
+    {"op": "pollution_set", "state": {"decomposed": 2000}},
+    {"op": "pollution_call", "method": "dispose", "args": [9.99], "remaining": {"wte": 10},
+      "expect": {"taken": 9.99, "remaining": {"wtp": 0, "inc": 0, "wte": 1}}},
+    {"op": "pollution_call", "method": "dispose", "args": [3.0], "remaining": {"wte": 10},
+      "expect": {"taken": 3.0, "remaining": {"wtp": 0, "inc": 0, "wte": 7}}},
+    {"op": "pollution_call", "method": "dispose", "args": [5000000], "remaining": {"inc": 8000000},
+      "expect": {"taken": 5000000, "remaining": {"wtp": 0, "inc": 3402848, "wte": 0}}},
+    {"op": "pollution_expect", "state": {"incinerated": 5000000}}
+  ]
+}
