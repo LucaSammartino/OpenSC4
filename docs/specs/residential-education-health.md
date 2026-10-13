@@ -131,7 +131,9 @@ All float arithmetic is float32 (foundations §18): every add, sub, mul, div and
 order given. "trunc" is `_ftol` (toward zero). The result is used as a 32-bit integer and reinterpreted as u32
 where noted. "u32→float" means `fild` plus 2^32 when the value is negative as int32. Response curves are
 evaluated with `GetOutputValue(x)` (foundations §4). "%curve" means a curve whose output is a percentage and is
-multiplied by **0.01** afterwards.
+multiplied by **0.01** afterwards. Every `0.01` in this spec (including the ± 0.01 steps of §4.10) is the
+**float32** constant `0.01f` = `0x3C23D70A` (`0x00A823A4`), never a double (verified in every residential-class
+function that uses it; residential.md §7.1, RS1). So a shipped 80 % is 0.79999995 and 20 % is 0.19999999.
 
 ### 4.1 Service-building recognition and lists
 
@@ -450,7 +452,8 @@ population tunables read by `ReadTunablePopulationValues` (§4.13); that read mu
 decay factors. The education/health steps, in order:
 
 1. **Pollution.** For type 0 (air), 1 (water), 2 (garbage): avg := Σ `pollution.GetPollutionValue(type, x, z)`
-   over the S × S cells of the tract / S² (u32 division). Only the **low byte** of avg is used *[quirk]*.
+   over the S × S cells of the tract / S² (u32 division). The sum is a wrapping u32 accumulator and S² a 32-bit
+   product (residential.md §5.5 step 1, RS3). Only the **low byte** of avg is used *[quirk]*.
    GetPollutionValue returns the pollution **source** grid value (pollution spec, slot 6).
    ```
    HQdec := tv.HQdecay
@@ -502,8 +505,8 @@ after the EQ/HQ updates) is normative in residential.md §5.5.
 |---|---|
 | `GetCellEQ(x, z)` / `GetCellHQ(x, z)` (slots 35/36) | GetTractQuotient(EQ or HQ, pop, x / S_EQ, z / S_EQ) (unsigned division by the EQ grid's tract size). ST0. |
 | `GetCellEQByWealth(x, z, wealth)` (37/38) | `EQ[wealth − 1].GetTractValue(x / S_EQ, z / S_EQ)`. The wealth byte is decremented as u8, so **wealth 0 or > 3 reads out of bounds** (crash) *[quirk]*. ST0. |
-| `GetGlobalEQ()` / `GetGlobalHQ()` (32/33) | pop := `GetPopulation()`; 0 → 0.0. Otherwise, over the EQ grid's tract counts: a := Q0 × p0; b := Q1 × p1 + a; c := Q2 × p2 + b; sum := c + sum; result := sum / float(pop). ST0. |
-| `GetAverageEQGrid(&g, min*, max*)` / `HQ` (21/22) | Creates a **new** float grid (refcount 1, owned by the caller), tract size S_EQ, ID `0x69D5C351` / `0x69D5C360`. Each tract := float(trunc(quotient)), or 0 when sum16 = 0. min starts at 255.0 and max at 0.0. Each is updated with every tract, populated or not, and written only when its pointer is not null. |
+| `GetGlobalEQ()` / `GetGlobalHQ()` (32/33) | pop := `GetPopulation()`; 0 → 0.0. Otherwise, over the EQ grid's tract counts: a := Q0 × p0; b := Q1 × p1 + a; c := Q2 × p2 + b; sum := c + sum; result := sum / float(pop). ST0. **Traversal (RS4, from the exe, `0x006F7720` / `0x006F7870`):** x outer from 0 to `GetTractCountX() − 1`, z inner from 0 to `GetTractCountZ() − 1`. The counts come from the R$ EQ grid (HQ: the R$ HQ grid). Every value is read through `GetTractValue(x, z)`: Q_w as a float, p_w as a uint16 converted with `float()`. No raw grid memory is read. Each operation is one float32 rounding, and `sum` is stored as float32 after every tract. On a 2 × 2 grid the order is (0,0), (0,1), (1,0), (1,1). |
+| `GetAverageEQGrid(&g, min*, max*)` / `HQ` (21/22) | Creates a **new** float grid (refcount 1, owned by the caller), tract size S_EQ, ID `0x69D5C351` / `0x69D5C360`. Each tract := float(trunc(quotient)), or 0 when sum16 = 0. min starts at 255.0 and max at 0.0. Each is updated with every tract, populated or not (verified, RS6: `0x006F70E0`; strict compares), and written only when its pointer is not null. |
 | `GetEQMinAndMaxCellCoords(&minX, &minZ, &maxX, &maxZ, &min, &max)` / `HQ` (43/44) | If `GetPopulation()` = 0: all six outputs := 0, AL = 0. Otherwise min := 200.0, max := −200.0. For each tract (x outer, z inner) with any pop_w ≠ 0: q := quotient; q < min → min := q and remember (x, z); q > max likewise (strict). Coordinates out := S_EQ/2 + S_EQ × tract (signed /2). AL = 1. *[quirk]* If no tract has population (the population counter disagrees with the grids), the coordinates are uninitialised stack values. |
 | `GetCellLifeExpectancy(x, z)` (29) | Loads the residential tuning exemplar **on every call**; missing → 0. Curve "Health Quotient to Life Expectancy Curve" `0x6941A67F`, **default** pattern, code default (0,0)(200,200). LE := trunc(curve(GetCellHQ(x, z))). Returns **AL only** (§7). |
 | `GetGlobalLE()` (34) | The same with `GetGlobalHQ()`. **AL only**, not a float. |
@@ -712,7 +715,7 @@ queries on every call. Names come from re/tuning/simulators.md. Percent values a
 | `0xC929C433` / `0x0929C439` | EQ / HQ Decay | f32 | 1.0 / 1.0 | 0.2 / 0.2 |
 | `0xC929CC58` / `0x0929CC65` / `0x2929CC6B` | Low / Medium / High Wealth EQ (newcomers) | float getter (converts) | 4 / 6 / 8 | u8 20 / 40 / 60 |
 | `0xC929CC8D` / `0x6929CC92` / `0x4929CC97` | Low / Medium / High Wealth HQ | float getter | **none: uninitialised** *[quirk]* | u8 20 / 40 / 60 |
-| `0xCA027325` / `0xCA027328` | EQ / HQ reset percent | SC4Percentage getter | 0.7 / 0.7 | 80 → 0.8 |
+| `0xCA027325` / `0xCA027328` | EQ / HQ reset percent | SC4Percentage getter (× 0.01f) | 0.7 / 0.7 | 80 → 0.79999995 (`0x3F4CCCCC`; RS1) |
 | `0xCA027307` | Average Age reset value | u8 | 40 | 40 |
 | `0x6AB70DA7` | Death's door HQ | f32 | 0 | 2 |
 | `0x4AB70DAC` | Death's door effect chance (%) | f32 | 0 | 1.5 |
@@ -727,7 +730,7 @@ Notes:
 - The ages (`0xC929C652`, `0x0929CC30`, `0x0929CC36`) and the nine age-group curves are in residential.md.
 - *[compat]* The newcomer EQ/HQ values ship as u8 and are read with the converting float getter.
   docs/subsystems/demand-rci.md quotes the code defaults (4/6/8, reset 0.7). The shipped values are 20/40/60 and
-  0.8.
+  80 %, which the getter turns into 0.79999995 (`0x3F4CCCCC`), not 0.8f.
 - If the exemplar is missing, `ReadTunablePopulationValues` leaves the newcomer HQ values uninitialised. A
   replacement should use the shipped values *[choice]*.
 

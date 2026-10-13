@@ -13,11 +13,14 @@ into §8.3: row by row, ascending z, with interior rows visiting only their two 
 inference was correct. Kept here struck through rather than deleted so the numbering of ZQ2–ZQ6 still matches the
 lane's report.
 
-**ZQ2 — §7.4 `CreateParcellizableRegion`, the parenthetical "(real mode or the cell is occupied per §8.4)".**
-Code 7 of §8.4 is only reachable if codes 0/1/2/3 all pass first, so a cell holding a lot that is *also* unzoned, or under
-a network, returns 2 or 3 — not 7. "Occupied per §8.4" is therefore not a clean predicate. The lane implemented it
-literally as `can_create_lot(x, z, 1, 1, false, false) == 7`. No test exercises the highlight-mode branch of §7.4 at all
-(see ZQ4).
+~~**ZQ2 — §7.4 `CreateParcellizableRegion`, the parenthetical "(real mode or the cell is occupied per §8.4)".**~~
+**ANSWERED 2026-10-13** from the exe and written into zones.md §7.4, with a highlight-mode table. The predicate is the
+zone developer's per-cell `IsCellOccupied(x, z)` (`0x0072C050`), called only in highlight mode:
+- real mode: a real lot is on the cell;
+- highlight mode: a real lot that is not virtually deleted, or a virtual lot.
+
+That is §8.4's code-7 cell condition without codes 0–3, so `can_create_lot(…) == 7` is not equivalent. The lot then
+examined is always the real one (`GetLot(x, z, false)`).
 
 **ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**
 Tests 19–29 all state "the harness bypasses `DetermineLotSize`", and no other test covers it. It is the most
@@ -49,42 +52,37 @@ All were about `docs/specs/residential.md`. The lane's code compiles clean and i
 unexercised code. Preserved here from the lane's branch by hand — the branch's own edit to this file was written
 against the older `(No open questions.)` version and cannot be merged as-is.
 
-**RS1 — is the `0.01` in the percentage property getters the float or the double constant? (load-bearing)**
-The `SC4Percentage` / "% × 0.01" readers, the `× 0.01` of §5.6 step 4, and §6.4 slots 30/31. Residential's own worked
-examples require **double**: §15 test 8 needs `pct(80.0)` to be exactly `0.8f32` (`0x3F4CCCCD`) for EQ 50 → 40 and
-HQ 60 → 48 — the float constant gives `0.79999995` (`0x3F4CCCCC`), so `50 × 0.79999995` = `39.999996` — and §15 test
-10 needs `1200 × 0.01` to truncate to 12, not 11 (float gives `11.999999`). But
-`engine/core/src/protection/algo.rs::pct` multiplies by the **float** `0.01`, and protection's vectors pass with it.
-The lane used double `0.01` throughout `engine/core/src/residential/`. Answerable from the getter's bytes
-(`0x005FDAC0` and friends): is the constant a `float` or a `double` literal, and does one of the two subsystems have a
-wrong worked example or a compensating one-ulp difference? This is a ±1 ulp on every percentage in **both** cores, so
-it is worth settling once rather than per subsystem.
+~~**RS1 — is the `0.01` in the percentage property getters the float or the double constant? (load-bearing)**~~
+**ANSWERED 2026-10-13** from the exe: **float32 `0.01f`** (`0x00A823A4`) at every site, in the getter `0x005FDAC0`,
+§5.6 step 4, slots 30/31, the §7.2 tuning and the save reader. Protection was right. Residential §15 test 8 was
+wrong (EQ 50 → 39.999996, HQ 60 → 47.999996) and is corrected; test 10 holds, but only because each product is
+rounded to float32 before the truncation. Written into residential.md §5.6, §7.1, §15, REH §4 and foundations §18.3.
+Kept struck through so RS2–RS6 keep their numbers.
 
-**RS2 — §5.5 step 5: is the `GetSimDate` month read per tract, or latched at pass start?**
-The tract is aged only when `month = 12`. The core reads it per tract (the literal reading). The two differ only if a
-month boundary falls inside one state-4 pass — impossible in the original (one state per day) but reachable if a host
-runs a whole pass in one call across a date change.
+~~**RS2 — §5.5 step 5: is the `GetSimDate` month read per tract, or latched at pass start?**~~ **ANSWERED
+2026-10-13** from the exe and written into residential.md §5.5 step 5: **per tract.** `DoPopulationChange` calls
+`GetSimDate` itself (`0x006FAA95`) for every tract with total ≠ 0. Nothing is latched, so the core's literal reading
+is right.
 
-**RS3 — §5.5 step 1: the pollution average's accumulator width.**
-REH §4.7 says "u32 division". The core sums the `S × S` `GetPollutionValue` results (each 16 bits) in a wrapping
-`u32`. With `S = 4` the maximum is 1,048,560, so no wrap; a large `S` would. Confirm the original's accumulator is
-32-bit and wraps rather than being wider.
+~~**RS3 — §5.5 step 1: the pollution average's accumulator width.**~~ **ANSWERED 2026-10-13** from the exe and
+written into residential.md §5.5 step 1 and REH §4.7. The accumulator is a **32-bit unsigned dword that wraps**:
+zero-extended 16-bit adds, then an unsigned `div` by the 32-bit product S·S (helper `0x006F7FF0`). The core's
+wrapping u32 is right.
 
-**RS4 — §5.6 step 4 / REH §4.8 `GetGlobalEQ`/`GetGlobalHQ`: what is the per-tract traversal order?**
-Float addition is not associative, so the accumulated `sum` depends on it. The core walks the grid's tracts x outer,
-z inner (the same order as `ProcessTwoGridsWithCallback`, simgrid §7.3). Confirm, or state that the original's order
-is the raw-data order of the grid (the same thing for a contiguous row-major grid).
+~~**RS4 — §5.6 step 4 / REH §4.8 `GetGlobalEQ`/`GetGlobalHQ`: what is the per-tract traversal order?**~~
+**ANSWERED 2026-10-13** from the exe and written into REH §4.8, with a pointer from residential.md §5.7. The order is
+**x outer, z inner**, both ascending from 0, over the R$ EQ (HQ) grid's tract counts. Every value is read through
+`GetTractValue` (`0x006F7720`/`0x006F7870`), and no raw memory is read. This confirms the core.
 
-**RS5 — §5.3 step 2: does the distance sweep's running `d` widen past a byte?**
-`d` starts at 255 and computes `d := min(d + 1, v)`. If `d` is a byte accumulator, `255 + 1` wraps to 0 and the whole
-field collapses to 0 on the first sweep. The core widens `d` to `i32` and clamps the stored value to `0..=255`, which
-reproduces the Manhattan distance capped at 255 that §5.3 states and that §15 tests 1–3 require. Confirm the original
-widens too (or that its `min` is evaluated in a wider type) — the two differ for every grid with no seeded tract.
+~~**RS5 — §5.3 step 2: does the distance sweep's running `d` widen past a byte?**~~ **ANSWERED 2026-10-13** from the
+exe and written into residential.md §5.3 step 2, with a worked example. **Yes.** `d` is a 32-bit register: it starts
+at 255, `inc` takes it to 256 without wrapping, and the min uses a signed 32-bit compare (`0x005E4E80`). After the min
+it is ≤ 255, so storing its low byte never truncates. The core's i32 plus clamp is equivalent; the clamp never acts.
 
-**RS6 — §6.2 `GetAverageEQGrid`/`GetAverageHQGrid`: are `min`/`max` updated for unpopulated tracts?**
-REH §4.8 says yes ("Each is updated with every tract, populated or not") and the core follows it. With an empty city
-that gives `min = max = 0.0` rather than the initial `255.0` / `0.0`, which a caller may observe. residential.md §6.2
-only says "track the stored values", so confirm REH is normative here.
+~~**RS6 — §6.2 `GetAverageEQGrid`/`GetAverageHQGrid`: are `min`/`max` updated for unpopulated tracts?**~~
+**ANSWERED 2026-10-13** from the exe and written into residential.md §6.2, with a worked example. **Yes, and REH §4.8 is
+normative.** In `AverageGrids` (`0x006F70E0`) an unpopulated tract stores 0.0 and goes through the same strict min and
+max compares, so an empty city returns `min = max = 0.0`.
 
 ## From the budget shadow differential (filed by the coordinator, 2026-10-13; merged as `6ca4b65`)
 
@@ -93,17 +91,22 @@ shadow proves, not about a known mismatch. The lane's third question (does the o
 pointer equal its month agent?) was answered by run 39 itself: the agent `139BE6F0` was matched through its
 `cIGZMessageTarget2` interface, 4 bytes into the budget object `139BE6EC`, not by the name fallback.
 
-**BQ1: can the original's own lot list differ from `GetLotsInCellRect(…, false)` over the whole city?**
-The shadow scans lots through `GetLotsInCellRect`, and the original settlement walks its own lot list. Lots that are
-mid-transition, preview/placement lots, or lots outside the city bounds could be in one set and not the other. Run 39
-counted 413–417 lots and matched exactly, so no difference showed up on Spandau. Answer from the settlement's lot
-iteration: which container it walks and which lots it filters out.
+~~**BQ1: can the original's own lot list differ from `GetLotsInCellRect(…, false)` over the whole city?**~~
+**ANSWERED 2026-10-13** from the exe and written into budget.md §5.2. **No, on every known path.**
+- `ComputeTax` walks the lot manager's master list through a safe iterator. Its only filters are: no building, not
+  livable, and an untaxed cell.
+- The cell map and the list change together in `CreateLot`/`DeleteLot`, and a load rebuilds one from the other.
+  Highlight-mode lots are in neither set.
+- Right after a load the two **orders** are identical too (first cell, x outer).
 
-**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**
-The shadow reads the month's income and expense as the change in the year-to-date values across the settlement. On
-January 1 the year-to-date is reset, so that month's income/expense is reported as `year end: … not observable`
-(run 39, 2002-01-01). Does the reset happen before or after that month's amounts are added? If after, the January
-values are readable directly as the new YTD, and the shadow can compare that month too.
+The only divergences are a direct `CreateLot` over an existing lot, or a null-list insertion point. Neither is
+known to occur.
+
+~~**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**~~ **ANSWERED 2026-10-13** from
+the exe and written into budget.md §5.1 and §15 test 4. **Both return 0.** The settlement adds the month first, then
+records history, and only then resets the year (`0x00692A4E`), so December's amounts are added and wiped in the same
+call. The January 1 amounts are readable from history series `0x6A51178B`/`0xCA5BA3FB` (written before the reset),
+and their net from the funds change.
 
 ## From the demand shadow differential (filed by the coordinator, 2026-10-13; runs 42/43)
 
@@ -118,10 +121,8 @@ implementer found empirically. It reproduces `0x3DAA8124` (2001-10-01), `0xB9794
 (2001-09-09). Also answered on the way: the link factor is `r24(float(percent) · 0.01f)` with a float32 `0.01f`
 (§4.1).
 
-**DQ2 — §15 Q5: can the CO/I economy bonuses (`this+0xA0`, `this+0xA4`) be read or written through any interface?**
-In the original these are float32 fields, added with `FADD dword` to the economy modifier of CO$$/CO$$$
-(`0x006A654F`, `0x006A65FD`) and of the four I types (`+0xA4`, for example `0x006A68AF`). In the exported decomp of
-`cSC4DemandSimulator`, the only other code that touches them is the save write, the save read, and the
-Init/Shutdown zeroing. That was not checked against the vtables. Still open: does any `cISC4DemandSimulator` slot,
-or any other class, read or write `+0xA0`/`+0xA4`, for example through a getter that returns a pointer? A vtable
-scan of the demand simulator's interfaces would settle whether these fields are dead.
+~~**DQ2 — §15 Q5: can the CO/I economy bonuses (`this+0xA0`, `this+0xA4`) be read or written through any interface?**~~
+**ANSWERED 2026-10-13** from the exe and written into demand.md §15 Q5 and §8.1. **No.** None of the 24 slots of the
+three vtables touches them, nor does any other class. The only code that does is the constructor, the zeroing in
+`Init`, `Write`, `Read` and the six `FADD`s. The save record is the only way in or out, so the fields are dead in
+play and 0 in every new city.

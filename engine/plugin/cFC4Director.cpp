@@ -22,10 +22,12 @@
 // exception guard that logs the fault and fails the request instead of
 // letting it escape into the game.
 
+#include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4Popups.h"
 #include "FC4Subsystems.h"
 #include "cFC4Simulator.h"
 
@@ -303,8 +305,12 @@ public:
                      g_factoryCalls != before ? "CALLED" : "NOT called (another factory answered)");
             if (ok && probe != nullptr) probe->Release();
         }
+        // popup_dialogs (FC4Popups.h, advisors §6.8.1 option 1): before any
+        // city view, so before the first popup tick. Once per process.
+        fc4::PopupDialogsApply("PostAppInit");
         // Tooling that runs in every mode (autotest, digest, tick feed).
         fc4::ObserverStart();
+        fc4::ClockProbeStart();  // clock_probe (FC4ClockProbe.h): the M1 clock differential
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -312,6 +318,7 @@ public:
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
+        fc4::ClockProbeStop();
         fc4::ObserverStop();
         return true;
     }
