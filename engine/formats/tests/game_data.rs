@@ -146,7 +146,8 @@ fn sweep_installed_game_data() {
                 }
             }
             match e.tgi.type_id {
-                TYPE_EXEMPLAR | TYPE_COHORT => match Exemplar::parse(&data) {
+                // The factory read, with its type check (data-formats §4.1).
+                TYPE_EXEMPLAR | TYPE_COHORT => match Exemplar::parse_record(e.tgi.type_id, &data) {
                     Ok(ex) => {
                         match (ex.kind, ex.encoding) {
                             (Kind::Cohort, _) => s.cohorts += 1,
@@ -156,8 +157,16 @@ fn sweep_installed_game_data() {
                                 eprintln!(
                                     "note {name} {}: text exemplar, {} properties",
                                     e.tgi,
-                                    ex.properties.len()
+                                    ex.properties().len()
                                 );
+                                // Lines with an empty value list: `reps` values are read and missing ones are 0
+                                // (data-formats §4.3), so `Type:0:{}` is a scalar 0, not an empty array.
+                                for line in data
+                                    .split(|&b| b == b'\n')
+                                    .filter(|l| l.windows(3).any(|w| w == b":{}"))
+                                {
+                                    eprintln!("note   empty value list: {}", String::from_utf8_lossy(line).trim_end());
+                                }
                             }
                         }
                         if ex.encoding == Encoding::Binary {
@@ -167,7 +176,7 @@ fn sweep_installed_game_data() {
                                 s.reencode_different += 1;
                             }
                         }
-                        for p in &ex.properties {
+                        for p in ex.properties() {
                             let shape = if p.is_array { "[]" } else { "" };
                             *value_types
                                 .entry(format!("{}{shape}", p.value_type().name()))
@@ -224,14 +233,29 @@ fn sweep_installed_game_data() {
                 eprintln!("note: parent cohort {t} not found in the game data");
                 "parent missing"
             }
+            ChainEnd::NotCohort(t) => {
+                eprintln!("note: parent {t} is not a cohort");
+                "parent not a cohort"
+            }
             ChainEnd::Cycle(_) => "cycle",
             ChainEnd::TooDeep => "too deep",
         };
         *chains.entry(k.to_string()).or_default() += 1;
     }
+    // The game's load (data-formats §4.2, §4.4): a parent that does not load as a cohort fails the exemplar.
+    let loaded = store.load_all();
 
     eprintln!("game data: {}", dir.display());
     let mut total_failures = 0;
+    eprintln!(
+        "[load] .dat exemplars and cohorts loaded {}, failed to load {}",
+        loaded.exemplars.len(),
+        loaded.failures.len()
+    );
+    for (k, e) in loaded.failures.iter().take(20) {
+        eprintln!("  FAIL load {k}: {e}");
+    }
+    total_failures += loaded.failures.len();
     for (g, s) in &by_group {
         eprintln!(
             "[{g}] files {} (not DBPF: {:?}), entries {}, unpacked {} MB, compressed {}, \
