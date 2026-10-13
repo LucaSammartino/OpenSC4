@@ -320,6 +320,7 @@ void ProtectionShadowStartup(bool protectionReplaced) {
         Log("protection shadow: requested (protection_shadow from %s) but INACTIVE: it compares the ORIGINAL fire and "
             "police simulators, and `enable = protection` replaces them",
             src);
+        g_enabled = false;
         return;
     }
     Log("protection shadow: ON (protection_shadow from %s): at each SimNewMonth, per simulator, FreeCity4's coverage "
