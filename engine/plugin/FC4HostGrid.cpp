@@ -150,7 +150,9 @@ void Shutdown(void* u, uint64_t t) {
 }
 
 void Release(void*, uint64_t t) {
-    if (cIGZUnknown* g = FromToken(t)) FC4_RELEASE(g);
+    // The grid came from GetClassObject in Create (one reference, ours, noted with FC4_ACQUIRED), so this may be its
+    // last reference: a temporary the game created for us, not a game-owned object.
+    if (cIGZUnknown* g = FromToken(t)) FC4_RELEASE_CREATED(g);
 }
 
 }  // namespace
