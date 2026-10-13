@@ -83,7 +83,7 @@ this spec:
 The full rebuild runs in **DoPostCityInit** (message `0x26D31EC1`, `0x00720430`), in this order *[compat]*:
 
 1. Re-read the rules of every loaded transit switch (§4.7.2).
-2. Refresh the switches' subway access points.
+2. Refresh the switches' subway access points (§4.7.2, "Access points after the re-read").
 3. Rebuild the whole city with `DoConnectionsChanged(0, 0, X−1, Z−1)` (§4.2).
 4. Register the neighbour connections (traffic-simulator.md).
 5. The destination-map boundary pass (traffic-simulator.md).
@@ -552,6 +552,19 @@ After loading a current save, each switch therefore holds its saved rules follow
 writes the same values, and the flags use the first n. The duplicates show only in the next save, which writes the
 doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
 then read), so a load followed by a save reproduces the file.
+
+**Access points after the re-read (TN4, `0x007204E4`–`0x0072051E`).** Once every switch has been re-read,
+DoPostCityInit walks the table again. Each switch is handled on its own, so the order does not matter:
+
+- **flag 4 set and "has access point" = 0:** set "has access point" := 1. The access cell is the NW cell
+  `(x1, z1)` of the building's bounding cells (building slot 11, `+0x2C`). The occupant search of §4.7.1 step 3
+  (type `0x8A13918A`) is **not** repeated *[quirk]*;
+- **flag 4 set and "has access point" = 1** (as saved): kept unchanged;
+- **flag 4 clear:** "has access point" := 0. The saved cell bytes stay but are no longer used.
+
+So after a load, a switch's access point is the saved one when the save had one. Otherwise it is the NW cell, even
+when a fresh activation would have found an access occupant. The mode-mask grid is not touched: it comes from the
+save (§6), and DoPostCityInit does not rewrite it from the re-read rules.
 
 For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
 source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ

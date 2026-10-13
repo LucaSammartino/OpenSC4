@@ -153,8 +153,15 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   DoPostCityInit still re-reads every switch's rules (`0x00720466`) and **appends** them, so a loaded switch holds
   its rules twice *[quirk]*. This has no effect on the rebuild and shows only in the next save. *[choice]* FreeCity4
   replaces the rules instead.
-- **TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
-  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]
+- ~~**TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
+  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]~~ **ANSWERED
+  2026-10-14** from the exe and written into §4.7.2 (the TN3 re-read steps, plus "Access points after the re-read").
+  The bracket is **partly right.**
+  - The mask and flags are recomputed only when the lot at the NW corner exists: the mask from the re-read entries,
+    the flags from the first n rules. Otherwise the mask is 0 and the flags are as `Read` left them.
+  - The access point is refreshed only for a switch with flag 4 and no saved access point. It is then the **NW
+    cell** of the building's bounding cells, with no occupant search. A saved point is kept, and with flag 4 clear
+    "has access point" := 0.
 - **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
   [reached, not extended]
 - **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
