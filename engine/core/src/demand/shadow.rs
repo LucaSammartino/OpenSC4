@@ -493,4 +493,56 @@ mod tests {
         assert_eq!(m.nodes[8].economy_modifier, 0.06f32 + 0.25); // I-R: + i bonus
         assert_eq!(f.other_calls.get(), 0);
     }
+
+    /// Runs 42 and 43 (demand shadow, Spandau): §8.1's tax term with the
+    /// shipped curve (0.2, 0.3), (1, 0), (5, −3.5), ordinance factor 1 and
+    /// the history max 70 (I-R: 90), at the neutral rates the original's
+    /// GetNeutralTaxRate returned (bit-identical to ours). 10 of 11 checks
+    /// agree; on 2001-10-01 of run 43 the original is 4 ulp above us. One
+    /// operation order reproduces all 132 values: `(maxRate · 0.1) ·
+    /// (1 / neutral)` (the reciprocal rounded to f32 first), not the spec's
+    /// literal `maxRate · 0.1 / neutral` (demand §8.1; open question, not
+    /// changed here). This test pins both until the question is answered.
+    #[test]
+    fn tax_ratio_operation_order_runs_42_43() {
+        let f = Fake::default();
+        let tuning = DemandTuning {
+            tax_modifier_curve: crate::curve::ResponseCurve::from_flat(&[0.2, 0.3, 1.0, 0.0, 5.0, -3.5]),
+            ..DemandTuning::default()
+        };
+        // Cs$ (index 3): the fake's ordinance factor is 1.0 for it.
+        let ours = |neutral: f32, max: f32| {
+            f.history.set(Some(max));
+            total_node_modifiers(3, neutral, &tuning, 0.0, 0.0, 2_452_184, &f).tax_modifier
+        };
+        let reciprocal = |neutral: f32, max: f32| {
+            let r = (max * 0.1) * (1.0 / neutral);
+            1.0f32 - 1.0 + tuning.tax_modifier_curve.as_ref().unwrap().eval(r)
+        };
+        let b = f32::from_bits;
+        // Run 43, 2001-10-01: neutral 8.99755573; orig 0.0832541287, ours 0.0832540989.
+        let n = b(0x410F_F5FD);
+        assert_eq!(ours(n, 70.0).to_bits(), 0x3DAA_8120);
+        assert_eq!(reciprocal(n, 70.0).to_bits(), 0x3DAA_8124);
+        // I-R (max 90): -0.000237718225 under both.
+        assert_eq!(ours(n, 90.0).to_bits(), 0xB979_4400);
+        assert_eq!(reciprocal(n, 90.0).to_bits(), 0xB979_4400);
+        // The other checks (neutral bits, the original's tax bits): equal under both.
+        let agree: [(u32, u32); 10] = [
+            (0x410F_F67A, 0x3DAA_8328), // 2001-09-09 (runs 42 and 43)
+            (0x410F_F55F, 0x3DAA_7E92), // run 43 2001-11-01
+            (0x410F_F4F9, 0x3DAA_7CEC), // run 43 2001-12-01
+            (0x410F_F4CB, 0x3DAA_7C2C), // run 43 2002-01-01
+            (0x410F_F4A4, 0x3DAA_7B88), // run 43 2002-02-01
+            (0x410F_F5FF, 0x3DAA_8128), // run 42 2001-10-01
+            (0x410F_F56A, 0x3DAA_7EC0), // run 42 2001-11-01
+            (0x410F_F4DA, 0x3DAA_7C6A), // run 42 2001-12-01
+            (0x410F_F49F, 0x3DAA_7B74), // run 42 2002-01-01
+            (0x410F_F477, 0x3DAA_7AD0), // run 42 2002-02-01
+        ];
+        for (nb, tb) in agree {
+            assert_eq!(ours(b(nb), 70.0).to_bits(), tb, "neutral {:#x}", nb);
+            assert_eq!(reciprocal(b(nb), 70.0).to_bits(), tb, "neutral {:#x}", nb);
+        }
+    }
 }
