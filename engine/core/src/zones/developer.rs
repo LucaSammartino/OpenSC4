@@ -772,7 +772,13 @@ impl ZoneDeveloper {
     /// and block depth `Parcellize` uses, from the developers that would
     /// build in this zone. No random draws.
     fn determine_lot_size(&self, region: &super::CellRegion) {
-        const COMMERCIAL: [u32; 5] = [dev_type::CS1, dev_type::CS2, dev_type::CS3, dev_type::CO2, dev_type::CO3];
+        const COMMERCIAL: [u32; 5] = [
+            dev_type::CS1,
+            dev_type::CS2,
+            dev_type::CS3,
+            dev_type::CO2,
+            dev_type::CO3,
+        ];
         let rect = region.rect;
         // 1. Centre of the cropped region (C integer division).
         let cx = clamp_i32((i64::from(rect.x1) + i64::from(rect.x2)) / 2);
@@ -1078,29 +1084,32 @@ impl ZoneDeveloper {
 
     /// Test/conformance affordance for `CreateParcellizableRegion` (§7.4,
     /// ZQ2): sets `zone` as the current zone type and, when `highlight` is
-    /// given, switches to highlight mode with those virtual-lot cells and
-    /// virtually deleted cells (each recorded as `{x, z, facing 0}` of its
-    /// own cell); runs the function on `region` and returns its result. Real
-    /// mode and the zone type are restored afterwards; the highlight maps keep
-    /// what the call left in them. Not part of the interface.
+    /// set, switches to highlight mode with the `virtual_lots` cells and the
+    /// `virtually_deleted` cells (each recorded as `{x, z, facing 0}` of its
+    /// own cell; both ignored in real mode); runs the function on `region`
+    /// and returns its result. Real mode and the zone type are restored
+    /// afterwards; the highlight maps keep what the call left in them. Not
+    /// part of the interface.
     pub fn create_parcellizable_region_for_test(
         &self,
         region: &super::CellRegion,
         zone: i32,
-        highlight: Option<(&[(i32, i32)], &[(i32, i32)])>,
+        highlight: bool,
+        virtual_lots: &[(i32, i32)],
+        virtually_deleted: &[(i32, i32)],
     ) -> super::CellRegion {
         let (prev_zone, prev_real) = {
             let mut s = self.st.borrow_mut();
             let prev = (s.current_zone, s.real_mode);
             s.current_zone = zone;
-            if let Some((created, deleted)) = highlight {
+            if highlight {
                 s.real_mode = false;
                 s.virtual_created.clear();
                 s.virtual_deleted.clear();
-                for &(x, z) in created {
+                for &(x, z) in virtual_lots {
                     s.virtual_created.insert((x, z), VirtualLot { x, z, facing: 0 });
                 }
-                for &(x, z) in deleted {
+                for &(x, z) in virtually_deleted {
                     s.virtual_deleted.insert((x, z), VirtualLot { x, z, facing: 0 });
                 }
             }

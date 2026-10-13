@@ -24,10 +24,11 @@ use fc4_core::rng::{derive_seed, FixedSeeds, RzRandom};
 use fc4_core::store::{save_store, Package};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, SaveRegistry};
 use fc4_core::zones::{
-    adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning, zone_density, CellRect, CellRegion,
-    Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotSize, PlaceZoneResult, Position, Service,
-    SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
-    CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE, NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
+    adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning,
+    zone_density, CellRect, CellRegion, Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotSize,
+    PlaceZoneResult, Position, Service, SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost,
+    ZonesMessage, CLSID_ZONE_DEVELOPER, CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE, NETWORK_OCCUPANT_TYPE,
+    RNG_SEED_XOR,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -1615,18 +1616,16 @@ fn parcellizable_region(w: &World, op: &Json) -> R<()> {
     let d = w.dev()?;
     let region = region_of(field(op, "region")?)?;
     let zone = i64_of(field(op, "type")?, "type")? as i32;
-    let highlight = match opt(op, "highlight") {
-        Some(h) => Some((
+    let highlight = opt(op, "highlight");
+    let (virtual_lots, virtually_deleted) = match highlight {
+        Some(h) => (
             opt(h, "virtual").map_or(Ok(Vec::new()), |v| cells_of(v, "virtual"))?,
             opt(h, "deleted").map_or(Ok(Vec::new()), |v| cells_of(v, "deleted"))?,
-        )),
-        None => None,
+        ),
+        None => (Vec::new(), Vec::new()),
     };
-    let out = d.create_parcellizable_region_for_test(
-        &region,
-        zone,
-        highlight.as_ref().map(|(c, del)| (c.as_slice(), del.as_slice())),
-    );
+    let out =
+        d.create_parcellizable_region_for_test(&region, zone, highlight.is_some(), &virtual_lots, &virtually_deleted);
     let deleted: Vec<(i32, i32)> = d.virtual_deleted().into_iter().map(|(cell, _)| cell).collect();
     let got = Json::Object(vec![
         ("cells".into(), cells_json(out.cells())),

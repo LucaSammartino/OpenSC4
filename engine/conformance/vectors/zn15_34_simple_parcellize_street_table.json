@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "zn15_34_simple_parcellize_street_table",
+  "spec": ["zones 7.5", "zones 7.10", "zones 15.32"],
+  "description": "Conformance test 32 (SimpleParcellize street lines, §7.5 step 1, every arm of the (Q, D) table; ZQ6). Named zn15_34 because zn15_30 and zn15_31 already hold two extra SimpleParcellize vectors. R = the full rect x 10..25, z 20..35 (16 x 16), n = 6, placeStreets set; the harness sets D and Q directly and logs the Place calls with the street stub of tests 19-29. Nothing is zoned, so step 2's 256 CreateLotToFaceRoad calls make no lot and the parcel log holds only step 1's Place calls; the networks are cleared before each case. A pass from the low edge lays streets at offsets 6 and 13 (x 16, 23; z 26, 33); a pass from the high edge lays them at x 19, 12 and z 29, 22, in that order. Every x-pass street is Place(x, 20, x, 35) and every z-pass street Place(10, z, 25, z) (both drawn from the low edge, DrawStreet(x, z1, x, z2, 0) and DrawStreet(x1, z, x2, z, 0)), and all x-pass streets come first. Table (Q, D: x streets / z streets): (0, 1) 19, 12 / 26, 33; (0, 3) 16, 23 / 26, 33; (1, 0) 19, 12 / 26, 33; (1, 2) 19, 12 / 29, 22; (2, 1) 19, 12 / 29, 22; (2, 3) 16, 23 / 29, 22; (3, 0) 16, 23 / 26, 33; (3, 2) 16, 23 / 29, 22. Edge rule: with x 10..17 (8 wide) neither direction lays an x street (offset 6 is one cell from the far edge); with x 10..18 the low edge gives 16 and the high edge gives 12. In the edge cases z still spans 20..35, so the z pass lays its streets at 26 and 33 (Q 3 and Q 1 with D = 0 both start z low), across the narrower x range.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": true, "custom": false},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 0, "d": 1, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(19,20,19,35)", "P(12,20,12,35)", "P(10,26,25,26)", "P(10,33,25,33)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 0, "d": 3, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(16,20,16,35)", "P(23,20,23,35)", "P(10,26,25,26)", "P(10,33,25,33)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 1, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(19,20,19,35)", "P(12,20,12,35)", "P(10,26,25,26)", "P(10,33,25,33)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 1, "d": 2, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(19,20,19,35)", "P(12,20,12,35)", "P(10,29,25,29)", "P(10,22,25,22)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 2, "d": 1, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(19,20,19,35)", "P(12,20,12,35)", "P(10,29,25,29)", "P(10,22,25,22)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 2, "d": 3, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(16,20,16,35)", "P(23,20,23,35)", "P(10,29,25,29)", "P(10,22,25,22)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 3, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(16,20,16,35)", "P(23,20,23,35)", "P(10,26,25,26)", "P(10,33,25,33)"]},
+
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 25, 35]}, "q": 3, "d": 2, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(16,20,16,35)", "P(23,20,23,35)", "P(10,29,25,29)", "P(10,22,25,22)"]},
+
+    {"op": "zone_network", "runs": [], "note": "edge rule: x 10..17, both x directions"},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 17, 35]}, "q": 3, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(10,26,17,26)", "P(10,33,17,33)"]},
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 17, 35]}, "q": 1, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(10,26,17,26)", "P(10,33,17,33)"]},
+
+    {"op": "zone_network", "runs": [], "note": "edge rule: x 10..18, both x directions"},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 18, 35]}, "q": 3, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(16,20,16,35)", "P(10,26,18,26)", "P(10,33,18,33)"]},
+    {"op": "zone_network", "runs": []},
+    {"op": "zone_simple_parcellize", "region": {"rect": [10, 20, 18, 35]}, "q": 1, "d": 0, "n": 6},
+    {"op": "zone_expect_parcel_log", "log": ["P(12,20,12,35)", "P(10,26,18,26)", "P(10,33,18,33)"]}
+  ]
+}
