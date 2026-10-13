@@ -200,6 +200,16 @@ typedef void (*fc4_name_callback)(void* ctx, const char* name, size_t name_len);
 /* ---- library ---------------------------------------------------------- */
 uint32_t fc4_abi_version(void);
 
+/* Tooling: where a Rust panic is reported (message, location, thread and a
+ * backtrace, as one UTF-8 block with lines separated by '\n') before the panic
+ * goes on; release builds then abort with a fail-fast. Installs the panic
+ * hook on the first call; a NULL sink stops the reports. Any thread. */
+typedef void (*fc4_log_sink)(void* ctx, const uint8_t* text, size_t len);
+void fc4_set_panic_log(fc4_log_sink sink, void* ctx);
+/* Tooling: panics on purpose (tests of the report). Release builds abort the
+ * process; builds that unwind return. */
+void fc4_debug_panic(void);
+
 /* ---- lifetime --------------------------------------------------------- */
 /* Returns NULL if `host` is NULL, too small, or has no now_ms. */
 fc4_sim* fc4_sim_create(const fc4_host* host);

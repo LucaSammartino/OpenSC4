@@ -17,6 +17,7 @@
 
 #include "FC4Checked.h"
 #include "FC4Diag.h"
+#include "FC4FailFast.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 
@@ -36,6 +37,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
             fc4::Log("log file: %s", fc4::LogPath());
             fc4::FpuAttach();
             fc4::DiagAttach(hinstDLL);
+            fc4::FailFastAttach();
             fc4::CheckedAttach();
             fc4::FpuLog("DLL attach (after our initialisation)");
             break;
