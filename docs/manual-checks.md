@@ -58,9 +58,31 @@ both calls unless already at 24-bit). Full evidence and the two queued next step
 
 **Consequence for you and for us:** while FreeCity4.dll is loaded, every *original* subsystem computes at the wrong
 precision, so **no differential run against the original code is trustworthy for float-sensitive values** until the
-trigger is found. Our own replacements (budget) compute 24-bit correctly and match the real game. Manual play is
-unaffected in practice — the differences are ±1 simoleon per department per month — but it does mean the game you
-play with our DLL loaded is not bit-identical to the game without it.
+trigger is found. Our own budget replacement computes the department expenses at 24-bit and reproduces the real
+game's saved values (123/105). What precision does to *manual play* is bounded by the same effect seen on those
+department expenses — about ±1 simoleon per department per month — but that is the size of the precision artifact,
+not a proof that our whole budget matches the real game; that match is still the open differential (§5.3 below).
+Either way, the game you play with our DLL loaded is not bit-identical to the game without it.
+
+**The run-19-vs-run-20 differential is therefore invalid as written** (handoff §5.3). Both runs had our DLL loaded,
+so **both ran at 53-bit**; run 19 is not the original game's true behaviour, it is the original code computing at the
+wrong precision inside our process. The comparison also changes two variables at once (our budget vs the original,
+*and* 24-bit vs 53-bit), so the tax-by-type differences (types 4/6/9: run 19 `586/28/0/20/27/0/1/0/0/242/5/0` vs run
+20 `586/28/0/20/42/0/0/0/0/238/5/0`) and the non-tax income gap (35 vs 28) cannot be attributed to either cause.
+**Do not treat run 19 as a reference.** To actually close the budget differential:
+
+1. **Fix or work around the precision leak first** (the two queued steps in foundations §18.2). Only then does the
+   original code inside our process run at 24-bit.
+2. **Re-run observer-only (run-19-style) after the fix** to capture the original's true 24-bit values for the same
+   first month, and diff those against run 20. Same city, same month, one variable.
+
+**A 24-bit oracle already exists in the Spandau save** (parsed directly from the DBPF, budget simulator record
+`0xE990BE01`, byte-identical to the backup `6982A842…`). These are the unmodified game's own outputs, so they are
+true 24-bit reference values: `funds 69986`, `lastTaxIncome 866`, `ytdTaxIncome 6078`, `lastMonthIncome 904`,
+`lastMonthExpense 796`, and per-group `monthlyTax` `[574, 28, 0, 34, 0, 0, 0, 0, 0, 228, 0, 0]` (sum 864; all tax
+rates 7.0 except group 8 at 9.0, max 22.0). **Caveat:** the save is at its own month, not run 19/20's 2001-10, so
+these are a consistency check and a target for a matched-date run, not a line-by-line diff against run 20 without
+first aligning the simulation date.
 
 **Root cause:** the game has three separate allocator instances, each with its own pools
 (`docs/abi/allocators.md`). The lot list's nodes come from the game's STL node allocator. The SDK's `SC4List`
