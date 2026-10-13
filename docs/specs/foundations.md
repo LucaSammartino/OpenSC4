@@ -1708,6 +1708,15 @@ The helper's modes are 0 = 24-bit, 1 = 53-bit, 2 = 64-bit. Nothing in the game c
 else writes the precision field. The C library's x87 math helpers (`pow`, `exp`, `log`, …) keep the caller's
 precision (they only force round-to-nearest and masked exceptions while they run).
 
+**A load-order fact worth knowing before reading the run logs.** The CRT row really does set 53-bit at process start:
+the stored pointer `PTR___fpmath_00b18b88` holds `0x009EEEE5` (`__fpmath`), so `__cinit`'s null test passes and calls
+it with 1, and `__setdefaultprecision` (`0x009F6C30`) is literally `push 0x30000; push 0x10000; call _controlfp` =
+`_controlfp(_PC_53, _MCW_PC)`. Yet the plugin measures **24-bit** at `DLL_PROCESS_ATTACH`. Both are consistent only
+if the GZCOM plugin load happens *inside* `PreFrameWorkInit`, after its first statement (`CALL 0x005F85E0`) has
+already lowered the precision. So "24-bit at DLL attach" is **not** evidence about the CRT default, and it is not
+evidence that anything ran before our DLL except that one assert. It does rule out our DLL's own load-time CRT init
+as the cause of the later 53-bit reading (that init had already finished, at 24-bit).
+
 ### 18.2 Threads
 
 - **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
