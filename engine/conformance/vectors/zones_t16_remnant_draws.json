@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "zones_t16_remnant_draws",
+  "spec": ["zones 7.8", "zones 7.9", "zones 9", "zones 15.16"],
+  "description": "Conformance test 16 (remnant draws, §9 Z2b). Dezoning (PlaceZone type 0, skipFunds) a cell under an empty (no configuration) 1 × 1 agricultural lot: OnDezone sets the current zone to the lot's zone (7) before CreateLotRemnants, and zones 7-9 re-create one 1 × 1 lot per cell through CreateLotToFaceRoad with an empty list -> one U(4) draw per cell. The grid already says 0, so CanCreateLot gives code 2 (not zoned) and no lot is recreated: one draw, no lot. Dezoning a cell under an empty 2 × 2 residential lot (zone 1): CreateLotRemnants uses the strip path with the explicit facing list {facing} -> no draw.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_rng", "lcg": 1, "mul": 1},
+
+    {"op": "zone_zones", "cells": [[5, 5, 7]]},
+    {"op": "zone_lot", "rect": [5, 5, 5, 5], "facing": 0, "zone": 7},
+    {"op": "zone_clear_events"},
+    {"op": "zone_place_zone",
+     "region": {"rect": [5, 5, 5, 5]},
+     "type": 0, "commit": true, "skip_funds": true, "check_slope": false, "skip_size": true, "check_lot_inside": true},
+    {"op": "zone_expect", "state": {"lot_count": 0, "draw_count": 1}},
+    {"op": "zone_expect_draws", "draws": [["Z2", 4, 0]]},
+
+    {"op": "zone_zones", "rect": [20, 20, 21, 21], "v": 1},
+    {"op": "zone_lot", "rect": [20, 20, 21, 21], "facing": 0, "zone": 1},
+    {"op": "zone_clear_events"},
+    {"op": "zone_place_zone",
+     "region": {"rect": [20, 20, 21, 21]},
+     "type": 0, "commit": true, "skip_funds": true, "check_slope": false, "skip_size": true, "check_lot_inside": true},
+    {"op": "zone_expect", "state": {"lot_count": 0, "draw_count": 0}},
+    {"op": "zone_expect_draws", "draws": []}
+  ]
+}

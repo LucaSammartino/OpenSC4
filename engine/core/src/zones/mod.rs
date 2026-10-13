@@ -136,8 +136,9 @@ mod region;
 mod tests;
 
 pub use developer::{
-    CreateResult, Draw, DrawKind, InsertionPoint, LotSize, Options, Orientation, SharedZoneStatics, VirtualLot,
-    ZoneDeveloper, ZoneDeveloperStatics, DEVELOPER_RECORD_VERSION, MAX_RANDOM_LOT_TRIES, RNG_SEED_XOR, TEST_SEEDS,
+    occupant_cell, savvy_cell, CreateResult, Draw, DrawKind, InsertionPoint, LotSize, Options, Orientation,
+    SharedZoneStatics, VirtualLot, ZoneDeveloper, ZoneDeveloperStatics, DEVELOPER_RECORD_VERSION, MAX_RANDOM_LOT_TRIES,
+    RNG_SEED_XOR, TEST_SEEDS,
 };
 pub use manager::{
     shipped_tuning, PlaceZoneResult, Tuning, ZoneManager, MANAGER_RECORD_VERSION, TEXTURE_KEY_GROUP, TEXTURE_KEY_TYPE,

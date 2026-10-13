@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "zones_t01_zone_types",
+  "spec": ["zones 2", "zones 11.1", "zones 15.1"],
+  "description": "Conformance test 1 (zone types, §2). IsRCIZone(t) is true exactly for t = 1..9. GetZoneType of a cell zoned 9 returns 9; of a cell holding -1 (written raw through zone_zones) returns the sign-extended int8, 0xFFFFFFFF (-1 as int32).",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [0], "expect": false},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [1], "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [5], "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [9], "expect": true},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [10], "expect": false},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [15], "expect": false},
+    {"op": "zone_call", "target": "manager", "method": "is_rci_zone", "args": [16], "expect": false},
+
+    {"op": "zone_zones", "cells": [[7, 7, 9], [8, 8, -1]]},
+    {"op": "zone_call", "target": "manager", "method": "zone_type", "args": [7, 7], "expect": 9},
+    {"op": "zone_call", "target": "manager", "method": "zone_type", "args": [8, 8], "expect": -1}
+  ]
+}

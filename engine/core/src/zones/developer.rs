@@ -300,7 +300,7 @@ fn rect_overlaps(a: CellRect, b: CellRect) -> bool {
 
 /// The `rhe(r24(r24(x × 0.0625) − 0.5))` cell of `GetOccupantLot` (§8.2 slot
 /// 14): `c = ⌊x / 16⌋`, with the `+1` when `a = c + 1` exactly.
-fn occupant_cell(p: f32) -> i32 {
+pub fn occupant_cell(p: f32) -> i32 {
     let a = r24(f64::from(p) * 0.0625) as f32;
     let mut c = rhe(r24(f64::from(a) - 0.5) as f32);
     if f64::from(a) == f64::from(c + 1) {
@@ -312,7 +312,7 @@ fn occupant_cell(p: f32) -> i32 {
 /// The `rhe(r24(r24(x × 0.0625) − 0.499))` cell of
 /// `GetLotSavvyTerrainAltitude` (§8.7 slot 18), constant `0x3EFF7CEE` =
 /// 0.49900001.
-fn savvy_cell(p: f32) -> i32 {
+pub fn savvy_cell(p: f32) -> i32 {
     rhe((r24(f64::from(p) * 0.0625) - f64::from(0.499_000_011_920_929_f32)) as f32)
 }
 

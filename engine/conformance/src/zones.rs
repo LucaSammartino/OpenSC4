@@ -23,7 +23,7 @@ use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{derive_seed, FixedSeeds, RzRandom};
 use fc4_core::stream::RefValue;
 use fc4_core::zones::{
-    block_depth, depth_rule, middle_row, shipped_tuning, zone_density, CellRegion, CellRect, Component, Draw,
+    block_depth, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning, zone_density, CellRegion, CellRect, Component, Draw,
     GridProvider, GrowthItem, InsertionPoint, LotSize, PlaceZoneResult, Position, Service, SharedZoneStatics,
     ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, IID_LOT, LANDFILL_TYPE,
     NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
@@ -1387,6 +1387,8 @@ fn eval(op: &Json) -> R<()> {
             ji(middle_row(o0, so, b1, b2, lw))
         }
         "zone_density" => ji(zone_density(i64_of(field_at(args, 0)?, "z")? as i32)),
+        "occupant_cell" => ji(occupant_cell(f32_of(field_at(args, 0)?, "p")?)),
+        "savvy_cell" => ji(savvy_cell(f32_of(field_at(args, 0)?, "p")?)),
         "block_depth" => {
             let d = i64_of(field_at(args, 0)?, "d")? as i32;
             let depth = i64_of(field_at(args, 1)?, "depth")? as i32;
