@@ -338,7 +338,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   residential.md §5.6 (new "Zero divisors" table) and §5.5 step 6. **The bracket is right: 0 everywhere, and none
   of them faults.** One correction: the life-expectancy guard is `population ≠ 0`, not `> 0`. A negative population
   (damaged record only) divides as unsigned 64-bit by 2^64 − |population|, which also gives 0.
-- **RS17:** does a version-3 record keep the running population the constructor set? [yes]
+- ~~**RS17:** does a version-3 record keep the running population the constructor set? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`Read` `0x00700D5D`–`0x00700D63`; constructor `0x00700510`, store at `0x007005BF`)
+  and written into residential.md §9.2, §9.3 and open question 4. **The bracket is right: yes, and the value is
+  0.** A version-3 record skips the running population and changes nothing else (versions 0–2 zero it and move
+  state 4 to 11). Because `Init` then restarts the pass with leSum 0, a version-3 save made in state 4 does **not**
+  get the double count that §9.3 describes for version ≥ 4 (worked example there).
 
 ## From the pollution glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 

@@ -731,8 +731,11 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
   - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
     percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
     at `0x006F7BA0`, RS1).
-  - Version ≥ 3: read the iterator and leSum; version ≥ 4: read the running population (version 3 keeps the
-    constructed value *[inferred]*).
+  - Version ≥ 3: read the iterator and leSum; version ≥ 4: read the running population.
+
+    Version 3 skips the running population and changes nothing else (RS17, from the exe: `0x00700D5D`–
+    `0x00700D63`). So the running population keeps the value it had before `Read`, which is the constructor's 0
+    (`0x007005BF`), because `Read` runs on a newly constructed object (RS10). The state is not changed either.
   - Version < 3: iterator at (0, 0), fresh (done if (0, 0) is outside its rectangle); leSum := 0; running
     population := 0; if state = 4 → state := 11.
   - Version ≥ 7: read the two auto-budget bytes (non-zero → 1); otherwise both 0.
@@ -749,6 +752,13 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
   hold whatever memory contained (state 11 did not run in this session) and their history for that month is
   meaningless. *[choice]* FreeCity4 zeroes the histograms at construction (only that month's age-group history
   differs).
+
+  A **version-3** record does not have the double count: its running population is the constructor's 0 (RS17,
+  §9.2), so the restarted pass starts from 0, as leSum and the iterator do. Example: four tracts, each with total
+  100 and LE 60, saved in state 4 after two of them (running population 200).
+  - Version ≥ 4: the pass restarts with running population 200, so state 12 gets population 600, and history
+    `0x2A5E7009` = 24000 ÷ 600 = **40**.
+  - Version 3: population **400** and history 24000 ÷ 400 = **60**, as without the load.
 
 ## 10. Interface slot tables *[compat]*
 
@@ -943,7 +953,8 @@ only through the interface (search of every reference to the global and to city 
    *[compat]* requirement: record it in `foundations.md` §13.4's rank table with evidence, rather than reordering
    registrations ad hoc. Until such a differential exists, registration order stands and no vector may assume
    otherwise.
-4. Version 3 saves: the running population keeps its constructed value (not verified at run time).
+4. ~~Version 3 saves: the running population keeps its constructed value (not verified at run time).~~ **Yes**,
+   from the bytes (RS17, §9.2): version 3 skips the read and the constructor's value is 0.
 5. The dirty flag has no reader; its purpose is unknown.
 
 ## 14. Corrections to earlier documents
