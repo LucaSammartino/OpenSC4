@@ -40,8 +40,7 @@ use crate::x87::r24;
 use super::algo::{decay_amount, heap_capacity, neighbour_mask, redistribute, redistribute_share, spiral_cells, tile_of};
 use super::{
     msg, tile, CellRegion, LandfillHost, ZoneEffects, CONNECTIVITY_DEVELOPER_TYPES, NETWORK_TILE_MASK,
-    OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_FLORA, OCCUPANT_TYPE_LANDFILL, TERRAIN_MOVE_THRESHOLD, ZOT_HEIGHT,
-    ZOT_PROP, ZONE_TYPE_LANDFILL,
+    OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_LANDFILL, TERRAIN_MOVE_THRESHOLD, ZOT_HEIGHT, ZOT_PROP, ZONE_TYPE_LANDFILL,
 };
 
 /// The zone record's version (§6.2).
@@ -620,7 +619,6 @@ impl LandfillZone {
         per_tile_cap: u32,
         decay_rate: f32,
         decay_cap: u32,
-        tile_capacity: u32,
         rng: &mut CrtRand,
     ) -> i32 {
         // 1.
@@ -885,10 +883,7 @@ impl LandfillZone {
         let token = self.host_token_of(&occ);
         self.host.occupant_set_removal_flags(token, 2);
         self.host.set_is_active_landfill(x, z, true);
-        {
-            let mut d = occ.d_ref();
-            d.is_empty = false;
-        }
+        occ.set_empty(false);
         let (px, pz) = self.host.cell_center_to_position(x, z);
         let y = self.host.cell_altitude(x, z);
         self.host.occupant_set_position(token, [px, y, pz]);

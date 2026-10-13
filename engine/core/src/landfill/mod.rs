@@ -144,15 +144,14 @@ mod tuning;
 mod zone;
 
 pub use algo::{
-    altitude_variance, decay_amount, heap_capacity, magic_round, neighbour_mask, redistribute, spiral_cells, tile_of,
-    zoning_cost, Variance, TILE_RULES,
+    altitude_variance, decay_amount, heap_capacity, magic_round, neighbour_mask, redistribute, redrawn_cells,
+    spiral_cells, tile_of, zoning_cost, Variance, TILE_RULES,
 };
-pub use occupant::{LandfillOccupant, OccupantData, OCCUPANT_RECORD_VERSION, OCCUPANT_SLOTS, OCCUPANT_TYPE};
+pub use occupant::{LandfillOccupant, OccupantData, OCCUPANT_RECORD_VERSION, OCCUPANT_SLOTS, OCCUPANT_TYPE, TILE_EXEMPLAR};
 pub use simulator::{
-    answers_iid, LandfillDeveloper, LandfillMessage, SlotReturn, SlotRow, DEVELOPER_RECORD_VERSION, DEVELOPER_SLOTS,
-    MAX_SAVED_ZONES, MAX_TERRAIN_REMOVALS,
+    answers_iid, DevState, LandfillDeveloper, DEVELOPER_RECORD_VERSION, MAX_SAVED_ZONES, MAX_TERRAIN_REMOVALS,
 };
-pub use tuning::{prop, shipped_tuning, Tuning, TUNING_KEY};
+pub use tuning::{prop, shipped_tile_costs, shipped_tile_exemplar, shipped_tuning, Tuning, TUNING_KEY};
 pub use zone::{Heap, LandfillZone, ZoneData, HEAP_RECORD_VERSION, ZONE_RECORD_VERSION};
 
 use std::rc::Rc;

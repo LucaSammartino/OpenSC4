@@ -64,7 +64,7 @@ pub const OCCUPANT_SLOTS: [super::SlotRow; 10] = {
 };
 
 /// The base occupant state of lot-records §2.3, which §6.4 writes inline.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default)]
 pub struct BaseOccupant {
     /// The removal counters word: low byte = holders of removal flag 2, high
     /// byte = holders of removal flag 1.
@@ -84,6 +84,23 @@ pub struct BaseOccupant {
     /// The exemplar property holder (foundations §10.3); its parent is the
     /// tile exemplar, attached by §4.8.1 step 3.
     pub holder: ExemplarHolder,
+}
+
+/// `ExemplarHolder` has no `PartialEq` (it holds an `Rc` to a shared exemplar),
+/// so the base state compares the holder by its own properties and its parent
+/// **key**: two occupants with the same tile attached are equal, whatever the
+/// identity of the holder object.
+impl PartialEq for BaseOccupant {
+    fn eq(&self, other: &Self) -> bool {
+        self.removal == other.removal
+            && self.highlight == other.highlight
+            && self.status == other.status
+            && self.flags == other.flags
+            && self.occupant_type == other.occupant_type
+            && self.cell_rect == other.cell_rect
+            && self.holder.own == other.holder.own
+            && self.holder.parent_key() == other.holder.parent_key()
+    }
 }
 
 /// The occupant's own state (§2.3).
@@ -201,6 +218,13 @@ impl LandfillOccupant {
         self.d.borrow().is_empty
     }
 
+    /// Stores the `isEmpty` flag (§4.8.1 step 3 sets it false explicitly after
+    /// the tile is created). Nothing in the shipped code sets it true
+    /// *[inferred]* (spec open question 7).
+    pub fn set_empty(&self, empty: bool) {
+        self.d.borrow_mut().is_empty = empty;
+    }
+
     /// Slot 3 `Init()` (`cSC4Occupant::Init`): sets status bit 0. A loaded
     /// occupant keeps its bit 1 and is not announced as newly created
     /// (lot-records §2.4).
@@ -230,7 +254,7 @@ impl LandfillOccupant {
             word = (word & 0x00FF) | ((word >> 8).saturating_add(1) << 8);
         }
         if flags & 2 != 0 {
-            word = (word & 0xFF00) | (word as u8).saturating_add(1);
+            word = (word & 0xFF00) | u16::from((word as u8).saturating_add(1));
         }
         d.base.removal = word;
     }
@@ -372,7 +396,9 @@ fn read_base(inp: &mut dyn InStream) -> Option<BaseOccupant> {
     // The holder's parent exemplar key is resolved by the class-store loader,
     // not here: read it with an empty source, so an unresolvable parent is
     // simply absent (as for a freshly created occupant).
-    b.holder.read(inp, &NoExemplars)?;
+    if !b.holder.read(inp, &NoExemplars) {
+        return None;
+    }
     Some(b)
 }
 
