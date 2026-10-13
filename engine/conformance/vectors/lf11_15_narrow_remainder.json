@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "lf11_15_narrow_remainder",
+  "spec": ["landfill 4.4.7", "landfill 4.4.8", "landfill 11"],
+  "description": "Conformance test 15. Dezoning the middle column of a 3x3 zone leaves two 1x3 strips with no valid heap: the sticky flag is set, the remaining 6 cells are rezoned to type 0 through PlaceZone and the zone is removed. PlaceZone posts its 0x07699455 (no re-entrancy, 4.4.8): delivering the six posted messages afterwards finds no zone and changes nothing.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 12, 12]},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_zone", "rect": [11, 10, 11, 12], "type": 0},
+    {"op": "landfill_expect_events", "filter": {"event": "place_zone"}, "events": [
+      {"event": "place_zone", "rect": [10, 10, 10, 10], "type": 0},
+      {"event": "place_zone", "rect": [10, 11, 10, 11], "type": 0},
+      {"event": "place_zone", "rect": [10, 12, 10, 12], "type": 0},
+      {"event": "place_zone", "rect": [12, 10, 12, 10], "type": 0},
+      {"event": "place_zone", "rect": [12, 11, 12, 11], "type": 0},
+      {"event": "place_zone", "rect": [12, 12, 12, 12], "type": 0}
+    ]},
+    {"op": "landfill_expect", "state": {"zones": 0, "posted": 6}},
+    {"op": "landfill_deliver", "count": 6},
+    {"op": "landfill_expect", "state": {"zones": 0, "posted": 0}},
+    {"op": "landfill_expect", "zone_types": [[10, 10, 0], [12, 12, 0]]}
+  ]
+}

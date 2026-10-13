@@ -298,3 +298,115 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   bool. Confirm. [int32]
 - **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
 - **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
+- **PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
+  simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →
+  2033-11; 1.4 M cells a month, 0 mismatches) and every saved field except one: on 104 of about 2,800 days the
+  original's `dirtyWater` is **true** after its day while ours stays false, with identical grids. The likely place
+  is §4.4.4 step 10, the water neighbour special case. When a tract at 1 would decay to 0 and the case keeps it at
+  1, does the original still call `SetWaterValue` (marking `dirtyWater`) although the value did not change? Or does
+  some other day path set the flag without changing a cell? It decides how often "water changed" `0x5A6DD1AA` is
+  posted. [ours: written only when the value differs, as step 9 says for air]
+
+## From the landfill tests and the neighbours core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/landfill.md` (tests §11 1–23, vectors `lf11_*`) and `docs/specs/neighbors.md` (tests §18 1–12,
+vectors `nb18_*`). The core's current answer is in brackets.
+
+- **LF1:** which of `AttemptAreaLevelling`'s two bools is the landfill's second `true`? Test 22 cannot tell them
+  apart. [passed as `waterFlag`]
+- **LF2 — zone `Init`:** is "levelAltitude is exactly 0.0" an exact float compare? [−0.0 counts as zero; NaN does
+  not]
+- **LF3:** in what order does Shutdown release the message server and the city? [one `release_services` call after
+  the zones shut down]
+- **LF4 — §4.7.5:** in what ring order does the zot spiral run? [clockwise from each ring's top-left corner; the
+  second half of `lf11_11` depends on it]
+- **LF5 — §4.4.4 step 3:** `LevelRect((x, z, x+1, z+1))` per cell is a 2×2 block if the rectangle is inclusive. Is
+  that intended? [passed as written]
+- **NB1:** the Julian day of `DEFAULT_DATE`. [0]
+- **NB2:** does `Activate` change the flags directly, or through `SetFlags` with its status-0 reports? [directly]
+- **NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
+  [as given]
+- **NB4 — §12 vs §7.1:** ProposeDeals reads `0xCA469346` (f32) in §12 but `0xCA46931F` in §7.1. [`0xCA46931F` for
+  proposals; `0xCA469346` as GetDealCost's f64 maximum markup]
+- **NB5:** what does `UpdateCost` do with no current simulator? [nothing]
+- **NB6 — §2.2:** `neighbour_connection_cell` for an interior cell has no row. [`None`]
+- **NB7 — §13:** null or host references in the connection list are skipped on read. Correct? [skipped]
+- **NB8 — §8.1:** does `existing` include the deal being priced? [yes: its own `UpdateCost` counts it; 262 in
+  `nb18_03`]
+- **NB9:** §5.2 says pricing ignores `0x3D` deals, but §8.1's `FindDeals` has no filter. [as §8.1]
+- **NB10:** SetAmount's synchronous report re-enters `simulate_deals` during `ProposeDeals(add = true)` and
+  activates the proposal. Intended? [as written]
+- **NB11:** the store ignores a false `Read` (foundations §3.5), so a version-3 simulator record loads "clean" with 0
+  connections. Confirm. [yes]
+- **NB12:** `UpdateCommodityStats` takes a regional-city token. Is that the right subject? [yes]
+- **NB13:** a present `0xEA46934F` of 0 is divided by literally (inf or NaN); a missing one gives 0. [as stated]
+- **NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]
+- **NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]
+- **NB16:** a missing payer at renewal counts as "cannot afford". [yes]
+- **NB17:** the return types of `RequestCreateConnection` and `CreateConnection`. [choice: the request returns
+  `ConnectionRequest`, `CreateConnection` the new connection or null]
+- Lane choices worth knowing: the proposal generator is per simulator, seeded `derive_seed(session, 0xC990C0A4)`
+  (the original's is process-wide and clock-seeded); save reads are capped at 65,536 zones.
+
+
+## From the exemplar reader (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/data-formats.md` §4, §5 and the §11 exemplar rows (`engine/formats/src/exemplar.rs`). The install
+sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets.
+
+- **EX1:** how are Empty (tag 0) properties stored? [`Values::Empty`; getters return None]
+- **EX2:** Uint64 to float, signed or unsigned? [unsigned]
+- **EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]
+- **EX4:** is RZChar signed when widened? [zero-extended]
+- **EX5:** what do the getters return for Empty or object values? [None]
+- **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
+  array gives its first byte as `%u`]
+- **EX7:** an RZChar scalar as a string. [that one character]
+- **EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]
+- **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
+  anywhere after the first digit]
+- **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]
+- **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
+  exactly]
+- **EX12:** is there a cap on reps? [more reps than the record length fails]
+- **EX13:** are numeric values cut at `}` too? [no, only strings]
+- **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
+- **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
+  from the package index]
+- **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
+  as a scalar 0 (§4.3). Intended? [scalar 0]
+- **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]
+- **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
+- **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
+  fails only on depth is retried when reached shallower]
+- **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
+
+## From the protection glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The glue's current answer is in brackets.
+
+- **PR1 — §5 dispatch record:** "callID" is taken as the record's `+0x08` field (vehicle slot) and "active" as the
+  `+0x10` flag (state 5). [inferred]
+- **PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
+  as borrowed. Right identity? [as stated]
+- **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
+  and 12. Right overload? [yes]
+- **PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
+  only police slot 65. [57]
+- **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
+  compared]
+- **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
+- **PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
+  untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
+  from the month-end snapshot? [as stated]
+- **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
+  its elements, which leaks the caller's references as the original does. Intended? [reproduced]
+- **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]
+- **PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
+  instead, 0 outside the city. Same values? [slot 12]
+- **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
+- **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
+  counts differ. Acceptable? [not held]
+- **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
+  replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
+- Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).

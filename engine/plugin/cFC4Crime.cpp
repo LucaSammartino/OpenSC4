@@ -130,9 +130,11 @@ cFC4ISC4LotManager* LotMgr(void* u) {
     return lm ? fc4::AsGame(lm) : nullptr;
 }
 
-cFC4CrimePoliceView* Police(void* u) {
+// Whatever police simulator the city has (the original or a replacement),
+// through the verified slot order (FC4Interfaces.h, crime.md section 13).
+cFC4ISC4PoliceSimulator* Police(void* u) {
     cISC4PoliceSimulator* p = Self(u)->Police();
-    return p ? reinterpret_cast<cFC4CrimePoliceView*>(p) : nullptr;
+    return p ? fc4::AsGame(p) : nullptr;
 }
 
 bool Gate(fc4::Sw s, const char* what) {
@@ -349,7 +351,7 @@ bool Demand(void* u, uint32_t id, float* value, float* max, float* min) {
 // is taken here and handed to the core (fc4.h), which releases it.
 uint64_t PoliceGrid(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime GetPolicePowerGrid (no coverage)")) return 0;
-    cFC4CrimePoliceView* p = Police(u);
+    cFC4ISC4PoliceSimulator* p = Police(u);
     GridU8* g = p ? p->GetPolicePowerGrid() : nullptr;
     Self(u)->Probe().policeGrid = g != nullptr ? 1u : 0u;
     if (g == nullptr) return 0;
@@ -359,7 +361,7 @@ uint64_t PoliceGrid(void* u) {
 
 uint32_t JailPopulation(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime GetJailPopulation (0)")) return 0;
-    cFC4CrimePoliceView* p = Police(u);
+    cFC4ISC4PoliceSimulator* p = Police(u);
     const uint32_t r = p ? p->GetJailPopulation() : 0;  // slot 30
     Self(u)->Probe().jailed = r;
     return r;
@@ -367,7 +369,7 @@ uint32_t JailPopulation(void* u) {
 
 int32_t ResetUnjailedCriminals(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime ResetUnjailedCriminals (0)")) return 0;
-    cFC4CrimePoliceView* p = Police(u);
+    cFC4ISC4PoliceSimulator* p = Police(u);
     const int32_t r = p ? p->ResetUnjailedCriminals() : 0;  // slot 27, int32 count (§13)
     Self(u)->Probe().released = r;
     return r;
@@ -375,7 +377,7 @@ int32_t ResetUnjailedCriminals(void* u) {
 
 void ProcessMonthlyCrimeStats(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime ProcessMonthlyCrimeStats")) return;
-    if (cFC4CrimePoliceView* p = Police(u)) p->ProcessMonthlyCrimeStats();  // slot 38, result ignored
+    if (cFC4ISC4PoliceSimulator* p = Police(u)) p->ProcessMonthlyCrimeStats();  // slot 38, result ignored
 }
 
 // §5: GetCumulativeFactor(0x28ED0380, 0); false = no ordinance simulator

@@ -1,0 +1,92 @@
+{
+  "format": 1,
+  "name": "nb18_06_life_cycle",
+  "spec": ["neighbors 5.2", "neighbors 5.3", "neighbors 5.4", "neighbors 7.3", "neighbors 18"],
+  "description": "Conformance test 6 (grace 90, probation 90), on sell-power deals (E1) over a power-pole connection to W. A proposed deal activates on the first run (status 1, currentDate = today). Losing the connection (inactive) sets NoConnection, then the first strike: Grace on, 0x38 off, suspension = today (1010), no removal. During Grace the failure is ignored (SetFlags drops 0x38). At 1100 (suspension + 90) Grace -> Probation; at 1101 the failure removes it with status 3 (its SetAmount(0) is ignored in Probation). A Probation deal with suspension 1000 clears at 1180, not at 1179. A cancelled deal is removed with status 2, then SetAmount(0) sends status 0 (delivered at once: the busy simulation posts the retry 8) and UpdateCost posts 0. Expiry posts 6; the next run renews with the same span (status 7, cost updated to 1), or, when the payer (the neighbour for a sell deal) cannot pay, flags CannotAfford.",
+  "steps": [
+    {"op": "neighbors_env", "current": 1, "today": 1000},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1]},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2], "budget": 1e9},
+    {"op": "neighbors_create", "ready": true},
+    {"op": "neighbors_call", "method": "create_connection", "args": ["power_pole", -1, 5, false], "expect": true},
+    {"op": "neighbors_deal", "id": 1, "type": "E1", "other": 2, "flags": 1, "start": 1000, "expiration": 1365, "current": 999},
+    {"op": "neighbors_clear_events"},
+
+    {"op": "neighbors_month", "today": 1000},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 1, "flags": 2, "sent": false}
+    ]},
+    {"op": "neighbors_expect", "deal": 1, "deal_state": {"flags": 2, "current": 1000}},
+
+    {"op": "neighbors_connection_set", "connection": ["power_pole", -1, 5], "active": false},
+    {"op": "neighbors_month", "today": 1010},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 0, "flags": "0x00A"},
+      {"deal": 1, "status": 0, "flags": "0x10A"},
+      {"deal": 1, "status": 0, "flags": "0x102"}
+    ]},
+    {"op": "neighbors_expect", "deal": 1, "deal_state": {"flags": "0x102", "suspension": 1010, "in_list": true}},
+
+    {"op": "neighbors_month", "today": 1099},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": []},
+    {"op": "neighbors_expect", "deal": 1, "deal_state": {"flags": "0x102"}},
+
+    {"op": "neighbors_month", "today": 1100},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 0, "flags": "0x002"},
+      {"deal": 1, "status": 0, "flags": "0x202"}
+    ]},
+
+    {"op": "neighbors_month", "today": 1101},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 0, "flags": "0x20A"},
+      {"deal": 1, "status": 3, "flags": "0x20A"}
+    ]},
+    {"op": "neighbors_expect", "deal": 1, "deal_state": {"in_list": false}},
+    {"op": "neighbors_expect", "deals": []},
+
+    {"op": "neighbors_connection_set", "connection": ["power_pole", -1, 5], "active": true},
+    {"op": "neighbors_deal", "id": 2, "type": "E1", "other": 2, "flags": "0x202", "suspension": 1000, "start": 1000, "expiration": 2000},
+    {"op": "neighbors_month", "today": 1179},
+    {"op": "neighbors_expect", "deal": 2, "deal_state": {"flags": "0x202"}},
+    {"op": "neighbors_month", "today": 1180},
+    {"op": "neighbors_expect", "deal": 2, "deal_state": {"flags": 2}},
+    {"op": "neighbors_clear_events"},
+
+    {"op": "neighbors_deal", "id": 3, "type": "E1", "other": 2, "flags": 6, "start": 1000, "expiration": 2000},
+    {"op": "neighbors_month", "today": 1181},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 3, "status": 2, "flags": 6, "sent": false},
+      {"deal": 3, "status": 0, "flags": 6, "sent": true},
+      {"deal": null, "status": 8, "sent": false},
+      {"deal": 3, "status": 0, "flags": 6, "sent": false}
+    ]},
+    {"op": "neighbors_expect", "deals": [2]},
+
+    {"op": "neighbors_deal", "id": 4, "type": "E1", "other": 2, "flags": 2, "start": 1000, "expiration": 1200},
+    {"op": "neighbors_month", "today": 1200},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 4, "status": 0, "flags": "0x42"},
+      {"deal": 4, "status": 6, "flags": "0x42"}
+    ]},
+    {"op": "neighbors_month", "today": 1203},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 4, "status": 0, "flags": 2},
+      {"deal": 4, "status": 0, "flags": 2},
+      {"deal": 4, "status": 7, "flags": 2}
+    ]},
+    {"op": "neighbors_expect", "deal": 4, "deal_state": {"flags": 2, "current": 1203, "start": 1203, "expiration": 1403, "cost": 1}},
+
+    {"op": "neighbors_city", "id": 2, "budget": 0},
+    {"op": "neighbors_deal", "id": 5, "type": "E1", "other": 2, "flags": "0x42", "start": 900, "expiration": 1203},
+    {"op": "neighbors_month", "today": 1204},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 5, "status": 0, "flags": 2},
+      {"deal": 5, "status": 0, "flags": 2},
+      {"deal": 5, "status": 0, "flags": "0x12"}
+    ]},
+    {"op": "neighbors_expect", "deal": 5, "deal_state": {"flags": "0x12", "start": 900, "expiration": 1203, "in_list": true}},
+    {"op": "neighbors_month", "today": 1205},
+    {"op": "neighbors_expect", "deal": 5, "deal_state": {"flags": "0x102", "suspension": 1205}}
+  ]
+}

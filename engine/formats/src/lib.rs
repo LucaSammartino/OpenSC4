@@ -17,11 +17,13 @@
 //!   record of compressed entries, random-access entry reads from a file or any byte buffer (for example a
 //!   memory map the caller owns), and a small package writer.
 //! - [`qfs`]: QFS/RefPack decompression and compression with the 9-byte SimCity 4 header.
-//! - [`exemplar`]: exemplars and cohorts in binary (`EQZB1###`) and text (`EQZT1###`) form, a typed property
-//!   API and a cohort-inheritance resolver.
+//! - [`exemplar`]: exemplars and cohorts in binary (`EQZB`) and text (`EQZT`) form as the original's factories
+//!   read them, the property getters with their type coercion, and a store that loads records with their parent
+//!   cohorts (`docs/specs/data-formats.md` §4, §5).
 //! - [`ltext`]: localized text (LTEXT) entries.
 //!
-//! Written from public format documentation (see `README.md`) and `docs/specs/foundations.md` (§3.1, §9.2).
+//! Written from public format documentation (see `README.md`), then brought in line with
+//! `docs/specs/data-formats.md` and `docs/specs/foundations.md` (§2.3, §3.1, §9.2).
 //! Places where the documentation leaves a decision open are tagged `\[choice\]`. Nothing here panics on bad
 //! input: every parser returns a [`Result`].
 
@@ -37,5 +39,5 @@ pub mod tgi;
 
 pub use dbpf::{FileSource, IndexEntry, MemSource, Package, PackageBuilder, Source};
 pub use error::{Error, Result};
-pub use exemplar::{Exemplar, ExemplarStore, Property, ValueType, Values};
+pub use exemplar::{Exemplar, ExemplarStore, LoadError, LoadedExemplar, Property, ValueType, Values};
 pub use tgi::Tgi;

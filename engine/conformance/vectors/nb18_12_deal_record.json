@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "nb18_12_deal_record",
+  "spec": ["neighbors 5.6", "neighbors 18"],
+  "description": "Conformance test 12. The version-5 deal record: u16 5 | type E4 | other (2,3) | amount -5 | amountUsed 10 | cost s64 -4294967297 | flags 0x302 | city (3,3) | incAmount 6 | lastAmount 8 | amountUsed 10 again | currentDate 2451600, startDate 2451545, expirationDate 2451910 | an empty property holder (u16 2, u32 0) | suspensionDate 2451580. write -> read -> write is byte-identical; incAmount2 and lastIncAmount are not saved. The second amountUsed is the one kept. A version-4 record (no suspension date) reads completely and leaves the suspension date at its default; any version is accepted.",
+  "steps": [
+    {"op": "neighbors_deal", "id": 1, "adopt": false, "type": "E4", "other_side": [2, 3], "city_side": [3, 3], "amount": -5, "inc_amount": 6, "inc_amount2": 7, "last_amount": 8, "last_inc_amount": 9, "amount_used": 10, "cost": -4294967297, "start": 2451545, "expiration": 2451910, "current": 2451600, "suspension": 2451580, "flags": "0x302"},
+    {"op": "neighbors_deal_record", "deal": 1, "hex": "0500 E4FF7347 02000000 03000000 FBFFFFFF 0A000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000 7C682500"},
+    {"op": "neighbors_deal_record", "read": "0500 E4FF7347 02000000 03000000 FBFFFFFF 0A000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000 7C682500",
+     "expect": true, "rewrite": true, "remaining": 0, "id": 2,
+     "deal_state": {"type": "0x4773FFE4", "other_side": [2, 3], "city_side": [3, 3], "amount": -5, "amount_used": 10, "cost": -4294967297, "flags": "0x302", "inc_amount": 6, "last_amount": 8, "inc_amount2": 0, "last_inc_amount": 0, "current": 2451600, "start": 2451545, "expiration": 2451910, "suspension": 2451580}},
+    {"op": "neighbors_deal_record", "deal": 2, "hex": "0500 E4FF7347 02000000 03000000 FBFFFFFF 0A000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000 7C682500"},
+
+    {"op": "neighbors_deal_record", "read": "0500 E4FF7347 02000000 03000000 FBFFFFFF 63000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000 7C682500",
+     "expect": true, "remaining": 0, "deal_state": {"amount_used": 10}},
+
+    {"op": "neighbors_deal_record", "read": "0400 E4FF7347 02000000 03000000 FBFFFFFF 0A000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000",
+     "expect": true, "remaining": 0, "deal_state": {"suspension": 0, "current": 2451600, "flags": "0x302", "cost": -4294967297}},
+
+    {"op": "neighbors_deal_record", "read": "0900 E4FF7347 02000000 03000000 FBFFFFFF 0A000000 FFFFFFFFFEFFFFFF 02030000 03000000 03000000 06000000 08000000 0A000000 90682500 59682500 C6692500 0200 00000000 7C682500",
+     "expect": true, "remaining": 0, "deal_state": {"suspension": 2451580}}
+  ]
+}

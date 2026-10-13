@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "lf11_20_efficiency",
+  "spec": ["landfill 4.9.2", "landfill 11"],
+  "description": "Conformance test 20. With no maintenance GetEfficiency is 1.0. After a month the 2x2 zone's four tiles book maintenance 40; with the line item's current expenses 48 the efficiency is 48 / 40 = 1.2.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_call", "method": "get_efficiency", "expect": 1.0},
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_zone", "rect": [10, 20, 11, 21]},
+    {"op": "landfill_env", "supply": 10000},
+    {"op": "landfill_month"},
+    {"op": "landfill_call", "method": "get_maintenance_costs", "expect": 40},
+    {"op": "landfill_env", "current": 48},
+    {"op": "landfill_call", "method": "get_current_budget", "expect": 48},
+    {"op": "landfill_call", "method": "get_efficiency", "expect": 1.2}
+  ]
+}

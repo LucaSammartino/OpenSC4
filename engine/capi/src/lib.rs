@@ -743,6 +743,7 @@ pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
 pub mod props;
+pub mod protection;
 pub mod stream;
 pub mod weather;
 
@@ -769,6 +770,9 @@ mod pollution_tests;
 
 #[cfg(test)]
 mod power_tests;
+
+#[cfg(test)]
+mod protection_tests;
 
 #[cfg(test)]
 mod test_streams;

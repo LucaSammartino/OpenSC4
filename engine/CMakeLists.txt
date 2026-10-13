@@ -191,6 +191,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Pollution.h
         plugin/FC4PollutionShadow.cpp
         plugin/FC4PollutionShadow.h
+        plugin/cFC4Protection.cpp
+        plugin/cFC4Protection.h
+        plugin/FC4ProtectionShadow.cpp
+        plugin/FC4ProtectionShadow.h
         plugin/cFC4Crime.cpp
         plugin/cFC4Crime.h
         plugin/FC4CrimeInterfaces.h
@@ -312,6 +316,14 @@ if(FC4_IS_WIN32_X86)
     # popup_dialogs (FC4Popups.h): child processes, one FreeCity4.ini each.
     add_test(NAME plugin_ini_popups_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-popups)
     set_tests_properties(plugin_ini_popups_test PROPERTIES RUN_SERIAL TRUE)
+    # Protection (protection.md): `enable = protection` (no city: neutral
+    # getters, lifecycle, status lines) and the grid shadow on fake originals.
+    add_test(NAME plugin_ini_enable_protection_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-protection)
+    add_test(NAME plugin_ini_protection_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-protection-shadow)
+    set_tests_properties(plugin_ini_enable_protection_test plugin_ini_protection_shadow_test
+        PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

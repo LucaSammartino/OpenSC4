@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "nb18_11_clone",
+  "spec": ["neighbors 5.4", "neighbors 5.5", "neighbors 18"],
+  "description": "Conformance test 11. Clone copies type, flags, amount, amountUsed, cost, incAmount, lastAmount, both region cells and the four dates (not incAmount2 / lastIncAmount), then SetFlags(Silent, silent). A deal whose city side is the neighbour W comes back swapped (city side ours, other side W) with E0 -> E1; one seen from us keeps its cells and type. A missing region city on either side gives a Cancelled clone (cells and type unchanged). The Silent flag follows the argument; a clone that leaves Silent posts status 0.",
+  "steps": [
+    {"op": "neighbors_env", "current": 1},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1]},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2]},
+    {"op": "neighbors_create"},
+    {"op": "neighbors_clear_events"},
+
+    {"op": "neighbors_call", "method": "clone_deal_data", "args": [{"type": "E0", "city": 2, "other": 1, "amount": 77, "cost": 123, "flags": "0x82", "start": 5, "expiration": 370, "current": 6, "suspension": 2, "inc_amount": 3, "inc_amount2": 9, "last_amount": 4, "last_inc_amount": 8, "amount_used": 11}, false], "expect": 1000},
+    {"op": "neighbors_expect", "deal": 1000, "deal_state": {"type": "0x4773FFE1", "city_side": [3, 3], "other_side": [1, 3], "flags": 2, "amount": 77, "cost": 123, "amount_used": 11, "inc_amount": 3, "last_amount": 4, "inc_amount2": 0, "last_inc_amount": 0, "start": 5, "expiration": 370, "current": 6, "suspension": 2, "other_city": 2, "in_list": false}},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1000, "status": 0, "flags": 2, "sent": false}
+    ]},
+
+    {"op": "neighbors_call", "method": "clone_deal_data", "args": [{"type": "E0", "city": 1, "other": 2, "flags": "0x82"}, true], "expect": 1001},
+    {"op": "neighbors_expect", "deal": 1001, "deal_state": {"type": "0x4773FFE0", "city_side": [3, 3], "other_side": [1, 3], "flags": "0x82"}},
+
+    {"op": "neighbors_call", "method": "clone_deal_data", "args": [{"type": "E0", "city_side": [50, 50], "other": 1}, false], "expect": 1002},
+    {"op": "neighbors_expect", "deal": 1002, "deal_state": {"type": "0x4773FFE0", "city_side": [50, 50], "other_side": [3, 3], "flags": 5}},
+    {"op": "neighbors_call", "method": "clone_deal_data", "args": [{"type": "E0", "city": 2, "other_side": [-20, 9]}, false], "expect": 1003},
+    {"op": "neighbors_expect", "deal": 1003, "deal_state": {"type": "0x4773FFE0", "city_side": [1, 3], "other_side": [-20, 9], "flags": 5, "other_city": null}},
+
+    {"op": "neighbors_deal", "id": 1, "type": "E3", "other": 2, "flags": 2},
+    {"op": "neighbors_clear_events"},
+    {"op": "neighbors_deal_call", "deal": 1, "method": "clone", "args": [true], "expect": 1004},
+    {"op": "neighbors_expect", "deal": 1004, "deal_state": {"type": "0x4773FFE3", "flags": "0x82"}},
+    {"op": "neighbors_deal_call", "deal": 1, "method": "clone", "args": [false], "expect": 1005},
+    {"op": "neighbors_expect", "deal": 1005, "deal_state": {"type": "0x4773FFE3", "flags": 2}},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": []}
+  ]
+}

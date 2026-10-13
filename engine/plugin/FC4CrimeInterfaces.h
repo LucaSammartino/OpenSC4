@@ -24,11 +24,9 @@
 //                            SDK's SC4Vector (allocator A).
 //   cFC4CrimePropRequester   cISC4PropRequester (IID 0x89C498BE, no SDK
 //                            header), slots 3-6 (§11.6).
-//   cFC4CrimePoliceView      cISC4PoliceSimulator, slots 3-44: the SDK
-//                            declaration with the two SDK errors §13 lists
-//                            fixed (slot 5 returns cISC4SimGrid<uint8>*,
-//                            slot 27 returns an int32 count). Crime calls
-//                            slots 5, 27, 30 and 38 only.
+// The police simulator is called through cFC4ISC4PoliceSimulator
+// (FC4Interfaces.h), whose slots 5 and 27 have the types §13 lists (crime
+// calls slots 5, 27, 30 and 38 only).
 #pragma once
 
 #include "FC4GameList.h"
@@ -40,10 +38,8 @@
 #include <cstdint>
 
 class cISC4Automaton;
-class cISC4Occupant;
 class cISC4PropOccupant;
 class cS3DVector3;
-class SC4Percentage;
 
 static const uint32_t kFC4_IID_cISC4CrimeSimulator = 0x67659555;
 // The prop requester IID under a name of its own: cFC4Pollution.h defines
@@ -98,54 +94,4 @@ public:
     virtual uint32_t GetRequesterSatisfactionId() = 0;                                   // 4
     virtual bool UsesCustomPropSelector() = 0;                                           // 5
     virtual uint32_t SelectProp(FC4U32VectorView const& props, int32_t cellX, int32_t cellZ) = 0;  // 6
-};
-
-// cISC4PoliceSimulator (vtable 0x00AB2490), the SDK order. Whatever police
-// simulator the city has (the original, or a replacement implementing the same
-// vtable) is called through it.
-class cFC4CrimePoliceView : public cIGZUnknown {
-public:
-    virtual bool Init(void) = 0;                                                         // 3
-    virtual bool Shutdown(void) = 0;                                                     // 4
-    virtual cISC4SimGrid<uint8_t>* GetPolicePowerGrid(void) = 0;                         // 5  (SDK: <short>)
-    virtual intptr_t GetDepartmentBudget(void) = 0;                                      // 6
-    virtual bool GetStationFunding(cISC4Occupant* pStation, int32_t& nFunding, SC4Percentage& sFundingPercent) = 0;
-    virtual bool SetStationFunding(cISC4Occupant* pStation, SC4Percentage const& sFundingPercentage) = 0;
-    virtual uint32_t GetJailDepartmentBudget(void) = 0;
-    virtual bool IsOnStrike(void) = 0;
-    virtual float GetChanceOfStrike(void) = 0;
-    virtual bool BeginStrike(cISC4Occupant* pStation) = 0;
-    virtual bool EndStrike(void) = 0;
-    virtual uint32_t GetStrikeStartDate(void) = 0;
-    virtual uint32_t GetStrikeLength(void) = 0;
-    virtual bool GetStrikingStations(SC4List<cISC4Occupant*>& sList) = 0;
-    virtual bool IsStationOnStrike(cISC4Occupant* pStation) = 0;
-    virtual float GetAverageCoverage(void) = 0;
-    virtual float GetPercentCoverage(void) = 0;
-    virtual bool GetOccupantCoverage(cISC4Occupant* pStation, SC4Percentage const& sPercentage, float& fRadiusX,
-                                     float& fRadiusZ) = 0;
-    virtual bool GetPoliceStations(SC4List<cISC4Occupant*>& sList) = 0;
-    virtual bool IsPoliceStation(cISC4Occupant* pBuilding) = 0;
-    virtual float GetStationDispatchRadius(cISC4Occupant* pStation) = 0;
-    virtual uint32_t GetPoliceStationCount(void) = 0;
-    virtual float GetStationEfficiency(cISC4Occupant* pStation) = 0;
-    virtual uint32_t GetTotalDispatchCount(void) = 0;
-    virtual int32_t ResetUnjailedCriminals(void) = 0;                                    // 27 (SDK: bool)
-    virtual uint32_t GetJailCapacity(void) = 0;
-    virtual uint32_t GetJailPopulation(void) = 0;                                        // 30
-    virtual uint32_t GetCriminalCount(void) = 0;
-    virtual int32_t GetJails(SC4List<cISC4Occupant*>& sList) = 0;
-    virtual bool IsJail(cISC4Occupant* pBuilding) = 0;
-    virtual uint32_t GetArrestCount(void) = 0;
-    virtual uint32_t GetJailCount(void) = 0;
-    virtual uint32_t GetJailCapacity(cISC4Occupant* pJail) = 0;
-    virtual uint32_t GetJailedPercentage(void) = 0;
-    virtual int64_t GetJailCurrentUpkeepCost(void) = 0;
-    virtual bool ProcessMonthlyCrimeStats(void) = 0;                                     // 38
-    virtual bool IsInJailbreak(void) = 0;
-    virtual float BeginJailbreak(cISC4Occupant* pJail) = 0;
-    virtual bool EndJailbreak(cISC4Occupant* pJail) = 0;
-    virtual bool GetJailbreakBuildings(SC4List<cISC4Occupant*>& sList) = 0;
-    virtual uint32_t GetPoliceStationArrestCount(cISC4Occupant* pStation) = 0;
-    virtual uint32_t GetPoliceStationCrimeCount(cISC4Occupant* pStation) = 0;
 };

@@ -1,0 +1,225 @@
+{
+  "format": 1,
+  "name": "pf11_24_neighbour_pool",
+  "spec": [
+    "pathfinder 4.5",
+    "pathfinder 4.10.1",
+    "pathfinder 4.13"
+  ],
+  "description": "Extra (filter 0, an off-map destination). Destination bit 0 at (-1,3) only; free count 1. The ring search reaches the off-map ring at ring 3 (bounds (-1,-1,8,8)) and, with no in-city candidate, the end rect becomes (-1,3,-1,3). The exit node at (-1,3) (g 3.0 from (0,3)) is off-map and not in the start or excluded rect: the neighbour pool's holder (max [4, ...], used 0) accepts min(4, 10) = 4 trips; end cell (-1,3). Trip length r24(0.5 + 3.0) with the neighbour connection cost 0.5.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "free": [
+        1,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_dest",
+      "cell": [
+        -1,
+        3
+      ],
+      "bits": 1
+    },
+    {
+      "op": "pf_pool",
+      "cell": [
+        -1,
+        3
+      ],
+      "holder": 500,
+      "max": [
+        4,
+        0,
+        0,
+        0
+      ],
+      "used": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "pf_neighbor_cost",
+      "cell": [
+        -1,
+        3
+      ],
+      "cost": 0.5
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_destination_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "end_rect": [
+          -1,
+          3,
+          -1,
+          3
+        ],
+        "destination_type_reached": 0,
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            1,
+            3,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            255,
+            3,
+            1
+          ]
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 4
+    },
+    {
+      "op": "pf_call",
+      "method": "get_end_cell",
+      "expect": [
+        -1,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40600000"
+    }
+  ]
+}
