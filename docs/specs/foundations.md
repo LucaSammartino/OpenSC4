@@ -1696,9 +1696,11 @@ effect, on which threads, and what that means for the specs.
 | When | Where | Effect on the control word |
 |---|---|---|
 | Process start (C runtime init, before `WinMain`) | CRT `_cinit` → `_fpmath(1)` → `_setdefaultprecision` = `_controlfp(_PC_53, _MCW_PC)` | precision **53-bit**; rounding to nearest; all exceptions masked (Windows default) |
-| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
-| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
+| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | `CALL 0x005F85E0` (the first call after the prologue, verified in the bytes at `0x0045236C`), which calls the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 unconditionally | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
+| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit. **If the current precision is already 53-bit the guard skips both calls, so a Lua call can never restore 24-bit** |
+| The exemplar float-expression parser (`nSCRes::ParseFloat` `0x0067BBA0` → `ParseExpression` `0x0067BB20` → the additive parser `0x0067BA40`, reached from `0x0067AC30` and `0x0067BAE0`) | the additive parser `0x0067BA40` calls the getter and, when it reports 24-bit, the helper with mode 1 — and then **returns with no mode-0 call in this chain** | precision **53-bit, and irrecoverably so** (§18.2: nothing can restore 24-bit). Verified in the bytes of `0x0067BA40` (one getter call, one `PUSH 1` + setter call, no setter on the return path at `0x0067BACC`); no function in `0x0067AC30`, `0x0067B990`, `0x0067BA40`, `0x0067BAE0`, `0x0067BB20` or `ParseFloat` restores, and no direct caller of `ParseFloat` (e.g. `cCameraParamsCommand`, `cDecalLifeCommand`) wraps it. **This leak evidently does not fire in a normal session**, because a save written by the unmodified game holds the 24-bit budget result (§18.2) — consistent with `ParseFloat` being reachable only from **text**-format resource parsing, while shipped tuning and building data is binary *[compat: a latent bug in the original]* |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
+| A DLL `LoadLibrary`d during app init, whose own CRT runs `_fpmath(1)` → `_controlfp(_PC_53, _MCW_PC)` | the CRT of that DLL | precision **53-bit** on the loading thread. Ruled out for the normal session by §18.2 (a save written by the unmodified game holds the 24-bit result, and nothing can restore 24-bit afterwards). Import-table fact that constrains the candidates: `DSOUND.dll`, `OPENGL32.dll` and `WINMM.dll` are **static imports** (CRT init at process start, before our first measurement at 24-bit, so excluded); `DDRAW.DLL` is **not** a static import, so it is loaded on demand and was a candidate before §18.2 ruled the window out |
 | Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
 | Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
@@ -1711,8 +1713,10 @@ precision (they only force round-to-nearest and masked exceptions while they run
 - **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
   agents (simulator.md), every grid simulator, the budget and all message handlers run on this thread, so **the
   whole simulation runs at 24-bit precision** *[inferred: the simulator is driven by the framework's idle and
-  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls and the exemplar
-  expression evaluator (53-bit), which do not touch simulation state.
+  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls (53-bit
+  for the duration of the call, then restored) and the exemplar expression parser (§18.1, row 4). The Lua path does
+  not touch simulation state. The parser's leak **would** poison the whole session if it ever fired, since nothing
+  can restore 24-bit afterwards — but the save evidence below shows it does not fire in a normal session.
 - **Worker threads** created by the game (`cRZThread`: background model loader, HTTP client, name lookup,
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
@@ -1723,6 +1727,61 @@ precision (they only force round-to-nearest and masked exceptions while they run
   53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
   a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
   shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
+
+**The expression really is precision-sensitive** (verified in the assembly of
+`cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses`, `0x006ABC93`): `FILD qword` (cost, exact) →
+`FMUL float` (local funding) → `FMUL float [0x00A80AA0]` (the constant 100.0) → `FILD qword` (the running sum,
+exact) → `FADDP` → `_ftol`. There is **no `FSTP float` between the operations**, so the intermediates stay in the
+80-bit register and are rounded by PC alone. At PC = 24 the product rounds to 123.0 and the answer is 123; at
+PC = 53 it stays 122.99999892711639…, truncates to 12299 and the answer is 122. The saved value 123 therefore
+does establish that the unmodified game settled that budget at **24-bit**.
+
+**What is verified about the control word (bytes and xrefs, 2026-10-13):**
+
+- The helper `0x008929E0` is a real setter, 42 bytes: it clears the PC field of a stack copy of the control word
+  (24-bit), sets bit 1 for mode 1 (53-bit) or bits 0–1 for mode 2 (64-bit), then `FLDCW`s it back. Ghidra's
+  decompiler renders it as an empty function, so pseudocode cannot be trusted here. The getter `0x00892A0A`
+  returns 0 for PC = 00, 1 for PC = 10, 2 for PC = 11.
+- `0x005F85E0` (an unconditional `helper(0)` = 24-bit) has **exactly one xref in the whole image**: `0x0045236C`,
+  the first call of `PreFrameWorkInit`. So the game asserts 24-bit once, at start-up, and never again.
+- Every other mode-0 call site is Lua-related and guarded by the getter. Because the guard skips **both** the
+  set-to-53 and the set-back-to-24 when the thread is not already at 24-bit, **no Lua call can ever restore
+  24-bit** once something else has raised it.
+- The exemplar float-expression parser leaks (§18.1, row 3): verified in the bytes of `0x0067BA40` — one
+  `CALL 0x00892A0A`, one `PUSH 1; CALL 0x008929E0`, and no setter call on the return path at `0x0067BACC`.
+
+**The enumeration of precision writes is complete** (direct xrefs, pointer-table scan of the whole image, and the
+CRT chain, 2026-10-13). Nothing in the image calls `_controlfp`/`_control87` except the CRT's own
+`__setdefaultprecision` (`0x009F6C30` → `0x00A02F9B`, one xref), which only `__fpmath` reaches; there is no
+`_fpreset`; and no function pointer to the helper `0x008929E0`, the getter `0x00892A0A` or the 24-bit wrapper
+`0x005F85E0` is stored anywhere in the image, so indirect calls cannot hide any site. Every remaining mode-0
+(24-bit) site is Lua-related **and guarded by the getter**, and the guard skips both the set-to-53 and the
+set-back-to-24 unless the thread is already at 24-bit. `0x005F85E0` — the only unconditional 24-bit assert — is
+called from exactly one place, `PreFrameWorkInit`.
+
+**Consequence: once anything raises the main thread above 24-bit, the game can never bring it back.** Combined
+with the two observations above this settles the contradiction in favour of hypothesis 2:
+
+- the save written by the **unmodified** game holds 123 = the 24-bit result, and the assembly proves that value is
+  precision-sensitive with no float32 spill, so at those settlements the main thread was at **PC = 00**;
+- nothing can restore 24-bit after `PreFrameWorkInit`;
+- therefore **no event in the unmodified game's app init raised the precision** — the game genuinely runs the whole
+  session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands;
+- so the `CW = 0x027F` seen from PostAppInit onward in runs 23 and 24 is caused by **the FreeCity4 process**, not by
+  the game.
+
+This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"). The
+24-bit reference behaviour is intact and the float-sensitive worked examples recomputed for 24-bit (cde56f4) remain
+correct. What must be found instead is **what our plugin's presence does between PreAppInit and PostAppInit that
+raises PC to 53-bit**. The plugin's own load-time CRT init is excluded (the control word is still 24-bit at
+`DLL_PROCESS_ATTACH` *after* our initialisation), and runs 23/24 had the simulator and budget classes replaced, so
+the suspects are our code calling a game interface that reaches `nSCRes::ParseFloat` (a **text**-format resource
+parse — the leak in §18.1 row 3), or our code loading a DLL whose CRT runs `_fpmath(1)`.
+
+**Decisive experiment (queued for lane 1):** run with every subsystem off (`budget_default = 0`, nothing replaced)
+and only the control-word logger plus the settlement observer active, on Spandau. Expected result if the above
+reasoning holds: PC = 00 all session. Then re-enable subsystems one at a time to find which one raises it. Until
+that run exists, treat "our plugin raises it" as a strong deduction, not a measurement.
 
 ### 18.3 What 24-bit precision means
 
