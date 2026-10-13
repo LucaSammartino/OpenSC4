@@ -21,7 +21,7 @@ impl PollutionSim {
     /// `UpdatePollutionVisualEffect` (§4.10): monthly, on PostCityInit, when
     /// `effectsVisible` changes and after `AddRadiationToCity`.
     pub fn update_visual_effects(&self) {
-        let t = self.tuning.borrow().clone();
+        let t = self.tuning();
         let h = self.host.clone();
         let mut fx = self.fx.borrow().clone();
         let (cw, cwz) = h.cell_widths();

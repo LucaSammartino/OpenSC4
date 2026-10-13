@@ -220,6 +220,33 @@ fn init_sizes_and_cadence() {
     assert_eq!(h.refs.borrow().get(&900), Some(&0));
 }
 
+/// The shadow's replayed shuffle replaces the next end-of-cycle reset once;
+/// a table of the wrong length is ignored.
+#[test]
+fn shuffle_override_replaces_one_reset() {
+    let h = host(16);
+    let s = sim(&h);
+    let n = s.snapshot().iterator.table.len();
+    assert_eq!(n, 64);
+    let replay: Vec<u16> = (0..n as u16).rev().map(|i| ((i % 8) << 8) | (i / 8)).collect();
+    s.set_shuffle_override(Some(replay.clone()));
+    // One full cycle plus one visit: the reset happens inside the day.
+    s.with_state(|st| st.tracts_per_day = 64);
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.cycle_resets(), 1);
+    let st = s.snapshot();
+    assert_eq!(st.iterator.table, replay);
+    assert_eq!(st.iterator.index, 1);
+    // Used once: the next reset shuffles again.
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.cycle_resets(), 2);
+    assert_ne!(s.snapshot().iterator.table, replay);
+    // Wrong length: ignored (the shuffle runs).
+    s.set_shuffle_override(Some(vec![0; 3]));
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.snapshot().iterator.table.len(), 64);
+}
+
 #[test]
 fn tuning_patterns() {
     let mut t = Tuning::default();
@@ -324,6 +351,57 @@ fn dispose_quirk_and_landfill() {
     // NaN and negative offers take nothing.
     assert_eq!(s.dispose(f32::NAN, &mut rem), 0.0);
     assert_eq!(s.dispose(-5.0, &mut rem), 0.0);
+}
+
+/// Spec test 26: the landfill limit is `rhe` of the curve product, which
+/// leaves its exact range above 838 shipped tiles (§4.6.1 step 5, §4.12).
+#[test]
+fn landfill_limit_follows_rhe() {
+    let h = host(64);
+    let s = sim(&h);
+    h.landfill.set((0, 10_000_000));
+    let offer = |tiles: u32, supply: i32| {
+        h.tiles.set(tiles);
+        s.with_state(|st| {
+            st.efficiency = 1.0;
+            st.garbage_supply = supply;
+            st.decomposed = 2000;
+        });
+        let mut rem = Remaining::default();
+        let taken = s.dispose(6_000_000.0, &mut rem);
+        (taken, s.snapshot().garbage_supply)
+    };
+    assert_eq!(offer(1000, 0), (4_597_152.0, 4_597_152));
+    assert_eq!(offer(839, 0), (4_194_652.0, 4_194_652));
+    assert_eq!(offer(838, 0), (4_190_000.0, 4_190_000));
+    assert_eq!(offer(1000, 100_000), (4_497_152.0, 4_597_152));
+}
+
+/// Spec test 28: the waste-to-energy and incinerator floors (§4.12).
+#[test]
+fn dispose_floor_follows_rhe() {
+    let h = host(64);
+    let s = sim(&h);
+    s.with_state(|st| st.decomposed = 2000);
+    let mut rem = Remaining {
+        wte: 10,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(9.99, &mut rem), 9.99);
+    assert_eq!(rem.wte, 1);
+    let mut rem = Remaining {
+        wte: 10,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(3.0, &mut rem), 3.0);
+    assert_eq!(rem.wte, 7);
+    let mut rem = Remaining {
+        inc: 8_000_000,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(5_000_000.0, &mut rem), 5_000_000.0);
+    assert_eq!(rem.inc, 3_402_848);
+    assert_eq!(s.snapshot().month.incinerated, 5_000_000);
 }
 
 #[test]

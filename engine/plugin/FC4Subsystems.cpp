@@ -27,6 +27,8 @@
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
 #include "cFC4Flammability.h"
+#include "FC4PollutionShadow.h"
+#include "cFC4Pollution.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -124,6 +126,11 @@ const ClassEntry kFlammabilityClasses[] = {
     {0xE990C045, "cSC4FlammabilitySimulator", &CreateFC4FlammabilitySimulator},
 };
 
+// docs/specs/pollution.md §1. Off by default (M3 glue trial): `enable = pollution`.
+const ClassEntry kPollutionClasses[] = {
+    {0x8990C065, "cSC4PollutionSimulator", &CreateFC4PollutionSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -136,6 +143,7 @@ const Subsystem kSubsystems[] = {
     {"plumbing", nullptr, kPlumbingClasses, sizeof(kPlumbingClasses) / sizeof(kPlumbingClasses[0]), false},
     {"flammability", nullptr, kFlammabilityClasses, sizeof(kFlammabilityClasses) / sizeof(kFlammabilityClasses[0]),
      false},
+    {"pollution", nullptr, kPollutionClasses, sizeof(kPollutionClasses) / sizeof(kPollutionClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -221,6 +229,10 @@ void Resolve() {
     // kSubsystems[0] is the simulator, [1] the budget, [5] demand.
     BudgetShadowStartup(g_enabled[0], g_enabled[1]);
     DemandShadowStartup(g_enabled[0], g_enabled[5]);
+    // The pollution shadow (FC4PollutionShadow.h), by key.
+    for (size_t i = 0; i < kSubsystemCount; ++i) {
+        if (strcmp(kSubsystems[i].key, "pollution") == 0) PollutionShadowStartup(g_enabled[0], g_enabled[i]);
+    }
 }
 
 }  // namespace
