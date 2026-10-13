@@ -23,7 +23,7 @@ use std::rc::Rc;
 
 use super::simulator::{
     demand_exemplars, exemplar_links, neutral_tax_rate_of, propagate, total_node_modifiers, ModifierTerms,
-    PropagationStats,
+    PropagationStats, TaxBasis,
 };
 use super::tuning::{DemandTuning, TUNING_KEY};
 use super::{DemandHost, DemandNode, DemandPoster, Link, LinkKind, NodeData};
@@ -40,7 +40,7 @@ impl DemandPoster for NoPoster {
 pub struct ShadowModifiers {
     /// `GetNeutralTaxRate()` from the given census supplies (unclamped).
     pub neutral_raw: f32,
-    /// `max(0.1, neutral_raw)`.
+    /// `neutral_raw`, or `0.1f` if below `0.1f` (a NaN is kept).
     pub neutral: f32,
     /// The `today` the host gave.
     pub today: u32,
@@ -162,16 +162,16 @@ impl ShadowGraph {
         i_bonus: f32,
     ) -> ShadowModifiers {
         let neutral_raw = self.neutral_tax_rate(r, c, i);
-        let neutral = neutral_raw.max(0.1);
+        let basis = TaxBasis::new(neutral_raw);
         let today = host.today();
         let mut out = ShadowModifiers {
             neutral_raw,
-            neutral,
+            neutral: basis.neutral,
             today,
             nodes: [ModifierTerms::default(); 12],
         };
         for (idx, slot) in out.nodes.iter_mut().enumerate() {
-            *slot = total_node_modifiers(idx, neutral, &self.tuning, co_bonus, i_bonus, today, host);
+            *slot = total_node_modifiers(idx, basis, &self.tuning, co_bonus, i_bonus, today, host);
         }
         out
     }
@@ -497,12 +497,10 @@ mod tests {
     /// Runs 42 and 43 (demand shadow, Spandau): §8.1's tax term with the
     /// shipped curve (0.2, 0.3), (1, 0), (5, −3.5), ordinance factor 1 and
     /// the history max 70 (I-R: 90), at the neutral rates the original's
-    /// GetNeutralTaxRate returned (bit-identical to ours). 10 of 11 checks
-    /// agree; on 2001-10-01 of run 43 the original is 4 ulp above us. One
-    /// operation order reproduces all 132 values: `(maxRate · 0.1) ·
-    /// (1 / neutral)` (the reciprocal rounded to f32 first), not the spec's
-    /// literal `maxRate · 0.1 / neutral` (demand §8.1; open question, not
-    /// changed here). This test pins both until the question is answered.
+    /// GetNeutralTaxRate returned (bit-identical to ours). With the ratio
+    /// `r24(r24(maxRate · 0.1f) · r24(1.0f / neutral))` (§8.1, DQ1) our
+    /// modifier is the original's bits in all 11 checks, including run 43
+    /// 2001-10-01 where the literal `maxRate · 0.1 / neutral` was 4 ulp low.
     #[test]
     fn tax_ratio_operation_order_runs_42_43() {
         let f = Fake::default();
@@ -513,21 +511,32 @@ mod tests {
         // Cs$ (index 3): the fake's ordinance factor is 1.0 for it.
         let ours = |neutral: f32, max: f32| {
             f.history.set(Some(max));
-            total_node_modifiers(3, neutral, &tuning, 0.0, 0.0, 2_452_184, &f).tax_modifier
+            total_node_modifiers(3, TaxBasis::new(neutral), &tuning, 0.0, 0.0, 2_452_184, &f)
         };
-        let reciprocal = |neutral: f32, max: f32| {
-            let r = (max * 0.1) * (1.0 / neutral);
+        let literal = |neutral: f32, max: f32| {
+            let r = max * 0.1 / neutral;
             1.0f32 - 1.0 + tuning.tax_modifier_curve.as_ref().unwrap().eval(r)
         };
         let b = f32::from_bits;
-        // Run 43, 2001-10-01: neutral 8.99755573; orig 0.0832541287, ours 0.0832540989.
+        // Run 43, 2001-10-01 (the §8.1 worked example): neutral 8.99755573.
         let n = b(0x410F_F5FD);
-        assert_eq!(ours(n, 70.0).to_bits(), 0x3DAA_8120);
-        assert_eq!(reciprocal(n, 70.0).to_bits(), 0x3DAA_8124);
-        // I-R (max 90): -0.000237718225 under both.
-        assert_eq!(ours(n, 90.0).to_bits(), 0xB979_4400);
-        assert_eq!(reciprocal(n, 90.0).to_bits(), 0xB979_4400);
-        // The other checks (neutral bits, the original's tax bits): equal under both.
+        assert_eq!(TaxBasis::new(n).recip.to_bits(), 0x3DE3_9E0C);
+        let m = ours(n, 70.0);
+        assert_eq!(m.ratio.to_bits(), 0x3F47_2A4A);
+        assert_eq!(m.tax_curve.to_bits(), 0x3DAA_8124);
+        assert_eq!(m.tax_modifier.to_bits(), 0x3DAA_8124); // the original's bits
+                                                           // The literal `maxRate · 0.1 / neutral` (the old order) is 4 ulp low.
+        assert_eq!(literal(n, 70.0).to_bits(), 0x3DAA_8120);
+        // I-R (max 90): ratio 0x3F8008E7, -0.000237718225 under both orders.
+        let m = ours(n, 90.0);
+        assert_eq!(m.ratio.to_bits(), 0x3F80_08E7);
+        assert_eq!(m.tax_modifier.to_bits(), 0xB979_4400);
+        assert_eq!(literal(n, 90.0).to_bits(), 0xB979_4400);
+        // 2001-09-09: recip 0x3DE39D47, ratio 0x3F47299E under both orders.
+        let n = b(0x410F_F67A);
+        assert_eq!(TaxBasis::new(n).recip.to_bits(), 0x3DE3_9D47);
+        assert_eq!(ours(n, 70.0).ratio.to_bits(), 0x3F47_299E);
+        // The other checks (neutral bits, the original's tax bits).
         let agree: [(u32, u32); 10] = [
             (0x410F_F67A, 0x3DAA_8328), // 2001-09-09 (runs 42 and 43)
             (0x410F_F55F, 0x3DAA_7E92), // run 43 2001-11-01
@@ -541,8 +550,20 @@ mod tests {
             (0x410F_F477, 0x3DAA_7AD0), // run 42 2002-02-01
         ];
         for (nb, tb) in agree {
-            assert_eq!(ours(b(nb), 70.0).to_bits(), tb, "neutral {:#x}", nb);
-            assert_eq!(reciprocal(b(nb), 70.0).to_bits(), tb, "neutral {:#x}", nb);
+            assert_eq!(ours(b(nb), 70.0).tax_modifier.to_bits(), tb, "neutral {:#x}", nb);
         }
+    }
+
+    /// §8.1 step 1: below `0.1f` the neutral rate is `0.1f`; a NaN passes the
+    /// test and is kept (so the reciprocal is NaN too).
+    #[test]
+    fn tax_basis_clamp_keeps_nan() {
+        assert_eq!(TaxBasis::new(0.0).neutral.to_bits(), 0x3DCC_CCCD);
+        assert_eq!(TaxBasis::new(-3.0).neutral.to_bits(), 0x3DCC_CCCD);
+        assert_eq!(TaxBasis::new(0.0).recip, 1.0f32 / 0.1f32);
+        assert_eq!(TaxBasis::new(0.1).neutral, 0.1);
+        assert_eq!(TaxBasis::new(9.0).neutral, 9.0);
+        let nan = TaxBasis::new(f32::NAN);
+        assert!(nan.neutral.is_nan() && nan.recip.is_nan());
     }
 }
