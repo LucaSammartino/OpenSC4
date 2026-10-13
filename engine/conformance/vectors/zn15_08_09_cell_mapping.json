@@ -1,0 +1,86 @@
+{
+  "format": 1,
+  "name": "zn15_08_09_cell_mapping",
+  "spec": [
+    "zones 8.2",
+    "zones 8.7",
+    "zones 15.8",
+    "zones 15.9",
+    "foundations 18"
+  ],
+  "description": "Conformance tests 8 and 9 (the cell-mapping helpers). Test 8 (GetOccupantLot cells, \u00a78.2 slot 14): per axis a := r24(p \u00d7 0.0625), c := rhe(r24(a \u2212 0.5)), c := c + 1 when a = c + 1 exactly, so c = floor(p / 16). Positions (x): 112.0 -> 7; 104.0 -> 6; 15.99 -> 0; -0.01 -> -1 (a cell below 0, so GetLot returns null). Test 9 (GetLotSavvyTerrainAltitude cells, \u00a78.7 slot 18): c := rhe(r24(r24(x \u00d7 0.0625) \u2212 0.499)) with 0.499 = 0x3EFF7CEE = 0.49900001, before the clamp. x = 15.98 -> 0; 15.99 -> 1; 16.0 -> 1; -8.0 -> -1 (clamped to 0 by the caller); 127.99 -> 8. The rounding quirk: x/16 with a fraction above 0.999 rounds up (15.99 -> 1).",
+  "steps": [
+    {
+      "op": "zone_eval",
+      "fn": "occupant_cell",
+      "args": [
+        112.0
+      ],
+      "expect": 7
+    },
+    {
+      "op": "zone_eval",
+      "fn": "occupant_cell",
+      "args": [
+        104.0
+      ],
+      "expect": 6
+    },
+    {
+      "op": "zone_eval",
+      "fn": "occupant_cell",
+      "args": [
+        15.99
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_eval",
+      "fn": "occupant_cell",
+      "args": [
+        -0.01
+      ],
+      "expect": -1
+    },
+    {
+      "op": "zone_eval",
+      "fn": "savvy_cell",
+      "args": [
+        15.98
+      ],
+      "expect": 0
+    },
+    {
+      "op": "zone_eval",
+      "fn": "savvy_cell",
+      "args": [
+        15.99
+      ],
+      "expect": 1
+    },
+    {
+      "op": "zone_eval",
+      "fn": "savvy_cell",
+      "args": [
+        16.0
+      ],
+      "expect": 1
+    },
+    {
+      "op": "zone_eval",
+      "fn": "savvy_cell",
+      "args": [
+        -8.0
+      ],
+      "expect": -1
+    },
+    {
+      "op": "zone_eval",
+      "fn": "savvy_cell",
+      "args": [
+        127.99
+      ],
+      "expect": 8
+    }
+  ]
+}

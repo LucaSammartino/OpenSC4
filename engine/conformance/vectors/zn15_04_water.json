@@ -1,0 +1,194 @@
+{
+  "format": 1,
+  "name": "zn15_04_water",
+  "spec": [
+    "zones 6",
+    "zones 15.4"
+  ],
+  "description": "Conformance test 4 (water, \u00a76). A region of three cells {5,5},{6,5},{7,5} where (6,5) has water. Type 1: the water cell's bit is cleared in the caller's region (reject), the other two proceed and are accepted. Type 12 (seaport): the water cell is accepted (types 0 and 12 allow water). Type 14 (landfill): a water cell aborts with error 2. The developer is not created, so no parcellization interferes.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ],
+      "funds": 100000
+    },
+    {
+      "op": "zone_create",
+      "session": 0,
+      "manager": true,
+      "developer": false
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          6,
+          5
+        ]
+      ]
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          5,
+          7,
+          5
+        ]
+      },
+      "type": 1,
+      "commit": true,
+      "skip_funds": false,
+      "skip_size": true,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": true,
+        "error": 0,
+        "region_cells": [
+          [
+            5,
+            5
+          ],
+          [
+            7,
+            5
+          ]
+        ]
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          7,
+          6
+        ]
+      },
+      "type": 1,
+      "commit": false,
+      "skip_funds": true,
+      "skip_size": true,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": true,
+        "error": 0,
+        "region_cells": [
+          [
+            5,
+            6
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            7,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "op": "zone_water",
+      "cells": [
+        [
+          6,
+          6
+        ]
+      ]
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          7,
+          6
+        ]
+      },
+      "type": 1,
+      "commit": false,
+      "skip_funds": true,
+      "skip_size": true,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": true,
+        "error": 0,
+        "region_cells": [
+          [
+            5,
+            6
+          ],
+          [
+            7,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          7,
+          6
+        ]
+      },
+      "type": 12,
+      "commit": false,
+      "skip_funds": true,
+      "skip_size": true,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": true,
+        "error": 0,
+        "region_cells": [
+          [
+            5,
+            6
+          ],
+          [
+            6,
+            6
+          ],
+          [
+            7,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          5,
+          6,
+          7,
+          6
+        ]
+      },
+      "type": 14,
+      "commit": false,
+      "skip_funds": true,
+      "skip_size": true,
+      "check_lot_inside": false,
+      "expect": {
+        "ok": false,
+        "error": 2
+      }
+    }
+  ]
+}
