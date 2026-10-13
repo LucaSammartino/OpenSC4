@@ -360,6 +360,23 @@ In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` 
 float(population) × 1000), then `0x4A8A3FE2` := rhe(h × 1000), where rhe rounds half to even (the original adds
 12582912 and takes the float's low bits). If population ≤ 0: `0x4A8A3FE2` := 0, then `0x4A8A3FE5` := 0.
 
+### 5.8 Health-affecting buildings (the "other" list) *[compat]*
+
+The record's "other list" (§9.1) is the **pending health-affecting list** (RS8, from the exe). It works like the
+pending school and hospital lists (REH §4.1).
+
+- **Test** (`DoBuildingChanged`, after the school test, `0x006FB5C1`): the building's property holder has both
+  `0x6A19F6B5` and `0xAA19F6EA` (read as floats through `0x005FD4F0`), and both are > 0.0. A NaN fails. Otherwise
+  nothing happens here.
+- **Added**: `AddRef` the occupant and append it to the pending list (`0x006FB645`). Set dirty.
+- **Removed**: erase the first entry equal to the occupant from the health-affecting list (`0x006FB943`). If it is
+  not there, erase it from the pending list (`0x006FB983`). `Release` it if it was erased. Set dirty either way.
+- **State 0** (`0x006FF75F`–`0x006FF7E8`), after the school and hospital distribution: every pending entry, in
+  order, is appended to the **end** of the health-affecting list. There is no filter, and the reference moves
+  (no `AddRef` or `Release`). Then the pending list is cleared (nodes only).
+- `GetHealthAffectingBuildings` (slot 61) appends the health-affecting list and then the pending list, so a
+  building is visible in either state.
+
 ## 6. Queries (population half)
 
 ### 6.1 `GetTractQuotient(values[3], pops[3], x, z)` (internal, used by slots 35–38, 43, 44)
@@ -569,7 +586,7 @@ department block (health)
 department block (education)
 list  pending school list
 list  pending hospital list
-list  other list
+list  other list (pending health-affecting buildings, §5.8)
 u32 n, n × list   school building lists
 u32 n, n × list   hospital building lists
 list  list (health-affecting buildings)

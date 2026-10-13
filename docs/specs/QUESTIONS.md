@@ -268,7 +268,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   happens, with the same EQ/HQ results; only leSum changes (65 × 200). The test now uses the shipped curve, with
   EQ/HQ stored as 50.2 / 60.2, which decay to exactly 50 / 60. The custom curve can go. For LE 61, use HQ 44
   (exact).
-- **RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]
+- ~~**RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]~~
+  **ANSWERED 2026-10-14** from the exe (state 0 `0x006FF75F`–`0x006FF7E8`; `DoBuildingChanged` `0x006FB5C1`–
+  `0x006FB9C1`) and written into the new residential.md §5.8. **The bracket is right: moved.** State 0 appends
+  every pending entry, in order and unfiltered, to the end of the health-affecting list, moving the reference,
+  and then clears the pending list. Also specified: the add test (both properties > 0), and a removal that tries
+  the health-affecting list first and then the pending one.
 - ~~**RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
   read? [nothing repaired; Read fails]~~ **ANSWERED 2026-10-14** from the exe (`Read` `0x007009A0`, helpers
   `0x005D9730`, `0x005DB3C0`, `0x006F7BA0`) and written into residential.md §9.2 and test 20. The original rejects

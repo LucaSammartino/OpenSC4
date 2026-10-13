@@ -164,7 +164,8 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
 2. **School test.** The same with staff purpose `0xEA5654B6`, bus purpose `0x4A5654BA`, groups `0x1503` or
    `0x151B`, capacity `0x8922041B`, and the pending school list. The school test runs for **every** building,
    after the hospital test. A building that passes both tests is put in both pending lists *[compat]*.
-3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md.
+3. Health-affecting buildings (properties `0x6A19F6B5` and `0xAA19F6EA` both > 0) are handled in residential.md
+   §5.8. They go to a pending list, which state 0 moves into the health-affecting list.
 4. Finally, the building's slot-11 value is read and the dirty flag set when its first u32 is 1
    *[inferred meaning]*.
 
