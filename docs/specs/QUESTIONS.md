@@ -47,6 +47,20 @@ checked on the bytes and is correct as written: Q is `+0xCC`, D is `+0xD0`, and 
 zones.md §15 now has **test 32**, which gives the street positions for all eight perpendicular (Q, D) pairs on a
 16 × 16 rect (n = 6), plus the edge rule. That pins every arm, including the four listed here.
 
+From the ZQ3/ZQ5/ZQ6 follow-up lane (filed by the coordinator, 2026-10-14; merged `8ee3253`; vectors
+`zn15_32`–`zn15_35`). About zones.md §7.2.1 `DetermineLotSize`; the core's current answer is in brackets.
+
+**ZQ7 — step 2: a missing candidate developer.** The original does not null-check the candidate developers. What
+happens when the BDS lacks one? [skipped: the first existing candidate becomes best]
+
+**ZQ8 — step 5: signedness of `GetGrowthStage() ≤ stage`.** The growth stage is a u8; the stage is an int32. Signed
+or unsigned compare? [zero-extended, compared signed; the two differ only for a negative `maxStage`]
+
+**ZQ9 — step 6: the initial best score, and wrap of `|v − bestDemand|`.** [the first scored configuration is always
+taken; the difference is computed without a 32-bit wrap]
+
+**ZQ10 — step 7: signedness of `minDepth > 2`.** [unsigned, like the widening compares; both agree for real depths]
+
 ## From the residential core (filed by the coordinator from the lane's report, 2026-10-13; branch `residential-core`, tip `cc6e25d`, NOT merged)
 
 All were about `docs/specs/residential.md`. The lane's code compiles clean and its own geometry/tuning tests pass, but
