@@ -94,6 +94,10 @@
 #include "cISC4SimGrid.h"
 #include "cISC4ZoneManager.h"
 #include "cISTETerrain.h"
+#include "cISC4FlammabilitySimulator.h"
+#include "cISC4DisasterLayer.h"
+#include "cISC4DisasterManagerFire.h"
+#include "cISC4TutorialSystem.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -310,6 +314,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4LandValueSimulator", 12, 13,
      "slot 12 is unnamed and pops 4, the signature of a scalar deleting destructor: class-private "
      "(landvalue spec: 12 interface slots)"},
+    {"cISC4FlammabilitySimulator", 9, 10,
+     "slot 9 is unnamed and pops 4, the signature of a scalar deleting destructor: class-private "
+     "(flammability spec §11.1: 9 interface slots)"},
     {"cISC4BuildingOccupant", 20, 24,
      "the SDK declares slots 0-19; the plugin calls slot 4 (GetBuildingType) only (power §11.1). Slots 20-23 are "
      "not declared"},
@@ -360,6 +367,9 @@ const Waiver kWaivers[] = {
      "the SDK declares no argument, the game's method pops 8 bytes"},
     {"cISC4BuildingDevelopmentSimulator", "cISC4BuildingDevelopmentSimulator", 45, "GetMaxCapacity",
      "the SDK says int64, the game returns a float in ST0"},
+    {"cISC4DisasterLayer", "cISC4DisasterLayer", 9, "DisasterHasEnded",
+     "the SDK declares 4 argument bytes, the game's method pops none; the plugin calls slot 7 "
+     "(GetDisasterManager) only (flammability.md §6.8)"},
     {"cISC4HistoryWarehouse", "cISC4HistoryWarehouse", 9, "Coalesce",
      "the SDK declares 12 argument bytes, the game's method pops 16"},
     {"cISC4OrdinanceSimulator", "cISC4OrdinanceSimulator", 24, "GetCumulativeOffset",

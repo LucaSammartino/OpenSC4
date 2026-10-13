@@ -54,8 +54,10 @@ extern "C" {
  * 9 = adds host-built property holders (fc4_props) and the weather (fc4_weather);
  * 10 = adds fc4_props_set_typed and the ordinances (fc4_ordinance_sim / fc4_ordinance);
  * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node);
- * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power). */
-#define FC4_ABI_VERSION 12u
+ * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power);
+ * 13 = adds the plumbing simulator (fc4_plumbing);
+ * 14 = adds the flammability simulator (fc4_flammability). */
+#define FC4_ABI_VERSION 14u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1409,6 +1411,309 @@ bool fc4_power_take_report(const fc4_power* p, fc4_bytes_sink sink, void* ctx);
 bool fc4_power_write(const fc4_power* p, const fc4_ostream* out); /* §9 */
 bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false only for version > 6 */
 
+/* ---- plumbing (docs/specs/plumbing.md) ---------------------------------------
+ *
+ * Tokens: occupants (also pipes and water producers: the cISC4Occupant
+ * identity), lots, deals, connections, cities, departments, line items; 0 is
+ * null. Both grids are the game's own cSC4SimGrid<uint8> (fc4_grid_api).
+ * A message delivered while another call into the same object is running is
+ * queued and handled when that call returns. */
+typedef struct fc4_plumbing fc4_plumbing;
+
+/* GetBudgetItemForPurpose (slot 51) as the budget reports it. */
+typedef struct fc4_plumbing_budget_item {
+    uint32_t department;
+    uint32_t line;
+    int64_t cost;
+    uint32_t index;
+    uint32_t reserved;
+} fc4_plumbing_budget_item;
+
+/* A message for fc4_plumbing_do_message (§5.1). `occupant` is GetVoid1() as a
+ * cISC4Occupant (Insert / RemoveOccupant); `deal` is GetIGZUnknown() queried
+ * for cISC4NeighborDeal (deal status), 0 when it is null or not a deal. */
+typedef struct fc4_plumbing_message {
+    uint32_t msg_type;
+    uint32_t data1, data2, data3;
+    uint32_t reserved;
+    uint64_t occupant;
+    uint64_t deal;
+} fc4_plumbing_message;
+
+/* GetWaterProducerInfo outputs (slot 24). */
+typedef struct fc4_plumbing_producer_info {
+    uint32_t production;
+    uint32_t max_capacity;
+    float efficiency;
+    bool polluted;
+    uint32_t used; /* property 0x08D9763D, 0 if absent */
+} fc4_plumbing_producer_info;
+
+/* FindWaterBuildings results (slot 27). Each occupant is a BORROWED token (the
+ * core's producer list holds the references); the plugin AddRefs one it writes
+ * to a non-null output pointer. */
+typedef struct fc4_plumbing_found {
+    uint32_t has_lowest_funded;
+    float lowest_funding;
+    uint64_t lowest_funded;
+    uint32_t has_worst_condition;
+    int32_t condition_percent;
+    uint64_t worst_condition;
+} fc4_plumbing_found;
+
+/* Diagnostics. */
+typedef struct fc4_plumbing_state {
+    uint32_t struct_size;
+    uint8_t initialized, grids_initialized, enabled, recompute;
+    uint32_t state; /* 0..9, 9 = idle */
+    int32_t count_x, count_z;
+    int32_t pass_counter;
+    uint32_t producers, num_pipes, num_distressed, num_burst, num_polluted;
+    uint32_t average_water_pollution;
+    uint32_t watered_cells, building_cells;
+    uint32_t reentrant_calls;
+    uint32_t reserved;
+    float pipe_condition, factor;
+    int64_t demand, total_water_cost;
+    int64_t last_produced, last_consumed, last_imported, last_exported;
+    uint64_t department;
+    uint64_t working_grid;
+    uint64_t published_grid;
+} fc4_plumbing_state;
+
+/* What the plumbing simulator needs from the game (fc4.h: one callback per
+ * PlumbingHost method, engine/core/src/plumbing/mod.rs, plumbing.md §11).
+ * Missing callbacks behave as "nothing there" (0, false, no object). */
+typedef struct fc4_plumbing_host {
+    uint32_t struct_size; /* sizeof(fc4_plumbing_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* city */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    uint32_t (*wall_clock_seed)(void* user);
+    /* simulator, messages, history */
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t name_len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, const uint32_t* ids, size_t count);
+    void (*unsubscribe)(void* user, const uint32_t* ids, size_t count);
+    /* Posts a standard message: WATER_MAP_CHANGED (0x6946DC34) carries
+     * void1 = IGZUnknown = the simulator; DEAL_STATUS (0xEA418D8F) carries
+     * data1 (§6.7 step 9). */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data1);
+    void (*record_history)(void* user, uint32_t id, uint32_t value);
+    /* false = no ordinance simulator (the core then reads 1.0). */
+    bool (*cumulative_factor)(void* user, uint32_t id, uint32_t index, float* out);
+    int32_t (*water_value)(void* user, int32_t x, int32_t z);
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*set_occupant_property)(void* user, uint64_t occ, uint32_t id, uint16_t mem_type, bool is_array,
+                                  const void* data, size_t count);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* min_xyz, float* max_xyz);
+    void (*occupant_bounding_cells)(void* user, uint64_t occ, fc4_cell_rect* out);
+    bool (*building_type)(void* user, uint64_t occ, uint32_t* out);
+    void (*buildings_in_cell)(void* user, int32_t x, int32_t z, fc4_token_callback cb, void* ctx);
+    /* network occupants (pipes) */
+    bool (*is_network_occupant)(void* user, uint64_t occ);
+    bool (*has_network_flag)(void* user, uint64_t occ, uint32_t flag);
+    uint32_t (*network_flags)(void* user, uint64_t occ);
+    void (*set_network_flag)(void* user, uint64_t occ, uint32_t flag);
+    void (*clear_network_flag)(void* user, uint64_t occ, uint32_t flag);
+    bool (*connects_to_neighbor)(void* user, uint64_t occ, uint32_t dir, uint32_t network_type);
+    void (*occupied_cell)(void* user, uint64_t occ, int32_t* x, int32_t* z);
+    /* The direct call to cSC4PipeOccupant::SetWateredState (docs/abi/direct-calls.md). */
+    void (*set_pipe_watered)(void* user, uint64_t occ, bool watered);
+    /* lots */
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z);
+    uint64_t (*occupant_lot)(void* user, uint64_t occ);
+    void (*lot_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    bool (*lot_needs_power)(void* user, uint64_t lot);
+    bool (*lot_has_power)(void* user, uint64_t lot);
+    void (*set_lot_condition)(void* user, uint64_t lot, uint8_t condition);
+    /* terrain */
+    bool (*terrain_cell_counts)(void* user, int32_t* x, int32_t* z); /* false = no terrain */
+    bool (*cell_has_water)(void* user, int32_t x, int32_t z);
+    void (*redisplay_terrain)(void* user, int32_t min_x, int32_t min_z, int32_t max_x, int32_t max_z);
+    /* disasters: false = the pipe-burst manager is missing (§7.1). */
+    bool (*attempt_pipe_burst)(void* user, int32_t x, int32_t z);
+    /* neighbours */
+    void (*find_deals)(void* user, uint32_t deal_type, fc4_token_callback cb, void* ctx);
+    uint32_t (*deal_type)(void* user, uint64_t deal);
+    uint64_t (*deal_city)(void* user, uint64_t deal);
+    int32_t (*deal_amount)(void* user, uint64_t deal);
+    int32_t (*deal_amount_used)(void* user, uint64_t deal);
+    void (*set_deal_amount_used)(void* user, uint64_t deal, int32_t used);
+    void (*set_deal_flags)(void* user, uint64_t deal, uint32_t flags, bool on);
+    void (*connections_of_type)(void* user, uint32_t connection_type, fc4_token_callback cb, void* ctx);
+    void (*connections_of_type_to_city)(void* user, uint32_t connection_type, uint64_t city, fc4_token_callback cb,
+                                        void* ctx);
+    uint64_t (*find_unvisited_connection)(void* user, uint32_t connection_type, uint64_t city);
+    uint64_t (*connection_on_other_side)(void* user, uint64_t conn);
+    void (*connection_cell)(void* user, uint64_t conn, int32_t* x, int32_t* z);
+    void (*set_connection_visited)(void* user, uint64_t conn, bool visited);
+    bool (*connection_is_active)(void* user, uint64_t conn);
+    void (*set_connection_active)(void* user, uint64_t conn, bool active);
+    void (*mark_deals_dirty)(void* user);
+    /* budget */
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t group);
+    void (*set_department_name)(void* user, uint64_t dept, uint32_t group, uint32_t instance);
+    void (*set_department_max_funding)(void* user, uint64_t dept, float fraction);
+    uint64_t (*create_line_item)(void* user, uint64_t dept, uint32_t line, bool locally_funded);
+    void (*set_line_item_name)(void* user, uint64_t line_item, uint32_t group, uint32_t instance);
+    void (*remove_line_item)(void* user, uint64_t dept, uint32_t line);
+    float (*department_funding)(void* user, uint64_t dept);
+    uint64_t (*department_by_id)(void* user, uint32_t id);
+    uint64_t (*line_item)(void* user, uint64_t dept, uint32_t line);
+    uint64_t (*create_line_item_for_building_type)(void* user, uint64_t dept, uint32_t line, bool locally_funded);
+    void (*set_line_item_display_flag)(void* user, uint64_t line_item, uint32_t flag, bool on);
+    void (*add_to_line_item_expenses)(void* user, uint64_t line_item, int64_t delta);
+    void (*set_line_item_expenses)(void* user, uint64_t line_item, int64_t value);
+    int64_t (*line_item_secondary_info)(void* user, uint64_t line_item);
+    void (*set_line_item_secondary_info)(void* user, uint64_t line_item, int64_t value);
+    bool (*budget_item_for_purpose)(void* user, uint64_t occ, uint32_t purpose, fc4_plumbing_budget_item* out);
+    void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);
+    void (*change_budget_item_cost)(void* user, uint64_t occ, uint32_t index, int64_t cost);
+    uint64_t (*line_item_from_budget_item)(void* user, const fc4_plumbing_budget_item* item);
+    bool (*local_funding)(void* user, uint64_t dept, uint64_t occ, float* out);
+    /* references */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* A reference read from a save (QI'd to iid, one reference) to the object's
+     * canonical token (one reference); 0 = dropped. */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+} fc4_plumbing_host;
+
+fc4_plumbing* fc4_plumbing_create(const fc4_plumbing_host* host, uint64_t token);
+void fc4_plumbing_destroy(fc4_plumbing* p);
+bool fc4_plumbing_init(fc4_plumbing* p);          /* §4.1 */
+bool fc4_plumbing_shutdown(fc4_plumbing* p);      /* §4.2 */
+/* §5.1: true except for the day and idle messages, which return DoIdle's result.
+ * A message delivered during another call is queued. */
+bool fc4_plumbing_do_message(fc4_plumbing* p, const fc4_plumbing_message* m);
+/* The argument-free slots that return a number: 10 (with an occupant: use
+ * fc4_plumbing_water_production), 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+ * 23. Slots 14-17 and 23 return the low 32 bits of a 64-bit total (§10.4). */
+int64_t fc4_plumbing_slot_value(const fc4_plumbing* p, uint32_t slot);
+uint8_t fc4_plumbing_supply_value(const fc4_plumbing* p, int32_t x, int32_t z);        /* 5 */
+bool fc4_plumbing_are_watered_buildings_in_cell(const fc4_plumbing* p, int32_t x, int32_t z); /* 8 */
+bool fc4_plumbing_is_building_watered(const fc4_plumbing* p, uint64_t occ);           /* 9 */
+uint32_t fc4_plumbing_water_production(const fc4_plumbing* p, uint64_t occ);          /* 10 */
+bool fc4_plumbing_is_cell_watered(const fc4_plumbing* p, int32_t x, int32_t z);       /* 11 */
+/* Slot 24: false = the occupant is not a producer (outputs untouched). */
+bool fc4_plumbing_get_producer_info(const fc4_plumbing* p, uint64_t occ, fc4_plumbing_producer_info* out);
+/* Slot 25: false = the condition or its curve is absent (output untouched). */
+bool fc4_plumbing_producer_condition_percent(const fc4_plumbing* p, uint64_t occ, float* out);
+/* Slot 26: false = no budget item for the purpose (output untouched). */
+bool fc4_plumbing_occupant_monthly_upkeep_cost(const fc4_plumbing* p, uint64_t occ, int64_t* out);
+bool fc4_plumbing_find_water_buildings(const fc4_plumbing* p, fc4_plumbing_found* out); /* 27 */
+/* Slot 28: every producer occupant in list order, each AddRef'd for the caller.
+ * Without a callback the references are given back. */
+size_t fc4_plumbing_water_producers(const fc4_plumbing* p, fc4_token_callback cb, void* ctx);
+uint64_t fc4_plumbing_watered_grid(const fc4_plumbing* p); /* 6, 7: borrowed token, 0 = none */
+bool fc4_plumbing_get_state(const fc4_plumbing* p, fc4_plumbing_state* out);
+bool fc4_plumbing_write(const fc4_plumbing* p, const fc4_ostream* out); /* §9 */
+bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: false for version != 4 */
+
+/* ---- flammability (docs/specs/flammability.md) ------------------------------
+ *
+ * Tokens: occupants and lots (the cISC4Occupant / cISC4Lot identity); 0 is
+ * null. Both grids are the game's own cSC4SimGrid<uint8> (fc4_grid_api): the
+ * map view walks the adjusted grid's memory through GetGridData (§13.2).
+ * A message delivered while another call into the same object is running is
+ * queued and handled when that call returns. */
+typedef struct fc4_flammability fc4_flammability;
+
+/* A message for fc4_flammability_do_message (§5). `occupant` is GetVoid1() as
+ * a cISC4Occupant (Insert / Remove / ChangeOccupant); `lot` is GetIGZUnknown()
+ * queried for cISC4Lot (ConditionChanged), 0 when it is null or not a lot. */
+typedef struct fc4_flammability_message {
+    uint32_t msg_type;
+    uint32_t reserved;
+    uint64_t occupant;
+    uint64_t lot;
+} fc4_flammability_message;
+
+/* Diagnostics. */
+typedef struct fc4_flammability_state {
+    uint32_t struct_size;
+    uint8_t initialized;
+    uint8_t pad0[3];
+    int32_t count_x, count_z;
+    uint8_t average;
+    uint8_t pad1[3];
+    float global_multiplier;
+    int32_t zoned_sum, zoned_count;
+    uint32_t candidates, hotspots;
+    int32_t tract_size, cycle_period, tracts_per_day;
+    uint32_t reserved;
+    uint64_t adjusted_grid;
+    uint64_t raw_grid;
+    uint32_t reentrant_calls;
+    uint32_t reserved2;
+} fc4_flammability_state;
+
+/* What the flammability simulator needs from the game (fc4.h: one callback per
+ * FlammabilityHost method, engine/core/src/flammability/mod.rs, §12). Missing
+ * callbacks behave as "nothing there" (0, false, no object). The agent
+ * registration and the six notifications of §4.1 steps 2-3 are the plugin's,
+ * not callbacks. */
+typedef struct fc4_flammability_host {
+    uint32_t struct_size; /* sizeof(fc4_flammability_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* city */
+    void (*city_cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    bool (*is_tutorial)(void* user);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*occupant_bounds)(void* user, uint64_t occ, fc4_cell_rect* out);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    /* lots */
+    uint64_t (*occupant_lot)(void* user, uint64_t occ);
+    uint8_t (*lot_condition)(void* user, uint64_t lot);
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    uint64_t (*random_lot)(void* user);
+    /* other subsystems; the bool/int32 returns encode the core's Option: a
+     * missing service reads "not watered" / "unzoned" / factor 1.0 (§4.1 step 5
+     * [choice]). */
+    bool (*cumulative_factor)(void* user, uint32_t prop, uint32_t index, float* out);
+    bool (*current_season)(void* user, int32_t* out);
+    /* -1 = no plumbing simulator, 0 = not watered, 1 = watered. */
+    int32_t (*is_cell_watered)(void* user, int32_t x, int32_t z);
+    bool (*zone_type)(void* user, int32_t x, int32_t z, uint32_t* out);
+    void (*record_history)(void* user, uint32_t history_type, int32_t value);
+    /* fire (§6.8): false = the fire manager or its interface is missing. */
+    bool (*ignite_cell)(void* user, uint32_t x, uint32_t z, bool use_probability, bool teleport, uint32_t fire_iid);
+    void (*set_fire_cause)(void* user, uint32_t cause);
+    /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
+    void (*post)(void* user, uint32_t msg_type);
+} fc4_flammability_host;
+
+fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
+                                          uint32_t process_clock);
+void fc4_flammability_destroy(fc4_flammability* p);
+bool fc4_flammability_init(fc4_flammability* p);      /* §4.1 */
+bool fc4_flammability_shutdown(fc4_flammability* p);  /* §4.2 */
+/* §5: always true for a live object. A message delivered during another call
+ * is queued and handled when the outermost call returns. */
+bool fc4_flammability_do_message(fc4_flammability* p, const fc4_flammability_message* m);
+bool fc4_flammability_is_cell_flammable(const fc4_flammability* p, int32_t x, int32_t z); /* slot 6 */
+/* Slot 7: false = no hotspot or its tract value is 0, and no output is
+ * written (§13.2). */
+bool fc4_flammability_hotspot(const fc4_flammability* p, uint8_t* value, int32_t* x, int32_t* z);
+uint8_t fc4_flammability_average(const fc4_flammability* p); /* slot 8 */
+uint64_t fc4_flammability_grid(const fc4_flammability* p);   /* slot 5: borrowed token, 0 = none */
+bool fc4_flammability_get_state(const fc4_flammability* p, fc4_flammability_state* out);
+bool fc4_flammability_write(const fc4_flammability* p, const fc4_ostream* out); /* §10 */
+bool fc4_flammability_read(fc4_flammability* p, const fc4_istream* in);         /* §10: false for version != 2 */
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -1462,6 +1767,15 @@ static_assert(sizeof(fc4_power_message) == 48, "fc4_power_message layout");
 static_assert(sizeof(fc4_power_found) == 32, "fc4_power_found layout");
 static_assert(sizeof(fc4_power_state) == 88, "fc4_power_state layout");
 static_assert(sizeof(fc4_power_host) == (sizeof(void*) == 4 ? 400 : 800), "fc4_power_host layout");
+static_assert(sizeof(fc4_plumbing_budget_item) == 24, "fc4_plumbing_budget_item layout");
+static_assert(sizeof(fc4_plumbing_message) == 40, "fc4_plumbing_message layout");
+static_assert(sizeof(fc4_plumbing_producer_info) == 20, "fc4_plumbing_producer_info layout");
+static_assert(sizeof(fc4_plumbing_found) == 32, "fc4_plumbing_found layout");
+static_assert(sizeof(fc4_plumbing_state) == 144, "fc4_plumbing_state layout");
+static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc4_plumbing_host layout");
+static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
+static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
+static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
