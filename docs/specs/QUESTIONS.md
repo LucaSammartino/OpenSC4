@@ -137,8 +137,12 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
 
 - **TN1 — §4.7.1:** does the step-1 "stop" also skip the ferry step 6? [yes]
 - **TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]
-- **TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
-  so DoPostCityInit re-reads them. Which is right? [none]
+- ~~**TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
+  so DoPostCityInit re-reads them. Which is right? [none]~~ **ANSWERED 2026-10-13** from the exe and written into
+  §4.7.2 and §6. **§6 is right:** `Write` saves the rules and `Read` reads them for versions above `0x1C`.
+  DoPostCityInit still re-reads every switch's rules (`0x00720466`) and **appends** them, so a loaded switch holds
+  its rules twice *[quirk]*. This has no effect on the rebuild and shows only in the next save. *[choice]* FreeCity4
+  replaces the rules instead.
 - **TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
   rectangle is used to refresh the access point? [recomputed; the building's bounding cells]
 - **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?

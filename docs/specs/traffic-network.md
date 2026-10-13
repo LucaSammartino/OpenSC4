@@ -473,8 +473,30 @@ For each u32 entry of `0xE90E25A1`, taking bytes `b0…b3` with b0 the least sig
 - for i = 0…3: `side[ROT[f][i]] = bit (7 − i) of b1`;
 - `from = b2`, `to = b3`.
 
-Kind-0 rules also OR `1 << to` into the "to" mask. DoPostCityInit re-reads the rules of loaded switches, because
-the save does not contain them *[inferred]*.
+Kind-0 rules also OR `1 << to` into the "to" mask.
+
+**After a load (TN3, from the exe).** The save **does** contain the rules: `Read` reads them for record versions
+above `0x1C` (§6). `DoPostCityInit` still calls this function for **every** switch in the table (`0x00720466`). The
+function appends and never clears: `0x00711CD0` only reserves room, and each rule is pushed after the existing ones.
+In order:
+
+1. The "to" mask is zeroed, before the lot lookup.
+2. With no lot at the NW corner it returns at once. The rules and flags stay as `Read` left them, and the mask
+   stays 0.
+3. Otherwise the property's n entries are appended and the mask is rebuilt from them. The flags are reset and
+   rebuilt from the **first n rules of the vector**, which after a load are the saved copy.
+
+After loading a current save, each switch therefore holds its saved rules followed by the same rules again
+*[quirk]*. Nothing rebuilt depends on the duplicates. §4.7.4 applies the same rules twice, in the same order, and so
+writes the same values, and the flags use the first n. The duplicates show only in the next save, which writes the
+doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
+then read), so a load followed by a save reproduces the file.
+
+For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
+source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ
+from the rules above *[quirk]*:
+- the mask ORs the raw `to` of the **kind-1** rules;
+- the flags also map `to = 5` to `0x20` (`0x007235FC`).
 
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
@@ -900,7 +922,9 @@ The traffic simulator's save record belongs to traffic-simulator.md. For this sp
   - the switch mode-mask grid and the switch ID grid (as serialisable grids);
   - the next switch ID;
   - the switch table: count, then per switch its ID, building reference, load, time factor, capacity, the access
-    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to);
+    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to; read only for versions
+    above `0x1C`). This is right and the old §4.7.2 remark was wrong (TN3). `DoPostCityInit` re-reads the rules
+    anyway and appends them (§4.7.2);
   - the **ferry terminals** (corrected): `Write` `0x00712400` writes the terminal list after the per-type tables
     (count, per-terminal fields, link lists with their f32 costs, s16 cells, u16 counters and route vectors), and
     `Read` `0x00721990` rebuilds them through the same helper as `DoFerryTerminalActivated` (`0x00713DF0`, called
