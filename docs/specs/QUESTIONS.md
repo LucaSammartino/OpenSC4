@@ -350,7 +350,11 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   `landfilled` and EDX = the sign of n, which is meaningless as an int64. Its known caller (landfill §4.7.2) ignores
   it. **The bracket is fine:** declare it int64 in EDX:EAX with pop 4 (SDK), since any value conforms. FreeCity4
   returns the new total.
-- **PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]
+- ~~**PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]~~ **ANSWERED
+  2026-10-14** from the exe (`0x006E2D70`; getter `0x005FDAC0`) and written into the pollution.md slot table.
+  **The bracket is right: AL, a bool.** The fraction goes through the reference and the x87 stack is empty on
+  return. Also added to the row: the property is read through the shared percentage getter, so it is × 0.01f
+  (float32), like slot 55.
 - **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
   `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
 - **PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]
