@@ -29,7 +29,10 @@ pub const MAX_PASSES: u32 = 256;
 /// for the residential keys 6–8, so they seed [`FAR`].
 pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: u8) {
     let (st, sm) = (target.shift(), map.shift());
-    let (cx, cz) = (target.count_x().clamp(0, MAX_TRACTS), target.count_z().clamp(0, MAX_TRACTS));
+    let (cx, cz) = (
+        target.count_x().clamp(0, MAX_TRACTS),
+        target.count_z().clamp(0, MAX_TRACTS),
+    );
     let hit = |tx: i32, tz: i32| -> u8 {
         let found = if st == sm {
             map.get(tx, tz) == key
@@ -44,9 +47,7 @@ pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: 
                 i64::from(map.count_x().clamp(0, MAX_TRACTS)),
                 i64::from(map.count_z().clamp(0, MAX_TRACTS)),
             );
-            (x0..(x0 + side).min(mx)).any(|x| {
-                (z0..(z0 + side).min(mz)).any(|z| map.get(x as i32, z as i32) == key)
-            })
+            (x0..(x0 + side).min(mx)).any(|x| (z0..(z0 + side).min(mz)).any(|z| map.get(x as i32, z as i32) == key))
         };
         if found {
             0

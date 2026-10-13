@@ -14,6 +14,7 @@ use crate::property::PropertyHolder;
 use crate::props;
 use crate::stream::ResKey;
 use crate::variant::{mem, Elem, Variant};
+use crate::x87::r24;
 
 use super::DepartmentBlock;
 
@@ -96,19 +97,23 @@ const WORKFORCE_DEFAULT: &[(f32, f32)] = &[(0.0, 0.0), (200.0, 100.0)];
 /// The nine age groups of §5.6.
 pub const AGE_GROUPS: usize = 9;
 
-/// "% × 0.01" / SC4Percentage properties (§7): one `f32` rounding of
-/// `x × 0.01`. The `0.01` is the **double** constant, so `pct(80.0)` is
-/// exactly `0.8f32` (`0x3F4CCCCD`) — which §15 test 8 requires (EQ 50 →
-/// 40, HQ 60 → 48 exactly). With the `float` `0.01` the product would be
-/// `0.79999995` (`0x3F4CCCCC`) and `50 × 0.79999995` would round to
-/// `39.999996`, failing the worked example.
+/// The class's one `0.01` constant (RS1, foundations §18, residential.md
+/// §7.1): the float32 `0.01f` = `0x3C23D70A` = 0.0099999998. The "% × 0.01"
+/// / SC4Percentage property readers (§7.1, §7.2), the `× 0.01f` of §5.6 step
+/// 4, slots 30/31 (§6.4) and the version < 5 / < 6 record conversions (§9.2)
+/// all multiply by it, through [`pct`] only.
 ///
-/// This deliberately differs from `protection::algo::pct`, which multiplies
-/// by the `float` `0.01`; see `docs/specs/QUESTIONS.md` (the SC4Percentage
-/// getter's constant is not pinned by the specs, and the two subsystems' own
-/// worked examples point different ways).
+/// Shipped percentages therefore become 80 → 0.79999995 (`0x3F4CCCCC`, an
+/// exact tie rounded to even), 120 → 1.1999999 (`0x3F999999`), 20 →
+/// 0.19999999 (`0x3E4CCCCC`), while 25, 50, 90 and 100 give 0.25, 0.5, 0.9f
+/// and 1.0. Because each product is rounded to float32 before any `_ftol`,
+/// `1200 × 0.01f` is 12.0, not 11.99999973 (§5.6 step 4, §15 test 10).
+pub const PERCENT: f32 = 0.01;
+
+/// `x × 0.01f`: the exact product of the two floats (exact in `f64`)
+/// rounded once to float32 ([`crate::x87::r24`]).
 pub fn pct(x: f32) -> f32 {
-    (f64::from(x) * 0.01f64) as f32
+    r24(f64::from(x) * f64::from(PERCENT)) as f32
 }
 
 /// The population tuning T of §7.1, read at `Init` and at the first state-4
@@ -154,11 +159,9 @@ impl Default for PopulationTuning {
             effect_height: 0.0,
             effect_delta: 0.0,
             effect_chance: 0.0,
-            pollution_curves: [
-                ResponseCurve::from_points(POLLUTION_DEFAULT),
-                ResponseCurve::from_points(POLLUTION_DEFAULT),
-                ResponseCurve::from_points(POLLUTION_DEFAULT),
-            ],
+            // The constructed curves are empty (§7.1 "keep"); `read` rebuilds
+            // them from the code default only when the exemplar exists.
+            pollution_curves: Default::default(),
         }
     }
 }
@@ -172,10 +175,18 @@ impl PopulationTuning {
     ///
     /// The three pollution curves follow foundations §4.1's two patterns:
     /// rebuilt from the code default **only when the exemplar exists** and
-    /// then loaded by key, so a missing exemplar leaves the previous curves
-    /// ("keep").
-    pub fn read(exemplar: Option<&PropertyHolder>, edu_prod: f32, health_prod: f32) -> PopulationTuning {
-        let mut t = PopulationTuning::default();
+    /// then loaded by key, so a missing exemplar leaves `previous` ("keep";
+    /// empty on the first read, and an empty curve evaluates to 0.0).
+    pub fn read(
+        exemplar: Option<&PropertyHolder>,
+        edu_prod: f32,
+        health_prod: f32,
+        previous: &[ResponseCurve; 3],
+    ) -> PopulationTuning {
+        let mut t = PopulationTuning {
+            pollution_curves: previous.clone(),
+            ..PopulationTuning::default()
+        };
         if let Some(h) = exemplar {
             let f = |id: u32, v: &mut f32| {
                 if let Some(x) = props::f32_of(h, id) {
@@ -211,7 +222,10 @@ impl PopulationTuning {
             f(id::DEATHS_DOOR_DELTA, &mut t.effect_delta);
             f(id::DEATHS_DOOR_CHANCE, &mut t.effect_chance);
             // "default" pattern with the exemplar present.
-            for (curve, prop) in t.pollution_curves.iter_mut().zip([id::AIR_CURVE, id::WATER_CURVE, id::GARBAGE_CURVE])
+            for (curve, prop) in t
+                .pollution_curves
+                .iter_mut()
+                .zip([id::AIR_CURVE, id::WATER_CURVE, id::GARBAGE_CURVE])
             {
                 *curve = ResponseCurve::from_points(POLLUTION_DEFAULT);
                 if let Some(c) = props::curve(h, prop) {
@@ -308,13 +322,19 @@ impl SimulatorTuning {
         }
         let Some(h) = exemplar else { return t };
         let curve = |v: &mut ResponseCurve, prop: u32| {
-            *v = ResponseCurve::from_points(if matches!(prop, id::HEALTH_COVERAGE_CURVE | id::HEALTH_STRIKE_CURVE
-                | id::SCHOOL_COVERAGE_CURVE | id::SCHOOL_STRIKE_CURVE)
-            {
-                L2
-            } else {
-                L1
-            });
+            *v = ResponseCurve::from_points(
+                if matches!(
+                    prop,
+                    id::HEALTH_COVERAGE_CURVE
+                        | id::HEALTH_STRIKE_CURVE
+                        | id::SCHOOL_COVERAGE_CURVE
+                        | id::SCHOOL_STRIKE_CURVE
+                ) {
+                    L2
+                } else {
+                    L1
+                },
+            );
             if let Some(c) = props::curve(h, prop) {
                 *v = c;
             }
@@ -431,7 +451,10 @@ pub fn workforce_curve(exemplar: Option<&PropertyHolder>) -> Option<ResponseCurv
 pub fn new_ages_by_wealth(exemplar: Option<&PropertyHolder>) -> [u8; 3] {
     let mut ages = [25u8, 30, 25];
     if let Some(h) = exemplar {
-        for (prop, slot) in [id::LOW_AGE, id::MEDIUM_AGE, id::HIGH_AGE].into_iter().zip(ages.iter_mut()) {
+        for (prop, slot) in [id::LOW_AGE, id::MEDIUM_AGE, id::HIGH_AGE]
+            .into_iter()
+            .zip(ages.iter_mut())
+        {
             if let Some(x) = props::i64_of(h, prop) {
                 *slot = x as u8;
             }
@@ -481,7 +504,10 @@ pub fn shipped_tuning() -> PropertyHolder {
     h.add(id::HEALTH_MIN_GRADE, f(90.0));
     h.add(id::HEALTH_STRIKE_CURVE, curve(&[0.0, 100.0, 80.0, 0.0]));
     h.add(id::SCHOOL_FUNDING_CURVE, curve(&[0.0, 0.0, 100.0, 100.0, 120.0, 110.0]));
-    h.add(id::SCHOOL_COVERAGE_CURVE, curve(&[0.0, 50.0, 100.0, 100.0, 120.0, 110.0]));
+    h.add(
+        id::SCHOOL_COVERAGE_CURVE,
+        curve(&[0.0, 50.0, 100.0, 100.0, 120.0, 110.0]),
+    );
     h.add(id::SCHOOL_INIT_MAX_FUNDING, curve(&[25.0, 120.0]));
     h.add(id::SCHOOL_STRIKE_EFFICIENCY, f(20.0));
     h.add(id::SCHOOL_STRIKE_DURATION, u(500));
@@ -511,7 +537,10 @@ pub fn shipped_tuning() -> PropertyHolder {
         id::SCHOOL_CHUNKS,
         Variant::array(
             mem::UINT32,
-            [500u32, 750, 1000, 1000, 10000, 300, 1200].into_iter().map(Elem::U32).collect(),
+            [500u32, 750, 1000, 1000, 10000, 300, 1200]
+                .into_iter()
+                .map(Elem::U32)
+                .collect(),
         ),
     );
     h.add(
@@ -520,7 +549,10 @@ pub fn shipped_tuning() -> PropertyHolder {
     );
 
     // ---- per-call curves (§7.3) ----
-    h.add(id::HQ_TO_LIFE_EXPECTANCY, curve(&[0.0, 50.0, 20.0, 55.0, 40.0, 60.0, 60.0, 65.0, 200.0, 100.0]));
+    h.add(
+        id::HQ_TO_LIFE_EXPECTANCY,
+        curve(&[0.0, 50.0, 20.0, 55.0, 40.0, 60.0, 60.0, 65.0, 200.0, 100.0]),
+    );
     h.add(id::LE_TO_WORKFORCE, curve(&[50.0, 40.0, 100.0, 60.0]));
     h
 }
@@ -529,9 +561,13 @@ pub fn shipped_tuning() -> PropertyHolder {
 mod tests {
     use super::*;
 
+    fn empty() -> [ResponseCurve; 3] {
+        Default::default()
+    }
+
     #[test]
     fn population_defaults_then_shipped() {
-        let d = PopulationTuning::read(None, 1.0, 1.0);
+        let d = PopulationTuning::read(None, 1.0, 1.0, &empty());
         assert_eq!((d.eq_decay, d.hq_decay), (1.0, 1.0));
         assert_eq!(d.new_age, [25, 30, 35]);
         assert_eq!((d.eq_reset, d.hq_reset), (0.7, 0.7));
@@ -539,25 +575,40 @@ mod tests {
         // [quirk] no code default for the HQ bonuses: 0.0 [choice].
         assert_eq!(d.new_hq, [0.0, 0.0, 0.0]);
         assert_eq!(d.deaths_door_hq, 0.0);
-        // No exemplar: the pollution curves keep their code default.
-        assert_eq!(d.pollution_curves[0].eval(32000.0), 100.0);
+        // No exemplar on the first read: the pollution curves stay empty
+        // ("keep") and evaluate to 0.0.
+        assert!(d.pollution_curves.iter().all(|c| c.is_empty()));
+        assert_eq!(d.pollution_curves[0].eval(32000.0), 0.0);
 
         let e = shipped_tuning();
-        let t = PopulationTuning::read(Some(&e), 1.0, 1.0);
+        let t = PopulationTuning::read(Some(&e), 1.0, 1.0, &empty());
         assert_eq!((t.eq_decay, t.hq_decay), (0.2, 0.2));
         assert_eq!(t.reset_age, 40);
         assert_eq!(t.new_eq, [20.0, 40.0, 60.0]);
         assert_eq!(t.new_hq, [20.0, 40.0, 60.0]);
         assert_eq!((t.deaths_door_hq, t.effect_chance), (2.0, 1.5));
         assert_eq!((t.effect_height, t.effect_delta), (50.0, 10.0));
-        // "% × 0.01" properties with the double constant: `pct(80.0)` is
-        // exactly `0.8f32` (`0x3F4CCCCD`), which §15 test 8 needs (EQ 50 →
-        // 40, HQ 60 → 48).
+        // §15 test 24 / RS1: "% × 0.01f" — 80 × 0.01f is an exact tie that
+        // rounds to the even float 0.79999995 (`0x3F4CCCCC`), not 0.8f.
         assert_eq!(t.eq_reset, pct(80.0));
-        assert_eq!(t.eq_reset.to_bits(), 0.8f32.to_bits());
-        assert_eq!(t.eq_reset.to_bits(), 0x3F4C_CCCD);
+        assert_eq!(t.eq_reset.to_bits(), 0x3F4C_CCCC);
+        assert_eq!(t.hq_reset.to_bits(), 0x3F4C_CCCC);
+        // The product is rounded to float32 before any truncation (§5.6
+        // step 4): 1200 × 0.01f is 12.0, not 11.99999973.
+        assert_eq!(pct(1200.0), 12.0);
+        assert_eq!(PERCENT.to_bits(), 0x3C23_D70A);
+        for (x, bits) in [
+            (25.0, 0x3E80_0000),
+            (50.0, 0x3F00_0000),
+            (90.0, 0x3F66_6666),
+            (100.0, 0x3F80_0000),
+        ] {
+            assert_eq!(pct(x).to_bits(), bits, "{x}");
+        }
+        // Absent properties keep the code defaults (0.7 = 0x3F333333).
+        assert_eq!(d.eq_reset.to_bits(), 0x3F33_3333);
         // The ordinance products scale the decays in float32.
-        let o = PopulationTuning::read(Some(&e), 1.1, 0.5);
+        let o = PopulationTuning::read(Some(&e), 1.1, 0.5, &empty());
         assert_eq!((o.eq_decay, o.hq_decay), (0.2 * 1.1f32, 0.1));
     }
 
@@ -566,13 +617,18 @@ mod tests {
     #[test]
     fn pollution_curves_keep_without_exemplar() {
         let mut h = PropertyHolder::new();
-        h.add(id::AIR_CURVE, Variant::array(mem::FLOAT32, vec![Elem::F32(0.0), Elem::F32(7.0)]));
-        let t = PopulationTuning::read(Some(&h), 1.0, 1.0);
+        h.add(
+            id::AIR_CURVE,
+            Variant::array(mem::FLOAT32, vec![Elem::F32(0.0), Elem::F32(7.0)]),
+        );
+        let t = PopulationTuning::read(Some(&h), 1.0, 1.0, &empty());
         assert_eq!(t.pollution_curves[0].eval(100.0), 7.0);
         // The other two were rebuilt from the code default, not kept.
         assert_eq!(t.pollution_curves[1].eval(32000.0), 100.0);
         // Without the exemplar all three stay as they were.
-        let k = PopulationTuning::read(None, 1.0, 1.0);
+        let k = PopulationTuning::read(None, 1.0, 1.0, &t.pollution_curves);
+        assert_eq!(k.pollution_curves, t.pollution_curves);
+        assert_eq!(k.pollution_curves[0].eval(100.0), 7.0);
         assert_eq!(k.pollution_curves[2].eval(32000.0), 100.0);
     }
 
@@ -606,11 +662,15 @@ mod tests {
         let e = shipped_tuning();
         let t = SimulatorTuning::read(Some(&e), &mut health, &mut education);
         assert_eq!(health.strike_duration, 500);
-        // With the double 0.01 these land exactly on the code defaults.
-        assert_eq!(health.max_funding, 1.2);
+        // §15 test 24 / RS1: × 0.01f, one float32 rounding each.
+        assert_eq!(health.max_funding.to_bits(), 0x3F99_9999); // 120 → 1.1999999
+        assert_eq!(health.strike_efficiency.to_bits(), 0x3E4C_CCCC); // 20 → 0.19999999
         assert_eq!(health.init_funding, 0.25);
-        assert_eq!(health.strike_efficiency, 0.2);
-        assert_eq!(health.min_grade, 0.9);
+        assert_eq!(health.min_grade, 0.9); // 90 → 0.9f
+        assert_eq!(
+            (education.max_funding, education.strike_efficiency),
+            (health.max_funding, health.strike_efficiency)
+        );
         assert_eq!(health.f0, 0.6); // OBS property absent from the exemplar
         assert_eq!(t.school_chunks, vec![500, 750, 1000, 1000, 10000, 300, 1200]);
         assert_eq!(t.hospital_chunks, vec![500, 500, 2000]);

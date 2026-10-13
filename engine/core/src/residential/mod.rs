@@ -12,43 +12,39 @@
 //!
 //! # Structure
 //!
-//! **Work in progress.** This module currently holds the frame: the IDs,
-//! the agent and message constants, the grid and department tables, the host
-//! contract and the two shared data types of §3 / §9.1, plus the two parts
-//! that are self-contained and fully specified —
-//!
 //! - `geometry.rs`: the proximity seed and the four-sweep Manhattan distance
 //!   passes of §5.3 ([`seed_proximity`], [`distance_pass`],
 //!   [`distance_to_convergence`], [`copy_proximity`]).
 //! - `tuning.rs`: the population tuning of §7.1 ([`PopulationTuning`]), the
 //!   simulator tuning of §7.2 ([`SimulatorTuning`], whose `read` reproduces
 //!   the §9.3 strike-reset quirk), the two per-call curves of §7.3
-//!   ([`le_curve`], [`workforce_curve`]), [`new_ages_by_wealth`] (§6.5) and
-//!   [`shipped_tuning`].
+//!   ([`le_curve`], [`workforce_curve`]), [`new_ages_by_wealth`] (§6.5),
+//!   [`shipped_tuning`] and the one `0.01` constant ([`PERCENT`], [`pct`]).
+//! - `simulator.rs`: the state of §3, `AddRef` / `Release` (§1), the
+//!   lifecycle of §4, `DoMessage` (§4.3), the daily state machine
+//!   (§5.1–§5.2), `DoPopulationChange` (§5.5), `PostPopulationChange` (§5.6),
+//!   the history of §5.7, the queries of §6 and the slot table of §10.
+//! - `record.rs`: the save record of §9.
+//! - `tests.rs`: the fake host and the §15 / REH §11 tests.
 //!
-//! Still to come: `simulator.rs` (the state of §3, the lifecycle of §4, the
-//! daily state machine of §5.1–§5.2, `DoPopulationChange` §5.5,
-//! `PostPopulationChange` §5.6, the history of §5.7, the queries of §6 and
-//! the slot table of §10), `record.rs` (the save record of §9) and `tests.rs`.
-//! The host contract below and the constants are written for those, so the
-//! remaining work is filling them in.
+//! # The education and health half
 //!
-//! # What is deferred to the education and health half
-//!
-//! REH specifies the school and hospital building lists, the coverage maps,
-//! the grading, the strikes, the auto-budget, the query data and the system
-//! ratings. That work needs the budget simulator's departments and line
-//! items, the occupant and lot managers, the ordinance simulator and the
-//! automata controller manager, and it is large enough to be its own lane.
-//! This module keeps the **frame** those states run in — the state machine,
-//! the grids they write, the counters they fill and the record that saves
-//! them — and hands the building work to [`ResidentialHost`] callbacks with
-//! the contracts below. Everything the population half itself computes from
-//! REH is implemented here exactly: the newcomer EQ/HQ blend (REH §4.7
-//! step 4), `GetTractQuotient` (REH §4.8), `GetCellEQ` / `GetCellHQ`
-//! (slots 35/36), `GetGlobalEQ` / `GetGlobalHQ` (slots 32/33), the life
-//! expectancy and workforce queries (§6.4) and the ordinance decay products
-//! that scale the two decays (§7.1).
+//! REH specifies the school and hospital building recognition, the coverage
+//! maps, the grading, the strike rolls, the auto-budget, the query data and
+//! the system ratings. That work needs the budget simulator's departments
+//! and line items, the occupant and lot managers, the ordinance simulator
+//! and the automata controller manager, and it is large enough to be its own
+//! lane. This module keeps the **frame** those states run in — the state
+//! machine, the grids they write, the lists and department blocks they
+//! read, the counters they fill and the record that saves them — and hands
+//! the building work to the [`EducationHealth`] hooks, whose defaults are
+//! exact for a city with no service building. What REH defines on that
+//! frame alone is implemented here: the newcomer EQ/HQ blend (REH §4.7 step
+//! 4), `GetTractQuotient` and the EQ/HQ/LE queries (REH §4.8), the strike
+//! flags, `EndSchoolStrike` / `EndHealthStrike` and the on-strike chance
+//! (slots 6–11, REH §4.9), the state-0 distribution of the pending lists and
+//! the building counts and lists (slots 46–49, 61; REH §4.1), and the
+//! ordinance decay products that scale the two decays (§7.1).
 //!
 //! # Choices (`[choice]`), limits and inferences (`[inferred]`)
 //!
@@ -58,26 +54,31 @@
 //!   uses `derive_seed(session, 0x4990C013)`. [`ResidentialRng::new`] keeps
 //!   the original's clock seed for hosts that supply one. The stream is
 //!   shared by the buzzards rolls (§5.5) and the monthly strike rolls
-//!   (REH §4.9); [`ResidentialHost::strike_checks`] receives it so the host
+//!   (REH §4.9); [`EducationHealth::strike_checks`] receives it so the host
 //!   draws in the original's order. No RNG state is saved (foundations §6.2).
 //! - **Time slicer** (§5.2): the 5 ms CPU-cycle budget is replaced by a
 //!   deterministic work budget, [`ResidentialSim::work_budget`] (default
 //!   [`DEFAULT_WORK_BUDGET`] = `u32::MAX`, effectively unbounded). One work
-//!   unit is one distance pass (states 1–3) or one tract (state 4). Each
-//!   call still completes at most one state, and an interrupted state resumes
-//!   where it stopped (the iterator keeps its position; states 1–3 re-run
-//!   their passes, which is idempotent), so the results equal those of an
-//!   uninterrupted pass.
+//!   unit is one distance pass (states 1 and 2) or one tract (state 4); a
+//!   budget of 0 never progresses. Each call still completes at most one
+//!   state, and an interrupted state resumes where it stopped (the iterator
+//!   keeps its position; states 1–2 re-run their passes, which is
+//!   idempotent), so the results equal those of an uninterrupted pass.
 //! - **Float arithmetic** follows foundations §18 (24-bit x87): every add,
 //!   subtract, multiply and divide is one `f32` rounding, in the order the
 //!   spec gives. An integer operand (a population, a histogram count, a
-//!   pollution byte) enters that one operation unrounded — computed in `f64`
-//!   and rounded once ([`crate::x87::mul_i64_f32`], [`crate::x87::u32_to_float`]).
-//!   Every `trunc` is the CRT `_ftol` ([`crate::x87::ftol`]). The per-mille
-//!   history uses the 1.5·2²³ idiom ([`crate::x87::rhe`], §5.7).
-//! - **`min(cap, v)`** (§5.5 step 4's `min(200, …)`, REH §4.5's grade-grid
-//!   `min(1.0, …)`) is the original's `a < b ? a : b` with the cap first, so
-//!   a NaN operand is stored rather than capped (REH §4.5 *[inferred]*).
+//!   pollution byte) enters that one operation unrounded
+//!   ([`crate::x87::mul_i64_f32`]; an unsigned load is
+//!   [`crate::x87::u32_to_float`]). Every `trunc` is the CRT `_ftol`
+//!   ([`crate::x87::ftol32`]). The per-mille history uses the 1.5·2²³ idiom
+//!   ([`crate::x87::rhe`], §5.7).
+//! - **The `0.01` constant** (RS1, answered): every "× 0.01" of this class
+//!   goes through [`pct`], which multiplies by [`PERCENT`], the float32
+//!   `0.01f`, and rounds the product once to float32 (so the shipped 80 %
+//!   reads as 0.79999995 and `1200 × 0.01f` is 12.0 before a truncation).
+//! - **`min(cap, v)`** (§5.5 step 4's `min(200, …)`) is the original's
+//!   `a < b ? a : b` with the cap first, so a NaN operand is stored rather
+//!   than capped (REH §4.5 *[inferred]*).
 //! - **Uninitialised tuning** (§7.1, §7.2): the newcomer HQ bonuses have no
 //!   code default and several simulator values are set only when the exemplar
 //!   exists. FreeCity4 uses `0.0` for the HQ bonuses (residential.md §7.1
@@ -86,34 +87,50 @@
 //!   rest (§7.2 *[choice]*).
 //! - **Curve patterns** (§7.1, §7.3): the three pollution curves are
 //!   rebuilt from their code default only when the exemplar exists, then
-//!   loaded by key ("default" with the exemplar, "keep" without; an empty
-//!   curve evaluates to 0.0). The two per-call curves (life expectancy,
-//!   workforce) are fresh per call with the "default" pattern, and a missing
-//!   exemplar makes slot 29/34 return 0 and slot 30/31 write 0.0.
+//!   loaded by key ("default" with the exemplar, "keep" without: empty on the
+//!   first read, and an empty curve evaluates to 0.0). The two per-call
+//!   curves (life expectancy, workforce) are fresh per call with the
+//!   "default" pattern, and a missing exemplar makes slot 29/34 return 0 and
+//!   slot 30/31 write 0.0.
 //! - **Pollution average** (§5.5 step 1): the `S × S` cell values (each the
-//!   pollution slot's 16-bit result) are summed as `u32` and divided by
-//!   `S · S` as an unsigned 32-bit division; only the low byte is kept
-//!   *[quirk]*. With `S ≤ 0` the average is 0 ([choice]: no cells, no
-//!   division).
+//!   pollution slot's 16-bit result) are summed as a wrapping `u32` and
+//!   divided by `S · S` as an unsigned 32-bit division; only the low byte is
+//!   kept *[quirk]*. With `S ≤ 0` the average is 0 ([choice]: no cells, no
+//!   division); [choice] at most [`MAX_TRACTS`] cells per axis are read, so a
+//!   hostile saved tract size cannot make the loop unbounded.
+//! - **Newcomers** (§5.5 step 4, REH §4.7): `nc_w` is `int16(new − old)`
+//!   (REH's `delta`), in the blend and in the age numerator alike; the age
+//!   formula is `int32` wrapping arithmetic.
 //! - **Missing grids**: a grid whose reference did not resolve reads 0 and
 //!   ignores writes ([`TractGrid`]'s out-of-range rule); `Init` creates every
 //!   absent grid of §2, and for the two coverage vectors it creates all
 //!   entries when the first is null (§4.1 step 8).
-//! - **`GetGlobalEQ` / `GetGlobalHQ`** (REH §4.8) accumulate over the EQ
-//!   grid's tracts x outer, z inner ([choice]: the spec gives the per-tract
-//!   order but not the traversal order, and float addition is not
-//!   associative).
-//! - **Slots with undefined returns** (§10.1): 19, 28, 47, 49 return true;
-//!   21/22 return the `max` pointer; 23–25 return 1; the AL-only slots 29,
-//!   34, 42 zero-extend into EAX.
+//! - **`GetGlobalEQ` / `GetGlobalHQ`** (REH §4.8) accumulate over the grid's
+//!   tracts x outer, z inner ([choice], `QUESTIONS.md` RS4).
+//! - **Slots with undefined returns** (§10.1): 19, 20, 28, 47, 49 return
+//!   true; 21/22 return the grid and `(min, max)`; 23–25 return the three
+//!   grids (the `AddRef` is the `Rc` clone the caller holds) and EAX 1; the
+//!   AL-only slots 29, 34, 42 zero-extend into EAX.
 //! - **`GetCellEQByWealth` / `GetCellHQByWealth`** (slots 37/38) take the
 //!   wealth byte decremented as `u8`, so wealth 0 or > 3 reads out of bounds
 //!   in the original *[quirk]*; FreeCity4 returns 0.0 ([choice]).
+//! - **Occupant lists** hold `Option` tokens because `Read` appends null
+//!   references (§9.2). [choice] A null entry is skipped where the original
+//!   would dereference it: the state-0 distribution drops it, and slots 47,
+//!   49 and 61 do not hand it out. The counts of slots 46/48 include it (the
+//!   list sizes do).
+//! - **The other list** (§9.1) *[inferred]*: it sits with the two pending
+//!   lists in the record and slot 61 appends it after the health-affecting
+//!   list, so it is the pending health-affecting list; state 0 "moves pending
+//!   health-affecting buildings" (REH §3) by appending every entry to the
+//!   health-affecting list and clearing it. Who fills it is not specified
+//!   (REH §4.1 step 3 defers to residential.md, which is silent), so only
+//!   [`EducationHealth::building_changed`] does.
 //! - **`Read`** (§9.2) never rejects a version, always returns true and
 //!   ignores stream errors: parsing stops at the first failure and keeps
-//!   what was read. A list count of 0 or ≥ [`MAX_LIST_COUNT`] reads no
-//!   references, and null references are appended (as the original's list
-//!   reader does), which the core records as a `None` slot.
+//!   what was read, then the version fix-ups and the state remap run (see
+//!   `record.rs`). A list count of 0 or ≥ [`MAX_LIST_COUNT`] reads no
+//!   references, and null references are appended as `None`.
 //! - **Histograms** (§9.3 *[choice]*): zeroed at construction, so a save
 //!   taken during state 4 gives that month's age-group history zeros rather
 //!   than uninitialised memory. The loaded running population is kept, so
@@ -122,11 +139,12 @@
 //! - **Left out**: the dirty flag has no reader (§13 question 5) but is
 //!   saved and set as specified; the two unused floats are carried through
 //!   the record untouched (§3); `ToggleTractTracking`, `TrackTracts` and
-//!   `OutputTractInfo` are no-ops (§10.1 slots 59, 62, 63).
+//!   `OutputTractInfo` are no-ops (§10.1 slots 59, 62, 63); the grade totals
+//!   (REH §2, never read) belong to the [`EducationHealth`] host.
 //! - **Day-level order** (§4.3, foundations §13.5): registration order is
 //!   the *[choice]* — the original's order is heap-address order and is not
 //!   stable between sessions, so there is nothing to match. Note the
-//!   same-pass couplings this leaves open: state 1 reads the BDS building
+//!   same-pass couplings this leaves open: state 13 reads the BDS building
 //!   map, and state 4 reads the growth developers' population maps and the
 //!   pollution **source** grids, each as they stand when the residential day
 //!   step runs. If a differential ever shows a value depending on residential
@@ -146,19 +164,25 @@
 //! Host callbacks must not call back into the residential simulator.
 
 mod geometry;
+mod record;
 mod simulator;
 mod tuning;
 
+#[cfg(test)]
+mod tests;
+
 pub use geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR, MAX_PASSES};
+pub use record::RECORD_VERSION;
 pub use simulator::{
-    query_interface, Grids, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, SlotRow, SLOTS,
+    age_bucket, query_interface, Grids, ResidentialRng, ResidentialSim, ResidentialState, SlotReturn, SlotRow,
+    GRID_TRIPLE_RESULT, SLOTS,
 };
 pub use tuning::{
     id, le_curve, new_ages_by_wealth, pct, shipped_tuning, workforce_curve, PopulationTuning, SimulatorTuning,
-    AGE_GROUPS, TUNING_KEY,
+    AGE_GROUPS, PERCENT, TUNING_KEY,
 };
 
-pub use crate::grid::{GridProvider, ScanIterator, TractGrid};
+pub use crate::grid::{GridProvider, ScanIterator, TractGrid, MAX_TRACTS};
 pub use crate::rng::RzRandom;
 
 use std::rc::Rc;
@@ -355,12 +379,6 @@ pub const BUZZARDS_EFFECT: &str = "buzzards";
 /// The occupant auto-budget bool property (§6.6, REH §2).
 pub const PROP_AUTO_BUDGET: u32 = 0x6C05_FC4D;
 
-/// [`PROP_AUTO_BUDGET`], as a function so the simulator reads it through one
-/// name.
-pub fn prop_auto_budget() -> u32 {
-    PROP_AUTO_BUDGET
-}
-
 /// The number of age histogram buckets (§3, §5.4).
 pub const AGE_BUCKETS: usize = 20;
 
@@ -435,30 +453,70 @@ impl DepartmentBlock {
             department2: None,
         }
     }
+
+    /// `BeginStrike(dept, occ)` (REH §4.9): false if the flag is set;
+    /// otherwise flag := 1, start := `today` and true (the caller then posts
+    /// the strike message with data2 = 1).
+    pub fn begin_strike(&mut self, today: u32) -> bool {
+        if self.strike_flag != 0 {
+            return false;
+        }
+        self.strike_flag = 1;
+        self.strike_start = today as i32;
+        true
+    }
+
+    /// `EndStrike(dept, today − start)` (REH §4.9): `None` if the flag is
+    /// clear; otherwise flag := 0, start := 0 and the strike's length in days
+    /// (`today − start`, 32-bit wrapping), which the caller posts as data3
+    /// of the end-of-strike message (data2 = 0).
+    pub fn end_strike(&mut self, today: u32) -> Option<u32> {
+        if self.strike_flag == 0 {
+            return None;
+        }
+        let length = today.wrapping_sub(self.strike_start as u32);
+        self.strike_flag = 0;
+        self.strike_start = 0;
+        Some(length)
+    }
+}
+
+/// The occupant groups of the state-0 distribution (REH §4.1), in
+/// coverage-grid order: a pending building goes to the **first** group it
+/// belongs to.
+pub mod group {
+    /// K-6 school, high school, `0x1514`, college, `0x1505`, museum,
+    /// `0x151B`.
+    pub const SCHOOL: [u32; 7] = [0x150F, 0x1510, 0x1514, 0x1504, 0x1505, 0x1506, 0x151B];
+    pub const HOSPITAL: [u32; 3] = [0x1512, 0x1513, 0x151C];
 }
 
 /// Everything the residential simulator reads from, or does to, the rest of
-/// the game (§11.1). Objects are host tokens. Re-entrancy: callbacks must
-/// not call back into the residential simulator.
-pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f32> {
+/// the game (§11.1), apart from the education and health half
+/// ([`EducationHealth`]). Objects are host tokens. Re-entrancy: callbacks
+/// must not call back into the residential simulator.
+pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f32> + EducationHealth {
     // ---- lifecycle (§4.1, §4.2) ----
     /// `Init` step 1: take and `AddRef` the city, the building development
     /// simulator and the occupant manager, each only if not already held.
-    /// False if any is missing.
-    fn acquire_services(&self) -> bool;
+    /// `Init` does not test the result (§4.1: only the demand node is tested).
+    fn acquire_services(&self);
     /// `Init` step 1: the three growth developers through
-    /// `BDS.GetDeveloper(0x1010 / 0x1020 / 0x1030)`. All three must be
-    /// present.
-    fn acquire_developers(&self) -> bool;
+    /// `BDS.GetDeveloper(0x1010 / 0x1020 / 0x1030)`, each only if not held.
+    fn acquire_developers(&self);
     /// `Init` step 1: the demand node `GetDemand(0x1000, 0)` from the demand
-    /// simulator. **`Init` fails without it**; the node is only held, never
-    /// read.
+    /// simulator, if not held. **`Init` fails without it**; the node is only
+    /// held, never read.
     fn acquire_demand_node(&self) -> bool;
-    /// `Init` step 2: take the message server. False when there is none.
+    /// `Init` step 2: take the message server. False when there is none. The
+    /// simulator calls this only when it does not hold one (it tracks that
+    /// itself, [`ResidentialState::message_server_held`]), and subscribes the
+    /// two occupant messages right after a successful take.
     fn acquire_message_server(&self) -> bool;
-    /// `Init` step 3: take the budget simulator.
+    /// `Init` step 3: take the budget simulator if not held.
     fn acquire_budget_simulator(&self) -> bool;
-    /// `Init` step 4: whether a simulator exists. `Init` fails without one.
+    /// `Init` step 4: take the simulator if not held; false when there is
+    /// none (`Init` then fails).
     fn has_simulator(&self) -> bool;
     /// `Init` step 4: `AddAgent(messageTarget, level, "cSC4ResidentialSimulator", 2)`
     /// for each level of [`AGENT_LEVELS`], in that order.
@@ -468,8 +526,12 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// Message server slots 5 / 6 with the message-target sub-object.
     fn subscribe(&self, msg_type: u32);
     fn unsubscribe(&self, msg_type: u32);
-    /// `Shutdown`: release every service `Init` took, in the reverse order,
-    /// and hand every occupant list to the occupant manager (slot 48).
+    /// `Shutdown`, after the two unsubscriptions: release the message server
+    /// and the budget simulator (§4.2). The departments follow.
+    fn release_message_server_and_budget(&self);
+    /// `Shutdown`, after the grids: release the demand node, the city, the
+    /// BDS, the occupant manager and the developers (§4.2). The occupant
+    /// lists follow.
     fn release_services(&self);
     /// `Init` step 5: `SetHistoryDataQueueLength(id, n)`.
     fn set_history_queue_length(&self, series: u32, length: u32);
@@ -479,21 +541,13 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// `SetFundingPercentage(initial, 0)`. The secondary departments also
     /// create line item 1 (local) and clear its display flag 1 (REH §4.2).
     fn create_department(&self, id: u32, name: u32, max_funding: f32, init_funding: f32) -> Option<u64>;
-    /// `Shutdown` / a replaced department: `Release`.
+    /// `Shutdown` / a department replaced by `Read`: `Release`.
     fn release_department(&self, department: u64);
-    /// `SetInstanceID` on a grid created for, or loaded by, the simulator
-    /// (§2). Grid references read from a save also get their instance ID set.
-    fn set_grid_instance_u8(&self, grid: &Rc<dyn TractGrid<u8>>, instance: u32);
-    fn set_grid_instance_u16(&self, grid: &Rc<dyn TractGrid<u16>>, instance: u32);
-    fn set_grid_instance_f32(&self, grid: &Rc<dyn TractGrid<f32>>, instance: u32);
-    /// `Shutdown` on a grid before the simulator drops it (§4.2).
+    /// `Shutdown` on a grid before the simulator forgets it (§4.2). The
+    /// temporary grid is only released (dropped), not shut down.
     fn shutdown_grid_u8(&self, grid: &Rc<dyn TractGrid<u8>>);
     fn shutdown_grid_u16(&self, grid: &Rc<dyn TractGrid<u16>>);
     fn shutdown_grid_f32(&self, grid: &Rc<dyn TractGrid<f32>>);
-    /// `AddRef` on a grid handed to a caller (slots 23–25): the new
-    /// reference count (§6.3).
-    fn grid_add_ref_u16(&self, grid: &Rc<dyn TractGrid<u16>>) -> u32;
-    fn grid_add_ref_f32(&self, grid: &Rc<dyn TractGrid<f32>>) -> u32;
     /// `AddRef` / `Release` on a held occupant (§4.1, REH §4.1).
     fn add_ref(&self, token: u64);
     fn release(&self, token: u64);
@@ -521,6 +575,8 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// Simulator slot 6 `GetSimDate(year*, month*, day*, dayOfYear*,
     /// weekDay*)`: only the month is used (§5.5 step 5).
     fn sim_month(&self) -> u32;
+    /// "today": `city.GetSimulator().GetSimDate().DayNumber()` (REH §4.9).
+    fn sim_day_number(&self) -> u32;
     /// `cISTETerrain` slot 13 `GetAltitude(x, z)` (ST0) at a world position.
     fn altitude(&self, x: f32, z: f32) -> f32;
 
@@ -535,17 +591,25 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// Slot 3 `Start(0)`, then slot 2 `Release`.
     fn start_and_release_effect(&self, effect: u64);
 
-    // ---- history (§5.6, §5.7, §8) ----
+    // ---- messages (§5.7, §8, REH §5) ----
     /// `RecordHistoryData(id, value)`: create a `cRZMessage2Standard` of type
     /// [`msg::RECORD_HISTORY`] with data1 = `series` and data2 = `value`,
     /// **send** it synchronously and release it. Nothing happens without a
     /// message server.
     fn record_history(&self, series: u32, value: i32);
+    /// `MessagePost(m, 0)` of a strike message (REH §5): type `msg_type`
+    /// ([`msg::SCHOOL_STRIKE`] / [`msg::HEALTH_STRIKE`]), void1 and the
+    /// IGZUnknown = `occupant` (a strike start), data2 = 1 (start) or 0
+    /// (end), data3 = the strike's length in days (end).
+    fn post_strike_message(&self, msg_type: u32, occupant: Option<u64>, data2: u32, data3: u32);
 
     // ---- occupants (§6.6, REH §4.1) ----
     /// `QueryInterface(void1, 0x87DDA3A9)` for `cISC4BuildingOccupant`
     /// (§4.3): the building occupant, if it is one.
     fn occupant_as_building(&self, occupant: u64) -> Option<u64>;
+    /// `cISC4Occupant` slot 22 `IsOccupantGroup(group)` (REH §4.1 state-0
+    /// distribution).
+    fn is_occupant_group(&self, occupant: u64, group: u32) -> bool;
     /// A bool property of the occupant's property holder (occupant slot 6);
     /// `None` when absent.
     fn occupant_bool_property(&self, occupant: u64, id: u32) -> Option<bool>;
@@ -558,82 +622,118 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     /// handed over is transferred to the simulator, and when this returns
     /// `None` the host drops it.
     fn resolve_ref(&self, r: &RefValue, iid: u32) -> Option<u64>;
+}
 
-    // ---- the education and health half (REH) ----
+/// The education and health half (REH) as hooks into the frame this module
+/// implements. Every method has a default that is exact for a city with **no
+/// school, hospital or health-affecting building and no ordinance**: no
+/// strike roll, no coverage, no grade, no budget item. A host that
+/// implements the REH building work overrides them; the core keeps the state
+/// they read and write (the grids, the lists, the department blocks) and
+/// does itself everything REH defines on that state alone (§10.1 slots 6–11,
+/// 46–49, 61 and the state-0 distribution of REH §4.1).
+///
+/// A hook receives a **copy** of the simulator state (no borrow is held
+/// across it); only what a hook returns, or the `&mut` arguments it is
+/// given, is written back.
+pub trait EducationHealth {
     /// `Init` step 7 and state 0: rebuild the two ordinance-effect lists
     /// (REH §4.3). State 0 clears both first; `Init` does not, but the lists
     /// are empty then.
-    fn refresh_ordinance_effects(&self);
-    /// Π of the decay multipliers in the education list and in the health
-    /// list, each starting at 1.0 for an empty list and multiplying in list
-    /// order (REH §4.3, §7.1). Read when the population tuning is read.
-    fn ordinance_decay_products(&self) -> (f32, f32);
-    /// State 0: the monthly strike check for schools, then hospitals
-    /// (REH §4.9). **`rng` is the class's shared `cRZRandom`**: each eligible
-    /// non-striking building takes exactly one `RandomDoubleRangeUniform(0.0,
-    /// 100.0)` draw from it, in group-list order, even when the chance is 0.
-    fn strike_checks(&self, rng: &mut dyn ResidentialRandom);
-    /// State 0: move the pending school, then pending hospital, then pending
-    /// health-affecting buildings into their group lists (REH §4.1).
-    fn distribute_pending_buildings(&self, lists: &mut OccupantLists);
-    /// §4.3 `DoBuildingChanged(building, inserted)`: recognise the building,
-    /// register it with the budget and append it to (added) or erase it from
-    /// (removed) the pending list in `lists` (REH §4.1). The caller sets the
-    /// dirty flag afterwards.
-    fn building_changed(&self, building: u64, inserted: bool, lists: &mut OccupantLists);
-    /// State 5: `UpdateCoverageMap` for the school groups 0..6 in order
-    /// (REH §4.4). The simulator zeroes the school-covered counter first and
-    /// stores the returned served count for state 9 (§5.7).
-    fn update_school_coverage(&self) -> i32;
-    /// State 6: for each school group and each building in list order the
-    /// auto-budget step, then `ComputeOccupantGrade` with the EQ grids
-    /// (REH §4.5, §4.6, §4.10). The grade grid is zeroed first.
-    fn grade_schools(&self);
-    /// State 7: `UpdateCoverageMap` for the hospital groups 0..2 (REH §4.4);
-    /// returns the served count for state 9.
-    fn update_hospital_coverage(&self) -> i32;
-    /// State 8: as [`ResidentialHost::grade_schools`] for hospitals, with the
-    /// HQ grids.
-    fn grade_hospitals(&self);
-    /// Slots 6–13: the strike flags, `EndStrike`, the strike chances and the
-    /// system ratings (REH §4.9, §4.11).
-    fn school_is_on_strike(&self) -> bool;
-    fn health_is_on_strike(&self) -> bool;
-    fn end_school_strike(&self) -> bool;
-    fn end_health_strike(&self) -> bool;
-    fn chance_of_school_strike(&self) -> f32;
-    fn chance_of_health_strike(&self) -> f32;
-    fn school_system_rating(&self) -> f32;
-    fn health_system_rating(&self) -> f32;
-    /// Slots 14 / 15: the system totals; the number of buildings counted
-    /// (REH §4.11).
-    fn school_system_totals(&self, groups: &[u32]) -> u32;
-    fn hospital_system_totals(&self, groups: &[u32]) -> u32;
-    /// Slots 19 / 20: the occupant's staff and vehicle funding percentages
-    /// (REH §4.2). Slot 19 also sets the dirty flag; a missing budget item
-    /// ends the call with it set, a null department without.
-    fn set_occupant_funding(&self, occupant: u64, staff: f32, vehicle: f32, is_school: bool) -> bool;
+    fn refresh_ordinance_effects(&self) {}
+    /// `(eduProd, healthProd)`: Π of the decay multipliers in the education
+    /// list and in the health list, each 1.0 for an empty list and
+    /// multiplying in list order (REH §4.3, §7.1). Read whenever the
+    /// population tuning is read.
+    fn ordinance_decay_products(&self) -> (f32, f32) {
+        (1.0, 1.0)
+    }
+    /// State 0: reset the two grade totals, then `DoMonthlyStrikeCheck` for
+    /// the school group lists, then for the hospital group lists (REH §3,
+    /// §4.9). **`rng` is the class's shared `cRZRandom`**: each eligible
+    /// non-striking building takes exactly one
+    /// `RandomDoubleRangeUniform(0.0, 100.0)` draw from it, in group-list
+    /// order, even when the chance is 0. `BeginStrike` / `EndStrike` are
+    /// [`DepartmentBlock::begin_strike`] / [`DepartmentBlock::end_strike`] on
+    /// the two blocks, which the core stores back, followed by
+    /// [`ResidentialHost::post_strike_message`].
+    fn strike_checks(
+        &self,
+        _lists: &OccupantLists,
+        _tuning: &SimulatorTuning,
+        _education: &mut DepartmentBlock,
+        _health: &mut DepartmentBlock,
+        _rng: &mut dyn ResidentialRandom,
+    ) {
+    }
+    /// §4.3 `DoBuildingChanged(building, inserted)` (REH §4.1): recognise the
+    /// building, register it with the budget and append it to (inserted) or
+    /// erase it from (removed) the lists, holding / releasing one reference.
+    /// Returns whether the dirty flag is set (REH §4.1: by a recognised
+    /// school or hospital and by step 4). Default: no service building.
+    fn building_changed(&self, _building: u64, _inserted: bool, _lists: &mut OccupantLists) -> bool {
+        false
+    }
+    /// States 5 / 7: `UpdateCoverageMap` for the school groups 0..6 or the
+    /// hospital groups 0..2 in order (REH §4.4), returning the served count.
+    /// The core has already zeroed the served counter and every coverage
+    /// grid of the service (each `UpdateCoverageMap` starts with
+    /// `SetTractValues(0)`, and a group only reads lower groups' grids).
+    fn update_coverage(&self, _school: bool, _state: &ResidentialState) -> i32 {
+        0
+    }
+    /// States 6 / 8: for each group and each building in list order the
+    /// auto-budget step, then `ComputeOccupantGrade` (REH §4.5, §4.6, §4.10).
+    /// The core has already zeroed the grade grid. Returns whether an
+    /// auto-budget `SetOccupantFundingPercentages` set the dirty flag.
+    fn grade(&self, _school: bool, _state: &ResidentialState) -> bool {
+        false
+    }
+    /// Slots 10 / 11 when the service is **not** on strike (the core returns
+    /// 1.0 otherwise): `p := (c + p) − c × p` over the group lists (REH §4.9).
+    fn chance_of_strike(&self, _school: bool, _state: &ResidentialState) -> f32 {
+        0.0
+    }
+    /// Slots 12 / 13 (REH §4.11). With no building, Σ effective capacity is
+    /// 0, so 0.0.
+    fn system_rating(&self, _school: bool, _state: &ResidentialState) -> f32 {
+        0.0
+    }
+    /// Slots 14 / 15: accumulate the query fields of the group lists whose ID
+    /// is in `groups` into `totals`; the number of buildings counted (REH
+    /// §4.11).
+    fn system_totals(&self, _school: bool, _groups: &[u32], _totals: &mut QueryData, _state: &ResidentialState) -> u32 {
+        0
+    }
+    /// Slot 19 (REH §4.2): set the staff then vehicle local funding. Returns
+    /// whether the call ends **with** the dirty flag set (a missing budget
+    /// item) rather than without (a null department). Default: no budget
+    /// item, so true.
+    fn set_occupant_funding(&self, _occupant: u64, _staff: f32, _vehicle: f32, _is_school: bool) -> bool {
+        true
+    }
     /// Slot 20: `(staff, vehicle)`; `(1.0, 1.0)` without a staff item.
-    fn occupant_funding(&self, occupant: u64, is_school: bool) -> (f32, f32);
-    /// Slots 26 / 27: the query-tool record (REH §4.11).
-    fn school_query_data(&self, occupant: u64) -> Option<QueryData>;
-    fn hospital_query_data(&self, occupant: u64) -> Option<QueryData>;
+    fn occupant_funding(&self, _occupant: u64, _is_school: bool) -> (f32, f32) {
+        (1.0, 1.0)
+    }
+    /// Slots 26 / 27: the query-tool record (REH §4.11); `None` = AL 0.
+    fn query_data(&self, _school: bool, _occupant: u64) -> Option<QueryData> {
+        None
+    }
     /// Slot 28 `EstimateCurrentOccupantCapacity`: `(capacity, staff)`
     /// (REH §4.11).
-    fn estimate_occupant_capacity(&self, occupant: u64) -> (u32, u32);
+    fn estimate_occupant_capacity(&self, _occupant: u64) -> (u32, u32) {
+        (0, 0)
+    }
     /// Slot 45 `GetOccupantCoverage`: `(distance at level, radius)`
-    /// (REH §4.11).
-    fn occupant_coverage(&self, occupant: u64, level: f32) -> Option<(f32, f32)>;
-    /// Slots 47 / 49 `GetSchoolBuildings` / `GetHospitalBuildings`: appends
-    /// the group lists selected by `groups` (all when `groups` is `None`),
-    /// then always the pending list, `AddRef`ing each (REH §4.1).
-    fn school_buildings(&self, groups: Option<&[u32]>, out: &mut Vec<u64>);
-    fn hospital_buildings(&self, groups: Option<&[u32]>, out: &mut Vec<u64>);
-    /// Slot 58 `EstimateIdealFunding` (REH §4.10).
-    fn estimate_ideal_funding(&self, occupant: u64) -> Option<f32>;
-    /// Slot 61 `GetHealthAffectingBuildings`: appends the health-affecting
-    /// list and the other list, each occupant `AddRef`ed.
-    fn health_affecting_buildings(&self, out: &mut Vec<u64>);
+    /// (REH §4.11); `None` = AL 0.
+    fn occupant_coverage(&self, _occupant: u64, _level: f32) -> Option<(f32, f32)> {
+        None
+    }
+    /// Slot 58 `EstimateIdealFunding` (REH §4.10); `None` = AL 0.
+    fn estimate_ideal_funding(&self, _occupant: u64) -> Option<f32> {
+        None
+    }
 }
 
 /// The occupant lists of §3 / §9.1, in save order. All are host tokens; the
