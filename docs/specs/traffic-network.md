@@ -631,7 +631,8 @@ wormhole bit 2.
 **Insert**:
 
 1. The other portal is the tunnel object's paired portal. The original reads it from the concrete
-   `cSC4NetworkTunnelOccupant`, not through an interface (§9). Its occupant position gives cell (ox, oz).
+   `cSC4NetworkTunnelOccupant`, not through an interface (§9). Its occupant position gives cell (ox, oz). With no
+   paired portal (null), return: **no record** is created or changed (`0x00714154`, TN11).
 2. Network type = the first of 2, 6, 0, 1, 10, 12, 9 that the tunnel `IsOfType`. None → no record.
 3. Travel mask = `0x1FE` (every type but Walk) *[quirk]*. The test that was meant to use the type's transit networks
    always passes.
@@ -646,6 +647,11 @@ For types with zero speed on that network the cost is +∞. Example: Road, Car (
 
 Each portal's insert message creates its own record. A tunnel works in both directions once both portals are
 inserted.
+
+The record is stored with find-or-insert on the key (`0x00713D60`), and the whole `0x2C`-byte record is then copied
+over it (`0x00714386`–`0x00714396`). So a second insert for the same portal key **overwrites** the record: other
+cell, mask, costs and type (TN11). Steps 1 and 2 return before this, so a portal with no pair, or of none of the
+listed types, leaves any existing record unchanged.
 
 ### 4.9 Ferries
 
