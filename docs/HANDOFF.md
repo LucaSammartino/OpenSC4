@@ -5,6 +5,23 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 
 ## 0. Start here
 
+> **Third session (2026-10-13, late evening; in progress, the user is away).** Read this block first; the rest of §0
+> describes the end of the second session.
+> - **Game control is hands-free now** (`f850598`, `0e2c238`, `def371e`): `tools/sc4ctl.ps1` drives the running game
+>   with posted clicks (speeds, pause, God mode, popups, save with real Ctrl+S, snapshots, state from the log), and
+>   `tools/ingame_run.ps1` closes dialogs automatically, runs `-Actions "secs=command; …"` after the load, and
+>   restores the autoload city if a run saved over it. Measured control map and gotchas: `docs/manual-checks.md` runs
+>   47–54.
+> - **M1 in-game checks are done** (runs 50–54): save → reload (date, funds, 18 departments), pause, all three speeds
+>   (`SetSimSpeed(0/1/2)`), emergency pause (God-mode disaster). Only the clock differential is open.
+> - **Spec answers merged** (`ac19c1e`): RS1 (every percentage × 0.01 is float32 `0.01f`; residential §15 test 8
+>   corrected), advisors §6.8.1 (popups and the hidden pause), DQ2 (dead fields).
+> - **Lanes running** (all clean-room engine lanes in `.claude/worktrees/agent-*`, one RE lane in
+>   `.claude/worktrees/re-answers`): protection glue + shadow, pollution glue + shadow, crime glue + shadow,
+>   traffic-network compile fix, residential tests, the `popup_dialogs = 0` switch, and RE answers (BQ1/2,
+>   flammability §13.1, RS2–6, ZQ2–6). Each glue lane bumps `FC4_ABI_VERSION` to 17; renumber at merge.
+> - Test city backups (verified hashes) are in `build-runs/city-backups/`.
+
 **Main is `ac809c0`. It is clean and verified, and nothing is running.** No agent is alive, no game process is
 running, and `git status` is clean. The engine tree is unchanged since `42f7649`, where the coordinator verified:
 - `cargo test --workspace --target i686-pc-windows-msvc`: **820 passed / 0 failed**;
@@ -703,6 +720,12 @@ The pattern that worked, and that a next coordinator can reuse:
     would resolve symbols wrongly. **Restage a matching DLL/PDB pair before trusting any future crash dump.**
     *(Done in the second session: every DLL staged since run 33 went in with its own PDB, and backups are now made as
     pairs. The mismatched one is kept as `FreeCity4.pdb.run33-prestage-MISMATCHED`.)*
+  - **SOLVED in the third session (runs 48–53): the harness now closes dialogs itself.** Each advisor popup calls
+    `HiddenPause()` on our simulator, so **`hidden` IS the signal** (1 per open popup); the claim below that it is not
+    was wrong. Esc/Enter do nothing; Close does. `tools/ingame_run.ps1` runs `tools/sc4ctl.ps1 clear` on every new
+    HiddenPause after load (posted clicks, no focus, finds the Close button by its look, also the "City Saved" OK)
+    and saves a PNG of each dialog. advisors.md §6.8.1 explains the mechanism; the `popup_dialogs = 0` ini switch
+    (`cISC4App::SetPopupDialogsEnabled(false)`) suppresses advisor popups at the source once merged. The old notes:
   - **Advisor dialogs pause the simulation and the autotest does not undo it** (the user confirmed this on 2026-10-13).
     An advisor popup that asks for something holds the city. **The signal is the heartbeat date stopping while
     `+N OnTick` keeps counting** (with `pause 0`). `autotest_unpause` does not undo it.

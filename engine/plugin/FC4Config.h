@@ -41,6 +41,12 @@
 //   demand_shadow = 0 / 1         the demand shadow differential (default 0;
 //                                 needs the original demand; FC4DemandShadow.h)
 //   demand_shadow_nodes = N       its node lines per mismatched day (default 8)
+//   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
+//                                 once per process (advisor popups dropped without
+//                                 the hidden pause, generic dialogs answer without
+//                                 asking), 1 = (true); unset = leave the game alone;
+//                                 env FC4_POPUP_DIALOGS; read at game start, called at
+//                                 PostAppInit (FC4Popups.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

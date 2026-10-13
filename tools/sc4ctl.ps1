@@ -35,6 +35,10 @@ $Ui = @{
     "llama"       = @(148, 557)   # SetSimSpeed(1)
     "cheetah"     = @(175, 557)   # SetSimSpeed(2)
     "more"        = @(214, 557)   # the "..." button at the bottom right of the control panel
+    "god"         = @(61, 404)    # God mode (the sun); posted clicks open it
+    "disasters"   = @(49, 223)    # God mode -> Disasters (orange tornado); posted clicks open it
+    "fire"        = @(125, 233)   # Disasters -> fire. Selecting it and clicking the city need REAL input
+                                  # (realclick): the 3D view ignores posted clicks (run 54)
 }
 
 Add-Type -ErrorAction SilentlyContinue @"
