@@ -2,7 +2,7 @@
   "format": 1,
   "name": "budget_year_end",
   "spec": ["budget 5.1", "budget 15.4"],
-  "description": "The settlement on January 1st (m = 11) books December and then zeroes every year-to-date accumulator (tax, ordinance, income, expense, bond payments) and every department's spending, while the by-month ordinance arrays and the last-month values keep their values. Accumulation restarts with the February settlement.",
+  "description": "The settlement on January 1st (m = 11) books December and then zeroes every year-to-date accumulator (tax, ordinance, income, expense, bond payments) and every department's spending, while the by-month ordinance arrays and the last-month values keep their values. Accumulation restarts with the February settlement. BQ2: the getters read 0 right after the January 1st settlement, while the history series written before the reset hold that settlement's income and expense, and the funds changed by their difference (108,972 - 1,028 = 107,944).",
   "steps": [
     {"op": "budget_env", "difficulty": 2, "year": 2000, "month": 11, "ordinance_income": 50, "ordinance_expense": 30},
     {"op": "budget_create"},
@@ -25,6 +25,7 @@
     {"op": "budget_call", "method": "ytd_expenses", "expect": 1153},
 
     {"op": "budget_env", "year": 2001, "month": 1},
+    {"op": "clear_events"},
     {"op": "budget_call", "method": "settle_month"},
     {"op": "budget_expect", "state": {"funds": 107944, "shadow_funds": 107944,
       "ytd_income": 0, "ytd_expense": 0, "ytd_tax_income": 0, "ytd_reserved": [0, 0, 0, 0, 0],
@@ -32,6 +33,13 @@
       "last_month_income": 125, "last_month_expense": 1153, "last_tax_income": 75,
       "ordinance_income_by_month": {"10": 50, "11": 50}, "ordinance_expense_by_month": {"10": 30, "11": 30}}},
     {"op": "budget_dept", "dept": 4096, "method": "total_spending", "expect": 0},
+    {"op": "budget_call", "method": "ytd_income", "expect": 0},
+    {"op": "budget_call", "method": "ytd_expenses", "expect": 0},
+    {"op": "expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0x6A51178B", "value": 125},
+      {"series": "0xCA5BA3FB", "value": 1153},
+      {"series": "0x4A5BA3D0", "value": 107}
+    ]},
 
     {"op": "budget_env", "month": 2, "ordinance_income": 60},
     {"op": "budget_call", "method": "settle_month"},

@@ -235,6 +235,19 @@ For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
    Passes repeat until one reports no change. The result is the **Manhattan distance** (in proximity tracts =
    cells) to the nearest key tract, **capped at 255**; with no key tract every value is 255.
+
+   *[compat]* (RS5, from the exe; one pass is `0x005E4E80`) **The running `d` is a 32-bit register** (`EDX`). It
+   is set to 255 at the start of every sweep, and the step `d + 1` is a 32-bit `inc`, so it cannot wrap. The
+   minimum is a signed 32-bit compare against the zero-extended byte `v`, and the store writes the low byte of `d`.
+   After `d := min(d + 1, v)` with `v ≤ 255`, `d` is never above 255, so the store never truncates. A
+   reimplementation that widens `d` and clamps to 0..255 gives the same results; the clamp never acts. "Changed"
+   is the OR of `old XOR new` over the pass.
+
+   Example: one row seeded `[255, 0, 255, 255]`.
+   - The forward sweep gives `[255, 0, 1, 2]`. The first step is `min(256, 255) = 255`.
+   - The backward sweep then gives `[1, 0, 1, 2]`.
+
+   A byte-wide `d` would wrap `255 + 1` to 0 and store 0 in the first cell, which is wrong.
 3. **Copy** into proximity grid w with `ProcessTwoGridsWithCallback<uint8, uint8>` (simgrid §7.3; equal shifts, so a
    plain copy).
 
@@ -257,6 +270,17 @@ float steps are float32 operations in the order given (foundations §18).
    `avg_q = (Σ over the S × S cells (S·x + i, S·z + j), i outer, j inner, of pollution.GetPollutionValue(q, cx, cz))
    ÷ (S·S)` (unsigned integer division; the pollution slot returns 16 bits, AX; it reads the **source** grids,
    pollution.md). The caller keeps only the **low byte**: `p_q = avg_q mod 256` *[quirk]*.
+
+   *[compat]* (RS3, from the exe; helper `0x006F7FF0`):
+   - The sum is a **32-bit unsigned accumulator that wraps**. It is one stack dword set to 0, and each 16-bit result
+     is zero-extended and added with a 32-bit `add`.
+   - The divisor `S·S` is a 32-bit `imul`, and the division is an unsigned 32-bit `div`.
+   - The loop bounds `S·x … S·x + S` and `S·z … S·z + S` are compared unsigned.
+   - The helper's arguments are `(q, S·x, S·z, S)`. Its outer loop runs over the first coordinate, and each call is
+     `GetPollutionValue(q, cx, cz)`, which is the i-outer, j-inner order above.
+
+   A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
+   S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):
@@ -283,6 +307,14 @@ float steps are float32 operations in the order given (foundations §18).
    - If new_w = 0: EQ_w := 0 and HQ_w := 0.
 5. **Ageing**. age := the age grid (uint8). If total ≠ 0: read the month (simulator `GetSimDate`, slot 6, month
    only); if month = 12, age := (age + 1) mod 256. If total = 0: age := 0.
+
+   *[compat]* (RS2, from the exe) The month is read **per tract and nothing is latched**:
+   - `DoPopulationChange` calls `GetSimDate` itself (`0x006FAA95`, through the cached simulator pointer) for each
+     tract with total ≠ 0, and compares the month with 12 at once (`0x006FAA98`);
+   - a tract with total = 0 does not call it at all.
+
+   In the original, state 4 always runs within one day, so every tract of a pass sees the same month. A host that
+   lets the date change in the middle of a pass must still read the date per tract, as the original would.
 6. **Newcomers' age**: if arrived and Σ new_w ≠ 0:
    `age := (Σ_w old_w × age + Σ_w nc_w × newAge_w) ÷ Σ_w new_w` (signed 32-bit, truncated), with newAge_w the
    tuning ages (§7.1). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
@@ -323,7 +355,7 @@ The pass ends when the iterator is done; state 12 follows.
 ### 5.7 History (state 9)
 
 In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` := trunc(own slot 33
-`GetGlobalHQ()`); `0xAA1A2CCA` := population. Then, if population > 0:
+`GetGlobalHQ()`) (both REH §4.8, walked x outer, z inner, RS4); `0xAA1A2CCA` := population. Then, if population > 0:
 `h := float(hospitalCovered) / float(population)` (computed first), `0x4A8A3FE5` := rhe(float(schoolCovered) /
 float(population) × 1000), then `0x4A8A3FE2` := rhe(h × 1000), where rhe rounds half to even (the original adds
 12582912 and takes the float's low bits). If population ≤ 0: `0x4A8A3FE2` := 0, then `0x4A8A3FE5` := 0.
@@ -343,6 +375,23 @@ Each call **creates a new float grid** (class `0x49B9E60A`), stores it in `*out`
 (HQ)). Then for every tract of that grid: value := `float(trunc(GetTractQuotient(EQ or HQ, population, x, z)))`;
 min starts at 255.0, max at 0.0 and track the stored values; `*min`, `*max` are written if non-null. Returns the
 **max pointer** in EAX.
+
+*[compat]* (RS6, from the exe; shared helper `AverageGrids`, `0x006F70E0`) **min and max are updated with every
+tract, populated or not**, as REH §4.8 says, and that text is normative:
+- An unpopulated tract (16-bit population sum 0) stores 0.0, and that 0.0 goes through the same compare as any
+  other value (`0x006F722D`–`0x006F7263`).
+- The compares are strict: `min := v` only when `min > v`, and `max := v` only when `max < v`. A NaN updates
+  neither.
+- The walk is x outer, z inner over the new grid's own `GetTractCountX/Z`.
+
+Results:
+- An empty city returns `min = max = 0.0`.
+- Only a grid with no tracts leaves 255.0 / 0.0.
+
+Example: a 1 × 2 grid where tract (0, 0) has R$ population 10 at EQ 100.0 and tract (0, 1) is empty.
+- The values are 100.0 and 0.0.
+- `min` goes 255.0 → 100.0 → 0.0, and `max` goes 0.0 → 100.0.
+- The result is `min = 0.0`, `max = 100.0`.
 
 ### 6.3 `GetEQGrids` / `GetHQGrids` / `GetPopulationGrids` (slots 23, 24, 25)
 

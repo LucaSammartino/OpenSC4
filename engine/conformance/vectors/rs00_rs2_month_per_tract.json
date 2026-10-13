@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "residential_rs2_month_per_tract",
+  "spec": ["residential 5.5", "RS2"],
+  "description": "RS2: DoPopulationChange reads the month per tract (when the new total is non-zero) and latches nothing, so a month that changes in the middle of a pass is seen by the tracts after the change. A flat LE of 100 avoids the reset. Two steady (10, 0, 0) tracts at age 40: tract (0, 0) in month 11 stays 40; tract (1, 0) in month 12 becomes 41. Each populated tract reads the month once.",
+  "steps": [
+    {"op": "residential_env", "cells": [8, 8], "tuning_props": {"0x6941A67F": {"f32": [0, 100, 200, 100]}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [10, 0, 0], "age": 40},
+    {"op": "residential_tract", "x": 1, "z": 0, "steady": [10, 0, 0], "age": 40},
+    {"op": "residential_clear_events"},
+    {"op": "residential_env", "month": 11},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_env", "month": 12},
+    {"op": "residential_call", "method": "do_population_change", "args": [1, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "age": 40},
+    {"op": "residential_expect_tract", "x": 1, "z": 0, "age": 41},
+    {"op": "residential_expect_event_count", "filter": {"event": "get_month"}, "count": 2}
+  ]
+}

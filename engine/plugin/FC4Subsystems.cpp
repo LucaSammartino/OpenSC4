@@ -20,6 +20,7 @@
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Demand.h"
 #include "cFC4Ordinance.h"
@@ -180,6 +181,7 @@ void Resolve() {
     CheckedStartup();
     AutotestReload();
     ObserverReload();
+    PopupDialogsReload();  // popup_dialogs (FC4Popups.h); the call itself is made at PostAppInit
     // FreeCity4.ini `disable = ...` wins over FC4_DISABLE.
     const char* source = "";
     const std::string disable = Lower(Setting("disable", "FC4_DISABLE", &source));

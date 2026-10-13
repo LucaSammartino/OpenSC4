@@ -68,9 +68,15 @@ this spec:
    `wormhole = 0`. The original does not initialise the car-continuity words (§2.1). FreeCity4 sets them to
    `0xFFFF` *[choice]*. No reader sees the difference, because every record of a city cell is rewritten by the first
    full rebuild (§4.2) before any search runs.
-5. Transit-switch maps. These are grid objects created through GZCOM:
-   - a `uint8` *switch mode mask* grid, class `0x69D5C424`;
-   - a `uint32` *switch ID* grid, class `0x69D5C42D`.
+5. Transit-switch maps: two grid objects, allocated and constructed in place. Each gets `SetTractSize(1)` and an
+   **instance ID** through grid slot 6 `SetInstanceID` (`0x0071EF56`, `0x0071EFD2`):
+   - a `uint8` *switch mode mask* grid (element class `0x49B9E602`), instance ID `0x69D5C424`;
+   - a `uint32` *switch ID* grid (element class `0x49B9E606`), instance ID `0x69D5C42D`.
+
+   Both IDs are instance IDs, not classes (TN13). `DoLotActivated` writes the mode mask into the first grid
+   (`0x00723E2B`) and the switch ID into the second (`0x00723E1F`). The *wormhole* bits are a field of the cell
+   connection record (§2.1), not a grid. The name "wormhole byte map" for `0x69D5C424` (traffic-simulator.md,
+   save-records.md) was wrong and has been corrected there.
 6. Water pathfinder: constructed, then `Init`. Init creates its depth grid and subscribes it to messages (§4.10).
 7. Next switch ID = 1 (set by the constructor).
 
@@ -148,8 +154,8 @@ changes `flags`.
 |---|---|---|---|
 | network info grid | no | empty | rebuilt by §4.2 at load |
 | cell connection array | no | see §1 | rebuilt by §4.2 at load |
-| switch ID grid (`uint32`, class `0x69D5C42D`) | yes (traffic save) | 0 | switch ID per cell covered by a transit-switch lot |
-| switch mode-mask grid (`uint8`, class `0x69D5C424`) | yes | 0 | OR of `1 << from` over the switch's kind-0 rules |
+| switch ID grid (`uint32`, instance ID `0x69D5C42D`) | yes (traffic save) | 0 | switch ID per cell covered by a transit-switch lot |
+| switch mode-mask grid (`uint8`, instance ID `0x69D5C424`) | yes | 0 | OR of `1 << from` over the switch's kind-0 rules |
 | next switch ID | yes | 1 | incremented once per created switch |
 | transit-switch table | yes (each record, traffic-simulator.md) | empty | SGI `hash_map<u32 id, TransitSwitch>`, bucket hint 100 |
 | tunnel table | yes (corrected, traffic-simulator §6.1 row 17) | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
@@ -445,9 +451,21 @@ With the shipped values, a Street (100) gives:
 
 #### 4.7.1 Activation (DoLotActivated `0x00723AF0`, network part)
 
-This applies when the lot's building has property `0xE90E25A1` (a u32 array):
+Steps 1–5 apply when the lot's building has property `0xE90E25A1` (raw bytes, 4 per rule, §4.7.2). Without it,
+DoLotActivated jumps straight to step 6 (`0x00723B7B` → `0x00723ED0`) with no switch created. Steps 6 and 7 run for
+every activated lot that has a building, unless step 1 returned (TN2).
 
-1. If the property's byte size is not a multiple of 4, stop.
+1. If the property's byte size is not a multiple of 4, **return from DoLotActivated** (`0x00723BAC` jumps to
+   `0x00724188`, which only frees the copied bytes). Everything after this point is skipped (TN1):
+   - the switch and the grid writes;
+   - step 6: ferry activation and `DoConnectionsChanged`;
+   - all of step 7, including the `RandomUint32Uniform(100)` draw (`0x00723FBE`), the budget items and the
+     destination bits (traffic-simulator.md §4.1.3).
+
+   The byte size is the variant's element count, because the property is read as raw bytes (§4.7.2). Every shipped
+   switch stores a u8 array of 8 to 32 bytes, so none stops here. Only custom content stops here: a u8 array whose
+   length is not a multiple of 4, or a u32 array whose entry count is not (§4.7.2). *[compat]* because of the
+   skipped draw.
 2. Build a switch:
    - the building reference;
    - properties `0xE90E25A2`, `0xE90E25A3`, `0x0BFC0A4C`, `0x4BFC47B0`;
@@ -459,22 +477,59 @@ This applies when the lot's building has property `0xE90E25A1` (a u32 array):
 5. Write `id = next switch ID` into the ID grid and the mode mask into the mask grid over the lot rectangle. Insert
    the switch under `id`, then increment the next switch ID.
 6. If the building has `0x0BD86FD3`, run ferry activation (§4.9.1), then `DoConnectionsChanged(lot rectangle)`.
-   Otherwise, if a switch was created, run `DoConnectionsChanged(lot rectangle)`.
-7. The traffic-source registration and the one random draw that follow belong to traffic-simulator.md (§12).
+   Otherwise, if a switch was created, run `DoConnectionsChanged(lot rectangle)`. A switch is always created once
+   step 1 passes (`0x00723EBC`), even from an empty property with no rules. So a building that has neither
+   property gets no rebuild here, and step 7 still follows.
+7. The strategy-bucket registration, the one random draw, the budget items and the destination bits follow. They
+   belong to traffic-simulator.md §4.1.3 (see §12).
 
 #### 4.7.2 Rules (ReadTransitSwitchRules `0x00715CB0`)
 
 Find the lot at the NW corner of the building's bounding cells (lot manager slot 6, bool false). With no lot, no
 rules are read *[quirk]*. Otherwise `f = lot.GetFacing()` (slot 23).
 
-For each u32 entry of `0xE90E25A1`, taking bytes `b0…b3` with b0 the least significant:
+`0xE90E25A1` is read as **raw bytes** by `0x005FFB40`:
+1. property holder slot 9 `GetProperty(id)` (absent → no bytes);
+2. the variant's `RefUint8()` (slot 95) and `GetCount()` (slot 4);
+3. `count` bytes are copied from the variant's data.
+
+Every shipped switch stores the property as a **u8 array**: 13 exemplars in `SimCity_1.dat`, 8 to 32 bytes, with
+`b0` always `0x81` or `0x82`. Each group of 4 bytes `b0 b1 b2 b3` is one rule, and there are `n = ⌊count / 4⌋` of
+them. DoLotActivated has already refused a count that is not a multiple of 4 (§4.7.1 step 1). For each rule:
 
 - `kind = (b0 = 0x82) ? 1 : 0`;
 - for i = 0…3: `side[ROT[f][i]] = bit (7 − i) of b1`;
 - `from = b2`, `to = b3`.
 
-Kind-0 rules also OR `1 << to` into the "to" mask. DoPostCityInit re-reads the rules of loaded switches, because
-the save does not contain them *[inferred]*.
+Kind-0 rules also OR `1 << to` into the "to" mask.
+
+*[quirk]* A property stored as a **u32 array** of N entries has count N, so only its first N bytes are copied.
+They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's least significant byte), and
+DoLotActivated stops unless N is a multiple of 4. A scalar has count 0, so it gives a switch with no rules. FreeCity4
+reads the same raw bytes.
+
+**After a load (TN3, from the exe).** The save **does** contain the rules: `Read` reads them for record versions
+above `0x1C` (§6). `DoPostCityInit` still calls this function for **every** switch in the table (`0x00720466`). The
+function appends and never clears: `0x00711CD0` only reserves room, and each rule is pushed after the existing ones.
+In order:
+
+1. The "to" mask is zeroed, before the lot lookup.
+2. With no lot at the NW corner it returns at once. The rules and flags stay as `Read` left them, and the mask
+   stays 0.
+3. Otherwise the property's n entries are appended and the mask is rebuilt from them. The flags are reset and
+   rebuilt from the **first n rules of the vector**, which after a load are the saved copy.
+
+After loading a current save, each switch therefore holds its saved rules followed by the same rules again
+*[quirk]*. Nothing rebuilt depends on the duplicates. §4.7.4 applies the same rules twice, in the same order, and so
+writes the same values, and the flags use the first n. The duplicates show only in the next save, which writes the
+doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
+then read), so a load followed by a save reproduces the file.
+
+For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
+source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ
+from the rules above *[quirk]*:
+- the mask ORs the raw `to` of the **kind-1** rules;
+- the flags also map `to = 5` to `0x20` (`0x007235FC`).
 
 #### 4.7.3 TransitSwitchEntryCost(id) (non-virtual `0x0071CB20`, x87 return; used by pathfinder.md §4.8)
 
@@ -900,7 +955,9 @@ The traffic simulator's save record belongs to traffic-simulator.md. For this sp
   - the switch mode-mask grid and the switch ID grid (as serialisable grids);
   - the next switch ID;
   - the switch table: count, then per switch its ID, building reference, load, time factor, capacity, the access
-    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to);
+    flag and cell, the two counters, and the rules (count, then kind, four sides, from, to; read only for versions
+    above `0x1C`). This is right and the old §4.7.2 remark was wrong (TN3). `DoPostCityInit` re-reads the rules
+    anyway and appends them (§4.7.2);
   - the **ferry terminals** (corrected): `Write` `0x00712400` writes the terminal list after the per-type tables
     (count, per-terminal fields, link lists with their f32 costs, s16 cells, u16 counters and route vectors), and
     `Read` `0x00721990` rebuilds them through the same helper as `DoFerryTerminalActivated` (`0x00713DF0`, called
@@ -1128,7 +1185,8 @@ Unless stated otherwise:
    because the west neighbour is off-map.
 
 7. **Tunnel cost.** A Road tunnel (IsOfType 0, not 2 or 6) with portals at world positions (8, 0, 24) and (72, 0, 24),
-   with shipped speeds and CellWidthX 16:
+   with shipped speeds (traffic-simulator.md §4.14: Car on Road 31, Walk on Road 3.5, Rail 0 for both) and
+   CellWidthX 16:
    - both records have mask `0x1FE`;
    - `cost[Car] = 0x3DFDB011` (0.123870976);
    - `cost[Walk] = 0x3F8C6F2E` (1.0971429): stored, but unused because of the mask;
@@ -1181,6 +1239,8 @@ call no `rand()`.
 The only draw near this code is in DoLotActivated: after the switch, ferry and rebuild steps,
 `RandomUint32Uniform(100)` on the simulator's `cRZRandomSuper` is stored in lot property `0x4A611773`. That
 generator is seeded from the wall clock at Init (foundations §6.2/§6.3), and the draw belongs to traffic-simulator.md.
+A lot whose `0xE90E25A1` has a byte size that is not a multiple of 4 returns before the draw (§4.7.1 step 1), so it
+makes none.
 
 Hash iteration orders are deterministic: SGI hash containers with identity hashes, bucket hint 100 → 193 buckets.
 

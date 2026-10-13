@@ -5,6 +5,44 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 
 ## 0. Start here
 
+> **Third session (2026-10-13 evening to 10-14; in progress, the user is away).** Read this block first; the rest of
+> §0 describes the end of the second session.
+> - **M1 is complete.** In-game checks (runs 50–54): save → reload, pause, all three speeds, emergency pause. **Clock
+>   differential: identical to the original** (runs 56/57, 240 days; runs 58/60 in `clock_probe = 2`, which holds
+>   the week agent once to exercise the §5.3 repeat, 316 entries identical). Tooling: `clock_probe` (plugin,
+>   `FC4ClockProbe.h`) + `tools/clock_diff.ps1 -A <original log> -B <our log>`.
+> - **Unattended runs are now really unattended:**
+>   - `popup_dialogs = 0` (merged `5e39f3c`) turns the game's popup dialogs off at `PostAppInit`: no advisor popup,
+>     no hidden pause, 0 dialog rounds in runs 56–60. Generic prompts then answer by themselves (a posted `WM_CLOSE`
+>     does nothing, run 58).
+>   - `autotest_end = quit` (`22769f3`) ends a run through `cISC4App::RequestQuit(false, false)`: the full city and
+>     app Shutdown path runs and counts toward the verdict (run 59: grids released, `ref_warnings=0`). Use it for
+>     every glue lane's run.
+>   - `tools/sc4ctl.ps1` / `tools/ingame_run.ps1` (`f850598`, `0e2c238`, `def371e`): posted clicks, real Ctrl+S
+>     save, `-Actions`, automatic dialog closing, city backup and restore. Control map: `docs/manual-checks.md` runs
+>     47–54.
+> - **Merged this session:**
+>   - traffic network core (`dd240c9`: 890 cargo tests, TN1–TN20 filed);
+>   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
+>   - spec answers part 1 (`ac19c1e`: RS1, advisors §6.8.1, DQ2) and part 2 (`5b305c6`: BQ1, BQ2, flammability
+>     §13.1, RS2–RS6, ZQ2).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`, the RE lane in
+>   `.claude/worktrees/re-answers`):
+>   - glue + grid shadow for protection, pollution and crime (each bumps `FC4_ABI_VERSION` to 17; renumber at merge);
+>   - residential tests and record;
+>   - landfill + neighbors cores;
+>   - the pathfinder core (M5);
+>   - RE answers (ZQ3–ZQ6, then TN1–TN20).
+> - **Open follow-ups:**
+>   - BQ2 says GetYTDIncome/GetYTDExpenses read 0 right after the 1 January settlement: check the budget core does
+>     the same;
+>   - flora and aura glue (M3);
+>   - the traffic simulator core after the pathfinder.
+> - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
+>   clippy, configure/build/ctest; it now copies the SDK into worktrees that lack the submodule). Main at
+>   `22769f3`: ctest 19/19.
+> - Test city backups (verified hashes) are in `build-runs/city-backups/`.
+
 **Main is `ac809c0`. It is clean and verified, and nothing is running.** No agent is alive, no game process is
 running, and `git status` is clean. The engine tree is unchanged since `42f7649`, where the coordinator verified:
 - `cargo test --workspace --target i686-pc-windows-msvc`: **820 passed / 0 failed**;
@@ -703,6 +741,12 @@ The pattern that worked, and that a next coordinator can reuse:
     would resolve symbols wrongly. **Restage a matching DLL/PDB pair before trusting any future crash dump.**
     *(Done in the second session: every DLL staged since run 33 went in with its own PDB, and backups are now made as
     pairs. The mismatched one is kept as `FreeCity4.pdb.run33-prestage-MISMATCHED`.)*
+  - **SOLVED in the third session (runs 48–53): the harness now closes dialogs itself.** Each advisor popup calls
+    `HiddenPause()` on our simulator, so **`hidden` IS the signal** (1 per open popup); the claim below that it is not
+    was wrong. Esc/Enter do nothing; Close does. `tools/ingame_run.ps1` runs `tools/sc4ctl.ps1 clear` on every new
+    HiddenPause after load (posted clicks, no focus, finds the Close button by its look, also the "City Saved" OK)
+    and saves a PNG of each dialog. advisors.md §6.8.1 explains the mechanism; the `popup_dialogs = 0` ini switch
+    (`cISC4App::SetPopupDialogsEnabled(false)`) suppresses advisor popups at the source once merged. The old notes:
   - **Advisor dialogs pause the simulation and the autotest does not undo it** (the user confirmed this on 2026-10-13).
     An advisor popup that asks for something holds the city. **The signal is the heartbeat date stopping while
     `+N OnTick` keeps counting** (with `pause 0`). `autotest_unpause` does not undo it.

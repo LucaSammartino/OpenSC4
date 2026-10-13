@@ -348,6 +348,38 @@ if funds <= MinAllowableFunds: post 0xAA5CF1E3 EndGameForBudgetFailure   (§5.6)
 `H(v)` *[compat]*: if `v ≥ 2^32` the value recorded is `0xFFFFFFFF`; otherwise the low 32 bits of `v`
 (the history warehouse takes a signed 32-bit value, so `0xFFFFFFFF` reads back as −1).
 
+**Year end: what the YTD getters return on January 1st (BQ2, from the exe).** The order above is the
+original's:
+1. The month's amounts are added to `ytdIncome` (`+0x48`) and `ytdExpense` (`+0x40`) at `0x00692994`–`0x006929B3`.
+2. The three history values are recorded at `0x00692A24`–`0x00692A4B`.
+3. **Only then** does the `m == 11` test (`0x00692A4E`) zero the year-to-date fields, at `0x00692A65`–`0x00692AB9`.
+
+So the reset comes **after** the month is added. December's income and expense, booked by the settlement on
+January 1st, are added and wiped in the same call. They never appear in `GetYTDIncome()` (slot 10, `0x006AAF00`)
+or `GetYTDExpenses()` (slot 12, `0x006AAEF0`):
+- just before that settlement, both getters hold the sum of the eleven settlements from February 1st to
+  December 1st;
+- just after it, both return **0**.
+
+The January 1st amounts can be observed in two ways:
+- **History**: series `0x6A51178B` (income) and `0xCA5BA3FB` (expense). The same settlement writes them before the
+  reset, as `H(income)` and `H(expense)`. This works for every month, so a shadow can compare all twelve.
+- **Funds**: the change of `GetTotalFunds()` across the settlement is exactly `income − expense` (net only),
+  provided nothing else moves funds between the two reads.
+
+They **cannot** be observed through:
+- `GetTotalMonthlyIncome`/`GetTotalMonthlyExpense`, which are live projections (§6);
+- the stored `lastMonthIncome` (`+0x830`) and `lastMonthExpense` (`+0x840`). These have setters (§6) but no
+  getter, and the only other code that reads them is `Write`.
+
+Example: before the settlement on 2002-01-01, `GetYTDIncome() = 118,000` and `GetYTDExpenses() = 104,500`. The
+settlement books income 10,700 and expense 9,900. Afterwards:
+- both getters return 0;
+- the history's newest points are 10,700 (`0x6A51178B`) and 9,900 (`0xCA5BA3FB`);
+- funds rose by 800.
+
+A YTD difference across that settlement would give `0 − 118,000`, which is meaningless.
+
 The settlement is the **only** place where funds can become negative through normal play.
 
 ### 5.2 Property tax (`ComputeTax`)
@@ -394,6 +426,44 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
 - *[choice]* If `bWealth − lWealth` is outside 0..2, use multiplier 1.0 (the original indexes out of range).
 - With the shipped data `LVCurve` is flat zero and every weight is 1, so tax = `rate% × buildingValue / 12 ×
   {1.2, 1.1, 1.0}` per difficulty. Example: a building worth 10,000 at 9 % on hard pays 75 per month.
+
+**The lot set and its order (BQ1, from the exe).** `ComputeTax` (`0x00691E20`) works as follows:
+- It gets a safe iterator from the lot manager (slot 15, call at `0x00691E99`) and walks the master list node by
+  node until it returns to the head. At the end it unregisters and frees the iterator (`0x0069207C`–`0x006920AF`).
+- For each lot it applies, in this order, the only three filters it has:
+  - no building (lot slot 48, `+0xC0`, returns null);
+  - not livable (lot slot 37, `+0x94`, `IsInLivableState`, returns false);
+  - an untaxed purpose/wealth cell (−1 in the tax-type table).
+- It has no bounds test, no other state test and no highlight check.
+
+The master list and the cell → lot map that `GetLotsInCellRect` scans hold **the same lots** (zones.md §8):
+- **Created and deleted together.** `CreateLot` writes every cell of the lot and adds it to the list in the same
+  call (zones.md §8.5). `DeleteLot` clears every cell and removes it from the list (§8.6). A load rebuilds the list from the
+  cell map (§10.2). Within the lot manager's slots, the only stores into the cell rows are in `CreateLot`
+  (`0x0072E617`) and `DeleteLot` (`0x0072FA56`).
+- **Mid-transition lots** (under construction, abandoned, burning, waiting for demolition) stay in both until
+  `DeleteLot`. The three per-lot filters above decide whether they are taxed, so the same filters applied to either
+  set select the same lots.
+- **Preview lots are in neither set.** In highlight mode, `CreateLotIfPossible` and `DeleteLot` only record
+  virtual lots and virtual deletions in separate maps (zones.md §8.5, §8.6).
+- **No lot lies outside the city.** `CreateLot` writes its rectangle without clipping. Every creation path
+  specified so far goes through `CreateLotIfPossible`, which needs code 8 on every cell, and a cell outside the
+  city gives code 0 (zones.md §8.4).
+
+The two sets can differ only in two edge cases. Neither is known to be reached by the shipped game.
+- `CreateLot` (slot 23) has no check of its own. Called directly over an existing lot, it overwrites that lot's
+  cells while the old lot keeps its list entry. An old lot that loses every cell is taxed by the original but
+  missed by `GetLotsInCellRect`. A partly overwritten lot can be listed twice by `GetLotsInCellRect`. Direct
+  callers of slot 23 were not enumerated, but every documented creation path checks for code 8 first.
+- With a non-null insertion point whose list is null (zones.md §8.5 step 4 quirk), the lot is in the cells but
+  not in the list. The traffic simulator never returns such a point.
+
+**Order.** After a load, the list is in first-cell order, x outer and z inner. That is exactly the order of
+`GetLotsInCellRect(list, 0, 0, CellCountX − 1, CellCountZ − 1, false)`, because both meet each rectangular lot
+first at its minimum (x, z) cell, scanning x outer. So on a city with no lots created since the load, the shadow
+walks the same lots **in the same order**, and every `float32` sum is bit-identical. Lots created later are appended
+to the list in creation order (zones.md §8.5) but sit by position in the rect query. Deletions do not reorder the rest. Only
+lots created since the load use the order freedom of §15 (the ±1 per 1000 lots tolerance).
 
 ### 5.3 Department expenses and income
 
@@ -929,7 +999,8 @@ updated by the original; they are kept only so that save records keep their layo
    one non-local line (full 1000, p = 0.5) and one bond, funds change by exactly `income − expense`; YTD values,
    last-month values and the three history series are as in §5.1, including the `0xFFFFFFFF` clamp.
 4. **Year end**: after the settlement on January 1st every YTD accumulator and department spending is 0, while
-   the by-month ordinance arrays keep their values.
+   the by-month ordinance arrays keep their values. The history series `0x6A51178B`/`0xCA5BA3FB` hold that
+   settlement's income and expense, written before the reset. The funds changed by their difference (§5.1, BQ2).
 5. **Bankruptcy**: EndGameForBudgetFailure is posted at month-end with funds = −100,000 and at every later
    month-end while still at or below it; not posted at −99,999; never posted by `WithdrawFunds`.
 6. **Bonds**: rounding to the increment (7,499 → 5,000; 1 → 5,000 with increment 5,000); count, size and total
@@ -1087,7 +1158,8 @@ tax income by type (types 4, 6 and 9). Findings:
      In run 19 the original budget sometimes settled after the observer's month line (2001-12 and 2002-01
      show last month's values), and ours always settled before it.
    - (b) A different x87 precision between the two runs, which would make the game's own simulators diverge.
-   - (c) A lot-set difference between the master lot list and `GetLotsInCellRect`.
+   - (c) A lot-set difference between the master lot list and `GetLotsInCellRect`. *Excluded* by BQ1 (§5.2):
+     the two sets are equal on every known path, and their order is equal for lots that existed at the load.
 
    A per-lot dump was requested to decide between them. The same runs also differ by 7 simoleons in non-tax
    monthly income (35 against 28: ordinance, neighbour deals and department line-item income), which is still

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "residential_month_end_to_end",
+  "spec": ["residential 5.1", "residential 5.5", "residential 5.6", "residential 5.7"],
+  "description": "A month on an 8 x 8 city from state 0 to state 10 (15 NewDays). The developers report (100, 20, 0) for an empty tract (0, 0). The population is copied from the developers (GetPopulation 120); the newcomers' EQ is the shipped R$ and R$$ bonuses 20 and 40 (m = 1, the old EQ is 0); the age is (100 x 25 + 20 x 30) / 120 = 3100 / 120 = 25. State 12 records 1 + 18 series, state 9 five more (24 in all); the global EQ is (20 x 100 + 40 x 20) / 120 = 23.33 -> 23.",
+  "steps": [
+    {"op": "residential_env", "cells": [8, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [0, 0, 0], "new": [100, 20, 0], "age": 0},
+    {"op": "residential_run_to", "state": 10, "steps": 15},
+    {"op": "residential_call", "method": "get_population", "expect": 120},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "pop": [100, 20, 0], "eq": [20, 40, 0], "age": 25},
+    {"op": "residential_expect_event_count", "filter": {"event": "history"}, "count": 24},
+    {"op": "residential_expect_events", "filter": {"event": "history", "series": "0xAA1A2864"}, "events": [{"value": 23}]}
+  ]
+}

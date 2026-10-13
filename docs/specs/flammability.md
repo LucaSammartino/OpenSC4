@@ -370,8 +370,10 @@ IGNITE:
 
 - The same `r` serves both tests. A random fire is tried with probability `randomFireProbability %` per cycle;
   if it finds no lot or no building, the hotspot test still runs with that (small) `r`.
-- With `useProbability = true` the fire manager applies its own ignition chance, a curve of the adjusted
-  flammability at the cell and its own generator. A hotspot fire ignites without that check.
+- With `useProbability = true` the fire manager applies its own ignition chance: `r' ≤ curve(adjusted value at
+  the cell)`, with its own generator (§13.1). A hotspot fire ignites without that check, although the fire manager
+  still reads the cell's value (§13.1). The fire manager's `IgniteCell` always returns true, so the result tells
+  the caller nothing (§13.1).
 - The original does not check the fire manager for null before calling it. *[choice]* FreeCity4 skips the
   ignition if the layer, the manager or the interface is missing.
 - The hotspot test checks only that a curve **object** exists, not that it has points. A curve loaded from a
@@ -554,11 +556,62 @@ reimplemented from foundations §4, §12 and simgrid §7.4.
 |---|---|
 | Safety advisor (`update_occupant_variables`, `update_variables`) | `GetAverageFlammability` (Lua variable `ga_flammability`), `GetFlammabilityHotspot` (`l_flammability_h…`, location) |
 | Query tool (`DescribeCell`) | `GetFlammabilityGrid()` → `GetCellValue(x, z)` |
-| Fire manager `IgniteCell` (probability mode) | `GetFlammabilityGrid()` → `GetCellValue(x, z)` → its own ignition curve |
+| Fire manager: `cSC4DisasterInstanceFire::IgniteCell` (`0x0057B170`), **both modes** | `GetFlammabilityGrid()` → `GetCellValue(x, z)` → its ignition curve. This is the fire manager's only read (below) |
 | Volcano lava (`SetThingsOnFire`, `BurnSurroundingStuff`) | `IsCellFlammable(x, z)` before igniting cells (cause 3) |
 | Map view (flammability layer) | `GetFlammabilityGrid()` → `GetTractWidthX/Z`, then **`GetGridData()`** and reads the rows' memory directly (`DisplayStandardUint8Grid`) |
 | Fire protection simulator | holds a reference from its `Init`, releases it in `Shutdown`; no call found *[inferred]* |
 | City | creates, `Init`/`Shutdown`, save/load (slot 26) |
+
+**Every read by the fire manager (from the exe).** The cached flammability pointer (global `0x00B43D7C`, filled at
+`0x00601EA9` from `cISC4City::GetFlammabilitySimulator`) is used in only ten functions in the whole image. Eight
+are listed in the table above (the safety advisor and the volcano have two each). The other two are the SL city
+init and shutdown, which fill and clear the pointer. The only one in the fire code is
+`cSC4DisasterInstanceFire::IgniteCell`.
+
+No fire class reaches the simulator any other way:
+- none calls city slot 58 (`+0xE8`);
+- nothing outside the city and the simulator itself uses its IID `0x48F41617` or CLSID `0xE990C045`;
+- the grid's instance ID `0x49D5B953` appears only in the simulator's own `Init`.
+
+So the fire manager reads flammability in exactly one place, and every route into it passes through there.
+
+`IgniteCell(x, z, useProbability, teleport, fireID)` is slot 7 (`+0x1C`) of the fire instance (vtable
+`0x00A9E5B0`). The manager's slot 5 forwards to it, and creates the instance first if the manager has none. The
+manager slot then returns AL = 1 **whatever the instance returned**. In order:
+
+1. `v := GetFlammabilityGrid().GetCellValue(x, z)` (slot 5, then grid slot 7, `0x0057B185`/`0x0057B196`).
+2. `c := ignition(float32(v))` (response curve, foundations §4.3, `0x0057B1AE`).
+
+   Steps 1 and 2 run **on every call, before the mode test**. A hotspot fire (`useProbability = false`, §6.8)
+   therefore reads the grid and evaluates the curve too, and then discards `c`. These reads have no side effects,
+   but a replacement grid must answer `GetCellValue` for any cell a fire is started on.
+3. If `useProbability`: `r' := RandomDoubleRangeUniform(0.0, 100.0)` on the fire instance's own `cRZRandom`.
+   If `r' ≤ c` **fails**, return false at once, with no other effect. An unordered compare passes.
+4. If `fireID = 0`: `fireID := RandomUint32Uniform()` on the same generator. This is one integer draw per fire
+   the flammability simulator starts, since it always passes 0.
+5. Ignite every occupant in the cell that passes the fire instance's occupant filter, using occupant manager
+   slot 40 over `(x, z)–(x, z)`. Return true if any of them ignited.
+
+`ignition` is property `0xA9B6ECDA` of the fire tuning exemplar "Flame", key {`0x6534284A`, `0x29B6C670`,
+`0xC9B6B73D`} (read by `ReadTunableValues`, `0x00579D0F`). Its shipped points are (0,0) (30,5) (50,10) (75,20)
+(90,30) (115,40) (160,50) (200,50). It maps the adjusted value (0..255) to a percentage.
+
+Example: suppose the adjusted value at the cell is 60. Then
+- `c = 10 + r24(r24(60 − 50) × 0.4f) = 10 + 4.0 = 14.0`;
+- a random-lot fire (or a spread) ignites when `r' ≤ 14.0`, about 14 %;
+- a hotspot fire at the same cell ignites with no draw for the check.
+
+At value 0, `c = 0` and only `r' = 0.0` passes. At 160 or more, `c = 50`.
+
+Paths into this read:
+- the flammability fire roll (§6.8): random-lot fires with `useProbability = true`, hotspot fires with `false`;
+- **fire spread**: `cSC4DisasterInstanceFire::UpdateFire` (`0x0057BB90`) picks a spread cell and, if it lies
+  inside the city, calls `IgniteCell(cell, true, false, the burning fire's ID)` (`0x0057BE8A`). So the adjusted
+  value of the *target* cell sets the chance of each spread;
+- every other caller of the manager's `IgniteCell` (slot 5), for example the volcano after its own
+  `IsCellFlammable` test. The other callers were not enumerated.
+
+`IgniteCellRadius`, `QuickBurnCell` and `Ignite` (by occupant) do not read flammability.
 
 ### 13.2 Replaceability findings
 

@@ -21,6 +21,14 @@
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 
+#include "cIGZApp.h"
+#include "cIGZFrameWork.h"
+#include "cISC4App.h"
+#include "cRZCOMDllDirector.h"
+
+#include <cctype>
+#include <string>
+
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -50,6 +58,17 @@ volatile LONG g_verdict = 0;  // Verdict as LONG; 0 = not written
 volatile LONG g_terminateArmed = 0;
 volatile DWORD g_terminateAt = 0;
 
+// autotest_end = quit: at the deadline the thread sets g_quitDue, the main
+// thread's next tick asks the game to quit (g_quitRequested), and the verdict
+// is written at PostSystemServiceShutdown.
+volatile LONG g_endQuit = 0;
+volatile LONG g_quitDue = 0;
+volatile LONG g_quitRequested = 0;
+volatile DWORD g_quitAt = 0;
+volatile LONG g_quitJulian = 0;  // the last day played (Shutdown resets the published date)
+constexpr DWORD kQuitGraceMs = 90000;         // [choice] the whole shutdown, city and app
+constexpr DWORD kExitAfterVerdictMs = 30000;  // [choice] then the process should be gone
+
 AutotestCounters Counters() {
     AutotestCounters c;
     c.foreignExceptions = ForeignExceptionCount();
@@ -60,8 +79,9 @@ AutotestCounters Counters() {
     return c;
 }
 
-// Writes the verdict once (the first caller wins). Returns true if written.
-bool WriteVerdict(Verdict v, unsigned wait, const char* reason) {
+// Writes the verdict once (the first caller wins).
+// `julian` < 0: the published day. Returns true if written.
+bool WriteVerdict(Verdict v, unsigned wait, const char* reason, long julian = -1) {
     if (InterlockedCompareExchange(&g_verdict, static_cast<LONG>(v), 0) != 0) return false;
     const AutotestCounters c = Counters();
     LogWait(wait, "autotest: %s", reason);
@@ -69,7 +89,7 @@ bool WriteVerdict(Verdict v, unsigned wait, const char* reason) {
             "AUTOTEST VERDICT: %s (foreign_exceptions=%ld, watchdog_stalls=%ld, rtc=%ld, overruns=%ld, "
             "ref_warnings=%ld, julian=%ld, switches_off=%s, disabled=%s)",
             VerdictName(v), c.foreignExceptions, c.watchdogStalls, c.rtc, c.overruns, c.refWarnings,
-            PublishedJulian(), SwitchesOffList(), DisabledSubsystemsList());
+            julian < 0 ? PublishedJulian() : julian, SwitchesOffList(), DisabledSubsystemsList());
     LogFlush();
     return true;
 }
@@ -88,8 +108,23 @@ DWORD WINAPI ThreadProc(void*) {
         const DWORD now = GetTickCount();
         if (g_terminateArmed && static_cast<LONG>(now - g_terminateAt) >= 0) Terminate(1000, "autotest thread");
         if (!g_started || g_verdict != 0) continue;
+        if (g_quitRequested) {
+            if (ElapsedMs(now, g_quitAt) > kQuitGraceMs) {
+                WriteVerdict(Verdict::Stalled, 1000, "the quit requested at the deadline did not finish in 90 s");
+                Terminate(1000, "autotest thread");
+            }
+            continue;
+        }
         const DWORD last = LastTickMs();
-        if (DeadlineVerdictDue(now, g_deadline, last)) {
+        if (g_endQuit && !g_quitDue && DeadlineVerdictDue(now, g_deadline, last)) {
+            LogWait(1000,
+                    "autotest: %ld s after the first tick of the loaded city: quitting at the next tick "
+                    "(autotest_end = quit)",
+                    static_cast<long>(g_seconds));
+            InterlockedExchange(&g_quitDue, 1);
+            continue;
+        }
+        if (!g_endQuit && DeadlineVerdictDue(now, g_deadline, last)) {
             const Verdict v = VerdictAtDeadline(Counters());
             char reason[96];
             _snprintf_s(reason, sizeof(reason), _TRUNCATE, "%ld s after the first tick of the loaded city",
@@ -119,9 +154,46 @@ void StartThread() {
     CloseHandle(t);
 }
 
+// Main thread: asks the game to quit (no dialog, no save), or ends the run as
+// usual if it cannot.
+void RequestQuitNow() {
+    g_quitAt = GetTickCount();
+    InterlockedExchange(&g_quitJulian, PublishedJulian());
+    InterlockedExchange(&g_quitRequested, 1);
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;  // borrowed from the framework
+    cISC4App* sc4 = nullptr;
+    if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
+        FC4_ACQUIRED(sc4, "QueryInterface");
+        const bool ok = sc4->RequestQuit(false, false);  // slot 10: (show dialog, save first)
+        FC4_RELEASE(sc4);
+        Log("autotest: cISC4App::RequestQuit(false, false) -> %d; the verdict follows at PostSystemServiceShutdown",
+            ok ? 1 : 0);
+        if (ok) return;
+    } else {
+        Log("autotest: no cISC4App to quit through");
+    }
+    AutotestFinish("deadline reached, but the quit could not be requested", "observer (autotest_end = quit)");
+}
+
+std::string LowerTrim(std::string s) {
+    size_t a = 0, b = s.size();
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    s = s.substr(a, b - a);
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
+}
+
 }  // namespace
 
 void AutotestReload() {
+    const std::string end = LowerTrim(Setting("autotest_end", "FC4_AUTOTEST_END"));
+    if (end == "quit") {
+        InterlockedExchange(&g_endQuit, 1);
+    } else if (!end.empty() && end != "terminate") {
+        Log("autotest: WARNING autotest_end='%s' is not quit or terminate; using terminate", end.c_str());
+    }
     long seconds = SettingInt("autotest_seconds", "FC4_AUTOTEST_SECONDS", 0);
     long unpause = SettingInt("autotest_unpause", "FC4_AUTOTEST_UNPAUSE", 0);
     if (seconds < 0) seconds = 0;
@@ -135,8 +207,10 @@ void AutotestReload() {
         Log("autotest: off");
         return;
     }
-    Log("autotest: ON - verdict %ld s after the first tick of a loaded city, then TerminateProcess; unpause %s",
-        seconds, unpause ? (unpause == 1 ? "to speed 1" : "to speed 2") : "off");
+    Log("autotest: ON - verdict %ld s after the first tick of a loaded city, %s; unpause %s", seconds,
+        g_endQuit ? "after quitting the game (cISC4App::RequestQuit, verdict at PostSystemServiceShutdown)"
+                  : "then TerminateProcess",
+        unpause ? (unpause == 1 ? "to speed 1" : "to speed 2") : "off");
     StartThread();
 }
 
@@ -151,6 +225,10 @@ void AutotestOnCityLoaded() {
 
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
+    if (g_quitDue && !g_quitRequested && g_verdict == 0) {
+        RequestQuitNow();
+        return 0;
+    }
     const DWORD now = GetTickCount();
     if (!g_started) {
         g_startMs = now;
@@ -172,6 +250,16 @@ int AutotestOnTick() {
 void AutotestFinish(const char* reason, const char* from) {
     WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason);
     Terminate(1000, from);
+}
+
+void AutotestOnShutdownComplete(const char* hook) {
+    if (!g_quitRequested || g_verdict != 0) return;
+    char reason[128];
+    _snprintf_s(reason, sizeof(reason), _TRUNCATE, "the game quit at the deadline and reached %s", hook);
+    if (!WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason, g_quitJulian)) return;
+    // The game exits by itself from here; if it does not, the thread ends it.
+    g_terminateAt = GetTickCount() + kExitAfterVerdictMs;
+    InterlockedExchange(&g_terminateArmed, 1);
 }
 
 void AutotestOnForeignException() {

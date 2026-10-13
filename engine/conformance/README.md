@@ -279,8 +279,9 @@ The demand, ordinance and weather vectors share a few conventions (`src/scalar.r
 
 - Each family keeps its own fake world for the whole vector, created by its first op.
 - Numbers may be written as integers, floats or `"0x…"` strings. Results are compared with a relative tolerance
-  of 1e-5 (demand spec §14), exactly when both sides are integers; objects are compared key by key, with keys
-  compared as integers when both parse.
+  of 1e-5 (demand spec §14), exactly when both sides are integers (an integer result against an expected `"0x…"`
+  or decimal string is exact too, so an ID never matches its neighbour); objects are compared key by key, with
+  keys compared as integers when both parse.
 - Events go to one log. `*_expect_events` (`events`, `filter?`) checks the events since the last check, one to one
   and in order, each given as a partial object (only the keys written are checked), after keeping only the events
   that match `filter`; it then clears the log. `*_expect_event_count` (`filter?`, `count` / `min` / `max`) counts
@@ -1190,6 +1191,103 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 `count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
 `place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`).
 
+## Traffic network ops
+
+The traffic network vectors (`tn11_…`) drive `fc4_core::traffic_network::NetworkModel` (`docs/specs/traffic-network.md`)
+over one scripted world implementing `NetworkHost`. Every op name starts with `tn_`. The default world is a 4 × 4-cell
+city of 16 m cells with the shipped tuning (§4.5) and no speeds, occupants, lots, water or neighbour connections, as
+in the §11 preamble. Cells map to world positions at their centre (`16x + 8`, `16z + 8`). Occupants answer
+`PathConnection` only for the listed (path type, entry, exit) triples and the turn-around test only for the listed
+entries; `GetPathInfo` always succeeds. A lot's anchor (`GetLot(x, z, true)`, `GetLocation`) is its NW cell.
+
+Floats are compared bit-exactly as `"0x3C23D70A"` strings (upper case, 8 hex digits); routes are lower-case hex byte
+strings (`"0000004005aa02"`).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `tn_env` | any of `cells` (`[x, z]`), `tuning` (`"shipped"` or null = the constructor's), `speeds` (`[[t, type, v]]`, raw "Max speed by Network" values), `cell_width` (16) | the world; read at `tn_init` |
+| `tn_init` | — | `NetworkModel::new`, the tuning and the inverse speed table (§4.8 step 5), then `Init` (§1) |
+| `tn_occupant` | `id`, `cell` or `pos` (`[x, y, z]`), `kind?` (`network` (default), `subway`, `prop`, `building`), `types?`, `conns?` (`[[entry, exit]]` for `path_type?` (1), or `[[pt, entry, exit]]`), `turns?` (entries), `flags?`, `tunnel?` (the paired portal's id, or true), `props?` (property map), `prop_type?`, `bounding?` (`[x1, z1, x2, z2]`), `paths?` (`[[entry, exit, vertex]]`), `near?` (`[[vertex, exit, [entries]]]`) | adds or replaces an occupant; `building` occupants answer no rectangle query |
+| `tn_remove_occupant` | `id` | takes the occupant out of the rectangle queries; it stays readable, as during its removal message |
+| `tn_lot` | `id`, `rect`, `facing?` (0), `building?`, `holder?` (id + `0x10000`), `pops?` (`[[[type, count]]]`, one list per map), `trip_caps?` (4 values, `GetMaxTripCapacity`), `props?` (the holder's initial properties) | a lot |
+| `tn_water` | `cells` or `rect`, `depth`, `body?` (1), `under_water?` (true) | navigable cells with a depth and a water-body ID |
+| `tn_damaged` | `cells` | the pothole cells (`IsRoadDamaged`) |
+| `tn_connection` | `id`, `type`, `cell`, `pool?` (holder token), `pool_cells?` (the cells `GetNeighborPoolPropertyHolder` answers at; default `cell`), `trip_caps?` | a neighbour connection |
+| `tn_curve` | `points` (`[[x, y]]`), `multiplier?` (1.0) | the congestion curve and transit multiplier (§4.7.3) |
+| `tn_switch` | `id`, any of `load`, `capacity`, `time_factor` | a switch table entry, inserted if missing (test setup, §11 test 10) |
+| `tn_set_cell` | `cell` or `cells`, `prior_car` | pokes cell connection records (test setup, §11 test 6) |
+| `tn_rng` | `seed` | a `cRZRandom` the model never sees (§11 test 12) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tn_call` | `method`, `args?`, `expect?` | `occupant_changed [id, removed?]`, `do_post_city_init`, `post_city_init_rebuild`, `post_city_init_finish`, `do_connections_changed [x1, z1, x2, z2]`, `set_connection [x, z, e, x', t]`, `update_intersection_data`, `get_capacity [n, x, z]` (bits), `get_connection_count [n, x, z]`, `are_lots_connected [a, b]`, `get_connected_occupant_count [lot, type]`, `get_connected_destination_count [lot, k]`, `get_subnetworks_for_lot [lot]` (`{ids, ok}`), `get_subnetworks_in_rectangle [x1, z1, x2, z2]`, `get_subnetworks_in_region [x1, z1, x2, z2, [[x, z]]]`, `get_occupant_count_for_all_subnetworks [type]`, `transit_switch_entry_cost [id]` (bits), `lot_activated [lot]`, `lot_deactivated [lot]`, `get_transit_switches`, `transit_switch_query_target [x, z]` (`{switch}` / `{ferry}` / null), `tunnel_changed [id, removed]`, `find_water_path [sx, sz, tx, tz]` (`{cells, g, forward, backward}` or null), `get_water_route [x1, z1, x2, z2, initial hex]` (`{ok, route}`), `water_terrain_changed [data1, data2]`, `water_update`, `has_map_exit [x, z]`, `neighbor_connection_inner_cell [x, z]` (`[x, z, side]` or null), `set_neighbour_edge [x, z, mask, pool, cost]`, `begin_ferry_pass`, `work_on_ferry_routes [max]`, `ferry_terminal_count [type]`, `all_ferry_routes`, `ferry_route_between_tiles [x1, z1, x2, z2]`, `ferry_routes_in_use`, `clear_subnetworks`, `update_subnetworks`, `fill [x, z, e]`, `begin_subnetwork_info`, `work_on_subnetwork_info [max]`, `update_subnetwork_info` |
+| `tn_eval` | `fn`, `args`, `expect` (objects partial) | pure functions: `depth_byte [navigable, w]`, `step_cost [depth, g]`, `heuristic [dx, dz]`, `route_cost [cells]`, `encode_route [[[x, z]]]`, `side_of [ax, az, bx, bz]`, `tunnel_distance [dx, dy, dz]`, `inverse_max_speed [v, cell width]`, `read_rules [facing, [entries]]` (`{rules, to_mask, flags, mode_mask}`) |
+| `tn_expect_cell` | `cell` or `cells`, `expect` (partial: `conn` [9], `switch` [9], `prior_car` [4], `wormhole`, `switch_id`, `switch_mode`, `records` (each `{net, conn_count, type, inv_cap, extra_cost, flags, subnet}`, partial), `car` (the first car record, or null), `water_depth`) | the cell connection record, the network-info list and the grids |
+| `tn_expect_state` | `state` (partial: `count`, `subnet_counter`, `working_len`, `published_len`, `published` (`[{population, capacity}]`), `intersection_dirty`, `intersection_rect`, `subnetworks_stale`, `network_changed`, `occupants_changed`, `next_switch_id`, `switch_ids`, `ferry_counts`, `terminal_count`, `ferry_pass_running`, `ferry_pass_terminal`, `edge_density_keys`, `inv_cap_table`, `intersection_values`, `damaged_road_cost`, `posted`, `refs`) | the model state and the world's posted messages and references |
+| `tn_expect_tunnel` | `cell`, `record` (null, or partial `{other, mask, type, cost}` with `cost` keyed by travel type) | the tunnel table |
+| `tn_expect_lot` | `lot`, `subnetworks` (null = property `0x2A4F9C74` absent) | the lot's list |
+| `tn_expect_switch` | `id`, `switch` (null, or partial `{building, load, time_factor, capacity, flags, to_mask, mode_mask, has_access_point, access, simulator_value, counts_as_intersection, rules}`) | the switch table (read without inserting) |
+| `tn_expect_ferry` | `index`, `terminal` (null, or partial `{departure, arrival, water, lot, type, mask, reroute, links, neighbour_links}`) | the ferry terminal list |
+| `tn_expect_rng` | `expect?` | the generator's next `RandomUint32Uniform(100)` equals a fresh generator's with the same seed |
+
+## Residential ops
+
+The residential vectors (`rs15_…` for the tests of `docs/specs/residential.md` §15, `rs00_…` for the rest) drive the
+residential simulator (`fc4_core::residential`) over one scripted world implementing `ResidentialHost`: the three
+growth developers' population maps (`int16`, tract size `dev_size`), the BDS building map, the pollution source
+values (one value per kind, at every cell), the month and day number, the terrain altitude, the effects manager,
+occupants (their groups and bool properties), and departments (tokens 900, 901, … in creation order). Every op
+name starts with `residential_`. The default world is a 16 × 16-cell city, `dev_size` 4, the shipped tuning
+(`shipped_tuning()`), month 6, day 1000, altitude 0, every service present, effect token 500, no pollution, no
+building map. The education and health building work (REH) is not in this core. The world answers those hooks
+as a city without service buildings, except for these:
+- the served counts it is given;
+- the combined strike chance;
+- the ordinance decay products;
+- a building hook that appends an inserted building to the pending school list, holding one reference.
+
+Objects are tokens and grids are core `SimGrid`s, so a record read back shares the writer's grids.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `residential_env` | any of `cells` (`[x, z]`), `dev_size`, `month`, `today`, `tuning` (`"shipped"`, `"empty"` or null = no exemplar), `tuning_props` (`{"0xID": value or null}`, merged into the tuning; null removes), `pollution` (`[air, water, garbage]`), `altitude`, `effect` (the effect `CreateVisualEffect` returns, or null), `building_map` (`{size?, cells: [[x, z, key]]}` or null), `demand_node`, `message_server`, `simulator`, `building_dirty` (what the building hook reports), `served` (`[school, hospital]`), `ordinance` (`[edu, health]` decay products), `strike_chance`, `groups` (`{"occupant": ["0xGROUP", …] or null}`; a listed occupant is a building occupant) | the world; `cells` and `dev_size` recreate the developers' maps; grids are sized at `Init` |
+| `residential_create` | `rng?` (`{draws: [v, …]}`: each `RandomDoubleRangeUniform(a, b)` returns the next value verbatim, or `b` when none is left; or `{session}`: `derive_seed(session, 0x4990C013)`), `proximity_size?`, `work_budget?` | a new constructed simulator, which replaces the current one |
+| `residential_tract` | `x`, `z`, any of `pop` (current populations), `new` (the developers' maps), `steady` (both), `eq`, `hq` (floats or `"0x…"` bit patterns), `age` | one population tract |
+| `residential_grid_set` | `grid`, `cells` (`[[x, z, v]]`) and / or `all` | writes a grid: `proximity1`–`3`, `population1`–`3`, `eq1`–`3`, `hq1`–`3`, `age`, `school_grade`, `hospital_grade`, `school_coverage0`–`6`, `hospital_coverage0`–`2`, `temporary`, `developer1`–`3`, `building_map` |
+| `residential_set` | `work_budget?`; `state`: any of `state`, `dirty`, `population`, `running_population`, `le_sum`, `age_count` / `age_eq_sum` (an array or `{"bucket": v}`), `school_covered`, `hospital_covered`, `proximity_size`, `unused` (`[f1, f2]`), `health` / `education` (block fields), `lists` (`pending_school`, `pending_hospital`, `other`, `school_groups`, `hospital_groups`, `health_affecting`; null entries allowed), `school_auto_budget`, `hospital_auto_budget`, `iterator` (`{step?, advance?}`) | pokes state (test setup) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `residential_init` / `residential_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `residential_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `OccupantInserted`, `OccupantRemoved` or an ID), `occupant?` (void1), `data3?` (default the building type `0x278128A0`), `count?`, `expect?` | `DoMessage`, each result checked |
+| `residential_run_to` | `state`, `steps?` | NewDay until the state is reached (every step must finish); `steps` checks how many were taken |
+| `residential_call` | `method`, `args?`, `expect?`, `bits?`, `partial?` (objects compared key by key) | a method: `do_population_change [x, z]`, `hq_loss [x, z]`, `tract_quotient [eq/hq, x, z]`, `get_cell_eq` / `get_cell_hq [x, z]`, `get_cell_eq_by_wealth` / `get_cell_hq_by_wealth [x, z, w]`, `get_global_eq`, `get_global_hq`, `get_cell_life_expectancy [x, z]`, `get_global_le`, `get_cell_workforce_percent [x, z]`, `get_global_workforce_percent`, `get_average_new_age_by_wealth [w]`, `get_population`, `max_quotient`, `total_city_upkeep_cost`, `average_grid [eq/hq]` (`{min, max, values (x outer, z inner), instance, size, refs}`), `average_grid_is_new [eq/hq]`, `quotient_min_max [eq/hq]` (`[minX, minZ, maxX, maxZ, min, max]` or null), `grid_triple [eq/hq/population]` (`{result, instances, added}`: the reference count each grid gained), the strike slots (`school_is_on_strike`, `end_school_strike`, `chance_of_school_strike`, and the health ones), `school_building_count`, `school_buildings [groups or null]`, `hospital_building_count`, `hospital_buildings`, `health_affecting_buildings`, the auto-budget slots (`global_auto_budget_schools`, `set_global_auto_budget_schools [v]`, the hospital ones, `get_auto_budget [occ]`, `set_auto_budget [occ, v]`), `set_occupant_funding [occ, staff, vehicle, school]`, `get_proximity [w, x, z]` (the value, or null without a map), `add_ref`, `release`, `class_id`, `tuning` (the population tuning); and the pure `age_bucket [age]`, `pct [x]`, `slot [n]` (`[name, pops, return]` with return `AL`, `EAX`, `ST0`, `hidden` or `none`), `slot_count`, `query_interface [iid]` |
+| `residential_expect` | `state` (partial; the `residential_set` fields plus `initialized`, `city_started`, `ref_count`, `destroyed`, `message_server_held`, `population_size`, `eq_size`, `tuning_loaded`, `temporary` (exists), `departments` (`[health1, health2, education1, education2]`), `iterator` (`{state: fresh/running/done, x, z, step, rect}`)); `bits?` | the simulator state; objects compare key by key |
+| `residential_expect_tract` | `x`, `z`, any of `pop`, `eq`, `hq`, `age`; `bits?` | one tract |
+| `residential_expect_grid` | `grid` (as for `grid_set`); any of `exists`, `size`, `counts`, `instance`, `cells`, `all`, `others` (every tract not in `cells`); `bits?` | a grid |
+| `residential_expect_refs` | `refs` (`{"id": count}`) | references the simulator holds on world objects (AddRef − Release) |
+| `residential_expect_events` / `residential_expect_event_count` / `residential_clear_events` | see the shared conventions | host calls |
+| `residential_write` | `slot`, `expect?`, `length?` | `Write`; the bytes and the registry entries are kept in `slot` |
+| `residential_read` | `slot` or `hex`, `version?` (rewrites the first two bytes), `length?` (truncates), `patch?` (`[{offset, hex}]`), `reuse?`, `rng?`, `expect?` | `Read` into a new constructed simulator (the class store's path), or with `reuse` into the current one |
+| `residential_expect_record` | `slot`, any of `length`, `at` (`[{offset, hex}]`), `same_as` (another slot) | record bytes |
+
+With `"bits": true` every float in the result becomes its float32 bit pattern (`"0x3F4CCCCC"`), compared exactly.
+
+Residential events:
+- lifecycle: `acquire_services`, `acquire_developers`, `demand_node`, `message_server`, `budget_simulator`, `simulator`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`), `release_message_server_and_budget`, `release_services`, `queue_length` (`series`, `length`);
+- departments and grids: `department` (`id`, `name`, `max`, `init`, `token`), `release_department` (`token`), `shutdown_grid` (`instance`; the temporary grid is 0);
+- references: `add_ref` / `release` (`id`);
+- the month pass: `get_month`, `effect` (`name`), `transform` (`effect`, `pos`), `start_effect` (`effect`), `history` (`series`, `value`), `rng` (`lo`, `hi`, `value`);
+- the REH hooks: `strike` (`type`, `occupant`, `data2`, `data3`), `ordinance_effects`, `strike_checks`, `building_changed` (`id`, `inserted`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1199,7 +1297,8 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
-   `zn15_…` (zones §15).
+   `zn15_…` (zones §15), `tn11_…` (traffic network §11), `rs15_…` (residential §15) and `rs00_…` (other
+   residential behaviour).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1782,3 +1881,92 @@ Not covered by a vector, and why:
   branch (Q = 2) and the z-line `2` arm. Not pinned: the x-line `1` arm (Q = 1), the `D != 3` branch of the x-line
   `0 | 2` arm, and the z-line `0` and `1` arms — these are the other cells of the §7.5 table, which the current
   scenarios never select.
+
+## Coverage (traffic network §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 three-cell street (`conn` words, records, `GetCapacity` 100.0, `GetConnectionCount` 2) | `tn11_01_three_cell_street` |
+| 2 subnetworks of test 1 (labels, counter 2, vector sizes, the empty seed at A) | `tn11_02_subnetworks` |
+| 2 the last column is never a seed (C alone) | `tn11_02b_last_column_never_seed` |
+| 3 lot lists and queries (L1, L2, the lot without a list) | `tn11_03_lot_lists` |
+| 4 intersection reduction: Street, Road, Highway never reduced | `tn11_04a_street_intersection`, `tn11_04b_road_intersection`, `tn11_04c_highway_not_reduced` |
+| 5 capacity table (`invCapTable`, Road / Highway / OneWay / Dirt capacities) | `tn11_05_capacity_table` |
+| 6 turn-around via `SetConnection` (`0x4444`, the off-map west neighbour) | `tn11_06_set_connection` |
+| 7 tunnel cost (mask `0x1FE`, Car / Walk / PassengerTrain costs) | `tn11_07_tunnel_cost` |
+| 8 water route (depth bytes, cells 6, g 5.0, link cost, both route byte strings, different bodies) | `tn11_08_water_route` |
+| 9 ferry cost encoding | `tn11_09_ferry_cost` |
+| 10 switch entry cost (q = 0, q = 6, 0/0, unknown ID) | `tn11_10_switch_entry_cost` |
+| 11 rule rotation (facing 1, `0x01018000`) | `tn11_11_rule_rotation` |
+| 12 no random draws | `tn11_12_no_random_draws` |
+| extra: transit-switch lot activation, the §4.7.4 phase, deactivation | `tn11_13_switch_lot` |
+| extra: ferry terminals (activation, routing, the ferry phase, removal, the periodic pass) | `tn11_14_ferry_terminals` |
+| extra: lane continuity (the last flagged occupant decides) | `tn11_15_lane_continuity` |
+| extra: neighbour capacity counted per labelled entry side | `tn11_16_neighbour_capacity` |
+| extra: `GetNeighborConnectionInnerCell` and `HasMapExit` (§2.7) | `tn11_17_map_edge` |
+
+Not covered by a vector, and why:
+
+- **The second half of test 12** (DoLotActivated's one draw on the simulator's generator, §12) belongs to
+  traffic-simulator.md: the network model has no generator.
+- **`GetDesiredLotInsertionPoint` (§4.14)**, the persistence record (§6) and the simulator's message bookkeeping (§3)
+  are traffic-simulator.md's and not part of `fc4_core::traffic_network`.
+- **`GetFerryRoutesInUse` (§4.9.5)** needs rider counters, which only the simulator's ferry trips write; the vector
+  world has no way to set them, so only the empty result is reachable (unit tests cover the list shape).
+
+## Coverage (residential §15)
+
+| §15 item | Vector |
+|---|---|
+| 1 proximity, one source (Manhattan R$, 255 for R$$ / R$$$; RS5) | `rs15_01_proximity_one_source` |
+| 2 proximity cap (200 at x = 200, 255 at x = 280) | `rs15_02_proximity_cap` |
+| 3 proximity, coarser target (tract (1, 0) = 0, (0, 0) = 1) | `rs15_03_proximity_coarser_target` |
+| 4 decay (10 → 9.8, 0.1 → 0) | `rs15_04_decay` |
+| 5 newcomers' age (35) | `rs15_05_06_newcomers_age` |
+| 6 age quirk (71) | `rs15_05_06_newcomers_age` |
+| 7 December (41, 255 → 0, total 0 → 0; RS2) | `rs15_07_december` |
+| 8 generational reset (RS1: `0x421FFFFF`, `0x423FFFFF`, ageEqSum 7800) | `rs15_08_generational_reset` |
+| 9 buckets | `rs15_09_buckets` |
+| 10 age groups (float32 rounding of n) | `rs15_10_age_groups` |
+| 11 average LE (71) | `rs15_11_average_life_expectancy` |
+| 12 per mille (half to even, the series order) | `rs15_12_per_mille` |
+| 13 quotient wrap (156.810) | `rs15_13_quotient_wrap` |
+| 14 pollution byte (44 → 0.2085938; RS3) | `rs15_14_pollution_byte` |
+| 15 life expectancy (75, 55) | `rs15_15_life_expectancy` |
+| 16 workforce (0.5 through the hidden pointer, ≈ 0.444) | `rs15_16_workforce` |
+| 17 new age (35, 25 without the exemplar) | `rs15_17_new_age` |
+| 18 NewMonth | `rs15_18_new_month` |
+| 19 NewDay unfinished (work budget, resume, same result) | `rs15_19_new_day_unfinished` |
+| 20 `Read` versions (2, 3, 4–6, 7, any version, truncation) | `rs15_20_read_versions` |
+| 21 `Init` after load (strike flag cleared) | `rs15_21_init_after_load` |
+| 22 slot ABI (slots 10, 21, 23–25) | `rs15_22_slot_abi` |
+| 23 buzzards draws (1.5 → one draw, 2.0 → none, pop 0 → none) | `rs15_23_buzzards` |
+| 24 percentage getter (RS1) | `rs15_24_percentage_getter` |
+| extra: `Init` / `Shutdown` call order, new-city sizes, grid instances | `rs00_lifecycle` |
+| extra: `Init` failures, the held message server, `AddRef` / `Release`, `QueryInterface`, class ID | `rs00_identity_and_init_failures` |
+| extra: the state order (§5.1), state 10 and unknown states wait | `rs00_state_order` |
+| extra: state-0 list distribution, slots 46–49 and 61 (REH §4.1) | `rs00_state0_lists` |
+| extra: occupant messages (§4.3) | `rs00_occupant_messages` |
+| extra: slots 5, 17/18, 19, 37/38, 50–57 | `rs00_small_slots` |
+| extra: a month end to end | `rs00_month_end_to_end` |
+| extra: RS2 (the month read per tract) | `rs00_rs2_month_per_tract` |
+| extra: the record layout (452 bytes, the state at offset 230, the dirty byte, list sizes) and a byte-exact round trip | `rs00_record` |
+| extra: version < 5 / < 6 block conversions (RS1); `Read` releases what it replaces | `rs00_record_old_versions` |
+| REH 8, 9 (the strike flags, `EndStrike` message, chance 1.0 on strike) | `rs00_reh08_09_strikes` |
+| REH 11 (per mille 247) | `rs15_12_per_mille` |
+| REH 12, 22 (quotient, average grid, min / max coordinates; RS4, RS6) | `rs00_reh12_22_quotients` |
+| REH 13, 14, 15 | `rs15_15_life_expectancy`, `rs15_04_decay`, `rs15_14_pollution_byte` |
+| REH 16, 17 (newcomer blend, reset with RS1) | `rs00_reh16_17_newcomers_and_reset` |
+| REH 23 (death's door: draws, transform, one effect per tract) | `rs00_reh23_deaths_door` |
+| REH 24 (slot rows) | `rs15_22_slot_abi` |
+
+Not covered by a vector, and why:
+
+- **REH tests 1–7, 10 and 18–21** are the education and health building work (coverage maps, grades, budgets,
+  auto-budget, the strike rolls, ordinance effects, query data). `fc4_core::residential` leaves them to the
+  `EducationHealth` hooks, so the world here answers them as a city without service buildings. They belong to the
+  host that implements REH.
+- **The 5 ms CPU-cycle slicer (§5.2)** is replaced by a work budget ([choice]); test 19 pins the budget's resume
+  behaviour, not the clock.
+- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
+  `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
