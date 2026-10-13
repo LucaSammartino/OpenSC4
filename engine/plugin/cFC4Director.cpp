@@ -22,6 +22,7 @@
 // exception guard that logs the fault and fails the request instead of
 // letting it escape into the game.
 
+#include "FC4ClockProbe.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
@@ -309,6 +310,7 @@ public:
         fc4::PopupDialogsApply("PostAppInit");
         // Tooling that runs in every mode (autotest, digest, tick feed).
         fc4::ObserverStart();
+        fc4::ClockProbeStart();  // clock_probe (FC4ClockProbe.h): the M1 clock differential
         fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
@@ -316,6 +318,7 @@ public:
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
         fc4::FpuLog("hook PreAppShutdown");
+        fc4::ClockProbeStop();
         fc4::ObserverStop();
         return true;
     }

@@ -146,6 +146,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4FailFast.cpp
         plugin/FC4FailFast.h
         plugin/FC4Observer.h
+        plugin/FC4ClockProbe.cpp
+        plugin/FC4ClockProbe.h
         plugin/FC4Popups.cpp
         plugin/FC4Popups.h
         plugin/FC4Fpu.h
