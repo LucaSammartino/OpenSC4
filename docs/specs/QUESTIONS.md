@@ -339,8 +339,11 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
 
 About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answer is in brackets.
 
-- **PG1 — slot 55 `GetRecyclingCenterCurrentCapacity`:** the spec says a bool in AL; `docs/abi` says ST0 (a float).
-  Which? [bool; the slot is waived in abi_conformance_test]
+- ~~**PG1 — slot 55 `GetRecyclingCenterCurrentCapacity`:** the spec says a bool in AL; `docs/abi` says ST0 (a float).
+  Which? [bool; the slot is waived in abi_conformance_test]~~ **ANSWERED 2026-10-14** from the exe (`0x006E3720`)
+  and written into the pollution.md slot table. **The bracket is right: bool in AL** (slot 53's result, untouched).
+  The percentage is stored through the reference, and the x87 stack is empty on return. `docs/abi`'s ST0 is wrong;
+  the abi rows are the coordinator's to fix.
 - **PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
   void. [int64; waived]
 - **PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]
