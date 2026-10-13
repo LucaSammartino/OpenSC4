@@ -156,6 +156,21 @@ plugin.
        `power_occupants`, `power_poles`, `power_lots`, `power_neighbors`, `power_budget`, `power_grid_writes`,
        `power_posts`, `power_terrain`, `power_zone_tool`, `power_view`, `power_radiation`,
        `power_occupant_query`, `power_demolish`, `power_direct_calls` (see `plugin/FC4Config.h`).
+     - `protection`: the fire and police simulators together (`cSC4FireProtectionSimulator`,
+       `cSC4PoliceSimulator`, protection spec; replaced together, §13.2). Their coverage grids are the game's own
+       `cSC4SimGrid<uint8>` / `<int16>`, created through GZCOM. The fire plane and police helicopter dispatch
+       sources are the game's classes, created through GZCOM; their `Init` / `Shutdown` are direct calls, made only
+       on the identified executable (otherwise no air source, logged). The getters the game calls from its second
+       thread are served under a per-object lock; a thread that cannot get it within 20 ms gets the last month-end
+       values (or a neutral one) and is counted as `fallbacks=`. The game calls have their own switches (default
+       `1`, environment `FC4_PROTECTION_<KEY>`): `protection_occupants`, `protection_budget`,
+       `protection_dispatch`, `protection_automata`, `protection_grid_writes`, `protection_posts`,
+       `protection_history`, `protection_air_sources` (see `plugin/FC4Config.h`). Log lines:
+       `cFC4FireProtectionSimulator(…) created`, `protection Init (fire): init=1 … stations=… department=…
+       grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
+       maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
+       `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`.
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -297,6 +312,29 @@ plugin.
        mismatches=M; checks=K clean=C
      demand shadow yyyy-mm-dd modifiers R$ (0x21010): tax …; econ …; before …; ours: max rate … ratio … curve …
      ```
+   - **Protection shadow** (`protection_shadow = 1`, env `FC4_PROTECTION_SHADOW`; off by default): a same-process
+     differential of the fire and police coverage grids. It needs the **original** fire and police simulators (do
+     not enable `protection`; otherwise `protection shadow: requested … but INACTIVE`). At every `SimNewMonth` (the
+     observer's notification), per simulator, the original's adjusted grid (slot 5), department, strike flag,
+     station list, chance of strike, total dispatch count and per-station efficiency and dispatch radius are read
+     through its public getters; FreeCity4's core (`fc4_protection_shadow_run`, over a read-only host table: no
+     callback that changes the game) rebuilds the unadjusted grid from those stations and the dispatch manager's
+     active dispatches (§5.1) and derives the adjusted grid (§2), which is compared tract by tract. The original's
+     adjusted grid lags its unadjusted grid by up to one daily pass (§5.3, about 51 fire / 41 police days), so an
+     exact match is expected only when our grid was the same at two month ends in a row and no dispatch is active
+     (`expectExact=1`); a mismatch then also logs a `WARNING` line. The original's unadjusted int16 grid and its
+     cycle accumulators have no getter (logged at game start), so they are not compared. Lines (always written):
+
+     ```
+     protection shadow (fire|police) yyyy-mm-dd: cells=N mismatches=M max|diff|=D stations=S dispatches=K stable=s
+       expectExact=0|1 first=(x,z):orig/ours,…(8); efficiency mismatches=a/S [(first …)]; radius mismatches=b/S;
+       strike=0|1; chance orig/ours=…/…[ MISMATCH]; totalDispatch orig/ours=…/…; avg=… pct=… (original)
+     protection shadow (fire|police) yyyy-mm-dd: WARNING M cells differ although the grid should be exact (…)
+     protection shadow (fire|police) yyyy-mm-dd: skipped (…)
+     ```
+
+     Success: `mismatches=0` on every line with `expectExact=1`, `efficiency mismatches=0/S`, `radius
+     mismatches=0/S`, equal chance and total dispatch.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
