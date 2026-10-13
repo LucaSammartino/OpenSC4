@@ -153,20 +153,51 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   DoPostCityInit still re-reads every switch's rules (`0x00720466`) and **appends** them, so a loaded switch holds
   its rules twice *[quirk]*. This has no effect on the rebuild and shows only in the next save. *[choice]* FreeCity4
   replaces the rules instead.
-- **TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
-  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]
-- **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
-  [reached, not extended]
-- **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
-  [off-map]
-- **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
-  IDs are found depends on it. Which order is right? [BoundaryIterator]
-- **TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]
-- **TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]
-- **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
-- **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
-  [overwrite; no record]
-- **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
+- ~~**TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
+  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]~~ **ANSWERED
+  2026-10-14** from the exe and written into §4.7.2 (the TN3 re-read steps, plus "Access points after the re-read").
+  The bracket is **partly right.**
+  - The mask and flags are recomputed only when the lot at the NW corner exists: the mask from the re-read entries,
+    the flags from the first n rules. Otherwise the mask is 0 and the flags are as `Read` left them.
+  - The access point is refreshed only for a switch with flag 4 and no saved access point. It is then the **NW
+    cell** of the building's bounding cells, with no occupant search. A saved point is kept, and with flag 4 clear
+    "has access point" := 0.
+- ~~**TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
+  [reached, not extended]~~ **ANSWERED 2026-10-14** from the exe (`UpdateIntersectionData` `0x0071BB1B`–
+  `0x0071BC3A`) and written into §4.6. **The bracket is right: reached, not extended.** The intersection test runs
+  first, so such a cell can set `best`, and then the search stops there. The order of the stop tests and the absence
+  of a visited set are now stated.
+- ~~**TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
+  [off-map]~~ **ANSWERED 2026-10-14** from the exe (`UpdateSubnetworkInfo` `0x0071674F`–`0x00716755`) and written into
+  §4.12. **The bracket is right: off-map.** The mapped cell is used only to find the car record and its `subnet[]`.
+  The holder is asked with the connection's own (off-map) cell.
+- ~~**TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
+  IDs are found depends on it. Which order is right? [BoundaryIterator]~~ **ANSWERED 2026-10-14** from the exe
+  (`BoundaryIterator::GetNext` `0x0060CEE0`, set up with x as the fast coordinate at `0x0071633C`) and written into
+  §4.12 step 1 and test 3. **The bracket is right: BoundaryIterator.** The order is first row, then the middle rows
+  at x0 and x1, then the last row. So L1's ring is (1, 1), (0, 2), (2, 2), (1, 3), and the test now says so.
+- ~~**TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00720C8A`–`0x00720CAE`, compared with the state-19 entry
+  `0x0072134C`–`0x007214CA`) and written into §4.9.3. **The bracket is right: no.** DoPostCityInit only sets the
+  re-route flags, points the pass at the first terminal and zeroes its sub-step. The neighbour step therefore walks
+  the vector as it stands, which is empty after construction.
+- ~~**TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]~~ **ANSWERED
+  2026-10-14** from the exe (`GetFerryRoutesInUse` `0x0071C250`) and written into §4.9.5. **The bracket is right:
+  last.** Both the non-zero test and the copied counters read the last fields: `+0x20`/`+0x24` of a terminal link,
+  `+0x2C`/`+0x30` of a neighbour link. The field offsets are now listed.
+- ~~**TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]~~ **ANSWERED
+  2026-10-14** from the exe (`DoFerryTerminalActivated` `0x0072384A`–`0x007238AB`) and written into §4.9.1. **The
+  bracket is right: no.** With no qualifying side, the loop ends without storing, so an earlier water cell and its
+  flag stay. Also clarified: the stored water cell is the under-water **neighbour** N, not the marker's own cell.
+- ~~**TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
+  [overwrite; no record]~~ **ANSWERED 2026-10-14** from the exe (`DoTunnelChanged` `0x00714154`,
+  `0x00714386`–`0x00714396`) and written into §4.8. **The bracket is right on both counts.** A re-insert does
+  find-or-insert and copies the whole record over it. A null paired portal (or no matching type) returns before
+  that, so no record is created and an existing one is left as it was.
+- ~~**TN12 — §4.2:** are edge-density entries created for both evening values? [both]~~ **ANSWERED 2026-10-14**
+  from the exe (`DoConnectionsChanged` `0x0071AD20`–`0x0071AE1E`) and written into §4.2 step 3. **The bracket is
+  right: both.** For every t on n, the evening-0 key and then the evening-1 key (`| 1 << 24`) are each looked up.
+  A missing one is inserted as a copy of the zero record; an existing one is not touched.
 - ~~**TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
   `0x69D5C424` the "wormhole byte map". [none]~~ **ANSWERED 2026-10-13** from the exe and written into
   traffic-network.md §1 (Init step 5) and §2.3. Both are **instance IDs**, set by `SetInstanceID` (grid slot 6) at
@@ -174,18 +205,37 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   `0x69D5C424` is the switch **mode-mask** grid that `DoLotActivated` writes (`0x00723E2B`), not a wormhole map:
   the wormhole bits live in the cell connection record. The name is corrected in traffic-simulator.md (grid table,
   §6.1 row 9) and save-records.md.
-- **TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]
+- ~~**TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]~~ **ANSWERED
+  2026-10-14** from the exe (`0x00725370` `fmul dword [0x00AB34F4]`) and written into §4.10.2. **The bracket is
+  wrong: float32** `0x3E4CCCCD`, as are 40.0, 0.1 and 1.0. The double would change the step cost for 25 depth
+  bytes, for example 47 (`0x4081EB85` vs `0x4081EB86`). A worked example is in the spec.
 - **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
 - **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
   forever]
 - **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
 - **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
-- **TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]
+- ~~**TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]~~ **ANSWERED
+  2026-10-14** from the exe and written into §2.4 and §4.7.2. **All:** the loop at `0x00715EF8`–`0x00715F6D` has no
+  kind test and covers the first n rules of the vector. A worked example (shipped station `0x0ADE0000`, flags
+  `0x4C`) shows that the subway access point comes from a kind-1 rule.
 - ~~**TN20 — §11 test 7:** the Walk-on-Road speed is not stated (3.5 was worked back from the stated Walk cost). Please
   list the shipped speeds of every travel mode.~~ **ANSWERED 2026-10-13** from the shipped data (Traffic Simulator
   exemplar `0xC9133286`, `SimCity_1.dat`). The full 9 × 13 table and the resulting `invMaxSpeed` bits for
   CellWidthX 16 are now in traffic-simulator.md §4.14, and test 7 states its speeds. Walk on Road is **3.5**, as the
   core inferred. Pipe, PowerPole and DirtRoad are 0 for every travel type.
+
+## From the coordinator (run 61, 2026-10-14)
+
+- ~~**CR1 — power.md §13 Q2: who posts ConnectionsReady `0x6AC284F3`, and what triggers it?** In run 61 it never
+  arrived after loading Konradshohe.~~ **ANSWERED 2026-10-14** from the exe and written into foundations.md §11.6,
+  with pointers in power.md (§4 table and §13 Q2), plumbing.md, neighbors.md and advisors.md §6.8.1.
+  - The only poster is `cSC4RegionalCity::CreateSymmetricConnections` (`0x004AB778`): queued, no data, on
+    TerrainReconciliation for the current city.
+  - TerrainReconciliation comes from the terrain's second animation tick after its PostCityInit, so once per load.
+    The player's reconcile-edges command also posts it.
+  - With the default preference the tick defers to `ReconcileEdgesWithNeighboringCities`. That function waits while
+    a modal window is open and **posts nothing while popup dialogs are disabled** (`SetPopupDialogsEnabled(false)`).
+  - None of land value, weather, ordinance or demand appears in this chain.
 
 ## From the residential tests and record (filed by the coordinator from the lane's report, 2026-10-14; merged with the core)
 
