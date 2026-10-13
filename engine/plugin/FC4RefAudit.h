@@ -21,7 +21,10 @@
 // vtable), the vtable as module+offset, the count the call returned, and our
 // call site. Always logged (not verbose):
 //   - "WARNING: released last reference to game object ..." when a Release
-//     of ours returns 0;
+//     of ours returns 0, unless the site declares the object a temporary the
+//     game created for us (FC4_RELEASE_CREATED: a new object returned through
+//     an out-parameter with one reference, which is ours to free) AND the
+//     audited sites acquired that reference (FC4_ACQUIRED) first;
 //   - "WARNING: over-release ..." when we released one object more often than
 //     the audited sites acquired it.
 // RefSummary (city shutdown) logs the net count per class and the objects we
@@ -53,7 +56,11 @@ struct RefTarget {
 RefTarget RefBefore(cIGZUnknown* obj);
 // After the call. `newCount` < 0 = unknown. `how` is a string literal.
 // `owned` = false for a reference handed on to the caller (not ours to release).
-void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefSite site, bool owned = true);
+// `created` (a Release only) = the object is a temporary the game created and
+// handed to us with its only reference: freeing it is expected, no warning,
+// provided the audited sites acquired that reference.
+void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefSite site, bool owned = true,
+             bool created = false);
 
 void RefSummary(const char* why);
 // "released last reference" and over-release warnings so far (any thread).
@@ -89,6 +96,17 @@ uint32_t AuditedRelease(T* p, RefSite s) {
     return r;
 }
 
+// The Release of a temporary the game created for us (a new key list, ...):
+// its last reference is ours, so reaching 0 is the expected free.
+template <class T>
+uint32_t AuditedReleaseCreated(T* p, RefSite s) {
+    if (p == nullptr) return 0;
+    const RefTarget t = RefBefore(p);
+    const uint32_t r = p->Release();
+    RefNote(t, -1, static_cast<long>(r), "Release (created for us)", s, true, true);
+    return r;
+}
+
 template <class T>
 void AuditedAcquired(T* p, const char* how, RefSite s) {
     if (p == nullptr) return;
@@ -101,4 +119,5 @@ void AuditedAcquired(T* p, const char* how, RefSite s) {
 #define FC4_ADDREF(p) ::fc4::AuditedAddRef((p), FC4_SITE)
 #define FC4_ADDREF_FOR_CALLER(p) ::fc4::AuditedAddRefForCaller((p), FC4_SITE)
 #define FC4_RELEASE(p) ::fc4::AuditedRelease((p), FC4_SITE)
+#define FC4_RELEASE_CREATED(p) ::fc4::AuditedReleaseCreated((p), FC4_SITE)
 #define FC4_ACQUIRED(p, how) ::fc4::AuditedAcquired((p), (how), FC4_SITE)

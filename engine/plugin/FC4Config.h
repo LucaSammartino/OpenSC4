@@ -38,6 +38,9 @@
 //   budget_shadow = 0 / 1         the budget shadow differential (default 0;
 //                                 needs `disable = budget`; FC4BudgetShadow.h)
 //   budget_shadow_lots = N        its lot lines per mismatched tax type (default 6)
+//   demand_shadow = 0 / 1         the demand shadow differential (default 0;
+//                                 needs the original demand; FC4DemandShadow.h)
+//   demand_shadow_nodes = N       its node lines per mismatched day (default 8)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

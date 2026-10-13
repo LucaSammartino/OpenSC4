@@ -39,6 +39,7 @@ struct ClassStats {
     long releases = 0;
     long handedOut = 0;
     long lastRef = 0;
+    long createdFrees = 0;  // of lastRef: temporaries created for us (expected)
 };
 
 struct Held {
@@ -127,11 +128,13 @@ RefTarget RefBefore(cIGZUnknown* obj) {
     return t;
 }
 
-void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefSite site, bool owned) {
+void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefSite site, bool owned,
+             bool created) {
     if (!t.audited) return;
     char cls[160];
     long net = 0;
     bool overRelease = false;
+    bool expectedFree = false;
     {
         Lock l;
         State& s = S();
@@ -157,6 +160,10 @@ void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefS
             overRelease = net < 0;
             if (net == 0) s.held.erase(t.obj);
         }
+        // A temporary created for us whose (audited, acquired) reference we
+        // drop: the free is expected. Not acquired first = not ours: warn.
+        expectedFree = created && owned && delta < 0 && newCount == 0 && net >= 0;
+        if (expectedFree) ++c.createdFrees;
         Describe(t.vptr, c, cls, sizeof(cls));
     }
     char count[16];
@@ -173,7 +180,7 @@ void RefNote(const RefTarget& t, int delta, long newCount, const char* how, RefS
             NoteSuppressed();
         }
     }
-    if (delta < 0 && newCount == 0 && InterlockedIncrement(&g_warnings) <= kWarningCap) {
+    if (delta < 0 && newCount == 0 && !expectedFree && InterlockedIncrement(&g_warnings) <= kWarningCap) {
         Log("WARNING: released last reference to game object %p [%s] at %s:%d (the game still expects to own it)",
             t.obj, cls, site.func, site.line);
     }
@@ -202,10 +209,10 @@ void RefSummary(const char* why) {
         char cls[160];
         Describe(kv.first, c, cls, sizeof(cls));
         Log("  [%s] AddRef %ld, acquired %ld, Release %ld, net %+ld; handed to the game %ld; last-reference "
-            "releases %ld%s",
+            "releases %ld (temporaries created for us %ld)%s",
             cls, c.addRefs, c.acquired, c.releases, c.addRefs + c.acquired - c.releases, c.handedOut, c.lastRef,
-            (c.addRefs + c.acquired - c.releases) < 0 ? "  <-- NEGATIVE" : "");
-        c.addRefs = c.acquired = c.releases = c.handedOut = c.lastRef = 0;
+            c.createdFrees, (c.addRefs + c.acquired - c.releases) < 0 ? "  <-- NEGATIVE" : "");
+        c.addRefs = c.acquired = c.releases = c.handedOut = c.lastRef = c.createdFrees = 0;
     }
     Log("  objects we still hold references to: %u", static_cast<unsigned>(s.held.size()));
     unsigned shown = 0;

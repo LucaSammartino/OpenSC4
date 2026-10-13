@@ -45,6 +45,14 @@
 //         (FC4BudgetShadow.h): one budget-shadow month on a fake city whose
 //         budget is the "original"; returns the month's mismatch count, -1
 //         (not taken) or -2 (delivered, not compared).
+//   op 11 kFC4SeamDemandShadow     a = const FC4DemandShadowTestInput*
+//         (FC4DemandShadow.h): one demand-shadow delivery (NewDay or SimIdle)
+//         to a fake "original" demand simulator; returns the update's
+//         mismatch count, -1 (not taken) or -2 (delivered, nothing compared).
+//   op 12 kFC4SeamRefAuditRelease  a = cIGZUnknown* (a game object whose
+//         Release returns 0), b = mode: bit 0 = note an acquired reference
+//         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED
+//         (else FC4_RELEASE); returns the reference warnings it caused.
 #pragma once
 
 #include <cstdint>
@@ -62,6 +70,8 @@ enum : uint32_t {
     kFC4SeamRustPanic = 8,
     kFC4SeamFlammabilityFire = 9,
     kFC4SeamBudgetShadow = 10,
+    kFC4SeamDemandShadow = 11,
+    kFC4SeamRefAuditRelease = 12,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

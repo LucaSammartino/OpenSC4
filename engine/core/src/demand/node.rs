@@ -145,6 +145,16 @@ impl DemandNode {
         })
     }
 
+    /// A node holding `data` as it is (the demand shadow's copies of another
+    /// simulator's nodes).
+    pub fn with_data(poster: Rc<dyn DemandPoster>, token: u64, data: NodeData) -> Rc<DemandNode> {
+        Rc::new(DemandNode {
+            poster,
+            token: Cell::new(token),
+            d: RefCell::new(data),
+        })
+    }
+
     pub fn token(&self) -> u64 {
         self.token.get()
     }

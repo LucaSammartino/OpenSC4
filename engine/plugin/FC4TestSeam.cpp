@@ -14,9 +14,11 @@
 #include "FC4TestSeam.h"
 
 #include "FC4BudgetShadow.h"
+#include "FC4DemandShadow.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4RefAudit.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
 #include "fc4.h"
@@ -45,6 +47,20 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return FlammabilityTestFirePath(static_cast<cISC4City*>(a));
         case kFC4SeamBudgetShadow:
             return BudgetShadowTestMonth(static_cast<const FC4ShadowTestInput*>(a));
+        case kFC4SeamDemandShadow:
+            return DemandShadowTestDeliver(static_cast<const FC4DemandShadowTestInput*>(a));
+        case kFC4SeamRefAuditRelease: {
+            cIGZUnknown* o = static_cast<cIGZUnknown*>(a);
+            const intptr_t mode = reinterpret_cast<intptr_t>(b);
+            const long before = fc4::RefWarningCount();
+            if ((mode & 1) != 0) FC4_ACQUIRED(o, "test seam");
+            if ((mode & 2) != 0) {
+                FC4_RELEASE_CREATED(o);
+            } else {
+                FC4_RELEASE(o);
+            }
+            return fc4::RefWarningCount() - before;
+        }
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

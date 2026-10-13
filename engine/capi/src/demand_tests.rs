@@ -413,3 +413,168 @@ fn null_handles_and_short_tables() {
         fc4_demand_node_destroy(n);
     }
 }
+
+unsafe extern "C" fn shadow_today(_: *mut c_void) -> u32 {
+    2_451_600
+}
+
+unsafe extern "C" fn shadow_history(_: *mut c_void, series: u32, from: u32, to: u32, out: *mut f32) -> bool {
+    // R$ only, window [today - 90, today].
+    if series == 0xAABA_AA9F && (from, to) == (2_451_510, 2_451_600) {
+        *out = 120.0;
+        true
+    } else {
+        false
+    }
+}
+
+unsafe extern "C" fn shadow_ordinance(_: *mut c_void, prop: u32, _: u32) -> f32 {
+    if prop == 0x2A65_1010 {
+        1.5
+    } else {
+        1.0
+    }
+}
+
+unsafe extern "C" fn shadow_nation(_: *mut c_void, _: u32) -> f32 {
+    0.03
+}
+
+unsafe extern "C" fn push_u32(ctx: *mut c_void, v: u32) {
+    (*(ctx as *mut Vec<u32>)).push(v);
+}
+
+fn read_states(g: &Game, s: *mut fc4_demand_sim, keys: &[u32]) -> Vec<fc4_demand_node_state> {
+    keys.iter()
+        .map(|&k| unsafe {
+            let n = node_handle(g, fc4_demand_sim_get_demand(s, k, 0));
+            fc4_demand_node_state {
+                key: k,
+                region_use: fc4_demand_node_region_use(n),
+                supply: fc4_demand_node_get(n, value::SUPPLY),
+                demand: fc4_demand_node_get(n, value::DEMAND),
+                new_supply: fc4_demand_node_get(n, value::NEW_SUPPLY),
+                new_demand: fc4_demand_node_get(n, value::NEW_DEMAND),
+                active_demand: fc4_demand_node_get(n, value::ACTIVE_DEMAND),
+                active_min: fc4_demand_node_get(n, value::ACTIVE_MIN),
+                active_max: fc4_demand_node_get(n, value::ACTIVE_MAX),
+                economy_modifier: fc4_demand_node_get(n, value::ECONOMY_MODIFIER),
+                tax_modifier: fc4_demand_node_get(n, value::TAX_MODIFIER),
+                demand_cap: fc4_demand_node_get(n, value::DEMAND_CAP),
+            }
+        })
+        .collect()
+}
+
+/// The demand shadow over states read from a simulator: its propagation is
+/// the simulator's NewDay propagation bit for bit; nothing is posted or
+/// created; §8.1 reads only the four modifier inputs.
+#[test]
+fn shadow_matches_the_simulator() {
+    let g = make_game();
+    unsafe {
+        let host = g.host.get().unwrap();
+        let s = fc4_demand_sim_create(&host, 0x5000);
+        assert!(fc4_demand_sim_init(s));
+        let nodes_before = g.nodes.borrow().len();
+
+        // A table with the exemplar callbacks only.
+        let mut ro: fc4_demand_host = std::mem::zeroed();
+        ro.struct_size = std::mem::size_of::<fc4_demand_host>() as u32;
+        ro.user = host.user;
+        ro.for_each_exemplar_key = host.for_each_exemplar_key;
+        ro.exemplar = host.exemplar;
+        let sh = fc4_demand_shadow_create(&ro);
+        assert!(!sh.is_null());
+        let mut info = fc4_demand_shadow_info {
+            struct_size: std::mem::size_of::<fc4_demand_shadow_info>() as u32,
+            ..Default::default()
+        };
+        assert!(fc4_demand_shadow_get_info(sh, &mut info));
+        assert_eq!((info.exemplars, info.keys, info.links, info.tuning_found), (3, 3, 1, 0));
+        let mut keys: Vec<u32> = Vec::new();
+        assert_eq!(
+            fc4_demand_shadow_keys(sh, Some(push_u32), &mut keys as *mut Vec<u32> as *mut c_void),
+            3
+        );
+        assert_eq!(keys, [0x2010, 0x3121, 0x13121]);
+        assert!(fc4_demand_shadow_is_fed(sh, 0x2010));
+        assert!(!fc4_demand_shadow_is_fed(sh, 0x3121));
+
+        let n3121 = node_handle(&g, fc4_demand_sim_get_demand(s, 0x3121, 0));
+        let n2010 = node_handle(&g, fc4_demand_sim_get_demand(s, 0x2010, 0));
+        for (inject, econ) in [(1000.3f32, 0.03f32), (-17.77, 0.06), (3.0e-3, -0.5)] {
+            assert!(fc4_demand_node_add(n3121, value::SUPPLY, inject));
+            assert!(fc4_demand_node_set(n2010, value::ECONOMY_MODIFIER, econ));
+            let mut ours = read_states(&g, s, &keys);
+            let mut st = fc4_demand_shadow_stats {
+                struct_size: std::mem::size_of::<fc4_demand_shadow_stats>() as u32,
+                ..Default::default()
+            };
+            g.posts.borrow_mut().clear();
+            assert!(fc4_demand_shadow_propagate(
+                sh,
+                ours.as_ptr(),
+                3,
+                ours.as_mut_ptr(),
+                &mut st
+            ));
+            assert!(g.posts.borrow().is_empty());
+            assert_eq!((st.nodes, st.settled, st.missing_targets), (3, 1, 0));
+            assert!(fc4_demand_sim_handle_message(s, 0x6695_6814, 0, 0, 0)); // NewDay
+            let after = read_states(&g, s, &keys);
+            for (o, a) in ours.iter().zip(&after) {
+                assert_eq!(o.key, a.key);
+                for (x, y) in [
+                    (o.supply, a.supply),
+                    (o.demand, a.demand),
+                    (o.new_supply, a.new_supply),
+                    (o.new_demand, a.new_demand),
+                    (o.active_demand, a.active_demand),
+                    (o.demand_cap, a.demand_cap),
+                ] {
+                    assert_eq!(x.to_bits(), y.to_bits(), "key 0x{:X}", o.key);
+                }
+            }
+        }
+        assert_eq!(g.nodes.borrow().len(), nodes_before);
+        assert_eq!(fc4_demand_shadow_neutral_tax_rate(sh, 1.0, 2.0, 3.0), 0.0); // no curve
+
+        // §8.1: R$ from its history (120 -> ratio 120 · 0.1 / 0.1), no curve.
+        let mut mh = ro;
+        mh.for_each_exemplar_key = None;
+        mh.exemplar = None;
+        mh.today = Some(shadow_today);
+        mh.history_max = Some(shadow_history);
+        mh.ordinance_factor = Some(shadow_ordinance);
+        mh.nation_economy_modifier = Some(shadow_nation);
+        let mut m = fc4_demand_modifiers {
+            struct_size: std::mem::size_of::<fc4_demand_modifiers>() as u32,
+            ..Default::default()
+        };
+        assert!(fc4_demand_shadow_modifiers(sh, &mh, 0.0, 0.0, 0.0, 0.0, 0.0, &mut m));
+        assert_eq!((m.today, m.neutral_raw, m.neutral), (2_451_600, 0.0, 0.1));
+        assert_eq!((m.node[0].max_rate, m.node[0].from_history), (120.0, 1));
+        assert_eq!(m.node[0].tax_modifier, 0.5);
+        assert_eq!(m.node[0].economy_modifier, 0.03);
+        assert_eq!((m.node[1].max_rate, m.node[1].from_history), (1.0, 0));
+        assert_eq!(m.node[1].tax_modifier, 0.0);
+        let mut small = m;
+        small.struct_size = 8;
+        assert!(!fc4_demand_shadow_modifiers(
+            sh, &mh, 0.0, 0.0, 0.0, 0.0, 0.0, &mut small
+        ));
+        assert!(!fc4_demand_shadow_propagate(
+            sh,
+            std::ptr::null(),
+            0,
+            std::ptr::null_mut(),
+            std::ptr::null_mut()
+        ));
+        assert!(fc4_demand_shadow_create(std::ptr::null()).is_null());
+
+        fc4_demand_shadow_destroy(sh);
+        fc4_demand_sim_destroy(s);
+        destroy_nodes(&g);
+    }
+}

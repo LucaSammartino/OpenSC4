@@ -116,6 +116,219 @@ fn clamp01(v: f32) -> f32 {
     v.clamp(0.0, 1.0)
 }
 
+// ---- shared with the demand shadow (super::shadow) ------------------------------------------------
+
+/// Every demand exemplar (§4.1) in the resource manager's enumeration order
+/// (§4.2): type `0x6534284A`, ExemplarType 3.
+pub(super) fn demand_exemplars(host: &dyn DemandHost) -> Vec<DemandExemplar> {
+    let mut out = Vec::new();
+    for key in host.exemplar_keys() {
+        if key.type_id != props::EXEMPLAR_TYPE {
+            continue;
+        }
+        let Some(ex) = host.exemplar(key) else { continue };
+        if !props::has_exemplar_type(&ex, DEMAND_EXEMPLAR_TYPE) {
+            continue;
+        }
+        out.push(DemandExemplar::from_holder(key.instance, &ex));
+    }
+    out
+}
+
+/// §4.2 step 5: the links of one exemplar, in creation order (every
+/// Satisfies pair, every Drives pair, every Contributes pair, every Caps key,
+/// every Sums key).
+pub(super) fn exemplar_links(e: &DemandExemplar) -> Vec<Link> {
+    let mut out = Vec::new();
+    let pct = |kind, pairs: &[(u32, u32)], out: &mut Vec<Link>| {
+        for &(target, percent) in pairs {
+            out.push(Link {
+                source: e.key,
+                target,
+                kind,
+                factor: percent as f32 * 0.01,
+            });
+        }
+    };
+    pct(LinkKind::Satisfies, &e.satisfies, &mut out);
+    pct(LinkKind::Drives, &e.drives, &mut out);
+    pct(LinkKind::Contributes, &e.contributes, &mut out);
+    for (kind, list) in [(LinkKind::Caps, &e.caps), (LinkKind::Sums, &e.sums)] {
+        for &target in list {
+            out.push(Link {
+                source: e.key,
+                target,
+                kind,
+                factor: 1.0,
+            });
+        }
+    }
+    out
+}
+
+/// What one `DoDemandIndexLinks` did.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PropagationStats {
+    /// Passes run (the last one stable unless `settled` is false).
+    pub passes: u32,
+    /// False when [`MAX_PASSES`] ran out.
+    pub settled: bool,
+    /// Transfers and sums corrections performed (each made a pass unstable).
+    pub transfers: u32,
+    /// `EndOfCycle` calls (one per node per pass).
+    pub end_of_cycles: u32,
+    /// Link visits whose target is not in the node map (ignored, [choice]).
+    pub missing_targets: u32,
+}
+
+/// `DoDemandIndexLinks()` (§4.4) over a node map (ascending key order) and
+/// its links: the propagation of [`DemandSim`] and of the demand shadow.
+/// `missing(source, target)` is called for every visit of a link whose target
+/// has no node.
+pub(super) fn propagate(
+    nodes: &BTreeMap<u32, Rc<DemandNode>>,
+    links: &BTreeMap<u32, Vec<Link>>,
+    missing: &mut dyn FnMut(u32, u32),
+) -> PropagationStats {
+    let mut st = PropagationStats::default();
+    for _ in 0..MAX_PASSES {
+        st.passes += 1;
+        let mut stable = true;
+        for (key, node) in nodes {
+            let mut sum_s = 0.0f32;
+            let mut sum_d = 0.0f32;
+            let mut has_sums = false;
+            for l in links.get(key).map(Vec::as_slice).unwrap_or(&[]) {
+                let Some(t) = nodes.get(&l.target) else {
+                    st.missing_targets += 1;
+                    missing(l.source, l.target);
+                    continue;
+                };
+                match l.kind {
+                    LinkKind::Drives | LinkKind::Satisfies => {
+                        let v = node.new_supply() * l.factor;
+                        if v.abs() > 0.01 {
+                            if l.kind == LinkKind::Drives {
+                                t.add_to_demand(v);
+                            } else {
+                                t.add_to_supply(v);
+                            }
+                            stable = false;
+                            st.transfers += 1;
+                        }
+                    }
+                    LinkKind::Contributes => {
+                        let v = node.new_demand() * l.factor;
+                        if v.abs() > 0.01 {
+                            t.add_to_demand(v);
+                            stable = false;
+                            st.transfers += 1;
+                        }
+                    }
+                    LinkKind::Caps => {
+                        let s = node.supply().max(0.01);
+                        let dd = node.demand().max(0.0);
+                        t.set_demand_cap(if dd < s { dd / s } else { 1.0 });
+                    }
+                    LinkKind::Sums => {
+                        sum_s += t.supply();
+                        sum_d += t.demand();
+                        has_sums = true;
+                    }
+                }
+            }
+            node.end_of_cycle();
+            st.end_of_cycles += 1;
+            if has_sums {
+                let ds = sum_s - node.supply();
+                if ds.abs() > 0.01 {
+                    node.add_to_supply(ds);
+                    stable = false;
+                    st.transfers += 1;
+                }
+                let dd = sum_d - node.demand();
+                if dd.abs() > 0.01 {
+                    node.add_to_demand(dd);
+                    stable = false;
+                    st.transfers += 1;
+                }
+            }
+        }
+        if stable {
+            st.settled = true;
+            return st;
+        }
+    }
+    st
+}
+
+/// `GetNeutralTaxRate()` (§5) from the supplies of `0x1001`, `0x3001` and
+/// `0x4001` (0 for a missing node), unclamped; 0 without the curve.
+pub(super) fn neutral_tax_rate_of(tuning: &DemandTuning, r: f32, c: f32, i: f32) -> f32 {
+    let pop = r + c + i;
+    tuning.neutral_tax_curve.as_ref().map_or(0.0, |cv| cv.eval(pop))
+}
+
+/// The §8.1 terms of one of the 12 total nodes.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ModifierTerms {
+    /// The highest tax rate in the penalty window, or `neutral · 10`.
+    pub max_rate: f32,
+    /// Whether `max_rate` came from the history (false: [choice] no data).
+    pub from_history: bool,
+    /// `max_rate · 0.1 / neutral`.
+    pub ratio: f32,
+    /// `curveTax(ratio)` (0 without the curve).
+    pub tax_curve: f32,
+    /// `GetCumulativeFactor(0x2A650000 + id, 0)`.
+    pub ordinance_factor: f32,
+    /// `Nation.GetEconomyModifier(id)`.
+    pub nation: f32,
+    /// `factor − 1 + taxMod`.
+    pub tax_modifier: f32,
+    /// `nation` plus the CO / I bonus.
+    pub economy_modifier: f32,
+}
+
+/// §8.1 for total node `index` ([`TOTAL_NODES`] order), with `neutral` =
+/// `max(0.1, GetNeutralTaxRate())`. Reads the history, the ordinance factor
+/// and the nation through `host` (in that order); writes nothing.
+pub(super) fn total_node_modifiers(
+    index: usize,
+    neutral: f32,
+    tuning: &DemandTuning,
+    co_bonus: f32,
+    i_bonus: f32,
+    today: u32,
+    host: &dyn DemandHost,
+) -> ModifierTerms {
+    let id = TOTAL_NODES[index].1;
+    let series = history::TAX_RATE_BASE + index as u32;
+    let history = host.history_max(series, today.saturating_sub(tuning.tax_penalty_days), today);
+    let max_rate = history.unwrap_or(neutral * 10.0);
+    let ratio = max_rate * 0.1 / neutral;
+    let tax_curve = tuning.tax_modifier_curve.as_ref().map_or(0.0, |c| c.eval(ratio));
+    let factor = host.ordinance_factor(0x2A65_0000 + id, 0);
+    let nation = host.nation_economy_modifier(id);
+    let mut econ = nation;
+    if id == 0x3320 || id == 0x3330 {
+        econ += co_bonus;
+    }
+    if id >= 0x4100 {
+        econ += i_bonus;
+    }
+    ModifierTerms {
+        max_rate,
+        from_history: history.is_some(),
+        ratio,
+        tax_curve,
+        ordinance_factor: factor,
+        nation,
+        tax_modifier: factor - 1.0 + tax_curve,
+        economy_modifier: econ,
+    }
+}
+
 impl DemandSim {
     /// A fresh demand simulator (as its class factory creates it).
     pub fn new(host: Rc<dyn DemandHost>, token: u64) -> Rc<DemandSim> {
@@ -274,15 +487,7 @@ impl DemandSim {
     /// §4.2: builds the node map and the links from the demand exemplars.
     fn build_graph(&self) {
         let loaded = self.d.borrow().loaded_from_save;
-        for key in self.host.exemplar_keys() {
-            if key.type_id != props::EXEMPLAR_TYPE {
-                continue;
-            }
-            let Some(ex) = self.host.exemplar(key) else { continue };
-            if !props::has_exemplar_type(&ex, DEMAND_EXEMPLAR_TYPE) {
-                continue;
-            }
-            let e = DemandExemplar::from_holder(key.instance, &ex);
+        for e in demand_exemplars(&*self.host) {
             let existing = self.node(e.key);
             let (node, is_new) = match existing {
                 Some(n) => {
@@ -312,31 +517,12 @@ impl DemandSim {
                 node.set_active_max(v as f32);
             }
             node.set_region_use(e.region_use);
-            let mut new_links = Vec::new();
-            let pct = |kind, pairs: &[(u32, u32)], out: &mut Vec<Link>| {
-                for &(target, percent) in pairs {
-                    out.push(Link {
-                        source: e.key,
-                        target,
-                        kind,
-                        factor: percent as f32 * 0.01,
-                    });
-                }
-            };
-            pct(LinkKind::Satisfies, &e.satisfies, &mut new_links);
-            pct(LinkKind::Drives, &e.drives, &mut new_links);
-            pct(LinkKind::Contributes, &e.contributes, &mut new_links);
-            for (kind, list) in [(LinkKind::Caps, &e.caps), (LinkKind::Sums, &e.sums)] {
-                for &target in list {
-                    new_links.push(Link {
-                        source: e.key,
-                        target,
-                        kind,
-                        factor: 1.0,
-                    });
-                }
-            }
-            self.d.borrow_mut().links.entry(e.key).or_default().extend(new_links);
+            self.d
+                .borrow_mut()
+                .links
+                .entry(e.key)
+                .or_default()
+                .extend(exemplar_links(&e));
         }
     }
 
@@ -451,13 +637,7 @@ impl DemandSim {
     /// 0 and an absent curve yields 0.
     pub fn neutral_tax_rate(&self) -> f32 {
         let supply = |k| self.node(k).map_or(0.0, |n| n.supply());
-        let pop = supply(0x1001) + supply(0x3001) + supply(0x4001);
-        self.d
-            .borrow()
-            .tuning
-            .neutral_tax_curve
-            .as_ref()
-            .map_or(0.0, |c| c.eval(pop))
+        neutral_tax_rate_of(&self.d.borrow().tuning, supply(0x1001), supply(0x3001), supply(0x4001))
     }
 
     /// `GetLocalPopulationSummary(map)`.
@@ -539,75 +719,17 @@ impl DemandSim {
 
     // ---- propagation (§4.4) ------------------------------------------------------------------------------
 
-    /// `DoDemandIndexLinks()`.
+    /// `DoDemandIndexLinks()` ([`propagate`]).
     pub fn do_demand_index_links(&self) {
-        let (order, links) = {
+        let (nodes, links) = {
             let d = self.d.borrow();
-            let order: Vec<(u32, Rc<DemandNode>)> = d.nodes.iter().map(|(k, n)| (*k, n.clone())).collect();
-            (order, d.links.clone())
+            (d.nodes.clone(), d.links.clone())
         };
-        for _ in 0..MAX_PASSES {
-            let mut stable = true;
-            for (key, node) in &order {
-                let mut sum_s = 0.0f32;
-                let mut sum_d = 0.0f32;
-                let mut has_sums = false;
-                for l in links.get(key).map(Vec::as_slice).unwrap_or(&[]) {
-                    let Some(t) = self.node(l.target) else {
-                        self.warn_once(l.source, l.target);
-                        continue;
-                    };
-                    match l.kind {
-                        LinkKind::Drives | LinkKind::Satisfies => {
-                            let v = node.new_supply() * l.factor;
-                            if v.abs() > 0.01 {
-                                if l.kind == LinkKind::Drives {
-                                    t.add_to_demand(v);
-                                } else {
-                                    t.add_to_supply(v);
-                                }
-                                stable = false;
-                            }
-                        }
-                        LinkKind::Contributes => {
-                            let v = node.new_demand() * l.factor;
-                            if v.abs() > 0.01 {
-                                t.add_to_demand(v);
-                                stable = false;
-                            }
-                        }
-                        LinkKind::Caps => {
-                            let s = node.supply().max(0.01);
-                            let dd = node.demand().max(0.0);
-                            t.set_demand_cap(if dd < s { dd / s } else { 1.0 });
-                        }
-                        LinkKind::Sums => {
-                            sum_s += t.supply();
-                            sum_d += t.demand();
-                            has_sums = true;
-                        }
-                    }
-                }
-                node.end_of_cycle();
-                if has_sums {
-                    let ds = sum_s - node.supply();
-                    if ds.abs() > 0.01 {
-                        node.add_to_supply(ds);
-                        stable = false;
-                    }
-                    let dd = sum_d - node.demand();
-                    if dd.abs() > 0.01 {
-                        node.add_to_demand(dd);
-                        stable = false;
-                    }
-                }
-            }
-            if stable {
-                return;
-            }
+        let stats = propagate(&nodes, &links, &mut |s, t| self.warn_once(s, t));
+        if !stats.settled {
+            self.host
+                .warn(&format!("demand: propagation did not settle after {MAX_PASSES} passes"));
         }
-        self.host
-            .warn(&format!("demand: propagation did not settle after {MAX_PASSES} passes"));
     }
 
     // ---- census (§6) -------------------------------------------------------------------------------------
@@ -831,34 +953,16 @@ impl DemandSim {
     /// The tax and economy update of census state 0 (§8.1).
     pub fn update_modifiers(&self) {
         let neutral = self.neutral_tax_rate().max(0.1);
-        let (penalty, tax_curve, co_bonus, i_bonus) = {
+        let (tuning, co_bonus, i_bonus) = {
             let d = self.d.borrow();
-            (
-                d.tuning.tax_penalty_days,
-                d.tuning.tax_modifier_curve.clone(),
-                d.co_economy_bonus,
-                d.i_economy_bonus,
-            )
+            (d.tuning.clone(), d.co_economy_bonus, d.i_economy_bonus)
         };
         let today = self.host.today();
-        for (i, (key, id)) in TOTAL_NODES.iter().enumerate() {
+        for (i, (key, _)) in TOTAL_NODES.iter().enumerate() {
             let Some(node) = self.node(*key) else { continue };
-            let series = history::TAX_RATE_BASE + i as u32;
-            let max_rate = self
-                .host
-                .history_max(series, today.saturating_sub(penalty), today)
-                .unwrap_or(neutral * 10.0);
-            let tax_mod = tax_curve.as_ref().map_or(0.0, |c| c.eval(max_rate * 0.1 / neutral));
-            let factor = self.host.ordinance_factor(0x2A65_0000 + id, 0);
-            node.set_tax_modifier(factor - 1.0 + tax_mod);
-            let mut econ = self.host.nation_economy_modifier(*id);
-            if *id == 0x3320 || *id == 0x3330 {
-                econ += co_bonus;
-            }
-            if *id >= 0x4100 {
-                econ += i_bonus;
-            }
-            node.set_economy_modifier(econ);
+            let m = total_node_modifiers(i, neutral, &tuning, co_bonus, i_bonus, today, &*self.host);
+            node.set_tax_modifier(m.tax_modifier);
+            node.set_economy_modifier(m.economy_modifier);
         }
     }
 

@@ -38,6 +38,7 @@
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
 #include "FC4BudgetShadow.h"
+#include "FC4DemandShadow.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
 #include "fc4.h"
@@ -501,6 +502,7 @@ void InitFakeFireCity(FakeFireCity& f) {
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+constexpr uint32_t kMsgSimIdle = 0x6695681A;
 
 // ---- the budget shadow (test seam op 10) -------------------------------------------------------
 // An "original" budget simulator (not ours: its vtable is in this
@@ -606,6 +608,155 @@ intptr_t ShadowMonth(FC4TestSeamFn seam, FakeOrigBudget& o, cIGZMessageTarget2* 
     FC4ShadowTestInput in{reinterpret_cast<cISC4City*>(&o.city), target, feed, 5, 2451576};  // 2000-02-01
     return seam(kFC4SeamBudgetShadow, &in, nullptr);
 }
+
+// ---- the demand shadow (test seam op 11) -------------------------------------------------------
+// An "original" demand simulator (not ours: its vtables are in this
+// executable) with its agent and three nodes. Only getters have slots; any
+// other call, a write included, hits a trap and aborts. DoMessage "updates":
+// it copies `post` over the nodes (the test writes what the original would
+// leave). Graph (demand exemplars, group 0xC7BB4816):
+//   0x1011 (census R$, region use 1): Drives 0x21010 100 %
+//   0x1810: Caps 0x21010
+//   0x21010 (total R$): a link target only
+struct FakeOrigNode {
+    void** vtbl;
+    uint32_t key, ru;
+    float supply, demand, ns, nd, active, econ, max, min, tax;
+    float cap;  // SC4Percentage (GetDemandCap returns a pointer to it)
+};
+
+struct FakeOrigDemand {
+    FakeVtable simVt, agentVt, nodeVt, cityVt, otherVt;
+    FakeObject sim{}, agent{}, city{}, other{};
+    FakeOrigNode nodes[3] = {};
+    FakeOrigNode post[3] = {};
+    int refs = 1;
+    int deliveries = 0;
+};
+
+FakeOrigDemand* g_od = nullptr;
+
+bool __fastcall OdQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator and agent)
+    if (iid != 0x452294AA || out == nullptr) return false;     // cIGZMessageTarget2
+    *out = &g_od->agent;
+    ++g_od->refs;
+    return true;
+}
+uint32_t __fastcall OdAddRef(void*, void*) { return static_cast<uint32_t>(++g_od->refs); }   // 1
+uint32_t __fastcall OdRelease(void*, void*) { return static_cast<uint32_t>(--g_od->refs); }  // 2
+void* __fastcall OdGetDemand(void*, void*, uint32_t id, uint32_t index) {                     // simulator 6
+    if (index != 0) return nullptr;
+    for (FakeOrigNode& n : g_od->nodes) {
+        if (n.key == id) return &n;
+    }
+    return nullptr;
+}
+FakeOrigNode* On(void* self) { return static_cast<FakeOrigNode*>(self); }
+float __fastcall OdSupply(void* s, void*) { return On(s)->supply; }    // 8
+float __fastcall OdDemand(void* s, void*) { return On(s)->demand; }    // 9
+float __fastcall OdNewSupply(void* s, void*) { return On(s)->ns; }     // 10
+float __fastcall OdNewDemand(void* s, void*) { return On(s)->nd; }     // 11
+float __fastcall OdActive(void* s, void*) { return On(s)->active; }    // 12
+float __fastcall OdEcon(void* s, void*) { return On(s)->econ; }        // 13
+float __fastcall OdMax(void* s, void*) { return On(s)->max; }          // 14
+float __fastcall OdMin(void* s, void*) { return On(s)->min; }          // 15
+float __fastcall OdTax(void* s, void*) { return On(s)->tax; }          // 24
+void* __fastcall OdCap(void* s, void*) { return &On(s)->cap; }         // 26
+uint32_t __fastcall OdRegionUse(void* s, void*) { return On(s)->ru; }  // 28
+bool __fastcall OdDoMessage(void*, void*, cIGZMessage2*) {             // agent 3
+    ++g_od->deliveries;
+    for (int i = 0; i < 3; ++i) g_od->nodes[i] = g_od->post[i];
+    return true;
+}
+void* __fastcall OdCityDemand(void*, void*) { return &g_od->sim; }  // city 56
+
+void InitFakeOrigDemand(FakeOrigDemand& o) {
+    g_od = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OdQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OdAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OdRelease);
+    }
+    o.simVt.slots[6] = reinterpret_cast<void*>(&OdGetDemand);
+    o.nodeVt.slots[8] = reinterpret_cast<void*>(&OdSupply);
+    o.nodeVt.slots[9] = reinterpret_cast<void*>(&OdDemand);
+    o.nodeVt.slots[10] = reinterpret_cast<void*>(&OdNewSupply);
+    o.nodeVt.slots[11] = reinterpret_cast<void*>(&OdNewDemand);
+    o.nodeVt.slots[12] = reinterpret_cast<void*>(&OdActive);
+    o.nodeVt.slots[13] = reinterpret_cast<void*>(&OdEcon);
+    o.nodeVt.slots[14] = reinterpret_cast<void*>(&OdMax);
+    o.nodeVt.slots[15] = reinterpret_cast<void*>(&OdMin);
+    o.nodeVt.slots[24] = reinterpret_cast<void*>(&OdTax);
+    o.nodeVt.slots[26] = reinterpret_cast<void*>(&OdCap);
+    o.nodeVt.slots[28] = reinterpret_cast<void*>(&OdRegionUse);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OdDoMessage);
+    o.otherVt.slots[3] = reinterpret_cast<void*>(&OdDoMessage);
+    o.cityVt.slots[56] = reinterpret_cast<void*>(&OdCityDemand);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.otherVt.slots.data();
+}
+
+FakeOrigNode OdNode(const FakeOrigDemand& o, uint32_t key, uint32_t ru, float supply, float demand, float ns,
+                    float active, float cap, float tax = 0.0f, float econ = 0.0f) {
+    FakeOrigNode n{};
+    n.vtbl = const_cast<void**>(o.nodeVt.slots.data());
+    n.key = key;
+    n.ru = ru;
+    n.supply = supply;
+    n.demand = demand;
+    n.ns = ns;
+    n.active = active;
+    n.econ = econ;
+    n.max = 6000.0f;
+    n.min = -6000.0f;
+    n.tax = tax;
+    n.cap = cap;
+    return n;
+}
+
+// The state before every NewDay case: 0x1011 has 10 pending supply.
+void OdPre(FakeOrigDemand& o) {
+    o.nodes[0] = OdNode(o, 0x1011, 1, 0.0f, 0.0f, 10.0f, 0.0f, 0.0f);
+    o.nodes[1] = OdNode(o, 0x1810, 0, 50000.0f, 10.0f, 0.0f, -6000.0f, 0.0f);
+    o.nodes[2] = OdNode(o, 0x21010, 0, 0.0f, 20.0f, 0.0f, 20.0f, 0.0f);
+}
+
+// What the original leaves after a NewDay whose census added `census` to
+// 0x1011's pending supply, with 0x21010's modifiers set to tax / econ and its
+// committed demand off by `skew` (the propagation, §4.4, by hand: 0x1011
+// drives 10 + census into 0x21010 and folds; 0x1810 caps 0x21010 at
+// 10 / 50000; 0x21010 folds; a second pass moves nothing).
+void OdPost(FakeOrigDemand& o, float census, float tax, float econ, float skew) {
+    const float a = 10.0f + census;
+    const float d = 20.0f + a;
+    const float m = tax + econ;
+    const float bonus = std::fmin(6000.0f * m, d * m);
+    o.post[0] = OdNode(o, 0x1011, 1, a, 0.0f, 0.0f, -a, 0.0f);
+    o.post[1] = o.nodes[1];
+    o.post[2] = OdNode(o, 0x21010, 0, 0.0f, d + skew, 0.0f, d + bonus + skew, 10.0f / 50000.0f, tax, econ);
+}
+
+intptr_t DemandShadowOnce(FC4TestSeamFn seam, FakeOrigDemand& o, cIGZMessageTarget2* target, uint32_t type,
+                          float ordinance, float nation) {
+    static const uint32_t keys[2] = {0x1011, 0x1810};
+    static const FC4DemandShadowTestLink links[2] = {{0x1011, 0x47BB3F30, 0x21010, 100},
+                                                     {0x1810, 0x47BB3F41, 0x21010, 0}};
+    FC4DemandShadowTestInput in{reinterpret_cast<cISC4City*>(&o.city), target, keys, 2, links, 2, type,
+                                2451576,  // 2000-02-01
+                                -1.0f, ordinance, nation};
+    return seam(kFC4SeamDemandShadow, &in, nullptr);
+}
+
+// ---- the reference audit's created-temporary release (test seam op 12) ----------------------------
+// A game object (vtable in this executable) whose Release returns 0: the
+// last reference. QueryInterface (the audit's class lookup) answers no.
+bool __fastcall TempQi(void*, void*, uint32_t, void** out) {
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall TempRelease(void*, void*) { return 0; }
 
 // ---- autotest: child processes that end with TerminateProcess -----------------------------------
 
@@ -1753,6 +1904,67 @@ int main(int argc, char** argv) {
             CHECK(orig.deliveries == 2);
             CHECK(orig.refs == 1);  // every QueryInterface released
             CheckCw("budget shadow");
+        }
+
+        // The demand shadow next to an "original" demand simulator: FreeCity4's
+        // propagation over the states read before NewDay gives the states the
+        // original leaves (0 mismatches); a skewed total gives 2 (demand and
+        // active); a census applied inside the delivery is inferred (0); the
+        // modifiers set in a NewDay or a SimIdle are compared with §8.1; a
+        // SimIdle that changes nothing compares nothing (-2). Any write to the
+        // fake (or any call outside its getters) would abort.
+        if (seam != nullptr) {
+            static FakeOrigDemand od;
+            InitFakeOrigDemand(od);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&od.agent);
+            OdPre(od);
+            OdPost(od, 0.0f, 0.0f, 0.0f, 0.0f);
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimNewDay, 1.0f, 0.0f) == 0);
+            CHECK(od.deliveries == 1);
+            OdPre(od);
+            OdPost(od, 0.0f, 0.0f, 0.0f, 0.5f);
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimNewDay, 1.0f, 0.0f) == 2);
+            OdPre(od);
+            OdPost(od, 5.0f, 0.0f, 0.0f, 0.0f);  // a census added 5 inside DoIdle(5)
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimNewDay, 1.0f, 0.0f) == 0);
+            OdPre(od);
+            OdPost(od, 0.0f, 0.25f, 0.25f, 0.0f);  // census state 0 inside DoIdle(5): §8.1 = 1.25 - 1, 0.25
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimNewDay, 1.25f, 0.25f) == 0);
+            CHECK(od.deliveries == 4);
+            // SimIdle: census state 0 sets 0x21010's tax 0.25 / economy 0.06.
+            OdPre(od);
+            for (int i = 0; i < 3; ++i) od.post[i] = od.nodes[i];
+            od.post[2].tax = 0.25f;
+            od.post[2].econ = 0.06f;
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimIdle, 1.25f, 0.06f) == 0);
+            OdPre(od);
+            od.post[2].tax = 0.3f;  // not what §8.1 gives
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimIdle, 1.25f, 0.06f) == 1);
+            OdPre(od);
+            for (int i = 0; i < 3; ++i) od.post[i] = od.nodes[i];
+            CHECK(DemandShadowOnce(seam, od, agent, kMsgSimIdle, 1.25f, 0.06f) == -2);
+            CHECK(od.deliveries == 7);
+            // Not the demand simulator's agent: left to the caller, nothing delivered.
+            CHECK(DemandShadowOnce(seam, od, reinterpret_cast<cIGZMessageTarget2*>(&od.other), kMsgSimNewDay, 1.0f,
+                                   0.0f) == -1);
+            CHECK(od.deliveries == 7);
+            CHECK(od.refs == 1);  // every QueryInterface released
+            CheckCw("demand shadow");
+        }
+
+        // The reference audit (run 42, ForEachExemplarKey): freeing a
+        // temporary the game created for us (acquired, then
+        // FC4_RELEASE_CREATED) is not a warning; the same last-reference
+        // release through FC4_RELEASE still is (a release of a reference the
+        // audited sites never acquired still warns as an over-release; not
+        // exercised here: this log must stay free of over-releases).
+        if (seam != nullptr) {
+            static FakeVtable tempVt;
+            tempVt.slots[0] = reinterpret_cast<void*>(&TempQi);
+            tempVt.slots[2] = reinterpret_cast<void*>(&TempRelease);
+            static FakeObject temps[2] = {{tempVt.slots.data()}, {tempVt.slots.data()}};
+            CHECK(seam(kFC4SeamRefAuditRelease, &temps[0], reinterpret_cast<void*>(intptr_t{3})) == 0);
+            CHECK(seam(kFC4SeamRefAuditRelease, &temps[1], reinterpret_cast<void*>(intptr_t{1})) == 1);
         }
 
         // The monthly digest (observer), read through the city's public

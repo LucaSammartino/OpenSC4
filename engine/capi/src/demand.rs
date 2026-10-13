@@ -18,8 +18,8 @@ use std::ffi::c_void;
 use std::rc::Rc;
 
 use fc4_core::demand::{
-    BuildingProfile, CensusLot, Connection, DemandHost, DemandNode, DemandPoster, DemandSim, GrowthDeveloper,
-    CLSID_DEMAND_NODE,
+    BuildingProfile, CensusLot, Connection, DemandHost, DemandNode, DemandPoster, DemandSim, GrowthDeveloper, NodeData,
+    ShadowGraph, CLSID_DEMAND_NODE,
 };
 use fc4_core::property::PropertyHolder;
 use fc4_core::stream::{ResKey, SaveObject};
@@ -156,11 +156,91 @@ pub struct fc4_demand_host {
     pub set_history_queue_length: Option<unsafe extern "C" fn(U, u32, u32)>,
 }
 
+#[repr(C)]
+pub struct fc4_demand_shadow {
+    _private: [u8; 0],
+}
+
+/// One demand node's state (the demand shadow's input and output; §3.1).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_demand_node_state {
+    pub key: u32,
+    pub region_use: u32,
+    pub supply: f32,
+    pub demand: f32,
+    pub new_supply: f32,
+    pub new_demand: f32,
+    pub active_demand: f32,
+    pub active_min: f32,
+    pub active_max: f32,
+    pub economy_modifier: f32,
+    pub tax_modifier: f32,
+    pub demand_cap: f32,
+}
+
+/// The demand shadow's graph (`fc4_demand_shadow_get_info`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_demand_shadow_info {
+    pub struct_size: u32,
+    pub exemplars: u32,
+    pub keys: u32,
+    pub links: u32,
+    pub tuning_found: u32,
+    pub reserved: u32,
+}
+
+/// What one shadow propagation did.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct fc4_demand_shadow_stats {
+    pub struct_size: u32,
+    pub nodes: u32,
+    pub passes: u32,
+    pub settled: u32,
+    pub transfers: u32,
+    pub end_of_cycles: u32,
+    pub missing_targets: u32,
+    pub reserved: u32,
+}
+
+/// §8.1 for one total node.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_demand_modifier {
+    pub tax_modifier: f32,
+    pub economy_modifier: f32,
+    pub max_rate: f32,
+    pub ratio: f32,
+    pub tax_curve: f32,
+    pub ordinance_factor: f32,
+    pub nation: f32,
+    /// 0: no history in the window, `max_rate` = neutral · 10 ([choice]).
+    pub from_history: u32,
+}
+
+/// §8.1 for the 12 total nodes (`fc4_demand_shadow_modifiers`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_demand_modifiers {
+    pub struct_size: u32,
+    pub today: u32,
+    pub neutral_raw: f32,
+    pub neutral: f32,
+    pub node: [fc4_demand_modifier; 12],
+}
+
 const _: () = {
     assert!(std::mem::size_of::<fc4_demand_connection>() == 24);
     assert!(std::mem::size_of::<fc4_demand_growth_developer>() == 24);
     assert!(std::mem::size_of::<fc4_demand_sim_state>() == 44);
     assert!(std::mem::size_of::<fc4_demand_host>() == if cfg!(target_pointer_width = "32") { 172 } else { 344 });
+    assert!(std::mem::size_of::<fc4_demand_node_state>() == 48);
+    assert!(std::mem::size_of::<fc4_demand_shadow_info>() == 24);
+    assert!(std::mem::size_of::<fc4_demand_shadow_stats>() == 32);
+    assert!(std::mem::size_of::<fc4_demand_modifier>() == 32);
+    assert!(std::mem::size_of::<fc4_demand_modifiers>() == 16 + 12 * 32);
 };
 
 /// Node values (`fc4_demand_node_get` / `fc4_demand_node_set`, fc4.h
@@ -672,6 +752,227 @@ pub unsafe extern "C" fn fc4_demand_sim_read(s: *mut fc4_demand_sim, inp: *const
             stream: i,
             decode: decoder,
         })
+    })
+}
+
+// ---- demand shadow (diagnostics) -------------------------------------------------------------------------
+
+unsafe fn shadow_of<'a>(s: *const fc4_demand_shadow) -> Option<&'a ShadowGraph> {
+    (s as *const ShadowGraph).as_ref()
+}
+
+fn with_shadow<R>(s: *const fc4_demand_shadow, fallback: R, f: impl FnOnce(&ShadowGraph) -> R) -> R {
+    // SAFETY: documented precondition: NULL or a live fc4_demand_shadow*.
+    match unsafe { shadow_of(s) } {
+        Some(x) => guard(fallback, || f(x)),
+        None => fallback,
+    }
+}
+
+fn node_data(s: &fc4_demand_node_state) -> NodeData {
+    NodeData {
+        id: s.key,
+        region_use: s.region_use,
+        supply: s.supply,
+        demand: s.demand,
+        new_supply: s.new_supply,
+        new_demand: s.new_demand,
+        active_demand: s.active_demand,
+        active_min: s.active_min,
+        active_max: s.active_max,
+        economy_modifier: s.economy_modifier,
+        tax_modifier: s.tax_modifier,
+        demand_cap: s.demand_cap,
+        ..NodeData::default()
+    }
+}
+
+fn node_state(d: &NodeData) -> fc4_demand_node_state {
+    fc4_demand_node_state {
+        key: d.id,
+        region_use: d.region_use,
+        supply: d.supply,
+        demand: d.demand,
+        new_supply: d.new_supply,
+        new_demand: d.new_demand,
+        active_demand: d.active_demand,
+        active_min: d.active_min,
+        active_max: d.active_max,
+        economy_modifier: d.economy_modifier,
+        tax_modifier: d.tax_modifier,
+        demand_cap: d.demand_cap,
+    }
+}
+
+/// Builds FreeCity4's demand graph (§4.2) and tuning (§11.1) from the
+/// exemplars `host` serves (`for_each_exemplar_key`, `exemplar`; no other
+/// callback). NULL on bad arguments.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_create(host: *const fc4_demand_host) -> *mut fc4_demand_shadow {
+    guard(std::ptr::null_mut(), || match host_of(host) {
+        Some(h) => Box::into_raw(Box::new(ShadowGraph::from_host(&*h))) as *mut fc4_demand_shadow,
+        None => std::ptr::null_mut(),
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_destroy(s: *mut fc4_demand_shadow) {
+    if !s.is_null() {
+        guard((), || drop(Box::from_raw(s as *mut ShadowGraph)));
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_get_info(
+    s: *const fc4_demand_shadow,
+    out: *mut fc4_demand_shadow_info,
+) -> bool {
+    let Some(o) = out.as_mut() else { return false };
+    if (o.struct_size as usize) < std::mem::size_of::<fc4_demand_shadow_info>() {
+        return false;
+    }
+    with_shadow(s, false, |g| {
+        *o = fc4_demand_shadow_info {
+            struct_size: o.struct_size,
+            exemplars: g.exemplar_count(),
+            keys: g.keys().len() as u32,
+            links: g.link_count() as u32,
+            tuning_found: u32::from(g.tuning_found()),
+            reserved: 0,
+        };
+        true
+    })
+}
+
+/// Visits the graph's keys (exemplar nodes and link targets) in ascending
+/// order; returns their number.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_keys(
+    s: *const fc4_demand_shadow,
+    cb: fc4_u32_callback,
+    ctx: *mut c_void,
+) -> u32 {
+    let keys: Vec<u32> = with_shadow(s, Vec::new(), |g| g.keys().to_vec());
+    if let Some(f) = cb {
+        for k in &keys {
+            f(ctx, *k);
+        }
+    }
+    keys.len() as u32
+}
+
+/// Whether propagation can change `key`'s totals other than by folding its
+/// own pending values (a transfer target, or a Sums node).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_is_fed(s: *const fc4_demand_shadow, key: u32) -> bool {
+    with_shadow(s, false, |g| g.is_fed(key))
+}
+
+/// `DoDemandIndexLinks()` (§4.4), FreeCity4's code, over `count` node states
+/// (distinct keys) from `input`; the result goes to `output` (same order;
+/// may be `input`). Nothing is posted. False (outputs untouched) on bad
+/// arguments.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_propagate(
+    s: *const fc4_demand_shadow,
+    input: *const fc4_demand_node_state,
+    count: u32,
+    output: *mut fc4_demand_node_state,
+    stats: *mut fc4_demand_shadow_stats,
+) -> bool {
+    if input.is_null() || output.is_null() {
+        return false;
+    }
+    if let Some(st) = stats.as_ref() {
+        if (st.struct_size as usize) < std::mem::size_of::<fc4_demand_shadow_stats>() {
+            return false;
+        }
+    }
+    let states: Vec<NodeData> = std::slice::from_raw_parts(input, count as usize)
+        .iter()
+        .map(node_data)
+        .collect();
+    let result = with_shadow(s, None, |g| {
+        let mut v = states;
+        let st = g.propagate(&mut v);
+        Some((v, st))
+    });
+    let Some((v, st)) = result else { return false };
+    let out = std::slice::from_raw_parts_mut(output, count as usize);
+    for (o, d) in out.iter_mut().zip(&v) {
+        *o = node_state(d);
+    }
+    if let Some(o) = stats.as_mut() {
+        *o = fc4_demand_shadow_stats {
+            struct_size: o.struct_size,
+            nodes: count,
+            passes: st.passes,
+            settled: u32::from(st.settled),
+            transfers: st.transfers,
+            end_of_cycles: st.end_of_cycles,
+            missing_targets: st.missing_targets,
+            reserved: 0,
+        };
+    }
+    true
+}
+
+/// `GetNeutralTaxRate()` (§5, unclamped) from the supplies of `0x1001`,
+/// `0x3001`, `0x4001` (0 for a missing node).
+#[no_mangle]
+pub unsafe extern "C" fn fc4_demand_shadow_neutral_tax_rate(
+    s: *const fc4_demand_shadow,
+    r: f32,
+    c: f32,
+    i: f32,
+) -> f32 {
+    with_shadow(s, 0.0, |g| g.neutral_tax_rate(r, c, i))
+}
+
+/// §8.1 for the 12 total nodes (census state 0), FreeCity4's code, from the
+/// census supplies (as above), the saved CO / I economy bonuses, and
+/// `host`'s `today`, `history_max`, `ordinance_factor` and
+/// `nation_economy_modifier` (no other callback). Nothing is written.
+#[no_mangle]
+#[allow(clippy::too_many_arguments)]
+pub unsafe extern "C" fn fc4_demand_shadow_modifiers(
+    s: *const fc4_demand_shadow,
+    host: *const fc4_demand_host,
+    r: f32,
+    c: f32,
+    i: f32,
+    co_bonus: f32,
+    i_bonus: f32,
+    out: *mut fc4_demand_modifiers,
+) -> bool {
+    let Some(o) = out.as_mut() else { return false };
+    if (o.struct_size as usize) < std::mem::size_of::<fc4_demand_modifiers>() {
+        return false;
+    }
+    let Some(h) = host_of(host) else { return false };
+    with_shadow(s, false, |g| {
+        let m = g.modifiers(&*h, r, c, i, co_bonus, i_bonus);
+        let mut node = [fc4_demand_modifier::default(); 12];
+        for (dst, t) in node.iter_mut().zip(m.nodes.iter()) {
+            *dst = fc4_demand_modifier {
+                tax_modifier: t.tax_modifier,
+                economy_modifier: t.economy_modifier,
+                max_rate: t.max_rate,
+                ratio: t.ratio,
+                tax_curve: t.tax_curve,
+                ordinance_factor: t.ordinance_factor,
+                nation: t.nation,
+                from_history: u32::from(t.from_history),
+            };
+        }
+        *o = fc4_demand_modifiers {
+            struct_size: o.struct_size,
+            today: m.today,
+            neutral_raw: m.neutral_raw,
+            neutral: m.neutral,
+            node,
+        };
+        true
     })
 }
 
