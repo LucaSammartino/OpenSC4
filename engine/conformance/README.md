@@ -1190,6 +1190,49 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 `count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
 `place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`).
 
+## Traffic network ops
+
+The traffic network vectors (`tn11_…`) drive `fc4_core::traffic_network::NetworkModel` (`docs/specs/traffic-network.md`)
+over one scripted world implementing `NetworkHost`. Every op name starts with `tn_`. The default world is a 4 × 4-cell
+city of 16 m cells with the shipped tuning (§4.5) and no speeds, occupants, lots, water or neighbour connections, as
+in the §11 preamble. Cells map to world positions at their centre (`16x + 8`, `16z + 8`). Occupants answer
+`PathConnection` only for the listed (path type, entry, exit) triples and the turn-around test only for the listed
+entries; `GetPathInfo` always succeeds. A lot's anchor (`GetLot(x, z, true)`, `GetLocation`) is its NW cell.
+
+Floats are compared bit-exactly as `"0x3C23D70A"` strings (upper case, 8 hex digits); routes are lower-case hex byte
+strings (`"0000004005aa02"`).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `tn_env` | any of `cells` (`[x, z]`), `tuning` (`"shipped"` or null = the constructor's), `speeds` (`[[t, type, v]]`, raw "Max speed by Network" values), `cell_width` (16) | the world; read at `tn_init` |
+| `tn_init` | — | `NetworkModel::new`, the tuning and the inverse speed table (§4.8 step 5), then `Init` (§1) |
+| `tn_occupant` | `id`, `cell` or `pos` (`[x, y, z]`), `kind?` (`network` (default), `subway`, `prop`, `building`), `types?`, `conns?` (`[[entry, exit]]` for `path_type?` (1), or `[[pt, entry, exit]]`), `turns?` (entries), `flags?`, `tunnel?` (the paired portal's id, or true), `props?` (property map), `prop_type?`, `bounding?` (`[x1, z1, x2, z2]`), `paths?` (`[[entry, exit, vertex]]`), `near?` (`[[vertex, exit, [entries]]]`) | adds or replaces an occupant; `building` occupants answer no rectangle query |
+| `tn_remove_occupant` | `id` | takes the occupant out of the rectangle queries; it stays readable, as during its removal message |
+| `tn_lot` | `id`, `rect`, `facing?` (0), `building?`, `holder?` (id + `0x10000`), `pops?` (`[[[type, count]]]`, one list per map), `trip_caps?` (4 values, `GetMaxTripCapacity`), `props?` (the holder's initial properties) | a lot |
+| `tn_water` | `cells` or `rect`, `depth`, `body?` (1), `under_water?` (true) | navigable cells with a depth and a water-body ID |
+| `tn_damaged` | `cells` | the pothole cells (`IsRoadDamaged`) |
+| `tn_connection` | `id`, `type`, `cell`, `pool?` (holder token), `pool_cells?` (the cells `GetNeighborPoolPropertyHolder` answers at; default `cell`), `trip_caps?` | a neighbour connection |
+| `tn_curve` | `points` (`[[x, y]]`), `multiplier?` (1.0) | the congestion curve and transit multiplier (§4.7.3) |
+| `tn_switch` | `id`, any of `load`, `capacity`, `time_factor` | a switch table entry, inserted if missing (test setup, §11 test 10) |
+| `tn_set_cell` | `cell` or `cells`, `prior_car` | pokes cell connection records (test setup, §11 test 6) |
+| `tn_rng` | `seed` | a `cRZRandom` the model never sees (§11 test 12) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `tn_call` | `method`, `args?`, `expect?` | `occupant_changed [id, removed?]`, `do_post_city_init`, `post_city_init_rebuild`, `post_city_init_finish`, `do_connections_changed [x1, z1, x2, z2]`, `set_connection [x, z, e, x', t]`, `update_intersection_data`, `get_capacity [n, x, z]` (bits), `get_connection_count [n, x, z]`, `are_lots_connected [a, b]`, `get_connected_occupant_count [lot, type]`, `get_connected_destination_count [lot, k]`, `get_subnetworks_for_lot [lot]` (`{ids, ok}`), `get_subnetworks_in_rectangle [x1, z1, x2, z2]`, `get_subnetworks_in_region [x1, z1, x2, z2, [[x, z]]]`, `get_occupant_count_for_all_subnetworks [type]`, `transit_switch_entry_cost [id]` (bits), `lot_activated [lot]`, `lot_deactivated [lot]`, `get_transit_switches`, `transit_switch_query_target [x, z]` (`{switch}` / `{ferry}` / null), `tunnel_changed [id, removed]`, `find_water_path [sx, sz, tx, tz]` (`{cells, g, forward, backward}` or null), `get_water_route [x1, z1, x2, z2, initial hex]` (`{ok, route}`), `water_terrain_changed [data1, data2]`, `water_update`, `has_map_exit [x, z]`, `neighbor_connection_inner_cell [x, z]` (`[x, z, side]` or null), `set_neighbour_edge [x, z, mask, pool, cost]`, `begin_ferry_pass`, `work_on_ferry_routes [max]`, `ferry_terminal_count [type]`, `all_ferry_routes`, `ferry_route_between_tiles [x1, z1, x2, z2]`, `ferry_routes_in_use`, `clear_subnetworks`, `update_subnetworks`, `fill [x, z, e]`, `begin_subnetwork_info`, `work_on_subnetwork_info [max]`, `update_subnetwork_info` |
+| `tn_eval` | `fn`, `args`, `expect` (objects partial) | pure functions: `depth_byte [navigable, w]`, `step_cost [depth, g]`, `heuristic [dx, dz]`, `route_cost [cells]`, `encode_route [[[x, z]]]`, `side_of [ax, az, bx, bz]`, `tunnel_distance [dx, dy, dz]`, `inverse_max_speed [v, cell width]`, `read_rules [facing, [entries]]` (`{rules, to_mask, flags, mode_mask}`) |
+| `tn_expect_cell` | `cell` or `cells`, `expect` (partial: `conn` [9], `switch` [9], `prior_car` [4], `wormhole`, `switch_id`, `switch_mode`, `records` (each `{net, conn_count, type, inv_cap, extra_cost, flags, subnet}`, partial), `car` (the first car record, or null), `water_depth`) | the cell connection record, the network-info list and the grids |
+| `tn_expect_state` | `state` (partial: `count`, `subnet_counter`, `working_len`, `published_len`, `published` (`[{population, capacity}]`), `intersection_dirty`, `intersection_rect`, `subnetworks_stale`, `network_changed`, `occupants_changed`, `next_switch_id`, `switch_ids`, `ferry_counts`, `terminal_count`, `ferry_pass_running`, `ferry_pass_terminal`, `edge_density_keys`, `inv_cap_table`, `intersection_values`, `damaged_road_cost`, `posted`, `refs`) | the model state and the world's posted messages and references |
+| `tn_expect_tunnel` | `cell`, `record` (null, or partial `{other, mask, type, cost}` with `cost` keyed by travel type) | the tunnel table |
+| `tn_expect_lot` | `lot`, `subnetworks` (null = property `0x2A4F9C74` absent) | the lot's list |
+| `tn_expect_switch` | `id`, `switch` (null, or partial `{building, load, time_factor, capacity, flags, to_mask, mode_mask, has_access_point, access, simulator_value, counts_as_intersection, rules}`) | the switch table (read without inserting) |
+| `tn_expect_ferry` | `index`, `terminal` (null, or partial `{departure, arrival, water, lot, type, mask, reroute, links, neighbour_links}`) | the ferry terminal list |
+| `tn_expect_rng` | `expect?` | the generator's next `RandomUint32Uniform(100)` equals a fresh generator's with the same seed |
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1199,7 +1242,7 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
-   `zn15_…` (zones §15).
+   `zn15_…` (zones §15), `tn11_…` (traffic network §11).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1782,3 +1825,35 @@ Not covered by a vector, and why:
   branch (Q = 2) and the z-line `2` arm. Not pinned: the x-line `1` arm (Q = 1), the `D != 3` branch of the x-line
   `0 | 2` arm, and the z-line `0` and `1` arms — these are the other cells of the §7.5 table, which the current
   scenarios never select.
+
+## Coverage (traffic network §11)
+
+| §11 item | Vector |
+|---|---|
+| 1 three-cell street (`conn` words, records, `GetCapacity` 100.0, `GetConnectionCount` 2) | `tn11_01_three_cell_street` |
+| 2 subnetworks of test 1 (labels, counter 2, vector sizes, the empty seed at A) | `tn11_02_subnetworks` |
+| 2 the last column is never a seed (C alone) | `tn11_02b_last_column_never_seed` |
+| 3 lot lists and queries (L1, L2, the lot without a list) | `tn11_03_lot_lists` |
+| 4 intersection reduction: Street, Road, Highway never reduced | `tn11_04a_street_intersection`, `tn11_04b_road_intersection`, `tn11_04c_highway_not_reduced` |
+| 5 capacity table (`invCapTable`, Road / Highway / OneWay / Dirt capacities) | `tn11_05_capacity_table` |
+| 6 turn-around via `SetConnection` (`0x4444`, the off-map west neighbour) | `tn11_06_set_connection` |
+| 7 tunnel cost (mask `0x1FE`, Car / Walk / PassengerTrain costs) | `tn11_07_tunnel_cost` |
+| 8 water route (depth bytes, cells 6, g 5.0, link cost, both route byte strings, different bodies) | `tn11_08_water_route` |
+| 9 ferry cost encoding | `tn11_09_ferry_cost` |
+| 10 switch entry cost (q = 0, q = 6, 0/0, unknown ID) | `tn11_10_switch_entry_cost` |
+| 11 rule rotation (facing 1, `0x01018000`) | `tn11_11_rule_rotation` |
+| 12 no random draws | `tn11_12_no_random_draws` |
+| extra: transit-switch lot activation, the §4.7.4 phase, deactivation | `tn11_13_switch_lot` |
+| extra: ferry terminals (activation, routing, the ferry phase, removal, the periodic pass) | `tn11_14_ferry_terminals` |
+| extra: lane continuity (the last flagged occupant decides) | `tn11_15_lane_continuity` |
+| extra: neighbour capacity counted per labelled entry side | `tn11_16_neighbour_capacity` |
+| extra: `GetNeighborConnectionInnerCell` and `HasMapExit` (§2.7) | `tn11_17_map_edge` |
+
+Not covered by a vector, and why:
+
+- **The second half of test 12** (DoLotActivated's one draw on the simulator's generator, §12) belongs to
+  traffic-simulator.md: the network model has no generator.
+- **`GetDesiredLotInsertionPoint` (§4.14)**, the persistence record (§6) and the simulator's message bookkeeping (§3)
+  are traffic-simulator.md's and not part of `fc4_core::traffic_network`.
+- **`GetFerryRoutesInUse` (§4.9.5)** needs rider counters, which only the simulator's ferry trips write; the vector
+  world has no way to set them, so only the empty result is reachable (unit tests cover the list shape).

@@ -1,0 +1,143 @@
+{
+  "format": 1,
+  "name": "tn11_16_neighbour_capacity",
+  "spec": [
+    "traffic-network 4.11",
+    "traffic-network 4.12"
+  ],
+  "description": "Extra (§4.11, §4.12). Pieces (2,1) and (3,1), both (0 -> 2) and (2 -> 0). The seed at (2,1) entry 0 reaches (3,1) entry 0, turns around at the map edge (exit 2 is off-map and the cell connects 2 back to 0) and comes back, so both cells get subnet [1,0,1,0]. A neighbour connection at (4,1) maps to (3,1); its pool capacity (0,0,4,0) is added once per labelled entry side, not deduplicated: label 1 gets (0,0,8,0).",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        2,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "cell": [
+        3,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "tn_connection",
+      "id": 500,
+      "type": 1,
+      "cell": [
+        4,
+        1
+      ],
+      "pool": 2000,
+      "pool_cells": [
+        [
+          4,
+          1
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "trip_caps": [
+        0,
+        0,
+        4,
+        0
+      ],
+      "note": "the pool holder answers at both the off-map and the mapped cell"
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "expect": {
+        "car": {
+          "subnet": [
+            1,
+            0,
+            1,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "published": [
+          {
+            "population": {},
+            "capacity": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          {
+            "population": {},
+            "capacity": [
+              0,
+              0,
+              8,
+              0
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

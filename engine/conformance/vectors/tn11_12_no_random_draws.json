@@ -1,0 +1,224 @@
+{
+  "format": 1,
+  "name": "tn11_12_no_random_draws",
+  "spec": [
+    "traffic-network 12",
+    "traffic-network 11.12"
+  ],
+  "description": "Conformance test 12 (§11): seed a generator with 12345, run the network (tests 1-3 and a DoConnectionsChanged over the whole city); its next RandomUint32Uniform(100) equals a fresh generator's seeded with 12345 (the network model makes no draws, §12).",
+  "steps": [
+    {
+      "op": "tn_rng",
+      "seed": 12345
+    },
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        1,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        2
+      ],
+      "note": "A: no car connections, turn-around at entry 2"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "cell": [
+        2,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "note": "B: (0 -> 2) and (2 -> 0)"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 3,
+      "cell": [
+        3,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        0
+      ],
+      "note": "C: turn-around at entry 0"
+    },
+    {
+      "op": "tn_lot",
+      "id": 101,
+      "rect": [
+        1,
+        2,
+        1,
+        2
+      ],
+      "pops": [
+        [
+          [
+            4112,
+            3
+          ]
+        ]
+      ],
+      "trip_caps": [
+        5,
+        0,
+        0,
+        0
+      ],
+      "note": "L1"
+    },
+    {
+      "op": "tn_lot",
+      "id": 102,
+      "rect": [
+        2,
+        0,
+        2,
+        0
+      ],
+      "trip_caps": [
+        0,
+        7,
+        0,
+        0
+      ],
+      "note": "L2"
+    },
+    {
+      "op": "tn_lot",
+      "id": 103,
+      "rect": [
+        0,
+        3,
+        0,
+        3
+      ],
+      "props": {
+        "0x2A4F9C74": {
+          "u32": 9
+        }
+      },
+      "note": "L3 at (0,3), with a stale list the pass must remove"
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "tn_water",
+      "rect": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "depth": 40.7,
+      "body": 1,
+      "note": "a water row for test 8's pathfinder"
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_call",
+      "method": "find_water_path",
+      "args": [
+        0,
+        3,
+        3,
+        3
+      ],
+      "expect": {
+        "cells": 4,
+        "g": "0x40400000",
+        "forward": "00000340032a",
+        "backward": "000303400300"
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "do_connections_changed",
+      "args": [
+        0,
+        0,
+        3,
+        3
+      ],
+      "note": "the rebuild drops the labels (new records)"
+    },
+    {
+      "op": "tn_call",
+      "method": "clear_subnetworks"
+    },
+    {
+      "op": "tn_call",
+      "method": "update_subnetworks"
+    },
+    {
+      "op": "tn_call",
+      "method": "update_subnetwork_info"
+    },
+    {
+      "op": "tn_call",
+      "method": "are_lots_connected",
+      "args": [
+        101,
+        102
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_expect_rng"
+    }
+  ]
+}

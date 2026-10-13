@@ -32,6 +32,7 @@ pub mod runner;
 pub(crate) mod scalar;
 pub(crate) mod simgrid;
 pub(crate) mod tract_developer;
+pub(crate) mod traffic_network;
 pub mod variants;
 pub(crate) mod weather;
 pub(crate) mod zones;
