@@ -11,7 +11,7 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 
 ## Progress
 
-Last updated 2026-10-12. "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+Last updated 2026-10-13. "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
 the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
@@ -30,22 +30,22 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 **M2: scalar sims**
 - [x] Budget, demand, ordinance and weather cores
 - [x] Budget, demand, ordinance and weather glue (budget in-game with no heap corruption, runs 17–18)
-- [ ] x87 precision: the game expects 24-bit; something in our process resets it (guard on a branch, not yet merged)
-- [ ] Budget differential: tax by type (types 4, 6, 9 differ) and non-tax income
+- [x] x87 precision: diagnosed — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Trigger not yet located; the original computes wrongly while our DLL is loaded, so differential runs against it are not float-trustworthy until fixed
+- [ ] Budget differential: blocked on the x87 trigger; run 19 vs run 20 was invalid (both ran at 53-bit). A 24-bit oracle now exists in the Spandau save (manual-checks.md)
 - [ ] Budget and demand panels match the original after N months (M2 exit)
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
-- [ ] Power glue (in-game without crashing, but production stays 0; on a branch)
+- [ ] Power glue (run 23's crash is fixed and run 26 shows production 5997, 385 cells powered, 0 unpowered; on lane 1's branch, pending merge)
 - [ ] Plumbing, protection, flora, pollution, crime, aura and flammability glue
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
 - [x] Cores: building development simulator, growth developer, tract developer
-- [ ] Cores: lot developer, zones
-- [ ] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md))
+- [ ] Cores: lot developer, zones (in progress on their branches)
+- [x] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) now empty; GD/BD/TD answered in the named specs, 8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
 
@@ -54,7 +54,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [ ] Cores, glue, calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
-- [ ] Specs: save records, game data formats (DBPF, exemplars), tuning catalogue (in progress)
+- [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
 - [ ] Formats, rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
