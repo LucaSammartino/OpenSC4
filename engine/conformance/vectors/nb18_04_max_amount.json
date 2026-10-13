@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "nb18_04_max_amount",
+  "spec": ["neighbors 8.1", "neighbors 18"],
+  "description": "Conformance test 4. GetDealMaxAmount for test 3's data: need = max(1000/2.5 + 1, 500) = 500, shortfall 2.5 x 500 - 300 = 950, surplus 2000 - 1000 = 1000 -> 950; with an existing deal of amount 100: shortfall 1050, surplus 1100 -> 1050; with the seller's demanded raised to 1900: surplus 100 -> 100. Through the simulator, `existing` is the amount of the first E0 deal with W (a deal with another city does not count); a null city gives 0.",
+  "steps": [
+    {"op": "neighbors_price",
+     "buyer": {"demanded": 500, "exported": 0, "produced": 300, "imported": 0},
+     "seller": {"produced": 2000, "imported": 0, "demanded": 1000, "exported": 0, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5},
+     "expect": 950},
+    {"op": "neighbors_price",
+     "buyer": {"demanded": 500, "exported": 0, "produced": 300, "imported": 0},
+     "seller": {"produced": 2000, "imported": 0, "demanded": 1000, "exported": 0, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5, "existing": 100},
+     "expect": 1050},
+    {"op": "neighbors_price",
+     "buyer": {"demanded": 500, "exported": 0, "produced": 300, "imported": 0},
+     "seller": {"produced": 2000, "imported": 0, "demanded": 1900, "exported": 0, "cost_per_unit": 2.0},
+     "inputs": {"base": 1000, "scale": 2.5, "min_markup": 0.1, "max_markup": 0.5},
+     "expect": 100},
+
+    {"op": "neighbors_env", "current": 1},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1], "stats": {"demanded": [500, 0, 0], "produced": [300, 0, 0]}},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2], "stats": {"produced": [2000, 0, 0], "demanded": [1000, 0, 0], "cost_per_unit": [2.0, 0, 0]}},
+    {"op": "neighbors_city", "id": 3, "pos": [4, 2], "size": [2, 2]},
+    {"op": "neighbors_create"},
+    {"op": "neighbors_call", "method": "get_deal_max_amount", "args": ["E0", 2], "expect": 950},
+    {"op": "neighbors_deal", "id": 1, "type": "E0", "other": 2, "amount": 100, "flags": 2},
+    {"op": "neighbors_call", "method": "get_deal_max_amount", "args": ["E0", 2], "expect": 1050},
+    {"op": "neighbors_deal", "id": 2, "type": "E0", "other": 3, "amount": 500, "flags": 2},
+    {"op": "neighbors_call", "method": "get_deal_max_amount", "args": ["E0", 2], "expect": 1050},
+    {"op": "neighbors_deal_set", "deal": 1, "amount": 0},
+    {"op": "neighbors_city", "id": 2, "stats": {"demanded": [1900, 0, 0]}},
+    {"op": "neighbors_call", "method": "get_deal_max_amount", "args": ["E0", 2], "expect": 100},
+    {"op": "neighbors_call", "method": "get_deal_max_amount", "args": ["E0", null], "expect": 0}
+  ]
+}
