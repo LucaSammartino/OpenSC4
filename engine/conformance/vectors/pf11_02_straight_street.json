@@ -1,0 +1,344 @@
+{
+  "format": 1,
+  "name": "pf11_02_straight_street",
+  "spec": [
+    "pathfinder 4.4",
+    "pathfinder 4.6",
+    "pathfinder 4.7",
+    "pathfinder 4.8",
+    "pathfinder 4.13",
+    "pathfinder 4.16",
+    "pathfinder 11.2"
+  ],
+  "description": "Conformance test 2 (\u00a711). Ring 1 of the start lot (2,2) visits (2,1), (1,2), (3,2), (2,3); only (2,3) has a network, so the start nodes are (2,3) sides 0 and 2 (g = f = 0, keys 0x10|side prefix). Pops: (2,3) s0 adds (3,3) s0 g 1.5; (2,3) s2 adds (1,3) s2 g 1.5; (3,3) adds (4,3) g 3.0; (1,3) adds (0,3) g 3.0; (4,3) is a goal (its +z neighbour (4,4) is in the end rect) and is pushed back. Every node is inside the search rect (-2,-2)-(6,6), so f = g. Node keys: ((pSide<<2|side)<<24)|(t<<16)|(x<<8)|z. The heap ends as [(0,3), (4,3)].",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_eval",
+      "fn": "grow_clamp",
+      "args": [
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        1
+      ],
+      "expect": [
+        1,
+        1,
+        3,
+        3
+      ],
+      "note": "ring 1"
+    },
+    {
+      "op": "pf_eval",
+      "fn": "start_ring_cells",
+      "args": [
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        [
+          1,
+          1,
+          3,
+          3
+        ]
+      ],
+      "expect": [
+        [
+          2,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          2,
+          3
+        ]
+      ],
+      "note": "boundary order without the diagonal cells"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40400000",
+      "note": "3.0"
+    },
+    {
+      "op": "pf_call",
+      "method": "get_end_cell",
+      "expect": [
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 10
+    },
+    {
+      "op": "pf_call",
+      "method": "get_last_travel_type",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "was_trip_reversible",
+      "expect": true
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            4,
+            3,
+            1
+          ]
+        ],
+        "node_count": 6,
+        "nodes": [
+          {
+            "index": 0,
+            "key": "0x10010203",
+            "cell": [
+              2,
+              3
+            ],
+            "t": 1,
+            "side": 0,
+            "g": "0x00000000",
+            "f": "0x00000000",
+            "parent": null,
+            "open": false,
+            "closed": true
+          },
+          {
+            "index": 1,
+            "key": "0x12010203",
+            "cell": [
+              2,
+              3
+            ],
+            "t": 1,
+            "side": 2,
+            "g": "0x00000000",
+            "f": "0x00000000",
+            "parent": null,
+            "open": false,
+            "closed": true
+          },
+          {
+            "index": 2,
+            "key": "0x00010303",
+            "cell": [
+              3,
+              3
+            ],
+            "t": 1,
+            "side": 0,
+            "g": "0x3FC00000",
+            "f": "0x3FC00000",
+            "parent": 0,
+            "open": false,
+            "closed": true
+          },
+          {
+            "index": 3,
+            "key": "0x0A010103",
+            "cell": [
+              1,
+              3
+            ],
+            "t": 1,
+            "side": 2,
+            "g": "0x3FC00000",
+            "f": "0x3FC00000",
+            "parent": 1,
+            "open": false,
+            "closed": true
+          },
+          {
+            "index": 4,
+            "key": "0x00010403",
+            "cell": [
+              4,
+              3
+            ],
+            "t": 1,
+            "side": 0,
+            "g": "0x40400000",
+            "f": "0x40400000",
+            "parent": 2,
+            "open": true,
+            "closed": false
+          },
+          {
+            "index": 5,
+            "key": "0x0A010003",
+            "cell": [
+              0,
+              3
+            ],
+            "t": 1,
+            "side": 2,
+            "g": "0x40400000",
+            "f": "0x40400000",
+            "parent": 3,
+            "open": true,
+            "closed": false
+          }
+        ],
+        "result": 4,
+        "open_set": [
+          5,
+          4
+        ],
+        "search_rect": [
+          -2,
+          -2,
+          6,
+          6
+        ],
+        "weight": "0x3F800000",
+        "over_budget": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "disabled": 0,
+        "suspended": false
+      }
+    }
+  ]
+}

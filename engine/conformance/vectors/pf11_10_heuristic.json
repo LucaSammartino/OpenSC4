@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "name": "pf11_10_heuristic",
+  "spec": [
+    "pathfinder 4.4",
+    "pathfinder 11.10"
+  ],
+  "description": "Conformance test 10 (\u00a711). Start rect (2,2,2,2), end rect (12,3,12,3), w = 0.09f (0x3DB851EC): the search rect is (-2,-2)-(6,6); H(10,3) = dX[10] + dZ[3] = 2 + 0 = 2; r24(2 x 0.09f) = 0x3E3851EC; H(6,3) = 0 (inside the search rect).",
+  "steps": [
+    {
+      "op": "pf_env",
+      "cells": [
+        16,
+        16
+      ],
+      "attractiveness": "0x3DB851EC"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        12,
+        3,
+        12,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 0,
+      "note": "no network: no start node"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "search_rect": [
+          -2,
+          -2,
+          6,
+          6
+        ],
+        "weight": "0x3DB851EC"
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "heuristic",
+      "args": [
+        10,
+        3
+      ],
+      "expect": "0x40000000"
+    },
+    {
+      "op": "pf_call",
+      "method": "score",
+      "args": [
+        10,
+        3,
+        0
+      ],
+      "expect": "0x3E3851EC"
+    },
+    {
+      "op": "pf_call",
+      "method": "heuristic",
+      "args": [
+        6,
+        3
+      ],
+      "expect": "0x00000000"
+    }
+  ]
+}

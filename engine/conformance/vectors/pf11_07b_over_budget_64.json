@@ -1,0 +1,178 @@
+{
+  "format": 1,
+  "name": "pf11_07b_over_budget_64",
+  "spec": [
+    "pathfinder 4.9",
+    "pathfinder 11.7"
+  ],
+  "description": "Conformance test 7 (\u00a711), the boundary: 64 rejections do not disable Car (the counter must exceed 64), so the search reaches (4,3) as in test 2.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_cell",
+      "cell": [
+        2,
+        3
+      ],
+      "conn": [
+        [
+          1,
+          4
+        ]
+      ],
+      "note": "conn[Car] = 0x0004: only entry side 0 has exits, so only one start node"
+    },
+    {
+      "op": "pf_ferry",
+      "cell": [
+        2,
+        3
+      ],
+      "mask": 2,
+      "links": [
+        [
+          7,
+          7,
+          100.0
+        ]
+      ],
+      "repeat": 64,
+      "note": "64 terminal links, each to (7,7) at cost 100.0"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_max_trip_length",
+      "args": [
+        10.0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "over_budget": [
+          0,
+          64,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "disabled": 0,
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            4,
+            3,
+            1
+          ]
+        ]
+      }
+    }
+  ]
+}

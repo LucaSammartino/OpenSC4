@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "pf11_14_lifetime",
+  "spec": [
+    "pathfinder 1",
+    "pathfinder 11.14"
+  ],
+  "description": "Conformance test 14 (\u00a711). CreatePathFinder returns an initialised object with count 1; one Release returns 0 and destroys it (Shutdown first). With count 2, Release returns 1.",
+  "steps": [
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "ref_count": 1,
+        "initialised": true,
+        "destroyed": false,
+        "city_size": [
+          8,
+          8
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "release",
+      "expect": 0
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "destroyed": true,
+        "initialised": false
+      }
+    },
+    {
+      "op": "pf_create",
+      "pf": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "add_ref",
+      "pf": 1,
+      "expect": 2
+    },
+    {
+      "op": "pf_call",
+      "method": "release",
+      "pf": 1,
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "ref_count": 1,
+        "destroyed": false,
+        "initialised": true
+      },
+      "pf": 1
+    }
+  ]
+}

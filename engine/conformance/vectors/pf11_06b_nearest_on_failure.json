@@ -1,0 +1,236 @@
+{
+  "format": 1,
+  "name": "pf11_06b_nearest_on_failure",
+  "spec": [
+    "pathfinder 4.12",
+    "pathfinder 4.14",
+    "pathfinder 11.6"
+  ],
+  "description": "Conformance test 6 (\u00a711), flag 2: after a successful test 2 (end cell (4,4)), the same object without flag 1, with flag 2 and SetMaxTripLength(2.0): the open set empties and the result becomes the stored node nearest the end rect, (3,3) (DistanceToRectangle sqrt 2 against sqrt 5, sqrt 5, sqrt 10). FindPath = 1, trip length 1.5, route (2,3,1) (3,3,1), traffic arrived 0, end cell unchanged (4,4).",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "clear_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_max_trip_length",
+      "args": [
+        2.0
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "result": 2,
+        "route": [
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ]
+        ],
+        "nodes": [
+          {},
+          {},
+          {
+            "cell": [
+              3,
+              3
+            ],
+            "closed": true
+          },
+          {}
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x3FC00000"
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 0
+    },
+    {
+      "op": "pf_call",
+      "method": "get_end_cell",
+      "expect": [
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_eval",
+      "fn": "distance_to_rect",
+      "args": [
+        3,
+        3,
+        [
+          4,
+          4,
+          4,
+          4
+        ]
+      ],
+      "expect": "0x3FB504F3",
+      "note": "sqrt 2 as a float (LengthOfLine returns a float)"
+    },
+    {
+      "op": "pf_eval",
+      "fn": "distance_to_rect",
+      "args": [
+        2,
+        3,
+        [
+          4,
+          4,
+          4,
+          4
+        ]
+      ],
+      "expect": "0x400F1BBD",
+      "note": "sqrt 5"
+    },
+    {
+      "op": "pf_eval",
+      "fn": "distance_to_rect",
+      "args": [
+        1,
+        3,
+        [
+          4,
+          4,
+          4,
+          4
+        ]
+      ],
+      "expect": "0x404A62C2",
+      "note": "sqrt 10"
+    }
+  ]
+}

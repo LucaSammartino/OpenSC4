@@ -1,0 +1,135 @@
+{
+  "format": 1,
+  "name": "pf11_06c_shared_trip_length",
+  "spec": [
+    "pathfinder 4.3",
+    "pathfinder 4.4",
+    "pathfinder 11.6"
+  ],
+  "description": "Conformance test 6 (\u00a711), last part: after test 2 (success, trip length 3.0) a second FindPath without SetMaxTripLength uses maxCost = r24(startCost + 3.0) = 3.0 for every travel type (the shared float).",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "max_cost": [
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000",
+          "0x40400000"
+        ]
+      }
+    }
+  ]
+}
