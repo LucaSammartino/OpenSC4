@@ -9,7 +9,7 @@
 //! bound `Parcellize` (§7.6) uses. Section references point at
 //! `docs/specs/zones.md`.
 
-use crate::x87::{ftol, r24};
+use crate::x87::{ftol, ftol32, r24};
 
 /// [choice] The number of row / depth positions `Parcellize` (§7.6) walks at
 /// most. The keep conditions of §7.6.1 end a walk on any sane region; this
@@ -32,6 +32,38 @@ pub fn zone_density(zone: i32) -> i32 {
     }
 }
 
+/// The capacity value of `DetermineLotSize` (§7.2.1 step 6):
+/// `v := ftol(r24(r24(float(k) / float(n)) × float(avg)))`, with `k` the
+/// cells per tract (`(1 << s) << s`), `n = sx · sz` (an unsigned product) and
+/// `avg = (min + max) / 2` (an integer division). The result is kept as an
+/// `int32`.
+///
+/// *[compat]* The chain as written, not the exact floor: for `k ≤ 64` it
+/// equals `⌊k · avg / n⌋` for every u16 `avg`, but not above, e.g. `(256, 3,
+/// 49154)` gives 4194475 where the floor is 4194474 (test 30g).
+pub fn capacity_value(k: i32, n: u32, avg: i32) -> i32 {
+    ftol32(r24(r24(f64::from(k) / f64::from(n)) * f64::from(avg)))
+}
+
+/// The depth-range adjustment that ends `DetermineLotSize` step 7 (§7.2.1):
+/// if `maxDepth − minDepth < 2` (unsigned): `minDepth := (minDepth > 2) ?
+/// maxDepth − 2 : 1` and `maxDepth := minDepth + 2`; otherwise unchanged.
+/// The `minDepth > 2` compare is taken unsigned, like the widening compares
+/// before it (the spec does not say; depths are small positive sizes, where
+/// both readings agree).
+pub fn adjust_depth_range(min_depth: i32, max_depth: i32) -> (i32, i32) {
+    if (max_depth as u32).wrapping_sub(min_depth as u32) < 2 {
+        let lo = if (min_depth as u32) > 2 {
+            max_depth.wrapping_sub(2)
+        } else {
+            1
+        };
+        (lo, lo.wrapping_add(2))
+    } else {
+        (min_depth, max_depth)
+    }
+}
+
 /// The block depth (§7.2.1 step 8). `density` is [`zone_density`] of the
 /// current zone, `depth` the chosen lot depth (§7.2.1 step 7) and
 /// `residential` whether a best developer exists **and** its purpose is 1
@@ -41,10 +73,10 @@ pub fn zone_density(zone: i32) -> i32 {
 ///   2.5))` (depth converted as unsigned; 2 → 5, 3 → 7, 4 → 10); 3 → `2 ·
 ///   depth`.
 /// - otherwise: 1 → 7, 2 → 6, 3 → 5.
-/// - density 0 leaves the block depth unchanged. [choice] The only caller
-///   (`DetermineLotSize`) enters with the default [`DEFAULT_BLOCK_DEPTH`] and
-///   runs for zones 1–9 only, where the density is never 0, so "unchanged" is
-///   the default.
+/// - density 0 leaves the block depth unchanged. This pure helper has no
+///   previous value and returns [`DEFAULT_BLOCK_DEPTH`]; `DetermineLotSize`
+///   does not call it for density 0 and keeps its previous block depth
+///   (unreachable for zones 1–9).
 pub fn block_depth(density: i32, depth: i32, residential: bool) -> i32 {
     match density {
         1 => {
