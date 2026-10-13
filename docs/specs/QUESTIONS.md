@@ -348,3 +348,35 @@ vectors `nb18_*`). The core's current answer is in brackets.
 - Lane choices worth knowing: the proposal generator is per simulator, seeded `derive_seed(session, 0xC990C0A4)`
   (the original's is process-wide and clock-seeded); save reads are capped at 65,536 zones.
 
+
+## From the exemplar reader (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/data-formats.md` §4, §5 and the §11 exemplar rows (`engine/formats/src/exemplar.rs`). The install
+sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets.
+
+- **EX1:** how are Empty (tag 0) properties stored? [`Values::Empty`; getters return None]
+- **EX2:** Uint64 to float, signed or unsigned? [unsigned]
+- **EX3:** float to int when out of range or NaN? [saturates; NaN gives 0]
+- **EX4:** is RZChar signed when widened? [zero-extended]
+- **EX5:** what do the getters return for Empty or object values? [None]
+- **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
+  array gives its first byte as `%u`]
+- **EX7:** an RZChar scalar as a string. [that one character]
+- **EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]
+- **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
+  anywhere after the first digit]
+- **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]
+- **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
+  exactly]
+- **EX12:** is there a cap on reps? [more reps than the record length fails]
+- **EX13:** are numeric values cut at `}` too? [no, only strings]
+- **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
+- **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
+  from the package index]
+- **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
+  as a scalar 0 (§4.3). Intended? [scalar 0]
+- **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]
+- **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
+- **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
+  fails only on depth is retried when reached shallower]
+- **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
