@@ -211,7 +211,10 @@ instance ID is the node key.
 | `0x47BB3F60` | Region Use | uint8 | `SetRegionUse(v)`; 0 if absent | 40 |
 
 Link factors: `percent · 0.01` for Drives/Satisfies/Contributes, where `percent` is an unsigned integer that may
-exceed 100 (the shipped data uses 0…1500). Caps and Sums carry factor 1.0, which is never used.
+exceed 100 (the shipped data uses 0…1500). *[compat]* The original computes `r24(float(percent) · 0.01f)`. The
+integer is converted with `FILD`, plus 2^32 when its sign bit is set. It is multiplied by the **float32** constant
+`0.01f` (`0x00A823A4`, bytes `0A D7 23 3C` = `0x3C23D70A`) and stored as float32. The three sites in
+`CreateDemandFromExemplar` are `0x006A5514`, `0x006A5604` and `0x006A56F4`. Caps and Sums carry factor 1.0, which is never used.
 
 ### 4.2 Building the graph (part of `Init`, §13)
 
@@ -461,20 +464,59 @@ So the supply of a local R$/CS$/… node is the total capacity of occupied (or c
 ### 8.1 Tax and economy modifiers (census state 0)
 
 ```
-neutral := max(0.1, GetNeutralTaxRate())
+neutral := max(0.1f, GetNeutralTaxRate())                    -- float32
+recip   := r24(1.0f / neutral)                               -- once, before the first type; stored as float32
 for i, (key, id) in enumerate([(0x21010,0x1010), (0x21020,0x1020), (0x21030,0x1030),
                                (0x23110,0x3110), (0x23120,0x3120), (0x23130,0x3130),
                                (0x23320,0x3320), (0x23330,0x3330),
                                (0x24100,0x4100), (0x24200,0x4200), (0x24300,0x4300), (0x24400,0x4400)]):
-    maxRate := HistoryWarehouse.GetMinMaxAverage(0xAABAAA9F + i, today − taxPenaltyDays, today).max
-    taxMod  := curveTax(maxRate · 0.1 / neutral)
-    node[key].SetTaxModifier(OrdinanceSim.GetCumulativeFactor(0x2A650000 + id, 0) − 1 + taxMod)
+    maxRate := HistoryWarehouse.GetMinMaxAverage(0xAABAAA9F + i, today − taxPenaltyDays, today).max   -- float32
+    ratio   := r24(r24(maxRate · 0.1f) · recip)
+    taxMod  := curveTax(ratio)                                -- float32
+    node[key].SetTaxModifier(r24(r24(OrdinanceSim.GetCumulativeFactor(0x2A650000 + id, 0) − 1.0f) + taxMod))
     econ := Nation.GetEconomyModifier(id)
     if id ∈ {0x3320, 0x3330}: econ += coEconomyBonus
     if id ≥ 0x4100:           econ += iEconomyBonus
     node[key].SetEconomyModifier(econ)
 ```
 
+- **Ratio arithmetic** *[compat]* (`UpdateTaxAndEconomyModifiers` `0x006A6070`; foundations §18). `r24` is one
+  rounding to a 24-bit significand (one `float32` operation). The 12 types are not a loop in the original: the code is
+  unrolled into 12 copies, the first starting at `0x006A60EF` (`push 0xAABAAA9F`) and the last at `0x006A683A`
+  (`push 0xAABAAAAA`). The ratio is a **multiplication by a rounded reciprocal**, not a division by `neutral`:
+  1. `neutral` is the float32 return of `GetNeutralTaxRate()`, stored to a float32 local (`0x006A6096`). If it is
+     below `0.1f`, the local is set to `0.1f` (`0x3DCCCCCD`, `0x006A60A7`). A NaN passes the test and is kept.
+  2. Type 0 (`0x006A60F9`–`0x006A611A`): load `maxRate` (float32), multiply by the **float32** constant `0.1f` at
+     `0x00A8C950` (bytes `CD CC CC 3D`). Then load `1.0f` (`0x00A81228`, bytes `00 00 80 3F`) and **divide** it by the
+     `neutral` local. This gives `recip`, which is written back over the `neutral` local as a float32 (`FST dword`).
+     Multiply `recip · (maxRate · 0.1f)` and store the product as the curve's float32 argument.
+  3. Types 1–11 (for example `0x006A61A7`–`0x006A61BE`): `maxRate · 0.1f` as before, then multiply by the **stored
+     float32 `recip`** reloaded from that local. There is no further division.
+  4. Each product (`maxRate · 0.1f`, `1.0f / neutral`, the ratio) is a separate x87 result, so each is rounded once
+     to 24 bits: three roundings in total. Type 0 uses `recip` from the register and types 1–11 reload it from memory.
+     At 24-bit precision these are the same value, so all 12 types follow the formula above. *[compat]* Implement the
+     reciprocal as float32 and use it for all 12 types.
+  5. The curve is `cSC4ResponseCurve::GetOutputValue` (`0x005F4250`, foundations §4.3: three float32 operations).
+     Its result is stored as float32. Then `GetCumulativeFactor(...)` (ST0) `− 1.0f` (`0x00A81228`) `+ taxMod` gives
+     the tax modifier, stored as float32.
+
+  The literal `maxRate · 0.1 / neutral` has one rounding fewer. It differs from the original by 1 ulp in the ratio
+  for some inputs, and that becomes several ulp after the curve.
+
+  **Worked example** (game date 2001-10-01, run 43). `neutral = 8.99755573` = `0x410FF5FD`, `maxRate = 70`, ordinance
+  factor 1, shipped curve (0.2, 0.3) (1, 0) (5, −3.5). The segment-1 slope is `0xBEC00000` = −0.375.
+
+  | step | original | literal `maxRate·0.1/neutral` |
+  |---|---|---|
+  | `maxRate · 0.1f` | `0x40E00000` (7.0 exactly after rounding) | same |
+  | `1.0f / neutral` | `0x3DE39E0C` | — |
+  | ratio | `0x3F472A4A` (0.77798903) | `0x3F472A4B` (0.777989089) |
+  | taxMod = tax modifier | **`0x3DAA8124`** (0.0832541287) | `0x3DAA8120` (0.0832540989) |
+
+  The original showed `0x3DAA8124` for the 11 types whose `maxRate` was 70. I-R had `maxRate = 90`: the ratio is
+  `0x3F8008E7` in both orders, and the modifier is `0xB9794400` (−0.000237718). At 2001-09-09 (`neutral = 8.99767494`
+  = `0x410FF67A`, `1.0f / neutral` = `0x3DE39D47`, `maxRate = 70`), both orders give ratio `0x3F47299E` and modifier
+  `0x3DAA8328` (0.0832579732). That is why the differential found only the one mismatching month.
 - `today` is the simulator's current date. The tax history IDs `0xAABAAA9F…0xAABAAAAA` are the tax-rate series,
   one per type, in the order above. They are recorded elsewhere (budget). The tax term uses the **highest** rate in
   the window, so a tax cut takes up to `taxPenaltyDays` (shipped: 90) to help *[compat]*. The `· 0.1` means the

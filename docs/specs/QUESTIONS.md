@@ -104,3 +104,24 @@ The shadow reads the month's income and expense as the change in the year-to-dat
 January 1 the year-to-date is reset, so that month's income/expense is reported as `year end: … not observable`
 (run 39, 2002-01-01). Does the reset happen before or after that month's amounts are added? If after, the January
 values are readable directly as the new YTD, and the shadow can compare that month too.
+
+## From the demand shadow differential (filed by the coordinator, 2026-10-13; runs 42/43)
+
+About `docs/specs/demand.md`. Runs 42/43 matched demand bit-for-bit except for one month (2001-10-01). In that month
+the tax modifier of 11 of the 12 types was 4 ulp off.
+
+~~**DQ1 — §8.1: operation order of the tax ratio `maxRate · 0.1 / neutral`.**~~ **ANSWERED 2026-10-13** from the exe
+and written into §8.1, with a bit-level worked example. `UpdateTaxAndEconomyModifiers` (`0x006A6070`, unrolled into
+12 copies) computes `recip := r24(1.0f / neutral)` once, in the first copy, and stores it as float32. Every type then
+computes `r24(r24(maxRate · 0.1f) · recip)`. `0.1f` is a float32 literal (`0x00A8C950`). This is the order the
+implementer found empirically. It reproduces `0x3DAA8124` (2001-10-01), `0xB9794400` (I-R) and `0x3DAA8328`
+(2001-09-09). Also answered on the way: the link factor is `r24(float(percent) · 0.01f)` with a float32 `0.01f`
+(§4.1).
+
+**DQ2 — §15 Q5: can the CO/I economy bonuses (`this+0xA0`, `this+0xA4`) be read or written through any interface?**
+In the original these are float32 fields, added with `FADD dword` to the economy modifier of CO$$/CO$$$
+(`0x006A654F`, `0x006A65FD`) and of the four I types (`+0xA4`, for example `0x006A68AF`). In the exported decomp of
+`cSC4DemandSimulator`, the only other code that touches them is the save write, the save read, and the
+Init/Shutdown zeroing. That was not checked against the vtables. Still open: does any `cISC4DemandSimulator` slot,
+or any other class, read or write `+0xA0`/`+0xA4`, for example through a getter that returns a pointer? A vtable
+scan of the demand simulator's interfaces would settle whether these fields are dead.
