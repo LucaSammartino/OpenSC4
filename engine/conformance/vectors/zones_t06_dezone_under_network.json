@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "zones_t06_dezone_under_network",
+  "spec": ["zones 5.1", "zones 6", "zones 15.6"],
+  "description": "Conformance test 6 (dezone under a network, §5.1). InsertOccupant of a network occupant without flags 0x80200090 whose bounding cells are {10, 10, 12, 10}: the zone manager's DoMessage builds a full region over that rect and calls PlaceZone(region, 0, commit, skipFunds, !checkSlope, skipSize, checkLotInside), so the three zoned cells become 0 at no cost. A second occupant with flag bit 4 set (HasAnyNetworkFlag returns true) is left alone (no dezone). A third occupant over a 2 × 2 lot that extends beyond its one-cell bounding rect is rejected by checkLotInside and stays zoned.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64], "funds": 100000},
+    {"op": "zone_create", "session": 0, "manager": true, "developer": true},
+    {"op": "zone_init"},
+
+    {"op": "zone_zones", "rect": [10, 10, 12, 10], "v": 1},
+    {"op": "zone_occupant", "token": 100, "type": "0xC772BF98", "pos": [160.0, 0.0, 160.0], "bounding": [10, 10, 12, 10]},
+    {"op": "zone_clear_events"},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 100, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[10, 10, 0], [11, 10, 0], [12, 10, 0]]},
+
+    {"op": "zone_zones", "rect": [20, 20, 22, 20], "v": 1},
+    {"op": "zone_occupant", "token": 101, "type": "0xC772BF98", "pos": [320.0, 0.0, 320.0], "bounding": [20, 20, 22, 20], "net_flags": "0x80200090"},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 101, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[20, 20, 1], [22, 20, 1]]},
+
+    {"op": "zone_zones", "rect": [30, 30, 32, 30], "v": 1},
+    {"op": "zone_lot", "rect": [31, 30, 32, 31], "facing": 0, "zone": 1},
+    {"op": "zone_occupant", "token": 102, "type": "0xC772BF98", "pos": [480.0, 0.0, 480.0], "bounding": [30, 30, 31, 30]},
+    {"op": "zone_message", "target": "manager", "id": "0x99EF1142", "occupant": 102, "data3": "0xC772BF98", "expect": true},
+    {"op": "zone_expect", "zones": [[30, 30, 0], [31, 30, 1], [32, 30, 1]]}
+  ]
+}

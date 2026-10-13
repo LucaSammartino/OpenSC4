@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "zones_t11_get_lots_in_cell_rect",
+  "spec": ["zones 8.3", "zones 15.11"],
+  "description": "Conformance test 11 (GetLotsInCellRect, §8.3 slot 7). Lot A is 1 × 1 at (2, 2) (token 0x1000), lot B is 2 × 2 at (3, 2) (token 0x1001). originOnly = false: x outer, z inner; a lot is appended when it differs from the lot at (x, z-1) and from (x-1, z), both looked up inside the clamped rectangle. A first appears at (2,2) (neighbours null) -> appended; B first appears at (3,2) -> appended; at (3,3) B equals its (3,2) neighbour -> not appended. So [A, B], count 2. originOnly = true: z outer, x inner, lots whose origin is the cell -> A's origin (2,2) before B's (3,2) -> [A, B].",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0, "manager": false},
+    {"op": "zone_init"},
+    {"op": "zone_lot", "rect": [2, 2, 2, 2], "facing": 0, "zone": 1},
+    {"op": "zone_lot", "rect": [3, 2, 4, 3], "facing": 0, "zone": 1},
+
+    {"op": "zone_call", "method": "get_lots_in_cell_rect", "args": [[0, 0, 5, 5], false],
+     "expect": ["0x1000", "0x1001"]},
+    {"op": "zone_call", "method": "get_lots_in_cell_rect", "args": [[0, 0, 5, 5], true],
+     "expect": ["0x1000", "0x1001"]},
+    {"op": "zone_call", "method": "get_lot_count", "expect": 2}
+  ]
+}

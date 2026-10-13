@@ -98,6 +98,12 @@ struct Occ {
     kind: u32,
     pos: Position,
     can_remove: bool,
+    /// `GetBoundingCityCells` (occupant slot 11). `None`: a one-cell box at
+    /// the position's cell.
+    bounding: Option<CellRect>,
+    /// The network flags `HasAnyNetworkFlag(flags)` answers for (the occupant
+    /// is a `cISC4NetworkOccupant` when its kind is the network type).
+    net_flags: u32,
 }
 
 pub(crate) struct World {
@@ -472,6 +478,11 @@ impl ZonesHost for World {
         self.occupants.borrow().get(&occupant).map_or([0.0; 3], |o| o.pos)
     }
     fn occupant_bounding_cells(&self, occupant: u64) -> CellRect {
+        if let Some(o) = self.occupants.borrow().get(&occupant) {
+            if let Some(r) = o.bounding {
+                return r;
+            }
+        }
         let p = self.occupant_position(occupant);
         let (x, z) = ((p[0] / 16.0) as i32, (p[2] / 16.0) as i32);
         CellRect::new(x, z, x, z)
@@ -480,6 +491,14 @@ impl ZonesHost for World {
         self.occupants.borrow().get(&occupant).map_or(true, |o| o.can_remove)
     }
     fn network_has_any_flag(&self, occupant: u64, flags: u32) -> Option<bool> {
+        // A real occupant answers from its own network flags; a net-cell token
+        // (from `cell_occupants` with the network filter) answers from the net
+        // map's kind.
+        if let Some(o) = self.occupants.borrow().get(&occupant) {
+            if o.kind == NETWORK_OCCUPANT_TYPE {
+                return Some(o.net_flags & flags != 0);
+            }
+        }
         let (x, z) = ((occupant >> 32) as i32, (occupant & 0xFFFF_FFFF) as i32);
         self.nets.borrow().get(&(x, z)).map(|n| (1u32 << n.kind) & flags != 0)
     }
@@ -1065,12 +1084,16 @@ fn occupant(w: &World, op: &Json) -> R<()> {
         f32_of(field_at(pos, 2)?, "z")?,
     ];
     let kind = u32_of(field(op, "type")?, "type")?;
+    let bounding = opt(op, "bounding").map(rect_of).transpose()?;
+    let net_flags = opt(op, "net_flags").map_or(Ok(0), |v| u32_of(v, "net_flags"))?;
     w.occupants.borrow_mut().insert(
         token,
         Occ {
             kind,
             pos: p,
             can_remove: opt(op, "can_remove").and_then(boolean).unwrap_or(true),
+            bounding,
+            net_flags,
         },
     );
     let cell = (p[0] as i32 / 16, p[2] as i32 / 16);
@@ -1351,6 +1374,12 @@ fn call(w: &World, op: &Json) -> R<()> {
             let r = rect_of(a(0)?)?;
             let oo = a(1).ok().and_then(boolean).unwrap_or(false);
             let v: Vec<u64> = w.dev()?.get_lots_in_cell_rect(r, oo);
+            Json::Array(v.iter().map(|&l| ji(l as i64)).collect())
+        }
+        ("developer", "get_lots_surrounding_rect") => {
+            let r = rect_of(a(0)?)?;
+            let f = u32_of(a(1)?, "flags")?;
+            let v: Vec<u64> = w.dev()?.get_lots_surrounding_rect(r, f);
             Json::Array(v.iter().map(|&l| ji(l as i64)).collect())
         }
         ("developer", "exists_network_of_type") => {
