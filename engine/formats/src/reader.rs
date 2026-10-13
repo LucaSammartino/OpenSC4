@@ -66,6 +66,51 @@ impl<'a> Reader<'a> {
         }
         Ok(())
     }
+
+    /// Reads a `GetGZStr` string (foundations §2.3), returning its bytes.
+    ///
+    /// ```text
+    /// uint32  header      encoding = header >> 24, count = header & 0x00FF_FFFF
+    ///         encoding 0x00: count bytes of 8-bit text (returned unchanged)
+    ///         encoding 0x10: count UTF-16LE code units, converted to UTF-8
+    /// ```
+    ///
+    /// Bytes after the string are left in the reader (the length need not match the record size). Standalone
+    /// *\[choice\]* (foundations §2.3): the §2.3 quirks are not reproduced — a header with fewer than 4 bytes
+    /// left is a truncation error (quirk 2), an encoding byte other than 0 and 0x10 is an error rather than the
+    /// legacy raw-bytes path (quirk 3), and the "second byte 0 means UTF-16" rule does not exist (quirk 1: the
+    /// header decides). An unpaired UTF-16 surrogate becomes U+FFFD. `count` over 200,000 fails.
+    pub(crate) fn gzstr(&mut self) -> Result<Vec<u8>> {
+        /// Largest string the original reader accepts (foundations §2.3).
+        const MAX_COUNT: usize = 200_000;
+        let header = self.u32()?;
+        let encoding = header >> 24;
+        let count = (header & 0x00FF_FFFF) as usize;
+        if count > MAX_COUNT {
+            return Err(Error::Corrupt {
+                what: self.what,
+                detail: format!("string count {count} exceeds {MAX_COUNT}"),
+            });
+        }
+        match encoding {
+            0x00 => Ok(self.bytes(count)?.to_vec()),
+            0x10 => {
+                let raw = self.bytes(count.checked_mul(2).ok_or_else(|| Error::Corrupt {
+                    what: self.what,
+                    detail: format!("UTF-16 count {count} overflows"),
+                })?)?;
+                let units = raw.chunks_exact(2).map(|c| u16::from_le_bytes([c[0], c[1]]));
+                Ok(char::decode_utf16(units)
+                    .map(|r| r.unwrap_or(char::REPLACEMENT_CHARACTER))
+                    .collect::<String>()
+                    .into_bytes())
+            }
+            other => Err(Error::Corrupt {
+                what: self.what,
+                detail: format!("string encoding byte {other:#04X} (only 0x00 and 0x10 are read)"),
+            }),
+        }
+    }
 }
 
 pub(crate) fn le_u32(d: &[u8], off: usize) -> u32 {

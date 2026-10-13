@@ -20,83 +20,134 @@
 //! | `0xE0..=0xFB` | 1 | `((b0 & 0x1F) << 2) + 4` (4..=112) | none | none |
 //! | `0xFC..=0xFF` | 1 | `b0 & 3`, then end of stream | none | none |
 //!
-//! Other RefPack header flags are accepted when reading: bit `0x80` of the flags byte means 4-byte size
-//! fields, bit `0x01` means a compressed-size field precedes the uncompressed size.
+//! Acceptance *\[compat\]* (data-formats §2.7): the original accepts **only** the two signatures `10 FB` and
+//! `11 FB`. `0x11` inserts three unused bytes between the signature and the uncompressed size; the size is
+//! always a 24-bit big-endian field. There is no `0x80` four-byte-size form and no `0x01` compressed-size
+//! field inside the RefPack header (the DBPF entry carries the compressed length as its own 4-byte prefix).
+//! The stored entry is at least 7 bytes, and the 4-byte prefix is at most `0x0100_0000` (16 MiB); the 24-bit
+//! uncompressed size can never exceed 16 MiB. Anything else is rejected before decoding.
 
 use crate::error::{corrupt, Error, Result};
 
-/// Length of the SimCity 4 QFS header (4-byte compressed size, 2-byte signature, 3-byte uncompressed size).
+/// Length of the shortest SimCity 4 QFS header (4-byte prefix, 2-byte signature, 3-byte uncompressed size).
+/// The `11 FB` form is 3 bytes longer (see [`header_len`]).
 pub const HEADER_LEN: usize = 9;
 
 /// Largest uncompressed size the 3-byte header field can express.
 pub const MAX_UNCOMPRESSED: usize = (1 << 24) - 1;
 
+/// Largest accepted 4-byte compressed-length prefix (data-formats §2.7: 16 MiB).
+pub const MAX_PREFIX: u32 = 0x0100_0000;
+
 const MAX_DISTANCE: usize = 131_072;
 const MAX_COPY: usize = 1028;
 
-/// True if `data` starts with a SimCity 4 QFS header (any 4-byte prefix, then a RefPack signature).
+/// True if `data` passes the §2.7 acceptance check: at least 7 bytes, signature `10 FB` or `11 FB`, and a
+/// 4-byte prefix of at most 16 MiB. This is the gate the original applies before decoding a DIR-listed entry.
 pub fn has_header(data: &[u8]) -> bool {
-    data.len() >= HEADER_LEN && data[5] == 0xFB && is_flags(data[4])
+    data.len() >= 7
+        && (data[4] == 0x10 || data[4] == 0x11)
+        && data[5] == 0xFB
+        && u32::from_le_bytes([data[0], data[1], data[2], data[3]]) <= MAX_PREFIX
 }
 
-fn is_flags(b: u8) -> bool {
-    // 0x10 is the plain RefPack type; 0x01 and 0x80 are the optional-field flags.
-    b & 0x7E == 0x10
+/// Total header length in bytes for an accepted entry: 9 for `10 FB`, 12 for `11 FB` (3 unused bytes).
+fn header_len(flags: u8) -> usize {
+    if flags == 0x11 {
+        12
+    } else {
+        HEADER_LEN
+    }
 }
 
-/// The uncompressed size announced by a SimCity 4 QFS header, if `data` has one.
+fn be24(b: &[u8]) -> usize {
+    (usize::from(b[0]) << 16) | (usize::from(b[1]) << 8) | usize::from(b[2])
+}
+
+/// Parses an accepted DBPF-form QFS header (with the 4-byte prefix). Returns the uncompressed size and the
+/// header length; the caller has already checked [`has_header`].
+fn parse_dbpf_header(data: &[u8]) -> Result<(usize, usize)> {
+    let flags = data[4];
+    let len = header_len(flags);
+    if data.len() < len {
+        return Err(Error::Truncated {
+            what: "QFS header",
+            needed: len as u64,
+            available: data.len() as u64,
+        });
+    }
+    // `10 FB`: size at 6..9. `11 FB`: three unused bytes at 6..9, size at 9..12.
+    let size = if flags == 0x11 {
+        be24(&data[9..12])
+    } else {
+        be24(&data[6..9])
+    };
+    Ok((size, len))
+}
+
+/// The uncompressed size announced by a SimCity 4 QFS header, if `data` has an accepted one.
 pub fn uncompressed_size(data: &[u8]) -> Option<usize> {
     if !has_header(data) {
         return None;
     }
-    parse_refpack_header(&data[4..]).ok().map(|(size, _)| size)
-}
-
-/// Parses a RefPack header that starts with the flags byte. Returns (uncompressed size, header length).
-fn parse_refpack_header(d: &[u8]) -> Result<(usize, usize)> {
-    if d.len() < 2 || d[1] != 0xFB || !is_flags(d[0]) {
-        return Err(Error::BadMagic {
-            what: "QFS header",
-            found: d.iter().take(2).copied().collect(),
-        });
-    }
-    let width = if d[0] & 0x80 != 0 { 4 } else { 3 };
-    let mut pos = 2;
-    if d[0] & 0x01 != 0 {
-        pos += width; // compressed size, unused
-    }
-    if d.len() < pos + width {
-        return Err(Error::Truncated {
-            what: "QFS header",
-            needed: (pos + width) as u64,
-            available: d.len() as u64,
-        });
-    }
-    let size = d[pos..pos + width]
-        .iter()
-        .fold(0usize, |acc, &b| (acc << 8) | b as usize);
-    Ok((size, pos + width))
+    parse_dbpf_header(data).ok().map(|(size, _)| size)
 }
 
 /// Decompresses a SimCity 4 QFS entry (with the 4-byte compressed-size prefix).
 ///
-/// \[choice\] The compressed-size prefix is not trusted: the stream is decoded from the whole slice. A stream
-/// that runs out of input exactly when the announced size is reached is accepted even without a stop code.
+/// The entry must pass the §2.7 acceptance check ([`has_header`]); a DIR-listed entry that does not is a read
+/// error (data-formats §2.6 — there is no fallback to the stored bytes). \[choice\] The compressed-size prefix
+/// is not trusted for framing: the stream is decoded from the whole slice, and a stream that runs out of input
+/// exactly when the announced uncompressed size is reached is accepted even without a stop code.
 pub fn decompress(data: &[u8]) -> Result<Vec<u8>> {
-    if data.len() < HEADER_LEN {
+    if data.len() < 7 {
         return Err(Error::Truncated {
             what: "QFS header",
-            needed: HEADER_LEN as u64,
+            needed: 7,
             available: data.len() as u64,
         });
     }
-    decompress_refpack(&data[4..])
+    if data[5] != 0xFB || (data[4] != 0x10 && data[4] != 0x11) {
+        return Err(Error::BadMagic {
+            what: "QFS header",
+            found: data[4..6].to_vec(),
+        });
+    }
+    let prefix = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    if prefix > MAX_PREFIX {
+        return Err(corrupt(
+            "QFS header",
+            format!("compressed size {prefix} exceeds 16 MiB"),
+        ));
+    }
+    let (size, header) = parse_dbpf_header(data)?;
+    decode(&data[header..], size)
 }
 
-/// Decompresses a bare RefPack stream that starts with the flags byte (no SimCity 4 size prefix).
+/// Decompresses a bare RefPack stream that starts with the flags byte (no SimCity 4 size prefix). Accepted
+/// flags are `0x10` and `0x11` only, as in the DBPF form.
 pub fn decompress_refpack(data: &[u8]) -> Result<Vec<u8>> {
-    let (size, header) = parse_refpack_header(data)?;
-    decode(&data[header..], size)
+    if data.len() < 2 || data[1] != 0xFB || (data[0] != 0x10 && data[0] != 0x11) {
+        return Err(Error::BadMagic {
+            what: "QFS header",
+            found: data.iter().take(2).copied().collect(),
+        });
+    }
+    // `0x10`: size at 2..5. `0x11`: three unused bytes at 2..5, size at 5..8.
+    let len = if data[0] == 0x11 { 8 } else { 5 };
+    if data.len() < len {
+        return Err(Error::Truncated {
+            what: "QFS header",
+            needed: len as u64,
+            available: data.len() as u64,
+        });
+    }
+    let size = if data[0] == 0x11 {
+        be24(&data[5..8])
+    } else {
+        be24(&data[2..5])
+    };
+    decode(&data[len..], size)
 }
 
 fn decode(src: &[u8], size: usize) -> Result<Vec<u8>> {
@@ -451,10 +502,71 @@ mod tests {
 
     #[test]
     fn header_flags() {
-        // 0x11: compressed size then uncompressed size (3 bytes each); 0x90: 4-byte uncompressed size.
+        // `11 FB`: three unused bytes, then the 3-byte uncompressed size.
         let s = [0x11, 0xFB, 0, 0, 9, 0, 0, 2, 0xFE, b'h', b'i'];
         assert_eq!(decompress_refpack(&s).unwrap(), b"hi");
-        let s = [0x90, 0xFB, 0, 0, 0, 2, 0xFE, b'h', b'i'];
+        // `10 FB`: the size follows the signature directly.
+        let s = [0x10, 0xFB, 0, 0, 2, 0xFE, b'h', b'i'];
         assert_eq!(decompress_refpack(&s).unwrap(), b"hi");
+        // Any other flag byte is rejected (data-formats §2.7): no `0x80` four-byte-size form.
+        for bad in [0x90u8, 0x30, 0x12, 0x00, 0x81, 0x13] {
+            let s = [bad, 0xFB, 0, 0, 2, 0xFE, b'h', b'i'];
+            assert!(
+                matches!(decompress_refpack(&s), Err(Error::BadMagic { .. })),
+                "flags {bad:#04X} must be rejected"
+            );
+        }
+    }
+
+    /// The §10.2 conformance vectors (data-formats §10.2, tests 11–17), as byte slices.
+    #[test]
+    fn conformance_vectors() {
+        // 11: short copy — `E0 ABCD` (4 literals) then `14 03` copies 6 from distance 4, stop `FC`.
+        let v11: &[u8] = &[
+            0x11, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x00, 0x0C, 0xE0, b'A', b'B', b'C', b'D', 0x14, 0x03, 0xFC,
+        ];
+        assert!(has_header(v11));
+        assert_eq!(uncompressed_size(v11), Some(12));
+        assert_eq!(decompress(v11).unwrap(), b"ABCDABCDABCD");
+
+        // 12: long copy — `C4 00 03 27` copies 300 bytes from distance 4; result 304 bytes.
+        let v12: &[u8] = &[
+            0x13, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x01, 0x30, 0xE0, b'A', b'B', b'C', b'D', 0xC4, 0x00, 0x03, 0x27,
+            0xFC,
+        ];
+        let out = decompress(v12).unwrap();
+        assert_eq!(out.len(), 304);
+        assert!(out.chunks_exact(4).all(|c| c == b"ABCD"));
+
+        // 13: `11 FB` — the 3 bytes after the signature are skipped, size 4, result "ABCD".
+        let v13: &[u8] = &[
+            0x12, 0x00, 0x00, 0x00, 0x11, 0xFB, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x04, 0xE0, b'A', b'B', b'C', b'D', 0xFC,
+        ];
+        assert_eq!(uncompressed_size(v13), Some(4));
+        assert_eq!(decompress(v13).unwrap(), b"ABCD");
+
+        // 14: rejected signatures.
+        for bad in [
+            &[0x07, 0, 0, 0, 0x10, 0xFC, 0][..],
+            &[0x07, 0, 0, 0, 0x90, 0xFB, 0][..],
+            &[0x07, 0, 0, 0, 0x30, 0xFB, 0][..],
+        ] {
+            assert!(!has_header(bad), "{bad:02X?} must be rejected");
+            assert!(decompress(bad).is_err());
+        }
+        // Fewer than 7 stored bytes.
+        assert!(!has_header(&[0x10, 0xFB, 0, 0, 4, 0xE0]));
+        assert!(decompress(&[0x10, 0xFB, 0, 0, 4, 0xE0]).is_err());
+
+        // 17: prefix above 16 MiB fails even though the rest is valid.
+        let mut v17 = v11.to_vec();
+        v17[0..4].copy_from_slice(&0x0100_0001u32.to_le_bytes());
+        assert!(!has_header(&v17));
+        assert!(matches!(decompress(&v17), Err(Error::Corrupt { .. })));
+        // exactly 16 MiB is accepted by the check (the size field, not the prefix, gates allocation)
+        let mut v17b = v11.to_vec();
+        v17b[0..4].copy_from_slice(&0x0100_0000u32.to_le_bytes());
+        assert!(has_header(&v17b));
+        assert_eq!(decompress(&v17b).unwrap(), b"ABCDABCDABCD");
     }
 }
