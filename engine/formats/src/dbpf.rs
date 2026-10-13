@@ -259,10 +259,16 @@ impl<S: Source> Package<S> {
         // §2.1: the index entry count and the hole count must be < 0x07FFFFFF.
         const COUNT_LIMIT: u32 = 0x07FF_FFFF;
         if header.index_count >= COUNT_LIMIT {
-            return Err(corrupt("DBPF index", format!("entry count {} ≥ {COUNT_LIMIT:#X}", header.index_count)));
+            return Err(corrupt(
+                "DBPF index",
+                format!("entry count {} ≥ {COUNT_LIMIT:#X}", header.index_count),
+            ));
         }
         if header.hole_count >= COUNT_LIMIT {
-            return Err(corrupt("DBPF holes", format!("hole count {} ≥ {COUNT_LIMIT:#X}", header.hole_count)));
+            return Err(corrupt(
+                "DBPF holes",
+                format!("hole count {} ≥ {COUNT_LIMIT:#X}", header.hole_count),
+            ));
         }
 
         let count = header.index_count as u64;
@@ -271,10 +277,11 @@ impl<S: Source> Package<S> {
         // keeps index 7.1 (24-byte entries) as a flagged extension: when the index size proves 24-byte entries
         // they are read correctly instead of being misread (which is why the original cannot open them).
         let entry_size = if count > 0 && header.index_size as u64 == count * 24 {
-            warnings.push(format!(
+            warnings.push(
                 "index 7.1 (24-byte entries) read as a standalone extension; the original ignores the index \
                  minor version and does not open such a package"
-            ));
+                    .to_owned(),
+            );
             24
         } else {
             if count > 0 && header.index_size as u64 != count * 20 {
@@ -337,7 +344,7 @@ impl<S: Source> Package<S> {
                     format!("hole count {} ≠ table size {hs} >> 3 ({})", header.hole_count, hs >> 3),
                 ));
             }
-        } else if header.hole_offset + header.hole_size > 0 {
+        } else if header.hole_offset != 0 || header.hole_size != 0 {
             // §2.1 still bounds the table fields when the count is 0.
             let ho = header.hole_offset as u64;
             let hs = header.hole_size as u64;
@@ -513,7 +520,7 @@ impl<S: Source> Package<S> {
         }
     }
 
-    /// The contents of the last entry with this key.
+    /// The contents of the first entry with this key (§2.3).
     pub fn read_tgi(&self, tgi: &Tgi) -> Result<Vec<u8>> {
         let e = self.find(tgi).ok_or(Error::NotFound(*tgi))?;
         self.read(e)
@@ -652,26 +659,36 @@ mod tests {
         assert!(matches!(p.read_tgi(&t(9)), Err(Error::NotFound(_))));
     }
 
+    /// data-formats §2.3, conformance test 7: inside one package the first index entry with a key wins.
     #[test]
-    fn duplicates_last_wins() {
+    fn duplicates_first_wins() {
         let mut b = PackageBuilder::new();
         b.add(t(1), b"first", Compression::None).unwrap();
         b.add(t(1), b"second", Compression::None).unwrap();
         let bytes = b.build().unwrap();
         let p = Package::from_bytes(bytes).unwrap();
-        assert_eq!(p.read_tgi(&t(1)).unwrap(), b"second");
-        assert_eq!(p.find_all(&t(1)).count(), 2);
+        assert_eq!(p.read_tgi(&t(1)).unwrap(), b"first");
+        assert_eq!(p.find(&t(1)).unwrap().offset, HEADER_LEN as u32);
+        let all: Vec<_> = p.find_all(&t(1)).map(|e| p.read(e).unwrap()).collect();
+        assert_eq!(all, [b"first".to_vec(), b"second".to_vec()]);
     }
 
+    /// data-formats §2.5, §2.6, conformance tests 14 and 15: the DIR alone decides decompression. A listed entry
+    /// that fails the QFS check fails the read (no fallback to the stored bytes); unlisted QFS-looking data is
+    /// returned as stored.
     #[test]
-    fn dir_listed_but_not_compressed_is_returned_raw() {
+    fn dir_listed_but_not_compressed_fails_the_read() {
         let mut b = PackageBuilder::new();
         b.add_stored(t(1), b"plain bytes".to_vec(), Some(11));
         // compressed bytes that the DIR does not list stay compressed
         let c = qfs::compress(&[7u8; 300]).unwrap();
         b.add_stored(t(2), c.clone(), None);
         let p = Package::from_bytes(b.build().unwrap()).unwrap();
-        assert_eq!(p.read_tgi(&t(1)).unwrap(), b"plain bytes");
+        let e1 = *p.find(&t(1)).unwrap();
+        assert!(p.is_compressed(&e1));
+        assert!(matches!(p.read(&e1), Err(Error::BadMagic { .. })));
+        assert!(matches!(p.read_tgi(&t(1)), Err(Error::BadMagic { .. })));
+        assert_eq!(p.read_raw(&e1).unwrap(), b"plain bytes");
         assert_eq!(p.read_tgi(&t(2)).unwrap(), c);
     }
 
@@ -734,15 +751,32 @@ mod tests {
         patch(&mut bad_index, 40, 0xFFFF_FF00);
         assert!(matches!(Package::from_bytes(bad_index), Err(Error::OutOfBounds { .. })));
 
-        // entry outside the file: open succeeds with a warning, reading it fails
-        let mut bad_entry = good.clone();
+        // §2.3: one entry outside the file fails the whole open, although the entry is never read.
         let idx = le_u32(&good, 40) as usize;
-        patch(&mut bad_entry, idx + 16, 1 << 20);
-        let p = Package::from_bytes(bad_entry).unwrap();
-        assert_eq!(p.warnings().len(), 1);
-        assert!(matches!(p.read(&p.entries()[0]), Err(Error::OutOfBounds { .. })));
+        let mut big_entry = good.clone();
+        patch(&mut big_entry, idx + 16, 1 << 20);
+        assert!(matches!(Package::from_bytes(big_entry), Err(Error::OutOfBounds { .. })));
+        let mut bad_offset = good.clone();
+        patch(&mut bad_offset, idx + 12, 1 << 20);
+        assert!(matches!(
+            Package::from_bytes(bad_offset),
+            Err(Error::OutOfBounds { .. })
+        ));
+        // conformance test 5: offset below the 0x60 header.
+        let mut low_offset = good.clone();
+        patch(&mut low_offset, idx + 12, 0x10);
+        assert!(matches!(
+            Package::from_bytes(low_offset),
+            Err(Error::OutOfBounds { .. })
+        ));
 
-        // wrong index size field: falls back to the minor version, with a warning
+        // §2.1: hole table fields are bounded even when the hole count is 0 (and must not overflow).
+        let mut bad_holes = good.clone();
+        patch(&mut bad_holes, 52, 0xFFFF_FFFF);
+        patch(&mut bad_holes, 56, 1);
+        assert!(matches!(Package::from_bytes(bad_holes), Err(Error::OutOfBounds { .. })));
+
+        // §2.3: the index size field is not compared with 20 × count; 20-byte entries are read, with a warning
         let mut bad_size = good.clone();
         patch(&mut bad_size, 44, 7);
         let p = Package::from_bytes(bad_size).unwrap();

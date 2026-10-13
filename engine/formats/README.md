@@ -7,10 +7,10 @@ and on `i686-pc-windows-msvc`.
 
 | Module | Format |
 |---|---|
-| `dbpf` | DBPF 1.x packages (`.dat`, `.sc4`, `.sc4lot`, `.sc4desc`, `.sc4model`): header, index 7.0 (20-byte entries) and 7.1 (24-byte entries), the DIR record of compressed entries, random-access reads from a file (`Package::open`) or any byte buffer such as a caller-owned memory map (`Package::from_bytes`). `PackageBuilder` writes DBPF 1.0 packages (used by the tests; foundations §3.1 compression rule available as `Compression::Auto`). |
-| `qfs` | QFS/RefPack with the 9-byte SimCity 4 header: decompressor and a greedy hash-chain compressor |
+| `dbpf` | DBPF 1.x packages (`.dat`, `.sc4`, `.sc4lot`, `.sc4desc`, `.sc4model`): header, index 7.0 (20-byte entries; 7.1 24-byte entries only as a flagged standalone extension), the DIR record of compressed entries, random-access reads from a file (`Package::open`) or any byte buffer such as a caller-owned memory map (`Package::from_bytes`). `PackageBuilder` writes DBPF 1.0 packages (used by the tests; foundations §3.1 compression rule available as `Compression::Auto`). |
+| `qfs` | QFS/RefPack with the SimCity 4 header (`10 FB` / `11 FB` only): decompressor and a greedy hash-chain compressor |
 | `exemplar` | Exemplars and cohorts, binary (`EQZB1###`/`CQZB1###`) and text (`EQZT1###`/`CQZT1###`); typed property API; `ExemplarStore` with cohort inheritance |
-| `ltext` | LTEXT records (UTF-16 and 8-bit forms) |
+| `ltext` | LTEXT records (UTF-16 and 8-bit forms, 24-bit count, trailing bytes ignored) |
 
 `fc4-dat` is a small local inspection tool:
 
@@ -65,20 +65,26 @@ Where the documentation was silent or wrong, the code decides and tags the decis
   the size in both the QFS header and the DIR, so that is what we use.
 - **The DIR is authoritative** for compression. One city save holds a 34-byte uncompressed class record whose
   bytes 4–5 happen to read `11 FB`, a valid-looking RefPack signature. It is not listed in the DIR and is read
-  as stored. A listed entry without a QFS signature is also returned as stored (none occur in the install).
+  as stored. A listed entry that fails the QFS acceptance check fails the read, as in the original (data-formats
+  §2.6; none occur in the install).
 - **Text exemplar parent key order is group, instance, type**, not the binary type, group, instance. Both text
   exemplars in the install end their `ParentCohort` key with the cohort type `0x05342861`, and only in that order
   do their parents resolve. Resource keys inside property values keep type, group, instance order.
 - **The LTEXT type `0x2026960B` is shared**: `Sound.dat` stores 1,587 XA and 21 RIFF audio clips and 72 bare text
   files under it, and one locale entry is plain text without a header. `ltext::is_ltext` tells real records apart.
-- **LTEXT has an 8-bit form**: marker `0x0000` followed by exactly `count` bytes (each locale file has one; city
-  saves use it for names such as `Temp.png`). Besides the documented UTF-16 form (marker `0x1000`).
+- **LTEXT has an 8-bit form**: encoding byte `0x00` followed by `count` bytes (each locale file has one; city
+  saves use it for names such as `Temp.png`). Besides the documented UTF-16 form (encoding byte `0x10`). The
+  count is 24 bits and bytes after the string are ignored (data-formats §6.1).
 - Binary exemplar key type `0x00` is a single value (the following byte is unused), `0x80` an array with a `u32`
   count; strings are always arrays whose count is the byte length. Text exemplars write `reps` 0 for single
   values (strings included) and allow an empty `{}` value.
 - The value-type table also accepts the codes of foundations §9.2 that the exemplar page does not list
   (Uint64 `0x0400`, Sint8 `0x0500`, Sint16 `0x0600`, Float64 `0x0A00`); none occur in the install.
-- Duplicates: `Package::find` returns the last index entry with a key; exemplar lookups return the last property
-  with an ID; `ExemplarStore` lets a later insert replace an earlier one (load order).
-- Index entry size comes from `index size / count` when that is exactly 20 or 24, else from the index minor
-  version, with a warning. Entries pointing outside the file open with a warning and fail only when read.
+- Duplicates: `Package::find` returns the **first** index entry with a key, and the first DIR record wins
+  (data-formats §2.3, §2.5); exemplar lookups return the last property with an ID; `ExemplarStore` lets a later
+  insert replace an earlier one (load order).
+- Index entries are 20 bytes and the index minor version is ignored (data-formats §2.1). `[choice]`: when the
+  index size is exactly `24 × count` the entries are read as index 7.1, with a warning (the original cannot open
+  such a package). The DIR record is always 16 bytes per key.
+- Open checks follow data-formats §2.1–§2.4: major version ≤ 1, index and hole tables inside the file, and
+  **every** entry with `offset ≥ 0x60` and `offset + size ≤ file length`; one bad entry fails the whole open.

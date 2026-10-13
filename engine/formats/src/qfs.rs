@@ -115,7 +115,10 @@ pub fn decompress(data: &[u8]) -> Result<Vec<u8>> {
     }
     let prefix = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
     if prefix > MAX_PREFIX {
-        return Err(corrupt("QFS header", format!("compressed size {prefix} exceeds 16 MiB")));
+        return Err(corrupt(
+            "QFS header",
+            format!("compressed size {prefix} exceeds 16 MiB"),
+        ));
     }
     let (size, header) = parse_dbpf_header(data)?;
     decode(&data[header..], size)
@@ -519,24 +522,35 @@ mod tests {
     #[test]
     fn conformance_vectors() {
         // 11: short copy — `E0 ABCD` (4 literals) then `14 03` copies 6 from distance 4, stop `FC`.
-        let v11: &[u8] = &[0x11, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x00, 0x0C, 0xE0, b'A', b'B', b'C', b'D', 0x14, 0x03, 0xFC];
+        let v11: &[u8] = &[
+            0x11, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x00, 0x0C, 0xE0, b'A', b'B', b'C', b'D', 0x14, 0x03, 0xFC,
+        ];
         assert!(has_header(v11));
         assert_eq!(uncompressed_size(v11), Some(12));
         assert_eq!(decompress(v11).unwrap(), b"ABCDABCDABCD");
 
         // 12: long copy — `C4 00 03 27` copies 300 bytes from distance 4; result 304 bytes.
-        let v12: &[u8] = &[0x13, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x01, 0x30, 0xE0, b'A', b'B', b'C', b'D', 0xC4, 0x00, 0x03, 0x27, 0xFC];
+        let v12: &[u8] = &[
+            0x13, 0x00, 0x00, 0x00, 0x10, 0xFB, 0x00, 0x01, 0x30, 0xE0, b'A', b'B', b'C', b'D', 0xC4, 0x00, 0x03, 0x27,
+            0xFC,
+        ];
         let out = decompress(v12).unwrap();
         assert_eq!(out.len(), 304);
         assert!(out.chunks_exact(4).all(|c| c == b"ABCD"));
 
         // 13: `11 FB` — the 3 bytes after the signature are skipped, size 4, result "ABCD".
-        let v13: &[u8] = &[0x12, 0x00, 0x00, 0x00, 0x11, 0xFB, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x04, 0xE0, b'A', b'B', b'C', b'D', 0xFC];
+        let v13: &[u8] = &[
+            0x12, 0x00, 0x00, 0x00, 0x11, 0xFB, 0x00, 0x00, 0x0E, 0x00, 0x00, 0x04, 0xE0, b'A', b'B', b'C', b'D', 0xFC,
+        ];
         assert_eq!(uncompressed_size(v13), Some(4));
         assert_eq!(decompress(v13).unwrap(), b"ABCD");
 
         // 14: rejected signatures.
-        for bad in [&[0x07, 0, 0, 0, 0x10, 0xFC, 0][..], &[0x07, 0, 0, 0, 0x90, 0xFB, 0][..], &[0x07, 0, 0, 0, 0x30, 0xFB, 0][..]] {
+        for bad in [
+            &[0x07, 0, 0, 0, 0x10, 0xFC, 0][..],
+            &[0x07, 0, 0, 0, 0x90, 0xFB, 0][..],
+            &[0x07, 0, 0, 0, 0x30, 0xFB, 0][..],
+        ] {
             assert!(!has_header(bad), "{bad:02X?} must be rejected");
             assert!(decompress(bad).is_err());
         }

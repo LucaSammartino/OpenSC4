@@ -44,8 +44,12 @@ pub fn parse(data: &[u8]) -> Result<String> {
 
 /// True if `data` is an LTEXT record this reader accepts: a 4-byte header with encoding 0x00 or 0x10, a count
 /// of at most 200,000, and enough bytes for the string. Bytes after the string do not matter.
+///
+/// *\[choice\]* (data-formats §6.1: the game never reads audio as text, the caller decides; this helper is for
+/// tools): data starting with the `XA` audio signature is not LTEXT. `XA 00 00` would otherwise read as an
+/// 8-bit string of 16,728 bytes, and since trailing bytes are ignored every longer `XA` clip would pass.
 pub fn is_ltext(data: &[u8]) -> bool {
-    if data.len() < 4 {
+    if data.len() < 4 || data.starts_with(b"XA") {
         return false;
     }
     let header = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
@@ -103,7 +107,10 @@ mod tests {
     #[test]
     fn conformance_vectors() {
         // 44: UTF-16 "Hi!!".
-        assert_eq!(parse(&[0x04, 0x00, 0x00, 0x10, b'H', 0, b'i', 0, b'!', 0, b'!', 0]).unwrap(), "Hi!!");
+        assert_eq!(
+            parse(&[0x04, 0x00, 0x00, 0x10, b'H', 0, b'i', 0, b'!', 0, b'!', 0]).unwrap(),
+            "Hi!!"
+        );
         // 45: 8-bit "ABC"; a trailing byte is ignored (the length need not match).
         assert_eq!(parse(&[0x03, 0x00, 0x00, 0x00, b'A', b'B', b'C']).unwrap(), "ABC");
         assert_eq!(parse(&[0x03, 0x00, 0x00, 0x00, b'A', b'B', b'C', b'D']).unwrap(), "ABC");
@@ -130,7 +137,7 @@ mod tests {
         // §10.6 test 47: `ABCDE` has no header; its encoding byte (0x44) selects the legacy path in the
         // original. Standalone [choice] it is an error, and is_ltext rejects it. (Here the count field alone,
         // 0x434241, is over 200,000, so it fails that check first — either way it is rejected.)
-        let legacy = [b'A', b'B', b'C', b'D', b'E'];
+        let legacy = *b"ABCDE";
         assert!(matches!(parse(&legacy), Err(Error::Corrupt { .. })));
         assert!(!is_ltext(&legacy));
         // An encoding byte that is neither 0x00 nor 0x10, with a small count, is rejected on the encoding.
@@ -141,6 +148,12 @@ mod tests {
         let xa = [b'X', b'A', 0, 0, 1, 2];
         assert!(matches!(parse(&xa), Err(Error::Truncated { .. })));
         assert!(!is_ltext(&xa));
+        // A real clip is longer than 16,728 bytes, so the string reader accepts it (as the original's would);
+        // is_ltext still rejects it on the `XA` signature.
+        let mut long_xa = vec![b'X', b'A', 0, 0];
+        long_xa.resize(4 + 0x4158 + 100, 0x55);
+        assert!(parse(&long_xa).is_ok());
+        assert!(!is_ltext(&long_xa));
         assert!(!is_ltext(&[3, 0, 0, 0x10, b'a', 0]));
         // 8-bit form: trailing bytes are allowed now (the length need not match the record size).
         let mut temp = vec![8, 0, 0, 0];
