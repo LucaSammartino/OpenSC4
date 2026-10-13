@@ -98,6 +98,7 @@
 #include "cISC4DisasterLayer.h"
 #include "cISC4DisasterManagerFire.h"
 #include "cISC4TutorialSystem.h"
+#include "cISC4PropDeveloper.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -445,6 +446,12 @@ const Waiver kWaivers[] = {
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 51, "GarbagePutInLandfill", "returns in eax (SDK: int64)"},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
      "returns in ST0 (SDK: 32-bit)"},
+    // FreeCity4's pollution simulator (cFC4ISC4PollutionSimulator) follows
+    // docs/specs/pollution.md §8.1 where the table disagrees (spec questions):
+    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 51, "GarbagePutInLandfill",
+     "§8.1: the new total in edx:eax (the table: eax-or-void)"},
+    {"cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", 55, "GetRecyclingCenterCurrentCapacity",
+     "§8.1: a bool in AL (the table: ST0)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {
