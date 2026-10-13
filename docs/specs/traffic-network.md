@@ -1158,7 +1158,8 @@ Unless stated otherwise:
    because the west neighbour is off-map.
 
 7. **Tunnel cost.** A Road tunnel (IsOfType 0, not 2 or 6) with portals at world positions (8, 0, 24) and (72, 0, 24),
-   with shipped speeds and CellWidthX 16:
+   with shipped speeds (traffic-simulator.md §4.14: Car on Road 31, Walk on Road 3.5, Rail 0 for both) and
+   CellWidthX 16:
    - both records have mask `0x1FE`;
    - `cost[Car] = 0x3DFDB011` (0.123870976);
    - `cost[Walk] = 0x3F8C6F2E` (1.0971429): stored, but unused because of the mask;

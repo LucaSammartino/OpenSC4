@@ -731,6 +731,32 @@ missing.
 
 Then `UpdateTravelStrategies` (§4.1.2). `0xA92356B2` (Mass Transit Usage Chance) is not read by this function.
 
+**Shipped "Max speed by Network"** (`0x491332E7 + t`, 13 floats each). Source: the Traffic Simulator exemplar
+`0xC9133286` in `SimCity_1.dat` (dump `re/tuning/simulators.md`). Columns are the network types in index order. A
+blank cell is 0, which gives `invMaxSpeed = FLT_MAX`: the type cannot use that network, and a tunnel's cost is +∞.
+
+| t | Travel type (property) | Road | Rail | Highway | Street | Avenue | Subway | El | Monorail | OneWay | GroundHwy |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | Walk (`…E7`) | 3.5 | | | 3.5 | 3.5 | | | | 3.5 | |
+| 1 | Car (`…E8`) | 31 | | 82 | 21 | 40 | | | | 31 | 82 |
+| 2 | Bus (`…E9`) | 46 | | 100 | 31 | 60 | | | | 46 | 100 |
+| 3 | Passenger train (`…EA`) | | 110 | | | | | | | | |
+| 4 | Truck (`…EB`) | 31 | | 82 | 21 | 40 | | | | 31 | 82 |
+| 5 | Freight train (`…EC`) | | 150 | | | | | | | | |
+| 6 | Subway (`…ED`) | | | | | | 150 | | | | |
+| 7 | El train (`…EE`) | | | | | | | 150 | | | |
+| 8 | Monorail (`…EF`) | | | | | | | | 200 | | |
+
+Pipe (4), PowerPole (5) and **DirtRoad (11)** are 0 for every travel type, so they have no columns here. With
+CellWidthX 16, `invMaxSpeed` is:
+
+| v | 3.5 | 21 | 31 | 40 | 46 | 60 | 82 | 100 | 110 | 150 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| bits | `0x3E8C6F2E` | `0x3D3B3EE7` | `0x3CFDB011` | `0x3CC49BA7` | `0x3CAAF6A7` | `0x3C83126F` | `0x3C3FD00C` | `0x3C1D4952` | `0x3C0EFCD6` | `0x3BD1B717` | `0x3B9D4952` |
+
+For example, Walk on Road (3.5) gives 0.27428573, and Car on Road (31) gives 0.030967744. The constant is
+`16.666666f` = `0x41855555`.
+
 **Curves** (foundations §4.1 patterns):
 
 | Curve | Pattern | Notes |
