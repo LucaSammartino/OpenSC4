@@ -151,7 +151,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
 | `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
-| `0xE8BDA2E7` | lot (`IGZUnknown` → lot) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
+| `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
 

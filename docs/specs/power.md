@@ -245,7 +245,7 @@ month time is produced by a later month agent in the same month *[inferred]*.
 | `0xCA1B151C` tuning reload | re-read the tuning (§8) |
 | `0x278E6003` terrain heights changed | ignored if data4 is 4 or 5; else rect `x1 = (data1 >> 16) − 1`, `x2 = data1 & 0xFFFF`, `z1 = (data2 >> 16) − 1`, `z2 = data2 & 0xFFFF`, clamped to the city; `DoTerrainHeightsChanged` (§5.4) |
 | `0xC2C09554` OrdinanceUpdated | if data2 = `0xE0D0722E` (Nuclear Free Zone) and data3 ≠ 0: §5.5 |
-| `0xE8BDA2E7` kMessageStateChanged | void1/IGZUnknown QI `cISC4Lot` (`0xE818FCED`); if `lot.GetState() == 1`: centre = `((x1 + x2) / 2, (z1 + z2) / 2)` of `lot.GetBoundingRect` (signed integer division); if `IsPowered(centre)` and `lotManager.GetLot(cx, cz, false)` is not null: that lot's `SetHasPower(true)` |
+| `0xE8BDA2E7` kMessageStateChanged | void1/IGZUnknown QI `cISC4Lot` (`0xE818FCED`; a copy of the lot with its scalar fields, lot-developer.md §3.2); if `lot.GetState() == 1`: centre = `((x1 + x2) / 2, (z1 + z2) / 2)` of `lot.GetBoundingRect` (signed integer division); if `IsPowered(centre)` and `lotManager.GetLot(cx, cz, false)` is not null: that lot's `SetHasPower(true)` |
 | `0xEA418D8F` deal status | if data1 = 0 and the IGZUnknown is a deal (QI `0x0773FEF1`) of type `0x4773FFE0` or `0x4773FFE1`: state := 4, recompute := true |
 | `0x6AC284F3` ConnectionsReady | enabled := true |
 | `0x26D31EC1` PostCityInit | §5.6 |

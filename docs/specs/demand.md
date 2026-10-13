@@ -410,7 +410,9 @@ by key. The original walks both maps in parallel and assumes they hold the same 
 
 Message fields: `IGZUnknown` = the lot (`cISC4Lot`), `data1` = old `HabitationState`, `data2` = new state, `data3` =
 building type (0 = unknown), `data4` = occupant wealth. A lot counts as **occupied** in state 2 (Constructing) or
-3 (Occupied).
+3 (Occupied). (`lot-developer.md` §3.2 gives the exact data4 rule of `cSC4Lot::SetState`: on leaving states 2/3 it
+is the wealth the lot had before the call; the vacate reason is never sent. The `IGZUnknown` is a copy of the lot
+made at post time.)
 
 ```
 oldOcc := data1 ∈ {2, 3};  newOcc := data2 ∈ {2, 3}

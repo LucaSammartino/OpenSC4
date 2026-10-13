@@ -94,7 +94,10 @@ Runs once (an `initialized` flag; a second call returns true at once).
 
 ### 1.4 `Shutdown()` → true (slot 4, `0x0069A210`)
 
-Once (clears `initialized`): unregister the three cheats (cheat manager slots 8 and 4); remove the agent from the
+*[compat]* If `initialized` is false (`Shutdown` before any `Init`, or a second `Shutdown`), it returns true at once
+and does **nothing**: no service is released, no container is cleared, and the process-wide tried-tract marks are
+kept (the flag test is the first instruction, `0x0069A213`). Otherwise, once (clears `initialized`): unregister the
+three cheats (cheat manager slots 8 and 4); remove the agent from the
 simulator (city slot 50, simulator slot 20 `+0x50`); unsubscribe the five messages; unregister the command (command
 server slot 9); release the message server; for every developer: `Shutdown()` (slot 4) and `Release`; clear the
 developer map; release every special building and clear the list; clear both plan lists, the planned-growth map,
@@ -187,7 +190,7 @@ finished map rebuild.
 | `0x0B99AE81` PlaceBuilding command | §4.12 |
 | `0x278E6003` terrain changed | data1 = `(x1 + 1) << 16 \| x2`, data2 = `(z1 + 1) << 16 \| z2` *[inferred: packing as read]*: the BDS takes `x1 := (data1 >> 16) − 1` clamped ≥ 0, `x2 := data1 & 0xFFFF` clamped ≤ cellCountX − 1 (same for z with data2), and calls `DoTerrainChanged(rect, data4)` (§4.11) |
 | `0x99EF1142` occupant inserted / `0x99EF1143` removed | occupant = void1. Ignored if its property holder has property `0x029244DB` (a preview occupant). If the occupant is in occupant group `0x150A` or `0x150B` (`IsOccupantGroup`, slot 22): inserted → append to the special-building list and AddRef; removed → remove the first matching entry and Release it |
-| `0xE8BDA2E7` StateChanged | lot = `GetIGZUnknown()`; nothing if null or `lot.GetBuildingType(false)` (slot 46) is 0. `old := data1 ∈ {2, 3}`, `new := data2 ∈ {2, 3}` (Constructing or Occupied, demand spec §7). If they differ: `DoBuildingChanged(lot, wealth = data4, built = new)` (§4.10) |
+| `0xE8BDA2E7` StateChanged | lot = `GetIGZUnknown()` (a copy of the lot with its scalar fields, lot-developer.md §3.2); nothing if null or `lot.GetBuildingType(false)` (slot 46) is 0. `old := data1 ∈ {2, 3}`, `new := data2 ∈ {2, 3}` (Constructing or Occupied, demand spec §7). If they differ: `DoBuildingChanged(lot, wealth = data4, built = new)` (§4.10) |
 
 ---
 
@@ -302,6 +305,13 @@ Consequences *[compat]*:
 - `marks[t]` makes the developer walk its growth list round-robin across days: each day it tries the next tract it
   has not tried since the last reset, whether or not the attempt built anything. Marks are keyed by (x, z) only.
   They are process-wide, saved in this object's record (§6), and cleared at `Shutdown`.
+- *[compat]* The marks lookup **creates** the developer's entry: `marks[t]` is an insert-if-absent lookup
+  (`0x0069AB40`), done by the "not marked" test for each item examined (predicate `0x0069B070`) and again when no
+  unmarked item is found (before the clear). So every pick of a developer whose lists are valid creates
+  `marks[t]` if it is absent, even when its growth list is **empty**; in that case the entry stays empty, because no
+  item is inserted. With a non-empty list an item is always inserted at once, so an empty entry exists only for a
+  developer whose last attempt saw an empty growth list (or that came from a save with 0 cells, §6). Developers never
+  picked, or picked with invalid lists, get no entry. Every entry, empty or not, is saved (§6).
 - *[quirk]* Developers with `ad ≤ 5` stay in `pending` forever, so once the qualifying developers are done the loop
   **spins** (re-summing demand, drawing nothing) until the 3 ms timer expires. Every day therefore costs about
   3 ms whenever any developer lacks demand.
@@ -391,13 +401,94 @@ For each building exemplar (ExemplarType 2) the **building type** is the exempla
 | profile.purpose | property `0x27812833` (uint8), default 0 |
 | profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16 |
 | profile.capacity | the amount of that map for `GetDeveloperType(purpose, wealth)` (0 if absent) |
-| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), category flags (bits set for each value of property `0xAA1DD396` found in a 31-entry table at `0x00AB0A40`, `SetBuildingCategoryFlags` `0x00696B80`), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]* |
+| profile.categoryFlags | property `0xAA1DD396` (occupant groups, uint32 list): §4.7.1.1 |
+| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]* |
 | families | property `0x27812870` (uint32 list): the type is appended to each family's member list |
 
-Profiles, names, keys and families live in STLport `hash_map`s keyed by type (bucket = key mod bucket count).
-Enumerations (`GetAllBuildingTypes` …) follow that hash order *[compat for callers that depend on order]*.
+The profile that `GetBuildingProfile` inserts for an unknown type (§4.7.2) is all zero, including the
+`0x499AFA38` byte (the default 30 applies only in `LoadBuildingProperties`).
+
+##### 4.7.1.1 Building category flags *[compat]*
+
+`SetBuildingCategoryFlags(holder, profile)` (`0x00696B80`) sets `categoryFlags := 0`, reads property `0xAA1DD396`
+as a uint32 list (`0x005FF510`; missing property → flags stay 0) and, for every value v of the list and every
+index i in 0..30, sets bit i when `table[i] = v`. The table (31 uint32 entries at `0x00AB0A40`, data) maps bit
+index to occupant group ID; values not in the table set nothing, a repeated value sets the same bit, and bit 31 is
+never set. Names are the SDK's `BuildingCategoryFlag…` names (community names; the game's own scripts confirm
+`0x150A` landmark, `0x1301` bus and `0x1508` airport).
+
+| Bit | Mask | Occupant group | SDK name |
+|---|---|---|---|
+| 0 | `0x00000001` | `0x1000` | Residential |
+| 1 | `0x00000002` | `0x1001` | Commercial |
+| 2 | `0x00000004` | `0x1002` | Industrial |
+| 3 | `0x00000008` | `0x1003` | Transportation |
+| 4 | `0x00000010` | `0x1004` | Utility |
+| 5 | `0x00000020` | `0x1005` | Civic |
+| 6 | `0x00000040` | `0x1006` | Park |
+| 7 | `0x00000080` | `0x1300` | Rail |
+| 8 | `0x00000100` | `0x1301` | Bus |
+| 9 | `0x00000200` | `0x1302` | Subway |
+| 10 | `0x00000400` | `0x1400` | Power |
+| 11 | `0x00000800` | `0x1401` | Water |
+| 12 | `0x00001000` | `0x1402` | Landfill |
+| 13 | `0x00002000` | `0x1500` | Police |
+| 14 | `0x00004000` | `0x1501` | Jail |
+| 15 | `0x00008000` | `0x1502` | Fire |
+| 16 | `0x00010000` | `0x1503` | School |
+| 17 | `0x00020000` | `0x1504` | College |
+| 18 | `0x00040000` | `0x1505` | Library |
+| 19 | `0x00080000` | `0x1506` | Museum |
+| 20 | `0x00100000` | `0x1507` | Health |
+| 21 | `0x00200000` | `0x1508` | Airport |
+| 22 | `0x00400000` | `0x1509` | Seaport |
+| 23 | `0x00800000` | `0x150A` | Landmark |
+| 24 | `0x01000000` | `0x150B` | Reward |
+| 25 | `0x02000000` | `0x2000` | StyleChicago |
+| 26 | `0x04000000` | `0x2001` | StyleNewYork |
+| 27 | `0x08000000` | `0x2002` | StyleHouston |
+| 28 | `0x10000000` | `0x3000` | IndustryAgriculture |
+| 29 | `0x20000000` | `0x3001` | IndustryDirty |
+| 30 | `0x40000000` | `0x3002` | IndustryManufacturing |
+
+The BDS itself never reads the flags; they are part of the `BuildingProfile` returned by slots 39/40.
+
+##### 4.7.1.2 Catalogue maps and their order *[compat]*
+
+The catalogue is five process-wide STLport `hash_map`s keyed by uint32 with the identity hash (bucket = key mod n,
+unsigned): **key map** (building type → exemplar key, `0x00B48548`), **profile map** (`0x00B48584`), the two name
+maps, and the **family map** (family → member vector, `0x00B48598`). Each is constructed at process start with a
+bucket hint of 100, so n = 193. They share the STLport hash table of allocators.md (*hash_set*): the 28-entry
+prime table at `0x00A829B0`, chains singly linked from the bucket.
+
+- **Insert** (`operator[]`, e.g. `0x004A3470` → `0x004A2930` for the key map, `0x0069B720` → `0x0069B650` for
+  the profile map; the family map does the same inline): the key is **looked up first**; if present, nothing
+  changes (no growth). If absent: `resize(count + 1)` (`0x004F0940` / `0x00696540`), then the new node goes to the
+  **head** of chain `key mod n` and count += 1. (This differs from the `hash_set::insert` callers of allocators.md,
+  which resize before the lookup.)
+- **Resize(h)**: nothing when h ≤ n. Else n' := the first prime of the table ≥ h (4294967291 beyond it); nothing
+  if n' ≤ n. Else a new zeroed bucket vector of n' entries; the old buckets are walked in ascending order and each
+  chain from its head: every node is unlinked and pushed onto the **head** of chain `key mod n'`; the old vector is
+  freed. With the shipped counts the growth sequence is 193 → 389 (on the 194th distinct key) → 769 (on the
+  390th) → 1543 …
+- **Enumeration**: buckets 0 to n − 1, each chain from its head. Consequences: keys in the same bucket enumerate
+  newest first; a rehash reverses the relative order of keys that share both their old and their new bucket.
+- The key map receives one insertion per building exemplar, in the resource manager's key enumeration order
+  (`AddBuildingData` inserts only when the exemplar resource loads); a second exemplar with the same instance
+  only replaces the stored key. So `GetAllBuildingTypes` order is a function of that exemplar order alone.
+- **Which map answers what** (§4.7.2): the set of building types is the **key map**. `GetBuildingProfile` and
+  `GetBuildingMapKey(type)` insert into the profile map only, so an unknown type queried there does **not** become
+  valid, enumerated or counted.
 
 #### 4.7.2 Queries the developers use
+
+"t is a building type" means: t is a key of the **key map** (§4.7.1.2). This holds for `IsBuildingTypeValid`
+(`0x00697E30`), the type fallback of `IsBuildingFamilyTypeValid` (`0x00697E70`) and of both
+`GetBuildingTypesByFamily` overloads (`0x00697EF0`, `0x00699D20`), `GetBuildingKeyFromType` (`0x00697DD0`), both
+`GetAllBuildingTypes` overloads (`0x00697C50`, `0x00697B80`; typeCount = the key map's count),
+`GetBuildingTypesByFilter` (`0x00699C50`), the count posted in `kSC4MessageBuildingTypesUpdated` (§5) and the
+expansion of §4.7.4 *[compat]*. "Hash order" below is the key map's enumeration order. Profiles inserted by
+`GetBuildingProfile(unknown)` change none of these.
 
 | Query | Behaviour |
 |---|---|
@@ -442,8 +533,12 @@ Built once at the static initialisation, from every lot configuration (lot confi
 (w, h) := config.GetSize();  area := w · h (int)
 sizeX := r24(float(w) × CellWidthX);  sizeZ := r24(float(h) × CellWidthZ)     -- city slots 91/92; w, h unsigned
 obj := config.GetPrimaryBuildingConfigurationObject()        -- slot 24
-for each ID in obj's ID list: expand a family to its members (a building type stands for itself);
-  for each building type T:
+for each ID in obj's ID list:
+  S := {} (a fresh 193-bucket hash_set<uint32>)
+  if ID is a family: insert every member into S
+  else if ID is a building type (key map): insert ID
+  else: nothing (S stays empty; no catalogue map gains an entry)
+  for each building type T in S (set hash order):
     if T's exemplar loads (resource manager slot 3):
         (dx, dz) := occupant size 0x27812810 [0] and [2], swapped when obj's orientation is 1 or 3
         left := r24(objX − r24(dx × 0.5)), right := r24(r24(dx × 0.5) + objX), same for z with objZ
@@ -456,14 +551,39 @@ for each ID in obj's ID list: expand a family to its members (a building type st
         key := (z, uint8(4·purpose + wealth + 1));  table[key] := max(table[key], d)   -- inserted if absent
 ```
 
+*[compat]* An ID that is neither a family nor a key-map building type contributes nothing and inserts nothing
+anywhere (`0x0069C4CA`–`0x0069C59C`: family-map lookup, then key-map lookup, both without insertion). The family
+test comes first, so an ID that is both a family and a building type is expanded as the family only. For each T in
+S the code then looks T up in the **key map with insert-if-absent** (a missing T would gain a zero key and become a
+"valid" building type) and fetches the exemplar by that key; with exemplar-built families every member is already a
+key-map type (§4.7.1), so the insert cannot happen with game data *[inferred: unreachable]*; a replacement need not
+reproduce it. When the exemplar does not load, the fit test is skipped and T is still rated. `GetBuildingProfile(T)`
+inserts a zero profile for a T without one (purpose 0: skipped). The order of S does not matter (the table keeps
+maxima).
+
 `GetMaxCapacity(zone, p, w)` returns `float(trunc(table[(zone, GetBuildingMapKey(p, w))]))` in **ST0**, or 0.0 if the
 key is absent: the largest "capacity per cell, rounded half up, at least 1" of any building of that purpose and
 wealth that fits a lot configuration allowed in that zone. *[compat]* SDK error, §7.1.
 
 ### 4.8 `IsSuitableForConstruction(profile, reason&)` (slot 46, `0x00695430`)
 
-`profile` is a `ConstructionProfile` (SDK names: field 0 = building zone type, wealth, purpose, land value min / max
-(uint8), building type, cell x, cell z). Checks, in order; the first failure sets `reason` and returns false:
+`profile` is a `ConstructionProfile`, a 0x24-byte struct passed by reference (ABI layout, as both slot 46 and slot
+47 read it; SDK names in brackets):
+
+| Offset | Type | Field |
+|---|---|---|
+| +0x00 | int32 | building zone type (`unknown1`) |
+| +0x04 | uint32 | unused by the BDS (`unknown2`) |
+| +0x08 | int32 | wealth |
+| +0x0C | int32 | purpose (not read by the BDS) |
+| +0x10 | uint8 | land value min |
+| +0x11 | uint8 | land value max (+0x12, +0x13 padding) |
+| +0x14 | uint32 | building type |
+| +0x18 | int32 | **orientation** (`unknown3`, "facing?"): read only by `PlopBuilding` (§4.9) |
+| +0x1C | int32 | cell x |
+| +0x20 | int32 | cell z |
+
+Checks, in order; the first failure sets `reason` and returns false:
 
 | # | Check | reason |
 |---|---|---|
@@ -484,11 +604,18 @@ All pass → true (`reason` untouched).
   If `pos[1] < 0` (strictly; NaN does not count) the altitude is replaced by
   `lotDeveloper.GetLowestOrHighestAreaAltitude({min.x, min.z, max.x, max.z}, false, true)` (slot 16) — with the
   **box's** local coordinates, not offset by the position *[quirk]*. Then sets the position and orientation, initialises
-  the occupant and inserts it (`AddNewBuildingOccupant(occupant)`, slot 8). Returns the occupant (borrowed: the
-  occupant manager holds the reference) or **null**.
+  the occupant and inserts it (`AddNewBuildingOccupant(occupant)`, slot 8, through the vtable). Returns the
+  occupant (borrowed: the occupant manager holds the reference) or **null**.
+  **References** *[compat]*: the BDS AddRefs the new occupant once (its creation reference, count 1) and releases
+  that reference on **every** exit after creation (`0x00698F1B`): property-load failure, insert failure (slot 8
+  false) and success alike. On insert failure it therefore returns null and holds nothing; the occupant is destroyed
+  unless the occupant manager kept a reference of its own. On success the return value is the pointer after that
+  release, kept alive only by the occupant manager. A caller never releases the result.
 - `AddNewBuildingOccupant(type, cx, cz, orientation)` (slot 6) = slot 7 with
   `pos = (centreX, terrain.GetAltitude(centreX, centreZ), centreZ)` of the cell (city `CellCenterToPosition`).
-- `PlopBuilding(profile)` (slot 47) = slot 6 with the profile's type, cell x, cell z and its fourth-from-last field.
+- `PlopBuilding(profile)` (slot 47, `0x00695570`) = slot 6 (through the vtable) with
+  `(profile.buildingType, profile.cellX, profile.cellZ, profile.orientation)`: the orientation is the int32 at +0x18
+  between the building type and cell x (SDK `unknown3`, §4.8), **not** a land value field *[compat]*.
 - `LocationIsOKForNewBuilding(type, x, z)` (slot 5): false if the type is unknown; else true when the occupant
   manager finds **no** occupant of type `0x278128A0` (buildings) at the cell containing (x, z) (slot 33).
 - `AddNewBuildingOccupant(occupant)` (8) / `AddNewFoundationOccupant(occupant)` (24): `occupantManager.InsertOccupant(
@@ -525,6 +652,10 @@ checked. The building map cell value is `4·purpose + wealth + 1`, so residentia
 Nothing for an empty rectangle. Lots = `lotManager.GetLotsInCellRect(rect, false)` (B list, allocators.md).
 
 - `kind ∉ {1, 2, 3}`: `lotDeveloper.UpdateLotElements(lot, kind)` (slot 37) for each lot.
+- *[compat]* Both call sites (`0x00698690`, `0x00698898`) pass `kind` as the **whole 32-bit** data4 value. Slot 37's
+  second parameter is a `uint32` kind, not a bool: the lot developer only tests `kind ≠ 5` (full 32-bit compare)
+  to decide whether a lot without a foundation is re-checked for one (`lot-developer.md` §6.4). A replacement must
+  pass the kind unchanged; reducing it to `kind & 0xFF ≠ 0` would turn kind 5 into "true" and re-check the slope.
 - `kind ∈ {1, 2, 3}`: for each lot:
   `d := r24(terrain.GetAltitude(cx, cz) − cy)` with `(cx, cy, cz) := lot.GetCenter()`;
   `A := atan(r24(lotDeveloper.GetLotSlope(lot, false) × r24(1 / CellWidthX)))`,
@@ -535,6 +666,10 @@ Nothing for an empty rectangle. Lots = `lotManager.GetLotsInCellRect(rect, false
   kind ∈ {1, 2}, false, true, true, null, null, null)`).
   Then `demolition.DemolishLots(true, queued, 0, 1, true, null, &cost, null)` (global `0x00B43D00`, slot 7); if
   `kind ∈ {1, 2}` and `cost > 0`: `budget.SetTotalFunds(budget.GetTotalFunds() − cost)` (int64).
+  *[compat]* `DemolishLots` is called **unconditionally** on this path (call `0x006988D1`), also when nothing was
+  queued and when the rectangle holds no lot. `cost` is set to 0 before the call; with an empty list
+  `cSC4Demolition::DemolishLots` (`0x004670C0`) returns true at once without touching `cost`, so the funds are
+  unchanged and nothing observable happens. A replacement may skip the call for an empty list.
 
 The meaning of the kinds (1–3: terraforming tools *[inferred]*) is the terrain's (open question §10.2 Q3).
 
@@ -562,6 +697,26 @@ instance 0xE8DA7677}` (the "simulators" exemplar, `re/tuning/simulators.md`), fe
 | `0x47E2C381` | (unnamed; per-resident factor) | float (`0x005FD4F0`) | 0.5 | absent → 0.5 |
 | `0x47E2C382` | (unnamed; bias) | uint32 (`0x005FD480`), stored as int32 | 10 | absent → 10 |
 | `0x47E2C383` | Stage Population Multiplier | float vector (`0x005FFCC0`: replaces the vector; missing → unchanged) | empty | 1.2, 1.1, 1.0 |
+
+**`0x47E2C380` in detail.** The code takes the property's value variant (property slot 5) and its slot 103
+(`0x0060CE80`), which returns the variant's data word as a pointer whatever the type is, and reads two uint32 at
+that pointer: `crMin := word[0]`, `crMax := word[1]`. A game variant keeps an array (type with bit `0x8000`) as a
+pointer to a global-heap block of count × element-size bytes, and a single value **inline** in the same word.
+Behaviour of the original by property shape:
+
+| Property shape | Original |
+|---|---|
+| absent | both defaults kept (100, 2000) |
+| array of ≥ 8 data bytes (shipped: uint32 × 2) | the first 8 bytes as two little-endian uint32, whatever the element type (a float array gives the bit patterns) *[compat]* |
+| array of 4–7 data bytes (e.g. one uint32) | `crMin` from bytes 0–3; `crMax` from the 4 bytes **after** the property's data block (heap garbage) |
+| array of 0–3 data bytes | both words read past or outside the data (garbage, or a fault for a null pointer) |
+| single (non-array) value | the value itself is used as an address and read: a fault for any small value (e.g. 8192) |
+
+*[choice]* A replacement reads the property's actual data bytes (an array's count × element size; a single value's
+own bytes, little-endian) and takes `crMin` from bytes 0–3 and `crMax` from bytes 4–7, **each only when all four of
+its bytes exist**; a word without four bytes behind it keeps its code default (100 or 2000). This matches the
+original wherever the original reads defined data, and never faults. The clamp of §4.1 uses the values as read,
+even when `crMin > crMax` (then the result is always `crMax`, since the `min` comes last).
 
 `GetStagePopulationMultiplier()` (53) returns `stageMultiplier[city.GetDifficultyLevel()]` (0 easy, 1 medium,
 2 hard) in ST0, **without bounds check** *[quirk]*. *[choice]* FreeCity4 returns 1.0 when the index is outside the
@@ -627,6 +782,18 @@ u8    ignore plumbing ; u8 ignore power ; u8 ignore caps                        
   buildings are **appended** (holding the reference); stages by `operator[]`; marks are **merged** into the
   process-wide set (which `Shutdown` emptied); planned-growth entries are inserted or overwritten, and the developer
   reference read for each is **released** (the map holds no reference).
+- Marks: each saved type's entry is created by the insert-if-absent lookup (`0x0069AEC6`) before its cells are read,
+  so a saved entry with `nCell = 0` comes back as an **empty entry** and is written again as such (§4.4). `Write`
+  writes every entry of the process-wide map (`0x00697968`), empty ones included.
+- Developers *[compat]*: each pair is stored as `map[type] := ref` (`0x0069AD70`), an overwrite. If the map already
+  holds `type`, the old pointer is overwritten **without** `Release`: its reference **leaks** (the object is never
+  released). On the city-load path the BDS is freshly constructed, so its map is empty and this only happens when one
+  record lists the same type twice, which `Write` never produces (map keys are unique). *[choice]* A replacement
+  releases the replaced reference; nothing observable depends on the leak.
+- A developer reference that fails to resolve is stored as a **null** entry. The original then crashes: `Init`'s
+  `CreateDeveloper` finds the entry and calls `Init` on it (`0x006991E9`), and `DoMonthlySimulation` calls
+  `StartMapUpdate` on every entry. *[choice]* A replacement drops null developer entries after reading, so
+  `CreateDeveloper` creates a fresh developer for that type.
 - Returns true iff the stream has no error at the end.
 
 Recomputed on load: the static catalogue (if not yet built), the tuning, `lastSuccessfulBuild` (today, per developer,
@@ -753,7 +920,7 @@ Slots 0–2 thunks (this − 4: `0x00698D30`, `0x005200D0`, `0x00698DB0`); slot 
 | | 19 `+0x4C` / 20 `+0x50` | AddAgent / RemoveAgent | | | §1.3, §1.4 |
 | `cISC4City` (`0x00B43CEC`) | 24 `+0x60`, 34 `+0x88`, 50 `+0xC8`, 81 `+0x144`, 91/92 `+0x16C`/`+0x170` (ST0), 95 `+0x17C` (pop 16), 97 `+0x184` (pop 16) | GetDifficultyLevel, GetOccupantManager, GetSimulator, GetAdvisorSystem, CellWidthX/Z, PositionToCell, CellCenterToPosition | | | §4.7–§4.13 |
 | `cISC4ZoneManager` (`0x00B43D14`) | 12 `+0x30` (pop 8, EAX = int8 sign-extended, `0x004DC740`) / 11 `+0x2C` (pop 40, AL) | `GetZoneType(x, z)` / `PlaceZone(...)` | | | §4.8, §4.11 (zones.md) |
-| `cISC4LotManager` (`0x00B43D08`) | 6 `+0x18` (pop 12) / 7 `+0x1C` (pop 24) | `GetLot(x, z, bool)` / `GetLotsInCellRect(list, x1, z1, x2, z2, bool)` | | EAX / AL | §4.8, §4.11 |
+| `cISC4LotManager` (`0x00B43D08`) | 6 `+0x18` (pop 12) / 7 `+0x1C` (pop 24) | `GetLot(x, z, bool)` / `GetLotsInCellRect(list, x1, z1, x2, z2, bool)` | | EAX / **EAX count** (`0x0072E080`, zones.md §8.3 and §11.3; the BDS ignores it) | §4.8, §4.11 |
 | `cISC4Lot` | 9 `+0x24`, 14 `+0x38`, 15 `+0x3C`, 19 `+0x4C` (ST0), 33 `+0x84`, 39 `+0x9C`, 46 `+0xB8` (pop 4), 48 `+0xC0` | GetLotConfiguration, GetBoundingRect, GetCenter, GetSlope, GetState, IsInDemolishableState, GetBuildingType(bool), GetBuilding | | | §3.2, §4.8–§4.11 |
 | `cISC4LotConfiguration` | 7 `+0x1C`, 11 `+0x2C` (AL), 15 `+0x3C`, 24 `+0x60` | GetSize, GetGrowthStage, IsCompatibleWithZoneType, GetPrimaryBuildingConfigurationObject | | | §4.7.4, §4.10 |
 | `cISC4LotConfigurationManager` (`0x00B43D18`) | 20 `+0x50` | GetLotConfigurationMap | 0 | EAX | §4.7.4 |
@@ -831,10 +998,13 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 7. The highest-stage advisor event carries no subject (§4.10).
 8. `AddNewBuildingOccupant` auto-altitude uses local box coordinates; the PlaceBuilding command builds a position
    with z = −1 (§4.9, §4.12).
-9. Tuning min/max are read without type or count checks; the stage-multiplier index is not bounds-checked
-   (*[choice]* 1.0 outside).
+9. Tuning min/max are read without type or count checks (*[choice]* per-word fallback to the defaults, §4.13); the
+   stage-multiplier index is not bounds-checked (*[choice]* 1.0 outside).
 10. `lastSuccessfulBuild` is not saved: after a load every developer's last build is "today".
 11. The monthly clamp is unsigned (§4.1).
+12. `Read` overwrites an existing developer entry without releasing it (a leak, *[choice]* released), and keeps a
+    null entry for an unresolved developer reference, which crashes `Init` (*[choice]* dropped) (§6).
+13. Empty tried-tract mark entries are created by lookups and saved (§4.4, §6).
 
 ### 10.2 Open questions
 
@@ -842,7 +1012,9 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 2. Q2. Complete list of raw consumers of slots 34, 41 and 44 (most callers cache the BDS pointer; a vtable-offset
    scan with data flow is needed).
 3. Q3. Meaning of the terrain-change kinds 1–3 in `0x278E6003` data4, and the exact packing of data1/data2.
-4. Q4. Names of occupant groups `0x150A` / `0x150B` and of property `0x029244DB` (preview flag *[inferred]*).
+4. Q4. *Partly answered*: `0x150A` is the landmark group (SDK `BuildingCategoryFlagLandmark`; the game's own scripts
+   call it "landmark") and `0x150B` the reward group (SDK `BuildingCategoryFlagReward`), §4.7.1.1. Still open: the
+   name of property `0x029244DB` (preview flag *[inferred]*).
 5. Q5. The BuildingProfile fields after `capacity` (properties `0x27812836`, `0x499AFA38`) — not needed by growth.
 6. Q6. Whether `cISC4Lot::SetState` also claims (it only releases in the code read).
 
@@ -913,6 +1085,31 @@ CityPlanning advisor is to fire. The static catalogue can be rebuilt by the repl
 16. **Catalogue queries**: family F = {A, B}: `GetBuildingTypesByFamily(vector, F)` → [A, B], returns 2;
     `(vector, A)` → [A], returns 0; `(vector, X unknown)` → vector unchanged, 0. `IsBuildingInFamily(A, A)` true.
     `GetAllBuildingTypes(array, n = 1)` with 3 types → n = 1, returns 3.
+17. **PlopBuilding orientation**: profile {zone 1, wealth 1, purpose 1, lvMin 0, lvMax 200, type T, orientation 3,
+    x 10, z 12} → slot 6 is called with `(T, 10, 12, 3)` (not 200); with orientation 0 and lvMax 2 → `(T, 10, 12, 0)`.
+18. **Construction-resource tuning shapes** (§4.13): property `0x47E2C380` as uint32 array [8192, 20480] → 8192,
+    20480; as uint32 array [5000] → `crMin` 5000, `crMax` 2000 *[choice]*; as an empty array or absent → 100, 2000;
+    as uint8 array [0x00, 0x20, 0, 0, 0x00, 0x50, 0, 0] → 8192, 20480; as a single uint32 8192 → `crMin` 8192,
+    `crMax` 2000 *[choice]*. With [3000, 1000] and R + C + I = 10000 (factor 0.5) the monthly supply is 1000.0.
+19. **Category flags**: occupant groups [`0x1000`, `0x150A`, `0x1000`, `0x9999`] → flags `0x00800001`; [`0x3002`]
+    → `0x40000000`; no property → 0; [`0x1303`] → 0.
+20. **Key-map order**: building exemplars with instances 5, 198, 391 (in that enumeration order) →
+    `GetAllBuildingTypes` = [391, 198, 5]. Instances 1, 75078, then 2, 3, …, 192 (193 types; 193 buckets) →
+    [75078, 1, 2, …, 192]; one more instance 1000 resizes to 389 buckets before its insertion → [1, 75078, 2, …,
+    192, 1000]. Loading instance 5 twice (second exemplar key K2) keeps one entry with key K2 and does not grow.
+    `GetBuildingProfile(77)` for an unknown 77 → zero profile; afterwards `IsBuildingTypeValid(77)` is false and
+    `GetAllBuildingTypes` is unchanged.
+21. **Max density, unknown ID**: a lot configuration whose object lists only ID `0xDEAD` (neither a family nor a
+    building type) adds nothing to the table; `IsBuildingTypeValid(0xDEAD)` stays false and no profile is created.
+22. **Empty marks entry**: one qualifying developer `0x1010` with valid lists and an **empty** growth list: after
+    one day no `Grow` call happens, and the record's marks section is `01 00 00 00 10 10 00 00 00 00 00 00` (one
+    entry, 0 cells). A developer with invalid lists (or `ad ≤ 5`) creates no entry.
+23. **Shutdown before Init**: a constructed BDS whose `Shutdown` is called first returns true, releases nothing and
+    leaves the process-wide marks of a previous city intact; a following `Init` then works normally.
+24. **AddNewBuildingOccupant insert failure**: valid type and location, occupant manager `InsertOccupant` returns
+    false → slot 7 returns null; the created occupant got exactly one AddRef and one Release from the BDS.
+25. **Terrain change with no lots**: kind 1 on a rectangle without lots → `DemolishLots` is called once with an empty
+    list (or skipped, *[choice]*); funds unchanged.
 
 ## 12. Calibration (counters for the observer in the original)
 

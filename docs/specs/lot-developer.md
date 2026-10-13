@@ -218,7 +218,7 @@ call:
 1. The new state is stored. If it is 4, the low byte of `reason` becomes the lot's vacate reason (lot slot 45,
    `GetVacateReason`); `reason` is used for nothing else and never reaches the message.
 2. The lot recomputes its wealth from its building (`UpdatePrimaryOccupantWealth`, `0x006C1430`, not specified
-   here) → `W1`.
+   here; it sets 0 when the lot has no building type) → `W1`.
 3. `occOld := old ∈ {2, 3}`, `occNew := state ∈ {2, 3}`. data4 is:
 
 | Case | data4 | Lot wealth afterwards |
@@ -232,8 +232,9 @@ So `demand.md` §7, `growth-developer.md` §6.3 and `building-development.md` §
 occupant wealth; `ReoccupyBuilding`'s `SetState(3, w, 0)` delivers `w`, and `AbandonBuilding`'s `SetState(4, 0,
 reason)` delivers the wealth the lot had while occupied. The IGZUnknown is a new `cSC4Lot` built by the copy
 constructor `0x006C2450` at post time (it copies the scalar fields, including state, building type, wealth and
-vacate reason, and references the configuration; two of its containers start empty *[inferred: the occupant
-list and one other list]*); SetState releases its own reference after posting. This is why §6.5 works on the lot
+vacate reason, and references the configuration; two of its containers start empty: the **trip list** (lot
+`+0x84`, the list `Write` iterates at `0x006C0305`) and a tree at `+0x40` *[inferred: the occupant set]*; the
+containers at `+0x54` and `+0x60` are copied); SetState releases its own reference after posting. This is why §6.5 works on the lot
 found at the copy's location rather than on the message object.
 
 ### 3.3 Messages posted
@@ -1608,3 +1609,12 @@ Unless stated, tuning is the shipped exemplar and the file RNG is seeded explici
     `rand()` are consumed.
 25. **Crane pause** (§6.7.6), generator seeded 12345: the first state 0 → 1 step sets duration `1000 + Uniform(1000)`
     = 1048 ms.
+26. **StateChanged data4** (§3.2, `cSC4Lot::SetState`): a lot in state 1 with wealth byte 0 and no building type:
+    `SetState(2, 0, 0)` → data1 1, data2 2, data4 0 (the recomputation sets 0). A lot in state 4 with wealth 1:
+    `SetState(3, 3, 0)` → data4 3, lot wealth 3. A lot in state 3 with wealth 2: `SetState(4, 0, 4)` → data4 2 (the
+    wealth before the call, whatever the recomputation gives), vacate reason 4; the reason never appears in the
+    message. `SetState(3, …)` on a lot already in state 3 posts nothing.
+27. **UpdateLotElements kind** (§6.4): a lot in state 3 without a foundation, with a configuration whose maximum
+    slope before foundation is below the lot slope: kind 5 → no `AddLotFoundation`, `UpdateLotBaseTextureOccupant`
+    gets false; kind 0x105 → foundation added (one `AddLotFoundation` call), texture call gets true; kind 0x100
+    (low byte 0) → foundation added as well.
