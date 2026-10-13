@@ -1636,10 +1636,12 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 | 27 `DepthRule` (all three cases, four parameter sets, ps 0 and 1) | `zn15_27_depth_rule` |
 | 28 `DrawStreet` (runs, per-cell mode, the backwards line, the fallback chain) | `zn15_28_draw_street` |
 | 29 middle row (`o0 = 10`, step +2, four row ranges) | `zn15_29_middle_row` |
+| extra: `SimpleParcellize`'s street lines (§7.5 step 1), Q = 3 | `zn15_30_simple_parcellize_streets` |
+| extra: `SimpleParcellize`'s Q = 2 x-line rule (§7.5, the `D = 3` branch) | `zn15_31_simple_parcellize_q2_x_lines` |
 
 Not covered by a vector, and why:
 
-- **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–29 (the spec's own common setup forces width 2, depth 2,
+- **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–31 (the spec's own common setup forces width 2, depth 2,
   minDepth 1, maxDepth 3, block 6). Its candidate-developer choice, the stage walk, the configuration `hash_set` order
   and the capacity score therefore have no vector yet; only its `block_depth` and `zone_density` helpers are unit-tested
   (`fc4-core`, `zones::tests`).
@@ -1650,5 +1652,5 @@ Not covered by a vector, and why:
   `InitBoundaryRules` are left out of the core (UI or debug, §1.2 step 7, §14.3 item 2).
 - **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
   is left out, so no vector pins them.
-- **`SimpleParcellize`'s street lines (§7.5 step 1)** are only exercised with `placeStreets` off (test 14) and through
-  tests 19–29, which all use `Parcellize`; the `n`-cell spacing of the two passes has no vector.
+- **`SimpleParcellize`'s street lines (§7.5 step 1)** are covered by the two extra vectors for Q = 3 and Q = 2; the
+  Q = 0 and Q = 1 columns of the table share code paths with those and are not separately pinned.

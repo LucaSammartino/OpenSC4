@@ -1140,16 +1140,17 @@ impl ZoneDeveloper {
 
         // 1. Street lines across the rect (if placeStreets).
         if place_streets {
-            // x lines.
+            // x lines (§7.5 table: Q 0 and 2 share a rule, Q 1 differs, Q 3
+            // always starts low).
             let (x_start, x_dir) = match q {
-                0 => {
+                0 | 2 => {
                     if d == 3 {
                         (rect.x1, 1)
                     } else {
                         (rect.x2, -1)
                     }
                 }
-                1 | 2 => (rect.x2, -1),
+                1 => (rect.x2, -1),
                 _ => (rect.x1, 1),
             };
             self.simple_street_pass(rect, true, x_start, x_dir, n);
