@@ -102,157 +102,154 @@ See the README checklist for the full list. In short:
 
 ## 5. Open threads, most urgent first
 
-### 5.1 Power glue crashes on the first day (run 23)
-- **What happened:** release DLL F5439E03… (commits 2c77349 + be7bb41 + 6aa6735, merged to main as ef4159c) was run
-  with `budget_default=1, power_report=1, observe=1`. It died with `0xC0000409` about 0.3 s after PostCityInit.
-- **Last log lines:** `DepartmentBudget::IsLocallyFundedObjectInDepartment` and `GetLocalFundingPercent`. No
-  `power recompute` line was ever written.
-- **Diagnosis:** almost certainly a Rust panic in the power core or capi. Prime suspect is the new "Read keeps the
-  saved words, Init sizes the bitmaps from the city" change.
-- **Log:** `build-runs/run23-power-wires.log`, also copied to lane 1's `build-runs/`.
-- **Lane 1 (agent `af159bf9f570ec0f6`, worktree `.claude/worktrees/agent-af159bf9f570ec0f6`):** asked to add a panic
-  hook that logs the message, reproduce the crash, fix it and add a regression test.
-  - It stopped when the previous session ended, with **uncommitted work** in its worktree:
-    `engine/capi/src/panic_log.rs`, `engine/plugin/FC4FailFast.{cpp,h}`, `power/tests.rs`, `fc4.h`, `lib.rs`,
-    `dllmain.cpp`, `FC4TestSeam.*`, `CMakeLists.txt`, `plugin_load_test.cpp`.
-  - Resume it with SendMessage (to `af159bf9f570ec0f6`), or finish that work in the same worktree.
-- **Next:** rebuild, stage the DLL, run again, and confirm non-zero production in the `power recompute` lines.
+> **Rewritten 2026-10-13** after this session closed §5.2, §5.5, §5.6 and most of §5.7, and made large progress on
+> §5.1 and §5.4. The old text of those sections is in git history (`c255c0f`). Commits from this session, all on
+> `main`: `8fdea4e` (spec answers), `ea602a4` + `e647189` (x87), `c7d1e51` + `9c02e76` (manual-checks/differential),
+> `4de4f46` + `0c83333` (build/KillaVolt removal), `f46f2f6` (README progress).
 
-### 5.2 x87 precision: the cause is in the game, not in our code
-- **Observation (run 23 log):** CW is `0x007F` (24-bit) at DLL attach, PreFrameWorkInit and PreAppInit. By
-  PostAppInit enter it is `0x027F` (53-bit), and it stays 53-bit through ticks and city load.
-- **What it means:** something inside the game's own app init (between PreAppInit and PostAppInit) switches the
-  precision. Our DLL has no control-word writes (lane 1 checked), and the guard (be7bb41) logs this as a WARNING.
-- **Consequence:** the original game likely runs its simulation at 53-bit too. So the run-19 "wrong precision"
-  conclusion in `docs/manual-checks.md` (d90019e) needs revisiting: 53-bit may simply be the real runtime state.
-- **Next (RE side):** find what in app init sets PC=53. Candidates are a D3D/DirectDraw device created with
-  FPU-preserve, or a DLL's CRT init (`_fpreset`/`_controlfp`).
-  - Decide which precision the reference behaviour uses and record it in foundations §18.2.
-  - Then redo the budget differential (5.3).
+### 5.1 Power glue — FIXED, pending lane 1's report and merge
+- **Was:** release DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23), no `power recompute`.
+- **Now:** the panic-hook work was checkpointed to lane 1's branch (`8129d67`) so it could not be lost, and lane 1
+  resumed it. **Run 26 (`build-runs/run26-power-enabled.log`, DLL `569FF4D8…`) is clean and power works:** 14
+  `power recompute` lines, first one `production 5997 consumption 1038 demand 1038 powered 385 unpowered 0`. This
+  closes both the run-23 crash and the run-22 "production 0" gap.
+- **Lane 1** (agent id `af1db58965f8ea547` this session; worktree `agent-af159bf9f570ec0f6`): power fix + panic hook
+  committed on its branch, has merged main, and is now working the x87 trigger hunt in `engine/core/src/simulator.rs`
+  (see §5.2). **Not yet merged to main** — the coordinator merges after lane 1 reports tests green. Confirm its
+  branch tip is its own commit (last observed `02dc7cf`, a merge of main; the power fix came in via `8129d67`).
+- **Next:** merge lane 1 once it reports; keep `FreeCity4.ini` in a manual-play state afterwards (see §5.7 — it was
+  left in run-26 test config with autoload + auto-unpause).
 
-### 5.3 Budget differential (M2 exit)
-- **Status:**
-  - Tax by type differs for types 4/6/9.
-  - Non-tax income is 35 vs 28.
-  - The tax multiplication order is fixed (6aa6735, b15_02 now 6992).
-- **Candidates:** agent order, precision (5.2), or the lot set.
-- **Lane 1 queue, after 5.1:**
-  1. observer logs of agent order per tick/month;
-  2. an `observe_lots` per-lot dump;
-  3. non-tax income parts.
-- **Then:** rerun the original game (run-19 style, `budget_default = 0` with the observer) against ours on Spandau.
+### 5.2 x87 precision — RESOLVED (RE side); the trigger hunt is open (engine side)
+The previous handoff concluded "the cause is in the game, not in our code" and that the original probably runs at
+53-bit. **That is wrong; verifying it in the bytes reverses it.** See `docs/specs/foundations.md` §18.1–§18.2
+(commits `ea602a4`, `e647189`) for the full evidence. Summary:
+- The **unmodified game runs the main thread at 24-bit for the whole session.** It asserts 24-bit exactly once, as
+  the first call of `PreFrameWorkInit` (`CALL 0x005F85E0`, verified in the bytes at `0x0045236C`), and **nothing can
+  ever restore it** afterwards — the only unconditional 24-bit setter has exactly one xref, and every other site is
+  Lua-related and *guarded*, so it skips both its set-to-53 and its set-back unless already at 24-bit.
+- **Our DLL's mere presence raises the main thread to 53-bit** between PreAppInit and PostAppInit. Proven by an A/B:
+  run 19 had the simulator **and** budget DISABLED (observer only, nothing replaced) and produced department
+  expenses `122/104`; the unmodified game's save of the same city holds `123/105`. Same code, same city, only
+  difference is our DLL loaded. Our own budget replacement computes `123/105` — i.e. **we reproduce 24-bit
+  correctly and it is the original that computes wrongly inside our process.**
+- Two tooling gotchas found on the way: Ghidra renders the real 42-byte FPU helper `0x008929E0` as an **empty
+  function** (pseudocode cannot be trusted on this path), and `PreFrameWorkInit`'s **decompilation fails outright**
+  (`field129_0x90 does not fit in structure cWinSC4App`), which is why the 24-bit assert was invisible in `decomp/`.
+- **The trigger is NOT located.** What raises PC to 53-bit lives in *our* process during app init, so it is an engine
+  hunt, not an RE one. Lane 1 has the two runnable experiments (fine-grained CW logging across the ~2.4 s window;
+  then a minimal attach-only DLL). Our DLL's own load-time CRT init is excluded (CW is still 24-bit at
+  "DLL attach (after our initialisation)"). MXCSR never moves, only the x87 PC field (00→10) — consistent with
+  `_controlfp(_PC_53, _MCW_PC)` or an `fldcw` with PC=10. A latent game bug is also documented (the exemplar
+  float-expression parser `nSCRes::ParseFloat`→…→`0x0067BA40` sets 53-bit and never restores) but it only fires on
+  **text**-format resource parsing, which shipped binary tuning does not trigger — so it is not the cause here.
+- **Workaround if the trigger proves unavoidable** (written up in §18.2): re-assert 24-bit ourselves at PostAppInit by
+  calling the game's own unconditional helper `0x008929E0` with mode 0. Must be logged — it changes what the
+  *original* subsystems compute while our DLL is loaded.
 
-### 5.4 M4 lot developer and zones cores (lane 3)
-- **Lane 3:** agent `aa70dc8fc55381850`, branch tip 6d09937, merged to main.
-- **Helpers:** worktrees `agent-a324dd1b5caa1d469` (lot developer) and `agent-ab69d8e3cec021271` (zones) have
-  **uncommitted work**:
-  - lot developer: `lot_developer/{mod,geometry,tuning}.rs`;
-  - zones: `zones/{mod,region}.rs`.
-  - Both are probably stopped too.
-- **Briefs:** seed from the session seed; pin draw sequences. Zones is headless-limited: anything that needs the 3D
-  view becomes a spec question. `CreateLotIfPossible` with facing −1 must make exactly one U(4) draw on a shared
-  `ZoneDeveloperStatics` (session 0 gives seed 0x8C09C68A, the same seed the tract harness uses).
-- **Spec gap:** lane 3 reported that zones.md round 6 (DrawStreet §7.10, ExtendAsStreets §7.11, LayInJogStreets
-  §7.12, connection test §7.13, tests 19–29) was referenced but missing. bf8cbd7 (parcellization geometry) may have
-  partly filled it. Check before resuming the zones helper.
-- **After that:** M4 glue (GrowthDevelopers adapter, `demand_active_value`, developer token = BDS ID), then the growth
-  budget calibration in the original (building-development.md §12).
+### 5.3 Budget differential (M2 exit) — blocked on §5.2; the old differential was invalid
+- **The run-19-vs-run-20 differential cannot be used.** Both had our DLL loaded, so **both ran at 53-bit**; run 19 is
+  not the original's true behaviour. It also moved two variables at once (our budget vs original, *and* precision),
+  so the tax-by-type differences (types 4/6/9) and the non-tax income gap (35 vs 28) can't be attributed. Details in
+  `docs/manual-checks.md` (commit `9c02e76`).
+- **A 24-bit oracle now exists:** parsed directly from the Spandau save's budget record `0xE990BE01` (file
+  byte-identical to backup `6982A842…`): `funds 69986, lastTaxIncome 866, ytdTaxIncome 6078, lastMonthIncome 904,
+  lastMonthExpense 796`, per-group `monthlyTax [574,28,0,34,0,0,0,0,0,228,0,0]`. Caveat: the save is at its own
+  month, not run-19/20's 2001-10, so it is a consistency check / matched-date target, not a line-by-line diff.
+- **Correct path to close it:** (1) fix or work around the §5.2 trigger so the original runs at 24-bit in-process;
+  (2) re-run observer-only to capture the original's true 24-bit first month; (3) diff that against our budget on the
+  same city/month (one variable). The tooling to parse the save oracle lives in `tools/dbpf.py` (used it this session).
 
-### 5.5 Spec answers sitting uncommitted in the main working tree
-- Two spec agents answered every queued question:
-  - `ad8d875e09fe30aeb`: GD2–GD5, TD1–TD5, BD13;
-  - `a88ab5b1b74d78d9a`: BD1–BD11, BD14.
-- **Not committed:** their edits are in the main working tree. `docs/specs/QUESTIONS.md` is now empty, and there are
-  edits to building-development, demand, growth-developer, lot-developer, power, tract-developer, traffic-network and
-  traffic-simulator (+373/−94).
-- **Next:**
-  - Review that each removed question has its answer in the named spec.
-  - Commit as "specs: answer GD2–GD5, BD1–BD11, BD13–BD14, TD1–TD5".
-  - Tell lane 3 so the cores can drop their assumptions.
+### 5.4 M4 lot developer and zones cores (lane 3) — in progress, both committed on their branches
+- **The zones spec gap is CLOSED.** zones.md round 6 (§7.10 DrawStreet, §7.11 ExtendAsStreets, §7.12 LayInJogStreets,
+  §7.13 connection test, tests 19–29) is all present; bf8cbd7 filled it. No need to re-check.
+- **Both helpers resumed and committed** (their prior uncommitted work was checkpointed first: `a6acd74` lot
+  developer, `bd77fc3` zones):
+  - **zones** (agent `a4b7ddc5791bcf0c3`, worktree `agent-ab69d8e3cec021271`): tip `e7e921d` "zones conformance:
+    runner and parcellization vectors (tests 19-21, 27, 29)", plus `979dd2f` core. Still iterating (more vectors).
+  - **lot developer** (agent `a9254b7ecd0aea910`, worktree `agent-a324dd1b5caa1d469`): merged main, writing
+    `simulator.rs`/`tests.rs` and `ld*` conformance vectors. This lane stopped mid-task twice with narration but no
+    tool calls; resumed each time with "stop narrating, write the files". Watch for that failure mode.
+  - Both have merged `main` (commit `8fdea4e`), so they see the corrected lot-developer/building-development specs.
+    **Note the BD13 correction:** `UpdateLotElements` gets the whole 32-bit kind and compares `kind != 5` (NOT
+    `kind & 0xFF != 0`) — pinned by lot-developer test 27. I mis-stated this in the first brief and corrected both.
+- **After that:** M4 glue (GrowthDevelopers adapter, `demand_active_value`, developer token = BDS ID), then the
+  growth budget calibration in the original (building-development.md §12).
 
-### 5.6 Removing the KillaVolt clone from the rebuild instructions (user request, nearly done, uncommitted)
-- **Goal:** the user asked to take "clone KillaVolt" out of the README. Copying their content into the repo is not an
-  option: there is no license, and it is decompiled output plus game files. The user asked about that, and was told
-  why.
-- **How:** we regenerate everything from the user's own exe and open sources.
-- **New and changed files (all uncommitted in the main tree):**
+### 5.5 Spec answers — DONE, committed
+All 25 queued questions (GD2–GD5, BD1–BD14, TD1–TD5) reviewed against their diffs and committed as `8fdea4e`;
+`docs/specs/QUESTIONS.md` is empty. The two core lanes were told to merge main and drop their assumptions (both
+have). Nothing further unless a new question is queued.
 
-  | File | Change |
-  |---|---|
-  | `tools/setup_ghidra.ps1` | `-Windows` imports `bin\SimCity4.exe` as "SimCity 4.exe", attaches 0xC0000054's FID DBs, auto-analyses, discovers functions and exports tables to `ghidra/export/windows`. `-Mac <path>` does the same for the Mac Rev A Intel binary, plus named pseudocode in `decomp-mac/`. Both refuse to overwrite an existing project; `-ProjectRoot` builds elsewhere. |
-  | `ghidra/scripts/FC4ExportTables.java` | new: writes functions/function-details/calls/string-references/symbols/data-references TSVs, `instructions.asm` and `export-summary.txt` (the formats symport reads) |
-  | `ghidra/scripts/FC4AttachFid.java` | new: attaches the FID databases before analysis |
-  | `ghidra/scripts/FC4DiscoverFunctions.java` | new: creates a function at each orphan instruction that nothing falls into and that is 16-aligned or referenced |
-  | `ghidra/scripts/FC4ApplyNames.java` | now creates a missing function at any listed name address, not only manual ones; logs `created=` |
-  | `tools/symport/features.py`, `vtables.py` | read `ghidra/export/{windows,mac}` |
-  | `tools/symport/merge_names.py` | reads library names from our own Function ID results (symbol source ANALYSIS); the KillaVolt community JSON is gone |
-  | `re/symbols/community.tsv` | the 4 effects addresses, from caspervg/sc4-effects-extensions, byte-verified |
-  | `tools/build.ps1` | new `-SkipMatch` (apply the committed names without the Mac reference) |
-  | `README.md` | rebuild steps rewritten |
-  | `CONTRIBUTING.md`, `.gitignore` | new output paths |
-
-- **Verified:** a fresh project in scratch (`%TEMP%\claude\…\scratchpad\ghidra-fresh`) decodes 2,192,685
-  instructions; the deep pass had 2,192,647. After discovery it has 35,554 functions, against their 35,629:
-  - 35,532 are the same functions;
-  - 35,414 of those have the same body size.
-- **Found and fixed on the way:** spec agents had hand-edited the generated `re/names_windows.tsv` with sources
-  `manual:m4zone|m4open|m5path|m6data|lua-host|qdrain` that had no source files, so a regeneration dropped them.
-  - They are now `re/symbols/{m4zone,m4open,m5path,m6data,lua-host}.tsv`.
-  - The `qdrain` row (0x6E3820 = `cSC4PollutionSimulator::Dispose`, formerly misnamed GetUnusedCapacity) was folded
-    into `grid-sims.tsv`.
-  - `0x6E01A0 cSC4PoliceSimulator::GetJails` (6bfb824) was added to `grid-sims.tsv`.
-  - **Rule from now on:** add hand names to `re/symbols/*.tsv`, never directly to `re/names_windows.tsv`.
-- **Current regenerated `re/names_windows.tsv` vs the committed one:** all manual and auto names are kept. The library
-  names changed:
-  - 137 are renamed (FID gives `luaK_self` where the old candidates had `_luaK_self`);
-  - 44 are lost (STLport locale `do_get`/`do_put`, a few CRT);
-  - 382 are new.
-  - **Decide:** accept as-is (my recommendation), or add the 44 as a fallback.
-- **The KillaVolt copies:**
-  - `ghidra/export/windows` currently holds a copy of the fresh export.
-  - The committed-name baseline is in scratch: `names_windows.kv.tsv`, `labels_windows.kv.tsv`,
-    `win_features.pkl.kv`.
-  - `re/symport/win_features.pkl` was regenerated from our own export.
-- **Still to do:**
-  1. Run `build.ps1 -SkipMatch` against the fresh project (`-ProjectRoot` is not in build.ps1, so point it there
-     temporarily). Check `missing=` and `created=` from FC4ApplyNames, and that the decomp export works.
-  2. Regenerate `docs/abi` if names changed (the docs/abi generator lives in `tools/`; see `docs/abi/README.md`).
-  3. Commit.
-  4. The user decides whether to delete the local `external/sc4-decomp` + `external/extracted` clone. Our current
-     `ghidra/project` was originally copied from KillaVolt's project. Replacing it with a fresh one (setup, then
-     build) is cleaner, but costs about 30 minutes of Ghidra plus re-applying names.
-  5. The Mac reference (optional, needed only to re-run symport): the user must download the Mac "Rev A" Intel
-     executable from Simtropolis' SC4 Maxis files (CAPTCHA). The `-Mac` path in `setup_ghidra.ps1` is untested
-     (`-loader MachoLoader -processor x86:LE:32:default`; a fat binary may need slice selection).
+### 5.6 KillaVolt removal from the rebuild instructions — DONE and verified
+- Committed as `4de4f46` (tooling + regenerated `re/names_windows.tsv` + the new `re/symbols/*.tsv`) and `0c83333`
+  (README records the verified pipeline output). The README rebuild steps no longer mention KillaVolt; the only
+  external dependency is `0xC0000054/sc4-ghidra-symbols` (**Apache-2.0**, Ghidra type/FID metadata only — no game
+  code or assets). Nothing from KillaVolt was copied in.
+- **The §5.6 "accept as-is vs add the 44 as fallback" decision is resolved on evidence:** all 44 lost names are
+  `library`-source STLport/CRT internals (locale `do_get`/`do_put`, SEH handlers, `__tzset`, `__fprem`), none
+  referenced by any spec, so they are **not** re-added. The ~141 renames are FID giving cleaner spellings
+  (`luaK_self`, not `_luaK_self`), also spec-irrelevant.
+- **The pipeline is verified end-to-end** (was the one open item in `4de4f46`): `build.ps1 -SkipMatch -ProjectRoot
+  <fresh> -DecompOut <scratch>` ran with exit code 0 on a project built from our own exe — `renamed=15859 created=8
+  missing=76 failed=191 thiscallConverted=10145`, `labels=856 vtablesTyped=853 failed=0`, 1815 decomp files. All 191
+  `failed` are benign ("symbol `_lua_*` already exists" — FID applied the identical name; 0 differ, 0 are
+  manual/community). All **906** hand/community names apply cleanly. build.ps1 gained `-ProjectRoot`/`-DecompOut`
+  this session to make that testable without touching `ghidra\project` or `decomp\`.
+- **`docs/abi` does NOT need regeneration** (the old §5.6 sub-item "regenerate if names changed" is closed). Checked
+  directly: of the 9,154 vtable/interface slot targets in `docs/abi/{vtables,interfaces}.tsv`, **zero** were among the
+  141 renamed or 44 lost addresses — the entire name churn is in `lib::`/`_lua_*`/STLport names that never appear as
+  an abi slot target. `docs/abi` is consistent as committed (601f3a9). (abi_extract.py needs `pefile`, not installed
+  in this env, but the target-set check above is conclusive without rerunning it.)
+- **Still the user's to decide** (unchanged): whether to delete the local `external/sc4-decomp` + `external/extracted`
+  KillaVolt clone, and whether to download the Mac Rev A binary (the `-Mac` path in `setup_ghidra.ps1` is untested).
 
 ### 5.7 Smaller items
-- **`docs/manual-checks.md`:**
-  - Record run 22 (power fix: clean, but production 0) and run 23 (crash + x87 finding).
-  - Fix the "safe DLL" note: it now names 81AC46F4… with power off.
-- **`docs/abi/vtables.tsv`:** it showed a big pending diff while spec agents were working. Check that it is
-  committed and consistent before trusting it.
-- **SDK errata draft** (`docs/sdk-errata-draft.md`, 289 findings): must be re-checked against current upstream
-  nsgomez/gzcom-dll. Upstreaming needs the user's OK.
+- **`docs/manual-checks.md`: DONE this session** (`c7d1e51`, `9c02e76`) — runs 22–26 recorded, the safe-DLL note
+  corrected (now `569FF4D8…`), and the x87/differential findings written up. **One thing to reset:** `Plugins\
+  FreeCity4.ini` is still in run-26 test config (`enable = power`, `power_report`, `observe`, `autotest_seconds`,
+  `autotest_unpause`, `autoload_city = …Spandau.sc4`). Before the user plays by hand, set it back to
+  `budget_default = 1` alone, else manual play drops them into Spandau on the clock. Lane 1 was asked to reset it.
+- **`docs/abi/vtables.tsv`: checked, clean** (committed at 601f3a9; `git status docs/abi/` empty). Consistent.
+- **SDK errata draft** (`docs/sdk-errata-draft.md`, 289 findings, fully drafted): the remaining work is re-checking
+  against *current* upstream nsgomez/gzcom-dll and then **upstreaming, which is a public action needing the user's
+  explicit OK.** Backlog item — do not act autonomously.
 - **Then plumbing, protection and flora glue** (lane 1). Apply the run-22 lesson: `Read` runs before `Init`, so never
   size saved state from the city inside `Read`.
 
+## 5b. Backlog for manual check / blocked-on-user (2026-10-13)
+Things I could not finish autonomously, or that need a human decision:
+1. **Locate the §5.2 trigger** — what in our process raises PC to 53-bit during app init. Two experiments queued for
+   lane 1 (fine CW logging across the PreAppInit→PostAppInit window; minimal attach-only DLL). If lane 1 can't find
+   it, apply the §18.2 workaround (re-assert mode 0 at PostAppInit) and log it.
+2. **Redo the §5.3 budget differential** — only valid after #1; then re-run observer-only and diff against the
+   Spandau save oracle.
+3. **Merge lane 1 / lot developer / zones** once each reports tests green (coordinator does the merge + README tick).
+4. **Reset `Plugins\FreeCity4.ini`** to `budget_default = 1` for manual play (see §5.7).
+5. **User decisions** (unchanged, §7): run the manual checklist; upstream the SDK errata (public); publish the repo
+   (public); delete the KillaVolt clone; download the Mac Rev A binary.
+6. **Mac reference path** in `setup_ghidra.ps1 -Mac` is untested (may need slice selection for a fat binary); only
+   needed to re-run symport, which `-SkipMatch` avoids.
+
 ## 6. Agents and lanes
 
-All background agents from the previous session most likely stopped when it ended. Check each worktree for
-uncommitted work before resuming one with SendMessage (a send resumes it from its transcript).
+All background agents stop when their session ends. Check each worktree for uncommitted work (or a checkpoint commit)
+before resuming; a SendMessage resumes an agent from its transcript **only while its session is alive** — a stopped
+one needs a fresh Agent spawn pointed at the same worktree. This session (2026-10-13) respawned the three engine
+lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 
-| Agent ID | Role | Worktree / state |
-|---|---|---|
-| `af159bf9f570ec0f6` | **Lane 1**, engine glue and in-game fixes (clean-room) | `agent-af159bf9f570ec0f6`, uncommitted panic-hook work (5.1) |
-| `aa70dc8fc55381850` | **Lane 3**, M4 cores and consolidation (clean-room) | `agent-aa70dc8fc55381850`, clean at 6d09937 |
-| `a324dd1b5caa1d469` / `ab69d8e3cec021271` | lane 3 helpers: lot developer / zones | uncommitted (5.4) |
-| `a77052740dcf936b1` | **Spec lane** (RE side): questions, seeding, calibration counters, M6 formats | main tree |
-| `ad8d875e09fe30aeb`, `a88ab5b1b74d78d9a` | spec answers | uncommitted in the main tree (5.5) |
-| `a24cdd2f56c8d9e0a`, `a59eaa0284a708729`, `aeb5a531488334f35` | M6 save records and data formats | landed (e69009f, 0460f3a, 601f3a9) |
-| `a7a7dc539205c049c` | tuning catalogue consolidation | unknown; check |
+| Role (clean-room side) | Agent ID **this session** | Worktree / branch | State |
+|---|---|---|---|
+| **Lane 1** — engine glue, in-game fixes, x87 trigger hunt | `af1db58965f8ea547` | `agent-af159bf9f570ec0f6` | power fixed (run 26), panic hook + power committed on branch (via `8129d67`), merged main; now in `simulator.rs` on §5.2 |
+| **Lot developer** core | `a9254b7ecd0aea910` | `agent-a324dd1b5caa1d469` | merged main; writing `simulator.rs`/`tests.rs` + `ld*` vectors. Stopped-with-no-tool-calls twice — resume firmly |
+| **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | committed `979dd2f` (core) + `e7e921d` (conformance runner, tests 19-21/27/29); still adding vectors |
+
+Prior-session lanes, now finished or superseded (their work is on `main`): spec answers (`8fdea4e`), M6 save records
+and data formats (`e69009f`, `0460f3a`, `601f3a9`). The coordinator (this session) did the RE-side x87 work and the
+§5.6 build changes directly on `main` — no separate agent.
 
 Other `.claude/worktrees/agent-*` folders are older, finished lanes. They are safe to clean up once their branches are
-confirmed merged.
+confirmed merged (`git branch --merged main`).
 
 ## 7. Decisions waiting on the user
 
