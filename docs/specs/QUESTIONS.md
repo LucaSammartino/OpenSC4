@@ -410,3 +410,28 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
 - **PR13 — §13.2:** the air sources are created through GZCOM and their Init/Shutdown called by address while our
   replacement classes are active. Intended reading? [yes; no air dispatch on an unidentified executable]
 - Not implemented: the 14 extra message-target slots 4–17 (§15.3; no outside caller found).
+
+## From the pathfinder core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/pathfinder.md`. All fourteen §11 tests pass as unit tests and vectors `pf11_01`–`pf11_14`; extra
+vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
+
+- **PF1 — §4.9 step 5:** "not g < node.g → ignore" contradicts its note that a NaN g passes both tests.
+  [`node.g <= g → ignore`, so a NaN g passes]
+- **PF2 — §4.17:** which of the record's two arrays do the "16 counters" go to? [`current`]
+- **PF3 — §8:** which value does the pathfinder pass for `GetLot`'s bool? [left to the host]
+- **PF4 — §4.8.3 step 3:** `conn[t]` is shifted by the node's entry side `s`, not the loop's `s2`. [literally `s`]
+- **PF5 — §4.6 fallback:** several links of one connection match the start cell: which link cost? [the first]
+- **PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
+  core. [host methods]
+- **PF7:** do exit nodes, closed without expansion, advance the work counter? [yes; test 13 holds either way]
+- **PF8 — §4.18:** which cell gives an exit node's H when its score is recomputed? [its own off-map cell]
+- **PF9 — §4.9:** Update of an open node whose heap position is stale. [no-op unless the heap slot holds it]
+- **PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low bytes]
+- **PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]
+- **PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]
+- **PF13:** a switch nibble naming a travel type above 8. [ignored]
+- **PF14:** distance-table indices outside −1…W / −1…H (unreachable). [the formula]
+- **PF15:** the entry side of a ferry neighbour-link exit node. [`EdgeTo(off → edge)`; assumes adjacent cells]
+- Deviations from the compiled interface (choices): `SetStartingCostArray` copies the 9 floats; `SetRouteInfo` keeps
+  its own route list; the process-wide work-check values are one shared cell.
