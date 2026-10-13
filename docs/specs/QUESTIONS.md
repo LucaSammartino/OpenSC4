@@ -66,10 +66,10 @@ written into residential.md §5.5 step 1 and REH §4.7. The accumulator is a **3
 zero-extended 16-bit adds, then an unsigned `div` by the 32-bit product S·S (helper `0x006F7FF0`). The core's
 wrapping u32 is right.
 
-**RS4 — §5.6 step 4 / REH §4.8 `GetGlobalEQ`/`GetGlobalHQ`: what is the per-tract traversal order?**
-Float addition is not associative, so the accumulated `sum` depends on it. The core walks the grid's tracts x outer,
-z inner (the same order as `ProcessTwoGridsWithCallback`, simgrid §7.3). Confirm, or state that the original's order
-is the raw-data order of the grid (the same thing for a contiguous row-major grid).
+~~**RS4 — §5.6 step 4 / REH §4.8 `GetGlobalEQ`/`GetGlobalHQ`: what is the per-tract traversal order?**~~
+**ANSWERED 2026-10-13** from the exe and written into REH §4.8, with a pointer from residential.md §5.7. The order is
+**x outer, z inner**, both ascending from 0, over the R$ EQ (HQ) grid's tract counts. Every value is read through
+`GetTractValue` (`0x006F7720`/`0x006F7870`), and no raw memory is read. This confirms the core.
 
 **RS5 — §5.3 step 2: does the distance sweep's running `d` widen past a byte?**
 `d` starts at 255 and computes `d := min(d + 1, v)`. If `d` is a byte accumulator, `255 + 1` wraps to 0 and the whole

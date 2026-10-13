@@ -342,7 +342,7 @@ The pass ends when the iterator is done; state 12 follows.
 ### 5.7 History (state 9)
 
 In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` := trunc(own slot 33
-`GetGlobalHQ()`); `0xAA1A2CCA` := population. Then, if population > 0:
+`GetGlobalHQ()`) (both REH §4.8, walked x outer, z inner, RS4); `0xAA1A2CCA` := population. Then, if population > 0:
 `h := float(hospitalCovered) / float(population)` (computed first), `0x4A8A3FE5` := rhe(float(schoolCovered) /
 float(population) × 1000), then `0x4A8A3FE2` := rhe(h × 1000), where rhe rounds half to even (the original adds
 12582912 and takes the float's low bits). If population ≤ 0: `0x4A8A3FE2` := 0, then `0x4A8A3FE5` := 0.
