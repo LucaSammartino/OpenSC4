@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "lot_developer_base_texture",
+  "spec": ["lot-developer 6.6", "lot-developer 10.2", "lot-developer 10.3", "lot-developer 1.3"],
+  "description": "SetNormalLotBaseTexture and PickLotBaseTextureForLot (§6.6), file RNG seed 12345. For each configuration object of type 2 in array order the code takes the object position (slot 39), and when the ID list is not empty and its first ID is non-zero draws R4 = Uniform(n) to pick a base, then looks for a wealth/decay variant: hi = base & 0xFFFF0000, and the candidates in order are hi | (((wealth << 4) | decay) << 8), hi | (wealth << 12), hi | (decay << 8); the first instance that exists (resource type 0x7AB50E44 group 0x0986135E) is used, else the base. wealth is the lot's occupant wealth, or the building profile's wealth, else 1; decay is condition 0-1 -> 0, 2-3 -> 1, 4-6 -> 2. forceEmpty with a zone not in {0,11,12,15} routes to SetEmptyLotBaseTexture (no draw). The 0xE99B3D4D condition-changed message re-picks the texture for a lot in state 3 or 4 only. Init is run before any lot exists, so its forced base-texture refresh (§1.3 step 12) walks zero lots and draws nothing.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64], "city": [64, 64]},
+    {"op": "ldev_tuning", "shipped": true},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true, "note": "no lots yet, so the forced refresh draws nothing"},
+    {"op": "ldev_expect_draws", "draws": []},
+
+    {"op": "ldev_cfg", "id": 9, "cfg_id": "0x60000009", "w": 1, "h": 1, "objects": [
+      {"type": 2, "ids": ["0x2A000000", "0x2A000001", "0x2A000002"], "tag": 0, "orientation": 2, "byte3": 1}]},
+    {"op": "ldev_profile", "building": "0x3003", "purpose": 1, "wealth": 2},
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "w": 1, "h": 1, "state": 3, "building_type": "0x3003",
+      "wealth": 0, "condition": 0, "cfg": 9, "note": "occupant wealth 0 -> profile wealth 2; condition 0 -> decay 0; hi = 0x2A000000"},
+
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 1, "cfg": 9, "note": "no variant resource present -> the base pick 0x2A000000"},
+    {"op": "ldev_expect_draws", "draws": [["R4", 3, 0]], "note": "Uniform(3) = 0 -> base 0x2A000000"},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"},
+      "note": "the orientation byte comes from GetPositionForLotConfigurationObject (slot 39), scripted as 0 here; byte3 is the object's byte 3; texture 0x2A000000 is the base pick",
+      "events": [
+      {"event": "set_texture", "texture": "0x2A000000", "x": 0, "z": 0, "orientation": 0, "byte3": 1}]},
+
+    {"op": "ldev_resource", "instances": ["0x2A002000"], "replace": true,
+      "note": "wealth 2 decay 0: ((2<<4)|0)<<8 = 0x2000 and (2<<12) = 0x2000 both give 0x2A002000"},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 1, "cfg": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"event": "set_texture", "texture": "0x2A002000"}]},
+
+    {"op": "ldev_lot", "id": 1, "wealth": 3, "condition": 4,
+      "note": "occupant wealth 3 used directly; condition 4 -> decay 2; first candidate ((3<<4)|2)<<8 = 0x3200 -> 0x2A003200"},
+    {"op": "ldev_resource", "instances": ["0x2A003200"], "replace": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 1, "cfg": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"},
+      "note": "the first candidate 0x2A003200 exists -> used",
+      "events": [{"event": "set_texture", "texture": "0x2A003200"}]},
+
+    {"op": "ldev_lot", "id": 1, "wealth": 3, "condition": 4},
+    {"op": "ldev_resource", "instances": ["0x2A000200"], "replace": true,
+      "note": "only the (decay<<8) = 0x200 candidate exists -> 0x2A000200 (candidates 0x2A003200 and 0x2A003000 are absent)"},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 1, "cfg": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": [
+      {"event": "set_texture", "texture": "0x2A000200"}]},
+
+    {"op": "ldev_lot", "id": 2, "x": 0, "z": 0, "state": 3, "cfg": 9, "zone": 1, "note": "forceEmpty with a zone not in {0,11,12,15} routes to SetEmptyLotBaseTexture"},
+    {"op": "ldev_create", "seed": 12345, "note": "a fresh instance for an empty draw trace (no Init: Init's forced refresh would itself draw)"},
+    {"op": "ldev_set", "force_empty": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_set_normal_texture", "lot": 2, "cfg": 9},
+    {"op": "ldev_expect_events", "filter": {"event": "set_empty_texture"}, "events": [
+      {"event": "set_empty_texture", "lot": 2}]},
+    {"op": "ldev_expect_draws", "draws": [], "note": "the empty route draws nothing"},
+
+    {"op": "ldev_lot", "id": 3, "x": 5, "z": 0, "state": 3, "cfg": 9, "note": "the condition-changed message looks the lot up by location, so lot 3 gets its own cell (5,0); it re-picks the texture for a lot in state 3"},
+    {"op": "ldev_set", "force_empty": false},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_message", "msg": "0xE99B3D4D", "lot": 3, "expect": true},
+    {"op": "ldev_expect_event_count", "filter": {"event": "set_texture"}, "min": 1},
+    {"op": "ldev_lot", "id": 3, "state": 1, "note": "a lot not in state 3 or 4: no texture work"},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_message", "msg": "0xE99B3D4D", "lot": 3, "expect": true},
+    {"op": "ldev_expect_events", "filter": {"event": "set_texture"}, "events": []}
+  ]
+}
