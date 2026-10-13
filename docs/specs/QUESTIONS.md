@@ -180,7 +180,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   forever]
 - **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
 - **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
-- **TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]
+- ~~**TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]~~ **ANSWERED
+  2026-10-14** from the exe and written into §2.4 and §4.7.2. **All:** the loop at `0x00715EF8`–`0x00715F6D` has no
+  kind test and covers the first n rules of the vector. A worked example (shipped station `0x0ADE0000`, flags
+  `0x4C`) shows that the subway access point comes from a kind-1 rule.
 - ~~**TN20 — §11 test 7:** the Walk-on-Road speed is not stated (3.5 was worked back from the stated Walk cost). Please
   list the shipped speeds of every travel mode.~~ **ANSWERED 2026-10-13** from the shipped data (Traffic Simulator
   exemplar `0xC9133286`, `SimCity_1.dat`). The full 9 × 13 table and the resulting `invMaxSpeed` bits for

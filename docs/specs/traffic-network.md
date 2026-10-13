@@ -182,7 +182,7 @@ changes `flags`.
 | load | f32, starts at 0.0. Traffic through the switch, maintained by the pathfinder and simulator. |
 | time factor | f32, building property `0xE90E25A2` |
 | capacity | f32, building property `0xE90E25A3` |
-| flags | u8. From the "to" types of the rules: 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10. Plus 0x40 when a rule links subway and elevated train. |
+| flags | u8. From the "to" types of **all** rules, whatever their kind (§4.7.2, TN19): 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10. Plus 0x40 when a rule links subway and elevated train. |
 | has access point, access cell | u8, u8 x, u8 z: the subway access point (§4.7.1) |
 | two f32 counters | saved, owned by traffic-simulator.md |
 | rules | vector of Rule records (below) |
@@ -502,6 +502,34 @@ them. DoLotActivated has already refused a count that is not a multiple of 4 (§
 - `from = b2`, `to = b3`.
 
 Kind-0 rules also OR `1 << to` into the "to" mask.
+
+**Flags (TN19).** After the rules are pushed, the flags byte is reset to 0. It is then rebuilt from the first n rules
+of the vector, **whatever their kind** (`0x00715EF8`–`0x00715F6D`, jump table `0x00715F88`):
+
+| `to` (travel type) | Flag |
+|---|---|
+| 2 (Bus) | `0x01` |
+| 3 (Passenger train) | `0x02` |
+| 6 (Subway) | `0x04` |
+| 7 (El train) | `0x08` |
+| 8 (Monorail) | `0x10` |
+| any other | none |
+
+The flags also get `0x40` when (from, to) is (6, 7) or (7, 6).
+
+Worked example: the shipped light-rail/subway station (`0x0ADE0000`). Its bytes are `81 F0 07 07`, `82 F0 07 06`,
+`81 F0 06 07`, `82 F0 07 07`, and the facing does not matter because every rule has all four sides:
+
+| # | kind | sides | from → to |
+|---|---|---|---|
+| 1 | 0 | all | 7 → 7 |
+| 2 | 1 | all | 7 → 6 |
+| 3 | 0 | all | 6 → 7 |
+| 4 | 1 | all | 7 → 7 |
+
+This gives "to" mask `0x0080` and mode mask `0xC0` (§4.7.1 step 4). The flags are `0x08 | 0x04 | 0x40 = 0x4C`. Only
+the kind-1 rule 2 sets flag 4, so this switch gets a subway access point (§4.7.1 step 3). Reading kind-0 rules only
+would give `0x48` and no access point.
 
 *[quirk]* A property stored as a **u32 array** of N entries has count N, so only its first N bytes are copied.
 They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's least significant byte), and
