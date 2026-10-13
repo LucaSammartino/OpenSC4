@@ -716,6 +716,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "create" => create(&w, op),
         "rng" => rng(&w, op),
         "network" => network(&w, op),
+        "zones" => zones(&w, op),
         "water" => water(&w, op),
         "lot" => lot(&w, op),
         "cfg" => cfg(&w, op),
@@ -864,6 +865,34 @@ fn network(w: &World, op: &Json) -> R<()> {
                     nets.get_mut(&(nx, nz)).unwrap().edges[e2 as usize] = true;
                 }
             }
+        }
+    }
+    Ok(())
+}
+
+/// `zone_zones`: writes zone types directly into the manager's zone grid
+/// (test setup that does not go through `PlaceZone`). `cells` is
+/// `[[x, z, v], …]`, or `rect` (`[x1, z1, x2, z2]`) with `v`. The grid must
+/// exist (after `zone_init`).
+fn zones(w: &World, op: &Json) -> R<()> {
+    let m = w.mgr()?;
+    let g = m.zone_grid().ok_or("no zone grid (use zone_init)")?;
+    if let Some(v) = opt(op, "rect") {
+        let r = rect_of(v)?;
+        let z = i64_of(field(op, "v")?, "v")? as i8;
+        for x in r.x1..=r.x2 {
+            for zz in r.z1..=r.z2 {
+                g.set(x, zz, z);
+            }
+        }
+    }
+    if let Some(v) = opt(op, "cells") {
+        for e in arr(v, "cells")? {
+            let a = arr(e, "cell")?;
+            let x = i64_of(field_at(a, 0)?, "x")? as i32;
+            let zz = i64_of(field_at(a, 1)?, "z")? as i32;
+            let val = i64_of(field_at(a, 2)?, "v")? as i8;
+            g.set(x, zz, val);
         }
     }
     Ok(())
@@ -1406,6 +1435,18 @@ fn expect(w: &World, op: &Json) -> R<()> {
     }
     got.push(("funds".to_owned(), ji(w.funds.get())));
     got.push(("place_count".to_owned(), ji(w.street_place_count.get())));
+    // The shared generator's state (§9): `lcg` and `next_raw` (a peek at the
+    // next `NextRaw`, computed on a clone so it is not consumed).
+    if let Some(st) = w.statics.borrow().as_ref() {
+        let s = st.borrow();
+        got.push(("lcg".to_owned(), ji(s.rng.lcg_state())));
+        let mut probe = s.rng.clone();
+        got.push(("next_raw".to_owned(), ji(probe.next_raw())));
+        got.push((
+            "draw_count".to_owned(),
+            ji(s.trace.as_ref().map_or(0, |t| t.len()) as i64),
+        ));
+    }
     // Zone grid cells (from the manager's grid).
     if let Some(m) = w.manager.borrow().as_ref() {
         if let Some(g) = m.zone_grid() {

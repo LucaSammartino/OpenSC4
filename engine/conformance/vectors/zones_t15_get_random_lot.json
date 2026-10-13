@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "zones_t15_get_random_lot",
+  "spec": ["zones 8.2", "zones 9", "zones 15.15"],
+  "description": "Conformance test 15 (GetRandomLot, §9 Z1). Generator lcg := 1, one 1 × 1 lot at (47, 37) (token 0x1000, the first the world hands out). GetRandomLot draws U(cellsX) then U(cellsZ) per try: try 1 = (0, 22) (no lot), try 2 = (47, 37) (the lot) -> returns that lot after 4 draws.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_lot", "rect": [47, 37, 47, 37], "facing": 0},
+    {"op": "zone_rng", "lcg": 1, "mul": 1},
+    {"op": "zone_call", "method": "get_random_lot", "expect": "0x1000"},
+    {"op": "zone_expect", "state": {"draw_count": 4}}
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "zones_t14_seeded_parcellization",
+  "spec": ["zones 9", "zones 7.5", "zones 7.7", "zones 15.14", "foundations 6.3"],
+  "description": "Conformance test 14 (seeded parcellization, §9). The zone developer's file-local generator is seeded from session 0 -> derive_seed(0, 0x8C09C68A) = 0x8C09C68A (foundations §6.3; the same seed the tract harness uses). A 2 × 2 region at x 10..11, z 20..21 is zoned 7 (agriculture) by PlaceZone(commit, skipFunds, skipSizeCheck), which triggers DoParcellization -> OnZone -> SimpleParcellize(16). SetOptions(0,0,0) so no automatic streets. Roads (type 0) on (9..12, 19) and (12, 19..22). SimpleParcellize draws one U(4) per cell in x-ascending-outer, z-ascending-inner order: (10,20),(10,21),(11,20),(11,21) -> U(4) = 3,0,3,0. CreateLotToFaceRoad tries sides in the drawn order and takes the first with a road of 0xC49: 3,0,1,2 -> side 0 has the road at (10,19) -> facing 0; 0,1,2,3 -> no road (the neighbours are lots) -> front 0; 3,0,1,2 -> side 0 road at (11,19) -> facing 0; 0,1,2,3 -> side 1 road at (12,21) -> facing 1. Result: four 1 × 1 lots facing 0,0,0,1; the generator advanced exactly 4 times (next NextRaw = 0xF27EB69F).",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_network", "runs": [
+      {"kind": 0, "rect": [9, 19, 12, 19]},
+      {"kind": 0, "rect": [12, 19, 12, 22]}
+    ]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": false, "custom": false},
+    {"op": "zone_expect", "state": {"lcg": "0x8C09C68A"}},
+    {"op": "zone_place_zone",
+     "region": {"rect": [10, 20, 11, 21]},
+     "type": 7, "commit": true, "skip_funds": true, "check_slope": false, "skip_size": true, "check_lot_inside": true},
+    {"op": "zone_expect", "state": {"lot_count": 4, "draw_count": 4, "next_raw": "0xF27EB69F"}},
+    {"op": "zone_expect_draws", "draws": [
+      ["Z2", 4, 3], ["Z2", 4, 0], ["Z2", 4, 3], ["Z2", 4, 0]
+    ]},
+    {"op": "zone_expect_parcel_log", "log": [
+      "(10,20)-(10,20) f0",
+      "(10,21)-(10,21) f0",
+      "(11,20)-(11,20) f0",
+      "(11,21)-(11,21) f1"
+    ]}
+  ]
+}

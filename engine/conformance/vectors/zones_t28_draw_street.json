@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "zones_t28_draw_street",
+  "spec": ["zones 7.10", "zones 15.28"],
+  "description": "Conformance test 28 (DrawStreet, §7.10). The street tool is a stub: Place succeeds unless the segment contains a fail cell. Region A = x 10..15 on z 5 minus (12, 5): DrawStreet(9,5,16,5, perCell 1) draws the run (10,11) then per-cell (10),(11), skips (12), then the run (13..15) and per-cell (13),(14),(15); with perCell 0 only the two segments. Region B = {10, 11, 13} on z 5: DrawStreet(10,5,13,5,1) ends on the in-R end cell (13,5); DrawStreet(13,5,10,5,0) walks backwards, the run from (13) then the run (11..10); single-cell draws place only when the cell is in R. Fallback: full region x 10..15 with the stub failing every segment containing (15,5): Place(10..15) fails, Place(11..15) fails, Place(10..14) succeeds and stops.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 15, 5], "cells": [[10,5],[11,5],[13,5],[14,5],[15,5]]},
+     "x1": 9, "z1": 5, "x2": 16, "z2": 5, "per_cell": true},
+    {"op": "zone_expect_parcel_log", "log": [
+      "P(10,5,11,5)", "P(10,5,10,5)", "P(11,5,11,5)",
+      "P(13,5,15,5)", "P(13,5,13,5)", "P(14,5,14,5)", "P(15,5,15,5)"
+    ]},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 15, 5], "cells": [[10,5],[11,5],[13,5],[14,5],[15,5]]},
+     "x1": 9, "z1": 5, "x2": 16, "z2": 5, "per_cell": false},
+    {"op": "zone_expect_parcel_log", "log": ["P(10,5,11,5)", "P(13,5,15,5)"]},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 13, 5], "cells": [[10,5],[11,5],[13,5]]},
+     "x1": 10, "z1": 5, "x2": 13, "z2": 5, "per_cell": true},
+    {"op": "zone_expect_parcel_log", "log": [
+      "P(10,5,11,5)", "P(10,5,10,5)", "P(11,5,11,5)", "P(13,5,13,5)"
+    ]},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 13, 5], "cells": [[10,5],[11,5],[13,5]]},
+     "x1": 13, "z1": 5, "x2": 10, "z2": 5, "per_cell": false},
+    {"op": "zone_expect_parcel_log", "log": ["P(13,5,13,5)", "P(11,5,10,5)"]},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 13, 5], "cells": [[10,5],[11,5],[13,5]]},
+     "x1": 11, "z1": 5, "x2": 11, "z2": 5, "per_cell": false},
+    {"op": "zone_expect_parcel_log", "log": ["P(11,5,11,5)"]},
+
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 13, 5], "cells": [[10,5],[11,5],[13,5]]},
+     "x1": 12, "z1": 5, "x2": 12, "z2": 5, "per_cell": false},
+    {"op": "zone_expect_parcel_log", "log": []},
+
+    {"op": "zone_street_fail", "cells": [[15, 5]]},
+    {"op": "zone_draw_street",
+     "region": {"rect": [10, 5, 15, 5]},
+     "x1": 10, "z1": 5, "x2": 15, "z2": 5, "per_cell": false},
+    {"op": "zone_expect_parcel_log", "log": ["P(10,5,15,5)", "P(11,5,15,5)", "P(10,5,14,5)"]}
+  ]
+}
