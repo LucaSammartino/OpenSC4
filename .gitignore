@@ -7,8 +7,16 @@ external/
 re/symport/*.pkl
 ghidra/project/
 decomp/
+decomp-mac/
+ghidra/export/
+ghidra/mac/
+ghidra/import/
 ghidra/logs/
 .claude/worktrees/
+
+# Python caches (from running tools/*.py)
+__pycache__/
+*.pyc
 
 # Engine build outputs
 build*/

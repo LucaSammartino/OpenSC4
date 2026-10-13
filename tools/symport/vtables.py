@@ -24,7 +24,7 @@ import capstone
 import pefile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-MAC_PKG = os.path.join(ROOT, "external", "extracted", "sc4-mac-symbol-analysis", "artifacts", "code", "Mac-RevA-x86-named")
+MAC_PKG = os.path.join(ROOT, "ghidra", "export", "mac")  # tools/setup_ghidra.ps1 -Mac
 OUT = os.path.join(ROOT, "re", "symport")
 EXE = os.path.join(ROOT, "bin", "SimCity4.exe")
 csv.field_size_limit(1 << 30)

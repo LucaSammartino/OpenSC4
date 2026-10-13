@@ -22,8 +22,8 @@ import capstone
 import pefile
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-WIN_PKG = os.path.join(ROOT, "external", "extracted", "sc4-windows-analysis", "artifacts", "code", "SimCity4-deep")
-MAC_PKG = os.path.join(ROOT, "external", "extracted", "sc4-mac-symbol-analysis", "artifacts", "code", "Mac-RevA-x86-named")
+WIN_PKG = os.path.join(ROOT, "ghidra", "export", "windows")  # tools/setup_ghidra.ps1 -Windows
+MAC_PKG = os.path.join(ROOT, "ghidra", "export", "mac")  # tools/setup_ghidra.ps1 -Mac
 OUT = os.path.join(ROOT, "re", "symport")
 EXE = os.path.join(ROOT, "bin", "SimCity4.exe")
 

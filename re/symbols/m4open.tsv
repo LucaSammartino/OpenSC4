@@ -1,0 +1,4 @@
+va	name	evidence	mac_x86
+005cfe20	cSC4ConstructionOccupant::ScatterSparks	lot-developer.md 6.7 (was RandomDoubleRangeGaussianFast)	
+00913761	cRZRandom::RandomDoubleRangeUniform	foundations 6.1 (was cSC4ParticlesEffect::RandomRange)	
+00913a46	cRZRandomSuper::RandomDoubleRangeUniform	calls cRZRandomSuper::RandomDoubleUniform 0x913A29; traffic-simulator.md	

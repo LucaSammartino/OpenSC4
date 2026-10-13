@@ -11,9 +11,9 @@ who study the original program from the people who write engine code.
 
 | | Analysis (spec writers) | Implementation (engine authors) |
 |---|---|---|
-| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `external/extracted/`, everything in `re/` | `docs/specs/`, `docs/subsystems/` (behaviour descriptions), `docs/abi/` (interface facts), public SDK headers (gzcom-dll, LGPL), the game's data files, general literature |
+| May read | the original executable, disassembly, Ghidra projects, `decomp/`, `decomp-mac/`, `ghidra/export/`, everything in `re/` | `docs/specs/`, `docs/subsystems/` (behaviour descriptions), `docs/abi/` (interface facts), public SDK headers (gzcom-dll, LGPL), the game's data files, general literature |
 | Produces | **behaviour specs** in `docs/specs/` (what happens, in prose, tables and pseudo-math) | code in `engine/`, plus tests that check it against the specs |
-| Must not | write or edit `engine/` code | open decompiled output, disassembly, `decomp/`, `external/extracted/`, `ghidra/project/`, or paste anything from them |
+| Must not | write or edit `engine/` code | open decompiled output, disassembly, `decomp/`, `decomp-mac/`, `external/`, `ghidra/project/`, `ghidra/mac/`, `ghidra/export/`, or paste anything from them |
 
 One person may hold different roles on different subsystems, but **never both roles on the same subsystem**.
 

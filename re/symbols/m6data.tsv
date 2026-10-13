@@ -1,0 +1,3 @@
+va	name	evidence	mac_x86
+00418a40	cRZString equality compare	data-formats.md (was cRZCmdLine::operator[])	
+006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	data-formats.md (was cSC4Lot::AsTrafficSource)	

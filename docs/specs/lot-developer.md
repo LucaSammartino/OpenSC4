@@ -557,7 +557,22 @@ lots therefore show zots on a sparse diagonal (R, C) or grid (I, A) pattern.
 1. Return if the lot already has a unit, if `lot.GetBuildingType(true) = 0`, or if the profile's purpose is not
    5–8.
 2. `L :=` a B list filled by `lotManager.GetLotsSurroundingLot(lot, L, f)` (slot 9) for `f` = 1, 2, 4, 8 in that
-   order (appending).
+   order (appending). **All four calls append to the same list**, which is allocated once (`0x0090CF54`, 12-byte
+   head) before the first call (`0x006CB2D0`–`0x006CB2FE`).
+   - Slot 9 (`0x0072A750`) is a thunk: it takes the lot's bounding rectangle (lot slot 14) and delegates to
+     `GetLotsSurroundingRect` (slot 10, `0x0072E2B0`).
+   - `GetLotsSurroundingRect` (`0x0072E2B0`) walks the cells just outside the rectangle with a `BoundaryIterator`,
+     and **before appending each candidate lot it scans the output list for that lot pointer and skips it if already
+     present**: it `AddRef`s the candidate, walks the list while `node[2] != lot`, `Release`s it, and appends a new
+     12-byte node **only when the walk reached the list head**. So a corner lot touching two sides is appended once.
+   - **Therefore a lot can never appear twice in `L` across the four side flags**, and no neighbour is
+     double-weighted by step 4's `Uniform(count)` pick *[answers Q5]*.
+   - The same function drops sides the flags exclude. With `(x1, z1, x2, z2)` the lot rectangle and a cell `(x, z)`,
+     the tested sides and their bits are: bit 0 (flag 1) = `z = z1 − 1`, bit 1 (2) = `x = x2 + 1`, bit 2 (4) =
+     `z = z2 + 1`, bit 3 (8) = `x = x1 − 1`. A side lying outside the city clears its own bit before the walk
+     (`x1 − 1 < 0` clears bit 3, `z1 − 1 < 0` clears bit 0, `x2 + 1 ≥ cellCountX` clears bit 1,
+     `z2 + 1 ≥ cellCountZ` clears bit 2). With all four bits set the side test is skipped entirely (`flags == 0xF`).
+     The function returns the number of lots appended.
 3. Candidates (a B vector, list order): neighbours with a building type, with (state > 1 or a unit), and with the
    same purpose; for purpose 5 the neighbour must have a building (slot 48), for 6–8 it must have road access or a
    travel designate with road access.
@@ -1353,8 +1368,9 @@ in metres.
 4. Q4. Detailed geometry of levelling (slots 19–21), foundations (slots 48–61), `GetPositionForLotConfigurationObject`
    (39) and the boundary-texture rules (42, 43). They draw nothing except slot 54 (R8); a later terrain / lot-content
    spec should own them.
-5. Q5. Whether `GetLotsSurroundingLot` can return a lot twice across the four side flags (it would weigh that lot
-   twice in R2).
+5. Q5. *Answered* (§5.7 step 2): `GetLotsSurroundingRect` deduplicates against the output list before every append,
+   and all four side-flag calls share that one list, so a lot can never appear twice and no neighbour is
+   double-weighted.
 6. Q6. `GetLotsInCellRect`'s last argument (`true` in §9, `false` in `NeedsAnchorBuilding`): allocators.md documents
    `false`; the lot developer always passes an empty list, so the clearing step does not matter here.
 7. Q7. Which game code calls slots 12–14 and 63–64 (demolition tool, disasters, lot editor) *[not traced]*.

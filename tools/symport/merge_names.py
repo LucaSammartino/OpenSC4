@@ -2,22 +2,21 @@
 
 Priority (highest first):
   manual     re/symbols_windows.tsv and re/symbols/*.tsv (hand-verified, with evidence)
-  community  byte-verified community plugin addresses (KillaVolt community-addresses.json)
   auto       re/symport/matches.tsv (constant/string anchors, call-graph and vtable propagation)
-  library    unambiguous FunctionID candidates for statically linked CRT/STLport/Lua/libpng/zlib
+  library    Function ID matches for statically linked CRT/STLport/Lua/libpng/zlib (0xC0000054's FID databases,
+             attached by tools/setup_ghidra.ps1)
   folded     re/symport/folded.tsv: identical-code-folded bodies shared by several Mac methods
 
-confidence: high (manual, community, auto stage A/C), medium (auto stage B), low (tiny bodies
+confidence: high (manual, auto stage A/C), medium (auto stage B), low (tiny bodies
 <= 12 bytes matched automatically, which are often folded getters), folded.
 """
 import collections
 import csv
-import json
 import os
 import pickle
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-WIN_SYM = os.path.join(ROOT, "external", "extracted", "sc4-windows-analysis", "artifacts")
+WIN_EXPORT = os.path.join(ROOT, "ghidra", "export", "windows")  # tools/setup_ghidra.ps1 -Windows
 csv.field_size_limit(1 << 30)
 
 
@@ -46,10 +45,6 @@ def main():
                 continue
             put(a, r.get("name", ""), "manual:" + os.path.basename(p), "high", r.get("evidence", ""))
 
-    for c in json.load(open(os.path.join(WIN_SYM, "symbols", "windows", "community-addresses.json"), encoding="utf-8")):
-        if c.get("functionEntry") and c.get("prefixMatches"):
-            put(int(c["resolvedAddress"], 16), "community::" + c["label"], "community", "high", c.get("source", ""))
-
     for r in rows(os.path.join(ROOT, "re", "symport", "matches.tsv")):
         a = int(r["win"], 16)
         st = r["stage"]
@@ -58,14 +53,11 @@ def main():
             conf = "low"
         put(a, r["mac_name"], f"auto:{st}", conf, f"mac {r['mac']} score {r['score']} support {r['support']}")
 
-    lib = collections.defaultdict(list)
-    for r in rows(os.path.join(WIN_SYM, "code", "SimCity4-deep", "library-fingerprint-candidates.tsv")):
-        lib[int(r["address"], 16)].append(r)
-    for a, cands in lib.items():
-        uniq = {c["candidate"] for c in cands}
-        best = max(cands, key=lambda c: float(c["score"]))
-        if len(uniq) == 1 and float(best["score"]) >= 30:
-            put(a, "lib::" + best["candidate"], "library", "medium", f"{best['library']} score {best['score']}")
+    # Names the Function ID analyzer gave during auto-analysis (symbol source ANALYSIS, not a default name).
+    for r in rows(os.path.join(WIN_EXPORT, "functions.tsv")):
+        n = r["name"]
+        if r.get("source") == "ANALYSIS" and n and not n.startswith(("FUN_", "thunk_FUN_", "entry")):
+            put(int(r["address"], 16), "lib::" + n, "library", "medium", "Function ID")
 
     for r in rows(os.path.join(ROOT, "re", "symport", "folded.tsv")):
         a = int(r["win"], 16)
