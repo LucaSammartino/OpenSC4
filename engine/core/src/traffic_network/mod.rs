@@ -15,75 +15,54 @@
 //! save record and volume/congestion maps belong to `traffic-simulator.md`
 //! (a later lane); the A* search belongs to `pathfinder.md`. This module
 //! serves both through the accessors they read (network info, the cell
-//! connection array, the transit-switch and tunnel tables, the ferry tables,
-//! the edge-density map, the subnetwork labels) and the rebuild that keeps
-//! them current.
+//! connection array, the transit-switch, tunnel and ferry tables, the
+//! edge-density map, the subnetwork labels) and the rebuild that keeps them
+//! current.
 //!
 //! # Structure
 //!
-//! - [`NetworkModel`]: the state of §2 and the operations of §4. The cell
-//!   connection array (§2.1), the per-cell network-info lists (§2.2), the
-//!   transit-switch, tunnel and ferry tables, the subnetwork labels and info,
-//!   the edge-density map (traffic-simulator.md §4.8), the neighbour
-//!   connection edge records (§2.7), the capacity tables (§4.5) and the water
-//!   pathfinder (§4.10).
-//! - [`CellConnection`] (§2.1) and [`NetworkInfo`] (§2.2): the per-cell
-//!   records.
+//! - [`NetworkModel`]: the state of §2 ([`NetworkState`]) and the operations
+//!   of §1, §3 and §4. The work is split by section: `rebuild.rs` (§1
+//!   DoPostCityInit, §3, §4.2–§4.4), `model.rs` (state, §4.5, §4.6, §4.13),
+//!   `switches.rs` (§4.7), `tunnels.rs` (§4.8), `ferries.rs` (§4.9),
+//!   `water.rs` (§4.10), `subnetworks.rs` (§4.11, §4.12), `neighbours.rs`
+//!   (§2.7) and [`tuning`] (§4.5).
 //! - [`NetworkHost`]: everything the model reads from, or does to, the rest
-//!   of the game (the city, the occupant and lot managers, network occupants
-//!   and their path info, transit-switch and ferry buildings, the terrain and
-//!   surface water, the neighbours simulator, property holders, messages).
-//!   Game objects are opaque `u64` tokens; 0 is null.
-//! - [`tuning`]: the capacity tables and intersection-effect values of §4.5
-//!   and §4.6, with the shipped exemplar.
+//!   of the game (§8). Game objects are opaque `u64` tokens; 0 is null.
 //!
 //! # Arithmetic
 //!
 //! Foundations §18 (24-bit x87): every float add, subtract, multiply, divide
 //! and square root is one `f32` rounding ([`crate::x87::r24`]), with integer
 //! and `double` operands entering unrounded. `r24(e)` in the spec is exactly
-//! that. The capacity round trip (§4.5), the tunnel cost (§4.8), the ferry
-//! cost (§4.9.3), the water step cost (§4.10.2) and the switch entry cost
-//! (§4.7.3) all reproduce their worked bit patterns this way.
+//! that.
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - Out-of-city reads of the cell array, the network-info grid, the switch
-//!   grids and the edge-density map return their empty/zero value and
-//!   out-of-city writes are ignored (the original does not check bounds; the
-//!   pathfinder's off-map switch reads of Q4 are "no switch, no info"). The
-//!   cell connection array is the fixed 256 × 256 of §1, indexed by the low
-//!   8 bits of each coordinate, so an off-map `x = −1` wraps to row 255 there
-//!   as in the original; the network-info grid and the switch grids are
-//!   city-sized and clamp instead.
-//! - The car-continuity words `priorCar` start at `0xFFFF` (§1 step 4); no
-//!   reader sees the difference before the first full rebuild.
-//! - `invCapTable` is `1.0` before the first tuning read (§4.5).
-//! - The water depth map is private (a core [`crate::grid::SimGrid<u8>`], not
-//!   a game grid; §9: "a replacement may keep it private").
-//! - The transit-switch ID and mode-mask grids are created through the host's
-//!   [`crate::grid::GridProvider`] as the game's grid classes (§9, simgrid
-//!   §6.4): they are saved.
-//! - The congestion curve and the transit multiplier that
-//!   [`NetworkModel::transit_switch_entry_cost`] (§4.7.3) needs are
-//!   simulator-owned; the model holds copies the simulator sets.
-//! - Lane continuity (§4.4) and the path-info queries it needs are exposed as
-//!   host callbacks; with no flagged neighbour the words keep `0xFFFF`.
-//! - `GetSubnetworksInRectangle` / `…InRegion` return `true` where the
-//!   original returns garbage in AL (§7.1).
+//! - The city side is clamped to 0…256: the cell connection array is the
+//!   fixed 256 × 256 of §1 and cell keys keep 8 bits per coordinate (§2.3).
+//! - Off-map reads of the network-info grid and the switch grids return
+//!   "none" and off-map writes are ignored (§10 Q4). The cell connection
+//!   array is the fixed 256 × 256 indexed by the low 8 bits, so an off-map
+//!   coordinate wraps there as in the original.
+//! - `priorCar` starts at `0xFFFF` (§1 step 4) and `invCapTable` at 1.0
+//!   before the first tuning read (§4.5). The inverse max-speed table the
+//!   tunnel cost reads is `FLT_MAX` until the simulator sets it (the value a
+//!   missing tuning property gives).
+//! - The water depth map is private (§9: "a replacement may keep it
+//!   private").
+//! - Slots 40–42 return true where the original returns garbage (§7.1).
+//! - Host containers (occupant lists, path-info vectors, neighbour lists)
+//!   are plain `Vec`s; their allocators (§9) are the glue's business.
 //!
-//! # Threading (foundations §19)
+//! # Threading and re-entrancy (foundations §19)
 //!
-//! The model holds its state in a `RefCell`, exactly like the other simulator
-//! cores (power, crime, plumbing, lot developer). §19.1: the original runs
-//! the whole simulation path single-threaded with no locking; §19.3 rule 1:
-//! only state the master clock exposes to FreeCity4's diagnostic threads must
-//! be `Sync`, and this model is not that state — it is internal to the future
-//! traffic simulator, one main-thread agent, reached only through it. No
-//! `RefCell` borrow is held across a host callback: every accessor takes the
-//! state out with [`NetworkModel::with`] for the duration of a call that may
-//! re-enter, so a re-entrant call sees an empty state and its changes are
-//! lost, but nothing panics.
+//! The model holds its state in a `RefCell`, like the other simulator cores:
+//! it is internal to one main-thread agent. An operation that calls the host
+//! takes the state out of the cell for its duration ([`NetworkModel::run`]),
+//! so no borrow is held across a host callback; a re-entrant call sees an
+//! empty state and its changes are lost, but nothing panics. Operations that
+//! do not call the host borrow the cell directly.
 
 mod ferries;
 mod model;
@@ -91,37 +70,49 @@ mod neighbours;
 mod rebuild;
 mod subnetworks;
 mod switches;
-mod tunnels;
 pub mod tuning;
+mod tunnels;
 mod water;
 
 #[cfg(test)]
 mod tests;
 
-pub use model::{
-    CellConnection, EdgeDensityRecord, NetworkInfo, NetworkModel, NetworkState, TrafficEdgeDensity, EDGE_DENSITY_ZERO,
+pub use ferries::{
+    ferry_mask, route_cost, FerryPass, FerryRouteInfo, FerryTerminal, NeighborLink, TerminalLink, FERRY_NEIGHBOUR_TYPE,
+    MAX_TERMINALS_PER_TYPE,
 };
-pub use switches::{Rule, TransitSwitch};
-pub use tunnels::TunnelInfo;
+pub use model::{
+    boundary_cells, grow_clamp, union_rect, CellConnection, NetworkInfo, NetworkModel, NetworkState, SubnetworkInfo,
+    SwitchQueryTarget, TrafficEdgeDensity, ARRAY_LEN, ARRAY_SIDE, EDGE_DENSITY_ZERO,
+};
+pub use neighbours::{Edge, NeighbourEdge};
+pub use switches::{read_rules, u32_entries, Rule, RuleSet, TransitSwitch};
 pub use tuning::Tuning;
-pub use water::WaterPathFinder;
+pub use tunnels::{inverse_max_speed, tunnel_costs, tunnel_distance, InvMaxSpeed, TunnelInfo};
+pub use water::{depth_byte, encode_route, heuristic, step_cost, WaterPath, WaterPathFinder};
 
 use std::rc::Rc;
 
-use crate::grid::{CellRect, GridProvider, TractGrid};
+pub use crate::grid::CellRect;
+use crate::grid::{GridProvider, TractGrid};
 use crate::variant::Variant;
+pub use crate::zones::CellRegion;
 
-/// The class ID and the interfaces of the owning traffic simulator (§1). The
+/// The class ID and the interface of the owning traffic simulator (§1). The
 /// network model has no class ID of its own.
 pub const CLSID_TRAFFIC_SIMULATOR: u32 = 0x6990_C1AA;
 /// The IID `QueryInterface` answers on read (foundations §3.6).
 pub const IID_TRAFFIC_SIMULATOR: u32 = 0x6802_7F37;
 
 /// The transit-switch grids (§1 step 5, §2.3): a `uint8` mode-mask grid and a
-/// `uint32` switch-ID grid, both created through GZCOM and saved.
-pub const CLSID_SWITCH_MODE_GRID: u32 = 0x69D5_C424;
-pub const CLSID_SWITCH_ID_GRID: u32 = 0x69D5_C42D;
-/// The water depth map's grid type and instance ID (§4.10.1).
+/// `uint32` switch-ID grid, both saved. traffic-simulator.md §1 lists these
+/// two numbers as the grids' **IDs** (`SetID`), with the framework's `uint8`
+/// / `uint32` grid classes; FreeCity4 passes them as the instance ID to
+/// [`GridProvider::create_grid`].
+pub const SWITCH_MODE_GRID_ID: u32 = 0x69D5_C424;
+pub const SWITCH_ID_GRID_ID: u32 = 0x69D5_C42D;
+/// The water depth map's grid type and instance ID (§4.10.1). FreeCity4
+/// keeps the map private (§9), so these are documentation only.
 pub const CLSID_WATER_DEPTH_GRID: u32 = 0x49B9_E602;
 pub const WATER_DEPTH_INSTANCE: u32 = 0xCBDF_6BF8;
 
@@ -140,11 +131,13 @@ pub mod msg {
     /// Terrain change (the water pathfinder's depth map, §4.10.1).
     pub const TERRAIN_CHANGED: u32 = 0x278E_6003;
     pub const TERRAIN_CHANGED_ALT: u32 = 0x678E_6E3A;
+    /// Updates the water depth map now (§4.10.1).
+    pub const WATER_UPDATE: u32 = 0x6A3B_0AFD;
     /// Posted when the periodic ferry pass has finished all terminals (§5).
     pub const FERRY_ROUTES_DONE: u32 = 0x2C06_BA82;
 }
 
-/// Occupant and interface types the network asks for (§3, §8).
+/// Occupant types the network asks for (§3, §8).
 pub mod occupant_type {
     /// A network occupant (`cISC4NetworkOccupant`).
     pub const NETWORK: u32 = 0xC772_BF98;
@@ -173,7 +166,7 @@ pub mod ferry_prop {
     pub const WATER: u32 = 0x2C54_0000;
 }
 
-/// Building / lot properties the network reads (§2.4, §4.7, §4.9).
+/// Building / lot properties the network reads (§2.4, §4.7, §4.9, §4.12).
 pub mod prop {
     /// Transit-switch rules (a u32 array, §4.7.2).
     pub const SWITCH_RULES: u32 = 0xE90E_25A1;
@@ -189,8 +182,6 @@ pub mod prop {
     pub const FERRY_TYPE: u32 = 0x0BD8_6FD3;
     /// A lot's subnetwork list (u32 array, §4.12/§4.13).
     pub const LOT_SUBNETWORKS: u32 = 0x2A4F_9C74;
-    /// Trip capacity array (12 u16, traffic-simulator.md §4.2).
-    pub const TRIP_CAPACITY: u32 = 0x8A0B_4100;
 }
 
 /// Network-occupant flags the rebuild tests (§4.2, §4.4, §10 Q3).
@@ -199,12 +190,8 @@ pub mod network_flag {
     pub const RECORD_FLAG: u32 = 0x0004_0000;
     /// Excluded from the graph.
     pub const EXCLUDED: u32 = 0x0020_0000;
-    /// A preview / non-final piece: the simulator's subway skip (§3).
-    pub const PREVIEW: u32 = 0x8000_0000;
     /// The lane-continuity neighbour mask (§4.4).
     pub const LANE_CONTINUITY: u32 = 0x0000_1F4F;
-    /// "Has path info" is implied by the presence of a path-info object.
-    pub const NO_PATH_INFO: u32 = 0x0000_2000;
 }
 
 /// Wormhole byte bits (§2.1).
@@ -217,8 +204,7 @@ pub mod wormhole {
     pub const FERRY: u8 = 0x04;
 }
 
-/// Travel types `t` (§2.1). The type constants are `usize` (array indices);
-/// `COUNT` is the number of types.
+/// Travel types `t` (§2.1). The constants are `usize` (array indices).
 pub mod travel {
     pub const WALK: usize = 0;
     pub const CAR: usize = 1;
@@ -259,8 +245,6 @@ pub mod net_type {
     pub const DIRT_ROAD: u32 = 11;
     pub const GROUND_HIGHWAY: u32 = 12;
     pub const COUNT: usize = 13;
-    /// The "no type matched" sentinel of §4.2 step 3 (not a real type).
-    pub const NONE: u32 = 0xFF;
 }
 
 /// Sides / directions (§2.1): 0 west (−x), 1 north (−z), 2 east (+x),
@@ -272,6 +256,9 @@ pub mod side {
     pub const SOUTH: usize = 3;
     pub const COUNT: usize = 4;
 }
+
+/// The path type of the car paths the lane-continuity queries ask for (§4.4).
+pub const PATH_TYPE_CAR: u32 = 1;
 
 /// The neighbour offset of each side (§2.1): `DX = {−1, 0, 1, 0}`,
 /// `DZ = {0, −1, 0, 1}`.
@@ -325,10 +312,10 @@ pub const TRANSIT_MASK: [u32; 13] = [
 ];
 
 /// The ferry travel mask by ferry type (§4.1, table `0x00AB32C8`): type 0 =
-/// Walk, type 1 = Walk and Car. Type 2 reads past the table and gets
-/// `0xD70A` *[quirk]* (§2.6).
+/// Walk, type 1 = Walk and Car.
 pub const FERRY_MASK: [u16; 2] = [1, 3];
-/// The travel mask a ferry type-2 terminal reads past the table (§2.6).
+/// The travel mask a ferry type-2 terminal reads past the table (§2.6)
+/// *[quirk]*.
 pub const FERRY_MASK_TYPE2: u16 = 0xD70A;
 
 /// The tunnel travel-type mask: every type but Walk (§4.8 step 3) *[quirk]*.
@@ -342,12 +329,11 @@ pub const TUNNEL_TYPE_ORDER: [u32; 7] = [2, 6, 0, 1, 10, 12, 9];
 pub const DEFAULT_DAMAGED_ROAD_COST: f32 = 32.0;
 
 /// The `1.7014117e38` (`0x7EFFFFFF`) "unreachable" switch entry cost (§4.7.3).
-pub const SWITCH_COST_BLOCKED: f32 = f32::from_bits(0x7EFF_FFFF);
+pub const SWITCH_COST_BLOCKED: f32 = 1.701_411_7e38; // bits 0x7EFFFFFF (unit-tested)
 
-/// The largest city side the model allocates for its city-sized grids
-/// ([choice]: a lying host cannot make it allocate more; the cell array is
-/// the fixed 256 × 256 regardless).
-pub const MAX_CITY_SIDE: i32 = crate::grid::MAX_TRACTS;
+/// The largest city side the model accepts ([choice]: the cell array is the
+/// fixed 256 × 256 and cell keys keep 8 bits per coordinate, §1, §2.3).
+pub const MAX_CITY_SIDE: i32 = 256;
 
 /// The side of cell `b` that faces cell `a` (§4.1 `SideOf`, the same rule as
 /// pathfinder.md's `EdgeTo`): `a.x < b.x → 0`, `a.x > b.x → 2`, otherwise
@@ -370,7 +356,7 @@ pub fn cell_key(x: i32, z: i32) -> u16 {
     (((x & 0xFF) << 8) | (z & 0xFF)) as u16
 }
 
-/// The cell connection array index of a cell key (§1: `(x << 8) | z`).
+/// The cell connection array index of a cell (§1: `(x << 8) | z`).
 pub fn array_index(x: i32, z: i32) -> usize {
     usize::from(cell_key(x, z))
 }
@@ -384,9 +370,8 @@ pub type PathInfo = u64;
 
 /// Everything the network model reads from, or does to, the rest of the game
 /// (§8). Coordinates are city cells. Game objects are opaque `u64` tokens;
-/// 0 is null. Host callbacks should not call back into the model (a
-/// re-entrant call sees an empty state and its changes are lost, but nothing
-/// panics).
+/// 0 is null. Host callbacks must not call back into the model (a re-entrant
+/// call sees an empty state and its changes are lost, but nothing panics).
 ///
 /// The supertraits create the two saved transit-switch grids (simgrid §6.4:
 /// in game the plugin makes the game's own `cSC4SimGrid<uint32>` and
@@ -395,30 +380,27 @@ pub trait NetworkHost: GridProvider<u32> + GridProvider<u8> {
     // ---- city ----
     /// `cISC4City::CellCountX()` / `CellCountZ()` (slots 93, 94).
     fn cell_counts(&self) -> (i32, i32);
-    /// `cISC4City::CellWidthX()` (slot 91), for the inverse-speed table.
-    fn cell_width_x(&self) -> f32;
     /// `cISC4City::PositionToCell(x, z, &cx, &cz)` (slot 95).
     fn position_to_cell(&self, x: f32, z: f32) -> (i32, i32);
 
     // ---- occupants ----
     /// `GetOccupantsByStandardCityCells(list, &nw, &se, 0xC772BF98, −1)`
-    /// (occupant manager compiled slot 41): the network occupants in a cell
+    /// (occupant manager slot 41): the network occupants in a cell
     /// rectangle, in the manager's list order.
     fn network_occupants_in_rect(&self, rect: CellRect) -> Vec<u64>;
-    /// `GetOccupantsByStandardCityCells(list, &nw, &se, 0x8A13918A, −1)`: the
-    /// subway access-point occupants in a rectangle (§4.7.1 step 3).
+    /// The same query with type `0x8A13918A`: the subway access-point
+    /// occupants in a rectangle (§4.7.1 step 3).
     fn subway_occupants_in_rect(&self, rect: CellRect) -> Vec<u64>;
-    /// `GetOccupantsByStandardCityCells(list, &nw, &se, 0xA823821E, −1)` then
-    /// `QueryInterface(0xE9793A65)`: the prop occupants in a rectangle
-    /// (§4.9.1 step 2).
+    /// The same query with type `0xA823821E`, keeping the occupants whose
+    /// `QueryInterface(0xE9793A65)` succeeds: the prop occupants (§4.9.1).
     fn prop_occupants_in_rect(&self, rect: CellRect) -> Vec<u64>;
     /// `cISC4Occupant::GetPosition()` (x, y, z) (slot 8).
     fn occupant_position(&self, occ: u64) -> [f32; 3];
-    /// `cISC4Occupant::GetBoundingCityCells()` (inclusive, slot 11).
+    /// `cISC4Occupant::GetBoundingCityCells()` (inclusive).
     fn occupant_bounding_cells(&self, occ: u64) -> CellRect;
     /// `cISC4PropOccupant::GetPropType()` (slot 7).
     fn prop_type(&self, occ: u64) -> u32;
-    /// A property of the occupant's holder (own or from its exemplar);
+    /// A property of the occupant (a building's own or exemplar property);
     /// `None` when absent.
     fn occupant_property(&self, occ: u64, id: u32) -> Option<Variant>;
 
@@ -429,31 +411,26 @@ pub trait NetworkHost: GridProvider<u32> + GridProvider<u8> {
     fn has_any_network_flag(&self, occ: u64, mask: u32) -> bool;
     /// `IsOfType(networkType)` (slot 22).
     fn is_of_type(&self, occ: u64, network_type: u32) -> bool;
-    /// `PathConnection(pathType, entry, exit)` (slot 53): with `0xFF`
-    /// wildcards the original returns a count, otherwise a bool; the rebuild
-    /// only tests concrete `(entry, exit)` pairs, so this is a bool.
+    /// `PathConnection(pathType, entry, exit)` (slot 53) for a concrete
+    /// `(entry, exit)` pair (the rebuild never passes wildcards).
     fn path_connection(&self, occ: u64, path_type: u32, entry: u32, exit: u32) -> bool;
-    /// `GetPathInfo()` (slot 49); `None` (0) when there is none.
+    /// `GetPathInfo()` (slot 49); `None` when there is none.
     fn path_info(&self, occ: u64) -> Option<PathInfo>;
     /// Path-info slot 4 `(p, e, 0xFF, 0, 0)`: non-zero when the piece allows
     /// a turn-around at entry `e` (§4.2 step 3).
     fn path_info_turn_around(&self, pi: PathInfo, path_type: u32, entry: u32) -> bool;
-    /// Path-info slot 14: the exit bytes of the paths of `path_type` that
-    /// start at entry `e`, paired with each path's first-vertex handle
-    /// (slot 3) as a token (§4.4 step 1).
+    /// Path-info slot 14 then slot 3: the paths of `path_type` that start at
+    /// entry `entry`, as `(exit byte, first-vertex token)` (§4.4 step 1).
     fn path_info_exits_from_entry(&self, pi: PathInfo, path_type: u32, entry: u32) -> Vec<(u8, u64)>;
     /// Path-info slot 7 `(path_type, vertex, 0xFF, exit, radius)`: the entry
-    /// sides of the paths of `path_type` that end within `radius` of `vertex`
-    /// (§4.4 step 2). `vertex` is the first-vertex handle from
-    /// [`NetworkHost::path_info_exits_from_entry`].
-    fn path_info_entries_near(&self, pi: PathInfo, path_type: u32, vertex: u64, exit: u32, radius: f32)
-        -> Vec<u32>;
-    /// The paired portal of a `cSC4NetworkTunnelOccupant` (§9: a member of the
-    /// concrete class, reached into). `None` when `occ` is not a tunnel or has
-    /// no pair.
-    fn tunnel_paired_portal(&self, occ: u64) -> Option<u64>;
-    /// `QueryInterface(0x8A4BD52B)` succeeds (the occupant is a tunnel).
+    /// sides of the paths of `path_type` through `exit` that end within
+    /// `radius` of `vertex` (§4.4 step 2).
+    fn path_info_entries_near(&self, pi: PathInfo, path_type: u32, vertex: u64, exit: u32, radius: f32) -> Vec<u32>;
+    /// `QueryInterface(0x8A4BD52B)` succeeds (the occupant is a tunnel, §3).
     fn is_tunnel(&self, occ: u64) -> bool;
+    /// The paired portal of a `cSC4NetworkTunnelOccupant` (§4.8 step 1, §9: a
+    /// member of the concrete class). `None` without one.
+    fn tunnel_paired_portal(&self, occ: u64) -> Option<u64>;
 
     // ---- lots (§8) ----
     /// `cISC4LotManager::GetLot(x, z, anchorOnly)` (slot 6).
@@ -467,49 +444,52 @@ pub trait NetworkHost: GridProvider<u32> + GridProvider<u8> {
     /// `cISC4Lot::GetBuilding()` (slot 48).
     fn lot_building(&self, lot: u64) -> Option<u64>;
     /// `cISC4Lot::GetPopulations()` (slot 54): a vector of
-    /// `map<developerType, count>`.
+    /// `map<developerType, count>`, each in map order.
     fn lot_populations(&self, lot: u64) -> Vec<Vec<(u32, u32)>>;
-    /// `cISC4Lot::AsPropertyHolder()` (slot 3).
+    /// `cISC4Lot` slot 3: the lot's property holder (0 = none).
     fn lot_holder(&self, lot: u64) -> u64;
 
     // ---- property holders (§8) ----
     /// A property of a holder; `None` when absent.
     fn holder_property(&self, holder: u64, id: u32) -> Option<Variant>;
-    /// `AddProperty(id, value)` on a holder.
+    /// `AddProperty(id, value)` on a holder (replacing any old value).
     fn set_holder_property(&self, holder: u64, id: u32, value: Variant);
     /// `RemoveProperty(id)` (slot 17); whether it was present.
     fn remove_holder_property(&self, holder: u64, id: u32) -> bool;
 
-    // ---- terrain and surface water (§8) ----
-    /// `cISTETerrain::CellHasWater(x, z)` (slot 34).
-    fn cell_under_water(&self, x: i32, z: i32) -> bool;
-    /// `cISTESurfaceWater::IsNavigable(x, z, radius, lot)` (slot 8).
-    fn is_navigable(&self, x: i32, z: i32, radius: f32) -> bool;
-    /// `cISTESurfaceWater::GetWaterDepthForCell(x, z)` (slot 6, x87).
-    fn water_depth(&self, x: i32, z: i32) -> f32;
-    /// `cISTESurfaceWater::GetBodyOfWaterMap()` (slot 9) value at a cell: the
-    /// body-of-water ID, or `None` without the map.
-    fn body_of_water(&self, x: i32, z: i32) -> Option<u16>;
-
-    // ---- neighbours (§8) ----
-    /// `cISC4NeighborsSimulator::GetConnectionsOfType(type)` (slot 17), in
-    /// list order.
-    fn connections_of_type(&self, connection_type: u32) -> Vec<u64>;
-    /// `cISC4NeighborsSimulator::GetAllConnections()` (slot 16), in list
-    /// order.
-    fn all_connections(&self) -> Vec<u64>;
-    /// `cISC4NeighborConnection::GetConnectionCell(&x, &z)` (slot 6).
-    fn connection_cell(&self, conn: u64) -> (i32, i32);
-
-    // ---- simulator-owned values the network reads ----
+    // ---- traffic-simulator helpers (traffic-simulator.md) ----
+    /// `GetMaxTripCapacity(holder, k)` (traffic simulator slot 20).
+    fn max_trip_capacity(&self, holder: u64, k: u32) -> u32;
+    /// `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual `0x007114E0`),
+    /// asked with the neighbour connection's own (off-map) cell (§4.12).
+    fn neighbor_pool_holder(&self, x: i32, z: i32) -> Option<u64>;
     /// `IsRoadDamaged(x, z)` (slot 16): the cell key is in the simulator's
     /// pothole table (§4.15).
     fn is_road_damaged(&self, x: i32, z: i32) -> bool;
 
+    // ---- terrain and surface water (§8) ----
+    /// `cISTETerrain` slot 34: the cell is under water.
+    fn cell_under_water(&self, x: i32, z: i32) -> bool;
+    /// `cISTESurfaceWater::IsNavigable(x, z, 0, null)` (slot 8).
+    fn is_navigable(&self, x: i32, z: i32) -> bool;
+    /// `cISTESurfaceWater::GetWaterDepthForCell(x, z)` (slot 6, x87).
+    fn water_depth(&self, x: i32, z: i32) -> f32;
+    /// `GetBodyOfWaterMap()` (slot 9) value at a cell (grid slot 7): the
+    /// body-of-water ID, or `None` without the map.
+    fn body_of_water(&self, x: i32, z: i32) -> Option<u16>;
+
+    // ---- neighbours (§8) ----
+    /// `cISC4NeighborsSimulator::GetConnectionsOfType(type)` (slot 17).
+    fn connections_of_type(&self, connection_type: u32) -> Vec<u64>;
+    /// `cISC4NeighborsSimulator::GetAllConnections()` (slot 16).
+    fn all_connections(&self) -> Vec<u64>;
+    /// `cISC4NeighborConnection` slot 6: the connection's cell.
+    fn connection_cell(&self, conn: u64) -> (i32, i32);
+
     // ---- framework ----
-    /// Posts a standard message (§5). The network posts only
-    /// [`msg::FERRY_ROUTES_DONE`].
-    fn post(&self, msg_type: u32, data1: u32, data2: u32, data3: u32);
+    /// Posts a standard message to the simulator's message server (§5). The
+    /// network posts only [`msg::FERRY_ROUTES_DONE`]; the glue fills void1.
+    fn post(&self, msg_type: u32);
     /// `AddRef` / `Release` of a host object the model holds (a transit-switch
     /// building).
     fn add_ref(&self, token: u64);

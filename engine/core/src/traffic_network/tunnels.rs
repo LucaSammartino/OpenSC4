@@ -8,15 +8,13 @@
 //! portal's cell key. Each portal's insert message creates its own record; a
 //! tunnel works in both directions once both portals are inserted.
 
-use crate::grid::CellRect;
 use crate::x87;
 
-use super::model::{NetworkModel, NetworkState};
-use super::{cell_key, travel, NetworkHost, TUNNEL_MASK, TUNNEL_TYPE_ORDER};
+use super::model::{key32, Cx, NetworkModel};
+use super::{net_type, travel, wormhole, CellRect, TUNNEL_MASK, TUNNEL_TYPE_ORDER};
 
-/// A tunnel record (§2.5): the other portal's cell, a travel-type mask (always
-/// `0x1FE`), the per-type cost and the network type.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// A tunnel record (§2.5).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct TunnelInfo {
     /// The other portal's cell (x, z).
     pub other: (i32, i32),
@@ -28,128 +26,105 @@ pub struct TunnelInfo {
     pub net_type: u8,
 }
 
-impl Default for TunnelInfo {
-    fn default() -> Self {
-        TunnelInfo {
-            other: (0, 0),
-            mask: TUNNEL_MASK,
-            cost: [0.0; travel::COUNT],
-            net_type: 0,
-        }
-    }
-}
+/// The inverse max-speed table `invMaxSpeed[t][type]` (class static
+/// `0x00B4B110`, traffic-simulator.md §4.14). `FLT_MAX` where the speed is
+/// ≤ 0 or missing.
+pub type InvMaxSpeed = [[f32; net_type::COUNT]; travel::COUNT];
 
-/// The inverse max-speed table the tunnel cost reads (§4.8 step 5): a class
-/// static filled from the shipped "Max speed by Network" tuning. The traffic
-/// simulator owns it; the model holds a copy. `[t][type]`, `FLT_MAX` when the
-/// speed is ≤ 0.
-pub type InvMaxSpeed = [[f32; super::net_type::COUNT]; travel::COUNT];
-
-/// Computes the inverse max-speed table from the raw speeds (§4.8 step 5,
-/// traffic-simulator.md §4.14):
-/// `invMaxSpeed = r24(1 / r24(r24(v × 16.666666) / cellWidthX))`, or `FLT_MAX`
-/// when `v ≤ 0`.
-pub fn inverse_max_speed(speeds: &[[f32; super::net_type::COUNT]; travel::COUNT], cell_width_x: f32) -> InvMaxSpeed {
-    let mut out = [[f32::MAX; super::net_type::COUNT]; travel::COUNT];
-    for t in 0..travel::COUNT {
-        for k in 0..super::net_type::COUNT {
-            let v = speeds[t][k];
+/// Fills the inverse max-speed table from the raw "Max speed by Network"
+/// speeds `speeds[t][type]` (§4.8 step 5, traffic-simulator.md §4.14):
+/// `invMaxSpeed = r24(1 / r24(r24(v × 16.666666) / CellWidthX))`, or
+/// `FLT_MAX` when `v ≤ 0`.
+pub fn inverse_max_speed(speeds: &[[f32; net_type::COUNT]; travel::COUNT], cell_width_x: f32) -> InvMaxSpeed {
+    let mut out = [[f32::MAX; net_type::COUNT]; travel::COUNT];
+    for (row, speeds) in out.iter_mut().zip(speeds) {
+        for (slot, &v) in row.iter_mut().zip(speeds) {
             if v > 0.0 {
-                // r24(v × 16.666666f) — the float constant enters unrounded.
-                let a = x87::r24(f64::from(v) * f64::from(16.666666f32)) as f32;
-                // r24(a / cellWidthX).
+                let a = x87::r24(f64::from(v) * f64::from(16.666_666_f32)) as f32;
                 let b = x87::r24(f64::from(a) / f64::from(cell_width_x)) as f32;
-                // r24(1 / b).
-                out[t][k] = x87::r24(1.0 / f64::from(b)) as f32;
+                *slot = x87::r24(1.0 / f64::from(b)) as f32;
             }
         }
     }
     out
 }
 
-/// The tunnel step distance (§4.8 step 4):
-/// `d = r24(√ r24(r24(r24(dz²) + r24(dy²)) + r24(dx²)))`, with (dx, dy, dz)
-/// this portal's 3-D position minus the other's, in world units.
+/// The portal distance (§4.8 step 4):
+/// `d = r24(√ r24(r24(r24(dz²) + r24(dy²)) + r24(dx²)))`.
 pub fn tunnel_distance(dx: f32, dy: f32, dz: f32) -> f32 {
-    let dx2 = x87::r24(f64::from(dx) * f64::from(dx)) as f32;
-    let dy2 = x87::r24(f64::from(dy) * f64::from(dy)) as f32;
-    let dz2 = x87::r24(f64::from(dz) * f64::from(dz)) as f32;
-    let sum = x87::r24(f64::from(x87::r24(f64::from(dz2) + f64::from(dy2)) as f32) + f64::from(dx2)) as f32;
-    x87::r24(f64::from(sum).sqrt()) as f32
+    let sq = |v: f32| x87::r24(f64::from(v) * f64::from(v));
+    let a = x87::r24(sq(dz) + sq(dy));
+    let sum = x87::r24(a + sq(dx));
+    x87::r24(sum.sqrt()) as f32
 }
 
-/// The tunnel cost per travel type (§4.8 step 5):
-/// `cost[t] = r24(r24(d × invMaxSpeed[t][type]) × 0.0625)`. For types with
-/// zero speed on that network the cost is +∞ (invMaxSpeed = FLT_MAX and
-/// `d × FLT_MAX` overflows; the mask `0x1FE` keeps Walk out anyway).
-pub fn tunnel_costs(d: f32, net_type: u8, inv: &InvMaxSpeed) -> [f32; travel::COUNT] {
+/// The per-type cost (§4.8 step 5):
+/// `cost[t] = r24(r24(d × invMaxSpeed[t][type]) × 0.0625)`. With
+/// `invMaxSpeed = FLT_MAX` (no speed on that network) the product overflows
+/// to +∞.
+pub fn tunnel_costs(d: f32, network_type: u8, inv: &InvMaxSpeed) -> [f32; travel::COUNT] {
     let mut cost = [0.0f32; travel::COUNT];
-    for t in 0..travel::COUNT {
-        let v = inv[t][net_type as usize];
-        let a = x87::r24(f64::from(d) * f64::from(v)) as f32;
-        cost[t] = x87::r24(f64::from(a) * f64::from(0.0625f32)) as f32;
+    for (c, row) in cost.iter_mut().zip(inv) {
+        let v = row.get(usize::from(network_type)).copied().unwrap_or(f32::MAX);
+        let a = x87::r24(f64::from(d) * f64::from(v));
+        *c = x87::r24(a * 0.0625) as f32;
     }
     cost
 }
 
-impl NetworkModel {
-    /// `DoTunnelChanged`, remove (§4.8): erases the portal's key. No rebuild
-    /// of the tunnel bit happens here; the rebuild that follows (§3 step c)
-    /// clears wormhole bit 2.
-    pub fn remove_tunnel(&self, x: i32, z: i32) {
-        self.with(|s| {
-            s.tunnels.remove(u32::from(cell_key(x, z)));
-        });
+impl Cx<'_> {
+    /// The portal's cell (§3: `PositionToCell` of the occupant position).
+    fn occupant_cell(&self, occ: u64) -> (i32, i32) {
+        let p = self.h.occupant_position(occ);
+        self.h.position_to_cell(p[0], p[2])
     }
 
-    /// `DoTunnelChanged`, insert (§4.8): reads the paired portal, the network
-    /// type and the 3-D positions from the host, computes the cost and stores
-    /// the record under this portal's cell key. Returns whether a record was
-    /// created (none when the tunnel has no taking-part network type).
-    ///
-    /// `inv` is the simulator's inverse max-speed table (§4.8 step 5).
-    pub fn insert_tunnel(&self, occ: u64, inv: &InvMaxSpeed) -> bool {
-        let h = self.host.clone();
-        self.with(|s| {
-            let Some(other) = h.tunnel_paired_portal(occ) else {
-                return false;
-            };
-            // Step 2: the network type, the first of the order it IsOfType.
-            let net_type = TUNNEL_TYPE_ORDER.iter().copied().find(|&k| h.is_of_type(occ, k));
-            let Some(net_type) = net_type else {
-                return false; // None → no record
-            };
-            // Step 1: the other portal's cell.
-            let op = h.occupant_position(other);
-            let (ox, oz) = h.position_to_cell(op[0], op[2]);
-            // Step 4: the distance from this portal's 3-D position minus the
-            // other's.
-            let p = h.occupant_position(occ);
-            let (dx, dy, dz) = (p[0] - op[0], p[1] - op[1], p[2] - op[2]);
-            let d = tunnel_distance(dx, dy, dz);
-            // Step 5: the per-type cost.
-            let cost = tunnel_costs(d, net_type as u8, inv);
-            let key = u32::from(cell_key_from_position(&h, occ));
-            s.tunnels.entry(key, || TunnelInfo {
-                other: (ox, oz),
-                // Step 3: the mask is always 0x1FE *[quirk]*.
-                mask: TUNNEL_MASK,
-                cost,
-                net_type: net_type as u8,
-            });
-            true
-        })
+    /// `DoTunnelChanged` (§4.8). **Remove** erases the portal's key; the
+    /// rebuild that follows clears wormhole bit 2. **Insert** computes the
+    /// record and stores it under the portal's key (replacing an existing
+    /// record [choice: `operator[]` assignment]). Returns whether a record
+    /// was written.
+    pub(crate) fn tunnel_changed(&mut self, occ: u64, removed: bool) -> bool {
+        let (x, z) = self.occupant_cell(occ);
+        let key = key32(x, z);
+        if removed {
+            self.s.tunnels.remove(key);
+            return false;
+        }
+        let h = self.h;
+        // Step 1: the paired portal and its cell. Without one, no record
+        // [choice].
+        let Some(other) = h.tunnel_paired_portal(occ) else {
+            return false;
+        };
+        let op = h.occupant_position(other);
+        let (ox, oz) = h.position_to_cell(op[0], op[2]);
+        // Step 2: the first network type of the order the tunnel IsOfType.
+        let Some(ty) = TUNNEL_TYPE_ORDER.iter().copied().find(|&k| h.is_of_type(occ, k)) else {
+            return false;
+        };
+        // Step 4: this portal's 3-D position minus the other's.
+        let p = h.occupant_position(occ);
+        let d = tunnel_distance(p[0] - op[0], p[1] - op[1], p[2] - op[2]);
+        // Steps 3 and 5.
+        let rec = TunnelInfo {
+            other: (ox, oz),
+            mask: TUNNEL_MASK,
+            cost: tunnel_costs(d, ty as u8, &self.s.inv_max_speed),
+            net_type: ty as u8,
+        };
+        *self.s.tunnels.entry(key, TunnelInfo::default) = rec;
+        true
     }
 
-    /// The tunnel phase of `DoConnectionsChanged` (§4.2 step 5): every cell
-    /// of R1 that is a key of the tunnel table gets `wormhole |= 2`.
-    pub(super) fn apply_tunnels(&self, s: &mut NetworkState, r1: CellRect) {
+    /// §4.2 step 5: every cell of R1 that is a key of the tunnel table gets
+    /// `wormhole |= 2`.
+    pub(crate) fn apply_tunnels(&mut self, r1: CellRect) {
         for x in r1.x1..=r1.x2 {
             for z in r1.z1..=r1.z2 {
-                let key = u32::from(cell_key(x, z));
-                if s.tunnels.contains(key) {
-                    if let Some(c) = s.conn_mut(x, z) {
-                        c.wormhole |= super::wormhole::TUNNEL;
+                if self.s.tunnels.contains(key32(x, z)) {
+                    if let Some(c) = self.s.conn_mut(x, z) {
+                        c.wormhole |= wormhole::TUNNEL;
                     }
                 }
             }
@@ -157,9 +132,9 @@ impl NetworkModel {
     }
 }
 
-/// The cell key of an occupant from its position (§3: `PositionToCell`).
-fn cell_key_from_position(h: &dyn NetworkHost, occ: u64) -> u16 {
-    let p = h.occupant_position(occ);
-    let (cx, cz) = h.position_to_cell(p[0], p[2]);
-    cell_key(cx, cz)
+impl NetworkModel {
+    /// The tunnel record keyed by a portal cell (§2.5), if any.
+    pub fn tunnel_at(&self, x: i32, z: i32) -> Option<TunnelInfo> {
+        self.s.borrow().tunnels.get(key32(x, z)).copied()
+    }
 }

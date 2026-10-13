@@ -48,8 +48,8 @@ pub struct Tuning {
     pub inv_cap_table: [f32; TYPE_COUNT],
     /// The damaged-road extra step cost (§2.3, §4.5); code default 32.0.
     pub damaged_road_cost: f32,
-    /// The intersection-effect count N (§4.6).
-    pub intersection_count: usize,
+    /// The intersection-effect count N (§4.5: the property's count as u8).
+    pub intersection_count: u8,
     /// `values[i] = r24(1.0 / v[i])`, no zero guard (§4.5).
     pub intersection_values: Vec<f32>,
 }
@@ -96,13 +96,10 @@ impl Tuning {
     }
 
     /// Reads the Intersection and Turn Capacity Effect property (§4.5):
-    /// `N = count`, `values[i] = r24(1.0 / v[i])`, no zero guard.
+    /// `N = count` (u8), `values[i] = r24(1.0 / v[i])`, no zero guard.
     pub fn set_intersection(&mut self, values: &[f32]) {
-        self.intersection_count = values.len();
-        self.intersection_values = values
-            .iter()
-            .map(|&v| x87::r24(1.0 / f64::from(v)) as f32)
-            .collect();
+        self.intersection_count = values.len() as u8;
+        self.intersection_values = values.iter().map(|&v| x87::r24(1.0 / f64::from(v)) as f32).collect();
     }
 
     /// Reads the three network properties from a tuning exemplar (§4.5). A
@@ -126,7 +123,10 @@ impl Tuning {
     pub fn shipped_exemplar() -> PropertyHolder {
         let mut h = PropertyHolder::new();
         let arr = |v: &[f32]| Variant::array(mem::FLOAT32, v.iter().map(|&x| Elem::F32(x)).collect());
-        h.add(id::DAMAGED_ROAD_COST, Variant::Scalar(Elem::F32(SHIPPED_DAMAGED_ROAD_COST)));
+        h.add(
+            id::DAMAGED_ROAD_COST,
+            Variant::Scalar(Elem::F32(SHIPPED_DAMAGED_ROAD_COST)),
+        );
         h.add(id::CAPACITY, arr(&SHIPPED_CAPACITY));
         h.add(id::INTERSECTION, arr(&SHIPPED_INTERSECTION));
         h
@@ -173,7 +173,7 @@ mod tests {
         let t = Tuning::shipped();
         let cap = |inv: f32| (x87::r24(1.0 / f64::from(inv)) as f32).to_bits();
         assert_eq!(cap(t.inv_cap_table[0]), 0x4479_FFFF); // 1000
-        assert_eq!(cap(t.inv_cap_table[1]), 0x453A_0000); // 3000
+        assert_eq!(cap(t.inv_cap_table[1]), 0x453B_8000); // 3000 → 3000.0 exactly
         assert_eq!(cap(t.inv_cap_table[2]), 0x4579_FFFF); // 4000
         assert_eq!(cap(t.inv_cap_table[10]), 0x44F9_FFFF); // OneWay 2000 → 1999.9999
     }

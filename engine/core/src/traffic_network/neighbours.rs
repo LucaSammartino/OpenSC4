@@ -10,7 +10,7 @@
 //! the graph uses these records only through `HasMapExit` (§2.7), which tests
 //! mask bit 9 (a water/ferry neighbour connection).
 
-use super::model::NetworkState;
+use super::model::{NetworkModel, NetworkState};
 
 /// Which map edge a neighbour connection is on (§2.7). The four arrays are
 /// stored in `NetworkState::neighbour_edges` in this order.
@@ -76,5 +76,13 @@ impl NetworkState {
             arr.resize(i + 1, NeighbourEdge::default());
         }
         arr[i] = rec;
+    }
+}
+
+impl NetworkModel {
+    /// Sets the neighbour connection edge record at an off-map cell (§2.7;
+    /// the add and remove messages are traffic-simulator.md's).
+    pub fn set_neighbour_edge(&self, x: i32, z: i32, rec: NeighbourEdge) {
+        self.s.borrow_mut().set_neighbour_edge(x, z, rec);
     }
 }

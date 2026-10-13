@@ -4,14 +4,17 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Subnetworks (§4.11, `UpdateSubnetworks`): connected components of the car
-//! graph, labelled per (cell, entry side), and the subnetwork info (§4.12,
+//! Subnetworks (§4.11, `UpdateSubnetworks`): "first reached" labels of the
+//! car graph per (cell, entry side), and the subnetwork info (§4.12,
 //! `UpdateSubnetworkInfo`): per-label population and destination capacity.
 
-use std::collections::VecDeque;
+use crate::variant::{mem, Elem, Variant};
 
-use super::model::{NetworkModel, NetworkState, SubnetworkInfo};
-use super::{net, side, travel, wormhole, NetworkHost};
+use super::model::{boundary_cells, key32, Cx, NetworkModel, NetworkState, SubnetworkInfo};
+use super::{prop, side, travel, wormhole, DX, DZ, OPPOSITE_SIDE};
+
+/// The `k` of a `Fill` state that resumes after step 3 (§4.11).
+const AFTER_TUNNEL: usize = side::COUNT + 1;
 
 /// One state of the explicit `Fill` stack (§4.11): (cell, entry e, next k).
 #[derive(Clone, Copy, Debug)]
@@ -22,380 +25,330 @@ struct FillState {
     k: usize,
 }
 
-impl NetworkModel {
-    /// `UpdateSubnetworks` clear step (§4.11): the subnetwork counter := 1 and
-    /// every record's `subnet[0…3]` := 0.
-    pub fn clear_subnetworks(&self) {
-        self.with(|s| {
-            s.subnet_counter = 1;
-            for list in &mut s.info {
-                for r in list {
-                    r.subnet = [0; 4];
-                }
-            }
-        });
+impl NetworkState {
+    /// The clear step (`0x0070FCE0`, §4.11): counter := 1, every record's
+    /// `subnet[0…3]` := 0.
+    pub fn clear_subnetworks(&mut self) {
+        self.subnet_counter = 1;
+        for r in self.info.iter_mut().flatten() {
+            r.subnet = [0; 4];
+        }
     }
 
-    /// `UpdateSubnetworks` (§4.11): the forward and backward seed passes over
-    /// the car graph. Runs in one call (work-cycle state 12).
-    pub fn update_subnetworks(&self) {
-        self.with(|s| {
-            // Forward pass: x = 0 … X−2 (outer), z = 0 … Z−2 (inner), entry
-            // sides 0 and 1.
-            for x in 0..(s.count_x - 1) {
-                for z in 0..(s.count_z - 1) {
-                    if car_record(s, x, z) {
-                        if subnet_of(s, x, z, 0) == 0 {
-                            fill(s, x, z, 0);
-                        }
-                        if subnet_of(s, x, z, 1) == 0 {
-                            fill(s, x, z, 1);
-                        }
+    /// `UpdateSubnetworks` (§4.11, work-cycle state 12): the forward seeds
+    /// (x = 0 … X−2 outer, z = 0 … Z−2 inner, entry sides 0 then 1) and the
+    /// backward seeds (x = X−2 … 0, z = Z−2 … 0, entry sides 2 then 3). The
+    /// last row and column are never seeds *[quirk]*.
+    pub fn update_subnetworks(&mut self) {
+        let (xs, zs) = (self.count_x - 1, self.count_z - 1);
+        for x in 0..xs {
+            for z in 0..zs {
+                self.seed(x, z, [0, 1]);
+            }
+        }
+        for x in (0..xs).rev() {
+            for z in (0..zs).rev() {
+                self.seed(x, z, [2, 3]);
+            }
+        }
+    }
+
+    fn seed(&mut self, x: i32, z: i32, sides: [usize; 2]) {
+        for e in sides {
+            if self.car_info(x, z).is_some_and(|r| r.subnet[e] == 0) {
+                self.fill(x, z, e);
+            }
+        }
+    }
+
+    fn subnet_of(&self, x: i32, z: i32, e: usize) -> Option<u16> {
+        self.car_info(x, z).map(|r| r.subnet[e])
+    }
+
+    /// Whether (x, z) has a car record with `subnet[e] = 0`.
+    fn unlabelled(&self, x: i32, z: i32, e: usize) -> bool {
+        self.subnet_of(x, z, e) == Some(0)
+    }
+
+    fn set_subnet(&mut self, x: i32, z: i32, e: usize, label: u16) {
+        if let Some(r) = self.network_info_mut(super::net::CAR, x, z) {
+            r.subnet[e] = label;
+        }
+    }
+
+    fn car_bit(&self, x: i32, z: i32, bit: usize) -> bool {
+        self.conn_at(x, z)
+            .is_some_and(|c| c.conn[travel::CAR] & (1 << bit) != 0)
+    }
+
+    /// `Fill(x, z, e)` (§4.11): labels the (cell, entry side) states reachable
+    /// along directed car edges (`rep(1)` = Car) with an explicit stack.
+    pub fn fill(&mut self, x0: i32, z0: i32, e0: usize) {
+        // Step 1: a car record with subnet[e] = 0 and connCount ≤ 2, not a
+        // tunnel cell.
+        match self.car_info(x0, z0) {
+            Some(r) if r.subnet[e0] == 0 && r.conn_count <= 2 => {}
+            _ => return,
+        }
+        if self.wormhole_at(x0, z0) & wormhole::TUNNEL != 0 {
+            return;
+        }
+        let counter = self.subnet_counter;
+        let mut labelled = false;
+        let mut stack: Vec<FillState> = Vec::new();
+        let mut cur = FillState {
+            x: x0,
+            z: z0,
+            e: e0,
+            k: 0,
+        };
+        'states: loop {
+            // Step 2: k = cur.k … 3.
+            while cur.k < side::COUNT {
+                let k = cur.k;
+                if self.car_bit(cur.x, cur.z, k + 4 * cur.e) {
+                    self.set_subnet(cur.x, cur.z, cur.e, counter);
+                    labelled = true;
+                    if let Some(next) = self.next_state(cur, k) {
+                        stack.push(FillState { k: k + 1, ..cur });
+                        cur = next;
+                        continue 'states;
                     }
                 }
-            }
-            // Backward pass: x = X−2 … 0, z = Z−2 … 0, entry sides 2 and 3.
-            for x in (0..(s.count_x - 1)).rev() {
-                for z in (0..(s.count_z - 1)).rev() {
-                    if car_record(s, x, z) {
-                        if subnet_of(s, x, z, 2) == 0 {
-                            fill(s, x, z, 2);
-                        }
-                        if subnet_of(s, x, z, 3) == 0 {
-                            fill(s, x, z, 3);
-                        }
-                    }
-                }
-            }
-            s.subnetworks_stale = false;
-        });
-    }
-
-    /// `UpdateSubnetworkInfo` (§4.12): builds the working subnetwork-info
-    /// vector from the lots' ring cells and the neighbour connections, then
-    /// publishes it. The work is time-sliced in the original; slicing changes
-    /// only when the result is published, not the result, so FreeCity4 runs it
-    /// whole *[choice]*.
-    pub fn update_subnetwork_info(&self) {
-        let h = self.host.clone();
-        self.with(|s| {
-            // Step 1: clear the working vector and resize to `counter`.
-            s.subnet_working = vec![SubnetworkInfo::default(); s.subnet_counter as usize];
-            // Step 2: for each cell with a lot (anchor only).
-            for z in 0..s.count_z {
-                for x in 0..s.count_x {
-                    let Some(lot) = h.lot_at(x, z, true) else { continue };
-                    accumulate_lot(s, &*h, lot, x, z);
-                }
-            }
-            // The neighbour connections.
-            accumulate_neighbours(s, &*h);
-            // Publish.
-            s.subnet_published = s.subnet_working.clone();
-        });
-    }
-}
-
-/// Whether the cell has a car record (§4.11 seed condition).
-fn car_record(s: &NetworkState, x: i32, z: i32) -> bool {
-    s.car_info(x, z).is_some()
-}
-
-/// The `subnet[e]` of the cell's first car record (0 without one).
-fn subnet_of(s: &NetworkState, x: i32, z: i32, e: usize) -> u16 {
-    s.car_info(x, z).map_or(0, |r| r.subnet[e])
-}
-
-/// Sets `subnet[e]` of the cell's first car record.
-fn set_subnet(s: &mut NetworkState, x: i32, z: i32, e: usize, label: u16) {
-    if let Some(r) = s.network_info_mut(net::CAR, x, z) {
-        r.subnet[e] = label;
-    }
-}
-
-/// `Fill(x, z, e)` (§4.11): labels the (cell, entry side) states reachable
-/// along directed car edges, using travel type Car and an explicit stack.
-fn fill(s: &mut NetworkState, x0: i32, z0: i32, e0: usize) {
-    // Step 1: start only if the cell has a car record with subnet[e] = 0 and
-    // connCount ≤ 2, and is not a tunnel cell.
-    let Some(info) = s.car_info(x0, z0) else { return };
-    if info.subnet[e0] != 0 || info.conn_count > 2 {
-        return;
-    }
-    if worm(s, x0, z0) & wormhole::TUNNEL != 0 {
-        return;
-    }
-    let counter = s.subnet_counter;
-    let mut labelled_any = false;
-    // The explicit stack (a deque, allocator B, internal).
-    let mut stack: VecDeque<FillState> = VecDeque::new();
-    let mut cur = FillState { x: x0, z: z0, e: e0, k: 0 };
-    loop {
-        // Step 2: for k = 0…3, if conn[1] has bit k + 4e.
-        let mut advanced = false;
-        while cur.k < side::COUNT {
-            let k = cur.k;
-            let has = s
-                .conn_at(cur.x, cur.z)
-                .is_some_and(|c| c.conn[travel::CAR] & (1 << (k + 4 * cur.e)) != 0);
-            if !has {
                 cur.k += 1;
-                continue;
             }
-            // Label this cell's entry side.
-            if subnet_of(s, cur.x, cur.z, cur.e) == 0 {
-                set_subnet(s, cur.x, cur.z, cur.e, counter);
-                labelled_any = true;
+            // Step 3: after k = 3, a tunnel cell whose record allows Car. A
+            // state pushed here resumes after this step (`AFTER_TUNNEL`)
+            // [choice: resuming before it would loop forever when the other
+            // portal never gets labelled].
+            if cur.k == side::COUNT && self.wormhole_at(cur.x, cur.z) & wormhole::TUNNEL != 0 {
+                let other = self
+                    .tunnels
+                    .get(key32(cur.x, cur.z))
+                    .filter(|t| t.mask & (1 << travel::CAR) != 0)
+                    .map(|t| t.other);
+                if let Some((ox, oz)) = other {
+                    self.set_subnet(cur.x, cur.z, cur.e, counter);
+                    if self.unlabelled(ox, oz, cur.e) {
+                        stack.push(FillState { k: AFTER_TUNNEL, ..cur });
+                        cur = FillState {
+                            x: ox,
+                            z: oz,
+                            e: cur.e,
+                            k: 0,
+                        };
+                        continue 'states;
+                    }
+                }
             }
-            // Find the next state.
-            match next_state(s, cur, k) {
-                Some(next) => {
-                    // Push the current state with k + 1 and move to next (k = 0).
-                    stack.push_back(FillState { k: k + 1, ..cur });
-                    cur = next;
-                    advanced = true;
-                    break;
-                }
-                None => {
-                    cur.k += 1;
-                }
-            }
-        }
-        if advanced {
-            continue;
-        }
-        // Step 3: after k = 3, a tunnel cell whose record allows Car.
-        if worm(s, cur.x, cur.z) & wormhole::TUNNEL != 0 {
-            if let Some(other) = tunnel_car_other(s, cur.x, cur.z) {
-                if subnet_of(s, cur.x, cur.z, cur.e) == 0 {
-                    set_subnet(s, cur.x, cur.z, cur.e, counter);
-                    labelled_any = true;
-                }
-                // The other portal's car record with subnet[e] = 0 (the same
-                // entry side): push and continue there with entry e.
-                if s.car_info(other.0, other.1).is_some() && subnet_of(s, other.0, other.1, cur.e) == 0 {
-                    stack.push_back(cur);
-                    cur = FillState { x: other.0, z: other.1, e: cur.e, k: 0 };
-                    continue;
-                }
+            // Step 4: pop and resume.
+            match stack.pop() {
+                Some(s) => cur = s,
+                None => break,
             }
         }
-        // Step 4: pop and resume.
-        match stack.pop_back() {
-            Some(next) => cur = next,
-            None => break,
+        if labelled {
+            self.subnet_counter = counter.wrapping_add(1);
         }
     }
-    // When the stack is empty, counter += 1 if anything was labelled.
-    if labelled_any {
-        s.subnet_counter = counter + 1;
-    }
-}
 
-/// The wormhole byte at a cell.
-fn worm(s: &NetworkState, x: i32, z: i32) -> u8 {
-    s.conn_at(x, z).map_or(0, |c| c.wormhole)
-}
-
-/// The next `Fill` state from (cur, k) (§4.11 step 2), or `None`.
-fn next_state(s: &NetworkState, cur: FillState, k: usize) -> Option<FillState> {
-    let (nx, nz) = (cur.x + super::DX[k], cur.z + super::DZ[k]);
-    // Off-map neighbour: if the cell also has bit e + 4k (the connection from
-    // k back to e) and subnet[k] = 0, continue in the same cell with entry k.
-    if !s.in_city(nx, nz) {
-        let back = s
-            .conn_at(cur.x, cur.z)
-            .is_some_and(|c| c.conn[travel::CAR] & (1 << (cur.e + 4 * k)) != 0);
-        if back && subnet_of(s, cur.x, cur.z, k) == 0 {
-            return Some(FillState { x: cur.x, z: cur.z, e: k, k: 0 });
+    /// The next `Fill` state from `cur` through exit `k` (§4.11 step 2).
+    fn next_state(&self, cur: FillState, k: usize) -> Option<FillState> {
+        let (nx, nz) = (cur.x + DX[k], cur.z + DZ[k]);
+        if !self.in_city(nx, nz) {
+            // Off-map: turn around in the same cell (entry k) if the cell
+            // also connects k back to e.
+            return (self.car_bit(cur.x, cur.z, cur.e + 4 * k) && self.unlabelled(cur.x, cur.z, k)).then_some(
+                FillState {
+                    x: cur.x,
+                    z: cur.z,
+                    e: k,
+                    k: 0,
+                },
+            );
         }
-        return None;
-    }
-    // In-city neighbour N with a car record, where subnet[(k+2) mod 4] = 0:
-    // continue at N with entry (k + 2) mod 4.
-    let back_e = super::OPPOSITE_SIDE[k];
-    if s.car_info(nx, nz).is_some() {
-        if subnet_of(s, nx, nz, back_e) == 0 {
-            return Some(FillState { x: nx, z: nz, e: back_e, k: 0 });
+        let back = OPPOSITE_SIDE[k];
+        let at = |x: i32, z: i32| FillState { x, z, e: back, k: 0 };
+        if let Some(sub) = self.subnet_of(nx, nz, back) {
+            return (sub == 0).then_some(at(nx, nz));
         }
-        return None;
-    }
-    // N without a car record but with switch ID s ≠ 0: step further in
-    // direction k while the cells stay in the city and carry ID s. At the
-    // first cell with another ID: if it has a car record with
-    // subnet[(k+2) mod 4] = 0, continue there.
-    let sid = s.switch_id_at(nx, nz);
-    if sid == 0 {
-        return None;
-    }
-    let (mut cx, mut cz) = (nx, nz);
-    loop {
-        let (fx, fz) = (cx + super::DX[k], cz + super::DZ[k]);
-        if !s.in_city(fx, fz) || s.switch_id_at(fx, fz) != sid {
-            // The first cell with another ID.
-            if s.car_info(fx, fz).is_some() && subnet_of(s, fx, fz, back_e) == 0 {
-                return Some(FillState { x: fx, z: fz, e: back_e, k: 0 });
-            }
+        // No car record: skip straight across a switch lot.
+        let id = self.switch_id_at(nx, nz);
+        if id == 0 {
             return None;
         }
-        cx = fx;
-        cz = fz;
-    }
-}
-
-/// The other portal of a tunnel cell when its tunnel record allows Car
-/// (§4.11 step 3), as a cell.
-fn tunnel_car_other(s: &NetworkState, x: i32, z: i32) -> Option<(i32, i32)> {
-    let key = u32::from(super::cell_key(x, z));
-    let t = s.tunnels.get(key)?;
-    // The mask always has Car (0x1FE has bit 1).
-    if t.mask & (1 << travel::CAR) == 0 {
-        return None;
-    }
-    Some(t.other)
-}
-
-/// §4.12 step 4: accumulates one lot's populations and capacities into the
-/// working subnetwork info for the labels on its ring.
-fn accumulate_lot(s: &mut NetworkState, h: &dyn NetworkHost, lot: u64, x: i32, z: i32) {
-    let _ = (x, z);
-    let r = h.lot_bounding_rect(lot);
-    // Ring = the boundary of r grown by 1 and clamped to the city, skipping
-    // the four corners (cells whose x is outside [r.x1, r.x2] AND whose z is
-    // outside [r.z1, r.z2]).
-    let ring = super::model::grow_clamp(r, 1, s.count_x, s.count_z);
-    let ids = ring_labels(s, r, ring);
-    let holder = h.lot_holder(lot);
-    if ids.is_empty() {
-        // Step 3: remove the property.
-        if holder != 0 {
-            h.remove_holder_property(holder, super::prop::LOT_SUBNETWORKS);
-        }
-        return;
-    }
-    // Step 4: set the property.
-    if holder != 0 {
-        let items: Vec<crate::variant::Elem> = ids.iter().map(|&id| crate::variant::Elem::U32(id)).collect();
-        h.set_holder_property(
-            holder,
-            super::prop::LOT_SUBNETWORKS,
-            crate::variant::Variant::array(crate::variant::mem::UINT32, items),
-        );
-    }
-    // Populations: for every (type, count) in every map of lot.GetPopulations().
-    for map in h.lot_populations(lot) {
-        for (dev_type, count) in map {
-            for &id in &ids {
-                if let Some(info) = s.subnet_working.get_mut(id as usize) {
-                    *info.population.entry(dev_type).or_insert(0) += count;
-                }
-            }
-        }
-    }
-    // Capacities: for k = 0…3, info[id].capacity[k] += GetMaxTripCapacity.
-    let caps = max_trip_capacities(h, holder);
-    for &id in &ids {
-        if let Some(info) = s.subnet_working.get_mut(id as usize) {
-            for k in 0..4 {
-                info.capacity[k] += caps[k];
-            }
-        }
-    }
-}
-
-/// The distinct non-zero `subnet[0…3]` of the first car record of each ring
-/// cell (corners excluded), in order of discovery (§4.12 step 2).
-fn ring_labels(s: &NetworkState, lot: crate::grid::CellRect, ring: crate::grid::CellRect) -> Vec<u32> {
-    let mut ids: Vec<u32> = Vec::new();
-    for x in ring.x1..=ring.x2 {
-        for z in ring.z1..=ring.z2 {
-            // Only the boundary of the grown rectangle.
-            let on_boundary = x == ring.x1 || x == ring.x2 || z == ring.z1 || z == ring.z2;
-            if !on_boundary {
+        let (mut cx, mut cz) = (nx, nz);
+        loop {
+            let (fx, fz) = (cx + DX[k], cz + DZ[k]);
+            if self.in_city(fx, fz) && self.switch_id_at(fx, fz) == id {
+                (cx, cz) = (fx, fz);
                 continue;
             }
-            // Skip the four corners: x outside [lot.x1, lot.x2] AND z outside
-            // [lot.z1, lot.z2].
-            let x_out = x < lot.x1 || x > lot.x2;
-            let z_out = z < lot.z1 || z > lot.z2;
+            return self.unlabelled(fx, fz, back).then_some(at(fx, fz));
+        }
+    }
+
+    /// The distinct non-zero `subnet[0…3]` of the first car record of each
+    /// ring cell of a lot rectangle, in order of discovery (§4.12 steps 1,
+    /// 2): the boundary of the rectangle grown by 1 and clamped, in
+    /// `BoundaryIterator` order, without the four corner cells.
+    pub fn lot_ring_labels(&self, r: super::CellRect) -> Vec<u32> {
+        let ring = self.grow_clamp(r, 1);
+        let mut ids = Vec::new();
+        for (x, z) in boundary_cells(ring) {
+            let x_out = x < r.x1 || x > r.x2;
+            let z_out = z < r.z1 || z > r.z2;
             if x_out && z_out {
                 continue;
             }
-            if !s.in_city(x, z) {
-                continue;
-            }
-            if let Some(r) = s.car_info(x, z) {
-                for &id in &r.subnet {
-                    if id != 0 && !ids.contains(&u32::from(id)) {
-                        ids.push(u32::from(id));
+            if let Some(info) = self.car_info(x, z) {
+                for id in info.subnet.iter().map(|&id| u32::from(id)) {
+                    if id != 0 && !ids.contains(&id) {
+                        ids.push(id);
                     }
                 }
             }
         }
+        ids
     }
-    ids
 }
 
-/// `GetMaxTripCapacity(holder, k)` for k = 0…3 from property `0x8A0B4100`
-/// (traffic-simulator.md §4.2): element k of the 12-u16 array, 0 if missing.
-fn max_trip_capacities(h: &dyn NetworkHost, holder: u64) -> [u32; 4] {
-    let mut caps = [0u32; 4];
-    if holder == 0 {
-        return caps;
+/// `info += c` element-wise (u32, wrapping [choice]).
+fn add_capacity(info: &mut SubnetworkInfo, c: &[u32; 4]) {
+    for (a, b) in info.capacity.iter_mut().zip(c) {
+        *a = a.wrapping_add(*b);
     }
-    if let Some(v) = h.holder_property(holder, super::prop::TRIP_CAPACITY) {
-        let items = v.items();
-        for k in 0..4 {
-            caps[k] = items.get(k).map_or(0, |e| e.as_i64() as u32);
-        }
-    }
-    caps
 }
 
-/// §4.12: after the last cell, the neighbour connections are added.
-fn accumulate_neighbours(s: &mut NetworkState, h: &dyn NetworkHost) {
-    let conns = h.all_connections();
-    for conn in conns {
-        let (x, z) = h.connection_cell(conn);
-        // Map (x, z) to the in-city cell: x = −1 → 0; x = X → X−1; else
-        // z = −1 → 0; z = Z → Z−1.
-        let ix = if x < 0 { 0 } else if x >= s.count_x { s.count_x - 1 } else { x };
-        let iz = if z < 0 { 0 } else if z >= s.count_z { s.count_z - 1 } else { z };
-        if s.car_info(ix, iz).is_none() {
-            continue;
-        }
-        // GetNeighborPoolPropertyHolder(1, x, z); FreeCity4 exposes it through
-        // the host's neighbour pool lookup, folded into connection_cell's
-        // owner. Without a holder, skip.
-        let caps = neighbour_pool_capacities(h, ix, iz);
-        let Some(caps) = caps else { continue };
-        // Add c to info[subnet[e]].capacity for each e = 0…3 with subnet[e] ≠ 0.
-        // Not deduplicated: a label shared by two entry sides counts twice
-        // *[quirk]*.
-        let Some(info) = s.car_info(ix, iz).copied() else { continue };
-        for e in 0..4 {
-            let id = info.subnet[e];
-            if id == 0 {
-                continue;
+impl Cx<'_> {
+    /// Entering state 13 (§4.12): the working vector cleared and resized to
+    /// `counter` default entries, the scan reset to the whole city.
+    pub(crate) fn begin_subnetwork_info(&mut self) {
+        self.s.subnet_working = vec![SubnetworkInfo::default(); usize::from(self.s.subnet_counter)];
+        self.s.subnet_info_cursor = Some(0);
+    }
+
+    /// Works on §4.12 for at most `max_cells` cells (x inner, z outer). After
+    /// the last cell, adds the neighbour connections and publishes. Returns
+    /// true when the pass is finished (or none is running).
+    pub(crate) fn work_on_subnetwork_info(&mut self, max_cells: usize) -> bool {
+        let Some(mut i) = self.s.subnet_info_cursor else {
+            return true;
+        };
+        let total = self.s.cell_count();
+        let x_count = self.s.count_x.max(1) as usize;
+        let mut done = 0usize;
+        while i < total && done < max_cells {
+            let (x, z) = ((i % x_count) as i32, (i / x_count) as i32);
+            if let Some(lot) = self.h.lot_at(x, z, true) {
+                self.accumulate_lot(lot);
             }
-            if let Some(slot) = s.subnet_working.get_mut(id as usize) {
-                for k in 0..4 {
-                    slot.capacity[k] += caps[k];
+            i += 1;
+            done += 1;
+        }
+        if i < total {
+            self.s.subnet_info_cursor = Some(i);
+            return false;
+        }
+        self.accumulate_neighbours();
+        self.s.subnet_published = self.s.subnet_working.clone();
+        self.s.subnet_info_cursor = None;
+        true
+    }
+
+    /// §4.12 steps 1–4 for one lot.
+    fn accumulate_lot(&mut self, lot: u64) {
+        let h = self.h;
+        let r = h.lot_bounding_rect(lot);
+        let ids = self.s.lot_ring_labels(r);
+        let holder = h.lot_holder(lot);
+        if ids.is_empty() {
+            if holder != 0 {
+                h.remove_holder_property(holder, prop::LOT_SUBNETWORKS);
+            }
+            return;
+        }
+        if holder != 0 {
+            let items = ids.iter().map(|&id| Elem::U32(id)).collect();
+            h.set_holder_property(holder, prop::LOT_SUBNETWORKS, Variant::array(mem::UINT32, items));
+        }
+        let pops = h.lot_populations(lot);
+        let caps: [u32; 4] = std::array::from_fn(|k| h.max_trip_capacity(holder, k as u32));
+        for &id in &ids {
+            let Some(info) = self.s.subnet_working.get_mut(id as usize) else {
+                continue;
+            };
+            for (ty, count) in pops.iter().flatten() {
+                let slot = info.population.entry(*ty).or_insert(0);
+                *slot = slot.wrapping_add(*count);
+            }
+            add_capacity(info, &caps);
+        }
+    }
+
+    /// §4.12, after the last cell: every neighbour connection's pool
+    /// capacity is added to the label of each labelled entry side of its
+    /// in-city cell (not deduplicated *[quirk]*).
+    fn accumulate_neighbours(&mut self) {
+        let h = self.h;
+        for conn in h.all_connections() {
+            let (cx, cz) = h.connection_cell(conn);
+            // x = −1 → 0; x = X → X−1; else z = −1 → 0; z = Z → Z−1.
+            let (mut x, mut z) = (cx, cz);
+            if x == -1 {
+                x = 0;
+            } else if x == self.s.count_x {
+                x = self.s.count_x - 1;
+            } else if z == -1 {
+                z = 0;
+            } else if z == self.s.count_z {
+                z = self.s.count_z - 1;
+            }
+            let Some(subnet) = self.s.car_info(x, z).map(|r| r.subnet) else {
+                continue;
+            };
+            let Some(holder) = h.neighbor_pool_holder(cx, cz) else {
+                continue;
+            };
+            let c: [u32; 4] = std::array::from_fn(|k| h.max_trip_capacity(holder, k as u32));
+            for id in subnet.into_iter().filter(|&id| id != 0) {
+                if let Some(info) = self.s.subnet_working.get_mut(usize::from(id)) {
+                    add_capacity(info, &c);
                 }
             }
         }
     }
 }
 
-/// The neighbour pool's `GetMaxTripCapacity` for k = 0…3, if there is a pool
-/// property holder at the in-city cell (traffic-simulator.md §4.12,
-/// `GetNeighborPoolPropertyHolder`). FreeCity4 reads the pool through the
-/// host's connection property; `None` without one.
-fn neighbour_pool_capacities(h: &dyn NetworkHost, _x: i32, _z: i32) -> Option<[u32; 4]> {
-    // The neighbour pool holder is not a network-model concern; the host
-    // exposes it through the connection's own property holder. This is a
-    // QUESTION for the coordinator (see docs/specs/QUESTIONS.md): the exact
-    // host callback for GetNeighborPoolPropertyHolder. Until then, no pool.
-    let _ = h;
-    None
+impl NetworkModel {
+    /// The subnetwork clear step (§4.11).
+    pub fn clear_subnetworks(&self) {
+        self.s.borrow_mut().clear_subnetworks();
+    }
+
+    /// `UpdateSubnetworks` (§4.11).
+    pub fn update_subnetworks(&self) {
+        self.s.borrow_mut().update_subnetworks();
+    }
+
+    /// Enters state 13 (§4.12).
+    pub fn begin_subnetwork_info(&self) {
+        self.run(|cx| cx.begin_subnetwork_info());
+    }
+
+    /// Works on state 13 for at most `max_cells` cells (§4.12; the original
+    /// slices by its adaptive work-unit counter, which changes only when the
+    /// result is published). Returns true when published.
+    pub fn work_on_subnetwork_info(&self, max_cells: usize) -> bool {
+        self.run(|cx| cx.work_on_subnetwork_info(max_cells))
+    }
+
+    /// `UpdateSubnetworkInfo` run synchronously with no time limit, then
+    /// published (as DoPostCityInit does, §1 step 7).
+    pub fn update_subnetwork_info(&self) {
+        self.run(|cx| {
+            cx.begin_subnetwork_info();
+            cx.work_on_subnetwork_info(usize::MAX);
+        });
+    }
 }
