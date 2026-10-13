@@ -35,6 +35,7 @@
 #include "cRZBaseVariant.h"
 #include "cSCBaseProperty.h"
 #include "cISC4Simulator.h"
+#include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
 #include "FC4BudgetShadow.h"
@@ -61,6 +62,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1094,6 +1096,442 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- protection (protection.md): the replacement and the grid shadow ---------------------------------
+
+constexpr uint32_t kCLSID_FireProtection = 0x2990C05A;
+constexpr uint32_t kCLSID_Police = 0x6990C04F;
+constexpr uint32_t kIID_cISC4FireProtectionSimulator = 0x88F54C7B;
+constexpr uint32_t kIID_cISC4PoliceSimulator = 0x67659895;
+constexpr uint32_t kIID_cISC4DispatchSource = 0xC9C00435;
+constexpr uint32_t kIID_cIGZMessageTarget2Prot = 0x452294AA;
+
+// An empty caller list for the list getters. An SC4List is its root
+// pointer; a local root node needs no allocator (the getters free nodes only
+// when there are some, and append nothing here).
+struct EmptyOccupantList {
+    SC4ListNode<cISC4Occupant*> head{};
+    SC4ListNode<cISC4Occupant*>* root = nullptr;
+    EmptyOccupantList() {
+        head.next = &head;
+        head.prev = &head;
+        head.value = nullptr;
+        root = &head;
+    }
+    EmptyOccupantList(const EmptyOccupantList&) = delete;
+    EmptyOccupantList& operator=(const EmptyOccupantList&) = delete;
+    SC4List<cISC4Occupant*>& Get() { return *reinterpret_cast<SC4List<cISC4Occupant*>*>(&root); }
+    bool Empty() const { return root == &head && head.next == &head && head.prev == &head; }
+};
+
+// What both classes share (§1, §15.4, §5): QueryInterface, the dispatch
+// source without stations, and the day / month messages before and after
+// Init. `primary` holds one reference, kept.
+void CheckProtectionShared(cIGZUnknown* primary, uint32_t kind, uint32_t primaryIid, uint32_t clsid) {
+    void* p = nullptr;
+    CHECK(primary->QueryInterface(primaryIid, &p) && p == primary);
+    if (p) primary->Release();
+    void* u = nullptr;
+    CHECK(primary->QueryInterface(GZIID_cIGZUnknown, &u) && u == primary);  // the primary interface (§1)
+    if (u) primary->Release();
+    cIGZSerializable* ser = nullptr;
+    CHECK(primary->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+    if (ser) {
+        CHECK(ser->GetGZCLSID() == clsid);
+        ser->Release();
+    }
+    void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
+    CHECK(!primary->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
+    CHECK(!primary->QueryInterface(kind == 0 ? kIID_cISC4PoliceSimulator : kIID_cISC4FireProtectionSimulator,
+                                   &untouched));
+    CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+
+    cFC4ISC4DispatchSource* src = nullptr;
+    CHECK(primary->QueryInterface(kIID_cISC4DispatchSource, reinterpret_cast<void**>(&src)) && src != nullptr);
+    if (src != nullptr) {
+        // §15.4: slot 3 is a constant per class (EAX 0/1).
+        CHECK(src->CanHandleDispatchType(kind == 0 ? 1u : 0u) == 1u);
+        CHECK(src->CanHandleDispatchType(kind == 0 ? 0u : 1u) == 0u);
+        CHECK(src->CanHandleDispatchType(5u) == 0u);
+        bool allBusy = true;
+        CHECK(!src->CanDispatch(10.0f, 20.0f, &allBusy));  // no units (§8.2)
+        CHECK(src->GetMaxPossibleDispatchCount() == 0);
+        EmptyOccupantList l;
+        CHECK(src->GetStations(l.Get()) == 0u && l.Empty());
+        uint32_t flags = 7, base = 7, count = 7;
+        CHECK(!src->GetDispatchesAtStation(nullptr, &flags, &base, &count));
+        uint32_t id = 5;
+        CHECK(src->DispatchFromNearestStation(1.0f, 2.0f, &id) == nullptr && id == 0);  // *id := 0 first
+        CHECK(!src->RevokeDispatchFromStation(nullptr, 3));
+        uint32_t b = 0, d = 0;
+        float c[3] = {1.0f, 1.0f, 1.0f};
+        CHECK(src->GetDispatchAutomataProperties(0, &b, c, &d, 0));
+        // §8.2: fire 0x4202; police 0x4228 without a disaster in progress (no city here).
+        CHECK(b == (kind == 0 ? 0x4202u : 0x4228u));
+        CHECK(d == 0x11882u && c[0] == 0.0f && c[1] == 0.0f && c[2] == 0.0f);
+        src->Release();
+    }
+
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(primary->QueryInterface(kIID_cIGZMessageTarget2Prot, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+    if (mt != nullptr) {
+        TypeMessage day(kMsgSimNewDay);
+        TypeMessage month(kMsgSimNewMonth);
+        CHECK(mt->DoMessage(&month));  // before Init: the status line from the first month
+        CHECK(mt->DoMessage(&day));
+        mt->Release();
+    }
+}
+
+void CheckFireNeutral(cFC4ISC4FireProtectionSimulator* f) {
+    CHECK(f->GetFireProtectionGrid() == nullptr);
+    CHECK(f->GetDepartmentBudget() == nullptr);
+    CHECK(!f->IsFireStation(nullptr));
+    int32_t cost = 7;
+    SC4Percentage pct{0.5f};
+    CHECK(!f->GetStationFunding(nullptr, &cost, &pct));
+    CHECK(cost == 7 && pct.percentage == 0.5f);  // untouched (§6.6)
+    CHECK(!f->SetStationFunding(nullptr, pct));
+    SC4Percentage r{9.0f};
+    CHECK(f->GetStationEfficiency(&r, nullptr) == &r);  // the hidden result pointer in EAX (§15)
+    CHECK(!f->IsOnStrike());
+    r.percentage = 9.0f;
+    CHECK(f->GetChanceOfStrike(&r) == &r && r.percentage == 0.0f);  // 0 with no stations (§6.4)
+    CHECK(f->GetStrikeStartDate() == 0);
+    CHECK(f->GetStrikeLength() == 0xFFFFFFFFu);  // -1 without a date (§15.1 slot 16)
+    EmptyOccupantList l;
+    CHECK(f->GetStrikingStations(l.Get()) == 0 && l.Empty());
+    CHECK(!f->IsStationOnStrike(nullptr));
+    CHECK(f->GetAverageCoverage() == 0.0f);
+    const SC4Percentage* pc = f->GetPercentCoverage();
+    CHECK(pc != nullptr && pc->percentage == 0.0f);
+    CHECK(f->GetPercentCoverage() == pc);  // a stable member
+    float cover = 5.0f, station = 5.0f;
+    CHECK(!f->GetOccupantCoverage(nullptr, pct, cover, station));
+    CHECK(cover == 0.0f && station == 0.0f);  // fire zeroes both outputs first (§7.3)
+    CHECK(f->GetFireStations(l.Get()) == 0 && l.Empty());
+    CHECK(f->GetFireStationCount() == 0);
+    CHECK(f->GetStationDispatchRadius(nullptr) == 0.0f);
+    CHECK(f->GetTotalDispatchCount() == 0);
+}
+
+void CheckPoliceNeutral(cFC4ISC4PoliceSimulator* p) {
+    CHECK(p->GetPolicePowerGrid() == nullptr);
+    CHECK(p->GetDepartmentBudget() == nullptr);
+    CHECK(p->GetJailDepartmentBudget() == nullptr);
+    CHECK(!p->IsPoliceStation(nullptr));
+    int32_t cost = 7;
+    SC4Percentage pct{0.5f};
+    CHECK(!p->GetStationFunding(nullptr, &cost, &pct));
+    CHECK(cost == 7 && pct.percentage == 0.5f);
+    CHECK(!p->SetStationFunding(nullptr, pct));
+    SC4Percentage r{9.0f};
+    CHECK(p->GetStationEfficiency(&r, nullptr) == &r);
+    CHECK(!p->IsOnStrike());
+    r.percentage = 9.0f;
+    CHECK(p->GetChanceOfStrike(&r) == &r && r.percentage == 0.0f);
+    CHECK(p->GetStrikeStartDate() == 0);
+    CHECK(p->GetStrikeLength() == 0xFFFFFFFFu);
+    EmptyOccupantList l;
+    CHECK(p->GetStrikingStations(l.Get()) == 0 && l.Empty());
+    CHECK(!p->IsStationOnStrike(nullptr));
+    CHECK(p->GetAverageCoverage() == 0.0f);
+    const SC4Percentage* pc = p->GetPercentCoverage();
+    CHECK(pc != nullptr && pc->percentage == 0.0f);
+    float cover = 5.0f, station = 5.0f;
+    CHECK(!p->GetOccupantCoverage(nullptr, pct, cover, station));
+    CHECK(cover == 5.0f && station == 5.0f);  // police leaves them when it fails (§7.3)
+    CHECK(p->GetPoliceStations(l.Get()) == 0 && l.Empty());
+    CHECK(p->GetPoliceStationCount() == 0);
+    CHECK(p->GetStationDispatchRadius(nullptr) == 0.0f);
+    CHECK(p->GetTotalDispatchCount() == 0);
+    // Jails (§9).
+    CHECK(p->GetJailCapacityOf(nullptr) == 0);
+    CHECK(p->GetJailCapacity() == 0);
+    CHECK(p->GetJailPopulation() == 0);
+    CHECK(p->GetCriminalCount() == 0);
+    CHECK(p->GetJails(l.Get()) == 0 && l.Empty());
+    CHECK(!p->IsJail(nullptr));
+    CHECK(p->GetArrestCount() == 0);
+    CHECK(p->GetJailCount() == 0);
+    r.percentage = 9.0f;
+    CHECK(p->GetJailedPercentage(&r) == &r);
+    CHECK(p->GetJailCurrentUpkeepCost(nullptr) == 0);
+    CHECK(!p->IsInJailbreak(nullptr));
+    CHECK(!p->EndJailbreak(nullptr));  // AL = 0 always (§15.2 slot 41)
+    CHECK(p->GetJailbreakBuildings(l.Get()) == 0 && l.Empty());  // 0, list untouched (slot 42)
+    CHECK(p->GetPoliceStationArrestCount(nullptr) == 0);
+    CHECK(p->GetPoliceStationCrimeCount(nullptr) == 0);
+    CHECK(p->ProcessMonthlyCrimeStats());  // [choice] true (§15.2 slot 38)
+}
+
+// Threads (cFC4Protection.h): the game calls getters from a second thread
+// while the main thread is inside a call into the simulator. This message's
+// QueryInterface runs inside DoMessage, with the object's lock held by the
+// main thread: getters from another thread must not wait for it (20 ms, then
+// the month-end snapshot), and are counted as fallbacks.
+class LockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit LockHeldMessage(cFC4ISC4FireProtectionSimulator* f) : fire(f) {}
+    cFC4ISC4FireProtectionSimulator* fire;
+    bool ran = false;
+    uint32_t count = 99;
+    bool strike = true;
+    const SC4Percentage* pct = nullptr;
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread t([this] {
+            count = fire->GetFireStationCount();
+            strike = fire->IsOnStrike();
+            pct = fire->GetPercentCoverage();
+        });
+        t.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+void CheckFireThreads(cFC4ISC4FireProtectionSimulator* fire) {
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(fire->QueryInterface(kIID_cIGZMessageTarget2Prot, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+    if (mt == nullptr) return;
+    LockHeldMessage msg(fire);
+    CHECK(mt->DoMessage(&msg));
+    CHECK(msg.ran);
+    CHECK(msg.count == 0 && !msg.strike && msg.pct == fire->GetPercentCoverage());  // the snapshot's values
+    CHECK(msg.ms >= 15 && msg.ms < 5000);  // the getters waited (about 20 ms each), none blocked
+    // Without contention another thread gets the lock at once (no fallback).
+    uint32_t n = 99;
+    std::thread t([&] { n = fire->GetFireStationCount(); });
+    t.join();
+    CHECK(n == 0);
+    mt->Release();
+}
+
+int ProtectionEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = protection` registers both simulators
+    // (§13.2: replaced together). protection_shadow is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_PROTECTION_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = protection\n[tools]\nprotection_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr);
+    if (director != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + protection (2); never the game's grid
+        // classes (simgrid.md §6.3) nor the air dispatch sources (§8.4).
+        CHECK(classes.size() == 6);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_FireProtection) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Police) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), 0x4C0AE114u) == 0);
+        CHECK(std::count(classes.begin(), classes.end(), 0x0C0B06E8u) == 0);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_FireProtection, kIID_cISC4FireProtectionSimulator, &obj));
+        auto* fire = static_cast<cFC4ISC4FireProtectionSimulator*>(obj);
+        if (fire != nullptr) {
+            CheckFireNeutral(fire);
+            CheckProtectionShared(fire, 0, kIID_cISC4FireProtectionSimulator, kCLSID_FireProtection);
+            // Init without a city or GZCOM: no grids, no department, no air
+            // source; a clean lifecycle (§4), and still neutral.
+            CHECK(fire->Init());
+            CHECK(fire->Init());
+            CheckFireNeutral(fire);
+            CheckFireThreads(fire);
+            CHECK(fire->Shutdown());
+            CHECK(fire->Release() == 0);
+        }
+        obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Police, kIID_cISC4PoliceSimulator, &obj));
+        auto* police = static_cast<cFC4ISC4PoliceSimulator*>(obj);
+        if (police != nullptr) {
+            CheckPoliceNeutral(police);
+            CheckProtectionShared(police, 1, kIID_cISC4PoliceSimulator, kCLSID_Police);
+            CHECK(police->Init());
+            CheckPoliceNeutral(police);
+            CHECK(police->Shutdown());
+            CHECK(police->Shutdown());
+            CHECK(police->Release() == 0);
+        }
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'protection': enabled (2 classes replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("subsystem 'flammability': off by default") != std::string::npos);
+    CHECK(text.find("cFC4FireProtectionSimulator(") != std::string::npos);
+    CHECK(text.find("cFC4PoliceSimulator(") != std::string::npos);
+    // The month status line (the first month, before Init) and Init's.
+    CHECK(text.find("protection month (fire): init=0") != std::string::npos);
+    CHECK(text.find("protection month (police): init=0") != std::string::npos);
+    CHECK(text.find("protection month (police jails): jails=0") != std::string::npos);
+    CHECK(text.find("protection Init (fire): init=1") != std::string::npos);
+    CHECK(text.find("protection Init (police): init=1") != std::string::npos);
+    CHECK(text.find("fallbacks=0") != std::string::npos);
+    CHECK(text.find("protection Shutdown (fire)") != std::string::npos);
+    CHECK(text.find("protection Shutdown (police)") != std::string::npos);
+    CHECK(text.find("cFC4FireProtectionSimulator destroyed (3 fallbacks)") != std::string::npos);
+    CHECK(text.find("cFC4PoliceSimulator destroyed (0 fallbacks)") != std::string::npos);
+    CHECK(text.find("protection shadow: requested (protection_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("protection shadow: ON") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin protection enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// The grid shadow (FC4ProtectionShadow.h) against fake ORIGINAL simulators:
+// fire with a 4 x 3 tract grid and no stations, police without a grid. Every
+// slot the shadow must not call traps.
+struct FakeProtCity {
+    FakeVtable cityVt, fireVt, policeVt, gridVt;
+    FakeObject city{}, fire{}, police{}, grid{};
+    uint8_t values[4][3] = {};  // [x][z]
+    SC4Percentage pct{0.25f};
+    int stationCalls = 0;
+    int tractReads = 0;
+};
+
+FakeProtCity* g_prot = nullptr;
+
+void* __fastcall ProtCityFire(void*, void*) { return &g_prot->fire; }        // cISC4City 57
+void* __fastcall ProtCityPolice(void*, void*) { return &g_prot->police; }    // cISC4City 65
+void* __fastcall ProtNull(void*, void*) { return nullptr; }                  // city 39; fire/police 6; police 5
+void* __fastcall ProtGrid(void*, void*) { return &g_prot->grid; }            // fire 5
+bool __fastcall ProtFalse(void*, void*) { return false; }                    // fire 11 / police 10
+SC4Percentage* __fastcall ProtChance(void*, void*, SC4Percentage* r) {     // fire 12 / police 11 (hidden ptr)
+    r->percentage = 0.0f;
+    return r;
+}
+float __fastcall ProtAverage(void*, void*) { return 12.5f; }                // fire 19 / police 18
+SC4Percentage const* __fastcall ProtPercent(void*, void*) { return &g_prot->pct; }  // fire 20 / police 19
+int32_t __fastcall ProtZero(void*, void*) { return 0; }                     // fire 25 / police 26
+int32_t __fastcall ProtStations(void*, void*, void*) {                      // fire 22 / police 21
+    ++g_prot->stationCalls;
+    return 0;  // no stations: the caller's list is left as it is
+}
+int32_t __fastcall GridTractSize(void*, void*) { return 2; }      // grid 10
+int32_t __fastcall GridShift(void*, void*) { return 1; }          // 11
+int32_t __fastcall GridCountX(void*, void*) { return 4; }         // 12
+int32_t __fastcall GridCountZ(void*, void*) { return 3; }         // 13
+float __fastcall GridWidth(void*, void*) { return 32.0f; }        // 14, 15
+float __fastcall GridInvWidth(void*, void*) { return 0.03125f; }  // 16, 17
+uint8_t __fastcall GridTractValue(void*, void*, int32_t x, int32_t z) {  // 22
+    ++g_prot->tractReads;
+    return (x >= 0 && x < 4 && z >= 0 && z < 3) ? g_prot->values[x][z] : 0;
+}
+
+void InitFakeProtCity(FakeProtCity& c) {
+    g_prot = &c;
+    c.cityVt.slots[39] = reinterpret_cast<void*>(&ProtNull);
+    c.cityVt.slots[57] = reinterpret_cast<void*>(&ProtCityFire);
+    c.cityVt.slots[65] = reinterpret_cast<void*>(&ProtCityPolice);
+    c.fireVt.slots[5] = reinterpret_cast<void*>(&ProtGrid);
+    c.fireVt.slots[6] = reinterpret_cast<void*>(&ProtNull);
+    c.fireVt.slots[11] = reinterpret_cast<void*>(&ProtFalse);
+    c.fireVt.slots[12] = reinterpret_cast<void*>(&ProtChance);
+    c.fireVt.slots[19] = reinterpret_cast<void*>(&ProtAverage);
+    c.fireVt.slots[20] = reinterpret_cast<void*>(&ProtPercent);
+    c.fireVt.slots[22] = reinterpret_cast<void*>(&ProtStations);
+    c.fireVt.slots[25] = reinterpret_cast<void*>(&ProtZero);
+    c.policeVt.slots[5] = reinterpret_cast<void*>(&ProtNull);
+    c.policeVt.slots[6] = reinterpret_cast<void*>(&ProtNull);
+    c.policeVt.slots[10] = reinterpret_cast<void*>(&ProtFalse);
+    c.policeVt.slots[11] = reinterpret_cast<void*>(&ProtChance);
+    c.policeVt.slots[18] = reinterpret_cast<void*>(&ProtAverage);
+    c.policeVt.slots[19] = reinterpret_cast<void*>(&ProtPercent);
+    c.policeVt.slots[21] = reinterpret_cast<void*>(&ProtStations);
+    c.policeVt.slots[26] = reinterpret_cast<void*>(&ProtZero);
+    c.gridVt.slots[10] = reinterpret_cast<void*>(&GridTractSize);
+    c.gridVt.slots[11] = reinterpret_cast<void*>(&GridShift);
+    c.gridVt.slots[12] = reinterpret_cast<void*>(&GridCountX);
+    c.gridVt.slots[13] = reinterpret_cast<void*>(&GridCountZ);
+    c.gridVt.slots[14] = reinterpret_cast<void*>(&GridWidth);
+    c.gridVt.slots[15] = reinterpret_cast<void*>(&GridWidth);
+    c.gridVt.slots[16] = reinterpret_cast<void*>(&GridInvWidth);
+    c.gridVt.slots[17] = reinterpret_cast<void*>(&GridInvWidth);
+    c.gridVt.slots[22] = reinterpret_cast<void*>(&GridTractValue);
+    c.city.vtbl = c.cityVt.slots.data();
+    c.fire.vtbl = c.fireVt.slots.data();
+    c.police.vtbl = c.policeVt.slots.data();
+    c.grid.vtbl = c.gridVt.slots.data();
+    c.values[1][2] = 5;  // the original's grid has one covered tract; ours (no stations) has none
+}
+
+int ProtectionShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_PROTECTION_SHADOW", nullptr);
+    // The observer's own month lines read other city slots: off here.
+    WriteTextFile(ini, "[tools]\nprotection_shadow = 1\ndigest = 0\nobserve = 0\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeProtCity city;
+    InitFakeProtCity(city);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the shadow's setting
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_FireProtection) == 0);  // the originals stay
+        seam(kFC4SeamObserverCity, &city.city, nullptr);
+        // Three month ends (2000-02-01, 03-01, 04-01): our grid is the same
+        // each time, so the third one expects an exact match.
+        for (intptr_t julian : {2451576, 2451605, 2451636}) {
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(julian));
+        }
+        seam(kFC4SeamObserverCity, nullptr, nullptr);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    CHECK(city.stationCalls == 6);       // both simulators, three months
+    CHECK(city.tractReads == 3 * 12);    // fire only: 4 x 3 tracts a month
+    const std::string text = ReadFile(log);
+    CHECK(text.find("protection shadow: ON (protection_shadow from FreeCity4.ini)") != std::string::npos);
+    CHECK(text.find("protection shadow: NOT readable read-only") != std::string::npos);
+    CHECK(text.find("protection shadow (fire) 2000-02-01: cells=12 mismatches=1 max|diff|=5 stations=0 dispatches=0 "
+                    "stable=0 expectExact=0 first=(1,2):5/0; efficiency mismatches=0/0; radius mismatches=0/0; "
+                    "strike=0; chance orig/ours=0/0; totalDispatch orig/ours=0/0; avg=12.5 pct=0.25 (original)") !=
+          std::string::npos);
+    CHECK(text.find("protection shadow (fire) 2000-03-01: cells=12 mismatches=1 max|diff|=5 stations=0 dispatches=0 "
+                    "stable=1 expectExact=0") != std::string::npos);
+    CHECK(text.find("protection shadow (fire) 2000-04-01: cells=12 mismatches=1 max|diff|=5 stations=0 dispatches=0 "
+                    "stable=2 expectExact=1") != std::string::npos);
+    CHECK(text.find("protection shadow (fire) 2000-04-01: WARNING 1 cells differ although the grid should be exact") !=
+          std::string::npos);
+    CHECK(CountOf(text, "protection shadow (police) ") == 3);
+    CHECK(text.find("protection shadow (police) 2000-02-01: skipped (the original has no coverage grid yet)") !=
+          std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin protection shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1122,6 +1560,9 @@ int main(int argc, char** argv) {
         return PopupsChild(dll, ini, mode.substr(popupsPrefix.size()));
     }
     if (mode == "--ini-popups") return PopupsTest(dll, ini, log);
+    // Protection (protection.md): the replacement, and the grid shadow.
+    if (mode == "--ini-enable-protection") return ProtectionEnableTest(dll, ini, log);
+    if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -1240,7 +1681,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 72): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 80): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -2535,11 +2976,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 72 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 72 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 80 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 80 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 72): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 80): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

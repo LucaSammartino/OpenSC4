@@ -1192,6 +1192,165 @@ public:
 };
 #endif
 
+// ---- protection (docs/specs/protection.md §15) ---------------------------------------------------
+
+class cISC4Automaton;
+class cISC4DispatchManager;
+class cISC4DispatchSource;
+class cISC4FireProtectionSimulator;
+class cISC4PoliceSimulator;
+class cISC4PylonOccupant;
+
+// cISC4FireProtectionSimulator (IID 0x88F54C7B), 26 slots in compiled order
+// (§15.1). Implemented by cFC4FireProtectionSimulator. SDK errors fixed: slot 5
+// is a uint8 grid; 10 and 12 return an SC4Percentage by value (written here as
+// the hidden result pointer: pop 8 / 4, EAX = that pointer); 17 returns the
+// number appended; 20 returns a pointer. [abi] The lists are ilist with the
+// framework allocator (A, allocators.md): SC4List is compatible.
+class cFC4ISC4FireProtectionSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                // 3
+    virtual bool Shutdown() = 0;                                                            // 4
+    virtual cISC4SimGrid<uint8_t>* GetFireProtectionGrid() = 0;                             // 5  (SDK: int16)
+    virtual cISC4DepartmentBudget* GetDepartmentBudget() = 0;                               // 6
+    virtual bool IsFireStation(cISC4Occupant* occupant) = 0;                                // 7
+    virtual bool GetStationFunding(cISC4Occupant* occupant, int32_t* cost, SC4Percentage* funding) = 0;  // 8
+    virtual bool SetStationFunding(cISC4Occupant* occupant, SC4Percentage const& funding) = 0;  // 9
+    virtual SC4Percentage* GetStationEfficiency(SC4Percentage* result, cISC4Occupant* occupant) = 0;  // 10 (SDK: float())
+    virtual bool IsOnStrike() = 0;                                                          // 11
+    virtual SC4Percentage* GetChanceOfStrike(SC4Percentage* result) = 0;                    // 12 (SDK: float)
+    virtual bool BeginStrike(cISC4Occupant* station) = 0;                                   // 13
+    virtual bool EndStrike() = 0;                                                           // 14
+    virtual uint32_t GetStrikeStartDate() = 0;                                              // 15
+    virtual uint32_t GetStrikeLength() = 0;                                                 // 16
+    virtual int32_t GetStrikingStations(SC4List<cISC4Occupant*>& list) = 0;                 // 17 (SDK: bool)
+    virtual bool IsStationOnStrike(cISC4Occupant* station) = 0;                             // 18
+    virtual float GetAverageCoverage() = 0;                                                 // 19
+    virtual SC4Percentage const* GetPercentCoverage() = 0;                                  // 20 (SDK: float)
+    virtual bool GetOccupantCoverage(cISC4Occupant* station, SC4Percentage const& p, float& coverRadius,
+                                     float& stationRadius) = 0;                             // 21
+    virtual int32_t GetFireStations(SC4List<cISC4Occupant*>& list) = 0;                     // 22
+    virtual uint32_t GetFireStationCount() = 0;                                             // 23
+    virtual float GetStationDispatchRadius(cISC4Occupant* station) = 0;                     // 24
+    virtual int32_t GetTotalDispatchCount() = 0;                                            // 25
+};
+
+// cISC4PoliceSimulator (IID 0x67659895), 45 slots in compiled order (§15.2).
+// Implemented by cFC4PoliceSimulator. SDK errors fixed as for fire, plus: the
+// two GetJailCapacity overloads are compiled at the first one's position in
+// reverse order (28 = (jail), 29 = ()), which shifts the SDK's 28-34 by one;
+// 27, 32 and 42 return int32 counts; 36 is an SC4Percentage by value; 37 takes
+// the jail and returns int64; 39 and 40 take the jail.
+class cFC4ISC4PoliceSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                // 3
+    virtual bool Shutdown() = 0;                                                            // 4
+    virtual cISC4SimGrid<uint8_t>* GetPolicePowerGrid() = 0;                                // 5  (SDK: short)
+    virtual cISC4DepartmentBudget* GetDepartmentBudget() = 0;                               // 6
+    virtual bool GetStationFunding(cISC4Occupant* occupant, int32_t* cost, SC4Percentage* funding) = 0;  // 7
+    virtual bool SetStationFunding(cISC4Occupant* occupant, SC4Percentage const& funding) = 0;  // 8
+    virtual cISC4DepartmentBudget* GetJailDepartmentBudget() = 0;                           // 9
+    virtual bool IsOnStrike() = 0;                                                          // 10
+    virtual SC4Percentage* GetChanceOfStrike(SC4Percentage* result) = 0;                    // 11 (SDK: float)
+    virtual bool BeginStrike(cISC4Occupant* station) = 0;                                   // 12
+    virtual bool EndStrike() = 0;                                                           // 13
+    virtual uint32_t GetStrikeStartDate() = 0;                                              // 14
+    virtual uint32_t GetStrikeLength() = 0;                                                 // 15
+    virtual int32_t GetStrikingStations(SC4List<cISC4Occupant*>& list) = 0;                 // 16 (SDK: bool)
+    virtual bool IsStationOnStrike(cISC4Occupant* station) = 0;                             // 17
+    virtual float GetAverageCoverage() = 0;                                                 // 18
+    virtual SC4Percentage const* GetPercentCoverage() = 0;                                  // 19 (SDK: float)
+    virtual bool GetOccupantCoverage(cISC4Occupant* station, SC4Percentage const& p, float& coverRadius,
+                                     float& stationRadius) = 0;                             // 20
+    virtual int32_t GetPoliceStations(SC4List<cISC4Occupant*>& list) = 0;                   // 21 (SDK: bool)
+    virtual bool IsPoliceStation(cISC4Occupant* occupant) = 0;                              // 22
+    virtual float GetStationDispatchRadius(cISC4Occupant* station) = 0;                     // 23
+    virtual uint32_t GetPoliceStationCount() = 0;                                           // 24
+    virtual SC4Percentage* GetStationEfficiency(SC4Percentage* result, cISC4Occupant* occupant) = 0;  // 25 (SDK: float())
+    virtual int32_t GetTotalDispatchCount() = 0;                                            // 26
+    virtual int32_t ResetUnjailedCriminals() = 0;                                           // 27 (SDK: bool)
+    virtual uint32_t GetJailCapacityOf(cISC4Occupant* jail) = 0;                            // 28 GetJailCapacity(occ)
+    virtual uint32_t GetJailCapacity() = 0;                                                 // 29 GetJailCapacity()
+    virtual uint32_t GetJailPopulation() = 0;                                               // 30
+    virtual uint32_t GetCriminalCount() = 0;                                                // 31
+    virtual int32_t GetJails(SC4List<cISC4Occupant*>& list) = 0;                            // 32
+    virtual bool IsJail(cISC4Occupant* occupant) = 0;                                       // 33
+    virtual uint32_t GetArrestCount() = 0;                                                  // 34
+    virtual uint32_t GetJailCount() = 0;                                                    // 35
+    virtual SC4Percentage* GetJailedPercentage(SC4Percentage* result) = 0;                  // 36 (SDK: uint32)
+    virtual int64_t GetJailCurrentUpkeepCost(cISC4Occupant* jail) = 0;                      // 37 (SDK: no argument)
+    // 38: no meaningful return (§15.2); [choice] a replacement returns true.
+    virtual bool ProcessMonthlyCrimeStats() = 0;                                            // 38
+    virtual bool IsInJailbreak(cISC4Occupant* jail) = 0;                                    // 39 (SDK: no argument)
+    virtual bool BeginJailbreak(cISC4Occupant* jail) = 0;                                   // 40 (SDK: float)
+    virtual bool EndJailbreak(cISC4Occupant* jail) = 0;                                     // 41 (AL = 0 always)
+    virtual int32_t GetJailbreakBuildings(SC4List<cISC4Occupant*>& list) = 0;               // 42 (SDK: bool)
+    virtual uint32_t GetPoliceStationArrestCount(cISC4Occupant* station) = 0;               // 43
+    virtual uint32_t GetPoliceStationCrimeCount(cISC4Occupant* station) = 0;                // 44
+};
+
+// The dispatch source (IID 0xC9C00435, no SDK header), 12 slots (§15.4). The
+// fire and police simulators implement it on a sub-object; the dispatch
+// manager calls it. Slots 3 and 6 put 0 / 1 in the whole of EAX.
+class cFC4ISC4DispatchSource : public cIGZUnknown {
+public:
+    virtual uint32_t CanHandleDispatchType(uint32_t type) = 0;                              // 3  EAX 0/1
+    virtual bool CanDispatch(float x, float z, bool* allBusy) = 0;                          // 4
+    virtual int32_t GetMaxPossibleDispatchCount() = 0;                                      // 5
+    virtual uint32_t GetStations(SC4List<cISC4Occupant*>& list) = 0;                        // 6  EAX 0/1
+    virtual bool GetDispatchesAtStation(cISC4Occupant* station, uint32_t* flags, uint32_t* base,
+                                        uint32_t* count) = 0;                               // 7
+    virtual cISC4Occupant* DispatchFromNearestStation(float x, float z, uint32_t* id) = 0;  // 8  borrowed
+    virtual bool DispatchFromStation(cISC4Occupant* station, uint32_t* id) = 0;             // 9
+    virtual bool RevokeDispatchFromStation(cISC4Occupant* station, uint32_t id) = 0;        // 10
+    virtual bool GetDispatchAutomataProperties(uint32_t a, uint32_t* b, float* c, uint32_t* d,
+                                               uint32_t e) = 0;                             // 11
+};
+
+// cISC4DispatchManager's dispatch record (docs/abi/layouts.md, 0x2C bytes):
+// GetDispatchInfo copies it without taking references.
+struct FC4DispatchInfo {
+    int32_t type;                    // +0x00
+    uint32_t id;                     // +0x04
+    uint32_t vehicleSlot;            // +0x08  the station's vehicle slot (low 16 bits used)
+    uint32_t viewHandle;             // +0x0C
+    bool inState5;                   // +0x10  set while the dispatch is in state 5
+    uint8_t pad[3];
+    float x, y, z;                   // +0x14  the target position
+    cISC4Occupant* station;          // +0x20
+    cISC4Automaton* automaton;       // +0x24
+    cISC4PylonOccupant* pylon;       // +0x28
+};
+static_assert(sizeof(void*) != 4 || sizeof(FC4DispatchInfo) == 0x2C, "DispatchInfo layout (layouts.md)");
+
+// cISC4DispatchManager (cSC4DispatchManager vtable 0x00A88108, docs/abi
+// vtables.tsv; 23 interface slots, slot 23 is the destructor). SDK error fixed:
+// RevokeAllDispatches takes the type (pops 4; SDK: no argument). Slot 12's
+// count is the capacity and is never written (allocators.md, Dispatch ID array).
+class cFC4ISC4DispatchManager : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                // 3
+    virtual bool Shutdown() = 0;                                                            // 4
+    virtual bool CanDispatch(int32_t type, float x, float z) = 0;                           // 5
+    virtual uint32_t Dispatch(int32_t type, float x, float z) = 0;                          // 6
+    virtual bool RevokeDispatchByID(uint32_t id) = 0;                                       // 7
+    virtual bool RevokeDispatchByPylon(cISC4PylonOccupant* pylon) = 0;                      // 8
+    virtual bool RevokeAllDispatches(int32_t type) = 0;                                     // 9
+    virtual bool GetDispatchInfo(uint32_t id, FC4DispatchInfo& info) = 0;                   // 10
+    virtual uint32_t GetDispatchCount(int32_t type) = 0;                                    // 11
+    virtual uint32_t GetDispatchIDArray(int32_t type, uint32_t* ids, uint32_t& capacity) = 0;  // 12
+    virtual bool RegisterDispatchSource(cISC4DispatchSource* source) = 0;                   // 13
+    virtual bool UnregisterDispatchSource(cISC4DispatchSource* source) = 0;                 // 14
+    virtual cISC4DispatchSource* GetDispatchSource(int32_t type) = 0;                       // 15
+    virtual bool BeginDispatchTool(int32_t type) = 0;                                       // 16
+    virtual bool EndDispatchTool(int32_t type) = 0;                                         // 17
+    virtual cISC4PylonOccupant* GetActivePylon() = 0;                                       // 18
+    virtual void SetActivePylon(cISC4PylonOccupant* pylon) = 0;                             // 19
+    virtual cISC4Automaton* GetAutomatonFromPylon(cISC4PylonOccupant* pylon) = 0;           // 20
+    virtual uint32_t GetAvailablePylonCount(int32_t type) = 0;                              // 21
+    virtual void* GetDispatchVehicleView() = 0;                                             // 22
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1266,4 +1425,15 @@ inline cFC4ISC4PollutionSimulator* AsGame(cISC4PollutionSimulator* p) {
 inline cISC4PollutionSimulator* AsSdk(cFC4ISC4PollutionSimulator* p) {
     return reinterpret_cast<cISC4PollutionSimulator*>(p);
 }
+// The protection simulators and the dispatch manager travel as the SDK's
+// pointers (the city getters' types); single inheritance, vtable at offset 0.
+// Call them only through the verified declarations (§15).
+inline cFC4ISC4FireProtectionSimulator* AsGame(cISC4FireProtectionSimulator* p) {
+    return reinterpret_cast<cFC4ISC4FireProtectionSimulator*>(p);
+}
+inline cFC4ISC4PoliceSimulator* AsGame(cISC4PoliceSimulator* p) { return reinterpret_cast<cFC4ISC4PoliceSimulator*>(p); }
+inline cFC4ISC4DispatchManager* AsGame(cISC4DispatchManager* p) {
+    return reinterpret_cast<cFC4ISC4DispatchManager*>(p);
+}
+inline cISC4DispatchSource* AsSdk(cFC4ISC4DispatchSource* p) { return reinterpret_cast<cISC4DispatchSource*>(p); }
 }  // namespace fc4

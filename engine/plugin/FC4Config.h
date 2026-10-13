@@ -50,6 +50,9 @@
 //   pollution_shadow = 0 / 1      the pollution grid shadow (default 0; needs the
 //                                 original pollution simulator; FC4PollutionShadow.h)
 //   pollution_shadow_cells = N    its differing cells listed per grid (default 4)
+//   protection_shadow = 0 / 1     the fire / police grid shadow (default 0; needs
+//                                 the ORIGINAL protection simulators: do not enable
+//                                 protection; FC4ProtectionShadow.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -157,6 +160,22 @@ enum class Sw : unsigned {
     PollutionPopulation,  // pollution_population: the residential simulator's GetPopulation (off: 0)
     PollutionProps,       // pollution_props: Add / RemovePropRequester on the prop developer
     PollutionTerrain,     // pollution_terrain: terrain altitude reads (off: 0)
+    // Fire and police protection host callbacks (cFC4Protection.cpp), one per
+    // group of game calls; only used when the protection subsystem is enabled.
+    ProtectionOccupants,   // protection_occupants: occupant type, properties (reads and writes),
+                           //   position, the prop QI, lots (road access, the crime message's lot)
+                           //   (off: occupants look empty, no lot)
+    ProtectionBudget,      // protection_budget: departments, budget items, locally funded objects
+                           //   (off: no department, no budget item)
+    ProtectionDispatch,    // protection_dispatch: the dispatch manager (register / unregister the
+                           //   dispatch source, dispatch counts, IDs and records) (off: no dispatches)
+    ProtectionAutomata,    // protection_automata: Add / RemoveControllersFromOccupantGroup
+    ProtectionGridWrites,  // protection_grid_writes: SetTractValue / SetTractValues on the two grids
+    ProtectionPosts,       // protection_posts: the messages the protection simulators post
+    ProtectionHistory,     // protection_history: RecordHistoryData
+    ProtectionAirSources,  // protection_air_sources: create the fire plane / police helicopter
+                           //   dispatch source through GZCOM and call its non-virtual Init /
+                           //   Shutdown (docs/abi/direct-calls.md; identified executable only)
     Count
 };
 
