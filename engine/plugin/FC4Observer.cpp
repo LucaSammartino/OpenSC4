@@ -21,6 +21,7 @@
 #include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
+#include "FC4Popups.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 #include "cFC4Message2Standard.h"
@@ -485,6 +486,7 @@ public:
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
+                PopupDialogsApply("city load (PostCityInit)");  // only if PostAppInit could not make the call
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
