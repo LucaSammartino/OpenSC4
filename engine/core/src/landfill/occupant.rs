@@ -249,7 +249,7 @@ impl LandfillOccupant {
     /// passes 2): it counts holders of removal flags 1 and 2 in the base word.
     pub fn set_removal_flags(&self, flags: u32) {
         let mut d = self.d.borrow_mut();
-        let mut word = u16::from(d.base.removal);
+        let mut word = d.base.removal;
         if flags & 1 != 0 {
             word = (word & 0x00FF) | ((word >> 8).saturating_add(1) << 8);
         }

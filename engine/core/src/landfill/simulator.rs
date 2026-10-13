@@ -6,12 +6,10 @@
 
 //! The landfill developer's state and behaviour (§1–§4, §6.1).
 //!
-//! Everything that loops over zones and may dezone lives here rather than in
-//! [`super::zone`]: `DezoneCell` with `changeZone` makes the zone manager send
-//! `0x07699455`, which re-enters `DoZoneChange` while the caller is mid-loop
-//! (§4.4.8 step 4). A zone cannot call the developer, so the zone performs the
-//! dezone and **returns** the 1×1 rect; this module calls `PlaceZone` and
-//! re-enters immediately, reproducing the original's stack nesting.
+//! A dezone with `changeZone` calls the zone manager's `PlaceZone`, which
+//! **posts** `0x07699455` (§4.4.8 step 4 *[compat]*): the type-0
+//! `DoZoneChange` arrives through [`LandfillDeveloper::do_message`] on a later
+//! tick, so no loop here is re-entered.
 //!
 //! # Threading
 //!
@@ -33,7 +31,7 @@ use crate::x87::{ftol32, mul_i64_f32};
 
 use super::algo::{altitude_variance, zoning_cost};
 use super::tuning::Tuning;
-use super::zone::{LandfillZone, TerrainAction};
+use super::zone::LandfillZone;
 use super::{
     budget_ids, history, msg, CellRegion, LandfillHost, LandfillMessage, CLSID_LANDFILL_DEVELOPER, DEFAULT_EFFICIENCY,
     IID_LANDFILL_DEVELOPER, IID_MESSAGE_TARGET2, IID_SERIALIZABLE, IID_UNKNOWN, ZONE_TYPE_LANDFILL,
@@ -44,13 +42,6 @@ pub const DEVELOPER_RECORD_VERSION: u16 = 3;
 /// [choice] The most zones one save read creates. The original has no limit;
 /// the bound only stops a hostile record from allocating without end.
 pub const MAX_SAVED_ZONES: usize = 1 << 16;
-/// [choice] The most zones `DoTerrainChanged` removes in its re-run loop
-/// (§4.5.1). The original loops until no zone reports itself completely
-/// dezoned; because each removal re-enters `DoZoneChange`, a hostile host could
-/// keep the list growing, so the core caps the removals. A city has at most
-/// `cellCountX × cellCountZ` cells and each removal clears at least one mask
-/// bit, so the cap is never reached by a real game.
-pub const MAX_TERRAIN_REMOVALS: usize = 1 << 16;
 
 /// `QueryInterface` (§1): the four interfaces the class answers.
 pub fn answers_iid(iid: u32) -> bool {
@@ -150,6 +141,16 @@ impl LandfillDeveloper {
         self.initialised.get()
     }
 
+    /// The C `rand()` state the tile redraws draw from (§4.8).
+    pub fn crt(&self) -> CrtRand {
+        *self.crt.borrow()
+    }
+
+    /// Replaces the C `rand()` state (the host's `srand`, foundations §12.6).
+    pub fn set_crt(&self, crt: CrtRand) {
+        *self.crt.borrow_mut() = crt;
+    }
+
     /// The zone list as owned handles (§2.1). Every loop over the zones starts
     /// here so that no borrow outlives a host call (foundations §19 rule 4).
     pub fn zone_list(&self) -> Vec<Rc<LandfillZone>> {
@@ -198,14 +199,18 @@ impl LandfillDeveloper {
         true
     }
 
-    /// `Shutdown()` (slot 4): unsubscribe, release the services, shut down and
-    /// release every zone, clear the list, release the department and remove
-    /// the agent.
+    /// `Shutdown()` (slot 4): unsubscribe the five messages; for every zone
+    /// `Shutdown` and `Release`; clear the list; release the department, then
+    /// the services; `RemoveAgent`.
+    ///
+    /// *[choice]* The original releases the message server right after the
+    /// unsubscribes and the city last; the core makes one
+    /// [`LandfillHost::release_services`] call after the zones are shut down,
+    /// so a zone's effects are stopped while the city still holds them.
     pub fn shutdown(&self) -> bool {
         for m in msg::SUBSCRIPTIONS {
             self.host.unsubscribe(m);
         }
-        self.host.release_services();
         let zones = std::mem::take(&mut *self.zones.borrow_mut());
         for z in zones {
             z.shutdown();
@@ -215,6 +220,7 @@ impl LandfillDeveloper {
         if let Some(d) = department {
             self.host.release(d);
         }
+        self.host.release_services();
         self.host.remove_agent();
         true
     }
@@ -307,8 +313,10 @@ impl LandfillDeveloper {
             let Some(seagull) = effects.seagull else { continue };
             if level == 1 && !effects.seagull_started {
                 self.host.start_seagull(seagull, 0);
+                z.set_seagull_started(true);
             } else if level != 1 && effects.seagull_started {
                 self.host.stop_seagull(seagull, 1);
+                z.set_seagull_started(false);
             }
         }
     }
@@ -345,7 +353,7 @@ impl LandfillDeveloper {
                         z.populate_zone();
                         let tile_capacity = self.host.landfill_tile_capacity();
                         z.recalculate_capacity(tile_capacity);
-                        z.restart_zone_effects();
+                        z.init_zone_effects();
                     } else {
                         self.handle_zone_overlap(z, region, false, false);
                     }
@@ -376,7 +384,13 @@ impl LandfillDeveloper {
     }
 
     /// `HandleZoneOverlap(Z, region, changeZone, removeTexture)` (§4.4.2).
-    fn handle_zone_overlap(&self, zone: &Rc<LandfillZone>, region: &CellRegion, change_zone: bool, remove_texture: bool) {
+    fn handle_zone_overlap(
+        &self,
+        zone: &Rc<LandfillZone>,
+        region: &CellRegion,
+        change_zone: bool,
+        remove_texture: bool,
+    ) {
         // 1.
         let intersection = CellRegion::intersection(zone.rect(), region.rect());
         if let Some(i) = intersection {
@@ -399,14 +413,18 @@ impl LandfillDeveloper {
     /// `DezoneArea(Z, I, region, changeZone, removeTexture)` (§4.4.3): dezone
     /// every cell of `I` whose bit is set in the **region** mask, then mark the
     /// zone completely dezoned when it keeps no valid heap.
-    fn dezone_area(&self, zone: &Rc<LandfillZone>, i: CellRect, region: &CellRegion, change_zone: bool, remove_texture: bool) {
+    fn dezone_area(
+        &self,
+        zone: &Rc<LandfillZone>,
+        i: CellRect,
+        region: &CellRegion,
+        change_zone: bool,
+        remove_texture: bool,
+    ) {
         for x in i.x1..=i.x2 {
             for z in i.z1..=i.z2 {
-                if !region.is_set(x, z) {
-                    continue;
-                }
-                if let Some(rect) = zone.dezone_cell(x, z, change_zone, remove_texture) {
-                    self.rezone_cell(rect);
+                if region.is_set(x, z) {
+                    zone.dezone_cell(x, z, change_zone, remove_texture);
                 }
             }
         }
@@ -415,25 +433,11 @@ impl LandfillDeveloper {
         }
     }
 
-    /// §4.4.8 step 4: `PlaceZone` the 1×1 region to zone type 0. The zone
-    /// manager then sends `0x07699455` for that cell, which re-enters
-    /// `DoZoneChange` — immediately when the manager is synchronous, which is
-    /// the case in the shipped code *[inferred]*. A host that defers the message
-    /// delivers it through [`LandfillDeveloper::do_message`] instead, so the
-    /// core must not re-enter as well.
-    fn rezone_cell(&self, rect: CellRect) {
-        let region = CellRegion::all_set(rect);
-        if !self.host.place_zone(&region, 0) {
-            return;
-        }
-        if self.host.zoning_change_is_synchronous() {
-            self.do_zone_change(&region, 0);
-        }
-    }
-
-    /// `RemoveZone(Z, dezoneCells)` (§4.4.6): out of the list, cells rezoned to
-    /// type 0 with their tiles removed, then `Shutdown` and `Release`. No
-    /// capacity or budget update here — the callers do it, or not (§4.5.1).
+    /// `RemoveZone(Z, dezoneCells)` (§4.4.6): out of the list; with
+    /// `dezoneCells` every mask cell gets `DezoneCell(x, z, true, true)` (its
+    /// tile removed and a type-0 `PlaceZone` posted); then `Shutdown` and
+    /// `Release`. No capacity or budget update here — the callers do it, or
+    /// not (§4.5.1).
     pub fn remove_zone(&self, zone: &Rc<LandfillZone>, dezone_cells: bool) {
         {
             let mut zones = self.zones.borrow_mut();
@@ -444,9 +448,7 @@ impl LandfillDeveloper {
         if dezone_cells {
             let region = zone.region();
             for (x, z) in region.mask_cells().collect::<Vec<_>>() {
-                if let Some(rect) = zone.dezone_cell(x, z, true, true) {
-                    self.rezone_cell(rect);
-                }
+                zone.dezone_cell(x, z, true, true);
             }
         }
         zone.shutdown();
@@ -454,45 +456,21 @@ impl LandfillDeveloper {
 
     // ---- terrain (§4.5.1, §4.5.2) ----
 
-    /// `DoTerrainChanged(rect)` (§4.5.1): every zone handles the change, then
-    /// every zone that reports itself completely dezoned is removed with
+    /// `DoTerrainChanged(rect)` (§4.5.1): every zone handles the change
+    /// (`HandleTerrainChange`, §4.5.2), then every zone for which
+    /// `IsCompletelyDezoned()` is true, in list order, is removed with
     /// `RemoveZone(Z, true)`.
     ///
-    /// The removal loop re-runs the test after each removal, because a removal's
-    /// `DezoneCell(changeZone = true)` re-enters `DoZoneChange` and can change
-    /// the list. *[quirk]* Neither `RecalculateCapacity` nor
-    /// `UpdateCapacityValues` nor `UpdateBudgetRequirements` runs.
+    /// *[quirk]* Neither `RecalculateCapacity` nor `UpdateCapacityValues` nor
+    /// `UpdateBudgetRequirements` runs.
     pub fn do_terrain_changed(&self, rect: CellRect) {
-        for z in self.zone_list() {
-            self.handle_terrain_change(&z, rect);
-        }
-        for _ in 0..MAX_TERRAIN_REMOVALS {
-            let next = self
-                .zone_list()
-                .into_iter()
-                .find(|z| z.is_completely_dezoned());
-            let Some(z) = next else { break };
-            self.remove_zone(&z, true);
-        }
-    }
-
-    /// `HandleTerrainChange(rect)` (§4.5.2): every mask cell of `rect ∩ zone
-    /// rect`. The zone decides; this module performs the `PlaceZone` re-entry a
-    /// dezone asks for.
-    fn handle_terrain_change(&self, zone: &Rc<LandfillZone>, rect: CellRect) {
-        let Some(i) = CellRegion::intersection(zone.rect(), rect) else {
-            return;
-        };
         let move_with_terrain = self.tuning.borrow().move_with_terrain;
-        let region = zone.region();
-        for x in i.x1..=i.x2 {
-            for z in i.z1..=i.z2 {
-                if !region.is_set(x, z) {
-                    continue;
-                }
-                if let TerrainAction::Dezone(r) = zone.handle_cell_terrain_change(x, z, move_with_terrain) {
-                    self.rezone_cell(r);
-                }
+        for z in self.zone_list() {
+            z.handle_terrain_change(rect, move_with_terrain);
+        }
+        for z in self.zone_list() {
+            if z.is_completely_dezoned() {
+                self.remove_zone(&z, true);
             }
         }
     }
@@ -571,7 +549,7 @@ impl LandfillDeveloper {
                 t.max_per_month_per_tile,
                 t.decay_rate,
                 t.max_decay_per_zone,
-                &mut *self.crt.borrow_mut(),
+                &mut self.crt.borrow_mut(),
             );
             if z.connected() {
                 available = available.wrapping_add(z.available_capacity());
@@ -660,11 +638,7 @@ impl LandfillDeveloper {
     pub fn get_zoning_cost(&self, region: &CellRegion) -> i64 {
         let t = self.tuning();
         let rect = region.rect();
-        let target = match self
-            .zone_list()
-            .iter()
-            .find(|z| CellRegion::intersects(z.rect(), rect))
-        {
+        let target = match self.zone_list().iter().find(|z| CellRegion::intersects(z.rect(), rect)) {
             Some(z) => z.level_altitude(),
             None => {
                 let v = altitude_variance(rect, self.host.sea_level(), |x, z| self.host.cell_altitude(x, z));

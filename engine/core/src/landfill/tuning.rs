@@ -128,10 +128,7 @@ pub fn shipped_tuning() -> PropertyHolder {
     h.add(prop::MAX_DECAY_PER_ZONE, Variant::Scalar(Elem::U32(1500)));
     h.add(prop::DEFAULT_TILE_COST, Variant::Scalar(Elem::I64(5)));
     // §4.1: stored as an s64 and converted to 4.0 by the variant.
-    h.add(
-        prop::COST_PER_CELL_HEIGHT_CHANGE,
-        Variant::Scalar(Elem::I64(4)),
-    );
+    h.add(prop::COST_PER_CELL_HEIGHT_CHANGE, Variant::Scalar(Elem::I64(4)));
     h.add(prop::MOVE_WITH_TERRAIN, Variant::Scalar(Elem::Bool(true)));
     h
 }

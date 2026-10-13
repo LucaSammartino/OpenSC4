@@ -104,7 +104,12 @@ pub fn altitude_variance(rect: CellRect, sea: f32, altitude: impl Fn(i32, i32) -
 ///    absolute difference, on the **raw** altitude with no sea adjustment.
 /// 4. `round(kCostPerCellHeightChange × s)`: one `f32` product, then the magic
 ///    round, zero-extended to `int64`.
-pub fn zoning_cost(region: &CellRegion, target: Option<f32>, cost_per_cell: f32, altitude: impl Fn(i32, i32) -> f32) -> i64 {
+pub fn zoning_cost(
+    region: &CellRegion,
+    target: Option<f32>,
+    cost_per_cell: f32,
+    altitude: impl Fn(i32, i32) -> f32,
+) -> i64 {
     let Some(target) = target else { return 0 };
     let t = f64::from(target);
     let mut s = 0.0f64;
@@ -146,11 +151,7 @@ pub fn decay_amount(contained: u32, decay_rate: f32, per_zone_cap: u32) -> u32 {
         return 0;
     }
     let raw = magic_round(r24(float_of_u32(contained) * f64::from(decay_rate)));
-    let d = if raw == 0 {
-        1u32
-    } else {
-        (raw as u32).min(per_zone_cap)
-    };
+    let d = if raw == 0 { 1u32 } else { (raw as u32).min(per_zone_cap) };
     d.min(contained)
 }
 
@@ -437,24 +438,14 @@ mod tests {
     fn variance_matches_tests_3_and_5() {
         // Conformance test 3: 2×2 region, altitudes 270, 272, 280, 290 in
         // (x outer, z inner) order → min 270, max 290, variance 20, mean 278.
-        let t = Terrain::flat(270.0).with(&[
-            ((0, 0), 270.0),
-            ((0, 1), 272.0),
-            ((1, 0), 280.0),
-            ((1, 1), 290.0),
-        ]);
+        let t = Terrain::flat(270.0).with(&[((0, 0), 270.0), ((0, 1), 272.0), ((1, 0), 280.0), ((1, 1), 290.0)]);
         let v = altitude_variance(CellRect::new(0, 0, 1, 1), 250.0, |x, z| t.at(x, z));
         assert_eq!((v.min, v.max, v.variance, v.mean), (270.0, 290.0, 20.0, 278.0));
 
         // Conformance test 5: the centre cell (x0, z0) is 251, (x0+1, z0) is
         // 240 (below sea 250) so it counts as 251, (x0, z0+1) 260,
         // (x0+1, z0+1) 262 → min 251, max 262, variance 11, mean 256.
-        let t = Terrain::flat(251.0).with(&[
-            ((0, 0), 251.0),
-            ((1, 0), 240.0),
-            ((0, 1), 260.0),
-            ((1, 1), 262.0),
-        ]);
+        let t = Terrain::flat(251.0).with(&[((0, 0), 251.0), ((1, 0), 240.0), ((0, 1), 260.0), ((1, 1), 262.0)]);
         let v = altitude_variance(CellRect::new(0, 0, 1, 1), 250.0, |x, z| t.at(x, z));
         assert_eq!((v.min, v.max, v.variance, v.mean), (251.0, 262.0, 11.0, 256.0));
         // The cost uses the raw altitudes: Σ|256 − a| = 5 + 16 + 4 + 6 = 31.
@@ -477,12 +468,7 @@ mod tests {
     fn zoning_cost_matches_tests_3_and_4() {
         // Conformance test 3: mean 278 over cells 270, 272, 280, 290 →
         // Σ|278 − a| = 8 + 6 + 2 + 12 = 28, cost round(4 × 28) = 112.
-        let t = Terrain::flat(270.0).with(&[
-            ((0, 0), 270.0),
-            ((0, 1), 272.0),
-            ((1, 0), 280.0),
-            ((1, 1), 290.0),
-        ]);
+        let t = Terrain::flat(270.0).with(&[((0, 0), 270.0), ((0, 1), 272.0), ((1, 0), 280.0), ((1, 1), 290.0)]);
         let region = CellRegion::all_set(CellRect::new(0, 0, 1, 1));
         assert_eq!(zoning_cost(&region, Some(278.0), 4.0, |x, z| t.at(x, z)), 112);
         // Conformance test 4: a zone with levelAltitude 275 over cells 270,
@@ -510,7 +496,10 @@ mod tests {
         sorted.dedup();
         assert_eq!(sorted.len(), 9);
         // Ring 1 is the eight neighbours, clockwise from the top-left.
-        assert_eq!(&s[1..9], &[(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)]);
+        assert_eq!(
+            &s[1..9],
+            &[(0, 0), (1, 0), (2, 0), (2, 1), (2, 2), (1, 2), (0, 2), (0, 1)]
+        );
         // Clipped: a centre on the rect's corner still visits every cell.
         let s = spiral_cells(CellRect::new(0, 0, 1, 1), (0, 0));
         assert_eq!(s[0], (0, 0));

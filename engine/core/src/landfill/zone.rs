@@ -16,18 +16,13 @@
 //! nothing, and whose slot 4 is the destructor; FreeCity4 models that as
 //! [`LandfillZone::do_message`] and [`LandfillZone::shutdown`].
 //!
-//! Zones are `Rc`-held so that an operation can keep one alive after a
-//! re-entrant zoning change removed it from the developer's list (§4.4.8
-//! step 4).
+//! Zones are `Rc`-held, refcounted objects, as in the original.
 //!
-//! **Re-entrancy.** `DezoneCell` with `changeZone` makes the zone manager send
-//! `0x07699455` for the 1×1 cell, which re-enters `DoZoneChange` *while the
-//! zone is mid-operation* (§4.4.8 step 4). A zone cannot call the developer, so
-//! [`LandfillZone::dezone_cell`] performs steps 1–3 and 5 and **returns** the
-//! 1×1 region the caller must rezone; the developer calls
-//! [`super::LandfillHost::place_zone`] and re-enters itself immediately, after
-//! each cell, which is the original's stack nesting. The loops that dezone
-//! therefore live in `simulator.rs`, not here.
+//! **No re-entrancy.** `DezoneCell` with `changeZone` calls the zone
+//! manager's `PlaceZone`, which **posts** `0x07699455` for the 1×1 cell
+//! (§4.4.8 step 4 *[compat]*): the type-0 `DoZoneChange` runs on a later
+//! message-server tick, after the pass that dezoned the cell has completed.
+//! So [`LandfillZone::dezone_cell`] performs all five steps itself.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -37,10 +32,14 @@ use crate::rng::CrtRand;
 use crate::stream::{InStream, OutStream, RefValue};
 use crate::x87::r24;
 
-use super::algo::{decay_amount, heap_capacity, neighbour_mask, redistribute, redistribute_share, spiral_cells, tile_of};
+use super::algo::{
+    decay_amount, heap_capacity, neighbour_mask, redistribute, redistribute_share, spiral_cells, tile_of,
+};
+use super::levelling::FLT_MAX;
 use super::{
-    msg, tile, CellRegion, LandfillHost, ZoneEffects, CONNECTIVITY_DEVELOPER_TYPES, NETWORK_TILE_MASK,
-    OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_LANDFILL, TERRAIN_MOVE_THRESHOLD, ZOT_HEIGHT, ZOT_PROP, ZONE_TYPE_LANDFILL,
+    msg, tile, CellRegion, LandfillHost, LandfillOccupant, ZoneEffects, CONNECTIVITY_DEVELOPER_TYPES,
+    NETWORK_TILE_MASK, OCCUPANT_TYPE_BASE_TEXTURE, OCCUPANT_TYPE_LANDFILL, TERRAIN_MOVE_THRESHOLD, ZONE_TYPE_LANDFILL,
+    ZOT_HEIGHT, ZOT_PROP,
 };
 
 /// The zone record's version (§6.2).
@@ -100,17 +99,14 @@ pub struct ZoneData {
     pub effects: ZoneEffects,
 }
 
-/// What one cell of a terrain change needs (§4.5.2). The zone performs the
-/// non-dezoning cases itself and reports the dezoning ones, because a dezone
-/// re-enters the developer (§4.4.8 step 4).
+/// What one cell of a terrain change did (§4.5.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TerrainAction {
-    /// Nothing to do.
+    /// Nothing.
     Nothing,
-    /// The cell was dezone-able and its mask bit is already clear; the caller
-    /// must `PlaceZone` the 1×1 region to zone type 0 (§4.5.2 step 1, or
-    /// step 2's empty-tile case).
-    Dezone(CellRect),
+    /// The cell was dezoned with `DezoneCell(x, z, true, true)` (§4.5.2
+    /// step 1, or step 2's empty-tile case).
+    Dezoned,
     /// The tile was moved with the terrain (§4.5.2 step 2's
     /// `kbMoveWithTerrain` case): position set, occupant manager slot 24 and
     /// occupant slot 15 called.
@@ -219,6 +215,12 @@ impl LandfillZone {
         self.d.borrow().effects
     }
 
+    /// Records whether the seagull effect is started (§3.2
+    /// PreViewLevelChange: `Start(0)` sets it, `Stop(1)` clears it).
+    pub fn set_seagull_started(&self, started: bool) {
+        self.d.borrow_mut().effects.seagull_started = started;
+    }
+
     /// The zone's `cIGZMessageTarget2`-shaped `DoMessage` (§1): returns true
     /// and does nothing.
     pub fn do_message(&self, _m: &super::LandfillMessage) -> bool {
@@ -237,15 +239,12 @@ impl LandfillZone {
         self.initialised.set(true);
         let rect = self.rect();
         let centre = CellRegion::centre_cell(rect);
-        {
-            let mut d = self.d.borrow_mut();
-            // An unordered compare, as the spec says: −0.0 == 0.0.
-            if d.level_altitude == 0.0 {
-                d.level_altitude = self.host.cell_altitude(centre.0, centre.1);
-            }
-            if d.effects == ZoneEffects::default() {
-                d.effects = self.host.init_zone_effects(centre, rect);
-            }
+        let effects = self.host.init_zone_effects(centre, rect);
+        self.d.borrow_mut().effects = effects;
+        // An exact compare: −0.0 == 0.0 (a NaN is not 0.0).
+        if self.level_altitude() == 0.0 {
+            let a = self.host.cell_altitude(centre.0, centre.1);
+            self.set_level_altitude(a);
         }
         true
     }
@@ -283,7 +282,8 @@ impl LandfillZone {
 
     // ---- heaps ----
 
-    /// The heap at local `(hx, hz)`, or `None` when out of range.
+    /// The heap at local `(hx, hz)` — vector index `hz × W + hx` — or `None`
+    /// when outside `0 ≤ hx < W`, `0 ≤ hz < H`.
     pub fn heap(&self, hx: i32, hz: i32) -> Option<Heap> {
         let d = self.d.borrow();
         heap_at(&d, hx, hz).copied()
@@ -421,11 +421,11 @@ impl LandfillZone {
         for (x, z) in CellRegion::cleared(rect).cells() {
             let was_mask = snapshot.is_set(x, z);
             if was_mask {
-                let has_network = self
-                    .host
-                    .find_network_tile(x, z, NETWORK_TILE_MASK, true)
-                    .is_some();
-                if self.host.zone_type(x, z) != ZONE_TYPE_LANDFILL || has_network {
+                // `GetZoneType(x, z) ≠ 14 or FindNetworkTile(…) ≠ null`, in
+                // that order (the network map is asked only for a zone-14 cell).
+                let drop = self.host.zone_type(x, z) != ZONE_TYPE_LANDFILL
+                    || self.host.find_network_tile(x, z, NETWORK_TILE_MASK, true).is_some();
+                if drop {
                     self.d.borrow_mut().region.set(x, z, false);
                 } else if self.host.occupant_at(x, z, OCCUPANT_TYPE_LANDFILL).is_some()
                     || self.host.occupant_at(x, z, OCCUPANT_TYPE_BASE_TEXTURE).is_some()
@@ -444,17 +444,17 @@ impl LandfillZone {
 
     // ---- DezoneCell (§4.4.8) ----
 
-    /// `DezoneCell(x, z, changeZone, removeTexture)` steps 1–3 and 5 (§4.4.8).
-    /// Returns the 1×1 region the caller must `PlaceZone` to zone type 0 when
-    /// `changeZone` is set, so that the caller can make the synchronous
-    /// `0x07699455` re-entry at the right moment (§4.4.8 step 4).
+    /// `DezoneCell(x, z, changeZone, removeTexture)` (§4.4.8).
     ///
     /// 1. Remove and release an existing zot.
     /// 2. If `removeTexture`: `RemoveLandfillTile(x, z)` and
     ///    `RemoveBaseTexture(x, z)`.
     /// 3. Clear the cell's mask bit; `InvalidateSurroundingHeaps(x, z)`.
+    /// 4. If `changeZone`: `zoneManager.PlaceZone(1×1 region at (x, z),
+    ///    zoneType 0, …)`. The zone manager **posts** `0x07699455`; nothing
+    ///    re-enters here (*[compat]*).
     /// 5. `cellCount` dirty.
-    pub fn dezone_cell(&self, x: i32, z: i32, change_zone: bool, remove_texture: bool) -> Option<CellRect> {
+    pub fn dezone_cell(&self, x: i32, z: i32, change_zone: bool, remove_texture: bool) {
         // 1.
         self.remove_zot();
         // 2.
@@ -465,16 +465,33 @@ impl LandfillZone {
         // 3.
         self.d.borrow_mut().region.set(x, z, false);
         self.invalidate_surrounding_heaps(x, z);
+        // 4. The result is not used.
+        if change_zone {
+            let cell = CellRegion::all_set(CellRect::new(x, z, x, z));
+            self.host.place_zone(&cell, 0);
+        }
         // 5.
         self.dirty_cell_count();
-        // 4. is the caller's: PlaceZone then the synchronous re-entry.
-        change_zone.then(|| CellRect::new(x, z, x, z))
     }
 
     // ---- terrain (§4.5.2, §4.5.3) ----
 
-    /// `HandleCellTerrainChange(x, z)` (§4.5.2). Returns what the caller still
-    /// has to do (the dezone's `PlaceZone` re-entry).
+    /// `HandleTerrainChange(rect)` (§4.5.2): `HandleCellTerrainChange` for
+    /// every mask cell of `rect ∩ zone rect`, `x` outer and `z` inner.
+    pub fn handle_terrain_change(&self, rect: CellRect, move_with_terrain: bool) {
+        let Some(i) = CellRegion::intersection(self.rect(), rect) else {
+            return;
+        };
+        for x in i.x1..=i.x2 {
+            for z in i.z1..=i.z2 {
+                if self.is_mask_cell(x, z) {
+                    self.handle_cell_terrain_change(x, z, move_with_terrain);
+                }
+            }
+        }
+    }
+
+    /// `HandleCellTerrainChange(x, z)` (§4.5.2).
     ///
     /// 1. No landfill occupant at the cell → `DezoneCell(x, z, true, true)`
     ///    *[compat]*: any terraforming over an empty landfill cell dezones it,
@@ -489,7 +506,7 @@ impl LandfillZone {
         let Some(occ) = self.host.occupant_at(x, z, OCCUPANT_TYPE_LANDFILL) else {
             // 1.
             self.dezone_cell(x, z, true, true);
-            return TerrainAction::Dezone(CellRect::new(x, z, x, z));
+            return TerrainAction::Dezoned;
         };
         if !self.host.is_landfill_occupant(occ) {
             return TerrainAction::Nothing;
@@ -498,12 +515,13 @@ impl LandfillZone {
         let p = self.host.occupant_position(occ);
         let a = self.host.altitude_at_nearest_grid(p[0], p[2]);
         let delta = r24(f64::from(p[1]) - f64::from(a)) as f32;
-        if delta.abs() < TERRAIN_MOVE_THRESHOLD {
+        // `|δ| ≥ 0.25`: a NaN δ does not pass.
+        if delta.is_nan() || delta.abs() < TERRAIN_MOVE_THRESHOLD {
             return TerrainAction::Nothing;
         }
         if self.host.is_empty_landfill_tile(occ) {
             self.dezone_cell(x, z, true, true);
-            return TerrainAction::Dezone(CellRect::new(x, z, x, z));
+            return TerrainAction::Dezoned;
         }
         if !move_with_terrain {
             return TerrainAction::Nothing;
@@ -520,9 +538,11 @@ impl LandfillZone {
     /// altitude`, then either `terrain.SetAltitude(clamped rect, altitude, 1, 5)`
     /// (`direct = true`, never used by the shipped code) or
     /// `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, 0.0,
-    /// true, true, FLT_MAX, null)`. *[quirk 10]* The requested altitude is
-    /// **not** passed to the levelling (the float argument is 0.0); what the
-    /// terrain becomes is the lot developer's decision.
+    /// true, true, FLT_MAX, null)`, whose result is ignored. *[quirk 10]* The
+    /// requested altitude is **not** passed (the float argument is 0.0 and is
+    /// never read): the lot developer levels to the rect's **vertex** average,
+    /// or not at all when its slope exceeds 40, while `levelAltitude` keeps
+    /// the caller's cell-centre mean.
     pub fn level_rect(&self, rect: CellRect, altitude: f32, direct: bool) {
         self.set_level_altitude(altitude);
         if direct {
@@ -535,8 +555,7 @@ impl LandfillZone {
             );
             self.host.set_altitude(clamped, altitude);
         } else {
-            self.host
-                .attempt_area_levelling(rect, 0.0, true, true, f32::MAX, );
+            let _ignored = self.host.attempt_area_levelling(rect, 0.0, true, true, FLT_MAX);
         }
     }
 
@@ -547,31 +566,36 @@ impl LandfillZone {
     /// each time it is needed, §4.1) and `cell_count` the zone's mask cells.
     pub fn calculate_garbage_heap_capacity(&self, tile_capacity: u32, valid_heaps: i32) -> u32 {
         let cells = self.cell_count();
-        heap_capacity(tile_capacity, cells, valid_heaps) as u32
+        heap_capacity(tile_capacity, cells, valid_heaps)
     }
 
     /// `RecalculateCapacity()` (§4.6.2): `c := CalculateGarbageHeapCapacity(v)`;
     /// for each heap in vector order `capacity := valid ? c : 0`, and if
     /// `contained > capacity` (unsigned) the excess goes back to pollution's
-    /// supply (`AddToGarbageSupply`) and `contained := capacity` (the
-    /// `landfilled` counter is **not** reduced). `totalCapacity := v × c`.
-    /// Returns the total capacity.
+    /// supply — one `AddToGarbageSupply(contained − capacity)` per such heap,
+    /// as an `int32` — and `contained := capacity` (the `landfilled` counter
+    /// is **not** reduced). `totalCapacity := v × c`. Returns the total
+    /// capacity.
     pub fn recalculate_capacity(&self, tile_capacity: u32) -> u32 {
         let v = self.num_valid_heaps();
         let c = self.calculate_garbage_heap_capacity(tile_capacity, v);
-        let mut spill = 0i64;
-        {
-            let mut d = self.d.borrow_mut();
-            for h in d.heaps.iter_mut() {
+        let n = self.d.borrow().heaps.len();
+        for i in 0..n {
+            let spill = {
+                let mut d = self.d.borrow_mut();
+                let h = &mut d.heaps[i];
                 h.capacity = if h.valid { c } else { 0 };
                 if h.contained > h.capacity {
-                    spill += i64::from(h.contained - h.capacity);
+                    let excess = h.contained - h.capacity;
                     h.contained = h.capacity;
+                    Some(excess)
+                } else {
+                    None
                 }
+            };
+            if let Some(excess) = spill {
+                self.host.add_to_garbage_supply(excess as i32);
             }
-        }
-        if spill != 0 {
-            self.host.add_to_garbage_supply(spill as i32);
         }
         v.wrapping_mul(c as i32) as u32
     }
@@ -724,9 +748,7 @@ impl LandfillZone {
     pub fn is_zone_connected(&self) -> bool {
         let dilated = self.dilated_region();
         let ids = self.host.subnetworks_in_region(&dilated);
-        if ids.is_empty() {
-            return false;
-        }
+        // Every type is asked until one connects, even with no subnetwork.
         for &dev_type in CONNECTIVITY_DEVELOPER_TYPES.iter() {
             let counts = self.host.occupant_count_for_all_subnetworks(dev_type);
             for &id in &ids {
@@ -819,13 +841,8 @@ impl LandfillZone {
             };
             ((d.region.x0, d.region.z0), heap.hx as i32, heap.hz as i32, d.w, d.h)
         };
-        let active = |i: i32, j: i32| {
-            self.d
-                .borrow()
-                .heaps
-                .get(heap_index(i, j, w))
-                .is_some_and(|hp| hp.hz as i32 == j && hp.hx as i32 == i && hp.active)
-        };
+        // `A(i, j)`: heap `(i, j)` (vector index `j × W + i`) is active.
+        let active = |i: i32, j: i32| heap_at(&self.d.borrow(), i, j).is_some_and(|hp| hp.active);
         for (dx, dz) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
             let (cx, cz) = (hx + dx, hz + dz);
             let mask = neighbour_mask(cx, cz, w, h, active);
@@ -865,30 +882,30 @@ impl LandfillZone {
             return true;
         }
         // 3.
-        let Some(occ) = self.host.create_landfill_occupant(tile_id, orientation) else {
-            return false;
-        };
-        if let Some(ex) = self.host.exemplar(tile::TYPE, tile::GROUP, tile_id) {
+        let exemplar = self.host.exemplar(tile::TYPE, tile::GROUP, tile_id);
+        let occ = LandfillOccupant::new(tile_id, orientation);
+        if let Some(ex) = exemplar {
             let key = crate::stream::ResKey {
                 type_id: tile::TYPE,
                 group: tile::GROUP,
                 instance: tile_id,
             };
-            let mut holder = crate::property::ExemplarHolder::default();
-            holder.parent = Some((key, ex));
+            let holder = crate::property::ExemplarHolder {
+                parent: Some((key, ex)),
+                ..Default::default()
+            };
             occ.attach_exemplar(holder);
         }
         // The constructor already set flag 4 (§2.3); §4.8.1 sets it again.
         occ.set_flag(super::occupant::CONSTRUCTOR_FLAG);
-        let token = self.host_token_of(&occ);
-        self.host.occupant_set_removal_flags(token, 2);
+        occ.set_removal_flags(2);
         self.host.set_is_active_landfill(x, z, true);
         occ.set_empty(false);
         let (px, pz) = self.host.cell_center_to_position(x, z);
         let y = self.host.cell_altitude(x, z);
-        self.host.occupant_set_position(token, [px, y, pz]);
-        self.host.occupant_init(token);
-        self.host.occupant_insert(token)
+        occ.set_position([px, y, pz]);
+        occ.init();
+        self.host.insert_landfill_occupant(&occ, x, z)
     }
 
     /// `RemoveLandfillTile(x, z)` (§4.8.3): remove a landfill occupant at the
@@ -899,14 +916,6 @@ impl LandfillZone {
             self.host.occupant_remove(occ);
         }
         self.host.set_is_active_landfill(x, z, false);
-    }
-
-    fn host_token_of(&self, occ: &Rc<super::LandfillOccupant>) -> u64 {
-        // The host created the occupant and wrapped it; the token it assigned is
-        // what the occupant-manager and occupant calls take. A host that has
-        // not assigned one yet gets 0, which its own calls must accept for an
-        // object it just made (mod.rs: the plugin owns the wrapping).
-        occ.token()
     }
 
     // ---- maintenance (§4.9.1) ----
@@ -934,8 +943,10 @@ impl LandfillZone {
 
     // ---- effects (§4.10, §3.2) ----
 
-    /// `ShutdownZoneEffects()` then `InitZoneEffects()` (§4.4.1 step 2).
-    pub fn restart_zone_effects(&self) {
+    /// `InitZoneEffects()` (§4.10, §4.4.1 step 2): the automata and the
+    /// seagull effect for the zone's current rect. Effects still running are
+    /// shut down first.
+    pub fn init_zone_effects(&self) {
         self.shutdown_zone_effects();
         let rect = self.rect();
         let centre = CellRegion::centre_cell(rect);
@@ -1012,13 +1023,11 @@ impl LandfillZone {
         let rect = CellRect::new(x0, z0, x1, z1);
         let mut region = CellRegion::all_set(rect);
         // The mask bytes: (x1−x0) × (z1−z0), x outer and z inner.
-        let mw = (x1 - x0).max(0);
-        let mh = (z1 - z0).max(0);
-        for x in x0..x1 {
+        'mask: for x in x0..x1 {
             for z in z0..z1 {
                 match inp.get_u8() {
                     Some(b) => region.set(x, z, b == 1),
-                    None => break,
+                    None => break 'mask,
                 }
             }
         }
@@ -1026,51 +1035,26 @@ impl LandfillZone {
             return inp.error() == 0;
         };
         let count = (w.max(0).saturating_mul(h.max(0))) as usize;
-        let mut heaps = Vec::with_capacity(count.min(super::MAX_SAVED_ZONES * 64));
-        let mut previous = Heap::new(0, 0);
+        let mut heaps = Vec::with_capacity(count.min(1 << 16));
+        // The original reads every heap into one reused object, so a heap whose
+        // read stops early keeps the previous heap's remaining values.
+        let mut heap = Heap::new(0, 0);
         for _ in 0..count {
-            // A heap keeps the previous heap's values when its version is wrong
-            // and the read then fails, so it is still appended [quirk].
-            let mut heap = previous;
-            let mut ok = true;
-            if let Some(v) = inp.get_u16() {
-                if v != HEAP_RECORD_VERSION {
-                    ok = false;
-                }
-            } else {
-                ok = false;
-            }
-            if let (Some(hx), Some(hz)) = (inp.get_u32(), inp.get_u32()) {
-                heap.hx = hx;
-                heap.hz = hz;
-            } else {
-                ok = false;
-            }
-            match inp.get_u16() {
-                Some(v) => heap.valid = v == 1,
-                None => ok = false,
-            }
-            match inp.get_u16() {
-                Some(v) => heap.active = v == 1,
-                None => ok = false,
-            }
-            match inp.get_u32() {
-                Some(v) => heap.contained = v,
-                None => ok = false,
-            }
-            match inp.get_u32() {
-                Some(v) => heap.capacity = v,
-                None => ok = false,
-            }
+            // A wrong version stops the zone read: the heap is still appended
+            // with the previous heap's values, and the read fails [quirk].
+            let version_ok = inp.get_u16() == Some(HEAP_RECORD_VERSION);
+            let fields_ok = version_ok && read_heap_fields(inp, &mut heap);
             heaps.push(heap);
-            previous = heap;
-            if !ok {
-                let _ = mw + mh; // keep the mask sizes referenced for clarity
-                self.commit(rect, region, w, h, heaps, None, None);
+            if !fields_ok {
+                self.commit(region, w, h, heaps, None, None);
                 return false;
             }
         }
-        let connected = if version >= 3 { inp.get_u8().map(|b| b != 0) } else { None };
+        let connected = if version >= 3 {
+            inp.get_u8().map(|b| b != 0)
+        } else {
+            None
+        };
         let zot = if version >= 4 {
             match inp.get_ref_as(super::IID_OCCUPANT) {
                 Some(r) if !r.is_null() => self.host.resolve_occupant(&r),
@@ -1080,20 +1064,11 @@ impl LandfillZone {
         } else {
             None
         };
-        self.commit(rect, region, w, h, heaps, connected, zot);
+        self.commit(region, w, h, heaps, connected, zot);
         inp.error() == 0
     }
 
-    fn commit(
-        &self,
-        rect: CellRect,
-        region: CellRegion,
-        w: i32,
-        h: i32,
-        heaps: Vec<Heap>,
-        connected: Option<bool>,
-        zot: Option<u64>,
-    ) {
+    fn commit(&self, region: CellRegion, w: i32, h: i32, heaps: Vec<Heap>, connected: Option<bool>, zot: Option<u64>) {
         let mut d = self.d.borrow_mut();
         d.region = region;
         d.w = w;
@@ -1104,7 +1079,6 @@ impl LandfillZone {
         }
         // A zot read from a save is transferred to the zone (§6.2).
         d.zot = zot.or(d.zot);
-        let _ = rect;
         drop(d);
         self.dirty_cell_count();
     }
@@ -1140,6 +1114,27 @@ impl LandfillZone {
     }
 }
 
+/// The fields of one heap record after its version (§6.2): `u32 hx; u32 hz;
+/// u16 valid; u16 active; u32 contained; u32 capacity`, `valid` and `active`
+/// true iff the `u16` equals 1. A field that cannot be read keeps the value
+/// already in `heap`; returns whether all six were read.
+fn read_heap_fields(inp: &mut dyn InStream, heap: &mut Heap) -> bool {
+    let hx = inp.get_u32();
+    let hz = inp.get_u32();
+    let valid = inp.get_u16();
+    let active = inp.get_u16();
+    let contained = inp.get_u32();
+    let capacity = inp.get_u32();
+    let all = hx.is_some() && hz.is_some() && valid.is_some() && active.is_some() && contained.is_some();
+    heap.hx = hx.unwrap_or(heap.hx);
+    heap.hz = hz.unwrap_or(heap.hz);
+    heap.valid = valid.map_or(heap.valid, |v| v == 1);
+    heap.active = active.map_or(heap.active, |v| v == 1);
+    heap.contained = contained.unwrap_or(heap.contained);
+    heap.capacity = capacity.unwrap_or(heap.capacity);
+    all && capacity.is_some()
+}
+
 /// The heap grid of a `w × h` zone: `w × h` heaps, all valid, at their local
 /// positions, in vector order `hz × W + hx` (§2.2). A non-positive side gives
 /// no heaps (a zone one cell wide, §4.6.1).
@@ -1156,31 +1151,23 @@ fn heaps_for(w: i32, h: i32) -> Vec<Heap> {
     v
 }
 
-/// The vector index of local heap `(hx, hz)` in a grid `w` wide: `hz × W + hx`
-/// (§2.2), or `usize::MAX` when out of range.
-fn heap_index(hx: i32, hz: i32, w: i32) -> usize {
-    if w <= 0 || hx < 0 || hz < 0 {
-        return usize::MAX;
-    }
-    (hz as usize).wrapping_mul(w as usize).wrapping_add(hx as usize)
-}
-
-fn heap_at(d: &ZoneData, hx: i32, hz: i32) -> Option<&Heap> {
-    let i = heap_index(hx, hz, d.w);
-    if !(0..d.heaps.len()).contains(&i) {
+/// The vector index of local heap `(hx, hz)` in a `w × h` grid: `hz × W + hx`
+/// (§2.2), or `None` outside `0 ≤ hx < W`, `0 ≤ hz < H`.
+fn heap_index(hx: i32, hz: i32, w: i32, h: i32) -> Option<usize> {
+    if !(0..w).contains(&hx) || !(0..h).contains(&hz) {
         return None;
     }
-    let h = &d.heaps[i];
-    // The stored coordinates decide: a heap copied by quirk 4 keeps its old
-    // local coordinates, so an index lookup must agree with them.
-    (h.hx as i32 == hx && h.hz as i32 == hz).then_some(h)
+    Some(hz as usize * w as usize + hx as usize)
+}
+
+/// Heap `(hx, hz)`: the heap at its vector index (§2.2). A loaded zone whose
+/// heap vector is shorter than `W × H` (a truncated record, §6.2) has no heap
+/// there.
+fn heap_at(d: &ZoneData, hx: i32, hz: i32) -> Option<&Heap> {
+    d.heaps.get(heap_index(hx, hz, d.w, d.h)?)
 }
 
 fn heap_at_mut(d: &mut ZoneData, hx: i32, hz: i32) -> Option<&mut Heap> {
-    let i = heap_index(hx, hz, d.w);
-    if !(0..d.heaps.len()).contains(&i) {
-        return None;
-    }
-    let h = &mut d.heaps[i];
-    (h.hx as i32 == hx && h.hz as i32 == hz).then_some(h)
+    let i = heap_index(hx, hz, d.w, d.h)?;
+    d.heaps.get_mut(i)
 }

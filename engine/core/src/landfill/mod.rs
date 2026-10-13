@@ -23,9 +23,8 @@
 //!   `PopulateZone` (§4.4.5), `DezoneCell` (§4.4.8), the terrain response
 //!   (§4.5.2), `LevelRect` (§4.5.3), capacity (§4.6.1–§4.6.4), `UpdateZone`
 //!   (§4.7.2), the tile models and their random draws (§4.8) and the inline
-//!   zone record (§6.2). Zones are `Rc`-held, refcounted objects, exactly as
-//!   in the original: an operation may keep a zone alive after a re-entrant
-//!   zoning change removed it from the list (§4.4.8 step 4).
+//!   zone record (§6.2). Zones are `Rc`-held, refcounted objects, as in the
+//!   original.
 //! - [`Heap`]: one 2×2 block of zoned cells (§2.2).
 //! - [`LandfillOccupant`]: the tile occupant (§2.3) with its record (§6.4).
 //! - [`Tuning`]: the exemplar of §4.1 with its code defaults and the shipped
@@ -34,6 +33,9 @@
 //!   ([`magic_round`], [`altitude_variance`], [`zoning_cost`],
 //!   [`heap_capacity`], [`decay_amount`], [`redistribute`], [`tile_of`],
 //!   [`neighbour_mask`]).
+//! - `levelling.rs`: what the lot developer's `AttemptAreaLevelling` does for
+//!   `LevelRect` (§4.5.3, conformance test 22), as a pure function over the
+//!   three slots it calls ([`attempt_area_levelling`], [`LevellingSlots`]).
 //! - [`LandfillHost`]: everything the developer and its zones read from, or
 //!   do to, the rest of the game (§8): the city and its managers, terrain,
 //!   the pollution simulator, the budget and the sanitation department, the
@@ -60,15 +62,19 @@
 //!   keeps the CRT generator unseeded. One draw per redrawn cell whose four
 //!   surrounding heaps are all active, 0–4 per heap state change (§4.8
 //!   *[compat]*); nothing else in these classes draws.
-//! - **Re-entrancy of §4.4.8 step 4** (spec open question 4): `DezoneCell`
-//!   with `changeZone` makes the zone manager send `0x07699455` for the 1×1
-//!   cell, which re-enters `DoZoneChange` with type 0 *[inferred:
-//!   synchronous]*. The core reproduces that nesting itself, immediately
-//!   after [`LandfillHost::place_zone`] returns, unless the host reports
-//!   [`LandfillHost::zoning_change_is_synchronous`] false. Because the nested
-//!   run may remove the zone being dezoned, every zone-taking loop
-//!   re-validates its zone through the `Rc` it holds (the original relies on
-//!   the same refcounting).
+//! - **No re-entrancy in §4.4.8 step 4** *[compat]* (spec question 4,
+//!   answered): `DezoneCell` with `changeZone` calls
+//!   [`LandfillHost::place_zone`] and nothing else; the zone manager
+//!   **posts** `0x07699455`, which reaches [`LandfillDeveloper::do_message`]
+//!   on a later message-server tick, after the whole `RemoveZone` /
+//!   `DoTerrainChanged` pass has completed. The core never calls
+//!   `DoZoneChange` from inside a dezone.
+//! - **`LevelRect(…, false)`** (§4.5.3) calls the lot developer's slot 21
+//!   through [`LandfillHost::attempt_area_levelling`] and ignores the result.
+//!   What that slot does — level to the **vertex** average, or refuse when
+//!   the area slope exceeds the lot developer's tuning (40) — is
+//!   [`attempt_area_levelling`], which a host may use with its own
+//!   [`LevellingSlots`].
 //! - **The zot spiral of §4.7.5** ("spiral outward from the centre cell,
 //!   clipped to the zone rect, centre first") is not pinned by the spec.
 //!   *[choice]* [`LandfillZone::spiral_cells`] walks Chebyshev rings
@@ -97,11 +103,18 @@
 //! - **`HandleZoneOverlap` step 3** (§4.4.2) uses the intersection `I`, which
 //!   the original leaves uninitialised when step 1's test failed. *[choice]*
 //!   `RedisplayTerrain` is then skipped (it is display only).
-//! - **`DoTerrainChanged`** (§4.5.1) removes zones in a loop that re-runs
-//!   `IsCompletelyDezoned` after each removal, because a removal's
-//!   `DezoneCell(changeZone = true)` re-enters `DoZoneChange` and can change
-//!   the list. At most [`MAX_TERRAIN_REMOVALS`] removals happen, so a hostile
-//!   re-entrant cycle cannot loop forever *[choice]*.
+//! - **`DoTerrainChanged`** (§4.5.1) walks the zone list once, in order,
+//!   and removes every zone whose `IsCompletelyDezoned()` is true. Nothing
+//!   re-enters, so the list only shrinks during the pass.
+//! - **Heaps are addressed by vector index** `hz × W + hx` (§2.2) in
+//!   `A(i, j)` (§4.8) and `InvalidateSurroundingHeaps` (§4.4.8). The stored
+//!   `hx`, `hz` only decide which cells a heap's redraw visits (§4.8).
+//! - **Landfill tiles are core objects**: §4.8.1 step 3 constructs the
+//!   [`LandfillOccupant`] in the core, sets its flags, position and `Init`
+//!   on it, and hands it to the occupant manager through
+//!   [`LandfillHost::insert_landfill_occupant`] (slot 20), which gives it a
+//!   token. Every other occupant (found by `occupant_at`, possibly an original
+//!   one) is reached through host calls.
 //! - **`RedistributeGarbage`** (§4.7.4): `share := cap / v` is a signed
 //!   32-bit division and `min(share, rem)` compares both as signed, matching
 //!   the spec's "signed integer division"; the result is stored as the
@@ -132,10 +145,10 @@
 //! - **`Release`** from a count ≤ 1 calls `Shutdown`, clears the zone list and
 //!   marks the object destroyed (§1); the plugin drops it.
 //!
-//! Host callbacks must not call back into the landfill developer (the one
-//! nested `DoZoneChange` of §4.4.8 step 4 is made by the core itself).
+//! Host callbacks must not call back into the landfill developer.
 
 mod algo;
+mod levelling;
 mod occupant;
 mod simulator;
 #[cfg(test)]
@@ -144,21 +157,26 @@ mod tuning;
 mod zone;
 
 pub use algo::{
-    altitude_variance, decay_amount, heap_capacity, magic_round, neighbour_mask, redistribute, redrawn_cells,
-    spiral_cells, tile_of, zoning_cost, Variance, TILE_RULES,
+    altitude_variance, decay_amount, heap_capacity, magic_round, neighbour_mask, redistribute, redistribute_share,
+    redrawn_cells, spiral_cells, tile_of, zoning_cost, Variance, TILE_RULES,
 };
-pub use occupant::{LandfillOccupant, OccupantData, OCCUPANT_RECORD_VERSION, OCCUPANT_SLOTS, OCCUPANT_TYPE, TILE_EXEMPLAR};
-pub use simulator::{
-    answers_iid, DevState, LandfillDeveloper, DEVELOPER_RECORD_VERSION, MAX_SAVED_ZONES, MAX_TERRAIN_REMOVALS,
+pub use levelling::{
+    attempt_area_levelling, LevellingSlots, ModifyTerrainHeight, FLT_MAX, LEVELLING_REASON, SHIPPED_MAX_AREA_SLOPE,
+    SLOPE_TEST_LIMIT,
 };
+pub use occupant::{
+    LandfillOccupant, OccupantData, CLSID_LANDFILL_OCCUPANT, IID_LANDFILL_OCCUPANT, OCCUPANT_RECORD_VERSION,
+    OCCUPANT_SLOTS, OCCUPANT_TYPE, TILE_EXEMPLAR,
+};
+pub use simulator::{answers_iid, DevState, LandfillDeveloper, DEVELOPER_RECORD_VERSION, MAX_SAVED_ZONES};
 pub use tuning::{prop, shipped_tile_costs, shipped_tile_exemplar, shipped_tuning, Tuning, TUNING_KEY};
 pub use zone::{Heap, LandfillZone, ZoneData, HEAP_RECORD_VERSION, ZONE_RECORD_VERSION};
 
 use std::rc::Rc;
 
 pub use crate::grid::CellRect;
-pub use crate::rng::CrtRand;
 use crate::property::PropertyHolder;
+pub use crate::rng::CrtRand;
 use crate::stream::RefValue;
 
 /// Class ID (`GetGZCLSID`, §1).
@@ -595,25 +613,21 @@ pub trait LandfillHost {
     /// Slot 11 `PlaceZone(region, zoneType, placeZone, skipFundsCheck,
     /// checkAreaSlope, skipZoneSizeCheck, checkLotSize, null, null, 0)`.
     /// §4.4.8 step 4 calls it for a 1×1 region with zone type 0 and
-    /// `(true, true, false, true, false)`.
+    /// `(true, true, false, true, false)`. The zone manager **posts**
+    /// `0x07699455` for the cell (§4.4.8 *[compat]*): the host delivers it to
+    /// [`LandfillDeveloper::do_message`] later, never from inside this call.
     fn place_zone(&self, region: &CellRegion, zone_type: i32) -> bool;
-    /// Whether the zone manager sends `0x07699455` synchronously from
-    /// `PlaceZone` (§4.4.8 step 4 *[inferred: synchronous]*, spec open
-    /// question 4). Default true.
-    fn zoning_change_is_synchronous(&self) -> bool {
-        true
-    }
 
     // ---- occupant manager (`cISC4OccupantManager`) ----
     /// Slot 33 `find(&occ, x, z, type)`: the occupant of that type at the
     /// cell, if any.
     fn occupant_at(&self, x: i32, z: i32, occupant_type: u32) -> Option<u64>;
-    /// Slot 41: the occupants at a cell by type (flora and base-texture
-    /// removal, §4.4.5, §4.8.3).
-    fn occupants_at_cell(&self, x: i32, z: i32, occupant_type: u32) -> Vec<u64>;
-    /// Slot 20 `insert(occupant, 0)` (§4.8.1 step 3); its result is
-    /// `CreateLandfillOccupant`'s.
-    fn occupant_insert(&self, occupant: u64) -> bool;
+    /// Slot 20 `insert(occupant, 0)` of a landfill tile the core just built
+    /// (§4.8.1 step 3); its result is `CreateLandfillOccupant`'s. The host
+    /// wraps the core object for the occupant manager and gives it its token
+    /// ([`LandfillOccupant::set_token`]), which later `occupant_at` calls
+    /// return.
+    fn insert_landfill_occupant(&self, occupant: &Rc<LandfillOccupant>, x: i32, z: i32) -> bool;
     /// Slot 21 `remove(occupant, 1, 3)` (§4.8.3).
     fn occupant_remove(&self, occupant: u64) -> bool;
     /// Slot 24 `(occupant, 1)`: re-index a moved occupant (§4.5.2
@@ -625,26 +639,17 @@ pub trait LandfillHost {
     fn occupant_position(&self, occupant: u64) -> [f32; 3];
     /// Slot 9 `SetPosition(p)`.
     fn occupant_set_position(&self, occupant: u64, position: [f32; 3]);
-    /// Slot 12 `SetRemovalFlags(flags)`.
+    /// Slot 12 `SetRemovalFlags(flags)` (the zot, §4.7.5).
     fn occupant_set_removal_flags(&self, occupant: u64, flags: u32);
-    /// Slot 15 `PostOccupantMessage(message, 0)` (§4.5.2's `0x99EF1145`
-    /// display notification *[inferred]*).
+    /// Slot 15 `(message, 0)` (§4.5.2's `0x99EF1145` display notification
+    /// *[inferred]*).
     fn occupant_post_message(&self, occupant: u64, message: u32);
-    /// Slot 29 `SetFlag(flag)` (§4.8.1 step 3 sets flag 4).
-    fn occupant_set_flag(&self, occupant: u64, flag: u32);
-    /// Slot 3 `Init()`.
-    fn occupant_init(&self, occupant: u64);
     /// Whether the occupant answers `cISC4LandfillOccupant` (`0x2A15F262`,
     /// §4.5.2 step 2).
     fn is_landfill_occupant(&self, occupant: u64) -> bool;
     /// `cISC4LandfillOccupant` slot 9 `IsEmptyLandfillTile()` (§4.5.2, §7.3;
     /// nothing in the shipped code sets it true, spec open question 7).
     fn is_empty_landfill_tile(&self, occupant: u64) -> bool;
-    /// Creates a `cSC4LandfillOccupant(tileID, orientation)` (§2.3, §4.8.1):
-    /// a new core [`LandfillOccupant`] whose constructor sets occupant type
-    /// [`OCCUPANT_TYPE`] and flag 4. The host wraps it for the occupant
-    /// manager and returns it with one reference.
-    fn create_landfill_occupant(&self, tile_id: u32, orientation: i32) -> Option<Rc<LandfillOccupant>>;
     /// §4.4.5 / §4.8.1: `RemoveIncompatibleOccupants(x, z)` (removes flora
     /// [`OCCUPANT_TYPE_FLORA`] in the cell).
     fn remove_incompatible_occupants(&self, x: i32, z: i32);
@@ -679,11 +684,20 @@ pub trait LandfillHost {
     fn occupant_count_for_all_subnetworks(&self, developer_type: u32) -> Vec<u32>;
 
     // ---- lot developer (§4.5.3) ----
-    /// `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, 0.0,
-    /// true, true, FLT_MAX, null)` (lot developer slot 21); the result is
-    /// ignored. *[quirk]* The requested altitude is **not** passed (the float
-    /// argument is 0.0).
-    fn attempt_area_levelling(&self, rect: CellRect, altitude: f32, flag: bool, water: bool, max_area_slope: f32);
+    /// `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, f,
+    /// withWater, waterFlag, maxAreaSlope, null)` (lot developer slot 21).
+    /// `LevelRect` passes `(rect, 0.0, true, true, FLT_MAX)` and ignores the
+    /// result. What the slot does is [`attempt_area_levelling`] (§4.5.3
+    /// *[compat]*): `f` is never read, the terrain is levelled to the vertex
+    /// average, and a slope above 40 refuses.
+    fn attempt_area_levelling(
+        &self,
+        rect: CellRect,
+        f: f32,
+        with_water: bool,
+        water_flag: bool,
+        max_area_slope: f32,
+    ) -> bool;
 
     // ---- 3D view (§3.2) ----
     /// `cISC4View3DWin` slot 22 `GetCurrentViewLevel()`: the view stores the
