@@ -520,6 +520,25 @@ fn t43_missing_property() {
     assert_eq!(l.get_u32(0x10), Some(7));
 }
 
+/// §5.3 `SC4GetExemplarProperty(instance, propertyID)`: exemplar (`0x6534284A`, group 0, instance).
+#[test]
+fn sc4_get_exemplar_property() {
+    let mut store = ExemplarStore::new();
+    store.insert(Tgi::new(TYPE_EXEMPLAR, 0, 0x55), parse_ex(&rec(&[T23])));
+    store.insert(Tgi::new(TYPE_EXEMPLAR, 1, 0x66), parse_ex(&rec(&[T23])));
+    assert_eq!(store.exemplar_property(0x55, 0x10).unwrap().as_u32(), Some(7));
+    assert!(store.exemplar_property(0x55, 0x11).is_none(), "missing property");
+    assert!(store.exemplar_property(0x66, 0x10).is_none(), "group 0 only");
+    store.insert(
+        Tgi::new(TYPE_EXEMPLAR, 0, 0x77),
+        parse_ex(&record(b"EQZB1###", key_words(cohort_key(5)), &[T23])),
+    );
+    assert!(
+        store.exemplar_property(0x77, 0x10).is_none(),
+        "the exemplar does not load"
+    );
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // §11 rows and §4 / §5 details
 

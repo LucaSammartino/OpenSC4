@@ -597,7 +597,8 @@ impl Property {
     pub fn get_bool(&self) -> Option<bool> {
         Some(self.convert(Target::Int)?.int() != 0)
     }
-    /// `GetValUint8(uint8&)` (§5.1): converted, then the low 8 bits.
+    /// `GetValUint8(uint8&)` (§5.1): converted, then the low 8 bits. The `Char` and `RZChar` targets of §5.1 give
+    /// the same 8 bits (as [`Property::get_u16`] does for `RZUnicodeChar`).
     pub fn get_u8(&self) -> Option<u8> {
         Some(self.convert(Target::Int)?.int() as u8)
     }
@@ -1859,6 +1860,12 @@ impl ExemplarStore {
         self.load(tgi).ok()?;
         let (chain, _) = self.chain(self.map.get(tgi)?);
         chain.into_iter().find_map(|e| e.get(id))
+    }
+
+    /// `SC4GetExemplarProperty(instance, propertyID)` (§5.3): property `id` of the exemplar (`0x6534284A`, group 0,
+    /// `instance`), or `None` when the exemplar does not load or lacks the property.
+    pub fn exemplar_property(&self, instance: u32, id: u32) -> Option<&Property> {
+        self.property(&Tgi::new(TYPE_EXEMPLAR, 0, instance), id)
     }
 
     /// `ex` followed by its parent cohorts, and how the chain ended. A diagnostic: unlike
