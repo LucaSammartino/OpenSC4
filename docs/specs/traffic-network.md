@@ -161,7 +161,7 @@ changes `flags`.
 | tunnel table | yes (corrected, traffic-simulator §6.1 row 17) | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
 | ferry terminal list | no | empty | list of FerryTerminal (§2.6) |
 | ferry departure / arrival tables | no | empty | two SGI `hash_map<u16 cellKey, list position>`, hint 100 each |
-| ferry terminal count per ferry type [3] | no | 0 | at most 16 terminals per type |
+| ferry terminal count per ferry type [2] | no | 0 | at most 16 terminals per type. Only types 0 and 1 have a word (`+0x128`, `+0x12C`); type 2's word is another member's pointer (§4.9.1, §4.9.5, TN18) |
 | ferry pass state | no | idle | current terminal, inner position, neighbour-cell vector, phase (§4.9.3) |
 | subnetwork counter | no | 1 | next label to assign (u16) |
 | subnetwork info, working and published | no | empty | vectors of SubnetworkInfo (§4.12) |
@@ -662,7 +662,17 @@ listed types, leaves any existing record unchanged.
 #### 4.9.1 Terminal activation (DoFerryTerminalActivated `0x00723620`)
 
 1. `type` = property `0x0BD86FD3` (u8) of the building. Stop if it is missing, if `type > 2`, or if there are
-   already 16 terminals of that type.
+   already 16 terminals of that type (signed compare of the type's count word with 16, `0x0072368A`).
+
+   **Type 2 never activates** *[quirk]* (TN18). Its count word (simulator `+0x130`) is the begin pointer of the
+   potential-accident vector, which the constructor reserves for 100 entries (`0x0071FF7C`). That is a heap
+   address, and since the exe is not large-address-aware it is below 2³¹, so the compare always stops. Shipped
+   content uses only type 0 (`0x038B0000`, passenger ferry) and type 1 (`0x03820000`, car ferry). A reimplementation
+   should reject type 2 here.
+
+   *[quirk]* If the exe is patched to be large-address-aware, a pointer at or above `0x80000000` compares
+   negative. Activation then goes on, and step 3's count increment (`0x00723942`) adds 1 to that pointer, which
+   corrupts the vector.
 2. Get the prop occupants (type `0xA823821E`, QI `0xE9793A65`) in the lot rectangle. Classify them by
    `cISC4PropOccupant::GetPropType` (slot 7):
    - `0x2C520000` → departure cell;
@@ -764,7 +774,16 @@ ferry edges.
 
 #### 4.9.5 Queries
 
-**GetFerryTerminalCount(type)** (slot 32): the count for `type`. There is no bounds check.
+**GetFerryTerminalCount(type)** (slot 32, `0x0071FFF0`): the u32 at simulator `+0x128 + 4·type`, with no bounds
+check. Only types 0 and 1 have their own words; the constructor zeroes them (`0x0071FF83`). Higher types read the
+members that follow:
+- type 2 → `+0x130`, the potential-accident vector's begin pointer (non-null from construction);
+- type 3 → `+0x134`, its end pointer;
+- type 4 → `+0x138`, its capacity end;
+- and so on.
+
+So the original returns 0 only for an empty type 0 or 1, never for a type above 1 (TN18). FreeCity4 should return
+0 for every type ≥ 2: no type-2 terminal can exist (§4.9.1), and the pointer values have no meaning.
 
 **GetFerryRouteBetweenTiles(x1, z1, x2, z2)** (slot 29) returns a pointer to a stored route vector (internal; §9),
 or null:

@@ -219,7 +219,14 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   into §4.11. **The bracket is right: after.** The state's k runs 0…5. Step 3 runs only at k = 4 and sets k := 5
   before pushing, so a popped tunnel state goes straight to the next pop.
 - **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
-- **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
+- ~~**TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]~~ **ANSWERED 2026-10-14** from the
+  exe (`0x0071FFF0`; constructor `0x0071FF7C`/`0x0071FF83`; activation `0x0072368A`) and written into §2.3's
+  table, §4.9.1 step 1 and §4.9.5. **The bracket is wrong.** There is no bounds check: it returns the u32 at
+  `+0x128 + 4·type`. Only types 0 and 1 have count words. Type 2 reads the potential-accident vector's begin
+  pointer, and types 3 and above read its end, its capacity and later members.
+
+  A side effect is that a type-2 ferry terminal can never activate, because its "count" is a heap pointer and so
+  always ≥ 16. The spec recommends returning 0 for type ≥ 2.
 - ~~**TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]~~ **ANSWERED
   2026-10-14** from the exe and written into §2.4 and §4.7.2. **All:** the loop at `0x00715EF8`–`0x00715F6D` has no
   kind test and covers the first n rules of the vector. A worked example (shipped station `0x0ADE0000`, flags
