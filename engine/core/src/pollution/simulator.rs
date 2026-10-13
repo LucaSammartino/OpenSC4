@@ -13,10 +13,9 @@ use std::rc::Rc;
 
 use crate::curve::ResponseCurve;
 use crate::grid::{add_radius_effect, CellIterator, TractGrid, MODE_TABLE};
-use crate::props::round_half_even_f32;
 use crate::rng::{CrtRand, RzRandomSuper, SeedSource};
 use crate::variant::{Elem, Variant};
-use crate::x87::{ftol, ftol32};
+use crate::x87::{ftol, ftol32, rhe};
 
 use super::tuning::{curve_of, Tuning};
 use super::{budget, history, msg, prop, PollutionHost, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, LANDFILL_FLAG};
@@ -952,7 +951,7 @@ impl PollutionSim {
         r = ftol32(f64::from(fmul_i(f64::from(r), s.efficiency))) as u32;
         if let Some(curve) = p_curve(h, occ, prop::CONDITION_CURVE) {
             let cond = p_f32(h, occ, prop::CONDITION).unwrap_or(0.0);
-            r = round_half_even_f32(fmul_i(f64::from(r), curve.eval(cond))) as u32;
+            r = rhe(fmul_i(f64::from(r), curve.eval(cond))) as u32;
         }
         (true, r)
     }
@@ -1075,7 +1074,7 @@ impl PollutionSim {
         }
         let avg = (sum as u32) / count;
         let v = fmul_i(f64::from(avg), 1.0f32 / 32767.0);
-        round_half_even_f32(self.tuning.borrow().prop_curve.eval(v)) as i32
+        rhe(self.tuning.borrow().prop_curve.eval(v))
     }
 
     pub fn requester_satisfaction_id(&self) -> u32 {

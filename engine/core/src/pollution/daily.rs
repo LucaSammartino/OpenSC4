@@ -7,7 +7,6 @@
 //! The daily simulation (§4.4), the garbage flow (§4.6), the end of cycle
 //! (§4.8) and the monthly simulation (§4.9).
 
-use crate::props::round_half_even_f32;
 use crate::variant::{Elem, Variant};
 use crate::x87::rhe;
 use crate::x87::{ftol, ftol32};
@@ -61,6 +60,19 @@ fn add_u32(counter: u32, x: f32) -> u32 {
 /// 1.5·2²³ idiom rounds it (crime.md §6 `rhe`, exact up to 2²²).
 fn deal_share(amount: i32) -> i32 {
     rhe(fmul_i(f64::from(amount), 0.1))
+}
+
+/// The `Dispose` floor (§4.12): `n := rhe(f32(g − 0.5f))`, then `n + 1` when
+/// `float(n + 1) = g` (an exact compare). `floor(g)` up to 2²² and a little
+/// beyond; larger offers follow the `rhe` formula (5,000,000 → 4,597,152).
+fn floor_rhe(g: f32) -> i32 {
+    let n = rhe(g - 0.5);
+    let up = n.wrapping_add(1);
+    if f64::from(up) == f64::from(g) {
+        up
+    } else {
+        n
+    }
 }
 
 impl PollutionSim {
@@ -220,7 +232,7 @@ impl PollutionSim {
                 continue;
             }
             let mut gp = f32::from(g) / count as f32;
-            s.month.produced = s.month.produced.wrapping_add(round_half_even_f32(gp) as i64);
+            s.month.produced = s.month.produced.wrapping_add(i64::from(rhe(gp)));
             if s.recycling_effect > 0.0 && gp > 0.0 {
                 let rec = (gp * s.recycling_effect).min(gp);
                 s.month.recycled = (s.month.recycled + f64::from(rec)) as f32 as f64;
@@ -245,7 +257,7 @@ impl PollutionSim {
                 } else {
                     // The valve is closed: garbage flows back from the supply.
                     let over = i64::from(s.garbage_supply) - i64::from(s.garbage_capacity);
-                    let share = i64::from(round_half_even_f32(f32::from(g) / count as f32) as i32);
+                    let share = i64::from(rhe(f32::from(g) / count as f32));
                     let mut take = if over <= share {
                         over
                     } else if g == 0 {
@@ -269,7 +281,7 @@ impl PollutionSim {
         if rem.wtp > 0 && big_w > 0 {
             let mut tr = if s.last_water_sum > 0 && s.last_treated_sum > 0 && rem.wtp <= s.last_treated_sum as u32 {
                 let q = fdiv_ii(f64::from(s.last_treated_sum), f64::from(s.last_water_sum));
-                let v = round_half_even_f32(fmul_i(f64::from(big_w), q)) as i32;
+                let v = rhe(fmul_i(f64::from(big_w), q));
                 if v == 0 {
                     1
                 } else {
@@ -353,7 +365,7 @@ impl PollutionSim {
         ] {
             if *remaining != 0 {
                 let x = if f64::from(*remaining) > f64::from(g) {
-                    *remaining = remaining.wrapping_sub(trunc32(g) as u32);
+                    *remaining = remaining.wrapping_sub(floor_rhe(g) as u32);
                     let x = g;
                     g = 0.0;
                     x
@@ -369,7 +381,9 @@ impl PollutionSim {
         let (usage, capacity) = h.landfill_usage();
         let room = i64::from(capacity) - i64::from(usage);
         let transport = t.transport_curve.eval(h.landfill_tile_count() as f32);
-        let limit = round_half_even_f32(s.efficiency * transport) as i64 - i64::from(s.garbage_supply);
+        // `rhe` leaves its exact range above 2²² (839 shipped tiles, §4.12); the
+        // supply is subtracted in 32 bits.
+        let limit = i64::from(rhe(transport * s.efficiency).wrapping_sub(s.garbage_supply));
         let n = limit.min(room);
         if n > 0 {
             if f64::from(g) > n as f64 {
@@ -377,7 +391,7 @@ impl PollutionSim {
                 g = fadd_i(g, -(n as f64));
                 taken = fadd_i(taken, n as f64);
             } else {
-                s.add_to_garbage_supply(round_half_even_f32(g) as i32);
+                s.add_to_garbage_supply(rhe(g));
                 taken += g;
                 g = 0.0;
             }

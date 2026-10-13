@@ -326,6 +326,57 @@ fn dispose_quirk_and_landfill() {
     assert_eq!(s.dispose(-5.0, &mut rem), 0.0);
 }
 
+/// Spec test 26: the landfill limit is `rhe` of the curve product, which
+/// leaves its exact range above 838 shipped tiles (§4.6.1 step 5, §4.12).
+#[test]
+fn landfill_limit_follows_rhe() {
+    let h = host(64);
+    let s = sim(&h);
+    h.landfill.set((0, 10_000_000));
+    let offer = |tiles: u32, supply: i32| {
+        h.tiles.set(tiles);
+        s.with_state(|st| {
+            st.efficiency = 1.0;
+            st.garbage_supply = supply;
+            st.decomposed = 2000;
+        });
+        let mut rem = Remaining::default();
+        let taken = s.dispose(6_000_000.0, &mut rem);
+        (taken, s.snapshot().garbage_supply)
+    };
+    assert_eq!(offer(1000, 0), (4_597_152.0, 4_597_152));
+    assert_eq!(offer(839, 0), (4_194_652.0, 4_194_652));
+    assert_eq!(offer(838, 0), (4_190_000.0, 4_190_000));
+    assert_eq!(offer(1000, 100_000), (4_497_152.0, 4_597_152));
+}
+
+/// Spec test 28: the waste-to-energy and incinerator floors (§4.12).
+#[test]
+fn dispose_floor_follows_rhe() {
+    let h = host(64);
+    let s = sim(&h);
+    s.with_state(|st| st.decomposed = 2000);
+    let mut rem = Remaining {
+        wte: 10,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(9.99, &mut rem), 9.99);
+    assert_eq!(rem.wte, 1);
+    let mut rem = Remaining {
+        wte: 10,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(3.0, &mut rem), 3.0);
+    assert_eq!(rem.wte, 7);
+    let mut rem = Remaining {
+        inc: 8_000_000,
+        ..Default::default()
+    };
+    assert_eq!(s.dispose(5_000_000.0, &mut rem), 5_000_000.0);
+    assert_eq!(rem.inc, 3_402_848);
+    assert_eq!(s.snapshot().month.incinerated, 5_000_000);
+}
+
 #[test]
 fn valve_limits_supply() {
     let h = host(128);
