@@ -882,8 +882,12 @@ void __fastcall AppSetPopupDialogsEnabled(void*, void*, bool on) {  // cISC4App 
 // Scenarios: off (popup_dialogs = 0), on (= 1; the parent also sets
 // FC4_POPUP_DIALOGS=0, which the ini overrides), env (FC4_POPUP_DIALOGS=0
 // only), bad (= maybe), unset, stuck (= 0 with a setter that does nothing).
-// Three city loads: the first without an application (tests have no
-// framework), the next two with the fake. Returns 0 if the fake saw what the
+// Messages, in order: a city load and a ConnectionsReady without an
+// application (tests have no framework); then, with the fake, two
+// ConnectionsReady, a second city load and its ConnectionsReady. = 0 sets
+// false at the first ConnectionsReady with the app, true at the second load
+// and false again at its ConnectionsReady (foundations.md 11.6); = 1 makes
+// its one call at the second load. Returns 0 if the fake saw what the
 // scenario expects; the parent checks the log.
 int PopupsChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
     if (scenario == "off" || scenario == "stuck") {
@@ -912,23 +916,34 @@ int PopupsChild(const std::string& dll, const std::string& ini, const std::strin
     fake.enabled = scenario != "on";  // "on": the game's flag starts false
     fake.ignoreSet = scenario == "stuck";
     void* const cityInit = reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit));
+    void* const connReady = reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u));  // ConnectionsReady
 
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // no application: skipped, logged
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);   // no application: = 1 skipped, logged
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // no application: = 0 skipped, logged
     const int setsWithoutApp = fake.sets;
     seam(kFC4SeamObserverApp, &fake.app, nullptr);
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // the call
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: false
     const int setsFirst = fake.sets;
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // never twice per process
+    const bool enabledFirst = fake.enabled;
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: already false, nothing
+    const int setsSecond = fake.sets;
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // = 0: true until ConnectionsReady; = 1: the call
+    const bool enabledLoad = fake.enabled;
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: false again
     seam(kFC4SeamObserverApp, nullptr, nullptr);
     FreeLibrary(h);
 
-    const bool calls = scenario == "off" || scenario == "on" || scenario == "env" || scenario == "stuck";
-    const bool wantEnabled = !(scenario == "off" || scenario == "env");
+    const bool off = scenario == "off" || scenario == "env";
+    // Sets: off/env 3 (false, true, false); stuck 1 (the failed call is not
+    // retried); on 1 (at the second city load); bad/unset 0.
+    const int wantSets = off ? 3 : (scenario == "stuck" || scenario == "on") ? 1 : 0;
+    const int wantFirst = off || scenario == "stuck" ? 1 : 0;
     int bad = 0;
     if (setsWithoutApp != 0) bad |= 1;
-    if (setsFirst != (calls ? 1 : 0) || fake.sets != setsFirst) bad |= 2;
-    if (fake.gets != (calls ? 2 : 0)) bad |= 4;  // before and after the call
-    if (fake.enabled != wantEnabled) bad |= 8;
+    if (setsFirst != wantFirst || setsSecond != setsFirst || fake.sets != wantSets) bad |= 2;
+    if (fake.gets != 2 * wantSets) bad |= 4;  // before and after each call
+    if (fake.enabled != !off) bad |= 8;
+    if (off && (enabledFirst || !enabledLoad)) bad |= 16;
     if (bad != 0) std::fprintf(stderr, "popups child %s: fake app check bits 0x%X\n", scenario.c_str(), bad);
     return bad == 0 ? 0 : 10 + bad;
 }
@@ -947,16 +962,21 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
         return ReadFile(log);
     };
     const std::string skipped =
-        "popup dialogs: SetPopupDialogsEnabled(false) not called at city load (PostCityInit): no cISC4App (no "
-        "framework); retried at the next city load";
+        "popup dialogs: SetPopupDialogsEnabled(false) not called at ConnectionsReady: no cISC4App (no framework); "
+        "retried at the next ConnectionsReady";
+    const std::string disabled =
+        "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at ConnectionsReady";
 
-    // = 0: read at game start; skipped without an application; made once, at the next city load.
+    // = 0: read at game start; nothing at a city load before the first false; skipped without an application;
+    // false at ConnectionsReady, true again at the next city load, false again at its ConnectionsReady.
     std::string text = run("off", nullptr);
     CHECK(text.find("popup dialogs: popup_dialogs=0 (FreeCity4.ini): cISC4App::SetPopupDialogsEnabled(false) at "
-                    "PostAppInit, or at the first city load if the app is not reachable there") != npos);
+                    "each ConnectionsReady 0x6AC284F3, true again at each later city load") != npos);
     CHECK(CountOf(text, skipped) == 1);
-    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at "
-                        "city load (PostCityInit)") == 1);
+    CHECK(CountOf(text, disabled) == 2);
+    CHECK(CountOf(text, "popup dialogs: enabled (cISC4App::SetPopupDialogsEnabled(true); was enabled=0, now=1) at "
+                        "city load (PostCityInit), until this load's ConnectionsReady") == 1);
+    CHECK(text.find("SetPopupDialogsEnabled(false) not called at city load") == npos);
     CHECK(text.find("config: WARNING") == npos);  // popup_dialogs is a known key
     CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
 
@@ -966,13 +986,15 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
                     "PostAppInit") != npos);
     CHECK(CountOf(text, "popup dialogs: enabled (cISC4App::SetPopupDialogsEnabled(true); was enabled=0, now=1) at "
                         "city load (PostCityInit)") == 1);
+    CHECK(CountOf(text, "popup dialogs: SetPopupDialogsEnabled(true) not called at city load (PostCityInit): no "
+                        "cISC4App (no framework); retried at the next city load") == 1);
+    CHECK(text.find("at ConnectionsReady") == npos);  // = 1 ignores it
 
     // The environment alone.
     text = run("env", "0");
     CHECK(text.find("popup dialogs: popup_dialogs=0 (FC4_POPUP_DIALOGS): cISC4App::SetPopupDialogsEnabled(false)") !=
           npos);
-    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0)") ==
-          1);
+    CHECK(CountOf(text, disabled) == 2);
 
     // Not 0/1: a config warning, and nothing is called.
     text = run("bad", nullptr);
@@ -988,7 +1010,8 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
     // A setter that does not take effect: one warning, not retried.
     text = run("stuck", nullptr);
     CHECK(CountOf(text, "popup dialogs: WARNING SetPopupDialogsEnabled(false) did not take effect (was enabled=1, "
-                        "now=1) at city load (PostCityInit)") == 1);
+                        "now=1) at ConnectionsReady") == 1);
+    CHECK(CountOf(text, "SetPopupDialogsEnabled(true)") == 0);
     CHECK(text.find("popup dialogs: disabled") == npos);
 
     SetEnvironmentVariableA("FC4_POPUP_DIALOGS", nullptr);
