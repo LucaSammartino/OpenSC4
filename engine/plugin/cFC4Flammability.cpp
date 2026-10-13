@@ -88,6 +88,8 @@ constexpr uint32_t kMsgInsertOccupant = 0x99EF1142;
 constexpr uint32_t kMsgRemoveOccupant = 0x99EF1143;
 constexpr uint32_t kMsgChangeOccupant = 0x99EF1145;
 constexpr uint32_t kMsgConditionChanged = 0xE99B3D4D;
+/// The agent level's message; data1 is the julian day.
+constexpr uint32_t kMsgSimNewDay = 0x66956814;
 /// Posted at every EndOfCycle with void1 = IGZUnknown = this simulator (§9).
 constexpr uint32_t kMsgSimCycleComplete = 0x08F415FE;
 
@@ -170,10 +172,15 @@ void PositionToCell(void* u, float x, float z, int32_t* cx, int32_t* cz) {
     if (cz != nullptr) *cz = b;
 }
 
+// The core asks this only at the start of the fire roll (§6.8), so it also
+// counts the rolls for the status line.
 bool IsTutorial(void* u) {
     cISC4City* c = Self(u)->City();
     cISC4TutorialSystem* t = c ? c->GetTutorialSystem() : nullptr;  // city slot 82
-    return t != nullptr && t->IsTutorial();                         // tutorial slot 8
+    const bool tutorial = t != nullptr && t->IsTutorial();          // tutorial slot 8
+    ++Self(u)->Probe().fireRolls;
+    if (tutorial) ++Self(u)->Probe().tutorialSkips;
+    return tutorial;
 }
 
 fc4_props* Tuning(void*) {
@@ -274,6 +281,7 @@ uint64_t LotBuilding(void*, uint64_t lot) {
 }
 
 uint64_t RandomLot(void* u) {
+    ++Self(u)->Probe().randomLots;
     if (!Gate(fc4::Sw::FlammabilityLots, "flammability GetRandomLot (none)")) return 0;
     cFC4ISC4LotManager* lm = LotMgr(u);
     return lm ? TokenOf(lm->GetRandomLot()) : 0;  // lot manager slot 13, borrowed
@@ -301,8 +309,8 @@ bool CurrentSeason(void* u, int32_t* out) {
 
 // The plumbing simulator's IsCellWatered (§6.5). -1 = no plumbing simulator,
 // which the core reads as "not watered" (§4.1 step 5 [choice]); 0 / 1 are the
-// two answers.
-int32_t IsCellWatered(void* u, int32_t x, int32_t z) {
+// two answers. The answers are counted for the status line.
+int32_t IsCellWateredCall(void* u, int32_t x, int32_t z) {
     if (!Gate(fc4::Sw::FlammabilityWater, "flammability IsCellWatered (no plumbing)")) return -1;
     // Called through the verified slot order (FC4Interfaces.h): this is our own
     // replacement when the plumbing subsystem is on, and the game's class
@@ -310,6 +318,15 @@ int32_t IsCellWatered(void* u, int32_t x, int32_t z) {
     cISC4PlumbingSimulator* p = Self(u)->Plumbing();
     if (p == nullptr) return -1;
     return fc4::AsGame(p)->IsCellWatered(x, z) ? 1 : 0;
+}
+
+int32_t IsCellWatered(void* u, int32_t x, int32_t z) {
+    const int32_t r = IsCellWateredCall(u, x, z);
+    cFC4FlammabilitySimulator::Probes& p = Self(u)->Probe();
+    ++p.wateredQueries;
+    if (r > 0) ++p.watered;
+    if (r < 0) ++p.noPlumbing;
+    return r;
 }
 
 bool ZoneType(void* u, int32_t x, int32_t z, uint32_t* out) {
@@ -333,17 +350,24 @@ void RecordHistory(void* u, uint32_t historyType, int32_t value) {
 // GetDisasterLayer()->GetDisasterManager(0x621CDA33) queried for
 // cISC4DisasterManagerFire, then IgniteCell(...). False when the layer, the
 // manager or the interface is missing, so the core skips set_fire_cause.
+//
+// Ownership (§6.8): the layer and the manager are BORROWED (no AddRef; the
+// layer keeps owning its managers, as in plumbing's pipe-burst and the
+// budget's earthquake paths); only the QueryInterface result is ours, and it
+// is released once. Run 37 released the manager too, once here and once in
+// SetFireCause: the game's fire manager lost two references per ignition.
 bool IgniteCell(void* u, uint32_t x, uint32_t z, bool useProbability, bool teleport, uint32_t fireIid) {
+    ++Self(u)->Probe().igniteCalls;
     if (!Gate(fc4::Sw::FlammabilityFire, "flammability IgniteCell (no fire manager)")) return false;
     cISC4City* c = Self(u)->City();
-    cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;  // city slot 72
-    cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kFireDisasterManager) : nullptr;  // layer slot 7
+    cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;  // city slot 72, borrowed
+    cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kFireDisasterManager) : nullptr;  // slot 7, borrowed
     if (m == nullptr) return false;
     cISC4DisasterManagerFire* fire = Query<cISC4DisasterManagerFire>(m, kIID_cISC4DisasterManagerFire);
-    FC4_RELEASE(m);  // the layer's borrowed manager
     if (fire == nullptr) return false;
     const bool ok = fire->IgniteCell(x, z, useProbability, teleport, fireIid);  // fire slot 5
     Drop(fire);
+    if (ok) ++Self(u)->Probe().ignited;
     return ok;
 }
 
@@ -351,11 +375,11 @@ void SetFireCause(void* u, uint32_t cause) {
     if (!Gate(fc4::Sw::FlammabilityFire, "flammability SetCause")) return;
     cISC4City* c = Self(u)->City();
     cISC4DisasterLayer* layer = c ? c->GetDisasterLayer() : nullptr;
-    cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kFireDisasterManager) : nullptr;
+    cISC4DisasterManager* m = layer ? layer->GetDisasterManager(kFireDisasterManager) : nullptr;  // borrowed
     if (m == nullptr) return;
+    // Only the QueryInterface result is ours (released by WithQi), as in IgniteCell.
     WithQi<cISC4DisasterManagerFire>(m, kIID_cISC4DisasterManagerFire,
                                      [&](cISC4DisasterManagerFire* fire) { fire->SetCause(cause); });  // slot 9
-    FC4_RELEASE(m);
 }
 
 // ---- messages (§9) ------------------------------------------------------------------------------
@@ -363,6 +387,7 @@ void SetFireCause(void* u, uint32_t cause) {
 // MessagePost(msg, false) of a standard message with void1 = IGZUnknown = this
 // simulator (§9).
 void Post(void* u, uint32_t msgType) {
+    if (msgType == kMsgSimCycleComplete) ++Self(u)->Probe().endOfCycles;
     if (!Gate(fc4::Sw::FlammabilityPosts, "flammability message post")) return;
     cIGZMessageServer2Ptr ms;
     if (!ms) return;
@@ -566,11 +591,29 @@ void cFC4FlammabilitySimulator::LogState(const char* what) {
     st.struct_size = sizeof(st);
     if (!fc4_flammability_get_state(core_, &st)) return;
     fc4::Log("flammability %s: init=%u cells=%dx%d average=%u multiplier=%.3f zoned=%d/%d candidates=%u hotspots=%u "
-             "S=%d period=%d tractsPerDay=%d adjusted=%p raw=%p reentrant=%u",
+             "S=%d period=%d tractsPerDay=%d adjusted=%p raw=%p reentrant=%u cycles=%u endOfCycles=%u "
+             "fireRolls=%u tutorialSkips=%u randomLots=%u ignited=%u/%u wateredQueries=%u watered=%u noPlumbing=%u "
+             "nested=%u/%u/%u/%u",
              what, st.initialized, st.count_x, st.count_z, st.average, st.global_multiplier, st.zoned_sum,
              st.zoned_count, st.candidates, st.hotspots, st.tract_size, st.cycle_period, st.tracts_per_day,
              static_cast<void*>(FromToken(st.adjusted_grid)), static_cast<void*>(FromToken(st.raw_grid)),
-             st.reentrant_calls);
+             st.reentrant_calls, cycles_, probes_.endOfCycles, probes_.fireRolls, probes_.tutorialSkips,
+             probes_.randomLots, probes_.ignited, probes_.igniteCalls, probes_.wateredQueries, probes_.watered,
+             probes_.noPlumbing, probes_.nestedGrid, probes_.nestedFlammable, probes_.nestedHotspot,
+             probes_.nestedAverage);
+}
+
+// The status line's cadence: plumbing logs at SimNewMonth, which this agent
+// (SimNewDay only, §4.1 step 2) never receives, so the month is read from the
+// day's julian date (data1). True on the first day of a new month; without a
+// date, every 30th day.
+bool cFC4FlammabilitySimulator::IsNewMonth(int32_t julian) {
+    if (julian <= 0) return cycles_ % 30 == 0;
+    fc4_date d{};
+    fc4_date_from_julian(julian, &d);
+    const bool changed = lastMonth_ != 0 && d.month != lastMonth_;
+    lastMonth_ = d.month;
+    return changed;
 }
 
 // ---- lifecycle (§4) -----------------------------------------------------------------------------
@@ -614,20 +657,27 @@ bool cFC4FlammabilitySimulator::Shutdown() {
 
 // ---- queries (§11.1) ----------------------------------------------------------------------------
 
+// A query made while a call into the core is running (the core counts it as
+// reentrant_calls) is also counted here per slot, so the status line shows
+// who re-entered (for example the fire manager during IgniteCell).
 cISC4SimGrid<uint8_t>* cFC4FlammabilitySimulator::GetFlammabilityGrid() {
+    if (depth_ > 0) ++probes_.nestedGrid;
     return GridOf(fc4_flammability_grid(core_));  // slot 5, no AddRef
 }
 
 bool cFC4FlammabilitySimulator::IsCellFlammable(int x, int z) {
+    if (depth_ > 0) ++probes_.nestedFlammable;
     return fc4_flammability_is_cell_flammable(core_, x, z);  // slot 6
 }
 
 bool cFC4FlammabilitySimulator::GetFlammabilityHotspot(uint8_t* value, int* x, int* z) {
+    if (depth_ > 0) ++probes_.nestedHotspot;
     // §11.1 slot 7: nothing is written when it returns false.
     return fc4_flammability_hotspot(core_, value, x, z);
 }
 
 uint8_t cFC4FlammabilitySimulator::GetAverageFlammability() {
+    if (depth_ > 0) ++probes_.nestedAverage;
     return fc4_flammability_average(core_);  // slot 8
 }
 
@@ -641,7 +691,9 @@ bool cFC4FlammabilitySimulator::DoMessage(cIGZMessage2* pMessage) {
     cIGZMessage2Standard* s = Query<cIGZMessage2Standard>(pMessage, GZIID_cIGZMessage2Standard);
     cISC4Occupant* occ = nullptr;
     cISC4Lot* lot = nullptr;
+    int32_t julian = 0;  // the status line's month (SimNewDay data1)
     if (s != nullptr) {
+        if (m.msg_type == kMsgSimNewDay) julian = static_cast<int32_t>(s->GetData1());
         if (m.msg_type == kMsgInsertOccupant || m.msg_type == kMsgRemoveOccupant ||
             m.msg_type == kMsgChangeOccupant) {
             // §5: the occupant is void1, known by its cISC4Occupant identity.
@@ -669,8 +721,12 @@ bool cFC4FlammabilitySimulator::DoMessage(cIGZMessage2* pMessage) {
     Drop(occ);
     Drop(s);
     // SimNewDay drives the daily refresh; EndOfCycle posts the cycle complete
-    // (§9). Count the days for the Shutdown line.
-    if (m.msg_type == 0x66956814u) ++cycles_;
+    // (§9). Count the days for the status and Shutdown lines; a status line
+    // at each month start, as plumbing's.
+    if (m.msg_type == kMsgSimNewDay) {
+        ++cycles_;
+        if (IsNewMonth(julian)) LogState("month");
+    }
     return r;  // §5: always true
 }
 
@@ -696,3 +752,22 @@ bool cFC4FlammabilitySimulator::Read(cIGZIStream& s) {
 }
 
 uint32_t cFC4FlammabilitySimulator::GetGZCLSID() { return kFC4_CLSID_cSC4FlammabilitySimulator; }
+
+// ---- test seam ----------------------------------------------------------------------------------
+
+intptr_t FlammabilityTestFirePath(cISC4City* city) {
+    if (city == nullptr) return 1;
+    cFC4FlammabilitySimulator* s = new cFC4FlammabilitySimulator();
+    s->AddRef();
+    s->TestSetCity(city);
+    // As the core drives it: SetCause only after a successful IgniteCell.
+    intptr_t r = 0;
+    if (IgniteCell(s, 6, 12, true, false, 0)) {
+        SetFireCause(s, 5);
+    } else {
+        r = 2;
+    }
+    s->TestSetCity(nullptr);  // borrowed: ReleaseServices must not release it
+    s->Release();
+    return r;
+}

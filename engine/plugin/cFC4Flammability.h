@@ -111,6 +111,25 @@ public:
     // into the core returns.
     void Hold(std::shared_ptr<void> list) { held_.push_back(std::move(list)); }
 
+    // Observability only (the status line, LogState): host-callback counts
+    // since construction. Main thread, like every call into the core.
+    struct Probes {
+        uint32_t endOfCycles = 0;     // SimCycleComplete posts asked for (§6.6 step 2)
+        uint32_t fireRolls = 0;       // fire rolls entered (is_tutorial, §6.8 first step)
+        uint32_t tutorialSkips = 0;   // ... of which skipped in the tutorial
+        uint32_t randomLots = 0;      // GetRandomLot asks (r < randomFireProbability)
+        uint32_t igniteCalls = 0;     // IgniteCell asks
+        uint32_t ignited = 0;         // ... that returned true
+        uint32_t wateredQueries = 0;  // IsCellWatered asks (§6.5)
+        uint32_t watered = 0;         // ... answered "watered"
+        uint32_t noPlumbing = 0;      // ... answered "no plumbing simulator" (-1)
+        // Slots 5-8 called while a call into the core was running.
+        uint32_t nestedGrid = 0, nestedFlammable = 0, nestedHotspot = 0, nestedAverage = 0;
+    };
+    Probes& Probe() { return probes_; }
+    // Test seam only (FlammabilityTestFirePath): a borrowed city, no AddRef.
+    void TestSetCity(cISC4City* city) { city_ = city; }
+
     // Counts the calls into the core; the outermost one drops the held lists.
     class CoreCall {
     public:
@@ -129,6 +148,7 @@ private:
     uint64_t Occ(cISC4Occupant* occupant) const;
     void RegisterAgents(bool add);
     void LogState(const char* what);
+    bool IsNewMonth(int32_t julian);
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
@@ -146,7 +166,14 @@ private:
     int depth_ = 0;
     bool agentsRegistered_ = false;
     uint32_t cycles_ = 0;
+    int32_t lastMonth_ = 0;  // the month of the last SimNewDay (status line cadence)
+    Probes probes_;
 };
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4FlammabilitySimulator();
+
+// Test seam op 9 (FC4TestSeam.h): the glue's ignition path (§6.8 IGNITE:
+// IgniteCell, then SetCause(5)) against `city`'s disaster layer. 0 = done;
+// 1 = no city; 2 = IgniteCell returned false.
+intptr_t FlammabilityTestFirePath(cISC4City* city);

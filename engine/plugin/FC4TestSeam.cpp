@@ -16,6 +16,7 @@
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "cFC4Flammability.h"
 #include "cFC4Power.h"
 #include "fc4.h"
 
@@ -39,6 +40,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return 1;
         case kFC4SeamPowerBudgetPath:
             return PowerTestBudgetPath(static_cast<cISC4BudgetSimulator*>(a));
+        case kFC4SeamFlammabilityFire:
+            return FlammabilityTestFirePath(static_cast<cISC4City*>(a));
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

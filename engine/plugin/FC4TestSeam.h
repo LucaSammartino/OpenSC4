@@ -38,6 +38,9 @@
 //   op 8  kFC4SeamRustPanic        a deliberate panic in the core
 //         (fc4_debug_panic): release builds log the panic report and
 //         abort with a fail-fast.
+//   op 9  kFC4SeamFlammabilityFire a = cISC4City*: the flammability glue's
+//         ignition path (IgniteCell, then SetCause(5)) on the city's
+//         disaster layer; returns 0, or 1 (no city) / 2 (no ignition).
 #pragma once
 
 #include <cstdint>
@@ -53,6 +56,7 @@ enum : uint32_t {
     kFC4SeamPowerBudgetPath = 6,
     kFC4SeamFpuReference = 7,
     kFC4SeamRustPanic = 8,
+    kFC4SeamFlammabilityFire = 9,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);
