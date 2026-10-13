@@ -75,7 +75,7 @@ traffic-network.md.
 | (float) | f32 | 1 | `0x69D5C3FA` | yes | not written by the code in this spec *[inferred]* |
 | congestion | u8 | 1 | `0x69D5C402` | yes | slot 10 (§4.10) |
 | peak volume/capacity ratio | f32 | 1 | `0x69D5C40E` | yes | §4.9 |
-| wormhole byte map | u8 | 1 | `0x69D5C424` | yes | traffic-network.md |
+| transit-switch mode-mask map (corrected: not a "wormhole" map; TN13) | u8 | 1 | `0x69D5C424` | yes | traffic-network.md §2.3 |
 | transit-switch ID map | u32 | 1 | `0x69D5C42D` | yes | traffic-network.md |
 
    Grid element types are the framework's grid classes (u8 `0x49B9E602`, f32 `0x49B9E60A`, u32 `0x49B9E606`;
@@ -798,7 +798,7 @@ vectors.
 | 6 | float grids | `0x69D5C3FA` grid, peak ratio grid |
 | 7 | edge densities | u32 count; per record: u32 key, `last[16]` u16 (index order 0…15), u16 usage, `current[16]` u16 |
 | 8 | per trip type k = 0…2 | u32 `jobCapacity[k]`, u32 `attempted[k]`, u32 `routed[k]` |
-| 9 | network grids | wormhole byte grid, transit-switch ID grid |
+| 9 | network grids | transit-switch mode-mask grid (`0x69D5C424`), transit-switch ID grid (`0x69D5C42D`) |
 | 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 (the `0x0BFC0A4C` value *[inferred: pairing]*), bool counts-as-intersection |
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |

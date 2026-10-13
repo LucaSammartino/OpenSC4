@@ -157,8 +157,13 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
 - **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
   [overwrite; no record]
 - **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
-- **TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
-  `0x69D5C424` the "wormhole byte map". [none]
+- ~~**TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
+  `0x69D5C424` the "wormhole byte map". [none]~~ **ANSWERED 2026-10-13** from the exe and written into
+  traffic-network.md §1 (Init step 5) and §2.3. Both are **instance IDs**, set by `SetInstanceID` (grid slot 6) at
+  `0x0071EF56`/`0x0071EFD2`. The classes are the framework's u8 (`0x49B9E602`) and u32 (`0x49B9E606`) grids.
+  `0x69D5C424` is the switch **mode-mask** grid that `DoLotActivated` writes (`0x00723E2B`), not a wormhole map:
+  the wormhole bits live in the cell connection record. The name is corrected in traffic-simulator.md (grid table,
+  §6.1 row 9) and save-records.md.
 - **TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]
 - **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
 - **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop

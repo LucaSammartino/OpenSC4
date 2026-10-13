@@ -68,9 +68,15 @@ this spec:
    `wormhole = 0`. The original does not initialise the car-continuity words (§2.1). FreeCity4 sets them to
    `0xFFFF` *[choice]*. No reader sees the difference, because every record of a city cell is rewritten by the first
    full rebuild (§4.2) before any search runs.
-5. Transit-switch maps. These are grid objects created through GZCOM:
-   - a `uint8` *switch mode mask* grid, class `0x69D5C424`;
-   - a `uint32` *switch ID* grid, class `0x69D5C42D`.
+5. Transit-switch maps: two grid objects, allocated and constructed in place. Each gets `SetTractSize(1)` and an
+   **instance ID** through grid slot 6 `SetInstanceID` (`0x0071EF56`, `0x0071EFD2`):
+   - a `uint8` *switch mode mask* grid (element class `0x49B9E602`), instance ID `0x69D5C424`;
+   - a `uint32` *switch ID* grid (element class `0x49B9E606`), instance ID `0x69D5C42D`.
+
+   Both IDs are instance IDs, not classes (TN13). `DoLotActivated` writes the mode mask into the first grid
+   (`0x00723E2B`) and the switch ID into the second (`0x00723E1F`). The *wormhole* bits are a field of the cell
+   connection record (§2.1), not a grid. The name "wormhole byte map" for `0x69D5C424` (traffic-simulator.md,
+   save-records.md) was wrong and has been corrected there.
 6. Water pathfinder: constructed, then `Init`. Init creates its depth grid and subscribes it to messages (§4.10).
 7. Next switch ID = 1 (set by the constructor).
 
@@ -148,8 +154,8 @@ changes `flags`.
 |---|---|---|---|
 | network info grid | no | empty | rebuilt by §4.2 at load |
 | cell connection array | no | see §1 | rebuilt by §4.2 at load |
-| switch ID grid (`uint32`, class `0x69D5C42D`) | yes (traffic save) | 0 | switch ID per cell covered by a transit-switch lot |
-| switch mode-mask grid (`uint8`, class `0x69D5C424`) | yes | 0 | OR of `1 << from` over the switch's kind-0 rules |
+| switch ID grid (`uint32`, instance ID `0x69D5C42D`) | yes (traffic save) | 0 | switch ID per cell covered by a transit-switch lot |
+| switch mode-mask grid (`uint8`, instance ID `0x69D5C424`) | yes | 0 | OR of `1 << from` over the switch's kind-0 rules |
 | next switch ID | yes | 1 | incremented once per created switch |
 | transit-switch table | yes (each record, traffic-simulator.md) | empty | SGI `hash_map<u32 id, TransitSwitch>`, bucket hint 100 |
 | tunnel table | yes (corrected, traffic-simulator §6.1 row 17) | empty | SGI `hash_map<u16 portalKey, TunnelInfo>`, hint 100. Rebuilt from occupant-insert messages. |
