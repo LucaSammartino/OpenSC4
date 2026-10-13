@@ -94,6 +94,14 @@ const SwitchInfo kSwitches[kCount] = {
     {"flammability_grid_writes", "FC4_FLAMMABILITY_GRID_WRITES"},
     {"flammability_posts", "FC4_FLAMMABILITY_POSTS"},
     {"flammability_history", "FC4_FLAMMABILITY_HISTORY"},
+    {"protection_occupants", "FC4_PROTECTION_OCCUPANTS"},
+    {"protection_budget", "FC4_PROTECTION_BUDGET"},
+    {"protection_dispatch", "FC4_PROTECTION_DISPATCH"},
+    {"protection_automata", "FC4_PROTECTION_AUTOMATA"},
+    {"protection_grid_writes", "FC4_PROTECTION_GRID_WRITES"},
+    {"protection_posts", "FC4_PROTECTION_POSTS"},
+    {"protection_history", "FC4_PROTECTION_HISTORY"},
+    {"protection_air_sources", "FC4_PROTECTION_AIR_SOURCES"},
 };
 
 // Keys that are not switches.
@@ -102,15 +110,17 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "digest", "observe", "power_report", "autoload_city", "autoload_delay_ticks",
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
                                   "demand_shadow_nodes",
-                                  "popup_dialogs", "clock_probe"};
+                                  "popup_dialogs", "clock_probe",
+                                  "protection_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 57, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1, 1};  // protection_*
+static_assert(kCount == 65, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

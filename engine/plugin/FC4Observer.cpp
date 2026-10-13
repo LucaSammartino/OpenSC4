@@ -22,6 +22,7 @@
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Popups.h"
+#include "FC4ProtectionShadow.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 #include "cFC4Message2Standard.h"
@@ -508,6 +509,7 @@ public:
                     WriteObserve(&ObserveMonthStep, "observe month", julian, nullptr);
                     FpuLog("observe month");
                 }
+                ProtectionShadowMonth(CurrentCity(), julian);  // protection_shadow = 1 only
                 ++monthsSinceLoad_;
                 if (saveAfterMonths_ > 0 && !saveStarted_ && monthsSinceLoad_ >= saveAfterMonths_) {
                     // [choice] Saved at the next framework tick, not inside the
