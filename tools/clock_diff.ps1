@@ -124,7 +124,10 @@ foreach ($p in @(@("A", $A, $sa), @("B", $B, $sb))) {
             $bad | Select-Object -First 10 | ForEach-Object { Write-Output "    $_" }
         } else { Write-Output "  $w stream: follows the spec's calendar rules" }
     }
-    Write-Output ("  control lines: " + $(if ($s.control.Count) { ($s.control | Select-Object -First 12) -join ", " } else { "none" }))
+    $pre = @($s.control | Where-Object { $_ -like "before load: *" } | ForEach-Object { $_.Substring(13) })
+    $post = @($s.control | Where-Object { $_ -notlike "before load: *" } | Select-Object -First 12)
+    Write-Output ("  control lines before the load: {0}; after: {1}" -f $(if ($pre.Count) { $pre -join ", " } else { "none" }),
+                  $(if ($post.Count) { $post -join ", " } else { "none" }))
 }
 if ($null -ne $sa.load -and $null -ne $sb.load) {
     foreach ($w in @("agent", "post")) {
