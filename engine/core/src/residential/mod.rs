@@ -105,8 +105,9 @@
 //!   ignores writes ([`TractGrid`]'s out-of-range rule); `Init` creates every
 //!   absent grid of §2, and for the two coverage vectors it creates all
 //!   entries when the first is null (§4.1 step 8).
-//! - **`GetGlobalEQ` / `GetGlobalHQ`** (REH §4.8) accumulate over the grid's
-//!   tracts x outer, z inner ([choice], `QUESTIONS.md` RS4).
+//! - **`GetGlobalEQ` / `GetGlobalHQ`** (REH §4.8 *[compat]*, RS4) accumulate
+//!   over the R$ EQ (HQ) grid's tract counts, x outer, z inner, through
+//!   `GetTractValue`, storing the sum as `f32` after every tract.
 //! - **Slots with undefined returns** (§10.1): 19, 20, 28, 47, 49 return
 //!   true; 21/22 return the grid and `(min, max)`; 23–25 return the three
 //!   grids (the `AddRef` is the `Rc` clone the caller holds) and EAX 1; the

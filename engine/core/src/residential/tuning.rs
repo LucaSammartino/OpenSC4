@@ -419,30 +419,16 @@ impl SimulatorTuning {
 /// with the "default" pattern. `None` when the exemplar is missing, which
 /// makes slots 29 and 34 return 0.
 pub fn le_curve(exemplar: Option<&PropertyHolder>) -> Option<ResponseCurve> {
-    let mut c = ResponseCurve::from_points(LE_DEFAULT);
-    if let Some(h) = exemplar {
-        if let Some(p) = props::curve(h, id::HQ_TO_LIFE_EXPECTANCY) {
-            c = p;
-        }
-    } else {
-        return None;
-    }
-    Some(c)
+    let h = exemplar?;
+    Some(props::curve(h, id::HQ_TO_LIFE_EXPECTANCY).unwrap_or_else(|| ResponseCurve::from_points(LE_DEFAULT)))
 }
 
 /// §7.3 / §6.4: the workforce curve, a fresh temporary curve per call with
 /// the "default" pattern. `None` when the exemplar is missing, which makes
 /// slots 30 and 31 write the static 0.0 *[inferred]*.
 pub fn workforce_curve(exemplar: Option<&PropertyHolder>) -> Option<ResponseCurve> {
-    let mut c = ResponseCurve::from_points(WORKFORCE_DEFAULT);
-    if let Some(h) = exemplar {
-        if let Some(p) = props::curve(h, id::LE_TO_WORKFORCE) {
-            c = p;
-        }
-    } else {
-        return None;
-    }
-    Some(c)
+    let h = exemplar?;
+    Some(props::curve(h, id::LE_TO_WORKFORCE).unwrap_or_else(|| ResponseCurve::from_points(WORKFORCE_DEFAULT)))
 }
 
 /// §6.5 `GetAverageNewAgeByWealth`: the code defaults `{25, 30, 25}`

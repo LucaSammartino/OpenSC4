@@ -50,6 +50,11 @@ pub struct Grids {
     pub temporary: Option<Rc<dyn TractGrid<u8>>>,
 }
 
+/// The three EQ or HQ grids (R$, R$$, R$$$).
+type QuotientGrids = [Option<Rc<dyn TractGrid<f32>>>; 3];
+/// The three population grids.
+type PopulationGrids = [Option<Rc<dyn TractGrid<u16>>>; 3];
+
 /// Every field of §3 (persisted or not), the grids and the occupant lists.
 #[derive(Clone)]
 pub struct ResidentialState {
@@ -980,20 +985,21 @@ impl ResidentialSim {
         let h = &*self.host;
         let mut p = [0u32; 3];
         let cells = s_size.clamp(0, MAX_TRACTS);
+        // S·S is a 32-bit product, the sum a wrapping u32 and the division
+        // unsigned (RS3).
         let denom = (s_size.max(0) as u32).wrapping_mul(s_size.max(0) as u32);
-        if denom != 0 {
-            for (q, slot) in p.iter_mut().enumerate() {
-                let mut sum = 0u32;
-                for i in 0..cells {
-                    for j in 0..cells {
-                        let cx = s_size.wrapping_mul(x).wrapping_add(i);
-                        let cz = s_size.wrapping_mul(z).wrapping_add(j);
-                        sum = sum.wrapping_add(u32::from(h.pollution_value(q as u32, cx, cz)));
-                    }
+        for (q, slot) in p.iter_mut().enumerate() {
+            let mut sum = 0u32;
+            for i in 0..cells {
+                for j in 0..cells {
+                    let cx = s_size.wrapping_mul(x).wrapping_add(i);
+                    let cz = s_size.wrapping_mul(z).wrapping_add(j);
+                    sum = sum.wrapping_add(u32::from(h.pollution_value(q as u32, cx, cz)));
                 }
-                // The caller keeps only the low byte [quirk].
-                *slot = (sum / denom) & 0xFF;
             }
+            // The caller keeps only the low byte [quirk]. [choice] A zero
+            // divisor (S ≤ 0, or S·S wrapping to 0) gives 0.
+            *slot = sum.checked_div(denom).unwrap_or(0) & 0xFF;
         }
         let mut loss = t.hq_decay;
         for (curve, index) in t.pollution_curves.iter().zip(p) {
@@ -1105,7 +1111,8 @@ impl ResidentialSim {
             }
         }
 
-        // Step 5: ageing.
+        // Step 5: ageing. The month is read per tract with total ≠ 0, nothing
+        // latched (RS2).
         let mut age = i32::from(age_grid.as_ref().map_or(0, |g| g.get(x, z)));
         if total != 0 {
             if h.sim_month() == 12 {
@@ -1326,17 +1333,15 @@ impl ResidentialSim {
             return 0.0;
         }
         let v: [f32; 3] = std::array::from_fn(|w| values[w].as_ref().map_or(0.0, |g| g.get(x, z)));
-        // s := q2·p2; s := q1·p1 + s; result := (q0·p0 + s) / float(sum16).
+        // s := q2·p2; s := q1·p1 + s; result := (q0·p0 + s) / float(sum16)
+        // (float addition is commutative, so `+=` is the same rounding).
         let mut s = mul_i(i64::from(p[2]), v[2]);
-        s = mul_i(i64::from(p[1]), v[1]) + s;
-        s = mul_i(i64::from(p[0]), v[0]) + s;
+        s += mul_i(i64::from(p[1]), v[1]);
+        s += mul_i(i64::from(p[0]), v[0]);
         div_i(s, i64::from(sum16))
     }
 
-    fn quotient_grids(
-        &self,
-        is_eq: bool,
-    ) -> ([Option<Rc<dyn TractGrid<f32>>>; 3], [Option<Rc<dyn TractGrid<u16>>>; 3]) {
+    fn quotient_grids(&self, is_eq: bool) -> (QuotientGrids, PopulationGrids) {
         let s = self.s.borrow();
         let q = if is_eq { s.grids.eq.clone() } else { s.grids.hq.clone() };
         (q, s.grids.population.clone())
@@ -1403,7 +1408,7 @@ impl ResidentialSim {
                 let a = mul_i(p(0), v(0));
                 let b = mul_i(p(1), v(1)) + a;
                 let c = mul_i(p(2), v(2)) + b;
-                sum = c + sum;
+                sum += c;
             }
         }
         div_i(sum, i64::from(population))
@@ -1741,7 +1746,7 @@ impl ResidentialSim {
         let selected = lists
             .iter()
             .zip(ids)
-            .filter(|(_, id)| groups.is_none_or(|g| g.contains(id)))
+            .filter(|(_, id)| groups.map_or(true, |g| g.contains(id)))
             .flat_map(|(l, _)| l.iter());
         let out: Vec<u64> = selected.chain(pending.iter()).flatten().copied().collect();
         for &occ in &out {

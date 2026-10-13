@@ -68,10 +68,9 @@ pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: 
 /// `d := min(d + 1, v)` that starts at [`FAR`]. Reports whether any stored
 /// value differs from the one it replaced.
 ///
-/// `d` is widened to `i32` for the increment ([choice]): the original's
-/// `min(d + 1, v)` with a byte accumulator would wrap 255 → 0 and flatten
-/// the field, and `v ≤ 255` bounds the stored result anyway, so the values
-/// written are exactly the byte values the pass computes.
+/// `d` is a 32-bit value (§5.3 *[compat]*, RS5): the original keeps it in a
+/// 32-bit register, so `255 + 1` does not wrap, and `v ≤ 255` bounds the
+/// stored result; the clamp to `0..=255` never acts.
 pub fn distance_pass(grid: &dyn TractGrid<u8>, count_x: i32, count_z: i32) -> bool {
     let nx = count_x.clamp(0, MAX_TRACTS);
     let nz = count_z.clamp(0, MAX_TRACTS);
@@ -157,7 +156,11 @@ mod tests {
         distance_to_convergence(&*t, 5, 5);
         for x in 0..5 {
             for z in 0..5 {
-                assert_eq!(t.get(x, z), (x - 2).abs() as u8 + (z - 2).abs() as u8, "({x},{z})");
+                assert_eq!(
+                    u32::from(t.get(x, z)),
+                    (x - 2).unsigned_abs() + (z - 2).unsigned_abs(),
+                    "({x},{z})"
+                );
             }
         }
         assert_eq!((t.get(0, 0), t.get(4, 2)), (4, 2));
