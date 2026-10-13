@@ -56,10 +56,10 @@ wrong (EQ 50 → 39.999996, HQ 60 → 47.999996) and is corrected; test 10 holds
 rounded to float32 before the truncation. Written into residential.md §5.6, §7.1, §15, REH §4 and foundations §18.3.
 Kept struck through so RS2–RS6 keep their numbers.
 
-**RS2 — §5.5 step 5: is the `GetSimDate` month read per tract, or latched at pass start?**
-The tract is aged only when `month = 12`. The core reads it per tract (the literal reading). The two differ only if a
-month boundary falls inside one state-4 pass — impossible in the original (one state per day) but reachable if a host
-runs a whole pass in one call across a date change.
+~~**RS2 — §5.5 step 5: is the `GetSimDate` month read per tract, or latched at pass start?**~~ **ANSWERED
+2026-10-13** from the exe and written into residential.md §5.5 step 5: **per tract.** `DoPopulationChange` calls
+`GetSimDate` itself (`0x006FAA95`) for every tract with total ≠ 0. Nothing is latched, so the core's literal reading
+is right.
 
 **RS3 — §5.5 step 1: the pollution average's accumulator width.**
 REH §4.7 says "u32 division". The core sums the `S × S` `GetPollutionValue` results (each 16 bits) in a wrapping

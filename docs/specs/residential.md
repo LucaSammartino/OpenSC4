@@ -283,6 +283,14 @@ float steps are float32 operations in the order given (foundations §18).
    - If new_w = 0: EQ_w := 0 and HQ_w := 0.
 5. **Ageing**. age := the age grid (uint8). If total ≠ 0: read the month (simulator `GetSimDate`, slot 6, month
    only); if month = 12, age := (age + 1) mod 256. If total = 0: age := 0.
+
+   *[compat]* (RS2, from the exe) The month is read **per tract and nothing is latched**:
+   - `DoPopulationChange` calls `GetSimDate` itself (`0x006FAA95`, through the cached simulator pointer) for each
+     tract with total ≠ 0, and compares the month with 12 at once (`0x006FAA98`);
+   - a tract with total = 0 does not call it at all.
+
+   In the original, state 4 always runs within one day, so every tract of a pass sees the same month. A host that
+   lets the date change in the middle of a pass must still read the date per tract, as the original would.
 6. **Newcomers' age**: if arrived and Σ new_w ≠ 0:
    `age := (Σ_w old_w × age + Σ_w nc_w × newAge_w) ÷ Σ_w new_w` (signed 32-bit, truncated), with newAge_w the
    tuning ages (§7.1). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
