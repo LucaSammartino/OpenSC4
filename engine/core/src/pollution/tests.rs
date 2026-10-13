@@ -220,6 +220,33 @@ fn init_sizes_and_cadence() {
     assert_eq!(h.refs.borrow().get(&900), Some(&0));
 }
 
+/// The shadow's replayed shuffle replaces the next end-of-cycle reset once;
+/// a table of the wrong length is ignored.
+#[test]
+fn shuffle_override_replaces_one_reset() {
+    let h = host(16);
+    let s = sim(&h);
+    let n = s.snapshot().iterator.table.len();
+    assert_eq!(n, 64);
+    let replay: Vec<u16> = (0..n as u16).rev().map(|i| ((i % 8) << 8) | (i / 8)).collect();
+    s.set_shuffle_override(Some(replay.clone()));
+    // One full cycle plus one visit: the reset happens inside the day.
+    s.with_state(|st| st.tracts_per_day = 64);
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.cycle_resets(), 1);
+    let st = s.snapshot();
+    assert_eq!(st.iterator.table, replay);
+    assert_eq!(st.iterator.index, 1);
+    // Used once: the next reset shuffles again.
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.cycle_resets(), 2);
+    assert_ne!(s.snapshot().iterator.table, replay);
+    // Wrong length: ignored (the shuffle runs).
+    s.set_shuffle_override(Some(vec![0; 3]));
+    s.do_message(msg::SIM_NEW_DAY, 0, 0);
+    assert_eq!(s.snapshot().iterator.table.len(), 64);
+}
+
 #[test]
 fn tuning_patterns() {
     let mut t = Tuning::default();

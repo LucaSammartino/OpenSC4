@@ -10,6 +10,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
+use std::sync::{Mutex, MutexGuard};
 
 use crate::curve::ResponseCurve;
 use crate::grid::{add_radius_effect, CellIterator, TractGrid, MODE_TABLE};
@@ -369,13 +370,33 @@ pub(crate) fn u32_prop(v: u32) -> Variant {
 }
 
 /// The pollution simulator.
+///
+/// # Threads
+///
+/// The game calls the interface's getters from a second thread while the
+/// main thread is inside `OnTick` (FC4's simulator notes). Everything those
+/// getters read lives behind a `Mutex`: the state ([`PollutionState`]) and
+/// the tuning. The lock is held only for plain data work — never across a
+/// host callback that could call back in — so a second-thread getter waits
+/// at most for one such section. Long main-thread work (the day, the month,
+/// the effects) runs on a copy of the state that is stored back at the end,
+/// so getters keep seeing the previous consistent state meanwhile; the grids
+/// themselves are shared objects written in place, as in the original.
+///
+/// Getters never clone the grid handles (an `Rc` count is not atomic); they
+/// borrow them under the lock. The `rand()` generators are main-thread only.
 pub struct PollutionSim {
     pub(super) host: Rc<dyn PollutionHost>,
     pub(super) token: Cell<u64>,
-    pub(super) s: RefCell<PollutionState>,
-    pub(super) tuning: RefCell<Tuning>,
+    pub(super) s: Mutex<PollutionState>,
+    pub(super) tuning: Mutex<Tuning>,
     pub(super) crt: RefCell<CrtRand>,
     pub(super) fx: RefCell<RzRandomSuper>,
+    /// The shadow's replacement for the next tract-iterator shuffle (main
+    /// thread only; see [`PollutionSim::set_shuffle_override`]).
+    pub(super) shuffle_override: RefCell<Option<Vec<u16>>>,
+    /// Tract-iterator resets at the end of a cycle since creation.
+    pub(super) cycle_resets: Cell<u32>,
 }
 
 impl PollutionSim {
@@ -385,10 +406,12 @@ impl PollutionSim {
         Rc::new(PollutionSim {
             host,
             token: Cell::new(token),
-            s: RefCell::new(PollutionState::default()),
-            tuning: RefCell::new(Tuning::default()),
+            s: Mutex::new(PollutionState::default()),
+            tuning: Mutex::new(Tuning::default()),
             crt: RefCell::new(CrtRand::default()),
             fx: RefCell::new(RzRandomSuper::new(fx_seed, seeds)),
+            shuffle_override: RefCell::new(None),
+            cycle_resets: Cell::new(0),
         })
     }
 
@@ -404,9 +427,48 @@ impl PollutionSim {
         &self.host
     }
 
-    /// A copy of the state.
+    /// Locks the state for one section. A poisoned lock is used anyway: the
+    /// state is still readable, and a release build aborts on the panic that
+    /// poisoned it.
+    pub(super) fn gate(&self) -> MutexGuard<'_, PollutionState> {
+        self.s.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(super) fn tuning_gate(&self) -> MutexGuard<'_, Tuning> {
+        self.tuning.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// A copy of the state (main thread: it clones the grid handles).
     pub fn snapshot(&self) -> PollutionState {
-        self.s.borrow().clone()
+        self.gate().clone()
+    }
+
+    /// Runs `f` on the state in place, under the lock. `f` must not call the
+    /// host except for grid reads (any thread).
+    pub fn peek<R>(&self, f: impl FnOnce(&PollutionState) -> R) -> R {
+        f(&self.gate())
+    }
+
+    /// Replaces the shuffle of the next tract-iterator reset at the end of a
+    /// cycle (§4.4.4 step 11) with this table, used once (the shadow replays
+    /// the original's order; it must have the iterator's length or it is
+    /// ignored). `None` clears it.
+    pub fn set_shuffle_override(&self, table: Option<Vec<u16>>) {
+        *self.shuffle_override.borrow_mut() = table;
+    }
+
+    /// Tract-iterator resets at the end of a cycle since creation.
+    pub fn cycle_resets(&self) -> u32 {
+        self.cycle_resets.get()
+    }
+
+    /// Reads every grid's geometry once on this thread, so a host grid that
+    /// caches it lazily is never filled in from a getter on another thread.
+    pub(super) fn warm_grids(&self) {
+        let grids = self.gate().grids.clone();
+        for g in grids.iter().flatten() {
+            let _ = g.geometry();
+        }
     }
 
     /// Changes the state directly (hosts restoring state, tests).
@@ -415,11 +477,11 @@ impl PollutionSim {
     }
 
     pub fn tuning(&self) -> Tuning {
-        self.tuning.borrow().clone()
+        self.tuning_gate().clone()
     }
 
     pub fn set_tuning(&self, t: Tuning) {
-        *self.tuning.borrow_mut() = t;
+        *self.tuning_gate() = t;
     }
 
     /// The `rand()` generator of the iterators (foundations §12.6).
@@ -440,18 +502,18 @@ impl PollutionSim {
         self.fx.borrow().clone()
     }
 
-    /// Runs `f` on a copy of the state and stores it back, so no borrow is
-    /// held while `f` calls the host.
+    /// Runs `f` on a copy of the state and stores it back, so the lock is not
+    /// held while `f` calls the host (main thread).
     pub(super) fn edit<R>(&self, f: impl FnOnce(&mut PollutionState) -> R) -> R {
-        let mut st = self.s.borrow().clone();
+        let mut st = self.gate().clone();
         let r = f(&mut st);
-        *self.s.borrow_mut() = st;
+        *self.gate() = st;
         r
     }
 
-    pub(super) fn peek<R>(&self, f: impl FnOnce(&PollutionState) -> R) -> R {
-        let st = self.s.borrow().clone();
-        f(&st)
+    /// Runs `f` on the state in place, under the lock: plain data work only.
+    pub(super) fn update<R>(&self, f: impl FnOnce(&mut PollutionState) -> R) -> R {
+        f(&mut self.gate())
     }
 
     /// `rand()` users run on a copy written back afterwards.
@@ -478,10 +540,7 @@ impl PollutionSim {
     /// `Init()`.
     pub fn init(&self) -> bool {
         let h = self.host.clone();
-        let (loaded, initialized) = {
-            let s = self.s.borrow();
-            (s.loaded, s.initialized)
-        };
+        let (loaded, initialized) = self.peek(|s| (s.loaded, s.initialized));
         if !loaded {
             self.edit(|s| {
                 for (i, slot) in s.grids.iter_mut().enumerate() {
@@ -509,7 +568,7 @@ impl PollutionSim {
             h.add_prop_requester();
         }
         if !initialized {
-            self.s.borrow_mut().initialized = true;
+            self.update(|s| s.initialized = true);
             self.reload_tuning();
             for level in AGENT_LEVELS {
                 h.add_agent(level, AGENT_NAME, AGENT_FLAGS);
@@ -530,7 +589,7 @@ impl PollutionSim {
             for e in leftovers {
                 h.release(e);
             }
-            if self.s.borrow().department.is_none() {
+            if self.peek(|s| s.department.is_none()) {
                 if let Some(d) = h.create_department(budget::DEPARTMENT, budget::DEPARTMENT_GROUP) {
                     h.add_ref(d);
                     h.set_department_name(d, budget::NAME_GROUP, budget::DEPARTMENT_NAME);
@@ -538,11 +597,12 @@ impl PollutionSim {
                     for (line, name) in budget::LINE_ITEMS {
                         h.create_line_item(d, line, false, budget::NAME_GROUP, name);
                     }
-                    self.s.borrow_mut().department = Some(d);
+                    self.update(|s| s.department = Some(d));
                 }
             }
             h.set_history_queue_length(history::AIR_PLUS_RADIATION, 2);
         }
+        self.warm_grids();
         true
     }
 
@@ -579,9 +639,9 @@ impl PollutionSim {
     /// Re-reads the tuning exemplar (§7.1; `Init` and `0xCA1B151C`).
     pub fn reload_tuning(&self) {
         let ex = self.host.tuning();
-        let mut t = self.tuning.borrow().clone();
+        let mut t = self.tuning_gate().clone();
         t.reload(ex.as_deref());
-        *self.tuning.borrow_mut() = t;
+        *self.tuning_gate() = t;
     }
 
     // ---- messages (§5) -----------------------------------------------------------------------------------
@@ -599,7 +659,7 @@ impl PollutionSim {
             msg::POST_CITY_INIT => self.update_visual_effects(),
             msg::PRE_VIEW_LEVEL_CHANGE => {
                 let b = new_view_level == VIEW_SURFACE;
-                let changed = self.edit(|s| {
+                let changed = self.update(|s| {
                     let c = s.effects_visible != b;
                     s.effects_visible = b;
                     c
@@ -616,7 +676,9 @@ impl PollutionSim {
 
     // ---- building changes (§4.2) -------------------------------------------------------------------------
 
-    /// Occupant inserted (`insert`) or removed.
+    /// Occupant inserted (`insert`) or removed. The state is changed in
+    /// short sections between the host calls (no copy of the state: a city
+    /// load inserts every building).
     pub fn occupant_changed(&self, occ: u64, insert: bool) {
         let h = self.host.clone();
         let h = &*h;
@@ -625,90 +687,107 @@ impl PollutionSim {
         }
         let sign: i32 = if insert { 1 } else { -1 };
         let (ncx, ncz) = self.cell_counts();
-        self.edit(|s| {
-            if let Some(centre) = p_i32s(h, occ, prop::CENTRE) {
-                let at = |a: &[i32], i: usize| a.get(i).copied().unwrap_or(0);
-                let outer = p_i32s(h, occ, prop::OUTER).unwrap_or_default();
-                // The garbage rectangle.
-                let (lo, hi) = h.occupant_bounding_box(occ);
-                let (x0, z0) = h.position_to_cell(lo[0], lo[2]);
-                let (x1, z1) = h.position_to_cell(hi[0], hi[2]);
-                let add = sign.wrapping_mul(at(&centre, 2));
-                if let (Some(g), true) = (&s.grids[G_GARBAGE_SRC], ncx > 0 && ncz > 0) {
-                    let geo = g.geometry();
-                    let (x0, x1) = (x0.clamp(0, ncx - 1), x1.clamp(0, ncx - 1));
-                    let (z0, z1) = (z0.clamp(0, ncz - 1), z1.clamp(0, ncz - 1));
-                    for x in x0..=x1 {
-                        for z in z0..=z1 {
-                            let (tx, tz) = geo.cell_to_tract(x, z);
-                            let v = g.get(tx, tz);
-                            g.set(tx, tz, i32::from(v).wrapping_add(add) as i16);
-                        }
-                    }
-                }
+        if let Some(centre) = p_i32s(h, occ, prop::CENTRE) {
+            let at = |a: &[i32], i: usize| a.get(i).copied().unwrap_or(0);
+            let outer = p_i32s(h, occ, prop::OUTER).unwrap_or_default();
+            // The source grids (shared objects, written in place).
+            let sources: [Option<Rc<dyn TractGrid<i16>>>; 4] = self.update(|s| {
                 s.dirty_garbage = true;
-                // The cones.
-                let radii = p_f32s(h, occ, prop::RADII).unwrap_or_else(|| vec![2.5, 1.5, 0.5, 4.0]);
-                let pos = h.occupant_position(occ);
-                for i in 0..4 {
-                    let r = radii.get(i).copied().unwrap_or(0.0);
-                    if r.is_nan() || r <= 0.0 {
-                        continue;
-                    }
-                    if let Some(g) = &s.grids[i] {
-                        let geo = g.geometry();
-                        let (tx, tz) = geo.position_to_tract(pos[0], pos[2]);
-                        let c = sign.wrapping_mul(at(&centre, i)) as f32;
-                        let o = sign.wrapping_mul(at(&outer, i)) as f32;
-                        add_radius_effect(&**g, geo.count_x, geo.count_z, tx, tz, r, c, o);
+                [
+                    s.grids[G_AIR_SRC].clone(),
+                    s.grids[G_WATER_SRC].clone(),
+                    s.grids[G_GARBAGE_SRC].clone(),
+                    s.grids[G_RAD_SRC].clone(),
+                ]
+            });
+            // The garbage rectangle.
+            let (lo, hi) = h.occupant_bounding_box(occ);
+            let (x0, z0) = h.position_to_cell(lo[0], lo[2]);
+            let (x1, z1) = h.position_to_cell(hi[0], hi[2]);
+            let add = sign.wrapping_mul(at(&centre, 2));
+            if let (Some(g), true) = (&sources[G_GARBAGE_SRC], ncx > 0 && ncz > 0) {
+                let geo = g.geometry();
+                let (x0, x1) = (x0.clamp(0, ncx - 1), x1.clamp(0, ncx - 1));
+                let (z0, z1) = (z0.clamp(0, ncz - 1), z1.clamp(0, ncz - 1));
+                for x in x0..=x1 {
+                    for z in z0..=z1 {
+                        let (tx, tz) = geo.cell_to_tract(x, z);
+                        let v = g.get(tx, tz);
+                        g.set(tx, tz, i32::from(v).wrapping_add(add) as i16);
                     }
                 }
             }
-            // The lists (§4.2.3).
-            let lists = [
-                (L_WTP, prop::WATER_TREATMENT),
-                (L_INC, prop::INCINERATOR),
-                (L_WTE, prop::WASTE_TO_ENERGY),
-                (L_REC, prop::RECYCLING),
-            ];
-            for (list, capacity_prop) in lists {
-                if h.occupant_property(occ, capacity_prop).is_none() {
+            // The cones.
+            let radii = p_f32s(h, occ, prop::RADII).unwrap_or_else(|| vec![2.5, 1.5, 0.5, 4.0]);
+            let pos = h.occupant_position(occ);
+            for (i, grid) in sources.iter().enumerate() {
+                let r = radii.get(i).copied().unwrap_or(0.0);
+                if r.is_nan() || r <= 0.0 {
                     continue;
                 }
-                if insert {
-                    h.add_ref(occ);
-                    s.lists[list].push(occ);
-                } else if let Some(i) = s.lists[list].iter().position(|&o| o == occ) {
-                    s.lists[list].remove(i);
-                    h.release(occ);
-                }
-                match list {
-                    L_WTP if insert => {
-                        h.set_occupant_property(occ, prop::WTP_USED, u32_prop(0));
-                        h.set_occupant_property(occ, prop::WTP_USED_LAST, u32_prop(0));
-                    }
-                    L_INC if insert => {
-                        h.set_occupant_property(occ, prop::INC_USED, u32_prop(0));
-                        h.set_occupant_property(occ, prop::INC_USED_LAST, u32_prop(0));
-                    }
-                    L_WTE => {
-                        let cap = i64::from(p_u32(h, occ, prop::WASTE_TO_ENERGY).unwrap_or(0));
-                        if insert {
-                            h.set_occupant_property(occ, prop::WTE_USED, u32_prop(0));
-                            h.set_occupant_property(occ, prop::WTE_USED_LAST, u32_prop(0));
-                            if let Some(out) = p_u32(h, occ, prop::WTE_OUTPUT) {
-                                h.set_occupant_property(occ, prop::WTE_MAX_OUTPUT, u32_prop(out));
-                                h.remove_occupant_property(occ, prop::WTE_OUTPUT);
-                            }
-                        }
-                        let v = i64::from(s.wte_capacity) + i64::from(sign) * cap;
-                        s.wte_capacity = v.clamp(0, i64::from(i32::MAX)) as i32;
-                    }
-                    L_REC => s.recycling_count = s.lists[L_REC].len() as u32,
-                    _ => {}
+                if let Some(g) = grid {
+                    let geo = g.geometry();
+                    let (tx, tz) = geo.position_to_tract(pos[0], pos[2]);
+                    let c = sign.wrapping_mul(at(&centre, i)) as f32;
+                    let o = sign.wrapping_mul(at(&outer, i)) as f32;
+                    add_radius_effect(&**g, geo.count_x, geo.count_z, tx, tz, r, c, o);
                 }
             }
-        });
+        }
+        // The lists (§4.2.3).
+        let lists = [
+            (L_WTP, prop::WATER_TREATMENT),
+            (L_INC, prop::INCINERATOR),
+            (L_WTE, prop::WASTE_TO_ENERGY),
+            (L_REC, prop::RECYCLING),
+        ];
+        for (list, capacity_prop) in lists {
+            if h.occupant_property(occ, capacity_prop).is_none() {
+                continue;
+            }
+            if insert {
+                h.add_ref(occ);
+                self.update(|s| s.lists[list].push(occ));
+            } else {
+                let removed = self.update(|s| match s.lists[list].iter().position(|&o| o == occ) {
+                    Some(i) => {
+                        s.lists[list].remove(i);
+                        true
+                    }
+                    None => false,
+                });
+                if removed {
+                    h.release(occ);
+                }
+            }
+            match list {
+                L_WTP if insert => {
+                    h.set_occupant_property(occ, prop::WTP_USED, u32_prop(0));
+                    h.set_occupant_property(occ, prop::WTP_USED_LAST, u32_prop(0));
+                }
+                L_INC if insert => {
+                    h.set_occupant_property(occ, prop::INC_USED, u32_prop(0));
+                    h.set_occupant_property(occ, prop::INC_USED_LAST, u32_prop(0));
+                }
+                L_WTE => {
+                    let cap = i64::from(p_u32(h, occ, prop::WASTE_TO_ENERGY).unwrap_or(0));
+                    if insert {
+                        h.set_occupant_property(occ, prop::WTE_USED, u32_prop(0));
+                        h.set_occupant_property(occ, prop::WTE_USED_LAST, u32_prop(0));
+                        if let Some(out) = p_u32(h, occ, prop::WTE_OUTPUT) {
+                            h.set_occupant_property(occ, prop::WTE_MAX_OUTPUT, u32_prop(out));
+                            h.remove_occupant_property(occ, prop::WTE_OUTPUT);
+                        }
+                    }
+                    self.update(|s| {
+                        let v = i64::from(s.wte_capacity) + i64::from(sign) * cap;
+                        s.wte_capacity = v.clamp(0, i64::from(i32::MAX)) as i32;
+                    });
+                }
+                L_REC => self.update(|s| s.recycling_count = s.lists[L_REC].len() as u32),
+                _ => {}
+            }
+        }
         // The budget (§4.2.4).
         if let Some(item) = h.budget_item_for_purpose(occ, budget::PURPOSE) {
             if item.line_item == budget::LINE_MAINTENANCE {
@@ -729,7 +808,7 @@ impl PollutionSim {
         if radius.is_nan() || radius <= 0.0 || strength == 0.0 {
             return;
         }
-        let grid = self.s.borrow().grids[G_RAD_SRC].clone();
+        let grid = self.peek(|s| s.grids[G_RAD_SRC].clone());
         if let Some(g) = grid {
             let geo = g.geometry();
             let (tx, tz) = geo.position_to_tract(position[0], position[2]);
@@ -741,17 +820,31 @@ impl PollutionSim {
 
     // ---- interface slots (§8.1) --------------------------------------------------------------------------
 
-    /// Slot 5: 0 air value, 1 water value, 2 garbage value, 3 radiation
-    /// **source**; others none ([choice]).
+    /// The grid index slot 5 answers for a type: 0 air value, 1 water value,
+    /// 2 garbage value, 3 radiation **source**; others none ([choice]).
+    pub fn pollution_grid_index(kind: u32) -> Option<usize> {
+        match kind {
+            0 => Some(G_AIR_VAL),
+            1 => Some(G_WATER_VAL),
+            2 => Some(G_GARBAGE_VAL),
+            3 => Some(G_RAD_SRC),
+            _ => None,
+        }
+    }
+
+    /// Slot 5 (main thread: clones the handle; other threads use
+    /// [`PollutionSim::with_pollution_grid`]).
     pub fn pollution_grid(&self, kind: u32) -> Option<Rc<dyn TractGrid<i16>>> {
-        let g = match kind {
-            0 => G_AIR_VAL,
-            1 => G_WATER_VAL,
-            2 => G_GARBAGE_VAL,
-            3 => G_RAD_SRC,
-            _ => return None,
-        };
-        self.s.borrow().grids[g].clone()
+        let g = Self::pollution_grid_index(kind)?;
+        self.peek(|s| s.grids[g].clone())
+    }
+
+    /// Slot 5 on any thread: `f` sees the grid under the lock.
+    pub fn with_pollution_grid<R>(&self, kind: u32, f: impl FnOnce(Option<&dyn TractGrid<i16>>) -> R) -> R {
+        match Self::pollution_grid_index(kind) {
+            Some(g) => self.peek(|s| f(s.grids[g].as_deref())),
+            None => f(None),
+        }
     }
 
     /// Slot 6: `max(0, source[type])`; types 4–7 read the value grids
@@ -773,120 +866,121 @@ impl PollutionSim {
         self.peek(|s| s.garbage_value(x, z))
     }
     pub fn average_air_value(&self) -> i32 {
-        self.s.borrow().avg_air
+        self.peek(|s| s.avg_air)
     }
     pub fn average_water_value(&self) -> i32 {
-        self.s.borrow().avg_water
+        self.peek(|s| s.avg_water)
     }
     pub fn average_garbage_value(&self) -> i32 {
-        i32::from(self.s.borrow().avg_garbage)
+        self.peek(|s| i32::from(s.avg_garbage))
     }
     /// Slots 13–15: unsigned `v ≥ threshold` [quirk].
     pub fn is_air_polluted(&self, x: i32, z: i32) -> bool {
-        self.air_value(x, z) as u32 >= self.tuning.borrow().air_threshold
+        self.air_value(x, z) as u32 >= self.tuning_gate().air_threshold
     }
     pub fn is_water_polluted(&self, x: i32, z: i32) -> bool {
-        self.water_value(x, z) as u32 >= self.tuning.borrow().water_threshold
+        self.water_value(x, z) as u32 >= self.tuning_gate().water_threshold
     }
     pub fn is_garbage_accumulated(&self, x: i32, z: i32) -> bool {
-        self.garbage_value(x, z) as u32 >= self.tuning.borrow().garbage_threshold
+        self.garbage_value(x, z) as u32 >= self.tuning_gate().garbage_threshold
     }
     /// Slot 16: the radiation source value ≠ 0.
     pub fn is_radioactive(&self, x: i32, z: i32) -> bool {
         self.peek(|s| s.cell(G_RAD_SRC, x, z) != 0)
     }
     pub fn worst_air_tract(&self) -> WorstTract {
-        self.s.borrow().worst_air
+        self.peek(|s| s.worst_air)
     }
     pub fn worst_water_tract(&self) -> WorstTract {
-        self.s.borrow().worst_water
+        self.peek(|s| s.worst_water)
     }
     pub fn worst_garbage_tract(&self) -> WorstTract {
-        self.s.borrow().worst_garbage
+        self.peek(|s| s.worst_garbage)
     }
     /// Slot 20: `max(0, supply)`, storing the clamp.
     pub fn garbage_supply(&self) -> u32 {
-        let mut s = self.s.borrow_mut();
-        s.garbage_supply = s.garbage_supply.max(0);
-        s.garbage_supply as u32
+        self.update(|s| {
+            s.garbage_supply = s.garbage_supply.max(0);
+            s.garbage_supply as u32
+        })
     }
     pub fn landfill_tile_capacity(&self) -> i32 {
-        self.tuning.borrow().landfill_tile_capacity as i32
+        self.tuning_gate().landfill_tile_capacity as i32
     }
     pub fn garbage_capacity(&self) -> i32 {
-        self.s.borrow().garbage_capacity
+        self.peek(|s| s.garbage_capacity)
     }
     pub fn is_garbage_uncollected(&self) -> bool {
-        self.s.borrow().garbage_uncollected
+        self.peek(|s| s.garbage_uncollected)
     }
     pub fn total_garbage_uncollected(&self) -> i32 {
-        self.s.borrow().total_uncollected as i32
+        self.peek(|s| s.total_uncollected as i32)
     }
+    /// Slots 25–28 write the grids in place (no host callback but the grid).
     pub fn set_is_radioactive(&self, x: i32, z: i32, on: bool) {
-        self.edit(|s| s.set_is_radioactive(x, z, on));
+        self.update(|s| s.set_is_radioactive(x, z, on));
     }
     pub fn set_air_value(&self, x: i32, z: i32, v: i16) {
-        self.edit(|s| s.set_air_value(x, z, v));
+        self.update(|s| s.set_air_value(x, z, v));
     }
     pub fn set_water_value(&self, x: i32, z: i32, v: i16) {
-        self.edit(|s| s.set_water_value(x, z, v));
+        self.update(|s| s.set_water_value(x, z, v));
     }
     pub fn set_garbage_value(&self, x: i32, z: i32, v: i16) {
-        self.edit(|s| s.set_garbage_value(x, z, v));
+        self.update(|s| s.set_garbage_value(x, z, v));
     }
     /// Slot 29: returns the applied delta.
     pub fn add_to_garbage_supply(&self, n: i32) -> i32 {
-        self.s.borrow_mut().add_to_garbage_supply(n)
+        self.update(|s| s.add_to_garbage_supply(n))
     }
     /// Slot 30: returns the argument.
     pub fn set_garbage_capacity(&self, n: i32) -> i32 {
-        self.s.borrow_mut().garbage_capacity = n;
+        self.update(|s| s.garbage_capacity = n);
         n
     }
     pub fn monthly_incinerator_capacity(&self) -> i32 {
-        self.s.borrow().incinerator_capacity
+        self.peek(|s| s.incinerator_capacity)
     }
     pub fn monthly_wte_capacity(&self) -> i32 {
-        self.s.borrow().wte_capacity
+        self.peek(|s| s.wte_capacity)
     }
     /// Slot 33 returns a pointer to this value.
     pub fn recycling_center_effect(&self) -> f32 {
-        self.s.borrow().recycling_effect
+        self.peek(|s| s.recycling_effect)
     }
     /// Slot 34: `decomposedLastMonth`, zero-extended.
     pub fn garbage_abducted_prev_month(&self) -> i64 {
-        i64::from(self.s.borrow().decomposed_last_month)
+        self.peek(|s| i64::from(s.decomposed_last_month))
     }
     /// Slots 35–41: last month's counters (recycled truncated).
     pub fn last_month(&self) -> Counters {
-        self.s.borrow().last_month
+        self.peek(|s| s.last_month)
     }
     pub fn garbage_recycled_last_month(&self) -> i64 {
-        ftol(self.s.borrow().last_month.recycled)
+        ftol(self.peek(|s| s.last_month.recycled))
     }
     /// Slots 42–45: list lengths (duplicates count).
     pub fn incinerator_count(&self) -> u32 {
-        self.s.borrow().lists[L_INC].len() as u32
+        self.peek(|s| s.lists[L_INC].len() as u32)
     }
     pub fn wte_building_count(&self) -> u32 {
-        self.s.borrow().lists[L_WTE].len() as u32
+        self.peek(|s| s.lists[L_WTE].len() as u32)
     }
     pub fn recycling_center_count(&self) -> u32 {
-        self.s.borrow().lists[L_REC].len() as u32
+        self.peek(|s| s.lists[L_REC].len() as u32)
     }
     pub fn water_treatment_plant_count(&self) -> u32 {
-        self.s.borrow().lists[L_WTP].len() as u32
+        self.peek(|s| s.lists[L_WTP].len() as u32)
     }
     /// Slot 46: incinerators, waste-to-energy, recycling (each `AddRef`ed
     /// for the caller's list).
     pub fn garbage_buildings(&self) -> Vec<u64> {
-        let v: Vec<u64> = {
-            let s = self.s.borrow();
+        let v: Vec<u64> = self.peek(|s| {
             [L_INC, L_WTE, L_REC]
                 .iter()
                 .flat_map(|&l| s.lists[l].iter().copied())
                 .collect()
-        };
+        });
         for &o in &v {
             self.host.add_ref(o);
         }
@@ -898,7 +992,7 @@ impl PollutionSim {
     }
     /// Slot 48.
     pub fn garbage_scaling_factor(&self) -> f32 {
-        self.tuning.borrow().garbage_scaling
+        self.tuning_gate().garbage_scaling
     }
     /// Slot 49: bit 15 of the garbage cell.
     pub fn is_active_landfill(&self, x: i32, z: i32) -> bool {
@@ -909,7 +1003,7 @@ impl PollutionSim {
         if self.host.zone_type(x, z) != ZONE_LANDFILL {
             return;
         }
-        self.edit(|s| {
+        self.update(|s| {
             let raw = s.cell(G_GARBAGE_VAL, x, z) as u16;
             if (raw & LANDFILL_FLAG != 0) == on {
                 return;
@@ -928,9 +1022,10 @@ impl PollutionSim {
     }
     /// Slot 51: `landfilled += n`; returns the new total.
     pub fn garbage_put_in_landfill(&self, n: i32) -> i64 {
-        let mut s = self.s.borrow_mut();
-        s.month.landfilled = s.month.landfilled.saturating_add(i64::from(n));
-        s.month.landfilled
+        self.update(|s| {
+            s.month.landfilled = s.month.landfilled.saturating_add(i64::from(n));
+            s.month.landfilled
+        })
     }
 
     /// Slot 52: `r := 0`, then the u32 property; returns (found, r).
@@ -943,12 +1038,17 @@ impl PollutionSim {
 
     /// Slot 53 (§8.1) on a given state.
     pub(super) fn current_capacity_in(&self, s: &PollutionState, property: u32, occ: u64) -> (bool, u32) {
+        self.capacity_at(s.efficiency, property, occ)
+    }
+
+    /// Slot 53 with a given efficiency (the host is called without the lock).
+    fn capacity_at(&self, efficiency: f32, property: u32, occ: u64) -> (bool, u32) {
         let h = &*self.host;
         let Some(base) = p_u32(h, occ, property) else {
             return (false, 0);
         };
         let mut r = if h.is_occupant_powered(occ) { base } else { 0 };
-        r = ftol32(f64::from(fmul_i(f64::from(r), s.efficiency))) as u32;
+        r = ftol32(f64::from(fmul_i(f64::from(r), efficiency))) as u32;
         if let Some(curve) = p_curve(h, occ, prop::CONDITION_CURVE) {
             let cond = p_f32(h, occ, prop::CONDITION).unwrap_or(0.0);
             r = rhe(fmul_i(f64::from(r), curve.eval(cond))) as u32;
@@ -958,8 +1058,8 @@ impl PollutionSim {
 
     /// Slot 53 `GetCurrentCapacity(prop, occ)`.
     pub fn current_capacity(&self, property: u32, occ: u64) -> (bool, u32) {
-        let s = self.snapshot();
-        self.current_capacity_in(&s, property, occ)
+        let efficiency = self.peek(|s| s.efficiency);
+        self.capacity_at(efficiency, property, occ)
     }
 
     /// Slot 54: the raw percentage property (default 0).
@@ -971,7 +1071,11 @@ impl PollutionSim {
     }
 
     pub(super) fn recycling_capacity_in(&self, s: &PollutionState, occ: u64) -> (bool, f32) {
-        match self.current_capacity_in(s, prop::RECYCLING, occ) {
+        self.recycling_capacity_at(s.efficiency, occ)
+    }
+
+    fn recycling_capacity_at(&self, efficiency: f32, occ: u64) -> (bool, f32) {
+        match self.capacity_at(efficiency, prop::RECYCLING, occ) {
             // `f32(float(uint32 r) × 0.01f)`: the f32 literal 0.01f (§8.1).
             (true, r) => (true, fmul_i(f64::from(r), 0.01f32)),
             _ => (false, 0.0),
@@ -980,8 +1084,8 @@ impl PollutionSim {
 
     /// Slot 55: slot 53 with `0x88ED1059`, × 0.01.
     pub fn recycling_center_current_capacity(&self, occ: u64) -> (bool, f32) {
-        let s = self.snapshot();
-        self.recycling_capacity_in(&s, occ)
+        let efficiency = self.peek(|s| s.efficiency);
+        self.recycling_capacity_at(efficiency, occ)
     }
 
     /// Slot 56.
@@ -997,7 +1101,7 @@ impl PollutionSim {
     pub fn current_occupant_efficiency(&self, occ: u64) -> (bool, f32) {
         if self.host.is_occupant_powered(occ) {
             if let (true, c) = self.current_occupant_condition(occ) {
-                return (true, self.s.borrow().efficiency * c);
+                return (true, self.peek(|s| s.efficiency) * c);
             }
         }
         (false, 0.0)
@@ -1041,7 +1145,7 @@ impl PollutionSim {
 
     /// Slots 67–70.
     pub fn max_level_for_ui(&self, kind: u32) -> i32 {
-        let t = self.tuning.borrow();
+        let t = self.tuning_gate();
         (match kind {
             0 => t.max_air_ui,
             1 => t.max_water_ui,
@@ -1062,19 +1166,21 @@ impl PollutionSim {
         if count == 0 {
             return 0;
         }
-        let s = self.snapshot();
-        let (cx, cz) = s.tract_counts(G_GARBAGE_VAL);
-        let shift = s.grids[G_GARBAGE_VAL].as_ref().map_or(0, |g| g.geometry().safe_shift());
-        let (ex, ez) = (i64::from(cx) << shift, i64::from(cz) << shift);
-        let mut sum = 0i32;
-        for x in i64::from(x0).max(0)..=i64::from(x1).min(ex - 1) {
-            for z in i64::from(z0).max(0)..=i64::from(z1).min(ez - 1) {
-                sum = sum.wrapping_add(s.garbage_value(x as i32, z as i32));
+        let sum = self.peek(|s| {
+            let (cx, cz) = s.tract_counts(G_GARBAGE_VAL);
+            let shift = s.grids[G_GARBAGE_VAL].as_ref().map_or(0, |g| g.geometry().safe_shift());
+            let (ex, ez) = (i64::from(cx) << shift, i64::from(cz) << shift);
+            let mut sum = 0i32;
+            for x in i64::from(x0).max(0)..=i64::from(x1).min(ex - 1) {
+                for z in i64::from(z0).max(0)..=i64::from(z1).min(ez - 1) {
+                    sum = sum.wrapping_add(s.garbage_value(x as i32, z as i32));
+                }
             }
-        }
+            sum
+        });
         let avg = (sum as u32) / count;
         let v = fmul_i(f64::from(avg), 1.0f32 / 32767.0);
-        rhe(self.tuning.borrow().prop_curve.eval(v))
+        rhe(self.tuning_gate().prop_curve.eval(v))
     }
 
     pub fn requester_satisfaction_id(&self) -> u32 {

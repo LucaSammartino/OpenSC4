@@ -80,7 +80,7 @@ impl PollutionSim {
 
     /// SimNewDay (level 4).
     pub fn simulate_day(&self) {
-        let t = self.tuning.borrow().clone();
+        let t = self.tuning();
         let h = self.host.clone();
         self.edit(|s| {
             // 4.4.1 Disposal capacities.
@@ -326,7 +326,7 @@ impl PollutionSim {
         }
         // 11. Advance.
         if s.iterator.is_exhausted() {
-            self.with_crt(|crt| s.iterator.reset(true, crt));
+            self.reset_tract_iterator(s);
             self.end_of_cycle(s);
         }
         if let Some((tx, tz)) = s.iterator.next_cell() {
@@ -335,11 +335,24 @@ impl PollutionSim {
         }
     }
 
+    /// `Reset(shuffle)` of the tract iterator at the end of a cycle (§4.4.4
+    /// step 11), or the shadow's replayed order when one is set.
+    fn reset_tract_iterator(&self, s: &mut PollutionState) {
+        let replay = self.shuffle_override.borrow_mut().take();
+        self.with_crt(|crt| s.iterator.reset(replay.is_none(), crt));
+        if let Some(table) = replay {
+            if table.len() == s.iterator.table.len() {
+                s.iterator.table = table;
+            }
+        }
+        self.cycle_resets.set(self.cycle_resets.get().wrapping_add(1));
+    }
+
     // ---- the garbage flow (§4.6) -------------------------------------------------------------------------
 
     /// `Dispose(g)` with the day's remaining capacities (§4.6.1).
     pub fn dispose(&self, g: f32, rem: &mut Remaining) -> f32 {
-        let t = self.tuning.borrow().clone();
+        let t = self.tuning();
         self.edit(|s| self.dispose_in(s, &t, g, rem))
     }
 
@@ -501,7 +514,7 @@ impl PollutionSim {
 
     /// SimNewMonth (level 6).
     pub fn simulate_month(&self) {
-        let t = self.tuning.borrow().clone();
+        let t = self.tuning();
         let h = self.host.clone();
         self.edit(|s| {
             // 4.9.1 Deals and cost.
