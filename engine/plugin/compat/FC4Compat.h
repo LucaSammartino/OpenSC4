@@ -47,6 +47,9 @@ struct ExecutableVersion {
     uint32_t stlNodeFreeVA;
     // The game's cRZString vtable (docs/abi/allocators.md, Strings).
     uint32_t rzStringVtableVA;
+    // The RZ framework's "set FPU precision" helper (foundations §18.1-18.2):
+    // cdecl, one int mode, no return value, the caller pops.
+    uint32_t fpuSetPrecisionVA;
     // Direct-call targets, indexed by Direct (docs/abi/direct-calls.md).
     uint32_t directVA[static_cast<unsigned>(Direct::Count)];
 };
@@ -57,6 +60,19 @@ const ExecutableVersion* IdentifiedVersion();
 
 using StlNodeAllocateFn = void*(__cdecl*)(uint32_t size);
 using StlNodeFreeFn = void(__cdecl*)(void* block);
+
+// The RZ framework's "set FPU precision" helper (foundations §18.1-18.2):
+// clears the PC field of the control word, then sets bit 1 for mode 1
+// (53-bit) or bits 0-1 for mode 2 (64-bit), so mode 0 means 24-bit. Cdecl,
+// one int argument, no return value, and the callee's plain `ret` leaves the
+// caller to pop - every game call site is `push 1; call; add esp,4`. A
+// `__stdcall`/`__thiscall` declaration would corrupt the stack.
+using FpuSetPrecisionFn = void(__cdecl*)(int mode);
+
+// The game's set-FPU-precision helper, or false (logged once) if the
+// executable is not identified or the address is not executable code inside
+// its image. Never guessed. `mode` comes from FC4FpuLogic.h (0 = 24-bit).
+bool FpuSetPrecision(FpuSetPrecisionFn* setPrecision);
 
 // The game's STL node allocator entry points (docs/abi/allocators.md), or
 // false (logged once) if the executable is not identified or the addresses
