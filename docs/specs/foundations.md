@@ -1914,6 +1914,72 @@ and round the result to `f32`; for the four basic operations this gives the corr
 
 The Mac build (GCC, SSE or x87 at 64-bit) differs; this section applies only to the Windows build.
 
+## 19. Threading model *[compat]*
+
+No other spec states one, and getting it wrong is expensive: it decides whether core state must be `Sync`, and it
+caused the run-23 and run-26 crashes (`0xC0000409`) that took two sessions to diagnose.
+
+### 19.1 The original is single-threaded on the simulation path
+
+The master clock and every simulator run on the main thread and have **no locking of any kind**. Verified by
+searching the decompilation of `cSC4Simulator` and every `cSC4*Simulator` for `EnterCriticalSection`,
+`LeaveCriticalSection`, `InitializeCriticalSection`, `InterlockedExchange`, `InterlockedCompareExchange` and
+`WaitForSingleObject`: **zero hits**. Message delivery is synchronous on the calling thread — `cGZMessageQueue` and
+`cGZMessageQueue2` only construct a `cRZThreadSignal`; there is no dispatch thread that would deliver messages from
+elsewhere.
+
+The game's worker threads (`cRZThread`: background model loader, HTTP client, name lookup, file-change
+notification; and the sound driver's thread — §18.2) do not reach the clock or the simulators. *[inferred: from the
+`cRZThread` users in the decompilation — `cRZHTTPClient`, `cRZNameLookup`, `cGZDBSegmentPackedFile` — none of which
+holds a simulator or city reference]*
+
+**Consequence:** the original needs no re-entrancy tolerance, so a replacement must not assume the game will
+serialise calls for it, and equally must not assume the game will call it concurrently.
+
+### 19.2 FreeCity4 adds concurrent readers of its own
+
+The plugin runs two threads besides the main one, and both are ours:
+
+- **A watchdog thread** (`FC4Autotest`/`FC4Diag`) that emits `heartbeat (periodic)` lines. Its heartbeat is **not a
+  cached snapshot** — across runs 8–28 the values it prints advance with the simulation: the julian date walks
+  `2452170 → 2452180 → 2452191 → 2452201 …`, the pause/hidden/emergency flags change (`pause 1 hidden 2
+  emergency 1` in the last run-28 heartbeat against `pause 0 hidden 0 emergency 0` earlier), and it reports what the
+  main thread is doing *at that moment*: `delivering msg 0x6695681A (level 10) to agent 00E1E36C
+  'cSC4PowerSimulator' for 16 ms`, `main: OnTick (15 ms) > core fc4_sim_on_tick (15 ms)`. That is simulator state
+  the main thread mutates inside `OnTick`, read from another thread.
+- **An autotest thread** that decides when the verdict is due and terminates the process. In run 26 the panicking
+  thread (`tid 23860`) was neither the main thread (`8328`) nor the watchdog (`22672`), and the panic reported
+  `(thread unnamed)` — the form a plain `std::thread::spawn` produces. Every run has exactly three threads, so the
+  autotest thread is the likely identity. *[inferred: not proven; the process aborted before that thread logged
+  anything else. Naming the threads would settle it in one run.]*
+
+**Consequence:** core state reachable from the clock *is* read concurrently in FreeCity4, so it must be `Sync`. A
+`RefCell` there panics under a concurrent read, and because the release build uses `panic = "abort"` the process dies
+with `0xC0000409` — which is what run 23 and run 26 did. The fix is a `Mutex` held for exactly one `with()`/`read()`
+section and **never** across a `deliver`/`post`/refcount hook, so a blocked getter waits microseconds rather than a
+whole tick and cannot deadlock against a game lock that a delivering agent needs.
+
+### 19.3 Rules for a core author
+
+1. Any state the clock exposes to the diagnostic threads must be `Sync`: `Mutex`/`RwLock`/atomics, not `RefCell` or
+   `Cell`. Main-thread-only state (for example the timer list, which `Init` installs and only `OnTick` reads) may
+   stay a `RefCell` and should be documented as such.
+2. Prefer **not** to have the diagnostic threads read core state at all. Publishing a few values as atomics from the
+   main thread and letting the heartbeat read those removes the contention instead of merely making it safe. Where
+   both are cheap, do both.
+3. Name your threads (`thread::Builder::name`) so a panic names the thread that faulted. Unnamed threads turn a
+   one-run diagnosis into a log forensics session.
+4. Never hold a core lock across a call into the game — a delivery, a message post, an `AddRef`/`Release`, or any
+   vtable call. The game may re-enter us.
+
+### 19.4 What this does not settle
+
+Which thread panicked in run 26 is inferred, not proven (§19.2), and whether the original master clock is *ever*
+called from a non-main thread by game code is answered only as "no evidence of it, and no locking to support it". If
+a future run shows a genuine game thread inside a `cISC4Simulator` method, §19.1 must be revised — that would mean
+the original tolerates cross-thread reads despite having no locks, which would be worth understanding before copying
+it.
+
 ## Errata / clarifications (round 2)
 
 1. **Null object values in property holders** (§9.2 vs §10.2, §14 test 18) *[compat]*. Both statements were about
