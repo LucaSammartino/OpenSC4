@@ -13,11 +13,14 @@ into §8.3: row by row, ascending z, with interior rows visiting only their two 
 inference was correct. Kept here struck through rather than deleted so the numbering of ZQ2–ZQ6 still matches the
 lane's report.
 
-**ZQ2 — §7.4 `CreateParcellizableRegion`, the parenthetical "(real mode or the cell is occupied per §8.4)".**
-Code 7 of §8.4 is only reachable if codes 0/1/2/3 all pass first, so a cell holding a lot that is *also* unzoned, or under
-a network, returns 2 or 3 — not 7. "Occupied per §8.4" is therefore not a clean predicate. The lane implemented it
-literally as `can_create_lot(x, z, 1, 1, false, false) == 7`. No test exercises the highlight-mode branch of §7.4 at all
-(see ZQ4).
+~~**ZQ2 — §7.4 `CreateParcellizableRegion`, the parenthetical "(real mode or the cell is occupied per §8.4)".**~~
+**ANSWERED 2026-10-13** from the exe and written into zones.md §7.4, with a highlight-mode table. The predicate is the
+zone developer's per-cell `IsCellOccupied(x, z)` (`0x0072C050`), called only in highlight mode:
+- real mode: a real lot is on the cell;
+- highlight mode: a real lot that is not virtually deleted, or a virtual lot.
+
+That is §8.4's code-7 cell condition without codes 0–3, so `can_create_lot(…) == 7` is not equivalent. The lot then
+examined is always the real one (`GetLot(x, z, false)`).
 
 **ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**
 Tests 19–29 all state "the harness bypasses `DetermineLotSize`", and no other test covers it. It is the most
