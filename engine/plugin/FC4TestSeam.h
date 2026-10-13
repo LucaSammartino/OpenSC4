@@ -35,6 +35,9 @@
 //   op 7  kFC4SeamFpuReference     a = null: the calling thread's x87 control
 //         word becomes the guard's reference (as PreAppInit does in the
 //         game); a != null: the per-tick check alone (FpuTick).
+//   op 8  kFC4SeamRustPanic        a deliberate panic in the core
+//         (fc4_debug_panic): release builds log the panic report and
+//         abort with a fail-fast.
 #pragma once
 
 #include <cstdint>
@@ -49,6 +52,7 @@ enum : uint32_t {
     kFC4SeamObserverApp = 5,
     kFC4SeamPowerBudgetPath = 6,
     kFC4SeamFpuReference = 7,
+    kFC4SeamRustPanic = 8,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

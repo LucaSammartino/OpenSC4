@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "lot_developer_night_lights",
+  "spec": ["lot-developer 8.1", "lot-developer 8.2", "lot-developer 8.3", "lot-developer 8.4", "lot-developer 16"],
+  "description": "Tests 15 and 16 (§8, §16). Night batch: shipped tuning gives accumulator 100 and batch 10; the tick message uses ms = data2 / 1000 (data2 is µs) and the hard-coded threshold is 200. With night mode 2 and 25 buildings, a tick of 150000 µs (150 ms) makes acc 250 > 200, so a batch of 10 lights and acc resets to 0. A tick of 99999 µs (99 ms) then 101000 µs (101 ms) gives acc 200, which is not > 200, so nothing runs; a further 2000 µs (2 ms) gives 202 and lights the next 10. After the 25th building the next batch finds the cursor at the end and sets mode 0. With mode 0 the tick message returns false. Shuffle (§8.2): a day/night message that is not an immediate update random_shuffles the deque with C rand() (state 1, first outputs 41, 18467, 6334): swaps (1, 41 mod 2 = 1), (2, 18467 mod 3 = 2), (3, 6334 mod 4 = 2), so [b0,b1,b2,b3] becomes [b0,b1,b3,b2], and the cursor resets to the front.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64], "time_mode": 2},
+
+    {"op": "ldev_create", "seed": 12345, "note": "test 15: night batch, shipped tuning"},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_expect", "night_acc": 100, "night_batch": 10, "night_mode": 0},
+
+    {"op": "ldev_make_buildings", "count": 25},
+    {"op": "ldev_expect", "night_len": 25, "note": "each inserted building joins the night deque unlit (quirk 9)"},
+    {"op": "ldev_set", "night_mode": 2, "night_cursor": 0, "night_acc": 100},
+
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 150000, "expect": true,
+      "note": "ms = 150, acc 100 + 150 = 250 > 200 -> a batch runs, acc resets to 0"},
+    {"op": "ldev_expect", "night_acc": 0, "night_cursor": 10},
+
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 99999, "expect": true,
+      "note": "ms = 99, acc 99 <= 200 -> nothing"},
+    {"op": "ldev_expect", "night_acc": 99, "night_cursor": 10},
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 101000, "expect": true,
+      "note": "ms = 101, acc 99 + 101 = 200, not > 200 -> nothing"},
+    {"op": "ldev_expect", "night_acc": 200, "night_cursor": 10},
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 2000, "expect": true,
+      "note": "ms = 2, acc 202 > 200 -> the next batch of 10 lights, acc resets"},
+    {"op": "ldev_expect", "night_acc": 0, "night_cursor": 20},
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 250000, "expect": true,
+      "note": "the next batch (ms 250, acc 250 > 200): buildings 20..24 (5), then the cursor reaches the end and mode goes 0"},
+    {"op": "ldev_expect", "night_cursor": 25, "night_mode": 0},
+    {"op": "ldev_message", "msg": "0x86AD10EE", "data2": 150000, "expect": false,
+      "note": "mode 0: the tick message returns false"},
+
+    {"op": "ldev_clear_buildings", "note": "test 16: shuffle"},
+    {"op": "ldev_create", "seed": 12345, "crt_seed": 1},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_make_buildings", "count": 4},
+    {"op": "ldev_expect", "night": [1, 2, 3, 4], "note": "four buildings in insertion order"},
+    {"op": "ldev_world", "time_mode": 0, "note": "mode 0: neither immediate branch matches, so the deque is shuffled"},
+    {"op": "ldev_message", "msg": "0x44778234", "data2": 0, "expect": true, "note": "night (data2 = 0)"},
+    {"op": "ldev_expect", "night_mode": 2, "night_cursor": 0},
+    {"op": "ldev_expect", "night": [1, 2, 4, 3],
+      "note": "rand() 41, 18467, 6334: swaps (1,1), (2,2), (3,2) -> [b0,b1,b3,b2]"},
+    {"op": "ldev_expect_draws", "draws": [["R15", 4, 41], ["R15", 4, 18467], ["R15", 4, 6334]]},
+
+    {"op": "ldev_world", "time_mode": 2},
+    {"op": "ldev_message", "msg": "0x44778234", "data2": 0, "expect": true,
+      "note": "night and mode 2: an immediate update, all buildings lit, cursor to the front, mode 0, then post 0xA6B79621"},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_expect", "night_mode": 0, "night_cursor": 0}
+  ]
+}

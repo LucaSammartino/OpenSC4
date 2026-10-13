@@ -1422,6 +1422,102 @@ No other ordering requirement is derived:
   in the original) were not analysed (§15 question 5). *[choice]* Until they are, FreeCity4 keeps registration
   order.
 
+### 13.4 Decision: how FreeCity4 orders agents (2026-10-13)
+
+`simulator.md` §4 originally asserted that because the original orders agents by object address, "no behaviour may
+depend on it". **That assertion is false** and is corrected there: `landfill.md` §3.3 derives an observable
+requirement from the order (whether this month's landfill intake is reported and charged this month or next), and
+§13.3 above derives a second one for the budget. Order is therefore behaviourally significant, and FreeCity4 must
+choose one deliberately.
+
+**Decision.** The original's order is *not reproducible*: it is heap-address order, and the ranks of the first 18
+month agents vary between sessions (pollution 3–14, budget 1–11, aura 2–18). FreeCity4 does not attempt to
+reproduce it, because there is nothing stable to reproduce. Instead it satisfies the two properties that the
+evidence does support:
+
+1. **Determinism.** Within one FreeCity4 build the order is fixed and reproducible, so conformance vectors and
+   seeded runs are meaningful. Registration order gives this; address order cannot.
+2. **The derived data dependencies hold.** Every *[compat]* ordering requirement derived in this section and in the
+   subsystem specs must be satisfied.
+
+Concretely, month-level (level 6) agents are ordered by:
+
+- **A fixed rank for the stable tail** — *[compat]* for the four-agent run that the evidence pins, *[choice]* for
+  the two appended after it:
+  - *[compat]* **landfill developer, port developers (×2), neighbours, ordinance**, in that order. The eight logged
+    sessions agree on this run and agree that it comes after every agent ranked 1–18, and §13.3 derives an
+    observable requirement from it (landfill after pollution and budget; landfill before neighbours and ordinance).
+  - *[choice]* **commercial, then land value**, appended after that run. The logs put commercial at rank 23–24 and
+    land value at 19–24, so land value's range overlaps the whole *[compat]* run above and its position is **not**
+    pinned by evidence. No derived requirement involves either agent, so the order between them, and theirs against
+    the four above, is FreeCity4's to choose. It is recorded here so it is chosen once and pinned by a vector, not
+    left to registration accident.
+- **Registration order for everything else**, i.e. the first 18 agents, whose relative order is genuinely unknown
+  (§15 questions 5 and 7).
+
+That placement satisfies all three derived requirements at once: pollution and budget are both in the first 18, so
+they precede the landfill developer; the landfill developer precedes neighbours and ordinance because all three are
+in the fixed tail in that order; and budget precedes ordinance and neighbours for the same reason (§13.3).
+
+**Implementation note for the core:** this needs an explicit ordering mechanism, not a change to registration order
+alone — registering the landfill agent late would also work but is fragile, because it depends on when the city
+happens to call `Init`. A rank or priority attached to the agent (defaulting to registration order) is the robust
+form. Whatever is chosen must be pinned by conformance vectors: a test that the landfill month agent runs after
+pollution's and the budget's and before the neighbours' and the ordinance's, and a test that the other agents keep
+registration order.
+
+**Sequencing — do not retrofit this ahead of need.** The simulator core is already written, merged and verified
+in-game (budget and power run correctly with it, runs 27/28). None of the six tail agents exists as a core yet
+except ordinance and land value; landfill is being written now, and neighbours, the port developers and commercial
+do not exist. So the ordering mechanism is **not needed until a tail agent's glue actually lands**. Introducing it
+earlier means reworking verified, in-game-tested code for no behavioural gain, and risks the budget and power paths
+that currently work. When it is needed, the change must be made with the existing month-agent behaviour pinned by
+vectors first, so a regression in the verified budget settlement is caught rather than discovered in-game.
+
+**What this does not settle:** the relative order of the first 18 agents, which is unobservable in the original and
+therefore unconstrained except where a later analysis derives a requirement (as landfill §3.3 did). If a future
+differential shows a value depending on, say, residential-before-budget, add the requirement here and to the rank
+table rather than reordering registrations ad hoc.
+
+### 13.5 The same reasoning applies at every level, not just month
+
+The decision above is about the month level (level 6) because that is where a requirement was derived. It rests on a
+property that holds at **all** levels, so it answers the same question wherever a subsystem spec asks it — for
+example `residential.md` §10.2 question 3, which asks about the day-level (level 4) order of residential relative to
+the growth developers, pollution and the BDS:
+
+- The original orders agents **by the unsigned value of the `cIGZMessageTarget2` pointer** passed to `AddAgent`
+  (§13.1), and delivery walks that set in ascending order. There is no per-level ordering logic; the level only
+  selects which set is walked.
+- Therefore the order within *any* level is an artifact of heap addresses. §13.2's measurements show it is not even
+  stable between sessions at the month level (pollution rank 3–14, budget 1–11, aura 2–18), so there is **no original
+  day-level order to recover either**. Asking "what order does the original run residential in at day level?" has no
+  stable answer to give.
+- Consequently, for every level: FreeCity4 uses **registration order** (*[choice]*, deterministic and reproducible),
+  and the *only* thing that can make order matter is a **derived data dependency** — one agent reading state another
+  writes in the same pass. Where such a dependency exists it must be derived from the code and recorded as a
+  *[compat]* requirement with evidence, exactly as landfill §3.3 did, and then honoured by the rank table.
+- Where a spec has no derived dependency and simply says the order "follows pointer order in the original and was not
+  analysed", the correct disposition is not to analyse it further — it is to state that registration order is the
+  *[choice]* and move on. Analysing it cannot produce a reproducible answer, and any value that appears to depend on
+  it is depending on heap layout.
+
+So `residential.md` §4.3's existing *[choice]* — "FreeCity4 uses registration order" — is confirmed correct, and the
+part of its open question 3 that asked what the original's day-level order is, is closed: there is nothing to match.
+That does **not** mean residential has no coupling to other agents — §5 state 1 reads the BDS building map and the
+pollution source grids, and §4.3 notes it reads the growth developers' population maps. It means such a coupling can
+only be resolved as a *derived* requirement with evidence, never by reproducing pointer order. If a future
+differential shows residential's day step reading one of those maps before the agent that writes it has run this day,
+that is a derived *[compat]* requirement and belongs in §13.4's rank table.
+
+**One caveat on measuring it.** Delivery logs cannot recover the original's order either: every run that logs
+deliveries (`deliver #N: level … -> agent …`) has FreeCity4's own simulator enabled, so it records *our* registration
+order, not the original's. Run 19 is the only run with the original simulator and our observer, and it predates
+delivery logging (zero `deliver` lines). The delivery log is also capped (300 lines), which in runs 23–28 captured
+only levels 0 and 10. Recovering the original's order would need the observer running against the original simulator
+with the cap raised — and even then it would only measure one session's heap layout, which is the thing that is not
+worth reproducing.
+
 Day-level agents run before month-level ones on the 1st of a month (simulator spec §5); this is independent of
 the order within a level.
 
@@ -1696,9 +1792,11 @@ effect, on which threads, and what that means for the specs.
 | When | Where | Effect on the control word |
 |---|---|---|
 | Process start (C runtime init, before `WinMain`) | CRT `_cinit` → `_fpmath(1)` → `_setdefaultprecision` = `_controlfp(_PC_53, _MCW_PC)` | precision **53-bit**; rounding to nearest; all exceptions masked (Windows default) |
-| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
-| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
+| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | `CALL 0x005F85E0` (the first call after the prologue, verified in the bytes at `0x0045236C`), which calls the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 unconditionally | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
+| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit. **If the current precision is already 53-bit the guard skips both calls, so a Lua call can never restore 24-bit** |
+| The exemplar float-expression parser (`nSCRes::ParseFloat` `0x0067BBA0` → `ParseExpression` `0x0067BB20` → the additive parser `0x0067BA40`, reached from `0x0067AC30` and `0x0067BAE0`) | the additive parser `0x0067BA40` calls the getter and, when it reports 24-bit, the helper with mode 1 — and then **returns with no mode-0 call in this chain** | precision **53-bit, and irrecoverably so** (§18.2: nothing can restore 24-bit). Verified in the bytes of `0x0067BA40` (one getter call, one `PUSH 1` + setter call, no setter on the return path at `0x0067BACC`); no function in `0x0067AC30`, `0x0067B990`, `0x0067BA40`, `0x0067BAE0`, `0x0067BB20` or `ParseFloat` restores, and no direct caller of `ParseFloat` (e.g. `cCameraParamsCommand`, `cDecalLifeCommand`) wraps it. **This leak evidently does not fire in a normal session**, because a save written by the unmodified game holds the 24-bit budget result (§18.2) — consistent with `ParseFloat` being reachable only from **text**-format resource parsing, while shipped tuning and building data is binary *[compat: a latent bug in the original]* |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
+| A DLL `LoadLibrary`d during app init, whose own CRT runs `_fpmath(1)` → `_controlfp(_PC_53, _MCW_PC)` | the CRT of that DLL | precision **53-bit** on the loading thread. Ruled out for the normal session by §18.2 (a save written by the unmodified game holds the 24-bit result, and nothing can restore 24-bit afterwards). Import-table fact that constrains the candidates: `DSOUND.dll`, `OPENGL32.dll` and `WINMM.dll` are **static imports** (CRT init at process start, before our first measurement at 24-bit, so excluded); `DDRAW.DLL` is **not** a static import, so it is loaded on demand and was a candidate before §18.2 ruled the window out |
 | Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
 | Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
@@ -1706,13 +1804,24 @@ The helper's modes are 0 = 24-bit, 1 = 53-bit, 2 = 64-bit. Nothing in the game c
 else writes the precision field. The C library's x87 math helpers (`pow`, `exp`, `log`, …) keep the caller's
 precision (they only force round-to-nearest and masked exceptions while they run).
 
+**A load-order fact worth knowing before reading the run logs.** The CRT row really does set 53-bit at process start:
+the stored pointer `PTR___fpmath_00b18b88` holds `0x009EEEE5` (`__fpmath`), so `__cinit`'s null test passes and calls
+it with 1, and `__setdefaultprecision` (`0x009F6C30`) is literally `push 0x30000; push 0x10000; call _controlfp` =
+`_controlfp(_PC_53, _MCW_PC)`. Yet the plugin measures **24-bit** at `DLL_PROCESS_ATTACH`. Both are consistent only
+if the GZCOM plugin load happens *inside* `PreFrameWorkInit`, after its first statement (`CALL 0x005F85E0`) has
+already lowered the precision. So "24-bit at DLL attach" is **not** evidence about the CRT default, and it is not
+evidence that anything ran before our DLL except that one assert. It does rule out our DLL's own load-time CRT init
+as the cause of the later 53-bit reading (that init had already finished, at 24-bit).
+
 ### 18.2 Threads
 
 - **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
   agents (simulator.md), every grid simulator, the budget and all message handlers run on this thread, so **the
   whole simulation runs at 24-bit precision** *[inferred: the simulator is driven by the framework's idle and
-  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls and the exemplar
-  expression evaluator (53-bit), which do not touch simulation state.
+  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls (53-bit
+  for the duration of the call, then restored) and the exemplar expression parser (§18.1, row 4). The Lua path does
+  not touch simulation state. The parser's leak **would** poison the whole session if it ever fired, since nothing
+  can restore 24-bit afterwards — but the save evidence below shows it does not fire in a normal session.
 - **Worker threads** created by the game (`cRZThread`: background model loader, HTTP client, name lookup,
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
@@ -1723,6 +1832,100 @@ precision (they only force round-to-nearest and masked exceptions while they run
   53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
   a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
   shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
+
+**The expression really is precision-sensitive** (verified in the assembly of
+`cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses`, `0x006ABC93`): `FILD qword` (cost, exact) →
+`FMUL float` (local funding) → `FMUL float [0x00A80AA0]` (the constant 100.0) → `FILD qword` (the running sum,
+exact) → `FADDP` → `_ftol`. There is **no `FSTP float` between the operations**, so the intermediates stay in the
+80-bit register and are rounded by PC alone. At PC = 24 the product rounds to 123.0 and the answer is 123; at
+PC = 53 it stays 122.99999892711639…, truncates to 12299 and the answer is 122. The saved value 123 therefore
+does establish that the unmodified game settled that budget at **24-bit**.
+
+**What is verified about the control word (bytes and xrefs, 2026-10-13):**
+
+- The helper `0x008929E0` is a real setter, 42 bytes: it clears the PC field of a stack copy of the control word
+  (24-bit), sets bit 1 for mode 1 (53-bit) or bits 0–1 for mode 2 (64-bit), then `FLDCW`s it back. Ghidra's
+  decompiler renders it as an empty function, so pseudocode cannot be trusted here. The getter `0x00892A0A`
+  returns 0 for PC = 00, 1 for PC = 10, 2 for PC = 11.
+- `0x005F85E0` (an unconditional `helper(0)` = 24-bit) has **exactly one xref in the whole image**: `0x0045236C`,
+  the first call of `PreFrameWorkInit`. So the game asserts 24-bit once, at start-up, and never again.
+- Every other mode-0 call site is Lua-related and guarded by the getter. Because the guard skips **both** the
+  set-to-53 and the set-back-to-24 when the thread is not already at 24-bit, **no Lua call can ever restore
+  24-bit** once something else has raised it.
+- The exemplar float-expression parser leaks (§18.1, row 3): verified in the bytes of `0x0067BA40` — one
+  `CALL 0x00892A0A`, one `PUSH 1; CALL 0x008929E0`, and no setter call on the return path at `0x0067BACC`.
+
+**The enumeration of precision writes is complete** (direct xrefs, pointer-table scan of the whole image, and the
+CRT chain, 2026-10-13). Nothing in the image calls `_controlfp`/`_control87` except the CRT's own
+`__setdefaultprecision` (`0x009F6C30` → `0x00A02F9B`, one xref), which only `__fpmath` reaches; there is no
+`_fpreset`; and no function pointer to the helper `0x008929E0`, the getter `0x00892A0A` or the 24-bit wrapper
+`0x005F85E0` is stored anywhere in the image, so indirect calls cannot hide any site. Every remaining mode-0
+(24-bit) site is Lua-related **and guarded by the getter**, and the guard skips both the set-to-53 and the
+set-back-to-24 unless the thread is already at 24-bit. `0x005F85E0` — the only unconditional 24-bit assert — is
+called from exactly one place, `PreFrameWorkInit`.
+
+**Consequence: once anything raises the main thread above 24-bit, the game can never bring it back.** Combined
+with a direct A/B on the same expression, this settles the contradiction:
+
+| Run | What computed the budget | `0x09188F42` / `0x09188F4C` | Precision implied |
+|---|---|---|---|
+| a save written by the **unmodified** game (Spandau) | the game's own code | **123 / 105** (`369 = 3 × 123`, `315 = 3 × 105`) | **24-bit** |
+| run 19 (`build-runs/run19-original-observe.log`) | the game's own code — our DLL loaded, **observer only**, neither simulator nor budget replaced | **122 / 104** | **53-bit** |
+| run 20 | our budget replacement | 123 / 105 | 24-bit (we reproduce 24-bit) |
+| runs 23 and 24, `CW` logged directly | our simulator + budget | `CW = 0x027F` from PostAppInit-enter onward | 53-bit |
+
+Runs 19 and the save run **the same game code on the same city**; the only difference is that FreeCity4.dll was
+loaded in run 19. The original code therefore produced 122 with our DLL present and 123 without it, which is a
+measurement that our process raises the precision — not an inference. (Run 19 predates control-word logging, so it
+proves the effect but not the moment; runs 23/24 date it to between PreAppInit and PostAppInit.)
+
+Deduction, independently: the save proves PC = 00 at those settlements; nothing can restore 24-bit after
+`PreFrameWorkInit`; so **no event in the unmodified game's app init raises the precision**. The game genuinely runs
+the whole session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands.
+
+This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"), and
+restores the run-20 conclusion in `docs/manual-checks.md` (row 20, d90019e): **ours is right**, and it is the
+unmodified game's own in-process run that is wrong. The 24-bit reference behaviour is intact and the float-sensitive
+worked examples recomputed for 24-bit (cde56f4) remain correct. What must be found instead is **what our plugin's
+presence does between PreAppInit and PostAppInit that raises PC to 53-bit**. The plugin's own load-time CRT init is
+excluded (the control word is still 24-bit at `DLL_PROCESS_ATTACH` *after* our initialisation), and run 19 had
+nothing replaced, so the cause is not a replaced subsystem — it is something our DLL does just by being present.
+The two candidates the enumeration leaves are our code calling a game interface that reaches `nSCRes::ParseFloat`
+(a **text**-format resource parse — the leak in §18.1 row 4), or our code loading a DLL whose CRT runs
+`_fpmath(1)`.
+
+**What to do about it (queued for lane 1).** Bisecting the subsystem switches cannot find this: run 19 already had
+every subsystem off (observer only) and still ran at 53-bit. The cause is in what the DLL does while being present,
+in the window between PreAppInit and PostAppInit. Two cheap next steps, in order:
+
+1. **Narrow the window.** Log the control word at finer granularity between the two hooks — after each framework
+   service registration, each `QueryInterface` for a service, each class-registry replacement, and each
+   `LoadLibrary`/`CoCreateInstance` our code performs. The window is currently ~2.4 s (23:16:59.073 PreAppInit →
+   23:17:01.448 PostAppInit-enter, run 23) and contains a lot of our init.
+2. **Test the minimal DLL.** Stage a build whose attach does nothing but open the log, and run it with the same
+   autoload. If the control word still reaches 53-bit, the trigger is in DLL load/attach itself (a static
+   initialiser, a CRT startup path, or a dependency we pull in — note that linking or loading a DLL whose CRT runs
+   `_fpmath(1)` would do exactly this). If it stays 24-bit, bisect our init steps.
+
+A workaround, if the trigger turns out to be unavoidable, is to re-assert 24-bit ourselves at PostAppInit and at
+the top of each simulation entry point by calling the game's own helper `0x008929E0` with mode 0 (it is
+unconditional, so it works even though the Lua-style guarded pattern cannot restore). Any such fix must be logged,
+because it silently changes what the *original* subsystems compute while our DLL is loaded.
+
+**Calling conventions, verified in the bytes** (needed to call the helper safely):
+
+- Setter `0x008929E0` is **cdecl, one int argument, no return value**. Body: `push ebp / mov ebp,esp / push ecx`,
+  clear the PC field of a stack copy of the control word, `fstcw` it, OR in bit 1 if `[ebp+8]==1` (mode 1 = 53-bit)
+  or bits 0–1 if `[ebp+8]==2` (mode 2 = 64-bit), then `fldcw` it back, `leave`, `ret`. The plain `ret` means **the
+  caller pops the argument** — consistent with every call site doing `push 1; call; add esp,4`. Declare it
+  `void (__cdecl *)(int mode)`; a `__stdcall`/`__thiscall` declaration would corrupt the stack.
+- Getter `0x00892A0A` is **cdecl, no arguments, returns `char` in AL**: `fstcw` to a local, mask to `0x300`, return
+  0 for PC = 00 (24-bit), 1 for PC = 10 (53-bit), 2 for PC = 11 (64-bit).
+- The Lua pattern is `g := getter(); if g == 0 { setter(1) } … work … if g == 0 { setter(0) }`. Both branches are
+  guarded by the *saved* value, so when the thread is **not** already at 24-bit neither call happens — which is why no
+  Lua call can restore 24-bit. Until the trigger is
+identified, **no differential run against the original code is trustworthy for float-sensitive values**: the
+original computes wrongly inside our process, and the testing rule above (harnesses log PC = 00) is what detects it.
 
 ### 18.3 What 24-bit precision means
 
@@ -1749,6 +1952,72 @@ and round the result to `f32`; for the four basic operations this gives the corr
 `f64` has more than twice the significand bits of `f32`).
 
 The Mac build (GCC, SSE or x87 at 64-bit) differs; this section applies only to the Windows build.
+
+## 19. Threading model *[compat]*
+
+No other spec states one, and getting it wrong is expensive: it decides whether core state must be `Sync`, and it
+caused the run-23 and run-26 crashes (`0xC0000409`) that took two sessions to diagnose.
+
+### 19.1 The original is single-threaded on the simulation path
+
+The master clock and every simulator run on the main thread and have **no locking of any kind**. Verified by
+searching the decompilation of `cSC4Simulator` and every `cSC4*Simulator` for `EnterCriticalSection`,
+`LeaveCriticalSection`, `InitializeCriticalSection`, `InterlockedExchange`, `InterlockedCompareExchange` and
+`WaitForSingleObject`: **zero hits**. Message delivery is synchronous on the calling thread — `cGZMessageQueue` and
+`cGZMessageQueue2` only construct a `cRZThreadSignal`; there is no dispatch thread that would deliver messages from
+elsewhere.
+
+The game's worker threads (`cRZThread`: background model loader, HTTP client, name lookup, file-change
+notification; and the sound driver's thread — §18.2) do not reach the clock or the simulators. *[inferred: from the
+`cRZThread` users in the decompilation — `cRZHTTPClient`, `cRZNameLookup`, `cGZDBSegmentPackedFile` — none of which
+holds a simulator or city reference]*
+
+**Consequence:** the original needs no re-entrancy tolerance, so a replacement must not assume the game will
+serialise calls for it, and equally must not assume the game will call it concurrently.
+
+### 19.2 FreeCity4 adds concurrent readers of its own
+
+The plugin runs two threads besides the main one, and both are ours:
+
+- **A watchdog thread** (`FC4Autotest`/`FC4Diag`) that emits `heartbeat (periodic)` lines. Its heartbeat is **not a
+  cached snapshot** — across runs 8–28 the values it prints advance with the simulation: the julian date walks
+  `2452170 → 2452180 → 2452191 → 2452201 …`, the pause/hidden/emergency flags change (`pause 1 hidden 2
+  emergency 1` in the last run-28 heartbeat against `pause 0 hidden 0 emergency 0` earlier), and it reports what the
+  main thread is doing *at that moment*: `delivering msg 0x6695681A (level 10) to agent 00E1E36C
+  'cSC4PowerSimulator' for 16 ms`, `main: OnTick (15 ms) > core fc4_sim_on_tick (15 ms)`. That is simulator state
+  the main thread mutates inside `OnTick`, read from another thread.
+- **An autotest thread** that decides when the verdict is due and terminates the process. In run 26 the panicking
+  thread (`tid 23860`) was neither the main thread (`8328`) nor the watchdog (`22672`), and the panic reported
+  `(thread unnamed)` — the form a plain `std::thread::spawn` produces. Every run has exactly three threads, so the
+  autotest thread is the likely identity. *[inferred: not proven; the process aborted before that thread logged
+  anything else. Naming the threads would settle it in one run.]*
+
+**Consequence:** core state reachable from the clock *is* read concurrently in FreeCity4, so it must be `Sync`. A
+`RefCell` there panics under a concurrent read, and because the release build uses `panic = "abort"` the process dies
+with `0xC0000409` — which is what run 23 and run 26 did. The fix is a `Mutex` held for exactly one `with()`/`read()`
+section and **never** across a `deliver`/`post`/refcount hook, so a blocked getter waits microseconds rather than a
+whole tick and cannot deadlock against a game lock that a delivering agent needs.
+
+### 19.3 Rules for a core author
+
+1. Any state the clock exposes to the diagnostic threads must be `Sync`: `Mutex`/`RwLock`/atomics, not `RefCell` or
+   `Cell`. Main-thread-only state (for example the timer list, which `Init` installs and only `OnTick` reads) may
+   stay a `RefCell` and should be documented as such.
+2. Prefer **not** to have the diagnostic threads read core state at all. Publishing a few values as atomics from the
+   main thread and letting the heartbeat read those removes the contention instead of merely making it safe. Where
+   both are cheap, do both.
+3. Name your threads (`thread::Builder::name`) so a panic names the thread that faulted. Unnamed threads turn a
+   one-run diagnosis into a log forensics session.
+4. Never hold a core lock across a call into the game — a delivery, a message post, an `AddRef`/`Release`, or any
+   vtable call. The game may re-enter us.
+
+### 19.4 What this does not settle
+
+Which thread panicked in run 26 is inferred, not proven (§19.2), and whether the original master clock is *ever*
+called from a non-main thread by game code is answered only as "no evidence of it, and no locking to support it". If
+a future run shows a genuine game thread inside a `cISC4Simulator` method, §19.1 must be revised — that would mean
+the original tolerates cross-thread reads despite having no locks, which would be worth understanding before copying
+it.
 
 ## Errata / clarifications (round 2)
 

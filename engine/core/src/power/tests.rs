@@ -926,3 +926,45 @@ fn a_city_loaded_before_its_cell_counts_keeps_its_wires() {
     cycle(&t);
     assert!(t.take_report().is_none());
 }
+
+#[test]
+fn saved_bitmaps_of_another_size_never_panic() {
+    // A record from a 32 x 32 city loaded where the city has more cells (the
+    // saved words are fewer than Init needs) or fewer (more words saved): the
+    // load, Init, recomputes, a month, cell changes and the queries run.
+    let h = Host::new(32);
+    plant(&h, 10, CellRect::new(8, 0, 9, 1), 1000, 1);
+    h.building(11, CellRect::new(12, 0, 13, 1), &[(prop::REQUIREMENT, u32v(500))], None);
+    let s = sim(&h);
+    s.occupant_inserted(10);
+    s.occupant_inserted(11);
+    cycle(&s);
+    let (bytes, entries) = record(&s);
+    for (at_read, at_init) in [(0, 64), (64, 64), (0, 16), (16, 16), (0, 40), (128, 8)] {
+        h.cells.set((at_read, at_read));
+        let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+        let mut res = Resolver(entries.clone(), h.clone());
+        assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+        h.cells.set((at_init, at_init));
+        assert!(t.init());
+        let need = Bitmap::word_count(at_init, at_init);
+        assert!(t.state().wire.words().len() >= need.min(32), "{at_read} -> {at_init}");
+        t.do_message(&message(msg::CONNECTIONS_READY, 0));
+        t.set_report(true);
+        for _ in 0..3 {
+            cycle(&t);
+            t.cell_changed(CellRect::new(0, 0, at_init + 4, at_init + 4));
+        }
+        t.do_message(&message(msg::SIM_NEW_MONTH, 0));
+        cycle(&t);
+        let r = t.take_report().expect("a report");
+        assert_eq!(r.wire_size, (at_init, at_init));
+        let _ = r.text();
+        for (x, z) in [(0, 0), (13, 1), (at_init - 1, at_init - 1), (at_init + 5, -3)] {
+            let _ = (t.is_powered(x, z), t.is_wired(x, z));
+        }
+        let (again, _) = record(&t);
+        assert!(!again.is_empty());
+        h.cells.set((32, 32));
+    }
+}

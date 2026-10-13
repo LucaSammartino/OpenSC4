@@ -1,0 +1,5 @@
+va	name	evidence	mac_x86
+005945b0	EffectsBootstrap::LoadAllEffects	caspervg/sc4-effects-extensions src/dll/EffectsBootstrapHooks.cpp RVA 0x1945B0; prologue 83EC64535556578BE9 byte-verified	
+0058e4e0	EffectsParser::ParseQueuedFiles	caspervg/sc4-effects-extensions src/dll/EffectsBootstrapHooks.cpp RVA 0x18E4E0; prologue 568BF18B8E780C byte-verified	
+0059eec0	EffectsParser::EffectsParser	caspervg/sc4-effects-extensions src/dll/EffectsBootstrapHooks.cpp RVA 0x19EEC0 (constructor); prologue 8B442404535633DB byte-verified	
+00919e96	EffectsBootstrap::FileExists	caspervg/sc4-effects-extensions src/dll/EffectsBootstrapHooks.cpp VA 0x519E96 + module base offset; prologue 558BEC83EC14 byte-verified	

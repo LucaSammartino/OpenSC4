@@ -1,0 +1,101 @@
+{
+  "format": 1,
+  "name": "lot_developer_construction",
+  "spec": ["lot-developer 6.1", "lot-developer 6.4", "lot-developer 7.1", "lot-developer 10.3", "lot-developer 16"],
+  "description": "Construction (§6.1, §6.4, §7.1). StartConstruction sets the configuration and building type, SetState(2) and SetCondition(1), runs PickUnitToJoin (which may draw R2; a residence is not purpose 5-8 so it draws nothing), clears the low three flag bits, locks the vertices and clears a ROAD zot only (other zots stay, quirk 6), posting 0x4C04DE69 data1=2 whenever the lot has a zot property. type 0 finishes with ok true. With animate false the state ends at 3 even when no building occupant was created (quirk 7); with animate true the lot stays at 2 and the construction occupant is handed off. ConstructDefaultLot with type 0 expands the primary building object's IDs into an STLport hash_set (valid types inserted, families expanded) and takes its first element in iteration order as the type; no random draw. AbandonBuilding is exactly SetState(4, 0, reason) and synchronous. ReoccupyBuilding sets the condition from the profile wealth minus the developer wealth (1 -> 2, 2 -> 3, else the no-power-counter rule), then SetState(3, w, 0) and SetPopulation with the available capacity. ChangeBuilding is a no-op returning false without a configuration.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64]},
+    {"op": "ldev_tuning", "shipped": true},
+    {"op": "ldev_cfg", "id": 9, "cfg_id": "0x60000009", "w": 1, "h": 1, "max_slope": 1000.0,
+      "note": "a maximum slope above any lot slope: no foundation is added"},
+    {"op": "ldev_profile", "building": "0x3001", "purpose": 1, "wealth": 2, "capacity": 4},
+
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "state": 1, "flags": 7},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 1, "cfg": 9, "type": "0x3001", "expect": true,
+      "note": "animate false: the building is placed and the state ends at 3"},
+    {"op": "ldev_expect_lot", "lot": 1, "state": 3, "flags": 0, "cfg": 9, "building_type": "0x3001"},
+    {"op": "ldev_expect_events", "filter": {"event": "add_building"}, "events": [
+      {"event": "add_building", "type": "0x3001"}]},
+    {"op": "ldev_expect_draws", "draws": [], "note": "a residence is not purpose 5-8, so PickUnitToJoin draws nothing"},
+
+    {"op": "ldev_lot", "id": 2, "x": 1, "z": 0, "state": 1, "counter": {"zot": 5},
+      "note": "a lot with a water zot (5): the notification is posted but the zot stays (quirk 6)"},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 2, "cfg": 9, "type": "0x3001", "expect": true},
+    {"op": "ldev_expect_lot", "lot": 2, "prop": {"zot": 5}},
+    {"op": "ldev_expect_events", "filter": {"event": "post"}, "events": [
+      {"event": "post", "message": "0x4C04DE69", "data1": 2, "lot": 2}]},
+
+    {"op": "ldev_lot", "id": 3, "x": 2, "z": 0, "state": 1, "counter": {"zot": 6}},
+    {"op": "ldev_occ", "id": 600, "lot": 3, "props": {"0x48E95539": 6}},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 3, "cfg": 9, "type": "0x3001", "expect": true,
+      "note": "a road zot (6) is removed"},
+    {"op": "ldev_expect_lot", "lot": 3, "prop": {"zot": 0}},
+    {"op": "ldev_expect_events", "filter": {"event": "prop_remove"}, "events": [{"event": "prop_remove", "occ": 600}]},
+
+    {"op": "ldev_lot", "id": 4, "x": 3, "z": 0, "state": 1},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 4, "type": 0, "expect": true, "note": "type 0: ok true, no building"},
+    {"op": "ldev_expect_lot", "lot": 4, "state": 3},
+    {"op": "ldev_expect_events", "filter": {"event": "add_building"}, "events": []},
+
+    {"op": "ldev_lot", "id": 5, "x": 4, "z": 0, "state": 1},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 5, "cfg": 9, "type": "0x3001", "animate": true, "expect": true,
+      "note": "animate true: the lot stays in state 2 and the construction occupant is handed off"},
+    {"op": "ldev_expect_lot", "lot": 5, "state": 2},
+    {"op": "ldev_expect_events", "filter": {"event": "construction_occupant"}, "events": [
+      {"event": "construction_occupant", "lot": 5}]},
+
+    {"op": "ldev_world", "add_building_fails": true},
+    {"op": "ldev_lot", "id": 6, "x": 5, "z": 0, "state": 1},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_start_construction", "lot": 6, "cfg": 9, "type": "0x3001", "expect": false,
+      "note": "no building occupant: ok stays false, but the state still ends at 3 (quirk 7)"},
+    {"op": "ldev_expect_lot", "lot": 6, "state": 3},
+    {"op": "ldev_world", "add_building_fails": false},
+
+    {"op": "ldev_valid", "building": ["0x3001"], "note": "ConstructDefaultLot: type 0, a primary ID that is valid"},
+    {"op": "ldev_cfg", "id": 10, "cfg_id": "0x6000000A", "w": 1, "h": 1, "max_slope": 1000.0,
+      "primary_building": ["0x3001"]},
+    {"op": "ldev_lot", "id": 7, "x": 6, "z": 0, "state": 1},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_construct_default", "lot": 7, "cfg": 10, "type": 0, "expect": true},
+    {"op": "ldev_expect_lot", "lot": 7, "building_type": "0x3001"},
+    {"op": "ldev_expect_events", "filter": {"event": "add_building"}, "events": [
+      {"event": "add_building", "type": "0x3001"}]},
+    {"op": "ldev_expect_draws", "draws": [], "note": "no random draw in ConstructDefaultLot"},
+
+    {"op": "ldev_lot", "id": 8, "x": 7, "z": 0, "state": 3, "building_type": "0x3001", "wealth": 1},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_abandon", "lot": 8, "reason": 3, "expect": true},
+    {"op": "ldev_expect_lot", "lot": 8, "state": 4},
+    {"op": "ldev_expect_events", "filter": {"event": "set_state"}, "events": [
+      {"event": "set_state", "lot": 8, "state": 4, "wealth": 0, "reason": 3}]},
+
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_reoccupy", "lot": 8, "dev": 1, "expect": true,
+      "note": "developer type 1 -> wealth 1; profile wealth 2 - 1 = 1 -> condition 2"},
+    {"op": "ldev_expect_lot", "lot": 8, "state": 3, "condition": 2},
+    {"op": "ldev_expect_events", "filter": {"event": "set_population"}, "events": [
+      {"event": "set_population", "lot": 8, "dev": 1, "n": 10}]},
+
+    {"op": "ldev_reoccupy", "lot": 8, "dev": 0, "expect": true,
+      "note": "developer type 0 -> wealth 0; profile wealth 2 - 0 = 2 -> condition 3"},
+    {"op": "ldev_expect_lot", "lot": 8, "condition": 3},
+    {"op": "ldev_lot", "id": 8, "counter": {"no_power": 2}},
+    {"op": "ldev_reoccupy", "lot": 8, "dev": 2, "expect": true,
+      "note": "developer type 2 -> wealth 2; d = 0, the no-power counter is non-zero -> condition 1"},
+    {"op": "ldev_expect_lot", "lot": 8, "condition": 1},
+
+    {"op": "ldev_lot", "id": 9, "x": 8, "z": 0, "state": 3, "no_cfg": true},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_change_building", "lot": 9, "type": "0x3001", "expect": false,
+      "note": "no configuration: ChangeBuilding is a no-op returning 0"},
+    {"op": "ldev_expect_events", "events": []}
+  ]
+}

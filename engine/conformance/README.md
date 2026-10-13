@@ -1033,7 +1033,100 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 
 ## Lot developer ops
 
-(Being written: `ldev_…` ops for `fc4_core::lot_developer`, `docs/specs/lot-developer.md`.)
+The lot developer vectors (`ld16_…` for the §16 conformance tests, extras `ld00_…`) drive
+`fc4_core::lot_developer` over a scripted world implementing `LotDeveloperHost`: the services, message server and
+simulator of `Init`; the city, simulator, terrain and 24-hour clock; the lot manager and its safe lot iterator
+(the lot-list order the daily pass walks); lots and their per-lot properties (the counters and the zot of §0's
+table); lot configurations and their object arrays; buildings and other occupants (bounding boxes, city cells,
+groups, properties); the occupant and prop managers; the BDS (profiles, developers, cheats, families,
+`AddNewBuildingOccupant`); growth developers; power, plumbing, traffic and demand; flora; demolition; business
+units; and the geometry the spec leaves to a later terrain / lot-content spec (§12.2 Q4). Every op name starts with
+`ldev_`. Objects are tokens (`u64`): the vector gives the `id` of each lot, configuration, occupant, developer and
+unit it creates; the host hands out further tokens from 1 for props and buildings it makes. The default world is a
+64 × 64-cell city (cell width 16), a 64 × 64 terrain, date 0, time mode 0, no cheats, services / simulator /
+message server present, and the shipped tuning exemplar (§3.5). The file-local generator (§10.1) is one
+`LotDeveloperStatics` shared by the instance; `ldev_create` seeds it explicitly (default seed 12345) or from the
+session seed (§6.3), and `rand()` starts at state 1. Draws are traced by kind R1–R15 (§10.2).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `ldev_world` | any of `city` (`[x, z]` cells), `cell_widths` (`[x, z]`), `terrain_cells` (`[x, z]`), `terrain_width`, `sim_date`, `time_mode` (24-hour clock), `view_rotation`, `jobs_demand` (number, `"nan"` or null = no node), `cheats` (`{ignore_plumbing, ignore_power, coffee_bar}`), `no_services`, `no_simulator`, `no_message_server`, `claim_resources`, `add_building_fails` | the world |
+| `ldev_lot` | `id?` (assigned when absent); any of `x`, `z`, `w`, `h`, `zone` (1), `state` (1), `livable`, `condition`, `days`, `building_type`, `building` / `no_building`, `cfg` / `no_cfg`, `wealth`, `occupancy`, `needs_power`, `has_power`, `road`, `job`, `organic`, `flags`, `historical`, `initialized`, `available`, `travel_jobs` (`[w0..w3]`), `designate` / `no_designate`, `unit` / `no_unit`, `props` (`{"0xID": value}`), `counter` (`{low_desirability, no_power, no_water, travel, zot}`), `order` (append to the lot-list order; default true for a new lot) | a lot |
+| `ldev_cfg` | `id` (token); any of `cfg_id` (its own ID, for `GetLotConfiguration`), `w`, `h`, `stage`, `water`, `max_slope`, `objects` (`[{type, flags, ids, tag, orientation, byte3}]`), `primary_building` (`[ids]`), `primary_foundation` (`[ids]`), `water_objects` | a lot configuration |
+| `ldev_occ` | `id` (token); any of `is_building`, `bbox` (`[[min], [max]]`), `cells` (`[x1,z1,x2,z2]`), `group`, `lit`, `position`, `orientation`, `night_light`, `lot` (its owning lot, for `GetLotProps`), `props` (`{"0xID": value}`) | an occupant (building or prop) |
+| `ldev_profile` | `building` (type); `purpose`, `wealth`, `capacity` | a building profile |
+| `ldev_family` | `family`, `members` (`[ids]`) | a building / flora family |
+| `ldev_valid` | `building` (`[ids]`), `flora` (`[ids]`) | IDs `IsBuildingType` / `IsFloraTypeValid` accept |
+| `ldev_dev` | `id` (token); `key?` (the developer type `(purpose<<8)|wealth`; default from `purpose`/`wealth`, an omitted one keeping the value already in the key), `purpose`, `desirability`, `water_cap` | a growth developer |
+| `ldev_unit` | `id` (token); `members` (`[lots]`, also sets each lot's unit) | a business unit |
+| `ldev_cells` | `powered` / `watered` (`[[x, z, v]]`, v≠0 sets), `trip` (`[[x, z, v]]`) | cell grids |
+| `ldev_terrain` | `alt` (`[[index, value]]`), `water` (`[[index, value]]`); index = `x + z · vertsX` | vertex altitudes (default 100) and water levels (default 0) |
+| `ldev_resource` | `instances` (`[ids]`), `replace?` (clear the set first) | base-texture resources that exist (§6.6) |
+| `ldev_surrounding` | `lot` (`{"token": [neighbours]}` for `GetLotsSurroundingLot`), `rect` (`[lots]` for `GetLotsSurroundingRect`), `in_rect` (`[lots]` for `GetLotsInCellRect`) | neighbour / rectangle lists |
+| `ldev_tuning` | `none: true`, `shipped: true`, or explicit `stay_new`, `thresholds` (`[abandon, distress, renew]`), `night_acc`, `night_batch`, `max_slope_flatness`, `cost_curve` (`[[x, y], …]`) | the "Building Development" exemplar |
+| `ldev_create` | `seed?` (the file-local generator's seed exactly; default 12345) or `session?` (`from_session`, `derive_seed(session, 0x6C09C0F4)`, §6.3), `crt_seed?` (1), `trace?` (true) | a new lot developer |
+| `ldev_rng` | `seed`, or `lcg` and `mul`; `crt?` | sets the shared generator / `rand()` state |
+| `ldev_make_lots` | `count` | `count` empty state-1 lots along `(x, 0)`, in lot-list order (each visit logs one `reset_travel_pop`) |
+| `ldev_make_buildings` | `count` | `count` building occupants (tokens 1..count) each on its own lot at `(i, 0)`, delivered as an `0x99EF1142` insert so they join the night deque |
+| `ldev_clear_lots` / `ldev_clear_buildings` | | empties the lots (and order) / the night deque and scripted buildings |
+| `ldev_set` | any of `daily_state`, `visited`, `net_changed`, `unit_changed`, `no_zot_until_day`, `can_check_commute`, `night_mode`, `night_acc`, `night_batch`, `night_cursor`, `lit_flag`, `force_empty` (direct, no walk), `daily_work_budget` | pokes state |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `ldev_init` / `ldev_shutdown` | `expect?` | `Init` (§1.3) / `Shutdown` (§1.4) |
+| `ldev_read_tuning` | | `ReadSimulatorTunableValues` (§3.5) without `Init` |
+| `ldev_message` | `msg`, `data1..4?`, `void1?`, `lot?`, `expect?` | `DoMessage` (§3.2) |
+| `ldev_daily` | `expect?` | `DoDailySimulation` (§4.1); `per_day` reads the quota |
+| `ldev_per_day` | `expect?` | the quota `n / 28 + 1` |
+| `ldev_update_lot` | `lot`, `expect?` | `UpdateLot` (§4.2), returns "state changed" |
+| `ldev_test_desirability` / `ldev_test_power` / `ldev_test_water` / `ldev_test_condition` | `lot`, `at` (`[x, z]`), `expect?` | the tests of §5.1–§5.5 |
+| `ldev_test_travel` | `lot`, `at`, `purpose?`, `wealth?`, `expect?` | `TestTravel` (§5.4) with a temporary profile |
+| `ldev_coffee_bar` | `lot` | `TestCoffeeBar` (§5.8, always draws R3 first) |
+| `ldev_add_zot` / `ldev_remove_zot` | `lot`, `prop`, `zot` / `lot`, `zot?` (0 = slot 11), `expect?` | the zot helpers (§5.6) |
+| `ldev_pick_unit` | `lot` | `PickUnitToJoin` (§5.7, draws R2) |
+| `ldev_update_designates` | `unit?`, `expect?` (the resulting reference, null when dissolved) | slot 34 `UpdateTravelDesignates` (§5.7) |
+| `ldev_update_populations` | `unit` | slot 35 `UpdateTravelPopulations` (§5.7) |
+| `ldev_remove_from_unit` | `lot`, `expect?` | slot 33 `RemoveLotFromItsBusinessUnit` (§5.7) |
+| `ldev_needs_anchor` | `rect`, `purpose`, `expect?` | `NeedsAnchorBuilding` (§5.7) |
+| `ldev_start_construction` / `ldev_construct_default` | `lot`, `cfg?`, `type`, `animate?`, `expect?` | `StartConstruction` (§6.1) / `ConstructDefaultLot` (§6.4) |
+| `ldev_abandon` / `ldev_reoccupy` / `ldev_change_building` | `lot`, `reason` / `lot`, `dev` / `lot`, `type`, `expect?` | slots 8 / 9 / 10 (§6.4) |
+| `ldev_update_lot_elements` | `lot`, `kind` (the **whole 32-bit** terrain-change kind; only `kind != 5` is tested, §6.4), `expect?` | slot 37 |
+| `ldev_start_demolish` / `ldev_end_demolish` / `ldev_clear_lot` | `lot`, `expect?` | slots 12 / 13 and `ClearLot` (§7) |
+| `ldev_explode_lot` | `lot`, `burnt?`, `expect?` | slot 14 (§7.2) |
+| `ldev_add_rubble` | `lot`, `min` (`[x,y,z]`), `max`, `burnt?` | `AddLotRubbleProps` (§7.3, draws R9–R14) |
+| `ldev_power_changed` | `rect` | `DoPowerChanged` (§9) |
+| `ldev_set_normal_texture` | `lot`, `cfg?`, `flag?` | slot 44 (§6.6, draws R4) |
+| `ldev_set_force_empty` | `value` | slot 47 (§6.6, walks every lot on a change) |
+| `ldev_anim_tick` | `ms` | `DoAnimationTick` (§8.3) |
+| `ldev_light` / `ldev_update_all` | `building`, `night?` / `mode` | `Light` (§8.4) / `UpdateAll` (§8.2) |
+| `ldev_area_slope` / `ldev_dev_cost` / `ldev_altitude` | `rect`, `water?` / `rect` / `at`, `water?`, `expect?` | slots 29 / 32 / 15 (§11.4) |
+| `ldev_area_developed` | `rect` or `lot`, `expect?` | slots 23 / 24 (always false) |
+| `ldev_save` / `ldev_load` | `expect?` (hex), `ok?` / `hex`, `expect?` | `Write` / `Read` (§13) |
+| `ldev_expect` | any of `initialised`, `daily_state`, `visited`, `net_changed`, `unit_changed`, `net_snap`, `unit_snap`, `zots_allowed`, `no_zot_until_day`, `can_check_commute`, `force_empty`, `night_mode`, `night_acc`, `night_batch`, `night_cursor`, `lit_flag`, `verts_x`, `extent_x`, `extent_z`, `night` (the deque's tokens, `null` for a null slot), `night_len`, `per_day`, `cell_counts`, `lcg`, `mul`, `crt`, `tuning` (partial) | state |
+| `ldev_expect_lot` | `lot`; any of `exists`, `state`, `condition`, `zone`, `building_type`, `wealth`, `flags`, `historical`, `has_power`, `cfg`, `building`, `unit`, `designate`, `rect`, `prop` (`{name or 0xID: value}`) | a lot |
+| `ldev_expect_draws` | `draws`: each `"Rn"` (kind only) or `["Rn", arg, value]` (exact); `keep?` | the draws since the last check |
+| `ldev_expect_events` / `ldev_expect_event_count` / `ldev_clear_events` | see the shared conventions | host calls |
+| `ldev_eval` | `fn`, `args`, `expect`: `is_empty_lot_suitable_for_zot [zone, x, z]`, `desirability_tolerance [x, z]`, `answers_iid [iid]`, `rubble_count [minx, miny, minz, maxx, maxy, maxz]` (`{count, small, large}`), `reason_const [name]` | pure functions |
+
+Lot developer events: `acquire_services`, `release_services`, `add_agent` (`level`, `message`), `remove_agent`,
+`acquire_message_server`, `release_message_server`, `subscribe` / `unsubscribe` (`message`), `register_tick` /
+`unregister_tick`, `init_boundary` / `clear_boundary`, `post` (`message`, `data1`, `lot`), `delete_lot`,
+`set_state` (`lot`, `state`, `wealth`, `reason`), `set_condition` (`lot`, `condition`), `set_population`,
+`update_road_access`, `reset_travel_pop` / `add_travel_pop`, `vertices_locked`, `update_slope`, `set_texture`
+(`texture`, `x`, `z`, `orientation`, `byte3`), `occupant_changed`, `insert_occupant`, `occ_post` (`occ`, `message`),
+`set_lit`, `create_prop` (`occ`, `type`), `prop_add` (`occ`, `type`, `pos`, `orientation`), `add_lot_prop` (`lot`,
+`occ`, `orientation`, `pos`), `prop_remove`, `remove_lot_props`, `remove_building_props`, `flora_add`,
+`flora_demolish`, `demolish_occupant`, `demolish_lot`, `add_building` (`occ`, `type`), `claim` (`amount`, `ok`),
+`add_lot_foundation` (`lot`, `type`), `add_building_foundation`, `remove_building_foundation`,
+`update_lot_foundation`, `update_retaining_walls`, `update_object_altitudes`, `update_base_texture_occupant`
+(`lot`, `had_foundation`), `set_empty_texture`, `remove_retaining_walls`, `remove_lot_foundation`,
+`update_surrounding_foundations`, `update_surrounding_walls`, `add_network_nodes`, `remove_network_nodes`,
+`construction_occupant` (`lot`), `level_internal`, `attempt_levelling`, `rubble_decal` (`instance`, `size`),
+`unit_create`, `unit_add` (`unit`, `lot`).
 
 ## Zones ops
 
@@ -1105,7 +1198,8 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
-   `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `zn15_…` (zones §15).
+   `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
+   `zn15_…` (zones §15).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1601,7 +1695,38 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 
 ## Coverage (lot developer §16)
 
-(Being written: vectors `ld16_…` and `ld00_…`.)
+| §16 item | Vector |
+|---|---|
+| 1 desirability tolerance (per-location seeds) | `ld16_01_desirability_tolerance` |
+| 2 desirability threshold (29 / 30 low, 31 not) | `ld16_02_09_desirability_power` |
+| 3 daily quota (n/28 + 1) | `ld16_03_04_18_daily_pass` |
+| 4 wrap day (29 lots, perDay 2) | `ld16_03_04_18_daily_pass` |
+| 5 power grace (1, 1, 0; reset on power) | `ld16_05_07_09_power_travel_zot_condition` |
+| 6 travel (commute 7th visit, no-road 3rd) | `ld16_05_07_09_power_travel_zot_condition` |
+| 7 zot priority (lower wins, road notification first) | `ld16_05_07_09_power_travel_zot_condition` |
+| 8 empty-lot zot pattern | `ld16_01_desirability_tolerance` |
+| 9 condition (wealth mismatch, occupancy, abandoned steps) | `ld16_05_07_09_power_travel_zot_condition` |
+| 10 development cost (slope cascade, curve) | `ld16_10_11_geometry_cost_rubble_count` |
+| 11 rubble count (small / large / interior) | `ld16_10_11_geometry_cost_rubble_count`, `ld00_rubble_interior` |
+| 12 seeded rubble corners | `ld16_12_13_14_seeded_draws` |
+| 13 seeded completion content | `ld16_12_13_14_seeded_draws` |
+| 14 coffee-bar draw first | `ld16_12_13_14_seeded_draws` |
+| 15 night batch (hard-coded 200 threshold) | `ld16_15_16_night_lights` |
+| 16 shuffle (`rand()` swaps) | `ld16_15_16_night_lights` |
+| 17 save record (24 bytes, version rejected) | `ld16_17_persistence` |
+| 18 abandonment order (last failing test) | `ld16_03_04_18_daily_pass` |
+| 19 interface degenerates (slots 23, 24, 32) | `ld16_19_57_interface_business_units` |
+| 20–25 construction occupant (§6.7) | out of scope: a separate subsystem (`cSC4ConstructionOccupant`), not the lot developer core |
+| 26 StateChanged data4 (§3.2) | out of scope: `cSC4Lot::SetState`, owned by the lot core |
+| 27 UpdateLotElements kind (full 32-bit `kind != 5`) | `ld16_27_update_lot_elements_kind` |
+| extra: lifecycle, messages, QueryInterface, tuning | `ld00_lifecycle_tuning` |
+| extra: UpdateLot flow (grown, civic, empty, unit step) | `ld16_42_update_lot` |
+| extra: PickUnitToJoin, NeedsAnchorBuilding | `ld16_19_57_interface_business_units` |
+| extra: UpdateTravelDesignates (anchor and dissolution), UpdateTravelPopulations, RemoveLotFromItsBusinessUnit | `ld16_57_business_units` |
+| extra: StartConstruction, ConstructDefaultLot, Abandon, Reoccupy, ChangeBuilding | `ld00_construction` |
+| extra: base textures and their wealth / decay variants | `ld00_base_texture` |
+| extra: demolition and explosion | `ld16_07_demolition_explosion` |
+| extra: the file-local generator's seed from the session seed (§10.1, foundations §6.3) | `ld00_session_seed` |
 
 ## Coverage (zones §15)
 

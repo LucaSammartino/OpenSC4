@@ -162,6 +162,10 @@ public:
         if (refLogs_ < kMaxRefLogs) {
             ++refLogs_;
             FC4_LOGV("director AddRef -> %u", r);
+            // foundations §18.2: the precision window. These two calls are the
+            // only ones into our DLL between the PreAppInit reference and the
+            // PostAppInit measurement, so each one halves the window.
+            fc4::FpuLog("director AddRef");
         }
         return r;
     }
@@ -171,6 +175,7 @@ public:
         if (refLogs_ < kMaxRefLogs) {
             ++refLogs_;
             FC4_LOGV("director Release -> %u", r);
+            fc4::FpuLog("director Release");  // §18.2, as in AddRef
         }
         return r;
     }

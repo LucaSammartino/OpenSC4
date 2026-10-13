@@ -1,0 +1,8 @@
+va	name	evidence	mac_x86
+004081d0	cRZString::Append (string append)	lua-host.md (was __gnu_cxx::hashtable<std::pair<SC4Point<)	
+00408a70	cRZString::Assign (string assign)	lua-host.md (was std::operator+)	
+0044b500	cSC4App::Unknown_B8	cISC4App slot +0xB8; not the Lua getter (was cSC4App::GetLuaInterpreter)	
+0044b510	cSC4App::GetTutorialRegistry	cISC4App slot +0xC4 (was cSC4App::GetAppDirectory)	
+0044b670	cSC4App::GetLuaInterpreter	cISC4App slot +0xBC; lua-host.md §1.4 (was cSC4App::GetTutorialRegistry)	
+006c0030	std::map::find (Lua script server)	lua-host.md (was cGZLuaScriptServer::GetLuaThreadData)	
+008b7100	cGZLua5Thread::TypeName	lua-host.md §5 (was _tag_error)	

@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "lot_developer_desirability_tolerance",
+  "spec": ["lot-developer 5.1", "lot-developer 16"],
+  "description": "Test 1 (§5.1, §16). TestDesirability seeds a temporary cRZRandom with (x << 16) + z (32-bit wrap) and draws RandomSint32RangeUniform(0, 7), giving r = 0..6; the tolerance is r + 2 (the number of consecutive low-desirability visits that pass). The first raw of each seed is pinned by the spec table, so the tolerance per location is fixed: (0,0) seed 0x00000000 raw 0 r 0 tol 2; (1,0) seed 0x00010000 raw 0x41C64E6D r 1 tol 3; (17,3) seed 0x00110003 raw 0x5E2BFA90 r 2 tol 4; (10,20) seed 0x000A0014 raw 0x91C433C0 r 3 tol 5; (64,37) seed 0x00400025 raw 0x719D1CE9 r 3 tol 5; (255,255) seed 0x00FF00FF raw 0x84C9A31B r 3 tol 5.",
+  "steps": [
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [0, 0], "expect": 2},
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [1, 0], "expect": 3},
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [17, 3], "expect": 4},
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [10, 20], "expect": 5},
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [64, 37], "expect": 5},
+    {"op": "ldev_eval", "fn": "desirability_tolerance", "args": [255, 255], "expect": 5},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [1, 2, 2], "expect": true},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [1, 1, 2], "expect": false},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [8, 4, 8], "expect": true},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [8, 4, 6], "expect": false},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [10, 0, 0], "expect": false},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [7, 4, 4], "expect": true},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [7, 4, 5], "expect": false},
+    {"op": "ldev_eval", "fn": "is_empty_lot_suitable_for_zot", "args": [0, 0, 0], "expect": false}
+  ]
+}

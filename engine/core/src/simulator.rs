@@ -14,8 +14,21 @@
 //! (posts, AddRef, Release) are queued and flushed, in order, right after the
 //! borrow ends. An agent may therefore call back into the simulator (add or
 //! remove agents, pause, change speed, ...) from inside its delivery.
+//!
+//! Threads: the game calls the `cISC4Simulator` interface from more than one
+//! thread — a worker thread reads the clock (for example `GetSimTime`) while
+//! the main thread is inside `OnTick` (in-game run 26: `RefCell already
+//! mutably borrowed`, a fail-fast). A `RefCell` is not `Sync`, so every state
+//! section also takes [`Simulator::gate`], a mutex held for exactly the same
+//! span as the borrow and therefore never across `deliver`, `post` or the
+//! reference-count hooks. Two threads are thus serialised for microseconds
+//! rather than for a whole tick, so a blocked caller cannot deadlock against a
+//! game lock the delivering agent needs. The only host callback reached while a
+//! section is open is [`Clock::now_ms`], which must not call back into the
+//! simulator (it is a clock read).
 
 use std::cell::RefCell;
+use std::sync::{Mutex, MutexGuard};
 
 use crate::calibration::Calibration;
 use crate::host::{AgentHandle, Host, Message, TimerSource};
@@ -433,16 +446,22 @@ impl State {
 
 /// The simulator service. See the module documentation.
 pub struct Simulator {
-    state: RefCell<State>,
+    /// The clock and scheduler state. A `Mutex`, not a `RefCell`: the game
+    /// calls this interface from more than one thread (module documentation).
+    /// It is only ever locked for the span of one [`Simulator::with`] or
+    /// [`Simulator::read`] section.
+    state: Mutex<State>,
     host: Box<dyn Host>,
     /// Optional limit-timer calibration (§5.5): its source/sink and state.
+    /// Only the main thread reaches it (`on_tick`'s calibration step and the
+    /// host's install/read of the coefficients), so a `RefCell` is enough.
     timers: RefCell<Option<(Box<dyn TimerSource>, Calibration)>>,
 }
 
 impl Simulator {
     pub fn new(host: Box<dyn Host>) -> Self {
         Simulator {
-            state: RefCell::new(State::new()),
+            state: Mutex::new(State::new()),
             host,
             timers: RefCell::new(None),
         }
@@ -452,10 +471,19 @@ impl Simulator {
         &*self.host
     }
 
+    /// Locks the state for one section. A poisoned lock is used anyway: the
+    /// state is still readable, and a release build aborts on the panic that
+    /// poisoned it, so no caller can observe the difference.
+    fn gate(&self) -> MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
     /// Run `f` with the state borrowed, then flush the side effects it queued.
+    /// The lock is released before the effects run, because `post` and the
+    /// reference-count hooks call into the game (module documentation).
     fn with<R>(&self, f: impl FnOnce(&mut State, &dyn Host) -> R) -> R {
         let (result, effects) = {
-            let mut s = self.state.borrow_mut();
+            let mut s = self.gate();
             let result = f(&mut s, &*self.host);
             (result, std::mem::take(&mut s.effects))
         };
@@ -470,7 +498,7 @@ impl Simulator {
     }
 
     fn read<R>(&self, f: impl FnOnce(&State) -> R) -> R {
-        f(&self.state.borrow())
+        f(&self.gate())
     }
 
     // ---- lifecycle (§9) --------------------------------------------------
@@ -1129,7 +1157,9 @@ impl Drop for Simulator {
     fn drop(&mut self) {
         let handles: Vec<AgentHandle> = self
             .state
+            // A poisoned lock still gives the state back; see `gate`.
             .get_mut()
+            .unwrap_or_else(|e| e.into_inner())
             .agents
             .iter_mut()
             .flat_map(|v| v.drain(..))

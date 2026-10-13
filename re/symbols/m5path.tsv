@@ -1,0 +1,8 @@
+va	name	evidence	mac_x86
+0043fde0	RectContainsInclusive	pathfinder.md: inclusive rect-contains (was vector<TreeNode*>::operator[])	
+0049fc70	std::vector::resize	pathfinder.md: vector resize, not an RNG method (was cRZRandom::RandomDoubleRangeUniform)	
+005e55e0	GlobalHeapAlloc	allocators.md allocator C alloc (was ilist<cISC4Occupant*>::~ilist)	
+005e5620	GlobalHeapFree	allocators.md allocator C free (was cRZCellMap<bool>::~cRZCellMap)	
+0068bf50	LimitTimer::Start	rdtsc deadline start; pathfinder.md, building-development.md	
+0068bf80	LimitTimer::Expired	rdtsc deadline check; pathfinder.md, building-development.md (was hashtable<TunnelInfo>::find)	
+0070dff0	cSC4TrafficSimulator::GetUsedTripCapacity	pathfinder.md: returns used trip capacity (was GetTripCapacity)	

@@ -2,9 +2,11 @@
 
 **Status: local draft. Not submitted upstream.** Reporting these to the SDK maintainers is a separate, public step that needs the project owner's approval.
 
-This document lists places where the [gzcom-dll](https://github.com/nsgomez/gzcom-dll) SDK headers and sources, as vendored in `engine/third_party/gzcom-dll` (one commit, `3a1144f`, unchanged since), disagree with the binary interface of the game. It records **ABI facts only**: vtable slots, callee-popped byte counts, argument types and sizes, return channels, container layouts and allocators. It contains no game logic.
+This document lists places where the [gzcom-dll](https://github.com/nsgomez/gzcom-dll) SDK headers and sources, as vendored in `engine/third_party/gzcom-dll`, disagree with the binary interface of the game. It records **ABI facts only**: vtable slots, callee-popped byte counts, argument types and sizes, return channels, container layouts and allocators. It contains no game logic.
 
-Before anything is reported, each item should be re-checked against the current upstream headers: the vendored copy does not record which upstream revision it came from, and some items may already be fixed upstream.
+**Vendored revision:** the SDK is a git submodule pinned to `5af73c5` ("Fix a few cISC4RegionalCity return values", 2026-10-11), which is the upstream `master` tip as of the 2026-10-13 re-check. The submodule gitlink records the exact upstream revision, so there is no ambiguity about which copy these findings describe. *(An earlier draft named `3a1144f` as the baseline and said the revision was unrecorded; that was wrong — corrected 2026-10-13.)*
+
+**Re-checked against `5af73c5` on 2026-10-13.** Of the 257 finding rows whose interface has a header in the vendored copy (all but `cISC4SimGrid<uint8>`, which has no standalone header), **252 still match the current SDK text verbatim**, and the other 5 differ only by my check's signature normalisation (`pair<>` vs `std::pair<>`, a new `const` overload upstream added alongside the one the finding names) — all 5 substantive claims still hold. Upstream's recent fixes (`cIGZCOMDirector` slot 13 → `GetDirectorID`, `cIGZApp`/`cIGZWin` vtable order, `Initialize` return value) touch interfaces this draft reports **zero** findings on, so nothing here was already fixed upstream. **The 289 findings stand against the current SDK and are ready for the upstreaming step, which needs the project owner's explicit OK.**
 
 ## Scope
 

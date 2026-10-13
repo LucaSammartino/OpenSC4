@@ -13,6 +13,9 @@ use std::cell::{Cell, RefCell};
 struct Recorder {
     now: Cell<u32>,
     step: Cell<u32>,
+    /// Busy-wait iterations inside `now_ms`, which a caller holds the state
+    /// open across: widens that window for the cross-thread test below.
+    spin: Cell<u32>,
     deliveries: RefCell<Vec<(fc4_agent, fc4_message)>>,
     posts: RefCell<Vec<fc4_message>>,
     refs: RefCell<Vec<(char, fc4_agent)>>,
@@ -22,6 +25,11 @@ struct Recorder {
 
 unsafe extern "C" fn now_ms(user: *mut c_void) -> u32 {
     let r = &*(user as *const Recorder);
+    let mut n = r.spin.get();
+    while n > 0 {
+        std::hint::spin_loop();
+        n -= 1;
+    }
     let t = r.now.get();
     r.now.set(t.wrapping_add(r.step.get()));
     t
@@ -317,4 +325,64 @@ fn enumerate_names() {
         assert_eq!(names, vec!["a", "c", "b"]);
         fc4_sim_destroy(sim);
     }
+}
+
+/// The simulator handle moved to another thread.
+///
+/// SAFETY: the handle is a `Box<Simulator>`, not `Send` only because its host
+/// is a trait object. Through this wrapper the second thread calls clock
+/// getters alone (`is_initialized`, `get_sim_time`, `get_julian_day`), none of
+/// which reaches a host callback or the `Recorder`; the handle is destroyed on
+/// the thread that created it. Both wrappers hold the same pointer, because the
+/// game shares one `cISC4Simulator` between its threads.
+struct OnThread(*mut fc4_sim);
+unsafe impl Send for OnThread {}
+
+/// The game calls the `cISC4Simulator` interface from more than one thread: a
+/// worker reads the clock while the main thread is inside `OnTick`. In-game
+/// run 26 made that concrete — `RefCell already mutably borrowed` at
+/// `core/src/simulator.rs`, a fail-fast about 0.3 s after PostCityInit, while a
+/// power recompute was running on the main thread. A reader must therefore wait
+/// for an open state section instead of failing; this drives the two from
+/// different threads and asserts every read succeeds.
+///
+/// A reader that loses the race returns the ABI's fallback (`false`), so the
+/// assertion below is the whole test: with a `RefCell` it fails on the first
+/// contended read, and the panic it would raise is swallowed by the C ABI's
+/// guard rather than reaching the panic hook.
+#[test]
+fn a_second_thread_may_read_the_clock_while_a_tick_runs() {
+    let rec = Recorder::default();
+    rec.spin.set(4000); // widen each state section so the two threads overlap
+    let sim = OnThread(make(&rec));
+    unsafe {
+        assert!(fc4_sim_init(sim.0, std::ptr::null()));
+    }
+    let reader_handle = OnThread(sim.0); // the same simulator, read from another thread
+    std::thread::scope(|scope| {
+        let reader = scope.spawn(move || {
+            // Take the whole wrapper (disjoint capture would otherwise move the
+            // bare pointer field, which is not Send).
+            let h = reader_handle;
+            let mut failures = 0u32;
+            for _ in 0..4000 {
+                // A getter, the way the game's worker thread asks for the date.
+                failures += u32::from(!unsafe { fc4_sim_is_initialized(h.0) });
+                let _ = unsafe { fc4_sim_get_sim_time(h.0) };
+                let _ = unsafe { fc4_sim_get_julian_day(h.0) };
+                std::thread::yield_now();
+            }
+            failures
+        });
+        // This thread is the main thread: it ticks while the reader reads.
+        for _ in 0..400 {
+            unsafe {
+                fc4_sim_on_tick(sim.0);
+                fc4_sim_simulate_time_passage(sim.0);
+            }
+        }
+        let failures = reader.join().expect("the reader thread must not panic");
+        assert_eq!(failures, 0, "every cross-thread read of the clock must succeed");
+    });
+    unsafe { fc4_sim_destroy(sim.0) };
 }
