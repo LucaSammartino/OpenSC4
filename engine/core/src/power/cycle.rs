@@ -17,6 +17,7 @@ use super::{
     AGED_WEAR, DEFAULT_T1, DEFAULT_T2, DESTROY_EXTRA_FLAGS, GROW_ITERATIONS, MAX_CONNECTIONS_PER_DEAL,
     ORDINANCE_FACTOR_ID, PLANT_TYPES, PLANT_TYPE_NUCLEAR, PRODUCTION_RATIO,
 };
+use super::{FloodReport, PlantReport, Report};
 
 /// The 8 × 8 block rectangle of block (bx, bz).
 fn block_rect(bx: i32, bz: i32) -> CellRect {
@@ -168,6 +169,79 @@ impl Cx<'_> {
         }
         s.powered_next.clear();
         s.changed = false;
+        self.report_begin();
+    }
+
+    // ---- the recompute report (tooling, report.rs) --------------------------------------------------
+
+    fn report_begin(&mut self) {
+        if !self.i.report_on {
+            return;
+        }
+        self.i.report_cycles = self.i.report_cycles.wrapping_add(1);
+        let s = &self.i.s;
+        let consumption_cells = s
+            .consumption_map
+            .iter()
+            .map(|r| r.iter().filter(|&&c| c > 0).count() as u32)
+            .sum();
+        self.i.report = Some(Report {
+            cycle: self.i.report_cycles,
+            cells: self.cells(),
+            cell_widths: self.h.cell_widths(),
+            wire_size: (s.wire.width(), s.wire.height()),
+            wire_words: s.wire.words().len(),
+            wire_bits: s.wire.count_ones(),
+            consumption_cells,
+            ..Report::default()
+        });
+    }
+
+    fn report_plants(&mut self) {
+        if self.i.report.is_none() {
+            return;
+        }
+        let mut plants = Vec::with_capacity(self.i.s.plants.len());
+        for node in self.i.s.plants.clone() {
+            let occ = node.occupant;
+            let position = self.h.occupant_position(occ);
+            let (min, max) = self.h.occupant_bounding_box(occ);
+            let (x1, z1) = self.position_to_cell(min[0], min[2]);
+            let (x2, z2) = self.position_to_cell(max[0], max[2]);
+            plants.push(PlantReport {
+                occupant: occ,
+                visited: node.visited,
+                position,
+                seed: self.position_to_cell(position[0], position[2]),
+                rect: CellRect::new(x1, z1, x2, z2),
+                capacity: self.prop_u32(occ, prop::CAPACITY),
+                funding: self
+                    .h
+                    .budget_item_for_purpose(occ, budget::PURPOSE)
+                    .map(|i| i.local_funding),
+                condition: self.condition(occ),
+                efficiency: self.efficiency(occ),
+                produced: self.current_power_produced(occ),
+                connected: node.visited != 0,
+            });
+        }
+        if let Some(r) = &mut self.i.report {
+            r.plants = plants;
+        }
+    }
+
+    fn report_end(&mut self) {
+        let Some(mut r) = self.i.report.take() else {
+            return;
+        };
+        let s = &self.i.s;
+        r.production = s.production;
+        r.consumption = s.consumption;
+        r.demand = s.demand;
+        r.powered = s.powered;
+        r.unpowered = s.unpowered;
+        r.complete = true;
+        self.i.last_report = Some(r);
     }
 
     /// State 1 (§6.2).
@@ -185,6 +259,7 @@ impl Cx<'_> {
             }
             total = total.wrapping_add(self.plant_costs(node.occupant));
         }
+        self.report_plants();
         if let Some(d) = self.i.s.department {
             if let Some(li) = self.h.line_item(d, budget::LINE_POLES) {
                 self.h.set_line_item_full_expenses(li, total);
@@ -243,6 +318,7 @@ impl Cx<'_> {
     /// `UpdatePowerGrid(x, z)` (§6.3).
     pub(crate) fn update_power_grid(&mut self, x: i32, z: i32) {
         // 1. The connected network.
+        let seed_wired = self.i.report.is_some() && self.i.s.wire.test(x, z);
         let (row_min, row_max) = self.flood(x, z);
 
         // 2. Supply.
@@ -278,6 +354,8 @@ impl Cx<'_> {
         let total = imp.wrapping_sub(scaled);
         let mut avail = ftol64(div_i(f64::from(total), factor)) as u32;
 
+        let avail_before_exports = avail;
+
         // 5. Exports.
         for d in self.h.find_deals(deal::SELL_POWER) {
             let used = self.h.deal_amount_used(d.token);
@@ -299,6 +377,8 @@ impl Cx<'_> {
         let mut it = CellIterator::new(0, bz0, (cx / 8 - 1).max(0), bz0.max(row_max >> 3));
         it.reset(true, &mut self.i.crt);
         let mut shortfall = false;
+        let (mut consumers, mut powered_cells) = (0u32, 0u32);
+        let demand_before = self.i.s.demand;
         while let Some((bx, bz)) = it.next_cell() {
             let r = block_rect(bx, bz);
             let s = &mut self.i.s;
@@ -315,12 +395,33 @@ impl Cx<'_> {
                 }
             }
             s.demand = s.demand.wrapping_add(need);
+            consumers = consumers.wrapping_add(n);
             if avail != 0 && need <= avail {
                 s.powered_next.rect_or(&s.mark, r);
                 s.powered = s.powered.wrapping_add(n);
+                powered_cells = powered_cells.wrapping_add(n);
                 avail -= need;
             } else {
                 shortfall = true;
+            }
+        }
+
+        if self.i.report.is_some() {
+            let f = FloodReport {
+                seed: (x, z),
+                seed_wired,
+                reached: self.i.s.mark.count_ones(),
+                rows: (row_min, row_max),
+                supply,
+                import: imp,
+                available: avail_before_exports,
+                consumers,
+                need: self.i.s.demand.wrapping_sub(demand_before),
+                powered: powered_cells,
+                shortfall,
+            };
+            if let Some(r) = &mut self.i.report {
+                r.floods.push(f);
             }
         }
 
@@ -489,6 +590,7 @@ impl Cx<'_> {
             h.set_connection_active(conn, self.is_powered(x, z));
         }
         self.i.s.state = state::IDLE;
+        self.report_end();
         self.post(msg::DEAL_STATUS, [msg::DEAL_STATUS_DATA1, 0, 0, 0], None);
     }
 

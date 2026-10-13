@@ -112,6 +112,11 @@ impl PowerSim {
                 s.poles.push(p);
             }
         }
+        // The words as saved (§9.1). The sides come from the city when it
+        // already reports them; otherwise `Init` supplies them. (A host may
+        // not know the city before `Init`, as the plugin does not: sized
+        // 0 × 0 here, every wire bit was lost and the loaded city had no
+        // power, run 22.)
         let words = inp.get_u32()?;
         let (cx, cz) = h.cell_counts();
         let mut maps = Vec::with_capacity(4);
@@ -120,7 +125,7 @@ impl PowerSim {
             for _ in 0..words {
                 w.push(inp.get_u32()?);
             }
-            maps.push(Bitmap::from_words(cx, cz, &w));
+            maps.push(Bitmap::from_saved(cx, cz, w));
         }
         let mut maps = maps.into_iter();
         s.mark = maps.next()?;

@@ -291,6 +291,8 @@ while some registered object has not been written:
 write the index record (from the start of the record)
 ```
 
+- The class loop walks the **live** sorted set of classes: a class registered during a sweep is written in the
+  same sweep when its ID is higher than the current one (save-records.md §5) *[compat]*.
 - Writing an object may register more objects through references. They are written in a later pass and appended
   to their class records. Entries in a class record are therefore sorted by ID within each pass, but not overall.
 - When a class is registered for the first time in a save, any existing record with its key is deleted first.
@@ -298,6 +300,10 @@ write the index record (from the start of the record)
 - *[quirk]* A discarded entry still counts in the index's `objectCount`, and the loader would then miss an entry.
   **Our `Write` must never return false except for a stream error** *[choice]*.
 - If no object was ever registered, nothing is written (no index).
+- *[compat]* Many saved fields hold Microsoft debug-heap fill words that the original never initialised
+  (`0xCDCDCDCD`, `0xBAADF00D`, `0xCCCCCCCC`: budget by-month ordinance arrays, growth developer, residential, flora
+  RNG, traffic, trips). A reader must accept them and a writer must carry loaded values through unchanged
+  (save-records.md §6).
 
 **Loading** runs once, right after the package is opened and **before any other record is read**:
 
@@ -411,14 +417,19 @@ file with it (keeping the old one until the rename succeeds). In order:
    path strings, data4 = the caller's flag), then `0x26C63346` with the same data (name unknown).
 2. Write the app version record (65) and the module version record.
 3. Write the root record. Its reference registers the city. *(The city's `Write`, and through it every subsystem's
-   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1).
+   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1)
+   while the root record is still open, so the regional-city record precedes the root record in the file.
 4. Send `kSC4MessageSave` `0x26C63344` and `kSC4MessagePostSave` `0x26C63345`.
 5. Run the class-object store save (§3.5): the city, the 53 components and everything they reference.
 6. Close the package, then rename it over the city file.
 7. If the save succeeded: rewrite the regional-city record inside the file of every adjacent city (§11.1).
 
 Subscribers to PreSave/Save may write their own records into the package (void1). They run **before** any
-object's `Write`.
+object's `Write`. The View3D record (`0xA9C8647C / 0xE9C8647E / 1`) is written this way during the Save message,
+also before the root record closes, and it holds a ref to the simulator. That ref registers the simulator first,
+which is why the simulator's class record comes first in every save that keeps the write order (410 of 417). A
+replacement simulator must therefore be registered and serializable when the Save message is sent
+(save-records.md §5) *[compat]*.
 
 **Load** (`cSC4App::LoadCity`):
 
@@ -780,7 +791,7 @@ for "clock XOR constant → generator constructor"):
 | `0x00B4A5C0` | `cRZRandomSuper` | `0x4C09C51F` | wealth requester (prop selection) |
 | `0x00B44870` | `cRZRandomSuper` | `0x8C09C379` | network lot manager |
 | `0x00B43E88` | `cRZRandomSuper` | `0x6C09C07B` | network construction crew |
-| `0x00B22FB0` | `cRZRandom` | `0xEC09C32A` | construction occupant |
+| `0x00B22FB0` | `cRZRandom` | **`0x00000000`** | construction occupant. The static seed (clock XOR `0xEC09C32A`) is overwritten before any draw: the first construction occupant's `Init` calls `StaticInit` (`0x005CED80`, once per process), which reseeds it with the plain `cRZTime()` value (`0x005CEDAC`). So `K` = 0 (`derive(0) = S`) |
 | `0x00B23078` | `cRZRandom` | `0x8C09C2D5` | lot base-texture occupant |
 | `0x00B230C8` | `cRZRandom` | `0x0C09C347` | lot retaining-wall occupant |
 | `0x00B231B0` | `cRZRandomSuper` | `0xAC09C2EC` | prop occupant |
@@ -1068,7 +1079,9 @@ uint32  instance       all three zero = no parent
 |---|---|---|
 | ordinance | exemplar holder | ordinance §9.3 |
 | neighbour connection, neighbour deal (in the city's neighbours objects and in regional-city records) | plain holder | neighbors §4.3, §5.6; §11 |
-| occupants, lots and many other saved objects | one of the two | their own specs |
+| occupants (inside the occupant base record) | exemplar holder (`0x005E8D60` → `0x005FF420`) | lot-records.md §2.3 |
+| lots | plain holder (`0x006C35F0` → `0x005FF280`) | lot-records.md |
+| many other saved objects | one of the two | their own specs |
 
 The budget's locally funded objects refer to holders through `ref` (§2.7), not inline.
 
@@ -1175,7 +1188,8 @@ Example (sample save, the first 43 bytes): `01 00 0D 00 06 00 00 00 05 00 00 00 
 00 00 29 01 00 00 8C 02 00 00 8F C2 F5 3E 33 02 00 FB CB E3 53` gives helper 1, version 13, position (6, 5),
 size (2, 2), population 2564, 297 commercial jobs, 652 industrial jobs, workforce 0.48, mayor rating 51,
 difficulty 2, moved 0 and serial `0x53E3CBFB`. All 85 city files of the test region parse completely under
-this layout (versions 9, 10 and 13, with the version rules below). None contains a deal.
+this layout (versions 9, 10 and 13, with the version rules below). None contains a deal, but two shipped saves
+(`City - Fulham.sc4`, `City - Kensington.sc4`) hold two deals each and parse with this layout (save-records.md §7.5).
 
 **Read** *[compat]*:
 
@@ -1317,7 +1331,7 @@ which mode it uses and when it resets.
 | lot developer (message handler) | `random_shuffle` of a deque of `cISC4BuildingOccupant*` (the night-light list; n − 1 calls) |
 | landfill zones (monthly landfill developer update) | `rand()` directly: one call per redrawn cell whose tile has all four surrounding heaps active, 0–4 per heap whose active state changes (landfill.md §4.8) |
 | random cell iterator | flammability (daily), flora (init, monthly), pollution (init, daily, visual effects), power grid update, tract developer (lot listing, decline), weather (init, weekly); also obliterate-city, volcano lava, helicopters, audio ambience |
-| linear iterator | construction occupants (props, crews), traffic simulator (accident check), one unnamed simulation function |
+| linear iterator | construction occupants (table mode, n − 1 `rand()` calls per reset; they order lot areas, spark sides and prop lists: lot-developer.md §6.7), traffic simulator (accident check), one unnamed simulation function |
 
 Names come from the symbol port and may be imprecise *[inferred]*.
 
@@ -1573,7 +1587,10 @@ return a **uint32 day number**: `DayNumber() − n`, `DayNumber() − other.DayN
 `DayNumber() + other.DayNumber()`. A FreeCity4 `cIGZDate` must return these integers. Callers must not treat the
 result as a pointer.
 
-### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 14 slots)
+### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 16 slots)
+
+Corrected from 14: slots 14 (`0x0067E5B0`) and 15 (`0x0067DDC0`, rebuilds the effective property list; called by
+`SetCohort` `0x0067C510` through `vt+0x3C`) exist (data-formats.md §8).
 
 `AsISCPropertyHolder()` and `AsISCPropertyHolder() const` (slots 6/7) share one body. Their order is
 unobservable. No errors.

@@ -27,11 +27,11 @@
 //! - [`GrowthStatics`]: the process-wide state shared by every growth
 //!   developer: the file-local `cRZRandom` of §7 and the time-slice step of
 //!   §5.2. The host creates one and hands the same `Rc` to every developer.
-//!   Its seed is injected ([`GrowthStatics::new`], [`GrowthStatics::reseed`]):
-//!   the core hard-codes no derivation. The glue derives it from the session
-//!   seed with the per-file constants of foundations §6.3 (not yet written
-//!   there); the original's `cRZTime() XOR 0xAC09C0E8` is only what the game
-//!   does, not something the core computes.
+//!   [`GrowthStatics::from_session`] seeds it from the session seed per
+//!   foundations §6.3 *[choice]* (`derive_seed(S, 0xAC09C0E8)`: the
+//!   original's `cRZTime() XOR 0xAC09C0E8` with `S` in place of the clock);
+//!   [`GrowthStatics::new`] and [`GrowthStatics::reseed`] take an exact seed
+//!   (tests and replays).
 //! - [`GrowthDeveloperHost`]: everything the developer reads from, or does
 //!   to, the rest of the game: the services of `Init`, the message server
 //!   and the simulator, the source maps (§4.3), the BDS (`GetMaxCapacity`,
@@ -193,7 +193,7 @@ use std::rc::Rc;
 
 use crate::development::GrowthProfile;
 use crate::grid::{GridProvider, TractGrid};
-use crate::rng::{RzRandom, SeedSource};
+use crate::rng::{derive_seed, file_seed, RzRandom, SeedSource};
 use crate::variant::Variant;
 
 /// Class ID (§1).
@@ -626,8 +626,7 @@ pub struct GrowthStatics {
 }
 
 impl GrowthStatics {
-    /// The generator seeded with `seed`, injected by the host (derived from
-    /// the session seed per foundations §6.3; no derivation here).
+    /// The generator seeded with `seed` exactly (tests and replays).
     /// `0xFFFFFFFF` takes `seeds`' wall clock (foundations §6.1).
     pub fn new(seed: u32, seeds: &dyn SeedSource) -> Rc<GrowthStatics> {
         Rc::new(GrowthStatics {
@@ -635,6 +634,14 @@ impl GrowthStatics {
             draws: Cell::new(0),
             slice: Cell::new(SliceStep::default()),
         })
+    }
+
+    /// The generator seeded from the session seed (foundations §6.3
+    /// *[choice]*): `derive_seed(session, 0xAC09C0E8)`, the original's
+    /// `cRZTime() XOR 0xAC09C0E8` with the session seed in place of the
+    /// clock.
+    pub fn from_session(session: u32, seeds: &dyn SeedSource) -> Rc<GrowthStatics> {
+        GrowthStatics::new(derive_seed(session, file_seed::GROWTH_DEVELOPER), seeds)
     }
 
     /// One salt (§7 row 1): `NextRaw()`.

@@ -23,6 +23,7 @@
 // letting it escape into the game.
 
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "FC4Subsystems.h"
@@ -189,6 +190,7 @@ public:
         fc4::Log("FreeCity4 %s loaded (core ABI %u, %s mode); dll: %s; log: %s", FC4_VERSION_STRING, fc4_abi_version(),
                  simulatorReplaced_ ? "replacement" : "PASSTHROUGH (simulator disabled, original simulator in use)",
                  fc4::ModulePath(), fc4::LogPath());
+        fc4::FpuLog("OnStart");
         cIGZFrameWork* fw = RZGetFrameWork();
         FC4_LOGV("OnStart: framework=%p state=%d", static_cast<void*>(fw), fw ? static_cast<int>(fw->GetState()) : -1);
         if (fw != nullptr) {
@@ -256,15 +258,19 @@ public:
 
     bool PreFrameWorkInit() override {
         FC4_LOGV("hook PreFrameWorkInit");
+        fc4::FpuLog("hook PreFrameWorkInit", true);
         return true;
     }
 
     bool PreAppInit() override {
         FC4_LOGV("hook PreAppInit");
+        // The first hook after the game's PreFrameWorkInit has run.
+        fc4::FpuSetReference("hook PreAppInit");
         return true;
     }
 
     bool PostAppInit() override {
+        fc4::FpuLog("hook PostAppInit (enter)", true);
         fc4::Log("hook PostAppInit (%s)", simulatorReplaced_ ? "simulator class 0x2990C1E5 provided by FreeCity4"
                                                              : "passthrough: simulator class not registered");
         // Ask GZCOM itself whether it now resolves the simulator class, and
@@ -287,32 +293,38 @@ public:
         }
         // Tooling that runs in every mode (autotest, digest, tick feed).
         fc4::ObserverStart();
+        fc4::FpuLog("hook PostAppInit (exit)");
         return true;
     }
 
     bool PreAppShutdown() override {
         FC4_LOGV("hook PreAppShutdown");
+        fc4::FpuLog("hook PreAppShutdown");
         fc4::ObserverStop();
         return true;
     }
 
     bool PostAppShutdown() override {
         fc4::Log("hook PostAppShutdown");
+        fc4::FpuLog("hook PostAppShutdown");
         return true;
     }
 
     bool PostSystemServiceShutdown() override {
         FC4_LOGV("hook PostSystemServiceShutdown");
+        fc4::FpuLog("hook PostSystemServiceShutdown");
         return true;
     }
 
     bool AbortiveQuit() override {
         fc4::Log("hook AbortiveQuit");
+        fc4::FpuLog("hook AbortiveQuit");
         return true;
     }
 
     bool OnInstall() override {
         FC4_LOGV("hook OnInstall");
+        fc4::FpuLog("hook OnInstall");
         return true;
     }
 

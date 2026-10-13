@@ -584,7 +584,7 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 | `0xE911E2FC` | Power plant max production ratio | f32 × 0.01 | 1.1 | 110 → 1.1 | **dead** (§6.3 uses a literal 1.1) |
 | `0x29121E8B` | Power Min Acceptable Funding % | f32 × 0.01 | 0.6 | 60 → 0.59999996 | dead |
 | `0x2912202E` | Utility Strike Duration | s32 | 10 | 12 | dead |
-| `0x49122036` | Utility Min Funding to End Strike | f32 × 0.01 | 0.9 | 0.9 | dead |
+| `0x49122036` | Utility Min Funding to End Strike | f32 × 0.01 | 0.9 | 90 (→ 0.9 after × 0.01) | dead |
 | `0x0911E2E6` | Utility Strike Response Curve | curve | (0,20)(100,100) | (0,0)(20,45)(50,75)(100,100) | dead |
 
 The ordinance factor is refreshed at every tuning read and every month: `GetCumulativeFactor(0x0911E117, 0)`

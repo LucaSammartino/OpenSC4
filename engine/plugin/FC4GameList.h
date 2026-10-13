@@ -82,21 +82,18 @@ static_assert(sizeof(void*) != 4 || sizeof(GameString) == 0x14, "cRZString is 0x
 // a character buffer from Alloc. False (s untouched) without the allocator or
 // the vtable.
 //
-// [abi] capacity_end: allocators.md gives the field but not whether it marks
-// the end of the allocation or the terminator. The buffer is allocated n + 2
-// bytes and capacity_end = begin + n + 1, which is safe under both readings
-// (capacity understated by one at most, never overstated). The reference
-// count starts at 0, as the SDK's SC4String does; nothing references a string
-// embedded in an element.
+// [abi] As the game's char* constructor does (allocators.md, Strings): exactly
+// n + 1 bytes, end at the terminator, capacity_end = begin + n + 1 (begin plus
+// the bytes allocated, terminator slot included), reference count 0 (embedded
+// strings are destroyed inline, never reference-counted).
 template <class Alloc = StlNodeAllocator>
 bool GameStringInit(GameString& s, const char* text, size_t n) {
     const void* vt = Alloc::StringVtable();
     if (vt == nullptr || n > 0x7FFFFF00u) return false;
-    char* b = static_cast<char*>(Alloc::Allocate(static_cast<uint32_t>(n + 2)));
+    char* b = static_cast<char*>(Alloc::Allocate(static_cast<uint32_t>(n + 1)));
     if (b == nullptr) return false;
     if (n != 0) std::memcpy(b, text, n);
     b[n] = 0;
-    b[n + 1] = 0;
     s.vtable = vt;
     s.begin = b;
     s.end = b + n;

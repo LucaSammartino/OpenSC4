@@ -1904,7 +1904,479 @@ void AbiCollect46_cISC4PollutionSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetMaxRadiationPollutionLevelForUI, "GetMaxRadiationPollutionLevelForUI"));
 }
 
-void AbiCollect47_cISC4Simulator(std::vector<AbiMethod>& m) {
+void AbiCollect47_cIGZSerializable(std::vector<AbiMethod>& m) {
+    using C = cIGZSerializable;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Write, "Write"));
+    m.push_back(AbiM(&C::Read, "Read"));
+    m.push_back(AbiM(&C::GetGZCLSID, "GetGZCLSID"));
+}
+
+void AbiCollect48_cIGZMessageTarget2(std::vector<AbiMethod>& m) {
+    using C = cIGZMessageTarget2;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::DoMessage, "DoMessage"));
+}
+
+void AbiCollect49_cISC4Occupant(std::vector<AbiMethod>& m) {
+    using C = cISC4Occupant;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::IsInitialized, "IsInitialized"));
+    m.push_back(AbiM(&C::AsPropertyHolder, "AsPropertyHolder"));
+    m.push_back(AbiM(&C::GetType, "GetType"));
+    m.push_back(AbiM(&C::GetPosition, "GetPosition"));
+    m.push_back(AbiM(&C::SetPosition, "SetPosition"));
+    m.push_back(AbiM(&C::GetBoundingBox, "GetBoundingBox"));
+    m.push_back(AbiM(&C::GetBoundingCityCells, "GetBoundingCityCells"));
+    m.push_back(AbiM(&C::SetRemovalFlags, "SetRemovalFlags"));
+    m.push_back(AbiM(&C::UnsetRemovalFlags, "UnsetRemovalFlags"));
+    m.push_back(AbiM(&C::CanRemove, "CanRemove"));
+    m.push_back(AbiM(&C::PostOccupantMessage, "PostOccupantMessage"));
+    m.push_back(AbiM(&C::GetHighlight, "GetHighlight"));
+    m.push_back(AbiM(&C::SetHighlight, "SetHighlight"));
+    m.push_back(AbiM(&C::SetVisibility, "SetVisibility"));
+    m.push_back(AbiM(&C::GetPlaceableObject, "GetPlaceableObject"));
+    m.push_back(AbiM(&C::GetOrCreatePlaceableObject, "GetOrCreatePlaceableObject"));
+    m.push_back(AbiM(&C::SetPlaceableObject, "SetPlaceableObject"));
+    m.push_back(AbiM(&C::IsOccupantGroup, "IsOccupantGroup"));
+    m.push_back(AbiM(&C::AddOccupantGroup, "AddOccupantGroup"));
+    m.push_back(AbiM(&C::GetOccupantGroups, "GetOccupantGroups"));
+    m.push_back(AbiM(&C::GetOccupantManagerBBox, "GetOccupantManagerBBox"));
+    m.push_back(AbiM(&C::SetOccupantManagerBBox, "SetOccupantManagerBBox"));
+    m.push_back(AbiM(&C::GetLotTag, "GetLotTag"));
+    m.push_back(AbiM(&C::SetLotTag, "SetLotTag"));
+    m.push_back(AbiM(&C::SetFlag, "SetFlag"));
+    m.push_back(AbiM(&C::SetAllFlags, "SetAllFlags"));
+    m.push_back(AbiM(&C::ClearFlag, "ClearFlag"));
+    m.push_back(AbiM(&C::IsFlagSet, "IsFlagSet"));
+    m.push_back(AbiM(&C::GetFlags, "GetFlags"));
+}
+
+void AbiCollect50_cISC4OccupantManager(std::vector<AbiMethod>& m) {
+    using C = cISC4OccupantManager;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::SetCitySize, "SetCitySize"));
+    m.push_back(AbiM(&C::GetOccupantManagerCellSizes, "GetOccupantManagerCellSizes"));
+    m.push_back(AbiM(&C::GetWorldCellCount, "GetWorldCellCount"));
+    m.push_back(AbiM(&C::GetOccupantManagerCellCount, "GetOccupantManagerCellCount"));
+    m.push_back(AbiM(&C::GetOccupantManagerCellBounds, "GetOccupantManagerCellBounds"));
+    m.push_back(AbiM(&C::WorldCellToOccupantManagerCell, "WorldCellToOccupantManagerCell"));
+    m.push_back(AbiM(&C::OccupantManagerCellToWorldCell, "OccupantManagerCellToWorldCell"));
+    m.push_back(AbiM(&C::WorldCellToStandardCityCell, "WorldCellToStandardCityCell"));
+    m.push_back(AbiM(&C::StandardCityCellToWorldCell, "StandardCityCellToWorldCell"));
+    m.push_back(AbiM(&C::WorldCellToPosition, "WorldCellToPosition"));
+    m.push_back(AbiM(&C::PositionToWorldCell, "PositionToWorldCell"));
+    m.push_back(AbiM(&C::OccupantManagerCellToPosition, "OccupantManagerCellToPosition"));
+    m.push_back(AbiM(&C::PositionToOccupantManagerCell, "PositionToOccupantManagerCell"));
+    m.push_back(AbiM(&C::StandardCityCellToPosition, "StandardCityCellToPosition"));
+    m.push_back(AbiM(&C::PositionToStandardCityCell, "PositionToStandardCityCell"));
+    m.push_back(AbiM(&C::InsertOccupant, "InsertOccupant"));
+    m.push_back(AbiM(&C::RemoveOccupant, "RemoveOccupant"));
+    m.push_back(AbiM(static_cast<bool (C::*)(int32_t dwUnknown, bool bShutOccupantsDown, uint32_t dwMsgData)>(&C::RemoveOccupants), "RemoveOccupants(int32_t dwUnknown, bool bShutOccupantsDown, uint32_t dwMsgData)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4OccupantFilter* pFilter, bool bShutOccupantsDown, uint32_t dwMsgData)>(&C::RemoveOccupants), "RemoveOccupants(cISC4OccupantFilter* pFilter, bool bShutOccupantsDown, uint32_t dwMsgData)"));
+    m.push_back(AbiM(&C::MoveOccupant, "MoveOccupant"));
+    m.push_back(AbiM(&C::IsCellEmpty, "IsCellEmpty"));
+    m.push_back(AbiM(&C::GetBoundingCells, "GetBoundingCells"));
+    m.push_back(AbiM(&C::FindOccupant, "FindOccupant"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, float fX, float fZ, uint32_t dwUnknown)>(&C::GetFirstOccupantByPosition), "GetFirstOccupantByPosition(cISC4Occupant*& ppOccupant, float fX, float fZ, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, float fX, float fZ, cISC4OccupantFilter* pFilter)>(&C::GetFirstOccupantByPosition), "GetFirstOccupantByPosition(cISC4Occupant*& ppOccupant, float fX, float fZ, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, int nX, int nZ, uint32_t dwUnknown)>(&C::GetFirstOccupant), "GetFirstOccupant(cISC4Occupant*& ppOccupant, int nX, int nZ, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, int nX, int nZ, cISC4OccupantFilter* pFilter)>(&C::GetFirstOccupant), "GetFirstOccupant(cISC4Occupant*& ppOccupant, int nX, int nZ, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, int nX, int nZ, uint32_t dwUnknown)>(&C::GetFirstOccupantByStandardCityCell), "GetFirstOccupantByStandardCityCell(cISC4Occupant*& ppOccupant, int nX, int nZ, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, int nX, int nZ, cISC4OccupantFilter* pFilter)>(&C::GetFirstOccupantByStandardCityCell), "GetFirstOccupantByStandardCityCell(cISC4Occupant*& ppOccupant, int nX, int nZ, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, uint32_t dwUnknown)>(&C::GetFirstOccupantByStandardCityCells), "GetFirstOccupantByStandardCityCells(cISC4Occupant*& ppOccupant, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(cISC4Occupant*& ppOccupant, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, cISC4OccupantFilter* pFilter)>(&C::GetFirstOccupantByStandardCityCells), "GetFirstOccupantByStandardCityCells(cISC4Occupant*& ppOccupant, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, float const* fXCells, float const* fZCells, uint32_t dwType, uint32_t dwUnknown)>(&C::GetOccupantsByBBox), "GetOccupantsByBBox(SC4List<cISC4Occupant*>& sOccupants, float const* fXCells, float const* fZCells, uint32_t dwType, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, float const* fXCells, float const* fZCells, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)>(&C::GetOccupantsByBBox), "GetOccupantsByBBox(SC4List<cISC4Occupant*>& sOccupants, float const* fXCells, float const* fZCells, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, int const* fXCells, int const* fZCells, uint32_t dwType, uint32_t dwUnknown)>(&C::GetOccupantsByOccupantManagerCells), "GetOccupantsByOccupantManagerCells(SC4List<cISC4Occupant*>& sOccupants, int const* fXCells, int const* fZCells, uint32_t dwType, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, int const* fXCells, int const* fZCells, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)>(&C::GetOccupantsByOccupantManagerCells), "GetOccupantsByOccupantManagerCells(SC4List<cISC4Occupant*>& sOccupants, int const* fXCells, int const* fZCells, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, uint32_t dwType, uint32_t dwUnknown)>(&C::GetOccupantsByStandardCityCells), "GetOccupantsByStandardCityCells(SC4List<cISC4Occupant*>& sOccupants, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, uint32_t dwType, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(SC4List<cISC4Occupant*>& sOccupants, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)>(&C::GetOccupantsByStandardCityCells), "GetOccupantsByStandardCityCells(SC4List<cISC4Occupant*>& sOccupants, SC4Point<int> const* northWestCell, SC4Point<int> const* southEastCell, cISC4OccupantFilter* pFilter, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, float const* pfUnknown1, float const* pfUnknown2, uint32_t dwUnknown)>(&C::IterateOccupantsByBBox), "IterateOccupantsByBBox(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, float const* pfUnknown1, float const* pfUnknown2, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, float const* pfUnknown1, float const* pfUnknown2, cISC4OccupantFilter* pFilter)>(&C::IterateOccupantsByBBox), "IterateOccupantsByBBox(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, float const* pfUnknown1, float const* pfUnknown2, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, uint32_t dwUnknown)>(&C::IterateOccupants), "IterateOccupants(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, cISC4OccupantFilter* pFilter)>(&C::IterateOccupants), "IterateOccupants(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, uint32_t dwUnknown)>(&C::IterateOccupantsByStandardCityCell), "IterateOccupantsByStandardCityCell(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, uint32_t dwUnknown)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, cISC4OccupantFilter* pFilter)>(&C::IterateOccupantsByStandardCityCell), "IterateOccupantsByStandardCityCell(bool(*pfIterator)(cISC4Occupant*, void*), void* pData, int const* pnUnknown1, int const* pnUnknown2, cISC4OccupantFilter* pFilter)"));
+    m.push_back(AbiM(&C::ReleaseOccupantList, "ReleaseOccupantList"));
+}
+
+void AbiCollect51_cISC4BuildingOccupant(std::vector<AbiMethod>& m) {
+    using C = cISC4BuildingOccupant;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::AsOccupant, "AsOccupant"));
+    m.push_back(AbiM(&C::GetBuildingType, "GetBuildingType"));
+    m.push_back(AbiM(&C::SetBuildingType, "SetBuildingType"));
+    m.push_back(AbiM(&C::GetBuildingAge, "GetBuildingAge"));
+    m.push_back(AbiM(&C::SetBuildingAge, "SetBuildingAge"));
+    m.push_back(AbiM(&C::SetBoundingBox, "SetBoundingBox"));
+    m.push_back(AbiM(&C::GetCompletionPercent, "GetCompletionPercent"));
+    m.push_back(AbiM(&C::SetCompletionPercent, "SetCompletionPercent"));
+    m.push_back(AbiM(&C::GetBuildingProfile, "GetBuildingProfile"));
+    m.push_back(AbiM(&C::GetBuildingName, "GetBuildingName"));
+    m.push_back(AbiM(&C::GetExemplarName, "GetExemplarName"));
+    m.push_back(AbiM(&C::GetOrientation, "GetOrientation"));
+    m.push_back(AbiM(&C::SetOrientation, "SetOrientation"));
+    m.push_back(AbiM(&C::IsLit, "IsLit"));
+    m.push_back(AbiM(&C::SetLit, "SetLit"));
+    m.push_back(AbiM(&C::SetName, "SetName"));
+    m.push_back(AbiM(&C::GetName, "GetName"));
+}
+
+void AbiCollect52_cISC4NetworkOccupant(std::vector<AbiMethod>& m) {
+    using C = cISC4NetworkOccupant;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::IsManagedGlobally, "IsManagedGlobally"));
+    m.push_back(AbiM(&C::CheckForRetrofit, "CheckForRetrofit"));
+    m.push_back(AbiM(&C::SetRetrofitFlag, "SetRetrofitFlag"));
+    m.push_back(AbiM(&C::HasNetworkFlag, "HasNetworkFlag"));
+    m.push_back(AbiM(&C::HasAnyNetworkFlag, "HasAnyNetworkFlag"));
+    m.push_back(AbiM(&C::SetNetworkFlag, "SetNetworkFlag"));
+    m.push_back(AbiM(&C::ClearNetworkFlag, "ClearNetworkFlag"));
+    m.push_back(AbiM(&C::GetNetworkFlag, "GetNetworkFlag"));
+    m.push_back(AbiM(&C::GetConnectionNodeEdgeTypes, "GetConnectionNodeEdgeTypes"));
+    m.push_back(AbiM(&C::SetConnectionNodeEdgeTypes, "SetConnectionNodeEdgeTypes"));
+    m.push_back(AbiM(&C::GetConnectionPathIDOverride, "GetConnectionPathIDOverride"));
+    m.push_back(AbiM(&C::SetConnectionPathIDOverride, "SetConnectionPathIDOverride"));
+    m.push_back(AbiM(&C::IsImmovable, "IsImmovable"));
+    m.push_back(AbiM(&C::SetImmovable, "SetImmovable"));
+    m.push_back(AbiM(&C::IsUsable, "IsUsable"));
+    m.push_back(AbiM(&C::SetUsable, "SetUsable"));
+    m.push_back(AbiM(&C::IsPlaced, "IsPlaced"));
+    m.push_back(AbiM(&C::IsOfType, "IsOfType"));
+    m.push_back(AbiM(&C::PieceId, "PieceId"));
+    m.push_back(AbiM(&C::GetRotation, "GetRotation"));
+    m.push_back(AbiM(&C::GetFlip, "GetFlip"));
+    m.push_back(AbiM(&C::GetRotationAndFlip, "GetRotationAndFlip"));
+    m.push_back(AbiM(&C::SetVariation, "SetVariation"));
+    m.push_back(AbiM(&C::GetVariation, "GetVariation"));
+    m.push_back(AbiM(&C::SetUnderTexture, "SetUnderTexture"));
+    m.push_back(AbiM(&C::SetQuadDraw, "SetQuadDraw"));
+    m.push_back(AbiM(&C::AddPart, "AddPart"));
+    m.push_back(AbiM(&C::HasViewDependentModel, "HasViewDependentModel"));
+    m.push_back(AbiM(&C::GetModelInstances, "GetModelInstances"));
+    m.push_back(AbiM(&C::GetVertexHeights, "GetVertexHeights"));
+    m.push_back(AbiM(&C::GetVertexHeight, "GetVertexHeight"));
+    m.push_back(AbiM(&C::SetVertexHeights, "SetVertexHeights"));
+    m.push_back(AbiM(&C::SetEdgeTypesFlag, "SetEdgeTypesFlag"));
+    m.push_back(AbiM(&C::GetEdgeTypesFlag, "GetEdgeTypesFlag"));
+    m.push_back(AbiM(&C::SetEdgeType, "SetEdgeType"));
+    m.push_back(AbiM(&C::GetActiveEdges, "GetActiveEdges"));
+    m.push_back(AbiM(&C::GetActiveEdgesForType, "GetActiveEdgesForType"));
+    m.push_back(AbiM(&C::GetActiveEdgesForTypeNoGroup, "GetActiveEdgesForTypeNoGroup"));
+    m.push_back(AbiM(&C::GetGroupedEdges, "GetGroupedEdges"));
+    m.push_back(AbiM(&C::SetEdgeStore, "SetEdgeStore"));
+    m.push_back(AbiM(&C::GetEdgeStore, "GetEdgeStore"));
+    m.push_back(AbiM(&C::MarkLightingUpdateNeeded, "MarkLightingUpdateNeeded"));
+    m.push_back(AbiM(&C::ConnectsToNeighbor, "ConnectsToNeighbor"));
+    m.push_back(AbiM(&C::AsOccupant, "AsOccupant"));
+    m.push_back(AbiM(&C::GetPathInfo, "GetPathInfo"));
+    m.push_back(AbiM(&C::ReleasePathInfo, "ReleasePathInfo"));
+    m.push_back(AbiM(&C::SetPathIDOverride, "SetPathIDOverride"));
+    m.push_back(AbiM(&C::GetPathIDOverride, "GetPathIDOverride"));
+    m.push_back(AbiM(&C::AddPathConnection, "AddPathConnection"));
+    m.push_back(AbiM(&C::PathConnectionExists, "PathConnectionExists"));
+    m.push_back(AbiM(&C::IsIntersection, "IsIntersection"));
+    m.push_back(AbiM(&C::GetAltitude, "GetAltitude"));
+    m.push_back(AbiM(&C::GetNormal, "GetNormal"));
+    m.push_back(AbiM(&C::SetTranslucency, "SetTranslucency"));
+    m.push_back(AbiM(&C::GetOccupiedCell, "GetOccupiedCell"));
+    m.push_back(AbiM(&C::IsLit, "IsLit"));
+    m.push_back(AbiM(&C::SetLit, "SetLit"));
+    m.push_back(AbiM(&C::CanBeLit, "CanBeLit"));
+    m.push_back(AbiM(&C::GetCostOfDemolition, "GetCostOfDemolition"));
+    m.push_back(AbiM(&C::SetCostOfDemolition, "SetCostOfDemolition"));
+    m.push_back(AbiM(&C::TransformNode, "TransformNode"));
+    m.push_back(AbiM(&C::IsPartOfTheSameStructure, "IsPartOfTheSameStructure"));
+    m.push_back(AbiM(&C::GetPassageCeiling, "GetPassageCeiling"));
+    m.push_back(AbiM(&C::SetPassageCeiling, "SetPassageCeiling"));
+    m.push_back(AbiM(&C::GetOneWayDirections, "GetOneWayDirections"));
+    m.push_back(AbiM(&C::SetOneWayDirections, "SetOneWayDirections"));
+    m.push_back(AbiM(&C::GetComplexPieceOrigin, "GetComplexPieceOrigin"));
+    m.push_back(AbiM(&C::SetComplexPieceOrigin, "SetComplexPieceOrigin"));
+    m.push_back(AbiM(&C::IsSupportPylonPresent, "IsSupportPylonPresent"));
+}
+
+void AbiCollect53_cISC4NetworkManager(std::vector<AbiMethod>& m) {
+    using C = cISC4NetworkManager;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::GetNetworkTool, "GetNetworkTool"));
+    m.push_back(AbiM(&C::DestroyNetworkOccupants, "DestroyNetworkOccupants"));
+    m.push_back(AbiM(&C::QueueRemovals, "QueueRemovals"));
+    m.push_back(AbiM(&C::RemoveOrReplaceOccupant, "RemoveOrReplaceOccupant"));
+    m.push_back(AbiM(&C::IsOccupantSubwayStation, "IsOccupantSubwayStation"));
+    m.push_back(AbiM(&C::FindPipeOccupant, "FindPipeOccupant"));
+    m.push_back(AbiM(&C::FindPipeConnectionOccupant, "FindPipeConnectionOccupant"));
+    m.push_back(AbiM(&C::GetAllIntersectionPieces, "GetAllIntersectionPieces"));
+    m.push_back(AbiM(&C::GetAllIntersectionPieces2, "GetAllIntersectionPieces2"));
+    m.push_back(AbiM(&C::MapPreviewTexture, "MapPreviewTexture"));
+    m.push_back(AbiM(&C::MapShadowTexture, "MapShadowTexture"));
+    m.push_back(AbiM(&C::MapPath, "MapPath"));
+    m.push_back(AbiM(&C::RegisterConstructionCrew, "RegisterConstructionCrew"));
+    m.push_back(AbiM(&C::UnregisterConstructionCrew, "UnregisterConstructionCrew"));
+    m.push_back(AbiM(&C::GetWaterOccupantFilter, "GetWaterOccupantFilter"));
+    m.push_back(AbiM(&C::GetSubwayOccupantFilter, "GetSubwayOccupantFilter"));
+    m.push_back(AbiM(&C::CreateConnectionNode, "CreateConnectionNode"));
+    m.push_back(AbiM(&C::AutoconnectLotNodes, "AutoconnectLotNodes"));
+    m.push_back(AbiM(&C::GetEnglishNetworkName, "GetEnglishNetworkName"));
+    m.push_back(AbiM(&C::AddToRetrofitList, "AddToRetrofitList"));
+}
+
+void AbiCollect54_cFC4ISC4NetworkTool(std::vector<AbiMethod>& m) {
+    using C = cFC4ISC4NetworkTool;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::ToolSlot05, "ToolSlot05"));
+    m.push_back(AbiM(&C::ToolSlot06, "ToolSlot06"));
+    m.push_back(AbiM(&C::ToolSlot07, "ToolSlot07"));
+    m.push_back(AbiM(&C::ToolSlot08, "ToolSlot08"));
+    m.push_back(AbiM(&C::ToolSlot09, "ToolSlot09"));
+    m.push_back(AbiM(&C::UpdateOnZoneChange, "UpdateOnZoneChange"));
+}
+
+void AbiCollect55_cISC4NeighborDeal(std::vector<AbiMethod>& m) {
+    using C = cISC4NeighborDeal;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::SetRegionCellOnCitySideOfConnection, "SetRegionCellOnCitySideOfConnection"));
+    m.push_back(AbiM(&C::GetRegionCellOnCitySideOfConnection, "GetRegionCellOnCitySideOfConnection"));
+    m.push_back(AbiM(&C::SetRegionCellOnOtherSideOfConnection, "SetRegionCellOnOtherSideOfConnection"));
+    m.push_back(AbiM(&C::GetRegionCellOnOtherSideOfConnection, "GetRegionCellOnOtherSideOfConnection"));
+    m.push_back(AbiM(&C::GetCityOnOtherSideOfConnection, "GetCityOnOtherSideOfConnection"));
+    m.push_back(AbiM(&C::GetType, "GetType"));
+    m.push_back(AbiM(&C::SetType, "SetType"));
+    m.push_back(AbiM(&C::GetAmount, "GetAmount"));
+    m.push_back(AbiM(&C::SetAmount, "SetAmount"));
+    m.push_back(AbiM(&C::GetLastAmount, "GetLastAmount"));
+    m.push_back(AbiM(&C::SetLastAmount, "SetLastAmount"));
+    m.push_back(AbiM(&C::GetLastIncAmount, "GetLastIncAmount"));
+    m.push_back(AbiM(&C::SetLastIncAmount, "SetLastIncAmount"));
+    m.push_back(AbiM(&C::GetIncAmount, "GetIncAmount"));
+    m.push_back(AbiM(&C::SetIncAmount, "SetIncAmount"));
+    m.push_back(AbiM(&C::GetIncAmount2, "GetIncAmount2"));
+    m.push_back(AbiM(&C::SetIncAmount2, "SetIncAmount2"));
+    m.push_back(AbiM(&C::GetAmountUsed, "GetAmountUsed"));
+    m.push_back(AbiM(&C::SetAmountUsed, "SetAmountUsed"));
+    m.push_back(AbiM(&C::GetCost, "GetCost"));
+    m.push_back(AbiM(&C::UpdateCost, "UpdateCost"));
+    m.push_back(AbiM(&C::GetStartDate, "GetStartDate"));
+    m.push_back(AbiM(&C::SetStartDate, "SetStartDate"));
+    m.push_back(AbiM(&C::GetExpirationDate, "GetExpirationDate"));
+    m.push_back(AbiM(&C::SetExpirationDate, "SetExpirationDate"));
+    m.push_back(AbiM(&C::GetCurrentDate, "GetCurrentDate"));
+    m.push_back(AbiM(&C::SetCurrentDate, "SetCurrentDate"));
+    m.push_back(AbiM(&C::GetSuspensionDate, "GetSuspensionDate"));
+    m.push_back(AbiM(&C::SetSuspensionDate, "SetSuspensionDate"));
+    m.push_back(AbiM(&C::Copy, "Copy"));
+    m.push_back(AbiM(&C::UpdateState, "UpdateState"));
+    m.push_back(AbiM(&C::Cancel, "Cancel"));
+    m.push_back(AbiM(&C::Activate, "Activate"));
+    m.push_back(AbiM(&C::GetFlags, "GetFlags"));
+    m.push_back(AbiM(&C::SetFlags, "SetFlags"));
+    m.push_back(AbiM(&C::CheckFlagsAnd, "CheckFlagsAnd"));
+    m.push_back(AbiM(&C::CheckFlagsOr, "CheckFlagsOr"));
+    m.push_back(AbiM(&C::Clone, "Clone"));
+}
+
+void AbiCollect56_cISC4View3DWin(std::vector<AbiMethod>& m) {
+    using C = cISC4View3DWin;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::AsIGZWin, "AsIGZWin"));
+    m.push_back(AbiM(&C::GetRenderer, "GetRenderer"));
+    m.push_back(AbiM(&C::GetModelMaker, "GetModelMaker"));
+    m.push_back(AbiM(&C::GetViewManager, "GetViewManager"));
+    m.push_back(AbiM(&C::ProcessCommand, "ProcessCommand"));
+    m.push_back(AbiM(&C::SetZoom, "SetZoom"));
+    m.push_back(AbiM(&C::ZoomIn, "ZoomIn"));
+    m.push_back(AbiM(&C::ZoomOut, "ZoomOut"));
+    m.push_back(AbiM(&C::SetZoomLimits, "SetZoomLimits"));
+    m.push_back(AbiM(&C::CanZoomIn, "CanZoomIn"));
+    m.push_back(AbiM(&C::CanZoomOut, "CanZoomOut"));
+    m.push_back(AbiM(&C::SetRotation, "SetRotation"));
+    m.push_back(AbiM(&C::RotateLeft, "RotateLeft"));
+    m.push_back(AbiM(&C::RotateRight, "RotateRight"));
+    m.push_back(AbiM(&C::SetZoomAndRotation, "SetZoomAndRotation"));
+    m.push_back(AbiM(&C::GetCurrentViewFilterInfo, "GetCurrentViewFilterInfo"));
+    m.push_back(AbiM(&C::SetCurrentViewFilterInfo, "SetCurrentViewFilterInfo"));
+    m.push_back(AbiM(&C::GetCurrentViewLevelInfo, "GetCurrentViewLevelInfo"));
+    m.push_back(AbiM(&C::SetCurrentViewLevelInfo, "SetCurrentViewLevelInfo"));
+    m.push_back(AbiM(&C::GetCurrentViewLevel, "GetCurrentViewLevel"));
+    m.push_back(AbiM(&C::SetCurrentViewLevel, "SetCurrentViewLevel"));
+    m.push_back(AbiM(&C::GetCurrentViewInputControl, "GetCurrentViewInputControl"));
+    m.push_back(AbiM(&C::SetCurrentViewInputControl, "SetCurrentViewInputControl"));
+    m.push_back(AbiM(&C::RemoveCurrentViewInputControl, "RemoveCurrentViewInputControl"));
+    m.push_back(AbiM(&C::RemoveAllViewInputControls, "RemoveAllViewInputControls"));
+    m.push_back(AbiM(&C::AddPersistentViewInputControl, "AddPersistentViewInputControl"));
+    m.push_back(AbiM(&C::RemovePersistentViewInputControl, "RemovePersistentViewInputControl"));
+    m.push_back(AbiM(&C::RemoveAllPersistentViewInputControls, "RemoveAllPersistentViewInputControls"));
+    m.push_back(AbiM(&C::GetKeyAccelerator, "GetKeyAccelerator"));
+    m.push_back(AbiM(&C::SetKeyAccelerator, "SetKeyAccelerator"));
+    m.push_back(AbiM(&C::SetScrolling, "SetScrolling"));
+    m.push_back(AbiM(&C::ScrollStop, "ScrollStop"));
+    m.push_back(AbiM(&C::KillKeyboardScrolling, "KillKeyboardScrolling"));
+    m.push_back(AbiM(&C::PickTerrain, "PickTerrain"));
+    m.push_back(AbiM(&C::PickOccupant, "PickOccupant"));
+    m.push_back(AbiM(&C::DisplayTerrainPickDebugString, "DisplayTerrainPickDebugString"));
+    m.push_back(AbiM(&C::GetTerrainQueryEnabled, "GetTerrainQueryEnabled"));
+    m.push_back(AbiM(&C::SetCursorText, "SetCursorText"));
+    m.push_back(AbiM(&C::ClearCursorText, "ClearCursorText"));
+    m.push_back(AbiM(static_cast<bool (C::*)(uint32_t)>(&C::SetCostIndicator), "SetCostIndicator(uint32_t)"));
+    m.push_back(AbiM(static_cast<bool (C::*)(uint32_t, uint32_t)>(&C::SetCostIndicator), "SetCostIndicator(uint32_t, uint32_t)"));
+    m.push_back(AbiM(&C::ClearCostIndicator, "ClearCostIndicator"));
+    m.push_back(AbiM(&C::SetErrorReportString, "SetErrorReportString"));
+    m.push_back(AbiM(&C::GetGlobalEffectTriggerState, "GetGlobalEffectTriggerState"));
+    m.push_back(AbiM(&C::AssertGlobalEffectTrigger, "AssertGlobalEffectTrigger"));
+    m.push_back(AbiM(&C::RetractGlobalEffectTrigger, "RetractGlobalEffectTrigger"));
+    m.push_back(AbiM(&C::GetCoverageHelper, "GetCoverageHelper"));
+    m.push_back(AbiM(&C::SetCursorTextPosition3D, "SetCursorTextPosition3D"));
+    m.push_back(AbiM(&C::GetLastSelectedBuilding, "GetLastSelectedBuilding"));
+    m.push_back(AbiM(&C::GetLastSelectedLot, "GetLastSelectedLot"));
+    m.push_back(AbiM(&C::SetLastSelectedBuilding, "SetLastSelectedBuilding"));
+    m.push_back(AbiM(&C::SetLastSelectedLot, "SetLastSelectedLot"));
+    m.push_back(AbiM(&C::MinimizeUI, "MinimizeUI"));
+    m.push_back(AbiM(&C::ShowMissionStatusPanel, "ShowMissionStatusPanel"));
+    m.push_back(AbiM(&C::HideMissionStatusPanel, "HideMissionStatusPanel"));
+    m.push_back(AbiM(&C::UpdateMissionStatusPanel, "UpdateMissionStatusPanel"));
+    m.push_back(AbiM(&C::CloseSecondaryMenu, "CloseSecondaryMenu"));
+    m.push_back(AbiM(&C::CloseTertiaryMenu, "CloseTertiaryMenu"));
+}
+
+void AbiCollect57_cISC4PowerLineOccupant(std::vector<AbiMethod>& m) {
+    using C = cISC4PowerLineOccupant;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::GetConnectedPoles, "GetConnectedPoles"));
+    m.push_back(AbiM(&C::SetConnectedPoles, "SetConnectedPoles"));
+    m.push_back(AbiM(&C::GetCell, "GetCell"));
+    m.push_back(AbiM(&C::IsPreview, "IsPreview"));
+    m.push_back(AbiM(&C::SetPreview, "SetPreview"));
+}
+
+void AbiCollect58_cFC4ISC4PowerPoleOccupant(std::vector<AbiMethod>& m) {
+    using C = cFC4ISC4PowerPoleOccupant;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::AsOccupant, "AsOccupant"));
+    m.push_back(AbiM(&C::PoleSlot04, "PoleSlot04"));
+    m.push_back(AbiM(&C::PoleSlot05, "PoleSlot05"));
+    m.push_back(AbiM(&C::BreakAllConnections, "BreakAllConnections"));
+    m.push_back(AbiM(&C::PoleSlot07, "PoleSlot07"));
+    m.push_back(AbiM(&C::GetCell, "GetCell"));
+    m.push_back(AbiM(&C::PoleSlot09, "PoleSlot09"));
+    m.push_back(AbiM(&C::PoleSlot10, "PoleSlot10"));
+    m.push_back(AbiM(&C::IsDistressed, "IsDistressed"));
+    m.push_back(AbiM(&C::SetDistressed, "SetDistressed"));
+    m.push_back(AbiM(&C::IsIgnoredByPower, "IsIgnoredByPower"));
+    m.push_back(AbiM(&C::PoleSlot14, "PoleSlot14"));
+    m.push_back(AbiM(&C::PoleSlot15, "PoleSlot15"));
+    m.push_back(AbiM(&C::PoleSlot16, "PoleSlot16"));
+    m.push_back(AbiM(&C::PoleSlot17, "PoleSlot17"));
+    m.push_back(AbiM(&C::PoleSlot18, "PoleSlot18"));
+}
+
+void AbiCollect59_cFC4ISC4PowerSimulator(std::vector<AbiMethod>& m) {
+    using C = cFC4ISC4PowerSimulator;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::PositionToCell, "PositionToCell"));
+    m.push_back(AbiM(&C::CellToPosition, "CellToPosition"));
+    m.push_back(AbiM(&C::CellToStandardCityCell, "CellToStandardCityCell"));
+    m.push_back(AbiM(&C::StandardCityCellToCell, "StandardCityCellToCell"));
+    m.push_back(AbiM(&C::GetAnnualConsumption, "GetAnnualConsumption"));
+    m.push_back(AbiM(&C::GetAnnualConsumptionByPowerType, "GetAnnualConsumptionByPowerType"));
+    m.push_back(AbiM(&C::GetMonthlyRequirement, "GetMonthlyRequirement"));
+    m.push_back(AbiM(&C::GetMonthlyProduction, "GetMonthlyProduction"));
+    m.push_back(AbiM(&C::GetMonthlyImport, "GetMonthlyImport"));
+    m.push_back(AbiM(&C::GetMonthlyExport, "GetMonthlyExport"));
+    m.push_back(AbiM(&C::GetMonthlyDemand, "GetMonthlyDemand"));
+    m.push_back(AbiM(&C::GetMonthlyConsumptionAt, "GetMonthlyConsumptionAt"));
+    m.push_back(AbiM(&C::GetMonthlyConsumptionTotal, "GetMonthlyConsumptionTotal"));
+    m.push_back(AbiM(&C::GetMonthlyConsumptionMapPtr, "GetMonthlyConsumptionMapPtr"));
+    m.push_back(AbiM(&C::GetSupplyValue, "GetSupplyValue"));
+    m.push_back(AbiM(&C::GetSupplyValueMapPtr, "GetSupplyValueMapPtr"));
+    m.push_back(AbiM(&C::GetUnpoweredConsumerCount, "GetUnpoweredConsumerCount"));
+    m.push_back(AbiM(&C::GetPoweredConsumerCount, "GetPoweredConsumerCount"));
+    m.push_back(AbiM(&C::GetPowerPlantCountOfType, "GetPowerPlantCountOfType"));
+    m.push_back(AbiM(&C::GetPowerPlantCountAll, "GetPowerPlantCountAll"));
+    m.push_back(AbiM(&C::GetPowerPlants, "GetPowerPlants"));
+    m.push_back(AbiM(&C::GetPowerPoleCount, "GetPowerPoleCount"));
+    m.push_back(AbiM(&C::GetOverworkedPowerPlantCount, "GetOverworkedPowerPlantCount"));
+    m.push_back(AbiM(&C::GetAgedPowerPlantCount, "GetAgedPowerPlantCount"));
+    m.push_back(AbiM(&C::GetDistressedPowerPlantCount, "GetDistressedPowerPlantCount"));
+    m.push_back(AbiM(&C::FindPowerPlants, "FindPowerPlants"));
+    m.push_back(AbiM(&C::IsOccupantPowered, "IsOccupantPowered"));
+    m.push_back(AbiM(&C::GetOccupantPowerConsumed, "GetOccupantPowerConsumed"));
+    m.push_back(AbiM(&C::GetOccupantPowerProduced, "GetOccupantPowerProduced"));
+    m.push_back(AbiM(&C::GetOccupantMaxPowerProduced, "GetOccupantMaxPowerProduced"));
+    m.push_back(AbiM(&C::GetPoweredGridConst, "GetPoweredGridConst"));
+    m.push_back(AbiM(&C::GetPoweredGrid, "GetPoweredGrid"));
+    m.push_back(AbiM(&C::IsPowered, "IsPowered"));
+    m.push_back(AbiM(&C::IsWired, "IsWired"));
+    m.push_back(AbiM(&C::IsOnStrike, "IsOnStrike"));
+    m.push_back(AbiM(&C::GetChanceOfStrike, "GetChanceOfStrike"));
+    m.push_back(AbiM(&C::BeginStrike, "BeginStrike"));
+    m.push_back(AbiM(&C::EndStrike, "EndStrike"));
+    m.push_back(AbiM(&C::GetStrikeStartDate, "GetStrikeStartDate"));
+    m.push_back(AbiM(&C::GetStrikeLength, "GetStrikeLength"));
+    m.push_back(AbiM(&C::GetCurrentPlantEfficiencyPercent, "GetCurrentPlantEfficiencyPercent"));
+    m.push_back(AbiM(&C::GetCurrentPlantConditionPercent, "GetCurrentPlantConditionPercent"));
+    m.push_back(AbiM(&C::GetStrikeEfficiencyPercent, "GetStrikeEfficiencyPercent"));
+    m.push_back(AbiM(&C::GetFundingPercent, "GetFundingPercent"));
+    m.push_back(AbiM(&C::GetMonthlyPowerGenerationCost, "GetMonthlyPowerGenerationCost"));
+    m.push_back(AbiM(&C::GetPowerPlantFundingPercentage, "GetPowerPlantFundingPercentage"));
+    m.push_back(AbiM(&C::SetPowerPlantFundingPercentage, "SetPowerPlantFundingPercentage"));
+}
+
+void AbiCollect60_cISC4Demolition(std::vector<AbiMethod>& m) {
+    using C = cISC4Demolition;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::SetDefaultOccupantFilter, "SetDefaultOccupantFilter"));
+    m.push_back(AbiM(&C::DemolishRegion, "DemolishRegion"));
+    m.push_back(AbiM(&C::DemolishLots, "DemolishLots"));
+    m.push_back(AbiM(&C::DemolishOccupant, "DemolishOccupant"));
+    m.push_back(AbiM(&C::ModifyTerrainHeight, "ModifyTerrainHeight"));
+    m.push_back(AbiM(&C::DoDemolishOccupantEffect, "DoDemolishOccupantEffect"));
+    m.push_back(AbiM(&C::DoDemolishGroupEffect, "DoDemolishGroupEffect"));
+}
+
+void AbiCollect61_cISC4Simulator(std::vector<AbiMethod>& m) {
     using C = cISC4Simulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -1942,7 +2414,7 @@ void AbiCollect47_cISC4Simulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::SetCityEstablished, "SetCityEstablished"));
 }
 
-void AbiCollect48_cISC4BudgetSimulator(std::vector<AbiMethod>& m) {
+void AbiCollect62_cISC4BudgetSimulator(std::vector<AbiMethod>& m) {
     using C = cISC4BudgetSimulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2005,7 +2477,7 @@ void AbiCollect48_cISC4BudgetSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::CopyBudgetItemProperties, "CopyBudgetItemProperties"));
 }
 
-void AbiCollect49_cISC4DepartmentBudget(std::vector<AbiMethod>& m) {
+void AbiCollect63_cISC4DepartmentBudget(std::vector<AbiMethod>& m) {
     using C = cISC4DepartmentBudget;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2043,7 +2515,7 @@ void AbiCollect49_cISC4DepartmentBudget(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::HasLocallyFundedItemsByPurpose, "HasLocallyFundedItemsByPurpose"));
 }
 
-void AbiCollect50_cIGZDate(std::vector<AbiMethod>& m) {
+void AbiCollect64_cIGZDate(std::vector<AbiMethod>& m) {
     using C = cIGZDate;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2093,7 +2565,7 @@ void AbiCollect50_cIGZDate(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::LeapYear, "LeapYear"));
 }
 
-void AbiCollect51_cIGZVariant(std::vector<AbiMethod>& m) {
+void AbiCollect65_cIGZVariant(std::vector<AbiMethod>& m) {
     using C = cIGZVariant;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2224,7 +2696,7 @@ void AbiCollect51_cIGZVariant(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(static_cast<void (C::*)(cIGZUnknown* value)>(&C::RefIGZUnknown), "RefIGZUnknown(cIGZUnknown* value)"));
 }
 
-void AbiCollect52_cISCPropertyHolder(std::vector<AbiMethod>& m) {
+void AbiCollect66_cISCPropertyHolder(std::vector<AbiMethod>& m) {
     using C = cISCPropertyHolder;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2250,7 +2722,7 @@ void AbiCollect52_cISCPropertyHolder(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::CompactProperties, "CompactProperties"));
 }
 
-void AbiCollect53_cISC4LotManager(std::vector<AbiMethod>& m) {
+void AbiCollect67_cISC4LotManager(std::vector<AbiMethod>& m) {
     using C = cISC4LotManager;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2282,7 +2754,7 @@ void AbiCollect53_cISC4LotManager(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetMaximumCapacityGrid, "GetMaximumCapacityGrid"));
 }
 
-void AbiCollect54_cISC4Lot(std::vector<AbiMethod>& m) {
+void AbiCollect68_cISC4Lot(std::vector<AbiMethod>& m) {
     using C = cISC4Lot;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2356,7 +2828,7 @@ void AbiCollect54_cISC4Lot(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::SetVerticesAreLocked, "SetVerticesAreLocked"));
 }
 
-void AbiCollect55_cISC4NeighborsSimulator(std::vector<AbiMethod>& m) {
+void AbiCollect69_cISC4NeighborsSimulator(std::vector<AbiMethod>& m) {
     using C = cISC4NeighborsSimulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2398,7 +2870,7 @@ void AbiCollect55_cISC4NeighborsSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetTuningExemplar, "GetTuningExemplar"));
 }
 
-void AbiCollect56_cISC4Ordinance(std::vector<AbiMethod>& m) {
+void AbiCollect70_cISC4Ordinance(std::vector<AbiMethod>& m) {
     using C = cISC4Ordinance;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2432,7 +2904,7 @@ void AbiCollect56_cISC4Ordinance(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::ForceMonthlyAdjustedIncome, "ForceMonthlyAdjustedIncome"));
 }
 
-void AbiCollect57_cISC4RegionalCity(std::vector<AbiMethod>& m) {
+void AbiCollect71_cISC4RegionalCity(std::vector<AbiMethod>& m) {
     using C = cISC4RegionalCity;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2509,7 +2981,7 @@ void AbiCollect57_cISC4RegionalCity(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetPointsOfInterest, "GetPointsOfInterest"));
 }
 
-void AbiCollect58_cISC4ResidentialSimulator(std::vector<AbiMethod>& m) {
+void AbiCollect72_cISC4ResidentialSimulator(std::vector<AbiMethod>& m) {
     using C = cISC4ResidentialSimulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2573,7 +3045,7 @@ void AbiCollect58_cISC4ResidentialSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::ToggleTractTracking, "ToggleTractTracking"));
 }
 
-void AbiCollect59_cISC4DemandSimulator(std::vector<AbiMethod>& m) {
+void AbiCollect73_cISC4DemandSimulator(std::vector<AbiMethod>& m) {
     using C = cISC4DemandSimulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2589,7 +3061,7 @@ void AbiCollect59_cISC4DemandSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetLocalPopulationSummary, "GetLocalPopulationSummary"));
 }
 
-void AbiCollect60_cISC4Demand(std::vector<AbiMethod>& m) {
+void AbiCollect74_cISC4Demand(std::vector<AbiMethod>& m) {
     using C = cISC4Demand;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2627,7 +3099,7 @@ void AbiCollect60_cISC4Demand(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::DebugIsValueLocked, "DebugIsValueLocked"));
 }
 
-void AbiCollect61_cISC4WeatherSimulator(std::vector<AbiMethod>& m) {
+void AbiCollect75_cISC4WeatherSimulator(std::vector<AbiMethod>& m) {
     using C = cISC4WeatherSimulator;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2655,7 +3127,7 @@ void AbiCollect61_cISC4WeatherSimulator(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::GetWindAtCell, "GetWindAtCell"));
 }
 
-void AbiCollect62_cISC4GameDataRegistry(std::vector<AbiMethod>& m) {
+void AbiCollect76_cISC4GameDataRegistry(std::vector<AbiMethod>& m) {
     using C = cISC4GameDataRegistry;
     m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
     m.push_back(AbiM(&C::AddRef, "AddRef"));
@@ -2686,6 +3158,61 @@ void AbiCollect62_cISC4GameDataRegistry(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(static_cast<bool (C::*)(cISC4GameDataRegistryNotificationTarget* pTarget)>(&C::RemoveNotificationTarget), "RemoveNotificationTarget(cISC4GameDataRegistryNotificationTarget* pTarget)"));
     m.push_back(AbiM(static_cast<bool (C::*)(cIGZMessageTarget2* pTarget)>(&C::RemoveNotificationTarget), "RemoveNotificationTarget(cIGZMessageTarget2* pTarget)"));
     m.push_back(AbiM(&C::DebugDumpRecursive, "DebugDumpRecursive"));
+}
+
+void AbiCollect77_cISC4NetworkTool(std::vector<AbiMethod>& m) {
+    using C = cISC4NetworkTool;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Init, "Init"));
+    m.push_back(AbiM(&C::Shutdown, "Shutdown"));
+    m.push_back(AbiM(&C::Reset, "Reset"));
+    m.push_back(AbiM(&C::GetUITool, "GetUITool"));
+    m.push_back(AbiM(&C::PlaceNetworkOccupants, "PlaceNetworkOccupants"));
+    m.push_back(AbiM(&C::PlaceNetworkOccupantById, "PlaceNetworkOccupantById"));
+    m.push_back(AbiM(&C::OccupantExists, "OccupantExists"));
+    m.push_back(AbiM(&C::UpdateOnZoneChange, "UpdateOnZoneChange"));
+    m.push_back(AbiM(&C::ForceReload, "ForceReload"));
+    m.push_back(AbiM(&C::SetTraceFinal, "SetTraceFinal"));
+    m.push_back(AbiM(&C::ClearFailureReason, "ClearFailureReason"));
+    m.push_back(AbiM(&C::GetFailureState, "GetFailureState"));
+    m.push_back(AbiM(&C::GetFailureReasonString, "GetFailureReasonString"));
+    m.push_back(AbiM(&C::ClearOccupantHighlights, "ClearOccupantHighlights"));
+    m.push_back(AbiM(&C::ClearCellPreviews, "ClearCellPreviews"));
+    m.push_back(AbiM(&C::DrawNetworkLine, "DrawNetworkLine"));
+    m.push_back(AbiM(&C::PlaceAllSegments, "PlaceAllSegments"));
+    m.push_back(AbiM(&C::GetCostOfSolution, "GetCostOfSolution"));
+    m.push_back(AbiM(&C::EnablePreviewUpdate, "EnablePreviewUpdate"));
+    m.push_back(AbiM(&C::SetAnchorPoints, "SetAnchorPoints"));
+    m.push_back(AbiM(&C::GetDraggedCells, "GetDraggedCells"));
+    m.push_back(AbiM(&C::SetValidStepCount, "SetValidStepCount"));
+    m.push_back(AbiM(&C::GetValidStepCount, "GetValidStepCount"));
+    m.push_back(AbiM(&C::GetStraightStepCount, "GetStraightStepCount"));
+    m.push_back(AbiM(&C::GetTotalStepCount, "GetTotalStepCount"));
+    m.push_back(AbiM(&C::IsRegularStep, "IsRegularStep"));
+    m.push_back(AbiM(&C::GetLastValidPoint, "GetLastValidPoint"));
+    m.push_back(AbiM(&C::GetPossibleBridges, "GetPossibleBridges"));
+    m.push_back(AbiM(&C::GetPreferredBridge, "GetPreferredBridge"));
+    m.push_back(AbiM(&C::SetPreferredBridge, "SetPreferredBridge"));
+    m.push_back(AbiM(&C::GetBridgeAltitudeOverride, "GetBridgeAltitudeOverride"));
+    m.push_back(AbiM(&C::SetBridgeAltitudeOverride, "SetBridgeAltitudeOverride"));
+    m.push_back(AbiM(&C::GetBridgeName, "GetBridgeName"));
+    m.push_back(AbiM(&C::GetMajorBridge, "GetMajorBridge"));
+    m.push_back(AbiM(&C::GetMajorBridgeAltitude, "GetMajorBridgeAltitude"));
+    m.push_back(AbiM(&C::GetMajorBridgeReferenceAltitude, "GetMajorBridgeReferenceAltitude"));
+    m.push_back(AbiM(&C::IsMajorBridgeLandBridge, "IsMajorBridgeLandBridge"));
+    m.push_back(AbiM(&C::GetBridgeBitmapKey, "GetBridgeBitmapKey"));
+    m.push_back(AbiM(&C::GetPossibleNeighborConnection, "GetPossibleNeighborConnection"));
+    m.push_back(AbiM(&C::ViewInputControlId, "ViewInputControlId"));
+    m.push_back(AbiM(&C::CursorId, "CursorId"));
+    m.push_back(AbiM(&C::DirectionalCursorBase, "DirectionalCursorBase"));
+    m.push_back(AbiM(&C::PenWidth, "PenWidth"));
+    m.push_back(AbiM(&C::StopPickAtWater, "StopPickAtWater"));
+    m.push_back(AbiM(&C::GetToolViewId, "GetToolViewId"));
+    m.push_back(AbiM(&C::GetPlacementParams, "GetPlacementParams"));
+    m.push_back(AbiM(&C::QueryUserForPotentialIntersections, "QueryUserForPotentialIntersections"));
+    m.push_back(AbiM(&C::DestroyOccupantsAndResolve, "DestroyOccupantsAndResolve"));
 }
 
 const AbiInterface kAbiInterfaces[] = {
@@ -2736,20 +3263,35 @@ const AbiInterface kAbiInterfaces[] = {
     {"cISC4PoliceSimulator", "cISC4PoliceSimulator", true, &AbiCollect44_cISC4PoliceSimulator},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", true, &AbiCollect45_cISC4PowerSimulator},
     {"cISC4PollutionSimulator", "cISC4PollutionSimulator", true, &AbiCollect46_cISC4PollutionSimulator},
-    {"cISC4Simulator", "cISC4Simulator", false, &AbiCollect47_cISC4Simulator},
-    {"cISC4BudgetSimulator", "cISC4BudgetSimulator", false, &AbiCollect48_cISC4BudgetSimulator},
-    {"cISC4DepartmentBudget", "cISC4DepartmentBudget", false, &AbiCollect49_cISC4DepartmentBudget},
-    {"cIGZDate", "cIGZDate", false, &AbiCollect50_cIGZDate},
-    {"cIGZVariant", "cIGZVariant", false, &AbiCollect51_cIGZVariant},
-    {"cISCPropertyHolder", "cISCPropertyHolder", false, &AbiCollect52_cISCPropertyHolder},
-    {"cISC4LotManager", "cISC4LotManager", false, &AbiCollect53_cISC4LotManager},
-    {"cISC4Lot", "cISC4Lot", false, &AbiCollect54_cISC4Lot},
-    {"cISC4NeighborsSimulator", "cISC4NeighborsSimulator", false, &AbiCollect55_cISC4NeighborsSimulator},
-    {"cISC4Ordinance", "cISC4Ordinance", false, &AbiCollect56_cISC4Ordinance},
-    {"cISC4RegionalCity", "cISC4RegionalCity", false, &AbiCollect57_cISC4RegionalCity},
-    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", false, &AbiCollect58_cISC4ResidentialSimulator},
-    {"vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", false, &AbiCollect59_cISC4DemandSimulator},
-    {"cISC4Demand", "cISC4Demand", false, &AbiCollect60_cISC4Demand},
-    {"cISC4WeatherSimulator", "cISC4WeatherSimulator", false, &AbiCollect61_cISC4WeatherSimulator},
-    {"cISC4GameDataRegistry", "cISC4GameDataRegistry", false, &AbiCollect62_cISC4GameDataRegistry},
+    {"cIGZSerializable(Power)", "cIGZSerializable", true, &AbiCollect47_cIGZSerializable},
+    {"cIGZMessageTarget2(Power)", "cIGZMessageTarget2", true, &AbiCollect48_cIGZMessageTarget2},
+    {"cISC4Occupant", "cISC4Occupant", true, &AbiCollect49_cISC4Occupant},
+    {"cISC4OccupantManager", "cISC4OccupantManager", true, &AbiCollect50_cISC4OccupantManager},
+    {"cISC4BuildingOccupant", "cISC4BuildingOccupant", true, &AbiCollect51_cISC4BuildingOccupant},
+    {"cISC4NetworkOccupant", "cISC4NetworkOccupant", true, &AbiCollect52_cISC4NetworkOccupant},
+    {"cISC4NetworkManager", "cISC4NetworkManager", true, &AbiCollect53_cISC4NetworkManager},
+    {"cISC4NetworkTool(PowerLine)", "cFC4ISC4NetworkTool", true, &AbiCollect54_cFC4ISC4NetworkTool},
+    {"cISC4NeighborDeal", "cISC4NeighborDeal", true, &AbiCollect55_cISC4NeighborDeal},
+    {"cISC4View3DWin", "cISC4View3DWin", true, &AbiCollect56_cISC4View3DWin},
+    {"cISC4PowerLineOccupant", "cISC4PowerLineOccupant", true, &AbiCollect57_cISC4PowerLineOccupant},
+    {"cISC4PowerPoleOccupant", "cFC4ISC4PowerPoleOccupant", true, &AbiCollect58_cFC4ISC4PowerPoleOccupant},
+    {"cISC4PowerSimulator", "cFC4ISC4PowerSimulator", true, &AbiCollect59_cFC4ISC4PowerSimulator},
+    {"cISC4Demolition", "cISC4Demolition", true, &AbiCollect60_cISC4Demolition},
+    {"cISC4Simulator", "cISC4Simulator", false, &AbiCollect61_cISC4Simulator},
+    {"cISC4BudgetSimulator", "cISC4BudgetSimulator", false, &AbiCollect62_cISC4BudgetSimulator},
+    {"cISC4DepartmentBudget", "cISC4DepartmentBudget", false, &AbiCollect63_cISC4DepartmentBudget},
+    {"cIGZDate", "cIGZDate", false, &AbiCollect64_cIGZDate},
+    {"cIGZVariant", "cIGZVariant", false, &AbiCollect65_cIGZVariant},
+    {"cISCPropertyHolder", "cISCPropertyHolder", false, &AbiCollect66_cISCPropertyHolder},
+    {"cISC4LotManager", "cISC4LotManager", false, &AbiCollect67_cISC4LotManager},
+    {"cISC4Lot", "cISC4Lot", false, &AbiCollect68_cISC4Lot},
+    {"cISC4NeighborsSimulator", "cISC4NeighborsSimulator", false, &AbiCollect69_cISC4NeighborsSimulator},
+    {"cISC4Ordinance", "cISC4Ordinance", false, &AbiCollect70_cISC4Ordinance},
+    {"cISC4RegionalCity", "cISC4RegionalCity", false, &AbiCollect71_cISC4RegionalCity},
+    {"vt:cSC4ResidentialSimulator::vftable", "cISC4ResidentialSimulator", false, &AbiCollect72_cISC4ResidentialSimulator},
+    {"vt:cSC4DemandSimulator::vftable", "cISC4DemandSimulator", false, &AbiCollect73_cISC4DemandSimulator},
+    {"cISC4Demand", "cISC4Demand", false, &AbiCollect74_cISC4Demand},
+    {"cISC4WeatherSimulator", "cISC4WeatherSimulator", false, &AbiCollect75_cISC4WeatherSimulator},
+    {"cISC4GameDataRegistry", "cISC4GameDataRegistry", false, &AbiCollect76_cISC4GameDataRegistry},
+    {"cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", false, &AbiCollect77_cISC4NetworkTool},
 };

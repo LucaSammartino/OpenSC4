@@ -856,3 +856,73 @@ fn removal_counters_and_poles() {
     let st = s.state();
     assert_eq!((st.cost_base, st.pole_count, st.broken_count), (-1, 0, 1));
 }
+
+#[test]
+fn a_city_loaded_before_its_cell_counts_keeps_its_wires() {
+    // Run 22: the plugin's host knows no city before `Init`, so `Read` saw
+    // 0 × 0 cells. The bitmaps keep the saved words and take the city's sides
+    // at `Init`; the first recompute after the load powers the network again.
+    let h = Host::new(32);
+    plant(&h, 10, CellRect::new(8, 0, 9, 1), 1000, 1);
+    h.building(11, CellRect::new(12, 0, 13, 1), &[(prop::REQUIREMENT, u32v(500))], None);
+    let s = sim(&h);
+    s.occupant_inserted(10);
+    s.occupant_inserted(11);
+    cycle(&s);
+    assert_eq!(s.state().last_demand, 500);
+    let wire = s.state().wire.clone();
+    let (bytes, entries) = record(&s);
+
+    h.cells.set((0, 0));
+    let t = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 2);
+    let mut res = Resolver(entries, h.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(t.state().wire.words(), wire.words());
+    h.cells.set((32, 32));
+    assert!(t.init());
+    assert_eq!(t.state().wire, wire);
+    t.do_message(&message(msg::CONNECTIONS_READY, 0));
+    t.set_report(true);
+    cycle(&t);
+    {
+        let st = t.state();
+        assert_eq!(
+            (st.last_production, st.last_consumption, st.last_demand, st.powered),
+            (1000, 500, 500, 1)
+        );
+    }
+    assert!(t.is_powered(13, 1));
+
+    // The report of that cycle.
+    let r = t.take_report().expect("a complete report");
+    assert!(r.complete);
+    assert_eq!((r.cells, r.wire_size), ((32, 32), (32, 32)));
+    assert_eq!(r.wire_bits, wire.count_ones());
+    assert_eq!(r.consumption_cells, 1);
+    assert_eq!(r.plants.len(), 1);
+    let p = &r.plants[0];
+    assert_eq!(
+        (p.capacity, p.funding, p.produced, p.connected),
+        (Some(1000), Some(1.0), 1000, true)
+    );
+    assert_eq!(r.floods.len(), 1);
+    let f = &r.floods[0];
+    assert!(f.seed_wired && f.reached > 0);
+    assert_eq!(
+        (f.supply, f.consumers, f.need, f.powered, f.shortfall),
+        (1000, 1, 500, 1, false)
+    );
+    assert_eq!((r.production, r.demand, r.powered), (1000, 500, 1));
+    let text = r.text();
+    assert!(text.starts_with("power recompute 1: cells 32x32"), "{text}");
+    assert!(
+        text.contains("\n  plant 0xa: ") && text.contains("\n  flood from ("),
+        "{text}"
+    );
+    assert!(t.take_report().is_none());
+
+    // Off: nothing is collected.
+    t.set_report(false);
+    cycle(&t);
+    assert!(t.take_report().is_none());
+}

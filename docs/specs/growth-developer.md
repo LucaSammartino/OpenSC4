@@ -353,7 +353,7 @@ order. Helpers: property value getters `0x005FD480` (u32), `0x005FD3C0` (u8), `0
 | `0x87CD6370` | u8 | water cap | keep (3) | 3, except R$$$/CS$$$/CO$$$/I-HT 0 and I-D/I-M 1 |
 | `0x87CD6371` | u8 | fire cap | keep (3) | 9 |
 | `0x87CD6372` | u8 | park cap | keep (6) | 9, except R$$$ 3 |
-| `0x87CD6380` | raw f32 [0], [1], [2] | abandonment thresholds for keys 1, 2, 3 (first set to `0.2f` = `0x3E4CCCCD` each); **no count check** *[quirk]* | 0.2 | absent |
+| `0x87CD6380` | raw f32 [0], [1], [2] | abandonment thresholds for keys 1, 2, 3 (first set to `0.2f` = `0x3E4CCCCD` each); **no count check** *[quirk]*. Keys are density types (§10.1 slot 24). Not saved; nothing in the shipped exe reads them | 0.2 | absent |
 | `0x87CD6381` | u8 | monopoly-piece use (SDK enum) | 1 | 0 |
 | `0x87CD63A0` | u32 pairs (group, pct) | style map: cleared, then `map[group] := r24(float(pct) × 0.01f)` for i = 0, 2, … while i < count (an odd count reads one value past the end *[quirk]*) | empty | I: `[0x3001, 50, 0x3002, 50]` → 0.5 each; others absent |
 | `0xCAB1CE3A` | vector<int32> | subjective minimums | keep | 7 values |
@@ -687,7 +687,7 @@ epilogues.
 | 18 | `+0x48` | GetSourceDemand() → `cISC4Demand*` | 0 | EAX, no AddRef | |
 | 19–22 | `+0x4C`–`+0x58` | GetPowerSupplyCap / GetWaterSupplyCap / GetFireCoverageCap / GetParkCap | 0 | AL | |
 | 23 | `+0x5C` | GetDesirabilityThreshold() | 0 | EAX | growth threshold |
-| 24 | `+0x60` | GetAbandonmentThreshold(int32 key) → float | 4 | ST0 | map lookup that **inserts** 0.0 for an unknown key (B allocation) |
+| 24 | `+0x60` | GetAbandonmentThreshold(int32 densityType) → float | 4 | ST0 | map lookup that **inserts** 0.0 for an unknown key (B allocation). **No caller in the shipped exe** (§13.3 Q4) |
 | 25 | `+0x64` | GetMonopolyUse() | 0 | EAX | |
 | 26 | `+0x68` | GetStylePercentages() → `map<uint32, SC4Percentage>*` | 0 | EAX | address of the member map |
 | 27 | `+0x6C` | StartMapUpdate() | 0 | none | state 0 → 1 |
@@ -704,6 +704,8 @@ SDK comparison (`cISC4GrowthDeveloper.h`): slot order, argument sizes and pointe
 3. `GetStylePercentages` returns a pointer to `std::map<uint32, SC4Percentage>` (STLport tree, nodes from B;
    values are floats), not "map<uint32, uint32>" (`0x006B7590`; destructor `0x004C56F0`; filled at §4.8).
 4. `GetAbandonmentThreshold` is correct as declared (float, ST0, pop 4, `0x006B7620`) but is not const: it inserts.
+   The Mac symbol types its argument as `cISC4BuildingOccupant::DensityType` (the SDK's parameter name is
+   `densityType`).
 
 ### 10.2 `cIGZMessageTarget2`, vtable `0x00AB1474` (4 slots)
 
@@ -829,8 +831,14 @@ city and only uses the GZCOM factory when loading.
 1. Who calls `EstimateDesirability` and `GetSubjectiveThresholds`, and what the 7 subjective indices mean.
 2. Names of `0x4A5F7C4B` / `0x4A5F7315` and which buildings carry them.
 3. Whether any caller modifies the growth or decline vectors (assumed read-only).
-4. Meaning of the abandonment-threshold keys 1..3 *[inferred: density]*. The lot developer never calls slot 24
-   (`lot-developer.md`); the caller is still unknown.
+4. *Answered.* Keys 1..3 are `cISC4BuildingOccupant::DensityType` values (Mac symbol of slot 24), i.e. low, medium,
+   high density *[inferred: the enum's numeric values are not in the binary]*. Slot 24 is **dead in the shipped
+   exe**: its only reference is the vtable entry `0x00AB14E8`; no direct call exists; the map's `operator[]`
+   (`0x006B5840`, identical-code-folded) is called only by slot 24, by `ReadSimulatorTunableValues`
+   (`0x006B8336`–`0x006B83D6`) and by an unrelated map in `STETerrain` (`0x0074AF00`); of the 656
+   `call [reg + 0x60]` sites in the image, the 26 that consume an x87 result all belong to other interfaces, and no
+   caller of the BDS `GetDeveloper` calls `+0x60`. Only a plug-in could call it. FreeCity4 implements it as declared (with the
+   inserting lookup) for interface compatibility; no other spec needs to cite it beyond `lot-developer.md` §12.3.
 
 ---
 

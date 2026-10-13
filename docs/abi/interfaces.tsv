@@ -378,14 +378,16 @@ cISCResExemplar	cSCResExemplar	00aaf0d0	2	+0x8	00808610		0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	3	+0xC	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	4	+0x10	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
-cISCResExemplar	cSCResExemplar	00aaf0d0	6	+0x18	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
-cISCResExemplar	cSCResExemplar	00aaf0d0	7	+0x1C	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	6	+0x18	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	7	+0x1C	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	8	+0x20	0067c210		4	1	eax-or-void	medium	tail->005feb20
 cISCResExemplar	cSCResExemplar	00aaf0d0	9	+0x24	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	10	+0x28	0067c510		8	2	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	11	+0x2C	0067cd20		4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	12	+0x30	0067c220		4	1	eax-or-void	medium	
 cISCResExemplar	cSCResExemplar	00aaf0d0	13	+0x34	0067cd50		0	0	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	14	+0x38	0067e5b0	cSCResExemplar::DebugInstanceTag	4	1	eax-or-void	medium	
+cISCResExemplar	cSCResExemplar	00aaf0d0	15	+0x3C	0067ddc0		4	1	eax-or-void	medium	
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	0	+0x0	00972b51		8	2	eax-or-void	medium	tail->0091dd67
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
@@ -491,7 +493,7 @@ cISC4Lot	cSC4Lot	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-voi
 cISC4Lot	cSC4Lot	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISC4Lot	cSC4Lot	00ab19b0	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	5	+0x14	006bf490	cSC4Lot::Init	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	6	+0x18	006c2020	cSC4Lot::IsInitialized	0	0	eax-or-void	medium	
 cISC4Lot	cSC4Lot	00ab19b0	7	+0x1C	006c3060	cSC4Lot::Shutdown	0	0	eax-or-void	medium	
@@ -2537,7 +2539,7 @@ cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	0	+0x0	006ce000	cSC4Neig
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	1	+0x4	008ae800	icf::cGZLuaScriptServer::AddRef	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	2	+0x8	006ce060	cSC4NeighborConnection::Release	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	5	+0x14	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	6	+0x18	006d46f0	cSC4NeighborConnection::GetConnectionCell	8	2	eax-or-void	medium	
 cISC4NeighborConnection	cSC4NeighborConnection	00ab2034	7	+0x1C	006cf1b0	cSC4NeighborConnection::GetConnectionInnerCell	8	2	eax-or-void	medium	
@@ -4011,3 +4013,135 @@ cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	2	+0x8	006c7370		0	0	ea
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	3	+0xC	006c66f0		4	1	eax-or-void	medium	
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	4	+0x10	006cd120		4	1	eax-or-void	medium	
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	5	+0x14	006c3b00	cSC4LotDeveloper::GetGZCLSID	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	0	+0x0	0067c150	cSCResExemplarCohort::QueryInterface	8	2	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	1	+0x4	00808600		0	0	eax-or-void	medium	tail->009753b7
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	2	+0x8	00808610		0	0	eax-or-void	medium	tail->009753c5
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	3	+0xC	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	4	+0x10	005deb40	icf::cSC4AudioAmbienceLayer::CanHandleOccupant	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	5	+0x14	004e13e0	icf::cSC43DRender::GetProjectionMatrixEntries	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	6	+0x18	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	7	+0x1C	0067c430		8	2	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	8	+0x20	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	9	+0x24	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	10	+0x28	0067c210		4	1	eax-or-void	medium	tail->005feb20
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	11	+0x2C	0067cd20		4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	12	+0x30	0067c220		4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	13	+0x34	0067cd50		0	0	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	14	+0x38	0067e3e0	cSCResExemplarCohort::DebugInstanceTag	4	1	eax-or-void	medium	
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	15	+0x3C	0067dae0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	0	+0x0	0067ccd0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	1	+0x4	0067cce0		0	0	eax-or-void	medium	tail->00808600
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	2	+0x8	0067ccf0		0	0	eax-or-void	medium	tail->00808610
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	3	+0xC	0067c620		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	4	+0x10	0067c4b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	5	+0x14	005fd290	icf::cSCExemplarPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	6	+0x18	005fd2d0	icf::cSCPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	7	+0x1C	005fd260	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	8	+0x20	005fd230	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	9	+0x24	0067c670		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	10	+0x28	005ffa40	cSCPropertyHolder::AddProperty	16	4	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	11	+0x2C	005ff950	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	12	+0x30	005ff860	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	13	+0x34	005ff770	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	14	+0x38	005fdef0	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	15	+0x3C	0067dce0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	17	+0x44	0067c8c0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	18	+0x48	0067c9b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	21	+0x54	0067d930		0	0	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	22	+0x58	0067cd00		4	1	eax-or-void	medium	
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	23	+0x5C	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	24	+0x60	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	0	+0x0	0067cc30		8	2	eax-or-void	medium	tail->0067c150
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	1	+0x4	0067cce0		0	0	eax-or-void	medium	tail->00808600
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	2	+0x8	0067ccf0		0	0	eax-or-void	medium	tail->00808610
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	3	+0xC	0067c620		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	4	+0x10	0067c4b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	5	+0x14	005fd290	icf::cSCExemplarPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	6	+0x18	005fd2d0	icf::cSCPropertyHolder::GetProperty	12	3	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	7	+0x1C	005fd260	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	8	+0x20	005fd230	icf::cSCPropertyHolder::GetProperty	8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	9	+0x24	0067c670		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	10	+0x28	005ffa40	cSCPropertyHolder::AddProperty	16	4	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	11	+0x2C	005ff950	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	12	+0x30	005ff860	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	13	+0x34	005ff770	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	14	+0x38	005fdef0	cSCPropertyHolder::AddProperty	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	15	+0x3C	0067da00		8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	16	+0x40	005fdfd0	cSCPropertyHolder::CopyAddProperty	8	2	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	17	+0x44	0067c6c0		8	2	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	18	+0x48	0067c7b0		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	19	+0x4C	005fda80	cSCPropertyHolder::EnumProperties	12	3	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	20	+0x50	005fda50	cSCPropertyHolder::EnumProperties	8	2	via-call	low	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	21	+0x54	0067d930		0	0	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	22	+0x58	0067cc40		4	1	eax-or-void	medium	
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	23	+0x5C	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	24	+0x60	0067cd10		4	1	eax-or-void	medium	tail->005deb40
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	0	+0x0	006c2260		8	2	eax-or-void	medium	tail->006bf190
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	2	+0x8	006c2300		0	0	eax-or-void	medium	tail->006bf460
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	3	+0xC	006c0080	cSC4Lot::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	4	+0x10	006c35f0	cSC4Lot::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	5	+0x14	006bf180	cSC4Lot::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	0	+0x0	006c0850		8	2	eax-or-void	medium	tail->006bf390
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	1	+0x4	006c2270		0	0	eax-or-void	medium	tail->004664a0
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	2	+0x8	006c0880		0	0	eax-or-void	medium	tail->006bfe40
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	3	+0xC	006c0370	cSC4BusinessUnit::Write	4	1	eax-or-void	medium	
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	4	+0x10	006c09e0	cSC4BusinessUnit::Read	4	1	eax-or-void	medium	
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	5	+0x14	006bf380	cSC4BusinessUnit::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	0	+0x0	00580c70		8	2	eax-or-void	medium	tail->005e89c0
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	1	+0x4	00580c80		0	0	eax-or-void	medium	tail->005e89b0
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	2	+0x8	00580c90		0	0	eax-or-void	medium	tail->005e8df0
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	3	+0xC	005e8cd0	cSC4Occupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	4	+0x10	005e8d60	cSC4Occupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	5	+0x14	005e8970		0	0	eax-or-void	medium	
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	0	+0x0	00458a00		8	2	eax-or-void	medium	tail->005e89c0
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	3	+0xC	00458a90		4	1	eax-or-void	medium	
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	4	+0x10	00458b10		4	1	eax-or-void	medium	
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	5	+0x14	004587c0		0	0	eax-or-void	medium	
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	0	+0x0	005e0660		8	2	eax-or-void	medium	tail->005dea80
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	3	+0xC	005df1e0	cSC4LotBaseTextureOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	4	+0x10	005e10b0	cSC4LotBaseTextureOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	5	+0x14	005e0620	cSC4LotBaseTextureOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	0	+0x0	005e29d0		8	2	eax-or-void	medium	tail->005e28c0
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	3	+0xC	005e2ab0	cSC4LotRetainingWallOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	4	+0x10	005e2b40	cSC4LotRetainingWallOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	5	+0x14	005e2990	cSC4LotRetainingWallOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	0	+0x0	005d61e0		8	2	eax-or-void	medium	tail->005d6160
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	3	+0xC	005d6250	cSC4FoundationOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	4	+0x10	005d62d0	cSC4FoundationOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	5	+0x14	005d6130	cSC4FoundationOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	0	+0x0	00472bd0		8	2	eax-or-void	medium	tail->00472910
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	1	+0x4	005e29e0		0	0	eax-or-void	medium	tail->005e28f0
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	2	+0x8	005e29f0		0	0	eax-or-void	medium	tail->005e2900
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	3	+0xC	00472990	cSC4FloraOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	4	+0x10	00472a20	cSC4FloraOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	5	+0x14	00472900	cSC4FloraOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	0	+0x0	005ee110		8	2	eax-or-void	medium	tail->005ec960
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	1	+0x4	0064ddb0		0	0	eax-or-void	medium	tail->006491c0
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	2	+0x8	0064ddc0		0	0	eax-or-void	medium	tail->006491d0
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	3	+0xC	005ece90	cSC4PropOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	4	+0x10	005ef360	cSC4PropOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	5	+0x14	005ee0e0	cSC4PropOccupant::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	0	+0x0	005f02f0		8	2	eax-or-void	medium	tail->005ecc10
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	1	+0x4	005ed650		0	0	eax-or-void	medium	tail->005ecaf0
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	2	+0x8	005ed660		0	0	eax-or-void	medium	tail->005ecb00
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	3	+0xC	005f03b0	cSC4PropOccupantVisualEffect::Write	4	1	eax-or-void	medium	
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	4	+0x10	005ef750	cSC4PropOccupantVisualEffect::Read	4	1	eax-or-void	medium	
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	5	+0x14	005f02b0	cSC4PropOccupantVisualEffect::GetGZCLSID	0	0	eax-or-void	medium	
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	0	+0x0	005d04d0		8	2	eax-or-void	medium	tail->005ca7a0
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	1	+0x4	0064ddb0		0	0	eax-or-void	medium	tail->006491c0
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	2	+0x8	0064ddc0		0	0	eax-or-void	medium	tail->006491d0
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	3	+0xC	005cd250	cSC4ConstructionOccupant::Write	4	1	eax-or-void	medium	
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	4	+0x10	005ce770	cSC4ConstructionOccupant::Read	4	1	eax-or-void	medium	
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	5	+0x14	005d04a0	cSC4ConstructionOccupant::GetGZCLSID	0	0	eax-or-void	medium	

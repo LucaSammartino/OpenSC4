@@ -11870,7 +11870,7 @@ cSC4Lot::vftable	00ab19b0	0	+0x0	006bf190	cSC4Lot::QueryInterface	8	2	eax-or-voi
 cSC4Lot::vftable	00ab19b0	1	+0x4	004664a0	cS3DTextureBinding::AddRef	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	2	+0x8	006bf460	cSC4Lot::Release	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cSC4Lot::vftable	00ab19b0	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cSC4Lot::vftable	00ab19b0	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	5	+0x14	006bf490	cSC4Lot::Init	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	6	+0x18	006c2020	cSC4Lot::IsInitialized	0	0	eax-or-void	medium	
 cSC4Lot::vftable	00ab19b0	7	+0x1C	006c3060	cSC4Lot::Shutdown	0	0	eax-or-void	medium	
@@ -12107,7 +12107,7 @@ cSC4NeighborConnection::vftable	00ab2034	0	+0x0	006ce000	cSC4NeighborConnection:
 cSC4NeighborConnection::vftable	00ab2034	1	+0x4	008ae800	icf::cGZLuaScriptServer::AddRef	0	0	eax-or-void	medium	
 cSC4NeighborConnection::vftable	00ab2034	2	+0x8	006ce060	cSC4NeighborConnection::Release	0	0	eax-or-void	medium	
 cSC4NeighborConnection::vftable	00ab2034	3	+0xC	006c2040	icf::cSC4DBSegment::AsIGZPersistDBSegment	0	0	eax-or-void	medium	
-cSC4NeighborConnection::vftable	00ab2034	4	+0x10	006c2050	cSC4Lot::AsTrafficSource	0	0	eax-or-void	medium	
+cSC4NeighborConnection::vftable	00ab2034	4	+0x10	006c2050	AsISCPropertyHolder (shared thunk, returns this+0x1C)	0	0	eax-or-void	medium	
 cSC4NeighborConnection::vftable	00ab2034	5	+0x14	006bdd80	cSC4SimGrid<T>::GetTractCountZ	0	0	eax-or-void	medium	
 cSC4NeighborConnection::vftable	00ab2034	6	+0x18	006d46f0	cSC4NeighborConnection::GetConnectionCell	8	2	eax-or-void	medium	
 cSC4NeighborConnection::vftable	00ab2034	7	+0x1C	006cf1b0	cSC4NeighborConnection::GetConnectionInnerCell	8	2	eax-or-void	medium	

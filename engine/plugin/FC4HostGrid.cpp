@@ -1,0 +1,173 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+//
+// FreeCity4 - an open-source reimplementation of the SimCity 4 engine.
+// Copyright (C) 2026 FreeCity4 contributors
+//
+// This program is free software: you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the Free
+// Software Foundation, either version 3 of the License, or (at your option)
+// any later version. This program is distributed WITHOUT ANY WARRANTY; see
+// the GNU General Public License for more details. You should have received a
+// copy of the license along with this program (see LICENSE at the repository
+// root); if not, see <https://www.gnu.org/licenses/>.
+
+#include "FC4HostGrid.h"
+
+#include "FC4Log.h"
+#include "FC4RefAudit.h"
+#include "FC4Streams.h"
+
+#include "cIGZCOM.h"
+#include "cIGZSerializable.h"
+#include "cISC4SimGrid.h"
+#include "cRZCOMDllDirector.h"
+
+#include <cmath>
+
+namespace fc4 {
+namespace {
+
+constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
+constexpr uint32_t kClsBool = 0x49B9E601;
+constexpr uint32_t kClsU8 = 0x49B9E602;
+constexpr uint32_t kClsI16 = 0x49B9E605;
+constexpr uint32_t kClsF32 = 0x49B9E60A;
+
+const HostGridContext* Ctx(void* u) { return static_cast<const HostGridContext*>(u); }
+
+template <class T>
+cISC4SimGrid<T>* As(uint64_t t) {
+    return reinterpret_cast<cISC4SimGrid<T>*>(FromToken(t));
+}
+
+bool Supported(uint32_t kind) { return kind == kClsU8 || kind == kClsBool || kind == kClsI16 || kind == kClsF32; }
+
+template <class T>
+void Setup(void* p, int32_t tractSize, uint32_t instance) {
+    cISC4SimGrid<T>* g = static_cast<cISC4SimGrid<T>*>(p);
+    g->Init();
+    g->SetTractSize(tractSize);
+    g->SetInstanceID(instance);
+}
+
+uint64_t Create(void* u, uint32_t kind, uint32_t instance, int32_t tractSize) {
+    if (!Supported(kind)) {
+        Log("%s: WARNING grid class 0x%08X not supported; grid 0x%08X not created [choice]", Ctx(u)->tag, kind,
+            instance);
+        return 0;
+    }
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr || !com->GetClassObject(kind, kIID_cISC4SimGrid, &p) || p == nullptr) {
+        Log("%s: WARNING could not create grid 0x%08X (class 0x%08X) through GZCOM", Ctx(u)->tag, instance, kind);
+        return 0;
+    }
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(p), "GetClassObject");
+    if (kind == kClsI16) {
+        Setup<int16_t>(p, tractSize, instance);
+    } else if (kind == kClsF32) {
+        Setup<float>(p, tractSize, instance);
+    } else {
+        Setup<uint8_t>(p, tractSize, instance);
+    }
+    FC4_LOGV("%s: grid 0x%08X created (class 0x%08X, tract size %d) at %p", Ctx(u)->tag, instance, kind, tractSize, p);
+    return TokenOf(p);
+}
+
+uint32_t ClassOf(void*, uint64_t t) {
+    if (t == 0) return 0;
+    cIGZSerializable* s = nullptr;
+    if (!FromToken(t)->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) || s == nullptr) return 0;
+    FC4_ACQUIRED(s, "QueryInterface");
+    const uint32_t c = s->GetGZCLSID();
+    FC4_RELEASE(s);
+    return c;
+}
+
+// Slots 10-17 do not depend on the element type.
+void Geometry(void*, uint64_t t, fc4_grid_geometry* out) {
+    cISC4SimGrid<uint8_t>* g = As<uint8_t>(t);
+    if (g == nullptr || out == nullptr) return;
+    out->tract_size = g->GetTractSize();
+    out->shift = g->GetTractShift();
+    out->count_x = g->GetTractCountX();
+    out->count_z = g->GetTractCountZ();
+    out->width_x = g->GetTractWidthX();
+    out->width_z = g->GetTractWidthZ();
+    out->inv_width_x = g->GetOneOverTractWidthX();
+    out->inv_width_z = g->GetOneOverTractWidthZ();
+}
+
+double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
+    if (t == 0) return 0.0;
+    switch (kind) {
+        case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
+        case kClsF32: return As<float>(t)->GetTractValue(x, z);
+        case kClsU8:
+        case kClsBool: return As<uint8_t>(t)->GetTractValue(x, z);
+        default: return 0.0;
+    }
+}
+
+// The core converts with its element type, so the double is exact.
+template <class T>
+T Narrow(double v) {
+    return static_cast<T>(v);
+}
+
+bool WritesOn(void* u, const char* what) {
+    if (On(Ctx(u)->writes)) return true;
+    NoteSkipped(Ctx(u)->writes, what);
+    return false;
+}
+
+void Set(void* u, uint64_t t, uint32_t kind, int32_t x, int32_t z, double v) {
+    if (t == 0 || !WritesOn(u, "grid SetTractValue")) return;
+    switch (kind) {
+        case kClsI16: As<int16_t>(t)->SetTractValue(x, z, Narrow<int16_t>(v)); break;
+        case kClsF32: As<float>(t)->SetTractValue(x, z, Narrow<float>(v)); break;
+        case kClsU8:
+        case kClsBool: As<uint8_t>(t)->SetTractValue(x, z, Narrow<uint8_t>(v)); break;
+        default: break;
+    }
+}
+
+void Fill(void* u, uint64_t t, uint32_t kind, double v) {
+    if (t == 0 || !WritesOn(u, "grid SetTractValues")) return;
+    switch (kind) {
+        case kClsI16: As<int16_t>(t)->SetTractValues(Narrow<int16_t>(v)); break;
+        case kClsF32: As<float>(t)->SetTractValues(Narrow<float>(v)); break;
+        case kClsU8:
+        case kClsBool: As<uint8_t>(t)->SetTractValues(Narrow<uint8_t>(v)); break;
+        default: break;
+    }
+}
+
+void Shutdown(void* u, uint64_t t) {
+    if (t == 0) return;
+    FC4_LOGV("%s: grid %p shut down", Ctx(u)->tag, static_cast<void*>(FromToken(t)));
+    As<uint8_t>(t)->Shutdown();
+}
+
+void Release(void*, uint64_t t) {
+    if (cIGZUnknown* g = FromToken(t)) FC4_RELEASE(g);
+}
+
+}  // namespace
+
+fc4_grid_api MakeGridApi(const HostGridContext* ctx) {
+    fc4_grid_api a{};
+    a.struct_size = sizeof(a);
+    a.user = const_cast<HostGridContext*>(ctx);
+    a.create = &Create;
+    a.class_of = &ClassOf;
+    a.geometry = &Geometry;
+    a.get = &Get;
+    a.set = &Set;
+    a.fill = &Fill;
+    a.shutdown = &Shutdown;
+    a.release = &Release;
+    return a;
+}
+
+}  // namespace fc4

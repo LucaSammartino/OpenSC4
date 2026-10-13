@@ -186,6 +186,9 @@ it on insert, the monthly visit and `KillFloraOccupant` skip occupants without i
 clears it around the write (§10.3). Flora changes are announced with the occupant's own
 `PostOccupantMessage(0x99EF1145 ChangeOccupant, 0)` (slot 15).
 
+The occupant's save record is version 3 and includes a lot tag (0 for wild flora); its byte layout is in
+lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617 saved entries).
+
 ---
 
 ## 4. Lifecycle
