@@ -135,6 +135,14 @@ pub(super) fn demand_exemplars(host: &dyn DemandHost) -> Vec<DemandExemplar> {
     out
 }
 
+/// §4.1 link factor `r24(float(percent) · 0.01f)`: the integer is exact
+/// (`FILD`), the constant is the float32 `0.01f`, the product is rounded to
+/// float32 once. The f64 product is exact for `percent < 2^29` (the shipped
+/// data uses 0…1500), so the one cast to f32 is that single rounding.
+pub(super) fn link_factor(percent: u32) -> f32 {
+    (f64::from(percent) * f64::from(0.01f32)) as f32
+}
+
 /// §4.2 step 5: the links of one exemplar, in creation order (every
 /// Satisfies pair, every Drives pair, every Contributes pair, every Caps key,
 /// every Sums key).
@@ -146,7 +154,7 @@ pub(super) fn exemplar_links(e: &DemandExemplar) -> Vec<Link> {
                 source: e.key,
                 target,
                 kind,
-                factor: percent as f32 * 0.01,
+                factor: link_factor(percent),
             });
         }
     };
@@ -276,7 +284,7 @@ pub struct ModifierTerms {
     pub max_rate: f32,
     /// Whether `max_rate` came from the history (false: [choice] no data).
     pub from_history: bool,
-    /// `max_rate · 0.1 / neutral`.
+    /// `r24(r24(max_rate · 0.1f) · recip)`, `recip = r24(1.0f / neutral)`.
     pub ratio: f32,
     /// `curveTax(ratio)` (0 without the curve).
     pub tax_curve: f32,
@@ -284,18 +292,41 @@ pub struct ModifierTerms {
     pub ordinance_factor: f32,
     /// `Nation.GetEconomyModifier(id)`.
     pub nation: f32,
-    /// `factor − 1 + taxMod`.
+    /// `r24(r24(factor − 1.0f) + taxMod)`.
     pub tax_modifier: f32,
     /// `nation` plus the CO / I bonus.
     pub economy_modifier: f32,
 }
 
-/// §8.1 for total node `index` ([`TOTAL_NODES`] order), with `neutral` =
-/// `max(0.1, GetNeutralTaxRate())`. Reads the history, the ordinance factor
-/// and the nation through `host` (in that order); writes nothing.
+/// The per-update inputs of the §8.1 tax ratio: the clamped neutral rate and
+/// its float32 reciprocal, computed once and shared by all 12 types.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct TaxBasis {
+    /// `neutral_raw`, or `0.1f` if it is below `0.1f` (a NaN is kept).
+    pub neutral: f32,
+    /// `r24(1.0f / neutral)`.
+    pub recip: f32,
+}
+
+impl TaxBasis {
+    /// §8.1 steps 1-2 from `GetNeutralTaxRate()`.
+    pub fn new(neutral_raw: f32) -> TaxBasis {
+        // Not `f32::max`: that would turn a NaN into 0.1, the original keeps it.
+        let neutral = if neutral_raw < 0.1f32 { 0.1f32 } else { neutral_raw };
+        TaxBasis {
+            neutral,
+            recip: 1.0f32 / neutral,
+        }
+    }
+}
+
+/// §8.1 for total node `index` ([`TOTAL_NODES`] order), with the clamped
+/// neutral rate and its reciprocal in `basis`. Reads the history, the
+/// ordinance factor and the nation through `host` (in that order); writes
+/// nothing. Every operation is float32 (one rounding each, *[compat]*).
 pub(super) fn total_node_modifiers(
     index: usize,
-    neutral: f32,
+    basis: TaxBasis,
     tuning: &DemandTuning,
     co_bonus: f32,
     i_bonus: f32,
@@ -305,8 +336,9 @@ pub(super) fn total_node_modifiers(
     let id = TOTAL_NODES[index].1;
     let series = history::TAX_RATE_BASE + index as u32;
     let history = host.history_max(series, today.saturating_sub(tuning.tax_penalty_days), today);
-    let max_rate = history.unwrap_or(neutral * 10.0);
-    let ratio = max_rate * 0.1 / neutral;
+    let max_rate = history.unwrap_or(basis.neutral * 10.0f32);
+    // A multiplication by the rounded reciprocal, not a division (§8.1 step 3).
+    let ratio = (max_rate * 0.1f32) * basis.recip;
     let tax_curve = tuning.tax_modifier_curve.as_ref().map_or(0.0, |c| c.eval(ratio));
     let factor = host.ordinance_factor(0x2A65_0000 + id, 0);
     let nation = host.nation_economy_modifier(id);
@@ -324,7 +356,7 @@ pub(super) fn total_node_modifiers(
         tax_curve,
         ordinance_factor: factor,
         nation,
-        tax_modifier: factor - 1.0 + tax_curve,
+        tax_modifier: (factor - 1.0f32) + tax_curve,
         economy_modifier: econ,
     }
 }
@@ -952,7 +984,7 @@ impl DemandSim {
 
     /// The tax and economy update of census state 0 (§8.1).
     pub fn update_modifiers(&self) {
-        let neutral = self.neutral_tax_rate().max(0.1);
+        let basis = TaxBasis::new(self.neutral_tax_rate());
         let (tuning, co_bonus, i_bonus) = {
             let d = self.d.borrow();
             (d.tuning.clone(), d.co_economy_bonus, d.i_economy_bonus)
@@ -960,7 +992,7 @@ impl DemandSim {
         let today = self.host.today();
         for (i, (key, _)) in TOTAL_NODES.iter().enumerate() {
             let Some(node) = self.node(*key) else { continue };
-            let m = total_node_modifiers(i, neutral, &tuning, co_bonus, i_bonus, today, &*self.host);
+            let m = total_node_modifiers(i, basis, &tuning, co_bonus, i_bonus, today, &*self.host);
             node.set_tax_modifier(m.tax_modifier);
             node.set_economy_modifier(m.economy_modifier);
         }
