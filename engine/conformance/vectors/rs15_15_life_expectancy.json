@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "residential_life_expectancy",
+  "spec": ["residential 6.4", "residential 7.3", "residential 15.15", "REH 11.13"],
+  "description": "Test 15 (REH test 13): slot 29 is the shipped HQ -> LE curve (0, 50)(20, 55)(40, 60)(60, 65)(200, 100) at GetCellHQ, truncated, AL. A one-resident R$ tract: HQ 100 -> 65 + 40 x 35 / 140 = 75; HQ 22 -> 55 + 2 x 5 / 20 = 55.5 -> 55; HQ 30 -> 57.5 -> 57; HQ 0 -> 50. GetGlobalLE (slot 34) is the same curve at GetGlobalHQ: population 1 -> HQ 0 -> 50. Without the exemplar both return 0 (the curve is fetched per call, section 7.3).",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [1, 0, 0], "hq": [100, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 75},
+    {"op": "residential_tract", "x": 0, "z": 0, "hq": [22, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 55},
+    {"op": "residential_tract", "x": 0, "z": 0, "hq": [30, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 57},
+    {"op": "residential_tract", "x": 0, "z": 0, "hq": [0, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 50},
+    {"op": "residential_set", "state": {"population": 1}},
+    {"op": "residential_call", "method": "get_global_le", "expect": 50},
+    {"op": "residential_env", "tuning": null},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 0},
+    {"op": "residential_call", "method": "get_global_le", "expect": 0}
+  ]
+}

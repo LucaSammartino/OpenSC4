@@ -2191,9 +2191,22 @@ fn read_releases_what_it_replaces() {
     b.h.take_events();
     assert!(load(&b, &bytes, &entries));
     let ev = b.h.take_events();
-    for t in [950, 951, 952, 953, 77] {
-        assert!(ev.contains(&Ev::Release(t)), "token {t}");
-    }
+    // Departments are released as `Shutdown` releases them, then the list
+    // entries.
+    let released: Vec<&Ev> = ev
+        .iter()
+        .filter(|e| matches!(e, Ev::Release(_) | Ev::ReleaseDepartment(_)))
+        .collect();
+    assert_eq!(
+        released,
+        vec![
+            &Ev::ReleaseDepartment(950),
+            &Ev::ReleaseDepartment(951),
+            &Ev::ReleaseDepartment(952),
+            &Ev::ReleaseDepartment(953),
+            &Ev::Release(77),
+        ]
+    );
     let s = b.s.snapshot();
     assert_eq!(s.health.department1, Some(900));
     assert_eq!(s.lists.pending_school, vec![Some(11)]);

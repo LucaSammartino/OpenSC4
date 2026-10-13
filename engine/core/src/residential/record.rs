@@ -23,10 +23,11 @@
 //!   cityStarted := true.
 //!
 //! [choice] A record whose version cannot be read gets only the "always"
-//! fix-ups. References the record replaces (the occupant list entries, a
-//! department) are released ([choice]: §9.2's "cleared first" leaves this
-//! open; `Read` normally runs on a fresh object, where there is nothing to
-//! release). A coverage or building-list vector with more entries than the
+//! fix-ups. References the record replaces are released after the commit
+//! ([choice]: §9.2's "cleared first" leaves this open; `Read` normally runs
+//! on a fresh object, where there is nothing to release): the departments
+//! with `release_department` (as `Shutdown` releases them), then the
+//! occupant list entries with `release`. A coverage or building-list vector with more entries than the
 //! simulator has (7 school, 3 hospital) reads the extra ones and drops them;
 //! one with fewer leaves the rest null / empty ([choice]).
 
@@ -97,8 +98,11 @@ struct Parse<'a> {
     h: &'a (dyn ResidentialHost + 'static),
     s: ResidentialState,
     version: Option<u16>,
-    /// Host references the record replaced, released after the commit.
+    /// Occupant references the record replaced, released after the commit.
     replaced: Vec<u64>,
+    /// Departments the record replaced, released after the commit with
+    /// [`ResidentialHost::release_department`], as `Shutdown` releases them.
+    replaced_departments: Vec<u64>,
 }
 
 impl Parse<'_> {
@@ -176,7 +180,7 @@ impl Parse<'_> {
             let t = self.token(inp, IID_DEPARTMENT_BUDGET)?;
             let slot = if second { &mut b.department2 } else { &mut b.department1 };
             if let Some(old) = std::mem::replace(slot, t) {
-                self.replaced.push(old);
+                self.replaced_departments.push(old);
             }
             store(self, b);
         }
@@ -423,11 +427,20 @@ impl SaveObject for ResidentialSim {
             s: self.snapshot(),
             version: None,
             replaced: Vec::new(),
+            replaced_departments: Vec::new(),
         };
         let _ = p.record(inp);
         p.finish();
-        let Parse { s, replaced, .. } = p;
+        let Parse {
+            s,
+            replaced,
+            replaced_departments,
+            ..
+        } = p;
         *self.s.borrow_mut() = s;
+        for t in replaced_departments {
+            self.host.release_department(t);
+        }
         for t in replaced {
             self.host.release(t);
         }

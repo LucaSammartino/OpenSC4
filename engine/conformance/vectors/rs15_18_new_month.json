@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "residential_new_month",
+  "spec": ["residential 4.3", "residential 5.1", "residential 15.18"],
+  "description": "Test 18: SimNewMonth in state 10 starts a new cycle: state 0, dirty 0, true. In any other state (an overrunning month, here state 5) the state is kept and the dirty flag is set; true. SimBegin, SimIdle and an unknown message do nothing and return true.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"state": 10, "dirty": true}},
+    {"op": "residential_message", "type": "SimNewMonth", "expect": true},
+    {"op": "residential_expect", "state": {"state": 0, "dirty": false}},
+    {"op": "residential_set", "state": {"state": 5, "dirty": false}},
+    {"op": "residential_message", "type": "SimNewMonth", "expect": true},
+    {"op": "residential_expect", "state": {"state": 5, "dirty": true}},
+    {"op": "residential_message", "type": "SimBegin", "expect": true},
+    {"op": "residential_message", "type": "SimIdle", "expect": true},
+    {"op": "residential_message", "type": "0x12345678", "expect": true},
+    {"op": "residential_expect", "state": {"state": 5, "dirty": true}}
+  ]
+}

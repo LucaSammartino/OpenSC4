@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "residential_read_versions",
+  "spec": ["residential 9.1", "residential 9.2", "residential 15.20"],
+  "description": "Test 20. A version-7 record of an 8 x 8 city (all 25 grids and 4 departments present, empty lists) is 452 bytes: 2 version + the references and sizes up to the state at offset 230, then the scalars, two 53-byte department blocks, the lists (409 bytes end version 2), the 29-byte iterator and the 8-byte leSum (446, version 3), the running population (450, versions 4-6) and the two auto-budget bytes (452). Read as version 2 (409 bytes) a state-4 record becomes state 11 with leSum 0, running population 0, the iterator fresh at (0, 0) and both auto-budget flags 0. Version 3 reads the iterator and leSum, and keeps the constructed running population 0. Versions 4-6 read the running population 60 and no auto-budget bytes. Version 7 maps a saved state 1 -> 13, 2 -> 14, 3 -> 15 (other states are kept). Read returns true for every version and every truncation.",
+  "steps": [
+    {"op": "residential_env", "cells": [8, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"state": 4, "le_sum": 500, "running_population": 60, "school_auto_budget": true}},
+    {"op": "residential_write", "slot": "a", "expect": true, "length": 452},
+    {"op": "residential_expect_record", "slot": "a", "length": 452, "at": [{"offset": 0, "hex": "0700"}, {"offset": 230, "hex": "04000000"}]},
+
+    {"op": "residential_set", "state": {"le_sum": 9, "running_population": 9, "iterator": {"advance": 2}, "school_auto_budget": true}},
+    {"op": "residential_read", "slot": "a", "version": 2, "length": 409, "reuse": true, "expect": true},
+    {"op": "residential_expect", "state": {"state": 11, "le_sum": 0, "running_population": 0, "iterator": {"state": "fresh", "x": 0, "z": 0}, "school_auto_budget": false}},
+
+    {"op": "residential_read", "slot": "a", "version": 3, "length": 446, "expect": true},
+    {"op": "residential_expect", "state": {"state": 4, "le_sum": 500, "running_population": 0}},
+
+    {"op": "residential_read", "slot": "a", "version": 4, "length": 450, "expect": true},
+    {"op": "residential_expect", "state": {"state": 4, "running_population": 60, "school_auto_budget": false}},
+    {"op": "residential_read", "slot": "a", "version": 5, "length": 450, "expect": true},
+    {"op": "residential_expect", "state": {"running_population": 60, "school_auto_budget": false}},
+    {"op": "residential_read", "slot": "a", "version": 6, "length": 450, "expect": true},
+    {"op": "residential_expect", "state": {"running_population": 60, "school_auto_budget": false}},
+
+    {"op": "residential_read", "slot": "a", "expect": true},
+    {"op": "residential_expect", "state": {"state": 4, "le_sum": 500, "running_population": 60, "school_auto_budget": true, "city_started": true}},
+    {"op": "residential_read", "slot": "a", "patch": [{"offset": 230, "hex": "01000000"}], "expect": true},
+    {"op": "residential_expect", "state": {"state": 13}},
+    {"op": "residential_read", "slot": "a", "patch": [{"offset": 230, "hex": "02000000"}], "expect": true},
+    {"op": "residential_expect", "state": {"state": 14}},
+    {"op": "residential_read", "slot": "a", "patch": [{"offset": 230, "hex": "03000000"}], "expect": true},
+    {"op": "residential_expect", "state": {"state": 15}},
+    {"op": "residential_read", "slot": "a", "patch": [{"offset": 230, "hex": "0A000000"}], "expect": true},
+    {"op": "residential_expect", "state": {"state": 10}},
+
+    {"op": "residential_read", "slot": "a", "version": 0, "expect": true},
+    {"op": "residential_read", "slot": "a", "version": 1, "expect": true},
+    {"op": "residential_read", "slot": "a", "version": 8, "expect": true},
+    {"op": "residential_read", "slot": "a", "version": 65535, "expect": true},
+    {"op": "residential_read", "slot": "a", "length": 0, "expect": true},
+    {"op": "residential_expect", "state": {"city_started": true}},
+    {"op": "residential_read", "slot": "a", "length": 1, "expect": true},
+    {"op": "residential_read", "slot": "a", "length": 229, "expect": true},
+    {"op": "residential_read", "slot": "a", "length": 408, "expect": true},
+    {"op": "residential_read", "slot": "a", "length": 451, "expect": true},
+    {"op": "residential_expect", "state": {"city_started": true}}
+  ]
+}
