@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "lf11_07_decay",
+  "spec": ["landfill 4.7.3", "landfill 11"],
+  "description": "Conformance test 7 (shipped decay rate 0.07, cap 1500). 10000: round(700) -> 9300. 5: round(0.35) = 0 -> at least 1 -> 4. 40000: 2800 capped to 1500 -> 38500. An empty heap is left alone.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 12, 12]},
+    {"op": "landfill_heaps", "heaps": [[0, 0, true, true, 67500, 10000], [1, 0, true, true, 67500, 5], [0, 1, true, true, 67500, 40000], [1, 1, true, true, 67500, 0]]},
+    {"op": "landfill_decay", "index": 0},
+    {"op": "landfill_decay", "index": 1},
+    {"op": "landfill_decay", "index": 2},
+    {"op": "landfill_decay", "index": 3},
+    {"op": "landfill_expect", "zone_state": {"heaps": [[0, 0, true, true, 67500, 9300], [1, 0, true, true, 67500, 4], [0, 1, true, true, 67500, 38500], [1, 1, true, true, 67500, 0]]}}
+  ]
+}

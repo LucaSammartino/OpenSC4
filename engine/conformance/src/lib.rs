@@ -21,6 +21,7 @@ pub mod foundations;
 pub(crate) mod grid;
 pub(crate) mod growth_developer;
 pub mod json;
+pub(crate) mod landfill;
 pub(crate) mod landvalue;
 pub(crate) mod lot_developer;
 pub(crate) mod ordinance;

@@ -1190,6 +1190,60 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 `count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
 `place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`).
 
+## Landfill ops
+
+The landfill vectors (`lf11_…`) drive `fc4_core::landfill` (`docs/specs/landfill.md`) over one scripted city
+implementing `LandfillHost`. Every op name starts with `landfill_`. The default world is the one §11 states: a
+64 × 64-cell city, flat at 270 m, sea level 250, the shipped tuning (§4.1), `tileCap` 30000, sanitation funding
+100 %, every cell of zone type 14, no roads, not connected, supply 0. Cell centres are at `16·x + 8`. Landfill tiles
+are core objects the world keeps per cell; the zot is a prop whose position the world records.
+
+The lot developer's `AttemptAreaLevelling` (slot 21) is the core function `attempt_area_levelling` (§4.5.3) over the
+world's stubbed slots, as test 22 asks: `GetAverageAreaAltitude` returns the stubbed `avg` (or, when none is set, the
+mean of the rect's cell altitudes), `GetAreaSlope` the stubbed `slope` (0), the lot developer's tuning
+`maxAreaSlopeAllowedForLevelling` the stubbed `tuning` (40); `ModifyTerrainHeight` is logged and, with `apply` (true),
+sets the cells of `[x1, x2) × [z1, z2)` to the target and posts `0x278E6003` with `data4 = 5`. `PlaceZone` rezones the
+cells and **posts** the zoning message (§4.4.8); posted messages wait until `landfill_deliver`.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `landfill_env` | any of `cells` (`[w, h]`), `sea`, `altitude` (the flat ground), `tuning` (`"shipped"`, null = the code defaults, or a property map), `supply`, `tile_capacity`, `uncollected`, `funding`, `current` (line item 30's current expenses), `department` (bool), `connected`, `networks` (`[[x, z]]`), `zone_type` (the default zone type), `view_level`, `levelling` (`{avg, slope, tuning, apply}`; `avg` null = the cell mean; `"FLT_MAX"` / `"NaN"` allowed) | the world |
+| `landfill_altitude` | `cells` (`[[x, z, a]]`) and/or `rect` with `value` | cell altitudes |
+| `landfill_zone_types` | `cells` (`[[x, z, type]]`) | the zone manager's map |
+| `landfill_create` | `post_city_init?` (true), `expect?` (Init's result) | a developer and its `Init` |
+| `landfill_heaps` | `zone?` (0) and `heaps` (`[[hx, hz, valid, active, capacity, contained]]`, replaces the vector), or `index` with `heap`, or `contained` (every heap) | test setup |
+| `landfill_set` | `zone?`, any of `level_altitude`, `connected`, `clear_cells` (`[[x, z]]`) | test setup |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `landfill_zone` | `rect`, `type?` (14), `expect?` | the zoning message `0x07699455` over the whole rect (§3.2, §4.4.1) |
+| `landfill_message` | `type`, `data1?` … `data4?`, `rect?` (the region), `expect?` | `DoMessage` |
+| `landfill_month` | `count?` (1) | SimNewMonth (§4.7.1) |
+| `landfill_terrain` | `rect`, `reason?` (1), `altitude?` (sets the rect's cells first) | `0x278E6003` over the rect with `data4 = reason` (§3.2) |
+| `landfill_deliver` | `count?` | delivers the posted messages in order |
+| `landfill_shutdown` | | the developer's `Shutdown` |
+| `landfill_dezone_cell` | `zone?`, `cell`, `change_zone?` (false), `remove_texture?` (false) | `DezoneCell` (§4.4.8) |
+| `landfill_decay` / `landfill_redistribute` | `zone?`, `index` (decay) | `DecayGarbage` (§4.7.3, the developer's tuning) / `RedistributeGarbage` (§4.7.4) |
+| `landfill_update_tiles` | `zone?`, `index`, `seed?` (1), `draws?` | `UpdateSurroundingTiles` (§4.8) with a CRT `rand()` at `seed`; `draws` = the expected number of `rand()` calls |
+| `landfill_levelling` | `args` (`[rect, f, withWater, waterFlag, maxAreaSlope]`), `expect` | `AttemptAreaLevelling` (§4.5.3) over the stubbed slots |
+| `landfill_call` | `method`, `args?`, `zone?`, `expect?` | `get_zoning_cost [rect]` (`[low, high]`), `get_landfill_usage` (`[usage, capacity]`), `get_landfill_tile_count`, `get_maintenance_costs`, `get_current_budget`, `get_efficiency`, `update_capacity_values`, `get_landfill_zone_from_cell [[x, z]]` (the zone's index or null), `recalculate_capacity`, `get_capacity` (`[available, contained, capacity]`), `is_zone_connected` |
+| `landfill_expect` | `state` (partial: `zones`, `maintenance`, `capacity_total`, `used_total`, `loaded`, `department`, `crt_state`, `supply`, `tiles` (`[[x, z, tile, orientation, y]]` by z then x), `active_landfill_cells`, `zots`, `posted`), `zone?` with `zone_state` (partial: `rect`, `cells`, `mask` (x outer, z inner), `w`, `h`, `heaps`, `valid_heaps`, `connected`, `zot` (`[x, y, z]` or null), `level_altitude`, `completely_dezoned`), `zone_types` (`[[x, z, type]]`) | the developer, a zone and the world |
+| `landfill_record` | `hex` or `hex_prefix` | the developer's record (§6.1) |
+| `landfill_zone_record` | `read` (a §6.2 record), `expect?`, `rewrite?` (the write reproduces the bytes), `init?`, `zone_state?` | a fresh zone read from bytes |
+| `landfill_reload` | `expect?` (true), `post_city_init?` (false) | writes the developer's record and reads it into a new developer (zones with a zot cannot be reloaded: the record holds a reference) |
+| `landfill_expect_events` / `landfill_expect_event_count` / `landfill_clear_events` | see the shared conventions | host calls |
+
+Landfill events: `add_agent` (`name`, `level`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`),
+`supply` (`delta`), `put_in` (`value`), `garbage_capacity` (`value`), `full_expenses` (`line`, `value`), `release`
+(`token`), `place_zone` (`rect`, `type`), `set_altitude` (`rect`, `altitude`), `redisplay` (`rect`), `tile` (`x`, `z`,
+`tile`, `orientation`, `y`), `tile_remove` (`x`, `z`), `tile_move` (`x`, `z`, `y`), `zot_add` (`pos`), `zot_remove`,
+`levelling` (`rect`, `f`, `with_water`, `water_flag`, `max`, `result`), `modify_terrain` (`first`, `second`, `rect`,
+`altitude`, `lot`, `reason`, `cost_out`), `truck` (`enabled`), `seagull` (`on`), `history` (`series`, `value`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1199,7 +1253,7 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
-   `zn15_…` (zones §15).
+   `zn15_…` (zones §15), `lf11_…` (landfill §11), `nb18_…` (neighbours §18).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1782,3 +1836,36 @@ Not covered by a vector, and why:
   branch (Q = 2) and the z-line `2` arm. Not pinned: the x-line `1` arm (Q = 1), the `D != 3` branch of the x-line
   `0 | 2` arm, and the z-line `0` and `1` arms — these are the other cells of the §7.5 table, which the current
   scenarios never select.
+
+## Coverage (landfill §11)
+
+Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
+
+| §11 item | Vector |
+|---|---|
+| 1 heap capacity (4×4: 9 × 53333 = 479997; 2×2: 120000; 1×5: no heaps) | `lf11_01_heap_capacity` |
+| 2 zoning cost, flat (0, EDX 0) | `lf11_02_zoning_cost_flat` |
+| 3 zoning cost, slope (variance 20, mean 278, 112) | `lf11_03_zoning_cost_slope` |
+| 4 zoning cost, extension (`levelAltitude` 275, 40; no tolerance test) | `lf11_04_zoning_cost_extension` |
+| 5 sea-level clamp (mean 256, raw-altitude cost 124) | `lf11_05_sea_level_clamp` |
+| 6 first intake (the full host-call sequence, four corner tiles, no draw) | `lf11_06_first_intake` |
+| 7 decay (9300, 4, 38500) | `lf11_07_decay` |
+| 8 underfunding (5000) | `lf11_08_underfunding` |
+| 9 per-tile cap (20000, supply 30000) | `lf11_09_per_tile_cap` |
+| 10 global cap (code default 40000) | `lf11_10_global_cap` |
+| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; the spiral past a cleared centre) | `lf11_11_disconnected` |
+| 12 random draws (one `rand()` → interior or. 2; none from heap (0,0); one heap per month in play) | `lf11_12_random_draws` |
+| 13 redistribution (100, 50, 0 both ways) | `lf11_13_redistribution` |
+| 14 spill on dezone (80000, 67500 back to the supply, §4.4.2 order) | `lf11_14_spill_on_dezone` |
+| 15 narrow remainder (6 posted type-0 `PlaceZone`s, zone removed, no re-entrancy) | `lf11_15_narrow_remainder` |
+| 16 adjacency merge (union rect, 8 cells, heaps (0,0) and (2,2)) | `lf11_16_adjacency_merge` |
+| 17 save round trip (§6.3 bytes, `levelAltitude` from the centre, the last-column quirk) | `lf11_17_save_round_trip` |
+| 18 usage clamp (100, 100) | `lf11_18_usage_clamp` |
+| 19 `GetLandfillZoneFromCell` (half-open rect) | `lf11_19_zone_from_cell` |
+| 20 efficiency (1.0, 1.2) | `lf11_20_efficiency` |
+| 21 terrain move (271; 0.2 unchanged; empty cell dezoned; sea-level floor) | `lf11_21_terrain_move` |
+| 22 levelling target and refusal (vertex average, inert `f`, slope 41, NaN `maxAreaSlope`, ≥ 1000, finite limit; through the zone) | `lf11_22_levelling` |
+| 23 reason 5 ignored (also 0 and 4; reasons 1, 2, 3 dezone the empty cells) | `lf11_23_reason_5_ignored` |
+
+The zot's ring order (§4.7.5 "spiralling from the centre") is a *[choice]*: clockwise from the ring's top-left
+corner. Only the second half of `lf11_11` depends on it.

@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "lf11_01_heap_capacity",
+  "spec": ["landfill 4.6.1", "landfill 4.6.2", "landfill 11"],
+  "description": "Conformance test 1. A 4x4 zone: 16 cells, W = H = 3, 9 valid heaps, c = round(480000 / 9) = 53333, totalCapacity 479997. A 2x2 zone: one heap of 120000. A 1x5 zone: W = 0, no heaps, capacity 0; with all three connected GetLandfillUsage reports 479997 + 120000 + 0.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 13, 13]},
+    {"op": "landfill_zone", "rect": [30, 30, 31, 31]},
+    {"op": "landfill_zone", "rect": [40, 10, 40, 14]},
+    {"op": "landfill_expect", "state": {"zones": 3}},
+    {"op": "landfill_expect", "zone": 0, "zone_state": {"w": 3, "h": 3, "cells": 16, "valid_heaps": 9, "heaps": [
+      [0, 0, true, false, 53333, 0], [1, 0, true, false, 53333, 0], [2, 0, true, false, 53333, 0],
+      [0, 1, true, false, 53333, 0], [1, 1, true, false, 53333, 0], [2, 1, true, false, 53333, 0],
+      [0, 2, true, false, 53333, 0], [1, 2, true, false, 53333, 0], [2, 2, true, false, 53333, 0]]}},
+    {"op": "landfill_call", "zone": 0, "method": "recalculate_capacity", "expect": 479997},
+    {"op": "landfill_expect", "zone": 1, "zone_state": {"w": 1, "h": 1, "heaps": [[0, 0, true, false, 120000, 0]]}},
+    {"op": "landfill_expect", "zone": 2, "zone_state": {"w": 0, "h": 4, "cells": 5, "heaps": []}},
+    {"op": "landfill_call", "zone": 2, "method": "get_capacity", "expect": [0, 0, 0]},
+    {"op": "landfill_set", "zone": 0, "connected": true},
+    {"op": "landfill_set", "zone": 1, "connected": true},
+    {"op": "landfill_set", "zone": 2, "connected": true},
+    {"op": "landfill_call", "method": "update_capacity_values"},
+    {"op": "landfill_call", "method": "get_landfill_usage", "expect": [0, 599997]}
+  ]
+}

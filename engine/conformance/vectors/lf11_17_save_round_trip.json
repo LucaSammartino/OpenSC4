@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "lf11_17_save_round_trip",
+  "spec": ["landfill 6.3", "landfill 11"],
+  "description": "Conformance test 17. A 6.3 zone record (version 4, rect (10, 20, 11, 21), the W x H = 1 x 1 mask byte, W = H = 1, one version-2 heap: valid, active, contained 10000, capacity 120000; connected; null zot) reads back into exactly that zone and rewrites to the same bytes. levelAltitude is not saved: it reads as 0 and Init sets it to the centre cell's altitude (281 here). Through the developer record a dezoned cell in the last column ((12, 21) of a 3x3 zone) comes back zoned, while a dezoned inner cell ((11, 21)) stays dezoned; the heaps are unchanged and loaded is set.",
+  "steps": [
+    {"op": "landfill_altitude", "cells": [[10, 20, 281]]},
+    {"op": "landfill_zone_record", "read": "0400 0a000000 14000000 0b000000 15000000 01 01000000 01000000 0200 00000000 00000000 0100 0100 10270000 c0d40100 01 00000000", "expect": true, "rewrite": true,
+      "zone_state": {"rect": [10, 20, 11, 21], "cells": 4, "w": 1, "h": 1, "heaps": [[0, 0, true, true, 120000, 10000]], "connected": true, "zot": null, "level_altitude": 0}},
+    {"op": "landfill_zone_record", "read": "0400 0a000000 14000000 0b000000 15000000 01 01000000 01000000 0200 00000000 00000000 0100 0100 10270000 c0d40100 01 00000000", "expect": true, "init": true,
+      "zone_state": {"level_altitude": 281}},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
+    {"op": "landfill_dezone_cell", "cell": [12, 21]},
+    {"op": "landfill_dezone_cell", "cell": [11, 21]},
+    {"op": "landfill_expect", "zone_state": {"cells": 7, "heaps": [[0, 0, false, false, 67500, 0], [1, 0, false, false, 67500, 0], [0, 1, false, false, 67500, 0], [1, 1, false, false, 67500, 0]]}},
+    {"op": "landfill_reload"},
+    {"op": "landfill_expect", "state": {"zones": 1, "loaded": true}, "zone_state": {"cells": 8,
+      "mask": [[10, 20], [10, 21], [10, 22], [11, 20], [11, 22], [12, 20], [12, 21], [12, 22]],
+      "heaps": [[0, 0, false, false, 67500, 0], [1, 0, false, false, 67500, 0], [0, 1, false, false, 67500, 0], [1, 1, false, false, 67500, 0]]}}
+  ]
+}

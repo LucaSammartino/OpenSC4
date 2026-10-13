@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "lf11_21_terrain_move",
+  "spec": ["landfill 4.5.2", "landfill 3.2", "landfill 11"],
+  "description": "Conformance test 21 (kbMoveWithTerrain true). A tile at y = 270 whose terrain rises to 271 (reason 1) moves to 271; a rise of 0.2 (below 0.25) leaves it alone; a zone cell without a tile in the rect is dezoned and rezoned to 0 through PlaceZone. A tile whose terrain drops below the sea level moves to the sea level (250).",
+  "steps": [
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
+    {"op": "landfill_env", "supply": 10000},
+    {"op": "landfill_month"},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_terrain", "rect": [10, 20, 10, 20], "altitude": 271, "reason": 1},
+    {"op": "landfill_expect_events", "events": [{"event": "tile_move", "x": 10, "z": 20, "y": 271}]},
+    {"op": "landfill_terrain", "rect": [11, 20, 11, 20], "altitude": 270.2, "reason": 1},
+    {"op": "landfill_expect_events", "events": []},
+    {"op": "landfill_terrain", "rect": [12, 22, 12, 22], "reason": 1},
+    {"op": "landfill_expect_events", "filter": {"event": "place_zone"}, "events": [{"event": "place_zone", "rect": [12, 22, 12, 22], "type": 0}]},
+    {"op": "landfill_expect", "zone_state": {"cells": 8}},
+    {"op": "landfill_terrain", "rect": [11, 21, 11, 21], "altitude": 240, "reason": 2},
+    {"op": "landfill_expect_events", "events": [{"event": "tile_move", "x": 11, "z": 21, "y": 250}]}
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "lf11_06_first_intake",
+  "spec": ["landfill 4.4.1", "landfill 4.7", "landfill 4.8", "landfill 11"],
+  "description": "Conformance test 6. A connected 2x2 zone created this month (maintenance still 0, so no funding limit) with supply 10000: t = 10000, the zone budget min(10000, 4 x 5000) = 10000; the heap holds 10000 (AddToGarbageSupply(-10000), GarbagePutInLandfill(10000)) and turns active, giving four corner tiles 0x034E0000: (0,0) mask 4 or. 1, (1,0) mask 2 or. 2, (0,1) mask 8 or. 0, (1,1) mask 1 or. 3, no rand() draw (CRT state still 1). SetGarbageCapacity(110000), maintenance 40, history 0x2A8C4696 = 120000 and 0x2A8C4697 = 10000 + uncollected (7) + 0.",
+  "steps": [
+    {"op": "landfill_env", "connected": true, "uncollected": 7},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 11, 21]},
+    {"op": "landfill_expect", "state": {"maintenance": 0}},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_env", "supply": 10000},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect_events", "events": [
+      {"event": "supply", "delta": -10000},
+      {"event": "put_in", "value": 10000},
+      {"event": "tile", "x": 10, "z": 20, "tile": "0x034E0000", "orientation": 1, "y": 270},
+      {"event": "tile", "x": 11, "z": 20, "tile": "0x034E0000", "orientation": 2, "y": 270},
+      {"event": "tile", "x": 10, "z": 21, "tile": "0x034E0000", "orientation": 0, "y": 270},
+      {"event": "tile", "x": 11, "z": 21, "tile": "0x034E0000", "orientation": 3, "y": 270},
+      {"event": "garbage_capacity", "value": 110000},
+      {"event": "full_expenses", "line": 30, "value": 40},
+      {"event": "history", "series": "0x2A8C4696", "value": 120000},
+      {"event": "history", "series": "0x2A8C4697", "value": 10007}
+    ]},
+    {"op": "landfill_expect", "state": {"supply": 0, "maintenance": 40, "crt_state": 1, "active_landfill_cells": 4, "capacity_total": 120000, "used_total": 10000}},
+    {"op": "landfill_expect", "zone_state": {"heaps": [[0, 0, true, true, 120000, 10000]]}}
+  ]
+}

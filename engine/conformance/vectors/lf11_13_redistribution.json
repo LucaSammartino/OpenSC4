@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "lf11_13_redistribution",
+  "spec": ["landfill 4.7.4", "landfill 11"],
+  "description": "Conformance test 13. A 4x2 zone (W = 3, H = 1): three valid heaps of capacity 100 holding 100, 50, 0 (total 150) give share 100 and stay 100, 50, 0. The reverse order 0, 50, 100 is spread back to 100, 50, 0.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 13, 11]},
+    {"op": "landfill_expect", "zone_state": {"w": 3, "h": 1}},
+    {"op": "landfill_heaps", "heaps": [[0, 0, true, true, 100, 100], [1, 0, true, true, 100, 50], [2, 0, true, false, 100, 0]]},
+    {"op": "landfill_redistribute"},
+    {"op": "landfill_expect", "zone_state": {"heaps": [[0, 0, true, true, 100, 100], [1, 0, true, true, 100, 50], [2, 0, true, false, 100, 0]]}},
+    {"op": "landfill_heaps", "heaps": [[0, 0, true, false, 100, 0], [1, 0, true, true, 100, 50], [2, 0, true, true, 100, 100]]},
+    {"op": "landfill_redistribute"},
+    {"op": "landfill_expect", "zone_state": {"heaps": [[0, 0, true, false, 100, 100], [1, 0, true, true, 100, 50], [2, 0, true, true, 100, 0]]}}
+  ]
+}

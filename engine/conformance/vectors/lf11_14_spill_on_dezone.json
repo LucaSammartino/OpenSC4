@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "lf11_14_spill_on_dezone",
+  "spec": ["landfill 4.4.7", "landfill 4.6.2", "landfill 11"],
+  "description": "Conformance test 14. A 3x3 zone with every heap full (67500); the zone manager dezones the corner cell (10, 10) (a type-0 zoning message, so changeZone = false: no PlaceZone). The corner heap becomes invalid; RecalculateCapacity over 3 valid heaps gives c = round(240000 / 3) = 80000; the invalid heap's 67500 returns to the supply (no excess on the others). In 4.4.2 order: the spill (RecalculateCapacity), RedisplayTerrain of the intersection, then UpdateBudgetRequirements: 8 cells without a tile at kDefaultLandfillTileCost 5 = 40.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 12, 12]},
+    {"op": "landfill_heaps", "contained": 67500},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_zone", "rect": [10, 10, 10, 10], "type": 0},
+    {"op": "landfill_expect_events", "events": [
+      {"event": "supply", "delta": 67500},
+      {"event": "redisplay", "rect": [10, 10, 10, 10]},
+      {"event": "full_expenses", "line": 30, "value": 40}
+    ]},
+    {"op": "landfill_expect", "state": {"supply": 67500}, "zone_state": {"cells": 8, "valid_heaps": 3, "heaps": [[0, 0, false, false, 0, 0], [1, 0, true, false, 80000, 67500], [0, 1, true, false, 80000, 67500], [1, 1, true, false, 80000, 67500]]}}
+  ]
+}

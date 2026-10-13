@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "lf11_19_zone_from_cell",
+  "spec": ["landfill 4.2", "landfill 11"],
+  "description": "Conformance test 19. GetLandfillZoneFromCell tests the zone rect half-open: rect (10, 20, 12, 22) answers (10, 20) and (11, 21) with the zone (index 0) and (12, 21), (11, 22) with null.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
+    {"op": "landfill_call", "method": "get_landfill_zone_from_cell", "args": [[10, 20]], "expect": 0},
+    {"op": "landfill_call", "method": "get_landfill_zone_from_cell", "args": [[11, 21]], "expect": 0},
+    {"op": "landfill_call", "method": "get_landfill_zone_from_cell", "args": [[12, 21]], "expect": null},
+    {"op": "landfill_call", "method": "get_landfill_zone_from_cell", "args": [[11, 22]], "expect": null},
+    {"op": "landfill_call", "method": "get_landfill_zone_from_cell", "args": [[9, 20]], "expect": null}
+  ]
+}
