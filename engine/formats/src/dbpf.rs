@@ -17,18 +17,23 @@
 //!
 //! An index 7.0 entry is `type, group, instance, offset, size` (20 bytes); 7.1 adds a second instance word
 //! after the instance (24 bytes). The DIR record ([`DIR_TGI`]) lists the compressed entries as
-//! `type, group, instance, [instance2,] uncompressed size`. Compressed entries are QFS ([`crate::qfs`]).
+//! `type, group, instance, uncompressed size` — **always 16 bytes** (data-formats §2.5; there is no 20-byte
+//! DIR form, and the index version does not change it). Compressed entries are QFS ([`crate::qfs`]).
 //!
-//! Quirks handled *\[choice\]* (each one adds a note to [`Package::warnings`] instead of failing the open):
-//! - The index entry size is taken from `index size / entry count` when that is exactly 20 or 24, and from
-//!   the index minor version otherwise (some writers leave the index size or the minor version wrong).
-//! - Entries that point outside the file stay in the index; reading them returns [`Error::OutOfBounds`].
-//! - A DIR record whose length is not a multiple of its entry size: the trailing bytes are ignored.
-//! - An entry is decompressed only if the DIR lists it **and** its data starts with a QFS header. A listed
-//!   entry without the header is returned as stored; an unlisted entry is never decompressed (the DIR is the
-//!   authority, as in the public documentation). [`Package::read_raw`] always returns the stored bytes.
-//! - Duplicate keys: [`Package::find`] returns the **last** index entry with the key (later data in a
-//!   package overrides earlier data); [`Package::find_all`] returns every one.
+//! Loader behaviour follows the original (data-formats §2, §11):
+//! - Entries are **20 bytes** and the index minor version is ignored (§2.1). A package written with index 7.1
+//!   is misread by the original (24-byte entries read as 20) and does not open. *\[choice\]* Standalone mode
+//!   keeps 7.1 as an extension: when the index size proves 24-byte entries, they are read correctly and a
+//!   warning is recorded (see [`Package::warnings`]). Writers always produce 7.0.
+//! - **Entry check at open** (§2.3): every entry must have `offset ≥ 0x60`, `offset < file length` and
+//!   `offset + size ≤ file length`. **One bad entry fails the whole open** (not just that entry).
+//! - **Duplicate keys: the first entry wins** (§2.3), inside the index and inside the DIR (insert-if-absent).
+//!   [`Package::find`] returns the first; [`Package::find_all`] returns every one in file order.
+//! - The DIR is authoritative for compression (§2.5, §2.6): an entry is decompressed **iff** the DIR lists it.
+//!   A listed entry whose data fails the QFS acceptance check makes [`Package::read`] **fail** (no fallback to
+//!   the stored bytes). An unlisted entry is returned as stored even if it looks like QFS. [`Package::read_raw`]
+//!   always returns the stored bytes.
+//! - A DIR record whose length is not a multiple of 16: the trailing bytes are ignored, with a warning.
 
 use std::collections::HashMap;
 use std::fs::File;
@@ -192,17 +197,17 @@ impl Header {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IndexEntry {
     pub tgi: Tgi,
-    /// The second instance word of index 7.1 (`None` for 7.0).
+    /// The second instance word of index 7.1 (`None` for 7.0). *\[choice\]* extension, see the module docs.
     pub instance2: Option<u32>,
     pub offset: u32,
     pub size: u32,
 }
 
-/// One record of the DIR (compressed-entry directory).
+/// One record of the DIR (compressed-entry directory). Always 16 bytes on disk (data-formats §2.5), so there is
+/// no second instance word.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DirEntry {
     pub tgi: Tgi,
-    pub instance2: Option<u32>,
     pub uncompressed_size: u32,
 }
 
@@ -212,7 +217,9 @@ pub struct Package<S> {
     header: Header,
     entries: Vec<IndexEntry>,
     entry_size: usize,
-    dir: HashMap<(Tgi, u32), u32>,
+    /// Key → index of the **first** entry with that key (§2.3: first duplicate wins).
+    index_map: HashMap<Tgi, usize>,
+    dir: HashMap<Tgi, u32>,
     dir_entries: Vec<DirEntry>,
     warnings: Vec<String>,
 }
@@ -232,54 +239,125 @@ impl<T: AsRef<[u8]>> Package<MemSource<T>> {
 }
 
 impl<S: Source> Package<S> {
-    /// Reads the header, the index and the DIR record from any source.
+    /// Reads the header, the index and the DIR record from any source, applying the original's open checks
+    /// (data-formats §2.1, §2.3, §2.4). Any failed check means the package does not open.
     pub fn from_source(src: S) -> Result<Self> {
         let len = src.len();
         let mut hb = [0u8; HEADER_LEN];
         let hn = len.min(HEADER_LEN as u64) as usize;
         src.read_at(0, &mut hb[..hn])?;
         let header = Header::parse(&hb[..hn])?;
-        if header.major != 1 {
+
+        // §2.1: the major version must be ≤ 1 (the minor version, the index major and the index minor are not
+        // checked). A package with major ≥ 2 does not open.
+        if header.major > 1 {
             return Err(Error::Unsupported {
                 what: "DBPF",
-                detail: format!("version {}.{} (only 1.x is read)", header.major, header.minor),
+                detail: format!("version {}.{} (only ≤ 1.x is read)", header.major, header.minor),
             });
         }
-        if header.index_major != 7 {
-            return Err(Error::Unsupported {
-                what: "DBPF index",
-                detail: format!("index major {}", header.index_major),
-            });
+        // §2.1: the index entry count and the hole count must be < 0x07FFFFFF.
+        const COUNT_LIMIT: u32 = 0x07FF_FFFF;
+        if header.index_count >= COUNT_LIMIT {
+            return Err(corrupt("DBPF index", format!("entry count {} ≥ {COUNT_LIMIT:#X}", header.index_count)));
         }
-        let mut warnings = Vec::new();
+        if header.hole_count >= COUNT_LIMIT {
+            return Err(corrupt("DBPF holes", format!("hole count {} ≥ {COUNT_LIMIT:#X}", header.hole_count)));
+        }
+
         let count = header.index_count as u64;
-        let entry_size: usize = if count > 0 && header.index_size as u64 == count * 20 {
-            20
-        } else if count > 0 && header.index_size as u64 == count * 24 {
+        let mut warnings = Vec::new();
+        // §2.1: entries are always 20 bytes and the index minor version is ignored. *[choice]* Standalone mode
+        // keeps index 7.1 (24-byte entries) as a flagged extension: when the index size proves 24-byte entries
+        // they are read correctly instead of being misread (which is why the original cannot open them).
+        let entry_size = if count > 0 && header.index_size as u64 == count * 24 {
+            warnings.push(format!(
+                "index 7.1 (24-byte entries) read as a standalone extension; the original ignores the index \
+                 minor version and does not open such a package"
+            ));
             24
         } else {
-            let s = if header.index_minor >= 1 { 24 } else { 20 };
-            if count > 0 {
+            if count > 0 && header.index_size as u64 != count * 20 {
                 warnings.push(format!(
-                    "index size {} does not match {count} entries; using {s}-byte entries (index minor {})",
-                    header.index_size, header.index_minor
+                    "index size {} does not match {count} × 20 bytes; reading 20-byte entries",
+                    header.index_size
                 ));
             }
-            s
+            20
         };
+
+        // §2.1: the index offset must be < file length, and offset + index size ≤ file length. The reader reads
+        // entry_size × count bytes (§2.3: the index size field is not compared with 20 × count), so both the
+        // header's index size and the bytes actually read must fit.
+        let index_offset = header.index_offset as u64;
         let index_bytes = count * entry_size as u64;
-        if index_bytes > 0 && header.index_offset as u64 + index_bytes > len {
-            return Err(Error::OutOfBounds {
-                what: "DBPF index",
-                offset: header.index_offset as u64,
-                size: index_bytes,
-                limit: len,
-            });
+        if count > 0 {
+            if index_offset >= len {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF index",
+                    offset: index_offset,
+                    size: 0,
+                    limit: len,
+                });
+            }
+            if index_offset + header.index_size as u64 > len || index_offset + index_bytes > len {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF index",
+                    offset: index_offset,
+                    size: index_bytes.max(header.index_size as u64),
+                    limit: len,
+                });
+            }
         }
+
+        // §2.4: when the hole count is non-zero, the table offset must be 0 or lie in [0x60, file length), the
+        // table must fit, and count must equal table size >> 3. The hole entries themselves are not checked.
+        if header.hole_count > 0 {
+            let ho = header.hole_offset as u64;
+            let hs = header.hole_size as u64;
+            if ho != 0 && !(HEADER_LEN as u64..len).contains(&ho) {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF hole table",
+                    offset: ho,
+                    size: hs,
+                    limit: len,
+                });
+            }
+            if ho + hs > len {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF hole table",
+                    offset: ho,
+                    size: hs,
+                    limit: len,
+                });
+            }
+            if u64::from(header.hole_count) != hs >> 3 {
+                return Err(corrupt(
+                    "DBPF hole table",
+                    format!("hole count {} ≠ table size {hs} >> 3 ({})", header.hole_count, hs >> 3),
+                ));
+            }
+        } else if header.hole_offset + header.hole_size > 0 {
+            // §2.1 still bounds the table fields when the count is 0.
+            let ho = header.hole_offset as u64;
+            let hs = header.hole_size as u64;
+            if ho >= len && len > 0 || ho + hs > len {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF hole table",
+                    offset: ho,
+                    size: hs,
+                    limit: len,
+                });
+            }
+        }
+
         let mut raw = vec![0u8; index_bytes as usize];
-        src.read_at(header.index_offset as u64, &mut raw)?;
+        if index_bytes > 0 {
+            src.read_at(index_offset, &mut raw)?;
+        }
         let mut r = Reader::new(&raw, "DBPF index");
         let mut entries = Vec::with_capacity(count as usize);
+        let mut index_map: HashMap<Tgi, usize> = HashMap::new();
         for _ in 0..count {
             let tgi = Tgi::new(r.u32()?, r.u32()?, r.u32()?);
             let instance2 = if entry_size == 24 { Some(r.u32()?) } else { None };
@@ -289,12 +367,20 @@ impl<S: Source> Package<S> {
                 offset: r.u32()?,
                 size: r.u32()?,
             };
-            if e.offset as u64 + e.size as u64 > len {
-                warnings.push(format!(
-                    "entry {} at {}+{} is outside the file ({len} bytes)",
-                    e.tgi, e.offset, e.size
-                ));
+            // §2.3: entry check at open. Every entry must have offset ≥ 0x60, offset < file length and
+            // offset + size ≤ file length. One bad entry fails the whole open.
+            let off = e.offset as u64;
+            let end = off + e.size as u64;
+            if off < HEADER_LEN as u64 || off >= len || end > len {
+                return Err(Error::OutOfBounds {
+                    what: "DBPF entry",
+                    offset: off,
+                    size: e.size as u64,
+                    limit: len,
+                });
             }
+            // §2.3: duplicate keys inside one package — the first entry wins (insert-if-absent).
+            index_map.entry(tgi).or_insert(entries.len());
             entries.push(e);
         }
         let mut pkg = Package {
@@ -302,6 +388,7 @@ impl<S: Source> Package<S> {
             header,
             entries,
             entry_size,
+            index_map,
             dir: HashMap::new(),
             dir_entries: Vec::new(),
             warnings,
@@ -311,9 +398,11 @@ impl<S: Source> Package<S> {
     }
 
     fn load_dir(&mut self) {
-        let Some(e) = self.entries.iter().rev().find(|e| e.tgi == DIR_TGI).copied() else {
+        // §2.3: the DIR record is itself an index entry, so the first DIR key wins.
+        let Some(&i) = self.index_map.get(&DIR_TGI) else {
             return;
         };
+        let e = self.entries[i];
         let data = match self.read_raw(&e) {
             Ok(d) => d,
             Err(err) => {
@@ -321,22 +410,20 @@ impl<S: Source> Package<S> {
                 return;
             }
         };
-        let rec = self.entry_size - 4;
-        if data.len() % rec != 0 {
+        // §2.5: DIR records are always 16 bytes (type, group, instance, uncompressed size); the index version
+        // does not change this and there is no 20-byte form.
+        const REC: usize = 16;
+        if data.len() % REC != 0 {
             self.warnings
-                .push(format!("DIR record length {} is not a multiple of {rec}", data.len()));
+                .push(format!("DIR record length {} is not a multiple of {REC}", data.len()));
         }
-        for chunk in data.chunks_exact(rec) {
+        for chunk in data.chunks_exact(REC) {
             let tgi = Tgi::new(le_u32(chunk, 0), le_u32(chunk, 4), le_u32(chunk, 8));
-            let (instance2, size) = if rec == 20 {
-                (Some(le_u32(chunk, 12)), le_u32(chunk, 16))
-            } else {
-                (None, le_u32(chunk, 12))
-            };
-            self.dir.insert((tgi, instance2.unwrap_or(0)), size);
+            let size = le_u32(chunk, 12);
+            // §2.5: duplicate keys in the DIR — the first wins.
+            self.dir.entry(tgi).or_insert(size);
             self.dir_entries.push(DirEntry {
                 tgi,
-                instance2,
                 uncompressed_size: size,
             });
         }
@@ -346,7 +433,7 @@ impl<S: Source> Package<S> {
         &self.header
     }
 
-    /// Index entries in file order (including the DIR record itself).
+    /// Index entries in file order (including the DIR record itself, and including duplicates).
     pub fn entries(&self) -> &[IndexEntry] {
         &self.entries
     }
@@ -356,19 +443,19 @@ impl<S: Source> Package<S> {
         &self.dir_entries
     }
 
-    /// 20 for index 7.0, 24 for 7.1.
+    /// 20 for index 7.0, 24 for the *\[choice\]* 7.1 extension.
     pub fn index_entry_size(&self) -> usize {
         self.entry_size
     }
 
-    /// Notes about quirks found while opening (see the module documentation).
+    /// Notes about quirks and extensions found while opening (see the module documentation).
     pub fn warnings(&self) -> &[String] {
         &self.warnings
     }
 
-    /// The last index entry with this key.
+    /// The **first** index entry with this key (§2.3: the first duplicate wins).
     pub fn find(&self, tgi: &Tgi) -> Option<&IndexEntry> {
-        self.entries.iter().rev().find(|e| e.tgi == *tgi)
+        self.index_map.get(tgi).map(|&i| &self.entries[i])
     }
 
     /// Every index entry with this key, in file order.
@@ -381,9 +468,10 @@ impl<S: Source> Package<S> {
         self.entries.iter().filter(move |e| e.tgi.type_id == type_id)
     }
 
-    /// The uncompressed size the DIR records for this entry, if the DIR lists it as compressed.
+    /// The uncompressed size the DIR records for this entry, if the DIR lists it as compressed (§2.5: keyed by
+    /// the three-word TGI; the first DIR record for a key wins).
     pub fn dir_size(&self, e: &IndexEntry) -> Option<u32> {
-        self.dir.get(&(e.tgi, e.instance2.unwrap_or(0))).copied()
+        self.dir.get(&e.tgi).copied()
     }
 
     /// True if the DIR lists this entry as compressed.
@@ -407,10 +495,18 @@ impl<S: Source> Package<S> {
         Ok(buf)
     }
 
-    /// The contents of an entry, decompressed if the DIR lists it and it carries a QFS header.
+    /// The contents of an entry (§2.6): the stored bytes for an unlisted entry; for a DIR-listed entry the
+    /// decompressed bytes, which **fail the read** if the data does not pass the QFS acceptance check (there is
+    /// no fallback to the stored bytes).
     pub fn read(&self, e: &IndexEntry) -> Result<Vec<u8>> {
         let raw = self.read_raw(e)?;
-        if self.is_compressed(e) && qfs::has_header(&raw) {
+        if self.is_compressed(e) {
+            if !qfs::has_header(&raw) {
+                return Err(Error::BadMagic {
+                    what: "QFS header (DIR-listed entry)",
+                    found: raw.iter().take(6).copied().collect(),
+                });
+            }
             qfs::decompress(&raw)
         } else {
             Ok(raw)
