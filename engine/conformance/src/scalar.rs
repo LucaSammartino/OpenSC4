@@ -104,12 +104,15 @@ pub(crate) fn close(got: f64, want: f64) -> bool {
 }
 
 /// Whether `got` matches `want`: numbers with the float tolerance (exactly
-/// when both are integers), strings and booleans exactly, arrays element by
-/// element, objects key by key (keys compared as integers when both parse).
-/// With `partial`, objects only check the keys `want` gives.
+/// when both are integers, including an integer `want` written as a decimal
+/// or `"0x…"` string, so IDs never match a neighbour), strings and booleans
+/// exactly, arrays element by element, objects key by key (keys compared as
+/// integers when both parse). With `partial`, objects only check the keys
+/// `want` gives.
 pub(crate) fn matches(got: &Json, want: &Json, partial: bool) -> bool {
     match (got, want) {
         (Json::Int(a), Json::Int(b)) => a == b,
+        (Json::Int(a), Json::Str(_)) if want.as_i64().is_some() => want.as_i64() == Some(*a),
         (Json::Bool(a), w) => crate::runner::boolean(w) == Some(*a),
         (Json::Str(a), Json::Str(b)) => a == b,
         (Json::Null, Json::Null) => true,
