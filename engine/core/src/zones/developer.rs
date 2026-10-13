@@ -418,31 +418,37 @@ impl ZoneDeveloper {
             return false;
         }
         let (cx, cz) = self.host.city_cell_counts();
-        {
+        // 3. If the cell → lot map is empty (new city), size it; else
+        //    Init every lot at its origin cell, x outer, z inner. Collect the
+        //    occupied cells first and drop the borrow before any host call
+        //    (foundations §19.3 rule 4: never hold a core lock across a call
+        //    into the game, which may re-enter us).
+        let empty = {
             let mut s = self.st.borrow_mut();
-            // 3. If the cell → lot map is empty (new city), size it; else
-            //    Init every lot at its origin cell, x outer, z inner.
-            if s.cell_map.is_empty() {
+            let empty = s.cell_map.is_empty();
+            if empty {
                 s.map_x = cx.max(0);
                 s.map_z = cz.max(0);
                 s.cell_map = vec![None; (s.map_x as usize) * (s.map_z as usize)];
-            } else {
-                let (mx, mz) = (s.map_x, s.map_z);
-                let origins: Vec<u64> = {
-                    let mut v = Vec::new();
-                    for x in 0..mx {
-                        for z in 0..mz {
-                            let i = x as usize * mz as usize + z as usize;
-                            if let Some(lot) = s.cell_map[i] {
-                                if (x, z) == self.host.lot_location(lot) {
-                                    v.push(lot);
-                                }
-                            }
+            }
+            empty
+        };
+        if !empty {
+            let cells: Vec<(i32, i32, u64)> = {
+                let s = self.st.borrow();
+                let mut v = Vec::new();
+                for x in 0..s.map_x {
+                    for z in 0..s.map_z {
+                        let i = x as usize * s.map_z as usize + z as usize;
+                        if let Some(lot) = s.cell_map[i] {
+                            v.push((x, z, lot));
                         }
                     }
-                    v
-                };
-                for lot in origins {
+                }
+                v
+            };
+            for (x, z, lot) in cells {
+                if (x, z) == self.host.lot_location(lot) {
                     self.host.lot_init(lot);
                 }
             }
@@ -478,21 +484,28 @@ impl ZoneDeveloper {
         );
         self.host.release_network_tools();
         // Release each lot of the map once (first sighting, x outer, z inner)
-        // [inferred], and empty the map and the master list.
-        let mut seen = BTreeSet::new();
-        {
+        // [inferred], and empty the map and the master list. Collect the lots
+        // first and drop the borrow before any host call (foundations §19.3
+        // rule 4).
+        let lots: Vec<u64> = {
             let s = self.st.borrow();
+            let mut seen = BTreeSet::new();
+            let mut v = Vec::new();
             for x in 0..s.map_x {
                 for z in 0..s.map_z {
                     let i = x as usize * s.map_z as usize + z as usize;
                     if let Some(lot) = s.cell_map[i] {
                         if seen.insert(lot) {
-                            self.host.lot_shutdown(lot);
-                            self.host.release(lot);
+                            v.push(lot);
                         }
                     }
                 }
             }
+            v
+        };
+        for lot in lots {
+            self.host.lot_shutdown(lot);
+            self.host.release(lot);
         }
         {
             let mut s = self.st.borrow_mut();
@@ -502,7 +515,10 @@ impl ZoneDeveloper {
             s.master.clear();
             s.safe_iters.clear();
         }
-        if self.st.borrow().max_capacity.is_some() {
+        // A temporary in an `if` condition lives through the whole `if` body,
+        // so read the flag out first (foundations §19.3 rule 4).
+        let has_max_capacity = self.st.borrow().max_capacity.is_some();
+        if has_max_capacity {
             self.host.shutdown_grid(MAX_CAPACITY_GRID_CLASS);
             self.st.borrow_mut().max_capacity = None;
         }
@@ -517,28 +533,28 @@ impl ZoneDeveloper {
         match m.id {
             MSG_POST_CITY_INIT => {
                 self.host.acquire_network_tools();
-                if self.st.borrow().loaded {
-                    let (mx, mz) = {
-                        let s = self.st.borrow();
-                        (s.map_x, s.map_z)
-                    };
-                    let origins: Vec<u64> = {
+                let loaded = self.st.borrow().loaded;
+                if loaded {
+                    // Collect the occupied cells, drop the borrow, then ask
+                    // the host for each lot's location (foundations §19.3
+                    // rule 4).
+                    let cells: Vec<(i32, i32, u64)> = {
                         let s = self.st.borrow();
                         let mut v = Vec::new();
-                        for x in 0..mx {
-                            for z in 0..mz {
-                                let i = x as usize * mz as usize + z as usize;
+                        for x in 0..s.map_x {
+                            for z in 0..s.map_z {
+                                let i = x as usize * s.map_z as usize + z as usize;
                                 if let Some(lot) = s.cell_map[i] {
-                                    if (x, z) == self.host.lot_location(lot) {
-                                        v.push(lot);
-                                    }
+                                    v.push((x, z, lot));
                                 }
                             }
                         }
                         v
                     };
-                    for lot in origins {
-                        self.host.lot_post_city_init(lot);
+                    for (x, z, lot) in cells {
+                        if (x, z) == self.host.lot_location(lot) {
+                            self.host.lot_post_city_init(lot);
+                        }
                     }
                 }
             }
@@ -2463,15 +2479,20 @@ impl ZoneDeveloper {
 
     /// `Write` (§10.2). Returns `GetError() = 0`.
     pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
-        let s = self.st.borrow();
+        // Snapshot the map's shape and cells, then drop the borrow: the loop
+        // asks the host for each lot's reference (foundations §19.3 rule 4).
+        let (map_x, map_z, cells) = {
+            let s = self.st.borrow();
+            (s.map_x, s.map_z, s.cell_map.clone())
+        };
         let mut ok = out.put_u16(DEVELOPER_RECORD_VERSION);
-        ok &= out.put_u32(s.map_x as u32); // countX (rows)
-        ok &= out.put_u32(if s.map_x > 0 { s.map_z as u32 } else { 0 }); // countZ (size of row 0)
-                                                                         // countX × countZ references, x outer, z inner.
-        for x in 0..s.map_x {
-            for z in 0..s.map_z {
-                let i = x as usize * s.map_z as usize + z as usize;
-                let r = match s.cell_map.get(i).copied().flatten() {
+        ok &= out.put_u32(map_x as u32); // countX (rows)
+        ok &= out.put_u32(if map_x > 0 { map_z as u32 } else { 0 }); // countZ (size of row 0)
+                                                                     // countX × countZ references, x outer, z inner.
+        for x in 0..map_x {
+            for z in 0..map_z {
+                let i = x as usize * map_z as usize + z as usize;
+                let r = match cells.get(i).copied().flatten() {
                     Some(lot) => self.host.lot_ref(lot),
                     None => RefValue::Null,
                 };

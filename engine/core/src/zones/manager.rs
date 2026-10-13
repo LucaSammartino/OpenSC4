@@ -780,7 +780,10 @@ impl ZoneManager {
                 ok &= out.put_u32(count);
             }
         }
-        // 13. five service references.
+        // 13. five service references. The state borrow is dropped first: the
+        // host supplies these references and may re-enter us (foundations
+        // §19.3 rule 4).
+        drop(s);
         for svc in [
             super::Service::City,
             super::Service::OccupantManager,
