@@ -580,12 +580,78 @@ lots therefore show zots on a sparse diagonal (R, C) or grid (I, A) pattern.
    `cSC4BusinessUnit` (0x20 bytes from C, constructor `0x006C0800`) with `u.Add(c)`; then `u.Add(lot)`.
 5. Purpose 5: `lot.SetTravelDesignate(first member of u)` (slot 60). Otherwise `unitChanged := true`.
 
-**`UpdateTravelDesignates(u&)`** (slot 34): `anchor :=` the first member with road access and a building. With an
-anchor, each member's designate is cleared and re-pointed to the anchor when it is a member or null, kept when it is
-a non-member with road access, re-pointed when it is a non-member without road access; the anchor itself gets no
-designate. Without an anchor the unit is **dissolved**: each member in turn is removed (unit slot 4) and offered to
-`PickUnitToJoin` (draws); as soon as one joins a unit `u'`, all lots of the copy move into `u'` and the reference
-becomes `u'` (or null).
+**`UpdateTravelDesignates(u&)`** (slot 34, `0x006CB4D0`, pop 4, no defined return):
+
+`anchor :=` the first member (in member-list order) with road access (lot slot 28) **and** a building (lot slot 48);
+when found it is AddRef'd into a one-element B vector (`0x006CB528`–`0x006CB56A`).
+
+**With an anchor** — for each member lot `L` in member-list order, let `d := L.GetTravelDesignate()` (lot slot 59,
+`0x0081F910` = `mov eax,[ecx+0x50]; ret`), and let `notMember := (d ≠ null) and (d is not in u's member list)`:
+
+| Case | Action |
+|---|---|
+| `notMember` | `L.SetTravelDesignate(0)`, then the anchor step |
+| `d = null` | **no clear at all** (`0x006CB603` jumps straight past it), then the anchor step |
+| `d` is a member of `u` and `d.HasRoadAccess()` | **keep** — no clear, no anchor step (`0x006CB60E`) |
+| `d` is a member of `u` and not `d.HasRoadAccess()` | `L.SetTravelDesignate(0)`, then the anchor step |
+
+The **anchor step** is `if L ≠ anchor: L.SetTravelDesignate(anchor)` (`0x006CB61C`–`0x006CB62B`).
+
+**The anchor itself is never given a designate, and in the usual case is not cleared either** *[compat]* (answers
+§12.2 Q9). When the anchor's own designate is null — the state this function always leaves it in, and the state a
+freshly built unit has — the `d = null` row applies and control jumps over the clear: **no `SetTravelDesignate(0)`
+call is issued for the anchor**. `SetTravelDesignate` (`0x006BF660`, pop 4) is a pure reference-counted store with an
+`old == new` early-out and **no other side effect** (no message, no dirty flag), so "clear unconditionally" and
+"leave untouched" are indistinguishable while the designate is null: the early-out makes the clear a no-op and no
+reference moves. An implementation that clears unconditionally is therefore safe **as long as it reproduces the
+`keep` row above**, which is the one case where the original deliberately does not clear.
+
+The anchor *can* hold a non-null designate, and then the rows do differ: if the previous run's anchor `A` is still a
+member with road access, the new anchor `B` (whose designate is `A`) takes the **keep** row and ends up with a stale
+designate pointing at `A`; if `A` has lost road access or left the unit, `B` is cleared to null. Both are correct
+reproductions of the table; neither is "the anchor gets no designate" in the sense of "the anchor's designate ends up
+null".
+
+**Without an anchor** the unit is **dissolved** (`0x006CB648`–`0x006CB6E0`):
+
+1. `M :=` a **snapshot copy** of the member list — a fresh B `std::list` (head `0x0090CF54`) filled by `0x006C6CA0`,
+   one AddRef'd reference per member, in member order.
+2. For each `L` in `M`, in order: `u.Remove(L)` (unit slot 4), `PickUnitToJoin(L)` (draws R2), then
+   `u' := L.GetUnit()`. If `u' = null`, continue with the next `L`.
+3. As soon as some `L` yields `u' ≠ null`, migrate: **for every `X` in `M`, in copy order — including `L` itself** —
+   `if X.GetUnit() ≠ null: X.GetUnit().Remove(X)`, then `u'.Add(X)`. Then `*param_2 := u'`.
+4. If no `L` ever joins, `*param_2 := null`.
+5. Release every lot of `M` and free its nodes and head with B (`0x0090CF63`).
+
+**The original does *not* skip the just-joined member** *[compat]* (answers §12.2 Q10; this contradicts the reading
+"move every other lot of the copy"). `0x006CB6B1`–`0x006CB6DA` re-reads `M` from its head and applies
+remove-then-add to **all** of it, so `L` is removed from `u'` and immediately re-added. The exact set migrated is
+`M` (every member the unit had at snapshot time), in `M`'s order; `L` is not excluded and not moved to the front.
+
+Observable consequences of the remove-and-re-add — an implementation that skips `L` differs on all three:
+
+- **`L`'s travel designate is destroyed.** `cISC4BusinessUnit::Remove(lot)` (`0x006C08B0`, pop 4, `RET 0x4` at
+  `0x006C08F8`) does *not* only unlink: after the erase helper `0x006C0900` and the guard Release it calls
+  **`lot.SetUnit(0)`** (lot slot 26, `CALL [EAX+0x68]` at `0x006C08E7`) and **`lot.SetTravelDesignate(0)`** (lot slot
+  60, `CALL [EDX+0xF0]` at `0x006C08F0`). So for a **purpose-5 (farm)** unit, where `PickUnitToJoin` step 5 has just
+  set `L.SetTravelDesignate(first member of u')`, the migration wipes it and `Add` never restores it (`Add` sets only
+  the unit pointer, `CALL [EDX+0x68]` at `0x006C09CB`): the dissolved farm unit ends with **`L`'s designate null**.
+  A skip-the-joined-member implementation leaves it pointing at `u'`'s first member.
+- **Member order inside `u'`** differs when `L` is not `M`'s first element. The single migration pass appends in `M`
+  order, so `L` is unlinked and re-appended at its `M` position: with `M = [M1, M2, L]` and `L` the joiner,
+  `u' = [c, M1, M2, L]` (`c` the candidate `PickUnitToJoin` paired with), whereas skipping `L` gives `[c, L, M1, M2]`.
+  Member order is observable: it decides which lot is the unit's **first member**, i.e. the anchor candidate that
+  `UpdateLot` step 5 and `UpdateTravelPopulations` act on, and the order a later `UpdateTravelDesignates` walks.
+- **Reference-count churn**: `Remove` takes a guard AddRef and drops it, and `Add` AddRefs for the node and releases
+  its temporary, so `L`'s count nets out unchanged and never transiently reaches 0. No message is posted by `Add` or
+  `Remove`, so there is no extra message traffic. `Add` (`0x006C0940`, pop 4) cannot duplicate `L`: it walks the member
+  list first and, when the lot is already a member, skips the append (`JZ 0x006C09C6`) while still calling
+  `lot.SetUnit(this)` — so the re-add is a no-op on the list and only re-points the unit.
+
+`cISC4BusinessUnit` slot facts used above: 3 `Add(lot)` `0x006C0940` pop 4 (AddRef, append a 12-byte B node, then
+`lot.SetUnit(this)`); 4 `Remove(lot)` `0x006C08B0` pop 4 (unlink, then `lot.SetUnit(0)` and
+`lot.SetTravelDesignate(0)`); 5 `GetMembers()` `0x008085F0` pop 0 (`lea eax,[ecx+0x1C]; ret` — the member list head,
+no reference).
 
 **`UpdateTravelPopulations(u)`** (slot 35): `ResetTravelPopulation` on every member, then each member adds its travel
 population to its designate (or itself).
@@ -1109,10 +1175,20 @@ repeat nightBatch times (none if nightBatch = 0):
 2. `(x1, z1, x2, z2) := b.AsOccupant().GetBoundingCityCells()` (occupant slot 11);
    centre `((x1 + x2) >> 1, (z1 + z2) >> 1)` (arithmetic shift).
 3. `lot := lotManager.GetLot(cx, cz, false)`; none → stop.
-4. Props in the lot's cell rectangle: `occupantManager.GetOccupantsByStandardCityCells(list, &(x1, z1), &(x2, z2),
-   0xA823821E, −1)` (slot 41; A list).
+4. **Discard the building rectangle** and take the lot's own: `lot.GetBoundingRect(&r)` (lot slot 14, `0x006BF320`,
+   four `MOVZX` byte reads of lot +0x20..+0x23 = `x1, z1, x2, z2`), written into the **same** stack buffer that held
+   the building's cells (`0x006C8E6F`). Then props in **that** rectangle:
+   `occupantManager.GetOccupantsByStandardCityCells(list, &(x1, z1), &(x2, z2), 0xA823821E, −1)` (slot 41; A list).
 5. For each prop with property `0x4A9F188B` present and true (variant slot 63): `PostOccupantMessage(0x09D8E0B6, 0)`
    (the same message for day and night). Release each; free the list.
+
+**The night-light rectangle is the lot's, not the building's** *[compat]* (answers §12.2 Q8). `GetBoundingCityCells`
+(step 2) feeds **only** the centre-cell `GetLot` lookup; it is overwritten before step 4 and never reaches the prop
+query. An implementation that passes the building's cells to `GetOccupantsByStandardCityCells` is wrong whenever the
+building does not exactly fill its lot — the two rectangles differ for any building whose footprint is smaller or
+larger than the lot, and the prop set (hence which props receive `0x09D8E0B6`) differs with it. Evidence: `0x006C8E37`
+(occupant slot 11 into `[ESP+0x18]`), `0x006C8E5B` (`GetLot`), `0x006C8E6F` (lot slot 14 into the same `[ESP+0x18]`),
+`0x006C8F0B` (slot 41 with pointers to that buffer).
 
 ---
 

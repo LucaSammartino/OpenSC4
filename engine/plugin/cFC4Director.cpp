@@ -276,6 +276,13 @@ public:
 
     bool PostAppInit() override {
         fc4::FpuLog("hook PostAppInit (enter)", true);
+        // foundations §18.2: our DLL's presence raised the main thread's x87
+        // precision somewhere between PreAppInit and here, and nothing in the
+        // game can restore 24-bit afterwards. The original subsystems round by
+        // PC alone, so without this they compute different results than they
+        // would in the unmodified game (run 19: 122/104 instead of 123/105).
+        // Restore it before anything of ours or the game's runs on this thread.
+        fc4::FpuReassert24Bit("PostAppInit");
         fc4::Log("hook PostAppInit (%s)", simulatorReplaced_ ? "simulator class 0x2990C1E5 provided by FreeCity4"
                                                              : "passthrough: simulator class not registered");
         // Ask GZCOM itself whether it now resolves the simulator class, and

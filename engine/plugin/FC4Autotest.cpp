@@ -41,6 +41,9 @@ volatile LONG g_cityLoaded = 0;
 volatile LONG g_started = 0;
 volatile DWORD g_startMs = 0;
 volatile DWORD g_deadline = 0;
+// This thread's id, recorded as its ThreadProc starts, so a report from
+// another thread can say whose it is (FC4FailFast, foundations §19.2).
+volatile DWORD g_autotestTid = 0;
 int g_unpauseStage = 0;  // main thread only
 
 volatile LONG g_verdict = 0;  // Verdict as LONG; 0 = not written
@@ -79,6 +82,7 @@ bool WriteVerdict(Verdict v, unsigned wait, const char* reason) {
 }
 
 DWORD WINAPI ThreadProc(void*) {
+    g_autotestTid = GetCurrentThreadId();
     for (;;) {
         Sleep(200);
         const DWORD now = GetTickCount();
@@ -137,6 +141,8 @@ void AutotestReload() {
 }
 
 bool AutotestEnabled() { return g_seconds > 0; }
+
+uint32_t AutotestThreadId() { return g_autotestTid; }
 
 void AutotestOnCityLoaded() {
     if (!AutotestEnabled()) return;

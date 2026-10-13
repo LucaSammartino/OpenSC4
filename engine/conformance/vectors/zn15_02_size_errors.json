@@ -1,0 +1,117 @@
+{
+  "format": 1,
+  "name": "zn15_02_size_errors",
+  "spec": [
+    "zones 6",
+    "zones 4",
+    "zones 15.2"
+  ],
+  "description": "Conformance test 2 (size errors, \u00a76). With the shipped tuning (\u00a74) and skipSizeCheck = 0: a 33 \u00d7 1 rect of type 1 exceeds max[1] = 32 -> false, error 4, no grid change. A 3 \u00d7 3 rect of type 7 is below min[7] = 4 -> error 3. A 1 \u00d7 1 rect of type 14 is below min[14] = 2 -> error 3. A type-16 request fails before the size check with error 0. The size test uses w = x2 - x1 + 1 and h = z2 - z1 + 1 against both min and max.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          32,
+          0
+        ]
+      },
+      "type": 1,
+      "commit": true,
+      "skip_funds": true,
+      "skip_size": false,
+      "expect": {
+        "ok": false,
+        "error": 4
+      }
+    },
+    {
+      "op": "zone_expect",
+      "zones": [
+        [
+          0,
+          0,
+          0
+        ],
+        [
+          32,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          2,
+          2
+        ]
+      },
+      "type": 7,
+      "commit": true,
+      "skip_funds": true,
+      "skip_size": false,
+      "expect": {
+        "ok": false,
+        "error": 3
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "type": 14,
+      "commit": true,
+      "skip_funds": true,
+      "skip_size": false,
+      "expect": {
+        "ok": false,
+        "error": 3
+      }
+    },
+    {
+      "op": "zone_place_zone",
+      "region": {
+        "rect": [
+          0,
+          0,
+          3,
+          3
+        ]
+      },
+      "type": 16,
+      "commit": true,
+      "skip_funds": true,
+      "skip_size": false,
+      "expect": {
+        "ok": false,
+        "error": 0
+      }
+    }
+  ]
+}

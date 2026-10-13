@@ -90,6 +90,8 @@ constexpr uint32_t kCLSID_DemandSim = 0x2990BFF2;
 constexpr uint32_t kIID_cISC4DemandSimulator = 0x47967E16;
 constexpr uint32_t kCLSID_Demand = 0x8990C12D;
 constexpr uint32_t kIID_cISC4Demand = 0x0797A4E8;
+constexpr uint32_t kCLSID_Plumbing = 0x0990C075;
+constexpr uint32_t kIID_cISC4PlumbingSimulator = 0x47782CCC;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -681,7 +683,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 34): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 57): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -1060,6 +1062,105 @@ int main(int argc, char** argv) {
         CHECK(text.find("GetLocalPopulationSummary: 0 entries not copied") != std::string::npos);
         CHECK(text.find("demand Shutdown") != std::string::npos);
         CHECK(text.find("cFC4DemandSimulator destroyed") != std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
+    if (mode == "--ini-enable-plumbing") {
+        // The plumbing subsystem is off by default; `enable = plumbing` registers
+        // the water simulator (plumbing.md §1).
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = plumbing\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            // simulator (1) + budget (3) + plumbing (1); never the game's grid
+            // classes (simgrid.md §6.3).
+            CHECK(classes.size() == 5);
+            for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_Plumbing) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Plumbing, kIID_cISC4PlumbingSimulator, &obj));
+            auto* pl = static_cast<cFC4ISC4PlumbingSimulator*>(obj);
+            if (pl != nullptr) {
+                // §1: exactly four IIDs, one reference count, and the out pointer
+                // is left untouched for any other IID.
+                void* p = nullptr;
+                CHECK(pl->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                if (p) static_cast<cIGZUnknown*>(p)->Release();
+                cIGZSerializable* ser = nullptr;
+                CHECK(pl->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_Plumbing);
+                    ser->Release();
+                }
+                // cIGZUnknown is answered with the primary interface (§1).
+                void* u = nullptr;
+                CHECK(pl->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(pl));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
+                CHECK(!pl->QueryInterface(0x452294ABu, &untouched));
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+                CHECK(!pl->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
+                // Constructor values (§3): idle state 9, no city, no grids, so
+                // every query reads the neutral value and nothing crashes.
+                CHECK(pl->GetNumWaterSources() == 0);
+                CHECK(pl->GetNumPollutedWaterSources() == 0);
+                CHECK(pl->GetWaterProductionCapacity() == 0);
+                CHECK(pl->GetWaterConsumed() == 0);
+                CHECK(pl->GetWaterImported() == 0);
+                CHECK(pl->GetWaterExported() == 0);
+                CHECK(pl->GetWaterDemand() == 0);
+                CHECK(pl->GetNumPipes() == 0 && pl->GetNumDistressedPipes() == 0 && pl->GetNumBurstPipes() == 0);
+                CHECK(pl->GetNumWateredBuildings() == 0 && pl->GetNumUnwateredBuildings() == 0);
+                CHECK(pl->GetWateredGrid() == nullptr);
+                CHECK(pl->GetSupplyValue(3, 4) == 0);
+                CHECK(!pl->IsCellWatered(3, 4));
+                CHECK(!pl->AreWateredBuildingsInCell(3, 4));
+                CHECK(pl->GetWaterProduction(nullptr) == 0);
+                SC4Percentage pct{0.5f};
+                CHECK(!pl->GetWaterProducerConditionPercent(nullptr, pct));
+                CHECK(pct.percentage == 0.5f);  // untouched
+                int64_t cost = 7;
+                CHECK(!pl->GetOccupantMonthlyUpkeepCost(nullptr, cost));
+                CHECK(cost == 7);  // untouched
+                // Slot 24: a null producer is not a producer record, so AL = 0
+                // and no output is written (§10.1).
+                uint32_t curCap = 99, maxCap = 99, usedCap = 99;
+                SC4Percentage eff{0.5f};
+                bool polluted = true;
+                CHECK(!pl->GetWaterProducerInfo(nullptr, &curCap, &maxCap, &eff, &polluted, &usedCap));
+                CHECK(curCap == 99 && maxCap == 99 && usedCap == 99 && polluted && eff.percentage == 0.5f);
+                cISC4SimGrid<uint8_t>* g = reinterpret_cast<cISC4SimGrid<uint8_t>*>(0x1);
+                CHECK(pl->GetSupplyValueMapPtr(g) && g == nullptr);
+                // Slot 28 (GetWaterProducers) is not exercised here: it fills an
+                // ilist whose root node comes from the framework allocator
+                // service, which is not running in this harness.
+                // Init without a city or GZCOM: an empty city, a clean lifecycle.
+                CHECK(pl->Init());
+                CHECK(pl->Init());
+                CHECK(pl->Shutdown());
+                CHECK(pl->Release() == 0);
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'plumbing': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'power': off by default") != std::string::npos);
+        CHECK(text.find("cFC4PlumbingSimulator(") != std::string::npos);
+        CHECK(text.find("plumbing Init:") != std::string::npos);
+        CHECK(text.find("plumbing Shutdown") != std::string::npos);
+        CHECK(text.find("cFC4PlumbingSimulator destroyed") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
         if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
         return g_failures == 0 ? 0 : 1;
@@ -1620,11 +1721,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 34 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 34 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 57 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 57 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 34): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 57): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

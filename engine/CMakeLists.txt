@@ -147,6 +147,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4FailFast.h
         plugin/FC4Observer.h
         plugin/FC4Fpu.h
+        plugin/FC4FpuLogic.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
@@ -176,6 +177,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4HostGrid.h
         plugin/cFC4Power.cpp
         plugin/cFC4Power.h
+        plugin/cFC4Plumbing.cpp
+        plugin/cFC4Plumbing.h
+        plugin/cFC4Flammability.cpp
+        plugin/cFC4Flammability.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -232,6 +237,13 @@ if(FC4_IS_WIN32_X86)
     target_compile_options(fc4_diag_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME diag_logic_test COMMAND fc4_diag_logic_test)
 
+    # The x87 precision re-assert (foundations §18.2): the game helper's mode
+    # arithmetic and how to report a re-assert.
+    add_executable(fc4_fpu_logic_test tests/fpu_logic_test.cpp)
+    target_include_directories(fc4_fpu_logic_test PRIVATE plugin)
+    target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
+
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.
     set(FC4_ABI_TSV "${CMAKE_CURRENT_SOURCE_DIR}/../docs/abi/interfaces.tsv")
@@ -268,12 +280,15 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-ordinance)
     add_test(NAME plugin_ini_enable_demand_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-demand)
+    add_test(NAME plugin_ini_enable_plumbing_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-plumbing)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
     set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
         plugin_ini_enable_disabled_test plugin_ini_enable_weather_test plugin_ini_enable_ordinance_test
-        plugin_ini_enable_demand_test plugin_autotest_test PROPERTIES RUN_SERIAL TRUE)
+        plugin_ini_enable_demand_test plugin_ini_enable_plumbing_test plugin_autotest_test
+        PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

@@ -16,16 +16,18 @@
 //! remove agents, pause, change speed, ...) from inside its delivery.
 //!
 //! Threads: the game calls the `cISC4Simulator` interface from more than one
-//! thread — a worker thread reads the clock (for example `GetSimTime`) while
-//! the main thread is inside `OnTick` (in-game run 26: `RefCell already
-//! mutably borrowed`, a fail-fast). A `RefCell` is not `Sync`, so every state
-//! section also takes [`Simulator::gate`], a mutex held for exactly the same
-//! span as the borrow and therefore never across `deliver`, `post` or the
-//! reference-count hooks. Two threads are thus serialised for microseconds
-//! rather than for a whole tick, so a blocked caller cannot deadlock against a
-//! game lock the delivering agent needs. The only host callback reached while a
-//! section is open is [`Clock::now_ms`], which must not call back into the
-//! simulator (it is a clock read).
+//! thread — a worker thread reads the clock while the main thread is inside
+//! `OnTick`. Run 26 caught this as a `RefCell already mutably borrowed`
+//! fail-fast, and run 30 measured the caller directly: a fourth thread (not
+//! ours — our watchdog and autotest read only plugin globals the main thread
+//! publishes) called `IsPaused` off the main thread. A `RefCell` is not `Sync`,
+//! so every state section also takes [`Simulator::gate`], a mutex held for
+//! exactly the same span as the borrow and therefore never across `deliver`,
+//! `post` or the reference-count hooks. Two threads are thus serialised for
+//! microseconds rather than for a whole tick, so a blocked caller cannot
+//! deadlock against a game lock the delivering agent needs. The only host
+//! callback reached while a section is open is [`Clock::now_ms`], which must not
+//! call back into the simulator (it is a clock read).
 
 use std::cell::RefCell;
 use std::sync::{Mutex, MutexGuard};

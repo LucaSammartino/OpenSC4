@@ -41,6 +41,13 @@ void WatchdogStop();
 bool OnMainThread();
 // That thread's ID (0 before WatchdogStart).
 uint32_t MainThreadId();
+// The watchdog thread's ID (0 before its ThreadProc starts).
+uint32_t WatchdogThreadId();
+
+// Logs once if called off the main thread: proof of which of our interface
+// methods the game reaches concurrently, and from which thread. The core's
+// clock state must be Sync for as long as this can fire (foundations §19.2).
+void NoteOffMainThreadCall(const char* what);
 
 // One entry of the main thread's activity stack (no-op on other threads).
 // `label` must be a string literal (it is read later by the watchdog).

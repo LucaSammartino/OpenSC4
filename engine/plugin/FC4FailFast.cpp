@@ -13,8 +13,10 @@
 
 #include "FC4FailFast.h"
 
+#include "FC4Autotest.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
+#include "FC4Watchdog.h"
 #include "fc4.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -34,6 +36,24 @@ constexpr unsigned kWaitMs = 200;
 
 void PanicSink(void*, const uint8_t* text, size_t len) {
     FailFastLogText(reinterpret_cast<const char*>(text), static_cast<unsigned long>(len));
+    // Which thread panicked. Rust prints "unnamed" for a Win32 thread, so name
+    // it here: our watchdog and autotest threads read core state only through
+    // globals the main thread publishes, never through fc4_sim_* (foundations
+    // §19.2), so a panic on an unlisted tid means the GAME called the master
+    // clock cross-thread - which the original tolerates only because its own
+    // getters read plain members.
+    const DWORD tid = GetCurrentThreadId();
+    const char* who = "not ours: a GAME thread called into the core";
+    if (tid == MainThreadId()) {
+        who = "the MAIN thread";
+    } else if (tid != 0 && tid == WatchdogThreadId()) {
+        who = "our WATCHDOG thread";
+    } else if (tid != 0 && tid == AutotestThreadId()) {
+        who = "our AUTOTEST thread";
+    }
+    Log("fail-fast: the panicking thread was tid %lu (%s); main tid %lu, watchdog tid %lu, autotest tid %lu",
+        static_cast<unsigned long>(tid), who, static_cast<unsigned long>(MainThreadId()),
+        static_cast<unsigned long>(WatchdogThreadId()), static_cast<unsigned long>(AutotestThreadId()));
     DumpCallRing("  ");
     LogFlush();
 }
