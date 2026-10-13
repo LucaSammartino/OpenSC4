@@ -18,13 +18,14 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use super::{
-    is_rci_zone, place_error, ZonesHost, ZonesMessage, DEMOLISH_COMMIT_FLAGS, DEMOLISH_PRICE_FLAGS, IID_SIM_GRID,
-    MSG_INSERT_OCCUPANT, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, ZONE_GRID_CLASS,
+    is_rci_zone, place_error, ZonesHost, ZonesMessage, CLSID_ZONE_MANAGER, DEMOLISH_COMMIT_FLAGS,
+    DEMOLISH_PRICE_FLAGS, IID_SIM_GRID, MSG_INSERT_OCCUPANT, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, ZONE_GRID_CLASS,
 };
 use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::property::PropertyHolder;
 use crate::props;
-use crate::stream::{InStream, OutStream, RefValue, ResKey};
+use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
+use std::any::Any;
 use crate::variant::{mem, Elem, Variant};
 
 /// The zone manager's record version (§10.1 field 1).
@@ -716,7 +717,7 @@ impl ZoneManager {
     // ---- persistence (§10.1) ----
 
     /// `Write` (§10.1). Returns `GetError() = 0`.
-    pub fn write(&self, out: &mut dyn OutStream) -> bool {
+    pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
         let s = self.st.borrow();
         let mut ok = out.put_u16(MANAGER_RECORD_VERSION);
         // 2. reference: zone grid.
@@ -780,7 +781,7 @@ impl ZoneManager {
     /// `Read` (§10.1). Sets the loaded flag; a version other than 1 fails
     /// without reading more. A stream error fails and keeps the previous
     /// state; references already read are released.
-    pub fn read(&self, inp: &mut dyn InStream) -> bool {
+    pub fn read_record(&self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else { return false };
         if version != MANAGER_RECORD_VERSION {
             return false;
@@ -867,3 +868,18 @@ impl ZoneManager {
 /// The number of service references the zone manager reads (§10.1 field 13):
 /// city, occupant manager, terrain, pollution, budget.
 const SERVICE_REFS: u32 = 5;
+
+impl SaveObject for ZoneManager {
+    fn class_id(&self) -> u32 {
+        CLSID_ZONE_MANAGER
+    }
+    fn write(&self, out: &mut dyn OutStream) -> bool {
+        self.write_record(out)
+    }
+    fn read(&self, inp: &mut dyn InStream) -> bool {
+        self.read_record(inp)
+    }
+    fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}

@@ -29,15 +29,16 @@ use std::rc::Rc;
 
 use super::parcel::{block_depth, depth_rule, middle_row, zone_density, DEFAULT_BLOCK_DEPTH, MAX_WALK_STEPS};
 use super::{
-    is_rci_zone, lot_code, net, network_kind, ZonesHost, ZonesMessage, IID_LOT, MSG_INSERT_OCCUPANT, MSG_POST_CITY_INIT,
-    MSG_VIEW, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, BUILDING_TYPE, OBSTACLE_TYPE_2, MAX_CAPACITY_GRID_CLASS,
-    MAX_CAPACITY_GRID_INSTANCE,
+    is_rci_zone, lot_code, net, network_kind, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER, IID_LOT,
+    MSG_INSERT_OCCUPANT, MSG_POST_CITY_INIT, MSG_VIEW, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, BUILDING_TYPE,
+    OBSTACLE_TYPE_2, MAX_CAPACITY_GRID_CLASS, MAX_CAPACITY_GRID_INSTANCE,
 };
 use crate::development::{dev_type, BuildingProfile};
 use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::rng::{derive_seed, file_seed, FixedSeeds, RzRandom, SeedSource};
 use crate::stl::StlHashSet;
-use crate::stream::{InStream, OutStream, RefValue};
+use crate::stream::{InStream, OutStream, RefValue, SaveObject};
+use std::any::Any;
 use crate::x87::{ftol, r24, rhe};
 
 /// The zone developer's record version (§10.2 field 1).
@@ -2429,7 +2430,7 @@ impl ZoneDeveloper {
     // ---- persistence (§10.2) ----
 
     /// `Write` (§10.2). Returns `GetError() = 0`.
-    pub fn write(&self, out: &mut dyn OutStream) -> bool {
+    pub fn write_record(&self, out: &mut dyn OutStream) -> bool {
         let s = self.st.borrow();
         let mut ok = out.put_u16(DEVELOPER_RECORD_VERSION);
         ok &= out.put_u32(s.map_x as u32); // countX (rows)
@@ -2451,7 +2452,7 @@ impl ZoneDeveloper {
     /// `Read` (§10.2). Sets the loaded flag; version must be 1. Resizes the
     /// map, reads each cell's lot (IID `0xE818FCED`), rebuilds the master list
     /// in first-cell order (x outer, z inner) with a dedupe set.
-    pub fn read(&self, inp: &mut dyn InStream) -> bool {
+    pub fn read_record(&self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else { return false };
         if version != DEVELOPER_RECORD_VERSION {
             return false;
@@ -2515,3 +2516,18 @@ pub const TEST_SEEDS: FixedSeeds = FixedSeeds {
     wall_clock: 0,
     process_clock: 0,
 };
+
+impl SaveObject for ZoneDeveloper {
+    fn class_id(&self) -> u32 {
+        CLSID_ZONE_DEVELOPER
+    }
+    fn write(&self, out: &mut dyn OutStream) -> bool {
+        self.write_record(out)
+    }
+    fn read(&self, inp: &mut dyn InStream) -> bool {
+        self.read_record(inp)
+    }
+    fn as_any_rc(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}

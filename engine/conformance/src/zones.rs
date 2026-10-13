@@ -18,17 +18,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::{Rc, Weak};
 
 use fc4_core::development::BuildingProfile;
-use fc4_core::grid::{CityDims, SimGrid, TractGrid};
+use fc4_core::grid::{create_for_clsid, CityDims, SimGrid, TractGrid};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{derive_seed, FixedSeeds, RzRandom};
-use fc4_core::stream::RefValue;
+use fc4_core::store::{save_store, Package};
+use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, SaveRegistry};
 use fc4_core::zones::{
     block_depth, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning, zone_density, CellRegion, CellRect, Component, Draw,
     GridProvider, GrowthItem, InsertionPoint, LotSize, PlaceZoneResult, Position, Service, SharedZoneStatics,
-    ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, IID_LOT, LANDFILL_TYPE,
-    NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
+    ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
+    CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE, NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
 };
 
+use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
 use crate::runner::{boolean, field, HostRef};
 use crate::scalar::{self, arg, arr, bool_of, check_expect, f32_of, i64_of, ji, matches, opt, show, str_of, u32_of, EventLog, R};
@@ -143,6 +145,16 @@ pub(crate) struct World {
     /// The interleaved log of lot creations and Place calls (§15 tests
     /// 19–29: "the ordered log of lot creations and Place calls").
     parcel_log: RefCell<Vec<Json>>,
+    /// Saved cities by slot name (zone_save / zone_load).
+    saves: RefCell<BTreeMap<String, ZonesSaved>>,
+}
+
+/// One saved city: the store package plus the host (lot) tokens by
+/// (class, object id).
+#[derive(Clone)]
+struct ZonesSaved {
+    saved: scalar::Saved,
+    hosts: BTreeMap<(u32, u32), u64>,
 }
 
 const SEEDS: FixedSeeds = FixedSeeds {
@@ -182,6 +194,7 @@ impl World {
             street_fail_cells: RefCell::new(BTreeSet::new()),
             street_place_count: Cell::new(0),
             parcel_log: RefCell::new(Vec::new()),
+            saves: RefCell::new(BTreeMap::new()),
         });
         *w.me.borrow_mut() = Rc::downgrade(&w);
         w
@@ -781,6 +794,9 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "do_parcellization" => do_parcellization(&w, op),
         "draw_street" => draw_street(&w, op),
         "examine_boundaries" => examine_boundaries(&w, op),
+        "save" => save(&w, op),
+        "load" => load(&w, op),
+        "record" => record(&w, op),
         "call" => call(&w, op),
         "eval" => eval(op),
         "expect" => expect(&w, op),
@@ -1394,6 +1410,12 @@ fn call(w: &World, op: &Json) -> R<()> {
             Json::Object(vec![("ok".into(), Json::Bool(res.ok)), ("lot".into(), res.lot.map_or(Json::Null, |l| ji(l as i64)))])
         }
         ("developer", "get_lot_count") => ji(w.dev()?.lot_count() as i64),
+        ("developer", "master_lots") => {
+            let v = w.dev()?.master_lots();
+            Json::Array(v.iter().map(|&l| ji(l as i64)).collect())
+        }
+        ("developer", "is_loaded") => Json::Bool(w.dev()?.is_loaded()),
+        ("manager", "is_loaded") => Json::Bool(w.mgr()?.is_loaded()),
         ("developer", "get_random_lot") => match w.dev()?.get_random_lot() {
             Some(l) => ji(l as i64),
             None => Json::Null,
@@ -1676,4 +1698,160 @@ fn expect_draws(w: &World, op: &Json) -> R<()> {
         }
     }
     Ok(())
+}
+
+/// Saves the two classes through the class-object store (a root record
+/// referencing them), remembering the host (lot) tokens by (class, id).
+fn save_now(w: &World) -> R<ZonesSaved> {
+    let reg = Rc::new(RefCell::new(SaveRegistry::new()));
+    let mut root = ByteWriter::with_registry(reg.clone());
+    if let Some(m) = w.manager.borrow().clone() {
+        root.put_ref(&RefValue::Object(m as Rc<dyn SaveObject>));
+    }
+    if let Some(d) = w.developer.borrow().clone() {
+        root.put_ref(&RefValue::Object(d as Rc<dyn SaveObject>));
+    }
+    let mut pkg = Package::new();
+    let rep = save_store(&reg, &mut pkg);
+    if rep.aborted || rep.entries_discarded != 0 {
+        return Err(format!("save failed: {rep:?}"));
+    }
+    let hosts = reg
+        .borrow()
+        .entries
+        .iter()
+        .filter(|e| e.2.is_none())
+        .map(|e| ((e.0, e.1), e.3))
+        .collect();
+    Ok(ZonesSaved {
+        saved: scalar::Saved { pkg, root: root.into_bytes() },
+        hosts,
+    })
+}
+
+/// `zone_save`: `slot`.
+fn save(w: &World, op: &Json) -> R<()> {
+    let slot = str_of(field(op, "slot")?, "slot")?.to_owned();
+    let s = save_now(w)?;
+    w.saves.borrow_mut().insert(slot, s);
+    Ok(())
+}
+
+/// `zone_load`: `slot`, `expect` (default true: a clean store load). Creates
+/// fresh classes (sharing the statics and the world host), grids through the
+/// store factories and lots as the host tokens they had.
+fn load(w: &World, op: &Json) -> R<()> {
+    let slot = str_of(field(op, "slot")?, "slot")?.to_owned();
+    let saved = w.saves.borrow().get(&slot).cloned().ok_or("no such slot")?;
+    let me = w.rc()?;
+    let host = me.clone() as Rc<dyn ZonesHost>;
+    let statics = w.statics.borrow().clone().ok_or("no statics (use zone_create)")?;
+    let hosts = saved.hosts.clone();
+    let mut factory = |class: u32, id: u32| -> Option<RefValue> {
+        match class {
+            CLSID_ZONE_MANAGER => {
+                Some(RefValue::Object(Rc::new(ZoneManager::new(host.clone())) as Rc<dyn SaveObject>))
+            }
+            CLSID_ZONE_DEVELOPER => Some(RefValue::Object(
+                Rc::new(ZoneDeveloper::new(host.clone(), statics.clone())) as Rc<dyn SaveObject>,
+            )),
+            0x49B9_E603 | 0x49B9_E604 => create_for_clsid(class).map(RefValue::Object),
+            IID_LOT => hosts
+                .get(&(class, id))
+                .map(|&token| RefValue::Host { token, class_id: class }),
+            _ => None,
+        }
+    };
+    let (ok, roots) = scalar::load(&saved.saved, &mut factory);
+    let want = opt(op, "expect").map_or(Ok(true), |v| bool_of(v, "expect"))?;
+    if ok != want {
+        return Err(format!("store load clean = {ok}, expected {want}"));
+    }
+    let mut it = roots.into_iter();
+    if w.manager.borrow().is_some() {
+        if let Some(m) = it.next().and_then(|r| r.object::<ZoneManager>()) {
+            *w.manager.borrow_mut() = Some(m);
+        }
+    }
+    if w.developer.borrow().is_some() {
+        if let Some(d) = it.next().and_then(|r| r.object::<ZoneDeveloper>()) {
+            *w.developer.borrow_mut() = Some(d);
+        }
+    }
+    Ok(())
+}
+
+/// `zone_record`: `target` ("manager" or "developer") and one of `hex` (the
+/// payload bytes of that class's record in a fresh store must equal it),
+/// `byte_length` (the payload length; a 64 × 64 developer record is far too
+/// large to write out), or `read` (read the bytes into the class, `expect` =
+/// the Read result).
+fn record(w: &World, op: &Json) -> R<()> {
+    let target = opt(op, "target").and_then(|v| v.as_str()).unwrap_or("manager");
+    if let Some(v) = opt(op, "byte_length") {
+        let want = i64_of(v, "byte_length")? as usize;
+        let saved = save_now(w)?;
+        let class = match target {
+            "developer" => CLSID_ZONE_DEVELOPER,
+            _ => CLSID_ZONE_MANAGER,
+        };
+        let got = scalar::entry_payload(&saved.saved, class, 0)?;
+        if got.len() != want {
+            return Err(format!("{target} record is {} bytes, expected {want}", got.len()));
+        }
+        return Ok(());
+    }
+    if let Some(hex) = opt(op, "hex") {
+        let want = hex_decode(str_of(hex, "hex")?)?;
+        let saved = save_now(w)?;
+        let class = match target {
+            "developer" => CLSID_ZONE_DEVELOPER,
+            _ => CLSID_ZONE_MANAGER,
+        };
+        let got = scalar::entry_payload(&saved.saved, class, 0)?;
+        if got != want {
+            return Err(format!(
+                "{target} record differs:
+    got      {}
+    expected {}",
+                hex_encode(&got),
+                hex_encode(&want)
+            ));
+        }
+        return Ok(());
+    }
+    if let Some(hex) = opt(op, "hex_prefix") {
+        let want = hex_decode(str_of(hex, "hex_prefix")?)?;
+        let saved = save_now(w)?;
+        let class = match target {
+            "developer" => CLSID_ZONE_DEVELOPER,
+            _ => CLSID_ZONE_MANAGER,
+        };
+        let got = scalar::entry_payload(&saved.saved, class, 0)?;
+        if got.len() < want.len() || got[..want.len()] != want[..] {
+            return Err(format!(
+                "{target} record prefix differs:
+    got      {}
+    expected {}",
+                hex_encode(&got[..got.len().min(want.len() + 8)]),
+                hex_encode(&want)
+            ));
+        }
+        return Ok(());
+    }
+    if let Some(hex) = opt(op, "read") {
+        let bytes = hex_decode(str_of(hex, "read")?)?;
+        let mut br = ByteReader::new(&bytes);
+        let ok = match target {
+            "developer" => w.dev()?.read_record(&mut br),
+            _ => w.mgr()?.read_record(&mut br),
+        };
+        if let Some(e) = op.get("expect") {
+            if boolean(e).unwrap_or(true) != ok {
+                return Err(format!("read returned {ok}, expected {}", show(e)));
+            }
+        }
+        return Ok(());
+    }
+    Err("zone_record needs 'hex' or 'read'".into())
 }
