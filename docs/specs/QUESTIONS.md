@@ -42,10 +42,10 @@ high edges and the placeStreets-off case. §7.3 now states the consequence: at t
 own zoned, empty cell. It scores like an empty outside cell (+1 per cell with `placeStreets`), so a border side is
 neither skipped nor scored as an obstacle.
 
-**ZQ6 — §7.5 step 1 table, three of six cells unpinned.**
-`zn15_30`/`zn15_31` pin the x-line `_` arm (Q=3) and the `0|2` arm in its `D = 3` branch, and the z-line `_` and `2`
-arms. Not pinned: the x-line `1` arm, the `D != 3` branch of the x-line `0|2` arm, and the z-line `0` and `1` arms.
-Documented in `engine/conformance/README.md` rather than left implicit.
+~~**ZQ6 — §7.5 step 1 table, three of six cells unpinned.**~~ **ANSWERED 2026-10-13** from the exe. The table was
+checked on the bytes and is correct as written: Q is `+0xCC`, D is `+0xD0`, and the jump table is at `0x0072EC44`.
+zones.md §15 now has **test 32**, which gives the street positions for all eight perpendicular (Q, D) pairs on a
+16 × 16 rect (n = 6), plus the edge rule. That pins every arm, including the four listed here.
 
 ## From the residential core (filed by the coordinator from the lane's report, 2026-10-13; branch `residential-core`, tip `cc6e25d`, NOT merged)
 

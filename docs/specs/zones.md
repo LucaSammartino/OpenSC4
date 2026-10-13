@@ -537,6 +537,10 @@ highlight maps. Consequences in highlight mode:
    A counter starts at 0 per pass. On each line: if counter ≥ n and the line is ≥ 2 cells from both rect edges,
    draw a street (`DrawStreet` §7.10, whole line across the rect, perCell = 0) and reset the counter; otherwise
    counter += 1. So streets are separated by n lot lines.
+   The table was checked on the bytes: Q is `+0xCC` and D is `+0xD0`, as `ExamineBoundaries` stores them
+   (`0x00731ECE`), and the jump table is at `0x0072EC44`. An x-line street is `DrawStreet(x, z1, x, z2, 0)` and a
+   z-line street is `DrawStreet(x1, z, x2, z, 0)`, so both are drawn from the low edge whatever the pass direction;
+   only the positions of the lines show the direction (test 32).
 2. For **every cell of the restriction rect**, x ascending (outer), z ascending (inner), regardless of the region's
    bits: `CreateLotToFaceRoad(x, z, 1, 1, emptyList)` (§7.7) → **one random draw per cell** (§9). The created lot's
    extra reference is released. Cells that cannot hold a lot (not zoned with the current zone, street, water, lot …)
@@ -1504,3 +1508,22 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
       instead, the 3 × 3 rect allows the swap: **flag 0, D = 1, Q = 0**.
     - (c) (a) with `SetOptions(0, 0, 0)`. C starts at 1, so no cell gets the +1: **S = {0, 300, 0, 0},
       C = {1, 1, 1, 1}, D = 1, Q = 2, flag 1**.
+32. **`SimpleParcellize` street lines** (§7.5 step 1, every arm of the table). R = the full rect x 10..25,
+    z 20..35 (16 × 16), n = 6, `placeStreets` set. The harness sets D and Q directly and logs the Place calls of step
+    1, with the street stub of tests 19–29. A pass from the low edge lays streets at offsets 6 and 13 (x 16, 23;
+    z 26, 33). A pass from the high edge lays them at x 19, 12 and z 29, 22, in that order. Every x-pass street is
+    Place(x, 20, x, 35) and every z-pass street is Place(10, z, 25, z). All x-pass streets come first:
+
+    | Q | D | x streets | z streets |
+    |---|---|---|---|
+    | 0 | 1 | 19, 12 | 26, 33 |
+    | 0 | 3 | 16, 23 | 26, 33 |
+    | 1 | 0 | 19, 12 | 26, 33 |
+    | 1 | 2 | 19, 12 | 29, 22 |
+    | 2 | 1 | 19, 12 | 29, 22 |
+    | 2 | 3 | 16, 23 | 29, 22 |
+    | 3 | 0 | 16, 23 | 26, 33 |
+    | 3 | 2 | 16, 23 | 29, 22 |
+
+    Edge rule: with x 10..17 (8 wide), neither direction lays an x street, because offset 6 is one cell from the far
+    edge. With x 10..18, the low edge gives 16 and the high edge gives 12.
