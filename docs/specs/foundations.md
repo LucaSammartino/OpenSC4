@@ -1814,7 +1814,20 @@ in the window between PreAppInit and PostAppInit. Two cheap next steps, in order
 A workaround, if the trigger turns out to be unavoidable, is to re-assert 24-bit ourselves at PostAppInit and at
 the top of each simulation entry point by calling the game's own helper `0x008929E0` with mode 0 (it is
 unconditional, so it works even though the Lua-style guarded pattern cannot restore). Any such fix must be logged,
-because it silently changes what the *original* subsystems compute while our DLL is loaded. Until the trigger is
+because it silently changes what the *original* subsystems compute while our DLL is loaded.
+
+**Calling conventions, verified in the bytes** (needed to call the helper safely):
+
+- Setter `0x008929E0` is **cdecl, one int argument, no return value**. Body: `push ebp / mov ebp,esp / push ecx`,
+  clear the PC field of a stack copy of the control word, `fstcw` it, OR in bit 1 if `[ebp+8]==1` (mode 1 = 53-bit)
+  or bits 0–1 if `[ebp+8]==2` (mode 2 = 64-bit), then `fldcw` it back, `leave`, `ret`. The plain `ret` means **the
+  caller pops the argument** — consistent with every call site doing `push 1; call; add esp,4`. Declare it
+  `void (__cdecl *)(int mode)`; a `__stdcall`/`__thiscall` declaration would corrupt the stack.
+- Getter `0x00892A0A` is **cdecl, no arguments, returns `char` in AL**: `fstcw` to a local, mask to `0x300`, return
+  0 for PC = 00 (24-bit), 1 for PC = 10 (53-bit), 2 for PC = 11 (64-bit).
+- The Lua pattern is `g := getter(); if g == 0 { setter(1) } … work … if g == 0 { setter(0) }`. Both branches are
+  guarded by the *saved* value, so when the thread is **not** already at 24-bit neither call happens — which is why no
+  Lua call can restore 24-bit. Until the trigger is
 identified, **no differential run against the original code is trustworthy for float-sensitive values**: the
 original computes wrongly inside our process, and the testing rule above (harnesses log PC = 00) is what detects it.
 
