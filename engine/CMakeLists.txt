@@ -187,6 +187,10 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Plumbing.h
         plugin/cFC4Flammability.cpp
         plugin/cFC4Flammability.h
+        plugin/cFC4Pollution.cpp
+        plugin/cFC4Pollution.h
+        plugin/FC4PollutionShadow.cpp
+        plugin/FC4PollutionShadow.h
         plugin/cFC4Protection.cpp
         plugin/cFC4Protection.h
         plugin/FC4ProtectionShadow.cpp
@@ -292,12 +296,15 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-demand)
     add_test(NAME plugin_ini_enable_plumbing_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-plumbing)
+    add_test(NAME plugin_ini_enable_pollution_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-pollution)
     # Autotest: child processes that end with the verdict and TerminateProcess.
     add_test(NAME plugin_autotest_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --autotest)
     # All of them write FreeCity4.log next to the DLL.
     set_tests_properties(plugin_load_test plugin_disable_test plugin_ini_disable_test plugin_ini_enable_test
         plugin_ini_enable_disabled_test plugin_ini_enable_weather_test plugin_ini_enable_ordinance_test
         plugin_ini_enable_demand_test plugin_ini_enable_plumbing_test plugin_autotest_test
+        plugin_ini_enable_pollution_test
         PROPERTIES RUN_SERIAL TRUE)
     # popup_dialogs (FC4Popups.h): child processes, one FreeCity4.ini each.
     add_test(NAME plugin_ini_popups_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-popups)

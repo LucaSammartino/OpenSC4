@@ -212,7 +212,8 @@ impl SaveObject for PollutionSim {
                 if let Some(d) = base.department {
                     self.host.release(d);
                 }
-                *self.s.borrow_mut() = new;
+                *self.gate() = new;
+                self.warm_grids();
                 true
             }
             None => {

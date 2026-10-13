@@ -60,6 +60,7 @@ constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+constexpr uint32_t kMsgConnectionsReady = 0x6AC284F3;  // foundations.md 11.6; popup_dialogs = 0 waits for it
 constexpr uint32_t kObserverServiceID = 0x5C7A43E2;  // random, FreeCity4's
 constexpr int32_t kObserverPriority = -1000000;      // [choice] tooling; any value works
 
@@ -487,11 +488,14 @@ public:
                 if (!SimulatorReplaced()) SetCityRunning(true);  // ours does it itself
                 AutotestOnCityLoaded();
                 AutoloadOnCityLoaded();
-                PopupDialogsApply("city load (PostCityInit)");  // only if PostAppInit could not make the call
+                PopupDialogsOnCityLoad();
                 // The snapshot at the next tick (outside the city's init
                 // message), for comparison with the one before a save.
                 loadSnapshotDue_ = observe_ || saveAfterMonths_ > 0;
                 monthsSinceLoad_ = 0;
+                break;
+            case kMsgConnectionsReady:
+                PopupDialogsOnConnectionsReady();
                 break;
             case kMsgSimNewDay: {
                 bool ok = false;
@@ -560,7 +564,7 @@ public:
         const bool service = fw->AddSystemService(static_cast<cIGZSystemService*>(this));
         const bool tick = fw->AddToTick(static_cast<cIGZSystemService*>(this));
         bool notes = true;
-        for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth}) {
+        for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth, kMsgConnectionsReady}) {
             notes = ms->AddNotification(static_cast<cIGZMessageTarget2*>(this), id) && notes;
         }
         started_ = true;
@@ -575,7 +579,7 @@ public:
         started_ = false;
         cIGZMessageServer2Ptr ms;
         if (ms) {
-            for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth}) {
+            for (uint32_t id : {kMsgPostCityInit, kMsgSimNewDay, kMsgSimNewMonth, kMsgConnectionsReady}) {
                 ms->RemoveNotification(static_cast<cIGZMessageTarget2*>(this), id);
             }
         }

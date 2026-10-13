@@ -156,6 +156,17 @@ plugin.
        `power_occupants`, `power_poles`, `power_lots`, `power_neighbors`, `power_budget`, `power_grid_writes`,
        `power_posts`, `power_terrain`, `power_zone_tool`, `power_view`, `power_radiation`,
        `power_occupant_query`, `power_demolish`, `power_direct_calls` (see `plugin/FC4Config.h`).
+     - `pollution`: the pollution and garbage simulator (`cSC4PollutionSimulator`, pollution spec; its eight grids
+       are the game's own `cSC4SimGrid<int16>`, created through GZCOM). The getters are answered from any thread
+       (the game asks from a second thread during a day or a month). Not yet done (logged once): the visual effects
+       of §4.10 (`cISC4VisualEffect` / `cS3DTransform` are not in docs/abi). The log has a status line at `Init`,
+       `Read` and every month (`pollution month: init=… cells=… lists wtp/inc/wte/rec=… avg air/water/garbage=…
+       supply=… capacity=… last month produced/…/landfilled=… cost=…; grids airSrc nonzero/tracts sum [min..max],
+       …`). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
+       `pollution_occupants`, `pollution_lots`, `pollution_neighbors`, `pollution_budget`,
+       `pollution_grid_writes`, `pollution_posts`, `pollution_history`, `pollution_ordinance`,
+       `pollution_traffic`, `pollution_zoning`, `pollution_power`, `pollution_landfill`, `pollution_population`,
+       `pollution_props`, `pollution_terrain` (see `plugin/FC4Config.h`).
      - `protection`: the fire and police simulators together (`cSC4FireProtectionSimulator`,
        `cSC4PoliceSimulator`, protection spec; replaced together, §13.2). Their coverage grids are the game's own
        `cSC4SimGrid<uint8>` / `<int16>`, created through GZCOM. The fire plane and police helicopter dispatch
@@ -259,14 +270,17 @@ plugin.
      (autoload) logs `observe snapshot (after load): …` to compare with the line before the save.
    - **Popup dialogs off** (`popup_dialogs = 0`, env `FC4_POPUP_DIALOGS`; not set = the game is left alone): for
      unattended runs, where an advisor popup holds the city (a hidden pause of the simulator) until someone clicks
-     Close. FreeCity4 calls `cISC4App::SetPopupDialogsEnabled(false)` (slot 24) once per process, at `PostAppInit`
-     (before any city view exists), or at the first city load if the app was not reachable there (advisors spec
-     §6.8.1, option 1). Advisor popups are then dropped without pausing, and the generic notification,
+     Close. FreeCity4 calls `cISC4App::SetPopupDialogsEnabled(false)` (slot 24) when **ConnectionsReady**
+     (`0x6AC284F3`) arrives, a few frames after each city load, and sets it true again at the next city load
+     (advisors spec §6.8.1, option 1; foundations §11.6). Not earlier: with popups off, the terrain edge
+     reconciliation is skipped and the regional city never posts ConnectionsReady, so power, plumbing and the
+     neighbours simulator stay disabled all session (runs 58–64 did this at `PostAppInit`; run 64 vs 65 shows it).
+     Advisor popups are then dropped without pausing, and the generic notification,
      confirmation and scripted modal dialogs return without asking (false / 0; the quit, go-to-region, obliterate
      and budget-failure prompts use the scripted one, and what they then do is not in the spec). City-situation
      popups still show and pause. The log proves it
      took effect by reading the getter (slot 23) before and after:
-     `popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at PostAppInit`.
+     `popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at ConnectionsReady`.
      `popup_dialogs = 1` calls it with `true`; any other value logs `config: WARNING popup_dialogs='…' … is not
      0/1` and leaves the game alone. Manual fallback without FreeCity4: untick Options → Play Options → "Urgent
      Advice Dialogs" (saved in the user's preferences; advisor popups only).
@@ -325,6 +339,31 @@ plugin.
        mismatches=M; checks=K clean=C
      demand shadow yyyy-mm-dd modifiers R$ (0x21010): tax …; econ …; before …; ours: max rate … ratio … curve …
      ```
+   - **Pollution shadow** (`pollution_shadow = 1`, env `FC4_POLLUTION_SHADOW`; off by default;
+     `pollution_shadow_cells = N`, env `FC4_POLLUTION_SHADOW_CELLS`, default 4, 1..64): a same-process differential
+     of the eight pollution grids. It needs **our simulator and the original pollution simulator** (do not enable
+     `pollution`); otherwise it logs `pollution shadow: requested … but INACTIVE` at game start. Our simulator wraps
+     each `SimNewDay` and `SimNewMonth` delivery to the original's agent (`cSC4PollutionSimulator`): just before it,
+     the original's own `Write` (`cIGZSerializable`) goes into a memory stream, and FreeCity4's core loads that
+     record, copies the eight live grids it refers to and runs its own day or month on the copies, reading every
+     other input (city geometry, tuning, terrain, zones, air traffic, ordinances, deals, power, population,
+     landfill, occupant properties, budget items) through a read-only host table; just after it, the record is
+     captured again and our grids are compared with the live ones cell by cell, with the saved fields, and with
+     the occupant properties and deal usage. Nothing is written to the game (the shadow's host table has no write
+     callbacks; its grid table only reads). Not readable read-only, hence not compared (said in the start line):
+     the radiation sum (not saved), the posted messages, history and budget values, the visual effects and the
+     worst tracts. Lines (always written; longer ones continue on `pollution shadow (cont.)` lines):
+
+     ```
+     pollution shadow yyyy-mm-dd day|month: …    a delivery with a difference (at most 8 a month), a rerun with
+                                                 the original's tract order, or INCOMPLETE (why); not compared
+     pollution shadow month to yyyy-mm-dd: deliveries=N (days D, months M) clean=C incomplete=I reruns=R
+       uncached=U; cells=X mismatches=Y; airSrc y/x max|d|=…, waterSrc …, garbageSrc …, radSrc …, airVal …,
+       waterVal …, garbageVal …, radVal …; first differing cells: …; fields: …; props compared=… mismatched=…;
+       deals compared=… mismatched=… [; incomplete because: …]
+     ```
+
+     Success is `clean` equal to `deliveries` and `mismatches=0` on every month line.
    - **Protection shadow** (`protection_shadow = 1`, env `FC4_PROTECTION_SHADOW`; off by default): a same-process
      differential of the fire and police coverage grids. It needs the **original** fire and police simulators (do
      not enable `protection`; otherwise `protection shadow: requested … but INACTIVE`). At every `SimNewMonth` (the

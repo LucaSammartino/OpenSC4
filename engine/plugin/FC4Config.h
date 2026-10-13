@@ -47,6 +47,9 @@
 //                                 asking), 1 = (true); unset = leave the game alone;
 //                                 env FC4_POPUP_DIALOGS; read at game start, called at
 //                                 PostAppInit (FC4Popups.h)
+//   pollution_shadow = 0 / 1      the pollution grid shadow (default 0; needs the
+//                                 original pollution simulator; FC4PollutionShadow.h)
+//   pollution_shadow_cells = N    its differing cells listed per grid (default 4)
 //   protection_shadow = 0 / 1     the fire / police grid shadow (default 0; needs
 //                                 the ORIGINAL protection simulators: do not enable
 //                                 protection; FC4ProtectionShadow.h)
@@ -139,6 +142,24 @@ enum class Sw : unsigned {
     FlammabilityGridWrites, // flammability_grid_writes: SetTractValue / SetTractValues on the two grids
     FlammabilityPosts,      // flammability_posts: the cycle-complete message
     FlammabilityHistory,    // flammability_history: RecordHistoryData of the average
+    // Pollution simulator host callbacks (cFC4Pollution.cpp), one per group of
+    // game calls; only used when the pollution subsystem is enabled.
+    PollutionOccupants,   // pollution_occupants: occupant property reads / writes / removals, position,
+                          //   bounding box (off: occupants look empty, nothing written)
+    PollutionLots,        // pollution_lots: GetLot and the lot's SetCondition (off: nothing done)
+    PollutionNeighbors,   // pollution_neighbors: garbage deals, SetAmountUsed, MarkDealsDirty (off: no deals)
+    PollutionBudget,      // pollution_budget: department, line items, budget items (off: no department)
+    PollutionGridWrites,  // pollution_grid_writes: SetTractValue / SetTractValues on the eight grids
+    PollutionPosts,       // pollution_posts: messages the pollution simulator posts
+    PollutionHistory,     // pollution_history: RecordHistoryData / SetHistoryDataQueueLength
+    PollutionOrdinance,   // pollution_ordinance: GetCumulativeFactor reads (off: 1.0)
+    PollutionTraffic,     // pollution_traffic: the traffic simulator's air-polluting traffic map (off: 0)
+    PollutionZoning,      // pollution_zoning: GetZoneType reads of the zone manager (off: unzoned)
+    PollutionPower,       // pollution_power: IsOccupantPowered reads of the power simulator (off: unpowered)
+    PollutionLandfill,    // pollution_landfill: the landfill developer's usage and tile count (off: 0)
+    PollutionPopulation,  // pollution_population: the residential simulator's GetPopulation (off: 0)
+    PollutionProps,       // pollution_props: Add / RemovePropRequester on the prop developer
+    PollutionTerrain,     // pollution_terrain: terrain altitude reads (off: 0)
     // Fire and police protection host callbacks (cFC4Protection.cpp), one per
     // group of game calls; only used when the protection subsystem is enabled.
     ProtectionOccupants,   // protection_occupants: occupant type, properties (reads and writes),

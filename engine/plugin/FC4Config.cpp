@@ -94,6 +94,21 @@ const SwitchInfo kSwitches[kCount] = {
     {"flammability_grid_writes", "FC4_FLAMMABILITY_GRID_WRITES"},
     {"flammability_posts", "FC4_FLAMMABILITY_POSTS"},
     {"flammability_history", "FC4_FLAMMABILITY_HISTORY"},
+    {"pollution_occupants", "FC4_POLLUTION_OCCUPANTS"},
+    {"pollution_lots", "FC4_POLLUTION_LOTS"},
+    {"pollution_neighbors", "FC4_POLLUTION_NEIGHBORS"},
+    {"pollution_budget", "FC4_POLLUTION_BUDGET"},
+    {"pollution_grid_writes", "FC4_POLLUTION_GRID_WRITES"},
+    {"pollution_posts", "FC4_POLLUTION_POSTS"},
+    {"pollution_history", "FC4_POLLUTION_HISTORY"},
+    {"pollution_ordinance", "FC4_POLLUTION_ORDINANCE"},
+    {"pollution_traffic", "FC4_POLLUTION_TRAFFIC"},
+    {"pollution_zoning", "FC4_POLLUTION_ZONING"},
+    {"pollution_power", "FC4_POLLUTION_POWER"},
+    {"pollution_landfill", "FC4_POLLUTION_LANDFILL"},
+    {"pollution_population", "FC4_POLLUTION_POPULATION"},
+    {"pollution_props", "FC4_POLLUTION_PROPS"},
+    {"pollution_terrain", "FC4_POLLUTION_TERRAIN"},
     {"protection_occupants", "FC4_PROTECTION_OCCUPANTS"},
     {"protection_budget", "FC4_PROTECTION_BUDGET"},
     {"protection_dispatch", "FC4_PROTECTION_DISPATCH"},
@@ -111,7 +126,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
                                   "demand_shadow_nodes",
                                   "popup_dialogs", "clock_probe", "autotest_end",
-                                  "protection_shadow"};
+                                  "pollution_shadow", "pollution_shadow_cells", "protection_shadow"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
@@ -119,8 +134,11 @@ char g_offList[512] = "-";
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1};  // protection_*
-static_assert(kCount == 65, "g_on: one 1 per switch");
+                               // pollution
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // protection
+                               1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 80, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

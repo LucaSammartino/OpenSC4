@@ -117,6 +117,14 @@ INTERFACES = [
     ("cISC4PlumbingSimulator", "cFC4ISC4PlumbingSimulator", FC4, True),
     ("cIGZSerializable(Plumbing)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(Plumbing)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    # Pollution (docs/specs/pollution.md §8): implemented (the SDK row above
+    # stays for the plumbing glue's calls), its sub-object interfaces, and the
+    # prop developer it registers with.
+    ("cISC4PollutionSimulator", "cFC4ISC4PollutionSimulator", FC4, True),
+    ("cIGZSerializable(Pollution)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Pollution)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4PropRequester(Pollution)", "cFC4ISC4PropRequester", FC4, True),
+    ("cISC4PropDeveloper", "cISC4PropDeveloper", "cISC4PropDeveloper.h", True),
     # Flammability (docs/specs/flammability.md §11, §12): implemented, and the
     # services it calls. The SDK declaration of the simulator matches docs/abi.
     ("cISC4FlammabilitySimulator", "cISC4FlammabilitySimulator", "cISC4FlammabilitySimulator.h", True),
