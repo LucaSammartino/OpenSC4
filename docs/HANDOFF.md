@@ -280,7 +280,8 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
       department expenses, which already matched in runs 35/36.
     - On January 1, income/expense can't be observed (QUESTIONS BQ2).
     - Lot order may differ, which can shift float sums by about ±1 per 1000 lots (QUESTIONS BQ1). None showed up.
-  - **Worth doing next:** the same shadow on Konradshohe, a bigger city with many more lots, and over a full year.
+  - **Done on Konradshohe as well:** run 40 matched 2 of 2 months. Run 41 matched **35 of 35 month-ends** (2026-02 →
+    2028-12, two January settlements, 681–740 lots), with no mismatch line at all.
 
 ### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
 Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
@@ -594,6 +595,16 @@ always check the unstaged diff, which may contradict already-committed text.
     would resolve symbols wrongly. **Restage a matching DLL/PDB pair before trusting any future crash dump.**
     *(Done in the second session: every DLL staged since run 33 went in with its own PDB, and backups are now made as
     pairs. The mismatched one is kept as `FreeCity4.pdb.run33-prestage-MISMATCHED`.)*
+  - **Advisor dialogs pause the simulation and the autotest does not undo it** (the user confirmed this on 2026-10-13).
+    An advisor popup that asks for something holds the city. **The signal is the heartbeat date stopping while
+    `+N OnTick` keeps counting** (with `pause 0`). `autotest_unpause` does not undo it.
+    - **The `hidden` field is NOT the signal.** In run 41 it reads 1 in 79 of 83 heartbeats, including stretches where
+      the date raced ahead (2026-08 → 2028-12 in about two minutes). Its meaning is not established. Don't key on it.
+    - **What it cost:** run 40 sat at 2026-03-03 for its last ~400 s and covered 2 months, not the planned span. Run 41
+      sat at 2026-05-03 for ~7.5 min until the dialog was dismissed by hand, then still covered 35 month-ends.
+    - **How to read a run:** a frozen date with ticks still counting is an advisor pause, not a stall or a bug.
+    - **For long unattended runs**, an engine-side fix is needed: an autotest option to dismiss or suppress advisor
+      dialogs. Until then the user may click them away.
   - **Someone may close the game by hand during a run** (it happened in runs 34 and 38). The harness then reports
     `exited (code 0) without a verdict`. Read the log tail. An orderly `PostAppShutdown` / `DLL_PROCESS_DETACH (process
     exit)` is a manual quit, not a crash, and it usefully runs the `Shutdown` path that the autotest's TerminateProcess

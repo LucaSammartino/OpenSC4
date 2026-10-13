@@ -60,6 +60,9 @@ month. See the x87 note below. Our own budget replacement is correct.
 
 | 39 | shadow build `D69F64FF…` (merged as `6ca4b65`), `disable = budget` (our clock, the original budget), `budget_shadow = 1`, Spandau | **clean, and the budget matches the original exactly.** At each of five month-ends, our tax scan ran on the same live lots (413–417) just before the original settled, in the same process. All 12 tax types, total tax, income, expense and net were **identical every month** (`mismatches=0`, `months=5 clean=5`). On 2002-01-01 income/expense can't be observed because the year-to-date resets (QUESTIONS BQ2), but tax and net still matched. This was also the first in-game run of our clock driving the original budget. |
 
+| 40 | main `6ca4b65` build, the same shadow config, FC4 Test's Konradshohe, speed 1 | **clean, 2 of 2 months matched** (740 and 729 lots). The rest of the run was lost to an advisor dialog holding the city at 2026-03-03 (HANDOFF §8). |
+| 41 | same, `autotest_unpause = 2`, 840 s | **clean, and 35 of 35 month-ends matched exactly** (2026-02 → 2028-12, including two January 1 settlements, 681–740 lots). No mismatch or attribution line was written in the whole run. An advisor dialog held the city for ~7.5 min until it was dismissed by hand. |
+
 **Run 39 settles the per-type question below:** on identical state, ours equals the original on every tax type. The
 type-3 gap between runs 35 and 36 was the original's run-to-run drift, not a bug.
 
