@@ -194,7 +194,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   `0x00714386`–`0x00714396`) and written into §4.8. **The bracket is right on both counts.** A re-insert does
   find-or-insert and copies the whole record over it. A null paired portal (or no matching type) returns before
   that, so no record is created and an existing one is left as it was.
-- **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
+- ~~**TN12 — §4.2:** are edge-density entries created for both evening values? [both]~~ **ANSWERED 2026-10-14**
+  from the exe (`DoConnectionsChanged` `0x0071AD20`–`0x0071AE1E`) and written into §4.2 step 3. **The bracket is
+  right: both.** For every t on n, the evening-0 key and then the evening-1 key (`| 1 << 24`) are each looked up.
+  A missing one is inserted as a copy of the zero record; an existing one is not touched.
 - ~~**TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
   `0x69D5C424` the "wormhole byte map". [none]~~ **ANSWERED 2026-10-13** from the exe and written into
   traffic-network.md §1 (Init step 5) and §2.3. Both are **instance IDs**, set by `SetInstanceID` (grid slot 6) at

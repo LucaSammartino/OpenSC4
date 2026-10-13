@@ -347,7 +347,11 @@ This rebuilds the graph over a rectangle. In this order:
          `IsOfType(k)`, set `type = k`, with two exceptions: Street (3) is taken only while still "none", and Road (0)
          does not replace Highway (2). The last match wins. If still "none": type 0 and `invCap = 1.0`, else
          `invCap = invCapTable[type]`;
-       - create the edge-density entries of the cell for every t on n, if missing (traffic-simulator.md).
+       - create the edge-density entries of the cell for every t on n, if missing (traffic-simulator.md §4.8). For
+         each t = 0…8 with `net(t) = n`, in order, this is done for **both** evening values: first the key
+         `t << 16 | x << 8 | z`, then `1 << 24 | t << 16 | x << 8 | z` (TN12, `0x0071AD20`–`0x0071AE1E`). Each key
+         is looked up on its own. A missing one is inserted as an all-zero record (a copy of the shared zero record
+         `0x00AB31D0`, `0x42` bytes). An existing one is left as it is, so its counts are **not** reset here.
 4. **Transit switches** over **R1** = R grown by 1 more and clamped (so the original rectangle + 3). See §4.7.4.
 5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`.
 6. **Ferries**: every terminal is processed in list order (§4.9.2).
