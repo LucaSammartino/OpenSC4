@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "zones_t29_middle_row",
+  "spec": ["zones 7.6.1", "zones 15.29"],
+  "description": "Conformance test 29 (middle row, §7.6.1): o0 = 10, row step +2 (low-side Q, lot width 2). The number of row positions that satisfy the keep condition fixes mid := o0 + (floor(n/2) - 1) * so when floor(n/2) >= 1, else o0. Row range 10..15 -> n = 3 -> mid 10; 10..17 -> n = 4 -> mid 12; 10..21 -> n = 6 -> mid 14; 10..11 -> n = 1 -> mid 10. In test 20 the forced cross street therefore follows the first row.",
+  "steps": [
+    {"op": "zone_eval", "fn": "middle_row", "args": [10, 2, 10, 15, 2], "expect": 10},
+    {"op": "zone_eval", "fn": "middle_row", "args": [10, 2, 10, 17, 2], "expect": 12},
+    {"op": "zone_eval", "fn": "middle_row", "args": [10, 2, 10, 21, 2], "expect": 14},
+    {"op": "zone_eval", "fn": "middle_row", "args": [10, 2, 10, 11, 2], "expect": 10}
+  ]
+}

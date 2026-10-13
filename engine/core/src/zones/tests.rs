@@ -93,6 +93,18 @@ fn block_depth_table() {
     assert_eq!(block_depth(0, 99, true), DEFAULT_BLOCK_DEPTH);
 }
 
+// ---- middle row (test 29) ----------------------------------------------------------------------
+
+#[test]
+fn middle_row_test_29() {
+    // o0 = 10, row step +2 (low side Q ∈ {0,3}, so = +lw = +2): range 10..15
+    // → mid 10; 10..17 → 12; 10..21 → 14; 10..11 → 10.
+    assert_eq!(middle_row(10, 2, 10, 15, 2), 10);
+    assert_eq!(middle_row(10, 2, 10, 17, 2), 12);
+    assert_eq!(middle_row(10, 2, 10, 21, 2), 14);
+    assert_eq!(middle_row(10, 2, 10, 11, 2), 10);
+}
+
 // ---- region helpers (§7.2, §11.4) --------------------------------------------------------------
 
 #[test]

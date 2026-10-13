@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "zones_t21_no_automatic_streets",
+  "spec": ["zones 7.6", "zones 7.3", "zones 15.21"],
+  "description": "Conformance test 21: test 19 with SetOptions(0, 0, 0) (no automatic streets). C = {1,1,1,1}, S = {600,0,0,0}, D = 0, Q = 3, flag 1, farRoad (C[2] = 1). Parcellize lays a 6 × 4 grid of six 2 × 2 lots (front f0 on the north row, back f2 on the south row) with no Place calls.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_network", "runs": [{"kind": 0, "rect": [8, 9, 17, 9]}]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": false, "custom": false},
+    {"op": "zone_lot_size", "width": 2, "depth": 2, "min_depth": 1, "max_depth": 3, "block": 6},
+    {"op": "zone_place_zone",
+     "region": {"rect": [10, 10, 15, 13]},
+     "type": 1, "commit": true, "skip_funds": true, "check_slope": false, "skip_size": true, "check_lot_inside": true},
+    {"op": "zone_expect", "state": {"orientation_d": 0, "orientation_q": 3, "orientation_flag": true,
+      "scores": [600, 0, 0, 0], "conditions": [1, 1, 1, 1], "lot_count": 6, "place_count": 0}},
+    {"op": "zone_expect_parcel_log", "log": [
+      "(10,10)-(11,11) f0",
+      "(10,12)-(11,13) f2",
+      "(12,10)-(13,11) f0",
+      "(12,12)-(13,13) f2",
+      "(14,10)-(15,11) f0",
+      "(14,12)-(15,13) f2"
+    ]}
+  ]
+}

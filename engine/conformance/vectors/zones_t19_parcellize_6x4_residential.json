@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "zones_t19_parcellize_6x4_residential",
+  "spec": ["zones 7.6", "zones 7.3", "zones 7.14", "zones 15.19"],
+  "description": "Conformance test 19 (§7.14 worked example): a 6 × 4 low-density residential zone along a road. Road (8..17, 9); zone 1 on x 10..15, z 10..13; SetOptions(0, 1, 0); lot size forced to width 2, depth 2, minDepth 1, maxDepth 3, block 6 (the harness bypasses DetermineLotSize). ExamineBoundaries gives S = {600, 4, 6, 4}, C = {1, 0, 0, 0}, D = 0, Q = 3, then the zone-1 placeStreets swap gives D = 3, Q = 0, flag 0. Parcellize lays two rows of two lots with one back street. Expected log: lot (10,10)-(11,11) f1, Place(12,10,12,13), lot (13,10)-(15,11) f3, lot (10,12)-(11,13) f1, lot (13,12)-(15,13) f3.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_network", "runs": [{"kind": 0, "rect": [8, 9, 17, 9]}]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": true, "custom": false},
+    {"op": "zone_lot_size", "width": 2, "depth": 2, "min_depth": 1, "max_depth": 3, "block": 6},
+    {"op": "zone_place_zone",
+     "region": {"rect": [10, 10, 15, 13]},
+     "type": 1, "commit": true, "skip_funds": true, "check_slope": false, "skip_size": true, "check_lot_inside": true},
+    {"op": "zone_expect", "state": {"orientation_d": 3, "orientation_q": 0, "orientation_flag": false,
+      "scores": [600, 4, 6, 4], "conditions": [1, 0, 0, 0], "lot_count": 4}},
+    {"op": "zone_expect_parcel_log", "log": [
+      "(10,10)-(11,11) f1",
+      "P(12,10,12,13)",
+      "(13,10)-(15,11) f3",
+      "(10,12)-(11,13) f1",
+      "(13,12)-(15,13) f3"
+    ]}
+  ]
+}

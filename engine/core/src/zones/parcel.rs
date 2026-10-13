@@ -72,6 +72,36 @@ pub fn block_depth(density: i32, depth: i32, residential: bool) -> i32 {
     }
 }
 
+/// The middle row of §7.6.1. `o0` is the row-walk start, `so` the row step,
+/// `b1`/`b2` the row-axis range and `lw` the lot width. Let `n` be the number
+/// of row positions `o0, o0 + so, …` that satisfy the keep condition (counted
+/// until the first that does not; 0 if `o0` itself fails). `mid := o0 +
+/// (⌊n/2⌋ − 1)·so` when `⌊n/2⌋ ≥ 1`, else `mid := o0`.
+///
+/// Example (§7.6.1): `o0 = 10`, `so = +2`: range 10..15 gives n = 3, mid = 10;
+/// 10..17 gives n = 4, mid = 12; 10..21 gives n = 6, mid = 14.
+pub fn middle_row(o0: i32, so: i32, b1: i32, b2: i32, lw: i32) -> i32 {
+    let low = so > 0;
+    let keep = |o: i32| {
+        if low {
+            o >= b1 && o <= b2
+        } else {
+            o >= b1 - lw + 1 && o <= o0
+        }
+    };
+    let mut n = 0i32;
+    let mut o = o0;
+    while keep(o) && n < MAX_WALK_STEPS {
+        n += 1;
+        o += so;
+    }
+    if n / 2 >= 1 {
+        o0 + (n / 2 - 1) * so
+    } else {
+        o0
+    }
+}
+
 /// `DepthRule(rem, f, farRoad)` (§7.6.3). `front` is whether the facing `f`
 /// equals the front facing `A` (side D); `far_road` is `(C[B] = 1)`. `min` =
 /// `minDepth`, `max` = `maxDepth`, `ld` = `Ld` (the lot depth `P`), `ps` =

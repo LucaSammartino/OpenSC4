@@ -27,7 +27,7 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use super::parcel::{block_depth, depth_rule, zone_density, DEFAULT_BLOCK_DEPTH, MAX_WALK_STEPS};
+use super::parcel::{block_depth, depth_rule, middle_row, zone_density, DEFAULT_BLOCK_DEPTH, MAX_WALK_STEPS};
 use super::{
     is_rci_zone, lot_code, net, network_kind, ZonesHost, ZonesMessage, IID_LOT, MSG_INSERT_OCCUPANT, MSG_POST_CITY_INIT,
     MSG_VIEW, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, BUILDING_TYPE, OBSTACLE_TYPE_2, MAX_CAPACITY_GRID_CLASS,
@@ -1252,16 +1252,8 @@ impl ZoneDeveloper {
         let lrow = b2 - b1 + 1;
         let ldepth = a2 - a1 + 1;
 
-        // Middle row.
-        let mut n_rows = 0i32;
-        {
-            let mut o = o0;
-            while row_keep(o) && n_rows < MAX_WALK_STEPS {
-                n_rows += 1;
-                o += so;
-            }
-        }
-        let mid = if n_rows / 2 >= 1 { o0 + (n_rows / 2 - 1) * so } else { o0 };
+        // Middle row (§7.6.1).
+        let mid = middle_row(o0, so, b1, b2, lw);
 
         // The lot rect at (p, o) with depth size n (§7.6.1).
         let lot_rect = |p: i32, o: i32, n: i32| -> CellRect {
@@ -1363,6 +1355,15 @@ impl ZoneDeveloper {
             self.host.lot_set_vertices_locked(lot, false);
             self.host.release(lot);
         }
+    }
+
+    /// Test/conformance affordance for `DrawStreet` (test 28): sets `region`
+    /// as the restriction region, draws the street line, and restores the
+    /// previous restriction. Not part of the interface.
+    pub fn draw_street_for_test(&self, region: &super::CellRegion, x1: i32, z1: i32, x2: i32, z2: i32, per_cell: bool) {
+        let prev = self.st.borrow_mut().restriction.replace(region.clone());
+        self.draw_street(x1, z1, x2, z2, per_cell);
+        self.st.borrow_mut().restriction = prev;
     }
 
     /// `DrawStreet(x1, z1, x2, z2, perCell)` (§7.10). Draws an automatic

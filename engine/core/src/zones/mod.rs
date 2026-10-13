@@ -143,7 +143,7 @@ pub use manager::{
     shipped_tuning, PlaceZoneResult, Tuning, ZoneManager, MANAGER_RECORD_VERSION, TEXTURE_KEY_GROUP, TEXTURE_KEY_TYPE,
     TUNING_KEY,
 };
-pub use parcel::{block_depth, depth_rule, zone_density, MAX_WALK_STEPS};
+pub use parcel::{block_depth, depth_rule, middle_row, zone_density, MAX_WALK_STEPS};
 pub use region::{CellRegion, MAX_REGION_SIDE};
 
 use std::rc::Rc;
