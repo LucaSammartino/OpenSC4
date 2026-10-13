@@ -186,3 +186,24 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   exemplar `0xC9133286`, `SimCity_1.dat`). The full 9 × 13 table and the resulting `invMaxSpeed` bits for
   CellWidthX 16 are now in traffic-simulator.md §4.14, and test 7 states its speeds. Walk on Road is **3.5**, as the
   core inferred. Pipe, PowerPole and DirtRoad are 0 for every travel type.
+
+## From the residential tests and record (filed by the coordinator from the lane's report, 2026-10-14; merged with the core)
+
+About `docs/specs/residential.md` and `residential-education-health.md` (REH). All 24 §15 tests pass. REH tests
+1–7, 10 and 18–21 belong to the host's education/health hooks. The core's current answer is in brackets.
+
+- **RS7 — §15 test 8 vs the shipped LE curve (inconsistency):** the shipped Health Quotient → Life Expectancy curve
+  gives 65 at HQ 60, not the 61 the test states. The vector uses a flat custom curve to get round it. Which is
+  right: the test's number, or the curve the test should use? [custom curve in the vector]
+- **RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]
+- **RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
+  read? [nothing repaired; Read fails]
+- **RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
+  with `release_department`]
+- **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
+- **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
+- **RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]
+- **RS14:** what does the state machine do in an unknown state? [waits]
+- **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
+- **RS16:** what does a zero divisor give in the averages? [0]
+- **RS17:** does a version-3 record keep the running population the constructor set? [yes]
