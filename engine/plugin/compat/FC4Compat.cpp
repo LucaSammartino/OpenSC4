@@ -40,6 +40,7 @@ const ExecutableVersion kVersions[] = {
         0x0090CF54,  // STL node allocator: allocate (docs/abi/allocators.md)
         0x0090CF63,  // STL node allocator: free
         0x00A80810,  // cRZString vtable (docs/abi/allocators.md, Strings)
+        0x008929E0,  // set FPU precision, cdecl one int (foundations §18.2)
         {
             0x0064DA00,  // cSC4PowerPoleOccupant::RemoveConnection (docs/abi/direct-calls.md)
             0x00648540,  // cSC4PipeOccupant::SetWateredState
@@ -264,8 +265,32 @@ bool StlNodeAllocator(StlNodeAllocateFn* allocate, StlNodeFreeFn* release) {
     return true;
 }
 
-const void* GameStringVtable() {
+bool FpuSetPrecision(FpuSetPrecisionFn* setPrecision) {
     static int state = 0;  // 0 unknown, 1 available, -1 refused
+    static FpuSetPrecisionFn fn = nullptr;
+    if (state == 0) {
+        state = -1;
+        const ExecutableVersion* v = IdentifiedVersion();
+        if (v == nullptr) {
+            Log("compat: set-FPU-precision helper NOT available (executable not identified); 24-bit precision is not "
+                "re-asserted");
+        } else if (v->fpuSetPrecisionVA == 0 ||
+                   !CheckCode("set FPU precision", v->fpuSetPrecisionVA, v->imageBase)) {
+            Log("compat: set-FPU-precision helper NOT available (address rejected); 24-bit precision is not "
+                "re-asserted");
+        } else {
+            fn = reinterpret_cast<FpuSetPrecisionFn>(static_cast<uintptr_t>(v->fpuSetPrecisionVA));
+            state = 1;
+            Log("compat: set FPU precision at 0x%08lX ('%s')", static_cast<unsigned long>(v->fpuSetPrecisionVA),
+                v->name);
+        }
+    }
+    if (state != 1) return false;
+    if (setPrecision != nullptr) *setPrecision = fn;
+    return true;
+}
+
+const void* GameStringVtable() {    static int state = 0;  // 0 unknown, 1 available, -1 refused
     static const void* vtable = nullptr;
     if (state == 0) {
         state = -1;

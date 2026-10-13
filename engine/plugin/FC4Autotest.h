@@ -41,6 +41,8 @@ namespace fc4 {
 // Reads the settings (game start) and starts the autotest thread when enabled.
 void AutotestReload();
 bool AutotestEnabled();
+// The autotest thread's ID (0 before its ThreadProc starts).
+uint32_t AutotestThreadId();
 
 // PostCityInit seen by the observer (main thread).
 void AutotestOnCityLoaded();

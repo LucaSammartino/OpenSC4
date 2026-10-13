@@ -13,7 +13,9 @@
 
 #include "FC4Fpu.h"
 
+#include "FC4FpuLogic.h"
 #include "FC4Log.h"
+#include "compat/FC4Compat.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -116,6 +118,34 @@ void FpuSetReference(const char* where) {
     char d[128];
     Describe(d, sizeof(d), g_ref);
     Log("fpu %s: %s [thread %lu, main] = the reference for the guard", where, d, GetCurrentThreadId());
+    FpuCheck(where);
+}
+
+void FpuReassert24Bit(const char* where) {
+    if (g_mainTid == 0) g_mainTid = GetCurrentThreadId();
+    if (!OnMain()) return;  // the simulation runs on the main thread only (§18.2)
+    const uint16_t before = X87ControlWord();
+    compat::FpuSetPrecisionFn setPrecision = nullptr;
+    if (!compat::FpuSetPrecision(&setPrecision)) return;  // refused and logged there
+    setPrecision(kFpuMode24Bit);
+    const uint16_t after = X87ControlWord();
+    const char* outcome = "?";
+    switch (ReassertOutcomeOf(before, after)) {
+        case ReassertOutcome::AlreadyCorrect: outcome = "already 24-bit; unchanged"; break;
+        case ReassertOutcome::Restored: outcome = "RESTORED 24-bit precision"; break;
+        case ReassertOutcome::Failed: outcome = "FAILED (still not 24-bit)"; break;
+    }
+    char b[128], a[128];
+    Describe(b, sizeof(b), before);
+    Describe(a, sizeof(a), after);
+    Log("fpu re-assert 24-bit (%s, the game's helper 0x008929E0 mode 0): %s -> %s; %s [thread %lu, main]", where, b, a,
+        outcome, GetCurrentThreadId());
+    // Re-arm the guard: a change from here on is new information, not a repeat
+    // of the one already reported, and the reference stays the 24-bit word.
+    InterlockedExchange(&g_warnedDiff, 0);
+    InterlockedExchange(&g_warnedPc, 0);
+    g_lastTickCw = after;
+    g_haveLastTick = true;
     FpuCheck(where);
 }
 
