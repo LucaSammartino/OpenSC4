@@ -1097,7 +1097,10 @@ pub unsafe extern "C" fn fc4_crime_shadow_destroy(s: *mut fc4_crime_shadow) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn fc4_crime_shadow_get_info(s: *const fc4_crime_shadow, out: *mut fc4_crime_shadow_info) -> bool {
+pub unsafe extern "C" fn fc4_crime_shadow_get_info(
+    s: *const fc4_crime_shadow,
+    out: *mut fc4_crime_shadow_info,
+) -> bool {
     let (Some(s), Some(o)) = ((s as *const Shadow).as_ref(), out.as_mut()) else {
         return false;
     };
