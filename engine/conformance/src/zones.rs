@@ -399,6 +399,34 @@ impl ZonesHost for World {
                 }
             }
         }
+        // An automatic street joins up with the network it abuts, so connect
+        // each laid cell to any 4-neighbour that already holds a network of
+        // the same kind (both directions). Without this the cell a street was
+        // extended from would look like a fresh dead end to the next
+        // `ExtendAsStreets` scan (test 24).
+        for &(x, z) in &cells {
+            for (nx, nz) in [(x - 1, z), (x + 1, z), (x, z - 1), (x, z + 1)] {
+                let joins = nets
+                    .get(&(nx, nz))
+                    .is_some_and(|n| n.kind == kind)
+                    && nets.get(&(x, z)).is_some_and(|n| n.kind == kind);
+                if !joins {
+                    continue;
+                }
+                let e = edge_to(x, z, nx, nz);
+                let e2 = edge_to(nx, nz, x, z);
+                if e >= 0 {
+                    if let Some(n) = nets.get_mut(&(x, z)) {
+                        n.edges[e as usize] = true;
+                    }
+                }
+                if e2 >= 0 {
+                    if let Some(n) = nets.get_mut(&(nx, nz)) {
+                        n.edges[e2 as usize] = true;
+                    }
+                }
+            }
+        }
         true
     }
     fn connects_to_neighbor(&self, occupant: u64, edge: i32, net_type: u32) -> bool {

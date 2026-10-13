@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "zones_t24_extended_street",
+  "spec": ["zones 7.11", "zones 7.12", "zones 7.2", "zones 15.24"],
+  "description": "Conformance test 24 (extended street, §7.11). Street (12, 5..10) ends inside the zone rect; zone 4 on x 10..15, z 10..13 except (12,10) (the street end); SetOptions(0, 1, 0). ExtendAsStreets(kind 3): (12,10) connects only on facing side 0 -> DrawStreet((12,10)->(12,13), perCell 0); the start cell (12,10) is not in R (it holds a network), so the run is (12,11)..(12,13) -> Place(12,11,12,13), which lays a street down the rest of column 12. LayInJogStreets draws nothing ((12,9) connects on two sides, not a dead end). SubdivideTheZone then splits the region at the street column x = 12 into two components, in first-cell order: x 10..11 then x 13..15. First component S = {2, 120, 2, 4}, D = 1, Q = 2, flag 1 -> lots (10,12)-(11,13) f1 and (10,10)-(11,11) f1 (rows from the high side, full-depth override). Second component S = {3, 4, 3, 120}, D = 3, Q = 2 -> lots (13,12)-(15,13) f3 and (13,10)-(15,11) f3.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_network", "runs": [{"kind": 3, "rect": [12, 5, 12, 10]}]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_options", "alternate": false, "streets": true, "custom": false},
+    {"op": "zone_lot_size", "width": 2, "depth": 2, "min_depth": 1, "max_depth": 3, "block": 6},
+    {"op": "zone_zones", "rect": [10, 10, 15, 13], "v": 4},
+    {"op": "zone_zones", "cells": [[12, 10, 0]]},
+    {"op": "zone_do_parcellization",
+     "region": {"rect": [10, 10, 15, 13], "cells": [
+       [10,10],[11,10],[13,10],[14,10],[15,10],
+       [10,11],[11,11],[12,11],[13,11],[14,11],[15,11],
+       [10,12],[11,12],[12,12],[13,12],[14,12],[15,12],
+       [10,13],[11,13],[12,13],[13,13],[14,13],[15,13]]},
+     "type": 4, "flag": false},
+    {"op": "zone_expect", "state": {"lot_count": 4, "place_count": 1}},
+    {"op": "zone_expect_parcel_log", "log": [
+      "P(12,11,12,13)",
+      "(10,12)-(11,13) f1",
+      "(10,10)-(11,11) f1",
+      "(13,12)-(15,13) f3",
+      "(13,10)-(15,11) f3"
+    ]}
+  ]
+}
