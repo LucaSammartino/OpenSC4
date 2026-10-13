@@ -22,28 +22,30 @@ zone developer's per-cell `IsCellOccupied(x, z)` (`0x0072C050`), called only in 
 That is §8.4's code-7 cell condition without codes 0–3, so `can_create_lot(…) == 7` is not equivalent. The lot then
 examined is always the real one (`GetLot(x, z, false)`).
 
-**ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**
-Tests 19–29 all state "the harness bypasses `DetermineLotSize`", and no other test covers it. It is the most
-arithmetic-heavy function in the spec — the x87 chain
-`ftol(r24(r24(float(k)/float(sx·sz)) × float((min+max)/2)))`, the `hash_set` iteration order, the developer tie-break on
-`EstimateDesirability` then demand, and the stage walk. The lane implemented it from the prose but **cannot verify any of
-it**. A test 30 (a scripted BDS + configurations + developer, expected width/depth/minDepth/maxDepth/block) would close
-what the lane calls the largest correctness risk in its work.
+~~**ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**~~ **ANSWERED 2026-10-13** from the exe:
+§7.2.1 was re-checked against the bytes and zones.md §15 now has **test 30 (a–g)**, with a scripted BDS,
+configurations and developers and every expected width, depth, minDepth, maxDepth and block. Three corrections were
+written into §7.2.1:
+- the configuration filter also requires growth stage ≤ stage;
+- the configuration `hash_set` is keyed by **pointer**, so the original's order is heap-address order. It is
+  observable only through a score tie. *[choice]* FreeCity4 uses ascending configuration ID, pinned by test 30e;
+- the x87 chain equals the exact floor for k ≤ 64 (shipped k = 16) but not above (test 30g).
 
 **ZQ4 — no vector covers highlight mode.**
 `HighlightParcels` (§7.1), virtual lots, virtually deleted cells, and the §7.13 draft fallbacks are all untested. The
 draft fallbacks need the network tools' `OccupantExists(x, z, flag, &mask)`, which §8.8/§7.13 describe only for highlight
 mode. Partly a headless limit (the highlight is a UI preview) and partly a missing spec test.
 
-**ZQ5 — §7.3 `ExamineBoundaries` city-border behaviour is untested.**
-Quirk 5 ("examines the region's own edge cells at the city border") and the rule "at the edge the 'outside' coordinate
-stays on R's own edge" have no vector: test 13's region is at x 10..12, z 10..12, well inside a 64×64 city. The
-implementation follows the prose but nothing pins it.
+~~**ZQ5 — §7.3 `ExamineBoundaries` city-border behaviour is untested.**~~ **ANSWERED 2026-10-13** from the exe:
+the clamp was checked on the bytes (`0x00731C8D`) and zones.md §15 now has **test 31**, with both low edges, both
+high edges and the placeStreets-off case. §7.3 now states the consequence: at the border the examined cell is R's
+own zoned, empty cell. It scores like an empty outside cell (+1 per cell with `placeStreets`), so a border side is
+neither skipped nor scored as an obstacle.
 
-**ZQ6 — §7.5 step 1 table, three of six cells unpinned.**
-`zn15_30`/`zn15_31` pin the x-line `_` arm (Q=3) and the `0|2` arm in its `D = 3` branch, and the z-line `_` and `2`
-arms. Not pinned: the x-line `1` arm, the `D != 3` branch of the x-line `0|2` arm, and the z-line `0` and `1` arms.
-Documented in `engine/conformance/README.md` rather than left implicit.
+~~**ZQ6 — §7.5 step 1 table, three of six cells unpinned.**~~ **ANSWERED 2026-10-13** from the exe. The table was
+checked on the bytes and is correct as written: Q is `+0xCC`, D is `+0xD0`, and the jump table is at `0x0072EC44`.
+zones.md §15 now has **test 32**, which gives the street positions for all eight perpendicular (Q, D) pairs on a
+16 × 16 rect (n = 6), plus the edge rule. That pins every arm, including the four listed here.
 
 ## From the residential core (filed by the coordinator from the lane's report, 2026-10-13; branch `residential-core`, tip `cc6e25d`, NOT merged)
 
@@ -126,3 +128,61 @@ implementer found empirically. It reproduces `0x3DAA8124` (2001-10-01), `0xB9794
 three vtables touches them, nor does any other class. The only code that does is the constructor, the zeroing in
 `Init`, `Write`, `Read` and the six `FADD`s. The save record is the only way in or out, so the fields are dead in
 play and 0 in every new city.
+
+## From the traffic network core (filed by the coordinator from the lane's report, 2026-10-13; merged with the core)
+
+About `docs/specs/traffic-network.md`. The core implements every section except §4.14 (needs the simulator's safe lot
+iterator), §6 persistence (the record is in traffic-simulator.md §6) and the GZCOM glue. Where the spec left a choice
+open, the core's current answer is in brackets; "[none]" means the spec must decide.
+
+- ~~**TN1 — §4.7.1:** does the step-1 "stop" also skip the ferry step 6? [yes]~~ **ANSWERED 2026-10-14** from the exe
+  and written into traffic-network.md §4.7.1 step 1 and §12, and traffic-simulator.md §4.1.3. **Yes, and more:** the
+  stop is a return from DoLotActivated (`0x00723BAC` → `0x00724188`). It also skips the `DoConnectionsChanged`, the
+  bucket registration, the `RandomUint32Uniform(100)` draw (`0x00723FBE`), the budget items and the destination
+  bits. Also corrected while tracing: the destination bits are **stored** over the lot rectangle, not ORed. The
+  "byte size" is a raw byte count: the property is a u8 array in every shipped switch (§4.7.2), so no shipped
+  building stops.
+- ~~**TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe and written into the §4.7.1 intro and step 6. **Yes:** a missing property jumps straight to step 6
+  (`0x00723B7B` → `0x00723ED0`). Ferry activation and its `DoConnectionsChanged` run if the building has
+  `0x0BD86FD3`. Otherwise there is no rebuild, because no switch was created. Step 7 (traffic-simulator.md
+  §4.1.3) follows in both cases.
+- ~~**TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
+  so DoPostCityInit re-reads them. Which is right? [none]~~ **ANSWERED 2026-10-13** from the exe and written into
+  §4.7.2 and §6. **§6 is right:** `Write` saves the rules and `Read` reads them for versions above `0x1C`.
+  DoPostCityInit still re-reads every switch's rules (`0x00720466`) and **appends** them, so a loaded switch holds
+  its rules twice *[quirk]*. This has no effect on the rebuild and shows only in the next save. *[choice]* FreeCity4
+  replaces the rules instead.
+- **TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
+  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]
+- **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
+  [reached, not extended]
+- **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
+  [off-map]
+- **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
+  IDs are found depends on it. Which order is right? [BoundaryIterator]
+- **TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]
+- **TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]
+- **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
+- **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
+  [overwrite; no record]
+- **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
+- ~~**TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
+  `0x69D5C424` the "wormhole byte map". [none]~~ **ANSWERED 2026-10-13** from the exe and written into
+  traffic-network.md §1 (Init step 5) and §2.3. Both are **instance IDs**, set by `SetInstanceID` (grid slot 6) at
+  `0x0071EF56`/`0x0071EFD2`. The classes are the framework's u8 (`0x49B9E602`) and u32 (`0x49B9E606`) grids.
+  `0x69D5C424` is the switch **mode-mask** grid that `DoLotActivated` writes (`0x00723E2B`), not a wormhole map:
+  the wormhole bits live in the cell connection record. The name is corrected in traffic-simulator.md (grid table,
+  §6.1 row 9) and save-records.md.
+- **TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]
+- **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
+- **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
+  forever]
+- **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
+- **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
+- **TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]
+- ~~**TN20 — §11 test 7:** the Walk-on-Road speed is not stated (3.5 was worked back from the stated Walk cost). Please
+  list the shipped speeds of every travel mode.~~ **ANSWERED 2026-10-13** from the shipped data (Traffic Simulator
+  exemplar `0xC9133286`, `SimCity_1.dat`). The full 9 × 13 table and the resulting `invMaxSpeed` bits for
+  CellWidthX 16 are now in traffic-simulator.md §4.14, and test 7 states its speeds. Walk on Road is **3.5**, as the
+  core inferred. Pipe, PowerPole and DirtRoad are 0 for every travel type.

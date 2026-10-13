@@ -102,7 +102,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "digest", "observe", "power_report", "autoload_city", "autoload_delay_ticks",
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
                                   "demand_shadow_nodes",
-                                  "popup_dialogs"};
+                                  "popup_dialogs", "clock_probe", "autotest_end"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

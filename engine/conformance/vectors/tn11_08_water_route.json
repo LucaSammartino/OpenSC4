@@ -1,0 +1,263 @@
+{
+  "format": 1,
+  "name": "tn11_08_water_route",
+  "spec": [
+    "traffic-network 4.10",
+    "traffic-network 11.8"
+  ],
+  "description": "Conformance test 8 (§11). Depth bytes: 3.3 -> 17, 40.7 -> 200, 0.1 -> 1, 2.1 -> 11; step costs 1.0, 3.0, 5.0 for bytes 200, 100, 0. City 8 x 8 with only row z = 0 water (bytes 200, one body): from (0,0) to (5,0) cells = 6, each step costs 1.0 so the target g = 5.0, link cost r24(6 x 0.01) = 0x3D75C28F. Forward route 00 00 00 40 05 AA 02 (header [0,0,0], run [0x40, 5], codes 2 x 5 packed AA 02); backward 00 05 00 40 05 00 00. Different water-body IDs at start and target fail and leave the vector untouched.",
+  "steps": [
+    {
+      "op": "tn_eval",
+      "fn": "depth_byte",
+      "args": [
+        true,
+        3.3
+      ],
+      "expect": 17
+    },
+    {
+      "op": "tn_eval",
+      "fn": "depth_byte",
+      "args": [
+        true,
+        40.7
+      ],
+      "expect": 200
+    },
+    {
+      "op": "tn_eval",
+      "fn": "depth_byte",
+      "args": [
+        true,
+        0.1
+      ],
+      "expect": 1
+    },
+    {
+      "op": "tn_eval",
+      "fn": "depth_byte",
+      "args": [
+        true,
+        2.1
+      ],
+      "expect": 11
+    },
+    {
+      "op": "tn_eval",
+      "fn": "step_cost",
+      "args": [
+        200,
+        0
+      ],
+      "expect": "0x3F800000",
+      "note": "§4.10.2 table: 1.0"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "step_cost",
+      "args": [
+        100,
+        0
+      ],
+      "expect": "0x40400000",
+      "note": "3.0"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "step_cost",
+      "args": [
+        0,
+        0
+      ],
+      "expect": "0x40A00000",
+      "note": "5.0 (target on land)"
+    },
+    {
+      "op": "tn_env",
+      "cells": [
+        8,
+        8
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_water",
+      "rect": [
+        0,
+        0,
+        7,
+        0
+      ],
+      "depth": 40.7,
+      "body": 1,
+      "note": "only row z = 0 is water, one body"
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init",
+      "note": "the water map is updated at once (§4.10.1)"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          4,
+          0
+        ],
+        [
+          5,
+          0
+        ],
+        [
+          6,
+          0
+        ],
+        [
+          7,
+          0
+        ]
+      ],
+      "expect": {
+        "water_depth": 200
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          0,
+          1
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          4,
+          1
+        ],
+        [
+          5,
+          1
+        ],
+        [
+          6,
+          1
+        ],
+        [
+          7,
+          1
+        ]
+      ],
+      "expect": {
+        "water_depth": 0
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "find_water_path",
+      "args": [
+        0,
+        0,
+        5,
+        0
+      ],
+      "expect": {
+        "cells": 6,
+        "g": "0x40A00000",
+        "forward": "0000004005aa02",
+        "backward": "00050040050000"
+      }
+    },
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        6
+      ],
+      "expect": "0x3D75C28F",
+      "note": "link cost r24(6 x 0.01)"
+    },
+    {
+      "op": "tn_call",
+      "method": "get_water_route",
+      "args": [
+        0,
+        0,
+        5,
+        0,
+        ""
+      ],
+      "expect": {
+        "ok": true,
+        "route": "0000004005aa02"
+      }
+    },
+    {
+      "op": "tn_water",
+      "cells": [
+        [
+          7,
+          0
+        ]
+      ],
+      "depth": 40.7,
+      "body": 2,
+      "note": "a different water body at the target"
+    },
+    {
+      "op": "tn_call",
+      "method": "get_water_route",
+      "args": [
+        0,
+        0,
+        7,
+        0,
+        "eeee"
+      ],
+      "expect": {
+        "ok": false,
+        "route": "eeee"
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "find_water_path",
+      "args": [
+        0,
+        0,
+        7,
+        0
+      ],
+      "expect": null
+    }
+  ]
+}

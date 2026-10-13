@@ -53,6 +53,7 @@ pub mod stl;
 pub mod store;
 pub mod stream;
 pub mod tract_developer;
+pub mod traffic_network;
 pub mod variant;
 pub mod weather;
 pub mod x87;

@@ -14,6 +14,7 @@ Usage:
   powershell -File tools\sc4ctl.ps1 clear [pngPrefix]        # click advisor popups away until hidden=0
   powershell -File tools\sc4ctl.ps1 findclose                # which known dialog is up, and where its button is
   powershell -File tools\sc4ctl.ps1 save [cityFile]          # real Ctrl+S, then close the "City Saved" box
+  powershell -File tools\sc4ctl.ps1 close                    # post WM_CLOSE to the game window (quit request)
 
 Client coordinates are for the 800x600 windowed game (-w). Posted input needs no focus and leaves the user's
 cursor alone; real input moves the cursor and needs the window in front.
@@ -263,6 +264,11 @@ switch ($Cmd.ToLower()) {
         [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 80
         [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
         Write-Output "real click at client ($A, $B) = screen ($($o.X), $($o.Y))"
+    }
+    "close" {
+        $h = GameWindow
+        [FC4Ctl]::PostMessage($h, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero) | Out-Null
+        Write-Output "posted WM_CLOSE to the game window"
     }
     default { throw "unknown command '$Cmd'" }
 }
