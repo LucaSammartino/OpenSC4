@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "lot_developer_seeded_draws",
+  "spec": ["lot-developer 7.3", "lot-developer 6.5", "lot-developer 5.8", "lot-developer 10", "lot-developer 16"],
+  "description": "Tests 12, 13 and 14 (§7.3, §6.5, §5.8, §10, §16), file RNG seed 12345. Test 12, non-burnt rubble in an 11x11 box (not small, not large, count 4 so only the four corners run): each corner draws Uniform(2) (R9); the raws are 0x0C63D3DC, 0xFED6A704, 0x6E80D665, 0xC0090DAA, so the four draws are 0, 1, 0, 1. A corner with 0 gets nothing; a corner with 1 is placed (not large, so no R10 and d2 = 0, orientation (i+2) mod 4, type T6[0] = 0x1DCF0000). Corner 1 -> orientation 3 at (min.x, min.y, max.z); corner 3 -> orientation 1 at (max.x, min.y, min.z), before clamping. Test 13, completion content on the 2 -> 3 message: a configuration with one texture object (IDs {T0, T1, T2}, T0 != 0, no wealth or decay variant present), one prop object (bit 0 clear, expanded list {P0, P1, P2, P3}) and one flora object with valid types {F0, F1}; the draws are Uniform(3) = 0 (R4), Uniform(4) = 3 (R5), Uniform(2) = 0 (R6) -> base texture T0, prop P3, flora F0, in that order. Test 14, the coffee bar always draws Uniform(100) = 4 first (R3), even for a lot that is then rejected as historical.",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64]},
+
+    {"op": "ldev_clear_lots", "note": "test 12: seeded rubble, non-burnt 11x11"},
+    {"op": "ldev_lot", "id": 1, "x": 0, "z": 0, "state": 3},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_add_rubble", "lot": 1, "min": [0, 5, 0], "max": [11, 5, 11], "burnt": false},
+    {"op": "ldev_expect_draws", "draws": [["R9", 2, 0], ["R9", 2, 1], ["R9", 2, 0], ["R9", 2, 1]]},
+    {"op": "ldev_expect_events",
+      "note": "corners 1 and 3 only (draws 0,1,0,1), both T6[0] = 0x1DCF0000; corner 1 orientation 3 at (min.x, min.y, max.z), corner 3 orientation 1 at (max.x, min.y, min.z), before clamping (a fresh prop has an empty bounding box, so no clamp applies)",
+      "events": [
+        {"event": "create_prop", "type": "0x1DCF0000"},
+        {"event": "add_lot_prop", "lot": 1, "orientation": 3, "pos": [0, 5, 11]},
+        {"event": "create_prop", "type": "0x1DCF0000"},
+        {"event": "add_lot_prop", "lot": 1, "orientation": 1, "pos": [11, 5, 0]}]},
+
+    {"op": "ldev_clear_lots", "note": "test 13: seeded completion content on the 2 -> 3 message"},
+    {"op": "ldev_cfg", "id": 9, "cfg_id": "0x60000009", "w": 1, "h": 1, "stage": 1, "objects": [
+        {"type": 2, "ids": ["0x2A010000", "0x2A010001", "0x2A010002"], "tag": "0x11", "orientation": 0, "byte3": 0},
+        {"type": 1, "ids": ["0x1C010000", "0x1C010001", "0x1C010002", "0x1C010003"], "tag": "0x22", "flags": 0},
+        {"type": 4, "ids": ["0x1F010000", "0x1F010001"], "tag": "0x33"}]},
+    {"op": "ldev_valid", "flora": ["0x1F010000", "0x1F010001"]},
+    {"op": "ldev_lot", "id": 2, "x": 0, "z": 0, "w": 1, "h": 1, "state": 3, "cfg": 9, "building_type": "0x3001"},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_message", "msg": "0xE8BDA2E7", "data1": 2, "data2": 3, "lot": 2, "expect": true,
+      "note": "old 2 -> new 3: the base texture (a) and the lot content (b) both run"},
+    {"op": "ldev_expect_draws", "draws": [["R4", 3, 0], ["R5", 4, 3], ["R6", 2, 0]]},
+    {"op": "ldev_expect_events",
+      "note": "in order: the base texture (a), then the lot content (b): props, flora, network nodes. The base-texture occupant is already inserted, so it is notified and posted 0x99EF1145.",
+      "events": [
+        {"event": "set_texture", "texture": "0x2A010000", "x": 0, "z": 0},
+        {"event": "occupant_changed", "occ": "0xB0"},
+        {"event": "occ_post", "occ": "0xB0", "message": "0x99EF1145"},
+        {"event": "prop_add", "type": "0x1C010003"},
+        {"event": "set_lot_tag", "tag": "0x22"},
+        {"event": "flora_add", "type": "0x1F010000"},
+        {"event": "set_lot_tag", "tag": "0x33"},
+        {"event": "add_network_nodes", "lot": 2}]},
+
+    {"op": "ldev_clear_lots", "note": "test 14: the coffee-bar draw comes first, even for a rejected lot"},
+    {"op": "ldev_world", "cheats": {"coffee_bar": true}},
+    {"op": "ldev_profile", "building": "0x3002", "purpose": 2, "wealth": 1},
+    {"op": "ldev_lot", "id": 3, "x": 0, "z": 0, "state": 3, "building_type": "0x3002", "historical": true},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_clear_events"},
+    {"op": "ldev_coffee_bar", "lot": 3},
+    {"op": "ldev_expect_draws", "draws": [["R3", 100, 4]], "note": "Uniform(100) = 4, consumed although the lot is historical"},
+    {"op": "ldev_expect_events", "events": [], "note": "rejected: no demolition, no construction"},
+    {"op": "ldev_world", "cheats": {"coffee_bar": false}}
+  ]
+}

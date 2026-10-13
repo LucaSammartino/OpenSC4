@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "lot_developer_persistence",
+  "spec": ["lot-developer 13", "lot-developer 16"],
+  "description": "Test 17 (§13, §16). The save record is written in order: version 1 (uint16), vertsX (sint32), extentX (float32), extentZ (float32), n = the night deque size (uint32), each building front to back as an object reference, the cursor index (uint32), nightMode (uint8, low byte), litFlag (uint8 0/1). A 64x64-cell city with cell width 16 and a 64x64 terrain gives vertsX = 65 (0x41), extentX = extentZ = 1024.0 (0x44800000); with an empty deque, mode 0 and unlit, the record is the 24 bytes '01 00 | 41 00 00 00 | 00 00 80 44 | 00 00 80 44 | 00 00 00 00 | 00 00 00 00 | 00 | 00'. A version-2 record is rejected after 2 bytes (nothing more is read). A round trip restores the deque, the cursor, the mode and the lit flag, and Read sets nightAcc to 0. Object references are encoded object-id then class-id (foundations §2.7); the class here is cISC4BuildingOccupant 0x87DDA3A9 (little-endian a9a3dd87).",
+  "steps": [
+    {"op": "ldev_world", "terrain_cells": [64, 64], "terrain_width": 16, "city": [64, 64]},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_save", "expect": "010041000000000080440000804400000000000000000000",
+      "note": "24 bytes: version 1, vertsX 65, extentX 1024.0, extentZ 1024.0, n 0, cursor 0, mode 0, unlit"},
+
+    {"op": "ldev_load", "hex": "0200", "expect": false, "note": "a version-2 record is rejected after 2 bytes"},
+    {"op": "ldev_expect", "verts_x": 65, "note": "nothing was overwritten (the version check comes first)"},
+
+    {"op": "ldev_make_buildings", "count": 2},
+    {"op": "ldev_set", "night_mode": 2, "night_cursor": 1, "lit_flag": true},
+    {"op": "ldev_save", "expect": "01004100000000008044000080440200000001000000a9a3dd8702000000a9a3dd87010000000201",
+      "note": "two buildings as host references (object ids 1 and 2, class 0x87DDA3A9), cursor 1, mode 2, lit 1"},
+
+    {"op": "ldev_clear_buildings"},
+    {"op": "ldev_create", "seed": 12345},
+    {"op": "ldev_init", "expect": true},
+    {"op": "ldev_expect", "night_len": 0, "night_mode": 0, "lit_flag": false},
+    {"op": "ldev_load", "hex": "01004100000000008044000080440200000001000000a9a3dd8702000000a9a3dd87010000000201",
+      "expect": true, "note": "the same record read into a fresh instance"},
+    {"op": "ldev_expect", "night_len": 2, "night_cursor": 1, "night_mode": 2, "lit_flag": true,
+      "night_acc": 0, "note": "Read sets nightAcc to 0"},
+    {"op": "ldev_expect", "night": [1, 2], "note": "both buildings resolved from their references"},
+    {"op": "ldev_save", "expect": "01004100000000008044000080440200000001000000a9a3dd8702000000a9a3dd87010000000201",
+      "note": "writing it again gives the same bytes"},
+
+    {"op": "ldev_load", "hex": "0100ffffffff", "expect": false,
+      "note": "version 1 but truncated before the extents: Read returns false, having already overwritten vertsX with 0xffffffff (fields 2-4 are stored as they are read)"}
+  ]
+}

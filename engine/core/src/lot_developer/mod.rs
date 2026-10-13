@@ -129,8 +129,9 @@ mod tuning;
 
 pub use geometry::{area_slope_of, development_cost, rubble_count, RubbleShape};
 pub use simulator::{
-    Draw, DrawKind, LotDeveloper, LotDeveloperStatics, SharedStatics, DEFAULT_DAILY_WORK_BUDGET, MAX_CLEAR_BUILDINGS,
-    MAX_SAVED_BUILDINGS, NIGHT_THRESHOLD_MS, RECORD_VERSION,
+    is_empty_lot_suitable_for_zot, Draw, DrawKind, LotDeveloper, LotDeveloperStatics, SharedStatics,
+    DEFAULT_DAILY_WORK_BUDGET, MAX_CLEAR_BUILDINGS, MAX_SAVED_BUILDINGS, NIGHT_THRESHOLD_MS, RECORD_VERSION,
+    TICK_PRIORITY,
 };
 pub use tuning::{prop, Tuning, DEFAULT_FOUNDATION_TYPE, TUNING_KEY};
 
