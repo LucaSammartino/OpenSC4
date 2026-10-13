@@ -89,12 +89,19 @@ See the README checklist for the full list. In short:
   - Land value glue is done (off by default).
   - Power glue is merged but **crashes** (§5.1).
   - Plumbing, protection, flora, pollution, crime, aura and flammability glue are not started.
-- **M4:**
+- **M4: COMPLETE — all five cores on main.**
   - Cores done: BDS, growth developer, tract developer. Lane 3 also did a consolidation pass (shared `fc4_core::stl`
     STLport sort/hash map/set; `BuildingProfile` moved into `development.rs`) and seed derivation (foundations §6.3:
     `rng::derive_seed`, `from_session`).
-  - Lot developer and zones cores are in progress (§5.4).
-- **M5:** specs done (traffic simulator, network, pathfinder). No cores yet.
+  - **Lot developer merged** as `9889f65` (5,254 lines).
+  - **Zones merged** as `f56e52a` (~10,900 lines: manager, developer, parcel, region; ~1,800-line conformance runner;
+    30 vectors covering all 29 spec §15 tests). Verified independently before merge: `cargo test --workspace` exit 0,
+    808 passed / 0 failed; clippy exit 0 with zero warnings in zones files; `rustfmt --check` clean on all 7 zones
+    files. The 20 pre-existing fmt diffs in `engine/capi/src/*_tests.rs` are identical on main and are not a
+    regression.
+  - **Next M4 work is glue, not cores:** GrowthDevelopers adapter, `demand_active_value`, developer token = BDS ID,
+    then the growth budget calibration in the original (building-development.md §12).
+- **M5:** specs done (traffic simulator, network, pathfinder). **First core drafted but does not compile** — see §5.4b.
 - **M6:** specs landed:
   - `data-formats.md` (601f3a9);
   - lot/occupant save records (0460f3a);
@@ -170,21 +177,40 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   (2) re-run observer-only to capture the original's true 24-bit first month; (3) diff that against our budget on the
   same city/month (one variable). The tooling to parse the save oracle lives in `tools/dbpf.py` (used it this session).
 
-### 5.4 M4 lot developer and zones cores (lane 3) — in progress, both committed on their branches
+### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
+Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
 - **The zones spec gap is CLOSED.** zones.md round 6 (§7.10 DrawStreet, §7.11 ExtendAsStreets, §7.12 LayInJogStreets,
   §7.13 connection test, tests 19–29) is all present; bf8cbd7 filled it. No need to re-check.
-- **Both helpers resumed and committed** (their prior uncommitted work was checkpointed first: `a6acd74` lot
-  developer, `bd77fc3` zones):
-  - **zones** (agent `a4b7ddc5791bcf0c3`, worktree `agent-ab69d8e3cec021271`): tip `e7e921d` "zones conformance:
-    runner and parcellization vectors (tests 19-21, 27, 29)", plus `979dd2f` core. Still iterating (more vectors).
-  - **lot developer** (agent `a9254b7ecd0aea910`, worktree `agent-a324dd1b5caa1d469`): merged main, writing
-    `simulator.rs`/`tests.rs` and `ld*` conformance vectors. This lane stopped mid-task twice with narration but no
-    tool calls; resumed each time with "stop narrating, write the files". Watch for that failure mode.
-  - Both have merged `main` (commit `8fdea4e`), so they see the corrected lot-developer/building-development specs.
-    **Note the BD13 correction:** `UpdateLotElements` gets the whole 32-bit kind and compares `kind != 5` (NOT
-    `kind & 0xFF != 0`) — pinned by lot-developer test 27. I mis-stated this in the first brief and corrected both.
-- **After that:** M4 glue (GrowthDevelopers adapter, `demand_active_value`, developer token = BDS ID), then the
-  growth budget calibration in the original (building-development.md §12).
+- **A real bug was found and fixed during zones self-review:** `SimpleParcellize`'s §7.5 step-1 table gives Q=2 the same
+  x-line rule as Q=0, but the implementation grouped Q=1 and Q=2, so Q=2 always started at x2 descending and ignored D.
+  Invisible to every prior vector (tests 19–26 route through `Parcellize`; test 14 runs `SimpleParcellize` with
+  `placeStreets` off). `zn15_31` now pins it, confirmed by reverting the fix and watching the vector fail.
+- **A re-entrancy note worth carrying to other lanes** (foundations §19.3 rule 4): a temporary in an `if` condition
+  lives through the whole `if` body, so `if self.st.borrow().loaded { …host call… }` holds a `RefCell` borrow across a
+  host call even though it looks scoped. Zones audited and fixed seven such sites.
+
+### 5.4b In-flight lanes — committed on their branches but NOT mergeable yet (2026-10-13 wind-down)
+The user asked to wind down without losing work. Every lane was told to finish its current item, commit checkpoints, and
+report — not to merge or push (the coordinator merges after verifying). State as of this writing:
+- **traffic-network** (branch `m5-traffic-network`, tip `c45c377`): ~2,000 lines drafted across mod/model/rebuild/switches/
+  tunnels/ferries/subnetworks/water/neighbours/tuning. **Does not compile** — ~13 mechanical borrow-checker errors
+  (`&*h` deref of `Rc<dyn NetworkHost>`; immutable reads held across mutable `set_connection` writes; two `CAR`-as-u32 vs
+  usize call sites). The module is **commented out of `lib.rs`**, so its tests have never run. `cargo build -p fc4-core`
+  is green only because the module is excluded. No conformance vectors yet. `GetNeighborPoolPropertyHolder` seam is
+  stubbed and flagged in-code as a coordinator question. Worktree removed (branch retains all commits).
+- **landfill + neighbors** (branch `m6-landfill-neighbors`, tip `53fc7b9`): landfill ~60% written, **0% compiled** —
+  files are deliberately not declared in `lib.rs`. Done: mod/algo/tuning/occupant/zone. Missing: simulator.rs (the
+  `LandfillDeveloper` itself), tests.rs, the `pub mod landfill;` line, conformance runner + `lf_` vectors. **Neighbors
+  core not started.** The 768 passing tests only confirm the pre-existing tree is still green; nothing in `landfill/` is
+  verified. Design note: `dezone_cell` does §4.4.8 steps 1–3 and 5 and *returns* the 1×1 region for the caller to rezone,
+  putting the re-entrant `PlaceZone`→`DoZoneChange` loops in simulator.rs; zones are `Rc`-held to survive self-removal.
+- **residential** (branch `residential-core`): agent still running at wind-down; ~1,563 lines (geometry/mod/tuning) were
+  untracked, backed up to `build-runs/windown-backup-20261013/`. Has since wired `lib.rs`. Verify before trusting.
+- **grid-sim glue** (`ac1485cbac8eb97a9`), **power-glue crash fix** (`af1db58965f8ea547`), **engine/formats divergence**
+  (`a7aa00813e71c6ad5`, branch `lane/formats-original-compat`): still running at wind-down.
+- **Backup:** `build-runs/windown-backup-20261013/` holds a read-only copy of 5,067 lines that existed only as untracked
+  files across four worktrees (landfill, residential, traffic-network untracked, m3-glue's `cFC4Plumbing.h`, plus zones and
+  fpu uncommitted diffs). Safe to delete once every lane has committed.
 
 ### 5.5 Spec answers — DONE, committed
 All 25 queued questions (GD2–GD5, BD1–BD14, TD1–TD5) reviewed against their diffs and committed as `8fdea4e`;
@@ -271,16 +297,26 @@ lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 
 | Role (clean-room side) | Agent ID **this session** | Worktree / branch | State |
 |---|---|---|---|
-| **Lane 1** — engine glue, in-game fixes, x87 trigger hunt | `af1db58965f8ea547` | `agent-af159bf9f570ec0f6` | power fixed (run 26), panic hook + power committed on branch (via `8129d67`), merged main; now in `simulator.rs` on §5.2 |
-| **Lot developer** core | `a9254b7ecd0aea910` | `agent-a324dd1b5caa1d469` | merged main; writing `simulator.rs`/`tests.rs` + `ld*` vectors. Stopped-with-no-tool-calls twice — resume firmly |
-| **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | committed `979dd2f` (core) + `e7e921d` (conformance runner, tests 19-21/27/29); still adding vectors |
+| **Lane 1** — engine glue, in-game fixes, x87 §18.2 workaround | `af1db58965f8ea547` | `agent-af159bf9f570ec0f6` | `019ce21` "fpu: re-assert the game's 24-bit precision at PostAppInit" + `engine/tests/fpu_logic_test.cpp` on branch, unmerged; 6 files modified uncommitted. Waiting for its in-game run to show department expenses move 122/104 → **123/105** |
+| **Lot developer** core | `a9254b7ecd0aea910` | — | **MERGED `9889f65`**; worktree removed, branch deleted |
+| **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | **MERGED `f56e52a`**; worktree and branch not yet removed |
+| **Traffic network** core (M5) | `a8060ce00faeba239` | `m5-traffic-network` | finished at `c45c377`; ~2,000 lines drafted, **does not compile**, excluded from `lib.rs`; worktree removed (§5.4b) |
+| **Landfill + neighbors** cores (M6) | `ad6d35101273a7757` | `m6-landfill-neighbors` | finished at `53fc7b9`; landfill ~60% written, **0% compiled**, not in `lib.rs`; neighbors not started (§5.4b) |
+| **Residential** core | `a4bf4a1401fb0a69f` | `residential` | still running; ~1,563 lines backed up, `lib.rs` now wired (§5.4b) |
+| **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | still running; `bfb19ad` plumbing C ABI (1,156 lines) + `cFC4Plumbing.h` uncommitted |
+| **engine/formats divergence fixes** | `a7aa00813e71c6ad5` | `lane/formats-original-compat` | still running |
+| **Lot developer spec answers** (RE side) | `a4ccb0d58282e86e1` | main checkout | still running |
+| **Landfill/neighbors spec answers** (RE side) | `a38c56ea07811b096` | main checkout | still running |
 
 Prior-session lanes, now finished or superseded (their work is on `main`): spec answers (`8fdea4e`), M6 save records
 and data formats (`e69009f`, `0460f3a`, `601f3a9`). The coordinator (this session) did the RE-side x87 work and the
 §5.6 build changes directly on `main` — no separate agent.
 
-Other `.claude/worktrees/agent-*` folders are older, finished lanes. They are safe to clean up once their branches are
-confirmed merged (`git branch --merged main`).
+**Wind-down state (2026-10-13):** every lane was told to finish its current item, commit checkpoints, and report — and
+explicitly *not* to merge or push. Merges are the coordinator's job after independent verification. The pattern that
+worked: read the lane's report, re-run its test command myself, compare the counts, then merge. That caught nothing wrong
+this time but is what makes a merge trustworthy. Untracked source in worktrees is **not** recoverable if an agent dies —
+see the backup in §5.4b.
 
 ## 7. Decisions waiting on the user
 
@@ -296,7 +332,24 @@ confirmed merged (`git branch --merged main`).
   - `cargo test` in `engine/` (use PowerShell, and add `$env:USERPROFILE\.cargo\bin` to the PATH);
   - `ctest` for the plugin;
   - the conformance vectors (about 370).
-- **Checking results:** check exit codes, not "FAILED" text, because "0 failed" matches too.
+- **Run cargo from `engine/`, not the worktree root.** There is no `Cargo.toml` at a worktree root, so `cargo fmt --check`
+  prints its help text and exits 0 — which looks like a pass. This bit me on 2026-10-13 and I nearly reported a
+  formatting-clean result that never ran. Always read the output, never the exit code alone.
+- **`fmt --check` has 20 pre-existing diffs on main**, all in `engine/capi/src/*_tests.rs`
+  (`budget_tests.rs`, `landvalue_tests.rs`, `test_streams.rs`). They are not a regression from any lane. When checking a
+  branch, compare against main's list rather than expecting zero.
+- **Git hygiene — a commit can land in the wrong worktree.** On 2026-10-13 a landfill WIP commit appeared on the *zones*
+  branch (`e82565e`) as well as its own (`53fc7b9`): identical author timestamps, committer timestamps 7 minutes apart, so
+  the same content was re-committed into another lane's worktree. All lanes share one repository, and a compound `cd` in
+  bash moves the *session's* working directory, so a lane that cds around can commit somewhere unintended. Nothing was
+  lost — I verified every file byte-identical before deleting the stray branch — but:
+  - before deleting any branch, diff its tip against where the work *should* live and prove nothing is unique
+    (`git diff --name-only <parent> <tip>`, then compare blob hashes);
+  - prefer `git -C <worktree>` over `cd`;
+  - after a merge, re-run the contamination sweep: each branch should touch only its own module under
+    `engine/core/src/<module>/`, and main should contain none of the unmerged ones.
+- **Checking results:** check exit codes, not "FAILED" text, because "0 failed" matches too. But also read the verdict
+  line — `ctest` prints `100% tests passed, 0 tests failed out of 16`, and grepping for "failed" alone finds the zero.
 - **README checklist:** keep the Progress checklist in `README.md` current whenever something lands on `main`.
 - **Status reports for the user:** plain language, short, and say what changed and what is next.
 - **Memory:** the coordinator's notes are in

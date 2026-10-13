@@ -16,7 +16,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
 **M0: toolchain**
-- [x] CMake project, Rust core, C ABI, conformance runner (364 vector files)
+- [x] CMake project, Rust core, C ABI, conformance runner (416 vector files + 1 runner self-test = 417 tests)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
 
@@ -43,8 +43,9 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
-- [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors)
-- [ ] Cores: zones (in flight on its branch — 8 commits, ~8.1k lines, tests being verified)
+- [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
+- [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
+- [ ] Zones glue; six zones spec questions open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) where no vector pins the choice (walk order, `DetermineLotSize`, highlight mode)
 - [x] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) now empty; GD/BD/TD answered in the named specs, 8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
