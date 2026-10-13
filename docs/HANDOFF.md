@@ -69,7 +69,7 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
   - Backup: `%TEMP%\claude\…\scratchpad\Spandau.sc4.bak`, SHA-256 `6982A842…`; it was unchanged after run 23.
   - Restore the city from the backup after any save test.
 - **Current Plugins state, safe for manual play (verified 2026-10-13, after run 38):**
-  - DLL `EFD5A01E…` with its **matching** PDB `6BDEE7F4…`: main `a07aa6a` built by `coord-verify-lane.ps1`. Power,
+  - DLL `EC1811B2…` with its **matching** PDB `13036349…`: main `42f7649` built by `coord-verify-lane.ps1`. Power,
     plumbing, flammability and both shadows are off by default. The previous main build is kept as the
     `.main-95db886` pair.
   - ini: `budget_default = 1` alone.
@@ -100,10 +100,9 @@ See the README checklist for the full list. In short:
     `6ca4b65`). All 12 tax types, total tax, income, expense and net are identical over five month-ends, on the same
     lots at the same moment (§5.3).
   - **Demand matches bit-for-bit too** (the demand shadow, merged `a07aa6a`, ABI 15 → 16; runs 42/43): 320 of 320
-    daily updates identical across 173 nodes, the active values and the neutral rate. **The one item left for the M2
-    exit:** on 2001-10-01 in run 43, 11 tax modifiers were 4 ulp off. That is a single month, on the day the census
-    changed, and run 42 had the same day exact. An input or sampling-moment difference is suspected, and the engine
-    lane is investigating (§5.3b).
+    daily updates identical across 173 nodes, the active values and the neutral rate. One 4-ulp tax-modifier month
+    (run 43) was traced to the operation order and fixed in `42f7649`. Run 44 is bit-identical everywhere.
+    **The M2 exit is met** (§5.3b).
 - **M3:**
   - All ten grid-sim cores are done.
   - Land value glue is done (off by default).
@@ -288,7 +287,12 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   - **Done on Konradshohe as well:** run 40 matched 2 of 2 months. Run 41 matched **35 of 35 month-ends** (2026-02 →
     2028-12, two January settlements, 681–740 lots), with no mismatch line at all.
 
-### 5.3b Demand shadow differential — merged `a07aa6a`; one 4-ulp month open
+### 5.3b Demand shadow differential — merged `a07aa6a`; DEMAND NOW BIT-IDENTICAL (`42f7649`, run 44)
+- **Closed:** the 4-ulp month below was our core's operation order. Every input was bit-identical; the exe
+  (`0x006A6070`, 12 written-out copies, one per type) computes `r24(r24(maxRate·0.1f) · r24(1.0f/neutral))` with the
+  reciprocal computed once. The RE lane wrote this into demand.md §8.1 (`616f7b7`, DQ1 answered, DQ2 about the CO/I
+  bonuses still open), and the engine lane implemented it (`b759997`). Run 44: 160/160 days and 6/6 modifier checks
+  bit-identical, including the formerly failing 2001-10-01. **With the budget result, the M2 exit is met.**
 - **How it works:** with `demand_shadow = 1` (our simulator, the original demand), at each NewDay delivered to the
   original demand simulator, our shared propagation (`core/src/demand/shadow.rs`, `fc4_demand_shadow`) runs on the
   original's node states read just before. The original's states just after are diffed bitwise. SimIdle tax/economy
