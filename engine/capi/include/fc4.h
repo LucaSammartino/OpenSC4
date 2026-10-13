@@ -56,8 +56,9 @@ extern "C" {
  * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node);
  * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power);
  * 13 = adds the plumbing simulator (fc4_plumbing);
- * 14 = adds the flammability simulator (fc4_flammability). */
-#define FC4_ABI_VERSION 14u
+ * 14 = adds the flammability simulator (fc4_flammability);
+ * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax). */
+#define FC4_ABI_VERSION 15u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -436,6 +437,35 @@ typedef struct fc4_budget_state {
     uint32_t risky_money_counter, reserved1;
 } fc4_budget_state;
 
+/* One lot as the tax scan saw it (fc4_budget_shadow_tax). */
+#define FC4_TAX_LOT_COUNTED 0u
+#define FC4_TAX_LOT_NO_BUILDING 1u
+#define FC4_TAX_LOT_NOT_LIVABLE 2u
+#define FC4_TAX_LOT_UNTAXED 3u
+typedef struct fc4_tax_lot {
+    uint32_t status;  /* FC4_TAX_LOT_* */
+    int32_t group;    /* 0..11, -1 = none; for a not-livable lot the group it would have had */
+    int64_t assessed; /* §5.2 assessed value; for a not-livable lot what it would have added */
+    float tax;        /* lotTax (0 unless counted) */
+    uint32_t reserved;
+} fc4_tax_lot;
+
+/* The result of fc4_budget_shadow_tax (§5.2, §6 GetTaxIncome(t)). */
+typedef struct fc4_tax_scan {
+    uint32_t struct_size; /* caller sets = sizeof(fc4_tax_scan) */
+    uint32_t lots;        /* lots visited */
+    float multiplier;     /* DifficultyTaxMultiplier[difficulty] */
+    float total;          /* the float32 running total */
+    int64_t weighted_assessed[12];
+    int64_t monthly_tax[12]; /* trunc(groupTax[t]) */
+    int64_t tax_income[12];  /* GetTaxIncome(t) with the given rates */
+    float group_tax[12];
+    uint32_t counted[12];    /* lots counted per group */
+    int64_t total_tax;       /* ComputeTax's result, trunc(total) */
+} fc4_tax_scan;
+
+typedef void (*fc4_tax_lot_callback)(void* ctx, uint32_t index, const fc4_lot_info* lot, const fc4_tax_lot* result);
+
 typedef void (*fc4_lot_visitor)(void* ctx, const fc4_lot_info* lot);
 typedef void (*fc4_token_callback)(void* ctx, uint64_t token);
 typedef void (*fc4_budget_item_callback)(void* ctx, const fc4_budget_item* item);
@@ -513,6 +543,17 @@ bool fc4_budget_handle_cheat(fc4_budget* b, uint32_t cheat_id, const char* text,
 void fc4_budget_simulate_day(fc4_budget* b);   /* §5.7 */
 void fc4_budget_settle_month(fc4_budget* b);   /* §5.1 */
 int64_t fc4_budget_compute_tax(fc4_budget* b); /* §5.2 */
+
+/* Budget shadow (diagnostics): ComputeTax (§5.2) without a budget object, the
+ * same scan the budget simulator runs, over host->for_each_lot, with the tuning
+ * read from `tuning_holder` (0 = code defaults) through get_i64s / get_f32s,
+ * the given difficulty and 12 group rates (percent, `rates[0..11]`). Calls no
+ * other host callback: nothing is stored, posted or written. `cb` (may be
+ * NULL) sees every lot in visit order. False (and `out` untouched) on bad
+ * arguments. */
+bool fc4_budget_shadow_tax(const fc4_budget_host* host, uint64_t tuning_holder, bool fix_cs3_weight,
+                           uint32_t difficulty, const float* rates, fc4_tax_lot_callback cb, void* ctx,
+                           fc4_tax_scan* out);
 
 /* Budget simulator: methods of cISC4BudgetSimulator (§6), in SDK order. */
 bool fc4_budget_set_total_funds(fc4_budget* b, int64_t v);
@@ -1744,6 +1785,8 @@ static_assert(sizeof(fc4_bond) == 56, "fc4_bond layout");
 static_assert(sizeof(fc4_budget_group) == 24, "fc4_budget_group layout");
 static_assert(sizeof(fc4_budget_state) == 432, "fc4_budget_state layout");
 static_assert(sizeof(fc4_budget_host) == (sizeof(void*) == 4 ? 124 : 248), "fc4_budget_host layout");
+static_assert(sizeof(fc4_tax_lot) == 24, "fc4_tax_lot layout");
+static_assert(sizeof(fc4_tax_scan) == 408, "fc4_tax_scan layout");
 static_assert(sizeof(fc4_grid_geometry) == 32, "fc4_grid_geometry layout");
 static_assert(sizeof(fc4_landvalue_state) == 56, "fc4_landvalue_state layout");
 static_assert(sizeof(fc4_landvalue_host) == (sizeof(void*) == 4 ? 92 : 184), "fc4_landvalue_host layout");

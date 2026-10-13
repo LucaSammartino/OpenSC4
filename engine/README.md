@@ -229,6 +229,28 @@ plugin.
      process like the autotest. It needs no `autotest_seconds`; with `autotest_unpause` (which does) the city
      runs by itself, so set `autotest_seconds` beyond the N months. A second run that loads the saved city
      (autoload) logs `observe snapshot (after load): …` to compare with the line before the save.
+   - **Budget shadow** (`budget_shadow = 1`, env `FC4_BUDGET_SHADOW`; off by default; `budget_shadow_lots = N`,
+     default 6): a same-process differential of property tax. It needs **our simulator and the original budget**
+     (`disable = budget`); with any other combination it logs `budget shadow: requested … but INACTIVE` at game
+     start. Our simulator wraps its `SimNewMonth` delivery to the original budget's month agent: just before it,
+     FreeCity4's own `ComputeTax` (`fc4_budget_shadow_tax`, the core code our budget runs) scans the live lots with
+     the original's tax rates; just after it, the original's `GetWeightedAssessedTaxValue(t)`, `GetTaxIncome(t)`,
+     `GetTaxIncome()`, year-to-date income/expense and funds are read and compared. Read-only: the scan's host
+     table has no write callback, and only getters are called on the game. One line per month:
+
+     ```
+     budget shadow yyyy-mm-dd: tax orig/ours=a/b,…(12 types; ! = differs) ; total orig/ours=…; income orig/ours=…;
+       expense orig/ours=…; net orig/ours=…; lots=N; mismatches=M [tax 3,4 total income expense]; months=K clean=C
+     ```
+
+     A type mismatches when its assessed sum or its `GetTaxIncome(t)` differs. `ours` income is our tax plus the
+     ordinance, neighbour-deal and department income the settlement books; `ours` expense is ordinance + neighbour
+     deals + the departments' expenses after the original's settlement + bond payments (so income/expense check
+     the settlement's composition; only the tax is computed by our core). At the January 1st settlement the
+     year-to-date values are reset, so income/expense read `-` there and only `net` (the funds delta) compares.
+     For each mismatched type: `budget shadow … type T: assessed orig/ours=…/… (orig-ours=D); tax …; ours:
+     counted=…, not-livable=…`, then up to N lots of that type, (x,z), size, status, purpose, building/lot wealth,
+     value, land value, assessed and tax, those whose assessed value equals |D| first, then not-livable ones.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

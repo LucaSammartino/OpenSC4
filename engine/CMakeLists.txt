@@ -163,6 +163,7 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Budget.cpp
         plugin/cFC4Budget.h
         plugin/FC4BudgetHost.cpp
+        plugin/FC4BudgetShadow.cpp
         plugin/cFC4LandValue.cpp
         plugin/cFC4LandValue.h
         plugin/cFC4Weather.cpp
@@ -258,7 +259,7 @@ if(FC4_IS_WIN32_X86)
     # Loads the built FreeCity4.dll like a GZCOM host and checks the diagnostics log.
     add_executable(fc4_plugin_load_test tests/plugin_load_test.cpp "${FC4_GZCOM_DIR}/src/cRZBaseString.cpp"
         "${FC4_GZCOM_DIR}/src/cRZBaseVariant.cpp" "${FC4_GZCOM_DIR}/src/cSCBaseProperty.cpp")
-    target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin)
+    target_include_directories(fc4_plugin_load_test PRIVATE "${FC4_GZCOM_DIR}/include" plugin capi/include)
     target_compile_options(fc4_plugin_load_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_dependencies(fc4_plugin_load_test FreeCity4)
     if(FC4_CHECKED)

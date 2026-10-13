@@ -12,43 +12,21 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::{Rc, Weak};
 
 use crate::rng::{FixedSeeds, RzRandomSuper};
-use crate::x87::mul_i64_f32;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
 
 use super::items::{
     budget_items, change_item_cost, change_item_line, change_item_local_funding, copy_item_properties,
     item_for_purpose, BudgetItem,
 };
+use super::tax::{difficulty_multiplier, scan_tax, tax_income_of};
 use super::tuning::BudgetTuning;
 use super::{
-    cheat, history, msg, round_half_even, BudgetHost, BudgetMessage, Department, LineItem, LotInfo,
-    CLSID_BUDGET_SIMULATOR, CLSID_DEPARTMENT, GROUP_NAME_LTEXT, TAX_GROUPS,
+    cheat, history, msg, round_half_even, BudgetHost, BudgetMessage, Department, LineItem, CLSID_BUDGET_SIMULATOR,
+    CLSID_DEPARTMENT, GROUP_NAME_LTEXT, TAX_GROUPS,
 };
 
 /// Record version written (§11.1).
 pub const BUDGET_RECORD_VERSION: u16 = 5;
-
-/// The float constant 1/1200 of the tax formula (§5.2).
-const INV_1200: f32 = 1.0 / 1200.0;
-
-/// `TaxType[purpose][lotWealth]` (§2); `None` = untaxed. [choice] purposes
-/// above 8 are untaxed.
-fn tax_type(purpose: u32, lot_wealth: u32) -> Option<usize> {
-    const T: [[i8; 4]; 9] = [
-        [-1, -1, -1, -1], // 0 None
-        [-1, 0, 1, 2],    // 1 Residence
-        [-1, 3, 4, 5],    // 2 Services
-        [-1, -1, 6, 7],   // 3 Office
-        [-1, 3, 4, 5],    // 4 Tourism
-        [-1, 8, 8, 8],    // 5 Agriculture
-        [-1, 9, 9, 9],    // 6 Processing
-        [-1, 10, 10, 10], // 7 Manufacturing
-        [-1, 11, 11, 11], // 8 HighTech
-    ];
-    let row = T.get(purpose as usize)?;
-    let v = *row.get(lot_wealth as usize)?;
-    (v >= 0).then_some(v as usize)
-}
 
 /// `H(v)` (§5.1): values ≥ 2^32 are recorded as 0xFFFFFFFF; otherwise the low 32 bits.
 fn history_value(v: i64) -> i32 {
@@ -430,7 +408,7 @@ impl BudgetSim {
     }
 
     /// `ComputeTax` (§5.2). Single precision for the per-lot product and the
-    /// running sums [compat].
+    /// running sums [compat]; the computation itself is [`scan_tax`].
     pub fn compute_tax(&self) -> i64 {
         let diff = self.difficulty();
         let (rates, tuning) = {
@@ -440,41 +418,16 @@ impl BudgetSim {
             }
             (d.tax.map(|g| g.rate), d.tuning.clone())
         };
-        let mult = BudgetTuning::by_difficulty(&tuning.difficulty_tax_multiplier, diff);
-        let mut weighted = [0i64; TAX_GROUPS];
-        let mut group_tax = [0f32; TAX_GROUPS];
-        let mut total = 0f32;
-        let mut visit = |lot: &LotInfo| {
-            if !lot.has_building || !lot.livable {
-                return;
-            }
-            let Some(t) = tax_type(lot.purpose, lot.lot_wealth) else {
-                return;
-            };
-            let land_f =
-                tuning.land_value_curve.eval(f32::from(lot.land_value)) * lot.size_x as f32 * lot.size_z as f32;
-            let land = round_half_even(f64::from(land_f)) as i64;
-            // [choice] a wealth difference outside 0..2 uses 1.0.
-            let waning = lot
-                .building_wealth
-                .checked_sub(lot.lot_wealth)
-                .and_then(|i| tuning.waning_wealth.get(i as usize).copied())
-                .unwrap_or(1.0);
-            // §5.2 [compat]: left to right, one f32 rounding per product, the
-            // 64-bit integers entering exactly (Errata round 3, item 2).
-            let assessed = (mul_i64_f32(land.wrapping_add(lot.building_value), waning) * tuning.occ_weight[t]) as i64;
-            weighted[t] = weighted[t].wrapping_add(assessed);
-            let lot_tax = mul_i64_f32(assessed, mult) * rates[t] * INV_1200;
-            group_tax[t] += lot_tax;
-            total += lot_tax;
-        };
-        self.host.for_each_lot(&mut visit);
+        let mult = difficulty_multiplier(&tuning, diff);
+        let host = &self.host;
+        let scan = scan_tax(&tuning, mult, &rates, |visit| host.for_each_lot(visit), &mut |_, _| {});
+        let monthly = scan.monthly_tax();
         let mut d = self.d.borrow_mut();
-        for t in 0..TAX_GROUPS {
-            d.tax[t].weighted_assessed = weighted[t];
-            d.tax[t].monthly_tax = group_tax[t] as i64;
+        for ((g, &wa), &tax) in d.tax.iter_mut().zip(&scan.weighted_assessed).zip(&monthly) {
+            g.weighted_assessed = wa;
+            g.monthly_tax = tax;
         }
-        total as i64
+        scan.total_tax()
     }
 
     /// The monthly settlement (§5.1), on SimNewMonth.
@@ -741,9 +694,8 @@ impl BudgetSim {
         let Some(g) = usize::try_from(t).ok().and_then(|t| d.tax.get(t)) else {
             return 0;
         };
-        let mult = BudgetTuning::by_difficulty(&d.tuning.difficulty_tax_multiplier, diff);
         // §6 [compat]: float(assessed) × multiplier × rate × INV1200, left to right.
-        (mul_i64_f32(g.weighted_assessed, mult) * g.rate * INV_1200) as i64
+        tax_income_of(g.weighted_assessed, difficulty_multiplier(&d.tuning, diff), g.rate)
     }
 
     pub fn set_total_monthly_expense(&self, v: i64) -> i64 {

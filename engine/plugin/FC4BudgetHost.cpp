@@ -34,6 +34,7 @@
 #include "FC4TestSeam.h"
 #include "cFC4Budget.h"
 #include "cFC4Message2Standard.h"
+#include "FC4BudgetShadow.h"
 
 #include "GZServPtrs.h"
 #include "SC4List.h"
@@ -211,9 +212,15 @@ int64_t NeighborExpense(void*) {
     return n ? n->GetTotalMonthlyNeighborDealExpense() : 0;
 }
 
+// The budget shadow's lot tap (SetBudgetLotTap): sees each lot just before
+// its visit. Main thread only.
+BudgetLotTapFn g_lotTap = nullptr;
+void* g_lotTapContext = nullptr;
+
 // One lot of ForEachLot (§5.2), each read behind its lot_* sub-switch; an
 // off switch leaves the neutral value in `info`.
 void VisitLot(cFC4ISC4Lot* lot, cISC4LandValueSimulator* lv, fc4_lot_visitor visit, void* ctx) {
+    if (g_lotTap != nullptr) g_lotTap(g_lotTapContext, lot);
     fc4_lot_info info{};
     cISC4BuildingOccupant* b = nullptr;
     if (On(Sw::LotBuilding)) {
@@ -597,11 +604,48 @@ fc4_budget_host MakeHost() {
     return h;
 }
 
+// The budget shadow's table: the read callbacks only. Every callback that
+// could change game state (posts, history, property writes and copies,
+// disasters, references, object creation) is NULL, which the core reads as
+// "nothing there" (FC4BudgetShadow.h).
+fc4_budget_host MakeReadOnlyHost() {
+    fc4_budget_host h{};
+    h.struct_size = sizeof(h);
+    h.user = nullptr;
+    h.difficulty = &Difficulty;
+    h.sim_date = &SimDate;
+    h.city_established = &Established;
+    h.city_size = &CitySize;
+    h.ordinance_income = &OrdinanceIncome;
+    h.ordinance_expense = &OrdinanceExpense;
+    h.neighbor_income = &NeighborIncome;
+    h.neighbor_expense = &NeighborExpense;
+    h.for_each_lot = &ForEachLot;
+    h.ltext = &Ltext;
+    h.building_type_name = &BuildingTypeName;
+    h.get_u32s = &GetU32s;
+    h.get_i64s = &GetI64s;
+    h.get_f32s = &GetF32s;
+    h.occupant_of = &OccupantOf;
+    h.class_of = &ClassOf;
+    return h;
+}
+
 }  // namespace
 
 const fc4_budget_host* BudgetHost() {
     static const fc4_budget_host host = MakeHost();
     return &host;
+}
+
+const fc4_budget_host* BudgetReadOnlyHost() {
+    static const fc4_budget_host host = MakeReadOnlyHost();
+    return &host;
+}
+
+void SetBudgetLotTap(BudgetLotTapFn fn, void* context) {
+    g_lotTapContext = context;
+    g_lotTap = fn;
 }
 
 void SetBudgetCity(cISC4City* city) { g_city = city; }

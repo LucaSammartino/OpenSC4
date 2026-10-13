@@ -37,8 +37,10 @@
 #include "cISC4Simulator.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4BudgetShadow.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
+#include "fc4.h"
 #include "game_abi.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -499,6 +501,111 @@ void InitFakeFireCity(FakeFireCity& f) {
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
+
+// ---- the budget shadow (test seam op 10) -------------------------------------------------------
+// An "original" budget simulator (not ours: its vtable is in this
+// executable) with its month agent. Only getters have slots; any other call,
+// a write included, hits a trap and aborts. DoMessage(SimNewMonth) "settles":
+// it publishes the values in `settle*`.
+struct FakeOrigBudget {
+    FakeVtable budgetVt, agentVt, cityVt, otherVt;
+    FakeObject budget{}, agent{}, city{}, other{};
+    int refs = 1;
+    int deliveries = 0;
+    int64_t funds = 50000, ytdInc = 100, ytdExp = 60, bonds = 0;
+    int64_t wa[12] = {}, tax[12] = {}, total = 0;
+    int64_t settleWa[12] = {}, settleTax[12] = {}, settleTotal = 0, settleIncome = 0, settleExpense = 0;
+};
+
+FakeOrigBudget* g_orig = nullptr;
+
+bool __fastcall OrigQi(void*, void*, uint32_t iid, void** out) {  // 0 (budget and agent)
+    if (iid != 0x452294AA || out == nullptr) return false;  // cIGZMessageTarget2
+    *out = &g_orig->agent;
+    ++g_orig->refs;
+    return true;
+}
+uint32_t __fastcall OrigAddRef(void*, void*) { return static_cast<uint32_t>(++g_orig->refs); }   // 1
+uint32_t __fastcall OrigRelease(void*, void*) { return static_cast<uint32_t>(--g_orig->refs); }  // 2
+int64_t __fastcall OrigFunds(void*, void*) { return g_orig->funds; }                           // 6
+int64_t __fastcall OrigYtdIncome(void*, void*) { return g_orig->ytdInc; }                      // 10
+int64_t __fastcall OrigYtdExpense(void*, void*) { return g_orig->ytdExp; }                     // 12
+int64_t __fastcall OrigTaxOf(void*, void*, int32_t t) { return t >= 0 && t < 12 ? g_orig->tax[t] : 0; }  // 18
+int64_t __fastcall OrigTax(void*, void*) { return g_orig->total; }                             // 19
+float __fastcall OrigRate(void*, void*, uint32_t) { return 9.0f; }                             // 36
+int64_t __fastcall OrigWa(void*, void*, uint32_t t) { return t < 12 ? g_orig->wa[t] : 0; }     // 38
+int64_t __fastcall OrigBonds(void*, void*) { return g_orig->bonds; }                           // 45
+bool __fastcall OrigDoMessage(void*, void*, cIGZMessage2* m) {                                 // agent 3
+    ++g_orig->deliveries;
+    if (m == nullptr || m->GetType() != kMsgSimNewMonth) return true;
+    for (int t = 0; t < 12; ++t) {
+        g_orig->wa[t] = g_orig->settleWa[t];
+        g_orig->tax[t] = g_orig->settleTax[t];
+    }
+    g_orig->total = g_orig->settleTotal;
+    g_orig->ytdInc += g_orig->settleIncome;
+    g_orig->ytdExp += g_orig->settleExpense;
+    g_orig->funds += g_orig->settleIncome - g_orig->settleExpense;
+    return true;
+}
+int32_t __fastcall OrigCityDifficulty(void*, void*) { return 2; }                    // city 24
+void* __fastcall OrigCityBudget(void*, void*) { return &g_orig->budget; }            // city 52
+void* __fastcall OrigCityNone(void*, void*) { return nullptr; }                      // city 62, 63
+
+void InitFakeOrigBudget(FakeOrigBudget& o) {
+    g_orig = &o;
+    for (FakeVtable* vt : {&o.budgetVt, &o.agentVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OrigQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OrigAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OrigRelease);
+    }
+    o.budgetVt.slots[6] = reinterpret_cast<void*>(&OrigFunds);
+    o.budgetVt.slots[10] = reinterpret_cast<void*>(&OrigYtdIncome);
+    o.budgetVt.slots[12] = reinterpret_cast<void*>(&OrigYtdExpense);
+    o.budgetVt.slots[18] = reinterpret_cast<void*>(&OrigTaxOf);
+    o.budgetVt.slots[19] = reinterpret_cast<void*>(&OrigTax);
+    o.budgetVt.slots[36] = reinterpret_cast<void*>(&OrigRate);
+    o.budgetVt.slots[38] = reinterpret_cast<void*>(&OrigWa);
+    o.budgetVt.slots[45] = reinterpret_cast<void*>(&OrigBonds);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OrigDoMessage);
+    o.otherVt.slots[3] = reinterpret_cast<void*>(&OrigDoMessage);
+    o.cityVt.slots[24] = reinterpret_cast<void*>(&OrigCityDifficulty);
+    o.cityVt.slots[52] = reinterpret_cast<void*>(&OrigCityBudget);
+    o.cityVt.slots[62] = reinterpret_cast<void*>(&OrigCityNone);
+    o.cityVt.slots[63] = reinterpret_cast<void*>(&OrigCityNone);
+    o.budget.vtbl = o.budgetVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.other.vtbl = o.otherVt.slots.data();
+}
+
+// One shadowed month: the "original" settles to `wa` (types 0, 3, 6), with
+// its per-type tax the GetTaxIncome(t) formula gives at 9 % with the code
+// default multiplier (budget §9: 100000): 1000 -> 750000, 2000 -> 1500000,
+// 2500 -> 1875000, 3000 -> 2250000 (float32, checked by hand).
+intptr_t ShadowMonth(FC4TestSeamFn seam, FakeOrigBudget& o, cIGZMessageTarget2* target, int64_t wa3, int64_t tax3) {
+    // Lots (code-default tuning, land value 0: assessed = building value).
+    static fc4_lot_info lots[5] = {};
+    lots[0] = fc4_lot_info{1, 1, 0, 0, 1, 1, 1, 1000, 1, 1};  // R$
+    lots[1] = fc4_lot_info{1, 1, 0, 0, 2, 1, 1, 2000, 2, 1};  // CS$
+    lots[2] = fc4_lot_info{1, 0, 0, 0, 2, 1, 1, 500, 1, 1};   // CS$, not livable
+    lots[3] = fc4_lot_info{1, 1, 0, 0, 3, 2, 2, 3000, 1, 2};  // CO$$
+    lots[4] = fc4_lot_info{};                                // no building
+    static FC4ShadowTestLot feed[5] = {};
+    for (int i = 0; i < 5; ++i) feed[i] = FC4ShadowTestLot{&lots[i], i, i + 1};
+    for (int t = 0; t < 12; ++t) o.settleWa[t] = o.settleTax[t] = 0;
+    o.settleWa[0] = 1000;
+    o.settleTax[0] = 750000;
+    o.settleWa[3] = wa3;
+    o.settleTax[3] = tax3;
+    o.settleWa[6] = 3000;
+    o.settleTax[6] = 2250000;
+    o.settleTotal = 4500000;
+    o.settleIncome = 4500000;
+    o.settleExpense = 0;
+    FC4ShadowTestInput in{reinterpret_cast<cISC4City*>(&o.city), target, feed, 5, 2451576};  // 2000-02-01
+    return seam(kFC4SeamBudgetShadow, &in, nullptr);
+}
 
 // ---- autotest: child processes that end with TerminateProcess -----------------------------------
 
@@ -1629,6 +1736,25 @@ int main(int argc, char** argv) {
             CHECK(fire.refs == 1);
         }
 
+        // The budget shadow next to an "original" budget: the same values
+        // give no mismatch; the original counting the not-livable CS$ lot
+        // gives one (type 3), attributed to that lot. Any write to the fake
+        // (or any call outside its getters) would abort.
+        if (seam != nullptr) {
+            static FakeOrigBudget orig;
+            InitFakeOrigBudget(orig);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&orig.agent);
+            CHECK(ShadowMonth(seam, orig, agent, 2000, 1500000) == 0);
+            CHECK(orig.deliveries == 1);
+            CHECK(ShadowMonth(seam, orig, agent, 2500, 1875000) == 1);
+            CHECK(orig.deliveries == 2);
+            // Not the budget's agent: left to the caller, nothing delivered.
+            CHECK(ShadowMonth(seam, orig, reinterpret_cast<cIGZMessageTarget2*>(&orig.other), 2000, 1500000) == -1);
+            CHECK(orig.deliveries == 2);
+            CHECK(orig.refs == 1);  // every QueryInterface released
+            CheckCw("budget shadow");
+        }
+
         // The monthly digest (observer), read through the city's public
         // interfaces: here a fake city with our budget simulator.
         cISC4BudgetSimulator* budget3 = nullptr;
@@ -1697,6 +1823,24 @@ int main(int argc, char** argv) {
     CHECK(text.find("FreeCity4 interface calls (oldest first):") != std::string::npos);
     CHECK(text.find("] BudgetSimulator::Shutdown") != std::string::npos);
     CHECK(text.find("call BudgetSimulator::GetTaxIncomeOfType (#1)") != std::string::npos);
+    // The budget shadow (test seam op 10): a clean month, then type 3 attributed to the not-livable lot.
+    CHECK(text.find("budget shadow 2000-02-01: tax orig/ours=750000/750000,0/0,0/0,1500000/1500000,0/0,0/0,"
+                    "2250000/2250000,0/0,0/0,0/0,0/0,0/0; total orig/ours=4500000/4500000; income orig/ours=4500000/-; "
+                    "expense orig/ours=0/-; net orig/ours=4500000/-; lots=5; mismatches=0; months=1 clean=1; "
+                    "departments unreadable; tuning: code defaults") != std::string::npos);
+    CHECK(text.find("budget shadow 2000-02-01: tax orig/ours=750000/750000,0/0,0/0,1875000/1500000!,") !=
+          std::string::npos);
+    CHECK(text.find("; lots=5; mismatches=1 [tax 3]; months=2 clean=1;") != std::string::npos);
+    CHECK(text.find("budget shadow 2000-02-01 type 3: assessed orig/ours=2500/2000 (orig-ours=500); "
+                    "tax orig/ours=1875000/1500000; rate=9.00 mult=100000.000; ours: counted=1 (building wealth != "
+                    "lot wealth: 0), not-livable=1 (assessed 500)") != std::string::npos);
+    CHECK(text.find("budget shadow 2000-02-01 type 3 lot (2,3) 1x1: not-livable purpose=2 wealth b1/l1 value=500 lv=0 "
+                    "assessed=500 tax=0.000 [assessed = |orig-ours|]") != std::string::npos);
+    CHECK(text.find("budget shadow 2000-02-01 type 3 lot (1,2) 2x1: counted purpose=2 wealth b1/l1 value=2000 lv=0 "
+                    "assessed=2000 tax=1500000.000") != std::string::npos);
+    CHECK(CountOf(text, "budget shadow 2000-02-01 type ") == 3);  // one type line, two lot lines
+    CHECK(text.find("budget shadow: the original budget ") != std::string::npos);
+    CHECK(text.find("budget shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
