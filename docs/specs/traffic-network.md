@@ -929,6 +929,11 @@ answers, so each lot is visited once):
 1. Rectangle `r` = the lot's bounding rectangle (lot slot 14). Ring = the boundary (BoundaryIterator `0x0060CEE0`)
    of `r` grown by 1 and clamped to the city. Skip the ring cells whose x is outside `[r.x1, r.x2]` **and** whose z
    is outside `[r.z1, r.z2]`, which are the four corners.
+
+   The ring is walked in **boundary order** (pathfinder.md §4.6; x varies fastest, `0x0071633C`–`0x00716357`):
+   - the first row `z = z0`, from `x0` to `x1`;
+   - each middle row at `x0`, then at `x1`;
+   - the last row `z = z1`, from `x0` to `x1`.
 2. `ids` = the distinct non-zero `subnet[0…3]` values of the first car record of each remaining ring cell, in order
    of discovery.
 3. If `ids` is empty: remove lot property `0x2A4F9C74` (property holder slot 17). Done.
@@ -1206,7 +1211,8 @@ Unless stated otherwise:
    - C is never a seed, because x = 3 = X−1.
 
 3. **Lot lists and queries on test 2.**
-   - Lot L1 at (1, 2), 1 × 1: its ring (corners excluded) is (1, 1), (1, 3), (0, 2), (2, 2). Its list is [1].
+   - Lot L1 at (1, 2), 1 × 1: its ring (corners excluded), in boundary order (§4.12), is (1, 1), (0, 2), (2, 2),
+     (1, 3). Its list is [1]. (Corrected: an earlier version listed (1, 3) second, TN7.)
    - Lot L2 at (2, 0): its ring contains (2, 1). Its list is [1].
    - Stub `GetMaxTripCapacity` gives (5, 0, 0, 0) for L1 and (0, 7, 0, 0) for L2. Populations: L1 {type 0x1010: 3},
      L2 none. No neighbour connections.

@@ -171,8 +171,11 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   [off-map]~~ **ANSWERED 2026-10-14** from the exe (`UpdateSubnetworkInfo` `0x0071674F`–`0x00716755`) and written into
   §4.12. **The bracket is right: off-map.** The mapped cell is used only to find the car record and its `subnet[]`.
   The holder is asked with the connection's own (off-map) cell.
-- **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
-  IDs are found depends on it. Which order is right? [BoundaryIterator]
+- ~~**TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
+  IDs are found depends on it. Which order is right? [BoundaryIterator]~~ **ANSWERED 2026-10-14** from the exe
+  (`BoundaryIterator::GetNext` `0x0060CEE0`, set up with x as the fast coordinate at `0x0071633C`) and written into
+  §4.12 step 1 and test 3. **The bracket is right: BoundaryIterator.** The order is first row, then the middle rows
+  at x0 and x1, then the last row. So L1's ring is (1, 1), (0, 2), (2, 2), (1, 3), and the test now says so.
 - **TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]
 - **TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]
 - **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
