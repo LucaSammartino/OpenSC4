@@ -725,7 +725,16 @@ For each terminal A in list order:
 
 When the list is exhausted, the pass posts message `0x2C06BA82` (§5).
 
-DoPostCityInit sets every flag and starts the pass, so links are computed after load.
+DoPostCityInit sets every flag and starts the pass, so links are computed after load. It does **only** that
+(`0x00720C8A`–`0x00720CAE`): every terminal's re-route flag := 1, the pass points at the first terminal, and its
+sub-step := 0 (TN8). Unlike entering state 19:
+- it does **not** rotate any counter (riders and link counters keep their loaded values);
+- it does **not** rebuild the vector of type-9 neighbour connection cells.
+
+So the post-load pass reroutes every pair of terminals. Its neighbour step walks whatever the vector already holds:
+empty in a newly constructed simulator (the constructor `0x0071F830` zeroes it), so loaded neighbour links are kept
+as read. *[inferred: `Read` does not fill this vector; not traced byte by byte.]* The neighbour routes are recomputed
+at the first state-19 pass.
 
 #### 4.9.4 Terminal removal (in DoLotDeactivated)
 
