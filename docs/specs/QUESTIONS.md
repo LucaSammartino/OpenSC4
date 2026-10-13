@@ -344,8 +344,12 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   and written into the pollution.md slot table. **The bracket is right: bool in AL** (slot 53's result, untouched).
   The percentage is stored through the reference, and the x87 stack is empty on return. `docs/abi`'s ST0 is wrong;
   the abi rows are the coordinator's to fix.
-- **PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
-  void. [int64; waived]
+- ~~**PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
+  void. [int64; waived]~~ **ANSWERED 2026-10-14** from the exe (`0x006E3250`–`0x006E32CE`) and written into the
+  pollution.md slot table. Both descriptions are loose. The original leaves EAX = the new high dword of
+  `landfilled` and EDX = the sign of n, which is meaningless as an int64. Its known caller (landfill §4.7.2) ignores
+  it. **The bracket is fine:** declare it int64 in EDX:EAX with pop 4 (SDK), since any value conforms. FreeCity4
+  returns the new total.
 - **PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]
 - **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
   `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
