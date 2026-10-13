@@ -1,7 +1,70 @@
-# Handoff: state of FreeCity4 (2026-10-13, second session)
+# Handoff: state of FreeCity4 (end of the second session, 2026-10-13)
 
 This file is for the agents that take turns on this repo. Read it first, then update it before you stop.
 The progress checklist in [README.md](../README.md#progress) tracks milestones; this file tracks the work in flight.
+
+## 0. Start here
+
+**Main is `ac809c0`. It is clean and verified, and nothing is running.** No agent is alive, no game process is
+running, and `git status` is clean. The engine tree is unchanged since `42f7649`, where the coordinator verified:
+- `cargo test --workspace --target i686-pc-windows-msvc`: **820 passed / 0 failed**;
+- `cargo clippy --workspace --all-targets -- -D warnings`: **clean** (a new clippy error is a regression now);
+- ctest: **18 / 18**.
+
+`FC4_ABI_VERSION` is **16**. Logs are in `build-runs/`: `cargo-test-main-demandfix.txt`, `clippy-main-demandfix.txt`,
+`ctest-main-demandfix.txt`.
+
+**What the second session did** (27 commits from `1eb5dd6` to `ac809c0`):
+- **The M2 exit is met.** The budget and demand replacements match the original exactly, proven by two new opt-in
+  **same-process shadow differentials** (`budget_shadow`, `demand_shadow`). Each runs our core on the original's
+  live inputs at the same moment, read-only, and diffs bitwise. Separate-run comparisons cannot do this, because the
+  original game is not deterministic from run to run.
+  - **Budget:** 5 of 5 month-ends on Spandau and 35 of 35 on Konradshohe.
+  - **Demand:** 160 of 160 days and 6 of 6 modifier checks.
+  - **The only difference ever found** was a 4-ulp tax-modifier order of operations. It was traced in the exe,
+    specced (demand.md §8.1) and fixed (`42f7649`). Details in §5.3 and §5.3b.
+- **The plumbing and flammability glue now runs in game** (§5.1b). The water network, fire rolls and the
+  cross-subsystem `IsCellWatered` read all work. A **use-after-free on fire ignition** (a borrowed manager was
+  released) was found by the refaudit and fixed (`95db886`).
+- **Also merged:**
+  - the formats lane (`b5bdf8a`, green; the game-data sweep caught an XA/LTEXT regression);
+  - the lot_developer clippy cleanup (`e1ce77c`);
+  - `FC4_RELEASE_CREATED` in the refaudit, for temporaries the game hands us (`a07aa6a`).
+- **In-game runs 33–45** are in `docs/manual-checks.md`.
+
+**Do next, in this order:**
+1. **M3: glue for the remaining grid sims:** protection, flora, pollution, crime, aura. Use plumbing and flammability
+   as the template: a month status line from day one, refaudit-clean, and Konradshohe for runs.
+   - The M3 exit is "grid snapshots match within tolerance". A **grid shadow** in the style of the budget and demand
+     ones (our core on the original's inputs, diff the grid) is the obvious tool, so build one per subsystem as part
+     of its glue.
+2. **An autotest option to dismiss or suppress advisor dialogs.** Long unattended runs keep stopping at them (runs 40,
+   41 and 45; §8). This is small engine work, and it unlocks multi-year runs.
+3. **Open spec questions:**
+   - **DQ2:** can the CO/I economy bonuses be read? Ours assumes 0, and no mismatch has shown up.
+   - **BQ1, BQ2:** budget shadow edges.
+   - **RS1–RS6:** residential. RS1 is load-bearing.
+   - **ZQ2–ZQ6:** zones.
+   - **Flammability §13.1:** the fire manager reads our grid during hotspot fires as well.
+
+   All are in `docs/specs/QUESTIONS.md` except the last, which is in §5.1b.
+4. **Unmerged branches**, unchanged this session (§5.4b): `residential-core` (no simulator tests),
+   `m6-landfill-neighbors` (test stub, neighbors not started), `m5-traffic-network` (does not compile).
+5. **M1 leftovers:** save → reload, pause, emergency and all speeds. Also check `FC4HostGrid.cpp:153`, which may need
+   `FC4_RELEASE_CREATED` (§5.3b).
+
+**Waiting on the user (§7):** the manual checklist, SDK errata upstreaming (public), publishing the repo (public),
+and deleting the KillaVolt clone.
+
+**Gotchas that cost time this session** (details in §3 and §8):
+- Autoload works only within the FC4 Test region.
+- Spandau has no water; Konradshohe does.
+- Advisor dialogs freeze the date, and the heartbeat's `hidden` field is *not* the sign of it.
+- PowerShell 5.1 mangles `"` inside native-command arguments. Write commit messages to a file and use `git commit -F`,
+  UTF-8 **without BOM**.
+- A worktree an agent creates may start from an old commit, so have it `merge --ff-only main` first.
+- Re-run every lane's tests yourself before merging; this session that caught unformatted files the agent had not
+  reported.
 
 ## 1. The project in one paragraph
 
@@ -68,7 +131,7 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
 - **Test city:** `Regions\FC4 Test\City - Spandau.sc4`.
   - Backup: `%TEMP%\claude\…\scratchpad\Spandau.sc4.bak`, SHA-256 `6982A842…`; it was unchanged after run 23.
   - Restore the city from the backup after any save test.
-- **Current Plugins state, safe for manual play (verified 2026-10-13, after run 38):**
+- **Current Plugins state, safe for manual play (verified 2026-10-13, after run 45):**
   - DLL `EC1811B2…` with its **matching** PDB `13036349…`: main `42f7649` built by `coord-verify-lane.ps1`. Power,
     plumbing, flammability and both shadows are off by default. The previous main build is kept as the
     `.main-95db886` pair.
@@ -83,7 +146,7 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
 - **Autoload only works within the region the game starts in (FC4 Test).** A city in another region is refused
   (`no city of the current region has the save`). FC4 Test has its own copy of `City - Konradshohe.sc4` (`864E0A88…`),
   which **has a water system** (2 producers, 403 pipes). Spandau has none. Use Konradshohe for plumbing and fire work.
-- The run history (through run 38) and the manual checklist for the user are in `docs/manual-checks.md`.
+- The run history (through run 45) and the manual checklist for the user are in `docs/manual-checks.md`.
 
 ## 4. Where each milestone stands
 
@@ -109,7 +172,7 @@ See the README checklist for the full list. In short:
   - **Power glue is merged (`63e88f1`) and runs clean** — runs 27/28, `AUTOTEST VERDICT: clean`, production 5997→6000,
     409 cells powered, 0 unpowered (§5.1). The crash was a cross-thread `RefCell` race in the clock, not power.
   - **Plumbing + flammability glue merged** (`9f741de`) **and now run in game** (runs 33–38, §5.1b). It found and fixed
-    one real bug: a use-after-free on fire ignition (`95db886`). `FC4_ABI_VERSION` is now 15 (the budget shadow, `6ca4b65`), and the plugin switch
+    one real bug: a use-after-free on fire ignition (`95db886`). `FC4_ABI_VERSION` is now 16 (15 for the budget shadow `6ca4b65`, 16 for the demand shadow `a07aa6a`), and the plugin switch
     count is 57.
   - Protection, flora, pollution, crime and aura glue are not started.
 - **M4: COMPLETE — all five cores on main.**
@@ -250,7 +313,7 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   ~2 s window our DLL makes exactly two calls — `director Release` and `director AddRef`. The next decisive step is a
   minimal attach-only DLL, not finer logging (§5b item 1).
 
-### 5.3 Budget differential (M2 exit) — UNBLOCKED; needs redoing against the fixed baseline
+### 5.3 Budget differential (M2 exit) — DONE: ours matches the original exactly (runs 39/41)
 - **The run-19-vs-run-20 differential cannot be used.** Both had our DLL loaded, so **both ran at 53-bit**; run 19 is
   not the original's true behaviour. It also moved two variables at once (our budget vs original, *and* precision),
   so the tax-by-type differences (types 4/6/9) and the non-tax income gap (35 vs 28) can't be attributed. Details in
@@ -534,10 +597,14 @@ lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 | **Traffic network** core (M5) | `a8060ce00faeba239` | `m5-traffic-network` | finished at `c45c377`; ~2,000 lines drafted, **does not compile**, excluded from `lib.rs`; worktree removed (§5.4b) |
 | **Landfill + neighbors** cores (M6) | `ad6d35101273a7757` | `m6-landfill-neighbors` | **STOPPED**; finished at `a6ba8ce`, worktree clean. Landfill **compiles** (0 warnings) and is wired into `lib.rs`, 12 tests pass — but `tests.rs` is a stub, no vectors, neighbors not started (§5.4b) |
 | **Residential** core | `a4bf4a1401fb0a69f` | `residential` | **STOPPED** (`TaskStop`); finished at `cc6e25d`, worktree clean. Compiles clean, `lib.rs` wired, but `simulator.rs` has 0 tests and no vectors. RS1–RS6 preserved in QUESTIONS.md (§5.4b) |
-| **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | **MERGED `9f741de`**; worktree removed, branch deleted. Coordinator-verified: ctest 18/18, cargo 808/0. **Never ran in game** (§5.4b) |
+| **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | **MERGED `9f741de`**; worktree removed, branch deleted. Coordinator-verified: ctest 18/18, cargo 808/0. **Now run in game (second session, §5.1b)** |
 | **engine/formats divergence fixes** | `a7aa00813e71c6ad5`, then a second-session agent | — | **MERGED `b5bdf8a`** (second session): 3 stale tests fixed per §11, XA/LTEXT regression caught by the sweep, 811/0; worktree and branch removed (§5.4b) |
 | **lot_developer clippy cleanup** (second session) | one-shot agent | — | **MERGED `e1ce77c`**: 21 lints, with one scoped `allow`; workspace clippy is now clean |
 | **Flammability observability + fire fix** (second session) | one-shot agent | — | **MERGED `95db886`**: month status line, the use-after-free fix, test-seam op 9 (§5.1b) |
+| **Budget shadow differential** (second session) | one-shot agent | — | **MERGED `6ca4b65`** (ABI 15): `budget_shadow = 1` with `disable = budget`; runs 39–41 exact (§5.3) |
+| **Demand shadow differential** (second session) | one-shot agent, resumed twice | — | **MERGED `a07aa6a`** (ABI 16) + the order-of-operations test `a000bd2`; also `FC4_RELEASE_CREATED` (§5.3b) |
+| **Demand tax-ratio answer** (RE side, second session) | one-shot agent | main checkout | **COMMITTED `616f7b7`**: demand.md §8.1 from the exe (`0x006A6070`), §4.1 link factor; DQ1 answered, DQ2 filed |
+| **Demand tax-ratio fix** (second session) | one-shot agent | — | **MERGED `42f7649`**: reciprocal-of-neutral order per §8.1; run 44 bit-identical |
 | **Lot developer spec answers** (RE side) | `a4ccb0d58282e86e1` | main checkout | **STOPPED mid-commit**; coordinator committed its tree as `94d8cdf` (lot-developer §12.2 Q8–Q10) |
 | **Landfill/neighbors spec answers** (RE side) | `a38c56ea07811b096` | main checkout | **STOPPED mid-commit**; coordinator committed staged answers `7938b38` + unstaged NaN correction `94d8cdf` (§5.4b) |
 
@@ -554,6 +621,19 @@ compare the counts, then merge. That is what makes a merge trustworthy — it ca
 landfill status this session. Untracked source in worktrees is **not** recoverable if an agent dies; see the backup in
 §5.4b. The one hard-stop lesson is in §5.4b: an agent killed mid-edit may have written an error it was *about* to fix —
 always check the unstaged diff, which may contradict already-committed text.
+
+**Second session end state (2026-10-13, evening).** Every lane of this session finished on its own, and every one was
+verified and merged or committed. Their worktrees and branches were removed after a clean-and-merged check. **No agent
+is running and none needs resuming.** The only worktrees left are the two unmerged branches from the first session
+(`m6-landfill-neighbors`, `residential`); `m5-traffic-network` has a branch but no worktree.
+
+The pattern that worked, and that a next coordinator can reuse:
+- One clean-room engine agent per task, in an isolated worktree.
+- The coordinator re-runs ctest, cargo and clippy, and checks rustfmt on touched files, before every merge.
+- An in-game run after every merge that touches the plugin.
+- When a difference is found, the engine lane decides whether it lies in the core or in the test harness, and turns
+  it into a precise question. An RE agent answers it from the exe *into the spec*, and an engine agent implements
+  from the spec. That loop closed the demand 4-ulp case in about an hour without crossing the clean-room wall.
 
 ## 7. Decisions waiting on the user
 
