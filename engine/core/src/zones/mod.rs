@@ -46,15 +46,18 @@
 //!   (§1.2 step 7, §5.2) and `CanCreatePloppedLot` (slot 21, §8.4) are UI or
 //!   debug and are left out. The `0xA6B79602` value is stored
 //!   ([`ZoneDeveloper::view_message_value`]) but unused.
-//! - **Street geometry of round 6** (§7.10–§7.13) is not in this copy of
-//!   the spec. `DrawStreet` (§7.10), `ExtendAsStreets` (§7.11) and
-//!   `LayInJogStreets` (§7.12) are host calls
-//!   ([`ZonesHost::draw_street`], [`ZonesHost::extend_as_streets`],
-//!   [`ZonesHost::lay_in_jog_streets`]) called at exactly the points and
-//!   with the arguments §7.2, §7.5 and §7.6 give, the restriction region
-//!   passed along so the host can clip to it. Placeholder: a host that
-//!   implements nothing draws no streets. The core does not invent the
-//!   geometry.
+//! - **Street geometry of round 6** (§7.10–§7.13) is in the core: `DrawStreet`
+//!   (§7.10), `ExtendAsStreets` (§7.11), `LayInJogStreets` (§7.12) and
+//!   `ExistsConnectionOfType` / `GetNetwork` (§7.13) are computed here and
+//!   clip to the restriction region. The only host primitives they need are
+//!   the street tool's `PlaceNetworkOccupants` ([`ZonesHost::street_place`],
+//!   the "Place(a, b)" of §7.10), a network occupant's `ConnectsToNeighbor`
+//!   ([`ZonesHost::connects_to_neighbor`], network occupant slot 47) and the
+//!   highlight-mode draft mask ([`ZonesHost::network_tool_occupant_exists`],
+//!   network tool slot 9). `GetNetwork` and `ExistsNetworkOfType` are derived
+//!   from [`ZonesHost::cell_occupants`] and [`ZonesHost::network_has_any_flag`].
+//!   A host whose `street_place` inserts nothing draws no visible streets; the
+//!   core still logs every `Place` call in order.
 //! - **Untraced helpers** (§5.2 step 3, §7.2 step 7): the street-joining
 //!   helpers `0x00731F60` / `0x00732450` are one host call
 //!   ([`ZonesHost::street_joining_helper`]); `0x0072B180` at the end of
@@ -133,10 +136,13 @@ mod region;
 mod tests;
 
 pub use developer::{
-    Draw, DrawKind, InsertionPoint, LotSize, Options, Orientation, SharedZoneStatics, VirtualLot, ZoneDeveloper,
-    ZoneDeveloperStatics, DEVELOPER_RECORD_VERSION, MAX_RANDOM_LOT_TRIES,
+    CreateResult, Draw, DrawKind, InsertionPoint, LotSize, Options, Orientation, SharedZoneStatics, VirtualLot,
+    ZoneDeveloper, ZoneDeveloperStatics, DEVELOPER_RECORD_VERSION, MAX_RANDOM_LOT_TRIES, RNG_SEED_XOR, TEST_SEEDS,
 };
-pub use manager::{shipped_tuning, PlaceZoneResult, Tuning, ZoneManager, MANAGER_RECORD_VERSION};
+pub use manager::{
+    shipped_tuning, PlaceZoneResult, Tuning, ZoneManager, MANAGER_RECORD_VERSION, TEXTURE_KEY_GROUP, TEXTURE_KEY_TYPE,
+    TUNING_KEY,
+};
 pub use parcel::{block_depth, depth_rule, zone_density, MAX_WALK_STEPS};
 pub use region::{CellRegion, MAX_REGION_SIDE};
 
@@ -378,15 +384,29 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     /// Network tool slot 9: the street (3) or dirt-road (11) tool's draft
     /// covers the cell (highlight mode, §8.8).
     fn network_tool_draft_at(&self, tool: u32, x: i32, z: i32) -> bool;
-    /// Placeholder for `DrawStreet` (§7.10, not in this copy of the spec):
-    /// a street on `line` (a one-cell-wide rectangle), `per_cell` as the
-    /// caller passes it, clipped to `restriction`. In real mode the streets
-    /// must be visible to the next `ExistsNetworkOfType` (§7.6.2 details).
-    fn draw_street(&self, line: CellRect, per_cell: bool, restriction: Option<&CellRegion>, real_mode: bool);
-    /// Placeholder for `ExtendAsStreets(kind)` (§7.11) on `rect`.
-    fn extend_as_streets(&self, kind: u32, rect: CellRect, restriction: Option<&CellRegion>);
-    /// Placeholder for `LayInJogStreets(kind)` (§7.12) on `rect`.
-    fn lay_in_jog_streets(&self, kind: u32, rect: CellRect, restriction: Option<&CellRegion>);
+    /// `DrawStreet`'s "Place(a, b)" (§7.10): the street tool's slot 7
+    /// `PlaceNetworkOccupants(a.x, a.z, b.x, b.z, 0xC49, callback = the street
+    /// tool, realMode, −1)`. One street segment from cell `a` to cell `b`
+    /// (inclusive); returns AL. In real mode the streets must become visible
+    /// to the next `ExistsNetworkOfType` (§7.6.2); in highlight mode they are
+    /// drafts (seen through [`ZonesHost::network_tool_draft_at`]). `kind` is
+    /// the network kind of the caller (`ExtendAsStreets` / `LayInJogStreets`
+    /// pass their kind, `DrawStreet` the street kind 3) so the host can
+    /// insert the right occupant type. The restriction region is applied by
+    /// the core, so `a`..`b` may include cells outside it only through the
+    /// §7.10 fallback chain.
+    fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32)) -> bool;
+    /// A network occupant's slot 47 `ConnectsToNeighbor(edge, type)`
+    /// (§7.13): true when the occupant is of network type `type` and has a
+    /// connection on `edge` for that type. `edge` is 0..3 (0 = −x, 1 = −z,
+    /// 2 = +x, 3 = +z), or −1 for a facing side outside 0..3.
+    fn connects_to_neighbor(&self, occupant: u64, edge: i32, net_type: u32) -> bool;
+    /// Highlight mode only (§7.13): the street (tool kind 3) or dirt-road
+    /// (kind 11) tool's slot 9 `OccupantExists(x, z, flag, &mask)` → `Some(mask)`
+    /// when it reports a draft at the cell, `None` otherwise. `mask` is the
+    /// four network-edge bytes (bit set per connected edge). `flag` is `0x8`
+    /// (street) or `0x800` (dirt road). Not consulted in real mode.
+    fn network_tool_occupant_exists(&self, tool_kind: u32, x: i32, z: i32, flag: u32) -> Option<[u8; 4]>;
     /// InsertOccupant step 3 (§5.2): `0x00731F60(occupant)` for data4 1 or
     /// 2, `0x00732450(occupant)` for 3 (not traced; no RNG).
     fn street_joining_helper(&self, occupant: u64, data4: u32);
