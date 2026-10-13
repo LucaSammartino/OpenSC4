@@ -36,10 +36,11 @@ written into §7.2.1:
 draft fallbacks need the network tools' `OccupantExists(x, z, flag, &mask)`, which §8.8/§7.13 describe only for highlight
 mode. Partly a headless limit (the highlight is a UI preview) and partly a missing spec test.
 
-**ZQ5 — §7.3 `ExamineBoundaries` city-border behaviour is untested.**
-Quirk 5 ("examines the region's own edge cells at the city border") and the rule "at the edge the 'outside' coordinate
-stays on R's own edge" have no vector: test 13's region is at x 10..12, z 10..12, well inside a 64×64 city. The
-implementation follows the prose but nothing pins it.
+~~**ZQ5 — §7.3 `ExamineBoundaries` city-border behaviour is untested.**~~ **ANSWERED 2026-10-13** from the exe:
+the clamp was checked on the bytes (`0x00731C8D`) and zones.md §15 now has **test 31**, with both low edges, both
+high edges and the placeStreets-off case. §7.3 now states the consequence: at the border the examined cell is R's
+own zoned, empty cell. It scores like an empty outside cell (+1 per cell with `placeStreets`), so a border side is
+neither skipped nor scored as an obstacle.
 
 **ZQ6 — §7.5 step 1 table, three of six cells unpinned.**
 `zn15_30`/`zn15_31` pin the x-line `_` arm (Q=3) and the `0|2` arm in its `D = 3` branch, and the z-line `_` and `2`

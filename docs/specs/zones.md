@@ -457,7 +457,11 @@ Scores the four sides of the restriction region R to decide which side lots face
 
 - Scores `S[0..3] := 0`; conditions `C[0..3] := placeStreets ? 0 : 1`.
 - The outside rect is R's rect grown by one cell, but **not past the city edge** (at the edge the "outside" coordinate
-  stays on R's own edge).
+  stays on R's own edge). Checked on the bytes (`0x00731C8D`–`0x00731CC8`): `x1' := x1 > 0 ? x1 − 1 : x1`,
+  `x2' := x2 < cellsX − 1 ? x2 + 1 : x2`, and the same for z.
+  At the border the cell examined is therefore R's own edge cell. In real mode that is a cell of R, so it is zoned
+  and has no network, lot or water. It only gets the `C = 0` bonus: +1 with `placeStreets`, nothing without, exactly
+  like an empty cell outside. A border side is neither skipped nor scored as an obstacle (test 31).
 - For x in x1..x2: if `(x, z1) ∈ R` → `ExamineCell(x, z1', side 0)`; if `(x, z2) ∈ R` → `ExamineCell(x, z2', side 2)`.
   Then for z in z1..z2: if `(x1, z) ∈ R` → `ExamineCell(x1', z, side 3)`; if `(x2, z) ∈ R` → `ExamineCell(x2', z,
   side 1)`. (Primes are the grown coordinates.)
@@ -1254,7 +1258,7 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 3. `CreateLotIfPossible` ignores its configuration argument (§8.5).
 4. `SimpleParcellize` and zone 7–9 remnants draw one random number per cell even where no lot can be made, and in
    the highlight preview (§9).
-5. `ExamineBoundaries` examines the region's own edge cells at the city border (§7.3).
+5. `ExamineBoundaries` examines the region's own edge cells at the city border (§7.3, test 31).
 6. The master list order changes on save/load (§10.2).
 7. `GetLotSavvyTerrainAltitude` rounds x/16 up above a fraction of 0.999 (§8.7).
 8. DeferOccupantOperations is posted, not sent (§5.3).
@@ -1481,3 +1485,22 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
       (4096, 9, 4616) = 2100793 (the last four are one above the exact floor). Depth adjustment of
       `[minDepth, maxDepth]`: [2, 2], [3, 3], [1, 2], [2, 3], [1, 1] → [1, 3]; [3, 4], [4, 4] → [2, 4];
       [5, 6] → [4, 6]; [1, 3] and [1, 4] unchanged. Residential density-2 block: depth 1, 2, 3, 4 → 2, 5, 7, 10.
+31. **`ExamineBoundaries` at the city border** (§7.3, quirk 5). City 64 × 64, zone 4, `SetOptions(0, 1, 0)`, real
+    mode; R is set directly as the restriction region (its rect is its bounding box). Results are S, C, D, Q, flag.
+    - (a) Low edges. R = {x 0..2, z 0..2} without (0, 2) (8 cells); road (bit 0) on (3, 0..2); nothing else.
+      - Side 0 (z1 = 0) examines R's own cells (0..2, 0): +1 each.
+      - Side 3 (x1 = 0) examines its own cells (0, 0) and (0, 1): +1 each. (0, 2) is not in R, so it is not examined.
+      - Side 2 examines (1, 3) and (2, 3).
+      - Side 1 examines the road on (3, 0..2).
+
+      **S = {3, 300, 2, 2}, C = {0, 1, 0, 0}, D = 1, Q = 0** (S[0] = 3 > S[2] = 2), **flag 1**. Skipping the
+      off-map sides would give S[0] = 0 and Q = 2. Scoring them as obstacles would give C[0] = C[3] = 2.
+    - (b) High edges. R = {x 61..63, z 61..63} without (61, 63); road on (61..63, 60).
+      - Side 1 (x2 = 63) examines its own cells (63, 61..63): 3.
+      - Side 2 (z2 = 63) examines its own cells (62, 63) and (63, 63): 2.
+      - Side 3 examines (60, 61) and (60, 62): 2.
+
+      **S = {300, 3, 2, 2}, C = {1, 0, 0, 0}, D = 0, Q = 1** (S[1] = 3 > S[3] = 2), **flag 1**. With zone 1
+      instead, the 3 × 3 rect allows the swap: **flag 0, D = 1, Q = 0**.
+    - (c) (a) with `SetOptions(0, 0, 0)`. C starts at 1, so no cell gets the +1: **S = {0, 300, 0, 0},
+      C = {1, 1, 1, 1}, D = 1, Q = 2, flag 1**.
