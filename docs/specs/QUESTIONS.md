@@ -126,3 +126,39 @@ implementer found empirically. It reproduces `0x3DAA8124` (2001-10-01), `0xB9794
 three vtables touches them, nor does any other class. The only code that does is the constructor, the zeroing in
 `Init`, `Write`, `Read` and the six `FADD`s. The save record is the only way in or out, so the fields are dead in
 play and 0 in every new city.
+
+## From the traffic network core (filed by the coordinator from the lane's report, 2026-10-13; merged with the core)
+
+About `docs/specs/traffic-network.md`. The core implements every section except §4.14 (needs the simulator's safe lot
+iterator), §6 persistence (the record is in traffic-simulator.md §6) and the GZCOM glue. Where the spec left a choice
+open, the core's current answer is in brackets; "[none]" means the spec must decide.
+
+- **TN1 — §4.7.1:** does the step-1 "stop" also skip the ferry step 6? [yes]
+- **TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]
+- **TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
+  so DoPostCityInit re-reads them. Which is right? [none]
+- **TN4 — §4.7.2:** when DoPostCityInit re-reads the rules, are the flags and the "to" mask recomputed, and which
+  rectangle is used to refresh the access point? [recomputed; the building's bounding cells]
+- **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
+  [reached, not extended]
+- **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
+  [off-map]
+- **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
+  IDs are found depends on it. Which order is right? [BoundaryIterator]
+- **TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]
+- **TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]
+- **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
+- **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
+  [overwrite; no record]
+- **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
+- **TN13 — IDs:** are `0x69D5C424` and `0x69D5C42D` grid instance IDs or classes? traffic-simulator.md calls
+  `0x69D5C424` the "wormhole byte map". [none]
+- **TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]
+- **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
+- **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
+  forever]
+- **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
+- **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
+- **TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]
+- **TN20 — §11 test 7:** the Walk-on-Road speed is not stated (3.5 was worked back from the stated Walk cost). Please
+  list the shipped speeds of every travel mode.
