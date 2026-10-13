@@ -139,7 +139,9 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   and written into traffic-network.md §4.7.1 step 1 and §12, and traffic-simulator.md §4.1.3. **Yes, and more:** the
   stop is a return from DoLotActivated (`0x00723BAC` → `0x00724188`). It also skips the `DoConnectionsChanged`, the
   bucket registration, the `RandomUint32Uniform(100)` draw (`0x00723FBE`), the budget items and the destination
-  bits. Also corrected while tracing: the destination bits are **stored** over the lot rectangle, not ORed.
+  bits. Also corrected while tracing: the destination bits are **stored** over the lot rectangle, not ORed. The
+  "byte size" is a raw byte count: the property is a u8 array in every shipped switch (§4.7.2), so no shipped
+  building stops.
 - **TN2 — §4.7.1:** does step 6 run for a building without property `0xE90E25A1`? [yes]
 - ~~**TN3 — §6 vs §4.7.2 (contradiction):** §6 says the switch record saves the rules; §4.7.2 says the save does not,
   so DoPostCityInit re-reads them. Which is right? [none]~~ **ANSWERED 2026-10-13** from the exe and written into

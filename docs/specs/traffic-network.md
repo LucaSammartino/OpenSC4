@@ -451,7 +451,7 @@ With the shipped values, a Street (100) gives:
 
 #### 4.7.1 Activation (DoLotActivated `0x00723AF0`, network part)
 
-This applies when the lot's building has property `0xE90E25A1` (a u32 array):
+This applies when the lot's building has property `0xE90E25A1` (raw bytes, 4 per rule, §4.7.2):
 
 1. If the property's byte size is not a multiple of 4, **return from DoLotActivated** (`0x00723BAC` jumps to
    `0x00724188`, which only frees the copied bytes). Everything after this point is skipped (TN1):
@@ -460,9 +460,10 @@ This applies when the lot's building has property `0xE90E25A1` (a u32 array):
    - all of step 7, including the `RandomUint32Uniform(100)` draw (`0x00723FBE`), the budget items and the
      destination bits (traffic-simulator.md §4.1.3).
 
-   The byte size is the raw data size of the property: `0x005FFB40` copies the bytes. A u32 array always passes, so
-   only a property of another type whose data length is not a multiple of 4 stops here (custom content). *[compat]*
-   because of the skipped draw.
+   The byte size is the variant's element count, because the property is read as raw bytes (§4.7.2). Every shipped
+   switch stores a u8 array of 8 to 32 bytes, so none stops here. Only custom content stops here: a u8 array whose
+   length is not a multiple of 4, or a u32 array whose entry count is not (§4.7.2). *[compat]* because of the
+   skipped draw.
 2. Build a switch:
    - the building reference;
    - properties `0xE90E25A2`, `0xE90E25A3`, `0x0BFC0A4C`, `0x4BFC47B0`;
@@ -483,13 +484,25 @@ This applies when the lot's building has property `0xE90E25A1` (a u32 array):
 Find the lot at the NW corner of the building's bounding cells (lot manager slot 6, bool false). With no lot, no
 rules are read *[quirk]*. Otherwise `f = lot.GetFacing()` (slot 23).
 
-For each u32 entry of `0xE90E25A1`, taking bytes `b0…b3` with b0 the least significant:
+`0xE90E25A1` is read as **raw bytes** by `0x005FFB40`:
+1. property holder slot 9 `GetProperty(id)` (absent → no bytes);
+2. the variant's `RefUint8()` (slot 95) and `GetCount()` (slot 4);
+3. `count` bytes are copied from the variant's data.
+
+Every shipped switch stores the property as a **u8 array**: 13 exemplars in `SimCity_1.dat`, 8 to 32 bytes, with
+`b0` always `0x81` or `0x82`. Each group of 4 bytes `b0 b1 b2 b3` is one rule, and there are `n = ⌊count / 4⌋` of
+them. DoLotActivated has already refused a count that is not a multiple of 4 (§4.7.1 step 1). For each rule:
 
 - `kind = (b0 = 0x82) ? 1 : 0`;
 - for i = 0…3: `side[ROT[f][i]] = bit (7 − i) of b1`;
 - `from = b2`, `to = b3`.
 
 Kind-0 rules also OR `1 << to` into the "to" mask.
+
+*[quirk]* A property stored as a **u32 array** of N entries has count N, so only its first N bytes are copied.
+They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's least significant byte), and
+DoLotActivated stops unless N is a multiple of 4. A scalar has count 0, so it gives a switch with no rules. FreeCity4
+reads the same raw bytes.
 
 **After a load (TN3, from the exe).** The save **does** contain the rules: `Read` reads them for record versions
 above `0x1C` (§6). `DoPostCityInit` still calls this function for **every** switch in the table (`0x00720466`). The
