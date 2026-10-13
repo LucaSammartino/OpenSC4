@@ -5,7 +5,7 @@
     "pathfinder 4.9",
     "pathfinder 11.7"
   ],
-  "description": "Conformance test 7 (\u00a711), the boundary: 64 rejections do not disable Car (the counter must exceed 64), so the search reaches (4,3) as in test 2.",
+  "description": "Conformance test 7 (§11), the boundary: 64 rejections do not disable Car (the counter must exceed 64), so the search reaches (4,3) as in test 2.",
   "steps": [
     {
       "op": "pf_street",

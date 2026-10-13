@@ -5,7 +5,7 @@
     "pathfinder 4.15",
     "pathfinder 11.3"
   ],
-  "description": "Conformance test 3 (\u00a711): the compressed route of test 2. Header 01 02 03 (type 1 at (2,3)); two unit steps +x (code 2) of type 1: run 41 02 0A (codes packed least significant bits first: 2 | 2<<2 = 0x0A). Mask 1<<1. The output vector is cleared first.",
+  "description": "Conformance test 3 (§11): the compressed route of test 2. Header 01 02 03 (type 1 at (2,3)); two unit steps +x (code 2) of type 1: run 41 02 0A (codes packed least significant bits first: 2 | 2<<2 = 0x0A). Mask 1<<1. The output vector is cleared first.",
   "steps": [
     {
       "op": "pf_street",

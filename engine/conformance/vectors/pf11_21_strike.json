@@ -5,7 +5,7 @@
     "pathfinder 4.4",
     "pathfinder 4.8.2"
   ],
-  "description": "Extra (\u00a74.4 step 6). switch[Car] at (3,3) = 0xF2FF lets a car trip become Bus (type 2) leaving +x; Bus is allowed, can reach destinations, invMaxSpeed[Bus][Street] = 0.5, not affected by traffic: the Bus node at (4,3) costs 1.5 + 0.5 = 2.0 and wins (last travel type 2). During a strike (state 1) the switch mask is allowed & 0x33, which drops Bus: the Car route wins (type 1, trip length 3.0).",
+  "description": "Extra (§4.4 step 6). switch[Car] at (3,3) = 0xF2FF lets a car trip become Bus (type 2) leaving +x; Bus is allowed, can reach destinations, invMaxSpeed[Bus][Street] = 0.5, not affected by traffic: the Bus node at (4,3) costs 1.5 + 0.5 = 2.0 and wins (last travel type 2). During a strike (state 1) the switch mask is allowed & 0x33, which drops Bus: the Car route wins (type 1, trip length 3.0).",
   "steps": [
     {
       "op": "pf_street",

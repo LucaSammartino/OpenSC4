@@ -7,7 +7,7 @@
     "pathfinder 4.3",
     "pathfinder 11.6"
   ],
-  "description": "Conformance test 6 (\u00a711), first part: test 2 without flag 1 and SetMaxTripLength(2.0): maxCost[Car] = r24(0 + 2.0) = 2.0, so the two nodes with g = 3.0 ((4,3) and (0,3)) are rejected (over-budget count 2 for Car); the open set empties; FindPath = 0; GetTripLength = 2.0 (the max, unchanged); no route recorded.",
+  "description": "Conformance test 6 (§11), first part: test 2 without flag 1 and SetMaxTripLength(2.0): maxCost[Car] = r24(0 + 2.0) = 2.0, so the two nodes with g = 3.0 ((4,3) and (0,3)) are rejected (over-budget count 2 for Car); the open set empties; FindPath = 0; GetTripLength = 2.0 (the max, unchanged); no route recorded.",
   "steps": [
     {
       "op": "pf_street",

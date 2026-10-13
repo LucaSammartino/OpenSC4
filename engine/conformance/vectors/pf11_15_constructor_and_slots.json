@@ -4,9 +4,10 @@
   "spec": [
     "pathfinder 1",
     "pathfinder 2",
-    "pathfinder 4.2"
+    "pathfinder 4.2",
+    "pathfinder 7"
   ],
-  "description": "Extra (\u00a71, \u00a72, \u00a74.2): the constructor values (count 0, not initialised, weight 1.0, trip length 0.0, both masks 0x0002, filter 3, no route, no starting cost array, max work time 0), QueryInterface for 0xAA0DB766 and 1 (each adds a reference), Init and Shutdown twice, and the travel-type slots.",
+  "description": "Extra (§1, §2, §4.2): the constructor values (count 0, not initialised, weight 1.0, trip length 0.0, both masks 0x0002, filter 3, no route, no starting cost array, max work time 0), QueryInterface for 0xAA0DB766 and 1 (each AddRefs through the vtable, §7 slot 0), Init and Shutdown twice, and the travel-type slots.",
   "steps": [
     {
       "op": "pf_new"
@@ -57,6 +58,12 @@
         4660
       ],
       "expect": false
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "ref_count": 2
+      }
     },
     {
       "op": "pf_call",

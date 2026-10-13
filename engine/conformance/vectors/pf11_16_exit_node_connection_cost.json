@@ -10,7 +10,7 @@
     "pathfinder 4.16",
     "pathfinder 10"
   ],
-  "description": "Extra. Start rect (4,2) (no lot): ring 1 reaches the street at (4,3); start nodes (4,3) sides 0 and 2. End rect (-1,3,-1,3), w = 0.5. The search rect (0,-2)-(8,6) holds every street cell, so f = g and the exit node from (0,3) (direction 0) costs r24(f - g) = 0: g 6.0, keyed on (0,3) with bit 31 and prefix (2<<2|0), node cell (-1,3). Off-map in the end rect: a goal (end cell (-1,3), arrived 10). Filter 3 with destination type reached 0 (FreeCity4 zero-fills it, \u00a710 Q1) adds the neighbour connection cost 0.25: trip length 6.25. The compressed route treats the exit node as a unit step: 01 04 03, 41 05 00 00. Reversible.",
+  "description": "Extra. Start rect (4,2) (no lot): ring 1 reaches the street at (4,3); start nodes (4,3) sides 0 and 2. End rect (-1,3,-1,3), w = 0.5. The search rect (0,-2)-(8,6) holds every street cell, so f = g and the exit node from (0,3) (direction 0) costs r24(f - g) = 0: g 6.0, keyed on (0,3) with bit 31 and prefix (2<<2|0), node cell (-1,3). Off-map in the end rect: a goal (end cell (-1,3), arrived 10). Filter 3 with destination type reached 0 (FreeCity4 zero-fills it, §10 Q1) adds the neighbour connection cost 0.25: trip length 6.25. The compressed route treats the exit node as a unit step: 01 04 03, 41 05 00 00. Reversible.",
   "steps": [
     {
       "op": "pf_street",

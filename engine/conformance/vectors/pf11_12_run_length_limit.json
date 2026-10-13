@@ -5,7 +5,7 @@
     "pathfinder 4.15",
     "pathfinder 11.12"
   ],
-  "description": "Conformance test 12 (\u00a711): 300 consecutive unit steps of type 1, all with code 2. The first run holds 255 steps: 41 FF, 63 bytes AA and 2A (three steps); the 256th step starts a new run of 45: 41 2D, 11 bytes AA and 02.",
+  "description": "Conformance test 12 (§11): 300 consecutive unit steps of type 1, all with code 2. The first run holds 255 steps: 41 FF, 63 bytes AA and 2A (three steps); the 256th step starts a new run of 45: 41 2D, 11 bytes AA and 02.",
   "steps": [
     {
       "op": "pf_eval",

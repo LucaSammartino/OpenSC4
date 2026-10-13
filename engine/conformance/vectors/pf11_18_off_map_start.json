@@ -4,7 +4,7 @@
   "spec": [
     "pathfinder 4.6"
   ],
-  "description": "Extra (\u00a74.6 off-map start fallback): start rect (-1,5,-1,5). The rings find no network, so for the neighbour connection whose link list has a link at (-1,5) (cost 2.0; the link to (-1,7) does not match) and Car in its mask, the start node is created at its in-city cell (0,3), side 0, key prefix 0x10, g = r24(0 + 2.0). The route runs east to (4,3) (g 8.0); trip length r24(8.0 - 2.0) = 6.0.",
+  "description": "Extra (§4.6 off-map start fallback): start rect (-1,5,-1,5). The rings find no network, so for the neighbour connection whose link list has a link at (-1,5) (cost 2.0; the link to (-1,7) does not match) and Car in its mask, the start node is created at its in-city cell (0,3), side 0, key prefix 0x10, g = r24(0 + 2.0). The route runs east to (4,3) (g 8.0); trip length r24(8.0 - 2.0) = 6.0.",
   "steps": [
     {
       "op": "pf_street",

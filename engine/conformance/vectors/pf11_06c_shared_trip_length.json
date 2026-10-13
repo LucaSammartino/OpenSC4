@@ -6,7 +6,7 @@
     "pathfinder 4.4",
     "pathfinder 11.6"
   ],
-  "description": "Conformance test 6 (\u00a711), last part: after test 2 (success, trip length 3.0) a second FindPath without SetMaxTripLength uses maxCost = r24(startCost + 3.0) = 3.0 for every travel type (the shared float).",
+  "description": "Conformance test 6 (§11), last part: after test 2 (success, trip length 3.0) a second FindPath without SetMaxTripLength uses maxCost = r24(startCost + 3.0) = 3.0 for every travel type (the shared float).",
   "steps": [
     {
       "op": "pf_street",

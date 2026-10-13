@@ -5,7 +5,7 @@
     "pathfinder 4.5",
     "pathfinder 11.9"
   ],
-  "description": "Conformance test 9 (\u00a711). 16 x 16 city, start rect (5,5,5,5), destination flags bit 0, free count 1, destination bit 0 at (4,6) and (6,4) (one-cell lots). Ring 1 scans the left column x = 4 first and finds (4,6), then (6,4) in the right column; both at Manhattan distance 2, the first wins: the end rect becomes the lot at (4,6). There is no network, so no start node is created and FindPath returns 0 after the end rect was chosen.",
+  "description": "Conformance test 9 (§11). 16 x 16 city, start rect (5,5,5,5), destination flags bit 0, free count 1, destination bit 0 at (4,6) and (6,4) (one-cell lots). Ring 1 scans the left column x = 4 first and finds (4,6), then (6,4) in the right column; both at Manhattan distance 2, the first wins: the end rect becomes the lot at (4,6). There is no network, so no start node is created and FindPath returns 0 after the end rect was chosen.",
   "steps": [
     {
       "op": "pf_env",

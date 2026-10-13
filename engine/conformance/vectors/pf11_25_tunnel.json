@@ -6,7 +6,7 @@
     "pathfinder 4.15",
     "pathfinder 4.16"
   ],
-  "description": "Extra (\u00a74.8.3 step 1). A tunnel joins (2,3) and (6,3) (mask 0x1FE, Car cost 0.5); (6,3) is a street. From the start node (2,3) side 0 the tunnel adds (6,3) with the unchanged entry side 0, g 0.5, the cheapest node; it is next to the end rect (6,4): trip length 0.5. The compressed route has a jump: 01 02 03, then 01 06 03 (no flag: (2,3) is in city without the ferry bit). Both cells are tunnel portals: reversible.",
+  "description": "Extra (§4.8.3 step 1). A tunnel joins (2,3) and (6,3) (mask 0x1FE, Car cost 0.5); (6,3) is a street. From the start node (2,3) side 0 the tunnel adds (6,3) with the unchanged entry side 0, g 0.5, the cheapest node; it is next to the end rect (6,4): trip length 0.5. The compressed route has a jump: 01 02 03, then 01 06 03 (no flag: (2,3) is in city without the ferry bit). Both cells are tunnel portals: reversible.",
   "steps": [
     {
       "op": "pf_street",

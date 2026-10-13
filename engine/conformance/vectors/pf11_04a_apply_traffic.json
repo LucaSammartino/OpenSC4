@@ -5,7 +5,7 @@
     "pathfinder 4.17",
     "pathfinder 11.4"
   ],
-  "description": "Conformance test 4 (\u00a711): ApplyTraffic(0) after test 2. Road volume of (2,3), (3,3), (4,3) = 10.0 each. Edge density, key bit 0, type 1: (4,3) count[0][3] (entered from (3,3) = side 0, left towards the end cell (4,4) = side 3), (3,3) count[0][2], (2,3) count[1][2] (the root: entered from the start rect, z = 3 > sz1 = 2 -> side 1). No key-bit-1 records.",
+  "description": "Conformance test 4 (§11): ApplyTraffic(0) after test 2. Road volume of (2,3), (3,3), (4,3) = 10.0 each. Edge density, key bit 0, type 1: (4,3) count[0][3] (entered from (3,3) = side 0, left towards the end cell (4,4) = side 3), (3,3) count[0][2], (2,3) count[1][2] (the root: entered from the start rect, z = 3 > sz1 = 2 -> side 1). No key-bit-1 records.",
   "steps": [
     {
       "op": "pf_street",

@@ -6,7 +6,7 @@
     "pathfinder 4.9",
     "pathfinder 11.7"
   ],
-  "description": "Conformance test 7 (\u00a711). Start (2,3) side 0 adds (3,3) g 1.5 (same-type move first), then its ferry terminal's 65 links each fail the budget (g = 100 > maxCost 10): the 65th rejection disables Car for the call. (3,3) then cannot add (4,3) (g 3.0 is within budget, but Car is disabled): FindPath = 0, two nodes.",
+  "description": "Conformance test 7 (§11). Start (2,3) side 0 adds (3,3) g 1.5 (same-type move first), then its ferry terminal's 65 links each fail the budget (g = 100 > maxCost 10): the 65th rejection disables Car for the call. (3,3) then cannot add (4,3) (g 3.0 is within budget, but Car is disabled): FindPath = 0, two nodes.",
   "steps": [
     {
       "op": "pf_street",

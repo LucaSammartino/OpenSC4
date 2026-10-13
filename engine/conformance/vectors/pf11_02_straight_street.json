@@ -10,7 +10,7 @@
     "pathfinder 4.16",
     "pathfinder 11.2"
   ],
-  "description": "Conformance test 2 (\u00a711). Ring 1 of the start lot (2,2) visits (2,1), (1,2), (3,2), (2,3); only (2,3) has a network, so the start nodes are (2,3) sides 0 and 2 (g = f = 0, keys 0x10|side prefix). Pops: (2,3) s0 adds (3,3) s0 g 1.5; (2,3) s2 adds (1,3) s2 g 1.5; (3,3) adds (4,3) g 3.0; (1,3) adds (0,3) g 3.0; (4,3) is a goal (its +z neighbour (4,4) is in the end rect) and is pushed back. Every node is inside the search rect (-2,-2)-(6,6), so f = g. Node keys: ((pSide<<2|side)<<24)|(t<<16)|(x<<8)|z. The heap ends as [(0,3), (4,3)].",
+  "description": "Conformance test 2 (§11). Ring 1 of the start lot (2,2) visits (2,1), (1,2), (3,2), (2,3); only (2,3) has a network, so the start nodes are (2,3) sides 0 and 2 (g = f = 0, keys 0x10|side prefix). Pops: (2,3) s0 adds (3,3) s0 g 1.5; (2,3) s2 adds (1,3) s2 g 1.5; (3,3) adds (4,3) g 3.0; (1,3) adds (0,3) g 3.0; (4,3) is a goal (its +z neighbour (4,4) is in the end rect) and is pushed back. Every node is inside the search rect (-2,-2)-(6,6), so f = g. Node keys: ((pSide<<2|side)<<24)|(t<<16)|(x<<8)|z. The heap ends as [(0,3), (4,3)].",
   "steps": [
     {
       "op": "pf_street",

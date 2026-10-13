@@ -5,7 +5,7 @@
     "pathfinder 4.17",
     "pathfinder 11.4"
   ],
-  "description": "Conformance test 4 (\u00a711), style 2: volumes 20.0 (two separate adds) and the same counts (same index, not mirrored) in both the key-bit-0 and key-bit-1 records.",
+  "description": "Conformance test 4 (§11), style 2: volumes 20.0 (two separate adds) and the same counts (same index, not mirrored) in both the key-bit-0 and key-bit-1 records.",
   "steps": [
     {
       "op": "pf_street",

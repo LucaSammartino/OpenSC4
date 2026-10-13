@@ -5,7 +5,7 @@
     "pathfinder 4.17",
     "pathfinder 11.4"
   ],
-  "description": "Conformance test 4 (\u00a711) with the carpool ordinance: Q = ceil(r24(10 x 0.8f)) = 8 for Car nodes; volumes 8.0, counts 8.",
+  "description": "Conformance test 4 (§11) with the carpool ordinance: Q = ceil(r24(10 x 0.8f)) = 8 for Car nodes; volumes 8.0, counts 8.",
   "steps": [
     {
       "op": "pf_street",

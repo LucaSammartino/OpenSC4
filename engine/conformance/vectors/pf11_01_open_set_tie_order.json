@@ -5,7 +5,7 @@
     "pathfinder 4.7",
     "pathfinder 11.1"
   ],
-  "description": "Conformance test 1 (\u00a711). Push f = a 5, b 3, c 3, d 1, e 3 in this order into the 1-indexed binary heap (sift-up on strict >, sift-down on strict <); the pop order is d, e, b, c, a (equal f is not FIFO).",
+  "description": "Conformance test 1 (§11). Push f = a 5, b 3, c 3, d 1, e 3 in this order into the 1-indexed binary heap (sift-up on strict >, sift-down on strict <); the pop order is d, e, b, c, a (equal f is not FIFO).",
   "steps": [
     {
       "op": "pf_eval",

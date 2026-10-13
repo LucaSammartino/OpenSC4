@@ -5,7 +5,7 @@
     "pathfinder 4.11",
     "pathfinder 11.13"
   ],
-  "description": "Conformance test 13 (\u00a711), fresh process, max work time large (the timer never expires). 16 FindPath calls that each expand at least 33 nodes (both start nodes, 16 cells east and 15 west, then the two exit nodes; with m = 1024, k >= 33 > 20) leave m = 512. A call expanding 0 nodes and one expanding 1 node (k = 0) change nothing. Four calls of test 2 (4 expansions, m = 512, k = 2) restore m = 1024.",
+  "description": "Conformance test 13 (§11), fresh process, max work time large (the timer never expires). 16 FindPath calls that each expand at least 33 nodes (both start nodes, 16 cells east and 15 west, then the two exit nodes; with m = 1024, k >= 33 > 20) leave m = 512. A call expanding 0 nodes and one expanding 1 node (k = 0) change nothing. Four calls of test 2 (4 expansions, m = 512, k = 2) restore m = 1024.",
   "steps": [
     {
       "op": "pf_env",

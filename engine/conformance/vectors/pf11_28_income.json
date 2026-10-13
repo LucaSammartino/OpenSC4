@@ -4,7 +4,7 @@
   "spec": [
     "pathfinder 4.17"
   ],
-  "description": "Extra (\u00a74.17 step 4 and the final add). incomePerTile[Car] = 0.5, carpool on: each in-city route cell adds r24(arrived x 0.5) = 5.0 with the uncarpooled count 10, so I = 15.0; the accumulator 1/3 becomes r24(15.0 + 1/3) = 15.333333f, stored as a double (0x402EAAAAA0000000). Volumes use the carpooled 8.",
+  "description": "Extra (§4.17 step 4 and the final add). incomePerTile[Car] = 0.5, carpool on: each in-city route cell adds r24(arrived x 0.5) = 5.0 with the uncarpooled count 10, so I = 15.0; the accumulator 1/3 becomes r24(15.0 + 1/3) = 15.333333f, stored as a double (0x402EAAAAA0000000). Volumes use the carpooled 8.",
   "steps": [
     {
       "op": "pf_street",

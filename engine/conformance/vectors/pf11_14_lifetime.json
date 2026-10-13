@@ -5,7 +5,7 @@
     "pathfinder 1",
     "pathfinder 11.14"
   ],
-  "description": "Conformance test 14 (\u00a711). CreatePathFinder returns an initialised object with count 1; one Release returns 0 and destroys it (Shutdown first). With count 2, Release returns 1.",
+  "description": "Conformance test 14 (§11). CreatePathFinder returns an initialised object with count 1; one Release returns 0 and destroys it (Shutdown first). With count 2, Release returns 1.",
   "steps": [
     {
       "op": "pf_create"

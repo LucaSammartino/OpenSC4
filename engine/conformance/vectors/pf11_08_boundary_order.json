@@ -5,7 +5,7 @@
     "pathfinder 4.6",
     "pathfinder 11.8"
   ],
-  "description": "Conformance test 8 (\u00a711): the boundary order of a ring rect. (1,1)-(3,3): the first row, each middle row at x0 then x1, the last row. (4,0)-(4,2), one column: each middle row once.",
+  "description": "Conformance test 8 (§11): the boundary order of a ring rect. (1,1)-(3,3): the first row, each middle row at x0 then x1, the last row. (4,0)-(4,2), one column: each middle row once.",
   "steps": [
     {
       "op": "pf_eval",

@@ -5,7 +5,7 @@
     "pathfinder 4.4",
     "pathfinder 4.8.2"
   ],
-  "description": "Extra (\u00a74.8.2 a): a 16 x 8 city with the street (0,3)...(12,3), start rect (12,2), end rect (-1,3,-1,3), w = 0.5. The search rect (8,-2)-(16,6) does not hold (0,3): H(0,3) = dX[0] + dZ[3] = 1 + 0, so f(0,3) = r24(r24(1 x 0.5) + 18.0) = 18.5 and the exit cost is r24(18.5 - 18.0) = 0.5: the exit node's g is 18.5, the trip length too (no connection cost at (-1,3)).",
+  "description": "Extra (§4.8.2 a): a 16 x 8 city with the street (0,3)...(12,3), start rect (12,2), end rect (-1,3,-1,3), w = 0.5. The search rect (8,-2)-(16,6) does not hold (0,3): H(0,3) = dX[0] + dZ[3] = 1 + 0, so f(0,3) = r24(r24(1 x 0.5) + 18.0) = 18.5 and the exit cost is r24(18.5 - 18.0) = 0.5: the exit node's g is 18.5, the trip length too (no connection cost at (-1,3)).",
   "steps": [
     {
       "op": "pf_env",

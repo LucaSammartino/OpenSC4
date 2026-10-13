@@ -7,7 +7,7 @@
     "pathfinder 4.13",
     "pathfinder 11.5"
   ],
-  "description": "Conformance test 5 (\u00a711): test 2 with the starting cost array [0, 0.4f, 0, ...]. Start g = 0.4f (0x3ECCCCCD); (3,3) g = r24(1.5 + 0.4f) = 1.9f (0x3FF33333); (4,3) g = r24(1.5 + 1.9f) = 3.4000001f (0x4059999A, a tie rounded to even); trip length r24(3.4000001f - 0.4f) = 3.0.",
+  "description": "Conformance test 5 (§11): test 2 with the starting cost array [0, 0.4f, 0, ...]. Start g = 0.4f (0x3ECCCCCD); (3,3) g = r24(1.5 + 0.4f) = 1.9f (0x3FF33333); (4,3) g = r24(1.5 + 1.9f) = 3.4000001f (0x4059999A, a tie rounded to even); trip length r24(3.4000001f - 0.4f) = 3.0.",
   "steps": [
     {
       "op": "pf_street",

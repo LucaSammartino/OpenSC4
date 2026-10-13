@@ -6,7 +6,7 @@
     "pathfinder 4.14",
     "pathfinder 11.6"
   ],
-  "description": "Conformance test 6 (\u00a711), flag 2: after a successful test 2 (end cell (4,4)), the same object without flag 1, with flag 2 and SetMaxTripLength(2.0): the open set empties and the result becomes the stored node nearest the end rect, (3,3) (DistanceToRectangle sqrt 2 against sqrt 5, sqrt 5, sqrt 10). FindPath = 1, trip length 1.5, route (2,3,1) (3,3,1), traffic arrived 0, end cell unchanged (4,4).",
+  "description": "Conformance test 6 (§11), flag 2: after a successful test 2 (end cell (4,4)), the same object without flag 1, with flag 2 and SetMaxTripLength(2.0): the open set empties and the result becomes the stored node nearest the end rect, (3,3) (DistanceToRectangle sqrt 2 against sqrt 5, sqrt 5, sqrt 10). FindPath = 1, trip length 1.5, route (2,3,1) (3,3,1), traffic arrived 0, end cell unchanged (4,4).",
   "steps": [
     {
       "op": "pf_street",
