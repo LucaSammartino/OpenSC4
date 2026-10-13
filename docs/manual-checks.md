@@ -63,6 +63,9 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 40 | main `6ca4b65` build, the same shadow config, FC4 Test's Konradshohe, speed 1 | **clean, 2 of 2 months matched** (740 and 729 lots). The rest of the run was lost to an advisor dialog holding the city at 2026-03-03 (HANDOFF §8). |
 | 41 | same, `autotest_unpause = 2`, 840 s | **clean, and 35 of 35 month-ends matched exactly** (2026-02 → 2028-12, including two January 1 settlements, 681–740 lots). No mismatch or attribution line was written in the whole run. An advisor dialog held the city for ~7.5 min until it was dismissed by hand. |
 
+| 42 | demand-shadow build `AC7D9017…` (+ the coordinator rustfmt commit), `demand_shadow = 1`, our simulator, Spandau | **clean; demand matches bit-for-bit.** All 160 NewDay updates had `mismatches=0`: 173 nodes, 12 active values and the neutral tax rate identical bitwise. 6 of 6 SimIdle modifier checks were exact. The graph built in 141 ms (173 exemplars, 353 links). `ref_warnings=1`: the per-call resource key list we own was released, a false positive (see 43). |
+| 43 | the refaudit fix `A27E5D41…` (merged as `a07aa6a`), same config | **clean, `ref_warnings=0`**, and 160 of 160 NewDay updates bit-exact again. **One finding:** on 2001-10-01, 11 of 12 *tax modifiers* differ by **4 ulp** (orig `0.0832541287`, ours `0.0832540989`; I-R matches), on the day the census supply changed. The other 5 modifier checks are exact, and run 42 had that same day exact. Under investigation by the engine lane: a different input or sampling moment is suspected, not the formula. |
+
 **Run 39 settles the per-type question below:** on identical state, ours equals the original on every tax type. The
 type-3 gap between runs 35 and 36 was the original's run-to-run drift, not a bug.
 

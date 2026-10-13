@@ -69,8 +69,8 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
   - Backup: `%TEMP%\claude\…\scratchpad\Spandau.sc4.bak`, SHA-256 `6982A842…`; it was unchanged after run 23.
   - Restore the city from the backup after any save test.
 - **Current Plugins state, safe for manual play (verified 2026-10-13, after run 38):**
-  - DLL `624EA28A…` with its **matching** PDB `441DE345…`: main `6ca4b65` built by `coord-verify-lane.ps1`. Power,
-    plumbing, flammability and the budget shadow are off by default. The previous main build is kept as the
+  - DLL `EFD5A01E…` with its **matching** PDB `6BDEE7F4…`: main `a07aa6a` built by `coord-verify-lane.ps1`. Power,
+    plumbing, flammability and both shadows are off by default. The previous main build is kept as the
     `.main-95db886` pair.
   - ini: `budget_default = 1` alone.
   - Backups alongside, each a matching DLL/PDB pair: `.run33-main-1eb5dd6`, `.run37-flammlog`. Older DLL-only backups
@@ -98,7 +98,12 @@ See the README checklist for the full list. In short:
     matching the unmodified Spandau save, where run 19 with the same config and no re-assert gave 122/104 (§5.2, §5.3).
   - **The budget differential is DONE: ours matches the original exactly** (run 39, the shadow differential, merged
     `6ca4b65`). All 12 tax types, total tax, income, expense and net are identical over five month-ends, on the same
-    lots at the same moment (§5.3). The demand differential is the remaining half of the M2 exit.
+    lots at the same moment (§5.3).
+  - **Demand matches bit-for-bit too** (the demand shadow, merged `a07aa6a`, ABI 15 → 16; runs 42/43): 320 of 320
+    daily updates identical across 173 nodes, the active values and the neutral rate. **The one item left for the M2
+    exit:** on 2001-10-01 in run 43, 11 tax modifiers were 4 ulp off. That is a single month, on the day the census
+    changed, and run 42 had the same day exact. An input or sampling-moment difference is suspected, and the engine
+    lane is investigating (§5.3b).
 - **M3:**
   - All ten grid-sim cores are done.
   - Land value glue is done (off by default).
@@ -282,6 +287,25 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
     - Lot order may differ, which can shift float sums by about ±1 per 1000 lots (QUESTIONS BQ1). None showed up.
   - **Done on Konradshohe as well:** run 40 matched 2 of 2 months. Run 41 matched **35 of 35 month-ends** (2026-02 →
     2028-12, two January settlements, 681–740 lots), with no mismatch line at all.
+
+### 5.3b Demand shadow differential — merged `a07aa6a`; one 4-ulp month open
+- **How it works:** with `demand_shadow = 1` (our simulator, the original demand), at each NewDay delivered to the
+  original demand simulator, our shared propagation (`core/src/demand/shadow.rs`, `fc4_demand_shadow`) runs on the
+  original's node states read just before. The original's states just after are diffed bitwise. SimIdle tax/economy
+  modifier changes are compared too.
+- **What it cannot read:** the CO/I economy bonuses, so ours assumes 0. A nonzero bonus would show up as an economy
+  modifier mismatch on Co$$, Co$$$ and I-*; none has.
+- **Results:** runs 42 and 43 had 160 of 160 days bit-exact each. Modifier checks were 6 of 6 and 5 of 6.
+  - **The open item:** on 2001-10-01 in run 43, 11 tax modifiers came out orig `0.0832541287`, ours `0.0832540989`
+    (4 ulp); I-R matched. The engine lane is asked whether it is the core or the shadow's sampling.
+- **The lane's spec questions,** not yet in QUESTIONS.md:
+  1. Is the link factor `percent·0.01`, and the `maxRate·0.1` term, computed with double or f32 constants?
+  2. Can the CO/I economy bonuses be read anywhere?
+  3. Is the `maxRate = neutral·10` fallback right when there is no tax history?
+  4. Can a census finish inside NewDay's `DoIdle(5)`?
+  5. Can `DoIdle(5)` change node min/max or region use?
+- **Refaudit gained `FC4_RELEASE_CREATED`** for temporaries the game creates for us (the per-call resource key list).
+  `FC4HostGrid.cpp:153` may need it too.
 
 ### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
 Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
