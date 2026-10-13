@@ -250,6 +250,9 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   - With the default preference the tick defers to `ReconcileEdgesWithNeighboringCities`. That function waits while
     a modal window is open and **posts nothing while popup dialogs are disabled** (`SetPopupDialogsEnabled(false)`).
   - None of land value, weather, ordinance or demand appears in this chain.
+  - **Confirmed in game** (coordinator): plumbing alone stays at `enabled=0` with `popup_dialogs = 0` set at
+    PostAppInit (run 64) and is enabled every month without it (run 65). The plugin now sets the flag only at
+    ConnectionsReady (`d161d20`, the §11.6 [choice]); run 66 has both: no popups, plumbing enabled all 38 months.
 
 ## From the residential tests and record (filed by the coordinator from the lane's report, 2026-10-14; merged with the core)
 
@@ -271,3 +274,27 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
 - **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
 - **RS16:** what does a zero divisor give in the averages? [0]
 - **RS17:** does a version-3 record keep the running population the constructor set? [yes]
+
+## From the pollution glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answer is in brackets.
+
+- **PG1 — slot 55 `GetRecyclingCenterCurrentCapacity`:** the spec says a bool in AL; `docs/abi` says ST0 (a float).
+  Which? [bool; the slot is waived in abi_conformance_test]
+- **PG2 — slot 51 `GarbagePutInLandfill`:** the spec says it returns the new int64 total; `docs/abi` says eax or
+  void. [int64; waived]
+- **PG3 — slot 54:** the spec says AL; the table says x87 or eax. Is it a float? [as the spec]
+- **PG4 — §4.10 visual effects:** the effects manager's `CreateVisualEffect` and the `cISC4VisualEffect` /
+  `cS3DTransform` layouts are not in `docs/abi`. [visual effects not implemented]
+- **PG5 — §10.2 Q1:** is the prop requester re-added after a load? [open in the spec]
+- **PG6 — shadow method:** the shadow captures the original's state by calling the original's own `Write`. Is that
+  acceptable as read-only? [used]
+- **PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
+  run without the load. Intended? [as the spec]
+- **PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]
+- **PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]
+- **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]
+- **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
+  bool. Confirm. [int32]
+- **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
+- **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
