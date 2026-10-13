@@ -28,6 +28,7 @@
 //         message of type (uint32_t)a and data1 (intptr_t)b.
 //   op 5  kFC4SeamObserverApp      a = cISC4App* the observer's save autotest
 //         uses instead of the framework's application (null: back to it).
+//         The popup-dialogs switch (FC4Popups.h) uses it too (borrowed).
 //   op 6  kFC4SeamPowerBudgetPath  a = cISC4BudgetSimulator* (initialised):
 //         runs the power glue's department / line-item callbacks on it,
 //         including a department reference read back from a save; returns

@@ -235,6 +235,19 @@ For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
    Passes repeat until one reports no change. The result is the **Manhattan distance** (in proximity tracts =
    cells) to the nearest key tract, **capped at 255**; with no key tract every value is 255.
+
+   *[compat]* (RS5, from the exe; one pass is `0x005E4E80`) **The running `d` is a 32-bit register** (`EDX`). It
+   is set to 255 at the start of every sweep, and the step `d + 1` is a 32-bit `inc`, so it cannot wrap. The
+   minimum is a signed 32-bit compare against the zero-extended byte `v`, and the store writes the low byte of `d`.
+   After `d := min(d + 1, v)` with `v ≤ 255`, `d` is never above 255, so the store never truncates. A
+   reimplementation that widens `d` and clamps to 0..255 gives the same results; the clamp never acts. "Changed"
+   is the OR of `old XOR new` over the pass.
+
+   Example: one row seeded `[255, 0, 255, 255]`.
+   - The forward sweep gives `[255, 0, 1, 2]`. The first step is `min(256, 255) = 255`.
+   - The backward sweep then gives `[1, 0, 1, 2]`.
+
+   A byte-wide `d` would wrap `255 + 1` to 0 and store 0 in the first cell, which is wrong.
 3. **Copy** into proximity grid w with `ProcessTwoGridsWithCallback<uint8, uint8>` (simgrid §7.3; equal shifts, so a
    plain copy).
 
@@ -257,6 +270,17 @@ float steps are float32 operations in the order given (foundations §18).
    `avg_q = (Σ over the S × S cells (S·x + i, S·z + j), i outer, j inner, of pollution.GetPollutionValue(q, cx, cz))
    ÷ (S·S)` (unsigned integer division; the pollution slot returns 16 bits, AX; it reads the **source** grids,
    pollution.md). The caller keeps only the **low byte**: `p_q = avg_q mod 256` *[quirk]*.
+
+   *[compat]* (RS3, from the exe; helper `0x006F7FF0`):
+   - The sum is a **32-bit unsigned accumulator that wraps**. It is one stack dword set to 0, and each 16-bit result
+     is zero-extended and added with a 32-bit `add`.
+   - The divisor `S·S` is a 32-bit `imul`, and the division is an unsigned 32-bit `div`.
+   - The loop bounds `S·x … S·x + S` and `S·z … S·z + S` are compared unsigned.
+   - The helper's arguments are `(q, S·x, S·z, S)`. Its outer loop runs over the first coordinate, and each call is
+     `GetPollutionValue(q, cx, cz)`, which is the i-outer, j-inner order above.
+
+   A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
+   S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):
@@ -283,6 +307,14 @@ float steps are float32 operations in the order given (foundations §18).
    - If new_w = 0: EQ_w := 0 and HQ_w := 0.
 5. **Ageing**. age := the age grid (uint8). If total ≠ 0: read the month (simulator `GetSimDate`, slot 6, month
    only); if month = 12, age := (age + 1) mod 256. If total = 0: age := 0.
+
+   *[compat]* (RS2, from the exe) The month is read **per tract and nothing is latched**:
+   - `DoPopulationChange` calls `GetSimDate` itself (`0x006FAA95`, through the cached simulator pointer) for each
+     tract with total ≠ 0, and compares the month with 12 at once (`0x006FAA98`);
+   - a tract with total = 0 does not call it at all.
+
+   In the original, state 4 always runs within one day, so every tract of a pass sees the same month. A host that
+   lets the date change in the middle of a pass must still read the date per tract, as the original would.
 6. **Newcomers' age**: if arrived and Σ new_w ≠ 0:
    `age := (Σ_w old_w × age + Σ_w nc_w × newAge_w) ÷ Σ_w new_w` (signed 32-bit, truncated), with newAge_w the
    tuning ages (§7.1). *[quirk]* The numerator uses the **old** populations even of levels that shrank, so a
@@ -307,14 +339,23 @@ The pass ends when the iterator is done; state 12 follows.
    unsigned).
 4. For each age group g = 0..8 (curves `0xEA540621 + g`, §7.2), with popSum := 0 and eqSum := 0:
    for b = 0..19 with ageCount[b] > 0:
-   `n := trunc((curve_g(float(21 + 3b)) × float(ageCount[b])) × 0.01)`; popSum += n;
+   `n := trunc((curve_g(float(21 + 3b)) × float(ageCount[b])) × 0.01f)`; popSum += n;
    `eqSum := trunc(float(n) × avg_b + float(eqSum))`.
    Then history `0xCA545CAB + g` := popSum and `0xCA545CCA + g` := popSum > 0 ? eqSum ÷ popSum (integer) : 0.
+
+   *[compat]* Precision of `n` (RS1, verified in the bytes at `0x006F814F`–`0x006F8163`): `0.01f` is the
+   **float32** constant `0x3C23D70A` = 0.0099999998 (`0x00A823A4`), not a double. The two products stay in the x87
+   register with no store between them, so at the game's 24-bit precision (foundations §18.3) each is rounded to
+   float32 and `_ftol` truncates the rounded value. Worked example (test 10): curve 6 × count 200 = 1200.0; the exact
+   product 1200 × 0.0099999998 = 11.99999973 lies 0.28 ulp below 12, so it **rounds to 12.0** and n = 12. An
+   implementation that keeps the product unrounded (double arithmetic with the float constant) gets 11.99999973 →
+   **11**, which is wrong. Because `0.01f` is 2.2 × 10⁻⁸ below 0.01 relatively (less than half an ulp), `100k × 0.01f`
+   rounds to exactly k for every integer k up to 2^24.
 
 ### 5.7 History (state 9)
 
 In this order: `0xAA1A2864` := trunc(own slot 32 `GetGlobalEQ()`); `0xAA1A2866` := trunc(own slot 33
-`GetGlobalHQ()`); `0xAA1A2CCA` := population. Then, if population > 0:
+`GetGlobalHQ()`) (both REH §4.8, walked x outer, z inner, RS4); `0xAA1A2CCA` := population. Then, if population > 0:
 `h := float(hospitalCovered) / float(population)` (computed first), `0x4A8A3FE5` := rhe(float(schoolCovered) /
 float(population) × 1000), then `0x4A8A3FE2` := rhe(h × 1000), where rhe rounds half to even (the original adds
 12582912 and takes the float's low bits). If population ≤ 0: `0x4A8A3FE2` := 0, then `0x4A8A3FE5` := 0.
@@ -335,6 +376,23 @@ Each call **creates a new float grid** (class `0x49B9E60A`), stores it in `*out`
 min starts at 255.0, max at 0.0 and track the stored values; `*min`, `*max` are written if non-null. Returns the
 **max pointer** in EAX.
 
+*[compat]* (RS6, from the exe; shared helper `AverageGrids`, `0x006F70E0`) **min and max are updated with every
+tract, populated or not**, as REH §4.8 says, and that text is normative:
+- An unpopulated tract (16-bit population sum 0) stores 0.0, and that 0.0 goes through the same compare as any
+  other value (`0x006F722D`–`0x006F7263`).
+- The compares are strict: `min := v` only when `min > v`, and `max := v` only when `max < v`. A NaN updates
+  neither.
+- The walk is x outer, z inner over the new grid's own `GetTractCountX/Z`.
+
+Results:
+- An empty city returns `min = max = 0.0`.
+- Only a grid with no tracts leaves 255.0 / 0.0.
+
+Example: a 1 × 2 grid where tract (0, 0) has R$ population 10 at EQ 100.0 and tract (0, 1) is empty.
+- The values are 100.0 and 0.0.
+- `min` goes 255.0 → 100.0 → 0.0, and `max` goes 0.0 → 100.0.
+- The result is `min = 0.0`, `max = 100.0`.
+
 ### 6.3 `GetEQGrids` / `GetHQGrids` / `GetPopulationGrids` (slots 23, 24, 25)
 
 Write the three grids (R$, R$$, R$$$) to the three **out-references** and `AddRef` each. EAX is the result of the
@@ -348,8 +406,8 @@ Each call fetches the tuning exemplar (§7) and builds a temporary curve.
 |---|---|
 | 29 `GetCellLifeExpectancy(x, z)` | curve `0x6941A67F` (code default (0,0),(200,200), then loaded) at own slot 36 `GetCellHQ(x, z)`; truncated; **AL** (uint8). No exemplar → 0 |
 | 34 `GetGlobalLE()` | the same curve at own slot 33 `GetGlobalHQ()`; **AL** |
-| 30 `GetCellWorkforcePercent(x, z)` | curve `0x4941A92B` (default (0,0),(200,100), then loaded) at `float(uint8 slot 29(x, z))`, × 0.01; written through a **hidden result pointer** (SC4Percentage). No exemplar → a static float that is never written (0.0 *[inferred]*) |
-| 31 `GetGlobalWorkforcePercent()` | the same with slot 34 |
+| 30 `GetCellWorkforcePercent(x, z)` | curve `0x4941A92B` (default (0,0),(200,100), then loaded) at `float(uint8 slot 29(x, z))`, × **0.01f** (float32 constant, one float32 rounding, `0x006FC81E`; RS1); written through a **hidden result pointer** (SC4Percentage). No exemplar → a static float that is never written (0.0 *[inferred]*) |
+| 31 `GetGlobalWorkforcePercent()` | the same with slot 34 (× 0.01f at `0x006FC997`) |
 
 x, z are cell coordinates (the other spec converts them to tracts in `GetCellHQ`).
 
@@ -386,8 +444,8 @@ below are set **unconditionally**, the exemplar is read, and finally `EQdecay :=
 | `0x0929C439` | HQ Decay | f32 | 1.0 | 0.2 | HQdecay |
 | `0xC929C652` / `0x0929CC30` / `0x0929CC36` | Low / Medium / High Wealth Average Age | s16 | 25 / 30 / 35 | 25 / 30 / 35 | newAge_w (§5.5 step 6) |
 | `0xCA027307` | Average Age reset value | u8 | 40 | 40 | resetAge |
-| `0xCA027325` | EQ reset percent | % × 0.01 | 0.7 | 80 → 0.8 | EQreset |
-| `0xCA027328` | HQ reset percent | % × 0.01 | 0.7 | 80 → 0.8 | HQreset |
+| `0xCA027325` | EQ reset percent | pct (% × 0.01f) | 0.7 (`0x3F333333`) | 80 → **0.79999995** (`0x3F4CCCCC`) | EQreset |
+| `0xCA027328` | HQ reset percent | pct (% × 0.01f) | 0.7 (`0x3F333333`) | 80 → **0.79999995** (`0x3F4CCCCC`) | HQreset |
 | `0xC929CC58` / `0x0929CC65` / `0x2929CC6B` | Low / Medium / High Wealth EQ | f32 | 4 / 6 / 8 | 20 / 40 / 60 | newcomer EQ bonus (other spec) |
 | `0xC929CC8D` / `0x6929CC92` / `0x4929CC97` | Low / Medium / High Wealth HQ | f32 | **none** *[quirk]* (uninitialised) | 20 / 40 / 60 | newcomer HQ bonus |
 | `0x6AB70DA7` | Death's door HQ | f32 | 0 | 2 | deathsDoorHQ |
@@ -402,6 +460,14 @@ below are set **unconditionally**, the exemplar is read, and finally `EQdecay :=
 the exemplar exists**, then loaded by key: exemplar present → "default"; exemplar missing → "keep" (empty on the
 first read; *[choice]* an empty curve evaluates to 0.0). *[choice]* FreeCity4 uses `0.0` for the uninitialised HQ
 bonuses when the exemplar or property is missing.
+
+**Percentages (RS1)** *[compat]*: "pct" is the shared percentage property getter `0x005FDAC0` (called at
+`0x006FC233`/`0x006FC242` for the two reset percents). It reads the property as a number of any type, converts it
+to the x87 register exactly, multiplies by the **float32** constant `0.01f` = `0x3C23D70A` (`0x00A823A4`) and stores
+a float32. Every arm of the getter uses that one constant; no `double` 0.01 appears in it or anywhere in this class
+(protection.md §6.2 found the same for its three classes). So the shipped 80 becomes **0.79999995**
+(`0x3F4CCCCC`), not 0.8f (`0x3F4CCCCD`): 80 × 0.0099999998 is exactly halfway between the two floats and rounds to
+the even one. This changes the generational reset (§5.5 step 8; test 8).
 
 ### 7.2 Simulator tuning (read at `Init` when not initialised)
 
@@ -440,6 +506,10 @@ exemplar exists**:
 
 - "default" = rebuilt from the code default list, then loaded by key (missing property → code default; missing
   exemplar → code default, since the rebuild is unconditional).
+- Every "× 0.01" in this table is a float32 multiplication by `0.01f` (`0x00A823A4`), either through the pct getter
+  (`0x006FBE71`, `0x006FBF69`) or inline after a float read (`0x006FBDB5` to `0x006FBF3E`), each stored as float32
+  (RS1). Shipped values therefore become 25 → 0.25, 120 → **1.1999999** (`0x3F999999`), 20 → **0.19999999**
+  (`0x3E4CCCCC`), 90 → 0.9f (`0x3F666666`, the nearest float to 0.9, so no visible change).
 - *[compat]* Without the exemplar, the staff divisors, slop multiplier, boosts and chunk sizes are **never set**
   (uninitialised). *[choice]* FreeCity4 uses the "this branch" defaults and empty chunk lists.
 - *[quirk]* The original releases the exemplar before its last property reads (the holder stays valid).
@@ -525,8 +595,9 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
 - `Write` always returns true (AL = 1).
 - `Read` never rejects a version and always returns true (AL = 1), ignoring stream errors.
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
-  - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01 (stored as
-    percentages); version < 6 → min grade × 0.01.
+  - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
+    percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
+    at `0x006F7BA0`, RS1).
   - Version ≥ 3: read the iterator and leSum; version ≥ 4: read the running population (version 3 keeps the
     constructed value *[inferred]*).
   - Version < 3: iterator at (0, 0), fresh (done if (0, 0) is outside its rectangle); leSum := 0; running
@@ -753,6 +824,9 @@ only through the interface (search of every reference to the global and to city 
   - The reset percentages' code defaults are 0.7, but the shipped values are 0.8.
   - The state is at the object's offset `+0x94` on Windows; `+0x90` is relative to the message-target sub-object.
   - Life expectancy is evaluated at cell coordinates (tract × P), after the EQ/HQ updates.
+- This spec, round 3 (RS1, 2026-10-13): every `× 0.01` is the float32 `0.01f`, so the shipped reset percent is
+  0.79999995, not 0.8, and §15 test 8's EQ/HQ results were one float below what round 3 stated. Test 10's values
+  were right, but only with the float32 rounding of each product, which §5.6 step 4 now states.
 - `docs/specs/pollution.md` §10.1: slot 6 `GetPollutionValue` is also called by residential `DoPopulationChange`
   (every tract, every month, three types), not only by the hospital query data.
 - `docs/specs/aura.md` open question on population geometry: the residential population grids use tract size 4
@@ -773,10 +847,15 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 5. **Newcomers' age**: pops (100, 0, 0) → (150, 0, 0), age 40, LE 100 → age **35**.
 6. **Age quirk**: (100, 0, 0) → (50, 10, 0), age 40, LE 100 → age **71** ((100·40 + 10·30) ÷ 60).
 7. **December**: total > 0, month 12, age 40, no arrivals → 41. Age 255 → 0. Total 0 → age 0.
-8. **Generational reset**: age 70, LE 61 → age 40; EQ 50 → 40, HQ 60 → 48 (× 0.8).
+8. **Generational reset**: age 70, LE 61 → age 40; EQ 50 → **39.999996** (`0x421FFFFF`), HQ 60 → **47.999996**
+   (`0x423FFFFF`), each × EQreset = HQreset = `0x3F4CCCCC` (§7.1, RS1) with one float32 rounding. The histogram of
+   step 11 then adds trunc(EQ) = **39**, not 40, per resident: with pop (200, 0, 0) at age 40 (bucket 6),
+   ageEqSum[6] += 39 × 200 = 7800. *(Corrected: round 3 of this spec gave 40 and 48, which assumed a double 0.01.)*
 9. **Buckets**: age 35 → 5; 17 → 19; 18 → 0; 22 → 0; 76 → 18; 77 → 19; 0 → 19.
 10. **Age groups**: one bucket, age 30 (b = 3), ageCount 200, EQ 50 (ageEqSum 10000) → `0xCA545CAB + g` =
-    12, 48, 54, 40, 24, 14, 8, 0, 0 and `0xCA545CCA + g` = 50 for g = 0..6, 0 for g = 7, 8.
+    12, 48, 54, 40, 24, 14, 8, 0, 0 and `0xCA545CCA + g` = 50 for g = 0..6, 0 for g = 7, 8. Each n needs the
+    float32 rounding of §5.6 step 4: 1200 × 0.01f rounds to 12.0 (unrounded it is 11.99999973 → 11); likewise
+    4800 → 48.0, 5400 → 54.0, 4000 → 40.0, 2400 → 24.0, 1400 → 14.0, 800 → 8.0.
 11. **Average LE**: tracts (total 100, LE 61) and (total 300, LE 75) → `0x2A5E7009` = 28600 ÷ 400 = **71**.
 12. **Per mille**: population 2000, hospital covered 1 → `0x4A8A3FE2` = **0** (0.5 rounds to even); school
     covered 3 → `0x4A8A3FE5` = **2** (1.5 → 2). Population 0 → both 0, `0x4A8A3FE2` recorded first.
@@ -784,7 +863,11 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 14. **Pollution byte**: 16 cells of air source 300 → p_0 = 300 mod 256 = **44** → air term ≈ 0.0085938, so
     hqLoss ≈ 0.2085938.
 15. **Life expectancy**: GetCellHQ = 100 → slot 29 = 75; HQ 22 → 55 (55.5 truncated).
-16. **Workforce**: LE 75 → slot 30 writes **0.5** through the hidden pointer and pops 12; LE 61 → ≈ 0.444.
+16. **Workforce**: LE 75 → slot 30 writes **0.5** through the hidden pointer and pops 12 (50 × 0.01f rounds to
+    exactly 0.5); LE 61 → ≈ 0.444.
+24. **Percentage getter** (RS1): the reset percents with the shipped 80 read as `0x3F4CCCCC` (0.79999995); with the
+    property absent they stay 0.7 (`0x3F333333`). Strike efficiency 20 → `0x3E4CCCCC`, max funding 120 →
+    `0x3F999999`.
 17. **New age**: slot 42(3) with the exemplar → 35; without → **25**; returns AL only.
 18. **NewMonth**: state 10 → state 0, dirty 0, true. State 5 → state 5, dirty 1, true.
 19. **NewDay unfinished**: a state-4 step whose time budget runs out returns false and resumes at the next tract.

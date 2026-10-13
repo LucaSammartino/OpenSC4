@@ -1,0 +1,208 @@
+{
+  "format": 1,
+  "name": "tn11_07_tunnel_cost",
+  "spec": [
+    "traffic-network 4.2",
+    "traffic-network 4.8",
+    "traffic-network 11.7"
+  ],
+  "description": "Conformance test 7 (§11). A Road tunnel (IsOfType 0 only) with portals at (8,0,24) and (72,0,24), shipped speeds, CellWidthX 16: d = 64; both records have mask 0x1FE; cost[Car] = 0x3DFDB011 (0.123870976); cost[Walk] = 0x3F8C6F2E (1.0971429, stored but masked); cost[PassengerTrain] = +inf, as for every type without speed on Road. A rebuild sets wormhole bit 2 at the in-city portal (§4.2 step 5); removal erases the key and the next rebuild clears the bit (§4.8).",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped",
+      "cell_width": 16,
+      "speeds": [
+        [
+          1,
+          0,
+          31
+        ],
+        [
+          0,
+          0,
+          3.5
+        ]
+      ],
+      "note": "Car on Road 31 (§4.8 example); Walk on Road 3.5, inferred from the stated Walk cost; PassengerTrain on Road has no speed"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "inverse_max_speed",
+      "args": [
+        31,
+        16
+      ],
+      "expect": "0x3CFDB011",
+      "note": "§4.8 example"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "pos": [
+        8,
+        0,
+        24
+      ],
+      "types": [
+        0
+      ],
+      "tunnel": 2
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "pos": [
+        72,
+        0,
+        24
+      ],
+      "types": [
+        0
+      ],
+      "tunnel": 1
+    },
+    {
+      "op": "tn_call",
+      "method": "tunnel_changed",
+      "args": [
+        1,
+        false
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_call",
+      "method": "tunnel_changed",
+      "args": [
+        2,
+        false
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_expect_tunnel",
+      "cell": [
+        0,
+        1
+      ],
+      "record": {
+        "other": [
+          4,
+          1
+        ],
+        "mask": "0x1FE",
+        "type": 0
+      }
+    },
+    {
+      "op": "tn_expect_tunnel",
+      "cell": [
+        4,
+        1
+      ],
+      "record": {
+        "other": [
+          0,
+          1
+        ],
+        "mask": "0x1FE",
+        "type": 0
+      }
+    },
+    {
+      "op": "tn_expect_tunnel",
+      "cell": [
+        0,
+        1
+      ],
+      "record": {
+        "cost": {
+          "0": "0x3F8C6F2E",
+          "1": "0x3DFDB011",
+          "3": "0x7F800000"
+        }
+      },
+      "note": "cost by travel type: Walk, Car, PassengerTrain"
+    },
+    {
+      "op": "tn_expect_tunnel",
+      "cell": [
+        4,
+        1
+      ],
+      "record": {
+        "cost": {
+          "0": "0x3F8C6F2E",
+          "1": "0x3DFDB011",
+          "3": "0x7F800000"
+        }
+      },
+      "note": "cost by travel type: Walk, Car, PassengerTrain"
+    },
+    {
+      "op": "tn_call",
+      "method": "do_connections_changed",
+      "args": [
+        0,
+        0,
+        3,
+        3
+      ]
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        0,
+        1
+      ],
+      "expect": {
+        "wormhole": 2
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "tunnel_changed",
+      "args": [
+        1,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "tn_expect_tunnel",
+      "cell": [
+        0,
+        1
+      ],
+      "record": null
+    },
+    {
+      "op": "tn_call",
+      "method": "do_connections_changed",
+      "args": [
+        0,
+        1,
+        0,
+        1
+      ]
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        0,
+        1
+      ],
+      "expect": {
+        "wormhole": 0
+      }
+    }
+  ]
+}

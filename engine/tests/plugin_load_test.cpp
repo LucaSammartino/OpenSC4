@@ -930,6 +930,147 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     }
 }
 
+// ---- popup_dialogs (FC4Popups.h, advisors §6.8.1 option 1): one child process per FreeCity4.ini ----
+// A cISC4App with only slots 23/24; every other slot traps, so the switch can
+// call nothing else (no QueryInterface, AddRef or Release of the borrowed app).
+struct FakePopupApp {
+    FakeVtable vt;
+    FakeObject app{};
+    bool enabled = true;
+    bool ignoreSet = false;  // a setter that does nothing ("did not take effect")
+    int gets = 0;
+    int sets = 0;
+};
+
+FakePopupApp* g_popupApp = nullptr;
+
+bool __fastcall AppGetPopupDialogsEnabled(void*, void*) {  // cISC4App 23 (+0x5C), pops 0
+    ++g_popupApp->gets;
+    return g_popupApp->enabled;
+}
+void __fastcall AppSetPopupDialogsEnabled(void*, void*, bool on) {  // cISC4App 24 (+0x60), one bool, pops 4
+    ++g_popupApp->sets;
+    if (!g_popupApp->ignoreSet) g_popupApp->enabled = on;
+}
+
+// Scenarios: off (popup_dialogs = 0), on (= 1; the parent also sets
+// FC4_POPUP_DIALOGS=0, which the ini overrides), env (FC4_POPUP_DIALOGS=0
+// only), bad (= maybe), unset, stuck (= 0 with a setter that does nothing).
+// Three city loads: the first without an application (tests have no
+// framework), the next two with the fake. Returns 0 if the fake saw what the
+// scenario expects; the parent checks the log.
+int PopupsChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
+    if (scenario == "off" || scenario == "stuck") {
+        WriteTextFile(ini, "[unattended]\npopup_dialogs = 0   ; no advisor popups\n");
+    } else if (scenario == "on") {
+        WriteTextFile(ini, "[unattended]\npopup_dialogs = 1\n");
+    } else if (scenario == "bad") {
+        WriteTextFile(ini, "[unattended]\npopup_dialogs = maybe\n");
+    } else {  // env, unset
+        WriteTextFile(ini, "; no popup_dialogs key\n");
+    }
+    HMODULE h = LoadLibraryA(dll.c_str());
+    if (h == nullptr) return 4;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(h, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(h, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    if (director == nullptr || seam == nullptr) return 5;
+    std::vector<uint32_t> classes;
+    director->EnumClassObjects(&CollectClass, &classes);  // game start: popup_dialogs is read
+
+    static FakePopupApp fake;
+    g_popupApp = &fake;
+    fake.vt.slots[23] = reinterpret_cast<void*>(&AppGetPopupDialogsEnabled);
+    fake.vt.slots[24] = reinterpret_cast<void*>(&AppSetPopupDialogsEnabled);
+    fake.app.vtbl = fake.vt.slots.data();
+    fake.enabled = scenario != "on";  // "on": the game's flag starts false
+    fake.ignoreSet = scenario == "stuck";
+    void* const cityInit = reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit));
+
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // no application: skipped, logged
+    const int setsWithoutApp = fake.sets;
+    seam(kFC4SeamObserverApp, &fake.app, nullptr);
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // the call
+    const int setsFirst = fake.sets;
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // never twice per process
+    seam(kFC4SeamObserverApp, nullptr, nullptr);
+    FreeLibrary(h);
+
+    const bool calls = scenario == "off" || scenario == "on" || scenario == "env" || scenario == "stuck";
+    const bool wantEnabled = !(scenario == "off" || scenario == "env");
+    int bad = 0;
+    if (setsWithoutApp != 0) bad |= 1;
+    if (setsFirst != (calls ? 1 : 0) || fake.sets != setsFirst) bad |= 2;
+    if (fake.gets != (calls ? 2 : 0)) bad |= 4;  // before and after the call
+    if (fake.enabled != wantEnabled) bad |= 8;
+    if (bad != 0) std::fprintf(stderr, "popups child %s: fake app check bits 0x%X\n", scenario.c_str(), bad);
+    return bad == 0 ? 0 : 10 + bad;
+}
+
+int PopupsTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    const std::string dllArg = "\"" + dll + "\" ";
+    const auto npos = std::string::npos;
+    auto run = [&](const char* scenario, const char* env) {
+        SetEnvironmentVariableA("FC4_POPUP_DIALOGS", env);
+        DWORD ms = 0;
+        const int code = RunChild(dllArg + "--popups-child-" + scenario, 30000, &ms);
+        std::printf("popups child %s: exit code %d in %lu ms\n", scenario, code, static_cast<unsigned long>(ms));
+        CHECK(code == 0);
+        return ReadFile(log);
+    };
+    const std::string skipped =
+        "popup dialogs: SetPopupDialogsEnabled(false) not called at city load (PostCityInit): no cISC4App (no "
+        "framework); retried at the next city load";
+
+    // = 0: read at game start; skipped without an application; made once, at the next city load.
+    std::string text = run("off", nullptr);
+    CHECK(text.find("popup dialogs: popup_dialogs=0 (FreeCity4.ini): cISC4App::SetPopupDialogsEnabled(false) at "
+                    "PostAppInit, or at the first city load if the app is not reachable there") != npos);
+    CHECK(CountOf(text, skipped) == 1);
+    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at "
+                        "city load (PostCityInit)") == 1);
+    CHECK(text.find("config: WARNING") == npos);  // popup_dialogs is a known key
+    CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
+
+    // = 1, with FC4_POPUP_DIALOGS=0: the ini wins.
+    text = run("on", "0");
+    CHECK(text.find("popup dialogs: popup_dialogs=1 (FreeCity4.ini): cISC4App::SetPopupDialogsEnabled(true) at "
+                    "PostAppInit") != npos);
+    CHECK(CountOf(text, "popup dialogs: enabled (cISC4App::SetPopupDialogsEnabled(true); was enabled=0, now=1) at "
+                        "city load (PostCityInit)") == 1);
+
+    // The environment alone.
+    text = run("env", "0");
+    CHECK(text.find("popup dialogs: popup_dialogs=0 (FC4_POPUP_DIALOGS): cISC4App::SetPopupDialogsEnabled(false)") !=
+          npos);
+    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0)") ==
+          1);
+
+    // Not 0/1: a config warning, and nothing is called.
+    text = run("bad", nullptr);
+    CHECK(text.find("config: WARNING popup_dialogs='maybe' (FreeCity4.ini) is not 0/1; the game's popup dialogs are "
+                    "left alone") != npos);
+    CHECK(text.find("SetPopupDialogsEnabled(") == npos);
+
+    // Not set: the game is left alone.
+    text = run("unset", nullptr);
+    CHECK(text.find("popup dialogs: popup_dialogs not set; the game's popup dialogs are left alone") != npos);
+    CHECK(text.find("SetPopupDialogsEnabled(") == npos);
+
+    // A setter that does not take effect: one warning, not retried.
+    text = run("stuck", nullptr);
+    CHECK(CountOf(text, "popup dialogs: WARNING SetPopupDialogsEnabled(false) did not take effect (was enabled=1, "
+                        "now=1) at city load (PostCityInit)") == 1);
+    CHECK(text.find("popup dialogs: disabled") == npos);
+
+    SetEnvironmentVariableA("FC4_POPUP_DIALOGS", nullptr);
+    DeleteFileA(ini.c_str());
+    if (g_failures == 0) std::printf("plugin popup_dialogs test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -952,6 +1093,12 @@ int main(int argc, char** argv) {
     if (mode.compare(0, childPrefix.size(), childPrefix) == 0) {
         return AutotestChild(dll, ini, mode.substr(childPrefix.size()));
     }
+    // popup_dialogs: the parent runs one child per FreeCity4.ini.
+    const std::string popupsPrefix = "--popups-child-";
+    if (mode.compare(0, popupsPrefix.size(), popupsPrefix) == 0) {
+        return PopupsChild(dll, ini, mode.substr(popupsPrefix.size()));
+    }
+    if (mode == "--ini-popups") return PopupsTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).

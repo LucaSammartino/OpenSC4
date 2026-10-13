@@ -339,6 +339,8 @@ anywhere in the three classes or in the percentage getter `0x005FDAC0` (every x8
 `curve × 0.01` is **not** `curve / 100`: for example 10 × 0.01f = 0.099999994 (0x3DCCCCCC, an exact tie rounded to
 even), 20 × 0.01f = 0.19999999, 40 × 0.01f = 0.39999998, 25 × 0.01f = 0.25, 50 × 0.01f = 0.5, 100 × 0.01f = 1.0.
 The only `double` constants are the fire strike draw bounds 0.0 and 100.0 (§6.3), passed as `double` arguments.
+This was re-checked image-wide for RS1 (2026-10-13; foundations §18.3): the residential worked examples that assumed a
+double 0.01 were the ones in error, and this section stands.
 
 curve: fire `0x29233E8D`, police `0x68DDAE93`. The police version has no road factor. The lot comes from the lot
 manager (`GetOccupantLot`), road access from `cISC4Lot::HasRoadAccess`.

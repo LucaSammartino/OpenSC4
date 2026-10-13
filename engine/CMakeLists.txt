@@ -146,6 +146,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4FailFast.cpp
         plugin/FC4FailFast.h
         plugin/FC4Observer.h
+        plugin/FC4ClockProbe.cpp
+        plugin/FC4ClockProbe.h
+        plugin/FC4Popups.cpp
+        plugin/FC4Popups.h
         plugin/FC4Fpu.h
         plugin/FC4FpuLogic.h
         plugin/FC4TestSeam.cpp
@@ -298,6 +302,9 @@ if(FC4_IS_WIN32_X86)
         plugin_ini_enable_demand_test plugin_ini_enable_plumbing_test plugin_autotest_test
         plugin_ini_enable_pollution_test
         PROPERTIES RUN_SERIAL TRUE)
+    # popup_dialogs (FC4Popups.h): child processes, one FreeCity4.ini each.
+    add_test(NAME plugin_ini_popups_test COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-popups)
+    set_tests_properties(plugin_ini_popups_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

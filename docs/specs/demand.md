@@ -524,8 +524,9 @@ for i, (key, id) in enumerate([(0x21010,0x1010), (0x21020,0x1020), (0x21030,0x10
 - Ordinances contribute through a multiplicative factor per demand type (`0x2A651010`, …, `0x2A654400`), applied
   as `factor − 1`.
 - The new modifiers take effect at the node's next recalculation (next propagation pass).
-- `coEconomyBonus` and `iEconomyBonus` are saved fields. Nothing in the original ever sets them to anything but 0
-  (§15 Q5). *[compat]* Keep, save and apply them.
+- `coEconomyBonus` (`+0xA0`) and `iEconomyBonus` (`+0xA4`) are saved fields that **no code can set**, except the
+  save loader (§15 Q5, settled by a vtable scan). A new city has 0, and every save the original writes for it keeps
+  0. *[compat]* Keep, save and apply them, so a save edited by hand behaves the same.
 - *[choice]* If the history has no data in the window, use `maxRate := neutral · 10` (ratio 1). If the tax curve is
   absent, `taxMod := 0`. If a total node is missing, skip it.
 
@@ -925,8 +926,32 @@ defines integer rounding.
    capacity (then multi-cell lots are over-counted by their cell count) or a per-cell share?
 4. **Slew limiter** (§3.3): no caller with `smooth = true` was found in either build. A full scan of indirect
    calls would settle it.
-5. **CO/I economy bonuses** (§8.1): saved and applied, but never written except by load and zero-init. They may be
-   dead, or written by an unidentified caller.
+5. *(resolved 2026-10-13, DQ2)* **CO/I economy bonuses** (§8.1): **dead, apart from the save record.** The
+   simulator object has three vtables: `cISC4DemandSimulator` `0x00AB0E48` at `+0` (14 slots), `cIGZMessageTarget2`
+   `0x00AB0E38` at `+4` (4 slots), and `cIGZSerializable` `0x00AB0E20` at `+8` (6 slots). Every target was
+   disassembled, along with every function of the class (`0x006A2300`–`0x006A97D0`). The scan looked for memory
+   operands at the field offsets, corrected for each interface's `this` adjustment (`+0xA0`/`+0xA4` from `+0`,
+   `+0x9C`/`+0xA0` from `+4`, `+0x98`/`+0x9C` from `+8`). The fields are touched only by:
+   - the constructor (zero, `0x006A36F3`/`0x006A36F9`);
+   - `Init` when not loaded from a save (zero, `0x006A8D11`/`0x006A8D17`);
+   - `Write` (`0x006A26A4`/`0x006A26B2`);
+   - `Read` (`0x006A3CCC`/`0x006A3CDA`);
+   - the six `FADD`s in `UpdateTaxAndEconomyModifiers` (§8.1).
+
+   No slot returns their value or their address. The only addresses taken are in `Read`, which passes them to the
+   stream's float reader. Slot 13 (`+0x34`, `0x006A52D0`, after the destructor) is a class virtual outside the
+   interface. It stores a node in the node map (`+0x50`) and does not touch the bonuses. `DoMessage` does not
+   touch them either.
+
+   Outside the class, other code reaches the simulator only through its interfaces. As a cross-check, the 358
+   `call [reg+0xE0]` sites (`cISC4City::GetDemandSimulator`) were followed for 60 instructions, and none reads or
+   writes the result at `+0xA0`/`+0xA4`.
+
+   So the only way in or out is the save record (§12.1: bytes 2–9 of the record, after the `uint16` version):
+   - a tool can edit a save;
+   - a plugin could QI `cIGZSerializable` (`0xE4FDA3D4`) and call `Write` to read them *[untested: the stream must
+     accept the node references]*;
+   - a plugin cannot safely call `Read`, because it re-reads the node map with the quirks of §12.1.
 6. **Relief inputs** (§8.3): the meaning of argument 3 to `GetTrafficArrived`, and whether the port methods (slot
    13 of the port developers) are really `GetNum*Trips` rather than capacity. The class-count quirks (Road/DirtRoad
    not excluding cities, connection counts added to city counts) were read in both builds but should be confirmed

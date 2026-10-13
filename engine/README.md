@@ -207,6 +207,19 @@ plugin.
      - `autotest_unpause = 1` or `2` (env `FC4_AUTOTEST_UNPAUSE`): after the load, resume the city's simulator
        (`Resume` while `IsPaused`) and set that speed, through the simulator's own interface (ours or the
        original), at the first tick and again after 3 s and 10 s.
+     - `autotest_end = quit` (env `FC4_AUTOTEST_END`; default `terminate`): at the deadline, quit through the game
+       instead of `TerminateProcess`. The main thread's next tick calls `cISC4App::RequestQuit(false, false)` (slot
+       10: no dialog, no save), the city and the app shut down as on a normal quit, and the verdict is written at
+       `PostSystemServiceShutdown`, so it counts reference warnings from every subsystem's `Shutdown`. Its `julian`
+       is the last day played. A quit that has not reached that hook in 90 s is `stalled`; a process still alive
+       30 s after the verdict is terminated.
+   - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
+     the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
+     month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
+     agent at the day..year levels and logs each delivery (`CLOCK agent day|week|month|year j=… c=…`). With `2`
+     the week agent reports "not finished" once per week, so §5.3's repeat delivery shows as `… again`.
+     `tools/clock_diff.ps1 -A <original log> -B <our log>` checks both streams against simulator.md §2.3/§5.2 and
+     compares the two runs from the first day both saw (runs 56/57: identical over 240 days).
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 
@@ -240,6 +253,19 @@ plugin.
      process like the autotest. It needs no `autotest_seconds`; with `autotest_unpause` (which does) the city
      runs by itself, so set `autotest_seconds` beyond the N months. A second run that loads the saved city
      (autoload) logs `observe snapshot (after load): …` to compare with the line before the save.
+   - **Popup dialogs off** (`popup_dialogs = 0`, env `FC4_POPUP_DIALOGS`; not set = the game is left alone): for
+     unattended runs, where an advisor popup holds the city (a hidden pause of the simulator) until someone clicks
+     Close. FreeCity4 calls `cISC4App::SetPopupDialogsEnabled(false)` (slot 24) once per process, at `PostAppInit`
+     (before any city view exists), or at the first city load if the app was not reachable there (advisors spec
+     §6.8.1, option 1). Advisor popups are then dropped without pausing, and the generic notification,
+     confirmation and scripted modal dialogs return without asking (false / 0; the quit, go-to-region, obliterate
+     and budget-failure prompts use the scripted one, and what they then do is not in the spec). City-situation
+     popups still show and pause. The log proves it
+     took effect by reading the getter (slot 23) before and after:
+     `popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at PostAppInit`.
+     `popup_dialogs = 1` calls it with `true`; any other value logs `config: WARNING popup_dialogs='…' … is not
+     0/1` and leaves the game alone. Manual fallback without FreeCity4: untick Options → Play Options → "Urgent
+     Advice Dialogs" (saved in the user's preferences; advisor popups only).
    - **Budget shadow** (`budget_shadow = 1`, env `FC4_BUDGET_SHADOW`; off by default; `budget_shadow_lots = N`,
      default 6): a same-process differential of property tax. It needs **our simulator and the original budget**
      (`disable = budget`); with any other combination it logs `budget shadow: requested … but INACTIVE` at game

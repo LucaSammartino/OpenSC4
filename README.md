@@ -11,7 +11,7 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 
 ## Progress
 
-Last updated 2026-10-13. "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+Last updated 2026-10-14 (third session). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
 the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
@@ -19,13 +19,15 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] CMake project, Rust core, C ABI, conformance runner (416 vector files + 1 runner self-test = 417 tests)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
+- [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
 
 **M1: the clock**
 - [x] Simulator core and spec
 - [x] Runs in-game: days, weeks and months advance; limit-timer calibration
-- [ ] Save → reload verified in-game
-- [ ] Pause, emergency and all speeds verified in-game (manual checks)
-- [ ] Differential log against the original on the same save
+- [x] Save → reload verified in-game (runs 50/51: date, funds and all 18 departments survive)
+- [x] Pause and all three speeds verified in-game (runs 50–53, driven by `tools/sc4ctl.ps1`; speeds call `SetSimSpeed(0/1/2)`)
+- [x] Emergency pause verified in-game (run 54: a God-mode disaster calls `EmergencyPause()`/`EmergencyResume()` on our simulator)
+- [x] Clock differential against the original on the same save: **identical** (runs 56/57, `clock_probe` + `tools/clock_diff.ps1`). Over 240 days on Konradshohe (2026-01-28 to 09-24) the probe agent's day/week/month/year deliveries and the posted SimNewDay/Week/Month/Year messages match entry for entry, and both follow the spec's calendar rules
 
 **M2: scalar sims**
 - [x] Budget, demand, ordinance and weather cores
@@ -46,14 +48,16 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Specs: building development, growth, tract, lot and zone developers
 - [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
-- [ ] Zones glue; eleven spec questions open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) where no vector pins the choice — five from zones (ZQ2–ZQ6: `DetermineLotSize`, highlight mode, city-border behaviour) and six from the residential core (RS1–RS6). ZQ1 (walk order) was answered from the exe on 2026-10-13 and now lives in zones.md §8.3. RS1 is load-bearing: whether the `0.01` in the percentage getters is a float or a double literal, which is a ±1 ulp difference on every percentage in two cores
+- [ ] Zones glue. Spec questions: ZQ1, ZQ2, RS1–RS6 answered from the exe on 2026-10-13 (RS1: every percentage × 0.01 is a float32 `0.01f`); ZQ3–ZQ6 (`DetermineLotSize`, city-border behaviour) still open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md)
+- [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**
 - [x] Specs: traffic simulator, traffic network, pathfinder
-- [ ] Cores, glue, calibration; commute and volume maps match (M5 exit)
+- [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator). Twenty spec questions filed as TN1–TN20
+- [ ] Pathfinder and traffic simulator cores, glue, calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
