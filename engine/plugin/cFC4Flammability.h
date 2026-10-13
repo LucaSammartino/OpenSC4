@@ -123,8 +123,12 @@ public:
         uint32_t wateredQueries = 0;  // IsCellWatered asks (§6.5)
         uint32_t watered = 0;         // ... answered "watered"
         uint32_t noPlumbing = 0;      // ... answered "no plumbing simulator" (-1)
+        // Slots 5-8 called while a call into the core was running.
+        uint32_t nestedGrid = 0, nestedFlammable = 0, nestedHotspot = 0, nestedAverage = 0;
     };
     Probes& Probe() { return probes_; }
+    // Test seam only (FlammabilityTestFirePath): a borrowed city, no AddRef.
+    void TestSetCity(cISC4City* city) { city_ = city; }
 
     // Counts the calls into the core; the outermost one drops the held lists.
     class CoreCall {
@@ -168,3 +172,8 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4FlammabilitySimulator();
+
+// Test seam op 9 (FC4TestSeam.h): the glue's ignition path (§6.8 IGNITE:
+// IgniteCell, then SetCause(5)) against `city`'s disaster layer. 0 = done;
+// 1 = no city; 2 = IgniteCell returned false.
+intptr_t FlammabilityTestFirePath(cISC4City* city);

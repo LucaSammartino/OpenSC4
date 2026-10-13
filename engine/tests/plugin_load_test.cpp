@@ -441,6 +441,61 @@ void InitFakeWorld(FakeWorld& w) {
     for (FakeDemand& d : w.demands) d.vtbl = w.demandVt.slots.data();
 }
 
+// ---- the flammability fire path (run 37) ---------------------------------------------------------
+// A fire manager as the game hands it out: the disaster layer returns it
+// BORROWED (flammability.md §6.8); a QueryInterface for
+// cISC4DisasterManagerFire returns a sub-object that shares its count, with one
+// AddRef. `refs` starts at the layer's own reference.
+struct FakeFireCity {
+    FakeVtable cityVt, layerVt, mgrVt, fireVt;
+    FakeObject city{}, layer{}, mgr{}, fire{};
+    int refs = 1;
+    int qis = 0, ignites = 0, causes = 0;  // qis: for cISC4DisasterManagerFire only
+    uint32_t cause = 0;
+};
+
+FakeFireCity* g_fire = nullptr;
+
+void* __fastcall FireCityGetDisasterLayer(void*, void*) { return &g_fire->layer; }  // cISC4City 72
+void* __fastcall FireLayerGetManager(void*, void*, uint32_t type) {                  // layer 7
+    return type == 0x621CDA33 ? &g_fire->mgr : nullptr;
+}
+bool __fastcall FireMgrQi(void*, void*, uint32_t iid, void** out) {  // 0, both interfaces
+    if (iid != 0x49B43F57 || out == nullptr) return false;  // (the reference audit asks other IIDs)
+    ++g_fire->qis;
+    *out = &g_fire->fire;
+    ++g_fire->refs;
+    return true;
+}
+uint32_t __fastcall FireMgrAddRef(void*, void*) { return static_cast<uint32_t>(++g_fire->refs); }   // 1
+uint32_t __fastcall FireMgrRelease(void*, void*) { return static_cast<uint32_t>(--g_fire->refs); }  // 2
+bool __fastcall FireIgniteCell(void*, void*, uint32_t, uint32_t, bool, bool, uint32_t) {  // fire 5
+    ++g_fire->ignites;
+    return true;
+}
+uint32_t __fastcall FireSetCause(void*, void*, uint32_t c) {  // fire 9
+    ++g_fire->causes;
+    g_fire->cause = c;
+    return 0;
+}
+
+void InitFakeFireCity(FakeFireCity& f) {
+    g_fire = &f;
+    f.cityVt.slots[72] = reinterpret_cast<void*>(&FireCityGetDisasterLayer);
+    f.layerVt.slots[7] = reinterpret_cast<void*>(&FireLayerGetManager);
+    for (FakeVtable* vt : {&f.mgrVt, &f.fireVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&FireMgrQi);
+        vt->slots[1] = reinterpret_cast<void*>(&FireMgrAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&FireMgrRelease);
+    }
+    f.fireVt.slots[5] = reinterpret_cast<void*>(&FireIgniteCell);
+    f.fireVt.slots[9] = reinterpret_cast<void*>(&FireSetCause);
+    f.city.vtbl = f.cityVt.slots.data();
+    f.layer.vtbl = f.layerVt.slots.data();
+    f.mgr.vtbl = f.mgrVt.slots.data();
+    f.fire.vtbl = f.fireVt.slots.data();
+}
+
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
 constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
@@ -1558,6 +1613,21 @@ int main(int argc, char** argv) {
         DeleteFileA(ini.c_str());
         SetEnvironmentVariableA("FC4_BUDGET_CHEATS", nullptr);
         SetEnvironmentVariableA("FC4_BUDGET_DISASTER", nullptr);
+
+        // The flammability ignition path (§6.8): the layer's manager is
+        // borrowed, only the QueryInterface result is released. Run 37
+        // released the manager as well, once per IgniteCell and once per
+        // SetCause, and freed the game's fire manager (refs would be -1).
+        if (seam != nullptr) {
+            static FakeFireCity fire;
+            InitFakeFireCity(fire);
+            CHECK(seam(kFC4SeamFlammabilityFire, &fire.city, nullptr) == 0);
+            CHECK(fire.ignites == 1);
+            CHECK(fire.causes == 1);
+            CHECK(fire.cause == 5);
+            CHECK(fire.qis == 2);
+            CHECK(fire.refs == 1);
+        }
 
         // The monthly digest (observer), read through the city's public
         // interfaces: here a fake city with our budget simulator.
