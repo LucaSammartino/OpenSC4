@@ -117,6 +117,21 @@ Everything is built from your own copy of the game. Nothing decompiled is downlo
 5. Run `.\tools\build.ps1 -SkipMatch`. It applies the committed names (`re\names_windows.tsv`), labels and types,
    then exports the decompilation to `decomp\`.
 
+To verify a project built elsewhere without touching `ghidra\project` or `decomp\` (for example a scratch project
+from `setup_ghidra.ps1 -ProjectRoot`):
+
+```bash
+.\tools\build.ps1 -SkipMatch -ProjectRoot <projectDir> -DecompOut <outDir>
+```
+
+Expected output of step 5 on a fresh `-Windows` project (verified 2026-10-13, Ghidra 12.1.4):
+`renamed=15859 created=8 missing=76 failed=191 thiscallConverted=10145`, `labels=856 vtablesTyped=853 failed=0`,
+`classes=1023 methods=9258`, `fieldsRenamed=235 filled=105`, and 1815 decompilation files. The counts are benign:
+`missing` are auto/library names whose address has no function in this project; the 191 `failed` are all
+"a symbol named `_lua_…` already exists at this address" — the Function ID databases already applied the identical
+name, so none is a real conflict (0 of the 191 differ from the name we tried to set). All 906 hand/community names
+in `re\names_windows.tsv` apply cleanly.
+
 Optional, only to re-run the symbol port or to read the named Mac code: get the Mac "Rev A" Intel executable
 (Aspyr's Mac port, which kept its debug symbols) from the
 [SC4 Maxis files](https://community.simtropolis.com/sc4-maxis-files/) archive on Simtropolis, run
