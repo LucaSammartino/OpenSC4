@@ -18,6 +18,7 @@
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4PollutionShadow.h"
 #include "FC4RefAudit.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
@@ -61,6 +62,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             }
             return fc4::RefWarningCount() - before;
         }
+        case kFC4SeamPollutionShadow:
+            return PollutionShadowTestDeliver(static_cast<const FC4PollutionShadowTestInput*>(a));
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds
