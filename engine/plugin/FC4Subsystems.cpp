@@ -16,6 +16,7 @@
 #include "FC4Autotest.h"
 #include "FC4Checked.h"
 #include "FC4Config.h"
+#include "FC4BudgetShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
 #include "FC4RefAudit.h"
@@ -214,6 +215,8 @@ void Resolve() {
                                                                          : " by FC4_ENABLE"));
         }
     }
+    // kSubsystems[0] is the simulator, [1] the budget.
+    BudgetShadowStartup(g_enabled[0], g_enabled[1]);
 }
 
 }  // namespace

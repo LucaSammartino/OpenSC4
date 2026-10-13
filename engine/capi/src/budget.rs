@@ -16,8 +16,9 @@ use std::ffi::{c_char, c_void};
 use std::rc::Rc;
 
 use fc4_core::budget::{
-    BudgetHost, BudgetItem, BudgetMessage, BudgetSim, BudgetTuning, Department, LineItem, LotInfo, PropertySource,
-    CLSID_BUDGET_SIMULATOR, CLSID_DEPARTMENT, CLSID_LINE_ITEM,
+    difficulty_multiplier, scan_tax, tax_income_of, BudgetHost, BudgetItem, BudgetMessage, BudgetSim, BudgetTuning,
+    Department, LineItem, LotInfo, PropertySource, TaxLotStatus, CLSID_BUDGET_SIMULATOR, CLSID_DEPARTMENT,
+    CLSID_LINE_ITEM, TAX_GROUPS,
 };
 use fc4_core::stream::SaveObject;
 
@@ -146,6 +147,48 @@ pub struct fc4_budget_state {
     pub reserved1: u32,
 }
 
+/// One lot as the tax scan saw it (`fc4_budget_shadow_tax`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_tax_lot {
+    /// `FC4_TAX_LOT_*`: 0 counted, 1 no building, 2 not livable, 3 untaxed.
+    pub status: u32,
+    /// Tax group 0..11, or -1 (none). For a not-livable lot: the group it would have had.
+    pub group: i32,
+    /// Assessed value (§5.2); for a not-livable lot, what it would have added.
+    pub assessed: i64,
+    /// `lotTax` (0 unless counted).
+    pub tax: f32,
+    pub reserved: u32,
+}
+
+/// The result of `fc4_budget_shadow_tax` (§5.2, §6 `GetTaxIncome(t)`).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct fc4_tax_scan {
+    /// Caller sets = sizeof(fc4_tax_scan).
+    pub struct_size: u32,
+    /// Lots visited.
+    pub lots: u32,
+    /// DifficultyTaxMultiplier[difficulty].
+    pub multiplier: f32,
+    /// `total` (float32 running sum).
+    pub total: f32,
+    pub weighted_assessed: [i64; 12],
+    /// `monthlyTax[t] = trunc(groupTax[t])`.
+    pub monthly_tax: [i64; 12],
+    /// `GetTaxIncome(t)` with the given rates.
+    pub tax_income: [i64; 12],
+    pub group_tax: [f32; 12],
+    /// Lots counted per group.
+    pub counted: [u32; 12],
+    /// `ComputeTax`'s result, `trunc(total)`.
+    pub total_tax: i64,
+}
+
+pub type fc4_tax_lot_callback =
+    Option<unsafe extern "C" fn(ctx: *mut c_void, index: u32, lot: *const fc4_lot_info, result: *const fc4_tax_lot)>;
+
 pub type fc4_lot_visitor = Option<unsafe extern "C" fn(ctx: *mut c_void, lot: *const fc4_lot_info)>;
 pub type fc4_token_callback = Option<unsafe extern "C" fn(ctx: *mut c_void, token: u64)>;
 pub type fc4_budget_item_callback = Option<unsafe extern "C" fn(ctx: *mut c_void, item: *const fc4_budget_item)>;
@@ -208,6 +251,8 @@ const _: () = {
     assert!(std::mem::size_of::<fc4_bond>() == 56);
     assert!(std::mem::size_of::<fc4_budget_group>() == 24);
     assert!(std::mem::size_of::<fc4_budget_state>() == 432);
+    assert!(std::mem::size_of::<fc4_tax_lot>() == 24);
+    assert!(std::mem::size_of::<fc4_tax_scan>() == 408);
     assert!(std::mem::size_of::<fc4_budget_host>() == if cfg!(target_pointer_width = "32") { 124 } else { 248 });
 };
 
@@ -652,6 +697,99 @@ budget_fn!(fc4_budget_is_initialized, bool, false, is_initialized);
 budget_fn!(fc4_budget_simulate_day, (), (), simulate_day);
 budget_fn!(fc4_budget_settle_month, (), (), settle_month);
 budget_fn!(fc4_budget_compute_tax, i64, 0, compute_tax);
+
+// ---- budget shadow (diagnostics) -----------------------------------------------------------------------------
+
+fn lot_to_c(l: &LotInfo) -> fc4_lot_info {
+    fc4_lot_info {
+        has_building: u8::from(l.has_building),
+        livable: u8::from(l.livable),
+        land_value: l.land_value,
+        reserved: 0,
+        purpose: l.purpose,
+        building_wealth: l.building_wealth,
+        lot_wealth: l.lot_wealth,
+        building_value: l.building_value,
+        size_x: l.size_x,
+        size_z: l.size_z,
+    }
+}
+
+/// `ComputeTax` (§5.2) without a budget object: the same scan the budget
+/// simulator runs, over the host's `for_each_lot`, with the tuning read from
+/// `tuning_holder` (0 = code defaults) and the given difficulty and 12 group
+/// rates (percent). Only `for_each_lot`, `get_i64s` and `get_f32s` of `host`
+/// are called; nothing is stored, posted or written. `cb` (may be NULL) sees
+/// every lot in visit order. Returns false (and leaves `out` alone) on bad
+/// arguments.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_budget_shadow_tax(
+    host: *const fc4_budget_host,
+    tuning_holder: u64,
+    fix_cs3_weight: bool,
+    difficulty: u32,
+    rates: *const f32,
+    cb: fc4_tax_lot_callback,
+    ctx: *mut c_void,
+    out: *mut fc4_tax_scan,
+) -> bool {
+    let Some(out) = out.as_mut() else { return false };
+    if (out.struct_size as usize) < std::mem::size_of::<fc4_tax_scan>() || rates.is_null() {
+        return false;
+    }
+    let Some(h) = host_of(host) else { return false };
+    let mut r = [0f32; TAX_GROUPS];
+    r.copy_from_slice(std::slice::from_raw_parts(rates, TAX_GROUPS));
+    guard(false, || {
+        let tuning = if tuning_holder == 0 {
+            BudgetTuning::default()
+        } else {
+            BudgetTuning::from_properties(
+                &HolderProps {
+                    host: &*h,
+                    holder: tuning_holder,
+                },
+                fix_cs3_weight,
+            )
+        };
+        let mult = difficulty_multiplier(&tuning, difficulty);
+        let mut index = 0u32;
+        let mut on_lot = |lot: &LotInfo, t: &fc4_core::budget::TaxLot| {
+            if let Some(f) = cb {
+                let c = fc4_tax_lot {
+                    status: match t.status {
+                        TaxLotStatus::Counted => 0,
+                        TaxLotStatus::NoBuilding => 1,
+                        TaxLotStatus::NotLivable => 2,
+                        TaxLotStatus::Untaxed => 3,
+                    },
+                    group: t.group.map_or(-1, |g| g as i32),
+                    assessed: t.assessed,
+                    tax: t.tax,
+                    reserved: 0,
+                };
+                let l = lot_to_c(lot);
+                // SAFETY: valid callback (precondition); both pointers live for the call.
+                unsafe { f(ctx, index, &l, &c) };
+            }
+            index += 1;
+        };
+        let scan = scan_tax(&tuning, mult, &r, |visit| h.for_each_lot(visit), &mut on_lot);
+        *out = fc4_tax_scan {
+            struct_size: out.struct_size,
+            lots: scan.lots,
+            multiplier: mult,
+            total: scan.total,
+            weighted_assessed: scan.weighted_assessed,
+            monthly_tax: scan.monthly_tax(),
+            tax_income: std::array::from_fn(|t| tax_income_of(scan.weighted_assessed[t], mult, r[t])),
+            group_tax: scan.group_tax,
+            counted: scan.counted,
+            total_tax: scan.total_tax(),
+        };
+        true
+    })
+}
 
 // ---- budget simulator: funds and totals ---------------------------------------------------------------------
 

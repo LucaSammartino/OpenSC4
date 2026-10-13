@@ -13,6 +13,7 @@
 
 #include "cFC4Simulator.h"
 
+#include "FC4BudgetShadow.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
@@ -298,7 +299,10 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
         if (it != stats.end()) name = it->second.name.c_str();
     }
     fc4::DeliveryBegin(LevelOfType(msg->type), msg->type, target, name);
-    const bool finished = target->DoMessage(m);
+    // The budget shadow (opt-in, FC4BudgetShadow.h) wraps the original
+    // budget's SimNewMonth delivery; otherwise it does nothing.
+    bool finished = false;
+    if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) finished = target->DoMessage(m);
     fc4::DeliveryEnd();
     m->Release();
     if (user != nullptr && fc4::LogLevel() >= fc4::kLogVerbose) {

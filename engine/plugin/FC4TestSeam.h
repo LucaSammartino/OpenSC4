@@ -41,6 +41,10 @@
 //   op 9  kFC4SeamFlammabilityFire a = cISC4City*: the flammability glue's
 //         ignition path (IgniteCell, then SetCause(5)) on the city's
 //         disaster layer; returns 0, or 1 (no city) / 2 (no ignition).
+//   op 10 kFC4SeamBudgetShadow     a = const FC4ShadowTestInput*
+//         (FC4BudgetShadow.h): one budget-shadow month on a fake city whose
+//         budget is the "original"; returns the month's mismatch count, -1
+//         (not taken) or -2 (delivered, not compared).
 #pragma once
 
 #include <cstdint>
@@ -57,6 +61,7 @@ enum : uint32_t {
     kFC4SeamFpuReference = 7,
     kFC4SeamRustPanic = 8,
     kFC4SeamFlammabilityFire = 9,
+    kFC4SeamBudgetShadow = 10,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

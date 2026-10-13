@@ -22,6 +22,7 @@ mod department;
 mod items;
 mod line_item;
 mod simulator;
+mod tax;
 mod tuning;
 
 pub use department::Department;
@@ -32,6 +33,7 @@ pub use items::{
 };
 pub use line_item::{LineItem, LINE_ITEM_RECORD_VERSION, TYPE_EXPENSE, TYPE_INCOME};
 pub use simulator::{Bond, BudgetGroup, BudgetSim, BudgetSnapshot, LoanInfo, TaxGroup, BUDGET_RECORD_VERSION};
+pub use tax::{difficulty_multiplier, scan_tax, tax_income_of, tax_type, TaxLot, TaxLotStatus, TaxScan};
 pub use tuning::{BudgetTuning, NoProperties, PropertySource, TUNING_GROUP, TUNING_INSTANCE, TUNING_TYPE};
 
 use std::rc::Rc;

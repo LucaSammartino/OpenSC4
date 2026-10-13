@@ -687,3 +687,104 @@ fn null_handles_are_tolerated() {
         assert!(fc4_department_create(&bad, 1).is_null());
     }
 }
+
+unsafe extern "C" fn collect_tax_lot(ctx: *mut c_void, index: u32, lot: *const fc4_lot_info, r: *const fc4_tax_lot) {
+    let v = &mut *(ctx as *mut Vec<(u32, fc4_lot_info, fc4_tax_lot)>);
+    v.push((index, *lot, *r));
+}
+
+/// The budget shadow's scan (`fc4_budget_shadow_tax`) gives exactly what the
+/// budget's own `ComputeTax` stored, and writes nothing through the host.
+#[test]
+fn shadow_tax_matches_compute_tax_and_writes_nothing() {
+    let g = Game::new();
+    unsafe {
+        // The shipped tuning values that matter for tax (§9), on holder 0x999.
+        let f = |v: &[f32]| v.iter().map(|x| u64::from(x.to_bits())).collect::<Vec<u64>>();
+        g.props.borrow_mut().insert((0x999, 0xEBFF_69E7), f(&[1.2, 1.1, 1.0]));
+        g.props.borrow_mut().insert((0x999, 0x8A48_0DF7), f(&[1.0, 0.75, 0.5]));
+        g.props.borrow_mut().insert((0x999, 0x4AC5_19B8), f(&[0.0, 0.0, 255.0, 0.0]));
+        let (_, bh) = g.create(CLSID_BUDGET);
+        let b = bh as *mut fc4_budget;
+        assert!(fc4_budget_init(b, 0x999, false));
+        assert!(fc4_budget_set_tax_rate(b, 3, 7.5));
+        let lot = |purpose: u32, bw: u32, lw: u32, value: i64, livable: u8| fc4_lot_info {
+            has_building: 1,
+            livable,
+            purpose,
+            building_wealth: bw,
+            lot_wealth: lw,
+            building_value: value,
+            size_x: 2,
+            size_z: 1,
+            ..Default::default()
+        };
+        g.lots.borrow_mut().extend([
+            lot(1, 1, 1, 10_000, 1),
+            lot(2, 1, 1, 3_333, 1), // CS$ at 7.5 %
+            lot(2, 2, 1, 4_001, 1), // CS$, waning 0.75
+            lot(4, 1, 1, 777, 0),   // tourism CS$, not livable
+            lot(3, 1, 1, 5_000, 1), // office $: untaxed
+            lot(6, 1, 1, 998_857, 1),
+            fc4_lot_info::default(), // no building
+        ]);
+        g.month.set(2);
+        assert!(fc4_budget_handle_message(b, 0x6695_6816, 0));
+        let mut st = fc4_budget_state {
+            struct_size: std::mem::size_of::<fc4_budget_state>() as u32,
+            ..Default::default()
+        };
+        assert!(fc4_budget_get_state(b, &mut st));
+
+        let writes_before = (g.posts.borrow().len(), g.history.borrow().len(), g.props.borrow().clone());
+        let mut rates = [0f32; 12];
+        for (t, r) in rates.iter_mut().enumerate() {
+            *r = fc4_budget_get_tax_rate(b, t as u32);
+        }
+        let mut seen: Vec<(u32, fc4_lot_info, fc4_tax_lot)> = Vec::new();
+        let mut scan = fc4_tax_scan {
+            struct_size: std::mem::size_of::<fc4_tax_scan>() as u32,
+            ..Default::default()
+        };
+        let h = g.host();
+        assert!(fc4_budget_shadow_tax(
+            &h,
+            0x999,
+            false,
+            2,
+            rates.as_ptr(),
+            Some(collect_tax_lot),
+            &mut seen as *mut _ as *mut c_void,
+            &mut scan
+        ));
+        assert_eq!(scan.weighted_assessed, st.weighted_assessed);
+        assert_eq!(scan.monthly_tax, st.monthly_tax);
+        assert_eq!(scan.total_tax, st.last_tax_income);
+        for t in 0..12 {
+            assert_eq!(scan.tax_income[t], fc4_budget_get_tax_income_for(b, t as i32), "type {t}");
+        }
+        assert_eq!(scan.multiplier, 1.0);
+        assert_eq!(scan.lots, 7);
+        assert_eq!(scan.counted[3], 2);
+        assert_eq!(scan.weighted_assessed[3], 3_333 + 3_000);
+        // Every lot, in order, with its status; the not-livable one says what it would have added.
+        let status: Vec<u32> = seen.iter().map(|s| s.2.status).collect();
+        assert_eq!(status, [0, 0, 0, 2, 3, 0, 1]);
+        assert_eq!(seen.iter().map(|s| s.0).collect::<Vec<_>>(), [0, 1, 2, 3, 4, 5, 6]);
+        assert_eq!((seen[3].2.group, seen[3].2.assessed), (3, 777));
+        assert_eq!(seen[3].1.building_value, 777);
+        // Nothing posted, recorded or written.
+        let writes_after = (g.posts.borrow().len(), g.history.borrow().len(), g.props.borrow().clone());
+        assert_eq!(writes_before, writes_after);
+
+        // Bad arguments.
+        let mut small = fc4_tax_scan {
+            struct_size: 8,
+            ..Default::default()
+        };
+        let none = std::ptr::null_mut();
+        assert!(!fc4_budget_shadow_tax(&h, 0, false, 2, rates.as_ptr(), None, none, &mut small));
+        assert!(!fc4_budget_shadow_tax(&h, 0, false, 2, std::ptr::null(), None, none, &mut scan));
+        assert!(!fc4_budget_shadow_tax(std::ptr::null(), 0, false, 2, rates.as_ptr(), None, none, &mut scan));
+    }
+}
