@@ -35,6 +35,7 @@ pub mod growth_developer;
 pub mod host;
 pub mod ids;
 pub mod julian;
+pub mod landfill;
 pub mod landvalue;
 pub mod lot_developer;
 pub mod ordinance;
