@@ -468,6 +468,32 @@ Set the bit if keep.
 So zoning over an existing compatible lot keeps it; an incompatible or empty-configuration lot is deleted and its
 cells are re-parcelled.
 
+**The "occupied" predicate (ZQ2, from the exe).** The parenthetical is not a `CanCreateLot` code. It is the zone
+developer's own per-cell test `IsCellOccupied(x, z)` (`0x0072C050`, pop 8, AL), called only in highlight mode
+(`0x0072CCB1`). In real mode the lot test runs directly. The test, in order:
+
+1. **Highlight mode**, with the cell in the virtually-deleted map (`+0xE4`): go to step 3.
+2. A **real** lot on the cell (lot manager slot 6, `GetLot(x, z, false)`) → true.
+3. **Highlight mode**, with the cell in the virtual-lot map (`+0xD8`) → true. Otherwise false.
+
+In real mode the result is "a real lot is on the cell". In highlight mode it is "a real lot that is not virtually
+deleted, or a virtual lot". This is exactly the cell condition of code 7 in §8.4, **without** the earlier codes 0–3.
+So `CanCreateLot(x, z, 1, 1, …) == 7` is not equivalent. In highlight mode, the only mode where the test is called,
+it also fails for cells that code 0 catches first (outside the city, or outside a set restriction region), and for
+code-3 network cells when the current zone is 0. Code 2 applies only in real mode. Code 1 (water) cannot arise here,
+because water cells are skipped first.
+
+The lot that the cell test then examines is always the **real** lot: `GetLot(x, z, false)`, which ignores both
+highlight maps. Consequences in highlight mode:
+
+| Cell | `IsCellOccupied` | Real lot | Result |
+|---|---|---|---|
+| nothing | false | — | keep, bit set |
+| real lot, not virtually deleted | true | the lot | the configuration test above. A failing lot is "deleted", which only records a virtual deletion (§8.6) |
+| real lot, virtually deleted, no virtual lot | false | — | keep, bit set (the lot is not examined) |
+| virtual lot only | true | null | keep, bit set |
+| virtually deleted real lot **and** a virtual lot | true | the real lot | the real lot is examined again, and may clear the bit or be virtually deleted a second time *[quirk]* |
+
 ### 7.5 `SimpleParcellize(n)` (`0x0072E9B0`): agriculture (n = 16) and industry (n = 6)
 
 1. If `placeStreets`: street lines across the restriction region's rect. The first pass walks x-lines, the second

@@ -70,6 +70,7 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 50 | same, interactive (`autotest_unpause = 0`, `-NoDismiss`), driven with `tools/sc4ctl.ps1` | **M1 checks pass with our simulator and budget:** turtle/llama/cheetah call `SetSimSpeed(0/1/2)`; the pause button calls `Pause()`, which holds the date (2026-11-16 for over 21 s), and a second click calls `Resume()`. **Save:** real-input Ctrl+S saved (posted keys do not); the save hidden-pauses 4×, writes our simulator (79 bytes), the budget, 18 departments and the line items, then shows a "City Saved" box (OK at client 465,286). The reward-offer popup ("Fight Fires From Above") is taller, so Close moved to y 502. |
 | 51 | same DLL, reload of run 50's save | **clean; save → reload verified.** `Read: version 4, 79 bytes, julian 2461377` (the saved 2026-12-02) and `budget Read -> 1 (funds 2577, departments 18, bonds 0)`: the funds after the December settlement at save time (2131 → 2577). Konradshohe then restored from its backup (`864E0A88…`). |
 | 52–53 | same, scripted with `ingame_run -Actions` | **clean.** The whole check as a script: speeds, pause, `save` (confirmation seen and closed, file written; the harness restored the city afterwards). Run 53 found that a click right after closing a popup is lost, and that picking a speed while paused calls `Resume()`. |
+| 54 | same, interactive: God mode → Disasters → fire on a building | **Emergency pause verified:** `Pause()` (pause 1) → `EmergencyPause()` (pause 2, emergency 1, red border and warning icon) → `EmergencyResume()` ~11 s later (pause 1, emergency 0) → `Resume()` (0), and the date moved on. No fire took hold, so this checks the pause calls, not a burning city. The 3D view ignores posted clicks: choosing the fire and clicking the city needed real input (`sc4ctl realclick`). |
 
 **Run 39 settles the per-type question below:** on identical state, ours equals the original on every tax type. The
 type-3 gap between runs 35 and 36 was the original's run-to-run drift, not a bug.
@@ -191,7 +192,7 @@ Notes:
 - [x] Save → exit → reload with our simulator and budget: the date, funds and departments survive (runs 50/51,
       2026-10-13, done by Claude with `tools/sc4ctl.ps1`).
 - [x] Pause, unpause and all three speeds (run 50, scripted again in runs 52/53).
-- [ ] Emergency pause, if a disaster can be triggered.
+- [x] Emergency pause (run 54: a God-mode fire disaster; `EmergencyPause()`/`EmergencyResume()` reach our simulator).
 - [ ] Cheats: `RiskyMoney`, `WeaknessPays`, `Moolah` (if enabled) do what the original does.
 
 ## Decisions for you

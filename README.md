@@ -26,7 +26,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Runs in-game: days, weeks and months advance; limit-timer calibration
 - [x] Save → reload verified in-game (runs 50/51: date, funds and all 18 departments survive)
 - [x] Pause and all three speeds verified in-game (runs 50–53, driven by `tools/sc4ctl.ps1`; speeds call `SetSimSpeed(0/1/2)`)
-- [ ] Emergency pause verified in-game (needs a disaster)
+- [x] Emergency pause verified in-game (run 54: a God-mode disaster calls `EmergencyPause()`/`EmergencyResume()` on our simulator)
 - [ ] Differential log against the original on the same save
 
 **M2: scalar sims**
