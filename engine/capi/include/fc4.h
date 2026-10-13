@@ -58,8 +58,9 @@ extern "C" {
  * 13 = adds the plumbing simulator (fc4_plumbing);
  * 14 = adds the flammability simulator (fc4_flammability);
  * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax);
- * 16 = adds the demand shadow (fc4_demand_shadow). */
-#define FC4_ABI_VERSION 16u
+ * 16 = adds the demand shadow (fc4_demand_shadow);
+ * 17 = adds the protection simulators (fc4_protection). */
+#define FC4_ABI_VERSION 17u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1818,6 +1819,235 @@ bool fc4_flammability_get_state(const fc4_flammability* p, fc4_flammability_stat
 bool fc4_flammability_write(const fc4_flammability* p, const fc4_ostream* out); /* §10 */
 bool fc4_flammability_read(fc4_flammability* p, const fc4_istream* in);         /* §10: false for version != 2 */
 
+/* ---- protection: fire and police (docs/specs/protection.md) ----------------
+ *
+ * One handle is one simulator: kind 0 = fire (cSC4FireProtectionSimulator,
+ * 0x2990C05A), 1 = police (cSC4PoliceSimulator, 0x6990C04F). Tokens:
+ * occupants (stations, jails, automata) by their cISC4Occupant identity,
+ * departments, lots, grids and the air dispatch source; 0 is null. The core
+ * owns one reference on every token it keeps (stations, jails, departments,
+ * the air source): create_department and create_air_source hand one over, and
+ * a saved reference read back by fc4_protection_read either arrives with one
+ * (a host object) or gets one through add_ref (fc4_ref.core_handle set).
+ * Both grids are the game's own cSC4SimGrid (fc4_grid_api: uint8 adjusted,
+ * int16 unadjusted, §2). A message delivered while another call into the same
+ * object is running is queued and handled when that call returns.
+ *
+ * Threads: the core is single-threaded. The caller serialises every call on
+ * one handle (the plugin holds a per-object lock). */
+typedef struct fc4_protection fc4_protection;
+
+/* GetBudgetItemForPurpose with the item's department looked up by its ID
+ * (§6.1): has_department = GetDepartmentBudget(item.departmentID) != NULL;
+ * locally_funded = that department's IsLocallyFundedObjectInDepartment. */
+typedef struct fc4_protection_budget_item {
+    uint32_t has_department;
+    uint32_t locally_funded;
+    float local_funding; /* item.localFundingPercentage (a fraction) */
+    uint32_t reserved;
+    int64_t cost;
+    uint64_t department; /* borrowed */
+} fc4_protection_budget_item;
+
+/* GetDispatchInfo (§5). Tokens borrowed. */
+typedef struct fc4_protection_dispatch_info {
+    uint64_t station;
+    uint64_t automaton;
+    uint32_t call_id;
+    uint32_t active;
+    float x, z;
+} fc4_protection_dispatch_info;
+
+/* A message for fc4_protection_do_message (§5). `occupant` is GetVoid1() as
+ * a cISC4Occupant (occupant messages); `unknown` is GetIGZUnknown() (the
+ * police crime message). */
+typedef struct fc4_protection_message {
+    uint32_t msg_type;
+    uint32_t data1;
+    uint32_t data2;
+    uint32_t reserved;
+    uint64_t occupant;
+    uint64_t unknown;
+} fc4_protection_message;
+
+/* Diagnostics. covered_tracts / max_coverage / coverage_sum: the adjusted
+ * grid's tracts with a value > 0, its largest value and the sum. */
+typedef struct fc4_protection_state {
+    uint32_t struct_size;
+    uint32_t kind;
+    uint8_t initialized, loaded, strike_flag, reserved0;
+    uint32_t stations;
+    uint32_t tracts;
+    int32_t count_x, count_z;
+    uint32_t covered_tracts, max_coverage, coverage_sum;
+    int32_t tracts_per_day;
+    int32_t zoned, sum, non_zero;
+    float avg, pct;
+    uint32_t strike_date, next_call;
+    uint32_t jails, funded_jails, jailbreaks;
+    int32_t jail_capacity, jail_population, jailed, arrests_last, crimes_last;
+    uint32_t reentrant_calls;
+    uint32_t reserved1;
+    uint64_t department, jail_department, adjusted_grid, unadjusted_grid, air_source;
+} fc4_protection_state;
+
+/* What the protection simulators need from the game (one callback per
+ * ProtectionHost method, engine/core/src/protection/mod.rs, §14). Missing
+ * callbacks behave as "nothing there" (0, false, no object); the read-only
+ * shadow table leaves every callback that changes the game NULL. `kind` is
+ * 0 = fire, 1 = police. */
+typedef struct fc4_protection_host {
+    uint32_t struct_size; /* sizeof(fc4_protection_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* lifecycle (§4) */
+    void (*acquire_services)(void* user, uint32_t kind);
+    void (*release_services)(void* user, uint32_t kind);
+    /* AddAgent(target, level, name, flags) once per level, in order. */
+    void (*add_agent)(void* user, const char* name, size_t name_len, const uint32_t* levels, size_t count,
+                      uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, const uint32_t* msg_types, size_t count);
+    void (*unsubscribe)(void* user, const uint32_t* msg_types, size_t count);
+    void (*register_dispatch_source)(void* user);
+    void (*unregister_dispatch_source)(void* user);
+    void (*set_grid_instance)(void* user, uint64_t grid, uint32_t instance);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* resources: a NEW fc4_props (the core destroys it), NULL if missing */
+    fc4_props* (*tuning)(void* user, uint32_t kind);
+    /* budget (§4.1, §6.1, §6.6) */
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t group, uint32_t name_group,
+                                  uint32_t name_instance, float max_funding); /* one reference, 0 = none */
+    uint32_t (*department_id)(void* user, uint64_t dept);
+    float (*department_funding)(void* user, uint64_t dept); /* *GetFundingPercentage() */
+    void (*add_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    void (*remove_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
+    bool (*set_local_funding)(void* user, uint64_t dept, uint64_t occ, float pct, uint32_t purpose);
+    bool (*budget_item)(void* user, uint64_t occ, uint32_t purpose, fc4_protection_budget_item* out);
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*set_occupant_property)(void* user, uint64_t occ, uint32_t id, uint16_t mem_type, bool is_array,
+                                  const void* data, size_t count);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    bool (*is_prop_occupant)(void* user, uint64_t occ);
+    int32_t (*lot_road_access)(void* user, uint64_t occ); /* -1 = no lot, 0 = no road, 1 = road */
+    /* city, simulator, zones, terrain, disasters */
+    uint32_t (*sim_day)(void* user);
+    bool (*lot_location)(void* user, uint64_t unknown, int32_t* x, int32_t* z); /* false = not a lot */
+    void (*cell_center_to_position)(void* user, int32_t cell_x, int32_t cell_z, float* x, float* z);
+    uint32_t (*zone_value)(void* user, int32_t cell_x, int32_t cell_z);
+    float (*sea_level)(void* user);
+    float (*altitude)(void* user, float x, float z);
+    bool (*disaster_ongoing)(void* user);
+    /* dispatch manager (§5, §8): dispatch_ids writes at most `capacity` IDs
+     * (never called with 0) and returns the number written. */
+    uint32_t (*dispatch_count)(void* user, uint32_t dispatch_type);
+    uint32_t (*dispatch_ids)(void* user, uint32_t dispatch_type, uint32_t* ids, uint32_t capacity);
+    bool (*dispatch_info)(void* user, uint32_t id, fc4_protection_dispatch_info* out);
+    /* automata controllers (§6.3, §9.5) */
+    void (*add_controllers)(void* user, const char* group, size_t group_len, uint64_t occ);
+    void (*remove_controllers)(void* user, const char* group, size_t group_len, uint64_t occ);
+    /* other simulators, history, messages */
+    bool (*police_percent_coverage)(void* user, float* out); /* false = no police simulator */
+    void (*record_history)(void* user, uint32_t id, int32_t value);
+    void (*post)(void* user, uint32_t msg_type, uint64_t subject); /* §12; subject 0 = none */
+    /* air dispatch sources (§8.4): one reference for the core, 0 = none */
+    uint64_t (*create_air_source)(void* user, uint32_t kind, uint32_t* class_id);
+    void (*air_source_init)(void* user, uint64_t source);
+    void (*air_source_shutdown)(void* user, uint64_t source);
+} fc4_protection_host;
+
+/* Which sub-object QueryInterface(iid) answers with (§1): 0 = none, 1 = the
+ * primary interface (also cIGZUnknown), 2 = cIGZMessageTarget2, 3 = the
+ * dispatch source (0xC9C00435), 4 = cIGZSerializable. */
+uint32_t fc4_protection_query_interface(uint32_t kind, uint32_t iid);
+fc4_protection* fc4_protection_create(const fc4_protection_host* host, uint32_t kind, uint64_t token,
+                                      uint32_t wall_clock_seed, uint32_t process_clock);
+void fc4_protection_destroy(fc4_protection* p);
+bool fc4_protection_init(fc4_protection* p);     /* §4.1 */
+bool fc4_protection_shutdown(fc4_protection* p); /* §4.2 */
+bool fc4_protection_do_message(fc4_protection* p, const fc4_protection_message* m); /* §5: always true */
+/* Primary interfaces (§15.1 fire slot / §15.2 police slot). List getters call
+ * `cb` once per object (borrowed tokens; the caller AddRefs what it keeps). */
+uint64_t fc4_protection_grid(const fc4_protection* p);            /* 5: borrowed, 0 = none */
+uint64_t fc4_protection_department(const fc4_protection* p);      /* 6: borrowed */
+uint64_t fc4_protection_jail_department(const fc4_protection* p); /* police 9: borrowed */
+bool fc4_protection_is_station(const fc4_protection* p, uint64_t occ); /* 7 / 22 */
+bool fc4_protection_station_funding(const fc4_protection* p, uint64_t occ, int32_t* cost, float* pct); /* 8 / 7 */
+bool fc4_protection_set_station_funding(fc4_protection* p, uint64_t occ, float pct);                  /* 9 / 8 */
+bool fc4_protection_protection_station_funding(const fc4_protection* p, uint64_t occ, float* out); /* MT 11 */
+float fc4_protection_station_efficiency(const fc4_protection* p, uint64_t occ); /* 10 / 25 */
+bool fc4_protection_is_on_strike(const fc4_protection* p);                      /* 11 / 10 */
+float fc4_protection_chance_of_strike(const fc4_protection* p);                 /* 12 / 11 */
+bool fc4_protection_begin_strike(fc4_protection* p, uint64_t occ);              /* 13 / 12 */
+bool fc4_protection_end_strike(fc4_protection* p);                              /* 14 / 13 */
+uint32_t fc4_protection_strike_start_date(const fc4_protection* p);             /* 15 / 14 */
+uint32_t fc4_protection_strike_length(const fc4_protection* p);                 /* 16 / 15 */
+/* 17 / 16: appends (no clear); returns the number appended. */
+int32_t fc4_protection_striking_stations(const fc4_protection* p, fc4_token_callback cb, void* ctx);
+bool fc4_protection_is_station_on_strike(const fc4_protection* p, uint64_t occ); /* 18 / 17 */
+float fc4_protection_average_coverage(const fc4_protection* p);                  /* 19 / 18 */
+float fc4_protection_percent_coverage(const fc4_protection* p); /* 20 / 19: the value behind the pointer */
+/* 21 / 20 (§7.3): fire zeroes both outputs first; police leaves them when it
+ * fails. */
+bool fc4_protection_occupant_coverage(const fc4_protection* p, uint64_t occ, float pct, float* cover_radius,
+                                      float* station_radius);
+/* 22 / 21 and dispatch-source 6: the caller clears its list first. */
+uint32_t fc4_protection_stations(const fc4_protection* p, fc4_token_callback cb, void* ctx);
+uint32_t fc4_protection_station_count(const fc4_protection* p);                     /* 23 / 24 */
+float fc4_protection_station_dispatch_radius(const fc4_protection* p, uint64_t occ); /* 24 / 23 */
+int32_t fc4_protection_total_dispatch_count(const fc4_protection* p);              /* 25 / 26 */
+/* Police jails (§9, §15.2). */
+int32_t fc4_protection_reset_unjailed_criminals(fc4_protection* p);              /* 27 */
+uint32_t fc4_protection_jail_capacity_of(const fc4_protection* p, uint64_t occ); /* 28 */
+uint32_t fc4_protection_jail_capacity(const fc4_protection* p);                  /* 29 */
+uint32_t fc4_protection_jail_population(const fc4_protection* p);                /* 30 */
+uint32_t fc4_protection_criminal_count(const fc4_protection* p);                 /* 31 */
+uint32_t fc4_protection_jails(const fc4_protection* p, fc4_token_callback cb, void* ctx); /* 32: clear first */
+bool fc4_protection_is_jail(const fc4_protection* p, uint64_t occ);              /* 33 */
+uint32_t fc4_protection_arrest_count(const fc4_protection* p);                   /* 34 */
+uint32_t fc4_protection_jail_count(const fc4_protection* p);                     /* 35 */
+float fc4_protection_jailed_percentage(const fc4_protection* p);                 /* 36 */
+int64_t fc4_protection_jail_upkeep_cost(const fc4_protection* p, uint64_t occ);  /* 37 */
+bool fc4_protection_process_monthly_crime_stats(fc4_protection* p);              /* 38 */
+bool fc4_protection_is_in_jailbreak(const fc4_protection* p, uint64_t occ);      /* 39 */
+bool fc4_protection_begin_jailbreak(fc4_protection* p, uint64_t occ);            /* 40 */
+bool fc4_protection_end_jailbreak(fc4_protection* p, uint64_t occ);              /* 41 */
+/* 42: 0 and no callback when empty (the caller's list stays as it is); else
+ * the caller clears its list first. */
+int32_t fc4_protection_jailbreak_buildings(const fc4_protection* p, fc4_token_callback cb, void* ctx);
+uint32_t fc4_protection_station_arrest_count(const fc4_protection* p, uint64_t occ); /* 43 */
+uint32_t fc4_protection_station_crime_count(const fc4_protection* p, uint64_t occ);  /* 44 */
+/* The dispatch source (§8, §15.4 slot). */
+bool fc4_protection_can_handle_dispatch_type(const fc4_protection* p, uint32_t t);           /* 3 */
+bool fc4_protection_can_dispatch(const fc4_protection* p, float x, float z, bool* all_busy); /* 4 */
+int32_t fc4_protection_max_possible_dispatch_count(const fc4_protection* p);                /* 5 */
+/* 7: NULL flags / base = not requested; each output written as soon as its
+ * property is read (§8.1). */
+bool fc4_protection_dispatches_at_station(const fc4_protection* p, uint64_t occ, uint32_t* flags, uint32_t* base,
+                                          uint32_t* count);
+uint64_t fc4_protection_dispatch_from_nearest_station(fc4_protection* p, float x, float z, uint32_t* id); /* 8 */
+bool fc4_protection_dispatch_from_station(fc4_protection* p, uint64_t occ, uint32_t* id);               /* 9 */
+bool fc4_protection_revoke_dispatch_from_station(fc4_protection* p, uint64_t occ, uint32_t id);         /* 10 */
+bool fc4_protection_dispatch_automata_properties(const fc4_protection* p, uint32_t* b, float* c3, uint32_t* d);
+bool fc4_protection_get_state(const fc4_protection* p, fc4_protection_state* out);
+bool fc4_protection_write(const fc4_protection* p, const fc4_ostream* out); /* §11 */
+bool fc4_protection_read(fc4_protection* p, const fc4_istream* in);         /* §11 */
+/* The grid shadow: a handle on a read-only host table (grids unused), never
+ * initialised. fc4_protection_shadow_run reads the tuning, takes the
+ * original's stations (list order), department and strike flag as BORROWED
+ * tokens (valid for this call and later queries on the handle until the next
+ * run), rebuilds the unadjusted grid (§5.1) in a core grid of geometry `geom`
+ * and derives the adjusted grid (§2, factor 1.0). fc4_protection_shadow_grid
+ * copies the adjusted grid (x outer: x * count_z + z) and returns the number
+ * of tracts. Destroy with fc4_protection_destroy (releases nothing). */
+fc4_protection* fc4_protection_shadow_create(const fc4_protection_host* host, uint32_t kind);
+bool fc4_protection_shadow_run(fc4_protection* p, const fc4_grid_geometry* geom, const uint64_t* stations,
+                               size_t count, uint64_t department, bool strike_flag);
+size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t n);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -1886,6 +2116,11 @@ static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
 static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
+static_assert(sizeof(fc4_protection_budget_item) == 32, "fc4_protection_budget_item layout");
+static_assert(sizeof(fc4_protection_dispatch_info) == 32, "fc4_protection_dispatch_info layout");
+static_assert(sizeof(fc4_protection_message) == 32, "fc4_protection_message layout");
+static_assert(sizeof(fc4_protection_state) == 152, "fc4_protection_state layout");
+static_assert(sizeof(fc4_protection_host) == (sizeof(void*) == 4 ? 220 : 440), "fc4_protection_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
