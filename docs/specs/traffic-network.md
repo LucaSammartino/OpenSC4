@@ -658,9 +658,12 @@ inserted.
    - `0x2C520000` → departure cell;
    - `0x2C530000` → arrival cell;
    - `0x2C540000` → water cell: the first side d = 0…3 whose neighbour is outside the lot rectangle and is under
-     water (terrain slot 34 `+0x88`, `(x, z)`).
+     water (terrain slot 34 `+0x88`, `(x, z)`). The water cell is that **neighbour** N, not the prop's own cell
+     (`0x0072389F`).
 
-   Later props of the same kind overwrite earlier ones. All three must be found, otherwise stop.
+   The departure and arrival cells are the prop's own cell (`PositionToCell` of its position). Later props of the
+   same kind overwrite earlier ones. A water prop with **no** qualifying side writes nothing: an earlier water cell
+   and its "found" flag stay as they were (TN10, `0x0072389B`). All three must be found, otherwise stop.
 3. Append the terminal and count it. Insert its departure key and arrival key in the two tables.
 4. For every other terminal of the **same type**, in list order: **RouteAndLinkTerminals**(new, other) (§4.9.3).
 5. For every neighbour connection of type 9 (neighbours simulator slot 17 `GetConnectionsOfType(9, list)`; the

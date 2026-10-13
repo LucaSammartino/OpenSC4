@@ -185,7 +185,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   2026-10-14** from the exe (`GetFerryRoutesInUse` `0x0071C250`) and written into §4.9.5. **The bracket is right:
   last.** Both the non-zero test and the copied counters read the last fields: `+0x20`/`+0x24` of a terminal link,
   `+0x2C`/`+0x30` of a neighbour link. The field offsets are now listed.
-- **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
+- ~~**TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]~~ **ANSWERED
+  2026-10-14** from the exe (`DoFerryTerminalActivated` `0x0072384A`–`0x007238AB`) and written into §4.9.1. **The
+  bracket is right: no.** With no qualifying side, the loop ends without storing, so an earlier water cell and its
+  flag stay. Also clarified: the stored water cell is the under-water **neighbour** N, not the marker's own cell.
 - **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
   [overwrite; no record]
 - **TN12 — §4.2:** are edge-density entries created for both evening values? [both]
