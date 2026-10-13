@@ -89,11 +89,16 @@ shadow proves, not about a known mismatch. The lane's third question (does the o
 pointer equal its month agent?) was answered by run 39 itself: the agent `139BE6F0` was matched through its
 `cIGZMessageTarget2` interface, 4 bytes into the budget object `139BE6EC`, not by the name fallback.
 
-**BQ1: can the original's own lot list differ from `GetLotsInCellRect(…, false)` over the whole city?**
-The shadow scans lots through `GetLotsInCellRect`, and the original settlement walks its own lot list. Lots that are
-mid-transition, preview/placement lots, or lots outside the city bounds could be in one set and not the other. Run 39
-counted 413–417 lots and matched exactly, so no difference showed up on Spandau. Answer from the settlement's lot
-iteration: which container it walks and which lots it filters out.
+~~**BQ1: can the original's own lot list differ from `GetLotsInCellRect(…, false)` over the whole city?**~~
+**ANSWERED 2026-10-13** from the exe and written into budget.md §5.2. **No, on every known path.**
+- `ComputeTax` walks the lot manager's master list through a safe iterator. Its only filters are: no building, not
+  livable, and an untaxed cell.
+- The cell map and the list change together in `CreateLot`/`DeleteLot`, and a load rebuilds one from the other.
+  Highlight-mode lots are in neither set.
+- Right after a load the two **orders** are identical too (first cell, x outer).
+
+The only divergences are a direct `CreateLot` over an existing lot, or a null-list insertion point. Neither is
+known to occur.
 
 ~~**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**~~ **ANSWERED 2026-10-13** from
 the exe and written into budget.md §5.1 and §15 test 4. **Both return 0.** The settlement adds the month first, then
