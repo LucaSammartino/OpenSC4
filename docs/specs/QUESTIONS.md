@@ -209,7 +209,11 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   2026-10-14** from the exe (`0x00725370` `fmul dword [0x00AB34F4]`) and written into §4.10.2. **The bracket is
   wrong: float32** `0x3E4CCCCD`, as are 40.0, 0.1 and 1.0. The double would change the step cost for 25 depth
   bytes, for example 47 (`0x4081EB85` vs `0x4081EB86`). A worked example is in the spec.
-- **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
+- ~~**TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4WaterPathFinder::DoMessage` `0x00724B19`–`0x00724BC8`) and written
+  into the §4.10.1 table. **The bracket is wrong: bounding cells.** The rectangle is occupant slot 11
+  `GetBoundingCityCells`, and only its NW corner `(x1, z1)` is tested under water. It is added to the dirty
+  rectangle as is, not grown or clamped. For an ordinary one-cell network piece the two answers coincide.
 - **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
   forever]
 - **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]

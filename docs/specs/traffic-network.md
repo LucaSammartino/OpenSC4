@@ -849,12 +849,14 @@ For each cell:
   `r − 1` is used when `p = r − 1` exactly. This equals `ceil(p)` for 0 ≤ p ≤ 200.
 
 Updates are lazy. A dirty rectangle (with a flag) is updated before each FindPath and on message `0x6A3B0AFD`.
+"dirty ∪= r" means: if the flag is clear, dirty := r and set the flag; otherwise dirty := the union (min x1, min
+z1, max x2, max z2).
 
 | Message | Effect |
 |---|---|
 | `0x26D31EC1` | whole map dirty and updated at once |
 | `0x278E6003`, `0x678E6E3A` | dirty ∪= (data1 >> 16) − 1 … data1 & 0xFFFF, (data2 >> 16) − 1 … data2 & 0xFFFF, clamped to the map (terrain change) |
-| `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | if the network occupant's cell is under water (terrain slot 34), dirty ∪= the occupant's cell rectangle (bridges) *[inferred]* |
+| `0x99EF1142` / `0x99EF1143` with data3 = `0xC772BF98` | r = the occupant's (void data1) **bounding city cells** (occupant slot 11 `GetBoundingCityCells`). If the cell `(r.x1, r.z1)` is under water (terrain slot 34, NW corner only): dirty ∪= r, not grown and not clamped (bridges). TN15, `0x00724B19`–`0x00724BC8` |
 
 #### 4.10.2 FindPath(sx, sz, tx, tz, &cells, fwd, back) (`0x00725170`, pop 28, AL)
 
