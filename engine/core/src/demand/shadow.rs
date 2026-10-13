@@ -152,7 +152,15 @@ impl ShadowGraph {
 
     /// §8.1 for the 12 total nodes, from the census supplies (as for
     /// [`Self::neutral_tax_rate`]) and the saved CO / I economy bonuses.
-    pub fn modifiers(&self, host: &dyn DemandHost, r: f32, c: f32, i: f32, co_bonus: f32, i_bonus: f32) -> ShadowModifiers {
+    pub fn modifiers(
+        &self,
+        host: &dyn DemandHost,
+        r: f32,
+        c: f32,
+        i: f32,
+        co_bonus: f32,
+        i_bonus: f32,
+    ) -> ShadowModifiers {
         let neutral_raw = self.neutral_tax_rate(r, c, i);
         let neutral = neutral_raw.max(0.1);
         let today = host.today();
@@ -413,7 +421,11 @@ mod tests {
             let t = sim.node(0x21010).unwrap();
             t.set_economy_modifier(0.03 * day as f32);
             t.set_tax_modifier(-0.011 * day as f32);
-            let mut states: Vec<NodeData> = sim.node_keys().iter().map(|k| sim.node(*k).unwrap().snapshot()).collect();
+            let mut states: Vec<NodeData> = sim
+                .node_keys()
+                .iter()
+                .map(|k| sim.node(*k).unwrap().snapshot())
+                .collect();
             let stats = g.propagate(&mut states);
             assert!(stats.settled && stats.passes >= 2 && stats.missing_targets == 0);
             assert_eq!(stats.end_of_cycles, stats.passes * 5);

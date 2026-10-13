@@ -517,7 +517,12 @@ impl DemandSim {
                 node.set_active_max(v as f32);
             }
             node.set_region_use(e.region_use);
-            self.d.borrow_mut().links.entry(e.key).or_default().extend(exemplar_links(&e));
+            self.d
+                .borrow_mut()
+                .links
+                .entry(e.key)
+                .or_default()
+                .extend(exemplar_links(&e));
         }
     }
 

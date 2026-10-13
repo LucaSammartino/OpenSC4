@@ -920,7 +920,12 @@ pub unsafe extern "C" fn fc4_demand_shadow_propagate(
 /// `GetNeutralTaxRate()` (§5, unclamped) from the supplies of `0x1001`,
 /// `0x3001`, `0x4001` (0 for a missing node).
 #[no_mangle]
-pub unsafe extern "C" fn fc4_demand_shadow_neutral_tax_rate(s: *const fc4_demand_shadow, r: f32, c: f32, i: f32) -> f32 {
+pub unsafe extern "C" fn fc4_demand_shadow_neutral_tax_rate(
+    s: *const fc4_demand_shadow,
+    r: f32,
+    c: f32,
+    i: f32,
+) -> f32 {
     with_shadow(s, 0.0, |g| g.neutral_tax_rate(r, c, i))
 }
 

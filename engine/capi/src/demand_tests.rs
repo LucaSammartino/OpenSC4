@@ -512,7 +512,13 @@ fn shadow_matches_the_simulator() {
                 ..Default::default()
             };
             g.posts.borrow_mut().clear();
-            assert!(fc4_demand_shadow_propagate(sh, ours.as_ptr(), 3, ours.as_mut_ptr(), &mut st));
+            assert!(fc4_demand_shadow_propagate(
+                sh,
+                ours.as_ptr(),
+                3,
+                ours.as_mut_ptr(),
+                &mut st
+            ));
             assert!(g.posts.borrow().is_empty());
             assert_eq!((st.nodes, st.settled, st.missing_targets), (3, 1, 0));
             assert!(fc4_demand_sim_handle_message(s, 0x6695_6814, 0, 0, 0)); // NewDay
@@ -555,7 +561,9 @@ fn shadow_matches_the_simulator() {
         assert_eq!(m.node[1].tax_modifier, 0.0);
         let mut small = m;
         small.struct_size = 8;
-        assert!(!fc4_demand_shadow_modifiers(sh, &mh, 0.0, 0.0, 0.0, 0.0, 0.0, &mut small));
+        assert!(!fc4_demand_shadow_modifiers(
+            sh, &mh, 0.0, 0.0, 0.0, 0.0, 0.0, &mut small
+        ));
         assert!(!fc4_demand_shadow_propagate(
             sh,
             std::ptr::null(),
