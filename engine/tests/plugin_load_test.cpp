@@ -39,6 +39,8 @@
 #include "cRZBaseString.h"
 #include "FC4BudgetShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4PollutionShadow.h"
+#include "cIGZOStream.h"
 #include "FC4Interfaces.h"
 #include "FC4TestSeam.h"
 #include "fc4.h"
@@ -95,6 +97,9 @@ constexpr uint32_t kCLSID_Demand = 0x8990C12D;
 constexpr uint32_t kIID_cISC4Demand = 0x0797A4E8;
 constexpr uint32_t kCLSID_Plumbing = 0x0990C075;
 constexpr uint32_t kIID_cISC4PlumbingSimulator = 0x47782CCC;
+constexpr uint32_t kCLSID_Pollution = 0x8990C065;
+constexpr uint32_t kIID_cISC4PollutionSimulator = 0x877181EC;
+constexpr uint32_t kIID_cISC4PropRequester = 0x89C498BE;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
 
@@ -749,6 +754,75 @@ intptr_t DemandShadowOnce(FC4TestSeamFn seam, FakeOrigDemand& o, cIGZMessageTarg
     return seam(kFC4SeamDemandShadow, &in, nullptr);
 }
 
+// ---- the pollution shadow (test seam op 16) ------------------------------------------------------
+// An "original" pollution simulator: QueryInterface answers its agent
+// (cIGZMessageTarget2) and cIGZSerializable, whose Write writes the record's
+// version alone (a uint16): a record without the grid references, so the
+// shadow reports the delivery INCOMPLETE and reads nothing else. Any other
+// call hits a trap and aborts. The city answers GetPollutionSimulator
+// (compiled slot 66) only; `noCity` returns null there.
+struct FakeOrigPollution {
+    FakeVtable simVt, agentVt, serVt, cityVt, noCityVt;
+    FakeObject sim{}, agent{}, ser{}, city{}, noCity{}, other{};
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+};
+
+FakeOrigPollution* g_op = nullptr;
+
+bool __fastcall OpQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == 0x452294AA) {
+        *out = &g_op->agent;  // cIGZMessageTarget2
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_op->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_op->refs;
+    return true;
+}
+uint32_t __fastcall OpAddRef(void*, void*) { return static_cast<uint32_t>(++g_op->refs); }   // 1
+uint32_t __fastcall OpRelease(void*, void*) { return static_cast<uint32_t>(--g_op->refs); }  // 2
+bool __fastcall OpWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_op->writes;
+    return s->SetUint16(4);
+}
+// serializable 5 (the reference audit's class lookup asks it too)
+uint32_t __fastcall OpClsid(void*, void*) { return 0x8990C065; }
+bool __fastcall OpDoMessage(void*, void*, cIGZMessage2*) {  // agent 3
+    ++g_op->deliveries;
+    return true;
+}
+void* __fastcall OpCityPollution(void*, void*) { return &g_op->sim; }  // city 66
+void* __fastcall OpCityNoPollution(void*, void*) { return nullptr; }   // city 66
+
+void InitFakeOrigPollution(FakeOrigPollution& o) {
+    g_op = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OpQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OpAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OpRelease);
+    }
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OpDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OpWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OpClsid);
+    o.cityVt.slots[66] = reinterpret_cast<void*>(&OpCityPollution);
+    o.noCityVt.slots[66] = reinterpret_cast<void*>(&OpCityNoPollution);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noCity.vtbl = o.noCityVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+intptr_t PollutionShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type) {
+    FC4PollutionShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576};  // 2000-02-01
+    return seam(kFC4SeamPollutionShadow, &in, nullptr);
+}
+
 // ---- the reference audit's created-temporary release (test seam op 12) ----------------------------
 // A game object (vtable in this executable) whose Release returns 0: the
 // last reference. QueryInterface (the audit's class lookup) answers no.
@@ -882,8 +956,12 @@ void __fastcall AppSetPopupDialogsEnabled(void*, void*, bool on) {  // cISC4App 
 // Scenarios: off (popup_dialogs = 0), on (= 1; the parent also sets
 // FC4_POPUP_DIALOGS=0, which the ini overrides), env (FC4_POPUP_DIALOGS=0
 // only), bad (= maybe), unset, stuck (= 0 with a setter that does nothing).
-// Three city loads: the first without an application (tests have no
-// framework), the next two with the fake. Returns 0 if the fake saw what the
+// Messages, in order: a city load and a ConnectionsReady without an
+// application (tests have no framework); then, with the fake, two
+// ConnectionsReady, a second city load and its ConnectionsReady. = 0 sets
+// false at the first ConnectionsReady with the app, true at the second load
+// and false again at its ConnectionsReady (foundations.md 11.6); = 1 makes
+// its one call at the second load. Returns 0 if the fake saw what the
 // scenario expects; the parent checks the log.
 int PopupsChild(const std::string& dll, const std::string& ini, const std::string& scenario) {
     if (scenario == "off" || scenario == "stuck") {
@@ -912,23 +990,34 @@ int PopupsChild(const std::string& dll, const std::string& ini, const std::strin
     fake.enabled = scenario != "on";  // "on": the game's flag starts false
     fake.ignoreSet = scenario == "stuck";
     void* const cityInit = reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit));
+    void* const connReady = reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u));  // ConnectionsReady
 
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // no application: skipped, logged
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);   // no application: = 1 skipped, logged
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // no application: = 0 skipped, logged
     const int setsWithoutApp = fake.sets;
     seam(kFC4SeamObserverApp, &fake.app, nullptr);
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // the call
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: false
     const int setsFirst = fake.sets;
-    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // never twice per process
+    const bool enabledFirst = fake.enabled;
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: already false, nothing
+    const int setsSecond = fake.sets;
+    seam(kFC4SeamObserverMessage, cityInit, nullptr);  // = 0: true until ConnectionsReady; = 1: the call
+    const bool enabledLoad = fake.enabled;
+    seam(kFC4SeamObserverMessage, connReady, nullptr);  // = 0: false again
     seam(kFC4SeamObserverApp, nullptr, nullptr);
     FreeLibrary(h);
 
-    const bool calls = scenario == "off" || scenario == "on" || scenario == "env" || scenario == "stuck";
-    const bool wantEnabled = !(scenario == "off" || scenario == "env");
+    const bool off = scenario == "off" || scenario == "env";
+    // Sets: off/env 3 (false, true, false); stuck 1 (the failed call is not
+    // retried); on 1 (at the second city load); bad/unset 0.
+    const int wantSets = off ? 3 : (scenario == "stuck" || scenario == "on") ? 1 : 0;
+    const int wantFirst = off || scenario == "stuck" ? 1 : 0;
     int bad = 0;
     if (setsWithoutApp != 0) bad |= 1;
-    if (setsFirst != (calls ? 1 : 0) || fake.sets != setsFirst) bad |= 2;
-    if (fake.gets != (calls ? 2 : 0)) bad |= 4;  // before and after the call
-    if (fake.enabled != wantEnabled) bad |= 8;
+    if (setsFirst != wantFirst || setsSecond != setsFirst || fake.sets != wantSets) bad |= 2;
+    if (fake.gets != 2 * wantSets) bad |= 4;  // before and after each call
+    if (fake.enabled != !off) bad |= 8;
+    if (off && (enabledFirst || !enabledLoad)) bad |= 16;
     if (bad != 0) std::fprintf(stderr, "popups child %s: fake app check bits 0x%X\n", scenario.c_str(), bad);
     return bad == 0 ? 0 : 10 + bad;
 }
@@ -947,16 +1036,21 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
         return ReadFile(log);
     };
     const std::string skipped =
-        "popup dialogs: SetPopupDialogsEnabled(false) not called at city load (PostCityInit): no cISC4App (no "
-        "framework); retried at the next city load";
+        "popup dialogs: SetPopupDialogsEnabled(false) not called at ConnectionsReady: no cISC4App (no framework); "
+        "retried at the next ConnectionsReady";
+    const std::string disabled =
+        "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at ConnectionsReady";
 
-    // = 0: read at game start; skipped without an application; made once, at the next city load.
+    // = 0: read at game start; nothing at a city load before the first false; skipped without an application;
+    // false at ConnectionsReady, true again at the next city load, false again at its ConnectionsReady.
     std::string text = run("off", nullptr);
     CHECK(text.find("popup dialogs: popup_dialogs=0 (FreeCity4.ini): cISC4App::SetPopupDialogsEnabled(false) at "
-                    "PostAppInit, or at the first city load if the app is not reachable there") != npos);
+                    "each ConnectionsReady 0x6AC284F3, true again at each later city load") != npos);
     CHECK(CountOf(text, skipped) == 1);
-    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0) at "
-                        "city load (PostCityInit)") == 1);
+    CHECK(CountOf(text, disabled) == 2);
+    CHECK(CountOf(text, "popup dialogs: enabled (cISC4App::SetPopupDialogsEnabled(true); was enabled=0, now=1) at "
+                        "city load (PostCityInit), until this load's ConnectionsReady") == 1);
+    CHECK(text.find("SetPopupDialogsEnabled(false) not called at city load") == npos);
     CHECK(text.find("config: WARNING") == npos);  // popup_dialogs is a known key
     CHECK(text.find("WARNING: released last reference") == npos && text.find("WARNING: over-release") == npos);
 
@@ -966,13 +1060,15 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
                     "PostAppInit") != npos);
     CHECK(CountOf(text, "popup dialogs: enabled (cISC4App::SetPopupDialogsEnabled(true); was enabled=0, now=1) at "
                         "city load (PostCityInit)") == 1);
+    CHECK(CountOf(text, "popup dialogs: SetPopupDialogsEnabled(true) not called at city load (PostCityInit): no "
+                        "cISC4App (no framework); retried at the next city load") == 1);
+    CHECK(text.find("at ConnectionsReady") == npos);  // = 1 ignores it
 
     // The environment alone.
     text = run("env", "0");
     CHECK(text.find("popup dialogs: popup_dialogs=0 (FC4_POPUP_DIALOGS): cISC4App::SetPopupDialogsEnabled(false)") !=
           npos);
-    CHECK(CountOf(text, "popup dialogs: disabled (cISC4App::SetPopupDialogsEnabled(false); was enabled=1, now=0)") ==
-          1);
+    CHECK(CountOf(text, disabled) == 2);
 
     // Not 0/1: a config warning, and nothing is called.
     text = run("bad", nullptr);
@@ -988,7 +1084,8 @@ int PopupsTest(const std::string& dll, const std::string& ini, const std::string
     // A setter that does not take effect: one warning, not retried.
     text = run("stuck", nullptr);
     CHECK(CountOf(text, "popup dialogs: WARNING SetPopupDialogsEnabled(false) did not take effect (was enabled=1, "
-                        "now=1) at city load (PostCityInit)") == 1);
+                        "now=1) at ConnectionsReady") == 1);
+    CHECK(CountOf(text, "SetPopupDialogsEnabled(true)") == 0);
     CHECK(text.find("popup dialogs: disabled") == npos);
 
     SetEnvironmentVariableA("FC4_POPUP_DIALOGS", nullptr);
@@ -1143,7 +1240,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 57): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 83): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -1626,6 +1723,109 @@ int main(int argc, char** argv) {
         return g_failures == 0 ? 0 : 1;
     }
 
+    if (mode == "--ini-enable-pollution") {
+        // The pollution subsystem is off by default; `enable = pollution`
+        // registers the pollution simulator (pollution.md §1).
+        SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+        SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+        WriteTextFile(ini, "[subsystems]\nenable = pollution\npollution_shadow = 1\n");
+        HMODULE hd = LoadLibraryA(dll.c_str());
+        CHECK(hd != nullptr);
+        if (hd == nullptr) return 1;
+        auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+        cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+        CHECK(director != nullptr);
+        if (director != nullptr) {
+            std::vector<uint32_t> classes;
+            director->EnumClassObjects(&CollectClass, &classes);
+            // simulator (1) + budget (3) + pollution (1); never the game's grid
+            // classes (simgrid.md §6.3).
+            CHECK(classes.size() == 5);
+            for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+            CHECK(std::count(classes.begin(), classes.end(), kCLSID_Pollution) == 1);
+            void* obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Pollution, kIID_cISC4PollutionSimulator, &obj));
+            auto* po = static_cast<cFC4ISC4PollutionSimulator*>(obj);
+            if (po != nullptr) {
+                // §1: the four interfaces and cIGZUnknown (the primary one); the
+                // out pointer is left untouched for any other IID.
+                void* p = nullptr;
+                CHECK(po->QueryInterface(0x452294AAu, &p) && p != nullptr);
+                if (p) static_cast<cIGZUnknown*>(p)->Release();
+                cIGZSerializable* ser = nullptr;
+                CHECK(po->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser);
+                if (ser) {
+                    CHECK(ser->GetGZCLSID() == kCLSID_Pollution);
+                    ser->Release();
+                }
+                cFC4ISC4PropRequester* req = nullptr;
+                CHECK(po->QueryInterface(kIID_cISC4PropRequester, reinterpret_cast<void**>(&req)) && req);
+                if (req) {
+                    // §8.4: the satisfaction id, the standard selector.
+                    CHECK(req->GetRequesterSatisfactionId() == 0xE9A4300Bu);
+                    CHECK(!req->UsesCustomPropSelector());
+                    const SC4Rect<int32_t> cells(0, 0, 3, 3);
+                    CHECK(req->GetRequestedShare(cells) == 0);  // no city, no tracts
+                    req->Release();
+                }
+                void* u = nullptr;
+                CHECK(po->QueryInterface(GZIID_cIGZUnknown, &u) && u == static_cast<cIGZUnknown*>(po));
+                if (u) static_cast<cIGZUnknown*>(u)->Release();
+                void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
+                CHECK(!po->QueryInterface(0x452294ABu, &untouched));
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+                CHECK(!po->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
+                // No city, no grids: every query reads the neutral value and
+                // nothing crashes.
+                for (uint32_t kind = 0; kind < 5; ++kind) CHECK(po->GetPollutionGrid(kind) == nullptr);
+                CHECK(po->GetPollutionValue(0, 3, 4) == 0);
+                int32_t v = 7;
+                CHECK(po->GetAirValue(3, 4, v) && v == 0);
+                v = 7;
+                CHECK(po->GetWaterValue(3, 4, v) && v == 0);
+                v = 7;
+                CHECK(po->GetGarbageValue(3, 4, v) && v == 0);
+                CHECK(po->GetAverageAirValue() == 0 && po->GetAverageWaterValue() == 0);
+                CHECK(!po->IsAirPolluted(3, 4) && !po->IsWaterPolluted(3, 4));
+                CHECK(!po->IsGarbageAccumulated(3, 4) && !po->IsRadioactive(3, 4));
+                CHECK(!po->IsActiveLandfill(3, 4));
+                CHECK(po->SetAirValue(3, 4, 10));  // no grid: nothing written, still true (§8.1)
+                CHECK(po->GetPollutionValue(0, 3, 4) == 0);
+                CHECK(po->GetIncineratorCount() == 0 && po->GetWasteToEnergyBuildingCount() == 0);
+                CHECK(po->GetRecyclingCenterCount() == 0 && po->GetWaterTreatmentPlantCount() == 0);
+                CHECK(po->GetGarbageProducedLastMonth() == 0 && po->GetGarbageLandfilledLastMonth() == 0);
+                CHECK(po->GetBuildingGarbageCapacity(nullptr) == 0);
+                SC4Percentage* effect = po->GetRecyclingCenterEffect();  // slot 33: an address
+                CHECK(effect != nullptr);
+                CHECK(po->GetRecyclingCenterEffect() == effect);
+                // Slot 46 (GetGarbageBuildings) is not exercised here: it fills an
+                // ilist whose root node comes from the framework allocator
+                // service, which is not running in this harness.
+                // Init without a city or GZCOM: an empty city, a clean lifecycle.
+                CHECK(po->Init());
+                CHECK(po->Init());
+                CHECK(po->Shutdown());
+                CHECK(po->Release() == 0);
+            }
+        }
+        FreeLibrary(hd);
+        DeleteFileA(ini.c_str());
+        const std::string text = ReadFile(log);
+        CHECK(text.find("subsystem 'pollution': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+              std::string::npos);
+        CHECK(text.find("subsystem 'plumbing': off by default") != std::string::npos);
+        CHECK(text.find("cFC4PollutionSimulator(") != std::string::npos);
+        CHECK(text.find("pollution Init: init=") != std::string::npos);
+        CHECK(text.find("pollution Shutdown (0 days, 0 months)") != std::string::npos);
+        CHECK(text.find("cFC4PollutionSimulator destroyed") != std::string::npos);
+        // The shadow needs the ORIGINAL pollution simulator: requested, inactive.
+        CHECK(text.find("pollution shadow: requested (pollution_shadow from FreeCity4.ini) but INACTIVE") !=
+              std::string::npos);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+        if (g_failures == 0) std::printf("plugin enable test (%s): all checks passed\n", mode.c_str());
+        return g_failures == 0 ? 0 : 1;
+    }
+
     if (mode == "--disabled") {
         // FC4_DISABLE switches subsystems off: nothing is registered or created.
         SetEnvironmentVariableA("FC4_DISABLE", "Budget, Simulator");
@@ -2099,6 +2299,32 @@ int main(int argc, char** argv) {
             CheckCw("demand shadow");
         }
 
+        // The pollution shadow (op 16) on its neutral paths: no city, a city
+        // without a pollution simulator and an agent that is not the
+        // original's are left to the caller (-1, nothing delivered); the
+        // original's agent gets its delivery exactly once, its record is
+        // captured before and after (its own Write), and a record without the
+        // grid references is reported INCOMPLETE (-2, nothing compared). The
+        // month delivery ends with the month line. Any other call aborts.
+        if (seam != nullptr) {
+            static FakeOrigPollution op;
+            InitFakeOrigPollution(op);
+            cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&op.agent);
+            CHECK(PollutionShadowOnce(seam, nullptr, agent, kMsgSimNewMonth) == -1);
+            CHECK(PollutionShadowOnce(seam, &op.noCity, agent, kMsgSimNewMonth) == -1);
+            CHECK(op.deliveries == 0 && op.writes == 0);
+            CHECK(PollutionShadowOnce(seam, &op.city, agent, kMsgSimNewMonth) == -2);
+            CHECK(op.deliveries == 1);
+            CHECK(op.writes == 2);
+            CHECK(PollutionShadowOnce(seam, &op.city, agent, kMsgSimNewDay) == -2);
+            CHECK(op.deliveries == 2 && op.writes == 4);
+            CHECK(PollutionShadowOnce(seam, &op.city, reinterpret_cast<cIGZMessageTarget2*>(&op.other),
+                                      kMsgSimNewMonth) == -1);
+            CHECK(op.deliveries == 2 && op.writes == 4);
+            CHECK(op.refs == 1);  // every QueryInterface released
+            CheckCw("pollution shadow");
+        }
+
         // The reference audit (run 42, ForEachExemplarKey): freeing a
         // temporary the game created for us (acquired, then
         // FC4_RELEASE_CREATED) is not a warning; the same last-reference
@@ -2200,6 +2426,21 @@ int main(int argc, char** argv) {
     CHECK(CountOf(text, "budget shadow 2000-02-01 type ") == 3);  // one type line, two lot lines
     CHECK(text.find("budget shadow: the original budget ") != std::string::npos);
     CHECK(text.find("budget shadow: ON") == std::string::npos);  // off by default
+    // The pollution shadow (test seam op 16): two incomplete deliveries, one month line.
+    CHECK(text.find("pollution shadow: the original pollution simulator ") != std::string::npos);
+    CHECK(text.find("pollution shadow: comparing with the original pollution simulator ") != std::string::npos);
+    CHECK(text.find("pollution shadow 2000-02-01 month: INCOMPLETE (before: the record has no grid references); "
+                    "not compared") != std::string::npos);
+    CHECK(text.find("pollution shadow 2000-02-01 day: INCOMPLETE (before: the record has no grid references); "
+                    "not compared") != std::string::npos);
+    CHECK(text.find("pollution shadow month to 2000-02-01: deliveries=1 (days 0, months 1) clean=0 incomplete=1 "
+                    "reruns=0 uncached=0; cells=0 mismatches=0; airSrc 0/0 max|d|=0, waterSrc 0/0 max|d|=0,") !=
+          std::string::npos);
+    CHECK(text.find("; first differing cells: none; fields: none; props compared=0 mismatched=0; deals compared=0 "
+                    "mismatched=0; incomplete because: before: the record has no grid references x1") !=
+          std::string::npos);
+    CHECK(CountOf(text, "pollution shadow month to ") == 1);
+    CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);
@@ -2294,11 +2535,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 57 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 57 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 83 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 83 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 57): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 83): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

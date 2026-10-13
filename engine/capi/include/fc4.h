@@ -59,8 +59,9 @@ extern "C" {
  * 14 = adds the flammability simulator (fc4_flammability);
  * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax);
  * 16 = adds the demand shadow (fc4_demand_shadow);
- * 17 = adds the crime simulator and the crime shadow (fc4_crime / fc4_crime_shadow). */
-#define FC4_ABI_VERSION 17u
+ * 17 = adds the pollution simulator (fc4_pollution) and its shadow (fc4_pollution_shadow);
+ * 19 = adds the crime simulator and the crime shadow (fc4_crime / fc4_crime_shadow). */
+#define FC4_ABI_VERSION 19u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1819,6 +1820,241 @@ bool fc4_flammability_get_state(const fc4_flammability* p, fc4_flammability_stat
 bool fc4_flammability_write(const fc4_flammability* p, const fc4_ostream* out); /* §10 */
 bool fc4_flammability_read(fc4_flammability* p, const fc4_istream* in);         /* §10: false for version != 2 */
 
+/* ---- pollution (docs/specs/pollution.md) --------------------------------------
+ *
+ * Tokens: occupants (the cISC4Occupant identity), deals, visual effects, the
+ * department; 0 is null. The eight grids are the game's own
+ * cSC4SimGrid<int16> (fc4_grid_api), in save order: air, water, garbage,
+ * radiation sources, then the air, water, garbage and radiation values.
+ *
+ * Threads: the game calls the getters from a second thread while the main
+ * thread is inside a day or a month. Every function marked "any thread" reads
+ * the core's locked state; the others are main-thread only. A message
+ * delivered while another main-thread call into the same object is running is
+ * queued and handled when the outermost call returns. */
+typedef struct fc4_pollution fc4_pollution;
+
+/* GetBudgetItemForPurpose as the budget reports it (SDK BudgetItem). */
+typedef struct fc4_pollution_budget_item {
+    uint32_t department;
+    uint32_t line;
+    uint32_t purpose;
+    uint32_t index;
+    int64_t cost;
+    float local_funding;
+    uint32_t reserved;
+} fc4_pollution_budget_item;
+
+/* One grid's statistics: tracts, non-zero tracts, sum, minimum and maximum of
+ * the raw int16 values. */
+typedef struct fc4_pollution_grid_stats {
+    uint32_t tracts, nonzero;
+    int64_t sum;
+    int32_t min, max;
+} fc4_pollution_grid_stats;
+
+/* Diagnostics. */
+typedef struct fc4_pollution_state {
+    uint32_t struct_size;
+    uint8_t initialized, loaded, garbage_uncollected, effects_visible;
+    uint32_t tracts_per_day;
+    uint32_t cycle_resets;    /* tract-iterator resets at the end of a cycle */
+    uint32_t reentrant_calls; /* messages queued during another call */
+    uint32_t lists[4];        /* water treatment, incinerators, waste-to-energy, recycling */
+    int32_t avg_air, avg_water;
+    uint32_t avg_garbage, total_uncollected;
+    int32_t garbage_supply, garbage_capacity;
+    uint32_t active_landfill_cells, developed_tracts;
+    float efficiency, recycling_effect;
+    uint32_t cell_x, cell_z;
+    uint32_t reserved;
+    /* produced, imported, exported, recycled (truncated), incinerated,
+     * waste-to-energy, landfilled */
+    int64_t last_month[7];
+    int64_t month[7];
+    int64_t last_month_cost;
+    uint64_t department;
+    fc4_pollution_grid_stats grids[8];
+} fc4_pollution_state;
+
+/* What the pollution simulator needs from the game: one callback per
+ * PollutionHost method (engine/core/src/pollution/simulator.rs), in the
+ * trait's order. Missing callbacks behave as "nothing there" (0, false, no
+ * object), except cell_widths (16 m), cumulative_factor and
+ * department_funding (1.0). */
+typedef struct fc4_pollution_host {
+    uint32_t struct_size; /* sizeof(fc4_pollution_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* city */
+    void (*cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*cell_widths)(void* user, float* x, float* z);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    float (*altitude)(void* user, float x, float z);
+    /* simulator, messages, history */
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*subscribe)(void* user, const uint32_t* msg_types, size_t n);
+    void (*unsubscribe)(void* user, const uint32_t* msg_types, size_t n);
+    void (*post)(void* user, uint32_t msg_type, uint32_t data1); /* MessagePost; data2..4 = 0, no void / IGZUnknown (§5.2) */
+    void (*record_history)(void* user, uint32_t series, int32_t value);
+    void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
+    void (*add_prop_requester)(void* user);
+    void (*remove_prop_requester)(void* user);
+    /* other simulators */
+    uint32_t (*zone_type)(void* user, int32_t x, int32_t z);
+    uint8_t (*air_traffic)(void* user, int32_t x, int32_t z); /* the traffic simulator's air map */
+    float (*cumulative_factor)(void* user, uint32_t id, uint32_t index);
+    void (*find_deals)(void* user, uint32_t deal_type, fc4_token_callback cb, void* ctx);
+    int32_t (*deal_amount)(void* user, uint64_t deal);
+    int32_t (*deal_amount_used)(void* user, uint64_t deal);
+    void (*set_deal_amount_used)(void* user, uint64_t deal, int32_t used);
+    void (*mark_deals_dirty)(void* user);
+    bool (*is_occupant_powered)(void* user, uint64_t occ);
+    int32_t (*population)(void* user);
+    void (*landfill_usage)(void* user, uint32_t* usage, uint32_t* capacity);
+    uint32_t (*landfill_tile_count)(void* user);
+    void (*set_lot_condition)(void* user, int32_t cell_x, int32_t cell_z, uint32_t condition);
+    /* occupants */
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*set_occupant_property)(void* user, uint64_t occ, uint32_t id, uint16_t mem_type, bool is_array,
+                                  const void* data, size_t count);
+    void (*remove_occupant_property)(void* user, uint64_t occ, uint32_t id);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* min_xyz, float* max_xyz);
+    /* host objects */
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* budget */
+    uint64_t (*create_department)(void* user, uint32_t id, uint32_t group); /* borrowed; the core AddRefs */
+    void (*set_department_name)(void* user, uint64_t dept, uint32_t group, uint32_t instance);
+    void (*set_department_max_funding)(void* user, uint64_t dept, float fraction);
+    void (*create_line_item)(void* user, uint64_t dept, uint32_t line, bool local_funding, uint32_t group,
+                             uint32_t instance);
+    float (*department_funding)(void* user, uint64_t dept);
+    void (*set_line_item_full_expenses)(void* user, uint64_t dept, uint32_t line, int64_t value);
+    bool (*budget_item_for_purpose)(void* user, uint64_t occ, uint32_t purpose, fc4_pollution_budget_item* out);
+    void (*add_budget_item_to_budget)(void* user, uint64_t occ, uint32_t index);
+    void (*remove_budget_item_from_budget)(void* user, uint64_t occ, uint32_t index);
+    void (*change_budget_item_cost)(void* user, uint64_t occ, uint32_t index, int64_t cost);
+    void (*add_to_budget_item_line_expenses)(void* user, const fc4_pollution_budget_item* item, int64_t delta);
+    /* visual effects (0 = none) */
+    uint64_t (*create_visual_effect)(void* user, uint32_t id, uint32_t kind);
+    void (*set_effect_position)(void* user, uint64_t effect, const float* xyz);
+    void (*set_effect_param)(void* user, uint64_t effect, uint32_t param, float value);
+    void (*start_effect)(void* user, uint64_t effect, uint32_t t);
+    void (*stop_effect)(void* user, uint64_t effect, uint32_t t);
+    bool (*is_effect_started)(void* user, uint64_t effect);
+} fc4_pollution_host;
+
+/* `token`: the simulator's own host identity; `fx_seed` seeds the
+ * visual-effect generator. */
+fc4_pollution* fc4_pollution_create(const fc4_pollution_host* host, uint64_t token, uint32_t fx_seed);
+/* A loaded, never-initialised object gives its list and department references back. */
+void fc4_pollution_destroy(fc4_pollution* p);
+bool fc4_pollution_init(fc4_pollution* p);     /* §4.1 */
+bool fc4_pollution_shutdown(fc4_pollution* p); /* §4.1 */
+/* §5.3: always true. `occupant`: the occupant of Insert / RemoveOccupant;
+ * `view_level`: the uint32 void2 points at for PreViewLevelChange. */
+bool fc4_pollution_do_message(fc4_pollution* p, uint32_t msg_type, uint64_t occupant, uint32_t view_level);
+/* Any thread. Slots 10, 11, 12, 20-24, 31, 32, 34-45, 67-70 (booleans 0 / 1);
+ * 0 for any other slot. */
+int64_t fc4_pollution_slot_value(const fc4_pollution* p, uint32_t slot);
+/* Any thread. Slots 7 / 8 / 9 (the value), 13-16 and 49 (0 / 1). */
+int32_t fc4_pollution_slot_cell(const fc4_pollution* p, uint32_t slot, int32_t x, int32_t z);
+uint64_t fc4_pollution_grid(const fc4_pollution* p, uint32_t kind); /* 5: borrowed token; any thread */
+uint16_t fc4_pollution_value(const fc4_pollution* p, uint32_t kind, int32_t x, int32_t z); /* 6; any thread */
+/* 17-19 (kind 0 / 1 / 2); any thread. */
+bool fc4_pollution_worst_tract(const fc4_pollution* p, uint32_t kind, uint32_t* x, uint32_t* z, int32_t* v);
+/* Any thread. 25 SetIsRadioactive (v != 0), 26-28 Set{Air,Water,Garbage}Value
+ * (v as int16), 50 SetIsActiveLandfill (v != 0); false for any other slot. */
+bool fc4_pollution_set_cell(fc4_pollution* p, uint32_t slot, int32_t x, int32_t z, int32_t v);
+int32_t fc4_pollution_add_to_garbage_supply(fc4_pollution* p, int32_t n); /* 29 */
+int32_t fc4_pollution_set_garbage_capacity(fc4_pollution* p, int32_t n);  /* 30 */
+int64_t fc4_pollution_garbage_put_in_landfill(fc4_pollution* p, int32_t n); /* 51: the new total */
+float fc4_pollution_recycling_center_effect(const fc4_pollution* p); /* 33: the value it points at */
+float fc4_pollution_garbage_scaling_factor(const fc4_pollution* p);  /* 48 */
+/* 46: incinerators, waste-to-energy, recycling as BORROWED tokens (the core's
+ * lists hold the references); the caller AddRefs each one it hands out. */
+size_t fc4_pollution_garbage_buildings(const fc4_pollution* p, fc4_token_callback cb, void* ctx);
+uint32_t fc4_pollution_building_garbage_capacity(const fc4_pollution* p, uint64_t occ); /* 47 */
+/* 52 GetMaxCapacity(prop), 53 GetCurrentCapacity(prop), 58-64 (prop ignored):
+ * `*out` gets the value the slot writes; returns the slot's bool. */
+bool fc4_pollution_occupant_u32(const fc4_pollution* p, uint32_t slot, uint64_t occ, uint32_t prop, uint32_t* out);
+/* 54-57 (SC4Percentage as float): `*out` is written on success, and for slot
+ * 56 also on failure (1.0). */
+bool fc4_pollution_occupant_percent(const fc4_pollution* p, uint32_t slot, uint64_t occ, float* out);
+bool fc4_pollution_maintenance_cost(const fc4_pollution* p, uint64_t occ, int64_t* out); /* 65: always writes */
+void fc4_pollution_add_radiation(fc4_pollution* p, float x, float y, float z, float strength, float radius); /* 66 */
+/* cISC4PropRequester: slot 3 GetRequestedShare (inclusive cells), slots 4, 5, 6. */
+int32_t fc4_pollution_requested_share(const fc4_pollution* p, int32_t x0, int32_t z0, int32_t x1, int32_t z1);
+uint32_t fc4_pollution_prop_requester_slot(const fc4_pollution* p, uint32_t slot);
+bool fc4_pollution_get_state(const fc4_pollution* p, fc4_pollution_state* out); /* main thread */
+uint64_t fc4_pollution_grid_by_index(const fc4_pollution* p, uint32_t index); /* save order; borrowed; any thread */
+bool fc4_pollution_write(const fc4_pollution* p, const fc4_ostream* out); /* §6 */
+bool fc4_pollution_read(fc4_pollution* p, const fc4_istream* in);         /* §6: versions 0-4; before Init */
+
+/* ---- pollution shadow (tooling) -------------------------------------------------
+ *
+ * With the ORIGINAL pollution simulator running, each of its SimNewDay /
+ * SimNewMonth deliveries is wrapped: before it, the plugin captures the
+ * original's record (its own Write into a capture stream) and calls
+ * fc4_pollution_shadow_begin, which copies the live grids the record refers
+ * to and runs FreeCity4's day or month on them with every input read through
+ * the host table (read callbacks and the grid table's geometry / get only;
+ * nothing is written to the game). After the delivery the plugin captures
+ * the record again and calls fc4_pollution_shadow_finish, which compares the
+ * eight grids cell by cell, the saved fields, and the occupant properties
+ * and deal usage with the original's. Not compared (not readable): the
+ * radiation sum (not saved), posted messages, history, budget values, visual
+ * effects, worst tracts. */
+typedef struct fc4_pollution_shadow fc4_pollution_shadow;
+
+/* One reference of a captured record, queried for each interface the reader
+ * asks for (0 = the object does not answer it); borrowed identities. */
+typedef struct fc4_pollution_capture_ref {
+    uint64_t grid;       /* cISC4SimGrid 0xC9BD939A */
+    uint64_t occupant;   /* cISC4Occupant 0x26BB767E */
+    uint64_t department; /* cISC4DepartmentBudget 0x223E2B67 */
+    uint32_t class_id;   /* GetGZCLSID() */
+    uint32_t reserved;
+} fc4_pollution_capture_ref;
+
+/* A captured record: primitives little-endian, references as uint32
+ * objectID (index into `refs` + 1, 0 = null) then uint32 classID. */
+typedef struct fc4_pollution_capture {
+    uint32_t struct_size;
+    uint32_t ok; /* Write returned true and the stream stayed good */
+    const uint8_t* bytes;
+    size_t len;
+    const fc4_pollution_capture_ref* refs;
+    size_t ref_count;
+} fc4_pollution_capture;
+
+typedef struct fc4_pollution_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries, clean, incomplete, reruns;
+    int32_t last_mismatches; /* -1: not compared */
+    uint32_t uncached_reads;
+    uint32_t reserved;
+    uint64_t cells, cell_mismatches, field_mismatches, prop_mismatches;
+} fc4_pollution_shadow_stats;
+
+/* `max_cells`: differing cells listed per grid and line (0 = 4, at most 64). */
+fc4_pollution_shadow* fc4_pollution_shadow_create(const fc4_pollution_host* host, uint32_t max_cells);
+void fc4_pollution_shadow_destroy(fc4_pollution_shadow* s);
+/* 0 = ran, -1 = not run (finish reports why), -2 = not a day or month. */
+int32_t fc4_pollution_shadow_begin(fc4_pollution_shadow* s, uint32_t msg_type, int32_t julian,
+                                   const fc4_pollution_capture* before);
+/* The delivery's difference count (-1 = not compared); log lines go to `sink`,
+ * one call per line (a day with a difference, at most 8 a month; after a
+ * month, the month line). */
+int32_t fc4_pollution_shadow_finish(fc4_pollution_shadow* s, const fc4_pollution_capture* after, fc4_bytes_sink sink,
+                                    void* ctx);
+bool fc4_pollution_shadow_get_stats(fc4_pollution_shadow* s, fc4_pollution_shadow_stats* out);
+
 /* ---- crime (docs/specs/crime.md) ---------------------------------------------
  *
  * Tokens: lots, building occupants, occupants and grids (the game objects'
@@ -2106,6 +2342,13 @@ static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
 static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
+static_assert(sizeof(fc4_pollution_budget_item) == 32, "fc4_pollution_budget_item layout");
+static_assert(sizeof(fc4_pollution_grid_stats) == 24, "fc4_pollution_grid_stats layout");
+static_assert(sizeof(fc4_pollution_state) == 408, "fc4_pollution_state layout");
+static_assert(sizeof(fc4_pollution_host) == (sizeof(void*) == 4 ? 256 : 512), "fc4_pollution_host layout");
+static_assert(sizeof(fc4_pollution_capture_ref) == 32, "fc4_pollution_capture_ref layout");
+static_assert(sizeof(fc4_pollution_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_pollution_capture layout");
+static_assert(sizeof(fc4_pollution_shadow_stats) == 64, "fc4_pollution_shadow_stats layout");
 static_assert(sizeof(fc4_crime_message) == 24, "fc4_crime_message layout");
 static_assert(sizeof(fc4_crime_event) == 28, "fc4_crime_event layout");
 static_assert(sizeof(fc4_crime_nearby) == 32, "fc4_crime_nearby layout");

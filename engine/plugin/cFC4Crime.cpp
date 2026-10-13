@@ -799,7 +799,7 @@ bool cFC4CrimeSimulator::QueryInterface(uint32_t riid, void** ppvObj) {
         case kIID_cIGZMessageTarget2:
             *ppvObj = static_cast<cIGZMessageTarget2*>(this);
             break;
-        case kFC4_IID_cISC4PropRequester:
+        case kFC4_IID_cISC4PropRequesterCrime:
             *ppvObj = static_cast<cFC4CrimePropRequester*>(this);
             break;
         case GZIID_cIGZSerializable:

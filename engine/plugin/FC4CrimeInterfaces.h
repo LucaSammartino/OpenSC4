@@ -46,7 +46,10 @@ class cS3DVector3;
 class SC4Percentage;
 
 static const uint32_t kFC4_IID_cISC4CrimeSimulator = 0x67659555;
-static const uint32_t kFC4_IID_cISC4PropRequester = 0x89C498BE;
+// The prop requester IID under a name of its own: cFC4Pollution.h defines
+// kFC4_IID_cISC4PropRequester (the same value) and both headers meet in
+// FC4Subsystems.cpp.
+static const uint32_t kFC4_IID_cISC4PropRequesterCrime = 0x89C498BE;
 
 // tCrimeEvent (§11.4): 28 bytes. The SDK's `unknown1` is the visuals flag.
 struct FC4CrimeEvent {

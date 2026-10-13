@@ -83,7 +83,7 @@ this spec:
 The full rebuild runs in **DoPostCityInit** (message `0x26D31EC1`, `0x00720430`), in this order *[compat]*:
 
 1. Re-read the rules of every loaded transit switch (§4.7.2).
-2. Refresh the switches' subway access points.
+2. Refresh the switches' subway access points (§4.7.2, "Access points after the re-read").
 3. Rebuild the whole city with `DoConnectionsChanged(0, 0, X−1, Z−1)` (§4.2).
 4. Register the neighbour connections (traffic-simulator.md).
 5. The destination-map boundary pass (traffic-simulator.md).
@@ -182,7 +182,7 @@ changes `flags`.
 | load | f32, starts at 0.0. Traffic through the switch, maintained by the pathfinder and simulator. |
 | time factor | f32, building property `0xE90E25A2` |
 | capacity | f32, building property `0xE90E25A3` |
-| flags | u8. From the "to" types of the rules: 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10. Plus 0x40 when a rule links subway and elevated train. |
+| flags | u8. From the "to" types of **all** rules, whatever their kind (§4.7.2, TN19): 2 → 1, 3 → 2, 6 → 4, 7 → 8, 8 → 0x10. Plus 0x40 when a rule links subway and elevated train. |
 | has access point, access cell | u8, u8 x, u8 z: the subway access point (§4.7.1) |
 | two f32 counters | saved, owned by traffic-simulator.md |
 | rules | vector of Rule records (below) |
@@ -347,7 +347,11 @@ This rebuilds the graph over a rectangle. In this order:
          `IsOfType(k)`, set `type = k`, with two exceptions: Street (3) is taken only while still "none", and Road (0)
          does not replace Highway (2). The last match wins. If still "none": type 0 and `invCap = 1.0`, else
          `invCap = invCapTable[type]`;
-       - create the edge-density entries of the cell for every t on n, if missing (traffic-simulator.md).
+       - create the edge-density entries of the cell for every t on n, if missing (traffic-simulator.md §4.8). For
+         each t = 0…8 with `net(t) = n`, in order, this is done for **both** evening values: first the key
+         `t << 16 | x << 8 | z`, then `1 << 24 | t << 16 | x << 8 | z` (TN12, `0x0071AD20`–`0x0071AE1E`). Each key
+         is looked up on its own. A missing one is inserted as an all-zero record (a copy of the shared zero record
+         `0x00AB31D0`, `0x42` bytes). An existing one is left as it is, so its counts are **not** reset here.
 4. **Transit switches** over **R1** = R grown by 1 more and clamped (so the original rectangle + 3). See §4.7.4.
 5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`.
 6. **Ferries**: every terminal is processed in list order (§4.9.2).
@@ -431,10 +435,20 @@ For every car record (n = 1) whose type is not Highway:
 1. Find `best`, the distance to the nearest intersection:
    - If `connCount > 2`, `best = 0`.
    - Otherwise, search depth-first from the cell along its car (`conn[1]`) exits, union over entry sides. Stop
-     extending at depth `best`; best starts at N + 1. Do not step through tunnel cells (wormhole bit 2) or cells
-     without car info.
+     extending at depth `best`; best starts at N + 1.
    - A reached cell is an intersection if its car record has `connCount > 2`, or if it has no car record but a
-     transit switch whose "counts as intersection" flag is set.
+     transit switch whose "counts as intersection" flag is set. Then `best := depth`.
+   - **Tunnel cells and cells without car info are reached but not extended** (TN5). On entering a cell at depth
+     d, in order:
+     1. the intersection test above runs, so either kind of cell can set `best := d`;
+     2. a cell without a car record stops there;
+     3. so does any cell with `d ≥ best`;
+     4. so does a tunnel cell (wormhole bit 2 of the connection record, byte `+0x2C`, `0x0071BBB8`).
+
+     Only then are its sides 0…3 tried, in order. A side is taken when some entry side has an exit on it and the
+     neighbour is in bounds.
+   - The search keeps no visited set: a cell can be reached again by another path while the depth limit holds.
+     Backtracking resumes the parent at its next side.
    - The search's bounds check compares both coordinates with X−1 *[quirk]*. It matters only on non-square maps.
 2. Set `invCap = invCapTable[type]`. If `best < N`, then `invCap = r24(invCap × values[best])`.
 
@@ -503,6 +517,34 @@ them. DoLotActivated has already refused a count that is not a multiple of 4 (§
 
 Kind-0 rules also OR `1 << to` into the "to" mask.
 
+**Flags (TN19).** After the rules are pushed, the flags byte is reset to 0. It is then rebuilt from the first n rules
+of the vector, **whatever their kind** (`0x00715EF8`–`0x00715F6D`, jump table `0x00715F88`):
+
+| `to` (travel type) | Flag |
+|---|---|
+| 2 (Bus) | `0x01` |
+| 3 (Passenger train) | `0x02` |
+| 6 (Subway) | `0x04` |
+| 7 (El train) | `0x08` |
+| 8 (Monorail) | `0x10` |
+| any other | none |
+
+The flags also get `0x40` when (from, to) is (6, 7) or (7, 6).
+
+Worked example: the shipped light-rail/subway station (`0x0ADE0000`). Its bytes are `81 F0 07 07`, `82 F0 07 06`,
+`81 F0 06 07`, `82 F0 07 07`, and the facing does not matter because every rule has all four sides:
+
+| # | kind | sides | from → to |
+|---|---|---|---|
+| 1 | 0 | all | 7 → 7 |
+| 2 | 1 | all | 7 → 6 |
+| 3 | 0 | all | 6 → 7 |
+| 4 | 1 | all | 7 → 7 |
+
+This gives "to" mask `0x0080` and mode mask `0xC0` (§4.7.1 step 4). The flags are `0x08 | 0x04 | 0x40 = 0x4C`. Only
+the kind-1 rule 2 sets flag 4, so this switch gets a subway access point (§4.7.1 step 3). Reading kind-0 rules only
+would give `0x48` and no access point.
+
 *[quirk]* A property stored as a **u32 array** of N entries has count N, so only its first N bytes are copied.
 They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's least significant byte), and
 DoLotActivated stops unless N is a multiple of 4. A scalar has count 0, so it gives a switch with no rules. FreeCity4
@@ -524,6 +566,19 @@ After loading a current save, each switch therefore holds its saved rules follow
 writes the same values, and the flags use the first n. The duplicates show only in the next save, which writes the
 doubled list, so the record grows by n rules per load. *[choice]* FreeCity4's re-read **replaces** the rules (clear,
 then read), so a load followed by a save reproduces the file.
+
+**Access points after the re-read (TN4, `0x007204E4`–`0x0072051E`).** Once every switch has been re-read,
+DoPostCityInit walks the table again. Each switch is handled on its own, so the order does not matter:
+
+- **flag 4 set and "has access point" = 0:** set "has access point" := 1. The access cell is the NW cell
+  `(x1, z1)` of the building's bounding cells (building slot 11, `+0x2C`). The occupant search of §4.7.1 step 3
+  (type `0x8A13918A`) is **not** repeated *[quirk]*;
+- **flag 4 set and "has access point" = 1** (as saved): kept unchanged;
+- **flag 4 clear:** "has access point" := 0. The saved cell bytes stay but are no longer used.
+
+So after a load, a switch's access point is the saved one when the save had one. Otherwise it is the NW cell, even
+when a fresh activation would have found an access occupant. The mode-mask grid is not touched: it comes from the
+save (§6), and DoPostCityInit does not rewrite it from the re-read rules.
 
 For saves of version ≤ `0x1C` (most of the corpus is version 19), `Read` reads no rules and the re-read is their only
 source. `Read` also computes its own mask and flags. They survive only when the NW lot is missing, and they differ
@@ -580,7 +635,8 @@ wormhole bit 2.
 **Insert**:
 
 1. The other portal is the tunnel object's paired portal. The original reads it from the concrete
-   `cSC4NetworkTunnelOccupant`, not through an interface (§9). Its occupant position gives cell (ox, oz).
+   `cSC4NetworkTunnelOccupant`, not through an interface (§9). Its occupant position gives cell (ox, oz). With no
+   paired portal (null), return: **no record** is created or changed (`0x00714154`, TN11).
 2. Network type = the first of 2, 6, 0, 1, 10, 12, 9 that the tunnel `IsOfType`. None → no record.
 3. Travel mask = `0x1FE` (every type but Walk) *[quirk]*. The test that was meant to use the type's transit networks
    always passes.
@@ -596,6 +652,11 @@ For types with zero speed on that network the cost is +∞. Example: Road, Car (
 Each portal's insert message creates its own record. A tunnel works in both directions once both portals are
 inserted.
 
+The record is stored with find-or-insert on the key (`0x00713D60`), and the whole `0x2C`-byte record is then copied
+over it (`0x00714386`–`0x00714396`). So a second insert for the same portal key **overwrites** the record: other
+cell, mask, costs and type (TN11). Steps 1 and 2 return before this, so a portal with no pair, or of none of the
+listed types, leaves any existing record unchanged.
+
 ### 4.9 Ferries
 
 #### 4.9.1 Terminal activation (DoFerryTerminalActivated `0x00723620`)
@@ -607,9 +668,12 @@ inserted.
    - `0x2C520000` → departure cell;
    - `0x2C530000` → arrival cell;
    - `0x2C540000` → water cell: the first side d = 0…3 whose neighbour is outside the lot rectangle and is under
-     water (terrain slot 34 `+0x88`, `(x, z)`).
+     water (terrain slot 34 `+0x88`, `(x, z)`). The water cell is that **neighbour** N, not the prop's own cell
+     (`0x0072389F`).
 
-   Later props of the same kind overwrite earlier ones. All three must be found, otherwise stop.
+   The departure and arrival cells are the prop's own cell (`PositionToCell` of its position). Later props of the
+   same kind overwrite earlier ones. A water prop with **no** qualifying side writes nothing: an earlier water cell
+   and its "found" flag stay as they were (TN10, `0x0072389B`). All three must be found, otherwise stop.
 3. Append the terminal and count it. Insert its departure key and arrival key in the two tables.
 4. For every other terminal of the **same type**, in list order: **RouteAndLinkTerminals**(new, other) (§4.9.3).
 5. For every neighbour connection of type 9 (neighbours simulator slot 17 `GetConnectionsOfType(9, list)`; the
@@ -674,7 +738,16 @@ For each terminal A in list order:
 
 When the list is exhausted, the pass posts message `0x2C06BA82` (§5).
 
-DoPostCityInit sets every flag and starts the pass, so links are computed after load.
+DoPostCityInit sets every flag and starts the pass, so links are computed after load. It does **only** that
+(`0x00720C8A`–`0x00720CAE`): every terminal's re-route flag := 1, the pass points at the first terminal, and its
+sub-step := 0 (TN8). Unlike entering state 19:
+- it does **not** rotate any counter (riders and link counters keep their loaded values);
+- it does **not** rebuild the vector of type-9 neighbour connection cells.
+
+So the post-load pass reroutes every pair of terminals. Its neighbour step walks whatever the vector already holds:
+empty in a newly constructed simulator (the constructor `0x0071F830` zeroes it), so loaded neighbour links are kept
+as read. *[inferred: `Read` does not fill this vector; not traced byte by byte.]* The neighbour routes are recomputed
+at the first state-19 pass.
 
 #### 4.9.4 Terminal removal (in DoLotDeactivated)
 
@@ -731,6 +804,15 @@ or null:
      - neighbour cell;
      - route to the edge and route from the edge.
    - Mark A visited.
+
+Every counter in these records is a **last** value, the one rotated in at the start of state 19, never a current
+one (TN9; `0x0071C2F1`, `0x0071C3F0`–`0x0071C3FC`, `0x0071C69B`–`0x0071C6A3`, `0x0071C4F0`, `0x0071C571`–
+`0x0071C58F`). Both the non-zero test and the copied values use them:
+- a terminal link holds counter 1 as (last `+0x20`, current `+0x22`) and counter 2 as (last `+0x24`, current
+  `+0x26`);
+- a neighbour link holds them as (`+0x2C`, `+0x2E`) and (`+0x30`, `+0x32`).
+
+When B has no link back to A, the B→A counters are 0 and the B→A route is left empty.
 
 FerryRouteInfo layout (`0x34` bytes, copy constructor `0x0056D770`). Its users are cSC4WatercraftManager and the
 query tool:
@@ -791,13 +873,28 @@ Updates are lazy. A dirty rectangle (with a flag) is updated before each FindPat
    - Skip b if its depth byte is 0, unless b is the target.
    - Skip b if it is the current node's predecessor.
    - `g' = r24(r24(r24(r24(40.0 − r24(depth × 0.2)) × 0.1) + g) + 1.0)`. 0.1 is the static at `0x00B0D490`, never
-     written. Examples:
+     written. Every constant is a **float32** memory operand (`0x00725370`–`0x00725385`, TN14):
+
+     | Constant | Bits | Address |
+     |---|---|---|
+     | 0.2 | `0x3E4CCCCD` (0.20000000298…) | `0x00AB34F4` |
+     | 40.0 | `0x42200000` | `0x00AB34F0` |
+     | 0.1 | `0x3DCCCCCD` (0.10000000149…) | `0x00B0D490` |
+     | 1.0 | `0x3F800000` | `0x00A81228` |
+
+     Each operation is rounded to 24 bits. The depth byte is loaded exactly (`fild`). Using the double 0.2 instead
+     changes `r24(depth × 0.2)` for 39 of the depth bytes 0…200, and the step cost for 25 of them (at g = 0).
+     Examples (g = 0):
 
      | Depth byte | Step cost |
      |---|---|
      | 200 | 1.0 |
      | 100 | 3.0 |
+     | 47 | 4.06 = `0x4081EB85` (the double 0.2 would give `0x4081EB86`) |
      | 0 (target on land) | 5.0 |
+
+     For depth 47: `r24(47 × 0.2f)` = 9.4000006 (`0x41166667`); `40 −` that = 30.599998 (`0x41F4CCCC`);
+     `× 0.1f` = 3.06 (`0x4043D70A`); `+ 0`, then `+ 1.0` = `0x4081EB85`.
 
    - Get or create b. If b is open and not `g' < b.g`, skip. If b is closed and not `g' < b.g`, skip.
    - Otherwise set closed = false, `b.g = g'`, `b.f = r24(√ (float)(Δx² + Δz²) + g')` (to the target),
@@ -878,6 +975,11 @@ answers, so each lot is visited once):
 1. Rectangle `r` = the lot's bounding rectangle (lot slot 14). Ring = the boundary (BoundaryIterator `0x0060CEE0`)
    of `r` grown by 1 and clamped to the city. Skip the ring cells whose x is outside `[r.x1, r.x2]` **and** whose z
    is outside `[r.z1, r.z2]`, which are the four corners.
+
+   The ring is walked in **boundary order** (pathfinder.md §4.6; x varies fastest, `0x0071633C`–`0x00716357`):
+   - the first row `z = z0`, from `x0` to `x1`;
+   - each middle row at `x0`, then at `x1`;
+   - the last row `z = z1`, from `x0` to `x1`.
 2. `ids` = the distinct non-zero `subnet[0…3]` values of the first car record of each remaining ring cell, in order
    of discovery.
 3. If `ids` is empty: remove lot property `0x2A4F9C74` (property holder slot 17). Done.
@@ -890,9 +992,11 @@ answers, so each lot is visited once):
 After the last cell, the neighbour connections are added. For every connection of the neighbours simulator (slot 16
 `GetAllConnections`; list with allocator A, internal), with cell (x, z) from connection slot 6:
 
-1. Map (x, z) to the in-city cell: x = −1 → 0; x = X → X−1; else z = −1 → 0; z = Z → Z−1.
-2. If that cell has a car record and `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual `0x007114E0`) gives a
-   holder:
+1. Map (x, z) to the in-city cell (x', z'): x = −1 → x' = 0; x = X → x' = X−1; else z = −1 → z' = 0; z = Z →
+   z' = Z−1. The other coordinate is kept.
+2. If the **in-city** cell (x', z') has a car record, and `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual
+   `0x007114E0`) gives a holder, then the steps below run. The holder is asked with the **off-map** cell (x, z), the
+   connection's own cell, not (x', z') (TN6, `0x0071674F`–`0x00716755`):
    - `c[k] = GetMaxTripCapacity(holder, k)`;
    - add `c` to `info[subnet[e]].capacity` for **each** e = 0…3 with `subnet[e] ≠ 0`. This is not deduplicated: a
      label shared by two entry sides is counted twice *[quirk]*.
@@ -1153,7 +1257,8 @@ Unless stated otherwise:
    - C is never a seed, because x = 3 = X−1.
 
 3. **Lot lists and queries on test 2.**
-   - Lot L1 at (1, 2), 1 × 1: its ring (corners excluded) is (1, 1), (1, 3), (0, 2), (2, 2). Its list is [1].
+   - Lot L1 at (1, 2), 1 × 1: its ring (corners excluded), in boundary order (§4.12), is (1, 1), (0, 2), (2, 2),
+     (1, 3). Its list is [1]. (Corrected: an earlier version listed (1, 3) second, TN7.)
    - Lot L2 at (2, 0): its ring contains (2, 1). Its list is [1].
    - Stub `GetMaxTripCapacity` gives (5, 0, 0, 0) for L1 and (0, 7, 0, 0) for L2. Populations: L1 {type 0x1010: 3},
      L2 none. No neighbour connections.

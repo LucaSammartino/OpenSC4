@@ -94,6 +94,21 @@ const SwitchInfo kSwitches[kCount] = {
     {"flammability_grid_writes", "FC4_FLAMMABILITY_GRID_WRITES"},
     {"flammability_posts", "FC4_FLAMMABILITY_POSTS"},
     {"flammability_history", "FC4_FLAMMABILITY_HISTORY"},
+    {"pollution_occupants", "FC4_POLLUTION_OCCUPANTS"},
+    {"pollution_lots", "FC4_POLLUTION_LOTS"},
+    {"pollution_neighbors", "FC4_POLLUTION_NEIGHBORS"},
+    {"pollution_budget", "FC4_POLLUTION_BUDGET"},
+    {"pollution_grid_writes", "FC4_POLLUTION_GRID_WRITES"},
+    {"pollution_posts", "FC4_POLLUTION_POSTS"},
+    {"pollution_history", "FC4_POLLUTION_HISTORY"},
+    {"pollution_ordinance", "FC4_POLLUTION_ORDINANCE"},
+    {"pollution_traffic", "FC4_POLLUTION_TRAFFIC"},
+    {"pollution_zoning", "FC4_POLLUTION_ZONING"},
+    {"pollution_power", "FC4_POLLUTION_POWER"},
+    {"pollution_landfill", "FC4_POLLUTION_LANDFILL"},
+    {"pollution_population", "FC4_POLLUTION_POPULATION"},
+    {"pollution_props", "FC4_POLLUTION_PROPS"},
+    {"pollution_terrain", "FC4_POLLUTION_TERRAIN"},
     {"crime_lots", "FC4_CRIME_LOTS"},
     {"crime_police", "FC4_CRIME_POLICE"},
     {"crime_residential", "FC4_CRIME_RESIDENTIAL"},
@@ -112,17 +127,22 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "autotest_unpause", "autotest_save_after_months", "autotest_save_fast",
                                   "digest", "observe", "power_report", "autoload_city", "autoload_delay_ticks",
                                   "budget_shadow", "budget_shadow_lots", "demand_shadow",
-                                  "demand_shadow_nodes", "crime_shadow", "crime_shadow_cells", "crime_seed",
-                                  "popup_dialogs", "clock_probe", "autotest_end"};
+                                  "demand_shadow_nodes",
+                                  "popup_dialogs", "clock_probe", "autotest_end",
+                                  "pollution_shadow", "pollution_shadow_cells",
+                                  "crime_shadow", "crime_shadow_cells", "crime_seed"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 68, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // pollution
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // crime
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 83, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

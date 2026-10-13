@@ -1090,6 +1090,111 @@ public:
     virtual bool GetWaterProducers(SC4List<cISC4Occupant*>& list) = 0;                        // 28
 };
 
+// ---- pollution (docs/specs/pollution.md §8) -------------------------------------------------------
+
+class cISC4PollutionSimulator;
+class cS3DVector3;
+
+// cISC4PollutionSimulator (IID 0x877181EC), 71 slots (§8.1). There are no
+// overloads, so the SDK's declaration order is the compiled one; this
+// declaration fixes the return types §8.1 marks "SDK": 29 / 30 return the
+// applied delta / the argument in EAX (SDK: bool), 33 a pointer to an
+// SC4Percentage (SDK: int32), 34-41 64-bit values in EDX:EAX (SDK: int32),
+// 51 the new landfilled total (SDK: int64, "value meaningless"; docs/abi says
+// eax: waived in abi_conformance_test), 65 a signed int64 (SDK: uint64&), and
+// 66's arguments are (position, centre strength, radius in tracts). Slots 7-9,
+// 17-19, 25-28, 46 and 50 return nothing meaningful in the original (the SDK
+// says bool); a replacement returns true. Slot 55 returns AL (§8.1; docs/abi
+// says x87: waived, spec question).
+class cFC4ISC4PollutionSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                                // 3
+    virtual bool Shutdown() = 0;                                                            // 4
+    virtual cISC4SimGrid<int16_t>* GetPollutionGrid(uint32_t type) = 0;                    // 5
+    virtual uint16_t GetPollutionValue(uint32_t type, uint32_t cellX, uint32_t cellZ) = 0;  // 6  (AX only)
+    virtual bool GetAirValue(uint32_t cellX, uint32_t cellZ, int32_t& value) = 0;           // 7
+    virtual bool GetWaterValue(uint32_t cellX, uint32_t cellZ, int32_t& value) = 0;         // 8
+    virtual bool GetGarbageValue(uint32_t cellX, uint32_t cellZ, int32_t& value) = 0;       // 9
+    virtual int32_t GetAverageAirValue() = 0;                                               // 10
+    virtual int32_t GetAverageWaterValue() = 0;                                             // 11
+    virtual int32_t GetAverageGarbageValue() = 0;                                           // 12
+    virtual bool IsAirPolluted(uint32_t cellX, uint32_t cellZ) = 0;                         // 13
+    virtual bool IsWaterPolluted(uint32_t cellX, uint32_t cellZ) = 0;                       // 14
+    virtual bool IsGarbageAccumulated(uint32_t cellX, uint32_t cellZ) = 0;                  // 15
+    virtual bool IsRadioactive(uint32_t cellX, uint32_t cellZ) = 0;                         // 16
+    virtual bool GetWorstAirTract(uint32_t& cellX, uint32_t& cellZ, int32_t& value) = 0;    // 17
+    virtual bool GetWorstWaterTract(uint32_t& cellX, uint32_t& cellZ, int32_t& value) = 0;  // 18
+    virtual bool GetWorstGarbageTract(uint32_t& cellX, uint32_t& cellZ, int32_t& value) = 0;  // 19
+    virtual uint32_t GetGarbageSupply() = 0;                                                // 20
+    virtual int32_t GetLandfillTileCapacity() = 0;                                          // 21
+    virtual int32_t GetGarbageCapacity() = 0;                                               // 22
+    virtual bool IsGarbageUncollected() = 0;                                                // 23
+    virtual int32_t GetTotalGarbageUncollected() = 0;                                       // 24
+    virtual bool SetIsRadioactive(uint32_t cellX, uint32_t cellZ, bool radioactive) = 0;    // 25
+    virtual bool SetAirValue(uint32_t cellX, uint32_t cellZ, int16_t value) = 0;            // 26
+    virtual bool SetWaterValue(uint32_t cellX, uint32_t cellZ, int16_t value) = 0;          // 27
+    virtual bool SetGarbageValue(uint32_t cellX, uint32_t cellZ, int16_t value) = 0;        // 28
+    virtual int32_t AddToGarbageSupply(int32_t amount) = 0;                                 // 29  (SDK: bool)
+    virtual int32_t SetGarbageCapacity(int32_t capacity) = 0;                               // 30  (SDK: bool)
+    virtual int32_t GetMonthlyIncineratorCapacity() = 0;                                    // 31
+    virtual int32_t GetMonthlyWasteToEnergyCapacity() = 0;                                  // 32
+    virtual SC4Percentage* GetRecyclingCenterEffect() = 0;                                  // 33  (SDK: int32)
+    virtual int64_t GetGarbageAbductedPrevMonth() = 0;                                      // 34  (SDK: int32)
+    virtual int64_t GetGarbageProducedLastMonth() = 0;                                      // 35  (SDK: int32)
+    virtual int64_t GetGarbageImportedLastMonth() = 0;                                      // 36  (SDK: int32)
+    virtual int64_t GetGarbageExportedLastMonth() = 0;                                      // 37  (SDK: int32)
+    virtual int64_t GetGarbageRecycledLastMonth() = 0;                                      // 38  (SDK: int32)
+    virtual int64_t GetGarbageIncineratedLastMonth() = 0;                                   // 39  (SDK: int32)
+    virtual int64_t GetGarbageConvertedToEnergyLastMonth() = 0;                             // 40  (SDK: int32)
+    virtual int64_t GetGarbageLandfilledLastMonth() = 0;                                    // 41  (SDK: int32)
+    virtual uint32_t GetIncineratorCount() = 0;                                             // 42
+    virtual uint32_t GetWasteToEnergyBuildingCount() = 0;                                   // 43
+    virtual uint32_t GetRecyclingCenterCount() = 0;                                         // 44
+    virtual uint32_t GetWaterTreatmentPlantCount() = 0;                                     // 45
+    // [abi] 46: ilist<cISC4Occupant*> with the framework allocator (A): SC4List is
+    // compatible; appends, one reference each (as GetWaterProducers).
+    virtual bool GetGarbageBuildings(SC4List<cISC4Occupant*>& list) = 0;                    // 46
+    virtual uint32_t GetBuildingGarbageCapacity(cISC4Occupant* occupant) = 0;               // 47
+    virtual float GetGarbageScalingFactor() = 0;                                            // 48
+    virtual bool IsActiveLandfill(uint32_t cellX, uint32_t cellZ) = 0;                      // 49
+    virtual bool SetIsActiveLandfill(uint32_t cellX, uint32_t cellZ, bool active) = 0;      // 50
+    virtual int64_t GarbagePutInLandfill(int32_t amount) = 0;                               // 51
+    virtual bool GetMaxCapacity(uint32_t property, cISC4Occupant* occupant, uint32_t& result) = 0;      // 52
+    virtual bool GetCurrentCapacity(uint32_t property, cISC4Occupant* occupant, uint32_t& result) = 0;  // 53
+    virtual bool GetRecyclingCenterMaxCapacity(cISC4Occupant* occupant, SC4Percentage& capacity) = 0;      // 54
+    virtual bool GetRecyclingCenterCurrentCapacity(cISC4Occupant* occupant, SC4Percentage& capacity) = 0;  // 55
+    virtual bool GetCurrentOccupantCondition(cISC4Occupant* occupant, SC4Percentage& condition) = 0;       // 56
+    virtual bool GetCurrentOccupantEfficiency(cISC4Occupant* occupant, SC4Percentage& efficiency) = 0;     // 57
+    virtual bool GetIncineratorUsedCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;              // 58
+    virtual bool GetWasteToEnergyUsedCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;            // 59
+    virtual bool GetIncineratorCurrentCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;           // 60
+    virtual bool GetWasteToEnergyCurrentCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;         // 61
+    virtual bool GetWaterTreatmentMaxCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;            // 62
+    virtual bool GetWaterTreatmentCurrentCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;        // 63
+    virtual bool GetWaterTreatmentUsedCapacity(cISC4Occupant* occupant, uint32_t& capacity) = 0;           // 64
+    virtual bool CalcOccupantMaintenanceCost(cISC4Occupant* occupant, int64_t& cost) = 0;  // 65  (SDK: uint64&)
+    virtual void AddRadiationToCity(cS3DVector3 const& position, float strength, float radius) = 0;  // 66
+    virtual int32_t GetMaxAirPollutionLevelForUI() = 0;                                     // 67
+    virtual int32_t GetMaxWaterPollutionLevelForUI() = 0;                                   // 68
+    virtual int32_t GetMaxGarbagePollutionLevelForUI() = 0;                                 // 69
+    virtual int32_t GetMaxRadiationPollutionLevelForUI() = 0;                               // 70
+};
+
+#ifndef FC4_HAVE_PROP_REQUESTER
+#define FC4_HAVE_PROP_REQUESTER
+// cISC4PropRequester (IID 0x89C498BE), 7 slots (pollution §8.4: there is no
+// SDK header). Implemented by simulators that ask the prop developer for
+// props (the pollution and crime simulators). SelectProp's vector is not
+// read by the implementations here: a std::vector (B) as the game passes it.
+class cFC4ISC4PropRequester : public cIGZUnknown {
+public:
+    virtual int32_t GetRequestedShare(SC4Rect<int32_t> const& cells) = 0;                   // 3
+    virtual uint32_t GetRequesterSatisfactionId() = 0;                                      // 4
+    virtual bool UsesCustomPropSelector() = 0;                                              // 5
+    virtual uint32_t SelectProp(fc4::GameVector<uint32_t> const& candidates, int32_t a, int32_t b) = 0;  // 6
+};
+#endif
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1154,5 +1259,14 @@ inline cFC4ISC4PlumbingSimulator* AsGame(cISC4PlumbingSimulator* p) {
 }
 inline cISC4PlumbingSimulator* AsSdk(cFC4ISC4PlumbingSimulator* p) {
     return reinterpret_cast<cISC4PlumbingSimulator*>(p);
+}
+// Pollution travels as the SDK's cISC4PollutionSimulator* (the city getter's
+// type); single inheritance, vtable at offset 0. Call slots 29, 30, 33-41,
+// 51 and 65 only through the verified declaration.
+inline cFC4ISC4PollutionSimulator* AsGame(cISC4PollutionSimulator* p) {
+    return reinterpret_cast<cFC4ISC4PollutionSimulator*>(p);
+}
+inline cISC4PollutionSimulator* AsSdk(cFC4ISC4PollutionSimulator* p) {
+    return reinterpret_cast<cISC4PollutionSimulator*>(p);
 }
 }  // namespace fc4

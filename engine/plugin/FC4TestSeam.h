@@ -59,6 +59,11 @@
 //         SimNewDay up to pipeline state 4) to a fake "original" crime
 //         simulator; returns the month's mismatch count, -1 (not taken) or
 //         -2 (delivered, nothing compared).
+//   op 16 kFC4SeamPollutionShadow  a = const FC4PollutionShadowTestInput*
+//         (FC4PollutionShadow.h): one pollution-shadow delivery (SimNewDay or
+//         SimNewMonth) to a fake "original" pollution simulator; returns the
+//         delivery's difference count, -1 (not taken) or -2 (delivered,
+//         nothing compared). (14 and 15 are left to the parallel glue lanes.)
 #pragma once
 
 #include <cstdint>
@@ -79,6 +84,7 @@ enum : uint32_t {
     kFC4SeamDemandShadow = 11,
     kFC4SeamRefAuditRelease = 12,
     kFC4SeamCrimeShadow = 13,
+    kFC4SeamPollutionShadow = 16,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -16,6 +16,7 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4PollutionShadow.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
 #include "FC4Watchdog.h"
@@ -305,9 +306,14 @@ bool cFC4Simulator::HostDeliver(void* user, fc4_sim*, fc4_agent agent, const fc4
     // FC4DemandShadow.h) wrap the original budget's SimNewMonth and the
     // original demand simulator's SimNewDay / SimIdle deliveries; otherwise
     // they do nothing.
+    // The pollution shadow (opt-in, FC4PollutionShadow.h) wraps the original
+    // pollution simulator's SimNewDay / SimNewMonth deliveries.
+    // The crime shadow (opt-in, FC4CrimeShadow.h) wraps the original crime
+    // simulator's delivery that runs its pipeline state 4.
     bool finished = false;
     if (!fc4::BudgetShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::DemandShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
+        !fc4::PollutionShadowDeliver(target, name, m, msg->type, msg->data1, &finished) &&
         !fc4::CrimeShadowDeliver(target, name, m, msg->type, msg->data1, &finished)) {
         finished = target->DoMessage(m);
     }
