@@ -13,7 +13,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use fc4_core::curve::ResponseCurve;
-use fc4_core::rng::{FixedSeeds, RzRandom, RzRandomSuper};
+use fc4_core::rng::{derive_seed as derive, file_seed, FixedSeeds, RzRandom, RzRandomSuper};
 use fc4_core::store::{crc32_mpeg2, save_store, Package, INDEX_TYPE, STORE_GROUP};
 use fc4_core::stream::{ByteReader, ByteWriter, InStream, OutStream, RefValue, ResKey, SaveObject, SaveRegistry};
 
@@ -105,6 +105,7 @@ pub fn exec(name: &str, op: &Json) -> Option<R<()>> {
         "store_entry" => store_entry(op),
         "curve" => curve(op),
         "rng" => rng(op),
+        "derive_seed" => derive_seed(op),
         _ => return crate::variants::exec(name, op),
     };
     Some(r)
@@ -374,6 +375,82 @@ fn rng(op: &Json) -> R<()> {
             }
         }
         _ => return Err("'generator' must be RzRandom or RzRandomSuper".into()),
+    }
+    Ok(())
+}
+
+/// The `K` of a named file-local generator (foundations §6.3 table).
+fn file_seed_of(name: &str) -> R<u32> {
+    Ok(match name {
+        "building_development" => file_seed::BUILDING_DEVELOPMENT,
+        "growth_developer" => file_seed::GROWTH_DEVELOPER,
+        "tract_developer" => file_seed::TRACT_DEVELOPER,
+        "lot_developer" => file_seed::LOT_DEVELOPER,
+        "zone_developer" => file_seed::ZONE_DEVELOPER,
+        "lot" => file_seed::LOT,
+        "budget" => file_seed::BUDGET,
+        "crime" => file_seed::CRIME,
+        "pollution" => file_seed::POLLUTION,
+        "wealth_requester" => file_seed::WEALTH_REQUESTER,
+        "network_lot_manager" => file_seed::NETWORK_LOT_MANAGER,
+        "network_construction_crew" => file_seed::NETWORK_CONSTRUCTION_CREW,
+        "construction_occupant" => file_seed::CONSTRUCTION_OCCUPANT,
+        "base_texture_occupant" => file_seed::BASE_TEXTURE_OCCUPANT,
+        "retaining_wall_occupant" => file_seed::RETAINING_WALL_OCCUPANT,
+        "prop_occupant" => file_seed::PROP_OCCUPANT,
+        "fire_occupant" => file_seed::FIRE_OCCUPANT,
+        "earthquake" => file_seed::EARTHQUAKE,
+        "pipe_burst" => file_seed::PIPE_BURST,
+        "riot" => file_seed::RIOT,
+        "automata" => file_seed::AUTOMATA,
+        "region_creation" => file_seed::REGION_CREATION,
+        "advice" => file_seed::ADVICE,
+        other => return Err(format!("unknown generator '{other}'")),
+    })
+}
+
+/// `derive_seed`: `cases` of `{session, k | generator, expect, next_raw?}`
+/// (foundations §6.3); `next_raw` checks the first `NextRaw` words of a
+/// `cRZRandom` seeded with the derived value.
+fn derive_seed(op: &Json) -> R<()> {
+    let cases = field(op, "cases")?.as_array().ok_or("'cases' must be an array")?;
+    for (i, c) in cases.iter().enumerate() {
+        let session = int(field(c, "session")?, "session")? as u32;
+        let k = match (c.get("k"), c.get("generator").and_then(Json::as_str)) {
+            (Some(k), None) => int(k, "k")? as u32,
+            (None, Some(name)) => {
+                let k = file_seed_of(name)?;
+                if let Some(want) = c.get("k_expect") {
+                    let want = int(want, "k_expect")? as u32;
+                    if k != want {
+                        return Err(format!("case #{i}: K of {name} is 0x{k:08X}, expected 0x{want:08X}"));
+                    }
+                }
+                k
+            }
+            _ => return Err(format!("case #{i}: give exactly one of 'k' and 'generator'")),
+        };
+        let got = derive(session, k);
+        let want = int(field(c, "expect")?, "expect")? as u32;
+        if got != want {
+            return Err(format!(
+                "case #{i}: derive(0x{session:08X}, 0x{k:08X}) = 0x{got:08X}, expected 0x{want:08X}"
+            ));
+        }
+        if let Some(words) = c.get("next_raw").and_then(Json::as_array) {
+            let seeds = FixedSeeds {
+                wall_clock: 0xDEAD_BEEF,
+                process_clock: 0xDEAD_BEEF,
+            };
+            let mut g = RzRandom::new(got, &seeds);
+            for (j, w) in words.iter().enumerate() {
+                let want = int(w, "next_raw")? as u32;
+                let v = g.next_raw();
+                if v != want {
+                    return Err(format!("case #{i}: NextRaw #{j} = 0x{v:08X}, expected 0x{want:08X}"));
+                }
+            }
+        }
     }
     Ok(())
 }

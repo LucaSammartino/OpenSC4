@@ -79,11 +79,11 @@
 //!
 //! # Choices made where the spec is open (`[choice]`)
 //!
-//! - Seeding (§4.14): the generator seed is injected by the host
-//!   ([`BdsProcess::new`], [`BdsProcess::reseed`]); no derivation from a
-//!   session seed is hard-coded (foundations §6.3 will define it).
-//!   [`clock_seed`] is the original's `cRZTime() XOR 0x0C09C0B8` for a shim
-//!   that wants it.
+//! - Seeding (§4.14): [`BdsProcess::from_session`] seeds the generator from
+//!   the session seed per foundations §6.3 *[choice]* (`derive_seed(S,
+//!   0x0C09C0B8)`); [`BdsProcess::new`] and [`BdsProcess::reseed`] take an
+//!   exact seed (tests and replays). [`clock_seed`] is the original's
+//!   `cRZTime() XOR 0x0C09C0B8` for a shim that wants it.
 //! - Grow (§4.4): a deterministic work budget instead of the original's
 //!   3 ms timer (no timer, no spin, no step adaptation): at most
 //!   [`DevelopmentSim::grow_attempt_budget`] attempts (tract-developer
@@ -131,9 +131,7 @@ mod simulator;
 #[cfg(test)]
 mod tests;
 
-pub use catalogue::{
-    BuildingCatalogue, BuildingConfigObject, BuildingProfile, LotConfigInfo, StlHashMap, STL_DEFAULT_HINT, STL_PRIMES,
-};
+pub use catalogue::{BuildingCatalogue, BuildingConfigObject, LotConfigInfo};
 pub use simulator::{
     DevelopmentData, DevelopmentSim, PlanEntry, PlannedGrowth, Tuning, DEFAULT_GROW_ATTEMPT_BUDGET, RECORD_VERSION,
 };
@@ -313,7 +311,7 @@ pub const MAX_SLOPE_CHANGE: f32 = 0.087_266_47;
 pub const MAX_PLAN_ENTRIES: usize = 1 << 20;
 
 /// The original's seed for the file-local generator (§4.14).
-pub const CLOCK_SEED_XOR: u32 = 0x0C09_C0B8;
+pub const CLOCK_SEED_XOR: u32 = crate::rng::file_seed::BUILDING_DEVELOPMENT;
 
 /// `cRZTime() XOR 0x0C09C0B8` (§4.14), for a shim that seeds like the
 /// original.
@@ -637,6 +635,14 @@ impl BdsProcess {
             steps: Cell::new(0),
             trace: RefCell::new(None),
         })
+    }
+
+    /// The process statics with the generator seeded from the session seed
+    /// (foundations §6.3 *[choice]*): `derive_seed(session, 0x0C09C0B8)`,
+    /// the original's `cRZTime() XOR 0x0C09C0B8` with the session seed in
+    /// place of the clock.
+    pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedProcess {
+        BdsProcess::new(crate::rng::derive_seed(session, CLOCK_SEED_XOR), seeds)
     }
 
     /// Re-seeds the generator (the host injects the seed; the step count

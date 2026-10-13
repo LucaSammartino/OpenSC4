@@ -151,7 +151,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
 | `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
-| `0xE8BDA2E7` | lot (`IGZUnknown` → lot) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
+| `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
 
@@ -777,7 +777,16 @@ part draws nothing (traffic-network.md §12).
 ### 6.1 Record (`Write` `0x00712400`, `Read` `0x00721990`) *[compat]*
 
 Version **0x29** (41). Read accepts versions ≥ `0x13` and returns false below that; the version gates are listed
-in §6.4. Primitive encodings are foundations §2.2; "grid" = `SetGZSerializable` of the grid object (simgrid.md).
+in §6.4. Primitive encodings are foundations §2.2.
+
+**Corrected (M6):** the authoritative byte layout, with every Read version gate, is save-records.md §7.1.1; it
+parses all 417 corpus records. The table below is kept as a field overview; where it differs, save-records.md
+wins. The differences (§7.1.2 there): the grids (rows 3, 5, 6, 9), the switch building (row 10) and the
+departments (row 11) are **refs** (ref writer `0x005D99A0`, 14 calls in `Write`), not inline objects; row 14 holds
+a fixed `4 × u32` and a `3 × D` u32 table with no count fields; row 17 is the **tunnel table**, not the
+neighbour-connection records; in row 18 the `u32 4` is a count; in row 19 the usage table is a map from u16 to a
+property holder, the two per-travel-type vectors are interleaved pairs, and the link counters come after the route
+vectors.
 
 | # | Field | Encoding |
 |---|---|---|
@@ -818,16 +827,24 @@ cycle.
 Each lot record (`cSC4Lot::Write` `0x006C0080`) ends with: u32 trip count, the trips, then u8 strategy byte. Each
 trip (`cSC4TripData` Write `0x0070E0B0` / Read `0x0070E160`): u32 version (2), u32 n + n × u8 route, u32 n + n × u8
 returnRoute, u32 count, u8 type, u8 strategy, u8 flags, u8 status, s16 destX, s16 destZ, f32 tripLength, u32
-travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; a vector count ≥ 1,000,000 is skipped
-(the vector stays empty) *[compat]*. Neighbour connections save their lists the same way (neighbors.md).
+travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; for a vector count ≥ 1,000,000
+nothing more is read and the vector keeps its previous contents (corrected, `0x005DB520`) *[compat]*. The lot's
+Read **appends** the trips to its existing list, and its Write stops before the strategy byte when a trip Write
+fails (`0x006C35F0`, `0x006C0334`; lot-records.md). Fields the original never initialises are saved as they are:
+`travelTypesUsed` is `0xCCCCCCCC` in 126 of 8,109 saved trips and destZ holds −13,108 (`0xCCCC`) in some, so a
+writer must copy loaded values back unchanged to round-trip a city. Neighbour connections save their lists the same
+way (neighbors.md).
 
 ### 6.4 Version gates (Read)
 
 The reader branches on the version at these points (`m5sim/read_trace.txt` evidence): `0x18`, `0x25`, `0x1C`, `0x1C`
 (the dimension counts, defaulting to 8, 1, 4, 7 for older saves), `0x14`, `0x1D`, `0x17`, `0x1C`, `0x20`, `0x15`,
 `0x1A`, `0x19`, `0x27`, `0x23` (×2), `0x25` (×2), `0x22`, `0x14` (×2), `0x1A`, `0x26`, `0x1D`, `0x20`, `0x25`,
-`0x23`, `0x1E`, `0x23`. *[choice]* FreeCity4 reads version `0x29` byte-exactly; an older record is skipped and the
-simulator starts from a fresh state (the next cycle rebuilds every map; trip data are in the lots).
+`0x23`, `0x1E`, `0x23`. FreeCity4 reads **every version from `0x13` to `0x29`** with these gates (corrected: 403 of
+the 417 corpus saves hold version 19; the gate-by-gate layout is save-records.md §7.1.1) *[compat]*. Skipping an
+older record is not an option: the six published grids are separate objects that would be left unreferenced, and
+the destination map, damage and switch state would be lost. An old record is written back as version `0x29`; a
+byte-exact round trip is expected only for versions 40 and 41 (save-records.md §7.1.4).
 
 ## 7. Interface: cISC4TrafficSimulator (vtable `0x00AB33D0`, 44 slots)
 

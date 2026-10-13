@@ -245,7 +245,7 @@ month time is produced by a later month agent in the same month *[inferred]*.
 | `0xCA1B151C` tuning reload | re-read the tuning (§8) |
 | `0x278E6003` terrain heights changed | ignored if data4 is 4 or 5; else rect `x1 = (data1 >> 16) − 1`, `x2 = data1 & 0xFFFF`, `z1 = (data2 >> 16) − 1`, `z2 = data2 & 0xFFFF`, clamped to the city; `DoTerrainHeightsChanged` (§5.4) |
 | `0xC2C09554` OrdinanceUpdated | if data2 = `0xE0D0722E` (Nuclear Free Zone) and data3 ≠ 0: §5.5 |
-| `0xE8BDA2E7` kMessageStateChanged | void1/IGZUnknown QI `cISC4Lot` (`0xE818FCED`); if `lot.GetState() == 1`: centre = `((x1 + x2) / 2, (z1 + z2) / 2)` of `lot.GetBoundingRect` (signed integer division); if `IsPowered(centre)` and `lotManager.GetLot(cx, cz, false)` is not null: that lot's `SetHasPower(true)` |
+| `0xE8BDA2E7` kMessageStateChanged | void1/IGZUnknown QI `cISC4Lot` (`0xE818FCED`; a copy of the lot with its scalar fields, lot-developer.md §3.2); if `lot.GetState() == 1`: centre = `((x1 + x2) / 2, (z1 + z2) / 2)` of `lot.GetBoundingRect` (signed integer division); if `IsPowered(centre)` and `lotManager.GetLot(cx, cz, false)` is not null: that lot's `SetHasPower(true)` |
 | `0xEA418D8F` deal status | if data1 = 0 and the IGZUnknown is a deal (QI `0x0773FEF1`) of type `0x4773FFE0` or `0x4773FFE1`: state := 4, recompute := true |
 | `0x6AC284F3` ConnectionsReady | enabled := true |
 | `0x26D31EC1` PostCityInit | §5.6 |
@@ -584,7 +584,7 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 | `0xE911E2FC` | Power plant max production ratio | f32 × 0.01 | 1.1 | 110 → 1.1 | **dead** (§6.3 uses a literal 1.1) |
 | `0x29121E8B` | Power Min Acceptable Funding % | f32 × 0.01 | 0.6 | 60 → 0.59999996 | dead |
 | `0x2912202E` | Utility Strike Duration | s32 | 10 | 12 | dead |
-| `0x49122036` | Utility Min Funding to End Strike | f32 × 0.01 | 0.9 | 0.9 | dead |
+| `0x49122036` | Utility Min Funding to End Strike | f32 × 0.01 | 0.9 | 90 (→ 0.9 after × 0.01) | dead |
 | `0x0911E2E6` | Utility Strike Response Curve | curve | (0,20)(100,100) | (0,0)(20,45)(50,75)(100,100) | dead |
 
 The ordinance factor is refreshed at every tuning read and every month: `GetCumulativeFactor(0x0911E117, 0)`

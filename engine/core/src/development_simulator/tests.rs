@@ -4,8 +4,8 @@
 // Copyright (C) 2026 FreeCity4 contributors
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
-//! Unit tests of the host-free parts: the pure helpers, the STLport hash map
-//! model, the catalogue and the process statics. The simulator itself is
+//! Unit tests of the host-free parts: the pure helpers, the catalogue and
+//! the process statics. The simulator itself is
 //! exercised through the conformance vectors (`bd11_*`).
 
 use super::*;
@@ -214,42 +214,6 @@ fn marks_behave_like_a_map_of_sets() {
     assert_eq!(p.marks().len(), 1);
     p.clear_marks();
     assert!(p.marks().is_empty());
-}
-
-// ---- STLport hash map ---------------------------------------------------------------------------------
-
-#[test]
-fn hash_map_order_is_bucket_order_with_head_insertion() {
-    let mut m = StlHashMap::<u32>::new();
-    assert_eq!(m.bucket_count(), 193);
-    for k in [5u32, 198, 1, 400] {
-        *m.entry(k, || 0) = k;
-    }
-    assert_eq!(m.keys(), vec![1, 198, 5, 400]);
-    assert_eq!(m.len(), 4);
-    assert_eq!(m.get(198), Some(&198));
-    assert!(!m.contains(2));
-    // An existing key is not re-inserted.
-    *m.entry(5, || 99) += 1;
-    assert_eq!(m.get(5), Some(&6));
-    assert_eq!(m.keys(), vec![1, 198, 5, 400]);
-}
-
-#[test]
-fn hash_map_resizes_before_the_insert_that_would_overflow() {
-    let mut m = StlHashMap::<()>::new();
-    m.entry(400, || ());
-    for k in 1..=192 {
-        m.entry(k, || ());
-    }
-    assert_eq!(m.bucket_count(), 193);
-    let keys = m.keys();
-    assert_eq!(&keys[12..16], &[13, 14, 400, 15]);
-    m.entry(193, || ());
-    assert_eq!(m.bucket_count(), 389);
-    let keys = m.keys();
-    assert_eq!(&keys[8..13], &[9, 10, 400, 11, 12]);
-    assert_eq!(keys.len(), 194);
 }
 
 // ---- catalogue ------------------------------------------------------------------------------------------

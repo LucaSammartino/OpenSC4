@@ -1189,6 +1189,8 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
             .or_else(|| crate::development_simulator::exec(host, other, op))
             .or_else(|| crate::growth_developer::exec(host, other, op))
             .or_else(|| crate::tract_developer::exec(host, other, op))
+            .or_else(|| crate::lot_developer::exec(host, other, op))
+            .or_else(|| crate::zones::exec(host, other, op))
             .unwrap_or_else(|| Err(format!("unknown op '{other}'"))),
     }
 }

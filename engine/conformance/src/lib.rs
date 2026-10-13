@@ -22,6 +22,7 @@ pub(crate) mod grid;
 pub(crate) mod growth_developer;
 pub mod json;
 pub(crate) mod landvalue;
+pub(crate) mod lot_developer;
 pub(crate) mod ordinance;
 pub(crate) mod plumbing;
 pub(crate) mod pollution;
@@ -33,5 +34,6 @@ pub(crate) mod simgrid;
 pub(crate) mod tract_developer;
 pub mod variants;
 pub(crate) mod weather;
+pub(crate) mod zones;
 
 pub use runner::{run_vector_file, run_vector_text};

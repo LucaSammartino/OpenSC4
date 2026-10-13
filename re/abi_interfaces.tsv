@@ -7,7 +7,7 @@ cIGZVariant	cRZVariant	00aa6788	127	docs/specs/foundations.md 17.1
 cISCPropertyHolder	cSCPropertyHolder	00aa6cd8	22	docs/specs/foundations.md 17.2
 cIGZString	cRZString	00a80810	28	docs/specs/foundations.md 17.3
 cIGZDate	cGZDate	00acea38	46	docs/specs/foundations.md 17.4
-cISCResExemplar	cSCResExemplar	00aaf0d0	14	docs/specs/foundations.md 17.5
+cISCResExemplar	cSCResExemplar	00aaf0d0	16	docs/specs/foundations.md 17.5; data-formats.md 8
 cIGZPersistResourceManager	cGZPersistResourceManager	00ad89d0	44	docs/specs/foundations.md 17.6
 cISC4GameDataRegistry	cSC4GameDataRegistry	00a8cbf8	29	docs/specs/foundations.md 17.7
 cISC4LotManager	cSC4ZoneDeveloper	00ab37c0	28	docs/specs/foundations.md 17
@@ -163,3 +163,17 @@ cIGZMessageTarget2(ZoneDeveloper)	cSC4ZoneDeveloper	00ab37ac	4	docs/specs/zones.
 cIGZSerializable(ZoneDeveloper)	cSC4ZoneDeveloper	00ab3794	6	docs/specs/zones.md
 cIGZMessageTarget2(LotDeveloper)	cSC4LotDeveloper	00ab1b88	4	docs/specs/lot-developer.md
 cIGZSerializable(LotDeveloper)	cSC4LotDeveloper	00ab1b70	6	docs/specs/lot-developer.md
+cISCResExemplarCohort	cSCResExemplarCohort	00aaeff8	16	docs/specs/data-formats.md
+cISCPropertyHolder(Exemplar)	cSCResExemplar	00aaf038	25	docs/specs/data-formats.md
+cISCPropertyHolder(Cohort)	cSCResExemplarCohort	00aaef60	25	docs/specs/data-formats.md
+cIGZSerializable(Lot)	cSC4Lot	00ab1994	6	docs/specs/lot-records.md
+cIGZSerializable(BusinessUnit)	cSC4BusinessUnit	00ab18c4	6	docs/specs/lot-records.md
+cIGZSerializable(Occupant)	cSC4Occupant	00a9ecbc	6	docs/specs/lot-records.md
+cIGZSerializable(BuildingOccupant)	cSC4BuildingOccupant	00a8721c	6	docs/specs/lot-records.md
+cIGZSerializable(LotBaseTextureOccupant)	cSC4LotBaseTextureOccupant	00aa2d74	6	docs/specs/lot-records.md
+cIGZSerializable(LotRetainingWallOccupant)	cSC4LotRetainingWallOccupant	00aa2fdc	6	docs/specs/lot-records.md
+cIGZSerializable(FoundationOccupant)	cSC4FoundationOccupant	00aa28fc	6	docs/specs/lot-records.md
+cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	6	docs/specs/lot-records.md
+cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	6	docs/specs/lot-records.md
+cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	6	docs/specs/lot-records.md
+cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	6	docs/specs/lot-records.md

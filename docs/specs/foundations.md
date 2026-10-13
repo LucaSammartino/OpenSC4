@@ -291,6 +291,8 @@ while some registered object has not been written:
 write the index record (from the start of the record)
 ```
 
+- The class loop walks the **live** sorted set of classes: a class registered during a sweep is written in the
+  same sweep when its ID is higher than the current one (save-records.md §5) *[compat]*.
 - Writing an object may register more objects through references. They are written in a later pass and appended
   to their class records. Entries in a class record are therefore sorted by ID within each pass, but not overall.
 - When a class is registered for the first time in a save, any existing record with its key is deleted first.
@@ -298,6 +300,10 @@ write the index record (from the start of the record)
 - *[quirk]* A discarded entry still counts in the index's `objectCount`, and the loader would then miss an entry.
   **Our `Write` must never return false except for a stream error** *[choice]*.
 - If no object was ever registered, nothing is written (no index).
+- *[compat]* Many saved fields hold Microsoft debug-heap fill words that the original never initialised
+  (`0xCDCDCDCD`, `0xBAADF00D`, `0xCCCCCCCC`: budget by-month ordinance arrays, growth developer, residential, flora
+  RNG, traffic, trips). A reader must accept them and a writer must carry loaded values through unchanged
+  (save-records.md §6).
 
 **Loading** runs once, right after the package is opened and **before any other record is read**:
 
@@ -411,14 +417,19 @@ file with it (keeping the old one until the rename succeeds). In order:
    path strings, data4 = the caller's flag), then `0x26C63346` with the same data (name unknown).
 2. Write the app version record (65) and the module version record.
 3. Write the root record. Its reference registers the city. *(The city's `Write`, and through it every subsystem's
-   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1).
+   `Write`, runs later, in step 5.)* The same helper then writes the current city's regional-city record (§11.1)
+   while the root record is still open, so the regional-city record precedes the root record in the file.
 4. Send `kSC4MessageSave` `0x26C63344` and `kSC4MessagePostSave` `0x26C63345`.
 5. Run the class-object store save (§3.5): the city, the 53 components and everything they reference.
 6. Close the package, then rename it over the city file.
 7. If the save succeeded: rewrite the regional-city record inside the file of every adjacent city (§11.1).
 
 Subscribers to PreSave/Save may write their own records into the package (void1). They run **before** any
-object's `Write`.
+object's `Write`. The View3D record (`0xA9C8647C / 0xE9C8647E / 1`) is written this way during the Save message,
+also before the root record closes, and it holds a ref to the simulator. That ref registers the simulator first,
+which is why the simulator's class record comes first in every save that keeps the write order (410 of 417). A
+replacement simulator must therefore be registered and serializable when the Save message is sent
+(save-records.md §5) *[compat]*.
 
 **Load** (`cSC4App::LoadCity`):
 
@@ -1068,7 +1079,9 @@ uint32  instance       all three zero = no parent
 |---|---|---|
 | ordinance | exemplar holder | ordinance §9.3 |
 | neighbour connection, neighbour deal (in the city's neighbours objects and in regional-city records) | plain holder | neighbors §4.3, §5.6; §11 |
-| occupants, lots and many other saved objects | one of the two | their own specs |
+| occupants (inside the occupant base record) | exemplar holder (`0x005E8D60` → `0x005FF420`) | lot-records.md §2.3 |
+| lots | plain holder (`0x006C35F0` → `0x005FF280`) | lot-records.md |
+| many other saved objects | one of the two | their own specs |
 
 The budget's locally funded objects refer to holders through `ref` (§2.7), not inline.
 
@@ -1175,7 +1188,8 @@ Example (sample save, the first 43 bytes): `01 00 0D 00 06 00 00 00 05 00 00 00 
 00 00 29 01 00 00 8C 02 00 00 8F C2 F5 3E 33 02 00 FB CB E3 53` gives helper 1, version 13, position (6, 5),
 size (2, 2), population 2564, 297 commercial jobs, 652 industrial jobs, workforce 0.48, mayor rating 51,
 difficulty 2, moved 0 and serial `0x53E3CBFB`. All 85 city files of the test region parse completely under
-this layout (versions 9, 10 and 13, with the version rules below). None contains a deal.
+this layout (versions 9, 10 and 13, with the version rules below). None contains a deal, but two shipped saves
+(`City - Fulham.sc4`, `City - Kensington.sc4`) hold two deals each and parse with this layout (save-records.md §7.5).
 
 **Read** *[compat]*:
 
@@ -1573,7 +1587,10 @@ return a **uint32 day number**: `DayNumber() − n`, `DayNumber() − other.DayN
 `DayNumber() + other.DayNumber()`. A FreeCity4 `cIGZDate` must return these integers. Callers must not treat the
 result as a pointer.
 
-### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 14 slots)
+### 17.5 `cISCResExemplar` (vtable `0x00AAF0D0`, 16 slots)
+
+Corrected from 14: slots 14 (`0x0067E5B0`) and 15 (`0x0067DDC0`, rebuilds the effective property list; called by
+`SetCohort` `0x0067C510` through `vt+0x3C`) exist (data-formats.md §8).
 
 `AsISCPropertyHolder()` and `AsISCPropertyHolder() const` (slots 6/7) share one body. Their order is
 unobservable. No errors.
@@ -1679,9 +1696,11 @@ effect, on which threads, and what that means for the specs.
 | When | Where | Effect on the control word |
 |---|---|---|
 | Process start (C runtime init, before `WinMain`) | CRT `_cinit` → `_fpmath(1)` → `_setdefaultprecision` = `_controlfp(_PC_53, _MCW_PC)` | precision **53-bit**; rounding to nearest; all exceptions masked (Windows default) |
-| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
-| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) and the exemplar expression evaluator (`0x0067B920`) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit |
+| Application start-up, first statement of `cSC4App::PreFrameWorkInit` (`0x00452360`), main thread | `CALL 0x005F85E0` (the first call after the prologue, verified in the bytes at `0x0045236C`), which calls the RZ framework's "set FPU precision" helper (`0x008929E0`) with mode 0 unconditionally | precision **24-bit** (PC = 00); rounding and exception masks unchanged |
+| Every Lua call (all `cGZLua5Thread` / `cGZLua5` wrappers, the Lua thread library) | the same helper, guarded by the matching "get precision" helper (`0x00892A0A`) | if the current precision is 24-bit: switch to **53-bit** for the call, then switch back to 24-bit. **If the current precision is already 53-bit the guard skips both calls, so a Lua call can never restore 24-bit** |
+| The exemplar float-expression parser (`nSCRes::ParseFloat` `0x0067BBA0` → `ParseExpression` `0x0067BB20` → the additive parser `0x0067BA40`, reached from `0x0067AC30` and `0x0067BAE0`) | the additive parser `0x0067BA40` calls the getter and, when it reports 24-bit, the helper with mode 1 — and then **returns with no mode-0 call in this chain** | precision **53-bit, and irrecoverably so** (§18.2: nothing can restore 24-bit). Verified in the bytes of `0x0067BA40` (one getter call, one `PUSH 1` + setter call, no setter on the return path at `0x0067BACC`); no function in `0x0067AC30`, `0x0067B990`, `0x0067BA40`, `0x0067BAE0`, `0x0067BB20` or `ParseFloat` restores, and no direct caller of `ParseFloat` (e.g. `cCameraParamsCommand`, `cDecalLifeCommand`) wraps it. **This leak evidently does not fire in a normal session**, because a save written by the unmodified game holds the 24-bit budget result (§18.2) — consistent with `ParseFloat` being reachable only from **text**-format resource parsing, while shipped tuning and building data is binary *[compat: a latent bug in the original]* |
 | Direct3D 7 renderer | `SetCooperativeLevel` with `DDSCL_NORMAL` (windowed) or `DDSCL_FULLSCREEN \| DDSCL_EXCLUSIVE`; **neither** `DDSCL_FPUPRESERVE` nor `DDSCL_FPUSETUP` | Direct3D 7 may set the FPU to single precision itself *[inferred from the DirectX 7 documentation]*. That is the same setting the game already chose, so it changes nothing |
+| A DLL `LoadLibrary`d during app init, whose own CRT runs `_fpmath(1)` → `_controlfp(_PC_53, _MCW_PC)` | the CRT of that DLL | precision **53-bit** on the loading thread. Ruled out for the normal session by §18.2 (a save written by the unmodified game holds the 24-bit result, and nothing can restore 24-bit afterwards). Import-table fact that constrains the candidates: `DSOUND.dll`, `OPENGL32.dll` and `WINMM.dll` are **static imports** (CRT init at process start, before our first measurement at 24-bit, so excluded); `DDRAW.DLL` is **not** a static import, so it is loaded on demand and was a candidate before §18.2 ruled the window out |
 | Truncating conversions through the C runtime's `_ftol` (`0x009EEF04`, the common path) | none: it converts with `fistp` to a **64-bit** integer under the current rounding (nearest), then corrects the result by one unit toward zero when rounding went the wrong way, so the result is truncation toward zero as an `int64` in EDX:EAX. Callers keep the low 32, 16 or 8 bits. NaN, ±∞ and magnitudes ≥ 2^63 give `0x8000000000000000`, whose low 32 bits are **0** | no change to the control word |
 | Inline `fistp` to a 32-bit destination (where a spec says so) | depends on the site | NaN and out-of-range give `0x80000000` |
 
@@ -1694,8 +1713,10 @@ precision (they only force round-to-nearest and masked exceptions while they run
 - **Main thread: 24-bit precision** from `PreFrameWorkInit` on, for the rest of the session. The simulator, its
   agents (simulator.md), every grid simulator, the budget and all message handlers run on this thread, so **the
   whole simulation runs at 24-bit precision** *[inferred: the simulator is driven by the framework's idle and
-  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls and the exemplar
-  expression evaluator (53-bit), which do not touch simulation state.
+  timer callbacks on the main thread, and the game creates no simulation thread]*. The only exceptions are code inside Lua calls (53-bit
+  for the duration of the call, then restored) and the exemplar expression parser (§18.1, row 4). The Lua path does
+  not touch simulation state. The parser's leak **would** poison the whole session if it ever fired, since nothing
+  can restore 24-bit afterwards — but the save evidence below shows it does not fire in a normal session.
 - **Worker threads** created by the game (`cRZThread`: background model loader, HTTP client, name lookup,
   file-change notification; and the sound driver's thread) start with the Windows default for new threads
   (53-bit). None of them runs simulation code *[inferred: no simulator, agent or grid code was found reachable
@@ -1706,6 +1727,87 @@ precision (they only force round-to-nearest and masked exceptions while they run
   53/64-bit result. Something in that process left the main thread at a higher precision. **Testing rule:**
   a differential run is only a valid reference for float-sensitive values if the main thread's x87 control word
   shows PC = 00 (24-bit) while the simulation runs. Harnesses must log it.
+
+**The expression really is precision-sensitive** (verified in the assembly of
+`cSC4DepartmentBudget::RecalculateAllLineItemCurrentExpenses`, `0x006ABC93`): `FILD qword` (cost, exact) →
+`FMUL float` (local funding) → `FMUL float [0x00A80AA0]` (the constant 100.0) → `FILD qword` (the running sum,
+exact) → `FADDP` → `_ftol`. There is **no `FSTP float` between the operations**, so the intermediates stay in the
+80-bit register and are rounded by PC alone. At PC = 24 the product rounds to 123.0 and the answer is 123; at
+PC = 53 it stays 122.99999892711639…, truncates to 12299 and the answer is 122. The saved value 123 therefore
+does establish that the unmodified game settled that budget at **24-bit**.
+
+**What is verified about the control word (bytes and xrefs, 2026-10-13):**
+
+- The helper `0x008929E0` is a real setter, 42 bytes: it clears the PC field of a stack copy of the control word
+  (24-bit), sets bit 1 for mode 1 (53-bit) or bits 0–1 for mode 2 (64-bit), then `FLDCW`s it back. Ghidra's
+  decompiler renders it as an empty function, so pseudocode cannot be trusted here. The getter `0x00892A0A`
+  returns 0 for PC = 00, 1 for PC = 10, 2 for PC = 11.
+- `0x005F85E0` (an unconditional `helper(0)` = 24-bit) has **exactly one xref in the whole image**: `0x0045236C`,
+  the first call of `PreFrameWorkInit`. So the game asserts 24-bit once, at start-up, and never again.
+- Every other mode-0 call site is Lua-related and guarded by the getter. Because the guard skips **both** the
+  set-to-53 and the set-back-to-24 when the thread is not already at 24-bit, **no Lua call can ever restore
+  24-bit** once something else has raised it.
+- The exemplar float-expression parser leaks (§18.1, row 3): verified in the bytes of `0x0067BA40` — one
+  `CALL 0x00892A0A`, one `PUSH 1; CALL 0x008929E0`, and no setter call on the return path at `0x0067BACC`.
+
+**The enumeration of precision writes is complete** (direct xrefs, pointer-table scan of the whole image, and the
+CRT chain, 2026-10-13). Nothing in the image calls `_controlfp`/`_control87` except the CRT's own
+`__setdefaultprecision` (`0x009F6C30` → `0x00A02F9B`, one xref), which only `__fpmath` reaches; there is no
+`_fpreset`; and no function pointer to the helper `0x008929E0`, the getter `0x00892A0A` or the 24-bit wrapper
+`0x005F85E0` is stored anywhere in the image, so indirect calls cannot hide any site. Every remaining mode-0
+(24-bit) site is Lua-related **and guarded by the getter**, and the guard skips both the set-to-53 and the
+set-back-to-24 unless the thread is already at 24-bit. `0x005F85E0` — the only unconditional 24-bit assert — is
+called from exactly one place, `PreFrameWorkInit`.
+
+**Consequence: once anything raises the main thread above 24-bit, the game can never bring it back.** Combined
+with a direct A/B on the same expression, this settles the contradiction:
+
+| Run | What computed the budget | `0x09188F42` / `0x09188F4C` | Precision implied |
+|---|---|---|---|
+| a save written by the **unmodified** game (Spandau) | the game's own code | **123 / 105** (`369 = 3 × 123`, `315 = 3 × 105`) | **24-bit** |
+| run 19 (`build-runs/run19-original-observe.log`) | the game's own code — our DLL loaded, **observer only**, neither simulator nor budget replaced | **122 / 104** | **53-bit** |
+| run 20 | our budget replacement | 123 / 105 | 24-bit (we reproduce 24-bit) |
+| runs 23 and 24, `CW` logged directly | our simulator + budget | `CW = 0x027F` from PostAppInit-enter onward | 53-bit |
+
+Runs 19 and the save run **the same game code on the same city**; the only difference is that FreeCity4.dll was
+loaded in run 19. The original code therefore produced 122 with our DLL present and 123 without it, which is a
+measurement that our process raises the precision — not an inference. (Run 19 predates control-word logging, so it
+proves the effect but not the moment; runs 23/24 date it to between PreAppInit and PostAppInit.)
+
+Deduction, independently: the save proves PC = 00 at those settlements; nothing can restore 24-bit after
+`PreFrameWorkInit`; so **no event in the unmodified game's app init raises the precision**. The game genuinely runs
+the whole session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands.
+
+This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"), and
+restores the run-20 conclusion in `docs/manual-checks.md` (row 20, d90019e): **ours is right**, and it is the
+unmodified game's own in-process run that is wrong. The 24-bit reference behaviour is intact and the float-sensitive
+worked examples recomputed for 24-bit (cde56f4) remain correct. What must be found instead is **what our plugin's
+presence does between PreAppInit and PostAppInit that raises PC to 53-bit**. The plugin's own load-time CRT init is
+excluded (the control word is still 24-bit at `DLL_PROCESS_ATTACH` *after* our initialisation), and run 19 had
+nothing replaced, so the cause is not a replaced subsystem — it is something our DLL does just by being present.
+The two candidates the enumeration leaves are our code calling a game interface that reaches `nSCRes::ParseFloat`
+(a **text**-format resource parse — the leak in §18.1 row 4), or our code loading a DLL whose CRT runs
+`_fpmath(1)`.
+
+**What to do about it (queued for lane 1).** Bisecting the subsystem switches cannot find this: run 19 already had
+every subsystem off (observer only) and still ran at 53-bit. The cause is in what the DLL does while being present,
+in the window between PreAppInit and PostAppInit. Two cheap next steps, in order:
+
+1. **Narrow the window.** Log the control word at finer granularity between the two hooks — after each framework
+   service registration, each `QueryInterface` for a service, each class-registry replacement, and each
+   `LoadLibrary`/`CoCreateInstance` our code performs. The window is currently ~2.4 s (23:16:59.073 PreAppInit →
+   23:17:01.448 PostAppInit-enter, run 23) and contains a lot of our init.
+2. **Test the minimal DLL.** Stage a build whose attach does nothing but open the log, and run it with the same
+   autoload. If the control word still reaches 53-bit, the trigger is in DLL load/attach itself (a static
+   initialiser, a CRT startup path, or a dependency we pull in — note that linking or loading a DLL whose CRT runs
+   `_fpmath(1)` would do exactly this). If it stays 24-bit, bisect our init steps.
+
+A workaround, if the trigger turns out to be unavoidable, is to re-assert 24-bit ourselves at PostAppInit and at
+the top of each simulation entry point by calling the game's own helper `0x008929E0` with mode 0 (it is
+unconditional, so it works even though the Lua-style guarded pattern cannot restore). Any such fix must be logged,
+because it silently changes what the *original* subsystems compute while our DLL is loaded. Until the trigger is
+identified, **no differential run against the original code is trustworthy for float-sensitive values**: the
+original computes wrongly inside our process, and the testing rule above (harnesses log PC = 00) is what detects it.
 
 ### 18.3 What 24-bit precision means
 

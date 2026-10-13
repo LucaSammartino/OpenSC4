@@ -10,7 +10,6 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use super::order::{stl_sort, StlHashSet};
 use super::tuning::Tuning;
 use super::{
     lot_state, network, BuildingProfile, Cap, CellRect, Cheat, ConstructionProfile, GrowthProfile, Outcome,
@@ -19,6 +18,7 @@ use super::{
 use crate::development::{building_fits_in_zone, dev_type, growth_stage_fits_in_zone};
 use crate::grid::CellIterator;
 use crate::rng::{CrtRand, FixedSeeds, RzRandom, SeedSource};
+use crate::stl::{stl_sort, StlHashSet};
 use crate::stream::{InStream, OutStream};
 use crate::x87::{ftol32, r24, rhe};
 
@@ -166,6 +166,15 @@ impl TractDeveloperStatics {
             decline_iterator: CellIterator::new(0, 0, -1, -1),
             trace: None,
         }))
+    }
+
+    /// The statics with the file-local generator seeded from the session
+    /// seed (foundations §6.3 *[choice]*): `derive_seed(session,
+    /// 0x4C09C113)`, the original's clock XOR [`super::RNG_SEED_XOR`] with
+    /// the session seed in place of the clock. `rand()` stays at state 1
+    /// (the game never seeds it, foundations §12).
+    pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedStatics {
+        TractDeveloperStatics::new(crate::rng::derive_seed(session, super::RNG_SEED_XOR), seeds)
     }
 
     /// Appends a draw to the trace (when tracing is on). The core records
@@ -853,7 +862,7 @@ impl TractDeveloper {
             }
             let bt = h.lot_building_type(l);
             let p = h.building_profile(bt);
-            let pw = h.developer_for(p.purpose, p.wealth);
+            let pw = h.developer_for(u32::from(p.purpose), u32::from(p.wealth));
             if let Some(f) = self.caps_fail(c.stage, c.x, c.z, pw, self.w.dev) {
                 best = best.max(f);
                 continue;
@@ -1011,23 +1020,23 @@ impl TractDeveloper {
                 return code::LOT_NOT_READY;
             }
             let p = h.building_profile(t);
-            if p.purpose == 5 || (p.purpose == 7 && self.w.purpose == 6) {
+            if u32::from(p.purpose) == 5 || (u32::from(p.purpose) == 7 && self.w.purpose == 6) {
                 return code::DIFFERENT_PURPOSE;
             }
-            if !self.tuning.kick_out && p.wealth != self.w.wealth {
+            if !self.tuning.kick_out && u32::from(p.wealth) != self.w.wealth {
                 return code::DIFFERENT_WEALTH;
             }
-            if self.w.wealth < p.wealth {
+            if self.w.wealth < u32::from(p.wealth) {
                 return code::DIFFERENT_WEALTH;
             }
-            if p.wealth == self.w.wealth && p.purpose != self.w.purpose {
+            if u32::from(p.wealth) == self.w.wealth && u32::from(p.purpose) != self.w.purpose {
                 return code::DIFFERENT_WEALTH;
             }
             if h.lot_is_historical(lot) {
                 return code::HISTORICAL;
             }
             let s = u32::from(h.lot_configuration_stage(lot).unwrap_or(0));
-            let ok = if p.wealth == self.w.wealth {
+            let ok = if u32::from(p.wealth) == self.w.wealth {
                 self.w.max_stage > s
             } else {
                 self.w.max_stage >= s
@@ -1319,7 +1328,7 @@ impl TractDeveloper {
             c.stage = c.stage.max(u32::from(h.lot_configuration_stage(l).unwrap_or(0)));
             let t = h.lot_building_type(l);
             if t != 0 {
-                c.wealth = c.wealth.max(h.building_profile(t).wealth);
+                c.wealth = c.wealth.max(u32::from(h.building_profile(t).wealth));
             }
         }
     }
@@ -1702,10 +1711,10 @@ impl TractDeveloper {
     fn building_compatible(&self, b: u32, lo: i32, hi: i32) -> u32 {
         let h = &self.host;
         let p = h.building_profile(b);
-        if p.purpose != self.w.purpose {
+        if u32::from(p.purpose) != self.w.purpose {
             return code::WRONG_PURPOSE;
         }
-        if p.wealth != self.w.wealth {
+        if u32::from(p.wealth) != self.w.wealth {
             return code::WRONG_WEALTH;
         }
         if self.styles_apply() && !h.building_in_occupant_group(b, self.style_at_index().unwrap_or(0)) {
@@ -1828,7 +1837,7 @@ impl TractDeveloper {
                 && h.lot_days_since_state_change(l) >= 60
                 && {
                     let t = h.lot_building_type(l);
-                    t != 0 && h.building_profile(t).purpose == purpose
+                    t != 0 && u32::from(h.building_profile(t).purpose) == purpose
                 }
                 && h.lot_occupant_wealth(l) == wealth;
             if qualifies {

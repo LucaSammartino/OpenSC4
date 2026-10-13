@@ -10,172 +10,17 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::development::{building_map_key, developer_type};
+use crate::development::{building_map_key, developer_type, BuildingProfile};
 use crate::property::PropertyHolder;
 use crate::props;
+use crate::stl::StlHashMap;
 use crate::stream::ResKey;
 use crate::x87::ftol32;
 
 use super::prop;
 
-/// The bucket counts of the STLport / SGI hash table (`__stl_prime_list`).
-pub const STL_PRIMES: [u64; 28] = [
-    53, 97, 193, 389, 769, 1543, 3079, 6151, 12289, 24593, 49157, 98317, 196613, 393241, 786433, 1572869, 3145739,
-    6291469, 12582917, 25165843, 50331653, 100663319, 201326611, 402653189, 805306457, 1610612741, 3221225473,
-    4294967291,
-];
-
-/// The size hint of a default-constructed `hash_map` (100 → 193 buckets).
-pub const STL_DEFAULT_HINT: u64 = 100;
-
-/// The smallest listed prime ≥ `n` (the last one if none is).
-fn next_size(n: u64) -> u64 {
-    STL_PRIMES
-        .iter()
-        .copied()
-        .find(|&p| p >= n)
-        .unwrap_or(STL_PRIMES[STL_PRIMES.len() - 1])
-}
-
-/// A model of the STLport (SGI) `hash_map<uint32, V>` that keeps its
-/// iteration order (§4.7.1) *[inferred: SGI/STLport 4 growth policy]*:
-/// identity hash, bucket = key mod bucket count; 193 buckets at
-/// construction; before every insertion attempt the table grows to the
-/// next listed prime ≥ size + 1 when size + 1 exceeds the bucket count,
-/// moving each old bucket's nodes (head first) to the head of their new
-/// bucket; a new node goes to the head of its bucket. Iteration: buckets
-/// in ascending order, each from its head.
-#[derive(Clone, Debug)]
-pub struct StlHashMap<V> {
-    /// Each bucket stores its nodes tail first (the head is the last
-    /// element), so a head insertion is a push.
-    buckets: Vec<Vec<(u32, V)>>,
-    len: usize,
-}
-
-impl<V> Default for StlHashMap<V> {
-    fn default() -> Self {
-        StlHashMap::new()
-    }
-}
-
-impl<V> StlHashMap<V> {
-    pub fn new() -> StlHashMap<V> {
-        let n = next_size(STL_DEFAULT_HINT) as usize;
-        let mut buckets = Vec::with_capacity(n);
-        buckets.resize_with(n, Vec::new);
-        StlHashMap { buckets, len: 0 }
-    }
-
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    /// The current bucket count.
-    pub fn bucket_count(&self) -> usize {
-        self.buckets.len()
-    }
-
-    fn bucket_of(&self, k: u32) -> usize {
-        (u64::from(k) % self.buckets.len().max(1) as u64) as usize
-    }
-
-    /// `resize(hint)`.
-    fn resize(&mut self, hint: u64) {
-        let old_n = self.buckets.len() as u64;
-        if hint <= old_n {
-            return;
-        }
-        let n = next_size(hint);
-        if n <= old_n {
-            return;
-        }
-        let mut fresh: Vec<Vec<(u32, V)>> = Vec::with_capacity(n as usize);
-        fresh.resize_with(n as usize, Vec::new);
-        for bucket in std::mem::take(&mut self.buckets) {
-            // Old head first; each moves to the head of its new bucket.
-            for (k, v) in bucket.into_iter().rev() {
-                fresh[(u64::from(k) % n) as usize].push((k, v));
-            }
-        }
-        self.buckets = fresh;
-    }
-
-    pub fn get(&self, k: u32) -> Option<&V> {
-        self.buckets
-            .get(self.bucket_of(k))
-            .and_then(|b| b.iter().find(|(key, _)| *key == k))
-            .map(|(_, v)| v)
-    }
-
-    pub fn get_mut(&mut self, k: u32) -> Option<&mut V> {
-        let b = self.bucket_of(k);
-        self.buckets
-            .get_mut(b)
-            .and_then(|b| b.iter_mut().find(|(key, _)| *key == k))
-            .map(|(_, v)| v)
-    }
-
-    pub fn contains(&self, k: u32) -> bool {
-        self.get(k).is_some()
-    }
-
-    /// `operator[]` (`find_or_insert`): the value for `k`, inserting
-    /// `make()` when absent. The table may grow even when `k` exists.
-    pub fn entry(&mut self, k: u32, make: impl FnOnce() -> V) -> &mut V {
-        self.resize(self.len as u64 + 1);
-        let b = self.bucket_of(k);
-        let pos = self.buckets[b].iter().position(|(key, _)| *key == k);
-        let pos = match pos {
-            Some(p) => p,
-            None => {
-                self.buckets[b].push((k, make()));
-                self.len += 1;
-                self.buckets[b].len() - 1
-            }
-        };
-        &mut self.buckets[b][pos].1
-    }
-
-    /// Keys in iteration order.
-    pub fn keys(&self) -> Vec<u32> {
-        self.iter().map(|(k, _)| k).collect()
-    }
-
-    /// `(key, value)` in iteration order.
-    pub fn iter(&self) -> impl Iterator<Item = (u32, &V)> + '_ {
-        self.buckets.iter().flat_map(|b| b.iter().rev().map(|(k, v)| (*k, v)))
-    }
-}
-
-/// A building's profile (`BuildingProfile`, §4.7.1). The fields after
-/// `capacity` are not used by growth *[inferred: field mapping]*.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct BuildingProfile {
-    /// 0–3 (values outside become 0).
-    pub wealth: u8,
-    pub purpose: u8,
-    /// Capacities satisfied: developer type → amount (property `0x27812834`).
-    pub capacities: BTreeMap<u32, u16>,
-    /// The amount for `GetDeveloperType(purpose, wealth)`, 0 if absent.
-    pub capacity: u16,
-    /// Property `0x27812836`.
-    pub flag_27812836: bool,
-    /// Property `0x499AFA38` (default 30 when loaded from an exemplar).
-    pub value_499afa38: u8,
-    /// The values of property `0xAA1DD396`, kept raw: the 31-entry table
-    /// that turns them into category flags is not in the spec (§4.7.1).
-    pub category_values: Vec<u32>,
-    /// Occupant size (property `0x27812810`), metres.
-    pub occupant_size: [f32; 3],
-    /// Plop cost (property `0x49CAC341`).
-    pub plop_cost: i64,
-}
-
+/// `LoadBuildingProperties` (§4.7.1): the BDS-side constructor of the
+/// shared [`BuildingProfile`].
 impl BuildingProfile {
     /// The profile `LoadBuildingProperties` fills from a building exemplar
     /// (§4.7.1).
@@ -208,11 +53,6 @@ impl BuildingProfile {
             occupant_size,
             plop_cost: props::i64_of(h, prop::PLOP_COST).unwrap_or(0),
         }
-    }
-
-    /// `GetBuildingMapKey(type)` of this profile: `uint8(4p + w + 1)`.
-    pub fn map_key(&self) -> u8 {
-        building_map_key(u32::from(self.purpose), u32::from(self.wealth))
     }
 }
 
