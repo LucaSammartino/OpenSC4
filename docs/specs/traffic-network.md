@@ -941,9 +941,11 @@ answers, so each lot is visited once):
 After the last cell, the neighbour connections are added. For every connection of the neighbours simulator (slot 16
 `GetAllConnections`; list with allocator A, internal), with cell (x, z) from connection slot 6:
 
-1. Map (x, z) to the in-city cell: x = −1 → 0; x = X → X−1; else z = −1 → 0; z = Z → Z−1.
-2. If that cell has a car record and `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual `0x007114E0`) gives a
-   holder:
+1. Map (x, z) to the in-city cell (x', z'): x = −1 → x' = 0; x = X → x' = X−1; else z = −1 → z' = 0; z = Z →
+   z' = Z−1. The other coordinate is kept.
+2. If the **in-city** cell (x', z') has a car record, and `GetNeighborPoolPropertyHolder(1, x, z)` (non-virtual
+   `0x007114E0`) gives a holder, then the steps below run. The holder is asked with the **off-map** cell (x, z), the
+   connection's own cell, not (x', z') (TN6, `0x0071674F`–`0x00716755`):
    - `c[k] = GetMaxTripCapacity(holder, k)`;
    - add `c` to `info[subnet[e]].capacity` for **each** e = 0…3 with `subnet[e] ≠ 0`. This is not deduplicated: a
      label shared by two entry sides is counted twice *[quirk]*.

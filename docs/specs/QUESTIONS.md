@@ -167,8 +167,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   `0x0071BC3A`) and written into §4.6. **The bracket is right: reached, not extended.** The intersection test runs
   first, so such a cell can set `best`, and then the search stops there. The order of the stop tests and the absence
   of a visited set are now stated.
-- **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
-  [off-map]
+- ~~**TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
+  [off-map]~~ **ANSWERED 2026-10-14** from the exe (`UpdateSubnetworkInfo` `0x0071674F`–`0x00716755`) and written into
+  §4.12. **The bracket is right: off-map.** The mapped cell is used only to find the car record and its `subnet[]`.
+  The holder is asked with the connection's own (off-map) cell.
 - **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which
   IDs are found depends on it. Which order is right? [BoundaryIterator]
 - **TN8 — §4.9:** does the DoPostCityInit ferry pass rebuild the neighbour-cell vector and rotate the counters? [no]
