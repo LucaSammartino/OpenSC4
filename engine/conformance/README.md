@@ -1652,5 +1652,8 @@ Not covered by a vector, and why:
   `InitBoundaryRules` are left out of the core (UI or debug, §1.2 step 7, §14.3 item 2).
 - **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
   is left out, so no vector pins them.
-- **`SimpleParcellize`'s street lines (§7.5 step 1)** are covered by the two extra vectors for Q = 3 and Q = 2; the
-  Q = 0 and Q = 1 columns of the table share code paths with those and are not separately pinned.
+- **`SimpleParcellize`'s street lines (§7.5 step 1)** are partly covered: `zn15_30` pins the x-line `_` arm (Q = 3,
+  starts low) and the z-line `_` arm (Q = 3, D = 0 branch), and `zn15_31` pins the x-line `0 | 2` arm in its `D = 3`
+  branch (Q = 2) and the z-line `2` arm. Not pinned: the x-line `1` arm (Q = 1), the `D != 3` branch of the x-line
+  `0 | 2` arm, and the z-line `0` and `1` arms — these are the other cells of the §7.5 table, which the current
+  scenarios never select.
