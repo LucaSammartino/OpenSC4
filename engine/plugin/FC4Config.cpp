@@ -71,6 +71,19 @@ const SwitchInfo kSwitches[kCount] = {
     {"power_occupant_query", "FC4_POWER_OCCUPANT_QUERY"},
     {"power_demolish", "FC4_POWER_DEMOLISH"},
     {"power_direct_calls", "FC4_POWER_DIRECT_CALLS"},
+    {"plumbing_occupants", "FC4_PLUMBING_OCCUPANTS"},
+    {"plumbing_pipes", "FC4_PLUMBING_PIPES"},
+    {"plumbing_lots", "FC4_PLUMBING_LOTS"},
+    {"plumbing_terrain", "FC4_PLUMBING_TERRAIN"},
+    {"plumbing_neighbors", "FC4_PLUMBING_NEIGHBORS"},
+    {"plumbing_budget", "FC4_PLUMBING_BUDGET"},
+    {"plumbing_grid_writes", "FC4_PLUMBING_GRID_WRITES"},
+    {"plumbing_posts", "FC4_PLUMBING_POSTS"},
+    {"plumbing_pollution", "FC4_PLUMBING_POLLUTION"},
+    {"plumbing_ordinance", "FC4_PLUMBING_ORDINANCE"},
+    {"plumbing_disaster", "FC4_PLUMBING_DISASTER"},
+    {"plumbing_history", "FC4_PLUMBING_HISTORY"},
+    {"plumbing_direct_calls", "FC4_PLUMBING_DIRECT_CALLS"},
 };
 
 // Keys that are not switches.
@@ -82,8 +95,9 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
 char g_offList[512] = "-";
 
 volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 34, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 47, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

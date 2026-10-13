@@ -1041,6 +1041,51 @@ class cISC4Ordinance;
 class cISC4ResidentialSimulator;
 class cISC4RegionalCity;
 
+// ---- plumbing (docs/specs/plumbing.md §10.1) -----------------------------------------------------
+
+// cISC4PlumbingSimulator (IID 0x47782CCC), 29 interface slots + destructor.
+// There are no overloads, so the SDK's declaration order is already the
+// compiled one; this declaration exists for the five return types the SDK gets
+// wrong (§10.4) and so abi_conformance_test checks the implemented slots.
+// Slots 14-17 and 23 return only the low 32 bits in eax (EDX is not set), the
+// same [choice] as the budget's slots 20-23.
+class cFC4ISC4PlumbingSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                               // 3
+    virtual bool Shutdown() = 0;                                                           // 4
+    virtual uint8_t GetSupplyValue(int32_t x, int32_t z) = 0;                              // 5
+    // 6: no meaningful return (EAX = the grid pointer); a replacement returns true.
+    virtual bool GetSupplyValueMapPtr(cISC4SimGrid<uint8_t>*& grid) = 0;                   // 6
+    virtual cISC4SimGrid<uint8_t>* GetWateredGrid() = 0;                                   // 7
+    virtual bool AreWateredBuildingsInCell(int32_t x, int32_t z) = 0;                       // 8  full EAX
+    virtual bool IsBuildingWatered(cISC4Occupant* occupant) = 0;                            // 9
+    virtual uint32_t GetWaterProduction(cISC4Occupant* occupant) = 0;                       // 10
+    virtual bool IsCellWatered(int32_t x, int32_t z) = 0;                                   // 11
+    virtual uint32_t GetNumWaterSources() = 0;                                              // 12
+    virtual uint32_t GetNumPollutedWaterSources() = 0;                                      // 13
+    virtual int32_t GetWaterProductionCapacity() = 0;                                       // 14 (SDK: int64)
+    virtual int32_t GetWaterConsumed() = 0;                                                 // 15 (SDK: int64)
+    virtual int32_t GetWaterImported() = 0;                                                 // 16 (SDK: int64)
+    virtual int32_t GetWaterExported() = 0;                                                 // 17 (SDK: int64)
+    virtual uint32_t GetNumPipes() = 0;                                                     // 18
+    virtual uint32_t GetNumDistressedPipes() = 0;                                           // 19
+    virtual uint32_t GetNumBurstPipes() = 0;                                                // 20
+    virtual uint32_t GetNumWateredBuildings() = 0;                                          // 21
+    virtual uint32_t GetNumUnwateredBuildings() = 0;                                        // 22
+    virtual int32_t GetWaterDemand() = 0;                                                   // 23 (SDK: int64)
+    virtual bool GetWaterProducerInfo(cISC4Occupant* producer, uint32_t* currentCapacity, uint32_t* maxCapacity,
+                                      SC4Percentage* efficiency, bool* shutDownByPollution, uint32_t* waterUsed) = 0;  // 24
+    virtual bool GetWaterProducerConditionPercent(cISC4Occupant* producer, SC4Percentage& conditionPercent) = 0;  // 25
+    virtual bool GetOccupantMonthlyUpkeepCost(cISC4Occupant* occupant, int64_t& monthlyUpkeepCost) = 0;  // 26
+    // 27: no meaningful return; a replacement returns true. Occupants written are AddRef'd.
+    virtual bool FindWaterBuildings(cISC4Occupant** lowestFunded, SC4Percentage& funding, cISC4Occupant** worstCondition,
+                                    long& conditionPercent) = 0;                            // 27
+    // [abi] 28: ilist<cISC4Occupant*> with the framework allocator (A, allocators.md
+    // table (2)): SC4List is compatible; appends, one reference each. No meaningful
+    // return; a replacement returns true.
+    virtual bool GetWaterProducers(SC4List<cISC4Occupant*>& list) = 0;                        // 28
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
