@@ -670,6 +670,18 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
     `0x007008FB`). *[choice]* FreeCity4 may release what it replaces, which the core already does
     (`release_department`). This cannot be observed.
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
+  - **Null list entries** (RS12, from the exe). A game-written save never holds one. The lists hold live, AddRef'd
+    occupants, and a removal erases the entry. A null appears only through `Read`: a reference that cannot be
+    resolved (foundations §2.7) or the stream-error path above. The original does **not** skip it. Every pass
+    that calls into an entry dereferences it, which crashes:
+    - the state-0 distribution (`IsOccupantGroup`, `0x006FF622` / `0x006FF6EE`);
+    - coverage (states 5 and 7, through `0x006F8710`);
+    - grading (states 6 and 8, `0x006FFE61`);
+    - `GetBuildings` (`0x006FAD2C`) and the other getters that `AddRef` each entry.
+
+    Only the moves (state 0's health-affecting move, §5.8) and the pointer comparisons of a removal pass a null
+    through. *[choice]* FreeCity4 drops null entries in `Read` and does not append them, so no pass ever sees one.
+    The counts (REH slots 46/48) then leave them out. Skipping nulls in each pass instead would be equivalent.
   - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
     percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
     at `0x006F7BA0`, RS1).

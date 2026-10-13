@@ -294,7 +294,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   building-list vector's size, and Init loops over the coverage vector's size. Both index fixed 7- and 3-entry
   tables (`0x00AB2B60`/`7C`/`98`/`A4`) and each other's vectors. A larger count reads the next table, and a
   smaller one drops and leaks pending buildings. **Choice:** treat such a count as a damaged record (RS9 rule).
-- **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
+- ~~**RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]~~ **ANSWERED
+  2026-10-14** from the exe and written into residential.md §9.2. Only `Read` can produce them, through an
+  unresolvable reference or a stream error; the game never writes them. The original does **not** skip them:
+  distribution (`0x006FF622`), coverage (`0x006F8710`), grading (`0x006FFE61`) and `GetBuildings` (`0x006FAD2C`)
+  all dereference the entry and crash. **Choice:** drop nulls in Read, so passes never see one; skipping them in
+  each pass is equivalent.
 - ~~**RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]~~
   **ANSWERED 2026-10-14** from the exe and written into REH §3 (table), REH open question 3 and residential.md
   §5.1. **The bracket is right: host (REH).** In the original they are two floats of the one object (`+0x314`,
