@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "residential_occupant_messages",
+  "spec": ["residential 4.3", "REH 4.1"],
+  "description": "Section 4.3: OccupantInserted / OccupantRemoved with data3 = 0x278128A0 (a building occupant type) and a void1 that is a cISC4BuildingOccupant reach DoBuildingChanged(building, inserted). The world's building hook appends an inserted building to the pending school list holding one reference and erases / releases a removed one, and reports whether the dirty flag is set (first not, then yes). Another occupant type, an occupant that is not a building, or no occupant: nothing. Every message returns true.",
+  "steps": [
+    {"op": "residential_env", "groups": {"8": ["0x150F"]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"dirty": false}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 8, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "building_changed", "id": 8, "inserted": true}, {"event": "add_ref", "id": 8}]},
+    {"op": "residential_expect", "state": {"dirty": false, "lists": {"pending_school": [8]}}},
+    {"op": "residential_expect_refs", "refs": {"8": 1}},
+    {"op": "residential_env", "building_dirty": true},
+    {"op": "residential_message", "type": "OccupantRemoved", "occupant": 8, "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "building_changed", "id": 8, "inserted": false}, {"event": "release", "id": 8}]},
+    {"op": "residential_expect", "state": {"dirty": true, "lists": {"pending_school": []}}},
+    {"op": "residential_expect_refs", "refs": {"8": 0}},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 8, "data3": "0x1234", "expect": true},
+    {"op": "residential_message", "type": "OccupantInserted", "occupant": 9, "expect": true},
+    {"op": "residential_message", "type": "OccupantRemoved", "expect": true},
+    {"op": "residential_expect_events", "events": []}
+  ]
+}

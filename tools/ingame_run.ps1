@@ -71,6 +71,8 @@ foreach ($a in ($Actions -split ';')) {
 }
 $nextAction = 0
 
+# A previous run's game can still be exiting (a quit ending unloads for a few seconds): wait up to 60 s.
+for ($i = 0; (Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue) -and $i -lt 30; $i++) { Start-Sleep -Seconds 2 }
 if (Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue) {
     Write-Output "BLOCKED: SimCity 4 is already running (close it first)"
     exit 2
@@ -86,7 +88,7 @@ for ($i = 0; ; $i++) {
     catch { if ($i -ge 20) { Write-Output "BLOCKED: $Log is locked: $($_.Exception.Message)"; exit 3 }; Start-Sleep -Seconds 3 }
 }
 
-$cityPath = if ($Ini -match "autoload_city\s*=\s*([^
+$cityPath = if ($Ini -match "autoload_city\s*=\s*([^
 ]+)") { $Matches[1].Trim() } else { $null }
 $cityBak = $null
 if ($cityPath -and (Test-Path $cityPath) -and -not $KeepSaves) {

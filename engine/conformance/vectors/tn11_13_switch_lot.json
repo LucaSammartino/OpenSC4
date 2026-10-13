@@ -1,0 +1,259 @@
+{
+  "format": 1,
+  "name": "tn11_13_switch_lot",
+  "spec": [
+    "traffic-network 4.7.1",
+    "traffic-network 4.7.2",
+    "traffic-network 4.7.4",
+    "traffic-network 4.7.5"
+  ],
+  "description": "Extra (§4.7). A lot (1,1)-(2,1), facing 1, whose building has rules [0x01018000] (test 11's rule: kind 0, side north, Car -> Car), capacity 100 and time factor 0.5. Activation: ID 1 and mode mask 2 over the lot rectangle, next ID 2, one building reference, then DoConnectionsChanged(lot). The switch phase clears the switch cells' words (no same-switch rule for east or west) and, for the north neighbour N = (1,0) with ns = SideOf(cell -> N) = 3 and a Car record, adds exit 3 to N's entries 0 and 2 (0x0808) and exits 0 and 2 to entry 3 (0x5000) on top of the piece's 0x0104: conn[1] = 0x590C; conn[2] and conn[4] keep 0x0104. Deactivation releases the building, erases the switch, zeroes both grids and rebuilds (x1-1 .. x2+1).",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        1,
+        0
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "note": "N, north of the lot"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 40,
+      "kind": "building",
+      "cell": [
+        1,
+        1
+      ],
+      "props": {
+        "0xE90E25A1": {
+          "u32": [
+            16875520
+          ]
+        },
+        "0xE90E25A3": {
+          "f32": 100
+        },
+        "0xE90E25A2": {
+          "f32": 0.5
+        }
+      }
+    },
+    {
+      "op": "tn_lot",
+      "id": 7,
+      "rect": [
+        1,
+        1,
+        2,
+        1
+      ],
+      "facing": 1,
+      "building": 40
+    },
+    {
+      "op": "tn_call",
+      "method": "lot_activated",
+      "args": [
+        7
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ]
+      ],
+      "expect": {
+        "switch_id": 1,
+        "switch_mode": 2,
+        "conn": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        3,
+        1
+      ],
+      "expect": {
+        "switch_id": 0,
+        "switch_mode": 0
+      }
+    },
+    {
+      "op": "tn_expect_switch",
+      "id": 1,
+      "switch": {
+        "building": 40,
+        "capacity": "0x42C80000",
+        "time_factor": "0x3F000000",
+        "to_mask": 2,
+        "mode_mask": 2,
+        "rules": [
+          {
+            "kind": 0,
+            "side": [
+              false,
+              true,
+              false,
+              false
+            ],
+            "from": 1,
+            "to": 1
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        0
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x590C",
+          "0x0104",
+          0,
+          "0x0104",
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "next_switch_id": 2,
+        "switch_ids": [
+          1
+        ],
+        "refs": {
+          "40": 1
+        }
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "get_transit_switches",
+      "expect": [
+        40
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "transit_switch_query_target",
+      "args": [
+        2,
+        1
+      ],
+      "expect": {
+        "switch": 1
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "lot_deactivated",
+      "args": [
+        7
+      ]
+    },
+    {
+      "op": "tn_expect_switch",
+      "id": 1,
+      "switch": null
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ]
+      ],
+      "expect": {
+        "switch_id": 0,
+        "switch_mode": 0
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        0
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0104",
+          "0x0104",
+          0,
+          "0x0104",
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "switch_ids": [],
+        "refs": {
+          "40": 0
+        }
+      }
+    }
+  ]
+}

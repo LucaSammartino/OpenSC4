@@ -1240,7 +1240,7 @@ else if (this = cur and (A = cur or B = cur)) or (this ≠ cur and {A, B} = {cur
 | PostLoad `0x26C63342`; PostCityShutdown `0x26D31EC3` for the current city | Move all of L into O: repeatedly take the **last** deal of L and append it to O. L's order is therefore **reversed** at the end of O. |
 | PostCityInit `0x26D31EC1`, only on the current city's record | Refresh the cached statistics from the city (`UpdateCityCache`). |
 | PreSave `0x26C63343`, only on the current city's record | `UpdateCityCache`, then recompute the potential and extrapolated populations. |
-| TerrainReconciliation `0xCA63D517`, only on the current city's record | Rebuild symmetric connections; when `moved` is set, existing connections are first marked for removal and incoming ones treated as new; then `moved` is cleared (details: a region spec). |
+| TerrainReconciliation `0xCA63D517`, only on the current city's record | Rebuild symmetric connections and post **ConnectionsReady**. When the city is not established, data3 ≠ 0 or `moved` is set, existing connections are first marked for removal and incoming ones treated as new. Then `moved` is cleared (§11.6). |
 
 `Write` writes O, then L (§11.2).
 
@@ -1271,6 +1271,82 @@ else if (this = cur and (A = cur or B = cur)) or (this ≠ cur and {A, B} = {cur
   `cISC4RegionalCity`.
 - Standalone mode: FreeCity4 implements §11.2–§11.4 itself, including the PostLoad reversal and the
   `SetLocalDeals` pruning, so that saves and the deal life cycle match.
+
+### 11.6 TerrainReconciliation and ConnectionsReady *[compat]*
+
+**The one poster of ConnectionsReady `0x6AC284F3`** is `cSC4RegionalCity::CreateSymmetricConnections`
+(`0x004AA6D0`). It posts at its very end (`0x004AB739`–`0x004AB77F`), on every call and whatever it found:
+- the message is a new standard message (`0x2C` bytes) with only `SetType`, so data1–data4, the voids and the
+  IGZUnknown are all 0;
+- it is posted queued, at normal priority (`MessagePost(msg, false)`, message-server slot 4, `0x004AB778`), and then
+  released.
+
+A search of the image for the constant finds only this poster and the three subscribers (power, plumbing and
+neighbours: `Init`, `Shutdown`, `DoMessage`). The other hit is the message-name table.
+
+`CreateSymmetricConnections` has one caller: the regional city's TerrainReconciliation handler (`0x004ABDB0`). The
+handler acts only on the record that `cISC4App::GetRegionalCity()` (slot 36) returns, and only while a city
+(`0x00B43CEC`) exists:
+
+1. `forced := (data3 ≠ 0)` and `established := city.GetEstablished()` (city slot 22). data1 and data2 are read
+   and ignored.
+2. If the city is not established, `forced` is true or `moved` is set:
+   - existing connections are marked for removal (`0x004A8570`);
+   - when `moved` is set, `0x004A9580` also runs;
+   - incoming connections are treated as new (`0x004A9220`).
+3. `CreateSymmetricConnections`, which posts ConnectionsReady.
+4. `moved := false`.
+
+**Who posts TerrainReconciliation `0xCA63D517`.** Only the city's terrain (`cSTETerrain`, created for each city by
+`cSC4City::CreateCityComponents`, `0x0045AA10`), in three ways:
+
+1. **Automatically, once per terrain object, so once per city load.** This is `DoAnimationTick` (`0x0074A390`). It
+   runs for each animation tick `0x86AD10EE` that the terrain receives (`DoMessage` `0x0074A590`).
+   - A counter (`+0xD8`) counts the ticks that arrive after the terrain's 3D view exists. It is 0 from the
+     constructor (`0x0074C380`) and is never reset. The terrain's own PostCityInit handler (`0x00749540`) creates
+     the view.
+   - On the **second** such tick, the game preference at preferences `+0x4EC` decides. It is **1** by default
+     (`cSC4Preferences` constructor `0x00449070`). The Game Preferences dialog (`0x0076B110`) and the
+     edge-mismatch dialog's checkbox change it.
+   - If the preference is **0**, TerrainReconciliation is posted at once (`0x0074A3E3`, all data 0).
+   - Otherwise (the default), message `0x2A612643` is posted to the terrain itself (`GeneralMessagePostToTarget`,
+     server slot 7). Its handler (`0x0074A505`) does one of three things:
+     - with no window manager (service `0xA417445E`), it stops, and nothing is ever retried;
+     - while a modal window is running, it posts `0x2A612643` again and waits. The test is window-manager slot 42,
+       a modal depth `+0x17C ≠ 0` that `DoModalWin` raises;
+     - otherwise it calls `ReconcileEdgesWithNeighboringCities(0, 1, 1)` (terrain slot 89).
+2. **`ReconcileEdgesWithNeighboringCities(a, b, c)`** (`0x0074ED40`). It **returns at once, posting nothing, when
+   popup dialogs are disabled** (`SC4GetPopupModalDialogsEnabled` `0x005F9090`, which is `cISC4App` slot 23).
+   Otherwise:
+   - it compares the edge vertices with the neighbouring cities (`ComputeEdgeVerticesToReconcile` `0x0074D010`);
+   - on a mismatch, with a = 0 and b ≠ 0, it shows the modal edge-mismatch dialog (`0x00734E10`). If that dialog is
+     accepted, and b ≠ 0, it shows the damage dialog (`0x00735120`). If that is accepted too, it applies the change
+     (`LockEdgeVerticesAndSmoothen` `0x00748C90`);
+   - with no mismatch and a ≠ 0, it shows the "no mismatch" dialog;
+   - it **always** posts TerrainReconciliation at the end (`0x0074EF20`). data1 = a, data2 = 1 when a mismatch
+     was found, data3 = 1 when the change was applied, and data4 = 0.
+
+   The automatic call (0, 1, 1) with no mismatch shows no dialog and posts all zeros.
+3. **By the player.** The reconcile-edges command of the landscape menu (`cSC4View3DWin::DoLandscapeMenu`,
+   control `0x4A551A6B`) calls `ReconcileEdgesWithNeighboringCities(1, 1, 1)`. So ConnectionsReady is posted
+   again each time the player uses it, behind the same popup gate.
+
+So after a load, ConnectionsReady arrives **once**, a few frames after PostCityInit. With the default preference
+(1), it never arrives, or arrives late, in these cases:
+- **popup dialogs are disabled** (`cISC4App::SetPopupDialogsEnabled(false)`, advisors.md §6.8.1) when the deferred
+  message is handled. Then no TerrainReconciliation is posted that session, and power, plumbing and the neighbours
+  simulator stay disabled *[compat]*;
+- a modal window stays open. The reconcile waits until it closes, and the mismatch and damage dialogs are
+  themselves modal;
+- the window-manager service is missing.
+
+It also needs the current regional-city record and a live city. With the preference at 0, only the regional-city
+condition remains.
+
+*[choice]* In plug-in mode, FreeCity4 does not disable popup dialogs until it has seen ConnectionsReady (it subscribes
+to `0x6AC284F3`). In standalone mode it posts ConnectionsReady once per load, after its own symmetric-connection
+rebuild, which follows PostCityInit *[inferred: no simulation day runs between PostCityInit and the second
+animation tick]*.
 
 ## 12. The C runtime `rand()`
 

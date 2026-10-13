@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "residential_percentage_getter",
+  "spec": ["residential 7.1", "residential 7.2", "residential 15.24", "RS1"],
+  "description": "Test 24 (RS1): every percentage property is multiplied by the float32 0.01f (0x3C23D70A) with one float32 rounding. The shipped reset percentages 80 -> 0x3F4CCCCC (0.79999995, a tie rounded to even); both department blocks: strike efficiency 20 -> 0x3E4CCCCC, max funding 120 -> 0x3F999999, min grade 90 -> 0x3F666666, initial funding 25 -> 0.25 (0x3E800000). With the reset properties absent the code default 0.7 (0x3F333333) stays. The pct helper gives the same: 80 -> 0x3F4CCCCC, 50 -> 0.5.",
+  "steps": [
+    {"op": "residential_call", "method": "pct", "args": [80], "bits": true, "expect": "0x3F4CCCCC"},
+    {"op": "residential_call", "method": "pct", "args": [120], "bits": true, "expect": "0x3F999999"},
+    {"op": "residential_call", "method": "pct", "args": [20], "bits": true, "expect": "0x3E4CCCCC"},
+    {"op": "residential_call", "method": "pct", "args": [50], "bits": true, "expect": "0x3F000000"},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "tuning", "partial": true, "bits": true, "expect": {"eq_reset": "0x3F4CCCCC", "hq_reset": "0x3F4CCCCC"}},
+    {"op": "residential_expect", "bits": true, "state": {
+      "health": {"strike_efficiency": "0x3E4CCCCC", "max_funding": "0x3F999999", "min_grade": "0x3F666666", "init_funding": "0x3E800000", "id": "0x077ACCD2"},
+      "education": {"strike_efficiency": "0x3E4CCCCC", "max_funding": "0x3F999999", "min_grade": "0x3F666666", "init_funding": "0x3E800000", "id": "0x077ACCD0"}
+    }},
+    {"op": "residential_env", "tuning_props": {"0xCA027325": null, "0xCA027328": null}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "tuning", "partial": true, "bits": true, "expect": {"eq_reset": "0x3F333333", "hq_reset": "0x3F333333"}}
+  ]
+}

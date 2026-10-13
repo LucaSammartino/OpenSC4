@@ -27,7 +27,10 @@ use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 
-use super::parcel::{block_depth, depth_rule, middle_row, zone_density, DEFAULT_BLOCK_DEPTH, MAX_WALK_STEPS};
+use super::parcel::{
+    adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, zone_density, DEFAULT_BLOCK_DEPTH,
+    MAX_WALK_STEPS,
+};
 use super::{
     is_rci_zone, lot_code, net, network_kind, ZonesHost, ZonesMessage, BUILDING_TYPE, CLSID_ZONE_DEVELOPER, IID_LOT,
     MAX_CAPACITY_GRID_CLASS, MAX_CAPACITY_GRID_INSTANCE, MSG_INSERT_OCCUPANT, MSG_POST_CITY_INIT, MSG_VIEW,
@@ -36,9 +39,8 @@ use super::{
 use crate::development::{dev_type, BuildingProfile};
 use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::rng::{derive_seed, file_seed, FixedSeeds, RzRandom, SeedSource};
-use crate::stl::StlHashSet;
 use crate::stream::{InStream, OutStream, RefValue, SaveObject};
-use crate::x87::{ftol, r24, rhe};
+use crate::x87::{ftol32, r24, rhe};
 use std::any::Any;
 
 /// The zone developer's record version (§10.2 field 1).
@@ -753,195 +755,182 @@ impl ZoneDeveloper {
         result
     }
 
-    /// `DetermineLotSize(region)` (§7.2.1). No random draws.
+    /// Test/conformance affordance for `DetermineLotSize` (test 30): sets
+    /// `zone` as the current zone type, runs `DetermineLotSize` on `region`
+    /// (the cropped region of §7.2 step 2) and returns the lot-size
+    /// parameters it wrote. The previous zone type is restored. Not part of
+    /// the interface.
+    pub fn determine_lot_size_for_test(&self, region: &super::CellRegion, zone: i32) -> LotSize {
+        let prev_zone = std::mem::replace(&mut self.st.borrow_mut().current_zone, zone);
+        self.determine_lot_size(region);
+        let mut s = self.st.borrow_mut();
+        s.current_zone = prev_zone;
+        s.lot_size
+    }
+
+    /// `DetermineLotSize(region)` (§7.2.1): the lot width, depth, depth range
+    /// and block depth `Parcellize` uses, from the developers that would
+    /// build in this zone. No random draws.
     fn determine_lot_size(&self, region: &super::CellRegion) {
+        const COMMERCIAL: [u32; 5] = [
+            dev_type::CS1,
+            dev_type::CS2,
+            dev_type::CS3,
+            dev_type::CO2,
+            dev_type::CO3,
+        ];
         let rect = region.rect;
-        // 1. Centre.
-        let cx = (i64::from(rect.x1) + i64::from(rect.x2)) / 2;
-        let cz = (i64::from(rect.z1) + i64::from(rect.z2)) / 2;
-        let (cx, cz) = (clamp_i32(cx), clamp_i32(cz));
+        // 1. Centre of the cropped region (C integer division).
+        let cx = clamp_i32((i64::from(rect.x1) + i64::from(rect.x2)) / 2);
+        let cz = clamp_i32((i64::from(rect.z1) + i64::from(rect.z2)) / 2);
         let zone = self.st.borrow().current_zone;
 
-        // 2. Candidate developers by zone; shallow flag for 5–6.
-        let (candidates, shallow) = match zone {
-            1..=3 => (vec![dev_type::R1, dev_type::R2, dev_type::R3], false),
-            4 => (
-                vec![
-                    dev_type::CS1,
-                    dev_type::CS2,
-                    dev_type::CS3,
-                    dev_type::CO2,
-                    dev_type::CO3,
-                ],
-                false,
-            ),
-            5 | 6 => (
-                vec![
-                    dev_type::CS1,
-                    dev_type::CS2,
-                    dev_type::CS3,
-                    dev_type::CO2,
-                    dev_type::CO3,
-                ],
-                true,
-            ),
-            _ => (Vec::new(), false),
+        // 2. Candidate developers (BDS slot 32) by zone; the shallow flag for
+        //    5–6; other zones have none.
+        let (candidates, shallow): (&[u32], bool) = match zone {
+            1..=3 => (&[dev_type::R1, dev_type::R2, dev_type::R3], false),
+            4 => (&COMMERCIAL, false),
+            5 | 6 => (&COMMERCIAL, true),
+            _ => (&[], false),
         };
-        let devs: Vec<u64> = candidates.iter().filter_map(|&t| self.host.bds_developer(t)).collect();
 
-        // 3. Best developer.
-        let mut best: Option<u64> = None;
-        let mut best_desir = i16::MIN;
-        let mut best_demand: i64 = 0;
-        for &dev in &devs {
-            let d = self.host.dev_estimate_desirability(dev, cx, cz);
-            let demand = self
-                .host
-                .dev_source_demand(dev)
-                .map(|v| ftol(f64::from(v)))
-                .unwrap_or(0);
-            match best {
-                None => {
-                    best = Some(dev);
-                    best_desir = d;
-                    best_demand = demand;
-                }
-                Some(_) => {
-                    if i32::from(d) > i32::from(best_desir) || (d == best_desir && demand > best_demand) {
-                        best = Some(dev);
-                        best_desir = d;
-                        best_demand = demand;
-                    }
-                }
+        // 3. Best developer: the first candidate; a later one replaces it if
+        //    its desirability is greater, or equal and its truncated demand
+        //    greater. [choice] A candidate the BDS does not have is skipped:
+        //    the original does not null-check it ([quirk]; the shipped BDS
+        //    has all eight).
+        let mut best: Option<(u64, i16, i32)> = None; // (developer, desirability, bestDemand)
+        for &t in candidates {
+            let Some(dev) = self.host.bds_developer(t) else {
+                continue;
+            };
+            let desirability = self.host.dev_estimate_desirability(dev, cx, cz);
+            // [choice] A missing source demand reads as 0.
+            let demand = self.host.dev_source_demand(dev).map_or(0, |v| ftol32(f64::from(v)));
+            let replaces = match best {
+                None => true,
+                Some((_, d, dem)) => desirability > d || (desirability == d && demand > dem),
+            };
+            if replaces {
+                best = Some((dev, desirability, demand));
             }
         }
 
-        let mut ls = LotSize {
-            width: 2,
-            depth: 2,
-            min_depth: 0,
-            max_depth: 0,
-            block: DEFAULT_BLOCK_DEPTH,
-        };
-
-        // 4–7 only run with a best developer.
-        if let Some(best) = best {
-            // 4. Stage.
+        // 4–6 with a best developer. Without one there is no query and the
+        // configuration set is empty (step 5).
+        let mut configs: Vec<u64> = Vec::new();
+        let mut chosen: Option<u64> = None;
+        if let Some((dev, best_desirability, best_demand)) = best {
+            // 4. Stage: walk the growth list while each item's desirability
+            //    tract value is above the best desirability; the walk keeps
+            //    the last passed item's maxStage, also when it reaches the end.
             let mut stage = 1i32;
-            if let Some(list) = self.host.dev_growth_list(best) {
-                let mut found = false;
+            if let Some(list) = self.host.dev_growth_list(dev) {
                 for item in list {
-                    let v = self.host.dev_desirability_value(best, item.x, item.z);
-                    if i32::from(v) <= i32::from(best_desir) {
-                        found = true;
+                    if self.host.dev_desirability_value(dev, item.x, item.z) <= best_desirability {
                         break;
                     }
                     stage = item.max_stage;
                 }
-                let _ = found;
             }
-            // 5. Lot configurations into a hash_set keyed by cfg id.
-            let purpose = self.host.dev_purpose(best);
-            let wealth = self.host.dev_wealth(best);
-            let list = self.host.configurations_by_filter(purpose, wealth, stage);
-            let mut set = StlHashSet::with_hint(100);
-            let mut by_id: BTreeMap<u32, u64> = BTreeMap::new();
-            for cfg in list {
-                let id = self.host.cfg_id(cfg);
-                set.insert(id);
-                by_id.entry(id).or_insert(cfg);
-            }
-            let order: Vec<u32> = set
-                .iter_order()
-                .into_iter()
-                .filter(|id| by_id.contains_key(id))
-                .collect();
-            let configs: Vec<u64> = order.iter().filter_map(|id| by_id.get(id).copied()).collect();
 
-            // 6. Best configuration by capacity score.
-            let shift = self.host.dev_desirability_shift(best);
-            let k = (1i64 << shift) << shift;
-            let mut chosen: Option<u64> = None;
+            // 5. The configurations the filter `{purpose, wealth, stage}`
+            //    accepts (`IsLotConfigurationIncluded` `0x0072A080`): purpose
+            //    and wealth compatibility and growth stage ≤ stage (the u8
+            //    stage zero-extended, compared signed). The manager AddRefs each
+            //    accepted configuration once as it inserts it into the set.
+            let purpose = self.host.dev_purpose(dev);
+            let wealth = self.host.dev_wealth(dev);
+            let mut keyed: Vec<(u32, u64)> = Vec::new();
+            for cfg in self.host.lot_configurations() {
+                if self.host.cfg_compatible_with_purpose(cfg, purpose)
+                    && self.host.cfg_compatible_with_wealth(cfg, wealth)
+                    && i32::from(self.host.cfg_growth_stage(cfg)) <= stage
+                {
+                    self.host.add_ref(cfg);
+                    keyed.push((self.host.cfg_id(cfg), cfg));
+                }
+            }
+            // [choice] The original's set is keyed by pointer and iterates in
+            // heap-address order (§7.2.1 "Configuration order"); FreeCity4
+            // visits it in ascending configuration ID (test 30e). The sort is
+            // stable, so equal IDs keep the manager's order.
+            keyed.sort_by_key(|&(id, _)| id);
+            configs = keyed.into_iter().map(|(_, cfg)| cfg).collect();
+
+            // 6. The configuration whose capacity value is nearest to the
+            //    best developer's demand (strict `<`: the first wins).
             let mut best_score: i64 = 0;
             for &cfg in &configs {
-                let (sx, sz) = self.host.cfg_size(cfg);
-                let (sx, sz) = (sx as i64, sz as i64);
-                if !((2..=3).contains(&sz) && sx <= 3) {
+                let Some(ids) = self.host.cfg_primary_building_ids(cfg) else {
                     continue;
-                }
-                if shallow && sz > 2 {
-                    continue;
-                }
-                let families = match self.host.cfg_primary_building_families(cfg) {
-                    Some(f) => f,
-                    None => continue,
                 };
-                let (mut mn, mut mx, mut any) = (u16::MAX, 0u16, false);
-                for fam in families {
-                    for bt in self.host.building_types_by_family(fam) {
-                        let prof: BuildingProfile = self.host.building_profile(bt);
-                        if u32::from(prof.purpose) == purpose && u32::from(prof.wealth) == wealth {
+                let (sx, sz) = self.host.cfg_size(cfg);
+                if !((2..=3).contains(&sz) && sx <= 3) || (shallow && sz > 2) {
+                    continue;
+                }
+                // min := 0x7FFFFFFF, max := 0x80000000, over the types of each
+                // ID with the best developer's purpose and wealth.
+                let (mut min, mut max, mut any) = (i32::MAX, i32::MIN, false);
+                for id in ids {
+                    for t in self.host.building_types_by_family(id) {
+                        let p: BuildingProfile = self.host.building_profile(t);
+                        if u32::from(p.purpose) == purpose && u32::from(p.wealth) == wealth {
+                            let capacity = i32::from(p.capacity);
+                            min = min.min(capacity);
+                            max = max.max(capacity);
                             any = true;
-                            mn = mn.min(prof.capacity);
-                            mx = mx.max(prof.capacity);
                         }
                     }
                 }
                 if !any {
                     continue;
                 }
-                let prod = (sx * sz) as f64;
-                let mean = f64::from((u32::from(mn) + u32::from(mx)) / 2);
-                let v = ftol(r24(r24(f64::from(k as i32) / prod) * mean));
-                let score = (v - best_demand).abs();
+                // k := (1 << s) << s, as the x86 shifts compute it.
+                let s = self.host.dev_desirability_shift(dev);
+                let k = 1i32.wrapping_shl(s).wrapping_shl(s);
+                let v = capacity_value(k, sx.wrapping_mul(sz), (min + max) / 2);
+                let score = (i64::from(v) - i64::from(best_demand)).abs();
                 if chosen.is_none() || score < best_score {
                     chosen = Some(cfg);
                     best_score = score;
                 }
             }
-
-            // 7. Lot width/depth, then the depth widening.
-            if let Some(cfg) = chosen {
-                let (sx, sz) = self.host.cfg_size(cfg);
-                ls.width = sx as i32;
-                ls.depth = sz as i32;
-            } else {
-                ls.width = 2;
-                ls.depth = 2;
-            }
-            ls.min_depth = ls.depth;
-            ls.max_depth = ls.depth;
-            let width = ls.width as u32;
-            for &cfg in &configs {
-                let (sx, sz) = self.host.cfg_size(cfg);
-                if sx == 0 {
-                    continue; // [choice] a width of 0 divides by zero in the original
-                }
-                if width % sx == 0 {
-                    ls.min_depth = ls.min_depth.min(sz as i32);
-                    ls.max_depth = ls.max_depth.max(sz as i32);
-                }
-            }
-            if (ls.max_depth as u32).wrapping_sub(ls.min_depth as u32) < 2 {
-                ls.min_depth = if ls.min_depth > 2 { ls.max_depth - 2 } else { 1 };
-                ls.max_depth = ls.min_depth + 2;
-            }
-            // Release every configuration.
-            for &cfg in &configs {
-                self.host.release(cfg);
-            }
         }
 
-        // 8. Block depth.
+        // 7. Lot width/depth := the chosen configuration's size, else (2, 2);
+        //    widen [minDepth, maxDepth] over every configuration of the set
+        //    whose width divides the lot width (unsigned), releasing each one
+        //    as the walk passes it; then the range adjustment.
+        let (width, depth) = match chosen {
+            Some(cfg) => self.host.cfg_size(cfg),
+            None => (2, 2),
+        };
+        let (mut min_depth, mut max_depth) = (depth, depth);
+        for &cfg in &configs {
+            let (sx, sz) = self.host.cfg_size(cfg);
+            // [choice] A configuration of width 0 is skipped: the original
+            // divides by zero.
+            if sx != 0 && width % sx == 0 {
+                min_depth = min_depth.min(sz);
+                max_depth = max_depth.max(sz);
+            }
+            self.host.release(cfg);
+        }
+        let (min_depth, max_depth) = adjust_depth_range(min_depth as i32, max_depth as i32);
+
+        // 8. Block depth by zone density: the residential formulas when the
+        //    best developer's purpose is 1, otherwise the fixed values.
+        //    Density 0 leaves it unchanged (unreachable for zones 1–9).
+        let mut ls = self.st.borrow().lot_size;
+        ls.width = width as i32;
+        ls.depth = depth as i32;
+        ls.min_depth = min_depth;
+        ls.max_depth = max_depth;
         let density = zone_density(zone);
-        let residential = best.is_some_and(|b| self.host.dev_purpose(b) == 1);
-        ls.block = block_depth(density, ls.depth, residential);
-        if ls.min_depth == 0 && ls.max_depth == 0 {
-            // No best developer (zones 7–9, or none from the BDS): no
-            // configurations listed [choice], lot size (2, 2), depths widened
-            // to [1, 3].
-            ls.min_depth = 1;
-            ls.max_depth = 3;
+        if density != 0 {
+            let residential = best.is_some_and(|(dev, _, _)| self.host.dev_purpose(dev) == 1);
+            ls.block = block_depth(density, ls.depth, residential);
         }
         self.st.borrow_mut().lot_size = ls;
     }
@@ -971,18 +960,17 @@ impl ZoneDeveloper {
         let Some(rect) = rect else { return };
         let mut scores = [0i32; 4];
         let mut conds = [if place_streets { 0 } else { 1 }; 4];
-        let (cx, cz) = self.host.city_cell_counts();
+        let (cells_x, cells_z) = self.host.city_cell_counts();
 
-        // The outside rect: R's rect grown by one cell, not past the city edge.
-        let ox1 = (rect.x1 - 1).max(0);
-        let oz1 = (rect.z1 - 1).max(0);
-        let ox2 = (rect.x2 + 1).min(cx - 1);
-        let oz2 = (rect.z2 + 1).min(cz - 1);
-        // At the city edge the "outside" coordinate stays on R's own edge.
-        let gx1 = if rect.x1 == 0 { rect.x1 } else { ox1 };
-        let gz1 = if rect.z1 == 0 { rect.z1 } else { oz1 };
-        let gx2 = if rect.x2 == cx - 1 { rect.x2 } else { ox2 };
-        let gz2 = if rect.z2 == cz - 1 { rect.z2 } else { oz2 };
+        // The outside rect: R's rect grown by one cell, but not past the city
+        // edge (checked on the bytes, §7.3): `x1' := x1 > 0 ? x1 − 1 : x1`,
+        // `x2' := x2 < cellsX − 1 ? x2 + 1 : x2`, the same for z. At the
+        // border the cell examined is R's own edge cell, which scores like an
+        // empty outside cell: neither skipped nor an obstacle (ZQ5, test 31).
+        let gx1 = if rect.x1 > 0 { rect.x1 - 1 } else { rect.x1 };
+        let gz1 = if rect.z1 > 0 { rect.z1 - 1 } else { rect.z1 };
+        let gx2 = if rect.x2 < cells_x - 1 { rect.x2 + 1 } else { rect.x2 };
+        let gz2 = if rect.z2 < cells_z - 1 { rect.z2 + 1 } else { rect.z2 };
 
         let in_region = |x: i32, z: i32| self.st.borrow().restriction.as_ref().is_some_and(|r| r.includes(x, z));
 
@@ -1094,6 +1082,46 @@ impl ZoneDeveloper {
         }
     }
 
+    /// Test/conformance affordance for `CreateParcellizableRegion` (§7.4,
+    /// ZQ2): sets `zone` as the current zone type and, when `highlight` is
+    /// set, switches to highlight mode with the `virtual_lots` cells and the
+    /// `virtually_deleted` cells (each recorded as `{x, z, facing 0}` of its
+    /// own cell; both ignored in real mode); runs the function on `region`
+    /// and returns its result. Real mode and the zone type are restored
+    /// afterwards; the highlight maps keep what the call left in them. Not
+    /// part of the interface.
+    pub fn create_parcellizable_region_for_test(
+        &self,
+        region: &super::CellRegion,
+        zone: i32,
+        highlight: bool,
+        virtual_lots: &[(i32, i32)],
+        virtually_deleted: &[(i32, i32)],
+    ) -> super::CellRegion {
+        let (prev_zone, prev_real) = {
+            let mut s = self.st.borrow_mut();
+            let prev = (s.current_zone, s.real_mode);
+            s.current_zone = zone;
+            if highlight {
+                s.real_mode = false;
+                s.virtual_created.clear();
+                s.virtual_deleted.clear();
+                for &(x, z) in virtual_lots {
+                    s.virtual_created.insert((x, z), VirtualLot { x, z, facing: 0 });
+                }
+                for &(x, z) in virtually_deleted {
+                    s.virtual_deleted.insert((x, z), VirtualLot { x, z, facing: 0 });
+                }
+            }
+            prev
+        };
+        let out = self.create_parcellizable_region(region);
+        let mut s = self.st.borrow_mut();
+        s.current_zone = prev_zone;
+        s.real_mode = prev_real;
+        out
+    }
+
     /// `CreateParcellizableRegion(region)` (§7.4): a new region over the input
     /// rect, all false, with the parcellizable cells set.
     fn create_parcellizable_region(&self, region: &super::CellRegion) -> super::CellRegion {
@@ -1109,13 +1137,14 @@ impl ZoneDeveloper {
                 continue;
             }
             let mut keep = true;
-            if let Some(lot) = self.lot_at(x, z) {
-                let occupied = if real {
-                    true
-                } else {
-                    self.can_create_lot(x, z, 1, 1, false, false) == lot_code::OCCUPIED
-                };
-                if occupied {
+            // "Real mode or the cell is occupied" (ZQ2): the per-cell
+            // `IsCellOccupied`, asked in highlight mode only, not
+            // `CanCreateLot(…) == 7`. The lot then examined is always the
+            // real one, `GetLot(x, z, false)`, which ignores both highlight
+            // maps (so a virtual lot alone examines nothing, and a virtually
+            // deleted real lot under a virtual lot is examined again *[quirk]*).
+            if real || self.is_cell_occupied(x, z) {
+                if let Some(lot) = self.lot_at(x, z) {
                     match self.host.lot_configuration(lot) {
                         Some(cfg) => {
                             if self.host.cfg_compatible_with_zone(cfg, zone) {
@@ -1144,6 +1173,27 @@ impl ZoneDeveloper {
         out
     }
 
+    /// Test/conformance affordance for `SimpleParcellize` (test 32): sets
+    /// `region` as the restriction region, `zone` as the current zone type and
+    /// the orientation's D and Q directly, runs `SimpleParcellize(n)`, and
+    /// restores the previous restriction, zone type and orientation. Not part
+    /// of the interface.
+    pub fn simple_parcellize_for_test(&self, region: &super::CellRegion, zone: i32, d: i32, q: i32, n: i32) {
+        let (prev_region, prev_zone, prev_orientation) = {
+            let mut s = self.st.borrow_mut();
+            let prev = (s.restriction.replace(region.clone()), s.current_zone, s.orientation);
+            s.current_zone = zone;
+            s.orientation.d = d;
+            s.orientation.q = q;
+            prev
+        };
+        self.simple_parcellize(n);
+        let mut s = self.st.borrow_mut();
+        s.restriction = prev_region;
+        s.current_zone = prev_zone;
+        s.orientation = prev_orientation;
+    }
+
     /// `SimpleParcellize(n)` (§7.5): agriculture (n = 16) and industry (n = 6).
     fn simple_parcellize(&self, n: i32) {
         let (rect, place_streets) = {
@@ -1154,7 +1204,12 @@ impl ZoneDeveloper {
         let q = self.st.borrow().orientation.q;
         let d = self.st.borrow().orientation.d;
 
-        // 1. Street lines across the rect (if placeStreets).
+        // 1. Street lines across the rect (if placeStreets). The (Q, D) table
+        //    of §7.5 was checked on the bytes (ZQ6, the jump table at
+        //    0x0072EC44; test 32 pins every arm). Both passes draw their
+        //    streets from the low edge (DrawStreet(x, z1, x, z2, 0) and
+        //    DrawStreet(x1, z, x2, z, 0)); only the line positions show the
+        //    pass direction.
         if place_streets {
             // x lines (§7.5 table: Q 0 and 2 share a rule, Q 1 differs, Q 3
             // always starts low).
@@ -2277,19 +2332,34 @@ impl ZoneDeveloper {
         if self.exists_network_of_type(x, z, net::ANY) {
             return lot_code::NETWORK;
         }
-        // 7: occupied.
-        let occupied = if real {
-            self.lot_at(x, z).is_some()
-        } else {
-            let virt_deleted = self.st.borrow().virtual_deleted.contains_key(&(x, z));
-            let real_lot = self.lot_at(x, z).is_some();
-            let virt_created = self.st.borrow().virtual_created.contains_key(&(x, z));
-            (real_lot && !virt_deleted) || virt_created
-        };
-        if occupied {
+        // 7: occupied (a lot; in highlight mode a real lot not virtually
+        // deleted, or a virtual lot) — the cell condition of IsCellOccupied.
+        if self.is_cell_occupied(x, z) {
             return lot_code::OCCUPIED;
         }
         lot_code::FREE
+    }
+
+    /// `IsCellOccupied(x, z)` (`0x0072C050`, pop 8, AL; §7.4, ZQ2): the zone
+    /// developer's per-cell test, which is the cell condition of
+    /// `CanCreateLot`'s code 7 (§8.4) without the earlier codes 0–3. In
+    /// order:
+    ///
+    /// 1. highlight mode, with the cell in the virtually-deleted map: go to 3;
+    /// 2. a **real** lot on the cell (`GetLot(x, z, false)`) → true;
+    /// 3. highlight mode, with the cell in the virtual-lot map → true;
+    ///    otherwise false.
+    ///
+    /// Real mode: "a real lot is on the cell". Highlight mode: "a real lot
+    /// that is not virtually deleted, or a virtual lot". Not an interface
+    /// slot.
+    pub fn is_cell_occupied(&self, x: i32, z: i32) -> bool {
+        let highlight = !self.st.borrow().real_mode;
+        let virtually_deleted = highlight && self.st.borrow().virtual_deleted.contains_key(&(x, z));
+        if !virtually_deleted && self.lot_at(x, z).is_some() {
+            return true;
+        }
+        highlight && self.st.borrow().virtual_created.contains_key(&(x, z))
     }
 
     /// Slot 22 `CreateLotIfPossible(x, z, w, h, facing, zoneNotNeeded,

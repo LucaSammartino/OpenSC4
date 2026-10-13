@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "residential_quotients",
+  "spec": ["REH 4.8", "REH 11.12", "REH 11.22", "residential 6.2", "RS4", "RS6"],
+  "description": "REH test 12: tract (0, 0) with pops (10, 20, 0) and EQ (100, 50, 0): GetCellEQ = (10 x 100 + 20 x 50) / 30 = 2000 / 30 = 66.666664 (0x42855555). GetAverageEQGrid stores float(trunc(quotient)) per tract (x outer, z inner over the 2 x 2 grid): 66 at (0, 0), 0 elsewhere. RS6: min and max go through every tract, populated or not, so min = 0, max = 66. The spec's RS6 example: a 1 x 2 grid (4 x 8 cells) with R$ 10 at EQ 100 in (0, 0) and an empty (0, 1) gives values 100 and 0, min 0, max 100; an empty city gives min = max = 0; only a grid with no tracts leaves the initial 255 / 0. REH test 22 on a 32 x 32 city: population 0 -> no result (all outputs 0, AL 0); with population 2 and one resident at EQ 10 in tract (2, 3) and one at EQ 80 in (5, 1): min 10 at cell (4/2 + 4 x 2, 2 + 4 x 3) = (10, 14), max 80 at (22, 6). RS4: GetGlobalEQ walks the R$ grid's tracts x outer, z inner, summing per tract in float32, divided by the population: (10 + 80) / 2 = 45.",
+  "steps": [
+    {"op": "residential_env", "cells": [8, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [10, 20, 0], "eq": [100, 50, 0]},
+    {"op": "residential_call", "method": "get_cell_eq", "args": [0, 0], "bits": true, "expect": "0x42855555"},
+    {"op": "residential_call", "method": "average_grid", "args": ["eq"], "expect": {"min": 0, "max": 66, "values": [66, 0, 0, 0], "instance": "0x69D5C351", "size": 4, "refs": 1}},
+    {"op": "residential_call", "method": "average_grid", "args": ["hq"], "expect": {"min": 0, "max": 0, "values": [0, 0, 0, 0], "instance": "0x69D5C360", "size": 4, "refs": 1}},
+
+    {"op": "residential_env", "cells": [4, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [10, 0, 0], "eq": [100, 0, 0]},
+    {"op": "residential_call", "method": "average_grid", "args": ["eq"], "expect": {"min": 0, "max": 100, "values": [100, 0], "instance": "0x69D5C351", "size": 4, "refs": 1}},
+
+    {"op": "residential_env", "cells": [0, 0]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "average_grid", "args": ["eq"], "expect": {"min": 255, "max": 0, "values": [], "instance": "0x69D5C351", "size": 4, "refs": 1}},
+
+    {"op": "residential_env", "cells": [32, 32]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "quotient_min_max", "args": ["eq"], "expect": null},
+    {"op": "residential_set", "state": {"population": 2}},
+    {"op": "residential_tract", "x": 2, "z": 3, "pop": [1, 0, 0], "eq": [10, 0, 0]},
+    {"op": "residential_tract", "x": 5, "z": 1, "pop": [1, 0, 0], "eq": [80, 0, 0]},
+    {"op": "residential_call", "method": "quotient_min_max", "args": ["eq"], "expect": [10, 14, 22, 6, 10, 80]},
+    {"op": "residential_call", "method": "get_global_eq", "expect": 45},
+    {"op": "residential_call", "method": "get_global_hq", "expect": 0},
+    {"op": "residential_call", "method": "slot", "args": [43], "expect": ["GetEQMinAndMaxCellCoords", 24, "AL"]}
+  ]
+}

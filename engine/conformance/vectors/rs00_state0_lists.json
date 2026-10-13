@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "residential_state0_lists",
+  "spec": ["REH 4.1", "residential 10.1"],
+  "description": "State 0 (REH 4.1) distributes the pending school and hospital lists: each building goes to the first group in table order (schools 0x150F, 0x1510, 0x1514, 0x1504, 0x1505, 0x1506, 0x151B; hospitals 0x1512, 0x1513, 0x151C) it belongs to; a building in no group is dropped without Release [quirk]; a null entry is dropped [choice]. The other list moves as a whole to the end of the health-affecting list [inferred]. Slots 46 / 48 count the group lists plus the pending list. Slots 47 / 49 return the groups selected by the ID list (all for null, none for an empty list) and then always the pending list, AddRef'ing each. Slot 61 returns the health-affecting list then the other list, AddRef'ing each.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x1510"], "2": ["0x151B", "0x150F"], "3": ["0x9999"], "4": ["0x1513"]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"lists": {"pending_school": [1, 2, null, 3], "pending_hospital": [4], "other": [5], "health_affecting": [6]}}},
+    {"op": "residential_call", "method": "school_building_count", "expect": 4},
+    {"op": "residential_call", "method": "hospital_building_count", "expect": 1},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 13, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"event": "strike_checks"}, {"event": "ordinance_effects"}]},
+    {"op": "residential_expect", "state": {"lists": {
+      "pending_school": [], "pending_hospital": [], "other": [],
+      "school_groups": [[2], [1], [], [], [], [], []],
+      "hospital_groups": [[], [4], []],
+      "health_affecting": [6, 5]
+    }}},
+    {"op": "residential_call", "method": "school_building_count", "expect": 2},
+    {"op": "residential_call", "method": "hospital_building_count", "expect": 1},
+    {"op": "residential_set", "state": {"lists": {"pending_school": [7]}}},
+    {"op": "residential_call", "method": "school_buildings", "args": [null], "expect": [2, 1, 7]},
+    {"op": "residential_call", "method": "school_buildings", "args": [["0x1510"]], "expect": [1, 7]},
+    {"op": "residential_call", "method": "school_buildings", "args": [[]], "expect": [7]},
+    {"op": "residential_expect_refs", "refs": {"1": 2, "2": 1, "7": 3, "3": 0}},
+    {"op": "residential_call", "method": "hospital_buildings", "args": [null], "expect": [4]},
+    {"op": "residential_set", "state": {"lists": {"other": [8, null]}}},
+    {"op": "residential_call", "method": "health_affecting_buildings", "expect": [6, 5, 8]},
+    {"op": "residential_expect_refs", "refs": {"8": 1, "4": 1, "6": 1, "5": 1}},
+    {"op": "residential_call", "method": "slot", "args": [47], "expect": ["GetSchoolBuildings", 8, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [61], "expect": ["GetHealthAffectingBuildings", 4, "none"]}
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "tn11_09_ferry_cost",
+  "spec": [
+    "traffic-network 4.9.3",
+    "traffic-network 11.9"
+  ],
+  "description": "Conformance test 9 (§11): path lengths 1, 5, 37, 100, 250 give costs 0x3C23D70A, 0x3D4CCCCC, 0x3EBD70A4, 0x3F800000, 0x40200000.",
+  "steps": [
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        1
+      ],
+      "expect": "0x3C23D70A"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        5
+      ],
+      "expect": "0x3D4CCCCC"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        37
+      ],
+      "expect": "0x3EBD70A4"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        100
+      ],
+      "expect": "0x3F800000"
+    },
+    {
+      "op": "tn_eval",
+      "fn": "route_cost",
+      "args": [
+        250
+      ],
+      "expect": "0x40200000"
+    }
+  ]
+}

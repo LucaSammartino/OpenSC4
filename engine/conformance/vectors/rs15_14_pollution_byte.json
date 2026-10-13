@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "residential_pollution_byte",
+  "spec": ["residential 5.5", "residential 15.14", "RS3", "REH 11.15"],
+  "description": "Test 14 (REH test 15, RS3). hqLoss sums GetPollutionValue over the S x S = 16 cells of a tract as a wrapping u32, divides by S x S unsigned, and keeps the low byte. Air source 300 in every cell -> 4800 / 16 = 300 -> 300 mod 256 = 44; the shipped air curve (0, 0)(512, 0.1)(1024, 50) gives 44 / 512 x 0.1 = 0.0085938, so hqLoss = ((0.2 + 0.0085938) + water(0)) + garbage(0) = 0.2085938. Air 600 -> 88 -> 0.2 + 0.0171875 = 0.2171875; air 256 -> 0 -> exactly 0.2f (0x3E4CCCCD). Through DoPopulationChange a steady tract at HQ 10 loses 0.2085938 -> 9.7914062.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_env", "pollution": [300, 0, 0]},
+    {"op": "residential_call", "method": "hq_loss", "args": [0, 0], "expect": 0.2085938},
+    {"op": "residential_env", "pollution": [600, 0, 0]},
+    {"op": "residential_call", "method": "hq_loss", "args": [0, 0], "expect": 0.2171875},
+    {"op": "residential_env", "pollution": [256, 0, 0]},
+    {"op": "residential_call", "method": "hq_loss", "args": [0, 0], "bits": true, "expect": "0x3E4CCCCD"},
+    {"op": "residential_env", "pollution": [300, 0, 0]},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 0, 0], "hq": [10, 0, 0], "age": 30},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "hq": [9.7914062, 0, 0]}
+  ]
+}
