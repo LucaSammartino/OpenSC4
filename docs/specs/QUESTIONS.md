@@ -259,9 +259,15 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
 About `docs/specs/residential.md` and `residential-education-health.md` (REH). All 24 §15 tests pass. REH tests
 1–7, 10 and 18–21 belong to the host's education/health hooks. The core's current answer is in brackets.
 
-- **RS7 — §15 test 8 vs the shipped LE curve (inconsistency):** the shipped Health Quotient → Life Expectancy curve
+- ~~**RS7 — §15 test 8 vs the shipped LE curve (inconsistency):** the shipped Health Quotient → Life Expectancy curve
   gives 65 at HQ 60, not the 61 the test states. The vector uses a flat custom curve to get round it. Which is
-  right: the test's number, or the curve the test should use? [custom curve in the vector]
+  right: the test's number, or the curve the test should use? [custom curve in the vector]~~ **ANSWERED
+  2026-10-14** from the shipped exemplar ("Residential simulator", `0x6941A67F` = (0,50) (20,55) (40,60) (60,65)
+  (200,100)) and foundations §4.3. Test 8 is rewritten in residential.md §15. **The curve is right and the test's
+  61 was wrong:** at GetCellHQ = 60 the curve is exact at its point, so LE = 65. Since 70 > 65 the reset still
+  happens, with the same EQ/HQ results; only leSum changes (65 × 200). The test now uses the shipped curve, with
+  EQ/HQ stored as 50.2 / 60.2, which decay to exactly 50 / 60. The custom curve can go. For LE 61, use HQ 44
+  (exact).
 - **RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]
 - **RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
   read? [nothing repaired; Read fails]

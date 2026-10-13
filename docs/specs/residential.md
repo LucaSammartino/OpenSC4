@@ -847,10 +847,16 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 5. **Newcomers' age**: pops (100, 0, 0) → (150, 0, 0), age 40, LE 100 → age **35**.
 6. **Age quirk**: (100, 0, 0) → (50, 10, 0), age 40, LE 100 → age **71** ((100·40 + 10·30) ÷ 60).
 7. **December**: total > 0, month 12, age 40, no arrivals → 41. Age 255 → 0. Total 0 → age 0.
-8. **Generational reset**: age 70, LE 61 → age 40; EQ 50 → **39.999996** (`0x421FFFFF`), HQ 60 → **47.999996**
-   (`0x423FFFFF`), each × EQreset = HQreset = `0x3F4CCCCC` (§7.1, RS1) with one float32 rounding. The histogram of
-   step 11 then adds trunc(EQ) = **39**, not 40, per resident: with pop (200, 0, 0) at age 40 (bucket 6),
-   ageEqSum[6] += 39 × 200 = 7800. *(Corrected: round 3 of this spec gave 40 and 48, which assumed a double 0.01.)*
+8. **Generational reset**: age 70, pop (200, 0, 0) unchanged, EQ_R$ and HQ_R$ stored as 50.2 and 60.2
+   (`0x4248CCCD`, `0x4270CCCD`). Decay by 0.2f leaves exactly 50.0 and 60.0. Step 7: GetCellHQ = 60.0, and the
+   shipped curve `0x6941A67F` = (0,50) (20,55) (40,60) (60,65) (200,100) is exact at its point (60, 65), so
+   **LE = 65** (RS7). leSum += 65 × 200 = 13000. Since 70 > 65 → age 40; EQ 50 → **39.999996** (`0x421FFFFF`),
+   HQ 60 → **47.999996** (`0x423FFFFF`), each × EQreset = HQreset = `0x3F4CCCCC` (§7.1, RS1) with one float32
+   rounding. The histogram of step 11 then adds trunc(EQ) = **39**, not 40, per resident: with pop (200, 0, 0) at age 40 (bucket 6),
+   ageEqSum[6] += 39 × 200 = 7800. *(Corrected: round 3 of this spec gave 40 and 48, which assumed a double 0.01.
+   Corrected again (RS7): the test said LE 61, which the shipped curve cannot give at HQ 60. The reset and every
+   other number are unchanged. LE 61 needs GetCellHQ = 44 (60 + 4 × 0.25, exact); test 11's LE 61 and LE 75 come
+   from HQ 44 and HQ 100.)*
 9. **Buckets**: age 35 → 5; 17 → 19; 18 → 0; 22 → 0; 76 → 18; 77 → 19; 0 → 19.
 10. **Age groups**: one bucket, age 30 (b = 3), ageCount 200, EQ 50 (ageEqSum 10000) → `0xCA545CAB + g` =
     12, 48, 54, 40, 24, 14, 8, 0, 0 and `0xCA545CCA + g` = 50 for g = 0..6, 0 for g = 7, 8. Each n needs the
