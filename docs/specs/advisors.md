@@ -147,7 +147,8 @@ Subclasses read extra fields: `condition` (a function, reward advices, §6.6) an
 | `0x400` | forced trigger | debug message `0x4A91DD6E` | `GetTrigger` returns true |
 | `0x800` | class mismatch | Init | the advisor re-creates the advice (§4.4) |
 | `0x1000` | reward | `cSC4RewardAdvice::Init` | |
-| `0x2000`, `0x4000` | popup tracker | UI | `0x4000` = "queued for a popup". Persisted with the flags |
+| `0x2000` | city-situation advice | `cSC4CitySituationAdvice::Init` (`0x004239E7`) | the news ticker skips it. Persisted with the flags |
+| `0x4000` | queued for a popup | the popup tracker (§6.8.1) | set when the advice is queued and cleared after it is shown or dropped. An advice with **both** `0x2000` and `0x4000` set is not queued. Persisted with the flags |
 | `0x8000` | no_timeout | Init | |
 
 ### 2.4 Advice info (per advisor, per advice)
@@ -555,7 +556,197 @@ the top or null. Most Lua functions act on the context advice (§8.3).
 `init_advice_popup_priority_thresholds`: thresholds := 100, 100, 100, then read
 `tuning_constants.ADVICE_POPUP_PRIORITIES_BY_SKILL_LEVEL` {`low`, `medium`, `high`} into difficulty 0, 1, 2 (a missing
 key keeps 100). Shipped: 60, 80, 100. `GetAdvicePopupPriorityThreshold()` (slot 21) returns the value for
-`cISC4City.GetDifficultyLevel()` (`+0x60`); any value other than 1 or 2 uses difficulty 0. Only the UI uses it.
+`cISC4City.GetDifficultyLevel()` (`+0x60`); any value other than 1 or 2 uses difficulty 0. The popup tracker
+uses it (§6.8.1).
+
+The thresholds are read **once**, at the system's first `Init`, after `reload_data` (§4.1 step 8). Each key is read
+from the Lua table as a number and stored as an `int32`. No interface slot sets them, and a later change to the Lua
+table has no effect until the next city's `Init`.
+
+#### 6.8.1 Popup display and the simulation pause *[compat]*
+
+Written for unattended runs (HANDOFF §8: an advisor dialog holds the date while `OnTick` keeps counting). Everything
+here was read from the Windows bytes. The popup is UI, but it is the one place where the advisor system stops the
+simulation, so a replacement or a test harness needs it.
+
+**Who shows the popup.** The **advisor popup tracker** (`cSC4AdvisorPopupTracker`, `0x00762BA0`–`0x007638E0`) is a
+24-byte UI object. The city view creates it in `cSC4View3DWin::AddGUI` (`0x007EEFE5`), one per city view. It is
+**not** a GZCOM class: it has no class ID and is not in the COM director, so a plugin can neither replace it nor
+reach it through an interface. `QueryInterface` answers `0x00000001`, `0x2A5A754D` (its window-procedure
+interface) and `0x452294AA` (`cIGZMessageTarget2`). At `Init` it subscribes on MessageServer2 to three messages and
+posts one tick to itself:
+- `AdviceAdded` `0x8A09FA64`;
+- its own tick `0xEA83607B`;
+- `kSC4MessagePreCityShutdown` `0x26D31EC2`.
+
+It keeps a FIFO **queue** of advices (each AddRef'd).
+
+**What it does with each message** (`DoMessage`, `0x00763450`):
+
+1. **`AdviceAdded`.** The advisor posts this on every activation (§6.4). The tracker QIs the message's
+   `IGZUnknown` for `cISC4Advice`. Unless the advice has **both** flags `0x2000` and `0x4000` set, the tracker:
+   - appends the advice to the queue;
+   - sets `0x4000` (`SetFlags`, slot 14);
+   - posts a tick `0xEA83607B` to itself (`GeneralMessagePostToTarget`).
+
+   The skip test is `CheckFlags(0x6000)` (slot 15), which tests **all** bits of the mask. One of the two bits alone
+   does not keep an advice out.
+2. **`PreCityShutdown`.** Clear the queue.
+3. **Tick.** If the queue is empty, or there is no city, or the city has no advisor system: nothing. Otherwise the
+   **safety gate** `SC4GetPopupModalDialogsSafe` (`0x005F9000`) runs. It is false in any of these cases:
+   - a mouse button is held: Win32 `GetKeyState` of `VK_LBUTTON`, `VK_MBUTTON` or `VK_RBUTTON` is negative;
+   - **a modal window is already running**: the window manager (framework service `0xA417445E`, IID `0x5A4`)
+     slot 42 (`+0xA8`) reports a modal depth ≠ 0;
+   - the city's UI lock count is not 0 (`cISC4City` slot 108, `+0x1B0`, `UIGetLockCount`).
+
+   **If the gate is false**, the advice stays queued and the tick is re-posted, so it is retried on every pump pass.
+   **Two tracker popups therefore never nest**: a queued advice waits until the open dialog closes.
+
+   **If the gate is true**, the tracker pops the front advice and shows it **only if all of these hold**:
+
+   | Gate | Test | Interface |
+   |---|---|---|
+   | a | app popup dialogs enabled | `cISC4App` slot 23 (`+0x5C`) `GetPopupDialogsEnabled`, through `SC4GetPopupModalDialogsEnabled` (`0x005F9090`) |
+   | b | the "Urgent Advice Dialogs" play option is on | the preferences byte at offset `0xF0B` (see option 2 below) |
+   | c | `advice.GetPriority()` ≥ `system.GetAdvicePopupPriorityThreshold()` (signed) | `cISC4Advice` slot 7; `cISC4AdvisorSystem` slot 21 (§6.8) |
+   | d | no tutorial is running | `cISC4City` slot 82 (`+0x148`) tutorial system, if any: its slot 8 (`+0x20`) `IsTutorial()` is false |
+   | e | the object at `cISC4City` slot 43 (`+0xAC`), if any, returns false from its slot 13 (`+0x34`) | *[inferred: the vehicle manager's U-Drive-It mode]* |
+
+   The tracker does **not** look at `news_only` (`0x1`), and it does not check that the advice is still active. Mood
+   only picks the layout.
+
+   **When the advice is shown**, in this order:
+   1. Create the dialog from the UI script (group `0x96A006B0`, instance `0x4A5A89D4` for mood < 3, `0x4A5A89D5` for
+      mood ≥ 3).
+   2. **Pause** (below).
+   3. Set the dialog up, then run the window manager's **modal loop** (slot 41, `+0xA4`, `DoModalWin`). This call
+      **blocks inside the message handler** until the dialog ends.
+   4. Afterwards, if the advice is a reward advice (`0x1000`): `SetFlags(8 expire request, on)`.
+   5. **Resume**.
+
+   **In every case after a pop:** `SetFlags(0x4000, off)` and release the advice. If the queue is still not empty,
+   re-post the tick.
+
+   So an advice that fails a gate leaves the popup path for this activation. It stays active in its advisor, and the
+   news ticker can still show it (the ticker skips advices with `0x2000`, `0x00772BDB`).
+
+**How the popup stops the simulation.** A scoped `cSC4AutoGamePause(sound no, animation no, simulator yes, clock
+yes)` (`0x005F9320` / `0x005F9360` → `SC4GamePause` `0x005F91C0`) surrounds the modal loop:
+
+| Object | On show | On close |
+|---|---|---|
+| simulator: framework service `0x46956659`, IID `0x8695664E` | `cISC4Simulator` slot 10 (`+0x28`) **`HiddenPause()`** | slot 13 (`+0x34`) **`HiddenResume()`** |
+| city 24-hour clock: `cISC4City` slot 86 (`+0x158`, `Get24HourClock`) | clock slot 26 (`+0x68`) with 1 | the same slot with 0 |
+
+It is the **hidden** pause (simulator.md §6), not `Pause()`. So `IsPaused()` stays false while `IsHiddenPaused()` and
+`IsAnyPaused()` are true. With FreeCity4's simulator replacement, these two calls arrive in **our**
+`cISC4Simulator`; that is the `hidden` count in the plugin heartbeat.
+
+While the city is held:
+- the advisor ticker takes its paused branch, so the daily step runs every 0.5 s on the same day (§5.1 step 3);
+- advices can therefore still activate and deactivate, and new `AdviceAdded` messages queue behind the open dialog;
+- the date does not advance.
+
+**The hidden count is not a popup count.** Other code also uses the hidden pause, and any of these can raise the count
+while a popup is open:
+- the city view's own short pause during camera moves (`cSC4View3DWin::DoTemporarySimHiddenPause` `0x007E5B40`,
+  released by a timer);
+- city-situation popups;
+- the generic modal dialogs;
+- saving.
+
+The tracker itself never holds more than one.
+
+**How the dialog ends** (the tracker's window procedure, `0x00762D30`):
+1. On **every** window message the dialog receives, the tracker first reads the advice the dialog shows (window
+   property `0xEA9F13C0`). If that advice is **no longer active** (`CheckFlags(2)` false) or has an **expire request**
+   (`CheckFlags(8)`), it ends the dialog.
+2. Then, by message:
+   - a command message (type 3) from control `0x287259F6`, the **Close** button: end the dialog;
+   - a link message `0xE4A85D91`: follow the link (`cSC4HTMLLinkHandler::DoURL`), then end the dialog;
+   - message types `0xA2BF8AD5` and `0xA2BF8AD6`: swallowed with no action *[inferred: key down and key up]*. This
+     matches the observation that **Enter and Esc do nothing** (run 48).
+
+Ending clears the property and ends the modal loop. The loop then returns into the tick handler, which resumes the
+simulator and shows the next queued advice, if any. That is why closing one popup shows the next.
+
+**Other popups that hold the simulation** (gates b–e do not apply to them):
+- **City-situation popups** (`cSC4CitySituationManager::ShowSituationPopup`, `0x0052E910`) take a hidden pause
+  through the same `cSC4AutoGamePause` (with sound paused as well). They test **neither** gate a nor gate b.
+- **The generic dialogs** (`nSC4UI::GenericNotificationDialog` `0x0078DD80`, `GenericConfirmationDialog`
+  `0x0078DFF0`, `DoScriptedModalDialog` `0x0078E2F0`) test only gate a.
+
+**Ways for a plugin to suppress or dismiss advisor popups, best first.**
+
+1. **`cISC4App::SetPopupDialogsEnabled(false)`.** This is `cISC4App` (IID `0x26CE01C0`) slot 24 (`+0x60`): thiscall,
+   one `bool`, pops 4, no return value. The getter is slot 23. The flag:
+   - is set to **true** by the app constructor (`0x0044B316`);
+   - is written by nothing else except this slot;
+   - is **not persisted**, and no ini, registry or command-line switch sets it.
+
+   Call it once per process, any time before the first popup tick (for example at PostAppInit or when the city
+   loads). With the flag false:
+   - every queued advice fails gate a and is dropped, with **no pause**;
+   - `GenericNotificationDialog` shows nothing;
+   - `GenericConfirmationDialog` returns false without asking;
+   - `DoScriptedModalDialog` returns 0 without asking. It is used by the quit, go-to-region, obliterate and
+     budget-failure prompts, and **what those callers then do was not analysed**;
+   - the missing-plugin report and the terrain edge-reconciliation prompt are skipped.
+
+   City-situation popups are not affected.
+
+   The original has its own automation command for exactly this: `SetPopupModalDialogsEnabled` (command `0x6BCE8AE6`,
+   registered by `cGZMiscCommandSystemSupport` next to `GetPopupModalDialogsEnabled` `0xABCE8AA7` and
+   `GetPopupModalDialogsSafe` `0x0BCE8AA5`). So its developers turned popups off this way for scripted runs.
+2. **The "Urgent Advice Dialogs" play option** (Options → Play Options, checkbox control `0x4A7F19F5`, default on).
+   This is gate b, and it affects advisor popups only.
+   - The value is byte `0xF0B` of the preferences block that `cISC4App::GetPreferences()` (slot 38, `+0x98`)
+     returns. The `cSC4Preferences` constructor sets it to 1.
+   - It is saved with the rest of the block by `cISC4App::SavePreferences` (slot 17) into the app preferences file,
+     so **unticking it once by hand keeps it off** for that user profile.
+   - A plugin can write the byte, but that depends on the block's layout, not on an interface.
+3. **Lua thresholds above 100** (gate c; advisor popups only). The thresholds are read only at the system's `Init`
+   (§6.8), so the table must already hold the new values when `reload_data` finishes:
+   - `tuning_constants.ADVICE_POPUP_PRIORITIES_BY_SKILL_LEVEL` is assigned in `adv_const.lua` (key `0xFF048A3E`);
+   - `package_startup` (`0x2000`) runs that file, and several later shipped scripts run it again;
+   - so set `low`, `medium` and `high` to 101 or more from a **package script that loads after every shipped
+     package**: a Lua resource (type `0xCA63E2A3`, group `0x4A5E8EF6`) in a plugin `.dat` whose header is
+     `--#-package:<id>#`, with id > `0x01001000` as a signed number (lua-host.md §7.4).
+
+   A loose file in `<plugin dir>\advisors\` cannot do it: such files only *replace* an existing script (lua-host.md
+   §7.3), so overriding `adv_const.lua` would mean shipping the whole game file. **Not tested.**
+4. **On the simulator side** (FreeCity4 only). Our `cISC4Simulator` receives the `HiddenPause`/`HiddenResume` pair.
+   An autotest switch could count hidden pauses without honouring them. The framework keeps calling `OnTick` during
+   the modal loop (about 1500/s in run 48), so the date would advance under an open dialog. Caveats:
+   - this also cancels every other hidden pause: the hold from `Init` until PostCityInit (simulator.md), the camera
+     pauses and the saving pauses. So it must start after PostCityInit and only in autotest;
+   - the dialog stays on screen, and later advices queue behind it.
+
+   Use it only together with option 1.
+5. **Dismissing an open popup without a click** (*[inferred, not tested]*). Make the shown advice inactive or flag
+   it, by either of:
+   - `cISC4Advice::SetFlags(8, true)` (slot 14);
+   - retiring it through its advisor: `cISC4AdvisorSystem::GetAdvisor(advice.GetAdvisorID())`, then
+     `cISC4Advisor::RetireAdvice` (slot 20).
+
+   The dialog then ends at the **next window message it receives** (step 1 of "How the dialog ends"). It was not
+   checked whether such a message arrives with no user input.
+
+   To find the advice: while it is queued or on screen it carries `0x4000` (`CheckFlags(0x4000)`). It can be
+   reached through the advisors' active maps (`cISC4Advisor` slots 10/11), or by subscribing to `AdviceAdded`
+   `0x8A09FA64` and remembering what arrives. Keys cannot dismiss it (they are swallowed).
+
+**Not available:**
+- There is no per-advice priority setter: `cISC4Advice` has only `GetPriority` (slot 7). The priority comes from the
+  Lua `priority` field at advice `Init`.
+- There is no threshold setter: system slot 21 is a getter.
+- The advisor system's own cheat codes (`DollyLlama`, `Adv`, §4.1 step 7) do not touch popups.
+- Setting `0x2000 | 0x4000` on an advice before the tracker handles its `AdviceAdded` keeps it out of the queue.
+  But `0x2000` also hides it from the news ticker, and a plugin cannot control the order in which it and the
+  tracker receive the message. **Not recommended.**
+
+*[choice]* For long unattended runs FreeCity4 should use option 1, set once per session and logged, and may tell the
+user about option 2 as a manual fallback.
 
 ### 6.9 `SetFlags`, text and global effects
 
