@@ -251,6 +251,39 @@ plugin.
      For each mismatched type: `budget shadow … type T: assessed orig/ours=…/… (orig-ours=D); tax …; ours:
      counted=…, not-livable=…`, then up to N lots of that type, (x,z), size, status, purpose, building/lot wealth,
      value, land value, assessed and tax, those whose assessed value equals |D| first, then not-livable ones.
+   - **Demand shadow** (`demand_shadow = 1`, env `FC4_DEMAND_SHADOW`; off by default; `demand_shadow_nodes = N`,
+     default 8, 0..64): a same-process differential of RCI demand. It needs **our simulator and the original demand
+     simulator** (do not enable `demand`); otherwise it logs `demand shadow: requested … but INACTIVE` at game start.
+     Our simulator wraps two deliveries to the original demand simulator's agent (`cSC4DemandSimulator`):
+     - `SimNewDay` (demand §10.2: `DoIdle(5)`, then the propagation `DoDemandIndexLinks`, the only step that changes
+       committed and active demand): just before it every node of the graph is read through `cISC4Demand` getters
+       (supply, demand, pending supply/demand, active, min/max, tax/economy modifiers, cap, region use); just after
+       it the same, plus `GetNeutralTaxRate()` (only when `0x1001`, `0x3001` and `0x4001` exist). FreeCity4's own
+       propagation (`fc4_demand_shadow_propagate`, the core code our demand simulator runs, on a graph built once from
+       the same demand exemplars) then runs over the states read before, and every node's six values are compared
+       bitwise. All propagation state is in the nodes, so seeding ours from the original each day keeps the inputs
+       identical. If the `DoIdle(5)` slice set the 12 total nodes' modifiers (census state 0, §8.1), ours uses the
+       original's new values (noted). If a census finished inside it (census nodes moved although they only fold
+       their own pending values), their pending values are inferred as post − pre and ours runs again (noted, and
+       counted as `inferred=`: an ulp there is not conclusive).
+     - `SimIdle`: the 12 total nodes' tax/economy modifiers are read before and after; when one changed (census
+       state 0), FreeCity4's §8.1 (`fc4_demand_shadow_modifiers`) from the census sums read before is compared. The
+       CO/I economy bonuses are not readable and are taken as 0 (§15 Q5).
+
+     Read-only: the core's host table (`DemandReadOnlyHost`) has the exemplar reads and the §8.1 getters only (no
+     node creation, reference counting, posts or history writes), and only getters are called on the original;
+     both halves run under the structured-exception guard. Lines (always written):
+
+     ```
+     demand shadow yyyy-mm-dd: demand orig/ours=a/b,…(R$ … I-HT local demand, as the digest; ! = bits differ);
+       active orig/ours=…(the 12 total nodes); neutral orig/ours=…; nodes=N; mismatches=M [0xKEY,…] max|orig-ours|=…
+       maxulps=…; passes=P transfers=T; updates=K clean=C [inferred=I] [; notes]
+     demand shadow yyyy-mm-dd node 0xKEY (ru R): supply orig/ours=…[!(orig-ours=d, u ulp)]; demand …; pending supply …;
+       pending demand …; active …; cap … | before: …          (up to N nodes, 48 lines per update)
+     demand shadow yyyy-mm-dd modifiers (SimIdle|NewDay): tax orig/ours=…(12); econ orig/ours=…(12); neutral=…;
+       mismatches=M; checks=K clean=C
+     demand shadow yyyy-mm-dd modifiers R$ (0x21010): tax …; econ …; before …; ours: max rate … ratio … curve …
+     ```
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,

@@ -164,6 +164,7 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Budget.h
         plugin/FC4BudgetHost.cpp
         plugin/FC4BudgetShadow.cpp
+        plugin/FC4DemandShadow.cpp
         plugin/cFC4LandValue.cpp
         plugin/cFC4LandValue.h
         plugin/cFC4Weather.cpp

@@ -49,11 +49,15 @@
 //! - A growth developer without a source node is skipped by ExportDemand.
 
 mod node;
+mod shadow;
 mod simulator;
 mod tuning;
 
 pub use node::{DemandNode, NodeData, NODE_RECORD_VERSION};
-pub use simulator::{DemandSim, DemandSnapshot, Link, LinkKind, SIM_RECORD_VERSION};
+pub use shadow::{ShadowGraph, ShadowModifiers};
+pub use simulator::{
+    DemandSim, DemandSnapshot, Link, LinkKind, ModifierTerms, PropagationStats, SIM_RECORD_VERSION,
+};
 pub use tuning::{exemplar_prop, DemandExemplar, DemandTuning, NationEconomy, NATION_KEY, TUNING_KEY};
 
 use std::rc::Rc;

@@ -16,6 +16,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
+#include "FC4DemandShadow.h"
 #include "FC4Diag.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -312,11 +313,12 @@ void CellCounts(void* u, int32_t* x, int32_t* z) {
 }
 
 // The simulation date's day number (compiled slot 8, a Julian day).
-uint32_t Today(void* u) {
-    cISC4City* c = CityOf(u);
+uint32_t TodayOf(cISC4City* c) {
     cISC4Simulator* s = c ? c->GetSimulator() : nullptr;
     return s ? static_cast<uint32_t>(fc4::AsGame(s)->GetSimDateNumber()) : 0;
 }
+
+uint32_t Today(void* u) { return TodayOf(CityOf(u)); }
 
 uint32_t NowMs(void*) { return GetTickCount(); }
 
@@ -439,12 +441,11 @@ fc4_props* BuildingExemplar(void* u, uint32_t buildingType) {
 }
 
 // §8.1: the highest value of a series between two Julian days.
-bool HistoryMax(void* u, uint32_t series, uint32_t fromDay, uint32_t toDay, float* max) {
+bool HistoryMaxOf(cISC4City* c, uint32_t series, uint32_t fromDay, uint32_t toDay, float* max) {
     if (!fc4::On(fc4::Sw::History)) {
         fc4::NoteSkipped(fc4::Sw::History, "GetMinMaxAverage (no data)");
         return false;
     }
-    cISC4City* c = CityOf(u);
     cISC4HistoryWarehouse* h = c ? c->GetHistoryWarehouse() : nullptr;
     if (h == nullptr || max == nullptr) return false;
     cFC4Date from(static_cast<int32_t>(fromDay), false);
@@ -461,11 +462,16 @@ bool HistoryMax(void* u, uint32_t series, uint32_t fromDay, uint32_t toDay, floa
     return true;
 }
 
-float OrdinanceFactor(void* u, uint32_t prop, uint32_t index) {
-    cISC4City* c = CityOf(u);
+bool HistoryMax(void* u, uint32_t series, uint32_t fromDay, uint32_t toDay, float* max) {
+    return HistoryMaxOf(CityOf(u), series, fromDay, toDay, max);
+}
+
+float OrdinanceFactorOf(cISC4City* c, uint32_t prop, uint32_t index) {
     cISC4OrdinanceSimulator* o = c ? c->GetOrdinanceSimulator() : nullptr;
     return o ? o->GetCumulativeFactor(prop, index) : 1.0f;
 }
+
+float OrdinanceFactor(void* u, uint32_t prop, uint32_t index) { return OrdinanceFactorOf(CityOf(u), prop, index); }
 
 float NationEconomyModifier(void*, uint32_t demandId) {
     return WithApp([&](cISC4App* app) {
@@ -668,7 +674,33 @@ const fc4_demand_host* NodeHost() {
     return &h;
 }
 
+// The demand shadow's table (user = the cISC4City*): reads only.
+uint32_t ShadowToday(void* u) { return TodayOf(static_cast<cISC4City*>(u)); }
+bool ShadowHistoryMax(void* u, uint32_t series, uint32_t fromDay, uint32_t toDay, float* max) {
+    return HistoryMaxOf(static_cast<cISC4City*>(u), series, fromDay, toDay, max);
+}
+float ShadowOrdinanceFactor(void* u, uint32_t prop, uint32_t index) {
+    return OrdinanceFactorOf(static_cast<cISC4City*>(u), prop, index);
+}
+
 }  // namespace
+
+// FC4DemandShadow.h: the demand host table with the exemplar reads and the
+// §8.1 getters only. Every callback that creates, posts, records, extrapolates
+// or counts references is NULL (the core reads NULL as "nothing").
+fc4_demand_host fc4::DemandReadOnlyHost(cISC4City* city) {
+    fc4_demand_host h{};
+    h.struct_size = sizeof(h);
+    h.user = city;
+    h.for_each_exemplar_key = &ForEachExemplarKey;
+    h.exemplar = &ExemplarProps;
+    h.warn = &Warn;  // our log only
+    h.today = &ShadowToday;
+    h.history_max = &ShadowHistoryMax;
+    h.ordinance_factor = &ShadowOrdinanceFactor;
+    h.nation_economy_modifier = &NationEconomyModifier;
+    return h;
+}
 
 // =====================================================================================================
 // The demand simulator

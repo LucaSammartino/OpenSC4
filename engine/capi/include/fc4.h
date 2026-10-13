@@ -57,8 +57,9 @@ extern "C" {
  * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power);
  * 13 = adds the plumbing simulator (fc4_plumbing);
  * 14 = adds the flammability simulator (fc4_flammability);
- * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax). */
-#define FC4_ABI_VERSION 15u
+ * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax);
+ * 16 = adds the demand shadow (fc4_demand_shadow). */
+#define FC4_ABI_VERSION 16u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1205,6 +1206,68 @@ bool fc4_demand_node_add(fc4_demand_node* n, uint32_t which, float v);
 bool fc4_demand_node_write(const fc4_demand_node* n, const fc4_ostream* out);
 bool fc4_demand_node_read(fc4_demand_node* n, const fc4_istream* in);
 
+/* Demand shadow (diagnostics): FreeCity4's propagation (§4.4) and monthly
+ * modifiers (§8.1), the code its demand simulator runs, over node states read
+ * from another demand simulator (the original game's). Nothing is created in
+ * the game, stored, posted or written. */
+typedef struct fc4_demand_shadow fc4_demand_shadow;
+
+/* One node's state (§3.1). */
+typedef struct fc4_demand_node_state {
+    uint32_t key, region_use;
+    float supply, demand, new_supply, new_demand;
+    float active_demand, active_min, active_max;
+    float economy_modifier, tax_modifier, demand_cap;
+} fc4_demand_node_state;
+
+typedef struct fc4_demand_shadow_info {
+    uint32_t struct_size; /* caller sets = sizeof(fc4_demand_shadow_info) */
+    uint32_t exemplars, keys, links;
+    uint32_t tuning_found; /* 0: the tuning exemplar is missing (code defaults) */
+    uint32_t reserved;
+} fc4_demand_shadow_info;
+
+typedef struct fc4_demand_shadow_stats {
+    uint32_t struct_size; /* caller sets = sizeof(fc4_demand_shadow_stats) */
+    uint32_t nodes, passes, settled, transfers, end_of_cycles;
+    uint32_t missing_targets; /* link visits whose target is not among the nodes */
+    uint32_t reserved;
+} fc4_demand_shadow_stats;
+
+/* §8.1 for one total node. */
+typedef struct fc4_demand_modifier {
+    float tax_modifier, economy_modifier;
+    float max_rate, ratio, tax_curve, ordinance_factor, nation;
+    uint32_t from_history; /* 0: no history in the window, max_rate = neutral * 10 */
+} fc4_demand_modifier;
+
+typedef struct fc4_demand_modifiers {
+    uint32_t struct_size; /* caller sets = sizeof(fc4_demand_modifiers) */
+    uint32_t today;
+    float neutral_raw, neutral;
+    fc4_demand_modifier node[12]; /* 0x21010, 0x21020, ... 0x24400 (§8.1 order) */
+} fc4_demand_modifiers;
+
+/* The graph (§4.2) and tuning (§11.1) from the exemplars `host` serves
+ * (for_each_exemplar_key and exemplar only). NULL on bad arguments. */
+fc4_demand_shadow* fc4_demand_shadow_create(const fc4_demand_host* host);
+void fc4_demand_shadow_destroy(fc4_demand_shadow* s);
+bool fc4_demand_shadow_get_info(const fc4_demand_shadow* s, fc4_demand_shadow_info* out);
+/* The graph's keys (exemplar nodes and link targets), ascending; returns their number. */
+uint32_t fc4_demand_shadow_keys(const fc4_demand_shadow* s, fc4_u32_callback cb, void* ctx);
+/* Whether propagation can change the key's totals other than by folding its
+ * own pending values (a transfer target, or a Sums node). */
+bool fc4_demand_shadow_is_fed(const fc4_demand_shadow* s, uint32_t key);
+/* DoDemandIndexLinks over `count` states (distinct keys) into `output` (same
+ * order; may equal `input`); `stats` may be NULL. False on bad arguments. */
+bool fc4_demand_shadow_propagate(const fc4_demand_shadow* s, const fc4_demand_node_state* input, uint32_t count,
+                                 fc4_demand_node_state* output, fc4_demand_shadow_stats* stats);
+/* GetNeutralTaxRate (unclamped) from the supplies of 0x1001, 0x3001, 0x4001. */
+float fc4_demand_shadow_neutral_tax_rate(const fc4_demand_shadow* s, float r, float c, float i);
+/* §8.1 from those supplies, the saved CO / I economy bonuses, and host's today,
+ * history_max, ordinance_factor and nation_economy_modifier (no other callback). */
+bool fc4_demand_shadow_modifiers(const fc4_demand_shadow* s, const fc4_demand_host* host, float r, float c, float i,
+                                 float co_bonus, float i_bonus, fc4_demand_modifiers* out);
 /* ---- the game's grids, shared by the grid simulators ----------------------------
  *
  * The game's own cSC4SimGrid<T> objects (simgrid.md §6.4), driven by the core.
@@ -1799,6 +1862,10 @@ static_assert(sizeof(fc4_demand_connection) == 24, "fc4_demand_connection layout
 static_assert(sizeof(fc4_demand_growth_developer) == 24, "fc4_demand_growth_developer layout");
 static_assert(sizeof(fc4_demand_sim_state) == 44, "fc4_demand_sim_state layout");
 static_assert(sizeof(fc4_demand_host) == (sizeof(void*) == 4 ? 172 : 344), "fc4_demand_host layout");
+static_assert(sizeof(fc4_demand_node_state) == 48, "fc4_demand_node_state layout");
+static_assert(sizeof(fc4_demand_shadow_info) == 24, "fc4_demand_shadow_info layout");
+static_assert(sizeof(fc4_demand_shadow_stats) == 32, "fc4_demand_shadow_stats layout");
+static_assert(sizeof(fc4_demand_modifiers) == 400, "fc4_demand_modifiers layout");
 static_assert(sizeof(fc4_grid_api) == (sizeof(void*) == 4 ? 40 : 80), "fc4_grid_api layout");
 static_assert(sizeof(fc4_cell_rect) == 16, "fc4_cell_rect layout");
 static_assert(sizeof(fc4_power_post) == 32, "fc4_power_post layout");
