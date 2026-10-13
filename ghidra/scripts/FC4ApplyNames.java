@@ -109,7 +109,7 @@ public class FC4ApplyNames extends GhidraScript {
             println("archive " + args[i] + ": " + archiveStructs.size() + " structures indexed so far");
         }
 
-        int renamed = 0, missing = 0, failed = 0, typed = 0;
+        int renamed = 0, missing = 0, failed = 0, typed = 0, created = 0;
         Map<String, Boolean> classTyped = new HashMap<>();
         try (BufferedReader br = new BufferedReader(new FileReader(tsv))) {
             String line = br.readLine(); // header
@@ -119,12 +119,14 @@ public class FC4ApplyNames extends GhidraScript {
                 if (f.length < 4) continue;
                 Address addr = toAddr(Long.parseLong(f[0], 16));
                 Function fn = getFunctionAt(addr);
-                if (fn == null && f[2].startsWith("manual") && getInstructionAt(addr) == null) {
+                // Every listed address is a function entry (hand-verified, or matched as an entry); create the
+                // ones this project's auto-analysis missed.
+                if (fn == null && getInstructionAt(addr) == null) {
                     disassemble(addr);
                 }
-                if (fn == null && f[2].startsWith("manual") && getInstructionAt(addr) != null
-                        && getFunctionContaining(addr) == null) {
-                    fn = createFunction(addr, null); // hand-verified entry the deep pass missed
+                if (fn == null && getInstructionAt(addr) != null && getFunctionContaining(addr) == null) {
+                    fn = createFunction(addr, null);
+                    if (fn != null) created++;
                 }
                 if (fn == null) { missing++; continue; }
                 String full = f[1];
@@ -170,6 +172,6 @@ public class FC4ApplyNames extends GhidraScript {
             }
         }
         for (FileDataTypeManager a : archives) a.close();
-        println("renamed=" + renamed + " missing=" + missing + " failed=" + failed + " thiscallConverted=" + typed);
+        println("renamed=" + renamed + " missing=" + missing + " failed=" + failed + " thiscallConverted=" + typed + " created=" + created);
     }
 }

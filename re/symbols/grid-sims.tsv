@@ -134,7 +134,7 @@ va	name	evidence	mac_x86
 006e63c0	cSC4PollutionSimulator::UpdatePollutionVisualEffect	DoMessage PostCityInit/PreViewLevelChange branch	0006d690
 006e5b10	cSC4PollutionSimulator::ReadSimulatorTunableValues	DoMessage IngredChangesMade branch; reads 0x69501944, 0x49134BD4.. from exemplar 0xC911E35B	0006bab6
 006e7930	cSC4PollutionSimulator::EndOfCycle	called from DoDailySimulation; posts 0xDA6DD35D/0xFA6DD0BB/... map-changed messages	0006b762
-006e3820	cSC4PollutionSimulator::GetUnusedCapacity	called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)	000694a4
+006e3820	cSC4PollutionSimulator::Dispose	formerly misnamed GetUnusedCapacity; called 3x at top of DoDailySimulation (one per incinerator/WTE/water-treatment list)	000694a4
 006e3fe0	cSC4PollutionSimulator::SetOccupantListUsedCapacity	called 3x near end of DoDailySimulation	00069e2e
 006e4100	cSC4PollutionSimulator::CalcMaintenanceCosts	called 3x at end of DoDailySimulation	0006a2e0
 006e3d00	cSC4PollutionSimulator::AgeOccupantList	called 3x from DoMonthlySimulation; reads 0xEA1CF220..222	00069f46
@@ -330,3 +330,4 @@ va	name	evidence	mac_x86
 006b16d0	cSC4FloraSimulator::DoDailySimulation	DoMessage SimNewDay branch	0008abcc
 006b04f0	cSC4FloraSimulator::DoOccupantInserted	DoMessage InsertOccupant (0x99EF1142) branch	0008a2e6
 006b1190	cSC4FloraSimulator::DoOccupantRemoved	DoMessage RemoveOccupant (0x99EF1143) branch	0008ac80
+006e01a0	cSC4PoliceSimulator::GetJails	police simulator vtable slot 32 (cISC4PoliceSimulator::GetJails in the SDK slot order), not IsJail; fixed in 6bfb824	

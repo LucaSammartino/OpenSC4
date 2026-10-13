@@ -99,21 +99,28 @@ addresses alongside the matching named Mac Rev A function.
   - It also detects identical-code-folded functions.
 - `ghidra/scripts/`: headless scripts that apply names (with evidence as plate comments) and export
   per-namespace decompilation.
+- `tools/setup_ghidra.ps1`: builds the Ghidra projects from your own executables and exports the analysis tables.
 - `tools/build.ps1`: the full pipeline (match → merge → apply → export to `decomp/`).
 - `tools/dbpf.py`, `tools/extract_tuning.py`: read-only DBPF/exemplar reader and tuning dumper.
 - `tools/x86dis.py`, `tools/class_vtables.py`: quick disassembly and vtable discovery from a CLSID.
 
 ## Rebuilding locally
 
+Everything is built from your own copy of the game. Nothing decompiled is downloaded or committed.
+
 1. Install Ghidra 12.1.x (`C:\tools\ghidra_12.1.4_PUBLIC`), JDK 21+, Python with `pefile` and `capstone`.
 2. Copy `SimCity 4.exe` to `bin\SimCity4.exe`.
-3. Clone [KillaVolt/SimCity-4-Deluxe-GOG-Decompiled](https://github.com/KillaVolt/SimCity-4-Deluxe-GOG-Decompiled)
-   to `external\sc4-decomp` and pull its `sc4-ghidra-state` LFS package. Extract the
-   `sc4-windows-analysis`, `sc4-mac-symbol-analysis` and `sc4-ghidra-state` packages into `external\extracted\`.
-4. Clone [0xC0000054/sc4-ghidra-symbols](https://github.com/0xC0000054/sc4-ghidra-symbols) to `external\`.
-5. Copy `external\extracted\sc4-ghidra-state\artifacts\ghidra\deep\BaseGameAnalysis.{gpr,rep}` to
-   `ghidra\project\FreeCity4.{gpr,rep}` and set the owner in `project.prp` to your user name.
-6. Run `.\tools\build.ps1`.
+3. Clone [0xC0000054/sc4-ghidra-symbols](https://github.com/0xC0000054/sc4-ghidra-symbols) to
+   `external\sc4-ghidra-symbols` (type archives and Function ID databases).
+4. Run `.\tools\setup_ghidra.ps1 -Windows`. It imports the exe into `ghidra\project\FreeCity4`, runs
+   auto-analysis with the Function ID databases attached, and exports the analysis tables to `ghidra\export\windows`.
+5. Run `.\tools\build.ps1 -SkipMatch`. It applies the committed names (`re\names_windows.tsv`), labels and types,
+   then exports the decompilation to `decomp\`.
+
+Optional, only to re-run the symbol port or to read the named Mac code: get the Mac "Rev A" Intel executable
+(Aspyr's Mac port, which kept its debug symbols) from the
+[SC4 Maxis files](https://community.simtropolis.com/sc4-maxis-files/) archive on Simtropolis, run
+`.\tools\setup_ghidra.ps1 -Mac <path>`, then `.\tools\build.ps1` (with matching).
 
 ## Caveats
 

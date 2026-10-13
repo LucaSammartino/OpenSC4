@@ -1,0 +1,6 @@
+va	name	evidence	mac_x86
+00441a60	cRZCellMap<bool>::~cRZCellMap	zones.md: cell-map destructor (was SetValue)	
+00466610	SC4CellRegion<long>::IncludesCell	zones.md	
+00467950	std::set<cRZAutoRefCount<cISC4Lot>>::insert	zones.md: set insert (was SC4CellRegion<long>::IncludesCell; the real one is 0x00466610)	
+00473ec0	std::list<cRZAutoRefCount<cISC4Lot>>::clear	zones.md, allocators.md: releases each element, frees nodes with B, keeps the head	
+0072c810	cSC4ZoneDeveloper::InsertLotAtSafeIterator	zones.md: inserts at a safe-iterator position	
