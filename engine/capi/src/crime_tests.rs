@@ -849,7 +849,7 @@ fn shadow_replay() {
         let s = fc4_crime_shadow_create(&h);
         assert!(!s.is_null());
         let mut info = fc4_crime_shadow_info::default();
-        assert!(fc4_crime_shadow_info(s, &mut info));
+        assert!(fc4_crime_shadow_get_info(s, &mut info));
         assert_eq!(
             (info.types, info.tuning_found, info.tract_size, info.decay),
             (14, 1, 2, 0.8)

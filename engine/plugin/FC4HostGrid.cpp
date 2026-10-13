@@ -31,6 +31,9 @@ constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
 constexpr uint32_t kClsBool = 0x49B9E601;
 constexpr uint32_t kClsU8 = 0x49B9E602;
 constexpr uint32_t kClsI16 = 0x49B9E605;
+// uint16 (simgrid §2): read only (GetTractValue), for the residential population
+// grids crime reads (crime.md §6.1); never created or written here.
+constexpr uint32_t kClsU16 = 0x49B9E604;
 constexpr uint32_t kClsF32 = 0x49B9E60A;
 
 const HostGridContext* Ctx(void* u) { return static_cast<const HostGridContext*>(u); }
@@ -102,6 +105,7 @@ double Get(void*, uint64_t t, uint32_t kind, int32_t x, int32_t z) {
     if (t == 0) return 0.0;
     switch (kind) {
         case kClsI16: return As<int16_t>(t)->GetTractValue(x, z);
+        case kClsU16: return As<uint16_t>(t)->GetTractValue(x, z);
         case kClsF32: return As<float>(t)->GetTractValue(x, z);
         case kClsU8:
         case kClsBool: return As<uint8_t>(t)->GetTractValue(x, z);

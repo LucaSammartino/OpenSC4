@@ -54,6 +54,11 @@
 //         Release returns 0), b = mode: bit 0 = note an acquired reference
 //         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED
 //         (else FC4_RELEASE); returns the reference warnings it caused.
+//   op 13 kFC4SeamCrimeShadow      a = const FC4CrimeShadowTestInput*
+//         (FC4CrimeShadow.h): one crime-shadow month (SimNewMonth, then
+//         SimNewDay up to pipeline state 4) to a fake "original" crime
+//         simulator; returns the month's mismatch count, -1 (not taken) or
+//         -2 (delivered, nothing compared).
 #pragma once
 
 #include <cstdint>
@@ -73,6 +78,7 @@ enum : uint32_t {
     kFC4SeamBudgetShadow = 10,
     kFC4SeamDemandShadow = 11,
     kFC4SeamRefAuditRelease = 12,
+    kFC4SeamCrimeShadow = 13,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

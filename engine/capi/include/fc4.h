@@ -2029,7 +2029,7 @@ typedef struct fc4_crime_shadow_month_out {
 
 fc4_crime_shadow* fc4_crime_shadow_create(const fc4_crime_host* host);
 void fc4_crime_shadow_destroy(fc4_crime_shadow* s);
-bool fc4_crime_shadow_info(const fc4_crime_shadow* s, fc4_crime_shadow_info* out);
+bool fc4_crime_shadow_get_info(const fc4_crime_shadow* s, fc4_crime_shadow_info* out);
 /* §6.7: 1 = a candidate, 0 = not, -1 = unknown type. */
 int32_t fc4_crime_shadow_candidate(const fc4_crime_shadow* s, uint32_t type_id, uint32_t zone_type, bool has_building,
                                    uint32_t purpose, uint32_t wealth, uint8_t condition);

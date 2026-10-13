@@ -17,6 +17,7 @@
 #include "FC4Checked.h"
 #include "FC4Config.h"
 #include "FC4BudgetShadow.h"
+#include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -27,6 +28,7 @@
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
 #include "cFC4Flammability.h"
+#include "cFC4Crime.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -124,6 +126,11 @@ const ClassEntry kFlammabilityClasses[] = {
     {0xE990C045, "cSC4FlammabilitySimulator", &CreateFC4FlammabilitySimulator},
 };
 
+// docs/specs/crime.md §1. Off by default (M3 glue trial): `enable = crime`.
+const ClassEntry kCrimeClasses[] = {
+    {0x8990C09A, "cSC4CrimeSimulator", &CreateFC4CrimeSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -136,6 +143,7 @@ const Subsystem kSubsystems[] = {
     {"plumbing", nullptr, kPlumbingClasses, sizeof(kPlumbingClasses) / sizeof(kPlumbingClasses[0]), false},
     {"flammability", nullptr, kFlammabilityClasses, sizeof(kFlammabilityClasses) / sizeof(kFlammabilityClasses[0]),
      false},
+    {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -221,6 +229,13 @@ void Resolve() {
     // kSubsystems[0] is the simulator, [1] the budget, [5] demand.
     BudgetShadowStartup(g_enabled[0], g_enabled[1]);
     DemandShadowStartup(g_enabled[0], g_enabled[5]);
+    const auto enabledKey = [](const char* key) {
+        for (size_t i = 0; i < kSubsystemCount; ++i) {
+            if (strcmp(kSubsystems[i].key, key) == 0) return g_enabled[i];
+        }
+        return false;
+    };
+    CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
 }
 
 }  // namespace
