@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "name": "tn11_10_switch_entry_cost",
+  "spec": [
+    "traffic-network 4.7.3",
+    "traffic-network 11.10"
+  ],
+  "description": "Conformance test 10 (§11). load 0, capacity 100: q = 0 -> Curve(0) x multiplier x timeFactor (here r24(r24(2.0 x 1.5) x 0.5) = 1.5). load 600, capacity 100: q = 6 -> 0x7EFFFFFF. load 0, capacity 0: NaN -> 0x7EFFFFFF. An unknown ID inserts a default switch (capacity 0) -> 0x7EFFFFFF.",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_curve",
+      "points": [
+        [
+          0,
+          2
+        ]
+      ],
+      "multiplier": 1.5,
+      "note": "Curve(0) = 2.0"
+    },
+    {
+      "op": "tn_switch",
+      "id": 1,
+      "load": 0,
+      "capacity": 100,
+      "time_factor": 0.5
+    },
+    {
+      "op": "tn_switch",
+      "id": 2,
+      "load": 600,
+      "capacity": 100,
+      "time_factor": 0.5
+    },
+    {
+      "op": "tn_switch",
+      "id": 3,
+      "load": 0,
+      "capacity": 0,
+      "time_factor": 0.5
+    },
+    {
+      "op": "tn_call",
+      "method": "transit_switch_entry_cost",
+      "args": [
+        1
+      ],
+      "expect": "0x3FC00000",
+      "note": "q = 0: r24(r24(2.0 x 1.5) x 0.5) = 1.5"
+    },
+    {
+      "op": "tn_call",
+      "method": "transit_switch_entry_cost",
+      "args": [
+        2
+      ],
+      "expect": "0x7EFFFFFF",
+      "note": "q = 6"
+    },
+    {
+      "op": "tn_call",
+      "method": "transit_switch_entry_cost",
+      "args": [
+        3
+      ],
+      "expect": "0x7EFFFFFF",
+      "note": "0/0 = NaN"
+    },
+    {
+      "op": "tn_expect_switch",
+      "id": 77,
+      "switch": null
+    },
+    {
+      "op": "tn_call",
+      "method": "transit_switch_entry_cost",
+      "args": [
+        77
+      ],
+      "expect": "0x7EFFFFFF",
+      "note": "unknown ID"
+    },
+    {
+      "op": "tn_expect_switch",
+      "id": 77,
+      "switch": {
+        "capacity": "0x00000000",
+        "load": "0x00000000"
+      }
+    }
+  ]
+}

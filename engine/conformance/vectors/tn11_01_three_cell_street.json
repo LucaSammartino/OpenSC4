@@ -1,0 +1,390 @@
+{
+  "format": 1,
+  "name": "tn11_01_three_cell_street",
+  "spec": [
+    "traffic-network 4.2",
+    "traffic-network 4.3",
+    "traffic-network 4.5",
+    "traffic-network 4.6",
+    "traffic-network 11.1"
+  ],
+  "description": "Conformance test 1 (§11). A 4 x 4 city, shipped tuning. Street occupants (IsOfType(3) only) answer PathConnection only for path type 1 (car): A = (1,1) has no connections and a turn-around at entry 2; B = (2,1) has (0 -> 2) and (2 -> 0); C = (3,1) a turn-around at entry 0. Inserted A, B, C, then DoPostCityInit. The travel types on network 1 are 1, 2 and 4, so conn[1] = conn[2] = conn[4]: A 0x0400 (bit x + 4e = 2 + 8), B 0x0104 (bits 2 and 8), C 0x0001; connCount 1, 2, 1; type 3; invCap = invCapTable[Street] = 0x3C23D70A; extraCost 0.0. Every other conn word is 0, switch 0xFFFF, priorCar 0xFFFF; no records for other networks. The intersection pass leaves invCap unchanged. GetCapacity(1,2,1) = 100.0 (0x42C80000), GetConnectionCount(1,2,1) = 2, GetCapacity(0,2,1) = 0.0.",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        1,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        2
+      ],
+      "note": "A: no car connections, turn-around at entry 2"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "cell": [
+        2,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "note": "B: (0 -> 2) and (2 -> 0)"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 3,
+      "cell": [
+        3,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        0
+      ],
+      "note": "C: turn-around at entry 0"
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        1
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0400",
+          "0x0400",
+          0,
+          "0x0400",
+          0,
+          0,
+          0,
+          0
+        ],
+        "switch": [
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "prior_car": [
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "wormhole": 0,
+        "records": [
+          {
+            "net": 1,
+            "conn_count": 1,
+            "type": 3,
+            "inv_cap": "0x3C23D70A",
+            "extra_cost": "0x00000000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        2,
+        1
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0104",
+          "0x0104",
+          0,
+          "0x0104",
+          0,
+          0,
+          0,
+          0
+        ],
+        "switch": [
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "prior_car": [
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "wormhole": 0,
+        "records": [
+          {
+            "net": 1,
+            "conn_count": 2,
+            "type": 3,
+            "inv_cap": "0x3C23D70A",
+            "extra_cost": "0x00000000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        3,
+        1
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0001",
+          "0x0001",
+          0,
+          "0x0001",
+          0,
+          0,
+          0,
+          0
+        ],
+        "switch": [
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "prior_car": [
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "wormhole": 0,
+        "records": [
+          {
+            "net": 1,
+            "conn_count": 1,
+            "type": 3,
+            "inv_cap": "0x3C23D70A",
+            "extra_cost": "0x00000000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "expect": {
+        "conn": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "switch": [
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "prior_car": [
+          65535,
+          65535,
+          65535,
+          65535
+        ],
+        "records": []
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "update_intersection_data",
+      "note": "no connCount > 2: invCap unchanged"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          3,
+          1
+        ]
+      ],
+      "expect": {
+        "car": {
+          "inv_cap": "0x3C23D70A"
+        }
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "get_capacity",
+      "args": [
+        1,
+        2,
+        1
+      ],
+      "expect": "0x42C80000",
+      "note": "100.0"
+    },
+    {
+      "op": "tn_call",
+      "method": "get_connection_count",
+      "args": [
+        1,
+        2,
+        1
+      ],
+      "expect": 2
+    },
+    {
+      "op": "tn_call",
+      "method": "get_capacity",
+      "args": [
+        0,
+        2,
+        1
+      ],
+      "expect": "0x00000000",
+      "note": "no network-0 record"
+    }
+  ]
+}

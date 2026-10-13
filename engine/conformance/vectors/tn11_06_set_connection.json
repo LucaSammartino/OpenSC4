@@ -1,0 +1,265 @@
+{
+  "format": 1,
+  "name": "tn11_06_set_connection",
+  "spec": [
+    "traffic-network 4.3",
+    "traffic-network 11.6"
+  ],
+  "description": "Conformance test 6 (§11). At (0,0), SetConnection(0,0,2,2,car) sets conn[1] |= 0x0400 and the east neighbour's priorCar[(2+2) mod 4 = 0] |= 0x1111 << 2 = 0x4444. SetConnection(0,0,0,0,car) sets only conn[1] |= 1, because the west neighbour is off-map. (Every priorCar word is cleared first so the ORs show.)",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_set_cell",
+      "cells": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "prior_car": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "note": "cleared so the ORs are visible"
+    },
+    {
+      "op": "tn_call",
+      "method": "set_connection",
+      "args": [
+        0,
+        0,
+        2,
+        2,
+        1
+      ],
+      "note": "turn-around at entry 2, car"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        0,
+        0
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0400",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        0
+      ],
+      "expect": {
+        "prior_car": [
+          "0x4444",
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "set_connection",
+      "args": [
+        0,
+        0,
+        0,
+        0,
+        1
+      ],
+      "note": "turn-around at entry 0: the west neighbour is off-map"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        0,
+        0
+      ],
+      "expect": {
+        "conn": [
+          0,
+          "0x0401",
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        0
+      ],
+      "expect": {
+        "prior_car": [
+          "0x4444",
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          2
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          3,
+          3
+        ]
+      ],
+      "expect": {
+        "prior_car": [
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    }
+  ]
+}

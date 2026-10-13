@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "tn11_11_rule_rotation",
+  "spec": [
+    "traffic-network 4.1",
+    "traffic-network 4.7.1",
+    "traffic-network 4.7.2",
+    "traffic-network 11.11"
+  ],
+  "description": "Conformance test 11 (§11). Facing 1, rule u32 0x01_01_80_00: b0 = 0x00 -> kind 0; b1 = 0x80 -> i = 0 -> side ROT[1][0] = 1 (north); from = 1, to = 1. The 'to' mask gets 0x0002 and the mode mask bit 1.",
+  "steps": [
+    {
+      "op": "tn_eval",
+      "fn": "read_rules",
+      "args": [
+        1,
+        [
+          16875520
+        ]
+      ],
+      "expect": {
+        "rules": [
+          {
+            "kind": 0,
+            "side": [
+              false,
+              true,
+              false,
+              false
+            ],
+            "from": 1,
+            "to": 1
+          }
+        ],
+        "to_mask": 2,
+        "flags": 0,
+        "mode_mask": 2
+      }
+    },
+    {
+      "op": "tn_eval",
+      "fn": "read_rules",
+      "args": [
+        2,
+        [
+          50495618
+        ]
+      ],
+      "expect": {
+        "rules": [
+          {
+            "kind": 1,
+            "side": [
+              true,
+              false,
+              false,
+              false
+            ],
+            "from": 2,
+            "to": 3
+          }
+        ],
+        "to_mask": 0,
+        "mode_mask": 0
+      },
+      "note": "b0 = 0x82 -> kind 1; facing 2: ROT[2][0] = 0; kind-1 rules add no 'to' bit and no mode bit"
+    }
+  ]
+}

@@ -1421,6 +1421,20 @@ fn ferry_terminals_route_and_link() {
         assert_eq!(s.car_info(1, 2).unwrap().conn_count, 1);
     }
     assert_eq!(m.all_ferry_routes().len(), 2);
+    // §4.9.5 GetFerryRoutesInUse: a link with a non-zero last counter gives
+    // one record (lots by their cells, neighbour 0, cell (−2, −2), both
+    // routes); B's link back is skipped because A was visited.
+    m.update_state(|s| {
+        s.ferries[0].links[0].counters = [3, 0, 0, 0];
+        s.ferries[1].links[0].counters = [0, 0, 5, 0];
+    });
+    let used = m.ferry_routes_in_use();
+    assert_eq!(used.len(), 1);
+    let r = &used[0];
+    assert_eq!((r.lot_a, r.lot_b, r.ferry_type), (8, 9, 1));
+    assert_eq!((r.neighbour, r.neighbour_x, r.neighbour_z), (0, -2, -2));
+    assert_eq!(r.route_ab, encode_route(&[(1, 0), (2, 0), (3, 0), (4, 0), (5, 0)]));
+    assert_eq!(r.route_ba, encode_route(&[(5, 0), (4, 0), (3, 0), (2, 0), (1, 0)]));
     // §4.9.4: removal of A deletes B's link back to A, no rebuild.
     m.lot_deactivated(8);
     let s = m.state();

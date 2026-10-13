@@ -1,0 +1,270 @@
+{
+  "format": 1,
+  "name": "tn11_04c_highway_not_reduced",
+  "spec": [
+    "traffic-network 4.5",
+    "traffic-network 4.6",
+    "traffic-network 11.4"
+  ],
+  "description": "Conformance test 4 (§11): a Highway record is never reduced. Every cell of the same cross keeps invCapTable[Highway] = 0x3983126F (4000, §4.5 table).",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        2,
+        2
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          0
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          0
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        [
+          3,
+          2
+        ]
+      ],
+      "note": "centre: all 12 (e -> x != e)"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "cell": [
+        0,
+        2
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 3,
+      "cell": [
+        1,
+        2
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 4,
+      "cell": [
+        3,
+        2
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 5,
+      "cell": [
+        2,
+        0
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 6,
+      "cell": [
+        2,
+        1
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "op": "tn_occupant",
+      "id": 7,
+      "cell": [
+        2,
+        3
+      ],
+      "types": [
+        2
+      ],
+      "conns": [
+        [
+          1,
+          3
+        ],
+        [
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        2,
+        2
+      ],
+      "expect": {
+        "car": {
+          "conn_count": 12
+        }
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "update_intersection_data"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cells": [
+        [
+          2,
+          2
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          3,
+          2
+        ],
+        [
+          2,
+          1
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "expect": {
+        "car": {
+          "type": 2,
+          "inv_cap": "0x3983126F"
+        }
+      }
+    }
+  ]
+}
