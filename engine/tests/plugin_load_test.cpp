@@ -749,6 +749,15 @@ intptr_t DemandShadowOnce(FC4TestSeamFn seam, FakeOrigDemand& o, cIGZMessageTarg
     return seam(kFC4SeamDemandShadow, &in, nullptr);
 }
 
+// ---- the reference audit's created-temporary release (test seam op 12) ----------------------------
+// A game object (vtable in this executable) whose Release returns 0: the
+// last reference. QueryInterface (the audit's class lookup) answers no.
+bool __fastcall TempQi(void*, void*, uint32_t, void** out) {
+    if (out != nullptr) *out = nullptr;
+    return false;
+}
+uint32_t __fastcall TempRelease(void*, void*) { return 0; }
+
 // ---- autotest: child processes that end with TerminateProcess -----------------------------------
 
 // Runs this executable with `args`; returns its exit code (or -1) and the time it took.
@@ -1941,6 +1950,21 @@ int main(int argc, char** argv) {
             CHECK(od.deliveries == 7);
             CHECK(od.refs == 1);  // every QueryInterface released
             CheckCw("demand shadow");
+        }
+
+        // The reference audit (run 42, ForEachExemplarKey): freeing a
+        // temporary the game created for us (acquired, then
+        // FC4_RELEASE_CREATED) is not a warning; the same last-reference
+        // release through FC4_RELEASE still is (a release of a reference the
+        // audited sites never acquired still warns as an over-release; not
+        // exercised here: this log must stay free of over-releases).
+        if (seam != nullptr) {
+            static FakeVtable tempVt;
+            tempVt.slots[0] = reinterpret_cast<void*>(&TempQi);
+            tempVt.slots[2] = reinterpret_cast<void*>(&TempRelease);
+            static FakeObject temps[2] = {{tempVt.slots.data()}, {tempVt.slots.data()}};
+            CHECK(seam(kFC4SeamRefAuditRelease, &temps[0], reinterpret_cast<void*>(intptr_t{3})) == 0);
+            CHECK(seam(kFC4SeamRefAuditRelease, &temps[1], reinterpret_cast<void*>(intptr_t{1})) == 1);
         }
 
         // The monthly digest (observer), read through the city's public

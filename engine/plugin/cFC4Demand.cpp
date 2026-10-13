@@ -198,7 +198,10 @@ private:
 // §4.1: every exemplar resource whose ExemplarType is 3, in the resource
 // manager's order. [choice] The key list comes from
 // GetAvailableResourceList(&list, filter) with a null list pointer on entry
-// (the manager returns a new list with one reference).
+// (the manager returns a new list with one reference). The list
+// (cGZPersistResourceKeyList, docs/abi/vtables.tsv 0x00AADA64) is built for
+// this call (built segment by segment, through our filter: flora.md, crime.md),
+// so its last reference is ours and the Release frees it (run 42).
 void ForEachExemplarKey(void*, fc4_key_visitor visit, void* ctx) {
     if (visit == nullptr) return;
     if (!fc4::On(fc4::Sw::ExemplarLoads)) {
@@ -224,7 +227,7 @@ void ForEachExemplarKey(void*, fc4_key_visitor visit, void* ctx) {
     const uint32_t n = l->Size();
     keys.reserve(n);
     for (uint32_t i = 0; i < n; ++i) keys.push_back(l->GetKey(i));
-    FC4_RELEASE(l);
+    FC4_RELEASE_CREATED(l);
     uint32_t found = 0;
     for (const cGZPersistResourceKey& k : keys) {
         if (k.type != kExemplarType) continue;

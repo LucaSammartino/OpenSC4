@@ -308,7 +308,10 @@ plugin.
      reference the game hands us (QueryInterface, out-parameters, lot lists, save references), is logged at
      verbose level under its own cap. Each line gives the object, its class (`GetGZCLSID`), its vtable as
      module+offset, the count returned and our call site.
-     - Always logged: `WARNING: released last reference to game object …` and `WARNING: over-release …`.
+     - Always logged: `WARNING: released last reference to game object …` and `WARNING: over-release …`. A site that
+       frees a temporary the game created for us (a new object returned through an out-parameter with one reference,
+       e.g. the demand glue's resource key list) releases it with `FC4_RELEASE_CREATED` after `FC4_ACQUIRED`: that
+       expected free is counted in the summary (`temporaries created for us`), not warned.
      - At each simulator or budget `Shutdown`: the net count per class and the objects we still hold.
 5. **Checked build:** `cmake -S engine -B build-x86-checked -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
    -DFC4_CHECKED=ON`.
