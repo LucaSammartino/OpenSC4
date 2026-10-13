@@ -559,7 +559,7 @@ grid-sims notes; their specs own the details).
 | SimNewMonth `0x66956816` | `simulate_deals` |
 | SimNewDay `0x66956814`, SimIdle `0x6695681A` | push to the region with the current dirty flags |
 | `0xEA418D8F` deal status | data1 ∈ {0, 8} → `statsDirty := true`, else `dealsDirty := true`; then `simulate_deals` |
-| ConnectionsReady `0x6AC284F3` | `ready := true` |
+| ConnectionsReady `0x6AC284F3` (posted once per load by the regional city; when and when not: foundations.md §11.6) | `ready := true` |
 | TerrainHeightsChanged `0x278E6003` | rectangle `x0 = (data1 >> 16) − 1`, `x1 = data1 & 0xFFFF`, `z0 = (data2 >> 16) − 1`, `z1 = data2 & 0xFFFF`, clamped to the city: for each connection whose inner cell lies in it, move its marker props to the cell centre at `terrain.GetMaxSurfaceLevel(x, z)` (+15.5 for elevated types) and update them in the occupant manager |
 | PreDemolishNetworkOccupant `0xAA7A014D` | `DeleteOccupantConnection(void1)` |
 | RemoveOccupant `0x99EF1143` | if the occupant's type is `0x2890D4DE` and its interface `0xA8C86142` (`cISC4PowerPoleOccupant`) reports false from its 14th method (compiled slot 13, a byte flag of unknown meaning; power spec open question 1): `DeleteOccupantConnection` |

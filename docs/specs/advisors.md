@@ -684,16 +684,23 @@ simulator and shows the next queued advice, if any. That is why closing one popu
    - is written by nothing else except this slot;
    - is **not persisted**, and no ini, registry or command-line switch sets it.
 
-   Call it once per process, any time before the first popup tick (for example at PostAppInit or when the city
-   loads). With the flag false:
+   Call it after ConnectionsReady (see below), and before the first popup tick. With the flag
+   false:
    - every queued advice fails gate a and is dropped, with **no pause**;
    - `GenericNotificationDialog` shows nothing;
    - `GenericConfirmationDialog` returns false without asking;
    - `DoScriptedModalDialog` returns 0 without asking. It is used by the quit, go-to-region, obliterate and
      budget-failure prompts, and **what those callers then do was not analysed**;
-   - the missing-plugin report and the terrain edge-reconciliation prompt are skipped.
+   - the missing-plugin report and the terrain edge-reconciliation prompt are skipped;
+   - **the whole terrain edge reconciliation is skipped, and with it ConnectionsReady.** With the default
+     preference, `ReconcileEdgesWithNeighboringCities` returns before posting TerrainReconciliation, so the regional
+     city never posts ConnectionsReady. Power, plumbing and the neighbours simulator then stay disabled for the
+     session (foundations.md §11.6).
 
    City-situation popups are not affected.
+
+   **So set the flag false only after ConnectionsReady has arrived** (subscribe to `0x6AC284F3`), not at PostAppInit
+   or at city load.
 
    The original has its own automation command for exactly this: `SetPopupModalDialogsEnabled` (command `0x6BCE8AE6`,
    registered by `cGZMiscCommandSystemSupport` next to `GetPopupModalDialogsEnabled` `0xABCE8AA7` and

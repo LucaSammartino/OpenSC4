@@ -233,7 +233,7 @@ is invisible to the game and removes the crash.
 | SimNewMonth `0x66956816` (agent, level 6) | Monthly simulation (§7) |
 | SimNewDay `0x66956814` (agent, level 4) | `DoIdle(5)`: 5 ms budget (§6) |
 | SimIdle `0x6695681A` (agent, level 10) | `DoIdle(msg.GetData3())`: data3 ms (simulator §5.4) |
-| ConnectionsReady `0x6AC284F3` | enabled := true |
+| ConnectionsReady `0x6AC284F3` (posted once per load by the regional city; when and when not: foundations.md §11.6) | enabled := true |
 | InsertOccupant `0x99EF1142` / RemoveOccupant `0x99EF1143` | `occ := GetVoid1()`. Skip if `occ.AsPropertyHolder()` (occupant slot 6) **has** property `0x029244DB` (preview occupant, foundations §5; holder slot 3; existence only). Else `DoOccupantInserted / Removed(occ)` (§5.2) |
 | `0xCA1B151C` (tuning reload) | `ReadSimulatorTunableValues()` |
 | `0xEA1F0DCD` (pipe burst at a cell) | `x := GetData1()`, `z := GetData2()`. `flags[z·countX + x] &= 0xE0`, with **no bounds check**. recompute := true. Then the `0xEA418D8F` test below runs too (it fails, the type differs) |
