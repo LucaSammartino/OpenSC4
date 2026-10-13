@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "lf11_09_per_tile_cap",
+  "spec": ["landfill 4.7.1", "landfill 4.7.2", "landfill 11"],
+  "description": "Conformance test 9. A connected 2x2 zone with supply 50000: the zone budget is 4 x 5000 = 20000, so the heap holds 20000 and the supply keeps 30000.",
+  "steps": [
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 11, 21]},
+    {"op": "landfill_env", "supply": 50000},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "state": {"supply": 30000}, "zone_state": {"heaps": [[0, 0, true, true, 120000, 20000]]}}
+  ]
+}

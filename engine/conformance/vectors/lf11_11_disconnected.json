@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "lf11_11_disconnected",
+  "spec": ["landfill 4.7.2", "landfill 4.7.5", "landfill 11"],
+  "description": "Conformance test 11. A zone that is not connected takes nothing (no put_in, supply unchanged) but still decays (10000 -> 9300); a zot 0x107A0000 goes to the first mask cell spiralling from the centre, here the centre (11, 21) itself, at (16x + 8, terrain + 3.0, 16z + 8); the zone counts for nothing in capacityTotal, usedTotal and SetGarbageCapacity. A second disconnected month keeps the one zot. Once connected, the next month removes the zot and the zone counts again (4 heaps x 67500). Zone 1, with its centre and the ring's first cell cleared, puts its zot on the next ring cell (31, 20) [choice: ring order clockwise from the top-left corner, spec question].",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
+    {"op": "landfill_heaps", "index": 0, "heap": [0, 0, true, true, 67500, 10000]},
+    {"op": "landfill_env", "supply": 50000},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect_events", "filter": {"event": "zot_add"}, "events": [{"event": "zot_add", "pos": [184, 273, 344]}]},
+    {"op": "landfill_expect", "state": {"supply": 50000, "capacity_total": 0, "used_total": 0, "zots": 1},
+      "zone_state": {"connected": false, "zot": [184, 273, 344], "heaps": [[0, 0, true, true, 67500, 9300], [1, 0, true, false, 67500, 0], [0, 1, true, false, 67500, 0], [1, 1, true, false, 67500, 0]]}},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "state": {"zots": 1}, "zone_state": {"zot": [184, 273, 344]}},
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect_event_count", "filter": {"event": "zot_remove"}, "count": 1},
+    {"op": "landfill_expect", "state": {"zots": 0, "capacity_total": 270000}, "zone_state": {"connected": true, "zot": null}},
+    {"op": "landfill_env", "connected": false},
+    {"op": "landfill_zone", "rect": [30, 20, 32, 22]},
+    {"op": "landfill_set", "zone": 1, "clear_cells": [[31, 21], [30, 20]]},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "zone": 1, "zone_state": {"zot": [504, 273, 328]}}
+  ]
+}

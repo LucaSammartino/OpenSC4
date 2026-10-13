@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "lf11_10_global_cap",
+  "spec": ["landfill 4.1", "landfill 4.7.1", "landfill 11"],
+  "description": "Conformance test 10. No tuning exemplar: the code default kMaxGarbageToTakePerMonth 40000 applies. A connected 3x3 zone (budget 9 x 5000 = 45000, heaps of 67500) with supply 100000 takes t = 40000, all into the first heap; the supply keeps 60000.",
+  "steps": [
+    {"op": "landfill_env", "connected": true, "tuning": null},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 12, 12]},
+    {"op": "landfill_env", "supply": 100000},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "state": {"supply": 60000}, "zone_state": {"heaps": [[0, 0, true, true, 67500, 40000], [1, 0, true, false, 67500, 0], [0, 1, true, false, 67500, 0], [1, 1, true, false, 67500, 0]]}}
+  ]
+}

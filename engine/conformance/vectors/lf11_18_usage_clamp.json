@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "lf11_18_usage_clamp",
+  "spec": ["landfill 4.6.3", "landfill 11"],
+  "description": "Conformance test 18. usedTotal 150 over capacityTotal 100: GetLandfillUsage clamps the usage to (100, 100).",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 11, 11]},
+    {"op": "landfill_set", "connected": true},
+    {"op": "landfill_heaps", "heaps": [[0, 0, true, true, 100, 150]]},
+    {"op": "landfill_call", "method": "update_capacity_values"},
+    {"op": "landfill_expect", "state": {"used_total": 150, "capacity_total": 100}},
+    {"op": "landfill_call", "method": "get_landfill_usage", "expect": [100, 100]}
+  ]
+}

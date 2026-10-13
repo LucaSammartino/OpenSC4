@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "name": "lf11_03_zoning_cost_slope",
+  "spec": ["landfill 4.3", "landfill 11"],
+  "description": "Conformance test 3. A 2x2 region with cell-centre altitudes 270, 272, 280, 290: min 270, max 290, variance 20 > 5, mean 278, sum |278 - a| = 28, cost round(4 x 28) = 112.",
+  "steps": [
+    {"op": "landfill_altitude", "cells": [[20, 20, 270], [20, 21, 272], [21, 20, 280], [21, 21, 290]]},
+    {"op": "landfill_create"},
+    {"op": "landfill_call", "method": "get_zoning_cost", "args": [[20, 20, 21, 21]], "expect": [112, 0]}
+  ]
+}

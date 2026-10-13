@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "lf11_22_levelling",
+  "spec": ["landfill 4.5.3", "landfill 4.4.1", "landfill 11"],
+  "description": "Conformance test 22. The lot developer's slots are stubbed: average 272.0, slope 3.0, ModifyTerrainHeight recorded. With maxAreaSlope FLT_MAX: one ModifyTerrainHeight(1, true, x1, z1, x2+1, z2+1, 272.0, null, 5, null), result true; the second argument (272, 0, -1) is inert. Slope 41 over the tuning's 40: false, nothing levelled; a NaN maxAreaSlope takes the FLT_MAX branch too. maxAreaSlope 5000 (>= 1000) skips the slope test (slope 9999 levels). A finite maxAreaSlope is used as is (50 passes slope 45, 44 refuses it). A NaN slope does not block. Through the zone (4.4.1 step 3, test 3's terrain, variance 20 > 5): LevelRect calls slot 21 with (rect, 0.0, true, true, FLT_MAX), the terrain is levelled to the vertex average, levelAltitude is the caller's cell-centre mean 278; the terrain's reason-5 message is ignored when delivered. Refused (slope 41): no ModifyTerrainHeight, the zone is still created and populated, levelAltitude still 278.",
+  "steps": [
+    {"op": "landfill_env", "levelling": {"avg": 272.0, "slope": 3.0, "apply": false}},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, "FLT_MAX"], "expect": true},
+    {"op": "landfill_expect_events", "events": [{"event": "modify_terrain", "first": true, "second": true, "rect": [20, 20, 22, 22], "altitude": 272.0, "lot": 0, "reason": 5, "cost_out": false}]},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 272.0, true, true, "FLT_MAX"], "expect": true},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], -1.0, true, true, "FLT_MAX"], "expect": true},
+    {"op": "landfill_expect_events", "events": [
+      {"event": "modify_terrain", "first": true, "second": true, "rect": [20, 20, 22, 22], "altitude": 272.0, "lot": 0, "reason": 5, "cost_out": false},
+      {"event": "modify_terrain", "first": true, "second": true, "rect": [20, 20, 22, 22], "altitude": 272.0, "lot": 0, "reason": 5, "cost_out": false}
+    ]},
+    {"op": "landfill_env", "levelling": {"slope": 41.0}},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, "FLT_MAX"], "expect": false},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, "NaN"], "expect": false},
+    {"op": "landfill_expect_events", "events": []},
+    {"op": "landfill_env", "levelling": {"slope": 9999.0}},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, 5000.0], "expect": true},
+    {"op": "landfill_env", "levelling": {"slope": 45.0}},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, 50.0], "expect": true},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, 44.0], "expect": false},
+    {"op": "landfill_env", "levelling": {"slope": "NaN"}},
+    {"op": "landfill_levelling", "args": [[20, 20, 21, 21], 0.0, true, true, "FLT_MAX"], "expect": true},
+    {"op": "landfill_expect_event_count", "filter": {"event": "modify_terrain"}, "count": 3},
+    {"op": "landfill_clear_events"},
+
+    {"op": "landfill_env", "levelling": {"avg": 272.0, "slope": 3.0, "apply": true}},
+    {"op": "landfill_altitude", "cells": [[20, 20, 270], [20, 21, 272], [21, 20, 280], [21, 21, 290]]},
+    {"op": "landfill_create"},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_zone", "rect": [20, 20, 21, 21]},
+    {"op": "landfill_expect_events", "filter": {"event": "levelling"}, "events": [
+      {"event": "levelling", "rect": [20, 20, 21, 21], "f": 0.0, "with_water": true, "water_flag": true, "max": "FLT_MAX", "result": true}
+    ]},
+    {"op": "landfill_expect", "state": {"zones": 1, "posted": 1}, "zone_state": {"cells": 4, "level_altitude": 278}},
+    {"op": "landfill_deliver", "count": 1},
+    {"op": "landfill_expect_event_count", "filter": {"event": "place_zone"}, "count": 0},
+    {"op": "landfill_expect", "state": {"zones": 1}, "zone_state": {"cells": 4, "level_altitude": 278}},
+
+    {"op": "landfill_env", "levelling": {"slope": 41.0}},
+    {"op": "landfill_altitude", "cells": [[40, 20, 270], [40, 21, 272], [41, 20, 280], [41, 21, 290]]},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_zone", "rect": [40, 20, 41, 21]},
+    {"op": "landfill_expect_events", "filter": {"event": "levelling"}, "events": [
+      {"event": "levelling", "rect": [40, 20, 41, 21], "f": 0.0, "with_water": true, "water_flag": true, "max": "FLT_MAX", "result": false}
+    ]},
+    {"op": "landfill_expect", "state": {"zones": 2, "posted": 0}, "zone": 1, "zone_state": {"cells": 4, "level_altitude": 278, "rect": [40, 20, 41, 21]}}
+  ]
+}

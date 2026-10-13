@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "lf11_04_zoning_cost_extension",
+  "spec": ["landfill 4.3", "landfill 11"],
+  "description": "Conformance test 4. A region intersecting a zone whose levelAltitude is 275, over cells at 270 and 280: no tolerance test, cost round(4 x (5 + 5)) = 40. With the second cell at 272 the variance (2) would pass the tolerance test on its own, but against the zone's 275 the cost is round(4 x (5 + 3)) = 32.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 11, 11]},
+    {"op": "landfill_set", "zone": 0, "level_altitude": 275},
+    {"op": "landfill_altitude", "cells": [[12, 10, 280]]},
+    {"op": "landfill_call", "method": "get_zoning_cost", "args": [[11, 10, 12, 10]], "expect": [40, 0]},
+    {"op": "landfill_altitude", "cells": [[12, 10, 272]]},
+    {"op": "landfill_call", "method": "get_zoning_cost", "args": [[11, 10, 12, 10]], "expect": [32, 0]}
+  ]
+}

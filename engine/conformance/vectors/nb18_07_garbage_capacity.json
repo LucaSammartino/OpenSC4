@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "nb18_07_garbage_capacity",
+  "spec": ["neighbors 7.3", "neighbors 8.2", "neighbors 18"],
+  "description": "Conformance test 7. Exported(3) = 100 and a disposal capacity of 50 (UpdateCommodityStats makes Produced(3) = recycled 50 with no free landfill, Imported(3) = 0): two garbage-sell deals (E5) of 60 over a road to W, both in Probation so that NoLandfill removes at once. The first: 50 < 100 -> NoLandfill, export budget 100 - 60 = 40, removed with status 5; the second: 50 < 40 is false -> unflagged, kept. With a first deal of 40 the budget only falls to 60 and the next deal of 60 is flagged too.",
+  "steps": [
+    {"op": "neighbors_env", "current": 1, "today": 1000, "figures": {"garbage_recycled": 50}, "landfill": [0, 0]},
+    {"op": "neighbors_city", "id": 1, "pos": [3, 3], "size": [1, 1], "stats": {"exported": [0, 0, 100]}},
+    {"op": "neighbors_city", "id": 2, "pos": [1, 3], "size": [2, 2]},
+    {"op": "neighbors_create", "ready": true},
+    {"op": "neighbors_call", "method": "create_connection", "args": ["road", -1, 5, false], "expect": true},
+    {"op": "neighbors_deal", "id": 1, "type": "E5", "other": 2, "amount": 60, "flags": "0x202", "suspension": 1000, "start": 1000, "expiration": 2000},
+    {"op": "neighbors_deal", "id": 2, "type": "E5", "other": 2, "amount": 60, "flags": "0x202", "suspension": 1000, "start": 1000, "expiration": 2000},
+    {"op": "neighbors_clear_events"},
+    {"op": "neighbors_month"},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 1, "status": 0, "flags": "0x222"},
+      {"deal": 1, "status": 5, "flags": "0x222"}
+    ]},
+    {"op": "neighbors_expect", "deals": [2]},
+    {"op": "neighbors_expect", "deal": 2, "deal_state": {"flags": "0x202", "amount": 60}},
+    {"op": "neighbors_expect", "city": 1, "city_state": {"produced": [0, 0, 50], "exported": [0, 0, 100], "imported": [0, 0, 0]}},
+
+    {"op": "neighbors_deal_set", "deal": 2, "amount": 40},
+    {"op": "neighbors_deal", "id": 3, "type": "E5", "other": 2, "amount": 60, "flags": "0x202", "suspension": 1000, "start": 1000, "expiration": 2000},
+    {"op": "neighbors_month"},
+    {"op": "neighbors_expect_events", "filter": {"event": "status"}, "events": [
+      {"deal": 2, "status": 0, "flags": "0x222"},
+      {"deal": 2, "status": 5},
+      {"deal": 3, "status": 0, "flags": "0x222"},
+      {"deal": 3, "status": 5}
+    ]},
+    {"op": "neighbors_expect", "deals": []}
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "lf11_08_underfunding",
+  "spec": ["landfill 4.7.1", "landfill 11"],
+  "description": "Conformance test 8. After the first month the maintenance is 40; with the line item's current expenses 20 and supply 10000 the month's intake is t = trunc(20 / 40 x 10000) = 5000. The heap's 10000 decays to 9300 first, then takes 5000.",
+  "steps": [
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 11, 21]},
+    {"op": "landfill_env", "supply": 10000},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "state": {"maintenance": 40}},
+    {"op": "landfill_env", "current": 20, "supply": 10000},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect_events", "filter": {"event": "put_in"}, "events": [{"event": "put_in", "value": 5000}]},
+    {"op": "landfill_expect", "state": {"supply": 5000}, "zone_state": {"heaps": [[0, 0, true, true, 120000, 14300]]}}
+  ]
+}

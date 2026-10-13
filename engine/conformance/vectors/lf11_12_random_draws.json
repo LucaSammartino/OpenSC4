@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "lf11_12_random_draws",
+  "spec": ["landfill 4.8.1", "landfill 4.8.2", "landfill 11"],
+  "description": "Conformance test 12. In play heaps fill in vector order: a connected 3x3 zone takes at most 45000 a month and a heap holds 67500, so the first month turns only heap 0 active and draws nothing (CRT state still 1). Then heaps (0,0), (1,0), (0,1) active and heap (1,1) becoming active: the redraw visits (1,1), (2,1), (1,2), (2,2) and only the centre (1,1) has mask 15, so exactly one rand() (41 with the CRT at 1): tile 0x02FA0000, orientation 2 x (41 & 3) = 2. A second zone whose heap (0,0) becomes active first draws nothing.",
+  "steps": [
+    {"op": "landfill_env", "connected": true},
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 20, 12, 22]},
+    {"op": "landfill_env", "supply": 1000000},
+    {"op": "landfill_month"},
+    {"op": "landfill_expect", "state": {"crt_state": 1}, "zone_state": {"heaps": [[0, 0, true, true, 67500, 45000], [1, 0, true, false, 67500, 0], [0, 1, true, false, 67500, 0], [1, 1, true, false, 67500, 0]]}},
+    {"op": "landfill_heaps", "heaps": [[0, 0, true, true, 67500, 1], [1, 0, true, true, 67500, 1], [0, 1, true, true, 67500, 1], [1, 1, true, true, 67500, 1]]},
+    {"op": "landfill_clear_events"},
+    {"op": "landfill_update_tiles", "index": 3, "seed": 1, "draws": 1},
+    {"op": "landfill_expect_events", "filter": {"event": "tile"}, "events": [
+      {"event": "tile", "x": 11, "z": 21, "tile": "0x02FA0000", "orientation": 2},
+      {"event": "tile", "x": 12, "z": 21, "tile": "0x02F90000", "orientation": 3},
+      {"event": "tile", "x": 11, "z": 22, "tile": "0x02F90000", "orientation": 0},
+      {"event": "tile", "x": 12, "z": 22, "tile": "0x034E0000", "orientation": 3}
+    ]},
+    {"op": "landfill_zone", "rect": [30, 20, 32, 22]},
+    {"op": "landfill_heaps", "zone": 1, "index": 0, "heap": [0, 0, true, true, 67500, 1]},
+    {"op": "landfill_update_tiles", "zone": 1, "index": 0, "seed": 1, "draws": 0}
+  ]
+}

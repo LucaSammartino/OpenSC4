@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "lf11_16_adjacency_merge",
+  "spec": ["landfill 4.4.2", "landfill 4.4.4", "landfill 11"],
+  "description": "Conformance test 16. A 2x2 landfill zoned diagonally touching an existing 2x2 zone joins it: no new zone, the rect becomes the union (10, 10, 13, 13), the mask the 8 cells, and the heaps are rebuilt: W = H = 3, only heaps (0,0) and (2,2) have four mask cells, so c = round(240000 / 2) = 120000 each.",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_zone", "rect": [10, 10, 11, 11]},
+    {"op": "landfill_zone", "rect": [12, 12, 13, 13]},
+    {"op": "landfill_expect", "state": {"zones": 1}, "zone_state": {"rect": [10, 10, 13, 13], "cells": 8, "w": 3, "h": 3, "valid_heaps": 2,
+      "mask": [[10, 10], [10, 11], [11, 10], [11, 11], [12, 12], [12, 13], [13, 12], [13, 13]],
+      "heaps": [
+        [0, 0, true, false, 120000, 0], [1, 0, false, false, 0, 0], [2, 0, false, false, 0, 0],
+        [0, 1, false, false, 0, 0], [1, 1, false, false, 0, 0], [2, 1, false, false, 0, 0],
+        [0, 2, false, false, 0, 0], [1, 2, false, false, 0, 0], [2, 2, true, false, 120000, 0]]}}
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "lf11_05_sea_level_clamp",
+  "spec": ["landfill 4.3", "landfill 11"],
+  "description": "Conformance test 5. Sea level 250; (x0, z0) 251, (x0+1, z0) 240, (x0, z0+1) 260, (x0+1, z0+1) 262. The low cell counts as 251 for variance and mean (min 251, max 262, variance 11, mean 256); the cost uses raw altitudes: 5 + 16 + 4 + 6 = 31, cost 124.",
+  "steps": [
+    {"op": "landfill_env", "sea": 250},
+    {"op": "landfill_altitude", "cells": [[30, 30, 251], [31, 30, 240], [30, 31, 260], [31, 31, 262]]},
+    {"op": "landfill_create"},
+    {"op": "landfill_call", "method": "get_zoning_cost", "args": [[30, 30, 31, 31]], "expect": [124, 0]}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "format": 1,
+  "name": "lf11_02_zoning_cost_flat",
+  "spec": ["landfill 4.3", "landfill 11"],
+  "description": "Conformance test 2. A 4x4 region on flat ground (270 m): variance 0 <= 5, GetZoningCost = 0 with EDX (the high dword) 0. get_zoning_cost returns [low, high].",
+  "steps": [
+    {"op": "landfill_create"},
+    {"op": "landfill_call", "method": "get_zoning_cost", "args": [[10, 10, 13, 13]], "expect": [0, 0]}
+  ]
+}
