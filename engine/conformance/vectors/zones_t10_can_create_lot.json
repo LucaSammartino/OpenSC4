@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "zones_t10_can_create_lot",
+  "spec": ["zones 8.4", "zones 15.10"],
+  "description": "Conformance test 10 (CanCreateLot, §8.4). In real mode with current zone 0, CanCreateLot(x, z, w, h, zoneNotNeeded, waterAllowed, null) is the minimum cell code over the rect (0 outside, 1 water, 2 not zoned, 3 network, 7 occupied, 8 free). Each scenario uses a separate area of the map. With a lot and a road on the rect the minimum is 3; without the road 7; without either 8; an unzoned cell inside gives 2, and zoneNotNeeded = 1 skips that check (8); a water cell with waterAllowed = 0 gives 1; a rect reaching x = 64 (outside the city) gives 0.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+
+    {"op": "zone_zones", "rect": [5, 5, 6, 6], "v": 1},
+    {"op": "zone_lot", "rect": [6, 6, 6, 6], "facing": 0, "zone": 1},
+    {"op": "zone_network", "add": true, "runs": [{"kind": 0, "cells": [[5, 6]]}]},
+    {"op": "zone_call", "method": "can_create_lot", "args": [5, 5, 2, 2, false, false], "expect": 3},
+
+    {"op": "zone_zones", "rect": [10, 10, 11, 11], "v": 1},
+    {"op": "zone_lot", "rect": [11, 11, 11, 11], "facing": 0, "zone": 1},
+    {"op": "zone_call", "method": "can_create_lot", "args": [10, 10, 2, 2, false, false], "expect": 7},
+
+    {"op": "zone_zones", "rect": [15, 15, 16, 16], "v": 1},
+    {"op": "zone_call", "method": "can_create_lot", "args": [15, 15, 2, 2, false, false], "expect": 8},
+
+    {"op": "zone_zones", "rect": [20, 20, 21, 21], "v": 1},
+    {"op": "zone_zones", "cells": [[20, 20, 0]]},
+    {"op": "zone_call", "method": "can_create_lot", "args": [20, 20, 2, 2, false, false], "expect": 2},
+    {"op": "zone_call", "method": "can_create_lot", "args": [20, 20, 2, 2, true, false], "expect": 8},
+
+    {"op": "zone_zones", "rect": [25, 25, 26, 26], "v": 1},
+    {"op": "zone_water", "cells": [[25, 25]]},
+    {"op": "zone_call", "method": "can_create_lot", "args": [25, 25, 2, 2, false, false], "expect": 1},
+    {"op": "zone_call", "method": "can_create_lot", "args": [25, 25, 2, 2, false, true], "expect": 8},
+
+    {"op": "zone_call", "method": "can_create_lot", "args": [63, 30, 2, 2, false, false], "expect": 0}
+  ]
+}

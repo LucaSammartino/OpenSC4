@@ -733,6 +733,7 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "place_zone" => place_zone(&w, op),
         "do_parcellization" => do_parcellization(&w, op),
         "draw_street" => draw_street(&w, op),
+        "examine_boundaries" => examine_boundaries(&w, op),
         "call" => call(&w, op),
         "eval" => eval(op),
         "expect" => expect(&w, op),
@@ -742,6 +743,9 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "clear_events" => {
             w.events.clear();
             w.parcel_log.borrow_mut().clear();
+            w.deferred.borrow_mut().clear();
+            w.zoning_changes.borrow_mut().clear();
+            w.demolished.borrow_mut().clear();
             Ok(())
         }
         _ => Err(format!("unknown op '{name}'")),
@@ -1176,6 +1180,11 @@ fn place_zone(w: &World, op: &Json) -> R<()> {
     let skip_size = opt(op, "skip_size").and_then(boolean).unwrap_or(false);
     let check_lot_inside = opt(op, "check_lot_inside").and_then(boolean).unwrap_or(true);
     let res: PlaceZoneResult = m.place_zone(&mut region, zone_type, commit, skip_funds, check_slope, skip_size, check_lot_inside);
+    // The cells still set in the caller's region after the call (rejected bits
+    // were cleared, §6): sorted for a stable comparison.
+    let mut remaining: Vec<(i32, i32)> = region.cells();
+    remaining.sort();
+    let region_cells = Json::Array(remaining.iter().map(|&(x, z)| Json::Array(vec![ji(x), ji(z)])).collect());
     w.events.push(
         "place_zone_result",
         vec![("ok", Json::Bool(res.ok)), ("cost", ji(res.cost)), ("error", ji(res.error))],
@@ -1185,6 +1194,7 @@ fn place_zone(w: &World, op: &Json) -> R<()> {
             ("ok".into(), Json::Bool(res.ok)),
             ("cost".into(), ji(res.cost)),
             ("error".into(), ji(res.error)),
+            ("region_cells".into(), region_cells),
         ]);
         if !matches(&got, e, true) {
             return Err(format!("place_zone: got {}, expected {}", show(&got), show(e)));
@@ -1249,6 +1259,38 @@ fn draw_street(w: &World, op: &Json) -> R<()> {
     let per_cell = opt(op, "per_cell").and_then(boolean).unwrap_or(false);
     d.draw_street_for_test(&region, x1, z1, x2, z2, per_cell);
     Ok(())
+}
+
+/// `zone_examine_boundaries`: run `ExamineBoundaries` (test 13) on `region`
+/// (`{rect, cells?}`) with `type` as the current zone, and check the
+/// orientation against `expect` (`{flag, d, q, scores, conditions}`).
+fn examine_boundaries(w: &World, op: &Json) -> R<()> {
+    let d = w.dev()?;
+    let rj = field(op, "region")?;
+    let rect = rect_of(field(rj, "rect")?)?;
+    let region = match opt(rj, "cells") {
+        Some(c) => {
+            let cells = arr(c, "cells")?
+                .iter()
+                .map(|e| {
+                    let p = arr(e, "cell")?;
+                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                })
+                .collect::<R<Vec<_>>>()?;
+            CellRegion::from_cells(rect, &cells)
+        }
+        None => CellRegion::new(rect, true),
+    };
+    let zone = i64_of(field(op, "type")?, "type")? as i32;
+    let o = d.examine_boundaries_for_test(&region, zone);
+    let got = Json::Object(vec![
+        ("flag".into(), Json::Bool(o.flag)),
+        ("d".into(), ji(o.d)),
+        ("q".into(), ji(o.q)),
+        ("scores".into(), Json::Array(o.scores.iter().map(|&s| ji(s)).collect())),
+        ("conditions".into(), Json::Array(o.conditions.iter().map(|&c| ji(c)).collect())),
+    ]);
+    check_expect(op, got)
 }
 
 /// `zone_call`: one method of either class by name.
@@ -1405,11 +1447,14 @@ fn eval(op: &Json) -> R<()> {
 }
 
 fn expect(w: &World, op: &Json) -> R<()> {
-    let state = field(op, "state")?;
+    let state = opt(op, "state");
     let mut got: Vec<(String, Json)> = Vec::new();
     if let Some(m) = w.manager.borrow().as_ref() {
         got.push(("manager_initialized".to_owned(), Json::Bool(m.is_initialised())));
         got.push(("manager_loaded".to_owned(), Json::Bool(m.is_loaded())));
+        // Development-failure map 1 (§11.1 slot 9): the number of entries, so
+        // test 7 can check the zero-entry insert quirk.
+        got.push(("failure_map1_count".to_owned(), ji(m.failure_map1().len() as i64)));
     }
     if let Some(d) = w.developer.borrow().as_ref() {
         got.push(("developer_initialized".to_owned(), Json::Bool(d.is_initialised())));
@@ -1449,24 +1494,73 @@ fn expect(w: &World, op: &Json) -> R<()> {
             ji(s.trace.as_ref().map_or(0, |t| t.len()) as i64),
         ));
     }
-    // Zone grid cells (from the manager's grid).
-    if let Some(m) = w.manager.borrow().as_ref() {
-        if let Some(g) = m.zone_grid() {
-            if let Some(v) = op.get("zones") {
-                for e in arr(v, "zones")? {
-                    let a = arr(e, "z")?;
-                    let x = i64_of(field_at(a, 0)?, "x")? as i32;
-                    let z = i64_of(field_at(a, 1)?, "z")? as i32;
-                    let want = i64_of(field_at(a, 2)?, "v")? as i32;
-                    let gv = i32::from(g.get_cell_value(x, z));
-                    if gv != want {
-                        return Err(format!("zone ({x},{z}) = {gv}, expected {want}"));
-                    }
+    // Zone grid cells (from the manager's grid): `zones` is `[[x, z, v], …]`.
+    if let Some(v) = op.get("zones") {
+        let g = w.mgr()?.zone_grid().ok_or("no zone grid (use zone_init)")?;
+        for e in arr(v, "zones")? {
+            let a = arr(e, "zone cell")?;
+            let x = i64_of(field_at(a, 0)?, "x")? as i32;
+            let z = i64_of(field_at(a, 1)?, "z")? as i32;
+            let want = i64_of(field_at(a, 2)?, "v")? as i32;
+            let gv = i32::from(g.get_cell_value(x, z));
+            if gv != want {
+                return Err(format!("zone ({x},{z}) = {gv}, expected {want}"));
+            }
+        }
+    }
+    // The posted ZoningChange messages (§5.3): `zoning_changes` is a list of
+    // partial objects `{zone, check_slope, rect, cells?}` matched against the
+    // messages posted since the last clear.
+    if let Some(v) = op.get("zoning_changes") {
+        let want = arr(v, "zoning_changes")?;
+        let got = w.zoning_changes.borrow();
+        if got.len() != want.len() {
+            return Err(format!("{} ZoningChange posts, expected {}", got.len(), want.len()));
+        }
+        for (i, ((region, zone, slope), wnt)) in got.iter().zip(want).enumerate() {
+            if let Some(wz) = wnt.get("zone") {
+                if i64_of(wz, "zone")? != i64::from(*zone) {
+                    return Err(format!("ZoningChange {i}: zone {zone}, expected {}", show(wz)));
+                }
+            }
+            if let Some(ws) = wnt.get("check_slope") {
+                if boolean(ws).unwrap_or(false) != *slope {
+                    return Err(format!("ZoningChange {i}: check_slope {slope}"));
+                }
+            }
+            if let Some(wr) = wnt.get("rect") {
+                let a = arr(wr, "rect")?;
+                let r = CellRect::new(
+                    i64_of(field_at(a, 0)?, "x1")? as i32,
+                    i64_of(field_at(a, 1)?, "z1")? as i32,
+                    i64_of(field_at(a, 2)?, "x2")? as i32,
+                    i64_of(field_at(a, 3)?, "z2")? as i32,
+                );
+                if region.rect != r {
+                    return Err(format!("ZoningChange {i}: rect {:?}, expected {:?}", region.rect, r));
+                }
+            }
+            if let Some(wc) = wnt.get("cells") {
+                let mut want_cells: BTreeSet<(i32, i32)> = BTreeSet::new();
+                for e in arr(wc, "cells")? {
+                    let a = arr(e, "cell")?;
+                    want_cells.insert((i64_of(field_at(a, 0)?, "x")? as i32, i64_of(field_at(a, 1)?, "z")? as i32));
+                }
+                let got_cells: BTreeSet<(i32, i32)> = region.cells().into_iter().collect();
+                if got_cells != want_cells {
+                    return Err(format!(
+                        "ZoningChange {i}: cells {:?}, expected {:?}",
+                        got_cells.iter().collect::<Vec<_>>(),
+                        want_cells.iter().collect::<Vec<_>>()
+                    ));
                 }
             }
         }
     }
-    scalar::check_state(&got, state)
+    match state {
+        Some(s) => scalar::check_state(&got, s),
+        None => Ok(()),
+    }
 }
 
 /// `zone_expect_parcel_log`: the interleaved log of lot creations

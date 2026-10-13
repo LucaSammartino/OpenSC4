@@ -916,6 +916,21 @@ impl ZoneDeveloper {
         self.st.borrow_mut().lot_size = ls;
     }
 
+    /// Test/conformance affordance for `ExamineBoundaries` (test 13): sets
+    /// `region` as the restriction region and `zone` as the current zone type,
+    /// scores the four sides, and returns the orientation. The previous
+    /// restriction and zone type are restored. Not part of the interface.
+    pub fn examine_boundaries_for_test(&self, region: &super::CellRegion, zone: i32) -> Orientation {
+        let prev_region = self.st.borrow_mut().restriction.replace(region.clone());
+        let prev_zone = std::mem::replace(&mut self.st.borrow_mut().current_zone, zone);
+        self.examine_boundaries();
+        let o = self.st.borrow().orientation;
+        let mut s = self.st.borrow_mut();
+        s.restriction = prev_region;
+        s.current_zone = prev_zone;
+        o
+    }
+
     /// `ExamineBoundaries()` (§7.3) on the restriction region; writes the
     /// orientation into the state.
     fn examine_boundaries(&self) {
