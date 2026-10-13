@@ -71,11 +71,10 @@ wrapping u32 is right.
 **x outer, z inner**, both ascending from 0, over the R$ EQ (HQ) grid's tract counts. Every value is read through
 `GetTractValue` (`0x006F7720`/`0x006F7870`), and no raw memory is read. This confirms the core.
 
-**RS5 — §5.3 step 2: does the distance sweep's running `d` widen past a byte?**
-`d` starts at 255 and computes `d := min(d + 1, v)`. If `d` is a byte accumulator, `255 + 1` wraps to 0 and the whole
-field collapses to 0 on the first sweep. The core widens `d` to `i32` and clamps the stored value to `0..=255`, which
-reproduces the Manhattan distance capped at 255 that §5.3 states and that §15 tests 1–3 require. Confirm the original
-widens too (or that its `min` is evaluated in a wider type) — the two differ for every grid with no seeded tract.
+~~**RS5 — §5.3 step 2: does the distance sweep's running `d` widen past a byte?**~~ **ANSWERED 2026-10-13** from the
+exe and written into residential.md §5.3 step 2, with a worked example. **Yes.** `d` is a 32-bit register: it starts
+at 255, `inc` takes it to 256 without wrapping, and the min uses a signed 32-bit compare (`0x005E4E80`). After the min
+it is ≤ 255, so storing its low byte never truncates. The core's i32 plus clamp is equivalent; the clamp never acts.
 
 **RS6 — §6.2 `GetAverageEQGrid`/`GetAverageHQGrid`: are `min`/`max` updated for unpopulated tracts?**
 REH §4.8 says yes ("Each is updated with every tract, populated or not") and the core follows it. With an empty city

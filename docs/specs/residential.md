@@ -235,6 +235,19 @@ For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
    Passes repeat until one reports no change. The result is the **Manhattan distance** (in proximity tracts =
    cells) to the nearest key tract, **capped at 255**; with no key tract every value is 255.
+
+   *[compat]* (RS5, from the exe; one pass is `0x005E4E80`) **The running `d` is a 32-bit register** (`EDX`). It
+   is set to 255 at the start of every sweep, and the step `d + 1` is a 32-bit `inc`, so it cannot wrap. The
+   minimum is a signed 32-bit compare against the zero-extended byte `v`, and the store writes the low byte of `d`.
+   After `d := min(d + 1, v)` with `v ≤ 255`, `d` is never above 255, so the store never truncates. A
+   reimplementation that widens `d` and clamps to 0..255 gives the same results; the clamp never acts. "Changed"
+   is the OR of `old XOR new` over the pass.
+
+   Example: one row seeded `[255, 0, 255, 255]`.
+   - The forward sweep gives `[255, 0, 1, 2]`. The first step is `min(256, 255) = 255`.
+   - The backward sweep then gives `[1, 0, 1, 2]`.
+
+   A byte-wide `d` would wrap `255 + 1` to 0 and store 0 in the first cell, which is wrong.
 3. **Copy** into proximity grid w with `ProcessTwoGridsWithCallback<uint8, uint8>` (simgrid §7.3; equal shifts, so a
    plain copy).
 
