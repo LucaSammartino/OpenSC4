@@ -41,6 +41,9 @@
 //   demand_shadow = 0 / 1         the demand shadow differential (default 0;
 //                                 needs the original demand; FC4DemandShadow.h)
 //   demand_shadow_nodes = N       its node lines per mismatched day (default 8)
+//   pollution_shadow = 0 / 1      the pollution grid shadow (default 0; needs the
+//                                 original pollution simulator; FC4PollutionShadow.h)
+//   pollution_shadow_cells = N    its differing cells listed per grid (default 4)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -130,6 +133,24 @@ enum class Sw : unsigned {
     FlammabilityGridWrites, // flammability_grid_writes: SetTractValue / SetTractValues on the two grids
     FlammabilityPosts,      // flammability_posts: the cycle-complete message
     FlammabilityHistory,    // flammability_history: RecordHistoryData of the average
+    // Pollution simulator host callbacks (cFC4Pollution.cpp), one per group of
+    // game calls; only used when the pollution subsystem is enabled.
+    PollutionOccupants,   // pollution_occupants: occupant property reads / writes / removals, position,
+                          //   bounding box (off: occupants look empty, nothing written)
+    PollutionLots,        // pollution_lots: GetLot and the lot's SetCondition (off: nothing done)
+    PollutionNeighbors,   // pollution_neighbors: garbage deals, SetAmountUsed, MarkDealsDirty (off: no deals)
+    PollutionBudget,      // pollution_budget: department, line items, budget items (off: no department)
+    PollutionGridWrites,  // pollution_grid_writes: SetTractValue / SetTractValues on the eight grids
+    PollutionPosts,       // pollution_posts: messages the pollution simulator posts
+    PollutionHistory,     // pollution_history: RecordHistoryData / SetHistoryDataQueueLength
+    PollutionOrdinance,   // pollution_ordinance: GetCumulativeFactor reads (off: 1.0)
+    PollutionTraffic,     // pollution_traffic: the traffic simulator's air-polluting traffic map (off: 0)
+    PollutionZoning,      // pollution_zoning: GetZoneType reads of the zone manager (off: unzoned)
+    PollutionPower,       // pollution_power: IsOccupantPowered reads of the power simulator (off: unpowered)
+    PollutionLandfill,    // pollution_landfill: the landfill developer's usage and tile count (off: 0)
+    PollutionPopulation,  // pollution_population: the residential simulator's GetPopulation (off: 0)
+    PollutionProps,       // pollution_props: Add / RemovePropRequester on the prop developer
+    PollutionTerrain,     // pollution_terrain: terrain altitude reads (off: 0)
     Count
 };
 

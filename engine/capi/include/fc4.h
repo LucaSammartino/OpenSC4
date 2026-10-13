@@ -1896,7 +1896,7 @@ typedef struct fc4_pollution_host {
     void (*remove_agent)(void* user);
     void (*subscribe)(void* user, const uint32_t* msg_types, size_t n);
     void (*unsubscribe)(void* user, const uint32_t* msg_types, size_t n);
-    void (*post)(void* user, uint32_t msg_type, uint32_t data1); /* IGZUnknown = the simulator */
+    void (*post)(void* user, uint32_t msg_type, uint32_t data1); /* MessagePost; data2..4 = 0, no void / IGZUnknown (§5.2) */
     void (*record_history)(void* user, uint32_t series, int32_t value);
     void (*set_history_queue_length)(void* user, uint32_t series, uint32_t length);
     void (*add_prop_requester)(void* user);
