@@ -214,8 +214,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   into the §4.10.1 table. **The bracket is wrong: bounding cells.** The rectangle is occupant slot 11
   `GetBoundingCityCells`, and only its NW corner `(x1, z1)` is tested under water. It is added to the dirty
   rectangle as is, not grown or clamped. For an ordinary one-cell network piece the two answers coincide.
-- **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
-  forever]
+- ~~**TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
+  forever]~~ **ANSWERED 2026-10-14** from the exe (`Fill` `0x00717EC0`: `0x00718186`, `0x007181A5`) and written
+  into §4.11. **The bracket is right: after.** The state's k runs 0…5. Step 3 runs only at k = 4 and sets k := 5
+  before pushing, so a popped tunnel state goes straight to the next pop.
 - **TN17:** what does `GetConnectedDestinationCount` return for a negative k? [0]
 - **TN18:** what does `GetFerryTerminalCount` return for a type above 2? [0]
 - ~~**TN19 — §4.7:** are the switch flags taken from all rules or only from kind-0 rules? [all]~~ **ANSWERED

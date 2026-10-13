@@ -956,6 +956,16 @@ The last row and the last column are never seeds *[quirk]*. They are still label
      entry e.
 4. Pop and resume. When the stack is empty, `counter += 1` if anything was labelled.
 
+**Resume point** (TN16, `Fill` `0x00717EC0`). The state's k runs 0…5, and a popped state resumes at its stored
+k, without redoing earlier work:
+- k = 0…3: step 2 continues with that k;
+- k = 4: step 3 runs (`0x00718186`);
+- k = 5: step 3 is skipped and the next state is popped.
+
+Step 3 sets k := 5 **before** it looks up the tunnel record (`0x007181A5`). So the state it pushes is resumed
+after step 3 and never redoes it, which would loop between the two portals forever. A state pushed by step 2 at
+k = 3 is stored with k = 4, so step 3 still runs once for it when it is popped.
+
 Labels are "first reached" labels, not strongly connected components. A one-way road reached first from seed A
 keeps A's label. *[compat]*
 
