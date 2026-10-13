@@ -141,7 +141,33 @@ One month-level agent (level 6, message `0x66956816`), registered in `Init` with
 | Message | Handling |
 |---|---|
 | `0x07699455` zoning (zone manager after `PlaceZone`) | `DoZoneChange(region = GetVoid2, zoneType = GetData3)` (§4.4.1). Runs for every zone type. |
-| `0x278E6003` terrain modified | Only if the zone list is non-empty. Cell rect: `x0 := max(0, (data1 >> 16) − 1)`, `x1 := min(data1 & 0xFFFF, cellCountX − 1)`, `z0 := max(0, (data2 >> 16) − 1)`, `z1 := min(data2 & 0xFFFF, cellCountZ − 1)` (cell counts from the city). Only if `data4 ∈ {1, 2, 3}`: `DoTerrainChanged(rect)` (§4.5.1). The landfill's own levelling uses reason 5, which is ignored *[inferred: 1–3 are the terraforming tools]*. |
+| `0x278E6003` terrain modified | Only if the zone list is non-empty. Cell rect: `x0 := max(0, (data1 >> 16) − 1)`, `x1 := min(data1 & 0xFFFF, cellCountX − 1)`, `z0 := max(0, (data2 >> 16) − 1)`, `z1 := min(data2 & 0xFFFF, cellCountZ − 1)` (cell counts from the city). Only if `data4 ∈ {1, 2, 3}`: `DoTerrainChanged(rect)` (§4.5.1). The landfill's own levelling uses reason 5, which is ignored (§4.5.3, verified). |
+
+**Where `data4` comes from** *[compat]* (partly answers §10.2 question 3). `0x278E6003` has exactly **one** send
+site in the whole executable: `cSTETerrain::RedisplayTerrain(redisplay, ?, rect*, data4)` (`0x00749850`, terrain
+slot 68 / `+0x110`), which at `0x00749960` calls the standard "post a message with five arguments" helper
+`0x00743380`. That helper (verified in assembly) builds a `cRZMessage2Standard`, sets the type through message
+vtable `+0x14`, data1..data4 through `+0x2C`, `+0x40`, `+0x54`, `+0x68`, and then **posts** it with
+`messageServer[+0x10](msg, 0)` = `MessagePost(msg, false)`. So `data4` is literally `RedisplayTerrain`'s fourth
+argument, and the message is always **queued**, never synchronous.
+
+There are exactly two kinds of caller, and they are the only sources of `data4`:
+
+| Caller | `data4` |
+|---|---|
+| `cSTETerrain::ApplyBrush` (`0x0074F0E0`, terrain slot `+0x110` at decomp `cSTETerrain.c:9439`) | `tBrushParameters::terrainMessageData4` — the brush parameter struct's field at `+0x20` (the SDK's `cISTETerrain::tBrushParameters`, whose own `static_assert` puts that field at `0x20`) |
+| `cSC4Demolition::ModifyTerrainHeight` (`0x00467BB0`, demolition slot 9; terrain slot `+0x110` at decomp `cSC4Demolition.c:689` and `:780`) | its `reason` argument, passed straight through |
+| the remaining `+0x110` call sites in `cSTETerrain.c` / `cSTETerrainView3D.c` | either a literal `0` or `1`, or a passthrough argument of an enclosing terrain function (`cSTETerrain.c:2166` and `:3626`) whose own callers were not enumerated |
+
+Note that the message is sent only from the `redisplay ≠ 0` branch of `RedisplayTerrain`, so the many internal
+`(0, 0, rect, 0)` calls post nothing.
+
+The lot developer's `AttemptAreaLevelling` calls `ModifyTerrainHeight` with reason **5** (§4.5.3), which is why
+the landfill's own levelling does not trigger `DoTerrainChanged`. Still **unresolved**: which brush sets
+`terrainMessageData4` to 1, 2 and 3 (that field is filled by the terraforming tools' UI code, which was not
+traced) — so the "*[inferred: 1–3 are the terraforming tools]*" reading in §3.2 stays inferred. What is now
+verified is that 5 is the levelling reason, and that the only routes to a `data4` of 1, 2 or 3 are a brush, a
+`ModifyTerrainHeight` caller passing 1–3, or one of the two passthrough sites.
 | `0x0772FAD4` FundsChanged | Only if `department` is set: `funded := *department.GetFundingPercentage() > 0.0` (strict float compare). For every zone with a truck automaton: enable/disable it with `funded` (§4.10). No simulation state changes. |
 | `0x26D31EC1` PostCityInit | `department := budget.GetDepartmentBudget(0x6A42A8F5)`, `AddRef` (a previous department is **not** released *[quirk: leak on a second PostCityInit]*). If `loaded`: every zone `Init` (§4.4.9), then `UpdateBudgetRequirements` (§4.9.3) and `UpdateCapacityValues` (§4.6.5). |
 | `0x66956816` SimNewMonth | `DoMonthlySimulation` (§4.7.1). |
@@ -332,8 +358,13 @@ in part.
 3. Clear the cell's mask bit. `InvalidateSurroundingHeaps(x, z)`.
 4. If `changeZone`: `zoneManager.PlaceZone(1×1 region at (x, z), zoneType 0, placeZone = true,
    skipFundsCheck = true, checkAreaSlope = false, skipZoneSizeCheck = true, checkLotSize = false, null, null, 0)`
-   (slot 11). The zone manager then sends `0x07699455` for that cell, which re-enters `DoZoneChange` with type 0
-   *[inferred: synchronous]*; the zone being removed is already out of the list.
+   (slot 11). The zone manager then **posts** `0x07699455` for that cell, which re-enters `DoZoneChange` with
+   type 0 on a later message-server tick; the zone being removed is already out of the list.
+   *[compat]* **Not synchronous**: `cSC4ZoneManager::PlaceZone` (`0x004DD780`) delivers the message with
+   `messageServer->vtable[+0x10]`, i.e. `MessagePost(msg, false)` — slot 4 of `cIGZMessageServer2` (`MessageSend`
+   is slot 3 at `+0x0C` and takes one argument; this call site passes two, `(msg, 0)`). The message server is the
+   zone manager's field `+0x18` (global `0x00B43CCC`). So there is **no re-entrancy** inside `DezoneCell`: the
+   whole `RemoveZone` / `DoTerrainChanged` pass completes before the type-0 `DoZoneChange` runs.
 5. `cellCount` dirty.
 
 **`InvalidateSurroundingHeaps(x, z)`**: with `lx = x − x0`, `lz = z − z0`, set `valid := false` on heaps
@@ -380,8 +411,40 @@ For each mask cell of `rect ∩ zone rect`:
 - `direct = true` (never used by the shipped code): `terrain.SetAltitude(clamped rect, altitude, 1, 5)` (slot 49)
   with the rect clamped to `[0, cellCountX] × [0, cellCountZ]`.
 - `direct = false`: `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, 0.0, true, true,
-  FLT_MAX, null)` (lot developer slot 21; result ignored). *[quirk]* The requested altitude is **not** passed
-  (the float argument is 0.0); what the terrain becomes is decided by the lot developer's levelling.
+  FLT_MAX, null)` (lot developer slot 21; result ignored).
+
+**What `AttemptAreaLevelling(rect, f, withWater, waterFlag, maxAreaSlope, lot)` actually does** *[compat]*
+(`0x006C44F0`, pop 24; verified from the assembly — Ghidra's decompilation of this function is unreliable, it
+renders the float argument as a pointer and drops the vertex average):
+
+1. `avg := GetAverageAreaAltitude(rect, withWater)` (lot developer slot 18, `0x006C5B70`): the arithmetic mean of
+   `GetTerrainAltitudeByVertex(x, z, withWater)` over **vertices** `x = x1 … x2+1` (outer), `z = z1 … z2+1`
+   (inner), i.e. `Σ altitude / count`, both float32, count from an `FILD`.
+2. `m := maxAreaSlope`. If `m` compares **equal** to `FLT_MAX` (`0x00AB1B00` = `0x7F7FFFFF`; `FUCOMPP`, so a NaN
+   `m` does *not* trigger it): `m := maxAreaSlopeAllowedForLevelling`, the lot developer's tuning `0xE900EA2A`
+   (field `+0xE8`, shipped **40**). The landfill always passes `FLT_MAX`, so `m = 40`.
+3. If `m < 1000.0` (`0x00A8FAF0`): `s := GetAreaSlope(rect, withWater)` (slot 29, lot-developer §11.4). If
+   `s > m` (NaN compares as "not greater"): **return false and change nothing**.
+4. Otherwise: `demolition.ModifyTerrainHeight(1, waterFlag, rect.x1, rect.z1, rect.x2 + 1, rect.z2 + 1, avg, lot,
+   5, null)` (`cISC4Demolition` slot 9 `+0x24`, the object at lot-developer `+0x20` = global `0x00B43D00`), and
+   return its result. **The terrain is levelled to `avg`.**
+
+*[quirk]* **The float argument `f` is never read** — no instruction in `0x006C44F0` touches the second parameter's
+stack slot. Passing `0.0` is therefore harmless *and* meaningless: the target altitude is always the vertex
+average computed in step 1.
+
+Consequences for the zone *[compat]*:
+
+- `LevelRect(rect, altitude, false)` still sets `levelAltitude := altitude` (the **cell-centre** mean from
+  §4.3, sea-clamped), but the terrain is levelled to the **vertex** mean, which is a different number. The two
+  disagree by however much the cell-centre and vertex averages differ, and `levelAltitude` (not saved, §4.4.9) is
+  what §4.3 later prices extensions against.
+- Because the return value is ignored, a rect whose `GetAreaSlope` exceeds 40 is **not levelled at all**: the zone
+  is still created and populated, and `levelAltitude` still records a mean the terrain does not have. Zoning a
+  landfill on steep ground therefore leaves the slopes in place while the zoning cost was priced as if they were
+  removed.
+- `ModifyTerrainHeight` ends with `terrain.RedisplayTerrain(1, 1, rect, 5)`, which posts `0x278E6003` with
+  `data4 = 5` (§3.2) — outside the `{1, 2, 3}` set, so the landfill ignores its own levelling. No feedback loop.
 
 ### 4.6 Capacity
 
