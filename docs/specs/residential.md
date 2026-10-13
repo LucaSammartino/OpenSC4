@@ -208,6 +208,15 @@ One call performs at most one state. Order: **0 → 13 → 1 → 14 → 2 → 15
 | 5–8 | school coverage (5), school grading (6), hospital coverage (7), hospital grading (8); state 5 first zeroes the school-covered counter, state 7 the hospital-covered counter (other spec) | next |
 | 9 | history (§5.7) | 10 |
 | 10 | nothing (waits for NewMonth) | — |
+| > 15 | nothing, as state 10 (RS14) | — (never leaves) |
+
+**Unknown state** (RS14, from the exe). `DoDailySimulation` dispatches with `state > 15` → the common exit
+(`0x006FF546`), and the jump table sends state 10 to the same exit (`0x00700196`). Both do nothing and return
+**true**. The month message `0x66956816` restarts the cycle only when the state is **exactly 10** (`0x00700397`):
+state := 0, dirty := 0; any other state only sets dirty. So a state above 15 **waits forever**: the population,
+EQ/HQ, coverage and history are never updated again. Such a state can come only from `Read`, since only states 1,
+2, 3 and (version < 3) 4 are remapped. *[choice]* FreeCity4 keeps this behaviour in the state machine, but `Read`
+treats a saved state above 15 as a damaged record (the RS9 rule), so a save cannot freeze the simulator.
 
 ### 5.2 Time slicing
 

@@ -306,7 +306,11 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   `+0x318`). They are zeroed at the start of state 0 (`0x006FF567`) and accumulated by grading in states 6 and 8
   (`0x006FFED3`, `0x00700053`). Nothing else in the class touches them, no slot returns them and they are not
   saved. They are therefore write-only, and the host may keep them or drop them without any observable change.
-- **RS14:** what does the state machine do in an unknown state? [waits]
+- ~~**RS14:** what does the state machine do in an unknown state? [waits]~~ **ANSWERED 2026-10-14** from the exe
+  (`DoDailySimulation` `0x006FF546` and its jump table; `DoMessage` `0x00700397`) and written into residential.md
+  §5.1. **The bracket is right, with a caveat: it waits forever.** A state above 15 does what state 10 does
+  (nothing; returns true), but the month message resets only state 10, so the simulator never resumes.
+  **Choice:** keep it, but let Read reject a saved state above 15 as damaged (RS9 rule).
 - **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
 - **RS16:** what does a zero divisor give in the averages? [0]
 - **RS17:** does a version-3 record keep the running population the constructor set? [yes]
