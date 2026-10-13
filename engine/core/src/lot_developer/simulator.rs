@@ -458,10 +458,8 @@ impl LotDeveloper {
     pub fn shutdown(&mut self) -> bool {
         if self.initialised {
             self.initialised = false;
-            for e in std::mem::take(&mut self.night) {
-                if let Some(b) = e {
-                    self.host.building_release(b);
-                }
+            for b in std::mem::take(&mut self.night).into_iter().flatten() {
+                self.host.building_release(b);
             }
             self.night_cursor = 0;
             self.host.remove_agent();
@@ -761,7 +759,10 @@ impl LotDeveloper {
         }
         let v = self.host.dev_desirability(dev, x, z);
         let d = (f32::from(v)) * 0.01f32;
-        if !(d < self.tuning.thresholds[0]) {
+        // Spec §5.1 `not (d < abandonThreshold)`: a NaN threshold counts as
+        // "not low", so keep the strict `<` rather than rewriting it as `>=`.
+        let low = d < self.tuning.thresholds[0];
+        if !low {
             self.write_counter(lot, lot_prop::LOW_DESIRABILITY, 0);
             return true;
         }
@@ -922,6 +923,9 @@ impl LotDeveloper {
                 let f = self.host.lot_occupancy(lot);
                 let distress = self.tuning.thresholds[1];
                 let renew = self.tuning.thresholds[2];
+                // Spec §5.5 lists the distress and the mismatched-wealth renew
+                // cases as separate branches; they happen to share a body.
+                #[allow(clippy::if_same_then_else)]
                 if f < distress {
                     d += 1;
                 } else if b && f < renew {
