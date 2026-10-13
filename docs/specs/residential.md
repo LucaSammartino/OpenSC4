@@ -727,7 +727,18 @@ only through the interface (search of every reference to the global and to city 
 
 1. The `cISC4VisualEffect` vtable and the exact names of its slots 3 and 8 (only the buzzards path uses them).
 2. Whether any caller tests the results of slots 19, 21–25, 28, 47, 49 *[inferred: none]*.
-3. The day-level order of residential relative to the growth developers, pollution and the BDS (§4.3).
+3. *Closed as posed, but it points at a real dependency* (§4.3): the day-level order of residential relative to the
+   growth developers, pollution and the BDS. There is no original order to match — the original orders agents by
+   target-pointer value at every level, which is a heap-layout artifact and not stable between sessions
+   (`foundations.md` §13.5). Registration order is the *[choice]*, and §4.3's existing text is confirmed correct.
+   **However**, this is not a case with no coupling at all: §5 state 1 reads the BDS building map (slot 41) and the
+   pollution **source** grids, and §4.3 already notes the pass reads the growth developers' population maps. So a
+   same-pass ordering dependency *may* exist, and it is not resolved. What is resolved is that it cannot be settled by
+   reproducing the original's pointer order. If a differential later shows residential reading a building map,
+   pollution source grid or population map that another agent updates earlier **in the same day**, that is a derived
+   *[compat]* requirement: record it in `foundations.md` §13.4's rank table with evidence, rather than reordering
+   registrations ad hoc. Until such a differential exists, registration order stands and no vector may assume
+   otherwise.
 4. Version 3 saves: the running population keeps its constructed value (not verified at run time).
 5. The dirty flag has no reader; its purpose is unknown.
 
