@@ -85,3 +85,22 @@ widens too (or that its `min` is evaluated in a wider type) — the two differ f
 REH §4.8 says yes ("Each is updated with every tract, populated or not") and the core follows it. With an empty city
 that gives `min = max = 0.0` rather than the initial `255.0` / `0.0`, which a caller may observe. residential.md §6.2
 only says "track the stored values", so confirm REH is normative here.
+
+## From the budget shadow differential (filed by the coordinator, 2026-10-13; merged as `6ca4b65`)
+
+About `docs/specs/budget.md`. Run 39 matched on every value for five months, so these are about the edges of what the
+shadow proves, not about a known mismatch. The lane's third question (does the original budget's QI(0x452294AA)
+pointer equal its month agent?) was answered by run 39 itself: the agent `139BE6F0` was matched through its
+`cIGZMessageTarget2` interface, 4 bytes into the budget object `139BE6EC`, not by the name fallback.
+
+**BQ1: can the original's own lot list differ from `GetLotsInCellRect(…, false)` over the whole city?**
+The shadow scans lots through `GetLotsInCellRect`, and the original settlement walks its own lot list. Lots that are
+mid-transition, preview/placement lots, or lots outside the city bounds could be in one set and not the other. Run 39
+counted 413–417 lots and matched exactly, so no difference showed up on Spandau. Answer from the settlement's lot
+iteration: which container it walks and which lots it filters out.
+
+**BQ2: at the January 1 settlement, what do GetYTDIncome/GetYTDExpenses return?**
+The shadow reads the month's income and expense as the change in the year-to-date values across the settlement. On
+January 1 the year-to-date is reset, so that month's income/expense is reported as `year end: … not observable`
+(run 39, 2002-01-01). Does the reset happen before or after that month's amounts are added? If after, the January
+values are readable directly as the new YTD, and the shadow can compare that month too.

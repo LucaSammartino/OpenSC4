@@ -69,8 +69,9 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
   - Backup: `%TEMP%\claude\…\scratchpad\Spandau.sc4.bak`, SHA-256 `6982A842…`; it was unchanged after run 23.
   - Restore the city from the backup after any save test.
 - **Current Plugins state, safe for manual play (verified 2026-10-13, after run 38):**
-  - DLL `238EE36C…` with its **matching** PDB `956EE1B6…`: main `95db886` built by `coord-verify-lane.ps1`. Power,
-    plumbing and flammability are off by default.
+  - DLL `624EA28A…` with its **matching** PDB `441DE345…`: main `6ca4b65` built by `coord-verify-lane.ps1`. Power,
+    plumbing, flammability and the budget shadow are off by default. The previous main build is kept as the
+    `.main-95db886` pair.
   - ini: `budget_default = 1` alone.
   - Backups alongside, each a matching DLL/PDB pair: `.run33-main-1eb5dd6`, `.run37-flammlog`. Older DLL-only backups
     (`.run31-lane1-prestage` etc.) and the old **mismatched** PDB (`.pdb.run33-prestage-MISMATCHED`) are kept too.
@@ -95,16 +96,16 @@ See the README checklist for the full list. In short:
   - **The x87 workaround is on main (`63e88f1`) and validated against the original**, so the differential is unblocked:
     run 29 (`disable = simulator,budget`, the game computes) gives `dept_expense` 123/105 across all five months,
     matching the unmodified Spandau save, where run 19 with the same config and no re-assert gave 122/104 (§5.2, §5.3).
-  - **The differential was redone (runs 35/36):** expenses match exactly. Total income is inside the original's own
-    run-to-run spread. Per-type tax needs both budgets computed side by side in one process, because the original is
-    not deterministic across runs (§5.3).
+  - **The budget differential is DONE: ours matches the original exactly** (run 39, the shadow differential, merged
+    `6ca4b65`). All 12 tax types, total tax, income, expense and net are identical over five month-ends, on the same
+    lots at the same moment (§5.3). The demand differential is the remaining half of the M2 exit.
 - **M3:**
   - All ten grid-sim cores are done.
   - Land value glue is done (off by default).
   - **Power glue is merged (`63e88f1`) and runs clean** — runs 27/28, `AUTOTEST VERDICT: clean`, production 5997→6000,
     409 cells powered, 0 unpowered (§5.1). The crash was a cross-thread `RefCell` race in the clock, not power.
   - **Plumbing + flammability glue merged** (`9f741de`) **and now run in game** (runs 33–38, §5.1b). It found and fixed
-    one real bug: a use-after-free on fire ignition (`95db886`). `FC4_ABI_VERSION` is still 14, and the plugin switch
+    one real bug: a use-after-free on fire ignition (`95db886`). `FC4_ABI_VERSION` is now 15 (the budget shadow, `6ca4b65`), and the plugin switch
     count is 57.
   - Protection, flora, pollution, crime and aura glue are not started.
 - **M4: COMPLETE — all five cores on main.**
@@ -151,7 +152,10 @@ See the README checklist for the full list. In short:
 > - `b5bdf8a`: the formats lane.
 > - `95db886`: the flammability fire fix and its month status line.
 >
-> **Main is verified at `95db886`:** `cargo test --workspace` 811 passed / 0 failed. `cargo clippy --workspace
+> **Later, merged `6ca4b65` (the budget shadow differential, ABI 15).** Main is verified there: cargo 814/0, ctest 18/18,
+> clippy clean (`cargo-test-main-shadow.txt`, `ctest-main-shadow-merge.txt`, `clippy-main-shadow.txt`).
+>
+> **Main was verified at `95db886`:** `cargo test --workspace` 811 passed / 0 failed. `cargo clippy --workspace
 > --all-targets -- -D warnings` exits 0 (**the first time it is clean**). `ctest` 18 of 18. Evidence is in
 > `build-runs/`: `cargo-test-main-b5bdf8a.txt`, `clippy-main-b5bdf8a.txt` and `ctest-main-firefix-merge.txt`. The fire
 > merge touched only `engine/plugin` and `engine/tests`, so the cargo numbers still hold.
@@ -262,9 +266,21 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
     is **type 3: ours 26, original 20 in both runs.**
   - **Observer artifact:** at the 2001-12 → 2002-01 boundary the month snapshot sometimes fires before the collection
     (runs 28 and 35 repeat December).
-- **Next (the real M2 exit check):** a **shadow differential**. At each tax collection, run our budget core on the same
-  inputs the original just used, inside the same process, and log per-type diffs. That removes the run-to-run noise.
-  This is engine work (plugin glue). Start with tax type 3 (Cs$ if the order is R$, R$$, R$$$, Cs$…).
+- **The shadow differential is DONE, and the budget matches exactly (run 39, merged `6ca4b65`, ABI 14 → 15).**
+  - **How it works:** with `disable = budget` and `budget_shadow = 1`, our simulator delivers SimNewMonth to the
+    original budget's month agent. Just before that delivery, our shared tax scan (`core/src/budget/tax.rs`, called
+    through `fc4_budget_shadow_tax`) runs over the live lots through a read-only host table. The original's per-type
+    results are then read back through its getters and diffed.
+  - **Result:** on Spandau, five month-ends, every value identical, `mismatches=0`. The tax-type-3 gap between runs 35
+    and 36 was the original's run-to-run drift.
+  - **Limits:**
+    - It needs **our** simulator. With the original clock it logs INACTIVE, because hooking the month would mean
+      writing to the game's agent list.
+    - The income/expense columns check only how the settlement adds things up: the "ours" side uses the original's
+      department expenses, which already matched in runs 35/36.
+    - On January 1, income/expense can't be observed (QUESTIONS BQ2).
+    - Lot order may differ, which can shift float sums by about ±1 per 1000 lots (QUESTIONS BQ1). None showed up.
+  - **Worth doing next:** the same shadow on Konradshohe, a bigger city with many more lots, and over a full year.
 
 ### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
 Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
@@ -382,8 +398,7 @@ All 25 queued questions (GD2–GD5, BD1–BD14, TD1–TD5) reviewed against thei
 the coordinator filed from lane reports: **ZQ1–ZQ6** from the zones core (ZQ1 answered from the exe and struck through in
 `bf3f998`, so the numbering still matches the lane's report; ZQ2–ZQ6 open) and **RS1–RS6** from the residential core
 (`7938b38`). The later spec-answer lanes also closed several questions *inside* the specs rather than here — landfill
-§10.2 items 2, 3 (partly) and 4, and lot-developer §12.2 Q8–Q10, both in `94d8cdf`. So the queue is: **ZQ2–ZQ6,
-RS1–RS6, and landfill §10.2 items 1 and 3's unresolved half** (which brush sets `terrainMessageData4` to 1, 2 or 3 —
+§10.2 items 2, 3 (partly) and 4, and lot-developer §12.2 Q8–Q10, both in `94d8cdf`. So the queue is: **ZQ2–ZQ6, RS1–RS6, BQ1–BQ2 (budget shadow, added in the second session), and landfill §10.2 items 1 and 3's unresolved half** (which brush sets `terrainMessageData4` to 1, 2 or 3 —
 needs the terraforming tool UI traced).
 
 ### 5.6 KillaVolt removal from the rebuild instructions — DONE and verified
@@ -462,8 +477,8 @@ needs the terraforming tool UI traced).
 Things I could not finish autonomously, or that need a human decision:
 1. **Locate the §5.2 trigger**, i.e. what in our process raises PC to 53-bit during app init. The workaround (re-assert
    at PostAppInit) has **landed** (`63e88f1`), so this is no longer urgent. The next step is a minimal attach-only DLL.
-2. ~~**Redo the §5.3 budget differential**~~ **Done** (runs 35/36, §5.3). What remains is the **shadow differential**
-   for per-type tax (engine work).
+2. ~~**Redo the §5.3 budget differential**~~ **Done:** runs 35/36, then the shadow differential (run 39, `6ca4b65`),
+   which matches exactly. The next M2 item is the **demand** differential.
 2b. **Glue for the remaining grid sims:** protection, flora, pollution, crime and aura. Plumbing and flammability are
    proven (§5.1b), so their pattern is the template.
 3. ~~**Merge lane 1 / lot developer / zones**~~ **DONE** — lot developer `9889f65`, zones `f56e52a`, lane 1 `63e88f1`,

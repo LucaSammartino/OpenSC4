@@ -31,8 +31,8 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Budget, demand, ordinance and weather cores
 - [x] Budget, demand, ordinance and weather glue (budget in-game with no heap corruption, runs 17–18)
 - [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
-- [ ] Budget differential (runs 35/36, [manual-checks](docs/manual-checks.md)): **expenses match the original exactly**, every department, all five months. Total income is inside the original's own run-to-run spread (funds after five months: original 71,265 and 71,325, ours 71,298). Per-type tax cannot be settled by comparing separate runs, because the original is not deterministic from run to run (types 4, 6 and 9 differ between two original runs from the same save). It needs both budgets computed side by side in one process; tax type 3 (ours 26, original 20 twice) is the first suspect
-- [ ] Budget and demand panels match the original after N months (M2 exit)
+- [x] Budget differential: **ours matches the original exactly** (run 39, the same-process shadow differential, merged 6ca4b65). Over five month-ends on Spandau, all 12 tax types, total tax, income, expense and net were identical on the same lots at the same moment, with 0 mismatches. Separate-run comparisons (runs 35/36) could not settle per-type tax, because the original is not deterministic from run to run; the shadow (`budget_shadow = 1` with `disable = budget`) removes that
+- [ ] Budget and demand panels match the original after N months (M2 exit): **the budget half is done** (run 39). The demand differential is not started
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
