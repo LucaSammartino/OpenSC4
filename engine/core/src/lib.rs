@@ -45,6 +45,7 @@ pub mod power;
 pub mod property;
 pub mod props;
 pub mod protection;
+pub mod residential;
 pub mod rng;
 pub mod save;
 pub mod simgrid;

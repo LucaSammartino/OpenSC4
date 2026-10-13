@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "residential_decay",
+  "spec": ["residential 5.5", "residential 7.1", "residential 15.4", "REH 11.14"],
+  "description": "Test 4 (REH test 14): shipped tuning, EQdecay = HQdecay = 0.2, no pollution, so hqLoss = 0.2 + air(0) + water(0) + garbage(0) = 0.2. A steady tract (100, 100, 0) with EQ = HQ = (10, 0.1, 0): 10 - 0.2 = 9.8f (0x411CCCCD, one float32 subtraction); 0.1 - 0.2 < 0 clamps to 0; the empty R$$$ level stays 0.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "tuning", "partial": true, "expect": {"eq_decay": 0.2, "hq_decay": 0.2}},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "eq": [10, 0.1, 0], "hq": [10, 0.1, 0], "age": 30},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "bits": true, "pop": [100, 100, 0], "eq": ["0x411CCCCD", "0x00000000", "0x00000000"], "hq": ["0x411CCCCD", "0x00000000", "0x00000000"], "age": 30}
+  ]
+}

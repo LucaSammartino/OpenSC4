@@ -104,11 +104,18 @@
 //!   parcellizable region; skipped components clear their cells from it
 //!   *[inferred]*. Virtual lots and virtually deleted cells are kept in
 //!   two maps until the next highlight.
-//! - **`DetermineLotSize`** (§7.2.1) with no best developer (zones 7–9, or
-//!   no developer from the BDS) lists no configurations: lot size (2, 2),
-//!   depths widened to `[1, 3]` *[inferred]*. A configuration with width 0
-//!   is skipped in the depth widening (the original divides by zero). A
-//!   missing source demand reads as 0.
+//! - **`DetermineLotSize`** (§7.2.1): the configuration set is visited in
+//!   ascending configuration ID (§7.2.1 "Configuration order" *[choice]*,
+//!   test 30e); the original's order is heap-address order. A candidate
+//!   developer the BDS does not have is skipped (the original does not
+//!   null-check it, §7.2.1 step 2 *[quirk]*; the shipped BDS has all eight).
+//!   With no best developer there is no query and the set is empty, so
+//!   steps 6–7 give (2, 2) and `[1, 3]` as written (test 30f). A
+//!   configuration with width 0 is skipped in the depth widening (the
+//!   original divides by zero). A missing source demand reads as 0.
+//! - **`CreateParcellizableRegion`**'s "occupied" test (§7.4, ZQ2) is the
+//!   zone developer's per-cell `IsCellOccupied`, asked in highlight mode
+//!   only; it is not `CanCreateLot(…) == 7`.
 //! - **Parcellize** (§7.6) clamps lot width and depth to at least 1 (a
 //!   width of 0 never ends the row walk) and stops a walk after
 //!   [`MAX_WALK_STEPS`] positions.
@@ -144,7 +151,9 @@ pub use manager::{
     shipped_tuning, PlaceZoneResult, Tuning, ZoneManager, MANAGER_RECORD_VERSION, TEXTURE_KEY_GROUP, TEXTURE_KEY_TYPE,
     TUNING_KEY,
 };
-pub use parcel::{block_depth, depth_rule, middle_row, zone_density, MAX_WALK_STEPS};
+pub use parcel::{
+    adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, zone_density, MAX_WALK_STEPS,
+};
 pub use region::{CellRegion, MAX_REGION_SIDE};
 
 use std::rc::Rc;
@@ -494,16 +503,30 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     fn cfg_compatible_with_water(&self, cfg: u64) -> bool;
     /// Slot 15 `IsCompatibleWithZoneType(type)`.
     fn cfg_compatible_with_zone(&self, cfg: u64, zone: i32) -> bool;
-    /// The configuration ID (the hash-set key, §7.2.1 step 5).
+    /// Slot 3 `GetID`: the configuration ID. FreeCity4 orders the
+    /// configuration set of §7.2.1 by it (§7.2.1 "Configuration order"
+    /// *[choice]*).
     fn cfg_id(&self, cfg: u64) -> u32;
     /// Slot 7: the size (width, depth).
     fn cfg_size(&self, cfg: u64) -> (u32, u32);
-    /// The families of the primary building object (`None`: no primary
-    /// building object).
-    fn cfg_primary_building_families(&self, cfg: u64) -> Option<Vec<u32>>;
-    /// Lot configuration manager slot 9 with the filter `{purpose, wealth,
-    /// stage}`: one reference per configuration for the caller.
-    fn configurations_by_filter(&self, purpose: u32, wealth: u32, stage: i32) -> Vec<u64>;
+    /// Slot 11 `GetGrowthStage` (§7.2.1 step 5).
+    fn cfg_growth_stage(&self, cfg: u64) -> u8;
+    /// Slot 16 `IsCompatibleWithWealthType(wealth)` (§7.2.1 step 5).
+    fn cfg_compatible_with_wealth(&self, cfg: u64, wealth: u32) -> bool;
+    /// Slot 17 `IsCompatibleWithPurposeType(purpose)` (§7.2.1 step 5).
+    fn cfg_compatible_with_purpose(&self, cfg: u64, purpose: u32) -> bool;
+    /// Slot 24, the primary building configuration object: its ID list, in
+    /// list order (`None`: slot 24 returns null, §7.2.1 step 6).
+    fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>>;
+    /// Lot configuration manager (`0x00B43D18`) slot 9
+    /// `GetLotConfigurationsByFilter` with the zone developer's filter
+    /// (§7.2.1 step 5). That filter is never registered, so the manager takes
+    /// its uncached path and walks **all** its configurations: this returns
+    /// every configuration it holds, in its own walk order, with **no**
+    /// reference. The core asks the filter (`IsLotConfigurationIncluded`
+    /// `0x0072A080`, zone developer code) itself and takes the manager's one
+    /// reference per accepted configuration through [`ZonesHost::add_ref`].
+    fn lot_configurations(&self) -> Vec<u64>;
 
     // ---- lot developer (lot-developer.md) ----
     /// Slot 29 `GetAreaSlope(rect, withWater)`.
@@ -529,7 +552,9 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     // ---- BDS and growth developers (§7.2.1) ----
     /// BDS slot 32 `GetDeveloper(type)`.
     fn bds_developer(&self, dev_type: u32) -> Option<u64>;
-    /// BDS slot 19 `GetBuildingTypesByFamily`.
+    /// BDS slot 19 `GetBuildingTypesByFamily(set, id)` into a fresh set: a
+    /// family → its members, a building type → itself, anything else →
+    /// nothing (§7.2.1 step 6).
     fn building_types_by_family(&self, family: u32) -> Vec<u32>;
     /// BDS slot 39 `GetBuildingProfile`.
     fn building_profile(&self, building: u32) -> BuildingProfile;
@@ -537,13 +562,16 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     fn dev_estimate_desirability(&self, dev: u64, x: i32, z: i32) -> i16;
     /// `GetSourceDemand().QueryActiveDemandValue()` (`None`: no demand).
     fn dev_source_demand(&self, dev: u64) -> Option<f32>;
-    /// The growth list, when the growth/decline lists are valid.
+    /// Growth developer slot 11, the growth list, when slot 10 says the
+    /// growth/decline lists are valid (`None`: not valid).
     fn dev_growth_list(&self, dev: u64) -> Option<Vec<GrowthItem>>;
-    /// The desirability map's tract value.
+    /// Growth developer slot 13, the desirability map, then its
+    /// `GetTractValue(tx, tz)` (int16).
     fn dev_desirability_value(&self, dev: u64, tx: i32, tz: i32) -> i16;
-    /// The desirability map's tract shift.
+    /// The desirability map's tract shift (slot 11 of the map).
     fn dev_desirability_shift(&self, dev: u64) -> u32;
     /// Growth developer slot 7 `GetPurpose`.
     fn dev_purpose(&self, dev: u64) -> u32;
+    /// Growth developer slot 8 `GetWealth`.
     fn dev_wealth(&self, dev: u64) -> u32;
 }

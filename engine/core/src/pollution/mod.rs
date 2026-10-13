@@ -53,9 +53,11 @@
 //!   up to 2²²). Every `trunc` is the CRT `_ftol` (foundations §18.1,
 //!   [`crate::x87::ftol`]): an `int64` truncation whose low bits are kept
 //!   (NaN, ±∞ and |x| ≥ 2⁶³ give 0), wrapped to the field's width where the
-//!   spec says "held as int16". The other `roundHalfEven` sites (§4.4.4,
-//!   §4.6.1, slot 53, §4.11) round the `f32` exactly, half to even (the
-//!   spec names the idiom only for the deals; the two agree below 2²²).
+//!   spec says "held as int16". Every other `roundHalfEven` site (§4.12:
+//!   garbage produced, water treated, valve share, landfill limit and amount,
+//!   prop share, slot 53) is `rhe` too, so the landfill limit follows the
+//!   formula above 2²² (839 shipped tiles); the two `Dispose` floors are
+//!   `rhe(g − 0.5f)` plus the exact `float(n + 1) = g` correction.
 //! - Arrays shorter than four elements (centre, outer, radii) read missing
 //!   elements as 0 (§4.2.2 states this one).
 //! - Zone types ≥ 16 use the multipliers 1.0 (the day reads 16 entries).

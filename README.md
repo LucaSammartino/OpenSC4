@@ -11,7 +11,7 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 
 ## Progress
 
-Last updated 2026-10-13 (third session). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+Last updated 2026-10-14 (third session). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
 the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
@@ -49,6 +49,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
 - [ ] Zones glue. Spec questions: ZQ1, ZQ2, RS1–RS6 answered from the exe on 2026-10-13 (RS1: every percentage × 0.01 is a float32 `0.01f`); ZQ3–ZQ6 (`DetermineLotSize`, city-border behaviour) still open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md)
+- [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)

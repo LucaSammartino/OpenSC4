@@ -5,21 +5,51 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 
 ## 0. Start here
 
-> **Third session (2026-10-13, late evening; in progress, the user is away).** Read this block first; the rest of §0
-> describes the end of the second session.
-> - **Game control is hands-free now** (`f850598`, `0e2c238`, `def371e`): `tools/sc4ctl.ps1` drives the running game
->   with posted clicks (speeds, pause, God mode, popups, save with real Ctrl+S, snapshots, state from the log), and
->   `tools/ingame_run.ps1` closes dialogs automatically, runs `-Actions "secs=command; …"` after the load, and
->   restores the autoload city if a run saved over it. Measured control map and gotchas: `docs/manual-checks.md` runs
->   47–54.
-> - **M1 in-game checks are done** (runs 50–54): save → reload (date, funds, 18 departments), pause, all three speeds
->   (`SetSimSpeed(0/1/2)`), emergency pause (God-mode disaster). Only the clock differential is open.
-> - **Spec answers merged** (`ac19c1e`): RS1 (every percentage × 0.01 is float32 `0.01f`; residential §15 test 8
->   corrected), advisors §6.8.1 (popups and the hidden pause), DQ2 (dead fields).
-> - **Lanes running** (all clean-room engine lanes in `.claude/worktrees/agent-*`, one RE lane in
->   `.claude/worktrees/re-answers`): protection glue + shadow, pollution glue + shadow, crime glue + shadow,
->   traffic-network compile fix, residential tests, the `popup_dialogs = 0` switch, and RE answers (BQ1/2,
->   flammability §13.1, RS2–6, ZQ2–6). Each glue lane bumps `FC4_ABI_VERSION` to 17; renumber at merge.
+> **Third session (2026-10-13 evening to 10-14; in progress, the user is away).** Read this block first; the rest of
+> §0 describes the end of the second session.
+> - **M1 is complete.** In-game checks (runs 50–54): save → reload, pause, all three speeds, emergency pause. **Clock
+>   differential: identical to the original** (runs 56/57, 240 days; runs 58/60 in `clock_probe = 2`, which holds
+>   the week agent once to exercise the §5.3 repeat, 316 entries identical). Tooling: `clock_probe` (plugin,
+>   `FC4ClockProbe.h`) + `tools/clock_diff.ps1 -A <original log> -B <our log>`.
+> - **Unattended runs are now really unattended:**
+>   - `popup_dialogs = 0` turns the game's popup dialogs off: no advisor popup, no hidden pause. **Since `d161d20`
+>     it sets the flag only when ConnectionsReady `0x6AC284F3` arrives** (and true again at each later city load).
+>     Before that (`5e39f3c`, at PostAppInit) it silently stopped ConnectionsReady, so **power, plumbing and
+>     neighbours stayed disabled in runs 58–64, including the run 61 soak** (foundations.md §11.6, CR1; runs 64/65
+>     isolate it, run 66 shows the fix). Generic prompts answer by themselves (a posted `WM_CLOSE` does nothing).
+>   - `autotest_end = quit` (`22769f3`) ends a run through `cISC4App::RequestQuit(false, false)`: the full city and
+>     app Shutdown path runs and counts toward the verdict (run 59: grids released, `ref_warnings=0`). Use it for
+>     every glue lane's run.
+>   - `tools/sc4ctl.ps1` / `tools/ingame_run.ps1` (`f850598`, `0e2c238`, `def371e`, `cce7b98`): posted clicks, real
+>     Ctrl+S save, `-Actions`, automatic dialog closing, city backup and restore, and a 60 s wait for a previous
+>     game process to exit. Control map: `docs/manual-checks.md` runs 47–54.
+>   - Long runs (soaks, bisections) are started detached (`Start-Process powershell -WindowStyle Hidden`), because a
+>     background tool call stops after 10 minutes; PowerShell `*>` output is UTF-16 (`tr -d '\000\r'` before grep).
+>     **Never `tail -F` the plugin log from a monitor**: the orphaned tails lock `FreeCity4.log` and the next run's
+>     harness cannot truncate it (it copied the soak's log instead). Poll with grep.
+> - **Soak (run 61, 48 game years, 7 replacements): clean**, `ref_warnings=0`. Two findings: the ConnectionsReady
+>   problem above, and **demand frozen**: the demand glue cannot read the BuildingProfile capacity lists or fill
+>   `GetLocalPopulationSummary` (STLport `std::map` layout undocumented; RE ABI lane `re-abi`).
+> - **Merged this session:**
+>   - traffic network core (`dd240c9`: TN1–TN20 filed); residential core (`737bcc5`: RS7–RS17 filed);
+>   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
+>   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14);
+>   - zones ZQ2/ZQ3/ZQ5/ZQ6 follow-up (`8ee3253`: tests 30–32 as vectors `zn15_32`–`zn15_35`; ZQ7–ZQ10 filed);
+>   - **pollution glue + grid shadow** (merged after `d161d20`: `enable = pollution`, `pollution_shadow = 1`;
+>     `FC4_ABI_VERSION` 17; PG1–PG13 filed; not yet run in game).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`, RE lanes in
+>   `.claude/worktrees/re-answers` and `re-abi`):
+>   - glue + grid shadow for protection and crime (each bumped `FC4_ABI_VERSION` to 17: renumber to 18/19 at merge,
+>     and rerun `python tests/gen_abi_entries.py` after each merge);
+>   - landfill + neighbors cores; the pathfinder core (M5); formats `exemplar.rs`;
+>   - RE: TN15–TN19 and RS7–RS17 (`re-answers`); STLport map + BuildingProfile layout (`re-abi`).
+> - **Open follow-ups:**
+>   - flora and aura glue, residential glue (M3); demand glue fix once the ABI layouts land;
+>   - the traffic simulator core after the pathfinder; a TN-apply lane after TN4–TN19;
+>   - rerun the soak with the fixed `popup_dialogs` (power and plumbing now live) and pollution enabled.
+> - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
+>   clippy, configure/build/ctest; it copies the SDK into worktrees that lack the submodule), then `rustfmt --check`
+>   on the touched files, run from `engine/` (it needs `engine/rustfmt.toml`; skip `lib.rs` roots).
 > - Test city backups (verified hashes) are in `build-runs/city-backups/`.
 
 **Main is `ac809c0`. It is clean and verified, and nothing is running.** No agent is alive, no game process is

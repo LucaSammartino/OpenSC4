@@ -279,8 +279,9 @@ The demand, ordinance and weather vectors share a few conventions (`src/scalar.r
 
 - Each family keeps its own fake world for the whole vector, created by its first op.
 - Numbers may be written as integers, floats or `"0x…"` strings. Results are compared with a relative tolerance
-  of 1e-5 (demand spec §14), exactly when both sides are integers; objects are compared key by key, with keys
-  compared as integers when both parse.
+  of 1e-5 (demand spec §14), exactly when both sides are integers (an integer result against an expected `"0x…"`
+  or decimal string is exact too, so an ID never matches its neighbour); objects are compared key by key, with
+  keys compared as integers when both parse.
 - Events go to one log. `*_expect_events` (`events`, `filter?`) checks the events since the last check, one to one
   and in order, each given as a partial object (only the keys written are checked), after keeping only the events
   that match `filter`; it then clears the log. `*_expect_event_count` (`filter?`, `count` / `min` / `max`) counts
@@ -1156,9 +1157,9 @@ network — joining it to the same-kind network it abuts, as an automatic street
 | `zone_zones` | `rect` with `v`, or `cells` (`[[x, z, v]]`) | writes the zone grid directly, without `PlaceZone` (test setup) |
 | `zone_water` | `cells` (`[[x, z]]`), `clear?` | `CellHasWater` cells |
 | `zone_lot` | `rect`, `facing?` (0); any of `zone`, `state`, `flags`, `cfg`, `building`, `business_unit`, `altitude` | a lot in the cell map and the master list |
-| `zone_cfg` | `id`, `w`, `h`, `water?`, `zone_ok?` (true), `families?` (primary-building families) | a lot configuration |
-| `zone_dev` | `token` (the developer type the BDS returns it for), `purpose`, `wealth`, `shift?`, `demand?`, `estimate?` (`[[x, z, v]]`, `EstimateDesirability`), `growth?` (`[[x, z, maxStage]]`), `desir_value?` (`[[tx, tz, v]]`) | a growth developer (§7.2.1) |
-| `zone_family` | `id`, `types` | a building family (BDS slot 19) |
+| `zone_cfg` | `id` (the token and the configuration ID), `w`, `h`, `water?`, `zone_ok?` (true), `purposes?` / `wealths?` (the compatible types; absent = all), `stage?` (1, `GetGrowthStage`), `object?` (the primary building object's ID list; absent or null = no object) | a lot configuration; the configuration manager walks them in `zone_cfg` order (§7.2.1 step 5) |
+| `zone_dev` | `token`, `type` (the developer type the BDS returns it for), `purpose`, `wealth`, `shift?` (0), `demand?`, `estimate?` (`[[x, z, v]]`, `EstimateDesirability`; 0 elsewhere), `growth?` (`[[x, z, maxStage]]`; absent = the growth/decline lists are not valid), `desir_value?` (`[[tx, tz, v]]`) | a growth developer (§7.2.1); a repeated `token` replaces it |
+| `zone_family` | `id`, `types` | a building family (BDS slot 19; a building ID answers itself, anything else nothing) |
 | `zone_building` | `id`, `purpose?`, `wealth?`, `capacity?` | a building profile (BDS slot 39) |
 | `zone_occupant` | `token`, `type`, `pos` (`[x, y, z]`), `bounding?` (`[x1, z1, x2, z2]`), `net_flags?`, `can_remove?` (true) | an occupant (building, obstacle, landfill, network) |
 | `zone_options` | `alternate?` (false), `streets?` (true), `custom?` (false) | `SetOptions` (slot 7) |
@@ -1175,12 +1176,15 @@ network — joining it to the same-kind network it abuts, as an automatic street
 | `zone_do_parcellization` | `region`, `type`, `flag?` (false), `keep_log?` | slot 6 (§7.1); clears the parcel log first |
 | `zone_draw_street` | `region`, `x1`, `z1`, `x2`, `z2`, `per_cell?` (false), `keep_log?` | `DrawStreet` (§7.10) with `region` as the restriction |
 | `zone_examine_boundaries` | `region`, `type`, `expect` (`{flag, d, q, scores, conditions}`) | `ExamineBoundaries` (§7.3) on its own |
+| `zone_determine_lot_size` | `region` (the cropped region), `type`, `expect` (`{width, depth, min_depth, max_depth, block}`) | `DetermineLotSize` (§7.2.1) on its own (test 30) |
+| `zone_simple_parcellize` | `region` (the restriction region), `type?` (8), `d`, `q`, `n`, `keep_log?` | `SimpleParcellize(n)` (§7.5) with D and Q set directly (test 32); clears the parcel log first |
+| `zone_parcellizable_region` | `region`, `type`, `highlight?` (`{virtual: [[x, z]], deleted: [[x, z]]}`: highlight mode over those virtual-lot and virtually deleted cells), `expect` (`{cells, virtual_deleted}`, each sorted) | `CreateParcellizableRegion` (§7.4) on its own |
 | `zone_call` | `target?` (`"developer"` (default) or `"manager"`), `method`, `args?`, `expect?` | manager: `zone_count`, `zone_type`, `is_rci_zone`, `development_failure_count`, `undeveloped_total`, `abandoned_tile_count`, `min_zone_size`, `max_zone_size`, `zone_display_alpha`, `default_zone_display_alpha`, `zone_drag_color`, `texture_for_zone`, `is_loaded`; developer: `can_create_lot`, `create_lot_if_possible` (`{ok, lot}`), `get_lot_count`, `master_lots`, `get_random_lot`, `get_lots_in_cell_rect`, `get_lots_surrounding_rect`, `exists_network_of_type`, `is_cell_water`, `get_occupant_lot`, `lot_savvy_terrain_altitude` (`{alt, ok}`), `neighbor_cells_at_edge_of_lot` (`{out, al}`), `delete_lots`, `is_loaded` |
-| `zone_eval` | `fn`, `args`, `expect` | pure functions: `depth_rule [rem, front, far, min, max, ld, ps]`, `depth_rule_row [front, far, min, max, ld, ps]` (rem 1..12), `middle_row [o0, so, b1, b2, lw]`, `zone_density [zone]`, `block_depth [density, depth, residential]`, `occupant_cell [p]`, `savvy_cell [p]`, `derive_seed [session]` |
-| `zone_expect` | `state` (partial: `manager_initialized`, `manager_loaded`, `developer_initialized`, `developer_loaded`, `lot_count`, `real_mode`, `orientation_flag`, `orientation_d`, `orientation_q`, `scores`, `conditions`, `lot_size`, `deferred`, `funds`, `place_count`, `failure_map1_count`, `lcg`, `next_raw` (a non-consuming peek), `draw_count`), `zones` (`[[x, z, v]]`), `zoning_changes` (partial `{zone, check_slope, rect, cells}` per posted message) | the world and both classes |
+| `zone_eval` | `fn`, `args`, `expect` | pure functions: `depth_rule [rem, front, far, min, max, ld, ps]`, `depth_rule_row [front, far, min, max, ld, ps]` (rem 1..12), `middle_row [o0, so, b1, b2, lw]`, `zone_density [zone]`, `block_depth [density, depth, residential]`, `capacity_value [k, n, avg]` (§7.2.1 step 6), `adjust_depth_range [min, max]` (→ `[min, max]`, §7.2.1 step 7), `occupant_cell [p]`, `savvy_cell [p]`, `derive_seed [session]` |
+| `zone_expect` | `state` (partial: `manager_initialized`, `manager_loaded`, `developer_initialized`, `developer_loaded`, `lot_count`, `real_mode`, `orientation_flag`, `orientation_d`, `orientation_q`, `scores`, `conditions`, `lot_size`, `deferred`, `funds`, `place_count`, `failure_map1_count`, `lcg`, `next_raw` (a non-consuming peek), `draw_count`, `cfg_refs` (`[[id, addRefs, releases]]` per configuration touched since the last `zone_clear_events`, by ID)), `zones` (`[[x, z, v]]`), `zoning_changes` (partial `{zone, check_slope, rect, cells}` per posted message) | the world and both classes |
 | `zone_expect_parcel_log` | `log` (strings), `keep?` | the ordered log since the last clear: lot creations as `(x1,z1)-(x2,z2) fN`, `Place` calls as `P(x1,z1,x2,z2)` |
 | `zone_expect_draws` | `draws`: each `"Zn"` (kind only) or `["Zn", arg, value]` (exact); `keep?` | the draws since the last check (§9) |
-| `zone_expect_log` / `zone_expect_event_count` / `zone_clear_events` | see the shared conventions (`clear_events` also clears the parcel log, the posted messages and the demolition list) | host calls |
+| `zone_expect_log` / `zone_expect_event_count` / `zone_clear_events` | see the shared conventions (`clear_events` also clears the parcel log, the posted messages, the demolition list and `cfg_refs`) | host calls |
 | `zone_save` / `zone_load` | `slot`; load: `expect?` (true = a clean store load) | the class-object store; a load replaces both classes and rebuilds the master list in first-cell order (§10.2) |
 | `zone_record` | `target?` (`"manager"` (default) or `"developer"`) and one of `hex`, `hex_prefix`, `byte_length`, or `read` (+ `expect?`) | one class's record bytes (§10) |
 
@@ -1188,7 +1192,8 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 `developer_release_services`, `subscribe` / `unsubscribe` (`who`, `messages`), `shutdown_grid` (`class`),
 `acquire_network_tools`, `release_network_tools`, `zoning_change` (`zone`, `check_slope`), `demolish_lots` (`commit`,
 `count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
-`place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`).
+`place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`), `bds_developer` (`type`), `estimate_desirability`
+(`dev`, `x`, `z`), `lot_configurations` (the configuration manager's walk).
 
 ## Traffic network ops
 
@@ -1280,6 +1285,60 @@ hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
 | `pf_expect_edge` | `cell`, `t?` (1), `evening?` (false), `counts` (`[[entry, exit, value]]`) | the record's `current` counters: the listed ones, every other counter 0 (a missing record reads as zeros) |
 | `pf_eval` | `fn`, `args`, `expect` | pure functions: `heap_order [[f]]` (the pop order of pushes, §4.7), `boundary_cells [rect]`, `start_ring_cells [start, ring]`, `grow_clamp [rect, d]` (clamped to the world's city), `encode_route [[[x, z, t]]]` (`{bytes, mask}`, over the world's network), `encode_unit_steps [x0, z0, t, code, count]`, `distance_to_rect [x, z, rect]` (bits), `node_key [prefix, t, x, z]`, `bucket [key]` |
 
+## Residential ops
+
+The residential vectors (`rs15_…` for the tests of `docs/specs/residential.md` §15, `rs00_…` for the rest) drive the
+residential simulator (`fc4_core::residential`) over one scripted world implementing `ResidentialHost`: the three
+growth developers' population maps (`int16`, tract size `dev_size`), the BDS building map, the pollution source
+values (one value per kind, at every cell), the month and day number, the terrain altitude, the effects manager,
+occupants (their groups and bool properties), and departments (tokens 900, 901, … in creation order). Every op
+name starts with `residential_`. The default world is a 16 × 16-cell city, `dev_size` 4, the shipped tuning
+(`shipped_tuning()`), month 6, day 1000, altitude 0, every service present, effect token 500, no pollution, no
+building map. The education and health building work (REH) is not in this core. The world answers those hooks
+as a city without service buildings, except for these:
+- the served counts it is given;
+- the combined strike chance;
+- the ordinance decay products;
+- a building hook that appends an inserted building to the pending school list, holding one reference.
+
+Objects are tokens and grids are core `SimGrid`s, so a record read back shares the writer's grids.
+
+### Environment
+
+| op | Arguments | Effect |
+|---|---|---|
+| `residential_env` | any of `cells` (`[x, z]`), `dev_size`, `month`, `today`, `tuning` (`"shipped"`, `"empty"` or null = no exemplar), `tuning_props` (`{"0xID": value or null}`, merged into the tuning; null removes), `pollution` (`[air, water, garbage]`), `altitude`, `effect` (the effect `CreateVisualEffect` returns, or null), `building_map` (`{size?, cells: [[x, z, key]]}` or null), `demand_node`, `message_server`, `simulator`, `building_dirty` (what the building hook reports), `served` (`[school, hospital]`), `ordinance` (`[edu, health]` decay products), `strike_chance`, `groups` (`{"occupant": ["0xGROUP", …] or null}`; a listed occupant is a building occupant) | the world; `cells` and `dev_size` recreate the developers' maps; grids are sized at `Init` |
+| `residential_create` | `rng?` (`{draws: [v, …]}`: each `RandomDoubleRangeUniform(a, b)` returns the next value verbatim, or `b` when none is left; or `{session}`: `derive_seed(session, 0x4990C013)`), `proximity_size?`, `work_budget?` | a new constructed simulator, which replaces the current one |
+| `residential_tract` | `x`, `z`, any of `pop` (current populations), `new` (the developers' maps), `steady` (both), `eq`, `hq` (floats or `"0x…"` bit patterns), `age` | one population tract |
+| `residential_grid_set` | `grid`, `cells` (`[[x, z, v]]`) and / or `all` | writes a grid: `proximity1`–`3`, `population1`–`3`, `eq1`–`3`, `hq1`–`3`, `age`, `school_grade`, `hospital_grade`, `school_coverage0`–`6`, `hospital_coverage0`–`2`, `temporary`, `developer1`–`3`, `building_map` |
+| `residential_set` | `work_budget?`; `state`: any of `state`, `dirty`, `population`, `running_population`, `le_sum`, `age_count` / `age_eq_sum` (an array or `{"bucket": v}`), `school_covered`, `hospital_covered`, `proximity_size`, `unused` (`[f1, f2]`), `health` / `education` (block fields), `lists` (`pending_school`, `pending_hospital`, `other`, `school_groups`, `hospital_groups`, `health_affecting`; null entries allowed), `school_auto_budget`, `hospital_auto_budget`, `iterator` (`{step?, advance?}`) | pokes state (test setup) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `residential_init` / `residential_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `residential_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `OccupantInserted`, `OccupantRemoved` or an ID), `occupant?` (void1), `data3?` (default the building type `0x278128A0`), `count?`, `expect?` | `DoMessage`, each result checked |
+| `residential_run_to` | `state`, `steps?` | NewDay until the state is reached (every step must finish); `steps` checks how many were taken |
+| `residential_call` | `method`, `args?`, `expect?`, `bits?`, `partial?` (objects compared key by key) | a method: `do_population_change [x, z]`, `hq_loss [x, z]`, `tract_quotient [eq/hq, x, z]`, `get_cell_eq` / `get_cell_hq [x, z]`, `get_cell_eq_by_wealth` / `get_cell_hq_by_wealth [x, z, w]`, `get_global_eq`, `get_global_hq`, `get_cell_life_expectancy [x, z]`, `get_global_le`, `get_cell_workforce_percent [x, z]`, `get_global_workforce_percent`, `get_average_new_age_by_wealth [w]`, `get_population`, `max_quotient`, `total_city_upkeep_cost`, `average_grid [eq/hq]` (`{min, max, values (x outer, z inner), instance, size, refs}`), `average_grid_is_new [eq/hq]`, `quotient_min_max [eq/hq]` (`[minX, minZ, maxX, maxZ, min, max]` or null), `grid_triple [eq/hq/population]` (`{result, instances, added}`: the reference count each grid gained), the strike slots (`school_is_on_strike`, `end_school_strike`, `chance_of_school_strike`, and the health ones), `school_building_count`, `school_buildings [groups or null]`, `hospital_building_count`, `hospital_buildings`, `health_affecting_buildings`, the auto-budget slots (`global_auto_budget_schools`, `set_global_auto_budget_schools [v]`, the hospital ones, `get_auto_budget [occ]`, `set_auto_budget [occ, v]`), `set_occupant_funding [occ, staff, vehicle, school]`, `get_proximity [w, x, z]` (the value, or null without a map), `add_ref`, `release`, `class_id`, `tuning` (the population tuning); and the pure `age_bucket [age]`, `pct [x]`, `slot [n]` (`[name, pops, return]` with return `AL`, `EAX`, `ST0`, `hidden` or `none`), `slot_count`, `query_interface [iid]` |
+| `residential_expect` | `state` (partial; the `residential_set` fields plus `initialized`, `city_started`, `ref_count`, `destroyed`, `message_server_held`, `population_size`, `eq_size`, `tuning_loaded`, `temporary` (exists), `departments` (`[health1, health2, education1, education2]`), `iterator` (`{state: fresh/running/done, x, z, step, rect}`)); `bits?` | the simulator state; objects compare key by key |
+| `residential_expect_tract` | `x`, `z`, any of `pop`, `eq`, `hq`, `age`; `bits?` | one tract |
+| `residential_expect_grid` | `grid` (as for `grid_set`); any of `exists`, `size`, `counts`, `instance`, `cells`, `all`, `others` (every tract not in `cells`); `bits?` | a grid |
+| `residential_expect_refs` | `refs` (`{"id": count}`) | references the simulator holds on world objects (AddRef − Release) |
+| `residential_expect_events` / `residential_expect_event_count` / `residential_clear_events` | see the shared conventions | host calls |
+| `residential_write` | `slot`, `expect?`, `length?` | `Write`; the bytes and the registry entries are kept in `slot` |
+| `residential_read` | `slot` or `hex`, `version?` (rewrites the first two bytes), `length?` (truncates), `patch?` (`[{offset, hex}]`), `reuse?`, `rng?`, `expect?` | `Read` into a new constructed simulator (the class store's path), or with `reuse` into the current one |
+| `residential_expect_record` | `slot`, any of `length`, `at` (`[{offset, hex}]`), `same_as` (another slot) | record bytes |
+
+With `"bits": true` every float in the result becomes its float32 bit pattern (`"0x3F4CCCCC"`), compared exactly.
+
+Residential events:
+- lifecycle: `acquire_services`, `acquire_developers`, `demand_node`, `message_server`, `budget_simulator`, `simulator`, `add_agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`), `release_message_server_and_budget`, `release_services`, `queue_length` (`series`, `length`);
+- departments and grids: `department` (`id`, `name`, `max`, `init`, `token`), `release_department` (`token`), `shutdown_grid` (`instance`; the temporary grid is 0);
+- references: `add_ref` / `release` (`id`);
+- the month pass: `get_month`, `effect` (`name`), `transform` (`effect`, `pos`), `start_effect` (`effect`), `history` (`series`, `value`), `rng` (`lo`, `hi`, `value`);
+- the REH hooks: `strike` (`type`, `occupant`, `data2`, `data3`), `ordinance_effects`, `strike_checks`, `building_changed` (`id`, `inserted`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -1289,7 +1348,8 @@ hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
    `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `ld16_…` (lot developer §16),
-   `zn15_…` (zones §15), `tn11_…` (traffic network §11), `pf11_…` (pathfinder §11).
+   `zn15_…` (zones §15), `tn11_…` (traffic network §11), `pf11_…` (pathfinder §11), `rs15_…`
+   (residential §15) and `rs00_…` (other residential behaviour).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1851,27 +1911,28 @@ hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
 | 27 `DepthRule` (all three cases, four parameter sets, ps 0 and 1) | `zn15_27_depth_rule` |
 | 28 `DrawStreet` (runs, per-cell mode, the backwards line, the fallback chain) | `zn15_28_draw_street` |
 | 29 middle row (`o0 = 10`, step +2, four row ranges) | `zn15_29_middle_row` |
+| 30 `DetermineLotSize` (developer choice, stage walk, filter, scores, widening, blocks; the ascending-ID tie; zone 7; the pure functions) | `zn15_32_determine_lot_size` |
+| 31 `ExamineBoundaries` at the city border (both low edges, both high edges, the zone-1 swap, placeStreets off) | `zn15_33_examine_boundaries_city_border` |
+| 32 `SimpleParcellize` street lines (all eight perpendicular (Q, D) pairs, the edge rule) | `zn15_34_simple_parcellize_street_table` |
 | extra: `SimpleParcellize`'s street lines (§7.5 step 1), Q = 3 | `zn15_30_simple_parcellize_streets` |
 | extra: `SimpleParcellize`'s Q = 2 x-line rule (§7.5, the `D = 3` branch) | `zn15_31_simple_parcellize_q2_x_lines` |
+| extra: `CreateParcellizableRegion`'s `IsCellOccupied` (§7.4, ZQ2): the five highlight-mode rows, the real-mode control, the zone-0 network cell | `zn15_35_parcellizable_region_highlight` |
+
+The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
+numbered 32, 33 and 34.
 
 Not covered by a vector, and why:
 
-- **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–31 (the spec's own common setup forces width 2, depth 2,
-  minDepth 1, maxDepth 3, block 6). Its candidate-developer choice, the stage walk, the configuration `hash_set` order
-  and the capacity score therefore have no vector yet; only its `block_depth` and `zone_density` helpers are unit-tested
-  (`fc4-core`, `zones::tests`).
-- **`HighlightParcels` (§7.1)** and the whole highlight-mode path (virtual lots, virtually deleted cells, the draft
-  fallbacks of §7.13) have no vector: the UI side is headless-limited and the draft fallbacks need the network tools'
-  `OccupantExists`, which the world stubs out.
+- **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–29 (the spec's own common setup forces width 2, depth 2,
+  minDepth 1, maxDepth 3, block 6) and is covered on its own by test 30 (`zn15_32`).
+- **`HighlightParcels` (§7.1)** and most of the highlight-mode path (virtual lots created by `CreateLotIfPossible`,
+  the draft fallbacks of §7.13) have no vector: the UI side is headless-limited and the draft fallbacks need the
+  network tools' `OccupantExists`, which the world stubs out. Only `CreateParcellizableRegion`'s highlight-mode cell
+  test is covered (`zn15_35`).
 - **`CanCreatePloppedLot` (slot 21)**, the highlight textures, the cheats "PlopAllLots" / "PlopAllBuildings" and
   `InitBoundaryRules` are left out of the core (UI or debug, §1.2 step 7, §14.3 item 2).
 - **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
   is left out, so no vector pins them.
-- **`SimpleParcellize`'s street lines (§7.5 step 1)** are partly covered: `zn15_30` pins the x-line `_` arm (Q = 3,
-  starts low) and the z-line `_` arm (Q = 3, D = 0 branch), and `zn15_31` pins the x-line `0 | 2` arm in its `D = 3`
-  branch (Q = 2) and the z-line `2` arm. Not pinned: the x-line `1` arm (Q = 1), the `D != 3` branch of the x-line
-  `0 | 2` arm, and the z-line `0` and `1` arms — these are the other cells of the §7.5 table, which the current
-  scenarios never select.
 
 ## Coverage (traffic network §11)
 
@@ -1942,3 +2003,60 @@ Not covered by a vector, and why:
   timer that never expires). A unit test drives the scripted timer through a suspend and resume.
 - **Filter 2 (§4.10.3)** has no setter in the interface (§10 Q2); the vector world answers no occupants.
 - **Subway-station transfers (§4.8.3 step 3)** are unreachable in 1.1.641 (no code sets wormhole bit 1).
+
+## Coverage (residential §15)
+
+| §15 item | Vector |
+|---|---|
+| 1 proximity, one source (Manhattan R$, 255 for R$$ / R$$$; RS5) | `rs15_01_proximity_one_source` |
+| 2 proximity cap (200 at x = 200, 255 at x = 280) | `rs15_02_proximity_cap` |
+| 3 proximity, coarser target (tract (1, 0) = 0, (0, 0) = 1) | `rs15_03_proximity_coarser_target` |
+| 4 decay (10 → 9.8, 0.1 → 0) | `rs15_04_decay` |
+| 5 newcomers' age (35) | `rs15_05_06_newcomers_age` |
+| 6 age quirk (71) | `rs15_05_06_newcomers_age` |
+| 7 December (41, 255 → 0, total 0 → 0; RS2) | `rs15_07_december` |
+| 8 generational reset (RS1: `0x421FFFFF`, `0x423FFFFF`, ageEqSum 7800) | `rs15_08_generational_reset` |
+| 9 buckets | `rs15_09_buckets` |
+| 10 age groups (float32 rounding of n) | `rs15_10_age_groups` |
+| 11 average LE (71) | `rs15_11_average_life_expectancy` |
+| 12 per mille (half to even, the series order) | `rs15_12_per_mille` |
+| 13 quotient wrap (156.810) | `rs15_13_quotient_wrap` |
+| 14 pollution byte (44 → 0.2085938; RS3) | `rs15_14_pollution_byte` |
+| 15 life expectancy (75, 55) | `rs15_15_life_expectancy` |
+| 16 workforce (0.5 through the hidden pointer, ≈ 0.444) | `rs15_16_workforce` |
+| 17 new age (35, 25 without the exemplar) | `rs15_17_new_age` |
+| 18 NewMonth | `rs15_18_new_month` |
+| 19 NewDay unfinished (work budget, resume, same result) | `rs15_19_new_day_unfinished` |
+| 20 `Read` versions (2, 3, 4–6, 7, any version, truncation) | `rs15_20_read_versions` |
+| 21 `Init` after load (strike flag cleared) | `rs15_21_init_after_load` |
+| 22 slot ABI (slots 10, 21, 23–25) | `rs15_22_slot_abi` |
+| 23 buzzards draws (1.5 → one draw, 2.0 → none, pop 0 → none) | `rs15_23_buzzards` |
+| 24 percentage getter (RS1) | `rs15_24_percentage_getter` |
+| extra: `Init` / `Shutdown` call order, new-city sizes, grid instances | `rs00_lifecycle` |
+| extra: `Init` failures, the held message server, `AddRef` / `Release`, `QueryInterface`, class ID | `rs00_identity_and_init_failures` |
+| extra: the state order (§5.1), state 10 and unknown states wait | `rs00_state_order` |
+| extra: state-0 list distribution, slots 46–49 and 61 (REH §4.1) | `rs00_state0_lists` |
+| extra: occupant messages (§4.3) | `rs00_occupant_messages` |
+| extra: slots 5, 17/18, 19, 37/38, 50–57 | `rs00_small_slots` |
+| extra: a month end to end | `rs00_month_end_to_end` |
+| extra: RS2 (the month read per tract) | `rs00_rs2_month_per_tract` |
+| extra: the record layout (452 bytes, the state at offset 230, the dirty byte, list sizes) and a byte-exact round trip | `rs00_record` |
+| extra: version < 5 / < 6 block conversions (RS1); `Read` releases what it replaces | `rs00_record_old_versions` |
+| REH 8, 9 (the strike flags, `EndStrike` message, chance 1.0 on strike) | `rs00_reh08_09_strikes` |
+| REH 11 (per mille 247) | `rs15_12_per_mille` |
+| REH 12, 22 (quotient, average grid, min / max coordinates; RS4, RS6) | `rs00_reh12_22_quotients` |
+| REH 13, 14, 15 | `rs15_15_life_expectancy`, `rs15_04_decay`, `rs15_14_pollution_byte` |
+| REH 16, 17 (newcomer blend, reset with RS1) | `rs00_reh16_17_newcomers_and_reset` |
+| REH 23 (death's door: draws, transform, one effect per tract) | `rs00_reh23_deaths_door` |
+| REH 24 (slot rows) | `rs15_22_slot_abi` |
+
+Not covered by a vector, and why:
+
+- **REH tests 1–7, 10 and 18–21** are the education and health building work (coverage maps, grades, budgets,
+  auto-budget, the strike rolls, ordinance effects, query data). `fc4_core::residential` leaves them to the
+  `EducationHealth` hooks, so the world here answers them as a city without service buildings. They belong to the
+  host that implements REH.
+- **The 5 ms CPU-cycle slicer (§5.2)** is replaced by a work budget ([choice]); test 19 pins the budget's resume
+  behaviour, not the clock.
+- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
+  `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
