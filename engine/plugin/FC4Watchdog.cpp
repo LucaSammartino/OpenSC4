@@ -52,6 +52,9 @@ volatile DWORD g_mainTid = 0;
 HANDLE g_mainThread = nullptr;
 uintptr_t g_mainStackBase = 0;
 uintptr_t g_mainStackLimit = 0;
+// This watchdog thread's id, recorded as its ThreadProc starts, so a report
+// from another thread can say whose it is (FC4FailFast, foundations §19.2).
+volatile DWORD g_watchdogTid = 0;
 
 const char* volatile g_actLabel[kDepth] = {};
 volatile DWORD g_actSince[kDepth] = {};
@@ -311,6 +314,7 @@ void Sample(unsigned index, const char* kind, DWORD stalledMs, bool full) {
 }
 
 DWORD WINAPI ThreadProc(void*) {
+    g_watchdogTid = GetCurrentThreadId();
     const DWORD stallMs = EnvMs("FC4_WATCHDOG_STALL_MS", 5000);
     const DWORD noTickMs = EnvMs("FC4_WATCHDOG_NOTICK_MS", 15000);
     const DWORD heartbeatMs = EnvMs("FC4_HEARTBEAT_MS", 10000);
@@ -322,9 +326,10 @@ DWORD WINAPI ThreadProc(void*) {
     unsigned samples = 0;
     DWORD nextSample = 0;
     DWORD episodeStart = 0;
-    LogWait(1000, "watchdog: running (stall %lu ms, no-OnTick %lu ms, heartbeat %lu ms, main tid %lu)",
+    LogWait(1000, "watchdog: running (stall %lu ms, no-OnTick %lu ms, heartbeat %lu ms, main tid %lu, watchdog tid %lu)",
             static_cast<unsigned long>(stallMs), static_cast<unsigned long>(noTickMs),
-            static_cast<unsigned long>(heartbeatMs), static_cast<unsigned long>(g_mainTid));
+            static_cast<unsigned long>(heartbeatMs), static_cast<unsigned long>(g_mainTid),
+            static_cast<unsigned long>(g_watchdogTid));
     while (WaitForSingleObject(g_stop, 1000) == WAIT_TIMEOUT) {
         const DWORD now = GetTickCount();
         if (now - lastRefresh >= 10000) {
@@ -384,6 +389,20 @@ DWORD WINAPI ThreadProc(void*) {
 
 bool OnMainThread() { return g_mainTid != 0 && GetCurrentThreadId() == g_mainTid; }
 uint32_t MainThreadId() { return g_mainTid; }
+uint32_t WatchdogThreadId() { return g_watchdogTid; }
+
+void NoteOffMainThreadCall(const char* what) {
+    // Only meaningful once the main thread is known; before that every call
+    // looks off-thread. One line per distinct method, then a count.
+    if (g_mainTid == 0 || OnMainThread()) return;
+    static volatile LONG g_logged = 0;
+    static const int kMaxLines = 40;
+    if (InterlockedIncrement(&g_logged) <= kMaxLines) {
+        LogWait(1000, "OFF-MAIN-THREAD core read: %s on tid %lu (main tid %lu) - the game calls the clock "
+                      "cross-thread; core state must stay Sync (foundations §19.2)",
+                what, static_cast<unsigned long>(GetCurrentThreadId()), static_cast<unsigned long>(g_mainTid));
+    }
+}
 bool IsLikelyReturnAddress(uintptr_t addr) { return LooksLikeReturnAddress(addr); }
 
 namespace {

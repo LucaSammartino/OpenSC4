@@ -648,6 +648,7 @@ bool cFC4Simulator::GetSimStartDate(cFC4IGZDate& sDate) {
 cFC4IGZDate* cFC4Simulator::GetSimDate() {
     // [choice] Returns an object owned by the simulator (no AddRef), refreshed
     // on every call.
+    fc4::NoteOffMainThreadCall("GetSimDate");
     date_.SetJulian(fc4_sim_get_julian_day(sim_));
     if (dateCallsLogged_[0] < 20) {
         ++dateCallsLogged_[0];
@@ -659,6 +660,7 @@ cFC4IGZDate* cFC4Simulator::GetSimDate() {
 
 void cFC4Simulator::GetSimDateParts(uint32_t* year, uint32_t* month, uint32_t* day, uint32_t* dayOfYear,
                                     uint32_t* weekDay) {
+    fc4::NoteOffMainThreadCall("GetSimDateParts");
     fc4_date d{};
     fc4_sim_get_date(sim_, &d);
     if (year) *year = static_cast<uint32_t>(d.year);
@@ -674,6 +676,7 @@ void cFC4Simulator::GetSimDateParts(uint32_t* year, uint32_t* month, uint32_t* d
 }
 
 int32_t cFC4Simulator::GetSimDateNumber() {
+    fc4::NoteOffMainThreadCall("GetSimDateNumber");
     const int32_t j = fc4_sim_get_julian_day(sim_);
     if (dateCallsLogged_[2] < 20) {
         ++dateCallsLogged_[2];
@@ -700,11 +703,11 @@ bool cFC4Simulator::EmergencyPause() { return TracePause("EmergencyPause", fc4_s
 bool cFC4Simulator::Resume() { return TracePause("Resume", fc4_sim_resume(sim_)); }
 bool cFC4Simulator::HiddenResume() { return TracePause("HiddenResume", fc4_sim_hidden_resume(sim_)); }
 bool cFC4Simulator::EmergencyResume() { return TracePause("EmergencyResume", fc4_sim_emergency_resume(sim_)); }
-bool cFC4Simulator::IsPaused() { return fc4_sim_is_paused(sim_); }
-bool cFC4Simulator::IsHiddenPaused() { return fc4_sim_is_hidden_paused(sim_); }
-bool cFC4Simulator::IsEmergencyPaused() { return fc4_sim_is_emergency_paused(sim_); }
-bool cFC4Simulator::IsAnyPaused() { return fc4_sim_is_any_paused(sim_); }
-int32_t cFC4Simulator::GetSimSpeed() { return fc4_sim_get_sim_speed(sim_); }
+bool cFC4Simulator::IsPaused() { fc4::NoteOffMainThreadCall("IsPaused"); return fc4_sim_is_paused(sim_); }
+bool cFC4Simulator::IsHiddenPaused() { fc4::NoteOffMainThreadCall("IsHiddenPaused"); return fc4_sim_is_hidden_paused(sim_); }
+bool cFC4Simulator::IsEmergencyPaused() { fc4::NoteOffMainThreadCall("IsEmergencyPaused"); return fc4_sim_is_emergency_paused(sim_); }
+bool cFC4Simulator::IsAnyPaused() { fc4::NoteOffMainThreadCall("IsAnyPaused"); return fc4_sim_is_any_paused(sim_); }
+int32_t cFC4Simulator::GetSimSpeed() { fc4::NoteOffMainThreadCall("GetSimSpeed"); return fc4_sim_get_sim_speed(sim_); }
 
 bool cFC4Simulator::SetSimSpeed(int32_t lSpeed) {
     const bool ok = fc4_sim_set_sim_speed(sim_, lSpeed);
@@ -717,10 +720,10 @@ bool cFC4Simulator::SetSimSpeed(int32_t lSpeed) {
     return ok;
 }
 
-int32_t cFC4Simulator::GetSimTime() { return fc4_sim_get_sim_time(sim_); }
+int32_t cFC4Simulator::GetSimTime() { fc4::NoteOffMainThreadCall("GetSimTime"); return fc4_sim_get_sim_time(sim_); }
 bool cFC4Simulator::SetSimTime(int32_t lTime) { return fc4_sim_set_sim_time(sim_, lTime); }
 bool cFC4Simulator::SetMaxMillisecondsPerTick(uint32_t dwTime) { return fc4_sim_set_max_milliseconds_per_tick(sim_, dwTime); }
-float cFC4Simulator::GetAnimationTimeDilation() { return fc4_sim_get_animation_time_dilation(sim_); }
+float cFC4Simulator::GetAnimationTimeDilation() { fc4::NoteOffMainThreadCall("GetAnimationTimeDilation"); return fc4_sim_get_animation_time_dilation(sim_); }
 bool cFC4Simulator::SetCityEstablished(bool bEstablished) {
     FC4_LOGV("SetCityEstablished(%d)", bEstablished ? 1 : 0);
     return fc4_sim_set_city_established(sim_, bEstablished);
