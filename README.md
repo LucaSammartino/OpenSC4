@@ -37,7 +37,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
-- [ ] Power glue (run 23's crash is fixed and run 26 shows production 5997, 385 cells powered, 0 unpowered; on lane 1's branch, pending merge)
+- [ ] Power glue (works — runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered; on lane 1's branch, pending merge)
 - [ ] Plumbing, protection, flora, pollution, crime, aura and flammability glue
 - [ ] Grid snapshots match within tolerance (M3 exit)
 

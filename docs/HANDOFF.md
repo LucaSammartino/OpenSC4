@@ -107,18 +107,28 @@ See the README checklist for the full list. In short:
 > `main`: `8fdea4e` (spec answers), `ea602a4` + `e647189` (x87), `c7d1e51` + `9c02e76` (manual-checks/differential),
 > `4de4f46` + `0c83333` (build/KillaVolt removal), `f46f2f6` (README progress).
 
-### 5.1 Power glue — FIXED, pending lane 1's report and merge
-- **Was:** release DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23), no `power recompute`.
-- **Now:** the panic-hook work was checkpointed to lane 1's branch (`8129d67`) so it could not be lost, and lane 1
-  resumed it. **Run 26 (`build-runs/run26-power-enabled.log`, DLL `569FF4D8…`) is clean and power works:** 14
-  `power recompute` lines, first one `production 5997 consumption 1038 demand 1038 powered 385 unpowered 0`. This
-  closes both the run-23 crash and the run-22 "production 0" gap.
-- **Lane 1** (agent id `af1db58965f8ea547` this session; worktree `agent-af159bf9f570ec0f6`): power fix + panic hook
-  committed on its branch, has merged main, and is now working the x87 trigger hunt in `engine/core/src/simulator.rs`
-  (see §5.2). **Not yet merged to main** — the coordinator merges after lane 1 reports tests green. Confirm its
-  branch tip is its own commit (last observed `02dc7cf`, a merge of main; the power fix came in via `8129d67`).
-- **Next:** merge lane 1 once it reports; keep `FreeCity4.ini` in a manual-play state afterwards (see §5.7 — it was
-  left in run-26 test config with autoload + auto-unpause).
+### 5.1 Power glue — FIXED, and the real crash was a cross-thread `RefCell` race
+- **Was:** DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23). The handoff blamed the power core.
+  **That diagnosis is disproven:** run 23 never had power enabled (its log reads `subsystem 'power': off by
+  default`), so power code never ran there.
+- **Real cause:** the master-clock `Simulator` held its state in a `RefCell`. The game calls our `cISC4Simulator`
+  getters from a **second thread** while the main thread is inside `OnTick`; `RefCell` is not `Sync`, so the
+  concurrent read panicked and the release build aborted. The panic hook named it:
+  `RefCell already mutably borrowed` at `core/src/simulator.rs:473`.
+- **Fix (lane 1, commit `73b8861`):** `state` is now a `Mutex`, locked for one `with()`/`read()` section and never
+  across `deliver`/`post`/refcount hooks, so a blocked getter waits microseconds, not a tick. `timers` stays a
+  `RefCell` (main-thread only). Regression test `a_second_thread_may_read_the_clock_while_a_tick_runs` fails
+  **3717 of 4000** reads on the old code with the identical panic and passes on the new.
+- **Power now works:** runs 27 and 28 are clean (`AUTOTEST VERDICT: clean`, exit 0, no panic), 41 `power recompute`
+  lines, `production 5997 → 6000`, 409 cells powered, **0 unpowered**. Run 22's zero-production gap is closed.
+  Run 28 loaded the exact staged DLL `F921001D…` (hash verified in its attach line), so committed source, staged
+  DLL and the validated run correspond.
+- **Run 26 was a crash, not clean** — the coordinator recorded it wrongly in `c7d1e51`; corrected in `manual-checks.md`
+  and `README.md`. Its power numbers were real but written before the death.
+- **Verification:** `cargo test --workspace` 714 passed / 0 failed; `cargo clippy -D warnings` clean; ctest 15/15
+  excluding `abi_conformance_test`, which fails on a pre-existing ABI declaration bug (see §5.8).
+- **Next:** merge lane 1's branch (`73b8861`, `98c6a95`) to main once §5.8's ABI fix is in, since that test currently
+  fails.
 
 ### 5.2 x87 precision — RESOLVED (RE side); the trigger hunt is open (engine side)
 The previous handoff concluded "the cause is in the game, not in our code" and that the original probably runs at
@@ -205,11 +215,11 @@ have). Nothing further unless a new question is queued.
   KillaVolt clone, and whether to download the Mac Rev A binary (the `-Mac` path in `setup_ghidra.ps1` is untested).
 
 ### 5.7 Smaller items
-- **`docs/manual-checks.md`: DONE this session** (`c7d1e51`, `9c02e76`) — runs 22–26 recorded, the safe-DLL note
-  corrected (now `569FF4D8…`), and the x87/differential findings written up. **One thing to reset:** `Plugins\
-  FreeCity4.ini` is still in run-26 test config (`enable = power`, `power_report`, `observe`, `autotest_seconds`,
-  `autotest_unpause`, `autoload_city = …Spandau.sc4`). Before the user plays by hand, set it back to
-  `budget_default = 1` alone, else manual play drops them into Spandau on the clock. Lane 1 was asked to reset it.
+- **`docs/manual-checks.md`: updated this session** (`c7d1e51`, `9c02e76`, and the run-26 correction) — runs 22–28
+  recorded. **Plugins state is now manual-play safe:** lane 1 staged `FreeCity4.dll` = `F921001D…` (tag
+  `run28-threadfix`, `.pdb` alongside) and reset `FreeCity4.ini` to `budget_default = 1` alone. The Spandau city file
+  is untouched (`6982A842…`). Backups kept in Plugins: `.run28-threadfix-prestage`, `.run27-threadfix-prestage`,
+  `.run24-mine`, `.run24-panic-prestage`, `.pre-run23`, `.run23-crash`. No game process left running.
 - **`docs/abi/vtables.tsv`: checked, clean** (committed at 601f3a9; `git status docs/abi/` empty). Consistent.
 - **SDK errata draft** (`docs/sdk-errata-draft.md`, 289 findings): **re-checked against the current vendored SDK on
   2026-10-13** (commit `4243367`). 252 of 257 header-backed findings still match the SDK text verbatim; the other 5
@@ -226,6 +236,16 @@ have). Nothing further unless a new question is queued.
 - **Coordinator clean-room note:** whoever picks this up should not do engine work in the same task as RE work. This
   session read `decomp/` and the exe extensively for §5.2, so it deliberately did not read or run anything under
   `engine/`; merging a lane means reading its *test output*, not its source.
+
+### 5.8 `abi_conformance_test` fails on a wrong SDK/ABI return channel
+- **Symptom:** `cISC4NetworkTool` (PowerLine) slot 33 `GetBridgeAltitudeOverride` is declared 32-bit/void but the
+  game returns in x87. It passed before this session's merge; `docs/abi/interfaces.tsv` (142 lines) and
+  `vtables.tsv` changed in it. Lane 1 proved it is pre-existing, not caused by its work, by stashing all its
+  changes and rebuilding.
+- **Fix (RE/coordinator remit, not an engine change):** correct the declared return type to `float` in
+  `docs/abi/` and the regenerated `interfaces.tsv`, and re-check the same for any other slot whose return channel
+  moved in the regeneration.
+- **Blocks:** merging lane 1's branch, since the workspace ctest is not green until this is corrected.
 
 ## 5b. Backlog for manual check / blocked-on-user (2026-10-13)
 Things I could not finish autonomously, or that need a human decision:

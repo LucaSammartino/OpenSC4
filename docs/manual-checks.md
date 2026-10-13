@@ -45,7 +45,25 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 23 | `budget_default=1, power_report=1, observe=1`, DLL F5439E03 (2c77349 + be7bb41 + 6aa6735, merged ef4159c) | **crash** `0xC0000409` ~0.3 s after PostCityInit, no `power recompute` line ever written. Last log lines were `IsLocallyFundedObjectInDepartment` / `GetLocalFundingPercent`. Diagnosis: a Rust panic in the power core or capi, prime suspect the "Read keeps the saved words, Init sizes the bitmaps from the city" change. **This run also produced the first x87 control-word measurements** — 24-bit at DLL attach and through PreFrameWorkInit/PreAppInit, 53-bit (`CW=0x027F`) from PostAppInit-enter onward. |
 | 24 | same switches as 23, DLL with the panic-hook work (checkpointed 8129d67), lane 1 | **clean** — `AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0)`, no panic, 4378 log lines, budget settled (funds 69986 → 70154, income 964, expense 796, tax 919). Still **no `power recompute` line**, because power was off by default in this run's config (`subsystem 'power': off by default`), so power production is still unverified. The x87 warning fired again: 53-bit from PostAppInit through tick 1, city load, month observation and both budget settlements. |
 | 25 | lane 1 control-word investigation build | **clean**. Same 24-bit → 53-bit transition at PostAppInit-enter. |
-| 26 | `budget_default=1, enable = power, power_report=1, observe=1`, DLL `569FF4D8…` | **power now works**: 14 `power recompute` lines, first one reading `wire bits set 2360; consumption cells 385; plants 1, floods 1; production 5997 consumption 1038 demand 1038 powered 385 unpowered 0`. This closes the run-22 "production 0" gap and the run-23 crash. The x87 warning still fires (53-bit from PostAppInit onward). |
+| 26 | `budget_default=1, enable = power, power_report=1, observe=1`, DLL `569FF4D8…` | **crash** `0xC0000409`, no `AUTOTEST VERDICT` (the line that looked like one is a periodic heartbeat). Power *did* work up to the crash — 14 `power recompute` lines, first reading `production 5997 consumption 1038 demand 1038 powered 385 unpowered 0`, closing run 22's "production 0" gap — but those numbers were written **before** the death. The log ends with two threads interleaved (`tid 23860` in `BudgetSimulator::GetFundingOf`/`GetBudgetItemForPurpose`, `tid 8328` in `GetAllGroups`), which is the cross-thread race found and fixed in run 27. *(This row was originally recorded as clean by the coordinator in `c7d1e51`; that was wrong and is corrected here.)* |
+| 27 | thread-fix build (`RefCell` → `Mutex` in the master clock), budget + power + observe | **clean** — `AUTOTEST VERDICT: clean`, exit 0, no panic. 41 `power recompute` lines, `production 5997` → `6000`, 409 cells powered, **0 unpowered**, no shortfall. |
+| 28 | same source as 27, rebuilt; the exact staged DLL `F921001D…` (hash verified in its `DLL_PROCESS_ATTACH` line) | **clean** — `AUTOTEST VERDICT: clean`, exit 0, no panic. Same power result. Confirms committed source, staged DLL and the validated run correspond. |
+
+**The real cause of the run-23/run-26 crashes was not power.** The master-clock `Simulator` kept its state in a
+`RefCell`. The game calls our `cISC4Simulator` getters from a **second thread** while the main thread is inside
+`OnTick`; `RefCell` is not `Sync`, so the concurrent read panicked and the release build aborted (`panic = "abort"` →
+`0xC0000409`). The panic hook added this session named it exactly:
+`RefCell already mutably borrowed` at `core/src/simulator.rs:473`. Fixed by making `state` a `Mutex` locked for one
+`with()`/`read()` section and never across `deliver`/`post`/refcount hooks, so a blocked getter waits microseconds
+rather than a whole tick. Regression test `a_second_thread_may_read_the_clock_while_a_tick_runs` fails **3717 of
+4000** reads on the old code with the identical panic and passes on the new.
+
+Two corrections to earlier records: **run 23 never had power enabled** (its log line 20 reads
+`subsystem 'power': off by default`), so the handoff's diagnosis — "a Rust panic in the power core or capi, prime
+suspect the Read/Init bitmap change" — is disproven; power code never ran in run 23. And the handoff's run-23 ini
+(`power_report = 1` without `enable = power`) is why no `power recompute` line could ever appear there. Re-running the
+exact crashing binary `F5439E03` (`.run23-crash`) as a control came out **clean** and got past run 23's death point
+(`GetTotalFunds #20` vs `#17`), confirming the race is intermittent and power-on merely widened the window.
 
 **x87 precision (runs 23/24, resolved 2026-10-13).** The main thread runs at 24-bit precision in the unmodified game
 for the whole session, and **our DLL's mere presence raises it to 53-bit** — verified in the bytes and by an A/B:
