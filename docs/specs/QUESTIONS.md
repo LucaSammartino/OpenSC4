@@ -278,8 +278,11 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
 
   **Choice:** return false and leave the simulator **as constructed**, rather than partly read, so that Init
   starts a new city. This is the crime.md §12 rule. Accept every version.
-- **RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
-  with `release_department`]
+- ~~**RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
+  with `release_department`]~~ **ANSWERED 2026-10-14** from the exe and written into residential.md §9.2. The
+  original releases **nothing**: list clears free nodes only (`0x00413E60`), and ref reads null the destination
+  without `Release` (`0x005D9742`). This cannot be observed, because Read only ever runs on a freshly constructed
+  object, where every ref is null and every list empty. The core's releasing is fine.
 - **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
 - **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
 - **RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]

@@ -622,6 +622,17 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
       as new (§4.1 step 6, state 0), as crime.md §12 does. The return value is free, since the loader ignores it.
     - Every version is accepted as in the original (test 20). A newer layout then ends in a stream error (handled
       as above) or is misread, as in the original.
+  - **Replaced entries are not released** (RS10, from the exe):
+    - a list is cleared by freeing its nodes only (`0x00413E60`);
+    - a shrinking vector of lists frees nodes only (`0x00700490`);
+    - a shrinking coverage vector drops its tail without `Release` (`0x00700A6F`–`0x00700A87`);
+    - every reference read nulls its destination without `Release` (`0x005D9742`).
+
+    On the original's only path this changes nothing. `Read` runs on an object the class-object store has just
+    constructed (foundations §3.5), whose references are all null and whose lists are empty: the constructor sizes
+    the coverage vectors to 7 and 3 nulls and the building-list vectors to 7 and 3 empty lists (`0x0070087C`,
+    `0x007008FB`). *[choice]* FreeCity4 may release what it replaces, which the core already does
+    (`release_department`). This cannot be observed.
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
   - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
     percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
