@@ -333,6 +333,18 @@ impl<V> StlHashMap<V> {
         self.get(k).is_some()
     }
 
+    /// `erase(key)`: removes the node holding `k` from its bucket chain,
+    /// keeping the order of the remaining nodes. Returns the removed value.
+    /// The bucket array is not shrunk (SGI `hash_map::erase` does not
+    /// resize), so the iteration order of the survivors is unchanged.
+    pub fn remove(&mut self, k: u32) -> Option<V> {
+        let b = self.bucket_of(k);
+        let bucket = self.buckets.get_mut(b)?;
+        let pos = bucket.iter().position(|(key, _)| *key == k)?;
+        self.len -= 1;
+        Some(bucket.remove(pos).1)
+    }
+
     /// `operator[]` (`find_or_insert`): the value for `k`, inserting
     /// `make()` when absent. The table may grow even when `k` exists.
     pub fn entry(&mut self, k: u32, make: impl FnOnce() -> V) -> &mut V {

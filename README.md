@@ -11,7 +11,7 @@ original executable. Target: **SimCity 4 Deluxe 1.1.641** (GOG Windows exe, SHA-
 
 ## Progress
 
-Last updated 2026-10-13. "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
+Last updated 2026-10-13 (third session). "Core" means the Rust logic, with its conformance vectors, in `engine/core`. "Glue" means
 the plugin code in `engine/plugin` that runs the core inside the real game. Milestones are defined in
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
@@ -19,12 +19,14 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] CMake project, Rust core, C ABI, conformance runner (416 vector files + 1 runner self-test = 417 tests)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
+- [x] Hands-free game control: advisor popups and the save box closed automatically, scripted UI actions (`-Actions`), the test city restored after a save (`tools/sc4ctl.ps1`)
 
 **M1: the clock**
 - [x] Simulator core and spec
 - [x] Runs in-game: days, weeks and months advance; limit-timer calibration
-- [ ] Save → reload verified in-game
-- [ ] Pause, emergency and all speeds verified in-game (manual checks)
+- [x] Save → reload verified in-game (runs 50/51: date, funds and all 18 departments survive)
+- [x] Pause and all three speeds verified in-game (runs 50–53, driven by `tools/sc4ctl.ps1`; speeds call `SetSimSpeed(0/1/2)`)
+- [x] Emergency pause verified in-game (run 54: a God-mode disaster calls `EmergencyPause()`/`EmergencyResume()` on our simulator)
 - [ ] Differential log against the original on the same save
 
 **M2: scalar sims**

@@ -1,0 +1,98 @@
+{
+  "format": 1,
+  "name": "tn11_02b_last_column_never_seed",
+  "spec": [
+    "traffic-network 4.11",
+    "traffic-network 11.2"
+  ],
+  "description": "Conformance test 2 (§11): C = (3,1) is never a seed because x = 3 = X-1 (the seeds run x = 0..X-2, z = 0..Z-2). With C alone, DoPostCityInit leaves it unlabelled and the counter at 1; a direct Fill(3,1,0) labels subnet[0] = 1 (conn[1] bit 0 + 4*0) and advances the counter to 2.",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 3,
+      "cell": [
+        3,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        0
+      ],
+      "note": "C alone"
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        3,
+        1
+      ],
+      "expect": {
+        "car": {
+          "subnet": [
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "subnet_counter": 1,
+        "published_len": 1
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "fill",
+      "args": [
+        3,
+        1,
+        0
+      ],
+      "note": "a direct Fill does label it"
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        3,
+        1
+      ],
+      "expect": {
+        "car": {
+          "subnet": [
+            1,
+            0,
+            0,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "subnet_counter": 2
+      }
+    }
+  ]
+}

@@ -18,6 +18,7 @@
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
+#include "FC4Popups.h"
 #include "FC4RefAudit.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
@@ -40,6 +41,7 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return 1;
         case kFC4SeamObserverApp:
             fc4::ObserverTestSetApp(static_cast<cISC4App*>(a));
+            fc4::PopupDialogsTestSetApp(static_cast<cISC4App*>(a));
             return 1;
         case kFC4SeamPowerBudgetPath:
             return PowerTestBudgetPath(static_cast<cISC4BudgetSimulator*>(a));
