@@ -989,7 +989,7 @@ Types and defaults as the specs give them (not re-disassembled); "Shipped types"
 | 0xEA54D286 | budget item monthly cost | budget; landfill tile cost (first value) | s64[] | 0 | s64[] x174, s64 x2 | budget.md §2; landfill.md §4.1 |  |
 | 0xEA54D287 | budget item local funding % | budget | f32[] | 100 | not in shipped data | budget.md §2 |  |
 | 0xE91A0B5F | building value | budget | s64 scalar | 0 | s64 x290 | budget.md §5.2 |  |
-| 0xE90E25A1 | transit switch rules | traffic network | u32 array | absent = not a switch | u8[] x13 | traffic-network.md §4.7.1 |  |
+| 0xE90E25A1 | transit switch rules | traffic network (`0x005FFB40`: raw bytes, `GetCount` bytes from `RefUint8`) | u8 array, 4 bytes per rule | absent = not a switch; count not a multiple of 4 = DoLotActivated returns | u8[] x13 (8–32 bytes) | traffic-network.md §4.7.1, §4.7.2 | a u32 array is misread (§4.7.2) |
 | 0xE90E25A2 | transit switch time factor | traffic network | f32 | - | f32 x13 | traffic-network.md §2.4 |  |
 | 0xE90E25A3 | transit switch capacity | traffic network | f32 | - | f32 x13 | traffic-network.md §2.4 |  |
 | 0x4BFC47B0 | counts as intersection | traffic network | bool | - | bool x4 | traffic-network.md §2.4, §4.6 |  |

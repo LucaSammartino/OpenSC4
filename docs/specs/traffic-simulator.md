@@ -75,7 +75,7 @@ traffic-network.md.
 | (float) | f32 | 1 | `0x69D5C3FA` | yes | not written by the code in this spec *[inferred]* |
 | congestion | u8 | 1 | `0x69D5C402` | yes | slot 10 (§4.10) |
 | peak volume/capacity ratio | f32 | 1 | `0x69D5C40E` | yes | §4.9 |
-| wormhole byte map | u8 | 1 | `0x69D5C424` | yes | traffic-network.md |
+| transit-switch mode-mask map (corrected: not a "wormhole" map; TN13) | u8 | 1 | `0x69D5C424` | yes | traffic-network.md §2.3 |
 | transit-switch ID map | u32 | 1 | `0x69D5C42D` | yes | traffic-network.md |
 
    Grid element types are the framework's grid classes (u8 `0x49B9E602`, f32 `0x49B9E60A`, u32 `0x49B9E606`;
@@ -330,16 +330,26 @@ exemplar is missing, the re-read is skipped and the ordinance offsets accumulate
 
 #### 4.1.3 Lot activation and deactivation
 
-`DoLotActivated` (`0x00723AF0`): building := lot slot 48 (none → return). Transit-switch and ferry-terminal rules
-from the building's properties are traffic-network.md. If the lot is found again at its corner:
+`DoLotActivated` (`0x00723AF0`):
+- building := lot slot 48 (none → return);
+- lot := the lot manager's `GetLot` at the lot rectangle's corner (slot 6, bool false), which may be null;
+- the transit-switch and ferry-terminal steps from the building's properties are traffic-network.md §4.7.1.
 
-1. `b := strategyBucket counter`; counter := `(counter + 1) mod strategyBuckets`; lot property `0x691C863C` := `b`;
-   the lot cell is added to the bucket multimap under `b`.
-2. `RandomUint32Uniform(100)` → lot property `0x4A611773` (u8).
-3. Budget items for properties `0xCA550301` / `0x0C3BF549` (budget simulator slots 51/58/55), added to an int64 total
-   (saved, §6).
-4. Unless the cycle is in state 10: for `k` = 0…3, if `GetMaxTripCapacity(holder, k) > 0` set bit `k` and
-   `freeDest[k] += 1`; OR the bits into the destination map over the lot rect.
+If the building's `0xE90E25A1` has a byte size that is not a multiple of 4, DoLotActivated returns inside the switch
+step, and **none of the steps below runs**, not even the draw (TN1, traffic-network.md §4.7.1 step 1). Otherwise
+(the property is missing or well formed), in order:
+
+1. Only if the lot was found: `b := strategyBucket counter`; counter := `(counter + 1) mod strategyBuckets`; lot
+   property `0x691C863C` := `b`; the lot cell is added to the bucket multimap under `b`.
+2. Only if the lot was found: `RandomUint32Uniform(100)` (`0x00723FBE`) → lot property `0x4A611773` (u8).
+3. Budget items. Budget simulator slot 51 is asked with the building's property holder for `0xCA550301` first, and
+   for `0x0C3BF549` only when that fails. If one succeeds and the lot was found, slots 58 and 55 follow. Only on the
+   `0xCA550301` path is the int64 at `+0x10` of the record that slot 51 filled added to the total `E` (`+0x778`,
+   saved, §6).
+4. Unless the cycle is in state 10, and whether or not the lot was found: `bits := 0`; for `k` = 0…3, if
+   `GetMaxTripCapacity(holder of the message's lot, k) > 0`, set bit `k` and `freeDest[k] += 1`. Then **store**
+   `bits` into the destination byte of every cell of the lot rectangle (`0x00724167`). *(Corrected: the byte is
+   replaced, not ORed into.)*
 
 `DoLotDeactivated` (`0x0071E2F0`) removes what activation added (destination bits, bucket entry, network rules)
 *[inferred: not traced line by line]*.
@@ -731,6 +741,32 @@ missing.
 
 Then `UpdateTravelStrategies` (§4.1.2). `0xA92356B2` (Mass Transit Usage Chance) is not read by this function.
 
+**Shipped "Max speed by Network"** (`0x491332E7 + t`, 13 floats each). Source: the Traffic Simulator exemplar
+`0xC9133286` in `SimCity_1.dat` (dump `re/tuning/simulators.md`). Columns are the network types in index order. A
+blank cell is 0, which gives `invMaxSpeed = FLT_MAX`: the type cannot use that network, and a tunnel's cost is +∞.
+
+| t | Travel type (property) | Road | Rail | Highway | Street | Avenue | Subway | El | Monorail | OneWay | GroundHwy |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | Walk (`…E7`) | 3.5 | | | 3.5 | 3.5 | | | | 3.5 | |
+| 1 | Car (`…E8`) | 31 | | 82 | 21 | 40 | | | | 31 | 82 |
+| 2 | Bus (`…E9`) | 46 | | 100 | 31 | 60 | | | | 46 | 100 |
+| 3 | Passenger train (`…EA`) | | 110 | | | | | | | | |
+| 4 | Truck (`…EB`) | 31 | | 82 | 21 | 40 | | | | 31 | 82 |
+| 5 | Freight train (`…EC`) | | 150 | | | | | | | | |
+| 6 | Subway (`…ED`) | | | | | | 150 | | | | |
+| 7 | El train (`…EE`) | | | | | | | 150 | | | |
+| 8 | Monorail (`…EF`) | | | | | | | | 200 | | |
+
+Pipe (4), PowerPole (5) and **DirtRoad (11)** are 0 for every travel type, so they have no columns here. With
+CellWidthX 16, `invMaxSpeed` is:
+
+| v | 3.5 | 21 | 31 | 40 | 46 | 60 | 82 | 100 | 110 | 150 | 200 |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| bits | `0x3E8C6F2E` | `0x3D3B3EE7` | `0x3CFDB011` | `0x3CC49BA7` | `0x3CAAF6A7` | `0x3C83126F` | `0x3C3FD00C` | `0x3C1D4952` | `0x3C0EFCD6` | `0x3BD1B717` | `0x3B9D4952` |
+
+For example, Walk on Road (3.5) gives 0.27428573, and Car on Road (31) gives 0.030967744. The constant is
+`16.666666f` = `0x41855555`.
+
 **Curves** (foundations §4.1 patterns):
 
 | Curve | Pattern | Notes |
@@ -750,7 +786,7 @@ from the wall clock. *[choice]* FreeCity4 seeds it from the host-supplied seed f
 | # | Operation | Generator | Method (advances) | Arguments | Position |
 |---|---|---|---|---|---|
 | 1 | strategy re-draw (§3.3) | simulator's `cRZRandomSuper` | `RandomUint32Uniform(100)` (1 word) | — | once per lot of the day's bucket, in multimap order, before any cycle work of that day |
-| 2 | `DoLotActivated` (§4.1.3) | same | `RandomUint32Uniform(100)` (1) | — | after the bucket registration |
+| 2 | `DoLotActivated` (§4.1.3) | same | `RandomUint32Uniform(100)` (1) | — | after the bucket registration; only when the lot is found again and the building's `0xE90E25A1`, if present, has a byte size that is a multiple of 4 |
 | 3 | `CheckForAccident` (§4.13) | C `rand()` (one call at iterator reset), then the simulator's generator | `RandomDoubleRangeUniform(0.0, 1.0)` (1 word per visited entry) | doubles 0.0, 1.0 | per accident-prone entry visited, until the first accident |
 | 4 | `CheckRailAccident` (slot 17) | same generator | `RandomDoubleUniform()` (1) | — | only for damaged cells; caller-driven (train automata) |
 | 6 | `ApplyPotholeChanges` (§4.12) | same generator | `RandomUint32Uniform(sourceCount)` (1 per moved cell) | current size of the source set | monthly: road moves first, then rail |
@@ -798,7 +834,7 @@ vectors.
 | 6 | float grids | `0x69D5C3FA` grid, peak ratio grid |
 | 7 | edge densities | u32 count; per record: u32 key, `last[16]` u16 (index order 0…15), u16 usage, `current[16]` u16 |
 | 8 | per trip type k = 0…2 | u32 `jobCapacity[k]`, u32 `attempted[k]`, u32 `routed[k]` |
-| 9 | network grids | wormhole byte grid, transit-switch ID grid |
+| 9 | network grids | transit-switch mode-mask grid (`0x69D5C424`), transit-switch ID grid (`0x69D5C42D`) |
 | 10 | switch block (traffic-network.md §2.4, §6) | u32 next switch ID, u32 count, then per switch in table iteration order: u32 ID, building reference (`SetGZSerializable`), f32 load, f32 time factor, f32 capacity, bool has-access-point, u8 access x, u8 access z, f32, f32 (the two counters), u32 rule count, per rule: u8 kind, 4 × bool side, u16 from, u16 to; then f32 (the `0x0BFC0A4C` value *[inferred: pairing]*), bool counts-as-intersection |
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |

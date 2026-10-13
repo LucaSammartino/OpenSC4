@@ -247,7 +247,7 @@ month time is produced by a later month agent in the same month *[inferred]*.
 | `0xC2C09554` OrdinanceUpdated | if data2 = `0xE0D0722E` (Nuclear Free Zone) and data3 ≠ 0: §5.5 |
 | `0xE8BDA2E7` kMessageStateChanged | void1/IGZUnknown QI `cISC4Lot` (`0xE818FCED`; a copy of the lot with its scalar fields, lot-developer.md §3.2); if `lot.GetState() == 1`: centre = `((x1 + x2) / 2, (z1 + z2) / 2)` of `lot.GetBoundingRect` (signed integer division); if `IsPowered(centre)` and `lotManager.GetLot(cx, cz, false)` is not null: that lot's `SetHasPower(true)` |
 | `0xEA418D8F` deal status | if data1 = 0 and the IGZUnknown is a deal (QI `0x0773FEF1`) of type `0x4773FFE0` or `0x4773FFE1`: state := 4, recompute := true |
-| `0x6AC284F3` ConnectionsReady | enabled := true |
+| `0x6AC284F3` ConnectionsReady (posted once per load by the regional city; when and when not: foundations.md §11.6) | enabled := true |
 | `0x26D31EC1` PostCityInit | §5.6 |
 
 ### 5.1 `DoOccupantInserted(occ)` *[compat]*
@@ -917,8 +917,13 @@ reproduced; `Read` ignores stream errors (§9; FreeCity4 fails cleanly instead).
 
 1. Meaning of pole slot 13 (a byte flag that makes power ignore the pole) and of network flags `0x40000` and
    `0x80000000`.
-2. Who posts ConnectionsReady `0x6AC284F3`, and whether it always arrives after a load (otherwise a loaded city
-   never recomputes power).
+2. ~~Who posts ConnectionsReady `0x6AC284F3`, and whether it always arrives after a load (otherwise a loaded city
+   never recomputes power).~~ **Answered 2026-10-14 in foundations.md §11.6.**
+   - The poster is `cSC4RegionalCity::CreateSymmetricConnections`, on TerrainReconciliation.
+   - The trigger is the city terrain's second animation tick after its PostCityInit, so it arrives once per load.
+   - The message is queued and carries no data.
+   - With the default preference it **never arrives while popup dialogs are disabled**
+     (`cISC4App::SetPopupDialogsEnabled(false)`), and it waits while a modal window is open.
 3. Meaning of lot state 1 in the `0xE8BDA2E7` handler (demand.md §7 describes the message).
 4. The meaning of the "Hard Failure Type" values 3 and 4 once passed to `DemolishLots` as flags `0x303`/`0x304`
    (§7.4).

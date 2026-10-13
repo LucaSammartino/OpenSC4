@@ -32,7 +32,11 @@ namespace fc4 {
 namespace {
 
 enum class Want { Leave, Disable, Enable };  // unset or invalid / 0 / 1
-enum class State { Idle, Pending, Done };    // nothing to do / not made yet / made (once per process)
+// Idle: nothing to do. Pending: the next call is due (= 1: at PostAppInit or a
+// city load; = 0: at ConnectionsReady). Off (= 0 only): our false is in force
+// until the next city load. Done: = 1 made its call, or a call failed; nothing
+// more is called in this process.
+enum class State { Idle, Pending, Off, Done };
 
 bool g_read = false;
 Want g_want = Want::Leave;
@@ -101,12 +105,17 @@ void PopupDialogsReload() {
         const long v = SettingInt("popup_dialogs", "FC4_POPUP_DIALOGS", LONG_MIN);
         if (v == 0 || v == 1) {
             g_want = v == 0 ? Want::Disable : Want::Enable;
-            Log("popup dialogs: popup_dialogs=%ld (%s): cISC4App::SetPopupDialogsEnabled(%s) at PostAppInit, or at the "
-                "first city load if the app is not reachable there%s",
-                v, source, Bool(v != 0),
-                v == 0 ? " (advisor popups are dropped without pausing; generic dialogs answer without asking; "
-                         "city-situation popups still show)"
-                       : "");
+            if (v == 0) {
+                Log("popup dialogs: popup_dialogs=0 (%s): cISC4App::SetPopupDialogsEnabled(false) at each "
+                    "ConnectionsReady 0x6AC284F3, true again at each later city load (with popups off the terrain "
+                    "reconciliation never posts ConnectionsReady, foundations.md 11.6) (advisor popups are dropped "
+                    "without pausing; generic dialogs answer without asking; city-situation popups still show)",
+                    source);
+            } else {
+                Log("popup dialogs: popup_dialogs=1 (%s): cISC4App::SetPopupDialogsEnabled(true) at PostAppInit, or "
+                    "at the first city load if the app is not reachable there",
+                    source);
+            }
         } else {
             Log("config: WARNING popup_dialogs='%s' (%s) is not 0/1; the game's popup dialogs are left alone",
                 raw.c_str(), source);
@@ -115,24 +124,24 @@ void PopupDialogsReload() {
     g_state = g_want == Want::Leave ? State::Idle : State::Pending;
 }
 
-void PopupDialogsApply(const char* when) {
-    if (!g_read) PopupDialogsReload();
-    if (g_state != State::Pending) return;
-    const bool value = g_want == Want::Enable;
+namespace {
+
+// One Get/Set/Get round on the app; true when the flag now reads `value`.
+// When the app is not reachable the state is left alone (`retry` names the
+// next chance); any other failure ends the switch (Done).
+bool Call(bool value, const char* when, const char* retry) {
     const char* why = "";
     cISC4App* app = g_testApp;
     const bool counted = app == nullptr;  // our own QueryInterface reference (the test's app is borrowed)
     if (app == nullptr) app = AcquireApp(&why);
     if (app == nullptr) {
-        Log("popup dialogs: SetPopupDialogsEnabled(%s) not called at %s: no cISC4App (%s); retried at the next city "
-            "load",
-            Bool(value), when, why);
-        return;
+        Log("popup dialogs: SetPopupDialogsEnabled(%s) not called at %s: no cISC4App (%s); retried at the next %s",
+            Bool(value), when, why, retry);
+        return false;
     }
     PopupCall c{app, value, false, false};
     const bool clean = SehGuard("cISC4App::Get/SetPopupDialogsEnabled", &PopupStep, &c);
     if (counted) FC4_RELEASE(app);
-    g_state = State::Done;  // once per process, whatever the outcome
     if (!clean) {
         Log("popup dialogs: WARNING structured exception in cISC4App::Get/SetPopupDialogsEnabled at %s; not retried",
             when);
@@ -142,7 +151,43 @@ void PopupDialogsApply(const char* when) {
     } else {
         Log("popup dialogs: %s (cISC4App::SetPopupDialogsEnabled(%s); was enabled=%d, now=%d) at %s",
             value ? "enabled" : "disabled", Bool(value), c.before ? 1 : 0, c.after ? 1 : 0, when);
+        return true;
     }
+    g_state = State::Done;  // never retried after a failed call
+    return false;
+}
+
+// = 1: the one call per process (PostAppInit, else the first city load that
+// reaches the app).
+void ApplyEnable(const char* when) {
+    if (g_want != Want::Enable || g_state != State::Pending) return;
+    if (Call(true, when, "city load")) g_state = State::Done;
+}
+
+}  // namespace
+
+void PopupDialogsApply(const char* when) {
+    if (!g_read) PopupDialogsReload();
+    ApplyEnable(when);  // = 0 waits for ConnectionsReady
+}
+
+void PopupDialogsOnCityLoad() {
+    if (!g_read) PopupDialogsReload();
+    if (g_want == Want::Enable) {
+        ApplyEnable("city load (PostCityInit)");  // only if PostAppInit could not make the call
+    } else if (g_want == Want::Disable && g_state == State::Off) {
+        // Our false from an earlier load would skip this load's terrain
+        // reconciliation, and with it ConnectionsReady (foundations.md 11.6).
+        if (Call(true, "city load (PostCityInit), until this load's ConnectionsReady", "city load")) {
+            g_state = State::Pending;
+        }
+    }
+}
+
+void PopupDialogsOnConnectionsReady() {
+    if (!g_read) PopupDialogsReload();
+    if (g_want != Want::Disable || g_state != State::Pending) return;
+    if (Call(false, "ConnectionsReady", "ConnectionsReady")) g_state = State::Off;
 }
 
 void PopupDialogsTestSetApp(cISC4App* app) { g_testApp = app; }
