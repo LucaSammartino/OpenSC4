@@ -311,6 +311,9 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   §5.1. **The bracket is right, with a caveat: it waits forever.** A state above 15 does what state 10 does
   (nothing; returns true), but the month message resets only state 10, so the simulator never resumes.
   **Choice:** keep it, but let Read reject a saved state above 15 as damaged (RS9 rule).
-- **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
+- ~~**RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x006F7FF0`) and written into residential.md §5.5 step 1. **The bracket is right: no cap.** S² calls
+  are made per tract and type. A wrapped `S·x + S` empties the loop. For S = 0 or S ≡ 0 (mod 65536), `S·S` is 0
+  and the `div` at `0x006F8062` faults. **Choice:** Read rejects P = 0 or P > 256 as a damaged record.
 - **RS16:** what does a zero divisor give in the averages? [0]
 - **RS17:** does a version-3 record keep the running population the constructor set? [yes]

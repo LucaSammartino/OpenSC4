@@ -290,6 +290,17 @@ float steps are float32 operations in the order given (foundations §18).
 
    A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
    S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
+
+   **S is not capped** (RS15, helper `0x006F7FF0`–`0x006F8067`). S is P, which `Init` takes from the developer on
+   a new city and `Read` takes from the record. Nothing bounds it, so a hostile record has these effects:
+   - the helper makes S² `GetPollutionValue` calls per tract and type, so a large S stalls state 4;
+   - `S·x + S` and `S·z + S` are 32-bit sums. When one wraps below its start, that loop is empty and the sum is
+     0;
+   - the divisor `S·S` is a 32-bit product. For S = 0, or S a multiple of 65536, it is 0 and the unsigned `div`
+     (`0x006F8062`) raises a divide fault, which crashes the original.
+
+   *[choice]* FreeCity4 `Read` treats P = 0 or P > 256 as a damaged record (the RS9 rule, §9.2). Every real tract
+   size is far below 256, and this also keeps the wrap above out of reach.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):
