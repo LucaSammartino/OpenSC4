@@ -285,7 +285,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   object, where every ref is null and every list empty. The core's releasing is fine.
 - **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
 - **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
-- **RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]
+- ~~**RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]~~
+  **ANSWERED 2026-10-14** from the exe and written into REH §3 (table), REH open question 3 and residential.md
+  §5.1. **The bracket is right: host (REH).** In the original they are two floats of the one object (`+0x314`,
+  `+0x318`). They are zeroed at the start of state 0 (`0x006FF567`) and accumulated by grading in states 6 and 8
+  (`0x006FFED3`, `0x00700053`). Nothing else in the class touches them, no slot returns them and they are not
+  saved. They are therefore write-only, and the host may keep them or drop them without any observable change.
 - **RS14:** what does the state machine do in an unknown state? [waits]
 - **RS15:** is the pollution loop's S capped (a hostile S is unbounded)? [no cap]
 - **RS16:** what does a zero divisor give in the averages? [0]

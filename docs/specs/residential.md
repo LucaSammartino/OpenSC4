@@ -195,7 +195,7 @@ One call performs at most one state. Order: **0 → 13 → 1 → 14 → 2 → 15
 
 | State | Work | Next |
 |---|---|---|
-| 0 | strike checks, ordinance-effect refresh, pending building lists (other spec) | 13 |
+| 0 | grade-total reset, strike checks, ordinance-effect refresh, pending building lists (all other spec; the grade totals are the education/health half's write-only members, RS13) | 13 |
 | 13 | create the temporary grid; seed it for R$ (§5.3) | 1 |
 | 1 | distance passes; copy into proximity R$ (time-sliced) | 14 |
 | 14 | seed for R$$ (reusing the temporary grid) | 2 |
