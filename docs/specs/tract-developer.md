@@ -162,14 +162,13 @@ and initialised from a template. The template constructor is `0x00707680`; the p
 | facing | −1 | −1 = take facing, size, location and rectangle from the lot |
 | size `w × h` | 0 × 0 | configuration size in cells (uint8 each) |
 | lot set | empty | the lots merged by an aggregation |
-| `existing`, `abandoned` | −1 | cached capacity sums (§4.11) |
+| `existing`, `abandoned` | −1 | cached capacity sums (§4.11); a reoccupy candidate's capacity is stored in `abandoned` (§4.4) |
 | `stage`, `wealth` | 0 | highest growth stage and wealth already on the site (§4.11) |
 | score | −1.0 | §4.14 |
-| rectangle | (−1, −1, −1, −1) | cached cell rectangle (§4.10.1) |
+| rectangle | (−1, −1, −1, −1) | cached cell rectangle (§4.10.1); set by `FindNetworks` for every candidate of types 2–4 (§4.10.2) |
 | `n` | 0 | subdivision count |
 | `street[4]`, `road[4]`, `avenue[4]`, `rail[4]` | 0 | network tiles per side (§4.10.2) |
 | corner | false | §4.12 |
-| capacity | | building capacity of a reoccupy candidate |
 
 ---
 
@@ -237,6 +236,13 @@ and initialised from a template. The template constructor is `0x00707680`; the p
 - It is shown only by the debug recorders, which run under the BDS cheat `CheatDebugGrowth` (BDS slot 57).
 - Each subsection says which counter a step increments. A replacement may omit the histogram entirely
   *[choice: FreeCity4 keeps it behind a debug switch]*.
+- **Inlined suitability checks count in row 8.** `ListCandidateLots_Existing` (`0x00708110`),
+  `ListCandidateLots_Subdivision` (`0x00708C00`), `IsAggregationLegal` (`0x00708700`) and `BuildFarm`
+  (`0x0070B640`) carry their own copies of `IsLotSuitable(L, true)`: each first looks the lot up in the
+  suitability cache (a hit returns the cached code without counting), otherwise runs the §4.8 checks, stores the
+  code in the cache and does `hist[8][code] += 1` (`0x00708426`, `0x00708F3D`, `0x00708A6E`, `0x0070BA06`), exactly
+  as the function does (`0x00707D6B`). An implementation may call `IsLotSuitable(L, true)` in their place.
+  `TakeOverAbandoned` calls the function itself with `redevelop` false (always counted, never cached).
 
 ### 4.2 Common quantities
 
@@ -331,31 +337,43 @@ loop:
 Run first in every pass. It uses the lot set from §4.5.
 
 ```
-devType := developer.GetSubType();  T0 := trunc(r24(float(desired − built) × reoccupy[0]))
-                                    T1 := trunc(r24(float(desiredMax − built) × reoccupy[1]))
+devType := developer.GetSubType() (slot 6);  zoneT := developer.GetType() (slot 5)
+T0 := trunc(r24(float(desired − built) × reoccupy[0]));  T1 := trunc(r24(float(desiredMax − built) × reoccupy[1]))
 best := 1;  sum := 0
 for each lot L in the lot set (pointer order):
-    state := L.GetState()
-    eligible := state = 4 (abandoned)  or  (kickOut and state = 3 and L.GetOccupantWealth() < developer wealth)
+    state := L.GetState() (slot 33);  lw := L.GetOccupantWealth() (slot 41)
+    bt := L.GetBuildingType(false) (slot 46);  bw := bt ≠ 0 ? BDS.GetBuildingProfile(bt).wealth (slot 39) : 0
+    dw := developer.GetWealth() (slot 8)                     -- all four are read for every lot, eligible or not
+    eligible := state = 4  or  (kickOut and state = 3 and lw < dw and dw ≤ bw)       (signed int compares)
     if not eligible: continue
-    the lot's zone must convert to the developer's target zone type (developer slot 5)           else skip
-    if L.GetCapacity(devType, true) = 0 (lot slot 50, see §7.4): best := max(best, 15); continue
+    if ConvertZoneToType(L.GetZoneType()) ≠ zoneT: continue                    -- lot slot 31; table below
+    if L.GetCapacity(devType, true) = 0 (lot slot 50, see §7.4): hist[1][15] += 1; best := max(best, 15); continue
     r := IsLotSuitable(L, false); if r ∉ {27, 18}: best := max(best, r); continue      -- historic lots may be reoccupied
-    make a type-1 candidate for L; FindExistingCapacity (§4.11)
-    cap := L.GetAvailableCapacity(devType, false) (slot 52), or L.GetCapacity(devType, false) if that is 0
-    caps (§4.2) with stage = candidate.stage:
-        power and water: using the caps of the developer the BDS returns for the lot's building
-                         (BDS slot 33 GetDeveloper(purpose, wealth) of the building's profile)
-        fire and park:   using this developer's caps
-        a cap failure: best := max(best, 26/25/23/24); release the candidate; continue
-    candidate.capacity := cap;  sum += cap;  add the candidate
+    c := a type-1 candidate: lot L; (c.x, c.z) := L.GetLocation() (slot 21); c.size := L.GetSize() (slot 22);
+         c.facing := L.GetFacing() (slot 23)
+    FindExistingCapacity(c) (§4.11)            -- c.abandoned = GetCapacity(devType, true) if state = 4, else 0
+    cap := c.abandoned
+    if cap = 0: cap := L.GetAvailableCapacity(devType, true) (slot 52)
+    if cap = 0 and state = 3: cap := L.GetCapacity(devType, true) (slot 50)
+    c.abandoned := cap;  ok := cap > 0
+    if ok and not BDS.CheatIgnoreCaps() (slot 56) and L.GetLotConfiguration() (slot 9) is not null:
+        s := that configuration's GetGrowthStage() (slot 11)
+        B := BDS.GetDeveloper(P.purpose, P.wealth) (slot 33) with P := BDS.GetBuildingProfile(L.GetBuildingType(false))
+        all four checks run (no early exit); each failure does hist[1][code] += 1, best := max(best, code), ok := false:
+          power  26: s > B.GetPowerSupplyCap()     and not CheatIgnorePower    and powered value at (c.x, c.z) < 2
+          water  25: s > B.GetWaterSupplyCap()     and not CheatIgnorePlumbing and not IsCellWatered(c.x, c.z)
+          fire   23: s > this.GetFireCoverageCap() and fire coverage at (c.x, c.z) = 0
+          park   24: s > this.GetParkCap()         and park value at (c.x, c.z) = 0
+        (grids and slots as in §4.2; the stage/cap compares are unsigned bytes)
+    if ok: add c to the candidate list; sum += c.abandoned
+    else:  return c to the pool
 if the candidate list is not empty and sum > T0 (signed):
     ScoreCandidateLots(); sort (§4.14)
     taken := 0
     for each candidate c in order:
         if c.lot.GetState() = 3: lotDeveloper.AbandonBuilding(c.lot, 5)            -- slot 8 (kick out)
         lotDeveloper.ReoccupyBuilding(c.lot, devType)                             -- slot 9
-        built += c.capacity;  taken += c.capacity
+        built += c.abandoned;  taken += c.abandoned
         if taken > T1 (signed): break
     clear the candidate list;  hist[1][27] += 1;  return 27
 clear the candidate list
@@ -363,10 +381,24 @@ if best = 1: hist[1][1] += 1
 return best
 ```
 
+**Zone conversion** (`cSC4GrowthDeveloper::ConvertZoneToType`, `0x006B3890`, static cdecl, its only caller is
+`0x0070A4EF`) *[compat]*: lot zone type 1–3 → 1, 4–6 → 2, 7–9 → 3, anything else (0, 10 and above, negative)
+→ 0. The result is compared with the developer's `GetType()` as a 32-bit integer.
+
+**Anchor of a takeover candidate** *[compat]*: `(c.x, c.z)` is the lot's `GetLocation()`, and facing and size are
+the lot's (`0x0070A565`–`0x0070A59B`). The cap checks above read the grids at that cell.
+
 - With the shipped tuning, `reoccupy = {0, 1.2}`:
   - any qualifying capacity at all (`sum > 0`) triggers a takeover;
   - takeover continues until more than `trunc(1.2 · (desiredMax − built))` has been taken.
 - `T0` and `T1` are computed **once**, at entry.
+- Corrected *[compat]*: the kick-out test also needs `dw ≤ bw` (the developer's wealth must not exceed the
+  wealth of the building standing on the lot; `0x0070A4DD`); the capacity counted is `c.abandoned` as above
+  (earlier revisions used `GetAvailableCapacity(devType, false)` with a `GetCapacity(devType, false)` fallback for
+  every state); the caps are skipped when the lot has no configuration; and all four caps are evaluated, each
+  counting in `hist[1]`.
+- `GetBuildingProfile` inserts a default profile for an unknown building type (`building-development.md`), and it
+  is called for every lot of the set with a non-zero building type.
 - The lot developer contracts (`AbandonBuilding(lot, reason)`, `ReoccupyBuilding(lot, devType)`) are owned by
   `lot-developer.md`.
 
@@ -429,7 +461,7 @@ The checks run in order; the first failure is returned. `hist[7][code] += 1` for
 | 4 | `state := lot.GetState()` (slot 33): `state = 2` (Constructing) or `state ≥ 5` | 4 |
 | 5 | `lotManager.CanCreateLot(x1, z1, w, h, 0, 0, 0)` on the lot's bounding rectangle (slot 20). Result 7 (a lot already exists on the cell) or 8 (free): pass. 0 → 0; 1 → 4; 2 → 6; 3 → 3; any other → 0 | as listed |
 | 6 | If `lot.HasCapacity()` (slot 38), a building stands: (6a) `type := lot.GetBuildingType(false)` (slot 46) = 0 → 4; with `P :=` BDS `GetBuildingProfile(type)` (slot 39): (6b) `P.purpose = 5`, or `P.purpose = 7` while the developer's purpose is 6 → **15**; (6c) not kick-out **and** `P.wealth ≠ wealth` → 16; (6d) `wealth < P.wealth` → 16; (6e) `P.wealth = wealth` **and** `P.purpose ≠ purpose` → 16; (6f) `lot.IsHistorical()` (slot 43) → 18; (6g) stage: `s := ` the growth stage of the lot's configuration; equal wealth requires `maxStage > s`, otherwise `maxStage ≥ s`, else 17 | as listed |
-| 7 | Road access: purpose 1 → the traffic simulator's cell value at the lot location (traffic grid, member at `+0x34` of the traffic simulator's data *[inferred: the road-access bitmap]*) ≠ 0; purposes 6–8 → `lot.HasOrganicRoadAccess(purpose)` (slot 29); others → `lot.HasRoadAccess()` (slot 28). Failure | 21 |
+| 7 | Road access: purpose 1 → `trafficSimulator.GetTripLengthMap()` (traffic simulator `0x00B43DA8`, slot 13 `+0x34`; grid slot 7 `GetCellValue`) at the lot location ≠ 0, i.e. the cell has a computed commute (`0x00707D22`; corrected: it is a virtual call, not a member read); purposes 6–8 → `lot.HasOrganicRoadAccess(purpose)` (slot 29); others → `lot.HasRoadAccess()` (slot 28). Failure | 21 |
 | | otherwise | 27 |
 
 The aggregation, subdivision, existing-lot and farm helpers use the cached value, or an inlined copy of the same
@@ -531,8 +563,11 @@ Only splits **along the lot's width** (`w`) into `n` equal pieces of the same de
 
 #### 4.10.2 `FindNetworks(c)` (`0x00705040`, pop 4)
 
-The rectangle comes from `GetBoundingRect(c)`; for type 4, the lot's own rectangle. The four sides are scanned
-just outside the rectangle:
+`FindNetworks` first calls `GetBoundingRect(c)` for **every** candidate type (`0x00705064`), which caches
+`c.rect`. It then scans around that rectangle, except for type 4, where it scans around the parent lot's own
+rectangle (lot slot 14, into a local; `c.rect` is not overwritten). For a subdivision candidate (anchor = the
+parent's location, facing = the parent's, size = the configuration's `(cw, ch)`) the cached `c.rect` is therefore
+the footprint of the **first piece** of §4.15.4 *[compat]*. The four sides are scanned just outside the rectangle:
 
 | Side | Scanned when | Cells |
 |---|---|---|
@@ -596,7 +631,7 @@ if lot.GetBuildingType(false) ≠ 0: wealth := max(wealth, BDS.GetBuildingProfil
 ```
 rect := GetBoundingRect(c);  if any part is outside the city → false (no histogram)
 sameFacing := false;  zone := unset
-for each cell of rect:
+for x in x1..x2 (outer), z in z1..z2 (inner):           -- columns, not rows (0x0070875F–0x00708AF1)
     L := lotManager.GetLot(x, z, false);  if null → false
     r := cached or inline IsLotSuitable(L, true)
     if r = 27: if L.facing = c.facing: sameFacing := true
@@ -611,6 +646,12 @@ hist[9][27]; → true
 
 - Lots with poor roads (21) may be absorbed.
 - At least one fully suitable lot must face the same way as the new lot.
+- Cell order *[compat]*: x outer, z inner, both ascending. The boolean result does not depend on the order (every
+  cell must pass, and every lot's zone must equal the first one's). The order decides which `hist[8]` / `hist[9]`
+  counter an early exit increments and which lots enter the suitability cache before it; FreeCity4 follows it so
+  that the debug histogram and the cache match the original.
+- "zone unset" is the value 0 (`0x00708A99`): a lot of zone type 0 would not fix the reference zone. Such a lot
+  cannot reach this point with the shipped zone codes (1, 4, 7, 8), because §4.8 check 1 rejects it (code 6).
 
 ### 4.14 `ScoreCandidateLots()` (`0x00705750`) and sorting *[compat]*
 
@@ -794,6 +835,12 @@ for i in 0 … n−1:
    return 27
 ```
 
+- Step 2 passes the address of the cached `c.rect` (`0x00709BE5`) without calling `GetBoundingRect`. Every
+  candidate that reaches `PickBuilding` (types 2–4) went through `FindNetworks` when it was listed, so the
+  rectangle is always set *[compat]*: types 2 and 3 get the candidate's own footprint; a **subdivision** (type 4)
+  gets the footprint of its **first piece** (§4.10.2), never `(−1, −1, −1, −1)` and never the whole parent lot.
+  `PerformSubdivision` reuses the same candidate for pieces 2…n, so their anchor test also sees the first
+  piece's rectangle *[quirk]*.
 - `IsOccupantGroup` (`0x005E8F70`) reads the building exemplar's occupant groups.
 - `0x3000` is the occupant group the anchor building must belong to *[inferred: the "anchor" landmark / mixed-use
   group]*.
@@ -1094,6 +1141,7 @@ All are `__thiscall`. "Owner" is the spec that owns the callee's behaviour.
 | | 54 / 55 / 56 / 57 | CheatIgnorePlumbing / Power / Caps / DebugGrowth | 0 | AL | |
 | BDS helpers (non-virtual) | `0x00695390` | BuildingFitsInZone(zoneCode, zone) (cdecl, 2 args) | caller | AL | building-development |
 | | | GrowthStageFitsInZone (cdecl) | caller | AL | |
+| growth-developer helper (non-virtual) | `0x006B3890` | `cSC4GrowthDeveloper::ConvertZoneToType(zone)` (cdecl, 1 arg; §4.4 table) | caller | EAX | growth-developer |
 | `cISC4LotDeveloper` (`0x00AB1B98`) | 6 `+0x18` | StartConstruction(lot, cfg, buildingType, bool) | 16 | AL | lot-developer |
 | | 8 `+0x20` | AbandonBuilding(lot, reason) | 8 | AL | |
 | | 9 `+0x24` | ReoccupyBuilding(lot, devType) | 8 | AL | |
@@ -1107,6 +1155,7 @@ All are `__thiscall`. "Owner" is the spec that owns the callee's behaviour.
 | | 22 `+0x58` | CreateLotIfPossible(x, z, w, h, facing, cISC4Lot*& out, bool, bool, cfg) | 36 | AL | |
 | | 24 `+0x60` | DeleteLot(lot) | 4 | AL | |
 | `cISC4Lot` (`0x00AB19B0`) | 14 `+0x38` | GetBoundingRect(rect&) | 4 | AL | zones / lot |
+| | 9 `+0x24` | GetLotConfiguration (§4.4, §4.11) | 0 | EAX, no AddRef | |
 | | 18 `+0x48` | GetSlope → float | 0 | ST0 | |
 | | 21 / 22 / 23 / 24 | GetLocation(x&, z&) / GetSize(w&, h&) / GetFacing / SetFacing(f) | 8 / 8 / 0 / 4 | | |
 | | 28 / 29 | HasRoadAccess / HasOrganicRoadAccess(purpose) | 0 / 4 | AL | |
@@ -1124,6 +1173,7 @@ All are `__thiscall`. "Owner" is the spec that owns the callee's behaviour.
 | | 18 / 19 `+0x48/+0x4C` | Register / UnregisterLotConfigurationFilter(filter) | 4 | AL | |
 | `cISC4ZoneManager` | 12 `+0x30` | zone type at (x, z) | 8 | AL (signed byte) | zones |
 | `cISC4LandValueSimulator` | 6 `+0x18` | GetLandValue(x, z) | 8 | AL | landvalue |
+| `cISC4TrafficSimulator` (`0x00B43DA8`) | 13 `+0x34` | GetTripLengthMap → `cISC4SimGrid<uint8>*` (§4.8 row 7) | 0 | EAX | traffic-simulator |
 | `cISC4PowerSimulator` | 35 `+0x8C` | GetPoweredGrid | 0 | EAX | power |
 | `cISC4PlumbingSimulator` | 11 `+0x2C` | IsCellWatered(x, z) | 8 | AL | plumbing |
 | `cISC4FireProtectionSimulator` | 5 `+0x14` | fire protection grid (uint8) | 0 | EAX | protection |
@@ -1244,7 +1294,8 @@ they decide the outcome and the draws (§10.1).
    rect already holds a building of occupant group `0x3000` (then true) or a neighbouring lot of the same purpose
    with a building that is past state 1 or is a unit can serve as the anchor (then false).
 2. Q2. Is `0x29B55F73` (farm field IDs) always both a building type and a lot configuration ID in shipped data?
-3. Q3. The exact semantics of the traffic simulator's road-access value used for purpose 1 (§4.8 row 7) *[inferred]*.
+3. Q3. *Partly answered*: the purpose-1 road-access value is the traffic simulator's trip-length map (slot 13, §4.8
+   row 7); which cells the traffic simulator leaves at 0 is `traffic-simulator.md`'s business.
 4. Q4. Order in which `GetStylePercentages` values are expressed: fraction 0–1 (× 100 here) is assumed from the code;
    shipped values not checked against `growth-developer.md` §4.8.
 5. Q5. *Answered*: `AbandonBuilding` is a synchronous `lot.SetState(4, 0, reason)` (`lot-developer.md`), so §4.19
@@ -1384,3 +1435,20 @@ All floats are float32 unless stated. "Bits" is the IEEE-754 pattern.
 24. **IsLotSuitable order**: a lot that is both in state 2 and outside the land value range returns 22 (land value is
     checked before state). A historical lot with a matching building returns 18 in `IsLotSuitable`, and is still
     accepted by `TakeOverAbandoned`.
+25. **Zone conversion** (§4.4): lot zone types 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15 → 0, 1, 1, 1, 2, 2, 2, 3, 3, 3,
+    0, 0. An abandoned lot of zone 5 is taken over by a commercial developer (type 2), never by a residential one.
+26. **Takeover anchor and kick-out** (§4.4): an abandoned lot at location (12, 7), facing 1, size 2 × 3 → candidate
+    `(x, z) = (12, 7)`, facing 1, size (2, 3); the power, water, fire and park checks read cell (12, 7). Kick-out on,
+    developer wealth 2, lot in state 3 with occupant wealth 1: building profile wealth 1 → not eligible (2 > 1);
+    building profile wealth 3 → eligible; occupant wealth 2 → not eligible.
+27. **Subdivision anchor rectangle** (§4.10.2, §4.16): the candidate of test 22 (parent location (20, 10), facing 2,
+    configuration (2, 3), n = 3) gets `c.rect = (x1 20, z1 8, x2 21, z2 10)` from `FindNetworks`; `FindNetworks`
+    scans around the parent lot's own rectangle; `NeedsAnchorBuilding` receives (20, 8, 21, 10) for all three
+    pieces.
+28. **Aggregation cell order** (§4.13): rectangle x 0..1, z 0..1; lot A (suitable, 27) on (0, 0), no lot on (0, 1),
+    lot C on (1, 0) whose uncached suitability is 4. Result false after visiting (0, 0) and (0, 1): `hist[8][27]`
+    + 1 for A, `hist[8][4]` unchanged, C not in the suitability cache. (A z-outer order would visit (1, 0) second
+    and count `hist[8][4]`.)
+29. **Inlined suitability counting** (§4.1): in one pass, a lot first met by `ListCandidateLots_Existing` and then
+    by `ListCandidateLots_Subdivision` adds exactly one to `hist[8][code]`; `TakeOverAbandoned`'s
+    `IsLotSuitable(L, false)` on the same lot adds one more and does not touch the cache.

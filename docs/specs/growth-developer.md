@@ -219,10 +219,15 @@ callback adds to the W tract:
 - integer sources (`uint8`, `int8`, `int16`): `W := low16(W + low16(ftol(curve(float(v)))))`, where v is the
   value the walker passes (in the "A coarser" case the floor mean `(sum >> d) >> d` over the covered source
   tracts, signed 32-bit sum);
-- float sources: equal sizes → `curve(v)` with v unchanged; A coarser → a signed 32-bit accumulator updated as
-  `acc := ftol(r24(float(acc) + v))` for each covered value (walker `0x006B4120`), then the floor mean
-  `(acc >> d) >> d`, converted to float; A finer → `float(ftol(v))`, i.e. the
+- float sources: equal sizes → `curve(v)` with v unchanged; A coarser → a signed 32-bit accumulator, starting at
+  0, updated as `acc := ftol(r24(float(acc) + v))` for each covered value (walker `0x006B4120`), then the floor
+  mean `(acc >> d) >> d`, converted to float; A finer → `float(ftol(v))`, i.e. the
   source value is **truncated toward zero** before the curve *[quirk]*.
+  **Visit order of the float accumulator** *[compat]* (`0x006B41ED`–`0x006B42B5`): for W tract `(x, z)` the
+  covered source tracts are visited with source x **outer** (`x·2^d … x·2^d + 2^d − 1`) and source z **inner**
+  (`z·2^d … z·2^d + 2^d − 1`), the same order as the integer walkers. The order matters here because every step
+  truncates (test 17). W tracts themselves are visited x outer, z inner. No shipped float source has smaller
+  tracts than W (slope 8, school and hospital 4), so this case only arises with non-shipped tract sizes.
 
 | State | Curve (property) | Source (interface, slot) | Element | Shipped source S | Walk vs W (S = 4) |
 |---|---|---|---|---|---|
@@ -353,7 +358,7 @@ order. Helpers: property value getters `0x005FD480` (u32), `0x005FD3C0` (u8), `0
 | `0x87CD6370` | u8 | water cap | keep (3) | 3, except R$$$/CS$$$/CO$$$/I-HT 0 and I-D/I-M 1 |
 | `0x87CD6371` | u8 | fire cap | keep (3) | 9 |
 | `0x87CD6372` | u8 | park cap | keep (6) | 9, except R$$$ 3 |
-| `0x87CD6380` | raw f32 [0], [1], [2] | abandonment thresholds for keys 1, 2, 3 (first set to `0.2f` = `0x3E4CCCCD` each); **no count check** *[quirk]* | 0.2 | absent |
+| `0x87CD6380` | raw f32 [0], [1], [2] | abandonment thresholds for keys 1, 2, 3 (first set to `0.2f` = `0x3E4CCCCD` each); **no count check** *[quirk]*. Keys are density types (§10.1 slot 24). Not saved; nothing in the shipped exe reads them | 0.2 | absent |
 | `0x87CD6381` | u8 | monopoly-piece use (SDK enum) | 1 | 0 |
 | `0x87CD63A0` | u32 pairs (group, pct) | style map: cleared, then `map[group] := r24(float(pct) × 0.01f)` for i = 0, 2, … while i < count (an odd count reads one value past the end *[quirk]*) | empty | I: `[0x3001, 50, 0x3002, 50]` → 0.5 each; others absent |
 | `0xCAB1CE3A` | vector<int32> | subjective minimums | keep | 7 values |
@@ -477,7 +482,11 @@ correction of `−lastPhantomSum` *[compat]*. Shipped: the flag is off on all de
    `less(a, b) := key(b) < key(a)` (unsigned), i.e. by **descending key**, where
    `key(x, z) := NextRaw()` of a fresh `cRZRandom` seeded with `(((x << 16) + z) << 4) XOR salt` (32-bit
    arithmetic; comparator `0x006B3820`). This replaces the desirability order with a reproducible pseudo-random
-   order for one update.
+   order for one update. The sort is the **same routine as step 1** *[compat]*: state 20 calls `0x006B5EC0` twice
+   (`0x006B6BCE`, `0x006B6C53`), and the routine takes the comparator as a function-pointer argument, so the
+   decline list gets the identical STLport introsort (threshold 16, depth limit 2·⌊log₂ n⌋, final insertion sort)
+   with comparator `0x006B3820`. Its input order is the ascending-desirability order of step 2. The comparator
+   re-seeds two generators per comparison, so the number of comparisons has no effect on any other generator.
 4. **Filter**: remove every growth item with `W < growthThreshold` (signed), keeping the order of the rest.
 
 ### 5.5 State 20: city size and growth stages
@@ -498,10 +507,25 @@ otherwise:   size := 0
 size := r24(bds.GetStagePopulationMultiplier() × size)      (BDS slot 53, ST0)
 ```
 
-The two neighbour lists are temporary (constructed and destroyed here, allocator A per `allocators.md`). The R and
-C cases query the neighbours and both C nodes; I does not. A null demand node crashes *[quirk]*.
+The two neighbour lists are temporary (constructed and destroyed here, allocator A per `allocators.md`). A null
+demand node crashes *[quirk]*.
 
-Stages: with k stage curves (`0x87CD6360`) and n growth items, if k > 0 and n > 0:
+**Which queries are made** *[compat]* (`0x006B6CC2`–`0x006B6EA2`). The city-size block runs on **every** state-20
+pass, after the filter, whether or not the growth list is empty (n = 0 still makes all the calls below). Calls
+in order:
+
+| Target zone | Calls |
+|---|---|
+| 1 (R) | neighbours slot 21, neighbours slot 22, `GetDemand(0x3001, 0)` + supply, then **only if n2 > 0** (signed) `GetDemand(0x3301, 0x10000)` + supply, then `GetDemand(0x1001, 0)` + supply |
+| 2 (C) | the same without the `0x1001` query |
+| 3 (I) | `GetDemand(0x4001, 0x20000)` + supply only (no neighbour calls) |
+| other | none |
+
+then BDS slot 53 for every zone. With n2 ≤ 0 the `0x3301` node is not looked up at all (`GetDemand` is not
+called either), so t = 0 and x = r24(0 + c) = c; a missing `0x3301` node then does not crash.
+
+Stages: with k stage curves (`0x87CD6360`) and n growth items, if k > 0 and n > 0 (when k > 0 and n = 0 the original
+still evaluates `stageCurve[k−1](size)` once before testing n, with no effect):
 
 ```
 acc := stageCurve[k−1](size);  s := k;  inv := r24(1.0f / float(n));  i := 0
@@ -515,7 +539,10 @@ for each growth item in order:
 ```
 
 Stage curve j (1-based) gives the percentage of growth tracts allowed to reach stage j; the most desirable tracts
-get the highest stages. With k = 0 every item keeps maxStage 1. A NaN `acc` drives s to 1. Then state := 0.
+get the highest stages. With k = 0 every item keeps maxStage 1. The test `p < acc` is the x87 C0 flag
+(`0x006B6F62`, `0x006B6F9F`), which is also set for an unordered compare, so a NaN `acc` counts as "p < acc": the
+loop stops and the item keeps the current s (corrected: an earlier revision said a NaN drives s to 1). Then
+state := 0.
 
 ### 5.6 Consumers (contracts)
 
@@ -569,6 +596,11 @@ The zone code is the lowest zone type of the developer's family *[inferred: 1 R 
 
 Message `0xE8BDA2E7` (fields per `demand.md` §7): IGZUnknown = the lot (used **as** a `cISC4Lot*` without
 `QueryInterface` *[compat]*), data1 = old state, data2 = new state, data3 = building type, data4 = occupant wealth.
+data4 is the **wealth**, never the vacate reason: `cSC4Lot::SetState(state, wealth, reason)` (`0x006C3100`) puts the
+lot's occupant wealth byte in data4 (the `wealth` argument when the lot enters state 2/3 with a non-zero
+`wealth`; the wealth the lot had **before** the call when it leaves 2/3), see `lot-developer.md` §3.2. So a
+removal reaches this handler with the wealth the lot had while it was occupied, not a recomputed one. The
+IGZUnknown is a copy of the lot made at post time (same section).
 
 ```
 if data4 ≠ wealth: done
@@ -687,7 +719,7 @@ epilogues.
 | 18 | `+0x48` | GetSourceDemand() → `cISC4Demand*` | 0 | EAX, no AddRef | |
 | 19–22 | `+0x4C`–`+0x58` | GetPowerSupplyCap / GetWaterSupplyCap / GetFireCoverageCap / GetParkCap | 0 | AL | |
 | 23 | `+0x5C` | GetDesirabilityThreshold() | 0 | EAX | growth threshold |
-| 24 | `+0x60` | GetAbandonmentThreshold(int32 key) → float | 4 | ST0 | map lookup that **inserts** 0.0 for an unknown key (B allocation) |
+| 24 | `+0x60` | GetAbandonmentThreshold(int32 densityType) → float | 4 | ST0 | map lookup that **inserts** 0.0 for an unknown key (B allocation). **No caller in the shipped exe** (§13.3 Q4) |
 | 25 | `+0x64` | GetMonopolyUse() | 0 | EAX | |
 | 26 | `+0x68` | GetStylePercentages() → `map<uint32, SC4Percentage>*` | 0 | EAX | address of the member map |
 | 27 | `+0x6C` | StartMapUpdate() | 0 | none | state 0 → 1 |
@@ -704,6 +736,8 @@ SDK comparison (`cISC4GrowthDeveloper.h`): slot order, argument sizes and pointe
 3. `GetStylePercentages` returns a pointer to `std::map<uint32, SC4Percentage>` (STLport tree, nodes from B;
    values are floats), not "map<uint32, uint32>" (`0x006B7590`; destructor `0x004C56F0`; filled at §4.8).
 4. `GetAbandonmentThreshold` is correct as declared (float, ST0, pop 4, `0x006B7620`) but is not const: it inserts.
+   The Mac symbol types its argument as `cISC4BuildingOccupant::DensityType` (the SDK's parameter name is
+   `densityType`).
 
 ### 10.2 `cIGZMessageTarget2`, vtable `0x00AB1474` (4 slots)
 
@@ -829,8 +863,14 @@ city and only uses the GZCOM factory when loading.
 1. Who calls `EstimateDesirability` and `GetSubjectiveThresholds`, and what the 7 subjective indices mean.
 2. Names of `0x4A5F7C4B` / `0x4A5F7315` and which buildings carry them.
 3. Whether any caller modifies the growth or decline vectors (assumed read-only).
-4. Meaning of the abandonment-threshold keys 1..3 *[inferred: density]*. The lot developer never calls slot 24
-   (`lot-developer.md`); the caller is still unknown.
+4. *Answered.* Keys 1..3 are `cISC4BuildingOccupant::DensityType` values (Mac symbol of slot 24), i.e. low, medium,
+   high density *[inferred: the enum's numeric values are not in the binary]*. Slot 24 is **dead in the shipped
+   exe**: its only reference is the vtable entry `0x00AB14E8`; no direct call exists; the map's `operator[]`
+   (`0x006B5840`, identical-code-folded) is called only by slot 24, by `ReadSimulatorTunableValues`
+   (`0x006B8336`–`0x006B83D6`) and by an unrelated map in `STETerrain` (`0x0074AF00`); of the 656
+   `call [reg + 0x60]` sites in the image, the 26 that consume an x87 result all belong to other interfaces, and no
+   caller of the BDS `GetDeveloper` calls `+0x60`. Only a plug-in could call it. FreeCity4 implements it as declared (with the
+   inserting lookup) for interface compatibility; no other spec needs to cite it beyond `lot-developer.md` §12.3.
 
 ---
 
@@ -877,3 +917,12 @@ city and only uses the GZCOM factory when loading.
 15. **Subjective thresholds**: index 2 with the R$ vectors → (−3, 7); index 7 → (−4, 20); index −1 → (−4, 20).
 16. **StateChanged**: wealth mismatch → no change; old 1 → new 2 with building type 0 → no change; old 3 → new 4
     with a matching type → capacity removed as in test 3.
+17. **Float walker visit order** (§4.3, A coarser): W tract size 4, a float source grid with tract size 2 (d = 1),
+    baseline 25, only the school curve, (0,0)(10,10). Source values for W tract (0,0): (x 0, z 0) = 0,
+    (0, 1) = −0.5, (1, 0) = 4.5, (1, 1) = 0. Visit (0,0), (0,1), (1,0), (1,1): acc 0 → `ftol`(−0.5) = 0 → 4 → 4;
+    mean (4 >> 1) >> 1 = 1 → curve 1.0 → **W = 26**. (A z-outer order would give acc 3, mean 0, W = 25.)
+18. **City-size queries** (§5.5), mock demand simulator recording `GetDemand` calls, multiplier 1.0: zone 1,
+    n1 = 0, n2 = 0, supply(0x3001) = 100, supply(0x1001) = 80 → calls `(0x3001, 0)`, `(0x1001, 0)` only (no
+    `(0x3301, 0x10000)`), size 100. Same with n1 = 1, n2 = 2, supply(0x3301) = 400 → calls `(0x3001, 0)`,
+    `(0x3301, 0x10000)`, `(0x1001, 0)`; t = 200, x = 200, size 200. Zone 3 → only `(0x4001, 0x20000)` and no
+    neighbour calls. An empty growth list makes the same calls.

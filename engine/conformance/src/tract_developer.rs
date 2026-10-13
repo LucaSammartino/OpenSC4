@@ -1285,9 +1285,10 @@ fn tuning(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
-/// `tdev_create`: `seed` (the file-local generator's seed, injected: the
-/// core derives nothing; default `0x4C09C113`, the original's seed at
-/// clock value 0, i.e. `0 XOR RNG_SEED_XOR`), `crt_seed` (default 1),
+/// `tdev_create`: `seed` (the file-local generator's seed exactly; default
+/// `0x4C09C113`, the original's seed at clock value 0, i.e. `0 XOR
+/// RNG_SEED_XOR`) or `session` (`TractDeveloperStatics::from_session`,
+/// foundations §6.3), `crt_seed` (default 1),
 /// `trace` (default true), `histogram` (default true), `shared` (reuse the
 /// statics of the previous instance).
 fn create(w: &World, op: &Json) -> R<()> {
@@ -1299,7 +1300,10 @@ fn create(w: &World, op: &Json) -> R<()> {
     let shared = opt(op, "shared").and_then(boolean).unwrap_or(false);
     let statics = match (shared, w.statics.borrow().clone()) {
         (true, Some(s)) => s,
-        _ => TractDeveloperStatics::new(seed, &seeds),
+        _ => match opt(op, "session") {
+            Some(v) => TractDeveloperStatics::from_session(u32_of(v, "session")?, &seeds),
+            None => TractDeveloperStatics::new(seed, &seeds),
+        },
     };
     if let Some(c) = opt(op, "crt_seed") {
         statics.borrow_mut().crt = CrtRand::new(u32_of(c, "crt_seed")?);

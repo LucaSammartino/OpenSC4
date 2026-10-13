@@ -531,15 +531,17 @@ stage is skipped, §6). Shipped values are from re/tuning/simulators.md.
 | `0xEA02327C` / `7D` / `7E` | s32 | baseAura R$ / R$$ / R$$$ | 0 / 0 / 0 | 0 (kept if absent) |
 | `0xEA02327F` | curve | tax-rate change (points) → aura | (−20,25) (−10,20) (−5,10) (−2,7) (−1,5) (1,−5) (2,−7) (5,−10) (10,−20) (20,−25) | none |
 | `0xEA023280` | curve | land value type − wealth → aura | (−2,5) (−1,3) (0,0) (1,−3) (2,−5) | none |
-| `0xEA023290` | s32[2] | transient fire {magnitude, radius m} | {−20, 128} | {0, 0} (reset before each read) |
-| `0xEA023291` | s32[2] | transient flora | {3, 32} | {0, 0} |
-| `0xEA023292` | s32[2] | transient civic plop | {25, 128} | {0, 0} |
-| `0xEA023293` | s32[2] | transient network plop | {0, 0} | {0, 0} |
+| `0xEA023290` | f32[2] | transient fire {magnitude, radius m} | {−20, 128} | {0, 0} (reset before each read) |
+| `0xEA023291` | f32[2] | transient flora | {3, 32} | {0, 0} |
+| `0xEA023292` | f32[2] | transient civic plop | {25, 128} | {0, 0} |
+| `0xEA023293` | f32[2] | transient network plop | {0, 0} | {0, 0} |
 | `0xEA0232A0` | s32[3] | {hotspotThreshold, hotspotRadius, hotspotMinWeight} | {−50, 3, 4} | {196, 8, 16}, used unless the property has **exactly 3** values |
 | `0xEA0232A1` | curve | hotspot weight → riot chance (%) | (0,0) (5,10) (10,60) (20,100) | none (deleted before each read) |
 
 After reading, the three base aura values are copied into a process-wide table keyed by developer type (also read by
-other code *[inferred]*). The transient arrays: magnitude := `v[0]`, radius := `v[1]` (converted to float).
+other code *[inferred]*). The transient arrays: magnitude := `v[0]`, radius := `v[1]`. They are shipped as f32[2] and copied **raw** into a
+float vector (`0x005FFCC0`, at `0x0068D94E`) with no type check or conversion (corrected: not s32 converted to
+float; a property stored with another type would be reinterpreted bit for bit, data-formats.md §5).
 
 ## 11. Messages posted and persistence
 

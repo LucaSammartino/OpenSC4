@@ -62,6 +62,13 @@ bool SetU32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<uint32_t
 bool SetI64s(cISCPropertyHolder* holder, uint32_t id, const std::vector<int64_t>& values);
 bool SetF32s(cISCPropertyHolder* holder, uint32_t id, const std::vector<float>& values);
 
+// Writes property `id` exactly as a core variant holds it (the inverse of
+// CopyToCore): `memType` is the element type (cIGZVariant type 0x01-0x0E,
+// without the array bit), `data` holds `count` elements in that type's native
+// layout (bool: one byte). A scalar (`isArray` false) needs `count` 1. False
+// for other types or a bad count.
+bool SetTyped(cISCPropertyHolder* holder, uint32_t id, uint16_t memType, bool isArray, const void* data, size_t count);
+
 // Copies a property (whatever its type) from `src` onto `dst`; false if absent.
 bool Copy(const cISCPropertyHolder* src, cISCPropertyHolder* dst, uint32_t id);
 

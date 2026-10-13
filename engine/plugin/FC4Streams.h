@@ -104,6 +104,14 @@ private:
     fc4_ostream api_{};
 };
 
+// A reference read from a stream (`obj`, with the reference ReadGZSerializable
+// returned) when it is one of our objects (cIFC4CoreObject): fills `out` with
+// the core handle and, as for host objects, the token of the interface `iid`
+// (0 = the primary cIGZUnknown), and drops the reference (ours: the core keeps
+// the object alive; a consumer that keeps the token as a host object must
+// AddRef it). Returns false, touching nothing, for objects that are not ours.
+bool OurObjectRef(cIGZSerializable* obj, uint32_t iid, fc4_ref* out);
+
 // Reads through a game cIGZIStream. References need the segment stream.
 class IStreamAdapter {
 public:

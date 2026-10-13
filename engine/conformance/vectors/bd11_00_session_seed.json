@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "name": "bds_session_seed",
+  "spec": [
+    "foundations 6.3",
+    "building-development 4.14"
+  ],
+  "description": "Foundations 6.3 [choice]: the file-local generator is seeded with derive(K) = S XOR K, moved by XOR 1 when it would be 0 or 0xFFFFFFFF; K is the original's clock XOR constant. Expected states from an independent Python model of derive(). Building development simulator (K = 0x0C09C0B8): BdsProcess::from_session gives 0x12345678 -> 0x1E3D96C0 (an arbitrary session); 0x00000000 -> 0x0C09C0B8 (session 0 = the original's seed at clock value 0); 0x0C09C0B8 -> 0x00000001 (S = K: S XOR K = 0 is moved to 1); 0xF3F63F47 -> 0xFFFFFFFE (S = NOT K: 0xFFFFFFFF is moved to 0xFFFFFFFE).",
+  "steps": [
+    {
+      "op": "bds_process",
+      "session": "0x12345678"
+    },
+    {
+      "op": "bds_world",
+      "tuning": "shipped"
+    },
+    {
+      "op": "bds_create"
+    },
+    {
+      "op": "bds_expect",
+      "state": {
+        "rng_state": "0x1E3D96C0",
+        "steps": 0
+      }
+    },
+    {
+      "op": "bds_process",
+      "session": "0x00000000"
+    },
+    {
+      "op": "bds_world",
+      "tuning": "shipped"
+    },
+    {
+      "op": "bds_create"
+    },
+    {
+      "op": "bds_expect",
+      "state": {
+        "rng_state": "0x0C09C0B8",
+        "steps": 0
+      }
+    },
+    {
+      "op": "bds_process",
+      "session": "0x0C09C0B8"
+    },
+    {
+      "op": "bds_world",
+      "tuning": "shipped"
+    },
+    {
+      "op": "bds_create"
+    },
+    {
+      "op": "bds_expect",
+      "state": {
+        "rng_state": "0x00000001",
+        "steps": 0
+      }
+    },
+    {
+      "op": "bds_process",
+      "session": "0xF3F63F47"
+    },
+    {
+      "op": "bds_world",
+      "tuning": "shipped"
+    },
+    {
+      "op": "bds_create"
+    },
+    {
+      "op": "bds_expect",
+      "state": {
+        "rng_state": "0xFFFFFFFE",
+        "steps": 0
+      }
+    }
+  ]
+}

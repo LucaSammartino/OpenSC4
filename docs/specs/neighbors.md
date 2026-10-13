@@ -582,6 +582,10 @@ Exemplar `0x6534284A / 0x7A4A8458 / 0x6A469021` "Neighbor Deals" (`SimCity_1.dat
 | `0xEA4AD2FF` | 2.5 | 1 | amount scale |
 | `0x6A469342` | 0.1 | 1 | minimum markup over the seller's cost per unit |
 | `0xCA469346` | 0.5 | 1 | maximum markup |
+
+Read widths (data-formats.md §7): `GetDealCost` reads `0x6A469342` and `0xCA469346` as **f64** (`0x006D3512`,
+`0x006D3530`), so 0.1 and 0.5 enter its arithmetic unrounded; `ProposeDeals` reads `0xCA469346` as f32
+(`0x006D22B4`), i.e. 0.5 exactly. Corrected: not all values are f32.
 | `0x6B588FAD` | 90 | 0 | grace period (days) |
 | `0x8B58C59E` | 90 | 0 | probation period (days) |
 | `0xEA46934F` | 1 | 5 in proposals, 0 in the deal simulation, unset in `UpdateCommodityStats` (*[choice]* 0 → treat the free-landfill term as 0) | landfill horizon and maximum deal term (years) |

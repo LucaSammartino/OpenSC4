@@ -317,7 +317,8 @@ uint32  julianDay
 
 - `Read` must fail (return false) for `version ≥ 5`.
 - For `version < 4`, a serialized timer sits between the level entries and `julianDay`. Read it with the stream's
-  timer format and discard it. *[choice]* We may reject versions below 4 until a sample save is available.
+  timer format and discard it. The timer is `u8 units` (always 3), `u64 elapsed`, `u8 running` (11 bytes). Version
+  3 **must** be read (corrected): 407 of the 417 corpus saves hold it (save-records.md §7.6) *[compat]*.
 - After `Read`, the speed is re-applied by `Init` (`msPerDay` and `targetFps` are derived, not saved).
 
 ## 9. Lifecycle, notifications, commands and cheats

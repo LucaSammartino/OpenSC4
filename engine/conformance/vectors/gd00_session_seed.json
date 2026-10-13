@@ -1,0 +1,86 @@
+{
+  "format": 1,
+  "name": "growth_session_seed",
+  "spec": [
+    "foundations 6.3",
+    "growth-developer 7"
+  ],
+  "description": "Foundations 6.3 [choice]: the file-local generator is seeded with derive(K) = S XOR K, moved by XOR 1 when it would be 0 or 0xFFFFFFFF; K is the original's clock XOR constant. Expected states from an independent Python model of derive(). Growth developers (K = 0xAC09C0E8, one generator shared by all of them): GrowthStatics::from_session gives 0x12345678 -> 0xBE3D9690 (an arbitrary session); 0x00000000 -> 0xAC09C0E8 (session 0 = the original's seed at clock value 0); 0xAC09C0E8 -> 0x00000001 (S = K: S XOR K = 0 is moved to 1); 0x53F63F17 -> 0xFFFFFFFE (S = NOT K: 0xFFFFFFFF is moved to 0xFFFFFFFE).",
+  "steps": [
+    {
+      "op": "gdev_env",
+      "cells": [
+        16,
+        16
+      ]
+    },
+    {
+      "op": "gdev_statics",
+      "fresh": true,
+      "session": "0x12345678"
+    },
+    {
+      "op": "gdev_create",
+      "label": "d12345678"
+    },
+    {
+      "op": "gdev_expect",
+      "dev": "d12345678",
+      "state": {
+        "draws": 0,
+        "rng_lcg": "0xBE3D9690"
+      }
+    },
+    {
+      "op": "gdev_statics",
+      "fresh": true,
+      "session": "0x00000000"
+    },
+    {
+      "op": "gdev_create",
+      "label": "d00000000"
+    },
+    {
+      "op": "gdev_expect",
+      "dev": "d00000000",
+      "state": {
+        "draws": 0,
+        "rng_lcg": "0xAC09C0E8"
+      }
+    },
+    {
+      "op": "gdev_statics",
+      "fresh": true,
+      "session": "0xAC09C0E8"
+    },
+    {
+      "op": "gdev_create",
+      "label": "dAC09C0E8"
+    },
+    {
+      "op": "gdev_expect",
+      "dev": "dAC09C0E8",
+      "state": {
+        "draws": 0,
+        "rng_lcg": "0x00000001"
+      }
+    },
+    {
+      "op": "gdev_statics",
+      "fresh": true,
+      "session": "0x53F63F17"
+    },
+    {
+      "op": "gdev_create",
+      "label": "d53F63F17"
+    },
+    {
+      "op": "gdev_expect",
+      "dev": "d53F63F17",
+      "state": {
+        "draws": 0,
+        "rng_lcg": "0xFFFFFFFE"
+      }
+    }
+  ]
+}

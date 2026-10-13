@@ -53,6 +53,29 @@ pub fn rhe(x: f32) -> i32 {
     sum.to_bits().wrapping_sub(0x4B40_0000) as i32
 }
 
+/// `fild qword` then `fmul dword` under 24-bit precision (§18.3 point 1): the
+/// 64-bit integer enters exactly and the product is rounded once to `f32`
+/// (round to nearest even). Exact for every `i64`, unlike going through `f64`.
+pub fn mul_i64_f32(i: i64, f: f32) -> f32 {
+    if i == 0 || f == 0.0 || !f.is_finite() {
+        return (i as f64 * f64::from(f)) as f32;
+    }
+    // f = ±m · 2^e with an integer significand m < 2^24.
+    let bits = f.to_bits();
+    let neg = bits >> 31 != 0;
+    let exp = ((bits >> 23) & 0xFF) as i32;
+    let frac = i128::from(bits & 0x7F_FFFF);
+    let (m, e) = if exp == 0 {
+        (frac, -149)
+    } else {
+        (frac | 0x80_0000, exp - 150)
+    };
+    // |p| < 2^87: exact.
+    let p = i128::from(i) * if neg { -m } else { m };
+    // i128 → f32 rounds to nearest even; scaling by 2^e is exact in range.
+    (f64::from(p as f32) * 2f64.powi(e)) as f32
+}
+
 /// `float(uint32 v)` (crime §6.4): the `int32` is loaded exactly; a negative
 /// one has 2³² added, rounded once to 24 bits.
 pub fn u32_to_float(v: i32) -> f64 {
@@ -66,6 +89,22 @@ pub fn u32_to_float(v: i32) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mul_i64_f32_is_one_rounding() {
+        // budget §15 test 2: (998857 × 1.2f) is rounded once.
+        assert_eq!(mul_i64_f32(998_857, 1.2), (998_857f64 * f64::from(1.2f32)) as f32);
+        assert_eq!(mul_i64_f32(-3, 0.5), -1.5);
+        assert_eq!(mul_i64_f32(0, 7.0), 0.0);
+        // Beyond 2^53 the integer still enters exactly: 2^60 + 1 times 1.0
+        // rounds to 2^60 in f32, and (2^24 + 1) · 2^36 rounds to even.
+        assert_eq!(mul_i64_f32((1i64 << 60) + 1, 1.0), (1u64 << 60) as f32);
+        assert_eq!(mul_i64_f32(((1i64 << 24) + 1) << 36, 1.0), (1u64 << 60) as f32);
+        assert_eq!(
+            mul_i64_f32(((1i64 << 24) + 3) << 36, 1.0),
+            (((1u64 << 24) + 4) << 36) as f32
+        );
+    }
 
     #[test]
     fn ftol_is_int64_truncation() {

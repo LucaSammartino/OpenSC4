@@ -955,7 +955,9 @@ ref  eventSubject
 
 `Read`: the version is **not checked**. The effect list is read only when version > 3, and **appended** to the
 current list *[quirk]*. The subject is released first and read with IID `0x6A26D050`. Then text dirty is set, the
-loaded byte := !error, and that is returned. Subclasses that add state (neighbour deal `nd_type`) do not save it.
+loaded byte := !error, and that is returned. The neighbour-deal advice (`0x6A3848DB`) is the one subclass with its
+own record (corrected): `u16 2`, this advice record, then `s32 dealType` (`nd_type`); its Read requires version 2
+(`Write` `0x00420F40`, `Read` `0x00420F80`; all 10,842 corpus entries; save-records.md §7.2) *[compat]*.
 
 ### 11.4 Subject (`0x6A26D049`), version 4
 
@@ -989,8 +991,10 @@ version > 2. A failed base read does not stop it; it returns `!GetError()` *[qui
 
 `cSC4AdvisorBase`'s serializable vtable reports CLSID `0xEAC937B4` (the plain `cSC4Advisor`), not `0xCA09F543`. So
 the Environment (25) and Fluff news (28) advisors are saved as `cSC4Advisor` and come back as plain `cSC4Advisor`
-objects. After loading they have no base message subscriptions and no dirty handling. Neither uses reward advices or
-variables, so nothing visible changes. A replacement must write `0xEAC937B4` for them and accept both classes.
+objects. Older builds saved them as `0xCA09F543` instead: 403 shipped saves hold two such entries each, with the
+plain advisor record (save-records.md §7.6). After loading they have no base message subscriptions and no dirty handling. Neither uses reward advices or
+variables, so nothing visible changes. A replacement must write `0xEAC937B4` for them and, on load, create an advisor for both `0xEAC937B4` and
+`0xCA09F543` *[compat]*.
 
 ---
 

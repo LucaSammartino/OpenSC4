@@ -151,7 +151,7 @@ The data model, by meaning (offsets are deliberately not part of it):
 | `0xC53D10AA` | data1 = `0xE7E2C2DB` and data2 = `0xC9133286` | re-read tuning (§4.14) |
 | `0xC2C09554` | | `UpdateTravelStrategies` (§4.1.2) |
 | `0x99EF1142` / `0x99EF1143` | data3 = `0xC772BF98` | network occupant inserted / removed (traffic-network.md); on remove the cell's edge-density records are erased; any such message (even a failed cast) marks the network as changed |
-| `0xE8BDA2E7` | lot (`IGZUnknown` → lot) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
+| `0xE8BDA2E7` | lot (`IGZUnknown` → a **copy** of the lot with an empty trip list, lot-developer.md §3.2; §4.1.3 finds the real lot again at its corner) | data1 = 3: `DoLotDeactivated` (`0x0071E2F0`); else data2 = 3: `DoLotActivated` (`0x00723AF0`, §4.1.3) |
 
 All handlers return true except the day handler.
 
@@ -670,11 +670,15 @@ accident-prone list in the order of a **linear random iterator** (foundations §
 at reset). For each entry: draw `u := RandomDoubleRangeUniform(0.0, 1.0)` on the simulator's generator; if `u < p`
 and the cell is in the visible rect and has an occupant (network-occupant query, `+0x1C` grid slot 14): create an
 accident there (`cSC4TrafficAutomataManager::CreateAccident`, duration `ftol(r24(accidentDuration × 1000))` ms),
-post an accident message (§5) and stop. *[choice]* FreeCity4 replaces the wall-clock period by the simulation clock
+post the accident message `0x0C05E4C3` (§5; data1 = x, data2 = z of the entry, queued) and stop. The result of
+`CreateAccident` is not checked: the message is posted even if the automata manager made no accident. *[choice]* FreeCity4 replaces the wall-clock period by the simulation clock
 (the check runs once per `accidentCheckPeriod` seconds of game time at the current speed) and keeps the draw order.
 
-**CheckRailAccident(x, z)** (slot 17, `0x00711590`): if the cell is in the damaged-cell set (key `z << 8 | x`):
-`RandomDoubleUniform() < railDamageAccidentFactor`; else false.
+**CheckRailAccident(x, z)** (slot 17, `0x00711590`): if the cell is in the damaged-cell set (hash at +0x804, key
+`(x << 8 | z)` truncated to 16 bits, `x` the first argument): `u := RandomDoubleUniform()` on the simulator's
+generator (+0x6FC, `cRZRandomSuper::RandomDoubleUniform` `0x00913A29`) and the result is
+`railDamageAccidentFactor (+0xD04) > u`; else false, no draw. It posts **no** message; its result goes back to the
+caller (train automata *[not traced]*).
 
 **IsRoadDamaged(x, z)** (slot 16, `0x00720070`): membership of `(x << 8 | z)` in the damaged-road list
 (traffic-network.md).
@@ -762,9 +766,9 @@ part draws nothing (traffic-network.md §12).
 
 | Message | When | Data |
 |---|---|---|
-| `0x69247DC7` TrafficMapChanged | end of CreateFinalMap (state 4) | `cRZMessage2Standard`: type, void1 and IGZUnknown = the simulator; sent synchronously (message server `+0x10`, flag 0) |
-| accident message | `CheckForAccident`, when an accident is created | `cRZMessage2Standard` (`0x2C` bytes, operator new), posted through the server at `0x00B43CCC` *[inferred: message ID and data]* |
-| `0x69247DC3`, `0x69247DC4`, `0x69247DC5`, `0x69247DC6` | strike transitions (§4.12) | type, data1 (`+0x30` void1) and IGZUnknown = the simulator; sent through the simulator's message server (`+0x10`, flag 0) |
+| `0x69247DC7` TrafficMapChanged | end of CreateFinalMap (state 4) | `cRZMessage2Standard`: type, void1 and IGZUnknown = the simulator; **posted, queued** (message server `+0x10` = `MessagePost(msg, false)`, `0x0070F6C0`) |
+| `0x0C05E4C3` traffic accident *[inferred name]* | `CheckForAccident` (§4.13), right after `CreateAccident` (`0x0071877E`) | new `cRZMessage2Standard` (`0x2C` bytes); `SetType(0x0C05E4C3)`, `SetData1(x)`, `SetData2(z)` (the accident-prone entry's cell, words +0 and +4); data3, data4, void1 and IGZUnknown are not set (0). **Posted, queued, normal priority** (`MessagePost(msg, false)` on `0x00B43CCC`, call at `0x007187D7`; skipped when the server is null), then released. Receivers: **none compiled**: the constant appears once in the image (`0x007187B2`, also only at the poster in the Mac build), so only wildcard or plug-in subscribers see it. Rail accidents post nothing (`CheckRailAccident` returns a bool). The advisor events CAR_CRASH `0xABF4B4B2` / TRAIN_DERAIL `0xABF4B57F` have no code reference to this path *[not traced]* |
+| `0x69247DC3`, `0x69247DC4`, `0x69247DC5`, `0x69247DC6` | strike transitions (§4.12) | type, data1 (`+0x30` void1) and IGZUnknown = the simulator; posted, queued, through the simulator's message server (`+0x10` = `MessagePost(msg, false)`, `0x0070DD18`) |
 | `0x69247DC8` | a cell becomes damaged or repaired (§4.12) | x, z, damaged flag |
 | `0x2C06BA82` | the ferry pass of state 19 has finished all terminals | traffic-network.md §5 |
 
@@ -773,7 +777,16 @@ part draws nothing (traffic-network.md §12).
 ### 6.1 Record (`Write` `0x00712400`, `Read` `0x00721990`) *[compat]*
 
 Version **0x29** (41). Read accepts versions ≥ `0x13` and returns false below that; the version gates are listed
-in §6.4. Primitive encodings are foundations §2.2; "grid" = `SetGZSerializable` of the grid object (simgrid.md).
+in §6.4. Primitive encodings are foundations §2.2.
+
+**Corrected (M6):** the authoritative byte layout, with every Read version gate, is save-records.md §7.1.1; it
+parses all 417 corpus records. The table below is kept as a field overview; where it differs, save-records.md
+wins. The differences (§7.1.2 there): the grids (rows 3, 5, 6, 9), the switch building (row 10) and the
+departments (row 11) are **refs** (ref writer `0x005D99A0`, 14 calls in `Write`), not inline objects; row 14 holds
+a fixed `4 × u32` and a `3 × D` u32 table with no count fields; row 17 is the **tunnel table**, not the
+neighbour-connection records; in row 18 the `u32 4` is a count; in row 19 the usage table is a map from u16 to a
+property holder, the two per-travel-type vectors are interleaved pairs, and the link counters come after the route
+vectors.
 
 | # | Field | Encoding |
 |---|---|---|
@@ -814,16 +827,24 @@ cycle.
 Each lot record (`cSC4Lot::Write` `0x006C0080`) ends with: u32 trip count, the trips, then u8 strategy byte. Each
 trip (`cSC4TripData` Write `0x0070E0B0` / Read `0x0070E160`): u32 version (2), u32 n + n × u8 route, u32 n + n × u8
 returnRoute, u32 count, u8 type, u8 strategy, u8 flags, u8 status, s16 destX, s16 destZ, f32 tripLength, u32
-travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; a vector count ≥ 1,000,000 is skipped
-(the vector stays empty) *[compat]*. Neighbour connections save their lists the same way (neighbors.md).
+travelTypesUsed (only when version > 1; 0 otherwise). Read accepts any version; for a vector count ≥ 1,000,000
+nothing more is read and the vector keeps its previous contents (corrected, `0x005DB520`) *[compat]*. The lot's
+Read **appends** the trips to its existing list, and its Write stops before the strategy byte when a trip Write
+fails (`0x006C35F0`, `0x006C0334`; lot-records.md). Fields the original never initialises are saved as they are:
+`travelTypesUsed` is `0xCCCCCCCC` in 126 of 8,109 saved trips and destZ holds −13,108 (`0xCCCC`) in some, so a
+writer must copy loaded values back unchanged to round-trip a city. Neighbour connections save their lists the same
+way (neighbors.md).
 
 ### 6.4 Version gates (Read)
 
 The reader branches on the version at these points (`m5sim/read_trace.txt` evidence): `0x18`, `0x25`, `0x1C`, `0x1C`
 (the dimension counts, defaulting to 8, 1, 4, 7 for older saves), `0x14`, `0x1D`, `0x17`, `0x1C`, `0x20`, `0x15`,
 `0x1A`, `0x19`, `0x27`, `0x23` (×2), `0x25` (×2), `0x22`, `0x14` (×2), `0x1A`, `0x26`, `0x1D`, `0x20`, `0x25`,
-`0x23`, `0x1E`, `0x23`. *[choice]* FreeCity4 reads version `0x29` byte-exactly; an older record is skipped and the
-simulator starts from a fresh state (the next cycle rebuilds every map; trip data are in the lots).
+`0x23`, `0x1E`, `0x23`. FreeCity4 reads **every version from `0x13` to `0x29`** with these gates (corrected: 403 of
+the 417 corpus saves hold version 19; the gate-by-gate layout is save-records.md §7.1.1) *[compat]*. Skipping an
+older record is not an option: the six published grids are separate objects that would be left unreferenced, and
+the destination map, damage and switch state would be lost. An old record is written back as version `0x29`; a
+byte-exact round trip is expected only for versions 40 and 41 (save-records.md §7.1.4).
 
 ## 7. Interface: cISC4TrafficSimulator (vtable `0x00AB33D0`, 44 slots)
 
@@ -941,7 +962,8 @@ Open questions:
   `DoLotDeactivated` were not traced line by line *[inferred]*; their observable outputs (strike state, department
   costs) need differential tests.
 * **Q2** The meaning of the slot-59 lot link and of zones 8/9 in FinishTripMap (§4.7).
-* **Q3** The accident message ID and data (§5).
+* **Q3** *Answered* (§5): `0x0C05E4C3`, data1 = x, data2 = z, posted queued, no compiled receiver; rail accidents
+  post nothing. Open: who calls `CheckRailAccident` and what the caller does with a true result.
 * **Q4** Names of the 20 pass counters (sources, merges, confirmed, re-routed, failed, split, …) saved in §6.1 row 15;
   only `toReRoute`, `toSearch`, `passTotal`, `processed` and `rerouteBucket` drive behaviour.
 * **Q5** Full save layout: rows 14–19 of §6.1 are given by type sequence (write trace of `0x00712400`, kept in the

@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 11;
+pub const FC4_ABI_VERSION: u32 = 12;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -732,8 +732,10 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
 
 pub mod budget;
 pub mod demand;
+pub mod hostgrid;
 pub mod landvalue;
 pub mod ordinance;
+pub mod power;
 pub mod props;
 pub mod stream;
 pub mod weather;
@@ -752,6 +754,9 @@ mod landvalue_tests;
 
 #[cfg(test)]
 mod ordinance_tests;
+
+#[cfg(test)]
+mod power_tests;
 
 #[cfg(test)]
 mod test_streams;

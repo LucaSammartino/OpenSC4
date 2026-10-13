@@ -145,11 +145,13 @@
 
 mod cycle;
 mod record;
+mod report;
 mod simulator;
 #[cfg(test)]
 mod tests;
 mod tuning;
 
+pub use report::{FloodReport, PlantReport, Report};
 pub use simulator::{FoundPlants, PlantNode, PowerSim, PowerState};
 pub use tuning::{prop as tuning_prop, shipped_tuning, PowerTuning, TUNING_KEY};
 

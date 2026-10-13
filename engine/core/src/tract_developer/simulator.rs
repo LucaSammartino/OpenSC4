@@ -168,6 +168,15 @@ impl TractDeveloperStatics {
         }))
     }
 
+    /// The statics with the file-local generator seeded from the session
+    /// seed (foundations §6.3 *[choice]*): `derive_seed(session,
+    /// 0x4C09C113)`, the original's clock XOR [`super::RNG_SEED_XOR`] with
+    /// the session seed in place of the clock. `rand()` stays at state 1
+    /// (the game never seeds it, foundations §12).
+    pub fn from_session(session: u32, seeds: &dyn SeedSource) -> SharedStatics {
+        TractDeveloperStatics::new(crate::rng::derive_seed(session, super::RNG_SEED_XOR), seeds)
+    }
+
     /// Appends a draw to the trace (when tracing is on). The core records
     /// R1–R8; a host may record R9, the zone developer's draw inside
     /// `CreateLotIfPossible` (§4.15.3), to show where it falls.
