@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "residential_slot_abi",
+  "spec": ["residential 6.2", "residential 6.3", "residential 10.1", "residential 15.22", "REH 11.24"],
+  "description": "Test 22 (and REH test 24). The slot table has 64 rows (60 interface slots + 4 class slots). Slot 10 ChanceOfSchoolStrike pops 4 and returns through a hidden pointer (EAX = the pointer); slots 10-13 all do. Slot 23 GetEQGrids pops 12, writes the three EQ grids (instances 0x69D5C2D0-D2) to the out-references, raises each grid's reference count by one and returns 1 in EAX; slots 24 (HQ, 0x69D5C2E0-E2) and 25 (population, 0x69D5C2A0-A2) likewise. Slot 21 GetAverageEQGrid pops 12 and returns a new grid (instance 0x69D5C351, tract size E = 4, owned by the caller alone) per call: two calls give two objects; slot 22's is 0x69D5C360. REH 24 rows: 34 GetGlobalLE (0, AL), 14 GetSchoolSystemTotals (8, EAX), 56 GetAutoBudget (4, AL), 57 SetAutoBudget (8, EAX), 29 GetCellLifeExpectancy (8, AL), 30 GetCellWorkforcePercent (12, hidden).",
+  "steps": [
+    {"op": "residential_call", "method": "slot_count", "expect": 64},
+    {"op": "residential_call", "method": "slot", "args": [10], "expect": ["ChanceOfSchoolStrike", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [11], "expect": ["ChanceOfHealthStrike", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [12], "expect": ["GetSchoolSystemRating", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [13], "expect": ["GetHealthSystemRating", 4, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [21], "expect": ["GetAverageEQGrid", 12, "EAX"]},
+    {"op": "residential_call", "method": "slot", "args": [23], "expect": ["GetEQGrids", 12, "EAX"]},
+    {"op": "residential_call", "method": "slot", "args": [34], "expect": ["GetGlobalLE", 0, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [14], "expect": ["GetSchoolSystemTotals", 8, "EAX"]},
+    {"op": "residential_call", "method": "slot", "args": [56], "expect": ["GetAutoBudget", 4, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [57], "expect": ["SetAutoBudget", 8, "EAX"]},
+    {"op": "residential_call", "method": "slot", "args": [29], "expect": ["GetCellLifeExpectancy", 8, "AL"]},
+    {"op": "residential_call", "method": "slot", "args": [30], "expect": ["GetCellWorkforcePercent", 12, "hidden"]},
+    {"op": "residential_env", "cells": [8, 8]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "grid_triple", "args": ["eq"], "expect": {"result": 1, "instances": ["0x69D5C2D0", "0x69D5C2D1", "0x69D5C2D2"], "added": [1, 1, 1]}},
+    {"op": "residential_call", "method": "grid_triple", "args": ["hq"], "expect": {"result": 1, "instances": ["0x69D5C2E0", "0x69D5C2E1", "0x69D5C2E2"], "added": [1, 1, 1]}},
+    {"op": "residential_call", "method": "grid_triple", "args": ["population"], "expect": {"result": 1, "instances": ["0x69D5C2A0", "0x69D5C2A1", "0x69D5C2A2"], "added": [1, 1, 1]}},
+    {"op": "residential_call", "method": "average_grid_is_new", "args": ["eq"], "expect": true},
+    {"op": "residential_call", "method": "average_grid", "args": ["eq"], "expect": {"min": 0, "max": 0, "values": [0, 0, 0, 0], "instance": "0x69D5C351", "size": 4, "refs": 1}},
+    {"op": "residential_call", "method": "average_grid", "args": ["hq"], "partial": true, "expect": {"instance": "0x69D5C360", "refs": 1}}
+  ]
+}

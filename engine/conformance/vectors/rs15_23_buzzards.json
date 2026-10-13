@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "residential_buzzards",
+  "spec": ["residential 5.5", "residential 15.23"],
+  "description": "Test 23 with the shipped death's-door HQ 2.0 and chance 1.5. The world's generator answers RandomDoubleRangeUniform(a, b) with b when no draw is scripted (100 >= 1.5: no effect). A steady (100, 0, 0) tract at HQ 1.7: after hqLoss 0.2 the HQ is 1.5 < 2 with residents, so exactly one draw (0, 100) on the member generator and, at 100, no effect. HQ 2.2 -> exactly 2.0 after the loss: 2.0 < 2.0 is false, no draw. A tract with no residents before the pass (0 -> 100 newcomers) at HQ 1.7: no draw.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 0, 0], "hq": [1.7, 0, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "hq": [1.5, 0, 0]},
+    {"op": "residential_expect_event_count", "filter": {"event": "effect"}, "count": 0},
+    {"op": "residential_expect_events", "filter": {"event": "rng"}, "events": [{"lo": 0, "hi": 100, "value": 100}]},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 0, 0], "hq": [2.2, 0, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "bits": true, "hq": ["0x40000000", "0x00000000", "0x00000000"]},
+    {"op": "residential_expect_event_count", "filter": {"event": "rng"}, "count": 0},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [0, 0, 0], "new": [100, 0, 0], "hq": [1.7, 0, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_event_count", "filter": {"event": "rng"}, "count": 0},
+    {"op": "residential_expect_tract", "x": 0, "z": 0, "pop": [100, 0, 0]}
+  ]
+}

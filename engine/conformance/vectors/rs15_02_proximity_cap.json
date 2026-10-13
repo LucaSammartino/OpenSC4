@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "residential_proximity_cap",
+  "spec": ["residential 5.3", "residential 15.2"],
+  "description": "Test 2: a 300 x 1 city whose building map has key 7 (R$$) only at (0, 0). After the proximity states the R$$ map holds the distance x up to the cap: x = 200 -> 200, x = 254 -> 254, x = 255 -> 255 (= the cap), x = 280 -> 255. R$ (no key 6) is 255 everywhere.",
+  "steps": [
+    {"op": "residential_env", "cells": [300, 1], "building_map": {"size": 1, "cells": [[0, 0, 7]]}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_run_to", "state": 11, "steps": 7},
+    {"op": "residential_expect_grid", "grid": "proximity2", "counts": [300, 1], "cells": [[0, 0, 0], [1, 0, 1], [200, 0, 200], [254, 0, 254], [255, 0, 255], [280, 0, 255], [299, 0, 255]]},
+    {"op": "residential_expect_grid", "grid": "proximity1", "all": 255},
+    {"op": "residential_expect_grid", "grid": "proximity3", "all": 255}
+  ]
+}
