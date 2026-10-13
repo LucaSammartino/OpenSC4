@@ -76,10 +76,10 @@ exe and written into residential.md §5.3 step 2, with a worked example. **Yes.*
 at 255, `inc` takes it to 256 without wrapping, and the min uses a signed 32-bit compare (`0x005E4E80`). After the min
 it is ≤ 255, so storing its low byte never truncates. The core's i32 plus clamp is equivalent; the clamp never acts.
 
-**RS6 — §6.2 `GetAverageEQGrid`/`GetAverageHQGrid`: are `min`/`max` updated for unpopulated tracts?**
-REH §4.8 says yes ("Each is updated with every tract, populated or not") and the core follows it. With an empty city
-that gives `min = max = 0.0` rather than the initial `255.0` / `0.0`, which a caller may observe. residential.md §6.2
-only says "track the stored values", so confirm REH is normative here.
+~~**RS6 — §6.2 `GetAverageEQGrid`/`GetAverageHQGrid`: are `min`/`max` updated for unpopulated tracts?**~~
+**ANSWERED 2026-10-13** from the exe and written into residential.md §6.2, with a worked example. **Yes, and REH §4.8 is
+normative.** In `AverageGrids` (`0x006F70E0`) an unpopulated tract stores 0.0 and goes through the same strict min and
+max compares, so an empty city returns `min = max = 0.0`.
 
 ## From the budget shadow differential (filed by the coordinator, 2026-10-13; merged as `6ca4b65`)
 

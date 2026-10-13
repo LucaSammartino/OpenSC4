@@ -376,6 +376,23 @@ Each call **creates a new float grid** (class `0x49B9E60A`), stores it in `*out`
 min starts at 255.0, max at 0.0 and track the stored values; `*min`, `*max` are written if non-null. Returns the
 **max pointer** in EAX.
 
+*[compat]* (RS6, from the exe; shared helper `AverageGrids`, `0x006F70E0`) **min and max are updated with every
+tract, populated or not**, as REH §4.8 says, and that text is normative:
+- An unpopulated tract (16-bit population sum 0) stores 0.0, and that 0.0 goes through the same compare as any
+  other value (`0x006F722D`–`0x006F7263`).
+- The compares are strict: `min := v` only when `min > v`, and `max := v` only when `max < v`. A NaN updates
+  neither.
+- The walk is x outer, z inner over the new grid's own `GetTractCountX/Z`.
+
+Results:
+- An empty city returns `min = max = 0.0`.
+- Only a grid with no tracts leaves 255.0 / 0.0.
+
+Example: a 1 × 2 grid where tract (0, 0) has R$ population 10 at EQ 100.0 and tract (0, 1) is empty.
+- The values are 100.0 and 0.0.
+- `min` goes 255.0 → 100.0 → 0.0, and `max` goes 0.0 → 100.0.
+- The result is `min = 0.0`, `max = 100.0`.
+
 ### 6.3 `GetEQGrids` / `GetHQGrids` / `GetPopulationGrids` (slots 23, 24, 25)
 
 Write the three grids (R$, R$$, R$$$) to the three **out-references** and `AddRef` each. EAX is the result of the
