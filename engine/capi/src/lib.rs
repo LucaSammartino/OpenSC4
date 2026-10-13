@@ -735,6 +735,7 @@ pub mod demand;
 pub mod hostgrid;
 pub mod landvalue;
 pub mod ordinance;
+pub mod panic_log;
 pub mod power;
 pub mod props;
 pub mod stream;

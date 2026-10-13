@@ -479,6 +479,8 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_seconds = 60\n");
     } else if (scenario == "save") {
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
+    } else if (scenario == "panic") {
+        WriteTextFile(ini, "[autotest]\n");
     } else {  // stalled: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
@@ -490,6 +492,10 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     if (director == nullptr || seam == nullptr) return 5;
     std::vector<uint32_t> classes;
     director->EnumClassObjects(&CollectClass, &classes);  // game start: configuration and autotest settings
+    if (scenario == "panic") {
+        seam(kFC4SeamRustPanic, nullptr, nullptr);  // release builds end here (fail-fast)
+        return 3;
+    }
 
     static FakeWorld world;
     InitFakeWorld(world);
@@ -607,6 +613,21 @@ int main(int argc, char** argv) {
               std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+
+        // A Rust panic in the core: reported in the log (message, location,
+        // backtrace, the last interface calls) before the abort.
+        {
+            const int code = RunChild(dllArg + "--autotest-child-panic", 30000, &ms);
+            std::printf("panic child: exit code 0x%08X\n", static_cast<unsigned>(code));
+            CHECK(code == static_cast<int>(0xC0000409) || code == 3);  // abort (release) or unwound
+            text = ReadFile(log);
+            CHECK(text.find("fail-fast reports on:") != std::string::npos);
+            CHECK(text.find("Rust PANIC in FreeCity4 core: 'fc4_debug_panic: a deliberate panic (test of the panic "
+                            "report)' at ") != std::string::npos);
+            CHECK(text.find("panic_log.rs:") != std::string::npos);
+            CHECK(text.find("Rust backtrace:") != std::string::npos);
+            CHECK(text.find("FreeCity4 interface calls (oldest first):") != std::string::npos);
+        }
 
         // 4. Save after 2 month-ends (no autotest_seconds): snapshot, SaveCity(full), verdict, terminate.
         CHECK(RunChild(dllArg + "--autotest-child-save", 30000, &ms) == 0);
