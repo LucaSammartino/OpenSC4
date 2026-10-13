@@ -211,11 +211,21 @@ have). Nothing further unless a new question is queued.
   `autotest_unpause`, `autoload_city = …Spandau.sc4`). Before the user plays by hand, set it back to
   `budget_default = 1` alone, else manual play drops them into Spandau on the clock. Lane 1 was asked to reset it.
 - **`docs/abi/vtables.tsv`: checked, clean** (committed at 601f3a9; `git status docs/abi/` empty). Consistent.
-- **SDK errata draft** (`docs/sdk-errata-draft.md`, 289 findings, fully drafted): the remaining work is re-checking
-  against *current* upstream nsgomez/gzcom-dll and then **upstreaming, which is a public action needing the user's
-  explicit OK.** Backlog item — do not act autonomously.
+- **SDK errata draft** (`docs/sdk-errata-draft.md`, 289 findings): **re-checked against the current vendored SDK on
+  2026-10-13** (commit `4243367`). 252 of 257 header-backed findings still match the SDK text verbatim; the other 5
+  differ only by signature normalisation and all still hold; upstream's recent fixes touch interfaces this draft
+  reports nothing on. The draft's stale baseline claim (`3a1144f`, "revision unrecorded") was corrected — the SDK is a
+  submodule pinned at `5af73c5`, upstream master's tip. **What remains is the upstreaming itself: a public action
+  that needs the user's explicit OK.** Do not submit it autonomously.
+- **Worktree cleanup: done 2026-10-13.** 18 merged-and-clean `.claude/worktrees/agent-*` were removed with their
+  branches (`git worktree remove` + `git branch -d`, which refuses unmerged branches as a safety net). Verified
+  first that no merged worktree held uncommitted work. 3 active lanes remain. `git fsck` reports only harmless
+  dangling commits.
 - **Then plumbing, protection and flora glue** (lane 1). Apply the run-22 lesson: `Read` runs before `Init`, so never
   size saved state from the city inside `Read`.
+- **Coordinator clean-room note:** whoever picks this up should not do engine work in the same task as RE work. This
+  session read `decomp/` and the exe extensively for §5.2, so it deliberately did not read or run anything under
+  `engine/`; merging a lane means reading its *test output*, not its source.
 
 ## 5b. Backlog for manual check / blocked-on-user (2026-10-13)
 Things I could not finish autonomously, or that need a human decision:
@@ -226,7 +236,8 @@ Things I could not finish autonomously, or that need a human decision:
    Spandau save oracle.
 3. **Merge lane 1 / lot developer / zones** once each reports tests green (coordinator does the merge + README tick).
 4. **Reset `Plugins\FreeCity4.ini`** to `budget_default = 1` for manual play (see §5.7).
-5. **User decisions** (unchanged, §7): run the manual checklist; upstream the SDK errata (public); publish the repo
+5. **User decisions** (unchanged, §7): run the manual checklist; upstream the SDK errata (public — the re-check
+   against the current SDK is done, `4243367`, so the draft is ready to submit once approved); publish the repo
    (public); delete the KillaVolt clone; download the Mac Rev A binary.
 6. **Mac reference path** in `setup_ghidra.ps1 -Mac` is untested (may need slice selection for a fat binary); only
    needed to re-run symport, which `-SkipMatch` avoids.
