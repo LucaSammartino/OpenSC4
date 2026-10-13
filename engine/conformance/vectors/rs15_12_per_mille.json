@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "residential_per_mille",
+  "spec": ["residential 5.7", "residential 15.12", "REH 4.4", "REH 11.11"],
+  "description": "Test 12 (REH test 11). The coverage states 5 and 7 zero their counter and store what the coverage step served (the world serves 3 school and 1 hospital residents). State 9 records global EQ, global HQ and the population, then the per mille of each coverage, rounded half to even: population 2000, school 3 -> 3 / 2000 x 1000 = 1.5 -> 2, hospital 1 -> 0.5 -> 0; the school series 0x4A8A3FE5 is recorded before the hospital series 0x4A8A3FE2. Population 0: both 0, with 0x4A8A3FE2 first. REH 11: 1234 of 5000 -> 246.8 -> 247.",
+  "steps": [
+    {"op": "residential_env", "served": [3, 1]},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"population": 2000, "school_covered": 99, "hospital_covered": 99, "state": 5}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 10, "steps": 5},
+    {"op": "residential_expect", "state": {"school_covered": 3, "hospital_covered": 1}},
+    {"op": "residential_expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0xAA1A2864", "value": 0},
+      {"series": "0xAA1A2866", "value": 0},
+      {"series": "0xAA1A2CCA", "value": 2000},
+      {"series": "0x4A8A3FE5", "value": 2},
+      {"series": "0x4A8A3FE2", "value": 0}
+    ]},
+    {"op": "residential_set", "state": {"population": 0, "school_covered": 7, "hospital_covered": 7, "state": 9}},
+    {"op": "residential_run_to", "state": 10, "steps": 1},
+    {"op": "residential_expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0xAA1A2864", "value": 0},
+      {"series": "0xAA1A2866", "value": 0},
+      {"series": "0xAA1A2CCA", "value": 0},
+      {"series": "0x4A8A3FE2", "value": 0},
+      {"series": "0x4A8A3FE5", "value": 0}
+    ]},
+    {"op": "residential_set", "state": {"population": 5000, "school_covered": 1234, "hospital_covered": 0, "state": 9}},
+    {"op": "residential_run_to", "state": 10, "steps": 1},
+    {"op": "residential_expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0xAA1A2864", "value": 0},
+      {"series": "0xAA1A2866", "value": 0},
+      {"series": "0xAA1A2CCA", "value": 5000},
+      {"series": "0x4A8A3FE5", "value": 247},
+      {"series": "0x4A8A3FE2", "value": 0}
+    ]}
+  ]
+}

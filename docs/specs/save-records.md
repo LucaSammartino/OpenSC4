@@ -321,7 +321,7 @@ n × ref        f32 grids
 u32   n        edge densities
 n × edge density (below)
 3 × { u32 jobCapacity[k]; u32 attempted[k]; u32 routed[k] }        k = 0…2
-2 × ref        wormhole grid (u8), transit-switch ID grid (u32)
+2 × ref        transit-switch mode-mask grid (u8, 0x69D5C424), transit-switch ID grid (u32, 0x69D5C42D)
 u32   nextSwitchID
 u32   n        transit switches
 n × switch (below)

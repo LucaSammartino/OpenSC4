@@ -211,6 +211,19 @@ plugin.
      - `autotest_unpause = 1` or `2` (env `FC4_AUTOTEST_UNPAUSE`): after the load, resume the city's simulator
        (`Resume` while `IsPaused`) and set that speed, through the simulator's own interface (ours or the
        original), at the first tick and again after 3 s and 10 s.
+     - `autotest_end = quit` (env `FC4_AUTOTEST_END`; default `terminate`): at the deadline, quit through the game
+       instead of `TerminateProcess`. The main thread's next tick calls `cISC4App::RequestQuit(false, false)` (slot
+       10: no dialog, no save), the city and the app shut down as on a normal quit, and the verdict is written at
+       `PostSystemServiceShutdown`, so it counts reference warnings from every subsystem's `Shutdown`. Its `julian`
+       is the last day played. A quit that has not reached that hook in 90 s is `stalled`; a process still alive
+       30 s after the verdict is terminated.
+   - **Clock probe** (`clock_probe = 1` or `2`, env `FC4_CLOCK_PROBE`; off by default; `plugin/FC4ClockProbe.h`):
+     the M1 clock differential. From game start it logs every message the simulator posts (`CLOCK post day|week|
+     month|year j=… c=…`, `CLOCK post pause|hidden|emergency|speed d1=…`), and at every city load it registers an
+     agent at the day..year levels and logs each delivery (`CLOCK agent day|week|month|year j=… c=…`). With `2`
+     the week agent reports "not finished" once per week, so §5.3's repeat delivery shows as `… again`.
+     `tools/clock_diff.ps1 -A <original log> -B <our log>` checks both streams against simulator.md §2.3/§5.2 and
+     compares the two runs from the first day both saw (runs 56/57: identical over 240 days).
    - **Monthly digest** (also at `FC4_LOG_LEVEL=1`; `digest = 0` turns it off): at every `SimNewMonth`, one line
      for diffing the original against FreeCity4 on the same save, read only through public interfaces:
 

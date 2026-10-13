@@ -1,0 +1,357 @@
+{
+  "format": 1,
+  "name": "tn11_14_ferry_terminals",
+  "spec": [
+    "traffic-network 4.9.1",
+    "traffic-network 4.9.2",
+    "traffic-network 4.9.3",
+    "traffic-network 4.9.4",
+    "traffic-network 4.9.5",
+    "traffic-network 5"
+  ],
+  "description": "Extra (§4.9). An 8 x 8 city whose row z = 0 is water (bytes 200, one body). Two type-1 ferry lots at x = 1 and x = 5, each (x,1)-(x,2) with the departure and arrival markers at (x,2) and the water marker at (x,1), whose water cell is (x,0). The second activation routes the two water cells: 5 cells, cost r24(5 x 0.01) = 0x3D4CCCCC; A -> B route 00 01 00 40 04 AA, B -> A 00 05 00 40 04 00. The departure cell gets wormhole bit 4 and records for networks 0 and 1 (connCount 1, type 0, invCapTable[0] = 0x3A83126F). GetAllFerryRoutes lists each terminal's links; GetFerryRouteBetweenTiles(1,2,5,2) returns A's link to B. Removing A deletes B's link back, runs no rebuild (bit 4 stays) and decrements the type count. The periodic pass over the remaining terminal posts 0x2C06BA82 when the list is exhausted.",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        8,
+        8
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_water",
+      "rect": [
+        0,
+        0,
+        7,
+        0
+      ],
+      "depth": 40.7,
+      "body": 1
+    },
+    {
+      "op": "tn_occupant",
+      "id": 60,
+      "kind": "building",
+      "cell": [
+        1,
+        2
+      ],
+      "props": {
+        "0x0BD86FD3": {
+          "u8": 1
+        }
+      }
+    },
+    {
+      "op": "tn_occupant",
+      "id": 61,
+      "kind": "prop",
+      "cell": [
+        1,
+        2
+      ],
+      "prop_type": 743571456,
+      "note": "departure"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 62,
+      "kind": "prop",
+      "cell": [
+        1,
+        2
+      ],
+      "prop_type": 743636992,
+      "note": "arrival"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 63,
+      "kind": "prop",
+      "cell": [
+        1,
+        1
+      ],
+      "prop_type": 743702528,
+      "note": "water marker: the first side whose neighbour is outside the lot and under water is north"
+    },
+    {
+      "op": "tn_lot",
+      "id": 8,
+      "rect": [
+        1,
+        1,
+        1,
+        2
+      ],
+      "building": 60
+    },
+    {
+      "op": "tn_occupant",
+      "id": 70,
+      "kind": "building",
+      "cell": [
+        5,
+        2
+      ],
+      "props": {
+        "0x0BD86FD3": {
+          "u8": 1
+        }
+      }
+    },
+    {
+      "op": "tn_occupant",
+      "id": 71,
+      "kind": "prop",
+      "cell": [
+        5,
+        2
+      ],
+      "prop_type": 743571456,
+      "note": "departure"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 72,
+      "kind": "prop",
+      "cell": [
+        5,
+        2
+      ],
+      "prop_type": 743636992,
+      "note": "arrival"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 73,
+      "kind": "prop",
+      "cell": [
+        5,
+        1
+      ],
+      "prop_type": 743702528,
+      "note": "water marker: the first side whose neighbour is outside the lot and under water is north"
+    },
+    {
+      "op": "tn_lot",
+      "id": 9,
+      "rect": [
+        5,
+        1,
+        5,
+        2
+      ],
+      "building": 70
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_call",
+      "method": "lot_activated",
+      "args": [
+        8
+      ],
+      "expect": false,
+      "note": "no switch was created"
+    },
+    {
+      "op": "tn_call",
+      "method": "lot_activated",
+      "args": [
+        9
+      ],
+      "expect": false
+    },
+    {
+      "op": "tn_call",
+      "method": "ferry_terminal_count",
+      "args": [
+        1
+      ],
+      "expect": 2
+    },
+    {
+      "op": "tn_expect_ferry",
+      "index": 0,
+      "terminal": {
+        "departure": [
+          1,
+          2
+        ],
+        "arrival": [
+          1,
+          2
+        ],
+        "water": [
+          1,
+          0
+        ],
+        "lot": [
+          1,
+          1
+        ],
+        "type": 1,
+        "mask": 3,
+        "links": [
+          {
+            "to_key": "0x0502",
+            "arrival": [
+              5,
+              2
+            ],
+            "cost": "0x3D4CCCCC",
+            "route": "0001004004aa",
+            "counters": [
+              0,
+              0,
+              0,
+              0
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_ferry",
+      "index": 1,
+      "terminal": {
+        "departure": [
+          5,
+          2
+        ],
+        "water": [
+          5,
+          0
+        ],
+        "links": [
+          {
+            "to_key": "0x0102",
+            "arrival": [
+              1,
+              2
+            ],
+            "cost": "0x3D4CCCCC",
+            "route": "000500400400"
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        2
+      ],
+      "expect": {
+        "wormhole": 4,
+        "records": [
+          {
+            "net": 0,
+            "conn_count": 1,
+            "type": 0,
+            "inv_cap": "0x3A83126F",
+            "extra_cost": "0x00000000"
+          },
+          {
+            "net": 1,
+            "conn_count": 1,
+            "type": 0,
+            "inv_cap": "0x3A83126F",
+            "extra_cost": "0x00000000"
+          }
+        ]
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "all_ferry_routes",
+      "expect": [
+        "0001004004aa",
+        "000500400400"
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "ferry_route_between_tiles",
+      "args": [
+        1,
+        2,
+        5,
+        2
+      ],
+      "expect": "0001004004aa",
+      "note": "(5,2) is B's arrival key"
+    },
+    {
+      "op": "tn_call",
+      "method": "lot_deactivated",
+      "args": [
+        8
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "ferry_terminal_count",
+      "args": [
+        1
+      ],
+      "expect": 1
+    },
+    {
+      "op": "tn_expect_ferry",
+      "index": 0,
+      "terminal": {
+        "departure": [
+          5,
+          2
+        ],
+        "links": []
+      }
+    },
+    {
+      "op": "tn_expect_ferry",
+      "index": 1,
+      "terminal": null
+    },
+    {
+      "op": "tn_expect_cell",
+      "cell": [
+        1,
+        2
+      ],
+      "expect": {
+        "wormhole": 4
+      }
+    },
+    {
+      "op": "tn_call",
+      "method": "begin_ferry_pass",
+      "expect": 0
+    },
+    {
+      "op": "tn_call",
+      "method": "work_on_ferry_routes",
+      "args": [
+        10
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_expect_state",
+      "state": {
+        "posted": [
+          738638466
+        ],
+        "ferry_pass_running": false
+      }
+    }
+  ]
+}

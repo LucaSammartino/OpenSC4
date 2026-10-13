@@ -1,0 +1,210 @@
+{
+  "format": 1,
+  "name": "tn11_17_map_edge",
+  "spec": [
+    "traffic-network 2.7"
+  ],
+  "description": "Extra (§2.7) on test 1's network. GetNeighborConnectionInnerCell maps an off-map cell next to the map to its in-city cell and outward side (x < 0 -> (0,z) side 0; x > X-1 -> (X-1,z) side 2; z < 0 -> (x,0) side 1; z > Z-1 -> (x,Z-1) side 3). HasMapExit is true when a connection word at the inner cell exits through that side, otherwise when the edge record has mask bit 9.",
+  "steps": [
+    {
+      "op": "tn_env",
+      "cells": [
+        4,
+        4
+      ],
+      "tuning": "shipped"
+    },
+    {
+      "op": "tn_init"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 1,
+      "cell": [
+        1,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        2
+      ],
+      "note": "A: no car connections, turn-around at entry 2"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 2,
+      "cell": [
+        2,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "conns": [
+        [
+          0,
+          2
+        ],
+        [
+          2,
+          0
+        ]
+      ],
+      "note": "B: (0 -> 2) and (2 -> 0)"
+    },
+    {
+      "op": "tn_occupant",
+      "id": 3,
+      "cell": [
+        3,
+        1
+      ],
+      "types": [
+        3
+      ],
+      "turns": [
+        0
+      ],
+      "note": "C: turn-around at entry 0"
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        2
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "occupant_changed",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "tn_call",
+      "method": "neighbor_connection_inner_cell",
+      "args": [
+        -1,
+        2
+      ],
+      "expect": [
+        0,
+        2,
+        0
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "neighbor_connection_inner_cell",
+      "args": [
+        4,
+        2
+      ],
+      "expect": [
+        3,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "neighbor_connection_inner_cell",
+      "args": [
+        2,
+        -1
+      ],
+      "expect": [
+        2,
+        0,
+        1
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "neighbor_connection_inner_cell",
+      "args": [
+        2,
+        4
+      ],
+      "expect": [
+        2,
+        3,
+        3
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "has_map_exit",
+      "args": [
+        4,
+        1
+      ],
+      "expect": false,
+      "note": "C exits only west"
+    },
+    {
+      "op": "tn_call",
+      "method": "set_connection",
+      "args": [
+        3,
+        1,
+        0,
+        2,
+        1
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "has_map_exit",
+      "args": [
+        4,
+        1
+      ],
+      "expect": true
+    },
+    {
+      "op": "tn_call",
+      "method": "has_map_exit",
+      "args": [
+        -1,
+        3
+      ],
+      "expect": false
+    },
+    {
+      "op": "tn_call",
+      "method": "set_neighbour_edge",
+      "args": [
+        -1,
+        3,
+        512,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "tn_call",
+      "method": "has_map_exit",
+      "args": [
+        -1,
+        3
+      ],
+      "expect": true,
+      "note": "edge record mask bit 9"
+    }
+  ]
+}
