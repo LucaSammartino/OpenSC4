@@ -400,7 +400,7 @@ mod tests {
             assert_eq!(tile_of(m as u32, 0), w, "mask {m}");
         }
         // Mask 15 draws: orientation 2 × (rand & 3) ∈ {0, 2, 4, 6}.
-        for (r, o) in [(41u32, 2i32), (0, 0), (1, 2), (2, 0), (3, 6), (4, 0), (7, 6)] {
+        for (r, o) in [(41u32, 2i32), (0, 0), (1, 2), (2, 4), (3, 6), (4, 0), (7, 6)] {
             assert_eq!(tile_of(15, r), (tile::INTERIOR, o), "rand {r}");
         }
     }
