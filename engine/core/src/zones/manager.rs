@@ -529,14 +529,14 @@ impl ZoneManager {
         let idx = t as usize;
 
         // Snapshot the tuning values needed below, so no borrow is held
-        // across a host call.
-        let (min, max, create, destroy, max_slope) = {
+        // across a host call. `destroy_cost` is read per cell in the loop,
+        // because it is indexed by the cell's old type, not by `type`.
+        let (min, max, create, max_slope) = {
             let s = self.st.borrow();
             (
                 s.tuning.min_size[idx],
                 s.tuning.max_size[idx],
                 s.tuning.create_cost[idx],
-                s.tuning.destroy_cost[idx],
                 s.tuning.max_slope[idx],
             )
         };
@@ -559,7 +559,6 @@ impl ZoneManager {
         let mut accepted: Vec<(i32, i32, i32)> = Vec::new(); // (old, x, z)
         let mut demolish: Vec<u64> = Vec::new(); // unique, insertion order
         let mut error = place_error::OK;
-        let mut aborted = false;
 
         'scan: for x in rect.x1..=rect.x2 {
             for z in rect.z1..=rect.z2 {
@@ -584,7 +583,6 @@ impl ZoneManager {
                 if self.host.cell_has_water(x, z) {
                     if zone_type == 14 {
                         error = place_error::LANDFILL_ON_WATER;
-                        aborted = true;
                         break 'scan;
                     }
                     if zone_type != 0 && zone_type != 12 {
@@ -612,12 +610,10 @@ impl ZoneManager {
                                 // accept
                             } else {
                                 error = place_error::BLOCKED;
-                                aborted = true;
                                 break 'scan;
                             }
                         } else if zone_type == 14 && tile.is_some() {
                             error = place_error::BLOCKED;
-                            aborted = true;
                             break 'scan;
                         }
                         // accept
@@ -626,7 +622,6 @@ impl ZoneManager {
                         if check_lot_inside && !rect_inside(self.host.lot_bounding_rect(lot), rect) {
                             if zone_type == 14 {
                                 error = place_error::BLOCKED;
-                                aborted = true;
                                 break 'scan;
                             }
                             region.set(x, z, false); // reject
@@ -636,7 +631,6 @@ impl ZoneManager {
                         if zt == 11 || zt == 12 || zt == 15 {
                             if zone_type == 14 {
                                 error = place_error::BLOCKED;
-                                aborted = true;
                                 break 'scan;
                             }
                             region.set(x, z, false); // reject
@@ -675,8 +669,6 @@ impl ZoneManager {
                 }
             }
         }
-        let _ = (destroy, aborted);
-
         // Post-loop block (also after an ABORT).
         if !demolish.is_empty() {
             let c = self

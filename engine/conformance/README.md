@@ -1037,7 +1037,65 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 
 ## Zones ops
 
-(Being written: `zone_…` ops for `fc4_core::zones`, `docs/specs/zones.md`.)
+The zones vectors (`zn15_…`) drive both classes of `fc4_core::zones` (the zone manager and the zone developer / lot
+manager, `docs/specs/zones.md`) over one scripted world implementing `ZonesHost`. Every op name starts with `zone_`.
+Objects are tokens: lots the world creates start at 4096, so the first is `0x1000`; configurations, developers,
+families, buildings and occupants take the `id` / `token` the vector gives. The default world is a 64 × 64-cell city,
+dry and flat, funds 10⁹, every service present, the shipped "Zone Manager" tuning (§4), no networks, lots or
+occupants. The two classes reach each other through the world, as they do through the global pointers (§13.1), so a
+committed `PlaceZone` runs the whole parcellization synchronously.
+
+Networks are straight runs of one kind (network type: 0 road, 3 street, 6 avenue, 10 one-way, 11 dirt road); each cell
+records its kind and the four network edges it connects, so `ExistsConnectionOfType` and `ConnectsToNeighbor` (§7.13)
+answer from the run's own geometry. The street tool is the stub of §15 tests 19–29: `Place(a, b)` logs the call, fails
+when the segment contains a `zone_street_fail` cell, and otherwise puts a street on every cell of `a..b` that has no
+network — joining it to the same-kind network it abuts, as an automatic street does — while the cells keep their zone
+(the posted dezone is not run).
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `zone_env` | any of `cells` (`[x, z]`), `funds`, `services_ok` (false = the developer's `Init` fails), `tuning` (`"shipped"`, a property map, or null) | the world; `cells` is read at `Init` |
+| `zone_create` | `session?` (`derive_seed(session, 0x8C09C68A)`, foundations §6.3; default session 0) or `seed?` (an exact seed), `trace?` (true), `manager?` (true), `developer?` (true) | the shared statics and the two classes |
+| `zone_rng` | `seed`, or `lcg` and `mul` | the file-local generator's state (§9) |
+| `zone_network` | `runs` (`[{kind, rect \| cells}]`), `add?` (keep the existing networks) | network runs with their edge connectivity |
+| `zone_zones` | `rect` with `v`, or `cells` (`[[x, z, v]]`) | writes the zone grid directly, without `PlaceZone` (test setup) |
+| `zone_water` | `cells` (`[[x, z]]`), `clear?` | `CellHasWater` cells |
+| `zone_lot` | `rect`, `facing?` (0); any of `zone`, `state`, `flags`, `cfg`, `building`, `business_unit`, `altitude` | a lot in the cell map and the master list |
+| `zone_cfg` | `id`, `w`, `h`, `water?`, `zone_ok?` (true), `families?` (primary-building families) | a lot configuration |
+| `zone_dev` | `token` (the developer type the BDS returns it for), `purpose`, `wealth`, `shift?`, `demand?`, `estimate?` (`[[x, z, v]]`, `EstimateDesirability`), `growth?` (`[[x, z, maxStage]]`), `desir_value?` (`[[tx, tz, v]]`) | a growth developer (§7.2.1) |
+| `zone_family` | `id`, `types` | a building family (BDS slot 19) |
+| `zone_building` | `id`, `purpose?`, `wealth?`, `capacity?` | a building profile (BDS slot 39) |
+| `zone_occupant` | `token`, `type`, `pos` (`[x, y, z]`), `bounding?` (`[x1, z1, x2, z2]`), `net_flags?`, `can_remove?` (true) | an occupant (building, obstacle, landfill, network) |
+| `zone_options` | `alternate?` (false), `streets?` (true), `custom?` (false) | `SetOptions` (slot 7) |
+| `zone_lot_size` | `width?` (2), `depth?` (2), `min_depth?` (1), `max_depth?` (3), `block?` (6) | forces the lot-size parameters and **bypasses** `DetermineLotSize` (§7.2.1), as the tests 19–29 common setup does |
+| `zone_street_fail` | `cells` (`[[x, z]]`) | the cells that make the street stub fail a segment containing them |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `zone_init` / `zone_shutdown` | `expect?` | both classes' `Init` / `Shutdown` (the developer's without the 3D view) |
+| `zone_message` | `id` (or a name), `target?` (`"manager"` (default) or `"developer"`), `occupant?`, `data1?`, `data3?`, `data4?`, `value?`, `expect?` | `DoMessage` (§5.1, §5.2) |
+| `zone_place_zone` | `region` (`{rect, cells?}`; without `cells` every cell of the rect is set), `type`, `commit?` (true), `skip_funds?` (false), `check_slope?` (false), `skip_size?` (false), `check_lot_inside?` (true), `expect?` (`{ok, cost, error, region_cells}`) | slot 11 (§6); `region_cells` are the cells still set in the caller's region afterwards |
+| `zone_do_parcellization` | `region`, `type`, `flag?` (false), `keep_log?` | slot 6 (§7.1); clears the parcel log first |
+| `zone_draw_street` | `region`, `x1`, `z1`, `x2`, `z2`, `per_cell?` (false), `keep_log?` | `DrawStreet` (§7.10) with `region` as the restriction |
+| `zone_examine_boundaries` | `region`, `type`, `expect` (`{flag, d, q, scores, conditions}`) | `ExamineBoundaries` (§7.3) on its own |
+| `zone_call` | `target?` (`"developer"` (default) or `"manager"`), `method`, `args?`, `expect?` | manager: `zone_count`, `zone_type`, `is_rci_zone`, `development_failure_count`, `undeveloped_total`, `abandoned_tile_count`, `min_zone_size`, `max_zone_size`, `zone_display_alpha`, `default_zone_display_alpha`, `zone_drag_color`, `texture_for_zone`, `is_loaded`; developer: `can_create_lot`, `create_lot_if_possible` (`{ok, lot}`), `get_lot_count`, `master_lots`, `get_random_lot`, `get_lots_in_cell_rect`, `get_lots_surrounding_rect`, `exists_network_of_type`, `is_cell_water`, `get_occupant_lot`, `lot_savvy_terrain_altitude` (`{alt, ok}`), `neighbor_cells_at_edge_of_lot` (`{out, al}`), `delete_lots`, `is_loaded` |
+| `zone_eval` | `fn`, `args`, `expect` | pure functions: `depth_rule [rem, front, far, min, max, ld, ps]`, `depth_rule_row [front, far, min, max, ld, ps]` (rem 1..12), `middle_row [o0, so, b1, b2, lw]`, `zone_density [zone]`, `block_depth [density, depth, residential]`, `occupant_cell [p]`, `savvy_cell [p]`, `derive_seed [session]` |
+| `zone_expect` | `state` (partial: `manager_initialized`, `manager_loaded`, `developer_initialized`, `developer_loaded`, `lot_count`, `real_mode`, `orientation_flag`, `orientation_d`, `orientation_q`, `scores`, `conditions`, `lot_size`, `deferred`, `funds`, `place_count`, `failure_map1_count`, `lcg`, `next_raw` (a non-consuming peek), `draw_count`), `zones` (`[[x, z, v]]`), `zoning_changes` (partial `{zone, check_slope, rect, cells}` per posted message) | the world and both classes |
+| `zone_expect_parcel_log` | `log` (strings), `keep?` | the ordered log since the last clear: lot creations as `(x1,z1)-(x2,z2) fN`, `Place` calls as `P(x1,z1,x2,z2)` |
+| `zone_expect_draws` | `draws`: each `"Zn"` (kind only) or `["Zn", arg, value]` (exact); `keep?` | the draws since the last check (§9) |
+| `zone_expect_log` / `zone_expect_event_count` / `zone_clear_events` | see the shared conventions (`clear_events` also clears the parcel log, the posted messages and the demolition list) | host calls |
+| `zone_save` / `zone_load` | `slot`; load: `expect?` (true = a clean store load) | the class-object store; a load replaces both classes and rebuilds the master list in first-cell order (§10.2) |
+| `zone_record` | `target?` (`"manager"` (default) or `"developer"`) and one of `hex`, `hex_prefix`, `byte_length`, or `read` (+ `expect?`) | one class's record bytes (§10) |
+
+Zones events: `manager_acquire_services`, `manager_release_services`, `developer_acquire_services`,
+`developer_release_services`, `subscribe` / `unsubscribe` (`who`, `messages`), `shutdown_grid` (`class`),
+`acquire_network_tools`, `release_network_tools`, `zoning_change` (`zone`, `check_slope`), `demolish_lots` (`commit`,
+`count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
+`place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`).
 
 ## Adding a vector
 
@@ -1047,7 +1105,7 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
    `fl16_…` (flammability §16), `p11_…` (pollution §11), `c17_…` (crime §17), `a17_…` (aura §17),
    `pw15_…` (power §15), `pl14_…` (plumbing §14),
    `pr18_…` (protection §18), `fo16_…` (flora §16), `bd11_…` (building development §11),
-   `gd14_…` (growth developer §14), `td11_…` (tract developer §11).
+   `gd14_…` (growth developer §14), `td11_…` (tract developer §11), `zn15_…` (zones §15).
 2. Prefer a frozen clock and exact expectations. Derive every expected value from the spec, by hand, and say how in
    `description` or `note`.
 3. Run `cargo test -p fc4-conformance`. The Rust runner generates one test per file.
@@ -1547,4 +1605,50 @@ Tract developer events: `acquire_services`, `add_agent` (`level`, `message`), `a
 
 ## Coverage (zones §15)
 
-(Being written: vectors `zn15_…` and `zn00_…`.)
+| §15 item | Vector |
+|---|---|
+| 1 zone types (`IsRCIZone`, `GetZoneType`'s sign-extended int8) | `zn15_01_zone_types` |
+| 2 size errors (too large, too small, type ≥ 16) | `zn15_02_size_errors` |
+| 3 cost (60 / 66 / 0, funds, counts, insufficient funds) | `zn15_03_cost` |
+| 4 water (reject for type 1, accept for 12, error 2 for 14) | `zn15_04_water` |
+| 5 ZoningChange (one queued message, void2 rect and cells) | `zn15_05_zoning_change` |
+| 6 dezone under a network (flags `0x80200090`, `checkLotInside`) | `zn15_06_dezone_under_network` |
+| 7 failure count (the zero-entry insert quirk) | `zn15_07_failure_count` |
+| 8 `GetOccupantLot` cells | `zn15_08_09_cell_mapping` |
+| 9 `GetLotSavvyTerrainAltitude` cells (the 0.999 round-up quirk) | `zn15_08_09_cell_mapping` |
+| 10 `CanCreateLot` codes 3, 7, 8, 2, 1, 0 | `zn15_10_can_create_lot` |
+| 11 `GetLotsInCellRect` (both `originOnly` modes) | `zn15_11_get_lots_in_cell_rect` |
+| 12 `GetLotsSurroundingRect` (side bits `0xF`, 2, 8) | `zn15_12_get_lots_surrounding_rect` |
+| 13 `ExamineBoundaries` (S, D, Q, flag; the zone-1 swap; `alternateOrientation`) | `zn15_13_examine_boundaries` |
+| 14 seeded parcellization (session 0 → `0x8C09C68A`; four `U(4)` = 3, 0, 3, 0) | `zn15_14_seeded_parcellization` |
+| 15 `GetRandomLot` (four draws, then the lot) | `zn15_15_get_random_lot` |
+| 16 remnant draws (one per cell for zones 7–9, none for 1–6) | `zn15_16_remnant_draws` |
+| 17 `CreateLotIfPossible` with facing −1 (exactly one `U(4)`) | `zn15_17_create_lot_facing_minus_one` |
+| 18 save round trip (both records byte-exact; the master-list order quirk) | `zn15_18_save_round_trip` |
+| 19 6 × 4 low-density residential along a road (§7.14 worked example) | `zn15_19_parcellize_6x4_residential` |
+| 20 zone 4: back street and forced middle cross street, remnant fallbacks | `zn15_20_parcellize_zone4_streets` |
+| 21 no automatic streets (farRoad, six 2 × 2 lots, no Place) | `zn15_21_no_automatic_streets` |
+| 22 L-shaped region (the clipped back street, no cross street) | `zn15_22_l_shaped_region` |
+| 23 jog street (`LayInJogStreets` dead end, no parallel connection) | `zn15_23_jog_street` |
+| 24 extended street (`ExtendAsStreets`, two components in first-cell order) | `zn15_24_extended_street` |
+| 25 large block (back streets at x 12, 17, 21; the cross street; 25 lots) | `zn15_25_large_block` |
+| 26 map edge (the `p0` clamp to 0, two remnants; the control needs no clamp) | `zn15_26_map_edge_start_clamp` |
+| 27 `DepthRule` (all three cases, four parameter sets, ps 0 and 1) | `zn15_27_depth_rule` |
+| 28 `DrawStreet` (runs, per-cell mode, the backwards line, the fallback chain) | `zn15_28_draw_street` |
+| 29 middle row (`o0 = 10`, step +2, four row ranges) | `zn15_29_middle_row` |
+
+Not covered by a vector, and why:
+
+- **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–29 (the spec's own common setup forces width 2, depth 2,
+  minDepth 1, maxDepth 3, block 6). Its candidate-developer choice, the stage walk, the configuration `hash_set` order
+  and the capacity score therefore have no vector yet; only its `block_depth` and `zone_density` helpers are unit-tested
+  (`fc4-core`, `zones::tests`).
+- **`HighlightParcels` (§7.1)** and the whole highlight-mode path (virtual lots, virtually deleted cells, the draft
+  fallbacks of §7.13) have no vector: the UI side is headless-limited and the draft fallbacks need the network tools'
+  `OccupantExists`, which the world stubs out.
+- **`CanCreatePloppedLot` (slot 21)**, the highlight textures, the cheats "PlopAllLots" / "PlopAllBuildings" and
+  `InitBoundaryRules` are left out of the core (UI or debug, §1.2 step 7, §14.3 item 2).
+- **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
+  is left out, so no vector pins them.
+- **`SimpleParcellize`'s street lines (§7.5 step 1)** are only exercised with `placeStreets` off (test 14) and through
+  tests 19–29, which all use `Parcellize`; the `n`-cell spacing of the two passes has no vector.
