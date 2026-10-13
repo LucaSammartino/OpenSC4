@@ -339,6 +339,25 @@ Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t :
       current (pre-update) value: any tract with value ≥ 2 that decays to 0 stops at 1 instead.
     - The bounds compare **cell** coordinates with **tract** counts, so the own-tract reads only happen for
       `2·tx < tractCountX − 1` (resp. z), i.e. roughly the lower-x (lower-z) half of the map.
+    - **The special case always writes** (PG14, `0x006E8B87`–`0x006E8C4B`). Once the decrease gives 0, the code
+      calls `SetWaterValue` with 1 (a neighbour read > 1) or with 0 (none), without comparing with the current
+      value. The case is entered only when `W = 0` (after the clamp of step 8) and `0 < v ≤ maxWaterDelta`. So
+      with **v = 1** and a hit, `SetWaterValue(x, z, 1)` rewrites the 1 that is already there: no cell changes,
+      but `dirtyWater` becomes **true** (`SetWaterValue` `0x006E30B0` sets it unconditionally, `0x006E30DC`).
+      Every other water write, and every air write, has `v ≠ W` and a step of at least 1, so it changes the cell.
+
+      *Example*: shipped `maxWaterDelta` 150, tract at cell (4, 6) with water value 1, `W = 0` this visit, and
+      cell (3, 6) (the tract to the −x side) at 5. The decrease gives 0, the first read hits, and
+      `SetWaterValue(4, 6, 1)` runs: the grid is unchanged, `dirtyWater` is true, and the next end of cycle
+      (§4.8) posts "water changed" `0x5A6DD1AA` and clears it.
+
+      This is the day's **only** `SetWaterValue` call (`0x006E8C4B`), and nothing else in the day writes
+      `dirtyWater`: `DoDailySimulation` `0x006E7FD0`–`0x006E8E1F` has no other reference to it. The end of cycle
+      that runs inside the day (step 11, `0x006E8C69`) clears it, so a later visit the same day can set it again.
+      *[compat]* A reimplementation must mark `dirtyWater` whenever this case runs, even if the value stays 1.
+    - *[compat]* With `maxWaterDelta` = 0 (or `maxAirDelta` = 0; not shipped), the step is 0. Then every visit with
+      `v ≠ W` writes the unchanged value and marks the flag. The compare against the delta is unsigned
+      (`0x006E8B61`, `0x006E8B7F`).
 11. **Advance**: if the iterator is exhausted (simgrid.md §7.4): `Reset(shuffle)` and run the **end of cycle**
     (§4.8). Then `GetNext → (tx', tz')`; `cellX := 2·tx'`, `cellZ := 2·tz'`.
 

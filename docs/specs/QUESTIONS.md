@@ -358,11 +358,16 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   bool. Confirm. [int32]
 - **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
 - **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
-- **PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
+- ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution
   simulator and `pollution_shadow = 1`, our core matched all eight grids cell by cell for 94 months (2026-02 →
   2033-11; 1.4 M cells a month, 0 mismatches) and every saved field except one: on 104 of about 2,800 days the
   original's `dirtyWater` is **true** after its day while ours stays false, with identical grids. The likely place
   is §4.4.4 step 10, the water neighbour special case. When a tract at 1 would decay to 0 and the case keeps it at
   1, does the original still call `SetWaterValue` (marking `dirtyWater`) although the value did not change? Or does
   some other day path set the flag without changing a cell? It decides how often "water changed" `0x5A6DD1AA` is
-  posted. [ours: written only when the value differs, as step 9 says for air]
+  posted. [ours: written only when the value differs, as step 9 says for air]~~ **ANSWERED 2026-10-14** from the
+  exe (`DoDailySimulation` `0x006E8B87`–`0x006E8C4B`; `SetWaterValue` `0x006E30DC`) and written into pollution.md
+  §4.4.4 step 10. **The hypothesis is right.** Once the decrease gives 0, the original always calls
+  `SetWaterValue`, with 1 or 0, without comparing. So v = 1, W = 0 and a neighbour > 1 rewrites the same 1 and
+  sets `dirtyWater`. No other day path sets the flag: this is the day's only `SetWaterValue` call, and the in-day
+  end of cycle clears it. Fix: mark `dirtyWater` whenever the special case runs.
