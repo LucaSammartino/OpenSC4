@@ -1046,11 +1046,25 @@ list until the next pass.
 |---|---|---|
 | 36 | `AreLotsConnected(A, B)` | AL true when both lots have a non-empty list and the lists share an ID. |
 | 37 | `GetConnectedOccupantCount(lot, type)` | Maximum over the lot's IDs (with `id < size`) of `published[id].population[type]` (0 when absent). 0 without a list. |
-| 38 | `GetConnectedDestinationCount(lot, k)` | k > 3 (signed) → 0. Otherwise the maximum over the lot's IDs (with `id < size`) of `published[id].capacity[k]`. 0 without a list. `cSC4Lot::HasJobAccess` (`0x006BFCE0`) is true when this is > 0 for k = 0 or 1. |
+| 38 | `GetConnectedDestinationCount(lot, k)` | k > 3 (signed) → 0. Otherwise the maximum over the lot's IDs (with `id < size`) of `published[id].capacity[k]`. 0 without a list. `cSC4Lot::HasJobAccess` (`0x006BFCE0`) is true when this is > 0 for k = 0 or 1. A negative k is **not** rejected (see below the table). |
 | 39 | `GetSubnetworksForLot(lot, vector<u32>&)` | Clears the vector, then reads the property into it. AL = whether the property exists. |
 | 40 | `GetSubnetworksInRectangle(rect, vector<u32>&)` | The rectangle is inclusive (x1, z1, x2, z2). Collect the distinct non-zero `subnet[0…3]` of the first car record of every in-city cell of rect into an SGI `hash_set<u32>` (hint 100 → 193 buckets, identity hash). Clear the vector and append the set in hash order (bucket order; within a bucket, most recent first). For fewer than 194 IDs all below 193, this is ascending order. |
 | 41 | `GetSubnetworksInRegion(region, vector<u32>&)` | As slot 40, over the cells of an SC4CellRegion: its bounding rectangle filtered by its bitmap. Row `x − x1`, bit `(z − z1)`, 32 bits per word, least significant first; cells outside width × height are excluded. |
 | 42 | `GetOccupantCountForAllSubnetworks(type, vector<u32>&)` | `vector.assign(size, 0)`, then `v[id] = published[id].population[type]` (if present) for id = 1 … size−1. |
+
+**Negative k in slot 38** *[quirk]* (TN17, `0x007106C7` `jle`, `0x0071075B`–`0x00710767`). The only bound test is
+the signed `k > 3`, so a negative k passes. The function then reads the u32 at index `7·id + 3 + k` of the
+published vector (0x1C-byte records, `capacity` at `+0xC`). The result is still the unsigned maximum, starting
+from 0:
+- k = −1, −2, −3 read the three words of `published[id].population`, the map object itself. Its word `+0` is the
+  tree's header-node pointer (the map's end test compares with it, `0x00711B12`). So k = −3 returns a heap
+  address. The words `+4` and `+8` are, in STLport 4's layout, the element count and the comparator's padding
+  *[inferred]*.
+- k = −4 … −7 read `published[id−1].capacity[3 … 0]`, and lower k read further back.
+- Once `7·id + 3 + k < 0`, the read is before the vector's start.
+
+The result is therefore **not** 0, and has no meaning. The known caller (`HasJobAccess`) passes only 0 and 1.
+FreeCity4 should return 0 for k < 0.
 
 Slots 40, 41 and 42 return garbage in AL. The SDK declares bool. A replacement returns true *[choice]*. The landfill
 spec's IsZoneConnected uses slots 41 and 42 (landfill.md §4.7.2).
