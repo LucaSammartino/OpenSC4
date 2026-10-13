@@ -1,4 +1,4 @@
-# Handoff: state of FreeCity4 (2026-10-13)
+# Handoff: state of FreeCity4 (2026-10-13, second session)
 
 This file is for the agents that take turns on this repo. Read it first, then update it before you stop.
 The progress checklist in [README.md](../README.md#progress) tracks milestones; this file tracks the work in flight.
@@ -68,12 +68,21 @@ powershell -ExecutionPolicy Bypass -File tools\ingame_run.ps1 -Label runN -Secon
 - **Test city:** `Regions\FC4 Test\City - Spandau.sc4`.
   - Backup: `%TEMP%\claude\…\scratchpad\Spandau.sc4.bak`, SHA-256 `6982A842…`; it was unchanged after run 23.
   - Restore the city from the backup after any save test.
-- **Current Plugins state, safe for manual play:**
-  - DLL `81AC46F4…`: the pre-run-23 build, with power off by default.
-  - ini: `budget_default = 1`.
-  - Kept alongside: `FreeCity4.dll.run23-crash` (F5439E03…) and `.pre-run23`.
-- The run history and the manual checklist for the user are in `docs/manual-checks.md`. Runs 22 and 23 are not yet
-  recorded there.
+- **Current Plugins state, safe for manual play (verified 2026-10-13, after run 38):**
+  - DLL `238EE36C…` with its **matching** PDB `956EE1B6…`: main `95db886` built by `coord-verify-lane.ps1`. Power,
+    plumbing and flammability are off by default.
+  - ini: `budget_default = 1` alone.
+  - Backups alongside, each a matching DLL/PDB pair: `.run33-main-1eb5dd6`, `.run37-flammlog`. Older DLL-only backups
+    (`.run31-lane1-prestage` etc.) and the old **mismatched** PDB (`.pdb.run33-prestage-MISMATCHED`) are kept too.
+  - *(Earlier versions of this file named three different staged DLLs in §3, §5.7 and §8. This line replaces all of
+    them.)*
+- **Run wrapper:** writing the ini from bash breaks it (§8). The tested way to run is from PowerShell, building the ini
+  string with real `` `n `` newlines and calling `& tools\ingame_run.ps1 -Ini $ini`. Afterwards, check the ini bytes for
+  backticks and kill any orphaned game process.
+- **Autoload only works within the region the game starts in (FC4 Test).** A city in another region is refused
+  (`no city of the current region has the save`). FC4 Test has its own copy of `City - Konradshohe.sc4` (`864E0A88…`),
+  which **has a water system** (2 producers, 403 pipes). Spandau has none. Use Konradshohe for plumbing and fire work.
+- The run history (through run 38) and the manual checklist for the user are in `docs/manual-checks.md`.
 
 ## 4. Where each milestone stands
 
@@ -86,18 +95,17 @@ See the README checklist for the full list. In short:
   - **The x87 workaround is on main (`63e88f1`) and validated against the original**, so the differential is unblocked:
     run 29 (`disable = simulator,budget`, the game computes) gives `dept_expense` 123/105 across all five months,
     matching the unmodified Spandau save, where run 19 with the same config and no re-assert gave 122/104 (§5.2, §5.3).
-  - The differential itself still needs redoing against that fixed baseline; the old tax-by-type differences
-    (types 4/6/9) and the non-tax gap (35 vs 28) came from a run pair that both computed at 53-bit, so they are not
-    attributable (§5.3).
+  - **The differential was redone (runs 35/36):** expenses match exactly. Total income is inside the original's own
+    run-to-run spread. Per-type tax needs both budgets computed side by side in one process, because the original is
+    not deterministic across runs (§5.3).
 - **M3:**
   - All ten grid-sim cores are done.
   - Land value glue is done (off by default).
   - **Power glue is merged (`63e88f1`) and runs clean** — runs 27/28, `AUTOTEST VERDICT: clean`, production 5997→6000,
     409 cells powered, 0 unpowered (§5.1). The crash was a cross-thread `RefCell` race in the clock, not power.
-  - **Plumbing + flammability glue merged** (`9f741de`, from `m3-glue`): coordinator-verified ctest 18/18 and cargo
-    808/0; `FC4_ABI_VERSION` 14, plugin switch count 57. **But never executed in game** — every simulation path is
-    unverified and the host tests cover only the no-city neutral path (§5.4b). Merged because complete and green, not
-    because proven in the game.
+  - **Plumbing + flammability glue merged** (`9f741de`) **and now run in game** (runs 33–38, §5.1b). It found and fixed
+    one real bug: a use-after-free on fire ignition (`95db886`). `FC4_ABI_VERSION` is still 14, and the plugin switch
+    count is 57.
   - Protection, flora, pollution, crime and aura glue are not started.
 - **M4: COMPLETE — all five cores on main.**
   - Cores done: BDS, growth developer, tract developer. Lane 3 also did a consolidation pass (shared `fc4_core::stl`
@@ -115,7 +123,8 @@ See the README checklist for the full list. In short:
     `cc6e25d`). It compiles clean and is wired into `lib.rs`, but `simulator.rs` has zero tests and no conformance
     vectors, so it is unproven WIP. Its RS1–RS6 spec questions are preserved in QUESTIONS.md (§5.4b).
 - **M5:** specs done (traffic simulator, network, pathfinder). **First core drafted but does not compile** — see §5.4b.
-- **M6:** specs landed:
+- **M6:** `engine/formats` was merged green on 2026-10-13 (`b5bdf8a`, §5.4b). The `exemplar.rs` rows of spec §11 are
+  still open. Specs landed:
   - `data-formats.md` (601f3a9);
   - lot/occupant save records (0460f3a);
   - city save records, validated against 417 saves (e69009f).
@@ -136,6 +145,42 @@ See the README checklist for the full list. In short:
 > (exit 0), `ctest` 18 of 18, and the `engine/` tree is byte-identical to the `9f741de` merge that produced those
 > numbers (the two docs commits on top touch only `docs/`). Evidence on disk in `build-runs/`:
 > `cargo-test-main-94d8cdf.txt`, `ctest-m3-glue.txt`.
+
+> **Second session, 2026-10-13 (evening).** Merged to `main`:
+> - `e1ce77c`: the lot_developer clippy cleanup.
+> - `b5bdf8a`: the formats lane.
+> - `95db886`: the flammability fire fix and its month status line.
+>
+> **Main is verified at `95db886`:** `cargo test --workspace` 811 passed / 0 failed. `cargo clippy --workspace
+> --all-targets -- -D warnings` exits 0 (**the first time it is clean**). `ctest` 18 of 18. Evidence is in
+> `build-runs/`: `cargo-test-main-b5bdf8a.txt`, `clippy-main-b5bdf8a.txt` and `ctest-main-firefix-merge.txt`. The fire
+> merge touched only `engine/plugin` and `engine/tests`, so the cargo numbers still hold.
+> In-game runs 33–38 are recorded in `manual-checks.md`.
+
+### 5.1b Plumbing + flammability in game — WORKING, one use-after-free found and fixed
+- **Plumbing (runs 33, 34, 37):**
+  - On Spandau, which has no water system, the passes advance and nothing re-enters.
+  - On Konradshohe (2 producers, 403 pipes), watered cells (729 → 702) equal building cells every month, consumption
+    equals demand, and production holds at about 39.8k.
+  - A full `Shutdown` path ran clean in run 34.
+- **Flammability (runs 37, 38).** It now logs a `flammability month:` line with `cycles`, `endOfCycles`, `fireRolls`,
+  `ignited=ok/calls`, `wateredQueries/watered/noPlumbing` and `nested=grid/flammable/hotspot/average`.
+  - Fire rolls come about every 40 days.
+  - The cross-subsystem `IsCellWatered` read is live: 22.8k queries, about a third watered, `noPlumbing=0`.
+- **The bug (run 37, fixed `95db886`):** `IgniteCell` and `SetFireCause` each released the *borrowed* disaster
+  manager, so every ignition dropped two references the game owned and freed the fire object under it. Run 38 went
+  through a real ignition and a full `Shutdown` with **0 reference warnings**. Test-seam op 9 in `plugin_load_test`
+  pins it.
+- **Explained, not bugs:**
+  - `average=0` for the first ~40 days after a load is spec §14.1 quirk 1.
+  - `reentrant=1` after a fire is the game's fire manager reading our grid once during `IgniteCell` (`nested=1/0/0/0`).
+    It is read-only and benign, but spec §13.1 only documents that read for probability-mode fires, and this was a
+    hotspot fire. That is a small spec gap worth an RE look.
+  - The NEGATIVE per-class lines in a simulator-Shutdown refaudit are a window artifact: the budget Shutdown summary
+    resets the counters just before. Trust the per-object `over-release` / `released last reference` warnings instead.
+- **Still unverified:** neighbour deals (no neighbour connections in the test cities), pipe bursts and distress, the
+  disaster path, save → reload with plumbing on, and the effect of an ignition on the burning city beyond the first
+  frames.
 
 ### 5.1 Power glue — FIXED, and the real crash was a cross-thread `RefCell` race
 - **Was:** DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23). The handoff blamed the power core.
@@ -208,9 +253,18 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   month, not run-19/20's 2001-10, so it is a consistency check / matched-date target, not a line-by-line diff.
 - **Step (1) is done:** the §5.2 workaround is on main, so the original now computes at 24-bit in-process. Run 29 is the
   proof — `disable = simulator,budget` with the re-assert reproduces the Spandau save's own 123/105.
-- **Remaining steps:** (2) re-run observer-only now that precision is correct, to capture the original's true 24-bit
-  first month; (3) diff that against our budget on the same city/month (one variable). The tooling to parse the save
-  oracle lives in `tools/dbpf.py` (used it this session).
+- **Steps (2) and (3) are done (runs 35 and 36, same DLL `5A295D1C…`, Spandau, only `disable = simulator,budget` vs
+  `disable = simulator` differing).** Full table in `manual-checks.md`.
+  - **Expenses:** every department identical in all five months.
+  - **Totals:** funds after five months are 71,265 (original, run 35), 71,325 (original, run 29) and 71,298 (ours).
+  - **Per-type tax is not comparable across separate runs.** Two runs of the *original* from the same save differ by
+    up to 4 in types 4, 6 and 9 in month 1, even with identical month-1 population. The one value outside that spread
+    is **type 3: ours 26, original 20 in both runs.**
+  - **Observer artifact:** at the 2001-12 → 2002-01 boundary the month snapshot sometimes fires before the collection
+    (runs 28 and 35 repeat December).
+- **Next (the real M2 exit check):** a **shadow differential**. At each tax collection, run our budget core on the same
+  inputs the original just used, inside the same process, and log per-type diffs. That removes the run-to-run noise.
+  This is engine work (plugin glue). Start with tax type 3 (Cs$ if the order is R$, R$$, R$$$, Cs$…).
 
 ### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
 Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
@@ -236,7 +290,10 @@ all under `engine/`. The coordinator verified it independently rather than trust
 **808 passed / 0 failed**, and the lane reports 3,007 slots compared with 0 mismatches in required interfaces and 58
 waived. Its merge-base was main's tip at the time, so it merged with **zero conflicts**. Numbers to keep consistent:
 `FC4_ABI_VERSION` **14**, plugin switch count **57**. Worktree removed and branch deleted (5 → 4 worktrees).
-> **Do not treat this as working.** Per the lane's own report it has **NEVER executed in game**. run32 was the single
+> **Superseded by §5.1b (second session):** it has now run in game and works, and the one bug it had was fixed in
+> `95db886`. The original warning is kept below for history.
+>
+> ~~**Do not treat this as working.**~~ Per the lane's own report it had **NEVER executed in game**. run32 was the single
 > attempt and produced no information at all (see the run32 lessons below). Every simulation path — the water pass,
 > neighbour deals, the budget department, the grid swap, the `SetWateredState` direct call, the daily flammability
 > refresh, the fire roll, and critically the cross-subsystem `IsCellWatered` read — is **unverified**. The host tests
@@ -244,7 +301,20 @@ waived. Its merge-base was main's tip at the time, so it merged with **zero conf
 > the in-game proof is still owed.
 
 **Not merged, and why:**
-- **formats** (branch `lane/formats-original-compat`, tip `456dac3`, clean, 3 ahead / 36 behind main): **NOT GREEN.**
+- **formats — MERGED in the second session as `b5bdf8a`** (branch tip `9ec18da`, worktree and branch removed).
+  - **The 3 failing tests:** all three were stale tests, not wrong code, and each was rewritten to assert the spec:
+    first copy wins for duplicates (§2.3), an entry listed in the DIR that fails the QFS check fails the read (§2.6),
+    and one bad entry fails the whole open (§2.3).
+  - **The lane also fixed** a `u32` overflow panic in the hole check.
+  - **The game-data sweep caught a real regression.** `is_ltext` accepted 1,302 `XA` audio clips once trailing bytes
+    were ignored, so `XA` is now rejected; §6.1 marks `is_ltext` as tools-only.
+  - **The sweep now matches main line for line:** 22 .dat files and 183,205 entries; 417 install saves plus 587
+    Documents saves; 0 failures. It is `tests/game_data.rs`, which also runs inside `cargo test --workspace`.
+  - **Coordinator-verified:** 811/0, fc4-formats clippy and fmt clean.
+  - **Open:** the seven `exemplar.rs` rows of §11. Also, the index-offset check is skipped when there are 0 entries
+    (§2.1 is silent on that), and 24-byte index 7.1 entries are still read with a warning, which the original refuses.
+  - The history below is the pre-merge state.
+- ~~**formats** (branch `lane/formats-original-compat`, tip `456dac3`, clean, 3 ahead / 36 behind main): **NOT GREEN.**~~
   21 passed but **3 failed** in dbpf — `duplicates_last_wins`, `dir_listed_but_not_compressed_is_returned_raw`, and the
   "open-with-warning" sub-case of `bad_inputs_are_errors`. All three are stale assertions encoding the *old* behaviour
   that spec §11 told the lane to change, so they are probably a one-line fix each, but nobody has fixed them.
@@ -341,8 +411,8 @@ needs the terraforming tool UI traced).
 
 ### 5.7 Smaller items
 - **`docs/manual-checks.md`: updated this session** (`c7d1e51`, `9c02e76`, and the run-26 correction) — runs 22–28
-  recorded. **Plugins state is now manual-play safe:** lane 1 staged `FreeCity4.dll` = `F921001D…` (tag
-  `run28-threadfix`, `.pdb` alongside) and reset `FreeCity4.ini` to `budget_default = 1` alone. The Spandau city file
+  recorded. *(The Plugins state that was recorded here is stale; §3 is current.)* Lane 1 staged `FreeCity4.dll` =
+  `F921001D…` (tag `run28-threadfix`) at that time and reset `FreeCity4.ini` to `budget_default = 1` alone. The Spandau city file
   is untouched (`6982A842…`). Backups kept in Plugins: `.run28-threadfix-prestage`, `.run27-threadfix-prestage`,
   `.run24-mine`, `.run24-panic-prestage`, `.pre-run23`, `.run23-crash`. No game process left running.
 - **`docs/abi/vtables.tsv`: checked, clean** (committed at 601f3a9; `git status docs/abi/` empty). Consistent.
@@ -360,7 +430,8 @@ needs the terraforming tool UI traced).
     (`engine/third_party/gzcom-dll`, the public SDK), and git refuses `worktree remove` on any working tree holding one,
     even when the submodule is clean and at the commit main expects. `submodule deinit -f` inside the worktree
     unregisters it but cannot delete the checkout on Windows (file lock), leaving an empty directory — so re-check
-    clean+merged, then `--force`. **Four worktrees remain, all with live lanes or unmerged branches:** `formats-compat`,
+    clean+merged, then `--force`. **After the second session only two worktrees remain, `m6-landfill-neighbors` and
+    `residential`, both unmerged.** Historical note: `formats-compat`,
     `m3-glue`, `m6-landfill-neighbors`, `residential`. `m5-traffic-network` has a branch but no worktree (its ~2,000
     non-compiling lines are on the branch, backed up).
 - **Then plumbing, protection and flora glue** — now the `m3-glue` lane (`ac1485cbac8eb97a9`), which is doing plumbing
@@ -389,14 +460,15 @@ needs the terraforming tool UI traced).
 
 ## 5b. Backlog for manual check / blocked-on-user (2026-10-13)
 Things I could not finish autonomously, or that need a human decision:
-1. **Locate the §5.2 trigger** — what in our process raises PC to 53-bit during app init. Two experiments queued for
-   lane 1 (fine CW logging across the PreAppInit→PostAppInit window; minimal attach-only DLL). If lane 1 can't find
-   it, apply the §18.2 workaround (re-assert mode 0 at PostAppInit) and log it.
-2. **Redo the §5.3 budget differential** — only valid after #1; then re-run observer-only and diff against the
-   Spandau save oracle.
+1. **Locate the §5.2 trigger**, i.e. what in our process raises PC to 53-bit during app init. The workaround (re-assert
+   at PostAppInit) has **landed** (`63e88f1`), so this is no longer urgent. The next step is a minimal attach-only DLL.
+2. ~~**Redo the §5.3 budget differential**~~ **Done** (runs 35/36, §5.3). What remains is the **shadow differential**
+   for per-type tax (engine work).
+2b. **Glue for the remaining grid sims:** protection, flora, pollution, crime and aura. Plumbing and flammability are
+   proven (§5.1b), so their pattern is the template.
 3. ~~**Merge lane 1 / lot developer / zones**~~ **DONE** — lot developer `9889f65`, zones `f56e52a`, lane 1 `63e88f1`,
    each independently verified before merge. Merged main re-verified after the lane 1 merge: cargo 808/0, ctest 17/17.
-4. **Reset `Plugins\FreeCity4.ini`** to `budget_default = 1` for manual play (see §5.7).
+4. ~~**Reset `Plugins\FreeCity4.ini`**~~ Done: `budget_default = 1` alone, with main's DLL/PDB pair staged (§3).
 5. **User decisions** (unchanged, §7): run the manual checklist; upstream the SDK errata (public — the re-check
    against the current SDK is done, `4243367`, so the draft is ready to submit once approved); publish the repo
    (public); delete the KillaVolt clone; download the Mac Rev A binary.
@@ -419,7 +491,9 @@ lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 | **Landfill + neighbors** cores (M6) | `ad6d35101273a7757` | `m6-landfill-neighbors` | **STOPPED**; finished at `a6ba8ce`, worktree clean. Landfill **compiles** (0 warnings) and is wired into `lib.rs`, 12 tests pass — but `tests.rs` is a stub, no vectors, neighbors not started (§5.4b) |
 | **Residential** core | `a4bf4a1401fb0a69f` | `residential` | **STOPPED** (`TaskStop`); finished at `cc6e25d`, worktree clean. Compiles clean, `lib.rs` wired, but `simulator.rs` has 0 tests and no vectors. RS1–RS6 preserved in QUESTIONS.md (§5.4b) |
 | **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | **MERGED `9f741de`**; worktree removed, branch deleted. Coordinator-verified: ctest 18/18, cargo 808/0. **Never ran in game** (§5.4b) |
-| **engine/formats divergence fixes** | `a7aa00813e71c6ad5` | `lane/formats-original-compat` | **STOPPED**; finished at `456dac3`, clean. **NOT GREEN** — 3 dbpf test failures, workspace tests + real-game-data sweep never run. Do not merge as-is (§5.4b) |
+| **engine/formats divergence fixes** | `a7aa00813e71c6ad5`, then a second-session agent | — | **MERGED `b5bdf8a`** (second session): 3 stale tests fixed per §11, XA/LTEXT regression caught by the sweep, 811/0; worktree and branch removed (§5.4b) |
+| **lot_developer clippy cleanup** (second session) | one-shot agent | — | **MERGED `e1ce77c`**: 21 lints, with one scoped `allow`; workspace clippy is now clean |
+| **Flammability observability + fire fix** (second session) | one-shot agent | — | **MERGED `95db886`**: month status line, the use-after-free fix, test-seam op 9 (§5.1b) |
 | **Lot developer spec answers** (RE side) | `a4ccb0d58282e86e1` | main checkout | **STOPPED mid-commit**; coordinator committed its tree as `94d8cdf` (lot-developer §12.2 Q8–Q10) |
 | **Landfill/neighbors spec answers** (RE side) | `a38c56ea07811b096` | main checkout | **STOPPED mid-commit**; coordinator committed staged answers `7938b38` + unstaged NaN correction `94d8cdf` (§5.4b) |
 
@@ -457,7 +531,11 @@ always check the unstaged diff, which may contradict already-committed text.
 - **`fmt --check` has 20 pre-existing diffs on main**, all in `engine/capi/src/*_tests.rs`
   (`budget_tests.rs`, `landvalue_tests.rs`, `test_streams.rs`). They are not a regression from any lane. When checking a
   branch, compare against main's list rather than expecting zero.
-- **`cargo clippy --all-targets -- -D warnings` is NOT green on main** — 15 errors, all in
+- **`cargo clippy --workspace --all-targets -- -D warnings` IS green on main since `e1ce77c`** (second session). Keep it
+  that way: a lane that adds a clippy error is now a regression. The note below is history. The real count was 21
+  (12 in core, plus 9 in `conformance/src/lot_developer.rs` that the core errors had hidden), not 15. Also, `cargo fmt
+  --check` now shows 29 pre-existing diffs on main, not 20, two of them in `core/src/lot_developer/tuning.rs`.
+- ~~**`cargo clippy --all-targets -- -D warnings` is NOT green on main** — 15 errors,~~ all in
   `engine/core/src/lot_developer/{simulator,tests}.rs`, pre-existing from the lot-developer merge `9889f65`. Reproduced
   on merged main after `63e88f1`, and proven not lane 1's: `git diff --stat 7992647 63e88f1 -- engine/core/src/lot_developer/`
   is empty, so that merge never touched the files. The lints are style, not correctness — 5 `map_or can be simplified`,
@@ -499,6 +577,12 @@ always check the unstaged diff, which may contradict already-committed text.
     left no PDB backup either, so the matching pair is unrecoverable. The DLL is correct (it hashes to lane 1's verified
     build `ce242572…`, matching the `.run31-lane1-prestage` backup) but the PDB does **not** match it, so crash dumps
     would resolve symbols wrongly. **Restage a matching DLL/PDB pair before trusting any future crash dump.**
+    *(Done in the second session: every DLL staged since run 33 went in with its own PDB, and backups are now made as
+    pairs. The mismatched one is kept as `FreeCity4.pdb.run33-prestage-MISMATCHED`.)*
+  - **Someone may close the game by hand during a run** (it happened in runs 34 and 38). The harness then reports
+    `exited (code 0) without a verdict`. Read the log tail. An orderly `PostAppShutdown` / `DLL_PROCESS_DETACH (process
+    exit)` is a manual quit, not a crash, and it usefully runs the `Shutdown` path that the autotest's TerminateProcess
+    never reaches.
 - **README checklist:** keep the Progress checklist in `README.md` current whenever something lands on `main`.
 - **Status reports for the user:** plain language, short, and say what changed and what is next.
 - **Memory:** the coordinator's notes are in

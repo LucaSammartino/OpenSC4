@@ -48,6 +48,31 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 26 | `budget_default=1, enable = power, power_report=1, observe=1`, DLL `569FF4D8…` | **crash** `0xC0000409`, no `AUTOTEST VERDICT` (the line that looked like one is a periodic heartbeat). Power *did* work up to the crash — 14 `power recompute` lines, first reading `production 5997 consumption 1038 demand 1038 powered 385 unpowered 0`, closing run 22's "production 0" gap — but those numbers were written **before** the death. The log ends with two threads interleaved (`tid 23860` in `BudgetSimulator::GetFundingOf`/`GetBudgetItemForPurpose`, `tid 8328` in `GetAllGroups`), which is the cross-thread race found and fixed in run 27. *(This row was originally recorded as clean by the coordinator in `c7d1e51`; that was wrong and is corrected here.)* |
 | 27 | thread-fix build (`RefCell` → `Mutex` in the master clock), budget + power + observe | **clean** — `AUTOTEST VERDICT: clean`, exit 0, no panic. 41 `power recompute` lines, `production 5997` → `6000`, 409 cells powered, **0 unpowered**, no shortfall. |
 | 28 | same source as 27, rebuilt; the exact staged DLL `F921001D…` (hash verified in its `DLL_PROCESS_ATTACH` line) | **clean** — `AUTOTEST VERDICT: clean`, exit 0, no panic. Same power result. Confirms committed source, staged DLL and the validated run correspond. |
+| 29 | `disable = simulator,budget`, observe, with the 24-bit re-assert | **clean**. The game computes: `dept_expense` 123/105 in all five months, matching the unmodified save. The first trustworthy original baseline. |
+| 30, 31 | lane 1 thread and final builds | **clean** (`build-runs/run30-threads.log`, `run31-final.log`). |
+| 32 | first m3-glue attempt | **no information**: the ini was written from bash with a literal backtick-n, so `autoload_city` never parsed (HANDOFF §8). |
+| 33 | main `1eb5dd6` (DLL `33FC0F9B…` with its own PDB), `enable = plumbing, flammability`, Spandau | **clean**. Plumbing passes run (23 → 101), building cells 396 → 412, no re-entry. But Spandau has **no water system** (`producers=0 pipes=0`), so only the empty-network path ran, and flammability logged nothing after `Init`. |
+| 34 | same DLL, Konradshohe (Berlin) | Autoload refused the city, which is in another region, and the city was then loaded by hand and the game quit normally. That gave the **first full `Shutdown` path**: `flammability Shutdown (189 cycles)`, `plumbing Shutdown (7 passes)`, exit 0. With water: 2 producers, 403 pipes, watered cells 729 → 702 always equal to building cells, consumption equal to demand. The 16 NEGATIVE refaudit class lines at simulator Shutdown are a window artifact (the budget Shutdown summary reset the counters just before); per-object tracking showed 0 over-releases. |
+| 35 | flammability-counter build `5A295D1C…`, `disable = simulator,budget`, Spandau | **clean**. The original budget again: the run-to-run noise baseline for 36. |
+| 36 | same DLL, `disable = simulator` (our budget, original clock), Spandau | **clean**. The budget differential (one variable against 35). See the analysis below the table. |
+| 37 | same DLL, `enable = plumbing, flammability`, FC4 Test's Konradshohe, 240 s | **clean verdict but `ref_warnings=4`: a real use-after-free.** Flammability works: 4 fire rolls and 4 end-of-cycle passes, roughly every 40 days, and 22,824 `IsCellWatered` queries into plumbing (7,258 watered, 0 "no plumbing"), so the cross-subsystem read is live. On the first real ignition (`ignited=1/1`, 2026-04-18), `IgniteCell`, `Drop` and `SetFireCause` released references to the game's fire object that we never acquired (2 over-releases, 2 last-reference releases), so the object is freed while the game still owns it. Also `reentrant` went 0 → 1 after the fire, and the flammability `average` read 0 for the first two months after load. **Fixed in `95db886`**: the plugin was releasing the *borrowed* disaster manager in both `IgniteCell` and `SetFireCause` (spec §6.8 releases only the QueryInterface'd fire interface). The average of 0 is spec behaviour (§14.1 quirk 1: the cycle position survives `Init`, so the first end-of-cycle after a load is empty). |
+| 38 | fire-fix build `69D9CA30…`, same config as 37, 420 s | **The fix holds.** A real ignition (`ignited=1/1`) with **0 over-release and 0 last-reference warnings** in the whole log. `nested=1/0/0/0` shows that `reentrant=1` is the fire manager reading our flammability grid once during ignition, which is benign. The game was closed by hand before the verdict, so this run also went through a full `Shutdown` after the fire (`flammability Shutdown (100 cycles)`), still with no warnings. |
+
+**Budget differential (runs 35 vs 36, plus 29 as a second original sample).** All runs start from the same save with
+the same month-1 population (R/C/I 2314/424/860).
+- **Expenses match exactly.** Every department's `dept_expense` is identical in all three runs, in all five months.
+- **Income: the original is not deterministic from run to run**, so per-type tax cannot be diffed with separate runs.
+  - In month 1, from an identical start, the two original runs (29 and 35) differ in tax types 4 (23 vs 19), 6 (3 vs 5)
+    and 9 (243 vs 239). Ours (36) gives 24, 1 and 239.
+  - Type 3 is the one value outside the original's observed spread: ours 26, the original 20 in both runs.
+  - By month 5 the per-type values spread further as growth diverges.
+- **Totals: ours is inside the original's spread.** After five months, funds are 71,265 (35) and 71,325 (29) for the
+  original, and 71,298 for ours.
+- **An observer artifact, not a budget difference:** runs 35 and 28 report 2002-01 identical to 2001-12. The month
+  snapshot at the year boundary can fire before the collection.
+- **Next step:** a deterministic tax-by-type diff needs both budgets computed on the same city state in the same process
+  (a shadow run of our budget core next to the original's at each collection), not two separate runs. Tax type 3 is the
+  first thing to check there.
 
 **The real cause of the run-23/run-26 crashes was not power.** The master-clock `Simulator` kept its state in a
 `RefCell`. The game calls our `cISC4Simulator` getters from a **second thread** while the main thread is inside

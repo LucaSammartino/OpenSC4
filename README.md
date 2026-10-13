@@ -31,14 +31,14 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Budget, demand, ordinance and weather cores
 - [x] Budget, demand, ordinance and weather glue (budget in-game with no heap corruption, runs 17–18)
 - [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
-- [ ] Budget differential: **no longer blocked**. Run 29 (`disable = simulator,budget`, so the game computes) gives `dept_expense` 123/105 across all five months, matching the unmodified Spandau save — the first float-trustworthy comparison. The §5.3 differential still needs redoing against the fixed baseline
+- [ ] Budget differential (runs 35/36, [manual-checks](docs/manual-checks.md)): **expenses match the original exactly**, every department, all five months. Total income is inside the original's own run-to-run spread (funds after five months: original 71,265 and 71,325, ours 71,298). Per-type tax cannot be settled by comparing separate runs, because the original is not deterministic from run to run (types 4, 6 and 9 differ between two original runs from the same save). It needs both budgets computed side by side in one process; tax type 3 (ours 26, original 20 twice) is the first suspect
 - [ ] Budget and demand panels match the original after N months (M2 exit)
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
-- [x] Plumbing and flammability glue (merged 9f741de; ctest 18/18, cargo 808/0 — **but never executed in game**, so every simulation path is still unverified)
+- [x] Plumbing and flammability glue (merged 9f741de), **now run in game** (runs 33–38): the water pass on a real network (2 producers, 403 pipes, watered = building cells), fire rolls about every 40 days, and the cross-subsystem `IsCellWatered` read is live. Run 37 caught a use-after-free on fire ignition (a borrowed manager was released), fixed in 95db886; run 38 went through a real fire and a full Shutdown with 0 reference warnings
 - [ ] Protection, flora, pollution, crime and aura glue
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
@@ -57,7 +57,8 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
-- [ ] Formats, rendering, UI, audio, region; a standalone executable
+- [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves). The `exemplar.rs` rows of §11 are still open
+- [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**
 - [x] Interface/ABI reference for implementers: allocators, layouts, direct calls ([docs/abi/](docs/abi/))
