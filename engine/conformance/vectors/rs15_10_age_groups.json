@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "residential_age_groups",
+  "spec": ["residential 5.6", "residential 15.10", "RS1"],
+  "description": "Test 10: state 12 with one histogram bucket b = 3 (age 30), ageCount 200, ageEqSum 10000 (average EQ 50). The population is 0, so 0x2A5E7009 = 0 first. For each age group g the shipped curve 0xEA540621 + g is read at 21 + 3b = 30 (the spec's n values imply 6, 24, 27, 20, 12, 7, 4, 0, 0 percent); n = trunc((curve x float(200)) x 0.01f) with the product rounded to float32 before the truncation (1200 x 0.01f = 12.0, not 11.99999973 -> 11): 12, 48, 54, 40, 24, 14, 8, 0, 0 (0xCA545CAB + g). The group EQ is trunc(n x 50) / n = 50 for g = 0..6 and 0 for the empty groups 7 and 8 (0xCA545CCA + g). The series are interleaved per g, population first.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"age_count": {"3": 200}, "age_eq_sum": {"3": 10000}, "state": 12}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 5, "steps": 1},
+    {"op": "residential_expect_events", "filter": {"event": "history"}, "events": [
+      {"series": "0x2A5E7009", "value": 0},
+      {"series": "0xCA545CAB", "value": 12}, {"series": "0xCA545CCA", "value": 50},
+      {"series": "0xCA545CAC", "value": 48}, {"series": "0xCA545CCB", "value": 50},
+      {"series": "0xCA545CAD", "value": 54}, {"series": "0xCA545CCC", "value": 50},
+      {"series": "0xCA545CAE", "value": 40}, {"series": "0xCA545CCD", "value": 50},
+      {"series": "0xCA545CAF", "value": 24}, {"series": "0xCA545CCE", "value": 50},
+      {"series": "0xCA545CB0", "value": 14}, {"series": "0xCA545CCF", "value": 50},
+      {"series": "0xCA545CB1", "value": 8}, {"series": "0xCA545CD0", "value": 50},
+      {"series": "0xCA545CB2", "value": 0}, {"series": "0xCA545CD1", "value": 0},
+      {"series": "0xCA545CB3", "value": 0}, {"series": "0xCA545CD2", "value": 0}
+    ]},
+    {"op": "residential_expect", "state": {"population": 0, "state": 5}}
+  ]
+}

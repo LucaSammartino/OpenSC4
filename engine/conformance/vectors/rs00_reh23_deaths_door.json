@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "residential_deaths_door",
+  "spec": ["residential 5.5", "REH 11.23"],
+  "description": "REH test 23 with the shipped death's door (HQ 2.0, chance 1.5, height 50, delta 10), terrain altitude 7 and a steady (100, 100, 0) tract at HQ (1.2, 1.2, 0) (1.0 after the loss). Draw 1.2 < 1.5: CreateVisualEffect('buzzards') returns effect 500; the second draw RandomDoubleRangeUniform(-10, 10) = 3 sets the height; the transform is x = z = 0 x 64 + 64 x 0.5 = 32 and y = (7 + 50) + 3 = 60, then Start and Release. One effect per tract: R$$ does not roll. Draw 1.5 (not < 1.5): nothing, and R$$ rolls too. No effect created (the manager returns none): nothing else, and R$$ rolls and tries again. The month is read once per populated tract, after step 2.",
+  "steps": [
+    {"op": "residential_env", "altitude": 7},
+    {"op": "residential_create", "rng": {"draws": [1.2, 3.0]}},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "hq": [1.2, 1.2, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_events", "events": [
+      {"event": "rng", "lo": 0, "hi": 100, "value": 1.2},
+      {"event": "effect", "name": "buzzards"},
+      {"event": "rng", "lo": -10, "hi": 10, "value": 3},
+      {"event": "transform", "effect": 500, "pos": [32, 60, 32]},
+      {"event": "start_effect", "effect": 500},
+      {"event": "get_month"}
+    ]},
+
+    {"op": "residential_create", "rng": {"draws": [1.5, 1.5]}},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "hq": [1.2, 1.2, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_events", "events": [
+      {"event": "rng", "lo": 0, "hi": 100, "value": 1.5},
+      {"event": "rng", "lo": 0, "hi": 100, "value": 1.5},
+      {"event": "get_month"}
+    ]},
+
+    {"op": "residential_env", "effect": null},
+    {"op": "residential_create", "rng": {"draws": [1.0, 1.0]}},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_clear_events"},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [100, 100, 0], "hq": [1.2, 1.2, 0]},
+    {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
+    {"op": "residential_expect_events", "events": [
+      {"event": "rng", "lo": 0, "hi": 100, "value": 1.0},
+      {"event": "effect", "name": "buzzards"},
+      {"event": "rng", "lo": 0, "hi": 100, "value": 1.0},
+      {"event": "effect", "name": "buzzards"},
+      {"event": "get_month"}
+    ]}
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "residential_workforce",
+  "spec": ["residential 6.4", "residential 7.3", "residential 10.1", "residential 15.16", "RS1"],
+  "description": "Test 16: slot 30 is the shipped LE -> workforce curve (50, 40)(100, 60) at float(slot 29), times 0.01f with one float32 rounding, written through the hidden pointer (slot 30 pops 12 and returns through a hidden pointer). HQ 100 -> LE 75 -> 50 -> 50 x 0.01f rounds to exactly 0.5 (0x3F000000). Slot 31 does the same with slot 34: population 1 at HQ 100 -> LE 75 -> 0.5. HQ 44 -> LE 60 + 4 x 5 / 20 = 61 -> 40 + 11 x 0.4 = 44.4 -> about 0.444. Without the exemplar both slots give 0.0.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [1, 0, 0], "hq": [100, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_workforce_percent", "args": [0, 0], "bits": true, "expect": "0x3F000000"},
+    {"op": "residential_set", "state": {"population": 1}},
+    {"op": "residential_call", "method": "get_global_le", "expect": 75},
+    {"op": "residential_call", "method": "get_global_workforce_percent", "bits": true, "expect": "0x3F000000"},
+    {"op": "residential_tract", "x": 0, "z": 0, "hq": [44, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [0, 0], "expect": 61},
+    {"op": "residential_call", "method": "get_cell_workforce_percent", "args": [0, 0], "expect": 0.444},
+    {"op": "residential_call", "method": "slot", "args": [30], "expect": ["GetCellWorkforcePercent", 12, "hidden"]},
+    {"op": "residential_call", "method": "slot", "args": [31], "expect": ["GetGlobalWorkforcePercent", 4, "hidden"]},
+    {"op": "residential_env", "tuning": null},
+    {"op": "residential_call", "method": "get_cell_workforce_percent", "args": [0, 0], "expect": 0.0},
+    {"op": "residential_call", "method": "get_global_workforce_percent", "expect": 0.0}
+  ]
+}

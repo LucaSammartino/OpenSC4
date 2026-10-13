@@ -27,6 +27,13 @@
 //     process lives 5 s longer so a following stall is still recorded);
 //   - stalled: the watchdog saw the main thread stalled for more than 10 s
 //     (it terminates from its own thread).
+// `autotest_end = quit` (FC4_AUTOTEST_END; default `terminate`) ends a clean
+// run through the game instead: at the deadline the main thread calls
+// cISC4App::RequestQuit(false, false) (no dialog, no save), the city and the
+// app shut down as on a normal quit, and the verdict (counting any reference
+// warnings of the Shutdown path) is written at PostSystemServiceShutdown. A
+// quit that has not got there in 90 s is "stalled"; a process still alive 30 s
+// after the verdict is terminated.
 // `autotest_unpause = 1|2` makes the observer run the loaded city at that
 // speed, unpaused, so month-start code runs too.
 // `autotest_save_after_months = N` (the observer, FC4Observer.h): after N
@@ -54,6 +61,9 @@ int AutotestOnTick();
 // the verdict as at the deadline (unless one was written), then
 // TerminateProcess like every autotest ending.
 [[noreturn]] void AutotestFinish(const char* reason, const char* from);
+// The director's last shutdown hook (main thread): with autotest_end = quit,
+// writes the verdict once the requested quit got this far.
+void AutotestOnShutdownComplete(const char* hook);
 // A first-chance exception outside our image (vectored handler; lock-free,
 // never blocks).
 void AutotestOnForeignException();

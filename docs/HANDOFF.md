@@ -5,21 +5,42 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 
 ## 0. Start here
 
-> **Third session (2026-10-13, late evening; in progress, the user is away).** Read this block first; the rest of §0
-> describes the end of the second session.
-> - **Game control is hands-free now** (`f850598`, `0e2c238`, `def371e`): `tools/sc4ctl.ps1` drives the running game
->   with posted clicks (speeds, pause, God mode, popups, save with real Ctrl+S, snapshots, state from the log), and
->   `tools/ingame_run.ps1` closes dialogs automatically, runs `-Actions "secs=command; …"` after the load, and
->   restores the autoload city if a run saved over it. Measured control map and gotchas: `docs/manual-checks.md` runs
->   47–54.
-> - **M1 in-game checks are done** (runs 50–54): save → reload (date, funds, 18 departments), pause, all three speeds
->   (`SetSimSpeed(0/1/2)`), emergency pause (God-mode disaster). Only the clock differential is open.
-> - **Spec answers merged** (`ac19c1e`): RS1 (every percentage × 0.01 is float32 `0.01f`; residential §15 test 8
->   corrected), advisors §6.8.1 (popups and the hidden pause), DQ2 (dead fields).
-> - **Lanes running** (all clean-room engine lanes in `.claude/worktrees/agent-*`, one RE lane in
->   `.claude/worktrees/re-answers`): protection glue + shadow, pollution glue + shadow, crime glue + shadow,
->   traffic-network compile fix, residential tests, the `popup_dialogs = 0` switch, and RE answers (BQ1/2,
->   flammability §13.1, RS2–6, ZQ2–6). Each glue lane bumps `FC4_ABI_VERSION` to 17; renumber at merge.
+> **Third session (2026-10-13 evening to 10-14; in progress, the user is away).** Read this block first; the rest of
+> §0 describes the end of the second session.
+> - **M1 is complete.** In-game checks (runs 50–54): save → reload, pause, all three speeds, emergency pause. **Clock
+>   differential: identical to the original** (runs 56/57, 240 days; runs 58/60 in `clock_probe = 2`, which holds
+>   the week agent once to exercise the §5.3 repeat, 316 entries identical). Tooling: `clock_probe` (plugin,
+>   `FC4ClockProbe.h`) + `tools/clock_diff.ps1 -A <original log> -B <our log>`.
+> - **Unattended runs are now really unattended:**
+>   - `popup_dialogs = 0` (merged `5e39f3c`) turns the game's popup dialogs off at `PostAppInit`: no advisor popup,
+>     no hidden pause, 0 dialog rounds in runs 56–60. Generic prompts then answer by themselves (a posted `WM_CLOSE`
+>     does nothing, run 58).
+>   - `autotest_end = quit` (`22769f3`) ends a run through `cISC4App::RequestQuit(false, false)`: the full city and
+>     app Shutdown path runs and counts toward the verdict (run 59: grids released, `ref_warnings=0`). Use it for
+>     every glue lane's run.
+>   - `tools/sc4ctl.ps1` / `tools/ingame_run.ps1` (`f850598`, `0e2c238`, `def371e`): posted clicks, real Ctrl+S
+>     save, `-Actions`, automatic dialog closing, city backup and restore. Control map: `docs/manual-checks.md` runs
+>     47–54.
+> - **Merged this session:**
+>   - traffic network core (`dd240c9`: 890 cargo tests, TN1–TN20 filed);
+>   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
+>   - spec answers part 1 (`ac19c1e`: RS1, advisors §6.8.1, DQ2) and part 2 (`5b305c6`: BQ1, BQ2, flammability
+>     §13.1, RS2–RS6, ZQ2).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`, the RE lane in
+>   `.claude/worktrees/re-answers`):
+>   - glue + grid shadow for protection, pollution and crime (each bumps `FC4_ABI_VERSION` to 17; renumber at merge);
+>   - residential tests and record;
+>   - landfill + neighbors cores;
+>   - the pathfinder core (M5);
+>   - RE answers (ZQ3–ZQ6, then TN1–TN20).
+> - **Open follow-ups:**
+>   - BQ2 says GetYTDIncome/GetYTDExpenses read 0 right after the 1 January settlement: check the budget core does
+>     the same;
+>   - flora and aura glue (M3);
+>   - the traffic simulator core after the pathfinder.
+> - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,
+>   clippy, configure/build/ctest; it now copies the SDK into worktrees that lack the submodule). Main at
+>   `22769f3`: ctest 19/19.
 > - Test city backups (verified hashes) are in `build-runs/city-backups/`.
 
 **Main is `ac809c0`. It is clean and verified, and nothing is running.** No agent is alive, no game process is

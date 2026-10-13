@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "residential_quotient_wrap",
+  "spec": ["residential 6.1", "residential 15.13", "REH 4.8"],
+  "description": "Test 13: GetTractQuotient keeps the population sum in 16 bits. Pops (40000, 30000, 0), EQ (10, 10, 10): s = 0 x 10; s = 30000 x 10 + s; (40000 x 10 + s) = 700000; the sum 70000 wraps to 70000 - 65536 = 4464, so 700000 / 4464 = 156.81004 (one float32 rounding). GetCellEQ(x, z) reads tract (x / 4, z / 4): cell (3, 3) is tract (0, 0); cell (4, 0) is the empty tract (1, 0) -> 0.",
+  "steps": [
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_tract", "x": 0, "z": 0, "pop": [40000, 30000, 0], "eq": [10, 10, 10]},
+    {"op": "residential_call", "method": "tract_quotient", "args": ["eq", 0, 0], "expect": 156.81004},
+    {"op": "residential_call", "method": "get_cell_eq", "args": [3, 3], "expect": 156.81004},
+    {"op": "residential_call", "method": "get_cell_eq", "args": [4, 0], "expect": 0.0},
+    {"op": "residential_call", "method": "tract_quotient", "args": ["hq", 0, 0], "expect": 0.0}
+  ]
+}
