@@ -83,12 +83,19 @@ See the README checklist for the full list. In short:
 - **M2:**
   - The budget, demand, ordinance and weather cores and glue are done, and the budget runs in-game with no heap
     corruption (runs 17–18).
-  - The differential is open: tax by type differs for types 4/6/9, and non-tax income is 35 vs 28.
+  - **The x87 workaround is on main (`63e88f1`) and validated against the original**, so the differential is unblocked:
+    run 29 (`disable = simulator,budget`, the game computes) gives `dept_expense` 123/105 across all five months,
+    matching the unmodified Spandau save, where run 19 with the same config and no re-assert gave 122/104 (§5.2, §5.3).
+  - The differential itself still needs redoing against that fixed baseline; the old tax-by-type differences
+    (types 4/6/9) and the non-tax gap (35 vs 28) came from a run pair that both computed at 53-bit, so they are not
+    attributable (§5.3).
 - **M3:**
   - All ten grid-sim cores are done.
   - Land value glue is done (off by default).
-  - Power glue is merged but **crashes** (§5.1).
-  - Plumbing, protection, flora, pollution, crime, aura and flammability glue are not started.
+  - **Power glue is merged (`63e88f1`) and runs clean** — runs 27/28, `AUTOTEST VERDICT: clean`, production 5997→6000,
+    409 cells powered, 0 unpowered (§5.1). The crash was a cross-thread `RefCell` race in the clock, not power.
+  - Plumbing, protection, flora, pollution, crime, aura and flammability glue are not started (plumbing and
+    flammability are in flight on `m3-glue`, §5.4b).
 - **M4: COMPLETE — all five cores on main.**
   - Cores done: BDS, growth developer, tract developer. Lane 3 also did a consolidation pass (shared `fc4_core::stl`
     STLport sort/hash map/set; `BuildingProfile` moved into `development.rs`) and seed derivation (foundations §6.3:
@@ -112,7 +119,9 @@ See the README checklist for the full list. In short:
 > **Rewritten 2026-10-13** after this session closed §5.2, §5.5, §5.6 and most of §5.7, and made large progress on
 > §5.1 and §5.4. The old text of those sections is in git history (`c255c0f`). Commits from this session, all on
 > `main`: `8fdea4e` (spec answers), `ea602a4` + `e647189` (x87), `c7d1e51` + `9c02e76` (manual-checks/differential),
-> `4de4f46` + `0c83333` (build/KillaVolt removal), `f46f2f6` (README progress).
+> `4de4f46` + `0c83333` (build/KillaVolt removal), `f46f2f6` (README progress), `9889f65` (lot developer),
+> `f56e52a` (zones), `7992647` (M4 docs), `63e88f1` (**lane 1 merged: the x87 re-assert, power glue, the cross-thread
+> clock fix**), `bf3f998` (ZQ1 answered from the exe; foundations §19 corrected by lane 1's measurement).
 
 ### 5.1 Power glue — FIXED, and the real crash was a cross-thread `RefCell` race
 - **Was:** DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23). The handoff blamed the power core.
@@ -134,8 +143,9 @@ See the README checklist for the full list. In short:
   and `README.md`. Its power numbers were real but written before the death.
 - **Verification:** `cargo test --workspace` 714 passed / 0 failed; `cargo clippy -D warnings` clean; ctest 15/15
   excluding `abi_conformance_test`, which fails on a pre-existing ABI declaration bug (see §5.8).
-- **Next:** merge lane 1's branch (`73b8861`, `98c6a95`) to main once §5.8's ABI fix is in, since that test currently
-  fails.
+- **MERGED to main as `63e88f1`.** The §5.8 ABI test now passes (see §5.8 for how), so the merge was not blocked.
+  Merged main re-verified by the coordinator: `cargo test --workspace` exit 0, 808 passed / 0 failed; ctest 100% of 17
+  including `abi_conformance_test`.
 
 ### 5.2 x87 precision — RESOLVED (RE side); the trigger hunt is open (engine side)
 The previous handoff concluded "the cause is in the game, not in our code" and that the original probably runs at
@@ -160,11 +170,20 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   `_controlfp(_PC_53, _MCW_PC)` or an `fldcw` with PC=10. A latent game bug is also documented (the exemplar
   float-expression parser `nSCRes::ParseFloat`→…→`0x0067BA40` sets 53-bit and never restores) but it only fires on
   **text**-format resource parsing, which shipped binary tuning does not trigger — so it is not the cause here.
-- **Workaround if the trigger proves unavoidable** (written up in §18.2): re-assert 24-bit ourselves at PostAppInit by
-  calling the game's own unconditional helper `0x008929E0` with mode 0. Must be logged — it changes what the
-  *original* subsystems compute while our DLL is loaded.
+- **The workaround has LANDED (lane 1, merged `63e88f1`)** — §18.2's re-assert is in: at `PostAppInit` the plugin calls
+  the game's own unconditional helper `0x008929E0` with mode 0 to restore 24-bit, and it is logged. Every control-word
+  reading after the re-assert is `0x007F` (24-bit) for the rest of the session. Validated against the original, not just
+  against ourselves: run 29 (`disable = simulator,budget`, so the *game* computes) gives `dept_expense` 123/105 across
+  all five months, matching the unmodified Spandau save; run 19, same config and no re-assert, gave 122/104. (Note run 28
+  already showed 123/105 *without* this fix, but that was our budget core emulating 24-bit in software — only a
+  `disable = budget` run tests the workaround.) This is what protects the 361 `r24()` worked examples across 12+ specs
+  and unblocks every milestone's differential.
+- **What is still open is the trigger, not the symptom.** The re-assert makes the wrong precision moot for differential
+  work, but *why* our DLL's presence raises PC to 53-bit is still unknown. One narrowing result is in hand: inside the
+  ~2 s window our DLL makes exactly two calls — `director Release` and `director AddRef`. The next decisive step is a
+  minimal attach-only DLL, not finer logging (§5b item 1).
 
-### 5.3 Budget differential (M2 exit) — blocked on §5.2; the old differential was invalid
+### 5.3 Budget differential (M2 exit) — UNBLOCKED; needs redoing against the fixed baseline
 - **The run-19-vs-run-20 differential cannot be used.** Both had our DLL loaded, so **both ran at 53-bit**; run 19 is
   not the original's true behaviour. It also moved two variables at once (our budget vs original, *and* precision),
   so the tax-by-type differences (types 4/6/9) and the non-tax income gap (35 vs 28) can't be attributed. Details in
@@ -173,9 +192,11 @@ The previous handoff concluded "the cause is in the game, not in our code" and t
   byte-identical to backup `6982A842…`): `funds 69986, lastTaxIncome 866, ytdTaxIncome 6078, lastMonthIncome 904,
   lastMonthExpense 796`, per-group `monthlyTax [574,28,0,34,0,0,0,0,0,228,0,0]`. Caveat: the save is at its own
   month, not run-19/20's 2001-10, so it is a consistency check / matched-date target, not a line-by-line diff.
-- **Correct path to close it:** (1) fix or work around the §5.2 trigger so the original runs at 24-bit in-process;
-  (2) re-run observer-only to capture the original's true 24-bit first month; (3) diff that against our budget on the
-  same city/month (one variable). The tooling to parse the save oracle lives in `tools/dbpf.py` (used it this session).
+- **Step (1) is done:** the §5.2 workaround is on main, so the original now computes at 24-bit in-process. Run 29 is the
+  proof — `disable = simulator,budget` with the re-assert reproduces the Spandau save's own 123/105.
+- **Remaining steps:** (2) re-run observer-only now that precision is correct, to capture the original's true 24-bit
+  first month; (3) diff that against our budget on the same city/month (one variable). The tooling to parse the save
+  oracle lives in `tools/dbpf.py` (used it this session).
 
 ### 5.4 M4 cores — DONE and merged (lot developer `9889f65`, zones `f56e52a`)
 Both merged to main and verified green (808 tests pass, exit 0). M4 is complete at five of five cores. Details in §4.
@@ -206,8 +227,9 @@ report — not to merge or push (the coordinator merges after verifying). State 
   putting the re-entrant `PlaceZone`→`DoZoneChange` loops in simulator.rs; zones are `Rc`-held to survive self-removal.
 - **residential** (branch `residential-core`): agent still running at wind-down; ~1,563 lines (geometry/mod/tuning) were
   untracked, backed up to `build-runs/windown-backup-20261013/`. Has since wired `lib.rs`. Verify before trusting.
-- **grid-sim glue** (`ac1485cbac8eb97a9`), **power-glue crash fix** (`af1db58965f8ea547`), **engine/formats divergence**
-  (`a7aa00813e71c6ad5`, branch `lane/formats-original-compat`): still running at wind-down.
+- **grid-sim glue** (`ac1485cbac8eb97a9`, branch `m3-glue`) and **engine/formats divergence**
+  (`a7aa00813e71c6ad5`, branch `lane/formats-original-compat`): still running at wind-down. (The **power-glue crash
+  fix**, `af1db58965f8ea547`, is no longer in flight — merged as `63e88f1`.)
 - **Backup:** `build-runs/windown-backup-20261013/` holds a read-only copy of 5,067 lines that existed only as untracked
   files across four worktrees (landfill, residential, traffic-network untracked, m3-glue's `cFC4Plumbing.h`, plus zones and
   fpu uncommitted diffs). Safe to delete once every lane has committed.
@@ -255,23 +277,38 @@ have). Nothing further unless a new question is queued.
   that needs the user's explicit OK.** Do not submit it autonomously.
 - **Worktree cleanup: done 2026-10-13.** 18 merged-and-clean `.claude/worktrees/agent-*` were removed with their
   branches (`git worktree remove` + `git branch -d`, which refuses unmerged branches as a safety net). Verified
-  first that no merged worktree held uncommitted work. 3 active lanes remain. `git fsck` reports only harmless
-  dangling commits.
-- **Then plumbing, protection and flora glue** (lane 1). Apply the run-22 lesson: `Read` runs before `Init`, so never
-  size saved state from the city inside `Read`.
+  first that no merged worktree held uncommitted work. `git fsck` reports only harmless dangling commits.
+  - **Lane 1's worktree also removed** after its merge (`63e88f1`), verified clean first: 0 uncommitted files, 0 commits
+    ahead of main. It needed `--force` for a reason worth knowing: the repo has a submodule
+    (`engine/third_party/gzcom-dll`, the public SDK), and git refuses `worktree remove` on any working tree holding one,
+    even when the submodule is clean and at the commit main expects. `submodule deinit -f` inside the worktree
+    unregisters it but cannot delete the checkout on Windows (file lock), leaving an empty directory — so re-check
+    clean+merged, then `--force`. **Four worktrees remain, all with live lanes or unmerged branches:** `formats-compat`,
+    `m3-glue`, `m6-landfill-neighbors`, `residential`. `m5-traffic-network` has a branch but no worktree (its ~2,000
+    non-compiling lines are on the branch, backed up).
+- **Then plumbing, protection and flora glue** — now the `m3-glue` lane (`ac1485cbac8eb97a9`), which is doing plumbing
+  and flammability; lane 1 finished and merged. Apply the run-22 lesson: `Read` runs before `Init`, so never size saved
+  state from the city inside `Read`.
 - **Coordinator clean-room note:** whoever picks this up should not do engine work in the same task as RE work. This
   session read `decomp/` and the exe extensively for §5.2, so it deliberately did not read or run anything under
   `engine/`; merging a lane means reading its *test output*, not its source.
 
-### 5.8 `abi_conformance_test` fails on a wrong SDK/ABI return channel
-- **Symptom:** `cISC4NetworkTool` (PowerLine) slot 33 `GetBridgeAltitudeOverride` is declared 32-bit/void but the
-  game returns in x87. It passed before this session's merge; `docs/abi/interfaces.tsv` (142 lines) and
-  `vtables.tsv` changed in it. Lane 1 proved it is pre-existing, not caused by its work, by stashing all its
-  changes and rebuilding.
-- **Fix (RE/coordinator remit, not an engine change):** correct the declared return type to `float` in
-  `docs/abi/` and the regenerated `interfaces.tsv`, and re-check the same for any other slot whose return channel
-  moved in the regeneration.
-- **Blocks:** merging lane 1's branch, since the workspace ctest is not green until this is corrected.
+### 5.8 `abi_conformance_test` — RESOLVED (slot 33 is now report-only, not a failure)
+- **Was:** `cISC4NetworkTool` (PowerLine) slot 33 `GetBridgeAltitudeOverride` is declared 32-bit/void in the vendored
+  SDK but the game returns in x87. The test failed on it, which was recorded as blocking lane 1's merge.
+- **How it actually resolved — not by correcting `docs/abi/`.** The test separates three classes of table:
+  *required* (interfaces the plugin actually implements), *waived* (a known SDK/game disagreement on a method no
+  plugin source calls, each with a written reason in `kWaivers`), and *report-only* (printed as `note`, never a
+  failure). `cISC4NetworkTool` is report-only; the plugin's required table is `cFC4ISC4NetworkTool`, which declares
+  slots 3–10 only and passes. Current run on main: `2900 slots compared; 0 mismatch(es) in required interfaces,
+  57 waived, 65 in reported-only ones`, exit 0. Slot 33 appears as
+  `note … slot 33 GetBridgeAltitudeOverride: declared return 32-bit/void, the game returns in x87`.
+- **The guard that makes the waiver safe:** a waiver holds only while no plugin source calls the method. The comment
+  above `kWaivers` states the rule — before calling one, declare the interface in `FC4Interfaces.h` with the table's
+  signature (as was done for `cISC4NeighborsSimulator`) and drop the waiver. So this cannot silently rot into a real
+  ABI bug.
+- **Carry-over for anyone wiring a grid sim that needs `GetBridgeAltitudeOverride`:** it is not waived, only
+  reported. Calling it means declaring the interface with the x87 return first.
 
 ## 5b. Backlog for manual check / blocked-on-user (2026-10-13)
 Things I could not finish autonomously, or that need a human decision:
@@ -280,7 +317,8 @@ Things I could not finish autonomously, or that need a human decision:
    it, apply the §18.2 workaround (re-assert mode 0 at PostAppInit) and log it.
 2. **Redo the §5.3 budget differential** — only valid after #1; then re-run observer-only and diff against the
    Spandau save oracle.
-3. **Merge lane 1 / lot developer / zones** once each reports tests green (coordinator does the merge + README tick).
+3. ~~**Merge lane 1 / lot developer / zones**~~ **DONE** — lot developer `9889f65`, zones `f56e52a`, lane 1 `63e88f1`,
+   each independently verified before merge. Merged main re-verified after the lane 1 merge: cargo 808/0, ctest 17/17.
 4. **Reset `Plugins\FreeCity4.ini`** to `budget_default = 1` for manual play (see §5.7).
 5. **User decisions** (unchanged, §7): run the manual checklist; upstream the SDK errata (public — the re-check
    against the current SDK is done, `4243367`, so the draft is ready to submit once approved); publish the repo
@@ -297,7 +335,7 @@ lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 
 | Role (clean-room side) | Agent ID **this session** | Worktree / branch | State |
 |---|---|---|---|
-| **Lane 1** — engine glue, in-game fixes, x87 §18.2 workaround | `af1db58965f8ea547` | `agent-af159bf9f570ec0f6` | `019ce21` "fpu: re-assert the game's 24-bit precision at PostAppInit" + `engine/tests/fpu_logic_test.cpp` on branch, unmerged; 6 files modified uncommitted. Waiting for its in-game run to show department expenses move 122/104 → **123/105** |
+| **Lane 1** — engine glue, in-game fixes, x87 §18.2 workaround | `af1db58965f8ea547` | — | **MERGED `63e88f1`**; worktree removed, branch deleted. Merged main re-verified: cargo 808/0, ctest 17/17 |
 | **Lot developer** core | `a9254b7ecd0aea910` | — | **MERGED `9889f65`**; worktree removed, branch deleted |
 | **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | **MERGED `f56e52a`**; worktree and branch not yet removed |
 | **Traffic network** core (M5) | `a8060ce00faeba239` | `m5-traffic-network` | finished at `c45c377`; ~2,000 lines drafted, **does not compile**, excluded from `lib.rs`; worktree removed (§5.4b) |
@@ -338,6 +376,14 @@ see the backup in §5.4b.
 - **`fmt --check` has 20 pre-existing diffs on main**, all in `engine/capi/src/*_tests.rs`
   (`budget_tests.rs`, `landvalue_tests.rs`, `test_streams.rs`). They are not a regression from any lane. When checking a
   branch, compare against main's list rather than expecting zero.
+- **`cargo clippy --all-targets -- -D warnings` is NOT green on main** — 15 errors, all in
+  `engine/core/src/lot_developer/{simulator,tests}.rs`, pre-existing from the lot-developer merge `9889f65`. Reproduced
+  on merged main after `63e88f1`, and proven not lane 1's: `git diff --stat 7992647 63e88f1 -- engine/core/src/lot_developer/`
+  is empty, so that merge never touched the files. The lints are style, not correctness — 5 `map_or can be simplified`,
+  3 `map(f)` where `f` returns `()`, plus an `if let` on `Some` only, a unit-valued let-binding, an `if` with identical
+  blocks, and a negated comparison on a partially ordered type. `cargo test` and `ctest` are both green, so nothing is
+  broken. Do not read this as your lane's regression; the same compare-against-main discipline as `fmt` applies. Fixing
+  the 15 is a small self-contained cleanup, worth its own commit rather than being folded into a feature lane.
 - **Git hygiene — a commit can land in the wrong worktree.** On 2026-10-13 a landfill WIP commit appeared on the *zones*
   branch (`e82565e`) as well as its own (`53fc7b9`): identical author timestamps, committer timestamps 7 minutes apart, so
   the same content was re-committed into another lane's worktree. All lanes share one repository, and a compound `cd` in
