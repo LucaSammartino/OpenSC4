@@ -288,7 +288,12 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   original releases **nothing**: list clears free nodes only (`0x00413E60`), and ref reads null the destination
   without `Release` (`0x005D9742`). This cannot be observed, because Read only ever runs on a freshly constructed
   object, where every ref is null and every list empty. The core's releasing is fine.
-- **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
+- ~~**RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]~~ **ANSWERED 2026-10-14**
+  from the exe and written into residential.md §9.2. They arise only from a hand-made or damaged record, since
+  the game writes 7 and 3. The original accepts them and never checks a bound: the monthly states loop over the
+  building-list vector's size, and Init loops over the coverage vector's size. Both index fixed 7- and 3-entry
+  tables (`0x00AB2B60`/`7C`/`98`/`A4`) and each other's vectors. A larger count reads the next table, and a
+  smaller one drops and leaks pending buildings. **Choice:** treat such a count as a damaged record (RS9 rule).
 - **RS12:** can the lists hold null entries, and what does each pass do with one? [skipped]
 - ~~**RS13:** do the state-0 grade totals live in the residential simulator or in the host (REH)? [host]~~
   **ANSWERED 2026-10-14** from the exe and written into REH §3 (table), REH open question 3 and residential.md

@@ -639,6 +639,25 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
       as new (§4.1 step 6, state 0), as crime.md §12 does. The return value is free, since the loader ignores it.
     - Every version is accepted as in the original (test 20). A newer layout then ends in a stream error (handled
       as above) or is misread, as in the original.
+  - **Counts other than 7 / 3** (RS11, from the exe). The constructor sizes the school vectors to 7 and the
+    hospital vectors to 3, and `Write` writes them as they are. So other counts come only from a hand-made or
+    damaged record, or from the stream-error path above (count 1, or a reused count). The original accepts them
+    and checks no bound afterwards:
+    - states 0 and 5–8 run k over the **building-list** vector's size. They index with k the group table
+      (`0x00AB2B60`, 7 schools; `0x00AB2B98`, 3 hospitals), the coverage vector and a per-group array at
+      `+0x2FC` (`0x006FF619`, `0x006FFDD0`, `0x006FFEE5`);
+    - `Init` step 8 runs k over the **coverage** vector's size. It takes the instance ID from `0x00AB2B7C` /
+      `0x00AB2BA4` (`0x006FEFD1`, `0x006FF07C`), and only when entry 0 is null; it then overwrites every entry
+      without releasing it;
+    - so a larger count reads the next table. For schools, k = 7…13 reads the school coverage IDs as group IDs
+      and k = 14…16 the hospital groups. For hospitals, k = 3…5 reads the hospital coverage IDs, then a float
+      constant and string bytes;
+    - a coverage vector shorter than its list vector is read past its end. A shorter list vector leaves the
+      pending buildings of the missing groups unplaced: they are dropped and leaked (REH §4.1 *[quirk]*).
+
+    *[choice]* FreeCity4 treats a count other than 7 (school) or 3 (hospital), in either the coverage or the
+    building-list vectors, as a damaged record. `Read` then handles it as a stream error: it returns false and
+    leaves the simulator as constructed.
   - **Replaced entries are not released** (RS10, from the exe):
     - a list is cleared by freeing its nodes only (`0x00413E60`);
     - a shrinking vector of lists frees nodes only (`0x00700490`);
