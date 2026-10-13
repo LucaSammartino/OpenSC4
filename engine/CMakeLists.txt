@@ -176,6 +176,8 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4HostGrid.h
         plugin/cFC4Power.cpp
         plugin/cFC4Power.h
+        plugin/cFC4Plumbing.cpp
+        plugin/cFC4Plumbing.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"

@@ -1602,7 +1602,7 @@ bool fc4_plumbing_is_building_watered(const fc4_plumbing* p, uint64_t occ);     
 uint32_t fc4_plumbing_water_production(const fc4_plumbing* p, uint64_t occ);          /* 10 */
 bool fc4_plumbing_is_cell_watered(const fc4_plumbing* p, int32_t x, int32_t z);       /* 11 */
 /* Slot 24: false = the occupant is not a producer (outputs untouched). */
-bool fc4_plumbing_producer_info(const fc4_plumbing* p, uint64_t occ, fc4_plumbing_producer_info* out);
+bool fc4_plumbing_get_producer_info(const fc4_plumbing* p, uint64_t occ, fc4_plumbing_producer_info* out);
 /* Slot 25: false = the condition or its curve is absent (output untouched). */
 bool fc4_plumbing_producer_condition_percent(const fc4_plumbing* p, uint64_t occ, float* out);
 /* Slot 26: false = no budget item for the purpose (output untouched). */

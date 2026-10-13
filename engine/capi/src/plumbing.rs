@@ -768,7 +768,7 @@ pub unsafe extern "C" fn fc4_plumbing_is_cell_watered(p: *const fc4_plumbing, x:
 
 /// Slot 24 `GetWaterProducerInfo`: false = not a producer.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_plumbing_producer_info(
+pub unsafe extern "C" fn fc4_plumbing_get_producer_info(
     p: *const fc4_plumbing,
     occ: u64,
     out: *mut fc4_plumbing_producer_info,

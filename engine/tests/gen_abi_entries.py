@@ -111,6 +111,11 @@ INTERFACES = [
     ("cISC4PowerPoleOccupant", "cFC4ISC4PowerPoleOccupant", FC4, True),
     ("cISC4PowerSimulator", "cFC4ISC4PowerSimulator", FC4, True),
     ("cISC4Demolition", "cISC4Demolition", "cISC4Demolition.h", True),
+    # Plumbing (docs/specs/plumbing.md §10): implemented, and the sub-object
+    # interfaces of its own vtables.
+    ("cISC4PlumbingSimulator", "cFC4ISC4PlumbingSimulator", FC4, True),
+    ("cIGZSerializable(Plumbing)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Plumbing)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

@@ -39,6 +39,7 @@
 #include "cISC4DisasterManager.h"
 #include "cISC4HistoryWarehouse.h"
 #include "cISC4LineItem.h"
+#include "cISC4LotManager.h"
 #include "cISC4NeighborConnection.h"
 #include "cISC4NeighborDeal.h"
 #include "cISC4NetworkOccupant.h"
@@ -52,6 +53,11 @@
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
 #include "cS3DVector3.h"
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 
 #include <cstring>
 #include <string>
@@ -92,6 +98,10 @@ constexpr uint32_t kPipeBurstManager = 0x4A1332E8;
 
 // The building occupant type of the one-cell query (§5.3).
 constexpr uint32_t kOccupantTypeBuilding = 0x278128A0;
+
+/// The budget-item purpose of a water producer (§10.1 slot 26, §6.7;
+/// plumbing tuning.rs budget::PURPOSE).
+constexpr uint32_t kBudgetPurpose = 0xCA58C9D5;
 
 using GridU8 = cISC4SimGrid<uint8_t>;
 
@@ -695,7 +705,10 @@ uint64_t CreateLineItemForBuildingType(void*, uint64_t dept, uint32_t line, bool
 }
 
 void SetLineItemDisplayFlag(void*, uint64_t item, uint32_t flag, bool on) {
-    if (item != 0) ItemOf(item)->SetDisplayFlag(flag, on);  // slot 18
+    // §5.3 step 4: SetDisplayFlag(2, true) = ShowSecondaryInfoField.
+    if (item != 0) {
+        ItemOf(item)->SetDisplayFlag(static_cast<cISC4LineItem::DisplayFlag>(flag), on);  // slot 18
+    }
 }
 
 void AddToLineItemExpenses(void*, uint64_t item, int64_t delta) {
@@ -763,8 +776,8 @@ bool LocalFunding(void*, uint64_t dept, uint64_t occ, float* out) {
     cFC4ISC4DepartmentBudget* d = DeptOf(dept);
     cISCPropertyHolder* h = HolderOf(occ);
     if (d == nullptr || h == nullptr) return false;
-    if (!d->IsLocallyFundedObjectInDepartment(h, fc4::plumbing::kBudgetPurpose)) return false;
-    SC4Percentage const* p = d->GetLocalFundingPercentPtr(h, fc4::plumbing::kBudgetPurpose);
+    if (!d->IsLocallyFundedObjectInDepartment(h, kBudgetPurpose)) return false;
+    SC4Percentage const* p = d->GetLocalFundingPercentPtr(h, kBudgetPurpose);
     if (out != nullptr) *out = p ? p->percentage : 0.0f;
     return true;
 }
@@ -1127,7 +1140,7 @@ bool cFC4PlumbingSimulator::GetWaterProducerInfo(cISC4Occupant* producer, uint32
                                                  uint32_t* maxCapacity, SC4Percentage* efficiency,
                                                  bool* shutDownByPollution, uint32_t* waterUsed) {
     fc4_plumbing_producer_info info{};
-    if (!fc4_plumbing_producer_info(core_, Occ(producer), &info)) return false;  // §10.1 slot 24: AL = 0
+    if (!fc4_plumbing_get_producer_info(core_, Occ(producer), &info)) return false;  // §10.1 slot 24: AL = 0
     // Each non-null pointer receives its value.
     if (currentCapacity != nullptr) *currentCapacity = info.production;
     if (maxCapacity != nullptr) *maxCapacity = info.max_capacity;

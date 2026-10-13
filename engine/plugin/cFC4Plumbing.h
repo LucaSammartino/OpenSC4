@@ -115,8 +115,11 @@ public:
     cISC4BudgetSimulator* Budget() const { return budget_; }
     cISTETerrain* Terrain() const { return terrain_; }
     cIGZMessageTarget2* Target() { return static_cast<cIGZMessageTarget2*>(this); }
-    // The token the core knows this object by (its cISC4PlumbingSimulator*).
-    uint64_t SelfToken() const { return TokenOf(static_cast<const cFC4ISC4PlumbingSimulator*>(this)); }
+    // The token the core knows this object by (its cISC4PlumbingSimulator*,
+    // the same identity the primary QueryInterface hands out).
+    uint64_t SelfToken() const {
+        return static_cast<uint64_t>(reinterpret_cast<uintptr_t>(static_cast<const cFC4ISC4PlumbingSimulator*>(this)));
+    }
     void AcquireServices();
     void ReleaseServices();
     void Subscribe(const uint32_t* ids, size_t count, bool add);
