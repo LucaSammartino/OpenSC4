@@ -442,7 +442,7 @@ impl LotDeveloperHost for World {
         order
             .iter()
             .copied()
-            .find(|&t| lots.get(&t).map_or(false, |l| l.x == x && l.z == z))
+            .find(|&t| lots.get(&t).is_some_and(|l| l.x == x && l.z == z))
     }
     fn lots_in_cell_rect(&self, _rect: CellRect, _origin: bool) -> Vec<u64> {
         self.lots_in_rect.borrow().clone()
@@ -638,7 +638,7 @@ impl LotDeveloperHost for World {
         self.cfgs.borrow().get(&cfg).map_or(0, |c| c.stage)
     }
     fn cfg_is_compatible_with_water(&self, cfg: u64) -> bool {
-        self.cfgs.borrow().get(&cfg).map_or(false, |c| c.water)
+        self.cfgs.borrow().get(&cfg).is_some_and(|c| c.water)
     }
     fn cfg_objects(&self, cfg: u64) -> Vec<CfgObject> {
         self.cfgs.borrow().get(&cfg).map_or(Vec::new(), |c| c.objects.clone())
@@ -651,12 +651,12 @@ impl LotDeveloperHost for World {
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         if object_type == fc4_core::lot_developer::object_type::WATER {
-            return self.cfgs.borrow().get(&cfg).map_or(false, |c| c.water_objects);
+            return self.cfgs.borrow().get(&cfg).is_some_and(|c| c.water_objects);
         }
         self.cfgs
             .borrow()
             .get(&cfg)
-            .map_or(false, |c| c.objects.iter().any(|o| o.object_type == object_type))
+            .is_some_and(|c| c.objects.iter().any(|o| o.object_type == object_type))
     }
     fn get_lot_configuration(&self, id: u32) -> Option<u64> {
         self.cfgs.borrow().iter().find(|(_, c)| c.id == id).map(|(&t, _)| t)
@@ -1079,7 +1079,7 @@ impl LotDeveloperHost for World {
             .units
             .borrow_mut()
             .get_mut(&unit)
-            .map_or(false, |v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
+            .is_some_and(|v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
         if removed {
             self.lot_mut(lot, |l| l.unit = None);
         }
@@ -1425,10 +1425,12 @@ fn cfg_object_of(j: &Json) -> R<CfgObject> {
 fn make_lots(w: &World, op: &Json) -> R<()> {
     let n = i64_of(field(op, "count")?, "count")?;
     for i in 0..n {
-        let mut l = Lot::default();
-        l.x = i as i32;
-        l.z = 0;
-        l.state = lot_state::READY;
+        let l = Lot {
+            x: i as i32,
+            z: 0,
+            state: lot_state::READY,
+            ..Lot::default()
+        };
         let t = w.token();
         w.lots.borrow_mut().insert(t, l);
         w.order.borrow_mut().push(t);
@@ -1454,10 +1456,12 @@ fn make_buildings(w: &World, op: &Json) -> R<()> {
                 ..Occ::default()
             },
         );
-        let mut l = Lot::default();
-        l.x = i as i32;
-        l.z = 0;
-        l.building = Some(id);
+        let l = Lot {
+            x: i as i32,
+            z: 0,
+            building: Some(id),
+            ..Lot::default()
+        };
         w.lots.borrow_mut().insert(id, l);
         w.order.borrow_mut().push(id);
         let m = LotDevMessage {
@@ -2002,7 +2006,7 @@ fn update_designates(w: &World, op: &Json) -> R<()> {
         s.update_travel_designates(&mut unit);
         Ok(())
     })?;
-    if let Some(want) = op.get("expect") {
+    if op.get("expect").is_some() {
         let got = unit.map_or(Json::Null, |u| ji(u as i64));
         return check_expect(op, got);
     }
@@ -2350,7 +2354,7 @@ fn expect_lot(w: &World, op: &Json) -> R<()> {
                     .map_err(|_| format!("bad prop '{other}'"))?,
             };
             let cur = l.props.get(&pid).copied();
-            let gotv = cur.map_or(Json::Null, |x| ji(x));
+            let gotv = cur.map_or(Json::Null, ji);
             if !matches(&gotv, v, false) {
                 return Err(format!("prop {k}: got {}, expected {}", show(&gotv), show(v)));
             }

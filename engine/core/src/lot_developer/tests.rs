@@ -697,7 +697,7 @@ impl LotDeveloperHost for Script {
         self.cfgs.borrow().get(&cfg).map_or(0, |c| c.stage)
     }
     fn cfg_is_compatible_with_water(&self, cfg: u64) -> bool {
-        self.cfgs.borrow().get(&cfg).map_or(false, |c| c.water)
+        self.cfgs.borrow().get(&cfg).is_some_and(|c| c.water)
     }
     fn cfg_objects(&self, cfg: u64) -> Vec<CfgObject> {
         self.cfgs.borrow().get(&cfg).map_or(Vec::new(), |c| c.objects.clone())
@@ -710,12 +710,12 @@ impl LotDeveloperHost for Script {
     }
     fn cfg_has_objects_of_type(&self, cfg: u64, object_type: u32) -> bool {
         if object_type == object_type::WATER {
-            return self.cfgs.borrow().get(&cfg).map_or(false, |c| c.water_objects);
+            return self.cfgs.borrow().get(&cfg).is_some_and(|c| c.water_objects);
         }
         self.cfgs
             .borrow()
             .get(&cfg)
-            .map_or(false, |c| c.objects.iter().any(|o| o.object_type == object_type))
+            .is_some_and(|c| c.objects.iter().any(|o| o.object_type == object_type))
     }
     fn get_lot_configuration(&self, id: u32) -> Option<u64> {
         self.cfgs.borrow().iter().find(|(_, c)| c.id == id).map(|(&t, _)| t)
@@ -816,7 +816,9 @@ impl LotDeveloperHost for Script {
     fn building_release(&self, _b: u64) {}
     fn building_set_lit(&self, b: u64, lit: bool) {
         self.say(format!("set_lit {b} {lit}"));
-        self.occs.borrow_mut().get_mut(&b).map(|o| o.lit = lit);
+        if let Some(o) = self.occs.borrow_mut().get_mut(&b) {
+            o.lit = lit;
+        }
     }
     fn occupant_bounding_box(&self, occ: u64) -> (Vec3, Vec3) {
         self.occs.borrow().get(&occ).map_or(([0.0; 3], [0.0; 3]), |o| o.bbox)
@@ -828,7 +830,7 @@ impl LotDeveloperHost for Script {
             .map_or(CellRect::new(0, 0, 0, 0), |o| o.cells)
     }
     fn occupant_in_group(&self, occ: u64, group: u32) -> bool {
-        self.occs.borrow().get(&occ).map_or(false, |o| o.group == group)
+        self.occs.borrow().get(&occ).is_some_and(|o| o.group == group)
     }
     fn occupant_post_message(&self, occ: u64, message: u32) {
         self.say(format!("occ_post {occ} {message:#x}"));
@@ -848,13 +850,14 @@ impl LotDeveloperHost for Script {
     fn occupant_init(&self, _occ: u64) {}
     fn occupant_set_flag(&self, _occ: u64, _flag: u32) {}
     fn occupant_set_orientation(&self, occ: u64, orientation: u32) {
-        self.occs
-            .borrow_mut()
-            .get_mut(&occ)
-            .map(|o| o.orientation = orientation);
+        if let Some(o) = self.occs.borrow_mut().get_mut(&occ) {
+            o.orientation = orientation;
+        }
     }
     fn occupant_set_position(&self, occ: u64, pos: Vec3) {
-        self.occs.borrow_mut().get_mut(&occ).map(|o| o.position = pos);
+        if let Some(o) = self.occs.borrow_mut().get_mut(&occ) {
+            o.position = pos;
+        }
     }
     fn occupant_insert(&self, occ: u64) {
         self.say(format!("insert_occupant {occ}"));
@@ -1034,7 +1037,7 @@ impl LotDeveloperHost for Script {
             .units
             .borrow_mut()
             .get_mut(&unit)
-            .map_or(false, |v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
+            .is_some_and(|v| v.contains(&lot).then(|| v.retain(|&l| l != lot)).is_some());
         if removed {
             self.lot_mut(lot, |l| l.unit = None, ());
         }
@@ -1899,7 +1902,7 @@ fn hostile_records_and_hosts_do_not_panic() {
         let _ = d.explode_lot(1, g.next() & 1 == 0);
         // Bounded boxes so the rubble loop and the vertex walk stay finite.
         let max = [g.next() % 40, g.next() % 40, g.next() % 40];
-        let _ = d.add_lot_rubble_props(1, [0.0; 3], [max[0] as f32, 0.0, max[2] as f32], g.next() & 1 == 0);
+        d.add_lot_rubble_props(1, [0.0; 3], [max[0] as f32, 0.0, max[2] as f32], g.next() & 1 == 0);
         let r = CellRect::new(
             (g.next() % 16) as i32,
             (g.next() % 16) as i32,
