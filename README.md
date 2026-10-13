@@ -38,14 +38,15 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
-- [ ] Plumbing, protection, flora, pollution, crime, aura and flammability glue
+- [x] Plumbing and flammability glue (merged 9f741de; ctest 18/18, cargo 808/0 — **but never executed in game**, so every simulation path is still unverified)
+- [ ] Protection, flora, pollution, crime and aura glue
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
 - [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
-- [ ] Zones glue; five zones spec questions open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) where no vector pins the choice (`DetermineLotSize`, highlight mode, city-border behaviour). ZQ1 (walk order) was answered from the exe on 2026-10-13 and now lives in zones.md §8.3
+- [ ] Zones glue; eleven spec questions open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) where no vector pins the choice — five from zones (ZQ2–ZQ6: `DetermineLotSize`, highlight mode, city-border behaviour) and six from the residential core (RS1–RS6). ZQ1 (walk order) was answered from the exe on 2026-10-13 and now lives in zones.md §8.3. RS1 is load-bearing: whether the `0.01` in the percentage getters is a float or a double literal, which is a ±1 ulp difference on every percentage in two cores
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)

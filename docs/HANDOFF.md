@@ -94,8 +94,11 @@ See the README checklist for the full list. In short:
   - Land value glue is done (off by default).
   - **Power glue is merged (`63e88f1`) and runs clean** — runs 27/28, `AUTOTEST VERDICT: clean`, production 5997→6000,
     409 cells powered, 0 unpowered (§5.1). The crash was a cross-thread `RefCell` race in the clock, not power.
-  - Plumbing, protection, flora, pollution, crime, aura and flammability glue are not started (plumbing and
-    flammability are in flight on `m3-glue`, §5.4b).
+  - **Plumbing + flammability glue merged** (`9f741de`, from `m3-glue`): coordinator-verified ctest 18/18 and cargo
+    808/0; `FC4_ABI_VERSION` 14, plugin switch count 57. **But never executed in game** — every simulation path is
+    unverified and the host tests cover only the no-city neutral path (§5.4b). Merged because complete and green, not
+    because proven in the game.
+  - Protection, flora, pollution, crime and aura glue are not started.
 - **M4: COMPLETE — all five cores on main.**
   - Cores done: BDS, growth developer, tract developer. Lane 3 also did a consolidation pass (shared `fc4_core::stl`
     STLport sort/hash map/set; `BuildingProfile` moved into `development.rs`) and seed derivation (foundations §6.3:
@@ -108,6 +111,9 @@ See the README checklist for the full list. In short:
     regression.
   - **Next M4 work is glue, not cores:** GrowthDevelopers adapter, `demand_active_value`, developer token = BDS ID,
     then the growth budget calibration in the original (building-development.md §12).
+  - **A sixth core exists beyond those five, unmerged:** the residential simulator (branch `residential-core`,
+    `cc6e25d`). It compiles clean and is wired into `lib.rs`, but `simulator.rs` has zero tests and no conformance
+    vectors, so it is unproven WIP. Its RS1–RS6 spec questions are preserved in QUESTIONS.md (§5.4b).
 - **M5:** specs done (traffic simulator, network, pathfinder). **First core drafted but does not compile** — see §5.4b.
 - **M6:** specs landed:
   - `data-formats.md` (601f3a9);
@@ -121,7 +127,15 @@ See the README checklist for the full list. In short:
 > `main`: `8fdea4e` (spec answers), `ea602a4` + `e647189` (x87), `c7d1e51` + `9c02e76` (manual-checks/differential),
 > `4de4f46` + `0c83333` (build/KillaVolt removal), `f46f2f6` (README progress), `9889f65` (lot developer),
 > `f56e52a` (zones), `7992647` (M4 docs), `63e88f1` (**lane 1 merged: the x87 re-assert, power glue, the cross-thread
-> clock fix**), `bf3f998` (ZQ1 answered from the exe; foundations §19 corrected by lane 1's measurement).
+> clock fix**), `bf3f998` (ZQ1 answered from the exe; foundations §19 corrected by lane 1's measurement),
+> `ad1a19a` (HANDOFF for the lane 1 merge), and from the final wind-down `7938b38` (residential RS1–RS6 preserved +
+> the landfill agent's staged spec answers), `9f741de` (**m3-glue merged: plumbing + flammability glue**), `94d8cdf`
+> (both spec agents' final unstaged edits, including the landfill NaN correction that repairs `7938b38`).
+>
+> **Main is verified at `94d8cdf`:** `cargo test --workspace --target i686-pc-windows-msvc` 808 passed / 0 failed
+> (exit 0), `ctest` 18 of 18, and the `engine/` tree is byte-identical to the `9f741de` merge that produced those
+> numbers (the two docs commits on top touch only `docs/`). Evidence on disk in `build-runs/`:
+> `cargo-test-main-94d8cdf.txt`, `ctest-m3-glue.txt`.
 
 ### 5.1 Power glue — FIXED, and the real crash was a cross-thread `RefCell` race
 - **Was:** DLL F5439E03… crashed `0xC0000409` ~0.3 s after PostCityInit (run 23). The handoff blamed the power core.
@@ -210,34 +224,97 @@ Both merged to main and verified green (808 tests pass, exit 0). M4 is complete 
   lives through the whole `if` body, so `if self.st.borrow().loaded { …host call… }` holds a `RefCell` borrow across a
   host call even though it looks scoped. Zones audited and fixed seven such sites.
 
-### 5.4b In-flight lanes — committed on their branches but NOT mergeable yet (2026-10-13 wind-down)
-The user asked to wind down without losing work. Every lane was told to finish its current item, commit checkpoints, and
-report — not to merge or push (the coordinator merges after verifying). State as of this writing:
-- **traffic-network** (branch `m5-traffic-network`, tip `c45c377`): ~2,000 lines drafted across mod/model/rebuild/switches/
-  tunnels/ferries/subnetworks/water/neighbours/tuning. **Does not compile** — ~13 mechanical borrow-checker errors
-  (`&*h` deref of `Rc<dyn NetworkHost>`; immutable reads held across mutable `set_connection` writes; two `CAR`-as-u32 vs
-  usize call sites). The module is **commented out of `lib.rs`**, so its tests have never run. `cargo build -p fc4-core`
-  is green only because the module is excluded. No conformance vectors yet. `GetNeighborPoolPropertyHolder` seam is
-  stubbed and flagged in-code as a coordinator question. Worktree removed (branch retains all commits).
-- **landfill + neighbors** (branch `m6-landfill-neighbors`, tip `53fc7b9`): landfill ~60% written, **0% compiled** —
-  files are deliberately not declared in `lib.rs`. Done: mod/algo/tuning/occupant/zone. Missing: simulator.rs (the
-  `LandfillDeveloper` itself), tests.rs, the `pub mod landfill;` line, conformance runner + `lf_` vectors. **Neighbors
-  core not started.** The 768 passing tests only confirm the pre-existing tree is still green; nothing in `landfill/` is
-  verified. Design note: `dezone_cell` does §4.4.8 steps 1–3 and 5 and *returns* the 1×1 region for the caller to rezone,
-  putting the re-entrant `PlaceZone`→`DoZoneChange` loops in simulator.rs; zones are `Rc`-held to survive self-removal.
-- **residential** (branch `residential-core`): agent still running at wind-down; ~1,563 lines (geometry/mod/tuning) were
-  untracked, backed up to `build-runs/windown-backup-20261013/`. Has since wired `lib.rs`. Verify before trusting.
-- **grid-sim glue** (`ac1485cbac8eb97a9`, branch `m3-glue`) and **engine/formats divergence**
-  (`a7aa00813e71c6ad5`, branch `lane/formats-original-compat`): still running at wind-down. (The **power-glue crash
-  fix**, `af1db58965f8ea547`, is no longer in flight — merged as `63e88f1`.)
-- **Backup:** `build-runs/windown-backup-20261013/` holds a read-only copy of 5,067 lines that existed only as untracked
-  files across four worktrees (landfill, residential, traffic-network untracked, m3-glue's `cFC4Plumbing.h`, plus zones and
-  fpu uncommitted diffs). Safe to delete once every lane has committed.
+### 5.4b Lane states after the wind-down (2026-10-13, final)
+The user ordered a hard stop: every agent was terminated (`TaskStop`, not a queued message), every lane's work is
+committed, and **no agent is running** — `ListAgents` reports none. One lane merged; three branches hold work that is
+committed and safe but deliberately **not** merged. Nothing is left in a working tree: `git status` is clean on main and
+on all three remaining worktrees.
+
+**Merged this session — `m3-glue` → main as `9f741de`.** Plumbing + flammability glue: 17 files, 4,506 insertions,
+all under `engine/`. The coordinator verified it independently rather than trusting the lane's report: fresh ctest
+**18 of 18 passed** (configure and build exit 0), `cargo test --workspace --target i686-pc-windows-msvc`
+**808 passed / 0 failed**, and the lane reports 3,007 slots compared with 0 mismatches in required interfaces and 58
+waived. Its merge-base was main's tip at the time, so it merged with **zero conflicts**. Numbers to keep consistent:
+`FC4_ABI_VERSION` **14**, plugin switch count **57**. Worktree removed and branch deleted (5 → 4 worktrees).
+> **Do not treat this as working.** Per the lane's own report it has **NEVER executed in game**. run32 was the single
+> attempt and produced no information at all (see the run32 lessons below). Every simulation path — the water pass,
+> neighbour deals, the budget department, the grid swap, the `SetWateredState` direct call, the daily flammability
+> refresh, the fire roll, and critically the cross-subsystem `IsCellWatered` read — is **unverified**. The host tests
+> cover only the no-city neutral path. This is merged because it is complete, compiles, and passes every test it has;
+> the in-game proof is still owed.
+
+**Not merged, and why:**
+- **formats** (branch `lane/formats-original-compat`, tip `456dac3`, clean, 3 ahead / 36 behind main): **NOT GREEN.**
+  21 passed but **3 failed** in dbpf — `duplicates_last_wins`, `dir_listed_but_not_compressed_is_returned_raw`, and the
+  "open-with-warning" sub-case of `bad_inputs_are_errors`. All three are stale assertions encoding the *old* behaviour
+  that spec §11 told the lane to change, so they are probably a one-line fix each, but nobody has fixed them.
+  `cargo test --workspace` was **never run**, and the real-game-data sweep — the lane's own stated critical regression
+  gate — was **never re-run** against its changes and must pass before merge. qfs and ltext are done and tested; dbpf
+  items 1–5 have code with tests pending; items 7–14 (all in `exemplar.rs`) are not started. Note a public API change:
+  `DirEntry` lost its `instance2` field (no consumer, but it is a breaking change). Blast radius is contained — no
+  crate outside `engine/formats` depends on `fc4-formats`, and it edited no docs, so its merge takes main's HANDOFF
+  cleanly once green.
+- **landfill + neighbors** (branch `m6-landfill-neighbors`, tip `a6ba8ce`, clean, 4 ahead / 17 behind main): compiles
+  and is wired in. **The coordinator's earlier note here was wrong** — it said "landfill ~60% written, 0% compiled, not
+  declared in `lib.rs`". Verified reality: 8 files, 3,779 insertions, touching only `landfill/` plus one `lib.rs` line
+  (`pub mod landfill;`), `cargo build` exit 0 with **zero warnings**, and **12 tests pass**. What is missing is
+  verification, not code: `tests.rs` is a **placeholder stub**, there is no conformance runner and no `lf_` vectors, and
+  **the entire neighbors core was never started.** So it is compiling-but-untested. It is also 17 commits behind main,
+  so a merge would need conflict resolution — new work during a wind-down, hence deferred.
+- **residential** (branch `residential-core`, tip `cc6e25d`, clean, 2 ahead / 36 behind main): **compiles clean**
+  (0 errors, 0 warnings) with `pub mod residential;` wired into `lib.rs`, and the lane's `cargo test --workspace`
+  passed (fc4-core 341, conformance 387). It is therefore *not* a repeat of the `m5-traffic-network` failure mode —
+  main stays buildable with it merged. But it is **unproven WIP**: `simulator.rs` has **zero tests of its own** (the 10
+  passing tests are all in `geometry.rs` and `tuning.rs`), `record.rs` (the §9 save/load record) was never written, no
+  conformance vectors exist, and `ResidentialHost` declares ~50 education/health callbacks that no fake host
+  implements, so the trait has never been built against. `DoPopulationChange`, the state machine and the queries are
+  written to spec and exercised by nothing.
+  Its **RS1–RS6 questions are preserved** in `docs/specs/QUESTIONS.md` (committed `7938b38`). They had to be
+  hand-transcribed: the lane's own edit to that file was written against the older `(No open questions.)` base, so it
+  cannot merge over main's ZQ1–ZQ6. **RS1 is load-bearing** — whether the `0.01` in the percentage getters is a float
+  or a double literal; residential's worked examples require double while `protection/algo.rs::pct` uses float and its
+  vectors pass, so one of the two cores carries a ±1 ulp difference on every percentage. It is answerable from the
+  getter's bytes at `0x005FDAC0` and friends, and was **not** chased because that is new RE work during a wind-down.
+- **traffic-network** (branch `m5-traffic-network`, tip `c45c377`, worktree already removed): unchanged from the
+  earlier note — ~2,000 lines drafted, **does not compile** (~13 mechanical borrow-checker errors), module commented
+  out of `lib.rs` so its tests have never run. All commits are retained on the branch.
+- **The two RE spec-answer lanes were hard-stopped mid-commit**, and the coordinator committed their working trees.
+  Their output is real and valuable:
+  - `7938b38` — the landfill agent's *staged* answers (which rode into an index that also held the RS1–RS6 edit, so the
+    commit message was amended to describe both honestly): assembly-cited `*[compat]*` findings on the provenance of
+    `data4` in message `0x278E6003` (exactly one send site, `cSTETerrain::RedisplayTerrain`, always `MessagePost` so
+    never synchronous), the correction that `PlaceZone` delivers `0x07699455` **by post** so there is **no re-entrancy**
+    inside `DezoneCell`, and what `AttemptAreaLevelling` really does — read from the assembly because **Ghidra's
+    decompilation of `0x006C44F0` is unreliable** (it renders the float argument as a pointer and drops the vertex
+    average).
+  - `94d8cdf` — both agents' *unstaged* final edits. The landfill half is the **correction the agent was writing when
+    it was stopped**, and it repairs an error that `7938b38` had just committed: the `FUCOMPP` against `FLT_MAX` is
+    followed by `TEST AH, 0x44` / `JP`, so an **unordered (NaN)** `maxAreaSlope` **does** take the `FLT_MAX` branch —
+    `7938b38` said the opposite. It also hedges the ten-argument `ModifyTerrainHeight` call whose stack bookkeeping the
+    agent had not fully reconciled, and adds §15 tests 22–23. The lot-developer half answers **§12.2 Q8, Q9 and Q10**
+    with citations: the night-light prop query uses the **lot's** bounding rect, not the building's (Q8); the anchor is
+    never given a designate and in the usual case is not cleared either, because `SetTravelDesignate`'s `old == new`
+    early-out makes the two indistinguishable while the designate is null (Q9); and the dissolution migration does
+    **not** skip the just-joined member, which destroys a farm unit's designate and makes member order observable (Q10).
+  > **Lesson:** a hard stop catches an agent mid-edit, and the fix it was writing can be the thing that corrects an
+  > error it had already written. Both agents' last words were "let me fix … then commit". Check the *unstaged* diff
+  > after a `TaskStop`, not just the log — and expect it to contradict committed text.
+- **Backup:** `build-runs/windown-backup-20261013/` held 5,067 lines that existed only as untracked files. Every lane
+  has now committed, so the condition on that directory ("safe to delete once every lane has committed") is **met** —
+  but the coordinator left it in place rather than delete during a wind-down. Delete it deliberately, or keep it.
 
 ### 5.5 Spec answers — DONE, committed
 All 25 queued questions (GD2–GD5, BD1–BD14, TD1–TD5) reviewed against their diffs and committed as `8fdea4e`;
-`docs/specs/QUESTIONS.md` is empty. The two core lanes were told to merge main and drop their assumptions (both
-have). Nothing further unless a new question is queued.
+`docs/specs/QUESTIONS.md` was empty at that point. The two core lanes were told to merge main and drop their assumptions
+(both have). Nothing further unless a new question is queued.
+
+**`QUESTIONS.md` is no longer empty** (this line was stale). It now holds two sections of *engine-lane* questions that
+the coordinator filed from lane reports: **ZQ1–ZQ6** from the zones core (ZQ1 answered from the exe and struck through in
+`bf3f998`, so the numbering still matches the lane's report; ZQ2–ZQ6 open) and **RS1–RS6** from the residential core
+(`7938b38`). The later spec-answer lanes also closed several questions *inside* the specs rather than here — landfill
+§10.2 items 2, 3 (partly) and 4, and lot-developer §12.2 Q8–Q10, both in `94d8cdf`. So the queue is: **ZQ2–ZQ6,
+RS1–RS6, and landfill §10.2 items 1 and 3's unresolved half** (which brush sets `terrainMessageData4` to 1, 2 or 3 —
+needs the terraforming tool UI traced).
 
 ### 5.6 KillaVolt removal from the rebuild instructions — DONE and verified
 - Committed as `4de4f46` (tooling + regenerated `re/names_windows.tsv` + the new `re/symbols/*.tsv`) and `0c83333`
@@ -337,24 +414,28 @@ lanes with **new agent IDs**; the old IDs from prior sessions are dead.
 |---|---|---|---|
 | **Lane 1** — engine glue, in-game fixes, x87 §18.2 workaround | `af1db58965f8ea547` | — | **MERGED `63e88f1`**; worktree removed, branch deleted. Merged main re-verified: cargo 808/0, ctest 17/17 |
 | **Lot developer** core | `a9254b7ecd0aea910` | — | **MERGED `9889f65`**; worktree removed, branch deleted |
-| **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | **MERGED `f56e52a`**; worktree and branch not yet removed |
+| **Zones** core | `a4b7ddc5791bcf0c3` | `agent-ab69d8e3cec021271` | **MERGED `f56e52a`**; worktree removed |
 | **Traffic network** core (M5) | `a8060ce00faeba239` | `m5-traffic-network` | finished at `c45c377`; ~2,000 lines drafted, **does not compile**, excluded from `lib.rs`; worktree removed (§5.4b) |
-| **Landfill + neighbors** cores (M6) | `ad6d35101273a7757` | `m6-landfill-neighbors` | finished at `53fc7b9`; landfill ~60% written, **0% compiled**, not in `lib.rs`; neighbors not started (§5.4b) |
-| **Residential** core | `a4bf4a1401fb0a69f` | `residential` | still running; ~1,563 lines backed up, `lib.rs` now wired (§5.4b) |
-| **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | still running; `bfb19ad` plumbing C ABI (1,156 lines) + `cFC4Plumbing.h` uncommitted |
-| **engine/formats divergence fixes** | `a7aa00813e71c6ad5` | `lane/formats-original-compat` | still running |
-| **Lot developer spec answers** (RE side) | `a4ccb0d58282e86e1` | main checkout | still running |
-| **Landfill/neighbors spec answers** (RE side) | `a38c56ea07811b096` | main checkout | still running |
+| **Landfill + neighbors** cores (M6) | `ad6d35101273a7757` | `m6-landfill-neighbors` | **STOPPED**; finished at `a6ba8ce`, worktree clean. Landfill **compiles** (0 warnings) and is wired into `lib.rs`, 12 tests pass — but `tests.rs` is a stub, no vectors, neighbors not started (§5.4b) |
+| **Residential** core | `a4bf4a1401fb0a69f` | `residential` | **STOPPED** (`TaskStop`); finished at `cc6e25d`, worktree clean. Compiles clean, `lib.rs` wired, but `simulator.rs` has 0 tests and no vectors. RS1–RS6 preserved in QUESTIONS.md (§5.4b) |
+| **Grid-sim glue** (wiring cores into the game) | `ac1485cbac8eb97a9` | `m3-glue` | **MERGED `9f741de`**; worktree removed, branch deleted. Coordinator-verified: ctest 18/18, cargo 808/0. **Never ran in game** (§5.4b) |
+| **engine/formats divergence fixes** | `a7aa00813e71c6ad5` | `lane/formats-original-compat` | **STOPPED**; finished at `456dac3`, clean. **NOT GREEN** — 3 dbpf test failures, workspace tests + real-game-data sweep never run. Do not merge as-is (§5.4b) |
+| **Lot developer spec answers** (RE side) | `a4ccb0d58282e86e1` | main checkout | **STOPPED mid-commit**; coordinator committed its tree as `94d8cdf` (lot-developer §12.2 Q8–Q10) |
+| **Landfill/neighbors spec answers** (RE side) | `a38c56ea07811b096` | main checkout | **STOPPED mid-commit**; coordinator committed staged answers `7938b38` + unstaged NaN correction `94d8cdf` (§5.4b) |
 
 Prior-session lanes, now finished or superseded (their work is on `main`): spec answers (`8fdea4e`), M6 save records
 and data formats (`e69009f`, `0460f3a`, `601f3a9`). The coordinator (this session) did the RE-side x87 work and the
 §5.6 build changes directly on `main` — no separate agent.
 
-**Wind-down state (2026-10-13):** every lane was told to finish its current item, commit checkpoints, and report — and
-explicitly *not* to merge or push. Merges are the coordinator's job after independent verification. The pattern that
-worked: read the lane's report, re-run its test command myself, compare the counts, then merge. That caught nothing wrong
-this time but is what makes a merge trustworthy. Untracked source in worktrees is **not** recoverable if an agent dies —
-see the backup in §5.4b.
+**Wind-down state (2026-10-13, FINAL):** the user ordered a hard stop — "this has been going on too long. tell every
+agent to stop, commit their work. and let's wind down." Every lane was terminated with `TaskStop` (not a queued message,
+which can sit undelivered), and `ListAgents` now reports **no reachable agents**. One lane merged (`m3-glue`); three
+branches hold committed-but-unmerged work; the two RE spec lanes were caught mid-commit and the coordinator committed
+their trees. The merge pattern that worked throughout: read the lane's report, **re-run its test command independently**,
+compare the counts, then merge. That is what makes a merge trustworthy — it caught a HANDOFF error (§5.8) and a stale
+landfill status this session. Untracked source in worktrees is **not** recoverable if an agent dies; see the backup in
+§5.4b. The one hard-stop lesson is in §5.4b: an agent killed mid-edit may have written an error it was *about* to fix —
+always check the unstaged diff, which may contradict already-committed text.
 
 ## 7. Decisions waiting on the user
 
@@ -396,6 +477,28 @@ see the backup in §5.4b.
     `engine/core/src/<module>/`, and main should contain none of the unmerged ones.
 - **Checking results:** check exit codes, not "FAILED" text, because "0 failed" matches too. But also read the verdict
   line — `ctest` prints `100% tests passed, 0 tests failed out of 16`, and grepping for "failed" alone finds the zero.
+  Symmetrically, **never read a truncated test total**: piping `cargo test --workspace` through `tail` gave a bogus
+  "passed=22" once because only the last few binaries' lines survived. Capture to a file and sum every
+  `test result:` line.
+- **`build-runs/` is gitignored** (`.gitignore:22`, `build*/`), and always has been — no verification file in it has ever
+  been committed, including `ctest-main-f56e52a.txt` and `coord-verify-main.ps1`. So verification evidence lives on disk
+  only and the *numbers* go into HANDOFF. Do not try to commit these artifacts; record the counts and where the log sits.
+  The reusable verifier is `build-runs/coord-verify-lane.ps1 -Engine <worktree>/engine` (parametrized
+  `coord-verify-main.ps1`, sources `vcvars32.bat` and prepends VS's CMake bin so `cmake`/`ctest` resolve outside the VS
+  shell).
+- **In-game run hazards (learned from run32, the m3-glue attempt).** Two distinct traps, both of which cost a whole run:
+  - **Writing the ini from bash passes PowerShell escapes literally.** `"`n"` in a bash heredoc/echo lands as the two
+    characters backtick-n, not a newline, so `budget_default` absorbed the entire file and `autoload_city` never parsed.
+    The DLL logged a config WARNING, no city loaded, and the game idled at the region view. Write the ini with a real
+    newline (a PowerShell here-string in a `.ps1`, or printf), then **read the bytes back** before running.
+  - **The harness can time out and exit without killing the game.** The orphaned `SimCity 4.exe` (pid 8016) then blocks
+    *every* future run with "BLOCKED: SimCity 4 is already running", so one bad run poisons all later ones until the
+    process is killed by hand. After any run that does not report a clean verdict, check for a live `SimCity 4` process
+    and kill it before the next attempt.
+  - **A staged DLL/PDB pair can be silently broken.** m3-glue overwrote `Plugins\FreeCity4.pdb` with no backup, and lane 1
+    left no PDB backup either, so the matching pair is unrecoverable. The DLL is correct (it hashes to lane 1's verified
+    build `ce242572…`, matching the `.run31-lane1-prestage` backup) but the PDB does **not** match it, so crash dumps
+    would resolve symbols wrongly. **Restage a matching DLL/PDB pair before trusting any future crash dump.**
 - **README checklist:** keep the Progress checklist in `README.md` current whenever something lands on `main`.
 - **Status reports for the user:** plain language, short, and say what changed and what is next.
 - **Memory:** the coordinator's notes are in
