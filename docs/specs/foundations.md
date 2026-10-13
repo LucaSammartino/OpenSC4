@@ -1760,28 +1760,54 @@ set-back-to-24 unless the thread is already at 24-bit. `0x005F85E0` — the only
 called from exactly one place, `PreFrameWorkInit`.
 
 **Consequence: once anything raises the main thread above 24-bit, the game can never bring it back.** Combined
-with the two observations above this settles the contradiction in favour of hypothesis 2:
+with a direct A/B on the same expression, this settles the contradiction:
 
-- the save written by the **unmodified** game holds 123 = the 24-bit result, and the assembly proves that value is
-  precision-sensitive with no float32 spill, so at those settlements the main thread was at **PC = 00**;
-- nothing can restore 24-bit after `PreFrameWorkInit`;
-- therefore **no event in the unmodified game's app init raised the precision** — the game genuinely runs the whole
-  session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands;
-- so the `CW = 0x027F` seen from PostAppInit onward in runs 23 and 24 is caused by **the FreeCity4 process**, not by
-  the game.
+| Run | What computed the budget | `0x09188F42` / `0x09188F4C` | Precision implied |
+|---|---|---|---|
+| a save written by the **unmodified** game (Spandau) | the game's own code | **123 / 105** (`369 = 3 × 123`, `315 = 3 × 105`) | **24-bit** |
+| run 19 (`build-runs/run19-original-observe.log`) | the game's own code — our DLL loaded, **observer only**, neither simulator nor budget replaced | **122 / 104** | **53-bit** |
+| run 20 | our budget replacement | 123 / 105 | 24-bit (we reproduce 24-bit) |
+| runs 23 and 24, `CW` logged directly | our simulator + budget | `CW = 0x027F` from PostAppInit-enter onward | 53-bit |
 
-This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"). The
-24-bit reference behaviour is intact and the float-sensitive worked examples recomputed for 24-bit (cde56f4) remain
-correct. What must be found instead is **what our plugin's presence does between PreAppInit and PostAppInit that
-raises PC to 53-bit**. The plugin's own load-time CRT init is excluded (the control word is still 24-bit at
-`DLL_PROCESS_ATTACH` *after* our initialisation), and runs 23/24 had the simulator and budget classes replaced, so
-the suspects are our code calling a game interface that reaches `nSCRes::ParseFloat` (a **text**-format resource
-parse — the leak in §18.1 row 3), or our code loading a DLL whose CRT runs `_fpmath(1)`.
+Runs 19 and the save run **the same game code on the same city**; the only difference is that FreeCity4.dll was
+loaded in run 19. The original code therefore produced 122 with our DLL present and 123 without it, which is a
+measurement that our process raises the precision — not an inference. (Run 19 predates control-word logging, so it
+proves the effect but not the moment; runs 23/24 date it to between PreAppInit and PostAppInit.)
 
-**Decisive experiment (queued for lane 1):** run with every subsystem off (`budget_default = 0`, nothing replaced)
-and only the control-word logger plus the settlement observer active, on Spandau. Expected result if the above
-reasoning holds: PC = 00 all session. Then re-enable subsystems one at a time to find which one raises it. Until
-that run exists, treat "our plugin raises it" as a strong deduction, not a measurement.
+Deduction, independently: the save proves PC = 00 at those settlements; nothing can restore 24-bit after
+`PreFrameWorkInit`; so **no event in the unmodified game's app init raises the precision**. The game genuinely runs
+the whole session at 24-bit, and §18.2's "the whole simulation runs at 24-bit precision" stands.
+
+This reverses the 2026-10-13 handoff's working assumption ("the original game likely runs at 53-bit too"), and
+restores the run-20 conclusion in `docs/manual-checks.md` (row 20, d90019e): **ours is right**, and it is the
+unmodified game's own in-process run that is wrong. The 24-bit reference behaviour is intact and the float-sensitive
+worked examples recomputed for 24-bit (cde56f4) remain correct. What must be found instead is **what our plugin's
+presence does between PreAppInit and PostAppInit that raises PC to 53-bit**. The plugin's own load-time CRT init is
+excluded (the control word is still 24-bit at `DLL_PROCESS_ATTACH` *after* our initialisation), and run 19 had
+nothing replaced, so the cause is not a replaced subsystem — it is something our DLL does just by being present.
+The two candidates the enumeration leaves are our code calling a game interface that reaches `nSCRes::ParseFloat`
+(a **text**-format resource parse — the leak in §18.1 row 4), or our code loading a DLL whose CRT runs
+`_fpmath(1)`.
+
+**What to do about it (queued for lane 1).** Bisecting the subsystem switches cannot find this: run 19 already had
+every subsystem off (observer only) and still ran at 53-bit. The cause is in what the DLL does while being present,
+in the window between PreAppInit and PostAppInit. Two cheap next steps, in order:
+
+1. **Narrow the window.** Log the control word at finer granularity between the two hooks — after each framework
+   service registration, each `QueryInterface` for a service, each class-registry replacement, and each
+   `LoadLibrary`/`CoCreateInstance` our code performs. The window is currently ~2.4 s (23:16:59.073 PreAppInit →
+   23:17:01.448 PostAppInit-enter, run 23) and contains a lot of our init.
+2. **Test the minimal DLL.** Stage a build whose attach does nothing but open the log, and run it with the same
+   autoload. If the control word still reaches 53-bit, the trigger is in DLL load/attach itself (a static
+   initialiser, a CRT startup path, or a dependency we pull in — note that linking or loading a DLL whose CRT runs
+   `_fpmath(1)` would do exactly this). If it stays 24-bit, bisect our init steps.
+
+A workaround, if the trigger turns out to be unavoidable, is to re-assert 24-bit ourselves at PostAppInit and at
+the top of each simulation entry point by calling the game's own helper `0x008929E0` with mode 0 (it is
+unconditional, so it works even though the Lua-style guarded pattern cannot restore). Any such fix must be logged,
+because it silently changes what the *original* subsystems compute while our DLL is loaded. Until the trigger is
+identified, **no differential run against the original code is trustworthy for float-sensitive values**: the
+original computes wrongly inside our process, and the testing rule above (harnesses log PC = 00) is what detects it.
 
 ### 18.3 What 24-bit precision means
 
