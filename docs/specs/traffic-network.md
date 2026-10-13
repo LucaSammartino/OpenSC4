@@ -792,6 +792,15 @@ or null:
      - route to the edge and route from the edge.
    - Mark A visited.
 
+Every counter in these records is a **last** value, the one rotated in at the start of state 19, never a current
+one (TN9; `0x0071C2F1`, `0x0071C3F0`–`0x0071C3FC`, `0x0071C69B`–`0x0071C6A3`, `0x0071C4F0`, `0x0071C571`–
+`0x0071C58F`). Both the non-zero test and the copied values use them:
+- a terminal link holds counter 1 as (last `+0x20`, current `+0x22`) and counter 2 as (last `+0x24`, current
+  `+0x26`);
+- a neighbour link holds them as (`+0x2C`, `+0x2E`) and (`+0x30`, `+0x32`).
+
+When B has no link back to A, the B→A counters are 0 and the B→A route is left empty.
+
 FerryRouteInfo layout (`0x34` bytes, copy constructor `0x0056D770`). Its users are cSC4WatercraftManager and the
 query tool:
 

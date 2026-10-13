@@ -181,7 +181,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   `0x0072134C`–`0x007214CA`) and written into §4.9.3. **The bracket is right: no.** DoPostCityInit only sets the
   re-route flags, points the pass at the first terminal and zeroes its sub-step. The neighbour step therefore walks
   the vector as it stands, which is empty after construction.
-- **TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]
+- ~~**TN9 — §4.9.5:** do the routes-in-use records report the last or the current counters? [last]~~ **ANSWERED
+  2026-10-14** from the exe (`GetFerryRoutesInUse` `0x0071C250`) and written into §4.9.5. **The bracket is right:
+  last.** Both the non-zero test and the copied counters read the last fields: `+0x20`/`+0x24` of a terminal link,
+  `+0x2C`/`+0x30` of a neighbour link. The field offsets are now listed.
 - **TN10 — §4.9.1:** does a water marker with no qualifying side overwrite an earlier one? [no]
 - **TN11 — §4.8:** does a re-insert overwrite the tunnel record, and does a portal with no pair get no record?
   [overwrite; no record]
