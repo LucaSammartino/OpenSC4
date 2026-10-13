@@ -49,16 +49,12 @@ All were about `docs/specs/residential.md`. The lane's code compiles clean and i
 unexercised code. Preserved here from the lane's branch by hand — the branch's own edit to this file was written
 against the older `(No open questions.)` version and cannot be merged as-is.
 
-**RS1 — is the `0.01` in the percentage property getters the float or the double constant? (load-bearing)**
-The `SC4Percentage` / "% × 0.01" readers, the `× 0.01` of §5.6 step 4, and §6.4 slots 30/31. Residential's own worked
-examples require **double**: §15 test 8 needs `pct(80.0)` to be exactly `0.8f32` (`0x3F4CCCCD`) for EQ 50 → 40 and
-HQ 60 → 48 — the float constant gives `0.79999995` (`0x3F4CCCCC`), so `50 × 0.79999995` = `39.999996` — and §15 test
-10 needs `1200 × 0.01` to truncate to 12, not 11 (float gives `11.999999`). But
-`engine/core/src/protection/algo.rs::pct` multiplies by the **float** `0.01`, and protection's vectors pass with it.
-The lane used double `0.01` throughout `engine/core/src/residential/`. Answerable from the getter's bytes
-(`0x005FDAC0` and friends): is the constant a `float` or a `double` literal, and does one of the two subsystems have a
-wrong worked example or a compensating one-ulp difference? This is a ±1 ulp on every percentage in **both** cores, so
-it is worth settling once rather than per subsystem.
+~~**RS1 — is the `0.01` in the percentage property getters the float or the double constant? (load-bearing)**~~
+**ANSWERED 2026-10-13** from the exe: **float32 `0.01f`** (`0x00A823A4`) at every site, in the getter `0x005FDAC0`,
+§5.6 step 4, slots 30/31, the §7.2 tuning and the save reader. Protection was right. Residential §15 test 8 was
+wrong (EQ 50 → 39.999996, HQ 60 → 47.999996) and is corrected; test 10 holds, but only because each product is
+rounded to float32 before the truncation. Written into residential.md §5.6, §7.1, §15, REH §4 and foundations §18.3.
+Kept struck through so RS2–RS6 keep their numbers.
 
 **RS2 — §5.5 step 5: is the `GetSimDate` month read per tract, or latched at pass start?**
 The tract is aged only when `month = 12`. The core reads it per tract (the literal reading). The two differ only if a
@@ -118,10 +114,8 @@ implementer found empirically. It reproduces `0x3DAA8124` (2001-10-01), `0xB9794
 (2001-09-09). Also answered on the way: the link factor is `r24(float(percent) · 0.01f)` with a float32 `0.01f`
 (§4.1).
 
-**DQ2 — §15 Q5: can the CO/I economy bonuses (`this+0xA0`, `this+0xA4`) be read or written through any interface?**
-In the original these are float32 fields, added with `FADD dword` to the economy modifier of CO$$/CO$$$
-(`0x006A654F`, `0x006A65FD`) and of the four I types (`+0xA4`, for example `0x006A68AF`). In the exported decomp of
-`cSC4DemandSimulator`, the only other code that touches them is the save write, the save read, and the
-Init/Shutdown zeroing. That was not checked against the vtables. Still open: does any `cISC4DemandSimulator` slot,
-or any other class, read or write `+0xA0`/`+0xA4`, for example through a getter that returns a pointer? A vtable
-scan of the demand simulator's interfaces would settle whether these fields are dead.
+~~**DQ2 — §15 Q5: can the CO/I economy bonuses (`this+0xA0`, `this+0xA4`) be read or written through any interface?**~~
+**ANSWERED 2026-10-13** from the exe and written into demand.md §15 Q5 and §8.1. **No.** None of the 24 slots of the
+three vtables touches them, nor does any other class. The only code that does is the constructor, the zeroing in
+`Init`, `Write`, `Read` and the six `FADD`s. The save record is the only way in or out, so the fields are dead in
+play and 0 in every new city.

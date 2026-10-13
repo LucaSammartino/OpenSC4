@@ -1943,6 +1943,18 @@ operation, with three differences that matter for exact reproduction:
    24-bit value exactly. Storing to a `float` does not round again. Comparisons and `_ftol` truncation see the
    24-bit register value.
 
+**Percentages use the float32 `0.01f`** (RS1, 2026-10-13). The shared percentage property getter `0x005FDAC0`
+and every simulator that scales a percentage multiply by the float32 constant `0.01f` = `0x3C23D70A` =
+0.0099999998 (at `0x00A823A4`; about 215 references). The image's only `double` 0.01 (`0x00A92688`) is referenced
+12 times, all outside the simulation: the query dialog's window procedure (`0x004D3F40`), particle rendering
+(`0x005B3DA0`, `0x005B8DC0`), one network-manager function (`0x006105C0`, four sites), bridge and support placement
+in the network tool (`0x0062EEB0`, `0x0062F610`, `0x00643FB0`) and the lighting manager (`0x007D68B0`,
+`0x007D8C80`). So a spec's "`× 0.01`" means "× 0.01f,
+rounded to float32". Shipped percentages then become, for example, 10 → 0.099999994, 20 → 0.19999999,
+80 → 0.79999995 (`0x3F4CCCCC`, an exact tie rounded to even) and 120 → 1.1999999, while 25, 50, 90 and 100 give
+0.25, 0.5, 0.9f and 1.0. Under point 3 above, a product that is truncated before it is stored is truncated *after*
+its 24-bit rounding: 1200 × 0.01f rounds to 12.0, so `_ftol` gives 12, where the unrounded 11.99999973 would give 11.
+
 There is no "extended precision" intermediate anywhere in the simulation. Specs that said a value "is computed in
 x87 extended precision" before truncation or rounding mean, for the Windows build: **each operation is rounded
 to 24 bits as above**. *[compat]* FreeCity4 reproduces this by doing every simulation arithmetic step as one
