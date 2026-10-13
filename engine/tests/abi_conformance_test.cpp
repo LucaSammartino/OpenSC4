@@ -38,6 +38,7 @@
 // Usage: fc4_abi_conformance_test [--dump] [--plugin-dir DIR] [path/to/interfaces.tsv]
 //   --dump  print every declared slot next to its table row
 
+#include "FC4CrimeInterfaces.h"
 #include "FC4Interfaces.h"
 
 #include "SC4Vector.h"
@@ -98,6 +99,9 @@
 #include "cISC4DisasterLayer.h"
 #include "cISC4DisasterManagerFire.h"
 #include "cISC4TutorialSystem.h"
+#include "cISC4PropDeveloper.h"
+#include "cISC4PropManager.h"
+#include "cISC4PropOccupant.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -338,6 +342,9 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISTETerrain", 91, 98,
      "slot 91 is cSTETerrain's destructor and slots 92-97 (GetWaterDepthAtVertex, Flip*Triangulation, "
      "Load/SaveObliterated, Load, Save) are cSTETerrain's own virtuals, past the SDK interface"},
+    {"cISC4CrimeSimulator", 14, 16,
+     "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
+     "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -409,6 +416,16 @@ const Waiver kWaivers[] = {
     {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 37, "GetJailCurrentUpkeepCost", "pops 4 (SDK: no argument)"},
     {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 39, "IsInJailbreak", "pops 4 (SDK: no argument)"},
     {"cISC4PoliceSimulator", "cISC4PoliceSimulator", 40, "BeginJailbreak", "returns in eax (SDK: float)"},
+    // The crime simulator's police view (FC4CrimeInterfaces.h, crime.md section 13) is the SDK declaration
+    // with slots 5 and 27 corrected; crime calls slots 5, 27, 30 and 38 only. Prop occupants: GetState only.
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 11, "GetChanceOfStrike", "pops 4, returns in eax (SDK: none, float)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 19, "GetPercentCoverage", "returns in eax (SDK: float)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 25, "GetStationEfficiency", "pops 8 (SDK: 4 bytes)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 36, "GetJailedPercentage", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 37, "GetJailCurrentUpkeepCost", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 39, "IsInJailbreak", "pops 4 (SDK: no argument)"},
+    {"cISC4PoliceSimulator", "cFC4CrimePoliceView", 40, "BeginJailbreak", "returns in eax (SDK: float)"},
+    {"cISC4PropOccupant", "cISC4PropOccupant", 14, "GetTimeOfDayRange", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 45, "GetCurrentPlantEfficiencyPercent",
      "pops 8, returns in eax (SDK: 4 bytes, float)"},
     {"cISC4PowerSimulator", "cISC4PowerSimulator", 46, "GetCurrentPlantConditionPercent",
