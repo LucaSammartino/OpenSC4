@@ -452,7 +452,8 @@ population tunables read by `ReadTunablePopulationValues` (§4.13); that read mu
 decay factors. The education/health steps, in order:
 
 1. **Pollution.** For type 0 (air), 1 (water), 2 (garbage): avg := Σ `pollution.GetPollutionValue(type, x, z)`
-   over the S × S cells of the tract / S² (u32 division). Only the **low byte** of avg is used *[quirk]*.
+   over the S × S cells of the tract / S² (u32 division). The sum is a wrapping u32 accumulator and S² a 32-bit
+   product (residential.md §5.5 step 1, RS3). Only the **low byte** of avg is used *[quirk]*.
    GetPollutionValue returns the pollution **source** grid value (pollution spec, slot 6).
    ```
    HQdec := tv.HQdecay

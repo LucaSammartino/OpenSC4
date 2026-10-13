@@ -257,6 +257,17 @@ float steps are float32 operations in the order given (foundations §18).
    `avg_q = (Σ over the S × S cells (S·x + i, S·z + j), i outer, j inner, of pollution.GetPollutionValue(q, cx, cz))
    ÷ (S·S)` (unsigned integer division; the pollution slot returns 16 bits, AX; it reads the **source** grids,
    pollution.md). The caller keeps only the **low byte**: `p_q = avg_q mod 256` *[quirk]*.
+
+   *[compat]* (RS3, from the exe; helper `0x006F7FF0`):
+   - The sum is a **32-bit unsigned accumulator that wraps**. It is one stack dword set to 0, and each 16-bit result
+     is zero-extended and added with a 32-bit `add`.
+   - The divisor `S·S` is a 32-bit `imul`, and the division is an unsigned 32-bit `div`.
+   - The loop bounds `S·x … S·x + S` and `S·z … S·z + S` are compared unsigned.
+   - The helper's arguments are `(q, S·x, S·z, S)`. Its outer loop runs over the first coordinate, and each call is
+     `GetPollutionValue(q, cx, cz)`, which is the i-outer, j-inner order above.
+
+   A wrap needs `S² · 65535 ≥ 2³²`, that is S ≥ 257, so it cannot happen with any real tract size. Example: with
+   S = 4 and every cell at 300, the sum is 4800, the average is 300, and the low byte is `p_q = 44`.
    `hqLoss = ((HQdecay + air(p_0)) + water(p_1)) + garbage(p_2)` with the three tuning curves of §7.1 evaluated at
    `float(p_q)`.
 2. **Decay and buzzards**, for w = R$, R$$, R$$$ (one flag `buzzard := false` per tract):

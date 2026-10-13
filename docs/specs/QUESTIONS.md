@@ -61,10 +61,10 @@ Kept struck through so RS2–RS6 keep their numbers.
 `GetSimDate` itself (`0x006FAA95`) for every tract with total ≠ 0. Nothing is latched, so the core's literal reading
 is right.
 
-**RS3 — §5.5 step 1: the pollution average's accumulator width.**
-REH §4.7 says "u32 division". The core sums the `S × S` `GetPollutionValue` results (each 16 bits) in a wrapping
-`u32`. With `S = 4` the maximum is 1,048,560, so no wrap; a large `S` would. Confirm the original's accumulator is
-32-bit and wraps rather than being wider.
+~~**RS3 — §5.5 step 1: the pollution average's accumulator width.**~~ **ANSWERED 2026-10-13** from the exe and
+written into residential.md §5.5 step 1 and REH §4.7. The accumulator is a **32-bit unsigned dword that wraps**:
+zero-extended 16-bit adds, then an unsigned `div` by the 32-bit product S·S (helper `0x006F7FF0`). The core's
+wrapping u32 is right.
 
 **RS4 — §5.6 step 4 / REH §4.8 `GetGlobalEQ`/`GetGlobalHQ`: what is the per-tract traversal order?**
 Float addition is not associative, so the accumulated `sum` depends on it. The core walks the grid's tracts x outer,
