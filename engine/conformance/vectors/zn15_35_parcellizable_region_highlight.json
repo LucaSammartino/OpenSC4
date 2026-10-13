@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "zn15_35_parcellizable_region_highlight",
+  "spec": ["zones 7.4", "zones 8.4", "zones 8.6"],
+  "description": "Extra vector for ZQ2: CreateParcellizableRegion's 'occupied' test (§7.4) is the zone developer's per-cell IsCellOccupied, asked in highlight mode only (in highlight mode: a real lot that is not virtually deleted, or a virtual lot), and the lot then examined is always the real one, GetLot(x, z, false). The harness calls CreateParcellizableRegion directly; with 'highlight' it runs in highlight mode over the given virtual-lot and virtually deleted cells. Configuration 0x301 is compatible with the zone (the lot survives: keep := false), 0x302 is not (DeleteLot, keep := true). Six cells on z = 10, zone 1, the five rows of the §7.4 highlight table: A (10, 10) nothing -> keep, bit set; B (11, 10) a real lot (0x302) not virtually deleted -> occupied, examined, failing -> 'deleted', which in highlight mode only records a virtual deletion (§8.6), keep, bit set; C (12, 10) a real lot (0x301) not virtually deleted -> examined, survives, bit clear; D (13, 10) a real lot (0x301), virtually deleted, no virtual lot -> not occupied, not examined, keep, bit set (examining it would clear the bit); E (14, 10) a virtual lot only -> occupied, but the real lot is null, keep, bit set; F (15, 10) a virtually deleted real lot (0x301) and a virtual lot -> occupied, the real lot is examined again [quirk] and, compatible, clears the bit. Result {A, B, D, E}; virtually deleted afterwards {B, D, F}; no lot is really deleted (lot count 5). Real-mode control on the same cells: the lot test runs directly, B is really deleted (lot count 4, nothing recorded as virtually deleted), C, D and F survive: {A, B, E}. Last, the ZQ2 difference: in highlight mode with current zone 0, a cell G (16, 10) holding a road and a real lot (0x301) is not skipped (the network skip needs a zone other than 0); IsCellOccupied is true (a real lot, not virtually deleted), so the lot is examined and survives: bit clear. CanCreateLot(…) == 7 would have answered code 3 (network) there and kept the bit.",
+  "steps": [
+    {"op": "zone_env", "cells": [64, 64]},
+    {"op": "zone_network", "runs": [{"kind": 0, "rect": [16, 10, 16, 10]}]},
+    {"op": "zone_create", "session": 0},
+    {"op": "zone_init"},
+    {"op": "zone_cfg", "id": "0x301", "w": 1, "h": 1, "zone_ok": true},
+    {"op": "zone_cfg", "id": "0x302", "w": 1, "h": 1, "zone_ok": false},
+    {"op": "zone_lot", "rect": [11, 10, 11, 10], "zone": 1, "cfg": "0x302"},
+    {"op": "zone_lot", "rect": [12, 10, 12, 10], "zone": 1, "cfg": "0x301"},
+    {"op": "zone_lot", "rect": [13, 10, 13, 10], "zone": 1, "cfg": "0x301"},
+    {"op": "zone_lot", "rect": [15, 10, 15, 10], "zone": 1, "cfg": "0x301"},
+    {"op": "zone_lot", "rect": [16, 10, 16, 10], "zone": 1, "cfg": "0x301"},
+    {"op": "zone_expect", "state": {"lot_count": 5}},
+
+    {"op": "zone_parcellizable_region", "note": "highlight mode, zone 1: the five rows of the §7.4 table",
+     "region": {"rect": [10, 10, 15, 10]}, "type": 1,
+     "highlight": {"virtual": [[14, 10], [15, 10]], "deleted": [[13, 10], [15, 10]]},
+     "expect": {"cells": [[10, 10], [11, 10], [13, 10], [14, 10]], "virtual_deleted": [[11, 10], [13, 10], [15, 10]]}},
+    {"op": "zone_expect", "state": {"lot_count": 5, "real_mode": true}},
+
+    {"op": "zone_parcellizable_region", "note": "real-mode control",
+     "region": {"rect": [10, 10, 15, 10]}, "type": 1,
+     "expect": {"cells": [[10, 10], [11, 10], [14, 10]], "virtual_deleted": [[11, 10], [13, 10], [15, 10]]}},
+    {"op": "zone_expect", "state": {"lot_count": 4}},
+
+    {"op": "zone_parcellizable_region", "note": "highlight mode, zone 0: a road cell with a real lot is examined",
+     "region": {"rect": [16, 10, 16, 10]}, "type": 0,
+     "highlight": {"virtual": [], "deleted": []},
+     "expect": {"cells": [], "virtual_deleted": []}},
+    {"op": "zone_expect", "state": {"lot_count": 4}}
+  ]
+}

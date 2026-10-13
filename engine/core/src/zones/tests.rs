@@ -5,7 +5,8 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! Unit tests for the pure zone helpers: the depth rule (conformance test
-//! 27), the block depth and zone density (§7.2.1 step 8), the region helpers
+//! 27), the block depth and zone density (§7.2.1 step 8), the capacity value
+//! and depth-range adjustment of `DetermineLotSize` (test 30g), the region helpers
 //! (§7.2, §11.4) and the seed derivation (§9, foundations §6.3). The
 //! parcellization, `PlaceZone`, the lot manager and the save records are
 //! exercised against a scripted world by the conformance vectors
@@ -93,6 +94,36 @@ fn block_depth_table() {
     assert_eq!(block_depth(2, 4, true), 10);
     // Density 0 leaves the default unchanged.
     assert_eq!(block_depth(0, 99, true), DEFAULT_BLOCK_DEPTH);
+}
+
+// ---- DetermineLotSize pure functions (test 30g) ------------------------------------------------
+
+#[test]
+fn capacity_value_test_30g() {
+    // v(k, n, avg) = ftol(r24(r24(k / n) × avg)).
+    assert_eq!(capacity_value(16, 4, 50), 200);
+    assert_eq!(capacity_value(16, 6, 150), 400);
+    assert_eq!(capacity_value(16, 9, 335), 595);
+    // One above the exact floor (the x87 chain, not ⌊k · avg / n⌋).
+    assert_eq!(capacity_value(256, 3, 49154), 4_194_475);
+    assert_eq!(capacity_value(4096, 3, 3074), 4_197_035);
+    assert_eq!(capacity_value(4096, 6, 6145), 4_194_987);
+    assert_eq!(capacity_value(4096, 9, 4616), 2_100_793);
+}
+
+#[test]
+fn adjust_depth_range_test_30g() {
+    for (lo, hi) in [(2, 2), (3, 3), (1, 2), (2, 3), (1, 1)] {
+        assert_eq!(adjust_depth_range(lo, hi), (1, 3), "[{lo}, {hi}]");
+    }
+    assert_eq!(adjust_depth_range(3, 4), (2, 4));
+    assert_eq!(adjust_depth_range(4, 4), (2, 4));
+    assert_eq!(adjust_depth_range(5, 6), (4, 6));
+    assert_eq!(adjust_depth_range(1, 3), (1, 3));
+    assert_eq!(adjust_depth_range(1, 4), (1, 4));
+    // Residential density-2 block: depth 1, 2, 3, 4 → 2, 5, 7, 10.
+    let blocks: Vec<i32> = (1..=4).map(|d| block_depth(2, d, true)).collect();
+    assert_eq!(blocks, vec![2, 5, 7, 10]);
 }
 
 // ---- middle row (test 29) ----------------------------------------------------------------------
