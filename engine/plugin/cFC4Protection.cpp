@@ -940,8 +940,8 @@ void cFC4ProtectionBase::RefreshSnapshot() {
 
 void cFC4ProtectionBase::Hold(cIGZUnknown* object) {
     if (object == nullptr) return;
-    object->AddRef();
-    ctx_.held.push_back(std::shared_ptr<void>(object, [](void* p) { static_cast<cIGZUnknown*>(p)->Release(); }));
+    FC4_ADDREF(object);  // a game object (the message's occupant or lot): audited both ways
+    ctx_.held.push_back(std::shared_ptr<void>(object, [](void* p) { FC4_RELEASE(static_cast<cIGZUnknown*>(p)); }));
 }
 
 // The month status line (and Init / Read). Main thread, inside a section.

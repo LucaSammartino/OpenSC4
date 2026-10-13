@@ -60,6 +60,7 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -1166,6 +1167,58 @@ void CheckPoliceNeutral(cFC4ISC4PoliceSimulator* p) {
     CHECK(p->ProcessMonthlyCrimeStats());  // [choice] true (§15.2 slot 38)
 }
 
+// Threads (cFC4Protection.h): the game calls getters from a second thread
+// while the main thread is inside a call into the simulator. This message's
+// QueryInterface runs inside DoMessage, with the object's lock held by the
+// main thread: getters from another thread must not wait for it (20 ms, then
+// the month-end snapshot), and are counted as fallbacks.
+class LockHeldMessage final : public cIGZMessage2 {
+public:
+    explicit LockHeldMessage(cFC4ISC4FireProtectionSimulator* f) : fire(f) {}
+    cFC4ISC4FireProtectionSimulator* fire;
+    bool ran = false;
+    uint32_t count = 99;
+    bool strike = true;
+    const SC4Percentage* pct = nullptr;
+    DWORD ms = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        ran = true;
+        const DWORD start = GetTickCount();
+        std::thread t([this] {
+            count = fire->GetFireStationCount();
+            strike = fire->IsOnStrike();
+            pct = fire->GetPercentCoverage();
+        });
+        t.join();
+        ms = GetTickCount() - start;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+void CheckFireThreads(cFC4ISC4FireProtectionSimulator* fire) {
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(fire->QueryInterface(kIID_cIGZMessageTarget2Prot, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+    if (mt == nullptr) return;
+    LockHeldMessage msg(fire);
+    CHECK(mt->DoMessage(&msg));
+    CHECK(msg.ran);
+    CHECK(msg.count == 0 && !msg.strike && msg.pct == fire->GetPercentCoverage());  // the snapshot's values
+    CHECK(msg.ms >= 15 && msg.ms < 5000);  // the getters waited (about 20 ms each), none blocked
+    // Without contention another thread gets the lock at once (no fallback).
+    uint32_t n = 99;
+    std::thread t([&] { n = fire->GetFireStationCount(); });
+    t.join();
+    CHECK(n == 0);
+    mt->Release();
+}
+
 int ProtectionEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
     // Off by default; `enable = protection` registers both simulators
     // (§13.2: replaced together). protection_shadow is then inactive.
@@ -1202,6 +1255,7 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
             CHECK(fire->Init());
             CHECK(fire->Init());
             CheckFireNeutral(fire);
+            CheckFireThreads(fire);
             CHECK(fire->Shutdown());
             CHECK(fire->Release() == 0);
         }
@@ -1235,7 +1289,7 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
     CHECK(text.find("fallbacks=0") != std::string::npos);
     CHECK(text.find("protection Shutdown (fire)") != std::string::npos);
     CHECK(text.find("protection Shutdown (police)") != std::string::npos);
-    CHECK(text.find("cFC4FireProtectionSimulator destroyed (0 fallbacks)") != std::string::npos);
+    CHECK(text.find("cFC4FireProtectionSimulator destroyed (3 fallbacks)") != std::string::npos);
     CHECK(text.find("cFC4PoliceSimulator destroyed (0 fallbacks)") != std::string::npos);
     CHECK(text.find("protection shadow: requested (protection_shadow from FreeCity4.ini) but INACTIVE") !=
           std::string::npos);
