@@ -55,8 +55,9 @@ extern "C" {
  * 10 = adds fc4_props_set_typed and the ordinances (fc4_ordinance_sim / fc4_ordinance);
  * 11 = adds the demand simulator and demand nodes (fc4_demand_sim / fc4_demand_node);
  * 12 = adds the game's grids as host objects (fc4_grid_api) and the power simulator (fc4_power);
- * 13 = adds the plumbing simulator (fc4_plumbing). */
-#define FC4_ABI_VERSION 13u
+ * 13 = adds the plumbing simulator (fc4_plumbing);
+ * 14 = adds the flammability simulator (fc4_flammability). */
+#define FC4_ABI_VERSION 14u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -1616,6 +1617,103 @@ bool fc4_plumbing_get_state(const fc4_plumbing* p, fc4_plumbing_state* out);
 bool fc4_plumbing_write(const fc4_plumbing* p, const fc4_ostream* out); /* §9 */
 bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: false for version != 4 */
 
+/* ---- flammability (docs/specs/flammability.md) ------------------------------
+ *
+ * Tokens: occupants and lots (the cISC4Occupant / cISC4Lot identity); 0 is
+ * null. Both grids are the game's own cSC4SimGrid<uint8> (fc4_grid_api): the
+ * map view walks the adjusted grid's memory through GetGridData (§13.2).
+ * A message delivered while another call into the same object is running is
+ * queued and handled when that call returns. */
+typedef struct fc4_flammability fc4_flammability;
+
+/* A message for fc4_flammability_do_message (§5). `occupant` is GetVoid1() as
+ * a cISC4Occupant (Insert / Remove / ChangeOccupant); `lot` is GetIGZUnknown()
+ * queried for cISC4Lot (ConditionChanged), 0 when it is null or not a lot. */
+typedef struct fc4_flammability_message {
+    uint32_t msg_type;
+    uint32_t reserved;
+    uint64_t occupant;
+    uint64_t lot;
+} fc4_flammability_message;
+
+/* Diagnostics. */
+typedef struct fc4_flammability_state {
+    uint32_t struct_size;
+    uint8_t initialized;
+    uint8_t pad0[3];
+    int32_t count_x, count_z;
+    uint8_t average;
+    uint8_t pad1[3];
+    float global_multiplier;
+    int32_t zoned_sum, zoned_count;
+    uint32_t candidates, hotspots;
+    int32_t tract_size, cycle_period, tracts_per_day;
+    uint32_t reserved;
+    uint64_t adjusted_grid;
+    uint64_t raw_grid;
+    uint32_t reentrant_calls;
+    uint32_t reserved2;
+} fc4_flammability_state;
+
+/* What the flammability simulator needs from the game (fc4.h: one callback per
+ * FlammabilityHost method, engine/core/src/flammability/mod.rs, §12). Missing
+ * callbacks behave as "nothing there" (0, false, no object). The agent
+ * registration and the six notifications of §4.1 steps 2-3 are the plugin's,
+ * not callbacks. */
+typedef struct fc4_flammability_host {
+    uint32_t struct_size; /* sizeof(fc4_flammability_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* city */
+    void (*city_cell_counts)(void* user, int32_t* x, int32_t* z);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* cx, int32_t* cz);
+    bool (*is_tutorial)(void* user);
+    fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* out);
+    void (*occupant_bounds)(void* user, uint64_t occ, fc4_cell_rect* out);
+    void (*occupant_position)(void* user, uint64_t occ, float* xyz);
+    void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    /* lots */
+    uint64_t (*occupant_lot)(void* user, uint64_t occ);
+    uint8_t (*lot_condition)(void* user, uint64_t lot);
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    uint64_t (*random_lot)(void* user);
+    /* other subsystems; the bool/int32 returns encode the core's Option: a
+     * missing service reads "not watered" / "unzoned" / factor 1.0 (§4.1 step 5
+     * [choice]). */
+    bool (*cumulative_factor)(void* user, uint32_t prop, uint32_t index, float* out);
+    bool (*current_season)(void* user, int32_t* out);
+    /* -1 = no plumbing simulator, 0 = not watered, 1 = watered. */
+    int32_t (*is_cell_watered)(void* user, int32_t x, int32_t z);
+    bool (*zone_type)(void* user, int32_t x, int32_t z, uint32_t* out);
+    void (*record_history)(void* user, uint32_t history_type, int32_t value);
+    /* fire (§6.8): false = the fire manager or its interface is missing. */
+    bool (*ignite_cell)(void* user, uint32_t x, uint32_t z, bool use_probability, bool teleport, uint32_t fire_iid);
+    void (*set_fire_cause)(void* user, uint32_t cause);
+    /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
+    void (*post)(void* user, uint32_t msg_type);
+} fc4_flammability_host;
+
+fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
+                                          uint32_t process_clock);
+void fc4_flammability_destroy(fc4_flammability* p);
+bool fc4_flammability_init(fc4_flammability* p);      /* §4.1 */
+bool fc4_flammability_shutdown(fc4_flammability* p);  /* §4.2 */
+/* §5: always true for a live object. A message delivered during another call
+ * is queued and handled when the outermost call returns. */
+bool fc4_flammability_do_message(fc4_flammability* p, const fc4_flammability_message* m);
+bool fc4_flammability_is_cell_flammable(const fc4_flammability* p, int32_t x, int32_t z); /* slot 6 */
+/* Slot 7: false = no hotspot or its tract value is 0, and no output is
+ * written (§13.2). */
+bool fc4_flammability_hotspot(const fc4_flammability* p, uint8_t* value, int32_t* x, int32_t* z);
+uint8_t fc4_flammability_average(const fc4_flammability* p); /* slot 8 */
+uint64_t fc4_flammability_grid(const fc4_flammability* p);   /* slot 5: borrowed token, 0 = none */
+bool fc4_flammability_get_state(const fc4_flammability* p, fc4_flammability_state* out);
+bool fc4_flammability_write(const fc4_flammability* p, const fc4_ostream* out); /* §10 */
+bool fc4_flammability_read(fc4_flammability* p, const fc4_istream* in);         /* §10: false for version != 2 */
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -1675,6 +1773,9 @@ static_assert(sizeof(fc4_plumbing_producer_info) == 20, "fc4_plumbing_producer_i
 static_assert(sizeof(fc4_plumbing_found) == 32, "fc4_plumbing_found layout");
 static_assert(sizeof(fc4_plumbing_state) == 144, "fc4_plumbing_state layout");
 static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc4_plumbing_host layout");
+static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
+static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
+static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
