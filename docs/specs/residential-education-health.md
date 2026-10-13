@@ -131,7 +131,9 @@ All float arithmetic is float32 (foundations §18): every add, sub, mul, div and
 order given. "trunc" is `_ftol` (toward zero). The result is used as a 32-bit integer and reinterpreted as u32
 where noted. "u32→float" means `fild` plus 2^32 when the value is negative as int32. Response curves are
 evaluated with `GetOutputValue(x)` (foundations §4). "%curve" means a curve whose output is a percentage and is
-multiplied by **0.01** afterwards.
+multiplied by **0.01** afterwards. Every `0.01` in this spec (including the ± 0.01 steps of §4.10) is the
+**float32** constant `0.01f` = `0x3C23D70A` (`0x00A823A4`), never a double (verified in every residential-class
+function that uses it; residential.md §7.1, RS1). So a shipped 80 % is 0.79999995 and 20 % is 0.19999999.
 
 ### 4.1 Service-building recognition and lists
 
@@ -712,7 +714,7 @@ queries on every call. Names come from re/tuning/simulators.md. Percent values a
 | `0xC929C433` / `0x0929C439` | EQ / HQ Decay | f32 | 1.0 / 1.0 | 0.2 / 0.2 |
 | `0xC929CC58` / `0x0929CC65` / `0x2929CC6B` | Low / Medium / High Wealth EQ (newcomers) | float getter (converts) | 4 / 6 / 8 | u8 20 / 40 / 60 |
 | `0xC929CC8D` / `0x6929CC92` / `0x4929CC97` | Low / Medium / High Wealth HQ | float getter | **none: uninitialised** *[quirk]* | u8 20 / 40 / 60 |
-| `0xCA027325` / `0xCA027328` | EQ / HQ reset percent | SC4Percentage getter | 0.7 / 0.7 | 80 → 0.8 |
+| `0xCA027325` / `0xCA027328` | EQ / HQ reset percent | SC4Percentage getter (× 0.01f) | 0.7 / 0.7 | 80 → 0.79999995 (`0x3F4CCCCC`; RS1) |
 | `0xCA027307` | Average Age reset value | u8 | 40 | 40 |
 | `0x6AB70DA7` | Death's door HQ | f32 | 0 | 2 |
 | `0x4AB70DAC` | Death's door effect chance (%) | f32 | 0 | 1.5 |
@@ -727,7 +729,7 @@ Notes:
 - The ages (`0xC929C652`, `0x0929CC30`, `0x0929CC36`) and the nine age-group curves are in residential.md.
 - *[compat]* The newcomer EQ/HQ values ship as u8 and are read with the converting float getter.
   docs/subsystems/demand-rci.md quotes the code defaults (4/6/8, reset 0.7). The shipped values are 20/40/60 and
-  0.8.
+  80 %, which the getter turns into 0.79999995 (`0x3F4CCCCC`), not 0.8f.
 - If the exemplar is missing, `ReadTunablePopulationValues` leaves the newcomer HQ values uninitialised. A
   replacement should use the shipped values *[choice]*.
 
