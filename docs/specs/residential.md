@@ -593,7 +593,35 @@ the temporary grid are not saved. Which list is which belongs to the other spec 
 ### 9.2 `Write` / `Read`
 
 - `Write` always returns true (AL = 1).
-- `Read` never rejects a version and always returns true (AL = 1), ignoring stream errors.
+- `Read` never rejects a version and always returns true (AL = 1, `0x00700E4E`), ignoring stream errors. It calls
+  no `GetError` and tests no stream result. The loader ignores the result anyway (foundations §3.5).
+  - **Versions** (RS9): no version is unreadable to the original.
+    - ≥ 7: read with the version-7 layout, so a newer layout would be misread.
+    - 3–6: the conditionals below.
+    - 0–2: read as version 2.
+  - **After a stream error** (RS9, from the exe). Reading goes on, and every later call fails and leaves its
+    destination unchanged (foundations §2.9). So:
+    - members read directly keep their constructed values: the three tract sizes, the unused floats, dirty,
+      population, the iterator, leSum and the running population;
+    - every later reference becomes **null**, because `SC4ReadGZSerializable` (`0x005D9730`) clears its
+      destination first;
+    - values that pass through a local take stale stack contents:
+      - the **state** (an uninitialised local, `0x00700BF7`–`0x00700C05`);
+      - the department-block scalars (the block reader's argument slot, `0x006F7BB4`);
+      - the version itself, if its read fails;
+    - each list's count is an uninitialised local (`0x005DB3D7`). If it lies in 1…9,999,999, that many **null**
+      entries are appended;
+    - the school coverage count is preset to 1 (`0x00700A44`). The hospital coverage count and the two
+      building-list-vector counts reuse whatever count was read last (the same stack slot).
+
+    The next `Init` creates the null grids and departments (§4.1 steps 8–9) and overwrites the department scalars
+    (§9.3). It does **not** repair the state or the lists.
+  - *[choice]* FreeCity4 does not reproduce the stale values:
+    - On a stream error, `Read` returns **false** and leaves the simulator **as constructed**. It releases what it
+      acquired, restores every field it wrote and leaves cityStarted false, so the next `Init` sets the city up
+      as new (§4.1 step 6, state 0), as crime.md §12 does. The return value is free, since the loader ignores it.
+    - Every version is accepted as in the original (test 20). A newer layout then ends in a stream error (handled
+      as above) or is misread, as in the original.
   - Lists: cleared first; a count of 0 or ≥ 10,000,000 reads nothing more; null references are appended.
   - Department blocks: version < 5 → f0, max funding, strike efficiency and init funding are × 0.01f (stored as
     percentages); version < 6 → min grade × 0.01f (float32 constant, one float32 rounding each; the block reader
@@ -878,7 +906,9 @@ Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, 
 18. **NewMonth**: state 10 → state 0, dirty 0, true. State 5 → state 5, dirty 1, true.
 19. **NewDay unfinished**: a state-4 step whose time budget runs out returns false and resumes at the next tract.
 20. **Read**: version 2 record with state 4 → state 11, leSum 0, running population 0, iterator fresh at (0, 0);
-    version 7 with state 1 → 13, 2 → 14, 3 → 15. Any version → `Read` returns true.
+    version 7 with state 1 → 13, 2 → 14, 3 → 15. Any version with a complete record → `Read` returns true. A
+    record cut short (stream error) → false, with the simulator left as constructed and cityStarted false (RS9,
+    *[choice]*).
 21. **Init after load**: a loaded department block with the strike flag set → after `Init` the flag is 0.
 22. **Slot ABI**: slot 10 pops 4 and returns the pointer in EAX; slot 23 sets three out-references and raises each
     grid's count by one; slot 21 returns a new grid per call (two calls → two distinct objects).

@@ -269,8 +269,15 @@ About `docs/specs/residential.md` and `residential-education-health.md` (REH). A
   EQ/HQ stored as 50.2 / 60.2, which decay to exactly 50 / 60. The custom curve can go. For LE 61, use HQ 44
   (exact).
 - **RS8:** does the "other" list move into the health-affecting list? The spec does not say so. [moved; inferred]
-- **RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
-  read? [nothing repaired; Read fails]
+- ~~**RS9 — record Read:** what should Read repair after a stream error, and what happens with a version it cannot
+  read? [nothing repaired; Read fails]~~ **ANSWERED 2026-10-14** from the exe (`Read` `0x007009A0`, helpers
+  `0x005D9730`, `0x005DB3C0`, `0x006F7BA0`) and written into residential.md §9.2 and test 20. The original rejects
+  no version (≥ 7 is read as 7, 0–2 as 2), never checks the stream and returns true. After an error, later refs
+  are null and the state, list counts and department scalars are stale stack values. Init repairs only the grids,
+  the departments and the department scalars.
+
+  **Choice:** return false and leave the simulator **as constructed**, rather than partly read, so that Init
+  starts a new city. This is the crime.md §12 rule. Accept every version.
 - **RS10 — record Read:** are list and department entries that a Read replaces released? [released, departments
   with `release_department`]
 - **RS11:** how do coverage and list vectors with counts other than 7 / 3 behave? [none]
