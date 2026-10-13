@@ -11,8 +11,8 @@
 //! exercised against a scripted world by the conformance vectors
 //! (`engine/conformance`, `zone_…`).
 
-use super::*;
 use super::parcel::DEFAULT_BLOCK_DEPTH;
+use super::*;
 use crate::grid::CellRect;
 use crate::rng::{derive_seed, FixedSeeds, RzRandom};
 
@@ -20,7 +20,9 @@ use crate::rng::{derive_seed, FixedSeeds, RzRandom};
 
 /// One row of test 27: results for rem = 1..12.
 fn rule(ld: i32, min: i32, max: i32, ps: i32, front: bool, far: bool) -> Vec<i32> {
-    (1..=12).map(|rem| depth_rule(rem, front, far, min, max, ld, ps)).collect()
+    (1..=12)
+        .map(|rem| depth_rule(rem, front, far, min, max, ld, ps))
+        .collect()
 }
 
 #[test]

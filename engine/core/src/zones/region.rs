@@ -81,7 +81,10 @@ impl CellRegion {
 
     /// Whether `(x, z)` lies in the rectangle and its bit is set.
     pub fn includes(&self, x: i32, z: i32) -> bool {
-        self.index(x, z).and_then(|i| self.bits.get(i)).copied().unwrap_or(false)
+        self.index(x, z)
+            .and_then(|i| self.bits.get(i))
+            .copied()
+            .unwrap_or(false)
     }
 
     /// Sets or clears one bit (ignored outside the rectangle).

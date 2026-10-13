@@ -24,16 +24,18 @@ use fc4_core::rng::{derive_seed, FixedSeeds, RzRandom};
 use fc4_core::store::{save_store, Package};
 use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, SaveRegistry};
 use fc4_core::zones::{
-    block_depth, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning, zone_density, CellRegion, CellRect, Component, Draw,
-    GridProvider, GrowthItem, InsertionPoint, LotSize, PlaceZoneResult, Position, Service, SharedZoneStatics,
-    ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
+    block_depth, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning, zone_density, CellRect, CellRegion,
+    Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotSize, PlaceZoneResult, Position, Service,
+    SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER,
     CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE, NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
 use crate::runner::{boolean, field, HostRef};
-use crate::scalar::{self, arg, arr, bool_of, check_expect, f32_of, i64_of, ji, matches, opt, show, str_of, u32_of, EventLog, R};
+use crate::scalar::{
+    self, arg, arr, bool_of, check_expect, f32_of, i64_of, ji, matches, opt, show, str_of, u32_of, EventLog, R,
+};
 
 // ---- world -------------------------------------------------------------------------------------
 
@@ -211,11 +213,17 @@ impl World {
     }
 
     fn mgr(&self) -> R<Rc<ZoneManager>> {
-        self.manager.borrow().clone().ok_or_else(|| "no zone manager (use zone_create)".to_owned())
+        self.manager
+            .borrow()
+            .clone()
+            .ok_or_else(|| "no zone manager (use zone_create)".to_owned())
     }
 
     fn dev(&self) -> R<Rc<ZoneDeveloper>> {
-        self.developer.borrow().clone().ok_or_else(|| "no zone developer (use zone_create)".to_owned())
+        self.developer
+            .borrow()
+            .clone()
+            .ok_or_else(|| "no zone developer (use zone_create)".to_owned())
     }
 
     fn lot<T: Default>(&self, l: u64, f: impl FnOnce(&Lot) -> T) -> T {
@@ -225,9 +233,14 @@ impl World {
     /// Appends one lot creation to the interleaved parcel log, as `(x1, z1)–
     /// (x2, z2) fN` (§15 tests 19–29).
     fn log_lot(&self, x: i32, z: i32, w: i32, h: i32, facing: i32) {
-        self.parcel_log
-            .borrow_mut()
-            .push(Json::Str(format!("({},{})-({},{}) f{}", x, z, x + w - 1, z + h - 1, facing)));
+        self.parcel_log.borrow_mut().push(Json::Str(format!(
+            "({},{})-({},{}) f{}",
+            x,
+            z,
+            x + w - 1,
+            z + h - 1,
+            facing
+        )));
     }
 
     /// Appends one `Place` call to the interleaved parcel log, as
@@ -264,7 +277,13 @@ impl ZonesHost for World {
         self.events.push(
             "subscribe",
             vec![
-                ("who", ji(match who { Component::ZoneManager => 6, Component::ZoneDeveloper => 7 })),
+                (
+                    "who",
+                    ji(match who {
+                        Component::ZoneManager => 6,
+                        Component::ZoneDeveloper => 7,
+                    }),
+                ),
                 ("messages", Json::Array(messages.iter().map(|&m| ji(m)).collect())),
             ],
         );
@@ -273,7 +292,13 @@ impl ZonesHost for World {
         self.events.push(
             "unsubscribe",
             vec![
-                ("who", ji(match who { Component::ZoneManager => 6, Component::ZoneDeveloper => 7 })),
+                (
+                    "who",
+                    ji(match who {
+                        Component::ZoneManager => 6,
+                        Component::ZoneDeveloper => 7,
+                    }),
+                ),
                 ("messages", Json::Array(messages.iter().map(|&m| ji(m)).collect())),
             ],
         );
@@ -298,7 +323,10 @@ impl ZonesHost for World {
     }
     fn post_zoning_change(&self, region: CellRegion, zone: i32, check_slope: bool) {
         self.zoning_changes.borrow_mut().push((region, zone, check_slope));
-        self.events.push("zoning_change", vec![("zone", ji(zone)), ("check_slope", Json::Bool(check_slope))]);
+        self.events.push(
+            "zoning_change",
+            vec![("zone", ji(zone)), ("check_slope", Json::Bool(check_slope))],
+        );
     }
     fn post_defer_occupant_operations(&self, begin: bool) {
         self.deferred.borrow_mut().push(begin);
@@ -343,12 +371,17 @@ impl ZonesHost for World {
         self.demolished.borrow_mut().push((commit, lots.to_vec(), flags));
         self.events.push(
             "demolish_lots",
-            vec![("commit", Json::Bool(commit)), ("count", ji(lots.len() as i64)), ("flags", ji(flags))],
+            vec![
+                ("commit", Json::Bool(commit)),
+                ("count", ji(lots.len() as i64)),
+                ("flags", ji(flags)),
+            ],
         );
         0
     }
     fn demolish_region(&self, region: &CellRegion) {
-        self.events.push("demolish_region", vec![("count", ji(region.count() as i64))]);
+        self.events
+            .push("demolish_region", vec![("count", ji(region.count() as i64))]);
     }
     fn landfill_zoning_cost(&self, _region: &CellRegion) -> i64 {
         0
@@ -389,9 +422,10 @@ impl ZonesHost for World {
         // Put a street (kind 3) on every cell of a..b with no network.
         let mut nets = self.nets.borrow_mut();
         for &(x, z) in &cells {
-            if !nets.contains_key(&(x, z)) {
-                nets.insert((x, z), NetCell { kind, edges: [false; 4] });
-            }
+            nets.entry((x, z)).or_insert_with(|| NetCell {
+                kind,
+                edges: [false; 4],
+            });
         }
         // Connect the run along its direction.
         for i in 0..cells.len() {
@@ -419,9 +453,7 @@ impl ZonesHost for World {
         // `ExtendAsStreets` scan (test 24).
         for &(x, z) in &cells {
             for (nx, nz) in [(x - 1, z), (x + 1, z), (x, z - 1), (x, z + 1)] {
-                let joins = nets
-                    .get(&(nx, nz))
-                    .is_some_and(|n| n.kind == kind)
+                let joins = nets.get(&(nx, nz)).is_some_and(|n| n.kind == kind)
                     && nets.get(&(x, z)).is_some_and(|n| n.kind == kind);
                 if !joins {
                     continue;
@@ -508,9 +540,10 @@ impl ZonesHost for World {
     fn landfill_at(&self, x: i32, z: i32) -> Option<u64> {
         let cell = self.cell_occupants.borrow();
         let occs = self.occupants.borrow();
-        cell.get(&(x, z))?.iter().copied().find(|o| {
-            occs.get(o).is_some_and(|oc| oc.kind == LANDFILL_TYPE)
-        })
+        cell.get(&(x, z))?
+            .iter()
+            .copied()
+            .find(|o| occs.get(o).is_some_and(|oc| oc.kind == LANDFILL_TYPE))
     }
     fn occupant_type(&self, occupant: u64) -> u32 {
         self.occupants.borrow().get(&occupant).map_or(0, |o| o.kind)
@@ -643,10 +676,10 @@ impl ZonesHost for World {
 
     // ---- lot configurations ----
     fn cfg_compatible_with_water(&self, cfg: u64) -> bool {
-        self.cfgs.borrow().get(&cfg).map_or(false, |c| c.water)
+        self.cfgs.borrow().get(&cfg).is_some_and(|c| c.water)
     }
     fn cfg_compatible_with_zone(&self, cfg: u64, _zone: i32) -> bool {
-        self.cfgs.borrow().get(&cfg).map_or(false, |c| c.zone_ok)
+        self.cfgs.borrow().get(&cfg).is_some_and(|c| c.zone_ok)
     }
     fn cfg_id(&self, cfg: u64) -> u32 {
         cfg as u32
@@ -655,9 +688,10 @@ impl ZonesHost for World {
         self.cfgs.borrow().get(&cfg).map_or((0, 0), |c| (c.w, c.h))
     }
     fn cfg_primary_building_families(&self, cfg: u64) -> Option<Vec<u32>> {
-        self.cfgs.borrow().get(&cfg).and_then(|c| {
-            c.primary_families.map(|f| f[..c.n_families].to_vec())
-        })
+        self.cfgs
+            .borrow()
+            .get(&cfg)
+            .and_then(|c| c.primary_families.map(|f| f[..c.n_families].to_vec()))
     }
     fn configurations_by_filter(&self, _purpose: u32, _wealth: u32, _stage: i32) -> Vec<u64> {
         self.cfgs.borrow().keys().copied().collect()
@@ -683,7 +717,11 @@ impl ZonesHost for World {
 
     // ---- BDS and growth developers ----
     fn bds_developer(&self, dev_type: u32) -> Option<u64> {
-        self.devs.borrow().iter().find(|(_, d)| d.purpose == dev_type).map(|(&k, _)| k)
+        self.devs
+            .borrow()
+            .iter()
+            .find(|(_, d)| d.purpose == dev_type)
+            .map(|(&k, _)| k)
     }
     fn building_types_by_family(&self, family: u32) -> Vec<u32> {
         self.families.borrow().get(&family).cloned().unwrap_or_default()
@@ -692,7 +730,11 @@ impl ZonesHost for World {
         self.buildings.borrow().get(&building).cloned().unwrap_or_default()
     }
     fn dev_estimate_desirability(&self, dev: u64, x: i32, z: i32) -> i16 {
-        self.devs.borrow().get(&dev).and_then(|d| d.desirability.get(&(x, z)).copied()).unwrap_or(0)
+        self.devs
+            .borrow()
+            .get(&dev)
+            .and_then(|d| d.desirability.get(&(x, z)).copied())
+            .unwrap_or(0)
     }
     fn dev_source_demand(&self, dev: u64) -> Option<f32> {
         self.devs.borrow().get(&dev).and_then(|d| d.demand)
@@ -701,7 +743,11 @@ impl ZonesHost for World {
         self.devs.borrow().get(&dev).and_then(|d| d.growth.clone())
     }
     fn dev_desirability_value(&self, dev: u64, tx: i32, tz: i32) -> i16 {
-        self.devs.borrow().get(&dev).and_then(|d| d.desir_value.get(&(tx, tz)).copied()).unwrap_or(0)
+        self.devs
+            .borrow()
+            .get(&dev)
+            .and_then(|d| d.desir_value.get(&(tx, tz)).copied())
+            .unwrap_or(0)
     }
     fn dev_desirability_shift(&self, dev: u64) -> u32 {
         self.devs.borrow().get(&dev).map_or(0, |d| d.shift)
@@ -720,7 +766,16 @@ impl GridProvider<i8> for World {
             return Some(g as Rc<dyn TractGrid<i8>>);
         }
         let (cx, cz) = self.city.get();
-        let g = SimGrid::<i8>::create(&CityDims { cells_x: cx, cells_z: cz, cell_width_x: 16.0, cell_width_z: 16.0 }, 0, 1);
+        let g = SimGrid::<i8>::create(
+            &CityDims {
+                cells_x: cx,
+                cells_z: cz,
+                cell_width_x: 16.0,
+                cell_width_z: 16.0,
+            },
+            0,
+            1,
+        );
         *self.zone_grid.borrow_mut() = Some(g.clone());
         Some(g as Rc<dyn TractGrid<i8>>)
     }
@@ -732,7 +787,16 @@ impl GridProvider<u16> for World {
             return Some(g as Rc<dyn TractGrid<u16>>);
         }
         let (cx, cz) = self.city.get();
-        let g = SimGrid::<u16>::create(&CityDims { cells_x: cx, cells_z: cz, cell_width_x: 16.0, cell_width_z: 16.0 }, instance, tract_size);
+        let g = SimGrid::<u16>::create(
+            &CityDims {
+                cells_x: cx,
+                cells_z: cz,
+                cell_width_x: 16.0,
+                cell_width_z: 16.0,
+            },
+            instance,
+            tract_size,
+        );
         *self.maxcap_grid.borrow_mut() = Some(g.clone());
         Some(g as Rc<dyn TractGrid<u16>>)
     }
@@ -825,7 +889,7 @@ fn rect_of(j: &Json) -> R<CellRect> {
     ))
 }
 
-fn field_at<'a>(a: &'a [Json], i: usize) -> R<&'a Json> {
+fn field_at(a: &[Json], i: usize) -> R<&Json> {
     a.get(i).ok_or_else(|| format!("missing element {i}"))
 }
 
@@ -834,7 +898,10 @@ fn field_at<'a>(a: &'a [Json], i: usize) -> R<&'a Json> {
 fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         let a = arr(v, "cells")?;
-        w.city.set((i64_of(field_at(a, 0)?, "x")? as i32, i64_of(field_at(a, 1)?, "z")? as i32));
+        w.city.set((
+            i64_of(field_at(a, 0)?, "x")? as i32,
+            i64_of(field_at(a, 1)?, "z")? as i32,
+        ));
     }
     if let Some(v) = opt(op, "funds") {
         w.funds.set(i64_of(v, "funds")?);
@@ -910,14 +977,23 @@ fn network(w: &World, op: &Json) -> R<()> {
             a.iter()
                 .map(|e| {
                     let p = arr(e, "cell")?;
-                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                    Ok((
+                        i64_of(field_at(p, 0)?, "x")? as i32,
+                        i64_of(field_at(p, 1)?, "z")? as i32,
+                    ))
                 })
                 .collect::<R<Vec<_>>>()?
         } else {
             return Err("a run needs 'rect' or 'cells'".into());
         };
         for &(x, z) in &cells {
-            nets.insert((x, z), NetCell { kind, edges: [false; 4] });
+            nets.insert(
+                (x, z),
+                NetCell {
+                    kind,
+                    edges: [false; 4],
+                },
+            );
         }
         for i in 0..cells.len() {
             let (x, z) = cells[i];
@@ -974,7 +1050,10 @@ fn water(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         for e in arr(v, "cells")? {
             let p = arr(e, "cell")?;
-            s.insert((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32));
+            s.insert((
+                i64_of(field_at(p, 0)?, "x")? as i32,
+                i64_of(field_at(p, 1)?, "z")? as i32,
+            ));
         }
     }
     Ok(())
@@ -1025,9 +1104,14 @@ fn lot(w: &World, op: &Json) -> R<()> {
 /// `zone_cfg`: a lot configuration `{id, w, h, water?, zone_ok?, families?}`.
 fn cfg(w: &World, op: &Json) -> R<()> {
     let id = u32_of(field(op, "id")?, "id")? as u64;
-    let fams: Option<Vec<u32>> = opt(op, "families").map(|v| {
-        arr(v, "families")?.iter().map(|e| u32_of(e, "family")).collect::<R<Vec<_>>>()
-    }).transpose()?;
+    let fams: Option<Vec<u32>> = opt(op, "families")
+        .map(|v| {
+            arr(v, "families")?
+                .iter()
+                .map(|e| u32_of(e, "family"))
+                .collect::<R<Vec<_>>>()
+        })
+        .transpose()?;
     let mut f = [0u32; 4];
     let n = fams.as_ref().map_or(0, |v| v.len().min(4));
     if let Some(v) = &fams {
@@ -1069,7 +1153,10 @@ fn dev(w: &World, op: &Json) -> R<()> {
         for e in arr(v, "estimate")? {
             let a = arr(e, "e")?;
             d.desirability.insert(
-                (i64_of(field_at(a, 0)?, "x")? as i32, i64_of(field_at(a, 1)?, "z")? as i32),
+                (
+                    i64_of(field_at(a, 0)?, "x")? as i32,
+                    i64_of(field_at(a, 1)?, "z")? as i32,
+                ),
                 i64_of(field_at(a, 2)?, "v")? as i16,
             );
         }
@@ -1090,7 +1177,10 @@ fn dev(w: &World, op: &Json) -> R<()> {
         for e in arr(v, "desir_value")? {
             let a = arr(e, "d")?;
             d.desir_value.insert(
-                (i64_of(field_at(a, 0)?, "x")? as i32, i64_of(field_at(a, 1)?, "z")? as i32),
+                (
+                    i64_of(field_at(a, 0)?, "x")? as i32,
+                    i64_of(field_at(a, 1)?, "z")? as i32,
+                ),
                 i64_of(field_at(a, 2)?, "v")? as i16,
             );
         }
@@ -1111,10 +1201,12 @@ fn family(w: &World, op: &Json) -> R<()> {
 
 fn building(w: &World, op: &Json) -> R<()> {
     let id = u32_of(field(op, "id")?, "id")?;
-    let mut p = BuildingProfile::default();
-    p.purpose = opt(op, "purpose").map_or(Ok(0), |v| u32_of(v, "purpose"))? as u8;
-    p.wealth = opt(op, "wealth").map_or(Ok(0), |v| u32_of(v, "wealth"))? as u8;
-    p.capacity = opt(op, "capacity").map_or(Ok(0), |v| u32_of(v, "capacity"))? as u16;
+    let p = BuildingProfile {
+        purpose: opt(op, "purpose").map_or(Ok(0), |v| u32_of(v, "purpose"))? as u8,
+        wealth: opt(op, "wealth").map_or(Ok(0), |v| u32_of(v, "wealth"))? as u8,
+        capacity: opt(op, "capacity").map_or(Ok(0), |v| u32_of(v, "capacity"))? as u16,
+        ..BuildingProfile::default()
+    };
     w.buildings.borrow_mut().insert(id, p);
     Ok(())
 }
@@ -1175,7 +1267,10 @@ fn street_fail(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "cells") {
         for e in arr(v, "cells")? {
             let p = arr(e, "cell")?;
-            s.insert((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32));
+            s.insert((
+                i64_of(field_at(p, 0)?, "x")? as i32,
+                i64_of(field_at(p, 1)?, "z")? as i32,
+            ));
         }
     }
     Ok(())
@@ -1207,7 +1302,10 @@ fn message(w: &World, op: &Json) -> R<()> {
     let id = u32_of(field(op, "id")?, "id")?;
     let m = ZonesMessage {
         id,
-        occupant: opt(op, "occupant").map(|v| u32_of(v, "occupant")).transpose()?.map(u64::from),
+        occupant: opt(op, "occupant")
+            .map(|v| u32_of(v, "occupant"))
+            .transpose()?
+            .map(u64::from),
         data1: opt(op, "data1").map_or(Ok(0), |v| u32_of(v, "data1"))?,
         data3: opt(op, "data3").map_or(Ok(0), |v| u32_of(v, "data3"))?,
         data4: opt(op, "data4").map_or(Ok(0), |v| u32_of(v, "data4"))?,
@@ -1233,7 +1331,10 @@ fn place_zone(w: &World, op: &Json) -> R<()> {
                 .iter()
                 .map(|e| {
                     let p = arr(e, "cell")?;
-                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                    Ok((
+                        i64_of(field_at(p, 0)?, "x")? as i32,
+                        i64_of(field_at(p, 1)?, "z")? as i32,
+                    ))
                 })
                 .collect::<R<Vec<_>>>()?;
             CellRegion::from_cells(rect, &cells)
@@ -1246,15 +1347,32 @@ fn place_zone(w: &World, op: &Json) -> R<()> {
     let check_slope = opt(op, "check_slope").and_then(boolean).unwrap_or(false);
     let skip_size = opt(op, "skip_size").and_then(boolean).unwrap_or(false);
     let check_lot_inside = opt(op, "check_lot_inside").and_then(boolean).unwrap_or(true);
-    let res: PlaceZoneResult = m.place_zone(&mut region, zone_type, commit, skip_funds, check_slope, skip_size, check_lot_inside);
+    let res: PlaceZoneResult = m.place_zone(
+        &mut region,
+        zone_type,
+        commit,
+        skip_funds,
+        check_slope,
+        skip_size,
+        check_lot_inside,
+    );
     // The cells still set in the caller's region after the call (rejected bits
     // were cleared, §6): sorted for a stable comparison.
     let mut remaining: Vec<(i32, i32)> = region.cells();
     remaining.sort();
-    let region_cells = Json::Array(remaining.iter().map(|&(x, z)| Json::Array(vec![ji(x), ji(z)])).collect());
+    let region_cells = Json::Array(
+        remaining
+            .iter()
+            .map(|&(x, z)| Json::Array(vec![ji(x), ji(z)]))
+            .collect(),
+    );
     w.events.push(
         "place_zone_result",
-        vec![("ok", Json::Bool(res.ok)), ("cost", ji(res.cost)), ("error", ji(res.error))],
+        vec![
+            ("ok", Json::Bool(res.ok)),
+            ("cost", ji(res.cost)),
+            ("error", ji(res.error)),
+        ],
     );
     if let Some(e) = op.get("expect") {
         let got = Json::Object(vec![
@@ -1284,7 +1402,10 @@ fn do_parcellization(w: &World, op: &Json) -> R<()> {
                 .iter()
                 .map(|e| {
                     let p = arr(e, "cell")?;
-                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                    Ok((
+                        i64_of(field_at(p, 0)?, "x")? as i32,
+                        i64_of(field_at(p, 1)?, "z")? as i32,
+                    ))
                 })
                 .collect::<R<Vec<_>>>()?;
             CellRegion::from_cells(rect, &cells)
@@ -1312,7 +1433,10 @@ fn draw_street(w: &World, op: &Json) -> R<()> {
                 .iter()
                 .map(|e| {
                     let p = arr(e, "cell")?;
-                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                    Ok((
+                        i64_of(field_at(p, 0)?, "x")? as i32,
+                        i64_of(field_at(p, 1)?, "z")? as i32,
+                    ))
                 })
                 .collect::<R<Vec<_>>>()?;
             CellRegion::from_cells(rect, &cells)
@@ -1341,7 +1465,10 @@ fn examine_boundaries(w: &World, op: &Json) -> R<()> {
                 .iter()
                 .map(|e| {
                     let p = arr(e, "cell")?;
-                    Ok((i64_of(field_at(p, 0)?, "x")? as i32, i64_of(field_at(p, 1)?, "z")? as i32))
+                    Ok((
+                        i64_of(field_at(p, 0)?, "x")? as i32,
+                        i64_of(field_at(p, 1)?, "z")? as i32,
+                    ))
                 })
                 .collect::<R<Vec<_>>>()?;
             CellRegion::from_cells(rect, &cells)
@@ -1355,7 +1482,10 @@ fn examine_boundaries(w: &World, op: &Json) -> R<()> {
         ("d".into(), ji(o.d)),
         ("q".into(), ji(o.q)),
         ("scores".into(), Json::Array(o.scores.iter().map(|&s| ji(s)).collect())),
-        ("conditions".into(), Json::Array(o.conditions.iter().map(|&c| ji(c)).collect())),
+        (
+            "conditions".into(),
+            Json::Array(o.conditions.iter().map(|&c| ji(c)).collect()),
+        ),
     ]);
     check_expect(op, got)
 }
@@ -1407,7 +1537,10 @@ fn call(w: &World, op: &Json) -> R<()> {
             let h = i64_of(a(3)?, "h")? as i32;
             let facing = i64_of(a(4)?, "facing")? as i32;
             let res = w.dev()?.create_lot_if_possible_full(x, z, ww, h, facing, false, false);
-            Json::Object(vec![("ok".into(), Json::Bool(res.ok)), ("lot".into(), res.lot.map_or(Json::Null, |l| ji(l as i64)))])
+            Json::Object(vec![
+                ("ok".into(), Json::Bool(res.ok)),
+                ("lot".into(), res.lot.map_or(Json::Null, |l| ji(l as i64))),
+            ])
         }
         ("developer", "get_lot_count") => ji(w.dev()?.lot_count() as i64),
         ("developer", "master_lots") => {
@@ -1497,7 +1630,11 @@ fn eval(op: &Json) -> R<()> {
             let max = i64_of(field_at(args, 3)?, "max")? as i32;
             let ld = i64_of(field_at(args, 4)?, "ld")? as i32;
             let ps = i64_of(field_at(args, 5)?, "ps")? as i32;
-            Json::Array((1..=12).map(|rem| ji(depth_rule(rem, front, far, min, max, ld, ps))).collect())
+            Json::Array(
+                (1..=12)
+                    .map(|rem| ji(depth_rule(rem, front, far, min, max, ld, ps)))
+                    .collect(),
+            )
         }
         "middle_row" => {
             let o0 = i64_of(field_at(args, 0)?, "o0")? as i32;
@@ -1544,8 +1681,14 @@ fn expect(w: &World, op: &Json) -> R<()> {
         got.push(("orientation_flag".to_owned(), Json::Bool(o.flag)));
         got.push(("orientation_d".to_owned(), ji(o.d)));
         got.push(("orientation_q".to_owned(), ji(o.q)));
-        got.push(("scores".to_owned(), Json::Array(o.scores.iter().map(|&s| ji(s)).collect())));
-        got.push(("conditions".to_owned(), Json::Array(o.conditions.iter().map(|&c| ji(c)).collect())));
+        got.push((
+            "scores".to_owned(),
+            Json::Array(o.scores.iter().map(|&s| ji(s)).collect()),
+        ));
+        got.push((
+            "conditions".to_owned(),
+            Json::Array(o.conditions.iter().map(|&c| ji(c)).collect()),
+        ));
         let ls = d.lot_size();
         got.push((
             "lot_size".to_owned(),
@@ -1557,7 +1700,10 @@ fn expect(w: &World, op: &Json) -> R<()> {
                 ("block".into(), ji(ls.block)),
             ]),
         ));
-        got.push(("deferred".to_owned(), Json::Array(w.deferred.borrow().iter().map(|&b| Json::Bool(b)).collect())));
+        got.push((
+            "deferred".to_owned(),
+            Json::Array(w.deferred.borrow().iter().map(|&b| Json::Bool(b)).collect()),
+        ));
     }
     got.push(("funds".to_owned(), ji(w.funds.get())));
     got.push(("place_count".to_owned(), ji(w.street_place_count.get())));
@@ -1623,7 +1769,10 @@ fn expect(w: &World, op: &Json) -> R<()> {
                 let mut want_cells: BTreeSet<(i32, i32)> = BTreeSet::new();
                 for e in arr(wc, "cells")? {
                     let a = arr(e, "cell")?;
-                    want_cells.insert((i64_of(field_at(a, 0)?, "x")? as i32, i64_of(field_at(a, 1)?, "z")? as i32));
+                    want_cells.insert((
+                        i64_of(field_at(a, 0)?, "x")? as i32,
+                        i64_of(field_at(a, 1)?, "z")? as i32,
+                    ));
                 }
                 let got_cells: BTreeSet<(i32, i32)> = region.cells().into_iter().collect();
                 if got_cells != want_cells {
@@ -1653,12 +1802,22 @@ fn expect_parcel_log(w: &World, op: &Json) -> R<()> {
     let want = arr(field(op, "log")?, "log")?;
     let show_got = || got.iter().map(show).collect::<Vec<_>>().join(", ");
     if got.len() != want.len() {
-        return Err(format!("{} log entries, expected {}:\n  got      {}\n  expected {}",
-            got.len(), want.len(), show_got(), want.iter().map(show).collect::<Vec<_>>().join(", ")));
+        return Err(format!(
+            "{} log entries, expected {}:\n  got      {}\n  expected {}",
+            got.len(),
+            want.len(),
+            show_got(),
+            want.iter().map(show).collect::<Vec<_>>().join(", ")
+        ));
     }
     for (i, (g, wnt)) in got.iter().zip(want).enumerate() {
         if !matches(g, wnt, false) {
-            return Err(format!("log entry {i}: got {}, expected {}\n  full log: {}", show(g), show(wnt), show_got()));
+            return Err(format!(
+                "log entry {i}: got {}, expected {}\n  full log: {}",
+                show(g),
+                show(wnt),
+                show_got()
+            ));
         }
     }
     Ok(())
@@ -1724,7 +1883,10 @@ fn save_now(w: &World) -> R<ZonesSaved> {
         .map(|e| ((e.0, e.1), e.3))
         .collect();
     Ok(ZonesSaved {
-        saved: scalar::Saved { pkg, root: root.into_bytes() },
+        saved: scalar::Saved {
+            pkg,
+            root: root.into_bytes(),
+        },
         hosts,
     })
 }
@@ -1749,9 +1911,9 @@ fn load(w: &World, op: &Json) -> R<()> {
     let hosts = saved.hosts.clone();
     let mut factory = |class: u32, id: u32| -> Option<RefValue> {
         match class {
-            CLSID_ZONE_MANAGER => {
-                Some(RefValue::Object(Rc::new(ZoneManager::new(host.clone())) as Rc<dyn SaveObject>))
-            }
+            CLSID_ZONE_MANAGER => Some(RefValue::Object(
+                Rc::new(ZoneManager::new(host.clone())) as Rc<dyn SaveObject>
+            )),
             CLSID_ZONE_DEVELOPER => Some(RefValue::Object(
                 Rc::new(ZoneDeveloper::new(host.clone(), statics.clone())) as Rc<dyn SaveObject>,
             )),

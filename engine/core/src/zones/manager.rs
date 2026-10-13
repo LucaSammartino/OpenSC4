@@ -18,15 +18,15 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use super::{
-    is_rci_zone, place_error, ZonesHost, ZonesMessage, CLSID_ZONE_MANAGER, DEMOLISH_COMMIT_FLAGS,
-    DEMOLISH_PRICE_FLAGS, IID_SIM_GRID, MSG_INSERT_OCCUPANT, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, ZONE_GRID_CLASS,
+    is_rci_zone, place_error, ZonesHost, ZonesMessage, CLSID_ZONE_MANAGER, DEMOLISH_COMMIT_FLAGS, DEMOLISH_PRICE_FLAGS,
+    IID_SIM_GRID, MSG_INSERT_OCCUPANT, NETWORK_OCCUPANT_TYPE, NO_DEZONE_FLAGS, ZONE_GRID_CLASS,
 };
 use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::property::PropertyHolder;
 use crate::props;
 use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
-use std::any::Any;
 use crate::variant::{mem, Elem, Variant};
+use std::any::Any;
 
 /// The zone manager's record version (§10.1 field 1).
 pub const MANAGER_RECORD_VERSION: u16 = 1;
@@ -141,14 +141,32 @@ pub fn shipped_tuning() -> PropertyHolder {
     }
     let mut h = PropertyHolder::new();
 
-    i32a(&mut h, prop::MIN_CELL_SIZE, [0, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 2, 1]);
-    i32a(&mut h, prop::MAX_CELL_SIZE, [32768, 32, 32, 32, 32, 32, 32, 48, 32, 32, 32, 32, 32, 32, 32, 32]);
-    i64a(&mut h, prop::CREATION_COST, [0, 10, 20, 50, 10, 20, 50, 10, 20, 50, 1, 1, 1, 1, 50, 1]);
-    i64a(&mut h, prop::DESTRUCTION_COST, [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]);
+    i32a(
+        &mut h,
+        prop::MIN_CELL_SIZE,
+        [0, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 1, 1, 1, 2, 1],
+    );
+    i32a(
+        &mut h,
+        prop::MAX_CELL_SIZE,
+        [32768, 32, 32, 32, 32, 32, 32, 48, 32, 32, 32, 32, 32, 32, 32, 32],
+    );
+    i64a(
+        &mut h,
+        prop::CREATION_COST,
+        [0, 10, 20, 50, 10, 20, 50, 10, 20, 50, 1, 1, 1, 1, 50, 1],
+    );
+    i64a(
+        &mut h,
+        prop::DESTRUCTION_COST,
+        [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    );
     u32a(
         &mut h,
         prop::TEXTURE_INSTANCE,
-        [4121, 4117, 4118, 4116, 4099, 4100, 4098, 4112, 4113, 4111, 4114, 4096, 4120, 4123, 4101, 4122],
+        [
+            4121, 4117, 4118, 4116, 4099, 4100, 4098, 4112, 4113, 4111, 4114, 4096, 4120, 4123, 4101, 4122,
+        ],
     );
     h.add(prop::DISPLAY_ALPHA, Variant::Scalar(Elem::U8(170)));
     u32a(
@@ -162,7 +180,9 @@ pub fn shipped_tuning() -> PropertyHolder {
     f32a(
         &mut h,
         prop::MAX_SLOPE,
-        [256.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0],
+        [
+            256.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0, 15.0,
+        ],
     );
     h
 }
@@ -377,11 +397,9 @@ impl ZoneManager {
             return 0;
         }
         let mut s = self.st.borrow_mut();
-        let key = (result as u8, zone as u8);
-        if !s.failure1.contains_key(&key) {
-            s.failure1.insert(key, 0);
-        }
-        s.failure1[&key]
+        // Slot 9 inserts a zero entry when the key is absent (§11.1 [quirk]);
+        // that entry is then saved (§10.1 field 11).
+        *s.failure1.entry((result as u8, zone as u8)).or_insert(0)
     }
 
     /// Slot 10 `GetAbandonedTileCount()`; never updated (§2 *[quirk]*).
@@ -576,7 +594,11 @@ impl ZoneManager {
                 }
                 if check_slope && zone_type != 0 && zone_type != 15 {
                     let s = self.host.area_slope(CellRect::new(x, z, x, z), true);
-                    if !(s <= max_slope) {
+                    // §6: "if not (s <= maxSlope[type]): reject (NaN rejects)",
+                    // so the negated compare is the specified behaviour.
+                    #[allow(clippy::neg_cmp_op_on_partial_ord)]
+                    let rejects = !(s <= max_slope);
+                    if rejects {
                         region.set(x, z, false); // reject (NaN rejects)
                         continue;
                     }
@@ -701,7 +723,8 @@ impl ZoneManager {
                 }
                 self.host
                     .demolish_lots(true, &demolish, check_slope, DEMOLISH_COMMIT_FLAGS);
-                self.host.zone_developer_do_parcellization(&changed, zone_type, check_slope);
+                self.host
+                    .zone_developer_do_parcellization(&changed, zone_type, check_slope);
                 self.host.post_zoning_change(changed, zone_type, check_slope);
             }
         }
@@ -793,10 +816,7 @@ impl ZoneManager {
             None => return false,
         };
         let rd = |inp: &mut dyn InStream| -> Option<Mgr> {
-            let mut m = Mgr {
-                grid,
-                ..Mgr::default()
-            };
+            let mut m = Mgr { grid, ..Mgr::default() };
             for a in [&mut m.zone_count, &mut m.undeveloped, &mut m.unnamed_per_type] {
                 for slot in a.iter_mut() {
                     *slot = inp.get_u32()?;

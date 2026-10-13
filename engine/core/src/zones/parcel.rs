@@ -86,7 +86,7 @@ pub fn middle_row(o0: i32, so: i32, b1: i32, b2: i32, lw: i32) -> i32 {
         if low {
             o >= b1 && o <= b2
         } else {
-            o >= b1 - lw + 1 && o <= o0
+            o > b1 - lw && o <= o0
         }
     };
     let mut n = 0i32;
