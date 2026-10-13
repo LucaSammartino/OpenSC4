@@ -1,0 +1,282 @@
+{
+  "format": 1,
+  "name": "pf11_16_exit_node_connection_cost",
+  "spec": [
+    "pathfinder 4.6",
+    "pathfinder 4.8.2",
+    "pathfinder 4.10.2",
+    "pathfinder 4.13",
+    "pathfinder 4.15",
+    "pathfinder 4.16",
+    "pathfinder 10"
+  ],
+  "description": "Extra. Start rect (4,2) (no lot): ring 1 reaches the street at (4,3); start nodes (4,3) sides 0 and 2. End rect (-1,3,-1,3), w = 0.5. The search rect (0,-2)-(8,6) holds every street cell, so f = g and the exit node from (0,3) (direction 0) costs r24(f - g) = 0: g 6.0, keyed on (0,3) with bit 31 and prefix (2<<2|0), node cell (-1,3). Off-map in the end rect: a goal (end cell (-1,3), arrived 10). Filter 3 with destination type reached 0 (FreeCity4 zero-fills it, §10 Q1) adds the neighbour connection cost 0.25: trip length 6.25. The compressed route treats the exit node as a unit step: 01 04 03, 41 05 00 00. Reversible.",
+  "steps": [
+    {
+      "op": "pf_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "the preamble street (0,3)...(4,3)"
+    },
+    {
+      "op": "pf_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "note": "the start lot"
+    },
+    {
+      "op": "pf_env",
+      "attractiveness": 0.5
+    },
+    {
+      "op": "pf_neighbor_cost",
+      "cell": [
+        -1,
+        3
+      ],
+      "cost": 0.25
+    },
+    {
+      "op": "pf_create"
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        4,
+        4,
+        4,
+        4
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_trip_destination_filter",
+      "args": [
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_travel_type_flag",
+      "args": [
+        2,
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_starting_cost_array",
+      "args": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_route_info",
+      "args": [
+        true
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_traffic_density",
+      "args": [
+        10
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_flag",
+      "args": [
+        1
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_start_rect",
+      "args": [
+        4,
+        2,
+        4,
+        2
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "set_end_rect",
+      "args": [
+        -1,
+        3,
+        -1,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "find_path",
+      "expect": 1
+    },
+    {
+      "op": "pf_expect",
+      "state": {
+        "result": 6,
+        "node_count": 7,
+        "nodes": [
+          {
+            "cell": [
+              4,
+              3
+            ],
+            "side": 0
+          },
+          {
+            "cell": [
+              4,
+              3
+            ],
+            "side": 2
+          },
+          {
+            "cell": [
+              3,
+              3
+            ],
+            "g": "0x3FC00000"
+          },
+          {
+            "cell": [
+              2,
+              3
+            ],
+            "g": "0x40400000"
+          },
+          {
+            "cell": [
+              1,
+              3
+            ],
+            "g": "0x40900000"
+          },
+          {
+            "cell": [
+              0,
+              3
+            ],
+            "g": "0x40C00000"
+          },
+          {
+            "key": "0x88010003",
+            "cell": [
+              -1,
+              3
+            ],
+            "side": 0,
+            "g": "0x40C00000",
+            "f": "0x40C00000",
+            "parent": 5
+          }
+        ],
+        "route": [
+          [
+            4,
+            3,
+            1
+          ],
+          [
+            3,
+            3,
+            1
+          ],
+          [
+            2,
+            3,
+            1
+          ],
+          [
+            1,
+            3,
+            1
+          ],
+          [
+            0,
+            3,
+            1
+          ],
+          [
+            255,
+            3,
+            1
+          ]
+        ],
+        "search_rect": [
+          0,
+          -2,
+          8,
+          6
+        ]
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "get_end_cell",
+      "expect": [
+        -1,
+        3
+      ]
+    },
+    {
+      "op": "pf_call",
+      "method": "get_traffic_arrived",
+      "expect": 10
+    },
+    {
+      "op": "pf_call",
+      "method": "get_trip_length",
+      "expect": "0x40C80000",
+      "note": "r24(0.25 + 6.0)"
+    },
+    {
+      "op": "pf_call",
+      "method": "get_compressed_route",
+      "expect": {
+        "bytes": "01040341050000",
+        "mask": "0x00000002"
+      }
+    },
+    {
+      "op": "pf_call",
+      "method": "was_trip_reversible",
+      "expect": true
+    }
+  ]
+}

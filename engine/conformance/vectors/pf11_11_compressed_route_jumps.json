@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "pf11_11_compressed_route_jumps",
+  "spec": [
+    "pathfinder 4.15",
+    "pathfinder 11.11"
+  ],
+  "description": "Conformance test 11 (§11). Chain (5,5,0) (6,5,0) (6,5,6) (6,6,6) (6,7,6) (6,9,6) (7,9,6), no ferry bits: header 00 05 05; run 40 01 02; type change in place = jump 06 06 05; run 46 02 0F; two-cell move = jump 06 06 09; run 46 01 02. Mask 1<<0 | 1<<6 = 0x41.",
+  "steps": [
+    {
+      "op": "pf_env",
+      "cells": [
+        16,
+        16
+      ]
+    },
+    {
+      "op": "pf_eval",
+      "fn": "encode_route",
+      "args": [
+        [
+          [
+            5,
+            5,
+            0
+          ],
+          [
+            6,
+            5,
+            0
+          ],
+          [
+            6,
+            5,
+            6
+          ],
+          [
+            6,
+            6,
+            6
+          ],
+          [
+            6,
+            7,
+            6
+          ],
+          [
+            6,
+            9,
+            6
+          ],
+          [
+            7,
+            9,
+            6
+          ]
+        ]
+      ],
+      "expect": {
+        "bytes": "00050540010206060546020f060609460102",
+        "mask": "0x00000041"
+      }
+    }
+  ]
+}
