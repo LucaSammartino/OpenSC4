@@ -22,13 +22,14 @@ zone developer's per-cell `IsCellOccupied(x, z)` (`0x0072C050`), called only in 
 That is §8.4's code-7 cell condition without codes 0–3, so `can_create_lot(…) == 7` is not equivalent. The lot then
 examined is always the real one (`GetLot(x, z, false)`).
 
-**ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**
-Tests 19–29 all state "the harness bypasses `DetermineLotSize`", and no other test covers it. It is the most
-arithmetic-heavy function in the spec — the x87 chain
-`ftol(r24(r24(float(k)/float(sx·sz)) × float((min+max)/2)))`, the `hash_set` iteration order, the developer tie-break on
-`EstimateDesirability` then demand, and the stage walk. The lane implemented it from the prose but **cannot verify any of
-it**. A test 30 (a scripted BDS + configurations + developer, expected width/depth/minDepth/maxDepth/block) would close
-what the lane calls the largest correctness risk in its work.
+~~**ZQ3 — §7.2.1 `DetermineLotSize` has no conformance test in §15.**~~ **ANSWERED 2026-10-13** from the exe:
+§7.2.1 was re-checked against the bytes and zones.md §15 now has **test 30 (a–g)**, with a scripted BDS,
+configurations and developers and every expected width, depth, minDepth, maxDepth and block. Three corrections were
+written into §7.2.1:
+- the configuration filter also requires growth stage ≤ stage;
+- the configuration `hash_set` is keyed by **pointer**, so the original's order is heap-address order. It is
+  observable only through a score tie. *[choice]* FreeCity4 uses ascending configuration ID, pinned by test 30e;
+- the x87 chain equals the exact floor for k ≤ 64 (shipped k = 16) but not above (test 30g).
 
 **ZQ4 — no vector covers highlight mode.**
 `HighlightParcels` (§7.1), virtual lots, virtually deleted cells, and the §7.13 draft fallbacks are all untested. The

@@ -398,26 +398,42 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
 1. Centre `(cx, cz) := ((x1 + x2) / 2, (z1 + z2) / 2)` of the cropped region (C integer division).
 2. Candidate developers (BDS slot 32 `GetDeveloper(type)`) by zone: 1–3 → `0x1010`, `0x1020`, `0x1030` (R$, R$$,
    R$$$); 4 → `0x3110`, `0x3120`, `0x3130`, `0x3320`, `0x3330` (CS$, CS$$, CS$$$, CO$$, CO$$$); 5–6 → the same five
-   with the *shallow* flag set; other zones → none.
+   with the *shallow* flag set; other zones → none. The results are not null-checked *[quirk]*: every candidate must
+   exist (the shipped BDS has all eight).
 3. Best developer: the first candidate; a later candidate replaces it if its `EstimateDesirability(cx, cz)` (int16,
    `growth-developer.md` §4.6) is greater, or equal and `ftol(GetSourceDemand().QueryActiveDemandValue())` is greater
    (`demand.md` slot 12). Keep `bestDemand := ftol(best.demand value)`.
-4. Stage := 1. If the best developer's growth/decline lists are valid, walk its growth list in order: stop at the
-   first item whose desirability-map tract value at `(item.x, item.z)` is ≤ the best desirability; otherwise
-   stage := `item.maxStage`.
-5. Lot configurations: lot configuration manager (`0x00B43D18`) slot 9 with a filter (vtable `0x00AB36FC`) of
-   `{purpose = best.GetPurpose(), wealth = best.GetWealth(), stage}` into an STLport `hash_set` (100 → 193 buckets);
-   iterated in hash order.
-6. For each configuration with a primary building object whose size `(sx, sz)` satisfies `2 ≤ sz ≤ 3`, `sx ≤ 3`
-   and (not shallow or `sz ≤ 2`): over the building types of each family of the object (BDS slot 19, profiles by
-   slot 39) with matching purpose and wealth, take `min` and `max` of the u16 capacity. If any was found:
-   `k := (1 << s) << s` with s the desirability map's tract shift (cells per tract);
+4. Stage := 1. If the best developer's growth/decline lists are valid (growth developer slot 10), walk its growth
+   list (slot 11) in order: stop at the first item whose desirability-map tract value (slot 13, then
+   `GetTractValue(item.x, item.z)`, int16, signed compare) is ≤ the best desirability; otherwise
+   stage := `item.maxStage`. A walk that reaches the end keeps the last item's `maxStage`.
+5. Lot configurations: lot configuration manager (`0x00B43D18`) slot 9 `GetLotConfigurationsByFilter` with a filter
+   on the stack (vtable `0x00AB36FC`) holding `{purpose = best.GetPurpose(), wealth = best.GetWealth(), stage}`
+   (growth developer slots 7, 8). Its `IsLotConfigurationIncluded(cfg)` (`0x0072A080`) is
+   `cfg.IsCompatibleWithPurposeType(purpose)` (cfg slot 17) **and** `cfg.IsCompatibleWithWealthType(wealth)`
+   (slot 16) **and** `cfg.GetGrowthStage()` (slot 11, u8) ≤ stage. The filter is never registered, so the manager
+   takes its uncached path (`0x0048B2E7`): it walks all its configurations and inserts each one the filter accepts
+   into a fresh STLport `hash_set` (hint 100 → 193 buckets), with one AddRef. No best developer → no query and an
+   empty set.
+6. For each configuration of the set (order below) that has a primary building object (cfg slot 24; null →
+   skipped) and whose size `(sx, sz)` (cfg slot 7) satisfies `2 ≤ sz ≤ 3`, `sx ≤ 3` (unsigned) and (not shallow or
+   `sz ≤ 2`): `min := 0x7FFFFFFF`, `max := 0x80000000`. For each ID of the object's ID list, in list order, a fresh
+   hash set is filled by BDS slot 19 `GetBuildingTypesByFamily(set, ID)` (a family → its members, a building type
+   → itself, anything else → nothing). For each type T in it, `P := GetBuildingProfile(T)` (slot 39); if
+   `P.purpose = best.GetPurpose()` and `P.wealth = best.GetWealth()`, `min` and `max` take the u16 `P.capacity`
+   (signed compares). If any was found:
+   `k := (1 << s) << s` with s the desirability map's tract shift (slot 11; k = cells per tract);
    `v := ftol(r24(r24(float(k) / float(sx · sz)) × float((min + max) / 2)))` (integer division; the product is
    unsigned); `score := |v − bestDemand|`. Keep the configuration with the smallest score (strict `<`: first wins).
+   *[compat]* Implement the chain as written. For k ≤ 64 (tract size ≤ 8; the shipped 4 gives k = 16) it equals
+   `⌊k · avg / (sx · sz)⌋` for every u16 `avg` (checked exhaustively), but not for larger k: with k = 256,
+   `sx · sz = 3` and avg 49154 it gives 4194475 where the floor is 4194474, and k = 4096 (tract size 64, the
+   developer's default when its tuning lacks `0x87CD6310`) already differs at avg 3074 (test 30g).
 7. Lot width/depth := the chosen configuration's size `(sx, sz)` (lot configuration slot 7, first out-parameter =
    width), else (2, 2). `minDepth := maxDepth := depth`; then over **all** configurations of the hash set (not only
    those that passed the size filter of step 6), in hash order, with `width mod sx = 0` (unsigned), widen
-   `[minDepth, maxDepth]` to include `sz` (unsigned compares). Every configuration is released.
+   `[minDepth, maxDepth]` to include `sz` (unsigned compares; cfg slot 7 again). This walk releases every
+   configuration of the set once.
    If `maxDepth − minDepth < 2` (unsigned): `minDepth := (minDepth > 2) ? maxDepth − 2 : 1`; `maxDepth := minDepth + 2`.
 8. Block depth by zone density (`0x00458960`: zones 1, 4 → 1; 2, 5 → 2; 3, 6, 7, 8, 9 → 3; any other → 0) when a
    best developer exists and its purpose (growth developer slot 7) is 1 (residential): density 1 → `3 · depth`,
@@ -425,7 +441,15 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
    Otherwise (no best developer, or another purpose): 1 → 7, 2 → 6, 3 → 5. Density 0 leaves the block depth
    unchanged (unreachable for zones 1–9).
 
-No random draws. Hash-set order depends only on the configuration IDs.
+No random draws.
+
+**Configuration order.** The configuration set is keyed by the configuration **pointer**. An element goes into bucket
+`(ptr >> 2) mod 193`, at the head of its chain (`0x0072BA50`), and iteration runs through the buckets in ascending
+order, each chain from its head. The original's order is therefore heap-address order and cannot be reproduced from
+the data. (An earlier version of this section said it depended only on the configuration IDs; that was wrong.) It
+is observable only through step 6's tie, where two configurations with the same score meet and the first wins. Steps
+7 and 8 do not depend on it, and neither do the min and max over each inner type set. *[choice]* FreeCity4 visits the
+configurations in **ascending configuration ID** (cfg slot 3 `GetID`); test 30e pins it.
 
 ### 7.3 `ExamineBoundaries` (`0x00731C80`) and `ExamineCell` (`0x0072FAB0`)
 
@@ -1398,3 +1422,62 @@ and Place calls; levelling calls are not logged. Lots are written `(x1, z1)–(x
     fails, Place(10, 5, 14, 5) succeeds, stop.
 29. **Middle row.** `o0 = 10`, row step +2: row range 10..15 → mid 10; 10..17 → 12; 10..21 → 14; 10..11 → 10.
     In test 20 the forced cross street therefore follows the first row.
+
+**`DetermineLotSize` (test 30, §7.2.1).** The harness calls `DetermineLotSize` directly. The current zone type is set,
+the cropped region's rect is `{10, 10, 15, 13}` (centre (12, 11)), and the BDS, the growth developers and the lot
+configuration manager are scripted. Every developer asserts that it is asked `EstimateDesirability(12, 11)`, and
+every desirability map has tract shift 2 (k = 16). Building types B1…B9 are `0xB001`…`0xB009`; families
+F1 = `0xF001` = {B1, B2, B3} and F2 = `0xF002` = {B5, B6, B7}. Profiles (purpose / wealth / capacity): B1 1/2/40,
+B2 1/2/60, B3 1/1/500, B4 1/2/150, B5 1/2/300, B6 1/2/371, B7 3/2/90, B8 1/2/356, B9 1/2/237. Configurations
+(compatible purposes and wealths, `GetGrowthStage`, the primary building object's ID list):
+
+| ID | sx × sz | Purposes | Wealths | Stage | Object IDs |
+|---|---|---|---|---|---|
+| `0x101` | 2 × 2 | 1 | 2 | 1 | F1 |
+| `0x102` | 2 × 3 | 1, 3 | 2 | 3 | B4, B7 |
+| `0x103` | 3 × 3 | 1, 3 | 2 | 2 | F2 |
+| `0x104` | 1 × 4 | 1 | 2 | 1 | B1 |
+| `0x105` | 2 × 3 | 1 | 2 | 4 | B8 |
+| `0x106` | 2 × 2 | 1 | 1 | 1 | B9 |
+| `0x107` | 3 × 1 | 1, 3 | 2 | 1 | B5 |
+| `0x108` | 3 × 2 | 1, 3 | 2 | 1 | none (slot 24 returns null) |
+| `0x109` | 2 × 2 | 3 | 2 | 1 | B7 |
+
+Developers (type: purpose / wealth, `EstimateDesirability`, `QueryActiveDemandValue`; lists valid and empty unless
+stated): `0x1010` 1/1, 40, 812.9; `0x1020` 1/2, 40, 950.5, growth list [(3, 2, 4), (1, 1, 3), (0, 0, 1)] over
+desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10, 100.0; `0x3120` 2/2, 12, 300.9;
+`0x3130` 2/3, 12, 400.0; `0x3320` 3/2, 13, 250.0, growth list [(0, 0, 2)] over tract value 20; `0x3330` 3/3, 13,
+250.7. Results are written (width, depth, minDepth, maxDepth, block).
+
+30. **`DetermineLotSize`.**
+    - (a) Zone 1. R$ is taken first (40, 812). R$$ replaces it (equal desirability, 950 > 812); R$$$ does not (39 <
+      40, whatever its demand). bestDemand 950. Stage walk: 55 > 40 → 4, 41 > 40 → 3, 40 ≤ 40 stops: stage 3. The
+      set is {0x101, 0x102, 0x103, 0x104, 0x107, 0x108}: 0x105 (stage 4) and 0x106 (wealth 1) are filtered out, and
+      either would win if admitted (scores 1 and 2). Step 6: 0x101 counts B1 and B2 (not B3, wealth 1): avg 50,
+      `r24(16 / 4)` = 4.0, v 200, score 750. 0x102 counts B4 (not B7, purpose 3): avg 150, `r24(16 / 6)` =
+      2.6666667 (`0x402AAAAB`), product 400.0, v 400, score 550. 0x103 counts B5 and B6: avg 671 / 2 = 335,
+      `r24(16 / 9)` = 1.7777778 (`0x3FE38E39`), product 595.55554 (`0x4414E38E`), v 595, score 355. 0x104 (sz 4)
+      and 0x107 (sz 1) fail the size test; 0x108 has no object. Chosen 0x103 → (3, 3). Widening over the whole set
+      with width 3: 0x104 (sx 1) → maxDepth 4, 0x107 (sx 3) → minDepth 1, 0x103 and 0x108 inside, 0x101 and 0x102
+      skipped (3 mod 2 = 1); [1, 4] needs no adjustment. Block 3 · 3. **(3, 3, 1, 4, 9).** The manager AddRefs each
+      of the six configurations once, and each is released once.
+    - (b) Zone 2, otherwise (a): block `ftol(r24(3 × 2.5))` = 7. **(3, 3, 1, 4, 7).**
+    - (c) Zone 5 (shallow). CS$ (10, 100) is taken first; CS$$ replaces it (12 > 10); CS$$$ replaces it (12, 400 >
+      300); CO$$ replaces it (13 > 12); CO$$$ does not (13, `ftol(250.7)` = 250, not > 250). Stage: 20 > 13 → 2 and
+      the list ends: stage 2. Set {0x103, 0x107, 0x108, 0x109}. 0x103 fails the shallow test (sz 3); 0x109 counts
+      B7: v 4 · 90 = 360, score 110 → (2, 2). Widening with width 2 keeps [2, 2] (0x103, 0x107 and 0x108 have
+      sx 3), adjusted to [1, 3]. Purpose 3: block by density 2 → 6. **(2, 2, 1, 3, 6).**
+    - (d) Zone 4, otherwise (c). 0x103 counts B7 only (B5 and B6 have purpose 1): product `r24(1.7777778 × 90)` =
+      160.0, v 160, score 90 < 110 → (3, 3). Widening with width 3: 0x107 → minDepth 1, 0x108 inside, 0x109 skipped:
+      [1, 3]. Block by density 1 → 7. **(3, 3, 1, 3, 7).** With CO$$'s lists invalid: stage 1, 0x103 leaves the
+      set and 0x109 is chosen: **(2, 2, 1, 3, 7).**
+    - (e) *[choice]* Tie. (a) with demands 99.9 (R$) and 300.0 (R$$): best R$$, bestDemand 300; scores 100 (0x101),
+      100 (0x102), 295 (0x103). FreeCity4 takes the lower ID, 0x101 → (2, 2). Widening with width 2: 0x102 → 3,
+      0x104 → 4, and 0x103, 0x107, 0x108 skipped (2 mod 3 = 2): [2, 4]. Block 6. **(2, 2, 2, 4, 6).** The original
+      takes whichever its address-ordered set visits first; 0x102 first gives (2, 3, 2, 4, 9).
+    - (f) Zone 7: no candidates, no BDS or manager call. **(2, 2, 1, 3, 5).**
+    - (g) Pure functions. `v(k, n, avg) = ftol(r24(r24(k / n) × avg))`: (16, 4, 50) = 200; (16, 6, 150) = 400;
+      (16, 9, 335) = 595; (256, 3, 49154) = 4194475; (4096, 3, 3074) = 4197035; (4096, 6, 6145) = 4194987;
+      (4096, 9, 4616) = 2100793 (the last four are one above the exact floor). Depth adjustment of
+      `[minDepth, maxDepth]`: [2, 2], [3, 3], [1, 2], [2, 3], [1, 1] → [1, 3]; [3, 4], [4, 4] → [2, 4];
+      [5, 6] → [4, 6]; [1, 3] and [1, 4] unchanged. Residential density-2 block: depth 1, 2, 3, 4 → 2, 5, 7, 10.
