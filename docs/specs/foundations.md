@@ -1479,6 +1479,45 @@ therefore unconstrained except where a later analysis derives a requirement (as 
 differential shows a value depending on, say, residential-before-budget, add the requirement here and to the rank
 table rather than reordering registrations ad hoc.
 
+### 13.5 The same reasoning applies at every level, not just month
+
+The decision above is about the month level (level 6) because that is where a requirement was derived. It rests on a
+property that holds at **all** levels, so it answers the same question wherever a subsystem spec asks it — for
+example `residential.md` §10.2 question 3, which asks about the day-level (level 4) order of residential relative to
+the growth developers, pollution and the BDS:
+
+- The original orders agents **by the unsigned value of the `cIGZMessageTarget2` pointer** passed to `AddAgent`
+  (§13.1), and delivery walks that set in ascending order. There is no per-level ordering logic; the level only
+  selects which set is walked.
+- Therefore the order within *any* level is an artifact of heap addresses. §13.2's measurements show it is not even
+  stable between sessions at the month level (pollution rank 3–14, budget 1–11, aura 2–18), so there is **no original
+  day-level order to recover either**. Asking "what order does the original run residential in at day level?" has no
+  stable answer to give.
+- Consequently, for every level: FreeCity4 uses **registration order** (*[choice]*, deterministic and reproducible),
+  and the *only* thing that can make order matter is a **derived data dependency** — one agent reading state another
+  writes in the same pass. Where such a dependency exists it must be derived from the code and recorded as a
+  *[compat]* requirement with evidence, exactly as landfill §3.3 did, and then honoured by the rank table.
+- Where a spec has no derived dependency and simply says the order "follows pointer order in the original and was not
+  analysed", the correct disposition is not to analyse it further — it is to state that registration order is the
+  *[choice]* and move on. Analysing it cannot produce a reproducible answer, and any value that appears to depend on
+  it is depending on heap layout.
+
+So `residential.md` §4.3's existing *[choice]* — "FreeCity4 uses registration order" — is confirmed correct, and the
+part of its open question 3 that asked what the original's day-level order is, is closed: there is nothing to match.
+That does **not** mean residential has no coupling to other agents — §5 state 1 reads the BDS building map and the
+pollution source grids, and §4.3 notes it reads the growth developers' population maps. It means such a coupling can
+only be resolved as a *derived* requirement with evidence, never by reproducing pointer order. If a future
+differential shows residential's day step reading one of those maps before the agent that writes it has run this day,
+that is a derived *[compat]* requirement and belongs in §13.4's rank table.
+
+**One caveat on measuring it.** Delivery logs cannot recover the original's order either: every run that logs
+deliveries (`deliver #N: level … -> agent …`) has FreeCity4's own simulator enabled, so it records *our* registration
+order, not the original's. Run 19 is the only run with the original simulator and our observer, and it predates
+delivery logging (zero `deliver` lines). The delivery log is also capped (300 lines), which in runs 23–28 captured
+only levels 0 and 10. Recovering the original's order would need the observer running against the original simulator
+with the cap raised — and even then it would only measure one session's heap layout, which is the thing that is not
+worth reproducing.
+
 Day-level agents run before month-level ones on the 1st of a month (simulator spec §5); this is independent of
 the order within a level.
 
@@ -1931,54 +1970,93 @@ elsewhere.
 The game's worker threads (`cRZThread`: background model loader, HTTP client, name lookup, file-change
 notification; and the sound driver's thread — §18.2) do not reach the clock or the simulators. *[inferred: from the
 `cRZThread` users in the decompilation — `cRZHTTPClient`, `cRZNameLookup`, `cGZDBSegmentPackedFile` — none of which
-holds a simulator or city reference]*
+holds a simulator or city reference. **Partly contradicted by measurement:** §19.2 caught a game thread calling `IsPaused`
+off the main thread in runs 30 and 31, so at least one non-main thread does reach the clock. Its owning subsystem is not
+identified.]*
 
-**Consequence:** the original needs no re-entrancy tolerance, so a replacement must not assume the game will
-serialise calls for it, and equally must not assume the game will call it concurrently.
+**Consequence — corrected 2026-10-13.** This section previously said a replacement "must not assume the game will call it
+concurrently." §19.2 disproved that: a game thread *does* call the clock concurrently. The accurate statement is narrower
+and more dangerous:
 
-### 19.2 FreeCity4 adds concurrent readers of its own
+- The original has **no locking**, so it cannot be relying on serialisation.
+- It survives concurrent calls only because its clock getters **read plain members** — a race there yields a stale value,
+  not a fault.
+- A Rust replacement cannot inherit that tolerance. `RefCell`/`Cell` **panic** on the same access that merely races in
+  C++, and with `panic = "abort"` the process dies (`0xC0000409`). This is exactly what runs 23 and 26 did.
 
-The plugin runs two threads besides the main one, and both are ours:
+So: do not assume the game serialises calls for you, and do not assume it will not call concurrently — it does both
+erratically. Assume concurrent access and make the state `Sync` (§19.3 rule 1).
 
-- **A watchdog thread** (`FC4Autotest`/`FC4Diag`) that emits `heartbeat (periodic)` lines. Its heartbeat is **not a
-  cached snapshot** — across runs 8–28 the values it prints advance with the simulation: the julian date walks
-  `2452170 → 2452180 → 2452191 → 2452201 …`, the pause/hidden/emergency flags change (`pause 1 hidden 2
-  emergency 1` in the last run-28 heartbeat against `pause 0 hidden 0 emergency 0` earlier), and it reports what the
-  main thread is doing *at that moment*: `delivering msg 0x6695681A (level 10) to agent 00E1E36C
-  'cSC4PowerSimulator' for 16 ms`, `main: OnTick (15 ms) > core fc4_sim_on_tick (15 ms)`. That is simulator state
-  the main thread mutates inside `OnTick`, read from another thread.
-- **An autotest thread** that decides when the verdict is due and terminates the process. In run 26 the panicking
-  thread (`tid 23860`) was neither the main thread (`8328`) nor the watchdog (`22672`), and the panic reported
-  `(thread unnamed)` — the form a plain `std::thread::spawn` produces. Every run has exactly three threads, so the
-  autotest thread is the likely identity. *[inferred: not proven; the process aborted before that thread logged
-  anything else. Naming the threads would settle it in one run.]*
+### 19.2 The concurrent reader is a *game* thread, not ours (measured, 2026-10-13)
 
-**Consequence:** core state reachable from the clock *is* read concurrently in FreeCity4, so it must be `Sync`. A
+This section previously claimed our own watchdog and autotest threads were the concurrent readers of core state. **That
+was wrong, and measurement inverted it.** A detector built for the purpose caught, in runs 30 and 31, a **fourth thread**
+calling `IsPaused` off the main thread — run 31: tid `22796`, against watchdog `17100`, autotest `20216` and main
+`20232`, all distinct. That thread logged nothing else, so it is **not one of ours**; it is a game thread. The original
+tolerates this because its clock getters read plain members, where our `RefCell` panicked.
+
+What our threads actually do, from the code rather than from inference:
+
+- `fc4_sim_*` is called from **exactly one file**, `cFC4Simulator.cpp`, and every call site is a GZCOM method that the
+  *game* invokes. `FC4Watchdog.cpp` and `FC4Autotest.cpp` call **zero** of them.
+- The **watchdog** (`FC4Autotest`/`FC4Diag`) emits `heartbeat (periodic)` lines. Its values do advance with the
+  simulation across runs 8–28 (julian `2452170 → 2452180 → 2452191 → 2452201 …`; `pause 1 hidden 2 emergency 1` in the
+  last run-28 heartbeat against `pause 0 hidden 0 emergency 0` earlier; and it reports what the main thread is doing at
+  that moment: `delivering msg 0x6695681A (level 10) to agent 00E1E36C 'cSC4PowerSimulator' for 16 ms`, `main: OnTick
+  (15 ms) > core fc4_sim_on_tick (15 ms)`). But it reads those from **plugin globals the main thread publishes** via
+  `PublishSimState`/`DeliveryBegin` — not from live simulator state. Publishing is the main thread's act; the read is
+  therefore a read of our own snapshot, not a concurrent read of core state.
+- `fc4_date_from_julian` is pure.
+- The **autotest** thread decides when the verdict is due and terminates the process.
+
+**The run-26 attribution is superseded.** §19.2 previously inferred that run 26's panicking thread (tid `23860`, neither
+main `8328` nor watchdog `22672`, reported `(thread unnamed)`) was the autotest thread, because every run was assumed to
+have exactly three threads. There are at least four. Whether run 26's panic was the autotest thread or the game thread is
+**not proven** and cannot be recovered from that run — the process aborted before anything else logged. Do not rely on
+either attribution.
+
+**On thread naming:** naming our threads would *not* have settled this. Rust prints `(thread unnamed)` for any thread
+created through Win32 `CreateThread`, which is what the game uses. The panic sink therefore now classifies the faulting
+tid against the known main/watchdog/autotest ids instead of relying on a name — that classification is what identified
+the fourth thread.
+
+**Consequence:** core state reachable from the clock *is* read concurrently, **by game code**, so it must be `Sync`. A
 `RefCell` there panics under a concurrent read, and because the release build uses `panic = "abort"` the process dies
 with `0xC0000409` — which is what run 23 and run 26 did. The fix is a `Mutex` held for exactly one `with()`/`read()`
 section and **never** across a `deliver`/`post`/refcount hook, so a blocked getter waits microseconds rather than a
-whole tick and cannot deadlock against a game lock that a delivering agent needs.
+whole tick and cannot deadlock against a game lock that a delivering agent needs. This is unchanged and still necessary —
+only the identity of the reader changed, which matters because chasing our own threads would never have found it.
 
 ### 19.3 Rules for a core author
 
-1. Any state the clock exposes to the diagnostic threads must be `Sync`: `Mutex`/`RwLock`/atomics, not `RefCell` or
-   `Cell`. Main-thread-only state (for example the timer list, which `Init` installs and only `OnTick` reads) may
-   stay a `RefCell` and should be documented as such.
-2. Prefer **not** to have the diagnostic threads read core state at all. Publishing a few values as atomics from the
-   main thread and letting the heartbeat read those removes the contention instead of merely making it safe. Where
-   both are cheap, do both.
-3. Name your threads (`thread::Builder::name`) so a panic names the thread that faulted. Unnamed threads turn a
-   one-run diagnosis into a log forensics session.
+1. Any state the clock exposes to a caller must be `Sync`: `Mutex`/`RwLock`/atomics, not `RefCell` or `Cell`. **The game
+   itself calls clock getters off the main thread** (§19.2), so this is not a FreeCity4-only concern — any core reachable
+   from the clock needs it. Main-thread-only state (for example the timer list, which `Init` installs and only `OnTick`
+   reads) may stay a `RefCell` and should be documented as such.
+2. Do not let the diagnostic threads read core state at all. Publishing a few values as atomics from the main thread and
+   letting the heartbeat read those removes the contention instead of merely making it safe — this is what the watchdog
+   already does, and it is why it never caused the crash. Where both are cheap, do both.
+3. Naming your threads (`thread::Builder::name`) is still good hygiene, but **do not rely on a name to identify a
+   faulting thread**: Win32-created threads report as unnamed. Classify the tid against the ids you know instead.
 4. Never hold a core lock across a call into the game — a delivery, a message post, an `AddRef`/`Release`, or any
-   vtable call. The game may re-enter us.
+   vtable call. The game may re-enter us, and it may also call us from another thread while we hold it.
+5. A temporary in an `if` condition lives through the whole `if` body, so `if self.st.borrow().loaded { …host call… }`
+   holds a `RefCell` borrow across a host call even though it looks scoped. The zones core audited and fixed seven such
+   sites; check for this shape explicitly.
 
 ### 19.4 What this does not settle
 
-Which thread panicked in run 26 is inferred, not proven (§19.2), and whether the original master clock is *ever*
-called from a non-main thread by game code is answered only as "no evidence of it, and no locking to support it". If
-a future run shows a genuine game thread inside a `cISC4Simulator` method, §19.1 must be revised — that would mean
-the original tolerates cross-thread reads despite having no locks, which would be worth understanding before copying
-it.
+- **Whether the original's clock is ever called cross-thread: settled, yes.** §19.2's detector caught a game thread
+  inside `IsPaused` in two separate runs. The earlier "no evidence of it, and no locking to support it" is retracted.
+  §19.1's claim that the original neither serialises nor assumes concurrency still holds — it tolerates cross-thread
+  reads precisely because its getters read plain members and nothing there can tear observably. **Copying that tolerance
+  is not available to us**: Rust's `RefCell` panics where a plain member read merely races.
+- **What the fourth thread is for.** It called `IsPaused` and nothing else in the observed window. Its purpose, its
+  owning subsystem, and whether it calls other clock methods on a longer window are all unknown.
+- **Which thread panicked in run 26** (§19.2). Not recoverable from that run.
+- **What raises the x87 control word to 53-bit** between `PreAppInit` and `PostAppInit` (§18.2). One narrowing result is
+  in hand: inside that ~2 s window our DLL makes exactly two calls (`director Release`, `director AddRef`) and nothing
+  else runs. The next decisive step is a minimal-DLL test, not finer logging.
 
 ## Errata / clarifications (round 2)
 

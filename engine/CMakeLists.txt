@@ -147,6 +147,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4FailFast.h
         plugin/FC4Observer.h
         plugin/FC4Fpu.h
+        plugin/FC4FpuLogic.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
@@ -235,6 +236,13 @@ if(FC4_IS_WIN32_X86)
     target_include_directories(fc4_diag_logic_test PRIVATE plugin)
     target_compile_options(fc4_diag_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME diag_logic_test COMMAND fc4_diag_logic_test)
+
+    # The x87 precision re-assert (foundations §18.2): the game helper's mode
+    # arithmetic and how to report a re-assert.
+    add_executable(fc4_fpu_logic_test tests/fpu_logic_test.cpp)
+    target_include_directories(fc4_fpu_logic_test PRIVATE plugin)
+    target_compile_options(fc4_fpu_logic_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME fpu_logic_test COMMAND fc4_fpu_logic_test)
 
     # Every interface we implement or call against docs/abi/interfaces.tsv
     # (callee-pop bytes, return channel, slot count), read at run time.

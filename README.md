@@ -16,7 +16,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap).
 
 **M0: toolchain**
-- [x] CMake project, Rust core, C ABI, conformance runner (364 vector files)
+- [x] CMake project, Rust core, C ABI, conformance runner (416 vector files + 1 runner self-test = 417 tests)
 - [x] `FreeCity4.dll` loads in SC4 1.1.641 and replaces `cSC4Simulator`
 - [x] Unattended in-game runs: autoload a city, autotest verdict, monthly observer (`tools/ingame_run.ps1`)
 
@@ -30,22 +30,23 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 **M2: scalar sims**
 - [x] Budget, demand, ordinance and weather cores
 - [x] Budget, demand, ordinance and weather glue (budget in-game with no heap corruption, runs 17–18)
-- [x] x87 precision: diagnosed — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Trigger not yet located; the original computes wrongly while our DLL is loaded, so differential runs against it are not float-trustworthy until fixed
-- [ ] Budget differential: blocked on the x87 trigger; run 19 vs run 20 was invalid (both ran at 53-bit). A 24-bit oracle now exists in the Spandau save (manual-checks.md)
+- [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
+- [ ] Budget differential: **no longer blocked**. Run 29 (`disable = simulator,budget`, so the game computes) gives `dept_expense` 123/105 across all five months, matching the unmodified Spandau save — the first float-trustworthy comparison. The §5.3 differential still needs redoing against the fixed baseline
 - [ ] Budget and demand panels match the original after N months (M2 exit)
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
 - [x] Land value glue (off by default)
-- [ ] Power glue (works — runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered; on lane 1's branch, pending merge)
+- [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
 - [ ] Plumbing, protection, flora, pollution, crime, aura and flammability glue
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
 - [x] Specs: building development, growth, tract, lot and zone developers
-- [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors)
-- [ ] Cores: zones (in flight on its branch — 8 commits, ~8.1k lines, tests being verified)
-- [x] Open spec questions answered ([docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) now empty; GD/BD/TD answered in the named specs, 8fdea4e)
+- [x] Cores: building development simulator, growth developer, tract developer, **lot developer** (merged 9889f65; 5,254 lines, 36 unit tests, 18 conformance vectors), **zones** (merged f56e52a; ~10,900 lines, 30 conformance vectors covering all 29 §15 tests)
+- [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
+- [ ] Zones glue; five zones spec questions open in [docs/specs/QUESTIONS.md](docs/specs/QUESTIONS.md) where no vector pins the choice (`DetermineLotSize`, highlight mode, city-border behaviour). ZQ1 (walk order) was answered from the exe on 2026-10-13 and now lives in zones.md §8.3
+- [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
 
