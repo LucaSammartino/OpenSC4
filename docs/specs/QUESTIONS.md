@@ -205,7 +205,10 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   `0x69D5C424` is the switch **mode-mask** grid that `DoLotActivated` writes (`0x00723E2B`), not a wormhole map:
   the wormhole bits live in the cell connection record. The name is corrected in traffic-simulator.md (grid table,
   §6.1 row 9) and save-records.md.
-- **TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]
+- ~~**TN14 — §4.10.2:** is the 0.2 a double or a float32 constant? [double, then 24-bit rounding]~~ **ANSWERED
+  2026-10-14** from the exe (`0x00725370` `fmul dword [0x00AB34F4]`) and written into §4.10.2. **The bracket is
+  wrong: float32** `0x3E4CCCCD`, as are 40.0, 0.1 and 1.0. The double would change the step cost for 25 depth
+  bytes, for example 47 (`0x4081EB85` vs `0x4081EB86`). A worked example is in the spec.
 - **TN15 — §4.10.1:** is a water occupant's "cell rectangle" its single cell or its bounding cells? [single cell]
 - **TN16 — §4.11 Fill step 3:** does a popped state resume after step 3 or redo it? [after; redoing it can loop
   forever]

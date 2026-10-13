@@ -873,13 +873,28 @@ Updates are lazy. A dirty rectangle (with a flag) is updated before each FindPat
    - Skip b if its depth byte is 0, unless b is the target.
    - Skip b if it is the current node's predecessor.
    - `g' = r24(r24(r24(r24(40.0 − r24(depth × 0.2)) × 0.1) + g) + 1.0)`. 0.1 is the static at `0x00B0D490`, never
-     written. Examples:
+     written. Every constant is a **float32** memory operand (`0x00725370`–`0x00725385`, TN14):
+
+     | Constant | Bits | Address |
+     |---|---|---|
+     | 0.2 | `0x3E4CCCCD` (0.20000000298…) | `0x00AB34F4` |
+     | 40.0 | `0x42200000` | `0x00AB34F0` |
+     | 0.1 | `0x3DCCCCCD` (0.10000000149…) | `0x00B0D490` |
+     | 1.0 | `0x3F800000` | `0x00A81228` |
+
+     Each operation is rounded to 24 bits. The depth byte is loaded exactly (`fild`). Using the double 0.2 instead
+     changes `r24(depth × 0.2)` for 39 of the depth bytes 0…200, and the step cost for 25 of them (at g = 0).
+     Examples (g = 0):
 
      | Depth byte | Step cost |
      |---|---|
      | 200 | 1.0 |
      | 100 | 3.0 |
+     | 47 | 4.06 = `0x4081EB85` (the double 0.2 would give `0x4081EB86`) |
      | 0 (target on land) | 5.0 |
+
+     For depth 47: `r24(47 × 0.2f)` = 9.4000006 (`0x41166667`); `40 −` that = 30.599998 (`0x41F4CCCC`);
+     `× 0.1f` = 3.06 (`0x4043D70A`); `+ 0`, then `+ 1.0` = `0x4081EB85`.
 
    - Get or create b. If b is open and not `g' < b.g`, skip. If b is closed and not `g' < b.g`, skip.
    - Otherwise set closed = false, `b.g = g'`, `b.f = r24(√ (float)(Δx² + Δz²) + g')` (to the target),
