@@ -38,7 +38,9 @@ Containers are usually small, so do not rely on this.
 
 Legend: **A** framework service, **B** STL node allocator, **C** global heap (see above). Every list here, game
 or SDK, is one pointer to a 12-byte head node; every node is 12 bytes `{next, prev, value}`. Every vector is
-`{begin, end, capacity_end}`. The layouts match the SDK's, so only the allocator decides compatibility.
+`{begin, end, capacity_end}`. The layouts match the SDK's, so only the allocator decides compatibility. Every
+`std::map` and `std::set` is the STLport tree described in *map and set* below; its layout does **not** match a
+map compiled with a current MSVC.
 "One reference each" means the method AddRefs every element it puts in the container, and whoever destroys the
 container must release each element once.
 
@@ -86,7 +88,7 @@ container must release each element once.
 | `cISC4TrafficSimulator::GetSubnetworksForLot` (39) | `vector<uint32_t>` | B | **no** | clears first, then fills from lot property `0x2A4F9C74` | `0x00711B50` |
 | `cISC4TrafficSimulator::GetSubnetworksInRectangle` (40), `GetSubnetworksInRegion` (41) | `vector<uint32_t>` | B | **no** | clears first, then appends with B. AL is undefined on return | `0x00718D20`, `0x00718F90` |
 | `cISC4TrafficSimulator::GetOccupantCountForAllSubnetworks` (42) | `vector<uint32_t>` | B | **no** | `assign(size, 0)` with B, then counts. AL is undefined on return | `0x007143B0` |
-| `cISC4ZoneManager::PlaceZone` (11), argument 10 `outLots` | `std::set<cRZAutoRefCount<cISC4Lot>>*` (MSVC tree; the SDK says `intptr_t`) | B (nodes) | **no** | does not clear; inserts each lot to be demolished (unique); AddRef only on a new insertion. The caller releases each element and frees the nodes with B | `0x004DDCBB` → `0x00467950` → `0x00467720` |
+| `cISC4ZoneManager::PlaceZone` (11), argument 10 `outLots` | `std::set<cRZAutoRefCount<cISC4Lot>>*` (the STLport tree of *map and set*: 0x14-byte nodes, the lot pointer at +0x10, ordered by unsigned pointer value; the SDK says `intptr_t`) | B (nodes) | **no** | does not clear; inserts each lot to be demolished (unique); AddRef only on a new insertion. The caller releases each element and frees the nodes with B | `0x004DDCBB` → `0x00467950` → `0x00467720` |
 | `cISC4ZoneManager::PlaceZone` (11), argument 1 `region` | `SC4CellRegion<long>&` (in/out) | C (row array and rows) | n/a | the game only clears the bits of rejected cells; it never reallocates or frees the region | `0x004DD780` |
 | `cISC4ZoneDeveloper::HighlightParcels` (5), argument 4 `out` | `SC4CellRegion<long>*` stored into `*out` | C (0x24-byte object, row array, rows) | n/a | the game allocates a new region (when it narrows the result it frees its first region and stores a new one). The caller owns the final region and frees rows, row array and object with C *[inferred: caller not traced]* | `0x00733A1C`, `0x00733E89`, `0x00733891` |
 | `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator block `{current node, owner}` | C | n/a (raw struct) | registered in the owner's iterator list (owner + 4, B node, insert `0x0072BA10`) and advanced by lot removal. The caller walks the owner's list nodes raw, then unregisters it (`std::list::remove` `0x00809580` on owner + 4) and frees the block with C (`0x005E5620`) | `0x00734850` → `0x00734860`; callers `0x006CD7A3`, `0x006C77E8`; freed in the lot developer's `Shutdown` `0x006C7380` |
@@ -114,6 +116,7 @@ container that already owns a B buffer, so the implementation also frees or regr
 | `cISC4DepartmentBudget::GetAllLineItems` (21) | vector of `cISC4LineItem*` (4-byte) | B | **no** | the sub-budget window reuses one vector for every department: from the second call on it arrives emptied but owning a B buffer. The original clears first, reserves with B (which can free the old buffer with `0x0090CF63`) and takes one reference each | callers `0x007876B0`, `0x007898A0`; original `0x006AAD50` |
 | `cISC4DepartmentBudget::GetLocallyFundedItemsByPurpose` (32) | list of property holders | B (nodes and head) | **no** | the caller allocates the head node with `0x0090CF54`. Afterwards it releases each element and frees each node, and then the head, with `0x0090CF63`. The original does not clear; it appends with one reference each | callers `0x00785740`, `0x00786690`; original `0x006AA9C0` |
 | `cISC4Simulator::EnumerateAgentsByName` (24) | vector of `cRZString` (0x14-byte elements) | B for the buffer and for each string's character buffer | **no** | no game caller found (see *Unresolved*). The original clears first (destroys the strings, freeing their character buffers with B, and keeps capacity) and appends with B | original `0x00704450`; clear `0x004863F0`; append `0x0044EDA0` |
+| `cISC4DemandSimulator::GetLocalPopulationSummary` (11) | `std::map<uint32_t, int32_t>&`: the STLport map of *map and set* (12-byte object, 0x18-byte nodes) | B (header and nodes) | **no** | the only caller passes its **own member map**, which already owns a header and may hold nodes from its last call. The original empties it (frees every node with B, keeps the header), then inserts one node per demand node whose region use is 1 or 2. Contract and worked example: *GetLocalPopulationSummary* below. Pop 4, no return value | caller `cSC4RegionalCity::UpdateCityCache` `0x004AD290` (city slot 56 `+0xE0` at `0x004AD3AF`, then the call at `0x004AD3BF` with regional city + 0x3C); original `0x006A5F80` |
 | `cISC4PowerSimulator::GetPowerPlants` (25) | `ilist<cISC4Occupant*>` | A | yes | the original does not clear; it appends one node per plant (A) with one reference each. The caller found passes a fresh, empty list (head allocated with A), then calls `ReleaseOccupantList` (occupant manager slot 48: one Release per element, nodes freed with A) and frees the head with A | caller `cSC4WinMapView::UpdateHighlights` `0x007A1A00` (head `0x007A1A5C`, call `0x007A1F50`, slot 48 `0x007A1FDF`, head freed `0x007A2044`); original `0x006ED120` |
 | `cISC4PlumbingSimulator::GetWaterProducers` (28) | `ilist<cISC4Occupant*>` | A | yes | as `GetPowerPlants`: appends, one reference each | caller `0x007A1F81` (same function, same clean-up); original `0x006DC7D0` |
 | `cISC4FireProtectionSimulator::GetStrikingStations` (17), `cISC4PoliceSimulator::GetStrikingStations` (16) | `ilist<cISC4Occupant*>` | A | yes | the originals do not clear; they append (A) with one reference each and return the number appended in EAX. The police version returns 0 without touching the list when no strike is on | originals `0x006AE170`, `0x006E1A00`; no game caller found (see *Unresolved*) |
@@ -139,14 +142,14 @@ example `0x00B207E4` and `0x00B207DC`). They all point to the same service objec
 
 These methods return the implementing object's own container. The caller reads it in place and never frees or
 modifies it *[inferred: no modifying caller found]*. An implementation in a plugin must therefore hand out a
-container whose layout the game can walk (STLport/MSVC as noted) and must not expect the game to free it; the
+container whose layout the game can walk (the STLport layouts noted) and must not expect the game to free it; the
 allocator matters only if the plugin's own code later grows or frees that container while the game holds no
 iterator into it.
 
 | Method (slot) | Container | Game allocator | SDK container compatible? | Notes | Evidence |
 |---|---|---|---|---|---|
 | `cISC4GrowthDeveloper::GetGrowthList` (11), `GetDeclineList` (12) | vector of 12-byte `GrowthItem {int32 x, int32 z, int32 maxStage}`, by reference | B | **no** | read by the building development simulator (begin/end in place) | original `0x00798040`, `0x006B7540`; push `0x006B56F0` → `0x00626240` → `0x0090CF54`; reader `0x00699440` |
-| `cISC4GrowthDeveloper::GetStylePercentages` (26) | `std::map<uint32_t, SC4Percentage>*` (the SDK says a map of `uint32_t`) | B (nodes) | **no** | read by the tract developer *[inferred]* | `0x006B7590`; destructor `0x004C56F0` |
+| `cISC4GrowthDeveloper::GetStylePercentages` (26) | `std::map<uint32_t, SC4Percentage>*` (the SDK says a map of `uint32_t`): *map and set*, 0x18-byte nodes, the float at +0x14 | B (header and nodes) | **no** | the developer's member at + 0xC0; read by the tract developer *[inferred]* | `0x006B7590`; destructor `0x004C56F0`; filled through `0x006B58C0` at `0x006B84BB` |
 | `cISC4TractDeveloper::GetActiveStyles` (9) / `SetActiveStyles` (10) | `std::vector<uint32_t>`: Get returns the member by reference; Set takes the caller's vector and assigns it into the member | B | **no** | Set's vector assignment (`0x00462C10`) may free and reallocate the member's buffer with B | `0x0070C840`, `0x00707470` |
 | `cISC4TrafficSimulator::GetFerryRouteBetweenTiles` (29) | pointer to a terminal link's or neighbour link's `vector<uint8_t>` (the SDK says `int32`) | B | **no** | owned by the simulator; the caller must neither free it nor keep it past the next rebuild | `0x00713B70` |
 | `cISC4TrafficSimulator::GetDesiredLotInsertionPoint` (22) | pointer to the lot manager's safe lot iterator (from lot manager slot 15; the SDK says `uint32`) | n/a | n/a | handed back to the lot manager by the caller | `0x00720010` |
@@ -154,10 +157,10 @@ iterator into it.
 | `cISC4LotManager::GetMaximumCapacityGrid` (27) | the `uint16` grid (class `0x49B9E604`; the SDK says `short`) | n/a | n/a | game grid object, no AddRef (simgrid §6.4) | `0x00809240`; constructor `0x0045F9B0` |
 | `cISC4TrafficSource::GetTripDataList` (3) | the source's `std::list<cSC4TripData>` (0x34-byte nodes), by reference (the SDK says `SC4List`) | B | **no** | owned by the lot or neighbour connection; the traffic simulator appends, erases and inserts split copies in it with B, and each trip's route and return-route `vector<uint8_t>` are B buffers filled by `GetCompressedRoute`. A replacement traffic source must hand out a list with this layout and allocator | `0x0080BC20`; `0x006C27E0`, `0x006D4E6B`, `0x0071D440`, `0x0071C6C0` |
 | `cISC4TrafficSimulator::GetTrafficEdgeDensity` (12) | pointer into the simulator's edge-density map, or to a shared zero record | n/a | n/a | borrowed; the caller owns nothing | `0x00711460`; zero record `0x00AB31D0` |
-| `cISC4BuildingDevelopmentSimulator::GetDevelopers` (34) | `std::map<uint32_t, cISC4GrowthDeveloper*>*` | B (nodes) | **no** | no AddRef; iterated by the demand simulator | `0x00698CD0` |
+| `cISC4BuildingDevelopmentSimulator::GetDevelopers` (34) | `std::map<uint32_t, cISC4GrowthDeveloper*>*`: the BDS member at + 0x5C, the same STLport map as `map<uint32_t, int32_t>` (*map and set*): key = developer type at +0x10, developer pointer at +0x14, 0x18-byte nodes | B (header and nodes) | **no** | no AddRef for the caller; the map itself holds one reference per developer (taken when the BDS creates it, `0x00699212`, and stored with `0x00497A00` at `0x00699224`). Iterated in key order by the demand simulator (`ExportDemand`, `0x006A90E4`) | `0x00698CD0`; constructed at `0x0069A0A3` |
 | `cISC4BuildingDevelopmentSimulator::GetSpecialBuildings` (44) | `ilist<cISC4Occupant*>*` (this + 0x4C) | A | yes | each entry holds one reference owned by the simulator. The growth developer copies the elements into its own list (one AddRef each) | `0x00520080`; filled by `Read` `0x0069ACB0` (`ilist` ctor `0x00411870`); copied at `0x006B6569`–`0x006B65C1` |
 | `cISC4BuildingDevelopmentSimulator::GetExemplarName` (37), `GetBuildingName` (38) | `cRZString` inside a static hash map | B (character buffer) | n/a | an unknown type inserts an empty string; the caller must not release or free it | `0x0069AB20`, `0x0069AB00` |
-| `cISC4BuildingDevelopmentSimulator::GetBuildingProfile` (39), `GetBuildingProfilePtr` (40) | profile struct holding a vector of `map<uint32_t, uint16_t>` | B | **no** | read only; slot 39 inserts a zero profile for an unknown type | `0x0069CA60`, `0x006985C0` |
+| `cISC4BuildingDevelopmentSimulator::GetBuildingProfile` (39), `GetBuildingProfilePtr` (40) | the 0x40-byte profile struct (full layout in [layouts.md](layouts.md), *Building profile*), holding at +0x0C a vector of `map<uint32_t, uint16_t>` (12-byte map objects, *map and set*) | B (vector buffer, map headers and nodes, and the profile's own hash node) | **no** | read only; slot 39 inserts a zero profile for an unknown type | `0x0069CA60`, `0x006985C0` |
 | `cISC4PowerSimulator::GetMonthlyConsumptionMapPtr` (18) | `std::vector<std::vector<int16_t>>*`, through an out parameter (`vector<…>*&`); outer elements are 12-byte vectors `{begin, end, capacity_end}` of `int16_t` | B (outer buffer and every row) | **no** | the original stores a pointer to its own member (`this + 0x84`) and allocates nothing; a caller would read in place. **No game caller found** (see *Unresolved*) | original `0x006EAD40` |
 
 ## Dispatch ID array
@@ -224,6 +227,198 @@ reproduce the game's order.
 **The SDK's `SC4HashSet` is not compatible**: it uses A, and its members start at +0 (`mpStart` at +0, 0x10
 bytes), while the game's object has a 4-byte member first and the bucket vector at +4. The header's own comments
 give the game's offsets (+0x04 to +0x10), but the struct lacks the leading member.
+
+## map and set
+
+The game's `std::map` and `std::set` are STLport's red-black tree (`_Rb_tree`), declared with the default
+allocator, so they use **B**. Every map below has `uint32_t` keys compared as **unsigned** 32-bit integers
+(`std::less`).
+
+| Container | Where it lives | Node size |
+|---|---|---|
+| `map<uint32_t, int32_t>` | the argument of `cISC4DemandSimulator::GetLocalPopulationSummary`: the regional city's member at + 0x3C | 0x18 |
+| `map<uint32_t, uint16_t>` | the capacity maps of a building profile (profile + 0x0C is a vector of them, [layouts.md](layouts.md)) and the lot's copies of them | 0x18 |
+| `map<uint32_t, SC4Percentage>` | the growth developer's style percentages (+ 0xC0, slot 26) | 0x18 |
+| `map<uint32_t, cISC4GrowthDeveloper*>` | the BDS developer map (+ 0x5C, slot 34) | 0x18 |
+| `map<uint32_t, cISC4Demand*>` | the demand simulator's node map (+ 0x50) | 0x18 |
+| `set<cRZAutoRefCount<cISC4Lot>>` | `PlaceZone`'s `outLots` | 0x14 |
+
+### The map object (12 bytes)
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 4 | pointer to the **header node**. The header is a separately allocated B block, never embedded and never null in a constructed map |
+| +0x04 | 4 | node count (`size()`) |
+| +0x08 | 4 | the comparator (`std::less`, empty, padded to 4 bytes). The game never reads or writes it |
+
+Evidence: the constructors write +0x00 and +0x04 only, and the maps are 12 bytes apart: demand simulator + 0x1C,
++ 0x28, + 0x50, + 0x5C (`0x006A3613`–`0x006A36BF`), regional city + 0x3C, + 0x48 (`0x004AC09E`–`0x004AC0E0`),
+BDS + 0x5C (`0x0069A0A1`). A profile's vector of maps has 12-byte elements (`0x006A2CFA` steps by 0xC).
+
+### Nodes
+
+| Offset | Size | Field |
+|---|---|---|
+| +0x00 | 1 | colour: **0 = red, 1 = black**. 3 bytes of padding follow; the game only reads and writes the byte |
+| +0x04 | 4 | parent |
+| +0x08 | 4 | left child, or null |
+| +0x0C | 4 | right child, or null |
+| +0x10 | | the value, `pair<const Key, T>`: the key at +0x10 and, for a T of at most 4 bytes, T at +0x14 |
+
+| Type | Node size | Key | Value | `operator[]` |
+|---|---|---|---|---|
+| `map<uint32_t, int32_t>` | 0x18 | +0x10 | +0x14, `int32_t` | `0x00497A00` (shared body, see below) |
+| `map<uint32_t, uint16_t>` | 0x18 | +0x10 | +0x14, `uint16_t`; +0x16..+0x17 padding, never written (`0x006963ED` copies 2 bytes) | `0x00699030` |
+| `map<uint32_t, SC4Percentage>` | 0x18 | +0x10 | +0x14, the percentage's `float` (1.0 = 100 %) | `0x006B58C0` |
+| `map<uint32_t, cISC4GrowthDeveloper*>` | 0x18 | +0x10 | +0x14, pointer | `0x00497A00` (`0x00699224`) |
+| `set<cRZAutoRefCount<cISC4Lot>>` | 0x14 | +0x10, the lot pointer | none | n/a (insert `0x00467720`) |
+
+`operator[]` value-initialises a new entry: 0, 0.0 or null. A T aligned to 8 bytes would sit at +0x18 in a
+0x20-byte node *[inferred from the alignment rules; no such map was checked]*.
+
+### The header and the empty map
+
+- The header has the size of a node of its map (0x18 for the maps above). Its value bytes are never used.
+- Its colour byte is **0 (red)**. Every constructor sets it, and nothing changes it afterwards. The iterator
+  decrement uses "red, and my parent's parent is me" to recognise the header.
+- `parent` = the root, or null when the map is empty. `left` = the leftmost node (smallest key). `right` = the
+  rightmost node (largest key). In an empty map, `left` and `right` both point at the header itself.
+- **The root's `parent` is the header**, not null.
+- An empty map is: header {colour 0, parent null, left = header, right = header}, count 0. The constructors
+  build exactly this (for example `0x006A3613`–`0x006A3634`), and clearing restores it.
+
+### Iteration
+
+- `begin` = header.left; `end` = the header. An empty map has begin = end.
+- **Successor** (`0x005D17C0`; the same steps are inlined in many loops, for example `0x006A601A`–`0x006A6058`):
+  if the node has a right child, go to it, then follow left children as far as they go. Otherwise climb: while
+  the node is its parent's right child, move up to the parent. Then step to the parent, **except** when the node's
+  right link already equals that parent. That exception only arises at the root/header pair, and it makes the
+  successor of the largest node the header (end).
+- **Predecessor** (`0x006809E0`): the header's predecessor is the rightmost node. Otherwise, with a left child, the
+  rightmost node of the left subtree; without one, climb while the node is its parent's left child and take the
+  parent.
+- Order: ascending unsigned key.
+
+### Memory
+
+The header and every node are **B** blocks (`0x0090CF54`, freed with `0x0090CF63`), with the sizes above.
+
+- **Construction**: allocates the header with B and makes the empty map.
+- **Clear** (`GetLocalPopulationSummary` does it inline, `0x006A5F95`–`0x006A5FB7`): only when the count is not 0.
+  It frees every node from the root down with B (`0x004A79A0`: right subtree first, then the node, then on down
+  the left child), then sets header.parent := null, header.left := header.right := header, count := 0. **The
+  header stays.** The subtree free exists in several identical copies: `0x004A79A0`, `0x006A25C0`, `0x004C56F0`
+  (the "destructor" of the style-percentage map) and `0x00458E00` (the `uint16_t` maps).
+- **Destruction** (for example `0x006A2D60`): the same clear, then the header is freed with B.
+- **Copy construction** (`0x004C9470`, used for the profile's capacity maps): a new B header and a deep copy of
+  the nodes.
+- **The count is trusted**: clear and destroy skip the tree walk when the count is 0, so nodes in a map whose count
+  is 0 leak.
+
+### Insertion (what the game's insert does)
+
+A unique insert of (k, v), as `insert_unique` (`0x004FB6C0`) and `operator[]` do it:
+
+1. **Find the position.** Start with y := header and x := root. While x is not null: y := x, and x goes left when
+   k < key(x), else right. Then check for an existing key: take j := y. If the last step went left (or the tree
+   is empty), j is the insertion point's successor: if j is the leftmost node (or the header), insert; otherwise
+   j := predecessor(j). If key(j) < k, insert under y; else k is already present at j, and nothing is inserted.
+   `operator[]` instead does a lower-bound search and, when the key is absent, inserts with the lower bound as a
+   hint (`0x006A29B0`), which reaches the same place.
+2. **Link** (`0x00696880`; `0x006963B0` for `uint16_t` values): allocate a node with B and copy the pair to +0x10
+   as plain bytes. The new node z becomes y's **left** child when y is the header or, unless the caller forces a
+   right link (the last argument, which only the hinted insert sets), when the search ended at a non-null x or
+   k < key(y). Then: if y is the header, root := z and rightmost := z (leftmost is z too, since header.left was
+   just set). Otherwise, if y was the leftmost node, leftmost := z. In every other case z becomes y's **right**
+   child, and if y was the rightmost node, rightmost := z. Finally z.parent := y and both of z's children are
+   null.
+3. **Rebalance** (`0x0040D5E0`, a plain red-black insert fix-up): colour z red. While z is not the root and z's
+   parent is red, look at the uncle (the grandparent's other child).
+   - If the uncle is red, colour the parent and the uncle black and the grandparent red, and continue from the
+     grandparent.
+   - Otherwise, if z is the inner child (a right child of a left child, or the mirror case), rotate at the parent
+     to make it an outer child, and continue with the old parent as z. Then colour the parent black and the
+     grandparent red, and rotate at the grandparent the other way.
+
+   Finally colour the root black. Rotations keep the root's parent equal to the header, and write header.parent
+   when the root changes.
+4. **Count**: count := count + 1.
+
+### Game functions for `map<uint32_t, T>` with a 4-byte T
+
+These bodies are shared (identical code folded) by the maps of `uint32_t` to a 4-byte value: at least the demand
+node map, the developer map and the population summary use them (`0x00497A00` has over 100 call sites). All are
+`__thiscall` with the map object in ECX, except the rebalance.
+
+| Address | Function | Stack arguments | Pops | Return |
+|---|---|---|---|---|
+| `0x00497A00` | `operator[]` | `const uint32_t* key` | 4 | EAX = pointer to the value (node + 0x14); a missing key is inserted with value 0 |
+| `0x00497520` | `find` | `iterator* out`, `const uint32_t* key` | 8 | EAX = `out`; `*out` = the node, or the header when absent |
+| `0x004FB6C0` | `insert_unique(const pair&)` | `out` (pointer to an 8-byte result), `const pair* v` (8 bytes: key, value) | 8 | EAX = `out`; `out+0` = the node (new or existing), byte `out+4` = 1 if inserted, 0 if the key was present (the value is then not changed) |
+| `0x006A29B0` | hinted `insert_unique` | `iterator* out`, `node* hint`, `const pair* v` | 0xC | EAX = `out` |
+| `0x00696880` | link a new node (steps 2–4) | `iterator* out`, x, y, `const pair* v`, w | 0x14 | internal |
+| `0x0040D5E0` | rebalance (`__cdecl`) | `node* z`, `node** root` (= &header.parent) | 0 (the caller pops 8) | none |
+| `0x004A79A0` | free a subtree with B (values are not destroyed) | `node* top` (may be null) | 4 | none; ECX is only passed on |
+
+[direct-calls.md](direct-calls.md) gives the two a plugin needs (`operator[]` and the subtree free).
+
+### GetLocalPopulationSummary
+
+`cISC4DemandSimulator::GetLocalPopulationSummary(std::map<uint32_t, int32_t>& out)`: slot 11, `+0x2C`, original
+`0x006A5F80`, pop 4, no return value.
+
+1. If `out`'s count is not 0, clear it as above (nodes freed with `0x004A79A0`, header kept, count 0). With a count
+   of 0, the map is left untouched.
+2. For each demand node, in ascending key order (the simulator's node map at + 0x50), read its region use
+   (`cISC4Demand` slot 28, `+0x70`):
+   - region use 1: `out[key] := trunc(QuerySupplyValue())` (slot 8, `+0x20`, a float in ST0);
+   - region use 2: `out[key] := trunc(QueryDemandValue())` (slot 9, `+0x24`);
+   - any other value: nothing.
+
+   `out[key]` is `operator[]` (`0x00497A00`), called before the value is read. `trunc` is the CRT float-to-integer
+   conversion (`0x009EEF04`, truncation toward zero).
+3. No reference is taken or released. Nothing else is written.
+
+The keys are full node keys (demandID + demandIndex). In the shipped data only local nodes have a region use: 40
+of them (demand.md §4.5).
+
+**Worked example.** The nodes are 0x1010 (region use 1, supply 1234.7), 0x1011 (region use 1, supply 2250.2),
+0x2010 (region use 2, demand −56.9) and 0x21010 (region use 0). The map arrives holding one entry from the
+previous call. After the call:
+- the old node has been freed with B, and the count is 3;
+- the entries, in order, are 0x1010 → 1234, 0x1011 → 2250 and 0x2010 → −56;
+- the keys arrive in ascending order, so the third insert makes one left rotation: the root is node 0x1011
+  (black), its left child is 0x1010 (red) and its right child is 0x2010 (red);
+- header.parent = node 0x1011, header.left = node 0x1010, header.right = node 0x2010, and the root's parent is the
+  header;
+- all three nodes are 0x18-byte B blocks.
+
+The caller, `cSC4RegionalCity::UpdateCityCache` (`0x004AD290`), passes its **own member** map (regional city +
+0x3C, constructed at `0x004AC09E`) and keeps the nodes. A replacement therefore must:
+1. empty the map it is given (free the nodes with B, keep the header, set the count to 0);
+2. insert B nodes that keep every invariant below;
+3. never free or replace the header, and never write +0x08.
+
+The simplest correct way is the game's own functions: the subtree free plus the inline reset for step 1, and
+`operator[]` for step 2 (direct-calls.md).
+
+### Invariants for code that writes a game map itself
+
+1. The header is a B block of the map's node size, non-null, with colour byte 0.
+2. header.parent is the root, or null. header.left and header.right are the smallest and largest nodes, or the
+   header itself when the map is empty. The root's parent is the header.
+3. Every node is a B block of the map's node size, with the key at +0x10 and the value at +0x14.
+4. In-order traversal gives strictly increasing unsigned keys: no key appears twice.
+5. The tree is a valid red-black tree: the root is black, no red node has a red child, and every path from a node
+   down to a null child passes the same number of black nodes. The game's later inserts and erases rebalance from
+   this state.
+6. The count equals the number of nodes.
+
+**Not compatible**: a `std::map` compiled with a current MSVC (what the SDK's `std::map` declarations produce).
+Its nodes hold the children and parent in a different order and have an extra "is nil" byte, and its end test
+differs. The SDK has no map type of its own. Plugin code must read and write the game's maps with this layout
+and with B.
 
 ## Strings
 
