@@ -109,6 +109,21 @@ enum class Sw : unsigned {
     PlumbingHistory,     // plumbing_history: RecordHistoryData
     PlumbingDirectCalls, // plumbing_direct_calls: the pipe's non-virtual SetWateredState
                          //   (docs/abi/direct-calls.md; identified executable only)
+    // Flammability simulator host callbacks (cFC4Flammability.cpp), one per
+    // group of game calls; only used when the flammability subsystem is enabled.
+    FlammabilityOccupants,  // flammability_occupants: occupant type, properties, bounds, position,
+                            //   the occupant query (off: occupants look empty, no raw value)
+    FlammabilityLots,       // flammability_lots: lot manager and lot calls, GetRandomLot (off: no lot)
+    FlammabilityWater,      // flammability_water: IsCellWatered reads of the plumbing simulator
+                            //   (off: read as "no plumbing simulator", so the no-water multiplier applies)
+    FlammabilityOrdinance,  // flammability_ordinance: GetCumulativeFactor reads of the ordinance simulator
+    FlammabilitySeason,     // flammability_season: GetCurrentSeason reads of the weather simulator
+    FlammabilityZoning,     // flammability_zoning: GetZoneType reads of the zone manager (off: unzoned)
+    FlammabilityFire,       // flammability_fire: IgniteCell / SetCause of the fire disaster manager
+                            //   (off: no fire is ever started)
+    FlammabilityGridWrites, // flammability_grid_writes: SetTractValue / SetTractValues on the two grids
+    FlammabilityPosts,      // flammability_posts: the cycle-complete message
+    FlammabilityHistory,    // flammability_history: RecordHistoryData of the average
     Count
 };
 

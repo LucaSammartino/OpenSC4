@@ -23,6 +23,7 @@
 #include "cFC4Ordinance.h"
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
+#include "cFC4Flammability.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -114,6 +115,12 @@ const ClassEntry kPlumbingClasses[] = {
     {0x0990C075, "cSC4PlumbingSimulator", &CreateFC4PlumbingSimulator},
 };
 
+// docs/specs/flammability.md §1. Off by default (M3 glue trial):
+// `enable = flammability`.
+const ClassEntry kFlammabilityClasses[] = {
+    {0xE990C045, "cSC4FlammabilitySimulator", &CreateFC4FlammabilitySimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -124,6 +131,8 @@ const Subsystem kSubsystems[] = {
     {"demand", nullptr, kDemandClasses, sizeof(kDemandClasses) / sizeof(kDemandClasses[0]), false},
     {"power", nullptr, kPowerClasses, sizeof(kPowerClasses) / sizeof(kPowerClasses[0]), false},
     {"plumbing", nullptr, kPlumbingClasses, sizeof(kPlumbingClasses) / sizeof(kPlumbingClasses[0]), false},
+    {"flammability", nullptr, kFlammabilityClasses, sizeof(kFlammabilityClasses) / sizeof(kFlammabilityClasses[0]),
+     false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);

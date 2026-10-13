@@ -116,6 +116,14 @@ INTERFACES = [
     ("cISC4PlumbingSimulator", "cFC4ISC4PlumbingSimulator", FC4, True),
     ("cIGZSerializable(Plumbing)", "cIGZSerializable", "cIGZSerializable.h", True),
     ("cIGZMessageTarget2(Plumbing)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    # Flammability (docs/specs/flammability.md §11, §12): implemented, and the
+    # services it calls. The SDK declaration of the simulator matches docs/abi.
+    ("cISC4FlammabilitySimulator", "cISC4FlammabilitySimulator", "cISC4FlammabilitySimulator.h", True),
+    ("cIGZSerializable(Flammability)", "cIGZSerializable", "cIGZSerializable.h", True),
+    ("cIGZMessageTarget2(Flammability)", "cIGZMessageTarget2", "cIGZMessageTarget2.h", True),
+    ("cISC4DisasterManagerFire", "cISC4DisasterManagerFire", "cISC4DisasterManagerFire.h", True),
+    ("cISC4DisasterLayer", "cISC4DisasterLayer", "cISC4DisasterLayer.h", True),
+    ("cISC4TutorialSystem", "cISC4TutorialSystem", "cISC4TutorialSystem.h", True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

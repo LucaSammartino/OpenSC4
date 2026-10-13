@@ -1040,6 +1040,7 @@ class cISC4BudgetSimulator;
 class cISC4Ordinance;
 class cISC4ResidentialSimulator;
 class cISC4RegionalCity;
+class cISC4PlumbingSimulator;
 
 // ---- plumbing (docs/specs/plumbing.md §10.1) -----------------------------------------------------
 
@@ -1119,6 +1120,9 @@ inline cFC4IGZVariant const* AsGame(cIGZVariant const* p) { return reinterpret_c
 inline cIGZVariant const* AsSdk(cFC4IGZVariant const* p) { return reinterpret_cast<cIGZVariant const*>(p); }
 inline cFC4ISC4LotManager* AsGame(cISC4LotManager* p) { return reinterpret_cast<cFC4ISC4LotManager*>(p); }
 inline cFC4ISC4Lot* AsGame(cISC4Lot* p) { return reinterpret_cast<cFC4ISC4Lot*>(p); }
+inline cFC4ISC4WeatherSimulator* AsGame(cISC4WeatherSimulator* p) {
+    return reinterpret_cast<cFC4ISC4WeatherSimulator*>(p);
+}
 inline cFC4ISC4NeighborsSimulator* AsGame(cISC4NeighborsSimulator* p) {
     return reinterpret_cast<cFC4ISC4NeighborsSimulator*>(p);
 }
@@ -1138,4 +1142,14 @@ inline cFC4ISC4ResidentialSimulator* AsGame(cISC4ResidentialSimulator* p) {
     return reinterpret_cast<cFC4ISC4ResidentialSimulator*>(p);
 }
 inline cFC4ISC4RegionalCity* AsGame(cISC4RegionalCity* p) { return reinterpret_cast<cFC4ISC4RegionalCity*>(p); }
+// Plumbing travels as the SDK's cISC4PlumbingSimulator* (that is the type the
+// city getter and the SDK headers use). Both are single-inheritance interfaces
+// whose vtable is at offset 0, so the pointer is the same; only the view of the
+// slots differs. Call slot 11 (IsCellWatered) through the verified one.
+inline cFC4ISC4PlumbingSimulator* AsGame(cISC4PlumbingSimulator* p) {
+    return reinterpret_cast<cFC4ISC4PlumbingSimulator*>(p);
+}
+inline cISC4PlumbingSimulator* AsSdk(cFC4ISC4PlumbingSimulator* p) {
+    return reinterpret_cast<cISC4PlumbingSimulator*>(p);
+}
 }  // namespace fc4
