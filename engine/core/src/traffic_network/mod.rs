@@ -71,6 +71,19 @@
 //!   host callbacks; with no flagged neighbour the words keep `0xFFFF`.
 //! - `GetSubnetworksInRectangle` / `…InRegion` return `true` where the
 //!   original returns garbage in AL (§7.1).
+//!
+//! # Threading (foundations §19)
+//!
+//! The model holds its state in a `RefCell`, exactly like the other simulator
+//! cores (power, crime, plumbing, lot developer). §19.1: the original runs
+//! the whole simulation path single-threaded with no locking; §19.3 rule 1:
+//! only state the master clock exposes to FreeCity4's diagnostic threads must
+//! be `Sync`, and this model is not that state — it is internal to the future
+//! traffic simulator, one main-thread agent, reached only through it. No
+//! `RefCell` borrow is held across a host callback: every accessor takes the
+//! state out with [`NetworkModel::with`] for the duration of a call that may
+//! re-enter, so a re-entrant call sees an empty state and its changes are
+//! lost, but nothing panics.
 
 mod ferries;
 mod model;
@@ -204,17 +217,18 @@ pub mod wormhole {
     pub const FERRY: u8 = 0x04;
 }
 
-/// Travel types `t` (§2.1).
+/// Travel types `t` (§2.1). The type constants are `usize` (array indices);
+/// `COUNT` is the number of types.
 pub mod travel {
-    pub const WALK: u32 = 0;
-    pub const CAR: u32 = 1;
-    pub const BUS: u32 = 2;
-    pub const PASSENGER_TRAIN: u32 = 3;
-    pub const FREIGHT_TRUCK: u32 = 4;
-    pub const FREIGHT_TRAIN: u32 = 5;
-    pub const SUBWAY: u32 = 6;
-    pub const ELEVATED_TRAIN: u32 = 7;
-    pub const MONORAIL: u32 = 8;
+    pub const WALK: usize = 0;
+    pub const CAR: usize = 1;
+    pub const BUS: usize = 2;
+    pub const PASSENGER_TRAIN: usize = 3;
+    pub const FREIGHT_TRUCK: usize = 4;
+    pub const FREIGHT_TRAIN: usize = 5;
+    pub const SUBWAY: usize = 6;
+    pub const ELEVATED_TRAIN: usize = 7;
+    pub const MONORAIL: usize = 8;
     pub const COUNT: usize = 9;
 }
 

@@ -19,9 +19,7 @@ use crate::stl::{StlHashMap, StlHashSet};
 use crate::x87;
 
 use super::tuning::Tuning;
-use super::{
-    array_index, cell_key, net, net_type, side, travel, GridU32, GridU8, NetworkHost, OPPOSITE_SIDE,
-};
+use super::{array_index, cell_key, net, net_type, side, travel, GridU32, GridU8, NetworkHost};
 use super::switches::TransitSwitch;
 use super::tunnels::TunnelInfo;
 use super::water::WaterPathFinder;
@@ -315,7 +313,7 @@ impl NetworkState {
     }
 
     /// The mutable network-info list of an in-city cell.
-    fn info_mut(&mut self, x: i32, z: i32) -> Option<&mut Vec<NetworkInfo>> {
+    pub(super) fn info_mut(&mut self, x: i32, z: i32) -> Option<&mut Vec<NetworkInfo>> {
         self.info_index(x, z).and_then(|i| self.info.get_mut(i))
     }
 
@@ -341,7 +339,7 @@ impl NetworkState {
     /// Appends a new record of network `n` at the tail of the cell's list,
     /// reproducing the creation quirk (§2.2): appending also clears the
     /// `flags` byte of the record that was the tail before it.
-    fn append_info(&mut self, n: u32, x: i32, z: i32) -> Option<usize> {
+    pub(super) fn append_info(&mut self, n: u32, x: i32, z: i32) -> Option<usize> {
         let list = self.info_mut(x, z)?;
         if let Some(last) = list.last_mut() {
             last.flags = 0;
@@ -356,7 +354,7 @@ impl NetworkState {
     /// Gets or creates the record of network `n` in the cell (§4.2 step 3:
     /// "get or create the record of network n in c"). Returns its index in
     /// the cell's list.
-    fn get_or_create_info(&mut self, n: u32, x: i32, z: i32) -> Option<usize> {
+    pub(super) fn get_or_create_info(&mut self, n: u32, x: i32, z: i32) -> Option<usize> {
         if let Some(i) = self.info_at(x, z).iter().position(|r| u32::from(r.net) == n) {
             return Some(i);
         }
@@ -409,8 +407,8 @@ impl NetworkState {
 /// `cSC4TrafficSimulator`; FreeCity4 keeps it as a plain object the future
 /// traffic simulator owns (§9).
 pub struct NetworkModel {
-    host: Rc<dyn NetworkHost>,
-    s: RefCell<NetworkState>,
+    pub(super) host: Rc<dyn NetworkHost>,
+    pub(super) s: RefCell<NetworkState>,
 }
 
 impl NetworkModel {
@@ -474,7 +472,7 @@ impl NetworkModel {
             // Step 2: the network-info grid, X × Z empty lists.
             s.info = vec![Vec::new(); s.cell_count()];
             // Step 4: the cell connection array, every record reset.
-            s.conn = vec![CellConnection::default(); super::ARRAY_LEN];
+            s.conn = vec![CellConnection::default(); ARRAY_LEN];
             // Step 5: the switch grids (created through the host as the game's
             // grid classes; simgrid §6.4).
             if s.switch_mode.is_none() {

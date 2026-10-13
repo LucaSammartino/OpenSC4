@@ -321,18 +321,17 @@ impl NetworkModel {
             }
         }
         // Then for each k ≠ ns such that N's conn[to] has an exit k from some
-        // entry: SetConnection(N, ns, k, to).
-        if let Some(c) = s.conn_at(nx, nz) {
-            let t = r.to as usize;
-            for k in 0..side::COUNT {
-                if k == ns {
-                    continue;
-                }
-                let any = (0..side::COUNT).any(|e| c.conn[t] & (1 << (k + 4 * e)) != 0);
-                if any {
-                    set_connection(s, nx, nz, ns, k, r.to);
-                }
-            }
+        // entry: SetConnection(N, ns, k, to). Gather first, then mutate (the
+        // immutable read of N's conn must not overlap the mutable write).
+        let t = r.to as usize;
+        let connects: Vec<usize> = match s.conn_at(nx, nz) {
+            Some(c) => (0..side::COUNT)
+                .filter(|&k| k != ns && (0..side::COUNT).any(|e| c.conn[t] & (1 << (k + 4 * e)) != 0))
+                .collect(),
+            None => Vec::new(),
+        };
+        for k in connects {
+            set_connection(s, nx, nz, ns, k, r.to);
         }
     }
 
@@ -346,27 +345,26 @@ impl NetworkModel {
         if s.network_info(from_net, nx, nz).is_some() {
             if r.from != r.to {
                 set_switch_nibble(s, nx, nz, r.from, ns, r.to);
-            } else if let Some(c) = s.conn_at(nx, nz) {
+            } else {
                 let t = r.from as usize;
-                for j in 0..side::COUNT {
-                    if c.conn[t] >> (4 * j) & 0xF != 0 {
-                        set_connection(s, nx, nz, j, ns, r.from);
-                    }
+                let entries: Vec<usize> = match s.conn_at(nx, nz) {
+                    Some(c) => (0..side::COUNT).filter(|&j| c.conn[t] >> (4 * j) & 0xF != 0).collect(),
+                    None => Vec::new(),
+                };
+                for j in entries {
+                    set_connection(s, nx, nz, j, ns, r.from);
                 }
             }
         }
         // If from = 1 (Car): for each k ≠ ns such that N's conn[1] has an exit
         // k, SetConnection(N, ns, k, 1).
         if r.from == travel::CAR as u16 {
-            if let Some(c) = s.conn_at(nx, nz) {
-                for k in 0..side::COUNT {
-                    if k == ns {
-                        continue;
-                    }
-                    if c.exits(travel::CAR, k) != 0 {
-                        set_connection(s, nx, nz, ns, k, travel::CAR as u16);
-                    }
-                }
+            let connects: Vec<usize> = match s.conn_at(nx, nz) {
+                Some(c) => (0..side::COUNT).filter(|&k| k != ns && c.exits(travel::CAR, k) != 0).collect(),
+                None => Vec::new(),
+            };
+            for k in connects {
+                set_connection(s, nx, nz, ns, k, travel::CAR as u16);
             }
         }
     }

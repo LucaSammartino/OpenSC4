@@ -52,6 +52,9 @@ pub mod stl;
 pub mod store;
 pub mod stream;
 pub mod tract_developer;
+// WIP (M5 traffic network): compiles standalone but is not yet wired in —
+// re-add `pub mod traffic_network;` once its borrow errors are fixed.
+// pub mod traffic_network;
 pub mod variant;
 pub mod weather;
 pub mod x87;
