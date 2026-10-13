@@ -420,14 +420,18 @@ renders the float argument as a pointer and drops the vertex average):
 1. `avg := GetAverageAreaAltitude(rect, withWater)` (lot developer slot 18, `0x006C5B70`): the arithmetic mean of
    `GetTerrainAltitudeByVertex(x, z, withWater)` over **vertices** `x = x1 … x2+1` (outer), `z = z1 … z2+1`
    (inner), i.e. `Σ altitude / count`, both float32, count from an `FILD`.
-2. `m := maxAreaSlope`. If `m` compares **equal** to `FLT_MAX` (`0x00AB1B00` = `0x7F7FFFFF`; `FUCOMPP`, so a NaN
-   `m` does *not* trigger it): `m := maxAreaSlopeAllowedForLevelling`, the lot developer's tuning `0xE900EA2A`
-   (field `+0xE8`, shipped **40**). The landfill always passes `FLT_MAX`, so `m = 40`.
-3. If `m < 1000.0` (`0x00A8FAF0`): `s := GetAreaSlope(rect, withWater)` (slot 29, lot-developer §11.4). If
-   `s > m` (NaN compares as "not greater"): **return false and change nothing**.
-4. Otherwise: `demolition.ModifyTerrainHeight(1, waterFlag, rect.x1, rect.z1, rect.x2 + 1, rect.z2 + 1, avg, lot,
-   5, null)` (`cISC4Demolition` slot 9 `+0x24`, the object at lot-developer `+0x20` = global `0x00B43D00`), and
-   return its result. **The terrain is levelled to `avg`.**
+2. `m := maxAreaSlope`. If `m` compares **equal** to `FLT_MAX` (`0x00AB1B00` = `0x7F7FFFFF`; `FUCOMPP` then
+   `TEST AH, 0x44` / `JP`, so an **unordered** `m` — a NaN — also takes this branch): `m :=
+   maxAreaSlopeAllowedForLevelling`, the lot developer's tuning `0xE900EA2A` (field `+0xE8`, shipped **40**). The
+   landfill always passes `FLT_MAX`, so `m = 40`.
+3. If `m < 1000.0` (`0x00A8FAF0`; a NaN `m` skips this test and goes straight to step 4): `s := GetAreaSlope(rect,
+   withWater)` (slot 29, lot-developer §11.4). If `s > m` — strictly, both ordered and unequal (`FCOMP` then
+   `TEST AH, 0x41` / `JNZ`, so a NaN `s` does **not** block): **return false and change nothing**.
+4. Otherwise: call slot 9 (`+0x24`) of the object at lot-developer `+0x20` (global `0x00B43D00`,
+   `cISC4Demolition`), a ten-argument terrain call whose last two arguments are the literal `5` and a null
+   pointer, and return its result. The SDK names this `cISC4Demolition::ModifyTerrainHeight(bool, bool, int, int,
+   int, int, float, cISC4Lot*, uint32_t, int64_t*)`, i.e. **reason 5** and no cost output; the rect arguments are
+   `x1, z1, x2 + 1, z2 + 1` and the float is the step-1 average. **The terrain is levelled to `avg`.**
 
 *[quirk]* **The float argument `f` is never read** — no instruction in `0x006C44F0` touches the second parameter's
 stack slot. Passing `0.0` is therefore harmless *and* meaningless: the target altitude is always the vertex
@@ -895,10 +899,17 @@ and need not be reproduced beyond that.
    in-game, and no tail agent is wired up yet. So implement the landfill core against the ordering requirement in
    §3.3 as a *contract to be satisfied later*, and pin it with a conformance vector that asserts the relative order
    rather than assuming the simulator already ranks agents.
-2. The exact semantics of `AttemptAreaLevelling(rect, 0.0, true, true, FLT_MAX, null)` (lot developer spec).
-3. `data4` values 1–3 of `0x278E6003` are assumed to be the terraforming tools; the other senders (and whether the
-   lot developer's levelling uses reason 5 here) were not traced.
-4. Whether the zone manager sends `0x07699455` synchronously from `PlaceZone` (re-entrancy of §4.4.8).
+2. *Answered* (2026-10-13, verified from the assembly of `0x006C44F0`): `AttemptAreaLevelling` levels the rect to
+   the **vertex average** altitude and can refuse — see §4.5.3. Two corrections to what this spec asserted: the
+   float argument is **never read** (so passing `0.0` is inert, not a lost request), and the levelling **can be
+   skipped entirely** when `GetAreaSlope(rect) > 40`, which the old text did not allow for.
+3. *Partly answered* (2026-10-13): `0x278E6003` has a single send site, `cSTETerrain::RedisplayTerrain`, and
+   `data4` is that function's fourth argument — verified (§3.2). The lot developer's levelling does use reason
+   **5**, verified: `AttemptAreaLevelling` → `cSC4Demolition::ModifyTerrainHeight(…, 5, …)` →
+   `RedisplayTerrain(1, 1, rect, 5)`. **Still unresolved**: whether 1–3 are the terraforming brushes. That needs
+   `tBrushParameters::terrainMessageData4` to be traced back through the terraforming tool UI, which sets it.
+4. *Answered* (2026-10-13, verified): **no**. `PlaceZone` `MessagePost`s `0x07699455`, so §4.4.8 does not
+   re-enter `DoZoneChange`. See §4.4.8.
 5. The meaning of occupant manager slot 24 and occupant slot 15 with `0x99EF1145` after a tile move (§4.5.2).
 6. The global that supplies the zot orientation (§4.7.5).
 7. `isEmpty` is never set true by the shipped code as far as found; the `IsEmptyLandfillTile` branches are dead
@@ -958,3 +969,20 @@ funding 100 %, zone cells all zone type 14, no roads inside.
 20. **Efficiency**: maintenance 40, current 48 → 1.2; maintenance 0 → 1.0.
 21. **Terrain move**: a tile at y = 270 with terrain raised to 271 (reason 1) and `kbMoveWithTerrain` → occupant
     y := 271; raised by 0.2 → unchanged; an empty cell in the rect → dezoned and rezoned to 0.
+22. **Levelling target and refusal** (§4.5.3, `direct = false`). Stub the lot developer's three slots so the
+    terrain model is not involved: `GetAverageAreaAltitude(rect, true)` → 272.0, `GetAreaSlope(rect, true)` → 3.0,
+    and let `ModifyTerrainHeight` record its arguments.
+    - With `maxAreaSlope = FLT_MAX`: `ModifyTerrainHeight` is called once with
+      `(1, true, x1, z1, x2 + 1, z2 + 1, 272.0f, null, 5, null)` — note the **vertex** average 272.0, not any
+      cell-centre value — and the slot returns true.
+    - The second argument is inert: repeating with `272.0`, `0.0` and `−1.0` in that position gives identical
+      recorded arguments and identical results.
+    - With `GetAreaSlope` → 41.0 and `maxAreaSlope = FLT_MAX` (so the limit is the tuning's 40): the slot returns
+      **false**, `ModifyTerrainHeight` is **not** called, and the terrain is untouched. The zone is still created
+      and populated by §4.4.1 step 3, and `levelAltitude` is still set to the caller's argument.
+    - With `maxAreaSlope = 5000.0` (≥ 1000) and `GetAreaSlope` → 9999.0: the slope test is skipped entirely and
+      the levelling happens.
+    - With `maxAreaSlope` a finite value ≠ `FLT_MAX`, the lot developer's tuning `0xE900EA2A` is **not** used.
+23. **Reason 5 is ignored** (§3.2): delivering `0x278E6003` with `data4 = 5` over a zone with tiles changes no
+    zone, heap or occupant; with `data4 = 1`, `2` or `3` the same rect dezones the empty cells (§4.5.2). The
+    landfill's own levelling must not feed back into `DoTerrainChanged`.
