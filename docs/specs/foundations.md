@@ -1479,6 +1479,45 @@ therefore unconstrained except where a later analysis derives a requirement (as 
 differential shows a value depending on, say, residential-before-budget, add the requirement here and to the rank
 table rather than reordering registrations ad hoc.
 
+### 13.5 The same reasoning applies at every level, not just month
+
+The decision above is about the month level (level 6) because that is where a requirement was derived. It rests on a
+property that holds at **all** levels, so it answers the same question wherever a subsystem spec asks it — for
+example `residential.md` §10.2 question 3, which asks about the day-level (level 4) order of residential relative to
+the growth developers, pollution and the BDS:
+
+- The original orders agents **by the unsigned value of the `cIGZMessageTarget2` pointer** passed to `AddAgent`
+  (§13.1), and delivery walks that set in ascending order. There is no per-level ordering logic; the level only
+  selects which set is walked.
+- Therefore the order within *any* level is an artifact of heap addresses. §13.2's measurements show it is not even
+  stable between sessions at the month level (pollution rank 3–14, budget 1–11, aura 2–18), so there is **no original
+  day-level order to recover either**. Asking "what order does the original run residential in at day level?" has no
+  stable answer to give.
+- Consequently, for every level: FreeCity4 uses **registration order** (*[choice]*, deterministic and reproducible),
+  and the *only* thing that can make order matter is a **derived data dependency** — one agent reading state another
+  writes in the same pass. Where such a dependency exists it must be derived from the code and recorded as a
+  *[compat]* requirement with evidence, exactly as landfill §3.3 did, and then honoured by the rank table.
+- Where a spec has no derived dependency and simply says the order "follows pointer order in the original and was not
+  analysed", the correct disposition is not to analyse it further — it is to state that registration order is the
+  *[choice]* and move on. Analysing it cannot produce a reproducible answer, and any value that appears to depend on
+  it is depending on heap layout.
+
+So `residential.md` §4.3's existing *[choice]* — "FreeCity4 uses registration order" — is confirmed correct, and the
+part of its open question 3 that asked what the original's day-level order is, is closed: there is nothing to match.
+That does **not** mean residential has no coupling to other agents — §5 state 1 reads the BDS building map and the
+pollution source grids, and §4.3 notes it reads the growth developers' population maps. It means such a coupling can
+only be resolved as a *derived* requirement with evidence, never by reproducing pointer order. If a future
+differential shows residential's day step reading one of those maps before the agent that writes it has run this day,
+that is a derived *[compat]* requirement and belongs in §13.4's rank table.
+
+**One caveat on measuring it.** Delivery logs cannot recover the original's order either: every run that logs
+deliveries (`deliver #N: level … -> agent …`) has FreeCity4's own simulator enabled, so it records *our* registration
+order, not the original's. Run 19 is the only run with the original simulator and our observer, and it predates
+delivery logging (zero `deliver` lines). The delivery log is also capped (300 lines), which in runs 23–28 captured
+only levels 0 and 10. Recovering the original's order would need the observer running against the original simulator
+with the cap raised — and even then it would only measure one session's heap layout, which is the thing that is not
+worth reproducing.
+
 Day-level agents run before month-level ones on the 1st of a month (simulator spec §5); this is independent of
 the order within a level.
 
