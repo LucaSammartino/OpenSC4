@@ -162,8 +162,11 @@ open, the core's current answer is in brackets; "[none]" means the spec must dec
   - The access point is refreshed only for a switch with flag 4 and no saved access point. It is then the **NW
     cell** of the building's bounding cells, with no occupant search. A saved point is kept, and with flag 4 clear
     "has access point" := 0.
-- **TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
-  [reached, not extended]
+- ~~**TN5 — §4.6:** are tunnel cells and cells without car info reached but not extended, or skipped entirely?
+  [reached, not extended]~~ **ANSWERED 2026-10-14** from the exe (`UpdateIntersectionData` `0x0071BB1B`–
+  `0x0071BC3A`) and written into §4.6. **The bracket is right: reached, not extended.** The intersection test runs
+  first, so such a cell can set `best`, and then the search stops there. The order of the stop tests and the absence
+  of a visited set are now stated.
 - **TN6 — §4.12:** is `GetNeighborPoolPropertyHolder` asked with the off-map cell or the mapped in-city cell?
   [off-map]
 - **TN7 — §11 test 3:** the test lists L1's ring in a different order from BoundaryIterator. Only the order in which

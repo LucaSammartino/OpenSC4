@@ -431,10 +431,20 @@ For every car record (n = 1) whose type is not Highway:
 1. Find `best`, the distance to the nearest intersection:
    - If `connCount > 2`, `best = 0`.
    - Otherwise, search depth-first from the cell along its car (`conn[1]`) exits, union over entry sides. Stop
-     extending at depth `best`; best starts at N + 1. Do not step through tunnel cells (wormhole bit 2) or cells
-     without car info.
+     extending at depth `best`; best starts at N + 1.
    - A reached cell is an intersection if its car record has `connCount > 2`, or if it has no car record but a
-     transit switch whose "counts as intersection" flag is set.
+     transit switch whose "counts as intersection" flag is set. Then `best := depth`.
+   - **Tunnel cells and cells without car info are reached but not extended** (TN5). On entering a cell at depth
+     d, in order:
+     1. the intersection test above runs, so either kind of cell can set `best := d`;
+     2. a cell without a car record stops there;
+     3. so does any cell with `d ≥ best`;
+     4. so does a tunnel cell (wormhole bit 2 of the connection record, byte `+0x2C`, `0x0071BBB8`).
+
+     Only then are its sides 0…3 tried, in order. A side is taken when some entry side has an exit on it and the
+     neighbour is in bounds.
+   - The search keeps no visited set: a cell can be reached again by another path while the depth limit holds.
+     Backtracking resumes the parent at its next side.
    - The search's bounds check compares both coordinates with X−1 *[quirk]*. It matters only on non-square maps.
 2. Set `invCap = invCapTable[type]`. If `best < N`, then `invCap = r24(invCap × values[best])`.
 
