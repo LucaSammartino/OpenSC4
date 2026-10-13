@@ -5,16 +5,13 @@ the relevant spec, and their entry here is deleted.
 
 ## From the zones core (filed by the coordinator from the lane's report, 2026-10-13; zones merged as `f56e52a`)
 
-All six are about `docs/specs/zones.md`. The lane implemented each from the prose and flagged where no conformance
+All were about `docs/specs/zones.md`. The lane implemented each from the prose and flagged where no conformance
 vector pins the choice — so these are places where the core could be wrong and nothing would catch it.
 
-**ZQ1 — §8.3 slot 10, `GetLotsSurroundingRect` walk order (affects observable list order).**
-The spec names the side bits `1 = row z1−1, 2 = column x2+1, 4 = row z2+1, 8 = column x1−1` and cites the ring walker
-`0x0060CEE0`, but does not say whether the ring is walked *side by side* (row z1−1, then column x2+1, then row z2+1,
-then column x1−1) or *row by row* (row z1−1, then the two side cells of each row z1..z2, then row z2+1). The lane chose
-row-by-row and marked it *[inferred]*. Both satisfy test 12 (only one lot is on the ring), so nothing pins it. The spec
-stresses that the result is an ordered `std::list` whose order feeds the budget's lot iteration, so this seems worth
-settling from the original.
+~~**ZQ1 — §8.3 slot 10, `GetLotsSurroundingRect` walk order.**~~ **ANSWERED 2026-10-13** from the exe and written
+into §8.3: row by row, ascending z, with interior rows visiting only their two side cells. The lane's row-by-row
+inference was correct. Kept here struck through rather than deleted so the numbering of ZQ2–ZQ6 still matches the
+lane's report.
 
 **ZQ2 — §7.4 `CreateParcellizableRegion`, the parenthetical "(real mode or the cell is occupied per §8.4)".**
 Code 7 of §8.4 is only reachable if codes 0/1/2/3 all pass first, so a cell holding a lot that is *also* unzoned, or under
