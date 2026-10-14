@@ -657,3 +657,37 @@ current answer is in brackets.
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+- **DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
+  R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
+  original returns **8.97309399** and our core **8.97309303** (1 ulp; the demand shadow's only mismatch in 2,955
+  lines, on all 27 days of that census month). Every other demand value is bit-identical. Which precision and order
+  does the original use for `node[0x1001].supply + node[0x3001].supply + node[0x4001].supply` (float32 or x87
+  extended, left to right?), and for the curve interpolation (foundations §4.3) on the way to the float32 return?
+  [ours: as the spec reads today]
+
+## From the protection fix: saved grid refs and their geometry (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+Run 70 found the fire replacement's grid at 0×0 after a load. The fire record's grid ref points to a grid whose own
+record is read later, so the grid is still empty during the simulator's `Read`. The host grid now keeps a geometry
+only once it is non-empty. The current answer is in brackets.
+
+- **HG1 — foundations (load order):** are all grid records read before any simulator's `Init`, so that the first
+  non-empty geometry is the final one? Which order does the class store read records and resolve refs in, relative
+  to `Read` and `Init`? [assumed yes]
+
+## From applying TN1–TN20 to the traffic network core (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
+
+- **TN21 — §4.6 / TN5:** if the intersection search's start cell is itself a tunnel cell, is it still extended?
+  [yes, the start cell is always extended]
+- **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
+  with no rules]
+- **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
+  a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
+  access point; flag 4 set gets no NW cell]
+- **TN24 — §4.10.1 TN15:** when the unclamped dirty rectangle reaches past the map, are off-map cells asked or
+  written during the update? [only in-map cells]
+- **TN25 — §4.7.2 TN3:** FreeCity4 replaces the rules on the re-read, so the flags come from the property's rules;
+  the original takes them from the first n rules of the vector (the saved copy). They differ only when the saved
+  rules differ from the exemplar. Acceptable? [flags from the re-read rules]

@@ -118,9 +118,8 @@ impl NetworkState {
                 cur.k += 1;
             }
             // Step 3: after k = 3, a tunnel cell whose record allows Car. A
-            // state pushed here resumes after this step (`AFTER_TUNNEL`)
-            // [choice: resuming before it would loop forever when the other
-            // portal never gets labelled].
+            // state pushed here resumes after this step (`AFTER_TUNNEL`, k =
+            // 5, set before the tunnel lookup: TN16), so it never redoes it.
             if cur.k == side::COUNT && self.wormhole_at(cur.x, cur.z) & wormhole::TUNNEL != 0 {
                 let other = self
                     .tunnels
@@ -191,7 +190,8 @@ impl NetworkState {
     /// The distinct non-zero `subnet[0…3]` of the first car record of each
     /// ring cell of a lot rectangle, in order of discovery (§4.12 steps 1,
     /// 2): the boundary of the rectangle grown by 1 and clamped, in
-    /// `BoundaryIterator` order, without the four corner cells.
+    /// `BoundaryIterator` order (x fastest: the first row, each middle row's
+    /// two ends, the last row; TN7), without the four corner cells.
     pub fn lot_ring_labels(&self, r: super::CellRect) -> Vec<u32> {
         let ring = self.grow_clamp(r, 1);
         let mut ids = Vec::new();
@@ -307,6 +307,8 @@ impl Cx<'_> {
             let Some(subnet) = self.s.car_info(x, z).map(|r| r.subnet) else {
                 continue;
             };
+            // The holder is asked with the off-map cell, the connection's
+            // own, not the in-city one (TN6).
             let Some(holder) = h.neighbor_pool_holder(cx, cz) else {
                 continue;
             };
