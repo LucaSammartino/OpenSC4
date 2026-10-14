@@ -95,6 +95,12 @@
 //   neighbors_seed = N            the deal proposal generator's session seed (default:
 //                                 the cRZTime clock; cFC4Neighbors.cpp)
 //   neighbors_two_curves = 0 / 1  neighbors.md §8.3 two price curves [choice] (default 0)
+//   tract_shadow = 0 / 1          the tract developer shadow (default 0; needs the
+//                                 ORIGINAL tract developer: do not enable tract;
+//                                 FC4TractShadow.h)
+//   tract_seed = N                the tract developer generator's session seed
+//                                 (default: the cRZTime clock; cFC4TractDeveloper.cpp)
+//   tract_grow_log = 0 / 1        one line per Grow call (default 0; enable = tract)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env
@@ -351,6 +357,23 @@ enum class Sw : unsigned {
     NeighborsHistory,       // neighbors_history: history records (MessageSend)
     NeighborsFigures,       // neighbors_figures: the budget, utility and landfill figures of
                             //   UpdateCommodityStats (off: 0, no departments)
+    // Tract developer host callbacks (FC4TractHost.cpp), one per group of game
+    // calls; only used when the tract subsystem is enabled.
+    TractConstruction,  // tract_construction: the lot developer's StartConstruction (off: refused, nothing built)
+    TractAbandon,       // tract_abandon: AbandonBuilding / ReoccupyBuilding (off: refused)
+    TractLotChanges,    // tract_lot_changes: CreateLotIfPossible, DeleteLot, lot SetFacing / SetState and
+                        //   RedisplayTerrain (off: no lot made, nothing changed)
+    TractDemolition,    // tract_demolition: DemolishLots (off: refused, nothing demolished)
+    TractPopulation,    // tract_population: lot SetPopulation (off: not set)
+    TractResources,     // tract_resources: Claim / ReleaseConstructionResources (off: claims refused)
+    TractFilters,       // tract_filters: the configuration filters and GetLotConfigurationsByFilter (off: no
+                        //   configuration)
+    TractLotLists,      // tract_lot_lists: GetLotsInCellRect / GetLotsSurroundingLot / Rect (off: no lots)
+    TractTraffic,       // tract_traffic: FindNetworkTile, IsOfType and the trip length map (off: no tile, 0)
+    TractStyleMap,      // tract_style_map: the growth developer's GetStylePercentages (off: empty)
+    TractRoads,         // tract_roads: the configurations' GetRequiredRoads (off: no road required)
+    TractFamilySets,    // tract_family_sets: the BDS's GetBuildingTypesByFamily (off: no building)
+    TractAgents,        // tract_agents: AddAgent / RemoveAgent (off: not registered, no Year message)
     Count
 };
 
