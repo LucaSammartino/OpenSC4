@@ -556,7 +556,9 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   matches**: Char and RZUnicodeChar arrays give all their characters, RZUnicodeChar units of `0x80` and above as
   `?`. **The void-array half does not**: a void array (and a VoidPtr array) gives the empty text, which parses as
   0 (data-formats.md §5.1, with examples).
-- **EX7:** an RZChar scalar as a string. [that one character]
+- ~~**EX7:** an RZChar scalar as a string. [that one character]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00916EAA`): **the bracket matches.** Char and RZChar scalars give their one character; an RZUnicodeChar
+  scalar gives one byte when it is `0xFF` or less, otherwise `?` (data-formats.md §5.1).
 - **EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]
 - **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
   anywhere after the first digit]

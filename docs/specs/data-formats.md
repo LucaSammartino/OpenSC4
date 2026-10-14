@@ -451,6 +451,11 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not 0x31);
   Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
   as 0.
+- Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
+  `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
+  holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
+  example: RZChar `0x41` gives `A`; RZUnicodeChar `0x00E9` gives the byte `0xE9`, `0x20AC` gives `?` (note the
+  array rule above keeps only units below `0x80`).
 - Parsing: `t` or `true` → 1, `f` or `false` → 0 *[inferred: case-sensitive]*; text beginning `0x` followed by a hex digit →
   unsigned hexadecimal; text containing `.` or `e`/`E` after a digit → floating point (then truncated toward zero
   for integer targets); text containing `-` → signed int64; otherwise unsigned int64; then the target width as in
