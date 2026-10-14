@@ -748,8 +748,16 @@ About `docs/specs/demand.md` (§6.3 capacity, `GetLocalPopulationSummary`) and t
 `docs/abi/allocators.md`. Switches `demand_capacity` and `demand_direct_calls` (both on by default). The glue's
 current answer is in brackets.
 
-- **DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
-  conversion gives 0x80000000. Which does the original produce? [saturating]
+- ~~**DQ3:** a NaN or out-of-range summary value: Rust `as i32` saturates and gives 0 for NaN; the game's CRT
+  conversion gives 0x80000000. Which does the original produce? [saturating]~~ **ANSWERED 2026-10-14** from the exe
+  (`GetLocalPopulationSummary` `0x006A6013`/`0x006A6018`; `_ftol` `0x009EEF04`) and written into demand.md §5.
+  **Neither: the original wraps, and the bracket matches only for NaN and in-range values.**
+  - **How the CRT converts.** It truncates to a **64-bit** integer, and the summary keeps the low 32 bits.
+  - **NaN, ±∞ and |v| ≥ 2^63** give 0. The integer indefinite is `0x8000000000000000`, whose low half is 0, so the
+    result is not `0x80000000`.
+  - **2^31 ≤ |v| < 2^63** wraps modulo 2^32. For example, 3e9 → −1294967296 and 2^31 → −2147483648, where
+    saturation gives 2147483647. +∞ gives 0, not `i32::MAX`.
+  - *[choice]* Reproduce it: 0 when `v` is NaN or |v| ≥ 2^63, else `(v as i64) as i32`.
 - **DQ4:** a map with count 0 but a non-empty tree shape. The spec only says "with a count of 0, the map is left
   untouched". [refused]
 - **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs

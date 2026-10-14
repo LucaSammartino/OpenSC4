@@ -355,6 +355,33 @@ Summing R + C + I instead gives 29776.48046875, then 40359.58203125 (`0x471DA795
 give) rounds to the same `0x471DA795`. Only the original's order with two `float32` roundings gives
 `0x410F91CB`. This also confirms that the main thread was at 24-bit precision in that run.
 
+**`GetLocalPopulationSummary` conversion** *[compat]* (DQ3). Both region uses share one conversion: the CRT's
+`_ftol` at `0x009EEF04`, called at `0x006A6013`. The original stores **EAX** at `0x006A6018`.
+
+- **How `_ftol` converts.** It turns the value into a **64-bit** integer, rounding toward zero (foundations
+  §18.1), so EAX holds the low 32 bits of that `int64`.
+- **In range** (|v| < 2^31): plain truncation toward zero.
+- **2^31 ≤ |v| < 2^63**: the value **wraps** modulo 2^32. It does not saturate.
+- **NaN, ±∞ and |v| ≥ 2^63**: the 64-bit conversion produces the integer indefinite `0x8000000000000000`, and its
+  low 32 bits are **0**. So the result is 0, not `0x80000000`.
+
+Worked examples, for the supply or demand value as `float32`:
+
+| `v` | `float32` bits | Original | Saturating (`as i32`) |
+|---|---|---|---|
+| 1234.7 | `0x449A5666` | 1234 | 1234 |
+| −56.9 | `0xC263999A` | −56 | −56 |
+| 2147483648 (2^31) | `0x4F000000` | **−2147483648** | 2147483647 |
+| 3000000000 | `0x4F32D05E` | **−1294967296** (`0xB2D05E00`) | 2147483647 |
+| −3000000000 | `0xCF32D05E` | **1294967296** (`0x4D2FA200`) | −2147483648 |
+| 1e19 (above 2^63) | `0x5F0AC723` | **0** | 2147483647 |
+| +∞ | `0x7F800000` | **0** | 2147483647 |
+| NaN | — | 0 | 0 |
+
+*[choice]* Reproduce it exactly: 0 when `v` is NaN or |v| ≥ 2^63, otherwise the low 32 bits of `v` truncated to
+`i64` (in Rust, `(v as i64) as i32` after that check). It differs from saturation only for |v| ≥ 2^31 or ±∞. The
+shipped graph does not produce such values, but the result must match whatever the original stores.
+
 
 ### 6.1 State
 
