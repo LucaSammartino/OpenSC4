@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 34;
+pub const FC4_ABI_VERSION: u32 = 37;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -759,6 +759,7 @@ pub mod protection;
 pub mod residential;
 pub mod residential_shadow;
 pub mod stream;
+pub mod traffic;
 pub mod weather;
 pub mod zones;
 
@@ -818,6 +819,9 @@ mod residential_tests;
 
 #[cfg(test)]
 mod test_streams;
+
+#[cfg(test)]
+mod traffic_tests;
 
 #[cfg(test)]
 mod weather_tests;
