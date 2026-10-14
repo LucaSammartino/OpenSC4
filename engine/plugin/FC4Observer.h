@@ -16,7 +16,8 @@
 // including FC4_DISABLE=all (passthrough), because it is not one of the
 // game's classes. It
 //   - ticks with the framework: starts the watchdog on the main thread, keeps
-//     the "no OnTick" rule fed, drives the autotest clock and unpause;
+//     the "no OnTick" rule fed, drives the autotest clock and unpause, and
+//     runs a script's `save` and the actions waiting behind it (FC4Script.h);
 //   - hears PostCityInit (autotest arming), SimNewDay (the date for the
 //     heartbeat and the verdict) and SimNewMonth;
 //   - at every SimNewMonth writes one non-verbose line, read only through
@@ -60,7 +61,8 @@ void ObserverStop();
 // Test seam (FC4TestSeam.h): a city to use instead of the application's, and
 // direct calls of OnTick / DoMessage (tests have no framework).
 void ObserverTestSetCity(cISC4City* city);
-// An app the save autotest uses instead of the framework's (null: back to it).
+// An app the save autotest and the script's `save` use instead of the
+// framework's (null: back to it).
 void ObserverTestSetApp(cISC4App* app);
 void ObserverTestTick();
 void ObserverTestMessage(uint32_t type, intptr_t data1);
@@ -70,5 +72,16 @@ void ObserverTestMessage(uint32_t type, intptr_t data1);
 // null), and the DIGEST line for `julian`, written now.
 cISC4City* ObserverCity();
 void ObserverWriteDigest(int32_t julian);
+// The script's `save`: cISC4App::SaveCity(fast) (docs/abi/vtables.tsv
+// cSC4App::vftable_3 slot 16, pop 4, eax-or-void) through the same app
+// reference and structured-exception guard as the save autotest. Main
+// thread, at a framework tick (not inside a simulator message).
+struct ObserverSave {
+    bool haveApp = false;  // false: no cISC4App, nothing called
+    bool clean = true;     // false: a structured exception in SaveCity
+    bool result = false;   // what SaveCity returned
+    unsigned long ms = 0;  // how long it took
+};
+ObserverSave ObserverSaveCity(bool fast);
 
 }  // namespace fc4

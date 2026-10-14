@@ -1736,6 +1736,12 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     } else if (scenario == "enddate-quit") {  // an end date already past at the city load; autotest_end = quit
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\nautotest_end = quit\n"
                            "autotest_end_date = 2000-01-15\n");
+    } else if (scenario == "enddate-save") {  // a script save waits for its tick on the end date
+        const std::string dir = ini.substr(0, ini.find_last_of("\\/") + 1);
+        WriteTextFile(dir + "fc4_script_endsave.txt",
+                      "2000-02-26 mark the day before\n2000-02-27 save\n2000-02-27 mark after the save\n");
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_end_date = 2000-02-27\n[harness]\n"
+                           "script = fc4_script_endsave.txt\n");
     } else if (scenario == "enddate-bad") {  // not a date: ignored, the timeout ends the run
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 1\n"
                            "autotest_end_date = 2000-02-30\n");
@@ -1783,6 +1789,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
     if (scenario.compare(0, 7, "enddate") == 0) {
         // The city loads, the clock starts at the first tick, then one new day
         // per tick from 2000-02-25 (2451600) until the DLL ends the process.
+        if (scenario == "enddate-save") seam(kFC4SeamObserverApp, &world.app, nullptr);
         seam(kFC4SeamObserverCity, &world.city, nullptr);
         seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
         seam(kFC4SeamObserverTick, nullptr, nullptr);
@@ -7503,7 +7510,8 @@ int TurboChild(const std::string& dll, const std::string& ini, const std::string
     if (scenario == "disabled") {
         WriteTextFile(ini, "[subsystems]\ndisable = simulator\n[harness]\nsim_turbo = 1\nsim_turbo_until = 2001-01-01\n");
     } else {  // bad values
-        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n");
+        WriteTextFile(ini, "[harness]\nsim_turbo = yes\nsim_turbo_frame_ms = 0\nsim_turbo_until = 2000-02-30\n"
+                           "sim_turbo_wait_days = -1\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
     if (h == nullptr) return 4;
@@ -7541,17 +7549,25 @@ int TurboIniTest(const std::string& dll, const std::string& ini, const std::stri
           std::string::npos);
     CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
                     "paced by msPerDay, frame budget 250 ms at any speed; no end date") != std::string::npos);
+    CHECK(text.find("simulator: WARNING sim_turbo_wait_days=-1 is not 0..3650; using 30") != std::string::npos);
+    CHECK(text.find("; engages at each city's first ConnectionsReady, or after 30 game day(s) without it "
+                    "(sim_turbo_wait_days)") != std::string::npos);
 
-    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01:
-    // the 60 days to it at once, then no more within the test's ~0.5 s.
-    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n");
+    // 3. In this process: speed 0 (5000 ms per day) with turbo until 2000-03-01.
+    // The request at Init is HELD (days paced as usual) until the city's first
+    // ConnectionsReady reaches the observer; then the 60 days to 2000-03-01 at
+    // once, and no more within the test's ~0.5 s.
+    WriteTextFile(ini, "[harness]\nsim_turbo = 1\nsim_turbo_frame_ms = 50\nsim_turbo_until = 2000-03-01\n"
+                       "sim_turbo_wait_days = 3\n");
     HMODULE hd = LoadLibraryA(dll.c_str());
     CHECK(hd != nullptr);
     if (hd == nullptr) return 1;
     auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
     cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
-    CHECK(director != nullptr);
-    if (director != nullptr) {
+    CHECK(director != nullptr && seam != nullptr);
+    std::string held;  // the log after the city became ready (before the second load)
+    if (director != nullptr && seam != nullptr) {
         std::vector<uint32_t> classes;
         director->EnumClassObjects(&CollectClass, &classes);
         cISC4Simulator* sim = nullptr;
@@ -7566,33 +7582,76 @@ int TurboIniTest(const std::string& dll, const std::string& ini, const std::stri
             cIGZSystemService* service = nullptr;
             CHECK(sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)));
             if (service != nullptr) {
-                const DWORD start = GetTickCount();
+                // a. Held: ~300 ms of ticks at 5000 ms per day: no day passes.
+                DWORD start = GetTickCount();
+                while (GetTickCount() - start < 300) service->OnTick(0);
+                const int32_t heldJulian = sim->GetSimDateNumber();
+                std::printf("turbo: julian %d after ~300 ms held (before ConnectionsReady)\n", heldJulian);
+                CHECK(heldJulian < 2451547);
+                // b. ConnectionsReady 0x6AC284F3 reaches the observer: turbo engages.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
+                start = GetTickCount();
                 while (GetTickCount() - start < 500) service->OnTick(0);
+                // A second ConnectionsReady of the same load changes nothing.
+                seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
                 service->Release();
             }
-            std::printf("turbo: julian %d after ~500 ms at speed 0; agent called %u times\n", sim->GetSimDateNumber(),
-                        agent.calls);
+            std::printf("turbo: julian %d after ConnectionsReady and ~500 ms at speed 0; agent called %u times\n",
+                        sim->GetSimDateNumber(), agent.calls);
             CHECK(sim->GetSimDateNumber() == 2451605);  // 2000-03-01, not one day more
             CHECK(agent.lastJulian == 2451605);
             CHECK(sim->Shutdown());  // releases the agent
             CHECK(agent.refs == 0);
+            held = ReadFile(log);
+
+            // c. A second city load where ConnectionsReady never comes: held
+            // again, then the fallback after sim_turbo_wait_days = 3 game days
+            // (speed 2: 100 ms per day), with a WARNING.
+            CHECK(sim->Init());
+            CHECK(sim->HiddenResume());
+            CHECK(sim->SetSimSpeed(2));
+            const int32_t reloadJulian = sim->GetSimDateNumber();
+            if (sim->QueryInterface(GZIID_cIGZSystemService, reinterpret_cast<void**>(&service)) && service) {
+                const DWORD start = GetTickCount();
+                while (GetTickCount() - start < 1500) service->OnTick(0);
+                service->Release();
+            }
+            std::printf("turbo: second load: julian %d -> %d without ConnectionsReady\n", reloadJulian,
+                        sim->GetSimDateNumber());
+            CHECK(sim->GetSimDateNumber() >= reloadJulian + 3);
+            CHECK(sim->Shutdown());
             sim->Release();
         }
     }
     FreeLibrary(hd);
     DeleteFileA(ini.c_str());
+    CHECK(held.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
+                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605); engages at "
+                    "each city's first ConnectionsReady, or after 3 game day(s) without it (sim_turbo_wait_days)") !=
+          std::string::npos);
+    // The ordering: requested (held) at Init, ON only after ConnectionsReady, once.
+    const size_t requested = held.find("simulator: turbo requested (sim_turbo) at 2000-01-01: held, days paced by "
+                                       "msPerDay, until the city's first ConnectionsReady (or 3 game day(s) without "
+                                       "it, sim_turbo_wait_days)");
+    const size_t engaged =
+        held.find("simulator: turbo ON at 2000-01-01 (after ConnectionsReady; sim_turbo): frame budget 50 ms, until "
+                  "2000-03-01");
+    CHECK(requested != std::string::npos);
+    CHECK(engaged != std::string::npos);
+    CHECK(requested < engaged);
+    CHECK(CountOf(held, "(after ConnectionsReady") == 1);
+    CHECK(held.find("turbo ON (sim_turbo) at") == std::string::npos);  // never engaged at Init
+    CHECK(held.find("simulator: WARNING no ConnectionsReady") == std::string::npos);
+    CHECK(held.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
+    CHECK(held.find(" days/s, ") != std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
+    CHECK(held.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
+          std::string::npos);
+    CHECK(CountOf(held, "simulator: turbo OFF") == 1);
     text = ReadFile(log);
-    CHECK(text.find("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not "
-                    "paced by msPerDay, frame budget 50 ms at any speed; until 2000-03-01 (julian 2451605)") !=
-          std::string::npos);
-    CHECK(text.find("simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 50 ms, until 2000-03-01") !=
-          std::string::npos);
-    CHECK(text.find("simulator: turbo month 2000-02-01: 31 day(s) in ") != std::string::npos);
-    CHECK(text.find(" days/s, ") != std::string::npos);
-    CHECK(CountOf(text, "simulator: turbo month") == 1);  // switched off on 2000-03-01 itself
-    CHECK(text.find("simulator: turbo OFF at 2000-03-01 (sim_turbo_until reached); days paced by msPerDay again") !=
-          std::string::npos);
-    CHECK(CountOf(text, "simulator: turbo OFF") == 1);
+    CHECK(CountOf(text, "simulator: turbo requested (sim_turbo) at ") == 2);  // one per city load
+    CHECK(text.find("simulator: WARNING no ConnectionsReady within 3 game day(s) of the turbo request (sim_turbo); "
+                    "turbo ON at ") != std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     if (g_failures == 0) std::printf("plugin turbo test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
@@ -7698,6 +7757,7 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     const std::string bad = dir + "fc4_script_bad.txt";
     const std::string empty = dir + "fc4_script_empty.txt";
     const std::string late = dir + "fc4_script_late.txt";
+    const std::string saves = dir + "fc4_script_save.txt";
     WriteTextFile(script,
                   "# FreeCity4 script test (the harness lane)\n"
                   "2000-01-03 zone 10 20 12 22 1        # a 3x3 residential block\n"
@@ -7716,6 +7776,12 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     WriteTextFile(bad, "# two errors\n2000-01-10 zonee 1 1 2 2 1\n2000-01-10 zone 1 1 2 2 16\n2000-01-10 mark fine\n");
     WriteTextFile(empty, "# nothing to do\n\n");
     WriteTextFile(late, "2000-01-01 dezone 5 6 5 6\n");
+    WriteTextFile(saves,
+                  "2000-01-12 mark before the save\n"
+                  "2000-01-12 save\n"
+                  "2000-01-12 mark after the save, on its day\n"
+                  "2000-01-13 save fast\n"
+                  "2000-01-14 mark a later day\n");
     WriteTextFile(ini, "[harness]\nscript = fc4_script_test.txt   # relative: next to FreeCity4.ini\n");
 
     static FakeWorld world;
@@ -7771,8 +7837,10 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     newDay(2451550);
     CHECK(sim->GetSimSpeed() == 2);
     CHECK(!sim->IsPaused());
-    // 2000-01-07 / 08: turbo on, turbo off and the digest.
+    // 2000-01-07: turbo on, held: this city load has not seen ConnectionsReady;
+    // it engages when ConnectionsReady comes. 2000-01-08: turbo off, the digest.
     newDay(2451551);
+    seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x6AC284F3u)), nullptr);
     newDay(2451552);
     std::string text = ReadFile(log);
     const size_t linesBefore = CountOf(text, "script: line ");
@@ -7794,11 +7862,26 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
     CHECK(zones.calls.size() == 6);
     if (zones.calls.size() == 6) CHECK(ScriptCallIs(zones.calls[5], 5, 6, 5, 6, 1, 0, true));
 
+    // save: cISC4App 16 (the fake returns true for a full save). It waits for
+    // the observer's next tick, and every action due after it waits behind it.
+    seam(kFC4SeamObserverApp, &world.app, nullptr);
+    CHECK(seam(kFC4SeamScript, const_cast<char*>("fc4_script_save.txt"), nullptr) == 5);
+    newDay(2451556);  // 2000-01-12: the first mark runs; the save and the mark after it wait
+    newDay(2451557);  // 2000-01-13: the fast save queues behind them
+    newDay(2451558);  // 2000-01-14: so does the last mark (file order holds)
+    CHECK(world.saveCalls == 0);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // all four, in order
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverTick, nullptr, nullptr);  // nothing left
+    newDay(2451559);
+    CHECK(world.saveCalls == 2);
+    seam(kFC4SeamObserverApp, nullptr, nullptr);
+
     seam(kFC4SeamObserverCity, nullptr, nullptr);
     CHECK(sim->Shutdown());
     sim->Release();
     FreeLibrary(hd);
-    for (const std::string& f : {script, bad, empty, late, ini}) DeleteFileA(f.c_str());
+    for (const std::string& f : {script, bad, empty, late, saves, ini}) DeleteFileA(f.c_str());
 
     text = ReadFile(log);
     // A relative path is resolved against FreeCity4.ini's folder as the DLL
@@ -7821,8 +7904,11 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
         "script: line 8 2000-01-06 speed 2 -> SetSimSpeed(2) = 1; speed 0 -> 2",
         "script: line 9 2000-01-06 pause -> Pause() = 1; paused=1",
         "script: line 10 2000-01-06 resume -> Resume() = 1; paused=0",
-        "simulator: turbo ON (script) at ",  // our simulator's line, then the script's
-        "script: line 11 2000-01-07 turbo on -> turbo on",
+        // our simulator's line, then the script's
+        "simulator: turbo requested (script) at 2000-01-01: held, days paced by msPerDay, until the city's first "
+        "ConnectionsReady (or 30 game day(s) without it, sim_turbo_wait_days)",
+        "script: line 11 2000-01-07 turbo on -> turbo requested: held until the city's ConnectionsReady",
+        "simulator: turbo ON at 2000-01-01 (after ConnectionsReady; script): frame budget 250 ms, until none",
         "simulator: turbo OFF (script) at ",
         "script: line 12 2000-01-08 turbo off -> turbo off",
         "script: line 13 2000-01-08 digest -> the DIGEST line follows",
@@ -7837,9 +7923,10 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
         if (found != std::string::npos) at = found;
     }
     CHECK(linesBefore == 13);
-    CHECK(CountOf(text, "script: line ") == 14);  // the 13, then the late script's one
+    // the 13, the late script's one, the save script's 5 and its "waits" line
+    CHECK(CountOf(text, "script: line ") == 20);
     CHECK(text.find("script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, "
-                    "turbo, digest, mark)") != std::string::npos);
+                    "turbo, digest, mark, save)") != std::string::npos);
     CHECK(text.find("script: ERROR line 3: zone type '16' is not 0..15") != std::string::npos);
     CHECK(text.find("script: REFUSED '" + winDir + "fc4_script_bad.txt' (test seam): 2 parse error(s); no action of "
                     "it runs") != std::string::npos);
@@ -7851,6 +7938,31 @@ int ScriptIniTest(const std::string& dll, const std::string& ini, const std::str
           std::string::npos);  // an absolute path as given
     CHECK(text.find("script: line 1 2000-01-01 dezone 5 6 5 6 -> ok=1 error=0 (none) cost=10 accepted=1 of 1 "
                     "cell(s) (run on 2000-01-11)") != std::string::npos);
+    {
+        const std::string saveOrder[] = {
+            "script: loaded '" + winDir + "fc4_script_save.txt' (test seam; tooling): 5 action(s), 2000-01-12 to "
+            "2000-01-14",
+            "script: line 1 2000-01-12 mark before the save -> marked\r\n",
+            "script: line 2 2000-01-12 save: waits for the next framework tick (not run inside SimNewDay); the "
+            "actions due after it wait behind it",
+            "script: line 2 2000-01-12 save -> ok=1 (SaveCity(full) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 3 2000-01-12 mark after the save, on its day -> marked (run on 2000-01-14)",
+            "script: line 4 2000-01-13 save fast -> ok=0 (SaveCity(fast) in ",
+            " ms) (run on 2000-01-14)",
+            "script: line 5 2000-01-14 mark a later day -> marked\r\n",
+            "script: all 5 action(s) of '",
+        };
+        size_t from = 0;
+        for (const std::string& e : saveOrder) {
+            const size_t found = text.find(e, from);
+            if (found == std::string::npos) std::printf("script save test: not found (in order): %s\n", e.c_str());
+            CHECK(found != std::string::npos);
+            if (found != std::string::npos) from = found;
+        }
+        CHECK(CountOf(text, ": waits for the next framework tick") == 1);
+        CHECK(text.find("[structured exception in SaveCity]") == std::string::npos);
+    }
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // script is a known key
     if (g_failures == 0) std::printf("plugin script test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
@@ -8116,6 +8228,49 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end = quit)") !=
               std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5e. A script save due on the end date waits for the observer's tick;
+        // the verdict waits for it and comes at that tick, after the save.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-save", 30000, &ms) == 0);
+        std::printf("autotest end-date save child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        DeleteFileA((ini.substr(0, ini.find_last_of("\\/") + 1) + "fc4_script_endsave.txt").c_str());
+        text = ReadFile(log);
+        {
+            const char* const order[] = {
+                "script: line 1 2000-02-26 mark the day before -> marked",
+                "script: line 2 2000-02-27 save: waits for the next framework tick (not run inside SimNewDay); the "
+                "actions due after it wait behind it",
+                "autotest: end date 2000-02-27 reached at the new day 2000-02-27 (julian 2451602), ",
+                "s after the clock started; the script's waiting action(s) first, then the verdict and "
+                "TerminateProcess at the next tick",
+                "script: line 2 2000-02-27 save -> ok=1 (SaveCity(full) in ",
+                "script: line 3 2000-02-27 mark after the save -> marked",
+                "script: all 3 action(s) of '",
+                "autotest: end date 2000-02-27 reached (autotest_end_date)",
+                "AUTOTEST VERDICT:",
+                "autotest: TerminateProcess(exit code 0) from the observer (autotest_end_date)",
+            };
+            size_t at = 0;
+            for (const char* e : order) {
+                const size_t found = text.find(e, at);
+                if (found == std::string::npos) std::printf("end-date save: not found (in order): %s\n", e);
+                CHECK(found != std::string::npos);
+                if (found != std::string::npos) at = found;
+            }
+        }
+        CHECK(text.find("s after the clock started; verdict, then TerminateProcess") == std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451602, date=2000-02-27, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date save child: rate x seconds = %.3f days (3 expected)\n", days);
+            CHECK(days > 2.8 && days < 3.2);
+        }
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);
 
         // 5d. Not a date: a WARNING, ignored; the 1 s timeout ends the run.
         CHECK(RunChild(dllArg + "--autotest-child-enddate-bad", 30000, &ms) == 0);

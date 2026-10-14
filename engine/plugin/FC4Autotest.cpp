@@ -19,6 +19,7 @@
 #include "FC4HarnessLogic.h"
 #include "FC4Log.h"
 #include "FC4RefAudit.h"
+#include "FC4Script.h"
 #include "FC4Subsystems.h"
 #include "FC4Watchdog.h"
 
@@ -83,6 +84,9 @@ constexpr DWORD kExitAfterVerdictMs = 30000;  // [choice] then the process shoul
 // verdict's days_per_second).
 volatile LONG g_endJulian = 0;
 volatile LONG g_endDateHit = 0;  // the run is ending because the end date was reached
+// The end date was reached while script actions (a `save`) waited for the
+// next tick (FC4Script.h): the verdict follows them, at that tick.
+volatile LONG g_endAfterScript = 0;
 volatile LONG g_days = 0;
 
 // "deadline" or "end date": what ended a run that quits through the game.
@@ -294,11 +298,29 @@ void AutotestOnCityLoaded() {
     if (InterlockedExchange(&g_cityLoaded, 1) == 0) Log("autotest: city loaded (PostCityInit); clock starts at the next tick");
 }
 
+namespace {
+
+// The verdict's reason at the end date.
+void EndDateReason(char* out, size_t size) {
+    const harness::Date e = harness::CivilFromJulian(static_cast<int32_t>(g_endJulian));
+    _snprintf_s(out, size, _TRUNCATE, "end date %04d-%02d-%02d reached (autotest_end_date)", e.year, e.month, e.day);
+}
+
+}  // namespace
+
 int AutotestOnTick() {
     if (!AutotestEnabled() || !g_cityLoaded) return 0;
     if (g_quitDue && !g_quitRequested && g_verdict == 0) {
         RequestQuitNow(PublishedJulian());
         return 0;
+    }
+    if (g_endAfterScript && g_verdict == 0) {
+        // The observer ran the script's waiting actions just before this call
+        // (FC4Observer.cpp, OnTick); the verdict's day is the day played now.
+        char reason[96];
+        EndDateReason(reason, sizeof(reason));
+        WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason);
+        Terminate(1000, "observer (autotest_end_date)");
     }
     const DWORD now = GetTickCount();
     if (!g_started) {
@@ -333,13 +355,15 @@ int AutotestOnTick() {
 void AutotestOnNewDay(int32_t julian) {
     if (!AutotestEnabled() || !g_cityLoaded || !g_started) return;
     InterlockedIncrement(&g_days);
-    if (g_verdict != 0 || g_quitDue || g_quitRequested || g_cityEnded) return;
+    if (g_verdict != 0 || g_quitDue || g_quitRequested || g_cityEnded || g_endAfterScript) return;
     if (!harness::EndDateDue(static_cast<int32_t>(g_endJulian), julian, true)) return;
     // [choice] The day is checked inside the SimNewDay message (main thread),
     // so a terminate run ends on exactly that day even when turbo plays many
     // days per tick; a quit run asks the game to quit at the next tick, as at
-    // the deadline.
+    // the deadline. [choice] Script actions waiting for the next tick (a
+    // `save`, FC4Script.h) run first: the verdict then follows at that tick.
     InterlockedExchange(&g_endDateHit, 1);
+    const bool afterScript = !g_endQuit && ScriptWaiting();
     const harness::Date e = harness::CivilFromJulian(static_cast<int32_t>(g_endJulian));
     const harness::Date d = harness::CivilFromJulian(julian);
     const DWORD ms = ElapsedMs(GetTickCount(), g_startMs);
@@ -347,14 +371,19 @@ void AutotestOnNewDay(int32_t julian) {
         "clock started; %s",
         e.year, e.month, e.day, d.year, d.month, d.day, static_cast<long>(julian), static_cast<unsigned long>(ms / 1000),
         static_cast<unsigned long>(ms % 1000),
-        g_endQuit ? "quitting at the next tick (autotest_end = quit)" : "verdict, then TerminateProcess");
+        g_endQuit     ? "quitting at the next tick (autotest_end = quit)"
+        : afterScript ? "the script's waiting action(s) first, then the verdict and TerminateProcess at the next tick"
+                      : "verdict, then TerminateProcess");
     if (g_endQuit) {
         InterlockedExchange(&g_quitDue, 1);
         return;
     }
+    if (afterScript) {
+        InterlockedExchange(&g_endAfterScript, 1);
+        return;
+    }
     char reason[96];
-    _snprintf_s(reason, sizeof(reason), _TRUNCATE, "end date %04d-%02d-%02d reached (autotest_end_date)", e.year,
-                e.month, e.day);
+    EndDateReason(reason, sizeof(reason));
     WriteVerdict(VerdictAtDeadline(Counters()), 1000, reason, julian);
     Terminate(1000, "observer (autotest_end_date)");
 }
