@@ -429,8 +429,12 @@ Afterwards `monthlyTax[t] := trunc(groupTax[t])` and the function returns `trunc
   {1.2, 1.1, 1.0}` per difficulty. Example: a building worth 10,000 at 9 % on hard pays 75 per month.
 
 **The lot set and its order (BQ1, from the exe).** `ComputeTax` (`0x00691E20`) works as follows:
-- It gets a safe iterator from the lot manager (slot 15, call at `0x00691E99`) and walks the master list node by
-  node until it returns to the head. At the end it unregisters and frees the iterator (`0x0069207C`–`0x006920AF`).
+- It gets a safe iterator from the lot manager (slot 15, call at `0x00691E99`) and walks the master list node by node
+  until it returns to the head. At the end it unregisters and frees the iterator (`0x0069207C`–`0x006920AF`). The
+  unregistering is `std::list::remove` (`0x00809580`) inlined: when the iterator block's owner (block `+4`) is not
+  null, every node of the owner's iterator list (owner `+4`) whose value is the iterator is unlinked and freed with
+  allocator B (`0x0090CF63`), and the scan runs to the end, so duplicates go too. The 8-byte block is then freed with
+  allocator C (`0x005E5620`) **in every case**, also when no node matched or the owner is null (BQ4).
 - For each lot it applies, in this order, the only three filters it has:
   - no building (lot slot 48, `+0xC0`, returns null);
   - not livable (lot slot 37, `+0x94`, `IsInLivableState`, returns false);

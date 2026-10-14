@@ -2788,9 +2788,14 @@ in brackets.
   edge. A fresh grid stays all 0 and a reused one keeps the previous wealth's result, so with no map every proximity
   grid is 0. The bracket (255 on the edge, giving 1 there after the passes) differs; *[choice]* write nothing, as the
   original does (recommended).
-- **BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
+- ~~**BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
   at `0x00809580`, and frees each with allocator B, instead of calling `0x00809580`. [an equivalent unlink; the block
-  is leaked, not freed, if no node is found]
+  is leaked, not freed, if no node is found]~~
+  **ANSWERED 2026-10-14** from the exe (`ComputeTax` `0x0069207C`–`0x006920AF`; `std::list::remove` `0x00809580`) and
+  written into budget.md §5.2. The unlink matches: the original removes every node whose value is the iterator and frees
+  each with B. It then frees the block with C unconditionally (`0x006920AF`), whether a node matched or not, and also
+  when the owner is null. The bracket's leak differs; *[choice]* free the block with C in every case, as the original
+  does (recommended).
 - **BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]
 - **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
   `GetLotsInCellRect` fallback]
