@@ -467,22 +467,20 @@ std::mutex g_buildingsLock;
 std::unordered_map<uint32_t, BuildingInfo> g_buildings;
 
 // BDS slot 14 GetBuildingKeyFromType, then the exemplar through the resource
-// manager. False when the key or the exemplar is missing.
-bool LoadBuilding(void* u, uint32_t type, BuildingInfo& out) {
+// manager. Null when there is no BDS or exemplar loads are switched off
+// (nothing cached); otherwise the cached entry (`loaded` false when the key
+// or the exemplar is missing). Entries are never erased, so the pointer
+// stays valid (unordered_map keeps its nodes across rehashes); PickBuilding
+// asks several times per building type, so nothing is copied.
+const BuildingInfo* LoadBuilding(void* u, uint32_t type) {
     {
         std::lock_guard<std::mutex> g(g_buildingsLock);
         auto it = g_buildings.find(type);
-        if (it != g_buildings.end()) {
-            out = it->second;
-            return out.loaded;
-        }
+        if (it != g_buildings.end()) return &it->second;
     }
     BuildingInfo info;
     cFC4ISC4BuildingDevelopmentSimulator* b = Bds(u);
-    if (b == nullptr || !Gate(u, fc4::Sw::ExemplarLoads, "tract building exemplar load (none)")) {
-        out = info;
-        return false;
-    }
+    if (b == nullptr || !Gate(u, fc4::Sw::ExemplarLoads, "tract building exemplar load (none)")) return nullptr;
     cGZPersistResourceKey key(0, 0, 0);
     if (b->GetBuildingKeyFromType(type, key)) {
         fc4::props::Exemplar ex;
@@ -495,37 +493,33 @@ bool LoadBuilding(void* u, uint32_t type, BuildingInfo& out) {
         }
     }
     if (!info.loaded) ++Ctx(u)->exemplarMisses;
-    {
-        std::lock_guard<std::mutex> g(g_buildingsLock);
-        g_buildings.emplace(type, info);
-    }
-    out = info;
-    return info.loaded;
+    std::lock_guard<std::mutex> g(g_buildingsLock);
+    return &g_buildings.emplace(type, std::move(info)).first->second;
 }
 
 // IsOccupantGroup (0x005E8F70) on the building's exemplar: the group is in
 // its occupant-group list (property 0xAA1DD396).
 bool BuildingInOccupantGroup(void* u, uint32_t building, uint32_t group) {
     TRACT_TEST(building_in_occupant_group, building, group);
-    BuildingInfo info;
-    if (!LoadBuilding(u, building, info)) return false;
-    return std::find(info.groups.begin(), info.groups.end(), group) != info.groups.end();
+    const BuildingInfo* info = LoadBuilding(u, building);
+    if (info == nullptr || !info->loaded) return false;
+    return std::find(info->groups.begin(), info->groups.end(), group) != info->groups.end();
 }
 
 // §4.17 row 6: the bool property 0x2781283F (absent = false).
 bool BuildingIsMonopoly(void* u, uint32_t building) {
     TRACT_TEST(building_is_monopoly, building);
-    BuildingInfo info;
-    return LoadBuilding(u, building, info) && info.monopoly;
+    const BuildingInfo* info = LoadBuilding(u, building);
+    return info != nullptr && info->loaded && info->monopoly;
 }
 
 // §4.15.2: the uint32 array 0x29B55F73 (false: absent).
 bool BuildingFieldIds(void* u, uint32_t building, fc4_u32_callback cb, void* cbCtx) {
     TRACT_TEST(building_field_ids, building, cb, cbCtx);
-    BuildingInfo info;
-    if (!LoadBuilding(u, building, info) || !info.fieldsPresent) return false;
+    const BuildingInfo* info = LoadBuilding(u, building);
+    if (info == nullptr || !info->loaded || !info->fieldsPresent) return false;
     if (cb != nullptr) {
-        for (uint32_t id : info.fields) cb(cbCtx, id);
+        for (uint32_t id : info->fields) cb(cbCtx, id);
     }
     return true;
 }
@@ -1061,6 +1055,12 @@ void UnregisterConfigurationFilter(void* u, uint64_t filter) {
 // Slot 9 GetLotConfigurationsByFilter(set, filter) into a 193-bucket STLport
 // hash_set (B): one reference per configuration, kept until the outermost
 // call returns. Hash order (the core orders them by pointer).
+// [choice] These references are kept and released without the reference
+// audit's per-reference bookkeeping (TractContext::heldConfigs): a Grow
+// lists hundreds of configurations on every pass, and audited they cost
+// FreeCity4's Grow several times the original's time, which the BDS's daily
+// 3 ms growth budget (building-development.md §4.4) turns into fewer Grow
+// calls. Their count is kept instead (configRefs).
 void ConfigurationsByFilter(void* u, uint64_t filter, fc4_token_callback cb, void* cbCtx) {
     TRACT_TEST(configurations_by_filter, filter, cb, cbCtx);
     if (filter == 0 || cb == nullptr) return;
@@ -1075,8 +1075,8 @@ void ConfigurationsByFilter(void* u, uint64_t filter, fc4_token_callback cb, voi
         for (auto* n = set.bucket(i); n != nullptr; n = n->next) {
             auto* cfg = reinterpret_cast<cISC4LotConfiguration*>(static_cast<uintptr_t>(n->value));
             if (cfg == nullptr) continue;
-            FC4_ACQUIRED(reinterpret_cast<cIGZUnknown*>(cfg), "GetLotConfigurationsByFilter entry");
-            Ctx(u)->held.push_back(reinterpret_cast<cIGZUnknown*>(cfg));
+            Ctx(u)->heldConfigs.push_back(reinterpret_cast<cIGZUnknown*>(cfg));
+            ++Ctx(u)->configRefs;
             tokens.push_back(TokenOf(cfg));
         }
     }
@@ -1226,7 +1226,18 @@ uint32_t cFC4TractFilter::AddRef() { return 1; }
 uint32_t cFC4TractFilter::Release() { return 1; }
 
 // §4.6: IsCompatibleWithPurposeType(purpose) and IsCompatibleWithWealthType(wealth).
+// The manager calls the filter for every configuration it holds, on every
+// listing (thousands of calls per Grow). With the game's own table (no test
+// seam answering) the two calls are made here, as that table's callbacks
+// would make them; fc4_tract_filter_includes (the test seam's path) makes
+// the same two calls in the same order.
 bool cFC4TractFilter::IsLotConfigurationIncluded(cISC4LotConfiguration* config) {
+    const auto* ctx = host_ != nullptr ? static_cast<const fc4::TractContext*>(host_->user) : nullptr;
+    if (ctx != nullptr && ctx->test == nullptr) {
+        return config != nullptr &&
+               config->IsCompatibleWithPurposeType(static_cast<cISC4BuildingOccupant::PurposeType>(purpose_)) &&
+               config->IsCompatibleWithWealthType(static_cast<cISC4BuildingOccupant::WealthType>(wealth_));
+    }
     return fc4_tract_filter_includes(host_, TokenOf(config), wealth_, purpose_);
 }
 
@@ -1371,6 +1382,12 @@ void TractReleaseHeld(TractContext* ctx) {
     std::vector<fc4::GameList<cISC4Lot*, fc4::TractNodeAllocator>*> lists;
     held.swap(ctx->held);
     deleted.swap(ctx->deleted);
+    // The configurations' references (unaudited, see ConfigurationsByFilter).
+    std::vector<cIGZUnknown*> configs;
+    configs.swap(ctx->heldConfigs);
+    for (cIGZUnknown* o : configs) {
+        if (o != nullptr) o->Release();
+    }
     lists.swap(ctx->farmLists);
     auto isDeleted = [&](cIGZUnknown* o) { return std::find(deleted.begin(), deleted.end(), o) != deleted.end(); };
     // A lot the core deleted may lose its last reference here: that free is

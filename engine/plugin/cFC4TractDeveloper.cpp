@@ -182,7 +182,9 @@ namespace fc4 {
 
 void TractMonthLine(int32_t julian) {
     cFC4TractDeveloper* t = g_live.load();
-    if (t != nullptr) t->LogMonth(julian);
+    if (t == nullptr) return;
+    t->LogMonth(julian);
+    TractTallyMonth("ours", julian);  // the same line as the tract shadow's (FC4TractShadow.h)
 }
 
 }  // namespace fc4
@@ -372,7 +374,7 @@ void cFC4TractDeveloper::LogState(const char* what) {
              "grows=%u built=%lld declines=%u declined=%lld populations=%u outcomes=%s constructions=%u "
              "reoccupations=%u abandonments=%u lotsCreated=%u lotsDeleted=%u demolitions=%u populationsSet=%u "
              "claims=%u reentrant=%u filtersRegistered=%u/%u refused=%u listsRefused=%u roadsRefused=%u "
-             "mapsRefused=%u exemplarMisses=%u fallbacks=%u",
+             "mapsRefused=%u exemplarMisses=%u configRefs=%llu fallbacks=%u",
              what, st.initialized, st.configured, st.current_style, st.current_style_index,
              st.years_since_style_change, st.years_between_style_changes, st.all_styles, styles, st.filters,
              st.grow_calls, static_cast<long long>(st.built_total), st.decline_calls,
@@ -380,7 +382,7 @@ void cFC4TractDeveloper::LogState(const char* what) {
              st.reoccupations, st.abandonments, st.lots_created, st.lots_deleted, st.demolitions,
              st.populations_set, st.resource_claims, st.reentrant, ctx_.filtersRegistered,
              ctx_.filtersUnregistered, ctx_.filtersRefused, ctx_.listsRefused, ctx_.roadsRefused, ctx_.mapsRefused,
-             ctx_.exemplarMisses, fallbacks_.load());
+             ctx_.exemplarMisses, static_cast<unsigned long long>(ctx_.configRefs), fallbacks_.load());
 }
 
 // One line per month: the calls and their effects since the previous line.
@@ -453,6 +455,7 @@ bool cFC4TractDeveloper::Shutdown() {
 // Slot 5: EAX = built (int32). The codes go to the caller's list (B), after
 // the core returns.
 int32_t cFC4TractDeveloper::Grow(FC4GrowthProfile const& profile, fc4::GameList<int32_t>& outcomes, bool& outFlag) {
+    const uint64_t t0 = fc4::TractTallyNow();
     Section sec(this);
     if (!sec.ok()) {
         outFlag = false;
@@ -463,8 +466,10 @@ int32_t cFC4TractDeveloper::Grow(FC4GrowthProfile const& profile, fc4::GameList<
     fc4_tract_grow_result res{};
     res.struct_size = sizeof(res);
     bool flag = outFlag;
+    const size_t before = fc4::TractTallyListSize(outcomes);
     const int32_t built = fc4_tract_grow(core_, &p, &AppendOutcome, &sink, &flag, &res);
     outFlag = flag;
+    fc4::TractTallyGrow(profile, built, outcomes, before, fc4::TractTallyNow() - t0);
     if (sink.dropped != 0 && !g_noteOutcomes) {
         g_noteOutcomes = true;
         fc4::Log("tract: %u outcome code(s) not appended to the caller's list (no list or no allocator B)",
@@ -487,7 +492,9 @@ int32_t cFC4TractDeveloper::Decline(FC4GrowthProfile const& profile) {
     Section sec(this);
     if (!sec.ok()) return 0;
     const fc4_tract_profile p = ProfileOf(profile);
-    return fc4_tract_decline(core_, &p);
+    const int32_t declined = fc4_tract_decline(core_, &p);
+    fc4::TractTallyDecline(profile, declined);
+    return declined;
 }
 
 // Slot 7: 0 (§7.1; the original leaves EAX garbage).

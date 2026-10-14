@@ -116,6 +116,10 @@ struct TractContext {
     // lists (§4.15.2: one list appended across calls, begun at each
     // GetLotsSurroundingRect with flags 1).
     std::vector<cIGZUnknown*> held;
+    // The configurations GetLotConfigurationsByFilter gave (one reference
+    // each), released with `held` but outside the reference audit.
+    std::vector<cIGZUnknown*> heldConfigs;
+    uint64_t configRefs = 0;  // references taken into heldConfigs since construction
     std::vector<cIGZUnknown*> deleted;
     std::vector<fc4::GameList<cISC4Lot*, fc4::TractNodeAllocator>*> farmLists;
     // Observability (the status lines): calls made since construction.
