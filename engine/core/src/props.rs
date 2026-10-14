@@ -13,6 +13,16 @@
 //! [`PropertyHolder`] of variants. The readers here convert between numeric
 //! element types the way the simulators' property readers do: integers to
 //! floats by value, floats to integers by truncation toward zero.
+//!
+//! The vector readers ([`u32s`], [`i64s`], [`f32s`]) convert **every element**
+//! and give a scalar's one value. The original's vector helpers (data-formats
+//! §5.2 "The vector helpers", EX33) convert nothing: they copy `GetCount()`
+//! elements of their own width from the raw data, so a Float32 `{2.75}` read
+//! as `u32` gives `{0x40300000}`, a narrower stored type is over-read and a
+//! scalar (count 0) gives an empty vector. *[choice]* (EX33, kept) Converting is
+//! not observable on shipped data: the only property read with another type,
+//! `0xEA0232A0` (Sint32 read as `vec<u32>`), has the same bits either way, and
+//! converting replaces the over-read with defined values.
 
 use crate::property::PropertyHolder;
 use crate::stream::ResKey;
@@ -59,7 +69,8 @@ pub fn curve(h: &PropertyHolder, id: u32) -> Option<crate::curve::ResponseCurve>
 }
 
 /// All values of a property as `u32` (integers wrap to 32 bits, floats are
-/// truncated toward zero).
+/// truncated toward zero; every element converted, EX33 *[choice]*, see the
+/// module documentation).
 pub fn u32s(h: &PropertyHolder, id: u32) -> Option<Vec<u32>> {
     numeric(h.get(id)?).map(|v| v.iter().map(|e| e.as_i64() as u32).collect())
 }
@@ -211,5 +222,21 @@ mod tests {
             assert_eq!(round_half_even_f64(f64::from(x)), f64::from(want), "{x}");
         }
         assert!(round_half_even_f32(f32::NAN).is_nan());
+    }
+
+    #[test]
+    fn vector_readers_convert_every_element() {
+        // data-formats §5.2 (EX33): the original copies raw bits (a Float32
+        // {2.75} as `vec<u32>` gives {0x40300000}) and gives a scalar an empty
+        // vector; FreeCity4 converts each element [choice].
+        let mut h = PropertyHolder::new();
+        h.add(1, Variant::array(mem::FLOAT32, vec![Elem::F32(2.75)]));
+        h.add(2, Variant::array(mem::SINT32, vec![Elem::I32(-1), Elem::I32(5)]));
+        h.add(3, Variant::Scalar(Elem::U32(7)));
+        assert_eq!(u32s(&h, 1), Some(vec![2]));
+        // Sint32 read as u32 (as `0xEA0232A0` is): the same bits as a copy.
+        assert_eq!(u32s(&h, 2), Some(vec![0xFFFF_FFFF, 5]));
+        assert_eq!(f32s(&h, 2), Some(vec![-1.0, 5.0]));
+        assert_eq!(u32s(&h, 3), Some(vec![7]));
     }
 }
