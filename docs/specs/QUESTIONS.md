@@ -3070,7 +3070,11 @@ host gained connection, region, budget and drive-side methods. The current answe
   and written into traffic-network §2.7.2. The count wraps to ID 0: the record gets pool 0, the default pool, and the
   new holder is stored in the map under key 0. If key 0 is taken too, the search never ends. Unreachable in the game.
   The bracket (pool 0) matches.
-- **TS43:** A missing regional demand node. [0]
+- ~~**TS43:** A missing regional demand node. [0]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00714E60`: `GetDemand` at `0x00714ED9`, its result used at once at
+  `0x00714EDC`) and written into traffic-network §2.7.4. The original crashes: `GetDemand` returns null for a missing
+  node and the value query goes through it. The shipped data define the nodes. The bracket (0) is a *[choice]*,
+  recommended.
 - **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
 - **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
 - **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]

@@ -435,7 +435,9 @@ StartRecalc (traffic-simulator.md §4.3) ends with this pass. It runs on the mai
 
 1. **Regional jobs**: for w = 0…2, `J[w] :=` the demand simulator's `GetDemand(0x2010 + 0x10·w, 0x10000)` (the
    regional node, demand.md §9), its `QueryDemandValue()`, truncated toward zero to a 32-bit integer. The
-   original does not check for a missing node. *[choice]* Use 0 if the node is missing.
+   original does not check for a missing node: `GetDemand` returns null for one (demand.md §9) and the next call
+   goes through it, a crash (`0x00714ED9`–`0x00714EE0`, TS43). The shipped demand exemplars define the three
+   regional nodes, so this does not happen in the game *[inferred]*. *[choice]* Use 0 if the node is missing.
 2. **Cities**: the neighbours simulator's `GetConnectedCities(list, false)` (slot 21): the established cities
    reached by a transport connection (neighbors.md §6.2).
 3. **Totals**: for w = 0…2, `T[w] :=` the 32-bit integer sum over those cities of `E_c[w]`. Here
