@@ -7335,9 +7335,10 @@ int main(int argc, char** argv) {
                     CHECK(found.x87Pushed == 0 && otherPurpose.x87Pushed == 0 && noHolder.x87Pushed == 0);
                     CHECK(found.eax != 0 && otherPurpose.eax != 0 && noHolder.eax != 0);
                     if (found.eax != 0) {
-                        // The item's local-funding fraction: property value / 100.
+                        // The item's local-funding fraction: float32(property value × 0.01f)
+                        // (budget.md §6, RG13: a multiplication, not pct / 100).
                         const float q = reinterpret_cast<const float*>(found.eax)[0];
-                        CHECK(q == holder.Get32f(0xEA54D287) / 100.0f);
+                        CHECK(q == holder.Get32f(0xEA54D287) * 0.01f);
                         CHECK(q == 0.5f);  // AddLocallyFundedObject wrote the department's 50 %
                     }
                     if (otherPurpose.eax != 0) CHECK(reinterpret_cast<const float*>(otherPurpose.eax)[0] == 0.0f);
