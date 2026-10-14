@@ -937,6 +937,56 @@ impl TrafficSimulator {
     pub fn set_traffic_units_per_slice(&self, n: u32) {
         self.update_state(|s| s.tuning.traffic_units_per_slice = n.max(1));
     }
+
+    // ---- single steps, for hosts restoring state and for tests ----
+
+    /// Sets the work-cycle state and runs its entry action (§3.2).
+    pub fn enter_cycle_state(&self, s: u8) {
+        self.run(|r| {
+            r.st.cycle_state = s;
+            r.enter_state(s);
+        });
+    }
+
+    /// `UpdateTrafficVolume(source)` (§4.1).
+    pub fn update_traffic_volume(&self, source: Source) {
+        self.run(|r| r.update_traffic_volume(source));
+    }
+
+    /// `ConfirmTrips(source)` (§4.3), without `UpdateTrafficVolume`.
+    pub fn confirm_source(&self, source: Source) {
+        self.run(|r| r.confirm_source(source));
+    }
+
+    /// `CompleteTripSourceCalculations(source)` (§4.6) on the source's trip
+    /// list.
+    pub fn complete_trip_source_calculations(&self, source: Source) {
+        self.run(|r| {
+            let mut trips = r.h.trip_list(source);
+            let rect = r.source_rect(source);
+            r.complete_trip_source_calculations(source, rect, &mut trips);
+            r.h.set_trip_list(source, trips);
+        });
+    }
+
+    /// `SetupTrip(trip)` (§4.4) on a pair of pathfinders, for a trip of
+    /// `source`.
+    pub fn setup_trip(&self, pf: &mut Pathfinder, pf2: &mut Pathfinder, trip: &TripData, source: Source) {
+        self.run(|r| {
+            let rect = r.source_rect(source);
+            r.setup_trip(pf, pf2, trip, rect);
+        });
+    }
+
+    /// `CapacityStillAvailable(trip)` (§4.2).
+    pub fn capacity_still_available(&self, trip: &TripData) -> bool {
+        self.run(|r| r.capacity_still_available(trip))
+    }
+
+    /// `ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (§4.2).
+    pub fn apply_traffic_to_destination(&self, count: u32, x: i32, z: i32, last_travel_type: u8, trip_type: u8) {
+        self.run(|r| r.apply_traffic_to_destination(count, x, z, last_travel_type, trip_type));
+    }
 }
 
 /// The 16-bit cell key `(x << 8 | z)` truncated to 16 bits (§4.12, §4.13).

@@ -274,7 +274,7 @@ impl Run<'_, '_> {
     }
 
     /// The entry actions of §3.2.
-    fn enter_state(&mut self, s: u8) {
+    pub(crate) fn enter_state(&mut self, s: u8) {
         match s {
             cs::CONFIRM_TRIPS | cs::REROUTE_TRIPS | cs::FULL_TRIPS => {
                 // The traffic-source iterator (§4.1): lots, then neighbour
