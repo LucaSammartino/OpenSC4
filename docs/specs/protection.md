@@ -314,7 +314,20 @@ rounding even above 2^24) and divided once, rounded to float32 (foundations §18
 255). *[compat]*
 
 The zone grid is the zone manager's slot-5 grid (`+0x14`), read raw through `GetGridData() const` as rows `[x][z]`;
-"zoned" means any non-zero zone type. **S** is the simulator's own tract-size constant (2, set with the tuning,
+"zoned" means any non-zero zone type. **Which grid** *[compat]* (PR10):
+
+- **The grid.** Slot 5 returns the zone manager's member `+0x48`. That is a `cSC4SimGrid<int8>`: vtable
+  `0x00A87950`, CLSID `0x49B9E603` (simgrid §2). It is created in the zone manager's `Init` (`0x004DE26F`–
+  `0x004DE2D0`) with tract size 1, so it has one byte per city cell.
+- **The read.** The daily step fetches the data pointer once per call (`0x006F6A9C`, `0x006F6AA3`). The tract test
+  (`0x006F6180`) compares each byte with 0.
+- **`GetZoneType(x, z)`** (slot 12, `0x004DC740`) reads **the same byte of the same grid**, sign-extended. So
+  "GetZoneType ≠ 0" equals "byte ≠ 0" for every cell inside the grid, and a replacement may use slot 12. It
+  costs one virtual call per cell instead of one per day.
+- **Outside the grid.** Neither path checks bounds. Both read past the row vector, which is garbage or a crash.
+  "0 outside the city" is FreeCity4's choice, the same as the skip below.
+
+**S** is the simulator's own tract-size constant (2, set with the tuning,
 §6.7, and the same value passed to `SetTractSize` when the grids are created), **not** the adjusted grid's tract
 size, and it is not clamped (`0x006F6180`). The cells read are not bounds-checked. With a loaded adjusted grid of
 another tract size (saved geometry, §2) the tract range would no longer match S = 2 and the original would read

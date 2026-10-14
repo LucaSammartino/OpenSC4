@@ -566,8 +566,15 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   - **Both** add the property when it is missing and replace the variant's type.
   - **Quirk.** The lookup falls back to the occupant's exemplar, so an ID defined in a plug-in exemplar would be
     changed there. No shipped exemplar has any of these IDs. *[choice]* Write onto the occupant.
-- **PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
-  instead, 0 outside the city. Same values? [slot 12]
+- ~~**PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
+  instead, 0 outside the city. Same values? [slot 12]~~ **ANSWERED 2026-10-14** from the exe (slot 5 `0x00698CF0`
+  returns `+0x48`; created in zone manager `Init` at `0x004DE26F`–`0x004DE2D0`; `GetZoneType` `0x004DC740`; tract
+  test `0x006F6180`) and written into protection.md §5.3. **Same values; the bracket matches inside the city.**
+  - **The grid.** It is a `cSC4SimGrid<int8>` (vtable `0x00A87950`, CLSID `0x49B9E603`, tract size 1).
+  - **Same byte.** `GetZoneType` reads the same byte of the same grid, sign-extended. So "≠ 0" agrees for every
+    in-grid cell.
+  - **Outside the grid.** Neither the original's raw read nor `GetZoneType` checks bounds, so there is no original
+    value. "0 outside" is the implementer's choice, and it never triggers for grids the game creates.
 - **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
 - **PR12 — §4.1:** the simulator, flammability and crime simulators are not held (never called); only reference
   counts differ. Acceptable? [not held]
