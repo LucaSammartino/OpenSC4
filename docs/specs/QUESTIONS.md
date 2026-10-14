@@ -2363,3 +2363,46 @@ in brackets.
   the next cycle]
 - **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
   does today. [pointer detection only]
+
+## From the graphics formats spec (re-formats2 lane, 2026-10-14)
+
+graphics-formats.md specifies FSH and S3D as the 1.1.641 exe loads them. These are what it could not settle from the
+exe and the shipped data alone.
+
+- **GF1 — graphics-formats §2.6:** under DX7 (the default renderer) the FSH codes `0x64`, `0x65`, `0x6D`, `0x78`,
+  `0x7B` and `0x7E` load through the factory but `TranslateGDFormatToSourceFormat` (`0x0088D0B0`) cannot create a
+  texture for them. What does a model show then (untextured, white, previous texture, not drawn)? None is shipped
+  on a model; plug-in textures may use them. [unknown; FreeCity4 decodes them and shows the texture, *[choice]*]
+- **GF2 — §2.6, §2.11:** for `0x6D`, `0x7E` and `0x78` the factory asks for BGRA/BGR with the non-reversed packed
+  types (4-4-4-4, 5-5-5-1, eGDType 11), which under OpenGL would read the channels in a different order from the
+  Direct3D layouts (A4R4G4B4, A1R5G5B5, R5G6B5) that FSH tools write. Is there any renderer path where the game shows
+  them correctly, and which layout should FreeCity4 follow? [the Direct3D layouts, *[choice]*]
+- **GF3 — §2.4, §2.11:** DXT1 with A = 0 (13,762 shipped entries) asks for "DXT1 RGB", but DX7 translates both DXT1
+  formats to the same surface. Does DX7 then show 3-colour-mode index-3 texels as transparent (so alpha-tested
+  materials cut them out)? An in-game check on a model with such texels would settle it. [yes, inferred from the
+  translation; FreeCity4 decodes them transparent]
+- **GF4 — §2.13:** the 24 `0x7B` entries (64 × 64 and similar, identity grey-ramp `0x24` palettes) are in group
+  `0x891B0E1A`, used by terrain brushes, water and underground code (`0x0074D730`, `0x00752240`, `0x0065D810`).
+  Which of them reads these, and does it go through the texture path (which DX7 cannot create) or read the pixels
+  from `cS3DShapeFile` directly? [inferred: CPU reads of intensity maps]
+- **GF5 — §3.8:** `SetTexFiltering` (`0x007D4280`) overrides the material's filters with (nearest, nearest) or
+  (linear, linear-mipmap-linear) when one of two draw settings is on, and `0x007D41E0` can override wrap. Which
+  settings are these, what are their defaults, and which is on in normal play? Without an override, 137,480 shipped
+  1.5 textures have filters (0, 0), i.e. nearest. [unknown; probably the trilinear override is on by default]
+- **GF6 — §3.5:** byte order of the 32-bit vertex colour element (only `0x80004101`, 2 shipped blocks in model
+  `0xCB93E2B4`). [inferred: Direct3D colour, bytes B, G, R, A]
+- **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
+  (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
+  here; for the building-rendering lane]
+- **GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
+  option. [unknown; 0 in the image]
+- **GF9 — §2.8:** 167 shipped DXT1 entries store their mip levels without the 16-byte padding, and the game reads
+  the smallest two or three levels from the wrong offsets (the last one past the pixel data). Reproduce, or read
+  them as stored? [reproduce, zero-filling past the entry, *[choice]*]
+- **GF10 — §3.9:** semantics of ANIM frame rate (30, 10, 3, 2, 1, 0 shipped), mode (always 3), flags and
+  displacement (always 0), as the animated model instance uses them. [not traced; for the rendering spec]
+- **GF11 — §3.10, §3.11:** consumers of PROP (`skeleton`/`suit` pairs on 58 people models) and REGP (`fx_…` names on
+  1,810 models), and the meaning of REGP's seven floats. [inferred: effect attachment points, position and
+  orientation; not traced]
+- **GF12 — §2.4:** does anything outside the 3D texture path read the FSH centre fields (non-zero in 722 entries) or
+  bits 12–27 of `+0x0C` (non-zero in 294)? [none found]
