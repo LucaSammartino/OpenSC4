@@ -4173,6 +4173,114 @@ intptr_t ZonesLiveRegions(FC4TestSeamFn seam) {
     return seam(kFC4SeamZones, &in, nullptr);
 }
 
+// A standard message as the occupant manager sends InsertOccupant (§5.1):
+// void1 = the occupant, data3 = its occupant type, data4.
+class ZonesStdMessage final : public cIGZMessage2Standard {
+public:
+    ZonesStdMessage(uint32_t t, void* v1, intptr_t d3, intptr_t d4) : type(t), void1(v1), data3(d3), data4(d4) {}
+    uint32_t type;
+    void* void1;
+    intptr_t data3, data4;
+    int refs = 1;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || riid != GZIID_cIGZMessage2Standard) return false;
+        *p = static_cast<cIGZMessage2Standard*>(this);
+        ++refs;
+        return true;
+    }
+    uint32_t AddRef() override { return static_cast<uint32_t>(++refs); }
+    uint32_t Release() override { return static_cast<uint32_t>(--refs); }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return type; }
+    void SetType(uint32_t t) override { type = t; }
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+    bool GetHasData1() const override { return true; }
+    intptr_t GetData1() const override { return reinterpret_cast<intptr_t>(void1); }
+    void* GetVoid1() const override { return void1; }
+    void SetData1(intptr_t) override {}
+    void SetVoid1(void*) override {}
+    bool GetHasData2() const override { return false; }
+    intptr_t GetData2() const override { return 0; }
+    void* GetVoid2() const override { return nullptr; }
+    void SetData2(intptr_t) override {}
+    void SetVoid2(void*) override {}
+    bool GetHasData3() const override { return true; }
+    intptr_t GetData3() const override { return data3; }
+    void* GetVoid3() const override { return reinterpret_cast<void*>(data3); }
+    void SetData3(intptr_t) override {}
+    void SetVoid3(void*) override {}
+    bool GetHasData4() const override { return true; }
+    intptr_t GetData4() const override { return data4; }
+    void* GetVoid4() const override { return reinterpret_cast<void*>(data4); }
+    void SetData4(intptr_t) override {}
+    void SetVoid4(void*) override {}
+    bool GetHasString() const override { return false; }
+    bool GetString(uint32_t, void**) const override { return false; }
+    void SetString(cIGZString*) override {}
+    bool GetHasIGZUnknown() const override { return false; }
+    cIGZUnknown* GetIGZUnknown() const override { return nullptr; }
+    void SetIGZUnknown(cIGZUnknown*) override {}
+    bool GetHasExtra() const override { return false; }
+    uint32_t GetExtra(uint32_t, void**) const override { return 0; }
+    void SetExtra(cIGZSerializable*) override {}
+};
+
+constexpr uint32_t kMsgInsertOccupantZones = 0x99EF1142;
+constexpr intptr_t kNetworkOccupantType = static_cast<intptr_t>(0xC772BF98u);
+
+// The dezone handler (§5.1): a new network without the flags 0x80200090
+// re-zones its bounding cells to 0 (commit, free, no slope, no size check,
+// the lot inside) and posts the ZoningChange; anything else does nothing.
+void ZonesDezoneChecks(cFC4ISC4ZoneManager* zm) {
+    cIGZMessageTarget2* mt = nullptr;
+    CHECK(zm->QueryInterface(kIID_cIGZMessageTarget2Zones, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+    if (mt == nullptr) return;
+    // Column 4 zoned residential first (free).
+    {
+        ZonesGameRegion g(4, 0, 4, 7);
+        int64_t cost = -1;
+        int32_t error = -1;
+        CHECK(ZonesPlace(zm, g, 1, true, true, false, &cost, &error, nullptr));
+        CHECK(error == 0 && cost == 0);
+        for (cIGZMessage2Standard* m : g_zs->posts) m->Release();
+        g_zs->posts.clear();
+    }
+    const uint32_t before = zm->GetZoneCount(1);
+    const int withdrawals = g_zs->withdrawals;
+    const int parcels = g_zs->parcellizations;
+    // Not a dezone: another message, another occupant type, flagged networks.
+    ZonesStdMessage other(kMsgSimNewDay, &g_zs->network, kNetworkOccupantType, 0);
+    CHECK(mt->DoMessage(&other));
+    ZonesStdMessage building(kMsgInsertOccupantZones, &g_zs->network, 0x278128A0, 0);
+    CHECK(mt->DoMessage(&building));
+    g_zs->networkFlags = 1;
+    ZonesStdMessage flagged(kMsgInsertOccupantZones, &g_zs->network, kNetworkOccupantType, 0);
+    CHECK(mt->DoMessage(&flagged));
+    ZonesStdMessage notNetwork(kMsgInsertOccupantZones, &g_zs->lot, kNetworkOccupantType, 0);
+    CHECK(mt->DoMessage(&notNetwork));
+    CHECK(zm->GetZoneCount(1) == before && g_zs->posts.empty() && g_zs->parcellizations == parcels);
+    // The dezone.
+    g_zs->networkFlags = 0;
+    ZonesStdMessage road(kMsgInsertOccupantZones, &g_zs->network, kNetworkOccupantType, 1);
+    CHECK(mt->DoMessage(&road));
+    for (int z = 0; z < 8; ++z) CHECK(g_zs->grid[4][z] == 0);
+    CHECK(zm->GetZoneCount(1) == before - 8);
+    CHECK(g_zs->withdrawals == withdrawals + 1);  // WithdrawFunds(0): skipFunds
+    CHECK(g_zs->parcellizations == parcels + 1 && g_zs->parcelType == 0 && !g_zs->parcelFlag);
+    CHECK(g_zs->posts.size() == 1);
+    if (g_zs->posts.size() == 1) {
+        cIGZMessage2Standard* m = g_zs->posts[0];
+        CHECK(m->GetType() == 0x07699455u && m->GetData3() == 0 && m->GetData4() == 0);
+        const auto* r = static_cast<const LandfillGameRegion*>(m->GetVoid2());
+        CHECK(r != nullptr && r->x1 == 4 && r->z1 == 0 && r->x2 == 4 && r->z2 == 7 && r->rows[0][0] == 0xFFu);
+    }
+    for (cIGZMessage2Standard* m : g_zs->posts) m->Release();
+    g_zs->posts.clear();
+    for (const ZonesStdMessage* m : {&other, &building, &flagged, &notNetwork, &road}) CHECK(m->refs == 1);
+    mt->Release();
+}
+
 // PlaceZone (§6) through the stub: reject, abort, funds, accept with outLots
 // and the commit (grid, counts, demolition, parcellization, ZoningChange).
 void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
@@ -4303,6 +4411,7 @@ void ZonesPlaceZoneTest(FC4TestSeamFn seam, cIGZCOMDirector* director) {
         for (cIGZMessage2Standard* m : stub.posts) m->Release();
         stub.posts.clear();
     }
+    ZonesDezoneChecks(zm);
     CHECK(zm->Shutdown());
     CHECK(stub.gridReleases == 1);
     CHECK(stub.unsubscribed.size() == 1 && stub.unsubscribed[0] == 0x99EF1142u);
@@ -4440,7 +4549,10 @@ int ZonesEnableTest(const std::string& dll, const std::string& ini, const std::s
           std::string::npos);
     CHECK(text.find("zones PlaceZone: type=1 rect=1,1..1,1 cells=1 ok=1 error=0 cost=0 accepted=1") !=
           std::string::npos);
-    CHECK(CountOf(text, "zones PlaceZone: ") == 5);  // the dry runs are verbose-only
+    CHECK(CountOf(text, "zones PlaceZone: ") == 6);  // the dry runs are verbose-only
+    // The dezone: one line, the dezone's own PlaceZone has none.
+    CHECK(CountOf(text, "zones dezone: occupant ") == 1);
+    CHECK(text.find(" rect 4,0..4,7 changed=8 lots=0") != std::string::npos);
     CHECK(text.find("structured exception") == std::string::npos);
     CHECK(text.find("config: WARNING unknown key") == std::string::npos);
     CHECK(text.find("WARNING: released last reference") == std::string::npos);
