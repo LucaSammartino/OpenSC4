@@ -893,11 +893,14 @@ A segment that does not answer the IID, or a key that does not open, gives "not 
   advances for every occupant, also when its record does not open. The count is written with `PutUint32`
   (stream slot 9) and the occupant record by the occupant's `cIGZSerializable::Write` on the same stream (the
   segment streams begin with the `cIGZOStream` / `cIGZIStream` slots). Returns true (AL = 1) whatever happened.
-- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the
-  count is read **before** the occupant-manager test, so without an occupant manager the function returns false
-  after reading it. Each occupant: pooled `new` (92 bytes) and constructor, `AddRef`, `Read` from the stream,
-  `Init`, `InsertOccupant(occ, 0)` (slot 20), `Release`; records that do not open are skipped. There is no upper
-  bound on `count` (a damaged count means as many open attempts).
+- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the count
+  is read **before** the occupant-manager test, so without an occupant manager the function returns false after
+  reading it. Each occupant: pooled `new` (92 bytes) and constructor, `AddRef`, `Read` from the stream, `Init`,
+  `InsertOccupant(occ, 0)` (slot 20), `Release`; records that do not open are skipped. Each occupant record is closed
+  only after all of that (AQ5): its helper is destroyed at the end of the iteration (`0x006B073D`), so the record is
+  still open during `Init`, `InsertOccupant` and `Release`. Neither touches the segment, so the order cannot be seen.
+  The count record, by contrast, is closed right after its `GetUint32` (`0x006B06A6`). There is no upper bound on
+  `count` (a damaged count means as many open attempts).
 
 Example: three flora occupants → count record `00 00 03 00 00 00`; records `i` = 0, 1, 2, each `00 00` followed by
 that occupant's version-3 record.

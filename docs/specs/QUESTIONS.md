@@ -2707,7 +2707,12 @@ shadow's riot roll (wall-clock RNG). The current answer is in brackets.
   clear, write and set `0x006B2890`–`0x006B28AB`, release `0x006B28B2`) and written into flora §10.3. Yes: the flag is
   cleared and set again only in the branch taken when the record opened. The occupant's list reference is released
   either way. The bracket matches.
-- **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]
+- ~~**AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4FloraSimulator::LoadObliterated` `0x006B0660`: the record helper is built
+  at `0x006B06DA` and destroyed at `0x006B073D`) and written into flora §10.3. No: the helper lives for the whole
+  iteration, so the record is closed only after `Read`, `Init`, `InsertOccupant` and `Release`. Neither `Init` nor
+  `InsertOccupant` touches the segment, so the order cannot be seen. The bracket (yes) differs from the original; either
+  order is safe.
 - **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
 - **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]
 - **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
