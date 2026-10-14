@@ -284,7 +284,11 @@ item cost, budget §3):
 
 ### 4.2 Geometry helpers
 
-- **Cell centre**: `cISC4City::CellCenterToPosition(x, z) → (px, pz)` (slot 97).
+- **Cell centre**: `cISC4City::CellCenterToPosition(x, z) → (px, pz)` (slot 97). *[compat]* (LG10;
+  `0x00459440`, pop 16): `px := float32((x + 0.5) × cellSizeX)` and `pz := float32((z + 0.5) × cellSizeZ)`, from
+  `FILD`, a `+ 0.5f` and a multiply by the city's float cell sizes (`+0x108`, `+0x10C`, 16.0 in shipped cities).
+  Both are stored with `FSTP`, so the x87 stack is **empty** at `ret` and there is **no return value**. EAX holds
+  the `px` pointer by accident. Example: cell (37, 52) → (600.0, 840.0).
 - **Altitude at a cell**: `terrain.GetAltitude(px, pz)` (`cISTETerrain` slot 13) at the cell centre.
 - **Inclusive intersection** of two rects: `a.x0 ≤ b.x1 ∧ a.x1 ≥ b.x0 ∧ a.z0 ≤ b.z1 ∧ a.z1 ≥ b.z0`.
 - **Centre cell** of a rect: `((x0 + x1) / 2, (z0 + z1) / 2)` with C integer division (toward zero).
@@ -1130,7 +1134,7 @@ The object also implements `cISC4Occupant` (at its second vtable; QI `0x26BB767E
 | | 47 / +0xBC | GetAutomataControllerManager | 0 | EAX | effects |
 | | 50 / +0xC8 | GetSimulator | 0 | EAX | agents |
 | | 93, 94 / +0x174, +0x178 | cell counts X, Z | 0 | EAX | §3.2, §4.5.3 |
-| | 97 / +0x184 | CellCenterToPosition(x, z, &px, &pz) | 16 | — | everywhere |
+| | 97 / +0x184 | CellCenterToPosition(x, z, &px, &pz) | 16 | **none** (x87 stack empty; §4.2) | everywhere |
 | `cISC4Simulator` | 19 / +0x4C, 20 / +0x50 | AddAgent / RemoveAgent | 16 / 4 | AL | §1.1–1.2 |
 | `cISTETerrain` (`0x00AB3D18`) | 13 / +0x34 | GetAltitude(x, z) | 8 | ST0 | altitudes |
 | | 19 / +0x4C | GetAltitudeAtNearestGrid(x, z) | 8 | ST0 | §4.5.2, zot |
