@@ -11,6 +11,7 @@ Usage:
   powershell -File tools\sc4ctl.ps1 key  S ctrl              # posted key (WM_KEYDOWN/UP), optional modifiers ctrl,shift,alt
   powershell -File tools\sc4ctl.ps1 realkey S ctrl           # real input (SendInput); brings the window to the front
   powershell -File tools\sc4ctl.ps1 realclick 526 410        # real input click; brings the window to the front
+  powershell -File tools\sc4ctl.ps1 realdrag 300 300 "360,340" # real input drag (the 3D view ignores posted input)
   powershell -File tools\sc4ctl.ps1 ui <name>                # click a named control (see $Ui below)
   powershell -File tools\sc4ctl.ps1 clear [pngPrefix]        # click advisor popups away until hidden=0
   powershell -File tools\sc4ctl.ps1 findclose                # which known dialog is up, and where its button is
@@ -283,6 +284,24 @@ switch ($Cmd.ToLower()) {
         [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 80
         [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
         Write-Output "real click at client ($A, $B) = screen ($($o.X), $($o.Y))"
+    }
+    "realdrag" {
+        # Real input: the 3D view ignores posted mouse messages (run 54), so a zone or road tool drag needs this.
+        $h = GameWindow
+        $to = ($C -split "[ ,]+") | Where-Object { $_ -ne "" }
+        if ($to.Count -ne 2) { throw "realdrag needs: realdrag x1 y1 'x2,y2'" }
+        $a = New-Object FC4Ctl+PT; $a.X = [int]$A; $a.Y = [int]$B; [FC4Ctl]::ClientToScreen($h, [ref]$a) | Out-Null
+        $b = New-Object FC4Ctl+PT; $b.X = [int]$to[0]; $b.Y = [int]$to[1]; [FC4Ctl]::ClientToScreen($h, [ref]$b) | Out-Null
+        [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
+        [FC4Ctl]::SetCursorPos($a.X, $a.Y) | Out-Null; Start-Sleep -Milliseconds 200
+        [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 200
+        for ($i = 1; $i -le 12; $i++) {
+            [FC4Ctl]::SetCursorPos([int]($a.X + ($b.X - $a.X) * $i / 12), [int]($a.Y + ($b.Y - $a.Y) * $i / 12)) | Out-Null
+            Start-Sleep -Milliseconds 100
+        }
+        Start-Sleep -Milliseconds 200
+        [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+        Write-Output "real drag from client ($A, $B) to ($($to[0]), $($to[1])) = screen ($($a.X), $($a.Y)) to ($($b.X), $($b.Y))"
     }
     "close" {
         $h = GameWindow
