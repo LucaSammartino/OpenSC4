@@ -1076,8 +1076,9 @@ void ReadNeighborFigures(cISC4City* city, fc4_neighbors_figures* out) {
         out->garbage_recycled = static_cast<double>(p->GetGarbageRecycledLastMonth());               // 38
         out->waste_to_energy_capacity = static_cast<double>(p->GetMonthlyWasteToEnergyCapacity());  // 32
         out->incinerator_capacity = static_cast<double>(p->GetMonthlyIncineratorCapacity());        // 31
-        out->garbage_abducted = static_cast<double>(p->GetGarbageAbductedPrevMonth());              // 34
-        out->garbage_produced = static_cast<double>(p->GetGarbageProducedLastMonth());              // 35
+        // Slots 34/35 return 64 bits in edx:eax, as cFC4ISC4PollutionSimulator declares (the SDK: 32).
+        out->garbage_abducted = static_cast<double>(p->GetGarbageAbductedPrevMonth());  // 34 (abi: via cFC4I...)
+        out->garbage_produced = static_cast<double>(p->GetGarbageProducedLastMonth());  // 35 (abi: via cFC4I...)
     }
 }
 
@@ -2170,7 +2171,12 @@ void cFC4NeighborsSimulator::FindDealsAll(SC4List<cISC4NeighborDeal*>& deals) {
         if (p != nullptr) FC4_ADDREF_FOR_CALLER(p);
         cISC4NeighborDeal* old = *it;
         *it = p;
-        if (old != nullptr) FC4_RELEASE(old);
+        if (old != nullptr) {
+            // The node's reference passes to us with the node (as the list's
+            // own assignment releases the element it replaces).
+            FC4_ACQUIRED(old, "the caller list's replaced element");
+            FC4_RELEASE(old);
+        }
     }
     while (it != deals.end()) it = deals.erase(it);
     for (; i < tokens.size(); ++i) {
