@@ -173,17 +173,26 @@ void AddRefToken(void*, uint64_t t) {
     }
 }
 
-void ReleaseToken(void*, uint64_t t) {
-    cIGZUnknown* u = FromToken(t);
-    if (u == nullptr) return;
-    if (fc4::IsOurObject(u)) {
-        u->Release();
+// `u` is the simulator for its core's table, nullptr for the ordinances' (they
+// hold no foreign references).
+void ReleaseToken(void* u, uint64_t t) {
+    cIGZUnknown* o = FromToken(t);
+    if (o == nullptr) return;
+    if (fc4::IsOurObject(o)) {
+        o->Release();
+    } else if (u != nullptr && static_cast<cFC4OrdinanceSimulator*>(u)->TakeSavedReference(t)) {
+        FC4_RELEASE_CREATED(o);  // the save's reference (ForeignOrdinance): ours to free
     } else {
-        FC4_RELEASE(u);
+        FC4_RELEASE(o);
     }
 }
 
-uint64_t ForeignOrdinance(void*, uint64_t t) {
+// Read (§9.1): a foreign ordinance arrives with the reference the save handed
+// over (ReadGZSerializable, FC4Streams.h); the core keeps it as the
+// cISC4Ordinance, which is this QueryInterface's reference. [choice] When the
+// core holds a saved and an AddOrdinance reference on the same object, the
+// saved one is the first given back.
+uint64_t ForeignOrdinance(void* sim, uint64_t t) {
     cIGZUnknown* u = FromToken(t);
     if (u == nullptr) return 0;
     FC4_OUT(cISC4Ordinance*, o, "cISC4Ordinance* (QueryInterface out pointer)");
@@ -195,6 +204,7 @@ uint64_t ForeignOrdinance(void*, uint64_t t) {
     } else {
         FC4_ACQUIRED(o.get(), "QueryInterface");
         FC4_RELEASE(u);
+        if (sim != nullptr) static_cast<cFC4OrdinanceSimulator*>(sim)->NoteSavedReference(TokenOf(o.get()));
     }
     return TokenOf(o.get());
 }
@@ -576,6 +586,13 @@ const fc4_ordinance* CoreOf(cISC4Ordinance* o) {
     return h;
 }
 }  // namespace
+
+bool cFC4OrdinanceSimulator::TakeSavedReference(uint64_t token) {
+    auto it = savedRefs_.find(token);
+    if (it == savedRefs_.end()) return false;
+    if (--it->second == 0) savedRefs_.erase(it);
+    return true;
+}
 
 bool cFC4OrdinanceSimulator::AddOrdinance(cISC4Ordinance& ordinance) {
     FC4_TRACE("OrdinanceSimulator::AddOrdinance");
