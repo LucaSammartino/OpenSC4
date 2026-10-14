@@ -551,8 +551,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   `cIGZString` text or its address as `0x%08x`, so `GetProperty(id, uint32&)` returns its address. The string
   getter writes the text but returns false for every non-string type. The object case is a *[choice]*: missing
   (data-formats.md §5.1).
-- **EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
-  array gives its first byte as `%u`]
+- ~~**EX6:** Char, RZUnicodeChar and void arrays in the text round trip. [Char and RZUnicodeChar arrays as text; a void
+  array gives its first byte as `%u`]~~ **ANSWERED 2026-10-14** from the exe (`0x00916EAA`): **the first half
+  matches**: Char and RZUnicodeChar arrays give all their characters, RZUnicodeChar units of `0x80` and above as
+  `?`. **The void-array half does not**: a void array (and a VoidPtr array) gives the empty text, which parses as
+  0 (data-formats.md §5.1, with examples).
 - **EX7:** an RZChar scalar as a string. [that one character]
 - **EX8:** what `%.24g` prints for the exponent and for nan/inf. [2-digit exponent; "nan"/"inf"]
 - **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;

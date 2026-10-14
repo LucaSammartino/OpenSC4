@@ -442,9 +442,15 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
-- Text of an array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the locale-free
-  float formatter with up to 24 significant digits for floats, so float values survive exactly *[inferred]*,
-  `0`/`1` for Bool); an array of count 0 gives `0`. A string gives its text.
+- Text of a numeric or Bool array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the
+  locale-free float formatter with up to 24 significant digits for floats, so float values survive exactly
+  *[inferred]*, `0`/`1` for Bool); an array of count 0 gives `0`. A **string** (RZChar array `0x800E`) and a
+  **Char array** (`0x800C`) give **all** their characters. An **RZUnicodeChar array** (`0x800D`) gives all its
+  characters, each UTF-16 unit below `0x80` as that byte and every other unit as `?` (`0x0090E901`). A **void
+  array** (`0x8000`) and a VoidPtr array (`0x800F`) give the **empty text**, which parses as 0. Worked examples
+  (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not 0x31);
+  Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
+  as 0.
 - Parsing: `t` or `true` → 1, `f` or `false` → 0 *[inferred: case-sensitive]*; text beginning `0x` followed by a hex digit →
   unsigned hexadecimal; text containing `.` or `e`/`E` after a digit → floating point (then truncated toward zero
   for integer targets); text containing `-` → signed int64; otherwise unsigned int64; then the target width as in
