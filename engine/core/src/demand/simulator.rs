@@ -280,6 +280,15 @@ pub(super) fn neutral_tax_rate_of(tuning: &DemandTuning, r: f32, c: f32, i: f32)
     tuning.neutral_tax_curve.as_ref().map_or(0.0, |cv| cv.eval(pop))
 }
 
+/// A `GetLocalPopulationSummary` value (§5) [compat] (DQ3): the CRT `_ftol`
+/// of the float32 supply or demand, its `int64` truncation kept to the low 32
+/// bits (foundations §18.1). In range it truncates toward zero; 2³¹ ≤ |v| <
+/// 2⁶³ wraps modulo 2³² (3e9 gives −1294967296); NaN, ±∞ and |v| ≥ 2⁶³ give
+/// 0 (the low half of the integer indefinite). It never saturates.
+pub(super) fn summary_value(v: f32) -> i32 {
+    crate::x87::ftol32(f64::from(v))
+}
+
 /// The §8.1 terms of one of the 12 total nodes.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ModifierTerms {
@@ -682,17 +691,18 @@ impl DemandSim {
         neutral_tax_rate_of(&self.d.borrow().tuning, supply(0x1001), supply(0x3001), supply(0x4001))
     }
 
-    /// `GetLocalPopulationSummary(map)`.
+    /// `GetLocalPopulationSummary(map)`. Both region uses convert with
+    /// [`summary_value`] (§5, DQ3).
     pub fn local_population_summary(&self) -> BTreeMap<u32, i32> {
         let nodes: Vec<(u32, Rc<DemandNode>)> = self.d.borrow().nodes.iter().map(|(k, n)| (*k, n.clone())).collect();
         let mut map = BTreeMap::new();
         for (k, n) in nodes {
             match n.region_use() {
                 1 => {
-                    map.insert(k, n.supply() as i32);
+                    map.insert(k, summary_value(n.supply()));
                 }
                 2 => {
-                    map.insert(k, n.demand() as i32);
+                    map.insert(k, summary_value(n.demand()));
                 }
                 _ => {}
             }
@@ -830,7 +840,8 @@ impl DemandSim {
         if lot.building_type == 0 {
             return;
         }
-        let purpose = h.building_profile(lot.building_type).map_or(0, |p| p.purpose);
+        // DQ5: the purpose only; the capacity maps are walked in UpdateCapacity alone (§7.2).
+        let purpose = h.building_purpose(lot.building_type).unwrap_or(0);
         if !matches!(purpose, 1 | 2 | 3 | 5 | 6 | 7 | 8) {
             return; // purpose 0, 4 (Tourism) and > 8: ignored
         }
@@ -1365,6 +1376,10 @@ mod tests {
         census: RefCell<BTreeMap<(i32, i32), Cell5>>,
         connections: RefCell<Vec<(Connection, f32)>>,
         next: Cell<u64>,
+        /// `building_profile` calls (each one walks the capacity maps).
+        profile_walks: Cell<u32>,
+        /// `building_purpose` calls.
+        purpose_reads: Cell<u32>,
     }
 
     impl Fake {
@@ -1442,10 +1457,15 @@ mod tests {
             self.census.borrow().get(&(x, z)).map(|c| c.0)
         }
         fn building_profile(&self, building_type: u32) -> Option<BuildingProfile> {
+            self.profile_walks.set(self.profile_walks.get() + 1);
             (building_type == 1).then(|| BuildingProfile {
                 purpose: 1,
                 capacities: vec![vec![(0x1010, 30)]],
             })
+        }
+        fn building_purpose(&self, building_type: u32) -> Option<u32> {
+            self.purpose_reads.set(self.purpose_reads.get() + 1);
+            (building_type == 1).then_some(1)
         }
         fn developer_type(&self, purpose: u32, wealth: u32) -> u32 {
             if purpose == 1 {
@@ -1572,6 +1592,64 @@ mod tests {
         assert!((s.node(0x400).unwrap().supply() - 0.02).abs() < 1e-6);
         assert_eq!(s.node(0x500).unwrap().demand_cap(), 1.0); // demand 4 >= supply 1
         assert_eq!(f.warnings.get(), 1);
+    }
+
+    /// §5 / DQ3: the summary's conversion wraps like the CRT's `_ftol`
+    /// (the demand.md table), never saturates.
+    #[test]
+    fn summary_value_follows_ftol() {
+        let cases: [(f32, i32); 9] = [
+            (1234.7, 1234),
+            (-56.9, -56),
+            (2_147_483_648.0, i32::MIN),
+            (3.0e9, -1_294_967_296),
+            (-3.0e9, 1_294_967_296),
+            (1.0e19, 0),
+            (f32::INFINITY, 0),
+            (f32::NEG_INFINITY, 0),
+            (f32::NAN, 0),
+        ];
+        for (v, want) in cases {
+            assert_eq!(summary_value(v), want, "{v}");
+        }
+        assert_eq!(3.0e9f32.to_bits(), 0x4F32_D05E);
+        assert_eq!(1.0e19f32.to_bits(), 0x5F0A_C723);
+        // Through the simulator: a region-use-1 supply above i32::MAX and a
+        // region-use-2 NaN demand.
+        let f = Fake::new();
+        f.add_exemplar(0x1011, &[(exemplar_prop::REGION_USE, Variant::Scalar(Elem::U8(1)))]);
+        f.add_exemplar(0x2113, &[(exemplar_prop::REGION_USE, Variant::Scalar(Elem::U8(2)))]);
+        f.add_exemplar(0x2114, &[(exemplar_prop::REGION_USE, Variant::Scalar(Elem::U8(1)))]);
+        let s = sim(&f);
+        s.node(0x1011).unwrap().set_supply(3.0e9);
+        s.node(0x2113).unwrap().set_demand(f32::NAN);
+        s.node(0x2114).unwrap().set_supply(f32::INFINITY);
+        let m = s.local_population_summary();
+        assert_eq!(m.get(&0x1011), Some(&-1_294_967_296));
+        assert_eq!(m.get(&0x2113), Some(&0));
+        assert_eq!(m.get(&0x2114), Some(&0));
+    }
+
+    /// §6.3 / DQ5: the census reads the purpose only; the capacity maps are
+    /// walked by UpdateCapacity alone.
+    #[test]
+    fn census_reads_the_purpose_only() {
+        let f = Fake::new();
+        f.cells.set((1, 1));
+        let lot = CensusLot {
+            building_type: 1,
+            wealth: 1,
+        };
+        f.census.borrow_mut().insert((0, 0), (lot, 100, 10, 0.0, 1.0));
+        f.add_exemplar(0x1010, &[]);
+        let s = sim(&f);
+        f.profile_walks.set(0);
+        s.perform_census(0, 0);
+        assert_eq!(f.profile_walks.get(), 0);
+        assert_eq!(f.purpose_reads.get(), 1);
+        assert_eq!(s.snapshot().current_census.get(&0x1011), Some(&10.0));
+        s.on_state_changed(5, 1, 3, 0, 1);
+        assert_eq!(f.profile_walks.get(), 1);
     }
 
     #[test]

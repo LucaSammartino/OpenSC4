@@ -587,6 +587,8 @@ const CAPACITY_MAPS: [&[(u32, u16)]; 2] = [&[(0x2010, 50), (0x3121, 12)], &[(0x3
 thread_local! {
     static DEV_TYPE: Cell<u32> = const { Cell::new(0) };
     static PROFILE_CALLS: Cell<u32> = const { Cell::new(0) };
+    /// building_profile calls with a null visitor (purpose only).
+    static PURPOSE_ONLY_CALLS: Cell<u32> = const { Cell::new(0) };
 }
 
 unsafe extern "C" fn capacity_profile(
@@ -597,6 +599,9 @@ unsafe extern "C" fn capacity_profile(
     ctx: *mut c_void,
 ) -> bool {
     PROFILE_CALLS.with(|c| c.set(c.get() + 1));
+    if visit.is_none() {
+        PURPOSE_ONLY_CALLS.with(|c| c.set(c.get() + 1));
+    }
     if bt != BUILDING {
         return false;
     }
@@ -670,7 +675,57 @@ fn capacity_maps_and_population_summary() {
         }
         let n = fc4_demand_sim_local_population_summary(s, Some(visit), &mut summary as *mut _ as *mut c_void);
         assert_eq!((n, summary), (2, vec![(0x2010, -56), (0x3121, 1234)]));
+        // DQ3: above i32::MAX it wraps like _ftol (3e9 -> -1294967296); +inf and NaN give 0.
+        assert!(fc4_demand_node_set_region_use(n13121, 1));
+        assert!(fc4_demand_node_set(n13121, value::SUPPLY, 3.0e9));
+        assert!(fc4_demand_node_set(n3121, value::SUPPLY, f32::INFINITY));
+        assert!(fc4_demand_node_set(n2010, value::DEMAND, f32::NAN));
+        let mut summary: Vec<(u32, i32)> = Vec::new();
+        let n = fc4_demand_sim_local_population_summary(s, Some(visit), &mut summary as *mut _ as *mut c_void);
+        assert_eq!(
+            (n, summary),
+            (3, vec![(0x2010, 0), (0x3121, 0), (0x13121, -1_294_967_296)])
+        );
 
+        assert!(fc4_demand_sim_shutdown(s));
+        fc4_demand_sim_destroy(s);
+        destroy_nodes(&g);
+    }
+}
+
+unsafe extern "C" fn census_lot_at_1_1(_: *mut c_void, x: i32, z: i32, bt: *mut u32, wealth: *mut u32) -> bool {
+    if (x, z) != (1, 1) {
+        return false;
+    }
+    *bt = BUILDING;
+    *wealth = 1;
+    true
+}
+
+/// §6.3 / DQ5 through the C ABI: the census asks building_profile with a
+/// null visitor (the purpose only, no capacity walk); occupancy (§7.2) still
+/// passes the visitor.
+#[test]
+fn census_asks_for_the_purpose_only() {
+    let g = make_game();
+    unsafe {
+        let mut host = g.host.get().unwrap();
+        host.census_lot = Some(census_lot_at_1_1);
+        host.building_profile = Some(capacity_profile);
+        host.developer_type = Some(capacity_dev_type);
+        g.host.set(Some(host));
+        let s = fc4_demand_sim_create(&host, 0x5000);
+        assert!(fc4_demand_sim_init(s));
+        DEV_TYPE.with(|d| d.set(0x3121));
+        PROFILE_CALLS.with(|c| c.set(0));
+        PURPOSE_ONLY_CALLS.with(|c| c.set(0));
+        assert!(fc4_demand_sim_handle_message(s, 0x6695_6816, 0, 0, 0)); // NewMonth: the census starts
+        assert!(fc4_demand_sim_handle_message(s, 0x6695_681A, 0, 0, 1000)); // SimIdle: it scans the 4 x 4 cells
+        assert_eq!(PROFILE_CALLS.with(Cell::get), 1);
+        assert_eq!(PURPOSE_ONLY_CALLS.with(Cell::get), 1);
+        fc4_demand_sim_state_changed(s, 0x77, 1, 3, BUILDING, 1);
+        assert_eq!(PROFILE_CALLS.with(Cell::get), 2);
+        assert_eq!(PURPOSE_ONLY_CALLS.with(Cell::get), 1);
         assert!(fc4_demand_sim_shutdown(s));
         fc4_demand_sim_destroy(s);
         destroy_nodes(&g);

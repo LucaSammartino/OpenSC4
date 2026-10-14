@@ -272,6 +272,13 @@ pub trait DemandHost {
     fn census_lot(&self, x: i32, z: i32) -> Option<CensusLot>;
     /// `GetBuildingProfile(bt)`; `None` = no profile (purpose 0).
     fn building_profile(&self, building_type: u32) -> Option<BuildingProfile>;
+    /// `GetBuildingProfile(bt).purpose` alone, as the census reads it (§6.3,
+    /// DQ5: the original reads `purpose` at +0x00 and walks no capacity map);
+    /// `None` = no profile (purpose 0). A host should answer without reading
+    /// the capacity maps; the default goes through [`Self::building_profile`].
+    fn building_purpose(&self, building_type: u32) -> Option<u32> {
+        self.building_profile(building_type).map(|p| p.purpose)
+    }
     /// `GetDeveloperType(purpose, wealth)`.
     fn developer_type(&self, purpose: u32, wealth: u32) -> u32;
     /// `GetDeveloper(devType).GetDesirabilityMap().GetValue(x, z)`.

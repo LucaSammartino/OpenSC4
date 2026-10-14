@@ -1118,7 +1118,9 @@ typedef struct fc4_demand_host {
     uint32_t (*now_ms)(void* user);
     /* Census (§6.3). census_lot: false unless GetLot(x, z, true) exists, has
      * capacity and a building type. building_profile: false = no profile; the
-     * capacity list goes to `visit` (vector index, developer type, value). */
+     * capacity list goes to `visit` (vector index, developer type, value).
+     * `visit` may be NULL: the purpose alone, no capacity walk (the census,
+     * §6.3 / DQ5). */
     bool (*census_lot)(void* user, int32_t x, int32_t z, uint32_t* building_type, uint32_t* wealth);
     bool (*building_profile)(void* user, uint32_t building_type, uint32_t* purpose, fc4_capacity_visitor visit,
                              void* ctx);

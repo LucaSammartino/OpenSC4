@@ -414,6 +414,21 @@ impl DemandHost for CHost {
             capacities: maps,
         })
     }
+    /// The census's read (§6.3, DQ5): the same callback with a null visitor,
+    /// so the host reports the purpose and walks no capacity map.
+    fn building_purpose(&self, building_type: u32) -> Option<u32> {
+        let mut purpose = 0u32;
+        let found = cb!(
+            self.0,
+            building_profile,
+            false,
+            building_type,
+            &mut purpose,
+            None,
+            std::ptr::null_mut()
+        );
+        found.then_some(purpose)
+    }
     fn developer_type(&self, purpose: u32, wealth: u32) -> u32 {
         cb!(self.0, developer_type, 0, purpose, wealth)
     }
