@@ -769,7 +769,10 @@ fn pk12_07_escape_draw() {
 #[test]
 fn default_generator_is_seeded_from_the_session() {
     let h = Host::new();
+    *h.tuning.borrow_mut() = Some(Rc::new(shipped_tuning()));
     let m = ParkManager::new(h.clone(), 1, 0x1234);
+    // The reference: RzRandomSuper seeded with derive(S, 0xAA3FE6BC) (§5
+    // [choice]); the clocks are not used for an explicit seed.
     let mut want = crate::rng::RzRandomSuper::new(
         crate::rng::derive_seed(0x1234, 0xAA3F_E6BC),
         &crate::rng::FixedSeeds {
@@ -778,16 +781,37 @@ fn default_generator_is_seeded_from_the_session() {
         },
     );
     m.init();
+    let zoos = [0x71u64, 0x72, 0x73];
     m.with_state(|s| {
         s.parks = vec![Some(1)];
-        s.zoos = vec![Some(1)];
+        s.zoos = zoos.iter().copied().map(Some).collect();
     });
     let d = h.dept();
+    // f = 0: the shipped curve gives p = float32(40 × 0.01f) ≈ 0.4.
     h.funding.borrow_mut().insert(d, 0.0);
-    // With an empty curve p = 0: one draw, no escape; the generator moved.
-    m.monthly();
-    let _ = want.uniform_f64();
-    assert!(!h.take().iter().any(|e| matches!(e, Ev::ZooEscape(..))));
+    let p = escape_probability(&m.snapshot().escape_curve, 0.0);
+    let mut escapes = 0;
+    for month in 0..200 {
+        h.take();
+        m.monthly();
+        let got: Vec<u64> = h
+            .take()
+            .into_iter()
+            .filter_map(|e| match e {
+                Ev::ZooEscape(_, zoo) => Some(zoo),
+                _ => None,
+            })
+            .collect();
+        let expected: Vec<u64> = if want.uniform_f64() < p {
+            vec![zoos[want.uniform_u32(3) as usize]]
+        } else {
+            Vec::new()
+        };
+        assert_eq!(got, expected, "month {month}");
+        escapes += expected.len();
+    }
+    // Both branches were exercised.
+    assert!(escapes > 20 && escapes < 180, "{escapes} escapes");
 }
 
 // ================================================================ §12.8
