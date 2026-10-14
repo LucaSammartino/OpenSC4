@@ -1542,7 +1542,7 @@ Virtual calls (slot, offset, pop, return):
 | `cISC4LotManager` | 15 (+0x3C) | lot list / iterator | | | source iterator, FinishTripMap |
 | `cISC4Lot` | 3 (+0x0C), 12/13 (+0x30/+0x34), 14 (+0x38), 21 (+0x54), 28 (+0x70), 31 (+0x7C), 37 (+0x94), 48 (+0xC0), 56 (+0xE0), 59 (+0xEC) | property holder, flags, bounding rect, location, road access, zone type, livable, building, travel population, lot link | | | §4.1, §4.7 |
 | `cISC4TrafficSource` | 3, 4, 5 | §4.1 | 0, 0, 4 | | |
-| `cISC4NeighborsSimulator` | 11 (+0x2C), 13 (+0x34), 16 (+0x40) | FindConnection, property holder, GetAllConnections | | | §4.1.4, §4.6 |
+| `cISC4NeighborsSimulator` | 11 (+0x2C), 13 (+0x34), 16 (+0x40) | FindConnection, `FindConnectionOnOtherSide(conn)` (`0x006CDFA0`, pop 4; the caller reads the result's properties, TS38), GetAllConnections | | | §4.1.4, §4.6 |
 | `cISC4Simulator` | 6 (+0x18), 8 (+0x20), +0x4C | GetSimDate (5 pointers), GetSimDateNumber, AddAgent | | | §3.3 |
 | `cISC4BuildingDevelopmentSimulator` | 32 (+0x80) | GetDeveloper(group) → developer slot 15 grid → GetCellValue (s16) | | | §4.9 |
 | `cISC4ResidentialSimulator` | 30 (+0x78) | GetCellWorkforcePercent(x, z) | | x87/hidden | §4.1.1 |

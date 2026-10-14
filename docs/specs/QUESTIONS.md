@@ -3046,7 +3046,12 @@ host gained connection, region, budget and drive-side methods. The current answe
   **ANSWERED 2026-10-14** from the exe (percent getter `0x005FDAC0`: missing property `0x005FDAD6` → `0x005FDCBE`, other
   types `0x005FDAF3` → `0x005FDCBD`; calls `0x00716D67`, `0x00716D79`) and written into traffic-simulator §4.14. Yes:
   the getter returns without a store, so the code default 1.2 stays. The bracket matches.
-- **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
+- ~~**TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]~~
+  **ANSWERED 2026-10-14** from the exe (vtable `0x00AB1EE0` slot 13 `0x006CDFA0`, pop 4; slot 14 `0x006CEDE0`, pop 12;
+  regional-city slot 20 `0x004A7B40`) and written into traffic-simulator §8. §4.1.4 and traffic-network §2.7.2 are
+  right: slot 13 is `FindConnectionOnOtherSide(conn)`. It takes the connection's type and cell and calls slot 14, which
+  returns the matching connection from the neighbour's regional record, or null. §8's "property holder" named what the
+  caller does with the result; corrected. The naming in code is the implementer's choice.
 - **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
 - **TS40:** What does a statistics slot with no record publish? [zeros]
 - **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
