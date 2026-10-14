@@ -2701,6 +2701,25 @@ int main(int argc, char** argv) {
                     CHECK(!cr->GetCrimeIncidentArray(reinterpret_cast<fc4::GameVector<FC4CrimeEvent>&>(v)));
                     CHECK(v.size() == 0);
                 }
+                {
+                    // §11.4 (CQ1): the incident array grows like the game's
+                    // vector resize: exactly the count when empty, else
+                    // size + max(size, added); within the capacity, kept.
+                    fc4::GameVector<FC4CrimeEvent, TestHeap> g;
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3);
+                    for (uint32_t i = 0; i < 3; ++i) {
+                        FC4CrimeEvent e{};
+                        e.typeID = 100 + i;
+                        CHECK(g.push_back(e));
+                    }
+                    FC4CrimeEvent* const first = g.begin();
+                    CHECK(g.reserve_for_resize(2) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(4) && g.capacity() == 6);  // 3 + max(3, 1)
+                    CHECK(g.size() == 3 && g[0].typeID == 100 && g[2].typeID == 102);
+                    CHECK(g.reserve_for_resize(13) && g.capacity() == 13);  // 3 + max(3, 10)
+                    CHECK(g.size() == 3 && g[1].typeID == 101);
+                }
                 CHECK(!cr->SetVisualsCreated(0, true));
                 CHECK(!cr->GetVisualsCreated(0));
                 // Init without a city or GZCOM: no agent, a clean lifecycle.

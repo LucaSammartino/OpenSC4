@@ -217,7 +217,8 @@ private:
 // §7: GetAvailableResourceList(&list, filter) with a null list pointer on
 // entry; the manager returns a new list with one reference, ours to free
 // (as demand's enumeration, run 42). The core orders the keys ([choice]
-// ascending instance, §7).
+// ascending instance, §7; CQ10: the original's key-list order, which is
+// ascending instance for the 14 shipped types).
 void ForEachTypeKey(void*, fc4_key_visitor visit, void* ctx) {
     if (visit == nullptr) return;
     if (!Gate(fc4::Sw::ExemplarLoads, "crime type enumeration (no crime types)")) return;
@@ -345,7 +346,9 @@ void AcquireServicesCb(void* u) { Self(u)->AcquireServices(); }
 void ReleaseServicesCb(void* u) { Self(u)->ReleaseServices(); }
 
 // §4.1 step 8: AddPropRequester (prop developer slot 5) on the prop-requester
-// sub-object. §4.2: never unregistered.
+// sub-object. §4.2 (CQ7, confirmed): never unregistered; Shutdown makes no
+// prop-developer call. The prop developer AddRefs the requester here and
+// releases it at its own Shutdown, so this object lives until then.
 void AddPropRequesterCb(void* u) {
     if (!Gate(fc4::Sw::CrimeProps, "crime AddPropRequester (not registered)")) return;
     cISC4City* c = Self(u)->City();
@@ -363,6 +366,8 @@ void AddPropRequesterCb(void* u) {
 
 // GetPopulationGrids / GetEQGrids (residential slots 25 / 23): three out
 // pointers, each AddRef'd for us (§13); the core releases them (grids.release).
+// The return value is ignored, as the original's census ignores it (§13,
+// CQ15); the core asks for the population grids first, then the EQ grids.
 template <class T, class F>
 void ThreeGrids(void* u, uint64_t* out3, F call, const char* what) {
     if (out3 == nullptr) return;
@@ -410,8 +415,9 @@ bool Demand(void* u, uint32_t id, float* value, float* max, float* min) {
 
 // ---- police and ordinances (§6.4, §6.6) ----------------------------------------------------------
 
-// Police slot 5: borrowed (no AddRef by the police simulator); one reference
-// is taken here and handed to the core (fc4.h), which releases it.
+// Police slot 5: the uint8 grid (§13, CQ11 confirmed; the SDK says short),
+// borrowed (no AddRef by the police simulator); one reference is taken here
+// and handed to the core (fc4.h), which releases it.
 uint64_t PoliceGrid(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime GetPolicePowerGrid (no coverage)")) return 0;
     cFC4ISC4PoliceSimulator* p = Police(u);
@@ -433,7 +439,7 @@ uint32_t JailPopulation(void* u) {
 int32_t ResetUnjailedCriminals(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime ResetUnjailedCriminals (0)")) return 0;
     cFC4ISC4PoliceSimulator* p = Police(u);
-    const int32_t r = p ? p->ResetUnjailedCriminals() : 0;  // slot 27, int32 count (§13)
+    const int32_t r = p ? p->ResetUnjailedCriminals() : 0;  // slot 27, int32 count in EAX (§13, CQ11)
     Self(u)->Probe().released = r;
     return r;
 }
@@ -444,7 +450,8 @@ void ProcessMonthlyCrimeStats(void* u) {
 }
 
 // §5: GetCumulativeFactor(0x28ED0380, 0); false = no ordinance simulator
-// ([choice] the factor is left unchanged).
+// ([choice] §4.1 step 6, §16 Q1, CQ6: the factor is left unchanged, i.e. the
+// 1.0 that Init step 9 sets; the original crashes in Init without one).
 bool OrdinanceCrimeFactor(void* u, float* out) {
     if (!Gate(fc4::Sw::CrimeOrdinance, "crime GetCumulativeFactor (factor unchanged)")) return false;
     cISC4OrdinanceSimulator* o = Self(u)->Ordinance();
@@ -616,13 +623,16 @@ void OccupantPosition(void*, uint64_t occ, float* xyz) {
     xyz[2] = v.fZ;
 }
 
-// §11.3: the box query. [choice] §13 names the FILTER overload (slot 36) with
-// a type-and-group / type-and-property filter; cISC4OccupantFilter is not in
-// docs/abi/interfaces.tsv, so the verified TYPED overload (slot 37, which
-// forwards to slot 36 with a type filter, allocators.md) is called with the
-// type, and the second condition is reported per occupant for the core's
-// selection (fc4_crime_nearest_of). The last argument is 0xFFFFFFFF ("all
-// flags", §16 Q5). The list (A, one reference each) is released when it goes.
+// §11.3: the box query. The original calls the FILTER overload (slot 36)
+// with a type-and-group / type-and-property filter object of its own; this
+// calls the TYPED overload (slot 37, verified; it forwards to slot 36 with a
+// GetType() == type filter), the §11.3 [choice] the spec calls equivalent
+// (CQ4): the second condition is reported per occupant, and the core's
+// selection (fc4_crime_nearest_of) applies it to each listed occupant before
+// it can become a candidate, so the qualifying occupants and their order are
+// the same. The last argument is 0xFFFFFFFF (all flags). The QI of every
+// listed occupant is an extra AddRef/Release the spec calls unobservable.
+// The list (A, one reference each) is released when it goes.
 template <class F>
 void QueryBox(cISC4OccupantManager* om, const float* min3, const float* max3, uint32_t kind, F each) {
     const bool sim = kind == FC4_CRIME_NEAREST_SIM;
@@ -664,10 +674,11 @@ void OccupantsInBox(void* u, const float* min3, const float* max3, uint32_t kind
     QueryBox(om, min3, max3, kind, [&](cISC4Occupant*, const fc4_crime_nearby& n) { cb(ctx, &n); });
 }
 
-// §11.6: PropManager.GetPropProfile(id) (slot 13) -> PropProfile.crimeIncidentID.
-// [choice] The field is read at offset 24, the SDK's PropProfile layout
-// (u32 class, cS3DVector3 size, u32 satisfaction, u8 wealth, u32 incident
-// ID); docs/abi/layouts.md does not list PropProfile (spec question).
+// §11.6, §13: PropManager.GetPropProfile(id) (slot 13) -> PropProfile.crimeIncidentID,
+// the u32 at +0x18 (24) of the returned profile (CQ2, confirmed; the SDK's
+// PropProfile layout: u32 class, cS3DVector3 size, u32 satisfaction, u8
+// wealth, u32 incident ID). Nothing else of the profile is read.
+static_assert(sizeof(cISC4PropOccupant::PropProfile) == 28, "PropProfile: the incident ID is the last u32, at +0x18");
 uint32_t PropCrimeIncidentId(void* u, uint32_t prop) {
     if (!Gate(fc4::Sw::CrimeProps, "crime GetPropProfile (generic)")) return 0;
     cISC4City* c = Self(u)->City();
@@ -692,7 +703,8 @@ bool DisasterLayerPresent(void* u) {
 // layer and the manager are BORROWED (flammability run 37); only the
 // QueryInterface result is ours, released once. [choice] A missing manager or
 // interface (the original does not check, §6.8 [quirk]) skips the fire.
-// SetCause follows IgniteOccupant whatever it returned (the literal §6.8).
+// SetCause follows IgniteOccupant whatever it returned (§6.8, CQ12
+// confirmed: the original does not test IgniteOccupant's AL).
 void Ignite(void* u, uint64_t building, uint32_t cause) {
     ++Self(u)->Probe().igniteCalls;
     if (building == 0 || !Gate(fc4::Sw::CrimeFire, "crime IgniteOccupant (no fire)")) return;
@@ -1139,11 +1151,14 @@ cISC4PropOccupant* cFC4CrimeSimulator::GetNearestCrimeProp(cS3DVector3 const& po
     return reinterpret_cast<cISC4PropOccupant*>(Nearest(pos, radius, FC4_CRIME_NEAREST_PROP));
 }
 
-// §11.4, §14.2: the caller's vector is resized with the GAME's allocator (B,
-// the STL node allocator; [choice] docs/abi/allocators.md does not list this
-// method, the spec says "the same operator new / STLport allocator as the
-// original"). Elements of incidents without a lot keep their previous
-// content (zero when new). Without the allocator, nothing is touched.
+// §11.4, §14.2 (CQ1, confirmed): `out` is a default-allocator std::vector, so
+// its buffer is a B block (the STL node allocator): grown like the original's
+// resize (past the capacity, a new B buffer of size + max(size, added)
+// elements, the old one freed with B; within it, the buffer is kept).
+// Elements of incidents without a lot are not written: existing ones keep
+// their content, new ones are zero ([choice] §11.4: the original's fill value
+// has 16 uninitialised bytes and a zero icon key). Without the allocator,
+// nothing is touched.
 bool cFC4CrimeSimulator::GetCrimeIncidentArray(fc4::GameVector<FC4CrimeEvent>& out) {
     if (fc4::OnMainThread()) ++incidentArrayCalls_;
     const uint32_t n = fc4_crime_incident_count(core_);
@@ -1160,7 +1175,7 @@ bool cFC4CrimeSimulator::GetCrimeIncidentArray(fc4::GameVector<FC4CrimeEvent>& o
         return false;
     }
     std::vector<FC4CrimeEvent> old(out.begin(), out.end());
-    if (!out.reserve(count)) return false;
+    if (!out.reserve_for_resize(count)) return false;
     out.clear();
     for (size_t i = 0; i < count; ++i) {
         FC4CrimeEvent e{};

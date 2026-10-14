@@ -194,6 +194,16 @@ public:
         return true;
     }
 
+    // Room for `n` elements as the game's vector resize grows (crime.md
+    // §11.4): past the capacity, a new buffer of size + max(size, n - size)
+    // elements (exactly n when empty); within it, the buffer is kept.
+    bool reserve_for_resize(size_t n) {
+        if (n <= capacity()) return true;
+        const size_t s = size();
+        const size_t added = n - s;
+        return reserve(s + (s > added ? s : added));
+    }
+
     // Appends `value` bitwise: the vector takes over whatever it owns (a
     // string buffer, a reference).
     bool push_back(const T& value) {

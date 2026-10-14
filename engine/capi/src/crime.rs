@@ -303,7 +303,9 @@ impl CHost {
 
     /// The crime type exemplars (§7). [choice] (§7) The list is in ascending
     /// instance order, one entry per instance (a duplicated key loads the
-    /// same resource, which the original would update in place).
+    /// same resource, which the original would update in place). CQ10: the
+    /// original's order is the resource manager's key-list order, ascending
+    /// instance for the shipped types; plug-in types can differ.
     fn type_exemplars(&self) -> Vec<(u32, Rc<PropertyHolder>)> {
         let mut keys: Vec<ResKey> = Vec::new();
         cb!(

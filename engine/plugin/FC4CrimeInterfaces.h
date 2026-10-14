@@ -19,7 +19,8 @@
 //                            The SDK order and argument sizes are right; only
 //                            GetCrimeIncidentArray's container differs: the
 //                            caller's vector is resized with the GAME's
-//                            allocator (§14.2), so it is declared as
+//                            STL node allocator (B; §11.4, §14.2, CQ1), so
+//                            it is declared as
 //                            fc4::GameVector (FC4GameList.h) instead of the
 //                            SDK's SC4Vector (allocator A).
 //   cFC4CrimePropRequester   cISC4PropRequester (IID 0x89C498BE, no SDK
