@@ -58,6 +58,7 @@
 #include "FC4DevelopmentShadow.h"
 #include "FC4GameMap.h"
 #include "FC4GrowthProbe.h"
+#include "FC4HarnessLogic.h"
 #include "cFC4Demand.h"
 #include "FC4DevelopmentInterfaces.h"
 #include "cGZPersistResourceKey.h"
@@ -1669,6 +1670,52 @@ int RunChild(const std::string& args, DWORD timeoutMs, DWORD* elapsedMs) {
     return w == WAIT_OBJECT_0 ? static_cast<int>(code) : -1;
 }
 
+// The value of `name=` in a verdict line ("" if absent).
+std::string VerdictField(const std::string& line, const std::string& name) {
+    const size_t at = line.find(" " + name + "=");
+    if (at == std::string::npos) return "";
+    const size_t from = at + name.size() + 2;
+    const size_t end = line.find_first_of(",)", from);
+    return line.substr(from, end == std::string::npos ? std::string::npos : end - from);
+}
+
+// "digits.digits" with exactly `decimals` decimals.
+bool IsDecimal(const std::string& s, size_t decimals) {
+    const size_t dot = s.find('.');
+    if (dot == std::string::npos || dot == 0 || s.size() - dot - 1 != decimals) return false;
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (i != dot && (s[i] < '0' || s[i] > '9')) return false;
+    }
+    return true;
+}
+
+// The log's one "AUTOTEST VERDICT:" line with its run-time fields (the
+// harness lane: real_seconds always, days_per_second if `rate`) replaced by
+// S and R when well formed, so the rest compares exactly.
+std::string NormalVerdict(const std::string& text, bool rate) {
+    const size_t at = text.find("AUTOTEST VERDICT:");
+    if (at == std::string::npos) return "";
+    const size_t end = text.find_first_of("\r\n", at);
+    std::string line = text.substr(at, end == std::string::npos ? std::string::npos : end - at);
+    auto replace = [&line](const std::string& name, size_t decimals, const char* with) {
+        const std::string v = VerdictField(line, name);
+        if (!IsDecimal(v, decimals)) return;
+        const size_t pos = line.find(" " + name + "=" + v) + name.size() + 2;
+        line.replace(pos, v.size(), with);
+    };
+    replace("real_seconds", 3, "S");
+    if (rate) replace("days_per_second", 2, "R");
+    return line;
+}
+
+// days_per_second x real_seconds of a verdict: the days the run counted.
+double VerdictDays(const std::string& text) {
+    const size_t at = text.find("AUTOTEST VERDICT:");
+    if (at == std::string::npos) return -1.0;
+    const std::string line = text.substr(at, text.find_first_of("\r\n", at) - at);
+    return std::atof(VerdictField(line, "days_per_second").c_str()) * std::atof(VerdictField(line, "real_seconds").c_str());
+}
+
 // A child: loads the DLL with an autotest FreeCity4.ini and plays the game's
 // part through the test seam. Never returns normally (the DLL terminates it);
 // exit code 3 means it did not.
@@ -1681,6 +1728,17 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
+    } else if (scenario == "enddate") {  // the harness lane: autotest_end_date alone, passthrough
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_end_date = 2000-03-01\n");
+    } else if (scenario == "enddate-timeout") {  // the timeout comes first
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 2\n"
+                           "autotest_end_date = 2100-01-01\n");
+    } else if (scenario == "enddate-quit") {  // an end date already past at the city load; autotest_end = quit
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\nautotest_end = quit\n"
+                           "autotest_end_date = 2000-01-15\n");
+    } else if (scenario == "enddate-bad") {  // not a date: ignored, the timeout ends the run
+        WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 1\n"
+                           "autotest_end_date = 2000-02-30\n");
     } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
@@ -1720,6 +1778,21 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
                  reinterpret_cast<void*>(julian));
         }
         seam(kFC4SeamObserverTick, nullptr, nullptr);  // saves and terminates
+        return 3;
+    }
+    if (scenario.compare(0, 7, "enddate") == 0) {
+        // The city loads, the clock starts at the first tick, then one new day
+        // per tick from 2000-02-25 (2451600) until the DLL ends the process.
+        seam(kFC4SeamObserverCity, &world.city, nullptr);
+        seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgPostCityInit)), nullptr);
+        seam(kFC4SeamObserverTick, nullptr, nullptr);
+        const DWORD start = GetTickCount();
+        for (intptr_t julian = 2451600; GetTickCount() - start < 20000; ++julian) {
+            Sleep(20);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewDay)),
+                 reinterpret_cast<void*>(julian));
+            seam(kFC4SeamObserverTick, nullptr, nullptr);
+        }
         return 3;
     }
     seam(kFC4SeamObserverCity, &world.city, nullptr);
@@ -7587,6 +7660,7 @@ int main(int argc, char** argv) {
         SetEnvironmentVariableA("FC4_DISABLE", nullptr);
         SetEnvironmentVariableA("FC4_AUTOTEST_SECONDS", nullptr);
         SetEnvironmentVariableA("FC4_AUTOTEST_UNPAUSE", nullptr);
+        SetEnvironmentVariableA("FC4_AUTOTEST_END_DATE", nullptr);
         DWORD ms = 0;
         const std::string dllArg = "\"" + dll + "\" ";
 
@@ -7602,9 +7676,12 @@ int main(int argc, char** argv) {
         CHECK(text.find("autotest: unpause: 1 Resume call(s), speed 1") != std::string::npos);
         CHECK(text.find("paused=0 hidden=") != std::string::npos);
         // julian: our simulator publishes its own date (2000-01-01; it is not ticked here).
-        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451545, switches_off=-, disabled=-)") != std::string::npos);
+        // The run figures (the harness lane): no new day since the clock started.
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451545, date=2000-01-01, real_seconds=S, days_per_second=0.00, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
+        CHECK(text.find("end date") == std::string::npos);  // no autotest_end_date
 
         // 2. Corrupt: a first-chance access violation in the host; terminate ~5 s later.
         CHECK(RunChild(dllArg + "--autotest-child-corrupt", 30000, &ms) == 0);
@@ -7613,8 +7690,9 @@ int main(int argc, char** argv) {
         text = ReadFile(log);
         CHECK(text.find("first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") !=
               std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=-)") != std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: corrupt (foreign_exceptions=1, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: terminating in 5000 ms (time for stall evidence)") != std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the autotest thread") != std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
@@ -7626,9 +7704,10 @@ int main(int argc, char** argv) {
         text = ReadFile(log);
         CHECK(text.find("observer: PostCityInit (passthrough)") != std::string::npos);
         CHECK(text.find("watchdog: started for main thread") != std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: stalled (foreign_exceptions=0, watchdog_stalls=1, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
-              std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: stalled (foreign_exceptions=0, watchdog_stalls=1, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, "
+              "disabled=simulator,budget)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
 
@@ -7642,9 +7721,10 @@ int main(int argc, char** argv) {
                         "before the 60 s deadline (julian 2451600)") != std::string::npos);
         CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
               std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
-              std::string::npos);
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=0.00, switches_off=-, "
+              "disabled=simulator,budget)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
 
@@ -7677,12 +7757,116 @@ int main(int argc, char** argv) {
         CHECK(text.find("observe snapshot (before save): date=2000-01-01 julian=2451545 funds=- fundings=-") !=
               std::string::npos);
         CHECK(text.find("autotest: save after 2 month(s): SaveCity(full) returned 1 in ") != std::string::npos);
-        CHECK(text.find("AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
-                        "ref_warnings=0, julian=2451605, switches_off=-, disabled=-)") != std::string::npos);
+        // No autotest clock (no autotest_seconds): no real seconds, no rate.
+        CHECK(NormalVerdict(text, false) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451605, date=2000-03-01, real_seconds=-, days_per_second=-, switches_off=-, disabled=-)");
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (save autotest)") !=
               std::string::npos);
         CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // observe, autotest_save_* are known
+
+        // 5. The harness lane: autotest_end_date = 2000-03-01 alone (no timeout):
+        // one new day per tick from 2000-02-25; the verdict at 2000-03-01, on
+        // that day, after 6 new days.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate", 30000, &ms) == 0);
+        std::printf("autotest end-date child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: ON - verdict at the first new day on or after 2000-03-01 (autotest_end_date; no "
+                        "timeout: autotest_seconds = 0), then TerminateProcess; unpause off") != std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 (julian 2451605): the run ends at the first new day on or "
+                        "after it\r\n") != std::string::npos ||
+              text.find("autotest: end date 2000-03-01 (julian 2451605): the run ends at the first new day on or "
+                        "after it\n") != std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict at 2000-03-01 (autotest_end_date), no timeout") !=
+              std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 reached at the new day 2000-03-01 (julian 2451605), ") !=
+              std::string::npos);
+        CHECK(text.find("s after the clock started; verdict, then TerminateProcess") != std::string::npos);
+        CHECK(text.find("autotest: end date 2000-03-01 reached (autotest_end_date)") != std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451605, date=2000-03-01, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date child: rate x seconds = %.3f days (6 expected)\n", days);
+            CHECK(days > 5.8 && days < 6.2);
+        }
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end_date)") !=
+              std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+        CHECK(text.find("config: WARNING unknown key") == std::string::npos);  // autotest_end_date is known
+
+        // 5b. The timeout comes first: autotest_seconds = 2 with an end date in 2100.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-timeout", 30000, &ms) == 0);
+        std::printf("autotest end-date timeout child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms >= 1500 && ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: ON - verdict 2 s after the first tick of a loaded city, then TerminateProcess; "
+                        "unpause off") != std::string::npos);
+        CHECK(text.find("autotest: end date 2100-01-01 (julian 2488070): the run ends at the first new day on or "
+                        "after it, or at the autotest_seconds timeout, whichever comes first") != std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict in 2 s or at 2100-01-01 (autotest_end_date), whichever "
+                        "comes first") != std::string::npos);
+        CHECK(text.find("reached at the new day") == std::string::npos);
+        CHECK(text.find("autotest: 2 s after the first tick of the loaded city") != std::string::npos);
+        {
+            const std::string v = NormalVerdict(text, true);
+            const std::string head = "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, "
+                                     "overruns=0, ref_warnings=0, julian=";
+            CHECK(v.compare(0, head.size(), head) == 0);
+            CHECK(v.find(", real_seconds=S, days_per_second=R, switches_off=-, disabled=simulator,budget)") !=
+                  std::string::npos);
+            // date= is the verdict's julian, and the days counted are the days played.
+            const long j = std::atol(VerdictField(v, "julian").c_str());
+            const fc4::harness::Date d = fc4::harness::CivilFromJulian(static_cast<int32_t>(j));
+            CHECK(VerdictField(v, "date") == fc4::harness::FormatDate(d));
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date timeout child: julian %ld, rate x seconds = %.3f days (%ld played)\n", j,
+                        days, j - 2451600 + 1);
+            CHECK(j > 2451620 && days > 0.95 * static_cast<double>(j - 2451600 + 1) - 1.0 &&
+                  days < 1.05 * static_cast<double>(j - 2451600 + 1) + 1.0);
+        }
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5c. autotest_end = quit and an end date already past when the city
+        // loads: the first new day ends the run; with no game to quit through
+        // (tests have no framework), the verdict as at the end.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-quit", 30000, &ms) == 0);
+        std::printf("autotest end-date quit child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: end date 2000-01-15 reached at the new day 2000-02-25 (julian 2451600), ") !=
+              std::string::npos);
+        CHECK(text.find("s after the clock started; quitting at the next tick (autotest_end = quit)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: no cISC4App to quit through") != std::string::npos);
+        CHECK(text.find("autotest: end date reached, but the quit could not be requested") != std::string::npos);
+        CHECK(NormalVerdict(text, true) ==
+              "AUTOTEST VERDICT: clean (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, ref_warnings=0, "
+              "julian=2451600, date=2000-02-25, real_seconds=S, days_per_second=R, switches_off=-, "
+              "disabled=simulator,budget)");
+        {
+            const double days = VerdictDays(text);
+            std::printf("autotest end-date quit child: rate x seconds = %.3f days (1 expected)\n", days);
+            CHECK(days > 0.9 && days < 1.1);
+        }
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (autotest_end = quit)") !=
+              std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
+
+        // 5d. Not a date: a WARNING, ignored; the 1 s timeout ends the run.
+        CHECK(RunChild(dllArg + "--autotest-child-enddate-bad", 30000, &ms) == 0);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING autotest_end_date='2000-02-30' is not a date YYYY-MM-DD; ignored") !=
+              std::string::npos);
+        CHECK(text.find("autotest: clock started; verdict in 1 s\r\n") != std::string::npos ||
+              text.find("autotest: clock started; verdict in 1 s\n") != std::string::npos);
+        CHECK(text.find("autotest: end date") == std::string::npos);
+        CHECK(text.find("autotest: 1 s after the first tick of the loaded city") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT: clean") == 1);
         DeleteFileA(ini.c_str());
         if (g_failures == 0) std::printf("plugin autotest test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -9344,6 +9528,7 @@ int main(int argc, char** argv) {
     const std::string text = ReadFile(log);
     // The harness switches are off by default: no turbo, no end date, no script (FC4Turbo.h).
     CHECK(text.find("turbo") == std::string::npos);
+    CHECK(text.find("end date") == std::string::npos);
     CHECK(text.find("script:") == std::string::npos);
     CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 3);
     CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);

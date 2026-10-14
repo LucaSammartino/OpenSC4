@@ -406,7 +406,7 @@ plugin.
 
      ```
      AUTOTEST VERDICT: clean|corrupt|stalled|ended (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
-       ref_warnings=…, julian=…, switches_off=…, disabled=…)
+       ref_warnings=…, julian=…, date=…, real_seconds=…, days_per_second=…, switches_off=…, disabled=…)
      ```
 
      - `clean`: at the deadline, with no foreign exception, RTC failure or out-parameter overrun.
@@ -430,6 +430,24 @@ plugin.
        `PostSystemServiceShutdown`, so it counts reference warnings from every subsystem's `Shutdown`. Its `julian`
        is the last day played. A quit that has not reached that hook in 90 s is `stalled`; a process still alive
        30 s after the verdict is terminated.
+     - The run figures (the harness lane; `plugin/FC4HarnessLogic.h`): `date` is `julian` as `YYYY-MM-DD`,
+       `real_seconds` the time since the autotest clock started (`S.mmm`), and `days_per_second` the new days
+       (`SimNewDay` messages) seen since then over that time (`X.YY`); `-` where unknown (no clock: the save
+       autotest without `autotest_seconds`).
+     - `autotest_end_date = YYYY-MM-DD` (env `FC4_AUTOTEST_END_DATE`; tooling): the run ends at the first new day
+       on or after that date, as `autotest_end` says (verdict as at the deadline, then `TerminateProcess`, or the
+       quit at the next tick). It is checked inside the observer's `SimNewDay`, so a terminate run stops on that
+       very day even under the turbo clock. `autotest_seconds` stays a timeout: whichever comes first ends the
+       run; with an end date alone the autotest is on with no timeout. A city loaded after the end date ends at
+       its first new day. Not a date: a WARNING and ignored. Lines:
+
+       ```
+       autotest: end date 2001-01-01 (julian 2451911): the run ends at the first new day on or after it
+       autotest: clock started; verdict at 2001-01-01 (autotest_end_date), no timeout
+       autotest: end date 2001-01-01 reached at the new day 2001-01-01 (julian 2451911), 29.312 s after the clock
+         started; verdict, then TerminateProcess
+       AUTOTEST VERDICT: clean (…, julian=2451911, date=2001-01-01, real_seconds=29.312, days_per_second=12.48, …)
+       ```
    - **Turbo clock** (`sim_turbo = 1`, env `FC4_SIM_TURBO`; off by default; `plugin/FC4Turbo.h`; a *tooling
      deviation* from simulator.md §5, our simulator only): days are no longer paced by msPerDay. The day gate's
      `ready` (§5.2 step 3) is always true, so a day opens as soon as its agents have finished the previous one;
@@ -1127,7 +1145,9 @@ plugin.
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
   never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
-  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast).
+  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast). The harness lane adds
+  four with `autotest_end_date`: an end date alone, a timeout that comes first, an end date already past with
+  `autotest_end = quit`, and a value that is not a date.
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value

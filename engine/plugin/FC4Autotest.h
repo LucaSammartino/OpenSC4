@@ -39,6 +39,15 @@
 // `autotest_save_after_months = N` (the observer, FC4Observer.h): after N
 // month-ends the city is saved in place, then AutotestFinish (verdict as at
 // the deadline, TerminateProcess) - with or without autotest_seconds.
+// `autotest_end_date = YYYY-MM-DD` (FC4_AUTOTEST_END_DATE; the harness lane,
+// tooling): the run ends at the first SimNewDay on or after that date, as
+// autotest_end says (verdict as at the deadline); autotest_seconds stays a
+// timeout, whichever comes first ends the run. With an end date alone the
+// autotest is on, without a timeout.
+// The verdict line also gives, after julian=, `date=YYYY-MM-DD` (that
+// julian), `real_seconds=S.mmm` since the clock started and
+// `days_per_second=X.YY` (new days since the clock started over those
+// seconds); "-" where unknown (FC4HarnessLogic.h, FormatRunFigures).
 #pragma once
 
 #include <cstdint>
@@ -57,6 +66,11 @@ void AutotestOnCityLoaded();
 // tick after a city load. Returns the speed (1 or 2) to unpause the city to
 // now, or 0 for nothing to do.
 int AutotestOnTick();
+// Every SimNewDay seen by the observer (main thread), after it published the
+// day. Counts the days since the clock started (the verdict's
+// days_per_second) and ends the run at autotest_end_date: verdict and
+// TerminateProcess, or the quit at the next tick (autotest_end = quit).
+void AutotestOnNewDay(int32_t julian);
 // Ends a run that finished its own task (the save autotest, main thread):
 // the verdict as at the deadline (unless one was written), then
 // TerminateProcess like every autotest ending.

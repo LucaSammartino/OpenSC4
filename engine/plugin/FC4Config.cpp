@@ -233,7 +233,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "development_growth_attempts_per_day", "development_seed",
                                   "development_shadow",
                                   // the harness lane's tooling (FC4Turbo.h)
-                                  "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until"};
+                                  "sim_turbo", "sim_turbo_frame_ms", "sim_turbo_until", "autotest_end_date"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";

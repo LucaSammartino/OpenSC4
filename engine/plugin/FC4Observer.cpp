@@ -554,6 +554,8 @@ public:
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
+                // autotest_end_date and the verdict's day count (FC4Autotest.h).
+                AutotestOnNewDay(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
                 break;
             }
             case kMsgSimNewMonth: {

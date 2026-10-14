@@ -73,12 +73,78 @@ inline std::string FormatDate(const Date& d) {
 // integer arithmetic; 0 for ms = 0).
 inline uint64_t RatePer100(uint64_t count, uint64_t ms) { return ms == 0 ? 0 : count * 100000ull / ms; }
 
-// "12.34" for a RatePer100 value.
+// "12.34" for a RatePer100 value, into a caller's buffer (no allocation).
+inline void FormatPer100To(char* out, size_t cap, uint64_t v) {
+    std::snprintf(out, cap, "%llu.%02llu", static_cast<unsigned long long>(v / 100),
+                  static_cast<unsigned long long>(v % 100));
+}
+
 inline std::string FormatPer100(uint64_t v) {
     char b[32];
-    std::snprintf(b, sizeof(b), "%llu.%02llu", static_cast<unsigned long long>(v / 100),
-                  static_cast<unsigned long long>(v % 100));
+    FormatPer100To(b, sizeof(b), v);
     return b;
+}
+
+// The Julian day number of a civil date and back (the same numbering as the
+// core's julian.rs: 2451545 = 2000-01-01). Pure arithmetic, no allocation, so
+// the autotest verdict can use it from any thread.
+inline int32_t JulianFromCivil(int32_t year, int32_t month, int32_t day) {
+    const int64_t a = (14 - month) / 12;
+    const int64_t y = int64_t{year} + 4800 - a;
+    const int64_t m = int64_t{month} + 12 * a - 3;
+    return static_cast<int32_t>(day + (153 * m + 2) / 5 + 365 * y + y / 4 - y / 100 + y / 400 - 32045);
+}
+
+inline Date CivilFromJulian(int32_t julian) {
+    int64_t l = int64_t{julian} + 68569;
+    const int64_t n = 4 * l / 146097;
+    l = l - (146097 * n + 3) / 4;
+    const int64_t i = 4000 * (l + 1) / 1461001;
+    l = l - 1461 * i / 4 + 31;
+    const int64_t j = 80 * l / 2447;
+    Date d;
+    d.day = static_cast<int32_t>(l - 2447 * j / 80);
+    const int64_t k = j / 11;
+    d.month = static_cast<int32_t>(j + 2 - 12 * k);
+    d.year = static_cast<int32_t>(100 * (n - 49) + i + k);
+    return d;
+}
+
+// ---- autotest_end_date: the verdict's run figures ----------------------------------------------------
+
+// The end date is due at a new day on or after it, once the autotest clock runs.
+inline bool EndDateDue(int32_t endJulian, int32_t julian, bool clockStarted) {
+    return endJulian != 0 && clockStarted && julian >= endJulian;
+}
+
+// The verdict's `date=…, real_seconds=…, days_per_second=…` values, in fixed
+// buffers (the verdict may be written from an exception handler):
+//   date            the verdict's julian as YYYY-MM-DD ("-" for julian <= 0);
+//   real_seconds    since the autotest clock started (the first tick after the
+//                   city load), "S.mmm" ("-" if it never started);
+//   days_per_second the new days seen since the clock started over those
+//                   seconds, "X.YY" ("-" if it never started). [choice] A
+//                   count of SimNewDay messages, not julian differences.
+struct RunFigures {
+    char date[16];
+    char realSeconds[24];
+    char daysPerSecond[32];
+};
+
+inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, uint32_t days, RunFigures* out) {
+    if (julian > 0) {
+        const Date d = CivilFromJulian(julian);
+        std::snprintf(out->date, sizeof(out->date), "%04d-%02d-%02d", d.year, d.month, d.day);
+    } else {
+        std::snprintf(out->date, sizeof(out->date), "-");
+    }
+    if (started) {
+        std::snprintf(out->realSeconds, sizeof(out->realSeconds), "%u.%03u", elapsedMs / 1000, elapsedMs % 1000);
+        FormatPer100To(out->daysPerSecond, sizeof(out->daysPerSecond), RatePer100(days, elapsedMs));
+    } else {
+        std::snprintf(out->realSeconds, sizeof(out->realSeconds), "-");
+        std::snprintf(out->daysPerSecond, sizeof(out->daysPerSecond), "-");
+    }
 }
 
 }  // namespace harness

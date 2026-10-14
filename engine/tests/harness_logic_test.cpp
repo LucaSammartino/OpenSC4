@@ -66,11 +66,61 @@ void RateTests() {
     CHECK(FormatPer100(0) == "0.00");
 }
 
+void JulianTests() {
+    using namespace fc4::harness;
+    CHECK(JulianFromCivil(2000, 1, 1) == 2451545);
+    CHECK(JulianFromCivil(2000, 2, 1) == 2451576);
+    CHECK(JulianFromCivil(2000, 2, 29) == 2451604);
+    CHECK(JulianFromCivil(2000, 3, 1) == 2451605);
+    CHECK(JulianFromCivil(1970, 1, 1) == 2440588);
+    CHECK(JulianFromCivil(2001, 1, 1) == 2451911);
+    const Date d = CivilFromJulian(2451600);
+    CHECK(d.year == 2000 && d.month == 2 && d.day == 25);
+    // Round trip over 1899..2101 (leap rules of 100 and 400 included), and
+    // consecutive julians are consecutive dates.
+    int bad = 0;
+    Date prev = CivilFromJulian(JulianFromCivil(1899, 1, 1) - 1);
+    for (int32_t j = JulianFromCivil(1899, 1, 1); j <= JulianFromCivil(2101, 12, 31); ++j) {
+        const Date c = CivilFromJulian(j);
+        if (JulianFromCivil(c.year, c.month, c.day) != j) ++bad;
+        if (!ParseIsoDate(FormatDate(c), nullptr)) ++bad;
+        if (c.Key() <= prev.Key()) ++bad;
+        prev = c;
+    }
+    CHECK(bad == 0);
+}
+
+void EndDateTests() {
+    using namespace fc4::harness;
+    CHECK(!EndDateDue(0, 2451605, true));               // no end date
+    CHECK(!EndDateDue(2451605, 2451604, true));         // the day before
+    CHECK(EndDateDue(2451605, 2451605, true));          // the day itself
+    CHECK(EndDateDue(2451605, 2451700, true));          // already past (a city loaded after it)
+    CHECK(!EndDateDue(2451605, 2451700, false));        // the autotest clock has not started
+
+    RunFigures f;
+    FormatRunFigures(2451605, true, 2480, 31, &f);
+    CHECK(std::string(f.date) == "2000-03-01");
+    CHECK(std::string(f.realSeconds) == "2.480");
+    CHECK(std::string(f.daysPerSecond) == "12.50");
+    FormatRunFigures(2451545, true, 12, 0, &f);
+    CHECK(std::string(f.realSeconds) == "0.012");
+    CHECK(std::string(f.daysPerSecond) == "0.00");
+    FormatRunFigures(2451545, true, 0, 3, &f);  // no time yet: 0, not a division by zero
+    CHECK(std::string(f.daysPerSecond) == "0.00");
+    FormatRunFigures(0, false, 999, 5, &f);
+    CHECK(std::string(f.date) == "-");
+    CHECK(std::string(f.realSeconds) == "-");
+    CHECK(std::string(f.daysPerSecond) == "-");
+}
+
 }  // namespace
 
 int main() {
     DateTests();
     RateTests();
+    JulianTests();
+    EndDateTests();
     if (g_failures == 0) std::printf("harness logic test: all checks passed\n");
     return g_failures == 0 ? 0 : 1;
 }
