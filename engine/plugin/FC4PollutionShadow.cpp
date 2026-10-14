@@ -66,6 +66,13 @@ constexpr size_t kLogChunk = 2800;
 // borrowed identities: the original keeps its grids, occupants and
 // department alive across the delivery. Process-lifetime objects (the
 // reference count is not kept).
+//
+// PG6 (pollution.md §6): capturing through the original's own Write is
+// read-only: it stores to no member, clears no dirty flag and allocates
+// nothing. This stream answers cISC4DBSegmentOStream (0x6999A8FB) so that the
+// references are written; each referenced object is then only queried and
+// released (Borrowed), so no reference count changes. It is our own stream,
+// never a save's, so nothing is registered with the class-object store.
 class CaptureStream final : public cFC4ISC4DBSegmentOStream {
 public:
     void Reset() {

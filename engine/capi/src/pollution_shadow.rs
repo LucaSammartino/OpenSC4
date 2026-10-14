@@ -29,8 +29,9 @@
 //!    runs again from the same start with the original's new order taken from
 //!    the record, reading the remembered inputs.
 //!
-//! Not readable, hence not compared: `radiationSum` (not saved, §6; the
-//! record reload starts it at 0, so the radiation history of an end of cycle
+//! Not readable, hence not compared: `radiationSum` (not saved and not
+//! touched by `Read`, §6 / PG7; our run reads the record into a fresh object,
+//! which starts it at 0, so the radiation history of an end of cycle
 //! differs), the posted messages, history and budget values, the visual
 //! effects and the worst tracts (not saved; the month recomputes them).
 
@@ -275,7 +276,9 @@ impl ShadowHost {
     }
 
     /// Starts a run: the overlays are emptied; a live run forgets the
-    /// remembered reads.
+    /// remembered reads, so every delivery reads its inputs afresh (PG9:
+    /// landfill usage cannot change within one day pass but can between
+    /// them, after zoning, the landfill month or a load).
     fn begin_run(&self, mode: Mode) {
         self.mode.set(mode);
         if mode == Mode::Live {

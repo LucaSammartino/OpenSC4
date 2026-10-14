@@ -75,6 +75,19 @@ fn floor_rhe(g: f32) -> i32 {
     }
 }
 
+/// `remaining > g` of `Dispose` steps 3 and 4 (§4.6.1, PG8) [compat]: the
+/// unsigned remaining capacity is loaded as signed and 2³² added when its top
+/// bit is set, under 24-bit precision. Below 2³¹ the integer itself is
+/// compared (exact: 2²⁴ + 1 > 16,777,216.0); from 2³¹ up the value is first
+/// rounded to float32 (2³¹ + 1 > 2³¹ is false).
+pub(super) fn remaining_exceeds(remaining: u32, g: f32) -> bool {
+    if remaining < 0x8000_0000 {
+        f64::from(remaining) > f64::from(g)
+    } else {
+        (remaining as f32) > g
+    }
+}
+
 impl PollutionSim {
     // ---- the day (§4.4) ----------------------------------------------------------------------------------
 
@@ -381,7 +394,7 @@ impl PollutionSim {
             (&mut rem.inc, &mut s.month.incinerated),
         ] {
             if *remaining != 0 {
-                let x = if f64::from(*remaining) > f64::from(g) {
+                let x = if remaining_exceeds(*remaining, g) {
                     *remaining = remaining.wrapping_sub(floor_rhe(g) as u32);
                     let x = g;
                     g = 0.0;
