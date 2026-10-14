@@ -397,6 +397,22 @@ If such a map did arrive, the original would behave like this:
 
 That is a corrupt map, not a contract. Refusing it is the implementer's choice, and that choice stands.
 
+**Who calls it, and on which thread** (DQ8). Its only caller is the regional city's `UpdateCityCache` (slot 24,
+`+0x60`, `0x004AD290`). The regional city's own message handler (`DoMessage`, `0x004ABD40`) calls that for two
+messages, and only when the message's city is non-null and belongs to this regional city:
+
+| Message | Call site | Sent by (the only senders) |
+|---|---|---|
+| `kSC4MessagePostCityInit` `0x26D31EC1` | `0x004ABE76` | `cSC4App::NewCity` (`0x00454963`) and `cSC4App::LoadCity` (`0x004558C5`) |
+| `kSC4MessagePreSave` `0x26C63343` | `0x004ABE9B` | `cSC4App::SaveCity` (`0x00456102`) |
+
+Every other reference to these two IDs in the exe is an `AddNotification` or `RemoveNotification`. The app
+sends or posts them through `cSC4App::PostCityMessage` (`0x00449AF0`) or the message server directly. Either way,
+there is no dispatch thread (foundations §19.1), so the summary is built on the thread that creates, loads or
+saves the city: the **main thread**. That happens once after a city is created or loaded, and
+once before each save. *[inferred: static; no thread trace]* The glue's log of its first call settles it at run
+time.
+
 
 ### 6.1 State
 

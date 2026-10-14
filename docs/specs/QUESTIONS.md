@@ -791,7 +791,15 @@ current answer is in brackets.
   - **Summary nodes.** The shipped summary has 40 nodes.
   - **What could exceed the limits.** The original sets no limit, so only plug-in data could: an exemplar with more
     than 128 distinct capacity keys, or more than 4,096 demand nodes with region use.
-- **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
+- ~~**DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]~~
+  **ANSWERED 2026-10-14** from the exe (regional city `DoMessage` `0x004ABD40`, calls `0x004ABE76`/`0x004ABE9B`;
+  senders `cSC4App::NewCity` `0x00454963`, `LoadCity` `0x004558C5`, `SaveCity` `0x00456102`) and written into
+  demand.md §5. **The main thread** *[inferred: static; no thread trace]*.
+  - **When it runs.** Its only caller, the regional city's `UpdateCityCache`, runs on `PostCityInit`
+    (`0x26D31EC1`) and `PreSave` (`0x26C63343`) for its own city.
+  - **Where those messages come from.** Only the app's new-city, load-city and save-city paths send them, and the
+    game has no message dispatch thread.
+  - **Settling it at run time.** The glue's log of its first call would confirm the thread.
 - ~~**DQ9 — §5 `GetNeutralTaxRate` precision (in-game differential, run 73, coordinator):** with census supply
   R/C/I = 27207 / 2569.47998 / 10583.1006 (C and I fractional, now that the demand glue reads capacity), the
   original returns **8.97309399** and our core **8.97309303** (1 ulp; the demand shadow's only mismatch in 2,955
