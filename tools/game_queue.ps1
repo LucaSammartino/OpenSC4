@@ -365,6 +365,12 @@ function StartJob([string]$root, [IO.FileInfo]$req, [int]$slot, [int]$prio) {
     $iniFile = Join-Path $Work "$runLabel.ini"
     WriteText $iniFile $q.iniText
     $outFile = Join-Path $Work "$runLabel.out"; $errFile = Join-Path $Work "$runLabel.err"
+    # A run of a queue that was stopped can still hold these open (its game runs on to its timeout): use new names.
+    foreach ($f in @($outFile, $errFile)) { Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue }
+    if ((Test-Path -LiteralPath $outFile) -or (Test-Path -LiteralPath $errFile)) {
+        $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+        $outFile = Join-Path $Work "$runLabel.$stamp.out"; $errFile = Join-Path $Work "$runLabel.$stamp.err"
+    }
     $argv = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $Run, "-Slot", "$slot", "-Dll", $q.dllFull, "-City", $q.city,
               "-IniFile", $iniFile, "-AfterLoadSeconds", "$($q.seconds)", "-Seconds", "$($q.timeout)", "-Label", $runLabel)
     if ($q.end_date) { $argv += @("-EndDate", $q.end_date) }
