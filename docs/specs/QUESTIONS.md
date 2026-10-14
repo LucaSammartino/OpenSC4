@@ -2146,8 +2146,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   into REH §4.1 step 4. **Confirmed; the bracket matches.** Slot 11 returns the building's profile (or a static zero
   profile without a building development simulator), and its first u32 is the purpose: the flag is set for purpose 1
   (Residence). An early exit of the call skips the step.
-- **RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
-  back]
+- ~~**RG3:** query-record costs are 32-bit in the game but 64-bit in the core. [zero-extended in, low 32 bits written
+  back]~~ **ANSWERED 2026-10-14** from the exe (school `0x006F92B7`, `0x006F92F6`; hospital `0x006F7F76`–`0x006F7FAC`)
+  and written into REH §4.11 (cost fields). **The bracket matches.** The record holds the low dword of the item's
+  64-bit cost, so writing back the low 32 bits is what the original does. Zero or sign extension on the way in differ
+  only for a negative cost, and shipped costs are positive.
 - **RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]
 - **RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]
 - **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not

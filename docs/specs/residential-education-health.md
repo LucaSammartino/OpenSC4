@@ -723,6 +723,13 @@ fields below follow it and are u32 unless marked:
 The school query fails (AL = 0) only if one of capacity, effective capacity, served or grade is missing. A
 divisor of 0 divides by zero *[quirk]*.
 
+**Cost fields** *[compat]* (RG3). The cost at +0x30 and +0x38 is the **low 32 bits** of the budget item's 64-bit
+cost (the item's `+0x10`); the high half is dropped (school `0x006F92B7` and `0x006F92F6`, hospital
+`0x006F7F76`–`0x006F7FAC`). The funding percentage next to it is the item's local funding as a float. Without the
+item the pair is 1.0 (`0x00B0D440`) and 0. A core that keeps the cost in 64 bits writes back its low 32 bits.
+Reading a record back into 64 bits, sign extension would recover a negative cost and zero extension would not;
+shipped costs are positive and below 2^31, so both give the same value.
+
 **Order of the tests and partial writes** *[compat]* (school `0x006F91C0`, hospital `0x006F7E80`). Both read, in
 this order: capacity (a probe, then again straight into +0x14), effective capacity (straight into +0x18), served
 (straight into +0x24, still raw), grade (into a local). The hospital query then requires the staff item
