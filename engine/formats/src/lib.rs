@@ -36,6 +36,7 @@ pub mod ltext;
 pub mod qfs;
 mod reader;
 pub mod tgi;
+mod x87;
 
 pub use dbpf::{FileSource, IndexEntry, MemSource, Package, PackageBuilder, Source};
 pub use error::{Error, Result};

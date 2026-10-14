@@ -818,8 +818,9 @@ fn text_details() {
     assert_eq!(p.u32s(), Some(&[7, 0, 0][..]));
     let p = one("0x10:{\"x\"}=Uint8:2:{1,2,3}").get(0x10).cloned().unwrap();
     assert_eq!(p.u8s(), Some(&[1, 2][..]));
+    // EX16 (Plugin_002_TheLivingMall.dat): `Uint8:0:{}` is a scalar 0, GetCount() 0 like an empty array.
     let p = one("0x10:{\"x\"}=Uint8:0:{}").get(0x10).cloned().unwrap();
-    assert_eq!((p.as_u8(), p.is_array), (Some(0), false));
+    assert_eq!((p.as_u8(), p.is_array, p.count()), (Some(0), false, 0));
     // Integers are truncated to the type's width; leading spaces trimmed.
     let p = one("0x10:{\"x\"}=Sint8:3:{-1, 0x1FF,  200}")
         .get(0x10)
@@ -864,13 +865,25 @@ fn text_details() {
     // ParentCohort and PropCount names are case-insensitive, the Key:{ prefix is case-sensitive.
     assert!(Exemplar::parse(&text_rec("parentcohort = Key:{0,0,0}", "propcount = 0", &[])).is_ok());
     assert!(Exemplar::parse(&text_rec("ParentCohort=key:{0,0,0}", "PropCount=0", &[])).is_err());
-    assert!(Exemplar::parse(&text_rec("ParentCohort=Key:{0,0}", "PropCount=0", &[])).is_err());
+    assert!(Exemplar::parse(&text_rec("ParentCohort=Key:{0,0,0", "PropCount=0", &[])).is_err());
     assert!(Exemplar::parse(&text_rec("PropCount=0", "ParentCohort=Key:{0,0,0}", &[])).is_err());
-    // [choice] a reps count larger than the record is rejected rather than allocated.
+    // [choice] EX12: no cap in the original (it crashes); above 16 MiB of values the read fails.
     assert!(Exemplar::parse(&text_rec(
         NO_PARENT,
         "PropCount=1",
         &["0x10:{\"x\"}=Uint32:0xFFFFFFFF:{1}"]
+    ))
+    .is_err());
+    let cap = MAX_TEXT_VALUE_BYTES / 4;
+    let p = one(&format!("0x10:{{\"x\"}}=Uint32:{cap}:{{1}}"))
+        .get(0x10)
+        .cloned()
+        .unwrap();
+    assert_eq!((p.len(), p.u32s().unwrap()[0]), (cap as usize, 1));
+    assert!(Exemplar::parse(&text_rec(
+        NO_PARENT,
+        "PropCount=1",
+        &[&format!("0x10:{{\"x\"}}=Uint32:{}:{{1}}", cap + 1)]
     ))
     .is_err());
     // A text cohort.
@@ -899,14 +912,47 @@ PropCount=0x00000003\r\n\
 fn converting_getters() {
     let s = |v: Values| Property::single(1, v);
     let a = |v: Values| Property::array(1, v);
-    // Scalar → float: through float64; Uint32 ≥ 2³¹ unsigned.
-    assert_eq!(s(Values::Uint32(vec![0xFFFF_FFFF])).get_f64(), Some(4_294_967_295.0));
+    let st = |t: &str| Property::array(1, Values::String(t.as_bytes().to_vec()));
+    // The text the string getter writes, and what it returns.
+    let text = |p: Property| {
+        let mut out = b"unchanged".to_vec();
+        let ok = p.get_string_into(&mut out);
+        (decode_text(&out), ok)
+    };
+    // Scalar → float64 (EX2): signed types and a Uint32 below 2³¹ exactly; a Uint32 from 2³¹ and every Uint64 keep
+    // 24 significant bits, for a Float64 target too (§5.1 worked examples).
+    assert_eq!(s(Values::Uint64(vec![16_777_217])).get_f64(), Some(16_777_216.0));
+    assert_eq!(s(Values::Sint64(vec![16_777_217])).get_f64(), Some(16_777_217.0));
+    assert_eq!(s(Values::Uint32(vec![16_777_217])).get_f64(), Some(16_777_217.0));
+    assert_eq!(s(Values::Uint32(vec![0x8000_0001])).get_f64(), Some(2_147_483_648.0));
+    assert_eq!(s(Values::Uint32(vec![0xFFFF_FFFF])).get_f64(), Some(4_294_967_296.0));
+    assert_eq!(
+        s(Values::Uint64(vec![u64::MAX])).get_f64(),
+        Some(18_446_744_073_709_551_616.0)
+    );
+    assert_eq!(
+        s(Values::Sint64(vec![(1 << 53) + 1])).get_f64(),
+        Some(9_007_199_254_740_992.0),
+        "Sint64 rounded to 53 bits"
+    );
     assert_eq!(s(Values::Sint32(vec![-3])).get_f32(), Some(-3.0));
     assert_eq!(s(Values::Float64(vec![0.1])).get_f32(), Some(0.1_f32));
     assert_eq!(s(Values::Float32(vec![0.1])).get_f64(), Some(f64::from(0.1_f32)));
     assert_eq!(s(Values::Uint32(vec![5])).get_f32(), Some(5.0));
-    // Scalar → integer: through int64, floats truncated toward zero, then the low bits.
+    // Scalar → integer (EX3): through int64, floats truncated toward zero by _ftol, then the low bits (wrapping).
     assert_eq!(s(Values::Float32(vec![2.9])).get_u32(), Some(2));
+    assert_eq!(s(Values::Float32(vec![-1.5])).get_u32(), Some(0xFFFF_FFFF));
+    assert_eq!(s(Values::Float32(vec![300.7])).get_u8(), Some(44));
+    assert_eq!(s(Values::Float32(vec![3e9])).get_i32(), Some(-1_294_967_296));
+    assert_eq!(s(Values::Float64(vec![5e9])).get_u64(), Some(5_000_000_000));
+    for x in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, 1e19, -1e19] {
+        let p = s(Values::Float64(vec![x]));
+        assert_eq!(p.get_i64(), Some(i64::MIN), "{x}");
+        assert_eq!(p.get_u64(), Some(0x8000_0000_0000_0000), "{x}");
+        assert_eq!((p.get_u32(), p.get_i8()), (Some(0), Some(0)), "{x}");
+        assert_eq!(p.get_bool(), Some(true), "{x}");
+    }
+    assert_eq!(s(Values::Float32(vec![f32::NAN])).get_u32(), Some(0));
     assert_eq!(s(Values::Sint32(vec![-1])).get_u32(), Some(0xFFFF_FFFF));
     assert_eq!(s(Values::Sint32(vec![-1])).get_u64(), Some(u64::MAX));
     assert_eq!(s(Values::Uint32(vec![0x1234_5678])).get_u8(), Some(0x78));
@@ -915,63 +961,152 @@ fn converting_getters() {
     assert_eq!(s(Values::Sint64(vec![-2])).get_u16(), Some(0xFFFE));
     assert_eq!(s(Values::Uint64(vec![u64::MAX])).get_i64(), Some(-1));
     assert_eq!(s(Values::String(vec![b'H'])).get_u32(), Some(72), "an RZChar scalar");
+    // An RZChar scalar widens as a signed byte (EX4).
+    let e9 = s(Values::String(vec![0xE9]));
+    assert_eq!(e9.get_u32(), Some(0xFFFF_FFE9));
+    assert_eq!(e9.get_i16(), Some(-23));
+    assert_eq!(e9.get_f32(), Some(-23.0));
+    assert_eq!(e9.get_f64(), Some(-23.0));
+    assert_eq!(e9.get_u8(), Some(0xE9));
+    assert_eq!(e9.get_char(), Some(0xE9));
+    assert_eq!(e9.get_unicode_char(), Some(0xFFE9));
+    assert_eq!(e9.get_bool(), Some(true));
     // Bool = (int64 ≠ 0), after truncation.
     assert_eq!(s(Values::Float32(vec![0.5])).get_bool(), Some(false));
     assert_eq!(s(Values::Uint32(vec![2])).get_bool(), Some(true));
     assert_eq!(s(Values::Bool(vec![true])).get_f32(), Some(1.0));
-    // Arrays and strings: text round trip of the first element.
+    // Arrays and strings: the text round trip (EX6–EX9). Short binary fractions survive it, other floats need not.
     assert_eq!(a(Values::Float32(vec![2.75, 9.0])).get_f32(), Some(2.75));
+    assert_eq!(a(Values::Float32(vec![0.1])).get_f32(), Some(0.1));
+    assert_eq!(0.05_f32.to_bits(), 0x3D4C_CCCD);
     assert_eq!(
-        a(Values::Float32(vec![0.1])).get_f32(),
-        Some(0.1),
-        "floats survive the text exactly"
+        a(Values::Float32(vec![0.05])).get_f32().map(f32::to_bits),
+        Some(0x3D4C_CCCC)
     );
     assert_eq!(a(Values::Float64(vec![-2.5])).get_i32(), Some(-2));
     assert_eq!(a(Values::Sint32(vec![-7])).get_i64(), Some(-7));
     assert_eq!(a(Values::Bool(vec![true])).get_u32(), Some(1));
     assert_eq!(a(Values::Uint64(vec![u64::MAX])).get_u64(), Some(u64::MAX));
-    assert_eq!(a(Values::String(b"true".to_vec())).get_u32(), Some(1));
-    assert_eq!(a(Values::String(b"t".to_vec())).get_bool(), Some(true));
-    assert_eq!(a(Values::String(b"false".to_vec())).get_u32(), Some(0));
-    assert_eq!(a(Values::String(b"True".to_vec())).get_u32(), Some(0), "case-sensitive");
-    assert_eq!(a(Values::String(b"2.5".to_vec())).get_u32(), Some(2));
-    assert_eq!(a(Values::String(b"1e3".to_vec())).get_u32(), Some(1000));
-    assert_eq!(a(Values::String(b"-3".to_vec())).get_u32(), Some(0xFFFF_FFFD));
-    assert_eq!(a(Values::String(b"abc".to_vec())).get_u32(), Some(0));
-    assert_eq!(a(Values::String(b"12".to_vec())).get_f32(), Some(12.0));
-    assert_eq!(a(Values::String(b"0x1F".to_vec())).get_f64(), Some(31.0));
     assert_eq!(a(Values::Uint32(vec![])).get_f32(), Some(0.0));
-    // The string getter: a string as is, anything else through its text.
+    // Parsing (EX9): whole words case-sensitive, lower-case 0x only, the scan's flags (§5.1 worked examples).
+    for (t, want) in [
+        ("0x1F", 31),
+        ("0X1F", 0),
+        ("1A", 1),
+        ("true", 1),
+        ("t", 1),
+        ("TRUE", 0),
+        ("True", 0),
+        ("false", 0),
+        ("-5", 0xFFFF_FFFB),
+        ("-3", 0xFFFF_FFFD),
+        ("1-2", 1),
+        ("e5", 0),
+        ("1e3", 1000),
+        (".5", 0),
+        ("1.2.3", 1),
+        ("12 apples", 12),
+        ("2.5", 2),
+        ("abc", 0),
+        (" 7", 7),
+        ("+7", 7),
+        (" 0x10", 0),
+        ("", 0),
+    ] {
+        assert_eq!(st(t).get_u32(), Some(want), "{t:?}");
+    }
+    assert_eq!(st("0x123456789ABCDEF012").get_u64(), Some(0x1234_5678_9ABC_DEF0));
+    assert_eq!(st("18446744073709551617").get_u64(), Some(1), "64-bit wraparound");
+    assert_eq!(st("t").get_bool(), Some(true));
+    assert_eq!(st("0.5").get_bool(), Some(true), "Bool from text is value ≠ 0");
+    assert_eq!(st("1.#QNAN").get_bool(), Some(true));
+    assert_eq!(st(".5").get_f32(), Some(0.5));
+    assert_eq!(st("12").get_f32(), Some(12.0));
+    assert_eq!(st("0x1F").get_f64(), Some(31.0));
+    // Unsigned text takes the 24-bit path for a float target, signed text is converted exactly.
+    assert_eq!(st("16777217").get_f64(), Some(16_777_216.0));
+    assert_eq!(st("-16777217").get_f64(), Some(-16_777_217.0));
+    assert_eq!(st("-16777217").get_f32(), Some(-16_777_216.0));
+    // Char targets always get 0 through the text, and succeed.
+    assert_eq!(st("A").get_char(), Some(0));
+    assert_eq!(st("65").get_unicode_char(), Some(0));
+    assert_eq!(a(Values::Uint8(vec![65])).get_char(), Some(0));
+    // Array texts (EX6): a Char array all its characters, an RZUnicodeChar array units below 0x80 (others `?`), a
+    // void array nothing.
+    assert_eq!(a(Values::Char(b"12".to_vec())).get_u32(), Some(12));
+    assert_eq!(a(Values::Void(b"12".to_vec())).get_u32(), Some(0));
+    assert_eq!(a(Values::UnicodeChar(vec![0xE9, 0x35])).get_u32(), Some(0));
+    assert_eq!(a(Values::UnicodeChar(vec![0x31, 0x35])).get_u32(), Some(15));
+    // The string getter (EX5, EX7, EX8): true only for a string; every other type writes its text and returns false.
+    assert_eq!(text(st("Hello")), ("Hello".into(), true));
+    assert_eq!(st("Hello").get_string().as_deref(), Some("Hello"));
+    assert_eq!(text(s(Values::Uint32(vec![7]))), ("7".into(), false));
+    assert_eq!(s(Values::Uint32(vec![7])).get_string(), None);
+    assert_eq!(text(s(Values::Sint32(vec![-7]))), ("-7".into(), false));
+    assert_eq!(text(s(Values::Bool(vec![true]))), ("1".into(), false));
+    assert_eq!(text(s(Values::String(vec![b'A']))), ("A".into(), false));
+    assert_eq!(text(s(Values::String(vec![0]))), ("\0".into(), false));
+    assert_eq!(text(a(Values::Uint32(vec![]))), ("0".into(), false));
+    assert_eq!(text(a(Values::Uint32(vec![3, 4]))), ("3".into(), false));
+    assert_eq!(text(a(Values::Char(b"Hi".to_vec()))), ("Hi".into(), false));
+    assert_eq!(text(a(Values::UnicodeChar(vec![0x48, 0x69]))), ("Hi".into(), false));
+    assert_eq!(text(a(Values::UnicodeChar(vec![0xE9, 0x35]))), ("?5".into(), false));
+    assert_eq!(text(a(Values::Void(vec![0x31, 0x32]))), (String::new(), false));
+    // Floats: fixed-point, at most 24 digits after the fraction's leading zeros, cut (EX8; §5.1 examples).
+    let float_text = |x: f64| text(s(Values::Float64(vec![x]))).0;
+    let f32_text = |x: f32| text(a(Values::Float32(vec![x]))).0;
+    assert_eq!(f32_text(2.75), "2.75");
+    assert_eq!(f32_text(0.1), "0.100000001490116119384765");
+    assert_eq!(f32_text(0.001), "0.00100000004749745130538940");
+    assert_eq!(f32_text(1e30), "1000000015047466219876688855040");
+    assert_eq!(f32_text(f32::from_bits(0x4049_0FD0)), "3.141590118408203125");
+    assert_eq!(f32_text(16_777_216.0), "16777216");
+    assert_eq!(float_text(1e30), "1000000000000000019884624838656");
+    assert_eq!(float_text(1e-5), "0.0000100000000000000008180305");
+    assert_eq!(float_text(100.0), "100");
+    assert_eq!(float_text(0.5), "0.5");
+    assert_eq!(float_text(-2.5), "-2.5");
+    assert_eq!(float_text(1.0 / 3.0), "0.333333333333333314829616");
     assert_eq!(
-        a(Values::String(b"Hello".to_vec())).get_string().as_deref(),
-        Some("Hello")
+        float_text(2f64.powi(-65)),
+        "0.0000000000000000000271050543121376108501863"
     );
-    assert_eq!(s(Values::Uint32(vec![7])).get_string().as_deref(), Some("7"));
-    assert_eq!(s(Values::Sint32(vec![-7])).get_string().as_deref(), Some("-7"));
-    assert_eq!(s(Values::Bool(vec![true])).get_string().as_deref(), Some("1"));
-    assert_eq!(a(Values::Float32(vec![2.75])).get_string().as_deref(), Some("2.75"));
+    // Below 1e-64 nothing is left of the fraction; a long text is cut at 63 characters.
+    assert_eq!(float_text(1e-70), "0");
     assert_eq!(
-        a(Values::Float32(vec![0.1])).get_string().as_deref(),
-        Some("0.100000001490116119384766")
+        float_text(1e300),
+        "100000000000000005250476025520442024870446858110815915491585411"
     );
     assert_eq!(
-        s(Values::Float64(vec![1e30])).get_string().as_deref(),
-        Some("1.00000000000000001988462e+30")
+        f32_text(1e-40),
+        "0.0000000000000000000000000000000000000000999994610111475958152"
     );
-    assert_eq!(
-        s(Values::Float64(vec![1e-5])).get_string().as_deref(),
-        Some("1.00000000000000008180305e-05")
-    );
-    assert_eq!(s(Values::Float64(vec![100.0])).get_string().as_deref(), Some("100"));
-    assert_eq!(a(Values::Uint32(vec![])).get_string().as_deref(), Some("0"));
-    assert_eq!(
-        a(Values::UnicodeChar(vec![0x48, 0x69])).get_string().as_deref(),
-        Some("Hi")
-    );
-    // [choice] Empty and object values do not convert.
-    assert_eq!(s(Values::Empty).get_u32(), None);
-    assert_eq!(s(Values::Empty).get_string(), None);
-    assert_eq!(Property::resource(1, Tgi::new(1, 2, 3)).get_f32(), None);
+    // NaN and the infinities as the C runtime prints them.
+    assert_eq!(float_text(f64::INFINITY), "1.#INF");
+    assert_eq!(float_text(f64::NEG_INFINITY), "-1.#INF");
+    assert_eq!(float_text(f64::from_bits(0x7FF8_0000_0000_0000)), "1.#QNAN");
+    assert_eq!(float_text(f64::from_bits(0xFFF8_0000_0000_0000)), "-1.#IND");
+    assert_eq!(float_text(f64::from_bits(0x7FF0_0000_0000_0001)), "1.#SNAN");
+    assert_eq!(st("1.#INF").get_f32(), Some(1.0));
+    assert_eq!(st("-1.#IND").get_f32(), Some(-1.0));
+    // Empty (EX5): every converting getter succeeds with 0; the string getter writes the empty text, false.
+    let empty = s(Values::Empty);
+    assert_eq!(empty.get_u32(), Some(0));
+    assert_eq!(empty.get_i64(), Some(0));
+    assert_eq!(empty.get_f32(), Some(0.0));
+    assert_eq!(empty.get_f64(), Some(0.0));
+    assert_eq!(empty.get_bool(), Some(false));
+    assert_eq!(empty.get_char(), Some(0));
+    assert_eq!(text(empty.clone()), (String::new(), false));
+    assert_eq!(empty.get_string(), None);
+    // [choice] An object value is a missing property for every getter: false, output unchanged.
+    let object = Property::resource(1, Tgi::new(1, 2, 3));
+    assert_eq!(object.get_f32(), None);
+    assert_eq!(object.get_u32(), None);
+    assert_eq!(object.get_bool(), None);
+    assert_eq!(object.get_char(), None);
+    assert_eq!(object.text(), None);
+    assert_eq!(text(object), ("unchanged".into(), false));
 }
 
 #[test]
@@ -1061,7 +1196,9 @@ fn binary_round_trip_and_typed_api() {
         back.get(0x2D).unwrap().string_lossy().as_deref(),
         Some("Café \"quoted\"")
     );
-    assert_eq!(back.get(0x34).unwrap().get_string().as_deref(), Some("\u{263A}"));
+    // Not a string: the getter writes `?` (a unit from 0x80) and returns false.
+    assert_eq!(back.get(0x34).unwrap().get_string(), None);
+    assert_eq!(back.get(0x34).unwrap().text().as_deref(), Some(&b"?"[..]));
     assert_eq!(back.get(0x35).unwrap().as_char(), Some(b'Z'));
     // The text form cannot express some of these.
     assert!(matches!(ex.to_text(), Err(Error::Unsupported { .. })));
@@ -1115,8 +1252,13 @@ fn bad_exemplars_are_errors() {
     for n in (0..last_line).filter(|n| !(count_at..=count_end).contains(n)) {
         assert!(Exemplar::parse(&text[..n]).is_err(), "text prefix {n}");
     }
+    // Two ParentCohort fields read (EX10); the missing PropCount line fails.
     assert!(matches!(
         Exemplar::parse(b"EQZT1###\r\nParentCohort=Key:{1,2}\r\n"),
+        Err(Error::Text { line: 3, .. })
+    ));
+    assert!(matches!(
+        Exemplar::parse(b"EQZT1###\r\nParentCohort=Key:{1,2\r\n"),
         Err(Error::Text { line: 2, .. })
     ));
 }
@@ -1164,12 +1306,27 @@ fn cohort_inheritance_through_a_package() {
     let values: Vec<(u32, Option<u32>)> = l.properties().iter().map(|p| (p.id, p.as_u32())).collect();
     assert_eq!(values, [(0xA, Some(1)), (0xB, Some(2)), (0xC, Some(3))]);
 
-    // The package's other entries are registered as resources a kind-1 property may name.
+    // EX15: an index entry alone does not make a kind-1 resource load; a factory for its type that reads it does.
+    let other = Tgi::new(0x1234_5678, 0, 0);
     let mut k1 = Exemplar::new(Kind::Exemplar);
-    k1.set(Property::resource(1, Tgi::new(0x1234_5678, 0, 0)));
+    k1.set(Property::resource(1, other));
     let k1 = Exemplar::parse(&k1.to_binary()).unwrap();
     store.insert(exemplar_key(50), k1);
+    assert!(matches!(
+        store.load(&exemplar_key(50)),
+        Err(LoadError::Resource { cause, .. }) if *cause == LoadError::NotFound(other)
+    ));
+    // A factory whose read fails does not either.
+    assert!(store.add_factory(0x1234_5678, |d| d == b"something else"));
+    store.load_package(&pkg);
+    assert!(store.load(&exemplar_key(50)).is_err());
+    assert!(store.add_factory(0x1234_5678, |d| d == b"other"));
+    let rep = store.load_package(&pkg);
+    assert_eq!((rep.exemplars, rep.cohorts, rep.failures.len()), (1, 2, 0));
     assert!(store.load(&exemplar_key(50)).is_ok());
+    // The exemplar and cohort types keep the store's own factories.
+    assert!(!store.add_factory(TYPE_EXEMPLAR, |_| true));
+    assert!(!store.add_factory(TYPE_COHORT, |_| true));
 
     // A missing parent ends the diagnostic chain and fails the load.
     let mut orphan = Exemplar::new(Kind::Exemplar);
@@ -1181,4 +1338,265 @@ fn cohort_inheritance_through_a_package() {
     let mut wrong = Exemplar::new(Kind::Exemplar);
     wrong.parent = child;
     assert_eq!(store.chain(&wrong).1, ChainEnd::NotCohort(child));
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// §10.7 Text exemplar and getter details
+
+/// A record shaped like test 37 with one property line.
+fn text_one(line: &str) -> Result<Exemplar> {
+    Exemplar::parse(&text_rec(NO_PARENT, "PropCount=1", &[line]))
+}
+
+/// Property `0x10` of [`text_one`].
+fn text_prop(values: &str) -> Property {
+    let ex = text_one(&format!("0x10:{{\"x\"}}={values}")).unwrap();
+    ex.get(0x10).cloned().unwrap()
+}
+
+fn parent_of(line: &str) -> Tgi {
+    parse_ex(&text_rec(line, "PropCount=0", &[])).parent
+}
+
+/// §11 row "text ParentCohort: exactly 3 fields, leading spaces trimmed" (EX10).
+#[test]
+fn t51_parent_cohort_fields() {
+    let ex = parse_ex(&text_rec("ParentCohort=Key:{0,0}", "PropCount=0", &[]));
+    assert_eq!(ex.parent, Tgi::default());
+    assert!(!ex.has_parent());
+    assert_eq!(
+        parent_of("ParentCohort=Key:{0x0A64ED55,0x00000001,0x05342861,0x99}"),
+        Tgi::new(0x0534_2861, 0x0A64_ED55, 1),
+        "the fourth field is ignored"
+    );
+    assert_eq!(
+        parent_of("ParentCohort=Key:{0x0A64ED55, 0x00000001, 0x05342861}"),
+        Tgi::new(0, 0x0A64_ED55, 0),
+        "nothing trimmed: ` 0x…` reads 0"
+    );
+    // One field, and none.
+    assert_eq!(parent_of("ParentCohort=Key:{0x10}"), Tgi::new(0, 0x10, 0));
+    assert_eq!(parent_of("ParentCohort=Key:{}"), Tgi::default());
+    // The line itself is trimmed of spaces and tabs.
+    assert_eq!(parent_of(" \tParentCohort = Key:{1,2,3}\t "), Tgi::new(3, 1, 2));
+}
+
+/// §11 row "text reps trimmed" (EX11).
+#[test]
+fn t52_reps_and_type_name() {
+    let p = text_prop("Uint32: 0x2:{1,2}");
+    assert_eq!((p.is_array, p.as_u32()), (false, Some(1)));
+    assert_eq!(text_prop("Uint32:4:{1,2}").u32s(), Some(&[1, 2, 0, 0][..]));
+    assert_eq!(text_prop("Uint32:1:{1,2}").u32s(), Some(&[1][..]));
+    assert!(text_one("0x10:{\"x\"}=Uint32 :0:{1}").is_err());
+    assert!(text_one("0x10:{\"x\"}=Uint32:0: {1}").is_err());
+    // reps by rule N on the raw text: `1A` is 26, ` 2` is 2 (strtoul skips the space), `0x2` is 2.
+    assert_eq!(text_prop("Uint8:1A:{1}").len(), 26);
+    assert_eq!(text_prop("Uint8: 2:{1}").len(), 2);
+    assert_eq!(text_prop("Uint8:0x2:{1}").len(), 2);
+}
+
+/// §11 rows "text reps …" (EX12, EX13): values trimmed only in arrays, 64-bit hex without a sign.
+#[test]
+fn t53_values() {
+    let p = text_prop("Uint32:0:{ 0x10}");
+    assert_eq!((p.is_array, p.as_u32()), (false, Some(0)));
+    assert_eq!(text_prop("Uint32:1:{ 0x10}").u32s(), Some(&[16][..]));
+    assert_eq!(text_prop("Uint32:1:{\t0x10}").u32s(), Some(&[16][..]));
+    assert_eq!(text_prop("Uint64:0:{10}").as_u64(), Some(16));
+    assert_eq!(text_prop("Sint64:0:{-1}").as_i64(), Some(0));
+    assert_eq!(text_prop("Bool:0:{1}").as_bool(), Some(false));
+    // At most 16 hex digits; later ones are ignored.
+    assert_eq!(
+        text_prop("Uint64:0:{0x123456789ABCDEF012}").as_u64(),
+        Some(0x1234_5678_9ABC_DEF0)
+    );
+    assert_eq!(text_prop("Sint64:0:{FFFFFFFFFFFFFFFF}").as_i64(), Some(-1));
+    // Bool: leading spaces trimmed in a scalar too, then a case-insensitive `true` prefix.
+    assert_eq!(text_prop("Bool:0:{  TrUe}").as_bool(), Some(true));
+    assert_eq!(text_prop("Bool:2:{true, true}").bools(), Some(&[true, true][..]));
+    // A scalar is not trimmed: ` 16` is still 16 (strtoul skips the space), ` 1A` is 1 (base 10).
+    assert_eq!(text_prop("Uint32:0:{ 16}").as_u32(), Some(16));
+    assert_eq!(text_prop("Uint32:0:{ 1A}").as_u32(), Some(1));
+    assert_eq!(text_prop("Uint32:1:{ 1A}").u32s(), Some(&[26][..]));
+}
+
+/// §11 row "Float32 text parsed as f64, then rounded to f32" (EX14).
+#[test]
+fn t54_float32_text() {
+    let f = |v: &str| text_prop(&format!("Float32:0:{{{v}}}")).as_f32().unwrap();
+    assert_eq!(f("0.05").to_bits(), 0x3D4C_CCCC);
+    assert_eq!(f("1e10"), 1_410_065_408.0);
+    assert_eq!(f("1e32"), 0.0);
+    assert_eq!(f("inf"), 0.0);
+    assert_eq!(f("0.001").to_bits(), 0x3A83_126E);
+    assert_eq!(f("3.14159").to_bits(), 0x4049_0FCE);
+    assert_eq!(f("1e12"), -727_379_968.0);
+    assert_eq!(f("1e-32"), f32::INFINITY);
+    assert!(f("0e-32").is_nan());
+    assert_eq!(f("1.#INF"), 1.0);
+    assert_eq!(f("-2.5"), -2.5);
+    assert_eq!(f("80"), 80.0);
+}
+
+/// The game's float parser on its own (§4.3 worked examples): the 24-bit value before any Float32 store.
+#[test]
+fn parse_float_worked_examples() {
+    let bits = |s: &str| (parse_float(s.as_bytes()) as f32).to_bits();
+    assert_eq!(bits("0.05"), 0x3D4C_CCCC);
+    assert_eq!(0.05_f32.to_bits(), 0x3D4C_CCCD, "a correctly rounded parse differs");
+    assert_eq!(bits("0.001"), 0x3A83_126E);
+    assert_eq!(bits("3.14159"), 0x4049_0FCE);
+    assert_eq!(bits("3.141590118408203125"), 0x4049_0FCE);
+    assert_eq!(parse_float(b"1e10"), 1_410_065_408.0);
+    assert_eq!(parse_float(b"1e12"), -727_379_968.0);
+    assert_eq!(parse_float(b"1e32"), 0.0);
+    assert_eq!(parse_float(b"1e-32"), f64::INFINITY);
+    assert!(parse_float(b"0e-32").is_nan());
+    assert_eq!(parse_float(b"inf"), 0.0);
+    assert_eq!(parse_float(b"1.#INF"), 1.0);
+    // White space, a sign, a prefix read up to the first character that does not fit.
+    assert_eq!(parse_float(b" \t-12.5xyz"), -12.5);
+    assert_eq!(parse_float(b"+7"), 7.0);
+    assert_eq!(parse_float(b"2.5e3"), 2500.0);
+    assert_eq!(parse_float(b"25E-1"), 2.5);
+    assert_eq!(parse_float(b""), 0.0);
+    // Every result keeps a 24-bit significand, with the register's exponent range (no Float32 overflow yet).
+    let big = parse_float(b"1e9e9");
+    assert_eq!(big, 1e9);
+    let wide = parse_float(b"3e9");
+    assert_eq!(wide, 3e9);
+    let x = parse_float(b"123456789");
+    assert_eq!(x, 123_456_792.0);
+}
+
+/// §10.7 test 55: too few property lines fail the read.
+#[test]
+fn t55_too_few_lines() {
+    let lines = ["0x10:{\"a\"}=Uint32:0:{1}", "0x11:{\"b\"}=Uint32:0:{2}"];
+    assert!(matches!(
+        Exemplar::parse(&text_rec(NO_PARENT, "PropCount=3", &lines)),
+        Err(Error::Text { line: 6, .. })
+    ));
+    assert_eq!(
+        parse_ex(&text_rec(NO_PARENT, "PropCount=2", &lines)).properties().len(),
+        2
+    );
+}
+
+/// §11 row "round-trip parse" (EX9), §10.7 test 56.
+#[test]
+fn t56_round_trip_parse() {
+    let st = |t: &str| Property::array(1, Values::String(t.as_bytes().to_vec()));
+    for (t, want) in [
+        ("0X1F", 0),
+        ("TRUE", 0),
+        ("true", 1),
+        ("12 apples", 12),
+        ("-5", 0xFFFF_FFFB),
+        ("1.2.3", 1),
+        ("1e3", 1000),
+        (".5", 0),
+    ] {
+        assert_eq!(st(t).get_u32(), Some(want), "{t:?}");
+    }
+    assert_eq!(st("0.5").get_bool(), Some(true));
+    assert_eq!(st("A").get_char(), Some(0));
+}
+
+/// §11 rows on EX2–EX4, §10.7 test 57.
+#[test]
+fn t57_scalar_conversions() {
+    let s = |v: Values| Property::single(1, v);
+    assert_eq!(s(Values::Float32(vec![300.7])).get_u8(), Some(44));
+    assert_eq!(s(Values::Float32(vec![f32::NAN])).get_u32(), Some(0));
+    assert_eq!(s(Values::Float32(vec![f32::NAN])).get_bool(), Some(true));
+    assert_eq!(s(Values::String(vec![0xE9])).get_u32(), Some(0xFFFF_FFE9));
+    assert_eq!(s(Values::Uint64(vec![16_777_217])).get_f64(), Some(16_777_216.0));
+}
+
+/// §11 row "floats as text with %.24g" (EX8), §10.7 test 58.
+#[test]
+fn t58_float_text_round_trip() {
+    let p = Property::single(1, Values::Float32(vec![f32::from_bits(0x4049_0FD0)]));
+    let mut out = Vec::new();
+    assert!(!p.get_string_into(&mut out));
+    assert_eq!(out, b"3.141590118408203125");
+    let s = Property::array(1, Values::String(out));
+    assert_eq!(s.get_f32().map(f32::to_bits), Some(0x4049_0FCE));
+}
+
+/// §11 rows "getters on Empty …" (EX1, EX5), "void array as text" (EX6) and "holder slot 5" (EX17), §10.7 test 59.
+#[test]
+fn t59_empty_and_void() {
+    // A tag-0 property: no value bytes, HasProperty true, GetCount() 0 (EX1).
+    let ex = parse_ex(&rec(&[
+        "10 00 00 00 | 00 | 00 00 00 00",
+        T23.replace("10 00", "11 00").as_str(),
+    ]));
+    let empty = ex.get(0x10).unwrap();
+    assert_eq!((&empty.values, empty.count()), (&Values::Empty, 0));
+    assert_eq!(ex.get(0x11).unwrap().as_u32(), Some(7), "nothing read after the tag");
+    assert_eq!(empty.get_u32(), Some(0));
+    let mut out = b"x".to_vec();
+    assert!(!empty.get_string_into(&mut out));
+    assert!(out.is_empty());
+    // A void array `31 32`.
+    let void = Property::array(1, Values::Void(vec![0x31, 0x32]));
+    assert_eq!(void.get_u32(), Some(0));
+    let mut buf = [0u8; 8];
+    let mut length = 8;
+    assert!(void.get_void(&mut buf, &mut length));
+    assert_eq!((length, &buf[..3]), (2, &[0x31, 0x32, 0][..]));
+    // A smaller length copies that much and stays.
+    let mut buf = [0u8; 8];
+    let mut length = 1;
+    assert!(void.get_void(&mut buf, &mut length));
+    assert_eq!((length, &buf[..2]), (1, &[0x31, 0][..]));
+    // Every other type returns false and leaves both unchanged: no conversion.
+    for p in [
+        Property::array(1, Values::String(b"12".to_vec())),
+        Property::array(1, Values::Uint8(vec![1, 2])),
+        Property::single(1, Values::Uint32(vec![7])),
+        Property::single(1, Values::Empty),
+        Property::resource(1, Tgi::new(1, 2, 3)),
+    ] {
+        let mut buf = [0xAAu8; 8];
+        let mut length = 8;
+        assert!(!p.get_void(&mut buf, &mut length), "{p:?}");
+        assert_eq!((length, buf), (8, [0xAA; 8]), "{p:?}");
+    }
+    // Through a loaded exemplar, the same.
+    let key = exemplar_key(1);
+    let mut store = ExemplarStore::new();
+    let mut e = Exemplar::new(Kind::Exemplar);
+    e.set(Property::array(0x20, Values::Void(vec![0x31, 0x32])));
+    e.set(Property::array(0x21, Values::String(b"Hi".to_vec())));
+    e.set(Property::single(0x22, Values::Uint32(vec![7])));
+    store.insert(key, e);
+    let l = store.load(&key).unwrap();
+    let (mut buf, mut length) = ([0u8; 4], 4);
+    assert!(l.get_void(0x20, &mut buf, &mut length));
+    assert_eq!((length, buf), (2, [0x31, 0x32, 0, 0]));
+    assert!(!l.get_void(0x99, &mut buf, &mut length), "missing");
+    let mut out = Vec::new();
+    assert!(l.get_string_into(0x21, &mut out));
+    assert_eq!(out, b"Hi");
+    assert!(!l.get_string_into(0x22, &mut out));
+    assert_eq!(out, b"7");
+    let mut out = b"same".to_vec();
+    assert!(!l.get_string_into(0x99, &mut out), "missing");
+    assert_eq!(out, b"same");
+}
+
+/// §11 row on raw accessors (EX20): a type mismatch is a missing value, never the bytes reinterpreted.
+#[test]
+fn raw_accessor_mismatch_is_missing() {
+    let f = Property::single(1, Values::Float32(vec![2.75]));
+    assert_eq!(f.as_u32(), None, "the original returns 0x40300000");
+    assert_eq!(f.as_f32(), Some(2.75));
+    let a = Property::array(1, Values::Uint32(vec![1, 2]));
+    assert_eq!(a.as_u32(), None, "the original returns a heap address");
+    assert_eq!(a.f32s(), None);
+    assert_eq!(Property::single(1, Values::Empty).as_u32(), None);
 }
