@@ -1259,9 +1259,10 @@ before and after). The glue's current answer is in brackets.
 - ~~**LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]~~
   **ANSWERED 2026-10-14** from the exe (`0x00459440`): **the spec**. Both results are stored with `FSTP` through the out
   pointers, and the x87 stack is empty at `ret 0x10`. The docs/abi row has said this since re-answers2 PR6 (`7d2f368`:
-  "returns nothing"). **The bracket does not match if "discarded" means the call is declared as returning a float.**
-  The compiler then pops an empty x87 register after each call: a masked stack underflow that leaves TOP misplaced, so
-  later x87 code computes NaNs. Declare the slot `void`. Written into landfill.md §4.2 and §8.
+  "returns nothing"). **The bracket is harmless but not exact.** If the call is declared as returning a float, every
+  discard pops an empty x87 register. That is a masked stack underflow: it sets the sticky IE and SF status flags
+  (it would trap if IE were unmasked) and stores no value. Using the "result" would read the NaN indefinite. Declare
+  the slot `void`. Written into landfill.md §4.2 and §8.
 - **LG11:** should the tile item cost be read from the tile exemplar? [no]
 - **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]
 - **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
