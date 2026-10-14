@@ -966,8 +966,11 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   input in its own state's call (§5.3). Its tax baseline is the rate read in the first state 4 after the object was
   created, so the first cycle after a load; a shadow that starts with that cycle and reads the rates in its state 4
   matches. To remove the timing differences, follow the original's state field step by step (§14.3).
-- **AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
-  declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]
+- ~~**AU8:** `GetCumulativeOffset` (ordinance slot 24): the SDK says int64, the spec and table int32 in EAX. [int32,
+  declared as `GetCumulativeOffset32` in `cFC4ISC4OrdinanceSimulator`]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x0080DD70`, epilogue `0x0080DEA1`–`0x0080DEAC`) and written into aura.md §13 (SDK errors). **The bracket is
+  right.** The sum is an int32 in EAX, the callee pops 8 bytes, and EDX is not set for the caller (a leftover), so an
+  int64 declaration reads a garbage high half. docs/abi/interfaces.tsv already has pops 8 and EAX.
 - **AU9:** a cycle in an empty city keeps the lot iterator open until the next state 4. Intended? [as the spec]
 - **AU10:** with no land value simulator the land value type is 0; the spec is silent. [0]
 - **AU11 — §16 Q7:** the base-aura process table is not written. [not written]

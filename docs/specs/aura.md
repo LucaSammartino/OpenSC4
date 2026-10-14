@@ -888,7 +888,10 @@ All are `__thiscall`; "pops" = callee-pop bytes.
 **SDK errors in dependencies** (for the owners of those specs): residential `GetPopulationGrids` — all three
 parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the first as a reference; residential slots
 39/40 (SDK `int32 GetSchoolAverageGradeMap()` / `GetHospitalAverageGradeMap()`) return `cISC4SimGrid<float>*`
-(same register, so callers can cast).
+(same register, so callers can cast). Ordinance slot 24 `GetCumulativeOffset` (`0x0080DD70`): the SDK declares an int64
+return, but the original sums int32 values into EAX and returns with `ret 8`. EDX is never set for the caller (it
+holds whatever the last call left there), so a caller declared with int64 reads a garbage high half. Declare it
+int32.
 
 ## 14. Interactions and replaceability
 
