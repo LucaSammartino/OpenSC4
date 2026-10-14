@@ -73,7 +73,8 @@ extern "C" {
  * 33 = adds fc4_power_shadow_message and the power shadow's city start (options `flags`,
  *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7); the plumbing shadow's
  *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
- *      PS3, PS6). */
+ *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
+ *      game_tiles / game_tile_failures (landfill.md LG3, LG8). */
 #define FC4_ABI_VERSION 33u
 
 /* Return codes of fc4_sim_load. */
@@ -3261,13 +3262,17 @@ bool fc4_flora_shadow_get_stats(fc4_flora_shadow* s, fc4_flora_shadow_stats* out
  * back by fc4_landfill_read arrives with one, or gets one through add_ref when
  * fc4_ref.core_handle is set). Shutdown releases them.
  *
- * Landfill tiles are kept in this layer, not in the game (attaching a tile
- * exemplar to a game cSC4LandfillOccupant is not documented): the host's
- * occupant callbacks never see them, and the cells keep pollution's
- * active-landfill flag. Tiles are not saved; after a load they are rebuilt on
- * PostCityInit from is_active_landfill over the zones' mask cells. Landfill
- * tiles of the original developer (a city it saved) are game occupants and
- * are found through occupant_at as usual.
+ * Landfill tiles (§4.8.1, LG3): with insert_landfill_tile the host builds
+ * each tile as a game cSC4LandfillOccupant (tile exemplar attached through
+ * cISCExemplarPropertyHolder::SetDefaultExemplar) and inserts it; it is then
+ * found through occupant_at, priced from its exemplar (§4.9.1, LG11),
+ * removed through occupant_remove and saved by the occupant manager (§6.4,
+ * LG8), like the original's. Without the callback, or when it makes none,
+ * the tile is kept in this layer instead: the host's occupant callbacks
+ * never see it, and only pollution's active-landfill flag shows it. A load
+ * rebuilds no tile a cell already has; a flagged mask cell without one (a
+ * city saved while tiles were kept here) gets its tile back on PostCityInit
+ * [choice].
  *
  * A message delivered while another call into the same object is running is
  * queued and handled when that call returns.
@@ -3313,6 +3318,8 @@ typedef struct fc4_landfill_state {
     int64_t supply_delta;     /* sum of AddToGarbageSupply */
     int64_t maintenance;      /* slot 7 */
     uint64_t department;      /* borrowed; 0 = none */
+    uint32_t game_tiles;      /* tiles inserted through insert_landfill_tile since creation (ABI 33) */
+    uint32_t game_tile_failures; /* insert_landfill_tile calls that made none (kept here instead) */
 } fc4_landfill_state;
 
 /* What the landfill developer needs from the game (one callback per
@@ -3399,6 +3406,15 @@ typedef struct fc4_landfill_host {
     void (*stop_seagull)(void* user, uint64_t seagull, uint32_t flag);
     /* history (§5): MessageSend of 0x89EFA536 */
     void (*send_history)(void* user, uint32_t series, uint32_t value);
+    /* tiles (§4.8.1 step 3, LG3; appended in ABI 33): build a game
+     * cSC4LandfillOccupant for cell (x, z) with the tile exemplar
+     * (0x6534284A, 0x07BDDF1C, tile_id) attached, the orientation, flag 4,
+     * removal flags 2 and the world position xyz; Init it and insert it into
+     * the occupant manager. Its cISC4Occupant token (borrowed: the occupant
+     * manager holds it), 0 if none was made (the tile is then kept here). The
+     * core has already set the cell's active-landfill flag. */
+    uint64_t (*insert_landfill_tile)(void* user, int32_t x, int32_t z, uint32_t tile_id, int32_t orientation,
+                                     const float* xyz);
 } fc4_landfill_host;
 
 /* QueryInterface (§1): whether the class answers `iid`. */
@@ -3411,7 +3427,9 @@ fc4_landfill* fc4_landfill_create(const fc4_landfill_host* host, uint64_t token)
 /* Releases what a never-initialised (loaded) object still holds. */
 void fc4_landfill_destroy(fc4_landfill* p);
 bool fc4_landfill_init(fc4_landfill* p);
-/* Also releases the zots' references and drops the tiles kept here. */
+/* Each initialised zone removes its zot prop (remove_prop) and releases it
+ * (§4.4.9, LG13); the zot of a zone never initialised is released only.
+ * Drops the tiles kept here. */
 bool fc4_landfill_shutdown(fc4_landfill* p);
 /* DoMessage (§3.2): `region` is the zoning message's GetVoid2 (copied), NULL
  * otherwise. Always true. */
@@ -3424,7 +3442,8 @@ int64_t fc4_landfill_current_budget(const fc4_landfill* p);    /* slot 8 */
 int64_t fc4_landfill_zoning_cost(const fc4_landfill* p, const fc4_landfill_region* region);
 void fc4_landfill_usage(const fc4_landfill* p, uint32_t* usage, uint32_t* capacity); /* slot 10 */
 int32_t fc4_landfill_tile_count(const fc4_landfill* p);                              /* slot 11 */
-/* The tile kept here for a cell: false when there is none. */
+/* The tile kept here for a cell: false when there is none (a game tile made
+ * through insert_landfill_tile is not reported). */
 bool fc4_landfill_tile_at(const fc4_landfill* p, int32_t x, int32_t z, uint32_t* tile_id, int32_t* orientation);
 bool fc4_landfill_get_state(const fc4_landfill* p, fc4_landfill_state* out);
 /* §6.1; the zot references go out with class 0. Read runs before Init. */
@@ -4038,8 +4057,8 @@ static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96
 static_assert(sizeof(fc4_flora_shadow_stats) == 64, "fc4_flora_shadow_stats layout");
 static_assert(sizeof(fc4_landfill_region) == (sizeof(void*) == 4 ? 24 : 32), "fc4_landfill_region layout");
 static_assert(sizeof(fc4_landfill_effects) == 16, "fc4_landfill_effects layout");
-static_assert(sizeof(fc4_landfill_state) == 104, "fc4_landfill_state layout");
-static_assert(sizeof(fc4_landfill_host) == (sizeof(void*) == 4 ? 248 : 496), "fc4_landfill_host layout");
+static_assert(sizeof(fc4_landfill_state) == 112, "fc4_landfill_state layout");
+static_assert(sizeof(fc4_landfill_host) == (sizeof(void*) == 4 ? 252 : 504), "fc4_landfill_host layout");
 static_assert(sizeof(fc4_landfill_shadow_stats) == 72, "fc4_landfill_shadow_stats layout");
 static_assert(sizeof(fc4_landvalue_original) == (sizeof(void*) == 4 ? 132 : 152), "fc4_landvalue_original layout");
 static_assert(sizeof(fc4_landvalue_shadow_stats) == 48, "fc4_landvalue_shadow_stats layout");

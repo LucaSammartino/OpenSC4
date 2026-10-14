@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "name": "month_tail_rank",
+  "spec": ["4", "5.3", "foundations 13.4", "landfill 3.3"],
+  "description": "Foundations §13.4 and landfill.md §3.3 (LG6) [compat]: the month level runs every agent without a rank in registration order, then the fixed-rank tail by the names the agents register with: landfill developer, neighbours, ordinance, then land value ([choice]). Registered in FreeCity4's order (terrain, landfill developer, budget, ordinance, power, neighbours, land value, pollution, residential; foundations §13.2), the landfill developer gets SimNewMonth after pollution and the budget and before the neighbours and the ordinance simulator. An agent added in front of the cursor during the walk (by the landfill developer's own delivery) waits for the next interval and the cursor keeps its agent. Removing the budget and adding it again puts it last among the unranked agents, still ahead of the tail. The day level has no ranks: a ranked name keeps registration order there. The clock stays at 0, so each simulate_agents call walks every level.",
+  "clock": {"start_ms": 0, "auto_step_ms": 0},
+  "agents": {
+    "terrain": {},
+    "landfill": {"on_call": {"1": [{"op": "add_agent", "agent": "late", "level": 6}]}},
+    "budget": {},
+    "ordinance": {},
+    "power": {},
+    "neighbours": {},
+    "landvalue": {},
+    "pollution": {},
+    "residential": {},
+    "late": {},
+    "dayNeighbours": {},
+    "dayOther": {}
+  },
+  "steps": [
+    {"op": "add_agent", "agent": "terrain", "level": 6},
+    {"op": "add_agent", "agent": "landfill", "level": 6, "name": "cSC4LandfillDeveloper", "flags": 2},
+    {"op": "add_agent", "agent": "budget", "level": 6, "name": "cSC4BudgetSimulator"},
+    {"op": "add_agent", "agent": "ordinance", "level": 6, "name": "cSC4OrdinanceSimulator"},
+    {"op": "add_agent", "agent": "power", "level": 6, "name": "cSC4PowerSimulator"},
+    {"op": "add_agent", "agent": "neighbours", "level": 6, "name": "cSC4NeighborsSimulator"},
+    {"op": "add_agent", "agent": "landvalue", "level": 6, "name": "cSC4LandValueSimulator"},
+    {"op": "add_agent", "agent": "pollution", "level": 6, "name": "cSC4PollutionSimulator"},
+    {"op": "add_agent", "agent": "residential", "level": 6, "name": "cSC4ResidentialSimulator"},
+    {"op": "add_agent", "agent": "dayNeighbours", "level": 4, "name": "cSC4NeighborsSimulator"},
+    {"op": "add_agent", "agent": "dayOther", "level": 4},
+    {"op": "expect_agent_names", "names": [
+      "cSC4NeighborsSimulator", "dayOther",
+      "terrain", "cSC4BudgetSimulator", "cSC4PowerSimulator", "cSC4PollutionSimulator", "cSC4ResidentialSimulator",
+      "cSC4LandfillDeveloper", "cSC4NeighborsSimulator", "cSC4OrdinanceSimulator", "cSC4LandValueSimulator"
+    ]},
+    {"op": "init"},
+    {"op": "set_city_established", "value": true},
+    {"op": "clear_events"},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "terrain"},
+      {"agent": "budget"},
+      {"agent": "power"},
+      {"agent": "pollution"},
+      {"agent": "residential"},
+      {"agent": "landfill"},
+      {"agent": "neighbours"},
+      {"agent": "ordinance"},
+      {"agent": "landvalue"}
+    ]},
+    {"op": "expect_agent_names", "names": [
+      "cSC4NeighborsSimulator", "dayOther",
+      "terrain", "cSC4BudgetSimulator", "cSC4PowerSimulator", "cSC4PollutionSimulator", "cSC4ResidentialSimulator", "late",
+      "cSC4LandfillDeveloper", "cSC4NeighborsSimulator", "cSC4OrdinanceSimulator", "cSC4LandValueSimulator"
+    ]},
+
+    {"op": "remove_agent", "agent": "budget", "level": 6, "expect": true},
+    {"op": "add_agent", "agent": "budget", "level": 6, "name": "cSC4BudgetSimulator"},
+    {"op": "clear_events"},
+    {"op": "begin_new_interval", "level": 6},
+    {"op": "simulate_agents"},
+    {"op": "expect_events", "filter": {"event": "deliver", "type": "SimNewMonth"}, "events": [
+      {"agent": "terrain"},
+      {"agent": "power"},
+      {"agent": "pollution"},
+      {"agent": "residential"},
+      {"agent": "late"},
+      {"agent": "budget"},
+      {"agent": "landfill"},
+      {"agent": "neighbours"},
+      {"agent": "ordinance"},
+      {"agent": "landvalue"}
+    ]}
+  ]
+}
