@@ -2287,7 +2287,19 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   - The merge keeps every connected edge and fills unconnected ones, so for the zone manager's "byte ≠ 0" contract the
     mask is the OR. The bracket matches, now from the exe. The byte values are not an OR (direction codes, minor
     types), so a replacement promises only ≠ 0.
-- **ZQ12 — zones test 33:** a draft `Place` over a cell that already has a network. [no draft, as a real `Place`]
+- ~~**ZQ12 — zones test 33:** a draft `Place` over a cell that already has a network. [no draft, as a real `Place`]~~
+  **ANSWERED 2026-10-14** from the exe (record from the existing network with the draft byte clear 0x00633030; flag OR
+  0x00633250; draft byte on every re-solved cell 0x0062591E/0x00625BFB; draft-mode end lengthening
+  0x006296D0–0x006297A7) and written into zones §8.8 (the `OccupantExists` item) and test 33's stub.
+  - In the original the cell **does** become a draft once the solve succeeds. Its flags are the existing network's OR
+    the tool's (8), and its mask is the existing edges of the tool's type merged with the new ones. An existing
+    network cell next to the draft that the solver includes also gets the draft byte, with its own flags and the edge
+    towards the draft.
+  - A segment draft is also lengthened into a neighbouring earlier draft (and, in both modes, into a real network of
+    its own type).
+  - The bracket differs. The test-33 stub may keep it, because no checked result depends on it: in (e) the original
+    also drafts (12, 9) with an edge towards (12, 10), which only `ExistsConnectionOfType` could see, and no call to
+    it comes after that Place. A replacement network tool must follow §8.8.
 - **LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
   shutdown order? [no: one `release_services` call after the zones shut down; LF3 says the difference cannot be
   observed]
