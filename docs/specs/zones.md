@@ -1133,6 +1133,15 @@ Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x
   - **Lifetime.** The records live in the tool's cell cache (`+0x1C`). Only `Reset` (slot 5, `0x00626F90`) and a
     **real-mode** Place (`0x0062932F`) empty it. A draft Place does not, so drafts accumulate until the next
     `Reset`, which for the street tool is the zone manager's clear (§7.1).
+
+    **When a real-mode Place empties it** (ZQ13). At the **start**, every time: right after the Place sets up its
+    bounds and before any solve, it tests its real-mode flag and empties the cache (`0x00629327`–`0x00629334`,
+    `cSC4NetworkWorldCache::Clear` `0x00647B20`). Nothing before that point can leave the Place early (the code
+    above it only computes bounds), so the cache is emptied **even when the Place then fails**, for example because
+    its solve finds no solution. Worked example: the street tool holds draft cells A and B from two draft Places;
+    a real-mode Place of a street at C whose solve fails removes A's and B's records, and C gets no draft byte
+    (that needs a successful solve), so afterwards `OccupantExists` answers false at A, B and C. No shipped flow depends
+    on this: the zone manager asks the tools only in highlight mode (§8.8).
   - **The draft byte.** A record built from the existing network has it clear (`0x00633030`), so an existing network
     alone never answers true. When a Place's solve succeeds, every cell the solver re-solved gets it
     (`0x0062591E`, `0x00625BFB`). Those are the covered cells and the cells of existing networks around them that

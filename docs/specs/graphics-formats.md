@@ -681,7 +681,7 @@ gives z = table[4 + 5 × 2] = 3, so an RKT1 model uses instance v[2] + `0x300` +
 | `0x27812821` (RKT1) | (v[0], v[1], v[2] + z × `0x100` + r × `0x10`); v[2] = 0 means no model |
 | `0x27812822` (RKT2) | (v[0], v[1], v[2 + 4z + r]): 20 explicit instances |
 | `0x27812823` (RKT3) | (v[0], v[1], v[2 + z]): one per zoom |
-| `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function (other callers, GF7) |
+| `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function; read by `GetAllModelInstanceIDs` (below, GF7) |
 
 Nothing is range-checked (FS14). z = table[zoom + 5 × detail] indexes the 15-entry table directly: zoom 5 at
 detail 0 reads the detail-1 row, and an index past 14 reads the pointers stored after the table. The value count is
@@ -694,6 +694,62 @@ RKT0 ignore zoom and detail *[choice]*.
 Shipped S3D instances follow the RKT1 pattern: of 2,761 instance bases (instance with the low 12 bits cleared),
 1,957 hold exactly the 20 variants zoom 0–4 (bits 8–11) × rotation 0–3 (bits 4–7); the low 4 bits are 0 in 42,388
 of 42,915 models.
+
+**All the models of an occupant: RKT4 and RKT5** (GF7). The model maker loads an occupant's models with
+`cSC4ModelMakerUtility::GetAllModelInstanceIDs` (`0x00496C90`), not with the function above. Its occupant form
+(`0x00497120`) passes the occupant's property holder, a flag f = the occupant's flag `0x80` (`IsFlagSet`, slot 32),
+and a state s from `GetOccupantOrientationAndState` (`0x00496670`). `cSC4NetworkLotManager::CreateProp` sets flag
+`0x80` on some props (`0x0060D00B`–`0x0060D014`) *[condition not traced]*. It also takes the zoom, the three
+rotation arguments above and out pointers for T and G, and fills a list of instances and, if asked, a list of
+offsets (three floats per instance):
+
+1. Both lists are emptied.
+2. If the holder has property `0x0ABFC024` and its bit number *zoom* is clear, it returns with both lists empty
+   (`0x00496D06`–`0x00496D25`). Shipped in 1,009 records, e.g. billboards `0x1E` (zooms 1–4) and signs `0x18`
+   (zooms 3–4).
+3. With b = `0x27812820`, or `0x27812920` when f is set, it takes the **first** of b + 0 … b + 5 that the holder
+   has, in that order, and reads no other:
+   - b + 0 … b + 3 (RKT0–RKT3): one instance, as in the table above; offset (0, 0, 0).
+   - b + 5 (RKT5): the RKT1 rule on its values (T, G, base), plus s × `0x10000` (`0x004970BC`–`0x004970CB`);
+     offset (0, 0, 0). A base of 0 gives 0 from the RKT1 rule, then s × `0x10000`.
+   - b + 4 (RKT4): a list of records, below. Every record whose selector equals s adds one instance and one
+     offset.
+
+**RKT4 records.** Each record is a header of five values (selector, x, y, z, kind) followed by the values of an
+RKT0–RKT3 key of that kind, read with that kind's rule at that position. The kind sets the record's length
+(`0x00496F87`–`0x00496FC2`): 3 values after the header for RKT0 and RKT1 (T, G, instance or base); **30** for RKT2
+(T, G and 28 instances, of which the rule uses the first 20); **5** for RKT3 (T, G and 3 instances, although the
+rule reads v[2 + z] up to z = 4, two values into the next record *[quirk]*). The walk:
+
+- needs more than four values, and starts a record only while at least five values are left (`0x0049706B`);
+- **stops** at a kind that is not RKT0–RKT3, or at a record that runs past the end. Records before it are kept;
+- for each record with selector = s, appends the instance even when it is 0 and writes T and G (the last match
+  wins). If offsets are asked for, it appends x, y and z as **signed 16.16 fixed point**, each × 1/65536
+  (`0x00497019`–`0x00497046`, constant `0x00A8CF40`).
+
+Worked examples:
+
+- `Street2x6x2_$$$LuxerySedan2_1D71` has RKT4 = (0, 0, 0, 0, RKT1, `0x5AD0E817`, `0xBADB57F1`, `0x1D710000`,
+  1, 0, 0, 0, RKT0, `0x5AD0E817`, `0xBADB57F1`, 0). At zoom index 4, detail 0 and r = 2, state 0 gives the
+  one instance `0x1D710420` (`0x1D710000` + 4 × `0x100` + 2 × `0x10`) at offset (0, 0, 0). State 1 gives the one
+  instance 0, no model.
+- `Streetlight1x1x11_$$$StreetlightBanner1_2A5A` with f set reads `0x27812924`. State 1 gives three instances:
+  the RKT1 instance from base `0x2B290000` at (0, 0, 0), and `0x29DA0000` twice, at (−1.5999908, 7.5, 0)
+  (x = `0xFFFE6667`) and (1.5999908, 7.5, 0). State 0 gives one RKT1 instance from the same base.
+
+Shipped (main `.dat` files):
+
+- RKT4 is on 618 props (exemplar type 30), and `0x27812924` on 19.
+- Their records use RKT0 943 times, RKT1 382 times and RKT2 once (`Streetlight_GoldenGate_69AE0000`, 28
+  instances). Selectors are 0–3, and 48 records have a non-zero offset.
+- In four streetlight props (`0x2CB00000`, `0x2C560000`, `0x69AD0000`, `0x2CC10000`), `0x27812924` holds a stray
+  value `0x54000` in its second record header. So with f set the walk stops after the first record: state 1 gives
+  one instance and state 0 none.
+- RKT5 is on 5 flora exemplars (type 15), e.g. `LotFlora5x5x10_Pines2_1690` = (`0x5AD0E817`, `0xBADB57F1`,
+  `0x16900000`). `0x27812920` is on 6 props and `0x27812921` on 11.
+
+`IsStaticBuilding` (`0x00583B10`) only tests that the holder has RKT1, RKT0, RKT2, RKT3 or RKT4 (in that order); it
+reads no layout and ignores RKT5 and the f keys.
 
 ---
 
@@ -970,6 +1026,8 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 6. GF6: byte order of the vertex colour element.
    **Answered** (§3.5): bytes B, G, R, A, copied unchanged into the Direct3D diffuse colour.
 7. GF7: RKT4/RKT5 layouts.
+   **Answered** (§4.2): RKT4 is a list of (selector, x, y, z in 16.16, kind, RKT0–RKT3 values) records, RKT5 is
+   RKT1 plus state × `0x10000`; both read by `GetAllModelInstanceIDs`.
 8. GF8: where the detail global `0x00B216FC` is set.
    **Answered** (§4.2): `kModelLODOffset` clamped to 0–2, set by the Texture Quality option.
 9. GF9: unpadded DXT1 mips: reproduce or fix.
