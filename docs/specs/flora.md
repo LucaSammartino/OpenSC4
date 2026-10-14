@@ -382,6 +382,19 @@ radius does not block. An unordered compare (NaN) counts as overlapping on that 
 monorail, one-way road, dirt road, ground highway; not pipes, power lines or subway *[inferred from the SDK
 enum]*). Everything else does not block flora.
 
+*[compat]* **The filter object and how the query uses it** (verified, FQ4). `Init` builds it on the game heap
+(12 bytes, two vtables); the simulator holds the `cISC4OccupantFilter` part, vtable `0x00AB1374`: slots 0–2
+QI / AddRef / Release, **slot 3 `+0x0C` `bool IsOccupantIncluded(cISC4Occupant*)`** = the test above
+(`0x006AFD10`, 4 bytes popped, AL), slots 4 and 5 `+0x10` / `+0x14` take one argument and return true
+(`0x004FC900`). For a network occupant the test asks the occupant for `cISC4NetworkOccupant` (IID `0xA821EF94`);
+if it does not answer, the occupant does not block; the interface is released after `GetNetworkFlag()`. The
+box query (occupant manager slot 36) calls **only slot 3**, once per candidate occupant, before its box test.
+The typed query (slot 37, `0x0049DD40`) is slot 36 with the manager's own one-type filter (type 0 = no
+filter; an uninitialized manager returns false). So one typed query per accepted type (flora, building,
+landfill, prop) plus a network query keeping flag & `0x1F4F` ≠ 0 returns **the same occupants**, grouped by type
+instead of in the manager's cell order. `LocationIsOKForNewFlora` does not depend on the order: it fails if any
+of them overlaps, and every reference is released either way.
+
 ### 6.5 Planting (`AddNewFloraOccupant(type, pos, force)` → occupant or null)
 
 `pos` is a caller-owned float[3] **that the function rewrites** *[quirk]*.

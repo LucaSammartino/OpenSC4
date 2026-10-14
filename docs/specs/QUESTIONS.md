@@ -1154,9 +1154,13 @@ part of §8 is not compared). The glue's current answer is in brackets.
   slots 8/9 open/close a write stream, 5/6 a read stream; stream slots 7, 9, 18 = u16, u32, GetError.
   *Correction to §10.3:* each record starts with a u16 version 0 (count record: `u16 0, u32 count`; occupant
   record: `u16 0` then the occupant's own version-3 record); the reader ignores the u16.
-- **FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
+- ~~**FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
   typed box query (slot 37) for flora, building, landfill and prop, then for networks keeping those with
-  `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]
+  `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]~~ **ANSWERED 2026-10-14** from the exe (filter
+  vtable `0x00AB1374`, slot 3 `0x006AFD10`; box query `0x004A0670`; typed query `0x0049DD40`) and written into
+  flora.md §6.4.1. **Same set; only the order differs, and nothing observes it.** Slot 37 is slot 36 with the
+  manager's one-type filter; slot 36 calls only the filter's slot 3 `bool IsOccupantIncluded(cISC4Occupant*)`
+  (pop 4, AL). A network occupant that does not answer `cISC4NetworkOccupant` does not block.
 - **FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]
 - **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
   [closed]
