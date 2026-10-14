@@ -490,6 +490,32 @@ With a garbage key the lookup of step 2 almost always misses, so the load fails 
 `0xAA12FCB0`. *[choice]* FreeCity4 treats a value with fewer than 3 elements, or a scalar, as a missing property:
 no lookup, the load fails. That gives the original's usual outcome without reading past the data.
 
+**Other value types** *[compat]* (QUESTIONS CQ23, `0x005FD5B0`). The same raw copy applies to an array of any other
+type. The data block holds the elements back to back at their own width (data-formats §5.2), and the reader takes its
+first 12 bytes as three little-endian `u32`: bytes 0–3 are value [0] (ignored), bytes 4–7 are `G` and bytes 8–11 are
+`I`. No value is converted.
+
+| `0x8A416B2E` holds | Needs at least | `G` | `I` |
+|---|---|---|---|
+| an 8-bit array (u8, s8, bool, void) or a string (tag `0x800C`, its UTF-8 bytes) | 12 bytes | bytes 4–7 | bytes 8–11 |
+| a 16-bit array (u16, s16) | 6 elements | `e[2] + (e[3] << 16)` | `e[4] + (e[5] << 16)` |
+| a 32-bit array (u32, s32, f32) | 3 elements | the bits of `e[1]` | the bits of `e[2]` |
+| a 64-bit array (u64, s64, f64) | 2 elements | the high half of `e[0]` | the low half of `e[1]` |
+| fewer than 12 data bytes | — | partly or wholly from past the block, as in the CQ17 table | |
+
+So a u8 array [a, b, c] holds 3 data bytes, and `G` and `I` both come from past the block (heap garbage), as for a
+one-value `u32` array. Worked examples:
+- the Generic type's key stored as the u16 array `[0x960B, 0x2026, 0x4AE0, 0x0A55, 0xA698, 0xEA5E]` (the same 12
+  bytes) gives `G` = `0x0A554AE0` and `I` = `0xEA5EA698`, the shipped key;
+- the f32 array `[0, 1.0, 2.0]` gives `G` = `0x3F800000` and `I` = `0x40000000`;
+- the string `"ABCDEFGHIJKL"` gives `G` = `0x48474645` ("EFGH") and `I` = `0x4C4B4A49` ("IJKL").
+
+The icon key `0xAA12FCB1` is read by the same function (call at `0x006A0D41`), so the table applies to it as well,
+with bytes 0–3 as its type. *[choice]* (recommended) FreeCity4 reinterprets the first 12 data bytes, as the original
+does, whenever the value holds at least 12 bytes, and treats a shorter value or a scalar as missing (the CQ17 choice
+above, which this extends). Converting element by element differs from the original for every type but `u32`. No
+shipped exemplar stores either key as anything but `u32` ×3, so neither choice is observable on shipped data.
+
 **The language ID** (QUESTIONS CQ18; `0x00603063`–`0x0060306C`). Step 2 asks `RZ::LM()` (`0x00913D7A`) for the
 language manager and calls its slot 7 for the ID. `RZ::LM()` fetches the framework system service `0x441E5070` once
 and caches the pointer. Neither function tests for null, so without a language manager the original calls through a

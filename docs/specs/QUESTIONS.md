@@ -2746,9 +2746,16 @@ CQ16–CQ22, the crime errata, TN21–TN25 and HG1 are applied (CQ16 and TN21 ch
 moved to `rng.rs`). Not done: the development simulator's own clock seed still XORs by itself (the development glue
 lane owns those files); TN22/TN24 have unit tests but no vectors. The current answer is in brackets.
 
-- **CQ23:** CQ17 follow-up: what does a name key `0x8A416B2E` stored as a non-u32 array of 3 or more elements give?
+- ~~**CQ23:** CQ17 follow-up: what does a name key `0x8A416B2E` stored as a non-u32 array of 3 or more elements give?
   The original copies 12 raw bytes. [FreeCity4 converts the values to numbers, so a u8 array [a, b, c] gives G = b, I
-  = c; a string counts as missing]
+  = c; a string counts as missing]~~
+  **ANSWERED 2026-10-14** from the exe (`cSCPropertyHelp::GetPropertyValue` `0x005FD5B0`, called at `0x0060323E` for the
+  name key and `0x006A0D41` for the icon key) and written into crime.md ("Other value types", after the CQ17 table). The
+  original never converts: it takes the first 12 bytes of the array's data as three little-endian `u32`, so with at
+  least 12 data bytes `G` = bytes 4–7 and `I` = bytes 8–11 (a u16 array gives `e[2] + (e[3] << 16)` and
+  `e[4] + (e[5] << 16)`, a 32-bit array the bits of `e[1]` and `e[2]`, a string its bytes). A u8 array [a, b, c] has 3
+  bytes, so both come from past the block. The bracket differs. *[choice]* (recommended): reinterpret when there are at
+  least 12 bytes, otherwise treat the key as missing. Not observable on shipped data.
 - **CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
   [FreeCity4 reads it from the same cached load as the other properties; the two differ only if the cached copy was
   changed in memory]
