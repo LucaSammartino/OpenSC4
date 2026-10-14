@@ -2334,3 +2334,32 @@ lane owns those files); TN22/TN24 have unit tests but no vectors. The current an
 - **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
   tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
   sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
+
+## From applying the residential, budget, demand, land value and flammability answers (filed by the coordinator from the `apply7a` lane's report, 2026-10-14)
+
+RG23 (+RG17), BQ3, DQ10–DQ12, LV1–LV4 and FL1–FL6 are applied: the proximity seed writes only `z = 0`; the budget
+total is a float32 running sum in master-list lot order; the land value shadow orders developers by pointer and
+snapshots maps while slot 10 is true; the flammability shadow polls the plumbing watered grid. The current answer is
+in brackets.
+
+- **RG24:** RG23: what does the proximity seed do when there is no building map? [writes FAR to `(x, 0)` only and
+  keeps every other cell; a choice]
+- **BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
+  at `0x00809580`, and frees each with allocator B, instead of calling `0x00809580`. [an equivalent unlink; the block
+  is leaked, not freed, if no node is found]
+- **BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]
+- **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
+  `GetLotsInCellRect` fallback]
+- **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]
+- **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
+  the old size is now refused by the `struct_size` check. [no bump; refused]
+- **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
+  is no second candidate in that window. [no snapshot]
+- **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
+  pass swaps its grid (end of state 6). Two passes between polls would bring the pointer back unseen. [assumed; polled
+  at every forwarded message and at the cycle end]
+- **FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
+  are accepted by the existing previous-value rule, at most 2 × tractsPerDay "unvisited"; marks are not carried into
+  the next cycle]
+- **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
+  does today. [pointer detection only]
