@@ -2941,8 +2941,13 @@ variant (GF3). The current answer is in brackets.
   tested) and written into graphics-formats §4.1. The slot is left with no binding and its ID set to 0, so it is never
   retried and draws without a texture *[inferred]*. The bracket (the fallback key returned anyway) differs. Resolve the
   slot to no texture *[choice]*.
-- **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
-  (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
+- ~~**FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
+  (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]~~
+  **ANSWERED 2026-10-14** from the exe (`GetModelInstanceID` `0x00496830`–`0x00496937`, table `0x00B094A4`, RKT2
+  index `0x005F8AB0` = 4z + r) and written into graphics-formats §4.2. The original checks nothing. A large zoom reads
+  the next table row or the pointers after the table. Too few values read past the array. r is a signed remainder, so it
+  is −3 to 3. Detail is clamped when it is set. The bracket (no model) stands for zoom and value count. Clamp the detail
+  to 0–2 and take the rotation mod 4 rather than refusing *[choice]*. RKT0 and the RKT1 wrap match.
 
 ## From applying the traffic simulator answers (filed by the coordinator from the `apply6a` lane's report, 2026-10-14)
 

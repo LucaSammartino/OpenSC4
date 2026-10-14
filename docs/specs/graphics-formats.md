@@ -670,6 +670,14 @@ gives z = table[4 + 5 × 2] = 3, so an RKT1 model uses instance v[2] + `0x300` +
 | `0x27812823` (RKT3) | (v[0], v[1], v[2 + z]): one per zoom |
 | `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function (other callers, GF7) |
 
+Nothing is range-checked (FS14). z = table[zoom + 5 × detail] indexes the 15-entry table directly: zoom 5 at
+detail 0 reads the detail-1 row, and an index past 14 reads the pointers stored after the table. The value count is
+never checked, so too few values read past the property's array. r is (3a + b) mod 4 with C's signed remainder, so
+a negative argument gives −1 to −3 (RKT1 then subtracts from the base, RKT2 indexes before its 20 instances).
+Detail cannot exceed 2, since it is clamped when set (above). The RKT1 sum is 32-bit and wraps. FreeCity4 returns no
+model for a zoom above 4 or too few values, clamps the detail to 0–2, takes the rotation mod 4 into 0–3, and lets
+RKT0 ignore zoom and detail *[choice]*.
+
 Shipped S3D instances follow the RKT1 pattern: of 2,761 instance bases (instance with the low 12 bits cleared),
 1,957 hold exactly the 20 variants zoom 0–4 (bits 8–11) × rotation 0–3 (bits 4–7); the low 4 bits are 0 in 42,388
 of 42,915 models.
