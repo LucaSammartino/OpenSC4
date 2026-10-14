@@ -4169,3 +4169,231 @@ cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	7	+0x1C	005d1e30	PutUint
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	9	+0x24	005d1eb0	PutUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
 cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	3	+0xC	00458e60	SetDefaultExemplar	4	1	eax-or-void	medium	re-answers5 LG3: new row; no defined result
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	0	+0x0	009daf24	cGZWinMgrBase::QueryInterface	8	2	eax-or-void	medium	tail->0091dd67; re-modal: framework service 0xA417445E, IID 0x5A4
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	1	+0x4	0093056f	cGZWinMgrBase::AddRef	0	0	eax-or-void	medium	tail->009297a0
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	2	+0x8	00930577	cGZWinMgrBase::Release	0	0	eax-or-void	medium	tail->0091dd89
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	3	+0xC	009db37a	icf::cFreshCellPlayer::Get3DPosX	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	4	+0x10	009dab04		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	5	+0x14	009db37e		8	2	eax-or-void	medium	indirect-jump dword ptr [eax]
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	6	+0x18	009db9e3		0	0	via-call	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	7	+0x1C	009dc225		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	8	+0x20	009dbd68		0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	9	+0x24	009da90e	cGZWinMgrW32::GZWinMsgPost	12	3	eax-or-void	medium	re-modal: GZWinMsgPost(type, data1, data2) -> bool in AL only; type 0xF = end a modal loop (Win32 0x700 posted to the canvas window, wParam = window, lParam = result)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	10	+0x28	009daf53		16	4	via-call	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	11	+0x2C	009daf79				forward	medium	indirect-jump dword ptr [eax + 0x24]
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	12	+0x30	009db38e		20	5	eax-or-void	medium	re-modal: SendMessageToTarget(cIGZWin*, type, d1, d2, d3) -> bool in AL only; IsWindowValid, then the window's DoMessage synchronously. The SDK's (cIGZWin*, uint32 x4) overload lands here (MSVC overload order)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	13	+0x34	009daf7e		8	2	eax-or-void	medium	re-modal: SendMessageToTarget(cIGZWin*, cGZMessage&), 2 arguments. SDK WRONG: it declares SendMessageToTarget(cGZMessage&) with one argument (pops 4, the game pops 8)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	14	+0x38	009dc286		20	5	via-call	low	re-modal: PostMessageToTarget(cIGZWin*, type, d1, d2, d3): queued under the manager's lock, delivered by slot 16 from the manager's OnTick after IsWindowValid. EAX = the lock release's result, not a status
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	15	+0x3C	009dc24e		8	2	via-call	low	re-modal: PostMessageToTarget(cIGZWin*, cGZMessage const&): the path a button press takes (cIGZWin slot 147)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	16	+0x40	009dc2d1		0	0	via-call	low	re-modal: ProcessPostedMessages(), run by the manager's OnTick
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	17	+0x44	009db3ce		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	18	+0x48	009db553		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	19	+0x4C	009da98d		0	0	eax-or-void	medium	indirect-jump dword ptr [edx + 0x48]
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	20	+0x50	009dc586		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	21	+0x54	009dc451		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	22	+0x58	009db8a4		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	23	+0x5C	009dc4ac		4	1	eax-or-void	medium	re-modal: DestroyWindow(cIGZWin*): deferred to the condemned list while the busy count (slots 59/60) > 0, else slot 56 at once
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	24	+0x60	009dc087		4	1	eax-or-void	medium	re-modal: IsWindowValid(cIGZWin*) -> bool in AL only (upper EAX is garbage); looks the pointer value up in the manager's window set (+0x44) without dereferencing it, so it is safe on a stale pointer
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	25	+0x64	009db957		8	2	eax-or-void	medium	indirect-jump dword ptr [eax + 0x9c]
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	26	+0x68	009db756		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	27	+0x6C	009da848		0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	28	+0x70	009db663	icf::cFreshPlayer::SetZPos	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	29	+0x74	009db667		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	30	+0x78	009db6f3		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	31	+0x7C	009da82a	cGZWinMgrW32::GZShowCursor	4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	32	+0x80	00993797	cGZWinIMEComposition::GetTextGutterY	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	33	+0x84	009db006		8	2	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	34	+0x88	009dafe0		12	3	via-call	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	35	+0x8C	009da9a4		8	2	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	36	+0x90	009db800	icf::cFreshPlayer::GetZoom	0	0	eax-or-void	medium	re-modal: GZGetFocus() -> cIGZWin* (may be null)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	37	+0x94	009db804		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	38	+0x98	009db021		0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	39	+0x9C	009dc3e1		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	40	+0xA0	009dbbb9		4	1	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	41	+0xA4	009dbda3	cGZWinMgrBase::DoModalWin	4	1	eax-or-void	medium	re-modal: DoModalWin(cIGZWin*) -> uint32: the result passed to EndModal; 0x80000000 = not run; 0x80000001 = WM_QUIT seen
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	42	+0xA8	009db025		0	0	eax-or-void	medium	re-modal: IsModal() -> 0/1 in EAX (modal nest count != 0)
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	43	+0xAC	009db031		0	0	eax-or-void	medium	re-modal: GetModalNestCount() -> int32, the number of running modal loops
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	44	+0xB0	009db04a	cGZWinMgrBase::GZMsgBox	20	5	eax-or-void	medium	re-modal: GZMsgBox(...): runs a cGZWinMsgBox through slot 41; returns the pressed button ID
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	45	+0xB4	009378bc	icf::cGZDBSegmentDirectoryFiles::DoWriteRecord	12	3	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	46	+0xB8	009378bc	icf::cGZDBSegmentDirectoryFiles::DoWriteRecord	12	3	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	47	+0xBC	0094a5ea	icf::cGZApp::GZRun	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	48	+0xC0	00949b73	icf::cGZGraph::SetGraphAreaOutlineAndFill	4	1	unknown	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	49	+0xC4	0094a5ea	icf::cGZApp::GZRun	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	50	+0xC8	00949b73	icf::cGZGraph::SetGraphAreaOutlineAndFill	4	1	unknown	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	51	+0xCC	0094a5ea	icf::cGZApp::GZRun	0	0	eax-or-void	medium	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	52	+0xD0	00949b73	icf::cGZGraph::SetGraphAreaOutlineAndFill	4	1	unknown	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	53	+0xD4	00a6d837	std::_Rb_tree_increment	0	0	unknown	low	
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	54	+0xD8	009db038		8	2	via-call	low	re-modal: EndModal(cIGZWin*, uint32 result) -> bool in AL only; = slot 9 GZWinMsgPost(0xF, win, result). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	55	+0xDC	009dc47b		0	0	eax-or-void	medium	re-modal: InvalidateAllWindows(). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	56	+0xE0	009db0fd		4	1	eax-or-void	medium	re-modal: DestroyWindowAbsolute(cIGZWin*). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	57	+0xE4	009dba4f		0	0	eax-or-void	medium	re-modal: DestroyCondemnedWindows(). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	58	+0xE8	009dbaa4		4	1	eax-or-void	medium	re-modal: IsWindowOrParentInCondemnedList(cIGZWin*) -> bool. Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	59	+0xEC	009db163		0	0	eax-or-void	medium	re-modal: IncrementBusyCount() -> new count. Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	60	+0xF0	009db16e		0	0	eax-or-void	medium	re-modal: DecrementBusyCount(). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	61	+0xF4	009dba20		4	1	eax-or-void	medium	re-modal: RunKeyFilters(cGZMessage&). Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	62	+0xF8	009dc56d		8	2	eax-or-void	medium	re-modal: AddDeferredEndModal(cIGZWin*, uint32 result): an end for a window that is not the innermost modal, replayed when the inner loop ends. Not in the SDK
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	63	+0xFC	009da84f		16	4	eax-or-void	medium	re-modal: ModalMessageLoop(cIGZWin*, cIGZFrameWork*, uint32 defaultResult, uint32 quitResult) -> uint32 (cGZWinMgrW32 only). Not in the SDK
+cIGZWin	cGZWinGen	00adc678	0	+0x0	00998f83	cGZWinGen::QueryInterface	8	2	eax-or-void	medium	tail->0099b774; re-modal: IID 0x22BA0121; the class of script-built dialogs (cIGZWinGen 0x5386D516 slot 3 AsIGZWin returns this interface)
+cIGZWin	cGZWinGen	00adc678	1	+0x4	008fb729	icf::cGZBarGraph::AddRef	0	0	eax-or-void	medium	tail->0094c47c
+cIGZWin	cGZWinGen	00adc678	2	+0x8	008fb72e	icf::cGZBarGraph::Release	0	0	eax-or-void	medium	tail->0099b7a3
+cIGZWin	cGZWinGen	00adc678	3	+0xC	0099a276	cGZWinGen::DoMessage	4	1	eax-or-void	medium	re-modal: DoMessage(cGZMessage&) -> bool: non-input messages go to the win proc (DoWinProcMessage, then DoWinMsg), then to cGZWin::DoMessage (type 3 -> slot 143)
+cIGZWin	cGZWinGen	00adc678	4	+0x10	0099afa8	cGZWinGen::Init	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	5	+0x14	0099a804	cGZWinGen::Shutdown	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	6	+0x18	009d7e63	cRZString::ToChar	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	7	+0x1C	0099ca0b	cGZWin::SetWindowManager	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	8	+0x20	009c32ac	icf::cGZApp::ModuleName	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	9	+0x24	0099bf01	cGZWin::SetKeyboard	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	10	+0x28	0099be2a	cGZWin::GetMainWindow			forward	medium	indirect-jump dword ptr [eax + 0xc]
+cIGZWin	cGZWinGen	00adc678	11	+0x2C	0099b7ee	icf::cFreshCellPlayer::Get3DPosZ	0	0	eax-or-void	medium	re-modal: GetParentWin() -> cIGZWin*
+cIGZWin	cGZWinGen	00adc678	12	+0x30	0099b7f2	cGZWin::SetParentWin	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	13	+0x34	0099ddb3	cGZWin::GetChildCount	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	14	+0x38	0099ea66	cGZWin::ChildAdd	4	1	eax-or-void	medium	tail->0099e207
+cIGZWin	cGZWinGen	00adc678	15	+0x3C	0099ea6b	cGZWin::ChildRemove	4	1	eax-or-void	medium	tail->0099e2bd
+cIGZWin	cGZWinGen	00adc678	16	+0x40	0099b833	cGZWin::ChildDelete			forward	medium	indirect-jump dword ptr [eax + 0x5c]
+cIGZWin	cGZWinGen	00adc678	17	+0x44	0099e344	cGZWin::ChildDeleteAbsolute	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	18	+0x48	0099dd6f	cGZWin::ChildDeleteAll	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	19	+0x4C	0099de2a	cGZWin::ChildExists	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	20	+0x50	0099ddd5	cGZWin::ChildExists	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	21	+0x54	0099b929	cGZWin::IsWinInParentChain	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	22	+0x58	0099e03e	cGZWin::IsWinInChildChain	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	23	+0x5C	0099b856	cGZWin::PullToFront	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	24	+0x60	0099b86b	cGZWin::SendToBack	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	25	+0x64	0099b83b	cGZWin::ChildToFront	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	26	+0x68	0099e3a8	cGZWin::ChildToFront	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	27	+0x6C	0099e457	cGZWin::ChildToBack	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	28	+0x70	0099e4b7	cGZWin::ChildStepFront	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	29	+0x74	0099e525	cGZWin::ChildStepBack	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	30	+0x78	0099b880	cGZWin::MoveRelativeTo	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	31	+0x7C	0099e594	cGZWin::ChildMoveRelative	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	32	+0x80	0099d708	cGZWin::EnumChildren	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	33	+0x84	0099e0d6	cGZWin::SortChildren	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	34	+0x88	0099de74	cGZWin::GetChildWindowFromID	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	35	+0x8C	0099dec4	cGZWin::GetChildWindowFromIDRecursive	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	36	+0x90	0099b8ab	cGZWin::GetChildAs	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	37	+0x94	0099b8d0	cGZWin::GetChildAsRecursive	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	38	+0x98	0099be3a	cGZWin::GetWindowFromPoint			forward	medium	indirect-jump dword ptr [eax + 0x64]
+cIGZWin	cGZWinGen	00adc678	39	+0x9C	0099df28	cGZWin::GetChildWindowFromPoint	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	40	+0xA0	0099dfa9	cGZWin::GetChildWindowFromCursorPoint	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	41	+0xA4	0099c81b	cGZWin::GetW	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	42	+0xA8	0099c82a	cGZWin::GetH	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	43	+0xAC	0099bc53	icf::cGZWin::GetL	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	44	+0xB0	00994ee4	icf::cGZWin::GetT	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	45	+0xB4	0099bc5a	cGZWin::GetR	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	46	+0xB8	0099bc61	cGZWin::GetB	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	47	+0xBC	0099bcec	cGZWin::GetArea	4	1	unknown	low	
+cIGZWin	cGZWinGen	00adc678	48	+0xC0	0099bce1	cGZWin::GetArea	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	49	+0xC4	0099bd01	cGZWin::GetAreaAbsolute	4	1	unknown	low	
+cIGZWin	cGZWinGen	00adc678	50	+0xC8	0099bce8	cGZWin::GetAreaAbsolute	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	51	+0xCC	0099bc68	cGZWin::SetW	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	52	+0xD0	0099bc8f	cGZWin::SetH	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	53	+0xD4	0099bcb6	cGZWin::SetSize	8	2	via-call	low	
+cIGZWin	cGZWinGen	00adc678	54	+0xD8	009d7d97	cGZWin::SetArea	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	55	+0xDC	0099a0af	cGZWinGen::SetArea	16	4	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	56	+0xE0	0099c8c5	cGZWin::GZWinMoveTo	8	2	via-call	low	
+cIGZWin	cGZWinGen	00adc678	57	+0xE4	0099bd27	cGZWin::GZWinOffset	8	2	via-call	low	
+cIGZWin	cGZWinGen	00adc678	58	+0xE8	0099c3df	cGZWin::FitRectToWindow	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	59	+0xEC	0099bd73	cGZWin::ScreenToWindowCoordinates	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	60	+0xF0	0099bd5e	cGZWin::WindowToScreenCoordinates	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	61	+0xF4	0099b8f5	cGZWin::WindowToWindowCoordinates	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	62	+0xF8	00998fd7	cGZWinGen::IsPointInWindowScreenCoordinates	8	2	via-call	low	
+cIGZWin	cGZWinGen	00adc678	63	+0xFC	0099be66	cGZWin::GetID	0	0	eax-or-void	medium	re-modal: GetID() -> uint32
+cIGZWin	cGZWinGen	00adc678	64	+0x100	0099be5c	cGZWin::SetID	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	65	+0x104	0099be79	cGZWin::GetInstanceID	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	66	+0x108	0099be6a	cGZWin::SetInstanceID	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	67	+0x10C	0099bdbb	cGZWin::GetFlag	4	1	eax-or-void	medium	re-modal: GetFlag(uint32 mask) -> (flags & mask) != 0 in EAX; 0x1000 = running as a modal window
+cIGZWin	cGZWinGen	00adc678	68	+0x110	0099db6b	cGZWin::SetFlag	8	2	eax-or-void	medium	re-modal: SetFlag(uint32 mask, bool)
+cIGZWin	cGZWinGen	00adc678	69	+0x114	0099d1aa	cGZWin::ShowWindow	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	70	+0x118	0099d1ea	cGZWin::HideWindow	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	71	+0x11C	0099bdce	cGZWin::IsVisible	0	0	via-call	low	
+cIGZWin	cGZWinGen	00adc678	72	+0x120	0099bdd9	cGZWin::IsEnabled	0	0	via-call	low	
+cIGZWin	cGZWinGen	00adc678	73	+0x124	0099be50	cGZWin::GetCaption	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	74	+0x128	00998fb0	cGZWinGen::SetCaption	4	1	eax-or-void	medium	indirect-jump dword ptr [edx + 0x128]
+cIGZWin	cGZWinGen	00adc678	75	+0x12C	0099b951	icf::cGZWin::GetKeyboardAccelerator	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	76	+0x130	0099b955	cGZWin::SetKeyboardAccelerator	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	77	+0x134	0099b980	cGZWin::AccelerateKeyboardMsg	4	1	eax-or-void	medium	indirect-jump dword ptr [eax + 0x38]
+cIGZWin	cGZWinGen	00adc678	78	+0x138	0099be80	cGZWin::GetKeyEquivalent	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	79	+0x13C	0099be87	cGZWin::SetKeyEquivalent	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	80	+0x140	0099be94	cGZWin::CheckKeyEquivalent	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	81	+0x144	0099beb6	cGZWin::MakeKeyEquivalent	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	82	+0x148	0099d5f0	cGZWin::IsChildKeyEquivalent	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	83	+0x14C	0099d40b	cGZWin::ProcessCursorMessage	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	84	+0x150	0099c468	cGZWin::UpdateCursor	0	0	via-call	low	
+cIGZWin	cGZWinGen	00adc678	85	+0x154	00999b56	cGZWinGen::SetCursor	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	86	+0x158	0099be42	cGZWin::SetNotificationTarget	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	87	+0x15C	0099be4c	icf::cGZFont::GetAntialiasing	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	88	+0x160	009995e7	cGZWinGen::GZPaint	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	89	+0x164	0099ba07	cGZWin::Plot	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	90	+0x168	0099dce4	cGZWin::CalcAbsoluteArea	0	0	unknown	low	
+cIGZWin	cGZWinGen	00adc678	91	+0x16C	0099becc	cGZWin::InvalidateSelf	0	0	unknown	low	
+cIGZWin	cGZWinGen	00adc678	92	+0x170	0099bed1	cGZWin::InvalidateSelfAndParents	0	0	via-call	low	tail->0099b7bd
+cIGZWin	cGZWinGen	00adc678	93	+0x174	0099bef9	cGZWin::GetDrawContext	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	94	+0x178	0099befd	cGZWin::GetBufferToDrawTo	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	95	+0x17C	0099c6f8	cGZWin::SetBufferToDrawTo	0	0	via-call	low	
+cIGZWin	cGZWinGen	00adc678	96	+0x180	0099d57e	cGZWin::SetBufferToDrawToRecursive	0	0	unknown	low	
+cIGZWin	cGZWinGen	00adc678	97	+0x184	0099cf6a	cGZWin::SetAreaToDrawTo	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	98	+0x188	0099d5b7	cGZWin::SetAreaToDrawToRecursive	0	0	unknown	low	
+cIGZWin	cGZWinGen	00adc678	99	+0x18C	00477810	icf::cGZWin::GetAreaToDrawTo	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	100	+0x190	0099ea70	cGZWin::PrivateBuffer	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	101	+0x194	009d419d	cGZWin::GetPrivateBuffer	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	102	+0x198	0099ca1e	icf::cGZWin::GetFillColor	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	103	+0x19C	0099bf7a	icf::cGZWin::SetFillColor	0	0	via-call	low	
+cIGZWin	cGZWinGen	00adc678	104	+0x1A0	0099bfc9	cGZWin::GetFillColor	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	105	+0x1A4	0099bf5e	cGZWin::SetFillColor	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	106	+0x1A8	0099bf1f	cGZWin::SetFillColor	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	107	+0x1AC	0099bfac	cGZWin::SetFillColor	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	108	+0x1B0	0099badc	cGZWin::MakeFillColor	12	3	eax-or-void	medium	indirect-jump dword ptr [eax + 0x78]/dword ptr [edx + 0x88]
+cIGZWin	cGZWinGen	00adc678	109	+0x1B4	0099c25f	cGZWin::SetFadeEffectPeriod	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	110	+0x1B8	0099c276	cGZWin::GetFadeEffectPeriod	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	111	+0x1BC	0099ca91	cGZWin::SetShadeColor	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	112	+0x1C0	0099ca9e	cGZWin::GetShadeColor	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	113	+0x1C4	0099d388	cGZWin::GetParam	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	114	+0x1C8	0099d7c8	cGZWin::SetParam	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	115	+0x1CC	0099d252	cGZWin::EnumParams	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	116	+0x1D0	0099d832	cGZWin::AddMessageFilter	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	117	+0x1D4	0099d865	cGZWin::RemoveMessageFilter	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	118	+0x1D8	0099bd13	cGZWin::SetSize	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	119	+0x1DC	0099c373	cGZWin::CenterWindowInRect	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	120	+0x1E0	0099c303	cGZWin::CenterWindowInRect	4	1	via-call	low	
+cIGZWin	cGZWinGen	00adc678	121	+0x1E4	0099955d	cGZWinGen::IsPointInWindowWindowCoordinates	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	122	+0x1E8	0099c960	cGZWin::IsPointInWindowParentCoordinates	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	123	+0x1EC	0099e62d	cGZWin::PlotComposite	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	124	+0x1F0	0099c498	cGZWin::PlotPresent	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	125	+0x1F4	0099bf6d	cGZWin::SetFillColorRGB	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	126	+0x1F8	0099bfa5	cGZWin::GetFillColorRGB	0	0	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	127	+0x1FC	0099bb08	cGZWin::ConvertPackedRGBToNative	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	128	+0x200	0099bb5a	cGZWin::ConvertNativeToPackedRGB	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	129	+0x204	0093878e	cGZPersistResource::DebugInstanceTag	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	130	+0x208	00999832	cGZWinGen::GZOnKeyDown	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	131	+0x20C	00999004	cGZWinGen::GZOnKeyUp	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	132	+0x210	0099cf49	cGZWin::GZOnSetFocus	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	133	+0x214	0093878e	cGZPersistResource::DebugInstanceTag	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	134	+0x218	0099a361	cGZWinGen::GZOnMouseDownL	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	135	+0x21C	009378bc	icf::cGZDBSegmentDirectoryFiles::DoWriteRecord	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	136	+0x220	00999039	cGZWinGen::GZOnMouseUpL	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	137	+0x224	009378bc	icf::cGZDBSegmentDirectoryFiles::DoWriteRecord	12	3	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	138	+0x228	0099a3a7	cGZWinGen::GZOnMouseMove	12	3	eax-or-void	medium	indirect-jump dword ptr [edi*4 + 0x99a531]/dword ptr [eax*4 + 0x99a555]
+cIGZWin	cGZWinGen	00adc678	139	+0x22C	00938789	cGZWin::GZOnMouseWheel	16	4	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	140	+0x230	0093877e	icf::cGZFileNameToResKeyConverterDefault::KeyToFileName	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	141	+0x234	0093878e	cGZPersistResource::DebugInstanceTag	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	142	+0x238	0093878e	cGZPersistResource::DebugInstanceTag	4	1	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	143	+0x23C	00999896	cGZWinGen::GZOnCommand	8	2	eax-or-void	medium	re-modal: GZOnCommand(uint32 command, uint32 data); command 0x287259F6 = a button was pressed, data = its ID
+cIGZWin	cGZWinGen	00adc678	144	+0x240	0099ca2f	cGZWin::SendMsg	20	5	via-call	low	
+cIGZWin	cGZWinGen	00adc678	145	+0x244	0099bfec	cGZWin::SendMsg	8	2	eax-or-void	medium	
+cIGZWin	cGZWinGen	00adc678	146	+0x248	0099ca60	cGZWin::PostMsg	20	5	via-call	low	re-modal: PostMsg(cIGZWin* target, type, d1, d2, d3) -> slot 147
+cIGZWin	cGZWinGen	00adc678	147	+0x24C	0099c011	cGZWin::PostMsg	8	2	eax-or-void	medium	re-modal: PostMsg(cIGZWin* target, cGZMessage const&) -> window manager slot 15
+cIGZMessageServer	cGZMessageServer	00ad1cd8	0	+0x0	00472f90		8	2	eax-or-void	medium	tail->0092ed0d; re-modal: legacy (cGZMessage) message server: framework service 0x64063387, IID 0xC1085722
+cIGZMessageServer	cGZMessageServer	00ad1cd8	1	+0x4	00472fa0		0	0	eax-or-void	medium	tail->0093784b
+cIGZMessageServer	cGZMessageServer	00ad1cd8	2	+0x8	00472fb0		0	0	eax-or-void	medium	tail->00937850
+cIGZMessageServer	cGZMessageServer	00ad1cd8	3	+0xC	009302ac		4	1	eax-or-void	medium	re-modal: MessageSend(cGZMessage const&): synchronous; calls slot 3 DoMessage of every target subscribed to the type
+cIGZMessageServer	cGZMessageServer	00ad1cd8	4	+0x10	0092ed37		8	2	eax-or-void	medium	
+cIGZMessageServer	cGZMessageServer	00ad1cd8	5	+0x14	00930030		8	2	eax-or-void	medium	re-modal: AddNotification(cIGZMessageTarget*, uint32 type): the pointer is AddRef'd and stored, not QI'd
+cIGZMessageServer	cGZMessageServer	00ad1cd8	6	+0x18	0092fc2e		8	2	eax-or-void	medium	re-modal: RemoveNotification(cIGZMessageTarget*, uint32 type)
+cIGZMessageServer	cGZMessageServer	00ad1cd8	7	+0x1C	00930273		8	2	via-call	low	
+cIGZMessageServer	cGZMessageServer	00ad1cd8	8	+0x20	0092ff6f		4	1	via-call	low	
+cIGZMessageServer	cGZMessageServer	00ad1cd8	9	+0x24	00472fc0		4	1	eax-or-void	medium	
+cIGZMessageServer	cGZMessageServer	00ad1cd8	10	+0x28	0092ed70		0	0	eax-or-void	medium	
+cIGZMessageServer	cGZMessageServer	00ad1cd8	11	+0x2C	0092ed9b		4	1	eax-or-void	medium	
+cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	0	+0x0	004ef7a0		8	2	eax-or-void	medium	tail->004ede80; re-modal: IID 0xE98B2F57; the game's own subscriber to the modal begin/end notices 0x62BA7B42/0x62BA7B43
+cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	1	+0x4	005183b0		0	0	eax-or-void	medium	tail->008ae800
+cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	2	+0x8	004ef7b0		0	0	eax-or-void	medium	tail->004ede60
+cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	3	+0xC	004efe50	cSC4AudioEventHandler::DoMessage	4	1	eax-or-void	medium	re-modal: DoMessage(cGZMessage&) -> bool in AL only; the legacy server ignores the result

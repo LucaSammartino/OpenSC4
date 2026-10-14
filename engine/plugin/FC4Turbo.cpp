@@ -19,6 +19,7 @@
 #include "fc4.h"
 
 #include <cctype>
+#include <cstdio>
 #include <string>
 
 namespace fc4 {
@@ -44,6 +45,12 @@ void TurboReload(bool simulatorEnabled) {
     } else {
         t.frameMs = static_cast<uint32_t>(frame);
     }
+    const long wait = SettingInt("sim_turbo_wait_days", "FC4_SIM_TURBO_WAIT_DAYS", kTurboDefaultWaitDays);
+    if (wait < 0 || wait > 3650) {
+        Log("simulator: WARNING sim_turbo_wait_days=%ld is not 0..3650; using %d", wait, kTurboDefaultWaitDays);
+    } else {
+        t.waitDays = static_cast<int32_t>(wait);
+    }
     const std::string until = Trimmed(Setting("sim_turbo_until", "FC4_SIM_TURBO_UNTIL"));
     harness::Date d;
     if (!until.empty()) {
@@ -61,14 +68,23 @@ void TurboReload(bool simulatorEnabled) {
             "original's clock runs");
         return;
     }
+    char waitText[96];
+    if (t.waitDays > 0) {
+        std::snprintf(waitText, sizeof(waitText), "or after %d game day(s) without it (sim_turbo_wait_days)",
+                      t.waitDays);
+    } else {
+        std::snprintf(waitText, sizeof(waitText), "no fallback (sim_turbo_wait_days = 0)");
+    }
     if (t.untilJulian != 0) {
         Log("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by "
-            "msPerDay, frame budget %u ms at any speed; until %s (julian %d)",
-            t.frameMs, harness::FormatDate(d).c_str(), t.untilJulian);
+            "msPerDay, frame budget %u ms at any speed; until %s (julian %d); engages at each city's first "
+            "ConnectionsReady, %s",
+            t.frameMs, harness::FormatDate(d).c_str(), t.untilJulian, waitText);
     } else {
         Log("simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by "
-            "msPerDay, frame budget %u ms at any speed; no end date",
-            t.frameMs);
+            "msPerDay, frame budget %u ms at any speed; no end date; engages at each city's first ConnectionsReady, "
+            "%s",
+            t.frameMs, waitText);
     }
 }
 

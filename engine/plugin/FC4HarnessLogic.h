@@ -165,10 +165,12 @@ inline void FormatRunFigures(int32_t julian, bool started, uint32_t elapsedMs, u
 //   turbo on|off              our simulator's turbo clock (FC4Turbo.h)
 //   digest                    the observer's DIGEST line now
 //   mark <text>               a log line with the text
+//   save [fast]               cISC4App::SaveCity(fast) in place, at the next
+//                             framework tick (FC4Script.h)
 // Coordinates are whole numbers 0..kScriptMaxCell with x0 <= x1 and z0 <= z1
 // ([choice]: a reversed rectangle is an error, not swapped).
 
-enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark };
+enum class ScriptOp { Zone, PriceZone, Dezone, Speed, Pause, Resume, Turbo, Digest, Mark, Save };
 
 constexpr int32_t kScriptMaxCell = 4095;  // [choice] cities are at most 256 cells a side
 
@@ -183,6 +185,7 @@ inline const char* ScriptOpName(ScriptOp op) {
         case ScriptOp::Turbo: return "turbo";
         case ScriptOp::Digest: return "digest";
         case ScriptOp::Mark: return "mark";
+        case ScriptOp::Save: return "save";
     }
     return "?";
 }
@@ -196,6 +199,7 @@ struct ScriptAction {
     int32_t type = 0;                        // zone, pricezone (dezone: 0)
     int32_t speed = 0;                       // speed
     bool on = false;                         // turbo
+    bool fast = false;                       // save
     std::string text;                        // mark; the arguments as written for the others
 };
 
@@ -340,8 +344,32 @@ inline bool ParseScriptLine(const std::string& raw, int32_t lineNo, ScriptAction
             *error = "mark takes a text";
             return false;
         }
+    } else if (name == "save") {
+        a.op = ScriptOp::Save;
+        if (nargs > 1) {
+            char b[160];
+            std::snprintf(b, sizeof(b), "save takes 0 or 1 argument(s) (fast), not %u", static_cast<unsigned>(nargs));
+            *error = b;
+            return false;
+        }
+        if (nargs == 1) {
+            if (detail::Lower(tok[2]) != "fast") {
+                *error = "save '" + tok[2] + "' is not fast (save, or save fast)";
+                return false;
+            }
+            a.fast = true;
+        }
+    } else if (name == "save_as") {
+        // [question] Not implemented: what cISC4App::SaveCity(path, fast)
+        // (slot 15) leaves as the city's save path, and what the region does
+        // with a second save of the same city in its folder, are not
+        // documented (engine/README.md, the script table).
+        *error = "save_as is not available (an open question: what saving a city under another path does to the city "
+                 "and its region is not documented); save saves in place";
+        return false;
     } else {
-        *error = "unknown action '" + tok[1] + "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)";
+        *error = "unknown action '" + tok[1] +
+                 "' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark, save)";
         return false;
     }
     *out = a;

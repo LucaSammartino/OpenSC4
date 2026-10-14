@@ -52,4 +52,7 @@ is for engine authors.
 > **Warning: do not regenerate `interfaces.tsv` yet.** It carries hand corrections that are not in
 > `re/abi_interfaces.tsv` or in the extractor: commits 7d2f368, 83aa768, a9eef99, bbee494 and 402072f, including eight
 > interface pairs added by hand. A blind regeneration silently reverts them, and the table feeds the ABI conformance
-> test. Move the corrections into the curated input (or the extractor) first.
+> test. Move the corrections into the curated input (or the extractor) first. The modal-dialog rows
+> (`cIGZWinMgr`, `cIGZWin`, `cIGZMessageServer`, `cIGZMessageTarget(AudioEventHandler)`, see
+> `docs/specs/modal-dialogs.md`) are in the curated input, but their `re-modal:` notes are hand-written and a
+> regeneration drops them.

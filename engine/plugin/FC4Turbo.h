@@ -25,16 +25,33 @@
 // date, the game days per real second over that month and the frames per
 // second. With `disable = simulator` the original's clock runs and turbo has
 // no effect (one WARNING at game start).
+//
+// Held until the city is ready (in-game run of 2026-10-14: turbo from Init
+// reached an advisor dialog before ConnectionsReady, so popup_dialogs = 0 came
+// too late and the dialog's hidden pause held the city): after each city load
+// (our simulator's Init) a turbo request, from sim_turbo or the script's
+// `turbo on`, is HELD, with days paced as usual, until the first
+// ConnectionsReady 0x6AC284F3 of that load reaches the observer (after
+// FC4Popups has handled it); then it engages, one line:
+//   simulator: turbo ON at YYYY-MM-DD (after ConnectionsReady; sim_turbo): ...
+// [choice] Fallback when ConnectionsReady never comes: the request engages
+// after `sim_turbo_wait_days = N` game days (FC4_SIM_TURBO_WAIT_DAYS; default
+// 30, 0..3650; 0 = no fallback, wait for ConnectionsReady only), with a
+// WARNING line. A turbo left on in the core by the previous city is switched
+// off at Init and requested again (held) the same way.
 #pragma once
 
 #include <cstdint>
 
 namespace fc4 {
 
+constexpr int32_t kTurboDefaultWaitDays = 30;
+
 struct TurboSettings {
     bool on = false;
     uint32_t frameMs = 250;
     int32_t untilJulian = 0;  // 0 = none
+    int32_t waitDays = kTurboDefaultWaitDays;  // the fallback without ConnectionsReady; 0 = none
 };
 
 // Game start (FC4Subsystems.cpp, after the subsystems are resolved): reads
@@ -43,8 +60,13 @@ void TurboReload(bool simulatorEnabled);
 const TurboSettings& TurboConfig();
 
 // The script's `turbo on|off` (main thread), through our live simulator.
-// `on`: the configured frame budget and no end date. Returns false (nothing
-// done) without a live simulator of ours.
-bool TurboScriptSet(bool on);
+// `on`: the configured frame budget and no end date, held like sim_turbo
+// until the city's first ConnectionsReady. `off` also drops a held request.
+enum class TurboScriptResult { NoSimulator, On, Held, Off };
+TurboScriptResult TurboScriptSet(bool on);
+
+// The observer saw ConnectionsReady (main thread, after FC4Popups): engages a
+// held request of our live simulator (the first one per city load counts).
+void TurboOnConnectionsReady();
 
 }  // namespace fc4

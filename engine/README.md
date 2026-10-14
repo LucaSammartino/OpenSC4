@@ -447,7 +447,9 @@ plugin.
        quit at the next tick). It is checked inside the observer's `SimNewDay`, so a terminate run stops on that
        very day even under the turbo clock. `autotest_seconds` stays a timeout: whichever comes first ends the
        run; with an end date alone the autotest is on with no timeout. A city loaded after the end date ends at
-       its first new day. Not a date: a WARNING and ignored. Lines:
+       its first new day. A script `save` still waiting for its tick at the end date runs first (the verdict then
+       comes at that tick: `...; the script's waiting action(s) first, then the verdict and TerminateProcess at the
+       next tick`). Not a date: a WARNING and ignored. Lines:
 
        ```
        autotest: end date 2001-01-01 (julian 2451911): the run ends at the first new day on or after it
@@ -462,12 +464,22 @@ plugin.
      the frame budget is `sim_turbo_frame_ms` (env `FC4_SIM_TURBO_FRAME_MS`, 1..10000, default 250) at any
      speed while running (the §5.1 value while paused); pause and hidden pause stop time as before.
      `sim_turbo_until = YYYY-MM-DD` (env `FC4_SIM_TURBO_UNTIL`) switches it off at the first new day on or after
-     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off). Lines:
+     that date. Off, nothing changes (the conformance vectors all pass again with turbo configured off).
+     After each city load the request (from `sim_turbo` or the script's `turbo on`) is **held**, days paced as
+     usual, until that load's first `ConnectionsReady` `0x6AC284F3` reaches the observer (after `popup_dialogs`
+     has handled it: the first in-game turbo run reached an advisor dialog before `ConnectionsReady`, so
+     `popup_dialogs = 0` came too late and the dialog's hidden pause held the city). If it never comes, the request
+     engages after `sim_turbo_wait_days = N` game days (env `FC4_SIM_TURBO_WAIT_DAYS`, 0..3650, default 30; 0 = no
+     fallback) with a WARNING. Lines:
 
      ```
      simulator: turbo ON (sim_turbo = 1; tooling deviation from simulator.md section 5): days not paced by
        msPerDay, frame budget 250 ms at any speed; until 2001-01-01 (julian 2451911)      (game start)
-     simulator: turbo ON (sim_turbo) at 2000-01-01: frame budget 250 ms, until 2001-01-01     (each city's Init)
+     simulator: turbo requested (sim_turbo) at 2000-01-01: held, days paced by msPerDay, until the city's first
+       ConnectionsReady (or 30 game day(s) without it, sim_turbo_wait_days)                    (each city's Init)
+     simulator: turbo ON at 2000-01-03 (after ConnectionsReady; sim_turbo): frame budget 250 ms, until 2001-01-01
+     simulator: WARNING no ConnectionsReady within 30 game day(s) of the turbo request (sim_turbo); turbo ON at …
+       anyway (sim_turbo_wait_days): …                                                       (the fallback)
      simulator: turbo month 2000-02-01: 31 day(s) in 2.480 s real = 12.50 days/s, 4.03 fps (10 frames)
      simulator: turbo OFF at 2001-01-01 (sim_turbo_until reached); days paced by msPerDay again
      simulator: WARNING sim_turbo = 1 has no effect: our simulator is disabled (disable = simulator), ...
@@ -478,8 +490,11 @@ plugin.
      folder of `FreeCity4.ini`. The whole file is parsed at game start; every error is logged with its line
      number and a script with any error is refused. Each action runs once, on the main thread, inside the
      observer's `SimNewDay` at the first new day on or after its date (several on one date in file order; dates
-     already past all run at the first new day, by date then file order). Everything goes through the game's
-     interfaces, so it works with the original's classes and with ours:
+     already past all run at the first new day, by date then file order). The exception is `save`: it waits for
+     the observer's next framework tick (as the save autotest, not inside a simulator message), and every action
+     due after it waits behind it, so the file order holds; under turbo several days can pass before that tick
+     (the log then says `(run on <date>)`). Everything goes through the game's interfaces, so it works with the
+     original's classes and with ours, and none uses the keyboard or the mouse:
 
      | Action | Call |
      |---|---|
@@ -487,11 +502,16 @@ plugin.
      | `pricezone x0 z0 x1 z1 type` | the same with commit = 0 (a dry run) |
      | `dezone x0 z0 x1 z1` | the same with type 0, commit = 1 |
      | `speed 0\|1\|2`, `pause`, `resume` | the city simulator's `SetSimSpeed` / `Pause` / `Resume` (one call) |
-     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); no effect with `disable = simulator` |
+     | `turbo on\|off` | our simulator's turbo clock (`sim_turbo_frame_ms`, no end date); `on` before the city's first `ConnectionsReady` is held until it (`-> turbo requested: held …`), `off` also drops a held request; no effect with `disable = simulator` |
      | `digest` | the observer's `DIGEST` line, now |
      | `mark <text>` | a log line |
+     | `save [fast]` | `cISC4App::SaveCity(fast)` (`docs/abi/vtables.tsv` `cSC4App::vftable_3` slot 16, pop 4, eax-or-void; foundations.md §3.7): the current city saved in place, a full save unless `fast`, through the same app reference and exception guard as the save autotest; `-> ok=<what SaveCity returned> (SaveCity(full\|fast) in N ms)`; no city: `ok=0 (skipped: no city)` |
 
-     Coordinates are cells 0..4095 with x0 <= x1 and z0 <= z1; zone types 0..15 (zones.md §2). Lines:
+     `save_as <name>` is not available (a parse error that says so). The interface exists
+     (`SaveCity(cIGZString const& path, bool fast)`, slot 15, pop 8), but what saving under another path does is
+     not documented: whether the city's save path and its region entry move to the new file, and what the region
+     does with a second save of the same city tile in its folder. Coordinates are cells 0..4095 with x0 <= x1 and
+     z0 <= z1; zone types 0..15 (zones.md §2). Lines:
 
      ```
      script: loaded '…\script.txt' (script setting; tooling): 3 action(s), 2000-01-03 to 2000-01-05; …
@@ -499,7 +519,11 @@ plugin.
      script: line 3 2000-01-03 pricezone 30 20 32 22 4 -> dry run: ok=1 error=0 (none) cost=… accepted=9 of 9 cell(s)
      script: line 4 2000-01-05 dezone 10 20 11 22 -> ok=1 error=0 (none) cost=… accepted=6 of 6 cell(s)
      script: all 3 action(s) of '…\script.txt' have run
-     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark)
+     script: line 7 2000-02-01 save: waits for the next framework tick (not run inside SimNewDay); the actions due
+       after it wait behind it
+     script: line 7 2000-02-01 save -> ok=1 (SaveCity(full) in 412 ms)
+     script: ERROR line 2: unknown action 'zonee' (zone, pricezone, dezone, speed, pause, resume, turbo, digest, mark,
+       save)
      script: REFUSED '…\script.txt' (script setting): 1 parse error(s); no action of it runs
      ```
 
@@ -1194,10 +1218,12 @@ plugin.
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
   never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
   panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast). The harness lane adds
-  four with `autotest_end_date`: an end date alone, a timeout that comes first, an end date already past with
-  `autotest_end = quit`, and a value that is not a date. `plugin_ini_script_test` runs a `script` through a stub
-  zone manager on the fake city (slot 36; its slot 11 records the region layout and the arguments, and clears a
-  bit as the game does) and our simulator; seam op 46 loads a refused, an unreadable, an empty and a late script.
+  five with `autotest_end_date`: an end date alone, a timeout that comes first, an end date already past with
+  `autotest_end = quit`, a value that is not a date, and a script `save` due on the end date (the verdict waits
+  for it). `plugin_ini_script_test` runs a `script` through a stub zone manager on the fake city (slot 36; its
+  slot 11 records the region layout and the arguments, and clears a bit as the game does) and our simulator;
+  seam op 46 loads a refused, an unreadable, an empty, a late and a save script (the fake app's slot 16 counts
+  the saves, which wait for the observer tick in file order).
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
