@@ -267,7 +267,7 @@ foreach ($name in $results.Keys) {
     foreach ($m in ($s | Select-String "^\s+([a-z]+)\s+(\d+) lines, (\d+) with every")) { $sh[$m.Matches[0].Groups[1].Value] = @([int]$m.Matches[0].Groups[3].Value, [int]$m.Matches[0].Groups[2].Value) }
     $shadow = ($sh.Keys | ForEach-Object { "{0} {1}/{2}" -f $_, $sh[$_][0], $sh[$_][1] }) -join ", "
     $months = ($s | Select-String "^\s+([a-z ()]+?)\s+(\d+) lines" | Where-Object { $_.Line -notmatch "with every" } | Measure-Object).Count
-    $dpsm = $s | Select-String "^verdict:.*days_per_second=([\d.]+)" | Select-Object -First 1
+    $dpsm = @($r) + @($s) | Select-String "AUTOTEST VERDICT: .*days_per_second=([\d.]+)" | Select-Object -First 1   # run_summary cuts its verdict line
     $dps = if ($dpsm) { $dpsm.Matches[0].Groups[1].Value } else { "-" }
     $rows += [pscustomobject]@{ run = $name; verdict = $v; problems = $problems; monthGroups = $months; "days/s" = $dps; shadows = $shadow }
     $cur[$name] = @{ verdict = $v; problems = $problems; shadows = $sh; dps = $dps }
@@ -286,7 +286,8 @@ function ReadOut([string]$path) {
         if ($line -match "^=== regress \S+ ===") { $inTable = $true; $runName = $null; continue }
         if ($inTable -and $line -match "^(shadows|replace)\s+(\S+)\s+(\d+)\s+\d+") { if ($runsOut[$Matches[1]]) { $runsOut[$Matches[1]].problems = [int]$Matches[3] }; continue }
         if (-not $runName) { continue }
-        if ($line -match "^\s+verdict:\s+AUTOTEST VERDICT: ([a-z]+)") { $runsOut[$runName].verdict = $Matches[1]; if ($line -match "days_per_second=([\d.]+)") { $runsOut[$runName].dps = $Matches[1] } }
+        if ($line -match "^\s+\[[^\]]+\] AUTOTEST VERDICT: .*days_per_second=([\d.]+)") { $runsOut[$runName].dps = $Matches[1]; continue }
+        if ($line -match "^\s+verdict:\s+AUTOTEST VERDICT: ([a-z]+)") { $runsOut[$runName].verdict = $Matches[1] }
         elseif ($line -match "^\s+([a-z]+)\s+(\d+) lines, (\d+) with every") { $runsOut[$runName].shadows[$Matches[1]] = @([int]$Matches[3], [int]$Matches[2]) }
     }
     return $runsOut
