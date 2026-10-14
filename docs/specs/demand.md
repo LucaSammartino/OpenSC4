@@ -528,6 +528,11 @@ Notes *[compat]*:
   Walking the capacity maps at each cell therefore has no original counterpart. It is harmless as long as it is
   read-only. *[choice]* Read `purpose` through the reference (or slot 40, which does not insert) and walk the
   capacity maps only in `UpdateCapacity` (§7.2).
+- **Host shape** (DQ13). The census needs exactly one value per cell: the purpose, or "skip". Any host route that
+  yields it is faithful, including a default `building_purpose` built on `building_profile`, provided an unknown
+  type gives purpose 0 (skipped), which is what slot 39's inserted zero profile gives. A profile visitor that is
+  null, so that nothing is walked, is the closest match to the original, which walks nothing here. No original
+  behaviour goes further; the rest is the implementer's choice.
 
 ### 6.4 Applying the census
 

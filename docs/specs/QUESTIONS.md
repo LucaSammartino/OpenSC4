@@ -2332,8 +2332,12 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
   - **Judging.** The original never compares the grids. The unadjusted grid has no copy lag, but its dispatch cones
     follow the automata, so tracts under an active dispatch can differ for reasons outside the simulator; logging only
     stays a sound choice.
-- **DQ13 — DQ5:** does the default `building_purpose` go through `building_profile`, and may the host's visitor be
-  NULL? [yes to both]
+- ~~**DQ13 — DQ5:** does the default `building_purpose` go through `building_profile`, and may the host's visitor be
+  NULL? [yes to both]~~ **ANSWERED 2026-10-14** from the exe (`PerformCensus` `0x006A5A00`: BDS slot 39 at
+  `0x006A5A53`, only `purpose` read at `0x006A5A5D`) and written into demand.md §6.3 (host shape). **Yes to both; the
+  bracket matches, with one condition.** The original reads only the purpose and walks nothing, so a null visitor is
+  the exact match. Routing the default `building_purpose` through `building_profile` is faithful as long as an unknown
+  type yields purpose 0, as the original's inserted zero profile does.
 
 ## From the budget shadow (coordinator, run 86)
 
