@@ -2111,8 +2111,14 @@ answer is in brackets.
   0x00ACE73C) and written into data-formats §4.3 (`String`).
   - Spaces and tabs, at both ends; the bracket matches. The trim runs before one leading and one trailing `"` are
     removed, so white space inside the quotes is kept.
-- **EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
-  `1.#SNAN`]
+- ~~**EX28 — EX8:** a Float32 signalling NaN as text? [the x87 load quiets it: `1.#QNAN`; a Float64 sNaN gives
+  `1.#SNAN`]~~ **ANSWERED 2026-10-14** from the exe (call sites `fld dword` 0x00916F62/0x009170FD and `fld qword`
+  0x00916F67/0x00917117, then `fstp qword`; the printer reloads at 0x00910542; runtime `1#SNAN` branch 0x00A049E6) and
+  written into data-formats §5.1 ("Signalling NaN").
+  - Float32 sNaN: `1.#QNAN` (or `-1.#QNAN`); the bracket matches.
+  - Float64 sNaN: **also `1.#QNAN`**; the bracket (`1.#SNAN`) differs. The double is loaded onto the x87 stack before
+    printing, and loading an sNaN quiets it under the masked invalid-operation exception. `1#SNAN` is unreachable from
+    this printer.
 - **EX29 — EX8:** does the 63-character cut also apply to Float32 text (a subnormal reaches it)? [yes]
 - **EX30 — EX17:** `get_void` with a buffer shorter than `length`? [copies what fits; the original would overrun]
 - **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from

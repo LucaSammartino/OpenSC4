@@ -563,6 +563,14 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   **Negative zero** (EX24) prints `0`, for a Float32 and a Float64 alike. The runtime's digit conversion
   (`0x00A04942`) takes a zero's sign from the sign bit but then resets it to "positive" on its zero path
   (`0x00A04BC1`). So `_fcvt` reports no sign, and the printer writes no `-`, then `0` (|x| < 1) and no fraction.
+
+  **Signalling NaN** (EX28) prints as a quiet NaN, `1.#QNAN` or `-1.#QNAN`, for a Float32 **and a Float64**. Both
+  call sites load the value onto the x87 stack (`fld dword` at `0x00916F62`/`0x009170FD`, `fld qword` at
+  `0x00916F67`/`0x00917117`) and store it as a double, and the printer loads it again (`0x00910542`). Loading a
+  Float32 or Float64 sNaN raises the invalid-operation exception, which is masked (foundations §18.1). The value is
+  then quieted, keeping its sign and payload. So the runtime's `1#SNAN` case (`0x00A049E6`) is never reached from
+  here. A quieted sNaN keeps a non-zero payload below the quiet bit, so it is never the default-NaN pattern that
+  prints as `-1.#IND`.
 - Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
   `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
   holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
