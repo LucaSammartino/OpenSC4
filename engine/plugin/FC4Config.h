@@ -58,6 +58,9 @@
 //   protection_shadow = 0 / 1     the fire / police grid shadow (default 0; needs
 //                                 the ORIGINAL protection simulators: do not enable
 //                                 protection; FC4ProtectionShadow.h)
+//   aura_shadow = 0 / 1           the aura grid shadow (default 0; needs the ORIGINAL
+//                                 aura simulator: do not enable aura; FC4AuraShadow.h)
+//   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -203,6 +206,25 @@ enum class Sw : unsigned {
     DemandDirectCalls,     // demand_direct_calls: fill GetLocalPopulationSummary's map with the
                            //   game's map functions (docs/abi/direct-calls.md; identified executable
                            //   only) (off: the caller's map is left untouched)
+    // Aura simulator host callbacks (cFC4Aura.cpp), one per group of game
+    // calls; only used when the aura subsystem is enabled.
+    AuraLots,         // aura_lots: lot count, the lot walk (GetLot per cell), bounding rect, zone,
+                      //   wealth, building (off: no lots; the cycle ends at state 4)
+    AuraPopulations,  // aura_lot_populations: GetPopulation(type) (lot slot 53) for the twelve
+                      //   developer types (off: no pairs, every lot -128)
+    AuraOccupants,    // aura_occupants: occupant HasProperty / properties / type / position
+                      //   (off: occupants look empty)
+    AuraBudget,       // aura_budget: GetBudgetItemForPurpose, department funding, tax rates
+                      //   (off: no department, funding missing, tax rate 0)
+    AuraOrdinance,    // aura_ordinance: GetCumulativeOffset (off: 0)
+    AuraLandValue,    // aura_land_value: GetLandValueType (off: 0)
+    AuraInputs,       // aura_inputs: the other simulators' grids (pollution, grade maps, crime,
+                      //   traffic, population grids) (off: none, the stages are skipped)
+    AuraGridWrites,   // aura_grid_writes: SetTractValue / SetTractValues on the aura's grids
+    AuraPosts,        // aura_posts: the cycle-completed message
+    AuraHistory,      // aura_history: RecordHistoryData of the mayor rating
+    AuraDisaster,     // aura_disaster: the riot manager's AttemptDisasterStart
+    AuraStrikes,      // aura_strikes: police / fire EndStrike, residential End*Strike (BustStrike)
     Count
 };
 
