@@ -316,7 +316,7 @@ if ($Slot -gt 0) { $env:FC4_NO_REAL_INPUT = "1" }
 $start = Get-Date
 $loadedAt = $null
 $hpSeen = $null; $frozenDate = $null; $frozenCount = 0; $lastBeatCount = 0; $rounds = 0; $clicked = 0
-$minimized = $false; $heldSince = $null; $heldDate = $null; $heldNote = $null; $heldMax = 0
+$minimized = $false; $everMinimized = $false; $minTries = 0; $heldSince = $null; $heldDate = $null; $heldNote = $null; $heldMax = 0
 
 while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($Seconds)) {
     Start-Sleep -Seconds 3
@@ -327,12 +327,16 @@ while (-not $failedStart -and (Get-Date) - $start -lt [TimeSpan]::FromSeconds($S
     if (-not $loadedAt -and $text -match "config \(city load: budget Init\)") { $loadedAt = Get-Date }
     if (-not $loadedAt) { if ($p.HasExited) { break }; continue }
 
-    # A slot game leaves the screen once its city has loaded (activating the next window if it took the focus).
-    if ($Slot -gt 0 -and -not $NoMinimize -and -not $minimized) {
+    # A slot game leaves the screen once its city has loaded. SW_MINIMIZE, which hands the activation on when the game
+    # has it: a game minimized while still active (SW_SHOWMINNOACTIVE) restores itself 3-4 s later, and one minimized
+    # during the load can come back at its end, so this is checked again on every round (at most 5 times) until the
+    # quit starts (the game shows its window again while it shuts down).
+    if ($Slot -gt 0 -and -not $NoMinimize -and $text -notmatch "RequestQuit|AUTOTEST VERDICT") {
         $p.Refresh(); $h = $p.MainWindowHandle
         if ($h -ne [IntPtr]::Zero) {
-            $cmd = if ([FC4Run]::GetForegroundWindow() -eq $h) { 6 } else { 7 }   # SW_MINIMIZE / SW_SHOWMINNOACTIVE
-            [FC4Run]::ShowWindow($h, $cmd) | Out-Null; $minimized = [FC4Run]::IsIconic($h)
+            if (-not [FC4Run]::IsIconic($h) -and $minTries -lt 5) { [FC4Run]::ShowWindow($h, 6) | Out-Null; $minTries++ }
+            $minimized = [FC4Run]::IsIconic($h)
+            if ($minimized) { $everMinimized = $true }
         }
     }
 
@@ -438,6 +442,6 @@ $m = [regex]::Matches($t, "simulator: turbo month[^\r\n]*")
 if ($m.Count -gt 0) { Write-Output ("  " + $m[$m.Count - 1].Value) }
 Write-Output ("  game: {0}{1}, dll sha256 {2}{3}{4}" -f $(if ($p) { "pid $($p.Id)" } else { "not started" }),
     $(if ($Slot -gt 0) { ", slot $Slot ($UserDir)" } else { "" }), $dllHash, $(if ($cpuNote) { ", $cpuNote" } else { "" }),
-    $(if ($minimized) { ", minimized after the load" } else { "" }))
+    $(if ($Slot -gt 0 -and -not $NoMinimize) { $(if ($everMinimized) { ", minimized after the load" } else { ", NOT minimized" }) + " ($minTries ShowWindow call(s))" } else { "" }))
 if ($mutexLine) { Write-Output "  $mutexLine" }
 $dirLock.ReleaseMutex(); $dirLock.Dispose()
