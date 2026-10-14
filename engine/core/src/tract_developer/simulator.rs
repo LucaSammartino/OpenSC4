@@ -7,7 +7,8 @@
 //! The tract developer's state and behaviour (§1–§6).
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::hash::{BuildHasherDefault, Hasher};
 use std::rc::Rc;
 
 use super::tuning::Tuning;
@@ -287,6 +288,90 @@ struct Work {
     chosen_building: u32,
 }
 
+/// A hasher for host tokens and packed cells (the [`Memo`]'s keys): one
+/// multiply per word.
+#[derive(Clone, Copy, Default)]
+struct TokenHasher(u64);
+
+impl Hasher for TokenHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.write_u64(u64::from(b));
+        }
+    }
+    fn write_u64(&mut self, v: u64) {
+        self.0 = (self.0.rotate_left(5) ^ v).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+type TokenMap<V> = HashMap<u64, V, BuildHasherDefault<TokenHasher>>;
+
+fn cell_key(x: i32, z: i32) -> u64 {
+    (u64::from(x as u32) << 32) | u64::from(z as u32)
+}
+
+/// `FindNetworks`' categories of one cell (§4.10.2).
+const NET_STREET: u8 = 1;
+const NET_ROAD: u8 = 2;
+const NET_AVENUE: u8 = 4;
+const NET_RAIL: u8 = 8;
+
+/// A lot's reads in the [`Memo`].
+#[derive(Clone, Copy, Debug, Default)]
+struct LotMemo {
+    size: Option<(u32, u32)>,
+    facing: Option<i32>,
+    zone: Option<i32>,
+    slope: Option<f32>,
+    location: Option<(i32, i32)>,
+    rect: Option<CellRect>,
+}
+
+/// A configuration's reads in the [`Memo`].
+#[derive(Clone, Copy, Debug, Default)]
+struct CfgMemo {
+    size: Option<(u32, u32)>,
+    stage: Option<u8>,
+    slopes: Option<(f32, f32)>,
+}
+
+/// The game reads of one pass's candidate listing (§4.9–§4.13), memoised
+/// *[choice]*. The listing reads the same cells, lots and configurations
+/// many times: every trial candidate scans the cells around it (§4.10.2),
+/// thousands of `FindNetworkTile` and `IsOfType` calls per `Grow`. The BDS
+/// gives growth about 3 ms a day (building-development.md §4.4), so the time
+/// a `Grow` takes decides how many developers grow that day. The listing
+/// changes nothing in the game, so a read answers the same every time within
+/// it: the memo is on only while a pass lists its candidates (from the
+/// existing lots to the subdivisions), emptied at each pass, and off while
+/// candidates are built. Only the number of read calls differs from the
+/// original; every result is the same.
+#[derive(Debug, Default)]
+struct Memo {
+    on: bool,
+    city: Option<(i32, i32)>,
+    /// Packed cell → the `NET_*` categories.
+    net: TokenMap<u8>,
+    /// Packed cell → lot manager slot 6.
+    lot_at: TokenMap<Option<u64>>,
+    lots: TokenMap<LotMemo>,
+    cfgs: TokenMap<CfgMemo>,
+}
+
+impl Memo {
+    fn reset(&mut self, on: bool) {
+        self.on = on;
+        self.city = None;
+        self.net.clear();
+        self.lot_at.clear();
+        self.lots.clear();
+        self.cfgs.clear();
+    }
+}
+
 /// One tract developer (§1).
 pub struct TractDeveloper {
     host: Rc<dyn TractDeveloperHost>,
@@ -305,6 +390,8 @@ pub struct TractDeveloper {
     w: Work,
     /// Candidates scored by the last `grow` (§4.14; diagnostics).
     scored: Cell<u32>,
+    /// The listing's memoised reads (see [`Memo`]).
+    memo: RefCell<Memo>,
 }
 
 fn rect_wh(r: CellRect) -> (i32, i32) {
@@ -359,6 +446,7 @@ impl TractDeveloper {
             histogram: vec![[0; HIST_COLUMNS]; HIST_ROWS],
             w: Work::default(),
             scored: Cell::new(0),
+            memo: RefCell::new(Memo::default()),
         }
     }
 
@@ -650,6 +738,190 @@ impl TractDeveloper {
         v
     }
 
+    // ---- the listing's memoised reads (see Memo); no borrow is held
+    // across a host call ----
+
+    fn memo_on(&self, on: bool) {
+        self.memo.borrow_mut().reset(on);
+    }
+
+    fn m_city(&self) -> (i32, i32) {
+        {
+            let m = self.memo.borrow();
+            if let (true, Some(v)) = (m.on, m.city) {
+                return v;
+            }
+        }
+        let v = self.host.city_cell_counts();
+        let mut m = self.memo.borrow_mut();
+        if m.on {
+            m.city = Some(v);
+        }
+        v
+    }
+
+    /// The categories of the network tile at `(x, z)` (§4.10.2): at most one
+    /// of each per tile, the tests in the original's order.
+    fn read_net(&self, x: i32, z: i32) -> u8 {
+        let h = &self.host;
+        let Some(tile) = h.find_network_tile(x, z) else {
+            return 0;
+        };
+        let mut v = 0;
+        if h.network_is_of_type(tile, network::STREET) || h.network_is_of_type(tile, network::DIRT_ROAD) {
+            v |= NET_STREET;
+        }
+        if h.network_is_of_type(tile, network::ROAD) || h.network_is_of_type(tile, network::ONE_WAY_ROAD) {
+            v |= NET_ROAD;
+        }
+        if h.network_is_of_type(tile, network::AVENUE) {
+            v |= NET_AVENUE;
+        }
+        if h.network_is_of_type(tile, network::RAIL) {
+            v |= NET_RAIL;
+        }
+        v
+    }
+
+    fn m_net(&self, x: i32, z: i32) -> u8 {
+        let key = cell_key(x, z);
+        {
+            let m = self.memo.borrow();
+            if m.on {
+                if let Some(&v) = m.net.get(&key) {
+                    return v;
+                }
+            }
+        }
+        let v = self.read_net(x, z);
+        let mut m = self.memo.borrow_mut();
+        if m.on {
+            m.net.insert(key, v);
+        }
+        v
+    }
+
+    fn m_get_lot(&self, x: i32, z: i32) -> Option<u64> {
+        let key = cell_key(x, z);
+        {
+            let m = self.memo.borrow();
+            if m.on {
+                if let Some(&v) = m.lot_at.get(&key) {
+                    return v;
+                }
+            }
+        }
+        let v = self.host.get_lot(x, z);
+        let mut m = self.memo.borrow_mut();
+        if m.on {
+            m.lot_at.insert(key, v);
+        }
+        v
+    }
+
+    fn m_lot<T: Copy>(
+        &self,
+        l: u64,
+        get: impl Fn(&LotMemo) -> Option<T>,
+        set: impl Fn(&mut LotMemo, T),
+        read: impl FnOnce() -> T,
+    ) -> T {
+        {
+            let m = self.memo.borrow();
+            if m.on {
+                if let Some(v) = m.lots.get(&l).and_then(&get) {
+                    return v;
+                }
+            }
+        }
+        let v = read();
+        let mut m = self.memo.borrow_mut();
+        if m.on {
+            set(m.lots.entry(l).or_default(), v);
+        }
+        v
+    }
+
+    fn m_lot_size(&self, l: u64) -> (u32, u32) {
+        self.m_lot(l, |m| m.size, |m, v| m.size = Some(v), || self.host.lot_size(l))
+    }
+
+    fn m_lot_facing(&self, l: u64) -> i32 {
+        self.m_lot(l, |m| m.facing, |m, v| m.facing = Some(v), || self.host.lot_facing(l))
+    }
+
+    fn m_lot_zone(&self, l: u64) -> i32 {
+        self.m_lot(l, |m| m.zone, |m, v| m.zone = Some(v), || self.host.lot_zone_type(l))
+    }
+
+    fn m_lot_slope(&self, l: u64) -> f32 {
+        self.m_lot(l, |m| m.slope, |m, v| m.slope = Some(v), || self.host.lot_slope(l))
+    }
+
+    fn m_lot_location(&self, l: u64) -> (i32, i32) {
+        self.m_lot(
+            l,
+            |m| m.location,
+            |m, v| m.location = Some(v),
+            || self.host.lot_location(l),
+        )
+    }
+
+    fn m_lot_rect(&self, l: u64) -> CellRect {
+        self.m_lot(
+            l,
+            |m| m.rect,
+            |m, v| m.rect = Some(v),
+            || self.host.lot_bounding_rect(l),
+        )
+    }
+
+    fn m_cfg<T: Copy>(
+        &self,
+        cfg: u64,
+        get: impl Fn(&CfgMemo) -> Option<T>,
+        set: impl Fn(&mut CfgMemo, T),
+        read: impl FnOnce() -> T,
+    ) -> T {
+        {
+            let m = self.memo.borrow();
+            if m.on {
+                if let Some(v) = m.cfgs.get(&cfg).and_then(&get) {
+                    return v;
+                }
+            }
+        }
+        let v = read();
+        let mut m = self.memo.borrow_mut();
+        if m.on {
+            set(m.cfgs.entry(cfg).or_default(), v);
+        }
+        v
+    }
+
+    fn m_cfg_size(&self, cfg: u64) -> (u32, u32) {
+        self.m_cfg(cfg, |m| m.size, |m, v| m.size = Some(v), || self.host.cfg_size(cfg))
+    }
+
+    fn m_cfg_stage(&self, cfg: u64) -> u8 {
+        self.m_cfg(
+            cfg,
+            |m| m.stage,
+            |m, v| m.stage = Some(v),
+            || self.host.cfg_growth_stage(cfg),
+        )
+    }
+
+    /// `(GetMinimumSlope, GetMaximumSlope)` (slots 9, 8).
+    fn m_cfg_slopes(&self, cfg: u64) -> (f32, f32) {
+        self.m_cfg(
+            cfg,
+            |m| m.slopes,
+            |m, v| m.slopes = Some(v),
+            || (self.host.cfg_min_slope(cfg), self.host.cfg_max_slope(cfg)),
+        )
+    }
+
     /// The developer cap checks (§4.2) for stage `s` at `(x, z)`; `pw` is
     /// the developer whose power and water caps apply (`None`: those checks
     /// pass), `fp` the one for fire and park. Returns the failure code.
@@ -755,6 +1027,7 @@ impl TractDeveloper {
             self.w.chosen_cfg = None;
             self.w.chosen_building = 0;
             self.w.suitability.clear();
+            self.memo_on(false);
             let mut best = 0;
             let mut stop = false;
 
@@ -767,11 +1040,13 @@ impl TractDeveloper {
                 return self.w.built;
             }
             if self.list_possible_lot_configurations() == code::SUCCESS {
+                self.memo_on(true);
                 best = best.max(self.list_candidate_lots_existing());
                 best = best.max(self.list_candidate_lots_aggregation());
                 if self.w.purpose != 5 {
                     best = best.max(self.list_candidate_lots_subdivision());
                 }
+                self.memo_on(false);
                 if self.w.candidates.is_empty() {
                     if best == code::SUCCESS {
                         best = code::NO_LOT;
@@ -1121,13 +1396,13 @@ impl TractDeveloper {
     // ---- candidate listing (§4.9) ----
 
     fn new_lot_candidate(&self, kind: u8, lot: u64, w: u32, hh: u32) -> Candidate {
-        let (x, z) = self.host.lot_location(lot);
+        let (x, z) = self.m_lot_location(lot);
         Candidate {
             kind,
             lot: Some(lot),
             x,
             z,
-            facing: self.host.lot_facing(lot),
+            facing: self.m_lot_facing(lot),
             w: w as u8,
             h: hh as u8,
             ..Candidate::default()
@@ -1150,19 +1425,19 @@ impl TractDeveloper {
                 continue;
             }
             for &cfg in &cfgs {
-                let (lw, lh) = h.lot_size(l);
-                if h.cfg_size(cfg) != (lw, lh) {
+                let (lw, lh) = self.m_lot_size(l);
+                if self.m_cfg_size(cfg) != (lw, lh) {
                     self.hist(row::EXISTING, code::NO_CONFIGURATION);
                     best = best.max(code::NO_CONFIGURATION);
                     continue;
                 }
-                if !growth_stage_fits_in_zone(u32::from(h.cfg_growth_stage(cfg)), h.lot_zone_type(l)) {
+                if !growth_stage_fits_in_zone(u32::from(self.m_cfg_stage(cfg)), self.m_lot_zone(l)) {
                     self.hist(row::EXISTING, code::WRONG_ZONE);
                     best = best.max(code::WRONG_ZONE);
                     continue;
                 }
-                let slope = h.lot_slope(l);
-                let (lo, hi) = (h.cfg_min_slope(cfg), h.cfg_max_slope(cfg));
+                let slope = self.m_lot_slope(l);
+                let (lo, hi) = self.m_cfg_slopes(cfg);
                 if !(slope >= lo && slope <= hi) {
                     self.hist(row::EXISTING, code::TOO_STEEP);
                     best = best.max(code::TOO_STEEP);
@@ -1183,32 +1458,32 @@ impl TractDeveloper {
 
     /// `ListCandidateLots_Aggregation` (§4.9.2).
     fn list_candidate_lots_aggregation(&mut self) -> u32 {
-        let h = self.host();
         let mut best = 0;
         let lots: Vec<u64> = self.w.lots.iter().copied().collect();
         let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
         for l in lots {
             for &cfg in &cfgs {
-                let (lw, lh) = h.lot_size(l);
-                let (cw, ch) = h.cfg_size(cfg);
+                let (lw, lh) = self.m_lot_size(l);
+                let (cw, ch) = self.m_cfg_size(cfg);
                 if cw < lw || ch < lh || (cw == lw && ch == lh) {
                     self.hist(row::AGGREGATION, code::NO_CONFIGURATION);
                     best = best.max(code::NO_CONFIGURATION);
                     continue;
                 }
-                if !growth_stage_fits_in_zone(u32::from(h.cfg_growth_stage(cfg)), h.lot_zone_type(l)) {
+                if !growth_stage_fits_in_zone(u32::from(self.m_cfg_stage(cfg)), self.m_lot_zone(l)) {
                     self.hist(row::AGGREGATION, code::WRONG_ZONE);
                     best = best.max(code::NO_CONFIGURATION);
                     continue;
                 }
-                let slope = h.lot_slope(l);
-                if slope < h.cfg_min_slope(cfg) || slope > h.cfg_max_slope(cfg) {
+                let slope = self.m_lot_slope(l);
+                let (lo, hi) = self.m_cfg_slopes(cfg);
+                if slope < lo || slope > hi {
                     self.hist(row::AGGREGATION, code::TOO_STEEP);
                     best = best.max(code::NO_CONFIGURATION);
                     continue;
                 }
-                let (x, z) = h.lot_location(l);
-                let facing = h.lot_facing(l);
+                let (x, z) = self.m_lot_location(l);
+                let facing = self.m_lot_facing(l);
                 let d = (cw as i32).wrapping_sub(lw as i32);
                 let shifted = match facing.rem_euclid(4) {
                     0 => (x.wrapping_add(d), z),
@@ -1244,7 +1519,6 @@ impl TractDeveloper {
 
     /// `ListCandidateLots_Subdivision` (§4.9.3).
     fn list_candidate_lots_subdivision(&mut self) -> u32 {
-        let h = self.host();
         let mut best = 0;
         let lots: Vec<u64> = self.w.lots.iter().copied().collect();
         let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
@@ -1255,8 +1529,8 @@ impl TractDeveloper {
                 continue;
             }
             for &cfg in &cfgs {
-                let (lw, lh) = h.lot_size(l);
-                let (cw, ch) = h.cfg_size(cfg);
+                let (lw, lh) = self.m_lot_size(l);
+                let (cw, ch) = self.m_cfg_size(cfg);
                 if lw < cw || lh < ch || (lw == cw && lh == ch) {
                     self.hist(row::SUBDIVISION, code::NO_LOT);
                     best = best.max(code::NO_LOT);
@@ -1269,13 +1543,14 @@ impl TractDeveloper {
                     best = best.max(code::NO_LOT);
                     continue;
                 }
-                if !growth_stage_fits_in_zone(u32::from(h.cfg_growth_stage(cfg)), h.lot_zone_type(l)) {
+                if !growth_stage_fits_in_zone(u32::from(self.m_cfg_stage(cfg)), self.m_lot_zone(l)) {
                     self.hist(row::SUBDIVISION, code::WRONG_ZONE);
                     best = best.max(code::WRONG_ZONE);
                     continue;
                 }
-                let slope = h.lot_slope(l);
-                if slope < h.cfg_min_slope(cfg) || slope > h.cfg_max_slope(cfg) {
+                let slope = self.m_lot_slope(l);
+                let (lo, hi) = self.m_cfg_slopes(cfg);
+                if slope < lo || slope > hi {
                     self.hist(row::SUBDIVISION, code::TOO_STEEP);
                     best = best.max(code::TOO_STEEP);
                     continue;
@@ -1303,15 +1578,14 @@ impl TractDeveloper {
         }
         if c.facing == -1 {
             if let Some(l) = c.lot {
-                let h = &self.host;
-                c.facing = h.lot_facing(l);
-                let (w, hh) = h.lot_size(l);
+                c.facing = self.m_lot_facing(l);
+                let (w, hh) = self.m_lot_size(l);
                 c.w = w as u8;
                 c.h = hh as u8;
-                let (x, z) = h.lot_location(l);
+                let (x, z) = self.m_lot_location(l);
                 c.x = x;
                 c.z = z;
-                c.rect = h.lot_bounding_rect(l);
+                c.rect = self.m_lot_rect(l);
             }
             return c.rect;
         }
@@ -1321,15 +1595,14 @@ impl TractDeveloper {
 
     /// `FindNetworks(c)` (§4.10.2).
     fn find_networks(&self, c: &mut Candidate) {
-        let h = &self.host;
         // GetBoundingRect caches c.rect for every type (a subdivision's is
         // its first piece, §4.16); a subdivision scans around the parent lot.
         let own = self.bounding_rect(c);
         let rect = match (c.kind, c.lot) {
-            (4, Some(l)) => h.lot_bounding_rect(l),
+            (4, Some(l)) => self.m_lot_rect(l),
             _ => own,
         };
-        let (cx, cz) = h.city_cell_counts();
+        let (cx, cz) = self.m_city();
         // (side, fixed coordinate, true for a row): the cells are walked
         // lazily, so a hostile rectangle costs time, not memory.
         let mut sides: Vec<(usize, i32, bool)> = Vec::with_capacity(4);
@@ -1349,19 +1622,17 @@ impl TractDeveloper {
             let (lo, hi) = if row { (rect.x1, rect.x2) } else { (rect.z1, rect.z2) };
             for v in lo..=hi {
                 let (x, z) = if row { (v, fixed) } else { (fixed, v) };
-                let Some(tile) = h.find_network_tile(x, z) else {
-                    continue;
-                };
-                if h.network_is_of_type(tile, network::STREET) || h.network_is_of_type(tile, network::DIRT_ROAD) {
+                let net = self.m_net(x, z);
+                if net & NET_STREET != 0 {
                     c.street[side] = c.street[side].wrapping_add(1);
                 }
-                if h.network_is_of_type(tile, network::ROAD) || h.network_is_of_type(tile, network::ONE_WAY_ROAD) {
+                if net & NET_ROAD != 0 {
                     c.road[side] = c.road[side].wrapping_add(1);
                 }
-                if h.network_is_of_type(tile, network::AVENUE) {
+                if net & NET_AVENUE != 0 {
                     c.avenue[side] = c.avenue[side].wrapping_add(1);
                 }
-                if h.network_is_of_type(tile, network::RAIL) {
+                if net & NET_RAIL != 0 {
                     c.rail[side] = c.rail[side].wrapping_add(1);
                 }
             }
@@ -1408,13 +1679,13 @@ impl TractDeveloper {
     fn lot_configuration_compatible(&self, cfg: u64, c: &mut Candidate, require_roads: bool) -> u32 {
         self.find_existing_capacity(c);
         let h = &self.host;
-        if h.cfg_size(cfg) != (u32::from(c.w), u32::from(c.h)) {
+        if self.m_cfg_size(cfg) != (u32::from(c.w), u32::from(c.h)) {
             return code::UNKNOWN;
         }
         if !h.cfg_compatible_zone(cfg, h.zone_at(c.x, c.z)) {
             return code::WRONG_ZONE;
         }
-        let s = u32::from(h.cfg_growth_stage(cfg));
+        let s = u32::from(self.m_cfg_stage(cfg));
         let ok = if h.cfg_compatible_wealth(cfg, c.wealth) {
             s > c.stage
         } else {
@@ -1424,10 +1695,11 @@ impl TractDeveloper {
             return code::STAGE_TOO_SMALL;
         }
         let slope = match c.lot {
-            Some(l) => h.lot_slope(l),
+            Some(l) => self.m_lot_slope(l),
             None => h.area_slope(c.rect),
         };
-        if slope < h.cfg_min_slope(cfg) || slope > h.cfg_max_slope(cfg) {
+        let (lo, hi) = self.m_cfg_slopes(cfg);
+        if slope < lo || slope > hi {
             return code::TOO_STEEP;
         }
         if let Some(f) = self.caps_fail(s, c.x, c.z, Some(self.w.dev), self.w.dev) {
@@ -1447,26 +1719,25 @@ impl TractDeveloper {
     /// `IsAggregationLegal(c)` (§4.13).
     fn is_aggregation_legal(&mut self, c: &mut Candidate) -> bool {
         let rect = self.bounding_rect(c);
-        let (cx, cz) = self.host.city_cell_counts();
+        let (cx, cz) = self.m_city();
         if rect.x1 < 0 || rect.z1 < 0 || rect.x2 >= cx || rect.z2 >= cz || rect.x1 > rect.x2 || rect.z1 > rect.z2 {
             return false;
         }
-        let h = self.host();
         let mut same_facing = false;
         let mut zone: Option<i32> = None;
         // x outer, z inner, both ascending (§4.13).
         for x in rect.x1..=rect.x2 {
             for z in rect.z1..=rect.z2 {
-                let Some(l) = h.get_lot(x, z) else { return false };
+                let Some(l) = self.m_get_lot(x, z) else { return false };
                 let r = self.is_lot_suitable(l, true);
                 if r == code::SUCCESS {
-                    if h.lot_facing(l) == c.facing {
+                    if self.m_lot_facing(l) == c.facing {
                         same_facing = true;
                     }
                 } else if r != code::POOR_ROADS {
                     return false;
                 }
-                let zt = h.lot_zone_type(l);
+                let zt = self.m_lot_zone(l);
                 match zone {
                     None => zone = Some(zt),
                     Some(z0) if z0 != zt => {
@@ -1487,7 +1758,7 @@ impl TractDeveloper {
             return false;
         }
         let lots: Vec<u64> = c.lot_set.iter().copied().collect();
-        if lots.iter().any(|&l| !rect_inside(h.lot_bounding_rect(l), rect)) {
+        if lots.iter().any(|&l| !rect_inside(self.m_lot_rect(l), rect)) {
             self.hist(row::AGGREGATION_LEGAL, code::NO_LOT);
             return false;
         }
