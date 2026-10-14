@@ -7,7 +7,7 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of the harness follow-up (`0786064`), after run 103.*
+*Last updated 2026-10-14, at the merge of `gameslots` (`9e0fa74`), after run 103.*
 
 - **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gate (harness): cargo 1717/0,
   clippy clean, ctest 43/43. Test switches `sim_turbo`, `autotest_end_date`, `script` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
@@ -20,24 +20,26 @@ operating knowledge that is still true.
 
 ### Lanes
 
-All lanes except `harness` are **paused** (the user, 2026-10-14: wait for the faster harness, it saves tokens).
-Resume a paused lane with `SendMessage` to its agent ID; its worktree and transcript are intact. Lane prompts are in
-`build-runs/lane-prompts/` (gitignored, on disk).
+Every lane is running again (resumed 2026-10-14 13:15, after the harness landed). **Engine lanes test their own DLL
+in game** through the run queue (`docs/harness.md`; the queue is `tools/game_queue.ps1 -Slots 3`, started detached
+from the main checkout, log `build-runs/game-queue.log`) and must report request labels and verdict lines. Lane
+prompts are in `build-runs/lane-prompts/` (gitignored, on disk); new engine lanes start from
+`engine-lane-header.txt` + `selftest-addendum.txt` + the task. A worktree lane cannot read files outside its
+worktree: paste what it needs into the message, or copy files into its `build-runs/`. Resume a stopped lane with
+`SendMessage` to its agent ID.
 
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
-| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | merged `6147be6` and `0786064` (turbo waits for ConnectionsReady: in game it had reached 2026-04 before popups were off; script `save` through `cISC4App::SaveCity`); turbo measured about 100 game days/s in game |
-| RE: how a modal dialog ends (`docs/specs/modal-dialogs.md`, cIGZWinMgr/cIGZWin ABI rows) | `a8cff00ae9bf35e79` | own worktree | - | **merged** `baa5d0a`; the harness lane now implements `close_dialogs` from it |
-| game slots (tools only): several game instances at once (`-UserDir` per slot, the `SimCity 4 Mutex` handle swapped), `ingame_run -Slot`, `regress -Parallel`, a per-worktree run queue (`tools/game_queue.ps1`, `docs/harness.md`), regress deltas | `a7cd31c14f8cfa636` | `agent-a7cd31c14f8cfa636` | - | running; owns the game while it works |
-| development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 if needed | paused; fix list sent (below) |
-| traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 37, seam op 42 | paused |
-| tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 40, seam op 45 | paused |
-| RE answers 8 (ZG17, NG, GF, AQ, BQ, FL, ZG, TS35-49, FS) | `a8519c0be49880b49` | `re-answers8` | - | paused at the FS questions (tip `1f67fe1`) |
-| RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | paused (tip `a82a2fd`) |
+| harness: dialog closer `close_dialogs` (from `docs/specs/modal-dialogs.md`) | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 43 if needed | running (turbo, end date, script, save merged in `6147be6`, `0786064`) |
+| development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 | running |
+| traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 44, seam op 42 | running |
+| tract developer glue (M4) | `ae81a8bc4c10d6880` | `agent-ae81a8bc4c10d6880` | ABI 45, seam op 45 | running |
+| power shadow under turbo (306/352 in gsT1, exact at normal speed) | `affee80aaa8e17945` | `agent-affee80aaa8e17945` | ABI 46 if needed | running |
+| RE answers 8 (ZG17, NG, GF, AQ, BQ, FL, ZG, TS35-49, FS, then LG27-LG29 landfill tiles) | `a8519c0be49880b49` | `re-answers8` | - | running |
+| RE specs 9 (commercial, industrial, 24-hour clock, ...) | `a3547ddd1232ef1f1` | `re-specs9` | - | running |
 
-When the harness and game-slots lanes merge: give `tools/regress.ps1` a turbo / end-date profile, replace UI-driven
-tests with `script` actions, start the run queue, add `docs/harness.md` to every lane prompt's reading list (lanes
-then test their own DLL in game, in parallel), and resume the paused lanes.
+Merged today, tooling: harness switches (`6147be6`, `0786064`), modal-dialog spec (`baa5d0a`), game slots and the
+run queue (`9e0fa74`: up to 3 games at once; `regress -Parallel` 164 s, `-Turbo -Parallel` 94 s to 2032).
 
 ### Open items, most useful first
 
@@ -90,10 +92,13 @@ roadmap in `docs/ARCHITECTURE.md`, build and ini keys in `engine/README.md`.
 
 ## 3. Running the game
 
-- **Regression after every merge that touches the plugin** (run detached, it takes about 10 minutes):
-  `tools/regress.ps1 -Tag <tag> -Dll <dll>` stages the DLL+PDB pair, then runs a shadows run and a replace run (16
-  replacements) on Konradshohe and prints one table; `REGRESS <tag>: PASS/FAIL`. Read the shadow column, not only
-  the verdict. `tools/run_summary.ps1 -Log <log>` summarises any single run.
+- **Regression after every merge that touches the plugin** (run detached):
+  `tools/regress.ps1 -Tag <tag> -Dll <dll> -Parallel` runs a shadows run and a replace run (16 replacements) on
+  Konradshohe at the same time in game slots 1 and 2 (about 3 minutes; `-Turbo` runs to a fixed date, about 1.5
+  minutes, not yet the default because the power shadow differs under turbo) and prints one table,
+  `REGRESS <tag>: PASS/FAIL`, and a delta against the previous PASS (`-Baseline <tag>` to choose). Read the shadow
+  column, not only the verdict. Start it while the queue is idle (a slot held by the queue blocks it after 60 s).
+  `tools/run_summary.ps1 -Log <log>` summarises any single run.
 - **One run:** `tools/ingame_run.ps1 -Label runN -AfterLoadSeconds 150 -Seconds 400 -Ini $ini`, with the ini built in
   PowerShell with real `` `n `` newlines, for example
   `autoload_city = C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4`, `popup_dialogs = 0`,
