@@ -824,6 +824,21 @@ written into the static rule table entry, harmless because it is rewritten befor
 heap state change, at most 4 × (number of heaps whose `active` flag changes) per zone per month. Nothing else in
 these classes draws random numbers.
 
+**Which generator** (LG19). `UpdateSurroundingTiles` (`0x006BCFC0`) calls the C runtime's `rand()` (`0x009EFB9F`) at
+`0x006BD201`, `0x006BD271`, `0x006BD2DD` and `0x006BD34B`, one site per redrawn cell. It reduces the result with
+`and 0x80000003` and a sign fix, which is `rand() mod 4`, the same as `& 3` because `rand() ≥ 0`, then doubles it.
+That `rand()` is the per-thread CRT generator of foundations §12.1. The landfill month runs on the simulation thread,
+so the draws share one sequence with every other `rand()` caller on that thread, and the values cannot be
+reproduced from a save (foundations §12.2).
+
+The rule-table entries are 12 bytes, `{mask, tile, orientation}`, at `0x00B0D2D0`. Before the first cell, the code
+also tests entry 0's tile against `0x02FA0000` (`0x006BD1BF`–`0x006BD1E0`). Entry 0 holds `0x02F10000`, so that test
+never draws.
+
+*[choice]* FreeCity4's own `CrtRand` per subsystem, seeded 1 (foundations §12.6), is the only reproducible option.
+It keeps the draw count and the formula. Only the values differ from a live game, and those cannot be matched
+anyway.
+
 #### 4.8.1 `CreateLandfillOccupant(x, z, tile, orientation)` → bool
 
 1. `RemoveIncompatibleOccupants(x, z)`.

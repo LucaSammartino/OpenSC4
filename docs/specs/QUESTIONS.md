@@ -1305,8 +1305,12 @@ before and after). The glue's current answer is in brackets.
   from the cache global `0x00B43D5C` that `SL::OnCityInit` fills. It is not held. `RemoveAgent` fetches it again from
   the global city. **The bracket matches**: it is the same object, and only the hold adds a reference count. Written
   into landfill.md §1.1.
-- **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
-  unseeded per-thread `rand()` sequence. Acceptable?
+- ~~**LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
+  unseeded per-thread `rand()` sequence. Acceptable?~~ **ANSWERED 2026-10-14** from the exe (`UpdateSurroundingTiles`
+  `0x006BCFC0`; `rand` `0x009EFB9F` at `0x006BD201`, `0x006BD271`, `0x006BD2DD` and `0x006BD34B`). **Acceptable; it
+  is foundations §12.6's decided choice.** The original draws from the per-thread CRT sequence, which every
+  simulation-thread caller shares, so the values cannot be reproduced. The count (one draw per mask-15 cell) and the
+  formula `2 × (rand() mod 4)` are what must match. Written into landfill.md §4.8.
 - **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?
 - Not done (each logged once): tile models, `SetEmptyCellTexture`, zone effects (trucks, seagulls), zot
   orientation, the 3D view level, `GetLandfillZoneFromCell`. The shadow cannot compare the zots, trucks and seagulls
