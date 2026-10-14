@@ -36,6 +36,7 @@ SDK = os.path.join(ENGINE, "third_party", "gzcom-dll", "gzcom-dll", "include")
 FC4 = os.path.join(ENGINE, "plugin", "FC4Interfaces.h")
 FC4C = os.path.join(ENGINE, "plugin", "FC4CrimeInterfaces.h")
 FCD = os.path.join(ENGINE, "plugin", "FC4DevelopmentInterfaces.h")
+FC4T = os.path.join(ENGINE, "plugin", "FC4TractInterfaces.h")
 FCW = os.path.join(ENGINE, "plugin", "FC4WinInterfaces.h")
 
 # (table interface, class, header, required)
@@ -239,6 +240,10 @@ INTERFACES = [
     ("cISC4SimGrid<uint32>", "cISC4SimGrid<uint32_t>", "cISC4SimGrid.h", True),
     # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
     ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
+    # The tract developer (docs/specs/tract-developer.md section 8): the lot
+    # configuration manager through the compiled slot order (slot 9's set is
+    # the game's hash_set; the SDK row above stays for other glue's calls).
+    ("cISC4LotConfigurationManager", "cFC4ISC4LotConfigurationManager", FC4T, True),
     # The dialog closer (docs/specs/modal-dialogs.md section 3.2; tooling switch
     # close_dialogs): the window manager and the window through the compiled
     # slot order (the SDK headers are wrong for these slots), the legacy message

@@ -81,6 +81,7 @@
 #include "FC4TestSeam.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
+#include "cFC4TractDeveloper.h"
 #include "cGZPersistResourceKey.h"
 #include "fc4.h"
 #include "game_abi.h"
@@ -9380,6 +9381,213 @@ int DialogsIniTest(const std::string& dll, const std::string& ini, const std::st
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- the tract developer (tract-developer.md; test seam op 45) ----------------------------------------------
+constexpr uint32_t kCLSID_TractDeveloper = 0x2990C142;
+constexpr uint32_t kIID_cISC4TractDeveloper = 0xA818ED1B;
+constexpr uint32_t kMsgSimNewYear = 0x66956817;
+
+// The exe has no game: its own tract containers (FC4TractInterfaces.h) use
+// the test allocator, never the game's (this stands in for the plugin's
+// compat table, which the exe does not link).
+namespace fc4::compat {
+bool StlNodeAllocator(StlNodeAllocateFn*, StlNodeFreeFn*) { return false; }
+}  // namespace fc4::compat
+
+void* TractTestAllocate(uint32_t size) { return std::malloc(size); }
+void TractTestFree(void* p) { std::free(p); }
+
+// The record of §6: version 3, then 19 + 4 x count bytes in all.
+bool TractRecordShape(const std::vector<uint8_t>& r) {
+    if (r.size() < 19 || r[0] != 3 || r[1] != 0) return false;
+    uint32_t count = 0;
+    std::memcpy(&count, r.data() + 11, 4);
+    return r.size() == 19 + 4 * static_cast<size_t>(count);
+}
+
+int TractEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = tract` registers cFC4TractDeveloper. No city:
+    // the QI table (§1.1), the slots' return channels (§7.1), the record
+    // (§6), Init / Shutdown and a Grow without services, the seam's filter
+    // counts and the shadow's answers (inactive with ours).
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_TRACT_SEED", nullptr);
+    SetEnvironmentVariableA("FC4_TRACT_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_TRACT_GROW_LOG", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = tract\ntract_seed = 0x2A\n[tools]\ntract_shadow = 1\n"
+                       "tract_grow_log = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    SetGamePrecision();
+    // The game containers come from malloc here (the exe's and the DLL's
+    // copies of the allocator both).
+    fc4::TractNodeAllocator::TestAllocate() = &TractTestAllocate;
+    fc4::TractNodeAllocator::TestFree() = &TractTestFree;
+    if (director != nullptr && seam != nullptr) {
+        FC4TractTestInput hooks{};
+        hooks.op = kFC4TractTestHooks;
+        hooks.allocate = &TractTestAllocate;
+        hooks.free = &TractTestFree;
+        CHECK(seam(kFC4SeamTract, &hooks, nullptr) == 0);  // the allocator only
+        CHECK(seam(kFC4SeamTract, nullptr, nullptr) == -1);
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(classes.size() == 5);  // simulator (1) + budget (3) + tract (1)
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_TractDeveloper) == 1);
+
+        std::vector<uint8_t> record;
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_TractDeveloper, kIID_cISC4TractDeveloper, &obj));
+        auto* td = static_cast<cFC4ISC4TractDeveloper*>(obj);
+        if (td != nullptr) {
+            // §1.1: the primary for 1 and its IID, the agent (+4) and the
+            // serializable (+8); nothing else, the out pointer untouched.
+            void* p = nullptr;
+            CHECK(td->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(td));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(td->QueryInterface(kIID_cISC4TractDeveloper, &p) && p == static_cast<void*>(td));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(td->QueryInterface(0x452294AA, reinterpret_cast<void**>(&mt)) && mt != nullptr &&
+                  static_cast<void*>(mt) != static_cast<void*>(td));
+            cIGZSerializable* ser = nullptr;
+            CHECK(td->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_TractDeveloper);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!td->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+
+            // §7.1: slot 7 returns 0, 12 and 14 `this`, 10 slot 9's vector.
+            FC4GrowthProfile prof{};
+            prof.x = 1;
+            prof.z = 1;
+            prof.stage = 1;
+            CHECK(td->UpdatePopulation(prof) == 0);
+            CHECK(td->SetYearsBetweenStyleChanges(7) == td);
+            CHECK(td->GetYearsBetweenStyleChanges() == 7);
+            CHECK(td->UseAllStylesAtOnce(true) == td);
+            CHECK(td->IsUsingAllStylesAtOnce());
+            CHECK(td->UseAllStylesAtOnce(false) == td);
+            CHECK(!td->IsUsingAllStylesAtOnce());
+            fc4::GameVector<uint32_t>& styles = td->GetActiveStyles();
+            const size_t before = styles.size();
+            CHECK(before == 0);  // §2: empty until Init (or a Read) fills it
+            CHECK(td->SetActiveStyles(styles) == reinterpret_cast<intptr_t>(&styles));
+            CHECK(td->GetActiveStyles().size() == before);
+            {
+                fc4::TractStyleVector mine;
+                CHECK(mine.push_back(0x2001) && mine.push_back(0x2002));
+                CHECK(td->SetActiveStyles(fc4::AsGameB(mine)) == reinterpret_cast<intptr_t>(&styles));
+                CHECK(td->GetActiveStyles().size() == 2 && styles[0] == 0x2001 && styles[1] == 0x2002);
+            }
+            // The record before Init (§6), then Init without a city.
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                CHECK(TractRecordShape(record));
+            }
+            CHECK(!td->Init());  // §1.3 step 3: no city services
+            // Grow without services: nothing built, no outcome code (Init failed).
+            {
+                fc4::TractOutcomeList outcomes;
+                bool flag = true;
+                CHECK(td->Grow(prof, reinterpret_cast<fc4::GameList<int32_t>&>(outcomes), flag) == 0);
+                CHECK(outcomes.valid() && outcomes.begin() == outcomes.end());  // not initialised: no code
+            }
+            CHECK(td->Decline(prof) == 0);
+            if (mt != nullptr) {
+                ResidentialDayMessage year(kMsgSimNewYear, kJulian20000201);
+                CHECK(mt->DoMessage(&year));
+                ResidentialDayMessage other(0x12345678, kJulian20000201);
+                CHECK(mt->DoMessage(&other));
+            }
+            FC4TractFilterCounts counts{};
+            FC4TractTestInput fin{};
+            fin.op = kFC4TractTestFilters;
+            fin.tractDeveloper = td;
+            CHECK(seam(kFC4SeamTract, &fin, &counts) == 1);
+            // No city: no configuration manager to register with.
+            CHECK(counts.registered == 0 && counts.unregistered == 0);
+            CHECK(seam(kFC4SeamTract, &fin, nullptr) == -1);
+            // The shadow: no city -> -1.
+            FC4TractTestInput sh{};
+            sh.op = kFC4TractTestShadow;
+            sh.julian = kJulian20000201;
+            CHECK(seam(kFC4SeamTract, &sh, nullptr) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(td->Shutdown());
+            CHECK(seam(kFC4SeamTract, &fin, &counts) == 1);
+            CHECK(counts.live == 0);
+            CHECK(td->Release() == 0);
+        }
+        // Read runs before Init (§1.2): the record loads into a new object; a
+        // truncated one does not; a newer version does not.
+        for (int variant = 0; variant < 3; ++variant) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_TractDeveloper, kIID_cISC4TractDeveloper, &obj));
+            auto* fresh = static_cast<cFC4ISC4TractDeveloper*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr && !record.empty()) {
+                std::vector<uint8_t> bytes = record;
+                if (variant == 1) bytes.resize(bytes.size() - 2);
+                if (variant == 2) bytes[0] = 4;
+                ResidentialSegIStream in(bytes);
+                CHECK(s->Read(in) == (variant == 0));
+                if (variant == 0) {
+                    CHECK(fresh->GetYearsBetweenStyleChanges() == 7);
+                    CHECK(fresh->GetActiveStyles().size() == 2);
+                    ResidentialSegOStream again;
+                    CHECK(s->Write(again));
+                    CHECK(again.bytes == record);
+                }
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised one down
+        }
+        FC4TractFilterCounts counts{};
+        FC4TractTestInput fin{};
+        fin.op = kFC4TractTestFilters;
+        CHECK(seam(kFC4SeamTract, &fin, &counts) == 1 && counts.live == 0);
+        CheckCw("tract");
+    }
+    FreeLibrary(hd);
+    fc4::TractNodeAllocator::TestAllocate() = nullptr;
+    fc4::TractNodeAllocator::TestFree() = nullptr;
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    const auto npos = std::string::npos;
+    CHECK(text.find("subsystem 'tract': enabled (1 class replaced) by FreeCity4.ini (enable=)") != npos);
+    CHECK(text.find(", session seed 0x0000002A (tract_seed), tract_grow_log on") != npos);
+    CHECK(CountOf(text, "cFC4TractDeveloper(") == 4);
+    CHECK(CountOf(text, "cFC4TractDeveloper destroyed (0 fallbacks)") == 4);
+    CHECK(text.find("tract Write -> 1") != npos);
+    CHECK(text.find("tract: no city; services not acquired") != npos);
+    CHECK(text.find("tract Init FAILED: init=0 configured=1 ") != npos);
+    CHECK(text.find("tract Grow dev=00000000 tract=1,1 stage=1 -> built=0") != npos);
+    CHECK(text.find("tract NewYear: init=") != npos);
+    CHECK(CountOf(text, "tract Read -> 1") == 1);
+    CHECK(CountOf(text, "tract Read -> 0") == 2);
+    CHECK(text.find("tract Shutdown: init=0") != npos);
+    CHECK(text.find("tract shadow: requested (tract_shadow from FreeCity4.ini) but INACTIVE") != npos);
+    CHECK(text.find("tract shadow: ON") == npos);
+    CHECK(text.find("structured exception") == npos);
+    CHECK(text.find("config: WARNING unknown key") == npos);
+    CHECK(text.find("WARNING: released last reference") == npos);
+    CHECK(text.find("WARNING: over-release") == npos);
+    CHECK(text.find("streams: WARNING") == npos);
+    if (g_failures == 0) std::printf("plugin tract enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 int main(int argc, char** argv) {
     if (argc < 2) {
         std::fprintf(stderr, "usage: %s <FreeCity4.dll>\n", argv[0]);
@@ -9426,6 +9634,8 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-traffic") return TrafficEnableTest(dll, ini, log);
     // The development shadow: ON with the original unit, its list comparison (seam op 34).
     if (mode == "--ini-development-shadow") return DevelopmentShadowIniTest(dll, ini, log);
+    // The tract developer (tract-developer.md): the replacement without a city (seam op 45).
+    if (mode == "--ini-enable-tract") return TractEnableTest(dll, ini, log);
     // Land value and flammability grid shadows on fake originals; both inactive with ours.
     if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
     if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
@@ -9745,7 +9955,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 183): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 196): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -11658,11 +11868,11 @@ int main(int argc, char** argv) {
                     "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 183 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 183 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 196 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 196 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 183): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 196): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);
