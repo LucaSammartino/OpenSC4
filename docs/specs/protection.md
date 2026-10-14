@@ -983,8 +983,30 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | `cISC4SimGrid<T>` | | | slots 6, 9, 12, 13, 16, 17, 19, 24, 25, 27 (simgrid §4) | | |
 | `cSC4MapUtilities::AddRadiusEffect<int16>` | | `0x005E4500` | simgrid §7.1 | | |
 | `cRZRandom` | | `0x0091372E`, `0x00913761` | §10 | | |
-| Property helpers | | `0x005FD450` s32, `0x005FD480` u32, `0x005FD4F0` f32, `0x005FDAC0` pct, `0x005FF510` vector, `0x005FE3C0` / `0x005FE6B0` set | | | |
+| Property helpers | | `0x005FD450` s32, `0x005FD480` u32, `0x005FD4F0` f32, `0x005FDAC0` pct, `0x005FF510` vector, `0x005FE3C0` set scalar u32, `0x005FE6B0` set u32 array (below) | | | |
 | Response curves | | `0x005F4480` build from points, `0x005F4700` key loader, `0x005F4250` GetOutputValue | foundations §4 | | |
+
+**The two property setters** *[compat]*. Both take `(holder, id, value)` and start the same way:
+
+1. Look the property up with the holder's `GetProperty(id)` (slot 9).
+2. If it is missing, create a new property with that ID and an empty value, and add it to the holder (slot 15,
+   second argument 0).
+3. Set the value through the property's variant. This **replaces the variant's type and count**.
+
+They differ in the value they write:
+
+| Setter | Value written (variant call) | Stored as | Written by |
+|---|---|---|---|
+| `0x005FE3C0` | **scalar** `Uint32` (`SetValUint32`, slot 26, `0x0091587D`: type code 6, the value inline) | one `u32`, not an array | strike start `0xEAA69F83` (fire `0x006ADD22`, police `0x006E1981`); availability mask `0x69B425DE` / `0x48D71ED8` and base call number `0x69B425DD` / `0x48D71ED7` (`0x006AD1A4`/`0x006AD184`, `0x006E0304`/`0x006E02E4`); jail population `0x48D71EE1` (`0x006E135C`); the air sources' properties |
+| `0x005FE6B0` | **`Uint32` array** with the vector's elements copied, count = vector length (slot 102, `0x00915014`: type `0x8006`; a length-0 vector gives an empty array) | `u32` array | station statistics `0x8A70A0B9` (`0x006E26F0`, `0x006E2C62`), always 4 elements from this code (§9.2) |
+
+So the strike start, mask, base call number and jail population are scalars, and only the statistics are a
+vector. In a saved occupant they appear as a scalar `Uint32` property and as a 4-element `Uint32` array.
+
+*[quirk]* An occupant's holder falls back to its exemplar in `GetProperty` (`0x005FEDA0`). If a plug-in exemplar
+defines one of these IDs, the setter therefore **changes the exemplar's property**, shared by every occupant of
+that exemplar, instead of adding one to the occupant. None of the IDs exists in any shipped exemplar (all shipped
+packages scanned). *[choice]* FreeCity4 writes onto the occupant itself.
 
 ---
 

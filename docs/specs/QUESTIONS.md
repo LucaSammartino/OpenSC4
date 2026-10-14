@@ -500,7 +500,17 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   through the globals only]*
 - **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
   its elements, which leaks the caller's references as the original does. Intended? [reproduced]
-- **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]
+- ~~**PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]~~
+  **ANSWERED 2026-10-14** from the exe (setters `0x005FE3C0`/`0x005FE6B0`; variant slot 26 `0x0091587D` and slot 102
+  `0x00915014`; every protection call site) and written into protection.md §14.
+  - **`0x005FE3C0`** writes a **scalar** `Uint32` (variant type 6), not a one-element vector. It is used for the
+    strike start, the availability masks, the base call numbers, the jail population and the air sources'
+    properties.
+  - **`0x005FE6B0`** writes a `Uint32` **array** of the vector's length (type `0x8006`, elements copied). It is
+    used only for the station statistics `0x8A70A0B9`, always 4 elements.
+  - **Both** add the property when it is missing and replace the variant's type.
+  - **Quirk.** The lookup falls back to the occupant's exemplar, so an ID defined in a plug-in exemplar would be
+    changed there. No shipped exemplar has any of these IDs. *[choice]* Write onto the occupant.
 - **PR10 — §5.3:** the zone manager's slot-5 grid class is not in docs/abi; `GetZoneType(x, z)` (slot 12) is used
   instead, 0 outside the city. Same values? [slot 12]
 - **PR11 — §12:** "void1 = the simulator" posts the primary interface pointer. Right pointer? [primary]
