@@ -17,14 +17,13 @@ use crate::stream::{InStream, OutStream, RefValue, ResKey, SaveObject};
 use crate::x87::ftol32;
 
 use super::{
-    cheat, decline_day, exemplar_type, monthly_supply, msg, prop, tuning_min_max, unpack_terrain_rect,
-    update_lot_elements_flag, AdviceSubject, CellRect, CommandParam, ConstructionProfile, DemandNode, DeveloperId,
-    DevelopmentHost, GridProvider, GrowthDevelopers, GrowthItem, GrowthProfile, LotId, Message, OccupantId, Outcome,
-    SharedProcess, TractGrid, Vec3, AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGRICULTURE, BUILDING_MAP_INSTANCE,
-    BUILDING_MAP_TRACT_SIZE, CENSUS_C, CENSUS_I, CENSUS_R, CITY_PLANNING_ADVISOR, CLSID_BDS, DECLINE_PLAN_THRESHOLD,
-    GROWTH_THRESHOLD, HIGHEST_STAGE_EVENT, IID_DEMAND, IID_GROWTH_DEVELOPER, IID_OCCUPANT, IID_SIM_GRID,
-    MAX_PLAN_ENTRIES, MAX_SLOPE_CHANGE, NEW_NODE_DEMAND, NEW_NODE_SUPPLY, PLACE_BUILDING_COMMAND, PLACE_BUILDING_NAME,
-    SPECIAL_GROUPS,
+    cheat, decline_day, exemplar_type, monthly_supply, msg, prop, tuning_min_max, unpack_terrain_rect, AdviceSubject,
+    CellRect, CommandParam, ConstructionNode, ConstructionProfile, DeveloperId, DevelopmentHost, GridProvider,
+    GrowthDevelopers, GrowthItem, GrowthProfile, LotId, Message, OccupantId, Outcome, SharedProcess, TractGrid, Vec3,
+    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, AGRICULTURE, BUILDING_MAP_INSTANCE, BUILDING_MAP_TRACT_SIZE, CENSUS_C,
+    CENSUS_I, CENSUS_R, CITY_PLANNING_ADVISOR, CLSID_BDS, DECLINE_PLAN_THRESHOLD, GROWTH_THRESHOLD,
+    HIGHEST_STAGE_EVENT, IID_DEMAND, IID_GROWTH_DEVELOPER, IID_OCCUPANT, IID_SIM_GRID, MAX_PLAN_ENTRIES,
+    MAX_SLOPE_CHANGE, NEW_NODE_DEMAND, NEW_NODE_SUPPLY, PLACE_BUILDING_COMMAND, PLACE_BUILDING_NAME, SPECIAL_GROUPS,
 };
 use crate::development::BuildingProfile;
 
@@ -133,9 +132,11 @@ pub struct DevelopmentSim {
     token: Cell<u64>,
     d: RefCell<DevelopmentData>,
     grid: RefCell<Option<Grid>>,
-    node: RefCell<Option<Rc<DemandNode>>>,
+    node: RefCell<Option<Node>>,
     grow_budget: Cell<u32>,
 }
+
+type Node = Rc<dyn ConstructionNode>;
 
 impl DevelopmentSim {
     /// A new BDS with the constructor values of §2, sharing the process
@@ -190,11 +191,11 @@ impl DevelopmentSim {
     }
 
     /// The construction node.
-    pub fn construction_node(&self) -> Option<Rc<DemandNode>> {
+    pub fn construction_node(&self) -> Option<Rc<dyn ConstructionNode>> {
         self.node.borrow().clone()
     }
 
-    pub fn set_construction_node(&self, node: Option<Rc<DemandNode>>) {
+    pub fn set_construction_node(&self, node: Option<Rc<dyn ConstructionNode>>) {
         *self.node.borrow_mut() = node;
     }
 
@@ -228,9 +229,9 @@ impl DevelopmentSim {
         if first {
             self.load_catalogue();
         }
-        for (_key, ex) in h.exemplars() {
+        for (key, ex) in h.exemplars_of_types(&[exemplar_type::DEVELOPER]) {
             if props::u32_of(&ex, prop::EXEMPLAR_TYPE) == Some(exemplar_type::DEVELOPER) {
-                self.create_developer(&ex);
+                self.create_developer(&key, &ex);
             }
         }
         self.read_tuning();
@@ -253,7 +254,7 @@ impl DevelopmentSim {
                 n.init();
             }
             None => {
-                if let Some(n) = h.create_demand_node() {
+                if let Some(n) = h.create_construction_node() {
                     n.init();
                     n.set_supply(NEW_NODE_SUPPLY);
                     n.set_demand(NEW_NODE_DEMAND);
@@ -277,7 +278,12 @@ impl DevelopmentSim {
         let h = &self.host;
         self.process.catalogue_mut().set_loaded(true);
         h.register_static_cleanup();
-        for (key, ex) in h.exemplars() {
+        let types = [
+            exemplar_type::BUILDING,
+            exemplar_type::FOUNDATION,
+            exemplar_type::RETAINING_WALL,
+        ];
+        for (key, ex) in h.exemplars_of_types(&types) {
             match props::u32_of(&ex, prop::EXEMPLAR_TYPE) {
                 Some(exemplar_type::BUILDING) => {
                     let localized = h.exemplar_string(&ex, prop::LOCALIZED_NAME);
@@ -296,7 +302,7 @@ impl DevelopmentSim {
     }
 
     /// `CreateDeveloper(holder)` (§1.5).
-    fn create_developer(&self, ex: &Rc<crate::property::PropertyHolder>) {
+    fn create_developer(&self, key: &ResKey, ex: &Rc<crate::property::PropertyHolder>) {
         let t = props::u32_of(ex, prop::DEVELOPER_TYPE).unwrap_or(0);
         if t == 0 {
             return;
@@ -304,13 +310,13 @@ impl DevelopmentSim {
         let existing = self.d.borrow().developers.get(&t).copied();
         match existing {
             Some(dev) => {
-                self.devs.developer_init(dev, ex);
+                self.devs.developer_init(dev, key, ex);
             }
             None => {
-                let Some(dev) = self.devs.create_developer(ex) else {
+                let Some(dev) = self.devs.create_developer(key, ex) else {
                     return;
                 };
-                self.devs.developer_init(dev, ex);
+                self.devs.developer_init(dev, key, ex);
                 self.d.borrow_mut().developers.insert(t, dev);
             }
         }
@@ -987,7 +993,8 @@ impl DevelopmentSim {
             *reason = 3;
             return false;
         };
-        if !(self.d.borrow().cheat_ignore_power || h.powered(x, z)) {
+        let ignore_power = self.d.borrow().cheat_ignore_power;
+        if !(ignore_power || h.powered(x, z)) {
             *reason = 5;
             return false;
         }
@@ -1060,7 +1067,7 @@ impl DevelopmentSim {
 
     /// `PlopBuilding(profile)` (47).
     pub fn plop_building(&self, p: &ConstructionProfile) -> Option<OccupantId> {
-        self.add_new_building_occupant_at_cell(p.building_type, p.x, p.z, i32::from(p.land_value_max))
+        self.add_new_building_occupant_at_cell(p.building_type, p.x, p.z, p.orientation)
     }
 
     /// `AddNewBuildingOccupant(occupant)` (8) and
@@ -1161,7 +1168,7 @@ impl DevelopmentSim {
         let lots = h.lots_in_cell_rect(rect);
         if !(1..=3).contains(&kind) {
             for lot in lots {
-                h.update_lot_elements(lot, update_lot_elements_flag(kind));
+                h.update_lot_elements(lot, kind);
             }
             return;
         }
@@ -1176,7 +1183,7 @@ impl DevelopmentSim {
             // NaN counts as inside.
             let inside = d.is_nan() || (-1.0..=2.0).contains(&d);
             if inside && r24(f64::from(a) - f64::from(b)) <= MAX_SLOPE_CHANGE {
-                h.update_lot_elements(lot, update_lot_elements_flag(kind));
+                h.update_lot_elements(lot, kind);
             } else if h.lot_demolishable(lot) {
                 queued.push(lot);
             } else {
@@ -1206,11 +1213,7 @@ impl SaveObject for DevelopmentSim {
         out.put_u16(RECORD_VERSION);
         let grid = self.grid.borrow().as_ref().map_or(RefValue::Null, |g| g.save_ref());
         out.put_ref(&grid);
-        let node = self
-            .node
-            .borrow()
-            .as_ref()
-            .map_or(RefValue::Null, |n| RefValue::Object(n.clone() as Rc<dyn SaveObject>));
+        let node = self.node.borrow().clone().map_or(RefValue::Null, |n| n.save_ref());
         out.put_ref(&node);
         out.put_u32(d.developers.len() as u32);
         for (&t, &dev) in &d.developers {
@@ -1263,7 +1266,7 @@ impl SaveObject for DevelopmentSim {
             *self.grid.borrow_mut() = GridProvider::<u8>::resolve_grid(&*h, &r);
         }
         if let Some(r) = inp.get_ref_as(IID_DEMAND) {
-            *self.node.borrow_mut() = h.resolve_demand_node(&r);
+            *self.node.borrow_mut() = h.resolve_construction_node(&r);
         }
         let n = inp.get_u32().unwrap_or(0);
         for _ in 0..n {

@@ -33,10 +33,12 @@
 //!   advisors, the framework servers, the demand simulator's nodes and the
 //!   resources are host calls. The building map is created and resolved
 //!   through the [`GridProvider<u8>`] supertrait (simgrid §6.4); the
-//!   construction node is a core [`DemandNode`] the host creates.
+//!   construction node is a [`ConstructionNode`] the host creates (a core
+//!   [`DemandNode`] in tests and the conformance runner, the game's
+//!   `cISC4Demand` in the plugin).
 //! - Pure helpers: [`unpack_terrain_rect`], [`monthly_supply`],
-//!   [`decline_day`], [`tuning_min_max`], [`update_lot_elements_flag`]; the developer-type, key and zone
-//!   helpers are `crate::development`'s.
+//!   [`decline_day`], [`tuning_min_max`]; the developer-type, key, zone and
+//!   category-flag helpers are `crate::development`'s.
 //!
 //! Host tokens are opaque (`cISC4GrowthDeveloper*`, `cISC4Lot*`,
 //! `cISC4Occupant*` in the plugin); 0 is never a live object. Host callbacks
@@ -58,9 +60,8 @@
 //! §4.8–§4.11 ([`DevelopmentHost::dezone`] carries only the rectangle and
 //! the one variable flag).
 //!
-//! - *[inferred]* `UpdateLotElements(lot, bool hadFoundation)` receives the
-//!   BDS's 32-bit `kind`; the callee reads its low byte
-//!   ([`update_lot_elements_flag`]).
+//! - `UpdateLotElements(lot, kind)` receives the BDS's whole 32-bit `kind`
+//!   (§4.11 *[compat]*, lot-developer.md §6.4).
 //! - *[inferred]* `DemolishLots` (no demolition spec yet) is one host call
 //!   that returns the cost it writes through its out argument, and it is
 //!   called even with an empty queue (§4.11 as written).
@@ -72,8 +73,8 @@
 //!   key, like buildings.
 //! - *[inferred]* `AddBuildingData` for a type seen before replaces its key,
 //!   names and profile and appends it to its families again.
-//! - *[inferred]* `PlopBuilding`'s "fourth-from-last field" is the
-//!   profile's `land_value_max` (field list of `ConstructionProfile`).
+//! - `PlopBuilding` passes the profile's orientation (+0x18, §4.9
+//!   *[compat]*).
 //! - *[inferred]* The orientation 1/3 box swap exchanges the x and z
 //!   components of both corners.
 //!
@@ -145,6 +146,7 @@ pub use crate::development::{ConstructionProfile, GrowthItem, GrowthProfile, Out
 pub use crate::grid::{GridProvider, TractGrid};
 use crate::property::PropertyHolder;
 use crate::rng::{RzRandom, SeedSource};
+use crate::stream::SaveObject;
 use crate::stream::{RefValue, ResKey};
 
 /// Class and interface IDs (§1.1, §6).
@@ -385,6 +387,9 @@ pub struct AdviceSubject {
 /// |---|---|
 /// | `create_developer` | `GrowthDeveloper::new` + `add_ref` (the BDS's reference) |
 /// | `developer_init` | `init(Some(exemplar))` |
+///
+/// Both receive the exemplar's resource key too: a host whose developers
+/// are game objects passes them the game's own holder of that key.
 /// | `developer_shutdown` | `shutdown()` |
 /// | `developer_release` | `release()` |
 /// | `developer_sub_type` | `developer_type()` (`GetSubType`, slot 6) |
@@ -399,9 +404,9 @@ pub trait GrowthDevelopers {
     /// A new `cSC4GrowthDeveloper` (§1.5) holding one reference for the
     /// BDS; `exemplar` is the developer exemplar it is about to be
     /// `Init`ed with.
-    fn create_developer(&self, exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId>;
+    fn create_developer(&self, key: &ResKey, exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId>;
     /// `Init(holder)` (slot 3).
-    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool;
+    fn developer_init(&self, dev: DeveloperId, key: &ResKey, exemplar: &Rc<PropertyHolder>) -> bool;
     /// `Shutdown()` (slot 4).
     fn developer_shutdown(&self, dev: DeveloperId) -> bool;
     /// `Release()`.
@@ -452,6 +457,15 @@ pub trait DevelopmentHost: GridProvider<u8> {
     /// Every exemplar (type `0x6534284A`) in the resource key list's
     /// enumeration order.
     fn exemplars(&self) -> Vec<(ResKey, Rc<PropertyHolder>)>;
+    /// The exemplars whose ExemplarType (property `0x10`) is one of `types`,
+    /// in the same order (§1.3 steps 1 and 2 keep only those). A host that
+    /// converts exemplars on demand can skip the others.
+    fn exemplars_of_types(&self, types: &[u32]) -> Vec<(ResKey, Rc<PropertyHolder>)> {
+        self.exemplars()
+            .into_iter()
+            .filter(|(_, h)| crate::props::u32_of(h, prop::EXEMPLAR_TYPE).is_some_and(|t| types.contains(&t)))
+            .collect()
+    }
     /// `SC4LoadExemplarString(holder, id)`: the localized string the
     /// property refers to.
     fn exemplar_string(&self, holder: &PropertyHolder, id: u32) -> Option<Vec<u8>>;
@@ -487,11 +501,12 @@ pub trait DevelopmentHost: GridProvider<u8> {
     /// `demandSim.GetDemand(id, 0).QuerySupplyValue()`; `None` without the
     /// node.
     fn census_supply(&self, id: u32) -> Option<f32>;
-    /// A new `cSC4Demand` (the construction node).
-    fn create_demand_node(&self) -> Option<Rc<DemandNode>>;
-    /// The node a save reference (read with [`IID_DEMAND`]) points at.
-    fn resolve_demand_node(&self, r: &RefValue) -> Option<Rc<DemandNode>> {
-        r.object::<DemandNode>()
+    /// A new `cSC4Demand` (the construction node), not yet `Init`ed.
+    fn create_construction_node(&self) -> Option<Rc<dyn ConstructionNode>>;
+    /// The node a save reference (read with [`IID_DEMAND`]) points at; it
+    /// holds the reference the stream handed over.
+    fn resolve_construction_node(&self, r: &RefValue) -> Option<Rc<dyn ConstructionNode>> {
+        r.object::<DemandNode>().map(|n| n as Rc<dyn ConstructionNode>)
     }
 
     /// `QueryActiveDemandValue()` of the demand node a developer's
@@ -535,10 +550,9 @@ pub trait DevelopmentHost: GridProvider<u8> {
     /// `lotDeveloper.GetLotSlope(lot, water = false)` (lot-developer.md,
     /// slot 30).
     fn lot_developer_slope(&self, lot: LotId) -> f32;
-    /// `lotDeveloper.UpdateLotElements(lot, hadFoundation)` (lot-developer.md
-    /// §6.3, slot 37). The BDS passes its 32-bit `kind` as the bool
-    /// argument; see [`update_lot_elements_flag`].
-    fn update_lot_elements(&self, lot: LotId, had_foundation: bool);
+    /// `lotDeveloper.UpdateLotElements(lot, kind)` (lot-developer.md §6.4,
+    /// slot 37): the terrain-change kind, the whole 32-bit data4 (§4.11).
+    fn update_lot_elements(&self, lot: LotId, kind: u32);
     /// `lotDeveloper.GetLowestOrHighestAreaAltitude(SC4Rect<float>{x1, z1,
     /// x2, z2}, lowest = false, withWater = true)` (lot-developer.md, slot
     /// 16): the highest altitude over the rectangle.
@@ -599,6 +613,59 @@ pub trait DevelopmentHost: GridProvider<u8> {
     /// `GetAdvisor(advisor).PushEvent(event, null)`; `discarded` is the
     /// subject the original fills and releases (§4.10).
     fn push_advisor_event(&self, advisor: u32, event: u32, discarded: &AdviceSubject);
+}
+
+/// The construction node (§1.3 step 7, §4.6): a `cSC4Demand` (demand spec
+/// §3) owned by the BDS. Every method is the `cISC4Demand` slot of BDS §8.
+pub trait ConstructionNode {
+    /// `Init()` (slot 3).
+    fn init(&self);
+    /// `Shutdown()` (slot 4).
+    fn shutdown(&self);
+    /// `QuerySupplyValue()` (slot 8).
+    fn supply(&self) -> f32;
+    /// `QueryDemandValue()` (slot 9).
+    fn demand(&self) -> f32;
+    /// `SetSupplyValue(v)` (slot 18).
+    fn set_supply(&self, v: f32);
+    /// `SetDemandValue(v)` (slot 19).
+    fn set_demand(&self, v: f32);
+    /// `AddToDemandValue(v)` (slot 17).
+    fn add_to_demand(&self, v: f32);
+    /// `EndOfCycle()` (slot 30).
+    fn end_of_cycle(&self) -> bool;
+    /// How the BDS record refers to the node (§6).
+    fn save_ref(self: Rc<Self>) -> RefValue;
+}
+
+impl ConstructionNode for DemandNode {
+    fn init(&self) {
+        DemandNode::init(self);
+    }
+    fn shutdown(&self) {
+        DemandNode::shutdown(self);
+    }
+    fn supply(&self) -> f32 {
+        DemandNode::supply(self)
+    }
+    fn demand(&self) -> f32 {
+        DemandNode::demand(self)
+    }
+    fn set_supply(&self, v: f32) {
+        DemandNode::set_supply(self, v);
+    }
+    fn set_demand(&self, v: f32) {
+        DemandNode::set_demand(self, v);
+    }
+    fn add_to_demand(&self, v: f32) {
+        DemandNode::add_to_demand(self, v);
+    }
+    fn end_of_cycle(&self) -> bool {
+        DemandNode::end_of_cycle(self)
+    }
+    fn save_ref(self: Rc<Self>) -> RefValue {
+        RefValue::Object(self as Rc<dyn SaveObject>)
+    }
 }
 
 /// One draw of the BDS generator, for draw-sequence checks.
@@ -764,14 +831,6 @@ pub fn monthly_supply(r: f32, c: f32, i: f32, per_resident: f32, min: u32, max: 
     let u = crate::x87::ftol(f64::from(x)) as u32;
     let u = u.max(min).min(max);
     u as i32 as f32
-}
-
-/// The `hadFoundation` bool `UpdateLotElements` (lot-developer.md §6.3)
-/// receives when the BDS passes its 32-bit terrain-change `kind` (§4.11):
-/// *[inferred]* the callee reads the argument's low byte, so the flag is
-/// `kind & 0xFF ≠ 0` (true for kinds 1–3).
-pub fn update_lot_elements_flag(kind: u32) -> bool {
-    kind & 0xFF != 0
 }
 
 /// The day of decline-plan entry `k` (§4.3): `trunc(r24(float(now) +

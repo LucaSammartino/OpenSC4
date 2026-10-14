@@ -100,17 +100,6 @@ fn monthly_supply_matches_test_4() {
 }
 
 #[test]
-fn update_lot_elements_flag_is_the_low_byte() {
-    assert!(!update_lot_elements_flag(0));
-    assert!(update_lot_elements_flag(1));
-    assert!(update_lot_elements_flag(3));
-    assert!(update_lot_elements_flag(7));
-    assert!(!update_lot_elements_flag(0x100));
-    assert!(update_lot_elements_flag(0x101));
-    assert!(!update_lot_elements_flag(0xFFFF_FF00));
-}
-
-#[test]
 fn grow_budget_defaults_to_unlimited() {
     assert_eq!(DEFAULT_GROW_ATTEMPT_BUDGET, u32::MAX);
 }

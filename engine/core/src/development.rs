@@ -150,7 +150,10 @@ pub struct GrowthProfile {
 
 /// `ConstructionProfile` (growth-developer §6.2, BDS §4.8). Field names
 /// follow the specs; `GetConstructionInfo` writes `zone` through
-/// `land_value_max` only.
+/// `land_value_max` only. The game layout (BDS §4.8, 0x24 bytes): `zone`
+/// +0x00, `unknown2` +0x04, `wealth` +0x08, `purpose` +0x0C, the land value
+/// range +0x10 / +0x11, `building_type` +0x14, `orientation` +0x18, `x`
+/// +0x1C, `z` +0x20.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ConstructionProfile {
     /// The building zone code (`unknown1`): the lowest zone type of the
@@ -163,9 +166,35 @@ pub struct ConstructionProfile {
     pub land_value_min: u8,
     pub land_value_max: u8,
     pub building_type: u32,
+    /// The orientation (`unknown3`, +0x18): read only by `PlopBuilding`
+    /// (BDS §4.9).
+    pub orientation: i32,
     /// Cell coordinates.
     pub x: i32,
     pub z: i32,
+}
+
+/// The occupant groups of the building category flags (§4.7.1.1): bit `i`
+/// of the flags stands for group `CATEGORY_GROUPS[i]`; bit 31 is never set.
+pub const CATEGORY_GROUPS: [u32; 31] = [
+    0x1000, 0x1001, 0x1002, 0x1003, 0x1004, 0x1005, 0x1006, 0x1300, 0x1301, 0x1302, 0x1400, 0x1401, 0x1402, 0x1500,
+    0x1501, 0x1502, 0x1503, 0x1504, 0x1505, 0x1506, 0x1507, 0x1508, 0x1509, 0x150A, 0x150B, 0x2000, 0x2001, 0x2002,
+    0x3000, 0x3001, 0x3002,
+];
+
+/// `SetBuildingCategoryFlags` (§4.7.1.1): for every value of the list and
+/// every index `i` in 0..30, bit `i` when `CATEGORY_GROUPS[i]` is the value.
+/// Values not in the table set nothing; a repeated value sets the same bit.
+pub fn category_flags_of(groups: &[u32]) -> u32 {
+    let mut flags = 0u32;
+    for &v in groups {
+        for (i, &g) in CATEGORY_GROUPS.iter().enumerate() {
+            if g == v {
+                flags |= 1 << i;
+            }
+        }
+    }
+    flags
 }
 
 /// A building's profile (`BuildingProfile`, §4.7.1): what the BDS's
@@ -174,7 +203,9 @@ pub struct ConstructionProfile {
 /// building exemplar (`BuildingProfile::from_exemplar` in
 /// `development_simulator`); a zero profile stands for an unknown type. The
 /// fields after `capacity` are not used by growth *[inferred: field
-/// mapping]*.
+/// mapping]*; the game layout is `docs/abi/layouts.md` *Building profile*
+/// (the budget item cost at +0x38 is the plugin's: it needs the budget
+/// simulator).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct BuildingProfile {
     /// 0–3 (values outside become 0).
@@ -187,11 +218,14 @@ pub struct BuildingProfile {
     pub capacity: u16,
     /// Property `0x27812836`.
     pub flag_27812836: bool,
-    /// Property `0x499AFA38` (default 30 when loaded from an exemplar).
+    /// Property `0x499AFA38` (default 30 when loaded from an exemplar): the
+    /// construction duration in days (layouts.md, +0x0A).
     pub value_499afa38: u8,
-    /// The values of property `0xAA1DD396`, kept raw: the 31-entry table
-    /// that turns them into category flags is not in the spec (§4.7.1).
+    /// The values of property `0xAA1DD396` (occupant groups), as read.
     pub category_values: Vec<u32>,
+    /// The building category flags of those groups ([`category_flags_of`],
+    /// §4.7.1.1; layouts.md +0x1C).
+    pub category_flags: u32,
     /// Occupant size (property `0x27812810`), metres.
     pub occupant_size: [f32; 3],
     /// Plop cost (property `0x49CAC341`).
@@ -338,6 +372,18 @@ mod tests {
         assert!(growth_stage_fits_in_zone(6, 5));
         assert!(growth_stage_fits_in_zone(15, 3));
         assert!(!growth_stage_fits_in_zone(1, 0));
+    }
+
+    #[test]
+    fn category_flags() {
+        // BDS §11 test 19.
+        assert_eq!(category_flags_of(&[0x1000, 0x150A, 0x1000, 0x9999]), 0x0080_0001);
+        assert_eq!(category_flags_of(&[0x3002]), 0x4000_0000);
+        assert_eq!(category_flags_of(&[]), 0);
+        assert_eq!(category_flags_of(&[0x1303]), 0);
+        for (i, &g) in CATEGORY_GROUPS.iter().enumerate() {
+            assert_eq!(category_flags_of(&[g]), 1 << i);
+        }
     }
 
     #[test]
