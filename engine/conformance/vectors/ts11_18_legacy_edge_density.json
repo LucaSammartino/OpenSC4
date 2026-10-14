@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "ts11_18_legacy_edge_density",
+  "spec": [
+    "traffic-simulator 6.4"
+  ],
+  "description": "§6.4: the edge densities of a version < 20 record are floats, rounded half to even; out of range (negative or above 65,535) -> 65,535.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "legacy_density",
+      "args": [
+        2.5
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ts_eval",
+      "fn": "legacy_density",
+      "args": [
+        3.5
+      ],
+      "expect": 4
+    },
+    {
+      "op": "ts_eval",
+      "fn": "legacy_density",
+      "args": [
+        -1.0
+      ],
+      "expect": 65535
+    },
+    {
+      "op": "ts_eval",
+      "fn": "legacy_density",
+      "args": [
+        70000.0
+      ],
+      "expect": 65535
+    },
+    {
+      "op": "ts_eval",
+      "fn": "legacy_density",
+      "args": [
+        65535.0
+      ],
+      "expect": 65535
+    }
+  ]
+}

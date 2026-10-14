@@ -1,0 +1,189 @@
+{
+  "format": 1,
+  "name": "ts11_19_lot_reconcile",
+  "spec": [
+    "traffic-simulator 4.1"
+  ],
+  "description": "§4.1.1: an empty lot gets one probe trip {1, type 0, flags 2}; targets (10, 5, 0) of type 1 replace it with one trip per strategy; growth goes to a new status-4 trip once one of the strategy exists; shrinking takes the status-4 trips first. Freight trips ceil(r24(0.05 x workers)); residential commuters max(1, floor(...)).",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "reconcile_lot",
+      "args": [
+        [],
+        [
+          0,
+          0,
+          0
+        ],
+        0
+      ],
+      "expect": [
+        {
+          "count": 1,
+          "type": 0,
+          "strategy": 0,
+          "flags": 2,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "reconcile_lot",
+      "args": [
+        [
+          {
+            "count": 1,
+            "type": 0,
+            "strategy": 0,
+            "flags": 2,
+            "status": 0
+          }
+        ],
+        [
+          10,
+          5,
+          0
+        ],
+        1
+      ],
+      "expect": [
+        {
+          "count": 10,
+          "type": 1,
+          "strategy": 0,
+          "flags": 0,
+          "status": 0
+        },
+        {
+          "count": 5,
+          "type": 1,
+          "strategy": 1,
+          "flags": 0,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "reconcile_lot",
+      "args": [
+        [
+          {
+            "count": 10,
+            "type": 1,
+            "strategy": 0,
+            "flags": 0,
+            "status": 0
+          },
+          {
+            "count": 5,
+            "type": 1,
+            "strategy": 1,
+            "flags": 0,
+            "status": 0
+          }
+        ],
+        [
+          12,
+          5,
+          0
+        ],
+        1
+      ],
+      "expect": [
+        {
+          "count": 10,
+          "type": 1,
+          "strategy": 0,
+          "flags": 0,
+          "status": 0
+        },
+        {
+          "count": 5,
+          "type": 1,
+          "strategy": 1,
+          "flags": 0,
+          "status": 0
+        },
+        {
+          "count": 2,
+          "type": 1,
+          "strategy": 0,
+          "flags": 0,
+          "status": 4
+        }
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "reconcile_lot",
+      "args": [
+        [
+          {
+            "count": 10,
+            "type": 1,
+            "strategy": 0,
+            "flags": 0,
+            "status": 0
+          },
+          {
+            "count": 5,
+            "type": 1,
+            "strategy": 1,
+            "flags": 0,
+            "status": 0
+          },
+          {
+            "count": 2,
+            "type": 1,
+            "strategy": 0,
+            "status": 4
+          }
+        ],
+        [
+          9,
+          5,
+          0
+        ],
+        1
+      ],
+      "expect": [
+        {
+          "count": 9
+        },
+        {
+          "count": 5
+        }
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "industrial_trips",
+      "args": [
+        30,
+        0.05
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ts_eval",
+      "fn": "industrial_trips",
+      "args": [
+        40,
+        0.05
+      ],
+      "expect": 2
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_commuters",
+      "args": [
+        0,
+        1.0
+      ],
+      "expect": 1
+    }
+  ]
+}

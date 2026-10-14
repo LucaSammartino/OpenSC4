@@ -1,0 +1,401 @@
+{
+  "format": 1,
+  "name": "ts11_10a_hand_checkable_network",
+  "spec": [
+    "traffic-simulator 4.5",
+    "traffic-simulator 4.6",
+    "traffic-simulator 4.8",
+    "traffic-simulator 4.9",
+    "traffic-simulator 4.10",
+    "traffic-simulator 4.12",
+    "traffic-simulator 11.10"
+  ],
+  "description": "Conformance test 10 (§11), mode 0. 8 x 8 city, street (0,3)...(4,3), lot A (2,2), job lot B (4,4) with max[0] = 100; route 01 02 03 41 02 0A with count 40: road volume 40.0 at (2,3), (3,3), (4,3); edge densities (key bit 24 clear, type 1) (2,3) current[4*1+2], (3,3) current[4*0+2], (4,3) current[4*0+3] = 40; lot B arrivedThisCycle[0] = 40; income 0. CreateMaps on (3,3): r = 2.5, peak ratio 2.5, peak volume 40, volume reset to 0 (densityReduction 0), one over-capacity street cell per route cell; CreateFinalMap: congestion 157, air-polluting 4, TrafficMapChanged posted. CompleteTripSourceCalculations for A with tripLength 3.0: trip-length 128 at (2,2), attempted[0] = routed[0] = 40, carLenSum 120, carLenCount 40, car count 40 in the per-type counts, the trip flagged routed-last-pass (8); FinalCalculations: avgCarCommute 3.0; the monthly history 0x8A5D4116 <- 75.",
+  "steps": [
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "note": "lot A, the source"
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        4,
+        4,
+        4,
+        4
+      ],
+      "holder": 12,
+      "capacity": [
+        100
+      ],
+      "note": "job lot B, max[0] = 100"
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "road info {invCapacity 0.0625, Street, 3 connections} at (0,3)...(4,3)"
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "01020341020a",
+        40,
+        [
+          2,
+          2,
+          2,
+          2
+        ],
+        [
+          4,
+          4
+        ],
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "volume",
+      "values": [
+        [
+          2,
+          3,
+          "0x42200000"
+        ],
+        [
+          3,
+          3,
+          "0x42200000"
+        ],
+        [
+          4,
+          3,
+          "0x42200000"
+        ]
+      ],
+      "n": 1
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        2,
+        3
+      ],
+      "counts": [
+        [
+          1,
+          2,
+          40
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        3,
+        3
+      ],
+      "counts": [
+        [
+          0,
+          2,
+          40
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "counts": [
+        [
+          0,
+          3,
+          40
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_edge",
+      "cell": [
+        4,
+        3
+      ],
+      "evening": true,
+      "counts": [],
+      "note": "no bit-24 record traffic in mode 0"
+    },
+    {
+      "op": "ts_call",
+      "method": "traffic_arrived_this_cycle",
+      "args": [
+        12,
+        0
+      ],
+      "expect": 40
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": 12,
+      "id": "0x8A0B4100",
+      "expect": [
+        100,
+        0,
+        0,
+        0,
+        40,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "income_acc": "0x0000000000000000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        2
+      ],
+      "note": "CreateMaps"
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 4,
+        "stats_over": [
+          0,
+          0,
+          0,
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "peak_ratio",
+      "values": [
+        [
+          3,
+          3,
+          "0x40200000"
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "peak_volume",
+      "values": [
+        [
+          3,
+          3,
+          "0x42200000"
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "volume",
+      "values": [
+        [
+          3,
+          3,
+          0
+        ]
+      ],
+      "n": 1
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true,
+      "note": "CreateFinalMap"
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "congestion",
+      "values": [
+        [
+          3,
+          3,
+          157
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "air",
+      "values": [
+        [
+          3,
+          3,
+          4
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_world",
+      "posted_includes": [
+        [
+          "0x69247DC7"
+        ]
+      ]
+    },
+    {
+      "op": "ts_trips",
+      "source": [
+        "lot",
+        1
+      ],
+      "trips": [
+        {
+          "count": 40,
+          "type": 0,
+          "strategy": 1,
+          "status": 3,
+          "length": 3.0,
+          "mask": 2
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "complete_trip_source_calculations",
+      "args": [
+        [
+          "lot",
+          1
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "trip_length",
+      "values": [
+        [
+          2,
+          2,
+          128
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "attempted": [
+          40,
+          0,
+          0
+        ],
+        "routed": [
+          40,
+          0,
+          0
+        ],
+        "car_len_sum": "0x42F00000",
+        "car_len_count": 40,
+        "type_count_building": [
+          0,
+          40,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "pass_total": 1
+      }
+    },
+    {
+      "op": "ts_expect_trips",
+      "source": [
+        "lot",
+        1
+      ],
+      "trips": [
+        {
+          "count": 40,
+          "flags": 8,
+          "status": 3
+        }
+      ]
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 8
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "expect": true,
+      "note": "FinalCalculations"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "avg_car_commute": "0x40400000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_world",
+      "history_includes": [
+        [
+          "0x8A5D4116",
+          75
+        ]
+      ]
+    }
+  ]
+}
