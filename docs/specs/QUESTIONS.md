@@ -529,8 +529,14 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   of the same start node and pushes it again (the heap holds it once per match). Also corrected: the loops run over
   the **ferry terminals** and their neighbour links (traffic-network.md §2.6), not over neighbour connections, and
   the start node is at the terminal's **arrival cell**.
-- **PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
-  core. [host methods]
+- ~~**PF6:** neighbour-connection link lists and `GetTrafficNeighborConnection` costs are not in the traffic network
+  core. [host methods]~~ **ANSWERED 2026-10-14** from the exe (`0x0070F970`, `0x007104A0`, `0x007114E0`, Add
+  `0x007153C0`, Remove `0x00713AB0`, sweep `0x007138B0`, capacities `0x00714E60`, roll `0x00714BE0`) and written
+  into traffic-network.md §2.7.1–§2.7.5. **The bracket is right: host methods** of the traffic simulator, now
+  specified. The "link lists" are the ferry terminals' neighbour links (PF5, §2.6). The cost is
+  `max(cost, f)` per Add (f = the other side's `0xCA947077` average trip length, else commuteMaxTime), never
+  lowered. The lookup never fails, so pathfinder.md §4.13 step 3 always adds it. Also corrected: the per-travel-type
+  arrival counts go on the connection's own holder, not the pool (traffic-simulator.md §4.2).
 - ~~**PF7:** do exit nodes, closed without expansion, advance the work counter? [yes; test 13 holds either way]~~
   **ANSWERED 2026-10-14** from the exe (`FindPath` `0x006D9540` → close `0x006D9C81`, counter `0x006D9C97`) and
   written into §4.11. **The bracket is right: yes.** Every popped node that is not a goal reaches the one close,

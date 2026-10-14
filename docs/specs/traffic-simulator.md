@@ -17,8 +17,9 @@ Related specs:
 * [foundations.md](foundations.md) §4 (response curves), §6 and §12 (random numbers), §18 (x87 precision);
   [simulator.md](simulator.md) §4–§5 (agents, levels, slicing); [simgrid.md](simgrid.md) (grids; §6.4 raw readers);
   [budget.md](budget.md) §7–§8 (departments and line items); [ordinance.md](ordinance.md) §6.3;
-  [neighbors.md](neighbors.md) (neighbour connections and their pools); [growth-developer.md](growth-developer.md)
-  (the commute layer reads the trip-length map); [docs/abi/allocators.md](../abi/allocators.md).
+  [neighbors.md](neighbors.md) (neighbour connections; their edge records and pools are traffic-network.md §2.7);
+  [growth-developer.md](growth-developer.md) (the commute layer reads the trip-length map);
+  [docs/abi/allocators.md](../abi/allocators.md).
 
 Notation. *[compat]* = observable behaviour a replacement must reproduce. *[quirk]* = surprising original behaviour
 that is reproduced. *[choice]* = FreeCity4 decision where the original is undefined or non-deterministic.
@@ -175,7 +176,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | 2 | CreateMaps (`0x0071A0C0`) | §4.9 | scanning iterator reset; per-network-type statistics reset; commercial work grid := 0 |
 | 4 | CreateFinalMap (`0x0070F460`) | §4.10 | scanning iterator reset; commercial traffic grid := commercial work grid (copy of the grid data) |
 | 5 | ClearTripDestinations (`0x0070E4F0`) | §4.11 | scanning iterator reset |
-| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md | |
+| 11 | UpdateNeighborConnections (`0x00714BE0`) | traffic-network.md §2.7.5 | |
 | 3 | ReduceTransitSwitches (`0x00713750`) | §4.8 | |
 | 7 | DumpEdgeDensities (`0x007137D0`) | §4.8 | |
 | 6 | ReduceEdgeDensities (`0x007110B0`) | §4.8 | scanning iterator reset |
@@ -391,15 +392,22 @@ slot 19; building-development.md) *[inferred: caller list not part of this spec]
 neighbour pool holder of that off-map cell (`GetNeighborPoolPropertyHolder(−1, x, z)`, `0x007114E0`); result :=
 `max(k) − arrivedThisCycle(k) ≥ count` (unsigned subtraction) with `k = type`; with no holder `0 ≥ count`.
 
-`ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (`0x00714740`): holder as above. For a neighbour pool
-it also adds `count` to element `lastTravelType` of the pool's u32[9] property `0xAA9EA81A + type`. Then
+`ApplyTrafficToDestination(count, x, z, lastTravelType, type)` (`0x00714740`): holder as above, except that an
+off-map cell asks `GetNeighborPoolPropertyHolder(lastTravelType, x, z)` (traffic-network.md §2.7.1), which is null
+when no connection type at the cell carries that travel type and the cell has no ferry connection. For an off-map
+cell and `type < 3` it also adds `count` to element `lastTravelType` of the u32[9] property `0xAA9EA81A + type`
+(nine zeros if missing) on the **neighbour connection's own** holder, the connection that
+`FindNeighborConnection(lastTravelType, x, z)` finds (`0x007147C9`). This is not the pool. If there is no such
+connection, nothing is added. *(Corrected: an earlier text said the pool's property.)* Then
 `arrivedThisCycle(type) += count`; if now `arrived ≥ max`, clear destination bit `type` over the destination lot's
 rect and decrement `freeDest[type]` *[quirk: decremented on every such call, also when the bit was already
 clear]*.
 
 ### 4.3 StartRecalc and ConfirmTrips (states 0 and 16)
 
-**StartRecalc** (§4.12) advances `rerouteBucket` (0…3) and resets the cycle accumulators.
+**StartRecalc** (§4.12) advances `rerouteBucket` (0…3) and resets the cycle accumulators. It then recomputes the
+neighbour pool capacities and sets the destination bits of the off-map edge cells (traffic-network.md §2.7.4,
+`0x00714E60`, called at the end of `0x00717C90`).
 
 **ConfirmTrips** walks all traffic sources (§4.1). For each source: `source.UpdateTrafficVolume()` (§4.1.1 /
 §4.1.4), then `ConfirmTrips(source)` (`0x0071D920`):
@@ -844,7 +852,7 @@ vectors.
 | 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 sum, u32 count, s32 max x, s32 max z, f32 max), the aggregate (same 5 fields), u16 × 13 (over-capacity counts), u16, u16, s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
 | 18 | commute | f32 `avgCarCommute`, f32 `carLenSum`, u32 `carLenCount`, f32 `freightLenSum`, u32 `freightCount`, u32 × 13 cells per network type, u32 4, u32 × 4 `freeDest` |
-| 19 | tail | u32 count + records of the per-type usage table, the per-travel-type count vectors (u32 × 9 each) and the ferry total, then the **ferry terminals**: u32 count, per terminal u8 × 6, u8, u16 × 3, u8 × 2 (kind, cell, counters), u32 link count + per link (f32 cost, s16 x, s16 z, u16, u16 × 4 counters, route bytes `vector<u8>`), u32 neighbour-link count + per link (f32, s16 × 4, u16 × 4, two route vectors); Read rebuilds the terminal tables from them (`0x00713DF0`) *[inferred: field grouping]*; traffic-network.md §6 agrees |
+| 19 | tail | u32 count + records of the neighbour pool map (per pool: u16 ID, then its property-holder record; traffic-network.md §2.7.3), the per-travel-type count vectors (u32 × 9 each) and the ferry total, then the **ferry terminals**: u32 count, per terminal u8 × 6, u8, u16 × 3, u8 × 2 (kind, cell, counters), u32 link count + per link (f32 cost, s16 x, s16 z, u16, u16 × 4 counters, route bytes `vector<u8>`), u32 neighbour-link count + per link (f32, s16 × 4, u16 × 4, two route vectors); Read rebuilds the terminal tables from them (`0x00713DF0`) *[inferred: field grouping]*; traffic-network.md §6 agrees |
 
 Rows 14–19 are partly given by type sequence; the meaning of each unnamed scalar is either traffic-network.md's or an
 internal counter that FreeCity4 writes back unchanged. The full write order with addresses is in the evidence file named in

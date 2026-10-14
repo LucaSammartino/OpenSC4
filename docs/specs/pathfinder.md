@@ -560,9 +560,11 @@ correctly rounded, so the result is **the exact square root rounded once to floa
    EdgeTo(predecessor's cell → node's cell), i.e. the direction from the node back to the car predecessor; the last record
    of the walk (the transition nearest the start) wins.
 2. Trip length `L = r24(result.g − root.g)`; if `L < 0` then `L = +0.0` (NaN is kept).
-3. Windows: if the filter is 0 **or 3**, the destination type reached is not 3, the result cell is off-map and the
-   simulator has a neighbour connection at that cell: `L = r24(connectionCost + L)`. (The Mac build does this for
-   filter 0 only.) For filter 3 the destination type reached is whatever the last filter-0 success on this object
+3. Windows: if the filter is 0 **or 3**, the destination type reached is not 3 and the result cell is off-map
+   (`x ≥ W` or `z ≥ H`, unsigned): `L = r24(cost + L)`, where `cost` is the f32 of the cell's edge record
+   (`GetTrafficNeighborConnection`, traffic-network.md §2.7.1 and §2.7.2). The lookup never fails, so the null
+   test at `0x006D87F2` is dead; a cell where no connection was ever added has cost 0.0. (The Mac build does this
+   for filter 0 only.) For filter 3 the destination type reached is whatever the last filter-0 success on this object
    left there, uninitialised on a fresh object (§10 Q1). *[quirk]*
 4. The trip length is stored in the shared max-trip-length/trip-length float.
 5. If a route deque is set: clear it, then push to the **front** one `RouteData {u8 x, u8 z, u8 travelType}` per node
@@ -687,7 +689,7 @@ node from `(0, 5)` to `(−1, 5)`: AddTripNode used `H(0, 5) = 10`, the recomput
 | exit cost | `r24(c.f − c.g)` |
 | g | `r24(cost + parent.g)`; start: `startCost[t]`; ferry-arrival start: `r24(startCost[t] + link.cost)` |
 | f | `r24(r24(float(dX + dZ) × w) + g)` or `r24(r24(0.0 × w) + g)` inside the search rect |
-| trip length | `r24(goal.g − root.g)`, clamp below at +0.0, then `r24(connectionCost + L)` |
+| trip length | `r24(goal.g − root.g)`, clamp below at +0.0, then `r24(edgeRecord.cost + L)` (§4.13 step 3) |
 | display trip length | `r24(scale × L)` |
 | carpool count | `float32(ceil(double(r24(N × 0.8f))))` |
 | ApplyTraffic | `Qi` by `1.5·2^23`; volumes `r24(vol + Q)`; income `r24(I + r24(N × incomePerTile))`, then a 24-bit double add |
@@ -787,8 +789,8 @@ traffic-simulator.md must specify their results):
 | `0x0070FB30` | GetNetworkInfo | `(transitNetwork, x, z)` → network info pointer or null |
 | `0x0071CB20` | TransitSwitchEntryCost | `(switchId)` → float (x87) |
 | `0x0070DFF0` | used trip capacity | `(holder, k)` → u32 |
-| `0x007114E0` | GetNeighborPoolPropertyHolder | `(t, x, z)` → holder or null |
-| `0x0070F970` | GetTrafficNeighborConnection | `(x, z)` → connection (cost float) or null |
+| `0x007114E0` | GetNeighborPoolPropertyHolder | `(t, x, z)` → holder or null (traffic-network.md §2.7.1) |
+| `0x0070F970` | GetTrafficNeighborConnection | `(x, z)` → the cell's edge record (f32 cost at +4), never null (traffic-network.md §2.7.1) |
 | `0x0070DDD0` | GetNeighborConnectionInnerCell | `(x, z, &ix, &iz)` |
 | `0x006D90F0`, `0x006D7820` | transit-switch map and edge-density map `operator[]` | insert-if-missing |
 
