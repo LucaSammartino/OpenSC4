@@ -492,7 +492,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   connections. Confirm. [yes]~~ **ANSWERED 2026-10-14** from the exe: confirmed. `Read` returns false right after
   the `u16` (`0x006CFDDB`), with the stream still good. The store ignores the result, and the freshly created
   simulator keeps its empty list (neighbors.md §13).
-- **NB12:** `UpdateCommodityStats` takes a regional-city token. Is that the right subject? [yes]
+- ~~**NB12:** `UpdateCommodityStats` takes a regional-city token. Is that the right subject? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`0x006D2A2C`–`0x006D2A46`): **no.** The argument is the `cISC4City*`, compared by
+  identity with the current city. Null or any other pointer, including our own regional-city object, does nothing.
+  The core should take a city handle. Also, `R` is not null-checked (`0x006D2A6C`); returning early there is a
+  *[choice]* (neighbors.md §8.2).
 - **NB13:** a present `0xEA46934F` of 0 is divided by literally (inf or NaN); a missing one gives 0. [as stated]
 - **NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]
 - **NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]

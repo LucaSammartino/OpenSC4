@@ -547,7 +547,19 @@ an undefined commodity index in the original; *[choice]* FreeCity4 returns 0 for
 
 ### 8.2 `UpdateCommodityStats(city)` *[compat]*
 
-Only when `city` is the current city. With `R` = the current regional city:
+Only when `city` is the current city.
+
+The subject (NB12; `0x006D2A2C`–`0x006D2A46`) is the **city object**, a `cISC4City*` as the SDK declares it, not
+a regional city. It is compared by identity with the current city (the game's global city pointer), and a null or
+any other pointer returns at once with nothing done. All shipped callers pass the current city, including the
+simulator itself in §7.1, §7.3 and §14. The regional-city object of our own city is a different object: passed
+here, it would do nothing. FreeCity4 must therefore key this call on the city: a handle that is either the current
+city or not.
+
+`R` is then fetched from the region without a null check (`0x006D2A6C`). With no current regional city the original
+crashes; *[choice]* FreeCity4 returns at once in that case.
+
+With `R` = the current regional city:
 
 1. `R.SetBudget(budget.GetTotalFunds())`, `R.SetIncome(budget.GetTotalMonthlyIncome())`.
 2. Sum `cost` over **all** deals (any flags) of types E0 → `P`, E2 → `W`, E4 → `G`.
