@@ -111,7 +111,10 @@ Every `Init` also inserts a **default record** under key **0** into the map (onl
 It is a fresh record with the defaults of §3.3 and an **uninitialised flags byte**. If key 0 is already present
 the new record leaks *[quirk]*. Consequences: `IsFloraTypeValid(0)` is true, `GetStaticFloraData(0)` is
 non-null, and the default record takes part in `GetBestFloraTypeForLocation` and `GetFloraTypesByFilter`
-*[quirk]* (§14).
+*[quirk]* (§14). **After an exemplar-change reload** (§5) key 0 is absent: the reload clears the map
+(`0x006B353A`), key 0 included, and only loads the exemplars, so until the next `Init` `IsFloraTypeValid(0)` is
+false, `GetStaticFloraData(0)` is null and the default record takes part in nothing (verified, FQ14). The next
+`Init` inserts a fresh default record, which then does not leak.
 
 **The flags byte of the default record** (`Init`, `0x006B2BAA`–`0x006B2BF2`): the record is 376 bytes from the
 game's global heap (`operator new`, the 512-byte pool, `docs/abi/allocators.md` instance C). The inline
@@ -680,8 +683,18 @@ Seed type, computed in `AddStaticFloraData(record)`: `record.seedType := record.
 record whose seed type equals the new record's next type gets the new type as seed type. The original also
 compares "other.next = new type" and then assigns the same value (a no-op, also in the Mac build). Result
 *[quirk]*: clusters seed the head of their chain only if the head was registered after them; otherwise they
-seed their own type. The key-0 default record (seed type 0) is captured by the first registered type whose next
-type is 0.
+seed their own type.
+
+*[compat]* **Next type 0** (verified, FQ14; `AddStaticFloraData` slot 6 `0x006B3570`, loop `0x006B3725`–
+`0x006B3776`). There is no special case for 0: the comparison is "other's seed type = new record's next type",
+whatever the value, over every map entry including key 0. The only record whose seed type is 0 is the key-0
+default record (§3.2), so a new record with next type 0 sets key 0's seed type to its own type, if key 0 is in
+the map at that moment. **In the game it never is:** the first load (§4.1 step 2) runs before `Init` inserts
+key 0 (step 8), and the exemplar-change reload (§5) clears the map, key 0 included, before loading and does not
+put key 0 back. So in the game key 0 keeps seed type 0. Only a registration made after `Init` and outside those
+loads (a plugin calling slot 5 or 6, or a test) can change it. *Example:* after `Init`, register A (next 0)
+then B (next 0): A's seed type is A and key 0's becomes A; B's seed type is B and key 0's stays A (it no longer
+equals 0). Nothing reads key 0's seed type, since no flora occupant has type 0 (§6.5 step 1).
 
 ---
 

@@ -1217,8 +1217,14 @@ part of §8 is not compared). The glue's current answer is in brackets.
   (data-formats §4.4). The 22 shipped flora exemplars have no parent cohort, so the shipped game is unaffected;
   a plugin whose flora values sit in a cohort would get defaults (or not be registered) if they are left out.
   *[choice]* include them.
-- **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
-  §6.11 apply when next is 0? [the test avoids the case]
+- ~~**FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
+  §6.11 apply when next is 0? [the test avoids the case]~~ **ANSWERED 2026-10-14** from the exe
+  (`AddStaticFloraData` slot 6 `0x006B3570`, loop `0x006B3725`–`0x006B3776`; `Init` load `0x006B299D` before the
+  key-0 insert `0x006B2BAA`; reload `0x006B352B`–`0x006B354B`) and written into flora.md §6.11 and §3.2. **Yes, it
+  applies; there is no special case for 0.** The harness result is the original's. In the game it cannot happen:
+  key 0 is never in the map during a load (the first load precedes its insert; the reload clears it and does not
+  put it back), and nothing reads key 0's seed type. The test may keep avoiding the case or expect the capture.
+  Side correction in §3.2: after a reload, `IsFloraTypeValid(0)` is false until the next `Init`.
 - Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
   `GetFloraTypesByFilter` with a non-null filter (FQ9).
 - **FQ15 — first in-game shadow (run 80, coordinator):** the registry is identical and about 2,600 trees match each
