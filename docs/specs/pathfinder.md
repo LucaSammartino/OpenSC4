@@ -322,6 +322,14 @@ and chain order matter only for the failure fallback (§4.12).
   than the moving entry's `f`, then the right child if its `f` is strictly less than the chosen one's; stop if
   neither; swap and continue while the new position is below `count`.
 * **Update** (a node already open got a lower `f`): sift up from its current position with the Push rule. Only up.
+* **Position.** Each node records the slot where it was last written (`+0x20`): Push and Update set it at the slot
+  where the node comes to rest, and every sift move sets it for the entry it moves. Pop does not clear the popped
+  node's record. Update (`0x006D6460`) starts from the recorded slot **without checking** that the slot holds the
+  node, and ends by writing the node into its final slot (PF9). A node in the heap twice (§4.6) records whichever
+  copy was written last, and Update moves that copy only. In the game an open node's recorded slot always holds it:
+  the only open node whose slot can be stale is the one being expanded (it stays flagged open until §4.8.5), and no
+  move of §4.8 produces a node's own key, so it never receives an Update. *[choice]* FreeCity4 may treat an Update
+  whose recorded slot does not hold the node as a no-op; the original would overwrite that slot's entry.
 * Capacity grows to `2 × count` entries when full (initial capacity 99).
 
 Equal-`f` nodes are therefore not served first-in-first-out (conformance test 1).

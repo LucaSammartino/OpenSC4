@@ -542,7 +542,12 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   stored cell, decoded from the key (low bytes zero-extended, plus `dir(side)` for bit 31). It differs from the
   in-city cell AddTripNode used, so the recomputed `H` is usually off by one. Also noted in §4.8.4: the park-and-ride
   target is never off-map (the old "lands on P" remark was unreachable, and wrong at the −x/−z edges).
-- **PF9 — §4.9:** Update of an open node whose heap position is stale. [no-op unless the heap slot holds it]
+- ~~**PF9 — §4.9:** Update of an open node whose heap position is stale. [no-op unless the heap slot holds it]~~
+  **ANSWERED 2026-10-14** from the exe (`UpdateNode` `0x006D6460`, `Push` `0x006D88B0`, `Pop` `0x006D6380`) and
+  written into §4.7 ("Position"). The original does **not** check: it sifts up from the slot the node was last
+  written to and writes the node at the end, overwriting whatever the slot held. But that case never happens in
+  the game: the only open node with a stale slot is the one being expanded, and no move produces its own key.
+  **The bracket stands as a [choice]**; it is equivalent in every reachable flow.
 - **PF10 — §4.15:** `GetNeighborConnectionInnerCell` fails for an off-map node. [the node's own cell, low bytes]
 - **PF11:** FindPath on an object that is not initialised. [returns 0, does nothing]
 - **PF12:** `LengthOfLine` precision. [the exact square root, rounded once to float]
