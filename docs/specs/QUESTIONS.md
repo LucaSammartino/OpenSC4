@@ -2792,8 +2792,13 @@ exe and the shipped data alone.
 - **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
   (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
   here; for the building-rendering lane]
-- **GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
-  option. [unknown; 0 in the image]
+- ~~**GF8 — §4.2:** where the model detail global `0x00B216FC` (zoom remap table `0x00B094A4`) is set, and from which
+  option. [unknown; 0 in the image]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4ModelMaker::Init` `0x004948BE`–`0x004948DF`, message handler
+  `0x00496466`–`0x00496495`, render-property getter slot 7 of vtable `0x00ABB6C0`, registration `0x007E2330`) and the
+  shipped `Graphics Rules.sgr`, and written into graphics-formats §4.2. The global is the integer render property
+  `kModelLODOffset` (22) clamped to 0–2. It is read at model-maker `Init` and again on message `0xC9F775BB`, which
+  `cSC4App::ApplyVideoPreferences` posts. The option is Texture Quality: High 0, Medium 1, Low 2; the default is 0.
 - ~~**GF9 — §2.8:** 167 shipped DXT1 entries store their mip levels without the 16-byte padding, and the game reads
   the smallest two or three levels from the wrong offsets (the last one past the pixel data). Reproduce, or read
   them as stored? [reproduce, zero-filling past the entry, *[choice]*]~~

@@ -606,9 +606,16 @@ The binding cache keys on (group, instance) only (§2.10). On the shipped data, 
 An occupant's exemplar names its model with one of the resource-key-type properties
 (`cSC4ModelMakerUtility::GetModelInstanceID` `0x00496830`). Let the property's values be v[0], v[1], …, and z the
 zoom after the detail remap: z = table[zoom + 5 × detail] (table `0x00B094A4`: detail 0 → 0, 1, 2, 3, 4; detail 1 →
-0, 1, 2, 3, 3; detail 2 → 0, 0, 1, 2, 3; detail global `0x00B216FC`, GF8). Let r be the rotation, 0–3, relative
+0, 1, 2, 3, 3; detail 2 → 0, 0, 1, 2, 3; detail global `0x00B216FC`, below). Let r be the rotation, 0–3, relative
 to the view *[inferred naming]*: the function forms (3a + b) mod 4 from its two rotation arguments a and b, or
 3a mod 4 when its flag argument is set.
+
+The detail is the integer render property `kModelLODOffset` (integer property 22), clamped to 0–2 (GF8). The model
+maker reads it in `Init` (`0x004948BE`–`0x004948DF`) and again on message `0xC9F775BB` (`0x00496466`), which it
+subscribes to in `DoPostCityInit` (`0x004952B8`) and which `cSC4App::ApplyVideoPreferences` (`0x0044A2F3`) and
+`cSC4View3DWin::SetRenderProperties` (`0x007ECF15`) post. `Graphics Rules.sgr` sets `modelLODOffset` from the
+Texture Quality option: High 0, Medium 1, Low 2; the registered default is 0 (`0x007E2330`). Example: at Low, zoom 4
+gives z = table[4 + 5 × 2] = 3, so an RKT1 model uses instance v[2] + `0x300` + r × `0x10`, the zoom-3 model.
 
 | Property | Key |
 |---|---|
@@ -896,6 +903,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 6. GF6: byte order of the vertex colour element.
 7. GF7: RKT4/RKT5 layouts.
 8. GF8: where the detail global `0x00B216FC` is set.
+   **Answered** (§4.2): `kModelLODOffset` clamped to 0–2, set by the Texture Quality option.
 9. GF9: unpadded DXT1 mips: reproduce or fix.
    **Answered** (§2.8): reproduce, with the record's own bytes; zero only past `size`.
 10. GF10: semantics of ANIM frame rate, mode, flags and displacement.
