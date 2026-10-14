@@ -1530,8 +1530,13 @@ shadow's current answer is in brackets.
   the simulator's own held department. That is `0xAA4014B4` on a new city and the saved ref after a load, and the
   saved ref is `0xAA4014B4` in every save checked. Production (§7.2) and ageing (§7.3) read the same member.
   Written into plumbing.md §7.1.
-- **PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
-  what state 2 would write, the start is missed and the pass is marked not exact. [as stated]
+- ~~**PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
+  what state 2 would write, the start is missed and the pass is marked not exact. [as stated]~~ **ANSWERED
+  2026-10-14** from the exe (`DoIdle` state 0 `0x006DD3D9`): the probe is shadow glue, so the implementer's choice
+  stands, but **the original has a better marker.** passCounter (record field 7, object `+0x9C`) is incremented once
+  by state 0 and written otherwise only by the constructor and `Read`. A record read whose passCounter is one higher
+  than the previous read means that call ran state 0, with no probe cell needed. *[choice]*: detect starts by
+  passCounter. Written into plumbing.md §6.1.
 - **PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
   compared. [as stated]
 - Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,

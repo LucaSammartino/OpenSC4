@@ -415,7 +415,10 @@ A pass needs at least `2N + 7` calls, where `N` is the number of networks floode
 
 ### 6.1 State 0: start
 
-1. passCounter += 1.
+1. passCounter += 1 (`0x006DD3D9`, the first instruction of state 0; jump table at `0x006DF0A8`). passCounter
+   (object `+0x9C`) is written only here, by the constructor (0) and by `Read`, and it is saved (§9 field 7). So
+   a record read before and after a call shows exactly whether that call started a pass, an aborted pass's
+   restart included (PS6).
 2. factor := `ordinanceSimulator.GetCumulativeFactor(0xA8F4EB0C, 0)` (ordinance slot 25, pop 8, float in ST0;
    from the game's ordinance global). *[inferred: the water-consumption factor of water ordinances.]*
 3. For the deals of type `0x4773FFE2` (import), then `0x4773FFE3` (export) (`neighbours.FindDeals(type, list)`,
@@ -667,7 +670,7 @@ It runs even when the simulator is not enabled.
    it as `0xAA4014B4` when none is held (`0x006DF238`–`0x006DF258`; `CreateDepartmentBudget` returns an existing
    department unchanged, budget.md §6). After a load it is whatever the saved ref names. In every save checked
    (Konradshohe, Tegel, Kensington, Big City Tutorial) that is the budget's department `0xAA4014B4`. It is
-   never null after `Init`. No building's budget item takes part:
+   never null after `Init`. No building's budget item takes part. `ApplyPipeFunding` then does:
    1. cond := cond − `curve 0xCA7138C4 (f × 100)` (`0x006DD119`–`0x006DD142`, stored as float32). Then
       (`0x006DD13C`–`0x006DD172`): above 1 → cond := 1, and the pipe test is **skipped** *[quirk]*; below 0 →
       0; otherwise, if numPipes = 0 → 0. So with no pipes cond stays 1 once a step takes it above 1 (only
