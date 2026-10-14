@@ -719,6 +719,12 @@ unsafe extern "C" fn o_producer_info(u: *mut c_void, occ: u64, out: *mut fc4_plu
 unsafe extern "C" fn o_visited(u: *mut c_void, c: u64) -> bool {
     world(u).visited.borrow().get(&c).copied().unwrap_or(false)
 }
+/// The plugin reads passCounter through the original's Write (PS6); the
+/// stand-in's is its state's.
+unsafe extern "C" fn o_pass_counter(u: *mut c_void, out: *mut i32) -> bool {
+    *out = state_of(world(u)).pass_counter;
+    true
+}
 
 fn original(w: &World) -> fc4_plumbing_original {
     fc4_plumbing_original {
@@ -729,6 +735,7 @@ fn original(w: &World) -> fc4_plumbing_original {
         producer_info: Some(o_producer_info),
         connection_visited: Some(o_visited),
         capture: Some(o_capture),
+        pass_counter: Some(o_pass_counter),
     }
 }
 
@@ -832,9 +839,21 @@ fn stats(s: *mut fc4_plumbing_shadow) -> fc4_plumbing_shadow_stats {
     st
 }
 
+/// A shadow made at the city start (PS3), reading passCounter (PS6).
 fn shadow(w: &World, passes_per_day: u32) -> *mut fc4_plumbing_shadow {
+    let s = shadow_with(w, passes_per_day, true);
+    assert!(unsafe { fc4_plumbing_shadow_city_start(s) });
+    s
+}
+
+/// A shadow made mid-city; `counter`: with the passCounter callback, else
+/// the probe cell.
+fn shadow_with(w: &World, passes_per_day: u32, counter: bool) -> *mut fc4_plumbing_shadow {
     let h = host(w);
-    let o = original(w);
+    let mut o = original(w);
+    if !counter {
+        o.pass_counter = None;
+    }
     let s = unsafe { fc4_plumbing_shadow_create(&h, &o, 0, passes_per_day) };
     assert!(!s.is_null());
     s
@@ -862,12 +881,14 @@ fn shadow_agrees_with_an_identical_original() {
     assert_eq!(r, vec![0, 0], "{lines:#?}");
     let passes = pass_lines(&lines);
     assert_eq!(passes.len(), 2, "{lines:#?}");
-    // The first pass's start was not seen: replayed from its swap, not exact.
+    // PS6: the first delivery's state 0 moved passCounter, so the first
+    // pass is seen from its start too.
     assert!(
-        passes[0].starts_with("plumbing shadow 2000-01-01 pass 1: aligned=swap exact=0 (start not seen);"),
+        passes[0].starts_with("plumbing shadow 2000-01-01 pass 1: aligned=start exact=1;"),
         "{}",
         passes[0]
     );
+    assert!(passes[0].contains("demand orig/ours=130/130;"), "{}", passes[0]);
     let p2 = passes[1];
     assert!(
         p2.starts_with("plumbing shadow 2000-01-01 pass 2: aligned=start exact=1;"),
@@ -897,7 +918,7 @@ fn shadow_agrees_with_an_identical_original() {
             st.passes_not_exact,
             st.passes_incomplete
         ),
-        (2, 2, 1, 1, 0),
+        (2, 2, 2, 0, 0),
         "{st:?}"
     );
     assert_eq!((st.cells, st.cell_mismatches, st.scalar_mismatches), (2048, 0, 0));
@@ -919,7 +940,7 @@ fn shadow_agrees_with_an_identical_original() {
         "{month}"
     );
     assert!(
-        month.contains("passes since the last month line: seen=2 compared=2 clean=1 notExact=1"),
+        month.contains("passes since the last month line: seen=2 compared=2 clean=2 notExact=0"),
         "{month}"
     );
     assert_eq!(state_of(&w).num_distressed, 1);
@@ -934,7 +955,7 @@ fn shadow_agrees_with_an_identical_original() {
     assert!(p3.contains("mismatches=0;"), "{p3}");
     assert!(!p3.contains('!'), "{p3}");
     let st = stats(s);
-    assert_eq!((st.months, st.months_clean, st.passes_clean), (1, 1, 2), "{st:?}");
+    assert_eq!((st.months, st.months_clean, st.passes_clean), (1, 1, 3), "{st:?}");
     // The lines, for `--nocapture`.
     println!("{}", lines.join("\n"));
 
@@ -944,8 +965,10 @@ fn shadow_agrees_with_an_identical_original() {
     assert_eq!(w.refs.borrow().get(&PRODUCER).copied().unwrap_or(0), 0);
 }
 
-/// A published cell the original computes differently, and a consumer whose
-/// consumption changes after our replay: both reported and counted.
+/// A published cell the original computes differently, and a producer's
+/// water used changed after the original's flood: both reported and counted.
+/// A consumer whose consumption changes after the pass started but before the
+/// flood agrees: our flood runs just before the original's (PS8).
 #[test]
 fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
     let w = started();
@@ -994,9 +1017,11 @@ fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
     let st = stats(s);
     assert_eq!((st.cell_mismatches, st.last_mismatches), (1, 1), "{st:?}");
 
-    // The second consumer draws more once our replay has run (the original's
-    // flood, state 4, comes later): consumed, the producer's water used and
-    // the water cost differ.
+    // The second consumer draws more from the delivery in which the original
+    // seeds (state 3), after the pass started (state 0 and 1, and our replay's
+    // start): the original's flood (state 4) reads the new consumption, and so
+    // does ours, run just before it (plumbing.md §5.3 PS8; the r6b pass 339
+    // difference). They agree.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
     let mut results = Vec::new();
     let mut changed = false;
@@ -1024,26 +1049,66 @@ fn shadow_reports_a_wrong_cell_and_a_wrong_scalar() {
         }
     }
     assert!(changed);
-    assert_eq!(results, vec![3], "{lines:#?}");
+    assert_eq!(results, vec![0], "{lines:#?}");
     let p = pass_lines(&lines).last().unwrap().to_string();
-    assert!(p.contains("consumed orig/ours=140/130!"), "{p}");
-    assert!(p.contains("used orig/ours=[140/130!]"), "{p}");
-    assert!(p.contains("cost orig/ours="), "{p}");
-    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
-    assert!(p.contains("mismatches=3;"), "{p}");
+    assert!(p.contains("aligned=start exact=1;"), "{p}");
+    assert!(p.contains("consumed orig/ours=140/140;"), "{p}");
+    assert!(p.contains("used orig/ours=[140/140]"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
 
-    // The next pass, on the new consumption everywhere, agrees again.
+    // The producer's water used overwritten right after the original's last
+    // flood (its states 4 wrote it; nothing is left to seed, state 5 is next):
+    // the used value and the water cost its state 8 adds differ, and are
+    // counted.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
-    assert_eq!(idle_until_rest(&w, s, JULIAN + 3, &mut lines), vec![0], "{lines:#?}");
+    let mut results = Vec::new();
+    let meddled = Cell::new(false);
+    for _ in 0..100 {
+        let r = deliver(
+            &w,
+            s,
+            msg::SIM_IDLE,
+            JULIAN + 3,
+            &mut lines,
+            || {},
+            || {
+                if !meddled.get() && state_of(&w).state == 5 {
+                    meddled.set(true);
+                    w.set(PRODUCER, prop::WATER_USED, mem::UINT32, false, &[999u32]);
+                }
+            },
+        );
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert!(meddled.get());
+    assert_eq!(results, vec![2], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("used orig/ours=[999/140!]"), "{p}");
+    assert!(p.contains("consumed orig/ours=140/140;"), "{p}");
+    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
+    assert!(p.contains("mismatches=2;"), "{p}");
+
+    // The next pass writes the water used again and agrees.
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 4, &mut lines), vec![0], "{lines:#?}");
     println!("{}", lines.join("\n"));
 
     unsafe { fc4_plumbing_shadow_destroy(s) };
     stop(&w);
 }
 
-/// A building inserted while a pass runs makes it "not exact": its
-/// differences are reported, not counted; a failed capture is INCOMPLETE; the
-/// daily replay budget leaves the other passes followed only.
+/// A consumer removed while a pass runs, before its flood: each of our states
+/// runs on the original's flag map of the moment, so the pass stays exact and
+/// agrees. Removed during the original's time-sliced state 6, after our
+/// unsliced one, it makes the pass "not exact": its differences are reported,
+/// not counted. A failed capture is INCOMPLETE; the daily replay budget leaves
+/// the other passes followed only.
 #[test]
 fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     let w = started();
@@ -1051,7 +1116,9 @@ fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     let mut lines: Vec<String> = Vec::new();
     assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
 
-    // A consumer removed after our replay: the flag map and demand change.
+    // A consumer removed when the original is about to seed (state 3): the
+    // flag map and demand change (no pass state reads demand: PS8); our
+    // states 3 and 4 read the new flag map as the original's do.
     message(&w, msg::PIPE_BURST, 0, 0, 0);
     let mut removed = false;
     let mut results = Vec::new();
@@ -1079,11 +1146,56 @@ fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     }
     assert_eq!(results, vec![0], "{lines:#?}");
     let p = pass_lines(&lines).last().unwrap().to_string();
-    assert!(p.contains("exact=0 (flag map, demand changed during the pass);"), "{p}");
-    assert!(p.contains("mismatches=0 (not exact: "), "{p}");
-    let st = stats(s);
-    assert_eq!(st.passes_not_exact, 2, "{st:?}");
+    assert!(p.contains("aligned=start exact=1;"), "{p}");
+    assert!(p.contains("consumed orig/ours=30/30;"), "{p}");
+    assert!(p.contains("wateredCells orig/ours=1/1;"), "{p}");
+    // Demand: the record's at the comparison, without the removed consumer.
+    assert!(p.contains("demand orig/ours=30/30;"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
+    assert_eq!(stats(s).passes_not_exact, 0);
     // The removal's recompute runs one more pass, which agrees.
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
+
+    // The original's states 6 and 7 sliced (as in the game, §6): the second
+    // consumer removed while its state 6 runs, after ours ran whole. The flag
+    // map at the swap is not the one our state 6 read: not exact.
+    test_set_slice_cells(w.a(), Some(100));
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    let mut removed = false;
+    let mut results = Vec::new();
+    for _ in 0..200 {
+        let r = deliver(
+            &w,
+            s,
+            msg::SIM_IDLE,
+            JULIAN + 1,
+            &mut lines,
+            || {
+                if !removed && state_of(&w).state == 6 {
+                    removed = true;
+                    message(&w, msg::REMOVE_OCCUPANT, 0, 0, CONSUMER2);
+                }
+            },
+            || {},
+        );
+        if r >= 0 {
+            results.push(r);
+        }
+        if results.len() == 1 {
+            break;
+        }
+    }
+    assert!(removed);
+    assert_eq!(results, vec![0], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("exact=0 (flag map changed during state 6);"), "{p}");
+    let st = stats(s);
+    assert_eq!(st.passes_not_exact, 1, "{st:?}");
+    // Its recompute: one more pass, sliced too, which agrees.
+    assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
+    test_set_slice_cells(w.a(), None);
+    message(&w, msg::INSERT_OCCUPANT, 0, 0, CONSUMER);
+    message(&w, msg::INSERT_OCCUPANT, 0, 0, CONSUMER2);
     assert_eq!(idle_until_rest(&w, s, JULIAN + 1, &mut lines), vec![0], "{lines:#?}");
 
     // A capture that fails: INCOMPLETE, nothing counted.
@@ -1119,6 +1231,166 @@ fn shadow_flags_changes_during_a_pass_failures_and_the_budget() {
     stop(&w);
 }
 
+/// Without the passCounter callback (PS6) the start shows on a probe cell:
+/// the first pass, already running at the shadow's start, is replayed from
+/// its swap (not exact), the next from its start. Made mid-city, the month's
+/// distressed count is not exact: the original's pipe condition is not
+/// known (PS3).
+#[test]
+fn shadow_without_the_counter_uses_the_probe_cell() {
+    let w = started();
+    let s = shadow_with(&w, 0, false);
+    let mut lines: Vec<String> = Vec::new();
+    assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
+    // Too late for the city start.
+    assert!(!unsafe { fc4_plumbing_shadow_city_start(s) });
+    let passes = pass_lines(&lines);
+    assert!(
+        passes[0].starts_with("plumbing shadow 2000-01-01 pass 1: aligned=swap exact=0 (start not seen);"),
+        "{}",
+        passes[0]
+    );
+    assert!(
+        passes[1].starts_with("plumbing shadow 2000-01-01 pass 2: aligned=start exact=1;"),
+        "{}",
+        passes[1]
+    );
+    assert!(passes[1].contains("mismatches=0;"), "{}", passes[1]);
+    w.funding.set(0.0);
+    assert_eq!(
+        deliver(&w, s, msg::SIM_NEW_MONTH, JULIAN + 31, &mut lines, || {}, || {}),
+        0
+    );
+    let month = lines.last().unwrap();
+    assert!(
+        month.contains(
+            "distressed orig/ours=1/1 burst +0 (ours allows 0..0) (not exact: the original's pipe condition is not \
+             known, the shadow started mid-city; plumbing.md §7.1 PS3)"
+        ),
+        "{month}"
+    );
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
+/// PS6: a deal status restarts the pass (state 9, then 0); the counter
+/// moves again and the replay starts with the new pass, exactly.
+#[test]
+fn a_restart_moves_the_counter_and_is_replayed_from_its_start() {
+    let w = started();
+    let s = shadow(&w, 0);
+    let mut lines: Vec<String> = Vec::new();
+    assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    let mut restarted = false;
+    let mut results = Vec::new();
+    for _ in 0..100 {
+        let r = deliver(
+            &w,
+            s,
+            msg::SIM_IDLE,
+            JULIAN + 1,
+            &mut lines,
+            || {
+                if !restarted && state_of(&w).state == 3 {
+                    restarted = true;
+                    let m = fc4_plumbing_message {
+                        msg_type: msg::DEAL_STATUS,
+                        deal: IMPORT_DEAL,
+                        ..Default::default()
+                    };
+                    unsafe { fc4_plumbing_do_message(w.a(), &m) };
+                }
+            },
+            || {},
+        );
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert!(restarted);
+    assert_eq!(results, vec![0], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("pass 4: aligned=start exact=1;"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
+/// A pass the original spreads over many game days (its states 6 and 7 are
+/// time-sliced, and a loaded game delivers few SimIdle: r6b saw passes of
+/// four days) is followed to its swap and compared exactly; there is no time
+/// limit, and no INCOMPLETE line.
+#[test]
+fn a_pass_over_many_days_is_compared() {
+    let w = started();
+    let s = shadow(&w, 0);
+    let mut lines: Vec<String> = Vec::new();
+    assert_eq!(idle_until_rest(&w, s, JULIAN, &mut lines), vec![0, 0], "{lines:#?}");
+    test_set_slice_cells(w.a(), Some(64));
+    message(&w, msg::PIPE_BURST, 0, 0, 0);
+    let mut results = Vec::new();
+    for day in (JULIAN + 1..).take(200) {
+        // One delivery a game day.
+        let r = deliver(&w, s, msg::SIM_NEW_DAY, day, &mut lines, || {}, || {});
+        if r >= 0 {
+            results.push(r);
+        }
+        let st = state_of(&w);
+        if st.state == 9 && st.recompute == 0 {
+            break;
+        }
+    }
+    assert_eq!(results, vec![0], "{lines:#?}");
+    let p = pass_lines(&lines).last().unwrap().to_string();
+    assert!(p.contains("pass 3: aligned=start exact=1;"), "{p}");
+    assert!(p.contains("grid 32x32 cells=1024 differing=0"), "{p}");
+    assert!(p.contains("mismatches=0;"), "{p}");
+    let days: i32 = p
+        .split("days=")
+        .nth(1)
+        .and_then(|t| t.split(';').next())
+        .and_then(|t| t.parse().ok())
+        .unwrap();
+    assert!(days > 2, "{p}");
+    assert!(!lines.iter().any(|l| l.contains("INCOMPLETE")), "{lines:#?}");
+    assert_eq!(stats(s).passes_incomplete, 0);
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
+/// PS7: made mid-city around a month, the shadow does not know whether the
+/// next state 8 ages; the producer's condition, changed by the original's
+/// state 8, shows it did, and the conditions agree.
+#[test]
+fn an_unknown_ageing_shows_in_the_condition() {
+    let w = started();
+    let s = shadow_with(&w, 0, true);
+    let mut lines: Vec<String> = Vec::new();
+    assert_eq!(deliver(&w, s, msg::SIM_NEW_MONTH, JULIAN, &mut lines, || {}, || {}), 0);
+    let r = idle_until_rest(&w, s, JULIAN, &mut lines);
+    assert!(r.iter().all(|&n| n == 0), "{lines:#?}");
+    let first = pass_lines(&lines)[0].to_string();
+    assert!(
+        first.contains(
+            "ageing=yes (inferred: a producer's condition changed; plumbing.md §6.7, PS7); condition orig/ours=["
+        ),
+        "{first}"
+    );
+    assert!(!first.contains('!'), "{first}");
+    // The next pass: an observed end since, so not aged.
+    let last = pass_lines(&lines).last().unwrap().to_string();
+    if r.len() > 1 {
+        assert!(last.contains("ageing=no;"), "{last}");
+    }
+    unsafe { fc4_plumbing_shadow_destroy(s) };
+    stop(&w);
+}
+
 #[test]
 fn shadow_rejects_bad_tables_and_answers_null_handles() {
     let w = World::new();
@@ -1146,6 +1418,7 @@ fn shadow_rejects_bad_tables_and_answers_null_handles() {
         assert_eq!(fc4_plumbing_shadow_after(null, None, null as *mut c_void), -1);
         let mut st = fc4_plumbing_shadow_stats::default();
         assert!(!fc4_plumbing_shadow_get_stats(null, &mut st));
+        assert!(!fc4_plumbing_shadow_city_start(null));
         fc4_plumbing_shadow_destroy(null);
 
         let s = fc4_plumbing_shadow_create(&h, &o, 0, 0);
@@ -1171,6 +1444,6 @@ fn shadow_struct_layouts() {
     );
     assert_eq!(
         std::mem::size_of::<fc4_plumbing_original>(),
-        if ptr == 4 { 28 } else { 56 }
+        if ptr == 4 { 32 } else { 64 }
     );
 }

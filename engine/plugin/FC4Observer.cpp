@@ -24,7 +24,9 @@
 #include "FC4Log.h"
 #include "FC4Popups.h"
 #include "FC4ProtectionShadow.h"
+#include "FC4Script.h"
 #include "FC4Subsystems.h"
+#include "FC4Turbo.h"
 #include "FC4Watchdog.h"
 #include "FC4ZonesShadow.h"
 #include "cFC4ZoneManager.h"
@@ -507,6 +509,9 @@ public:
             loadSnapshotDue_ = false;
             WriteObserve(&SnapshotStep, "observe snapshot", 0, "after load");
         }
+        // script = <path>: a `save` and the actions behind it (FC4Script.h);
+        // before the save autotest and before AutotestOnTick's quit or end.
+        ScriptOnTick();
         if (saveDue_) {
             saveDue_ = false;
             SaveAndEnd();  // does not return
@@ -540,6 +545,9 @@ public:
                 break;
             case kMsgConnectionsReady:
                 PopupDialogsOnConnectionsReady();
+                // Then (popup dialogs handled first) a held turbo request may
+                // engage (FC4Turbo.h; tooling).
+                TurboOnConnectionsReady();
                 break;
             case kMsgAuraCycleCompleted:
                 AuraShadowCycle(CurrentCity(), static_cast<int32_t>(PublishedJulian()));  // aura_shadow = 1 only
@@ -554,6 +562,10 @@ public:
                 bool ok = false;
                 const int64_t j = DataOf(msg, &ok);
                 if (ok) PublishJulian(static_cast<int32_t>(j));
+                // script = <path>: the actions due today (FC4Script.h), then
+                // autotest_end_date and the verdict's day count (FC4Autotest.h).
+                ScriptOnNewDay(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
+                AutotestOnNewDay(ok ? static_cast<int32_t>(j) : static_cast<int32_t>(PublishedJulian()));
                 break;
             }
             case kMsgSimNewMonth: {
@@ -728,6 +740,22 @@ void ObserverTestMessage(uint32_t type, intptr_t data1) {
     cFC4Message2Standard* msg = FC4MakeMessage(type, data1, 0, 0);
     Observer().DoMessage(msg);
     msg->Release();
+}
+
+// The harness lane's script (FC4Script.h).
+cISC4City* ObserverCity() { return CurrentCity(); }
+void ObserverWriteDigest(int32_t julian) { WriteDigest(julian); }
+ObserverSave ObserverSaveCity(bool fast) {
+    ObserverSave r;
+    AppRef app;  // the test seam's app (kFC4SeamObserverApp), else the framework's (one reference)
+    if (app.app == nullptr) return r;
+    r.haveApp = true;
+    SaveCall call{app.app, fast, false};
+    const DWORD start = GetTickCount();
+    r.clean = SehGuard("script SaveCity", &SaveStep, &call);
+    r.ms = static_cast<unsigned long>(GetTickCount() - start);
+    r.result = call.result;
+    return r;
 }
 
 }  // namespace fc4

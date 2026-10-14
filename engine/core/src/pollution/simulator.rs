@@ -268,8 +268,13 @@ impl PollutionState {
     /// 0` else `−s` for n < 0; the supply becomes `s + delta`, then 0 if
     /// negative (only an already negative `s`, from a damaged save). Returns
     /// the delta taken **before** that last clamp (EAX; no caller reads it).
-    /// [choice] `0x7FFFFFFF − s` and `s + n` are exact (a negative `s` with
-    /// n > 0 gives delta `n`; spec question).
+    /// `0x7FFFFFFF − s` and `s + n` are exact (a negative `s` with n > 0
+    /// gives delta `n`). PG15 (answered; the bracket matches): the original
+    /// forms `s + n` in int32 and takes `0x7FFFFFFF − s` only when that sum
+    /// wrapped, which needs s > 0, where the subtraction is exact.
+    /// [choice] (pollution.md §8.1 quirk): with a negative `s` (a damaged
+    /// save only) and n < 0, the original's `s + n` can wrap to a positive
+    /// value and be kept unclamped; FreeCity4 clamps (delta `−s`, supply 0).
     pub fn add_to_garbage_supply(&mut self, n: i32) -> i32 {
         let s = i64::from(self.garbage_supply);
         let n = i64::from(n);

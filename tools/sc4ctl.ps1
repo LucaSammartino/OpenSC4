@@ -7,9 +7,11 @@ Usage:
   powershell -File tools\sc4ctl.ps1 snap  build-runs\x.png   # PNG of the 800x600 client area
   powershell -File tools\sc4ctl.ps1 click 526 410            # posted left click at client (x, y)
   powershell -File tools\sc4ctl.ps1 rclick 400 300           # posted right click
+  powershell -File tools\sc4ctl.ps1 drag 300 300 "360,340"    # posted left-button drag from (x1, y1) to (x2, y2), e.g. a zone tool drag
   powershell -File tools\sc4ctl.ps1 key  S ctrl              # posted key (WM_KEYDOWN/UP), optional modifiers ctrl,shift,alt
   powershell -File tools\sc4ctl.ps1 realkey S ctrl           # real input (SendInput); brings the window to the front
   powershell -File tools\sc4ctl.ps1 realclick 526 410        # real input click; brings the window to the front
+  powershell -File tools\sc4ctl.ps1 realdrag 300 300 "360,340" # real input drag (the 3D view ignores posted input)
   powershell -File tools\sc4ctl.ps1 ui <name>                # click a named control (see $Ui below)
   powershell -File tools\sc4ctl.ps1 clear [pngPrefix]        # click advisor popups away until hidden=0
   powershell -File tools\sc4ctl.ps1 findclose                # which known dialog is up, and where its button is
@@ -18,15 +20,27 @@ Usage:
 
 Client coordinates are for the 800x600 windowed game (-w). Posted input needs no focus and leaves the user's
 cursor alone; real input moves the cursor and needs the window in front.
+
+Several games (slot runs, tools\ingame_run.ps1 -Slot N): -Pid <pid> picks the game (default: $env:FC4_GAME_PID, which
+ingame_run sets for its sc4ctl calls, else the first "SimCity 4" process) and -GameLog <path> its plugin log (default:
+$env:FC4_GAME_LOG, else Documents\SimCity 4\Plugins\FreeCity4.log). With $env:FC4_NO_REAL_INPUT = 1 (ingame_run sets
+it in slot runs) realkey, realclick, realdrag and save are refused: they take the foreground from the user.
+Screenshots (snap, clear, findclose) are taken per window with PrintWindow(PW_RENDERFULLCONTENT), so a covered or
+overlapped game window is read correctly; the screen copy is only a fallback, and the output names the method used.
 #>
 param([Parameter(Mandatory = $true, Position = 0)][string]$Cmd,
       [Parameter(Position = 1)][string]$A,
       [Parameter(Position = 2)][string]$B,
-      [Parameter(Position = 3)][string]$C)
+      [Parameter(Position = 3)][string]$C,
+      [Alias("Pid")][int]$GamePid = 0,
+      [string]$GameLog = "")
 
 $ErrorActionPreference = "Stop"
 $Plugins = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SimCity 4\Plugins"
-$Log = Join-Path $Plugins "FreeCity4.log"
+$Log = if ($GameLog) { $GameLog } elseif ($env:FC4_GAME_LOG) { $env:FC4_GAME_LOG } else { Join-Path $Plugins "FreeCity4.log" }
+if ($GamePid -eq 0 -and $env:FC4_GAME_PID) { $GamePid = [int]$env:FC4_GAME_PID }
+$NoRealInput = ($env:FC4_NO_REAL_INPUT -eq "1")
+$script:CaptureMethod = "none"
 
 # Named controls of the city view, client coordinates measured on run 49 (800x600, windowed).
 $Ui = @{
@@ -58,14 +72,36 @@ public static class FC4Ctl {
     [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, IntPtr extra);
     [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint type);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+    [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr hdc, uint flags);
+    [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+    public delegate bool EnumProc(IntPtr h, IntPtr l);
+    [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc f, IntPtr l);
+    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
+    // The game's window by class; Process.MainWindowHandle is 0 at times for slot games.
+    public static IntPtr GameWindow(int pid) {
+        IntPtr found = IntPtr.Zero;
+        EnumWindows(delegate(IntPtr h, IntPtr l) {
+            uint p; GetWindowThreadProcessId(h, out p);
+            if (p == (uint)pid) { var c = new System.Text.StringBuilder(256); GetClassName(h, c, 256); if (c.ToString().StartsWith("GDriverClass")) { found = h; return false; } }
+            return true; }, IntPtr.Zero);
+        return found;
+    }
 }
 "@
 [FC4Ctl]::SetProcessDPIAware() | Out-Null
 
 function GameWindow {
-    $p = Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | Select-Object -First 1
-    if (-not $p -or $p.MainWindowHandle -eq [IntPtr]::Zero) { Write-Output "NOT RUNNING"; exit 2 }
-    return $p.MainWindowHandle
+    if ($GamePid -gt 0) { $p = Get-Process -Id $GamePid -ErrorAction SilentlyContinue }
+    else { $p = Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue | Select-Object -First 1 }
+    $h = if ($p) { [FC4Ctl]::GameWindow($p.Id) } else { [IntPtr]::Zero }
+    if ($h -eq [IntPtr]::Zero) { Write-Output ("NOT RUNNING" + $(if ($GamePid -gt 0) { " (pid $GamePid)" })); exit 2 }
+    return $h
+}
+function NoRealInput([string]$what) {
+    if (-not $NoRealInput) { return }
+    Write-Output "REFUSED: $what needs real input (the foreground), which slot runs never use (FC4_NO_REAL_INPUT=1)$(if ($what -eq 'save') { '; a save needs a plugin-side script action' })"
+    exit 3
 }
 function ReadShared([string]$path) {
     try {
@@ -74,12 +110,25 @@ function ReadShared([string]$path) {
     } catch { return "" }
 }
 function MakeLParam([int]$x, [int]$y) { return [IntPtr](($y -shl 16) -bor ($x -band 0xFFFF)) }
+# The client area as a bitmap. First PrintWindow(PW_CLIENTONLY | PW_RENDERFULLCONTENT): the window draws itself into
+# our DC, so a covered, overlapped or off-screen window is read correctly. A failed or blank (one colour) result falls
+# back to a copy of the screen rectangle, which reads whatever is on top. $script:CaptureMethod names the one used.
 function CaptureClient([IntPtr]$h) {
     Add-Type -AssemblyName System.Drawing
-    $o = New-Object FC4Ctl+PT; [FC4Ctl]::ClientToScreen($h, [ref]$o) | Out-Null
+    if ([FC4Ctl]::IsIconic($h)) { throw "the game window is minimized: no screenshot (ingame_run -NoMinimize keeps a slot game visible)" }
     $r = New-Object FC4Ctl+RC; [FC4Ctl]::GetClientRect($h, [ref]$r) | Out-Null
     $bmp = New-Object Drawing.Bitmap $r.R, $r.B
+    $g = [Drawing.Graphics]::FromImage($bmp); $hdc = $g.GetHdc()
+    $ok = [FC4Ctl]::PrintWindow($h, $hdc, 3)
+    $g.ReleaseHdc($hdc); $g.Dispose()
+    if ($ok) {
+        $c0 = $bmp.GetPixel(0, 0).ToArgb(); $blank = $true
+        for ($y = 5; $y -lt $bmp.Height -and $blank; $y += 37) { for ($x = 5; $x -lt $bmp.Width; $x += 41) { if ($bmp.GetPixel($x, $y).ToArgb() -ne $c0) { $blank = $false; break } } }
+        if (-not $blank) { $script:CaptureMethod = "PrintWindow"; return $bmp }
+    }
+    $o = New-Object FC4Ctl+PT; [FC4Ctl]::ClientToScreen($h, [ref]$o) | Out-Null
     $g = [Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($o.X, $o.Y, 0, 0, $bmp.Size); $g.Dispose()
+    $script:CaptureMethod = "CopyFromScreen (PrintWindow {0})" -f $(if ($ok) { "gave a blank image" } else { "failed" })
     return $bmp
 }
 # The Close button of an advisor popup is a flat light band 15-40 px tall that spans client x 437..614 (orange news
@@ -125,7 +174,7 @@ function PostLeftClick([IntPtr]$h, [int]$x, [int]$y) {
 # a hidden pause with no known dialog on screen (a save in progress, say) is waited out, up to ~$waitTries x 0.8 s.
 # $prefix: optional PNG path prefix; each dialog is saved as <prefix>N.png before it is closed. Returns @(ok, text).
 function ClearDialogs([IntPtr]$h, [string]$prefix, [int]$waitTries = 16) {
-    $clicks = 0; $msgs = @(); $hidden = "?"
+    $clicks = 0; $msgs = @(); $hidden = "?"; $unknownSaved = $false
     for ($i = 0; $i -lt $waitTries; $i++) {
         $t = ReadShared $Log
         $m = [regex]::Matches($t, "Hidden(Pause|Resume)\(\) -> 1 \(pause=\d+ hidden=(\d+)")
@@ -138,11 +187,15 @@ function ClearDialogs([IntPtr]$h, [string]$prefix, [int]$waitTries = 16) {
             if ($prefix) { $bmp.Save(("{0}{1}.png" -f $prefix, $clicks), [Drawing.Imaging.ImageFormat]::Png) }
             $bmp.Dispose()
             PostLeftClick $h $btn[1] $btn[2]
-            $msgs += ("clear: clicked {0} at client ({1}, {2})" -f $btn[0], $btn[1], $btn[2])
+            $msgs += ("clear: clicked {0} at client ({1}, {2}) [{3}]" -f $btn[0], $btn[1], $btn[2], $script:CaptureMethod)
             Start-Sleep -Milliseconds 1500
-        } else { $bmp.Dispose(); Start-Sleep -Milliseconds 800 }
+        } else {
+            # Keep one picture of what is up (diagnostics only).
+            if ($prefix -and -not $unknownSaved) { $bmp.Save("${prefix}unknown.png", [Drawing.Imaging.ImageFormat]::Png); $unknownSaved = $true }
+            $bmp.Dispose(); Start-Sleep -Milliseconds 800
+        }
     }
-    return @($false, (($msgs + "clear: still hidden=$hidden and no known dialog on screen (after $clicks click(s))") -join " | "))
+    return @($false, (($msgs + ("clear: still hidden=$hidden and no known dialog on screen (after $clicks click(s)) [{0}]" -f $script:CaptureMethod)) -join " | "))
 }
 function VkOf([string]$k) {
     $named = @{ esc = 0x1B; escape = 0x1B; enter = 0x0D; return = 0x0D; space = 0x20; tab = 0x09; ctrl = 0x11;
@@ -187,6 +240,7 @@ switch ($Cmd.ToLower()) {
     "save" {
         # Save the city with a real Ctrl+S (posted keys do not save; the game reads the real Ctrl state), wait for the
         # save confirmation and close it. $A = the city file to watch (optional).
+        NoRealInput "save"
         $h = GameWindow
         $before = if ($A -and (Test-Path $A)) { (Get-Item $A).LastWriteTimeUtc } else { $null }
         [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
@@ -204,18 +258,14 @@ switch ($Cmd.ToLower()) {
     }
     "findclose" {
         $h = GameWindow; $bmp = CaptureClient $h; $btn = FindDialogButton $bmp; $bmp.Dispose()
-        if ($null -eq $btn) { Write-Output "no known dialog on screen" } else { Write-Output ("{0} at client ({1}, {2})" -f $btn[0], $btn[1], $btn[2]) }
+        if ($null -eq $btn) { Write-Output "no known dialog on screen [$script:CaptureMethod]" } else { Write-Output ("{0} at client ({1}, {2}) [{3}]" -f $btn[0], $btn[1], $btn[2], $script:CaptureMethod) }
     }
     "snap" {
         $h = GameWindow
-        Add-Type -AssemblyName System.Drawing
-        $o = New-Object FC4Ctl+PT; [FC4Ctl]::ClientToScreen($h, [ref]$o) | Out-Null
-        $r = New-Object FC4Ctl+RC; [FC4Ctl]::GetClientRect($h, [ref]$r) | Out-Null
-        $bmp = New-Object Drawing.Bitmap $r.R, $r.B
-        $g = [Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($o.X, $o.Y, 0, 0, $bmp.Size)
+        $bmp = CaptureClient $h
         $path = if ($A) { $A } else { Join-Path $PSScriptRoot ("..\build-runs\snap-{0}.png" -f (Get-Date -Format "HHmmss")) }
-        $bmp.Save($path, [Drawing.Imaging.ImageFormat]::Png); $g.Dispose(); $bmp.Dispose()
-        Write-Output "saved $path"
+        $bmp.Save($path, [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+        Write-Output "saved $path [$script:CaptureMethod]"
     }
     { $_ -in "click", "rclick", "ui" } {
         $h = GameWindow
@@ -235,6 +285,24 @@ switch ($Cmd.ToLower()) {
         [FC4Ctl]::PostMessage($h, $upm, [IntPtr]0, $l) | Out-Null
         Write-Output "posted $Cmd at client ($x, $y)"
     }
+    "drag" {
+        # Left button down at (A, B), moves with MK_LBUTTON in 8 steps, up at the end point given as one argument,
+        # "x2,y2" (the script takes three positional values). Posted, like click, so it needs no focus.
+        $h = GameWindow
+        $pre = ClearDialogs $h "" 3
+        if ($pre[1] -notmatch "^clear: hidden=0 after 0 click") { Write-Output ("(first " + $pre[1] + ")"); Start-Sleep -Milliseconds 1000 }
+        $to = ($C -split "[ ,]+") | Where-Object { $_ -ne "" }
+        if ($to.Count -ne 2) { throw "drag needs: drag x1 y1 'x2,y2'" }
+        $x1 = [int]$A; $y1 = [int]$B; $x2 = [int]$to[0]; $y2 = [int]$to[1]
+        [FC4Ctl]::PostMessage($h, 0x0200, [IntPtr]0, (MakeLParam $x1 $y1)) | Out-Null; Start-Sleep -Milliseconds 150
+        [FC4Ctl]::PostMessage($h, 0x0201, [IntPtr]1, (MakeLParam $x1 $y1)) | Out-Null; Start-Sleep -Milliseconds 150
+        for ($i = 1; $i -le 8; $i++) {
+            $x = [int]($x1 + ($x2 - $x1) * $i / 8); $y = [int]($y1 + ($y2 - $y1) * $i / 8)
+            [FC4Ctl]::PostMessage($h, 0x0200, [IntPtr]1, (MakeLParam $x $y)) | Out-Null; Start-Sleep -Milliseconds 120
+        }
+        [FC4Ctl]::PostMessage($h, 0x0202, [IntPtr]0, (MakeLParam $x2 $y2)) | Out-Null
+        Write-Output "posted drag from client ($x1, $y1) to ($x2, $y2)"
+    }
     "key" {
         $h = GameWindow
         $vk = VkOf $A; $mods = Mods $B
@@ -247,6 +315,7 @@ switch ($Cmd.ToLower()) {
         Write-Output "posted key $A $(if ($B) { "with $B" })"
     }
     "realkey" {
+        NoRealInput "realkey"
         $h = GameWindow
         [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
         $vk = VkOf $A; $mods = Mods $B
@@ -257,6 +326,7 @@ switch ($Cmd.ToLower()) {
         Write-Output "real key $A $(if ($B) { "with $B" })"
     }
     "realclick" {
+        NoRealInput "realclick"
         $h = GameWindow
         $o = New-Object FC4Ctl+PT; $o.X = [int]$A; $o.Y = [int]$B; [FC4Ctl]::ClientToScreen($h, [ref]$o) | Out-Null
         [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
@@ -264,6 +334,26 @@ switch ($Cmd.ToLower()) {
         [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 80
         [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
         Write-Output "real click at client ($A, $B) = screen ($($o.X), $($o.Y))"
+    }
+    "realdrag" {
+        NoRealInput "realdrag"
+        # Real input: the 3D view ignores posted mouse messages (run 54), so a zone or road tool drag needs this.
+        # (PowerShell names are case-insensitive: $a would be $A, hence $p1 / $p2.)
+        $h = GameWindow
+        $to = ($C -split "[ ,]+") | Where-Object { $_ -ne "" }
+        if ($to.Count -ne 2) { throw "realdrag needs: realdrag x1 y1 'x2,y2'" }
+        $p1 = New-Object FC4Ctl+PT; $p1.X = [int]$A; $p1.Y = [int]$B; [FC4Ctl]::ClientToScreen($h, [ref]$p1) | Out-Null
+        $p2 = New-Object FC4Ctl+PT; $p2.X = [int]$to[0]; $p2.Y = [int]$to[1]; [FC4Ctl]::ClientToScreen($h, [ref]$p2) | Out-Null
+        [FC4Ctl]::SetForegroundWindow($h) | Out-Null; Start-Sleep -Milliseconds 300
+        [FC4Ctl]::SetCursorPos($p1.X, $p1.Y) | Out-Null; Start-Sleep -Milliseconds 200
+        [FC4Ctl]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero); Start-Sleep -Milliseconds 200
+        for ($i = 1; $i -le 12; $i++) {
+            [FC4Ctl]::SetCursorPos([int]($p1.X + ($p2.X - $p1.X) * $i / 12), [int]($p1.Y + ($p2.Y - $p1.Y) * $i / 12)) | Out-Null
+            Start-Sleep -Milliseconds 100
+        }
+        Start-Sleep -Milliseconds 200
+        [FC4Ctl]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+        Write-Output "real drag from client ($A, $B) to ($($to[0]), $($to[1])) = screen ($($p1.X), $($p1.Y)) to ($($p2.X), $($p2.Y))"
     }
     "close" {
         $h = GameWindow

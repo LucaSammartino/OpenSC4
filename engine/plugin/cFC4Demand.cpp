@@ -443,6 +443,8 @@ namespace {
 // and its capacity maps through `visit` (the core sums the entries of the
 // developer type, §7.2). The census passes no visitor (DQ5: the original
 // reads only `purpose` there), so the maps are walked for UpdateCapacity only.
+// DQ13 (answered; the bracket matches): a null visitor is the exact match,
+// and an unknown type reads purpose 0 through the game's own zero profile.
 bool BuildingProfile(void* u, uint32_t buildingType, uint32_t* purpose, fc4_capacity_visitor visit, void* ctx) {
     cISC4BuildingDevelopmentSimulator* b = Bds(u);
     if (b == nullptr || purpose == nullptr) return false;

@@ -542,6 +542,20 @@ fn budget_through_the_abi() {
         assert!(!fc4_department_find_local_funding_percent(d, ht, 8, &mut untouched));
         assert_eq!(untouched, -1.0);
         assert!(!fc4_department_find_local_funding_percent(d, ht, 7, std::ptr::null_mut()));
+        // RG13 (budget.md §6): ChangeBudgetItemLocalFunding stores float32(q ×
+        // 100.0f) and GetBudgetItemForPurpose reads back float32(pct × 0.01f),
+        // so q = 0.43 comes back as 0.42999998 (0x3EDC28F5), not 0.43.
+        assert!(fc4_budget_change_budget_item_local_funding(b, ht, 0, 0.43));
+        let mut stored = [0.0f32; 1];
+        assert_eq!(get_f32s(g.host().user, ht, 0xEA54_D287, stored.as_mut_ptr(), 1), 1);
+        assert_eq!(stored[0], 43.0);
+        let mut item = fc4_budget_item::default();
+        assert!(fc4_budget_get_budget_item_for_purpose(b, ht, 7, &mut item));
+        assert_eq!(item.local_funding.to_bits(), 0x3EDC_28F5);
+        assert_eq!(item.local_funding, 0.42999998);
+        assert!(fc4_department_find_local_funding_percent(d, ht, 7, &mut q));
+        assert_eq!(q, 0.42999998);
+        assert!(fc4_budget_change_budget_item_local_funding(b, ht, 0, 0.5));
 
         // A month: tax from one lot plus ordinance income; a bond.
         g.lots.borrow_mut().push(fc4_lot_info {

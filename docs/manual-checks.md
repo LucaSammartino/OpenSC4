@@ -1,29 +1,24 @@
 # Manual checks backlog
 
-Things only a human can do or decide. Newest at the top of each section. Claude keeps this updated.
+Things only a human can do or decide, and the log of every in-game run. Claude keeps this updated.
 
-## Needs you (blocking)
+## How to read this
 
-Nothing is blocking. When you have 10 minutes, please do the in-game checks below.
+- A row in the run log below is one in-game run (the game with our DLL loaded). The log runs oldest first.
+  Runs 1-7 predate the table and are not listed. The latest run is 103.
+- Verdict words: `clean` (the autotest saw no fault), `corrupt` (the autotest saw a foreign exception or other
+  sign of memory damage), `crash` (the game died before a verdict), `ended` (the game shut the city down by
+  itself, for example after bankruptcy). A regress run reports PASS (both runs clean, 0 problems) or FAIL. A shadow
+  line marked `INCOMPLETE` was not compared; regress counts it as a problem.
+- Regress means `tools/regress.ps1` on the Konradshohe test city: a replace run (our subsystems in place of the
+  originals) plus a shadows run (the originals run, and our cores are compared with them in the same process).
+- Run logs are in the gitignored `build-runs/` folder, for example `build-runs/run46-smoke.log`.
+- The open human checks are under "Human checks still open" below the log.
 
-**Currently staged in Plugins** (as of 2026-10-13, ~11:00): DLL `569FF4D8…`, the **run-26** build — the one with the
-panic logger and working power. Note `FreeCity4.ini` was left in lane 1's run-26 test configuration
-(`enable = power`, `power_report = 1`, `observe = 1`, `autotest_seconds = 120`, `autotest_unpause = 1`, and
-`autoload_city = …\City - Spandau.sc4`), **not** normal-play settings: it autoloads Spandau and auto-unpauses, so
-manual play with this ini will drop you into that city on the clock. Before playing by hand, set the ini back to
-`budget_default = 1` alone. Power is now verified working (run 26), but land value, weather, ordinance and demand
-are still off by default. Kept alongside it: `FreeCity4.dll.pre-run23` / `81AC46F4…` (the pre-run-23 build, the last
-one known good for extended play before the power work) and `FreeCity4.dll.run23-crash` / `F5439E03…` (the crashing
-build, kept as evidence; **do not stage this one**).
+Before playing by hand, stage a build of main and reset `Plugins/FreeCity4.ini` (see `docs/HANDOFF.md` §3), because
+every harness run rewrites the ini and stages its own DLL.
 
-Open the budget window and its sub-windows (departments, loans) a few times: they were the last place the allocator
-bug could still bite.
-
-One thing to know before you trust any numbers: while our DLL is loaded the game's own x87 precision is 53-bit
-instead of 24-bit, so *original* subsystems differ from the real game by about ±1 simoleon per department per
-month. See the x87 note below. Our own budget replacement is correct.
-
-## Budget corruption bisection
+## In-game run log (oldest first)
 
 | Run | Switches | Result |
 |---|---|---|
@@ -64,6 +59,7 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 43 | the refaudit fix `A27E5D41…` (merged as `a07aa6a`), same config | **clean, `ref_warnings=0`**, and 160 of 160 NewDay updates bit-exact again. **One finding:** on 2001-10-01, 11 of 12 *tax modifiers* differ by **4 ulp** (orig `0.0832541287`, ours `0.0832540989`; I-R matches), on the day the census supply changed. The other 5 modifier checks are exact, and run 42 had that same day exact. Under investigation by the engine lane: a different input or sampling moment is suspected, not the formula. **Resolved by run 44.** |
 | 44 | demand fix `5904E092…` (merged as `42f7649`), same config as 43 | **clean, and demand is bit-identical everywhere:** 160 of 160 NewDay updates and **6 of 6** modifier checks, including 2001-10-01 (orig/ours `0.0832541287`, at the same neutral `8.99755573` that run 43 had 4 ulp off). Cause and fix: the exe (`0x006A6070`) multiplies `r24(maxRate·0.1f)` by a float32 reciprocal of neutral computed once per update, rather than dividing (demand.md §8.1, DQ1). |
 | 45 | main `42f7649` (`EC1811B2…`), **both shadows** (`disable = budget`, `budget_shadow = 1`, `demand_shadow = 1`), Konradshohe, speed 2, 840 s | **clean, every comparison exact:** budget 4 of 4 month-ends, demand 96 of 96 days (2026-01-28 → 2026-05-03), modifiers 5 of 5, `ref_warnings=0`. Short because an advisor dialog held the city at 2026-05-03 for the rest of the run (the same spot as run 41). |
+| 46 | 2026-10-13 smoke run, default switches (our simulator and budget), Konradshohe, 60 s (`build-runs/run46-smoke.log`) | **clean**, `ref_warnings=0`. |
 | 47 | main `42f7649` (`EC1811B2…`), `budget_default = 1`, Konradshohe, 90 s (third session's first independence check) | **clean.** Launch, autoload, verdict and kill all worked unattended. |
 | 48 | same, 300 s, watched on screen | **clean.** At 2026-05-03 an advisor popup ("Educators Take Long Recess") held the city, then a second queued behind it. Each popup calls `HiddenPause()` on our simulator (`hidden` 1, then 2). Esc and Enter did not close them; clicking Close did, and the date moved on. The `hidden` heartbeat field *is* the popup signal (HANDOFF §8 said otherwise). |
 | 49 | same, 330 s, harness clicks Close (posted messages, no focus) | **clean, 3 popups dismissed automatically** with no screen control. Also showed llama = `SetSimSpeed(1)`, cheetah = `SetSimSpeed(2)`. |
@@ -115,136 +111,39 @@ month. See the x87 note below. Our own budget replacement is correct.
 | 94 | main `50e2dc5` (the `neighglue` merge; DLL `eeae4a5d`), `tools/regress.ps1 -Tag r50e2` with neighbours added to both lists | **FAIL (replace).** Shadows clean: **neighbours 89/89 months exact** on the first in-game run of its shadow; the rest as run 92. Replace (fifteen replacements): `corrupt` one game month in, `foreign_exceptions=1`, `ref_warnings=2`. (1) The original traffic simulator's trip-capacity store (`0x0070DE70`) creates its own property, adds it to our connection's holder, Releases it, then calls it; our holder had copied it, so it was freed (eip=0). (2) Init kept the regional cities that `ReloadCity` had replaced and released them last at the end (2 ref warnings). Specs: foundations §10.2 "Ownership", neighbors §14.1 (`378fc91`); NG1 answered. Back to the lane. |
 | 95 | main `29adf9a` (apply7b, apply5 and apply7a merged; DLL `ecc7109a`, built and gated on main: cargo 1546/0, ctest 36/36), `build-runs/regress-main.ps1 -Tag r29adf` (fourteen replacements, neighbours left out until its fix merges) | **PASS, both runs clean, 0 problems.** The answer lanes close the shadow gaps: **residential 1472/1472** (RG23; was 1096/1461), **aura 93/93** (AU7/AU13–15; was 6/93), **flora 92/92** (FQ15; was 67/92), **flammability 69/69** (FL5/FL6; was 68/69), and demand 2890/2890, budget, protection, pollution, crime, landfill, neighbours 92/92 exact. Left: power 373/469 and plumbing 180/185 (PW8/PS8, apply6b running), and land value 92/93: the one differing pass has `settled=0` (the original's record was dirty, `meanAlt` 270.05533 against ours 270.05667, so the terrain changed after its pass) and 2 cells off by 1, a timing artifact rather than a rule difference (run r50e2 had the same kind on 1 of 89 passes). |
 | 96 | main `5e61237` (the `neighfix` merge, lane gated after merging main `c2c59cf`; DLL `3ba27299`), `tools/regress.ps1 -Tag rneigh2` (fifteen replacements, neighbours included; every shadow) | **PASS, both runs clean, 0 problems, `ref_warnings=0`.** The neighbours replacement runs to 2033-06 (95 month lines; 7 connections, a ferry created on the first day). Init logs `ReloadCity replaced the regional city at (4, 7) (141D1414 -> 17F21C14); the old object released`, twice, and no warning follows. Shadows: residential 1472/1472, land value 93/93, aura, flora, flammability, demand, budget, protection, pollution, crime, landfill and neighbours all exact. Only power 376/468 and plumbing 173/185 differ (PW8/PS8: apply6b). |
+| 97 | main `2b2420d` (the `zoneglue` merge; DLL `69ac7ccb`), `tools/regress.ps1 -Tag rzones` with zones added to both lists (sixteen replacements) | **PASS, both runs clean, 0 problems, `ref_warnings=0`.** Our zone manager loads the city's record (`zones Read -> 1`, counts 14257/3/1040/251/701/16/116 by zone type, grid 128×128, alpha 170) and runs to 2033-11 (94 month lines). The run zones nothing, so PlaceZone's commit path and the dezone handler did not run in game (`place=0 dezones=0`); every `undeveloped=` value reads 16384, worth a look against the spec. **Zones shadow, first in-game run:** counts, bookkeeping and tuning 92/92 exact; PlaceZone dry runs exact on 77 of 92 months. The other 15 differ in one call each: the 1×1 region with zone type 14 fails with error 3 on both sides, but the original writes a cost of 36–208 and ours 0 (ZG17, sent to re-answers8). Other shadows as run 96; power 366/457 and plumbing 175/183 remain (apply6b). |
+| 98 | main `9f50bdc` (apply8a merged: RG1–RG22 incl. the RG22 x87 return of slots 37/38, PR14/PR15, RG13 in the budget; lane DLL `d8d305bf`, gated: cargo 1623/0, ctest 38/38), `tools/regress.ps1 -Tag r8a` (sixteen replacements) | **PASS, both runs clean, 0 problems, `ref_warnings=0`.** The replacement runs to 2032-04 (75 residential month lines, pop 23,388). Residential `effects=0 started=0 failed=0` on every month: no tract met the buzzard condition (HQ below `deathsDoorHQ` 2 with population, then the chance roll), so the RG1 effects path did not run in this city. Shadows: residential 1472/1472, protection 368/368 (PR14 efficiency-scaled dispatch), aura 93/93, land value 93/93, demand 2890/2890, budget, landfill, neighbours, flora, pollution, crime, flammability exact; zones 357/372 (ZG17); power 385/477 and plumbing 174/185 remain until apply6b merges. |
+| 99 | the r8a DLL (`d8d305bf`), `enable = zones` only, Konradshohe, two zone drags with the new `tools/sc4ctl.ps1 realdrag` (Mayor mode → zone → residential → low density at client (43, 70), (100, 45), (176, 40); the 3D view needs real input), no save | **clean** (`AUTOTEST VERDICT: clean`, `ref_warnings=0`, to 2047-04). **First in-game run of our `PlaceZone` commit path and the dezone handler.** While dragging, the UI prices with dry runs (`type=1 rect=58,91..64,93 cost=180 cleared=3`, growing with the rect). On release our zone manager commits twice: `type=0 … accepted=8 cost=0` (the street cells the tool lays), then `type=1 rect=58,91..64,93 cells=21 accepted=18 cost=180 cleared=3`. The new streets' InsertOccupant messages then dezone their cells through our handler (90 lines, `changed=1 lots=0`). The month line goes from 0 to 10 residential-low cells (18 accepted, 8 under streets); a second drag over a larger rect (57,90..65,93, 20 accepted, 16 cleared, cost 100) ends at 18. No warning follows (the original zone developer's parcelling is not logged). Every replaced subsystem logs Shutdown twice (residential and power too): the game calls it twice. Posted clicks on the fourth flyout icon did not select the dezone tool; the dezone-tool path is still untested. |
+| 100 | main `a11e714` (apply6b merged: PW1–PW8, PS1–PS8, LG1–LG20; lane DLL `06414f35`, gated: cargo 1697/0, ctest 38/38), `tools/regress.ps1 -Tag r6b` (sixteen replacements), machine heavily loaded by parallel gates | **FAIL on the shadow run only (8 problems); the replacement run is clean** (`ref_warnings=0`). **The power shadow is exact for the first time: 442/442** (PW3/PW4/PW5/PW7/PW8). Plumbing 174/175: pass 339 compares the same grid, production, efficiency and demand, but `used` is 15 lower at each producer and `consumed` 27804 against 27834. The 8 problems are plumbing lines `INCOMPLETE (no swap within 2 days of its start); not compared` (8 of about 183 passes): the PS6 passCounter start detection waits a fixed 2 game days, and the original time-slices its pass by CPU budget. Landfill replacement: LG3 game tiles all fail (`gameTiles=0 gameTileFailures=12`, `tilesInserted=0`; one WARNING "could not be set up or inserted", which step not logged), so the tiles stay in FreeCity4 as before; `textures=0`. All three are back with the apply6b lane. Other shadows exact: residential 1392/1392, demand 2727/2727, protection 348/348, land value, budget, flora, aura, pollution, landfill, neighbours, crime, flammability; zones 339/352 (ZG17). |
+| 101 | main `c787ecf` (devglue merged; lane DLL `e7cf7fcc`, gated: cargo 1710/0, ctest 40/40), `development_shadow = 1`, Konradshohe, 180 s | **clean, but the shadow compared nothing.** All 1344 growth lines are `INCOMPLETE (the developer exemplar 0x6534284A/0x67CD5FA1/0x00000001 does not load)`: the shadow names the original developers 0x0001–0x0003, where the real types (the exemplar instances in SimCity_1.dat, group 0x67CD5FA1) are 0x1010…0x4400. The catalogue line is `types=744/91 … mismatches=706`: our catalogue loads 91 building types and no families. Suitability `0/0` on both sides. Back with the devglue lane (branch `devglue2`). |
+| 102 | the same DLL, `enable = development` alone, Konradshohe, 180 s | **ended early: the city went bankrupt.** Every growth developer's saved record reads as garbage (`growth 0x00000000 Read: zone=0 purpose=0 wealth=0 … capacity=1036996237 … grids=5/6 source=none`), nothing grows (`built=0 grows=0`), the DIGEST shows population R/C/I 15025/0/0 from the first month (the original: 15025/2464/7617), tax income is 0, funds fall to −101,079, and the game shuts the city down at 2028-02 (40 s in). Five `released last reference … class 0xA9BD882D … ReleaseAny:114` warnings at the end. The test city file is unchanged (CRC 7792E119 equals the backup). Back with the devglue lane. |
+| 103 | main `4e6d6b8` (apply6c merged: the plumbing shadow follows the pass state by state; landfill tile diagnostics), `tools/regress.ps1 -Tag r6c` (sixteen replacements) | **PASS, 0 problems. M3 exit met.** Shadows: every grid exact, power 463/463, plumbing 179/179 (no INCOMPLETE line: the window of run 100 is gone), landfill 89/89, residential 1411/1411, demand 2776/2776, protection 356/356, aura 88/88, crime 89/89, flammability 67/67, budget, land value, flora, pollution, neighbours; zones 347/360 (ZG17). Replace: clean, `ref_warnings=0`. Landfill game tiles: all fail at the last step (`tile 0x02F90000 ... not made: no exemplar holder`: the class object 0x8A22BEBE/0x2A15F262 is made and is an occupant, but neither it nor its property holder answers QI 0x0AC2B5F7); an RE question (LG27-LG29). |
 
-**Run 39 settles the per-type question below:** on identical state, ours equals the original on every tax type. The
-type-3 gap between runs 35 and 36 was the original's run-to-run drift, not a bug.
+- The history that used to follow this table (the budget bisection and differential, the run-23/26 `RefCell`
+  race, the x87 precision work) is in `docs/specs/foundations.md` §18 (precision) and §19 (threading), and in `git log`.
+- The allocator mismatch behind runs 8-18 is classified in `docs/abi/allocators.md`.
 
-**Budget differential (runs 35 vs 36, plus 29 as a second original sample).** All runs start from the same save with
-the same month-1 population (R/C/I 2314/424/860).
-- **Expenses match exactly.** Every department's `dept_expense` is identical in all three runs, in all five months.
-- **Income: the original is not deterministic from run to run**, so per-type tax cannot be diffed with separate runs.
-  - In month 1, from an identical start, the two original runs (29 and 35) differ in tax types 4 (23 vs 19), 6 (3 vs 5)
-    and 9 (243 vs 239). Ours (36) gives 24, 1 and 239.
-  - Type 3 is the one value outside the original's observed spread: ours 26, the original 20 in both runs.
-  - By month 5 the per-type values spread further as growth diverges.
-- **Totals: ours is inside the original's spread.** After five months, funds are 71,265 (35) and 71,325 (29) for the
-  original, and 71,298 for ours.
-- **An observer artifact, not a budget difference:** runs 35 and 28 report 2002-01 identical to 2001-12. The month
-  snapshot at the year boundary can fire before the collection.
-- **Next step:** a deterministic tax-by-type diff needs both budgets computed on the same city state in the same process
-  (a shadow run of our budget core next to the original's at each collection), not two separate runs. Tax type 3 is the
-  first thing to check there.
+## Human checks still open
 
-**The real cause of the run-23/run-26 crashes was not power.** The master-clock `Simulator` kept its state in a
-`RefCell`. The game calls our `cISC4Simulator` getters from a **second thread** while the main thread is inside
-`OnTick`; `RefCell` is not `Sync`, so the concurrent read panicked and the release build aborted (`panic = "abort"` →
-`0xC0000409`). The panic hook added this session named it exactly:
-`RefCell already mutably borrowed` at `core/src/simulator.rs:473`. Fixed by making `state` a `Mutex` locked for one
-`with()`/`read()` section and never across `deliver`/`post`/refcount hooks, so a blocked getter waits microseconds
-rather than a whole tick. Regression test `a_second_thread_may_read_the_clock_while_a_tick_runs` fails **3717 of
-4000** reads on the old code with the identical panic and passes on the new.
+- [ ] Budget window with our budget on: open it and its sub-windows (income, expenses, departments, loans) a few
+      times at cheetah speed and check that they look normal. Money changing each month is already shown (runs 17,
+      18, 41).
+- [ ] Cheats: `RiskyMoney`, `WeaknessPays`, `Moolah` (if enabled) do what the original does.
 
-Two corrections to earlier records: **run 23 never had power enabled** (its log line 20 reads
-`subsystem 'power': off by default`), so the handoff's diagnosis — "a Rust panic in the power core or capi, prime
-suspect the Read/Init bitmap change" — is disproven; power code never ran in run 23. And the handoff's run-23 ini
-(`power_report = 1` without `enable = power`) is why no `power recompute` line could ever appear there. Re-running the
-exact crashing binary `F5439E03` (`.run23-crash`) as a control came out **clean** and got past run 23's death point
-(`GetTotalFunds #20` vs `#17`), confirming the race is intermittent and power-on merely widened the window.
+### Done
 
-**x87 precision (runs 23/24, resolved 2026-10-13).** The main thread runs at 24-bit precision in the unmodified game
-for the whole session, and **our DLL's mere presence raises it to 53-bit** — verified in the bytes and by an A/B:
-run 19 had both the simulator and the budget DISABLED (observer only) and produced 122/104 (the 53-bit result) for
-departments `0x09188F42` (p=0.41) and `0x09188F4C` (p=0.35), while the unmodified game's save of the same city
-holds 123/105. The Spandau save is byte-identical to the backup (SHA-256 `6982A842…`), so both sides read the same
-`ideal=300`. The game asserts 24-bit exactly once, in `PreFrameWorkInit`, and **nothing can restore it afterwards**
-(the only unconditional 24-bit setter has one xref; every other site is Lua-related and guarded so that it skips
-both calls unless already at 24-bit). Full evidence and the two queued next steps are in foundations §18.1–§18.2.
-
-**Consequence for you and for us:** while FreeCity4.dll is loaded, every *original* subsystem computes at the wrong
-precision, so **no differential run against the original code is trustworthy for float-sensitive values** until the
-trigger is found. Our own budget replacement computes the department expenses at 24-bit and reproduces the real
-game's saved values (123/105). What precision does to *manual play* is bounded by the same effect seen on those
-department expenses — about ±1 simoleon per department per month — but that is the size of the precision artifact,
-not a proof that our whole budget matches the real game; that match is still the open differential (§5.3 below).
-Either way, the game you play with our DLL loaded is not bit-identical to the game without it.
-
-**The run-19-vs-run-20 differential is therefore invalid as written** (handoff §5.3). Both runs had our DLL loaded,
-so **both ran at 53-bit**; run 19 is not the original game's true behaviour, it is the original code computing at the
-wrong precision inside our process. The comparison also changes two variables at once (our budget vs the original,
-*and* 24-bit vs 53-bit), so the tax-by-type differences (types 4/6/9: run 19 `586/28/0/20/27/0/1/0/0/242/5/0` vs run
-20 `586/28/0/20/42/0/0/0/0/238/5/0`) and the non-tax income gap (35 vs 28) cannot be attributed to either cause.
-**Do not treat run 19 as a reference.** To actually close the budget differential:
-
-1. **Fix or work around the precision leak first** (the two queued steps in foundations §18.2). Only then does the
-   original code inside our process run at 24-bit.
-2. **Re-run observer-only (run-19-style) after the fix** to capture the original's true 24-bit values for the same
-   first month, and diff those against run 20. Same city, same month, one variable.
-
-**A 24-bit oracle already exists in the Spandau save** (parsed directly from the DBPF, budget simulator record
-`0xE990BE01`, byte-identical to the backup `6982A842…`). These are the unmodified game's own outputs, so they are
-true 24-bit reference values: `funds 69986`, `lastTaxIncome 866`, `ytdTaxIncome 6078`, `lastMonthIncome 904`,
-`lastMonthExpense 796`, and per-group `monthlyTax` `[574, 28, 0, 34, 0, 0, 0, 0, 0, 228, 0, 0]` (sum 864; all tax
-rates 7.0 except group 8 at 9.0, max 22.0). **Caveat:** the save is at its own month, not run 19/20's 2001-10, so
-these are a consistency check and a target for a matched-date run, not a line-by-line diff against run 20 without
-first aligning the simulation date.
-
-**Root cause:** the game has three separate allocator instances, each with its own pools
-(`docs/abi/allocators.md`). The lot list's nodes come from the game's STL node allocator. The SDK's `SC4List`
-freed them through the framework allocator service, so the two instances later handed out the same memory. The fix
-is a list type that uses the game's allocator. The other places where the plugin and the game share containers
-are being classified now; any mismatch found there is the same kind of bug.
-
-Notes:
-- Auto-load works: `autoload_city = <save path>` in `FreeCity4.ini`, so runs need no click.
-- The faulting function (exe `0x5E16E0`) is the game's generic small-block pool allocator, not just the sound pool.
-- Checked in the exe and matching ours: the list layout, the node allocator, the service refcount, and the +1 reference per lot.
-
-## Progress log while you were away
-
-- M2 core (demand, ordinance, weather) merged, a164fc9. Whole workspace test suite green.
-- Specs committed:
-  - dbf6237: flora spec; foundations §4.1/§5.2 fixes; M3 open questions resolved.
-  - 2412ca3: ABI rows; flammability prop/flora label erratum.
-- Implementer questions are queued in `docs/specs/QUESTIONS.md`.
-- Budget heap corruption, static lead:
-  - Our message object has type and flags at swapped offsets compared with the game's (`docs/abi/layouts.md`).
-  - A fix was requested from the plugin lane.
-  - This is unproven; the bisection still decides.
-- Specs committed:
-  - b9da700: fire and police protection.
-  - ebc9e88: plumbing.
-- Land value simulator and the game-layout message fix merged, e2dc324. Land value is off by default
-  (`enable = landvalue`).
-- The checked DLL with the message fix is staged in Plugins. The previous one was renamed `*.pre-msgfix`.
-- Run 8 starts automatically once you close the game: all budget switches on, with the message fix.
-  - If it's clean, the message layout was the cause.
-  - If not, the bisection continues.
-- Specs: power (b06e048). All open questions are answered (80d86eb … 0d45db2).
-- New foundations §18: the simulation runs at 24-bit x87 precision. The specs' worked examples were recomputed
-  (cde56f4).
-- M3 cores merged (4e7ccbb): grid module, pollution, crime, flammability and aura. 181 conformance vectors and
-  155 core tests are green.
-- Now running:
-  - lane 1: budget test 14 recheck, then the in-game glue for weather, ordinance and demand (off by default);
-  - lane 3: grid reconciliation, then the cores for power, plumbing, fire/police and flora;
-  - spec lane: education, health and mayor rating.
-
-## To verify in-game (after the bisection finds the culprit)
-
-- [ ] Budget replacement, all switches on: 2–3 months at cheetah speed, money changes each month, budget
-      window (income, expenses, departments) looks normal.
 - [x] Save → exit → reload with our simulator and budget: the date, funds and departments survive (runs 50/51,
       2026-10-13, done by Claude with `tools/sc4ctl.ps1`).
 - [x] Pause, unpause and all three speeds (run 50, scripted again in runs 52/53).
 - [x] Emergency pause (run 54: a God-mode fire disaster; `EmergencyPause()`/`EmergencyResume()` reach our simulator).
 - [x] Clock differential against the original on the same save (runs 56/57 and 58/60: identical over 240 days,
       `clock_probe` + `tools/clock_diff.ps1`).
-- [ ] Cheats: `RiskyMoney`, `WeaknessPays`, `Moolah` (if enabled) do what the original does.
 
 ## Decisions for you
 
-- [ ] Upstream to gzcom-dll: the SDK has several wrong signatures and return types (see `docs/abi/` and
-      foundations §17 errata). Report them to the SDK maintainers? (Public action, so it needs your OK.)
+- [ ] Upstream to gzcom-dll: the SDK has several wrong signatures and return types. The draft report is
+      `docs/sdk-errata-draft.md`; it needs a re-run against the current SDK before it goes upstream. Report them
+      to the SDK maintainers? (Public action, so it needs your OK.)
 - [ ] Repo hosting and publication (GitHub, project name, README wording) when you want it public.
 
 ## Done / answered

@@ -2,7 +2,7 @@
   "format": 1,
   "name": "ordinance_month_order",
   "spec": ["foundations 13.3", "foundations 14.24", "ordinance 5", "4"],
-  "description": "Foundations §14 item 24 with the real ordinance simulator and a stub budget: both month agents are registered in §3.7 order (budget before ordinance). In an established city both get the start-of-simulation delivery of 15 January (data3 = 0), which makes the ordinance available; then an ordinance enacted on 15 January with enactment -100 is booked by the ordinance month pass of 1 February, after the budget agent has already read the ordinance totals, so the budget sees it at the 1 March settlement (0 on 1 February, 100 on 1 March). With the order reversed (budget removed and re-added, so it runs after the ordinance agent), a repeal of -50 in March is seen at the very next settlement (1 April).",
+  "description": "Foundations §14 item 24 with the real ordinance simulator and a stub budget: both month agents are registered in §3.7 order (budget before ordinance). In an established city both get the start-of-simulation delivery of 15 January (data3 = 0), which makes the ordinance available; then an ordinance enacted on 15 January with enactment -100 is booked by the ordinance month pass of 1 February, after the budget agent has already read the ordinance totals, so the budget sees it at the 1 March settlement (0 on 1 February, 100 on 1 March). Removing the budget and adding it again keeps it ahead of the ordinance agent, whose name has a rank in the month tail (foundations §13.4). With the order reversed (the ordinance agent re-registered under a name without a rank, then the budget removed and re-added, so it runs after the ordinance agent), a repeal of -50 in March is seen at the very next settlement (1 April).",
   "clock": {"start_ms": 0, "auto_step_ms": 0},
   "agents": {
     "budget": {"finish_after": 1, "description": "stub budget: reads the ordinance totals at its monthly settlement", "on_call": {
@@ -58,6 +58,12 @@
 
     {"op": "remove_agent", "agent": "budget", "level": 6},
     {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "expect_agent_names", "names": ["budget", "cSC4OrdinanceSimulator", "Burn"]},
+    {"op": "remove_agent", "agent": "ordinance", "level": 6},
+    {"op": "add_agent", "agent": "ordinance", "level": 6, "flags": 2},
+    {"op": "remove_agent", "agent": "budget", "level": 6},
+    {"op": "add_agent", "agent": "budget", "level": 6},
+    {"op": "expect_agent_names", "names": ["ordinance", "budget", "Burn"]},
     {"op": "ordinance_call", "method": "set_ordinance_on", "args": ["0xE0D0722E", false], "expect": true},
     {"op": "ordinance_expect", "state": {"pending": -50}},
     {"op": "tick", "count": 30},

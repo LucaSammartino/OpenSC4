@@ -21,8 +21,8 @@ use fc4_core::demand::{DemandNode, DemandPoster};
 use fc4_core::development::{ConstructionProfile, GrowthItem, GrowthProfile, Outcome};
 use fc4_core::development_simulator::{
     msg, query_interface, AdviceSubject, BdsInterface, BdsProcess, BuildingConfigObject, CellRect, CommandParam,
-    DeveloperId, DevelopmentHost, DevelopmentSim, GrowthDevelopers, LotConfigInfo, LotId, Message, OccupantId,
-    PlanEntry, SharedProcess, Vec3,
+    ConstructionNode, DeveloperId, DevelopmentHost, DevelopmentSim, GrowthDevelopers, LotConfigInfo, LotId, Message,
+    OccupantId, PlanEntry, SharedProcess, Vec3,
 };
 use fc4_core::grid::{CityDims, GridProvider, SimGrid, TractGrid};
 use fc4_core::property::PropertyHolder;
@@ -148,6 +148,8 @@ pub(crate) struct World {
     saves: RefCell<BTreeMap<String, Vec<u8>>>,
     /// The building maps this world created (newest last).
     grids: RefCell<Vec<Rc<SimGrid<u8>>>>,
+    /// The construction nodes this world created (newest last).
+    nodes: RefCell<Vec<Rc<DemandNode>>>,
     /// Object ID → object, for references written by `bds_save`.
     saved_objects: RefCell<BTreeMap<u32, RefValue>>,
 }
@@ -187,6 +189,7 @@ impl World {
             demolish_cost: Cell::new(0),
             saves: RefCell::new(BTreeMap::new()),
             grids: RefCell::new(Vec::new()),
+            nodes: RefCell::new(Vec::new()),
             saved_objects: RefCell::new(BTreeMap::new()),
         });
         *w.me.borrow_mut() = Rc::downgrade(&w);
@@ -428,10 +431,12 @@ impl DevelopmentHost for World {
     fn demand_active_value(&self, node: u64) -> f32 {
         self.spec(node).ad.unwrap_or(0.0)
     }
-    fn create_demand_node(&self) -> Option<Rc<DemandNode>> {
+    fn create_construction_node(&self) -> Option<Rc<dyn ConstructionNode>> {
         let t = self.token();
         self.log("create_node", vec![("id", ji(t as i64))]);
-        Some(DemandNode::new(self.rc() as Rc<dyn DemandPoster>, t))
+        let n = DemandNode::new(self.rc() as Rc<dyn DemandPoster>, t);
+        self.nodes.borrow_mut().push(n.clone());
+        Some(n as Rc<dyn ConstructionNode>)
     }
 
     fn tract_grow(&self, profile: &GrowthProfile, outcomes: &mut Vec<Outcome>, flag: &mut bool) -> i32 {
@@ -504,11 +509,8 @@ impl DevelopmentHost for World {
     fn lot_developer_slope(&self, lot: LotId) -> f32 {
         self.lot(lot).dev_slope
     }
-    fn update_lot_elements(&self, lot: LotId, had_foundation: bool) {
-        self.log(
-            "update_lot_elements",
-            vec![("lot", ji(lot as i64)), ("had_foundation", Json::Bool(had_foundation))],
-        );
+    fn update_lot_elements(&self, lot: LotId, kind: u32) {
+        self.log("update_lot_elements", vec![("lot", ji(lot as i64)), ("kind", ji(kind))]);
     }
     fn area_altitude(&self, rect: [f32; 4]) -> f32 {
         self.log(
@@ -684,7 +686,7 @@ impl DevelopmentHost for World {
 }
 
 impl GrowthDevelopers for World {
-    fn create_developer(&self, _exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId> {
+    fn create_developer(&self, _key: &ResKey, _exemplar: &Rc<PropertyHolder>) -> Option<DeveloperId> {
         let t = self.token();
         self.devs.borrow_mut().insert(
             t,
@@ -697,7 +699,7 @@ impl GrowthDevelopers for World {
         self.log("create_developer", vec![("dev", ji(t as i64))]);
         Some(t)
     }
-    fn developer_init(&self, dev: DeveloperId, exemplar: &Rc<PropertyHolder>) -> bool {
+    fn developer_init(&self, dev: DeveloperId, _key: &ResKey, exemplar: &Rc<PropertyHolder>) -> bool {
         let t = fc4_core::props::u32_of(exemplar, 0x21).unwrap_or(0);
         if let Some(d) = self.devs.borrow_mut().get_mut(&dev) {
             d.dev_type = t;
@@ -1450,6 +1452,7 @@ fn construction_profile(j: &Json) -> R<ConstructionProfile> {
         land_value_min: g("lv_min")? as u8,
         land_value_max: g("lv_max")? as u8,
         building_type: g("type")? as u32,
+        orientation: g("orientation")? as i32,
         x: g("x")? as i32,
         z: g("z")? as i32,
     })
@@ -1729,7 +1732,10 @@ fn expect(w: &World, op: &Json) -> R<()> {
         ),
         (
             "node_id".to_owned(),
-            node.as_ref().map_or(Json::Null, |n| ji(n.token() as i64)),
+            node.as_ref().map_or(Json::Null, |n| match n.clone().save_ref() {
+                RefValue::Object(o) => ji(o.host_token() as i64),
+                _ => Json::Null,
+            }),
         ),
         (
             "supply".to_owned(),
@@ -1833,7 +1839,14 @@ fn set(w: &World, op: &Json) -> R<()> {
             }
             "node_id" => {
                 let n = s.construction_node().ok_or("no construction node")?;
-                n.set_token(u64::from(u32_of(v, k)?));
+                let ours = w
+                    .nodes
+                    .borrow()
+                    .iter()
+                    .find(|m| std::ptr::eq(Rc::as_ptr(m) as *const u8, Rc::as_ptr(&n) as *const u8))
+                    .cloned();
+                ours.ok_or("the construction node is not the world's")?
+                    .set_token(u64::from(u32_of(v, k)?));
             }
             "decline_plan" => {
                 let mut plan = Vec::new();

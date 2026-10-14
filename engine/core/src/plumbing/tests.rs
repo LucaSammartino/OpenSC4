@@ -1254,6 +1254,96 @@ fn pipe_funding_helper_with_the_shipped_curve() {
 }
 
 #[test]
+fn pipe_condition_moves_gradually_with_the_funding() {
+    // PS2 (§7.1): the curve is the change per month. 400 pipes, ten months
+    // at 0 % then five at 100 %, with the shipped curve.
+    let f = Fake::new(64);
+    *f.tuning.borrow_mut() = Some(Rc::new(Tuning::shipped_exemplar()));
+    let s = sim(&f);
+    for i in 0..400u64 {
+        pipe(&s, &f, 100 + i, (i % 64) as i32, (i / 64) as i32, &[]);
+    }
+    s.set_random(RzRandom::new(1, &seeds()));
+    let mut targets = Vec::new();
+    f.funding.set(0.0);
+    for _ in 0..10 {
+        s.monthly_simulation();
+        targets.push(s.pipe_counts().1);
+    }
+    assert_eq!(targets, [4, 8, 12, 16, 19, 23, 27, 31, 35, 39]);
+    // 0.09999999 (ten float32 steps of 0.01, not 0.1f32 = 0x3DCCCCCD).
+    assert_eq!(s.snapshot().pipe_condition.to_bits(), 0x3DCC_CCCB);
+    targets.clear();
+    f.funding.set(1.0);
+    for _ in 0..5 {
+        s.monthly_simulation();
+        targets.push(s.pipe_counts().1);
+    }
+    assert_eq!(targets, [31, 23, 15, 7, 0]);
+}
+
+#[test]
+fn pipe_condition_above_one_skips_the_pipe_test() {
+    // PS2 [quirk]: a step above 1 sets 1 and skips the "no pipes → 0" test,
+    // so with no pipes the condition stays 1, and pipes laid later all
+    // become distressed while the funding stays below 50 %.
+    let mut t = Tuning::default();
+    t.reload(Some(&Tuning::shipped_exemplar()));
+    let up = pipe_funding(&t, 0.995, 0, 0.0);
+    assert_eq!((up.condition, up.target), (1.0, 0));
+    assert_eq!(pipe_funding(&t, 1.0, 0, 0.3).condition, 1.0);
+    // Within [0, 1] the pipe test still applies.
+    assert_eq!(pipe_funding(&t, 0.5, 0, 0.0).condition, 0.0);
+    let laid = pipe_funding(&t, 1.0, 400, 0.0);
+    assert_eq!((laid.condition, laid.target), (1.0, 400));
+    // Below 0: 0.
+    assert_eq!(pipe_funding(&t, 0.01, 400, 1.0).condition, 0.0);
+}
+
+#[test]
+fn pipe_condition_and_ageing_are_not_saved() {
+    // PS3 (§7.1): Read, Init and Shutdown never touch cond or the ageing
+    // flag, so a loaded city starts from the constructor's 0 / false.
+    let f = Fake::new(64);
+    *f.tuning.borrow_mut() = Some(Rc::new(Tuning::shipped_exemplar()));
+    let s = sim(&f);
+    for i in 0..400u64 {
+        pipe(&s, &f, 100 + i, (i % 64) as i32, (i / 64) as i32, &[]);
+    }
+    // 120 distressed in the save.
+    for i in 0..120u64 {
+        f.occs.borrow_mut().get_mut(&(100 + i)).unwrap().net_flags |= network::DISTRESSED;
+    }
+    s.with_state(|st| {
+        st.num_distressed = 120;
+        st.pipe_condition = 0.3;
+        st.ageing = true;
+    });
+    let (bytes, entries) = record(&s);
+    // The saving object keeps its own values through a Read.
+    let mut res = Resolver(entries.clone(), f.clone());
+    assert!(s.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    let st = s.snapshot();
+    assert_eq!((st.pipe_condition, st.ageing), (0.3, true));
+    // A fresh object (the class store's) starts from 0 and false.
+    let t = PlumbingSim::new(f.clone(), 2);
+    let mut res = Resolver(entries, f.clone());
+    assert!(t.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    let st = t.snapshot();
+    assert_eq!((st.pipe_condition, st.ageing, st.num_distressed), (0.0, false, 120));
+    assert!(t.init());
+    let st = t.snapshot();
+    assert_eq!((st.pipe_condition, st.ageing), (0.0, false));
+    assert!(st.department.is_some(), "PS5: never null after Init");
+    // At 0 % the first month gives cond 0.01, target 4: 116 repaired.
+    t.set_random(RzRandom::new(1, &seeds()));
+    f.funding.set(0.0);
+    t.monthly_simulation();
+    assert_eq!(t.snapshot().pipe_condition, 0.01);
+    assert_eq!(t.pipe_counts().1, 4);
+}
+
+#[test]
 fn ageing() {
     // §14 test 22.
     let (f, s) = production_city(1000);

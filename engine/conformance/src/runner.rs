@@ -15,7 +15,7 @@ use std::rc::Rc;
 use fc4_core::host::{AgentDelivery, Broadcast, Clock, TimerSource};
 use fc4_core::ids::{cheat, msg, LEVEL_COUNT};
 use fc4_core::julian;
-use fc4_core::{AgentHandle, Message, Simulator, Snapshot, Tuning};
+use fc4_core::{AgentHandle, Message, Simulator, Snapshot, Tuning, Turbo, TURBO_DEFAULT_FRAME_MS};
 
 use crate::json::Json;
 
@@ -807,6 +807,47 @@ fn exec(sim: &Simulator, host: &HostRef, op: &Json) -> R<()> {
         "set_speed" => check_expect_bool(op, sim.set_sim_speed(int(op, "speed")? as i32)),
         "set_sim_time" => check_expect_bool(op, sim.set_sim_time(int(op, "time")? as i32)),
         "set_max_ms_per_tick" => check_expect_bool(op, sim.set_max_milliseconds_per_tick(int(op, "ms")? as u32)),
+        // Tooling (the turbo clock; not simulator.md): see fc4_core::Turbo.
+        "set_turbo" => {
+            let on = boolean(field(op, "on")?).ok_or("'on' must be a boolean")?;
+            let t = Turbo {
+                on,
+                frame_ms: opt_int(op, "frame_ms")?.map_or(TURBO_DEFAULT_FRAME_MS, |v| v as u32),
+                until_julian: opt_int(op, "until")?.unwrap_or(0) as i32,
+            };
+            check_expect_bool(op, sim.set_turbo(t))
+        }
+        "expect_turbo" => {
+            let t = sim.turbo();
+            if let Some(v) = op.get("on") {
+                let want = boolean(v).ok_or("'on' must be a boolean")?;
+                if want != t.on {
+                    return Err(format!("turbo on: got {}, expected {want}", t.on));
+                }
+            }
+            if let Some(w) = opt_int(op, "frame_ms")? {
+                if w != i64::from(t.frame_ms) {
+                    return Err(format!("turbo frame_ms: got {}, expected {w}", t.frame_ms));
+                }
+            }
+            if let Some(w) = opt_int(op, "until")? {
+                if w != i64::from(t.until_julian) {
+                    return Err(format!("turbo until: got {}, expected {w}", t.until_julian));
+                }
+            }
+            Ok(())
+        }
+        "take_turbo_auto_off" => {
+            let got = sim.take_turbo_auto_off();
+            let want = match field(op, "expect")? {
+                Json::Null => None,
+                v => Some(v.as_i64().ok_or("'expect' must be an integer or null")? as i32),
+            };
+            if got != want {
+                return Err(format!("turbo auto-off: got {got:?}, expected {want:?}"));
+            }
+            Ok(())
+        }
         "set_city_established" => {
             let v = boolean(field(op, "value")?).ok_or("'value' must be a boolean")?;
             check_expect_bool(op, sim.set_city_established(v))

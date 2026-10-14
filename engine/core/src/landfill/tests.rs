@@ -743,6 +743,37 @@ fn test_11_disconnected() {
     assert_eq!(d.state().capacity_total, 270_000);
 }
 
+/// LG13 (§4.4.9, `0x006BB766`–`0x006BB798`): an initialised zone's
+/// `Shutdown` removes its zot through the prop manager (`RemovePropA`) and
+/// then releases it. The developer's `Shutdown` runs only once, and only
+/// when initialised (§1.2).
+#[test]
+fn shutdown_removes_the_zot_prop_then_releases_it() {
+    let w = World::new();
+    let d = developer(&w);
+    zone(&d, rect(10, 20, 12, 22), 14);
+    let z = only_zone(&d);
+    assert!(z.is_initialised());
+    month(&d);
+    let zot = z.zot().expect("a zot");
+    assert!(w.removed_props.borrow().is_empty());
+    assert!(d.shutdown());
+    assert_eq!(*w.removed_props.borrow(), [zot]);
+    assert_eq!(w.released.borrow().iter().filter(|&&t| t == zot).count(), 1);
+    assert!(w.zots.borrow().is_empty());
+    assert_eq!(d.zone_count(), 0);
+    assert!(!d.is_initialised());
+    // A second Shutdown does nothing.
+    let released = w.released.borrow().len();
+    assert!(d.shutdown());
+    assert_eq!(w.released.borrow().len(), released);
+    // A developer never initialised: Shutdown returns true at once.
+    let w2 = World::new();
+    let d2 = LandfillDeveloper::new(w2.clone(), 2);
+    assert!(d2.shutdown());
+    assert!(w2.released.borrow().is_empty());
+}
+
 /// Test 11 (spiral, §4.7.5 example 1, LF4): a 3 × 3 zone over
 /// `(10..12, 20..22)` with its centre `(11, 21)` dezoned. Ring 1 starts at
 /// `(cx+1, cz)`, so the zot goes to `(12, 21)` (a top-left-corner order would

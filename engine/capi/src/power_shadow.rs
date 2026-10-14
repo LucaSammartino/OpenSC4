@@ -24,19 +24,42 @@
 //!    rebuild of the whole map) for the bookkeeping line;
 //! 2. the original's delivery, unchanged;
 //! 3. after: the record and the counts again; [`fc4_power_shadow_finish`]
-//!    compares. A step whose wire bits changed (the original's §5.3 rebuild:
-//!    its dirty rectangle is not saved) runs again with the bounding box of
-//!    the changed bits as the dirty rectangle; a step with an order-dependent
-//!    shortfall network (§6.3 step 6: one `rand()` per network, process-wide
-//!    in the original) runs again with the original's powered bits as the
-//!    block probe's target, which recovers the original's draw when FreeCity4
-//!    computes the same blocks. Repeated runs read the remembered inputs.
+//!    compares. A step with an order-dependent shortfall network (§6.3 step
+//!    6: one `rand()` per network, process-wide in the original) runs again
+//!    with the original's powered bits as the block probe's target, which
+//!    recovers the original's draw when FreeCity4 computes the same blocks.
+//!    Repeated runs read the remembered inputs.
 //!
-//! The unsaved state the step needs is mirrored: the ordinance factor (read
-//! live when the shadow starts, then at each month, as the original does),
-//! the pass import / export / demand (our previous step's; unknown until a
-//! state 0 is observed), `brokenFraction` (ours, from 0 at the shadow's
-//! start), `enabled` (latched once the original's `DoIdle` is seen working).
+//! The unsaved state the step needs is mirrored. The plugin creates the
+//! shadow at the city's PostCityInit ([`FC4_POWER_SHADOW_CITY_START`]), when
+//! the original was just constructed and initialised; a shadow created later
+//! (switched on mid-city) does not know these values until the original shows
+//! them:
+//! - the ordinance factor (§8, PW7): the original reads it in `Init`, on a
+//!   tuning reload and at each month start, never on an ordinance change. At
+//!   a city start the shadow reads it then, on each forwarded tuning reload
+//!   and at each month; mid-city it is unknown until the first month, and the
+//!   differences of the steps that use it (states 1 and 2) are not exact;
+//! - the pass import / export / demand (§9.1, PW3): 0 at a city start (the
+//!   constructor's), then our previous step's; mid-city unknown until a
+//!   state 0 is observed (the state 3 totals are not exact until then);
+//! - `brokenFraction` (§7.6, PW4): 0 at a city start, then ours; mid-city it
+//!   is never known, and the months' brokenCount is not exact;
+//! - the dirty rectangle (§5.3, PW5): merged from the original's messages,
+//!   which the plugin forwards ([`fc4_power_shadow_message`]) with
+//!   [`PowerSim::dirty_rect_for`], the rectangle FreeCity4's `DoMessage`
+//!   merges [choice, power.md §5.3]; consumed by each enabled step. Mid-city
+//!   it is unknown until the first compared step, which runs again with the
+//!   bounding box of the changed wire bits when its wire bits changed;
+//! - `enabled` (latched once the original's `DoIdle` is seen working).
+//!
+//! The month's bookkeeping line (§5.2, PW8) sets apart what the original's
+//! running counts inherited from the save: a difference equal to the first
+//! bookkeeping line's is inherited (case 1), one that changed since the last
+//! line is in flight (case 2, occupant messages not yet delivered), and only
+//! one that stays from a line to the next without being inherited counts as a
+//! mismatch [choice, power.md §5.2].
+//!
 //! Not readable, hence not compared: the posted messages, history values,
 //! budget line items, demolitions and lot conditions, the poles the month's
 //! `random_shuffle` picks (the set depends on the original's `rand()`; the
@@ -60,7 +83,7 @@ use fc4_core::variant::Variant;
 
 use crate::guard;
 use crate::landvalue::fc4_grid_geometry;
-use crate::power::{fc4_power_host, CHost};
+use crate::power::{fc4_power_host, fc4_power_message, CHost};
 use crate::stream::fc4_bytes_sink;
 
 // ---- C types ---------------------------------------------------------------------------------------
@@ -127,13 +150,20 @@ pub struct fc4_power_shadow_options {
     /// Cycle lines per month besides the first cycle after the month and
     /// the clean ones (0 → 32; `u32::MAX`: every cycle).
     pub max_lines: u32,
-    pub reserved: u32,
+    /// [`FC4_POWER_SHADOW_CITY_START`].
+    pub flags: u32,
     /// `cISC4NeighborConnection::GetVisitedThisCycle` (slot 11) of a
     /// connection token, called with the host table's `user`. The shadow
     /// emulates `FindUnvisitedConnection` with it (its own visited flags
     /// stay in the shadow). NULL: the live `FindUnvisitedConnection`.
     pub connection_visited: Option<unsafe extern "C" fn(*mut c_void, u64) -> bool>,
 }
+
+/// `fc4_power_shadow_options::flags`: the shadow is created at the city's
+/// PostCityInit (a load or a new city), when the original was just
+/// constructed and initialised: its unsaved values are known (the module
+/// notes). The host table must answer the ordinance factor at creation.
+pub const FC4_POWER_SHADOW_CITY_START: u32 = 1;
 
 /// Totals since creation (fc4.h `fc4_power_shadow_stats`).
 #[repr(C)]
@@ -416,9 +446,10 @@ impl ShadowHost {
 
     /// `FindUnvisitedConnection` emulated: the first connection of
     /// `GetConnectionsOfTypeToCity(type, city)` whose visited flag (ours if
-    /// we set it, else the live `GetVisitedThisCycle`) is false.
-    /// [assumption, tooling] The game's `FindUnvisitedConnection` searches
-    /// the same connections in the same order; it is not in docs/specs.
+    /// we set it, else the live `GetVisitedThisCycle`) is false. power.md
+    /// §6.5 (PW1): the game's walks the connection list from its head in
+    /// append order and returns the first of type `type`, visited bit clear,
+    /// other side `city`: the same connections in the same order.
     fn emulated_unvisited(&self, f: unsafe extern "C" fn(*mut c_void, u64) -> bool, t: u32, city: u64) -> Option<u64> {
         for c in self.connections_to_city(t, city) {
             let ours = self.overlay.borrow().visited.get(&c).copied();
@@ -978,18 +1009,62 @@ pub struct fc4_power_shadow {
     _private: [u8; 0],
 }
 
+/// The dirty rectangle the original rebuilds at its next enabled `DoIdle`
+/// (power.md §5.3; not saved).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Dirty {
+    /// Messages may have reached the original before the shadow saw them.
+    Unknown,
+    /// Merged from the forwarded messages (None: not dirty).
+    Known(Option<CellRect>),
+}
+
+impl Dirty {
+    /// §5.3's merge: the union with `r` (or `r` when not dirty).
+    fn merge(self, r: CellRect) -> Dirty {
+        match self {
+            Dirty::Unknown => Dirty::Unknown,
+            Dirty::Known(None) => Dirty::Known(Some(r)),
+            Dirty::Known(Some(d)) => Dirty::Known(Some(CellRect::new(
+                d.x1.min(r.x1),
+                d.z1.min(r.z1),
+                d.x2.max(r.x2),
+                d.z2.max(r.z2),
+            ))),
+        }
+    }
+
+    /// `self` followed by the messages merged into `later`.
+    fn then(self, later: Dirty) -> Dirty {
+        match later {
+            Dirty::Unknown => Dirty::Unknown,
+            Dirty::Known(None) => self,
+            Dirty::Known(Some(r)) => self.merge(r),
+        }
+    }
+}
+
 /// The unsaved state of the original that its next step needs (module
 /// notes).
 #[derive(Clone, Debug)]
 struct Mirror {
+    /// Created at the city's PostCityInit ([`FC4_POWER_SHADOW_CITY_START`]).
+    city_start: bool,
     /// The ordinance factor as the original holds it, None before the first
     /// run (then read live).
     factor: Option<f32>,
+    /// `factor` is the original's: read at the city start, at a tuning
+    /// reload or at a month start (power.md §8, PW7).
+    factor_known: bool,
     months: u32,
     broken_fraction: f32,
+    /// `broken_fraction` is the original's: 0 at a city start (§7.6, PW4).
+    fraction_known: bool,
     /// Our pass import, export, demand after our last step (None: unknown,
-    /// until a state 0 is compared).
+    /// until a state 0 is compared; 0 at a city start, §9.1 PW3).
     pass: Option<[u32; 3]>,
+    /// The original's dirty rectangle (§5.3, PW5).
+    dirty: Dirty,
     /// The last record captured after an update: state 4 without a
     /// recompute request (nothing to do until a message arrives).
     idle: bool,
@@ -1001,17 +1076,42 @@ struct Mirror {
 }
 
 impl Default for Mirror {
+    /// A shadow started mid-city: nothing unsaved is known.
     fn default() -> Self {
         Mirror {
+            city_start: false,
             factor: None,
+            factor_known: false,
             months: 0,
             broken_fraction: 0.0,
+            fraction_known: false,
             pass: None,
+            dirty: Dirty::Unknown,
             idle: false,
             known: false,
             enabled: false,
             last_julian: None,
             first_julian: None,
+        }
+    }
+}
+
+impl Mirror {
+    /// At the city's PostCityInit: the original's constructor and `Init`
+    /// left the pass values and brokenFraction at 0, no dirty rectangle
+    /// (`Init` does not touch wireDirty after a load; a new city clears it)
+    /// and the factor `Init` read, which is `factor` unless an ordinance
+    /// changed in between (PW7: the original only reads it again at a month
+    /// start or a tuning reload).
+    fn at_city_start(factor: f32) -> Mirror {
+        Mirror {
+            city_start: true,
+            factor: Some(factor),
+            factor_known: true,
+            fraction_known: true,
+            pass: Some([0; 3]),
+            dirty: Dirty::Known(None),
+            ..Mirror::default()
         }
     }
 }
@@ -1047,8 +1147,61 @@ struct Pending {
     before: Capture,
     counts: Option<[u32; 3]>,
     pass_known: bool,
+    /// The dirty rectangle the step consumes (a month: none).
+    dirty: Dirty,
     first: Result<Run, String>,
     book: Option<Result<Bookkeeping, String>>,
+}
+
+/// One difference of the bookkeeping line (§5.2, PW8).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum BookKey {
+    Consumers,
+    Requirement,
+    PlantCount,
+    PoleCount,
+    CostBase,
+    PerType(usize),
+    /// A plant (pole) held by the original and not found live (+1), or
+    /// found live and not held (−1).
+    Plant(u64),
+    Pole(u64),
+    /// A consumption-map cell.
+    Cell(i32, i32),
+    /// A wire bit: the original's set and ours not (+1), or the other way.
+    Wire(i32, i32),
+}
+
+impl BookKey {
+    fn show(self, v: i64) -> String {
+        let side = |v: i64| if v > 0 { "orig only" } else { "live only" };
+        match self {
+            BookKey::Consumers => format!("consumers {v:+}"),
+            BookKey::Requirement => format!("requirement {v:+}"),
+            BookKey::PlantCount => format!("plantCount {v:+}"),
+            BookKey::PoleCount => format!("poleCount {v:+}"),
+            BookKey::CostBase => format!("costBase {v:+}"),
+            BookKey::PerType(t) => format!("perType[{t}] {v:+}"),
+            BookKey::Plant(o) => format!("plant {o:#x} {}", side(v)),
+            BookKey::Pole(o) => format!("pole {o:#x} {}", side(v)),
+            BookKey::Cell(x, z) => format!("cell ({x},{z}) {v:+}"),
+            BookKey::Wire(x, z) => format!("wire ({x},{z}) {}", if v > 0 { "1/0" } else { "0/1" }),
+        }
+    }
+}
+
+/// The bookkeeping differences, original − ours (non-zero only).
+type BookDiff = BTreeMap<BookKey, i64>;
+
+/// The bookkeeping lines so far.
+#[derive(Default)]
+struct BookHistory {
+    /// The first line's differences, less those gone since (they were in
+    /// flight then): what the save left behind (case 1).
+    base: Option<BookDiff>,
+    base_date: Option<i32>,
+    /// The previous line's differences.
+    prev: BookDiff,
 }
 
 /// One comparison's findings.
@@ -1120,6 +1273,7 @@ struct Shadow {
     max_lines: u32,
     pending: Option<Pending>,
     mirror: Mirror,
+    book: BookHistory,
     cycle: CycleAcc,
     month: MonthAcc,
     stats: fc4_power_shadow_stats,
@@ -1241,8 +1395,10 @@ fn scalars(o: &PowerState, b: &PowerState, counts: Option<[u32; 3]>) -> String {
 }
 
 impl Shadow {
+    /// Another city without a PostCityInit seen: nothing unsaved is known.
     fn reset_city(&mut self) {
         self.mirror = Mirror::default();
+        self.book = BookHistory::default();
         self.cycle = CycleAcc::default();
     }
 
@@ -1274,17 +1430,20 @@ impl Shadow {
             s.distressed = counts[2];
         });
         let before = sim.state().clone();
-        if let Some(rr) = rerun {
-            if let Some(rect) = rr.wire_rect {
-                sim.update_state(|s| {
-                    s.wire_dirty = true;
-                    s.dirty_rect = rect;
-                });
-            }
-            sim.set_block_probe(true, rr.target.clone());
-        } else {
-            sim.set_block_probe(true, None);
+        // The original's dirty rectangle (§5.3): merged from its messages,
+        // or, while unknown, the changed bits' box of a rerun.
+        let dirty = match (rerun.and_then(|rr| rr.wire_rect), p.dirty) {
+            (Some(r), _) => Some(r),
+            (None, Dirty::Known(d)) => d,
+            (None, Dirty::Unknown) => None,
+        };
+        if let Some(rect) = dirty {
+            sim.update_state(|s| {
+                s.wire_dirty = true;
+                s.dirty_rect = rect;
+            });
         }
+        sim.set_block_probe(true, rerun.and_then(|rr| rr.target.clone()));
         sim.do_message(&PowerMessage {
             msg_type: p.msg_type,
             data1: p.julian as u32,
@@ -1363,9 +1522,15 @@ impl Shadow {
             before: Capture::default(),
             counts,
             pass_known: self.mirror.pass.is_some(),
+            dirty: Dirty::Known(None),
             first: Err(String::new()),
             book: None,
         };
+        if msg_type != msg::SIM_NEW_MONTH {
+            // An enabled DoIdle consumes the rectangle; the messages during
+            // the delivery merge into the next one.
+            p.dirty = std::mem::replace(&mut self.mirror.dirty, Dirty::Known(None));
+        }
         match before {
             Ok(c) => p.before = c,
             Err(e) => {
@@ -1426,6 +1591,10 @@ impl Shadow {
                 self.cycle.incomplete += 1;
                 self.mirror.known = false;
                 self.mirror.pass = None;
+                if !self.mirror.enabled {
+                    // The original may not have consumed its rectangle.
+                    self.mirror.dirty = p.dirty.then(self.mirror.dirty);
+                }
                 *self.month.reasons.entry(e.clone()).or_insert(0) += 1;
                 if self.month.incomplete <= 3 {
                     lines.push(format!(
@@ -1477,6 +1646,8 @@ impl Shadow {
                 self.month.not_enabled += 1;
                 self.mirror.known = true;
                 self.mirror.idle = orig.state == state::IDLE && !orig.recompute;
+                // Not enabled: the original kept its dirty rectangle.
+                self.mirror.dirty = p.dirty.then(self.mirror.dirty);
                 return Ok(None);
             }
         }
@@ -1484,7 +1655,11 @@ impl Shadow {
         // Runs again with what only the update shows.
         let mut rerun = Rerun::default();
         if !month {
-            rerun.wire_rect = changed_rect(&before.wire, &orig.wire, cells);
+            if p.dirty == Dirty::Unknown {
+                // §5.3: the rectangle is not saved and the messages that
+                // made it came before the shadow listened.
+                rerun.wire_rect = changed_rect(&before.wire, &orig.wire, cells);
+            }
             if first.draws.iter().any(|d| d.order_dependent) {
                 rerun.target = match before.state {
                     state::PLANTS => Some(orig.powered_next.clone()),
@@ -1492,6 +1667,14 @@ impl Shadow {
                     _ => None,
                 };
             }
+        }
+        // Notes for the step's line (the cycle restarts at a 4>0 step).
+        let mut notes = Vec::new();
+        if let Dirty::Known(Some(r)) = p.dirty {
+            notes.push(format!(
+                "wire rebuilt over the dirty rectangle ({},{})-({},{}) merged from the original's messages",
+                r.x1, r.z1, r.x2, r.z2
+            ));
         }
         let again;
         let ours: &Run = if rerun.wire_rect.is_some() || rerun.target.is_some() {
@@ -1503,26 +1686,42 @@ impl Shadow {
             self.stats.uncached_reads = self.stats.uncached_reads.wrapping_add(uncached);
             self.month.reruns += 1;
             self.month.uncached += uncached;
-            self.cycle.reruns += 1;
             if let Some(r) = rerun.wire_rect {
-                self.cycle.notes.insert(format!(
-                    "wire rebuilt by the original: rerun with the changed bits' box ({},{})-({},{}) as the dirty \
-                     rectangle",
+                notes.push(format!(
+                    "wire rebuilt by the original while its dirty rectangle is not known (the shadow started \
+                     mid-city): rerun with the changed bits' box ({},{})-({},{}), which can differ through zones \
+                     (power.md §5.3)",
                     r.x1, r.z1, r.x2, r.z2
                 ));
             }
             if uncached > 0 {
-                self.cycle
-                    .notes
-                    .insert(format!("{uncached} inputs of a rerun read after the original's update"));
+                notes.push(format!("{uncached} inputs of a rerun read after the original's update"));
             }
             &again
         } else {
             first
         };
+        let reran = !std::ptr::eq(ours, first);
 
         let mut d = Diff::default();
         self.diff(p, ours, &orig, after_grid, counts_after, &mut d);
+        d.parts.extend(notes);
+        // §8 (PW7): states 1 and 2 divide by the factor; mid-city the
+        // original's is not known until its first month start.
+        if !month
+            && !self.mirror.factor_known
+            && matches!(before.state, state::PLANTS | state::NEIGHBOURS)
+            && d.mismatches > 0
+        {
+            d.not_exact += d.mismatches;
+            d.mismatches = 0;
+            d.fields.clear();
+            d.parts.push(
+                "NOT EXACT: the ordinance factor is not known until the first month (the shadow started mid-city; \
+                 power.md §8)"
+                    .to_string(),
+            );
+        }
 
         // Mirror.
         self.mirror.known = true;
@@ -1530,6 +1729,7 @@ impl Shadow {
         let s = &ours.state;
         if month {
             self.mirror.factor = Some(s.factor);
+            self.mirror.factor_known = true;
             self.mirror.broken_fraction = s.broken_fraction;
             self.mirror.months += 1;
         } else if before.state == state::RESET || self.mirror.pass.is_some() {
@@ -1557,10 +1757,15 @@ impl Shadow {
                 line.push_str(&format!("; {}", d.parts.join("; ")));
             }
             if self.mirror.months == 1 {
-                line.push_str(&format!(
-                    "; brokenFraction from 0 at the shadow's start ({})",
-                    self.mirror.first_julian.map_or("?".to_string(), date)
-                ));
+                let start = self.mirror.first_julian.map_or("?".to_string(), date);
+                line.push_str(&if self.mirror.fraction_known {
+                    format!("; brokenFraction from 0 at the city start, as the original's (power.md §7.6; first step {start})")
+                } else {
+                    format!(
+                        "; brokenFraction not known (the shadow started mid-city, {start}): brokenCount not exact \
+                         (power.md §7.6)"
+                    )
+                });
             }
             line.push_str(&format!("; not_exact={}; mismatches={n}", d.not_exact));
             lines.push(line);
@@ -1574,6 +1779,9 @@ impl Shadow {
                 started: true,
                 ..CycleAcc::default()
             };
+        }
+        if reran {
+            self.cycle.reruns += 1;
         }
         self.add_to_cycle(&step, &d, ours);
         if before.state == state::STATISTICS {
@@ -1598,11 +1806,14 @@ impl Shadow {
         let unmatched: Vec<&Bitmap> = ours.draws.iter().filter_map(|d| d.unmatched_mark.as_ref()).collect();
         let in_unmatched = |x: i32, z: i32| unmatched.iter().any(|m| m.test(x, z));
         let pass_unknown = !p.pass_known && before.state == state::STATISTICS;
+        // §7.6 (PW4): the month's pole decay starts from brokenFraction.
+        let fraction_unknown = p.msg_type == msg::SIM_NEW_MONTH && !self.mirror.fraction_known;
         let max = self.max_cells;
 
         // Saved fields.
         for (name, o, b) in field_diffs(s, orig) {
             let not_exact = (pass_unknown && matches!(name, "lastImport" | "lastExport" | "lastDemand"))
+                || (fraction_unknown && name == "brokenCount")
                 || (!unmatched.is_empty() && matches!(name, "powered" | "unpowered"));
             if not_exact {
                 d.not_exact += 1;
@@ -1889,8 +2100,11 @@ impl Shadow {
             d.parts.push(format!("budget items orig/ours [{}]", ibad.join(", ")));
         }
         if pass_unknown {
-            d.parts
-                .push("pass import/export/demand not observed since the shadow started (no state 0 yet)".to_string());
+            d.parts.push(
+                "pass import/export/demand not observed since the shadow started mid-city (no state 0 yet; power.md \
+                 §9.1)"
+                    .to_string(),
+            );
         }
     }
 
@@ -2033,6 +2247,15 @@ impl Shadow {
         lines.push(line);
     }
 
+    /// The month's bookkeeping line (§5.2, PW8): the original's running
+    /// counts (the record before the month) against FreeCity4's insertion
+    /// (§5.1) of every live occupant and a wire rebuild of the whole map.
+    /// [choice, power.md §5.2] A difference equal to the first line's is
+    /// inherited from the save (case 1); one that changed since the last
+    /// line is in flight (case 2: occupant messages not yet delivered); only
+    /// one that stays from a line to the next without being inherited is a
+    /// mismatch. A first-line difference gone later was in flight then and
+    /// leaves the baseline.
     fn bookkeeping_line(&mut self, p: &Pending, b: &Result<Bookkeeping, String>) -> String {
         let head = format!("power shadow {} bookkeeping", date(p.julian));
         let b = match b {
@@ -2046,95 +2269,173 @@ impl Shadow {
         let s = &b.state;
         let max = self.max_cells;
         let (cx, cz) = self.host.cell_counts();
-        let mut n = 0u64;
+        let mut diff = BookDiff::new();
+        let mut put = |k: BookKey, v: i64| {
+            if v != 0 {
+                diff.insert(k, v);
+            }
+        };
         let mut parts = Vec::new();
-        for (name, a, c) in [
-            ("consumers", i64::from(o.consumers), i64::from(s.consumers)),
-            ("requirement", i64::from(o.requirement), i64::from(s.requirement)),
-            ("plantCount", i64::from(o.plant_count), i64::from(s.plant_count)),
-            ("poleCount", i64::from(o.pole_count), i64::from(s.pole_count)),
-            ("costBase", o.cost_base, s.cost_base),
+        for (k, name, a, c) in [
+            (
+                BookKey::Consumers,
+                "consumers",
+                i64::from(o.consumers),
+                i64::from(s.consumers),
+            ),
+            (
+                BookKey::Requirement,
+                "requirement",
+                i64::from(o.requirement),
+                i64::from(s.requirement),
+            ),
+            (
+                BookKey::PlantCount,
+                "plantCount",
+                i64::from(o.plant_count),
+                i64::from(s.plant_count),
+            ),
+            (
+                BookKey::PoleCount,
+                "poleCount",
+                i64::from(o.pole_count),
+                i64::from(s.pole_count),
+            ),
+            (BookKey::CostBase, "costBase", o.cost_base, s.cost_base),
         ] {
             parts.push(format!("{name}={a}/{c}"));
-            if a != c {
-                n += 1;
-            }
+            put(k, a.wrapping_sub(c));
         }
-        if o.per_type != s.per_type {
-            n += 1;
-            parts.push(format!("perType {:?}/{:?}", o.per_type, s.per_type));
+        for t in 0..PLANT_TYPES {
+            put(BookKey::PerType(t), i64::from(o.per_type[t]) - i64::from(s.per_type[t]));
         }
-        let set = |v: &[u64]| v.iter().copied().collect::<BTreeSet<u64>>();
-        for (name, a, c) in [
-            (
-                "plants",
-                set(&o.plants.iter().map(|p| p.occupant).collect::<Vec<_>>()),
-                { set(&s.plants.iter().map(|p| p.occupant).collect::<Vec<_>>()) },
-            ),
-            ("poles", set(&o.poles), set(&s.poles)),
+        let op: BTreeSet<u64> = o.plants.iter().map(|p| p.occupant).collect();
+        let sp: BTreeSet<u64> = s.plants.iter().map(|p| p.occupant).collect();
+        let oq: BTreeSet<u64> = o.poles.iter().copied().collect();
+        let sq: BTreeSet<u64> = s.poles.iter().copied().collect();
+        for (key, a, c) in [
+            (BookKey::Plant as fn(u64) -> BookKey, &op, &sp),
+            (BookKey::Pole as fn(u64) -> BookKey, &oq, &sq),
         ] {
-            let missing = a.difference(&c).count();
-            let extra = c.difference(&a).count();
-            if missing + extra > 0 {
-                n += 1;
-                parts.push(format!(
-                    "{name}: {missing} held by the original only, {extra} found live only"
-                ));
+            for &t in a.difference(c) {
+                put(key(t), 1);
+            }
+            for &t in c.difference(a) {
+                put(key(t), -1);
             }
         }
-        let (mut cells, mut maxd, mut firsts) = (0u64, 0i32, Vec::new());
+        let (mut cells, mut maxd) = (0u64, 0i64);
         for x in 0..cx {
             for z in 0..cz {
-                let (a, c) = (o.consumption_at(x, z), s.consumption_at(x, z));
-                if a != c {
+                let v = i64::from(o.consumption_at(x, z)) - i64::from(s.consumption_at(x, z));
+                if v != 0 {
                     cells += 1;
-                    maxd = maxd.max((i32::from(a) - i32::from(c)).abs());
-                    if firsts.len() < max {
-                        firsts.push(format!("({x},{z}) {a}/{c}"));
-                    }
+                    maxd = maxd.max(v.abs());
+                    put(BookKey::Cell(x, z), v);
                 }
             }
         }
-        n += cells;
-        parts.push(format!(
-            "consumption map {cells}/{} cells differ max|d|={maxd}{}",
-            i64::from(cx) * i64::from(cz),
-            if firsts.is_empty() {
-                String::new()
-            } else {
-                format!(" [{}]", firsts.join(", "))
-            }
-        ));
-        let (mut wires, mut wfirst) = (0u64, Vec::new());
+        let mut wires = 0u64;
         if o.wire.words() != s.wire.words() {
             for x in 0..cx {
                 for z in 0..cz {
                     let (a, c) = (o.wire.test(x, z), s.wire.test(x, z));
                     if a != c {
                         wires += 1;
-                        if wfirst.len() < max {
-                            wfirst.push(format!("({x},{z}) {}/{}", u8::from(a), u8::from(c)));
-                        }
+                        put(BookKey::Wire(x, z), if a { 1 } else { -1 });
                     }
                 }
             }
         }
-        n += wires;
         parts.push(format!(
-            "wire {wires} cells differ{}",
-            if wfirst.is_empty() {
+            "consumption map {cells}/{} cells differ max|d|={maxd}; wire {wires} cells differ",
+            i64::from(cx) * i64::from(cz)
+        ));
+
+        let list = |keys: &[(BookKey, i64)]| -> String {
+            let mut v: Vec<String> = keys.iter().take(max).map(|&(k, v)| k.show(v)).collect();
+            if keys.len() > max {
+                v.push("...".to_string());
+            }
+            if v.is_empty() {
                 String::new()
             } else {
-                format!(" [{}]", wfirst.join(", "))
+                format!(" [{}]", v.join(", "))
             }
-        ));
+        };
+        let city_start = self.mirror.city_start;
+        let hist = &mut self.book;
+        let Some(base) = hist.base.as_mut() else {
+            // The first line: the baseline.
+            let all: Vec<(BookKey, i64)> = diff.iter().map(|(&k, &v)| (k, v)).collect();
+            hist.base = Some(diff.clone());
+            hist.base_date = Some(p.julian);
+            hist.prev = diff;
+            return format!(
+                "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live \
+                 occupants and a wire rebuild of the whole map (ours), orig/ours: {}; baseline ({}): {} differences \
+                 inherited from the save (power.md §5.2 case 1) or in flight (case 2){}; mismatches=0",
+                b.occupants,
+                parts.join("; "),
+                if city_start {
+                    "the first line since the city start"
+                } else {
+                    "the first line since the shadow started mid-city"
+                },
+                all.len(),
+                list(&all)
+            );
+        };
+        let keys: BTreeSet<BookKey> = diff
+            .keys()
+            .chain(hist.prev.keys())
+            .chain(base.keys())
+            .copied()
+            .collect();
+        let (mut inherited, mut flight, mut gone, mut persistent, mut left) =
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        for k in keys {
+            let v = diff.get(&k).copied().unwrap_or(0);
+            let b0 = base.get(&k).copied().unwrap_or(0);
+            let pv = hist.prev.get(&k).copied().unwrap_or(0);
+            if v != 0 && v == b0 {
+                inherited.push((k, v));
+            } else if v != 0 && v == pv {
+                persistent.push((k, v));
+            } else if v != 0 {
+                flight.push((k, v));
+            } else if b0 != 0 {
+                // Gone: in flight at the first line, not inherited.
+                base.remove(&k);
+                left.push((k, b0));
+            }
+            if pv != 0 && pv != b0 && v != pv && (v == 0 || v == b0) {
+                gone.push((k, pv));
+            }
+        }
+        hist.prev = diff;
+        let base_date = hist.base_date;
+        let n = persistent.len() as u64;
         self.stats.bookkeeping_mismatches = self.stats.bookkeeping_mismatches.wrapping_add(n);
         format!(
             "{head}: the original's running counts (orig) vs FreeCity4's insertion (§5.1) of the {} live occupants \
-             and a wire rebuild of the whole map (ours), orig/ours: {}; messages still queued at the month can \
-             account for a few; mismatches={n}",
+             and a wire rebuild of the whole map (ours), orig/ours: {}; inherited (as at the baseline line {}, \
+             power.md §5.2 case 1) {}{}; in flight (changed since the last line, case 2) {}{}; gone since the last \
+             line {}{}; baseline entries gone (in flight then) {}{}; persistent (the same at two lines, not \
+             inherited) {}{}; mismatches={n}",
             b.occupants,
-            parts.join("; ")
+            parts.join("; "),
+            base_date.map_or("?".to_string(), date),
+            inherited.len(),
+            list(&inherited),
+            flight.len(),
+            list(&flight),
+            gone.len(),
+            list(&gone),
+            left.len(),
+            list(&left),
+            persistent.len(),
+            list(&persistent),
         )
     }
 
@@ -2142,8 +2443,8 @@ impl Shadow {
         let m = &self.month;
         let mut line = format!(
             "power shadow month to {}: deliveries={} steps={} idle passed through={} not enabled={} cycles={} \
-             (clean {}, lines {}+{} clean, not logged {}) incomplete={} reruns={} uncached={} factor={} \
-             pass totals {}; not_exact={}; mismatches={}",
+             (clean {}, lines {}+{} clean, not logged {}) incomplete={} reruns={} uncached={} factor={}{} \
+             pass totals {} dirty rectangle {}; not_exact={}; mismatches={}",
             date(julian),
             m.deliveries,
             m.steps,
@@ -2158,7 +2459,13 @@ impl Shadow {
             m.reruns,
             m.uncached,
             self.mirror.factor.unwrap_or(1.0),
+            if self.mirror.factor_known { "" } else { " (not known)" },
             if self.mirror.pass.is_some() { "known" } else { "unknown" },
+            if self.mirror.dirty == Dirty::Unknown {
+                "unknown"
+            } else {
+                "known"
+            },
             m.not_exact,
             m.mismatches
         );
@@ -2167,6 +2474,37 @@ impl Shadow {
             line.push_str(&format!("; incomplete because: {}", r.join(", ")));
         }
         line
+    }
+
+    /// One of the original's messages (§5), as it reaches the original: the
+    /// dirty rectangle it merges (PW5) and the tuning reload's factor read
+    /// (PW7). Read through the live table (nothing remembered).
+    fn message(&mut self, m: &PowerMessage) -> bool {
+        match m.msg_type {
+            msg::TUNING_RELOAD => {
+                // The original re-reads its tuning and the factor now.
+                *self.host.tuning.borrow_mut() = None;
+                self.mirror.factor = Some(self.host.live.cumulative_factor(ORDINANCE_FACTOR_ID, 0));
+                self.mirror.factor_known = true;
+                true
+            }
+            msg::OCCUPANT_REMOVED | msg::ZONING_CHANGED => {
+                let h = &self.host;
+                let mode = h.mode.replace(Mode::Parse);
+                let sim = PowerSim::new(h.clone() as Rc<dyn PowerHost>, 0);
+                sim.read_tuning();
+                // The original handles a removal only once initialised, which
+                // it is while the shadow compares it.
+                sim.update_state(|s| s.initialized = true);
+                let r = sim.dirty_rect_for(m);
+                h.mode.set(mode);
+                if let Some(r) = r {
+                    self.mirror.dirty = self.mirror.dirty.merge(r);
+                }
+                true
+            }
+            _ => false,
+        }
     }
 
     fn wants(&mut self, msg_type: u32, event: bool) -> bool {
@@ -2223,7 +2561,8 @@ unsafe fn emit(lines: &[String], sink: fc4_bytes_sink, ctx: *mut c_void) {
 /// properties, poles, lines, network occupants, the occupant query, zones,
 /// lots, deals and connections, departments, line items, budget items) and
 /// the grid table's `geometry` / `get`; the write callbacks may be NULL.
-/// `options` may be NULL (defaults).
+/// `options` may be NULL (defaults: a shadow started mid-city). With
+/// [`FC4_POWER_SHADOW_CITY_START`] the ordinance factor is read now.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_power_shadow_create(
     host: *const fc4_power_host,
@@ -2260,12 +2599,18 @@ pub unsafe extern "C" fn fc4_power_shadow_create(
                 0 => 32,
                 n => n,
             };
+            let mirror = if o.map_or(0, |o| o.flags) & FC4_POWER_SHADOW_CITY_START != 0 {
+                Mirror::at_city_start(host.live.cumulative_factor(ORDINANCE_FACTOR_ID, 0))
+            } else {
+                Mirror::default()
+            };
             Box::into_raw(Box::new(Shadow {
                 host,
                 max_cells,
                 max_lines,
                 pending: None,
-                mirror: Mirror::default(),
+                mirror,
+                book: BookHistory::default(),
                 cycle: CycleAcc::default(),
                 month: MonthAcc::default(),
                 stats: fc4_power_shadow_stats {
@@ -2340,6 +2685,21 @@ pub unsafe extern "C" fn fc4_power_shadow_finish(
     let r = with_shadow(s, -1, |sh| sh.finish(c, n, &mut lines));
     emit(&lines, sink, ctx);
     r
+}
+
+/// One of the original's messages (power.md §5) as it is delivered to the
+/// original, outside or during a wrapped delivery (ABI 33): a removal
+/// (`void1` = the occupant's `cISC4Occupant` token) or a zoning change
+/// (`rect`) merges the rectangle the original's `DoMessage` merges into the
+/// dirty rectangle its next enabled `DoIdle` rebuilds (§5.3, PW5); a tuning
+/// reload makes the shadow read the tuning and the ordinance factor again
+/// (§8, PW7). Reads go through the host table at once. True when the
+/// message is one of these.
+#[no_mangle]
+pub unsafe extern "C" fn fc4_power_shadow_message(s: *mut fc4_power_shadow, m: *const fc4_power_message) -> bool {
+    let Some(m) = m.as_ref() else { return false };
+    let m = PowerMessage::from(m);
+    with_shadow(s, false, |sh| sh.message(&m))
 }
 
 /// Totals since creation.

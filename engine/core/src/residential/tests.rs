@@ -93,7 +93,7 @@ struct Host {
     developers: [Rc<SimGrid<i16>>; 3],
     building_map: RefCell<Option<Rc<SimGrid<u8>>>>,
     /// What `CreateVisualEffect` returns.
-    effect: Cell<Option<u64>>,
+    effect: Cell<CreatedEffect>,
     altitude: Cell<f32>,
     /// Occupant → the groups it belongs to; every occupant listed here is a
     /// building occupant.
@@ -139,7 +139,7 @@ impl Host {
             pollution_calls: Cell::new(0),
             developers: std::array::from_fn(|_| SimGrid::<i16>::create(&city, 0, dev_size)),
             building_map: RefCell::new(None),
-            effect: Cell::new(Some(500)),
+            effect: Cell::new(CreatedEffect::Effect(500)),
             altitude: Cell::new(7.0),
             groups: RefCell::new(BTreeMap::new()),
             refs: RefCell::new(BTreeMap::new()),
@@ -359,7 +359,7 @@ impl ResidentialHost for Host {
     fn altitude(&self, _x: f32, _z: f32) -> f32 {
         self.altitude.get()
     }
-    fn create_visual_effect(&self, name: &str) -> Option<u64> {
+    fn create_visual_effect(&self, name: &str) -> CreatedEffect {
         assert_eq!(name, BUZZARDS_EFFECT);
         self.ev(Ev::Effect);
         self.effect.get()
@@ -418,8 +418,10 @@ impl EducationHealthHost for Host {
     fn department_budget(&self, department_id: u32) -> Option<u64> {
         self.departments.borrow().get(&department_id).copied()
     }
-    fn department_funding(&self, department: u64) -> f32 {
-        self.funding.borrow().get(&department).copied().unwrap_or(1.0)
+    fn department_funding(&self, department: u64) -> Option<f32> {
+        let f = self.funding.borrow().get(&department).copied().unwrap_or(1.0);
+        // NaN marks a department whose funding cannot be read (RG10).
+        (!f.is_nan()).then_some(f)
     }
     fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
         self.locally_funded.borrow().contains(&(department, occupant, purpose))
@@ -1772,7 +1774,7 @@ fn reh23_deaths_door() {
 
     // No effect created: nothing else, and the next wealth rolls again.
     let fx = Fx::new(4);
-    fx.h.effect.set(None);
+    fx.h.effect.set(CreatedEffect::Failed);
     fx.h.queue.borrow_mut().extend([1.0, 1.0]);
     fx.set_tract(
         0,
@@ -1787,6 +1789,26 @@ fn reh23_deaths_door() {
     let ev = fx.h.take_events();
     assert_eq!(ev.iter().filter(|e| **e == Ev::Effect).count(), 2);
     assert!(!ev.iter().any(|e| matches!(e, Ev::Transform(_))));
+
+    // RG1 [choice]: a host that cannot show effects counts as a create:
+    // both draws, the flag set (the second wealth does not roll), nothing
+    // positioned or started.
+    let fx = Fx::new(4);
+    fx.h.effect.set(CreatedEffect::NotShown);
+    fx.h.queue.borrow_mut().extend([1.2, 3.0]);
+    fx.set_tract(
+        0,
+        0,
+        Tract {
+            hq: [1.2, 1.2, 0.0],
+            ..steady([100, 100, 0])
+        },
+    );
+    fx.s.do_population_change(0, 0);
+    assert_eq!(*fx.h.draws.borrow(), vec![(0.0, 100.0), (-10.0, 10.0)]);
+    let ev = fx.h.take_events();
+    assert_eq!(ev.iter().filter(|e| **e == Ev::Effect).count(), 1);
+    assert!(!ev.iter().any(|e| matches!(e, Ev::Transform(_) | Ev::StartEffect(_))));
 }
 
 /// REH test 24: the slot ABI rows.
@@ -3365,6 +3387,44 @@ fn funding_and_efficiency() {
     fx.s.with_state(|s| s.dirty = false);
     assert!(fx.s.set_occupant_funding(1, 0.9, 0.25, true));
     assert!(fx.h.take_events().is_empty() && !fx.s.snapshot().dirty);
+}
+
+/// REH §4.2 (RG10, answered; the bracket "1.0" differed): a missing
+/// department never reads as 1.0. A department whose funding the host cannot
+/// read is missing too: the staff one leaves a and b as the caller set them,
+/// the vehicle one leaves b after a is written. The class's own callers
+/// preset (0, 0), so the curves see 0.
+#[test]
+fn rg10_unreadable_department_leaves_the_outputs() {
+    let fx = Fx::new(4);
+    let (staff, vehicle) = (SCHOOL.staff_purpose, SCHOOL.vehicle_purpose);
+    let get = |occ: u64| {
+        let (mut a, mut b) = (0.3f32, 0.4f32);
+        fx.s.get_occupant_funding(occ, &mut a, &mut b, true);
+        (a, b)
+    };
+    fx.h.department(0x77, 950, f32::NAN);
+    fx.h.item(1, staff, staff_item(0x77, 0, 0));
+    assert_eq!(get(1), (0.3, 0.4));
+    // The ratings start at (0, 0): effCurve(0) = 0, coverageCurve(0) = 50.
+    assert_eq!(fx.s.efficiency_ratings(1, true, false), (0.0, 0.5));
+    assert_eq!(fx.s.base_staff_efficiency(1, true), 0.0);
+    // Staff readable, vehicle not: a written, b kept.
+    fx.h.department(0x78, 951, 0.75);
+    fx.h.item(1, staff, staff_item(0x78, 0, 0));
+    fx.h.item(1, vehicle, staff_item(0x77, 0, 1));
+    assert_eq!(get(1), (0.75, 0.4));
+    // Locally funded staff reads the item, whatever the department.
+    fx.h.locally_funded.borrow_mut().insert((950, 1, staff));
+    fx.h.item(
+        1,
+        staff,
+        BudgetItem {
+            local_funding: 0.5,
+            ..staff_item(0x77, 0, 0)
+        },
+    );
+    assert_eq!(get(1), (0.5, 0.4));
 }
 
 /// REH §4.11 slot 45: the coverage distance at a level, with the missing

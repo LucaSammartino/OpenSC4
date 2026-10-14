@@ -2,7 +2,7 @@
   "format": 1,
   "name": "month_registration_order",
   "spec": ["4", "5.3", "foundations 13.3"],
-  "description": "Within the month level, agents run in registration order (simulator §4), which is what keeps the budget's month agent ahead of the ordinance and neighbours agents (foundations §13.3 [compat]): registered as budget, ordinance, neighbours, power, they get SimNewMonth in that order on February 1st. Removing the budget and adding it again moves it to the end, so on March 1st it runs last: the order follows registration, not names. Speed 2, 50 ms days, time consumed only by an idle agent (as in s10_2).",
+  "description": "Within the month level, agents run in registration order (simulator §4), which is what keeps the budget's month agent ahead of the ordinance and neighbours agents (foundations §13.3 [compat]): registered as budget, ordinance, neighbours, power, they get SimNewMonth in that order on February 1st. Removing the budget and adding it again moves it to the end, so on March 1st it runs last: the order follows registration, not names (none of these names has a rank in the month tail of foundations §13.4; s4_month_tail_rank covers the tail). Speed 2, 50 ms days, time consumed only by an idle agent (as in s10_2).",
   "clock": {"start_ms": 0, "auto_step_ms": 0},
   "agents": {
     "budget": {"finish_after": 1},

@@ -39,6 +39,7 @@
 //   --dump  print every declared slot next to its table row
 
 #include "FC4CrimeInterfaces.h"
+#include "FC4DevelopmentInterfaces.h"
 #include "FC4Interfaces.h"
 
 #include "SC4Vector.h"
@@ -110,7 +111,21 @@
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cISC4LandfillOccupant.h"
+#include "cIGZCommandParameterSet.h"
+#include "cIGZMessageServer2.h"
+#include "cIGZMessageTarget.h"
+#include "cISC4Advice.h"
+#include "cISC4Advisor.h"
+#include "cISC4AdvisorSystem.h"
+#include "cISC4LotBaseTextureOccupant.h"
+#include "cIGZCOM.h"
+#include "cISC4EffectsManager.h"
+#include "cISC4VisualEffect.h"
 #include "cISC4LotConfiguration.h"
+#include "cISC4LotConfigurationFilter.h"
+#include "cISC4LotConfigurationManager.h"
+#include "cISCExemplarPropertyHolder.h"
+#include "cISC4CommercialSimulator.h"
 #include "cISC4ZoneDeveloper.h"
 
 #include <algorithm>
@@ -370,6 +385,19 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4TrafficNetworkMap", 9, 52,
      "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
      "only (landfill §4.4.5, §8)"},
+    {"cISC4AdvisorSystem", 23, 29,
+     "the SDK declares slots 0-22; the building development simulator calls slot 7 (GetAdvisor) only "
+     "(building-development.md §4.10). Slots 23-28 are not declared"},
+    {"cISCExemplarPropertyHolder", 5, 4,
+     "the table has the one row the landfill spec added (slot 3 SetDefaultExemplar, landfill LG3); the SDK's slot 4 "
+     "GetDefaultExemplar has no row. The landfill developer (§4.8.1) and the building development simulator "
+     "(building-development.md §4.9) call slot 3 only"},
+    {"cIGZCommandParameterSet", 15, 7,
+     "the table lists slots 3, 5 and 6 only; the building development simulator calls slots 3 "
+     "(GetParameterCount) and 5 (operator[]) (building-development.md §4.12)"},
+    {"cISC4VisualEffect", 18, 13,
+     "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
+     "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -490,6 +518,13 @@ const Waiver kWaivers[] = {
      "pops 20 (SDK: 12 bytes)"},
     {"vt:cSC4AutomataControllerManager::vftable", "cISC4AutomataControllerManager", 23,
      "GetCompositeAttractionCommotion", "returns in ST0 (SDK: a pointer)"},
+    // The lot configurations read by the building development simulator's
+    // maximum density table (building-development.md §4.7.4): manager slot 9
+    // and configuration slots 7, 11, 15 and 24 only.
+    {"cISC4LotConfiguration", "cISC4LotConfiguration", 19, "IsCompatibleWithMonopolyPieceUse",
+     "pops 4 (SDK: no argument)"},
+    {"cISC4LotConfigurationManager", "cISC4LotConfigurationManager", 5, "AddLotConfiguration",
+     "pops 4 (SDK: 8 bytes)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {

@@ -1027,6 +1027,13 @@ fn converting_getters() {
     assert_eq!(st("16777217").get_f64(), Some(16_777_216.0));
     assert_eq!(st("-16777217").get_f64(), Some(-16_777_217.0));
     assert_eq!(st("-16777217").get_f32(), Some(-16_777_216.0));
+    // EX25: signed text into a Float32 rounds once from the exact value; a Sint64 scalar rounds twice (to the double
+    // first). −(2⁵⁴ + 2³⁰ + 1) gives −(2⁵⁴ + 2³¹) from text and −2⁵⁴ from the scalar.
+    assert_eq!(st("-18014399583223809").get_f32(), Some(-18_014_400_656_965_632.0));
+    assert_eq!(
+        s(Values::Sint64(vec![-18_014_399_583_223_809])).get_f32(),
+        Some(-18_014_398_509_481_984.0)
+    );
     // Char targets always get 0 through the text, and succeed.
     assert_eq!(st("A").get_char(), Some(0));
     assert_eq!(st("65").get_unicode_char(), Some(0));
@@ -1052,41 +1059,79 @@ fn converting_getters() {
     assert_eq!(text(a(Values::UnicodeChar(vec![0x48, 0x69]))), ("Hi".into(), false));
     assert_eq!(text(a(Values::UnicodeChar(vec![0xE9, 0x35]))), ("?5".into(), false));
     assert_eq!(text(a(Values::Void(vec![0x31, 0x32]))), (String::new(), false));
-    // Floats: fixed-point, at most 24 digits after the fraction's leading zeros, cut (EX8; §5.1 examples).
+    // Floats: fixed-point, the first 17 significant digits rounded half-up, padded with zeros, trailing fraction
+    // zeros dropped, cut at 63 characters (EX8 as corrected by EX29; the §5.1 examples).
     let float_text = |x: f64| text(s(Values::Float64(vec![x]))).0;
     let f32_text = |x: f32| text(a(Values::Float32(vec![x]))).0;
     assert_eq!(f32_text(2.75), "2.75");
-    assert_eq!(f32_text(0.1), "0.100000001490116119384765");
-    assert_eq!(f32_text(0.001), "0.00100000004749745130538940");
-    assert_eq!(f32_text(1e30), "1000000015047466219876688855040");
-    assert_eq!(f32_text(f32::from_bits(0x4049_0FD0)), "3.141590118408203125");
+    assert_eq!(f32_text(0.1), "0.10000000149011612");
+    assert_eq!(f32_text(0.001), "0.0010000000474974513");
+    assert_eq!(f32_text(0.05), "0.05000000074505806");
+    assert_eq!(f32_text(1e30), "1000000015047466200000000000000");
+    assert_eq!(f32_text(f32::from_bits(0x4049_0FD0)), "3.1415901184082031");
+    // 2^-25 is exactly 0.0000000298023223876953125: a tie at the 18th digit rounds up (half-up, not to even).
+    assert_eq!(f32_text(2f32.powi(-25)), "0.000000029802322387695313");
     assert_eq!(f32_text(16_777_216.0), "16777216");
-    assert_eq!(float_text(1e30), "1000000000000000019884624838656");
-    assert_eq!(float_text(1e-5), "0.0000100000000000000008180305");
+    // Expected texts below were computed independently from the exact values (Python `decimal`, ROUND_HALF_UP).
+    assert_eq!(float_text(1e30), "1000000000000000000000000000000");
+    assert_eq!(float_text(1e-5), "0.000010000000000000001");
+    assert_eq!(float_text(1e23), "99999999999999992000000");
     assert_eq!(float_text(100.0), "100");
     assert_eq!(float_text(0.5), "0.5");
     assert_eq!(float_text(-2.5), "-2.5");
-    assert_eq!(float_text(1.0 / 3.0), "0.333333333333333314829616");
-    assert_eq!(
-        float_text(2f64.powi(-65)),
-        "0.0000000000000000000271050543121376108501863"
-    );
-    // Below 1e-64 nothing is left of the fraction; a long text is cut at 63 characters.
+    assert_eq!(float_text(1.0 / 3.0), "0.33333333333333331");
+    assert_eq!(float_text(2.0 / 3.0), "0.66666666666666663");
+    assert_eq!(float_text(1.0 - 2f64.powi(-53)), "0.99999999999999989");
+    assert_eq!(float_text(2f64.powi(-65)), "0.000000000000000000027105054312137611");
+    assert_eq!(f32_text(f32::from_bits(0x47F1_206D)), "123456.8515625");
+    // −0.0 prints `0`: the runtime drops a zero's sign (EX24); a Float32 too.
+    assert_eq!(float_text(-0.0), "0");
+    assert_eq!(f32_text(-0.0), "0");
+    assert_eq!(f32_text(0.0), "0");
+    // Below 1e-64 nothing is left of the fraction (the printer still writes `-` for a negative value); a long
+    // text is cut at 63 characters.
     assert_eq!(float_text(1e-70), "0");
+    assert_eq!(float_text(-1e-70), "-0");
     assert_eq!(
         float_text(1e300),
-        "100000000000000005250476025520442024870446858110815915491585411"
+        "100000000000000010000000000000000000000000000000000000000000000"
     );
     assert_eq!(
         f32_text(1e-40),
-        "0.0000000000000000000000000000000000000000999994610111475958152"
+        "0.000000000000000000000000000000000000000099999461011147596"
     );
+    // [literal reading] `_fcvt(x, 64)` rounds at the 64th place: 9.5e-65 becomes 1e-64, whose text
+    // (`0.`, 63 zeros, `1`) is then cut to `0.` and 61 zeros.
+    assert_eq!(float_text(9.5e-65), format!("0.{}", "0".repeat(61)));
+    // EX29: the cut applies to a Float32 too. The seven negative subnormals 0x80000001..=0x80000007 are the only
+    // Float32 texts above 63 characters (`-0.`, 44 zeros, 17 digits); the 17th digit is lost.
+    let tiny = f32_text(f32::from_bits(0x8000_0001));
+    assert_eq!(tiny, format!("-0.{}1401298464324817", "0".repeat(44)));
+    assert_eq!(tiny.len(), 63);
+    let positive = f32_text(f32::from_bits(0x0000_0001));
+    assert_eq!(positive, format!("0.{}14012984643248171", "0".repeat(44)));
+    assert_eq!(
+        f32_text(f32::from_bits(0x8000_0007)),
+        format!("-0.{}9809089250273719", "0".repeat(44))
+    );
+    // From 0x80000008 on there is one leading zero fewer, and the text fits.
+    let next = f32_text(f32::from_bits(0x8000_0008));
+    assert_eq!(next, format!("-0.{}11210387714598537", "0".repeat(43)));
+    assert_eq!(next.len(), 63);
+    // A Float64 reaches the cut more often: −1e62 (`-` and 63 digits) and 1e63 (64 digits).
+    assert_eq!(float_text(-1e62), format!("-1{}", "0".repeat(61)));
+    assert_eq!(float_text(1e63), format!("10000000000000001{}", "0".repeat(46)));
     // NaN and the infinities as the C runtime prints them.
     assert_eq!(float_text(f64::INFINITY), "1.#INF");
     assert_eq!(float_text(f64::NEG_INFINITY), "-1.#INF");
     assert_eq!(float_text(f64::from_bits(0x7FF8_0000_0000_0000)), "1.#QNAN");
     assert_eq!(float_text(f64::from_bits(0xFFF8_0000_0000_0000)), "-1.#IND");
-    assert_eq!(float_text(f64::from_bits(0x7FF0_0000_0000_0001)), "1.#SNAN");
+    // EX28: a signalling NaN is quieted by the x87 load before printing, a Float64 as well as a Float32.
+    assert_eq!(float_text(f64::from_bits(0x7FF0_0000_0000_0001)), "1.#QNAN");
+    assert_eq!(float_text(f64::from_bits(0xFFF0_0000_0000_0001)), "-1.#QNAN");
+    assert_eq!(f32_text(f32::from_bits(0x7F80_0001)), "1.#QNAN");
+    assert_eq!(f32_text(f32::from_bits(0xFF80_0001)), "-1.#QNAN");
+    assert_eq!(f32_text(f32::from_bits(0xFFC0_0000)), "-1.#IND");
     assert_eq!(st("1.#INF").get_f32(), Some(1.0));
     assert_eq!(st("-1.#IND").get_f32(), Some(-1.0));
     // Empty (EX5): every converting getter succeeds with 0; the string getter writes the empty text, false.
@@ -1316,17 +1361,25 @@ fn cohort_inheritance_through_a_package() {
         store.load(&exemplar_key(50)),
         Err(LoadError::Resource { cause, .. }) if *cause == LoadError::NotFound(other)
     ));
-    // A factory whose read fails does not either.
-    assert!(store.add_factory(0x1234_5678, |d| d == b"something else"));
-    store.load_package(&pkg);
-    assert!(store.load(&exemplar_key(50)).is_err());
-    assert!(store.add_factory(0x1234_5678, |d| d == b"other"));
-    let rep = store.load_package(&pkg);
+    // EX31 condition 3: a factory must apply to every package already registered, and the store keeps no package,
+    // so a factory for a type it has already met is refused *[choice]*.
+    assert!(!store.add_factory(0x1234_5678, |_| true));
+    // A factory whose read fails does not make the resource load either.
+    let mut fresh = ExemplarStore::new();
+    assert!(fresh.add_factory(0x1234_5678, |d| d == b"something else"));
+    fresh.load_package(&pkg);
+    fresh.insert(exemplar_key(50), store.get(&exemplar_key(50)).unwrap().clone());
+    assert!(fresh.load(&exemplar_key(50)).is_err());
+    // One that reads it does.
+    let mut fresh = ExemplarStore::new();
+    assert!(fresh.add_factory(0x1234_5678, |d| d == b"other"));
+    let rep = fresh.load_package(&pkg);
     assert_eq!((rep.exemplars, rep.cohorts, rep.failures.len()), (1, 2, 0));
-    assert!(store.load(&exemplar_key(50)).is_ok());
+    fresh.insert(exemplar_key(50), store.get(&exemplar_key(50)).unwrap().clone());
+    assert!(fresh.load(&exemplar_key(50)).is_ok());
     // The exemplar and cohort types keep the store's own factories.
-    assert!(!store.add_factory(TYPE_EXEMPLAR, |_| true));
-    assert!(!store.add_factory(TYPE_COHORT, |_| true));
+    assert!(!fresh.add_factory(TYPE_EXEMPLAR, |_| true));
+    assert!(!fresh.add_factory(TYPE_COHORT, |_| true));
 
     // A missing parent ends the diagnostic chain and fails the load.
     let mut orphan = Exemplar::new(Kind::Exemplar);
@@ -1338,6 +1391,69 @@ fn cohort_inheritance_through_a_package() {
     let mut wrong = Exemplar::new(Kind::Exemplar);
     wrong.parent = child;
     assert_eq!(store.chain(&wrong).1, ChainEnd::NotCohort(child));
+}
+
+/// §3 "When records are read" (EX31): the store reads eagerly, and gets what the lazy original gets because the three
+/// conditions hold.
+#[test]
+fn ex31_eager_reads_follow_the_winning_record() {
+    let key = exemplar_key(60);
+    let with_a = |v: u32| {
+        let mut ex = Exemplar::new(Kind::Exemplar);
+        ex.set(Property::single(0xA, Values::Uint32(vec![v])));
+        ex.to_binary()
+    };
+    let pkg_of = |records: &[&[u8]]| {
+        let mut b = PackageBuilder::new();
+        for d in records {
+            b.add(key, d, Compression::None).unwrap();
+        }
+        Package::from_bytes(b.build().unwrap()).unwrap()
+    };
+    let a_of = |store: &ExemplarStore| store.property(&key, 0xA).and_then(Property::as_u32);
+
+    // Inside one package the first entry with a key is the one read; a later duplicate never is (§2.3).
+    let mut store = ExemplarStore::new();
+    let rep = store.load_package(&pkg_of(&[&with_a(1), b"not an exemplar"]));
+    assert_eq!((rep.exemplars, rep.failures.len()), (1, 0));
+    assert_eq!(a_of(&store), Some(1));
+    let mut other = ExemplarStore::new();
+    let rep = other.load_package(&pkg_of(&[b"not an exemplar", &with_a(1)]));
+    assert_eq!((rep.exemplars, rep.failures.len()), (0, 1));
+    assert_eq!(other.load(&key).unwrap_err(), LoadError::Unreadable(key));
+
+    // Condition 1: a later package's record replaces the earlier read, also when it fails to read. The original reads
+    // only the winning segment's record, so there is no fallback to the earlier one.
+    store.load_package(&pkg_of(&[&with_a(2)]));
+    assert_eq!(a_of(&store), Some(2));
+    let rep = store.load_package(&pkg_of(&[b"not an exemplar"]));
+    assert_eq!(rep.failures.len(), 1);
+    assert!(store.get(&key).is_none());
+    assert_eq!(store.load(&key).unwrap_err(), LoadError::Unreadable(key));
+    assert_eq!(a_of(&store), None);
+    // Condition 2: a failure is not remembered; a still later record that reads replaces it.
+    store.load_package(&pkg_of(&[&with_a(3)]));
+    assert_eq!(a_of(&store), Some(3));
+
+    // Condition 3: a factory registered after a package holding its type is refused [choice]; registered first, it
+    // reads that package's records.
+    let res = Tgi::new(0x1234_5678, 1, 2);
+    let mut b = PackageBuilder::new();
+    b.add(res, b"data", Compression::None).unwrap();
+    let res_pkg = Package::from_bytes(b.build().unwrap()).unwrap();
+    let mut user = Exemplar::new(Kind::Exemplar);
+    user.set(Property::resource(1, res));
+    let user = Exemplar::parse(&user.to_binary()).unwrap();
+    let mut late = ExemplarStore::new();
+    late.load_package(&res_pkg);
+    assert!(!late.add_factory(0x1234_5678, |_| true));
+    late.insert(exemplar_key(61), user.clone());
+    assert!(late.load(&exemplar_key(61)).is_err());
+    let mut early = ExemplarStore::new();
+    assert!(early.add_factory(0x1234_5678, |d| d == b"data"));
+    early.load_package(&res_pkg);
+    early.insert(exemplar_key(61), user);
+    assert!(early.load(&exemplar_key(61)).is_ok());
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -1428,6 +1544,15 @@ fn t53_values() {
     // Bool: leading spaces trimmed in a scalar too, then a case-insensitive `true` prefix.
     assert_eq!(text_prop("Bool:0:{  TrUe}").as_bool(), Some(true));
     assert_eq!(text_prop("Bool:2:{true, true}").bools(), Some(&[true, true][..]));
+    // EX26: the Bool trim is LTrim, whose set is space and tab, as for array values.
+    assert_eq!(text_prop("Bool:0:{\ttrue}").as_bool(), Some(true));
+    assert_eq!(text_prop("Bool:0:{ \t TRUE}").as_bool(), Some(true));
+    // EX27: a String is trimmed of spaces and tabs at both ends, then one quote is removed at each end, so white
+    // space inside the quotes stays.
+    let string_of = |v: &str| text_prop(v).get_string();
+    assert_eq!(string_of("String:0:{ \" a \" }").as_deref(), Some(" a "));
+    assert_eq!(string_of("String:0:{\t\"\tb\t\"\t}").as_deref(), Some("\tb\t"));
+    assert_eq!(string_of("String:0:{ c }").as_deref(), Some("c"));
     // A scalar is not trimmed: ` 16` is still 16 (strtoul skips the space), ` 1A` is 1 (base 10).
     assert_eq!(text_prop("Uint32:0:{ 16}").as_u32(), Some(16));
     assert_eq!(text_prop("Uint32:0:{ 1A}").as_u32(), Some(1));
@@ -1446,7 +1571,10 @@ fn t54_float32_text() {
     assert_eq!(f("3.14159").to_bits(), 0x4049_0FCE);
     assert_eq!(f("1e12"), -727_379_968.0);
     assert_eq!(f("1e-32"), f32::INFINITY);
-    assert!(f("0e-32").is_nan());
+    assert_eq!(f("0e-32").to_bits(), 0xFFC0_0000);
+    assert_eq!(f("e-32").to_bits(), 0xFFC0_0000, "EX23: no mantissa digit is 0 × 10ⁿ");
+    assert_eq!(f("e5"), 0.0);
+    assert_eq!(f("33573415"), 33_573_412.0, "EX22");
     assert_eq!(f("1.#INF"), 1.0);
     assert_eq!(f("-2.5"), -2.5);
     assert_eq!(f("80"), 80.0);
@@ -1455,12 +1583,26 @@ fn t54_float32_text() {
 /// The game's float parser on its own (§4.3 worked examples): the 24-bit value before any Float32 store.
 #[test]
 fn parse_float_worked_examples() {
-    let bits = |s: &str| (parse_float(s.as_bytes()) as f32).to_bits();
+    let bits = |s: &str| crate::x87::store_f32(parse_float(s.as_bytes())).to_bits();
     assert_eq!(bits("0.05"), 0x3D4C_CCCC);
     assert_eq!(0.05_f32.to_bits(), 0x3D4C_CCCD, "a correctly rounded parse differs");
     assert_eq!(bits("0.001"), 0x3A83_126E);
     assert_eq!(bits("3.14159"), 0x4049_0FCE);
     assert_eq!(bits("3.141590118408203125"), 0x4049_0FCE);
+    // §5.1 round trip (EX29): the printed texts of Float32 3.14159 and 0.05 read back one step low.
+    assert_eq!(bits("3.1415901184082031"), 0x4049_0FCE);
+    assert_eq!(bits("0.05000000074505806"), 0x3D4C_CCCC);
+    // EX22: an integer digit rounds twice (× 10, then + digit); one rounding would give 33,573,416.
+    assert_eq!(parse_float(b"33573415"), 33_573_412.0);
+    // EX23: the exponent is read even with no mantissa digit, with one optional sign; no digits is exponent 0.
+    assert_eq!(parse_float(b"e5"), 0.0);
+    assert_eq!(parse_float(b".e5"), 0.0);
+    let neg_zero = parse_float(b"-e5");
+    assert_eq!((neg_zero, neg_zero.is_sign_negative()), (0.0, true));
+    assert_eq!(parse_float(b"2.5e+3"), 2500.0);
+    assert_eq!(parse_float(b"1e"), 1.0);
+    assert_eq!(bits("e-32"), 0xFFC0_0000);
+    assert_eq!(bits("0e-32"), 0xFFC0_0000);
     assert_eq!(parse_float(b"1e10"), 1_410_065_408.0);
     assert_eq!(parse_float(b"1e12"), -727_379_968.0);
     assert_eq!(parse_float(b"1e32"), 0.0);
@@ -1528,13 +1670,13 @@ fn t57_scalar_conversions() {
     assert_eq!(s(Values::Uint64(vec![16_777_217])).get_f64(), Some(16_777_216.0));
 }
 
-/// §11 row "floats as text with %.24g" (EX8), §10.7 test 58.
+/// §11 row "floats as text" (EX8 as corrected by EX29: 17 significant digits, rounded half-up), §10.7 test 58.
 #[test]
 fn t58_float_text_round_trip() {
     let p = Property::single(1, Values::Float32(vec![f32::from_bits(0x4049_0FD0)]));
     let mut out = Vec::new();
     assert!(!p.get_string_into(&mut out));
-    assert_eq!(out, b"3.141590118408203125");
+    assert_eq!(out, b"3.1415901184082031");
     let s = Property::array(1, Values::String(out));
     assert_eq!(s.get_f32().map(f32::to_bits), Some(0x4049_0FCE));
 }

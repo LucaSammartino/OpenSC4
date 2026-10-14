@@ -51,8 +51,9 @@
 //! missing values read as 0 and there is no cap (*\[choice\]* above 16 MiB of values the read fails); array values
 //! have their leading spaces and tabs trimmed, a scalar's value does not; 64-bit values are always hexadecimal,
 //! without a sign; `Float32` uses the game's own digit-by-digit parser at 24-bit precision ([`parse_float`]);
-//! `Bool` is true when the value begins with `true` (any case); a `String` is everything up to the first `}`,
-//! trimmed, one quote removed at each end. See [`Exemplar::parse`] for the details.
+//! `Bool` is true when the value, its leading spaces and tabs trimmed, begins with `true` (any case); a `String` is
+//! everything up to the first `}`, trimmed of spaces and tabs, then one quote removed at each end. See
+//! [`Exemplar::parse`] for the details.
 //!
 //! # Parents and inheritance (§4.4)
 //!
@@ -686,7 +687,8 @@ impl Property {
     ///   Char array all their characters; an RZUnicodeChar array all its units, each below `0x80` as that byte and
     ///   any other as `?`; a void array the empty text (EX6).
     /// - A scalar: integers in decimal, Bool `0` / `1`, an RZChar its one character (EX7).
-    /// - Floats: `RZFtoaEnglishA` (fixed-point, at most 24 digits after the fraction's leading zeros, cut; EX8).
+    /// - Floats: `RZFtoaEnglishA` (fixed-point, 17 significant digits rounded half-up, cut at 63 characters; EX8 as
+    ///   corrected by EX29; −0.0 prints `0`, EX24; a signalling NaN prints `1.#QNAN`, EX28).
     /// - An Empty value: the empty text (EX5).
     ///
     /// `None` for an object (kind-1) value: the original prints its text or its address, *\[choice\]* FreeCity4
@@ -724,7 +726,8 @@ impl Property {
     /// `length` bytes are copied into `buffer`, and the call returns true. Any other type, strings and other arrays
     /// included, returns false and leaves both unchanged (no text round trip). No shipped record has a void array.
     /// The caller's buffer must hold `length` bytes, as in the original; *\[choice\]* a shorter one receives only
-    /// the bytes that fit.
+    /// the bytes that fit. The original (`0x00915714`) cannot know the buffer's size and overruns a shorter one when
+    /// the array is longer; that is not observable on shipped data, so the choice stands (§5.2, EX30).
     pub fn get_void(&self, buffer: &mut [u8], length: &mut u32) -> bool {
         let Values::Void(v) = &self.values else {
             return false;
@@ -930,13 +933,14 @@ impl Parsed {
         }
     }
 
-    /// As [`Parsed::to_f64`], rounded to float32. A signed number is rounded once, from its exact value
-    /// (literal reading of §5.1 "converted exactly, then rounded to the target").
+    /// As [`Parsed::to_f64`], rounded to float32. A signed number is rounded **once**, from its exact value (`fild`
+    /// then `fstp dword`, §5.1 step 4, EX25): `-16777217` gives −16,777,216.0. (A Sint64 *scalar* rounds twice,
+    /// through the double the converter stores: see [`Scalar::to_f64`].)
     fn to_f32(self) -> f32 {
         match self {
             Parsed::Unsigned(v) => x87::u64_to_f64(v) as f32,
             Parsed::Signed(v) => v as f32,
-            Parsed::Float(v) => v as f32,
+            Parsed::Float(v) => x87::store_f32(v),
         }
     }
 }
@@ -1038,12 +1042,20 @@ fn atou64_hex(s: &[u8]) -> u64 {
 /// The result keeps a 24-bit significand and the register's exponent range; a Float32 target rounds it once more
 /// when it is stored (a Float64 target gets it as is). Worked examples (§4.3): `0.05` gives `0x3D4CCCCC` (a correctly
 /// rounded parse gives `0x3D4CCCCD`), `0.001` `0x3A83126E`, `3.14159` `0x40490FCE`, `1e10` 1,410,065,408, `1e12`
-/// −727,379,968, `1e32` 0, `1e-32` +∞ and `0e-32` NaN.
+/// −727,379,968, `1e32` 0, `1e-32` +∞ and `0e-32` the default NaN.
 ///
-/// Literal readings where §4.3 does not spell out the step: value × 10 + digit is two operations (a multiply and
-/// an add, each rounded); "0.1" is the double constant 0.1 (it reproduces every worked example, the float `0.1f`
-/// does not: `0.05` would give `0x3D4CCCCE`); the exponent takes one optional `+` or `-`, and it is read even when
-/// no mantissa digit came before it; the sign applies to the result.
+/// The arithmetic, as §4.3 "Details of the arithmetic" states it from the exe:
+/// - 10.0 and 0.1 are **double** constants used as double operands (EX21): each scale step rounds the exact
+///   product scale × 0.1 once. With `0.1f`, `0.05` would give `0x3D4CCCCE`.
+/// - An integer digit rounds **twice**, value × 10 and then + digit (EX22), so `33573415` gives 33,573,412.0 (one
+///   rounding would give 33,573,416.0). A fraction digit rounds three times: scale × 0.1, digit × scale, + value.
+/// - After the mantissa, whatever it consumed, an `e` / `E` starts the exponent (EX23). It takes one optional `+`
+///   or `-`, then decimal digits (none: exponent 0). So `e5` and `.e5` give 0, `-e5` −0.0, `2.5e+3` 2500, `1e` 1,
+///   and `e-32` the default NaN (`0xFFC00000` as a Float32), as `0e-32` does: 10³² wraps to 0, 1/0 is +∞, and
+///   0 × ∞ is invalid. Dividing 0 by the wrapped 0, as this code does, is invalid too and gives the same NaN.
+///
+/// Literal readings where §4.3 does not spell out the step: the sign applies to the result, so it flips a NaN's
+/// sign as `fchs` would; a negative exponent divides by 10ⁿ ("divided for a negative exponent"), one rounding.
 pub fn parse_float(s: &[u8]) -> f64 {
     let digit = |i: usize| s.get(i).filter(|c| c.is_ascii_digit()).map(|&c| f64::from(c - b'0'));
     let mut i = s.iter().take_while(|&&b| is_space(b)).count();
@@ -1094,6 +1106,11 @@ pub fn parse_float(s: &[u8]) -> f64 {
         // 10^|n| mod 2^32 (0 from n = 32 on), loaded as a signed 32-bit integer.
         let power = f64::from(10u32.wrapping_pow(n.unsigned_abs()) as i32);
         v = if n >= 0 { x87::mul(v, power) } else { x87::div(v, power) };
+        // The only NaN this parser makes is 0 with a negative exponent whose 10ⁿ wrapped to 0: the x87 default NaN
+        // (EX23).
+        if v.is_nan() {
+            v = x87::default_nan();
+        }
     }
     if neg {
         -v
@@ -1102,50 +1119,115 @@ pub fn parse_float(s: &[u8]) -> f64 {
     }
 }
 
-/// The float formatter of the text round trip (`RZFtoaEnglishA`, §5.1, EX8): **fixed-point, never an exponent**.
-/// `-` for a negative value, the integer digits in full (`0` below 1), then, when a non-zero fraction digit exists,
-/// `.`, the fraction's leading zeros and at most **24** more digits, cut, not rounded (zeros at the end of a cut are
-/// kept; with nothing cut, trailing zeros are not printed). The digits are those of `_fcvt(x, 64)`: the exact binary
-/// value, its fraction rounded at 64 places. The text is cut at 63 characters (a 64-byte buffer). NaN and the
-/// infinities print as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN` / `-1.#QNAN`, `-1.#IND` (the
-/// default NaN) and `1.#SNAN` / `-1.#SNAN`; they parse back as ±1.
+/// The float formatter of the text round trip (`RZFtoaEnglishA`, §5.1 "Floats as text"; EX8 as corrected by EX29):
+/// **fixed-point, never an exponent**. `-` for a negative value, the integer digits in full (`0` below 1), then,
+/// when a non-zero fraction digit exists, `.`, the fraction's leading zeros and the digits up to the last non-zero
+/// one. The digits are those of `_fcvt(x, 64)` ([`fcvt64`]): **17 significant digits, rounded half-up**, padded with
+/// zeros, so a value never prints more than 17 non-zero digits and an integer part longer than 17 digits ends in
+/// zeros. The printer's own limit of 24 digits after the fraction's leading zeros is kept, but it never takes effect
+/// (EX29). A text longer than 63 characters is **cut** to 63 (a 64-byte buffer; the callers ignore the printer's
+/// false), whatever the type (EX29).
 ///
-/// Examples: 2.75 gives `2.75`; Float32 0.1 `0.100000001490116119384765`; Float32 0.001
-/// `0.00100000004749745130538940`; Float32 1e30 `1000000015047466219876688855040`. Literal reading: −0.0 is not a
-/// negative value, so it prints `0`.
+/// - Zero, −0.0 included, prints `0`: the runtime drops a zero's sign (EX24).
+/// - NaN and the infinities print as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN` / `-1.#QNAN`, and
+///   `-1.#IND` for the default NaN. The value is loaded onto the x87 stack first, which quiets a signalling NaN and
+///   keeps its sign and payload, so a Float64 sNaN prints `1.#QNAN` too, never `1.#SNAN` (EX28). They parse back as
+///   ±1.
+///
+/// Examples (§5.1): 2.75 gives `2.75`; Float32 0.1 `0.10000000149011612`; Float32 0.001 `0.0010000000474974513`;
+/// Float32 3.14159 `3.1415901184082031`; Float32 1e30 `1000000015047466200000000000000`; Float32 2⁻²⁵ (a tie at the
+/// 18th digit) `0.000000029802322387695313`; Float32 `0x80000001` `-0.`, 44 zeros and `1401298464324817` (63
+/// characters, the 17th digit cut).
 fn format_float(x: f64) -> String {
     if x.is_nan() {
-        let bits = x.to_bits();
-        let sign = if bits >> 63 != 0 { "-" } else { "" };
+        // EX28: the x87 load quiets a signalling NaN (the quiet bit set, sign and payload kept).
+        let bits = x.to_bits() | (1 << 51);
         return if bits == 0xFFF8_0000_0000_0000 {
             "-1.#IND".into()
-        } else if bits & (1 << 51) != 0 {
-            format!("{sign}1.#QNAN")
+        } else if bits >> 63 != 0 {
+            "-1.#QNAN".into()
         } else {
-            format!("{sign}1.#SNAN")
+            "1.#QNAN".into()
         };
     }
     if x.is_infinite() {
         return if x < 0.0 { "-1.#INF" } else { "1.#INF" }.into();
     }
-    // Rust prints the exact decimal value, rounded at the requested place: _fcvt(x, 64).
-    let fixed = format!("{:.64}", x.abs());
-    let (int, frac) = fixed.split_once('.').unwrap_or((&fixed, ""));
+    if x == 0.0 {
+        // EX24: `$I10_OUTPUT` resets a zero's sign, so −0.0 prints `0` as well.
+        return "0".into();
+    }
+    let (digits, decpt) = fcvt64(x.abs());
     let mut out = String::new();
     if x < 0.0 {
         out.push('-');
     }
-    out.push_str(int);
-    let lead = frac.bytes().take_while(|&b| b == b'0').count();
-    if lead < frac.len() {
-        let digits = &frac[lead..];
-        let kept = digits.trim_end_matches('0');
+    // The digits stand for 0.d₁d₂… × 10^decpt, and there are decpt + 64 of them (64 places after the point).
+    let fraction: Vec<u8> = if decpt > 0 {
+        let int = decpt as usize;
+        out.push_str(&String::from_utf8_lossy(&digits[..int]));
+        digits[int..].to_vec()
+    } else {
+        out.push('0');
+        let mut f = vec![b'0'; decpt.unsigned_abs() as usize];
+        f.extend_from_slice(&digits);
+        f
+    };
+    let lead = fraction.iter().take_while(|&&b| b == b'0').count();
+    if lead < fraction.len() {
+        let rest = &fraction[lead..];
+        let kept = &rest[..rest.iter().rposition(|&b| b != b'0').map_or(0, |i| i + 1)];
         out.push('.');
-        out.push_str(&frac[..lead]);
-        out.push_str(if kept.len() <= 24 { kept } else { &digits[..24] });
+        out.push_str(&String::from_utf8_lossy(&fraction[..lead]));
+        // At most 24 digits after the leading zeros, cut (never reached: at most 17 digits are non-zero, EX29).
+        let shown = if kept.len() <= 24 { kept } else { &rest[..24] };
+        out.push_str(&String::from_utf8_lossy(shown));
     }
     out.truncate(63);
     out
+}
+
+/// `_fcvt(x, 64)` for a finite `x > 0` (§5.1, EX29): the digits and `decpt` (x = 0.d₁d₂… × 10^decpt).
+///
+/// 1. The runtime's decimal conversion (`$I10_OUTPUT`, asked for 17 digits by `_fltout2`) gives the first **17
+///    significant digits, rounded half-up**: from the exact value, a tail of half an ulp or more rounds up, a tie
+///    included (away from zero).
+/// 2. `_fptostr` then writes `decpt + 64` digits (64 places after the point): the 17 digits, padded with zeros.
+///    *\[literal reading\]* `_fcvt` rounds at the place it is asked for, so when the 17 digits reach past the 64th
+///    place (only below 10⁻⁴⁷) they are rounded half-up again at that place, and below 10⁻⁶⁴ no digit is left. A
+///    Float32 never gets there, and a Float64 text there is cut at 63 characters anyway.
+fn fcvt64(x: f64) -> (Vec<u8>, i32) {
+    /// Adds one at the last digit; true when it carried out of the first (all nines), leaving all zeros.
+    fn round_up(d: &mut [u8]) -> bool {
+        for c in d.iter_mut().rev() {
+            if *c == b'9' {
+                *c = b'0';
+            } else {
+                *c += 1;
+                return false;
+            }
+        }
+        true
+    }
+    // The exact decimal value: an f64 has at most 767 significant digits, so 801 are exact (zeros at the end).
+    let sci = format!("{x:.800e}");
+    let (mant, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
+    let mut decpt = exp.parse::<i32>().unwrap_or(0) + 1;
+    let exact: Vec<u8> = mant.bytes().filter(u8::is_ascii_digit).collect();
+    let mut sig = exact[..17].to_vec();
+    if exact[17] >= b'5' && round_up(&mut sig) {
+        sig[0] = b'1';
+        decpt += 1;
+    }
+    let Ok(n) = usize::try_from(decpt + 64) else {
+        return (Vec::new(), decpt);
+    };
+    let mut out: Vec<u8> = (0..n).map(|i| sig.get(i).copied().unwrap_or(b'0')).collect();
+    if n < sig.len() && sig[n] >= b'5' && round_up(&mut out) {
+        out.insert(0, b'1');
+        decpt += 1;
+    }
+    (out, decpt)
 }
 
 /// [`format_float`] of a Float32, widened to double first (§5.1). The x87 load quiets a signalling NaN.
@@ -1500,6 +1582,12 @@ impl Exemplar {
     /// form cannot express (§4.3): Empty, Float64, Char, UnicodeChar, Void and resource-key values, a single RZChar,
     /// an empty array (`reps` 0 reads back as a scalar), a string containing `}` or a line break, a non-finite float,
     /// and a Float32 that the game's 24-bit parser cannot reproduce from any text tried (see `float32_text`).
+    ///
+    /// *\[choice\]* (§4.3 "Writing text", EX32): the original's writer never fails and is lossy. It prints each
+    /// Float32 with `%f` and trims the trailing fraction zeros, so 3.14159 is written `3.14159` and reads back 2 ulps
+    /// low, and 1e-7 is written `0`. The reader accepts any text, so this writer emits text that reads back exactly
+    /// and refuses a value it cannot reproduce (`Unsupported`) instead of copying the loss; a caller can write the
+    /// binary form ([`Exemplar::to_binary`]), which the reader also accepts.
     pub fn to_text(&self) -> Result<Vec<u8>> {
         let mut s = vec![self.kind.letter()];
         s.extend_from_slice(b"QZT1###\r\n");
@@ -1641,8 +1729,9 @@ fn parse_text_property(line: &[u8]) -> std::result::Result<Property, String> {
         .strip_prefix(b"{")
         .ok_or("the values must start with '{' right after the second ':'")?;
     if ty == ValueType::String {
-        // Everything up to the first '}', trimmed, then one leading and one trailing '"' removed; reps ignored. Only
-        // a string is cut at '}' (EX13).
+        // Everything up to the first '}', trimmed of spaces and tabs at both ends (`cRZString::Trim`, EX27), then one
+        // leading and one trailing '"' removed, so white space inside the quotes stays; reps ignored. Only a string
+        // is cut at '}' (EX13).
         let end = open.iter().position(|&b| b == b'}').unwrap_or(open.len());
         let s = trim_blank(&open[..end]);
         let s = s.strip_prefix(b"\"").unwrap_or(s);
@@ -1687,12 +1776,12 @@ fn parse_text_property(line: &[u8]) -> std::result::Result<Property, String> {
         // Always hexadecimal, no sign: `10` gives 16 and `-1` gives 0.
         ValueType::Uint64 => each!(Uint64, atou64_hex),
         ValueType::Sint64 => each!(Sint64, |w| atou64_hex(w) as i64),
-        // The game's parser at 24-bit precision, stored as Float32 (EX14).
-        ValueType::Float32 => each!(Float32, |w| parse_float(w) as f32),
-        // Lower-cased, leading spaces trimmed: true exactly when it begins with "true" (`1` gives false). Literal
-        // reading of "leading spaces": spaces only; an array value has already lost its leading tabs as well.
+        // The game's parser at 24-bit precision, stored as Float32 (EX14; a NaN keeps its sign, EX23).
+        ValueType::Float32 => each!(Float32, |w| x87::store_f32(parse_float(w))),
+        // Leading spaces and tabs trimmed (`cRZString::LTrim`, the same set as for array values, EX26), lower-cased:
+        // true exactly when it begins with "true" (`1` gives false, `\ttrue` true).
         ValueType::Bool => each!(Bool, |w: &[u8]| {
-            let w = &w[w.iter().take_while(|&&b| b == b' ').count()..];
+            let w = trim_blank_start(w);
             w.len() >= 4 && w[..4].eq_ignore_ascii_case(b"true")
         }),
         _ => return Err(format!("{} has no text form", ty.name())),
@@ -1707,7 +1796,7 @@ fn parse_text_property(line: &[u8]) -> std::result::Result<Property, String> {
 /// A Float32 as text that the game's parser ([`parse_float`]) reads back to the same bits, for the text writer:
 /// the shortest decimal forms first, then an integer mantissa below 2²⁴ (whose digits add up exactly) with a
 /// power of ten up to 10⁹ (one rounded multiply or divide). `None` when no such text is found, or for a non-finite
-/// value: the text form cannot express it.
+/// value: the text form cannot express it. *\[choice\]* EX32: the original writes `%f`, trimmed, and loses bits.
 fn float32_text(v: f32) -> Option<String> {
     if !v.is_finite() {
         return None;
@@ -1724,7 +1813,7 @@ fn float32_text(v: f32) -> Option<String> {
     }
     candidates
         .into_iter()
-        .find(|s| (parse_float(s.as_bytes()) as f32).to_bits() == v.to_bits())
+        .find(|s| x87::store_f32(parse_float(s.as_bytes())).to_bits() == v.to_bits())
 }
 
 /// Formats values as in text exemplars (64-bit integers in hexadecimal, as the text reader expects). Values the
@@ -1902,6 +1991,9 @@ impl LoadedExemplar {
 pub enum LoadError {
     /// No exemplar or cohort record (or, for a kind-1 property, no resource) under this key.
     NotFound(Tgi),
+    /// The latest package holding this key has a record that does not read: the key does not load, whatever an
+    /// earlier package held (§3: only the winning segment is read; EX31).
+    Unreadable(Tgi),
     /// The record under this key has the other kind's signature, or the key's type is neither the exemplar nor
     /// the cohort type (§4.1).
     WrongType(Tgi),
@@ -1941,6 +2033,7 @@ impl fmt::Display for LoadError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             LoadError::NotFound(k) => write!(f, "{k} not found"),
+            LoadError::Unreadable(k) => write!(f, "{k}: the latest package's record does not read"),
             LoadError::WrongType(k) => write!(f, "{k}: the record's signature does not match its type"),
             LoadError::NotCohort(k) => write!(f, "{k} is not a cohort"),
             LoadError::Cycle(k) => write!(f, "{k} needs itself to load (cycle)"),
@@ -1981,20 +2074,45 @@ pub enum ChainEnd {
 /// A set of exemplar and cohort records by key: the resource manager's view of them.
 ///
 /// \[choice\] Inserting a key that is already present replaces it, so loading packages in the game's load order
-/// makes later packages override earlier ones.
+/// makes later packages override earlier ones (each package is registered at the front, §3.1).
 ///
 /// A kind-1 property's resource (§4.6, EX15) loads when it is an exemplar or cohort record that loads, or a key of
 /// another type that resolves: one the caller registered as held by a resource cache ([`ExemplarStore::add_resource`]),
 /// or one a loaded package holds whose type has a factory ([`ExemplarStore::add_factory`]) that read it
 /// successfully. Presence in a package index alone is not enough.
+///
+/// # When records are read (§3, EX31)
+///
+/// The original reads lazily: a factory runs at the first request for a key that no cache holds, on the record of
+/// the segment that wins at that moment, and a failure is read again at the next request. *\[choice\]* This store
+/// reads each record **eagerly**, when its package is loaded, which §3 allows when three conditions hold. They hold
+/// here as follows:
+///
+/// 1. *A later package's record replaces an earlier read of the same key.* Each package's record replaces the one
+///    before it, also when it fails to read: the key then does not load ([`LoadError::Unreadable`]), as the
+///    original reads only the winning segment and never falls back to an earlier one. Inside one package the first
+///    index entry with a key is the one read (§2.3). The store keeps no cache of looked-up records, so a lookup
+///    always sees every package loaded so far; the original keeps a looked-up record, so the two agree when every
+///    package is loaded before the first lookup, as at the game's startup (§3.1).
+/// 2. *A record that failed is read again later.* Parsing a record depends on its bytes only, so only a later
+///    package's record can change it, and that one is read. A failure that depends on other records (a parent
+///    cohort, a kind-1 resource, the depth limit) is decided at each [`ExemplarStore::load`], never remembered.
+/// 3. *A factory registered later applies to earlier packages.* The store does not keep the packages, so it cannot
+///    read their records again: [`ExemplarStore::add_factory`] refuses a type that a loaded package already holds.
 #[derive(Default)]
 pub struct ExemplarStore {
     map: HashMap<Tgi, Exemplar>,
-    /// Keys of other resources that load: held by a cache, or read successfully by a registered factory (§4.6).
+    /// Exemplar and cohort keys whose winning record (the latest package's) failed to read (EX31 condition 1).
+    unreadable: HashSet<Tgi>,
+    /// Keys of other resources that a resource cache holds ([`ExemplarStore::add_resource`], §4.6).
     resources: HashSet<Tgi>,
+    /// Keys of other resources read by a registered factory: whether the winning record's read succeeded (§4.6).
+    factory_reads: HashMap<Tgi, bool>,
     /// Factories for resource types other than exemplars and cohorts, by type ID: each says whether its read of a
     /// record succeeds.
     factories: HashMap<u32, Factory>,
+    /// The types other than exemplars and cohorts that the loaded packages hold (EX31 condition 3).
+    seen_types: HashSet<u32>,
 }
 
 /// A registered factory's read of one record: true when it succeeds ([`ExemplarStore::add_factory`]).
@@ -2031,8 +2149,9 @@ impl ExemplarStore {
         self.map.is_empty()
     }
 
-    /// Adds or replaces the record under `tgi`.
+    /// Adds or replaces the record under `tgi` (it then replaces an unreadable one as well).
     pub fn insert(&mut self, tgi: Tgi, ex: Exemplar) -> Option<Exemplar> {
+        self.unreadable.remove(&tgi);
         self.map.insert(tgi, ex)
     }
 
@@ -2055,10 +2174,14 @@ impl ExemplarStore {
     /// [`ExemplarStore::load_package`] runs `read` on every entry of that type, and an entry whose read succeeds
     /// loads as a kind-1 resource. The exemplar and cohort types have the store's own factories and cannot be
     /// registered (returns false). This crate registers no other factory: the set the original registers was not
-    /// enumerated (§4.6 *\[inferred\]*). A factory registered after a package was loaded applies from the next
-    /// [`ExemplarStore::load_package`] on; registering a type again replaces its factory.
+    /// enumerated (§4.6 *\[inferred\]*). Registering a type again replaces its factory.
+    ///
+    /// In the original a factory registered late applies at once, to the records of segments registered before it
+    /// too (§3, EX31). This store reads eagerly and does not keep the packages, so *\[choice\]* it refuses (returns
+    /// false, nothing registered) a type that an already loaded package holds: every factory the store accepts has
+    /// seen every record of its type (§3 condition 3). Register factories before loading packages.
     pub fn add_factory(&mut self, type_id: u32, read: impl Fn(&[u8]) -> bool + 'static) -> bool {
-        if Kind::from_type_id(type_id).is_some() {
+        if Kind::from_type_id(type_id).is_some() || self.seen_types.contains(&type_id) {
             return false;
         }
         self.factories.insert(type_id, Box::new(read));
@@ -2069,15 +2192,23 @@ impl ExemplarStore {
     /// ([`Exemplar::parse_record`]), and runs the registered factory ([`ExemplarStore::add_factory`]) on every entry
     /// of another type that has one. Other entries are ignored: an index entry alone does not make a kind-1
     /// resource load (EX15).
+    ///
+    /// The package is registered at the front (§3.1): its records replace those of earlier packages, and a record
+    /// that fails to read replaces them too, so its key does not load (§3, EX31 condition 1; the failure is in
+    /// the report). Inside the package only the first index entry with a key is read (§2.3).
     pub fn load_package<S: Source>(&mut self, pkg: &Package<S>) -> LoadReport {
         let mut report = LoadReport::default();
         for e in pkg.entries() {
+            // §2.3: a later duplicate of a key in the same package is never read.
+            if !pkg.find(&e.tgi).is_some_and(|first| std::ptr::eq(first, e)) {
+                continue;
+            }
             let ty = e.tgi.type_id;
             if Kind::from_type_id(ty).is_none() {
+                self.seen_types.insert(ty);
                 if let Some(read) = self.factories.get(&ty) {
-                    if pkg.read(e).is_ok_and(|d| read(&d)) {
-                        self.resources.insert(e.tgi);
-                    }
+                    let ok = pkg.read(e).is_ok_and(|d| read(&d));
+                    self.factory_reads.insert(e.tgi, ok);
                 }
                 continue;
             }
@@ -2088,9 +2219,14 @@ impl ExemplarStore {
                     } else {
                         report.cohorts += 1;
                     }
-                    self.map.insert(e.tgi, ex);
+                    self.insert(e.tgi, ex);
                 }
-                Err(err) => report.failures.push((e.tgi, err)),
+                Err(err) => {
+                    // The winning record does not read: no fallback to an earlier package's record (EX31).
+                    self.map.remove(&e.tgi);
+                    self.unreadable.insert(e.tgi);
+                    report.failures.push((e.tgi, err));
+                }
             }
         }
         report
@@ -2229,7 +2365,13 @@ impl<'a> Loader<'a> {
 
     fn read(&mut self, key: Tgi) -> std::result::Result<Rc<LoadedExemplar>, LoadError> {
         let store: &'a ExemplarStore = self.store;
-        let record = store.map.get(&key).ok_or(LoadError::NotFound(key))?;
+        let record = store.map.get(&key).ok_or_else(|| {
+            if store.unreadable.contains(&key) {
+                LoadError::Unreadable(key)
+            } else {
+                LoadError::NotFound(key)
+            }
+        })?;
         if Kind::from_type_id(key.type_id) != Some(record.kind) {
             return Err(LoadError::WrongType(key));
         }
@@ -2260,9 +2402,9 @@ impl<'a> Loader<'a> {
                 resource,
                 cause: Box::new(cause),
             };
-            if store.map.contains_key(&resource) {
+            if store.map.contains_key(&resource) || store.unreadable.contains(&resource) {
                 self.load(resource).map_err(fail)?;
-            } else if !store.resources.contains(&resource) {
+            } else if !store.resources.contains(&resource) && store.factory_reads.get(&resource) != Some(&true) {
                 return Err(fail(LoadError::NotFound(resource)));
             }
         }

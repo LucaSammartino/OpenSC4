@@ -502,6 +502,13 @@ uint64_t CurrentCity(void*) {
     return TokenOf(r);
 }
 
+// NB18 (answered, neighbors §8.2; the bracket matches): UpdateCommodityStats
+// compares addresses against the game's city global, which holds the city
+// object's own cISC4City interface from construction to city shutdown. This
+// is the pointer cISC4App::GetCity returns (held from Init, else borrowed),
+// with no QueryInterface and no wrapper, either of which would make the call
+// do nothing. [inferred, spec question] that GetCity returns that same
+// primary cISC4City address (§8.2 names only the global).
 uint64_t CurrentCityObject(void* u) { return TokenOf(City(u)); }
 
 uint64_t CityAt(void*, int32_t rx, int32_t rz) {

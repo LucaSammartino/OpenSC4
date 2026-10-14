@@ -406,6 +406,16 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     /// the host can insert the right occupant type. The restriction region
     /// is applied by the core, so `a`..`b` may include cells outside it only
     /// through the §7.10 fallback chain.
+    ///
+    /// A host that replaces the game's network tool must keep its drafts as
+    /// §8.8 says (ZQ11, ZQ12): the records stay until `Reset` or a real-mode
+    /// Place; a second draft Place on a drafted cell ORs the flags and merges
+    /// the edges (each edge byte ≠ 0 when it was before or the new draft
+    /// connects it); a draft over a cell that has a network makes that cell a
+    /// draft (the network's flags OR the tool's, its edges merged), and the
+    /// existing-network cells the solver includes around it get the draft byte
+    /// with their own flags; a segment draft is lengthened into an earlier
+    /// draft beyond either end. The core only places and asks.
     fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32), real_mode: bool) -> bool;
     /// Network tool slot 5 `Reset()` on the street (kind 3) or road (kind 0)
     /// tool (`ClearHighlight`, §7.1): drops the tool's draft. The core never
@@ -423,7 +433,9 @@ pub trait ZonesHost: GridProvider<i8> + GridProvider<u16> {
     /// `mask` is the record's four network-edge bytes for the tool's own
     /// network type (byte i ≠ 0: a connection on network edge i). An
     /// existing network alone never answers. `flag` is `0x8` (street) or
-    /// `0x800` (dirt road). Not consulted in real mode.
+    /// `0x800` (dirt road). Not consulted in real mode. Which cells are
+    /// drafts follows [`ZonesHost::street_place`] (§8.8, ZQ11, ZQ12): a cell
+    /// of an existing network that a draft covers or reaches can answer.
     fn network_tool_occupant_exists(&self, tool_kind: u32, x: i32, z: i32, flag: u32) -> Option<[u8; 4]>;
     /// InsertOccupant step 3 (§5.2): `0x00731F60(occupant)` for data4 1 or
     /// 2, `0x00732450(occupant)` for 3 (not traced; no RNG).

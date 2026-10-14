@@ -42,6 +42,11 @@ struct Game {
     next_grid: Cell<u64>,
     /// Occupant → (cells, capacity or requirement).
     occupants: RefCell<Vec<(u64, fc4_cell_rect, u32)>>,
+    /// Occupants removed from the occupant manager (still readable, as
+    /// while their removal message is delivered).
+    gone: RefCell<Vec<u64>>,
+    /// Zoned cells (zone type 1).
+    zones: RefCell<Vec<(i32, i32)>>,
     written: RefCell<HashMap<(u64, u32), Written>>,
     dept: Cell<u64>,
     posts: Cell<u32>,
@@ -68,6 +73,8 @@ impl Game {
             grids: RefCell::new(HashMap::new()),
             next_grid: Cell::new(0),
             occupants: RefCell::new(occ),
+            gone: RefCell::new(Vec::new()),
+            zones: RefCell::new(Vec::new()),
             written: RefCell::new(HashMap::new()),
             dept: Cell::new(0),
             posts: Cell::new(0),
@@ -228,11 +235,15 @@ unsafe extern "C" fn in_manager(_: *mut c_void, _occ: u64) -> bool {
 unsafe extern "C" fn occupants_in(u: *mut c_void, r: *const fc4_cell_rect, cb: fc4_token_callback, ctx: *mut c_void) {
     let r = &*r;
     let Some(cb) = cb else { return };
-    for (occ, c, _) in game(u).occupants.borrow().iter() {
-        if c.x1 <= r.x2 && r.x1 <= c.x2 && c.z1 <= r.z2 && r.z1 <= c.z2 {
+    let g = game(u);
+    for (occ, c, _) in g.occupants.borrow().iter() {
+        if c.x1 <= r.x2 && r.x1 <= c.x2 && c.z1 <= r.z2 && r.z1 <= c.z2 && !g.gone.borrow().contains(occ) {
             cb(ctx, *occ);
         }
     }
+}
+unsafe extern "C" fn zone_type(u: *mut c_void, x: i32, z: i32) -> u32 {
+    u32::from(game(u).zones.borrow().contains(&(x, z)))
 }
 unsafe extern "C" fn department(u: *mut c_void, id: u32) -> u64 {
     if id == budget::DEPARTMENT {
@@ -294,6 +305,7 @@ fn host(g: &Game) -> fc4_power_host {
     h.occupant_bounding_cells = Some(bounding_cells);
     h.occupant_in_manager = Some(in_manager);
     h.occupants_in_cells = Some(occupants_in);
+    h.zone_type = Some(zone_type);
     h.department = Some(department);
     h.create_department = Some(create_department);
     h.department_funding = Some(department_funding);
@@ -364,6 +376,16 @@ impl Captured {
             10
         }
     }
+    /// lastImport: ringIndex, production, consumption, deficit, consumers,
+    /// powered, unpowered, requirement (4 bytes each), costBase (8),
+    /// lastProduction, lastConsumption, then lastImport (§9.1).
+    fn last_import_at(&self) -> usize {
+        self.ring_index_at() + 48
+    }
+    fn add_i32(&mut self, at: usize, d: i32) {
+        let v = i32::from_le_bytes(self.bytes[at..at + 4].try_into().unwrap());
+        self.bytes[at..at + 4].copy_from_slice(&(v + d).to_le_bytes());
+    }
 }
 
 fn counts_of(p: *const fc4_power) -> fc4_power_shadow_counts {
@@ -395,8 +417,33 @@ struct World {
     event: bool,
 }
 
+fn shadow_of(g: &Game, flags: u32) -> *mut fc4_power_shadow {
+    let h = host(g);
+    let o = fc4_power_shadow_options {
+        struct_size: std::mem::size_of::<fc4_power_shadow_options>() as u32,
+        max_cells: 0,
+        max_lines: 0,
+        flags,
+        connection_visited: None,
+    };
+    let s = unsafe { fc4_power_shadow_create(&h, &o) };
+    assert!(!s.is_null());
+    s
+}
+
 impl World {
+    /// The original just initialised, the shadow created as at the city's
+    /// PostCityInit (the plugin's).
     fn new(g: Box<Game>, connections_ready: bool) -> World {
+        World::with_flags(g, connections_ready, FC4_POWER_SHADOW_CITY_START)
+    }
+
+    /// A shadow switched on mid-city: nothing unsaved is known.
+    fn mid_city(g: Box<Game>, connections_ready: bool) -> World {
+        World::with_flags(g, connections_ready, 0)
+    }
+
+    fn with_flags(g: Box<Game>, connections_ready: bool, flags: u32) -> World {
         let h = host(&g);
         let p = unsafe { fc4_power_create(&h, 0x51) };
         assert!(!p.is_null());
@@ -409,8 +456,7 @@ impl World {
             let occ = g.occupants.borrow()[i].0;
             message(p, msg::OCCUPANT_INSERTED, occ, 0);
         }
-        let s = unsafe { fc4_power_shadow_create(&h, std::ptr::null()) };
-        assert!(!s.is_null());
+        let s = shadow_of(&g, flags);
         World {
             g,
             p,
@@ -418,6 +464,13 @@ impl World {
             lines: Vec::new(),
             event: false,
         }
+    }
+
+    /// A new shadow over the same original.
+    fn restart(&mut self, flags: u32) {
+        unsafe { fc4_power_shadow_destroy(self.s) };
+        self.s = shadow_of(&self.g, flags);
+        self.lines.clear();
     }
 
     /// One wrapped delivery; `tamper` changes the game or the record after
@@ -459,9 +512,17 @@ impl World {
         panic!("the cycle did not finish");
     }
 
-    /// One of the original's messages (§5), outside the wrapped deliveries.
+    /// One of the original's messages (§5), outside the wrapped deliveries:
+    /// delivered to the original and forwarded to the shadow (the plugin's
+    /// message target).
     fn notify(&mut self, msg_type: u32, occ: u64) {
         message(self.p, msg_type, occ, 0);
+        let m = fc4_power_message {
+            msg_type,
+            void1: occ,
+            ..Default::default()
+        };
+        unsafe { fc4_power_shadow_message(self.s, &m) };
         self.event = true;
     }
 
@@ -710,4 +771,169 @@ fn a_shortfall_takes_the_original_block_order() {
     let st = w.stats();
     assert_eq!((st.mismatches, st.not_exact), (0, 0));
     assert!(st.reruns >= 6, "each shortfall step ran again with the target");
+}
+
+#[test]
+fn the_dirty_rectangle_comes_from_the_forwarded_messages() {
+    // PW5, the example of power.md §5.3 (R = 2): a wire source along x = 10
+    // (a building one cell wide wires x 8..12), the zoned cell (11, 15) and a
+    // building at x 12..18 × z 12..18 that is removed. The original rebuilds
+    // its dirty rect B = x 10..20 × z 10..20 and keeps (13, 13..17) wired.
+    let game = || {
+        let g = Game::new(1000, &[]);
+        g.occupants.borrow_mut().push((20, rect(10, 0, 10, 31), 0));
+        g.occupants.borrow_mut().push((21, rect(12, 12, 18, 18), 0));
+        g.zones.borrow_mut().push((11, 15));
+        g
+    };
+    // From a city start: the forwarded removal gives the shadow B.
+    let mut w = World::new(game(), true);
+    assert!(w.cycle().iter().all(|&n| n == 0), "{:#?}", w.lines);
+    w.g.gone.borrow_mut().push(21);
+    w.notify(msg::OCCUPANT_REMOVED, 21);
+    let n = w.cycle();
+    assert!(n.iter().all(|&m| m == 0), "{n:?} {:#?}", w.lines);
+    let line = w.last("cycle:").to_string();
+    assert!(
+        line.contains("wire rebuilt over the dirty rectangle (10,10)-(20,20) merged from the original's messages"),
+        "{line}"
+    );
+    assert!(unsafe { fc4_power_is_wired(w.p, 13, 15) });
+    assert_eq!(w.stats().reruns, 0);
+
+    // Switched on mid-city after the removal: the rectangle is not known,
+    // the changed bits' box A = x 13..20 × z 10..20 stands in, and its
+    // rebuild loses (13, 13..17).
+    let mut m = World::new(game(), true);
+    m.cycle();
+    m.g.gone.borrow_mut().push(21);
+    message(m.p, msg::OCCUPANT_REMOVED, 21, 0);
+    m.restart(0);
+    m.event = true;
+    let first = m.step().expect("wrapped");
+    assert!(first > 0, "{:#?}", m.lines);
+    m.cycle();
+    let line = m.last("cycle:").to_string();
+    assert!(
+        line.contains("rerun with the changed bits' box (13,10)-(20,20)"),
+        "{line}"
+    );
+    assert!(line.contains("wire(13,13) 1/0"), "orig/ours: {line}");
+}
+
+#[test]
+fn a_city_start_knows_the_pass_values() {
+    // PW3 (§9.1): the pass import / export / demand are 0 after a load, so a
+    // shadow started at the city start compares state 3's totals exactly;
+    // one started mid-city before a state 0 cannot.
+    let mut w = World::mid_city(Game::new(1000, &[500]), true);
+    for _ in 0..4 {
+        message(w.p, msg::SIM_IDLE, 0, FEB_2000 as u32); // 4>0, 0, 1, 2: unobserved
+    }
+    assert_eq!(state_of(w.p).state, state::STATISTICS);
+    let tamper = |_: &Game, a: &mut Captured| {
+        let at = a.last_import_at();
+        a.add_i32(at, 7);
+    };
+    let n = w.deliver(msg::SIM_IDLE, true, tamper);
+    assert_eq!(n, Some(0), "{:#?}", w.lines);
+    // lastImport and lastDemand: the original's demand comes from its own
+    // unobserved states 1 and 2.
+    assert_eq!(w.stats().not_exact, 2);
+    let line = w.last("cycle:").to_string();
+    assert!(line.contains("lastImport 7/0 not exact"), "{line}");
+    assert!(line.contains("pass import/export/demand not observed"), "{line}");
+
+    // The same step seen from a city start: a mismatch.
+    let mut w = World::new(Game::new(1000, &[500]), true);
+    for _ in 0..4 {
+        assert_eq!(w.step(), Some(0), "{:#?}", w.lines); // 4>0, 0, 1, 2
+    }
+    assert_eq!(state_of(w.p).state, state::STATISTICS);
+    let n = w.deliver(msg::SIM_IDLE, true, tamper);
+    assert_eq!(n, Some(1), "{:#?}", w.lines);
+    let line = w.last("cycle:").to_string();
+    assert!(line.contains("lastImport=7/0"), "{line}");
+    assert!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}).is_some());
+    let summary = w.last("month to").to_string();
+    assert!(
+        summary.contains("factor=1 pass totals known dirty rectangle known"),
+        "{summary}"
+    );
+}
+
+#[test]
+fn mid_city_the_factor_is_not_known_until_the_first_month() {
+    // PW7 (§8): mid-city, the original's factor may be last month's; the
+    // states that divide by it (1, 2) are not exact until a month start.
+    let mut w = World::mid_city(Game::new(1000, &[500]), true);
+    for _ in 0..3 {
+        assert_eq!(w.step(), Some(0), "{:#?}", w.lines);
+    }
+    assert_eq!(state_of(w.p).state, state::NEIGHBOURS);
+    let n = w.deliver(msg::SIM_IDLE, false, |g, _| g.set_cell(13, 1, 1));
+    assert_eq!(n, Some(0), "{:#?}", w.lines);
+    assert_eq!(w.stats().not_exact, 1);
+    assert_eq!(w.step(), Some(0));
+    let line = w.last("cycle:").to_string();
+    assert!(
+        line.contains("the ordinance factor is not known until the first month"),
+        "{line}"
+    );
+    assert!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}).is_some());
+    let month = w.last("month:").to_string();
+    assert!(month.contains("brokenFraction not known"), "{month}");
+    // After the month: the same difference is a mismatch.
+    for _ in 0..3 {
+        assert_eq!(w.step(), Some(0), "{:#?}", w.lines);
+    }
+    let n = w.deliver(msg::SIM_IDLE, false, |g, _| g.set_cell(12, 0, 1));
+    assert_eq!(n, Some(1), "{:#?}", w.lines);
+}
+
+#[test]
+fn the_bookkeeping_line_sets_apart_inherited_and_in_flight() {
+    // PW8 (§5.2): the original's running counts keep what each delivery
+    // read. Consumer 11 consumed 500 when inserted and 400 now: the +100 is
+    // inherited from the first line on. An occupant the original has not
+    // been told of is in flight until it is, and only a difference that
+    // stays two lines without being inherited is a mismatch.
+    let mut w = World::new(Game::new(1000, &[500]), true);
+    w.cycle();
+    w.g.occupants.borrow_mut()[1].2 = 400;
+    let month = |w: &mut World| {
+        assert!(w.deliver(msg::SIM_NEW_MONTH, false, |_, _| {}).is_some());
+        w.last("bookkeeping:").to_string()
+    };
+    let b = month(&mut w);
+    assert!(
+        b.contains("baseline (the first line since the city start): 2 differences"),
+        "{b}"
+    );
+    assert!(b.contains("requirement +100") && b.contains("cell (13,1) +100"), "{b}");
+    assert_eq!(mismatches(&b), 0);
+    let b = month(&mut w);
+    assert!(
+        b.contains("inherited (as at the baseline line 2000-02-01, power.md §5.2 case 1) 2"),
+        "{b}"
+    );
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // Built, not yet delivered to the original.
+    w.g.occupants.borrow_mut().push((30, rect(30, 10, 31, 11), 50));
+    let b = month(&mut w);
+    assert!(b.contains("in flight (changed since the last line, case 2)"), "{b}");
+    assert!(b.contains("consumers -1"), "{b}");
+    assert_eq!(mismatches(&b), 0, "{b}");
+    w.notify(msg::OCCUPANT_INSERTED, 30);
+    let b = month(&mut w);
+    assert!(b.contains("in flight (changed since the last line, case 2) 0;"), "{b}");
+    assert!(!b.contains("gone since the last line 0;"), "{b}");
+    assert_eq!(mismatches(&b), 0, "{b}");
+    // Never delivered: in flight, then persistent.
+    w.g.occupants.borrow_mut().push((31, rect(24, 20, 25, 21), 70));
+    assert_eq!(mismatches(&month(&mut w)), 0);
+    let b = month(&mut w);
+    assert!(b.contains("persistent (the same at two lines, not inherited)"), "{b}");
+    assert!(mismatches(&b) > 0, "{b}");
+    assert!(w.stats().bookkeeping_mismatches > 0);
 }

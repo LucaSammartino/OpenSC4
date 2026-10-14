@@ -730,6 +730,26 @@ fn add_to_garbage_supply_returns_the_delta_before_the_clamp() {
     assert_eq!(add(i32::MIN, i32::MAX), (i32::MAX, 0));
 }
 
+/// §8.1 slot 29 (PG15, answered; the bracket matches): the spec's worked
+/// table for n > 0. The saturation is the exact minimum, never a wrapped
+/// one, and a negative supply with n > 0 takes all of n.
+#[test]
+fn pg15_add_to_garbage_supply_saturates_exactly() {
+    let h = host(16);
+    let s = sim(&h);
+    let add = |supply: i32, n: i32| {
+        s.with_state(|st| st.garbage_supply = supply);
+        let d = s.add_to_garbage_supply(n);
+        (d, s.snapshot().garbage_supply)
+    };
+    assert_eq!(add(-1000, 256), (256, 0));
+    assert_eq!(add(0x7FFF_FF00, 0x200), (0xFF, 0x7FFF_FFFF));
+    assert_eq!(add(1000, 256), (256, 1256));
+    assert_eq!(add(0x7FFF_FFFF, 1), (0, 0x7FFF_FFFF));
+    // [choice] the n < 0 quirk is clamped: no wrapped positive supply.
+    assert_eq!(add(i32::MIN + 5, -10), (i32::MAX - 4, 0));
+}
+
 /// §4.6.1 steps 3 and 4 (PG8): the unsigned remaining capacity is exact
 /// below 2^31 and rounded to float32 from 2^31 up (the spec table).
 #[test]

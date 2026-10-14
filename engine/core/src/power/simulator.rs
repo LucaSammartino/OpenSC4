@@ -504,7 +504,9 @@ impl Cx<'_> {
                 }
             }
             msg::OCCUPANT_REMOVED => {
-                if m.void1 != 0 {
+                // §5: only if initialized, like the insertion (the handler's
+                // first test).
+                if self.i.s.initialized && m.void1 != 0 {
                     self.occupant_removed(m.void1);
                 }
             }
@@ -685,16 +687,61 @@ impl Cx<'_> {
             .set_occupant_property(occ, prop::BASE_MAINTENANCE, Variant::Scalar(Elem::I64(item.cost)));
     }
 
+    /// The rectangle `DoOccupantRemoved` (§5.2) marks dirty for an occupant
+    /// of type `t`: a pole's neighbourhood (unless slot 13 is true), a
+    /// line's (unless a preview), a conducting network piece's own cell
+    /// (unless it has the skip flag), a building's bounding cells expanded
+    /// by R. None: the removal marks nothing.
+    pub(crate) fn removal_rect(&self, t: u32, occ: u64) -> Option<CellRect> {
+        match t {
+            occupant_type::POWER_POLE => {
+                let pole = self.h.power_pole(occ)?;
+                (!pole.ignored).then(|| self.neighbourhood(pole.cell.0, pole.cell.1))
+            }
+            occupant_type::POWER_LINE => {
+                let line = self.h.power_line(occ)?;
+                (!line.preview).then(|| self.neighbourhood(line.cell.0, line.cell.1))
+            }
+            occupant_type::NETWORK => {
+                let (x, z) = self.h.network_occupant_cell(occ)?;
+                if self.h.has_network_flag(occ, network_flag::SKIP)
+                    || !self.h.has_network_flag(occ, network_flag::CONDUCTS)
+                {
+                    return None;
+                }
+                Some(CellRect::new(x, z, x, z))
+            }
+            occupant_type::BUILDING => Some(self.building_rect(occ)),
+            _ => None,
+        }
+    }
+
+    /// The rectangle a §5 message merges into the dirty rectangle (§5.3), as
+    /// [`Cx::do_message`] computes it: a removal (only if initialized) and a
+    /// zoning change (its rect expanded by R). None for every other message
+    /// and for a removal that marks nothing.
+    pub(crate) fn dirty_rect_for(&self, m: &PowerMessage) -> Option<CellRect> {
+        match m.msg_type {
+            msg::OCCUPANT_REMOVED if self.i.s.initialized && m.void1 != 0 => {
+                self.removal_rect(self.h.occupant_type(m.void1), m.void1)
+            }
+            msg::ZONING_CHANGED => Some(self.expand(m.rect, self.i.s.tuning.radius)),
+            _ => None,
+        }
+    }
+
     /// `DoOccupantRemoved` (§5.2).
     pub(crate) fn occupant_removed(&mut self, occ: u64) {
-        match self.h.occupant_type(occ) {
+        let t = self.h.occupant_type(occ);
+        if t == occupant_type::BUILDING {
+            self.building_removed(occ);
+            return;
+        }
+        // Pole, line, network occupant: the filters of §5.1, then the rect.
+        let Some(r) = self.removal_rect(t, occ) else { return };
+        self.mark_dirty(r, false);
+        match t {
             occupant_type::POWER_POLE => {
-                let Some(pole) = self.h.power_pole(occ) else { return };
-                if pole.ignored {
-                    return;
-                }
-                let r = self.neighbourhood(pole.cell.0, pole.cell.1);
-                self.mark_dirty(r, false);
                 if let Some(i) = self.i.s.poles.iter().position(|&p| p == occ) {
                     self.h.release(occ);
                     let s = self.s();
@@ -708,29 +755,7 @@ impl Cx<'_> {
                 s.cost_base = s.cost_base.wrapping_sub(cost);
                 s.recompute = true;
             }
-            occupant_type::POWER_LINE => {
-                let Some(line) = self.h.power_line(occ) else { return };
-                if line.preview {
-                    return;
-                }
-                let r = self.neighbourhood(line.cell.0, line.cell.1);
-                self.mark_dirty(r, false);
-                self.s().recompute = true;
-            }
-            occupant_type::NETWORK => {
-                let Some((x, z)) = self.h.network_occupant_cell(occ) else {
-                    return;
-                };
-                if self.h.has_network_flag(occ, network_flag::SKIP) {
-                    return;
-                }
-                if self.h.has_network_flag(occ, network_flag::CONDUCTS) {
-                    self.mark_dirty(CellRect::new(x, z, x, z), false);
-                    self.s().recompute = true;
-                }
-            }
-            occupant_type::BUILDING => self.building_removed(occ),
-            _ => {}
+            _ => self.s().recompute = true,
         }
     }
 
@@ -1003,6 +1028,13 @@ impl PowerSim {
     /// `DoOccupantRemoved` (§5.2).
     pub fn occupant_removed(&self, occ: u64) {
         self.run(|cx| cx.occupant_removed(occ));
+    }
+
+    /// The rectangle [`PowerSim::do_message`] would merge into the dirty
+    /// rectangle for `m` (§5.3), None if it merges none; nothing changes
+    /// (tooling: the power shadow follows the original's rectangle, PW5).
+    pub fn dirty_rect_for(&self, m: &PowerMessage) -> Option<CellRect> {
+        self.run(|cx| cx.dirty_rect_for(m))
     }
 
     /// `CellChanged(rect)` (§5.3).

@@ -71,9 +71,13 @@
 //! - Host containers (occupant lists, path-info vectors, neighbour lists)
 //!   are plain `Vec`s; their allocators (§9) are the glue's business.
 //! - `GetTrafficNeighborConnection` for a corner or in-city cell gives an
-//!   empty record (§2.7.1; the original reads out of range or side-3 record
-//!   x). The pool sweep and the edge pass stop at the end of an array when
-//!   Z < X (§2.7.3, §2.7.4: they use the x bound for all four arrays).
+//!   empty record and discards writes (§2.7.1, TN28; the original reads out
+//!   of range or side-3 record x). The pool sweep and the edge pass stop at
+//!   the end of an array when Z < X (§2.7.3, §2.7.4, TN26: they use the x
+//!   bound for all four arrays). A travel type outside 0…8 wants no
+//!   neighbour-connection type, except −1 in the pool lookup (§2.7.1, TN27;
+//!   the original indexes its tables unchecked). None of the three is
+//!   reachable in the game.
 //!
 //! # Threading and re-entrancy (foundations §19)
 //!

@@ -1,5 +1,10 @@
 # RCI demand and population (cSC4DemandSimulator, cSC4Demand, R/C/I simulators)
 
+> **Superseded.** §1-§4 and §7-§9 by `docs/specs/demand.md`; §5 by `residential.md` and `residential-education-health.md`
+> (the §5 banner's "corrections have been applied" is out of date: RG23 is not applied). Only §6 (commercial and industrial
+> simulators) is still live input, read with the `simgrid.md` §7.5 correction: the CO proximity maps seed only the z = 0
+> edge (the RG23 defect). Kept as historical RE notes because `re/fields_windows.tsv` and specs cite it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: `SimCity 4.exe` 1.1.641 (GOG), image base `0x00400000`. Read [`docs/sim-engine.md`](../sim-engine.md) first
 for the scheduler (agent levels, `SendAgentMessage`, the "return false = not finished" convention).
 

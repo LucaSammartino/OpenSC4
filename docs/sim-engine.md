@@ -1,5 +1,9 @@
 # SimCity 4 simulation engine — reverse engineering notes
 
+> **Superseded.** `docs/specs/simulator.md` §2-§9 replaces these notes; `docs/specs/foundations.md` §3.6 holds the
+> CLSID/IID table and §13 the agent order. This file is kept as historical RE notes because `re/fields_windows.tsv`
+> and other notes cite it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: `SimCity 4.exe` 1.1.641 (GOG), SHA256 `3BC5C7FE807FE5AA24A3ABB06E40F13486670BC1150612C09BAF4ECEDAFE1A4B`, image base `0x00400000`.
 Tooling: REA 6.4.0 + Ghidra 12.1.4 (headless), plus small Python/capstone scans.
 
