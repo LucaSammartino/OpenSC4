@@ -2136,8 +2136,18 @@ answer is in brackets.
   `min(length, n)` bytes with a plain memory copy (`0x009F19B0`) and has no way to know the buffer's size, so the
   bracket's description of it is right: it overruns a buffer shorter than `length` when the array is longer. No
   shipped record has a void array, so this is not observable. Written into data-formats.md §5.2.
-- **EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
-  the next `load_package`]
+- ~~**EX31 — EX15:** when do factories run? [eagerly, inside `load_package`; a factory registered later applies from
+  the next `load_package`]~~ **ANSWERED 2026-10-14** from the exe (`GetResource` `0x009732EB`, loader `0x00972EAE`,
+  cache offer `0x009733C6`, segment registration `0x0097437B`/`0x009743C1`/`0x009742B7`) and written into
+  data-formats.md §3 "When records are read". **The bracket does not match the original's timing.**
+  - Registering a segment reads nothing. A factory runs lazily inside `GetResource`, the first time an uncached key is
+    requested, and reads the record from the segment that wins at that moment. A success goes to the first registered
+    cache that accepts it; a failure is not kept and is read again next time.
+  - So a factory registered later applies at once to uncached keys, including keys in packages loaded before it, not
+    from the next package.
+  - *[choice]* Eager reading stands if (1) later packages replace not-yet-looked-up reads of the same key (or all
+    packages load before the first lookup), (2) failed records are retried after later packages, and (3) a late
+    factory is applied to earlier packages. Which resource caches the game registers was not traced.
 - **EX32:** a Float32 that no text reproduces under the 24-bit parser: what does the writer do? [`to_text` fails
   with `Unsupported`]
 - **EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a

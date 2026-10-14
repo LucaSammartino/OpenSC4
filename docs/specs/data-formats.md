@@ -190,6 +190,28 @@ map is filled in listing order with overwrite). Inside one package the first ind
 **Factories.** The object type is chosen by the key's **type ID** (one factory per type). The factory's read
 checks the record type again (§4.1, §6).
 
+**When records are read** (EX31). Registering a segment (slot 27 at the front, `0x0097437B`; slot 28 at the back,
+`0x009743C1`; both first drop an earlier registration of the same segment, slot 29 `0x009742B7`) only adds it to
+the list: it reads no record, runs no factory and leaves the cache alone. A factory runs **lazily**, inside
+`GetResource` (`0x009732EB`), when a key is requested and no registered resource cache returns it. The loader
+(slot 46, `0x00972EAE`) then picks the factory by the key's type and reads the record from the first segment that
+has the key **at that moment**. A successful result is offered to the registered caches in turn and kept by the
+first that accepts its key (slot 44, `0x009733C6`). A failure is not kept, so the next request reads again
+(§4.4). Consequences:
+
+- A factory registered late applies to every later request for a key of its type that is not cached, including
+  keys in segments registered before it.
+- A key that no one has requested yet is read from whichever segment wins when it is first requested, even if
+  that segment was added after the key's first segment.
+- A record that failed, for example because its parent cohort was in no segment yet, loads on a later request
+  once a segment with the parent has been added.
+
+*[choice]* Reading every record when its package is loaded (eagerly) gives the same results if all three hold:
+(1) all packages are loaded before the first lookup, or a later package's record replaces an earlier read of the
+same key that has not been looked up yet; (2) a record that failed is read again when a later package is loaded,
+or at its next lookup; (3) a factory registered later is also applied to the records of packages loaded before
+it. Reading lazily at the first lookup, as the original does, meets them without extra work.
+
 ### 3.1 Load order at startup
 
 At startup the application registers, **each at the front** (so every later registration has higher priority):
@@ -1582,6 +1604,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 | Float32 text parsed as f64, then rounded to f32 (EX14) | the game's digit-by-digit parser at 24-bit precision; 10ⁿ wraps in 32 bits (§4.3) | follow |
 | kind-1 key resolvable when in a package index (EX15) | needs a factory for the type and a successful read (§4.6) | follow |
 | holder slot 5 not implemented (EX17) | raw copy from a void array; false for every other type (§5.2) | implement (always false on shipped data) |
+| factories run eagerly in `load_package` (EX31) | lazily, at the first `GetResource` of an uncached key, from the segment winning then; failures are read again (§3) | eager allowed under the three conditions of §3 *[choice]* |
 
 ---
 
