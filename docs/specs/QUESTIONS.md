@@ -3052,7 +3052,10 @@ host gained connection, region, budget and drive-side methods. The current answe
   right: slot 13 is `FindConnectionOnOtherSide(conn)`. It takes the connection's type and cell and calls slot 14, which
   returns the matching connection from the neighbour's regional record, or null. §8's "property holder" named what the
   caller does with the result; corrected. The naming in code is the implementer's choice.
-- **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
+- ~~**TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]~~
+  **ANSWERED 2026-10-14** from the exe (route reader `0x006D65C6`–`0x006D65CC`, run tokens `0x006D6593`; ApplyRoute test
+  `0x00719E97`) and written into traffic-simulator §4.5. It is bit 7 (`0x80`) of the jump token that leads to the next
+  record. The reader stores it in the record the jump arrives at, and run tokens clear it. The bracket matches.
 - **TS40:** What does a statistics slot with no record publish? [zeros]
 - **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
 - **TS42:** Pool ID overflow. [pool 0]

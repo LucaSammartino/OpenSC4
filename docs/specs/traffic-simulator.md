@@ -867,8 +867,11 @@ first trip's type.
      cell of its neighbour link: the off-map node is written as that edge cell (pathfinder.md §4.15). *[choice]*
      Follow the original.
   4. **Ferry legs** (TS16, `0x00719E8F`–`0x0071A054`): only at a cell that is not the last, when the **next** route
-     record has the jump flag (pathfinder.md §4.15) and the cell is the departure cell of a terminal `T`
-     (traffic-network.md §2.6). Then:
+     record has the jump flag and the cell is the departure cell of a terminal `T` (traffic-network.md §2.6). The
+     jump flag (TS39) is bit 7 (`0x80`) of the jump token that leads to the next record. The pathfinder sets it when
+     the cell before the jump is off-map or has the ferry wormhole bit (pathfinder.md §4.15). The reader keeps it in
+     the record the jump arrives at (`0x006D65C6`–`0x006D65CC`), a run token clears it (`0x006D6593`), and
+     ApplyRoute tests it at `0x00719E97`. Then:
      - `T`'s current riders `+= Qi`, twice in mode 2;
      - `I := r24(I + r24(Q × ferryFare))`, once in every mode. The fare is income, not a fee;
      - if the next cell is the arrival cell of a terminal `T2`: `L :=` `T`'s terminal link keyed by `T2`'s departure
