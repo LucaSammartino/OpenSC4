@@ -64,9 +64,12 @@
 //! - Crime effect (§6.10, CQ13): `m` and `r` are bytes 0 and 1 of the
 //!   property value's raw little-endian storage, whatever the array type
 //!   ([`raw_array_bytes`]; `Uint32 {100, 8}` gives m = 100, r = 0), with no
-//!   numeric conversion. Scalars and arrays shorter than 2 bytes are skipped
-//!   (spec choice; the original dereferences a scalar and reads past a short
-//!   array).
+//!   numeric conversion. A string (an `RZChar` array) gives the codes of its
+//!   first two bytes (CQ22: `"AB"` gives m = 65, r = 66), as in the
+//!   original. Scalars, object arrays and values shorter than 2 bytes (a
+//!   one-character string included) are skipped (spec choice, CQ22; the
+//!   original dereferences a scalar, reads an object's address and reads
+//!   past a short array).
 //! - Tuning (§8): with the exemplar missing, the five defaulted curve kinds
 //!   get their code defaults (spec choice); the prop request curve, which
 //!   has none, keeps its previous content (empty → 0 in a new simulator). A
@@ -79,9 +82,11 @@
 //!   G, and detokenizes ([`LtextLoad`]); a loaded name has every U+2022
 //!   replaced by U+200B. If the load fails, the inline string `0xAA12FCB0`
 //!   ("Crime Name") replaces the name when it exists, otherwise the name
-//!   stays as the load left it: empty, or [choice] the copied text when the
-//!   detokenizer returned false. A key with fewer than 3 values is treated
-//!   as missing ([choice]). A mask property
+//!   stays empty: a failed load leaves it empty in every case, the text a
+//!   failed detokenizer left included (CQ16). A key with fewer than 3
+//!   values, or a scalar, is treated as missing ([choice], CQ17). With no
+//!   language manager the host uses language ID 0 ([choice], CQ18; the
+//!   plugin's business). A mask property
 //!   that is not numeric is treated as missing (all bits); numeric elements
 //!   are reduced to their low 8 bits. A missing or short icon key fills
 //!   with 0. [`shipped_type_exemplars`] carries the shipped name and icon
@@ -176,10 +181,10 @@ pub const IID_DISASTER_MANAGER_FIRE: u32 = 0x49B4_3F57;
 pub const ARSON_CAUSE: u32 = 2;
 /// The constant XORed with the `cRZTime` seconds to seed the generator (§9,
 /// CQ5); the same value as `rng::file_seed::CRIME`.
-pub const RNG_SEED_XOR: u32 = 0x6C09_C3F6;
-/// Seconds from 1901-01-01 00:00 UTC (the `cRZTime` epoch) to 1970-01-01
-/// 00:00 UTC: 25 202 days (§9).
-pub const RZ_TIME_UNIX_OFFSET: i64 = 2_177_452_800;
+pub const RNG_SEED_XOR: u32 = crate::rng::file_seed::CRIME;
+/// The `cRZTime` value lives with the random-number code (CQ21: every
+/// clock-seeded generator shares it); re-exported here unchanged.
+pub use crate::rng::{rz_time_from_unix, RZ_TIME_UNIX_OFFSET};
 
 /// `GetNearestCrimeSim/Prop` filters and interfaces (§11.3).
 pub const CRIME_SIM_TYPE: u32 = 0x496E_5783;
@@ -463,17 +468,7 @@ impl CrimeRandom for RzRandomSuper {
 /// value when `S` is the `cRZTime` value, except where XOR gives 0 or
 /// `0xFFFFFFFF`.
 pub fn seed_from_clock(rz_time: u32) -> u32 {
-    rz_time ^ RNG_SEED_XOR
-}
-
-/// The `cRZTime` value for a `time()` value (§9, CQ5): `time() + 2177452800`
-/// truncated to 32 bits. [choice] (§9) This skips the library's own
-/// time-zone arithmetic: the original rebuilds the value from the local
-/// calendar fields with a fixed pre-2007 US daylight rule, so it is one hour
-/// off where the host's rule disagrees, and 0 in that rule's spring-forward
-/// hour.
-pub fn rz_time_from_unix(unix_seconds: i64) -> u32 {
-    unix_seconds.wrapping_add(RZ_TIME_UNIX_OFFSET) as u32
+    crate::rng::clock_seed(rz_time, RNG_SEED_XOR)
 }
 
 /// What the original keeps once per process and shares between all crime
