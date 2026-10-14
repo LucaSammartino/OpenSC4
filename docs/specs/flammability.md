@@ -277,6 +277,16 @@ globalMultiplier := float32(f)
 
 Shipped: summer multiplier 1.0, so only Smoke Detectors matter (0.95). Code default summer 1.2.
 
+**Who writes `globalMultiplier`** *[compat]* (QUESTIONS FL2, from the exe). Exactly three places: the constructor
+(0), `Read` (the saved value) and `DoMessage` on SeasonChange or OrdinanceUpdated (`0x006AFB87`, the only call of
+`ComputeGlobalMultiplier`). `Init`, the day agent, `EndOfCycle` and the occupant handlers only read it. So:
+- a new city keeps g = 0 until the first of those two messages (§14.2);
+- a loaded city keeps its saved g until then;
+- from any moment on, g equals its value at that moment until the next SeasonChange or OrdinanceUpdated.
+
+A mirror that takes the original's g at its baseline and recomputes it on the same two messages, with the formula
+above, holds the original's g at all times. With shipped tuning g ∈ {0, 0.95, 1.0}.
+
 The original calls both simulators without a null check (and could not get here without them, §4.1 step 5).
 *[choice]* FreeCity4: a missing ordinance simulator gives factor 1.0, a missing weather simulator "not summer".
 

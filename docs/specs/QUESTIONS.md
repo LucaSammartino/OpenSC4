@@ -1667,8 +1667,10 @@ brackets.
   shipped tuning.** The message is delivered at the next frame's message-server tick, which comes before the
   simulator's. Up to then the day agent visits the rest of the wrap day (≤ `tractsPerDay`) plus one more day only at
   speed 2, where 50 ms per day fits in a 66 ms tick. A mod with a shorter day at speed 2 raises the bound.
-- **FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
-  the baseline. Right? [taken at the baseline]
+- ~~**FL2:** the multiplier g is 0 until the first season or ordinance message; the mirror takes the original's g at
+  the baseline. Right? [taken at the baseline]~~ **ANSWERED 2026-10-14** from the exe and written into
+  flammability.md §6.4. **Right.** Only the constructor, `Read` and the SeasonChange/OrdinanceUpdated branch of
+  `DoMessage` (`0x006AFB87`) write g.
 - **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
 - **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
   the same game state. Is that enough? [assumed so]
