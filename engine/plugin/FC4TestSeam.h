@@ -239,6 +239,7 @@ enum : uint32_t {
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
     kFC4SeamTraffic = 42,
+    kFC4SeamTract = 45,   // the tract developer (cFC4TractDeveloper.h FC4TractTestInput)
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
     kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
