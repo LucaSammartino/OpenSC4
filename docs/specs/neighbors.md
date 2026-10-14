@@ -709,6 +709,12 @@ three cases (NB7; `0x006CFE10`–`0x006CFEDD`):
 At the end, `Read` returns true unless the stream is in the error state (an unknown class sets it, foundations
 §2.7).
 
+**Wrong version** (NB11). With `version ≠ 2`, `Read` returns false straight after the `u16` (`0x006CFDDB`) and
+reads nothing else. Reading the `u16` succeeded, so the stream stays good. The class-object store ignores the
+result and re-synchronises at the next entry (foundations §3.5). The simulator object was created empty when its
+reference was resolved, so the load continues with **no connections**: for example, a version-3 record loads
+exactly like a version-2 record with `count = 0`. `Init` (§14.1) then runs as usual on the empty list.
+
 ## 14. Lifecycle
 
 ### 14.1 `Init()` → true

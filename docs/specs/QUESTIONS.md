@@ -488,8 +488,10 @@ vectors `nb18_*`). The core's current answer is in brackets.
   it must be kept. In `0x006D0520` the order is: un-Silence, append, then `SetAmount(0)`, which sends status 0
   synchronously. The handler runs a full `simulate_deals`, since `ProposeDeals` sets no busy flag, and that run
   activates the proposal. `Propose` writes the dates afterwards (neighbors.md §7.1, step by step).
-- **NB11:** the store ignores a false `Read` (foundations §3.5), so a version-3 simulator record loads "clean" with 0
-  connections. Confirm. [yes]
+- ~~**NB11:** the store ignores a false `Read` (foundations §3.5), so a version-3 simulator record loads "clean" with 0
+  connections. Confirm. [yes]~~ **ANSWERED 2026-10-14** from the exe: confirmed. `Read` returns false right after
+  the `u16` (`0x006CFDDB`), with the stream still good. The store ignores the result, and the freshly created
+  simulator keeps its empty list (neighbors.md §13).
 - **NB12:** `UpdateCommodityStats` takes a regional-city token. Is that the right subject? [yes]
 - **NB13:** a present `0xEA46934F` of 0 is divided by literally (inf or NaN); a missing one gives 0. [as stated]
 - **NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]
