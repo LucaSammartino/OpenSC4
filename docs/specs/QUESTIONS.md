@@ -2853,8 +2853,11 @@ developer stays original). The current answer is in brackets.
   reader `0x005D9730`, null store `0x005D9742`) and written into zones §10.1. The original does not release the old
   references: the reader nulls the field and reads the new one, so the old grid and services leak one reference each.
   Releasing them (the bracket) is the implementer's choice, recommended.
-- **ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
-  reference]
+- ~~**ZG5:** ZoningChange `void1` / `IGZUnknown`. [SetVoid1 plus SetIGZUnknown on the zone manager; the message holds a
+  reference]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceZone` `0x004DDFDB` message slot 12, `0x004DDFE3` slot 33; standard
+  message vtable `0x00A92D40`) and written into zones §5.3. `SetVoid1` stores the zone manager raw and `SetIGZUnknown`
+  AddRefs it, so the message holds one reference. The bracket matches.
 - **ZG6:** A dezone arriving during a PlaceZone. [runs at once and is counted]
 - **ZG7:** When are `outLots` inserted? [at the pricing call]
 - **ZG8:** What is released after a failed `Read`? [the grid, at Shutdown or destruction]

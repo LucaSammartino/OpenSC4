@@ -261,7 +261,9 @@ by the dezone) unless the lot's zone is not dezoned by `OnDezone` (§7.9).
 | DeferOccupantOperations `0x49D968C4` | zone developer `OnZone` (normal path) and `OnDezone` | at start (data1 = 1) and end (data1 = 0) | data1 | `MessagePost(m, 0)` |
 
 The ZoningChange message is a subclass of the standard message (vtable `0x00A92D40`) whose destructor
-(`0x004DCC30`) frees the void2 region with C. Consumers read the rect from the first 16 bytes of void2
+(`0x004DCC30`) frees the void2 region with C. The zone manager is stored twice (ZG5): `SetVoid1` (message slot 12,
+`0x004DDFDB`) keeps the raw pointer and `SetIGZUnknown` (slot 33, `0x004DDFE3`) AddRefs it, so the message holds one
+reference. Consumers read the rect from the first 16 bytes of void2
 (growth developers' `UpdateMaxCapacity`, `growth-developer.md` §6.1). Because it is **posted**, consumers see it on a
 later message tick, after the zone developer has already re-parcelled (synchronously, inside `PlaceZone`).
 
