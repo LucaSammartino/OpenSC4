@@ -1039,6 +1039,11 @@ returns false without asking, so the request is **refused**.
 - *[choice]* Show the dialog through the game, as §6.2 already says (the core returns "needs confirmation", the shim
   asks). When popups are disabled, decline. Confirming without asking may stay only as a temporary deviation.
 
+**NG15. `GetCity` with cells outside the region.** The region's `GetCity(x, z)` (slot 11, `0x004A4930`) looks the
+pair up in its hash map, keyed by `SC4Point<long>`, and returns the map's holder pointer or null. Signed and unsigned
+32-bit values have the same bits, so a negative cell passed as `uint32` finds the same entry as the signed value,
+which is none: the map has entries only for cells covered by a city. The bracket is fine.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

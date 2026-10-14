@@ -2603,7 +2603,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006D15E0` → `GenericConfirmationDialog` `0x0078DFF0`) and written into
   neighbors §15.4. The original asks with a modal yes/no dialog and returns the answer; with popups disabled the dialog
   returns false, so the request is refused. The bracket differs; recommend the dialog, and "no" when popups are off.
-- **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]
+- ~~**NG15:** `GetCity` with out-of-range cells. [passed on as uint32]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4Region::GetCity` `0x004A4930`) and noted in neighbors §15.4. A hash lookup
+  on the 32-bit pair; the bit pattern is what counts, so passing it as uint32 is fine and an out-of-range cell gives
+  null.
 - **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
 - **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]
 - **NG18:** A deal holder not reachable by QueryInterface. [left open]
