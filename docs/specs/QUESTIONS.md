@@ -446,7 +446,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   `Jday`), so a deal built on 2026-10-14 starts at 2461328. The bracket's 0 is kept as a *[choice]*, because the
   original is clock-dependent. The date survives only in fields nothing reads before overwriting them (neighbors.md
   §5.1).
-- **NB2:** does `Activate` change the flags directly, or through `SetFlags` with its status-0 reports? [directly]
+- ~~**NB2:** does `Activate` change the flags directly, or through `SetFlags` with its status-0 reports? [directly]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CE640`): **the bracket does not match.** `Activate` calls its own
+  virtual `SetFlags` three times: (Active, true), (Proposed, false), (Cancelled, false). Each call that changes a
+  non-Silent deal posts status 0, so activating a proposal posts 0, 0, then `simulate_deals`'s 1 (neighbors.md
+  §5.4, §7.2).
 - **NB3 — §6.3:** does the marker altitude `GetAltitude(x, z)` use the connection cell as given or the inner cell?
   [as given]
 - **NB4 — §12 vs §7.1:** ProposeDeals reads `0xCA469346` (f32) in §12 but `0xCA46931F` in §7.1. [`0xCA46931F` for

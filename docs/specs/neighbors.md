@@ -222,7 +222,7 @@ Silent deals. It is **posted**, except that `SetAmount` **sends** it synchronous
 | `Copy(src)` | copies type, flags, amount, amountUsed, cost, incAmount, lastAmount, both region cells and the four dates from `src` (through its interface). |
 | `UpdateState()` | §7.3 step 1. |
 | `Cancel()` | `SetFlags(Cancelled, true)`, `SetFlags(Active, false)`, `SetAmount(0)`. |
-| `Activate()` | If Proposed is set and none of `0x38`: set Active, clear Proposed and Cancelled; return true. Else false. |
+| `Activate()` | If Proposed is set and none of `0x38`, it makes three calls **through `SetFlags`** (its own virtual slot 37; `0x006CE640`): `SetFlags(Active, true)`, `SetFlags(Proposed, false)`, `SetFlags(Cancelled, false)`, in that order, and returns true. Otherwise it returns false. Each call that changes the flags of a non-Silent deal posts a status 0 report. A Proposed, non-Cancelled, non-Silent deal therefore posts **two** status-0 reports (NB2). Cancelled (`0x04`) is not in `0x38`, so `Activate` also activates a cancelled proposal and clears Cancelled. |
 | `GetFlags()` | flags. |
 | `SetFlags(f, on)` | If `on`: if Grace is set, drop `0x38` from `f`; `flags |= f`. Else `flags &= ~f`. If the flags changed and the deal is not Silent, report status 0 (posted). Returns true. |
 | `CheckFlagsAnd(f)` | all bits of `f` set. |
@@ -389,6 +389,10 @@ Who calls `ProposeDeals` and sets amounts afterwards is the UI's business (open 
 - on **every** status report `0xEA418D8F` delivered to the simulator (§11.1), including the ones its own runs post.
   A run therefore usually triggers one or two follow-up runs in the next message-server ticks, until no deal
   changes *[compat]*.
+
+  Example: one run activates one non-Silent proposal. It posts, in this order: status 0 (Active set), status 0
+  (Proposed cleared), both from `Activate`'s `SetFlags` calls (§5.4), then status 1. Each report, when delivered,
+  sets its dirty flag and runs `simulate_deals` again.
 
 It does nothing until ConnectionsReady has been seen. If called while a run is in progress (a synchronous status
 report from `SetAmount`), it posts `0xEA418D8F` with data1 = 8 and returns.
@@ -732,8 +736,8 @@ From the Windows caller data (direct calls) and the call-site survey:
    1050 (shortfall 1050, surplus 1100); with the seller's demanded raised to 1900 → 100.
 5. **Curve bug**: after one `UpdateCommodityStats` with a sanitation department, test 3 yields 221; without the
    department or the property it still yields 263.
-6. **Life cycle** (grace 90, probation 90): a proposed deal activates on the first run (status 1); losing the
-   connection sets Grace and suspension = today (no removal); failures during Grace are ignored; after 90 days
+6. **Life cycle** (grace 90, probation 90): a proposed deal activates on the first run, posting status 0, 0,
+   then 1 (§7.2); losing the connection sets Grace and suspension = today (no removal); failures during Grace are ignored; after 90 days
    Probation; a failure during Probation removes it with status 3; after 180 days Probation clears; a cancelled
    deal is removed with status 2; expiry posts 6, and the next run renews with the same span (status 7) or flags
    CannotAfford.
