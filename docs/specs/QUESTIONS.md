@@ -2884,8 +2884,13 @@ developer stays original). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`Read` `0x004DD415`: the flag at +0x14 is set before the version read at
   `0x004DD41D` and the compare at `0x004DD420`) and written into zones §10.1. Yes: the flag is set first, also when the
   version check fails. The bracket matches.
-- **ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
-  virtuals]
+- ~~**ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
+  virtuals]~~
+  **ANSWERED 2026-10-14** from the exe (occupant manager vtable `0x00A8F7F0` slots 28–35; slot 33 `0x0049DCE0`
+  forwarding to slot 32 `0x0049E690`) and written into zones §6 and §12. Slot 33 is the SDK's typed
+  `GetFirstOccupantByStandardCityCell(out, x, z, uint32)`, declared before its filter overload and placed after it by
+  MSVC's reversal; every typed/filter pair in slots 28–35 follows the same pattern. The bracket matches; it holds for
+  MSVC and clang-cl, not GCC.
 - **ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]
 - **ZG13:** Shadow: "our core's bookkeeping after it has loaded the same grid". [the core loads the original's own
   record through its Write]

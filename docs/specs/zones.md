@@ -380,6 +380,13 @@ Notes *[compat]*:
   call with error 0 before touching anything; the original has no such failure.
 - `PlaceZone` calls the budget simulator's `GetTotalFunds` first, with no null test (`0x004DD78A`): without a budget
   simulator the original crashes (ZG9).
+- **Occupant manager slot 33** (ZG11) is the SDK's `GetFirstOccupantByStandardCityCell(out, x, z, uint32 type)`.
+  The SDK declares it before its filter overload; MSVC groups overloaded virtuals and reverses them, so the typed
+  one is slot 33 and the filter one slot 32, as in the exe (every typed/filter pair of slots 28–35 is laid out this
+  way, the typed one forwarding). Slot 33 (`0x0049DCE0`) returns false when the manager is not initialised;
+  otherwise it stores the type in the manager's own filter object and continues in slot 32 with that filter.
+  Calling it through the SDK declaration works with MSVC and clang-cl, not with a compiler that keeps declaration
+  order (GCC).
 - The 5th argument (`checkAreaSlope` in the SDK) is used four ways: slope check, building-removal check,
   `DemolishLots` argument, `DoParcellization`'s street-removal flag (§7.9) and ZoningChange data4. It behaves as
   "this is a user action" *[inferred]*.
@@ -1363,7 +1370,7 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 | `cISC4NetworkOccupant` (IID `0xA821EF94`) | 9 (+0x24) | `HasAnyNetworkFlag(flags)` | 4 | AL | DoMessage, ExistsNetworkOfType |
 | `cISTETerrain` (`0x00B43CF4`) | 13, 14, 34 | `GetAltitude(x, z)`, `GetAltitudeAtVertex`, `CellHasWater` | 8 each | ST0, ST0, AL | lot manager 17–19, PlaceZone, IsCellWater |
 | `cISC4OccupantManager` (`0x00B43D0C`) | 21 (+0x54) | `RemoveOccupant(occ, 1, 0)` | 12 | | DeleteLot |
-| | 33 (+0x84) | occupant at cell by type (`0x6A11BD2B`) | 16 | | PlaceZone |
+| | 33 (+0x84) | `GetFirstOccupantByStandardCityCell(out, x, z, uint32 type)`, type `0x6A11BD2B` (§6, ZG11) | 16 | AL | PlaceZone |
 | | 41 (+0xA4) | `GetOccupantsByStandardCityCells(list, &cell, &cell, type, −1)` (list from A) | 20 | | ExistsNetworkOfType, ExamineCell |
 | | 48 (+0xC0) | `ReleaseOccupantList` | 4 | | same |
 | `cISC4BudgetSimulator` (`0x00B43D64`) | 6, 8 | `GetTotalFunds` (EDX:EAX), `WithdrawFunds(int64)` (pop 8, AL) | 0, 8 | | PlaceZone |
