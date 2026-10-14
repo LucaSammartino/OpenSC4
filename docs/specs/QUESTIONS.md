@@ -2658,7 +2658,12 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (network occupant slot 22 `0x00619520`, table `0x00AA7CE8`, slot 8 `0x00604D10`)
   and written into neighbors §15.4. §6.5 passes type numbers; the occupant maps each to `1 << type` and tests it
   against its flags.
-- **NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]
+- ~~**NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]~~
+  **ANSWERED 2026-10-14** from the exe (region vtable `0x00A8FA40`; `Init` `0x006D3B0C`–`0x006D3BEC`; `ReloadCity`
+  `0x004A5030`) and written into neighbors §15.4. The SDK interface matches slot for slot. The original reloads every
+  adjacent city with no gate and no identity check (the check always passes, so it is harmless; a closed gate is not).
+  `ReloadCity`'s result is garbage, and after a failed read the city is gone and the holder pointer dangles. `docs/abi`
+  rows for `cISC4Region` are in the re-answers8 report.
 - **NG31:** Status reports from deals with no host object. [left open]
 - **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
 - **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]

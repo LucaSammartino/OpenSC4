@@ -1171,6 +1171,34 @@ So the test is `flags & (1 << type) ≠ 0`. A glue that reads the occupant's fla
 22 must pass the type number, not the bit. Example: an occupant carrying road and rail has flags `0x0003`; slot 22
 answers true for 0 and 1, so Road then Rail match, and the later one, Rail, wins (§6.5).
 
+**NG30. `ReloadCity` through `cISC4Region`.** The SDK's `cISC4Region` matches the game's vtable (`0x00A8FA40`) slot
+for slot; the slots used here are `GetCity(x, z)` (slot 11, pops 8) and `ReloadCity(holder*&)` (slot 15, pops 4).
+
+What the original `Init` does (step 5 of §14.1; `0x006D3B0C`–`0x006D3BEC`), for each entry `C` of
+`GetAdjacentCities(list, false)`, taking entries from the front of the list:
+
+1. AddRef `C`; read its position (regional-city slot 5).
+2. `h := region.GetCity(x, z)`, with the region from the app (`cISC4App` slot 35, `+0x8C`). `h` is the region's own
+   holder pointer for that cell (a `cRZAutoRefCount<cISC4RegionalCity>*` shared by all cells of the city).
+3. If `h` and the city in it are non-null: `region.ReloadCity(h)`, passing the address of the local that holds `h`.
+   The result is not read.
+4. Remove the entry from the list, release it, then release `C`.
+
+There is no gate and no identity check. Because the list was just built from the region's cities, `h` always holds
+`C` itself, so an identity check always passes and is harmless; but a gate that is off skips the reload, which the
+original always does.
+
+What `ReloadCity(h)` (`0x004A5030`) does:
+
+1. Take the city's file name; `RemoveCity(h)` (slot 13): erase every cell of the city from the map, release the
+   region's reference and **free the holder** `h` points to.
+2. Read the file into a new regional city (`SC4ReadRegionalCity`).
+3. On success: `InsertCity(new)` (slot 12), then `h := GetCity(new position)` (the new holder).
+4. On failure: the city is no longer in the region, and `h` still points to the freed holder.
+5. The return value is never set (`AL` is garbage).
+
+So a caller must not use `h` after a failed reload, and must not test the result. The original `Init` does neither.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
