@@ -201,6 +201,18 @@ lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617
    of type `0x6534284A` (resource manager slot 18 `+0x48`, key-list `EnumKeys` slot 7 `+0x1C`); for each key
    whose exemplar has property `0x10` = `0x0F`, call own slot 5 `AddStaticFloraData(key, exemplar)`. Then post
    FloraTypesUpdated (§9).
+
+   *[compat]* **What the enumeration amounts to** (verified, FQ1). Slot 18 (`0x00973280`) only wraps a key filter
+   that accepts a key exactly when its **type** equals the given type (filter slot 3, `0x00973194`; group and
+   instance are not looked at) and calls slot 17 `GetAvailableResourceList(list**, filter)` (`0x009739CB`), which
+   adds the matching keys of every segment, segment by segment (§3.2). So slot 17 with any filter that accepts
+   exactly the keys of type `0x6534284A` builds the same list in the same order. `EnumKeys` (slot 7,
+   `0x009749CB`) hands the keys to the callback from first to last; key-list slot 9 `Size` and slot 10 `GetKey(i)`
+   (`0x00974741`) index the same sequence, so reading keys 0 … `Size` − 1 is equivalent. Per key (`0x006B03B0`):
+   `GetResource(key, 0xA52160F5)` (the exemplar interface, data-formats §4); if that succeeds and property `0x10`,
+   read with the u32 converting getter (`0x005FD480`, data-formats §5.1, so through the parent cohort, §4.4), is
+   `0x0F`, call own slot 5 with the key and the exemplar; the exemplar reference is released either way. A key
+   whose resource does not load is skipped silently.
 3. Subscribe on the message server (`+0x14`) to `0x278E6003`, `0x99EF1142`, `0x99EF1143`, `0xC53D10AA`,
    `0x26D31EC4`, `0x26D31EC5`, `0xAB99A64B`, in that order. Register command `0xAB99A64B` with the command server
    (slot 6 `+0x18`) under the name `"PlaceFlora"` and parameter info null.
@@ -806,8 +818,10 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | `cISC4App` (global `0x00B43C94`) | 39 | `+0x9C` | GetNewCitySpecification → `SC4NewCitySpecification*` (field `obliteratedCityDBSegment` read) | 0 | EAX ptr |
 | | 69 | `+0x114` | RegisterShutdownCallbackFunction(cb, data) | 8 | bool |
 | `cIGZPersistResourceManager` (`0x00AD89D0`) | 3 | `+0x0C` | GetResource(key, `0xA52160F5`, out, 0, 0) | 20 | AL |
+| | 17 | `+0x44` | GetAvailableResourceList(list**, key filter) (slot 18 = slot 17 with a type filter, §4.1 step 2) | 8 | EAX count |
 | | 18 | `+0x48` | GetAvailableResourceListForType(list**, `0x6534284A`) | 8 | EAX |
-| `cIGZPersistResourceKeyList` | 7 | `+0x1C` | EnumKeys(callback, context) | 8 | none |
+| `cIGZPersistResourceKeyList` (`0x00AADA64`) | 7 | `+0x1C` | EnumKeys(callback, context) | 8 | none |
+| | 9 / 10 | `+0x24` / `+0x28` | Size() / GetKey(i) → pointer to the i-th key (no bounds check) (FQ1 equivalent) | 0 / 4 | EAX |
 | `cISCResExemplar` (`0x00AAF0D0`) / `cISCPropertyHolder` (`0x00AA6CD8`) | foundations §17.2, §17.5 | | AsPropertyHolder; HasProperty (slot 3); GetPropertyValue (slot 8); GetProperty (slot 9) | | |
 | `cISTETerrain` (`0x00AB3D18`) | 5 | `+0x14` | initialized flag | 0 | AL |
 | | 13 | `+0x34` | GetAltitude(x, z) | 8 | ST0 |

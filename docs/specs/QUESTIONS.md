@@ -1130,9 +1130,13 @@ About `docs/specs/flora.md` and its `docs/abi` rows. Ini: `enable = flora` (ten 
 shadow `flora_shadow = 1` (registry once per city, then the deterministic part of each monthly pass; the random
 part of §8 is not compared). The glue's current answer is in brackets.
 
-- **FQ1:** exemplars are enumerated with `GetAvailableResourceList` and an exemplar-type filter (the demand glue's
+- ~~**FQ1:** exemplars are enumerated with `GetAvailableResourceList` and an exemplar-type filter (the demand glue's
   pattern), not slot 18 `GetAvailableResourceListForType`, and keys are read by index (`Size`/`GetKey`), not
-  `EnumKeys`. Equivalent? [assumed]
+  `EnumKeys`. Equivalent? [assumed]~~ **ANSWERED 2026-10-14** from the exe (slot 18 `0x00973280`, its filter
+  `0x00973194`, slot 17 `0x009739CB`, `EnumKeys` `0x009749CB`, `GetKey` `0x00974741`, the callback `0x006B03B0`)
+  and written into flora.md §4.1 step 2 and §12. **Equivalent**, provided the filter accepts exactly the keys
+  whose type is `0x6534284A` (any group, any instance): slot 18 is slot 17 with such a filter, and `EnumKeys`
+  walks the same sequence that `Size`/`GetKey` index, first to last.
 - **FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
   documented, and the records live for the whole process. [not registered]
 - **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
