@@ -370,7 +370,8 @@ data3 = z of the connection cell).
 - Occupant type `0x2890D4DE` (power pole *[inferred]*) → PowerPole.
 - Otherwise nothing.
 
-Then find the occupant's cell `(cx, cz)`. If `cx == 0` delete the connection `(type, −1, cz)`; else if
+Then find the occupant's cell `(cx, cz)` from its position: `GetPosition` (occupant slot 8), then the city's
+`PositionToCell` (slot 95), for networks and poles alike (NG17, §15.4). If `cx == 0` delete the connection `(type, −1, cz)`; else if
 `cx == countX − 1` delete `(type, countX, cz)`. Independently, if `cz == 0` delete `(type, cx, −1)`; else if
 `cz == countZ − 1` delete `(type, cx, countZ)`.
 
@@ -875,6 +876,357 @@ From the Windows caller data (direct calls) and the call-site survey:
   objects), and FreeCity4 deal objects reach regional cities through `SetLocalDeals` and are written by the
   region with their own `Write`. FreeCity4 must therefore (a) handle foreign deals through `cISC4NeighborDeal`
   only, (b) implement `Clone` on its own deals, and (c) write the exact §5.6 format.
+
+### 15.3 How original code reaches a FreeCity4 connection object (NG3) *[compat]*
+
+**No original code outside the connection class reads a connection's fields or calls its code directly.** With the
+neighbours simulator replaced, every access to one of our connection objects goes through a virtual slot of
+`cISC4NeighborConnection` (§4.2, vtable `0x00AB2034`), of the traffic source (`0x00AB1FA0`, traffic-simulator.md
+§4.1), of the property holder (§17.2 of foundations) or of `cIGZSerializable`. Our objects may have any layout behind
+those interfaces. How this was checked:
+
+- **Direct calls.** A scan of the whole image for `call`/`jmp` rel32 targets and for stored pointers to every
+  method of the class (`0x006CDFF0`–`0x006D4C10` and the thunks `0x006D47A0`–`0x006D4853`) finds only the vtables,
+  the class's own thunks, the GZCOM class-factory registration (`0x00460A72`, the CLSID getter) and two calls to the
+  **constructor**: the original simulator's `CreateConnection` (`0x006D489B`) and the regional city's `Read`
+  (`0x004AC994`), which builds the regional city's own connection objects. The Mac build agrees: outside the class,
+  only the factory, `cSC4NeighborsSimulator::CreateConnection` and `cSC4RegionalCity::Read` call or name the
+  concrete class.
+- **Class identification.** The vtable constants (`0x00AB2034`, `0x00AB201C`, `0x00AB1FB8`, `0x00AB1FA0`) appear in
+  code only in the constructor (`0x006D4680`) and the destructor (`0x006D4BB0`). Nothing tests the vtable to
+  recognise an original connection.
+- **Field reads.** The 66 functions that use connections (Mac symbol names mapped to the Windows image) and the 55
+  that read the simulator global `0x00B43D8C` were scanned for reads at the class's field offsets (`+0x20`…`+0x43`)
+  through a pointer taken from a list node or from a call's result. None was found on a connection. The hits were
+  other objects: the traffic statistics block (`0x0041C80D`), new allocations (`0x0052B012`, the traffic simulator's
+  `Init` and `Read`) and the budget's own records.
+
+Where original code holds **our** objects, and what it calls:
+
+| Holder | How it gets them | What it calls |
+|---|---|---|
+| the current city's regional record (`cSC4RegionalCity`, list at `+0x90`) | `UpdateCityCache(city)` (`0x004AD290`; on PostCityInit and PreSave, foundations §11.3) calls our `GetAllConnections(&list)` at `0x004AD34E`, so the list then holds references to our objects | `Write` (`0x004A7D10`): `QueryInterface(0xE4FDA3D4)` and the serializable's `Write` (slot 3), so the current city's record contains our §4.3 records; `FindConnection` (slot 20, `0x004A7B40`): slots 5 and 6; `GetAllConnections` (slot 21): AddRef only |
+| `ChangeSymmetricConnection(conn, flag)` (`0x004A8DF0`) | our simulator passes the connection (§6.3, §6.4) | slots 6 (`GetConnectionCell`) and 5 (`GetType`); the pointer is not kept |
+| the traffic simulator | `GetAllConnections`, `GetConnectionsOfType`, `FindConnection`, the traffic-source iterator | `AsTrafficSource` (slot 4) and `AsISCPropertyHolder` (slot 3), then the traffic-source and holder slots |
+| demand, MySim, the query tool, advisors, network and power-line tools, surface water, watercraft, plumbing, power | the simulator's connection queries | the `cISC4NeighborConnection` slots only |
+
+The one layout contract behind an interface is the traffic source's slot 3 `GetTripDataList`: it returns a pointer
+to the source's own STL `std::list<cSC4TripData>` (allocator B), and the traffic simulator edits that list in place
+(traffic-simulator.md §4.1, §7). A FreeCity4 connection must therefore own a list of that exact STL layout, as it
+already does. Everything else about the object's memory is free.
+
+### 15.4 Original behaviour behind the glue's choices (NG2–NG34) *[compat]*
+
+The neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`) made a choice wherever the spec was silent.
+Each item below gives what the original does, then whether that choice matches. Items marked *glue* have no
+original behaviour behind them; the implementer's choice stands.
+
+**NG2. Object-valued properties on a connection.** The original connection's holder is the plain holder of
+foundations §10.2. `AddProperty(id, cIGZUnknown*, bool)` (holder slot 11, `0x005FF950`) stores the object in the
+property's variant and keeps a reference to it. `GetProperty(id, riid, &ppv)` (slot 6) and `GetProperty(id)` (slot 9)
+return it like any other value. On save the holder writes it as a reference (marker `0xA9BEE9AC`, foundations §9.2,
+§10.2), so the object also gets its own record in the save. On load the holder drops it. No shipped code adds an
+object-valued property to a connection. The properties seen on connections in the sample saves are the traffic
+arrays `0x8A0B4100` and `0xAA9EA81A`–`0xAA9EA81F` and the float `0xCA947077` (foundations §10.6 (b)), all plain
+values.
+
+- While the city runs, the game-facing holder must keep such a property like any other (a mod may add one and read
+  it back). Dropping it there would be visible.
+- Leaving it out of the core mirror and out of the save is invisible to any reader: the original drops it on load.
+  Only the bytes of the save differ, and only when a mod has added one.
+- So the bracket "dropped from the core sync" matches the original for every shipped path, provided the holder
+  that game code calls still keeps the object until the property is removed or the connection dies.
+
+**NG4. `AddDeal` with a foreign deal.** `AddDeal(d)` (slot 26, `0x006D2870`) keeps **the caller's object**:
+`d.SetFlags(Silent, false)`, append `d` itself to the deal list (AddRef), push to the region (§9.2, both flags),
+return true. From then on the simulation, `FindDeals`, the status reports and the region's `SetLocalDeals` all hand
+out that same pointer, and the caller's later calls on `d` act on the simulated deal. No shipped code calls
+`AddDeal`, so only a mod can see the difference.
+
+- The bracket (copy into a deal of ours) differs: the caller's object stays outside the simulation, its later changes
+  are lost, and `FindDeals` returns a different pointer from the one that was added.
+- *[choice]* Keep the caller's object as the listed deal and drive it through `cISC4NeighborDeal`, as for the foreign
+  deals of §15.2. If the core must own its deals, the copy may stay as a deviation that only mods can observe.
+
+**NG5. Lifetime of a deal object.** An original deal is a plain counted object. It is destroyed at its last
+`Release`, never earlier, and it is never reused. These hold references to it:
+
+- the simulator's deal list (§6.1);
+- the regional cities, after `SetLocalDeals` (§9.2, foundations §11.3), until the next push replaces their lists;
+- every queued status report (§5.3), until it is delivered. That can be after the deal left the list (statuses 2–5);
+- the lists filled by `FindDeals`, `FindDealsAll` and `ProposeDeals` (each entry AddRef'd), including the budget
+  window's neighbour-tab list while the tab is open (NG7);
+- the utility advisor's advice made from a status 3–6 report, which is given the deal (NG31).
+
+So a deal that has left the simulation must keep answering every `cISC4NeighborDeal` call with its last state while
+any of these holds it, and the same deal must keep the same pointer for as long as any reference exists. Creating the
+wrapper lazily cannot be seen by the game. Neither can keeping a wrapper at zero references for reuse ("parked"),
+because no correct caller can reach an object it holds no reference to. The bracket stands under those two rules.
+
+**NG6 (glue). Getters called from other threads.** The original simulator has no lock and no thread check: every
+method runs on the caller's thread against the live fields. The 20 ms try-lock and its fallback are the
+implementer's choice.
+
+**NG7. Simulator state the shadow cannot see through the interface.** The original keeps it in byte fields of the
+simulator object (offsets from the `cISC4NeighborsSimulator` pointer, build 1.1.641):
+
+| Offset | Field | Written by |
+|---|---|---|
+| `+0x0C` | ready | 0 at construction; 1 by the ConnectionsReady handler. Never cleared, not even by `Shutdown` |
+| `+0x0D` | initialized | `Init` sets it, `Shutdown` clears it |
+| `+0x3C` / `+0x3D` | dealsDirty / statsDirty | §6.1, §11.1; cleared after each region push |
+| `+0x3E` | uiDisabled | `SetUIDisableFlag` (`0x006CDFE0`) only |
+| `+0x3F` | busy | set at the start of `simulate_deals`, cleared at its end (`0x006D0E99`, `0x006D15D2`) |
+
+The bracket (ready = 1, uiDisabled = 0) is wrong in two windows:
+
+- **Before ConnectionsReady.** `ready` is 0 from `Init` until the regional city posts ConnectionsReady (or for the
+  whole session if it never does, foundations §11.6). Meanwhile `simulate_deals` and `ProposeDeals` do nothing.
+- **While the budget window's neighbour tab is open.** `initNeighborBudget` calls `SetUIDisableFlag(true)`
+  (`0x0077E6C5`) and then `ProposeDeals(list, true)` (`0x0077E735`). `DestroySubBudgetWindow` calls
+  `SetUIDisableFlag(false)` (`0x0077A216`) and then `MarkDealsDirty` (`0x0077A21E`). While the tab is open, runs skip
+  the state machine (§7.3), and the tab's proposals stay Proposed instead of being activated (§7.1).
+
+*[choice]* The shadow holds the original object, so it should read these bytes at the offsets above rather than
+assume them.
+
+**NG8. The volume-dirty flag.** The flag (a byte at connection `+0x40`) is set by the connection's constructor and
+by nothing else: not by `Read`, `Repair` or the simulator. `UpdateTrafficVolume` clears it as its first action when
+it is set (`0x006D4C2B`), before it looks for the other side. So each connection object syncs once: a new connection
+after creation, a loaded one after the load (the load constructs it). If the other side has no matching connection
+at that moment, the trip list is cleared (NG19) and that object never syncs again. The bracket matches.
+
+**NG9. Setters on foreign connections.** `cISC4NeighborConnection` has no setter for type or cell (§4.2). In the
+original, type, cell and otherRegionCell are written only when the object is made: by the original simulator's
+`CreateConnection` and by `Read`. After that only `Repair(R)` rewrites otherRegionCell. So ignoring a type or cell
+change on a foreign connection matches the original. The state that does change after creation must go through the
+interface on a foreign connection: `Repair`, `SetVisitedThisCycle`, `SetIsActive` and the property holder. The
+bracket stands.
+
+**NG10. The return of `CreateConnection`.** Not meaningful in the original (§6.2, NB17), and every shipped caller
+ignores it. Any value works; the bracket stands.
+
+**NG11. Slots 32 and 33 return 64 bits.** `GetTotalMonthlyNeighborDealIncome` (`0x006CF860`) and
+`GetTotalMonthlyNeighborDealExpense` (`0x006CF8D0`) return a signed 64-bit sum in EDX:EAX. Every caller reads both
+halves:
+
+| Caller | Sites |
+|---|---|
+| finance advisor `update_variables` | `0x00413CA8`, `0x00413CD0` |
+| budget simulator `GetTotalMonthlyExpense`, `GetTotalMonthlyIncome`, `DoMonthlySimulation` | `0x006909AA`, `0x00690A67`, `0x00692601` |
+| budget window `CalculateValues` | `0x00767520`, `0x00767554` |
+| budget sub-window `initNeighborBudget`, `updateNeighborBudget` | `0x007806EA`, `0x00781836`, `0x00783DCD`, `0x0078549F` |
+
+The bracket (the low 32 bits) is wrong: EDX then holds whatever the shim's code left there, and the budget books it as
+the high half. Return the full `int64`.
+
+Example: two sell deals costing 2,000,000 and 3,000,000 per month. The income is 5,000,000 = `0x00000000004C4B40`:
+EAX = `0x004C4B40`, EDX = 0. If EDX were left at, say, `0x0012F8A0` (a stack address), the budget would book
+`0x0012F8A0004C4B40`, about 5.3 × 10^15.
+
+**NG12. Regional-city getters 50–64.** They return a `double` on the x87 stack (compiled slot table at the end of
+this spec). The bracket matches, and `docs/abi` already has these rows right.
+
+**NG13. The return of deal `Copy`.** The original's `Copy` (`0x006CE2E0`) leaves no meaningful value, and its only
+caller, `Clone` (`0x006CF3E0`), ignores it. `void` matches.
+
+**NG14. `RequestCreateConnection` asks the player.** When the connection does not exist yet, the original builds the
+title and text of §6.2 and calls `nSC4UI::GenericConfirmationDialog` (`0x0078DFF0`), a modal yes/no dialog, and
+returns its answer. With popups disabled (`cISC4App::SetPopupDialogsEnabled(false)`, advisors.md) that dialog
+returns false without asking, so the request is **refused**.
+
+- The bracket (confirm without the dialog) differs in two ways: the player cannot decline a connection, and with
+  popups disabled the original refuses where the glue accepts.
+- *[choice]* Show the dialog through the game, as §6.2 already says (the core returns "needs confirmation", the shim
+  asks). When popups are disabled, decline. Confirming without asking may stay only as a temporary deviation.
+
+**NG15. `GetCity` with cells outside the region.** The region's `GetCity(x, z)` (slot 11, `0x004A4930`) looks the
+pair up in its hash map, keyed by `SC4Point<long>`, and returns the map's holder pointer or null. Signed and unsigned
+32-bit values have the same bits, so a negative cell passed as `uint32` finds the same entry as the signed value,
+which is none: the map has entries only for cells covered by a city. The bracket is fine.
+
+**NG16. Creating the marker prop.** The original (`0x006D4A53`–`0x006D4B15`) uses the city's prop manager:
+
+1. `CreateProp(0x29F10000, &prop)` (prop manager slot 15). If it fails, there is no marker; the created message
+   (§6.3 step 4) is still posted.
+2. Position the prop at the inner cell's centre and height (§6.3), set its orientation, and add the bool
+   properties of §6.3 through its holder (holder slot 13, `AddProperty(id, 1, false)`).
+3. `AddCityProp` with the prop's occupant interface (prop manager slot 19, the one-argument overload).
+4. Release its own reference to the prop.
+
+The bracket (`CreateProp` + `AddCityProp`, then our reference released) matches.
+
+**NG17. The occupant's cell in `DeleteOccupantConnection`.** The original asks neither the network nor the pole for
+a cell. For both kinds it takes the occupant's position (`cISC4Occupant::GetPosition`, slot 8, `0x006CEF62`) and
+converts it with the city's `PositionToCell(x, z, &cx, &cz)` (slot 95, `0x006CEF7E`): 16 m cells from the city's
+(0, 0) corner, rounded down. §6.5 then uses `(cx, cz)`.
+
+The bracket (the network's `GetOccupiedCell`, else the pole's `GetCell`) gives the same cell for any occupant whose
+position lies inside its own cell, which is the normal case. *[choice]* Use the original's rule; it costs nothing and
+removes the doubt for odd occupants.
+
+**NG18. A deal's property holder.** The original deal's holder is unreachable too. `cSC4NeighborDeal::QueryInterface`
+(`0x006CE260`) answers only `1` (IGZUnknown), `0x0773FEF1` (`cISC4NeighborDeal`) and `0xE4FDA3D4`
+(`cIGZSerializable`); the deal interface has no `AsISCPropertyHolder`; and the holder's vtable (`0x00AB1D58`) appears
+only in the deal's constructor and destructor. The holder exists only to be written and read with the deal record
+(§5.6). Nothing can add a property to it, so in practice it is always empty, except for properties read from a
+record. A FreeCity4 deal therefore needs no reachable holder: it must only keep the properties of a record it read
+and write them back.
+
+**NG19. No matching connection on the other side.** When `UpdateTrafficVolume` runs (the flag of NG8 is set) and
+`FindConnectionOnOtherSide(conn)` (simulator slot 13) returns null, whether there is no city there or the city has
+no matching connection, the original **clears the whole trip list** (`0x006D5030`, every node freed) and returns.
+
+The bracket (targets 0) erases every trip of types 0–2 through the excess rule of traffic-simulator.md §4.1.4, but
+keeps trips of type > 2, which that rule never touches. This sync creates only types 0–2, so the two agree unless
+something else puts a trip of another type on a connection. *[choice]* Clear the list, which is exact and simpler.
+
+**NG20. `GetSourceCells`.** Traffic-source slot 5 (`0x006D4820`) fills the rectangle with the connection cell twice:
+`(x, z, x, z)`. The cell is the connection cell itself, outside the city (for example `(−1, 5)`), not the inner cell.
+The bracket matches.
+
+**NG21. The return of `UpdateTrafficVolume`.** The original's `AL` is not a clean bool: 0 when the flag of NG8 was
+already clear, 3 (the loop counter) after a sync, and whatever the list clear left behind when there was no other
+side (NG19). The one caller that reaches a connection's slot 4, the ConfirmTrips step of the traffic simulator
+(`0x0071E28E`), ignores it. `SetupPathFinderForLot` calls slot 4 only on lots, and looks at the trip list rather
+than the result. So "true" is safe; the bracket stands.
+
+**NG22. `cISCProperty::Write` and `Read`.** The original property (`cSCProperty`, vtable `0x00AA6988`) writes and
+reads foundations §10.1 on the stream it is given:
+
+- `Write(stream)` (slot 8, `0x005FD870`): `stream.WriteUint32(propertyID)`, then the variant (foundations §9.2), then
+  returns "stream not in error".
+- `Read(stream)` (slot 9, `0x005FD8B0`): the same fields into the property, same result.
+
+Nothing calls these two directly; every call is virtual. The caller that matters is the original holder's record
+writer (`0x005FD990`): for each stored property it writes the key, then calls **that property's own** `Write` with
+the save's stream. A holder stores the object it is given (foundations §10.2), so a FreeCity4 property that game code
+puts into an original holder is written by its own `Write`, on the game's stream, in the middle of the game's
+record. It must produce exactly the bytes of foundations §10.1. The bracket (through the segment stream) matches.
+
+**NG23. `GetProperty(id, void* buffer, uint32& length)` (holder slot 5).** There is no size query. The original
+(`0x005FD290`) finds the property (slot 9) and asks its variant for raw bytes (variant slot 57, `0x00915714`):
+
+1. No property → false.
+2. The variant's type is not exactly `0x8000` (raw bytes, foundations §9) → false; `length` is unchanged.
+3. Otherwise `length := min(length, count)`, copy `length` bytes into `buffer`, return true.
+
+A caller therefore cannot learn the size: `length = 0` returns true with 0, and a `length` below the count is left as
+it was. A null `buffer` with a non-zero `length` and count makes the original copy to address 0 and crash.
+
+Example: a property holding the 5 bytes `01 02 03 04 05`. With `length = 8` → true, `length = 5`, 5 bytes copied.
+With `length = 3` → true, `length = 3`, `01 02 03` copied. A `Uint32` property → false.
+
+*[choice]* For a null `buffer`, return false and leave `length` unchanged.
+
+**NG24 (glue). Regional cities held across calls.** The original returns regional cities without AddRef (§4.2,
+§6.2) and holds them only inside one call (the list of `GetAdjacentCities` in `Init` and `ProposeDeals`). How long
+the glue holds its own references is the implementer's choice.
+
+**NG25. Finding the marker props.** The original never names `0xA823821E` itself. It asks the prop manager for the
+**city props** in the inner cell, `GetCityProps(list, rect)` (prop manager slot 18, `0x004A1DB0`), and keeps those
+whose bool property `0xCAA46595` is true:
+
+- `GetCityProps` runs the occupant manager's rectangle query with the prop manager's filter. The filter passes an
+  occupant only if its type is `0xA823821E` (prop) **and** its prop usage is 1 (city prop, set by `AddCityProp`).
+- Deleting a connection (§6.4) asks at `0x006D189A` and removes each match with the prop manager's `RemovePropA`
+  (slot 29, `0x006D18D6`). The terrain handler (§11.1) asks at `0x006D0D65`, moves each match and updates it in the
+  occupant manager (`0x006D0DB3`).
+
+The bracket's type, `0xA823821E`, is right, but the original also requires usage 1. A lot or street prop carrying
+`0xCAA46595` would be ignored by the original and found by a type-only query. Shipped data puts that property only
+on the markers, which are city props, so the two agree in practice. *[choice]* Call `GetCityProps`, or add the usage
+test.
+
+**NG26. `QueryInterface` on the traffic source.** Slot 0 of the connection's traffic-source part (`0x006D47F0`) is
+a thunk to the connection's `QueryInterface` (`0x006CE000`), so the bracket (forwarded to the connection) matches.
+That `QueryInterface` answers only `1` and `0x0773FEF2` (the connection's main interface) and `0xE4FDA3D4`
+(`cIGZSerializable`). It does **not** answer the traffic-source or property-holder IIDs: those parts are reachable
+only through `AsTrafficSource` and `AsISCPropertyHolder`. So `QueryInterface(1)` on the traffic source returns the
+connection's main interface (AddRef'd), not the traffic source.
+
+**NG27. `GetProperty(id, uint32&)` (holder slot 8) on an array.** The original (`0x005FD230`) asks the variant for a
+`Uint32` (variant slot 25, `0x009176C8`). A scalar `Uint32` is returned as is. Any other type goes through the
+variant's generic conversion: the value is turned into text and the text is parsed back as a `Uint32`. For an array
+the text is its **first element** only (`%u` for unsigned, `%d` for signed integers, `"1"`/`"0"` for bools), or `"0"`
+for an empty array. So a `Uint32` or `Uint16` array gives its first element, and an empty one gives 0; the result is
+true in both cases.
+
+Example: the trip-capacity property `0x8A0B4100` as 12 × u16 `{30, 0, …}` reads as 30; promoted to u32 it still
+reads as 30.
+
+The bracket (the first element) matches for unsigned integer arrays, which is what connections carry. For float,
+64-bit, negative and raw-byte values the result depends on the text parser (`0x009167C5`), which was not traced.
+
+**NG28 (glue). The shadow's statistics tolerance.** The commodity statistics are `double` arithmetic in the original
+(§8.2); the tolerance the shadow allows is the implementer's choice.
+
+**NG29. Network types and network flag bits.** The numbers in §6.5 (4, 11, 0, 6, 12, 2, 7, 8, 9, 1) are network
+**type** numbers (the SDK's network types: Road 0, Rail 1, Highway 2, Street 3, Pipe 4, PowerLine 5, Avenue 6,
+Subway 7, LightRail 8, Monorail 9, OneWayRoad 10, DirtRoad 11, GroundHighway 12). The original passes each to
+`cISC4NetworkOccupant` slot 22 (`0x00619520`). That slot turns the type into its flag bit through a table
+(`0x00AA7CE8`: `1 << type` for types 0–12) and tail-calls slot 8, which returns whether all bits of the mask are set
+in the occupant's network flags.
+
+So the test is `flags & (1 << type) ≠ 0`. A glue that reads the occupant's flag word must shift; one that calls slot
+22 must pass the type number, not the bit. Example: an occupant carrying road and rail has flags `0x0003`; slot 22
+answers true for 0 and 1, so Road then Rail match, and the later one, Rail, wins (§6.5).
+
+**NG30. `ReloadCity` through `cISC4Region`.** The SDK's `cISC4Region` matches the game's vtable (`0x00A8FA40`) slot
+for slot; the slots used here are `GetCity(x, z)` (slot 11, pops 8) and `ReloadCity(holder*&)` (slot 15, pops 4).
+
+What the original `Init` does (step 5 of §14.1; `0x006D3B0C`–`0x006D3BEC`), for each entry `C` of
+`GetAdjacentCities(list, false)`, taking entries from the front of the list:
+
+1. AddRef `C`; read its position (regional-city slot 5).
+2. `h := region.GetCity(x, z)`, with the region from the app (`cISC4App` slot 35, `+0x8C`). `h` is the region's own
+   holder pointer for that cell (a `cRZAutoRefCount<cISC4RegionalCity>*` shared by all cells of the city).
+3. If `h` and the city in it are non-null: `region.ReloadCity(h)`, passing the address of the local that holds `h`.
+   The result is not read.
+4. Remove the entry from the list, release it, then release `C`.
+
+There is no gate and no identity check. Because the list was just built from the region's cities, `h` always holds
+`C` itself, so an identity check always passes and is harmless; but a gate that is off skips the reload, which the
+original always does.
+
+What `ReloadCity(h)` (`0x004A5030`) does:
+
+1. Take the city's file name; `RemoveCity(h)` (slot 13): erase every cell of the city from the map, release the
+   region's reference and **free the holder** `h` points to.
+2. Read the file into a new regional city (`SC4ReadRegionalCity`).
+3. On success: `InsertCity(new)` (slot 12), then `h := GetCity(new position)` (the new holder).
+4. On failure: the city is no longer in the region, and `h` still points to the freed holder.
+5. The return value is never set (`AL` is garbage).
+
+So a caller must not use `h` after a failed reload, and must not test the result. The original `Init` does neither.
+
+**NG31. Status reports from a deal with no object.** In the original every deal is an object, so every report of
+statuses 0–7 carries it (the message's IGZUnknown, AddRef'd by the message). Only status 8 has none: the simulator
+(§7.2), the plumbing simulator and the pollution simulator post it with no deal. Three subscribers read the deal:
+
+| Subscriber | Statuses | What it does with the deal |
+|---|---|---|
+| power simulator | 0 | if the deal's type is `0x4773FFE0`/`E1` (power), it schedules a power recheck |
+| plumbing simulator | 0 | the same for `0x4773FFE2`/`E3` (water) |
+| utility advisor | 3, 4, 5, 6 | it creates an advice item and gives it the deal (the message's IGZUnknown), for the advice text |
+
+With a null deal, power and plumbing skip the recheck after a deal change, and the advisor's advice gets no deal.
+*[choice]* Create the deal's object (the wrapper) when the report is posted, and put it in the message for statuses
+0–7; the message's reference keeps it alive until delivery (NG5). Status 8 stays without a deal.
+
+**NG32 (glue). The shadow's connection-state comparison.** Which states the shadow compares, and when, is the
+implementer's choice. One fact bears on it: a connection's state changes outside the simulator's own calls. The
+power and plumbing simulators set the visited and inactive bits on their own schedule (§17 question 4), and the
+traffic simulator's `UpdateTrafficVolume` clears the volume-dirty flag (NG8).
+
+**NG33 (glue). A message that cannot get the lock.** The original handles every message on the thread that delivers
+it, with no lock, and never drops one. Its `DoMessage` returns true for every message (ConnectionsReady returns
+`0x6AC28401`, which is also true in `AL`). Dropping a message is a deviation only if it happens; the choice is the
+implementer's.
+
+**NG34. A null connection reference in a save.** The original appends the null and then releases it without a check,
+so it crashes inside `Read` (§13, NB7; `0x006CFEC5`). Skipping it is the *[choice]* already recorded in §13; the
+bracket matches it.
 
 ## 16. Original quirks (reproduced)
 

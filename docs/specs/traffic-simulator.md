@@ -169,7 +169,7 @@ when the subnetwork data need no rebuild *[inferred: flag meaning, traffic-netwo
 | State | Phase | Spec | Entry action when entered |
 |---|---|---|---|
 | 0 | StartRecalc (`0x00717C90`) | §4.3 | |
-| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; pass counters reset; re-route context idle |
+| 16 | ConfirmTrips (`0x0071E1B0`) | §4.3 | traffic-source iterator reset; saved source cell := (0, 0) (§3.5, TS44); re-route context idle |
 | 17 | ReRouteTrips (`0x0071D020`) | §4.4 | same |
 | 18 | FullTrips (`0x0071D440`) | §4.4 | same; the per-travel-type count vector being built := 9 zeros |
 | 15 | FinishTripMap (`0x0070FEF0`) | §4.7 | lot iterator reset |
@@ -222,7 +222,9 @@ own static step state); slicing only splits the work, the results do not depend 
        cycle (TS1); continue;
      * `s = 17`: `total := toReRoute`, `days := max(1, total div 18)`, reset (day index, processed and pass
        counter 1 := 0), return **true**;
-     * `s = 18`: `total := toSearch`, `days := max(1, total div 18)`, reset, `passTotal := 0`, return **true**;
+     * `s = 18` (`0x007217BF`–`0x007217FD`): `total := toSearch`, `days := max(1, total div 18)`, day index and
+       processed := 0, `passTotal := 0`, return **true**. Pass counter 1 is **not** zeroed here (TS35): it keeps
+       the re-route count of state 17 through state 18, and a save taken then holds it;
      * `s = 2` or `s = 11`: return **true**;
      * otherwise continue;
    * if not finished: if `16 ≤ state ≤ 18`, `dayIndex < days` and `processed ≥ total · (dayIndex + 1) / days`
@@ -293,12 +295,17 @@ whole order (TS7):
     and from the occupant messages *[compat: do nothing]*.
 11. **Resume the interrupted phase**, by the loaded cycle state:
     * 16, 17, 18: the re-route context's search state := idle; the traffic-source iterator is reset (lots, then
-      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell
-      (the cell the phase stored when it took its current source, §6.1 row 14). That source becomes the held current
+      neighbour connections, §4.1) and advanced until it has returned the source whose cell is the saved source cell.
+      That cell is the two s16 phase positions of §6.1 row 14 (+0x90C, +0x90E; TS44). ConfirmTrips, ReRouteTrips
+      and FullTrips write there, as they take a source, the cell the source iterator returns: a lot's location (lot
+      slot 21) or a neighbour connection's cell (connection slot 6) (`0x0071E276`, `0x0071D0FD`, `0x0071D51C`). The
+      resume compares x and z as 16-bit values (`0x00720C17`–`0x00720C25`). That source becomes the held current
       source, so the phase continues after it. If no source has that cell, the iterator is reset again and no source
       is held (the phase restarts from the first source). *[inferred: the position inside a partly processed source's
       trip list is the saved context's, not traced]*
-    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`), the
+    * 15: the lot iterator is reset; when the lot manager has a lot at the saved cell (`GetLot(x, z, false)`; the
+      same two phase positions, which FinishTripMap sets to each lot's location as it takes it,
+      `0x0070FFD3`–`0x0070FFE7`, read back at `0x00720B2C`–`0x00720B46`; TS45), the
       iterator is advanced past that lot; if the walk reaches the end without meeting it, the iterator restarts from
       the first lot.
     * 19: every ferry terminal's re-route flag := 1 and the ferry pass restarts at the first terminal, its sub-step
@@ -545,8 +552,9 @@ entry and its `0xCA550301` budget item go, and `E` drops by the item's cost.
 
 #### 4.1.4 Neighbour connection: `UpdateTrafficVolume` (`0x006D4C10`)
 
-Runs only when the connection's "volume dirty" flag is set (then cleared). Holder := the connection's property
-holder (neighbour simulator slot 13). For trip type `w` = 0…2 and index `s` = 0…8: `target := ` element `s` of the
+Runs only when the connection's "volume dirty" flag is set (then cleared). Holder := the property holder of the
+matching connection on the other side (neighbour simulator slot 13, `FindConnectionOnOtherSide(conn)`). If there is
+none, the whole trip list is cleared instead (`0x006D5030`) and the function returns (neighbors §15.4, NG19). For trip type `w` = 0…2 and index `s` = 0…8: `target := ` element `s` of the
 u32 vector property `0xAA9EA81D + w` (padded with zeros to 9; set by the neighbour simulation, neighbors.md);
 `have :=` the sum of counts of the list's trips with type `w` and strategy `s` (trips of type > 2 are ignored and
 never erased).
@@ -652,7 +660,11 @@ neighbour pool capacities and sets the destination bits of the off-map edge cell
   gives `+z`**, including `dz = −1` and `dz = 0` *[quirk]* (`0x006D65E0`–`0x006D666A`). The last cell's exit is
   none.
 * the **entry** side `e`: none at the first cell; after a unit step or a jump with an exit, the side facing back
-  (`(x + 2) mod 4`); after a jump whose exit is none, the previous cell's entry side carries over unchanged.
+  (`(x + 2) mod 4`); after a jump whose exit is none, the entry side the cell before the jump had on arrival carries
+  over unchanged (TS36, `0x006D666F`). The reader blanks that side in the record of the cell before the jump but
+  keeps it for the next record, so it is none only when the cell before the jump is the first cell (the reader
+  starts with none, `0x006D64FD`). Example: a route steps +x into (5, 3), entry `−x`, and then jumps to (6, 3). The
+  record of (5, 3) has entry none and exit none; the record of (6, 3) has entry `−x`.
 
 The test, with `strike := (strike state = 1)` (§4.12) read once at the start:
 
@@ -780,7 +792,9 @@ from a lot's trip list, for outside callers (TS10):
 2. `src := lot.AsTrafficSource()` (lot slot 4). If `src.GetTripDataList()` (slot 3) is empty, call
    `src.UpdateTrafficVolume()` (slot 4, §4.1.1) **once**, which generates the lot's trips as a side effect, and look
    again. If it is still empty, return false.
-3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. Then pick the dominant strategy:
+3. `sum[s]` (u32, s = 0…2) := the `count`s of the list's trips by `strategy`. The strategy is not range-checked
+   (TS47, `0x00711680`–`0x00711687`): a strategy above 2, only in a damaged save, adds its count past the 12-byte
+   heap array of sums. *[choice]* Ignore such trips. Then pick the dominant strategy:
    `best := 0`; if `sum[1] > sum[0]` then `best := 1`; if `sum[2] > sum[best]` then `best := 2`. The comparisons are
    unsigned and strict, so a tie keeps the lower index. Also `type :=` the **first** trip's `type`.
 4. `SetStartRect(src.GetSourceCells())`, `ClearAllFlags`, `ClearAllTravelTypeFlags`, `SetStartingCostArray(null)`,
@@ -860,8 +874,11 @@ first trip's type.
      cell of its neighbour link: the off-map node is written as that edge cell (pathfinder.md §4.15). *[choice]*
      Follow the original.
   4. **Ferry legs** (TS16, `0x00719E8F`–`0x0071A054`): only at a cell that is not the last, when the **next** route
-     record has the jump flag (pathfinder.md §4.15) and the cell is the departure cell of a terminal `T`
-     (traffic-network.md §2.6). Then:
+     record has the jump flag and the cell is the departure cell of a terminal `T` (traffic-network.md §2.6). The
+     jump flag (TS39) is bit 7 (`0x80`) of the jump token that leads to the next record. The pathfinder sets it when
+     the cell before the jump is off-map or has the ferry wormhole bit (pathfinder.md §4.15). The reader keeps it in
+     the record the jump arrives at (`0x006D65C6`–`0x006D65CC`), a run token clears it (`0x006D6593`), and
+     ApplyRoute tests it at `0x00719E97`. Then:
      - `T`'s current riders `+= Qi`, twice in mode 2;
      - `I := r24(I + r24(Q × ferryFare))`, once in every mode. The fare is income, not a fee;
      - if the next cell is the arrival cell of a terminal `T2`: `L :=` `T`'s terminal link keyed by `T2`'s departure
@@ -883,6 +900,11 @@ first trip's type.
   5. **Income**: `I := r24(I + r24(Q × incomePerTile[t]))`.
 * At the last cell, unless mode 1: `ApplyTrafficToDestination(count, destX, destZ, lastTravelType, type)` (§4.2).
 * Finally `incomeAcc := incomeAcc + I` and `feeAcc := feeAcc + fees` (doubles, the additions rounded to 24 bits).
+
+*[choice]* A travel type above 8 (TS48; only in a damaged save, as the reader allows 0…63) adds nothing here. The
+original indexes its 9-entry tables with it unchecked: the type-to-network table (`0x00AB31A8`, read at
+`0x00719C2F`), the generates-traffic flags (`0x00719C4B`) and the income per tile (`0x00719EE9`). It reads whatever
+follows them and may add volume or income.
 
 **Off-map roots** (TS13). The original never produces a route whose root is off-map. Start nodes are seeded on rings
 clamped to the map: a neighbour-connection start rect `(−1, z)` seeds at `(0, z)` with entry side 0, and the ferry
@@ -1050,8 +1072,10 @@ At the end of the pass (`0x0071A5D7`–`0x0071A701`):
 
 1. **Publish the statistics.** For each slot `s` = 0…13: if `count[s] ≠ 0`, `sum[s] := r24(sum[s] / float(u32
    count[s]))`. Then copy the five fields `(average, congested, maxX, maxZ, max)` into the "last" statistics (the
-   slot-34 block, rows 0–12, then the bridge row). A slot with no record keeps `(0, 0, 0, 0, 0)`. The state-2 entry
-   reset sets `max` to −1.0 and the copied fields to 0.
+   slot-34 block, rows 0–12, then the bridge row). A slot with no record publishes `(0.0, 0, 0, 0, 0.0)` (TS40). The
+   state-2 entry reset (`0x00721196`–`0x007211D6`) zeroes the five fields of every working row and sets a separate
+   per-slot comparison value to −1.0. A record (`0x0071A3D7`–`0x0071A40C`) writes the row's max fields only when `r`
+   beats that value. An empty slot's max cell (0, 0) is therefore not a cell; its record count (step 2) is 0.
 2. **Replace the cell counts.** `records[t]` for t = 0…12 become the published u16 × 13, **and**
    `cells[t] := records[t]` (u32). This replaces the running counts that the occupant messages keep between passes
    (§3.6). The bridge slot's `records[13]` is neither published nor a cell count, so bridge pieces are in no cell
@@ -1232,7 +1256,8 @@ roads and mass transit departments) go through the percent getter `0x005FDAC0` (
 For any numeric property type (u8, s8, u16, s16, u32 as unsigned, s32, 64-bit, f32, f64) it **multiplies** the
 value by the f32 constant `0.01f` (0x3C23D70A, `0x00A823A4`) and rounds once to f32: `r24(v × 0.01f)`, not
 `r24(v / 100)`. For an integer below 2^29 or an f32 the product is exact before that rounding. A missing property, or
-one of another type (bool, string), leaves the code default 1.2 (0x3F99999A).
+one of another type (bool, string), leaves the code default 1.2 (0x3F99999A): the getter returns without a store
+(TS37; missing `0x005FDAD6` → `0x005FDCBE`, other types `0x005FDAF3` → `0x005FDCBD`).
 
 Worked example: shipped 120. `0.01f` is 0.00999999977648…; × 120 = 1.19999997317…, which lies below the midpoint
 1.19999998807… of the two nearest f32 values, so the result is 0x3F999999 (1.1999999), one ulp **below** the code
@@ -1338,17 +1363,21 @@ property `0xE90E25A3`; "riders last period" is the terminal's u16 rolled on ente
 
 **Cost**: `holder :=` the building's property holder; the budget simulator's `GetBudgetItemForPurpose(holder,
 0xCA550301, item)` (slot 51) gives the building's first budget item with that purpose (budget.md §2); then
-`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(float(item.cost)
-× f)))`, `item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot
-10, a pointer to the fraction). Otherwise 0.
+`dept := GetDepartmentBudget(item.department)` (slot 28). When both exist, cost `:= low32(ftol(r24(item.cost × f)))`,
+`item.cost` the item's int64 monthly cost at 100 % and `f` the department's funding fraction (department slot 10, a
+pointer to the fraction). Otherwise 0. The int64 is loaded exactly (x87 `fild`, `0x0071CC55` and `0x0071CD6F`), not
+converted to f32 first, so the product is rounded once (TS46). This differs from an f32 conversion only above 2^24.
+Example: cost 16,777,217 at `f = 0.75` gives 12,582,912.75, rounded to 12,582,913; converting first would give
+16,777,216 × 0.75 = 12,582,912.
 
 The query window then shows: service quality `0` if the call fails or +0x00 is 0, `1` if +0x0C is 0, else
 `min(+0x00 / +0x0C, 1)`; usage percent `+0x0C / +0x04 × 100` (0 when +0x04 is 0); maximum capacity +0x04; usage
 +0x0C; maintenance +0x10 *[inferred: from the Mac readers; the Windows readers were not traced]*.
 
 *[choice]* A switch ID in the grid with no switch behind it (only possible from a damaged save) makes the original
-insert a default switch with no building and crash on the cost step. FreeCity4 returns false and leaves `out`
-untouched.
+insert a default switch with no building and crash on the cost step (TS49: inserted at `0x0071CBB7`; the null
+building is read at `0x0071CC14`, after four of the five fields are written). FreeCity4 returns false and leaves
+`out` untouched.
 
 **Example.** A subway station with capacity 2500.0, last cycle's load 3100.0 (so ratio 1.0), no strike, budget item
 cost 150 for purpose `0xCA550301` in a department funded at 0.9: `out = {2500, 2500, 1.0f, 3100, 135}`
@@ -1411,7 +1440,7 @@ vectors.
 | 11 | departments | roads, mass transit (serializables, budget.md) |
 | 12 | income | s64 budget-item total (§4.1.3), f32 transit income, f32 toll income, f32 last monthly income, f64 income accumulator, f64 fee accumulator |
 | 13 | cycle date, strike, damage | u32 cycle start date (§4.12 StartRecalc), u8 strike state, s32 strike month counter; road: u32 cell count, u32 damaged count, f32 damage rate; u32 n + n × u16 intact road cell keys, u32 n + n × u16 damaged road cell keys (hash iteration order); rail: the same five fields and two key lists |
-| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions, the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
+| 14 | cycle position | u8 cycle state, the scanning iterator (helper `0x005D9FD0`/`operator<<`), bool intersection-dirty flag, s32 × 4 intersection dirty rect, bool network-changed byte (§3.1; never read), u32 strategy bucket counter, u32 strategy bucket, s16 × 2 phase positions (the saved source or lot cell x, z, §3.5), the lot iterator position (helper `0x005DA390`), bool, bool, f32, s32 x, s32 z (re-route context), u32 n + n × u32, u8, u32, s32 × 4, u32 n + n × u32 (per entry), u8 × 2 (context flags) |
 | 15 | pacing and counters | s32 processed, s32, s32 total, u32 days, u32 day index, u32, u32, s32 `passTotal`, s32 `toReRoute`, s32 `toSearch`, then u32 × 10 pass counters (routed, re-routed, `rerouteBucket`, source counter, …; §10 Q4) |
 | 16 | network-type statistics, two sets (published "last" set = slot 34 block, then the working set) | per set: 13 × (f32 average (the working set holds the sum), u32 congested count (`r > 1`), s32 max x, s32 max z, f32 max), the bridge row (same 5 fields, §4.9), u16 × 13 (network-info records per type; published = the cell counts), u16 (bridge records; never published), u16 (published set: the pothole count, §3.6), s32 12, 12 × (u16, f32, s32, s32, f32) per-switch-type records, f32, f32, bool, f32, u8 |
 | 17 | neighbour-connection records | u32 count, per record (traffic-network.md §2.7): u16, u8, u8, u16, u16, then its f32 values |
@@ -1534,7 +1563,7 @@ Virtual calls (slot, offset, pop, return):
 | `cISC4LotManager` | 15 (+0x3C) | lot list / iterator | | | source iterator, FinishTripMap |
 | `cISC4Lot` | 3 (+0x0C), 12/13 (+0x30/+0x34), 14 (+0x38), 21 (+0x54), 28 (+0x70), 31 (+0x7C), 37 (+0x94), 48 (+0xC0), 56 (+0xE0), 59 (+0xEC) | property holder, flags, bounding rect, location, road access, zone type, livable, building, travel population, lot link | | | §4.1, §4.7 |
 | `cISC4TrafficSource` | 3, 4, 5 | §4.1 | 0, 0, 4 | | |
-| `cISC4NeighborsSimulator` | 11 (+0x2C), 13 (+0x34), 16 (+0x40) | FindConnection, property holder, GetAllConnections | | | §4.1.4, §4.6 |
+| `cISC4NeighborsSimulator` | 11 (+0x2C), 13 (+0x34), 16 (+0x40) | FindConnection, `FindConnectionOnOtherSide(conn)` (`0x006CDFA0`, pop 4; the caller reads the result's properties, TS38), GetAllConnections | | | §4.1.4, §4.6 |
 | `cISC4Simulator` | 6 (+0x18), 8 (+0x20), +0x4C | GetSimDate (5 pointers), GetSimDateNumber, AddAgent | | | §3.3 |
 | `cISC4BuildingDevelopmentSimulator` | 32 (+0x80) | GetDeveloper(group) → developer slot 15 grid → GetCellValue (s16) | | | §4.9 |
 | `cISC4ResidentialSimulator` | 30 (+0x78) | GetCellWorkforcePercent(x, z) | | x87/hidden | §4.1.1 |

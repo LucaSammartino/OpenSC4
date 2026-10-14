@@ -454,6 +454,17 @@ test every occupant; it reads a coarse index (verified, FQ6):
   box at that moment; on x and on z separately, if `max − min > 1.0` (`0x00A81228`), move both ends inwards by
   `0.1f` (`0x00A8F768`, `float32` add and subtract). The occupant is listed in every cell from
   `(cell(min.x), cell(min.z))` to `(cell(max.x), cell(max.z))`. y plays no part.
+  **Not clamped** (AQ7; `InsertOccupant` loop `0x0049F0B6`–`0x0049F1BA`, `MoveOccupant` the same through
+  `0x0049DAC0`): each cell is kept as its low byte and the loops run over those bytes with no test against 192. An
+  edge (after the 0.1 m shrink) below about −4096.06 m or from about 8191.94 m on, more than a city width outside the
+  largest city, gives a cell outside 0..191. A byte from 192 to 255 makes the listing write past the index's 192 rows
+  or columns (heap corruption); a cell below 0 or above 255 wraps, and when the low end's byte ends up above the high
+  end's the occupant is listed nowhere on that axis. *[choice]* Clamping such cells to 0..191, like the query, is
+  recommended; it changes nothing inside the index.
+  The listing is made from the box at that moment and kept in the occupant (occupant slot 26, `0x0049F094`) until the
+  next `MoveOccupant` or removal; queries keep using it if the box changes in between. Which box a flora shadow uses
+  to model the listing is glue (AQ9): the implementer's choice (the census box taken before the pass) stands, and
+  matches the original whenever that box is the one the occupant had at its last insert or move.
 - **Query**: map the query box's two corners to cells, clamped to 0..191 (`0x0049DF00`). The candidates are the
   occupants listed in that cell rectangle, each taken once. A candidate is returned if the filter (if any)
   accepts it (§6.4.1) and its **current** box overlaps the query box **strictly** on x, y and z:
@@ -863,8 +874,10 @@ and then flora slot 24 `SaveObliterated(segment)`:
 
 - record key (type `0xC9BB3FC6`, group `0xC9BB3FC7`, instance 1): `u32 count` of all flora occupants
   (`GetOccupantsByOccupantManagerCells(null, null, type flora)`);
-- for each occupant `i` (list order): record (`0xC9BB3FC6`, `0x4A664F83`, `i`): the occupant clears its flag 1,
-  writes its own serialized form (`cIGZSerializable::Write`), then sets flag 1 again.
+- for each occupant `i` (list order): record (`0xC9BB3FC6`, `0x4A664F83`, `i`): the occupant clears its flag 1, writes
+  its own serialized form (`cIGZSerializable::Write`), then sets flag 1 again. All three happen only when the record
+  opened (AQ4; test `0x006B2886`, calls `0x006B2890`–`0x006B28AB`), so an occupant whose record does not open keeps
+  its flags. Its list reference is released either way (`0x006B28B2`).
 
 The replacement city's `Init` finds the segment in `SC4NewCitySpecification` (§4.1 step 12) and, if the occupant
 manager exists: reads the count; for each `i < count` whose record opens: create a `cSC4FloraOccupant`, `Read`
@@ -887,15 +900,30 @@ non-zero, close it again (`CloseOStream`, slot 9) and treat the record as not op
 `GetUint16` (slot 7; the value is kept by the helper and **never checked** by flora) and `CloseIStream` (slot 6).
 A segment that does not answer the IID, or a key that does not open, gives "not open": nothing is written or read.
 
+**A false open that writes a pointer** (AQ10). Only a plugin's segment can do this: the game's own clears the pointer
+first and sets it only on success (`0x005D274B`, `0x005D27EB`). The helper keeps the segment only after a successful
+open (`0x005D9D21`, `0x005D9E3B`), and the open test needs both the segment and the stream (`0x005D9670`), so the
+record is not open and nothing is read, written or closed. The pointer the call wrote stays in the helper's stream
+reference, and the helper's destructor (`0x005D9C30` read, `0x005D9D50` write) releases it once, without
+`CloseIStream` or `CloseOStream`. *[choice]* Releasing it once, as the original does, is recommended.
+
 - Save: the count record is written even when the count is 0. `i` is the occupant's position in the list and
   advances for every occupant, also when its record does not open. The count is written with `PutUint32`
   (stream slot 9) and the occupant record by the occupant's `cIGZSerializable::Write` on the same stream (the
   segment streams begin with the `cIGZOStream` / `cIGZIStream` slots). Returns true (AL = 1) whatever happened.
-- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the
-  count is read **before** the occupant-manager test, so without an occupant manager the function returns false
-  after reading it. Each occupant: pooled `new` (92 bytes) and constructor, `AddRef`, `Read` from the stream,
-  `Init`, `InsertOccupant(occ, 0)` (slot 20), `Release`; records that do not open are skipped. There is no upper
-  bound on `count` (a damaged count means as many open attempts).
+- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the count
+  is read **before** the occupant-manager test, so without an occupant manager the function returns false after
+  reading it. A failed `GetUint32` leaves `count` at 0 (AQ6): the stream skips the read once it has failed
+  (`0x005D1A20`), the record checks its size before it copies anything (`0x0096D967` for a file, `0x0096DAF8` in
+  memory), and the byte swap after the read (`0x00975DE5`) leaves 0 as 0. So a missing or short count record restores
+  nothing. A disk error inside a record that is long enough is not traced. Each occupant: pooled `new` (92 bytes) and
+  constructor, `AddRef`, `Read` from the stream, `Init`, `InsertOccupant(occ, 0)` (slot 20), `Release`; records that
+  do not open are skipped. Each occupant record is closed only after all of that (AQ5): its helper is destroyed at the
+  end of the iteration (`0x006B073D`), so the record is still open during `Init`, `InsertOccupant` and `Release`.
+  Neither touches the segment, so the order cannot be seen. The count record, by contrast, is closed right after its
+  `GetUint32` (`0x006B06A6`). There is no upper bound on `count` (`0x006B06C6`–`0x006B0749`: a damaged count means as
+  many open attempts). A bound is the implementer's choice (AQ8; FreeCity4 stops at `MAX_OBLITERATED` = 2^24 attempts)
+  and differs from the original only for a count above it.
 
 Example: three flora occupants → count record `00 00 03 00 00 00`; records `i` = 0, 1, 2, each `00 00` followed by
 that occupant's version-3 record.
