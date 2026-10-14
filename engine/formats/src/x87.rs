@@ -124,6 +124,25 @@ pub(crate) fn add(a: f64, b: f64) -> f64 {
     round_parts(neg, m4, e - 2, false)
 }
 
+/// The x87 default NaN ("indefinite"): what an invalid operation such as 0 × ∞ or 0 ÷ 0 gives with the exception
+/// masked (foundations §18.1). Negative, quiet, no payload; stored as a Float32 it is `0xFFC00000`
+/// (data-formats §4.3, EX23).
+pub(crate) fn default_nan() -> f64 {
+    f64::from_bits(0xFFF8_0000_0000_0000)
+}
+
+/// `fstp dword`: a register value stored as a Float32, rounded to nearest with ties to even. A NaN keeps its sign
+/// and the top 22 bits of its payload and is quiet, so the default NaN stores as `0xFFC00000` (Rust leaves a NaN's
+/// sign and payload through `as` unspecified, so it is written out here).
+pub(crate) fn store_f32(x: f64) -> f32 {
+    if x.is_nan() {
+        let b = x.to_bits();
+        let sign = (b >> 32) as u32 & 0x8000_0000;
+        return f32::from_bits(sign | 0x7FC0_0000 | ((b >> 29) as u32 & 0x003F_FFFF));
+    }
+    x as f32
+}
+
 /// `_ftol` (foundations §18.1, data-formats §5.1): truncation toward zero to an `int64`. NaN, ±∞ and magnitudes
 /// ≥ 2⁶³ give `0x8000000000000000`; a narrower target keeps the low bits (it wraps, it does not saturate).
 pub(crate) fn ftol(x: f64) -> i64 {
@@ -224,5 +243,18 @@ mod tests {
         assert_eq!(u64_to_f64(16_777_217), 16_777_216.0);
         assert_eq!(u32_to_f64(16_777_217), 16_777_217.0);
         assert_eq!(u32_to_f64(0x8000_0001), 2_147_483_648.0);
+    }
+
+    #[test]
+    fn stores_to_float32_keep_a_nans_sign_and_payload() {
+        assert_eq!(store_f32(default_nan()).to_bits(), 0xFFC0_0000);
+        assert_eq!(store_f32(-default_nan()).to_bits(), 0x7FC0_0000);
+        // A quiet NaN with a payload keeps its top 22 payload bits.
+        assert_eq!(
+            store_f32(f64::from_bits(0x7FF8_0000_0000_0000 | (0x12345 << 29))).to_bits(),
+            0x7FC1_2345
+        );
+        assert_eq!(store_f32(0.1).to_bits(), 0.1f32.to_bits());
+        assert_eq!(store_f32(1e300), f32::INFINITY);
     }
 }
