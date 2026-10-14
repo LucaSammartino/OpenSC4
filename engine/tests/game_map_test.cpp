@@ -23,9 +23,12 @@
 //   - the capacity maps of a fake 0x40-byte building profile (layouts.md);
 //   - corrupt maps (a cycle, wrong counts, a deep chain, bad links and
 //     colours) that the walk must refuse without hanging, and that
-//     FillGameMapI32 must leave untouched.
+//     FillGameMapI32 must leave untouched;
+//   - maps we build ourselves (FC4GameMapBuild.h): valid red-black trees the
+//     walk accepts, every size up to 300, freed block for block.
 
 #include "FC4GameMap.h"
+#include "FC4GameMapBuild.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -775,6 +778,47 @@ void TestCapacityRead() {
 
 }  // namespace
 
+// ---- maps we build (FC4GameMapBuild.h) -----------------------------------------------------------------
+
+struct FakeB {
+    static void* Allocate(uint32_t size) { return BAlloc(size); }
+    static void Free(void* p) { BFree(p); }
+};
+
+void TestBuild() {
+    for (size_t n = 0; n <= 300; ++n) {
+        std::vector<uint32_t> keys(n), values(n);
+        for (size_t i = 0; i < n; ++i) {
+            keys[i] = static_cast<uint32_t>(i * 7 + 3);
+            values[i] = static_cast<uint32_t>(0xA0000000u + i);
+        }
+        const int allocs = g_allocs, frees = g_frees;
+        GameMapObject m{nullptr, 0, 0x5EED5EEDu};
+        CHECK(fc4::BuildGameMap<FakeB>(m, keys.data(), values.data(), n));
+        CHECK(g_allocs - allocs == static_cast<int>(n) + 1);
+        CHECK(m.count == n);
+        CHECK(m.comparator == 0x5EED5EEDu);
+        CHECK(m.header != nullptr && m.header->color == fc4::kGameMapRed);
+        CHECK(ValidRedBlack(&m));
+        GameMapStatus s = GameMapStatus::Ok;
+        const auto got = Walk(&m, &s, 1000);
+        CHECK(s == GameMapStatus::Ok);
+        CHECK(got.size() == n);
+        for (size_t i = 0; i < got.size() && i < n; ++i) CHECK(got[i].first == keys[i] && got[i].second == values[i]);
+        if (n == 0) CHECK(m.header->parent == nullptr && m.header->left == m.header && m.header->right == m.header);
+        fc4::FreeGameMap<FakeB>(m);
+        CHECK(m.header == nullptr && m.count == 0);
+        CHECK(g_frees - frees == static_cast<int>(n) + 1);
+    }
+    // Keys out of order or repeated: refused, nothing allocated, the map untouched.
+    const uint32_t bad[3] = {5, 5, 9};
+    const uint32_t vals[3] = {1, 2, 3};
+    GameMapObject m{nullptr, 77, 0};
+    const int allocs = g_allocs;
+    CHECK(!fc4::BuildGameMap<FakeB>(m, bad, vals, 3));
+    CHECK(m.header == nullptr && m.count == 77 && g_allocs == allocs);
+}
+
 int main() {
     TestLayout();
     TestEmptyMap();
@@ -784,6 +828,7 @@ int main() {
     TestCorrupt();
     TestFillRefuses();
     TestCapacityRead();
+    TestBuild();
     CHECK(g_badFrees == 0);
     ReleaseAllBlocks();
     if (g_failures != 0) {

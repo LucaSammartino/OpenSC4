@@ -232,6 +232,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4GrowthProbeHook.cpp
         plugin/FC4GrowthProbeHook.h
         plugin/FC4GrowthProbeLogic.h
+        plugin/cFC4Development.cpp
+        plugin/cFC4Development.h
+        plugin/FC4DevelopmentInterfaces.h
+        plugin/FC4GameMapBuild.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -406,6 +410,12 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # Development (building-development.md, growth-developer.md): `enable =
+    # development` (no city: neutral slots, AL returns, lifecycle, the record,
+    # threads, status lines).
+    add_test(NAME plugin_ini_enable_development_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-development)
+    set_tests_properties(plugin_ini_enable_development_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

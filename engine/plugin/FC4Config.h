@@ -87,6 +87,12 @@
 //   residential_shadow_cells = N  its differing cells listed per grid (default 4)
 //   residential_seed = N          the residential generator's session seed (default:
 //                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
+//   development_growth_attempts_per_day = N  the BDS's daily growth budget
+//                                 (building-development.md §4.4.1; default 0 = unlimited;
+//                                 cFC4Development.cpp)
+//   development_seed = N          the development generators' session seed (default: the
+//                                 wall clock, building-development.md §4.14; env
+//                                 FC4_DEVELOPMENT_SEED)
 //   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
 //                                 ORIGINAL BDS and tract developer; counts the tract
 //                                 developer's Grow calls per game day; env
@@ -307,6 +313,22 @@ enum class Sw : unsigned {
     ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
     ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
     ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
+    // Building development simulator host callbacks (cFC4Development.cpp), one
+    // per group of game calls; only used when the development subsystem is
+    // enabled.
+    DevelopmentMapWrites,   // development_map_writes: SetTractValue on the building map (off: not written)
+    DevelopmentOccupants,   // development_occupants: building occupant creation, loading, insertion, removal
+                            //   and reads (off: nothing placed, no occupant found)
+    DevelopmentZoning,      // development_zoning: GetZoneType and the dezoning PlaceZone (off: unzoned, not dezoned)
+    DevelopmentLots,        // development_lots: lot and lot manager reads (off: no lot)
+    DevelopmentLotDeveloper,  // development_lot_developer: UpdateLotElements, GetLotSlope and the area altitude
+                              //   (off: not updated, 0)
+    DevelopmentDemolition,  // development_demolition: DemolishLots and the funds it charges (off: not demolished)
+    DevelopmentAdvisor,     // development_advisor: the CityPlanning advisor event (off: not pushed)
+    DevelopmentPosts,       // development_posts: kSC4MessageBuildingTypesUpdated (MessagePost; off: not posted)
+    DevelopmentCheats,      // development_cheats: the three cheats and the PlaceBuilding command (off: not registered)
+    DevelopmentTract,       // development_tract: the tract developer's Grow and Decline (off: nothing built or declined)
+    DevelopmentCity,        // development_city: land value, power and terrain altitude reads (off: 0, unpowered)
     Count
 };
 

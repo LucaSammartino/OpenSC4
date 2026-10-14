@@ -39,6 +39,7 @@
 //   --dump  print every declared slot next to its table row
 
 #include "FC4CrimeInterfaces.h"
+#include "FC4DevelopmentInterfaces.h"
 #include "FC4Interfaces.h"
 
 #include "SC4Vector.h"
@@ -109,6 +110,16 @@
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cISC4LandfillOccupant.h"
+#include "cIGZCommandParameterSet.h"
+#include "cIGZMessageServer2.h"
+#include "cIGZMessageTarget.h"
+#include "cISC4Advice.h"
+#include "cISC4Advisor.h"
+#include "cISC4AdvisorSystem.h"
+#include "cISC4LotConfiguration.h"
+#include "cISC4LotConfigurationFilter.h"
+#include "cISC4LotConfigurationManager.h"
+#include "cISCExemplarPropertyHolder.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -367,6 +378,15 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4TrafficNetworkMap", 9, 52,
      "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
      "only (landfill §4.4.5, §8)"},
+    {"cISC4AdvisorSystem", 23, 29,
+     "the SDK declares slots 0-22; the building development simulator calls slot 7 (GetAdvisor) only "
+     "(building-development.md §4.10). Slots 23-28 are not declared"},
+    {"cISCExemplarPropertyHolder", 5, 4,
+     "the table lists slot 3 (SetDefaultExemplar) only, the one the building development simulator calls "
+     "(building-development.md §4.9); slot 4 is the SDK's GetDefaultExemplar"},
+    {"cIGZCommandParameterSet", 15, 7,
+     "the table lists slots 3, 5 and 6 only; the building development simulator calls slots 3 "
+     "(GetParameterCount) and 5 (operator[]) (building-development.md §4.12)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -483,6 +503,13 @@ const Waiver kWaivers[] = {
      "pops 20 (SDK: 12 bytes)"},
     {"vt:cSC4AutomataControllerManager::vftable", "cISC4AutomataControllerManager", 23,
      "GetCompositeAttractionCommotion", "returns in ST0 (SDK: a pointer)"},
+    // The lot configurations read by the building development simulator's
+    // maximum density table (building-development.md §4.7.4): manager slot 9
+    // and configuration slots 7, 11, 15 and 24 only.
+    {"cISC4LotConfiguration", "cISC4LotConfiguration", 19, "IsCompatibleWithMonopolyPieceUse",
+     "pops 4 (SDK: no argument)"},
+    {"cISC4LotConfigurationManager", "cISC4LotConfigurationManager", 5, "AddLotConfiguration",
+     "pops 4 (SDK: 8 bytes)"},
 };
 
 const Waiver* FindWaiver(const char* table, const char* cls, int slot) {

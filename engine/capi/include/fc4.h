@@ -4052,7 +4052,7 @@ typedef struct fc4_development_host {
     void (*cell_widths)(void* user, float* out2);
     void (*terrain_cell_counts)(void* user, int32_t* out2);
     void (*position_to_cell)(void* user, float x, float z, int32_t* out2);
-    void (*cell_center)(void* user, int32_t x, int32_t z, float* out3);
+    void (*cell_center)(void* user, int32_t x, int32_t z, float* out2); /* the centre's (x, z) */
     float (*altitude)(void* user, float x, float z);
     /* resources: every exemplar whose ExemplarType is one of `types` (all
      * when n_types is 0), in the resource key list's order */
