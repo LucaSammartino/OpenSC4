@@ -1039,7 +1039,11 @@ with aura was clean, 0 problems). The park, landmark and riot fields aside, **6 
 About `docs/specs/residential-education-health.md` (REH) §2 to §7. RS7 to RS17 are applied. The lane's answer is in
 brackets; the module doc of `core/src/residential/education_health.rs` lists 1 to 13.
 
-- **EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]
+- ~~**EH1:** do the efficiency ratings and the base staff efficiency start (a, b) at (0, 0)? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`GetOccupantEfficiencyRatings` `0x006F8749`–`0x006F8759`, `GetBaseStaffEfficiency`
+  `0x006F8611`–`0x006F8621`) and written into REH §4.2. **Yes.** Both set a = b = 0.0 and always call slot 20 before
+  the staff-item test. With a staff item whose department is missing, the curves are read at 0: shipped school e1 =
+  0, e2 = 0.5, base = 0.
 - **EH2:** slot 19 sets both percentages: does it end with the dirty flag set? [yes]
 - **EH3:** after `ChangeBudgetItemLine`, is the line item's line the building type? [yes]
 - **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]

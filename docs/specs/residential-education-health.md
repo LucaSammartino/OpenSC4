@@ -224,15 +224,21 @@ Calls: `CreateDepartmentBudget(id, 0x6A357B7F)`, AddRef, `SetDepartmentName(0x6A
 
 ```
 e1 := e2 := 1.0
+(a, b) := (0.0, 0.0); GetOccupantFundingPercentages(occ, &a, &b, isSchool)    (slot 20, always called)
 if the building has no staff budget item: return
-(a, b) := GetOccupantFundingPercentages(occ, isSchool)
 if not ignoreStrike and building strike day ≠ 0:  e1 := a × strikeEfficiency
 else:                                              e1 := effCurve(a × 100) × 0.01
 e2 := coverageCurve(b × 100) × 0.01
 ```
 
-**Base staff efficiency** `GetBaseStaffEfficiency(occ, isSchool)`: `effCurve(a × 100) × 0.01` when the staff
-item exists, else a (1.0). It ignores strikes.
+**Base staff efficiency** `GetBaseStaffEfficiency(occ, isSchool)` (`0x006F85F0`, result through a hidden pointer):
+the same (a, b) := (0, 0) and slot-20 call, then `effCurve(a × 100) × 0.01` when the staff item exists, else a
+(1.0, set by slot 20). It ignores strikes.
+
+*[compat]* Both start a and b at **0.0** (`0x006F8749`–`0x006F8759`, `0x006F8611`–`0x006F8621`). Slot 20 leaves
+them untouched when the staff item exists but its department is missing (§4.2 above), so then both read the curves
+at 0. Example with the shipped school curves: e1 = effCurve(0) × 0.01 = **0**, e2 = coverageCurve(0) × 0.01 =
+**0.5**, base = 0. The building then grades 0 (effective capacity 0), and its coverage radius is halved.
 
 ### 4.3 Ordinance effects
 
