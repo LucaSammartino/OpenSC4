@@ -250,12 +250,22 @@ impl LandfillZone {
         true
     }
 
-    /// Zone `Shutdown` (§4.4.9): stop the effects and release the services.
+    /// Zone `Shutdown` (§4.4.9, `0x006BB750`):
+    /// 1. stop and release the effects, even when the zone was never
+    ///    initialised;
+    /// 2. only if initialised: clear the flag, then *[compat]* (LG13) remove a
+    ///    held zot through the prop manager (`RemovePropA`, slot 29) and
+    ///    release it ([`LandfillZone::remove_zot`]).
+    ///
+    /// A zone that was never initialised (loaded, no PostCityInit) keeps its
+    /// zot reference here, as the original does; the C ABI layer releases it
+    /// when the developer shuts down.
     pub fn shutdown(&self) -> bool {
+        let effects = std::mem::take(&mut self.d.borrow_mut().effects);
+        self.host.shutdown_zone_effects(effects);
         if self.initialised.get() {
             self.initialised.set(false);
-            let effects = std::mem::take(&mut self.d.borrow_mut().effects);
-            self.host.shutdown_zone_effects(effects);
+            self.remove_zot();
         }
         true
     }

@@ -512,6 +512,9 @@ impl Cx<'_> {
             return d;
         }
         let mut first = None;
+        // The start is one `rand() mod count` with `rand()` ≤ 0x7FFF; a
+        // network has at most (256 / 8)² = 1,024 blocks (§6.3, PW6), so
+        // this range covers every start.
         for start in 0..it.count.clamp(0, 32768) {
             let mut trial = it.clone();
             trial.current = start;

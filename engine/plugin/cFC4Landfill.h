@@ -22,21 +22,26 @@
 // and cIGZSerializable. Which sub-object answers an IID is the core's
 // decision (fc4_landfill_query_interface).
 //
-// Landfill tiles are kept in the C ABI layer, not in the game (fc4.h): the
-// game's cSC4LandfillOccupant takes its tile exemplar in a way neither the
-// spec nor docs/abi documents, so no tile occupant is created. The cells keep
-// pollution's active-landfill flag (§4.8.2), which is what the simulation
-// reads; no tile model is drawn (logged once). Two more parts are left out
-// and logged once: SetEmptyCellTexture (the base-texture occupant's factory
-// is not documented) and the zone effects (§4.10, rendering only).
+// Landfill tiles are game occupants (§4.8.1, LG3): each one is a
+// cSC4LandfillOccupant made through GZCOM, with its tile exemplar attached
+// through cISCExemplarPropertyHolder::SetDefaultExemplar, inserted into the
+// occupant manager (which saves it, LG8) and priced from that exemplar
+// (LG11). When one cannot be made, the C ABI layer keeps the tile itself
+// (fc4.h) and pollution's active-landfill flag (§4.8.2) still shows it. The
+// landfill ground texture is a cSC4LotBaseTextureOccupant of usage 1 made
+// through GZCOM (§4.8.5, LG2). Left out and logged once: the zone effects
+// (§4.10, rendering only) and the zot's view rotation (§4.7.5, LG5: 0).
 //
 // Threads. The game calls the getters from a second thread while the main
 // thread is inside a tick (HANDOFF §5.1), and the core is single-threaded, so
 // every call into it holds this object's lock. The main thread waits for the
-// lock; any other thread tries for up to kLockWaitMs and otherwise answers
-// from a snapshot of the scalar values (taken at the end of every main-thread
-// call) or with the neutral value, and counts a fallback (the month status
-// line). Nothing a getter on another thread reads lives outside that lock.
+// lock, and so does DoMessage on any thread (LG20 [choice]: the original
+// takes no lock and never drops a message; a message from a thread other
+// than the main one is counted and the first few are logged). A getter on
+// any other thread tries for up to kLockWaitMs and otherwise answers from a
+// snapshot of the scalar values (taken at the end of every main-thread call)
+// or with the neutral value, and counts a fallback (the month status line).
+// Nothing a getter on another thread reads lives outside that lock.
 //
 // The subsystem is OFF by default: FreeCity4.ini `enable = landfill`;
 // `disable` still wins. The landfill_* switches (FC4Config.h) turn groups of
@@ -59,8 +64,11 @@
 #include <vector>
 
 class cIGZMessageServer2;
+class cISC4BudgetSimulator;
 class cISC4City;
+class cISC4PollutionSimulator;
 class cISC4Simulator;
+class cISTETerrain;
 
 static const uint32_t kFC4_CLSID_cSC4LandfillDeveloper = 0xEA09D4AE;
 static const uint32_t kFC4_IID_cISC4LandfillDeveloper = 0x8A09D502;
@@ -75,11 +83,18 @@ struct LandfillContext {
     bool readOnly = false;      // the shadow: borrowed city, read callbacks only
     bool gated = true;          // false: the landfill_* switches are ignored (the shadow reads as it is)
     cISC4City* city = nullptr;  // developer: held from acquire_services to release_services
+    // Developer only, held likewise (§1.1 step 3, LG15). The shadow leaves
+    // them null and reads them from the city.
+    cISTETerrain* terrain = nullptr;
+    cISC4PollutionSimulator* pollution = nullptr;
+    cISC4BudgetSimulator* budget = nullptr;
     cIGZMessageServer2* msgServer = nullptr;  // developer only, held likewise
     cIGZMessageTarget2* target = nullptr;     // developer only: the agent and notification target
     // The simulator the agent is registered with: held from add_agent to
     // remove_agent (§1.1 registers before the services are acquired, §1.2
-    // removes after they are released).
+    // removes after they are released). [choice] (LG18) The original holds no
+    // reference and fetches it again for RemoveAgent; it is the same object
+    // for the city's life, so only the reference count differs.
     cISC4Simulator* agentSim = nullptr;
     bool agentsRegistered = false;
     // Game lists (and the references they hold) kept until the outermost call
@@ -93,6 +108,11 @@ struct LandfillContext {
     uint32_t occupantsRemoved = 0;  // RemoveOccupant (game tiles, flora, base textures)
     uint32_t levellings = 0;      // AttemptAreaLevelling
     uint32_t historySends = 0;    // history records sent
+    uint32_t tilesInserted = 0;   // landfill tile occupants made and inserted (LG3)
+    uint32_t tilesFailed = 0;     // ... that could not be made (the C ABI layer keeps the tile)
+    uint32_t texturesInserted = 0;  // landfill ground textures made (LG2)
+    uint32_t texturesFailed = 0;    // ... that could not be made
+    uint32_t texturesRemoved = 0;   // usage-1 base textures removed (LG1)
 };
 
 // The host table over `ctx` (the developer's).
@@ -137,19 +157,21 @@ public:
     bool Read(cIGZIStream& gzIn) override;
     uint32_t GetGZCLSID() override;
 
-    // How long a thread other than the main one waits for the lock.
+    // How long a getter on a thread other than the main one waits for the lock.
     static constexpr uint32_t kLockWaitMs = 20;
+    // DoMessage calls from other threads logged one by one (all are counted).
+    static constexpr uint32_t kOffThreadMessagesLogged = 8;
 
     // Observability: calls answered from the snapshot / neutral value.
     uint32_t Fallbacks() const { return fallbacks_.load(); }
 
 private:
     // Holds the lock for one call into the core (see the file comment). On a
-    // thread other than the main one ok() may be false: answer from the
-    // snapshot or with the neutral value.
+    // thread other than the main one ok() may be false unless `wait`: answer
+    // from the snapshot or with the neutral value.
     class Section {
     public:
-        explicit Section(const cFC4LandfillDeveloper* s);
+        explicit Section(const cFC4LandfillDeveloper* s, bool wait = false);
         ~Section();
         Section(const Section&) = delete;
         Section& operator=(const Section&) = delete;
@@ -168,7 +190,7 @@ private:
         std::atomic<int32_t> tiles{0};
     };
 
-    bool Enter();
+    bool Enter(bool wait);
     void Leave();
     void RefreshSnapshot();
     void LogState(const char* what);
@@ -185,6 +207,7 @@ private:
     DWORD mainTid_ = 0;
     int depth_ = 0;  // nesting of sections held (by the lock holder)
     mutable std::atomic<uint32_t> fallbacks_{0};
+    std::atomic<uint32_t> offThreadMessages_{0};  // DoMessage calls from a thread other than the main one
     Snapshot snap_;
     uint32_t months_ = 0;
 };

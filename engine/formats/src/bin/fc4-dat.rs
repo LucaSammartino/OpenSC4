@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! `fc4-dat`: inspect SimCity 4 DBPF packages locally. Reads only; `extract` writes only the output file named.
+//! `fc4-dat`: inspect SimCity 4 DBPF packages locally. Reads only; `extract` and `fsh … <out.tga>` write only the
+//! output file named.
 
 use std::io::Write;
 use std::path::Path;
 use std::process::ExitCode;
 
 use fc4_formats::exemplar::{ChainEnd, Exemplar, ExemplarStore, Kind, TextValues};
-use fc4_formats::tgi::{TYPE_COHORT, TYPE_EXEMPLAR, TYPE_LTEXT};
+use fc4_formats::fsh::{self, Fsh};
+use fc4_formats::s3d::{self, Model};
+use fc4_formats::tgi::{TYPE_COHORT, TYPE_EXEMPLAR, TYPE_FSH, TYPE_LTEXT, TYPE_S3D};
 use fc4_formats::{ltext, qfs, Package, Tgi};
 
 const USAGE: &str = "\
@@ -16,6 +19,10 @@ usage:
                                                    properties from parent cohorts in the same file)
   fc4-dat ltext <file> <T> <G> <I>                 print an LTEXT entry
   fc4-dat extract <file> <T> <G> <I> <out> [--raw] write an entry (decompressed unless --raw) to <out>
+  fc4-dat fsh <file> <T> <G> <I> [<out.tga>]       FSH texture: header, entries, attachments, levels; with
+                                                   <out.tga>, write frame 0 level 0 as a 32-bit TGA (local
+                                                   inspection only: never commit decoded game data)
+  fc4-dat s3d <file> <T> <G> <I>                   S3D model: version, chunks and their counts
 IDs are hexadecimal, with or without 0x.";
 
 fn main() -> ExitCode {
@@ -99,8 +106,231 @@ fn run(args: &[String], o: &mut dyn Write) -> Result<(), String> {
             say!(o, "wrote {} bytes to {out}", data.len());
             Ok(())
         }
+        "fsh" => {
+            let key = tgi(pos.get(2..).unwrap_or(&[]))?;
+            fsh_cmd(&pkg, key, pos.get(5).map(String::as_str), o)
+        }
+        "s3d" => s3d_cmd(&pkg, tgi(pos.get(2..).unwrap_or(&[]))?, o),
         _ => Err(USAGE.into()),
     }
+}
+
+/// Prints an FSH record as the factory reads it (graphics-formats §2); with `tga`, writes frame 0 level 0 there.
+fn fsh_cmd<S: fc4_formats::Source>(
+    pkg: &Package<S>,
+    key: Tgi,
+    tga: Option<&str>,
+    o: &mut dyn Write,
+) -> Result<(), String> {
+    let e = pkg.find(&key).ok_or_else(|| format!("no entry {key}"))?;
+    let data = pkg.read(e).map_err(|e| e.to_string())?;
+    let compressed = if pkg.is_compressed(e) {
+        ", QFS-compressed in the package"
+    } else {
+        ""
+    };
+    say!(o, "FSH {key}: {} bytes{compressed}", data.len());
+    if key.type_id != TYPE_FSH {
+        eprintln!("note: type {:08X} is not the FSH type the factory creates", key.type_id);
+    }
+    let f = Fsh::parse(&data).map_err(|e| format!("not accepted: {e}"))?;
+    let (format, ty) = f.format();
+    say!(
+        o,
+        "size {}, {} entries, directory ID {:?}; texture {} x {}, code {:#04X}, M {} ({} levels), \
+         format {} ({format:?}), type {} ({ty:?}), DX7 creates it: {}",
+        f.data().len(),
+        f.frames.len(),
+        String::from_utf8_lossy(&f.directory_id),
+        f.width,
+        f.height,
+        f.code(),
+        f.mip_count(),
+        f.levels.len(),
+        format.number(),
+        ty.number(),
+        if fsh::dx7_creatable(format, ty) { "yes" } else { "no" }
+    );
+    for (k, l) in f.levels.iter().enumerate() {
+        say!(
+            o,
+            "  level {k}: offset {}, size {}, {} x {}",
+            l.offset,
+            l.size,
+            l.width,
+            l.height
+        );
+    }
+    for (i, (d, fr)) in f.directory.iter().zip(&f.frames).enumerate() {
+        let h = fr.header;
+        say!(
+            o,
+            "entry {i}: tag {:?}, offset {:#X}, code {:#04X}, {} x {}, A {}, M {}, centre ({}, {}), misc {:#010X}, \
+             next {:#X}, data end {:#X}{}",
+            String::from_utf8_lossy(&d.tag),
+            d.offset,
+            h.code,
+            h.width,
+            h.height,
+            h.a(),
+            h.mip_count(),
+            h.centre_x,
+            h.centre_y,
+            h.misc,
+            h.next,
+            fr.data_end,
+            if fr.zero_filled {
+                ", levels past the entry read as zero"
+            } else {
+                ""
+            }
+        );
+        for a in f.attachments(i) {
+            say!(
+                o,
+                "  attached block at {:#X}: code {:#04X}, next {:#X}",
+                a.offset,
+                a.code,
+                a.next
+            );
+        }
+        if let Some(p) = fr.palette {
+            say!(
+                o,
+                "  palette at {:#X}: code {:#04X}, {} x {}",
+                p.offset,
+                p.code,
+                p.width,
+                p.height
+            );
+        }
+    }
+    if let Some(path) = tga {
+        let img = f.decode(0, 0).map_err(|e| e.to_string())?;
+        std::fs::write(Path::new(path), tga_bytes(&img)).map_err(|e| format!("{path}: {e}"))?;
+        say!(o, "wrote frame 0 level 0 ({} x {}) to {path}", img.width, img.height);
+    }
+    Ok(())
+}
+
+/// An uncompressed 32-bit TGA (rows top to bottom, 8 alpha bits) of an RGBA8 image.
+fn tga_bytes(img: &fsh::Image) -> Vec<u8> {
+    let mut out = vec![0u8; 18];
+    out[2] = 2; // uncompressed true colour
+    out[12..14].copy_from_slice(&(img.width as u16).to_le_bytes());
+    out[14..16].copy_from_slice(&(img.height as u16).to_le_bytes());
+    out[16] = 32;
+    out[17] = 0x28; // 8 alpha bits, top-left origin
+    for p in img.rgba.chunks_exact(4) {
+        out.extend_from_slice(&[p[2], p[1], p[0], p[3]]);
+    }
+    out
+}
+
+/// Prints an S3D model's chunks and counts (graphics-formats §3).
+fn s3d_cmd<S: fc4_formats::Source>(pkg: &Package<S>, key: Tgi, o: &mut dyn Write) -> Result<(), String> {
+    let e = pkg.find(&key).ok_or_else(|| format!("no entry {key}"))?;
+    let data = pkg.read(e).map_err(|e| e.to_string())?;
+    let compressed = if pkg.is_compressed(e) {
+        ", QFS-compressed in the package"
+    } else {
+        ""
+    };
+    say!(o, "S3D {key}: {} bytes{compressed}", data.len());
+    if key.type_id != TYPE_S3D {
+        eprintln!("note: type {:08X} is not the S3D type", key.type_id);
+    }
+    let m = Model::parse(&data).map_err(|e| format!("does not load: {e}"))?;
+    say!(o, "HEAD version {}.{}", m.version.major, m.version.minor);
+    say!(o, "VERT {} blocks", m.vertex_blocks.len());
+    for (i, v) in m.vertex_blocks.iter().enumerate() {
+        say!(
+            o,
+            "  {i}: format {:#X} (packed {:#010X}), stride {} (drawn with {}), {} vertices, box {:?} to {:?}",
+            v.format,
+            v.packed_format().0,
+            v.stride,
+            v.draw_stride(),
+            v.count,
+            v.bbox.min,
+            v.bbox.max
+        );
+    }
+    say!(o, "INDX {} blocks", m.index_blocks.len());
+    for (i, b) in m.index_blocks.iter().enumerate() {
+        say!(o, "  {i}: {} indices", b.indices.len());
+    }
+    say!(o, "PRIM {} blocks", m.primitive_blocks.len());
+    for (i, b) in m.primitive_blocks.iter().enumerate() {
+        let list: Vec<String> = b
+            .iter()
+            .map(|p| format!("type {} first {} count {}", p.kind, p.first, p.count))
+            .collect();
+        say!(o, "  {i}: {}", list.join("; "));
+    }
+    say!(o, "MATS {} materials", m.materials.len());
+    for (i, mat) in m.materials.iter().enumerate() {
+        say!(
+            o,
+            "  {i}: flags {:#06X} (stored {:#X}), alpha {:?} ref {}/15, depth {:?}, blend ({:?}, {:?}), \
+             {} of {} textures used",
+            mat.flags,
+            mat.stored_flags,
+            s3d::CompareFunc::from_u8(mat.alpha_func),
+            mat.alpha_ref_level(),
+            s3d::CompareFunc::from_u8(mat.depth_func),
+            s3d::BlendFactor::from_u8(mat.src_blend),
+            s3d::BlendFactor::from_u8(mat.dst_blend),
+            mat.texture_count,
+            mat.textures.len()
+        );
+        for t in &mat.textures {
+            say!(
+                o,
+                "     texture {:#010X}: wrap ({:?}, {:?}), filters ({:?}, {:?}), name {:?}",
+                t.id,
+                s3d::TextureParam::from_u8(t.wrap_s),
+                s3d::TextureParam::from_u8(t.wrap_t),
+                s3d::TextureParam::from_u8(t.mag_filter),
+                s3d::TextureParam::from_u8(t.min_filter),
+                t.name
+            );
+        }
+    }
+    let a = &m.anim;
+    say!(
+        o,
+        "ANIM {} frames, rate {}, mode {}, flags {}, displacement {}; {} meshes kept, {} dropped",
+        a.frame_count,
+        a.frame_rate,
+        a.mode,
+        a.flags,
+        a.displacement,
+        a.meshes.len(),
+        a.dropped
+    );
+    for mesh in &a.meshes {
+        let first = mesh.frames.first().map(|b| format!("{b:?}")).unwrap_or_default();
+        say!(
+            o,
+            "  {:?}: flags {}, frame 0 blocks (VERT, INDX, PRIM, MATS) {first}",
+            mesh.name,
+            mesh.flags
+        );
+    }
+    if m.version.has_prop() {
+        say!(o, "PROP {} entries", m.props.len());
+        for p in &m.props {
+            say!(o, "  mesh {} frame {}: {:?} = {:?}", p.mesh, p.frame, p.key, p.value);
+        }
+    }
+    if m.version.has_regp() {
+        say!(o, "REGP {} names", m.regions.len());
+        for (name, list) in &m.regions {
+            say!(o, "  {name:?}: {} transforms, first {:?}", list.len(), list.first());
+        }
+    }
+    Ok(())
 }
 
 fn list<S: fc4_formats::Source>(pkg: &Package<S>, o: &mut dyn Write) -> Result<(), String> {

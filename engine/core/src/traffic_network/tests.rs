@@ -2108,10 +2108,22 @@ fn traffic_neighbor_connection_record_and_empty_choice() {
     // The other edges' records at the same index are separate.
     assert_eq!(s.traffic_neighbor_connection(-1, 2), NeighbourEdge::default());
     assert_eq!(s.traffic_neighbor_connection(2, 4), NeighbourEdge::default());
-    // *[choice]* a corner or in-city cell gives an empty record.
+    // *[choice]* (TN28) a corner or in-city cell gives an empty record, and
+    // writes to it are discarded: the in-city cell (2, 2) does not alias the
+    // side-3 record of (2, 4) as in the original.
     s.set_neighbour_edge(-1, -1, edge_rec(0xFFFF, 1, 9.0));
     assert_eq!(s.traffic_neighbor_connection(-1, -1), NeighbourEdge::default());
     assert_eq!(s.traffic_neighbor_connection(2, 2), NeighbourEdge::default());
+    s.add_neighbor_connection_record(2, -1, 4, 90.0, 1);
+    s.add_neighbor_connection_record(2, 2, 2, 90.0, 1);
+    assert_eq!(s.traffic_neighbor_connection(-1, 4), NeighbourEdge::default());
+    assert_eq!(s.traffic_neighbor_connection(2, 4), NeighbourEdge::default());
+    assert!(!s.remove_neighbor_connection_record(2, 4, -1));
+    assert_eq!(s.neighbour_edges.iter().flatten().filter(|r| r.mask != 0).count(), 1);
+    // The pool lookup at such a cell: a null holder, whatever the type.
+    let exists = |_: u16| true;
+    assert_eq!(s.neighbor_pool_id(ANY_TRAVEL_TYPE, -1, -1, exists), None);
+    assert_eq!(s.neighbor_pool_id(ANY_TRAVEL_TYPE, 2, 2, exists), None);
 }
 
 #[test]
@@ -2141,8 +2153,13 @@ fn find_neighbor_connection_ascending_types() {
     // An in-city cell: none, the simulator is not asked.
     let got: Option<u32> = s.find_neighbor_connection(travel::CAR as u32, 1, 1, |_| panic!("asked"));
     assert_eq!(got, None);
-    // *[choice]* a travel type above 8 wants no type.
-    assert_eq!(s.find_neighbor_connection(9, -1, 1, Some), None);
+    // *[choice]* (TN27) a travel type outside 0…8 wants no type, −1 (the
+    // pool lookup's "any") included; the original would read past its table
+    // (t = 9…26 as pedestrian, 27…30 as other networks).
+    for t in [9, 26, 27, 30, 31, 1000, ANY_TRAVEL_TYPE] {
+        let got: Option<u32> = s.find_neighbor_connection(t, -1, 1, |_| panic!("asked for t = {t}"));
+        assert_eq!(got, None, "t = {t}");
+    }
 }
 
 #[test]
@@ -2164,6 +2181,11 @@ fn neighbor_pool_id_wanted_ferry_and_stale_pool() {
     assert_eq!(s.traffic_neighbor_connection(-1, 2).pool, 0);
     // No record bits at all: null.
     assert_eq!(s.neighbor_pool_id(ANY_TRAVEL_TYPE, -1, 3, exists), None);
+    // *[choice]* (TN27) another travel type outside 0…8 wants nothing: null
+    // at a Road record, but a Ferry record still gives its pool (step 2).
+    assert_eq!(s.neighbor_pool_id(9, -1, 0, exists), None);
+    assert_eq!(s.neighbor_pool_id(27, -1, 0, exists), None);
+    assert_eq!(s.neighbor_pool_id(9, -1, 1, exists), Some(2));
 }
 
 #[test]
@@ -2212,9 +2234,19 @@ fn pool_sweep_and_edge_pass_skip_the_last_record() {
     assert_eq!(ids, vec![1, 2, 5]);
     let cells: Vec<(Edge, (i32, i32))> = s.edge_pass_records().into_iter().map(|(e, c, _)| (e, c)).collect();
     assert_eq!(cells, vec![(Edge::West, (-1, 0)), (Edge::North, (2, -1))]);
-    // *[choice]* with Z < X the z-indexed arrays stop at their end.
+    // *[choice]* (TN26) each loop stops at min(X − 1, its length): with
+    // Z < X the z-indexed arrays stop at their end.
     let mut s = edge_state(5, 2);
     s.set_neighbour_edge(-1, 1, edge_rec(1 << 2, 6, 0.0));
     assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![6]);
     assert_eq!(s.edge_pass_records().len(), 1);
+    // With Z > X, records X−1 … Z−1 of sides 0 and 2 are skipped, as in the
+    // original: X = 2 visits index 0 only.
+    let mut s = edge_state(2, 5);
+    s.set_neighbour_edge(-1, 0, edge_rec(1 << 2, 7, 0.0));
+    s.set_neighbour_edge(-1, 3, edge_rec(1 << 2, 8, 0.0));
+    s.set_neighbour_edge(2, 1, edge_rec(1 << 2, 9, 0.0));
+    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![7]);
+    let cells: Vec<(i32, i32)> = s.edge_pass_records().into_iter().map(|(_, c, _)| c).collect();
+    assert_eq!(cells, vec![(-1, 0)]);
 }

@@ -11,6 +11,9 @@ and on `i686-pc-windows-msvc`.
 | `qfs` | QFS/RefPack with the SimCity 4 header (`10 FB` / `11 FB` only): decompressor and a greedy hash-chain compressor |
 | `exemplar` | Exemplars and cohorts, binary (`EQZB`/`CQZB`) and text (`EQZT`/`CQZT`), read as the original's factories read them (data-formats §4); raw and converting property getters (§5); `ExemplarStore` loads records with their parent cohorts into `LoadedExemplar`s (own and effective property lists) |
 | `ltext` | LTEXT records (UTF-16 and 8-bit forms, 24-bit count, trailing bytes ignored) |
+| `fsh` | FSH (`SHPI`) textures, type `0x7AB50E44`, as the factory accepts them (graphics-formats §2): header, directory, entry headers, the attachment chain and its palette search, the code → (format, type) table, the accept rules, the 16-byte-aligned mipmap levels with the zero-fill of §2.8, frames; `Fsh::decode` turns any level of any frame into RGBA8 (§2.11) |
+| `s3d` | S3D (`3DMD`) models, type `0x5AD0E817` (graphics-formats §3): the chunk grammar of each version with every length ignored, legacy and new vertex blocks, the packed and standard vertex-format tables, index, primitive and material blocks, animation with mesh dropping, PROP and REGP; `Model::frame(f)` gives the meshes of a frame and their draw calls; bounding boxes are computed |
+| `keys` | graphics-formats §4: the texture lookup order of a material (shared group, the model's group, the fallback `0x07F94200`) and the RKT0–RKT3 model-instance arithmetic with the detail table |
 
 `fc4-dat` is a small local inspection tool:
 
@@ -19,13 +22,20 @@ cargo run -p fc4-formats --release --bin fc4-dat -- list <file>
 cargo run -p fc4-formats --release --bin fc4-dat -- exemplar <file> 6534284A E7E2C2DB E9590E52 [--resolve]
 cargo run -p fc4-formats --release --bin fc4-dat -- ltext <file> <T> <G> <I>
 cargo run -p fc4-formats --release --bin fc4-dat -- extract <file> <T> <G> <I> <out> [--raw]
+cargo run -p fc4-formats --release --bin fc4-dat -- fsh <file> 7AB50E44 1ABE787D <I> [<out.tga>]
+cargo run -p fc4-formats --release --bin fc4-dat -- s3d <file> 5AD0E817 BADB57F1 <I>
 ```
+
+`fsh … <out.tga>` writes frame 0's level 0 as a 32-bit TGA, for looking at a texture locally. Decoded game data
+must never be committed.
 
 ## Tests
 
 `cargo test -p fc4-formats` runs unit tests on synthetic fixtures built in the test code (no game data is
 committed), including a QFS compress/decompress round-trip property test over 300 pseudo-random inputs, and
-truncation and garbage inputs for every parser.
+truncation and garbage inputs for every parser. The FSH, S3D and key tests are named after graphics-formats §8
+(`t01_…` to `t41_…`); tests 19 and 20 are rebuilt synthetically there and checked on the shipped records by the
+sweep.
 
 `tests/game_data.rs` sweeps the installed game when present: `FC4_GAME_DIR`, or the default GOG path
 `C:\Program Files (x86)\GOG Galaxy\Games\SimCity 4 Deluxe Edition`. It opens every `.dat`, `.sc4`, `.sc4lot`,
@@ -50,6 +60,16 @@ values are 0), where the old reader made an empty array. The original stores the
 of these two properties copy `GetCount()` bytes, 0 for a scalar, so the result is the same as an empty array
 (data-formats §4.3, EX16).
 
+A second sweep, `sweep_fsh_and_s3d`, loads every FSH and S3D record of the `.dat` files (for each key the first
+index entry of its package) and checks the counts of graphics-formats §2.13, §3.14 and §8.4. It decodes every level
+of every frame in release builds and every 50th record in debug builds. Result, 2026-10-14: 40,549 FSH records
+(36,177 compressed) with 45,387 entries, all accepted; codes `0x61` 25,957, `0x60` 19,357, `0x7D` 40, `0x7B` 24,
+`0x7F` 9; 167 DXT1 entries need the §2.8 zero-fill; 48,029 levels decoded. 42,915 S3D records (42,868
+compressed; 1.5: 42,713, 1.3: 202), all loaded: 167,070 vertex blocks, 155,661 index blocks (15,311 empty), 154,046
+primitive blocks with 138,735 primitives (all triangle lists), 155,827 materials, 155,756 meshes kept and 71
+dropped, every draw inside its buffers; all 155,822 non-zero texture IDs resolve at step 1 of §4.1 (2 IDs are 0).
+The shipped records of §8.1 tests 19 (unpadded mips) and 20 (the fallback texture) match.
+
 ## Sources
 
 Written from public format documentation, checked against the shipped data:
@@ -64,6 +84,8 @@ Written from public format documentation, checked against the shipped data:
   `docs/specs/data-formats.md` (§11 lists the differences)
 - LTEXT layout and the text-exemplar syntax: common modding knowledge (SC4Devotion wiki, which refused automated
   access), then confirmed and corrected on the shipped data as described below.
+- FSH, S3D and the model and texture keys: `docs/specs/graphics-formats.md` only (§2–§4; its §9 lists where the
+  common modding descriptions differ, summarised below).
 
 ## Findings and choices
 
@@ -113,8 +135,75 @@ Where the documentation was silent or wrong, the code decides and tags the decis
 - Duplicates: `Package::find` returns the **first** index entry with a key, and the first DIR record wins
   (data-formats §2.3, §2.5); inside an exemplar the last property with an ID wins (§4.5), and both property lists
   are sorted by unsigned ID; `ExemplarStore` lets a later insert replace an earlier one (load order).
+- Floats as text (the getters' round trip, data-formats §5.1, EX29): fixed point, the first 17 significant digits
+  rounded half-up, trailing fraction zeros dropped, cut at 63 characters (a Float32 too); −0.0 prints `0` (EX24) and
+  a signalling NaN prints `1.#QNAN` (EX28). In text exemplars a Bool is trimmed of leading spaces and tabs (EX26), a
+  String of spaces and tabs at both ends before its quotes are removed (EX27).
+- `ExemplarStore` reads records eagerly, under the conditions of data-formats §3 (EX31): only the first entry with a
+  key in a package is read, a later package's record wins even when it fails to read (the key then fails with
+  `LoadError::Unreadable`, no fallback), and `add_factory` refuses a type that a loaded package already holds, so
+  register factories before loading packages.
 - Index entries are 20 bytes and the index minor version is ignored (data-formats §2.1). `[choice]`: when the
   index size is exactly `24 × count` the entries are read as index 7.1, with a warning (the original cannot open
   such a package). The DIR record is always 16 bytes per key.
 - Open checks follow data-formats §2.1–§2.4: major version ≤ 1, index and hole tables inside the file, and
   **every** entry with `offset ≥ 0x60` and `offset + size ≤ file length`; one bad entry fails the whole open.
+
+## FSH and S3D: decoding choices
+
+The original never decodes 3D textures on the CPU; the renderer does. FreeCity4 decodes to RGBA8 as
+graphics-formats §2.11 chooses (`[choice]`, Q17):
+
+- **DXT1** (`0x60`): 5:6:5 colours expanded by bit replication; c0 > c1 (as `u16`) gives the 4-colour block,
+  otherwise c2 = (c0 + c1) / 2 and c3 is **transparent black whatever the 12-bit field A says**. A only picks the
+  reported format (7 DXT1-RGB or 8 DXT1-RGBA, Q5); DX7 treats both alike (GF3). Divisions on the 8-bit values,
+  rounded down.
+- **DXT3** (`0x61`): 4-bit alpha × 17, pixel 0 in the low nibble; colour block always 4-colour. **DXT5** (`0x62`):
+  the usual 8-value alpha ramp (6 or 4 interpolated values, rounded down); colour block always 4-colour.
+- **Uncompressed**: `0x7D` B, G, R, A; `0x7F` B, G, R (alpha 255); the 16-bit codes in their Direct3D layouts,
+  `0x6D` A4R4G4B4 × 17, `0x7E` A1R5G5B5, `0x78` R5G6B5 (GF2); `0x64` is (255, 255, 255, a), `0x65` (L, L, L, a),
+  both read unsigned although the original asks for signed bytes (Q6). DX7 cannot create `0x64 0x65 0x6D 0x78 0x7B
+  0x7E` at all (`fsh::dx7_creatable`, GF1); FreeCity4 decodes and shows them.
+- **`0x7B`** (8-bit index): the index goes **through the palette** (`0x24` B, G, R; `0x2A` B, G, R, A; `0x2D`
+  A1R5G5B5; `0x29` R5G6B5), where the original uploads the indices as luminance; the shipped palettes are identity
+  grey ramps, so the result is the same (Q7). A `0x7B` frame without a 256 × 1 palette is rejected (the original
+  reads uninitialised data), in **every** frame, not just frame 0, and the palette's 256 entries must be inside the
+  record.
+- **Unpadded mips** (Q4, GF9): levels are read at the 16-byte-aligned offsets the game uses, and bytes beyond the
+  entry read as zero (167 shipped entries). An entry's own bytes end at its first attached block, another entry's
+  header or `size`, whichever comes first after its pixel start. Levels that would not fit even packed back to
+  back are rejected; when only the aligned layout overruns, the entry is the §2.8 mip-padding case.
+- A DXT level whose width or height is not a multiple of 4 decodes whole blocks with the missing bytes as zero, and
+  is cropped. A DXT texture is at least 4 × 4 (§2.7), so a 2 × 2 DXT entry decodes to 4 × 4.
+
+Other `[choice]` checks of the FSH reader (the original checks no offset, Q2): `size` must cover the header and
+directory, the record must hold `size` bytes (bytes after it are ignored), a record needs at least one entry, and
+every entry header, attachment header and palette must be inside `size`. A negative (sign-extended) height fails
+the power-of-two test; a negative width counts as below the minimum.
+
+The S3D reader rejects, `[choice]`: an unknown vertex format (stride 0, Q11), a format whose stride is below 12
+(the bounding box reads 12 bytes per vertex), a legacy block whose stored stride is below the format's standard
+stride (the draw would read past it), an index size other than 2 (Q12) and more than 2 textures (Q13). It accepts a
+vertex block with no vertex, with the empty box (min 1, max 0). Element offsets use the plain kind-order layout
+(§3.5). A name without a NUL is its whole stored bytes; names are UTF-8 when valid, else Latin-1; REGP names are
+lower-cased in ASCII. PROP entries keep the file order. `Mesh::draw_calls` does not clip a primitive whose range
+leaves its buffers (it reports the index slice as `None`); `Mesh::ranges_fit` says whether every draw fits.
+
+## Community descriptions versus the exe
+
+graphics-formats §9: where the common modding descriptions of FSH and S3D differ from what the exe does, the code
+follows the exe.
+
+| Topic | Commonly described | What the reader does |
+|---|---|---|
+| FSH entry `+0x0C`/`+0x0E` | x and y "position", mip count in the top 4 bits of `+0x0E` | one dword: mip count in bits 28–31 (same bits), the low 12 bits the DXT1 RGB/RGBA selector A; nothing else is read |
+| FSH codes | `0x6D` 4444, `0x78` 565, `0x7E` 1555, `0x7B` 8-bit, compressed-bitmap flag `0x80` | the factory accepts these and `0x64`, `0x65`; DX7 creates only DXT, 8888 and 888; a code with bit `0x80` is rejected, not decompressed |
+| FSH palettes | several palette codes, including `0x22` | only `0x2A`, `0x24`, `0x2D`, `0x29`, searched only after `0x7B`/`0x7A` |
+| FSH directory ID, centre fields | meaningful | ignored (kept for inspection) |
+| FSH mipmaps | levels follow each other | each level 16-byte aligned from the pixel start; DXT levels stop shrinking at 4 × 4 |
+| S3D lengths | chunk sizes | ignored (unreliable in the shipped data) |
+| S3D VERT | "1.3 and earlier: `u16` format + `u16` stride" | true for 1.0–1.3; 0.x uses the new layout; the draw stride is always the format's standard one |
+| S3D INDX stride | any | must be 2 |
+| S3D materials | class, reserved, anim rate/mode, texture name are attributes | read and ignored; flags keep 16 bits OR `0x180`; at most 2 textures; a last texture ID of 0 clears the count |
+| S3D frame index −1 | "hidden in this frame" | any negative or out-of-range index drops the whole mesh at load |
+| Bounding box | sometimes described as stored | computed from the positions |

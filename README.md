@@ -59,7 +59,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] **M4 cores complete (5 of 5)**; zones found and fixed a real `SimpleParcellize` Q=2 x-line bug during self-review (`zn15_31`)
 - [x] Zones follow-up (merged 8ee3253): ZQ2/ZQ3/ZQ5/ZQ6 answered from the exe and applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`. ZQ7–ZQ10 filed
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
-- [ ] Zones glue (phase 1, the zone manager: lane running)
+- [x] **Zones glue, phase 1** (the zone manager replacement and its shadow; regress rzones: 16 replacements together run clean, run 97). Phase 2, the zone developer, is next
 - [x] **Neighbours glue** and its shadow (merged 50e2dc5, fixed 5e61237): the shadow matches the original every month (92/92); the replacement runs clean with the other fourteen (regress rneigh2). The first in-game run crashed until our property holder kept the game's own property objects (foundations §10.2)
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
 - [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed
@@ -74,12 +74,13 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator). Twenty spec questions filed as TN1–TN20
 - [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors, PF1–PF15 filed)
 - [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors; TS1–TS34 filed)
-- [ ] Traffic glue, calibration; commute and volume maps match (M5 exit)
+- [ ] Traffic glue (phase 1, the simulator + pathfinder unit: lane running), calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)
 - [x] `engine/formats` matches spec §11 for DBPF, QFS and LTEXT (merged b5bdf8a; the sweep over real game data shows 0 failures across 22 .dat files and 1,004 saves)
 - [x] `exemplar.rs` matches data-formats §4, §5 and the §11 exemplar rows (merged 64a25d2): the install sweep loads 9,347 of 9,347 exemplars and re-encodes 9,345 binary records byte-identically. EX1–EX20 filed
+- [x] FSH texture and S3D model readers (graphics-formats §2–§4, merged 2db780b): `fc4-dat fsh|s3d`; the sweep reads every FSH and S3D in the install
 - [ ] Rendering, UI, audio, region; a standalone executable
 
 **Cross-cutting**

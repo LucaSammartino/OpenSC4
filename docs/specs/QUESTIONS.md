@@ -2775,3 +2775,69 @@ host gained connection, region, budget and drive-side methods. The current answe
 - **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
 - **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
 - **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]
+
+## From applying the residential, protection and save-reference answers (filed by the coordinator from the `apply8a` lane's report, 2026-10-14)
+
+RG1–RG22, RG13 in the budget core, PR14–PR16, PG15, DQ13, SV1–SV2, LF6 and NB18 are applied or cited. RG1 creates
+the buzzards through the effects manager (new switch `residential_effects`, 160 switches). The current answer is in
+brackets.
+
+- **PR17:** Protection §5.1: what does `UpdateUnadjusted` do when `GetDispatchEffect` fails? [the return value is
+  ignored and the record is zeroed, so the centre adds 0]
+- **PR18:** Protection §7.2: what is in the caller's record? [a zeroed record]
+- **PR19:** The older "PR14/PR15" labels in the jail vectors, `protection/mod.rs` and `algo.rs` clash with the
+  QUESTIONS numbering. [left as they are]
+- **RG25:** RG1: the buzzard transform's bytes +2 and +3 are not stated. [0]
+- **RG26:** RG10: how does a host report "cannot be read"? [NaN or a NULL callback means missing; the outputs are left
+  alone]
+- **RG27:** RG1: does "cannot show" (a NULL callback or `FC4_EFFECT_NOT_SHOWN`) count as created? [yes: the second
+  draw is made and the flag set, but there is no altitude read, start or release]
+- **RG28:** RG7: which ordinance effects does the shadow use before its first state 0? [it reads them as they stand]
+- **NB19:** NB18: does `cISC4App::GetCity` return the same primary cISC4City address the game's city global holds?
+  [assumed yes]
+- **PG16:** PG15: should the n<0 wrap quirk on a damaged save be reproduced? [no, clamped: delta −s, supply 0]
+
+## From applying the power, plumbing and landfill answers (filed by the coordinator from the `apply6b` lane's report, 2026-10-14)
+
+PW1–PW8, PS1–PS8 and LG1–LG20 are applied or confirmed, except LG5 (orientation stays 0; there is no documented route
+to the view rotation) and LG16 (seagull effects are not implemented). LG1 and LG2 need an in-game check. The current
+answer is in brackets.
+
+- **AO1:** Foundations §13.4 ranks 2 and 5: what AddAgent names do the two port developers and the commercial
+  simulator use? [they count as unranked and keep registration order ahead of the month tail]
+- **AO2:** LG6 with the game's own simulators: the month order is heap-address order, which the glue cannot change.
+  [the order is logged at AddAgent, with a WARNING if landfill would run before pollution or the budget]
+- **LG21:** LG5: is there a documented route to SC4ViewUtilities `+0x10`, for example a docs/abi row for
+  `cISC43DRender` slot 8? [orientation 0]
+- **LG22:** Landfill §4.8.5: is the in-memory record that SetTextureSpecification takes laid out in the saved 14-byte
+  order, and what is its stride? [saved order; one record in a 16-byte buffer with zeroed padding]
+- **LG23:** LG8: a FreeCity4 save made while tiles were kept in FreeCity4 has no game tiles. [PostCityInit rebuilds
+  only the cells without a tile]
+- **LG24:** In the original, a zone that was never initialised never releases its zot at Shutdown. [we release our
+  reference at the developer's Shutdown, without RemovePropA]
+- **LG25:** `cISCExemplarPropertyHolder` has only one docs/abi row (slot 3); slot 4 `GetDefaultExemplar` has none.
+  [a reviewed slot count of 5 against 4; only slot 3 is called]
+- **LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
+  the tile is kept in FreeCity4]
+
+## From applying the exemplar, zones draft and traffic-network answers (filed by the coordinator from the `apply8b` lane's report, 2026-10-14)
+
+EX21–EX33, ZQ11–ZQ12 and TN26–TN28 are applied or cited. EX29 replaces the EX8 printer (17 significant digits,
+half-up, trimmed, cut at 63 characters, Float32 included); TN27 fixed a real bug (travel type −1 matched every
+connection type). The current answer is in brackets.
+
+- **EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
+  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]
+- **EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
+  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]
+- **EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]
+- **EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
+  two package loads sees the later package here and the cached record in the original. [no cache; the two agree
+  when every package loads before the first lookup]
+- **EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
+  earlier packages? [refused; `add_factory` returns false]
+- **EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
+  vector. This matters for the shipped `Uint8:0:{}` values of `0x88EDC795` and `0x88EDC796`, which no core reader
+  reads yet. [kept as one value; the doc says such a reader must treat it as empty]
+- **ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
+  the start of every real-mode Place; no vector depends on it]

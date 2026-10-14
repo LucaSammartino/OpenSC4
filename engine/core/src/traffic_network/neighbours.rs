@@ -73,7 +73,9 @@ pub const MAX_NEIGHBOUR_CONNECTION_TYPE: u32 = 12;
 pub const FERRY_CONNECTION_BIT: u16 = 1 << 9;
 
 /// "All travel types" for [`NetworkState::neighbor_pool_id`] (the original's
-/// `t = −1`, §2.7.1).
+/// `t = −1`, §2.7.1). Only the pool lookup gives it all bits; to
+/// [`NetworkState::find_neighbor_connection`] it is a travel type outside
+/// 0…8 and wants none (TN27 *[choice]*).
 pub const ANY_TRAVEL_TYPE: u32 = u32::MAX;
 
 /// One neighbour connection edge record (§2.7).
@@ -149,10 +151,12 @@ impl NetworkState {
 
     /// `GetTrafficNeighborConnection(x, z)` (§2.7.1, `0x0070F970`): the
     /// record of an off-map cell. The original never fails and checks no
-    /// range (a corner cell reads index −1 of the side-0 array, an in-city
-    /// cell gets side-3 record x); every game caller passes an off-map edge
-    /// cell. *[choice]* Any other cell, or an index past its array, gives an
-    /// empty record (mask 0, pool 0, cost 0.0).
+    /// range (a corner cell reads index −1 or Z of the side-0 or side-2
+    /// array, heap memory; an in-city cell gets side-3 record x, the record
+    /// of (x, Z), which it aliases); every game caller passes an off-map edge
+    /// cell. *[choice]* (TN28, kept: never observable) Any other cell, or an
+    /// index past its array, gives an empty record (mask 0, pool 0, cost
+    /// 0.0), and writes to it are discarded.
     pub fn traffic_neighbor_connection(&self, x: i32, z: i32) -> NeighbourEdge {
         self.neighbour_edge_at(x, z).copied().unwrap_or_default()
     }
@@ -163,7 +167,10 @@ impl NetworkState {
     /// 0…12 ascending with bit `c` in both `connMask(net(t))` and the cell's
     /// record mask, `find(c)` asks the neighbours simulator's
     /// `FindConnection(c, x, z)` (slot 11); the first connection found is the
-    /// result. A travel type above 8 wants no connection type *[choice]*.
+    /// result. *[choice]* (TN27) A travel type outside 0…8, [`ANY_TRAVEL_TYPE`]
+    /// included, wants no connection type, so the result is none; the
+    /// original indexes its tables unchecked (t = 9…26 read the pedestrian
+    /// mask), but every caller passes 0…8.
     pub fn find_neighbor_connection<T>(
         &self,
         t: u32,
@@ -184,12 +191,18 @@ impl NetworkState {
     /// The pool part of `GetNeighborPoolPropertyHolder(t, x, z)` (§2.7.1,
     /// `0x007114E0`): `None` (a null holder) when the record's mask has none
     /// of the wanted connection types (all for [`ANY_TRAVEL_TYPE`], else
-    /// `connMask(net(t))`) and no Ferry bit; otherwise the pool ID, 0 for the
-    /// default pool. A record whose pool ID names no pool (`pool_exists`
-    /// false) is reset to pool 0 *[compat]* and gives the default pool. The
-    /// caller maps the ID to its pool's property holder.
+    /// `connMask(net(t))`, none for another t outside 0…8, TN27 *[choice]*)
+    /// and no Ferry bit; otherwise the pool ID, 0 for the default pool. A
+    /// record whose pool ID names no pool (`pool_exists` false) is reset to
+    /// pool 0 *[compat]* and gives the default pool. The caller maps the ID
+    /// to its pool's property holder. A corner or in-city cell has the empty
+    /// record (TN28), so the result is `None`.
     pub fn neighbor_pool_id(&mut self, t: u32, x: i32, z: i32, pool_exists: impl Fn(u16) -> bool) -> Option<u16> {
-        let wanted = wanted_connection_types(t);
+        let wanted = if t == ANY_TRAVEL_TYPE {
+            u16::MAX
+        } else {
+            wanted_connection_types(t)
+        };
         let rec = self.traffic_neighbor_connection(x, z);
         if rec.mask & wanted == 0 && rec.mask & FERRY_CONNECTION_BIT == 0 {
             return None;
@@ -213,7 +226,8 @@ impl NetworkState {
     /// (step 5: 0 without an established other-side city): `mask |= 1 <<
     /// type`; `cost := f` if `cost < f` (ordered: a NaN on either side
     /// changes nothing, and the cost never goes down *[quirk]*); `pool :=
-    /// pool`. A corner or in-city cell changes nothing *[choice]*.
+    /// pool`. A corner or in-city cell changes nothing *[choice]* (TN28: the
+    /// original would write heap memory or the aliased side-3 record).
     pub fn add_neighbor_connection_record(&mut self, conn_type: u32, x: i32, z: i32, cost: f32, pool: u16) {
         let Some(rec) = self.neighbour_edge_mut(x, z) else {
             return;
@@ -246,8 +260,10 @@ impl NetworkState {
     /// (§2.7.3 step 1) and the edge pass (§2.7.4 step 6) look at: the bound
     /// is X−1 for all four arrays *[quirk]*, so the last record of every
     /// array is never visited. The z-indexed arrays use the x bound, the same
-    /// in the game's square cities; *[choice]* a record past the end of its
-    /// array (a city with Z < X) is not visited.
+    /// in the game's square cities. *[choice]* (TN26) Each array stops at
+    /// `min(X − 1, its length)`: with Z > X records X−1 … Z−1 of sides 0 and
+    /// 2 are skipped, as in the original; with Z < X the original reads (and
+    /// the edge pass writes) past their end, which this does not.
     fn swept_records(&self) -> impl Iterator<Item = (Edge, i32, &NeighbourEdge)> + '_ {
         let bound = (self.count_x - 1).max(0) as usize;
         Edge::ALL.into_iter().flat_map(move |e| {
@@ -283,13 +299,10 @@ impl NetworkState {
     }
 }
 
-/// The connection types a travel type wants (§2.7.1): all for
-/// [`ANY_TRAVEL_TYPE`], else `connMask(net(t))`; none for a travel type
-/// above 8 *[choice]*.
+/// The connection types a travel type wants (§2.7.1): `connMask(net(t))`;
+/// none for a travel type outside 0…8 *[choice]* (TN27). The pool lookup's
+/// [`ANY_TRAVEL_TYPE`] is handled by its caller.
 fn wanted_connection_types(t: u32) -> u16 {
-    if t == ANY_TRAVEL_TYPE {
-        return u16::MAX;
-    }
     NET_OF_TRAVEL
         .get(t as usize)
         .and_then(|&n| CONN_MASK.get(n as usize))

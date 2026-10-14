@@ -91,7 +91,7 @@ struct ResidentialContext {
     cISC4Demand* demandNode = nullptr;         // GetDemand(0x1000, 0): only held (§4.1)
     cIGZMessageServer2* msgServer = nullptr;   // step 2
     cISC4BudgetSimulator* budget = nullptr;    // step 3
-    cISC4Simulator* agentSim = nullptr;        // step 4: held until RemoveAgent
+    // step 4: the simulator is borrowed from the city each time (RG18).
     cIGZMessageTarget2* target = nullptr;      // simulator only: the agent and notification target
     bool agentsRegistered = false;
     // Observability (the status lines): calls made since construction.
@@ -99,7 +99,9 @@ struct ResidentialContext {
     uint32_t history = 0;      // history records sent (§8)
     uint32_t controllers = 0;  // automata controller calls (REH §4.9)
     uint32_t departments = 0;  // departments created (REH §4.2)
-    uint32_t effects = 0;      // visual effects asked for (§5.5 step 2; none created)
+    uint32_t effects = 0;      // visual effects asked for (§5.5 step 2, RG1)
+    uint32_t effectsStarted = 0;  // ... created, positioned and started
+    uint32_t effectsFailed = 0;   // ... the effects manager returned none (one draw)
     uint32_t centers = 0;      // lot GetCenter calls (lot slot 15)
     uint32_t centerX87 = 0;    // ... of which changed the x87 stack depth (crime.md §13, CQ3: 0 in the game)
 };

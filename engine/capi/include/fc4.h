@@ -73,7 +73,12 @@ extern "C" {
  * 28 = adds the neighbours simulator (fc4_neighbors, fc4_neighbor_deal,
  *      fc4_neighbor_connection) and its shadow (fc4_neighbors_shadow);
  * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant);
- *      fc4_flora_host's obliteration segment callbacks become record streams (§10.3).
+ *      fc4_flora_host's obliteration segment callbacks become record streams (§10.3);
+ * 33 = adds fc4_power_shadow_message and the power shadow's city start (options `flags`,
+ *      FC4_POWER_SHADOW_CITY_START; power.md PW3, PW4, PW5, PW7); the plumbing shadow's
+ *      fc4_plumbing_shadow_city_start and fc4_plumbing_original.pass_counter (plumbing.md
+ *      PS3, PS6); the landfill host's insert_landfill_tile and fc4_landfill_state's
+ *      game_tiles / game_tile_failures (landfill.md LG3, LG8);
  * 34 = adds the zone manager (fc4_zones, zones.md) and its shadow mode (fc4_zones_create_shadow);
  * 37 = adds the traffic simulator, its network model and its pathfinders (fc4_traffic, fc4_traffic_pf). */
 #define FC4_ABI_VERSION 37u
@@ -1563,7 +1568,10 @@ bool fc4_power_read(fc4_power* p, const fc4_istream* in);         /* §9: false 
  * captures again and fc4_power_shadow_finish compares the record's fields and
  * bitmaps, the consumption map, the powered grid cell by cell, the counts and
  * the occupant properties, deal usage, connection flags and budget item costs
- * FreeCity4 wrote (kept in the shadow) with the game's. Not compared (not
+ * FreeCity4 wrote (kept in the shadow) with the game's. The unsaved values
+ * the step needs are mirrored: known from a city start
+ * (FC4_POWER_SHADOW_CITY_START), the dirty rectangle merged from the messages
+ * the plugin forwards (fc4_power_shadow_message). Not compared (not
  * readable): posted messages, history, budget line items, demolitions, lot
  * conditions, the poles the month's shuffle picks (the count is compared),
  * deal flags. */
@@ -1598,11 +1606,19 @@ typedef struct fc4_power_shadow_counts {
     uint32_t reserved;
 } fc4_power_shadow_counts;
 
+/* fc4_power_shadow_options.flags: created at the city's PostCityInit (a load
+ * or a new city), when the original was just constructed and initialised: its
+ * unsaved pass values and brokenFraction are 0, it has no dirty rectangle and
+ * its ordinance factor is the one read at creation (power.md §5.3, §7.6, §8,
+ * §9.1). Without it (a shadow started mid-city) they are unknown until the
+ * original shows them. (ABI 33; the field was `reserved`.) */
+#define FC4_POWER_SHADOW_CITY_START 1u
+
 typedef struct fc4_power_shadow_options {
     uint32_t struct_size;
     uint32_t max_cells; /* differing cells listed per line (0 = 8, at most 64) */
     uint32_t max_lines; /* cycle lines with a difference per month (0 = 32; UINT32_MAX = all) */
-    uint32_t reserved;
+    uint32_t flags;     /* FC4_POWER_SHADOW_CITY_START */
     /* cISC4NeighborConnection::GetVisitedThisCycle (slot 11) of a connection
      * token, called with the host table's `user`: the shadow emulates
      * FindUnvisitedConnection with it. NULL: the live FindUnvisitedConnection. */
@@ -1637,6 +1653,13 @@ int32_t fc4_power_shadow_begin(fc4_power_shadow* s, uint32_t msg_type, int32_t j
 int32_t fc4_power_shadow_finish(fc4_power_shadow* s, const fc4_power_capture* after,
                                 const fc4_power_shadow_counts* counts, fc4_bytes_sink sink, void* ctx);
 bool fc4_power_shadow_get_stats(fc4_power_shadow* s, fc4_power_shadow_stats* out);
+/* One of the original's messages as it is delivered to the original (the
+ * plugin's message target, inside or outside a wrapped delivery): a removal
+ * (void1 = the occupant's cISC4Occupant token) or a zoning change (rect)
+ * merges the rectangle the original merges into its dirty rectangle (§5.3,
+ * PW5); a tuning reload re-reads the tuning and the ordinance factor (§8,
+ * PW7). Reads go through the host table at once. True for these messages. */
+bool fc4_power_shadow_message(fc4_power_shadow* s, const fc4_power_message* m); /* ABI 33 */
 
 /* ---- plumbing (docs/specs/plumbing.md) ---------------------------------------
  *
@@ -1849,19 +1872,25 @@ bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: 
  * With the ORIGINAL plumbing simulator running, every SimIdle / SimNewDay
  * (one DoIdle: one pass state, §6) and SimNewMonth delivery to its agent is
  * wrapped by fc4_plumbing_shadow_before / _after. The shadow follows the
- * original's water pass from outside: it sees state 2 run (a cell of the next
- * working grid changes), captures the original's record (its own Write,
- * through `capture`) and runs FreeCity4's pass on it over private grid copies,
- * reading every input through the host table (read callbacks and the grid
- * table's geometry / get only; nothing is written to the game). At the
- * original's swap (GetWateredGrid changes) it compares the published grid
- * cell by cell, the producers, deals and water connections; after the
- * original's state 8, the totals, the building counts, demand, pipes, sources
- * and the producers' budget items and condition. One line per pass. The month
- * (ApplyPipeFunding, §7.1) is compared on its own: the distressed target
- * exactly, the random bursts by range. Not compared (not readable): pipe
- * watered states, redisplay, posts, history, line-item expenses, lot
- * conditions, deal flags, the original's pipe condition and pass state. */
+ * original's water pass from outside: it sees state 0 run (its passCounter,
+ * read through `pass_counter`, moves; PS6; without it, a probe cell of the
+ * next working grid changes in state 2), captures the original's record (its
+ * own Write, through `capture`) after state 1 and runs FreeCity4's pass on it
+ * over private grid copies, reading every input through the host table (read
+ * callbacks and the grid table's geometry / get only; nothing is written to
+ * the game). At the original's swap (GetWateredGrid changes) it compares the
+ * published grid cell by cell, the producers, deals and water connections;
+ * after the original's state 8, the totals, the building counts, demand (the
+ * original's running sum, read then; PS4, PS8), pipes, sources and the
+ * producers' budget items and condition (ageing inferred from the conditions
+ * when unknown; PS7). One line per pass. The month (ApplyPipeFunding, §7.1)
+ * is compared on its own with the funding of the record's department (PS5):
+ * the distressed target exactly when the shadow was made at the city start
+ * (fc4_plumbing_shadow_city_start; the original's pipe condition is then 0,
+ * PS3), otherwise not exact; the random bursts by range. Not compared (not
+ * readable): pipe watered states, redisplay, posts, history, line-item
+ * expenses, lot conditions, deal flags, the original's pipe condition and
+ * pass state. */
 typedef struct fc4_plumbing_shadow fc4_plumbing_shadow;
 
 /* One reference of a captured record, queried for each interface the reader
@@ -1899,6 +1928,11 @@ typedef struct fc4_plumbing_original {
     /* The original's own Write into memory; the view stays valid until the
      * next call. */
     bool (*capture)(void* user, fc4_plumbing_capture* out);
+    /* ABI 33: the original's passCounter (record field 7, written only by
+     * state 0; plumbing.md §6.1, PS6) through its own Write, references not
+     * looked at; false when it failed. May be NULL: a pass start is then seen
+     * on a probe cell. */
+    bool (*pass_counter)(void* user, int32_t* out);
 } fc4_plumbing_original;
 
 typedef struct fc4_plumbing_shadow_stats {
@@ -1932,6 +1966,11 @@ int32_t fc4_plumbing_shadow_before(fc4_plumbing_shadow* s, uint32_t msg_type, in
  * differences of a comparison finished in this delivery, -1 if none. */
 int32_t fc4_plumbing_shadow_after(fc4_plumbing_shadow* s, fc4_bytes_sink sink, void* ctx);
 bool fc4_plumbing_shadow_get_stats(fc4_plumbing_shadow* s, fc4_plumbing_shadow_stats* out);
+/* A shadow made at the city start (PostCityInit), before its first delivery:
+ * the original's pipe condition and ageing flag are its constructor's (0,
+ * false) after every load (plumbing.md §7.1, PS3), so the month's distressed
+ * target is compared exactly. False for NULL or after a delivery. (ABI 33) */
+bool fc4_plumbing_shadow_city_start(fc4_plumbing_shadow* s);
 
 /* ---- flammability (docs/specs/flammability.md) ------------------------------
  *
@@ -3287,13 +3326,17 @@ bool fc4_flora_shadow_get_stats(fc4_flora_shadow* s, fc4_flora_shadow_stats* out
  * back by fc4_landfill_read arrives with one, or gets one through add_ref when
  * fc4_ref.core_handle is set). Shutdown releases them.
  *
- * Landfill tiles are kept in this layer, not in the game (attaching a tile
- * exemplar to a game cSC4LandfillOccupant is not documented): the host's
- * occupant callbacks never see them, and the cells keep pollution's
- * active-landfill flag. Tiles are not saved; after a load they are rebuilt on
- * PostCityInit from is_active_landfill over the zones' mask cells. Landfill
- * tiles of the original developer (a city it saved) are game occupants and
- * are found through occupant_at as usual.
+ * Landfill tiles (§4.8.1, LG3): with insert_landfill_tile the host builds
+ * each tile as a game cSC4LandfillOccupant (tile exemplar attached through
+ * cISCExemplarPropertyHolder::SetDefaultExemplar) and inserts it; it is then
+ * found through occupant_at, priced from its exemplar (§4.9.1, LG11),
+ * removed through occupant_remove and saved by the occupant manager (§6.4,
+ * LG8), like the original's. Without the callback, or when it makes none,
+ * the tile is kept in this layer instead: the host's occupant callbacks
+ * never see it, and only pollution's active-landfill flag shows it. A load
+ * rebuilds no tile a cell already has; a flagged mask cell without one (a
+ * city saved while tiles were kept here) gets its tile back on PostCityInit
+ * [choice].
  *
  * A message delivered while another call into the same object is running is
  * queued and handled when that call returns.
@@ -3339,6 +3382,8 @@ typedef struct fc4_landfill_state {
     int64_t supply_delta;     /* sum of AddToGarbageSupply */
     int64_t maintenance;      /* slot 7 */
     uint64_t department;      /* borrowed; 0 = none */
+    uint32_t game_tiles;      /* tiles inserted through insert_landfill_tile since creation (ABI 33) */
+    uint32_t game_tile_failures; /* insert_landfill_tile calls that made none (kept here instead) */
 } fc4_landfill_state;
 
 /* What the landfill developer needs from the game (one callback per
@@ -3425,6 +3470,15 @@ typedef struct fc4_landfill_host {
     void (*stop_seagull)(void* user, uint64_t seagull, uint32_t flag);
     /* history (§5): MessageSend of 0x89EFA536 */
     void (*send_history)(void* user, uint32_t series, uint32_t value);
+    /* tiles (§4.8.1 step 3, LG3; appended in ABI 33): build a game
+     * cSC4LandfillOccupant for cell (x, z) with the tile exemplar
+     * (0x6534284A, 0x07BDDF1C, tile_id) attached, the orientation, flag 4,
+     * removal flags 2 and the world position xyz; Init it and insert it into
+     * the occupant manager. Its cISC4Occupant token (borrowed: the occupant
+     * manager holds it), 0 if none was made (the tile is then kept here). The
+     * core has already set the cell's active-landfill flag. */
+    uint64_t (*insert_landfill_tile)(void* user, int32_t x, int32_t z, uint32_t tile_id, int32_t orientation,
+                                     const float* xyz);
 } fc4_landfill_host;
 
 /* QueryInterface (§1): whether the class answers `iid`. */
@@ -3437,7 +3491,9 @@ fc4_landfill* fc4_landfill_create(const fc4_landfill_host* host, uint64_t token)
 /* Releases what a never-initialised (loaded) object still holds. */
 void fc4_landfill_destroy(fc4_landfill* p);
 bool fc4_landfill_init(fc4_landfill* p);
-/* Also releases the zots' references and drops the tiles kept here. */
+/* Each initialised zone removes its zot prop (remove_prop) and releases it
+ * (§4.4.9, LG13); the zot of a zone never initialised is released only.
+ * Drops the tiles kept here. */
 bool fc4_landfill_shutdown(fc4_landfill* p);
 /* DoMessage (§3.2): `region` is the zoning message's GetVoid2 (copied), NULL
  * otherwise. Always true. */
@@ -3450,7 +3506,8 @@ int64_t fc4_landfill_current_budget(const fc4_landfill* p);    /* slot 8 */
 int64_t fc4_landfill_zoning_cost(const fc4_landfill* p, const fc4_landfill_region* region);
 void fc4_landfill_usage(const fc4_landfill* p, uint32_t* usage, uint32_t* capacity); /* slot 10 */
 int32_t fc4_landfill_tile_count(const fc4_landfill* p);                              /* slot 11 */
-/* The tile kept here for a cell: false when there is none. */
+/* The tile kept here for a cell: false when there is none (a game tile made
+ * through insert_landfill_tile is not reported). */
 bool fc4_landfill_tile_at(const fc4_landfill* p, int32_t x, int32_t z, uint32_t* tile_id, int32_t* orientation);
 bool fc4_landfill_get_state(const fc4_landfill* p, fc4_landfill_state* out);
 /* §6.1; the zot references go out with class 0. Read runs before Init. */
@@ -3720,11 +3777,16 @@ typedef struct fc4_residential_state {
     uint32_t reserved;
 } fc4_residential_state;
 
+/* create_visual_effect: the host cannot show effects (RG1; treated as
+ * created). */
+#define FC4_EFFECT_NOT_SHOWN UINT64_MAX
+
 /* What the residential simulator needs from the game: one callback per
  * ResidentialHost / EducationHealthHost method of the core
  * (engine/core/src/residential), in the traits' order, plus hand_out. Missing
- * callbacks behave as "nothing there" (0, false, no object), except
- * department_funding (1.0). */
+ * callbacks behave as "nothing there" (0, false, no object); a missing
+ * department_funding, or a NaN from it, is a department whose funding cannot
+ * be read, and the output keeps the caller's value (REH §4.2, RG10). */
 typedef struct fc4_residential_host {
     uint32_t struct_size; /* sizeof(fc4_residential_host) */
     void* user;
@@ -3764,7 +3826,10 @@ typedef struct fc4_residential_host {
     uint32_t (*sim_month)(void* user);
     uint32_t (*sim_day_number)(void* user);
     float (*altitude)(void* user, float x, float z);
-    /* visual effects (§5.5 step 2; 0 = none) */
+    /* visual effects (§5.5 step 2, REH §4.7 step 3, RG1): the effect (one
+     * reference, released by start_and_release_effect), 0 = the create
+     * failed (one draw), FC4_EFFECT_NOT_SHOWN = the host cannot show effects
+     * (treated as created: both draws, the flag). NULL = cannot show. */
     uint64_t (*create_visual_effect)(void* user, const char* name);
     void (*set_effect_transform)(void* user, uint64_t effect, const float* translation_xyz);
     void (*start_and_release_effect)(void* user, uint64_t effect);
@@ -3783,7 +3848,7 @@ typedef struct fc4_residential_host {
     bool (*budget_item)(void* user, uint64_t occ, uint32_t purpose, fc4_residential_budget_item* out);
     void (*change_budget_item_line)(void* user, uint64_t occ, uint32_t index, uint32_t line);
     uint64_t (*department_budget)(void* user, uint32_t id); /* borrowed, 0 = none */
-    float (*department_funding)(void* user, uint64_t dept);
+    float (*department_funding)(void* user, uint64_t dept); /* NaN = cannot be read (RG10) */
     bool (*is_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
     void (*add_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
     void (*remove_locally_funded)(void* user, uint64_t dept, uint64_t occ, uint32_t purpose);
@@ -4859,7 +4924,7 @@ static_assert(sizeof(fc4_plumbing_state) == 144, "fc4_plumbing_state layout");
 static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc4_plumbing_host layout");
 static_assert(sizeof(fc4_plumbing_capture_ref) == 40, "fc4_plumbing_capture_ref layout");
 static_assert(sizeof(fc4_plumbing_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_plumbing_capture layout");
-static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "fc4_plumbing_original layout");
+static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 32 : 64), "fc4_plumbing_original layout");
 static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
@@ -4906,8 +4971,8 @@ static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96
 static_assert(sizeof(fc4_flora_shadow_stats) == 64, "fc4_flora_shadow_stats layout");
 static_assert(sizeof(fc4_landfill_region) == (sizeof(void*) == 4 ? 24 : 32), "fc4_landfill_region layout");
 static_assert(sizeof(fc4_landfill_effects) == 16, "fc4_landfill_effects layout");
-static_assert(sizeof(fc4_landfill_state) == 104, "fc4_landfill_state layout");
-static_assert(sizeof(fc4_landfill_host) == (sizeof(void*) == 4 ? 248 : 496), "fc4_landfill_host layout");
+static_assert(sizeof(fc4_landfill_state) == 112, "fc4_landfill_state layout");
+static_assert(sizeof(fc4_landfill_host) == (sizeof(void*) == 4 ? 252 : 504), "fc4_landfill_host layout");
 static_assert(sizeof(fc4_landfill_shadow_stats) == 72, "fc4_landfill_shadow_stats layout");
 static_assert(sizeof(fc4_landvalue_original) == (sizeof(void*) == 4 ? 132 : 152), "fc4_landvalue_original layout");
 static_assert(sizeof(fc4_landvalue_shadow_stats) == 48, "fc4_landvalue_shadow_stats layout");

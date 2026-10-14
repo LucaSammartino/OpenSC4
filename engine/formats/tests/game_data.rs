@@ -298,3 +298,357 @@ fn sweep_installed_game_data() {
     eprintln!("most common .dat types: {}", top.join(" "));
     assert_eq!(total_failures, 0, "see FAIL lines above");
 }
+
+/// FSH and S3D counts of one sweep (graphics-formats §8.4).
+#[derive(Default, Debug)]
+struct GraphicsStats {
+    fsh_records: usize,
+    fsh_compressed: usize,
+    fsh_entries: usize,
+    fsh_uncreated_type: usize,
+    fsh_codes: BTreeMap<u8, usize>,
+    fsh_zero_filled: usize,
+    fsh_size_not_record_length: usize,
+    fsh_decoded_levels: usize,
+    fsh_dxt1_a: BTreeMap<i16, usize>,
+    fsh_mip_counts: BTreeMap<(u8, u8), usize>,
+    fsh_attachments: BTreeMap<u8, usize>,
+    fsh_directory_ids: BTreeMap<String, usize>,
+    fsh_by_file: BTreeMap<String, usize>,
+    s3d_records: usize,
+    s3d_compressed: usize,
+    s3d_other_group: usize,
+    s3d_versions: BTreeMap<(u16, u16), usize>,
+    vertex_blocks: usize,
+    vertex_formats: BTreeMap<(u32, u32), usize>,
+    index_blocks: usize,
+    empty_index_blocks: usize,
+    primitive_blocks: usize,
+    primitives: usize,
+    primitive_types: BTreeMap<u32, usize>,
+    materials: usize,
+    material_flags: BTreeMap<u16, usize>,
+    stored_texture_counts: BTreeMap<usize, usize>,
+    texture_ids_zero: usize,
+    meshes_kept: usize,
+    meshes_dropped: usize,
+    multi_frame_models: usize,
+    meshes_out_of_range: usize,
+    prop_models: usize,
+    regp_models: usize,
+    s3d_by_file: BTreeMap<String, usize>,
+    texture_steps: BTreeMap<String, usize>,
+    shipped_checks: Vec<String>,
+    failures: Vec<String>,
+}
+
+/// graphics-formats §8.4 (tests 42, 43) and the shipped records of tests 19 and 20: every FSH and S3D record of
+/// the install's `.dat` files (for each key the first index entry of its package, data-formats §2.3) loads, with
+/// the spec's counts. Decodes every level of every FSH frame in release builds (every 50th record otherwise).
+#[test]
+fn sweep_fsh_and_s3d() {
+    use std::collections::HashSet;
+
+    use fc4_formats::fsh::{Fsh, TextureFormat};
+    use fc4_formats::keys::{resolve_texture, TextureStep};
+    use fc4_formats::s3d::Model;
+    use fc4_formats::tgi::{GROUP_S3D, GROUP_TEXTURES, TYPE_FSH, TYPE_FSH_UNCREATED, TYPE_S3D};
+    use fc4_formats::Tgi;
+
+    let Some(dir) = game_dir() else {
+        eprintln!("game data not found (set FC4_GAME_DIR); skipping");
+        return;
+    };
+    let mut files = Vec::new();
+    collect(&dir, &mut files);
+    files.retain(|p| group_of(p) == Some("dat"));
+    let decode_all = !cfg!(debug_assertions);
+    let mut g = GraphicsStats::default();
+    let mut texture_keys: HashSet<Tgi> = HashSet::new();
+    let mut texture_refs: Vec<(u32, u32)> = Vec::new();
+
+    for path in &files {
+        let name = path.strip_prefix(&dir).unwrap_or(path).display().to_string();
+        let file = path
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let pkg = match Package::open(path) {
+            Ok(p) => p,
+            Err(Error::BadMagic { .. }) => continue,
+            Err(e) => {
+                g.failures.push(format!("{name}: open: {e}"));
+                continue;
+            }
+        };
+        let first = |e: &fc4_formats::IndexEntry| pkg.find(&e.tgi).is_some_and(|f| std::ptr::eq(f, e));
+        g.fsh_uncreated_type += pkg.entries_of_type(TYPE_FSH_UNCREATED).count();
+        for e in pkg.entries_of_type(TYPE_FSH).filter(|e| first(e)) {
+            g.fsh_records += 1;
+            *g.fsh_by_file.entry(file.clone()).or_default() += 1;
+            if pkg.is_compressed(e) {
+                g.fsh_compressed += 1;
+            }
+            let data = match pkg.read(e) {
+                Ok(d) => d,
+                Err(err) => {
+                    g.failures.push(format!("{name} {}: read: {err}", e.tgi));
+                    continue;
+                }
+            };
+            let f = match Fsh::parse_record(TYPE_FSH, &data) {
+                Ok(f) => f,
+                Err(err) => {
+                    g.failures.push(format!("{name} {}: FSH: {err}", e.tgi));
+                    continue;
+                }
+            };
+            texture_keys.insert(e.tgi);
+            if f.data().len() != data.len() {
+                g.fsh_size_not_record_length += 1;
+            }
+            *g.fsh_directory_ids
+                .entry(String::from_utf8_lossy(&f.directory_id).into_owned())
+                .or_default() += 1;
+            for (i, fr) in f.frames.iter().enumerate() {
+                g.fsh_entries += 1;
+                *g.fsh_codes.entry(fr.header.code).or_default() += 1;
+                *g.fsh_mip_counts
+                    .entry((fr.header.code, fr.header.mip_count()))
+                    .or_default() += 1;
+                if fr.header.code == 0x60 {
+                    *g.fsh_dxt1_a.entry(fr.header.a()).or_default() += 1;
+                }
+                if fr.zero_filled {
+                    g.fsh_zero_filled += 1;
+                }
+                for a in f.attachments(i) {
+                    *g.fsh_attachments.entry(a.code).or_default() += 1;
+                }
+            }
+            if decode_all || g.fsh_records % 50 == 0 {
+                for frame in 0..f.frames.len() {
+                    for level in 0..f.levels.len() {
+                        match f.decode(frame, level) {
+                            Ok(img) if img.rgba.len() == (img.width * img.height * 4) as usize => {
+                                g.fsh_decoded_levels += 1
+                            }
+                            Ok(_) => g.failures.push(format!("{name} {}: decoded size", e.tgi)),
+                            Err(err) => g.failures.push(format!("{name} {}: decode: {err}", e.tgi)),
+                        }
+                    }
+                }
+            }
+            // §8.1 test 19: the unpadded mips of SimCity_2.dat 0x10EC0000.
+            if file == "SimCity_2.dat" && e.tgi == Tgi::new(TYPE_FSH, GROUP_TEXTURES, 0x10EC_0000) {
+                let fr = &f.frames[0];
+                let offsets: Vec<u64> = f.levels.iter().map(|l| l.offset).collect();
+                let ok = fr.header.code == 0x60
+                    && (f.width, f.height, f.mip_count(), fr.header.a()) == (128, 128, 7, 1)
+                    && offsets == [0, 8192, 10240, 10752, 10880, 10912, 10928, 10944]
+                    && fr.data_end - fr.pixel_start() == 10944
+                    && fr.zero_filled;
+                g.shipped_checks
+                    .push(format!("test 19 {}: {}", e.tgi, if ok { "ok" } else { "FAIL" }));
+                if !ok {
+                    g.failures.push(format!("test 19: {fr:?} levels {offsets:?}"));
+                }
+            }
+            // §8.1 test 20: the fallback texture of §4.1.
+            if file == "SimCity_3.dat" && e.tgi == fc4_formats::keys::FALLBACK_TEXTURE {
+                let header = [
+                    0x53, 0x48, 0x50, 0x49, 0x40, 0x02, 0, 0, 1, 0, 0, 0, 0x47, 0x32, 0x36, 0x34,
+                ];
+                let ok = data.len() == 576
+                    && data[..16] == header
+                    && f.frames.len() == 1
+                    && (f.code(), f.width, f.height, f.mip_count()) == (0x60, 32, 32, 0)
+                    && f.format().0 == TextureFormat::Dxt1Rgb;
+                g.shipped_checks
+                    .push(format!("test 20 {}: {}", e.tgi, if ok { "ok" } else { "FAIL" }));
+                if !ok {
+                    g.failures.push(format!("test 20: {:?}", f.frames[0]));
+                }
+            }
+        }
+        for e in pkg.entries_of_type(TYPE_S3D).filter(|e| first(e)) {
+            g.s3d_records += 1;
+            *g.s3d_by_file.entry(file.clone()).or_default() += 1;
+            if pkg.is_compressed(e) {
+                g.s3d_compressed += 1;
+            }
+            if e.tgi.group != GROUP_S3D {
+                g.s3d_other_group += 1;
+            }
+            let m = match pkg.read(e).and_then(|d| Model::parse_record(TYPE_S3D, &d)) {
+                Ok(m) => m,
+                Err(err) => {
+                    g.failures.push(format!("{name} {}: S3D: {err}", e.tgi));
+                    continue;
+                }
+            };
+            *g.s3d_versions.entry((m.version.major, m.version.minor)).or_default() += 1;
+            g.vertex_blocks += m.vertex_blocks.len();
+            for v in &m.vertex_blocks {
+                *g.vertex_formats.entry((v.format, v.stride)).or_default() += 1;
+            }
+            g.index_blocks += m.index_blocks.len();
+            g.empty_index_blocks += m.index_blocks.iter().filter(|b| b.indices.is_empty()).count();
+            g.primitive_blocks += m.primitive_blocks.len();
+            for p in m.primitive_blocks.iter().flatten() {
+                g.primitives += 1;
+                *g.primitive_types.entry(p.kind).or_default() += 1;
+            }
+            g.materials += m.materials.len();
+            for mat in &m.materials {
+                *g.material_flags.entry(mat.flags).or_default() += 1;
+                *g.stored_texture_counts.entry(mat.textures.len()).or_default() += 1;
+                for t in &mat.textures {
+                    if t.id == 0 {
+                        g.texture_ids_zero += 1;
+                    } else {
+                        texture_refs.push((e.tgi.group, t.id));
+                    }
+                }
+            }
+            g.meshes_kept += m.anim.meshes.len();
+            g.meshes_dropped += m.anim.dropped;
+            if m.anim.frame_count > 1 {
+                g.multi_frame_models += 1;
+            }
+            for f in 0..usize::from(m.anim.frame_count) {
+                for mesh in m.frame(f).unwrap_or_default() {
+                    if !mesh.ranges_fit() {
+                        g.meshes_out_of_range += 1;
+                    }
+                }
+            }
+            if !m.props.is_empty() {
+                g.prop_models += 1;
+            }
+            if !m.regions.is_empty() {
+                g.regp_models += 1;
+            }
+        }
+    }
+    // §4.1 over every material texture ID, against every FSH key that loaded.
+    for (group, id) in &texture_refs {
+        let step = resolve_texture(*group, *id, |k| texture_keys.contains(k)).map(|b| b.step);
+        let k = match step {
+            Some(TextureStep::SharedGroup) => "shared group",
+            Some(TextureStep::ModelGroup) => "model group",
+            Some(TextureStep::Fallback) => "fallback",
+            None => "none",
+        };
+        *g.texture_steps.entry(k.into()).or_default() += 1;
+    }
+
+    eprintln!("game data: {}", dir.display());
+    eprintln!(
+        "[fsh] records {} (compressed {}), entries {}, type 0x7AB50E45 entries {}, size != record length {}, \
+         zero-filled entries {}, decoded levels {}",
+        g.fsh_records,
+        g.fsh_compressed,
+        g.fsh_entries,
+        g.fsh_uncreated_type,
+        g.fsh_size_not_record_length,
+        g.fsh_zero_filled,
+        g.fsh_decoded_levels
+    );
+    let hexmap = |m: &BTreeMap<u8, usize>| m.iter().map(|(k, v)| format!("{k:#04X}:{v}")).collect::<Vec<_>>();
+    eprintln!("[fsh] by file {:?}", g.fsh_by_file);
+    eprintln!(
+        "[fsh] codes {:?}; attachments {:?}",
+        hexmap(&g.fsh_codes),
+        hexmap(&g.fsh_attachments)
+    );
+    eprintln!(
+        "[fsh] directory IDs {:?}; DXT1 A {:?}",
+        g.fsh_directory_ids, g.fsh_dxt1_a
+    );
+    eprintln!(
+        "[fsh] (code, M > 0) {:?}",
+        g.fsh_mip_counts
+            .iter()
+            .filter(|((_, m), _)| *m > 0)
+            .map(|((c, m), n)| format!("{c:#04X}/{m}:{n}"))
+            .collect::<Vec<_>>()
+    );
+    eprintln!(
+        "[s3d] records {} (compressed {}, outside group 0xBADB57F1 {}), versions {:?}, by file {:?}",
+        g.s3d_records, g.s3d_compressed, g.s3d_other_group, g.s3d_versions, g.s3d_by_file
+    );
+    eprintln!(
+        "[s3d] vertex blocks {} {:?}; index blocks {} ({} empty); primitive blocks {}, primitives {} {:?}",
+        g.vertex_blocks,
+        g.vertex_formats
+            .iter()
+            .map(|((f, s), n)| format!("{f:#X}/{s}:{n}"))
+            .collect::<Vec<_>>(),
+        g.index_blocks,
+        g.empty_index_blocks,
+        g.primitive_blocks,
+        g.primitives,
+        g.primitive_types
+    );
+    eprintln!(
+        "[s3d] materials {}, flags {:?}, stored texture counts {:?}, texture IDs 0: {}; texture lookup {:?}",
+        g.materials,
+        g.material_flags
+            .iter()
+            .map(|(f, n)| format!("{f:#06X}:{n}"))
+            .collect::<Vec<_>>(),
+        g.stored_texture_counts,
+        g.texture_ids_zero,
+        g.texture_steps
+    );
+    eprintln!(
+        "[s3d] meshes kept {}, dropped {}, out of range {}; models with F > 1: {}, PROP {}, REGP {}",
+        g.meshes_kept, g.meshes_dropped, g.meshes_out_of_range, g.multi_frame_models, g.prop_models, g.regp_models
+    );
+    for c in &g.shipped_checks {
+        eprintln!("[shipped] {c}");
+    }
+    for f in g.failures.iter().take(20) {
+        eprintln!("  FAIL {f}");
+    }
+    assert!(
+        g.failures.is_empty(),
+        "{} failures, see FAIL lines above",
+        g.failures.len()
+    );
+
+    // The spec's counts (graphics-formats §2.13, §3.14, §8.4) for the SimCity 4 Deluxe (GOG) install.
+    assert_eq!(g.fsh_records, 40_549, "FSH records");
+    assert_eq!(g.fsh_compressed, 36_177, "compressed FSH records");
+    assert_eq!(g.fsh_entries, 45_387, "FSH entries");
+    assert_eq!(g.fsh_uncreated_type, 0);
+    assert_eq!(g.fsh_size_not_record_length, 0);
+    let codes: Vec<(u8, usize)> = g.fsh_codes.iter().map(|(c, n)| (*c, *n)).collect();
+    assert_eq!(
+        codes,
+        [(0x60, 19_357), (0x61, 25_957), (0x7B, 24), (0x7D, 40), (0x7F, 9)]
+    );
+    assert_eq!(g.fsh_zero_filled, 167, "DXT1 entries that need the §2.8 zero-fill");
+    assert_eq!(g.shipped_checks.len(), 2, "tests 19 and 20 found their records");
+    assert_eq!(g.s3d_records, 42_915, "S3D records");
+    assert_eq!(g.s3d_compressed, 42_868, "compressed S3D records");
+    assert_eq!(g.s3d_other_group, 0);
+    assert_eq!(g.vertex_blocks, 167_070);
+    assert_eq!(g.index_blocks, 155_661);
+    assert_eq!(g.empty_index_blocks, 15_311);
+    assert_eq!(g.primitive_blocks, 154_046);
+    assert_eq!(g.primitives, 138_735);
+    assert_eq!(g.materials, 155_827);
+    assert_eq!(g.meshes_kept + g.meshes_dropped, 155_827);
+    assert_eq!(g.meshes_dropped, 71);
+    assert_eq!(g.meshes_out_of_range, 0);
+    assert_eq!(texture_refs.len(), 155_822, "non-zero texture IDs");
+    assert_eq!(g.texture_ids_zero, 2);
+    assert_eq!(
+        g.texture_steps.get("shared group"),
+        Some(&155_822),
+        "every ID resolves at step 1"
+    );
+    assert_eq!((g.prop_models, g.regp_models), (58, 1_810));
+}

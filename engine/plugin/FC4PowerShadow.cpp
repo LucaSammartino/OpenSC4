@@ -15,6 +15,7 @@
 
 #include "FC4Config.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4HostGrid.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -28,6 +29,7 @@
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2.h"
+#include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
@@ -51,6 +53,12 @@ constexpr uint32_t kMsgSimNewDay = 0x66956814;
 constexpr uint32_t kMsgSimNewMonth = 0x66956816;
 constexpr uint32_t kMsgSimIdle = 0x6695681A;
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
+// The §5 messages forwarded to the shadow (fc4_power_shadow_message): the
+// removal and the zoning change move the dirty rectangle (§5.3, PW5), the
+// tuning reload reads the factor (§8, PW7).
+constexpr uint32_t kMsgOccupantRemoved = 0x99EF1143;
+constexpr uint32_t kMsgZoningChanged = 0x07699455;
+constexpr uint32_t kMsgTuningReload = 0xCA1B151C;
 constexpr uint32_t kIID_cIGZMessageTarget2 = 0x452294AA;
 // The interfaces the §9.1 reader asks a reference for (fc4_power_capture_ref).
 constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
@@ -241,8 +249,8 @@ cIGZMessageTarget2* g_agent = nullptr;
 bool g_loggedOurs = false;
 bool g_loggedNoSerializable = false;
 
-// One of the original's §5 messages arrived since the last wrapped delivery;
-// PostCityInit also starts a new generation (a new shadow).
+// One of the original's §5 messages arrived since the last wrapped delivery.
+// A city start (PowerShadowCityInit) starts a new generation (a new shadow).
 bool g_event = false;
 uint32_t g_generation = 0;
 bool g_listening = false;
@@ -272,7 +280,10 @@ Delivery g_d;
 int32_t g_lastResult = -1;
 bool g_lastPassed = false;
 
-// Counts the original's messages (a static object: counted, never deleted).
+void ForwardToShadow(cIGZMessage2* msg);
+
+// Counts the original's messages and forwards those the shadow mirrors (a
+// static object: counted, never deleted).
 class EventTarget final : public cIGZMessageTarget2 {
 public:
     bool QueryInterface(uint32_t riid, void** ppvObj) override {
@@ -285,8 +296,10 @@ public:
     uint32_t AddRef() override { return ++refs_; }
     uint32_t Release() override { return refs_ > 0 ? --refs_ : 0u; }
     bool DoMessage(cIGZMessage2* msg) override {
+        if (msg == nullptr) return true;
+        FC4_X87_SCOPE("power shadow events DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
         g_event = true;
-        if (msg != nullptr && msg->GetType() == kMsgPostCityInit) ++g_generation;
+        ForwardToShadow(msg);
         return true;
     }
 
@@ -411,7 +424,12 @@ void DropShadow() {
     g_shadowSim = nullptr;
 }
 
-bool EnsureShadow(const void* city, const void* sim) {
+// `cityStart`: created at PostCityInit (FC4_POWER_SHADOW_CITY_START), when
+// the original's unsaved values are those of its Init after the load (the
+// ordinance factor, read now through the city; pass import / export /
+// demand and brokenFraction 0; no dirty rectangle). Otherwise the shadow
+// starts mid-city and they are unknown until the original sets them again.
+bool EnsureShadow(cISC4City* city, const void* sim, bool cityStart) {
     if (g_shadow != nullptr && g_shadowCity == city && g_shadowSim == sim && g_shadowGeneration == g_generation &&
         g_shadowCells == g_cells && g_shadowLines == g_lines) {
         return true;
@@ -423,7 +441,11 @@ bool EnsureShadow(const void* city, const void* sim) {
     o.max_cells = static_cast<uint32_t>(g_cells);
     o.max_lines = g_lines < 0 ? UINT32_MAX : static_cast<uint32_t>(g_lines);
     o.connection_visited = &ConnectionVisited;
+    o.flags = cityStart ? FC4_POWER_SHADOW_CITY_START : 0u;
+    const bool fill = g_game.city == nullptr;  // the creation reads the factor through the city
+    if (fill) FillGame(city);
     g_shadow = fc4_power_shadow_create(&host, &o);
+    if (fill) ClearGame();
     if (g_shadow == nullptr) {
         if (g_shadowFailedFor != sim) {
             g_shadowFailedFor = sim;
@@ -436,10 +458,74 @@ bool EnsureShadow(const void* city, const void* sim) {
     g_shadowGeneration = g_generation;
     g_shadowCells = g_cells;
     g_shadowLines = g_lines;
-    Log("power shadow: comparing with the original power simulator %p (city %p); differing cells listed per line: "
-        "%ld; cycle lines with a difference per month: %ld",
-        sim, city, g_cells, g_lines);
+    Log("power shadow: comparing with the original power simulator %p (city %p) %s; differing cells listed per "
+        "line: %ld; cycle lines with a difference per month: %ld",
+        sim, static_cast<void*>(city),
+        cityStart ? "from the city start (its unsaved values known: power.md §8, §7.6, §9.1, §5.3)"
+                  : "from mid-city (not known: the ordinance factor until the first month, the pass import / export "
+                    "/ demand until the first state 0, brokenFraction, the dirty rectangle until the first step)",
+        g_cells, g_lines);
     return true;
+}
+
+// ---- forwarded messages (main thread: the message server delivers on the sender's thread) ---------------
+
+struct Forwarded {
+    fc4_power_message m{};
+};
+
+void ForwardStep(void* ctx) { fc4_power_shadow_message(g_shadow, &static_cast<Forwarded*>(ctx)->m); }
+
+// The removal, zoning change and tuning reload the original handles (§5.2,
+// §5.3, §8) go to the shadow as well, converted as cFC4PowerSimulator's
+// DoMessage converts them: the dirty rectangle (PW5) and the factor (PW7)
+// are then the original's from the city start on.
+void ForwardToShadow(cIGZMessage2* msg) {
+    const uint32_t type = msg->GetType();
+    if (type != kMsgOccupantRemoved && type != kMsgZoningChanged && type != kMsgTuningReload) return;
+    if (g_shadow == nullptr) return;
+    cISC4City* city = CurrentCity();
+    if (city == nullptr || city != g_shadowCity) return;
+    Forwarded f;
+    f.m.msg_type = type;
+    cIGZMessage2Standard* s = nullptr;
+    cIGZUnknown* occ = nullptr;
+    void* p = nullptr;
+    if (msg->QueryInterface(GZIID_cIGZMessage2Standard, &p) && p != nullptr) {
+        s = static_cast<cIGZMessage2Standard*>(p);
+        FC4_ACQUIRED(s, "QueryInterface");
+        f.m.data1 = static_cast<uint32_t>(s->GetData1());
+        f.m.data2 = static_cast<uint32_t>(s->GetData2());
+        f.m.data3 = static_cast<uint32_t>(s->GetData3());
+        f.m.data4 = static_cast<uint32_t>(s->GetData4());
+        if (type == kMsgOccupantRemoved) {
+            // §5.1: the occupant is void1, known by its cISC4Occupant identity.
+            cIGZUnknown* v = static_cast<cIGZUnknown*>(s->GetVoid1());
+            void* q = nullptr;
+            if (v != nullptr && v->QueryInterface(kIID_cISC4Occupant, &q) && q != nullptr) {
+                occ = static_cast<cIGZUnknown*>(q);
+                FC4_ACQUIRED(occ, "QueryInterface");
+                f.m.void1 = TokenOf(occ);
+            }
+        } else if (type == kMsgZoningChanged) {
+            // [abi] void2 is the message's SC4CellRegion<long>* (as in
+            // cFC4PowerSimulator::DoMessage): its bounds {x1, z1, x2, z2}.
+            const int32_t* r = static_cast<const int32_t*>(s->GetVoid2());
+            if (r != nullptr) {
+                f.m.rect.x1 = r[0];
+                f.m.rect.z1 = r[1];
+                f.m.rect.x2 = r[2];
+                f.m.rect.z2 = r[3];
+            }
+        }
+    }
+    // Inside a wrapped delivery the services are borrowed already.
+    const bool fill = g_d.sim == nullptr;
+    if (fill) FillGame(city);
+    SehGuard("power shadow (a forwarded message)", &ForwardStep, &f);
+    if (fill) ClearGame();
+    if (occ != nullptr) FC4_RELEASE(occ);
+    if (s != nullptr) FC4_RELEASE(s);
 }
 
 // The original's record through its own Write (cIGZSerializable).
@@ -526,9 +612,11 @@ void PowerShadowStartup(bool simulatorReplaced, bool powerReplaced) {
             "bookkeeping line (running counts against a from-scratch insertion) per month; differing cells listed "
             "per line: %ld. The record is read through the original's own Write into memory. Not compared (not "
             "readable read-only): posted messages, history values, budget line items, demolitions, lot "
-            "conditions, the poles the month's shuffle picks (the broken count is compared), deal flags, the "
-            "original's pass import / export / demand before its first state 0 (marked not exact), its dirty "
-            "rectangle (rebuilt from the changed wire bits)",
+            "conditions, the poles the month's shuffle picks (the broken count is compared), deal flags. The "
+            "shadow made at PostCityInit knows the original's unsaved values (its ordinance factor, pass import / "
+            "export / demand and brokenFraction as its Init leaves them; the dirty rectangle from the removal and "
+            "zoning messages, forwarded); one switched on mid-city marks what depends on them not exact until the "
+            "original sets them again, and reruns a wire rebuild with the changed bits' box",
             src, g_cells);
     } else {
         Log("power shadow: requested (power_shadow from %s) but INACTIVE: it needs FreeCity4's simulator and the "
@@ -543,6 +631,9 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
         msg == nullptr || finished == nullptr) {
         return false;
     }
+    // data1 is the simulator date's julian day for all three, SimIdle
+    // included (power.md §4.3, PW2: read once per SimulateAgents /
+    // SimulateIdleTime call).
     const int32_t julian = static_cast<int32_t>(data1);
     if (!g_testMode && type == kMsgSimNewDay && julian != g_settingsJulian) {
         g_settingsJulian = julian;
@@ -554,7 +645,11 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
     Listen();
     cISC4City* city = CurrentCity();
     cISC4PowerSimulator* sim = OriginalFor(city, target, agentName);
-    if (sim == nullptr || !EnsureShadow(city, sim)) return false;
+    // A shadow made here starts mid-city (PowerShadowCityInit makes the one
+    // of a city start); a fresh test seam call is a city start unless it says
+    // mid-city.
+    const bool cityStart = g_testMode && g_test->fresh != 0 && g_test->midCity == 0;
+    if (sim == nullptr || !EnsureShadow(city, sim, cityStart)) return false;
     if (!fc4_power_shadow_wants(g_shadow, type, g_event)) {
         g_lastPassed = true;
         return false;  // the original is idle: the caller delivers
@@ -578,6 +673,30 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
     ClearGame();
     g_d = Delivery{};
     return true;  // delivered (compared or not)
+}
+
+namespace {
+struct CityStart {
+    cISC4City* city;
+    cISC4PowerSimulator* sim;
+};
+void CityStartStep(void* ctx) {
+    CityStart* c = static_cast<CityStart*>(ctx);
+    EnsureShadow(c->city, c->sim, true);
+}
+}  // namespace
+
+void PowerShadowCityInit() {
+    if (g_testMode) return;
+    ReadSettings();
+    if (!g_enabled) return;
+    ++g_generation;  // a new city: a new shadow
+    Listen();
+    cISC4City* city = CurrentCity();
+    cISC4PowerSimulator* sim = city ? city->GetPowerSimulator() : nullptr;  // compiled slot 67, borrowed
+    if (sim == nullptr || IsOurObject(sim)) return;  // the first delivery says why it is inactive
+    CityStart c{city, sim};
+    SehGuard("power shadow (city start)", &CityStartStep, &c);
 }
 
 }  // namespace fc4

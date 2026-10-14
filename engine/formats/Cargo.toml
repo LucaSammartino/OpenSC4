@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 [package]
 name = "fc4-formats"
-description = "FreeCity4 readers for SimCity 4 data formats: DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT"
+description = "FreeCity4 readers for SimCity 4 data formats: DBPF packages, QFS/RefPack, exemplars and cohorts, LTEXT, FSH textures, S3D models"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

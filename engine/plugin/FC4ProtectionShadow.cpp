@@ -169,7 +169,9 @@ float OriginalRadius(uint32_t kind, cIGZUnknown* sim, cISC4Occupant* s) {
 // from its primary +0x84 (no slot returns it). Read only from an object
 // whose primary vtable is the original class's (the identified executable's,
 // compat table; or the test seam's), so another plug-in's replacement is
-// never read raw. nullptr, and `why` set, when it cannot be read.
+// never read raw. nullptr, and `why` set, when it cannot be read. PR16
+// confirms the recognition (only the class's own constructor and destructor
+// write the primary vtable; +0x84 is null outside Init..Shutdown).
 cISC4SimGrid<int16_t>* OriginalUnadjusted(uint32_t kind, cIGZUnknown* sim, const char** why) {
     const void* vt = g_testVtables ? g_testVtable[kind] : compat::ProtectionPrimaryVtable(kind);
     if (vt == nullptr) {

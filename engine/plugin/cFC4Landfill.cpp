@@ -32,6 +32,7 @@
 #include "SC4Rect.h"
 #include "SC4Vector.h"
 #include "cIGZApp.h"
+#include "cIGZCOM.h"
 #include "cIGZFrameWork.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
@@ -40,6 +41,7 @@
 #include "cISC4City.h"
 #include "cISC4LandfillOccupant.h"
 #include "cISC4LineItem.h"
+#include "cISC4LotBaseTextureOccupant.h"
 #include "cISC4LotDeveloper.h"
 #include "cISC4Occupant.h"
 #include "cISC4OccupantManager.h"
@@ -48,12 +50,15 @@
 #include "cISC4Simulator.h"
 #include "cISC4TrafficSimulator.h"
 #include "cISC4ZoneManager.h"
+#include "cISCExemplarPropertyHolder.h"
 #include "cISCPropertyHolder.h"
+#include "cISCResExemplar.h"
 #include "cISTETerrain.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
 #include "cS3DVector3.h"
 
+#include <cstddef>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -88,6 +93,27 @@ constexpr uint32_t kOccupantTypeBaseTexture = 0x497F6D9D;
 /// RemoveOccupant's `msgData` of §4.8.3 `(occupant, 1, 3)`.
 constexpr uint32_t kRemoveMsgData = 3;
 
+// Landfill tiles (§4.8.1 step 3, LG3): the class, its exemplar holder and
+// the tile exemplars' type and group (the instance is the tile ID).
+constexpr uint32_t kCLSID_cSC4LandfillOccupant = 0x8A22BEBE;
+constexpr uint32_t kIID_cISCExemplarPropertyHolder = 0x0AC2B5F7;
+constexpr uint32_t kTileExemplarType = 0x6534284A;
+constexpr uint32_t kTileExemplarGroup = 0x07BDDF1C;
+constexpr uint32_t kTileFlag = 4;          // SetFlag(4)
+constexpr uint32_t kTileRemovalFlags = 2;  // SetRemovalFlags(2)
+
+// The landfill ground texture (§4.8.5, LG2): class, interface, usage 1,
+// texture instance 0x1005, the shipped zone display alpha.
+constexpr uint32_t kCLSID_cSC4LotBaseTextureOccupant = 0xC97F987C;
+constexpr uint32_t kIID_cISC4LotBaseTextureOccupant = 0x097F6D98;
+constexpr int32_t kLandfillTextureUsage = 1;
+constexpr uint32_t kLandfillTexture = 0x1005;
+constexpr uint8_t kShippedZoneDisplayAlpha = 0xAA;
+/// Occupant flag 1: the occupant is in the occupant manager (§4.8.4).
+constexpr uint32_t kOccupantFlagInserted = 1;
+/// PostOccupantMessage after an inserted occupant changed (§4.8.5 step 6).
+constexpr uint32_t kMsgOccupantChanged = 0x99EF1145;
+
 // fc4.h: a region of more cells is refused by the core.
 constexpr int64_t kMaxRegionCells = int64_t{1} << 20;
 
@@ -115,6 +141,8 @@ void NoteOnce(bool& done, const char* text) {
     fc4::Log("%s", text);
 }
 bool g_noteTexture = false;
+bool g_noteTile = false;
+bool g_noteTileInsert = false;
 bool g_noteEffects = false;
 bool g_noteZot = false;
 bool g_noteView = false;
@@ -267,42 +295,6 @@ private:
 
 // ---- lifecycle (§1.1, §1.2) -------------------------------------------------------------------------
 
-// §1.1 step 3. [choice] Only the city and the message server are held; the
-// terrain, pollution and budget simulators are fetched from the city when
-// they are used (as the protection glue). The original crashes on a missing
-// service; we tolerate one.
-void AcquireServices(void* u) {
-    fc4::LandfillContext* c = Ctx(u);
-    if (c->city == nullptr) {
-        cIGZFrameWork* fw = RZGetFrameWork();
-        cIGZApp* app = fw ? fw->Application() : nullptr;
-        cISC4App* sc4 = nullptr;
-        if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
-            FC4_ACQUIRED(sc4, "QueryInterface");
-            c->city = sc4->GetCity();
-            if (c->city != nullptr) FC4_ADDREF(c->city);
-            FC4_RELEASE(sc4);
-        }
-    }
-    if (c->city == nullptr) fc4::Log("landfill: no city; services not acquired");
-    if (c->msgServer == nullptr) {
-        cIGZMessageServer2Ptr ms;
-        if (ms) {
-            c->msgServer = ms;
-            FC4_ADDREF(c->msgServer);
-        }
-    }
-}
-
-// §1.2: the last service step of Shutdown.
-void ReleaseServices(void* u) {
-    fc4::LandfillContext* c = Ctx(u);
-    if (c->msgServer != nullptr) FC4_RELEASE(c->msgServer);
-    c->msgServer = nullptr;
-    if (c->city != nullptr) FC4_RELEASE(c->city);
-    c->city = nullptr;
-}
-
 // The app's current city (borrowed).
 cISC4City* AppCity() {
     cIGZFrameWork* fw = RZGetFrameWork();
@@ -317,10 +309,92 @@ cISC4City* AppCity() {
     return city;
 }
 
+// Holds `p` in `field` with AddRef, only if the field is still null (LG15).
+template <class T>
+void HoldIfNull(T*& field, T* p) {
+    if (field != nullptr || p == nullptr) return;
+    field = p;
+    FC4_ADDREF(field);
+}
+
+// §1.1 step 3 (LG15 [compat]): the city, the terrain, the pollution and budget
+// simulators and the message server, each held with AddRef only if its field
+// is still null. The original reads the global service pointers the city
+// fills; the getters of the app's current city return the same objects. The
+// original crashes on a missing service;
+// we tolerate one (it is then fetched from the city when used).
+void AcquireServices(void* u) {
+    fc4::LandfillContext* c = Ctx(u);
+    HoldIfNull(c->city, AppCity());
+    if (c->city == nullptr) {
+        fc4::Log("landfill: no city; services not acquired");
+    } else {
+        HoldIfNull(c->terrain, c->city->GetTerrain());
+        HoldIfNull(c->pollution, c->city->GetPollutionSimulator());
+        HoldIfNull(c->budget, c->city->GetBudgetSimulator());
+    }
+    if (c->msgServer == nullptr) {
+        cIGZMessageServer2Ptr ms;
+        if (ms) HoldIfNull(c->msgServer, static_cast<cIGZMessageServer2*>(ms));
+    }
+}
+
+template <class T>
+void ReleaseHeld(T*& field) {
+    if (field != nullptr) FC4_RELEASE(field);
+    field = nullptr;
+}
+
+// §1.2 steps 2 and 4: the message server, then the budget, pollution,
+// terrain and city, each released only if held and then nulled. LF6
+// (answered; the choice stands): one call after the zones shut down; the
+// message server's release is never its last, so when it happens cannot be
+// observed.
+void ReleaseServices(void* u) {
+    fc4::LandfillContext* c = Ctx(u);
+    ReleaseHeld(c->msgServer);
+    ReleaseHeld(c->budget);
+    ReleaseHeld(c->pollution);
+    ReleaseHeld(c->terrain);
+    ReleaseHeld(c->city);
+}
+
+// An agent's cIGZMessageTarget2 pointer (the value the original's simulator
+// orders a level by, foundations §13.5), 0 when it has none.
+uintptr_t TargetAddress(cIGZUnknown* agent) {
+    cIGZUnknown* t = Query<cIGZUnknown>(agent, kIID_cIGZMessageTarget2);
+    Drop(t);
+    return reinterpret_cast<uintptr_t>(t);
+}
+
+// LG6 (§3.3 [compat]): the month agent must run after pollution's and the
+// budget's. FreeCity4's simulator ranks it by name (foundations §13.4). The
+// game's own simulator walks a level in ascending target-pointer order: the
+// line logs where this object's target falls and warns when it is not above
+// both (the order cannot be changed from here).
+void LogMonthOrder(fc4::LandfillContext* c, cISC4City* city, cISC4Simulator* sim) {
+    if (fc4::IsOurObject(sim)) {
+        fc4::Log("landfill: month agent registered with FreeCity4's simulator: ranked after the unranked month "
+                 "agents (pollution, budget) and before neighbours and ordinance (§3.3, foundations §13.4)");
+        return;
+    }
+    const uintptr_t me = reinterpret_cast<uintptr_t>(c->target);
+    const uintptr_t pol = TargetAddress(city->GetPollutionSimulator());
+    const uintptr_t bud = TargetAddress(city->GetBudgetSimulator());
+    const bool ok = (pol == 0 || me > pol) && (bud == 0 || me > bud);
+    fc4::Log("landfill: %smonth agent registered with the game's simulator (address order): landfill target %p, "
+             "pollution %p, budget %p; %s",
+             ok ? "" : "WARNING ", reinterpret_cast<void*>(me), reinterpret_cast<void*>(pol),
+             reinterpret_cast<void*>(bud),
+             ok ? "landfill runs after both (§3.3)"
+                : "landfill runs before one of them: its intake and maintenance reach pollution and the budget "
+                  "one month early (§3.3)");
+}
+
 // §1.1 step 2: simulator slot 19 AddAgent(target, level, name, flags). Step 2
 // runs before step 3 acquires the city, so the simulator comes from the app's
 // city; it is held until RemoveAgent (§1.2 removes the agent after the
-// services are released).
+// services are released; LG18 [choice], the header).
 void AddAgent(void* u, uint32_t level, const char* name, size_t len, uint32_t flags) {
     fc4::LandfillContext* c = Ctx(u);
     if (c->target == nullptr || name == nullptr) return;
@@ -337,6 +411,7 @@ void AddAgent(void* u, uint32_t level, const char* name, size_t len, uint32_t fl
     const cRZBaseString n(name, len);
     fc4::AsGame(raw)->AddAgent(c->target, level, n, flags);  // slot 19
     c->agentsRegistered = true;
+    if (level == 6) LogMonthOrder(c, city, raw);
 }
 
 // §1.2: simulator slot 20 RemoveAgent(target), on the simulator AddAgent used.
@@ -428,10 +503,11 @@ void CellCenterToPosition(void* u, int32_t cx, int32_t cz, float* x, float* z) {
 
 // ---- terrain (slots 13, 19, 29, 49, 68) -----------------------------------------------------------
 
+// The held terrain (LG15); the shadow's context reads it from the city.
 cISTETerrain* Terrain(void* u, const char* what) {
     cISC4City* c = City(u);
     if (c == nullptr || !Gate(u, fc4::Sw::LandfillTerrain, what)) return nullptr;
-    return c->GetTerrain();
+    return Ctx(u)->terrain ? Ctx(u)->terrain : c->GetTerrain();
 }
 
 float Altitude(void* u, float px, float pz) {
@@ -464,10 +540,12 @@ void RedisplayTerrain(void* u, int32_t x1, int32_t z1, int32_t x2, int32_t z2) {
 
 // ---- pollution simulator (slots 20, 21, 22, 24, 29, 30, 49, 50, 51) -------------------------------
 
+// The held pollution simulator (LG15); the shadow's context reads it from the
+// city.
 cFC4ISC4PollutionSimulator* Pollution(void* u, const char* what) {
     cISC4City* c = City(u);
     if (c == nullptr || !Gate(u, fc4::Sw::LandfillPollution, what)) return nullptr;
-    cISC4PollutionSimulator* p = c->GetPollutionSimulator();
+    cISC4PollutionSimulator* p = Ctx(u)->pollution ? Ctx(u)->pollution : c->GetPollutionSimulator();
     return p ? fc4::AsGame(p) : nullptr;
 }
 
@@ -530,10 +608,12 @@ bool IsActiveLandfill(void* u, int32_t x, int32_t z) {
 
 // ---- budget (§3.2, §4.9) --------------------------------------------------------------------------
 
+// The held budget simulator (LG15); the shadow's context reads it from the
+// city (slot 52).
 cFC4ISC4BudgetSimulator* Budget(void* u, const char* what) {
     cISC4City* c = City(u);
     if (c == nullptr || !Gate(u, fc4::Sw::LandfillBudget, what)) return nullptr;
-    cISC4BudgetSimulator* b = c->GetBudgetSimulator();  // city slot 52
+    cISC4BudgetSimulator* b = Ctx(u)->budget ? Ctx(u)->budget : c->GetBudgetSimulator();
     return b ? fc4::AsGame(b) : nullptr;
 }
 
@@ -573,7 +653,9 @@ void SetLineItemFullExpenses(void* u, uint64_t dept, uint32_t line, int64_t valu
 }
 
 // The first value of `property` of a game occupant's property holder
-// (occupant slot 6, borrowed): a landfill tile of the original (§4.9.1).
+// (occupant slot 6, borrowed): a landfill tile (§4.9.1). LG11 [compat]: the
+// holder has no cost of its own, so GetProperty finds the default exemplar's,
+// the tile exemplar InsertLandfillTile attached (foundations §10.3).
 bool OccupantItemCost(void* u, uint64_t occ, uint32_t property, int64_t* out) {
     if (occ == 0 || !Gate(u, fc4::Sw::LandfillOccupants, "landfill occupant item cost (none)")) return false;
     std::vector<int64_t> v;
@@ -628,9 +710,11 @@ cISC4OccupantManager* Occupants(void* u, const char* what) {
 // The occupants of `type` in one cell: GetOccupantsByStandardCityCells(list,
 // &cell, &cell, type, 0xFFFFFFFF). [abi] The typed overload (compiled slot 41)
 // fills an SC4List (A) with one reference each (allocators.md), kept until
-// the outermost call into the core returns. [choice] §8 lists slot 33 (find)
-// for the tile lookups; its out-parameter's reference count is not in
-// docs/abi, so the cell lookups go through slot 41 too.
+// the outermost call into the core returns; the list's destructor releases
+// each entry, as slot 48 does in the original (§4.8.4). LG4: the original's
+// presence and cost lookups use slot 33 (the first match, AddRef'd); §4.8.6
+// confirms slot 41 is equivalent for them while a cell holds at most one
+// landfill occupant, which CreateLandfillOccupant ensures.
 std::shared_ptr<SC4List<cISC4Occupant*>> OccupantsInCell(void* u, cISC4OccupantManager* om, int32_t x, int32_t z,
                                                         uint32_t type) {
     auto list = std::make_shared<SC4List<cISC4Occupant*>>();
@@ -721,26 +805,158 @@ void RemoveInCell(void* u, int32_t x, int32_t z, uint32_t type, const char* what
     }
 }
 
-// §4.4.5 / §4.8.1: RemoveIncompatibleOccupants(x, z) removes the flora in the
-// cell. [choice] The spec does not give the removal's arguments: those of
-// §4.8.3, (true, 3) (spec question).
+// §4.8.4 (LG1 [compat]): RemoveIncompatibleOccupants(x, z) removes every
+// flora occupant in the cell, in list order, with (true, 3).
 void RemoveIncompatibleOccupants(void* u, int32_t x, int32_t z) {
     RemoveInCell(u, x, z, kOccupantTypeFlora, "landfill flora removal");
 }
 
-// §4.4.5 / §4.8.1: SetEmptyCellTexture inserts a cSC4LotBaseTextureOccupant
-// with the landfill zone texture. How that occupant is created and given its
-// texture is not in the spec or docs/abi: not done (logged once).
-void SetEmptyCellTexture(void*, int32_t, int32_t) {
-    NoteOnce(g_noteTexture,
-             "landfill: SetEmptyCellTexture is not done (the base-texture occupant's factory and texture are not "
-             "documented): new landfill cells show no landfill ground texture");
+// The texture record SetTextureSpecification takes (§4.8.5, lot-records.md
+// §6): the saved record's 14 bytes in their saved order [inferred: the
+// in-memory record is laid out as saved; spec question]. With one record the
+// stride does not matter; the two trailing bytes are zero so a 16-byte stride
+// reads nothing past the record.
+struct TextureRecord {
+    uint32_t texture;
+    uint8_t x;
+    uint8_t z;
+    uint8_t orientation;
+    uint8_t objectByte3;
+    uint8_t unnamed[5];
+    uint8_t frame;
+    uint8_t pad[2];
+};
+static_assert(offsetof(TextureRecord, x) == 4 && offsetof(TextureRecord, objectByte3) == 7 &&
+                  offsetof(TextureRecord, unnamed) == 8 && offsetof(TextureRecord, frame) == 13,
+              "texture record layout (lot-records.md §6)");
+
+// §4.8.5 (LG2 [compat]): SetEmptyCellTexture(x, z) gives the cell the
+// landfill ground texture: the record {0x1005, x, z, 0, 0, FF FF FF alpha 01,
+// frame 0} (alpha: zone manager slot 16, shipped 0xAA), then
+// CreateInstance(0xC97F987C, 0x097F6D98), AsOccupant()->Init(), SetUsage(1),
+// SetTextureSpecification(&record, 1, null), and slot 24 (occ, false) plus
+// PostOccupantMessage(0x99EF1145, 0) if the occupant is already inserted,
+// slot 20 InsertOccupant(occ, 0) otherwise (result not checked); release.
+// [choice] The original's direct construction when GZCOM fails is not
+// reproduced: the cell keeps no texture (logged once). The callers check for
+// an existing texture first (§4.4.5, §4.8.1).
+void SetEmptyCellTexture(void* u, int32_t x, int32_t z) {
+    cISC4OccupantManager* om = Occupants(u, "landfill SetEmptyCellTexture");
+    if (om == nullptr) return;
+    cISC4ZoneManager* zm = Zones(u, "landfill GetZoneDisplayAlpha (0xAA)");
+    TextureRecord rec{};
+    rec.texture = kLandfillTexture;
+    rec.x = static_cast<uint8_t>(x);
+    rec.z = static_cast<uint8_t>(z);
+    rec.unnamed[0] = rec.unnamed[1] = rec.unnamed[2] = 0xFF;
+    rec.unnamed[3] = zm ? zm->GetZoneDisplayAlpha() : kShippedZoneDisplayAlpha;  // slot 16
+    rec.unnamed[4] = 0x01;
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr ||
+        !com->GetClassObject(kCLSID_cSC4LotBaseTextureOccupant, kIID_cISC4LotBaseTextureOccupant, &p) || p == nullptr) {
+        ++Ctx(u)->texturesFailed;
+        NoteOnce(g_noteTexture, "landfill: WARNING could not create a base-texture occupant through GZCOM (class "
+                                "0xC97F987C); landfill cells show no landfill ground texture");
+        return;
+    }
+    cISC4LotBaseTextureOccupant* tex = static_cast<cISC4LotBaseTextureOccupant*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(tex), "GetClassObject");
+    if (cISC4Occupant* o = tex->AsOccupant()) o->Init();  // slot 3, occupant slot 3
+    tex->SetUsage(kLandfillTextureUsage);                 // slot 5
+    tex->SetTextureSpecification(
+        reinterpret_cast<const cISC4LotBaseTextureOccupant::LotBaseTextureSpecification*>(&rec), 1, nullptr);  // 8
+    if (cISC4Occupant* occ = tex->AsOccupant()) {
+        if (occ->IsFlagSet(kOccupantFlagInserted)) {
+            om->MoveOccupant(occ, false);  // slot 24
+            occ->PostOccupantMessage(kMsgOccupantChanged, 0);
+        } else {
+            om->InsertOccupant(occ, 0);  // slot 20
+        }
+        ++Ctx(u)->texturesInserted;
+    }
+    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(tex));
 }
 
-// §4.4.3 / §4.4.8: RemoveBaseTexture(x, z). [choice] As the flora: every
-// base-texture occupant in the cell, removed with (true, 3) (spec question).
+// §4.8.4 (LG1 [compat]): RemoveBaseTexture(x, z) lists the base textures in
+// the cell and removes, through AsOccupant with (true, 3), only those whose
+// cISC4LotBaseTextureOccupant (0x097F6D98) usage is 1, the landfill's; a
+// lot's texture (usage 2) stays.
 void RemoveBaseTexture(void* u, int32_t x, int32_t z) {
-    RemoveInCell(u, x, z, kOccupantTypeBaseTexture, "landfill base-texture removal");
+    cISC4OccupantManager* om = Occupants(u, "landfill base-texture removal");
+    if (om == nullptr || x < 0 || z < 0) return;
+    for (cISC4Occupant* o : *OccupantsInCell(u, om, x, z, kOccupantTypeBaseTexture)) {
+        cISC4LotBaseTextureOccupant* tex =
+            Query<cISC4LotBaseTextureOccupant>(o, kIID_cISC4LotBaseTextureOccupant);
+        if (tex == nullptr) continue;
+        if (tex->GetUsage() == kLandfillTextureUsage) {  // slot 4
+            if (cISC4Occupant* occ = tex->AsOccupant()) {  // slot 3
+                om->RemoveOccupant(occ, true, kRemoveMsgData);
+                ++Ctx(u)->occupantsRemoved;
+                ++Ctx(u)->texturesRemoved;
+            }
+        }
+        Drop(tex);
+    }
+}
+
+// §4.8.1 step 3 (LG3), the [choice] route through public interfaces: load the
+// tile exemplar (0x6534284A, 0x07BDDF1C, tile); CreateInstance(0x8A22BEBE,
+// 0x2A15F262); SetDefaultExemplar(ex) on its cISCExemplarPropertyHolder
+// (0x0AC2B5F7, slot 3, result not defined); SetTileID(tile) (slot 6, now
+// harmless: the key already has that instance; the previous ID it returns is
+// ignored); SetOrientation (slot 8); SetFlag(4), SetRemovalFlags(2),
+// SetPosition; Init; InsertOccupant(occ, 0) (slot 20) while this function
+// still holds its reference (the quirk of step 7 is not reproduced); release.
+// The core set the cell's active-landfill flag already. Returns the
+// occupant's token (the occupant manager holds it), 0 when none was made: a
+// missing exemplar (the original crashes) or class, or a refused insert. The
+// cell (x, z) is not needed: the position places the occupant.
+uint64_t InsertLandfillTile(void* u, int32_t /*x*/, int32_t /*z*/, uint32_t tile, int32_t orientation,
+                            const float* xyz) {
+    fc4::LandfillContext* c = Ctx(u);
+    cISC4OccupantManager* om = Occupants(u, "landfill tile creation (kept in FreeCity4)");
+    if (om == nullptr || xyz == nullptr) return 0;
+    fc4::props::Exemplar ex;
+    if (!ex.Load(kTileExemplarType, kTileExemplarGroup, tile) || ex.Resource() == nullptr) {
+        ++c->tilesFailed;
+        return 0;
+    }
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr || !com->GetClassObject(kCLSID_cSC4LandfillOccupant, kIID_cISC4LandfillOccupant, &p) ||
+        p == nullptr) {
+        ++c->tilesFailed;
+        NoteOnce(g_noteTile, "landfill: WARNING could not create a landfill occupant through GZCOM (class "
+                             "0x8A22BEBE); the tiles are kept in FreeCity4 (no model, not saved by the game)");
+        return 0;
+    }
+    cISC4LandfillOccupant* t = static_cast<cISC4LandfillOccupant*>(p);
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(t), "GetClassObject");
+    uint64_t token = 0;
+    cISCExemplarPropertyHolder* holder = Query<cISCExemplarPropertyHolder>(t, kIID_cISCExemplarPropertyHolder);
+    cISC4Occupant* occ = t->AsOccupant();  // slot 5
+    if (holder != nullptr && occ != nullptr) {
+        holder->SetDefaultExemplar(ex.Resource());  // slot 3: takes its own reference
+        t->SetTileID(tile);                         // slot 6
+        t->SetOrientation(orientation);             // slot 8
+        occ->SetFlag(kTileFlag);
+        occ->SetRemovalFlags(kTileRemovalFlags);
+        const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
+        occ->SetPosition(&v);
+        t->Init();  // slot 3
+        if (om->InsertOccupant(occ, 0)) token = TokenOf(occ);  // slot 20
+    }
+    Drop(holder);
+    if (token != 0) {
+        ++c->tilesInserted;
+    } else {
+        ++c->tilesFailed;
+        NoteOnce(g_noteTileInsert,
+                 "landfill: WARNING a landfill occupant could not be set up or inserted; that tile is kept in FreeCity4");
+    }
+    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(t));
+    return token;
 }
 
 // ---- props (slots 26, 29) -------------------------------------------------------------------------
@@ -773,18 +989,22 @@ bool RemoveProp(void* u, uint64_t occ) {
     return pm->RemovePropA(OccOf(occ));  // slot 29
 }
 
-// §4.7.5: the orientation is read from a global view service (spec open
-// question 6), not reachable through a documented interface: 0.
+// §4.7.5 (LG5 [compat]): the original uses the current view rotation, field
+// +0x10 of the global SC4ViewUtilities object. [choice] 0, which matches the
+// original at the view's first rotation (the spec's choice for a core with no
+// view): that object is reached only through a global or cISC43DRender slot 8,
+// and neither it nor its field is in docs/abi (spec question). The value is
+// saved with the prop; nothing else reads it.
 int32_t ZotOrientation(void*) {
-    NoteOnce(g_noteZot, "landfill: the zot's orientation is 0 (the view service of §4.7.5 is not documented)");
+    NoteOnce(g_noteZot, "landfill: the zot's orientation is 0 (the view rotation of §4.7.5 is not read)");
     return 0;
 }
 
 // ---- traffic ----------------------------------------------------------------------------------------
 
 // §4.4.5: the traffic network map (city slot 40, landfill §8) slot 8
-// FindNetworkTile(x, z, 0x1F4F, true). The tile is a pointer into the map
-// (only its presence is used; [inferred] no reference).
+// FindNetworkTile(x, z, 0x1F4F, true). The tile is a pointer into the map,
+// borrowed (LG7/LG17: only its presence is used, no reference is taken).
 uint64_t FindNetworkTile(void* u, int32_t x, int32_t z, uint32_t mask, bool flag) {
     cISC4City* c = City(u);
     if (c == nullptr || !Gate(u, fc4::Sw::LandfillTraffic, "landfill FindNetworkTile (none)")) return 0;
@@ -849,8 +1069,10 @@ bool AttemptAreaLevelling(void* u, int32_t x1, int32_t z1, int32_t x2, int32_t z
 }
 
 // §3.2 PreViewLevelChange: only zones with a seagull effect read it, and none
-// has one here (§4.10 is not implemented). The 3D view is reached through
-// cIGZWin, which docs/abi does not cover.
+// has one here (§4.10 is not implemented). LG16 gives a route through
+// cISC4App::GetMainWindow and cIGZWin (SC4UI::GetView3DWin); cIGZWin is not
+// in docs/abi, and with no seagull effect the level has no reader, so it is
+// not taken.
 uint32_t CurrentViewLevel(void*) {
     NoteOnce(g_noteView, "landfill: the 3D view level is not read (no zone has a seagull effect)");
     return 0;
@@ -958,6 +1180,7 @@ fc4_landfill_host MakeLandfillHost(LandfillContext* ctx) {
     h.remove_incompatible_occupants = &RemoveIncompatibleOccupants;
     h.set_empty_cell_texture = &SetEmptyCellTexture;
     h.remove_base_texture = &RemoveBaseTexture;
+    h.insert_landfill_tile = &InsertLandfillTile;  // ABI 33 (LG3)
     h.add_lot_prop = &AddLotProp;
     h.remove_prop = &RemoveProp;
     h.attempt_area_levelling = &AttemptAreaLevelling;
@@ -1028,9 +1251,9 @@ uint32_t cFC4LandfillDeveloper::Release() {
 
 // ---- the lock -------------------------------------------------------------------------------------
 
-bool cFC4LandfillDeveloper::Enter() {
+bool cFC4LandfillDeveloper::Enter(bool wait) {
     const DWORD me = GetCurrentThreadId();
-    if (mainTid_ == 0 || me == mainTid_) {
+    if (wait || mainTid_ == 0 || me == mainTid_) {
         EnterCriticalSection(&lock_);
         return true;
     }
@@ -1046,8 +1269,8 @@ bool cFC4LandfillDeveloper::Enter() {
 
 void cFC4LandfillDeveloper::Leave() { LeaveCriticalSection(&lock_); }
 
-cFC4LandfillDeveloper::Section::Section(const cFC4LandfillDeveloper* s)
-    : s_(const_cast<cFC4LandfillDeveloper*>(s)), ok_(s_->Enter()) {
+cFC4LandfillDeveloper::Section::Section(const cFC4LandfillDeveloper* s, bool wait)
+    : s_(const_cast<cFC4LandfillDeveloper*>(s)), ok_(s_->Enter(wait)) {
     if (ok_) ++s_->depth_;
 }
 
@@ -1079,15 +1302,19 @@ void cFC4LandfillDeveloper::LogState(const char* what) {
     if (!fc4_landfill_get_state(core_, &st)) return;
     fc4::Log("landfill %s: init=%u loaded=%u zones=%u connected=%u cells=%u heaps=%u valid=%u active=%u stored=%llu "
              "capacity=%u used=%u free=%d reported=%u moved=%lld supplyDelta=%lld maintenance=%lld activeCells=%u "
-             "tiles=%u rebuilt=%u zots=%u department=%p reentrant=%u fallbacks=%u placeZones=%u zotsPlaced=%u "
-             "zotsFailed=%u zotsRemoved=%u occupantsRemoved=%u levellings=%u history=%u months=%u",
+             "tiles=%u rebuilt=%u gameTiles=%u gameTileFailures=%u zots=%u department=%p reentrant=%u fallbacks=%u "
+             "offThreadMessages=%u placeZones=%u zotsPlaced=%u zotsFailed=%u zotsRemoved=%u occupantsRemoved=%u "
+             "tilesInserted=%u tilesFailed=%u textures=%u texturesFailed=%u texturesRemoved=%u levellings=%u "
+             "history=%u months=%u",
              what, st.initialized, st.loaded, st.zones, st.connected_zones, st.cells, st.heaps, st.valid_heaps,
              st.active_heaps, static_cast<unsigned long long>(st.stored), st.capacity_total, st.used_total,
              st.free_capacity, st.capacity_reported, static_cast<long long>(st.moved),
              static_cast<long long>(st.supply_delta), static_cast<long long>(st.maintenance), st.active_cells,
-             st.virtual_tiles, st.rebuilt_tiles, st.zots, static_cast<void*>(FromToken(st.department)),
-             st.reentrant_calls, fallbacks_.load(), ctx_.placeZones, ctx_.zotsPlaced, ctx_.zotsFailed,
-             ctx_.zotsRemoved, ctx_.occupantsRemoved, ctx_.levellings, ctx_.historySends, months_);
+             st.virtual_tiles, st.rebuilt_tiles, st.game_tiles, st.game_tile_failures, st.zots,
+             static_cast<void*>(FromToken(st.department)), st.reentrant_calls, fallbacks_.load(),
+             offThreadMessages_.load(), ctx_.placeZones, ctx_.zotsPlaced, ctx_.zotsFailed, ctx_.zotsRemoved,
+             ctx_.occupantsRemoved, ctx_.tilesInserted, ctx_.tilesFailed, ctx_.texturesInserted,
+             ctx_.texturesFailed, ctx_.texturesRemoved, ctx_.levellings, ctx_.historySends, months_);
 }
 
 // ---- lifecycle (§1.1, §1.2) -----------------------------------------------------------------------
@@ -1176,7 +1403,10 @@ int32_t cFC4LandfillDeveloper::GetLandfillTileCount() const {
 }
 
 // Slot 12: [choice] null, which §9 allows; the zone object whose memory the
-// city situation manager reads is not reproduced.
+// city situation manager reads is not reproduced. LG9 [compat]: it asks only
+// for a target in the tiles' occupant group 0x1406 (now that the tiles are
+// game occupants, it can), and handles null by falling back to the target's
+// lot.
 intptr_t cFC4LandfillDeveloper::GetLandfillZoneFromCell(int32_t, int32_t) {
     if (GetCurrentThreadId() == mainTid_) {
         NoteOnce(g_noteZoneFromCell, "landfill: GetLandfillZoneFromCell returns null (§9: the zone object is not "
@@ -1190,8 +1420,18 @@ intptr_t cFC4LandfillDeveloper::GetLandfillZoneFromCell(int32_t, int32_t) {
 bool cFC4LandfillDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
     FC4_X87_SCOPE("landfill DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
-    Section sec(this);
-    if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
+    // LG20 [choice]: wait for the lock on every thread, so no message is
+    // dropped (the original takes no lock and handles every message; all of
+    // them come from the main thread, foundations §18.2). One from another
+    // thread is counted (the status line) and the first few are logged.
+    if (mainTid_ != 0 && GetCurrentThreadId() != mainTid_) {
+        const uint32_t n = ++offThreadMessages_;
+        if (n <= kOffThreadMessagesLogged) {
+            fc4::Log("landfill: DoMessage 0x%08X on thread %lu (not the main thread); it waits for the lock",
+                     pMessage->GetType(), static_cast<unsigned long>(GetCurrentThreadId()));
+        }
+    }
+    Section sec(this, true);
     const uint32_t type = pMessage->GetType();
     uint32_t d[4] = {};
     std::vector<uint8_t> mask;

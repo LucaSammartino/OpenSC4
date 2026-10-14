@@ -135,37 +135,35 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   **`lvrefs` merged** (`32d9d84`): land value and ordinance release the references a save handed over as ours;
 >   SV1–SV2 filed. **Run 91 (save → reload again)**: both runs clean, `ref_warnings=0` (run 88 had 3).
 >   **Merged since (2026-10-14, late morning):** `growprobe` (`393a529`; run 93 calibrated the growth budget:
->   unlimited), `neighglue` (`50e2dc5`, ABI 28), `apply7b` (`c3dbe33`), `apply5` (`7f3c562`, ABI 30, 146 switches),
->   `apply7a` (`29adf9a`). **Regress r50e2** (neighbours DLL `eeae4a5d`): every shadow clean, neighbours 89/89, but
->   `enable = neighbors` crashed a month in. Our connection holder copied the property the traffic simulator adds and
->   then writes in place (foundations §10.2 "Ownership", NG1 answered), and Init kept regional cities that ReloadCity
->   had replaced (neighbors §14.1). The neighbours lane is fixing both on its branch; `tools/regress.ps1` already lists
->   neighbours, so its replace half fails until that fix merges.
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
->   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
->     `development_shadow`; ABI 29, seam op 34);
->   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
->     original; ABI 34, seam op 38);
->   - **growth probe: merged** (`393a529`, seam op 39; DLL `83897a4b`). Run 93 (all original, 14,339 days):
->     159 µs per attempt, Σattempts/Σqualifying 0.72, no cut days, so `growthAttemptsPerDay` stays unlimited
->     (building-development.md §12.1, manual-checks row 93);
->   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
->     unavoidable);
->   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
->     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
->   - **`apply8a`**: re-answers7's RG1–RG22 (RG22: residential slots 37/38 return in x87), PR14–PR16, PG15, DQ13,
->     SV1–SV2, LF6, NB18, and RG13 in the budget core (×0.01f); ABI 38 / seam op 43 if needed;
->   - **`apply8b`**: EX21–EX33 (EX29 corrects EX8: Float32 text has 17 significant digits), ZQ11–ZQ12 (draft Place),
->     TN26–TN28; ABI 39 / seam op 44 if needed;
->   - **`formats3`** (M6): the FSH and S3D readers in `engine/formats` from `docs/specs/graphics-formats.md` (§10
->     checklist, §8 tests 1–43, `fc4-dat fsh|s3d`);
->   - Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`; rows
->     `a9eef99`), `re-answers6` (`d9db98f`; row `bbee494`), `re-answers7` (`59495b4`; rows `402072f`),
->     `re-formats2` (`c2c59cf`: graphics-formats.md, GF1–GF12). No RE lane is running.
->   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
->     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
->     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
+>   unlimited), `neighglue` (`50e2dc5`, ABI 28; the r50e2 crash fixed: the holder keeps the caller's property,
+>   foundations §10.2 "Ownership", and Init re-fetches after ReloadCity, neighbors §14.1), `apply7b` (`c3dbe33`),
+>   `apply5` (`7f3c562`, ABI 30), `apply7a` (`29adf9a`), `zoneglue` phase 1 (ABI 34, seam op 38; regress rzones PASS
+>   with 16 replacements, run 97), `apply6a` (`46258e4`, TS1–TS34 in the traffic simulator core), `formats3`
+>   (`2db780b`, FSH/S3D readers, 43 tests), `apply8a` (`9f50bdc`, RG/PR/PG/DQ/LF/NB/SV answers, 160 switches incl.
+>   `residential_effects`; regress r8a PASS, run 98), `apply6b` (`a11e714`, PW/PS/LG answers; regress r6b checks
+>   whether the power and plumbing shadows are now exact). `tools/regress.ps1` replaces 16 subsystems by default
+>   (adds neighbours and zones). **Run 99:** our zone manager's `PlaceZone` commit path and the dezone handler ran
+>   in game for the first time (two zone drags with the new `sc4ctl realdrag`), clean.
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lane in
+>   `.claude/worktrees/re-answers8`):
+>   - **development glue + shadow** (`agent-a054ba812e30f4fd3`; BDS `0x8990BE7A` and the growth developers
+>     `0x0990C138` as one unit, `development_shadow`; ABI 29, seam op 34 to renumber at merge);
+>   - **`apply8b`** (`agent-a9c519e998dcff4f5`, tip `1e99780`): EX21–EX33, ZQ11–ZQ12, TN26–TN28 done (1677 tests);
+>     gate `apply8b` failed only two flora lock-timing tests under load (they pass 3/3 alone; the lane does not touch
+>     flora), so gate `apply8b2` reruns it; merge on green. Questions filed (EX34–EX39, ZQ13);
+>   - **tract developer glue** (`tractglue` prompt in the scratchpad): `cSC4TractDeveloper` `0x2990C142` replaced
+>     through GZCOM plus `tract_shadow`; ABI 40, seam op 45;
+>   - **harness** (`harness` prompt): `sim_turbo` (our clock without the msPerDay wait), `autotest_end_date`, and
+>     `script = <file>` with dated in-city actions (zone, pricezone, dezone, speed, turbo, digest) through the game's
+>     interfaces; ABI 41, seam op 46. Once merged: give regress a turbo profile and replace UI-driven tests;
+>   - **M5 traffic glue phase 1** (`agent-ae77339e1cc706c17`; prompt `trafficglue-prompt.txt` in the session
+>     scratchpad): the traffic simulator + pathfinder replacement unit (class `0x6990C1AA`), ABI 37 / seam op 42;
+>   - **`re-answers8`** (RE, branch `re-answers8`): ZG17 first, then NG2–NG34, GF, AQ1–AQ10, BQ4–BQ8, FL7–FL9,
+>     ZG1–ZG16, TS35–TS49, FS1–FS14. On its report: merge the spec answers, apply the abi rows, spawn apply lanes.
+>   - Merged RE lanes: `re-answers4`–`re-answers7`, `re-formats2` (graphics-formats.md, GF1–GF12).
+> - **Build infra:** with ~8 lanes building, the shared 32-bit `mspdbsrv` ran out of address space and every
+>   cl/link hung or failed with LNK1318. `build-runs/coord-full-verify.ps1` and `coord-verify-lane.ps1` now set a
+>   private `_MSPDBSRV_ENDPOINT_` per gate / worktree.
 > - **Restarts:** the coordinator's process exited twice on 2026-10-14; each time every lane stopped, and resumed
 >   through `SendMessage` with its worktree intact. Worktrees made by an elevated session are owned by
 >   Administrators, so a non-elevated session needs `safe.directory = C:/Users/tlori/FreeCity4/.claude/worktrees/*`
@@ -824,6 +822,10 @@ The pattern that worked, and that a next coordinator can reuse:
 4. Delete the local KillaVolt clone, and download the Mac Rev A binary (5.6).
 
 ## 8. Working conventions
+
+- **Bootstrap the harness with the engine** (the user, 2026-10-14): as more of the game is ours, use it to make the
+  feedback loops short and automated (a turbo clock, plugin-side scripted actions instead of screen clicks, end
+  dates instead of timeouts). Prefer a tooling switch in the plugin (off by default, logged) over UI automation.
 
 - **Branches and merges:** lanes work on `worktree-agent-*` branches. The coordinator merges them into `main` after
   tests pass:

@@ -110,6 +110,11 @@
 #include "cIGZCheatCodeManager.h"
 #include "cIGZCommandServer.h"
 #include "cISC4LandfillOccupant.h"
+#include "cISCExemplarPropertyHolder.h"
+#include "cISC4LotBaseTextureOccupant.h"
+#include "cIGZCOM.h"
+#include "cISC4EffectsManager.h"
+#include "cISC4VisualEffect.h"
 #include "cISC4LotConfiguration.h"
 #include "cISC4ZoneDeveloper.h"
 
@@ -370,6 +375,12 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4TrafficNetworkMap", 9, 52,
      "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
      "only (landfill §4.4.5, §8)"},
+    {"cISCExemplarPropertyHolder", 5, 4,
+     "the table has the one row the landfill spec added (slot 3 SetDefaultExemplar, landfill LG3); the SDK's slot 4 "
+     "GetDefaultExemplar has no row. The landfill developer calls slot 3 only (§4.8.1)"},
+    {"cISC4VisualEffect", 18, 13,
+     "the table has rows only for the slots re-answers2 PG4 traced (2-5, 8, 12; no RTTI); the SDK declares 0-17. "
+     "The residential glue calls slots 2, 3 and 8 only (REH 4.7 step 3, RG1)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {

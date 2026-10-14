@@ -75,7 +75,15 @@
 //!   or radius reads as 0 ([choice] of §7.1), and `UpdateUnadjusted` (§5.1)
 //!   skips a station whose effect fails ([choice]). A prop station without a
 //!   department uses department funding 1.0.
-//! - `GetDispatchEffect` (§7.2) succeeds when all three properties exist.
+//! - `GetDispatchEffect` (§7.2, corrected by PR14) is
+//!   [`ProtectionSim::dispatch_effect_into`]: it fails only on an absent or
+//!   zero centre, an absent outer or radius keeps the caller's field, and the
+//!   effect is scaled by `GetStationEfficiency` (§6.2). Every FreeCity4
+//!   caller passes a zeroed record ([choice]). Its two callers are
+//!   `UpdateUnadjusted` (§5.1) and the dispatch active / inactive handler
+//!   (§5), both with the record's `+0x20` (the source station); the handler
+//!   skips the update when the effect fails ([choice] of §5, PR14; the
+//!   original uses a stack leftover as the radius).
 //! - `UpdateBothGridsByPosition` (§5.2) copies the box with the adjusted
 //!   grid's counts; `UpdateUnadjusted` (§5.1) draws with the unadjusted
 //!   grid's counts and inverse widths. Without a grid the step is skipped.
@@ -222,6 +230,21 @@ pub mod msg {
         DISPATCH_END,
         DISPATCH_ACTIVE,
         DISPATCH_INACTIVE,
+        RELOAD_TUNING,
+    ];
+    /// The nine unsubscriptions of the base shutdown, in the original's
+    /// order (§4.2 step 3, [compat], PR15: `0x006F5744`–`0x006F57BA`): the
+    /// active / inactive pair comes **before** the dispatch end, unlike the
+    /// subscriptions.
+    pub const UNSUBSCRIPTIONS: [u32; 9] = [
+        OCCUPANT_INSERTED,
+        OCCUPANT_REMOVED,
+        OCCUPANT_STATE_CHANGED,
+        FUNDING_CHANGED,
+        DISPATCH_BEGIN,
+        DISPATCH_ACTIVE,
+        DISPATCH_INACTIVE,
+        DISPATCH_END,
         RELOAD_TUNING,
     ];
 
