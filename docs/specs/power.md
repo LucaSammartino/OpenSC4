@@ -235,12 +235,18 @@ month time is produced by a later month agent in the same month *[inferred]*.
 
 `DoMessage` always returns **true** (finished) for every message *[compat]*.
 
+All three carry `data1` = the simulator's current date number, the julian day of `GetSimDateNumber` (`0x00703D40`,
+the date object's slot 26) (PW2). The agent loop reads it once per `SimulateAgents` call (`0x007038E7`; the
+message ID is `0x66956810 + level`, `data2` = 0), and the idle loop once per `SimulateIdleTime` call
+(`0x00702E38`), so every idle agent of one frame gets the same date (simulator.md §5.3, §5.4). The power
+simulator itself does not read `data1`.
+
 ## 5. Messages handled
 
 | Message | Action |
 |---|---|
-| `0x99EF1142` occupant inserted | `DoOccupantInserted(void1)` (§5.1), only if `initialized` |
-| `0x99EF1143` occupant removed | `DoOccupantRemoved(void1)` (§5.2) |
+| `0x99EF1142` occupant inserted | `DoOccupantInserted(void1)` (§5.1), only if `initialized` (the handler's first test, `0x006ECC56`) |
+| `0x99EF1143` occupant removed | `DoOccupantRemoved(void1)` (§5.2), only if `initialized` (the handler's first test, `0x006EBF66`) |
 | `0x07699455` zoning changed | rect = the four `int32` at `void2`; `CellChanged(rect)` (§5.3); then the city's network manager `GetNetworkTool(5, false)` (the power-line tool): `AddRef`, `Init`, `UpdateOnZoneChange(rect by value, data3)`, `Shutdown`, `Release` |
 | `0xCA1B151C` tuning reload | re-read the tuning (§8) |
 | `0x278E6003` terrain heights changed | ignored if data4 is 4 or 5; else rect `x1 = (data1 >> 16) − 1`, `x2 = data1 & 0xFFFF`, `z1 = (data2 >> 16) − 1`, `z2 = data2 & 0xFFFF`, clamped to the city; `DoTerrainHeightsChanged` (§5.4) |
@@ -264,7 +270,9 @@ Dispatch on `occ.GetType()` (occupant slot 7):
   `HasNetworkFlag(0x80000000)`. It conducts only if `HasNetworkFlag(0x40000)`: then wire its single
   `GetOccupiedCell()` (**not** widened by R); recompute := true. Flag meanings unknown *[inferred]*.
 - **Building** `0x278128A0`:
-  - centre cell = `trunc(((min + max) × 0.5) / CellWidth)` per axis from `GetBoundingBox` (world units);
+  - centre cell = `trunc(((min + max) × 0.5) / CellWidth)` per axis from `GetBoundingBox` (world units). The
+    half-sum is **stored as a float32** before the division (`0x006ECEBB`, `0x006ECECD`; removal `0x006EC20F`,
+    `0x006EC221`), which decides cells at an edge (test 10);
   - wire bits: `GetBoundingCityCells` expanded by R;
   - `consumed` = u32 `0x27812854`, `produced` = u32 `0x27812852` (both default 0);
   - if `consumed > produced` (a **consumer**): `consumption[cx][cz] += (int16)consumed` (16-bit wrap);
@@ -307,6 +315,39 @@ Dispatch on `occ.GetType()` (occupant slot 7):
   and `li.SetSecondaryInfoField(Get − 1)` (int64). If the occupant is in the plant list: release, unlink,
   perType[type] −= 1 (type read now), plantCount −= 1, recompute := true.
 
+**Running counts against a rebuild** (PW8) *[compat]*. consumers, requirement and the consumption map are running
+sums. Insertion adds and removal subtracts what the building's properties say **when the message is delivered**.
+Nothing recomputes them from the occupants: `Read` restores them from the save (§9.1), and `Init`, PostCityInit
+(§5.6) and the pass only read them. So applying §5.1 to every live occupant (a rebuild) can give other numbers,
+in three ways:
+
+1. **Inherited from the save.** The counts are whatever the saving game had. The shipped Berlin cities do not
+   match their own buildings. Konradshohe saves consumers 725 and requirement 6478, but its 737 saved buildings
+   give 723 and 6476. The two extra consumers are cells (41,102) and (55,111), 1 each. They are the centre
+   cells of the mayor's statue (exemplar `0x8A3858D8`/`0x03730000`, `RW4x4_MayorStatueMediumLow`) and the
+   cemetery (`0x8A3858D8`/`0x03470000`, `RW32x32_Cemetery_0347`). Both have Power Consumed `0x27812854` = 0 in
+   the shipped exemplars, and no other building is centred there. Tegel has the same +1 at its cemetery (74,37).
+   The other base-game saves with buildings (Spandau, Fulham, Kensington and the three Timbuktu tutorials) match
+   exactly. *[inferred]* These cities were built while the two rewards consumed 1. The extra 1 never goes away:
+   removing the building reads 0, which is not a consumer, so the cell keeps 1 with nothing on it. This is the
+   whole persistent part of the shadow's bookkeeping difference: consumers +2, requirement +2 and those two
+   cells, in every bookkeeping line of runs 80, 83 and 86 (94, 95 and 56 months). The 1s are real consumption:
+   when such a cell is in a network, the pass adds it to its block's need and powered count (§6.3 step 6).
+2. **Messages in flight.** The occupant manager posts InsertOccupant and RemoveOccupant (queued; flora.md §9.1).
+   At a month boundary the original may not yet have seen an occupant that a rebuild already sees, and it may
+   still count one that is gone. Example (run 80, 2028-01-01): orig (31,43) 14 and (31,44) 14, ours 0 and 76.
+   Two buildings of 14 are being replaced by one of 76. Consumers 685/682 = 2 old − 1 new + 2 inherited, and
+   requirement 8923/8969 = 28 − 76 + 2. The next month only the inherited part is left.
+3. **Properties that change while a building is in the city** (not seen in these runs). The values are read
+   twice. A building whose `0x27812854` or `0x27812852` changes in between adds one value and subtracts another,
+   or nothing if it is no longer a consumer at removal. No game code writes `0x27812854`. The only writer of
+   `0x27812852` is pollution's waste-to-energy handling (pollution.md §4.2.3, §4.9.3), and those buildings are
+   not consumers. Plug-ins or exemplars changed between saving and loading act like case 1.
+
+*[compat]* FreeCity4 loads the three counts from the save and keeps them as running sums. It never rebuilds them,
+so the inherited 1s stay. *[choice]* For the shadow: a cell or count whose difference is the same as at the first
+bookkeeping line after the load is inherited (case 1). A difference that is gone a month later is case 2.
+
 ### 5.3 Dirty wiring (`CellChanged`, `UpdateWireBits`) *[compat]*
 
 `CellChanged(rect)`: expand the rect by R; if `zoneManager.GetZoneType(x1, z1) ≠ 0` (the rect's first corner
@@ -321,6 +362,26 @@ them (`UpdateWireBits(rect)`), then clear wireDirty:
    `0x40000` → its cell; pole → its neighbourhood (**no** slot-13 test here *[quirk]*); line → its neighbourhood.
 2. For every cell of the rect (x outer, z inner) with `GetZoneType ≠ 0`: wire its neighbourhood.
 3. Rewrite the powered grid for every cell of the rect (`SetTractValue`, values of §2).
+
+The bits set in steps 1 and 2 are not clipped to the rect (`SetWireBits` `0x006EAFD0`); outside it they can only be
+added. Step 1 also has none of the insertion filters of §5.1: a network occupant with flag `0x80000000` is wired
+when it has `0x40000`, and a preview line is wired (`0x006ED859`–`0x006ED9A8`).
+
+**The rectangle matters** (PW5). The occupant query has a margin of 2R, so it finds every occupant whose wiring can
+reach the rect, and step 1 does not depend on the rect's exact size. Step 2 has **no margin**: only zoned cells
+inside the rect re-wire their neighbourhoods. A cell of the rect whose only wire source is a zoned cell outside the
+rect, at most R away, loses its bit in the rebuild *[quirk]*. Two rects A ⊂ B therefore rebuild differently
+exactly where a cell of A is wired only by zoned cells in B but not in A.
+
+Example (R = 2). A power line runs along x = 10, so it wires x 8…12 in every row. Cell (11, 15) is zoned, so it wires
+x 9…13 × z 13…17. Nothing else is near. A building with footprint x 12…18 × z 12…18 is removed, and the dirty rect
+B is the footprint expanded by 2, x 10…20 × z 10…20. Rebuilding B leaves x 10…12 wired (the line) and (13, 13…17)
+wired (the zoned cell); every other cell of B changes from 1 to 0. The bounding box of the changed bits is
+therefore A = x 13…20 × z 10…20, which does not hold (11, 15). A rebuild over A clears (13, 15) and does not set it
+again, while the original keeps it.
+
+*[choice]* for the shadow: use the dirty rect that our own simulator merges from the same messages, which is the
+original's rect, rather than one inferred from the changed bits.
 
 ### 5.4 `DoTerrainHeightsChanged(rect)`
 
@@ -424,6 +485,11 @@ agePlants: zero the overworked, aged and distressed counts, agePlants := false, 
 *[quirk]* On a shortfall the whole remaining availability counts as consumed. A block with zero need is powered
 only while `avail ≠ 0`.
 
+**Block count** (PW6). The block rectangle is at most `CellCountX / 8` wide and as many high, so a 256-cell city has
+at most 32 × 32 = 1,024 blocks (64: 64; 128: 256). The iterator's start is `rand() mod count` with `rand()` in
+0…32,767 (foundations §12), so every start is reachable, and a count above 32,768 cannot occur. If it did, the
+starts from 32,768 up could never be drawn.
+
 ### 6.4 Helpers of §6.3
 
 **`IsNeighborConnected(city, markVisited, light)`** → bool: for each PowerPole connection to `city`
@@ -445,6 +511,15 @@ inline 32-bit `fistp`. This function converts with `_ftol`.)*
 For each buy deal with `used < amount`: repeatedly take `conn := FindUnvisitedConnection(4, deal.city)` until null;
 `SetVisitedThisCycle(true)`; if `FindConnectionOnOtherSide(conn)` exists and its `GetIsActive()` is true:
 `UpdatePowerGrid(connection cell, clamped)`. Then swap powered-current and powered-next and run
+**UpdatePoweredLots**.
+
+`FindUnvisitedConnection(t, city)` (neighbours slot 15, `0x006CF720`; PW1) walks the neighbours simulator's
+connection list from the start, in append order (neighbors.md §6.2), and returns the first connection whose type
+is `t` (connection slot 5), whose visited bit is clear (slot 11) and whose other-side city is `city` (slot 9),
+without `AddRef`; null when none is left. Each call starts again from the head. Because the caller sets the
+visited bit before the next call, the loop above visits the matching connections once each, in list order: the
+same order as `GetConnectionsOfTypeToCity(t, city)` filtered to the unvisited ones.
+
 **UpdatePoweredLots**:
 
 - `next ^= current` (the changed cells);
@@ -559,6 +634,13 @@ target: `SetDistressed(false)`, brokenCount −= 1; else if not distressed and b
 `SetDistressed(true)`, brokenCount += 1. Distressed poles still conduct (§5.3 ignores the state) *[inferred:
 visual only]*. *[quirk]* brokenFraction is not saved, so after a load it restarts at 0.
 
+After a load (PW4): only the constructor (`0x006EF8A7`, 0) and `ApplyPoleFunding` write brokenFraction; `Read`,
+`Write` and `Init` never touch it. The saved brokenCount is kept, so the first month after a load moves the broken
+poles towards the target of a fraction that starts again from 0. Example: 1,000 poles, 300 broken when saved.
+At 100 % funding the shipped curve gives 0.025, so the fraction is `clamp(0 − 0.025) = 0`, the target is 0, and the
+first month shuffles the poles and repairs all 300. At 0 % funding the curve gives −0.02, the fraction becomes 0.02,
+the target is 20, and 280 poles are repaired.
+
 ## 8. Tuning *[compat]*
 
 **"f32 × 0.01" properties** *[compat]*: the value is read with the float getter and multiplied by the `float32`
@@ -589,6 +671,16 @@ points and then loaded by exemplar key → foundations §4.1 pattern **default**
 
 The ordinance factor is refreshed at every tuning read and every month: `GetCumulativeFactor(0x0911E117, 0)`
 (Power Conservation 0.9 when enacted, ordinance.md).
+
+**When the factor is read** (PW7). Only three places write it: the constructor (1.0, `0x006EF889`), the tuning read
+(`0x006ED6B2`) and the start of `DoMonthlySimulation` (`0x006EC580`). The tuning read runs in the first `Init`, so
+after a load too, and on `0xCA1B151C`. `Read` does not touch the factor, and `OrdinanceUpdated` (`0xC2C09554`) is
+handled only for the Nuclear Free Zone (§5.5). An ordinance switches on at once (ordinance.md, `IsOn`), but power
+keeps the old factor until the next month. Power runs first at month level (§4.3), so it reads the factor before
+the ordinance simulator's own month work. Example: Power Conservation enacted on 10 March. Power uses 1.0 until 1
+April, then 0.9. A shadow that starts on 15 March and reads the live value gets 0.9 while the original holds 1.0.
+*[choice]* for the shadow: take the live value only when it starts at a load (the original's `Init` read) or at a
+month start; otherwise treat the factor as unknown until the first month.
 
 **Per-building properties** (roles from the code; names from the community property list `new_properties.xml`
 where it has one; "—" = not listed there, role name ours *[inferred]*). The list's `Default` column is the
@@ -694,6 +786,19 @@ new-city path. A rejected version (> 6) keeps the original behaviour above (cons
 false, `running` set) *[compat]*.
 - Recomputed on load: nothing. The tuning, the ordinance factor, enabled, wireDirty and brokenFraction are reset by
   construction/`Init`.
+- **The unsaved pass values after a load** (PW3). The class store reads into a fresh object, and neither `Read`
+  nor `Init` writes the pass import, export or demand, so all three are the constructor's **0**
+  (`0x006EF805`–`0x006EF80B`) until state 0 zeroes them again. The saved state then continues (§6):
+  - saved in state 4, 0 or 1: nothing changes. In state 4 and 0 the old pass values are zeroed by state 0 before
+    anything adds to them, and a state 1 save comes right after state 0, when they were 0 already;
+  - saved in state 2: the imports, exports and demand that state 1 added are lost, so state 3 publishes only state
+    2's share (the networks reached from buy-deal connections);
+  - saved in state 3: state 3 publishes 0 for all three.
+
+  Example: a city saved in state 3 with pass import 500, export 200 and demand 6,000 publishes last import, export
+  and demand 0, records 0 in histories `0x0AB2F224`, `0x4AB2F236` and `0xAA11F7D5`, and records `consumption − 0`
+  (times the factor) in `0xAA11F7D2`, 200 more than without the load at factor 1.0. The next cycle is normal again. Production and consumption are
+  saved, so they and everything derived from them alone are unaffected.
 - The powered grid is saved by `ref` as its own object (simgrid §5).
 
 ### 9.2 History IDs
@@ -968,7 +1073,10 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
 9. **Wire radius**: building cells (10,10)–(11,11) → wired (8,8)–(13,13); building at (0,0)–(1,1) → (0,0)–(3,3);
    at (254,254)–(255,255) → (252,252)–(255,255). A conducting network piece wires only its own cell.
 10. **Centre cell**: bounding box x 32..64, z 16..48 → consumption stored at (3, 2). A consumer of 40000 stores
-    −25536 at that cell and contributes no need.
+    −25536 at that cell and contributes no need. Float store: box x 48.04999924 .. 79.94999695 (float bits
+    `0x42403333`, `0x429FE666`; Konradshohe's `ID32x16_3DirtyOut7`) → half-sum 63.99999809 in double, stored as
+    the float32 64.0 (a tie, rounded to even) → cx = **4**, where the saved map has its 59. Without the float
+    store it would be 3.
 11. **Grid values**: wired + powered → 2; wired only → 1; unwired → 0 (even if powered). After a power change in
     block (1, 2), `0x8A07AE00` is posted with (8, 16, 15, 23) and `0x6A07C2EE` once.
 12. **Positions**: `PositionToCell(100.0, 250.0)` → (6, 15); `CellToPosition(6, 15)` → (96.0, 240.0).
@@ -1030,3 +1138,6 @@ Unless stated: factor 1.0, R = 2, shipped curves, 256 × 256 city, cell width 16
     `running` stays clear, the department and grid refs read during the call are released, every member is as
     before. The next `Init` runs the new-city path (bitmaps, grid, department, state 4). A record of version 7 →
     false with `running` set.
+31. **Running counts** (§5.2, PW8): insert a building with `0x27812854` = 1 centred at (5,5), then set the
+    property to 0 and remove the building → consumers, requirement and cell (5,5) stay at 1. Load Konradshohe →
+    consumers 725, requirement 6478, cells (41,102) and (55,111) = 1, and they stay so while no occupant changes.

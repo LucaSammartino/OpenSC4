@@ -1470,30 +1470,117 @@ About `docs/specs/landfill.md` and its `docs/abi` rows. Ini: `enable = landfill`
 switches); shadow `landfill_shadow = 1` (the original's SimNewMonth wrapped; its record read through its own Write
 before and after). The glue's current answer is in brackets.
 
-- **LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]
-- **LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]
-- **LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
-  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]
-- **LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]
-- **LG5 — open question 6:** where does the zot orientation come from? [0]
-- **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
-- **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
-- **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
-- **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]
-- **LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]
-- **LG11:** should the tile item cost be read from the tile exemplar? [no]
-- **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]
-- **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
-- **LG14:** the shadow's supply is live plus delta, clamped. [choice]
-- **LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
-  call. [as stated]
-- **LG16:** the 3D view level is not reachable through a documented interface. [not done]
-- **LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?
-- **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
-  city's simulator, held until RemoveAgent]
-- **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
-  unseeded per-thread `rand()` sequence. Acceptable?
-- **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?
+- ~~**LG1 — §4.4.5, §4.8.1:** what arguments does RemoveOccupant take for flora and base-texture removal? [(true, 3)]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BC6D8`, `0x006BCA14`; `RemoveOccupant` `0x0049F240`): both are
+  `(occupant, true, 3)`. The occupant is shut down after removal, and data4 of the posted `0x99EF1143` is 3. Only a
+  base texture with `GetUsage() = 1` is removed. **The bracket matches.** Written into landfill.md §4.8.4.
+- ~~**LG2:** how is the base-texture occupant created and given the landfill texture (SetEmptyCellTexture)? [not done]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BA470`) and the saves. It calls GZCOM `CreateInstance(0xC97F987C,
+  0x097F6D98)`, then Init, `SetUsage(1)`, `SetTextureSpecification` with one record (texture `0x1005`, the cell,
+  `00 00 FF FF FF <zone display alpha> 01 00`, no random draw) and `InsertOccupant(occ, 0)`. All 94 usage-1
+  textures in the local saves match. **"Not done" does not match**: the texture is saved, and §4.4.5 tests for it.
+  Written into landfill.md §4.8.5.
+- ~~**LG3:** how is the tile occupant created; is the SDK's `SetTileID` (slot 6) enough to attach the tile exemplar?
+  [tiles live in FreeCity4 only; pollution's active-landfill flag is still set, which is what the simulation reads]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006BC7CF`–`0x006BC92A`, `SetTileID` `0x00477450`). **No.** `SetTileID`
+  only renames the key of an exemplar that is already attached, and crashes when none is. The original loads the
+  exemplar with `GetResource` and attaches it with `cISCExemplarPropertyHolder::SetDefaultExemplar` (QI
+  `0x0AC2B5F7`). Landfill.md §4.8.1 gives the order and a GZCOM recipe. **The bracket does not fully match**: the
+  occupants are also saved, block flora, are tested by `PlaceZone` and are drawn. Written into landfill.md §4.8.1.
+- ~~**LG4:** who owns the reference in occupant manager slot 33's out-parameter? [slot 41 lists used instead]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0049DCE0` → `0x0049E690`, `AddRef` at `0x0049E7DD`; released by the
+  landfill at `0x006BA454` and `0x006BC7AB`): **the caller**. A hit is `AddRef`ed; a miss leaves `*out` unwritten.
+  **The bracket is equivalent** for presence tests if the slot 41 lists are released through slot 48. Written into
+  landfill.md §4.8.6.
+- ~~**LG5 — open question 6:** where does the zot orientation come from? [0]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x006BB510`–`0x006BB524`; `SC4ViewUtilities` `+0x10`, set from the camera rotation): it is the **current view
+  rotation** (0 to 3) at placement, and it is saved in the prop record. **The bracket matches** while the view is at
+  rotation 0. All 66 zot props in the local saves have 0. Written into landfill.md §4.7.5. The same answer closes
+  lot-developer.md §12.2 Q3.
+- ~~**LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]~~ **ANSWERED
+  2026-10-14** (foundations §13.3/§13.4; the data links of §3.3): **yes**, *[compat]*. Otherwise each landfill
+  intake reaches pollution's history and line 20 one month early, and each line 30 maintenance reaches the budget's
+  settlement one month early. Landfill.md §3.3 has a worked example. **"Not enforced" does not match** whenever the
+  landfill agent ends up before pollution or budget, which registration order does. The §13.4 deferral ends now that the
+  landfill glue has landed. Written into landfill.md §3.3.
+- ~~**LG7:** does FindNetworkTile's return carry a reference? [borrowed]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x004B0B20`; `PopulateZone` `0x006BCDF6`–`0x006BCE16`): **borrowed**. It makes no `AddRef` call, and
+  `PopulateZone` only tests the result for null. The map is fetched each time from the global city's slot 40.
+  **The bracket matches.** Written into landfill.md §4.4.5.
+- ~~**LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]~~
+  **ANSWERED 2026-10-14** from the exe (PostCityInit, §3.2) and the saves. The original **saves** each tile (class
+  `0x8A22BEBE`, with tile, orientation and exemplar key) and **does not rebuild** on load. There is no draw. In the
+  three saved landfills, all 142 cells match the §4.8 rules for the saved heaps, and the interiors have orientations
+  0/2/4/6. **The choice matches** for loading original saves, except that interior orientations become 0. It
+  **does not match** for a FreeCity4 save loaded by the original: with no tiles, maintenance and the terrain dezoning
+  differ. Written into landfill.md §6.4.
+- ~~**LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]~~ **ANSWERED
+  2026-10-14** from the exe (`SetTarget` `0x00528AB9`–`0x00528C0A`, `GetDistanceToTarget` `0x00526A20`). **Yes.** A
+  null zone makes both functions fall back to the target's lot. A tile has none, so there is no zone marker, and the
+  distance is measured to the tile. The original returns null itself for a zone's last row and column, and the effect
+  is UI or mission only. **The bracket matches.** Correction: the zone rect is read as integers, not floats, so
+  landfill.md §10.1 quirk 15 is withdrawn. Written into landfill.md §9.
+- ~~**LG10:** city slot 97 returns a float in ST0 (`docs/abi`) where the spec says "—". Which is right? [discarded]~~
+  **ANSWERED 2026-10-14** from the exe (`0x00459440`): **the spec**. Both results are stored with `FSTP` through the out
+  pointers, and the x87 stack is empty at `ret 0x10`. The docs/abi row has said this since re-answers2 PR6 (`7d2f368`:
+  "returns nothing"). **The bracket is harmless but not exact.** If the call is declared as returning a float, every
+  discard pops an empty x87 register. That is a masked stack underflow: it sets the sticky IE and SF status flags
+  (it would trap if IE were unmasked) and stores no value. Using the "result" would read the NaN indefinite. Declare
+  the slot `void`. Written into landfill.md §4.2 and §8.
+- ~~**LG11:** should the tile item cost be read from the tile exemplar? [no]~~ **ANSWERED 2026-10-14** from the exe
+  (`getLandfillTileCost` `0x006BA3C0`). **Yes.** It reads `0xEA54D286` through the tile occupant's property holder,
+  and its only source is the attached tile exemplar. `kDefaultLandfillTileCost` is used only where a cell has no
+  tile, or the property is missing. **The bracket matches only if the glue's fixed costs equal the shipped tile
+  exemplars** (10/20/20/30/40). Using the default for every cell gives, for example, 45 instead of 160 for a full
+  3 × 3 zone. Written into landfill.md §4.9.1.
+- ~~**LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]~~ **ANSWERED 2026-10-14** (landfill
+  §4.7.1, pollution §8.1 slot 29). This is shadow glue: **no original behaviour; the implementer's choice stands.** A
+  fact that makes the clamp moot: in the original month the intakes sum to at most `t ≤ supply`, so no
+  `AddToGarbageSupply(−n)` clamps, and "live plus delta" is exact. The clamp matters only for a negative supply from a
+  damaged save, which `GetGarbageSupply` itself clamps and stores. Written into landfill.md §4.7.1.
+- ~~**LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006BB766`–`0x006BB798`): it **removes the prop too**. It calls `RemovePropA` through the city's prop
+  manager when there is one, then releases the zot. **The bracket does not match**, but the difference is unobservable
+  in the shipped flows: every `RemoveZone` dezones cells, which already removes the zot. Only the city-close shutdown
+  still holds one. Written into landfill.md §4.4.9.
+- ~~**LG14:** the shadow's supply is live plus delta, clamped. [choice]~~ **ANSWERED 2026-10-14** together with LG12
+  (landfill.md §4.7.1). This is shadow glue: **no original behaviour; the implementer's choice stands.** In the
+  original month the supply ends at exactly `s − Σ n`, and no clamp engages, so "live plus delta" equals the
+  original and the clamp is inert. The only exception is a negative supply from a damaged save.
+- ~~**LG15 — §1.1:** only the city and the message server are held; terrain, pollution and budget are fetched per
+  call. [as stated]~~ **ANSWERED 2026-10-14** from the exe (`Init` `0x006B9D98`–`0x006B9E87`). The original holds
+  **five** services, all with `AddRef` from the global service pointers: city, terrain, pollution, budget and message
+  server. It does not hold the simulator. **The bracket is acceptable**: only reference counts differ, because each
+  per-call fetch names the same object for the city's life. Written into landfill.md §1.1.
+- ~~**LG16:** the 3D view level is not reachable through a documented interface. [not done]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x006BA07F`–`0x006BA0D5`; `SL::OnView3DCreate` `0x00602120`). The original uses the 3D view global
+  `0x00B43DC4`, slot 22, with no null check. The same view **is** reachable through public interfaces: app main window,
+  then child `0x6104489A`, then `GetChildAs(0x9A47B417, cISC4View3DWin 0xFA47B3F9)`, as the SDK's
+  `SC4UI::GetView3DWin()` does. **"Not done" does not match** (the seagulls never toggle), but the effect is rendering
+  only. Written into landfill.md §3.2.
+- ~~**LG17:** the traffic network map comes through city slot 40 (`GetTrafficNetwork`, `intptr_t` in the SDK). Right?~~
+  **ANSWERED 2026-10-14** from the exe (`0x004596F0`; created at `0x0045B07D`; used at `0x006BCDF6`). **Yes.** Slot 40
+  returns the city's `cISC4TrafficNetworkMap*`: the interface pointer created with IID `0xCA0F81B9`, **borrowed**, with
+  no `AddRef`. `PopulateZone` calls its slot 8 directly, with no QI and no release. Written into landfill.md §4.4.5
+  and §8.
+- ~~**LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
+  city's simulator, held until RemoveAgent]~~ **ANSWERED 2026-10-14** from the exe (`Init` `0x006B9D98`–`0x006B9DBA`;
+  `Shutdown` `0x006B95D3`–`0x006B95ED`; `SL::OnCityInit` `0x00601C20`). The **city's simulator** (city slot 50), read
+  from the cache global `0x00B43D5C` that `SL::OnCityInit` fills. It is not held. `RemoveAgent` fetches it again from
+  the global city. **The bracket matches**: it is the same object, and only the hold adds a reference count. Written
+  into landfill.md §1.1.
+- ~~**LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
+  unseeded per-thread `rand()` sequence. Acceptable?~~ **ANSWERED 2026-10-14** from the exe (`UpdateSurroundingTiles`
+  `0x006BCFC0`; `rand` `0x009EFB9F` at `0x006BD201`, `0x006BD271`, `0x006BD2DD` and `0x006BD34B`). **Acceptable; it
+  is foundations §12.6's decided choice.** The original draws from the per-thread CRT sequence, which every
+  simulation-thread caller shares, so the values cannot be reproduced. The count (one draw per mask-15 cell) and the
+  formula `2 × (rand() mod 4)` are what must match. Written into landfill.md §4.8.
+- ~~**LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?~~ **ANSWERED 2026-10-14**
+  from the exe (`DoMessage` `0x006B9EA0`) and foundations §18.2. The lock is glue: **no original behaviour; the
+  implementer's choice stands.** The original takes no lock and handles every message, and all of them arrive on the
+  main thread, so it never drops one. Dropping is therefore harmless only while it never happens. A dropped zoning or
+  terrain message would change the zone, so drops should be logged, and waiting is safer. Written into landfill.md
+  §3.2.
 - Not done (each logged once): tile models, `SetEmptyCellTexture`, zone effects (trucks, seagulls), zot
   orientation, the 3D view level, `GetLandfillZoneFromCell`. The shadow cannot compare the zots, trucks and seagulls
   the original drew, the tile occupants it changed, the expenses it booked or the history it sent.
@@ -1503,56 +1590,201 @@ before and after). The glue's current answer is in brackets.
 About `docs/specs/traffic-simulator.md`. All §11 tests 1 to 15 are unit tests and `ts11_*` vectors (29 vectors).
 TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's answer is in brackets.
 
-- **TS1 — §3.3:** does the pacing reset keep `rerouteBucket` (pass counter 2)? [kept; the other counters are zeroed]
-- **TS2 — §3.2 state 11:** what does UpdateNeighborConnections (`0x00714BE0`) do? [nothing]
-- **TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
-  previous value in counter 1]
-- **TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
-  block's intact set unless present; on remove it leaves]
-- **TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
-  `network_changed`, consumed by the trip phases]
-- **TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]
-- **TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
-  network rebuild runs, then the transit multiplier]
-- **TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
-  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]
-- **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
-- **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
-  steps 3–4 only]
-- **TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]
-- **TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]
-- **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
-  the off-map cell. [decoded literally: shifted by one cell]
-- **TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
+- ~~**TS1 — §3.3:** does the pacing reset keep `rerouteBucket` (pass counter 2)? [kept; the other counters are
+  zeroed]~~ **ANSWERED 2026-10-14** from the exe (`0x0072180D`–`0x00721881`): `rerouteBucket` is kept, and so is
+  pass counter 1 (the re-route counter), which is zeroed on entering 17 instead (`0x007218F2`). Everything else is
+  zeroed on entering 16: processed, day index, `toReRoute`, `toSearch` and the other counters, including the
+  source counter. That counter therefore restarts at 0 every cycle. Written into §3.3 and §4.3.
+- ~~**TS2 — §3.2 state 11:** what does UpdateNeighborConnections (`0x00714BE0`) do? [nothing]~~ **ANSWERED
+  2026-10-14** from the exe: not nothing. It is traffic-network.md §2.7.5 (written with PF6 after the core was cut;
+  re-checked against `0x00714BE0`): per neighbour connection, copy `0xAA9EA81A + i` to `0xAA9EA81D + i` and zero it
+  (i = 0…2), then arrived-last := arrived-this-cycle and arrived-this-cycle := 0 in `0x8A0B4100` (k = 0…3). One call;
+  pointer added to traffic-simulator.md §3.2.
+- ~~**TS3 — §4.8 state 3:** what does ReduceTransitSwitches do? [the switch load restarts from 0; CreateMaps keeps the
+  previous value in counter 1]~~ **ANSWERED 2026-10-14** from the exe (`0x00713750`): the bracket holds for the
+  shipped tuning. Exactly: every switch's `load := r24(densityReduction × load)` with the volume-reset factor
+  `0x29136788` (shipped 0), nothing else; counter 1 (`prevUsage`) and the ratio are CreateMaps' (§4.9 step 4). Use the
+  factor, not a literal 0 (a tuning mod decays the load). Written into §4.8.
+- ~~**TS4 — §3.1:** what do DoRoadChanged / DoRailChanged do on occupant messages? [on insert the cell joins the damage
+  block's intact set unless present; on remove it leaves]~~ **ANSWERED 2026-10-14** from the exe (`0x007155D0`,
+  `0x00715790`, `0x0070EA70`, dispatch `0x00724334`): the bracket holds for the sets, but not for the counts. Insert
+  adds the key and does `cellCount += 1` even when the key is already present. Remove erases from the intact set,
+  or else from the damaged set. A damaged removal does `damagedCount −= 1`, pothole count −= 1, and posts
+  `0x69247DC8 (x, z, 0)`. `cellCount −= 1` in every remove case. Highway and GroundHighway skip the sets; rail skips
+  them on a level crossing (Road/Street flag). A rail repair decrements the road pothole count *[quirk]*. The
+  per-type counts are bumped and the budgets refreshed. Written as traffic-simulator.md §3.6.
+- ~~**TS5 — §3.1:** message `0x66956810` "marks the network as changed": which flag, and who rebuilds? [sets
+  `network_changed`, consumed by the trip phases]~~ **ANSWERED 2026-10-14** from the exe (`0x00724558`) and the Mac
+  build: the bracket is wrong on the consumer. SimBegin and every network-occupant message (data3 `0xC772BF98`, even
+  a failed cast) set one byte, which is saved and loaded (the `bool` after the intersection-dirty rectangle) and
+  read by nothing. No rebuild follows; the network is kept current incrementally and rebuilt only by
+  DoPostCityInit. Keep the byte for the round trip, with no behaviour. Written into traffic-simulator.md §3.1 and
+  §6.1, traffic-network.md §3, save-records.md §7.1.1.
+- ~~**TS6 — §3.1:** what does the network part do on neighbour added / removed? [nothing]~~ **ANSWERED 2026-10-14**
+  from the exe: not nothing. It is traffic-network.md §2.7.2 (written with PF6; re-checked against `0x007153C0` and
+  `0x00713AB0`, args data1 type, data2 x, data3 z). Add: `FindConnection`, type bit set, trip cost raised to the
+  other side's `0xCA947077` (ordered compare), one pool per established city. Remove: bit cleared; on an empty mask,
+  pool 0, the pool sweep and `freeDest` decrements for the destination byte. Pointer in traffic-simulator.md §3.1.
+- ~~**TS7:** DoPostCityInit steps 4 (neighbour connections) and 5 (destination-map boundary pass)? [skipped; the
+  network rebuild runs, then the transit multiplier]~~ **ANSWERED 2026-10-14** from the exe (`0x00720430`): neither
+  is skipped. Step 4 is an Add per neighbour connection plus one pool sweep, step 5 zeroes the destination byte of
+  each ring cell without a map exit (traffic-network.md §1, §2.7.2–§2.7.3). DoPostCityInit also does more than the
+  network rebuild and the multiplier: state 12/13 → 8, a resume switch on the loaded state (source iterator, lot
+  iterator, ferry re-route **only in state 19**), the strategy-bucket multimap rebuilt from the lots,
+  `days := lotCount div 18`, and both department-cost updates. Written as traffic-simulator.md §3.5; §3.3 gains the
+  missing `dayIndex < days` guard; traffic-network.md §1 step 8 and §4.9.3 corrected.
+- ~~**TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
+  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00714AA0`, `0x00714940`): partly. The window is a plus shape: the block widened by 2 cells each way without
+  the corners, up to 48 cells, clamped at 0 and at H, but **not** at W on the block rows (x mod 256: the east
+  column of a 256 city reads x = 0, 1 *[quirk]*). The per-cell value is the max of road (Car + Bus + FreightTruck,
+  u16 sum), el-train and monorail `usage`. `v = (maxMorning + maxEvening) mod 2¹⁶`, rounded ties-to-even after
+  the scale. Written into traffic-simulator.md §4.9 step 2 with an example.
+- ~~**TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]~~ **ANSWERED
+  2026-10-14** from the exe (`0x0071A3A6`–`0x0071A496`, end `0x0071A5D7`) and the advisor: none is excluded. A
+  record with flag bit 0 (network flag `0x40000`) goes to slot 13, which the traffic advisor publishes as **bridge**.
+  Others go to slot `type`. Pedestrian records count too, so a road cell adds 2. At the end of the pass the per-type
+  record counts also **replace** the cell counts that price the road and transit budgets; bridges drop out. A
+  read-only corpus check agrees (saved cell counts = published counts; road counts = 2 × road keys). Written into
+  traffic-simulator.md §4.9, §3.6 and §6.1 row 16, and save-records.md §7.1.1.
+- ~~**TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
+  steps 3–4 only]~~ **ANSWERED 2026-10-14** from the exe (`0x00711610`): more than the bracket.
+  * What it sets: SetupTrip step 4 and the start rect, without the work time. Also destination filter 0 with
+    destination flag `1 << ` the **first** trip's type. Then, for commuters, the 0x1CF/0x3 travel types and the
+    starting-cost array of the dominant strategy (by summed trip counts, ties to the lower index); for freight,
+    flag 1 and types 0x30.
+  * It returns false when `pf` or `lot` is null, when the lot has no trips even after one `UpdateTrafficVolume`, or
+    for a type > 3.
+  * It never sets density, work time, flag 4 or a forced start.
+  Written into traffic-simulator.md §4.4.
+- ~~**TS11 — slot 35 GetTransitSwitchQueryData:** the data fields? [returns the network core's query target only]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0071CB80`, field names from the Mac query readers): five u32/f32 fields,
+  available capacity, maximum capacity, load fraction (f32), actual usage, monthly maintenance cost. A switch gives
+  its capacity, ratio and previous load. A ferry terminal gives its last-period riders three times, and 1.0. A strike
+  zeroes all but the maximum capacity (switch) and the cost. The cost is the purpose-`0xCA550301` budget item's
+  cost × department funding, truncated. Written as traffic-simulator.md §4.16 with an example.
+- ~~**TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]~~ **ANSWERED 2026-10-14** from
+  the exe: not nothing. It is traffic-network.md §2.7.4 (written with PF6; re-checked against `0x00714E60`: the
+  demand nodes `0x2010/0x2020/0x2030` at `0x10000` truncated, `GetConnectedCities(list, false)`, per-pool
+  `trunc(r24(r24(E/T) × J))` with unsigned `T` and `J`, slot-19 writes, then the edge pass that sets destination bits
+  and counts `freeDest`). Pointer added to traffic-simulator.md §4.12.
+- ~~**TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
+  the off-map cell. [decoded literally: shifted by one cell]~~ **ANSWERED 2026-10-14** from the exe: unreachable in
+  the original. Roots are seeded on rings clamped to the map, so a neighbour start `(−1, z)` roots at `(0, z)`, and the
+  ferry fallback roots on the arrival cell. The reader (`0x006D64B0`) decodes the header bytes zero-extended and
+  literally, with no off-map adjustment, so the bracket is what the original would do. Keep it *[choice]*. Written
+  into traffic-simulator.md §4.5.
+- ~~**TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
   unit step leaving an in-city cell needs an exit on that side for its type, or the cell's switch for a type change;
-  jumps and off-map steps are not checked]
-- **TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]
-- **TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
-  departure terminal's link to that cell, else its neighbour link]
-- **TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]
-- **TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]
-- **TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]
-- **TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]
-- **TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]
-- **TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
-  are not created]
-- **TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
-  `freeDest` unchanged]
-- **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
-- **TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
-  station counts again]
-- **TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]
-- **TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]
-- **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
+  jumps and off-map steps are not checked]~~ **ANSWERED 2026-10-14** from the exe (`0x0070E320`): partly. The
+  strike test is not by travel type. During a strike, any type change after the first cell fails, and so does a step
+  that the connection word refuses at a ferry cell. A route that keeps one type passes. The unit-step test is
+  `conn[t]` bit `exit + 4·entry` (any entry at the first cell). If that bit is clear, the cell passes on the
+  tunnel wormhole bit, or on the ferry bit when there is no strike. Jumps are checked too: the cell before a jump
+  gets an exit side from the jump's direction, with a `+z` quirk for short and same-cell jumps. The first cell has
+  no strike test, the last cell is never tested, and an empty route is false. Written into traffic-simulator.md §4.3
+  with an example.
+- ~~**TS15 — §4.5:** is the switch fee the switch's `0x0BFC0A4C` value read as f32? [yes]~~ **ANSWERED 2026-10-14**
+  from the exe: yes. DoLotActivated reads it with the converting f32 getter (`0x00723C43`; absent → 0.0), and
+  ApplyRoute charges `r24(Q × toll)` into the fees (`0x00719CCC`), which become the toll income. Shipped only on the
+  four toll booths (0.1). The saved f32 after the rules is this value. Written into traffic-simulator.md §4.5, §6.1
+  and traffic-network.md §2.4.
+- ~~**TS16 — §4.5:** the ferry-leg counters? [round(Q) to counter 1 (mode 0), 2 (mode 1) or both (mode 2), on the
+  departure terminal's link to that cell, else its neighbour link]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00719E8F`–`0x0071A054`): partly. Neighbour links are as bracketed (current A, current B, both). On a terminal
+  link, mode 2 adds current A to the forward link and current B to the other terminal's link back. The departure
+  terminal's riders also get `Qi` (twice in mode 2). The fare goes to the income, not the fees. The u16 counters
+  wrap. A crossing in from a neighbour is counted at the first cell (`0x00719A4E`). Written into
+  traffic-simulator.md §4.5 and traffic-network.md §2.6.
+- ~~**TS17 — §4.4:** a highway-return adjustment for an off-map destination? [none]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x0071C858`–`0x0071C987`, `0x0070DD30`): the bracket does not match. The return leg's start cell moves
+  one cell along the edge when pf ended off-map by car or bus at a Highway/Avenue/GroundHighway connection (mask
+  `0x1108`). Its end cell moves the other way when pf started off-map at such a connection (any type). The
+  direction follows the language's driving side (UK English and Japanese drive on the left). Also a *[quirk]*:
+  with no lot at an in-city end cell, pf2's start rect is not written. Written into traffic-simulator.md §4.4.
+- ~~**TS18 — §4.2:** when is the capacity property promoted from u16 to u32? [u16 until a value reaches 0xFFFF]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0070DE70`): yes. It is created as 12 u16 zeros, and a write of a value
+  `≥ 0xFFFF` (0xFFFF included) copies all 12 elements into a u32 array, which never reverts. Any other variant type
+  is accessed as u32 with no count check (*[choice]*: treat it as missing). Also found: ApplyTrafficToDestination
+  stores the pool's new arrived total into the found connection's own `0x8A0B4100`. Written into
+  traffic-simulator.md §4.2.
+- ~~**TS19:** does the pathfinder adapter's GetLot match any cell of a lot? [yes (`false`)]~~ **ANSWERED
+  2026-10-14** from the exe: yes. All three pathfinder sites pass false (`0x006D7AC7`, `0x006D8688`, `0x006D8B1D`).
+  `GetLot` (`0x0072B410`) with false answers at any cell of the lot; with true it answers only at the lot's origin.
+  In the simulator, only ClearTripDestinations, RefreshCommuteMap's first lookup and UpdateSubnetworkInfo pass true.
+  That corrects §4.11: each lot is rolled and counted once, not once per cell. Written into traffic-simulator.md
+  §4.11 and §8.
+- ~~**TS20:** is the traffic-source list a snapshot? [yes: lots, then connections, when the phase is entered]~~
+  **ANSWERED 2026-10-14** from the exe (`0x007107A0`, `0x007107F0`): only for connections. `Reset` (entering 16, 17,
+  18, and the load resume) refills a ref-counted copy of the connection list. Lots are walked live through the lot
+  manager's safe iterator, so a lot removed before it is reached is skipped and a lot added during the phase is
+  visited (appended). Written into traffic-simulator.md §4.1.
+- ~~**TS21:** when are `toReRoute` / `toSearch` zeroed? [on entering state 16]~~ **ANSWERED 2026-10-14** from the
+  exe: yes, only there (`0x0072184B`); Read restores the saved values. But `toSearch` also grows after
+  ConfirmTrips. ReRouteTrips adds 1 per trip sent back for lack of capacity (`0x0071D20D`), and FullTrips adds 1 per
+  split, together with the running phase's `total` (`0x0071D75A`). Written into traffic-simulator.md §3.3 and §4.4.
+- ~~**TS22:** does ReduceEdgeDensities also clear ferry terminal cells? [yes, departure and arrival; missing records
+  are not created]~~ **ANSWERED 2026-10-14** from the exe (`0x007110B0`): yes, and missing records are not created.
+  The departure cell is cleared by the cell scan, because the ferry phase of every rebuild gives it network-info
+  records. An explicit pass after the scan (no deadline test) clears each terminal's arrival cell. Written into
+  traffic-simulator.md §4.8.
+- ~~**TS23:** what does DoLotDeactivated do? [destination bytes over the lot := 0, its bucket entries removed,
+  `freeDest` unchanged]~~ **ANSWERED 2026-10-14** from the exe (`0x0071E2F0`): partly. The bytes over the rect do go
+  to 0, but only the one bucket entry matching the lot's location is erased. `freeDest[k]` is **decremented** for
+  each bit set at the rect's NW cell, unless in state 10. It also removes the switch (with a rebuild), the
+  `0xCA550301` budget item (`E −= cost`), the `0x0C3BF549` item and the ferry terminal. Written into
+  traffic-simulator.md §4.1.3.
+- ~~**TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]~~ **ANSWERED 2026-10-14** from
+  the exe: yes, for both rect cases: the first cell's entry towards `R` (`0x00719B2D`) and the mode-1 last exit
+  towards `sourceRect`. In modes 0 and 2 the last exit points at the cell `(destX, destZ)` and is defined only one
+  step away. Also: `R` is the destination's rect in mode 1. Other sides are the reader's. An undefined side at a
+  non-last in-city cell ends ApplyRoute and loses the route's income and fees (*[quirk]*, rare). Written into
+  traffic-simulator.md §4.5.
+- ~~**TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
+  station counts again]~~ **ANSWERED 2026-10-14** from the exe (`0x00719C8A`–`0x00719CDB`): yes. `last` starts at 0
+  and takes every in-city cell's ID, 0 and the subway-skip case included, so a re-entry counts again. The subway
+  exception compares the cell's type with the **next** record's type, not the previous one. At the last cell that
+  record is the cell itself. Written into traffic-simulator.md §4.5.
+- ~~**TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x00710016`–`0x007101D7`): yes. Also: the lot's own cells and same-zone non-source lots are passed over
+  without closing the direction. The value is the map byte at the cell found, and no donor writes 0 over the rect.
+  Written into traffic-simulator.md §4.7.
+- ~~**TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]~~ **ANSWERED 2026-10-14**: no original behaviour;
+  the implementer's choice stands. The original slices by a 4 ms wall-clock deadline tested once per unit (§3.3 step
+  1, §3.4), so it has no units-per-slice constant. Note added to traffic-simulator.md §3.4.
+- ~~**TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
   strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3
-  [zeros].
-- **TS29:** max funding conversion from percent? [`r24(v / 100)`]
-- **TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]
-- **TS31:** an unknown iterator-state byte in the record? [Done]
-- **TS32:** record versions above 0x29? [read with the 0x29 layout]
-- **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
-- **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
-  tokens are 900+.
+  [zeros].~~ **ANSWERED 2026-10-14** from the exe (`0x00716AE0`, `0x00711810`, `0x00718BB0`). Vectors: no, each
+  has its own fill (speeds to none, costs/capacities/start costs to 0.0, bools to true, background to 1.0); the
+  tile costs are reset even when missing, and income reads past the array (*[choice]* 0.0). The strategy and
+  ordinance arrays read past their data when short, and wealth > 3 reads the following members. The brackets stand
+  as *[choice]*s there; a missing ordinance property adds nothing. Written into traffic-simulator.md §4.1.2, §4.14.
+- ~~**TS29:** max funding conversion from percent? [`r24(v / 100)`]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x005FDAC0`, `0x00716D67`): the bracket does not match. The percent getter multiplies by the f32 constant 0.01f
+  for every numeric type, `r24(v × 0.01f)`; shipped 120 gives 0x3F999999 (1.1999999), not 1.2. Written into
+  traffic-simulator.md §4.14.
+- ~~**TS30:** does Read commit only on success? [yes: parsed first; a failed Read leaves the simulator unchanged]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x00721990`, ref helper `0x005D9730`): the bracket is not the
+  original but stands as a *[choice]*. Past the version test (< `0x13`: false, nothing changed) the original writes
+  into the simulator as it reads, nulls each ref before reading it, sizes the destination map from uninitialised
+  locals on an error, and returns `!GetError()`, which the loader ignores. Written into traffic-simulator.md §6.1.
+- ~~**TS31:** an unknown iterator-state byte in the record? [Done]~~ **ANSWERED 2026-10-14** from the exe (reader
+  `0x005DA410`, inline GetNext e.g. `0x0071A1A5`): the bracket does not match. Read stores the byte unchecked, and
+  GetNext tests only 2 (done) and 0 (fresh); any other byte acts as running, so the scan steps on from the saved
+  cell, and the byte is written back unchanged until the scan ends. Written into traffic-simulator.md §6.1.
+- ~~**TS32:** record versions above 0x29? [read with the 0x29 layout]~~ **ANSWERED 2026-10-14** from the exe
+  (`Read` `0x00721990`): **the bracket matches.** There is no upper bound and every gate is an unsigned ordered
+  test (none an equality), so versions `0x2A`…`0xFFFF` read as `0x29`; trailing bytes are skipped by the loader's
+  entry framing. Written into traffic-simulator.md §6.4.
+- ~~**TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x0072225E`–`0x0072227D`): **the bracket matches.** Read adds `0x40`
+  for (from, to) = (6, 7) or (7, 6) of any kind, as the re-read does. Its other differences stay as
+  traffic-network.md §4.7.2 lists them (kind-1 raw-`to` mask, `to = 5` → `0x20`). Written into §4.7.2.
+- ~~**TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
+  tokens are 900+.~~ **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. These are
+  test-world stand-ins. The one with an original counterpart agrees: a department created by `CreateDepartmentBudget`
+  starts at 100 % funding, a fraction of 1.0 (budget.md §6). The traffic simulator's `Init` then
+  sets its maximum to the TS29 value (1.1999999 shipped).
 - Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
   drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
   as empty lists (Read's switch mask and flags have a unit test). No plugin or capi integration yet (M5 glue).
@@ -1563,26 +1795,54 @@ About `docs/specs/power.md`. Ini: `power_shadow = 1` (needs our simulator and th
 enable `power`); one line per recompute cycle at state 3, plus month, bookkeeping and month-summary lines. The
 shadow's current answer is in brackets.
 
-- **PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
-  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]
-- **PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
-  Does SimIdle's `data1` carry the date? [assumed]
-- **PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
-  first state 0? [counted as `not_exact` until then]
-- **PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]
-- **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
-  larger rectangle give different wire bits?
-- **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
-  True for networks with more than 32768 blocks?
-- **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
-  it anywhere else (at load, on an ordinance change)?
+- ~~**PW1:** `FindUnvisitedConnection` is not in the spec. The shadow takes the first connection from
+  `GetConnectionsOfTypeToCity` whose visited flag is false. The original's search order? [first unvisited]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CF720`): **the bracket matches.** It walks the connection list from
+  the head in append order and returns the first with type `t`, visited bit clear and other-side city `city` (no
+  AddRef), the same order as `GetConnectionsOfTypeToCity`. Written into power.md §6.5.
+- ~~**PW2:** the log date for SimNewDay, SimIdle and SimNewMonth comes from the message's `data1` as a julian date.
+  Does SimIdle's `data1` carry the date? [assumed]~~ **ANSWERED 2026-10-14** from the exe (`SimulateIdleTime`
+  `0x00702E38`, `SimulateAgents` `0x007038E7`): **the bracket matches.** Both read the simulator date's number
+  (`GetSimDateNumber`, julian day) once per call and pass it as `data1` of every agent message, SimIdle included.
+  Written into power.md §4.3.
+- ~~**PW3:** the pass import, export and demand are not saved. What does the original hold after a load, before its
+  first state 0? [counted as `not_exact` until then]~~ **ANSWERED 2026-10-14** from the exe (constructor
+  `0x006EF805`–`0x006EF80B`; `Read`, `Init` and `Write` never touch them): **0.** The bracket is safe but not
+  needed: the shadow can start them at 0 and compare exactly. A save taken in state 2 or 3 makes the original's
+  state 3 publish only the post-load share (all 0 for a state 3 save). Written into power.md §9.1 with an example.
+- ~~**PW4:** `brokenFraction` is not saved; the shadow starts it at 0. The original's value after a load? [0]~~
+  **ANSWERED 2026-10-14** from the exe (constructor `0x006EF8A7`; written only there and in `ApplyPoleFunding`
+  `0x006EC3F0`): **the bracket matches.** It is 0 after a load, while the saved brokenCount is kept, so the first
+  month repairs poles down to the new target (all of them at 100 % funding). Written into power.md §7.6.
+- ~~**PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
+  larger rectangle give different wire bits?~~ **ANSWERED 2026-10-14** from the exe (`UpdateWireBits`
+  `0x006ED6E0`): **yes, through zones only.** The occupant query has a 2R margin, but the zone pass re-wires only
+  zoned cells inside the rect. A cell of the smaller rect wired only by a zoned cell that only the larger rect
+  holds loses its bit with the smaller one. *[choice]*: take the rect our simulator merges from the same messages.
+  Written into power.md §5.3 with an example.
+- ~~**PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
+  True for networks with more than 32768 blocks?~~ **ANSWERED 2026-10-14** from the spec's block rectangle and the
+  C `rand()` (foundations §12): such networks cannot exist. The block count is at most (256 / 8)² = 1,024, and the
+  start is one `rand() mod count` with `rand()` ≤ 0x7FFF, so the probe range is right and covers every start.
+  Written into power.md §6.3.
+- ~~**PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read
+  it anywhere else (at load, on an ordinance change)?~~ **ANSWERED 2026-10-14** from the exe (writers `0x006EF889`,
+  `0x006ED6B2`, `0x006EC580`): **at load yes, on an ordinance change no.** The tuning read in `Init` (so also after
+  a load) and on `0xCA1B151C` reads it, and so does each month start. `OrdinanceUpdated` is handled only for the
+  Nuclear Free Zone, so a mid-month enactment takes effect at the next month. Written into power.md §8.
 - Not compared (cannot be read without changing the game): posted messages, history values, budget line items,
   demolitions and lot conditions, which poles the month's shuffle breaks (the broken count is compared), deal
   flags, the dirty rectangle.
-- **PW8 — first in-game shadow (run 80, coordinator):** all 213 cycles and 94 month lines are exact, but every
+- ~~**PW8 — first in-game shadow (run 80, coordinator):** all 213 cycles and 94 month lines are exact, but every
   bookkeeping line differs a little: the original's running counts against our from-scratch insertion of the live
   occupants, e.g. consumers 725/722, requirement 6481/6480, 4 consumption-map cells (max |d| 2). Which occupants does
-  the original count that a rebuild from the live occupants does not (or the other way round)?
+  the original count that a rebuild from the live occupants does not (or the other way round)?~~
+  **ANSWERED 2026-10-14** from the exe (`0x006ECF2D`, `0x006EC25F`: values read at delivery; nothing rebuilds the
+  counts) and a recount of the shipped saves: **no live occupant.** The persistent +2 (cells (41,102) and (55,111))
+  is in the Konradshohe save itself. The saved counts exceed its own buildings by the mayor's statue and the
+  cemetery, which consume 0 in the shipped exemplars (Tegel: the same at its cemetery). The rest are posted
+  occupant messages not yet delivered at the month. Written into power.md §5.2 with a test, and the removal's
+  `initialized` gate added to §5.
 
 ## From the plumbing grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -1590,26 +1850,62 @@ About `docs/specs/plumbing.md`. Ini: `plumbing_shadow = 1` (needs our simulator 
 do not enable `plumbing`); one line per pass at the original's swap and after its state 8, one per month. The
 shadow's current answer is in brackets.
 
-- **PS1:** the order in which unvisited water connections are listed is inferred; the read-only host cannot find
-  them, so the shadow reproduces it over its own visited flags. The original's order? [inferred]
-- **PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]
-- **PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
-  first month after a load assumes the original also restarts at 0. Right?
-- **PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
-  original's record instead of recomputing it. Acceptable? [taken from the record]
-- **PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
-  department? [`0xAA4014B4`]
-- **PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
-  what state 2 would write, the start is missed and the pass is marked not exact. [as stated]
-- **PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
-  compared. [as stated]
+- ~~**PS1:** the order in which unvisited water connections are listed is inferred; the read-only host cannot find
+  them, so the shadow reproduces it over its own visited flags. The original's order? [inferred]~~
+  **ANSWERED 2026-10-14** from the exe (call `0x006DD7F8` with type 5 into `FindUnvisitedConnection` `0x006CF720`,
+  PW1): **append order.** The list is walked from its head and the first type-5 connection to the deal's city with
+  the visited bit clear is returned. This is the order of `GetConnectionsOfTypeToCity(5, city)` without the visited
+  ones, so a shadow that walks that list over its own visited flags matches. Written into plumbing.md §6.2.
+- ~~**PS2:** pipe condition is a distress fraction that drops to 0 at funding of 50% or more. Intended? [as stated]~~
+  **ANSWERED 2026-10-14** from the exe (`ApplyPipeFunding` `0x006DD110`): **the spec's formula is right, the summary
+  is not.** The curve is a monthly change: below 50 % cond grows (0.01 a month at 0 %), at 50 % it holds, and above
+  50 % it falls gradually (0.02 a month at 100 %). It is 0 at 50 % or more only when it was 0 already, as after a
+  load. New quirk: a step above 1 sets 1 and skips the "no pipes → 0" test. Written into plumbing.md §7.1 with a
+  400-pipe example.
+- ~~**PS3:** the original's pipe condition is not saved and not observable; the shadow starts its own at 0, so the
+  first month after a load assumes the original also restarts at 0. Right?~~ **ANSWERED 2026-10-14** from the exe
+  (cond `+0x180`: written by the constructor `0x006DC61C` and by `ApplyPipeFunding` only): **right, the bracket
+  matches.** `Read`, `Init` and `Shutdown` never touch it, so the original restarts at 0 too. The first month
+  then repairs the saved distressed pipes down to the new target. The ageing flag is not saved either, so a save
+  taken between a month start and its state 8 loses that month's ageing. Written into plumbing.md §7.1 with an
+  example.
+- ~~**PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
+  original's record instead of recomputing it. Acceptable? [taken from the record]~~ **ANSWERED 2026-10-14** from the
+  exe (demand is written only by `DoBuildingChanged` and `Read`) and the shipped saves: **yes, the bracket matches.**
+  The original never recomputes it either. Take it at the comparison, not at the pass start (PS8). In the eight
+  base-game saves with buildings the saved demand equals a recount of the saved buildings exactly (Konradshohe 23845),
+  so here, unlike power (PW8), nothing is inherited. Written into plumbing.md §5.3.
+- ~~**PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
+  department? [`0xAA4014B4`]~~ **ANSWERED 2026-10-14** from the exe (`DoMonthlySimulation` `0x006DF543` reads the
+  member `+0xA4`; `Init` `0x006DF238`–`0x006DF258` creates it as `0xAA4014B4`): **the bracket matches.** The funding is
+  the simulator's own held department. That is `0xAA4014B4` on a new city and the saved ref after a load, and the
+  saved ref is `0xAA4014B4` in every save checked. Production (§7.2) and ageing (§7.3) read the same member.
+  Written into plumbing.md §7.1.
+- ~~**PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
+  what state 2 would write, the start is missed and the pass is marked not exact. [as stated]~~ **ANSWERED
+  2026-10-14** from the exe (`DoIdle` state 0 `0x006DD3D9`): the probe is shadow glue, so the implementer's choice
+  stands, but **the original has a better marker.** passCounter (record field 7, object `+0x9C`) is incremented once
+  by state 0 and written otherwise only by the constructor and `Read`. A record read whose passCounter is one higher
+  than the previous read means that call ran state 0, with no probe cell needed. *[choice]*: detect starts by
+  passCounter. Written into plumbing.md §6.1.
+- ~~**PS7:** when a state 8 may have run unobserved, ageing is logged as `unknown` and producer condition is not
+  compared. [as stated]~~ **ANSWERED 2026-10-14** from the exe (ageing flag: set `0x006DF551`, tested `0x006DEDBD`,
+  cleared `0x006DEDD9`): shadow glue, **no original behaviour; the implementer's choice stands.** Facts that can narrow
+  "unknown": exactly the first state 8 after a month start ages, and an ageing changes each producer's
+  `0xC910B4CF` whenever its increment is not 0, which the shadow can read. Written into plumbing.md §6.7.
 - Not compared: the pipes' watered states (only reachable through a non-virtual call), redisplay, posts, history,
   line-item expenses, lot conditions and deal flags; the original's pipe condition and pass state (not saved, not
   exposed). New bursts are range-checked only (random draw).
-- **PS8 — first in-game shadow (run 81, coordinator):** of 95 replayed passes, 4 differ only in `demand`, ours
+- ~~**PS8 — first in-game shadow (run 81, coordinator):** of 95 replayed passes, 4 differ only in `demand`, ours
   lower by 8 to 51 (e.g. 25315/25287 in 2026-03, 35967/35916 in 2030-11); ours equals the pass's consumed total.
   The original's demand is a running sum kept as things are added and removed. Which additions does it count that
-  the pass's consumption does not (lots whose water use changed since insertion, removals not subtracted)? Compare PW8.
+  the pass's consumption does not (lots whose water use changed since insertion, removals not subtracted)? Compare PW8.~~
+  **ANSWERED 2026-10-14** from the exe (demand `+0x130` is written only by `DoBuildingChanged` `0x006DBC64`–`0x006DBCA0`
+  and `Read`) and the run-81 log: **the occupant messages delivered during the pass.** They are posted, and a pass
+  runs one state per call, so the original's demand after state 8 already holds them. The shadow's carries the start
+  value. The four passes fit same-cell replacements, which leave the flag map unchanged. Unlike PW8, nothing is
+  inherited: the next pass agrees each time. *[choice]*: compare demand with the record read at the comparison.
+  Written into plumbing.md §5.3 with a table.
 - **PS9 — first in-game shadow (run 81, coordinator):** in one pass (2028-03-04, pass 357) producer 0's production
   and efficiency read 0 in ours (orig 19944 and 0.997), although the pass's produced total matches (39687) and the
   grid is identical. This looks like a shadow-side read of the wrong producer record (not an RE question); the next
@@ -1795,3 +2091,17 @@ About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in 
   their integer sum: it comes from unrounded values. Which values does the original add for the total (float
   per-lot sums, or per-line floats before display rounding), in which order and width, and how is the total
   rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]
+
+## From the save-reference audit (filed by the coordinator from the `lvrefs` lane's report, 2026-10-14)
+
+Run 88 (save, then reload, fourteen replacements): after an in-session save, land value's release of its three grids at
+Shutdown was the last reference; on a loaded city without a save, the game still holds a reference at Shutdown. The
+lane now treats every reference a glue holds from `Read` as its own (`FC4_RELEASE_CREATED`), which is correct either
+way.
+
+- **SV1 — foundations §2.7:** which references does the game's load (the persistent resource manager's object table,
+  `ReadGZSerializable`) keep on the objects it creates or resolves, and when does it drop them: at the end of the
+  load, at the next save, or at city Shutdown? [our reading: the load keeps one until the next save; marked in the
+  code as a reading, not a finding]
+- **SV2 — ordinance §9.1:** does anything other than the ordinance simulator hold a foreign (plugin) ordinance read
+  from a save? [assumed no; released as ours]
