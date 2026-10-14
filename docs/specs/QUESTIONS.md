@@ -2880,7 +2880,10 @@ developer stays original). The current answer is in brackets.
   §6: no original behaviour; the implementer's choice stands. The original has no switches and no threads. Where it
   meets these cases it does not cope: `PlaceZone` calls the budget simulator with no null test (a crash without one),
   and `GetZoneType` reads outside the grid unchecked (§11.1).
-- **ZG10:** Is the loaded flag set before the version check, even on failure? [yes; the core changed to do this]
+- ~~**ZG10:** Is the loaded flag set before the version check, even on failure? [yes; the core changed to do this]~~
+  **ANSWERED 2026-10-14** from the exe (`Read` `0x004DD415`: the flag at +0x14 is set before the version read at
+  `0x004DD41D` and the compare at `0x004DD420`) and written into zones §10.1. Yes: the flag is set first, also when the
+  version check fails. The bracket matches.
 - **ZG11:** Occupant manager slot 33. [called through the SDK overload, relying on MSVC's reversal of overloaded
   virtuals]
 - **ZG12:** Shutdown followed by the final Release. [Shutdown runs twice]

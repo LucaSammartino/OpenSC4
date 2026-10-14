@@ -1208,7 +1208,8 @@ Record (little-endian; references as in foundations §2.7):
 
 `Write` returns `GetError() = 0`. Max slopes and the default alpha are not saved.
 
-`Read`: sets the loaded flag; version ≠ 1 → false (nothing more read). Grid reference with IID `0xC9BD939A`; the
+`Read`: sets the loaded flag first (`0x004DD415`, before the version is read at `0x004DD41D`, so also when the check
+fails; ZG10); version ≠ 1 → false (nothing more read). Grid reference with IID `0xC9BD939A`; the
 fields in the same order; each map is cleared first if non-empty, entries inserted uniquely (duplicates dropped);
 references with IIDs `0x66BA4DB5` (city), `0xC6BB8334` (occupant manager), `0xC70BD37E` (terrain), `0x877181EC`
 (pollution), `0x6772BD23` (budget). Returns `GetError() = 0`. The tuning arrays read here are overwritten by
