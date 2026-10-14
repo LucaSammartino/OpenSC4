@@ -1463,8 +1463,12 @@ shadow's current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (constructor `0x006EF8A7`; written only there and in `ApplyPoleFunding`
   `0x006EC3F0`): **the bracket matches.** It is 0 after a load, while the saved brokenCount is kept, so the first
   month repairs poles down to the new target (all of them at 100 % funding). Written into power.md §7.6.
-- **PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
-  larger rectangle give different wire bits?
+- ~~**PW5 — §5.3:** the dirty rectangle is not saved; the shadow uses the bounding box of the changed wire bits. Can a
+  larger rectangle give different wire bits?~~ **ANSWERED 2026-10-14** from the exe (`UpdateWireBits`
+  `0x006ED6E0`): **yes, through zones only.** The occupant query has a 2R margin, but the zone pass re-wires only
+  zoned cells inside the rect. A cell of the smaller rect wired only by a zoned cell that only the larger rect
+  holds loses its bit with the smaller one. *[choice]*: take the rect our simulator merges from the same messages.
+  Written into power.md §5.3 with an example.
 - **PW6:** the shortfall block probe tries starts 0 to min(count, 32768), assuming one `rand()` of at most 0x7FFF.
   True for networks with more than 32768 blocks?
 - **PW7 — §7.5:** the ordinance factor is read live when the shadow starts, then each month. Does the original read

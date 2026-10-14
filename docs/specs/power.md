@@ -328,6 +328,21 @@ them (`UpdateWireBits(rect)`), then clear wireDirty:
 2. For every cell of the rect (x outer, z inner) with `GetZoneType ≠ 0`: wire its neighbourhood.
 3. Rewrite the powered grid for every cell of the rect (`SetTractValue`, values of §2).
 
+The bits set in steps 1 and 2 are not clipped to the rect (`SetWireBits` `0x006EAFD0`); outside it they can only be
+added. Step 1 also has none of the insertion filters of §5.1: a network occupant with flag `0x80000000` is wired
+when it has `0x40000`, and a preview line is wired (`0x006ED859`–`0x006ED9A8`).
+
+**The rectangle matters** (PW5). The occupant query has a margin of 2R, so it finds every occupant whose wiring can
+reach the rect, and step 1 does not depend on the rect's exact size. Step 2 has **no margin**: only zoned cells
+inside the rect re-wire their neighbourhoods. A cell of the rect whose only wire source is a zoned cell outside the
+rect, at most R away, loses its bit in the rebuild *[quirk]*. Two rects A ⊂ B therefore rebuild differently
+exactly where a cell of A is wired only by zoned cells in B but not in A. Example (R = 2): a building is removed
+and the dirty rect B is its footprint expanded by 2, x 10…20 × z 10…20. Cell (12, 15) is zoned, (13, 15) and
+(14, 15) are not and have no other source. Rebuilding B, (12, 15) re-wires them, so they keep their bits. A
+rebuild over A = x 13…17 × z 13…17 (for example the bounding box of the bits that changed) clears them and does not
+set them again. *[choice]* for the shadow: use the dirty rect that our own simulator merges from the same
+messages, which is the original's rect, rather than one inferred from the changed bits.
+
 ### 5.4 `DoTerrainHeightsChanged(rect)`
 
 *[compat]* (`0x006EDDA0`.) The candidates come from **one occupant-manager query**, not from the simulator's pole
