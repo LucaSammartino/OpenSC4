@@ -238,7 +238,7 @@ plugin.
      flushes the log and ends the game with `TerminateProcess(…, 0)`:
 
      ```
-     AUTOTEST VERDICT: clean|corrupt|stalled (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
+     AUTOTEST VERDICT: clean|corrupt|stalled|ended (foreign_exceptions=…, watchdog_stalls=…, rtc=…, overruns=…,
        ref_warnings=…, julian=…, switches_off=…, disabled=…)
      ```
 
@@ -248,6 +248,11 @@ plugin.
      - `stalled`: the watchdog saw the main thread stuck for more than 10 s (inside our code, or no tick while
        a city runs). The watchdog thread writes it and terminates. Under autotest the no-tick threshold is
        lowered to `FC4_WATCHDOG_STALL_MS`.
+     - `ended`: the game shut the city down by itself before the deadline (for example a bankrupt city; run 69),
+       with no corruption seen. The observer sees `PreCityShutdown` `0x26D31EC2` that the autotest did not ask for
+       (logged as a WARNING with the last day played), and at `PostCityShutdown` `0x26D31EC3` the run ends: with
+       `autotest_end = quit` through `RequestQuit` (verdict at `PostSystemServiceShutdown`), otherwise the verdict
+       is written and the process terminated. Its `julian` is the last day played before that shutdown.
      - `switches_off` lists the budget switches that are off, `disabled` the subsystems left to the game.
      - `autotest_unpause = 1` or `2` (env `FC4_AUTOTEST_UNPAUSE`): after the load, resume the city's simulator
        (`Resume` while `IsPaused`) and set that speed, through the simulator's own interface (ours or the
@@ -525,8 +530,8 @@ plugin.
 - **Test seam:** `FreeCity4.dll` exports `FC4TestSeam` ([`plugin/FC4TestSeam.h`](plugin/FC4TestSeam.h)) for
   tests that load it without a game: a sink that sees every budget message as posted (budget §10: void1 =
   IGZUnknown = the sender), a fake city for the observer, and direct observer ticks and messages. The game
-  never calls it. `plugin_autotest_test` runs three child processes (clean, corrupt, stalled) that end through
-  the autotest's `TerminateProcess`.
+  never calls it. `plugin_autotest_test` runs child processes (clean, corrupt, stalled, ended, save, and a Rust
+  panic) that end through the autotest's `TerminateProcess` (the panic through fail-fast).
 - Return types are part of the ABI too: SDK declarations can be wrong (budget erratum:
   `cISC4DepartmentBudget` slot 26 returns a float POINTER in EAX, not a float in ST0; `cIGZDate` slots 33–36
   return a `uint32` day number and leave the date alone; `cISC4Lot` slot 61 returns `SC4Percentage` by value
