@@ -48,9 +48,9 @@ pub fn capacity_value(k: i32, n: u32, avg: i32) -> i32 {
 /// The depth-range adjustment that ends `DetermineLotSize` step 7 (§7.2.1):
 /// if `maxDepth − minDepth < 2` (unsigned): `minDepth := (minDepth > 2) ?
 /// maxDepth − 2 : 1` and `maxDepth := minDepth + 2`; otherwise unchanged.
-/// The `minDepth > 2` compare is taken unsigned, like the widening compares
-/// before it (the spec does not say; depths are small positive sizes, where
-/// both readings agree).
+/// The `minDepth > 2` compare is unsigned, like the widening compares before
+/// it (`jbe` at `0x00733342`, ZQ10); with real depths (1–3) the signedness
+/// does not matter.
 pub fn adjust_depth_range(min_depth: i32, max_depth: i32) -> (i32, i32) {
     if (max_depth as u32).wrapping_sub(min_depth as u32) < 2 {
         let lo = if (min_depth as u32) > 2 {

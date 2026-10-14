@@ -26,9 +26,9 @@ use fc4_core::stream::{ByteReader, ByteWriter, OutStream, RefValue, SaveObject, 
 use fc4_core::zones::{
     adjust_depth_range, block_depth, capacity_value, depth_rule, middle_row, occupant_cell, savvy_cell, shipped_tuning,
     zone_density, CellRect, CellRegion, Component, Draw, GridProvider, GrowthItem, InsertionPoint, LotSize,
-    PlaceZoneResult, Position, Service, SharedZoneStatics, ZoneDeveloper, ZoneDeveloperStatics, ZoneManager, ZonesHost,
-    ZonesMessage, CLSID_ZONE_DEVELOPER, CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE, NETWORK_OCCUPANT_TYPE,
-    RNG_SEED_XOR,
+    PlaceZoneResult, Position, Service, SharedZoneStatics, VirtualLot, ZoneDeveloper, ZoneDeveloperStatics,
+    ZoneManager, ZonesHost, ZonesMessage, CLSID_ZONE_DEVELOPER, CLSID_ZONE_MANAGER, IID_LOT, LANDFILL_TYPE,
+    NETWORK_OCCUPANT_TYPE, RNG_SEED_XOR,
 };
 
 use crate::foundations::{hex_decode, hex_encode};
@@ -119,6 +119,9 @@ struct Occ {
     net_flags: u32,
 }
 
+/// One network tool's draft records: cell → (network flags, edge mask).
+type ToolDrafts = BTreeMap<(i32, i32), (u32, [u8; 4])>;
+
 pub(crate) struct World {
     me: RefCell<Weak<World>>,
     events: EventLog,
@@ -157,6 +160,14 @@ pub(crate) struct World {
     // Street stub control: whether `street_place` fails.
     street_fail_cells: RefCell<BTreeSet<(i32, i32)>>,
     street_place_count: Cell<u32>,
+    /// The network tools' draft records (§8.8, test 33): tool kind (3
+    /// street, 11 dirt road) → cell → (network flags, edge mask).
+    drafts: RefCell<BTreeMap<u32, ToolDrafts>>,
+    /// The network tools reset (`ClearHighlight`, §7.1) since the last
+    /// `zone_clear_events`, by tool kind, in call order.
+    tool_resets: RefCell<Vec<u32>>,
+    /// `AttemptAreaLevelling` calls since the last `zone_clear_events`.
+    levelling_count: Cell<u32>,
     /// The interleaved log of lot creations and Place calls (§15 tests
     /// 19–29: "the ordered log of lot creations and Place calls").
     parcel_log: RefCell<Vec<Json>>,
@@ -210,6 +221,9 @@ impl World {
             demolished: RefCell::new(Vec::new()),
             street_fail_cells: RefCell::new(BTreeSet::new()),
             street_place_count: Cell::new(0),
+            drafts: RefCell::new(BTreeMap::new()),
+            tool_resets: RefCell::new(Vec::new()),
+            levelling_count: Cell::new(0),
             parcel_log: RefCell::new(Vec::new()),
             saves: RefCell::new(BTreeMap::new()),
         });
@@ -259,11 +273,12 @@ impl World {
     }
 
     /// Appends one `Place` call to the interleaved parcel log, as
-    /// `P(x1, z1, x2, z2)`.
-    fn log_place(&self, a: (i32, i32), b: (i32, i32)) {
+    /// `P(x1, z1, x2, z2)`, with ` draft` appended for realMode false.
+    fn log_place(&self, a: (i32, i32), b: (i32, i32), real_mode: bool) {
+        let suffix = if real_mode { "" } else { " draft" };
         self.parcel_log
             .borrow_mut()
-            .push(Json::Str(format!("P({},{},{},{})", a.0, a.1, b.0, b.1)));
+            .push(Json::Str(format!("P({},{},{},{}){suffix}", a.0, a.1, b.0, b.1)));
     }
 }
 
@@ -422,17 +437,39 @@ impl ZonesHost for World {
     fn tile_demolition_cost(&self, _tile: u64) -> i64 {
         0
     }
-    fn network_tool_draft_at(&self, _tool: u32, _x: i32, _z: i32) -> bool {
-        false
-    }
-    fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32)) -> bool {
+    fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32), real_mode: bool) -> bool {
         self.street_place_count.set(self.street_place_count.get() + 1);
-        self.log_place(a, b);
+        self.log_place(a, b, real_mode);
         // The stub: a segment fails when it contains a fail cell.
         let fail_cells = self.street_fail_cells.borrow();
         let cells = line_cells(a, b);
         if cells.iter().any(|c| fail_cells.contains(c)) {
             return false;
+        }
+        if !real_mode {
+            // Test 33: each cell of a..b with no network becomes a street
+            // draft (flags 0x8) whose mask has a nonzero byte for each edge
+            // towards a neighbouring cell of the same segment; a later draft
+            // on the same cell adds its bytes.
+            let nets = self.nets.borrow();
+            let mut drafts = self.drafts.borrow_mut();
+            let street = drafts.entry(3).or_default();
+            for (i, &(x, z)) in cells.iter().enumerate() {
+                if nets.contains_key(&(x, z)) {
+                    continue;
+                }
+                let rec = street.entry((x, z)).or_insert((0, [0; 4]));
+                rec.0 |= 0x8;
+                for j in [i.wrapping_sub(1), i + 1] {
+                    if let Some(&(nx, nz)) = cells.get(j) {
+                        let e = edge_to(x, z, nx, nz);
+                        if e >= 0 {
+                            rec.1[e as usize] = 1;
+                        }
+                    }
+                }
+            }
+            return true;
         }
         // Put a street (kind 3) on every cell of a..b with no network.
         let mut nets = self.nets.borrow_mut();
@@ -499,8 +536,22 @@ impl ZonesHost for World {
             .get(&(x, z))
             .is_some_and(|n| n.kind == net_type && n.edges[edge as usize])
     }
-    fn network_tool_occupant_exists(&self, _tool_kind: u32, _x: i32, _z: i32, _flag: u32) -> Option<[u8; 4]> {
-        None
+    fn network_tool_occupant_exists(&self, tool_kind: u32, x: i32, z: i32, flag: u32) -> Option<[u8; 4]> {
+        self.events.push(
+            "occupant_exists",
+            vec![("tool", ji(tool_kind)), ("x", ji(x)), ("z", ji(z)), ("flag", ji(flag))],
+        );
+        // §8.8: a draft record whose network flags intersect `flag`.
+        self.drafts
+            .borrow()
+            .get(&tool_kind)
+            .and_then(|m| m.get(&(x, z)))
+            .filter(|(flags, _)| flags & flag != 0)
+            .map(|&(_, mask)| mask)
+    }
+    fn reset_network_tool(&self, tool_kind: u32) {
+        self.tool_resets.borrow_mut().push(tool_kind);
+        self.drafts.borrow_mut().remove(&tool_kind);
     }
     fn street_joining_helper(&self, occupant: u64, data4: u32) {
         self.events.push("street_joining_helper", vec![("data4", ji(data4))]);
@@ -733,7 +784,9 @@ impl ZonesHost for World {
     fn area_slope(&self, _rect: CellRect, _with_water: bool) -> f32 {
         0.0
     }
-    fn attempt_area_levelling(&self, _rect: CellRect) {}
+    fn attempt_area_levelling(&self, _rect: CellRect) {
+        self.levelling_count.set(self.levelling_count.get() + 1);
+    }
     fn remove_building_zot_prop(&self, _lot: u64) {}
     fn lot_base_texture_occupant(&self, _lot: u64) -> Option<u64> {
         None
@@ -896,12 +949,15 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "options" => options(&w, op),
         "lot_size" => lot_size(&w, op),
         "street_fail" => street_fail(&w, op),
+        "draft" => draft(&w, op),
         "init" => init(&w, op),
         "shutdown" => shutdown(&w, op),
         "message" => message(&w, op),
         "place_zone" => place_zone(&w, op),
         "do_parcellization" => do_parcellization(&w, op),
+        "highlight_parcels" => highlight_parcels(&w, op),
         "draw_street" => draw_street(&w, op),
+        "lay_in_jog_streets" => lay_in_jog_streets(&w, op),
         "examine_boundaries" => examine_boundaries(&w, op),
         "determine_lot_size" => determine_lot_size(&w, op),
         "simple_parcellize" => simple_parcellize(&w, op),
@@ -923,6 +979,8 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
             w.zoning_changes.borrow_mut().clear();
             w.demolished.borrow_mut().clear();
             w.cfg_refs.borrow_mut().clear();
+            w.tool_resets.borrow_mut().clear();
+            w.levelling_count.set(0);
             Ok(())
         }
         _ => Err(format!("unknown op '{name}'")),
@@ -1327,6 +1385,37 @@ fn street_fail(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// `zone_draft`: a draft record of the street (`tool` 3) or dirt-road (11)
+/// tool stub (§8.8, test 33d): `cell`, `mask` (the four network-edge bytes
+/// −x, −z, +x, +z), `flags?` (0x8 for the street tool, 0x800 for the dirt
+/// road); `clear?` drops the tool's drafts first.
+fn draft(w: &World, op: &Json) -> R<()> {
+    let tool = u32_of(field(op, "tool")?, "tool")?;
+    let mut drafts = w.drafts.borrow_mut();
+    let m = drafts.entry(tool).or_default();
+    if opt(op, "clear").and_then(boolean).unwrap_or(false) {
+        m.clear();
+    }
+    if let Some(c) = opt(op, "cell") {
+        let p = arr(c, "cell")?;
+        let cell = (
+            i64_of(field_at(p, 0)?, "x")? as i32,
+            i64_of(field_at(p, 1)?, "z")? as i32,
+        );
+        let default_flags = if tool == 11 { 0x800 } else { 0x8 };
+        let flags = opt(op, "flags")
+            .map(|v| u32_of(v, "flags"))
+            .transpose()?
+            .unwrap_or(default_flags);
+        let mut mask = [0u8; 4];
+        for (i, b) in arr(field(op, "mask")?, "mask")?.iter().enumerate().take(4) {
+            mask[i] = u32_of(b, "mask byte")? as u8;
+        }
+        m.insert(cell, (flags, mask));
+    }
+    Ok(())
+}
+
 fn init(w: &World, op: &Json) -> R<()> {
     let mut ok = true;
     if w.manager.borrow().is_some() {
@@ -1469,6 +1558,59 @@ fn do_parcellization(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
+/// `zone_highlight_parcels`: slot 5 `HighlightParcels(region, type, point,
+/// out)` (§7.1, test 33). `region` (`{rect, cells?, rects?}`), `type`,
+/// `point?` (`[x, z]` or null), `out?` (true: pass an out pointer, which
+/// starts as `initial_out?`, null by default), `expect_out?` (null, or
+/// `{rect, cells?, count?}` with `cells` sorted), `keep_log?`. Clears the
+/// parcel log first.
+fn highlight_parcels(w: &World, op: &Json) -> R<()> {
+    let d = w.dev()?;
+    if !opt(op, "keep_log").and_then(boolean).unwrap_or(false) {
+        w.parcel_log.borrow_mut().clear();
+    }
+    let region = region_of(field(op, "region")?)?;
+    let zone_type = i64_of(field(op, "type")?, "type")? as i32;
+    let point = match opt(op, "point") {
+        None | Some(Json::Null) => None,
+        Some(p) => {
+            let p = arr(p, "point")?;
+            Some((
+                i64_of(field_at(p, 0)?, "x")? as i32,
+                i64_of(field_at(p, 1)?, "z")? as i32,
+            ))
+        }
+    };
+    let pass_out = opt(op, "out").and_then(boolean).unwrap_or(true);
+    let mut out = match opt(op, "initial_out") {
+        None | Some(Json::Null) => None,
+        Some(r) => Some(region_of(r)?),
+    };
+    d.highlight_parcels(&region, zone_type, point, pass_out.then_some(&mut out));
+    if let Some(want) = opt(op, "expect_out") {
+        check_expect_region(out.as_ref(), want, "*out")?;
+    }
+    Ok(())
+}
+
+/// Checks a region against `null` or `{rect, cells?, count?}` (`cells`
+/// sorted `[[x, z], …]`).
+fn check_expect_region(got: Option<&CellRegion>, want: &Json, what: &str) -> R<()> {
+    let got_json = match got {
+        None => Json::Null,
+        Some(r) => Json::Object(vec![
+            ("rect".into(), rect_json(r.rect)),
+            ("cells".into(), cells_json(r.cells())),
+            ("count".into(), ji(r.count() as i64)),
+        ]),
+    };
+    if matches(&got_json, want, true) {
+        Ok(())
+    } else {
+        Err(format!("{what}: got {}, expected {}", show(&got_json), show(want)))
+    }
+}
+
 /// `zone_draw_street`: drive `DrawStreet` directly with a restriction region
 /// (test 28). `region` (`{rect, cells?}`), `x1, z1, x2, z2, per_cell`.
 fn draw_street(w: &World, op: &Json) -> R<()> {
@@ -1500,6 +1642,21 @@ fn draw_street(w: &World, op: &Json) -> R<()> {
     let z2 = i64_of(field(op, "z2")?, "z2")? as i32;
     let per_cell = opt(op, "per_cell").and_then(boolean).unwrap_or(false);
     d.draw_street_for_test(&region, x1, z1, x2, z2, per_cell);
+    Ok(())
+}
+
+/// `zone_lay_in_jog_streets`: `LayInJogStreets(rect, kind)` (§7.12) on its
+/// own, with `region` (`{rect, cells?, rects?}`) as the restriction region,
+/// `kind`, `highlight?` (false), `keep_log?`. Clears the parcel log first.
+fn lay_in_jog_streets(w: &World, op: &Json) -> R<()> {
+    let d = w.dev()?;
+    if !opt(op, "keep_log").and_then(boolean).unwrap_or(false) {
+        w.parcel_log.borrow_mut().clear();
+    }
+    let region = region_of(field(op, "region")?)?;
+    let kind = u32_of(field(op, "kind")?, "kind")?;
+    let highlight = opt(op, "highlight").and_then(boolean).unwrap_or(false);
+    d.lay_in_jog_streets_for_test(&region, kind, highlight);
     Ok(())
 }
 
@@ -1558,6 +1715,19 @@ fn cells_of(v: &Json, what: &str) -> R<Vec<(i32, i32)>> {
 /// A region `{rect, cells?}`; without `cells` every cell of the rect is set.
 fn region_of(rj: &Json) -> R<CellRegion> {
     let rect = rect_of(field(rj, "rect")?)?;
+    if let Some(rs) = opt(rj, "rects") {
+        // The union of the listed rects' cells, over `rect`.
+        let mut cells = Vec::new();
+        for r in arr(rs, "rects")? {
+            let r = rect_of(r)?;
+            for x in r.x1..=r.x2 {
+                for z in r.z1..=r.z2 {
+                    cells.push((x, z));
+                }
+            }
+        }
+        return Ok(CellRegion::from_cells(rect, &cells));
+    }
     Ok(match opt(rj, "cells") {
         Some(c) => CellRegion::from_cells(rect, &cells_of(c, "cells")?),
         None => CellRegion::new(rect, true),
@@ -1713,7 +1883,21 @@ fn call(w: &World, op: &Json) -> R<()> {
             let x = i64_of(a(0)?, "x")? as i32;
             let z = i64_of(a(1)?, "z")? as i32;
             let f = u32_of(a(2)?, "flags")?;
-            Json::Bool(w.dev()?.exists_network_of_type(x, z, f))
+            // A fourth argument true runs the query in highlight mode
+            // (test 33d: the harness clears the real-mode flag directly).
+            match a(3).ok().and_then(boolean) {
+                Some(h) => Json::Bool(w.dev()?.exists_network_of_type_for_test(x, z, f, h)),
+                None => Json::Bool(w.dev()?.exists_network_of_type(x, z, f)),
+            }
+        }
+        ("developer", "exists_connection_of_type") => {
+            let x = i64_of(a(0)?, "x")? as i32;
+            let z = i64_of(a(1)?, "z")? as i32;
+            let f = u32_of(a(2)?, "flags")?;
+            let side = i64_of(a(3)?, "side")? as i32;
+            let t = u32_of(a(4)?, "type")?;
+            let h = a(5).ok().and_then(boolean).unwrap_or(false);
+            Json::Bool(w.dev()?.exists_connection_of_type_for_test(x, z, f, side, t, h))
         }
         ("developer", "is_cell_water") => {
             let x = i64_of(a(0)?, "x")? as i32;
@@ -1862,7 +2046,50 @@ fn expect(w: &World, op: &Json) -> R<()> {
             "deferred".to_owned(),
             Json::Array(w.deferred.borrow().iter().map(|&b| Json::Bool(b)).collect()),
         ));
+        // Highlight state (§7.1, test 33): the zone type, the point, and the
+        // two maps as `[[x, z, x1, z1, facing], …]` by cell.
+        got.push(("current_zone".to_owned(), ji(d.current_zone())));
+        got.push((
+            "highlight_point".to_owned(),
+            match d.highlight_point() {
+                Some((x, z)) => Json::Array(vec![ji(x), ji(z)]),
+                None => Json::Null,
+            },
+        ));
+        let map_json = |m: Vec<((i32, i32), VirtualLot)>| {
+            Json::Array(
+                m.into_iter()
+                    .map(|((x, z), v)| Json::Array(vec![ji(x), ji(z), ji(v.x), ji(v.z), ji(v.facing)]))
+                    .collect(),
+            )
+        };
+        got.push(("virtual_lots".to_owned(), map_json(d.virtual_created())));
+        got.push(("virtually_deleted".to_owned(), map_json(d.virtual_deleted())));
     }
+    // The network tool stubs' drafts, `[[tool, x, z, flags, [mask]], …]`,
+    // and the tools reset since the last clear (test 33).
+    let mut drafts = Vec::new();
+    for (&tool, m) in w.drafts.borrow().iter() {
+        for (&(x, z), &(flags, mask)) in m {
+            drafts.push(Json::Array(vec![
+                ji(tool),
+                ji(x),
+                ji(z),
+                ji(flags),
+                Json::Array(mask.iter().map(|&b| ji(b)).collect()),
+            ]));
+        }
+    }
+    got.push(("drafts".to_owned(), Json::Array(drafts)));
+    got.push((
+        "tool_resets".to_owned(),
+        Json::Array(w.tool_resets.borrow().iter().map(|&t| ji(t)).collect()),
+    ));
+    got.push(("levelling_count".to_owned(), ji(w.levelling_count.get())));
+    got.push((
+        "locked_lots".to_owned(),
+        ji(w.lots.borrow().values().filter(|l| l.locked).count() as i64),
+    ));
     got.push(("funds".to_owned(), ji(w.funds.get())));
     got.push(("place_count".to_owned(), ji(w.street_place_count.get())));
     // The configurations AddRef'd or released since the last clear, by ID:

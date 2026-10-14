@@ -17,7 +17,9 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4FlammabilityShadow.h"
 #include "FC4FloraShadow.h"
+#include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
@@ -25,12 +27,22 @@
 #include "FC4PlumbingShadow.h"
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
+#include "FC4ResidentialShadow.h"
 #include "FC4Popups.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "cFC4Crime.h"
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
+#include "cFC4Landfill.h"
+#include "cFC4Plumbing.h"
 #include "cFC4Power.h"
+#include "cFC4Protection.h"
+#include "cFC4Variant.h"
 #include "fc4.h"
+
+#include <cstring>
+#include <vector>
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -89,6 +101,56 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             const auto* in = static_cast<const FC4DemandCapacityTestInput*>(a);
             if (in == nullptr) return -1;
             return DemandReportCapacities(nullptr, in->buildingType, in->profile, in->visit, in->ctx);
+        }
+        case kFC4SeamLandValueShadow:
+            return LandValueShadowTest(static_cast<const FC4LandValueShadowTestInput*>(a));
+        case kFC4SeamFlammabilityShadow:
+            return FlammabilityShadowTest(static_cast<const FC4FlammabilityShadowTestInput*>(a));
+        case kFC4SeamResidentialShadow:
+            return ResidentialShadowTestDeliver(static_cast<const FC4ResidentialShadowTestInput*>(a));
+        case kFC4SeamRawArrayBytes: {
+            auto* io = static_cast<FC4RawArrayBytesTestIo*>(b);
+            if (a == nullptr || io == nullptr) return -1;
+            std::vector<uint8_t> bytes;
+            if (!fc4::props::GetRawArrayBytes(static_cast<const cISCPropertyHolder*>(a), io->id, bytes)) return 0;
+            io->len = static_cast<uint32_t>(bytes.size());
+            if (!bytes.empty())
+                std::memcpy(io->bytes, bytes.data(), bytes.size() < sizeof(io->bytes) ? bytes.size() : sizeof(io->bytes));
+            return 1;
+        }
+        case kFC4SeamLotCenter:
+            return fc4::CrimeTestLotCenter(a, static_cast<float*>(b));
+        case kFC4SeamCellCenter: {
+            auto* io = static_cast<FC4CellCenterTestIo*>(b);
+            if (a == nullptr || io == nullptr) return -1;
+            fc4::ProtectionContext pc;
+            pc.readOnly = true;
+            pc.city = static_cast<cISC4City*>(a);
+            const fc4_protection_host ph = fc4::MakeProtectionReadOnlyHost(&pc);
+            ph.cell_center_to_position(ph.user, io->cx, io->cz, &io->protectionX, &io->protectionZ);
+            fc4::LandfillContext lc;
+            lc.readOnly = true;
+            lc.city = static_cast<cISC4City*>(a);
+            const fc4_landfill_host lh = fc4::MakeLandfillReadOnlyHost(&lc);
+            lh.cell_center_to_position(lh.user, io->cx, io->cz, &io->landfillX, &io->landfillZ);
+            return 1;
+        }
+        case kFC4SeamPipeBurst: {
+            const int32_t* xz = static_cast<const int32_t*>(b);
+            if (a == nullptr || xz == nullptr) return -1;
+            return fc4::PlumbingTestPipeBurst(static_cast<cISC4City*>(a), xz[0], xz[1]);
+        }
+        case kFC4SeamVariant: {
+            if (a == nullptr) return -1;
+            const cFC4Variant proto;
+            cFC4IGZVariant* copy = nullptr;
+            if (!proto.CreateCopy(&copy)) return -1;
+            *static_cast<cFC4IGZVariant**>(a) = copy;
+            return 1;
+        }
+        case kFC4SeamX87Check: {
+            static fc4::X87Site site = {"test seam", 0, 0, 0, nullptr};
+            return fc4::X87Check(site);
         }
         case kFC4SeamRustPanic:
             fc4_debug_panic();

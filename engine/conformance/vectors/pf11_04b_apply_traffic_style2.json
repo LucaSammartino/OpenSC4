@@ -5,7 +5,7 @@
     "pathfinder 4.17",
     "pathfinder 11.4"
   ],
-  "description": "Conformance test 4 (§11), style 2: volumes 20.0 (two separate adds) and the same counts (same index, not mirrored) in both the key-bit-0 and key-bit-1 records.",
+  "description": "Conformance test 4 (§11), style 2: volumes 20.0 (two separate adds); the key-bit-0 records get the counts current[4·entry + exit] and the key-bit-1 records the mirrored counts current[4·exit + entry] (PF2): (4,3) current[4·3 + 0], (3,3) current[4·2 + 0], (2,3) current[4·2 + 1], 10 each.",
   "steps": [
     {
       "op": "pf_street",
@@ -169,8 +169,8 @@
       "evening": true,
       "counts": [
         [
-          0,
           3,
+          0,
           10
         ]
       ]
@@ -201,8 +201,8 @@
       "evening": true,
       "counts": [
         [
-          0,
           2,
+          0,
           10
         ]
       ]
@@ -233,8 +233,8 @@
       "evening": true,
       "counts": [
         [
-          1,
           2,
+          1,
           10
         ]
       ]

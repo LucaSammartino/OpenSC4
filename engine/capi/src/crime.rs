@@ -18,7 +18,9 @@
 //! live in a thread-local [`CrimeShared`] (every call that reaches the core
 //! is made on the game's main thread); the first `fc4_crime_create` seeds the
 //! generator with `derive_seed(session_seed, 0x6C09C3F6)` (foundations §6.3:
-//! the original seeds it with the local wall-clock seconds XOR that constant).
+//! the original seeds it with its `cRZTime` value, seconds since 1901-01-01
+//! UTC, XOR that constant, §9 / CQ5; the plugin's session seed is that
+//! value, `time() + 2177452800`, unless `crime_seed` fixes it).
 //!
 //! Threads (foundations §19): the game calls getters from a second thread
 //! while the main thread is inside a call. The getters marked "any thread"
@@ -38,7 +40,7 @@ use std::sync::{Mutex, MutexGuard};
 
 use fc4_core::crime::{
     decay_grid, nearest_of, stamp_rect, zoned_average, BuildingInfo, CrimeHost, CrimeMessage, CrimeShared, CrimeSim,
-    CrimeTuning, CrimeType, DemandValues, LotBits, LotRef, NearbyOccupant, NearestKind, CRIME_TYPE_GROUP,
+    CrimeTuning, CrimeType, DemandValues, LotBits, LotRef, LtextLoad, NearbyOccupant, NearestKind, CRIME_TYPE_GROUP,
 };
 use fc4_core::grid::{GridProvider, SimGrid, TractGeometry, TractGrid};
 use fc4_core::property::PropertyHolder;
@@ -169,6 +171,7 @@ pub struct fc4_crime_host {
     pub for_each_type_key: Option<unsafe extern "C" fn(U, fc4_key_visitor, *mut c_void)>,
     /// A NEW fc4_props with the exemplar's properties, NULL if missing.
     pub exemplar: Option<unsafe extern "C" fn(U, u32, u32, u32) -> *mut fc4_props>,
+    /// §7 steps 2-3 of a type name (CQ8; fc4.h says how the result reads).
     pub ltext: Option<unsafe extern "C" fn(U, u32, u32, u32, fc4_bytes_sink, *mut c_void) -> bool>,
     // residential and demand (§6.1, §6.2)
     pub population_grids: Option<unsafe extern "C" fn(U, *mut u64)>,
@@ -239,6 +242,23 @@ unsafe extern "C" fn collect_bytes(ctx: *mut c_void, data: *const u8, len: usize
     }
 }
 
+/// Bytes from a sink, and whether the sink was called at all (an empty text
+/// is still text).
+#[derive(Default)]
+struct SinkText {
+    bytes: Vec<u8>,
+    delivered: bool,
+}
+
+unsafe extern "C" fn collect_sink_text(ctx: *mut c_void, data: *const u8, len: usize) {
+    if let Some(t) = (ctx as *mut SinkText).as_mut() {
+        t.delivered = true;
+        if !data.is_null() && len > 0 {
+            t.bytes.extend_from_slice(std::slice::from_raw_parts(data, len));
+        }
+    }
+}
+
 unsafe extern "C" fn collect_key(ctx: *mut c_void, type_id: u32, group: u32, instance: u32) {
     if let Some(v) = (ctx as *mut Vec<ResKey>).as_mut() {
         v.push(ResKey {
@@ -283,7 +303,9 @@ impl CHost {
 
     /// The crime type exemplars (§7). [choice] (§7) The list is in ascending
     /// instance order, one entry per instance (a duplicated key loads the
-    /// same resource, which the original would update in place).
+    /// same resource, which the original would update in place). CQ10: the
+    /// original's order is the resource manager's key-list order, ascending
+    /// instance for the shipped types; plug-in types can differ.
     fn type_exemplars(&self) -> Vec<(u32, Rc<PropertyHolder>)> {
         let mut keys: Vec<ResKey> = Vec::new();
         cb!(
@@ -305,19 +327,27 @@ impl CHost {
             .collect()
     }
 
-    fn ltext_of(&self, key: ResKey) -> Option<Vec<u8>> {
-        let mut v: Vec<u8> = Vec::new();
-        let found = cb!(
+    /// §7 steps 2 and 3 (CQ8). The callback returns true when the name
+    /// loaded (the sink got the detokenized text); false with text delivered
+    /// = the detokenizer returned false (the name keeps that text); false
+    /// with nothing delivered = no such LTEXT.
+    fn ltext_of(&self, key: ResKey) -> LtextLoad {
+        let mut text = SinkText::default();
+        let loaded = cb!(
             self,
             ltext,
             false,
             key.type_id,
             key.group,
             key.instance,
-            Some(collect_bytes),
-            &mut v as *mut Vec<u8> as *mut c_void
+            Some(collect_sink_text),
+            &mut text as *mut SinkText as *mut c_void
         );
-        found.then_some(v)
+        match (loaded, text.delivered) {
+            (true, _) => LtextLoad::Loaded(text.bytes),
+            (false, true) => LtextLoad::DetokenizeFailed(text.bytes),
+            (false, false) => LtextLoad::Missing,
+        }
     }
 
     fn tuning_props(&self) -> Option<Rc<PropertyHolder>> {
@@ -384,7 +414,7 @@ impl CrimeHost for CHost {
     fn crime_type_exemplars(&self) -> Vec<(u32, Rc<PropertyHolder>)> {
         self.type_exemplars()
     }
-    fn ltext(&self, key: ResKey) -> Option<Vec<u8>> {
+    fn ltext(&self, key: ResKey) -> LtextLoad {
         self.ltext_of(key)
     }
     fn population_grids(&self) -> [Option<Rc<dyn TractGrid<u16>>>; 3] {
@@ -1222,4 +1252,52 @@ pub unsafe extern "C" fn fc4_crime_shadow_month(
         *o = r;
         true
     })
+}
+
+#[cfg(test)]
+mod ltext_tests {
+    use super::*;
+
+    /// Instance 1: loaded; 2: the detokenizer returned false (text sent,
+    /// false); 3: an empty text that failed to detokenize; else missing.
+    unsafe extern "C" fn ltext(_: U, t: u32, _g: u32, i: u32, sink: fc4_bytes_sink, ctx: *mut c_void) -> bool {
+        assert_eq!(t, fc4_core::crime::NAME_LTEXT_TYPE);
+        let send = |s: &[u8]| sink.unwrap()(ctx, s.as_ptr(), s.len());
+        match i {
+            1 => {
+                send(b"ok");
+                true
+            }
+            2 => {
+                send(b"#tok#");
+                false
+            }
+            3 => {
+                send(b"");
+                false
+            }
+            _ => false,
+        }
+    }
+
+    /// CQ8: the three outcomes of the host's LTEXT load (fc4.h `ltext`).
+    #[test]
+    fn ltext_outcomes() {
+        // SAFETY: an all-null host is valid (missing callbacks are defaults).
+        let mut h: fc4_crime_host = unsafe { std::mem::zeroed() };
+        h.ltext = Some(ltext);
+        let host = CHost(h);
+        let key = |instance| ResKey {
+            type_id: fc4_core::crime::NAME_LTEXT_TYPE,
+            group: 7,
+            instance,
+        };
+        assert_eq!(host.ltext_of(key(1)), LtextLoad::Loaded(b"ok".to_vec()));
+        assert_eq!(host.ltext_of(key(2)), LtextLoad::DetokenizeFailed(b"#tok#".to_vec()));
+        assert_eq!(host.ltext_of(key(3)), LtextLoad::DetokenizeFailed(Vec::new()));
+        assert_eq!(host.ltext_of(key(4)), LtextLoad::Missing);
+        // No callback: missing.
+        h.ltext = None;
+        assert_eq!(CHost(h).ltext_of(key(1)), LtextLoad::Missing);
+    }
 }

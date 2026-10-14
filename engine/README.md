@@ -88,8 +88,11 @@ plugin.
      structured-exception guard. A first-chance vectored handler also logs every exception raised inside
      `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
      Exceptions outside our image are reported at most twice per faulting address (16 addresses), as
-     `module+offset`, with the registers, the return addresses into `SimCity 4.exe` and `FreeCity4.dll` in the
-     top 4 KiB of the stack (map the executable's with `python tools/addr2func.py --log <log>`, coordinator
+     `module+offset`, with the registers, the x87 state (`  fpu: CW=0x027F SW=0x0000 (TOP=0 SF=0 IE=0 C1=0)
+     TW=0xFFFF occupied=0 [FXSAVE FTW=0x00 occupied=0] indefinite NaN: none`: TW decoded as the full tag word,
+     the FXSAVE part when the context carries it; `indefinite NaN` lists the registers that hold the x87 default
+     NaN), the first 8 raw dwords at esp (`  esp dwords: 0x… ×8 (at esp=0x…)`), the return addresses into
+     `SimCity 4.exe` and `FreeCity4.dll` in the top 4 KiB of the stack (map the executable's with `python tools/addr2func.py --log <log>`, coordinator
      only: it reads RE material) and the last interface calls. The handler never
      blocks: it takes the log lock only with a time-limited try-lock and otherwise writes through a spare
      handle. Stack overflows are only counted. `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at
@@ -98,7 +101,18 @@ plugin.
      and a `heartbeat (periodic)` line every `FC4_HEARTBEAT_MS` (default 10000) with the julian date, speed,
      the pause/hidden/emergency flags, and since the last heartbeat the `OnTick` count, agent deliveries,
      interface calls and verbose lines suppressed by caps, then the memory: address space used, the largest
-     free block (the game is a 2 GiB process) and the private bytes.
+     free block (the game is a 2 GiB process) and the private bytes, and last `x87 leftovers: N` (with the three
+     sites with the most findings when N > 0, e.g. `x87 leftovers: 12 (deliver (after) 8, tick 4)`).
+   - x87 leftover guard (always on, `plugin/FC4Fpu.h`): every x87 exception is masked in the game, so a value a
+     wrong return channel leaves on the x87 register stack (or takes off it) does not fault; eight leftovers later
+     loads yield NaN. On the main thread, the plugin FXSAVEs and counts the occupied registers at the entry and the
+     end of our `OnTick`, at each framework tick, before and after every agent delivery, at the entry and exit of
+     every `DoMessage` of ours, after our synchronous `MessageSend`, and at every `fpu …` line (which includes the
+     monthly observation). Nothing is popped. Each finding is counted per site; the first per site per game month
+     is logged: `x87 leftovers at '<site>' (msg 0x<type>, '<agent>'): N register(s) occupied (FSW=0x…. TOP=t,
+     FTW=0x..), indefinite NaN: <ST list|none>; previous check '<site>' had M; game month YYYY-MM, K at this site,
+     T in all`. The first time the sticky stack-fault flag is seen: `x87: the stack-fault flag is set at '<site>'
+     (FSW=0x….: SF=1 IE=. C1=., a stack overflow|underflow …). Logged once.`
    - Hang watchdog: a background thread watches markers the simulation thread publishes without locks (inside
      `OnTick`, the agent delivery in progress with level, message and agent name, core `fc4_*` calls, our
      interface methods). If the simulation thread stays inside our code for more than `FC4_WATCHDOG_STALL_MS`
@@ -201,7 +215,10 @@ plugin.
        grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
-       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. The grids' geometry (tracts, tracts per
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. `fallbacks` counts calls from a thread
+       other than the main one that could not get the lock in 20 ms and were answered from a snapshot or a neutral
+       value; no protection slot is known to be called off the main thread (protection spec §13.1), so it should stay
+       0, and a non-zero count is a finding. The grids' geometry (tracts, tracts per
        day, the iterator rectangle) is taken at `Init`: on a loaded city the `Read` line can show `tracts=0x0` with a
        non-null `grid=`, because the game reads the grid's own record after the simulator's. A month that still
        finds the coverage grid without tracts logs `protection (fire|police): WARNING the coverage grid … has 0x0
@@ -210,9 +227,12 @@ plugin.
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
        requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
-       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the local wall
-       clock in seconds at the first crime simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`,
-       decimal or `0x…`) for a repeatable run. The log has a status line at `Init` and `Read` (`crime Init:
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the original's
+       `cRZTime` clock (seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9) at the first crime
+       simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
+       run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
+       (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
+       fails. The log has a status line at `Init` and `Read` (`crime Init:
        init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
        crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
        requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police
@@ -305,6 +325,29 @@ plugin.
        switches (default `1`, environment `FC4_LANDFILL_<KEY>`): `landfill_terrain`, `landfill_levelling`,
        `landfill_pollution`, `landfill_budget`, `landfill_zoning`, `landfill_occupants`, `landfill_props`,
        `landfill_traffic`, `landfill_history`, `landfill_effects` (see `plugin/FC4Config.h`).
+     - `residential`: the residential simulator, education and health included (`cSC4ResidentialSimulator`,
+       residential and residential-education-health specs). All 60 interface slots, the class slots 60-63, the
+       message target and the record (version 7, grids by reference). The AL-only getters (cell and global life
+       expectancy, average new age) return the value zero-extended in EAX; the by-value percentages use the hidden
+       result pointer. Its grids are the game's own `cSC4SimGrid<T>`, created through GZCOM with the game's class
+       IDs, tract sizes and instance IDs. It reads the game only through its interfaces: the BDS building map and
+       keys, the growth developers' population maps, pollution, terrain, the simulator date, occupants and their
+       properties, the four education and health departments, budget items and line items, ordinances, lot
+       centres and the automata controllers; it sends history records and posts the strike messages. An input
+       that cannot be read is logged once (`residential: …`) and answers the spec's neutral value. Left out and
+       logged once: the buzzards (visual effects, §5.5 step 2). Its generator's session seed is
+       `residential_seed` (env `FC4_RESIDENTIAL_SEED`), else the clock. The log has `residential Init: …`,
+       `residential Read: …` (the state), `residential Write -> 1`, a month line from the first day after `Init`
+       and at every `SimNewMonth` (`residential month yyyy-mm-dd: pop=N (R$ a R$$ b R$$$ c) EQ=… HQ=… LE=…
+       school covered=… buildings=… strike=0|1 hospital covered=… buildings=… strike=0|1 state=S … center x87=c/n
+       …`; `c` counts the lot `GetCenter` calls of `n` that changed the x87 stack depth: 0 in the game, the first
+       is logged once as `residential: WARNING lot GetCenter (slot 15) changed the x87 stack depth by …`), one line
+       per completed monthly cycle (`residential cycle N done yyyy-mm-dd: …`), `residential Shutdown: …` and
+       `cFC4ResidentialSimulator destroyed (…)`. Its game calls have their own switches (default `1`,
+       environment `FC4_RESIDENTIAL_<KEY>`): `residential_occupants`, `residential_budget`,
+       `residential_developers`, `residential_pollution`, `residential_ordinance`, `residential_automata`,
+       `residential_grid_writes`, `residential_posts`, `residential_history`, `residential_lots`,
+       `residential_terrain` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -656,6 +699,34 @@ plugin.
      ```
 
      Success is `clean` on every month line and no `INCOMPLETE` line.
+   - **Residential shadow** (`residential_shadow = 1`, env `FC4_RESIDENTIAL_SHADOW`; off by default;
+     `residential_shadow_cells = N`, env `FC4_RESIDENTIAL_SHADOW_CELLS`, default 4, 1..64, differing cells listed
+     per grid): a same-process differential of the residential simulator. It needs **our simulator and the
+     original residential simulator** (do not enable `residential`); otherwise it logs `residential shadow:
+     requested … but INACTIVE` at game start. It wraps each `SimNewDay` delivery to the original's agent
+     (`cSC4ResidentialSimulator`): the original runs one state of its monthly cycle per day, and a time-sliced
+     state can stop part-way, so only a per-delivery wrap sees the inputs that state read and where it stopped.
+     Just before, the original's own `Write` goes into a memory stream; FreeCity4's state runs on that record and
+     copies of the 25 grids it refers to, reading every input live and read-only (states 1, 2 and 4 read nothing
+     the delivery changes and run just after, with the original's progress). Just after, the record is read
+     again with the original's population, global EQ / HQ and LE (slots 16, 32-34), and compared: the 25 grids
+     cell by cell, the saved fields, the occupant properties and local funding, and the four scalars. A day in
+     state 10 (waiting for `SimNewMonth`) is not compared. What is not readable read-only is listed once at game
+     start (`residential shadow: not compared (not readable read-only): …`). Lines (always written; longer ones
+     continue on `residential shadow (cont.)` lines):
+
+     ```
+     residential shadow: ON (residential_shadow from …): …                              (game start)
+     residential shadow: comparing with the original residential simulator … (city …); differing cells listed
+       per grid: N
+     residential shadow yyyy-mm-dd state N (name): …; mismatches=N                    (one per delivery)
+     residential shadow yyyy-mm-dd …: INCOMPLETE (why); not compared
+     residential shadow cycle to yyyy-mm-dd: deliveries=… compared=… clean=… incomplete=…; cells=…
+       mismatches=…; grids with differences: none | …; …                    (after the state 9 -> 10 delivery)
+     ```
+
+     Success is `mismatches=0` on every delivery line, `mismatches=0` and `incomplete=0` on every cycle line,
+     and no `INCOMPLETE` line.
    - **Power shadow** (`power_shadow = 1`, env `FC4_POWER_SHADOW`; off by default; `power_shadow_cells = N`, env
      `FC4_POWER_SHADOW_CELLS`, default 8, 1..64, differing cells listed per line; `power_shadow_lines = N`, env
      `FC4_POWER_SHADOW_LINES`, default 32, -1 = all, cycle lines with a difference per month): a same-process
@@ -751,6 +822,79 @@ plugin.
      A `!` marks a differing scalar. Success is `mismatches=0` on every `aligned=start exact=1` pass line and
      on every month line (`clean` equal to `months`), with `incomplete=0`. Passes followed from the swap
      (`exact=0`, the first pass after load) only report their differences.
+   - **Land value shadow** (`landvalue_shadow = 1`, env `FC4_LANDVALUE_SHADOW`; off by default;
+     `landvalue_shadow_cells = N`, env `FC4_LANDVALUE_SHADOW_CELLS`, default 4, 1..64): a same-process
+     differential of the land value grids. It needs the **original** land value simulator (do not enable
+     `landvalue`; otherwise `landvalue shadow: requested … but INACTIVE` at game start). Its own message target
+     (from `PostAppInit`) hears the original's `LandValueMapChanged` (`0x87CC75B3`, land value spec §9: posted
+     at the end of state 8, so the original has just finished a pass; a month boundary is not a pass boundary,
+     and the grids are written in place while a pass runs). Then the original's three grids (slots 7-9, every
+     tract), `GetLandValueType` (slot 5) at each total tract's first cell, the average (slot 10), the mode
+     altitude (slot 11) and its record (its own `Write` into memory: the dirty-or-running flag and the mean
+     altitude, which have no getter) are read, and FreeCity4's pass (states 0-8, the core code our simulator
+     runs, `fc4_landvalue_shadow_compare`) runs on local grids (the intrinsic grid starts as a copy of the
+     original's: state 4 keeps it without an altitude curve), reading the terrain, the zones, the lot developer's
+     area slope and the growth developers' desirability maps live and read-only. `SimNewDay` notes the listed
+     developers' desirability maps: when the total grid differs and a map changed after the original's pass read
+     it, our pass runs again with the previous map and the better result is kept (`desirability=previous map
+     …`). **Not compared** (said at game start): the scratch grid, the histogram, min / max altitude, pivot and
+     ranges (no getter, not saved), the pipeline state and the dirty flag apart (the record holds their OR,
+     logged as `settled`), the inputs as each state read them, and the order of several growth developers (the
+     shipped tuning lists one). Lines (always written; longer ones continue on `landvalue shadow (cont.)` lines):
+
+     ```
+     landvalue shadow: ON (landvalue_shadow from …): …                                    (game start)
+     landvalue shadow: NOT readable read-only (left out of the comparison): …            (game start)
+     landvalue shadow: comparing with the original land value simulator … (city …); tuning …   (each city)
+     landvalue shadow yyyy-mm-dd pass N: compared on CXxCZ tracts (S=s), slope SXxSZ (S=8): intrinsic cells=…
+       mismatched=a max|d|=…; total cells=… mismatched=b max|d|=…; slope cells=… mismatched=c max|d|=…; types
+       mismatched=t/T; average orig/ours=x/y; modeAlt orig/ours=…/…; meanAlt orig/ours=…/…; settled=0|1;
+       desirability=live (k developer(s)) | previous map (…) | none (…); mismatches=M; passes=P clean=C[; first
+       differing (x,z) orig/ours: total (x,z) a/b …]
+     landvalue shadow yyyy-mm-dd pass N: INCOMPLETE (why); not compared
+     ```
+
+     Success is `mismatches=0` on every pass line (`clean` equal to `passes`). A `!` marks a differing scalar;
+     the slope and the altitudes are compared bitwise. `settled=0` means the original's record says an input
+     changed after its pass started, so a difference on that line may be that change.
+   - **Flammability shadow** (`flammability_shadow = 1`, env `FC4_FLAMMABILITY_SHADOW`; off by default;
+     `flammability_shadow_cells = N`, env `FC4_FLAMMABILITY_SHADOW_CELLS`, default 4, 1..64): a same-process
+     differential of the flammability grids. It needs the **original** flammability simulator (do not enable
+     `flammability`; otherwise `flammability shadow: requested … but INACTIVE`). Its own message target hears the
+     original's six messages (occupant inserted / removed / changed, season change, ordinance updated, condition
+     changed, flammability spec §5), which go to a mirror simulator (ours, on its own grids; the occupants, lots,
+     ordinances, weather, plumbing and zones are read live and read-only), and the original's `SimCycleComplete`
+     (`0x08F415FE`, §9: posted by the end of a cycle, delivered queued after the day agent; every tract was
+     visited once in that cycle, and the average and the hotspots exist only per cycle). There the original's
+     record (its own `Write` into memory: the adjusted and raw grids through their references, the multiplier,
+     the average, the hotspots) and getters (slot 6 per city cell, slots 7, 8) are read and
+     `fc4_flammability_shadow_cycle` compares: the raw grid exactly; each adjusted tract against the values the
+     cycle could have written (its daily value from the raw values, multipliers and watered states it had, or
+     its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
+     previous comparison); the average against the range those values allow; the multiplier bitwise; the
+     hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
+     original's state. The first cycle seen (and the one after a new simulator, a new geometry or an
+     `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
+     clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
+     candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
+     shadow (cont.)` lines):
+
+     ```
+     flammability shadow: ON (flammability_shadow from …): …                            (game start)
+     flammability shadow: NOT readable read-only (left out of the comparison): …        (game start)
+     flammability shadow: following the original flammability simulator of city …; …    (each city)
+     flammability shadow yyyy-mm-dd cycle N: baseline (why): our simulator takes the original's grids (…)
+     flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
+       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
+       orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; hotspot getter orig/ours=v@(x,z)/…; average
+       getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
+     flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
+     ```
+
+     Success is `mismatches=0` on every cycle line (`clean` equal to `cycles`). The average shows as a range
+     `x/lo..hi` when inputs changed in the cycle; a miss counted as `maybe hot` or `not counted` is reported but
+     not counted.
    - The autotest clock, the digest, the observe lines, the save autotest and the tick feed for the watchdog
      come from the **observer**
      (`plugin/FC4Observer.cpp`), a system service and message target registered at `PostAppInit` in every mode,
@@ -811,7 +955,8 @@ plugin.
   `cFC4Date`), `cFC4IGZVariant` (implemented by `cFC4Variant`, the only variant we hand to the game; never pass
   the SDK's `cRZBaseVariant`, whose slots 8 and 60 differ from the game's), `cFC4ISCPropertyHolder`,
   `cFC4ISC4LotManager`, `cFC4ISC4Lot`, and `cFC4ISC4NeighborsSimulator` (from the ABI table: slots 32/33
-  return 32 bits). Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
+  return 32 bits). `cFC4ISCStringDetokenizer` (`plugin/FC4CrimeInterfaces.h`) follows lua-host §10.1, whose
+  slot 8 is the resource-key `Detokenize` and slot 9 the string one. Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
   `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
   `cISC4HistoryWarehouse`, `cISC4OrdinanceSimulator`, `cISCResExemplar`.
 - **ABI conformance** (`tests/abi_conformance_test.cpp`, CTest `abi_conformance_test`): every declaration above

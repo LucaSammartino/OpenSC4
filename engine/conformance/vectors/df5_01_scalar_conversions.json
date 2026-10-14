@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "scalar conversions",
+  "spec": ["data-formats 5.1"],
+  "description": "The converting getters' scalar steps (data-formats §5.1, QUESTIONS EX2-EX4), worked examples: floats truncated toward zero by _ftol with the low bits kept (300.7 as Uint8 is 44, 3e9 as Sint32 is -1294967296, -1.5 as Uint32 is 0xFFFFFFFF), NaN, infinities and magnitudes from 2^63 give 0x8000000000000000 (0 for 32-bit targets, true as Bool), 0.5 as Bool is false; Char and RZChar widen as signed bytes, RZUnicodeChar as unsigned; to double, a Uint64 and a Uint32 from 2^31 keep 24 significant bits (Uint64 16777217 gives 16777216.0) while signed values and smaller Uint32 values are exact.",
+  "steps": [
+    {"op": "variant_convert", "variant": {"type": "f32", "value": 300.7}, "cases": [
+      {"to": "u8", "expect": 44}, {"to": "u32", "expect": 300}]},
+    {"op": "variant_convert", "variant": {"type": "f32", "value": 3e9}, "cases": [
+      {"to": "i32", "expect": -1294967296}, {"to": "u32", "expect": 3000000000}, {"to": "i64", "expect": 3000000000}]},
+    {"op": "variant_convert", "variant": {"type": "f32", "value": -1.5}, "cases": [
+      {"to": "u32", "expect": 4294967295}, {"to": "i32", "expect": -1}]},
+    {"op": "variant_convert", "variant": {"type": "f32", "value": 2.9}, "cases": [
+      {"to": "u32", "expect": 2}]},
+    {"op": "variant_convert", "variant": {"type": "f32", "value": "0x7FC00000"}, "cases": [
+      {"to": "u32", "expect": 0}, {"to": "i32", "expect": 0}, {"to": "u8", "expect": 0},
+      {"to": "i64", "expect": "0x8000000000000000"}, {"to": "u64", "expect": "0x8000000000000000"},
+      {"to": "bool", "expect": true}]},
+    {"op": "variant_convert", "variant": {"type": "f32", "value": 0.5}, "cases": [
+      {"to": "bool", "expect": false}, {"to": "u32", "expect": 0}]},
+    {"op": "variant_convert", "variant": {"type": "f64", "value": "0x7FF0000000000000"}, "cases": [
+      {"to": "i64", "expect": "0x8000000000000000"}, {"to": "u32", "expect": 0}, {"to": "bool", "expect": true}]},
+    {"op": "variant_convert", "variant": {"type": "f64", "value": "0xFFF0000000000000"}, "cases": [
+      {"to": "i64", "expect": "0x8000000000000000"}, {"to": "u32", "expect": 0}]},
+    {"op": "variant_convert", "variant": {"type": "f64", "value": 1e19}, "cases": [
+      {"to": "i64", "expect": "0x8000000000000000"}, {"to": "u32", "expect": 0}]},
+    {"op": "variant_convert", "variant": {"type": "f64", "value": 5e9}, "cases": [
+      {"to": "u32", "expect": 705032704}, {"to": "i64", "expect": 5000000000}]},
+    {"op": "variant_convert", "variant": {"type": "rzchar", "value": 233}, "cases": [
+      {"to": "u32", "expect": 4294967273}, {"to": "i16", "expect": -23}, {"to": "u8", "expect": 233},
+      {"to": "f32", "expect": -23.0}, {"to": "f64", "expect": -23.0}]},
+    {"op": "variant_convert", "variant": {"type": "char", "value": 233}, "cases": [
+      {"to": "u32", "expect": 4294967273}, {"to": "i16", "expect": -23}, {"to": "u8", "expect": 233},
+      {"to": "f32", "expect": -23.0}]},
+    {"op": "variant_convert", "variant": {"type": "unichar", "value": 65513}, "cases": [
+      {"to": "u32", "expect": 65513}, {"to": "f64", "expect": 65513.0}]},
+    {"op": "variant_convert", "variant": {"type": "u64", "value": 16777217}, "cases": [
+      {"to": "f64", "expect": 16777216.0}, {"to": "f32", "expect": 16777216.0}, {"to": "u32", "expect": 16777217}]},
+    {"op": "variant_convert", "variant": {"type": "i64", "value": 16777217}, "cases": [
+      {"to": "f64", "expect": 16777217.0}]},
+    {"op": "variant_convert", "variant": {"type": "u32", "value": 16777217}, "cases": [
+      {"to": "f64", "expect": 16777217.0}, {"to": "f32", "expect": 16777216.0}]},
+    {"op": "variant_convert", "variant": {"type": "u32", "value": 2147483649}, "cases": [
+      {"to": "f64", "expect": 2147483648.0}, {"to": "i32", "expect": -2147483647}]},
+    {"op": "variant_convert", "variant": {"type": "u32", "value": 5}, "cases": [
+      {"to": "f32", "expect": 5.0}]}
+  ]
+}

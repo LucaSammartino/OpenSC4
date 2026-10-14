@@ -52,9 +52,12 @@
 #include "FC4GameMap.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "FC4FlammabilityShadow.h"
+#include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PowerShadow.h"
+#include "FC4ResidentialShadow.h"
 #include "FC4Streams.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
@@ -161,6 +164,20 @@ int ForeignFault() {
         return 1;
     }
     return 0;
+}
+
+// Another faulting address, with one value (1.0) on the x87 stack at the
+// fault: the crash report's fpu line must show it (TOP 7, one register).
+int ForeignFaultX87() {
+    int r = 0;
+    __asm fld1
+    __try {
+        *static_cast<volatile int*>(nullptr) = 2;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        r = 1;
+    }
+    __asm fstp st(0)
+    return r;
 }
 
 // A building's property holder with just what the budget reads and writes
@@ -387,6 +404,34 @@ uint16_t RawCw() {
     return cw;
 }
 
+// The x87 stack top (status word bits 11-13): unchanged across a call that
+// leaves the stack balanced.
+unsigned X87Top() {
+    uint16_t sw = 0;
+    __asm fnstsw sw
+    return (sw >> 11) & 7u;
+}
+
+// A lot whose slot 15 behaves like cSC4Lot::GetCenter (crime.md §13, CQ3):
+// thiscall with one stack argument (here __fastcall with an unused EDX), the
+// result in the out parameter, EAX = &out, nothing left on the x87 stack.
+void* __fastcall FakeLotGetCenter(void*, void*, float* out) {
+    out[0] = 256.5f;
+    out[1] = 10.0f;
+    out[2] = 512.25f;
+    return out;
+}
+// The docs/abi reading (a float in ST0), to exercise the glue's diagnostic.
+float __fastcall FakeLotGetCenterSt0(void*, void*, float* out) {
+    out[0] = 1.0f;
+    out[1] = 2.0f;
+    out[2] = 3.0f;
+    return 7.0f;
+}
+struct FakeLotObject {
+    void* const* vtable;
+};
+
 uint16_t g_cwExpected = 0;
 bool g_cwChanged = false;
 
@@ -553,6 +598,57 @@ void InitFakeFireCity(FakeFireCity& f) {
     f.layer.vtbl = f.layerVt.slots.data();
     f.mgr.vtbl = f.mgrVt.slots.data();
     f.fire.vtbl = f.fireVt.slots.data();
+}
+
+// ---- city slot 97 and the pipe burst (test seam ops 28, 29) ------------------------------------
+// The game's CellCenterToPosition (city slot 97) returns nothing (docs/abi,
+// corrected 2026-10-14): a void __fastcall popping 16 here. A caller that
+// declares it float pops an empty x87 register, which moves TOP.
+void __fastcall CityCellCenterToPosition(void*, void*, int32_t cx, int32_t cz, float* x, float* z) {
+    *x = static_cast<float>(cx) * 16.0f + 8.0f;
+    *z = static_cast<float>(cz) * 16.0f + 8.0f;
+}
+
+// The pipe-burst manager (plumbing.md §7.1 step 4) behind the disaster layer;
+// AttemptDisasterStart (slot 6) hands back the manager's own instance, which
+// the caller must not release.
+struct FakePipeCity {
+    FakeVtable cityVt, layerVt, mgrVt, instVt;
+    FakeObject city{}, layer{}, mgr{}, inst{};
+    int instRefs = 1;  // the manager's own reference
+    int attempts = 0;
+    int32_t x = 0, z = 0;
+};
+
+FakePipeCity* g_pipe = nullptr;
+
+void* __fastcall PipeCityGetDisasterLayer(void*, void*) { return &g_pipe->layer; }  // cISC4City 72
+void* __fastcall PipeLayerGetManager(void*, void*, uint32_t type) {                  // layer 7
+    return type == 0x4A1332E8 ? &g_pipe->mgr : nullptr;
+}
+void* __fastcall PipeMgrAttempt(void*, void*, int32_t x, int32_t z) {  // manager 6 (pop 8)
+    ++g_pipe->attempts;
+    g_pipe->x = x;
+    g_pipe->z = z;
+    return &g_pipe->inst;
+}
+bool __fastcall PipeInstQi(void*, void*, uint32_t, void**) { return false; }                        // 0
+uint32_t __fastcall PipeInstAddRef(void*, void*) { return static_cast<uint32_t>(++g_pipe->instRefs); }   // 1
+uint32_t __fastcall PipeInstRelease(void*, void*) { return static_cast<uint32_t>(--g_pipe->instRefs); }  // 2
+
+void InitFakePipeCity(FakePipeCity& p) {
+    g_pipe = &p;
+    p.cityVt.slots[72] = reinterpret_cast<void*>(&PipeCityGetDisasterLayer);
+    p.cityVt.slots[97] = reinterpret_cast<void*>(&CityCellCenterToPosition);
+    p.layerVt.slots[7] = reinterpret_cast<void*>(&PipeLayerGetManager);
+    p.mgrVt.slots[6] = reinterpret_cast<void*>(&PipeMgrAttempt);
+    p.instVt.slots[0] = reinterpret_cast<void*>(&PipeInstQi);
+    p.instVt.slots[1] = reinterpret_cast<void*>(&PipeInstAddRef);
+    p.instVt.slots[2] = reinterpret_cast<void*>(&PipeInstRelease);
+    p.city.vtbl = p.cityVt.slots.data();
+    p.layer.vtbl = p.layerVt.slots.data();
+    p.mgr.vtbl = p.mgrVt.slots.data();
+    p.inst.vtbl = p.instVt.slots.data();
 }
 
 constexpr uint32_t kMsgPostCityInit = 0x26D31EC1;
@@ -3134,6 +3230,1044 @@ int LandfillEnableTest(const std::string& dll, const std::string& ini, const std
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- residential (residential.md, REH): the replacement without a city, and the shadow (op 25) --------
+constexpr uint32_t kCLSID_Residential = 0x4990C013;
+constexpr uint32_t kIID_cISC4ResidentialSimulator = 0x077AC1EE;
+constexpr uint32_t kIID_cIGZMessageTarget2Residential = 0x452294AA;
+constexpr int32_t kJulian20000201 = 2451576;
+
+// Segment streams for the record (§9): primitives little-endian, references
+// as a uint32 0. A record written without Init holds null references only;
+// any other reference fails the stream.
+class ResidentialSegOStream final : public cFC4ISC4DBSegmentOStream {
+public:
+    std::vector<uint8_t> bytes;
+    int nullRefs = 0;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentOStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentOStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    void Flush() override {}
+    bool SetSint8(int8_t v) override { return Put(&v, 1); }
+    bool SetUint8(uint8_t v) override { return Put(&v, 1); }
+    bool SetSint16(int16_t v) override { return Put(&v, 2); }
+    bool SetUint16(uint16_t v) override { return Put(&v, 2); }
+    bool SetSint32(int32_t v) override { return Put(&v, 4); }
+    bool SetUint32(uint32_t v) override { return Put(&v, 4); }
+    bool SetSint64(int64_t v) override { return Put(&v, 8); }
+    bool SetUint64(uint64_t v) override { return Put(&v, 8); }
+    bool SetFloat32(float v) override { return Put(&v, 4); }
+    bool SetFloat64(double v) override { return Put(&v, 8); }
+    bool SetRZCharStr(char const*) override { return false; }
+    bool SetGZStr(cIGZString const&) override { return false; }
+    bool SetGZSerializable(cIGZSerializable const&) override { return false; }
+    bool SetVoid(void const* p, uint32_t n) override { return Put(p, n); }
+    int32_t GetError() override { return 0; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool WriteGZSerializable(cIGZSerializable const* p) override {
+        if (p != nullptr) return false;
+        ++nullRefs;
+        return SetUint32(0);
+    }
+    bool WriteResKey(cGZPersistResourceKey const&) override { return false; }
+    bool WriteVariant(cIGZVariant const&) override { return false; }
+
+private:
+    bool Put(const void* p, size_t n) {
+        const uint8_t* b = static_cast<const uint8_t*>(p);
+        bytes.insert(bytes.end(), b, b + n);
+        return true;
+    }
+};
+
+class ResidentialSegIStream final : public cFC4ISC4DBSegmentIStream {
+public:
+    explicit ResidentialSegIStream(std::vector<uint8_t> b) : bytes(std::move(b)) {}
+    std::vector<uint8_t> bytes;
+    size_t at = 0;
+    int32_t error = 0;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || (riid != kFC4_IID_cISC4DBSegmentIStream && riid != GZIID_cIGZUnknown)) return false;
+        *p = static_cast<cFC4ISC4DBSegmentIStream*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Skip(uint32_t n) override { return Get(nullptr, n); }
+    bool GetSint8(int8_t& v) override { return Get(&v, 1); }
+    bool GetUint8(uint8_t& v) override { return Get(&v, 1); }
+    bool GetSint16(int16_t& v) override { return Get(&v, 2); }
+    bool GetUint16(uint16_t& v) override { return Get(&v, 2); }
+    bool GetSint32(int32_t& v) override { return Get(&v, 4); }
+    bool GetUint32(uint32_t& v) override { return Get(&v, 4); }
+    bool GetSint64(int64_t& v) override { return Get(&v, 8); }
+    bool GetUint64(uint64_t& v) override { return Get(&v, 8); }
+    bool GetFloat32(float& v) override { return Get(&v, 4); }
+    bool GetFloat64(double& v) override { return Get(&v, 8); }
+    bool GetRZCharStr(char*, uint32_t) override { return Fail(); }
+    bool GetGZStr(cIGZString&) override { return Fail(); }
+    bool GetGZSerializable(cIGZSerializable&) override { return Fail(); }
+    bool GetVoid(void* p, uint32_t n) override { return Get(p, n); }
+    int32_t GetError() override { return error; }
+    int32_t SetUserData(cIGZVariant*) override { return 0; }
+    int32_t GetUserData() override { return 0; }
+    bool Open(cISC4DBSegment*, cGZPersistResourceKey const&, bool) override { return false; }
+    bool Close() override { return true; }
+    bool IsOpen() override { return true; }
+    int32_t GetRecord() override { return 0; }
+    int32_t GetSegment() override { return 0; }
+    bool ReadGZSerializable(cIGZSerializable** out, bool) override {
+        uint32_t id = 1;
+        if (out == nullptr || !GetUint32(id) || id != 0) return Fail();
+        *out = nullptr;
+        return true;
+    }
+    bool ReadResKey(cGZPersistResourceKey&) override { return Fail(); }
+    bool ReadVariant(cIGZVariant&) override { return Fail(); }
+
+private:
+    bool Fail() {
+        error = 1;
+        return false;
+    }
+    bool Get(void* p, size_t n) {
+        if (error != 0 || bytes.size() - at < n) return Fail();
+        if (p != nullptr && n != 0) std::memcpy(p, bytes.data() + at, n);
+        at += n;
+        return true;
+    }
+};
+
+// A standard message with data1 (SimNewDay's julian day: the status lines' date).
+class ResidentialDayMessage final : public cIGZMessage2Standard {
+public:
+    ResidentialDayMessage(uint32_t t, intptr_t d1) : type(t), data1(d1) {}
+    uint32_t type;
+    intptr_t data1;
+    bool QueryInterface(uint32_t riid, void** p) override {
+        if (p == nullptr || riid != GZIID_cIGZMessage2Standard) return false;
+        *p = static_cast<cIGZMessage2Standard*>(this);
+        return true;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return type; }
+    void SetType(uint32_t t) override { type = t; }
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+    bool GetHasData1() const override { return true; }
+    intptr_t GetData1() const override { return data1; }
+    void* GetVoid1() const override { return nullptr; }
+    void SetData1(intptr_t v) override { data1 = v; }
+    void SetVoid1(void*) override {}
+    bool GetHasData2() const override { return false; }
+    intptr_t GetData2() const override { return 0; }
+    void* GetVoid2() const override { return nullptr; }
+    void SetData2(intptr_t) override {}
+    void SetVoid2(void*) override {}
+    bool GetHasData3() const override { return false; }
+    intptr_t GetData3() const override { return 0; }
+    void* GetVoid3() const override { return nullptr; }
+    void SetData3(intptr_t) override {}
+    void SetVoid3(void*) override {}
+    bool GetHasData4() const override { return false; }
+    intptr_t GetData4() const override { return 0; }
+    void* GetVoid4() const override { return nullptr; }
+    void SetData4(intptr_t) override {}
+    void SetVoid4(void*) override {}
+    bool GetHasString() const override { return false; }
+    bool GetString(uint32_t, void**) const override { return false; }
+    void SetString(cIGZString*) override {}
+    bool GetHasIGZUnknown() const override { return false; }
+    cIGZUnknown* GetIGZUnknown() const override { return nullptr; }
+    void SetIGZUnknown(cIGZUnknown*) override {}
+    bool GetHasExtra() const override { return false; }
+    uint32_t GetExtra(uint32_t, void**) const override { return 0; }
+    void SetExtra(cIGZSerializable*) override {}
+};
+
+// The answers without a city (§10.1), through the compiled slots. The AL-only
+// slots (29, 34, 42) are also called raw: the whole of EAX must equal the
+// uint8 (zero-extended). The by-value SC4Percentage slots (10-13, 30, 31)
+// return the hidden result pointer in EAX.
+void CheckResidentialNeutral(cFC4ISC4ResidentialSimulator* r) {
+    using W = cFC4ISC4ResidentialSimulator::WealthType;
+    void** vt = *reinterpret_cast<void***>(r);
+    CHECK(r->GetTotalCityEducationUpkeepCost() == 0 && r->GetTotalCityHealthUpkeepCost() == 0);  // 17, 18
+    CHECK(r->GetMaxEQ() == 200 && r->GetMaxHQ() == 200);                                          // 50, 51
+    for (uint32_t w = 0; w <= 4; ++w) CHECK(r->GetProximityMap(static_cast<W>(w)) == nullptr);   // 5 (no grids)
+    CHECK(!r->SchoolIsOnStrike() && !r->HealthIsOnStrike());
+    CHECK(r->GetPopulation() == 0);
+    CHECK(r->GetSchoolBuildingCount() == 0 && r->GetHospitalBuildingCount() == 0);
+    CHECK(r->GetSchoolAverageGradeMap() == nullptr && r->GetHospitalAverageGradeMap() == nullptr);
+    CHECK(r->GetAverageAgeMap() == nullptr);
+    using PctFn = SC4Percentage*(__fastcall*)(void*, void*, SC4Percentage*);
+    using PctXZFn = SC4Percentage*(__fastcall*)(void*, void*, SC4Percentage*, uint32_t, uint32_t);
+    for (int slot : {10, 11, 12, 13, 31}) {
+        SC4Percentage p{-1.0f};
+        CHECK(reinterpret_cast<PctFn>(vt[slot])(r, nullptr, &p) == &p);
+    }
+    SC4Percentage cell{-1.0f};
+    CHECK(reinterpret_cast<PctXZFn>(vt[30])(r, nullptr, &cell, 3, 4) == &cell);
+    using U32Fn = uint32_t(__fastcall*)(void*, void*);
+    using U32WFn = uint32_t(__fastcall*)(void*, void*, uint32_t);
+    using U32XZFn = uint32_t(__fastcall*)(void*, void*, uint32_t, uint32_t);
+    CHECK(reinterpret_cast<U32XZFn>(vt[29])(r, nullptr, 3, 4) == r->GetCellLifeExpectancy(3, 4));
+    CHECK(reinterpret_cast<U32Fn>(vt[34])(r, nullptr) == r->GetGlobalLE());
+    for (uint32_t w = 0; w <= 4; ++w) {
+        CHECK(reinterpret_cast<U32WFn>(vt[42])(r, nullptr, w) == r->GetAverageNewAgeByWealth(static_cast<W>(w)));
+    }
+    // 14 / 15: a null group vector counts nothing [choice]; an empty one too.
+    FC4ResidentialQueryData q{};
+    CHECK(r->GetSchoolSystemTotals(&q, nullptr) == 0);
+    // An empty caller vector (mpStart, mpEnd, mpCapacity), built in place:
+    // an SC4Vector of our own would free through the game allocator.
+    uint32_t* emptyVector[3] = {nullptr, nullptr, nullptr};
+    const auto& none = *reinterpret_cast<const SC4Vector<uint32_t>*>(emptyVector);
+    CHECK(r->GetHospitalSystemTotals(&q, &none) == 0);
+    // 21-25: true; no grids yet (21 / 22: the range 255 / 0 without a grid).
+    cISC4SimGrid<float>* f[3] = {};
+    cISC4SimGrid<uint16_t>* p16[3] = {};
+    for (auto*& g : f) g = reinterpret_cast<cISC4SimGrid<float>*>(1);
+    CHECK(r->GetEQGrids(f[0], f[1], f[2]) && !f[0] && !f[1] && !f[2]);
+    for (auto*& g : f) g = reinterpret_cast<cISC4SimGrid<float>*>(1);
+    CHECK(r->GetHQGrids(f[0], f[1], f[2]) && !f[0] && !f[1] && !f[2]);
+    for (auto*& g : p16) g = reinterpret_cast<cISC4SimGrid<uint16_t>*>(1);
+    CHECK(r->GetPopulationGrids(p16[0], p16[1], p16[2]) && !p16[0] && !p16[1] && !p16[2]);
+    float mn = 0.0f, mx = 1.0f;
+    cISC4SimGrid<float>* avg = reinterpret_cast<cISC4SimGrid<float>*>(1);
+    CHECK(r->GetAverageEQGrid(avg, &mn, &mx) && avg == nullptr && mn == 255.0f && mx == 0.0f);
+    avg = reinterpret_cast<cISC4SimGrid<float>*>(1);
+    CHECK(r->GetAverageHQGrid(avg, &mn, &mx) && avg == nullptr);
+    // 43 / 44: false, every output written (0) when the population is 0.
+    uint32_t a = 9, b = 9, c = 9, d = 9;
+    float lo = 9.0f, hi = 9.0f;
+    CHECK(!r->GetEQMinAndMaxCellCoords(a, b, c, d, lo, hi) && a == 0 && b == 0 && c == 0 && d == 0 && lo == 0.0f &&
+          hi == 0.0f);
+    a = b = c = d = 9;
+    CHECK(!r->GetHQMinAndMaxCellCoords(a, b, c, d, lo, hi) && a == 0 && d == 0);
+    // 45: false, outputs untouched (not a school or hospital).
+    float dist = 7.0f, radius = 8.0f;
+    const SC4Percentage level{0.5f};
+    CHECK(!r->GetOccupantCoverage(nullptr, level, dist, radius) && dist == 7.0f && radius == 8.0f);
+    // 19, 20, 28: true.
+    SC4Percentage staff{0.5f}, vehicle{0.5f};
+    CHECK(r->SetOccupantFundingPercentages(nullptr, staff, vehicle, true));
+    CHECK(r->GetOccupantFundingPercentages(nullptr, staff, vehicle, false));
+    uint32_t capacity = 0, staffCount = 0;
+    CHECK(r->EstimateCurrentOccupantCapacity(nullptr, capacity, staffCount));
+    CHECK(!r->GetAutoBudget(nullptr));
+    // 47 / 49 (true) and 61: no buildings.
+    EmptyOccupantList list;
+    CHECK(r->GetSchoolBuildings(list.Get(), nullptr) && list.Empty());
+    CHECK(r->GetHospitalBuildings(list.Get(), &none) && list.Empty());
+    using ListFn = void(__fastcall*)(void*, void*, SC4List<cISC4Occupant*>*);
+    reinterpret_cast<ListFn>(vt[61])(r, nullptr, &list.Get());
+    CHECK(list.Empty());
+    // 59, 62, 63: empty.
+    r->ToggleTractTracking(1, 2);
+    reinterpret_cast<void(__fastcall*)(void*, void*)>(vt[62])(r, nullptr);
+    reinterpret_cast<void(__fastcall*)(void*, void*, int32_t, int32_t)>(vt[63])(r, nullptr, 1, 2);
+}
+
+// Getters and a message from another thread: the published snapshot, the
+// message queued for the next main-thread call (fc4.h).
+void CheckResidentialThreads(cFC4ISC4ResidentialSimulator* r, cIGZMessageTarget2* mt) {
+    int32_t pop = 9;
+    bool empty = false, delivered = false, strike = true;
+    std::thread t([&] {
+        pop = r->GetPopulation();
+        strike = r->SchoolIsOnStrike();
+        EmptyOccupantList list;
+        r->GetHospitalBuildings(list.Get(), nullptr);
+        empty = list.Empty();
+        (void)r->GetGlobalLE();
+        TypeMessage day(kMsgSimNewDay);
+        delivered = mt->DoMessage(&day);
+    });
+    t.join();
+    CHECK(pop == 0 && empty && delivered && !strike);
+}
+
+// An "original" residential simulator: QueryInterface answers its agent
+// (cIGZMessageTarget2) and cIGZSerializable, whose Write writes the record
+// version 7 only (a short record: the shadow cannot read it). Slots 16, 32,
+// 33 and 34 answer the scalars (34 in AL only: the upper bits of EAX are
+// garbage). The city answers GetResidentialSimulator (compiled slot 68)
+// only; `noRes` returns null there, `ours` our own simulator. Any other call
+// hits a trap and aborts.
+struct FakeOrigResidential {
+    FakeVtable simVt, agentVt, serVt, cityVt, noResVt, oursVt;
+    FakeObject sim{}, agent{}, ser{}, city{}, noRes{}, ours{}, other{};
+    void* ourSim = nullptr;
+    int refs = 1;
+    int deliveries = 0;
+    int writes = 0;
+    int scalars = 0;
+};
+
+FakeOrigResidential* g_or = nullptr;
+
+bool __fastcall OrQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, agent, serializable)
+    if (out == nullptr) return false;
+    if (iid == kIID_cIGZMessageTarget2Residential) {
+        *out = &g_or->agent;
+    } else if (iid == GZIID_cIGZSerializable) {
+        *out = &g_or->ser;
+    } else {
+        return false;  // (the reference audit asks other IIDs)
+    }
+    ++g_or->refs;
+    return true;
+}
+uint32_t __fastcall OrAddRef(void*, void*) { return static_cast<uint32_t>(++g_or->refs); }   // 1
+uint32_t __fastcall OrRelease(void*, void*) { return static_cast<uint32_t>(--g_or->refs); }  // 2
+bool __fastcall OrWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_or->writes;
+    return s->SetUint16(7);
+}
+uint32_t __fastcall OrClsid(void*, void*) { return kCLSID_Residential; }  // serializable 5
+bool __fastcall OrDoMessage(void*, void*, cIGZMessage2*) {                // agent 3
+    ++g_or->deliveries;
+    return true;
+}
+int32_t __fastcall OrPopulation(void*, void*) {  // simulator 16
+    ++g_or->scalars;
+    return 1234;
+}
+float __fastcall OrGlobalQuotient(void*, void*) {  // simulator 32 / 33 (ST0)
+    ++g_or->scalars;
+    return 100.0f;
+}
+uint32_t __fastcall OrGlobalLe(void*, void*) {  // simulator 34 (AL)
+    ++g_or->scalars;
+    return 0xDEAD0047u;
+}
+void* __fastcall OrCityRes(void*, void*) { return &g_or->sim; }     // city 68
+void* __fastcall OrCityNoRes(void*, void*) { return nullptr; }      // city 68
+void* __fastcall OrCityOurs(void*, void*) { return g_or->ourSim; }  // city 68
+
+void InitFakeOrigResidential(FakeOrigResidential& o) {
+    g_or = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.agentVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OrQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OrAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OrRelease);
+    }
+    o.simVt.slots[16] = reinterpret_cast<void*>(&OrPopulation);
+    o.simVt.slots[32] = reinterpret_cast<void*>(&OrGlobalQuotient);
+    o.simVt.slots[33] = reinterpret_cast<void*>(&OrGlobalQuotient);
+    o.simVt.slots[34] = reinterpret_cast<void*>(&OrGlobalLe);
+    o.agentVt.slots[3] = reinterpret_cast<void*>(&OrDoMessage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OrWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OrClsid);
+    o.cityVt.slots[68] = reinterpret_cast<void*>(&OrCityRes);
+    o.noResVt.slots[68] = reinterpret_cast<void*>(&OrCityNoRes);
+    o.oursVt.slots[68] = reinterpret_cast<void*>(&OrCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.agent.vtbl = o.agentVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noRes.vtbl = o.noResVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+    o.other.vtbl = o.agentVt.slots.data();  // an agent, but not the simulator's
+}
+
+intptr_t ResidentialShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target,
+                               uint32_t type = kMsgSimNewDay) {
+    FC4ResidentialShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, kJulian20000201};
+    return seam(kFC4SeamResidentialShadow, &in, nullptr);
+}
+
+int ResidentialEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = residential` registers the residential
+    // simulator. The residential shadow (it compares against the original) is
+    // then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_RESIDENTIAL_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_RESIDENTIAL_SHADOW_CELLS", nullptr);
+    SetEnvironmentVariableA("FC4_RESIDENTIAL_SEED", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = residential\nresidential_seed = 42\n[tools]\nresidential_shadow = 1\n"
+                       "residential_shadow_cells = 3\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigResidential orig;
+    InitFakeOrigResidential(orig);
+    SetGamePrecision();  // as the game's PreFrameWorkInit does: the simulator and the shadow must leave it
+    std::vector<uint8_t> record;
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + residential (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Residential) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Residential, kIID_cISC4ResidentialSimulator, &obj));
+        auto* res = static_cast<cFC4ISC4ResidentialSimulator*>(obj);
+        if (res != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown, the message target
+            // and the serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(res->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(res));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            p = nullptr;
+            CHECK(res->QueryInterface(kIID_cISC4ResidentialSimulator, &p) && p == static_cast<void*>(res));
+            if (p != nullptr) static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(res->QueryInterface(kIID_cIGZMessageTarget2Residential, reinterpret_cast<void**>(&mt)) &&
+                  mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(res->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) CHECK(ser->GetGZCLSID() == kCLSID_Residential);
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!res->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CHECK(!res->QueryInterface(0x87DDA3A9, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckResidentialNeutral(res);
+            // The record before Init (§9.1: version 7, every reference null).
+            if (ser != nullptr) {
+                ResidentialSegOStream out;
+                CHECK(ser->Write(out));
+                record = out.bytes;
+                CHECK(record.size() > 2 && record[0] == 7 && record[1] == 0);
+                CHECK(out.nullRefs > 0);
+            }
+            // Without a city Init fails (§4.1 step 1: no demand node); the
+            // status lines still come, from the first day.
+            CHECK(!res->Init());
+            if (mt != nullptr) {
+                ResidentialDayMessage day(kMsgSimNewDay, kJulian20000201);
+                CHECK(mt->DoMessage(&day));
+                ResidentialDayMessage month(kMsgSimNewMonth, kJulian20000201);
+                CHECK(mt->DoMessage(&month));
+                CheckResidentialThreads(res, mt);
+            }
+            CheckResidentialNeutral(res);
+            // The shadow (test seam op 25) refuses our own simulator.
+            orig.ourSim = res;
+            CHECK(ResidentialShadowOnce(seam, &orig.ours, reinterpret_cast<cIGZMessageTarget2*>(&orig.agent)) == -1);
+            if (ser != nullptr) ser->Release();
+            if (mt != nullptr) mt->Release();
+            CHECK(res->Shutdown());
+            CHECK(res->Release() == 0);
+        }
+        // Read runs before Init (§9.2): the record written above loads into a
+        // new simulator; a truncated one does not.
+        for (bool whole : {true, false}) {
+            obj = nullptr;
+            CHECK(director->GetClassObject(kCLSID_Residential, kIID_cISC4ResidentialSimulator, &obj));
+            auto* fresh = static_cast<cFC4ISC4ResidentialSimulator*>(obj);
+            if (fresh == nullptr) continue;
+            cIGZSerializable* s = nullptr;
+            CHECK(fresh->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&s)) && s != nullptr);
+            if (s != nullptr && !record.empty()) {
+                std::vector<uint8_t> bytes = record;
+                if (!whole) bytes.resize(bytes.size() / 2);
+                ResidentialSegIStream in(bytes);
+                CHECK(s->Read(in) == whole);
+                s->Release();
+            }
+            CHECK(fresh->Release() == 0);  // the final Release shuts a never-initialised simulator down
+        }
+        // The shadow on fake originals: no city, a city without a residential
+        // simulator and an agent that is not the original's are left to the
+        // caller (-1, nothing delivered); a SimNewMonth is not taken. The
+        // original's agent gets its day exactly once, its record captured
+        // before and after (its own Write) and its four scalars read after:
+        // a short record is INCOMPLETE (-2, nothing compared).
+        cIGZMessageTarget2* agent = reinterpret_cast<cIGZMessageTarget2*>(&orig.agent);
+        CHECK(ResidentialShadowOnce(seam, nullptr, agent) == -1);
+        CHECK(ResidentialShadowOnce(seam, &orig.noRes, agent) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        CHECK(ResidentialShadowOnce(seam, &orig.city, agent, kMsgSimNewMonth) == -1);
+        CHECK(orig.deliveries == 0 && orig.writes == 0);
+        CHECK(ResidentialShadowOnce(seam, &orig.city, agent) == -2);
+        CHECK(orig.deliveries == 1 && orig.writes == 2 && orig.scalars == 4);
+        CHECK(ResidentialShadowOnce(seam, &orig.city, reinterpret_cast<cIGZMessageTarget2*>(&orig.other)) == -1);
+        CHECK(orig.deliveries == 1 && orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+        CheckCw("residential shadow");
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'residential': enabled (1 class replaced) by FreeCity4.ini (enable=)") !=
+          std::string::npos);
+    CHECK(text.find("cFC4ResidentialSimulator(") != std::string::npos);
+    CHECK(CountOf(text, ", session seed 0x0000002A (residential_seed)") == 3);
+    CHECK(text.find("residential Write -> 1") != std::string::npos);
+    CHECK(text.find("residential: no city; services not acquired") != std::string::npos);
+    CHECK(text.find("residential Init FAILED: init=0") != std::string::npos);
+    // The month line from the first day after Init, and at SimNewMonth.
+    CHECK(CountOf(text, "residential month 2000-02-01: pop=0 (R$ 0 R$$ 0 R$$$ 0) EQ=") == 2);
+    CHECK(text.find("residential Read -> 1") != std::string::npos);
+    CHECK(text.find("residential Read: init=0 started=1") != std::string::npos);
+    CHECK(text.find("residential Read -> 0") != std::string::npos);
+    CHECK(text.find("residential Shutdown: 1 days, 1 months, 0 cycles, 1 off-main messages") != std::string::npos);
+    CHECK(text.find("cFC4ResidentialSimulator destroyed (1 days, 1 months, 0 cycles, 1 off-main messages)") !=
+          std::string::npos);
+    CHECK(CountOf(text, "cFC4ResidentialSimulator destroyed (0 days, 0 months, 0 cycles, 0 off-main messages)") == 2);
+    CHECK(text.find("residential shadow: requested (residential_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("residential shadow: ON") == std::string::npos);
+    CHECK(text.find("residential shadow: inactive: the city's residential simulator is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("residential shadow: comparing with the original residential simulator") != std::string::npos);
+    CHECK(text.find("differing cells listed per grid: 3") != std::string::npos);
+    CHECK(text.find("residential shadow 2000-02-01: INCOMPLETE (before: ") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    CHECK(text.find("streams: WARNING") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin residential enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// ---- land value and flammability grid shadows (test seam ops 23, 24) ---------------------------------
+constexpr uint32_t kCLSID_Flammability = 0xE990C045;
+constexpr uint32_t kIID_cISC4FlammabilitySimulator = 0x48F41617;
+constexpr uint32_t kCLSID_SimGridUint8 = 0x49B9E602;
+constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
+constexpr uint32_t kIID_cISC4Lot = 0xE818FCED;
+constexpr uint32_t kMsgInsertOccupantFl = 0x99EF1142;
+constexpr uint32_t kMsgConditionChangedFl = 0xE99B3D4D;
+
+// A fake simulation grid (cISC4SimGrid<T>, simgrid.md): the geometry slots
+// (10-17) and GetTractValue (22), values x outer; AddRef / Release (1, 2)
+// count into `refs`; QueryInterface (0) answers nothing. Every other slot
+// traps: the shadows only read.
+struct FakeGrid {
+    void** vtbl;
+    int32_t tractSize, shift, countX, countZ;
+    const uint8_t* u8;
+    const float* f32;
+    int* refs;
+    int reads;
+};
+
+int32_t __fastcall FgTractSize(FakeGrid* g, void*) { return g->tractSize; }  // 10
+int32_t __fastcall FgShift(FakeGrid* g, void*) { return g->shift; }          // 11
+int32_t __fastcall FgCountX(FakeGrid* g, void*) { return g->countX; }        // 12
+int32_t __fastcall FgCountZ(FakeGrid* g, void*) { return g->countZ; }        // 13
+float __fastcall FgWidth(FakeGrid* g, void*) { return 16.0f * static_cast<float>(g->tractSize); }        // 14, 15
+float __fastcall FgInvWidth(FakeGrid* g, void*) { return 1.0f / (16.0f * static_cast<float>(g->tractSize)); }  // 16, 17
+uint8_t __fastcall FgU8(FakeGrid* g, void*, int32_t x, int32_t z) {  // 22 (uint8)
+    ++g->reads;
+    return (x >= 0 && x < g->countX && z >= 0 && z < g->countZ) ? g->u8[x * g->countZ + z] : 0;
+}
+float __fastcall FgF32(FakeGrid* g, void*, int32_t x, int32_t z) {  // 22 (float)
+    ++g->reads;
+    return (x >= 0 && x < g->countX && z >= 0 && z < g->countZ) ? g->f32[x * g->countZ + z] : 0.0f;
+}
+bool __fastcall FgQi(FakeGrid*, void*, uint32_t, void**) { return false; }  // 0 (the reference audit asks)
+uint32_t __fastcall FgAddRef(FakeGrid* g, void*) { return static_cast<uint32_t>(++*g->refs); }   // 1
+uint32_t __fastcall FgRelease(FakeGrid* g, void*) { return static_cast<uint32_t>(--*g->refs); }  // 2
+
+void InitGridVtable(FakeVtable& vt, bool isFloat) {
+    vt.slots[0] = reinterpret_cast<void*>(&FgQi);
+    vt.slots[1] = reinterpret_cast<void*>(&FgAddRef);
+    vt.slots[2] = reinterpret_cast<void*>(&FgRelease);
+    vt.slots[10] = reinterpret_cast<void*>(&FgTractSize);
+    vt.slots[11] = reinterpret_cast<void*>(&FgShift);
+    vt.slots[12] = reinterpret_cast<void*>(&FgCountX);
+    vt.slots[13] = reinterpret_cast<void*>(&FgCountZ);
+    vt.slots[14] = reinterpret_cast<void*>(&FgWidth);
+    vt.slots[15] = reinterpret_cast<void*>(&FgWidth);
+    vt.slots[16] = reinterpret_cast<void*>(&FgInvWidth);
+    vt.slots[17] = reinterpret_cast<void*>(&FgInvWidth);
+    vt.slots[22] = isFloat ? reinterpret_cast<void*>(&FgF32) : reinterpret_cast<void*>(&FgU8);
+}
+
+void SetGrid(FakeGrid& g, FakeVtable& vt, int32_t size, int32_t shift, int32_t cx, int32_t cz, int* refs) {
+    g.vtbl = vt.slots.data();
+    g.tractSize = size;
+    g.shift = shift;
+    g.countX = cx;
+    g.countZ = cz;
+    g.refs = refs;
+}
+
+// An "original" land value simulator (landvalue.md §11.1) on an 8 x 6 cell
+// city: intrinsic and total 4 x 3 tracts (S = 2), slope 1 x 1 (S = 8). The
+// city answers GetLandValueSimulator (compiled slot 61) and null for the zone
+// manager (36), the building development simulator (53) and the terrain (84),
+// so our pass reads no land: scratch 0, no water bonus, no altitude curve
+// (the code defaults: the intrinsic grid is kept), no developer, average 0,
+// mode altitude min(16, max(0, 0)) = 0, mean 0, slope 0 (§6, §7). The clean
+// original therefore has total = intrinsic, slope 0 and the three scalars 0.
+// The record (its own Write) is version 1 with three null references.
+struct FakeOrigLv {
+    FakeVtable simVt, serVt, cityVt, noLvVt, u8Vt, f32Vt;
+    FakeObject sim{}, ser{}, city{}, noLv{};
+    FakeGrid intrinsic{}, total{}, slope{};
+    uint8_t intrinsicV[12] = {10, 60, 90, 20, 55, 130, 0, 74, 75, 49, 50, 200};  // [x][z]
+    uint8_t totalV[12] = {10, 60, 90, 20, 55, 130, 0, 74, 75, 49, 50, 200};
+    float slopeV[1] = {0.0f};
+    uint16_t version = 1;
+    uint8_t flag = 0, average = 0;
+    float mode = 0.0f, mean = 0.0f;
+    int refs = 1, gridRefs = 1, writes = 0, typeCalls = 0;
+};
+
+FakeOrigLv* g_lv = nullptr;
+
+bool __fastcall LvQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;
+    *out = &g_lv->ser;
+    ++g_lv->refs;
+    return true;
+}
+uint32_t __fastcall LvAddRef(void*, void*) { return static_cast<uint32_t>(++g_lv->refs); }   // 1
+uint32_t __fastcall LvRelease(void*, void*) { return static_cast<uint32_t>(--g_lv->refs); }  // 2
+int32_t __fastcall LvType(void*, void*, int32_t x, int32_t z) {                              // 5 (cell coordinates)
+    ++g_lv->typeCalls;
+    const uint8_t v = g_lv->totalV[(x / 2) * 3 + z / 2];
+    return v < 50 ? 1 : (v < 75 ? 2 : 3);  // the code-default boundaries 50, 75 (§8)
+}
+void* __fastcall LvIntrinsic(void*, void*) { return &g_lv->intrinsic; }  // 7
+void* __fastcall LvTotal(void*, void*) { return &g_lv->total; }          // 8
+void* __fastcall LvSlope(void*, void*) { return &g_lv->slope; }          // 9
+uint8_t __fastcall LvAverage(void*, void*) { return g_lv->average; }     // 10
+float __fastcall LvMode(void*, void*) { return g_lv->mode; }             // 11
+bool __fastcall LvWrite(void*, void*, cIGZOStream* s) {                  // serializable 3 (§10)
+    ++g_lv->writes;
+    s->SetUint16(g_lv->version);
+    for (int i = 0; i < 3; ++i) s->SetUint32(0);  // null references
+    s->SetUint8(g_lv->flag);
+    s->SetUint8(g_lv->average);
+    return s->SetFloat32(g_lv->mean);
+}
+uint32_t __fastcall LvClsid(void*, void*) { return kCLSID_LandValue; }  // serializable 5
+void* __fastcall LvCitySim(void*, void*) { return &g_lv->sim; }         // city 61
+void* __fastcall LvCityNull(void*, void*) { return nullptr; }           // city 36, 53, 84; noLv 61
+
+void InitFakeOrigLv(FakeOrigLv& o) {
+    g_lv = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&LvQi);
+        vt->slots[1] = reinterpret_cast<void*>(&LvAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&LvRelease);
+    }
+    o.simVt.slots[5] = reinterpret_cast<void*>(&LvType);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&LvIntrinsic);
+    o.simVt.slots[8] = reinterpret_cast<void*>(&LvTotal);
+    o.simVt.slots[9] = reinterpret_cast<void*>(&LvSlope);
+    o.simVt.slots[10] = reinterpret_cast<void*>(&LvAverage);
+    o.simVt.slots[11] = reinterpret_cast<void*>(&LvMode);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&LvWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&LvClsid);
+    for (int s : {36, 53, 84}) o.cityVt.slots[s] = reinterpret_cast<void*>(&LvCityNull);
+    o.cityVt.slots[61] = reinterpret_cast<void*>(&LvCitySim);
+    o.noLvVt.slots[61] = reinterpret_cast<void*>(&LvCityNull);
+    InitGridVtable(o.u8Vt, false);
+    InitGridVtable(o.f32Vt, true);
+    SetGrid(o.intrinsic, o.u8Vt, 2, 1, 4, 3, &o.gridRefs);
+    SetGrid(o.total, o.u8Vt, 2, 1, 4, 3, &o.gridRefs);
+    SetGrid(o.slope, o.f32Vt, 8, 3, 1, 1, &o.gridRefs);
+    o.intrinsic.u8 = o.intrinsicV;
+    o.total.u8 = o.totalV;
+    o.slope.f32 = o.slopeV;
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noLv.vtbl = o.noLvVt.slots.data();
+}
+
+intptr_t LvShadowOnce(FC4TestSeamFn seam, void* city, int32_t julian, uint32_t event) {
+    FC4LandValueShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, event};
+    return seam(kFC4SeamLandValueShadow, &in, nullptr);
+}
+
+int LandValueShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW_CELLS", nullptr);
+    WriteTextFile(ini, "[tools]\nlandvalue_shadow = 1\nlandvalue_shadow_cells = 3\ndigest = 0\nobserve = 0\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigLv orig;
+    InitFakeOrigLv(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the shadow's setting
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LandValue) == 0);  // the original stays
+        // No city, a city without a land value simulator: not run.
+        CHECK(LvShadowOnce(seam, nullptr, 2451576, 0) == -1);
+        CHECK(LvShadowOnce(seam, &orig.noLv, 2451576, 0) == -1);
+        CHECK(LvShadowOnce(seam, nullptr, 2451576, 1) == -1);
+        // 1. Clean: our pass equals the original's (2000-02-01).
+        CHECK(LvShadowOnce(seam, &orig.city, 2451576, 0) == 0);
+        // A day: no developer listed (code defaults), so no map changed.
+        CHECK(LvShadowOnce(seam, &orig.city, 2451577, 1) == 0);
+        // 2. One wrong tract: the original's total (1, 2) is 131, ours 130.
+        orig.totalV[1 * 3 + 2] = 131;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451605, 0) == 1);
+        orig.totalV[1 * 3 + 2] = 130;
+        // 3. One wrong scalar: the original's average is 7 (ours 0); its record still says 0.
+        orig.average = 7;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451636, 0) == 1);
+        orig.average = 0;
+        // 4. One wrong record scalar (no getter): the mean altitude; and the
+        // record says dirty-or-running (settled=0), which is not a difference.
+        orig.mean = 2.5f;
+        orig.flag = 1;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451666, 0) == 1);
+        orig.mean = 0.0f;
+        orig.flag = 0;
+        // 5. A record that does not parse: compared without it.
+        orig.version = 9;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451697, 0) == 0);
+        orig.version = 1;
+        // 6. PostCityShutdown drops the shadow core; the next pass is pass 1 of a new one.
+        CHECK(LvShadowOnce(seam, &orig.city, 0, 2) == 0);
+        CHECK(LvShadowOnce(seam, &orig.city, 2451727, 0) == 0);
+        CHECK(orig.writes == 6);
+        CHECK(orig.typeCalls == 6 * 12);
+        CHECK(orig.refs == 1);      // every QueryInterface released
+        CHECK(orig.gridRefs == 1);  // the grids are borrowed: no AddRef, no Release
+        CHECK(orig.total.reads == 6 * 12 && orig.intrinsic.reads == 6 * 12 && orig.slope.reads == 6);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("landvalue shadow: ON (landvalue_shadow from FreeCity4.ini)") != std::string::npos);
+    CHECK(text.find("landvalue shadow: NOT readable read-only (left out of the comparison)") != std::string::npos);
+    CHECK(text.find("landvalue shadow: the city has no land value simulator; nothing compared") != std::string::npos);
+    CHECK(CountOf(text, "landvalue shadow: comparing with the original land value simulator") == 2);
+    CHECK(text.find("tuning the code defaults (no exemplar); differing tracts listed per grid: 3") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-02-01 pass 1: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
+                    "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=0 max|d|=0; slope cells=1 "
+                    "mismatched=0 max|d|=0; types mismatched=0/12; average orig/ours=0/0; modeAlt orig/ours=0/0; "
+                    "meanAlt orig/ours=0/0; settled=1; desirability=none (no developer listed); mismatches=0; "
+                    "passes=1 clean=1\r\n") != std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-03-01 pass 2: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
+                    "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=1 max|d|=1;") != std::string::npos);
+    CHECK(text.find("mismatches=1; passes=2 clean=1; first differing (x,z) orig/ours: total (1,2) 131/130") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-04-01 pass 3: ") != std::string::npos);
+    CHECK(text.find("; average orig/ours=7/0!; modeAlt orig/ours=0/0; meanAlt orig/ours=0/0; settled=1;") !=
+          std::string::npos);
+    CHECK(text.find("meanAlt orig/ours=2.5/0!; settled=0 (the original's record says dirty or a pass running") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: the original's record (its own Write) did not parse; the mean altitude and the "
+                    "settled flag are not compared") != std::string::npos);
+    CHECK(text.find("meanAlt not read (no record); settled=?; desirability=none (no developer listed); mismatches=0; "
+                    "passes=5 clean=2") != std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-07-01 pass 1: ") != std::string::npos);
+    CHECK(text.find("INCOMPLETE") == std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landvalue shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// An "original" flammability simulator (flammability.md §11.1) on an 8 x 8
+// city: both grids 8 x 8 tracts (S = 1), raw all 0 (no occupant), so no
+// daily refresh writes a tract and every adjusted value must stay as the
+// previous cycle left it; no zone manager, plumbing, weather, ordinance,
+// occupant or lot manager (city slots 36, 64, 70, 63, 34, 33 return null),
+// so the average is 0 and there are no hotspots. Its record (§10) writes
+// both grids through WriteGZSerializable (each answers cISC4SimGrid
+// 0xC9BD939A). Slot 6 answers from the adjusted grid, slot 7 false, slot 8
+// the average.
+struct FakeGridSer {
+    void** vtbl;
+    FakeGrid* grid;
+};
+
+struct FakeOrigFl {
+    FakeVtable simVt, serVt, cityVt, noFlVt, gridVt, gridSerVt, notLotVt;
+    FakeObject sim{}, ser{}, city{}, noFl{}, notLot{};
+    FakeGrid adjusted{}, raw{};
+    FakeGridSer adjustedSer{}, rawSer{};
+    uint8_t adjustedV[64] = {};
+    uint8_t rawV[64] = {};
+    uint16_t version = 2;
+    float g = 1.0f;
+    uint8_t average = 0;
+    int refs = 1, gridRefs = 1, writes = 0, flammableCalls = 0, hotspotCalls = 0, notLotQi = 0;
+};
+
+FakeOrigFl* g_fl = nullptr;
+
+bool __fastcall FlQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;
+    *out = &g_fl->ser;
+    ++g_fl->refs;
+    return true;
+}
+uint32_t __fastcall FlAddRef(void*, void*) { return static_cast<uint32_t>(++g_fl->refs); }   // 1
+uint32_t __fastcall FlRelease(void*, void*) { return static_cast<uint32_t>(--g_fl->refs); }  // 2
+bool __fastcall FlFlammable(void*, void*, int x, int z) {                                    // 6 (cells)
+    ++g_fl->flammableCalls;
+    return x >= 0 && x < 8 && z >= 0 && z < 8 && g_fl->adjustedV[x * 8 + z] != 0;
+}
+bool __fastcall FlHotspot(void*, void*, uint8_t*, int*, int*) {  // 7: no hotspot, nothing written
+    ++g_fl->hotspotCalls;
+    return false;
+}
+uint8_t __fastcall FlAverage(void*, void*) { return g_fl->average; }  // 8
+bool __fastcall FlWrite(void*, void*, cIGZOStream* s) {               // serializable 3 (§10)
+    ++g_fl->writes;
+    s->SetUint16(g_fl->version);
+    void* p = nullptr;
+    if (s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) && p != nullptr) {
+        auto* db = static_cast<cFC4ISC4DBSegmentOStream*>(p);
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_fl->adjustedSer));
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_fl->rawSer));
+        db->Release();
+    }
+    s->SetFloat32(g_fl->g);
+    s->SetUint8(g_fl->average);
+    return s->SetUint32(0);  // no hotspot
+}
+uint32_t __fastcall FlClsid(void*, void*) { return kCLSID_Flammability; }  // serializable 5
+bool __fastcall GsQi(FakeGridSer* self, void*, uint32_t iid, void** out) {  // grid serializable 0
+    if (out == nullptr || iid != kIID_cISC4SimGrid) return false;
+    *out = self->grid;
+    ++g_fl->gridRefs;
+    return true;
+}
+uint32_t __fastcall GsAddRef(void*, void*) { return static_cast<uint32_t>(++g_fl->gridRefs); }   // 1
+uint32_t __fastcall GsRelease(void*, void*) { return static_cast<uint32_t>(--g_fl->gridRefs); }  // 2
+uint32_t __fastcall GsClsid(void*, void*) { return kCLSID_SimGridUint8; }                        // 5
+bool __fastcall NotLotQi(void*, void*, uint32_t, void**) {                                       // 0
+    ++g_fl->notLotQi;
+    return false;
+}
+void* __fastcall FlCitySim(void*, void*) { return &g_fl->sim; }  // city 58
+void* __fastcall FlCityNull(void*, void*) { return nullptr; }    // city 33, 34, 36, 63, 64, 70; noFl 58
+uint32_t __fastcall FlCellCount(void*, void*) { return 8; }      // city 93, 94
+
+void InitFakeOrigFl(FakeOrigFl& o) {
+    g_fl = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&FlQi);
+        vt->slots[1] = reinterpret_cast<void*>(&FlAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&FlRelease);
+    }
+    o.simVt.slots[6] = reinterpret_cast<void*>(&FlFlammable);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&FlHotspot);
+    o.simVt.slots[8] = reinterpret_cast<void*>(&FlAverage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&FlWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&FlClsid);
+    o.gridSerVt.slots[0] = reinterpret_cast<void*>(&GsQi);
+    o.gridSerVt.slots[1] = reinterpret_cast<void*>(&GsAddRef);
+    o.gridSerVt.slots[2] = reinterpret_cast<void*>(&GsRelease);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&GsClsid);
+    o.notLotVt.slots[0] = reinterpret_cast<void*>(&NotLotQi);
+    for (int s : {33, 34, 36, 63, 64, 70}) o.cityVt.slots[s] = reinterpret_cast<void*>(&FlCityNull);
+    o.cityVt.slots[58] = reinterpret_cast<void*>(&FlCitySim);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&FlCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&FlCellCount);
+    o.noFlVt.slots[58] = reinterpret_cast<void*>(&FlCityNull);
+    InitGridVtable(o.gridVt, false);
+    SetGrid(o.adjusted, o.gridVt, 1, 0, 8, 8, &o.gridRefs);
+    SetGrid(o.raw, o.gridVt, 1, 0, 8, 8, &o.gridRefs);
+    o.adjusted.u8 = o.adjustedV;
+    o.raw.u8 = o.rawV;
+    o.adjustedSer = {o.gridSerVt.slots.data(), &o.adjusted};
+    o.rawSer = {o.gridSerVt.slots.data(), &o.raw};
+    for (int i = 0; i < 64; i += 5) o.adjustedV[i] = static_cast<uint8_t>(40 + i);  // the previous cycles' values
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noFl.vtbl = o.noFlVt.slots.data();
+    o.notLot.vtbl = o.notLotVt.slots.data();
+}
+
+intptr_t FlShadowOnce(FC4TestSeamFn seam, void* city, int32_t julian, uint32_t event, uint32_t msgType = 0,
+                      void* void1 = nullptr, void* unknown = nullptr) {
+    FC4FlammabilityShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, event, msgType,
+                                      static_cast<cIGZUnknown*>(void1), static_cast<cIGZUnknown*>(unknown)};
+    return seam(kFC4SeamFlammabilityShadow, &in, nullptr);
+}
+
+int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW_CELLS", nullptr);
+    WriteTextFile(ini, "[tools]\nflammability_shadow = 1\ndigest = 0\nobserve = 0\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigFl orig;
+    InitFakeOrigFl(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the shadow's setting
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flammability) == 0);  // the original stays
+        // No city, a city without a flammability simulator: not run.
+        CHECK(FlShadowOnce(seam, nullptr, 2451546, 1) == -1);
+        CHECK(FlShadowOnce(seam, &orig.noFl, 2451546, 1) == -1);
+        CHECK(FlShadowOnce(seam, nullptr, 0, 0, kMsgInsertOccupantFl) == -1);
+        // A message before the first cycle end: no mirror yet.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 0);
+        // The first cycle end (the empty one of the first day) is the baseline.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451546, 1) == -2);  // 2000-01-02
+        // Mirrored messages: an occupant message without an occupant, and a
+        // condition change whose object is not a lot (both no-ops in the core).
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 1);
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgConditionChangedFl, nullptr, &orig.notLot) == 1);
+        CHECK(orig.notLotQi == 1);
+        // 1. Clean.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451586, 1) == 0);  // 2000-02-11
+        // 2. One wrong tract: adjusted (3, 4) became 9 although its raw value is 0.
+        orig.adjustedV[3 * 8 + 4] = 9;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451626, 1) == 1);
+        // 3. One wrong scalar: the multiplier changed without a season or ordinance message.
+        orig.g = 0.5f;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451666, 1) == 1);
+        // The shadow took the original's state: the next cycle is clean.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451706, 1) == 0);
+        // 4. A record that does not parse: INCOMPLETE, then a new baseline.
+        orig.version = 3;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451746, 1) == -2);
+        orig.version = 2;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451786, 1) == -2);
+        CHECK(FlShadowOnce(seam, &orig.city, 2451826, 1) == 0);
+        // 5. PostCityShutdown drops the shadow core; the next cycle is a baseline again.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 2) == 0);
+        CHECK(FlShadowOnce(seam, &orig.city, 2451866, 1) == -2);
+        CHECK(orig.writes == 9);
+        CHECK(orig.flammableCalls == 9 * 64);
+        CHECK(orig.hotspotCalls == 9);
+        CHECK(orig.refs == 1);      // every QueryInterface released
+        CHECK(orig.gridRefs == 1);  // each grid's cISC4SimGrid reference released at once
+        CHECK(orig.adjusted.reads == 8 * 64 && orig.raw.reads == 8 * 64);  // not when the record did not parse
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("flammability shadow: ON (flammability_shadow from FreeCity4.ini)") != std::string::npos);
+    CHECK(text.find("flammability shadow: NOT readable read-only (left out of the comparison)") != std::string::npos);
+    CHECK(text.find("flammability shadow: the city has no flammability simulator; nothing compared") !=
+          std::string::npos);
+    CHECK(CountOf(text, "flammability shadow: following the original flammability simulator of city ") == 2);
+    CHECK(text.find("flammability shadow 2000-01-02 cycle 1: baseline (first cycle seen): our simulator takes the "
+                    "original's grids (8x8 tracts, tractsPerDay=") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-02-11 cycle 2: tracts=8x8 (S=1) tractsPerDay=") != std::string::npos);
+    CHECK(text.find("raw cells=64 mismatched=0 max|d|=0; adjusted cells=64 mismatched=0 max|d|=0") !=
+          std::string::npos);
+    CHECK(text.find("average orig/ours=0/0; multiplier orig/ours=1/1; hotspots orig/ours=0/0") != std::string::npos);
+    CHECK(text.find("events=2;") != std::string::npos);
+    CHECK(text.find("flammable getter cells=64 mismatched=0; mismatches=0; cycles=1 clean=1") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-03-22 cycle 3: ") != std::string::npos);
+    CHECK(text.find("adjusted cells=64 mismatched=1 max|d|=9") != std::string::npos);
+    CHECK(text.find("mismatches=1; cycles=2 clean=1") != std::string::npos);
+    CHECK(text.find("multiplier orig/ours=0.5/1!") != std::string::npos);
+    CHECK(text.find("mismatches=1; cycles=3 clean=1") != std::string::npos);
+    CHECK(text.find("mismatches=0; cycles=4 clean=2") != std::string::npos);
+    CHECK(text.find("flammability shadow: the original's record (its own Write) did not parse") != std::string::npos);
+    CHECK(text.find("cycle 6: INCOMPLETE (the original's record (its own Write) could not be read); not compared, "
+                    "the next cycle is a new baseline") != std::string::npos);
+    CHECK(text.find("cycle 7: baseline (first cycle seen)") != std::string::npos);
+    CHECK(text.find("mismatches=0; cycles=5 clean=3") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-11-17 cycle 1: baseline (first cycle seen)") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin flammability shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// Both shadows requested with our simulators enabled: inactive at game start,
+// and each refuses a city whose simulator is ours.
+void* g_ourLv = nullptr;
+void* g_ourFl = nullptr;
+void* __fastcall OursLv(void*, void*) { return g_ourLv; }  // city 61
+void* __fastcall OursFl(void*, void*) { return g_ourFl; }  // city 58
+
+int LvFlShadowInactiveTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = landvalue, flammability\n[tools]\nlandvalue_shadow = 1\n"
+                       "flammability_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeVtable cityVt;
+    static FakeObject city{};
+    cityVt.slots[58] = reinterpret_cast<void*>(&OursFl);
+    cityVt.slots[61] = reinterpret_cast<void*>(&OursLv);
+    city.vtbl = cityVt.slots.data();
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LandValue) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flammability) == 1);
+        CHECK(director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &g_ourLv) && g_ourLv);
+        CHECK(director->GetClassObject(kCLSID_Flammability, kIID_cISC4FlammabilitySimulator, &g_ourFl) && g_ourFl);
+        if (g_ourLv != nullptr && g_ourFl != nullptr) {
+            CHECK(LvShadowOnce(seam, &city, 2451576, 0) == -1);
+            CHECK(LvShadowOnce(seam, &city, 2451576, 1) == -1);
+            CHECK(FlShadowOnce(seam, &city, 2451576, 1) == -1);
+            CHECK(FlShadowOnce(seam, &city, 0, 0, kMsgInsertOccupantFl) == -1);
+        }
+        if (g_ourLv != nullptr) CHECK(static_cast<cIGZUnknown*>(g_ourLv)->Release() == 0);
+        if (g_ourFl != nullptr) CHECK(static_cast<cIGZUnknown*>(g_ourFl)->Release() == 0);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("landvalue shadow: requested (landvalue_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("flammability shadow: requested (flammability_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: ON") == std::string::npos);
+    CHECK(text.find("flammability shadow: ON") == std::string::npos);
+    CHECK(text.find("landvalue shadow: inactive: the city's land value simulator is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("flammability shadow: inactive: the city's flammability simulator is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: comparing") == std::string::npos);
+    CHECK(text.find("flammability shadow: following") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landvalue / flammability shadow inactive test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -3171,6 +4305,12 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-flora") return FloraEnableTest(dll, ini, log);
     // Landfill (landfill.md): the replacement, and the shadow on fake originals.
     if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
+    // Residential (residential.md): the replacement, and the shadow on fake originals.
+    if (mode == "--ini-enable-residential") return ResidentialEnableTest(dll, ini, log);
+    // Land value and flammability grid shadows on fake originals; both inactive with ours.
+    if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
+    if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
+    if (mode == "--ini-lvfl-shadow-inactive") return LvFlShadowInactiveTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -3305,7 +4445,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 125): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 136): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -3431,7 +4571,16 @@ int main(int argc, char** argv) {
                 CHECK(w->CellWidthX() == 16.0f && w->CellCountZ() == 0);
                 CHECK(w->GetCurrentSeasonMonth() == 1 && w->GetCurrentSeason() == 0);
                 float x = 0, z = 0;
-                CHECK(w->CellToPosition(2, 3, x, z) == 48.0f && x == 32.0f && z == 48.0f);
+                w->CellToPosition(2, 3, x, z);
+                CHECK(x == 32.0f && z == 48.0f);
+                {
+                    // §4 (corrected 2026-10-14): slot 11 returns nothing; called the
+                    // game's way it pops 16 and leaves the x87 stack as it was.
+                    float gx = 0, gz = 0;
+                    const fc4test::SlotCall r = fc4test::CallSlot(
+                        w, 11, {2, 3, reinterpret_cast<uint32_t>(&gx), reinterpret_cast<uint32_t>(&gz)});
+                    CHECK(r.espDelta == 0 && r.x87Pushed == 0 && gx == 32.0f && gz == 48.0f);
+                }
                 int32_t a = 0, b = 0;
                 w->CellToStandardCityCell(3, 7, a, b);
                 CHECK(a == 3 && b == 3);  // [quirk]
@@ -3615,9 +4764,18 @@ int main(int argc, char** argv) {
                 CHECK(sim->GetDemand(0x1010, 0x20000) == nullptr);
                 CHECK(sim->GetJobsBySensus(0x3121) == 0);
                 CHECK(sim->GetNeutralTaxRate() == 0.0f);
-                float jobs[3] = {1.0f, 1.0f, 1.0f};
-                CHECK(sim->CalculateJobsPerUnitOfDemand(jobs, 0x3121, 0) == 0.0f);
-                CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
+                // §5 (corrected 2026-10-14): four floats, jobs[1..3] zeroed (no
+                // exemplar), jobs[0] never touched, nothing returned.
+                float jobs[4] = {7.0f, 1.0f, 1.0f, 1.0f};
+                sim->CalculateJobsPerUnitOfDemand(jobs, 0x3121, 0);
+                CHECK(jobs[0] == 7.0f && jobs[1] == 0.0f && jobs[2] == 0.0f && jobs[3] == 0.0f);
+                {
+                    float g[4] = {7.0f, 1.0f, 1.0f, 1.0f};
+                    const fc4test::SlotCall r =
+                        fc4test::CallSlot(sim, 8, {reinterpret_cast<uint32_t>(g), 0x3121u, 0u});
+                    CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+                    CHECK(g[0] == 7.0f && g[1] == 0.0f && g[2] == 0.0f && g[3] == 0.0f);
+                }
                 SC4Percentage full{1.0f}, half{0.5f};
                 sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
                 // Not the identified executable: the game's map functions cannot be
@@ -3683,7 +4841,18 @@ int main(int argc, char** argv) {
                     // §16 test 2: min/max ±6000, demand 1000, supply 400 + 10 pending.
                     CHECK(node->SetActiveDemandMin(-6000.0f) && node->SetActiveDemandMax(6000.0f));
                     CHECK(node->SetDemandValue(1000.0f) && node->SetSupplyValue(400.0f));
-                    CHECK(node->AddToSupplyValue(10.0f) == 1.0f);  // [choice] 1.0 in ST0
+                    {
+                        // §3.2 (corrected 2026-10-14): slots 16/17 return true in AL and
+                        // leave the x87 stack as they found it (pop 4).
+                        const float ten = 10.0f, zero = 0.0f;
+                        uint32_t tenBits = 0, zeroBits = 0;
+                        std::memcpy(&tenBits, &ten, sizeof(tenBits));
+                        std::memcpy(&zeroBits, &zero, sizeof(zeroBits));
+                        const fc4test::SlotCall s16 = fc4test::CallSlot(node, 16, {tenBits});
+                        CHECK(s16.espDelta == 0 && s16.x87Pushed == 0 && (s16.eax & 0xFF) == 1);
+                        const fc4test::SlotCall s17 = fc4test::CallSlot(node, 17, {zeroBits});
+                        CHECK(s17.espDelta == 0 && s17.x87Pushed == 0 && (s17.eax & 0xFF) == 1);
+                    }
                     CHECK(node->QuerySupplyValue() == 400.0f && node->QueryNewSupply() == 10.0f);
                     CHECK(node->EndOfCycle());
                     CHECK(!node->EndOfCycle());
@@ -3980,7 +5149,8 @@ int main(int argc, char** argv) {
             auto* cr = static_cast<cFC4ISC4CrimeSimulator*>(obj);
             if (cr != nullptr) {
                 // §1: four interfaces and cIGZUnknown (the primary one), one
-                // reference count; any other IID: false and the out pointer null.
+                // reference count; any other IID: false and the out pointer
+                // untouched (CQ14).
                 void* p = nullptr;
                 CHECK(cr->QueryInterface(0x452294AAu, &p) && p != nullptr);
                 if (p) static_cast<cIGZUnknown*>(p)->Release();
@@ -4013,7 +5183,9 @@ int main(int argc, char** argv) {
                 if (u) static_cast<cIGZUnknown*>(u)->Release();
                 void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
                 CHECK(!cr->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
-                CHECK(untouched == nullptr);
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+                CHECK(!cr->QueryInterface(0x12345678u, &untouched));  // any other IID
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
                 // Class slot 15 (class-private, after the destructor at 14):
                 // GetSimulatorType.
                 using TypeFn = uint32_t(__thiscall*)(void*);
@@ -4034,6 +5206,25 @@ int main(int argc, char** argv) {
                     CHECK(!cr->GetCrimeIncidentArray(reinterpret_cast<fc4::GameVector<FC4CrimeEvent>&>(v)));
                     CHECK(v.size() == 0);
                 }
+                {
+                    // §11.4 (CQ1): the incident array grows like the game's
+                    // vector resize: exactly the count when empty, else
+                    // size + max(size, added); within the capacity, kept.
+                    fc4::GameVector<FC4CrimeEvent, TestHeap> g;
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3);
+                    for (uint32_t i = 0; i < 3; ++i) {
+                        FC4CrimeEvent e{};
+                        e.typeID = 100 + i;
+                        CHECK(g.push_back(e));
+                    }
+                    FC4CrimeEvent* const first = g.begin();
+                    CHECK(g.reserve_for_resize(2) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(4) && g.capacity() == 6);  // 3 + max(3, 1)
+                    CHECK(g.size() == 3 && g[0].typeID == 100 && g[2].typeID == 102);
+                    CHECK(g.reserve_for_resize(13) && g.capacity() == 13);  // 3 + max(3, 10)
+                    CHECK(g.size() == 3 && g[1].typeID == 101);
+                }
                 CHECK(!cr->SetVisualsCreated(0, true));
                 CHECK(!cr->GetVisualsCreated(0));
                 // Init without a city or GZCOM: no agent, a clean lifecycle.
@@ -4042,6 +5233,66 @@ int main(int argc, char** argv) {
                 CHECK(cr->Shutdown());
                 CHECK(cr->Release() == 0);
             }
+        }
+        // Test seam op 26. §6.10 (CQ13): the crime effect is the property's raw storage (the
+        // variant's data pointer, slot 95, whatever its type), no conversion.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            FakeHolder holder;
+            auto put = [&holder](uint32_t id, auto fill) {
+                cRZBaseVariant v;
+                fill(v);
+                holder.AddPropertyVariant(id, fc4::AsGame(static_cast<cIGZVariant const*>(&v)), false);
+            };
+            uint8_t u8s[2] = {100, 8};
+            uint32_t u32s[2] = {100, 8};
+            float f32s[2] = {100.0f, 8.0f};
+            uint16_t u16s[1] = {0x0864};
+            put(1u, [&](cRZBaseVariant& v) { v.RefUint8(u8s, 2); });
+            put(2u, [&](cRZBaseVariant& v) { v.RefUint32(u32s, 2); });
+            put(3u, [&](cRZBaseVariant& v) { v.RefFloat32(f32s, 2); });
+            put(4u, [&](cRZBaseVariant& v) { v.RefUint16(u16s, 1); });
+            put(5u, [](cRZBaseVariant& v) { v.SetValUint8(100); });
+            FC4RawArrayBytesTestIo io{};
+            auto read = [&](uint32_t id) {
+                io = FC4RawArrayBytesTestIo{};
+                io.id = id;
+                return seam(kFC4SeamRawArrayBytes, holder.AsSdk(), &io);
+            };
+            // Uint8 {100, 8}: m = 100, r = 8.
+            CHECK(read(1) == 1 && io.len == 2 && io.bytes[0] == 100 && io.bytes[1] == 8);
+            // Uint32 {100, 8}: 64 00 00 00 08 00 00 00, so m = 100, r = 0.
+            CHECK(read(2) == 1 && io.len == 8 && io.bytes[0] == 100 && io.bytes[1] == 0 && io.bytes[4] == 8);
+            // Float32 {100, 8}: 00 00 C8 42 ..., so m = 0, r = 0.
+            CHECK(read(3) == 1 && io.len == 8 && io.bytes[0] == 0 && io.bytes[1] == 0 && io.bytes[2] == 0xC8 &&
+                  io.bytes[3] == 0x42);
+            // One Uint16 0x0864: 64 08, so m = 100, r = 8.
+            CHECK(read(4) == 1 && io.len == 2 && io.bytes[0] == 0x64 && io.bytes[1] == 0x08);
+            CHECK(read(5) == 0);  // [choice] a scalar: no bytes
+            CHECK(read(6) == 0);  // absent
+            CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
+
+            // Test seam op 27. §13 (CQ3): lot GetCenter (slot 15) answers in the out
+            // parameter with the x87 stack unchanged; the thunk counts a depth
+            // change and no longer pops anything (a value left behind is the
+            // caller's, here the test's, to pop).
+            void* vt[16] = {};
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenter);
+            FakeLotObject lot{vt};
+            float c[3] = {0.0f, 0.0f, 0.0f};
+            const unsigned top = X87Top();
+            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 0);
+            CHECK(c[0] == 256.5f && c[1] == 10.0f && c[2] == 512.25f);
+            CHECK(X87Top() == top);
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenterSt0);
+            const intptr_t left = seam(kFC4SeamLotCenter, &lot, c);
+            const unsigned topLeft = X87Top();
+            fc4test::PopX87();  // the 7.0f the fake left: not popped by the thunk
+            CHECK(left == 1 && topLeft == ((top - 1u) & 7u));
+            CHECK(c[0] == 1.0f && c[2] == 3.0f);
+            CHECK(X87Top() == top);
+            CHECK(seam(kFC4SeamLotCenter, nullptr, c) == -1);
         }
         FreeLibrary(hd);
         DeleteFileA(ini.c_str());
@@ -4479,6 +5730,61 @@ int main(int argc, char** argv) {
             CHECK(fire.refs == 1);
         }
 
+        // The x87 return channels (docs/abi corrected 2026-10-14), called the
+        // game's way: nothing may be left on, or taken off, the x87 stack.
+        if (seam != nullptr) {
+            static FakePipeCity pipe;
+            InitFakePipeCity(pipe);
+            // City slot 97 is void: protection and landfill call it so (op 28).
+            FC4CellCenterTestIo io{3, 5, 0.0f, 0.0f, 0.0f, 0.0f};
+            const unsigned top = X87Top();
+            CHECK(seam(kFC4SeamCellCenter, &pipe.city, &io) == 1);
+            CHECK(X87Top() == top);  // a float declaration popped an empty register here
+            CHECK(io.protectionX == 56.0f && io.protectionZ == 88.0f);
+            CHECK(io.landfillX == 56.0f && io.landfillZ == 88.0f);
+            CHECK(seam(kFC4SeamCellCenter, nullptr, &io) == -1);
+            // Plumbing §7.1 step 4: the AttemptDisasterStart result is ignored,
+            // never released (op 29). The old glue released it (refs 0).
+            const int32_t xz[2] = {12, 34};
+            CHECK(seam(kFC4SeamPipeBurst, &pipe.city, const_cast<int32_t*>(xz)) == 1);
+            CHECK(pipe.attempts == 1 && pipe.x == 12 && pipe.z == 34);
+            CHECK(pipe.instRefs == 1);
+            CHECK(seam(kFC4SeamPipeBurst, nullptr, const_cast<int32_t*>(xz)) == -1);
+            // cIGZVariant slot 41 SetValFloat64(double) is void (op 30): pops 8,
+            // nothing in ST0.
+            cFC4IGZVariant* v = nullptr;
+            CHECK(seam(kFC4SeamVariant, &v, nullptr) == 1 && v != nullptr);
+            if (v != nullptr) {
+                const double d = 2.5;
+                uint32_t w[2] = {0, 0};
+                std::memcpy(w, &d, sizeof(w));
+                const fc4test::SlotCall r = fc4test::CallSlot(v, 41, {w[0], w[1]});
+                CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+                CHECK(v->GetValFloat64() == 2.5);
+                CHECK(v->Release() == 0);  // the heap copy is deleted
+            }
+            CHECK(seam(kFC4SeamVariant, nullptr, nullptr) == -1);
+            // The x87 leftover guard (op 31, FC4Fpu.h): a clean stack is 0 and
+            // writes nothing; two values left are found (and logged once for
+            // the site this game month, counted every time); nothing is popped.
+            CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
+            __asm {
+                fld1
+                fldz
+            }
+            const intptr_t found = seam(kFC4SeamX87Check, nullptr, nullptr);
+            const intptr_t again = seam(kFC4SeamX87Check, nullptr, nullptr);
+            const unsigned topLeft = X87Top();
+            __asm {
+                fstp st(0)
+                fstp st(0)
+            }
+            CHECK(found == 2 && again == 2);
+            CHECK(topLeft == ((top - 2u) & 7u));
+            CHECK(X87Top() == top);
+            CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
+        }
+
         // The budget shadow next to an "original" budget: the same values
         // give no mismatch; the original counting the not-livable CS$ lot
         // gives one (type 3), attributed to that lot. Any write to the fake
@@ -4732,9 +6038,27 @@ int main(int argc, char** argv) {
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFault() == 1);
+    CHECK(ForeignFaultX87() == 1);
     const std::string text = ReadFile(log);
-    CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 2);
+    CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 3);
     CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);
+    // ... with the x87 state at the fault (an empty stack here) and the raw
+    // dwords at esp (FC4Diag.cpp, FC4DiagContext.h).
+    CHECK(text.find("  fpu: CW=0x") != std::string::npos);
+    CHECK(text.find(") TW=0x") != std::string::npos);
+    CHECK(text.find("[FXSAVE FTW=0x00 occupied=0] indefinite NaN: ") != std::string::npos);
+    // ForeignFaultX87: 1.0 in ST0 (physical register 7). Under WOW64 the
+    // context's TagWord is the full tag (0x3FFF), not the abridged byte.
+    CHECK(text.find("(TOP=7 SF=0 IE=0 C1=0) TW=0x3FFF occupied=1 [FXSAVE FTW=0x80 occupied=1] indefinite NaN: none") !=
+          std::string::npos);
+    CHECK(text.find("  esp dwords: 0x") != std::string::npos);
+    // The x87 leftover guard (test seam op 31): the first finding at a site
+    // this game month is logged, the second only counted; the heartbeat
+    // carries the total.
+    CHECK(CountOf(text, "x87 leftovers at 'test seam': 2 register(s) occupied (FSW=0x") == 1);
+    CHECK(text.find("previous check 'test seam' had 0; game month ") != std::string::npos);
+    CHECK(text.find("| x87 leftovers: ") != std::string::npos);
+    CHECK(text.find("x87 leftovers at 'test seam'") == text.find("x87 leftovers at '"));  // no other site
     // Watchdog (hang diagnostics).
     CHECK(text.find("watchdog: started for main thread") != std::string::npos);
     CHECK(text.find("WATCHDOG: main thread (tid ") != std::string::npos);
@@ -4874,6 +6198,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
     CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("aura shadow: requested") == std::string::npos);
+    CHECK(text.find("landvalue shadow") == std::string::npos);     // off by default: not a word
+    CHECK(text.find("flammability shadow") == std::string::npos);  // off by default: not a word
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -4957,11 +6283,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 125 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 125 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 136 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 125): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 136): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

@@ -331,10 +331,10 @@ public:
     virtual void SetValFloat32(float value) = 0;                                           // 38
     virtual double GetValFloat64() const = 0;                                              // 39
     virtual bool GetValFloat64To(double& value) const = 0;                                 // 40
-    // [choice] docs/abi: the game's SetValFloat64 returns a double in ST0
-    // (x87, high confidence; the SDK says void). The value is not specified;
-    // ours returns the value stored.
-    virtual double SetValFloat64(double value) = 0;                                        // 41
+    // docs/abi (corrected 2026-10-14): the game's SetValFloat64 returns
+    // nothing (eax-or-void; it stores and pops). A double declaration here
+    // would leave one value on the caller's x87 stack per call.
+    virtual void SetValFloat64(double value) = 0;                                          // 41
     virtual char GetValChar() const = 0;                                                   // 42
     virtual bool GetValCharTo(char& value) const = 0;                                      // 43
     virtual void SetValChar(char value) = 0;                                               // 44
@@ -512,9 +512,10 @@ public:
     virtual uint32_t GetFlags() const = 0;                                       // 12
     virtual bool SetFlags(uint32_t flags) = 0;                                   // 13
     virtual bool GetBoundingRect(SC4Rect<int32_t>& rect) const = 0;              // 14
-    // docs/abi (re-answers2 CQ3): the result goes through the out pointer and
-    // nothing is left on the x87 stack (the SDK says bool). The crime glue calls
-    // it through LotCenterRaw, which checks ST0 either way.
+    // docs/abi and crime.md §13 (CQ3): the result goes only through the out
+    // pointer (EAX = &out) and nothing is left on the x87 stack (the SDK says
+    // bool). The crime glue calls it through LotCenterRaw, which reads the out
+    // parameter and counts any x87 stack depth change (never compensated).
     virtual void GetCenter(float* center) const = 0;                             // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17
@@ -627,12 +628,13 @@ public:
 };
 
 // cISC4WeatherSimulator (IID 0xC6C66245), 24 slots (weather spec "Compiled
-// slot tables": the SDK order). Implemented by cFC4WeatherSimulator. Two
-// return channels differ from the SDK (docs/abi: CellToPosition returns in
-// ST0, StandardCityCellToCell in EDX:EAX); no game code calls either
-// (weather §11.2), but a replacement keeps the channels so a caller's x87
-// stack stays balanced. GetMoistureValueMapPtr takes the caller's pointer
-// variable (§11.2 [compat]; the SDK says a vector reference).
+// slot tables": the SDK order). Implemented by cFC4WeatherSimulator. One
+// return channel differs from the SDK (docs/abi: StandardCityCellToCell
+// returns in EDX:EAX); no game code calls it (weather §11.2), but a
+// replacement keeps the channel. CellToPosition returns nothing and leaves
+// nothing on the x87 stack (weather §4, corrected 2026-10-14; it was declared
+// float). GetMoistureValueMapPtr takes the caller's pointer variable (§11.2
+// [compat]; the SDK says a vector reference).
 struct FC4ByteGridVector;  // SC4Vector<SC4Vector<uint8_t>>-compatible (cFC4Weather.h)
 class cS3DVector2;
 class cFC4ISC4WeatherSimulator : public cIGZUnknown {
@@ -645,7 +647,7 @@ public:
     virtual uint32_t CellCountX() = 0;                                            // 8
     virtual uint32_t CellCountZ() = 0;                                            // 9
     virtual int32_t PositionToCell(float x, float z, int32_t& cx, int32_t& cz) = 0;     // 10
-    virtual float CellToPosition(int32_t cx, int32_t cz, float& x, float& z) = 0;       // 11  (SDK: void)
+    virtual void CellToPosition(int32_t cx, int32_t cz, float& x, float& z) = 0;        // 11
     virtual void CellToStandardCityCell(int32_t cx, int32_t cz, int32_t& sx, int32_t& sz) = 0;  // 12
     virtual int64_t StandardCityCellToCell(int32_t sx, int32_t sz, int32_t& cx, int32_t& cz) = 0;  // 13  (SDK: void)
     virtual int32_t GetCurrentSeason() = 0;                                       // 14  (SDK: enum Season)
@@ -733,8 +735,10 @@ public:
 
 // cISC4Demand (IID 0x0797A4E8), 34 slots (demand spec §3.2, "Compiled slot
 // tables": the SDK order). Implemented by cFC4Demand. Return channels as the
-// game has them (docs/abi): AddToSupplyValue / AddToDemandValue return in ST0
-// (SDK: bool), EndOfCycle returns a bool in EAX (SDK: float; §3.2 [compat]).
+// game has them (docs/abi): AddToSupplyValue / AddToDemandValue return true
+// as a bool in AL with nothing on the x87 stack (§3.2, corrected 2026-10-14;
+// they were declared float, which left one value on the game's x87 stack per
+// call), EndOfCycle returns a bool in EAX (SDK: float; §3.2 [compat]).
 class cFC4ISC4Demand : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                      // 3
@@ -750,8 +754,8 @@ public:
     virtual float QueryEconomyModifier() const = 0;                               // 13
     virtual float QueryActiveDemandMax() const = 0;                               // 14
     virtual float QueryActiveDemandMin() const = 0;                               // 15
-    virtual float AddToSupplyValue(float value) = 0;                              // 16  (SDK: bool)
-    virtual float AddToDemandValue(float value) = 0;                              // 17  (SDK: bool)
+    virtual bool AddToSupplyValue(float value) = 0;                               // 16
+    virtual bool AddToDemandValue(float value) = 0;                               // 17
     virtual bool SetSupplyValue(float value) = 0;                                 // 18
     virtual bool SetDemandValue(float value) = 0;                                 // 19
     virtual bool SetActiveDemandMax(float value) = 0;                             // 20
@@ -772,8 +776,10 @@ public:
 
 // cISC4DemandSimulator (IID 0x47967E16), 12 slots (demand spec §5, "Compiled
 // slot tables"). Implemented by cFC4DemandSimulator. SDK errors fixed: slot 7
-// takes the building type (uint32) first (§5 [compat]); slot 8 returns in ST0
-// (docs/abi; SDK: void).
+// takes the building type (uint32) first (§5 [compat]). Slot 8 returns
+// nothing and leaves the x87 stack as it found it (§5, corrected 2026-10-14;
+// it was declared float); `jobs` is a four-float record whose jobs[1..3] it
+// writes (never jobs[0]).
 class cFC4ISC4DemandSimulator : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                      // 3
@@ -782,20 +788,51 @@ public:
     virtual cISC4Demand* GetDemand(uint32_t demandID, uint32_t demandIndex) = 0;  // 6
     virtual void UpdateOccupantEffects(uint32_t buildingType, SC4Percentage const& oldPct,
                                        SC4Percentage const& newPct) = 0;          // 7
-    virtual float CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
+    virtual void CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
     virtual uint32_t GetJobsBySensus(uint32_t type) = 0;                          // 9
     virtual float GetNeutralTaxRate() = 0;                                        // 10
     virtual void GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const = 0;  // 11
 };
 
+/// The query record of residential slots 14, 15, 26 and 27 (REH §4.11,
+// "tQueryData", 0x3C bytes): a leading cRZString the simulator never touches,
+// then the fields below. The costs are 32-bit in the record.
+struct FC4ResidentialQueryData {
+    uint8_t name[0x14];          // +0x00 cRZString (not read or written here)
+    uint32_t capacity;           // +0x14
+    uint32_t effectiveCapacity;  // +0x18
+    uint32_t capacityPerStaff;   // +0x1C
+    uint32_t effectivePerStaff;  // +0x20
+    uint32_t served;             // +0x24
+    float grade;                 // +0x28
+    float staffFunding;          // +0x2C
+    uint32_t staffCost;          // +0x30
+    float vehicleFunding;        // +0x34
+    uint32_t vehicleCost;        // +0x38
+};
+static_assert(sizeof(void*) != 4 || sizeof(FC4ResidentialQueryData) == 0x3C, "tQueryData layout");
+
 // cISC4ResidentialSimulator (60 slots), from the SDK declaration with the
 // argument sizes and return channels of docs/abi/vtables.tsv
-// (cSC4ResidentialSimulator::vftable). The demand census calls GetCellEQ and
-// GetCellWorkforcePercent. SDK errors fixed: slots 10-13, 30 and 31 return an
-// SC4Percentage BY VALUE (hidden result pointer: the callee pops 4 more bytes
-// and returns the pointer in EAX); slot 34 returns 32 bits in EAX [choice:
-// uint32, not called]; slots 56 / 57 take one more 32-bit argument [choice:
-// uint32, not called].
+// (cSC4ResidentialSimulator::vftable), residential.md §10.1 and
+// residential-education-health.md §7. Implemented by
+// cFC4ResidentialSimulator; the demand census calls GetCellEQ and
+// GetCellWorkforcePercent, crime slots 23 / 25, aura slots 39 / 40. SDK
+// errors fixed:
+//   - slots 10-13, 30 and 31 return an SC4Percentage BY VALUE (hidden result
+//     pointer: the callee pops 4 more bytes and returns the pointer in EAX);
+//   - slots 14 / 15 return the building count (EAX) and take the query
+//     record and the group vector;
+//   - slots 23 / 24 / 25: all three parameters are out-references, each
+//     AddRef'd for the caller;
+//   - slots 26 / 27 take the query record;
+//   - slots 29, 34 and 42 return a uint8 in AL only (an implementation
+//     returns the value zero-extended in EAX, §10.1);
+//   - slots 39 / 40 return a cISC4SimGrid<float>*, slot 41 a
+//     cISC4SimGrid<uint8>* (borrowed);
+//   - slot 56 takes the occupant, slot 57 the occupant and the flag.
+// The slots whose original return value is garbage (19, 20, 21-25, 28, 47,
+// 49) are declared bool (§10.1: a replacement returns true).
 class cFC4ISC4ResidentialSimulator : public cIGZUnknown {
 public:
     using WealthType = cISC4BuildingOccupant::WealthType;
@@ -811,59 +848,60 @@ public:
     virtual SC4Percentage ChanceOfHealthStrike() = 0;                             // 11  (SDK: float)
     virtual SC4Percentage GetSchoolSystemRating() = 0;                            // 12  (SDK: float)
     virtual SC4Percentage GetHealthSystemRating() = 0;                            // 13  (SDK: float)
-    virtual bool GetSchoolSystemTotals(intptr_t queryData, SC4Vector<uint32_t>* groups) = 0;    // 14
-    virtual bool GetHospitalSystemTotals(intptr_t queryData, SC4Vector<uint32_t>* groups) = 0;  // 15
+    virtual uint32_t GetSchoolSystemTotals(FC4ResidentialQueryData* totals,
+                                           SC4Vector<uint32_t> const* groups) = 0;  // 14  (SDK: bool)
+    virtual uint32_t GetHospitalSystemTotals(FC4ResidentialQueryData* totals,
+                                             SC4Vector<uint32_t> const* groups) = 0;  // 15  (SDK: bool)
     virtual int32_t GetPopulation() = 0;                                          // 16
     virtual int32_t GetTotalCityEducationUpkeepCost() = 0;                        // 17
     virtual int32_t GetTotalCityHealthUpkeepCost() = 0;                           // 18
-    virtual bool SetOccupantFundingPercentages(cISC4Occupant* occupant, SC4Percentage const& school,
-                                               SC4Percentage const& health, bool flag) = 0;  // 19
-    virtual bool GetOccupantFundingPercentages(cISC4Occupant* occupant, SC4Percentage& school,
-                                               SC4Percentage& health, bool flag) = 0;  // 20
+    virtual bool SetOccupantFundingPercentages(cISC4Occupant* occupant, SC4Percentage const& staff,
+                                               SC4Percentage const& vehicle, bool isSchool) = 0;  // 19
+    virtual bool GetOccupantFundingPercentages(cISC4Occupant* occupant, SC4Percentage& staff,
+                                               SC4Percentage& vehicle, bool isSchool) = 0;  // 20
     virtual bool GetAverageEQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 21
     virtual bool GetAverageHQGrid(cISC4SimGrid<float>*& grid, float* min, float* max) = 0;  // 22
-    // Slots 23 / 25 (crime.md §13): all three parameters are out pointers, each
-    // AddRef'd for the caller (SDK: the 2nd and 3rd plain pointers); the return
-    // value is garbage (declared bool, never read).
     virtual bool GetEQGrids(cISC4SimGrid<float>*& g0, cISC4SimGrid<float>*& g1, cISC4SimGrid<float>*& g2) = 0;  // 23
-    virtual bool GetHQGrids(cISC4SimGrid<float>*& grid, cISC4SimGrid<float>* a, cISC4SimGrid<float>* b) = 0;  // 24
+    virtual bool GetHQGrids(cISC4SimGrid<float>*& g0, cISC4SimGrid<float>*& g1, cISC4SimGrid<float>*& g2) = 0;  // 24
     virtual bool GetPopulationGrids(cISC4SimGrid<uint16_t>*& g0, cISC4SimGrid<uint16_t>*& g1,
                                     cISC4SimGrid<uint16_t>*& g2) = 0;             // 25
-    virtual bool GetSchoolQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;    // 26
-    virtual bool GetHospitalQueryData(cISC4Occupant* occupant, intptr_t queryData) = 0;  // 27
-    virtual bool EstimateCurrentOccupantCapacity(cISC4Occupant* occupant, uint32_t& a, uint32_t& b) = 0;  // 28
-    virtual int32_t GetCellLifeExpectancy(uint32_t cellX, uint32_t cellZ) = 0;    // 29
+    virtual bool GetSchoolQueryData(cISC4Occupant* occupant, FC4ResidentialQueryData* data) = 0;    // 26
+    virtual bool GetHospitalQueryData(cISC4Occupant* occupant, FC4ResidentialQueryData* data) = 0;  // 27
+    virtual bool EstimateCurrentOccupantCapacity(cISC4Occupant* occupant, uint32_t& capacity,
+                                                 uint32_t& staff) = 0;            // 28
+    virtual uint8_t GetCellLifeExpectancy(uint32_t cellX, uint32_t cellZ) = 0;    // 29  (SDK: int32)
     virtual SC4Percentage GetCellWorkforcePercent(uint32_t cellX, uint32_t cellZ) = 0;  // 30  (SDK: float)
     virtual SC4Percentage GetGlobalWorkforcePercent() = 0;                        // 31  (SDK: float)
     virtual float GetGlobalEQ() = 0;                                              // 32
     virtual float GetGlobalHQ() = 0;                                              // 33
-    virtual uint32_t GetGlobalLE() = 0;                                           // 34  (SDK: float)
+    virtual uint8_t GetGlobalLE() = 0;                                            // 34  (SDK: float)
     virtual float GetCellEQ(uint32_t cellX, uint32_t cellZ) = 0;                  // 35
     virtual float GetCellHQ(uint32_t cellX, uint32_t cellZ) = 0;                  // 36
     virtual float GetCellEQByWealth(uint32_t cellX, uint32_t cellZ, WealthType wealth) = 0;  // 37
     virtual float GetCellHQByWealth(uint32_t cellX, uint32_t cellZ, WealthType wealth) = 0;  // 38
-    virtual int32_t GetSchoolAverageGradeMap() = 0;                               // 39
-    virtual int32_t GetHospitalAverageGradeMap() = 0;                             // 40
-    virtual int32_t GetAverageAgeMap() = 0;                                       // 41
-    virtual int32_t GetAverageNewAgeByWealth(WealthType wealth) = 0;              // 42
+    virtual cISC4SimGrid<float>* GetSchoolAverageGradeMap() = 0;                 // 39  (SDK: int32)
+    virtual cISC4SimGrid<float>* GetHospitalAverageGradeMap() = 0;               // 40  (SDK: int32)
+    virtual cISC4SimGrid<uint8_t>* GetAverageAgeMap() = 0;                        // 41  (SDK: int32)
+    virtual uint8_t GetAverageNewAgeByWealth(WealthType wealth) = 0;              // 42  (SDK: int32)
     virtual bool GetEQMinAndMaxCellCoords(uint32_t& minX, uint32_t& minZ, uint32_t& maxX, uint32_t& maxZ, float& min,
                                           float& max) = 0;                        // 43
     virtual bool GetHQMinAndMaxCellCoords(uint32_t& minX, uint32_t& minZ, uint32_t& maxX, uint32_t& maxZ, float& min,
                                           float& max) = 0;                        // 44
-    virtual bool GetOccupantCoverage(cISC4Occupant* occupant, SC4Percentage const& effectiveness, float& rangeX,
-                                     float& rangeZ) = 0;                          // 45
+    virtual bool GetOccupantCoverage(cISC4Occupant* occupant, SC4Percentage const& level, float& distance,
+                                     float& radius) = 0;                          // 45
     virtual int32_t GetSchoolBuildingCount() = 0;                                 // 46
-    virtual bool GetSchoolBuildings(SC4List<cISC4Occupant*>& buildings, SC4Vector<uint32_t>* groups) = 0;  // 47
+    virtual bool GetSchoolBuildings(SC4List<cISC4Occupant*>& buildings, SC4Vector<uint32_t> const* groups) = 0;  // 47
     virtual int32_t GetHospitalBuildingCount() = 0;                               // 48
-    virtual bool GetHospitalBuildings(SC4List<cISC4Occupant*>& buildings, SC4Vector<uint32_t>* groups) = 0;  // 49
+    virtual bool GetHospitalBuildings(SC4List<cISC4Occupant*>& buildings,
+                                      SC4Vector<uint32_t> const* groups) = 0;     // 49
     virtual int32_t GetMaxEQ() = 0;                                               // 50
     virtual int32_t GetMaxHQ() = 0;                                               // 51
     virtual bool GetGlobalAutoBudgetForSchools() = 0;                             // 52
     virtual bool SetGlobalAutoBudgetForSchools(bool enable) = 0;                  // 53
     virtual bool GetGlobalAutoBudgetForHospitals() = 0;                           // 54
     virtual bool SetGlobalAutoBudgetForHospitals(bool enable) = 0;                // 55
-    virtual bool GetAutoBudget(uint32_t which) = 0;                               // 56  (SDK: no argument)
-    virtual bool SetAutoBudget(uint32_t which, bool enable) = 0;                  // 57  (SDK: one argument)
+    virtual bool GetAutoBudget(cISC4Occupant* occupant) = 0;                      // 56  (SDK: no argument)
+    virtual bool SetAutoBudget(cISC4Occupant* occupant, bool enable) = 0;         // 57  (SDK: one argument)
     virtual bool EstimateIdealFunding(cISC4Occupant* occupant, SC4Percentage& funding) = 0;  // 58
     virtual void ToggleTractTracking(int32_t a, int32_t b) = 0;                   // 59
 };
@@ -876,8 +914,9 @@ public:
 // UpdateCityCache overloads slots 24 (city) / 25 (preferences). SDK errors
 // fixed: slot 13 returns 32 bits in EAX (SDK: float) [choice: the f32 bits,
 // see the demand host]; slot 48 is the elevation SETTER (the SDK names it
-// GetWorldBaseElevation); the setters 51, 53, 55 ... 63 take a double and
-// return in ST0 (SDK: float argument, void).
+// GetWorldBaseElevation); the setters 51, 53, 55 ... 63 take a double (SDK:
+// float) and return nothing (docs/abi, corrected 2026-10-14: they were
+// declared float, which would pop a value the game never pushed).
 // An element of GetPointsOfInterest's vector: 12 bytes (allocators.md); the
 // fields are not specified.
 struct FC4PointOfInterest {
@@ -935,19 +974,19 @@ public:
     virtual void SetWorldBaseElevation(float elevation) = 0;                      // 48  (SDK: GetWorldBaseElevation)
     virtual cISC4City::WorldHemisphere GetWorldHemisphere() const = 0;            // 49
     virtual float GetBudget() const = 0;                                          // 50
-    virtual float SetBudget(double budget) = 0;                                   // 51
+    virtual void SetBudget(double budget) = 0;                                    // 51
     virtual float GetIncome() const = 0;                                          // 52
-    virtual float SetIncome(double income) = 0;                                   // 53
+    virtual void SetIncome(double income) = 0;                                    // 53
     virtual float GetExported(int32_t commodity) const = 0;                       // 54
-    virtual float SetExported(int32_t commodity, double value) = 0;               // 55
+    virtual void SetExported(int32_t commodity, double value) = 0;                // 55
     virtual float GetImported(int32_t commodity) const = 0;                       // 56
-    virtual float SetImported(int32_t commodity, double value) = 0;               // 57
+    virtual void SetImported(int32_t commodity, double value) = 0;                // 57
     virtual float GetProduced(int32_t commodity) const = 0;                       // 58
-    virtual float SetProduced(int32_t commodity, double value) = 0;              // 59
+    virtual void SetProduced(int32_t commodity, double value) = 0;                // 59
     virtual float GetDemanded(int32_t commodity) const = 0;                       // 60
-    virtual float SetDemanded(int32_t commodity, double value) = 0;               // 61
+    virtual void SetDemanded(int32_t commodity, double value) = 0;                // 61
     virtual float GetCostPerUnit(int32_t commodity) const = 0;                    // 62
-    virtual float SetCostPerUnit(int32_t commodity, double value) = 0;            // 63
+    virtual void SetCostPerUnit(int32_t commodity, double value) = 0;             // 63
     virtual float GetCommodityBalance(int32_t commodity) const = 0;               // 64
     virtual uint32_t GetTutorialGUID() const = 0;                                 // 65
     virtual void SetTutorialGUID(uint32_t guid) = 0;                              // 66

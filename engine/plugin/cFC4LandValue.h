@@ -97,3 +97,8 @@ private:
 
 // Factory for the subsystem table (reference count 0).
 cIGZUnknown* CreateFC4LandValueSimulator();
+
+// The tuning exemplar (§8) as Init reads it, for the land value shadow
+// (FC4LandValueShadow.cpp): `f(ctx, &tuning)` while its arrays live, or
+// `f(ctx, nullptr)` when the exemplar is missing.
+void FC4LandValueReadTuning(void (*f)(void* ctx, const fc4_landvalue_tuning* tuning), void* ctx);

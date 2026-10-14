@@ -279,6 +279,13 @@ byte of the value type, the two key-type bytes, the "unused" byte) form the litt
 - The "unused" byte and the key type's high byte must be **0**, otherwise the tag is invalid and the read fails.
 - Tags accepted: scalars `0x00`–`0x0C`, arrays `0x8000`–`0x800C`, `0x8010`, `0x8011` (foundations §9.2 reader
   set). The value types `0x0400` Uint64, `0x0500` Sint8, `0x0600` Sint16, `0x0A00` Float64 are valid.
+- **Tag 0 (Empty)** has no value bytes: the next property starts right after the tag. The property is added like
+  any other and holds an **Empty** variant (memory type 0, no data, `GetCount()` 0), so `HasProperty` and
+  `IsPropertyLocal` are true for it. What the getters return for it is in §5.1 ("Empty and object values"). For
+  example count 2, `10 00 00 00 | 00 | 00 00 00 00` then `11 00 00 00 | 00 | 03 00 00 00 | 07 00 00 00`: `0x10` is
+  Empty and `0x11` is Uint32 7. Tag `0x8000` is a **void array** (memory type `0x8000`: a `uint32` count, then
+  that many raw bytes). No shipped record uses tag 0, tag `0x8000`, kind 1 or the char tags `0x10`, `0x11`,
+  `0x8010`, `0x8011` (sweep of the 9,345 binary exemplar and cohort records in the install, 2026-10-14).
 - Key type `0x80` gives an **array** even for one element (count 1); key type `0x00` gives a scalar. Arrays may
   have count 0.
 - A string is tag `0x800C`: the count is the §2.3 string header (top byte `0x10` = UTF-16, quirks of §2.3
@@ -301,9 +308,19 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
 1. The first line must be `name=value` with name `ParentCohort` (case-insensitive, both sides trimmed). The value
    must begin with `Key:{` and end with `}` (case-sensitive). It holds three numbers separated by commas in the
    order **group, instance, type**. All three zero = no parent; otherwise the parent is loaded as in §4.2 and a
-   failure fails the read.
-2. The next line must be `PropCount=<number>` (name case-insensitive).
-3. Exactly `PropCount` property lines follow:
+   failure fails the read. The fields are **not counted** (`0x0067DFD0`): the reader drops the text up to the
+   `{` and reads the group with rule N, then drops the text up to the next `,` and reads the instance, then the
+   same for the type. Fields after the third are ignored. When there is no further `,` the rest of the text is
+   dropped and that field and any later one read **0**. Nothing inside the braces is trimmed; rule N skips no
+   white space before choosing the base, so a **space after `{` or `,` turns a `0x` field into 0** (a decimal
+   field survives, because `strtoul` skips it). Worked examples: `Key:{0x1,0x2,0x3,0x4}` gives group 1,
+   instance 2, type 3; `Key:{0x1, 0x2, 0x3}` gives group 1, instance 0, type 0; `Key:{1, 2, 3}` gives 1, 2,
+   3; `Key:{0x1,0x2}` gives type 0, so the parent key is not all zero and its load fails; `Key:{}` gives three
+   zeros, no parent.
+2. The next line must be `PropCount=<number>` (name case-insensitive). As on every `name=value` line, the name
+   and the value are trimmed of spaces and tabs (`0x0067E0B0`); the number is rule N (`0x0067E250`).
+3. Exactly `PropCount` property lines follow. If the record runs out of lines first, the read fails; lines after
+   them are never read.
 
 ```
 0x<ID>:{"<name>"}=<Type>:<reps>:{<values>}
@@ -313,22 +330,61 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
   first character that is not a digit, so `0x00000010:{"Exemplar Type"}` gives `0x10`. The name is ignored. A
   name containing `=` breaks the line *[quirk]*.
 - **Type**: one of `Bool`, `Uint8`, `Sint8`, `Uint16`, `Sint16`, `Uint32`, `Sint32`, `Uint64`, `Sint64`,
-  `Float32`, `String`, **case-sensitive**. Anything else fails the read. (No `Float64` in text.)
+  `Float32`, `String`, **case-sensitive**. Anything else fails the read. (No `Float64` in text.) It is the text
+  before the first `:`, compared **exactly** (`0x0067E780`): the value was trimmed at its start, but nothing is
+  trimmed around the `:`, so `Uint32 :0:{1}` fails the read.
 - **reps**: number (rule N). `0` = a scalar with one value; `n ≥ 1` = an array of `n` values (even for `n = 1`).
-  For `String` the reps field is ignored.
-- **values**: must start with `{`. Values are separated by commas; leading spaces are trimmed. Per type:
+  For `String` the reps field is ignored. It is read from the text right after the first `:`, **not trimmed**;
+  rule N stops at the next `:`. So ` 3` gives 3, but ` 0x3` gives 0, a scalar. The `{` must follow the second `:`
+  directly: `Uint32:0: {1}` fails the read.
+- **values**: must start with `{`. Values are separated by commas. In an **array** each value is trimmed of
+  leading spaces and tabs; a **scalar's** value is not, which matters only for rule N: `{ 0x10}` gives 0 as a
+  Uint32 scalar but 16 as a one-element array. Only `String` is cut at `}`. A number stops at the first character
+  that cannot continue it, `,` and `}` included, and any text after it is ignored (the last Float32 array value is
+  split at `}`, with the same result). Per type:
   - integer types up to 32 bits: rule N, then truncated to the type's width (two's complement);
-  - `Uint64` / `Sint64`: always read as **hexadecimal**, with or without `0x` *[inferred for the no-prefix case]*;
-  - `Float32`: decimal with `.` as separator, locale-independent; `80` gives 80.0;
-  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true`;
+  - `Uint64` / `Sint64`: always **hexadecimal** (`RZAtoUint64HexA` `0x0090FD90`): leading white space skipped, an
+    optional `0x` or `0X`, then at most 16 hex digits. There is no sign, so a negative Sint64 must be written in
+    two's complement: `10` gives 16 and `-1` gives 0;
+  - `Float32`: decimal with `.` as separator, locale-independent; `80` gives 80.0. The parser (`RZStrtodEnglishA`
+    `0x00910426`) is the game's own, not the C runtime's. It skips white space and takes one optional sign. Then
+    it builds the value **digit by digit in x87 arithmetic**: each integer digit gives value × 10 + digit; each
+    fraction digit multiplies a running scale by 0.1 and adds digit × scale. Every step is rounded to the caller's
+    precision, **24 bits on the main thread** (foundations §18.2), and the result is stored as Float32. An `e` or
+    `E` exponent is read as a 32-bit integer; the power 10ⁿ is computed **in 32-bit integer arithmetic, wrapping**
+    (`0x009103DA`), then multiplied in, or divided for a negative exponent. There is no hex, `inf` or `nan`:
+    parsing stops at the first character that does not fit, so `inf` gives 0 and `1.#INF` gives 1. The same parser
+    serves the §5.1 text round trip, where a Float64 target gets the same 24-bit value. Worked examples (24-bit):
+    - `0.05` gives `0x3D4CCCCC`, where a correctly rounded parse gives `0x3D4CCCCD`;
+    - `0.001` gives `0x3A83126E` and `3.14159` gives `0x40490FCE`;
+    - `0.1`, `0.3`, `123.456` and `2.5e3` come out correctly rounded;
+    - `1e10` gives 1,410,065,408 (10¹⁰ mod 2³²), `1e12` gives −727,379,968, and `1e-10` gives about
+      7.09 × 10⁻¹⁰;
+    - `1e32` and any larger exponent give 0 (10ⁿ mod 2³² is 0 from n = 32), `1e-32` gives +∞ and `0e-32` gives
+      NaN.
+
+    Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
+    main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
+  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
     cannot contain `}` *[quirk]*.
-- The reader does not check that the number of values matches `reps`; missing values read as 0 *[inferred]*.
+- The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
+  (`0x0067E780`). It reads `reps` values in turn, dropping the text up to each next `,`; when no `,` is left the
+  rest of the text is dropped, so **missing values read as 0** (false for Bool, 0.0 for Float32) and values beyond
+  `reps` are ignored. Worked examples: `Uint32:4:{1,2}` gives `{1, 2, 0, 0}`; `Uint32:1:{1,2}` gives `{1}`.
+  The values go into a buffer of `reps` × element size bytes, computed in 32 bits, and the allocation's result
+  is not checked, so a **huge `reps` crashes the original**. From `0x40000000` Uint32 values the size wraps to a
+  small buffer, which the loop overruns. A size too large to allocate has the same effect. *[choice]*
+  FreeCity4 fills missing values with 0 as the original does, and fails the read when `reps` × element size
+  exceeds 16 MiB. Shipped text records use `reps` 13 at most.
 
 **Rule N** (number text): if it begins with `0x` or `0X`, hexadecimal. Otherwise, scan from the start: if a letter
 `a`–`f`/`A`–`F` appears before the first character that is not a hex digit, hexadecimal; else decimal. The
 conversion is C `strtoul` in that base (a leading `-` negates modulo 2³²). So `16` = 16, `1A` = 26, `0x10` = 16,
-`-1` = `0xFFFFFFFF`.
+`-1` = `0xFFFFFFFF`. The base is chosen on the raw text (`RZConvertToUint32A` `0x0090FE93`): a leading space
+stops the scan with base 10, and `strtoul` then skips the space, so ` 16` = 16, ` 1A` = 1 and ` 0x10` = 0. A
+value above `0xFFFFFFFF` gives `0xFFFFFFFF`, with or without a leading `-` (`strtoul` saturates): `4294967296` and
+`-4294967296` both give `0xFFFFFFFF`.
 
 Shipped text exemplars: two, both in `Plugin_002_TheLivingMall.dat` (`0xCA386E22`/`0x04C00000` and
 `0xA8FBD372`/`0x6AC4085B`). The first starts:
@@ -341,6 +397,13 @@ PropCount=0x00000016
 0x099afacd:{"Bulldoze Cost"}=Sint64:0:{0x0000000000001356}
 0x27812810:{"Occupant Size"}=Float32:3:{80,52,80}
 ```
+
+Its lot configuration writes `LotConfigPropertyWealthTypes` (`0x88EDC795`) and `LotConfigPropertyPurposeTypes`
+(`0x88EDC796`) as `Uint8:0:{}`, which reads as a **scalar** Uint8 0 (rule N on `}` gives 0). That is what the
+original stores, and it is not observable as different from an empty array. Both readers (`0x0047A16C`,
+`0x0060F710`) use the byte-list getter `0x005FFB40`, which copies `GetCount()` bytes from the raw data
+pointer (§5.2), and `GetCount()` is 0 for a scalar. So the lot gets **no** wealth or purpose types.
+`Uint8:1:{}` would instead give one type, 0.
 
 ### 4.4 Parents and inheritance *[compat]*
 
@@ -361,7 +424,12 @@ the **effective** list. `IsPropertyLocal(id)` (`cISCResExemplar` slot 8) tests t
   Shipped chains are at most 3 levels deep (engine/formats README).
 - **Cycles**: a cohort that is (directly or indirectly) its own parent makes loading recurse without end
   *[inferred: no guard was found; the resource is not in the cache until its read completes]*. *[choice]*
-  FreeCity4 stops at the first repeated key and at depth 32, and treats the record as failing to load.
+  FreeCity4 stops at the first repeated key and at depth 32, and treats the record as failing to load. Depth
+  counts the nested parent loads below the record requested, so at most 32 ancestors load. The original has no
+  limit to match, and it **does not cache failures**: `GetResource` (`0x009732EB`) adds an object to the cache
+  only after its load succeeds, so a key that failed is loaded again on the next request. FreeCity4 likewise
+  remembers no failure, so a record that failed only on depth loads when it is later requested at a shallower
+  depth.
 
 ### 4.5 Duplicate property IDs *[compat]*
 
@@ -372,8 +440,17 @@ property always wins over any ancestor's. No shipped record has duplicates.
 
 A kind-1 property holds a resource: its key (type, group, instance) is loaded through the resource manager
 (`cIGZPersistResource`, `0x456B8F1D`) while the exemplar is read, and the property keeps the loaded object. If the
-resource cannot be loaded, **the exemplar read fails**. No shipped record uses kind 1; the text form cannot express
-it. *[choice]* FreeCity4 reads kind 1 for compatibility but no simulation code depends on it.
+resource cannot be loaded, **the exemplar read fails**. The resource manager (`0x009732EB`) can load a key when:
+
+- a resource cache already holds an object with that key; or
+- (`0x00972EAE`) a factory is registered for the key's **type**, a loaded package holds a record with that key,
+  and the factory's read of that record succeeds.
+
+A key that is in a package index but has no factory for its type does not load. Neither does a key whose
+record fails to read, such as a cohort whose own parent fails. Any type with a factory counts, not only
+exemplars and cohorts *[inferred: the registered factory set was not enumerated]*. No shipped record uses
+kind 1; the text form cannot express it. *[choice]* FreeCity4 reads kind 1 for compatibility but no simulation
+code depends on it.
 
 ---
 
@@ -384,28 +461,112 @@ stored type differs from the requested one; §7 records it per property where th
 
 ### 5.1 Converting getters
 
-`cISCPropertyHolder` slot 8 `GetProperty(id, uint32&)`, slot 7 `GetProperty(id, cIGZString&)`, slot 5
-`GetProperty(id, void*, uint32&)` (foundations §17.2), and every `bool cIGZVariant::GetValX(X&)` (foundations
-§17.1). Missing property: return false, output unchanged.
+`cISCPropertyHolder` slot 8 `GetProperty(id, uint32&)`, slot 7 `GetProperty(id, cIGZString&)` (foundations
+§17.2), and every `bool cIGZVariant::GetValX(X&)` (foundations §17.1) except `GetValVoid`. Missing property:
+return false, output unchanged. Slot 5 `GetProperty(id, void*, uint32&)` does not convert (§5.2).
 
 If the stored type equals the requested type, the value is returned as is. Otherwise:
 
 | Stored | Requested | Result |
 |---|---|---|
 | scalar Bool…RZChar (memory types `0x01`–`0x0E`) | Float32 | value → float64 → **rounded to float32** |
-| scalar | Float64 | value → float64 (Uint32 ≥ 2³¹ corrected to unsigned) |
-| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, **floats truncated toward zero**), then the low bits of the target width; Bool = (int64 ≠ 0) |
+| scalar | Float64 | value → float64; unsigned types as unsigned, with the 24-bit rounding below for Uint32 ≥ 2³¹ and for every Uint64; signed types exact (Sint64 rounded to 53 bits) |
+| scalar | integer type, Bool, char types | value → int64 (unsigned types zero-extended, signed sign-extended, Char and RZChar **sign-extended**, RZUnicodeChar zero-extended, **floats truncated toward zero, not saturated**: see below), then the low bits of the target width; Bool = (int64 ≠ 0) |
 | array (any element type), string, or a requested non-scalar type | any | **text round trip** (below) |
+
+**Unsigned 64-bit and large unsigned 32-bit values.** The to-double converter (`0x00915B85`) turns a Uint64 into a
+double as (its low 63 bits, loaded as a signed int64) + 2⁶³ when the top bit is set, + 0 otherwise, and a Uint32
+with the top bit set as (its value loaded as signed) + 2³². The add runs at the caller's x87 precision, 24-bit on
+the main thread (foundations §18.2), so the result keeps **24 significant bits even for a Float64 target**. For a
+Uint64 the add is done whether or not the top bit is set. Signed values and Uint32 below 2³¹ are loaded exactly.
+Worked example, `GetValFloat64` on the main thread: Uint64 16,777,217 (2²⁴ + 1) gives **16,777,216.0**; Sint64
+16,777,217 gives 16,777,217.0; Uint32 16,777,217 gives 16,777,217.0; Uint32 `0x80000001` gives
+**2,147,483,648.0**. Text parsed as an unsigned number for a Float32 or Float64 target (round trip below) takes the
+same path. FreeCity4 reproduces it by rounding these values to 24 significant bits (round to nearest even).
+
+**Floats to integers.** A Float32 or Float64 is truncated toward zero to an int64 by the C runtime's `_ftol`
+(`0x009EEF04`, foundations §18.1), and the target keeps the low bits: out-of-range values **wrap**, they do not
+saturate. NaN, ±∞ and magnitudes ≥ 2⁶³ give the int64 `0x8000000000000000`, so **0** for targets of 32 bits or
+fewer, `0x8000000000000000` for Uint64 and Sint64, and **true** for Bool. Worked examples: Float32 300.7 read as
+Uint8 gives 300 mod 256 = **44**; Float32 3,000,000,000 read as Sint32 gives **−1,294,967,296**; Float32 −1.5 read
+as Uint32 gives `0xFFFFFFFF`; NaN read as Uint32 gives **0** and read as Sint64 gives `0x8000000000000000`; Float32
+0.5 read as Bool gives **false** (it truncates to 0), NaN read as Bool gives **true**. A number parsed from text as
+floating point (round trip below) is truncated the same way for integer targets.
+
+**Char types.** Both converters (`0x00915AA5` to int64, `0x00915B85` to double) widen **Char (`0x0C`) and RZChar
+(`0x0E`) as signed bytes** and RZUnicodeChar (`0x0D`) as an unsigned 16-bit value. Worked example: RZChar `0xE9`
+read as Uint32 gives `0xFFFFFFE9`, as Sint16 −23, as Float32 −23.0, and as Uint8 `0xE9` (only the low byte is
+kept); RZUnicodeChar `0xFFE9` read as Uint32 gives 65,513.
+
+**Empty and object values.** An Empty value (memory type 0, §4.2) and an object value (IGZUnknown `0x10`) always
+take the text round trip: `ConvertTypes` (`0x00917350`) sends memory type 0 and every type above `0x0E` there.
+Empty becomes the empty text, which parses as the unsigned number 0, so every converting getter **succeeds**:
+integer and char targets 0, Float32 and Float64 0.0, Bool false; `GetProperty(id, uint32&)` returns true and 0. An
+object becomes the object's own text if it answers `cIGZString` (`0x089B7DC8`), otherwise its address printed as
+`0x%08x`; that text parses as hexadecimal, so `GetProperty(id, uint32&)` returns true and the **object's address**
+(0 for a null object). `GetValString`, and with it `GetProperty(id, cIGZString&)` (`0x009172A1`), returns true only
+for a string (RZChar array) or a string object. For every other type, Empty included, it **writes the round-trip
+text into the output and returns false**: a Uint32 7 gives the text `7` and false. *[choice]* FreeCity4 does the
+same for Empty, and treats an object value as a missing property (false, output unchanged), because the original's
+result is a heap address. Only kind-1 properties (§4.6) hold objects, and no shipped record has one.
 
 **Text round trip** (arrays and strings): the source is turned into text, then the text is parsed into the target.
 
-- Text of an array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the locale-free
-  float formatter with up to 24 significant digits for floats, so float values survive exactly *[inferred]*,
-  `0`/`1` for Bool); an array of count 0 gives `0`. A string gives its text.
-- Parsing: `t` or `true` → 1, `f` or `false` → 0 *[inferred: case-sensitive]*; text beginning `0x` followed by a hex digit →
-  unsigned hexadecimal; text containing `.` or `e`/`E` after a digit → floating point (then truncated toward zero
-  for integer targets); text containing `-` → signed int64; otherwise unsigned int64; then the target width as in
-  the table.
+- Text of a numeric or Bool array is its **first element** only (`%u` / `%d` / `%llu` / `%lld` for integers, the
+  float formatter below for floats, `0`/`1` for Bool); an array of count 0 gives `0`. A **string** (RZChar array
+  `0x800E`) and a **Char array** (`0x800C`) give **all** their characters. An **RZUnicodeChar array** (`0x800D`)
+  gives all its characters, each UTF-16 unit below `0x80` as that byte and every other unit as `?` (`0x0090E901`). A
+  **void array** (`0x8000`) and a VoidPtr array (`0x800F`) give the **empty text**, which parses as 0. Worked
+  examples (`ConvertToString` `0x00916EAA`), read with `GetProperty(id, uint32&)`: void array `31 32` gives 0 (not
+  0x31); Char array `31 32` ("12") gives 12; RZUnicodeChar array `0x00E9 0x0035` gives the text `?5`, which parses
+  as 0.
+- **Floats as text** (`RZFtoaEnglishA` `0x0091052A`, called with a 64-byte buffer and 24 digits; a Float32 is
+  widened to double first) are **fixed-point, never with an exponent**: `-` for a negative value, the integer digits
+  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros, and at
+  most **24 further digits, cut, not rounded** (zeros at the end of a cut are kept; with nothing cut, trailing zeros
+  are not printed). The digits are those of the C runtime's `_fcvt(x, 64)`, so the exact binary value. Examples:
+  2.75 gives `2.75`; Float32 0.1 gives `0.100000001490116119384765`; Float32 0.001 gives
+  `0.00100000004749745130538940`; Float32 1e30 gives `1000000015047466219876688855040`. A Float64 whose text passes
+  63 characters is cut there. NaN and infinities come out as the C runtime prints them: `1.#INF`, `-1.#INF`,
+  `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`,
+  `1#IND` are in the exe]*, which parse back as ±1. **The round trip is not exact**: the parser (`RZStrtodEnglishA`,
+  §4.3 Float32) adds the digits one by one at the main thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`),
+  printed `3.141590118408203125`, reads back as `0x40490FCE`, and Float32 0.05 (`0x3D4CCCCD`) as `0x3D4CCCCC`.
+  2.75, 1.5 and other short binary fractions survive.
+- Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
+  `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
+  holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
+  example: RZChar `0x41` gives `A`; RZUnicodeChar `0x00E9` gives the byte `0xE9`, `0x20AC` gives `?` (note the
+  array rule above keeps only units below `0x80`).
+- **Parsing** (`ConvertFromString` `0x009167C5`), in this order:
+  1. The **whole text** `t` or `true` gives 1 and `f` or `false` gives 0, **case-sensitive** (`T`, `True`, `TRUE`
+     go on to step 3 and parse as 0).
+  2. Text that **starts with lowercase `0x`** and has a hex digit as its third character is unsigned hexadecimal
+     (`RZAtoUint64HexA` `0x0090FD90`): at most **16** hex digits after the `0x`, up to the first non-hex character;
+     digits after the sixteenth are ignored. `0X` is not recognised, and neither is `0x` after a leading space.
+  3. Otherwise the characters are scanned from the start, setting three flags. `.` sets *dot* wherever it is, with
+     or without digits. `-` sets *minus*. `e` or `E` sets *exponent* only if **some earlier character was a decimal
+     digit**, not necessarily the one just before it. The scan **stops early** at an `e`/`E` with no digit before
+     it, at a second `e`/`E`, at a second `-` (counted separately before and after the exponent letter) and at a
+     second `.` after the exponent letter; the flags already set decide. A second `.` before any exponent letter
+     makes the text floating point at once.
+  4. *dot* or *exponent* set: **floating point** (`RZAtofEnglishA` `0x00910991`, the parser of §4.3 Float32).
+     Otherwise *minus* set: signed decimal; otherwise unsigned decimal. Both decimal cases use `RZAtoi64A`
+     (`0x0090FC6F`): leading white space skipped, one optional `+` or `-`, then decimal digits up to the first
+     other character, accumulated in 64 bits with wraparound. There is **no hexadecimal without the `0x`
+     prefix**. Signed and unsigned give the same bits; they differ only for float targets, where an unsigned
+     value takes the 24-bit path above ("Unsigned 64-bit…") and a signed one is converted exactly, then rounded
+     to the target.
+  5. Then the target. Integer types keep the low bits; floating point is first truncated toward zero as in
+     "Floats to integers". **Bool** is value ≠ 0, so floating-point text **`0.5` gives true** (a Float32 scalar
+     0.5 gives false, because it is truncated first) and NaN text gives true. Float32 and Float64 as in the table.
+     **Char, RZChar and RZUnicodeChar targets always get 0**, and the getter succeeds.
+
+  Worked examples, read with `GetProperty(id, uint32&)`: `0x1F` gives 31; `0X1F` gives 0; `1A` gives 1; `true`
+  gives 1 and `TRUE` gives 0; `-5` gives `0xFFFFFFFB`; `1-2` gives 1; `e5` gives 0 (no digit before the `e`);
+  `1e3` gives 1000; `.5` gives 0 (and 0.5 as Float32); `1.2.3` gives 1 (floating point, which stops at the second
+  `.`); `12 apples` gives 12 (the `e` of `apples` follows a digit, so the text is parsed as floating point, which
+  stops at the space); `0x123456789ABCDEF012` read as Uint64 gives `0x123456789ABCDEF0`.
 
 Consequences that matter for tuning *[compat]*:
 
@@ -421,9 +582,24 @@ Consequences that matter for tuning *[compat]*:
 `RefX()` (slots 93–123, no argument) return the data pointer without a check *[compat] [quirk]*. On an array
 `AsUint32()` returns the **pointer** value; on a scalar `RefFloat32()` returns the value bits as a pointer. This is
 what foundations §4.1 describes for curves ("reinterprets the raw bytes of other value types as floats").
-`GetCount()` is 0 for a scalar and the element count for an array. Call sites using these accessors expect a fixed
-stored type; with shipped data that type is always present. *[choice]* FreeCity4 converts element-wise where a
-spec says so, and otherwise treats a type mismatch as a missing property.
+`GetCount()` is 0 for a scalar and the element count for an array.
+
+`cISCPropertyHolder` slot 5 `GetProperty(id, void* buffer, uint32& length)` (`0x005FD290`, for exemplars and
+cohorts too) calls the variant's `GetValVoid` (`0x00915714`). It requests a **void array** (memory type `0x8000`,
+disk tag `0x8000`, §4.2) and nothing else. For a void array of `n` bytes it lowers `length` to `n` if it was
+larger, copies `length` bytes into the buffer, and returns true. For **any other type**, strings and other arrays
+included, it returns **false** and leaves both outputs unchanged: there is no text round trip. Worked example:
+a void array `01 02 03` read with `length` 8 copies 3 bytes and sets `length` to 3; with `length` 2 it copies 2
+bytes and leaves `length` at 2; a Uint8 array `01 02 03` gives false. No shipped record has a void array, so on
+shipped data slot 5 always returns false.
+
+Call sites using the `AsX()` and `RefX()` accessors expect a fixed stored type; with shipped data that type is
+always present. On a mismatch the original reads whatever bytes the variant holds: `AsX()` loads 1, 2, 4 or 8
+bytes from the value field at offset 4 (`0x0040CE50`, `0x0060CE80`, `0x005FD610`–`0x005FD640`). Worked
+examples: a Float32 2.75 read with `AsUint32()` gives `0x40300000`; a 32-bit scalar read with `AsSint64()` or
+`AsFloat64()` takes its upper half from the variant's next field, which is not part of the value; an array read
+with `AsUint32()` gives its heap address. *[choice]* Because the result is another type's bits or an address,
+FreeCity4 converts element-wise where a spec says so, and otherwise treats a type mismatch as a missing property.
 
 ### 5.3 Exemplar lookup helper
 
@@ -1204,6 +1380,9 @@ Byte strings are hexadecimal. "Package P(entries)" means: header with magic `DBP
 
 ### 10.3 Load order
 
+These tests check the resource manager and the startup registration (§3, §3.1), not the package reader.
+*[choice]* They are out of scope for `engine/formats` and belong to the module that implements §3.1.
+
 18. Install `SimCity_1.dat` and `Plugins\a.dat` both define exemplar K with property `0x10` = 1 and 2: the game
     sees 2.
 19. `Plugins\a.dat` (K → 2) and `Plugins\b.dat` (K → 3): 3. `Plugins\sub\a.dat` (K → 4) added: 4.
@@ -1276,6 +1455,33 @@ Header used below: `45 51 5A 42 31 23 23 23` (`EQZB1###`), parent `00`×12, then
 50. `SC4LoadString(out, G, I)` with language ID 1: key (`0x2026960B`, G + 1, I) is used if present, else
     (`0x2026960B`, G, I).
 
+### 10.7 Text exemplar and getter details
+
+Text lines below go into a record shaped like test 37, with `PropCount` set to match.
+
+51. **ParentCohort fields** (§4.3): `Key:{0,0}` gives three zeros, so no parent.
+    `Key:{0x0A64ED55,0x00000001,0x05342861,0x99}` asks for cohort (`0x05342861`, `0x0A64ED55`, 1); the fourth
+    field is ignored. `Key:{0x0A64ED55, 0x00000001, 0x05342861}` asks for (0, `0x0A64ED55`, 0).
+52. **reps and type name**: `Uint32: 0x2:{1,2}` gives a scalar 1. `Uint32:4:{1,2}` gives {1, 2, 0, 0}.
+    `Uint32:1:{1,2}` gives {1}. `Uint32 :0:{1}` and `Uint32:0: {1}` fail the read.
+53. **Values**: `Uint32:0:{ 0x10}` gives 0, and `Uint32:1:{ 0x10}` gives {16}. `Uint64:0:{10}` gives 16, and
+    `Sint64:0:{-1}` gives 0. `Bool:0:{1}` gives false.
+54. **Float32 text** (main thread, 24-bit): `Float32:0:{0.05}` gives the bits `0x3D4CCCCC`. `{1e10}` gives
+    1,410,065,408.0, `{1e32}` gives 0.0 and `{inf}` gives 0.0.
+55. **Too few lines**: `PropCount=3` followed by two property lines fails the read.
+56. **Round-trip parse** (§5.1), `GetProperty(id, uint32&)` on string properties: `0X1F` gives 0, `TRUE` gives
+    0, `true` gives 1, `12 apples` gives 12, `-5` gives `0xFFFFFFFB`, `1.2.3` gives 1, `1e3` gives 1000, and
+    `.5` gives 0. `GetValBool` on the string `0.5` gives true. `GetValRZChar` on the string `A` gives 0 and true.
+57. **Scalar conversions** (§5.1): Float32 300.7 read as Uint8 gives 44. A Float32 NaN read as Uint32 gives 0,
+    and read as Bool gives true. RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`. `GetValFloat64` on Uint64
+    16,777,217 gives 16,777,216.0.
+58. **Float text round trip**: Float32 `0x40490FD0` (3.14159) read with `GetProperty(id, cIGZString&)` gives
+    `3.141590118408203125` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
+59. **Empty and void**: a tag-0 property read with `GetProperty(id, uint32&)` gives true and 0, and with
+    `GetProperty(id, cIGZString&)` gives false and the empty text. A void array `31 32` read with
+    `GetProperty(id, uint32&)` gives true and 0. Read with slot 5 and `length` 8, it copies `31 32` and sets
+    `length` to 2.
+
 ---
 
 ## 11. Original versus engine/formats
@@ -1297,6 +1503,19 @@ Header used below: `45 51 5A 42 31 23 23 23` (`EQZB1###`), parent `00`×12, then
 | text parent key order group, instance, type | same (§4.3) | confirmed |
 | text: 2 bytes after the signature | skipped unchecked (§4.3) | match |
 | LTEXT `u16` count + `u16` marker, 8-bit form must have exact length | 24-bit count, §2.3 quirks, trailing bytes ignored (§6.1) | relax length; 24-bit count |
+| getters on Empty and object values return None (QUESTIONS EX1, EX5) | Empty reads as 0, 0.0 or false and succeeds; the string getter writes the text and returns false; an object gives its address (§5.1) | follow for Empty; object as missing *[choice]* |
+| Uint64 to float unsigned (EX2) | unsigned, but only 24 significant bits on the main thread, even for Float64 (§5.1) | round to 24 bits |
+| float to integer saturates, NaN gives 0 (EX3) | truncated to int64, low bits kept (wraps); NaN and ±∞ give `0x8000000000000000` (§5.1) | follow |
+| RZChar zero-extended (EX4) | Char and RZChar sign-extended (§5.1) | follow |
+| void array as text: first byte as `%u` (EX6) | empty text, so 0 (§5.1) | follow |
+| floats as text with `%.24g` (EX8) | fixed-point `_fcvt` digits, at most 24 after the leading zeros, cut; no exponent (§5.1) | follow |
+| round-trip parse (EX9) | as bracketed, plus: char targets always get 0; Bool from floating-point text is value ≠ 0 (§5.1) | follow |
+| text ParentCohort: exactly 3 fields, leading spaces trimmed (EX10) | fields not counted, a missing one reads 0; nothing trimmed inside the braces (§4.3) | follow |
+| text reps trimmed (EX11) | not trimmed; rule N (§4.3) | follow |
+| more text reps than the record length fails (EX12) | no cap; missing values read 0; a huge reps crashes (§4.3) | fill with 0; *[choice]* fail above 16 MiB |
+| Float32 text parsed as f64, then rounded to f32 (EX14) | the game's digit-by-digit parser at 24-bit precision; 10ⁿ wraps in 32 bits (§4.3) | follow |
+| kind-1 key resolvable when in a package index (EX15) | needs a factory for the type and a successful read (§4.6) | follow |
+| holder slot 5 not implemented (EX17) | raw copy from a void array; false for every other type (§5.2) | implement (always false on shipped data) |
 
 ---
 

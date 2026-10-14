@@ -370,6 +370,7 @@ void cFC4BudgetSimulator::UnregisterCheats() {
 bool cFC4BudgetSimulator::DoMessage(cIGZMessage2* pMessage) {
     FC4_TRACE("BudgetSimulator::DoMessage");
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("budget DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     cIGZMessage2Standard* m = nullptr;
     if (pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m))) {

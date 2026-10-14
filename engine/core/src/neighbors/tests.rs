@@ -28,6 +28,8 @@ const W: CityId = 2;
 const E: CityId = 3;
 const N: CityId = 4;
 const S: CityId = 5;
+/// The current city object (`cISC4City`, §8.2 NB12): not a regional city.
+const CITY: CityHandle = 0xC17;
 
 const E0: u32 = deal_type::BUY_POWER;
 const E1: u32 = deal_type::SELL_POWER;
@@ -97,6 +99,7 @@ struct Occ {
 struct World {
     cities: RefCell<HashMap<CityId, RCity>>,
     current: Cell<Option<CityId>>,
+    city_object: Cell<Option<CityHandle>>,
     counts: Cell<(i32, i32)>,
     today: Cell<u32>,
     figures: RefCell<UtilityFigures>,
@@ -109,6 +112,9 @@ struct World {
     sim: RefCell<Weak<NeighborsSimulator>>,
     deliver_sent: Cell<bool>,
     altitude: Cell<f32>,
+    /// Per world position altitudes (`GetAltitude(px, pz)`, §6.3); other
+    /// positions read `altitude`.
+    altitude_at: RefCell<Vec<((f32, f32), f32)>>,
     surface: Cell<f32>,
 }
 
@@ -121,6 +127,7 @@ impl World {
         let w = Rc::new(World {
             cities: RefCell::new(HashMap::new()),
             current: Cell::new(Some(R)),
+            city_object: Cell::new(Some(CITY)),
             counts: Cell::new((64, 64)),
             today: Cell::new(TODAY),
             figures: RefCell::new(UtilityFigures::default()),
@@ -133,6 +140,7 @@ impl World {
             sim: RefCell::new(Weak::new()),
             deliver_sent: Cell::new(true),
             altitude: Cell::new(270.0),
+            altitude_at: RefCell::new(Vec::new()),
             surface: Cell::new(280.0),
         });
         w.add_city(R, (3, 3), (1, 1));
@@ -245,6 +253,9 @@ impl NeighborsHost for World {
     fn current_city(&self) -> Option<CityId> {
         self.current.get()
     }
+    fn current_city_object(&self) -> Option<CityHandle> {
+        self.city_object.get()
+    }
     fn city_at(&self, rx: i32, rz: i32) -> Option<CityId> {
         self.cities
             .borrow()
@@ -353,8 +364,11 @@ impl NeighborsHost for World {
     fn cell_center(&self, x: i32, z: i32) -> (f32, f32) {
         (x as f32 * 16.0 + 8.0, z as f32 * 16.0 + 8.0)
     }
-    fn marker_altitude(&self, _x: i32, _z: i32) -> f32 {
-        self.altitude.get()
+    fn marker_altitude(&self, px: f32, pz: f32) -> f32 {
+        let at = self.altitude_at.borrow();
+        at.iter()
+            .find(|(p, _)| *p == (px, pz))
+            .map_or(self.altitude.get(), |&(_, y)| y)
     }
     fn max_surface_level(&self, _x: i32, _z: i32) -> f32 {
         self.surface.get()
@@ -466,10 +480,7 @@ fn test_01_geometry() {
     for ((x, z), side, region_cell, npos, ncell) in cases {
         assert_eq!(side_of(x, z, 64, 64), side);
         assert_eq!(neighbouring_region_cell(side, x, z, pos, size), region_cell);
-        assert_eq!(
-            neighbour_connection_cell(side, x, z, region_cell, npos, (2, 2)),
-            Some(ncell)
-        );
+        assert_eq!(neighbour_connection_cell(side, x, z, region_cell, npos, (2, 2)), ncell);
         assert!(is_valid_connection_cell(ncell.0, ncell.1, (2, 2)));
         assert!(is_valid_connection_cell(x, z, size));
     }
@@ -504,6 +515,17 @@ fn test_01_geometry() {
         Some(false)
     );
     assert_eq!(sim.find_connection_on_other_side(conn_type::RAIL, -1, 5), None);
+
+    // NB6 (§2.2): an interior cell keeps our own region position, finds our
+    // own regional city there and gives (0, 0); no connection lies there, so
+    // FindConnectionOnOtherSide still ends with null.
+    assert_eq!(
+        neighbour_connection_cell(Side::Interior, 10, 20, (3, 3), (3, 3), (1, 1)),
+        (0, 0)
+    );
+    assert_eq!(sim.find_city_on_other_side_of_connection(10, 20), Some(R));
+    assert_eq!(sim.neighbour_cell(10, 20), Some((R, (0, 0))));
+    assert_eq!(sim.find_connection_on_other_side(conn_type::ROAD, 10, 20), None);
 }
 
 // ---- 2. Connections ----------------------------------------------------------------------------------
@@ -533,6 +555,36 @@ fn test_02_create_connection_once_with_one_marker() {
             },
         ]
     );
+}
+
+/// §6.3 (NB3): the marker height is `GetAltitude(px, pz)` at the inner
+/// cell's centre, the point the prop is placed at; the connection cell is
+/// never used. Road at (−1, 5) → inner (0, 5), centre (8, 88); Highway at
+/// (5, −1) → inner (5, 0), centre (88, 8), 15.5 higher.
+#[test]
+fn test_02_marker_height_at_the_inner_cell_centre() {
+    let (w, sim) = setup(true);
+    *w.altitude_at.borrow_mut() = vec![
+        ((8.0, 88.0), 300.0),
+        ((-8.0, 88.0), 250.0),
+        ((88.0, 8.0), 310.0),
+        ((88.0, -8.0), 0.0),
+    ];
+    let pos_of = |w: &World| {
+        w.events()
+            .into_iter()
+            .find_map(|e| match e {
+                Ev::PropAdd { pos, .. } => Some(pos),
+                _ => None,
+            })
+            .unwrap()
+    };
+    w.clear();
+    sim.create_connection(conn_type::ROAD, -1, 5, false).unwrap();
+    assert_eq!(pos_of(&w), [8.0, 300.0, 88.0]);
+    w.clear();
+    sim.create_connection(conn_type::HIGHWAY, 5, -1, false).unwrap();
+    assert_eq!(pos_of(&w), [88.0, 325.5, 8.0]);
 }
 
 #[test]
@@ -898,7 +950,7 @@ fn test_05_curve_bug() {
     let (w, sim) = price_world();
     keep_power_figures(&w, Some(0.0));
     assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     assert_eq!(w.stat(R, Stat::Produced, 1), 300.0);
     assert_eq!(w.stat(R, Stat::Demanded, 1), 500.0);
     let g = sim.get_deal_cost(E0, 100.0, Some(W));
@@ -908,7 +960,7 @@ fn test_05_curve_bug() {
     // Without the department: unchanged.
     let (w, sim) = price_world();
     keep_power_figures(&w, None);
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
     assert_eq!(w.stat(R, Stat::CostPerUnit, 3), 1e-5);
 
@@ -929,23 +981,38 @@ fn test_05_curve_bug() {
         w.set_stat(W, k, 1, v);
     }
     keep_power_figures(&w, Some(0.0));
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
 
     // [choice] The two-curve switch keeps the scarcity curve.
     let (w, sim) = price_world();
     sim.set_two_curves(true);
     keep_power_figures(&w, Some(0.0));
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
 
-    // Only the current city is updated.
+    // Only the current city object is updated (NB12): another regional
+    // city, our own regional city, another city object or null do nothing.
     let (w, sim) = price_world();
     keep_power_figures(&w, Some(0.0));
     w.clear();
-    sim.update_commodity_stats(Some(W));
+    for other in [Some(W), Some(R), Some(CITY + 1), None] {
+        sim.update_commodity_stats(other);
+        assert!(w.events().is_empty());
+        assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
+    }
+    // [choice] With no current regional city it returns at once.
+    w.current.set(None);
+    sim.update_commodity_stats(Some(CITY));
     assert!(w.events().is_empty());
-    assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 263.0);
+    w.current.set(Some(R));
+    // No current city object: nothing matches.
+    w.city_object.set(None);
+    sim.update_commodity_stats(Some(CITY));
+    assert!(w.events().is_empty());
+    w.city_object.set(Some(CITY));
+    sim.update_commodity_stats(Some(CITY));
+    assert_eq!(sim.get_deal_cost(E0, 100.0, Some(W)).trunc(), 221.0);
 }
 
 #[test]
@@ -975,7 +1042,7 @@ fn update_commodity_stats_writes_the_regional_figures_and_history() {
     let d = deal(&w, &sim, E0, W, flag::ACTIVE | flag::CANCELLED);
     d.set_data(DealData { cost: 51, ..d.data() });
     w.clear();
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     assert_eq!(w.city(R, |c| (c.budget, c.income)), (12345.0, 678.0));
     assert_eq!(w.stat(R, Stat::Produced, 1), 1000.0);
     assert_eq!(w.stat(R, Stat::Demanded, 1), 800.0);
@@ -1048,11 +1115,15 @@ fn run(w: &World, sim: &NeighborsSimulator, day: u32) {
 #[test]
 fn test_06_life_cycle_grace_then_probation_then_removal() {
     let (w, sim, c, d) = life_cycle(flag::PROPOSED);
-    // A proposed deal activates on the first run (status 1).
+    // A proposed deal activates on the first run: status 0 (Active set),
+    // 0 (Proposed cleared) from Activate's SetFlags calls (NB2), then 1.
     run(&w, &sim, TODAY);
     assert_eq!(d.flags(), flag::ACTIVE);
     assert_eq!(d.current_date(), TODAY);
-    assert_eq!(w.statuses(&d), vec![status::ACTIVATED]);
+    assert_eq!(
+        w.statuses(&d),
+        vec![status::CHANGED, status::CHANGED, status::ACTIVATED]
+    );
 
     // Losing the connection: Grace, suspension = today, no removal.
     c.set_active(false);
@@ -1181,6 +1252,60 @@ fn test_06_buy_deal_cannot_afford_and_neither_proposed_nor_active() {
     run(&w, &sim, TODAY + 1);
     assert!(sim.find_deals_all().is_empty());
     assert_eq!(w.statuses(&d)[0], status::CANCELLED);
+}
+
+/// `Activate` (§5.4, NB2): three calls through `SetFlags` — (Active, true),
+/// (Proposed, false), (Cancelled, false) — each posting status 0 when it
+/// changes a non-Silent deal's flags. Cancelled is not in `0x38`.
+#[test]
+fn activate_goes_through_set_flags() {
+    let posted = |w: &World, d: &Rc<NeighborDeal>| -> Vec<(u32, u32, bool)> {
+        w.events()
+            .into_iter()
+            .filter_map(|e| match e {
+                Ev::Status {
+                    deal,
+                    status,
+                    flags,
+                    sent,
+                } if deal == Some(ptr(d)) => Some((status, flags, sent)),
+                _ => None,
+            })
+            .collect()
+    };
+    // A cancelled proposal: three changes, three posted status 0 reports.
+    let (w, _sim, _c, d) = life_cycle(flag::PROPOSED | flag::CANCELLED);
+    assert!(d.activate());
+    assert_eq!(d.flags(), flag::ACTIVE);
+    let p = flag::PROPOSED;
+    let (a, c) = (flag::ACTIVE, flag::CANCELLED);
+    assert_eq!(
+        posted(&w, &d),
+        [
+            (status::CHANGED, a | p | c, false),
+            (status::CHANGED, a | c, false),
+            (status::CHANGED, a, false)
+        ]
+    );
+    // Not cancelled: the third call changes nothing and posts nothing.
+    let (w, _sim, _c, d) = life_cycle(flag::PROPOSED);
+    assert!(d.activate());
+    assert_eq!(
+        posted(&w, &d),
+        [(status::CHANGED, a | p, false), (status::CHANGED, a, false)]
+    );
+    // Silent: the flags change, nothing is posted.
+    let (w, _sim, _c, d) = life_cycle(flag::PROPOSED | flag::SILENT);
+    assert!(d.activate());
+    assert_eq!(d.flags(), flag::ACTIVE | flag::SILENT);
+    assert!(posted(&w, &d).is_empty());
+    // A failure flag or no Proposed: false, nothing changes.
+    for f in [flag::PROPOSED | flag::NO_CONNECTION, flag::ACTIVE] {
+        let (w, _sim, _c, d) = life_cycle(f);
+        assert!(!d.activate());
+        assert_eq!(d.flags(), f);
+        assert!(posted(&w, &d).is_empty());
+    }
 }
 
 #[test]
@@ -1362,7 +1487,10 @@ fn test_09_reentrancy() {
         ..NeighborsMessage::default()
     });
     assert_eq!(d.flags(), flag::ACTIVE);
-    assert_eq!(w.statuses(&d), vec![status::ACTIVATED]);
+    assert_eq!(
+        w.statuses(&d),
+        vec![status::CHANGED, status::CHANGED, status::ACTIVATED]
+    );
 }
 
 // ---- 10. Proposals -----------------------------------------------------------------------------------
@@ -1409,7 +1537,7 @@ fn test_10_proposals() {
 
     // A real cost: the budget must exceed 60 × cost.
     let (w, sim) = proposal_world(5001.0);
-    sim.update_commodity_stats(Some(R));
+    sim.update_commodity_stats(Some(CITY));
     let cost = sim.get_deal_cost(E1, 1000.0, Some(W));
     assert!(cost > 1000.0, "{cost}");
     w.set_budget(W, 60.0 * cost);

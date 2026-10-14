@@ -182,6 +182,8 @@ void MonthStep(void* p) {
     MonthCall* c = static_cast<MonthCall*>(p);
     const uint32_t kind = c->kind;
     KindState& k = g_state[kind];
+    // City slot 57 GetFireProtectionSimulator returns city +0x174, the fire
+    // class 0x2990C05A (protection.md §1, PR4 confirmed); slot 65 the police.
     cIGZUnknown* sim = kind == 0 ? static_cast<cIGZUnknown*>(c->city->GetFireProtectionSimulator())  // city slot 57
                                  : static_cast<cIGZUnknown*>(c->city->GetPoliceSimulator());       // city slot 65
     if (sim == nullptr) {

@@ -5,13 +5,16 @@ runs on the test city and prints one table. Use it after staging a new DLL.
 Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end = quit, so the full Shutdown path
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
-           pollution, protection, crime, aura, flora, landfill, power, plumbing. A shadow line is clean when every mismatch count
+           pollution, protection, crime, aura, flora, landfill, power, plumbing, land value, flammability, residential. A shadow line is clean when every mismatch count
            on it is 0.
   replace  every merged replacement at once (-Replace overrides the list).
 
 Usage:
   powershell -File tools\regress.ps1 -Tag r1 [-Seconds 150] [-Only shadows|replace] [-Replace "landvalue, weather"]
-           [-City <path to .sc4>]
+           [-City <path to .sc4>] [-Dll <path to FreeCity4.dll>]
+
+-Dll stages that DLL (and the .pdb next to it, if any) as Plugins\FreeCity4.dll first; it refuses while the game
+runs. Every run prints the staged DLL's SHA-256 prefix, so the record names the build it tested.
 
 Logs: build-runs\regress-<Tag>-<run>.log. A summary per run is printed by tools\run_summary.ps1; the table at the
 end reads: verdict, problem count (foreign exceptions, stalls, reference warnings, panics, structured exceptions,
@@ -22,15 +25,27 @@ param(
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
     [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill",
-    [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4"
+    [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4",
+    [string]$Dll = ""
 )
 $ErrorActionPreference = "Continue"
+$Plugins = Join-Path $env:USERPROFILE "Documents\SimCity 4\Plugins"
+if ($Dll) {
+    if (Get-Process -Name "SimCity 4" -ErrorAction SilentlyContinue) { Write-Output "REGRESS: the game is running; not staging $Dll"; exit 2 }
+    if (-not (Test-Path -LiteralPath $Dll)) { Write-Output "REGRESS: no such DLL: $Dll"; exit 2 }
+    Copy-Item -LiteralPath $Dll -Destination (Join-Path $Plugins "FreeCity4.dll") -Force
+    $pdb = [IO.Path]::ChangeExtension($Dll, ".pdb")
+    if (Test-Path -LiteralPath $pdb) { Copy-Item -LiteralPath $pdb -Destination (Join-Path $Plugins "FreeCity4.pdb") -Force }
+}
+$staged = Join-Path $Plugins "FreeCity4.dll"
+$hash = if (Test-Path -LiteralPath $staged) { (Get-FileHash -Algorithm SHA256 -LiteralPath $staged).Hash.Substring(0, 8).ToLower() } else { "none" }
+Write-Output "staged DLL: $staged (sha256 $hash)"
 $Run = Join-Path $PSScriptRoot "ingame_run.ps1"
 $Sum = Join-Path $PSScriptRoot "run_summary.ps1"
 $Out = Join-Path $PSScriptRoot "..\build-runs"
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1`nplumbing_shadow = 1`nlandvalue_shadow = 1`nflammability_shadow = 1`nresidential_shadow = 1"
     replace = "enable = $Replace"
 }
 $rows = @()

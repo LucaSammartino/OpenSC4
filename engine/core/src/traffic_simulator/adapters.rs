@@ -13,7 +13,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::grid::{CellRect, GridProvider, TractGrid};
-use crate::pathfinder::{NeighborConnectionLinks, PathfinderHost, TravelTables};
+use crate::pathfinder::{PathfinderHost, TravelTables};
 use crate::stream::RefValue;
 use crate::traffic_network::{NetworkHost, PathInfo};
 use crate::variant::{mem, Elem, Variant};
@@ -330,20 +330,14 @@ impl PathfinderHost for PfAdapter<'_> {
     fn neighbor_pool_holder(&self, t: u32, x: i32, z: i32) -> Option<u64> {
         self.h.neighbor_pool_property_holder(t, x, z)
     }
-    fn traffic_neighbor_connection_cost(&self, x: i32, z: i32) -> Option<f32> {
-        self.h.traffic_neighbor_connection_cost(x, z)
-    }
-    fn neighbor_connections(&self) -> Vec<NeighborConnectionLinks> {
-        self.h.neighbor_connection_links()
-    }
     fn income_accumulator(&self) -> f64 {
         self.st.income_acc.get()
     }
     fn set_income_accumulator(&self, v: f64) {
         self.st.income_acc.set(v);
     }
-    /// `GetLot(x, z, false)` *[choice: the pathfinder's bool is not stated;
-    /// any cell of a lot]*.
+    /// `GetLot(x, z, false)`: any cell of a lot; the pathfinder always passes
+    /// false (PF3, pathfinder.md §8).
     fn lot_at(&self, x: i32, z: i32) -> Option<u64> {
         self.h.lot_at(x, z, false)
     }

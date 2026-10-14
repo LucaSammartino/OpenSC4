@@ -1910,3 +1910,170 @@ fn ferry_pass_posts_when_done() {
     assert!(m.work_on_ferry_routes(usize::MAX));
     assert_eq!(*w.posted.borrow(), vec![msg::FERRY_ROUTES_DONE]);
 }
+
+// ---------------------------------------------------------------------------
+// §2.7 neighbour connection edge records (PF6)
+// ---------------------------------------------------------------------------
+
+/// A bare network state of `x × z` cells with the edge records at their Init
+/// values.
+fn edge_state(x: i32, z: i32) -> NetworkState {
+    let mut s = NetworkState {
+        count_x: x,
+        count_z: z,
+        ..NetworkState::default()
+    };
+    s.init_neighbour_edges();
+    s
+}
+
+fn edge_rec(mask: u16, pool: u16, cost: f32) -> NeighbourEdge {
+    NeighbourEdge { mask, pool, cost }
+}
+
+#[test]
+fn neighbour_edges_init_and_lookup_order() {
+    // §2.7: Z records on sides 0 and 2, X records on sides 1 and 3, all
+    // (0, 0, 0.0); Init in the model creates them too.
+    let s = edge_state(5, 3);
+    let lens: Vec<usize> = s.neighbour_edges.iter().map(Vec::len).collect();
+    assert_eq!(lens, vec![3, 5, 3, 5]);
+    assert!(s
+        .neighbour_edges
+        .iter()
+        .flatten()
+        .all(|r| *r == NeighbourEdge::default()));
+    let w = World::new(4, 6);
+    let m = model(&w);
+    let lens: Vec<usize> = m.state().neighbour_edges.iter().map(Vec::len).collect();
+    assert_eq!(lens, vec![6, 4, 6, 4]);
+    // §2.7.1: x < 0 → side 0 at z; x > X−1 → side 2 at z; z < 0 → side 1 at
+    // x; otherwise side 3 at x. Corner and in-city cells have none.
+    assert_eq!(s.neighbour_edge_index(-1, 2), Some((Edge::West, 2)));
+    assert_eq!(s.neighbour_edge_index(5, 1), Some((Edge::East, 1)));
+    assert_eq!(s.neighbour_edge_index(4, -1), Some((Edge::North, 4)));
+    assert_eq!(s.neighbour_edge_index(0, 3), Some((Edge::South, 0)));
+    assert_eq!(s.neighbour_edge_index(-1, -1), None);
+    assert_eq!(s.neighbour_edge_index(2, 1), None);
+    assert_eq!(Edge::South.off_map_cell(2, 5, 3), (2, 3));
+    assert_eq!(Edge::East.off_map_cell(1, 5, 3), (5, 1));
+}
+
+#[test]
+fn traffic_neighbor_connection_record_and_empty_choice() {
+    let mut s = edge_state(4, 4);
+    s.set_neighbour_edge(4, 2, edge_rec(1 << 2, 3, 1.5));
+    assert_eq!(s.traffic_neighbor_connection(4, 2), edge_rec(1 << 2, 3, 1.5));
+    // The other edges' records at the same index are separate.
+    assert_eq!(s.traffic_neighbor_connection(-1, 2), NeighbourEdge::default());
+    assert_eq!(s.traffic_neighbor_connection(2, 4), NeighbourEdge::default());
+    // *[choice]* a corner or in-city cell gives an empty record.
+    s.set_neighbour_edge(-1, -1, edge_rec(0xFFFF, 1, 9.0));
+    assert_eq!(s.traffic_neighbor_connection(-1, -1), NeighbourEdge::default());
+    assert_eq!(s.traffic_neighbor_connection(2, 2), NeighbourEdge::default());
+}
+
+#[test]
+fn find_neighbor_connection_ascending_types() {
+    // §2.7.1: connection types 0…12 ascending with the bit in both
+    // connMask(net(t)) and the record's mask; the first found wins.
+    let mut s = edge_state(4, 4);
+    // Rail (1), Road (2) and Highway (3).
+    s.set_neighbour_edge(-1, 1, edge_rec((1 << 1) | (1 << 2) | (1 << 3), 0, 0.0));
+    let mut asked = Vec::new();
+    let got = s.find_neighbor_connection(travel::CAR as u32, -1, 1, |c| {
+        asked.push(c);
+        (c == 3).then_some(c)
+    });
+    // Car is on the road network (0x170C): Rail is not asked.
+    assert_eq!(asked, vec![2, 3]);
+    assert_eq!(got, Some(3));
+    let mut asked = Vec::new();
+    let got = s.find_neighbor_connection(travel::FREIGHT_TRAIN as u32, -1, 1, |c| {
+        asked.push(c);
+        Some(c)
+    });
+    assert_eq!((asked, got), (vec![1], Some(1)));
+    // Walk (pedestrian, 0x704) has no Highway.
+    let got = s.find_neighbor_connection(travel::WALK as u32, -1, 1, |c| (c == 3).then_some(c));
+    assert_eq!(got, None);
+    // An in-city cell: none, the simulator is not asked.
+    let got: Option<u32> = s.find_neighbor_connection(travel::CAR as u32, 1, 1, |_| panic!("asked"));
+    assert_eq!(got, None);
+    // *[choice]* a travel type above 8 wants no type.
+    assert_eq!(s.find_neighbor_connection(9, -1, 1, Some), None);
+}
+
+#[test]
+fn neighbor_pool_id_wanted_ferry_and_stale_pool() {
+    // §2.7.1 GetNeighborPoolPropertyHolder.
+    let mut s = edge_state(4, 4);
+    s.set_neighbour_edge(-1, 0, edge_rec(1 << 2, 0, 0.0)); // Road, default pool
+    s.set_neighbour_edge(-1, 1, edge_rec(1 << 9, 2, 0.0)); // Ferry, pool 2
+    s.set_neighbour_edge(-1, 2, edge_rec(1 << 2, 7, 0.0)); // Road, stale pool 7
+    let exists = |id: u16| id == 2;
+    // Rail wants 0x2: Road gives none.
+    assert_eq!(s.neighbor_pool_id(travel::FREIGHT_TRAIN as u32, -1, 0, exists), None);
+    assert_eq!(s.neighbor_pool_id(travel::CAR as u32, -1, 0, exists), Some(0));
+    assert_eq!(s.neighbor_pool_id(ANY_TRAVEL_TYPE, -1, 0, exists), Some(0));
+    // A ferry connection gives a holder to every travel type.
+    assert_eq!(s.neighbor_pool_id(travel::FREIGHT_TRAIN as u32, -1, 1, exists), Some(2));
+    // An ID that names no pool is reset to 0 [compat].
+    assert_eq!(s.neighbor_pool_id(travel::CAR as u32, -1, 2, exists), Some(0));
+    assert_eq!(s.traffic_neighbor_connection(-1, 2).pool, 0);
+    // No record bits at all: null.
+    assert_eq!(s.neighbor_pool_id(ANY_TRAVEL_TYPE, -1, 3, exists), None);
+}
+
+#[test]
+fn add_and_remove_neighbor_connection_records() {
+    // §2.7.2 Add steps 2, 4, 5: mask |=, the cost only grows (ordered), the
+    // pool is set again by each Add.
+    let mut s = edge_state(4, 4);
+    s.add_neighbor_connection_record(2, 1, -1, 90.0, 1);
+    assert_eq!(s.traffic_neighbor_connection(1, -1), edge_rec(1 << 2, 1, 90.0));
+    s.add_neighbor_connection_record(8, 1, -1, 40.0, 0);
+    assert_eq!(
+        s.traffic_neighbor_connection(1, -1),
+        edge_rec((1 << 2) | (1 << 8), 0, 90.0)
+    );
+    s.add_neighbor_connection_record(8, 1, -1, f32::NAN, 3);
+    assert_eq!(
+        s.traffic_neighbor_connection(1, -1),
+        edge_rec((1 << 2) | (1 << 8), 3, 90.0)
+    );
+    s.add_neighbor_connection_record(3, 1, -1, 120.0, 3);
+    assert_eq!(s.traffic_neighbor_connection(1, -1).cost, 120.0);
+    // Remove: mask &= ~bit; while non-zero, nothing else.
+    assert!(!s.remove_neighbor_connection_record(2, 1, -1));
+    assert!(!s.remove_neighbor_connection_record(8, 1, -1));
+    assert_eq!(s.traffic_neighbor_connection(1, -1), edge_rec(1 << 3, 3, 120.0));
+    // The last type: pool 0, the caller sweeps; the cost is kept.
+    assert!(s.remove_neighbor_connection_record(3, 1, -1));
+    assert_eq!(s.traffic_neighbor_connection(1, -1), edge_rec(0, 0, 120.0));
+    // A NaN record cost is never raised either.
+    s.set_neighbour_edge(-1, 1, edge_rec(0, 0, f32::NAN));
+    s.add_neighbor_connection_record(2, -1, 1, 5.0, 0);
+    assert!(s.traffic_neighbor_connection(-1, 1).cost.is_nan());
+}
+
+#[test]
+fn pool_sweep_and_edge_pass_skip_the_last_record() {
+    // §2.7.3 step 1 and §2.7.4 step 6: records 0 … X−2 of each array, sides
+    // 0…3; the last record of every array is never visited [quirk].
+    let mut s = edge_state(4, 4);
+    s.set_neighbour_edge(-1, 0, edge_rec(1 << 2, 1, 0.0));
+    s.set_neighbour_edge(2, -1, edge_rec(1 << 2, 2, 0.0));
+    s.set_neighbour_edge(4, 3, edge_rec(1 << 2, 3, 0.0)); // last record of side 2
+    s.set_neighbour_edge(3, 4, edge_rec(1 << 1, 4, 0.0)); // last record of side 3
+    s.set_neighbour_edge(1, 4, edge_rec(0, 5, 0.0)); // mask 0
+    let ids: Vec<u16> = s.pool_ids_in_use().into_iter().collect();
+    assert_eq!(ids, vec![1, 2, 5]);
+    let cells: Vec<(Edge, (i32, i32))> = s.edge_pass_records().into_iter().map(|(e, c, _)| (e, c)).collect();
+    assert_eq!(cells, vec![(Edge::West, (-1, 0)), (Edge::North, (2, -1))]);
+    // *[choice]* with Z < X the z-indexed arrays stop at their end.
+    let mut s = edge_state(5, 2);
+    s.set_neighbour_edge(-1, 1, edge_rec(1 << 2, 6, 0.0));
+    assert_eq!(s.pool_ids_in_use().into_iter().collect::<Vec<_>>(), vec![6]);
+    assert_eq!(s.edge_pass_records().len(), 1);
+}

@@ -1,0 +1,652 @@
+{
+  "format": 1,
+  "name": "zn15_39_draft_queries",
+  "spec": [
+    "zones 7.13",
+    "zones 8.8",
+    "zones 14.1"
+  ],
+  "description": "Conformance test 33d (ZQ4): the draft queries. The harness clears the real-mode flag directly, as HighlightParcels does (the fourth / sixth call argument). No real networks. The street stub has a draft at (5, 5) with mask {1, 0, 1, 0} (edges −x, −z, +x, +z), the dirt-road stub one at (6, 6) with {0, 1, 0, 1}; both log their OccupantExists calls. ExistsNetworkOfType (§8.8): (5, 5, 0x808) true and (6, 6, 0x808) false [quirk: with bit 3 set only the street stub is asked]; (6, 6, 0x800) true from the dirt-road stub; (5, 5, 0x1F4F) true, (6, 6, 0x1F4F) false; (5, 5, 0x1) false with no stub call. ExistsConnectionOfType (§7.13): (5, 5, 0x8, s, 3) for s = 0..3 false, true, false, true (edges 1, 2, 3, 0); (6, 6, 0x8, 0, 3) true (the street stub says no, the dirt-road stub is asked with 0x800, byte 1); (5, 5, 0x800, 1, 0) true (the street stub first, the type ignored); (6, 6, 0x808, −1, 11) true [quirk: e = −1 reads byte 3], side 4 the same; (5, 5, 0x808, −1, 3) false (byte 3 = 0); (5, 5, 0x1, 1, 0) false with no stub call. In real mode every query is false and no stub is called.",
+  "steps": [
+    {
+      "op": "zone_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "zone_create",
+      "session": 0
+    },
+    {
+      "op": "zone_init"
+    },
+    {
+      "op": "zone_draft",
+      "tool": 3,
+      "cell": [
+        5,
+        5
+      ],
+      "mask": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "note": "the street stub's draft at (5, 5), edges −x and +x"
+    },
+    {
+      "op": "zone_draft",
+      "tool": 11,
+      "cell": [
+        6,
+        6
+      ],
+      "mask": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "note": "the dirt-road stub's draft at (6, 6), edges −z and +z"
+    },
+    {
+      "op": "zone_clear_events"
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        2056,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        6,
+        6,
+        2056,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 6,
+          "z": 6,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        6,
+        6,
+        2048,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 11,
+          "x": 6,
+          "z": 6,
+          "flag": 2048
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        8015,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        6,
+        6,
+        8015,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 6,
+          "z": 6,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        1,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        8,
+        0,
+        3,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        8,
+        1,
+        3,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        8,
+        2,
+        3,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        8,
+        3,
+        3,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        6,
+        6,
+        8,
+        0,
+        3,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 6,
+          "z": 6,
+          "flag": 8
+        },
+        {
+          "event": "occupant_exists",
+          "tool": 11,
+          "x": 6,
+          "z": 6,
+          "flag": 2048
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        2048,
+        1,
+        0,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        6,
+        6,
+        2056,
+        -1,
+        11,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 6,
+          "z": 6,
+          "flag": 8
+        },
+        {
+          "event": "occupant_exists",
+          "tool": 11,
+          "x": 6,
+          "z": 6,
+          "flag": 2048
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        6,
+        6,
+        2056,
+        4,
+        11,
+        true
+      ],
+      "expect": true
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 6,
+          "z": 6,
+          "flag": 8
+        },
+        {
+          "event": "occupant_exists",
+          "tool": 11,
+          "x": 6,
+          "z": 6,
+          "flag": 2048
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        2056,
+        -1,
+        3,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": [
+        {
+          "event": "occupant_exists",
+          "tool": 3,
+          "x": 5,
+          "z": 5,
+          "flag": 8
+        }
+      ]
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        1,
+        1,
+        0,
+        true
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        2056,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        6,
+        6,
+        2048,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        8015,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_network_of_type",
+      "args": [
+        5,
+        5,
+        1,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        8,
+        1,
+        3,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        6,
+        6,
+        8,
+        0,
+        3,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        5,
+        5,
+        2048,
+        1,
+        0,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    },
+    {
+      "op": "zone_call",
+      "method": "exists_connection_of_type",
+      "args": [
+        6,
+        6,
+        2056,
+        -1,
+        11,
+        false
+      ],
+      "expect": false
+    },
+    {
+      "op": "zone_expect_log",
+      "filter": {
+        "event": "occupant_exists"
+      },
+      "events": []
+    }
+  ]
+}

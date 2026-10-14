@@ -507,6 +507,7 @@ public:
     // cIGZMessageTarget2
     bool DoMessage(cIGZMessage2* msg) override {
         if (msg == nullptr) return true;
+        FC4_X87_SCOPE("observer DoMessage", msg->GetType());  // x87 leftover guard (FC4Fpu.h)
         switch (msg->GetType()) {
             case kMsgPostCityInit:
                 Log("observer: PostCityInit (%s)", SimulatorReplaced() ? "replacement" : "passthrough");

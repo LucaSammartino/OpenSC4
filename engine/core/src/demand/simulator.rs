@@ -270,10 +270,13 @@ pub(super) fn propagate(
     st
 }
 
-/// `GetNeutralTaxRate()` (§5) from the supplies of `0x1001`, `0x3001` and
-/// `0x4001` (0 for a missing node), unclamped; 0 without the curve.
+/// `GetNeutralTaxRate()` (§5) from the supplies `r`, `c`, `i` of `0x1001`,
+/// `0x3001` and `0x4001` (0 for a missing node), unclamped; 0 without the
+/// curve. [compat] (§5, DQ9) The sum is `f32(f32(I + C) + R)`: two float32
+/// additions in that order, not R + C + I and not one rounding of the exact
+/// sum (1 ulp apart in run 73's census, `0x410F91CB` vs `0x410F91CA`).
 pub(super) fn neutral_tax_rate_of(tuning: &DemandTuning, r: f32, c: f32, i: f32) -> f32 {
-    let pop = r + c + i;
+    let pop = (i + c) + r;
     tuning.neutral_tax_curve.as_ref().map_or(0.0, |cv| cv.eval(pop))
 }
 
@@ -633,8 +636,15 @@ impl DemandSim {
         }
     }
 
-    /// `CalculateJobsPerUnitOfDemand(out, demandID, demandIndex)`: from the
-    /// current exemplar data.
+    /// `CalculateJobsPerUnitOfDemand(jobs, demandID, demandIndex)`: from the
+    /// current exemplar data. The three outputs, for the targets
+    /// `demandIndex + 0x2010 / 0x2020 / 0x2030`; the interface writes them to
+    /// `jobs[1]`, `jobs[2]`, `jobs[3]` of the caller's four-float record and
+    /// never touches `jobs[0]` (§5, corrected 2026-10-14). Each is
+    /// `f32(u32 percent) × 0.01f`: one float multiply by the float constant
+    /// 0.01f, rounded once, not a division by 100 (33 gives `0x3EA8F5C2`,
+    /// not `0x3EA8F5C3`). That is the §4.1 link factor; the two agree for
+    /// every `percent < 2^24`, the only range where `f32(percent)` is exact.
     pub fn jobs_per_unit(&self, demand_id: u32, demand_index: u32) -> [f32; 3] {
         let mut out = [0.0f32; 3];
         let key = props::exemplar_key(DEMAND_EXEMPLAR_GROUP, demand_id.wrapping_add(demand_index));
@@ -642,7 +652,7 @@ impl DemandSim {
             for (target, percent) in props::u32_pairs(&ex, LinkKind::Drives as u32) {
                 for (w, slot) in out.iter_mut().enumerate() {
                     if target == demand_index.wrapping_add(0x2010 + 0x10 * w as u32) {
-                        *slot = percent as f32 / 100.0;
+                        *slot = link_factor(percent);
                     }
                 }
             }

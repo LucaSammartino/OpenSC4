@@ -145,7 +145,8 @@ impl ShadowGraph {
     }
 
     /// `GetNeutralTaxRate()` (§5) from the supplies of `0x1001`, `0x3001` and
-    /// `0x4001` (pass 0 for a missing node).
+    /// `0x4001` (pass 0 for a missing node). The same function as the
+    /// simulator's, so the sum is `f32(f32(I + C) + R)` here too (DQ9).
     pub fn neutral_tax_rate(&self, r: f32, c: f32, i: f32) -> f32 {
         neutral_tax_rate_of(&self.tuning, r, c, i)
     }
@@ -552,6 +553,67 @@ mod tests {
         for (nb, tb) in agree {
             assert_eq!(ours(b(nb), 70.0).tax_modifier.to_bits(), tb, "neutral {:#x}", nb);
         }
+    }
+
+    /// DQ9, the §5 worked example (run 73, the demand shadow's one
+    /// mismatch): census supply R/C/I = 27207 / 2569.47998 / 10583.1006 and
+    /// the curve's first segment (0, 9.0)–(150000, 8.9f). The original sums
+    /// `f32(f32(I + C) + R)`: 13152.580078125, then 40359.578125
+    /// (`0x471DA794`), both exact ties rounded to even, and returns
+    /// 8.97309399 (`0x410F91CB`). R + C + I, or one rounding of the exact
+    /// sum, gives `0x471DA795` and 8.97309303 (`0x410F91CA`), 1 ulp low. The
+    /// simulator and the shadow share the function, so both give the
+    /// original's bits.
+    #[test]
+    fn neutral_rate_sum_order_run_73() {
+        let b = f32::from_bits;
+        let (r, c, i) = (b(0x46D4_8E00), b(0x4520_97AE), b(0x4625_5C67));
+        assert_eq!(f64::from(r), 27207.0);
+        assert_eq!(f64::from(c), 2569.47998046875);
+        assert_eq!(f64::from(i), 10583.1005859375);
+        assert_eq!((i + c).to_bits(), 0x464D_8252);
+        assert_eq!(((i + c) + r).to_bits(), 0x471D_A794);
+        assert_eq!(((r + c) + i).to_bits(), 0x471D_A795);
+        assert_eq!(
+            ((f64::from(r) + f64::from(c) + f64::from(i)) as f32).to_bits(),
+            0x471D_A795
+        );
+
+        let tuning = DemandTuning {
+            neutral_tax_curve: crate::curve::ResponseCurve::from_flat(&[0.0, 9.0, 150_000.0, 8.9]),
+            ..DemandTuning::default()
+        };
+        let cv = tuning.neutral_tax_curve.as_ref().unwrap();
+        assert_eq!(cv.eval(b(0x471D_A794)).to_bits(), 0x410F_91CB);
+        assert_eq!(cv.eval(b(0x471D_A795)).to_bits(), 0x410F_91CA); // the old order's result
+        assert_eq!(neutral_tax_rate_of(&tuning, r, c, i).to_bits(), 0x410F_91CB);
+        assert_eq!(neutral_tax_rate_of(&tuning, r, c, i), 8.973_094);
+
+        // Through the simulator (nodes 0x1001 / 0x3001 / 0x4001) and the
+        // shadow graph, both reading the tuning exemplar.
+        let f = Rc::new(Fake::default());
+        for k in [0x1001, 0x3001, 0x4001] {
+            f.add(k, &[]);
+        }
+        let mut h = PropertyHolder::new();
+        h.add(
+            0x4A1F_38B5,
+            Variant::array(
+                mem::FLOAT32,
+                [0.0f32, 9.0, 150_000.0, 8.9].iter().map(|&v| Elem::F32(v)).collect(),
+            ),
+        );
+        f.exemplars.borrow_mut().push((TUNING_KEY, Rc::new(h)));
+        let sim = DemandSim::new(f.clone() as Rc<dyn DemandHost>, 1);
+        assert!(sim.init());
+        sim.node(0x1001).unwrap().set_supply(r);
+        sim.node(0x3001).unwrap().set_supply(c);
+        sim.node(0x4001).unwrap().set_supply(i);
+        assert_eq!(sim.neutral_tax_rate().to_bits(), 0x410F_91CB);
+        let g = ShadowGraph::from_host(&*f);
+        assert!(g.tuning_found());
+        assert_eq!(g.neutral_tax_rate(r, c, i).to_bits(), 0x410F_91CB);
+        assert_eq!(g.modifiers(&*f, r, c, i, 0.0, 0.0).neutral_raw.to_bits(), 0x410F_91CB);
     }
 
     /// §8.1 step 1: below `0.1f` the neutral rate is `0.1f`; a NaN passes the

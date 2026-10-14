@@ -190,7 +190,7 @@ for "at end". Booleans may be written as `true`/`false` or `1`/`0`.
 
 ## Foundations ops
 
-Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7).
+Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vector files are named `f7_…` (and `f6_…` for §6 items outside §7, `df5_…` for the data-formats §5 conversions).
 
 | op | Arguments | Checks |
 |---|---|---|
@@ -208,6 +208,7 @@ Pure functions of `docs/specs/foundations.md`; they need no simulator state. Vec
 | `holder_read` | `hex`, `preset?` (props), `ok?`, `expect?` (props in holder order), `rewrite?`, `position?`, `error?` | reading the plain holder; `rewrite` writes it back and compares with `hex` |
 | `exemplar_holder` | `exemplars?` (a stub resource manager: `[{key, props}]`), `preset_parent?` (key), `hex`, `ok?`, `own?`, `parent?` (key or `null`), `lookup?` (`[{id, value or null}]`), `rewrite?`, `position?` | reading the exemplar holder (§10.3); keys are `{group, type, instance}` |
 | `crt_rand` | `seed?` (default 1), `srand?`, `expect?` (outputs), `shuffle?` (`{input, expect, calls?}`) | the C runtime `rand()` and `random_shuffle` (§12) |
+| `variant_convert` | `variant` (a scalar), `cases`: `[{to, expect}]` with `to` one of `u8`, `i8`, `u16`, `i16`, `u32`, `i32`, `u64`, `i64`, `bool`, `f32`, `f64` | a scalar element converted as a property reader does (`docs/specs/data-formats.md` §5.1): integer targets keep the low bits of the element's int64, Bool is int64 ≠ 0, float targets go through its double (a Float32 read as Float32 as is); integer expectations may be `"0x…"` bit patterns |
 
 Floats in `stream_write`, `stream_read` and `curve` may be numbers or `"0x…"` bit patterns (for NaN and −0.0).
 
@@ -319,7 +320,7 @@ starts with `demand_`.
 | `demand_init` / `demand_shutdown` | `expect?` | `Init` / `Shutdown` (core parts) |
 | `demand_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `PreSave`, `ConnectionCreated`, `ConnectionDeleted`, `IngredChangesMade` or an ID), `data1?`, `data2?`, `data3?`, `expect?` | `DoMessage` |
 | `demand_state_changed` | `lot`, `old`, `new`, `building_type`, `wealth` | kMessageStateChanged (§7) |
-| `demand_call` | `method`, `args?`, `expect?` | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
+| `demand_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result, `"0x…"`; for an array of floats such as `jobs_per_unit`, an array of them) | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
 | `demand_new_node` | `node` (label) | a free-standing node (class factory) |
 | `demand_node` | `node` (label) or `key`, `method`, `args?`, `expect?` | a node method by snake-case name (`add_to_supply`, `end_of_cycle`, `set_active_max`, `calculate_active_demand` (`args: [smooth]`), …) |
 | `demand_expect_node` | `node` or `key`, `state` (partial: `id`, `supply`, `demand`, `new_supply`, `new_demand`, `active_demand`, `active_min`, `active_max`, `economy_modifier`, `tax_modifier`, `demand_cap`, `region_use`, `flag`, `loaded_from_save`, `initialized`) | the node state |
@@ -556,10 +557,10 @@ and props by integer tokens. The fake lot class (for saves) is `0x12345678`.
 
 | op | Arguments | Effect |
 |---|---|---|
-| `crime_env` | any of `cells` (`[x, z]`), `clear_zones`, `zones` (`[{x, z, w?, d?, v}]` cell zone types), `demand` (`{"0x4100": [value, max, min] \| null}`), `jail` (`GetJailPopulation`), `released` (`ResetUnjailedCriminals`), `ordinance` (the cumulative factor, `null` = no ordinance simulator), `disaster_layer` (default true), `police` (`{size?, fill?, cells?: [[x, z, v]]}` or `null`; default none), `ltext` (`[{key: [t, g, i], text}]`) | the fake world |
+| `crime_env` | any of `cells` (`[x, z]`), `clear_zones`, `zones` (`[{x, z, w?, d?, v}]` cell zone types), `demand` (`{"0x4100": [value, max, min] \| null}`), `jail` (`GetJailPopulation`), `released` (`ResetUnjailedCriminals`), `ordinance` (the cumulative factor, `null` = no ordinance simulator), `disaster_layer` (default true), `police` (`{size?, fill?, cells?: [[x, z, v]]}` or `null`; default none), `ltext` (`[{key: [t, g, i], text, detokenized?}]`: what the host's §7 lookup finds; `detokenized: false` = the game's detokenizer returns false on it) | the fake world |
 | `crime_residential` | `wealth` (0..2), `size?` (default 2), `pop` / `eq` (`[[x, z, v]]`), or `none` | that wealth's population (u16) and EQ (f32) grids |
 | `crime_lots` | `lots` (`[{id, rect: [x1, z1, x2, z2], location? ([x, z], default the rect corner; `null` = GetLocation fails), condition?, building? ({token?, purpose, wealth}; default none), center? (default the rect middle)}]`), `random` (the `GetRandomLot` results in order, ids or `null`) | lots and the random-lot queue (an exhausted queue gives no lot) |
-| `crime_occupants` | `occupants` (`[{id, preview?, effect? (u8 array for 0xCA5B9306), pos}]`) | occupants for the inserted / removed messages |
+| `crime_occupants` | `occupants` (`[{id, preview?, effect? (u8 array for 0xCA5B9306, or a typed value such as `{"u32": [100, 8]}` handed over as its raw little-endian storage; a scalar is no bytes), pos}]`) | occupants for the inserted / removed messages |
 | `crime_nearby` | `occupants` (`[{token, type, group?, incident_property?, pos, iid? (default true), state?}]`) | what the occupant manager's box query sees (it applies the x/z box) |
 | `crime_props` | `props` (`{"0xPROP": crimeIncidentID}`) | prop profiles for `SelectProp` |
 | `crime_types` | `shipped?` (default true), `types` (`[{id, props?}]`, property maps appended in order) | the crime type exemplars the next load reads |
@@ -1144,7 +1145,12 @@ records its kind and the four network edges it connects, so `ExistsConnectionOfT
 answer from the run's own geometry. The street tool is the stub of §15 tests 19–29: `Place(a, b)` logs the call, fails
 when the segment contains a `zone_street_fail` cell, and otherwise puts a street on every cell of `a..b` that has no
 network — joining it to the same-kind network it abuts, as an automatic street does — while the cells keep their zone
-(the posted dezone is not run).
+(the posted dezone is not run). With realMode false (highlight mode, test 33) it lays no street: each cell of `a..b`
+with no network becomes a **street draft** (flags `0x8`, a nonzero mask byte per edge towards a neighbouring cell of
+the segment; a later draft on the cell adds its bytes), and the call is logged as `P(…) draft`. The street and
+dirt-road tool stubs answer `OccupantExists` (§8.8) from their drafts and log each call (`occupant_exists`);
+`Reset` (from `ClearHighlight`) drops the street tool's drafts. A region argument `{rect, cells?, rects?}` takes
+either the listed cells or the union of the listed rects (default: every cell of `rect`).
 
 ### Setup
 
@@ -1165,6 +1171,7 @@ network — joining it to the same-kind network it abuts, as an automatic street
 | `zone_options` | `alternate?` (false), `streets?` (true), `custom?` (false) | `SetOptions` (slot 7) |
 | `zone_lot_size` | `width?` (2), `depth?` (2), `min_depth?` (1), `max_depth?` (3), `block?` (6) | forces the lot-size parameters and **bypasses** `DetermineLotSize` (§7.2.1), as the tests 19–29 common setup does |
 | `zone_street_fail` | `cells` (`[[x, z]]`) | the cells that make the street stub fail a segment containing them |
+| `zone_draft` | `tool` (3 street, 11 dirt road), `cell?`, `mask` (bytes for edges −x, −z, +x, +z), `flags?` (`0x8` / `0x800`), `clear?` | a draft record of a network tool stub (§8.8, test 33d); `clear` drops the tool's drafts first |
 
 ### Calls and checks
 
@@ -1175,13 +1182,15 @@ network — joining it to the same-kind network it abuts, as an automatic street
 | `zone_place_zone` | `region` (`{rect, cells?}`; without `cells` every cell of the rect is set), `type`, `commit?` (true), `skip_funds?` (false), `check_slope?` (false), `skip_size?` (false), `check_lot_inside?` (true), `expect?` (`{ok, cost, error, region_cells}`) | slot 11 (§6); `region_cells` are the cells still set in the caller's region afterwards |
 | `zone_do_parcellization` | `region`, `type`, `flag?` (false), `keep_log?` | slot 6 (§7.1); clears the parcel log first |
 | `zone_draw_street` | `region`, `x1`, `z1`, `x2`, `z2`, `per_cell?` (false), `keep_log?` | `DrawStreet` (§7.10) with `region` as the restriction |
+| `zone_highlight_parcels` | `region`, `type`, `point?` (`[x, z]` or null), `out?` (true: pass an out pointer), `initial_out?` (a region, or null), `expect_out?` (null or partial `{rect, cells, count}`), `keep_log?` | slot 5 `HighlightParcels` (§7.1, test 33); clears the parcel log first |
+| `zone_lay_in_jog_streets` | `region`, `kind`, `highlight?` (false), `keep_log?` | `LayInJogStreets` (§7.12) on its own with `region` as the restriction; clears the parcel log first |
 | `zone_examine_boundaries` | `region`, `type`, `expect` (`{flag, d, q, scores, conditions}`) | `ExamineBoundaries` (§7.3) on its own |
 | `zone_determine_lot_size` | `region` (the cropped region), `type`, `expect` (`{width, depth, min_depth, max_depth, block}`) | `DetermineLotSize` (§7.2.1) on its own (test 30) |
 | `zone_simple_parcellize` | `region` (the restriction region), `type?` (8), `d`, `q`, `n`, `keep_log?` | `SimpleParcellize(n)` (§7.5) with D and Q set directly (test 32); clears the parcel log first |
 | `zone_parcellizable_region` | `region`, `type`, `highlight?` (`{virtual: [[x, z]], deleted: [[x, z]]}`: highlight mode over those virtual-lot and virtually deleted cells), `expect` (`{cells, virtual_deleted}`, each sorted) | `CreateParcellizableRegion` (§7.4) on its own |
-| `zone_call` | `target?` (`"developer"` (default) or `"manager"`), `method`, `args?`, `expect?` | manager: `zone_count`, `zone_type`, `is_rci_zone`, `development_failure_count`, `undeveloped_total`, `abandoned_tile_count`, `min_zone_size`, `max_zone_size`, `zone_display_alpha`, `default_zone_display_alpha`, `zone_drag_color`, `texture_for_zone`, `is_loaded`; developer: `can_create_lot`, `create_lot_if_possible` (`{ok, lot}`), `get_lot_count`, `master_lots`, `get_random_lot`, `get_lots_in_cell_rect`, `get_lots_surrounding_rect`, `exists_network_of_type`, `is_cell_water`, `get_occupant_lot`, `lot_savvy_terrain_altitude` (`{alt, ok}`), `neighbor_cells_at_edge_of_lot` (`{out, al}`), `delete_lots`, `is_loaded` |
+| `zone_call` | `target?` (`"developer"` (default) or `"manager"`), `method`, `args?`, `expect?` | manager: `zone_count`, `zone_type`, `is_rci_zone`, `development_failure_count`, `undeveloped_total`, `abandoned_tile_count`, `min_zone_size`, `max_zone_size`, `zone_display_alpha`, `default_zone_display_alpha`, `zone_drag_color`, `texture_for_zone`, `is_loaded`; developer: `can_create_lot`, `create_lot_if_possible` (`{ok, lot}`), `get_lot_count`, `master_lots`, `get_random_lot`, `get_lots_in_cell_rect`, `get_lots_surrounding_rect`, `exists_network_of_type` (a fourth argument true runs it in highlight mode), `exists_connection_of_type` (`[x, z, flags, side, type, highlight?]`), `is_cell_water`, `get_occupant_lot`, `lot_savvy_terrain_altitude` (`{alt, ok}`), `neighbor_cells_at_edge_of_lot` (`{out, al}`), `delete_lots`, `is_loaded` |
 | `zone_eval` | `fn`, `args`, `expect` | pure functions: `depth_rule [rem, front, far, min, max, ld, ps]`, `depth_rule_row [front, far, min, max, ld, ps]` (rem 1..12), `middle_row [o0, so, b1, b2, lw]`, `zone_density [zone]`, `block_depth [density, depth, residential]`, `capacity_value [k, n, avg]` (§7.2.1 step 6), `adjust_depth_range [min, max]` (→ `[min, max]`, §7.2.1 step 7), `occupant_cell [p]`, `savvy_cell [p]`, `derive_seed [session]` |
-| `zone_expect` | `state` (partial: `manager_initialized`, `manager_loaded`, `developer_initialized`, `developer_loaded`, `lot_count`, `real_mode`, `orientation_flag`, `orientation_d`, `orientation_q`, `scores`, `conditions`, `lot_size`, `deferred`, `funds`, `place_count`, `failure_map1_count`, `lcg`, `next_raw` (a non-consuming peek), `draw_count`, `cfg_refs` (`[[id, addRefs, releases]]` per configuration touched since the last `zone_clear_events`, by ID)), `zones` (`[[x, z, v]]`), `zoning_changes` (partial `{zone, check_slope, rect, cells}` per posted message) | the world and both classes |
+| `zone_expect` | `state` (partial: `manager_initialized`, `manager_loaded`, `developer_initialized`, `developer_loaded`, `lot_count`, `real_mode`, `orientation_flag`, `orientation_d`, `orientation_q`, `scores`, `conditions`, `lot_size`, `deferred`, `funds`, `place_count`, `failure_map1_count`, `lcg`, `next_raw` (a non-consuming peek), `draw_count`, `cfg_refs` (`[[id, addRefs, releases]]` per configuration touched since the last `zone_clear_events`, by ID), `current_zone`, `highlight_point`, `virtual_lots` / `virtually_deleted` (`[[x, z, x1, z1, facing]]` by cell), `drafts` (`[[tool, x, z, flags, [mask]]]`), `tool_resets` (tool kinds reset since the last clear), `levelling_count` (`AttemptAreaLevelling` calls since the last clear), `locked_lots`), `zones` (`[[x, z, v]]`), `zoning_changes` (partial `{zone, check_slope, rect, cells}` per posted message) | the world and both classes |
 | `zone_expect_parcel_log` | `log` (strings), `keep?` | the ordered log since the last clear: lot creations as `(x1,z1)-(x2,z2) fN`, `Place` calls as `P(x1,z1,x2,z2)` |
 | `zone_expect_draws` | `draws`: each `"Zn"` (kind only) or `["Zn", arg, value]` (exact); `keep?` | the draws since the last check (§9) |
 | `zone_expect_log` / `zone_expect_event_count` / `zone_clear_events` | see the shared conventions (`clear_events` also clears the parcel log, the posted messages, the demolition list and `cfg_refs`) | host calls |
@@ -1193,7 +1202,7 @@ Zones events: `manager_acquire_services`, `manager_release_services`, `developer
 `acquire_network_tools`, `release_network_tools`, `zoning_change` (`zone`, `check_slope`), `demolish_lots` (`commit`,
 `count`, `flags`), `demolish_region` (`count`), `remove_occupant`, `street_joining_helper` (`data4`),
 `place_zone_result` (`ok`, `cost`, `error`), `zone_lot` (`lot`), `bds_developer` (`type`), `estimate_desirability`
-(`dev`, `x`, `z`), `lot_configurations` (the configuration manager's walk).
+(`dev`, `x`, `z`), `lot_configurations` (the configuration manager's walk), `occupant_exists` (`tool`, `x`, `z`, `flag`).
 
 ## Traffic network ops
 
@@ -1266,10 +1275,9 @@ hex byte strings; node keys and masks as `"0x…"` (8 hex digits).
 | `pf_capacity` | `holder`, `max?`, `used?` | `GetMaxTripCapacity` and the used capacity of a holder |
 | `pf_dest` | `cell`, `cells` or `rect`, `bits` | destination bitmask bytes (off-map cells allowed) |
 | `pf_volume` | `cell`, `cells` or `rect`, `n?` (1), `value` | volume grid values |
-| `pf_neighbor_cost` | `cell`, `cost` | `GetTrafficNeighborConnection` at an off-map cell (§4.13 step 3) |
+| `pf_neighbor_cost` | `cell` (an off-map edge cell), `cost`, `mask?` (0), `pool?` (0) | the network's neighbour edge record at that cell (traffic-network.md §2.7.1), read by `GetTrafficNeighborConnection` (§4.13 step 3) |
 | `pf_pool` | `cell`, `cells` or `rect`, `holder`, `max?`, `used?` | the neighbour pool's property holder at off-map cells (§4.10.1) |
-| `pf_connection` | `cell` (in city), `mask`, `links` (`[[x, z, cost]]`, off-map points) | a neighbour connection with its link list (§4.6 off-map fallback) |
-| `pf_ferry` | `cell`, `mask`, `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table |
+| `pf_ferry` | `cell`, `mask`, `arrival?` (`[x, z]`, (0, 0)), `links?` (`[[x, z, cost]]`), `repeat?` (1: the link list is repeated), `neighbour_links?` (`[[off x, off z, edge x, edge z, cost]]`) | a ferry terminal departing at `cell`: wormhole bit 4, the terminal list and the departure table; §4.6's off-map fallback runs over its neighbour links and starts at `arrival` |
 | `pf_tunnel` | `cell`, `other`, `mask?` (`0x1FE`), `cost?` (`[[t, v]]`) | a tunnel portal: wormhole bit 2 and the tunnel table |
 | `pf_switch` | `id`, any of `load`, `capacity`, `time_factor`, and `cell`, `cells` or `rect` | a transit switch table entry and the switch ID grid |
 | `pf_create` / `pf_new` | `pf?` | `CreatePathFinder` (constructor, AddRef, Init) / the bare constructor |
@@ -1429,7 +1437,7 @@ Deal types may be written `"E0"` … `"E5"` (§3), connection types by their SDK
 
 | op | Arguments | Effect |
 |---|---|---|
-| `neighbors_env` | any of `cells` (`[w, h]`), `today`, `current` (a city or null), `session`, `tuning` (`"shipped"`, null, or a property map), `tuning_remove` (`[IDs]`), `figures` (fields of `UtilityFigures`: `total_funds`, `monthly_income`, `power_production`, `power_requirement`, `water_capacity`, `water_demand`, `garbage_recycled`, `waste_to_energy_capacity`, `incinerator_capacity`, `garbage_abducted`, `garbage_produced`, `waste_to_energy_expenses`, and the departments' `power_department_expenses`, `water_department_expenses`, `sanitation_department_expenses`, null = missing), `landfill` (`[usage, capacity]`), `altitude`, `surface`, `deliver_sent` | the world |
+| `neighbors_env` | any of `cells` (`[w, h]`), `today`, `current` (a city or null), `session`, `tuning` (`"shipped"`, null, or a property map), `tuning_remove` (`[IDs]`), `figures` (fields of `UtilityFigures`: `total_funds`, `monthly_income`, `power_production`, `power_requirement`, `water_capacity`, `water_demand`, `garbage_recycled`, `waste_to_energy_capacity`, `incinerator_capacity`, `garbage_abducted`, `garbage_produced`, `waste_to_energy_expenses`, and the departments' `power_department_expenses`, `water_department_expenses`, `sanitation_department_expenses`, null = missing), `landfill` (`[usage, capacity]`), `altitude`, `altitude_at` (`[[px, pz, y]]`: `GetAltitude` at those world positions, §6.3), `surface`, `deliver_sent`, `city_object` (whether the current city object exists, default true; §8.2) | the world |
 | `neighbors_city` | `id`, any of `pos`, `size` (`[1, 1]`), `established` (true), `budget`, `income`, `stats` (`{name: [power, water, garbage]}` for `exported`, `imported`, `produced`, `demanded`, `cost_per_unit`; merged), `conns` (`[[type, x, z, active]]`), `links` (`[[type, rx, rz]]`), `local_deals` (`[deal spec]`) | adds or updates a regional city |
 | `neighbors_occupant` | `id`, `kind` (`"network"`, `"power_pole"` or a number), `networks?`, `cell?`, `pole_flag?` | an occupant for §6.5 / §11.1 |
 | `neighbors_create` | `init?` (true; `expect` = its result), `ready?` (false: ConnectionsReady) | a new simulator (replaces the old one) |
@@ -1448,9 +1456,9 @@ current city's position), `amount`, `inc_amount`, `inc_amount2`, `last_amount`, 
 | `neighbors_message` | `type`, `data1?` … `data3?`, `occupant?`, `expect?` | `DoMessage` |
 | `neighbors_month` | `today?`, `count?` (1) | SimNewMonth |
 | `neighbors_deliver` | `max?` (1000), `count?` | delivers the posted status reports in order, including the ones posted meanwhile |
-| `neighbors_call` | `method`, `args?`, `expect?` | `init`, `shutdown`, `create_connection [t, x, z, flag]` (true = created), `request_create_connection [t, x, z]` (`"exists"` or `{confirm: city or null}`), `delete_connection`, `delete_occupant_connection [occ]`, `delete_all_connections_of_type [t]`, `has_connection`, `find_city_on_other_side_of_connection [x, z]`, `find_connection_on_other_side [t, x, z]` (`{token, active}` or null), `neighbour_cell [x, z]` (`[city, x, z]`), `connections`, `connections_of_type [t]`, `connections_to_city [c]`, `connections_of_type_to_city [t, c]`, `find_unvisited_connection [t, c]`, `find_connection_suitable_for_deal [type, c]` (connections as `[type, x, z]`), `adjacent_cities [flag]`, `connected_cities [flag]`, `all_connected_cities [flag]`, `get_deal_cost [type, amount, c]`, `get_deal_cost_trunc` (the same, truncated), `get_deal_max_amount [type, c]`, `update_commodity_stats [c]`, `total_monthly_expense`, `total_monthly_income`, `propose_deal [type, c]`, `propose_deals [add]` (deal IDs), `add_deal [deal]`, `set_ui_disable_flag [b]`, `mark_deals_dirty`, `find_deals_all`, `find_deals [type]`, `find_deals_with [type, c]`, `clone_deal_data [spec, silent]`, `simulate_deals`, `set_two_curves [b]` |
+| `neighbors_call` | `method`, `args?`, `expect?` | `init`, `shutdown`, `create_connection [t, x, z, flag]` (true = created), `request_create_connection [t, x, z]` (`"exists"` or `{confirm: city or null}`), `delete_connection`, `delete_occupant_connection [occ]`, `delete_all_connections_of_type [t]`, `has_connection`, `find_city_on_other_side_of_connection [x, z]`, `find_connection_on_other_side [t, x, z]` (`{token, active}` or null), `neighbour_cell [x, z]` (`[city, x, z]`), `connections`, `connections_of_type [t]`, `connections_to_city [c]`, `connections_of_type_to_city [t, c]`, `find_unvisited_connection [t, c]`, `find_connection_suitable_for_deal [type, c]` (connections as `[type, x, z]`), `adjacent_cities [flag]`, `connected_cities [flag]`, `all_connected_cities [flag]`, `get_deal_cost [type, amount, c]`, `get_deal_cost_trunc` (the same, truncated), `get_deal_max_amount [type, c]`, `update_commodity_stats [c]` (`c` is a city object, NB12: `"city"` = the current one; a number, a regional city's ID included, is another object; null none), `total_monthly_expense`, `total_monthly_income`, `propose_deal [type, c]`, `propose_deals [add]` (deal IDs), `add_deal [deal]`, `set_ui_disable_flag [b]`, `mark_deals_dirty`, `find_deals_all`, `find_deals [type]`, `find_deals_with [type, c]`, `clone_deal_data [spec, silent]`, `simulate_deals`, `set_two_curves [b]` |
 | `neighbors_deal_call` | `deal`, `method`, `args?`, `expect?` | `set_amount [a]`, `set_flags [f, on]`, `cancel`, `activate`, `update_cost`, `update_state`, `clone [silent]` (the clone's ID), `check_flags_and [f]`, `check_flags_or [f]`, `other_city` |
-| `neighbors_geometry` | `fn`, `args`, `expect` | the static helpers of §2: `side [x, z, countX, countZ]` (`"west"`, `"north"`, `"east"`, `"south"`, `"interior"`), `neighbouring_region_cell [side, x, z, pos, size]`, `neighbour_connection_cell [side, x, z, regionCell, npos, nsize]` (null for interior), `is_valid_connection_cell [x, z, size]`, `connection_inner_cell [x, z, countX, countZ]` (null inside or at a corner), `inner_cell` |
+| `neighbors_geometry` | `fn`, `args`, `expect` | the static helpers of §2: `side [x, z, countX, countZ]` (`"west"`, `"north"`, `"east"`, `"south"`, `"interior"`), `neighbouring_region_cell [side, x, z, pos, size]`, `neighbour_connection_cell [side, x, z, regionCell, npos, nsize]` (`[0, 0]` for interior, NB6), `is_valid_connection_cell [x, z, size]`, `connection_inner_cell [x, z, countX, countZ]` (null inside or at a corner), `inner_cell` |
 | `neighbors_price` | `buyer`, `seller` (statistics), `inputs` (`base`, `scale`, `min_markup`, `max_markup` as f32 values widened, `existing`), `curve` (`"scarcity"`, `"garbage"` or a flat array), `amount?`, `expect?`, `expect_unit?`, `expect_trunc?` | §8.1 as pure functions: with `amount` `GetDealCost`, without `GetDealMaxAmount` |
 | `neighbors_expect` | `state` (partial: `initialized`, `ready`, `deals_dirty`, `stats_dirty`, `ui_disabled`, `busy`, `connections`, `deals`, `tuning`, `rng` (`[lcg, mul]` or null), `posted`, `props`, `today`), `deal` with `deal_state` (partial: `type`, `other_side`, `city_side`, the amounts, `cost`, `flags`, `start`, `expiration`, `current`, `suspension`, `in_list`, `other_city`), `connection` with `connection_state` (partial: `type`, `cell`, `other_region_cell`, `active`, `visited`, `flags`, `needs_traffic_sync`), `city` with `city_state` (partial: `budget`, `income`, `exported`, `imported`, `produced`, `demanded`, `cost_per_unit`), `deals` (the list's IDs in order), `props` (marker positions in token order) | the simulator, a deal, a connection, a city |
 | `neighbors_record` | `hex`, or `read` with `expect?` and `connections?` | the simulator's record (§13; references numbered 1, 2, … in list order), or a fresh simulator reading bytes (each reference a fresh connection) |
@@ -1566,6 +1574,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §6.3 seed derivation (session seed → each generator's seed) | `f6_03_seed_derivation` |
 | §14 16–17 variants | `f14_16_17_variants` |
 | §14 18–19 property holders | `f14_18_19_property_holders` |
+| data-formats §5.1 scalar conversions (EX2–EX4) | `df5_01_scalar_conversions`; the text round trip, the exemplar reader and data-formats §10.4–§10.7 are `fc4-formats` unit tests |
 | §14 20–22 regional-city record, deal claiming, import/export | not yet (neighbours milestone) |
 | §14 23 `rand()` | `f14_23_crt_rand`; the prime-step iterator that uses it: `w14_05_iterator` and the `fc4-core` unit tests (`weather::iterator`) |
 | §14 24 month order | `s4_month_registration_order` (registration order within a level), `o13_10_month_order` (the ordinance-lag scenario with the real ordinance simulator and a stub budget, in both orders) |
@@ -1608,6 +1617,8 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 10 region | `d16_10_region` |
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
+| §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
+| §5 `CalculateJobsPerUnitOfDemand` scale `f32(u32 percent) × 0.01f` (corrected 2026-10-14; 33 → `0x3EA8F5C2`) and `GetJobsBySensus` | `d16_14_jobs_per_unit_scale` |
 
 ## Coverage (ordinance §13)
 
@@ -1769,7 +1780,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 8 stamp and hotspot | `c17_08_stamp_hotspot` |
 | 9 type selection (and §6.8 severity 0) | `c17_09_type_selection` |
 | 10 mask parsing (and the §7 type list) | `c17_10_masks` |
-| 11 crime-effect cone | `c17_11_crime_effect` |
+| 11 crime-effect cone (and the §6.10 raw-byte read, CQ13) | `c17_11_crime_effect`, `c17_25_crime_effect_raw` |
 | 12 average crime | `c17_12_average` |
 | 13 pipeline | `c17_13_pipeline` |
 | 14 RNG draw count (and the §6.1 24-bit sequences of a seeded generator) | `c17_14_rng_draws`, `c17_23_rng_seeded` |
@@ -1784,6 +1795,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §8 tuning | `c17_19_tuning` |
 | §11.3 nearest crime sim / prop | `c17_20_nearest` |
 | §6.8 arson | `c17_21_arson` |
+| §7 type names (CQ8: LTEXT key, U+2022, fallback) | `c17_24_type_names` |
 
 ## Coverage (aura §17)
 
@@ -2098,6 +2110,13 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | extra: `SimpleParcellize`'s street lines (§7.5 step 1), Q = 3 | `zn15_30_simple_parcellize_streets` |
 | extra: `SimpleParcellize`'s Q = 2 x-line rule (§7.5, the `D = 3` branch) | `zn15_31_simple_parcellize_q2_x_lines` |
 | extra: `CreateParcellizableRegion`'s `IsCellOccupied` (§7.4, ZQ2): the five highlight-mode rows, the real-mode control, the zone-0 network cell | `zn15_35_parcellizable_region_highlight` |
+| 33a highlight mode: test 19 as a preview (virtual lots, the draft Place, `*out`, the state after; with and without the zone; again) | `zn15_36_highlight_preview` |
+| 33b highlight mode: a virtually deleted lot | `zn15_37_highlight_virtually_deleted_lot` |
+| 33c highlight mode: the point filter (inside, adjacent, neither, outside `*out`'s rect) | `zn15_38_highlight_point_filter` |
+| 33d the draft queries of `ExistsNetworkOfType` and `ExistsConnectionOfType` (quirks 16, 17), real-mode control | `zn15_39_draft_queries` |
+| 33e highlight mode: test 23 as a preview (the drafts seen by the region and the scores) | `zn15_40_highlight_jog_street` |
+| extra: `DetermineLotSize`'s int32 score (ZQ9), `sx = 0` (ZQ10), missing candidates (ZQ7) | `zn15_41_determine_lot_size_int32_score` |
+| extra: `LayInJogStreets`' parallel test has a draft branch (§7.12, ZQ4) | `zn15_42_jog_parallel_draft` |
 
 The two extras took the numbers 30 and 31 before §15 gained tests 30–32, so tests 30, 31 and 32 are the vectors
 numbered 32, 33 and 34.
@@ -2106,10 +2125,8 @@ Not covered by a vector, and why:
 
 - **`DetermineLotSize` (§7.2.1)** is bypassed in tests 19–29 (the spec's own common setup forces width 2, depth 2,
   minDepth 1, maxDepth 3, block 6) and is covered on its own by test 30 (`zn15_32`).
-- **`HighlightParcels` (§7.1)** and most of the highlight-mode path (virtual lots created by `CreateLotIfPossible`,
-  the draft fallbacks of §7.13) have no vector: the UI side is headless-limited and the draft fallbacks need the
-  network tools' `OccupantExists`, which the world stubs out. Only `CreateParcellizableRegion`'s highlight-mode cell
-  test is covered (`zn15_35`).
+- **`UpdateHighlightTextures`** and the terrain view's slot 9 in `ClearHighlight` (§7.1) are UI and left out of the
+  core; highlight mode itself is covered by test 33 (`zn15_36`–`zn15_40`).
 - **`CanCreatePloppedLot` (slot 21)**, the highlight textures, the cheats "PlopAllLots" / "PlopAllBuildings" and
   `InitBoundaryRules` are left out of the core (UI or debug, §1.2 step 7, §14.3 item 2).
 - **The untraced helpers** `0x00731F60` / `0x00732450` (§5.2 step 3) are one host call and `0x0072B180` (§7.2 step 7)
@@ -2131,7 +2148,7 @@ Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
 | 8 underfunding (5000) | `lf11_08_underfunding` |
 | 9 per-tile cap (20000, supply 30000) | `lf11_09_per_tile_cap` |
 | 10 global cap (code default 40000) | `lf11_10_global_cap` |
-| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; the spiral past a cleared centre) | `lf11_11_disconnected` |
+| 11 disconnected (no intake, decay, the zot at centre + 3.0, excluded totals, removal on connect; §4.7.5's two spiral examples: (12, 21) past a dezoned centre, (14, 22) on the clipped ring 2) | `lf11_11_disconnected` |
 | 12 random draws (one `rand()` → interior or. 2; none from heap (0,0); one heap per month in play) | `lf11_12_random_draws` |
 | 13 redistribution (100, 50, 0 both ways) | `lf11_13_redistribution` |
 | 14 spill on dezone (80000, 67500 back to the supply, §4.4.2 order) | `lf11_14_spill_on_dezone` |
@@ -2145,8 +2162,8 @@ Every test also has a unit test in `fc4-core` (`landfill::tests::test_NN_…`).
 | 22 levelling target and refusal (vertex average, inert `f`, slope 41, NaN `maxAreaSlope`, ≥ 1000, finite limit; through the zone) | `lf11_22_levelling` |
 | 23 reason 5 ignored (also 0 and 4; reasons 1, 2, 3 dezone the empty cells) | `lf11_23_reason_5_ignored` |
 
-The zot's ring order (§4.7.5 "spiralling from the centre") is a *[choice]*: clockwise from the ring's top-left
-corner. Only the second half of `lf11_11` depends on it.
+The zot's ring order is §4.7.5's (LF4): ring r starts at `(cx + r, cz − r + 1)` and runs +z, −x, −z, +x. The second
+half of `lf11_11` was regenerated from the spec's two worked examples (it was built on a top-left-corner order).
 
 ## Coverage (neighbours §18)
 
@@ -2154,18 +2171,19 @@ Every test also has at least one unit test in `fc4-core` (`neighbors::tests::tes
 
 | Test (§18) | Vector |
 |---|---|
-| 1 geometry (sides, region cells, neighbour connection cells, corners invalid; through the region) | `nb18_01_geometry` |
+| 1 geometry (sides, region cells, neighbour connection cells, corners invalid; an interior cell gives our own city and (0, 0), NB6; through the region) | `nb18_01_geometry` |
 | 2 connections (one object, one `0x8A0D15DA`, one marker, orientations for both flags, none for Ferry, pipe / subway / elevated markers; road + rail occupant deletes Rail; corner deletes two; records, store round trip, version 3 rejected) | `nb18_02_connections` |
 | 3 price (2.6314286 / 263 scarcity, 2.2150418 / 221 garbage; through the simulator) | `nb18_03_price` |
 | 4 max amount (950, 1050, 100) | `nb18_04_max_amount` |
-| 5 curve bug (221 after `UpdateCommodityStats` with a sanitation department; 263 without it or the property) | `nb18_05_curve_bug` |
-| 6 life cycle (activation, first strike, Grace ignores failures, Probation at 90 days, removal with status 3, Probation clears at 180 days, cancelled status 2, expiry 6, renewal 7 or CannotAfford) | `nb18_06_life_cycle` |
+| 5 curve bug (221 after `UpdateCommodityStats` with a sanitation department; 263 without it or the property; only the current city object counts, NB12) | `nb18_05_curve_bug` |
+| 6 life cycle (activation posting status 0, 0, 1 through `SetFlags`, NB2; first strike, Grace ignores failures, Probation at 90 days, removal with status 3, Probation clears at 180 days, cancelled status 2, expiry 6, renewal 7 or CannotAfford) | `nb18_06_life_cycle` |
 | 7 garbage capacity (60 + 60 against exported 100 and capacity 50) | `nb18_07_garbage_capacity` |
 | 8 totals (flags `0x01 0x04 0x08 0x10 0x20` exclude; `0x40 0x80 0x100 0x200` do not) | `nb18_08_totals` |
 | 9 re-entrancy (retry 8 during a run; 0 / 8 → statsDirty, others dealsDirty) | `nb18_09_reentrancy` |
 | 10 proposals (term today + 365, amount 0, cost 1; none with an existing deal, budget ≤ 5000 or ≤ 60 × cost) | `nb18_10_proposals` |
 | 11 clone (swap with E0 ↔ E1, Cancelled on a missing city, Silent follows the argument) | `nb18_11_clone` |
 | 12 deal record (version 5 byte-identical, second `amountUsed` kept, version 4 without the suspension date) | `nb18_12_deal_record` |
+| extra: the marker height at the inner cell's centre (§6.3, NB3) | `nb18_13_marker_height_inner_cell` |
 
 *[choice]* items the vectors depend on: `CreateConnection`'s result (`nb18_02`); unknown types and a null city
 price at 0 (`nb18_03`); the two-curve switch (`nb18_05`, last part). Test 7 puts both deals in Probation so that
@@ -2232,7 +2250,7 @@ Not covered by a vector, and why:
 | extra: constructor values, QueryInterface, Init / Shutdown, configuration slots (§1, §2, §4.2) | `pf11_15_constructor_and_slots` |
 | extra: exit node (cost r24(f − g), key, goal off-map), neighbour connection cost for filter 3 (§10 Q1) | `pf11_16_exit_node_connection_cost` |
 | extra: exit cost outside the search rect (the heuristic term) | `pf11_17_exit_cost_heuristic` |
-| extra: off-map start fallback (§4.6) | `pf11_18_off_map_start` |
+| extra: off-map start fallback over the ferry terminals' neighbour links, at the arrival cell (§4.6, PF5) | `pf11_18_off_map_start` |
 | extra: switch move, park-and-ride cell, runs split by type, reversibility through a switch | `pf11_19_park_and_ride` |
 | extra: transit-switch entry cost, goal test skipped at switch cells, ApplyTraffic switch usage, per-type edges | `pf11_20_transit_switch` |
 | extra: the mass-transit strike masks switch transitions (§4.4 step 6) | `pf11_21_strike` |
@@ -2241,6 +2259,7 @@ Not covered by a vector, and why:
 | extra: flag 4 (continue) keeps the nodes and the open set | `pf11_26_continue` |
 | extra: flag 8 (park-and-ride return, §4.8.4) | `pf11_27_park_and_ride_return` |
 | extra: ApplyTraffic income with the uncarpooled count and the 24-bit accumulator add | `pf11_28_income` |
+| extra: off-map start fallback, two matching links: the last wins and the node is in the heap twice (§4.6, PF5) | `pf11_29_off_map_start_last_match` |
 
 Not covered by a vector, and why:
 

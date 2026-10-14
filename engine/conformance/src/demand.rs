@@ -837,7 +837,39 @@ fn call(w: &World, op: &Json) -> R<()> {
         }
         other => return Err(format!("unknown demand method '{other}'")),
     };
+    check_expect_bits(op, &got)?;
     check_expect(op, got)
+}
+
+/// `expect_bits`: the float32 bits of a float result, exactly (the `expect`
+/// tolerance cannot see 1 ulp). A `"0x…"` string for a float result, or an
+/// array of them, one per element, for an array of floats.
+fn check_expect_bits(op: &Json, got: &Json) -> R<()> {
+    let Some(want) = opt(op, "expect_bits") else {
+        return Ok(());
+    };
+    if let (Json::Array(wants), Json::Array(gots)) = (want, got) {
+        let (n, m) = (wants.len(), gots.len());
+        if n != m {
+            return Err(format!("expect_bits has {n} entries, the result {m}"));
+        }
+        for (i, (w, g)) in wants.iter().zip(gots).enumerate() {
+            check_float_bits(u32_of(w, "expect_bits")?, g).map_err(|e| format!("[{i}]: {e}"))?;
+        }
+        return Ok(());
+    }
+    check_float_bits(u32_of(want, "expect_bits")?, got)
+}
+
+fn check_float_bits(want: u32, got: &Json) -> R<()> {
+    let Json::Float(v) = *got else {
+        return Err("expect_bits needs a float result".into());
+    };
+    let bits = (v as f32).to_bits();
+    if bits != want {
+        return Err(format!("returned {v} (bits 0x{bits:08X}), expected bits 0x{want:08X}"));
+    }
+    Ok(())
 }
 
 fn node_of(w: &World, op: &Json) -> R<Rc<DemandNode>> {

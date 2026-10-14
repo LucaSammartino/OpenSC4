@@ -162,6 +162,17 @@ const SwitchInfo kSwitches[kCount] = {
     {"landfill_traffic", "FC4_LANDFILL_TRAFFIC"},
     {"landfill_history", "FC4_LANDFILL_HISTORY"},
     {"landfill_effects", "FC4_LANDFILL_EFFECTS"},
+    {"residential_occupants", "FC4_RESIDENTIAL_OCCUPANTS"},
+    {"residential_budget", "FC4_RESIDENTIAL_BUDGET"},
+    {"residential_developers", "FC4_RESIDENTIAL_DEVELOPERS"},
+    {"residential_pollution", "FC4_RESIDENTIAL_POLLUTION"},
+    {"residential_ordinance", "FC4_RESIDENTIAL_ORDINANCE"},
+    {"residential_automata", "FC4_RESIDENTIAL_AUTOMATA"},
+    {"residential_grid_writes", "FC4_RESIDENTIAL_GRID_WRITES"},
+    {"residential_posts", "FC4_RESIDENTIAL_POSTS"},
+    {"residential_history", "FC4_RESIDENTIAL_HISTORY"},
+    {"residential_lots", "FC4_RESIDENTIAL_LOTS"},
+    {"residential_terrain", "FC4_RESIDENTIAL_TERRAIN"},
 };
 
 // Keys that are not switches.
@@ -177,7 +188,10 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "flora_shadow",
                                   "landfill_shadow", "landfill_shadow_diffs",
                                   "power_shadow", "power_shadow_cells", "power_shadow_lines",
-                                  "plumbing_shadow", "plumbing_shadow_cells", "plumbing_shadow_passes"};
+                                  "plumbing_shadow", "plumbing_shadow_cells", "plumbing_shadow_passes",
+                                  "landvalue_shadow", "landvalue_shadow_cells",
+                                  "flammability_shadow", "flammability_shadow_cells",
+                                  "residential_shadow", "residential_shadow_cells", "residential_seed"};
 
 // The switches that are off, for lock-free readers (autotest verdict).
 char g_offList[512] = "-";
@@ -198,8 +212,10 @@ volatile LONG g_on[kCount] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // flora
                                1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
                                // landfill
-                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-static_assert(kCount == 125, "g_on: one 1 per switch");
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+                               // residential
+                               1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+static_assert(kCount == 136, "g_on: one 1 per switch");
 static_assert(sizeof(kSwitches) / sizeof(kSwitches[0]) == kCount, "one entry per switch");
 volatile LONG g_skipped[kCount] = {};
 volatile LONG g_skipLogged[kCount] = {};

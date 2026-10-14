@@ -182,9 +182,72 @@ pub fn exec(name: &str, op: &Json) -> Option<R<()>> {
         "holder_read" => holder_read(op),
         "exemplar_holder" => exemplar_holder(op),
         "crt_rand" => crt_rand(op),
+        "variant_convert" => variant_convert(op),
         _ => return None,
     };
     Some(r)
+}
+
+/// An integer in a vector: a number, or a `"0x…"` bit pattern (for 64-bit values).
+fn int_or_hex(j: &Json, what: &str) -> R<i64> {
+    if let Some(h) = j.as_str().and_then(|s| s.strip_prefix("0x")) {
+        return u64::from_str_radix(h, 16)
+            .map(|v| v as i64)
+            .map_err(|e| format!("'{what}': {e}"));
+    }
+    int(j, what)
+}
+
+/// `variant_convert`: `variant` (a scalar), `cases`: `[{to, expect}]`. A scalar
+/// element converted as a property reader does (data-formats §5.1): integer
+/// targets and Bool through the element's int64, float targets through its
+/// double (a Float32 element read as Float32 as is).
+fn variant_convert(op: &Json) -> R<()> {
+    let e = match variant_of(field(op, "variant")?)? {
+        Variant::Scalar(e) => e,
+        v => return Err(format!("variant_convert needs a scalar, got {v:?}")),
+    };
+    for c in field(op, "cases")?.as_array().ok_or("'cases' must be a list")? {
+        let to = field(c, "to")?.as_str().ok_or("'to' must be a type name")?;
+        let w = field(c, "expect")?;
+        let i = e.as_i64();
+        let ok = match to {
+            "bool" => (i != 0) == w.as_bool().ok_or("bool expect")?,
+            "f64" => {
+                let (g, w) = (e.as_f64(), f64_of(w)?);
+                g.to_bits() == w.to_bits() || (g.is_nan() && w.is_nan())
+            }
+            "f32" => {
+                let g = match e {
+                    Elem::F32(x) => x,
+                    other => other.as_f64() as f32,
+                };
+                let w = f32_of(w)?;
+                g.to_bits() == w.to_bits() || (g.is_nan() && w.is_nan())
+            }
+            t => {
+                // The low bits of the int64, as the target type holds them.
+                let got = match t {
+                    "u8" => i64::from(i as u8),
+                    "i8" => i64::from(i as i8),
+                    "u16" => i64::from(i as u16),
+                    "i16" => i64::from(i as i16),
+                    "u32" => i64::from(i as u32),
+                    "i32" => i64::from(i as i32),
+                    "u64" | "i64" => i,
+                    other => return Err(format!("unknown target type '{other}'")),
+                };
+                got == int_or_hex(w, "expect")?
+            }
+        };
+        if !ok {
+            return Err(format!(
+                "{e:?} as {to}: int64 {i:#x}, double {:?}; expected {w:?}",
+                e.as_f64()
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_tail(op: &Json, pos: usize, error: i32) -> R<()> {

@@ -152,6 +152,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Popups.h
         plugin/FC4Fpu.h
         plugin/FC4FpuLogic.h
+        plugin/FC4DiagContext.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp
@@ -216,6 +217,16 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Landfill.h
         plugin/FC4LandfillShadow.cpp
         plugin/FC4LandfillShadow.h
+        plugin/FC4WriteCapture.cpp
+        plugin/FC4WriteCapture.h
+        plugin/FC4LandValueShadow.cpp
+        plugin/FC4LandValueShadow.h
+        plugin/FC4FlammabilityShadow.cpp
+        plugin/FC4FlammabilityShadow.h
+        plugin/cFC4Residential.cpp
+        plugin/cFC4Residential.h
+        plugin/FC4ResidentialShadow.cpp
+        plugin/FC4ResidentialShadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -365,6 +376,22 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_landfill_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-landfill)
     set_tests_properties(plugin_ini_enable_landfill_test PROPERTIES RUN_SERIAL TRUE)
+    # The land value and flammability grid shadows on fake originals (seam
+    # ops 23, 24), and both requested but inactive with our simulators on.
+    add_test(NAME plugin_ini_landvalue_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-landvalue-shadow)
+    add_test(NAME plugin_ini_flammability_shadow_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-flammability-shadow)
+    add_test(NAME plugin_ini_lvfl_shadow_inactive_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-lvfl-shadow-inactive)
+    set_tests_properties(plugin_ini_landvalue_shadow_test plugin_ini_flammability_shadow_test
+        plugin_ini_lvfl_shadow_inactive_test PROPERTIES RUN_SERIAL TRUE)
+    # Residential (residential.md, residential-education-health.md): `enable =
+    # residential` (no city: neutral getters, AL returns, lifecycle, the record,
+    # status lines) and the residential shadow on fake originals (seam op 25).
+    add_test(NAME plugin_ini_enable_residential_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
+    set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

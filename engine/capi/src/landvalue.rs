@@ -130,7 +130,7 @@ const _: () = {
 
 // ---- host adapter -----------------------------------------------------------------------------------
 
-struct CHost(fc4_landvalue_host);
+pub(crate) struct CHost(pub(crate) fc4_landvalue_host);
 
 macro_rules! cb {
     ($s:expr, $f:ident, $default:expr $(, $arg:expr)*) => {
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn fc4_landvalue_destroy(lv: *mut fc4_landvalue) {
     });
 }
 
-unsafe fn tuning_of(t: &fc4_landvalue_tuning) -> TuningInput {
+pub(crate) unsafe fn tuning_of(t: &fc4_landvalue_tuning) -> TuningInput {
     let ints = |p: *const i64, n: usize| slice_arg(p, n).map(<[i64]>::to_vec);
     let floats = |p: *const f32, n: usize| slice_arg(p, n).map(<[f32]>::to_vec);
     TuningInput {

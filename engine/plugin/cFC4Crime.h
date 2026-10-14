@@ -25,7 +25,10 @@
 // the verified cISC4PoliceSimulator slot order (whatever police simulator the
 // city has: the original or a replacement); residential slots 23 / 25 with
 // three out pointers each (§13); lots and the lot manager through the
-// verified slot order, as power and flammability do.
+// verified slot order, as power and flammability do, except lot slot 15
+// GetCenter, called through a thunk that reads the out parameter (§13, CQ3:
+// the x87 stack is empty on return); the string detokenizer
+// (cFC4ISCStringDetokenizer slot 9) for type names (§7, CQ8).
 //
 // Threads (foundations §19): the getters (slots 5-8, 11-13) read the core's
 // snapshot and may be called from the game's second thread; they touch no
@@ -142,7 +145,9 @@ public:
         uint32_t jailed = 0;       // GetJailPopulation (last answer)
         int32_t released = 0;      // ResetUnjailedCriminals (last answer)
         uint32_t policeGrid = 0;   // 1: the last month had a police grid
-        uint32_t centerEmptySt0 = 0, centerSt0 = 0;  // GetCenter's x87 stack after the call
+        // GetCenter's x87 stack depth after the call: unchanged per §13 (CQ3);
+        // a change is counted and logged once, never compensated.
+        uint32_t centerEmptySt0 = 0, centerSt0 = 0;
     };
     Probes& Probe() { return probes_; }
     // Test seam only: a borrowed city, no AddRef.
@@ -195,7 +200,12 @@ cIGZUnknown* CreateFC4CrimeSimulator();
 
 namespace fc4 {
 // The crime host table for the shadow (FC4CrimeShadow.cpp): tuning,
-// for_each_type_key, exemplar and ltext only (the resource manager and the
-// string manager, read only); every other callback NULL.
+// for_each_type_key, exemplar and ltext only (the resource and language
+// managers, read only, and the game's string detokenizer on the name copies,
+// crime.md §7 step 3); every other callback NULL.
 fc4_crime_host CrimeReadOnlyHost();
+// Test seam only (op 27, kFC4SeamLotCenter): the lot slot 15 thunk on `lot` (a
+// cISC4Lot*). Returns the values the call left on the x87 stack (0 = the
+// original; 1 = one pushed, which the caller must pop; 7 = one popped).
+int CrimeTestLotCenter(void* lot, float* out3);
 }  // namespace fc4

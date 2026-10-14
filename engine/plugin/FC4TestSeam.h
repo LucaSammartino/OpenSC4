@@ -95,11 +95,66 @@
 //         SimNewMonth) to a fake "original" plumbing simulator, one shadow for
 //         the run; returns the summed difference count of the passes and
 //         months compared, -1 (none taken) or -2 (taken, nothing compared).
+//   op 23 kFC4SeamLandValueShadow  a = const FC4LandValueShadowTestInput*
+//         (FC4LandValueShadow.h): one land value shadow event on a fake city
+//         whose land value simulator is the "original" (a pass end, a
+//         SimNewDay, PostCityShutdown); returns the pass's difference count,
+//         -1 (not run) or -2 (ran, nothing compared); a day: the maps that
+//         changed.
+//   op 24 kFC4SeamFlammabilityShadow a = const FC4FlammabilityShadowTestInput*
+//         (FC4FlammabilityShadow.h): one flammability shadow event on a fake
+//         city whose flammability simulator is the "original" (one of its six
+//         messages, a SimCycleComplete, PostCityShutdown); returns the cycle's
+//         difference count, -1 (not run) or -2 (ran, nothing compared: the
+//         baseline or INCOMPLETE); a message: 1 mirrored, 0 not.
+//   op 25 kFC4SeamResidentialShadow a = const FC4ResidentialShadowTestInput*
+//         (FC4ResidentialShadow.h): one SimNewDay delivery to a fake
+//         "original" residential simulator, wrapped by the residential shadow
+//         (its record captured before and after through its own Write, its
+//         slots 16 / 32-34 read after); returns the delivery's difference
+//         count, -1 (not taken) or -2 (taken, nothing compared).
+//   op 26 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
+//         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
+//         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
+//         size, b->bytes = its first 32 bytes; returns 1 (read), 0 (absent,
+//         scalar or object array) or -1 (null argument).
+//   op 27 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
+//         glue's lot GetCenter thunk (slot 15, crime.md §13 / CQ3) into b;
+//         returns the values the call left on the x87 stack (TOP change mod
+//         8: 0 = unchanged, the original; 1 = one pushed, NOT popped, so the
+//         caller must pop it; 7 = one popped), -1 (null argument).
+//   op 28 kFC4SeamCellCenter       a = cISC4City*, b = FC4CellCenterTestIo*:
+//         the protection and the landfill glue's city slot 97
+//         CellCenterToPosition calls (void, pop 16; docs/abi corrected
+//         2026-10-14) for (b->cx, b->cz); returns 1, or -1 (null argument).
+//   op 29 kFC4SeamPipeBurst        a = cISC4City*, b = const int32_t[2]
+//         (x, z): the plumbing glue's AttemptPipeBurst (plumbing.md §7.1
+//         step 4); its result is ignored, never released. Returns 1 (the
+//         manager existed), 0 (none) or -1 (null argument).
+//   op 30 kFC4SeamVariant          a = cFC4IGZVariant** (out): a heap
+//         variant of the plugin's own class (the one handed to the game),
+//         with one reference for the caller; returns 1, or -1.
+//   op 31 kFC4SeamX87Check         the x87 leftover guard (FC4Fpu.h) at the
+//         site "test seam"; returns the occupied x87 registers it found.
 #pragma once
 
 #include <cstdint>
 
 class cIGZMessage2Standard;
+
+// kFC4SeamCellCenter's in/out block: the cell, then each glue's position.
+struct FC4CellCenterTestIo {
+    int32_t cx, cz;
+    float protectionX, protectionZ;
+    float landfillX, landfillZ;
+};
+
+// kFC4SeamRawArrayBytes's in/out block.
+struct FC4RawArrayBytesTestIo {
+    uint32_t id;
+    uint32_t len;
+    uint8_t bytes[32];
+};
 
 enum : uint32_t {
     kFC4SeamBudgetPostSink = 1,
@@ -122,6 +177,15 @@ enum : uint32_t {
     kFC4SeamDemandCapacity = 20,
     kFC4SeamPowerShadow = 21,
     kFC4SeamPlumbingShadow = 22,
+    kFC4SeamLandValueShadow = 23,
+    kFC4SeamFlammabilityShadow = 24,
+    kFC4SeamResidentialShadow = 25,
+    kFC4SeamRawArrayBytes = 26,
+    kFC4SeamLotCenter = 27,
+    kFC4SeamCellCenter = 28,
+    kFC4SeamPipeBurst = 29,
+    kFC4SeamVariant = 30,
+    kFC4SeamX87Check = 31,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

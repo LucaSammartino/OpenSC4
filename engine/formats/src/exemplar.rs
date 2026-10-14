@@ -45,11 +45,14 @@
 //!
 //! After the 8 signature bytes the reader **skips 2 bytes unchecked**, splits the rest into lines at `\n` (one
 //! trailing `\r` removed, empty lines skipped) and reads: the `ParentCohort` line (key order **group, instance,
-//! type**), the `PropCount` line, then exactly `PropCount` property lines `ID:{"name"}=Type:reps:{values}`. Numbers
-//! follow rule N ([`rule_n`]); type names are case-sensitive (no `Float64`); `reps` 0 is a scalar, `n ≥ 1` an array
-//! of `n` values, missing values read as 0; 64-bit values are always hexadecimal; `Bool` is true when the value
-//! begins with `true` (any case); a `String` is everything up to the first `}`, trimmed, one quote removed at each
-//! end. See [`Exemplar::parse`] for the details.
+//! type**, fields not counted: a missing one reads 0), the `PropCount` line, then exactly `PropCount` property lines
+//! `ID:{"name"}=Type:reps:{values}`. Numbers follow rule N ([`rule_n`]); type names are case-sensitive (no
+//! `Float64`) and compared exactly; `reps` is not trimmed; `reps` 0 is a scalar, `n ≥ 1` an array of `n` values,
+//! missing values read as 0 and there is no cap (*\[choice\]* above 16 MiB of values the read fails); array values
+//! have their leading spaces and tabs trimmed, a scalar's value does not; 64-bit values are always hexadecimal,
+//! without a sign; `Float32` uses the game's own digit-by-digit parser at 24-bit precision ([`parse_float`]);
+//! `Bool` is true when the value begins with `true` (any case); a `String` is everything up to the first `}`,
+//! trimmed, one quote removed at each end. See [`Exemplar::parse`] for the details.
 //!
 //! # Parents and inheritance (§4.4)
 //!
@@ -62,16 +65,21 @@
 //! # Getters (§5)
 //!
 //! [`Property`] has the raw accessors of §5.2 (`as_u32`, `u32s`, `count`, ...: no conversion, a type mismatch is a
-//! missing value *\[choice\]*) and the converting getters of §5.1 (`get_u32`, `get_f32`, `get_string`, ...): same
-//! type as is; a scalar converts through int64 or float64; an array or a string goes through a text round trip of
-//! its first element.
+//! missing value *\[choice\]*), holder slot 5 ([`Property::get_void`]: a void array only) and the converting
+//! getters of §5.1 (`get_u32`, `get_f32`, `get_string_into`, ...): same type as is; a scalar converts through
+//! int64 or float64 (floats truncated and wrapped, Char and RZChar signed, a Uint64 and a Uint32 from 2³¹ kept to
+//! 24 significant bits); an array, a string and an Empty value go through a text round trip ([`Property::text`],
+//! parsed as `ConvertFromString` does). An Empty value (tag 0, §4.2) is a property like any other: it is present,
+//! has no value bytes, and reads as 0. An object (kind-1) value is a missing property *\[choice\]*.
 //!
 //! # Choices
 //!
 //! Places marked *\[choice\]* below are FreeCity4 decisions where the spec is silent or leaves it to us. The main
 //! ones: cycles and chains deeper than [`MAX_PARENT_DEPTH`] fail the load (§4.4 *\[choice\]*); strings are read
-//! with the standalone §2.3 rules (quirks not reproduced, foundations §2.3 *\[choice\]*); array counts and text
-//! `reps` that cannot fit in the record are rejected.
+//! with the standalone §2.3 rules (quirks not reproduced, foundations §2.3 *\[choice\]*); binary array counts that
+//! cannot fit in the record are rejected; text `reps` above 16 MiB of values fail the read (§4.3 *\[choice\]*); an
+//! object value is a missing property for every getter (§5.1 *\[choice\]*); a raw accessor on the wrong type is a
+//! missing value (§5.2 *\[choice\]*).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -82,11 +90,14 @@ use crate::error::{corrupt, Error, Result};
 use crate::reader::Reader;
 use crate::tgi::Tgi;
 pub use crate::tgi::{TYPE_COHORT, TYPE_EXEMPLAR};
+use crate::x87;
 
 /// Deepest nesting of loads (parent cohorts, and kind-1 resources that are exemplars or cohorts) that
 /// [`ExemplarStore::load`] follows below the record being loaded. The original has no limit and recurses without
 /// end on a cycle (§4.4); *\[choice\]* FreeCity4 stops at the first repeated key and below this depth, and treats
-/// the record as failing to load.
+/// the record as failing to load. Depth counts the nested loads below the record requested, so at most 32
+/// ancestors load. A failure is not remembered: a record that failed only on depth loads when it is requested at a
+/// shallower depth, as the original, which caches only successful loads, would load it again (§4.4, EX19).
 pub const MAX_PARENT_DEPTH: usize = 32;
 
 /// Exemplar or cohort.
@@ -453,7 +464,10 @@ pub struct Property {
     pub values: Values,
 }
 
-/// Generates the raw accessors of §5.2 for one element type.
+/// Generates the raw accessors of §5.2 for one element type. The original does not check the type: on a mismatch
+/// `AsX()` returns the stored bytes reinterpreted (a Float32 2.75 read with `AsUint32()` gives `0x40300000`, an
+/// array its heap address) and `RefX()` the data pointer. That is garbage for the caller, so *\[choice\]* (§5.2,
+/// EX20) a type mismatch, scalar against array included, is a missing value here.
 macro_rules! raw_accessors {
     ($($scalar:ident, $slice:ident, $variant:ident, $t:ty;)*) => {
         $(
@@ -593,66 +607,147 @@ impl Property {
         }
     }
 
-    /// `GetValBool(bool&)` (§5.1): converted to Bool (int64 ≠ 0).
+    /// `GetValBool(bool&)` (§5.1): a Bool as is; another scalar's int64 ≠ 0 (a float is truncated first, so 0.5
+    /// gives false and NaN true); through the text round trip, the parsed number ≠ 0 (the text `0.5` gives true).
     pub fn get_bool(&self) -> Option<bool> {
-        Some(self.convert(Target::Int)?.int() != 0)
+        Some(match self.form()? {
+            Form::Scalar(s) => s.to_bool(),
+            Form::Text(t) => parse_round_trip(&t).to_bool(),
+        })
     }
-    /// `GetValUint8(uint8&)` (§5.1): converted, then the low 8 bits. The `Char` and `RZChar` targets of §5.1 give
-    /// the same 8 bits (as [`Property::get_u16`] does for `RZUnicodeChar`).
+    /// `GetValUint8(uint8&)` (§5.1): converted through int64, then the low 8 bits.
     pub fn get_u8(&self) -> Option<u8> {
-        Some(self.convert(Target::Int)?.int() as u8)
+        Some(self.int()? as u8)
     }
-    /// `GetValSint8(int8&)` (§5.1): converted, then the low 8 bits.
+    /// `GetValSint8(int8&)` (§5.1): converted through int64, then the low 8 bits.
     pub fn get_i8(&self) -> Option<i8> {
-        Some(self.convert(Target::Int)?.int() as i8)
+        Some(self.int()? as i8)
     }
-    /// `GetValUint16(uint16&)` (§5.1): converted, then the low 16 bits.
+    /// `GetValUint16(uint16&)` (§5.1): converted through int64, then the low 16 bits.
     pub fn get_u16(&self) -> Option<u16> {
-        Some(self.convert(Target::Int)?.int() as u16)
+        Some(self.int()? as u16)
     }
-    /// `GetValSint16(int16&)` (§5.1): converted, then the low 16 bits.
+    /// `GetValSint16(int16&)` (§5.1): converted through int64, then the low 16 bits.
     pub fn get_i16(&self) -> Option<i16> {
-        Some(self.convert(Target::Int)?.int() as i16)
+        Some(self.int()? as i16)
     }
-    /// `GetValUint32(uint32&)` and `GetProperty(id, uint32&)` (§5.1): converted, then the low 32 bits.
+    /// `GetValUint32(uint32&)` and `GetProperty(id, uint32&)` (§5.1): converted through int64, then the low 32 bits.
     pub fn get_u32(&self) -> Option<u32> {
-        Some(self.convert(Target::Int)?.int() as u32)
+        Some(self.int()? as u32)
     }
-    /// `GetValSint32(int32&)` (§5.1): converted, then the low 32 bits.
+    /// `GetValSint32(int32&)` (§5.1): converted through int64, then the low 32 bits.
     pub fn get_i32(&self) -> Option<i32> {
-        Some(self.convert(Target::Int)?.int() as i32)
+        Some(self.int()? as i32)
     }
     /// `GetValUint64(uint64&)` (§5.1): converted through int64.
     pub fn get_u64(&self) -> Option<u64> {
-        Some(self.convert(Target::Int)?.int() as u64)
+        Some(self.int()? as u64)
     }
     /// `GetValSint64(int64&)` (§5.1): converted through int64.
     pub fn get_i64(&self) -> Option<i64> {
-        Some(self.convert(Target::Int)?.int())
+        self.int()
     }
-    /// `GetValFloat32(float&)` (§5.1): a scalar → float64 → rounded to float32; arrays and strings by text.
+    /// `GetValChar(char&)` and `GetValRZChar(char&)` (§5.1): a scalar through int64, then the low 8 bits; through
+    /// the text round trip (arrays, strings, Empty) always 0, and the getter still succeeds.
+    pub fn get_char(&self) -> Option<u8> {
+        Some(match self.form()? {
+            Form::Scalar(s) => s.to_i64() as u8,
+            Form::Text(_) => 0,
+        })
+    }
+    /// `GetValRZUnicodeChar(uint16&)` (§5.1): as [`Property::get_char`], with the low 16 bits.
+    pub fn get_unicode_char(&self) -> Option<u16> {
+        Some(match self.form()? {
+            Form::Scalar(s) => s.to_i64() as u16,
+            Form::Text(_) => 0,
+        })
+    }
+    /// `GetValFloat32(float&)` (§5.1): a Float32 as is; another scalar → float64 → rounded to float32; through the
+    /// text round trip, the parsed number rounded to float32 (so the round trip of a float is not exact).
     pub fn get_f32(&self) -> Option<f32> {
-        match self.convert(Target::F32)? {
-            Num::F32(v) => Some(v),
-            n => Some(n.f64() as f32),
-        }
+        Some(match self.form()? {
+            Form::Scalar(Scalar::F32(v)) => v,
+            Form::Scalar(s) => s.to_f64() as f32,
+            Form::Text(t) => parse_round_trip(&t).to_f32(),
+        })
     }
-    /// `GetValFloat64(double&)` (§5.1): a scalar → float64; arrays and strings by text.
+    /// `GetValFloat64(double&)` (§5.1): a scalar → float64 (unsigned 64-bit values and Uint32 from 2³¹ keep 24
+    /// significant bits); through the text round trip, the parsed number.
     pub fn get_f64(&self) -> Option<f64> {
-        Some(self.convert(Target::F64)?.f64())
+        Some(match self.form()? {
+            Form::Scalar(s) => s.to_f64(),
+            Form::Text(t) => parse_round_trip(&t).to_f64(),
+        })
     }
 
-    /// `GetProperty(id, cIGZString&)` (§5.1): a string as is; anything else through the text of its value (an
-    /// array's first element, `0` for an empty array). Decoded as UTF-8, or Latin-1 when not valid UTF-8.
-    pub fn get_string(&self) -> Option<String> {
-        let text = match self.form()? {
+    /// `ConvertToString` (§5.1): the text of the value, as the text round trip and the string getter use it.
+    ///
+    /// - A numeric or Bool array gives its **first element** (`0` when it has none); a string (RZChar array) and a
+    ///   Char array all their characters; an RZUnicodeChar array all its units, each below `0x80` as that byte and
+    ///   any other as `?`; a void array the empty text (EX6).
+    /// - A scalar: integers in decimal, Bool `0` / `1`, an RZChar its one character (EX7).
+    /// - Floats: `RZFtoaEnglishA` (fixed-point, at most 24 digits after the fraction's leading zeros, cut; EX8).
+    /// - An Empty value: the empty text (EX5).
+    ///
+    /// `None` for an object (kind-1) value: the original prints its text or its address, *\[choice\]* FreeCity4
+    /// treats it as a missing property.
+    pub fn text(&self) -> Option<Vec<u8>> {
+        Some(match self.form()? {
             Form::Scalar(s) => s.text(),
             Form::Text(t) => t,
-        };
-        Some(decode_text(&text))
+        })
     }
 
-    /// The value as a converting getter sees it: a scalar, or the text of an array or string.
+    /// `GetValString` and `GetProperty(id, cIGZString&)` (§5.1): writes the value's text ([`Property::text`]) into
+    /// `out`, replacing it, and returns true only for a **string** (an RZChar array). Every other type, Empty
+    /// included, has its text written and returns false: a Uint32 7 gives `7` and false (EX5). *\[choice\]* An
+    /// object (kind-1) value is a missing property: false, `out` unchanged.
+    pub fn get_string_into(&self, out: &mut Vec<u8>) -> bool {
+        match self.text() {
+            Some(t) => {
+                *out = t;
+                self.string_bytes().is_some()
+            }
+            None => false,
+        }
+    }
+
+    /// The string getter for callers that check its result: the text of a string property, decoded as UTF-8, or
+    /// Latin-1 when it is not valid UTF-8. `None` for every other type, for which the getter returns false
+    /// ([`Property::get_string_into`] gives the text it writes).
+    pub fn get_string(&self) -> Option<String> {
+        self.string_lossy()
+    }
+
+    /// Holder slot 5 `GetProperty(id, void* buffer, uint32& length)` through `GetValVoid` (§5.2, EX17): only a
+    /// **void array** answers. For one of `n` bytes, `length` is lowered to `n` when it is larger, the first
+    /// `length` bytes are copied into `buffer`, and the call returns true. Any other type, strings and other arrays
+    /// included, returns false and leaves both unchanged (no text round trip). No shipped record has a void array.
+    /// The caller's buffer must hold `length` bytes, as in the original; *\[choice\]* a shorter one receives only
+    /// the bytes that fit.
+    pub fn get_void(&self, buffer: &mut [u8], length: &mut u32) -> bool {
+        let Values::Void(v) = &self.values else {
+            return false;
+        };
+        if *length as usize > v.len() {
+            *length = v.len() as u32;
+        }
+        let n = (*length as usize).min(buffer.len());
+        buffer[..n].copy_from_slice(&v[..n]);
+        true
+    }
+
+    /// The int64 a converting getter computes before keeping the target's low bits.
+    fn int(&self) -> Option<i64> {
+        Some(match self.form()? {
+            Form::Scalar(s) => s.to_i64(),
+            Form::Text(t) => parse_round_trip(&t).to_i64(),
+        })
+    }
+
+    /// The value as a converting getter sees it (§5.1, `ConvertTypes`): a scalar of a type Bool to RZChar converts
+    /// directly; an array, a string and an Empty value go through the text round trip. `None` for an object
+    /// (kind-1) value *\[choice\]* (the original's result would be a heap address).
     fn form(&self) -> Option<Form> {
         if self.stored_as_array() {
             return Some(Form::Text(self.array_text()));
@@ -670,27 +765,25 @@ impl Property {
             Values::Float32(v) => Scalar::F32(*v.first()?),
             Values::Float64(v) => Scalar::F64(*v.first()?),
             Values::String(v) => Scalar::Char(*v.first()?),
-            // [choice] §5.1 does not say what an Empty value or an object (kind-1) value converts to: the getter
-            // fails, as for a missing property. Char, UnicodeChar and Void are always arrays.
-            Values::Empty | Values::Resource(_) | Values::Char(_) | Values::UnicodeChar(_) | Values::Void(_) => {
-                return None
-            }
+            // §5.1 (EX5): memory type 0 takes the text round trip as the empty text, which parses as 0.
+            Values::Empty => return Some(Form::Text(Vec::new())),
+            Values::Resource(_) => return None,
+            // Always arrays (see stored_as_array).
+            Values::Char(_) | Values::UnicodeChar(_) | Values::Void(_) => return Some(Form::Text(self.array_text())),
         }))
     }
 
-    /// The text of an array or string for the text round trip (§5.1): the first element only (`0` for count 0);
-    /// a string gives its text.
+    /// The text of an array or a string for the text round trip (§5.1): see [`Property::text`].
     fn array_text(&self) -> Vec<u8> {
         fn first<T: Copy>(v: &[T], f: impl Fn(T) -> String) -> Vec<u8> {
             v.first().map_or_else(|| b"0".to_vec(), |&x| f(x).into_bytes())
         }
         match &self.values {
-            Values::String(v) => v.clone(),
-            // [choice] §5.1 lists the text of integer, float and Bool elements and of strings. Char and
-            // RZUnicodeChar arrays are treated as text like an RZChar string; a void array as unsigned bytes.
-            Values::Char(v) => v.clone(),
-            Values::UnicodeChar(v) => String::from_utf16_lossy(v).into_bytes(),
-            Values::Void(v) | Values::Uint8(v) => first(v, |x| x.to_string()),
+            Values::String(v) | Values::Char(v) => v.clone(),
+            Values::UnicodeChar(v) => v.iter().map(|&u| if u < 0x80 { u as u8 } else { b'?' }).collect(),
+            // A void array (and a VoidPtr array, not readable here) gives the empty text (EX6).
+            Values::Void(_) | Values::Empty | Values::Resource(_) => Vec::new(),
+            Values::Uint8(v) => first(v, |x| x.to_string()),
             Values::Bool(v) => first(v, |x| u8::from(x).to_string()),
             Values::Sint8(v) => first(v, |x| x.to_string()),
             Values::Uint16(v) => first(v, |x| x.to_string()),
@@ -699,58 +792,10 @@ impl Property {
             Values::Sint32(v) => first(v, |x| x.to_string()),
             Values::Uint64(v) => first(v, |x| x.to_string()),
             Values::Sint64(v) => first(v, |x| x.to_string()),
-            Values::Float32(v) => first(v, |x| format_g24(f64::from(x))),
-            Values::Float64(v) => first(v, format_g24),
-            Values::Empty | Values::Resource(_) => b"0".to_vec(),
+            Values::Float32(v) => first(v, format_f32),
+            Values::Float64(v) => first(v, format_float),
         }
     }
-
-    fn convert(&self, target: Target) -> Option<Num> {
-        Some(match self.form()? {
-            Form::Scalar(s) => s.convert(target),
-            Form::Text(t) => parse_round_trip(&t).convert(target),
-        })
-    }
-}
-
-/// What a converting getter asks for: an integer type, Bool or a char type (through int64), or a float.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Target {
-    Int,
-    F32,
-    F64,
-}
-
-/// A converted value before the target width is applied.
-#[derive(Clone, Copy)]
-enum Num {
-    Int(i64),
-    F32(f32),
-    F64(f64),
-}
-
-impl Num {
-    fn int(self) -> i64 {
-        match self {
-            Num::Int(v) => v,
-            Num::F32(v) => truncate(f64::from(v)),
-            Num::F64(v) => truncate(v),
-        }
-    }
-
-    fn f64(self) -> f64 {
-        match self {
-            Num::Int(v) => v as f64,
-            Num::F32(v) => f64::from(v),
-            Num::F64(v) => v,
-        }
-    }
-}
-
-/// A float truncated toward zero to int64 (§5.1). *\[choice\]* §5.1 does not say what happens out of the int64
-/// range: values saturate and NaN gives 0.
-fn truncate(v: f64) -> i64 {
-    v as i64
 }
 
 enum Form {
@@ -777,12 +822,14 @@ enum Scalar {
 }
 
 impl Scalar {
-    /// §5.1: "value → int64 (unsigned types zero-extended, signed sign-extended, floats truncated toward zero)".
-    /// *\[choice\]* RZChar is zero-extended (§5.1 does not say whether a char is signed).
+    /// The int64 step of the converting getters (§5.1, `0x00915AA5`): unsigned types zero-extended, signed types
+    /// sign-extended, an RZChar **sign-extended** as a signed byte (EX4), floats truncated toward zero by `_ftol`,
+    /// which wraps rather than saturates: NaN, ±∞ and magnitudes ≥ 2⁶³ give `0x8000000000000000` (EX3).
     fn to_i64(self) -> i64 {
         match self {
             Scalar::Bool(b) => i64::from(b),
-            Scalar::U8(v) | Scalar::Char(v) => i64::from(v),
+            Scalar::U8(v) => i64::from(v),
+            Scalar::Char(v) => i64::from(v as i8),
             Scalar::I8(v) => i64::from(v),
             Scalar::U16(v) => i64::from(v),
             Scalar::I16(v) => i64::from(v),
@@ -790,43 +837,41 @@ impl Scalar {
             Scalar::I32(v) => i64::from(v),
             Scalar::U64(v) => v as i64,
             Scalar::I64(v) => v,
-            Scalar::F32(v) => truncate(f64::from(v)),
-            Scalar::F64(v) => truncate(v),
+            Scalar::F32(v) => x87::ftol(f64::from(v)),
+            Scalar::F64(v) => x87::ftol(v),
         }
     }
 
-    /// §5.1: "value → float64 (Uint32 ≥ 2³¹ corrected to unsigned)". *\[choice\]* Uint64 is converted as unsigned
-    /// too (§5.1 names only Uint32), and RZChar as unsigned.
+    /// The to-double step (§5.1, `0x00915B85`): signed values exactly (a Sint64 rounded to 53 bits), an RZChar as a
+    /// signed byte (EX4), a Uint32 below 2³¹ exactly, and a Uint32 from 2³¹ and every Uint64 to **24 significant
+    /// bits** (the unsigned correction is an x87 add at the main thread's precision, EX2).
     fn to_f64(self) -> f64 {
         match self {
             Scalar::Bool(b) => f64::from(u8::from(b)),
-            Scalar::U8(v) | Scalar::Char(v) => f64::from(v),
+            Scalar::U8(v) => f64::from(v),
+            Scalar::Char(v) => f64::from(v as i8),
             Scalar::I8(v) => f64::from(v),
             Scalar::U16(v) => f64::from(v),
             Scalar::I16(v) => f64::from(v),
-            Scalar::U32(v) => f64::from(v),
+            Scalar::U32(v) => x87::u32_to_f64(v),
             Scalar::I32(v) => f64::from(v),
-            Scalar::U64(v) => v as f64,
+            Scalar::U64(v) => x87::u64_to_f64(v),
             Scalar::I64(v) => v as f64,
             Scalar::F32(v) => f64::from(v),
             Scalar::F64(v) => v,
         }
     }
 
-    fn convert(self, target: Target) -> Num {
-        match (self, target) {
-            // Same type: as is.
-            (Scalar::F32(v), Target::F32) => Num::F32(v),
-            (Scalar::F64(v), Target::F64) => Num::F64(v),
-            // Float32: value → float64 → rounded to float32.
-            (_, Target::F32) => Num::F32(self.to_f64() as f32),
-            (_, Target::F64) => Num::F64(self.to_f64()),
-            (_, Target::Int) => Num::Int(self.to_i64()),
+    /// A Bool as is; any other type int64 ≠ 0.
+    fn to_bool(self) -> bool {
+        match self {
+            Scalar::Bool(b) => b,
+            s => s.to_i64() != 0,
         }
     }
 
-    /// The text of a scalar for a string target (a requested non-scalar type, §5.1): formatted as an array element
-    /// would be. *\[choice\]* An RZChar scalar gives its one character.
+    /// The text of a scalar (§5.1): integers in decimal, Bool `0` / `1`, floats by [`format_float`], an RZChar its
+    /// one character (a zero byte gives a one-character text holding NUL).
     fn text(self) -> Vec<u8> {
         match self {
             Scalar::Bool(b) => vec![b'0' + u8::from(b)],
@@ -838,8 +883,8 @@ impl Scalar {
             Scalar::I32(v) => v.to_string().into_bytes(),
             Scalar::U64(v) => v.to_string().into_bytes(),
             Scalar::I64(v) => v.to_string().into_bytes(),
-            Scalar::F32(v) => format_g24(f64::from(v)).into_bytes(),
-            Scalar::F64(v) => format_g24(v).into_bytes(),
+            Scalar::F32(v) => format_f32(v).into_bytes(),
+            Scalar::F64(v) => format_float(v).into_bytes(),
             Scalar::Char(c) => vec![c],
         }
     }
@@ -848,39 +893,67 @@ impl Scalar {
 /// The number the text round trip parses (§5.1).
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Parsed {
+    /// Hexadecimal, `t`/`true`/`f`/`false`, or decimal without a `-`.
     Unsigned(u64),
+    /// Decimal with a `-`: the same bits as unsigned, but converted exactly for a float target.
     Signed(i64),
+    /// The 24-bit value of the game's float parser ([`parse_float`]).
     Float(f64),
 }
 
 impl Parsed {
-    fn convert(self, target: Target) -> Num {
-        match target {
-            Target::F32 => Num::F32(self.f64() as f32),
-            Target::F64 => Num::F64(self.f64()),
-            Target::Int => Num::Int(match self {
-                Parsed::Unsigned(v) => v as i64,
-                Parsed::Signed(v) => v,
-                Parsed::Float(v) => truncate(v),
-            }),
+    /// Integer targets keep the low bits; a float is truncated first (`_ftol`, wrapping).
+    fn to_i64(self) -> i64 {
+        match self {
+            Parsed::Unsigned(v) => v as i64,
+            Parsed::Signed(v) => v,
+            Parsed::Float(v) => x87::ftol(v),
         }
     }
 
-    fn f64(self) -> f64 {
+    /// Bool is value ≠ 0, a float not truncated first: `0.5` gives true, and so does NaN.
+    fn to_bool(self) -> bool {
         match self {
-            Parsed::Unsigned(v) => v as f64,
+            Parsed::Unsigned(v) => v != 0,
+            Parsed::Signed(v) => v != 0,
+            Parsed::Float(v) => v != 0.0,
+        }
+    }
+
+    /// An unsigned number takes the 24-bit path of the to-double converter; a signed one is converted exactly,
+    /// then rounded to the target; a float is the parser's 24-bit value.
+    fn to_f64(self) -> f64 {
+        match self {
+            Parsed::Unsigned(v) => x87::u64_to_f64(v),
             Parsed::Signed(v) => v as f64,
             Parsed::Float(v) => v,
         }
     }
+
+    /// As [`Parsed::to_f64`], rounded to float32. A signed number is rounded once, from its exact value
+    /// (literal reading of §5.1 "converted exactly, then rounded to the target").
+    fn to_f32(self) -> f32 {
+        match self {
+            Parsed::Unsigned(v) => x87::u64_to_f64(v) as f32,
+            Parsed::Signed(v) => v as f32,
+            Parsed::Float(v) => v as f32,
+        }
+    }
 }
 
-/// The parsing half of the text round trip (§5.1): `t` / `true` → 1 and `f` / `false` → 0 (the whole text,
-/// case-sensitive); text beginning `0x` followed by a hex digit → unsigned hexadecimal; text with `.`, `e` or `E`
-/// after a digit → floating point; text containing `-` → signed int64; otherwise unsigned int64. Each number is read
-/// as C `strtoull` / `strtod` / `strtoll` read it (a numeric prefix; no digits gives 0; out of range saturates).
-/// *\[choice\]* the literal reading: only a lower-case `0x` selects hexadecimal, and "after a digit" means anywhere
-/// after the first digit.
+/// The parsing half of the text round trip (§5.1, `ConvertFromString`, EX9), in this order:
+///
+/// 1. the **whole** text `t` or `true` gives 1 and `f` or `false` 0, case-sensitive;
+/// 2. text that starts with a lower-case `0x` followed by a hex digit is unsigned hexadecimal ([`atou64_hex`]);
+/// 3. otherwise a scan from the start sets *dot* at any `.`, *minus* at a `-`, and *exponent* at an `e` / `E` that
+///    follows some decimal digit, anywhere before it. It stops at an `e` / `E` with no digit before it and at a
+///    second `-`; the flags already set decide. (Its other stops, after the exponent letter, cannot change the
+///    outcome: the text is floating point by then.)
+/// 4. *dot* or *exponent*: floating point ([`parse_float`]); otherwise *minus*: signed decimal; otherwise unsigned
+///    decimal (both [`atoi64`]). There is no hexadecimal without the `0x` prefix.
+///
+/// So `0X1F` gives 0, `1A` 1, `TRUE` 0, `-5` −5, `1-2` 1, `e5` 0, `1e3` 1000.0, `.5` 0.5, `1.2.3` 1.2 and
+/// `12 apples` 12.0 (the `e` of `apples` follows a digit).
 fn parse_round_trip(t: &[u8]) -> Parsed {
     match t {
         b"t" | b"true" => return Parsed::Unsigned(1),
@@ -888,70 +961,201 @@ fn parse_round_trip(t: &[u8]) -> Parsed {
         _ => {}
     }
     if t.starts_with(b"0x") && t.get(2).is_some_and(u8::is_ascii_hexdigit) {
-        return Parsed::Unsigned(strtoul(t, 16, u64::MAX));
+        return Parsed::Unsigned(atou64_hex(t));
     }
-    if let Some(d) = t.iter().position(u8::is_ascii_digit) {
-        if t[d..].iter().any(|b| matches!(b, b'.' | b'e' | b'E')) {
-            return Parsed::Float(strtod(t));
+    let (mut digit, mut minus) = (false, false);
+    for &c in t {
+        match c {
+            b'0'..=b'9' => digit = true,
+            b'.' => return Parsed::Float(parse_float(t)),
+            b'e' | b'E' if digit => return Parsed::Float(parse_float(t)),
+            b'e' | b'E' => break,
+            b'-' if minus => break,
+            b'-' => minus = true,
+            _ => {}
         }
     }
-    if t.contains(&b'-') {
-        return Parsed::Signed(strtoll(t));
+    if minus {
+        Parsed::Signed(atoi64(t))
+    } else {
+        Parsed::Unsigned(atoi64(t) as u64)
     }
-    Parsed::Unsigned(strtoul(t, 10, u64::MAX))
 }
 
-/// The float formatter of the text round trip: up to 24 significant digits, `%g` style (fixed notation for
-/// exponents −4 to 23, otherwise `d.ddde±XX`), trailing zeros removed. §5.1 *\[inferred\]*: every float value
-/// survives the round trip exactly. *\[choice\]* the exponent has at least two digits; NaN and infinities print as
-/// `nan` / `inf` (and so parse back as 0).
-fn format_g24(v: f64) -> String {
-    const DIGITS: usize = 24;
-    if v.is_nan() {
-        return "nan".into();
+/// `RZAtoi64A` (§5.1): leading white space, one optional `+` or `-`, then decimal digits up to the first other
+/// character, accumulated in 64 bits with wraparound.
+fn atoi64(s: &[u8]) -> i64 {
+    let mut i = s.iter().take_while(|&&b| is_space(b)).count();
+    let neg = match s.get(i) {
+        Some(b'-') => {
+            i += 1;
+            true
+        }
+        Some(b'+') => {
+            i += 1;
+            false
+        }
+        _ => false,
+    };
+    let mut v: u64 = 0;
+    for &c in s[i..].iter().take_while(|c| c.is_ascii_digit()) {
+        v = v.wrapping_mul(10).wrapping_add(u64::from(c - b'0'));
     }
-    if v.is_infinite() {
-        return if v < 0.0 { "-inf" } else { "inf" }.into();
+    if neg {
+        (v as i64).wrapping_neg()
+    } else {
+        v as i64
     }
-    if v == 0.0 {
-        return if v.is_sign_negative() { "-0" } else { "0" }.into();
+}
+
+/// `RZAtoUint64HexA` (§4.3, §5.1): leading white space, an optional `0x` or `0X`, then at most **16** hexadecimal
+/// digits up to the first other character (digits after the sixteenth are ignored). There is no sign: `-1` gives 0
+/// and `10` gives 16.
+fn atou64_hex(s: &[u8]) -> u64 {
+    let mut i = s.iter().take_while(|&&b| is_space(b)).count();
+    if s.get(i) == Some(&b'0') && matches!(s.get(i + 1), Some(b'x' | b'X')) {
+        i += 2;
     }
-    let sci = format!("{:.*e}", DIGITS - 1, v);
-    let (mantissa, exp) = sci.split_once('e').unwrap_or((&sci, "0"));
-    let exp: i32 = exp.parse().unwrap_or(0);
-    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
+    let mut v: u64 = 0;
+    for d in s[i.min(s.len())..]
+        .iter()
+        .map_while(|&c| char::from(c).to_digit(16))
+        .take(16)
+    {
+        v = v << 4 | u64::from(d);
+    }
+    v
+}
+
+/// The game's own decimal parser (`RZStrtodEnglishA`, §4.3 Float32, EX14); also the floating-point case of the
+/// text round trip (§5.1). Leading white space and one optional sign are skipped, then the value is built **digit
+/// by digit in x87 arithmetic at the main thread's 24-bit precision**, every operation rounded once: an integer
+/// digit gives value × 10 + digit, a fraction digit multiplies a running scale by 0.1 and adds digit × scale. An
+/// `e` / `E` exponent is read as a 32-bit integer; 10ⁿ is computed in 32-bit integer arithmetic, **wrapping**, and
+/// loaded as a signed integer, then multiplied in (divided for a negative exponent). There is no hexadecimal,
+/// `inf` or `nan`: parsing stops at the first character that does not fit, so `inf` gives 0 and `1.#INF` 1.
+///
+/// The result keeps a 24-bit significand and the register's exponent range; a Float32 target rounds it once more
+/// when it is stored (a Float64 target gets it as is). Worked examples (§4.3): `0.05` gives `0x3D4CCCCC` (a correctly
+/// rounded parse gives `0x3D4CCCCD`), `0.001` `0x3A83126E`, `3.14159` `0x40490FCE`, `1e10` 1,410,065,408, `1e12`
+/// −727,379,968, `1e32` 0, `1e-32` +∞ and `0e-32` NaN.
+///
+/// Literal readings where §4.3 does not spell out the step: value × 10 + digit is two operations (a multiply and
+/// an add, each rounded); "0.1" is the double constant 0.1 (it reproduces every worked example, the float `0.1f`
+/// does not: `0.05` would give `0x3D4CCCCE`); the exponent takes one optional `+` or `-`, and it is read even when
+/// no mantissa digit came before it; the sign applies to the result.
+pub fn parse_float(s: &[u8]) -> f64 {
+    let digit = |i: usize| s.get(i).filter(|c| c.is_ascii_digit()).map(|&c| f64::from(c - b'0'));
+    let mut i = s.iter().take_while(|&&b| is_space(b)).count();
+    let neg = match s.get(i) {
+        Some(b'-') => {
+            i += 1;
+            true
+        }
+        Some(b'+') => {
+            i += 1;
+            false
+        }
+        _ => false,
+    };
+    let mut v = 0.0;
+    while let Some(d) = digit(i) {
+        v = x87::add(x87::mul(v, 10.0), d);
+        i += 1;
+    }
+    if s.get(i) == Some(&b'.') {
+        i += 1;
+        let mut scale = 1.0;
+        while let Some(d) = digit(i) {
+            scale = x87::mul(scale, 0.1);
+            v = x87::add(v, x87::mul(d, scale));
+            i += 1;
+        }
+    }
+    if matches!(s.get(i), Some(b'e' | b'E')) {
+        i += 1;
+        let exp_neg = match s.get(i) {
+            Some(b'-') => {
+                i += 1;
+                true
+            }
+            Some(b'+') => {
+                i += 1;
+                false
+            }
+            _ => false,
+        };
+        let mut n: u32 = 0;
+        while let Some(&c) = s.get(i).filter(|c| c.is_ascii_digit()) {
+            n = n.wrapping_mul(10).wrapping_add(u32::from(c - b'0'));
+            i += 1;
+        }
+        let n = if exp_neg { (n as i32).wrapping_neg() } else { n as i32 };
+        // 10^|n| mod 2^32 (0 from n = 32 on), loaded as a signed 32-bit integer.
+        let power = f64::from(10u32.wrapping_pow(n.unsigned_abs()) as i32);
+        v = if n >= 0 { x87::mul(v, power) } else { x87::div(v, power) };
+    }
+    if neg {
+        -v
+    } else {
+        v
+    }
+}
+
+/// The float formatter of the text round trip (`RZFtoaEnglishA`, §5.1, EX8): **fixed-point, never an exponent**.
+/// `-` for a negative value, the integer digits in full (`0` below 1), then, when a non-zero fraction digit exists,
+/// `.`, the fraction's leading zeros and at most **24** more digits, cut, not rounded (zeros at the end of a cut are
+/// kept; with nothing cut, trailing zeros are not printed). The digits are those of `_fcvt(x, 64)`: the exact binary
+/// value, its fraction rounded at 64 places. The text is cut at 63 characters (a 64-byte buffer). NaN and the
+/// infinities print as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN` / `-1.#QNAN`, `-1.#IND` (the
+/// default NaN) and `1.#SNAN` / `-1.#SNAN`; they parse back as ±1.
+///
+/// Examples: 2.75 gives `2.75`; Float32 0.1 `0.100000001490116119384765`; Float32 0.001
+/// `0.00100000004749745130538940`; Float32 1e30 `1000000015047466219876688855040`. Literal reading: −0.0 is not a
+/// negative value, so it prints `0`.
+fn format_float(x: f64) -> String {
+    if x.is_nan() {
+        let bits = x.to_bits();
+        let sign = if bits >> 63 != 0 { "-" } else { "" };
+        return if bits == 0xFFF8_0000_0000_0000 {
+            "-1.#IND".into()
+        } else if bits & (1 << 51) != 0 {
+            format!("{sign}1.#QNAN")
+        } else {
+            format!("{sign}1.#SNAN")
+        };
+    }
+    if x.is_infinite() {
+        return if x < 0.0 { "-1.#INF" } else { "1.#INF" }.into();
+    }
+    // Rust prints the exact decimal value, rounded at the requested place: _fcvt(x, 64).
+    let fixed = format!("{:.64}", x.abs());
+    let (int, frac) = fixed.split_once('.').unwrap_or((&fixed, ""));
     let mut out = String::new();
-    if v < 0.0 {
+    if x < 0.0 {
         out.push('-');
     }
-    if exp < -4 || exp >= DIGITS as i32 {
-        let d = digits.trim_end_matches('0');
-        out.push_str(&d[..1]);
-        if d.len() > 1 {
-            out.push('.');
-            out.push_str(&d[1..]);
-        }
-        out.push_str(&format!(
-            "e{}{:02}",
-            if exp < 0 { '-' } else { '+' },
-            exp.unsigned_abs()
-        ));
-    } else if exp >= 0 {
-        let (int, frac) = digits.split_at(exp as usize + 1);
-        out.push_str(int);
-        let frac = frac.trim_end_matches('0');
-        if !frac.is_empty() {
-            out.push('.');
-            out.push_str(frac);
-        }
-    } else {
-        out.push_str("0.");
-        for _ in 0..(-exp - 1) {
-            out.push('0');
-        }
-        out.push_str(digits.trim_end_matches('0'));
+    out.push_str(int);
+    let lead = frac.bytes().take_while(|&b| b == b'0').count();
+    if lead < frac.len() {
+        let digits = &frac[lead..];
+        let kept = digits.trim_end_matches('0');
+        out.push('.');
+        out.push_str(&frac[..lead]);
+        out.push_str(if kept.len() <= 24 { kept } else { &digits[..24] });
     }
+    out.truncate(63);
     out
+}
+
+/// [`format_float`] of a Float32, widened to double first (§5.1). The x87 load quiets a signalling NaN.
+fn format_f32(x: f32) -> String {
+    if x.is_nan() {
+        let bits = x.to_bits();
+        let wide = u64::from(bits >> 31) << 63 | 0x7FF8_0000_0000_0000 | u64::from(bits & 0x3F_FFFF) << 29;
+        return format_float(f64::from_bits(wide));
+    }
+    format_float(f64::from(x))
 }
 
 /// Text bytes as a Rust string: UTF-8 when valid, otherwise Latin-1 (one byte per character).
@@ -967,21 +1171,26 @@ fn is_space(b: u8) -> bool {
     matches!(b, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r')
 }
 
-fn trim_start(s: &[u8]) -> &[u8] {
-    let n = s.iter().take_while(|&&b| is_space(b)).count();
+/// The text reader trims spaces and tabs (§4.3, `0x0067E0B0`).
+fn is_blank(b: u8) -> bool {
+    matches!(b, b' ' | b'\t')
+}
+
+fn trim_blank_start(s: &[u8]) -> &[u8] {
+    let n = s.iter().take_while(|&&b| is_blank(b)).count();
     &s[n..]
 }
 
-fn trim(s: &[u8]) -> &[u8] {
-    let s = trim_start(s);
-    let n = s.iter().rev().take_while(|&&b| is_space(b)).count();
+fn trim_blank(s: &[u8]) -> &[u8] {
+    let s = trim_blank_start(s);
+    let n = s.iter().rev().take_while(|&&b| is_blank(b)).count();
     &s[..s.len() - n]
 }
 
-/// C `strtoul` / `strtoull` in `base` 10 or 16: leading white space, an optional sign, in base 16 an optional
-/// `0x`/`0X`, then digits up to the first character that is not one. No digits gives 0; a value above `max` gives
-/// `max`; a leading `-` negates modulo `max + 1` (`max` is `u32::MAX` or `u64::MAX`).
-fn strtoul(s: &[u8], base: u32, max: u64) -> u64 {
+/// C `strtoul` in `base` 10 or 16 (32 bits): leading white space, an optional sign, in base 16 an optional
+/// `0x`/`0X`, then digits up to the first character that is not one. No digits gives 0; a value above `0xFFFFFFFF`
+/// gives `0xFFFFFFFF`, with or without a `-` (it saturates); otherwise a leading `-` negates modulo 2³².
+fn strtoul(s: &[u8], base: u32) -> u32 {
     let mut i = s.iter().take_while(|&&b| is_space(b)).count();
     let neg = match s.get(i) {
         Some(b'-') => {
@@ -1001,99 +1210,38 @@ fn strtoul(s: &[u8], base: u32, max: u64) -> u64 {
     {
         i += 2;
     }
-    let mut v: u64 = 0;
+    let mut v: u32 = 0;
     let mut over = false;
     while let Some(d) = s.get(i).and_then(|&c| char::from(c).to_digit(base)) {
-        match v.checked_mul(u64::from(base)).and_then(|v| v.checked_add(u64::from(d))) {
-            Some(n) if n <= max => v = n,
-            _ => over = true,
+        match v.checked_mul(base).and_then(|v| v.checked_add(d)) {
+            Some(n) => v = n,
+            None => over = true,
         }
         i += 1;
     }
     if over {
-        max
+        u32::MAX
     } else if neg {
-        v.wrapping_neg() & max
+        v.wrapping_neg()
     } else {
         v
     }
 }
 
-/// C `strtoll` in base 10: as [`strtoul`], saturating at the int64 limits.
-fn strtoll(s: &[u8]) -> i64 {
-    let t = trim_start(s);
-    let (neg, digits) = match t.first() {
-        Some(b'-') => (true, &t[1..]),
-        Some(b'+') => (false, &t[1..]),
-        _ => (false, t),
-    };
-    let mut v: u64 = 0;
-    let mut over = false;
-    for &c in digits.iter().take_while(|c| c.is_ascii_digit()) {
-        match v.checked_mul(10).and_then(|v| v.checked_add(u64::from(c - b'0'))) {
-            Some(n) => v = n,
-            None => over = true,
-        }
-    }
-    let limit = if neg { 1u64 << 63 } else { i64::MAX as u64 };
-    if over || v > limit {
-        return if neg { i64::MIN } else { i64::MAX };
-    }
-    if neg {
-        (v as i64).wrapping_neg()
-    } else {
-        v as i64
-    }
-}
-
-/// C `strtod` on decimal text, locale-independent: leading white space, an optional sign, digits with an optional
-/// `.` fraction and an optional exponent. No digits gives 0.0. *\[choice\]* no hexadecimal floats, `inf` or `nan`.
-fn strtod(s: &[u8]) -> f64 {
-    let digits_from = |i: usize| s[i.min(s.len())..].iter().take_while(|b| b.is_ascii_digit()).count();
-    let start = s.iter().take_while(|&&b| is_space(b)).count();
-    let mut i = start;
-    if matches!(s.get(i), Some(b'+' | b'-')) {
-        i += 1;
-    }
-    let int_digits = digits_from(i);
-    i += int_digits;
-    let mut frac_digits = 0;
-    if s.get(i) == Some(&b'.') {
-        frac_digits = digits_from(i + 1);
-        if int_digits + frac_digits > 0 {
-            i += 1 + frac_digits;
-        }
-    }
-    if int_digits + frac_digits == 0 {
-        return 0.0;
-    }
-    if matches!(s.get(i), Some(b'e' | b'E')) {
-        let mut k = i + 1;
-        if matches!(s.get(k), Some(b'+' | b'-')) {
-            k += 1;
-        }
-        let n = digits_from(k);
-        if n > 0 {
-            i = k + n;
-        }
-    }
-    std::str::from_utf8(&s[start..i])
-        .ok()
-        .and_then(|t| t.parse().ok())
-        .unwrap_or(0.0)
-}
-
 /// Rule N (§4.3) for number text: hexadecimal when it begins with `0x` or `0X`, or when a letter `a`–`f` / `A`–`F`
-/// appears before the first character that is not a hex digit; decimal otherwise. The conversion is C `strtoul` in
-/// that base (32 bits): it stops at the first character that is not a digit, and a leading `-` negates modulo
-/// 2³². So `16` = 16, `1A` = 26, `0x10` = 16, `-1` = `0xFFFFFFFF`, `0x00000010:{"Exemplar Type"}` = 16.
+/// appears before the first character that is not a hex digit; decimal otherwise. The base is chosen on the raw
+/// text (`RZConvertToUint32A`): a leading space stops the scan with base 10. The conversion is C `strtoul` in that
+/// base (32 bits): it skips leading white space, stops at the first character that is not a digit, a leading `-`
+/// negates modulo 2³², and a value above `0xFFFFFFFF` gives `0xFFFFFFFF`, with or without a `-`. So `16` = 16,
+/// `1A` = 26, `0x10` = 16, `-1` = `0xFFFFFFFF`, `0x00000010:{"Exemplar Type"}` = 16, ` 16` = 16, ` 1A` = 1,
+/// ` 0x10` = 0 and `4294967296` = `-4294967296` = `0xFFFFFFFF`.
 pub fn rule_n(s: &[u8]) -> u32 {
     let hex = s.starts_with(b"0x")
         || s.starts_with(b"0X")
         || s.iter()
             .take_while(|b| b.is_ascii_hexdigit())
             .any(u8::is_ascii_alphabetic);
-    strtoul(s, if hex { 16 } else { 10 }, u64::from(u32::MAX)) as u32
+    strtoul(s, if hex { 16 } else { 10 })
 }
 
 /// A parsed exemplar or cohort record: its kind, parent key and **own** properties (§4.4).
@@ -1172,16 +1320,26 @@ impl Exemplar {
     ///
     /// Binary form: see the module documentation. Text form (§4.3), line by line:
     ///
-    /// 1. `ParentCohort=Key:{group,instance,type}`: the name is compared case-insensitively, name and value are
-    ///    trimmed, the value must begin `Key:{` and end `}` (case-sensitive) and hold three numbers.
-    /// 2. `PropCount=<number>` (name case-insensitive).
+    /// Every `name=value` line has its name and value trimmed of spaces and tabs.
+    ///
+    /// 1. `ParentCohort=Key:{group,instance,type}`: the name is compared case-insensitively, the value must begin
+    ///    `Key:{` and end `}` (case-sensitive). The fields are not counted (EX10): the group is read with [`rule_n`]
+    ///    from the text after the `{`, the instance and the type from the text after each next `,`; when no `,` is
+    ///    left, that field and the later ones read 0, and fields after the third are ignored. Nothing inside the
+    ///    braces is trimmed, so a space before a `0x` field makes it 0.
+    /// 2. `PropCount=<number>` (name case-insensitive, rule N).
     /// 3. Exactly `PropCount` property lines `ID:{"name"}=Type:reps:{values}`. The ID is the text left of the
-    ///    **first** `=`, trimmed, read with [`rule_n`] (so a name containing `=` breaks the line *\[quirk\]*); the
-    ///    rest is split at the first two `:`. Integer values up to 32 bits: rule N, truncated to the type's width;
-    ///    `Uint64` / `Sint64`: hexadecimal with or without `0x`; `Float32`: decimal; `Bool`: true when the
-    ///    lower-cased value begins with `true`; `String`: up to the first `}`, trimmed, one `"` removed at each end,
-    ///    the `reps` field ignored. Values are separated by commas and their leading spaces trimmed; the reader
-    ///    takes `reps` values (one for `reps` 0) and missing values read as 0.
+    ///    **first** `=`, read with rule N (so a name containing `=` breaks the line *\[quirk\]*). The type is the
+    ///    value's text before the first `:`, compared exactly (EX11: `Uint32 :0:{1}` fails); `reps` is read with
+    ///    rule N from the text right after it, **not trimmed** (` 0x3` gives 0, a scalar); the `{` must follow the
+    ///    second `:` directly. Values are separated by commas; an **array's** values have their leading spaces and
+    ///    tabs trimmed, a scalar's value does not (EX13: `Uint32:0:{ 0x10}` gives 0, `Uint32:1:{ 0x10}` gives {16}).
+    ///    Integers up to 32 bits: rule N, truncated to the type's width; `Uint64` / `Sint64`: hexadecimal, at most
+    ///    16 digits, no sign (`RZAtoUint64HexA`); `Float32`: the game's parser ([`parse_float`]); `Bool`: true when the
+    ///    lower-cased value, leading spaces trimmed, begins with `true`; `String`: up to the first `}`, trimmed, one
+    ///    `"` removed at each end, `reps` ignored. The reader takes `reps` values (one for `reps` 0): missing values
+    ///    read as 0 and extra ones are ignored, with no cap (EX12); *\[choice\]* above 16 MiB of values
+    ///    ([`MAX_TEXT_VALUE_BYTES`]) the read fails, where the original crashes.
     pub fn parse(data: &[u8]) -> Result<Exemplar> {
         let (kind, encoding) = Self::signature(data)?;
         Self::parse_body(kind, encoding, data)
@@ -1265,7 +1423,7 @@ impl Exemplar {
         let count = parse_prop_count(line).map_err(err(n))?;
         for i in 0..count {
             let (n, line) = next(&format!("property line {} of {count}", i + 1))?;
-            ex.set(parse_text_property(line, data.len()).map_err(err(n))?);
+            ex.set(parse_text_property(line).map_err(err(n))?);
         }
         Ok(ex)
     }
@@ -1338,9 +1496,10 @@ impl Exemplar {
     }
 
     /// Text encoding (`EQZT1###` / `CQZT1###`), CRLF line ends, property names left empty, 64-bit values in
-    /// hexadecimal. Fails for what the text form cannot express (§4.3): Empty, Float64, Char, UnicodeChar, Void and
-    /// resource-key values, a single RZChar, an empty array (`reps` 0 reads back as a scalar), a string containing
-    /// `}` or a line break, and a non-finite float.
+    /// hexadecimal, Float32 values as text the game's parser reads back to the same bits. Fails for what the text
+    /// form cannot express (§4.3): Empty, Float64, Char, UnicodeChar, Void and resource-key values, a single RZChar,
+    /// an empty array (`reps` 0 reads back as a scalar), a string containing `}` or a line break, a non-finite float,
+    /// and a Float32 that the game's 24-bit parser cannot reproduce from any text tried (see `float32_text`).
     pub fn to_text(&self) -> Result<Vec<u8>> {
         let mut s = vec![self.kind.letter()];
         s.extend_from_slice(b"QZT1###\r\n");
@@ -1387,6 +1546,12 @@ impl Exemplar {
                     s.extend_from_slice(v);
                     s.push(b'"');
                 }
+                Values::Float32(v) => {
+                    let texts: Option<Vec<String>> = v.iter().map(|&x| float32_text(x)).collect();
+                    let texts =
+                        texts.ok_or_else(|| unsupported("a Float32 value the game's text parser cannot reproduce"))?;
+                    s.extend_from_slice(texts.join(",").as_bytes());
+                }
                 v => s.extend_from_slice(TextValues(v).to_string().as_bytes()),
             }
             s.extend_from_slice(b"}\r\n");
@@ -1403,82 +1568,110 @@ fn insert_sorted(list: &mut Vec<Property>, p: Property) {
     }
 }
 
-/// `ParentCohort=Key:{group,instance,type}` (§4.3).
+/// *\[choice\]* (§4.3, EX12): the most value bytes (`reps` × element size) one text property may ask for. The
+/// original has no cap: it allocates `reps` × element size bytes, computed in 32 bits and unchecked, so a huge `reps`
+/// crashes it. FreeCity4 fails the read above this.
+pub const MAX_TEXT_VALUE_BYTES: u64 = 16 << 20;
+
+/// A `name=value` line (§4.3, `0x0067E0B0`): the text left of the first `=` and the rest, both trimmed of spaces and
+/// tabs.
+fn name_value(line: &[u8]) -> Option<(&[u8], &[u8])> {
+    let eq = line.iter().position(|&b| b == b'=')?;
+    Some((trim_blank(&line[..eq]), trim_blank(&line[eq + 1..])))
+}
+
+/// `ParentCohort=Key:{group,instance,type}` (§4.3, `0x0067DFD0`).
 fn parse_parent_line(line: &[u8]) -> std::result::Result<Tgi, String> {
-    let eq = line
-        .iter()
-        .position(|&b| b == b'=')
-        .ok_or("expected ParentCohort=Key:{...}")?;
-    let name = trim(&line[..eq]);
+    let (name, value) = name_value(line).ok_or("expected ParentCohort=Key:{...}")?;
     if !name.eq_ignore_ascii_case(b"ParentCohort") {
         return Err(format!("expected ParentCohort, found {:?}", decode_text(name)));
     }
-    let value = trim(&line[eq + 1..]);
-    let inner = value
-        .strip_prefix(b"Key:{")
-        .and_then(|v| v.strip_suffix(b"}"))
-        .ok_or_else(|| format!("ParentCohort value {:?} is not Key:{{...}}", decode_text(value)))?;
-    // [choice] §4.3 says the key "holds three numbers separated by commas": any other count fails the read. Each
-    // number has its leading spaces trimmed (as property values do), then rule N.
-    let words: Vec<&[u8]> = inner.split(|&b| b == b',').map(trim_start).collect();
-    if words.len() != 3 {
-        return Err(format!("ParentCohort key has {} fields, not 3", words.len()));
+    if !(value.starts_with(b"Key:{") && value.ends_with(b"}")) {
+        return Err(format!(
+            "ParentCohort value {:?} is not Key:{{...}}",
+            decode_text(value)
+        ));
     }
+    // The fields are not counted (EX10): the text up to the '{' is dropped and the group read with rule N, then the
+    // text up to the next ',' for the instance, then the same for the type. With no ',' left, the rest is dropped and
+    // that field and the later ones read 0; fields after the third are ignored. Nothing is trimmed, so a space after
+    // '{' or ',' turns a 0x field into 0 (rule N then chooses base 10).
+    let mut rest = Some(&value[5..]);
+    let mut field = || {
+        let text = rest?;
+        rest = text.iter().position(|&b| b == b',').map(|i| &text[i + 1..]);
+        Some(rule_n(text))
+    };
+    let group = field().unwrap_or(0);
+    let instance = field().unwrap_or(0);
+    let type_id = field().unwrap_or(0);
     // Text keys are written group, instance, type (§4.3).
-    Ok(Tgi::new(rule_n(words[2]), rule_n(words[0]), rule_n(words[1])))
+    Ok(Tgi::new(type_id, group, instance))
 }
 
-/// `PropCount=<number>` (§4.3).
+/// `PropCount=<number>` (§4.3, `0x0067E250`): name case-insensitive, the value read with rule N.
 fn parse_prop_count(line: &[u8]) -> std::result::Result<u32, String> {
-    let eq = line
-        .iter()
-        .position(|&b| b == b'=')
-        .ok_or("expected PropCount=<number>")?;
-    let name = trim(&line[..eq]);
+    let (name, value) = name_value(line).ok_or("expected PropCount=<number>")?;
     if !name.eq_ignore_ascii_case(b"PropCount") {
         return Err(format!("expected PropCount, found {:?}", decode_text(name)));
     }
-    // [choice] the value is trimmed on both sides like the ParentCohort value, then rule N.
-    Ok(rule_n(trim(&line[eq + 1..])))
+    Ok(rule_n(value))
 }
 
-/// `0x00000010:{"Exemplar Type"}=Uint32:0:{0x00000002}` (§4.3). `limit` is the record length in bytes.
-fn parse_text_property(line: &[u8], limit: usize) -> std::result::Result<Property, String> {
+/// `0x00000010:{"Exemplar Type"}=Uint32:0:{0x00000002}` (§4.3, `0x0067E780`).
+fn parse_text_property(line: &[u8]) -> std::result::Result<Property, String> {
     // The ID is the text left of the first '=' (a '=' inside the name breaks the line [quirk]).
-    let eq = line.iter().position(|&b| b == b'=').ok_or("missing '='")?;
-    let id = rule_n(trim(&line[..eq]));
-    let mut parts = line[eq + 1..].splitn(3, |&b| b == b':');
-    let ty_name = parts.next().unwrap_or(&[]);
-    // [choice] the type name is compared exactly, with no trimming: §4.3 lists the names, "anything else fails".
+    let (id_text, value) = name_value(line).ok_or("missing '='")?;
+    let id = rule_n(id_text);
+    // The type is the text before the first ':', compared exactly: nothing is trimmed around the ':' (EX11).
+    let colon = value.iter().position(|&b| b == b':').ok_or("missing the reps field")?;
+    let ty_name = &value[..colon];
     let ty = ValueType::from_text_name(ty_name).ok_or_else(|| {
         format!(
-            "unknown value type {:?} (names are case-sensitive)",
+            "unknown value type {:?} (names are case-sensitive and not trimmed)",
             decode_text(ty_name)
         )
     })?;
-    let reps_text = parts.next().ok_or("missing the reps field")?;
-    let values_text = parts.next().ok_or("missing the values")?;
-    let open = values_text.strip_prefix(b"{").ok_or("the values must start with '{'")?;
+    // reps is the text right after the first ':', not trimmed (EX11); rule N stops at the next ':'.
+    let after = &value[colon + 1..];
+    let colon = after.iter().position(|&b| b == b':').ok_or("missing the values")?;
+    let reps_text = &after[..colon];
+    // The '{' must follow the second ':' directly.
+    let open = after[colon + 1..]
+        .strip_prefix(b"{")
+        .ok_or("the values must start with '{' right after the second ':'")?;
     if ty == ValueType::String {
-        // Everything up to the first '}', trimmed, then one leading and one trailing '"' removed; reps ignored.
+        // Everything up to the first '}', trimmed, then one leading and one trailing '"' removed; reps ignored. Only
+        // a string is cut at '}' (EX13).
         let end = open.iter().position(|&b| b == b'}').unwrap_or(open.len());
-        let s = trim(&open[..end]);
+        let s = trim_blank(&open[..end]);
         let s = s.strip_prefix(b"\"").unwrap_or(s);
         let s = s.strip_suffix(b"\"").unwrap_or(s);
         return Ok(Property::array(id, Values::String(s.to_vec())));
     }
-    // [choice] reps is trimmed like the other fields. The reader allocates `reps` values even when fewer are
-    // written (missing ones read as 0); a count larger than the record itself is rejected rather than allocated.
-    let reps = rule_n(trim(reps_text)) as usize;
-    if reps > limit {
-        return Err(format!("reps {reps} exceeds the record length {limit}"));
+    let reps = rule_n(reps_text);
+    // No cap and no length check (EX12): the reader takes `reps` values, missing ones read as 0 and extra ones are
+    // ignored. [choice] above 16 MiB of values the read fails (the original crashes).
+    let bytes = u64::from(reps) * ty.elem_size() as u64;
+    if bytes > MAX_TEXT_VALUE_BYTES {
+        return Err(format!(
+            "reps {reps} asks for {bytes} bytes of values, more than {MAX_TEXT_VALUE_BYTES}"
+        ));
     }
-    let n = reps.max(1);
-    // Values are separated by commas, leading spaces trimmed; each is read as a numeric prefix, so the closing
-    // '}' after the last value is ignored. [choice] the values are not cut at the first '}' (§4.3 only says that
-    // of strings).
-    let mut tokens = open.split(|&b| b == b',').map(trim_start);
-    let mut next = || tokens.next().unwrap_or(&[]);
+    let array = reps != 0;
+    let n = (reps as usize).max(1);
+    // Values are separated by commas; an array's values have their leading spaces and tabs trimmed, a scalar's
+    // value does not (which matters for rule N, EX13). Each is read as a prefix, so the closing '}' after the last
+    // value ends it like any other character that cannot continue a number.
+    let mut tokens = open.split(|&b| b == b',');
+    let mut next = || {
+        let w = tokens.next().unwrap_or(&[]);
+        if array {
+            trim_blank_start(w)
+        } else {
+            w
+        }
+    };
     macro_rules! each {
         ($variant:ident, $f:expr) => {
             Values::$variant((0..n).map(|_| $f(next())).collect())
@@ -1491,19 +1684,47 @@ fn parse_text_property(line: &[u8], limit: usize) -> std::result::Result<Propert
         ValueType::Sint16 => each!(Sint16, |w| rule_n(w) as i16),
         ValueType::Uint32 => each!(Uint32, rule_n),
         ValueType::Sint32 => each!(Sint32, |w| rule_n(w) as i32),
-        // Always hexadecimal, with or without 0x (§4.3; the no-prefix case is [inferred] there).
-        ValueType::Uint64 => each!(Uint64, |w| strtoul(w, 16, u64::MAX)),
-        ValueType::Sint64 => each!(Sint64, |w| strtoul(w, 16, u64::MAX) as i64),
-        // [choice] decimal text read as float64, then rounded to float32.
-        ValueType::Float32 => each!(Float32, |w| strtod(w) as f32),
-        ValueType::Bool => each!(Bool, |w: &[u8]| w.to_ascii_lowercase().starts_with(b"true")),
+        // Always hexadecimal, no sign: `10` gives 16 and `-1` gives 0.
+        ValueType::Uint64 => each!(Uint64, atou64_hex),
+        ValueType::Sint64 => each!(Sint64, |w| atou64_hex(w) as i64),
+        // The game's parser at 24-bit precision, stored as Float32 (EX14).
+        ValueType::Float32 => each!(Float32, |w| parse_float(w) as f32),
+        // Lower-cased, leading spaces trimmed: true exactly when it begins with "true" (`1` gives false). Literal
+        // reading of "leading spaces": spaces only; an array value has already lost its leading tabs as well.
+        ValueType::Bool => each!(Bool, |w: &[u8]| {
+            let w = &w[w.iter().take_while(|&&b| b == b' ').count()..];
+            w.len() >= 4 && w[..4].eq_ignore_ascii_case(b"true")
+        }),
         _ => return Err(format!("{} has no text form", ty.name())),
     };
     Ok(Property {
         id,
-        is_array: reps != 0,
+        is_array: array,
         values,
     })
+}
+
+/// A Float32 as text that the game's parser ([`parse_float`]) reads back to the same bits, for the text writer:
+/// the shortest decimal forms first, then an integer mantissa below 2²⁴ (whose digits add up exactly) with a
+/// power of ten up to 10⁹ (one rounded multiply or divide). `None` when no such text is found, or for a non-finite
+/// value: the text form cannot express it.
+fn float32_text(v: f32) -> Option<String> {
+    if !v.is_finite() {
+        return None;
+    }
+    let x = f64::from(v);
+    let mut candidates = vec![format!("{v}"), format!("{v:?}"), format!("{x:.0}")];
+    for n in 1..=9 {
+        let p = 10f64.powi(n);
+        for (m, e) in [((x * p).round(), -n), ((x / p).round(), n)] {
+            if m.abs() < 16_777_216.0 {
+                candidates.push(format!("{m}e{e}"));
+            }
+        }
+    }
+    candidates
+        .into_iter()
+        .find(|s| (parse_float(s.as_bytes()) as f32).to_bits() == v.to_bits())
 }
 
 /// Formats values as in text exemplars (64-bit integers in hexadecimal, as the text reader expects). Values the
@@ -1609,14 +1830,29 @@ impl LoadedExemplar {
         self.own.binary_search_by_key(&id, |p| p.id).is_ok()
     }
 
-    /// `GetProperty(id, uint32&)` (§5.1): `None` when the property is missing.
+    /// `GetProperty(id, uint32&)` (holder slot 8, §5.1): `None` (false, output unchanged) when the property is
+    /// missing; see [`Property::get_u32`].
     pub fn get_u32(&self, id: u32) -> Option<u32> {
         self.get(id)?.get_u32()
     }
 
-    /// `GetProperty(id, cIGZString&)` (§5.1): `None` when the property is missing.
+    /// `GetProperty(id, cIGZString&)` (holder slot 7, §5.1) for callers that check its result: the text of a string
+    /// property; `None` when the property is missing or is not a string (see [`Property::get_string`]).
     pub fn get_string(&self, id: u32) -> Option<String> {
         self.get(id)?.get_string()
+    }
+
+    /// `GetProperty(id, cIGZString&)` (holder slot 7, §5.1) exactly: false and `out` unchanged when the property is
+    /// missing; otherwise as [`Property::get_string_into`] (the text is written for every type, true only for a
+    /// string).
+    pub fn get_string_into(&self, id: u32, out: &mut Vec<u8>) -> bool {
+        self.get(id).is_some_and(|p| p.get_string_into(out))
+    }
+
+    /// `GetProperty(id, void* buffer, uint32& length)` (holder slot 5, §5.2): false and both unchanged when the
+    /// property is missing; otherwise as [`Property::get_void`] (a void array only).
+    pub fn get_void(&self, id: u32, buffer: &mut [u8], length: &mut u32) -> bool {
+        self.get(id).is_some_and(|p| p.get_void(buffer, length))
     }
 
     /// `AddProperty`: adds to the own list and updates the effective list (same ID replaced in place).
@@ -1746,12 +1982,23 @@ pub enum ChainEnd {
 ///
 /// \[choice\] Inserting a key that is already present replaces it, so loading packages in the game's load order
 /// makes later packages override earlier ones.
+///
+/// A kind-1 property's resource (§4.6, EX15) loads when it is an exemplar or cohort record that loads, or a key of
+/// another type that resolves: one the caller registered as held by a resource cache ([`ExemplarStore::add_resource`]),
+/// or one a loaded package holds whose type has a factory ([`ExemplarStore::add_factory`]) that read it
+/// successfully. Presence in a package index alone is not enough.
 #[derive(Default)]
 pub struct ExemplarStore {
     map: HashMap<Tgi, Exemplar>,
-    /// Keys of other resources, which kind-1 properties may name (§4.6).
+    /// Keys of other resources that load: held by a cache, or read successfully by a registered factory (§4.6).
     resources: HashSet<Tgi>,
+    /// Factories for resource types other than exemplars and cohorts, by type ID: each says whether its read of a
+    /// record succeeds.
+    factories: HashMap<u32, Factory>,
 }
+
+/// A registered factory's read of one record: true when it succeeds ([`ExemplarStore::add_factory`]).
+type Factory = Box<dyn Fn(&[u8]) -> bool>;
 
 /// Result of [`ExemplarStore::load_package`].
 #[derive(Debug, Default)]
@@ -1798,21 +2045,40 @@ impl ExemplarStore {
         self.map.iter()
     }
 
-    /// Registers the key of a resource other than an exemplar or cohort, so a kind-1 property naming it loads.
-    /// *\[choice\]* (§4.6): a kind-1 resource loads when it is an exemplar or cohort that loads, or a registered
-    /// key; this crate cannot tell whether the original has a factory for other types.
+    /// Registers a resource that a resource cache already holds (§4.6, `0x009732EB`), so a kind-1 property naming it
+    /// loads whatever its type.
     pub fn add_resource(&mut self, tgi: Tgi) -> bool {
         self.resources.insert(tgi)
     }
 
+    /// Registers a factory for resources of `type_id` (§4.6, `0x00972EAE`): from then on,
+    /// [`ExemplarStore::load_package`] runs `read` on every entry of that type, and an entry whose read succeeds
+    /// loads as a kind-1 resource. The exemplar and cohort types have the store's own factories and cannot be
+    /// registered (returns false). This crate registers no other factory: the set the original registers was not
+    /// enumerated (§4.6 *\[inferred\]*). A factory registered after a package was loaded applies from the next
+    /// [`ExemplarStore::load_package`] on; registering a type again replaces its factory.
+    pub fn add_factory(&mut self, type_id: u32, read: impl Fn(&[u8]) -> bool + 'static) -> bool {
+        if Kind::from_type_id(type_id).is_some() {
+            return false;
+        }
+        self.factories.insert(type_id, Box::new(read));
+        true
+    }
+
     /// Parses every exemplar and cohort entry of a package into the store, with the factory's type check
-    /// ([`Exemplar::parse_record`]), and registers every other entry's key ([`ExemplarStore::add_resource`]).
+    /// ([`Exemplar::parse_record`]), and runs the registered factory ([`ExemplarStore::add_factory`]) on every entry
+    /// of another type that has one. Other entries are ignored: an index entry alone does not make a kind-1
+    /// resource load (EX15).
     pub fn load_package<S: Source>(&mut self, pkg: &Package<S>) -> LoadReport {
         let mut report = LoadReport::default();
         for e in pkg.entries() {
             let ty = e.tgi.type_id;
             if Kind::from_type_id(ty).is_none() {
-                self.resources.insert(e.tgi);
+                if let Some(read) = self.factories.get(&ty) {
+                    if pkg.read(e).is_ok_and(|d| read(&d)) {
+                        self.resources.insert(e.tgi);
+                    }
+                }
                 continue;
             }
             match pkg.read(e).and_then(|d| Exemplar::parse_record(ty, &d)) {

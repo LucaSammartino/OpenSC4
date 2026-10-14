@@ -17,6 +17,7 @@
 #include "FC4CoreProps.h"
 #include "FC4CrimeInterfaces.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -425,10 +426,9 @@ uint64_t InputGrid(void* u, uint32_t which) {
             // Slots 39 / 40 return a cISC4SimGrid<float>* (§13 SDK errata: the
             // SDK says int32; same register), not AddRef'd.
             cFC4ISC4ResidentialSimulator* rs = fc4::AsGame(r);
-            const int32_t v =
+            cISC4SimGrid<float>* grid =
                 which == FC4_AURA_INPUT_SCHOOL ? rs->GetSchoolAverageGradeMap() : rs->GetHospitalAverageGradeMap();
-            const uint64_t t = static_cast<uint64_t>(static_cast<uint32_t>(v));
-            return t ? t : Missing(u, which, "the grade map getter returned null");
+            return grid ? TokenOf(grid) : Missing(u, which, "the grade map getter returned null");
         }
         case FC4_AURA_INPUT_CRIME: {
             cISC4CrimeSimulator* cr = c->GetCrimeSimulator();  // borrowed
@@ -903,6 +903,7 @@ cISC4SimGrid<int16_t>* cFC4AuraSimulator::GetLandmarkMap() const {
 
 bool cFC4AuraSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("aura DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     const bool day = type == kMsgSimNewDay, month = type == kMsgSimNewMonth;
     CoreCall call(this);

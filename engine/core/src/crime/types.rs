@@ -66,20 +66,123 @@ pub fn mask_of(h: &PropertyHolder, id: u32) -> u32 {
     parse_mask(bytes_of(h, id).as_deref())
 }
 
+/// The raw storage of an array value, as the crime effect `0xCA5B9306` is
+/// read (§6.10, CQ13): the bytes the variant's data pointer (`RefUint8`,
+/// slot 95) points at, `count × element size`, each element little-endian,
+/// whatever the element type (bool 1 byte, a pointer 4, as in the 32-bit
+/// game). No numeric conversion: `Uint32 {100, 8}` gives `64 00 00 00 08 00
+/// 00 00`, so m = 100, r = 0. [choice] `None` for a scalar (the original
+/// dereferences its value as a pointer), an object or an empty value.
+pub fn raw_array_bytes(v: &Variant) -> Option<Vec<u8>> {
+    let Variant::Array { items, .. } = v else {
+        return None;
+    };
+    let mut out = Vec::new();
+    for e in items {
+        match *e {
+            Elem::Bool(b) => out.push(u8::from(b)),
+            Elem::U8(x) | Elem::Char(x) | Elem::RzChar(x) => out.push(x),
+            Elem::I8(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U16(x) | Elem::UnicodeChar(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I16(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::F32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::F64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::VoidPtr(x) => out.extend_from_slice(&(x as u32).to_le_bytes()),
+        }
+    }
+    Some(out)
+}
+
+/// The LTEXT type of every crime type name: value [0] of the name key
+/// `0x8A416B2E` is ignored (§7 step 1, CQ8).
+pub const NAME_LTEXT_TYPE: u32 = 0x2026_960B;
+
+/// What the host's LTEXT load of a crime type name did: §7 steps 2 and 3,
+/// which need the game's language manager, resource manager and string
+/// detokenizer (CQ8).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LtextLoad {
+    /// Neither (`0x2026960B`, G + language ID, I) nor (`0x2026960B`, G, I)
+    /// exists: the load fails and the name is untouched.
+    Missing,
+    /// The text was found, copied into the name and detokenized in place
+    /// (the step is skipped with no detokenizer).
+    Loaded(Vec<u8>),
+    /// The text was copied into the name, but the detokenizer returned
+    /// false: the load fails and the name holds the text the detokenizer
+    /// left. [choice] §7's steps read literally: step 3 has already copied
+    /// the text, so the `0xAA12FCB0` fallback replaces it only when that
+    /// property exists (spec question).
+    DetokenizeFailed(Vec<u8>),
+}
+
+impl From<Option<Vec<u8>>> for LtextLoad {
+    /// `Some(text)`: loaded; `None`: missing.
+    fn from(text: Option<Vec<u8>>) -> LtextLoad {
+        text.map_or(LtextLoad::Missing, LtextLoad::Loaded)
+    }
+}
+
+/// The LTEXT key of a crime type's name (§7 step 1): values [1] and [2] of
+/// `0x8A416B2E` are the group and instance, [0] is ignored and the type is
+/// always [`NAME_LTEXT_TYPE`]. `None` (the load fails) when the property is
+/// missing or not numeric, or [choice] has fewer than 3 values (spec
+/// question; the original reads three).
+pub fn name_ltext_key(h: &PropertyHolder) -> Option<ResKey> {
+    props::u32s(h, prop::TYPE_NAME_KEY)
+        .filter(|v| v.len() >= 3)
+        .map(|v| ResKey {
+            type_id: NAME_LTEXT_TYPE,
+            group: v[1],
+            instance: v[2],
+        })
+}
+
+/// §7 step 4 (data-formats §6.1): every U+2022 (`E2 80 A2`) becomes U+200B
+/// (`E2 80 8B`), in place. Both are three bytes, so nothing else moves.
+pub fn bullets_to_zero_width_spaces(text: &mut [u8]) {
+    let mut i = 0;
+    while i + 3 <= text.len() {
+        if text[i..i + 3] == [0xE2, 0x80, 0xA2] {
+            text[i + 2] = 0x8B;
+            i += 3;
+        } else {
+            i += 1;
+        }
+    }
+}
+
 impl CrimeType {
-    /// Builds a type from its exemplar (§7). `ltext` resolves LTEXT keys.
-    pub fn from_exemplar(instance: u32, h: &PropertyHolder, ltext: &dyn Fn(ResKey) -> Option<Vec<u8>>) -> CrimeType {
-        let key = props::u32s(h, prop::TYPE_NAME_KEY)
-            .filter(|v| v.len() >= 3)
-            .map(|v| ResKey {
-                type_id: v[0],
-                group: v[1],
-                instance: v[2],
-            });
-        let name = key
-            .and_then(ltext)
-            .or_else(|| props::string_of(h, prop::TYPE_NAME))
-            .unwrap_or_default();
+    /// Builds a type from its exemplar (§7). `ltext` runs steps 2 and 3 of
+    /// the name load for the key of [`name_ltext_key`] (CQ8).
+    ///
+    /// Name: (1) the LTEXT key; (2)-(3) the host's lookup and detokenizer;
+    /// (4) U+2022 → U+200B. If the load fails, the string `0xAA12FCB0`
+    /// replaces the name when it exists; otherwise the name stays as the
+    /// load left it (empty for a new entry, §7).
+    pub fn from_exemplar(instance: u32, h: &PropertyHolder, ltext: &dyn Fn(ResKey) -> LtextLoad) -> CrimeType {
+        let mut name = Vec::new();
+        let loaded = match name_ltext_key(h).map(ltext) {
+            None | Some(LtextLoad::Missing) => false,
+            Some(LtextLoad::Loaded(mut text)) => {
+                bullets_to_zero_width_spaces(&mut text);
+                name = text;
+                true
+            }
+            Some(LtextLoad::DetokenizeFailed(text)) => {
+                name = text;
+                false
+            }
+        };
+        if !loaded {
+            if let Some(inline) = props::string_of(h, prop::TYPE_NAME) {
+                name = inline;
+            }
+        }
         let icon_values = props::u32s(h, prop::TYPE_ICON).unwrap_or_default();
         let part = |i: usize| icon_values.get(i).copied().unwrap_or(0);
         CrimeType {
@@ -374,10 +477,37 @@ pub fn shipped_type_exemplars() -> Vec<(u32, PropertyHolder)> {
 mod tests {
     use super::*;
 
+    /// CQ13 (§6.10 table): raw storage, no conversion.
+    #[test]
+    fn crime_effect_raw_bytes_cq13() {
+        let arr = |elem, items| raw_array_bytes(&Variant::array(elem, items)).unwrap();
+        // Uint8 x2 (all six shipped buildings): m = 100, r = 8.
+        assert_eq!(arr(mem::UINT8, vec![Elem::U8(100), Elem::U8(8)]), [100, 8]);
+        assert_eq!(arr(mem::SINT8, vec![Elem::I8(-1), Elem::I8(8)]), [0xFF, 8]);
+        // Wider arrays: bytes 0 and 1 of element 0, little-endian.
+        let u32s = arr(mem::UINT32, vec![Elem::U32(100), Elem::U32(8)]);
+        assert_eq!(u32s, [100, 0, 0, 0, 8, 0, 0, 0]);
+        assert_eq!((u32s[0], u32s[1]), (100, 0));
+        let f32s = arr(mem::FLOAT32, vec![Elem::F32(100.0), Elem::F32(8.0)]);
+        assert_eq!(f32s[..4], 100.0f32.to_le_bytes());
+        assert_eq!((f32s[0], f32s[1]), (0, 0));
+        // One Uint16 element is already 2 bytes: m = low, r = high.
+        assert_eq!(arr(mem::UINT16, vec![Elem::U16(0x0864)]), [0x64, 0x08]);
+        assert_eq!(arr(mem::BOOL, vec![Elem::Bool(true), Elem::Bool(false)]), [1, 0]);
+        assert_eq!(raw_array_bytes(&Variant::string(b"ab")), Some(b"ab".to_vec()));
+        // Too short for {m, r}: the simulator skips it ([choice]).
+        assert_eq!(arr(mem::UINT8, vec![Elem::U8(100)]), [100]);
+        assert!(arr(mem::UINT8, vec![]).is_empty());
+        // Scalars, objects and empty values: none ([choice]).
+        assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U8(100))), None);
+        assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U32(0x0864))), None);
+        assert_eq!(raw_array_bytes(&Variant::Empty), None);
+    }
+
     fn shipped() -> Vec<CrimeType> {
         shipped_type_exemplars()
             .iter()
-            .map(|(id, h)| CrimeType::from_exemplar(*id, h, &|_| None))
+            .map(|(id, h)| CrimeType::from_exemplar(*id, h, &|_| LtextLoad::Missing))
             .collect()
     }
 
@@ -409,7 +539,7 @@ mod tests {
         );
         h.add(prop::TYPE_NAME, Variant::string(b"fallback"));
         h.add(prop::TYPE_ICON, Variant::array(mem::UINT32, vec![Elem::U32(7)]));
-        let t = CrimeType::from_exemplar(9, &h, &|k| (k.instance == 3).then(|| b"ltext".to_vec()));
+        let t = CrimeType::from_exemplar(9, &h, &|k| (k.instance == 3).then(|| b"ltext".to_vec()).into());
         assert_eq!(t.name, b"ltext");
         assert_eq!((t.severity, t.arson, t.weight), (64, false, 10.0));
         assert_eq!(
@@ -424,10 +554,70 @@ mod tests {
             t.zone_mask & t.wealth_mask & t.purpose_mask & t.condition_mask,
             ANY_BITS
         );
-        let t = CrimeType::from_exemplar(9, &h, &|_| None);
+        let t = CrimeType::from_exemplar(9, &h, &|_| LtextLoad::Missing);
         assert_eq!(t.name, b"fallback");
-        let t = CrimeType::from_exemplar(9, &PropertyHolder::new(), &|_| None);
+        let t = CrimeType::from_exemplar(9, &PropertyHolder::new(), &|_| LtextLoad::Missing);
         assert!(t.name.is_empty());
+    }
+
+    /// CQ8: the §7 name load, steps 1-4 and the fallback.
+    #[test]
+    fn name_load_cq8() {
+        use std::cell::RefCell;
+        let key3 = |a: u32, b: u32, c: u32| Variant::array(mem::UINT32, vec![Elem::U32(a), Elem::U32(b), Elem::U32(c)]);
+        // Step 1: value [0] is ignored, the type is always 0x2026960B.
+        let mut h = PropertyHolder::new();
+        h.add(prop::TYPE_NAME_KEY, key3(0x1234_5678, 0x0A55_4AE0, 0xEA5E_A698));
+        let asked = RefCell::new(Vec::new());
+        let t = CrimeType::from_exemplar(1, &h, &|k| {
+            asked.borrow_mut().push(k);
+            LtextLoad::Loaded(b"x".to_vec())
+        });
+        let shipped_key = ResKey {
+            type_id: NAME_LTEXT_TYPE,
+            group: 0x0A55_4AE0,
+            instance: 0xEA5E_A698,
+        };
+        assert_eq!(*asked.borrow(), vec![shipped_key]);
+        assert_eq!(t.name, b"x");
+        // Group and instance 0 are looked up like any other key.
+        let mut zero = PropertyHolder::new();
+        zero.add(prop::TYPE_NAME_KEY, key3(0, 0, 0));
+        let t = CrimeType::from_exemplar(1, &zero, &|k| {
+            (k.group == 0 && k.instance == 0).then(|| b"zero".to_vec()).into()
+        });
+        assert_eq!(t.name, b"zero");
+        // Step 4: U+2022 -> U+200B, on a successful load only.
+        let bullets = "a\u{2022}b\u{2022}\u{2022}".as_bytes().to_vec();
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Loaded(bullets.clone()));
+        assert_eq!(t.name, "a\u{200B}b\u{200B}\u{200B}".as_bytes());
+        // The detokenizer returned false: the load fails; with no 0xAA12FCB0
+        // the name keeps the copied text, unreplaced ([choice]).
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed(bullets.clone()));
+        assert_eq!(t.name, bullets);
+        // With 0xAA12FCB0 the fallback replaces it.
+        h.add(prop::TYPE_NAME, Variant::string(b"inline"));
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::DetokenizeFailed(bullets.clone()));
+        assert_eq!(t.name, b"inline");
+        // The inline string is read only when the load fails.
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Loaded(b"ltext".to_vec()));
+        assert_eq!(t.name, b"ltext");
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Missing);
+        assert_eq!(t.name, b"inline");
+        // [choice] Fewer than 3 values: no key, no lookup, the fallback.
+        let mut short = PropertyHolder::new();
+        short.add(
+            prop::TYPE_NAME_KEY,
+            Variant::array(mem::UINT32, vec![Elem::U32(1), Elem::U32(2)]),
+        );
+        short.add(prop::TYPE_NAME, Variant::string(b"inline"));
+        assert_eq!(name_ltext_key(&short), None);
+        let t = CrimeType::from_exemplar(1, &short, &|_| panic!("no lookup without a key"));
+        assert_eq!(t.name, b"inline");
+        // Other bytes stay, a cut-off sequence too.
+        let mut v = vec![0xE2, 0x80, 0xA2, 0xE2, 0x80];
+        bullets_to_zero_width_spaces(&mut v);
+        assert_eq!(v, [0xE2, 0x80, 0x8B, 0xE2, 0x80]);
     }
 
     #[test]
@@ -497,6 +687,7 @@ mod tests {
                         instance: 0xEA5E_A698,
                     })
                     .then(|| b"text".to_vec())
+                    .into()
                 })
             })
             .collect::<Vec<_>>();
