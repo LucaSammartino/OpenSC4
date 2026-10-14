@@ -429,8 +429,12 @@ vectors `nb18_*`). The core's current answer is in brackets.
   budget, pollution, terrain and city; then `RemoveAgent` through the global city. The bracket differs, but zone
   `Shutdown` uses only its own references, so the difference is unobservable. Matching the original is recommended
   (landfill.md §1.2, §4.4.9).
-- **LF4 — §4.7.5:** in what ring order does the zot spiral run? [clockwise from each ring's top-left corner; the
-  second half of `lf11_11` depends on it]
+- ~~**LF4 — §4.7.5:** in what ring order does the zot spiral run? [clockwise from each ring's top-left corner; the
+  second half of `lf11_11` depends on it]~~ **ANSWERED 2026-10-14** from the exe (`0x006BB3B0`–`0x006BB4DA`): **the
+  bracket does not match.** The zot uses the plumbing §7.2 `SpiralIterator` mode over the zone rect. Ring r starts
+  at `(cx + r, cz − r + 1)`, runs +z, −x, −z, +x, and ends at `(cx + r, cz − r)`, so ring 1 starts at `(cx+1, cz)`,
+  not `(cx−1, cz−1)`. Out-of-rect cells are skipped one by one. landfill.md §4.7.5 has two worked examples, and
+  test 11 now cites them. `lf11_11` must be regenerated.
 - **LF5 — §4.4.4 step 3:** `LevelRect((x, z, x+1, z+1))` per cell is a 2×2 block if the rectangle is inclusive. Is
   that intended? [passed as written]
 - **NB1:** the Julian day of `DEFAULT_DATE`. [0]
