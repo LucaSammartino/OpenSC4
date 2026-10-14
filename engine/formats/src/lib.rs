@@ -33,6 +33,7 @@
 pub mod dbpf;
 pub mod error;
 pub mod exemplar;
+pub mod fsh;
 pub mod ltext;
 pub mod qfs;
 mod reader;
