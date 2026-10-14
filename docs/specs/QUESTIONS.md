@@ -1233,7 +1233,12 @@ before and after). The glue's current answer is in brackets.
   rotation** (0 to 3) at placement, and it is saved in the prop record. **The bracket matches** while the view is at
   rotation 0. All 66 zot props in the local saves have 0. Written into landfill.md §4.7.5. The same answer closes
   lot-developer.md §12.2 Q3.
-- **LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]
+- ~~**LG6 — §3.3, foundations §13.4:** must the month run after pollution and budget? [not enforced]~~ **ANSWERED
+  2026-10-14** (foundations §13.3/§13.4; the data links of §3.3): **yes**, *[compat]*. Otherwise each landfill
+  intake reaches pollution's history and line 20 one month early, and each line 30 maintenance reaches the budget's
+  settlement one month early. Landfill.md §3.3 has a worked example. **"Not enforced" does not match** whenever the
+  landfill agent ends up before pollution or budget, which registration order does. The §13.4 deferral ends now that the
+  landfill glue has landed. Written into landfill.md §3.3.
 - **LG7:** does FindNetworkTile's return carry a reference? [borrowed]
 - **LG8:** tiles are not saved; they are rebuilt at PostCityInit (interior orientation 0, no random draw). [choice]
 - **LG9:** is a null `GetLandfillZoneFromCell` acceptable to the city situation manager? [null]

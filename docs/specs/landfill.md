@@ -211,6 +211,33 @@ Data links on the 1st of a month:
 puts the landfill developer second because it initialises early, §3.7) does not satisfy the first half. See
 §10.2 question 1.
 
+**What a wrong order changes** (LG6). If the landfill month runs **before** pollution and the budget, everything
+the landfill does on the 1st of a month reaches those two systems one month early. Nothing else changes: the
+landfill's own state, and the supply and capacity it leaves for pollution's daily steps, are the same in both
+orders.
+
+Example: a connected 2 × 2 landfill zoned in February. Its maintenance is still 0, because zoning does not book it
+(§4.4.1 step 3). On 1 March the landfill takes 10000 from the supply. Its one heap turns active, the four cells
+get `0x034E0000` tiles (cost 10 each), and line 30 is set to 40.
+
+| On the 1st of… | Original order (pollution, budget, then landfill) | Landfill first |
+|---|---|---|
+| March | pollution records and zeroes `landfilled` without the 10000. The budget settles line 30 at 0. | pollution's history `0xEA1101AA` and line 20's cost include the 10000. The budget settles line 30 at 40. |
+| April | pollution's history and line 20's cost include the 10000. The budget settles line 30 at 40 (the 1 March value). | the 10000 is not counted again. The budget settles line 30 at the value the landfill has just set on 1 April. |
+
+So every landfill entry in pollution's garbage history, every line 20 charge for landfilled garbage and every line 30
+settlement moves one month earlier. The total over a long run is the same. A conformance vector should assert the
+order, as §10.2 question 1 says.
+
+**How to get the order.**
+
+- With FreeCity4's simulator, use the rank of foundations §13.4. That section deferred the rank mechanism until a
+  tail agent's glue lands. The landfill glue has now landed, so the condition is met.
+- When the original simulator delivers the month, the order is the unsigned order of the `cIGZMessageTarget2`
+  pointers passed to `AddAgent` (foundations §13.1). Glue registered there inherits whatever address its object
+  gets. *[choice]* Such glue should, at registration, compare its pointer with pollution's and the budget's and log
+  when it is not above both.
+
 ## 4. Behaviour, formulas and tuning
 
 Float arithmetic follows foundations §18: each `+ − × ÷` rounds to float32. `round(v)` below means the
@@ -665,9 +692,9 @@ occupant slot 12). *[quirk]* No null check: a missing prop exemplar crashes. The
 
 **The orientation** *[compat]* (LG5; `0x006BB510`–`0x006BB524`) is the **current view rotation**, 0 to 3. The code
 reads field `+0x10` of the global `SC4ViewUtilities` object (`0x00B43DD8`). `cSC4WinRegionScreen` fills that global
-from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). `SC4ViewUtilities::UpdateCameraPosition` copies the field
-from the camera control's rotation (`+0x10C`) and uses `rotation × π/2` as the camera yaw. Nothing checks the
-global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month it was placed. The
+from its renderer's `GetViewUtilities()` (`cISC43DRender` slot 8). `SC4ViewUtilities::UpdateCameraPosition`
+copies the field from the camera control's rotation (`+0x10C`) and uses `rotation × π/2` as the camera yaw.
+Nothing checks the global for null *[quirk]*. So the zot faces whichever way the player's view faced in the month it was placed. The
 value is saved in the prop's record (lot-records.md §10.1, field 5), and it is the only observable effect.
 
 No local save holds a landfill zot, because every saved landfill zone is connected. All 66 `0x107A0000` props in the
