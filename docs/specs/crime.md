@@ -386,11 +386,14 @@ storage. So:
 |---|---|---|
 | `Uint8` / `Sint8` array (all 6 shipped buildings are `Uint8` ×2; data-formats §7.3) | elements 0 and 1 | m = 100, r = 8 |
 | wider array (`Uint16`, `Uint32`, `Sint32`, `Float32`, …) | bytes 0 and 1 of element 0, little-endian | `Uint32`: m = 100, r = 0 (no cell changes); `Float32`: m = 0, r = 0 |
+| string (an `RZChar` array, tag `0x800C`: the only non-numeric type a data file can hold) | its first two stored bytes: for ASCII text, the codes of its first two characters | `"AB"`: m = 65, r = 66 |
+| an array of objects (only code can store one; no file can) | the low two bytes of the first object's address | — (an address) |
 | any scalar | the scalar's value used as a pointer: a crash or garbage | — |
 
-*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every array type behaves
-as in the original. It skips scalars and arrays shorter than 2 bytes. A numeric conversion (`GetU32s`, then the
-low bytes) would equal the original only for byte arrays.
+*[choice]* FreeCity4 reads bytes 0 and 1 of the value's raw little-endian storage, so every numeric array type and
+a string behave as in the original. It skips scalars, values shorter than 2 bytes (a one-character string
+included) and object arrays (QUESTIONS CQ22): the original's result for them is a pointer's bytes. A numeric
+conversion (`GetU32s`, then the low bytes) would equal the original only for byte arrays.
 
 ```
 value  := +m when inserted, −m when removed
@@ -451,18 +454,67 @@ Names in quotes are the official property names (community property list, re/pri
 **Name** *[compat]* (`LoadCrimeTypeFromExemplar` `0x006A0D12`; `SC4LoadExemplarString` `0x00603270` →
 `0x00603220`; `SC4LoadString` `0x00603040`):
 
+0. Before loading, the loader resets the entry: it **empties the name** (`0x006A0C9C`–`0x006A0CA6`) and sets the
+   masks, severity, arson flag and weight to their defaults. A reloaded entry is reset the same way as a new one.
 1. Read property `0x8A416B2E` as three `u32` from the exemplar that the resource manager returns for the crime
    type's own key. If it is missing, the load fails. Value [0] (the key's type) is **ignored**: the LTEXT type is
    always `0x2026960B`. Value [1] is the LTEXT group `G` and value [2] the instance `I`.
 2. Look up (`0x2026960B`, `G` + current language ID, `I`). If that is missing and the language ID is not 0, look up
-   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails and the name is untouched.
+   (`0x2026960B`, `G`, `I`) (data-formats §6.2). If both are missing, the load fails.
 3. Copy the text into the name. Run the game's string detokenizer on it in place (the application's
    `GetStringDetokenizer`, `cISCStringDetokenizer` slot 9). If it returns false, the load fails. With no
    detokenizer the step is skipped.
 4. Replace every U+2022 by U+200B (data-formats §6.1). The load succeeds.
 
+**A failure in steps 2 or 3 empties the name** (QUESTIONS CQ16; `SC4LoadString`'s exit `0x00603202` calls the
+string's `Resize(0)`, slot 15). When the detokenizer returns false, the text that step 3 copied is therefore
+discarded. A failure in step 1 returns before `SC4LoadString` and leaves the name as step 0 left it. In every
+case a failed load leaves the name empty.
+
 If the load fails, read the string property `0xAA12FCB0` into the name. If that is missing too, the name stays
-as it was (empty for a new entry).
+empty.
+
+**How step 1 reads the key** *[compat]* (QUESTIONS CQ17; `cSCPropertyHelp::GetPropertyValue` `0x005FD5B0`). The
+reader takes the property's value variant and its data pointer (variant slot 103, the shared raw accessor
+`0x0060CE80`), then copies three `uint32` from it. It checks neither the type nor the count, and it returns true
+whenever the property exists. So:
+
+| `0x8A416B2E` holds | Original |
+|---|---|
+| ≥ 3 `u32` (all shipped) | `G` = value [1], `I` = value [2] |
+| 2 values (8 data bytes) | `I` comes from the 4 bytes after the data block (heap garbage) |
+| 1 value | `G` and `I` both come from past the block |
+| a scalar | the inline value is used as a pointer: garbage or a fault |
+
+With a garbage key the lookup of step 2 almost always misses, so the load fails and the name ends empty or takes
+`0xAA12FCB0`. *[choice]* FreeCity4 treats a value with fewer than 3 elements, or a scalar, as a missing property:
+no lookup, the load fails. That gives the original's usual outcome without reading past the data.
+
+**The language ID** (QUESTIONS CQ18; `0x00603063`–`0x0060306C`). Step 2 asks `RZ::LM()` (`0x00913D7A`) for the
+language manager and calls its slot 7 for the ID. `RZ::LM()` fetches the framework system service `0x441E5070` once
+and caches the pointer. Neither function tests for null, so without a language manager the original calls through a
+null pointer and faults. The game always registers one. *[choice]* With no language manager FreeCity4 uses
+language ID 0, so step 2 tries only (`0x2026960B`, `G`, `I`).
+
+**The detokenizer is borrowed** (QUESTIONS CQ19). The crime loader passes no detokenizer (`0x006A0CF1` pushes 0),
+so `SC4LoadString` falls back to the game's global one (`0x00603121`–`0x00603133`). That global is the
+application's `GetStringDetokenizer` (`cISC4App` slot 42, `+0xA8`; `0x0044B4D0` returns the application's member
+with no `AddRef`), cached once at start-up by `SL::OnAppInit1` (`0x00602323`), again with no `AddRef`.
+`SC4LoadString` calls its slot 9 with no `AddRef` or `Release` around the call. Nothing in this path owns a
+reference. A caller may take and release its own reference around the call; the original does not.
+
+**How the resources are read** (QUESTIONS CQ20). Every load in steps 1 and 2 goes through the resource manager's
+slot 4, `GetPrivateResource` (`+0x10`). Slot 3, `GetResource`, first searches the manager's cache and adds what it
+loads to it (`0x009732EB`); slot 4 loads without the cache and asks the result for the requested interface
+(`0x00972D60`). The calls are:
+- step 1: the crime type's exemplar again, key (`0x6534284A`, the type's group, the type's instance), interface
+  `0xA52160F5` (`0x006032AE`). This is separate from the cached `GetResource` load that the loader uses for the
+  other properties (`0x006A0BA0`);
+- step 2: the LTEXT as a `cIGZString` (`0x089B7DC8`), with the last two arguments 0 and null (`0x006030B8`, and
+  `0x006030F9` for the retry without the language ID). The string object is released after the copy
+  (`0x00603147`).
+
+There is no string loader of its own.
 
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
@@ -567,8 +619,18 @@ the library rule) gives 3600 more.
 
 *[choice]* The seed comes from the clock, so no run can observe the difference. FreeCity4 seeds with
 `(uint32)(time(NULL) + 2177452800) XOR 0x6C09C3F6`, which is the original's value whenever the two daylight rules
-agree, and skips the library's time-zone arithmetic. The other file-local generators seeded "with `cRZTime()`"
-(foundations §6) use the same value.
+agree, and skips the library's time-zone arithmetic.
+
+**The clock value is shared, not crime's own** (QUESTIONS CQ21). Every clock-seeded generator in the game calls the
+same `cRZTime()` constructor (`0x00470B50`) and so starts from this same seconds-since-1901 value:
+- the 34 file-local generators built by static initialisers between `0x00A71CB0` and `0x00A75270`, each XORing its
+  own constant (crime's `0x6C09C3F6` is one of them; the full list is foundations §6.3);
+- the construction occupant's `StaticInit` reseed, which uses the plain value (`0x005CEDAC`);
+- the prop developer's member generator, seeded with the value × 28 (`0x006F34A3`–`0x006F34AA`).
+
+So the helper that computes the value belongs with the random-number code (foundations §6), and every generator
+above uses it. FreeCity4 normally replaces the clock with the session seed (foundations §6.3); this paragraph only
+fixes what the clock value is when the original's own value is wanted.
 
 | Operation | Method | Draws |
 |---|---|---|
@@ -647,8 +709,19 @@ Elements of incidents without a lot (possible after a load) are not written. Ret
 - Growing beyond the capacity allocates a new B buffer of `size + max(size, added)` elements (exactly the count
   when `out` is empty), copies the old elements and frees the old buffer with B. Shrinking only moves `end`, and
   a resize within the capacity keeps the buffer.
-- The only caller (the traffic effect manager, `0x00553370`) passes a zeroed vector (no buffer) on every call. It
-  frees the buffer with `0x0090CF63` afterwards, whatever the return value.
+- There are **two** callers (corrected 2026-10-14). Both pass a zeroed vector (no buffer) on every call and free
+  the buffer with `0x0090CF63` afterwards, whatever the return value:
+  - `cSC4TrafficAutomataManager::PopulateCrimeLayer` (`0x00553370`; call `0x005533CB`, free `0x00553547`). It is
+    slot 83 of the traffic automata manager's vtable `0x00A9BD88`, and the pedestrian manager (`0x00A9A470`) and
+    vehicle manager (`0x00A9D1E0`) inherit it. The name is *[inferred]* from the Mac build's vtable of the same
+    class, aligned by the slot 89 call it makes (`PopulateNetworkOccupantForCrimeLayer`). It is not a traffic
+    effect manager method: `0x00552B80` "StopEffect" is a different function. It uses the return value, skips
+    elements whose visuals flag is set and calls `SetVisualsCreated(i, true)` for each incident it populates.
+    Every 28 bytes it reads the cell, type and visuals fields. It stops after 5 ms of work;
+  - the map view's crime layer (`cSC4WinMapView::Update` `0x007A2F60`; call `0x007A41BD`, free `0x007A42C3`). It
+    ignores the return value and takes the count as `(end − begin) / 28`. For each element it reads `cellX`,
+    `cellZ` and the icon key and draws the icon at that cell, so an element left unwritten (no lot) is drawn from
+    its garbage cell with key (0, 0, 0).
 - A replacement must allocate the buffer with B and free any buffer it replaces with B. `SC4Vector` (allocator A)
   is not compatible.
 - New elements are copies of the resize's fill value. That is a stack temporary whose icon key (+0x10..+0x1B) is
@@ -657,8 +730,8 @@ Elements of incidents without a lot (possible after a load) are not written. Ret
   zero-fills new elements.
 
 `tCrimeEvent` is **28 bytes**: `u32 cellX; u32 cellZ; u32 typeID; u8 visualsCreated; 3 bytes padding;
-cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* The traffic effect manager walks the array
-with this stride (§14.1).
+cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* Both callers walk the array with this stride
+(§14.1).
 
 ### 11.5 `SetVisualsCreated(uint32 i, bool b)` / `GetVisualsCreated(uint32 i)`
 
@@ -804,20 +877,27 @@ vtable is `0x00A9E4DC`.
 | Safety advisor (`update_variables`) | `GetAverageCrime`, `GetMonthlyCrimeCount`, `GetCrimeHotspot`; it is the only writer of history `0xAA662693` (GA_CRIME), recording the low byte of `GetAverageCrime` (advisors.md §7.6) |
 | Aura simulator `DoIdle` | `GetCrimeGrid` → two-grid walker (simgrid §7.3) that reads the **grid memory** through `GetGridData` |
 | Growth developer `DoIdle` / `EstimateDesirability` | `GetCrimeGrid` → a two-grid walker (raw memory); `GetCellValue` → desirability curve |
-| Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeHotspot` |
+| Map view `Update` / `UpdateHighlights` | `GetCrimeGrid` → `GetGridData` (raw rows) for the crime layer; `GetCrimeIncidentArray` (28-byte stride; icon per incident, §11.4); `GetCrimeHotspot` |
 | Query tool | `GetCrimeGrid` → `GetCellValue` |
 | MySim / MyStreetSim trip variables | `GetCrimeGrid` → cell values |
 | Ambience filter | `GetCrimeGrid` → `GetCellValue ≥ 200` (crime ambience) |
 | Getaway van `PostInit` | `GetCrimeGrid` |
-| Helicopter, patrol car | `GetNearestCrimeSim` (`+0x24`), `GetCrimeHotspot` |
-| Traffic effect manager `StopEffect` | `GetCrimeIncidentArray` with a 28-byte stride, then `SetVisualsCreated(i, true)` |
+| Helicopter, patrol car | `GetNearestCrimeSim` (`+0x24`), `GetNearestCrimeProp` (`+0x28`), `GetCrimeHotspot` (below) |
+| Traffic automata manager `PopulateCrimeLayer` (also the pedestrian and vehicle managers, which inherit it) | `GetCrimeIncidentArray` with a 28-byte stride, then `SetVisualsCreated(i, true)` (§11.4) |
 | Police simulator | subscribes to `0x0A159D95`; called by state 4 (`ProcessMonthlyCrimeStats`) |
 | Prop developer | calls the prop-requester slots; saves the requester by ref |
 | City / class store | creates, `Init`/`Shutdown`, save/load |
 
-No caller of `GetNearestCrimeProp` or `GetVisualsCreated` was found. No code outside the class calls its
-functions directly or reads its members. The only outside references are the COM director's class table
-(factory and `GetGZCLSID`).
+**`GetNearestCrimeProp` callers** (corrected 2026-10-14; an earlier version said there were none). All three use
+the vehicle's position (`+0x40`) and radius 20.0, right after a `GetNearestCrimeSim` with the same arguments:
+- patrol car `DoArrestTick` (`0x00544060`; `0x005440C3`, `0x005440E9`) and helicopter `RespondToCrimeScene`
+  (`0x00535760`; `0x00535785`, `0x005357A9`). When a crime prop is found they call its `SetState(1)` (prop
+  occupant slot 11) and query again, at most five times. A prop in state 1 no longer qualifies (§11.3), so each
+  query returns the next one. With no prop, a crime sim that was found gets an action call (sim slot 52, `+0xD0`).
+- patrol car `SetDispatchState` (`0x00543F60`; `0x00543FDD`), which tests whether either query found anything.
+
+No caller of `GetVisualsCreated` was found. No code outside the class calls its functions directly or reads its
+members. The only outside references are the COM director's class table (factory and `GetGZCLSID`).
 
 ### 14.2 Replaceability findings
 

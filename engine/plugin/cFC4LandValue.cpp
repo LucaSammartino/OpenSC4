@@ -15,6 +15,7 @@
 
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
+#include "FC4HostGrid.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -146,30 +147,12 @@ uint64_t DesirabilityMap(void*, uint64_t dev) {
 }
 
 // §4.1 step 3 through GZCOM (simgrid.md §6.3): the game's own grid class. The
-// class factory's object comes with the one reference the core then owns.
+// class factory's object comes with the one reference the core then owns. The
+// shared host-grid code creates it (FC4HostGrid.h: GetClassObject, Init,
+// SetTractSize, SetInstanceID), as for the newer glues' grids.
 uint64_t CreateGrid(void*, uint32_t kind, int32_t tractSize, uint32_t instanceId) {
     const uint32_t clsid = kind == FC4_GRID_U8 ? kFC4_CLSID_SimGridUint8 : kFC4_CLSID_SimGridFloat;
-    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    void* p = nullptr;
-    if (com == nullptr || !com->GetClassObject(clsid, kFC4_IID_cISC4SimGrid, &p) || p == nullptr) {
-        fc4::Log("landvalue: WARNING could not create grid 0x%08X (class 0x%08X) through GZCOM", instanceId, clsid);
-        return 0;
-    }
-    if (kind == FC4_GRID_U8) {
-        GridU8* g = static_cast<GridU8*>(p);
-        FC4_ACQUIRED(g, "GetClassObject");
-        g->Init();
-        g->SetTractSize(tractSize);
-        g->SetInstanceID(instanceId);
-    } else {
-        GridF32* g = static_cast<GridF32*>(p);
-        FC4_ACQUIRED(g, "GetClassObject");
-        g->Init();
-        g->SetTractSize(tractSize);
-        g->SetInstanceID(instanceId);
-    }
-    FC4_LOGV("landvalue: grid 0x%08X created (class 0x%08X, tract size %d) at %p", instanceId, clsid, tractSize, p);
-    return TokenOf(p);
+    return fc4::CreateGameGrid("landvalue", clsid, instanceId, tractSize);
 }
 
 // Slots 10-17 do not depend on the element type.
@@ -225,8 +208,15 @@ void GridShutdown(void*, uint64_t t) {
     if (GridU8* g = U8(t)) g->Shutdown();
 }
 
-void ReleaseGrid(void*, uint64_t t) {
-    if (GridU8* g = U8(t)) FC4_RELEASE(g);
+// The core gives back each grid reference it holds (fc4.h): the one
+// CreateGrid took, or the one the save handed over in Read. Both are ours, so
+// the shared host-grid release (FC4_RELEASE_CREATED) frees the grid without a
+// warning when ours is the last reference: after a save (in-game run 88) or for
+// a grid created at Init. FC4_RELEASE here warned "released last reference"
+// there.
+void ReleaseGrid(void* u, uint64_t t) {
+    if (t == 0) return;
+    Self(u)->NoteGridRelease(fc4::ReleaseGameGrid(t));
 }
 
 void SetHistoryQueueLength(void* u, uint32_t series, uint32_t length) {
@@ -359,7 +349,21 @@ cFC4LandValueSimulator::cFC4LandValueSimulator() {
 cFC4LandValueSimulator::~cFC4LandValueSimulator() {
     fc4_landvalue_destroy(core_);  // releases grids a never-initialised (loaded) object still holds
     core_ = nullptr;
+    LogGridReleases("destroyed, never initialised");
     fc4::Log("cFC4LandValueSimulator destroyed");
+}
+
+// Always on (not verbose: the reference audit's own lines are capped). After
+// a save the last count equals the released one; without a save, on a loaded
+// city, it is 0 (the game still held them; in-game run 88). Nothing when no
+// grid was released.
+void cFC4LandValueSimulator::LogGridReleases(const char* when) {
+    if (gridReleases_ == 0) return;
+    fc4::Log("landvalue grids (%s): %u reference(s) released, %u of them the last (ours to free: created through "
+             "GZCOM or handed over by the save; no warning)",
+             when, gridReleases_, gridLastReleases_);
+    gridReleases_ = 0;
+    gridLastReleases_ = 0;
 }
 
 bool cFC4LandValueSimulator::QueryInterface(uint32_t riid, void** ppvObj) {
@@ -475,6 +479,7 @@ bool cFC4LandValueSimulator::Shutdown() {
         msgServer_ = nullptr;
     }
     fc4_landvalue_shutdown(core_);  // grids: Shutdown, Release
+    LogGridReleases("Shutdown");
     FC4_RELEASE(terrain_);
     terrain_ = nullptr;
     FC4_RELEASE(zoneManager_);

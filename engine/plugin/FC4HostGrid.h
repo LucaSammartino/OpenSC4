@@ -36,4 +36,18 @@ struct HostGridContext {
 // A grid table whose `user` is `ctx` (which must outlive the table's users).
 fc4_grid_api MakeGridApi(const HostGridContext* ctx);
 
+// The two calls that own a grid reference, for glue whose core has its own
+// grid callbacks (land value, fc4_landvalue_host) rather than fc4_grid_api.
+// The table's create and release are these.
+//
+// A new game grid of class `kind` (GetClassObject, noted FC4_ACQUIRED; Init,
+// SetTractSize, SetInstanceID): a token holding that one reference, or 0
+// (logged with `tag`).
+uint64_t CreateGameGrid(const char* tag, uint32_t kind, uint32_t instance, int32_t tractSize);
+// Gives back the reference a grid token holds: the one CreateGameGrid took,
+// or the one a save handed over (IStreamAdapter::ReadRef, noted FC4_ACQUIRED).
+// Either is ours, so reaching 0 is an expected free (FC4_RELEASE_CREATED), not
+// a warning. Returns the count the Release returned (0: it was the last).
+uint32_t ReleaseGameGrid(uint64_t token);
+
 }  // namespace fc4

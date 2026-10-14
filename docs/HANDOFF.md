@@ -125,6 +125,15 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   **Run 88 (save → reload, fourteen replacements)**: our residential's `Write`/`Read` work (population, wealth
 >   split and EQ/HQ restored); after the in-session save, land value's own `ReleaseGrid` released the last reference
 >   to its three grids from `Read` (3 reference warnings at Shutdown): lane below.
+>   **Run 89 (soak, fourteen replacements, 900 s)**: clean for 39 game years (2026 → 2065), `ref_warnings=0`, x87 0;
+>   funds inside the original's spread. Our residential's EQ falls 58 → 16 and HQ 69 → 18 by 2051; there is no
+>   original baseline yet (the observe line gains `residential EQ/HQ/LE=` in the land value lane), then an
+>   all-original soak gives one.
+>   **Run 90b (all original + residential shadow, 900 s)**: clean to 2064; **the original's EQ/HQ fall the same way**
+>   (EQ 17.7 / HQ 20.6 at 2051 against our 16.3 / 18.0): our residential follows the original's decline. The
+>   shadow's scalars are identical on every state-0 line; only the proximity states 1–3 differ (RG23).
+>   **`lvrefs` merged** (`32d9d84`): land value and ordinance release the references a save handed over as ours;
+>   SV1–SV2 filed. **Run 91 (save → reload again)**: both runs clean, `ref_warnings=0` (run 88 had 3).
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
@@ -133,17 +142,24 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     `development_shadow`; ABI 29, seam op 34);
 >   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
 >     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
->   - **land value grid references after a save** (`FC4_RELEASE_CREATED` or the shared host grids; audit of every
->     glue's Read → Shutdown references; seam op 36 if needed);
->   - RE `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8, LG1–LG20) and `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12,
->     CQ16–CQ22, TN21–TN25, HG1, the crime errata; then RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4`
->     is merged (`79d619c`; its `docs/abi` rows in `83aa768`).
+>   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
+>     original; ABI 34, seam op 38);
+>   - **growth probe** (`growth_probe`: counts the original tract developer's `Grow` calls per day through a vtable
+>     hook, building-development.md §12, to set the `growthAttemptsPerDay` default; seam op 39 if needed);
+>   - **`apply6a`**: TS1–TS34 into the traffic simulator core (`ts11_*` vectors; core only, no glue; ABI 32 only if
+>     unavoidable);
+>   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
+>     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
+>   - RE `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12, RG23, BQ3, CQ16–CQ22, TN21–TN25, HG1, the crime errata; then
+>     RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4` is merged (`79d619c`; its `docs/abi` rows in
+>     `83aa768`); RE `re-answers5` is merged (`fdc6893`; its `docs/abi` rows in `a9eef99`).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
 >   - residential: the RG23 answer (proximity grids), then an apply lane;
->   - after the land value fix: run 88 again (save → reload), expecting `ref_warnings=0`;
+>   - run the growth probe in the original when it merges (a long soak with `growth_probe = 1`), and set the default
+>     from its Shutdown summary (building-development.md §4.4.1, §12);
 >   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);

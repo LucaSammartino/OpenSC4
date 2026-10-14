@@ -653,7 +653,7 @@ cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	5	+0x14	006a2390	cSC4DemandSim
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	6	+0x18	006a2960	cSC4DemandSimulator::GetDemand	8	2	eax-or-void	medium	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	7	+0x1C	006a6c90	cSC4DemandSimulator::UpdateOccupantEffects	12	3	eax-or-void	medium	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	8	+0x20	006a23a0	cSC4DemandSimulator::CalculateJobsPerUnitOfDemand	12	3	eax-or-void	medium	
-cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	edx:eax?	low	
+cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	9	+0x24	006a3e60	cSC4DemandSimulator::GetJobsBySensus	4	1	eax	high	re-answers6 DQ12: low 32 bits of _ftol's int64; EDX not meaningful (garbage on the early-0 path); the history caller reads EAX
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	10	+0x28	006a3dd0	cSC4DemandSimulator::GetNeutralTaxRate	0	0	x87	high	
 cISC4DemandSimulator	cSC4DemandSimulator	00ab0e48	11	+0x2C	006a5f80	cSC4DemandSimulator::GetLocalPopulationSummary	4	1	eax-or-void	medium	
 cISC4Demand	cSC4Demand	00aa2758	0	+0x0	005d4af0		8	2	eax-or-void	medium	
@@ -1452,7 +1452,7 @@ cISC4City	cSC4City	00a87620	36	+0x90	005a4de0	icf::cSC4City::GetZoneManager	0	0	
 cISC4City	cSC4City	00a87620	37	+0x94	0076b620	icf::cGZGraph::GetHitTestResultData	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	38	+0x98	00623b70	cSC4City::GetNetworkManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	39	+0x9C	00459730	cSC4City::GetDispatchManager	0	0	eax-or-void	medium	
-cISC4City	cSC4City	00a87620	40	+0xA0	004596f0	cSC4City::GetTrafficNetwork	0	0	eax-or-void	medium	
+cISC4City	cSC4City	00a87620	40	+0xA0	004596f0	cSC4City::GetTrafficNetwork	0	0	eax-or-void	medium	re-answers5 LG17: returns city+0x1E8, the cISC4TrafficNetworkMap* (IID 0xCA0F81B9), borrowed
 cISC4City	cSC4City	00a87620	41	+0xA4	00423750	icf::cSC4City::GetPropDeveloper	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	42	+0xA8	0043d230	icf::cSC4City::GetNetworkLotManager	0	0	eax-or-void	medium	
 cISC4City	cSC4City	00a87620	43	+0xAC	00647570	cSC4City::GetVehicleManager	0	0	eax-or-void	medium	
@@ -1772,7 +1772,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	17	+0x44	0049e150		16	4	eax-or
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	18	+0x48	0049db20		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	19	+0x4C	0049e1b0		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	20	+0x50	0049ef60		8	2	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	21	+0x54	0049f240		12	3	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	21	+0x54	0049f240	cSC4OccupantManager::RemoveOccupant	12	3	eax-or-void	medium	re-answers5 LG1: (occ, bool shutdown, uint32 data4); AL = removed; posts 0x99EF1143 with data4; Shutdown if arg2
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	22	+0x58	0049fcd0		12	3	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	23	+0x5C	0049db80				forward	medium	indirect-jump dword ptr [eax + 0x58]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	24	+0x60	0049f3c0		8	2	eax-or-void	medium	
@@ -1783,8 +1783,8 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	28	+0x70	0049e4d0		16	4	eax-or
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	29	+0x74	0049dc80		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x70]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	30	+0x78	0049e5e0		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	31	+0x7C	0049dcb0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x78]
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690		16	4	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	32	+0x80	0049e690	cSC4OccupantManager::GetOccupantAtCell	16	4	eax-or-void	medium	re-answers5 LG4: (&out, x, z, filter*); AL = found; *out AddRef'd on a hit, untouched on a miss
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	33	+0x84	0049dce0	cSC4OccupantManager::GetOccupantAtCell (typed)	16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x80]; indirect-jump dword ptr [eax + 0x80]; re-answers5 LG4: (&out, x, z, type); sets the type filter, tail to slot 32
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	34	+0x88	0049e800		16	4	eax-or-void	medium	
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	35	+0x8C	0049dd10		16	4	eax-or-void	medium	indirect-jump dword ptr [eax + 0x88]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	36	+0x90	004a0670		20	5	eax-or-void	medium	
@@ -1799,7 +1799,7 @@ cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	44	+0xB0	004a1360		20	5	eax-or
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	45	+0xB4	0049de40		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xb0]/dword ptr [eax + 0xb0]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	46	+0xB8	0049de80		20	5	eax-or-void	medium	indirect-jump dword ptr [eax + 0xbc]/dword ptr [eax + 0xbc]
 cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	47	+0xBC	0049e370		20	5	eax-or-void	medium	
-cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30		4	1	eax-or-void	medium	
+cISC4OccupantManager	cSC4OccupantManager	00a8f7f0	48	+0xC0	0049ef30	(release occupant list)	4	1	eax-or-void	medium	re-answers5 LG1: releases each entry of a slot-41 list and empties it
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	0	+0x0	00578910		8	2	eax-or-void	medium	tail->00577400
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	1	+0x4	007637a0		0	0	eax-or-void	medium	tail->0057eb00
 cISC4DisasterLayer	cSC4DisasterLayer	00a9e390	2	+0x8	007637b0		0	0	eax-or-void	medium	tail->0057eb70
@@ -1979,7 +1979,7 @@ cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	3	+0xC	0071e7e0	cSC4TrafficS
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	4	+0x10	00719290	cSC4TrafficSimulator::Shutdown	0	0	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	5	+0x14	0071ffa0	cSC4TrafficSimulator::GetSimulatorType	0	0	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	6	+0x18	0070d860	cSC4TrafficSimulator::CreatePathFinder	4	1	eax-or-void	medium	
-cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	7	+0x1C	00711610	cSC4TrafficSimulator::SetupPathFinderForLot	8	2	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	7	+0x1C	00711610	cSC4TrafficSimulator::SetupPathFinderForLot	8	2	eax-or-void	medium	re-answers5 TS10: returns bool in AL
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	8	+0x20	006aac50	cSC4TrafficSimulator::GetAirPollutingTrafficMap (shared/folded getter: mov eax,[ecx+30h])	0	0	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	9	+0x24	0080bc00	cSC4TrafficSimulator::GetCommercialTrafficMap (folded getter [ecx+38h])	0	0	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	10	+0x28	00698cf0	cSC4TrafficSimulator::GetCongestionMap (folded getter [ecx+48h])	0	0	eax-or-void	medium	
@@ -2007,7 +2007,7 @@ cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	31	+0x7C	0071c250	cSC4Traffi
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	32	+0x80	0071fff0	cSC4TrafficSimulator::GetFerryTerminalCount	4	1	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	33	+0x84	0070ec10	cSC4TrafficSimulator::GetWaterRoute	20	5	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	34	+0x88	00720000	cSC4TrafficSimulator::GetTrafficStats	0	0	eax-or-void	medium	
-cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	35	+0x8C	0071cb80	cSC4TrafficSimulator::GetTransitSwitchQueryData	12	3	eax-or-void	medium	
+cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	35	+0x8C	0071cb80	cSC4TrafficSimulator::GetTransitSwitchQueryData	12	3	eax-or-void	medium	re-answers5 TS11: returns bool in AL
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	36	+0x90	00710540	cSC4TrafficSimulator::AreLotsConnected	8	2	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	37	+0x94	00711a70	cSC4TrafficSimulator::GetConnectedOccupantCount	8	2	eax-or-void	medium	
 cISC4TrafficSimulator	cSC4TrafficSimulator	00ab33d0	38	+0x98	007106c0	cSC4TrafficSimulator::GetConnectedDestinationCount	8	2	eax-or-void	medium	
@@ -2606,7 +2606,7 @@ cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	5	+0x14	00648ef0	cSC4ViewInput
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	6	+0x18	00619180		0	0	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	7	+0x1C	0061a120		4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	8	+0x20	00604d10		4	1	eax-or-void	medium	
-cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30		4	1	eax-or-void	medium	
+cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	9	+0x24	00604d30	HasAnyNetworkFlag	4	1	eax-or-void	medium	re-answers5 LG7: bool (flags & mask) != 0, as used by FindNetworkTile
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	10	+0x28	00619ec0		4	1	via-call	low	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	11	+0x2C	00619f70		4	1	eax-or-void	medium	
 cISC4NetworkOccupant	cSC4NetworkOccupant	00aa8080	12	+0x30	006e3000	cSC4PollutionSimulator::GetTotalGarbageUncollected	0	0	eax-or-void	medium	
@@ -3404,7 +3404,7 @@ cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	2	+0x8	005e2900	icf::cSC4Aut
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	3	+0xC	004771b0		0	0	eax-or-void	medium	tail->005e8c90
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	4	+0x10	00619100	cSC4NetworkOccupant::Shutdown	0	0	eax-or-void	medium	tail->005e8980
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	5	+0x14	005fd7e0	std::vector<unsigned_char,std::allocator<unsigned_char>>::operator[]	0	0	eax-or-void	medium	
-cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	6	+0x18	00477450		4	1	eax-or-void	medium	
+cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	6	+0x18	00477450	cSC4LandfillOccupant::SetTileID	4	1	eax-or-void	medium	re-answers5 LG3: EAX = previous tile ID; on a change rewrites the attached exemplar's key (null exemplar crashes)
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	7	+0x1C	00477110	cSC4PowerSimulator::GetMonthlyDemand	0	0	eax-or-void	medium	
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	8	+0x20	004771c0		4	1	eax-or-void	medium	
 cISC4LandfillOccupant	cSC4LandfillOccupant	00a8ce28	9	+0x24	00477120	cSC4PropOccupant::GetPropUsage	0	0	eax-or-void	medium	
@@ -3416,7 +3416,7 @@ cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	4	+0x10	004b4000	cSC4Traff
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	5	+0x14	004b1090	cSC4TrafficNetworkMap::HandleTuningParametersChanged	0	0	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	6	+0x18	004ae200	cSC4TrafficNetworkMap::ChooseWeightedEdge	8	2	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	7	+0x1C	004ae190		12	3	via-call	low	
-cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	8	+0x20	004b0b20	cSC4TrafficNetworkMap::FindNetworkTile	16	4	eax-or-void	medium	
+cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	8	+0x20	004b0b20	cSC4TrafficNetworkMap::FindNetworkTile	16	4	eax-or-void	medium	re-answers5 LG7: borrowed (no AddRef); arg4 true = also search the multi-cell index
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	9	+0x24	004af970		4	1	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	10	+0x28	004ae160		16	4	eax-or-void	medium	
 cISC4TrafficNetworkMap	cSC4TrafficNetworkMap	00a8fed8	11	+0x2C	004ae140		8	2	eax-or-void	medium	
@@ -4168,3 +4168,4 @@ cIGZIStream(SC4DBSegment)	cSC4DBSegmentIStream	00aa2280	18	+0x48	005d16b0	GetErr
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	7	+0x1C	005d1e30	PutUint16	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	9	+0x24	005d1eb0	PutUint32	4	1	eax-or-void	high	re-answers4 FQ3: EAX
 cIGZOStream(SC4DBSegment)	cSC4DBSegmentOStream	00aa2310	18	+0x48	005d16b0	GetError	0	0	eax-or-void	high	re-answers4 FQ3: EAX; 1 = error, sticky
+cISCExemplarPropertyHolder	cSC4LandfillOccupant	00a8cd08	3	+0xC	00458e60	SetDefaultExemplar	4	1	eax-or-void	medium	re-answers5 LG3: new row; no defined result

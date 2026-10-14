@@ -317,6 +317,45 @@ Producer records hold:
 - visited and assigned (pass scratch);
 - the occupant.
 
+**Demand against the pass** (PS8) *[compat]*. demand (s64, object `+0x130`) is written only by step 2
+(`0x006DBC64`–`0x006DBCA0`) and by `Read`. No pass state touches it. It changes at every delivery of
+InsertOccupant / RemoveOccupant. Those messages are posted (flora.md §9.1), and a pass runs one state per
+SimIdle / SimNewDay call (§6), so they are delivered **between the steps of a pass**. At the end of a pass,
+demand therefore already holds the buildings inserted, and lacks those removed, since the pass started. The
+pass's consumed total holds such a building only if the ring flood reached its cell after the change (§6.3 step
+3; `BuildingConsumption` reads the live occupants, and the `0x40` flag changes at delivery). Apart from this
+timing, demand and the pass's consumed total also differ when:
+
+- a consumer is not watered;
+- the supply runs out (§6.3 step 3);
+- the factor is not 1;
+- a building's `0xC8ED2D84` changed after insertion (demand keeps the value read at delivery, sint32; the flood
+  reads the current one, uint32);
+- the shared-cell removal of step 2 has dropped a consumer (it stays in demand but is no longer charged).
+
+Shadow run 81: in the four exact passes that differ only in demand, ours is the record's demand at the start of
+the pass and the original's is the value after its state 8. Each time the next pass agrees again. The figures
+fit *[inferred]* a building replaced by another at the same anchor cell during the pass. The removal clears
+`0x40` and the insertion sets it again, so the flag map ends as it started, and the change shows only in demand:
+
+| Pass | Demand at start | Consumed | Demand at end | Reading |
+|---|---|---|---|---|
+| 333 (2026-03-04) | 25287 | 25287 | 25315 | +28, delivered after the flood passed the cell |
+| 349 (2027-07-04) | 31724 | 31654 | 31732 | the old building's removal (−70) before the flood, the new one's insertion (+78) after |
+| 354 (2027-12-05) | 32978 | 32978 | 32993 | +15 after the flood |
+| 389 (2030-11-04) | 35916 | 35967 | 35967 | +51, both deliveries before the flood |
+
+*[choice]* For the shadow: demand is not a pass output, so compare it with the original's record read at the
+comparison, or treat a demand change during the pass like a flag-map change. A live simulator that applies step 2
+at each delivery has no such difference.
+
+**Demand after a load** (PS4) *[compat]*. `Read` loads demand (§9 field 15), and nothing recomputes it from the
+occupants. A replacement must load it too and carry on with the running sum. In the eight base-game saves with
+buildings (Konradshohe, Tegel, Spandau, Fulham, Kensington and the three Timbuktu tutorials) the saved demand
+equals the sum of the sint32 `0xC8ED2D84` over the saved buildings exactly. Konradshohe, for example, has 23845
+over 729 consumers. So a recount would give the same start here, unlike power's counts (power.md §5.2, PW8). It
+would still differ wherever exemplars changed after the buildings were inserted.
+
 ### 5.4 Pipes (`DoPipeChanged(netOcc, insert)`) *[compat]*
 
 1. `occ := netOcc + 4`. The original converts `cISC4NetworkOccupant*` to `cISC4Occupant*` with a fixed pointer
@@ -376,7 +415,10 @@ A pass needs at least `2N + 7` calls, where `N` is the number of networks floode
 
 ### 6.1 State 0: start
 
-1. passCounter += 1.
+1. passCounter += 1 (`0x006DD3D9`, the first instruction of state 0; jump table at `0x006DF0A8`). passCounter
+   (object `+0x9C`) is written only here, by the constructor (0) and by `Read`, and it is saved (§9 field 7). So
+   a record read before and after a call shows exactly whether that call started a pass, an aborted pass's
+   restart included (PS6).
 2. factor := `ordinanceSimulator.GetCumulativeFactor(0xA8F4EB0C, 0)` (ordinance slot 25, pop 8, float in ST0;
    from the game's ordinance global). *[inferred: the water-consumption factor of water ordinances.]*
 3. For the deals of type `0x4773FFE2` (import), then `0x4773FFE3` (export) (`neighbours.FindDeals(type, list)`,
@@ -411,8 +453,12 @@ To find a seed:
 
 1. **Import seed.** For each deal of type `0x4773FFE2` in `FindDeals` order, with `used < amount` (deal slots
    20 and 10):
-   1. `c := neighbours.FindUnvisitedConnection(5, deal.GetCityOnOtherSide())` (neighbours slot 15, deal slot 7).
-      If c is null, try the next deal.
+   1. `c := neighbours.FindUnvisitedConnection(5, deal.GetCityOnOtherSide())` (neighbours slot 15, deal slot 7;
+      call at `0x006DD7F8`). If c is null, try the next deal. The search (`0x006CF720`, the same function as
+      power's, power.md §6.5, PW1) walks the connection list from its head in append order and returns the first
+      water connection (type 5) to that city whose visited bit is clear. Each seed attempt calls it once per
+      deal. A connection whose other side is missing or inactive stays visited, so the next state 3 gets the
+      deal's next connection in list order (PS1).
    2. `c.SetVisitedThisCycle(true)`.
    3. `o := neighbours.FindConnectionOnOtherSide(c)` (slot 13).
    4. If `o` exists and `o.GetIsActive()` (connection slot 13): use this deal.
@@ -580,7 +626,11 @@ For each cell:
       - `budget.GetLineItemFromBudgetItem(item)` (slot 57) `.AddToFullExpenses(cost − item.cost)`;
       - `budget.ChangeBudgetItemCost(holder, item.index, cost)` (slot 53, pop 16).
 2. last building-cell counts := pass counts.
-3. If the ageing flag is set: `AgeWaterProducer` for each producer (§7.3), then ageing := false.
+3. If the ageing flag is set: `AgeWaterProducer` for each producer (§7.3), then ageing := false. The flag is
+   set only by the month (§7.1, `0x006DF551`) and cleared only here (test `0x006DEDBD`, clear `0x006DEDD9`).
+   So the first state 8 after a month start ages, the later ones of that month do not, and two month starts
+   with no state 8 between them give one ageing. From outside, an ageing shows in each producer's `0xC910B4CF`
+   whenever its increment is not 0 (§7.3) (PS7).
 4. Post `0x6946DC34`, a new `cRZMessage2Standard` with `void1 = this` and `IGZUnknown = this`
    (`MessagePost(msg, false)`, server slot 4).
 5. last month totals := pass totals (produced, consumed, imported, exported).
@@ -619,8 +669,17 @@ It runs even when the simulator is not enabled.
 
 1. recompute := true; ageing := true.
 2. `ApplyPipeFunding(f)`, with f := `dept.GetFundingPercentage()` (department slot 10, which returns a pointer to
-   the fraction):
-   1. cond := cond − `curve 0xCA7138C4 (f × 100)`. Clamp to [0, 1]. If numPipes = 0: cond := 0.
+   the fraction). `dept` is the simulator's own department member (§3, object `+0xA4`, read at `0x006DF543`
+   with no null test), the same one that §7.2 (`0x006DC058`) and §7.3 (`0x006DA710`) read (PS5). `Init` creates
+   it as `0xAA4014B4` when none is held (`0x006DF238`–`0x006DF258`; `CreateDepartmentBudget` returns an existing
+   department unchanged, budget.md §6). After a load it is whatever the saved ref names. In every save checked
+   (Konradshohe, Tegel, Kensington, Big City Tutorial) that is the budget's department `0xAA4014B4`. It is
+   never null after `Init`. No building's budget item takes part. `ApplyPipeFunding` then does:
+   1. cond := cond − `curve 0xCA7138C4 (f × 100)` (`0x006DD119`–`0x006DD142`, stored as float32). Then
+      (`0x006DD13C`–`0x006DD172`): above 1 → cond := 1, and the pipe test is **skipped** *[quirk]*; below 0 →
+      0; otherwise, if numPipes = 0 → 0. So with no pipes cond stays 1 once a step takes it above 1 (only
+      after cond > 0.99 at funding below 50 %), and pipes laid later start from cond 1: all of them become
+      distressed at the next month if funding is still below 50 %.
    2. target := `trunc(float(u32 numPipes) × cond)`.
    3. bursts := `random.RandomSint32RangeGaussianFast(0, trunc(2 × float(int32 target) × burstProbability))`.
       This uses the simulator's own `cRZRandom`, **exactly 4 `NextRaw` draws every month**, including when the
@@ -641,8 +700,29 @@ It runs even when the simulator is not enabled.
            with `(x, z)` from `GetOccupiedCell`;
          - `SetNetworkFlag(0x20000)`, numBurst += 1, bursts −= 1. This happens even when `dm` is null.
 
+**What cond means** (PS2) *[compat]*. cond is the fraction of pipes that should be distressed (step 2), and the
+curve is its **change per month**. The shipped curve is (0,−0.01)(20,−0.005)(50,0)(100,0.02)(110,0.05), clamped
+at both ends (foundations §4.3). So:
+
+- funding below 50 % raises cond, by up to 0.01 a month (1 % of the pipes at 0 %);
+- 50 % holds it;
+- above 50 % it falls, by 0.02 a month at 100 % and 0.05 at 110 % or more.
+
+It does not drop to 0 at once. It reads 0 at any funding of 50 % or more only while it is already 0, as after
+every load (below). Example (24-bit arithmetic, foundations §18): 400 pipes at 0 % funding for ten months give
+targets 4, 8, 12, 16, 19, 23, 27, 31, 35, 39 (cond accumulates in float32 and ends at 0.099999987). Then 100 %
+funding gives 31, 23, 15, 7, 0. Step 4.3 repairs the difference each month, in shuffled order.
+
 Because cond is not saved (§3), after a load the pipes start from cond 0. Distressed and burst flags live in the
 pipe occupants. numDistressed and numBurst are saved, so the counters persist.
+
+**After a load** (PS3) *[compat]*. cond (object `+0x180`) is written only by the constructor (0, `0x006DC61C`)
+and by step 1. `Read`, `Init` and `Shutdown` never touch it, so a loaded city starts from 0 whatever the saving
+game had. The first month then moves the saved distressed pipes towards the new target. Example: 400 pipes, 120
+of them distressed in the save. At 100 % funding cond stays 0, target 0, and step 4.3 repairs all 120. At 0 %
+funding cond becomes 0.01, target 4, and 116 are repaired. The burst flags stay (step 4.3). The ageing flag is
+not saved either (constructor `0x006DC4F7`; set only by step 1 of the month, `0x006DF551`). A save taken between
+a month start and that month's state 8 therefore loses that month's producer ageing.
 
 ### 7.2 `UpdateWaterProduction` (state 1) *[compat]*
 
@@ -827,7 +907,8 @@ Not saved, and recomputed by the first pass after load:
 - state (Read sets 0, so a pass starts immediately; recompute is false);
 - the pass totals and building counts;
 - producer efficiency and polluted;
-- pipe condition (0 after load *[quirk]*);
+- pipe condition (0 after load *[quirk]*, §7.1);
+- the ageing flag (false after load, §7.1);
 - the enabled flag (it needs ConnectionsReady again).
 
 Size example: countX = countZ = 64, 2 producers, no current producer, 3 pipes, all refs non-null:
