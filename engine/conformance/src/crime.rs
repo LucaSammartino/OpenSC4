@@ -14,10 +14,10 @@ use std::collections::{BTreeMap, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::crime::{
-    census_bucket, choose_candidate, decay_value, jobless_factor, msg, parse_mask, rhe, shipped_tuning,
-    shipped_type_exemplars, BuildingInfo, CrimeEvent, CrimeHost, CrimeMessage, CrimeRandom, CrimeShared, CrimeSim,
-    DemandValues, GridProvider, Incident, LotBits, LotRef, LtextLoad, NearbyOccupant, NearestKind, RzRandomSuper,
-    TractGrid, CLSID_CRIME_SIMULATOR,
+    census_bucket, choose_candidate, decay_value, jobless_factor, msg, parse_mask, raw_array_bytes, rhe,
+    shipped_tuning, shipped_type_exemplars, BuildingInfo, CrimeEvent, CrimeHost, CrimeMessage, CrimeRandom,
+    CrimeShared, CrimeSim, DemandValues, GridProvider, Incident, LotBits, LotRef, LtextLoad, NearbyOccupant,
+    NearestKind, RzRandomSuper, TractGrid, CLSID_CRIME_SIMULATOR,
 };
 use fc4_core::grid::{create_for_clsid, CityDims, SimGrid};
 use fc4_core::property::PropertyHolder;
@@ -715,12 +715,16 @@ fn lots(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
-/// `crime_occupants`: `[{id, preview?, effect? (u8 array), pos}]`.
+/// `crime_occupants`: `[{id, preview?, effect?, pos}]`. `effect` is a u8
+/// array, or a typed property value (`{"u32": [100, 8]}`, scalar::variant_of)
+/// that the host hands over as its raw storage (§6.10, CQ13; a scalar: no
+/// bytes, as an absent property).
 fn occupants(w: &World, op: &Json) -> R<()> {
     for e in arr(field(op, "occupants")?, "occupants")? {
         let id = u32_of(field(e, "id")?, "id")? as u64;
         let effect = match opt(e, "effect") {
             None => None,
+            Some(v) if v.as_object().is_some() => raw_array_bytes(&scalar::variant_of(v)?),
             Some(v) => Some(
                 arr(v, "effect")?
                     .iter()

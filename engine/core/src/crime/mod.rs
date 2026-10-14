@@ -61,9 +61,12 @@
 //!   x87 default NaN (`0xFFC00000`), saved as such; `GetAverageCrime` then
 //!   returns 0. Without a crime grid `GetCrimeHotspot` scales by the tuning
 //!   tract size (the original would crash).
-//! - Crime effect (§6.10): arrays shorter than 2 bytes are skipped (spec
-//!   choice). The property is read as a byte array (any numeric element
-//!   type, low 8 bits).
+//! - Crime effect (§6.10, CQ13): `m` and `r` are bytes 0 and 1 of the
+//!   property value's raw little-endian storage, whatever the array type
+//!   ([`raw_array_bytes`]; `Uint32 {100, 8}` gives m = 100, r = 0), with no
+//!   numeric conversion. Scalars and arrays shorter than 2 bytes are skipped
+//!   (spec choice; the original dereferences a scalar and reads past a short
+//!   array).
 //! - Tuning (§8): with the exemplar missing, the five defaulted curve kinds
 //!   get their code defaults (spec choice); the prop request curve, which
 //!   has none, keeps its previous content (empty → 0 in a new simulator). A
@@ -121,8 +124,9 @@ pub use simulator::{
 pub use tuning::{shipped_tuning, CrimeTuning};
 pub use types::{
     bullets_to_zero_width_spaces, choose_candidate, condition_bits, mask_of, name_ltext_key, parse_mask, purpose_bits,
-    shipped_type_exemplars, wealth_bits, zone_bits, CrimeType, LotBits, LtextLoad, ANY_BITS, NAME_LTEXT_TYPE, NONE_BIT,
-    NO_PURPOSE_BIT, SHIPPED_ICON_GROUP, SHIPPED_ICON_TYPE, SHIPPED_NAME_GROUP, SHIPPED_NAME_TYPE,
+    raw_array_bytes, shipped_type_exemplars, wealth_bits, zone_bits, CrimeType, LotBits, LtextLoad, ANY_BITS,
+    NAME_LTEXT_TYPE, NONE_BIT, NO_PURPOSE_BIT, SHIPPED_ICON_GROUP, SHIPPED_ICON_TYPE, SHIPPED_NAME_GROUP,
+    SHIPPED_NAME_TYPE,
 };
 
 use std::cell::RefCell;
@@ -402,7 +406,10 @@ pub trait CrimeHost: GridProvider<u8> {
     // ---- occupants and props (§6.10, §11.3, §11.6) ----
     /// Whether the occupant (as a property holder) has the property.
     fn occupant_has_property(&self, occupant: u64, id: u32) -> bool;
-    /// A property of the occupant as bytes (`RefUint8` data), if present.
+    /// A property of the occupant as the raw storage of its array value (what
+    /// `RefUint8`, variant slot 95, points at: count × element size bytes,
+    /// any element type, no conversion; [`raw_array_bytes`]), §6.10 / CQ13.
+    /// `None` if absent or not an array ([choice]).
     fn occupant_property_bytes(&self, occupant: u64, id: u32) -> Option<Vec<u8>>;
     /// `GetPosition()` (world units).
     fn occupant_position(&self, occupant: u64) -> [f32; 3];

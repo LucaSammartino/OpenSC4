@@ -146,6 +146,40 @@ uint16_t TypeOf(const cISCPropertyHolder* holder, uint32_t id) {
     return v ? v->GetType() : 0;
 }
 
+bool GetRawArrayBytes(const cISCPropertyHolder* holder, uint32_t id, std::vector<uint8_t>& out) {
+    out.clear();
+    const cFC4IGZVariant* v = ValueOf(holder, id);
+    if (v == nullptr) return false;
+    const uint16_t type = v->GetType();
+    if ((type & cIGZVariant::TypeArray) == 0) return false;  // a scalar: its value is no pointer of ours
+    size_t size = 0;
+    switch (static_cast<uint16_t>(type & ~cIGZVariant::TypeArray)) {
+        case 0:  // the void array: raw bytes
+        case cIGZVariant::Bool:
+        case cIGZVariant::Uint8:
+        case cIGZVariant::Sint8:
+        case cIGZVariant::Char:
+        case cIGZVariant::RZChar: size = 1; break;
+        case cIGZVariant::Uint16:
+        case cIGZVariant::Sint16:
+        case cIGZVariant::RZUnicodeChar: size = 2; break;
+        case cIGZVariant::Uint32:
+        case cIGZVariant::Sint32:
+        case cIGZVariant::Float32:
+        case cIGZVariant::VoidPtr: size = 4; break;
+        case cIGZVariant::Uint64:
+        case cIGZVariant::Sint64:
+        case cIGZVariant::Float64: size = 8; break;
+        default: return false;  // object arrays and unknown types
+    }
+    const size_t n = static_cast<size_t>(v->GetCount()) * size;
+    if (n == 0) return true;
+    const uint8_t* data = v->RefUint8();  // slot 95: the data pointer whatever the type
+    if (data == nullptr) return false;
+    out.assign(data, data + n);
+    return true;
+}
+
 // ---- writes ----------------------------------------------------------------------------------------
 
 namespace {

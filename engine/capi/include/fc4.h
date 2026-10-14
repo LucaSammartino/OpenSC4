@@ -2415,6 +2415,9 @@ typedef struct fc4_crime_host {
     void (*release)(void* user, uint64_t token);
     /* occupants and props (§6.10, §11.3, §11.6) */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
+    /* The raw storage of an array property (count x element size bytes, the
+     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13);
+     * false if absent or not an array. */
     bool (*occupant_property_bytes)(void* user, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx);
     void (*occupant_position)(void* user, uint64_t occ, float* xyz);
     void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t kind,

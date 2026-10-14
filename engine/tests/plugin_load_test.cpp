@@ -2682,6 +2682,45 @@ int main(int argc, char** argv) {
                 CHECK(cr->Release() == 0);
             }
         }
+        // §6.10 (CQ13): the crime effect is the property's raw storage (the
+        // variant's data pointer, slot 95, whatever its type), no conversion.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            FakeHolder holder;
+            auto put = [&holder](uint32_t id, auto fill) {
+                cRZBaseVariant v;
+                fill(v);
+                holder.AddPropertyVariant(id, fc4::AsGame(static_cast<cIGZVariant const*>(&v)), false);
+            };
+            uint8_t u8s[2] = {100, 8};
+            uint32_t u32s[2] = {100, 8};
+            float f32s[2] = {100.0f, 8.0f};
+            uint16_t u16s[1] = {0x0864};
+            put(1u, [&](cRZBaseVariant& v) { v.RefUint8(u8s, 2); });
+            put(2u, [&](cRZBaseVariant& v) { v.RefUint32(u32s, 2); });
+            put(3u, [&](cRZBaseVariant& v) { v.RefFloat32(f32s, 2); });
+            put(4u, [&](cRZBaseVariant& v) { v.RefUint16(u16s, 1); });
+            put(5u, [](cRZBaseVariant& v) { v.SetValUint8(100); });
+            FC4RawArrayBytesTestIo io{};
+            auto read = [&](uint32_t id) {
+                io = FC4RawArrayBytesTestIo{};
+                io.id = id;
+                return seam(kFC4SeamRawArrayBytes, holder.AsSdk(), &io);
+            };
+            // Uint8 {100, 8}: m = 100, r = 8.
+            CHECK(read(1) == 1 && io.len == 2 && io.bytes[0] == 100 && io.bytes[1] == 8);
+            // Uint32 {100, 8}: 64 00 00 00 08 00 00 00, so m = 100, r = 0.
+            CHECK(read(2) == 1 && io.len == 8 && io.bytes[0] == 100 && io.bytes[1] == 0 && io.bytes[4] == 8);
+            // Float32 {100, 8}: 00 00 C8 42 ..., so m = 0, r = 0.
+            CHECK(read(3) == 1 && io.len == 8 && io.bytes[0] == 0 && io.bytes[1] == 0 && io.bytes[2] == 0xC8 &&
+                  io.bytes[3] == 0x42);
+            // One Uint16 0x0864: 64 08, so m = 100, r = 8.
+            CHECK(read(4) == 1 && io.len == 2 && io.bytes[0] == 0x64 && io.bytes[1] == 0x08);
+            CHECK(read(5) == 0);  // [choice] a scalar: no bytes
+            CHECK(read(6) == 0);  // absent
+            CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
+        }
         FreeLibrary(hd);
         DeleteFileA(ini.c_str());
         const std::string text = ReadFile(log);

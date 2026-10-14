@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "crime_effect_raw_bytes",
+  "spec": ["crime 6.10", "simgrid 7.1"],
+  "description": "How 0xCA5B9306 is read (CQ13, the 6.10 table): m and r are bytes 0 and 1 of the value's raw little-endian storage (the variant's data pointer, slot 95), whatever the array type, with no numeric conversion. The host hands over that storage; the occupants give typed values. Uint8 {100, 8} -> m = 100, r = 8: the c17_11 cone at tract (8, 8) (centre 100, then 75, 50, 25 along x, 0 at distance 4). Uint32 {100, 8} -> 64 00 00 00 08 00 00 00 -> m = 100, r = 0: no cell changes. Float32 {100, 8} -> 00 00 C8 42 ... -> m = 0, r = 0: nothing. Uint16 {100, 8} -> 64 00 08 00 -> m = 100, r = 0: nothing. One Uint16 0x0864 -> 64 08 and one Uint32 0x0864 -> 64 08 00 00: m = 100, r = 8, the same cone as Uint8 {100, 8}. [choice] A scalar is skipped (the original uses its value as a pointer). A conversion to numbers (then low bytes) would have given the cone for Uint32 {100, 8} and nothing for 0x0864. Hand-derived; the cone values are c17_11's.",
+  "steps": [
+    {"op": "crime_occupants", "occupants": [
+      {"id": 20, "effect": {"u8": [100, 8]}, "pos": [257, 0, 257]},
+      {"id": 21, "effect": {"u32": [100, 8]}, "pos": [257, 0, 257]},
+      {"id": 22, "effect": {"f32": [100, 8]}, "pos": [257, 0, 257]},
+      {"id": 23, "effect": {"u16": ["0x0864"]}, "pos": [257, 0, 257]},
+      {"id": 24, "effect": {"u32": ["0x0864"]}, "pos": [257, 0, 257]},
+      {"id": 25, "effect": {"u8": 100}, "pos": [257, 0, 257]},
+      {"id": 26, "effect": {"u16": [100, 8]}, "pos": [257, 0, 257]}]},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 21},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 22},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 25},
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 26},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0},
+
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 20},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [[8, 8, 100], [9, 8, 75], [10, 8, 50], [11, 8, 25], [12, 8, 0], [8, 9, 75]]},
+    {"op": "crime_message", "type": "OccupantRemoved", "occupant": 20},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0},
+
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 23},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [[8, 8, 100], [9, 8, 75], [10, 8, 50], [11, 8, 25], [12, 8, 0], [8, 9, 75]]},
+    {"op": "crime_message", "type": "OccupantRemoved", "occupant": 23},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0},
+
+    {"op": "crime_message", "type": "OccupantInserted", "occupant": 24},
+    {"op": "crime_expect_grid", "grid": "effect", "cells": [[8, 8, 100], [9, 8, 75], [10, 8, 50], [11, 8, 25], [12, 8, 0], [8, 9, 75]]},
+    {"op": "crime_message", "type": "OccupantRemoved", "occupant": 24},
+    {"op": "crime_expect_grid", "grid": "effect", "others": 0}
+  ]
+}

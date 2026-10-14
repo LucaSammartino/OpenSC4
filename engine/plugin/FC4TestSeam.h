@@ -69,11 +69,24 @@
 //         profile (DemandReportCapacities, no simulator): the visitor gets
 //         every entry; returns the entries reported, 0 (switch off) or -1
 //         (refused, logged).
+//   op 40 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
+//         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
+//         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
+//         size, b->bytes = its first 32 bytes; returns 1 (read), 0 (absent,
+//         scalar or object array) or -1 (null argument). (A high number, clear
+//         of the glue lanes' next ones.)
 #pragma once
 
 #include <cstdint>
 
 class cIGZMessage2Standard;
+
+// kFC4SeamRawArrayBytes's in/out block.
+struct FC4RawArrayBytesTestIo {
+    uint32_t id;
+    uint32_t len;
+    uint8_t bytes[32];
+};
 
 enum : uint32_t {
     kFC4SeamBudgetPostSink = 1,
@@ -91,6 +104,7 @@ enum : uint32_t {
     kFC4SeamCrimeShadow = 13,
     kFC4SeamPollutionShadow = 16,
     kFC4SeamDemandCapacity = 20,
+    kFC4SeamRawArrayBytes = 40,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

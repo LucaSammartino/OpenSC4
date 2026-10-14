@@ -582,18 +582,17 @@ bool OccupantHasProperty(void*, uint64_t occ, uint32_t id) {
     return h != nullptr && h->HasProperty(id);
 }
 
-// §6.10: the property as a byte array {m, r}. [choice] Read with the
-// type-converting numeric reader (each element's low byte): exact for the
-// u8 array the property holds; the original's RefUint8 on another variant
-// type is not specified.
+// §6.10 (CQ13): the property's raw storage, as the original reads it: the
+// variant's data pointer (RefUint8, slot 95) whatever its type, with no
+// numeric conversion; the core takes bytes 0 and 1 as {m, r}. [choice] A
+// scalar (the original dereferences its value) or an object array is "no
+// bytes"; the core skips fewer than 2 bytes.
 bool OccupantPropertyBytes(void*, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx) {
     if (occ == 0 || !Gate(fc4::Sw::CrimeOccupants, "crime occupant property read (absent)")) return false;
     cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();
     if (h == nullptr) return false;
-    std::vector<uint32_t> v;
-    if (!fc4::props::GetU32s(h, id, v)) return false;
-    std::vector<uint8_t> bytes(v.size());
-    for (size_t i = 0; i < v.size(); ++i) bytes[i] = static_cast<uint8_t>(v[i]);
+    std::vector<uint8_t> bytes;
+    if (!fc4::props::GetRawArrayBytes(h, id, bytes)) return false;
     if (sink != nullptr && !bytes.empty()) sink(ctx, bytes.data(), bytes.size());
     return true;
 }

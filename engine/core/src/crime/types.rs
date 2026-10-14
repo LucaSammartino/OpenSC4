@@ -66,6 +66,37 @@ pub fn mask_of(h: &PropertyHolder, id: u32) -> u32 {
     parse_mask(bytes_of(h, id).as_deref())
 }
 
+/// The raw storage of an array value, as the crime effect `0xCA5B9306` is
+/// read (§6.10, CQ13): the bytes the variant's data pointer (`RefUint8`,
+/// slot 95) points at, `count × element size`, each element little-endian,
+/// whatever the element type (bool 1 byte, a pointer 4, as in the 32-bit
+/// game). No numeric conversion: `Uint32 {100, 8}` gives `64 00 00 00 08 00
+/// 00 00`, so m = 100, r = 0. [choice] `None` for a scalar (the original
+/// dereferences its value as a pointer), an object or an empty value.
+pub fn raw_array_bytes(v: &Variant) -> Option<Vec<u8>> {
+    let Variant::Array { items, .. } = v else {
+        return None;
+    };
+    let mut out = Vec::new();
+    for e in items {
+        match *e {
+            Elem::Bool(b) => out.push(u8::from(b)),
+            Elem::U8(x) | Elem::Char(x) | Elem::RzChar(x) => out.push(x),
+            Elem::I8(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U16(x) | Elem::UnicodeChar(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I16(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::U64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::I64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::F32(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::F64(x) => out.extend_from_slice(&x.to_le_bytes()),
+            Elem::VoidPtr(x) => out.extend_from_slice(&(x as u32).to_le_bytes()),
+        }
+    }
+    Some(out)
+}
+
 /// The LTEXT type of every crime type name: value [0] of the name key
 /// `0x8A416B2E` is ignored (§7 step 1, CQ8).
 pub const NAME_LTEXT_TYPE: u32 = 0x2026_960B;
@@ -445,6 +476,33 @@ pub fn shipped_type_exemplars() -> Vec<(u32, PropertyHolder)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CQ13 (§6.10 table): raw storage, no conversion.
+    #[test]
+    fn crime_effect_raw_bytes_cq13() {
+        let arr = |elem, items| raw_array_bytes(&Variant::array(elem, items)).unwrap();
+        // Uint8 x2 (all six shipped buildings): m = 100, r = 8.
+        assert_eq!(arr(mem::UINT8, vec![Elem::U8(100), Elem::U8(8)]), [100, 8]);
+        assert_eq!(arr(mem::SINT8, vec![Elem::I8(-1), Elem::I8(8)]), [0xFF, 8]);
+        // Wider arrays: bytes 0 and 1 of element 0, little-endian.
+        let u32s = arr(mem::UINT32, vec![Elem::U32(100), Elem::U32(8)]);
+        assert_eq!(u32s, [100, 0, 0, 0, 8, 0, 0, 0]);
+        assert_eq!((u32s[0], u32s[1]), (100, 0));
+        let f32s = arr(mem::FLOAT32, vec![Elem::F32(100.0), Elem::F32(8.0)]);
+        assert_eq!(f32s[..4], 100.0f32.to_le_bytes());
+        assert_eq!((f32s[0], f32s[1]), (0, 0));
+        // One Uint16 element is already 2 bytes: m = low, r = high.
+        assert_eq!(arr(mem::UINT16, vec![Elem::U16(0x0864)]), [0x64, 0x08]);
+        assert_eq!(arr(mem::BOOL, vec![Elem::Bool(true), Elem::Bool(false)]), [1, 0]);
+        assert_eq!(raw_array_bytes(&Variant::string(b"ab")), Some(b"ab".to_vec()));
+        // Too short for {m, r}: the simulator skips it ([choice]).
+        assert_eq!(arr(mem::UINT8, vec![Elem::U8(100)]), [100]);
+        assert!(arr(mem::UINT8, vec![]).is_empty());
+        // Scalars, objects and empty values: none ([choice]).
+        assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U8(100))), None);
+        assert_eq!(raw_array_bytes(&Variant::Scalar(Elem::U32(0x0864))), None);
+        assert_eq!(raw_array_bytes(&Variant::Empty), None);
+    }
 
     fn shipped() -> Vec<CrimeType> {
         shipped_type_exemplars()
