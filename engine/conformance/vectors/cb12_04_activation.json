@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "name": "civic_activation",
+  "spec": ["civic-buildings 3", "civic-buildings 4.4", "civic-buildings 11", "civic-buildings 12.4"],
+  "description": "A lot-state message (0xE8BDA2E7) queries the lot from its IGZUnknown and releases it. data2 = 2 does nothing else. data2 = 3 for a building with a maintenance item (line 0, cost 30, department 0xEA59717A): the item's line becomes the building type, the department's line for that type is created (not local) and its full expenses rise by 30, the building is held and listed in maintained. A second data2 = 3 (no duplicate check) gives two entries and +60. A lot without a building does nothing. A maintenance item of a department that does not exist still lists the building but creates no line.",
+  "steps": [
+    {"op": "civic_create"},
+    {"op": "civic_init", "expect": true},
+    {"op": "civic_building", "occupant": "0x40", "type": "0x031F0000"},
+    {"op": "civic_item", "occupant": "0x40", "purpose": "maintenance", "department": "0xEA59717A", "line": 0, "cost": 30},
+    {"op": "civic_clear_events"},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x41", "data2": 2, "expect": true},
+    {"op": "civic_expect_events", "events": [
+      {"event": "add_ref", "token": "0x41"},
+      {"event": "release", "token": "0x41"}
+    ]},
+    {"op": "civic_expect", "state": {"landmark_count": 0, "maintained": []}},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x41", "data2": 3, "expect": true},
+    {"op": "civic_expect_events", "events": [
+      {"event": "add_ref", "token": "0x41"},
+      {"event": "change_line", "occupant": "0x40", "index": 0, "line": "0x031F0000"},
+      {"event": "create_line", "department": "0xEA59717A", "line": "0x031F0000", "local": false},
+      {"event": "add_ref", "token": "0x40"},
+      {"event": "release", "token": "0x41"}
+    ]},
+    {"op": "civic_expect_item", "occupant": "0x40", "purpose": "maintenance", "state": {"line": "0x031F0000"}},
+    {"op": "civic_expect_line", "department": "0xEA59717A", "line": "0x031F0000", "state": {"expenses": 30}},
+    {"op": "civic_expect", "state": {"maintained": ["0x40"], "landmark_count": 1}},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x41", "data2": 3, "expect": true},
+    {"op": "civic_expect_line", "department": "0xEA59717A", "line": "0x031F0000", "state": {"expenses": 60}},
+    {"op": "civic_expect", "state": {"maintained": ["0x40", "0x40"], "landmark_count": 2}},
+    {"op": "civic_expect_refs", "refs": {"0x40": 2, "0x41": 0}},
+
+    {"op": "civic_lot", "lot": "0x777", "building": null},
+    {"op": "civic_clear_events"},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x777", "data2": 3, "expect": true},
+    {"op": "civic_expect_events", "events": [
+      {"event": "add_ref", "token": "0x777"},
+      {"event": "release", "token": "0x777"}
+    ]},
+    {"op": "civic_message", "type": "LotStateChanged", "lot": "0x999", "data2": 3, "expect": true},
+    {"op": "civic_expect_events", "events": []},
+
+    {"op": "civic_building", "occupant": "0x42", "type": "0x04000000"},
+    {"op": "civic_item", "occupant": "0x42", "purpose": "maintenance", "department": "0x12345678", "line": 7, "cost": 30},
+    {"op": "civic_call", "method": "lot_activated", "args": ["0x43"]},
+    {"op": "civic_expect", "state": {"maintained": ["0x40", "0x40", "0x42"]}},
+    {"op": "civic_expect_event_count", "filter": {"event": "create_line"}, "count": 0},
+    {"op": "civic_expect_event_count", "filter": {"event": "change_line"}, "count": 0}
+  ]
+}

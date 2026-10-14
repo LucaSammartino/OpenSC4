@@ -46,6 +46,7 @@
 #include "cFC4Power.h"
 #include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
+#include "cFC4TractDeveloper.h"
 #include "cFC4Protection.h"
 #include "cFC4Variant.h"
 #include "fc4.h"
@@ -177,6 +178,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return a == nullptr ? -1 : ZonesTestSeam(static_cast<const FC4ZonesTestInput*>(a));
         case kFC4SeamTraffic:
             return a == nullptr ? -1 : TrafficTestSeam(static_cast<const FC4TrafficTestInput*>(a));
+        case kFC4SeamTract:
+            return a == nullptr ? -1 : TractTestSeam(static_cast<const FC4TractTestInput*>(a), b);
         case kFC4SeamGrowthProbe:
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamScript:  // the harness lane (FC4Script.h)

@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "park_distress_latch",
+  "spec": ["parks 4.4", "parks 4.6", "parks 12.5"],
+  "description": "Threshold 0.25 (no exemplar). f = 0.25 (f <= threshold, latch clear) sets condition 2 on every park lot in list order and sets the latch; the next month f = 0.2 does nothing; f = 0.3 (strictly above, latch set) sets condition 0 and clears the latch; NaN does nothing in either direction. A park without a lot is skipped. Without zoos nothing is drawn; without parks nothing at all happens (no zoo check either). Choice: without a readable funding the pass stops.",
+  "steps": [
+    {"op": "park_env", "tuning": null},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_building", "occupant": "0x20", "groups": ["park"], "lot": "0x21"},
+    {"op": "park_building", "occupant": "0x22", "groups": ["park"], "lot": null},
+    {"op": "park_building", "occupant": "0x24", "groups": ["park"], "lot": "0x25"},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x20", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x22", "expect": true},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x24", "expect": true},
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.25}},
+    {"op": "park_clear_events"},
+    {"op": "park_message", "type": "SimNewMonth", "expect": true},
+    {"op": "park_expect_events", "events": [
+      {"event": "set_condition", "lot": "0x21", "condition": 2},
+      {"event": "set_condition", "lot": "0x25", "condition": 2}
+    ]},
+    {"op": "park_expect", "state": {"underfunded": true}},
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.2}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_env", "funding": {"0x8A4260A6": "nan"}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect", "state": {"underfunded": true}},
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.3}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "set_condition", "lot": "0x21", "condition": 0},
+      {"event": "set_condition", "lot": "0x25", "condition": 0}
+    ]},
+    {"op": "park_expect", "state": {"underfunded": false}},
+    {"op": "park_expect_conditions", "conditions": {"0x21": 0, "0x25": 0}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_env", "funding": {"0x8A4260A6": "nan"}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect", "state": {"underfunded": false}},
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.2}},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_conditions", "conditions": {"0x21": 2, "0x25": 2}},
+    {"op": "park_expect_event_count", "filter": {"event": "double"}, "count": 0},
+
+    {"op": "park_env", "funding": {"0x8A4260A6": null}},
+    {"op": "park_set", "underfunded": false},
+    {"op": "park_clear_events"},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect", "state": {"underfunded": false}},
+
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.2}},
+    {"op": "park_set", "parks": [], "zoos": ["0x30"]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_expect", "state": {"underfunded": false}}
+  ]
+}

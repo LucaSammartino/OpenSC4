@@ -581,9 +581,44 @@ per mesh:
   meshes kept *[compat]*. Shipped: 71 meshes are dropped. All of them have (−1, −1, −1, m) in every frame, so they
   would never show anyway.
 - A model with F frames can be drawn at frame 0 … F − 1; asking for frame ≥ F fails (`GetModelFrame`).
-- Frame rate, mode, flags and displacement are stored for the animated model instance (not traced here, GF10).
-  Shipped: F = 1 in 41,975 models, F > 1 in 940; rate 30 (30,157), 0 (12,491), 10, 3, 2, 1; mode always 3; flags
+- Shipped: F = 1 in 41,975 models, F > 1 in 940; rate 30 (30,157), 0 (12,491), 10, 3, 2, 1; mode always 3; flags
   and displacement always 0; mesh flags always 0.
+- **Only F and the rate are used** (GF10) *[compat]*. The file's mode, flags and displacement are kept (model
+  `+0x50`, `+0x51`, `+0x54`; offsets +4, +5 and +8 of the animation header that model slot 3 returns) and never
+  read: the only reads of that header are +0 (F) and +2 (rate) by the animated instance, and +0x10 to +0x18 by the
+  PROP and REGP consumers (§3.10, §3.11).
+
+**Playback** (the animated model instance, IID `0xA818EDD8`, vtable `0x00ABD088`, made by model slot 4
+`0x00804150`, constructor `0x007FD870`) *[compat]*. The instance keeps its own state: current frame (u16, starts 0),
+mode (byte, default **3**), direction (+1), speed (float32, default the "unset" value −100.0), an accumulator
+(float32, 0) and a catch-up flag that only the constructor writes (0).
+
+- `SetFrame(f)` (slot 10, `0x007FDAF0`): if f is the current frame, return 2. Else build frame f with
+  `GetModelFrame` (§3.12); if that fails (f ≥ F) return 0 and keep the frame; else the current frame is f, return 2.
+- `SetSpeed(s)` (slot 14, `0x007FC170`): s = −200.0 means "from the file": speed = rate × 0.001 (rate as an exact
+  integer, constant float32 `0x00A867A4`, product stored as float32). Any other s is stored as given.
+- `Advance(dt)` (slot 15, `0x007FC1C0`), dt in milliseconds:
+  1. If the speed's bits are those of −100.0f (`0xC2C80000`), call `SetSpeed(−200)`.
+  2. If speed = 0, return 0 (**rate 0 never advances**; such models only change frame through `SetFrame`).
+  3. acc = (dt × speed) × direction + acc, stored as float32 (`0x007FC1F9`–`0x007FC211`).
+  4. |acc| < 1: return 0. 1 ≤ |acc| < 2: `Step`, then acc = acc − direction, re-reading both after the step (so a
+     direction that the step reversed or zeroed is used). |acc| ≥ 2: with catch-up, step until |acc| < 1; without
+     (always), `Step` once and acc = 1.0. So at most one frame per call. Return 2.
+- `Step` (slot 13, `0x007FDB80`), F from the header: nothing if F ≤ 1 or direction = 0. Forward: frame + 1 if it is
+  below F; at the end, mode 3 goes to frame 0 (loop), mode 2 goes to frame − 1 and reverses (ping-pong), any other
+  mode sets direction 0 and acc 0 (play once and hold). Backward: frame − 1 if above 0; at 0, mode 3 goes to F − 1,
+  mode 2 goes to frame + 1 and sets direction +1, other modes stop the same way.
+- `SetAnimMode(m)` (slot 16, `0x007FAFC0`) sets the mode. Its callers: `cSC4Automaton::AttachAnim` (`0x005102A0`,
+  call at `0x00510331`) with mode 1, from the automata script binding `sAttachAnim` (`0x00509B10`), the carjacked
+  vehicle (`0x00524468`) and the getaway van (`0x00533AEA`). Everything else keeps mode 3.
+- Drivers: a prop occupant advances each animated instance on the animation tick message `0x86AD10EE` by the
+  message's milliseconds (data3, float32) × the simulator's time dilation (`cISC4Simulator` slot 32), in
+  `cSC4PropOccupant::DoMessage` (`0x005ECFB0`), and `SetState` sets the frame to the state (`0x005ED3AC`). The
+  automata's own per-tick driver is not traced here *[incomplete: automata spec]*.
+
+Example: F = 4, rate 30, mode 3, frame 0. Speed becomes float32(0.03) = 0.030000001. `Advance(40)`: acc = 1.2, step
+to frame 1, acc = 0.20000005. `Advance(100)`: acc = 3.2, step to frame 2, acc = 1.0. `Advance(0)`: step to frame 3,
+acc = 0. `Advance(40)`: frame 0 (loop).
 
 ### 3.10 PROP (1.1 and later) *[compat]*
 
@@ -592,15 +627,66 @@ per mesh:
 ascending (`std::sort`, `0x00806B40`, then an insertion pass). Equal frames keep file order up to 16 entries;
 above 16 their order is not defined (FS11). FreeCity4 sorts stably by frame *[choice]*, which is the same on all
 shipped data. Shipped: 58 models with 2 entries each, e.g. (−1, 0, `skeleton`, `adult`) and (−1, 0, `suit`,
-`RangerFFit_01`); every entry is (−1, 0). Consumer not traced (GF11).
+`RangerFFit_01`); every entry is (−1, 0).
+
+**Nothing uses PROP** (GF11) *[compat]*. The array (model `+0x5C` count, `+0x60` entries; header +0x10 / +0x14) is
+read only by `SerialRead` and freed by the destructor (`0x00806640`); its element copy and sort helpers are called
+only from there; no read of header +0x10 / +0x14 follows a model slot 3 or instance slot 17 call anywhere in the
+exe; and the strings `skeleton`, `suit`, `adult` and `RangerFFit` do not occur in it. FreeCity4 reads and keeps
+the array for completeness only.
 
 ### 3.11 REGP (1.2 and later) *[compat]*
 
 `u32` count, then per entry: `u8` length + name (NUL included; **lower-cased** on read), `u16` count C, C × 28
 bytes (7 × f32 each). Entries go into a map keyed by the name; a repeated name appends to the existing list.
 Shipped: 1,810 models have entries, names such as `fx_00_highway_bridge_collumn_f` and
-`fx_00_blue_blinking_light_slow`, C = 1. The 7 floats are a position and an orientation *[inferred]*; consumer not
-traced (GF11).
+`fx_00_blue_blinking_light_slow`.
+
+**Records** (GF11). In all 3,025 shipped entries C equals the model's frame count F (2,924 with F = 1): there is
+one record per animation frame, and both consumers pick the record of the instance's current frame. In the data
+the 7 floats are a position (x, y, z) followed by a unit quaternion (x, y, z, w): all 8,674 records have a unit
+4-norm, 344 are the identity (0, 0, 0, 1) *[inferred from the data]*. **The exe reads them differently**: floats
+3–5 as a rotation axis that it normalises, and float 6 as an angle in radians (below) *[quirk]*.
+
+Shipped names: 2,815 `fx_<digits>_<effect>`, 66 `fx_<effect>`, 142 `stop_car_…` / `stopuk_car_…`, 2
+`regpoint01`. Most common effects: `blue_blinking_light_slow` 1,320, `highway_bridge_collumn_foam` 920,
+`goldengate_bridge_collumn_foam` 300; the rest are automata effects (`planeprop`, `rotor`, wakes, train smoke …).
+
+**Consumer 1: model effects** *[compat]*. Class `cSC4ModelRegEffects` (vtable `0x00AA4060`, constructor
+`0x005E8670`) is a member of every automaton (`+0x18C`, from `cSC4Automaton`'s constructor `0x0051429E`), of the
+helicopter (`+0x22C`, `+0x240`), the tank (`+0x368`) and the network bridge occupant (`+0x1D0`); those five are its
+only construction sites. **REGP entries of models drawn by any other occupant (buildings, props, flora) are not
+used.**
+
+- `InitEffectsList` (slot 16, `0x005E8320`; slot 0 runs it when an instance is attached) walks the model's REGP map
+  in name order. A name that does not begin with `fx_` is skipped. Otherwise the effect name is the rest after
+  `fx_`; if its first character is a decimal digit and it contains `_`, the effect name is the part after the first
+  `_` (`fx_00_planeprop` → `planeprop`, `fx_straight_road_bridge_collumn_foam` → itself without `fx_`).
+- `AddEffect(key, effectName, records)` (slot 8, `0x005E8810`): the key is the full REGP name. An existing entry's
+  effect is stopped and released; then the effect is created by name through the city's effects manager
+  (`cISC4City` slot 85, `cISC4EffectsManager::CreateVisualEffect` slot 7 at `0x005E8919`). On failure the entry is
+  removed; on success it keeps the record list and the effect name. Effects are not started here; the owner starts
+  and stops them by name (slots 12 / 13, `0x005E7660` / `0x005E7750`, case-insensitive) or all at once (slots 6 / 7),
+  and finds one by REGP name (slot 10, `0x005E7A60`): the airplane's `Init` (`0x005017C0`) takes
+  `fx_00_planepropstill`, else `fx_00_fireplanepropstill`, and `fx_00_planeprop`, else `fx_00_fireplaneprop`.
+- Update (slot 5 `0x005E6160`; slot 4 `0x005E6B40` also sets parameter 15 of each effect to speed × direction):
+  for each started effect, record r = the instance's current frame (0 if the instance is not animated), **with no
+  check against C**. Local transform: translation (f0, f1, f2); rotation from the quaternion
+  (n · sin h, cos h) with h = f6 × −0.5 (constant `0x00A949FC`) and n = (f3, f4, f5) × (1 / |(f3, f4, f5)|)
+  (`0x005E62BC`–`0x005E6340`), stored as the 3 × 3 rows
+  (1 − 2y² − 2z², 2xy + 2zw, 2xz − 2yw), (2xy − 2zw, 1 − 2x² − 2z², 2yz + 2xw), (2xz + 2yw, 2yz − 2xw, 1 − 2x² − 2y²)
+  (`0x005E6342`–`0x005E644F`). The effect's position is the instance's rotation × (f0, f1, f2) × the instance's
+  scale + the instance's translation (`0x005E66A5`–`0x005E6759`); its orientation is the instance's rotation composed
+  with the local one *[inferred]*. The result goes to the effect's `SetTransform` (`cISC4VisualEffect` slot 8,
+  `0x005E6AC2`).
+- Consequence: an identity record (zero axis) divides by zero, so its orientation is NaN; its position is correct.
+  FreeCity4 reproduces the exe's reading, and uses no rotation for a zero axis *[choice]* (GF13).
+
+**Consumer 2: fire crews** *[compat]*. `cSC4SimFireCrew::InitRegTranslationArray` (`0x00548F10`) looks up
+`regpoint01` (string `0x00A9B2E4`) in the crew's first model and copies the position (f0, f1, f2) of every record.
+Each animation tick (`0x00548BD0`, from `DoAnimationTick` at `0x00549CF1`) it takes the record of the current frame,
+clamped to the last one, and adds the instance's rotation × position × scale plus the instance's translation to a
+transform's translation. The `stop…` names have no consumer (no such string in the exe).
 
 Lower-casing is `cRZString::MakeLower` (`0x0090EAC5`, FS12). A name whose bytes are all below `0x7F` is lowered
 byte by byte with the C library's `tolower`; any other name is converted from UTF-8 to UTF-16, lowered with
@@ -681,7 +767,7 @@ gives z = table[4 + 5 × 2] = 3, so an RKT1 model uses instance v[2] + `0x300` +
 | `0x27812821` (RKT1) | (v[0], v[1], v[2] + z × `0x100` + r × `0x10`); v[2] = 0 means no model |
 | `0x27812822` (RKT2) | (v[0], v[1], v[2 + 4z + r]): 20 explicit instances |
 | `0x27812823` (RKT3) | (v[0], v[1], v[2 + z]): one per zoom |
-| `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function (other callers, GF7) |
+| `0x27812824`, `0x27812825` (RKT4, RKT5) | not handled by this function; read by `GetAllModelInstanceIDs` (below, GF7) |
 
 Nothing is range-checked (FS14). z = table[zoom + 5 × detail] indexes the 15-entry table directly: zoom 5 at
 detail 0 reads the detail-1 row, and an index past 14 reads the pointers stored after the table. The value count is
@@ -694,6 +780,62 @@ RKT0 ignore zoom and detail *[choice]*.
 Shipped S3D instances follow the RKT1 pattern: of 2,761 instance bases (instance with the low 12 bits cleared),
 1,957 hold exactly the 20 variants zoom 0–4 (bits 8–11) × rotation 0–3 (bits 4–7); the low 4 bits are 0 in 42,388
 of 42,915 models.
+
+**All the models of an occupant: RKT4 and RKT5** (GF7). The model maker loads an occupant's models with
+`cSC4ModelMakerUtility::GetAllModelInstanceIDs` (`0x00496C90`), not with the function above. Its occupant form
+(`0x00497120`) passes the occupant's property holder, a flag f = the occupant's flag `0x80` (`IsFlagSet`, slot 32),
+and a state s from `GetOccupantOrientationAndState` (`0x00496670`). `cSC4NetworkLotManager::CreateProp` sets flag
+`0x80` on some props (`0x0060D00B`–`0x0060D014`) *[condition not traced]*. It also takes the zoom, the three
+rotation arguments above and out pointers for T and G, and fills a list of instances and, if asked, a list of
+offsets (three floats per instance):
+
+1. Both lists are emptied.
+2. If the holder has property `0x0ABFC024` and its bit number *zoom* is clear, it returns with both lists empty
+   (`0x00496D06`–`0x00496D25`). Shipped in 1,009 records, e.g. billboards `0x1E` (zooms 1–4) and signs `0x18`
+   (zooms 3–4).
+3. With b = `0x27812820`, or `0x27812920` when f is set, it takes the **first** of b + 0 … b + 5 that the holder
+   has, in that order, and reads no other:
+   - b + 0 … b + 3 (RKT0–RKT3): one instance, as in the table above; offset (0, 0, 0).
+   - b + 5 (RKT5): the RKT1 rule on its values (T, G, base), plus s × `0x10000` (`0x004970BC`–`0x004970CB`);
+     offset (0, 0, 0). A base of 0 gives 0 from the RKT1 rule, then s × `0x10000`.
+   - b + 4 (RKT4): a list of records, below. Every record whose selector equals s adds one instance and one
+     offset.
+
+**RKT4 records.** Each record is a header of five values (selector, x, y, z, kind) followed by the values of an
+RKT0–RKT3 key of that kind, read with that kind's rule at that position. The kind sets the record's length
+(`0x00496F87`–`0x00496FC2`): 3 values after the header for RKT0 and RKT1 (T, G, instance or base); **30** for RKT2
+(T, G and 28 instances, of which the rule uses the first 20); **5** for RKT3 (T, G and 3 instances, although the
+rule reads v[2 + z] up to z = 4, two values into the next record *[quirk]*). The walk:
+
+- needs more than four values, and starts a record only while at least five values are left (`0x0049706B`);
+- **stops** at a kind that is not RKT0–RKT3, or at a record that runs past the end. Records before it are kept;
+- for each record with selector = s, appends the instance even when it is 0 and writes T and G (the last match
+  wins). If offsets are asked for, it appends x, y and z as **signed 16.16 fixed point**, each × 1/65536
+  (`0x00497019`–`0x00497046`, constant `0x00A8CF40`).
+
+Worked examples:
+
+- `Street2x6x2_$$$LuxerySedan2_1D71` has RKT4 = (0, 0, 0, 0, RKT1, `0x5AD0E817`, `0xBADB57F1`, `0x1D710000`,
+  1, 0, 0, 0, RKT0, `0x5AD0E817`, `0xBADB57F1`, 0). At zoom index 4, detail 0 and r = 2, state 0 gives the
+  one instance `0x1D710420` (`0x1D710000` + 4 × `0x100` + 2 × `0x10`) at offset (0, 0, 0). State 1 gives the one
+  instance 0, no model.
+- `Streetlight1x1x11_$$$StreetlightBanner1_2A5A` with f set reads `0x27812924`. State 1 gives three instances:
+  the RKT1 instance from base `0x2B290000` at (0, 0, 0), and `0x29DA0000` twice, at (−1.5999908, 7.5, 0)
+  (x = `0xFFFE6667`) and (1.5999908, 7.5, 0). State 0 gives one RKT1 instance from the same base.
+
+Shipped (main `.dat` files):
+
+- RKT4 is on 618 props (exemplar type 30), and `0x27812924` on 19.
+- Their records use RKT0 943 times, RKT1 382 times and RKT2 once (`Streetlight_GoldenGate_69AE0000`, 28
+  instances). Selectors are 0–3, and 48 records have a non-zero offset.
+- In four streetlight props (`0x2CB00000`, `0x2C560000`, `0x69AD0000`, `0x2CC10000`), `0x27812924` holds a stray
+  value `0x54000` in its second record header. So with f set the walk stops after the first record: state 1 gives
+  one instance and state 0 none.
+- RKT5 is on 5 flora exemplars (type 15), e.g. `LotFlora5x5x10_Pines2_1690` = (`0x5AD0E817`, `0xBADB57F1`,
+  `0x16900000`). `0x27812920` is on 6 props and `0x27812921` on 11.
+
+`IsStaticBuilding` (`0x00583B10`) only tests that the holder has RKT1, RKT0, RKT2, RKT3 or RKT4 (in that order); it
+reads no layout and ignores RKT5 and the f keys.
 
 ---
 
@@ -721,6 +863,9 @@ of 42,915 models.
 | `0x007D4A80` | `RenderMesh` (§3.7) |
 | `0x007D5310`, `0x007D2B50`, `0x007D4530` | material → packed render state → driver (§3.8) |
 | `0x00496830` | model key from an exemplar property (§4.2) |
+| `0x007FD870`, `0x007FDAF0`, `0x007FDB80`, `0x007FC170`, `0x007FC1C0`, `0x007FAFC0` | animated instance: constructor, `SetFrame`, `Step`, `SetSpeed`, `Advance`, `SetAnimMode` (§3.9) |
+| `0x005E8320`, `0x005E8810`, `0x005E6160` / `0x005E6B40` | `cSC4ModelRegEffects`: `InitEffectsList`, `AddEffect`, update (§3.11) |
+| `0x00548F10`, `0x00548BD0` | fire crew `regpoint01` (§3.11) |
 
 ---
 
@@ -970,11 +1115,22 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 6. GF6: byte order of the vertex colour element.
    **Answered** (§3.5): bytes B, G, R, A, copied unchanged into the Direct3D diffuse colour.
 7. GF7: RKT4/RKT5 layouts.
+   **Answered** (§4.2): RKT4 is a list of (selector, x, y, z in 16.16, kind, RKT0–RKT3 values) records, RKT5 is
+   RKT1 plus state × `0x10000`; both read by `GetAllModelInstanceIDs`.
 8. GF8: where the detail global `0x00B216FC` is set.
    **Answered** (§4.2): `kModelLODOffset` clamped to 0–2, set by the Texture Quality option.
 9. GF9: unpadded DXT1 mips: reproduce or fix.
    **Answered** (§2.8): reproduce, with the record's own bytes; zero only past `size`.
 10. GF10: semantics of ANIM frame rate, mode, flags and displacement.
+    **Answered** (§3.9): rate is frames per second; mode, flags and displacement are never read; the instance has
+    its own mode (default 3 loop, 2 ping-pong, else once) and steps at most one frame per `Advance`.
 11. GF11: consumers of PROP and REGP, and the meaning of REGP's 7 floats.
+    **Answered** (§3.10, §3.11): PROP has none; REGP feeds model effects of automata and bridges (`fx_` names) and
+    fire crews (`regpoint01`); one record per frame, read as position, axis and angle.
+13. GF13: what a visual effect does with a NaN orientation (identity REGP records). Open; not yet filed in
+    QUESTIONS.md.
+
+*[incomplete: conformance tests for §3.9 playback and §3.11 effect names were not written; the examples in §3.9
+and §3.11 are their basis.]*
 12. GF12: whether anything reads the FSH centre fields or the bits 12–27 of `+0x0C`.
     **Answered** (§2.4): nothing reads them.

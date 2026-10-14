@@ -222,21 +222,25 @@ public:
     virtual void GetSubjectiveThresholds(int32_t index, int32_t& min, int32_t& max) = 0;         // 30
 };
 
-// cISC4TractDeveloper, 15 slots (tract-developer.md §7.1). Called only.
+// cISC4TractDeveloper, 15 slots (tract-developer.md §7.1); implemented by
+// cFC4TractDeveloper (enable = tract). Slots 7, 12 and 14 carry what a
+// replacement returns (§7.1): 0, `this`, `this`. The original leaves EAX
+// garbage (7), AL = the new singleStyle (12) and EAX = n (14); no game caller
+// reads them, so read none of the three.
 class cFC4ISC4TractDeveloper : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                                     // 3
     virtual bool Shutdown() = 0;                                                                 // 4
     virtual int32_t Grow(FC4GrowthProfile const& profile, fc4::GameList<int32_t>& outcomes, bool& flag) = 0;  // 5
     virtual int32_t Decline(FC4GrowthProfile const& profile) = 0;                                // 6
-    virtual void UpdatePopulation(FC4GrowthProfile const& profile) = 0;                          // 7
+    virtual int32_t UpdatePopulation(FC4GrowthProfile const& profile) = 0;                       // 7
     virtual int32_t GetCurrentStyle() const = 0;                                                 // 8
     virtual fc4::GameVector<uint32_t>& GetActiveStyles() = 0;                                    // 9
     virtual intptr_t SetActiveStyles(fc4::GameVector<uint32_t> const& styles) = 0;               // 10
     virtual bool IsUsingAllStylesAtOnce() const = 0;                                             // 11
-    virtual bool UseAllStylesAtOnce(bool flag) = 0;                                              // 12 (AL)
+    virtual cFC4ISC4TractDeveloper* UseAllStylesAtOnce(bool flag) = 0;                           // 12
     virtual int32_t GetYearsBetweenStyleChanges() const = 0;                                     // 13
-    virtual int32_t SetYearsBetweenStyleChanges(int32_t years) = 0;                              // 14
+    virtual cFC4ISC4TractDeveloper* SetYearsBetweenStyleChanges(int32_t years) = 0;              // 14
 };
 
 namespace fc4 {
