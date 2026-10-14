@@ -370,9 +370,22 @@ pub trait TractDeveloperHost {
     fn cfg_compatible_style(&self, cfg: u64, style: u32) -> bool;
     /// Slot 21 `GetRequiredRoads`: up to four sides, configuration frame.
     fn cfg_required_roads(&self, cfg: u64) -> Vec<bool>;
+    /// Slot 21 into `out` (at most `out.len()` bits); the number written. A
+    /// host may answer without allocating.
+    fn cfg_required_roads_into(&self, cfg: u64, out: &mut [bool]) -> usize {
+        let v = self.cfg_required_roads(cfg);
+        let n = v.len().min(out.len());
+        out[..n].copy_from_slice(&v[..n]);
+        n
+    }
     /// Slot 24 `GetPrimaryBuildingConfigurationObject`: its object-ID
     /// list, `None` when there is no object.
     fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>>;
+    /// Whether slot 24 gives an object (§4.7 check 5), without its list (a
+    /// host may answer without allocating).
+    fn cfg_has_primary_building(&self, cfg: u64) -> bool {
+        self.cfg_primary_building_ids(cfg).is_some()
+    }
 
     // ---- lot configuration manager ----
     /// Slot 8 `GetLotConfiguration(id)`.

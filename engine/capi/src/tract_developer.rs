@@ -385,6 +385,8 @@ fn opt(t: u64) -> Option<u64> {
     (t != 0).then_some(t)
 }
 
+unsafe extern "C" fn ignore_u32(_: *mut c_void, _: u32) {}
+
 unsafe extern "C" fn push_u32(ctx: *mut c_void, v: u32) {
     if let Some(out) = (ctx as *mut Vec<u32>).as_mut() {
         out.push(v);
@@ -805,14 +807,34 @@ impl TractDeveloperHost for CHost {
         cb!(self, cfg_compatible_style, false, cfg, style)
     }
     fn cfg_required_roads(&self, cfg: u64) -> Vec<bool> {
+        let mut bits = [false; FC4_TRACT_MAX_ROAD_BITS];
+        let n = self.cfg_required_roads_into(cfg, &mut bits);
+        bits[..n].to_vec()
+    }
+    fn cfg_required_roads_into(&self, cfg: u64, out: &mut [bool]) -> usize {
         let mut bits = [0u8; FC4_TRACT_MAX_ROAD_BITS];
         let n = cb!(self, cfg_required_roads, 0, cfg, bits.as_mut_ptr(), bits.len());
-        bits[..n.min(bits.len())].iter().map(|&b| b != 0).collect()
+        let n = n.min(bits.len()).min(out.len());
+        for (o, &b) in out.iter_mut().zip(&bits[..n]) {
+            *o = b != 0;
+        }
+        n
     }
     fn cfg_primary_building_ids(&self, cfg: u64) -> Option<Vec<u32>> {
         let mut found = false;
         let v = collect_u32(|f, ctx| found = cb!(self, cfg_primary_building_ids, false, cfg, f, ctx));
         found.then_some(v)
+    }
+    fn cfg_has_primary_building(&self, cfg: u64) -> bool {
+        // The IDs go to a callback that keeps nothing: no list is made.
+        cb!(
+            self,
+            cfg_primary_building_ids,
+            false,
+            cfg,
+            Some(ignore_u32),
+            std::ptr::null_mut()
+        )
     }
 
     // ---- lot configuration manager ----

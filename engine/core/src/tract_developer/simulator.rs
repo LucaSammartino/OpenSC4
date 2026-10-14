@@ -280,8 +280,11 @@ struct Work {
     built: i32,
     relaxed: bool,
     out_flag: bool,
-    lots: BTreeSet<u64>,
-    cfgs: BTreeSet<u64>,
+    /// The lot set and the configuration set (§2.2): ascending, no
+    /// duplicates (the original's pointer-ordered sets). Vectors, so that a
+    /// pass reuses their storage (see [`insert_sorted`]).
+    lots: Vec<u64>,
+    cfgs: Vec<u64>,
     candidates: Vec<Candidate>,
     suitability: BTreeMap<u64, u32>,
     chosen_cfg: Option<u64>,
@@ -308,6 +311,17 @@ impl Hasher for TokenHasher {
 }
 
 type TokenMap<V> = HashMap<u64, V, BuildHasherDefault<TokenHasher>>;
+
+/// Inserts `x` into the ascending, duplicate-free `v` (a set's insert).
+/// In game every allocation costs about 0.3 µs (the process heap measured
+/// in game, 2026-10-14), and a `Grow` makes thousands of them when its sets
+/// and scratch lists allocate per pass or per trial: the listing keeps its
+/// storage instead.
+fn insert_sorted(v: &mut Vec<u64>, x: u64) {
+    if let Err(i) = v.binary_search(&x) {
+        v.insert(i, x);
+    }
+}
 
 fn cell_key(x: i32, z: i32) -> u64 {
     (u64::from(x as u32) << 32) | u64::from(z as u32)
@@ -392,6 +406,8 @@ pub struct TractDeveloper {
     scored: Cell<u32>,
     /// The listing's memoised reads (see [`Memo`]).
     memo: RefCell<Memo>,
+    /// `IsAggregationLegal`'s lots of the current trial (storage reused).
+    trial_lots: Vec<u64>,
 }
 
 fn rect_wh(r: CellRect) -> (i32, i32) {
@@ -447,6 +463,7 @@ impl TractDeveloper {
             w: Work::default(),
             scored: Cell::new(0),
             memo: RefCell::new(Memo::default()),
+            trial_lots: Vec::new(),
         }
     }
 
@@ -1118,7 +1135,7 @@ impl TractDeveloper {
             let cell = self.statics.borrow_mut().list_iterator.next_cell();
             let Some((x, z)) = cell else { break };
             if let Some(l) = self.host.get_lot(x, z) {
-                self.w.lots.insert(l);
+                insert_sorted(&mut self.w.lots, l);
             }
         }
     }
@@ -1136,7 +1153,7 @@ impl TractDeveloper {
         let mut best = code::NOTHING_TO_REOCCUPY;
         let mut sum: i32 = 0;
         let mut cands = Vec::new();
-        let lots: Vec<u64> = self.w.lots.iter().copied().collect();
+        let lots: Vec<u64> = self.w.lots.clone();
         for l in lots {
             // State, occupant wealth, building wealth and developer wealth
             // are read for every lot, eligible or not; signed compares.
@@ -1254,7 +1271,7 @@ impl TractDeveloper {
             self.hist(row::LIST_CONFIGURATIONS, r);
             best = best.max(r);
             if r == code::SUCCESS {
-                self.w.cfgs.insert(cfg);
+                insert_sorted(&mut self.w.cfgs, cfg);
             }
         }
         best
@@ -1289,7 +1306,7 @@ impl TractDeveloper {
                 return code::WRONG_STYLE;
             }
         }
-        if h.cfg_primary_building_ids(cfg).is_none() {
+        if !h.cfg_has_primary_building(cfg) {
             return code::UNKNOWN;
         }
         let min = if stage == 1 {
@@ -1413,8 +1430,8 @@ impl TractDeveloper {
     fn list_candidate_lots_existing(&mut self) -> u32 {
         let h = self.host();
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.iter().copied().collect();
-        let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
+        let lots: Vec<u64> = self.w.lots.clone();
+        let cfgs: Vec<u64> = self.w.cfgs.clone();
         for l in lots {
             let r = self.is_lot_suitable(l, true);
             if h.lot_state(l) != lot_state::OCCUPIED && r != code::WRONG_ZONE {
@@ -1459,8 +1476,8 @@ impl TractDeveloper {
     /// `ListCandidateLots_Aggregation` (§4.9.2).
     fn list_candidate_lots_aggregation(&mut self) -> u32 {
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.iter().copied().collect();
-        let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
+        let lots: Vec<u64> = self.w.lots.clone();
+        let cfgs: Vec<u64> = self.w.cfgs.clone();
         for l in lots {
             for &cfg in &cfgs {
                 let (lw, lh) = self.m_lot_size(l);
@@ -1520,8 +1537,8 @@ impl TractDeveloper {
     /// `ListCandidateLots_Subdivision` (§4.9.3).
     fn list_candidate_lots_subdivision(&mut self) -> u32 {
         let mut best = 0;
-        let lots: Vec<u64> = self.w.lots.iter().copied().collect();
-        let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
+        let lots: Vec<u64> = self.w.lots.clone();
+        let cfgs: Vec<u64> = self.w.cfgs.clone();
         for l in lots {
             let r = self.is_lot_suitable(l, true);
             if r != code::SUCCESS {
@@ -1605,20 +1622,13 @@ impl TractDeveloper {
         let (cx, cz) = self.m_city();
         // (side, fixed coordinate, true for a row): the cells are walked
         // lazily, so a hostile rectangle costs time, not memory.
-        let mut sides: Vec<(usize, i32, bool)> = Vec::with_capacity(4);
-        if rect.z1 > 0 {
-            sides.push((0, rect.z1 - 1, true));
-        }
-        if rect.x2 < cx.wrapping_sub(1) {
-            sides.push((1, rect.x2 + 1, false));
-        }
-        if rect.z2 < cz.wrapping_sub(1) {
-            sides.push((2, rect.z2 + 1, true));
-        }
-        if rect.x1 > 0 {
-            sides.push((3, rect.x1 - 1, false));
-        }
-        for (side, fixed, row) in sides {
+        let sides = [
+            (rect.z1 > 0).then(|| (0, rect.z1 - 1, true)),
+            (rect.x2 < cx.wrapping_sub(1)).then(|| (1, rect.x2 + 1, false)),
+            (rect.z2 < cz.wrapping_sub(1)).then(|| (2, rect.z2 + 1, true)),
+            (rect.x1 > 0).then(|| (3, rect.x1 - 1, false)),
+        ];
+        for (side, fixed, row) in sides.into_iter().flatten() {
             let (lo, hi) = if row { (rect.x1, rect.x2) } else { (rect.z1, rect.z2) };
             for v in lo..=hi {
                 let (x, z) = if row { (v, fixed) } else { (fixed, v) };
@@ -1644,29 +1654,33 @@ impl TractDeveloper {
         if c.existing >= 0 && c.abandoned >= 0 {
             return;
         }
-        c.existing = 0;
-        c.abandoned = 0;
-        c.stage = 0;
-        c.wealth = 0;
-        let lots: Vec<u64> = if c.kind == 3 {
-            c.lot_set.iter().copied().collect()
-        } else {
-            c.lot.into_iter().collect()
-        };
+        // Summed in locals over the candidate's lots in ascending order, so
+        // that no list of them is made (see [`insert_sorted`]).
         let h = &self.host;
-        for l in lots {
-            let cap = i32::from(h.lot_capacity(l, self.w.sub_type, true));
+        let sub_type = self.w.sub_type;
+        let (mut existing, mut abandoned, mut stage, mut wealth) = (0i32, 0i32, 0u32, 0u32);
+        let mut add = |l: u64| {
+            let cap = i32::from(h.lot_capacity(l, sub_type, true));
             if h.lot_state(l) == lot_state::ABANDONED {
-                c.abandoned = c.abandoned.wrapping_add(cap);
+                abandoned = abandoned.wrapping_add(cap);
             } else {
-                c.existing = c.existing.wrapping_add(cap);
+                existing = existing.wrapping_add(cap);
             }
-            c.stage = c.stage.max(u32::from(h.lot_configuration_stage(l).unwrap_or(0)));
+            stage = stage.max(u32::from(h.lot_configuration_stage(l).unwrap_or(0)));
             let t = h.lot_building_type(l);
             if t != 0 {
-                c.wealth = c.wealth.max(u32::from(h.building_profile(t).wealth));
+                wealth = wealth.max(u32::from(h.building_profile(t).wealth));
             }
+        };
+        if c.kind == 3 {
+            c.lot_set.iter().for_each(|&l| add(l));
+        } else if let Some(l) = c.lot {
+            add(l);
         }
+        c.existing = existing;
+        c.abandoned = abandoned;
+        c.stage = stage;
+        c.wealth = wealth;
     }
 
     /// `IsLotConfigurationCompatible(cfg, c, requireRoads)` (§4.12).
@@ -1706,8 +1720,9 @@ impl TractDeveloper {
             return f;
         }
         if self.w.target_zone != 3 {
-            let bits = h.cfg_required_roads(cfg);
-            match roads_check(&bits, c, require_roads) {
+            let mut bits = [false; 32];
+            let n = h.cfg_required_roads_into(cfg, &mut bits);
+            match roads_check(&bits[..n], c, require_roads) {
                 None => return code::POOR_ROADS,
                 Some(true) => c.corner = true,
                 Some(false) => {}
@@ -1716,8 +1731,21 @@ impl TractDeveloper {
         code::SUCCESS
     }
 
-    /// `IsAggregationLegal(c)` (§4.13).
+    /// `IsAggregationLegal(c)` (§4.13). The lots go to the candidate's set
+    /// when the trial is legal (an illegal trial is dropped); until then they
+    /// are kept in a list this object reuses (see [`insert_sorted`]).
     fn is_aggregation_legal(&mut self, c: &mut Candidate) -> bool {
+        let mut lots = std::mem::take(&mut self.trial_lots);
+        lots.clear();
+        let legal = self.aggregation_legal(c, &mut lots);
+        if legal {
+            c.lot_set.extend(lots.iter().copied());
+        }
+        self.trial_lots = lots;
+        legal
+    }
+
+    fn aggregation_legal(&mut self, c: &mut Candidate, lots: &mut Vec<u64>) -> bool {
         let rect = self.bounding_rect(c);
         let (cx, cz) = self.m_city();
         if rect.x1 < 0 || rect.z1 < 0 || rect.x2 >= cx || rect.z2 >= cz || rect.x1 > rect.x2 || rect.z1 > rect.z2 {
@@ -1746,18 +1774,17 @@ impl TractDeveloper {
                     }
                     _ => {}
                 }
-                c.lot_set.insert(l);
+                insert_sorted(lots, l);
             }
         }
         if !same_facing {
             self.hist(row::AGGREGATION_LEGAL, code::POOR_ROADS);
             return false;
         }
-        if c.lot_set.len() < 2 {
+        if lots.len() < 2 {
             self.hist(row::AGGREGATION_LEGAL, code::NO_LOT);
             return false;
         }
-        let lots: Vec<u64> = c.lot_set.iter().copied().collect();
         if lots.iter().any(|&l| !rect_inside(self.m_lot_rect(l), rect)) {
             self.hist(row::AGGREGATION_LEGAL, code::NO_LOT);
             return false;
@@ -1984,7 +2011,7 @@ impl TractDeveloper {
             }
         }
         let mut s_cfg: BTreeSet<u64> = BTreeSet::new();
-        let cfgs: Vec<u64> = self.w.cfgs.iter().copied().collect();
+        let cfgs: Vec<u64> = self.w.cfgs.clone();
         for cfg in cfgs {
             if group != 0 && !h.cfg_compatible_style(cfg, group) {
                 self.hist(row::PICK_BUILDING, code::WRONG_STYLE);
