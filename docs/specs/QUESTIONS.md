@@ -1270,7 +1270,7 @@ before and after). The glue's current answer is in brackets.
   exemplars** (10/20/20/30/40). Using the default for every cell gives, for example, 45 instead of 160 for a full
   3 × 3 zone. Written into landfill.md §4.9.1.
 - ~~**LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]~~ **ANSWERED 2026-10-14** (landfill
-  §4.7.1, pollution §7 slot 29). This is shadow glue: **no original behaviour; the implementer's choice stands.** A
+  §4.7.1, pollution §8.1 slot 29). This is shadow glue: **no original behaviour; the implementer's choice stands.** A
   fact that makes the clamp moot: in the original month the intakes sum to at most `t ≤ supply`, so no
   `AddToGarbageSupply(−n)` clamps, and "live plus delta" is exact. The clamp matters only for a negative supply from a
   damaged save, which `GetGarbageSupply` itself clamps and stores. Written into landfill.md §4.7.1.

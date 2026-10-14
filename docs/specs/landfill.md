@@ -622,7 +622,7 @@ zones **after** this month's intake.
 - each heap's `n` is at most the zone's `budget`, which is at most `remaining`, which starts at `t`;
 - so the intakes sum to at most `t`.
 
-Every `AddToGarbageSupply(−n)` therefore stays within pollution's no-clamp case (pollution §7, slot 29), and the
+Every `AddToGarbageSupply(−n)` therefore stays within pollution's no-clamp case (pollution §8.1, slot 29), and the
 supply after the month is exactly `s − Σ n`. The month makes no positive adds; those come only from
 `RecalculateCapacity` on zoning changes (§4.6.2). `GetGarbageSupply` returns `max(0, supply)` and **stores** that
 clamp, so it changes the value only when a damaged save left the supply negative.
