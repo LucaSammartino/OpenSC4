@@ -2599,7 +2599,10 @@ answer is in brackets.
 - ~~**NG13:** The return of deal `Copy`. [void]~~
   **ANSWERED 2026-10-14** from the exe (`Copy` `0x006CE2E0`, its only caller `Clone` `0x006CF3E0`) and noted in
   neighbors §15.4. Nothing meaningful is returned and nothing reads it; the bracket stands.
-- **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]
+- ~~**NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D15E0` → `GenericConfirmationDialog` `0x0078DFF0`) and written into
+  neighbors §15.4. The original asks with a modal yes/no dialog and returns the answer; with popups disabled the dialog
+  returns false, so the request is refused. The bracket differs; recommend the dialog, and "no" when popups are off.
 - **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]
 - **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
 - **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]

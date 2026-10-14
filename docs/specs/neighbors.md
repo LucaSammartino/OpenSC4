@@ -1029,6 +1029,16 @@ this spec). The bracket matches, and `docs/abi` already has these rows right.
 **NG13. The return of deal `Copy`.** The original's `Copy` (`0x006CE2E0`) leaves no meaningful value, and its only
 caller, `Clone` (`0x006CF3E0`), ignores it. `void` matches.
 
+**NG14. `RequestCreateConnection` asks the player.** When the connection does not exist yet, the original builds the
+title and text of §6.2 and calls `nSC4UI::GenericConfirmationDialog` (`0x0078DFF0`), a modal yes/no dialog, and
+returns its answer. With popups disabled (`cISC4App::SetPopupDialogsEnabled(false)`, advisors.md) that dialog
+returns false without asking, so the request is **refused**.
+
+- The bracket (confirm without the dialog) differs in two ways: the player cannot decline a connection, and with
+  popups disabled the original refuses where the glue accepts.
+- *[choice]* Show the dialog through the game, as §6.2 already says (the core returns "needs confirmation", the shim
+  asks). When popups are disabled, decline. Confirming without asking may stay only as a temporary deviation.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
