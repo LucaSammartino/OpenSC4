@@ -392,6 +392,12 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_residential_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-residential)
     set_tests_properties(plugin_ini_enable_residential_test PROPERTIES RUN_SERIAL TRUE)
+    # References read from a save (in-game run 88): land value grids and a
+    # foreign ordinance, with and without a save before Shutdown, and land value
+    # grids created through GZCOM; no reference warning, each released once.
+    add_test(NAME plugin_saved_refs_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --saved-refs)
+    set_tests_properties(plugin_saved_refs_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

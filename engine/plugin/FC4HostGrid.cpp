@@ -56,31 +56,7 @@ void Setup(void* p, int32_t tractSize, uint32_t instance) {
 }
 
 uint64_t Create(void* u, uint32_t kind, uint32_t instance, int32_t tractSize) {
-    if (!Supported(kind)) {
-        Log("%s: WARNING grid class 0x%08X not supported; grid 0x%08X not created [choice]", Ctx(u)->tag, kind,
-            instance);
-        return 0;
-    }
-    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    void* p = nullptr;
-    if (com == nullptr || !com->GetClassObject(kind, kIID_cISC4SimGrid, &p) || p == nullptr) {
-        Log("%s: WARNING could not create grid 0x%08X (class 0x%08X) through GZCOM", Ctx(u)->tag, instance, kind);
-        return 0;
-    }
-    FC4_ACQUIRED(static_cast<cIGZUnknown*>(p), "GetClassObject");
-    if (kind == kClsI16) {
-        Setup<int16_t>(p, tractSize, instance);
-    } else if (kind == kClsI8) {
-        Setup<int8_t>(p, tractSize, instance);
-    } else if (kind == kClsU16) {
-        Setup<uint16_t>(p, tractSize, instance);
-    } else if (kind == kClsF32) {
-        Setup<float>(p, tractSize, instance);
-    } else {
-        Setup<uint8_t>(p, tractSize, instance);
-    }
-    FC4_LOGV("%s: grid 0x%08X created (class 0x%08X, tract size %d) at %p", Ctx(u)->tag, instance, kind, tractSize, p);
-    return TokenOf(p);
+    return CreateGameGrid(Ctx(u)->tag, kind, instance, tractSize);
 }
 
 uint32_t ClassOf(void*, uint64_t t) {
@@ -164,13 +140,48 @@ void Shutdown(void* u, uint64_t t) {
     As<uint8_t>(t)->Shutdown();
 }
 
-void Release(void*, uint64_t t) {
-    // The grid came from GetClassObject in Create (one reference, ours, noted with FC4_ACQUIRED), so this may be its
-    // last reference: a temporary the game created for us, not a game-owned object.
-    if (cIGZUnknown* g = FromToken(t)) FC4_RELEASE_CREATED(g);
-}
+void Release(void*, uint64_t t) { ReleaseGameGrid(t); }
 
 }  // namespace
+
+uint64_t CreateGameGrid(const char* tag, uint32_t kind, uint32_t instance, int32_t tractSize) {
+    if (!Supported(kind)) {
+        Log("%s: WARNING grid class 0x%08X not supported; grid 0x%08X not created [choice]", tag, kind, instance);
+        return 0;
+    }
+    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+    void* p = nullptr;
+    if (com == nullptr || !com->GetClassObject(kind, kIID_cISC4SimGrid, &p) || p == nullptr) {
+        Log("%s: WARNING could not create grid 0x%08X (class 0x%08X) through GZCOM", tag, instance, kind);
+        return 0;
+    }
+    FC4_ACQUIRED(static_cast<cIGZUnknown*>(p), "GetClassObject");
+    if (kind == kClsI16) {
+        Setup<int16_t>(p, tractSize, instance);
+    } else if (kind == kClsI8) {
+        Setup<int8_t>(p, tractSize, instance);
+    } else if (kind == kClsU16) {
+        Setup<uint16_t>(p, tractSize, instance);
+    } else if (kind == kClsF32) {
+        Setup<float>(p, tractSize, instance);
+    } else {
+        Setup<uint8_t>(p, tractSize, instance);
+    }
+    FC4_LOGV("%s: grid 0x%08X created (class 0x%08X, tract size %d) at %p", tag, instance, kind, tractSize, p);
+    return TokenOf(p);
+}
+
+uint32_t ReleaseGameGrid(uint64_t token) {
+    // The token's reference is ours whichever way it came: GetClassObject in
+    // CreateGameGrid, or a save's ReadGZSerializable (then QueryInterface'd to
+    // cISC4SimGrid) in Read; both noted with FC4_ACQUIRED. So this may be the
+    // last reference, and that free is expected: a grid we created has no
+    // other owner, and a loaded grid has none after a save (in-game run 88:
+    // our reading, not a finding, is that the load's own reference lasts
+    // until the next save).
+    cIGZUnknown* g = FromToken(token);
+    return g != nullptr ? FC4_RELEASE_CREATED(g) : 0;
+}
 
 fc4_grid_api MakeGridApi(const HostGridContext* ctx) {
     fc4_grid_api a{};
