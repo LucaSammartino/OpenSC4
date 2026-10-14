@@ -1394,7 +1394,10 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   and takes every in-city cell's ID, 0 and the subway-skip case included, so a re-entry counts again. The subway
   exception compares the cell's type with the **next** record's type, not the previous one. At the last cell that
   record is the cell itself. Written into traffic-simulator.md §4.5.
-- **TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]
+- ~~**TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x00710016`–`0x007101D7`): yes. Also: the lot's own cells and same-zone non-source lots are passed over
+  without closing the direction. The value is the map byte at the cell found, and no donor writes 0 over the rect.
+  Written into traffic-simulator.md §4.7.
 - **TS27:** default `trafficUnitsPerSlice`? [16 until calibrated]
 - **TS28 — tuning reads with short or missing data:** fewer vector entries [the rest keep their value]; the
   strategy re-read with fewer than 3 values [missing ones unchanged]; missing ordinance offsets [0]; wealth above 3

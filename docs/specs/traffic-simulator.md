@@ -912,6 +912,31 @@ the four directions (−x, −z, +x, +z, distance 1, 2, …; each direction stop
 a lot of another zone) for a lot of the same zone with slot 28 true; its trip-length value is written over the
 lot's rect.
 
+The borrow in detail (`0x00710016`–`0x007101D7`, TS26). `value := 0`.
+
+- **Linked lot.** If slot 59 gives a lot, `value :=` the trip-length map byte at that lot's location (slot 21).
+  Its zone and slot 28 are not checked.
+- **Search.** Otherwise `(x, z)` := the lot's own location. The search visits distance `n = 1, 2, …`, and at each
+  distance the directions in the order `−x, −z, +x, +z` (tables `0x00AB325C`/`0x00AB326C`), skipping those already
+  closed. The cell is `(x + n·dx, z + n·dz)`.
+  - A cell outside the city, with no lot (`GetLot(…, false)`) or with a lot of another zone **closes** that
+    direction.
+  - A cell of the lot itself, or of a same-zone lot whose slot 28 is false, is passed over: the direction stays
+    open.
+  - The first cell whose lot has the same zone and slot 28 true ends the search, with `value :=` the trip-length
+    map byte at **that cell** (not at the donor's location).
+- **Write.** `value` is stored into every cell of the lot's bounding rect (slot 14). When every direction closes
+  without a donor, the value written is **0**.
+
+Example: a lot at location (20, 20) with rect (20, 20)–(20, 21).
+
+- Distance 1. −x, (19, 20): a lot of another zone, so −x closes. −z, (20, 19): no lot, so −z closes. +x, (21, 20): a
+  same-zone lot with slot 28 false, passed over. +z, (20, 21): the lot itself, passed over.
+- Distance 2. Only +x and +z are open. +x, (22, 20): a same-zone lot with slot 28 true, whose map byte is 37.
+
+So `value = 37` is written into (20, 20) and (20, 21), and +z at distance 2 is never looked at. The bracket order
+(distance first, then −x, −z, +x, +z) is the original's.
+
 ### 4.8 Edge densities and transit switches (states 3, 7, 6; slot 12)
 
 `TrafficEdgeDensity` = 33 u16: `last[16]` (index `4·entry + exit`), `usage`, `current[16]` (the SDK's layout of
