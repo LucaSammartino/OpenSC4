@@ -770,6 +770,10 @@ SC4Percentage:
 - The stack record starts like the ratings' record (+0x28 is 0, +0x14..+0x24 are leftovers), and a failed query
   leaves what it read plus the previous building's other fields (§4.11 partial writes).
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
+  The dereference (`0x006FA11C`) happens per building, inside the list walk, so a null `groups` crashes only
+  once some group list holds a building. With every group list empty, the original returns 0 after the reset
+  (RG4). *[choice]* FreeCity4 treats null as an empty vector: the reset, then 0, which is the original's result
+  whenever it does not crash.
 
 *[compat]* This is reached by shipped data. The farmer's market (`0x8A3858D8 / 0x032C0000`) is a hospital through
 its groups only and has no health staff item, so its hospital query always fails at the staff test. The hospital

@@ -2151,7 +2151,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   and written into REH §4.11 (cost fields). **The bracket matches.** The record holds the low dword of the item's
   64-bit cost, so writing back the low 32 bits is what the original does. Zero or sign extension on the way in differ
   only for a negative cost, and shipped costs are positive.
-- **RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]
+- ~~**RG4:** slots 14/15 with a null group vector: the original dereferences it. [ours returns 0]~~ **ANSWERED
+  2026-10-14** from the exe (helper `0x006FA070`, dereference at `0x006FA11C`) and written into REH §4.11 (totals).
+  **The bracket stands as a *[choice]*.** The original dereferences `groups` per building, so it crashes only when
+  some group list holds a building; with no buildings it returns 0 after resetting the totals. Returning 0 for null
+  matches the original wherever the original does not crash.
 - **RG5:** lot `GetCenter` goes through the FXAM-guarded raw call (crime CQ3). [as crime]
 - **RG6:** the shadow cannot reproduce the original's clock-seeded strike rolls in state 0. [those fields are not
   compared]
