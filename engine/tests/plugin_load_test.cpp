@@ -492,6 +492,7 @@ struct FakeWorld {
     int demandCalls = 0;
     int demandBadIndex = 0;
     int saveCalls = 0;
+    bool noRes = false;  // GetResidentialSimulator returns null (observe month: residential EQ/HQ/LE=-)
     FakeVtable cityVt, resVt, demandSimVt, demandVt, appVt;
     FakeObject city{}, res{}, demandSim{}, app{};
     FakeDemand demands[7] = {
@@ -510,9 +511,16 @@ FakeWorld* g_world = nullptr;
 void* __fastcall CityGetSimulator(void*, void*) { return g_world->sim; }                   // cISC4City 50
 void* __fastcall CityGetBudgetSimulator(void*, void*) { return g_world->budget; }          // cISC4City 52
 void* __fastcall CityGetDemandSimulator(void*, void*) { return &g_world->demandSim; }      // cISC4City 56
-void* __fastcall CityGetResidentialSimulator(void*, void*) { return &g_world->res; }       // cISC4City 68
+void* __fastcall CityGetResidentialSimulator(void*, void*) {                                // cISC4City 68
+    return g_world->noRes ? nullptr : &g_world->res;
+}
 void* __fastcall CityGetPowerSimulator(void*, void*) { return nullptr; }                  // cISC4City 67 (none)
 int32_t __fastcall ResGetPopulation(void*, void*) { return 1234; }                          // residential 16
+float __fastcall ResGetGlobalEQ(void*, void*) { return 12.5f; }                              // residential 32 (ST0)
+float __fastcall ResGetGlobalHQ(void*, void*) { return 34.25f; }                             // residential 33 (ST0)
+// Residential 34 returns in AL only (residential §10.1): the upper bits of EAX
+// are not part of the value, so the observer must print 0x4B = 75.
+uint32_t __fastcall ResGetGlobalLE(void*, void*) { return 0xABCDEF4Bu; }
 void* __fastcall DemandSimGetDemand(void*, void*, uint32_t id, uint32_t index) {           // demand sim 6
     ++g_world->demandCalls;
     if (index != 0) ++g_world->demandBadIndex;
@@ -538,6 +546,9 @@ void InitFakeWorld(FakeWorld& w) {
     w.cityVt.slots[68] = reinterpret_cast<void*>(&CityGetResidentialSimulator);
     w.cityVt.slots[67] = reinterpret_cast<void*>(&CityGetPowerSimulator);  // observe month: power=-
     w.resVt.slots[16] = reinterpret_cast<void*>(&ResGetPopulation);
+    w.resVt.slots[32] = reinterpret_cast<void*>(&ResGetGlobalEQ);
+    w.resVt.slots[33] = reinterpret_cast<void*>(&ResGetGlobalHQ);
+    w.resVt.slots[34] = reinterpret_cast<void*>(&ResGetGlobalLE);
     w.demandSimVt.slots[6] = reinterpret_cast<void*>(&DemandSimGetDemand);
     w.demandVt.slots[8] = reinterpret_cast<void*>(&DemandQuerySupply);
     w.demandVt.slots[9] = reinterpret_cast<void*>(&DemandQueryDemand);
@@ -5903,8 +5914,12 @@ int main(int argc, char** argv) {
             seam(kFC4SeamObserverTick, nullptr, nullptr);  // the "after load" snapshot
             seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
                  reinterpret_cast<void*>(static_cast<intptr_t>(2451576)));
-            seam(kFC4SeamObserverCity, nullptr, nullptr);
             CHECK(world.demandCalls == 28);  // digest and observe: 12 groups + 2 census nodes each
+            // A second month without a residential simulator.
+            world.noRes = true;
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(kMsgSimNewMonth)),
+                 reinterpret_cast<void*>(static_cast<intptr_t>(2451605)));
+            seam(kFC4SeamObserverCity, nullptr, nullptr);
         }
         FreeLibrary(hd);
         const std::string text = ReadFile(log);
@@ -5915,7 +5930,10 @@ int main(int argc, char** argv) {
         CHECK(text.find("observe snapshot (after load): date=- julian=- funds=- fundings=-") != std::string::npos);
         CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=- income=- expense=- "
                         "tax[0..11]=- dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
-                        "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
+                        "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160 power=- "
+                        "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
+        CHECK(text.find("observe month 2000-03: date=2000-03-01 julian=2451605 funds=- ") != std::string::npos);
+        CHECK(text.find(" population R/C/I=-/480/160 power=- residential EQ/HQ/LE=-\r\n") != std::string::npos);
         CHECK(text.find("subsystem 'simulator': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("subsystem 'budget': DISABLED by FC4_DISABLE") != std::string::npos);
         CHECK(text.find("object created") == std::string::npos);
@@ -6835,7 +6853,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("observer: digest on, observe on") != std::string::npos);
     CHECK(text.find("observe month 2000-02: date=2000-02-01 julian=2451576 funds=500000 income=") != std::string::npos);
     CHECK(text.find(" dept_expense=- demand R$/R$$/R$$$/Cs$/Cs$$/Cs$$$/Co$$/Co$$$/I-R/I-D/I-M/I-HT="
-                    "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
+                    "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160 power=- "
+                    "residential EQ/HQ/LE=12.5000/34.2500/75\r\n") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
     CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);
