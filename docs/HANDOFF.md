@@ -59,6 +59,15 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     the executable; heartbeats end with the memory (address space used, largest free block, private bytes);
 >     `tools/addr2func.py` maps executable addresses to function names (coordinator only, reads RE material);
 >   - **REH core** (`e520128`, education and health; RS7–RS17 applied; EH1–EH14 filed).
+>   - **flora glue + census shadow** (`f8ebce0`; ABI 21; seam op 17; FQ1–FQ14), **landfill developer glue + shadow**
+>     (`c2ada06`; ABI 22; seam op 18; 125 plugin switches; LG1–LG20), **traffic simulator core** (`a11eb7d`, M5;
+>     29 `ts11_*` vectors; TS1–TS34), **power shadow** (`290093b`; ABI 23; seam op 21; PW1–PW7), **plumbing shadow**
+>     (`571a47e`; ABI 24; seam op 22; PS1–PS7);
+>   - RE `re-answers2` part 2 (`363bddb`: PR1–PR13, DQ3–DQ8, PG4–PG13 in the specs) and its `docs/abi` corrections
+>     (`7d2f368`: lot `GetCenter` and city slots 96/97 return nothing; our `GetCenter` declaration is now `void`).
+>     **Protection and landfill still call city slot 97 through a float-returning pointer (PR6)**: next apply lane;
+>   - tools: `regress.ps1` runs every shadow (flora, landfill, power, plumbing added) and all thirteen replacements;
+>     `run_summary.ps1` reads `mismatched N`, `clean`, flora's dated month lines and `Shutdown:` lines.
 > - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
 >   bankrupt (funds −103,047). **Runs 71/72 settle it: with our power and with the original's, the city follows the
 >   same path and ends in 2060-12 at about −100k funds** (aging plants, no player); our power tracks the original. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
@@ -69,19 +78,27 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   Konradshohe): `corrupt` 15 s after load**: the game's own allocator (`0x5B9FC0`, behind `operator new`) got NULL
 >   from `malloc` for a block over 4 KiB and wrote through it; no FreeCity4 frame on the stack. Memory was not short
 >   (run 76: 722 of 2047 MiB used, largest free block 955 MiB), so the game asked for a garbage size. Runs 76 (300 s)
->   and 77 (900 s soak) repeated run 74 with the new report: both without a fault (77 `ended` in 2062, bankrupt).
->   Run 75 (all original): clean, 460 months; it kept more money from 2041 on (run 77 row in manual-checks).
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
->   `.claude/worktrees/re-answers2`, `re-answers3`):
->   - glue + shadow: flora (ABI 21), landfill developer (22); shadows: power (23), plumbing (24), land value +
->     flammability (25); **residential glue + shadow (M4, ABI 26)**. Renumber at merge if needed, rerun
->     `python tests/gen_abi_entries.py`, fix the plugin switch-count checks in `plugin_load_test`;
->   - traffic simulator core (M5), on the merged pathfinder;
->   - `apply2`: DQ9 (the neutral tax rate's float sum), CQ1–CQ15, PR4/PR7 into the cores;
->   - RE `re-answers2` (rest: PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
+>   and 77 (900 s soak) repeated run 74 with the new report, then run 79: **no fault in 3 repeats**. A static audit
+>   workflow (five RE auditors, adversarial verify) is looking for game code that sizes an allocation from data we
+>   hand it. **Runs 77/78 (all ten replacements against all original, Konradshohe): the same funds curve for 36
+>   game years and the same end, 2062-06 at −100k** (run 75's survival to 2064 was variance).
+>   **Run 80 (`regress r2900`)**: thirteen replacements clean; landfill shadow 94/94; power shadow exact on all 213
+>   cycles and 94 months (bookkeeping lines off by ~3 consumers, PW8); flora registry identical, one tree in 23 of
+>   94 months (FQ15).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lane in
+>   `.claude/worktrees/re-answers3`):
+>   - land value + flammability shadows (ABI 25, seam ops 23–24); **residential glue + shadow (M4, ABI 26, seam op 25)**;
+>   - `apply2`: DQ9 (the neutral tax rate's float sum), CQ1–CQ15, PR4/PR7 into the cores and glue;
+>   - RE `re-answers3` (PF, ZQ, LF, NB, EX);
+>   - workflow `run74-garbage-new-audit` (read-only; result goes to the coordinator).
+>   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
+>   gate its worktree; renumber ABI/seam ops/switch counts at that point.
 > - **Open follow-ups:**
 >   - **run 74's crash**: catch it again with the new report, map the frames with `tools/addr2func.py --log`;
->   - zones glue (M4); neighbours glue; an RE lane for AU13–AU15 and EH1–EH14;
+>   - **apply3** (after `apply2`): PR1–PR13 (except PR4/PR7), DQ3–DQ8, PG4–PG13, and PR6 (city slot 97 is void) in
+>     protection and landfill;
+>   - RE lanes for the open batches: AU1–AU15, EH1–EH14, FQ1–FQ15, LG1–LG20, TS1–TS34, PW1–PW8, PS1–PS7;
+>   - zones glue (M4); neighbours glue; traffic glue (M5);
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,

@@ -747,6 +747,7 @@ pub mod landvalue_shadow;
 pub mod ordinance;
 pub mod panic_log;
 pub mod plumbing;
+pub mod plumbing_shadow;
 pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
@@ -788,6 +789,9 @@ mod flammability_shadow_tests;
 
 #[cfg(test)]
 mod ordinance_tests;
+
+#[cfg(test)]
+mod plumbing_shadow_tests;
 
 #[cfg(test)]
 mod pollution_tests;

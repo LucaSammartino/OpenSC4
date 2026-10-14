@@ -66,6 +66,7 @@ extern "C" {
  * 21 = adds the flora simulator (fc4_flora, fc4_flora_registry) and its shadow (fc4_flora_shadow);
  * 22 = adds the landfill developer (fc4_landfill) and its shadow (fc4_landfill_shadow);
  * 23 = adds the power shadow (fc4_power_shadow);
+ * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow). */
 #define FC4_ABI_VERSION 25u
 
@@ -1819,6 +1820,95 @@ bool fc4_plumbing_get_state(const fc4_plumbing* p, fc4_plumbing_state* out);
 bool fc4_plumbing_write(const fc4_plumbing* p, const fc4_ostream* out); /* §9 */
 bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: false for version != 4 */
 
+/* ---- plumbing shadow (tooling; engine/capi/src/plumbing_shadow.rs) ----------
+ *
+ * With the ORIGINAL plumbing simulator running, every SimIdle / SimNewDay
+ * (one DoIdle: one pass state, §6) and SimNewMonth delivery to its agent is
+ * wrapped by fc4_plumbing_shadow_before / _after. The shadow follows the
+ * original's water pass from outside: it sees state 2 run (a cell of the next
+ * working grid changes), captures the original's record (its own Write,
+ * through `capture`) and runs FreeCity4's pass on it over private grid copies,
+ * reading every input through the host table (read callbacks and the grid
+ * table's geometry / get only; nothing is written to the game). At the
+ * original's swap (GetWateredGrid changes) it compares the published grid
+ * cell by cell, the producers, deals and water connections; after the
+ * original's state 8, the totals, the building counts, demand, pipes, sources
+ * and the producers' budget items and condition. One line per pass. The month
+ * (ApplyPipeFunding, §7.1) is compared on its own: the distressed target
+ * exactly, the random bursts by range. Not compared (not readable): pipe
+ * watered states, redisplay, posts, history, line-item expenses, lot
+ * conditions, deal flags, the original's pipe condition and pass state. */
+typedef struct fc4_plumbing_shadow fc4_plumbing_shadow;
+
+/* One reference of a captured record, queried for each interface the reader
+ * asks for (0 = the object does not answer it); borrowed identities. */
+typedef struct fc4_plumbing_capture_ref {
+    uint64_t grid;       /* cISC4SimGrid 0xC9BD939A */
+    uint64_t occupant;   /* cISC4Occupant 0x26BB767E */
+    uint64_t network;    /* the pipe 0x49C05B9F (only a pipe answers it) */
+    uint64_t department; /* cISC4DepartmentBudget 0x223E2B67 */
+    uint32_t class_id;   /* GetGZCLSID() */
+    uint32_t reserved;
+} fc4_plumbing_capture_ref;
+
+/* A captured record: primitives little-endian, references as uint32
+ * objectID (index into `refs` + 1, 0 = null) then uint32 classID. */
+typedef struct fc4_plumbing_capture {
+    uint32_t struct_size;
+    uint32_t ok; /* Write returned true and the stream stayed good */
+    const uint8_t* bytes;
+    size_t len;
+    const fc4_plumbing_capture_ref* refs;
+    size_t ref_count;
+} fc4_plumbing_capture;
+
+/* The original simulator, read-only. */
+typedef struct fc4_plumbing_original {
+    uint32_t struct_size; /* sizeof(fc4_plumbing_original) */
+    void* user;
+    uint64_t (*watered_grid)(void* user); /* GetWateredGrid (slot 7): borrowed grid token, 0 = none */
+    /* Slots 12-23: 14-17 and 23 as their signed 32-bit EAX, the others
+     * zero-extended. */
+    int64_t (*slot_value)(void* user, uint32_t slot);
+    bool (*producer_info)(void* user, uint64_t occupant, fc4_plumbing_producer_info* out); /* slot 24 */
+    bool (*connection_visited)(void* user, uint64_t connection); /* GetVisitedThisCycle; may be NULL */
+    /* The original's own Write into memory; the view stays valid until the
+     * next call. */
+    bool (*capture)(void* user, fc4_plumbing_capture* out);
+} fc4_plumbing_original;
+
+typedef struct fc4_plumbing_shadow_stats {
+    uint32_t struct_size;
+    uint32_t deliveries;
+    uint32_t passes_seen;       /* swaps seen */
+    uint32_t passes_compared;   /* pass lines */
+    uint32_t passes_clean;      /* exact, compared to the end, no difference */
+    uint32_t passes_not_exact;  /* the city changed while the pass ran: differences not counted */
+    uint32_t passes_incomplete; /* not compared, or the end not seen */
+    uint32_t months, months_clean;
+    int32_t last_mismatches; /* -1: nothing compared yet */
+    uint32_t captures;
+    uint32_t reserved;
+    uint64_t cells, cell_mismatches, scalar_mismatches;
+} fc4_plumbing_shadow_stats;
+
+/* `host`: only its read callbacks and the grid table's geometry / get are
+ * called (write callbacks may be NULL). `orig`: watered_grid, slot_value and
+ * capture are required. `max_cells`: differing cells listed per line (0 = 8,
+ * at most 64). `passes_per_day`: passes replayed per game day (0 = every
+ * pass); the others are only followed. NULL for a missing or short table. */
+fc4_plumbing_shadow* fc4_plumbing_shadow_create(const fc4_plumbing_host* host, const fc4_plumbing_original* orig,
+                                                uint32_t max_cells, uint32_t passes_per_day);
+void fc4_plumbing_shadow_destroy(fc4_plumbing_shadow* s);
+/* Before the original's SimIdle / SimNewDay / SimNewMonth (`julian` = data1):
+ * 0; -2 for any other message type (nothing done). */
+int32_t fc4_plumbing_shadow_before(fc4_plumbing_shadow* s, uint32_t msg_type, int32_t julian);
+/* After it: log lines go to `sink`, one call per line (a pass line at the end
+ * of a replayed pass, INCOMPLETE lines, the month line). Returns the counted
+ * differences of a comparison finished in this delivery, -1 if none. */
+int32_t fc4_plumbing_shadow_after(fc4_plumbing_shadow* s, fc4_bytes_sink sink, void* ctx);
+bool fc4_plumbing_shadow_get_stats(fc4_plumbing_shadow* s, fc4_plumbing_shadow_stats* out);
+
 /* ---- flammability (docs/specs/flammability.md) ------------------------------
  *
  * Tokens: occupants and lots (the cISC4Occupant / cISC4Lot identity); 0 is
@@ -3504,6 +3594,10 @@ static_assert(sizeof(fc4_plumbing_producer_info) == 20, "fc4_plumbing_producer_i
 static_assert(sizeof(fc4_plumbing_found) == 32, "fc4_plumbing_found layout");
 static_assert(sizeof(fc4_plumbing_state) == 144, "fc4_plumbing_state layout");
 static_assert(sizeof(fc4_plumbing_host) == (sizeof(void*) == 4 ? 356 : 712), "fc4_plumbing_host layout");
+static_assert(sizeof(fc4_plumbing_capture_ref) == 40, "fc4_plumbing_capture_ref layout");
+static_assert(sizeof(fc4_plumbing_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_plumbing_capture layout");
+static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "fc4_plumbing_original layout");
+static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
 static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");

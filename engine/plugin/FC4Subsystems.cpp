@@ -27,6 +27,7 @@
 #include "cFC4Ordinance.h"
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
+#include "FC4PlumbingShadow.h"
 #include "cFC4Flammability.h"
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
@@ -296,6 +297,8 @@ void Resolve() {
     LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
     // The power shadow (FC4PowerShadow.h; it compares the original power simulator).
     PowerShadowStartup(g_enabled[0], enabledKey("power"));
+    // The plumbing shadow (FC4PlumbingShadow.h; it compares the original plumbing simulator).
+    PlumbingShadowStartup(g_enabled[0], enabledKey("plumbing"));
     // The land value and flammability grid shadows (FC4LandValueShadow.h,
     // FC4FlammabilityShadow.h; they compare the original simulators).
     LandValueShadowStartup(enabledKey("landvalue"));

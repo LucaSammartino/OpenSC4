@@ -706,6 +706,51 @@ plugin.
      the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping line, `not_exact=0`
      (or only on the first cycle, before a state 0 was seen) and no `INCOMPLETE` line. The bookkeeping line
      can differ by a few when the original still has §5 messages queued at the month.
+   - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
+     `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per
+     line; `plumbing_shadow_passes = N`, env `FC4_PLUMBING_SHADOW_PASSES`, default 4, the passes replayed per game
+     day, 0 = all): a same-process differential of the water pass. It needs **our simulator and the original
+     plumbing simulator** (do not enable `plumbing`); otherwise it logs `plumbing shadow: requested … but
+     INACTIVE` at game start. The original runs one pass state per `SimIdle` / `SimNewDay` (plumbing spec §6);
+     our simulator wraps each `SimIdle`, `SimNewDay` and `SimNewMonth` delivery to its agent. At the start of a
+     pass (seen as a change of one probe cell of the next working grid; otherwise at the original's swap, then
+     the pass is `exact=0`) the original's own `Write` (`cIGZSerializable`) goes into a memory stream and
+     FreeCity4's core (`fc4_plumbing_shadow`) replays the pass on private copies of the record's grids, reading
+     every other input live through a read-only host table (no write callback; its grid table only reads). At the
+     original's swap the published grid is compared cell by cell, with each producer's production, efficiency,
+     pollution and water used, the polluted count and average pollution, the deal usage and the water
+     connections; after its state 8, the produced, consumed, imported and exported water, the watered and
+     unwatered cells, cost, demand, pipes, distressed and burst pipes, sources, each producer's budget item and
+     (on an ageing pass) its condition. At each `SimNewMonth` the pipe funding (§7.1) is checked: the distressed
+     count exactly, the new bursts (the original's random draw) by range, marked not exact. **Not compared**
+     (said in the start line, not readable read-only): the pipes' watered states (a non-virtual call),
+     redisplay, posts, history, line-item expenses, lot conditions, deal flags, the original's pipe condition
+     (not saved) and its pass state; demand (an incremental sum kept by the inserts, §5.3) is carried from the
+     original's record, not recomputed. Our `pipeCondition` is a distress fraction: `0.000` is real at 50%
+     funding or more (it is not saved either; the shadow tracks it from city load, starting at 0). Lines
+     (always written; longer ones continue on `plumbing shadow (cont.)` lines):
+
+     ```
+     plumbing shadow: ON (plumbing_shadow from …): …                              (game start)
+     plumbing shadow: comparing with the original plumbing simulator … (city …); …   (each city)
+     plumbing shadow yyyy-mm-dd pass N: aligned=start|swap exact=1|0 [(why not)]; grid XxZ cells=C differing=D
+       max|diff|=M [first (x,z) orig/ours: (x,z) a/b, …]; producers P; production orig/ours=[…]; efficiency …;
+       polluted …; used …; numPolluted orig/ours=a/b; averagePollution …; deals compared=… differing=…;
+       connections compared=… active differing=… visited compared=… differing=…; produced orig/ours=a/b;
+       consumed …; imported …; exported …; wateredCells …; unwateredCells …; cost …; demand …; pipes …;
+       distressed …; burst …; sources …; maintenance compared=… differing=…; ageing=yes|no|unknown
+       [condition orig/ours=[…]]; deliveries=K; mismatches=N [(not exact: n differences not counted)];
+       passes compared=… clean=…
+     plumbing shadow yyyy-mm-dd month: pipes=P distressedBefore=… burstBefore=…; distressed orig/ours=a/b;
+       burst orig/ours=+0/+0 | burst +n (not exact: …; ours allows 0..m); pipeCondition ours=… (orig not
+       readable; its distressed count implies …); funding=F; mismatches=N; months=M clean=C; passes since the
+       last month line: seen=… compared=… clean=… notExact=… incomplete=… differing=…
+     plumbing shadow yyyy-mm-dd[ pass N]: INCOMPLETE (why); not compared
+     ```
+
+     A `!` marks a differing scalar. Success is `mismatches=0` on every `aligned=start exact=1` pass line and
+     on every month line (`clean` equal to `months`), with `incomplete=0`. Passes followed from the swap
+     (`exact=0`, the first pass after load) only report their differences.
    - **Land value shadow** (`landvalue_shadow = 1`, env `FC4_LANDVALUE_SHADOW`; off by default;
      `landvalue_shadow_cells = N`, env `FC4_LANDVALUE_SHADOW_CELLS`, default 4, 1..64): a same-process
      differential of the land value grids. It needs the **original** land value simulator (do not enable

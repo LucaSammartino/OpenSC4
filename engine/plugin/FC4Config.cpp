@@ -177,6 +177,7 @@ const char* const kOtherKeys[] = {"disable", "enable", "budget_default", "refaud
                                   "flora_shadow",
                                   "landfill_shadow", "landfill_shadow_diffs",
                                   "power_shadow", "power_shadow_cells", "power_shadow_lines",
+                                  "plumbing_shadow", "plumbing_shadow_cells", "plumbing_shadow_passes",
                                   "landvalue_shadow", "landvalue_shadow_cells",
                                   "flammability_shadow", "flammability_shadow_cells"};
 
