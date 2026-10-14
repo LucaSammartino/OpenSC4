@@ -1185,8 +1185,13 @@ part of §8 is not compared). The glue's current answer is in brackets.
   written into flora.md §13.2. **No observable original behaviour; the implementer's choice stands.** The
   original releases the registry's references and empties the map and type array only in its process-exit
   callback (FQ2), and its exemplar-change reload already drops old records unreleased.
-- **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
-  returns 0; with a null filter it inserts every key. [as stated]
+- ~~**FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
+  returns 0; with a null filter it inserts every key. [as stated]~~ **ANSWERED 2026-10-14** from the exe
+  (`GetFloraTypesByFilter` `0x006B23A0`; the slot-14 callers `0x0048B860`, `0x006CD010`) and written into flora.md
+  §11.1. **The null-filter half matches; the non-null half does not.** The original calls the filter's slot 3
+  `+0x0C` `bool (u32 floraType)` (pop 4, AL) for every map key in ascending order, key 0 included, inserts the
+  accepted keys and returns how many it accepted. No exe caller passes a filter, so only plugins notice; the
+  fix is a one-line call per key.
 - **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
   (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]
 - **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.

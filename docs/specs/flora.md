@@ -866,6 +866,15 @@ reversed exactly as foundations §16 predicts, and every argument size and retur
 "AL only": the upper 24 bits of EAX are garbage; callers test AL. A replacement should return a clean 0/1 in EAX
 *[choice]*. Functions 8 and 10 return nothing.
 
+**Slot 13 with a filter** (verified, FQ9; `0x006B23A0`). The map is walked in ascending type order (key 0
+included while it is present, §3.2). For each key, a non-null filter is asked through **`cISC4FloraTypeFilter`
+slot 3 `+0x0C`, `bool (u32 floraType)`** (4 bytes popped by the callee, result in AL; no other filter slot is
+called); a null filter accepts every key. Each accepted key is inserted into the caller's set (the set is first
+grown to hold one more element, `0x004F0940`) and counted, also when the set already held it; the count is
+returned (0 for an empty map). Example: map {0, A, B, C}, a filter accepting A and C, a set already holding A →
+the set is {A, C}, the result 2. No caller in the exe passes a filter (the two set users, `0x0048B860` and
+`0x006CD010`, call slot 14), so only plugins can see the difference.
+
 ### 11.2 `cIGZMessageTarget2`, vtable `0x00AB13AC`
 
 Slots 0–2: thunks (`this − 4`) to QI / AddRef / Release. Slot 3 `+0x0C` `bool DoMessage(cIGZMessage2*)`, pop 4,
