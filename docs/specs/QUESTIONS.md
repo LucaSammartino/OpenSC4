@@ -3349,21 +3349,66 @@ EX21–EX33, ZQ11–ZQ12 and TN26–TN28 are applied or cited. EX29 replaces the
 half-up, trimmed, cut at 63 characters, Float32 included); TN27 fixed a real bug (travel type −1 matched every
 connection type). The current answer is in brackets.
 
-- **EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
-  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]
-- **EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
-  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]
-- **EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]
-- **EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
+- ~~**EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
+  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]~~
+  **ANSWERED 2026-10-14** from the exe (`_fcvt` `0x009F662C` → `_fpcvt` `0x009F65CF` → `_fptostr` `0x00A0264A`,
+  rounding at `0x00A0268E`–`0x00A0269E`) and written into data-formats.md §5.1 ("Below 10⁻⁴⁸ the digits are
+  rounded a second time"). Yes: `_fptostr` keeps 64 + decpt digits and rounds half-up again on the next one. It
+  happens below 10⁻⁴⁸ (decpt ≤ −48), not below 1e-47: from 1e-48 to 1e-47 all 17 digits still fit. 9.5e-65 prints
+  `0.` and 61 zeros (**the bracket matches**). The second rounding can show: 2e-49 prints `0.`, 48 zeros and `2`
+  instead of `…1999999999999`, and everything below 5e-65 prints `0`. Two findings on the way, also in §5.1: a tiny
+  negative value keeps its sign (−4e-65 prints `-0`, unlike −0.0), and a cut that falls among the fraction digits
+  strips trailing zeros (1.0000000000000002e-47 prints 49 characters, not 63).
+- ~~**EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
+  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]~~
+  **ANSWERED 2026-10-14** from the exe (`fld1`/`fdivrp` at `0x00910507`, `fmul` at `0x0091050B`; 10ⁿ from
+  `0x0091040D`) and written into data-formats.md §4.3 (Float32). A reciprocal and a multiply: 1/10ⁿ is rounded to
+  the caller's precision, then multiplied in, so there are two roundings. **The bracket differs** ("one divide, one
+  rounding"): at 24 bits `9e-1` gives `0x3F666667` (one division: `0x3F666666`), `5e-2` gives `0x3D4CCCCC`
+  (`0x3D4CCCCD`) and `2.5e-3` gives `0x3B23D70B` (`0x3B23D70A`); `1e-1`, `3e-1` and `1e-3` agree. The NaN of
+  `e-32` is the same either way, as the bracket says. A positive exponent is one multiply.
+- ~~**EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]~~
+  **ANSWERED 2026-10-14** from the exe (`fchs` at `0x00910526`, after the exponent step) and written into
+  data-formats.md §4.3 (Exponent). Yes: the sign is applied last and flips the NaN, so `-e-32` gives `0x7FC00000`;
+  `-1e-32` gives −∞. **The bracket matches.**
+- ~~**EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
   two package loads sees the later package here and the cached record in the original. [no cache; the two agree
-  when every package loads before the first lookup]
-- **EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
-  earlier packages? [refused; `add_factory` returns false]
-- **EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
+  when every package loads before the first lookup]~~
+  **ANSWERED 2026-10-14** from the exe (the manager's constructor `0x009744B2` creates and registers one default
+  cache, vtable `0x00AD9428`, at `0x00974544`–`0x00974574`; lookup `0x0097C36E`, insert `0x0097C595`, purge
+  `0x0097C48F`) and written into data-formats.md §3 ("Cache") and §12 item 2. The original does keep every record
+  that loads, with a reference, and returns it before consulting any segment; registering or removing a segment
+  never touches the cache. An entry leaves only by key removal, a clear, or a purge of entries no one else holds
+  *[unsettled: their callers were not traced]*. **The bracket's condition holds**: the two agree whenever every
+  package is registered before the first lookup, which the shipped game does in one pass at startup, the city's
+  save going to the back (a lookup during that pass was not ruled out). *[choice]* No cache stands; a store that registers packages after lookups must keep the
+  first record of each key looked up.
+- ~~**EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
+  earlier packages? [refused; `add_factory` returns false]~~
+  **ANSWERED 2026-10-14** from the exe (the loader, slot 46 `0x00972EAE`, picks the factory by type at every
+  uncached request from `GetResource` `0x009732EB`) and written into data-formats.md §3 ("A factory added late").
+  The original never refuses a factory: a late one serves every later request for its type, records in earlier
+  segments included. **The bracket differs from the original** but stands as *[choice]* on one condition: every
+  factory is added before the first package is loaded (condition 3 of §3 is then vacuous), which holds when
+  FreeCity4 registers all its factories at startup. A refused factory must be logged as an error.
+- ~~**EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
   vector. This matters for the shipped `Uint8:0:{}` values of `0x88EDC795` and `0x88EDC796`, which no core reader
-  reads yet. [kept as one value; the doc says such a reader must treat it as empty]
-- **ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
-  the start of every real-mode Place; no vector depends on it]
+  reads yet. [kept as one value; the doc says such a reader must treat it as empty]~~
+  **ANSWERED 2026-10-14** from the exe (vector helpers `vec<u8>` `0x005FFB40` and `vec<s64>` `0x005FFD80`; readers
+  `0x0047A0EC`, `0x0047A16C`, `0x0047A20C`, `0x0060F690`, `0x0060F710`, `0x0069112B`, `0x0069131A`, `0x00693899`)
+  and a sweep of the shipped `.dat` files, written into data-formats.md §5.2 ("Shipped scalars that only a vector
+  helper reads"). **The bracket differs.** The scalar is not limited to the Living Mall text: 172 binary lot
+  configurations store `0x88EDC796` as a Uint8 scalar 0 (161 of them `0x88EDC795` too, 10 also `0x88EDC793`), and
+  two landfill tiles store the budget cost `0xEA54D286` as a Sint64 scalar, which the budget simulator reads with
+  `vec<s64>`. The original reads every one of them as empty. A vector reader must return an empty vector for a
+  scalar; only the converting getters keep the value (the landfill cost reads 1 and 10 that way).
+- ~~**ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
+  the start of every real-mode Place; no vector depends on it]~~
+  **ANSWERED 2026-10-14** from the exe (`PlaceNetworkOccupants` `0x00629210`: real-mode test and
+  `cSC4NetworkWorldCache::Clear` `0x00647B20` at `0x00629327`–`0x00629334`) and written into zones.md (the draft
+  cache's "Lifetime"). Yes: right after the bounds setup and before any solve, every real-mode Place empties the
+  cache, and nothing before that point can return early, so a Place that then fails has emptied it too. **The
+  bracket matches.**
 
 ## From the development glue and shadow (filed by the coordinator from the `devglue` lane's report, 2026-10-14)
 
