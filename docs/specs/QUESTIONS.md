@@ -765,3 +765,40 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   values that are loaded but unused (minimum acceptable funding, maximum EQ/HQ boost). REH §11 test 24's calling
   conventions (slot 34 leaves the x87 stack unchanged; slots 10 to 13 return through the hidden pointer) belong
   to the residential glue.
+
+## From the flora glue and census shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
+
+About `docs/specs/flora.md` and its `docs/abi` rows. Ini: `enable = flora` (ten `flora_*` bisection switches);
+shadow `flora_shadow = 1` (registry once per city, then the deterministic part of each monthly pass; the random
+part of §8 is not compared). The glue's current answer is in brackets.
+
+- **FQ1:** exemplars are enumerated with `GetAvailableResourceList` and an exemplar-type filter (the demand glue's
+  pattern), not slot 18 `GetAvailableResourceListForType`, and keys are read by index (`Size`/`GetKey`), not
+  `EnumKeys`. Equivalent? [assumed]
+- **FQ2 — §4.1 step 2:** the app shutdown callback is not registered: its timing against our DLL's unload is not
+  documented, and the records live for the whole process. [not registered]
+- **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
+  obliterated city's trees is off (`SaveObliterated` writes nothing and returns true; a restore is logged when the
+  segment at +0x204 is non-null). Layout and slots? [off]
+- **FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
+  typed box query (slot 37) for flora, building, landfill and prop, then for networks keeping those with
+  `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]
+- **FQ5:** weather `GetMoistureType` is read as a `uint8_t` in AL (`FC4Interfaces.h`). Right? [AL]
+- **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
+  [closed]
+- **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
+  it. [as stated]
+- **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
+- **FQ9:** `cISC4FloraTypeFilter` (slot 3) is not in `docs/abi`. Slot 13 with a non-null filter inserts nothing and
+  returns 0; with a null filter it inserts every key. [as stated]
+- **FQ10:** `cIGZCommandParameterSet` is not in `docs/abi`. PlaceFlora reads its parameters through slot 5
+  (`operator[]`): param 0 via variant slot 24 (u32), params 1–2 via slot 36 (float). Right? [as stated]
+- **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
+  Which is right? [`0x095BDC9C` for flora]
+- **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
+- **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
+  [left out]
+- **FQ14 — §6.11:** adding a record whose next type is 0 set key 0's seed type to it in the test harness. Does
+  §6.11 apply when next is 0? [the test avoids the case]
+- Not done (each logged once): obliterated-city save/restore (FQ3), the app shutdown callback (FQ2),
+  `GetFloraTypesByFilter` with a non-null filter (FQ9).
