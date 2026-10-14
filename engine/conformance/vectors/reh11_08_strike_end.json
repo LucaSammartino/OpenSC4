@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "reh11_strike_end",
+  "spec": ["REH 4.9", "REH 11.8", "REH 10.8", "REH 10.9"],
+  "description": "REH test 8. School 1 (can-strike group) has struck since day 1000, as has the city (flag 1, start 1000); the shipped duration is 500 days and 'min grade to end' 90 % (0.9f). Today 1501 with staff ratio 0.5: 501 > 500 [quirk: days] -> the building's strike ends (property := 0, controllers removed), and with no striking building left the city-level strike ends: 0x077ACCD0 with no occupant, data2 = 0, data3 = today - start = 501. Today 1500 with staff ratio 0.9 >= 0.9 [quirk: the staff ratio, not the grade] -> ends (data3 500). Staff ratio 0.89 -> continues: nothing but the ordinance re-read. A striking building never draws.",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F", "0x1A03"]}},
+    {"op": "residential_env", "today": 1501, "props": {"1": {"0x292453C5": {"f32": 0.4}, "0xEAA69F83": {"u32": 1000}, "0x2A976C20": {"f32": 0.5}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_set", "state": {"lists": {"school_groups": [[1]]}, "education": {"strike_flag": 1, "strike_start": 1000}}},
+    {"op": "residential_clear_events"},
+    {"op": "residential_run_to", "state": 13, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"event": "controllers", "name": "striking_education", "occupant": 1, "added": false}, {"event": "strike", "type": "0x077ACCD0", "occupant": null, "data2": 0, "data3": 501}, {"event": "ordinance_effects"}]},
+    {"op": "residential_expect_props", "occupant": 1, "props": {"0xEAA69F83": 0}},
+    {"op": "residential_expect", "state": {"education": {"strike_flag": 0, "strike_start": 0}}},
+
+    {"op": "residential_env", "today": 1500, "props": {"1": {"0xEAA69F83": {"u32": 1000}, "0x2A976C20": {"f32": 0.9}}}},
+    {"op": "residential_set", "state": {"state": 0, "education": {"strike_flag": 1, "strike_start": 1000}}},
+    {"op": "residential_run_to", "state": 13, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"event": "controllers", "name": "striking_education", "occupant": 1, "added": false}, {"event": "strike", "type": "0x077ACCD0", "occupant": null, "data2": 0, "data3": 500}, {"event": "ordinance_effects"}]},
+
+    {"op": "residential_env", "props": {"1": {"0xEAA69F83": {"u32": 1000}, "0x2A976C20": {"f32": 0.89}}}},
+    {"op": "residential_set", "state": {"state": 0, "education": {"strike_flag": 1, "strike_start": 1000}}},
+    {"op": "residential_run_to", "state": 13, "steps": 1},
+    {"op": "residential_expect_events", "events": [{"event": "ordinance_effects"}]},
+    {"op": "residential_expect_props", "occupant": 1, "props": {"0xEAA69F83": 1000}},
+    {"op": "residential_call", "method": "school_is_on_strike", "expect": true},
+    {"op": "residential_call", "method": "end_school_strike", "expect": true},
+    {"op": "residential_expect_events", "events": [{"event": "strike", "type": "0x077ACCD0", "occupant": null, "data2": 0, "data3": 500}]}
+  ]
+}

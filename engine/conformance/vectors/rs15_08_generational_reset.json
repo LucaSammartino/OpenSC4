@@ -1,14 +1,13 @@
 {
   "format": 1,
   "name": "residential_generational_reset",
-  "spec": ["residential 5.5", "residential 7.1", "residential 15.8", "RS1"],
-  "description": "Test 8 (corrected for RS1). The reset percentages are the shipped 80 x 0.01f = 0x3F4CCCCC (0.79999995). LE is a flat 61 (property 0x6941A67F; the shipped curve would give 65 at HQ 60, so the spec's 'LE 61' needs its own curve) and both decays are 0, so EQ and HQ enter step 8 unchanged. A steady (200, 0, 0) tract at age 70 > 61: age -> 40, EQ 50 x 0x3F4CCCCC = 39.999996 (0x421FFFFF), HQ 60 x 0x3F4CCCCC = 47.999996 (0x423FFFFF), one float32 rounding each. The histogram (step 11) uses the post-reset age 40 (bucket (40 - 20) / 3 = 6) and trunc(EQ) = 39: ageCount[6] = 200, ageEqSum[6] = 39 x 200 = 7800.",
+  "spec": ["residential 5.5", "residential 7.1", "residential 15.8", "RS1", "RS7"],
+  "description": "Test 8 (corrected for RS1 and RS7). The reset percentages are the shipped 80 x 0.01f = 0x3F4CCCCC (0.79999995). EQ and HQ are stored as 50.2 (0x4248CCCD) and 60.2 (0x4270CCCD); the shipped decay of 0.2f leaves exactly 50.0 and 60.0. Step 7: the shipped curve 0x6941A67F = (0,50) (20,55) (40,60) (60,65) (200,100) is exact at (60, 65), so LE = 65 (RS7) and leSum += 65 x 200 = 13000. A steady (200, 0, 0) tract at age 70 > 65: age -> 40, EQ 50 x 0x3F4CCCCC = 39.999996 (0x421FFFFF), HQ 60 x 0x3F4CCCCC = 47.999996 (0x423FFFFF), one float32 rounding each. The histogram (step 11) uses the post-reset age 40 (bucket (40 - 20) / 3 = 6) and trunc(EQ) = 39: ageCount[6] = 200, ageEqSum[6] = 39 x 200 = 7800. LE 61 needs HQ 44 (60 + 4 x 0.25, exact).",
   "steps": [
-    {"op": "residential_env", "tuning_props": {"0x6941A67F": {"f32": [0, 61, 200, 61]}, "0xC929C433": {"f32": 0}, "0x0929C439": {"f32": 0}}},
     {"op": "residential_create"},
     {"op": "residential_init", "expect": true},
     {"op": "residential_call", "method": "tuning", "partial": true, "bits": true, "expect": {"eq_reset": "0x3F4CCCCC", "hq_reset": "0x3F4CCCCC", "reset_age": 40}},
-    {"op": "residential_tract", "x": 0, "z": 0, "steady": [200, 0, 0], "eq": [50, 0, 0], "hq": [60, 0, 0], "age": 70},
+    {"op": "residential_tract", "x": 0, "z": 0, "steady": [200, 0, 0], "eq": ["0x4248CCCD", 0, 0], "hq": ["0x4270CCCD", 0, 0], "age": 70},
     {"op": "residential_call", "method": "do_population_change", "args": [0, 0]},
     {"op": "residential_expect_tract", "x": 0, "z": 0, "bits": true, "age": 40, "eq": ["0x421FFFFF", "0x00000000", "0x00000000"], "hq": ["0x423FFFFF", "0x00000000", "0x00000000"]},
     {"op": "residential_call", "method": "age_bucket", "args": [40], "expect": 6},
@@ -16,7 +15,9 @@
       "age_count": [0, 0, 0, 0, 0, 0, 200, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       "age_eq_sum": [0, 0, 0, 0, 0, 0, 7800, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       "running_population": 200,
-      "le_sum": 12200
-    }}
+      "le_sum": 13000
+    }},
+    {"op": "residential_tract", "x": 1, "z": 0, "steady": [1, 0, 0], "hq": [44, 0, 0]},
+    {"op": "residential_call", "method": "get_cell_life_expectancy", "args": [4, 0], "expect": 61}
   ]
 }

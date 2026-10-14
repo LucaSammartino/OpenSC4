@@ -52,22 +52,36 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   - **protection fix** (`f7a9f16`): a host grid keeps its geometry only once non-empty (fire was 0×0 after a load;
 >     pollution had the same latent fault; HG1 filed);
 >   - **answers applied** (`4619a6f`): PG14 `dirtyWater`, TN1–TN20 in the traffic network core (TN21–TN25 filed).
+>   - **aura glue + grid shadow** (`7c3f3a2`; ABI 20; seam op 14; 105 plugin switches; AU1–AU12 filed);
+>   - RE `re-answers2` part 1 (`3844508`: CQ1–CQ15, PR4, PR7, DQ9); `cRZString` layout in `docs/abi/layouts.md`
+>     (`2f37965`, PR3: no risk, the SDK's `SC4String` matches);
+>   - **diagnostics** (`f518e37`): the foreign-exception report lists the registers and the return addresses into
+>     the executable; heartbeats end with the memory (address space used, largest free block, private bytes);
+>     `tools/addr2func.py` maps executable addresses to function names (coordinator only, reads RE material);
+>   - **REH core** (`e520128`, education and health; RS7–RS17 applied; EH1–EH14 filed).
 > - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
 >   bankrupt (funds −103,047). **Runs 71/72 settle it: with our power and with the original's, the city follows the
 >   same path and ends in 2060-12 at about −100k funds** (aging plants, no player); our power tracks the original. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
 >   protection run)**; **but the fire replacement's grid is 0×0 after a load, so its cycle never runs** (lane below).
 >   Crime shadow clean (0 mismatched cells, hotspot equal) in the first crime run.
+>   Run 73 (`regress r4619`): PASS, fire fixed, pollution shadow 94/94. Run 75b (`regress r7c3f`, first aura run):
+>   PASS; the aura shadow is close but not exact (AU13–AU15). **Run 74 (soak 3, all ten replacements on
+>   Konradshohe): `corrupt` 15 s after load**: the game's own allocator (`0x5B9FC0`, behind `operator new`) got NULL
+>   from `malloc` for a block over 4 KiB and wrote through it; no FreeCity4 frame on the stack. Memory was not short
+>   (run 76: 722 of 2047 MiB used, largest free block 955 MiB), so the game asked for a garbage size. Runs 76 (300 s)
+>   and 77 (900 s soak) repeated run 74 with the new report: both without a fault (77 `ended` in 2062, bankrupt).
+>   Run 75 (all original): clean, 460 months; it kept more money from 2041 on (run 77 row in manual-checks).
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers2`, `re-answers3`):
->   - glue + shadow: aura, flora, landfill developer (each bumps the ABI; main is 19; renumber at merge, rerun
->     `python tests/gen_abi_entries.py`, fix the plugin switch-count checks in `plugin_load_test`);
+>   - glue + shadow: flora (ABI 21), landfill developer (22); shadows: power (23), plumbing (24), land value +
+>     flammability (25); **residential glue + shadow (M4, ABI 26)**. Renumber at merge if needed, rerun
+>     `python tests/gen_abi_entries.py`, fix the plugin switch-count checks in `plugin_load_test`;
 >   - traffic simulator core (M5), on the merged pathfinder;
->   - REH core (education/health), also applying RS7–RS17 to the residential core;
->   - **power shadow** (`power_shadow = 1`): our power core on the original's live inputs, to settle run 69;
->   - RE `re-answers2` (CQ, PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
+>   - `apply2`: DQ9 (the neutral tax rate's float sum), CQ1–CQ15, PR4/PR7 into the cores;
+>   - RE `re-answers2` (rest: PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
 > - **Open follow-ups:**
->   - grid shadows still missing for the M3 exit: land value, flammability, plumbing (power's is in a lane);
->   - residential glue (after REH) and zones glue (M4); neighbours glue;
+>   - **run 74's crash**: catch it again with the new report, map the frames with `tools/addr2func.py --log`;
+>   - zones glue (M4); neighbours glue; an RE lane for AU13–AU15 and EH1–EH14;
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,

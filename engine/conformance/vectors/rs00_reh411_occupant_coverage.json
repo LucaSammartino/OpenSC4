@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "residential_occupant_coverage",
+  "spec": ["REH 4.11", "REH 10.19"],
+  "description": "REH 4.11 slot 45 GetOccupantCoverage(occ, level, &dist, &radius): radius = e2 x m1 x the coverage radius (200); dist walks the distance curve (0,100) (50,80) (100,0) from its second point, keeping the last point above level x 100 and interpolating at the first at or below it, with the x_prev term missing its 0.01 [quirk]: level 0.5 -> (30 / 80 x 0.5) x 200 + 50 x 200 = 10037.5; level 0.9 -> 50; level 0 -> 10100. No radius -> (0, 0). Neither a school nor a hospital -> AL 0 (null). The service is the hospital when the building has the hospital capacity [question 7].",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 1000}, "0x691B42B3": {"f32": 200}, "0xE921A936": {"f32": [0, 100, 50, 80, 100, 0]}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "occupant_coverage", "args": [1, 0.5], "expect": [10037.5, 200]},
+    {"op": "residential_call", "method": "occupant_coverage", "args": [1, 0.9], "expect": [50, 200]},
+    {"op": "residential_call", "method": "occupant_coverage", "args": [1, 0], "expect": [10100, 200]},
+    {"op": "residential_call", "method": "occupant_service", "args": [1], "expect": "school"},
+    {"op": "residential_env", "props": {"1": {"0x691B42B3": null}}},
+    {"op": "residential_call", "method": "occupant_coverage", "args": [1, 0.5], "expect": [0, 0]},
+    {"op": "residential_call", "method": "occupant_coverage", "args": [99, 0.5], "expect": null},
+    {"op": "residential_call", "method": "occupant_service", "args": [99], "expect": null},
+    {"op": "residential_env", "props": {"1": {"0x69220415": {"u32": 10}}}},
+    {"op": "residential_call", "method": "occupant_service", "args": [1], "expect": "hospital"},
+    {"op": "residential_call", "method": "slot", "args": [45], "expect": ["GetOccupantCoverage", 16, "AL"]}
+  ]
+}

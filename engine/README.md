@@ -88,14 +88,17 @@ plugin.
      structured-exception guard. A first-chance vectored handler also logs every exception raised inside
      `FreeCity4.dll`'s image, with code, address and offset from the DLL base, and passes it on unhandled.
      Exceptions outside our image are reported at most twice per faulting address (16 addresses), as
-     `module+offset`, with the return addresses on the stack and the last interface calls. The handler never
+     `module+offset`, with the registers, the return addresses into `SimCity 4.exe` and `FreeCity4.dll` in the
+     top 4 KiB of the stack (map the executable's with `python tools/addr2func.py --log <log>`, coordinator
+     only: it reads RE material) and the last interface calls. The handler never
      blocks: it takes the log lock only with a time-limited try-lock and otherwise writes through a spare
      handle. Stack overflows are only counted. `FC4_DIAG_SELFTEST=1` raises one deliberate access violation at
      load to prove that both work.
    - Heartbeat (always on, also at `FC4_LOG_LEVEL=1`): one line per speed or pause change and per month start,
      and a `heartbeat (periodic)` line every `FC4_HEARTBEAT_MS` (default 10000) with the julian date, speed,
      the pause/hidden/emergency flags, and since the last heartbeat the `OnTick` count, agent deliveries,
-     interface calls and verbose lines suppressed by caps.
+     interface calls and verbose lines suppressed by caps, then the memory: address space used, the largest
+     free block (the game is a 2 GiB process) and the private bytes.
    - Hang watchdog: a background thread watches markers the simulation thread publishes without locks (inside
      `OnTick`, the agent delivery in progress with level, message and agent name, core `fc4_*` calls, our
      interface methods). If the simulation thread stays inside our code for more than `FC4_WATCHDOG_STALL_MS`
