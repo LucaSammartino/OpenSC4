@@ -26,7 +26,8 @@ Resume a paused lane with `SendMessage` to its agent ID; its worktree and transc
 
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
-| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | **merged** `6147be6`; not yet run in game |
+| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | merged `6147be6`; **resumed**: turbo must wait for ConnectionsReady (in game it reached 2026-04 before popups were off, and an advisor question held the city), plus a `save` script action |
+| RE: how a modal dialog ends (`docs/specs/modal-dialogs.md`, cIGZWinMgr/cIGZWin ABI rows), so the plugin can end dialogs without screenshots | `a8cff00ae9bf35e79` | own worktree | - | running |
 | game slots (tools only): several game instances at once (`-UserDir` per slot, the `SimCity 4 Mutex` handle swapped), `ingame_run -Slot`, `regress -Parallel`, a per-worktree run queue (`tools/game_queue.ps1`, `docs/harness.md`), regress deltas | `a7cd31c14f8cfa636` | `agent-a7cd31c14f8cfa636` | - | running; owns the game while it works |
 | development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 if needed | paused; fix list sent (below) |
 | traffic glue phase 1 (M5) | `ae77339e1cc706c17` | `agent-ae77339e1cc706c17` | ABI 37, seam op 42 | paused |
