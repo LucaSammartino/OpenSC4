@@ -68,14 +68,28 @@ under it is the fire simulator. There is no registered class for the base alone.
 | **unadjusted** (sum of all cones) | `int16` | `0x49B9E605` | `0x89D5B91A` / `0x49D5BBCE` | 2 | yes, by `ref` |
 
 - Both grids are created at `Init` only when absent (a loaded city brings them back through the refs, with their
-  saved geometry), through GZCOM with the class IDs above, followed by `SetTractSize(2)`. The class `Init` then
+  saved geometry), with the class IDs above (how: below), followed by `SetTractSize(2)`. The class `Init` then
   sets the instance IDs above on both grids, also after a load. *[compat]*
 - Geometry: simgrid §3 with S = 2 (a 256-cell city has 128 × 128 tracts, tract width 32 m).
 - The **unadjusted** grid is rebuilt from scratch (§5.1) whenever a station, its funding, a strike or a dispatch
   changes. The **adjusted** grid follows it: `adjusted := clamp(roundHalfEven(unadjusted × factor), 0, 255)`,
   where `factor` is always 1.0 (§16 Q2). This copy is made in two ways: for the box around a station that was
   added, removed or changed (§5.2), and tract by tract by the daily iterator (§5.3). *[compat]*
+- *(Corrected: not through GZCOM.)* For a new city, `ProtectionInit` creates both grids directly: 0x44 bytes from
+  the global heap, the grid class's constructor inlined (vtables `0x00A878C0` `uint8`, `0x00A879E0` `int16`; the
+  class ID written at `+0x10`), then its `Init`, at `0x006F6C18`–`0x006F6CDE`. A loaded city gets them from the
+  class store, which does go through the class registry.
 - The primary interface's slot 5 returns the **adjusted** grid, without `AddRef`.
+- **Where the grids live** *[compat]* (PR5). Both classes keep the adjusted grid pointer at primary-interface
+  offset `+0x80`, which slot 5 returns (`0x006EFA50`), and the **unadjusted** `int16` grid at **`+0x84`** (fire
+  `Init` `0x006AE304`, police `Init` `0x006E28A0`; `ProtectionInit` runs on the sub-object at `+0x08`, so its
+  `+0x78`/`+0x7C` are the same members). No interface slot returns the unadjusted grid. It can be read in three
+  ways:
+  1. the pointer at `+0x84` of the original object (borrowed, no AddRef), with the grid's own read-only slots
+     (`GetCellValue`, `GetGridData`);
+  2. its own record in a save (saved by ref; instance `0x89D5B91A` fire, `0x49D5BBCE` police);
+  3. inferred from the adjusted grid, which equals `clamp(unadjusted, 0, 255)` only in tracts the daily iterator
+     or a box update has copied since the last change.
 - Other code reads the adjusted grid through `GetCellValue`, `GetAverageValueInCellRect`, raw `GetGridData`
   (the map view) and `+0x20` (fires). See §13.
 
@@ -131,10 +145,12 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
    `SetDepartmentName(0x6A3FF01C, 0xAA4935FE)` (a localised string key, group and instance),
    `SetMaxAllowedFundingPercentage(maxFunding)`, `CreateLineItem(1, true)`, then
    `GetLineItem(1).SetDisplayFlag(1, false)`.
-5. Get the flammability simulator from the city (`+0xE8`) and hold it. It is never called (flammability spec).
+5. Get the flammability simulator (city `+0xE8`, through the cache global `0x00B43D7C`) and hold it at `+0xCC`
+   (`AddRef`). It is never called (PR12, below).
 6. `SetInstanceID` on both grids (§2).
-7. If there is no plane source: create a `cSC4FirePlaneDispatchSource` (class ID `0x4C0AE114`) **with
-   `operator new` and its constructor** (not through GZCOM). Always call its `Init` (§8.4).
+7. If there is no plane source, create a `cSC4FirePlaneDispatchSource` (class ID `0x4C0AE114`) directly:
+   `GlobalHeapAlloc(0x28)` and its constructor `0x006ACE00` (`0x006AE323`–`0x006AE362`). That is the same object
+   its GZCOM factory builds (§8.4). Always call its `Init` (§8.4).
 
 **Police** (`0x006E2740`):
 1. Once per process, register a shutdown callback with the app (`cISC4App` slot 69 `+0x114`
@@ -146,26 +162,44 @@ Does nothing (but still returns true) when already initialised. Otherwise marks 
    0xAA493855)`, max funding := police max funding, line item 1 created and hidden as for fire.
 5. If there is no jail department: department `0xA2963984` (group `0x4A357B40`), named `(0x6A3FF01C,
    0x4A4FC955)`, max funding := the **same** police max funding, line item 1 as above.
-6. Hold the crime simulator (city `+0xDC`). It is never called.
+6. Hold the crime simulator (city `+0xDC`, through the cache global `0x00B43D70`) at `+0xCC` (`AddRef`). It is never
+   called (PR12, below).
 7. Subscribe to the crime message `0x0A159D95` (§9.2).
 8. `SetInstanceID` on both grids.
 9. Create the `cSC4PoliceHelicopterDispatchSource` (`0x0C0B06E8`) if absent (same pattern as fire) and `Init` it.
 
 **Base init** (`ProtectionInit`, `0x006F6BC0`) *[compat]*:
-1. Hold city, simulator and message server. Create the grids if absent (§2).
+1. Hold the city (global `0x00B43CEC`), the budget simulator (city slot 52) and the zone manager (global
+   `0x00B43D14`), each with `AddRef` and only if not already held (`0x006F6BC7`–`0x006F6C0B`). Create the grids if
+   absent (§2). *(Corrected: the simulator is not held here, and the message server is held in step 4.)*
 2. Iterator rectangle := `[0, countX − 1] × [0, countZ − 1]` of the adjusted grid (an empty range is widened
    to one tract). The iterator is not reset here, so a new city's first daily call ends a cycle at once
    (simgrid §7.4: a never-reset iterator yields nothing).
-3. Register two agents with the simulator (`AddAgent`, simulator slot 19): level **4** (day) and level **6**
+3. Register two agents with the simulator (`AddAgent`, simulator slot 19; the simulator is read from the cache
+   global `0x00B43D5C` at `0x006F6D22`, not held, and the step is skipped when it is null): level **4** (day) and level **6**
    (month), both with flags **2** (only while the city is established) and the agent name
    **"cSC4ProtectionSimulator"** — the same name for fire and police.
-4. Subscribe to the nine messages of §5 (`AddNotification`, one call each) in this order: `0x99EF1142`,
+4. Only if the message server is not held yet: hold it (global `0x00B43CCC`, `AddRef`) and subscribe to the nine
+   messages of §5 (`AddNotification`, one call each; the whole step is skipped otherwise, `0x006F6D7A`) in this order: `0x99EF1142`,
    `0x99EF1143`, `0xC8DAC052`, `0x08DAC3E7`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED`, `0xC53D10AA`
    (`0x006F6D93`–`0x006F6E09`). The two day/month IDs are not subscribed; they arrive through the agents. Each ID has
    one handler in this class, so the order has no effect inside the class; it only fixes this target's position in
    the server's per-message notification lists, relative to targets that subscribe later. *[compat]*
 5. Register itself (the dispatch-source sub-object) with the dispatch manager (`RegisterDispatchSource`).
 6. tracts per day := `countX × countZ / period`.
+
+**Held but never called** *[compat]* (PR12):
+
+- **Fire's flammability simulator and police's crime simulator.** Each is held at `+0xCC` of its class. `Init`
+  takes the reference (fire `0x006AE2D4`–`0x006AE2ED`, police `0x006E285E`–`0x006E286F`) and `Shutdown` releases
+  it (fire `0x006AD222`, police `0x006E03AF`).
+- **No other code reads them.** Apart from the constructors, which zero the member, there is no access to that
+  member in either class. The check covered all offsets that reach it from the primary or from the `+0x08`,
+  `+0x0C` and `+0x10` sub-objects.
+- **The simulator (`cISC4Simulator`) is never held**; step 3 reads the cache global each time.
+- **Not holding them** changes only those objects' reference counts. If the city dropped its own reference
+  first, the object would also be destroyed earlier. Nothing in either class can observe that. *[choice]*
+  FreeCity4 holds none of the three.
 
 ### 4.2 `Shutdown()` → AL = 1
 
@@ -198,6 +232,22 @@ after the unsubscriptions was not traced in full]*
 | police only: crime | `0x0A159D95` | §9.2 |
 | police only: funding percentage changed | `0x08DAC3E7` | additionally, if data2 == the jail department's ID: recalculate jails (§9.3) |
 
+**The dispatch record** *[compat]* (PR1). `GetDispatchInfo(id, &info)` (`0x00469D40`) copies the dispatch
+manager's record: 11 `u32`, 44 bytes, **with no AddRef**. The simulator reads these fields:
+
+| Offset | Field | Set by |
+|---|---|---|
+| `+0x00` | dispatch type (fire 1, police 0) | the dispatch request |
+| `+0x04` | dispatch ID | the dispatch manager |
+| `+0x08` | **call ID**, the unit number `base + i` | written by the source's `DispatchFromStation` / `DispatchFromNearestStation` (§8.2), or taken from the pylon's `GetCallNumber` (`InitDispatch` `0x00469E50`) |
+| `+0x10` | **active** (byte) | `0x00469BE0`: active := (the dispatch state == 5). On a change it posts `0xE94671EC` (became active) or `0xE94671ED` (became inactive), data1 = type, data2 = ID. `EndDispatch` (`0x0046ACEE`) clears it |
+| `+0x14`, `+0x18`, `+0x1C` | position x, y, z (`float32`) | the dispatch request |
+| `+0x20` | the **source station** occupant (`cISC4Occupant*`, held by the record) | the station returned by `DispatchFromNearestStation`, or the pylon's source occupant |
+
+`EndDispatch` itself calls the source's `RevokeDispatchFromStation(+0x20, +0x08)` before the end message reaches
+the simulator. So the simulator's own revoke on `0x894671F6` finds the unit's bit already set, and fails with no
+effect. *[compat]*
+
 The class `DoMessage` (message-target slot 3) always returns true (finished; simulator spec); the base handler
 it calls returns false for messages it does not handle, but that value is not passed on. The simulator receives the day message once per
 day and the month message once per month; its rank among other month agents does not matter for its own state,
@@ -217,7 +267,7 @@ n := dispatchManager.GetDispatchCount(type)
 ids := dispatchManager.GetDispatchIDArray(type)   (a stack buffer when n < 64)
 for each id:
     if GetDispatchInfo(id, &info) and info.active:
-        e := GetDispatchEffect(info.automaton)     (§7.2)
+        e := GetDispatchEffect(info.station)       (§7.2; the record's +0x20, §5)
         cone as above, centred on info's position (x, z)
 ```
 
@@ -284,7 +334,20 @@ rounding even above 2^24) and divided once, rounded to float32 (foundations §18
 255). *[compat]*
 
 The zone grid is the zone manager's slot-5 grid (`+0x14`), read raw through `GetGridData() const` as rows `[x][z]`;
-"zoned" means any non-zero zone type. **S** is the simulator's own tract-size constant (2, set with the tuning,
+"zoned" means any non-zero zone type. **Which grid** *[compat]* (PR10):
+
+- **The grid.** Slot 5 returns the zone manager's member `+0x48`. That is a `cSC4SimGrid<int8>`: vtable
+  `0x00A87950`, CLSID `0x49B9E603` (simgrid §2). It is created in the zone manager's `Init` (`0x004DE26F`–
+  `0x004DE2D0`) with tract size 1, so it has one byte per city cell.
+- **The read.** The daily step fetches the data pointer once per call (`0x006F6A9C`, `0x006F6AA3`). The tract test
+  (`0x006F6180`) compares each byte with 0.
+- **`GetZoneType(x, z)`** (slot 12, `0x004DC740`) reads **the same byte of the same grid**, sign-extended. So
+  "GetZoneType ≠ 0" equals "byte ≠ 0" for every cell inside the grid, and a replacement may use slot 12. It
+  costs one virtual call per cell instead of one per day.
+- **Outside the grid.** Neither path checks bounds. Both read past the row vector, which is garbage or a crash.
+  "0 outside the city" is FreeCity4's choice, the same as the skip below.
+
+**S** is the simulator's own tract-size constant (2, set with the tuning,
 §6.7, and the same value passed to `SetTractSize` when the grids are created), **not** the adjusted grid's tract
 size, and it is not clamped (`0x006F6180`). The cells read are not bounds-checked. With a loaded adjusted grid of
 another tract size (saved geometry, §2) the tract range would no longer match S = 2 and the original would read
@@ -364,6 +427,23 @@ return changed (AL)
 ```
 
 name: fire **"striking_fire"**, police **"striking_police"**. Exactly one draw per non-striking station.
+
+**The controller calls** *[compat]* (PR3; fire `0x006ADD3E`–`0x006ADD65`, police `0x006E199D`–`0x006E19C4`;
+the jailbreak start `0x006E1C2A`–`0x006E1C46` uses **"jailbreak"** the same way). The name is a temporary
+`cRZString`, built from the `char*` global (`0x00B0D288`, `0x00B0D3F8`, `0x00B0D3F4`) and destroyed after the
+call. It is passed by reference to slot 10 `AddControllersFromOccupantGroup(name, occ, 0)` (`0x00517150`) or slot
+12 `RemoveControllersFromOccupantGroup(name, occ)` (`0x0051AB00`). These are the **by-name** overloads. Slots 9
+and 11 are the by-ID overloads, which take a `u32` group ID (the script system's `GetOccupantGroup(u32)`,
+`0x0051CFF0`).
+
+The by-name overloads find the group through the script system's `GetOccupantGroup(name)` (slot 12,
+`0x0051CFC0`). That is a string-keyed hash-table lookup (`0x0051C9F0`; hash `h := h·5 + signed char`), and it
+reads the argument's **game-layout string directly**, with no virtual call: the `char*` begin at `+0x04` and the
+end at `+0x08` (the game's `cRZString` is vtable, then the STLport string begin / end / capacity, then a
+reference count, 0x14 bytes, `0x00408480`). The argument must therefore have that layout. Any other
+`cIGZString` implementation is read as raw pointers. A string class whose `+0x04` holds inline characters
+(a small-string buffer) makes the lookup dereference text as an address and **crash**. If the group is not
+found, the call returns AL = 0 and does nothing.
 
 ### 6.4 Chance of strike (`GetChanceOfStrike`, fire slot 12, police slot 11)
 
@@ -485,11 +565,19 @@ radius := radius × e; centre := trunc(centre × e); outer := trunc(outer × e);
 department's `GetFundingPercentage()` fraction; prop stations ignore local funding, road access and strikes.
 *[compat]*
 
-### 7.2 `GetDispatchEffect(automaton)` (message-target slot 12)
+### 7.2 `GetDispatchEffect(station)` (message-target slot 12)
 
-centre / outer / radius from the automaton occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
+centre / outer / radius from the occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
 `0x29233E9C`, police `0x48D71ED9` / `0x48D71EDA` / `0x48D71EDB`. Position 0 (the caller uses the dispatch's
 position). No efficiency scaling. AL = 1 if read.
+
+*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). The only caller,
+`UpdateUnadjusted` (`0x006F5DB1`), passes the dispatch record's `+0x20`. That is the **source station** the unit
+left from (§5), not the vehicle. The shipped data agrees: these six properties exist only on the station building
+exemplars (group `0x07BDDF1C`: three fire stations, four police stations), never on a vehicle. The pointer is
+already a `cISC4Occupant*`, and the original uses it **borrowed**: it does no QueryInterface and no AddRef, and
+the dispatch record holds the reference. A replacement that QIs it for `0x26BB767E` gets the same object with one
+more reference, which it must release.
 
 ### 7.3 Coverage queries
 
@@ -580,12 +668,29 @@ grid update; the cone is removed by the inactive message, which the dispatch man
 ### 8.4 Air dispatch sources
 
 `cSC4FirePlaneDispatchSource` (`0x4C0AE114`) and `cSC4PoliceHelicopterDispatchSource` (`0x0C0B06E8`) are
-GZCOM-registered classes, but the simulators create them with `operator new` and call their **non-virtual**
+GZCOM-registered classes, but the simulators create them directly and call their **non-virtual**
 `Init` (`0x006DF8C0`) and `Shutdown` (`0x006AC860`). `Init` holds the city and the message server, subscribes to
 `0x99EF1142`, `0x99EF1143`, `0xE94671EB`, `0x894671F6`, `0xE94671EC`, `0xE94671ED` and registers the source with
 the dispatch manager. Their save record is `u16 1`, `u32 n` + n occupant refs, `u32` (meaning unknown) (`Write`
 `0x006AC930`). The fire class's Read (`0x006AC970`) accepts version 1 only; the police class's Read (`0x006DF970`)
 accepts 0 and 1 *[quirk]* (save-records.md §7.4). Their behaviour belongs to a later dispatch spec.
+
+**How they are created** *[compat]* (PR13):
+
+- **Direct creation.** Each simulator's `Init` does `GlobalHeapAlloc(0x28)` and calls the constructor: fire
+  `0x006ACE00`, police `0x006DFF70`. It keeps the object start and takes one reference.
+- **The GZCOM factory builds the same object.** The factories are registered with `AddCls` at
+  `0x00460B33`–`0x00460B52`: fire `0x006ACEA0`, police `0x006E0030`. Each is that same allocation and
+  constructor, so `GetClassObject(0x4C0AE114 / 0x0C0B06E8, …)` gives an object identical to the direct one.
+- **The original itself uses the factory path.** When a save holds a source ref, `Read` loads the ref through the
+  class registry (IID `0xC9C00435`), and `Init` then runs on that object.
+- **Ask for IID `0xC9C00435`.** Both sources answer `QueryInterface` (fire `0x006AC550`) for only three IIDs:
+  `0xC9C00435` → the object start, `0x452294AA` (`cIGZMessageTarget2`) → `+4`, and `0xE4FDA3D4`
+  (`cIGZSerializable`) → `+8`. **IID 1 (`cIGZUnknown`) is refused**, so a GZCOM request for it fails and the object
+  is released.
+- **Calling `Init` and `Shutdown`.** Both take the object start in ECX. The original pairs them with the reference:
+  `Init` after creation or load, and `Shutdown`, then `Release`, in the simulator's `Shutdown`
+  (fire `0x006AD1F0`–`0x006AD217`).
 
 ---
 
@@ -858,6 +963,25 @@ All are posted (queued) through the message server with `cRZMessage2Standard`.
 | `0x2A614892` | police | jailbreak ends | same |
 | `0xA949569A` | police | a police station was inserted, removed or changed | IGZUnknown = the simulator |
 
+**Which pointer is "the simulator"** *[compat]* (PR11). It is always the **primary interface pointer**: the object's
+start, whose vtable is fire `0x00AB1160` or police `0x00AB2490`. That is the pointer `GetFireProtectionSimulator` /
+`GetPoliceSimulator` return. The original gets it in two ways:
+
+- **End of a coverage cycle** (fire `0x006AD3A3`, police `0x006E0616`). It calls `QueryInterface(1, &p)` on the
+  primary. Both QIs answer IID 1 with the primary itself (fire `0x006ACEFE`, police `0x006E008E`). The reference
+  is released after the post.
+- **Station insert, remove or change, and jailbreaks** (police `0x006E0B92`, `0x006E166F`, `0x006E1DD8`,
+  `0x006E1BFA`, `0x006E1D55`). It uses `this − 8` or `this` directly, which is the same pointer.
+
+How the message stores the two fields (`cRZMessage2Standard`, vtable `0x00ACEC00`):
+
+- **void1** (slot 12, `0x00913322`) is stored raw, without `AddRef`.
+- **IGZUnknown** (slot 33, `0x0091346B`) is held by a counted reference.
+- A station or jail pointer is the occupant pointer the caller passed in.
+
+A replacement must post its own primary pointer. That is the same object its `QueryInterface(1)` returns, so a
+listener can cast void1 to the simulator interface.
+
 ---
 
 ## 13. Consumers and replaceability
@@ -903,8 +1027,9 @@ thread, and a replacement's off-main fallbacks are not original behaviour.
 - **Grids**: the map view reads both adjusted grids through `GetGridData`; the grid ownership rule applies
   (simgrid §6.4). The replacement must create both grids as game grids with the class IDs, tract size and
   instance IDs of §2 and save them by ref.
-- **Air dispatch sources**: the original creates them with `operator new` and calls non-virtual `Init`
-  (`0x006DF8C0`) / `Shutdown` (`0x006AC860`). A replacement cannot do that through GZCOM. *[choice]* FreeCity4
+- **Air dispatch sources**: the original creates them directly (§8.4) and calls non-virtual `Init`
+  (`0x006DF8C0`) / `Shutdown` (`0x006AC860`). The same object can be made through GZCOM (§8.4, PR13), but the two
+  non-virtual calls can only be made by address. *[choice]* FreeCity4
   either reimplements both sources (and must then save a ref to an object that answers `0xC9C00435` and
   `cIGZSerializable` under `0x4C0AE114` / `0x0C0B06E8`), or calls those two functions by address while the
   original classes are in use. No save of the corpus refers to these classes (fire v2 and police v7 have no
@@ -940,7 +1065,7 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | | 58 | `+0xE8` | GetFlammabilitySimulator (fire, held only) | 0 | EAX ptr |
 | | 65 | `+0x104` | GetPoliceSimulator (fire end of cycle) | 0 | EAX ptr |
 | | 72 | `+0x120` | GetDisasterLayer | 0 | EAX ptr |
-| | 97 | `+0x184` | CellCenterToPosition | 16 | (outputs) |
+| | 97 | `+0x184` | CellCenterToPosition(int x, int z, float& px, float& pz) (below) | 16 | none: x87 stack left empty |
 | `cISC4Simulator` (`0x00AB2FB8`) | 7 | `+0x1C` | GetSimDate | 0 | EAX ptr |
 | | 19 | `+0x4C` | AddAgent(target, level, name, flags) | 16 | AL |
 | `cIGZDate` (`0x00ACEA38`) | 26 | `+0x68` | DayNumber | 0 | EAX |
@@ -963,8 +1088,8 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | | 11 | `+0x2C` | GetDispatchCount(type) | 4 | EAX |
 | | 12 | `+0x30` | GetDispatchIDArray(type, u32* buf, u32& n) | 12 | AL |
 | | 13 / 14 | `+0x34` / `+0x38` | Register / UnregisterDispatchSource(src) | 4 | AL |
-| `cISC4AutomataControllerManager` (`0x00A96058`) | 10 | `+0x28` | AddControllersFromOccupantGroup(name, occ, 0) | 12 | AL |
-| | 12 | `+0x30` | RemoveControllersFromOccupantGroup(name, occ) | 8 | AL |
+| `cISC4AutomataControllerManager` (`0x00A96058`) | 10 | `+0x28` | AddControllersFromOccupantGroup(const cRZString& name, occ, 0); the name must have the game's string layout (§6.3) | 12 | AL |
+| | 12 | `+0x30` | RemoveControllersFromOccupantGroup(const cRZString& name, occ); same layout rule | 8 | AL |
 | `cISC4OccupantManager` (`0x00A8F7F0`) | 48 | `+0xC0` | ReleaseOccupantList(list&) | 4 | none meaningful |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 | `+0x18` | AsPropertyHolder | 0 | EAX ptr |
 | | 7 | `+0x1C` | GetType | 0 | EAX |
@@ -983,8 +1108,46 @@ Callee-pop checked with `tools/abi_extract.py --check`, return channels from the
 | `cISC4SimGrid<T>` | | | slots 6, 9, 12, 13, 16, 17, 19, 24, 25, 27 (simgrid §4) | | |
 | `cSC4MapUtilities::AddRadiusEffect<int16>` | | `0x005E4500` | simgrid §7.1 | | |
 | `cRZRandom` | | `0x0091372E`, `0x00913761` | §10 | | |
-| Property helpers | | `0x005FD450` s32, `0x005FD480` u32, `0x005FD4F0` f32, `0x005FDAC0` pct, `0x005FF510` vector, `0x005FE3C0` / `0x005FE6B0` set | | | |
+| Property helpers | | `0x005FD450` s32, `0x005FD480` u32, `0x005FD4F0` f32, `0x005FDAC0` pct, `0x005FF510` vector, `0x005FE3C0` set scalar u32, `0x005FE6B0` set u32 array (below) | | | |
 | Response curves | | `0x005F4480` build from points, `0x005F4700` key loader, `0x005F4250` GetOutputValue | foundations §4 | | |
+
+**The two property setters** *[compat]*. Both take `(holder, id, value)` and start the same way:
+
+1. Look the property up with the holder's `GetProperty(id)` (slot 9).
+2. If it is missing, create a new property with that ID and an empty value, and add it to the holder (slot 15,
+   second argument 0).
+3. Set the value through the property's variant. This **replaces the variant's type and count**.
+
+They differ in the value they write:
+
+| Setter | Value written (variant call) | Stored as | Written by |
+|---|---|---|---|
+| `0x005FE3C0` | **scalar** `Uint32` (`SetValUint32`, slot 26, `0x0091587D`: type code 6, the value inline) | one `u32`, not an array | strike start `0xEAA69F83` (fire `0x006ADD22`, police `0x006E1981`); availability mask `0x69B425DE` / `0x48D71ED8` and base call number `0x69B425DD` / `0x48D71ED7` (`0x006AD1A4`/`0x006AD184`, `0x006E0304`/`0x006E02E4`); jail population `0x48D71EE1` (`0x006E135C`); the air sources' properties |
+| `0x005FE6B0` | **`Uint32` array** with the vector's elements copied, count = vector length (slot 102, `0x00915014`: type `0x8006`; a length-0 vector gives an empty array) | `u32` array | station statistics `0x8A70A0B9` (`0x006E26F0`, `0x006E2C62`), always 4 elements from this code (§9.2) |
+
+So the strike start, mask, base call number and jail population are scalars, and only the statistics are a
+vector. In a saved occupant they appear as a scalar `Uint32` property and as a 4-element `Uint32` array.
+
+*[quirk]* An occupant's holder falls back to its exemplar in `GetProperty` (`0x005FEDA0`). If a plug-in exemplar
+defines one of these IDs, the setter therefore **changes the exemplar's property**, shared by every occupant of
+that exemplar, instead of adding one to the occupant. None of the IDs exists in any shipped exemplar (all shipped
+packages scanned). *[choice]* FreeCity4 writes onto the occupant itself.
+
+**`CellCenterToPosition`** (slot 97, body `0x00459440`) *[compat]* (PR6). It returns nothing, despite the
+`x87` return in `docs/abi/interfaces.tsv`. Both results go out through the pointers, and each `FSTP` pops its
+value, so the x87 stack is empty at `RET 0x10`. EAX is left holding `&px`, which no caller uses.
+
+- **Arithmetic**, at 24-bit precision: `px = f32(f32(x + 0.5) × cellX)`, and the same for `pz` with `cellZ`.
+  `0.5` is the constant at `0x00A84D2C`. `cellX` and `cellZ` are city `+0x108` and `+0x10C`, both set to `16.0` at
+  `0x0045A13C`. For every in-bounds cell both steps are exact.
+- **Worked example.** Cell (10, 20): px = 10.5 × 16 = **168.0**, pz = 20.5 × 16 = **328.0**.
+- **Callers.** None of the 83 indirect calls through `+0x184` in the exe reads ST0 afterwards. The next x87
+  instruction is always a load. The police call is at `0x006E1426` (the nearest station, §9.2).
+- **Calling it.** A caller that declares a float return would pop an empty register. It would get the x87
+  "indefinite" NaN and set the sticky invalid-operation flag. *[choice]* Declare it `void` and use only the two
+  outputs.
+- **Slot 96.** `CellCornerToPosition` (`0x00459410`) is the same function without the `+ 0.5`, and also returns
+  nothing.
 
 ---
 
@@ -1088,7 +1251,7 @@ the count in EAX, so a caller reading AL sees false for 256 stations or a multip
 | 9 | `+0x24` | `006F6250` | `006E0B80` | DoOccupantChanged(occ) | 4 | none meaningful |
 | 10 | `+0x28` | `006AD190` | `006E02F0` | SetStationAvailabilityFlags(occ, u32) | 8 | none meaningful |
 | 11 | `+0x2C` | `006AD6B0` | `006E0C50` | ProtectionGetStationFunding(occ, float*) | 8 | AL |
-| 12 | `+0x30` | `006AD720` | `006E0CB0` | GetDispatchEffect(occ automaton, effect&) | 8 | AL |
+| 12 | `+0x30` | `006AD720` | `006E0CB0` | GetDispatchEffect(occ station, effect&) | 8 | AL |
 | 13 | `+0x34` | `008CD450` | `004E13E0` | GetDispatchType → fire 1, police 0 | 0 | EAX |
 | 14 | `+0x38` | `006AD7C0` | `006E0D50` | GetStationEffect(occ, effect&) | 8 | AL |
 | 15 | `+0x3C` | `006AD170` | `006E02D0` | SetStationBaseCallNumber(occ, u32) | 8 | none meaningful |
@@ -1109,6 +1272,25 @@ the count in EAX, so a caller reading AL sees false for 256 stations or a multip
 | 9 | `+0x24` | `006F5570` | same | DispatchFromStation(occ, u32* id) | 8 | AL |
 | 10 | `+0x28` | `006F56E0` | same | RevokeDispatchFromStation(occ, u32 id) (thunk to `0x006F5620`) | 8 | AL |
 | 11 | `+0x2C` | `006AD5B0` | `006E0C00` | GetDispatchAutomataProperties(…) (§8.2) | 20 | AL |
+
+**How the list getters fill the caller's list** *[compat]* (PR8). Fire slot 22, police slots 21 and 32, police
+slot 42 (when the jailbreak list is non-empty) and dispatch-source slot 6 all use one helper, `0x006DFC70`.
+
+1. **Clear.** It empties the caller's list with the plain list clear `0x00413E60`. That returns each node to the
+   list allocator (`0x00B207E4`, slot 4) and **does not `Release` the element**.
+2. **Copy.** It appends the simulator's own list, calling `AddRef` (slot 1) on each element.
+3. **Return** the number appended.
+
+Effect on callers:
+
+- **Original callers never lose a reference.** Every one builds a fresh empty list just before the call and
+  hands it to `ReleaseOccupantList` (occupant manager slot 48) afterwards. The calls through the fire and police
+  globals are at `0x00416189`, `0x004164B1`, `0x007A1A8E` and `0x007A1AF0`. The dispatch manager's calls to
+  slot 6 are at `0x0046AFA2` and `0x0046B116`, released at `0x0046B03B` and `0x0046B47C`.
+- **Only a non-empty list leaks.** If a caller passes one, the references its elements held are dropped without a
+  `Release`.
+- *[choice]* **Reproduce it.** No original caller can tell the difference. Releasing would over-release a list
+  that holds borrowed pointers.
 
 ### 15.5 `cIGZSerializable`, vtables fire `0x00AB10D0`, police `0x00AB23FC`, 6 slots
 
@@ -1131,6 +1313,7 @@ Slots 0–2 thunks; 3 `Write(cIGZOStream&)` (fire `006AD250`, police `006E03F0`)
 6. `DispatchFromStation` succeeds with an out-of-range ID when no unit is free and clears a requested unit's
    bit without checking it (§8.2).
 7. `GetStrikingStations` appends without clearing; `GetJailbreakBuildings` leaves the list as is when empty.
+   The clearing getters drop the caller's old elements without `Release` (§15.4).
 8. Demolished jails stay in the jailbreak list (§9.4).
 9. Fire and police `Read` return true after the base record was rejected.
 10. `GetJailedPercentage` returns NaN when both jailed and capacity are 0.
