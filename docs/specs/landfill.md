@@ -74,6 +74,23 @@ The sanitation department is **not** acquired here; it is fetched on PostCityIni
 `Shutdown`, `Release`; clear the zone list; release the department, budget, pollution, terrain and city;
 `simulator.RemoveAgent(messageTarget)` (the simulator is taken from the city, `cISC4City` slot 50). Return true.
 
+The exact order (LF3; `0x006B94B0`), all inside "if initialized" (otherwise the call just returns true):
+
+1. Clear the initialized flag.
+2. If the message server is held: unsubscribe `0x07699455`, `0x26D31EC1`, `0x0772FAD4`, `0x278E6003`,
+   `0xC6CDBF1A` (in that order), release the server, null the pointer.
+3. For each zone in list order: zone `Shutdown` (§4.4.9), zone `Release`, unlink and free the list node. The list
+   ends empty.
+4. Release, each only if held and then nulled: the department, the budget simulator, the pollution simulator, the
+   terrain, the city.
+5. Take the simulator from the **global** city pointer (`0x00B43CEC`, slot 50), not from the developer's own
+   field (already released), and, if there is one, `RemoveAgent(messageTarget)`.
+
+So the developer stops receiving messages **before** any zone is shut down. Zone `Shutdown` uses only the zone's own
+service references, never the developer's, and posts nothing the developer subscribes to; so releasing the message
+server together with the other services after the zones (one `release_services` call) is not observable. Matching
+the original order costs nothing and is recommended.
+
 ## 2. State
 
 ### 2.1 Developer
@@ -386,7 +403,13 @@ NaN is kept), and every other value, however small (a denormal included), is kep
 the rect is never negative, so this is the floor). Then `CellCenterToPosition(cx, cz)` (city slot 97) and
 `terrain.GetAltitude(px, pz)` (slot 13), stored as float32. Example: a zone over x 3..6, z 10..10 that reaches
 `Init` with `levelAltitude = −0.0` gets the altitude at the centre of cell (4, 10).
-`Shutdown`: stop effects and release the services.
+`Shutdown` (`0x006BB750`):
+
+1. Stop and release the zone's effects (§4.10; this runs even when the zone was never initialized).
+2. Only if initialized: clear the flag.
+   - If a zot is held: remove it through the city's prop manager (`RemovePropA`, slot 29), then release it.
+   - Destroy the zone's region (cell mask).
+   - Release the services the zone acquired, the city last.
 
 ### 4.5 Terrain
 

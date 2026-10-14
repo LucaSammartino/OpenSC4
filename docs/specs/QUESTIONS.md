@@ -423,8 +423,12 @@ vectors `nb18_*`). The core's current answer is in brackets.
   not]~~ **ANSWERED 2026-10-14** from the exe: the bracket matches. It is `FUCOMPP` against +0.0 with `TEST AH,
   0x44` / `JP` (`0x006BB6E2`–`0x006BB6F2`): only an ordered equal compare recomputes. The centre cell is the C
   integer mean of the rect corners (landfill.md §4.4.9).
-- **LF3:** in what order does Shutdown release the message server and the city? [one `release_services` call after
-  the zones shut down]
+- ~~**LF3:** in what order does Shutdown release the message server and the city? [one `release_services` call after
+  the zones shut down]~~ **ANSWERED 2026-10-14** from the exe (`0x006B94B0`). The original order is: unsubscribe
+  and release the message server **first**; then shut down and release the zones; then release the department,
+  budget, pollution, terrain and city; then `RemoveAgent` through the global city. The bracket differs, but zone
+  `Shutdown` uses only its own references, so the difference is unobservable. Matching the original is recommended
+  (landfill.md §1.2, §4.4.9).
 - **LF4 — §4.7.5:** in what ring order does the zot spiral run? [clockwise from each ring's top-left corner; the
   second half of `lf11_11` depends on it]
 - **LF5 — §4.4.4 step 3:** `LevelRect((x, z, x+1, z+1))` per cell is a 2×2 block if the rectangle is inclusive. Is
