@@ -538,6 +538,19 @@ So the supply of a local R$/CS$/… node is the total capacity of occupied (or c
 
 The profile and its capacity list (offsets, element type, who fills it, a worked example): [docs/abi/layouts.md](../abi/layouts.md) *Building profile*, *How `UpdateCapacity` reads it*.
 
+**Header colour of the capacity maps** *[compat]* (DQ6). Every capacity map in a profile has a header colour of
+**0**:
+
+- **Copied maps.** The profile copy constructor `0x004D1230` copies a profile into its table node. Its vector copy
+  constructor `0x004CDF00` makes each map with the map copy constructor `0x004C9470` (`0x004CDF5F`). That constructor
+  allocates a new B header and writes colour 0 into it (`0x004C9499`) before it copies the nodes.
+- **Other maps.** The other constructors also write colour 0.
+- **Afterwards.** Nothing changes it (allocators.md *map and set*, *The header and the empty map*). The insert
+  rebalance, for one, stops at the root, which it colours black.
+
+A header with colour 1 therefore never occurs in a game map, and refusing one is the implementer's choice. With
+colour 1, the original's iterator decrement would no longer recognise the header (allocators.md *map and set*).
+
 ## 8. Monthly modifiers and cap relief
 
 ### 8.1 Tax and economy modifiers (census state 0)

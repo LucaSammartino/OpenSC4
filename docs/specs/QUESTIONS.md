@@ -775,7 +775,12 @@ current answer is in brackets.
   - **The glue's walk.** Walking the capacity maps per cell has no original counterpart. It is harmless while it is
     read-only.
   - *[choice]* Read `purpose` only, and walk the maps only in `UpdateCapacity` (§7.2).
-- **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
+- ~~**DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]~~ **ANSWERED
+  2026-10-14** from the exe (map copy constructor `0x004C9470`, colour write `0x004C9499`; called from the vector
+  copy `0x004CDF5F` under the profile copy `0x004D1230`) and written into demand.md §7.2. **Confirmed: 0.** The copy
+  constructor writes colour 0 into its new header before copying the nodes, as every other map constructor does,
+  and nothing changes it later. Colour 1 never occurs in the game, so refusing it is the implementer's choice, and
+  that choice stands.
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
 - **DQ8:** which thread calls `GetLocalPopulationSummary`? [unspecified; the first success is logged with its thread]
