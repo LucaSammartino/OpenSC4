@@ -500,6 +500,19 @@ with no `AddRef`), cached once at start-up by `SL::OnAppInit1` (`0x00602323`), a
 `SC4LoadString` calls its slot 9 with no `AddRef` or `Release` around the call. Nothing in this path owns a
 reference. A caller may take and release its own reference around the call; the original does not.
 
+**How the resources are read** (QUESTIONS CQ20). Every load in steps 1 and 2 goes through the resource manager's
+slot 4, `GetPrivateResource` (`+0x10`). Slot 3, `GetResource`, first searches the manager's cache and adds what it
+loads to it (`0x009732EB`); slot 4 loads without the cache and asks the result for the requested interface
+(`0x00972D60`). The calls are:
+- step 1: the crime type's exemplar again, key (`0x6534284A`, the type's group, the type's instance), interface
+  `0xA52160F5` (`0x006032AE`). This is separate from the cached `GetResource` load that the loader uses for the
+  other properties (`0x006A0BA0`);
+- step 2: the LTEXT as a `cIGZString` (`0x089B7DC8`), with the last two arguments 0 and null (`0x006030B8`, and
+  `0x006030F9` for the retry without the language ID). The string object is released after the copy
+  (`0x00603147`).
+
+There is no string loader of its own.
+
 **Mask parsing**: each byte `b` sets bit `b − 1`. A byte 0 makes the mask `0xFFFFFFFF` (any). *[quirk]* A present
 but **empty** array gives mask 0, which never matches. A missing property gives `0xFFFFFFFF`. Byte values above
 32 wrap the shift count modulo 32 *[compat]*.

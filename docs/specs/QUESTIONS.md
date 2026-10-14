@@ -1646,8 +1646,13 @@ About `docs/specs/crime.md` (CQ5, CQ8, CQ13 as applied). The glue's current answ
   The getter returns the application's member with no `AddRef`, and the game caches it once in a global, also
   with no `AddRef`. `SC4LoadString` uses that global when its caller passes none, and the crime loader passes
   none. Nobody adds or releases a reference around the call. The glue's own `AddRef`/`Release` pair is harmless.
-- **CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
-  string loader of its own? [Through `GetPrivateResource`, as the SDK does.]
+- ~~**CQ20 — CQ8:** how does the original read the LTEXT: through the resource manager's `GetPrivateResource`, or a
+  string loader of its own? [Through `GetPrivateResource`, as the SDK does.]~~ **ANSWERED 2026-10-14** from the exe
+  (`SC4LoadString` `0x006030B8`/`0x006030F9`; resource manager slot 3 `0x009732EB`, slot 4 `0x00972D60`) and written
+  into crime.md §7 ("How the resources are read"). **The bracket matches.** The LTEXT is requested from slot 4,
+  `GetPrivateResource`, as a `cIGZString` (`0x089B7DC8`), with the last two arguments 0 and null. Slot 4 bypasses the
+  cache that slot 3 (`GetResource`) uses. Step 1's exemplar is also reloaded through slot 4 (`0x006032AE`), apart
+  from the loader's own cached `GetResource` load.
 - **CQ21 — CQ5:** do other generators seeded from `cRZTime` use the same seconds-since-1901 value, so the helper
   belongs to the RNG module? [Crime module only.]
 - **CQ22 — CQ13:** the crime effect property is an array whose elements are not plain numbers (strings, objects).
