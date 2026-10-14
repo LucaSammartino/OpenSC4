@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "name": "ts11_21_funding_damage_and_potholes",
+  "spec": [
+    "traffic-simulator 4.12"
+  ],
+  "description": "§4.12 step 1: the damage-rate target from the funding curve: 100 % funding -> curve(100) = -0.01, the rate stays 0 (clamped), no potholes; 0 % funding -> +0.02 per month, 50 cells -> 1 pothole. ApplyPotholeChanges(road, 3) on five intact road cells damages three (two stay intact); -10 repairs them all.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "damage_target",
+      "args": [
+        1.0,
+        0.0,
+        10
+      ],
+      "expect": [
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "damage_target",
+      "args": [
+        0.0,
+        0.0,
+        50
+      ],
+      "expect": [
+        "0x3CA3D70A",
+        1
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_street",
+      "rect": [
+        0,
+        3,
+        4,
+        3
+      ],
+      "note": "road info {invCapacity 0.0625, Street, 3 connections} at (0,3)...(4,3)"
+    },
+    {
+      "op": "ts_damage",
+      "kind": "road",
+      "intact": [
+        [
+          0,
+          3
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          3
+        ],
+        [
+          4,
+          3
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_pothole_changes",
+      "args": [
+        1,
+        3
+      ]
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "intact": 2,
+        "damaged": 3,
+        "cell_count": 5
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_pothole_changes",
+      "args": [
+        1,
+        -10
+      ]
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "intact": 5,
+        "damaged": 0
+      }
+    }
+  ]
+}

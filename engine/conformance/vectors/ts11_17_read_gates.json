@@ -1,0 +1,65 @@
+{
+  "format": 1,
+  "name": "ts11_17_read_gates",
+  "spec": [
+    "traffic-simulator 6.1",
+    "traffic-simulator 6.4"
+  ],
+  "description": "§6.4: a record older than version 0x13 is refused; a truncated record fails; a failed read leaves the simulator unchanged; the intact record then reads.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "budget_total": 1234
+      }
+    },
+    {
+      "op": "ts_save",
+      "slot": "a"
+    },
+    {
+      "op": "ts_init",
+      "expect": true,
+      "note": "a second simulator"
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "budget_total": 99
+      }
+    },
+    {
+      "op": "ts_load",
+      "slot": "a",
+      "version": 18,
+      "expect": false
+    },
+    {
+      "op": "ts_load",
+      "slot": "a",
+      "truncate": 1,
+      "expect": false
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "budget_total": 99
+      }
+    },
+    {
+      "op": "ts_load",
+      "slot": "a",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "budget_total": 1234
+      }
+    }
+  ]
+}

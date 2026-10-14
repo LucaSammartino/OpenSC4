@@ -5,7 +5,8 @@ runs on the test city and prints one table. Use it after staging a new DLL.
 Runs (each through tools\ingame_run.ps1 with popup_dialogs = 0 and autotest_end = quit, so the full Shutdown path
 is part of every verdict):
   shadows  every same-process shadow at once, on the original subsystems: budget (needs disable = budget), demand,
-           pollution, protection, crime, aura. A shadow line is clean when every mismatch count on it is 0.
+           pollution, protection, crime, aura, flora, landfill, power. A shadow line is clean when every mismatch count
+           on it is 0.
   replace  every merged replacement at once (-Replace overrides the list).
 
 Usage:
@@ -20,7 +21,7 @@ param(
     [Parameter(Mandatory = $true)][string]$Tag,
     [int]$Seconds = 150,
     [ValidateSet("", "shadows", "replace")][string]$Only = "",
-    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura",
+    [string]$Replace = "landvalue, weather, ordinance, demand, power, plumbing, flammability, pollution, protection, crime, aura, flora, landfill",
     [string]$City = "C:\Users\tlori\Documents\SimCity 4\Regions\FC4 Test\City - Konradshohe.sc4"
 )
 $ErrorActionPreference = "Continue"
@@ -29,7 +30,7 @@ $Sum = Join-Path $PSScriptRoot "run_summary.ps1"
 $Out = Join-Path $PSScriptRoot "..\build-runs"
 
 $runs = [ordered]@{
-    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1"
+    shadows = "disable = budget`nbudget_shadow = 1`ndemand_shadow = 1`npollution_shadow = 1`nprotection_shadow = 1`ncrime_shadow = 1`naura_shadow = 1`nflora_shadow = 1`nlandfill_shadow = 1`npower_shadow = 1"
     replace = "enable = $Replace"
 }
 $rows = @()

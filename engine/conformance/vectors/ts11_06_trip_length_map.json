@@ -1,0 +1,126 @@
+{
+  "format": 1,
+  "name": "ts11_06_trip_length_map",
+  "spec": [
+    "traffic-simulator 4.6",
+    "traffic-simulator 11.6"
+  ],
+  "description": "Conformance test 6 (§11). commuteMaxTime 6 (shipped): average 3.0 -> 128 (127.5 rounds to even); 0.6 -> 26; 1.5 -> 64; 6.0 -> 255; 7.0 -> 255 (298 clamped). A lot with any failed trip writes 0 over the lot in CompleteTripSourceCalculations.",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "trip_length_byte",
+      "args": [
+        3.0,
+        6.0
+      ],
+      "expect": 128
+    },
+    {
+      "op": "ts_eval",
+      "fn": "trip_length_byte",
+      "args": [
+        0.6,
+        6.0
+      ],
+      "expect": 26
+    },
+    {
+      "op": "ts_eval",
+      "fn": "trip_length_byte",
+      "args": [
+        1.5,
+        6.0
+      ],
+      "expect": 64
+    },
+    {
+      "op": "ts_eval",
+      "fn": "trip_length_byte",
+      "args": [
+        6.0,
+        6.0
+      ],
+      "expect": 255
+    },
+    {
+      "op": "ts_eval",
+      "fn": "trip_length_byte",
+      "args": [
+        7.0,
+        6.0
+      ],
+      "expect": 255
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 11,
+      "trips": [
+        {
+          "count": 10,
+          "type": 0,
+          "strategy": 1,
+          "status": 3,
+          "length": 3.0
+        },
+        {
+          "count": 5,
+          "type": 0,
+          "strategy": 1,
+          "status": 5
+        }
+      ],
+      "note": "a routed trip of length 3 and a failed trip"
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "commute_max_time": "0x40C00000"
+      }
+    },
+    {
+      "op": "ts_grid",
+      "grid": "trip_length",
+      "values": [
+        [
+          2,
+          2,
+          77
+        ]
+      ],
+      "note": "a stale value"
+    },
+    {
+      "op": "ts_call",
+      "method": "complete_trip_source_calculations",
+      "args": [
+        [
+          "lot",
+          1
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "trip_length",
+      "values": [
+        [
+          2,
+          2,
+          0
+        ]
+      ]
+    }
+  ]
+}

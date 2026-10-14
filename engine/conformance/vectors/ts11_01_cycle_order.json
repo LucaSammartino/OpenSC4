@@ -1,0 +1,137 @@
+{
+  "format": 1,
+  "name": "ts11_01_cycle_order",
+  "spec": [
+    "traffic-simulator 3.2",
+    "traffic-simulator 3.3",
+    "traffic-simulator 11.1"
+  ],
+  "description": "Conformance test 1 (§11). From state 0 with an empty city every phase finishes in one WorkOnSimCycle call and the states visited are 0, 16, 17, 18, 15, 2, 4, 5, 11, 3, 7, 6, 10, 12, 13, 19, 8, 0, with 12 skipped when no subnetwork rebuild is needed. DoDailySimulation returns true on entering 17, 18, 2 and 11 (the day ends there).",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_states",
+      "args": [
+        false
+      ],
+      "expect": [
+        0,
+        16,
+        17,
+        18,
+        15,
+        2,
+        4,
+        5,
+        11,
+        3,
+        7,
+        6,
+        10,
+        13,
+        19,
+        8,
+        0
+      ],
+      "note": "subnetworks fresh before every phase: 12 skipped"
+    },
+    {
+      "op": "ts_init",
+      "expect": true,
+      "note": "a fresh simulator"
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_states",
+      "args": [
+        true
+      ],
+      "expect": [
+        0,
+        16,
+        17,
+        18,
+        15,
+        2,
+        4,
+        5,
+        11,
+        3,
+        7,
+        6,
+        10,
+        12,
+        13,
+        19,
+        8,
+        0
+      ],
+      "note": "subnetworks stale: 10 -> 12 -> 13"
+    },
+    {
+      "op": "ts_init",
+      "expect": true,
+      "note": "a fresh simulator for the days"
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "subnetworks_stale": false
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 17
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 18
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 2
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 11
+    },
+    {
+      "op": "ts_call",
+      "method": "do_daily_simulation",
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "cycle_state",
+      "expect": 17
+    }
+  ]
+}

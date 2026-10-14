@@ -1,0 +1,105 @@
+{
+  "format": 1,
+  "name": "ts11_15_save_round_trip",
+  "spec": [
+    "traffic-simulator 6.1",
+    "traffic-simulator 6.3",
+    "traffic-simulator 11.15"
+  ],
+  "description": "Conformance test 15 (§11). Write then Read of a fresh simulator gives the same bytes; the header is 29 00 0D 00 00 00 01 00 00 00 0D 00 00 00 09 00 00 00. The record's department references replace the reader's own (released). A trip record with empty routes is 02 00 00 00 | 00 00 00 00 | 00 00 00 00 | count | type strategy flags status | destX destZ | length | mask.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_save",
+      "slot": "a",
+      "prefix": "29 00 0D 00 00 00 01 00 00 00 0D 00 00 00 09 00 00 00"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "roads": 900,
+        "mass_transit": 901
+      }
+    },
+    {
+      "op": "ts_init",
+      "expect": true,
+      "note": "a second simulator: departments 902, 903"
+    },
+    {
+      "op": "ts_load",
+      "slot": "a",
+      "expect": true
+    },
+    {
+      "op": "ts_save",
+      "slot": "b"
+    },
+    {
+      "op": "ts_expect_same_save",
+      "a": "a",
+      "b": "b"
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "released_departments": [
+          902,
+          903
+        ]
+      }
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "roads": 900,
+        "mass_transit": 901
+      }
+    },
+    {
+      "op": "ts_eval",
+      "fn": "write_trip",
+      "args": [
+        {
+          "count": 7,
+          "type": 1,
+          "strategy": 2,
+          "flags": 3,
+          "status": 4,
+          "dest": [
+            5,
+            -1
+          ],
+          "length": "0x3FC00000",
+          "mask": "0x12"
+        }
+      ],
+      "expect": "02000000000000000000000007000000010203040500ffff0000c03f12000000"
+    },
+    {
+      "op": "ts_eval",
+      "fn": "read_trip",
+      "args": [
+        "02000000000000000000000007000000010203040500ffff0000c03f12000000"
+      ],
+      "expect": {
+        "count": 7,
+        "type": 1,
+        "strategy": 2,
+        "flags": 3,
+        "status": 4,
+        "dest": [
+          5,
+          -1
+        ],
+        "length": "0x3FC00000",
+        "mask": "0x12",
+        "route": "",
+        "return_route": ""
+      }
+    }
+  ]
+}

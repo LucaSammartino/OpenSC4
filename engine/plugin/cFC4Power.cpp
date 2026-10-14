@@ -115,7 +115,11 @@ constexpr int32_t kPowerLineNetwork = 5;
 
 using GridU8 = cISC4SimGrid<uint8_t>;
 
-cFC4PowerSimulator* Self(void* u) { return static_cast<cFC4PowerSimulator*>(u); }
+// The tables' `user` is an FC4PowerGame: the simulator's own (the full
+// table) or the power shadow's (the read-only table, PowerReadOnlyHost). The
+// read callbacks use G(u) only; the write callbacks (full table) Self(u).
+FC4PowerGame* G(void* u) { return static_cast<FC4PowerGame*>(u); }
+cFC4PowerSimulator* Self(void* u) { return static_cast<cFC4PowerSimulator*>(G(u)); }
 
 cISC4Occupant* OccOf(uint64_t t) { return reinterpret_cast<cISC4Occupant*>(FromToken(t)); }
 cFC4ISC4Lot* LotOf(uint64_t t) { return t ? fc4::AsGame(reinterpret_cast<cISC4Lot*>(FromToken(t))) : nullptr; }
@@ -167,13 +171,13 @@ bool WithQi(uint64_t occ, uint32_t iid, F f) {
 // ---- city, tuning, ordinance, simulator ---------------------------------------------------------
 
 void CellCounts(void* u, int32_t* x, int32_t* z) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     if (x != nullptr) *x = c ? static_cast<int32_t>(c->CellCountX()) : 0;
     if (z != nullptr) *z = c ? static_cast<int32_t>(c->CellCountZ()) : 0;
 }
 
 void CellWidths(void* u, float* x, float* z) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->city;
     if (x != nullptr) *x = c ? c->CellWidthX() : 0.0f;
     if (z != nullptr) *z = c ? c->CellWidthZ() : 0.0f;
 }
@@ -189,13 +193,13 @@ fc4_props* Tuning(void*) {
 }
 
 float CumulativeFactor(void* u, uint32_t id, uint32_t index) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->cityServices ? G(u)->city : nullptr;
     cISC4OrdinanceSimulator* o = c ? c->GetOrdinanceSimulator() : nullptr;
     return o ? o->GetCumulativeFactor(id, index) : 1.0f;
 }
 
 uint32_t SimTime(void* u) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->cityServices ? G(u)->city : nullptr;
     cISC4Simulator* s = c ? c->GetSimulator() : nullptr;
     return s ? static_cast<uint32_t>(fc4::AsGame(s)->GetSimTime()) : 0;  // slot 29
 }
@@ -479,7 +483,7 @@ uint32_t NetworkFlags(void*, uint64_t occ) {
 void OccupantsInCells(void* u, const fc4_cell_rect* r, fc4_token_callback cb, void* ctx) {
     if (r == nullptr || cb == nullptr) return;
     if (!Gate(fc4::Sw::PowerOccupantQuery, "power occupant query (no occupants)")) return;
-    cISC4OccupantManager* om = Self(u)->OccupantManager();
+    cISC4OccupantManager* om = G(u)->occupantManager;
     if (om == nullptr) return;
     auto list = std::make_shared<SC4List<cISC4Occupant*>>();
     const SC4Point<int> mn(r->x1, r->z1);
@@ -488,7 +492,7 @@ void OccupantsInCells(void* u, const fc4_cell_rect* r, fc4_token_callback cb, vo
     for (cISC4Occupant* o : *list) {
         if (o != nullptr) cb(ctx, TokenOf(o));
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 void RemoveOccupant(void* u, uint64_t occ) {
@@ -500,7 +504,7 @@ void RemoveOccupant(void* u, uint64_t occ) {
 // ---- zones, tools -------------------------------------------------------------------------------
 
 uint32_t ZoneType(void* u, int32_t x, int32_t z) {
-    cISC4ZoneManager* zm = Self(u)->ZoneManager();
+    cISC4ZoneManager* zm = G(u)->zoneManager;
     return zm ? static_cast<uint32_t>(zm->GetZoneType(x, z)) : 0;
 }
 
@@ -523,7 +527,7 @@ void PowerLineToolZoneChange(void* u, const fc4_cell_rect* r, uint32_t data3) {
 // ---- lots, demolition, pollution, view ----------------------------------------------------------
 
 cFC4ISC4LotManager* LotManager(void* u) {
-    cISC4City* c = Self(u)->City();
+    cISC4City* c = G(u)->cityServices ? G(u)->city : nullptr;
     cISC4LotManager* lm = c ? c->GetLotManager() : nullptr;
     return lm ? fc4::AsGame(lm) : nullptr;
 }
@@ -636,7 +640,7 @@ void RemoveCurrentViewInputControl(void*) {}
 // ---- neighbours ---------------------------------------------------------------------------------
 
 cFC4ISC4NeighborsSimulator* Neighbors(void* u) {
-    cISC4NeighborsSimulator* n = Self(u)->Neighbors();
+    cISC4NeighborsSimulator* n = G(u)->neighbors;
     return n ? fc4::AsGame(n) : nullptr;
 }
 
@@ -657,7 +661,7 @@ void FindDeals(void* u, uint32_t type, fc4_power_deal_callback cb, void* ctx) {
         pd.amount = d->GetAmount();
         cb(ctx, &pd);
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 int32_t DealAmountUsed(void*, uint64_t deal) { return deal ? DealOf(deal)->GetAmountUsed() : 0; }
@@ -695,7 +699,7 @@ void Connections(void* u, fc4_token_callback cb, void* ctx, Fill fill) {
     for (cISC4NeighborConnection* c : *list) {
         if (c != nullptr) cb(ctx, TokenOf(c));
     }
-    Self(u)->Hold(std::move(list));
+    G(u)->Hold(std::move(list));
 }
 
 using ConnType = cISC4NeighborsSimulator::ConnectionType;
@@ -748,7 +752,7 @@ void SetConnectionActive(void*, uint64_t conn, bool on) {
 // ---- budget -------------------------------------------------------------------------------------
 
 cFC4ISC4BudgetSimulator* Budget(void* u) {
-    cISC4BudgetSimulator* b = Self(u)->Budget();
+    cISC4BudgetSimulator* b = G(u)->budget;
     return b ? fc4::AsGame(b) : nullptr;
 }
 
@@ -887,7 +891,7 @@ void SetLocalFullFunding(void*, uint64_t dept, uint64_t occ, int64_t amount, uin
 fc4_power_host MakeHost(cFC4PowerSimulator* self, const fc4::HostGridContext* grids) {
     fc4_power_host h{};
     h.struct_size = sizeof(h);
-    h.user = self;
+    h.user = static_cast<FC4PowerGame*>(self);
     h.grids = fc4::MakeGridApi(grids);
     h.cell_counts = &CellCounts;
     h.cell_widths = &CellWidths;
@@ -989,6 +993,68 @@ void AppendPlant(void* ctx, uint64_t t) {
 
 }  // namespace
 
+// ---- the power shadow's read-only table ---------------------------------------------------------
+
+fc4_power_host fc4::PowerReadOnlyHost(FC4PowerGame* game, const HostGridContext* grids) {
+    fc4_power_host h{};
+    h.struct_size = sizeof(h);
+    h.user = game;
+    h.grids = MakeGridApi(grids);
+    // Geometry and reads only: the shadow copies the live grid and never
+    // creates, writes, shuts down or releases one.
+    h.grids.create = nullptr;
+    h.grids.set = nullptr;
+    h.grids.fill = nullptr;
+    h.grids.shutdown = nullptr;
+    h.grids.release = nullptr;
+    h.cell_counts = &CellCounts;
+    h.cell_widths = &CellWidths;
+    h.tuning = &Tuning;
+    h.cumulative_factor = &CumulativeFactor;
+    h.sim_time = &SimTime;
+    h.occupant_type = &OccupantType;
+    h.occupant_property = &OccupantProperty;
+    h.occupant_position = &OccupantPosition;
+    h.occupant_bounding_box = &OccupantBoundingBox;
+    h.occupant_bounding_cells = &OccupantBoundingCells;
+    h.occupant_in_manager = &OccupantInManager;
+    h.building_type = &BuildingType;
+    h.power_pole = &PowerPole;
+    h.pole_is_distressed = &PoleIsDistressed;
+    h.power_line = &PowerLine;
+    h.line_connected_poles = &LineConnectedPoles;
+    h.network_occupant_cell = &NetworkOccupantCell;
+    h.has_network_flag = &HasNetworkFlag;
+    h.network_flags = &NetworkFlags;
+    h.occupants_in_cells = &OccupantsInCells;
+    h.zone_type = &ZoneType;
+    h.lot_at = &LotAt;
+    h.occupant_lot = &OccupantLot;
+    h.as_lot = &AsLot;
+    h.lot_bounding_rect = &LotBoundingRect;
+    h.lot_state = &LotState;
+    h.lot_needs_power = &LotNeedsPower;
+    h.lot_has_power = &LotHasPower;
+    h.current_view_input_control = &CurrentViewInputControl;
+    h.find_deals = &FindDeals;
+    h.deal_amount_used = &DealAmountUsed;
+    h.deal_type = &DealType;
+    h.connections_of_type = &ConnectionsOfType;
+    h.connections_to_city = &ConnectionsToCity;
+    h.find_unvisited_connection = &FindUnvisitedConnection;
+    h.connection_on_other_side = &ConnectionOnOtherSide;
+    h.connection_cell = &ConnectionCell;
+    h.connection_is_active = &ConnectionIsActive;
+    h.department = &Department;
+    h.department_funding = &DepartmentFunding;
+    h.budget_funding = &BudgetFunding;
+    h.line_item = &LineItem;
+    h.line_item_secondary_info = &LineItemSecondaryInfo;
+    h.budget_item_for_purpose = &BudgetItemForPurpose;
+    h.is_locally_funded_object = &IsLocallyFundedObject;
+    return h;
+}
+
 // ---- object -------------------------------------------------------------------------------------
 
 cIGZUnknown* CreateFC4PowerSimulator() {
@@ -1008,7 +1074,7 @@ intptr_t PowerTestBudgetPath(cISC4BudgetSimulator* budget) {
     auto* sim = new cFC4PowerSimulator();
     sim->AddRef();
     sim->TestSetBudget(budget);  // borrowed; cleared before the release
-    void* u = sim;
+    void* u = static_cast<FC4PowerGame*>(sim);
     intptr_t failed = 0;
     auto fail = [&](intptr_t step, const char* what) {
         if (failed == 0) {
@@ -1067,7 +1133,7 @@ cFC4PowerSimulator::cFC4PowerSimulator() {
 }
 
 cFC4PowerSimulator::~cFC4PowerSimulator() {
-    held_.clear();
+    held.clear();
     fc4_power_destroy(core_);  // releases what a never-initialised (loaded) object still holds
     core_ = nullptr;
     delete map_;
@@ -1112,18 +1178,18 @@ uint64_t cFC4PowerSimulator::Occ(cISC4Occupant* occupant) const { return TokenOf
 
 // §4.1 step 1: each service only while its member is still null.
 void cFC4PowerSimulator::AcquireServices() {
-    if (city_ == nullptr) {
+    if (city == nullptr) {
         cIGZFrameWork* fw = RZGetFrameWork();
         cIGZApp* app = fw ? fw->Application() : nullptr;
         cISC4App* sc4 = nullptr;
         if (app != nullptr && app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) && sc4 != nullptr) {
             FC4_ACQUIRED(sc4, "QueryInterface");
-            city_ = sc4->GetCity();
-            FC4_ADDREF(city_);
+            city = sc4->GetCity();
+            FC4_ADDREF(city);
             FC4_RELEASE(sc4);
         }
     }
-    if (city_ == nullptr) {
+    if (city == nullptr) {
         fc4::Log("power: no city; services not acquired");
         return;
     }
@@ -1133,11 +1199,11 @@ void cFC4PowerSimulator::AcquireServices() {
             FC4_ADDREF(member);
         }
     };
-    take(occupantManager_, city_->GetOccupantManager());
-    take(zoneManager_, city_->GetZoneManager());
-    take(neighbors_, city_->GetNeighborsSimulator());
-    take(budget_, city_->GetBudgetSimulator());
-    take(demolition_, city_->GetDemolitionUtility());
+    take(occupantManager, city->GetOccupantManager());
+    take(zoneManager, city->GetZoneManager());
+    take(neighbors, city->GetNeighborsSimulator());
+    take(budget, city->GetBudgetSimulator());
+    take(demolition, city->GetDemolitionUtility());
 }
 
 // §4.2.
@@ -1146,12 +1212,12 @@ void cFC4PowerSimulator::ReleaseServices() {
         if (member != nullptr) FC4_RELEASE(member);
         member = nullptr;
     };
-    drop(demolition_);
-    drop(budget_);
-    drop(neighbors_);
-    drop(zoneManager_);
-    drop(occupantManager_);
-    drop(city_);
+    drop(demolition);
+    drop(budget);
+    drop(neighbors);
+    drop(zoneManager);
+    drop(occupantManager);
+    drop(city);
 }
 
 void cFC4PowerSimulator::Subscribe(const uint32_t* ids, size_t count, bool add) {
@@ -1238,7 +1304,7 @@ bool cFC4PowerSimulator::Shutdown() {
         CoreCall call(this);
         fc4_power_shutdown(core_);
     }
-    held_.clear();
+    held.clear();
     fc4::Log("power Shutdown (%u months)", cycles_);
     if (!destroying_) Release();
     return true;
@@ -1291,8 +1357,8 @@ void cFC4PowerSimulator::GetMonthlyConsumptionMapPtr(void*& map) {
     if (!fc4::StlNodeAllocator::Available()) return;
     if (map_ == nullptr) map_ = new ConsumptionMap();
     map_->rows.clear();
-    const int32_t cx = city_ ? static_cast<int32_t>(city_->CellCountX()) : 0;
-    const int32_t cz = city_ ? static_cast<int32_t>(city_->CellCountZ()) : 0;
+    const int32_t cx = city ? static_cast<int32_t>(city->CellCountX()) : 0;
+    const int32_t cz = city ? static_cast<int32_t>(city->CellCountZ()) : 0;
     for (int32_t x = 0; x < cx; ++x) {
         FC4PowerConsumptionRow row{};
         if (cz > 0) {
