@@ -586,7 +586,9 @@ Index < count: set and return true / return the flag. Otherwise return false.
 
 **`SelectProp`**: `lot := lotManager.GetLot(cellX, cellZ, false)` (may be null). Split `props` in order:
 
-- props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list;
+- props whose `PropProfile.crimeIncidentID` (prop manager `GetPropProfile`) is 0 → generic list. The field is
+  the `u32` at **+0x18** (24) of the profile that `GetPropProfile` returns (`0x006A016E`), the prop's property
+  `0x8AA864D5` *[compat]*;
 - props with a non-zero ID that matches the type of an incident whose lot is `lot` → matching list (each
   prop at most once). The lot test compares the pointers, so when the cell has **no lot** (`lot` null),
   incidents whose lot is null (after a load with a null lot ref, §12) match *[compat]*;
@@ -692,7 +694,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | | 9 | `+0x24` | GetProperty(id) | 4 | EAX ptr |
 | `cIGZVariant` (`0x00AA6788`) | 95 | `+0x17C` | RefUint8 (pointer to the u8 data) | 0 | EAX ptr |
 | `cISC4PropDeveloper` (`0x00AB29F8`) | 5 | `+0x14` | AddPropRequester(requester) | 4 | — |
-| `cISC4PropManager` (`0x00A8F928`) | 13 | `+0x34` | GetPropProfile(id) → `PropProfile&` | 4 | EAX ptr |
+| `cISC4PropManager` (`0x00A8F928`) | 13 | `+0x34` | GetPropProfile(id) → `PropProfile&` (crime reads only `crimeIncidentID`, `u32` at +0x18) | 4 | EAX ptr |
 | `cISC4DisasterLayer` (`0x00A9E390`) | 7 | `+0x1C` | GetDisasterManager(type) | 4 | EAX ptr |
 | `cISC4DisasterManagerFire` (`0x00A9E4DC`, sub-object of `cSC4DisasterManagerFire`) | 4 | `+0x10` | IgniteOccupant(occ) | 4 | bool |
 | | 9 | `+0x24` | SetCause(cause) | 4 | EAX |
