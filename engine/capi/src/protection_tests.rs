@@ -894,9 +894,12 @@ fn save_round_trip_and_read_before_init() {
 /// (the in-game fire case: `Read (fire): tracts=0x0` with a non-null grid,
 /// then `Init (fire): tracts=0x0 tractsPerDay=0` and no daily cycle for the
 /// whole run). At `Read` both grids are still the empty objects the game made
-/// for the refs; the game reads their records before `Init`. `Init` takes the
-/// geometry as it is then (§4.1 base init steps 2 and 6, §11 "recomputed on
-/// load"), for fire and police, and does not rebuild the adjusted grid (§11).
+/// for the refs; the game reads their records before `Init` (HG1, foundations
+/// §3.7: every saved object is read in ascending class ID before
+/// `cSC4City::Init`, and fire `0x2990C05A` comes before the grids
+/// `0x49B9E602`). `Init` takes the geometry as it is then (§4.1 base init
+/// steps 2 and 6, §11 "recomputed on load"), for fire and police, and does
+/// not rebuild the adjusted grid (§11).
 #[test]
 fn init_takes_the_geometry_of_grids_read_after_the_simulator() {
     for kind in [0u32, 1] {
