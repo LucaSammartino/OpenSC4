@@ -365,6 +365,21 @@ Uses the CPU-cycle limit timer (simulator §5.5) with a budget of `ms` milliseco
 `work := max(work, b)` (signed). When the iterator is exhausted → 6; otherwise the state stays 5 and the next call
 continues.
 
+**The safe lot iterator (ABI) *[compat]*.** Lot manager slot 15 (`0x00734850`, which moves to the lot list object at
+lot manager + 0x5C and continues at `0x00734860`) allocates an 8-byte block from the global heap (allocator C,
+`0x005E55E0`): {+0 current list node, +4 the lot list object}. It points it at the first lot and registers it in the
+list object's iterator list (list object + 4, node insert `0x0072BA10`), so a lot removal moves it past the removed
+lot. The lot list is a doubly linked list of 12-byte nodes {next, prev, `cISC4Lot*`} with a head node; the list
+object's first word points to the head. Taking the next lot (`0x0045D3F0`): if the current node is the head, the
+walk is over; else the lot is the node's value and current := next. The block is released by a non-virtual
+function (`0x0045D5B0`): unregister (`std::list::remove`, `0x00809580`, on list object + 4), then free with C
+(`0x005E5620`). docs/abi/allocators.md (table 1, `GetSafeLotIterator`) has the same facts. `GetLotCount` (slot 16,
+`0x00809250`) returns the count kept at lot manager + 0x64.
+
+*[choice]* A replacement need not use the iterator. Walking the cells with `GetLot(x, z, false)` and stamping each
+lot once gives the same work grid, because stamping takes the maximum and is order-independent (§6.5). Only the
+moment each lot is read differs, as with the time slicing.
+
 **Which lots, and where the clamps are *[compat]*.** State 5 is the only state that reads lots for their value. It
 takes each lot as the iterator reaches it, between the end of state 4 and the end of state 5. A lot built,
 demolished or filled with residents outside that window counts in the next cycle. Rules R (states 8, 9, 11, 12) look

@@ -946,8 +946,14 @@ each cycle-completed message `0x2A09B21A`). The glue's current answer is in brac
   neither type nor count: it uses the word at variant + 4 as an int32 array. Uint32 arrays read bit for bit (as the
   bracket); other element types give meaningless values; a scalar's value is used as a pointer (crash); a
   one-value array reads the radius past the end. *[choice]* also treat fewer than 2 values as absent.
-- **AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
-  takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]
+- ~~**AU5:** the safe lot iterator's layout is not in `docs/abi`; the glue walks cells with `GetLot(x, z, false)`,
+  takes each lot once and re-checks the pointer at the next step. Layout of the iterator? [cell walk]~~ **ANSWERED
+  2026-10-14** from the exe (slot 15 `0x00734850` → `0x00734860`; next `0x0045D3F0`; release `0x0045D5B0`) and
+  written into aura.md §6.5 ("The safe lot iterator"). **The cell walk stands** *[choice]*: stamping is a maximum,
+  so the order does not matter. Layout: an 8-byte global-heap (C) block {current node, lot list object = lot
+  manager + 0x5C}, registered in the list object's iterator list (+4) so lot removal moves it; nodes {next, prev,
+  `cISC4Lot*`}; the walk ends at the head node; released by a non-virtual function (unregister, free with C).
+  docs/abi/allocators.md table 1 already had the block and its allocator.
 - **AU6:** the game-data registry node "aura" is a stub. What does the original publish there? [stub]
 - **AU7 — shadow timing:** the other inputs are read at the end of the original's cycle, so a mid-cycle change shows
   as a difference; the tax baseline is taken at the first compared cycle. [as stated]
