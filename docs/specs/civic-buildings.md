@@ -215,8 +215,9 @@ income drops to 0 and the line is removed.
 
 Only the ape escape (§4.6 step 1) draws: a **temporary** `cRZRandom` constructed with seed −1 (wall clock) each
 month that has at least one Disease Research Center; one `RandomDoubleUniform()`, and on success one
-`RandomUint32Uniform(n)`. No generator state is saved (foundations §6.2). *[choice]* FreeCity4 draws from the
-seeded per-subsystem stream of foundations §6.3.
+`RandomUint32Uniform(n)`. No generator state is saved (foundations §6.2, which lists this temporary). *[choice]*
+FreeCity4 seeds each temporary with `derive(0x0A413481 XOR n)`, `n` counting earlier creations in the session
+(foundations §6.3, "temporaries seeded from the clock").
 
 ## 6. Tuning
 
