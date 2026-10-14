@@ -1546,7 +1546,7 @@ pub unsafe extern "C" fn fc4_residential_average_grid(
 /// Slots 26 / 27: the query record (in/out, written field by field); false
 /// at the first missing field.
 #[no_mangle]
-pub unsafe extern "C" fn fc4_residential_query_data(
+pub unsafe extern "C" fn fc4_residential_get_query_data(
     p: *const fc4_residential,
     school: bool,
     occupant: u64,

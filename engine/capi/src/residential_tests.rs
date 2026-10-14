@@ -679,7 +679,7 @@ fn building_lists_and_grids_are_handed_out() {
     assert_eq!(g.refs_of(SCHOOL), 4, "a view hands out too");
     let mut q = fc4_residential_query_data::default();
     assert!(
-        !unsafe { fc4_residential_query_data(p, true, SCHOOL, &mut q) },
+        !unsafe { fc4_residential_get_query_data(p, true, SCHOOL, &mut q) },
         "no capacity property"
     );
 

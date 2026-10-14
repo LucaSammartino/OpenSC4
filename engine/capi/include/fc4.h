@@ -3765,7 +3765,7 @@ bool fc4_residential_get_occupant_funding(const fc4_residential* p, uint64_t occ
  * `min` / `max` get the range (255 / 0 without a grid). */
 uint64_t fc4_residential_average_grid(const fc4_residential* p, bool is_eq, float* min, float* max);
 /* 26 / 27: the query record (in/out); false at the first missing field. */
-bool fc4_residential_query_data(const fc4_residential* p, bool school, uint64_t occ, fc4_residential_query_data* data);
+bool fc4_residential_get_query_data(const fc4_residential* p, bool school, uint64_t occ, fc4_residential_query_data* data);
 bool fc4_residential_estimate_capacity(const fc4_residential* p, uint64_t occ, uint32_t* capacity,
                                        uint32_t* staff); /* 28: true */
 uint8_t fc4_residential_cell_life_expectancy(const fc4_residential* p, int32_t x, int32_t z);     /* 29 */
