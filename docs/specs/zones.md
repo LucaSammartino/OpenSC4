@@ -359,18 +359,46 @@ Callers relevant to growth: the zone manager's own dezone (§5.1); the BDS `DoTe
 `zoneManager.IsRCIZone(type)`: clear the highlight state, then `OnZone(region, null)`. Otherwise
 `OnDezone(region, flag)` (§7.9). Reset the current zone type to 0.
 
-`HighlightParcels(region, type, point*, SC4CellRegion** out)` (slot 5, `0x00733F30`, pop 16): UI preview. Sets the
-real-mode flag false, stores type and point; if `IsRCIZone(type)`: clear the highlight, `OnZone(region, out)`,
-update the highlight textures. Restores real mode. In highlight mode `CreateLotIfPossible` records **virtual** lots
-instead of creating them, and `DeleteLot` records virtually deleted cells (§8.5, §8.6). Highlight mode still
-**draws random numbers** (§9) *[compat]*.
+`HighlightParcels(region, type, point*, SC4CellRegion** out)` (slot 5, `0x00733F30`, pop 16): UI preview. It stores
+the point, sets the real-mode flag false and sets the current zone type := type. If `IsRCIZone(type)`: clear the
+highlight (below), `OnZone(region, out)` (§7.2), then `UpdateHighlightTextures(region)` (`0x0072DB60`). That last
+call is UI: it walks the virtual-lot map and draws each entry through the terrain view, *[inferred]* changing no
+simulation state. In every case it then sets real mode back to true, the type to 0 and the point to null. A non-RCI
+type does nothing else: the highlight is not cleared and `*out` is not written. The virtual maps and the street
+tool's drafts are **not** cleared at the end. They stay until the next clear.
+
+**Clear the highlight** (`ClearHighlight`, `0x0072C0E0`). `DoParcellization` calls it too, in real mode.
+- Empty the virtual-lot map (`+0xD8`) and the virtually-deleted map (`+0xE4`).
+- Call `Reset()` (network tool slot 5) on the street tool (`+0x48`) and the road tool (`+0x4C`). The dirt-road tool
+  (`+0x44`) is **not** reset.
+- Call the terrain view's slot 9 (UI).
+
+Both maps are keyed by cell. Each value is `{x1, z1, facing}` of the lot that put it there, and a later entry for the
+same cell overwrites the earlier one.
+
+**Highlight mode** (real-mode flag false) changes only these (ZQ4; test 33):
+
+| Where | Real mode | Highlight mode |
+|---|---|---|
+| `CreateLotIfPossible` with code 8 (§8.5) | creates the lot | records a virtual lot on every cell, leaves `*out` null, AL = 1 |
+| `DeleteLot` (§8.6) | deletes the lot | records its cells as virtually deleted; the lot stays |
+| `CanCreateLot` (§8.4) | code 2 applies; code 7 = a real lot | no code 2; code 7 = a real lot not virtually deleted, or a virtual lot |
+| `CreateParcellizableRegion` (§7.4) | lot test on every cell | lot test only where `IsCellOccupied` holds |
+| `ExistsNetworkOfType`, `ExistsConnectionOfType`, `LayInJogStreets`' parallel test (§8.8, §7.13, §7.12) | real networks | also the street and dirt-road tools' drafts |
+| `DrawStreet` (§7.10) | a street | a draft (`PlaceNetworkOccupants` with realMode false) |
+| `Parcellize` (§7.6.2) | levels every rect, locks created lots | neither (no lot is returned) |
+| `OnZone` step 7 (§7.2) | `0x0072B180` | skipped |
+
+Everything else runs as in real mode. `ExamineCell`'s lot test sees only real lots (§7.3), both DeferOccupantOperations
+messages are posted (§7.2), and random numbers are still **drawn** (§9) *[compat]*.
 
 ### 7.2 `OnZone(region, out)` (`0x00733770`)
 
 **Custom-size path** (option `customZoneSize`): the region becomes the restriction region for
 `ExamineBoundaries` (§7.3) and is then cleared as restriction; the orientation list is `{D, Q, (D + 2) mod 4,
 (Q + 2) mod 4}`; `CreateLotToFaceRoad(x1, z1, w, h, list)` (§7.7) on the whole region rect (no draw: the list is not
-empty). On failure with `out` given, `*out` := a new all-false region over the rect (C).
+empty). On failure with `out` given, `*out` := a new all-false region over the rect (C). On success `*out` is not
+written. This path never looks at the highlight point.
 
 **Normal path:**
 
@@ -384,10 +412,28 @@ empty). On failure with `out` given, `*out` := a new all-false region over the r
 5. `SubdivideTheZone` (`0x0072EC60`): recompute the parcellizable region, split it into **4-connected components**
    (`ExtractConnectedCells` `0x0072CDA0`), each cropped and appended to a component list (B nodes; one empty region if
    there are none).
-6. For each component in list order: it becomes the restriction region. In highlight mode with a highlight point,
-   components not containing or 4-adjacent to the point are skipped (their cells are cleared from `*out`).
-   Otherwise `ExamineBoundaries` (§7.3) and then by the current zone type: 1..6 → `Parcellize` (§7.6); 7 →
-   `SimpleParcellize(16)`; any other → `SimpleParcellize(6)` (§7.5). The component region is freed.
+6. If `out` is given: `*out` := a new C region with the input region's rect and bits (`0x00733A1C`). That is the
+   region as passed in, so cells that were not parcellizable (networks, water, kept lots) stay set.
+
+   Then for each component in list order: it becomes the restriction region. With a highlight point P (set only by
+   `HighlightParcels`), a component is processed only if it contains P or one of P's four neighbours. Each neighbour
+   is tested only inside the city (x > 0, x < cellsX − 1, z > 0, z < cellsZ − 1). For a skipped component, its cells
+   are cleared from `*out` (when given) and nothing else happens. A processed component gets `ExamineBoundaries`
+   (§7.3) and then, by the current zone type:
+   - 1..6 → `Parcellize` (§7.6);
+   - 7 → `SimpleParcellize(16)`;
+   - any other → `SimpleParcellize(6)` (§7.5).
+
+   The component region is freed.
+
+   After the loop, with both P and `out` given:
+   - if P's bit in `*out` is set, `*out` := the 4-connected component of `*out` containing P, cropped
+     (`ExtractConnectedCells`, `CompressRegion`);
+   - otherwise `*out` := null.
+
+   The previous `*out` is freed either way (`0x00733E02`–`0x00733E95`). That bit is read **without a bounds check**
+   (`0x00733E1C`): for a P outside `*out`'s rect the original reads outside the bit array, giving garbage or a crash.
+   *[choice]* FreeCity4 treats such a P as a clear bit, so `*out` := null.
 7. In real mode, `0x0072B180(region)` (not traced; *[inferred: UpdateZoneType-like bookkeeping, no RNG]*).
 8. Post DeferOccupantOperations (data1 = 0).
 
@@ -500,6 +546,10 @@ Scores the four sides of the restriction region R to decide which side lots face
 | no network: each occupant in the cell (occupant manager slot 41, all types) of type `0x278128A0` (building) or `0x2890D4DE` (unnamed) | := 2 | += 5 each |
 | then, in every case: if C[side] = 0 | | += 1 |
 
+- In highlight mode the network tests also see drafts (§8.8), but in practice only street drafts. Every test whose
+  flags include the dirt-road bit (`0x1F4F`, `0x808`) also includes the street bit, so it asks only the street tool.
+  A street draft therefore scores as a street (+30). The lot test uses the **real** lot only (`GetLot(x, z, false)`,
+  `0x0072FBAC`), so a virtual lot is not an obstacle and a virtually deleted real lot still is.
 - **D** := argmax S (first of equal maxima). **Q** := for D ∈ {0, 2}: `S[1] ≤ S[3] ? 3 : 1`; for D ∈ {1, 3}:
   `S[0] > S[2] ? 0 : 2`. flag := 1.
 - If `placeStreets` and the current zone is 1 or 2 and R is wider and deeper than 2: flag := 0 and swap D ↔ Q.
@@ -830,7 +880,15 @@ k (`ExistsNetworkOfType(flags)`):
 - Parallel test: for each kind in the order avenue (flag `0x40`, type 6), road (`0x1`, 0), one-way (`0x400`, 10),
   street (`0x8`, 3), dirt road (`0x800`, 11): if the cell has that network, take it (`GetNetwork`, §7.13) and ask
   `ConnectsToNeighbor` for either of the two parallel edges with that type. Any yes: `parallel := true` and the
-  scan of this line stops. This test uses the real network only (no highlight-mode draft fallback).
+  scan of this line stops. "Has that network" is `ExistsNetworkOfType` (§8.8), so in highlight mode a street or
+  dirt-road draft passes it. The edge test differs by kind:
+  - avenue, road and one-way: real network only;
+  - street and dirt road: §7.13's `ExistsConnectionOfType` written out inline, highlight-mode branch included
+    (for example `0x00730F25`–`0x00730FD6` for the street and `0x0073101A`–`0x007310C6` for the dirt road in the
+    first line's scan). When the real occupant does not connect on the edge, ask the street tool, then the
+    dirt-road tool, and test byte `edge` of the mask. The type is ignored.
+
+  An earlier version of this section said the parallel test used the real network only. That was wrong.
 
 After the scan, if `dead` and not `parallel`: `DrawStreet(street drawn, perCell = 1)`. So a jog street is laid when
 some dead end points at the region and no network cell on that line runs along the region edge.
@@ -848,7 +906,12 @@ type `type` and has a connection on edge e for that type) is true → true. Othe
 only when `flags & 0x808` (street or dirt road): ask the street tool `OccupantExists(x, z, 0x8, &mask)` (network tool
 slot 9, pop 16, AL); if it reports a draft, the result is `byte e of mask ≠ 0`; else ask the dirt tool
 `OccupantExists(x, z, 0x800, &mask)` the same way; else false. (The mask is 4 bytes, one per network edge; the SDK
-calls it `outOccupantId`.) In real mode the second branch is not taken.
+calls it `outOccupantId`; the contract is in §8.8.) In real mode the second branch is not taken. Details of the
+draft branch:
+- It asks the street tool first and the dirt-road tool second, whichever bits of `0x808` are set.
+- It ignores `type`, so any draft connection on edge e counts for every type.
+- It takes the byte by shifting the mask right by 8·e. For e = −1 the x86 shift count wraps to 24, so a side
+  outside 0..3 reads byte 3 (+z) *[quirk]* (`0x0072FF14`, `0x0072FF45`).
 
 ### 7.14 Worked example
 
@@ -931,8 +994,9 @@ Code 7 means "free except for existing lots"; the tract developer treats 7 and 8
 
 `CreateLotIfPossible(x, z, w, h, facing, cISC4Lot** out, zoneNotNeeded, waterAllowed, cfg)` (slot 22, `0x00730A80`,
 pop 36): `*out := null`; `code := CanCreateLot(x, z, w, h, zoneNotNeeded, waterAllowed, null)` — **the `cfg`
-argument is ignored**. If code = 8: in highlight mode record a virtual lot `{x, z, facing}` for every cell and return
-AL = 1 (upper EAX undefined); else if `facing = −1`, `CreateLotToFaceRoad` with a fresh empty list (**one draw**,
+argument is ignored**. If code = 8: in highlight mode record a virtual lot `{x, z, facing}` for every cell of the
+rect, x outer and z inner. A facing of −1 is recorded as is, with no draw. `*out` stays null and the result is AL = 1
+(upper EAX undefined). Else, if `facing = −1`, `CreateLotToFaceRoad` with a fresh empty list (**one draw**,
 §9); else `CreateLot`. Returns EAX = (`*out` ≠ null). Code 7 (an existing lot) fails: the caller must delete it first.
 
 `CreateLot(x, z, w, h, facing, cISC4Lot*& out)` (slot 23, `0x0072E520`, pop 24) → EAX 0/1. No checks:
@@ -951,8 +1015,9 @@ AL = 1 (upper EAX undefined); else if `facing = −1`, `CreateLotToFaceRoad` wit
 
 ### 8.6 Deleting lots
 
-`DeleteLot(lot)` (slot 24, `0x0072F8E0`, pop 4; EAX undefined). Highlight mode: record the lot's cells as
-virtually deleted `{x1, z1, facing}`; nothing else. Real mode, in order:
+`DeleteLot(lot)` (slot 24, `0x0072F8E0`, pop 4; EAX undefined). Highlight mode: record every cell of the lot's
+bounding rect as virtually deleted, with `{x1, z1, facing}` (lot slots 14 and 23). The lot itself is untouched: it
+stays in the cell map and the master list, and it is not released. Real mode, in order:
 
 1. `lotDeveloper.RemoveBuildingZotProp(lot)` (slot 11);
 2. `lotDeveloper.GetLotBaseTextureOccupant(lot, &occ, 0)` (slot 41); if found, `occupantManager.RemoveOccupant(occ's
@@ -983,8 +1048,25 @@ Slot 18's cell is ⌊x/16⌋ except that x/16 with fraction > 0.999 rounds up (x
 
 - `ExistsNetworkOfType(x, z, flags)` (slot 8, `0x0072FE10`, pop 12, AL): the first occupant of the cell of network
   type `0xC772BF98` (occupant manager slot 41, list from A) that is a `cISC4NetworkOccupant` with
-  `HasAnyNetworkFlag(flags)`. In highlight mode it also accepts the street tool's draft (if `flags & 8`) or the
-  dirt-road tool's draft (if `flags & 0x800`) at the cell (network tool slot 9).
+  `HasAnyNetworkFlag(flags)`. When no real network matches, in highlight mode only (`0x0072FE33`–`0x0072FE70`):
+  - if `flags & 8`, the result is the street tool's `OccupantExists(x, z, 8, &mask)`, and the dirt-road tool is
+    **not** asked even when `flags & 0x800` is set too *[quirk]*;
+  - else, if `flags & 0x800`, the result is the dirt-road tool's `OccupantExists(x, z, 0x800, &mask)`;
+  - else false.
+
+  The road tool is never asked.
+- **Network tool `OccupantExists(x, z, flags, &mask)`** (slot 9, `0x006248D0`, pop 16, AL). This is the draft query
+  of §7.12, §7.13 and the item above. The tool looks up its cell record for (x, z) (key `(z << 16) + x`,
+  `0x00633220`). On a miss it builds the record from the existing network, or none if the cell has no network.
+  - It returns true only when a record exists, its draft byte (`+0x51`) is set, and its network flags (`+8`)
+    intersect `flags`. Then `*mask` := the record's 4-byte edge mask for the tool's own network type
+    (`+0x18 + 4·type`, type at tool `+0x35C`); byte i ≠ 0 means a connection on network edge i.
+  - Otherwise it returns false and leaves `*mask` alone.
+
+  *[inferred: the draft byte is set on the cells the current draft touches and clear on records copied from the
+  existing network, so an existing network alone never answers true; `Reset` (slot 5) drops the draft.]* A
+  replacement needs only this contract: for each tool, its set of draft cells with their network flags and edge
+  masks.
 - `IsCellWater(x, z)` (slot 9, `0x0072A030`, pop 8): tail jump to `terrain.CellHasWater` (terrain slot 34).
 - `SetOptions(alternateOrientation, placeStreets, customZoneSize)` (slot 7, `0x007347C0`, pop 12).
 
@@ -1204,7 +1286,8 @@ Pops are bytes (from `docs/abi/interfaces.tsv` argument counts or `--check`).
 | 3D view global (`0x00B43DD0`) | 10 (+0x28) | cached value (UI) | 0 | EAX | zone developer Init |
 | `cISC4NetworkManager` | 5 (+0x14) | `GetNetworkTool(type, 1)` | 8 | EAX | PostCityInit |
 | `cISC4NetworkTool` (street tool, type 3; dirt tool, type 11; vtable `0x00AA8748`) | 7 (+0x1C) | `PlaceNetworkOccupants(x1, z1, x2, z2, 0xC49, callback = the tool, realMode, −1)` (`0x00629210`) | 32 | **AL only** (SDK: `uint32_t`; upper EAX bytes are garbage) | DrawStreet (street tool) |
-| | 9 (+0x24) | `OccupantExists(x, z, networkFlags, &mask)` (`0x006248D0`); `mask` = 4 bytes, one per network edge | 16 | **AL only** (SDK: `uint32_t`) | ExistsConnectionOfType, highlight mode |
+| | 9 (+0x24) | `OccupantExists(x, z, networkFlags, &mask)` (`0x006248D0`, §8.8); `mask` = 4 bytes, one per network edge | 16 | **AL only** (SDK: `uint32_t`) | ExistsNetworkOfType, ExistsConnectionOfType, LayInJogStreets; highlight mode only |
+| | 5 (+0x14) | `Reset()` | 0 | | ClearHighlight (street and road tools only) |
 | `cISC4NetworkOccupant` | 47 (+0xBC) | `ConnectsToNeighbor(edge, type)` | 8 | AL | ExistsConnectionOfType, LayInJogStreets |
 | `cISC4OccupantManager` | 41 (+0xA4) | `GetOccupantsByStandardCityCells(list, &cell, &cell, 0xC772BF98, −1)` | 20 | | GetNetwork |
 | `cISC4LotDeveloper` | 21 (+0x54) | `AttemptAreaLevelling(&rect, 0.0f, 1, 1, FLT_MAX, null)` | 24 | ignored | Parcellize, real mode only |
@@ -1255,7 +1338,7 @@ SDK container compatible? | Notes | Evidence.
 | `cISC4LotManager::GetLotsSurroundingRect` (10) | list of lots | B | **no** | (addition) only lots that do **not intersect** the rect; uniqueness is checked against the whole list, including elements present before the call; returns the number appended in this call | `0x0072E2B0` |
 | `cISC4ZoneManager::PlaceZone` (11), argument 10 `outLots` | `std::set<cRZAutoRefCount<cISC4Lot>>*` (the STLport tree of [docs/abi/allocators.md](../abi/allocators.md) *map and set*: 0x14-byte nodes, lot pointer at +0x10; SDK `intptr_t`) | B (nodes) | **no** | does not clear; inserts each lot to be demolished (unique); AddRef only on a new insertion. The caller releases each element and frees the nodes with B | `0x004DDCBB` → `0x00467950` → `0x00467720` |
 | `cISC4ZoneManager::PlaceZone` (11), argument 1 `region` | `SC4CellRegion<long>&` (in/out) | C (row array and rows) | n/a | the game only clears the bits of rejected cells; it never reallocates or frees the region | `0x004DD780` |
-| `cISC4ZoneDeveloper::HighlightParcels` (5), argument 4 `out` | `SC4CellRegion<long>*` stored into `*out` | C (object 0x24 bytes, row array, rows) | n/a | the game allocates a new region; when it narrows the result to the highlighted component it frees its first region and stores a new one. The caller owns the final region and frees rows, row array and object with C *[inferred: caller not traced]* | `0x00733A1C`, `0x00733E89`, `0x00733891` |
+| `cISC4ZoneDeveloper::HighlightParcels` (5), argument 4 `out` | `SC4CellRegion<long>*` stored into `*out` | C (object 0x24 bytes, row array, rows) | n/a | the game allocates a new region; with a highlight point it frees that region at the end and stores either the point's component (a new region) or null (§7.2 step 6). The caller owns the final region and frees rows, row array and object with C *[inferred: caller not traced]* | `0x00733A1C`, `0x00733E89`, `0x00733E95`, `0x00733891` |
 | `cISC4LotManager::GetSafeLotIterator` (15) | 8-byte iterator object `{node, list}` | C | n/a | registered in the manager's iterator list (B node), advanced by lot removal; freeing not traced | `0x00734850` → `0x00734860`, `0x0072BA10` |
 | `cISC4LotManager::CreateLot` (23), `CreateLotIfPossible` (22), argument `out` | `cISC4Lot*&` | — | n/a | one reference for the caller, who releases it; the manager keeps its own | `0x0072E520` |
 | `cISC4LotManager::GetLot` (5, 6), `GetRandomLot` (13), `GetOccupantLot` (14) | `cISC4Lot*` | — | n/a | **no AddRef**; valid until the lot is deleted | `0x0072B410`, `0x0072B3C0`, `0x0072A110` |
@@ -1296,6 +1379,11 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
     the restriction region (§7.10).
 14. `ExtendAsStreets` counts an avenue connection only on cells with `x + z` odd (§7.11).
 15. `Parcellize` levels every attempted rect, also failed attempts, clamped to the city but not to the zone (§7.6.2).
+16. In highlight mode `ExistsNetworkOfType` asks only the street tool when the flags include the street bit, so a
+    dirt-road draft is invisible to `0x808` and `0x1F4F` tests (§8.8, test 33d).
+17. `ExistsConnectionOfType`'s draft branch ignores the type, asks both tools whatever the flag bits, and reads byte 3
+    for a side outside 0..3 (§7.13, test 33d).
+18. `ClearHighlight` resets the street and road tools but not the dirt-road tool (§7.1).
 
 ### 14.2 Corrections to earlier notes
 
@@ -1307,6 +1395,9 @@ grid; `cISC4LotManager::GetMaximumCapacityGrid` (27, `0x00809240`) → the `uint
 - This spec, round 5 §7.6: the levelling call does not run "first" in each lot step; it runs after the attempt,
   its remnants and the back street (fixed in §7.6.2). §7.8: remnant strips are one cell **wide** along the facing
   direction, not one cell deep (fixed).
+- This spec, §7.12: `LayInJogStreets`' parallel test does have a highlight-mode draft branch, for street and dirt road
+  (fixed, ZQ4). §8.8: in highlight mode `ExistsNetworkOfType` asks the dirt-road tool only when the street bit is
+  clear (fixed).
 
 ### 14.3 Open questions
 
@@ -1548,3 +1639,89 @@ desirability tract values 55, 41, 40; `0x1030` 1/3, 39, 5000.0; `0x3110` 2/1, 10
 
     Edge rule: with x 10..17 (8 wide), neither direction lays an x street, because offset 6 is one cell from the far
     edge. With x 10..18, the low edge gives 16 and the high edge gives 12.
+33. **Highlight mode** (§7.1, §7.2, §7.13, §8.8; ZQ4). The setup of tests 19–29, with the street stub extended for
+    drafts:
+    - A Place with realMode false records each cell of a..b that has no network as a **street draft**. Its network
+      flags are `0x8`, and its mask has a nonzero byte for each edge towards a neighbouring cell of the same segment.
+    - The stub answers `OccupantExists` from these drafts (§8.8), and `Reset` clears them.
+    - The dirt-road tool is a stub with no drafts.
+
+    The results checked are:
+    - the virtual-lot map and the virtually-deleted map (cell → `{x1, z1, facing}`);
+    - the Place log;
+    - `*out`;
+    - the state after the call.
+
+    These hold in every case of (a)–(c) and (e):
+    - no real lot is created;
+    - neither `AttemptAreaLevelling` nor `SetVerticesAreLocked` is called;
+    - both DeferOccupantOperations messages are posted;
+    - on return, real mode is true, the zone type is 0 and the point is null;
+    - the maps and the street drafts remain.
+    - (a) Test 19 as a preview: `HighlightParcels(x 10..15 × z 10..13, all set; type 1; null; &out)`, with or without
+      the zone written (code 2 is real-mode only). S, C, D, Q and flag are as in test 19. The Place log is
+      Place(12, 10, 12, 13) with realMode false. The virtual-lot map has 20 entries:
+      - (10..11, 10..11) → {10, 10, 1};
+      - (13..15, 10..11) → {13, 10, 3};
+      - (10..11, 12..13) → {10, 12, 1};
+      - (13..15, 12..13) → {13, 12, 3}.
+
+      The virtually-deleted map is empty. `*out` is a new region equal to the input: rect {10, 10, 15, 13}, 24
+      cells. Calling it again gives the same result, because the clear at the start empties the maps and resets the
+      street stub.
+    - (b) (a) with a real lot L, 2 × 2 at (10, 10), facing 0, whose configuration is not compatible with zone 1.
+      - `CreateParcellizableRegion` reaches L at the first of its cells that it visits and calls `DeleteLot(L)`,
+        once. The virtually-deleted map then holds (10..11, 10..11) → {10, 10, 0}.
+      - At L's other cells, and in the second pass in `SubdivideTheZone`, `IsCellOccupied` is false.
+      - None of the real-mode steps of §8.6 run: L stays in the cell map and in the master list.
+      - `CanCreateLot` ignores the virtually deleted L (code 8). The virtual lots are exactly as in (a), including
+        (10..11, 10..11) → {10, 10, 1}.
+    - (c) Point filter. Test 21 (`SetOptions(0, 0, 0)`, road (8..17, 9)) with a second block. The input region is
+      x 10..15 ∪ x 20..23, z 10..13 (rect {10, 10, 23, 13}), type 1, which gives two components.
+      - P = (12, 11), inside block 1. Block 1 is parcelled as in test 21, giving 24 entries:
+        - (10..11, 10..11) → {10, 10, 0};
+        - (10..11, 12..13) → {10, 12, 2};
+        - (12..13, 10..11) → {12, 10, 0};
+        - (12..13, 12..13) → {12, 12, 2};
+        - (14..15, 10..11) → {14, 10, 0};
+        - (14..15, 12..13) → {14, 12, 2}.
+
+        Block 2 is skipped (no `ExamineBoundaries`, no lots), and its 16 cells are cleared from `*out`. Then
+        `*out` := block 1, cropped: rect {10, 10, 15, 13}, 24 cells.
+      - P = (16, 11), outside both blocks but 4-adjacent to block 1's cell (15, 11). The same 24 entries, and
+        block 2 is skipped. P's bit is clear, so `*out` := null.
+      - P = (18, 11), next to neither block. Both blocks are skipped: there are no entries, and `*out` := null.
+      - *[choice]* P = (5, 5), outside `*out`'s rect: as for (18, 11). The original reads outside the bit array here.
+    - (d) Draft queries. The harness clears the real-mode flag directly, as `HighlightParcels` does. There are no
+      real networks.
+      - The street stub has a draft at (5, 5) with mask bytes (edges −x, −z, +x, +z) {1, 0, 1, 0}.
+      - The dirt-road stub has a draft at (6, 6) with mask {0, 1, 0, 1}.
+      - Both stubs log their calls.
+
+      `ExistsNetworkOfType` gives:
+      - (5, 5, `0x808`) → true, asking only the street stub;
+      - (6, 6, `0x808`) → **false**, asking only the street stub, because bit 3 is set *[quirk]*;
+      - (6, 6, `0x800`) → true, asking the dirt-road stub;
+      - (5, 5, `0x1F4F`) → true, and (6, 6, `0x1F4F`) → false;
+      - (5, 5, `0x1`) → false, with no stub call.
+
+      `ExistsConnectionOfType` gives:
+      - (5, 5, `0x8`, side s, 3) for s = 0, 1, 2, 3 → false, true, false, true (edges 1, 2, 3, 0), asking only the
+        street stub;
+      - (6, 6, `0x8`, 0, 3) → true: the street stub says no, so the dirt-road stub is asked with `0x800`, and its
+        byte 1 is set;
+      - (5, 5, `0x800`, 1, 0) → true: the street stub is asked first, and the type is ignored;
+      - (6, 6, `0x808`, −1, 11) → true, because e = −1 reads byte 3; side 4 gives the same;
+      - (5, 5, `0x808`, −1, 3) → false, because byte 3 = 0;
+      - (5, 5, `0x1`, 1, 0) → false, with no stub call.
+
+      With the real-mode flag set, every query above is false and no stub is called.
+    - (e) Test 23 as a preview (`HighlightParcels`, type 4, no point). The Place calls are test 23's, all with
+      realMode false: Place(10, 10, 15, 10), then Place(x, 10, x, 10) for x = 10..15. The parcellizable region and
+      `ExamineCell` see the drafts on z = 10 through `ExistsNetworkOfType`. So the component and the scores are test
+      23's: x 10..15 × z 11..13; S = {180, 3, 6, 3}, C = {1, 0, 0, 0}, D = 0, Q = 3, flag 1. There are 18 entries:
+      - (10..11, 11..13) → {10, 11, 0};
+      - (12..13, 11..13) → {12, 11, 0};
+      - (14..15, 11..13) → {14, 11, 0}.
+
+      No real street is laid. `*out` is the input region (rect {10, 10, 15, 13}).

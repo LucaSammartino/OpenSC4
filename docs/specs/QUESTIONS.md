@@ -31,10 +31,15 @@ written into §7.2.1:
   observable only through a score tie. *[choice]* FreeCity4 uses ascending configuration ID, pinned by test 30e;
 - the x87 chain equals the exact floor for k ≤ 64 (shipped k = 16) but not above (test 30g).
 
-**ZQ4 — no vector covers highlight mode.**
+~~**ZQ4 — no vector covers highlight mode.**
 `HighlightParcels` (§7.1), virtual lots, virtually deleted cells, and the §7.13 draft fallbacks are all untested. The
 draft fallbacks need the network tools' `OccupantExists(x, z, flag, &mask)`, which §8.8/§7.13 describe only for highlight
-mode. Partly a headless limit (the highlight is a UI preview) and partly a missing spec test.
+mode. Partly a headless limit (the highlight is a UI preview) and partly a missing spec test.~~ **ANSWERED 2026-10-14**
+from the exe. zones.md §7.1 now covers HighlightParcels, ClearHighlight and a table of everything highlight mode
+changes. §7.2 step 6 gives the `*out` lifecycle, including the unchecked point read (a *[choice]*). §8.8 gives the
+`OccupantExists` contract. Two corrections: §7.12's parallel test does have a draft branch, and `ExistsNetworkOfType`
+skips the dirt-road tool when the street bit is set. §15 **test 33 (a–e)** pins the preview of tests 19 and 23, a
+virtually deleted lot, the point filter and the draft queries.
 
 ~~**ZQ5 — §7.3 `ExamineBoundaries` city-border behaviour is untested.**~~ **ANSWERED 2026-10-13** from the exe:
 the clamp was checked on the bytes (`0x00731C8D`) and zones.md §15 now has **test 31**, with both low edges, both
