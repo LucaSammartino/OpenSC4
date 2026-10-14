@@ -742,6 +742,7 @@ pub mod plumbing;
 pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
+pub mod power_shadow;
 pub mod props;
 pub mod protection;
 pub mod stream;
@@ -770,6 +771,9 @@ mod pollution_tests;
 
 #[cfg(test)]
 mod power_tests;
+
+#[cfg(test)]
+mod power_shadow_tests;
 
 #[cfg(test)]
 mod protection_tests;

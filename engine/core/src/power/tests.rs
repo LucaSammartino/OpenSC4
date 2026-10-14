@@ -631,7 +631,12 @@ fn shortfall_city(seed: u32) -> (Rc<Host>, Rc<PowerSim>) {
     let h = Host::new(32);
     plant(&h, 10, CellRect::new(8, 0, 9, 1), 1000, 1);
     for (id, x) in [(11u64, 12), (12, 18), (13, 24)] {
-        h.building(id, CellRect::new(x, 0, x + 1, 1), &[(prop::REQUIREMENT, u32v(600))], None);
+        h.building(
+            id,
+            CellRect::new(x, 0, x + 1, 1),
+            &[(prop::REQUIREMENT, u32v(600))],
+            None,
+        );
     }
     let s = sim(&h);
     for id in 10..=13 {
