@@ -244,6 +244,44 @@ plugin.
        switches (default `1`, environment `FC4_AURA_<KEY>`): `aura_lots`, `aura_lot_populations`,
        `aura_occupants`, `aura_budget`, `aura_ordinance`, `aura_land_value`, `aura_inputs`, `aura_grid_writes`,
        `aura_posts`, `aura_history`, `aura_disaster`, `aura_strikes` (see `plugin/FC4Config.h`).
+     - `flora`: the flora simulator (`cSC4FloraSimulator`, flora spec). The trees stay the game's own
+       `cSC4FloraOccupant` objects, created through GZCOM (class `0xA9C05C85`) and handled only through
+       `cISC4Occupant`, `cISC4FloraOccupant` and the occupant manager. The flora type registry is process-wide (§3.2):
+       its records are built once, at the first `Init` of the process, from the flora exemplars in the resource
+       manager's order, and `GetStaticFloraData` hands out a raw block in the game's layout (docs/abi/layouts.md,
+       0x178 bytes), because the flora occupant, the flora tool and the terrain brush read it and count its
+       references directly. FreeCity4 keeps one reference on every block for the life of the process, so no block
+       (or the exemplar it holds) is ever freed. The registry getters (slots 7-14) are answered from any thread,
+       from a snapshot. Every other call runs under one process-wide lock; a call from another thread is counted
+       (`offMainThread=`) and logged once. The random generator is seeded from the wall clock and the process clock
+       at construction (§8). Burnt trees (§6.8, §6.9) keep one reference each until they are cleared.
+
+       Not yet done (logged once):
+       - the obliteration save and restore (§10.3): `cIGZPersistDBSegment`'s record I/O is not in docs/abi.
+         `SaveObliterated` writes nothing and returns true; an obliterated city's trees are not re-created.
+       - the application shutdown callback (§4.1 step 2): the records are kept for the life of the process.
+       - `GetFloraTypesByFilter` with a non-null filter: `cISC4FloraTypeFilter` is not in docs/abi, so nothing
+         is inserted.
+
+       Status lines, at `Init`, at `Read` and every month: `flora month yyyy-mm-dd: flora=N (young …, maturing …,
+       mature …, burnt …, dying …, other …; types T; not flora …); planted=…(+…) spread=…(+…) aged=…(+…)
+       reborn=…(+…) dying=…(+…) burnt=…(+…) cleared=…(+…) refused=…(+…) removedMonth=… removedOther=… moved=…
+       created=… createFailed=…; burntList=… enabled=… propagation=… …; registry loaded=… map=… types=… families=…
+       blocks=…/… recordsWithoutBlock=…; reentrant=… queued=… lockWaits=…/… offMainThread=…`.
+
+       The counters:
+       - The census (`flora=`) is every flora occupant in the occupant manager, by stage.
+       - `(+…)` is the change since the previous line.
+       - `planted` counts trees planted outside the monthly pass (the tool, lots, cheats); `spread` counts seeds
+         taken during it.
+       - `refused` counts inserts the occupant manager refused.
+       - `cleared` counts burnt trees removed during `SimNewDay`.
+
+       Other lines: `flora Read -> 1`, `flora Write -> 1` and `flora Shutdown (D days, M months, N messages)`.
+
+       Its game calls have their own switches (default `1`, environment `FC4_FLORA_<KEY>`): `flora_occupants`,
+       `flora_create`, `flora_manager`, `flora_queries`, `flora_terrain`, `flora_weather`, `flora_records`,
+       `flora_posts`, `flora_cheats`, `flora_exemplars` (see `plugin/FC4Config.h`).
    - Each budget behaviour that touches game objects has a switch. The switches are re-read at every city load
      (budget `Read`/`Init`). Each defaults to `1`; `0` makes the behaviour a no-op with a neutral result. The
      matching environment variable is `FC4_BUDGET_<KEY>`. `budget_default = 0` turns every unset switch off.
@@ -518,6 +556,55 @@ plugin.
      Success is `base mismatches=0`, `aura mismatches=0` (or only in the transient-effect tracts), equal park
      and landmark maps, equal mayor rating, best / worst and `hotspots … (same)` on every cycle line, and no
      `INCOMPLETE` line after the first cycle.
+   - **Flora shadow** (`flora_shadow = 1`, env `FC4_FLORA_SHADOW`; off by default): a same-process differential of
+     the flora simulator.
+     - **Needs:** our simulator and the **original** flora simulator (do not enable `flora`). Otherwise it logs
+       `flora shadow: requested … but INACTIVE` at game start.
+     - **Registry:** at the first `SimNewMonth` of each city, FreeCity4 builds a registry from the same flora
+       exemplars, in the same order. It is compared with the original's type array, `IsFloraTypeValid(0)`, and every
+       record read from the block `GetStaticFloraData` returns. The record fields compared are next and seed type,
+       water, the 14 floats, cluster radius and height, the 256 table bytes, the unnamed value, flag bits 0-2,
+       the families, and the plop cost.
+     - **Census:** our simulator wraps every `SimNewMonth` delivery to the original's agent
+       (`cSC4FloraSimulator`).
+       - Just before it: the original's own `Write` goes into a memory stream. Every flora occupant of the city is
+         read: type, state, birth date, last seeding date, position, box, flag 1, and the moisture type and terrain
+         altitude at its position.
+       - Just after it: the same again.
+       - The core then finds the blocks the pass visited from the record's iterator. It applies the deterministic
+         part of §6.7.2 (rebirth, stage, removal, last seeding date) to each occupant of those blocks, with the
+         original's own records. It checks that no other occupant changed, and that only `today` and the iterator
+         moved in the record.
+     - **Read only:** nothing is written to the game, and both halves run under the structured-exception guard.
+     - **Not compared** (said in the start line):
+       - the random part (§8): where seeds land and whether they are accepted, cluster merges, wild seeds, and the
+         generator state. Occupants that vanish while predicted present are counted as `vanished`, new ones as
+         `new`;
+       - the family map, and the type sets of slots 8, 10, 13 and 14;
+       - flag bits 3-7, and the key-0 record's flags and plop cost;
+       - a pass that wraps the iterator twice.
+
+     Lines (always written; longer ones continue on `flora shadow (cont.)` lines):
+
+     ```
+     flora shadow: ON (flora_shadow from …): …                                  (game start)
+     flora shadow: comparing with the original flora simulator … (city …); elevation scale …   (each city)
+     flora shadow registry: exemplars E, types ours T original T; records compared R; key 0 …; differences D[; …]
+     flora shadow month yyyy-mm-dd: blocks B of N (k K, enabled 1, propagation 1); census before N after M;
+       visited V; matched A mismatched X (kind n, …); predicted reborn … aged … removed … seeded …; not compared
+       (random): vanished … new …; burnt list …[; first differences]
+     flora shadow month yyyy-mm-dd: INCOMPLETE (why); census before N after M
+     flora shadow census yyyy-mm-dd: before N (young …, maturing …, mature …, burnt …, dying …, other …; types T)
+       after M (…); type/stage buckets changed K (0xTYPE stage a->b, …)
+     ```
+
+     Success means all of these:
+     - `differences 0` on the registry line;
+     - `mismatched 0` on every month line;
+     - no `INCOMPLETE` line.
+
+     On the census line, the changed type/stage buckets are what the month did: aging, removals and seeding. They
+     are not a mismatch by themselves.
    - **Power shadow** (`power_shadow = 1`, env `FC4_POWER_SHADOW`; off by default; `power_shadow_cells = N`, env
      `FC4_POWER_SHADOW_CELLS`, default 8, 1..64, differing cells listed per line; `power_shadow_lines = N`, env
      `FC4_POWER_SHADOW_LINES`, default 32, -1 = all, cycle lines with a difference per month): a same-process

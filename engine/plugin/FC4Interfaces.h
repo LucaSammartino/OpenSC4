@@ -452,7 +452,8 @@ public:
     virtual bool CompactProperties() = 0;                                                    // 21
 };
 
-// cISC4LotManager (28 slots; foundations §17.8). SDK error fixed: slot 22.
+// cISC4LotManager (28 slots; foundations §17.8). SDK errors fixed: slots 18
+// (flora.md §12: a float in ST0) and 22.
 class cFC4ISC4LotManager : public cIGZUnknown {
 public:
     virtual bool Init() = 0;                                                     // 3
@@ -474,7 +475,8 @@ public:
     virtual intptr_t GetSafeLotIterator() = 0;                                   // 15
     virtual int32_t GetLotCount() = 0;                                           // 16
     virtual int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) = 0;  // 17
-    virtual int32_t GetLotSavvyTerrainAltitude(float x, float y, bool& ok) = 0;  // 18
+    // flora.md §12, §13.2: returns a float in ST0 (SDK: int32), pop 12.
+    virtual float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) = 0;  // 18
     virtual int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) = 0;  // 19
     virtual int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig,
                                  cISC4LotConfiguration* config) = 0;             // 20

@@ -231,7 +231,7 @@ long g_cells = kDefaultCells;
 long g_lines = kDefaultLines;
 int32_t g_settingsJulian = INT_MIN;
 
-// Test seam (op 17).
+// Test seam (op 21).
 bool g_testMode = false;
 const FC4PowerShadowTestInput* g_test = nullptr;
 

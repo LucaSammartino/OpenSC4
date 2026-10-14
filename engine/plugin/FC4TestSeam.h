@@ -70,16 +70,21 @@
 //         SimNewMonth) to a fake "original" pollution simulator; returns the
 //         delivery's difference count, -1 (not taken) or -2 (delivered,
 //         nothing compared). (15 is left to the parallel glue lanes.)
-//   op 17 kFC4SeamPowerShadow      a = const FC4PowerShadowTestInput*
-//         (FC4PowerShadow.h): one power-shadow delivery (SimNewDay, SimIdle
-//         or SimNewMonth) to a fake "original" power simulator; returns the
-//         delivery's difference count, -1 (not taken), -2 (delivered,
-//         nothing compared) or -3 (passed through: the original idle).
+//   op 17 kFC4SeamFloraShadow      a = const FC4FloraShadowTestInput*,
+//         b = intptr_t* (or null) for the registry check's difference count
+//         (FC4FloraShadow.h): one flora-shadow SimNewMonth to a fake
+//         "original" flora simulator; returns the month's mismatch count, -1
+//         (not taken) or -2 (delivered, nothing compared).
 //   op 20 kFC4SeamDemandCapacity   a = const FC4DemandCapacityTestInput*
 //         (cFC4Demand.h): the demand glue's capacity-map read of a building
 //         profile (DemandReportCapacities, no simulator): the visitor gets
 //         every entry; returns the entries reported, 0 (switch off) or -1
 //         (refused, logged).
+//   op 21 kFC4SeamPowerShadow      a = const FC4PowerShadowTestInput*
+//         (FC4PowerShadow.h): one power-shadow delivery (SimNewDay, SimIdle
+//         or SimNewMonth) to a fake "original" power simulator; returns the
+//         delivery's difference count, -1 (not taken), -2 (delivered,
+//         nothing compared) or -3 (passed through: the original idle).
 #pragma once
 
 #include <cstdint>
@@ -102,8 +107,9 @@ enum : uint32_t {
     kFC4SeamCrimeShadow = 13,
     kFC4SeamAuraShadow = 14,
     kFC4SeamPollutionShadow = 16,
-    kFC4SeamPowerShadow = 17,
+    kFC4SeamFloraShadow = 17,
     kFC4SeamDemandCapacity = 20,
+    kFC4SeamPowerShadow = 21,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

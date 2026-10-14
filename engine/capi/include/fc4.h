@@ -63,6 +63,7 @@ extern "C" {
  * 18 = adds the protection simulators (fc4_protection);
  * 19 = adds the crime simulator and the crime shadow (fc4_crime / fc4_crime_shadow);
  * 20 = adds the aura simulator (fc4_aura) and its shadow (fc4_aura_shadow);
+ * 21 = adds the flora simulator (fc4_flora, fc4_flora_registry) and its shadow (fc4_flora_shadow);
  * 23 = adds the power shadow (fc4_power_shadow). */
 #define FC4_ABI_VERSION 23u
 
@@ -2804,6 +2805,297 @@ int32_t fc4_aura_shadow_cycle(fc4_aura_shadow* s, const fc4_aura_capture* captur
                               fc4_bytes_sink sink, void* ctx);
 bool fc4_aura_shadow_get_stats(fc4_aura_shadow* s, fc4_aura_shadow_stats* out);
 
+/* ---- flora (docs/specs/flora.md) -------------------------------------------
+ * Two objects. fc4_flora_registry is the process-wide flora type registry
+ * (§3.2): the host creates ONE per process and hands it to every simulator.
+ * For each record the game can see it holds the game-layout block the host
+ * built (docs/abi/layouts.md "Static flora record"; GetStaticFloraData
+ * returns it); the host keeps one reference on every block for the life of
+ * the process. fc4_flora is one cISC4FloraSimulator.
+ *
+ * Threads: every fc4_flora_* call runs under the registry's process-wide
+ * re-entrant lock (one thread at a time; the owner may re-enter from a host
+ * callback). The fc4_flora_registry_* getters (slots 7-14) never take it:
+ * they read a snapshot, refreshed after every call that can change the
+ * registry, so a second thread never waits for a month in progress.
+ * A message delivered during another call is queued and handled when the
+ * outermost call returns. Tokens are opaque host identities, 0 = null. */
+typedef struct fc4_flora_registry fc4_flora_registry;
+typedef struct fc4_flora fc4_flora;
+
+/* A static flora record's values (§3.3), in the game layout's order. */
+typedef struct fc4_flora_record {
+    uint32_t type_id, next_type, seed_type;
+    uint8_t water, flags, reserved[2];
+    float floats[14]; /* property 0x083DC35B, in order */
+    float cluster_radius, cluster_height;
+    uint8_t table[256]; /* [elevation index][moisture type] */
+    uint32_t unnamed, family_count;
+    int64_t plop_cost;
+    const uint32_t* families; /* family_count IDs, borrowed for the call (NULL when 0) */
+} fc4_flora_record;
+
+/* A flora occupant's values (§3.4). */
+typedef struct fc4_flora_occupant {
+    uint32_t flora_type, birth_date, last_seeding_date;
+    int8_t state; /* signed: 0 young .. 4 dying */
+    uint8_t orientation, reserved[2];
+} fc4_flora_occupant;
+
+typedef struct fc4_flora_param {
+    uint32_t as_u32;
+    float as_f32;
+} fc4_flora_param;
+
+/* A message for fc4_flora_do_message (§5). */
+typedef struct fc4_flora_message {
+    uint32_t msg_type, data1, data2, data3;
+    uint64_t occupant;            /* GetVoid1() as a cISC4Occupant (insert / remove occupant) */
+    const uint8_t* text;          /* the cheat's command line (UTF-8, not terminated; NULL = none) */
+    size_t text_len;
+    const fc4_flora_param* params; /* PlaceFlora's command parameters (NULL = none) */
+    size_t param_count;
+} fc4_flora_message;
+
+/* Diagnostics and the status line's counters (host calls the core made,
+ * by phase: SimNewMonth, SimNewDay, anything else). */
+typedef struct fc4_flora_state {
+    uint32_t struct_size;
+    uint8_t initialized, enabled, propagation, propagation_forced, preserve, registry_loaded, pad[2];
+    float size_x, size_z;
+    int32_t cells_x, cells_z;
+    uint32_t today, period, blocks_per_month, wild_seeds_per_month;
+    int32_t iterator_count, iterator_index;
+    uint32_t burnt_list;
+    float burn_accumulator, burnt_removal_accumulator, burn_rate, burnt_removal_step, elevation_scale;
+    /* the registry (process-wide) */
+    uint32_t map_len, type_count, family_count, block_count;
+    /* counters since creation */
+    uint32_t created, create_failed; /* create_flora_occupant gave one / none */
+    uint32_t planted;                /* inserts outside the monthly pass (tool, lots, cheats) */
+    uint32_t spread;                 /* inserts during it (seeds, wild seeds) */
+    uint32_t refused;                /* inserts the occupant manager refused */
+    uint32_t aged;                   /* stage changes to 1 or 2 */
+    uint32_t reborn;                 /* birth := today, state 0 */
+    uint32_t dying;                  /* stage 4 (low score) */
+    uint32_t burnt;                  /* KillFloraOccupant */
+    uint32_t cleared;                /* removals during SimNewDay (burnt trees) */
+    uint32_t removed_month;          /* removals during SimNewMonth */
+    uint32_t removed_other;          /* demolition, buildings, networks, terrain */
+    uint32_t moved;
+    uint32_t blocks_visited, occupants_visited, months, days;
+    uint32_t records_without_block;
+    uint32_t reentrant_calls, queued_messages, lock_waits, reserved;
+} fc4_flora_state;
+
+/* The game-layout record builder. */
+typedef struct fc4_flora_registry_host {
+    uint32_t struct_size;
+    void* user;
+    /* Builds a block with the values of `rec` holding `exemplar` (its
+     * reference passes to the block; 0 = none) and keeps one reference on it
+     * for the life of the process. Returns its address, or 0 (the host then
+     * releases `exemplar`). */
+    uint64_t (*create_block)(void* user, const fc4_flora_record* rec, uint64_t exemplar);
+    void (*set_block_seed)(void* user, uint64_t block, uint32_t seed_type); /* §6.11 */
+    void (*release_exemplar)(void* user, uint64_t exemplar);                /* not kept */
+} fc4_flora_registry_host;
+
+/* One flora exemplar: NEW props (or NULL; taken) and one exemplar reference
+ * (0 = none; taken). */
+typedef void (*fc4_flora_exemplar_visitor)(void* ctx, uint32_t type_id, uint32_t group, uint32_t instance,
+                                           fc4_props* props, uint64_t exemplar);
+
+/* Everything the flora simulator asks of the game (one callback per core
+ * FloraHost method, in its order). Out-pointers are written only when the
+ * callback has a value. */
+typedef struct fc4_flora_host {
+    uint32_t struct_size;
+    void* user;
+    /* city, clock, resources */
+    bool (*city_exists)(void* user);
+    void (*city_size)(void* user, float* x, float* z);
+    void (*city_cell_counts)(void* user, int32_t* x, int32_t* z);
+    bool (*city_established)(void* user);
+    uint32_t (*sim_date_number)(void* user);
+    fc4_props* (*tuning)(void* user); /* NEW (taken) or NULL */
+    /* each exemplar of type 0x6534284A in the resource manager's order */
+    void (*flora_exemplars)(void* user, fc4_flora_exemplar_visitor visit, void* ctx);
+    uint64_t (*obliterated_segment)(void* user);
+    /* framework */
+    void (*register_app_shutdown_callback)(void* user);
+    void (*subscribe)(void* user, const uint32_t* ids, size_t count);
+    void (*unsubscribe)(void* user, const uint32_t* ids, size_t count);
+    void (*register_command)(void* user, uint32_t id, const uint8_t* name, size_t len);
+    void (*unregister_command)(void* user, uint32_t id);
+    void (*add_agent)(void* user, uint32_t level, const uint8_t* name, size_t len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    void (*register_cheat)(void* user, uint32_t id, const uint8_t* name, size_t len);
+    void (*unregister_cheat)(void* user, uint32_t id);
+    void (*post)(void* user, uint32_t msg_type, uint32_t data2);
+    /* terrain, lots, weather */
+    bool (*terrain_initialized)(void* user);
+    float (*altitude)(void* user, float x, float z);
+    float (*sea_level)(void* user);
+    void (*face_normal)(void* user, float x, float z, float* out3); /* out3 zeroed by the caller */
+    float (*lot_savvy_altitude)(void* user, float x, float z, bool* on_lot);
+    uint32_t (*moisture_type)(void* user, float x, float z);
+    /* occupants */
+    uint32_t (*occupant_type)(void* user, uint64_t occ);
+    bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
+    void (*occupant_position)(void* user, uint64_t occ, float* out3);
+    void (*set_occupant_position)(void* user, uint64_t occ, const float* pos3);
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* min3, float* max3);
+    bool (*occupant_in_manager)(void* user, uint64_t occ);
+    void (*set_occupant_in_manager)(void* user, uint64_t occ, bool on);
+    bool (*network_flags)(void* user, uint64_t occ, uint32_t* out); /* false: no cISC4NetworkOccupant */
+    bool (*flora_occupant)(void* user, uint64_t occ, fc4_flora_occupant* out); /* false: no cISC4FloraOccupant */
+    void (*set_flora_type)(void* user, uint64_t occ, uint32_t v);
+    void (*set_birth_date)(void* user, uint64_t occ, uint32_t v);
+    void (*set_last_seeding_date)(void* user, uint64_t occ, uint32_t v);
+    void (*set_flora_state)(void* user, uint64_t occ, int8_t v);
+    void (*set_flora_orientation)(void* user, uint64_t occ, uint32_t v);
+    void (*set_flora_record)(void* user, uint64_t occ, uint64_t block); /* 0 = null record */
+    void (*post_occupant_change)(void* user, uint64_t occ);
+    uint64_t (*create_flora_occupant)(void* user); /* one reference for the caller; 0 = none */
+    void (*init_occupant)(void* user, uint64_t occ);
+    void (*add_ref)(void* user, uint64_t occ);
+    void (*release)(void* user, uint64_t occ);
+    /* The occupant (as `iid`) of a reference read from a save: `token` is the
+     * reference the stream handed over and passes to this call; 0 = none
+     * (the host dropped it). */
+    uint64_t (*resolve_ref)(void* user, uint64_t token, uint32_t iid);
+    /* occupant manager */
+    bool (*has_occupant_manager)(void* user);
+    bool (*insert_occupant)(void* user, uint64_t occ);
+    bool (*remove_occupant)(void* user, uint64_t occ);
+    void (*move_occupant)(void* user, uint64_t occ);
+    /* occ_type 0 with blocking = the blocking filter (§6.4.1) */
+    void (*occupants_in_bbox)(void* user, const float* min3, const float* max3, uint32_t occ_type, bool blocking,
+                              fc4_token_callback cb, void* ctx);
+    /* rect NULL = null corners (the whole city) */
+    void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, uint32_t occ_type, fc4_token_callback cb,
+                               void* ctx);
+    void (*occupants_in_manager_cells)(void* user, uint32_t occ_type, fc4_token_callback cb, void* ctx);
+    /* obliteration segment (§10.3) */
+    bool (*segment_write_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
+                              uint32_t value);
+    bool (*segment_read_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
+                             uint32_t* out);
+    bool (*segment_write_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
+                                   uint64_t occ);
+    uint64_t (*segment_read_flora_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group,
+                                            uint32_t instance);
+} fc4_flora_host;
+
+/* The registry (one per process; the host table is copied). */
+fc4_flora_registry* fc4_flora_registry_create(const fc4_flora_registry_host* host);
+void fc4_flora_registry_destroy(fc4_flora_registry* r); /* the simulators keep theirs alive */
+/* Any thread: */
+uint64_t fc4_flora_registry_record(const fc4_flora_registry* r, uint32_t type_id); /* slot 7; 0 = none */
+bool fc4_flora_registry_is_type_valid(const fc4_flora_registry* r, uint32_t type_id);   /* slot 11 */
+bool fc4_flora_registry_is_family_valid(const fc4_flora_registry* r, uint32_t id);      /* slot 12 */
+/* Slot 9: NULL buffer: *count := N; else copies min(*count, N) and stores it. */
+uint32_t fc4_flora_registry_types_into(const fc4_flora_registry* r, uint32_t* buffer, uint32_t* count);
+/* `which` 0 = type array (registration order), 1 = every map key (ascending,
+ * 0 included), 2 = family IDs. `cb` runs after the snapshot is released. */
+uint32_t fc4_flora_registry_list(const fc4_flora_registry* r, uint32_t which, fc4_token_callback cb, void* ctx);
+uint32_t fc4_flora_registry_family(const fc4_flora_registry* r, uint32_t family, fc4_token_callback cb, void* ctx);
+/* Returns "loaded" (the first Init of the process ran). */
+bool fc4_flora_registry_sizes(const fc4_flora_registry* r, uint32_t* map_len, uint32_t* types, uint32_t* families,
+                              uint32_t* blocks);
+
+/* The simulator. `token` is its own host identity; the two clock values seed
+ * its cRZRandom (§3.1, §8). */
+fc4_flora* fc4_flora_create(const fc4_flora_host* host, const fc4_flora_registry* registry, uint64_t token,
+                            uint32_t wall_clock_seed, uint32_t process_clock);
+void fc4_flora_destroy(fc4_flora* f); /* never-initialised: releases the loaded burnt list */
+bool fc4_flora_init(fc4_flora* f);
+bool fc4_flora_shutdown(fc4_flora* f);
+bool fc4_flora_do_message(fc4_flora* f, const fc4_flora_message* m); /* always true */
+/* Slot 5: props NEW (taken; NULL = false), exemplar one reference (taken). */
+bool fc4_flora_add_exemplar(fc4_flora* f, fc4_props* props, uint64_t exemplar);
+/* Slot 6: the caller's block and its values; false = already registered
+ * (no reference taken); true: the caller gives the registry one reference. */
+bool fc4_flora_add_record(fc4_flora* f, const fc4_flora_record* values, uint64_t block);
+bool fc4_flora_location_ok(fc4_flora* f, uint32_t type_id, float x, float z, uint64_t exclude);
+uint32_t fc4_flora_best_type(fc4_flora* f, float x, float z, float* score);
+/* Slot 17: pos (3 floats) is rewritten; returns the inserted occupant (borrowed) or 0. */
+uint64_t fc4_flora_add_new_occupant(fc4_flora* f, uint32_t type_id, float* pos, bool force);
+bool fc4_flora_add_occupant(fc4_flora* f, uint64_t occ);
+bool fc4_flora_demolish_occupant(fc4_flora* f, uint64_t occ, int32_t flags);
+bool fc4_flora_demolish_cells(fc4_flora* f, const fc4_cell_rect* rect, int32_t flags);
+bool fc4_flora_demolish_bbox(fc4_flora* f, const float* min3, const float* max3, int32_t flags);
+bool fc4_flora_kill(fc4_flora* f, uint64_t occ);
+bool fc4_flora_save_obliterated(fc4_flora* f, uint64_t segment);
+bool fc4_flora_get_state(const fc4_flora* f, fc4_flora_state* out);
+bool fc4_flora_write(const fc4_flora* f, const fc4_ostream* out);
+bool fc4_flora_read(fc4_flora* f, const fc4_istream* in);
+
+/* ---- flora census shadow (tooling) -------------------------------------------
+ * A differential of the ORIGINAL flora simulator: the registry after load
+ * against one built from the same exemplars, and the census of flora
+ * occupants around each monthly pass against §6.7.2's deterministic rule
+ * (engine/capi/src/flora_shadow.rs says exactly what is compared). */
+typedef struct fc4_flora_shadow fc4_flora_shadow;
+
+typedef struct fc4_flora_census_entry {
+    uint64_t token;
+    uint32_t flora_type, birth_date, last_seeding_date;
+    int8_t state;
+    uint8_t in_manager, is_flora, reserved;
+    float pos[3], bbox_min[3], bbox_max[3];
+    uint32_t moisture; /* GetMoistureType(x, z) before the pass */
+    float altitude;    /* GetAltitude(x, z) before the pass */
+    uint32_t reserved2;
+} fc4_flora_census_entry;
+
+typedef struct fc4_flora_shadow_month_in {
+    uint32_t struct_size;
+    uint32_t julian;   /* data1 */
+    uint32_t sim_date; /* GetSimDateNumber() */
+    float sea_level;
+    const uint8_t* before; /* the original's own Write before / after (NULL = not captured) */
+    size_t before_len;
+    const uint8_t* after;
+    size_t after_len;
+    const fc4_flora_census_entry* census_before;
+    size_t before_count;
+    const fc4_flora_census_entry* census_after;
+    size_t after_count;
+    const fc4_flora_record* records; /* the original's, from its blocks, by type_id */
+    size_t record_count;
+} fc4_flora_shadow_month_in;
+
+typedef struct fc4_flora_shadow_stats {
+    uint32_t struct_size;
+    uint32_t months, incomplete;
+    int32_t last_mismatches;
+    uint32_t registry_checks, registry_mismatches;
+    uint32_t occupants, visited, matched, mismatched, vanished, appeared;
+    uint32_t predicted_reborn, predicted_aged, predicted_removed, predicted_seeded;
+} fc4_flora_shadow_stats;
+
+fc4_flora_shadow* fc4_flora_shadow_create(void);
+void fc4_flora_shadow_destroy(fc4_flora_shadow* s);
+/* tuning: NEW (taken) or NULL; returns the elevation scale (16 / 0xC9DBDD02, else 0.08). */
+float fc4_flora_shadow_set_tuning(fc4_flora_shadow* s, fc4_props* tuning);
+/* `exemplars` enumerates as the host's flora_exemplars (exemplar references
+ * must be 0); records[i] is the record of types[i] (type_id 0 = none); key0
+ * NULL = none. One line to `sink`; returns the differences (-1 = bad args). */
+int32_t fc4_flora_shadow_registry(fc4_flora_shadow* s,
+                                  void (*exemplars)(void* user, fc4_flora_exemplar_visitor visit, void* ctx),
+                                  void* user, const uint32_t* types, size_t type_count,
+                                  const fc4_flora_record* records, const fc4_flora_record* key0, bool key0_valid,
+                                  fc4_bytes_sink sink, void* ctx);
+/* One line to `sink`; returns the mismatches, -2 = not compared (the line
+ * says why), -1 = bad arguments. */
+int32_t fc4_flora_shadow_month(fc4_flora_shadow* s, const fc4_flora_shadow_month_in* m, fc4_bytes_sink sink,
+                               void* ctx);
+bool fc4_flora_shadow_get_stats(fc4_flora_shadow* s, fc4_flora_shadow_stats* out);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -2905,6 +3197,17 @@ static_assert(sizeof(fc4_aura_host) == (sizeof(void*) == 4 ? 176 : 352), "fc4_au
 static_assert(sizeof(fc4_aura_capture_ref) == 16, "fc4_aura_capture_ref layout");
 static_assert(sizeof(fc4_aura_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_aura_capture layout");
 static_assert(sizeof(fc4_aura_shadow_stats) == 64, "fc4_aura_shadow_stats layout");
+static_assert(sizeof(fc4_flora_record) == 360, "fc4_flora_record layout");
+static_assert(sizeof(fc4_flora_occupant) == 16, "fc4_flora_occupant layout");
+static_assert(sizeof(fc4_flora_param) == 8, "fc4_flora_param layout");
+static_assert(sizeof(fc4_flora_message) == (sizeof(void*) == 4 ? 40 : 56), "fc4_flora_message layout");
+static_assert(sizeof(fc4_flora_state) == 180, "fc4_flora_state layout");
+static_assert(sizeof(fc4_flora_registry_host) == (sizeof(void*) == 4 ? 20 : 40), "fc4_flora_registry_host layout");
+static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 240 : 480), "fc4_flora_host layout");
+static_assert(sizeof(fc4_flora_census_entry) == 72, "fc4_flora_census_entry layout");
+static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96),
+              "fc4_flora_shadow_month_in layout");
+static_assert(sizeof(fc4_flora_shadow_stats) == 64, "fc4_flora_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");

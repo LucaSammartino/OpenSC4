@@ -17,6 +17,7 @@
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4FloraShadow.h"
 #include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Observer.h"
@@ -74,6 +75,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
         }
         case kFC4SeamPollutionShadow:
             return PollutionShadowTestDeliver(static_cast<const FC4PollutionShadowTestInput*>(a));
+        case kFC4SeamFloraShadow:
+            return FloraShadowTestDeliver(static_cast<const FC4FloraShadowTestInput*>(a), static_cast<intptr_t*>(b));
         case kFC4SeamPowerShadow:
             return PowerShadowTestDeliver(static_cast<const FC4PowerShadowTestInput*>(a));
         case kFC4SeamDemandCapacity: {

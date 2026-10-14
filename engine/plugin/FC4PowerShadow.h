@@ -90,7 +90,7 @@ bool PowerShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZM
 
 }  // namespace fc4
 
-// Test seam op 17 (FC4TestSeam.h): one shadowed delivery to a fake original.
+// Test seam op 21 (FC4TestSeam.h): one shadowed delivery to a fake original.
 // Only the city's GetPowerSimulator (compiled slot 67) and its cell widths /
 // counts (91-94) are called on `city`; the other services stay null (neutral
 // reads: no occupants, zones, lots, deals or budget; ordinance factor 1).
