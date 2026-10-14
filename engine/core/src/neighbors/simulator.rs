@@ -16,9 +16,9 @@ use super::tuning::{curve_of, prop, Tuning};
 use super::{
     conn_type, deal_type, flag, history, inner_cell, msg, neighbour_connection_cell, neighbouring_region_cell,
     occupant, side_of, status, CityHandle, CityId, ForeignConnection, NeighborsHost, NeighborsMessage, Side, Stat,
-    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, CLSID_NEIGHBOR_CONNECTION, ELEVATED_MARKER_HEIGHT,
-    IID_MESSAGE_TARGET2,
-    IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE, IID_UNKNOWN, PROPOSAL_SEED_KEY,
+    AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME, CLSID_NEIGHBORS_SIMULATOR, CLSID_NEIGHBOR_CONNECTION,
+    ELEVATED_MARKER_HEIGHT, IID_MESSAGE_TARGET2, IID_NEIGHBORS_SIMULATOR, IID_NEIGHBOR_CONNECTION, IID_SERIALIZABLE,
+    IID_UNKNOWN, PROPOSAL_SEED_KEY,
 };
 use crate::curve::ResponseCurve;
 use crate::property::PropertyHolder;
@@ -305,6 +305,12 @@ impl NeighborsSimulator {
                 self.host.release_connection(c.token());
             }
         }
+    }
+
+    /// Appends a connection to the list without any effect (the shadow's
+    /// snapshot of the original's list, and tests).
+    pub fn adopt_connection(&self, c: Rc<NeighborConnection>) {
+        self.connections.borrow_mut().push(c);
     }
 
     /// Takes the connection list out of the simulator (the handle's
