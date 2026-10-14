@@ -2819,3 +2819,25 @@ answer is in brackets.
   [a reviewed slot count of 5 against 4; only slot 3 is called]
 - **LG26:** LG3: when InsertOccupant fails after Init, should the occupant be shut down? [released without Shutdown;
   the tile is kept in FreeCity4]
+
+## From applying the exemplar, zones draft and traffic-network answers (filed by the coordinator from the `apply8b` lane's report, 2026-10-14)
+
+EX21–EX33, ZQ11–ZQ12 and TN26–TN28 are applied or cited. EX29 replaces the EX8 printer (17 significant digits,
+half-up, trimmed, cut at 63 characters, Float32 included); TN27 fixed a real bug (travel type −1 matched every
+connection type). The current answer is in brackets.
+
+- **EX34:** `_fcvt(x, 64)`: does it round again at the 64th place when the 17 digits reach past it (below 1e-47)?
+  [yes, half-up again; 9.5e-65 prints `0.` and 61 zeros after the cut]
+- **EX35:** Negative exponents: §4.3 says "divided", but EX23 explains `e-32` as 1/0, then 0 × ∞ (a reciprocal and
+  a multiply, two roundings). Which is it? [one divide, one rounding; the NaN comes out the same]
+- **EX36:** A leading `-` on a NaN result (`-e-32`): does the sign flip the NaN, as `fchs` would? [yes: `0x7FC00000`]
+- **EX37:** EX31 lookup cache: the original keeps a looked-up record; our store keeps no cache, so a lookup between
+  two package loads sees the later package here and the cached record in the original. [no cache; the two agree
+  when every package loads before the first lookup]
+- **EX38:** EX31 late factory: may a factory added after packages are loaded be refused instead of applied to the
+  earlier packages? [refused; `add_factory` returns false]
+- **EX39:** EX33 scalar: the `props` vector readers give a scalar's one value where the original gives an empty
+  vector. This matters for the shipped `Uint8:0:{}` values of `0x88EDC795` and `0x88EDC796`, which no core reader
+  reads yet. [kept as one value; the doc says such a reader must treat it as empty]
+- **ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
+  the start of every real-mode Place; no vector depends on it]
