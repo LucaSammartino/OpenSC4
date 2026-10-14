@@ -3216,12 +3216,15 @@ intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* targe
 // (slot 8) and closes it (slot 9); the stream keeps what its PutUint16 /
 // PutUint32 (slots 7 / 9) get, little-endian, and reports no error (slot 18).
 // `refs` starts with the caller's own reference. Any other call aborts.
+// `falseOpen`: slot 8 still writes the stream (with its reference) but
+// returns false (AQ10).
 struct FakeSegment {
     FakeVtable segVt, dbVt, outVt;
     FakeObject seg{}, db{}, out{};
     int refs = 1;
     int opens = 0;
     int closes = 0;
+    bool falseOpen = false;
     uint32_t key[3] = {};  // type, group, instance
     std::vector<uint8_t> bytes;
 };
@@ -3242,7 +3245,7 @@ bool __fastcall FsegOpenO(void*, void*, const uint32_t* key, void** out, bool) {
     std::memcpy(g_fseg->key, key, sizeof(g_fseg->key));
     *out = &g_fseg->out;
     ++g_fseg->refs;
-    return true;
+    return !g_fseg->falseOpen;
 }
 void __fastcall FsegCloseO(void*, void*, void*) { ++g_fseg->closes; }  // db 9
 bool __fastcall FsegPut16(void*, void*, uint16_t v) {                 // stream 7
@@ -3418,6 +3421,16 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
             CHECK(fseg.key[0] == 0xC9BB3FC6u && fseg.key[1] == 0xC9BB3FC7u && fseg.key[2] == 1u);
             CHECK((fseg.bytes == std::vector<uint8_t>{0, 0, 0, 0, 0, 0}));
             CHECK(fseg.refs == 1);
+            // AQ10 (§10.3): an open that returns false but writes a stream:
+            // not open (nothing written, no close), and that stream's
+            // reference is released once.
+            static FakeSegment fsegFalse;
+            InitFakeSegment(fsegFalse);
+            fsegFalse.falseOpen = true;
+            CHECK(flora->SaveObliterated(reinterpret_cast<cIGZPersistDBSegment*>(&fsegFalse.seg)));
+            CHECK(fsegFalse.opens == 1 && fsegFalse.closes == 0);
+            CHECK(fsegFalse.bytes.empty());
+            CHECK(fsegFalse.refs == 1);
             // §11.1 slot 13 (FQ9): the map {0, added} in ascending order, each
             // key asked of the filter's slot 3; the accepted count returned.
             // (No game allocator here: the inserts fail, the count does not
@@ -6108,6 +6121,7 @@ constexpr uint32_t kIID_cISC4Lot = 0xE818FCED;
 constexpr uint32_t kMsgInsertOccupantFl = 0x99EF1142;
 constexpr uint32_t kMsgConditionChangedFl = 0xE99B3D4D;
 constexpr uint32_t kMsgWaterMapChangedFl = 0x6946DC34;  // the plumbing pass end (FL5/FL6)
+constexpr uint32_t kMsgSimNewDayFl = 0x66956814;        // the day poll after the original's day (FL7/FL8)
 
 // A fake simulation grid (cISC4SimGrid<T>, simgrid.md): the geometry slots
 // (10-17) and GetTractValue (22), values x outer; AddRef / Release (1, 2)
@@ -6494,6 +6508,9 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
         CHECK(FlShadowOnce(seam, nullptr, 0, 0, kMsgInsertOccupantFl) == -1);
         // A message before the first cycle end: no mirror yet.
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 0);
+        // The original's first day (FlammabilityShadowDeliver's day poll):
+        // counted, not mirrored.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgSimNewDayFl) == 0);
         // The first cycle end (the empty one of the first day) is the baseline.
         CHECK(FlShadowOnce(seam, &orig.city, 2451546, 1) == -2);  // 2000-01-02
         // Mirrored messages: an occupant message without an occupant, and a
@@ -6501,9 +6518,13 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 1);
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgConditionChangedFl, nullptr, &orig.notLot) == 1);
         CHECK(orig.notLotQi == 1);
-        // The plumbing pass end: polled (the fake city has no plumbing
-        // simulator: the published grid reads 0, no pass), not mirrored.
+        // The plumbing pass end: not mirrored (and, after the first day poll,
+        // not polled either).
         CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgWaterMapChangedFl) == 0);
+        // Days 2-65 (64 tracts, tractsPerDay 1): the second cycle ends on day
+        // 65 (flammability.md §6.5); each day is polled (the fake city has no
+        // plumbing simulator: nothing watered, no change).
+        for (int day = 2; day <= 65; ++day) CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgSimNewDayFl) == 0);
         // 1. Clean.
         CHECK(FlShadowOnce(seam, &orig.city, 2451586, 1) == 0);  // 2000-02-11
         // 2. One wrong tract: adjusted (3, 4) became 9 although its raw value is 0.
@@ -6544,7 +6565,15 @@ int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const
     CHECK(text.find("raw cells=64 mismatched=0 max|d|=0; adjusted cells=64 mismatched=0 max|d|=0") !=
           std::string::npos);
     CHECK(text.find("average orig/ours=0/0; multiplier orig/ours=1/1; hotspots orig/ours=0/0") != std::string::npos);
-    CHECK(text.find("events=2; plumbing passes=0 (tracts whose watered state changed: 0);") != std::string::npos);
+    CHECK(text.find("original's grids (8x8 tracts, tractsPerDay=1), multiplier 1, average 0, 0 hotspot(s); compared "
+                    "from the next cycle; day 1 since Init, 1 tracts of the new cycle visited") != std::string::npos);
+    CHECK(text.find("events=2; watered polls=65 by content (at a day 64, with a change 0; published grid pointer "
+                    "changes 0); tracts whose watered state changed: 0 (0 carried in); carried into the next cycle: 0 "
+                    "(changed after the wrap day 65 (day 65 since Init; 1 tracts of the new cycle visited));") !=
+          std::string::npos);
+    // No day polls before cycle 3: the count is off from then on (FL8).
+    CHECK(text.find("carried into the next cycle: 0 (the comparison's own poll only (the day count is off: cycle end "
+                    "3 delivered after day 65, by when the count gives 2));") != std::string::npos);
     CHECK(text.find("flammable getter cells=64 mismatched=0; mismatches=0; cycles=1 clean=1") != std::string::npos);
     CHECK(text.find("flammability shadow 2000-03-22 cycle 3: ") != std::string::npos);
     CHECK(text.find("adjusted cells=64 mismatched=1 max|d|=9") != std::string::npos);

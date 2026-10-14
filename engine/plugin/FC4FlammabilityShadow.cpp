@@ -56,6 +56,7 @@
 #endif
 #include <windows.h>
 
+#include <cstring>
 #include <memory>
 #include <vector>
 
@@ -77,9 +78,15 @@ constexpr uint32_t kMsgConditionChanged = 0xE99B3D4D;
 constexpr uint32_t kMsgSimCycleComplete = 0x08F415FE;
 constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
 // The plumbing pass end (plumbing.md §6.7 step 4, after the grid swap of
-// state 6): forwarded so the shadow polls the published watered grid once per
-// pass (flammability.md §6.5, FL5/FL6). Not one of the original's six.
+// state 6): forwarded so the shadow polls the watered state (by content) at
+// every pass end until the first day poll (flammability.md §6.5, FL5-FL7).
+// Not one of the original's six.
 constexpr uint32_t kMsgWaterMapChanged = 0x6946DC34;
+// The original's day (§5: its one agent registration, level 4, by this name,
+// §4.1 step 2): FlammabilityShadowDeliver hands it to the core after the
+// original's delivery, as a day poll (§6.5, FL7/FL8).
+constexpr uint32_t kMsgSimNewDay = 0x66956814;
+constexpr const char* kAgentName = "cSC4FlammabilitySimulator";
 constexpr uint32_t kMessages[] = {kMsgInsertOccupant,   kMsgRemoveOccupant,   kMsgChangeOccupant,
                                   kMsgSeasonChange,     kMsgOrdinanceUpdated, kMsgConditionChanged,
                                   kMsgSimCycleComplete, kMsgPostCityShutdown, kMsgWaterMapChanged};
@@ -239,9 +246,9 @@ int32_t IsCellWatered(void*, int32_t x, int32_t z) {
 }
 
 // Plumbing slot 7 GetWateredGrid (plumbing.md §10.1): the published grid,
-// borrowed. Its object alternates at every pass (§2), so the shadow polls the
-// pointer to see a pass end and then reads slot 11 again (flammability.md
-// §6.5, FL5/FL6). Only the pointer is used, never the grid.
+// borrowed. The shadow polls slot 11 by content (flammability.md §6.5, FL7,
+// FL9) and only counts this pointer's changes. Only the pointer is used,
+// never the grid.
 uint64_t WateredGrid(void*) {
     cISC4PlumbingSimulator* p = g_city ? g_city->GetPlumbingSimulator() : nullptr;  // borrowed
     return p ? TokenOf(AsGame(p)->GetWateredGrid()) : 0;
@@ -483,7 +490,8 @@ intptr_t OnEvent(cISC4City* city, int32_t julian, const fc4_flammability_message
 // delivers in subscription order, so the original (subscribed in its Init)
 // handles each message just before this later target, on the same state.
 // The plumbing pass end comes here too, without objects: the core polls the
-// published watered grid and mirrors nothing.
+// watered state (until its first day poll) and mirrors nothing. So does the
+// original's SimNewDay (FlammabilityShadowDeliver): a day poll.
 intptr_t OnMessage(cISC4City* city, uint32_t type, cIGZUnknown* void1, cIGZUnknown* unknown) {
     if (OriginalOf(city) == nullptr) return -1;
     fc4_flammability_message m{};
@@ -576,8 +584,10 @@ void FlammabilityShadowStartup(bool flammabilityReplaced) {
         "original's cycle ends (SimCycleComplete 0x08F415FE) the original's record (its own Write: adjusted and raw "
         "grids, multiplier, average, hotspots) and getters (slots 6-8) are compared with it; the first cycle seen is "
         "the baseline; one line per cycle; differing tracts listed per grid: %ld; a tract whose watered state changed "
-        "at a plumbing pass in the cycle (the pass end 0x6946DC34 and GetWateredGrid's pointer, polled at every "
-        "event) may hold its value under either state, as the day visit applies the no-water factor (FL5/FL6)",
+        "in the cycle (plumbing slot 11 compared by content right after every SimNewDay the original gets, or at "
+        "every event before the first one, and at the cycle end) may hold its value under either state, as the day "
+        "visit applies the no-water factor (FL5-FL7); the changes seen after the wrap day (by the count of days since "
+        "the original's Init) are carried into the next cycle (FL8)",
         src, g_cells);
     Log("flammability shadow: NOT readable read-only (left out of the comparison): the iterator start and the "
         "hotspot shuffle (C rand() draws), the fire roll (a clock-seeded generator) and the random lot, the "
@@ -611,6 +621,33 @@ void FlammabilityShadowStop() {
     }
     TheTarget().Release();
     DropShadow();
+}
+
+bool FlammabilityShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZMessage2* msg, uint32_t type,
+                               int64_t data1, bool* finished) {
+    (void)data1;  // §5: read but not used by the original either
+    if (type != kMsgSimNewDay || target == nullptr || msg == nullptr || finished == nullptr) return false;
+    if (!g_started || g_replaced) return false;
+    // Cheap rejection for every other agent: the original registers by name (§4.1 step 2).
+    if (agentName == nullptr || strcmp(agentName, kAgentName) != 0) return false;
+    cISC4City* city = CurrentCity();
+    cISC4FlammabilitySimulator* sim = OriginalOf(city);
+    if (sim == nullptr) return false;
+    // The original's own agent: its cIGZMessageTarget2 identity (only the
+    // identity is kept; the simulator keeps it alive).
+    void* agent = nullptr;
+    if (sim->QueryInterface(kIID_cIGZMessageTarget2, &agent) && agent != nullptr) {
+        cIGZUnknown* a = static_cast<cIGZUnknown*>(agent);
+        FC4_ACQUIRED(a, "QueryInterface");
+        const bool same = static_cast<cIGZMessageTarget2*>(agent) == target;
+        FC4_RELEASE(a);
+        if (!same) return false;
+    }
+    *finished = target->DoMessage(msg);  // the original flammability simulator's day, unchanged
+    // [choice] (flammability.md §6.5, FL7/FL8): right after the original's
+    // visits, the core counts the day and polls the watered state.
+    OnMessage(city, kMsgSimNewDay, nullptr, nullptr);
+    return true;
 }
 
 }  // namespace fc4

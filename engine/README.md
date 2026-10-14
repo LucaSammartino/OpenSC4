@@ -1130,17 +1130,24 @@ plugin.
      `fc4_flammability_shadow_cycle` compares: the raw grid exactly; each adjusted tract against the values the
      cycle could have written (its daily value from the raw values, multipliers and watered states it had, or
      its previous value: at most 2 × tractsPerDay tracts may be "unvisited", visited on the wrap day before the
-     previous comparison); the average against the range those values allow; the multiplier bitwise; the
-     hotspots against every rotation of the fixed visiting order; the getters on the mirror after it took the
-     original's state. The watered state is the one at the visit (flammability spec §6.5, FL5/FL6): the target
-     also hears the plumbing pass end (`0x6946DC34`), and every event first polls the plumbing simulator's
-     `GetWateredGrid` (slot 7), whose object alternates at every pass; on a new pointer the watered states are
-     read again, and a tract whose state changed in the cycle may hold its daily value under either state (no
-     other tract is loosened). The first cycle seen (and the one after a new simulator, a new geometry or an
-     `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in every line): the fire roll (a
-     clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()` draws), the random lot, the
-     candidate list and the zoned sum and count. Lines (always written; longer ones continue on `flammability
-     shadow (cont.)` lines):
+     previous comparison, or the day count's number of them when larger, as under the turbo clock); the average
+     against the range those values allow; the multiplier bitwise; the hotspots against every rotation of the
+     fixed visiting order; the getters on the mirror after it took the original's state. The watered state is
+     the one at the visit (flammability spec §6.5, FL5-FL7): plumbing slot 11 is read for every tract and
+     compared **by content** with the last poll (the published grid's pointer is only counted: an aborted pass
+     or a quick restart brings it back unseen, FL7, FL9). The polls: right after every `SimNewDay` our
+     simulator delivers to the original (`FlammabilityShadowDeliver`, in `cFC4Simulator`'s delivery: the
+     original reads the state only there), at every event (the target also hears the plumbing pass end
+     `0x6946DC34`) until the first such day, and at the cycle end. A tract whose state changed in the cycle may
+     hold its daily value under either state (no other tract is loosened). The changes seen after the last wrap
+     day are **carried** into the next cycle (FL8: the new cycle's first tracts were visited before them and
+     keep those values for a whole cycle); the wrap days come from counting days since the original's `Init`
+     (day 1 wraps at once, §6.5), checked against the cycle ends delivered; when the count is off or there are
+     no day polls, only the comparison's own poll is carried. The first cycle seen (and the one after a new
+     simulator, a new geometry or an `INCOMPLETE`) is the baseline. **Not compared** (said at game start and in
+     every line): the fire roll (a clock-seeded generator), the iterator start and the hotspot shuffle (C `rand()`
+     draws), the random lot, the candidate list and the zoned sum and count. Lines (always written; longer ones
+     continue on `flammability shadow (cont.)` lines):
 
      ```
      flammability shadow: ON (flammability_shadow from …): …                            (game start)
@@ -1148,11 +1155,14 @@ plugin.
      flammability shadow: following the original flammability simulator of city …; …    (each city)
      flammability shadow yyyy-mm-dd cycle N: baseline (why): our simulator takes the original's grids (…)
      flammability shadow yyyy-mm-dd cycle N: tracts=CXxCZ (S=1) tractsPerDay=d; raw cells=… mismatched=a
-       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most 2d); average
+       max|d|=…; adjusted cells=… mismatched=b max|d|=… (exact …, explained …, unvisited u of at most B); average
        orig/ours=x/y[..z]; multiplier orig/ours=…/…; hotspots orig/ours=h/h same (rotation k of n hot tracts) |
-       differ (…)[; first differing (x,z) orig/ours: …]; events=e; plumbing passes=p (tracts whose watered state
-       changed: t); hotspot getter orig/ours=v@(x,z)/…; average
-       getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M; cycles=K clean=C; not compared: …
+       differ (…)[; first differing (x,z) orig/ours: …]; events=e; watered polls=P by content (at a day D, with a
+       change C; published grid pointer changes G); tracts whose watered state changed: t (k carried in); carried
+       into the next cycle: c (changed after the wrap day W (day d since Init; n tracts of the new cycle visited) |
+       the comparison's own poll only (no day polls | the day count is off: …)); hotspot getter
+       orig/ours=v@(x,z)/…; average getter orig/ours=…/…; flammable getter cells=… mismatched=…; mismatches=M;
+       cycles=K clean=C; not compared: …
      flammability shadow yyyy-mm-dd cycle N: INCOMPLETE (why); not compared, the next cycle is a new baseline
      ```
 

@@ -1260,13 +1260,44 @@ fn obliteration_records_go_through_the_host_streams() {
         // The replacement city (no flora of its own) re-creates them.
         w.occs.borrow_mut().clear();
         w.obliterated.set(77);
+        // AQ5 (§10.3): each occupant's record is still open at its insert.
+        let weak = Rc::downgrade(&fx.world);
+        *w.on_insert.borrow_mut() = Some(Box::new(move || {
+            if let Some(w) = weak.upgrade() {
+                let open = w.streams.borrow().len();
+                w.log.borrow_mut().push(format!("insert (open {open})"));
+            }
+        }));
+        w.log.borrow_mut().clear();
         let first = w.next.get();
         let g = fc4_flora_create(&h, fx.reg, 9, 1, 2);
         assert!(fc4_flora_init(g));
+        *w.on_insert.borrow_mut() = None;
         let made: Vec<(u32, bool, i64)> = (first..w.next.get())
             .map(|id| (w.occ(id).flora.flora_type, w.occ(id).in_manager, w.refs_of(id)))
             .collect();
         assert_eq!(made, [(0x1000, true, 1), (0x2000, true, 1)]);
+        let records: Vec<String> = w
+            .log
+            .borrow()
+            .iter()
+            .filter(|l| l.starts_with("open ") || l.starts_with("insert ") || *l == "close")
+            .cloned()
+            .collect();
+        assert_eq!(
+            records,
+            [
+                "open 1 r",
+                "close",
+                "open 0 r",
+                "insert (open 1)",
+                "close",
+                "open 1 r",
+                "insert (open 1)",
+                "close"
+            ],
+            "the record is closed after Read, Init, InsertOccupant and Release"
+        );
         fc4_flora_shutdown(g);
         fc4_flora_destroy(g);
         // A segment without the count record restores nothing.

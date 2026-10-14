@@ -853,6 +853,43 @@ fn t03_proximity_coarser_target_through_the_states() {
     assert_eq!((p.get(0, 0), p.get(1, 0), p.get(0, 1), p.get(1, 1)), (1, 1, 0, 0));
 }
 
+/// §5.3 step 1 *[compat]* (RG24): with no building map the seed writes
+/// nothing, not even the z = 0 edge. State 13's fresh temporary grid stays all
+/// 0, states 14 and 15 keep what the grid holds (the previous wealth's
+/// result), and every proximity grid ends all 0 (seeding FAR on the edge
+/// would have given 1 on the whole edge).
+#[test]
+fn rg24_proximity_without_a_building_map() {
+    let fx = Fx::new(4);
+    assert!(fx.h.building_map.borrow().is_none());
+    for w in 0..3 {
+        fx.grids().proximity[w].as_ref().unwrap().fill(9);
+    }
+    let all = |g: &Rc<dyn TractGrid<u8>>| -> Vec<u8> {
+        (0..4)
+            .flat_map(|x| (0..4).map(move |z| (x, z)))
+            .map(|(x, z)| g.get(x, z))
+            .collect()
+    };
+    assert_eq!(fx.step(), state::SEED_LOW);
+    assert_eq!(fx.step(), state::PROXIMITY_LOW);
+    let temp = fx.grids().temporary.expect("state 13 still creates the temporary grid");
+    assert_eq!(all(&temp), vec![0; 16], "nothing seeded, not even the edge");
+    assert_eq!(fx.step(), state::SEED_MEDIUM);
+    // A value the previous wealth left survives state 14's seed.
+    temp.set(2, 0, 3);
+    assert_eq!(fx.step(), state::PROXIMITY_MEDIUM);
+    assert_eq!(temp.get(2, 0), 3, "a reused grid keeps the previous wealth's result");
+    temp.set(2, 0, 0);
+    while fx.state() != state::HISTOGRAM_RESET {
+        fx.step();
+    }
+    let g = fx.grids();
+    for w in 0..3 {
+        assert_eq!(all(g.proximity[w].as_ref().unwrap()), vec![0; 16], "proximity {w}");
+    }
+}
+
 /// §15 test 4 / REH test 14: EQdecay = HQdecay = 0.2.
 #[test]
 fn t04_decay() {
@@ -1727,6 +1764,65 @@ fn reh22_min_max_coordinates() {
     assert_eq!(fx.s.quotient_min_max(true), Some((10, 14, 22, 6, 10.0, 80.0)));
     // Global EQ (RS4): (10 + 80) / 2.
     assert_eq!(fx.s.get_global_eq(), 45.0);
+}
+
+/// REH §4.8 *[compat]* (AQ2, AQ3): which tract size each query uses, in a
+/// hand-made save where the member E (8) differs from the grids' own size
+/// (4), and the R$ HQ grid's size (2) from the R$ EQ grid's. Slots 35, 37
+/// and 43 divide by the R$ EQ grid's `GetTractSize()`, slots 36, 38 and 44 by
+/// the R$ HQ grid's; only slots 21 / 22 use E (the new grid's tract size).
+#[test]
+fn aq2_aq3_queries_ask_the_r1_grid_for_its_tract_size() {
+    let fx = Fx::new(32);
+    fx.s.with_state(|s| {
+        s.eq_size = 8;
+        s.population = 2;
+    });
+    // R$ population 1 at tract (1, 1) of the size-4 grids: cells 4..7.
+    fx.set_tract(
+        1,
+        1,
+        Tract {
+            old: [1, 0, 0],
+            eq: [50.0, 60.0, 70.0],
+            ..Tract::default()
+        },
+    );
+    assert_eq!(fx.s.get_cell_eq(5, 6), 50.0, "x / 4, not x / 8 (tract (0, 0))");
+    assert_eq!(fx.s.get_cell_eq_by_wealth(5, 6, 2), 60.0);
+    assert_eq!(fx.s.get_cell_eq_by_wealth(5, 6, 3), 70.0);
+    // Coordinates T/2 + T × tract with T = 4: (2 + 4, 2 + 4).
+    assert_eq!(fx.s.quotient_min_max(true), Some((6, 6, 6, 6, 50.0, 50.0)));
+    // The new grid of slot 21 has tract size E = 8: 4 × 4 tracts.
+    let (g, _, _) = fx.s.average_quotient_grid(true);
+    let g = g.expect("a new grid");
+    assert_eq!((g.geometry().tract_size, g.count_x(), g.count_z()), (8, 4, 4));
+
+    // HQ: a size-2 R$ HQ grid (16 × 16 tracts); the EQ grids keep size 4.
+    let hq1 = GridProvider::<f32>::create_grid(&*fx.h, instance::HQ[0], 2).unwrap();
+    hq1.set(2, 3, 30.0);
+    fx.s.with_state(|s| s.grids.hq[0] = Some(hq1));
+    let hq2 = fx.grids().hq[1].clone().unwrap();
+    // Tract (2, 3) of the size-4 R$$ HQ grid: cells 8..11, 12..15.
+    hq2.set(2, 3, 40.0);
+    // Cell (5, 7): R$ HQ tract (2, 3) by T = 2; R$ population read at the
+    // same tract (2, 3) of its own grid (0 there) gives 0.0.
+    assert_eq!(fx.s.get_cell_hq(5, 7), 0.0);
+    fx.grids().population[0].as_ref().unwrap().set(2, 3, 1);
+    assert_eq!(fx.s.get_cell_hq(5, 7), 30.0, "x / 2 (the R$ HQ grid), not / 4 or / 8");
+    assert_eq!(fx.s.get_cell_hq_by_wealth(5, 7, 1), 30.0);
+    assert_eq!(
+        fx.s.get_cell_hq_by_wealth(5, 7, 2),
+        40.0,
+        "R$$ read at the R$ grid's tract"
+    );
+    // Slot 44's coordinates use T = 2: tract (2, 3) → (1 + 4, 1 + 6).
+    fx.grids().population[0].as_ref().unwrap().set(1, 1, 0);
+    let mm = fx.s.quotient_min_max(false).expect("populated");
+    assert_eq!((mm.0, mm.1, mm.2, mm.3), (5, 7, 5, 7));
+    // Slot 22 still uses E.
+    let (g, _, _) = fx.s.average_quotient_grid(false);
+    assert_eq!(g.expect("a new grid").geometry().tract_size, 8);
 }
 
 /// REH test 23: death's door.
@@ -3092,6 +3188,20 @@ fn eh12_system_totals() {
     assert_eq!((t.capacity, t.served), (1000, 300));
     assert_eq!(fx.s.hospital_system_totals(&[], &mut t), 0);
     assert_eq!((t.capacity, t.served, t.grade), (0, 0, 0.0));
+}
+
+/// AQ1 (REH §4.11): a farmer's market (a hospital without the staff item)
+/// counted first adds the record's +0x1C / +0x20 before any query wrote
+/// them: stack leftovers in the original, 0 in FreeCity4 (*[choice]*).
+#[test]
+fn aq1_totals_record_starts_at_0() {
+    let fx = Fx::new(4);
+    service(&fx, 2, &HOSPITAL, 0, 200, 10.0, (32.0, 32.0));
+    graded(&fx, 2, &HOSPITAL, 100, NOT_GRADED, 0.25);
+    let mut t = QueryData::default();
+    assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut t), 1);
+    assert_eq!((t.capacity, t.effective_capacity), (200, 100));
+    assert_eq!((t.capacity_per_staff, t.effective_per_staff), (0, 0));
 }
 
 /// EH10 (REH §4.11 "Order of the tests and partial writes"): a failed query
