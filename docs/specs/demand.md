@@ -457,6 +457,18 @@ Notes *[compat]*:
   reproduce the per-cell visit and use whatever the lot interface returns.
 - `GetCellWorkforcePercent` returns a fraction (0…1) despite its name *[inferred from the residential spec notes]*.
 - The profile fields used here (`purpose` at +0x00) and the whole profile: [docs/abi/layouts.md](../abi/layouts.md) *Building profile*.
+- **How the original reads the profile** (DQ5). At every cell that passes the lot tests, it calls BDS slot 39
+  (`+0x9C`, `0x006A5A53`).
+  - Slot 39 returns a **reference** into the process-wide profile table. There is no copy and no walk of the
+    capacity maps.
+  - It reads only `purpose` (+0x00, `0x006A5A5D`) and accepts 1…8 (`dec`, `cmp 7`, `ja`).
+  - Cells without a lot, without capacity or with building type 0 never reach the call.
+  - **Side effect.** Slot 39 inserts a zero profile for an unknown type. A lot's building type is normally known,
+    so this does not fire in practice.
+
+  Walking the capacity maps at each cell therefore has no original counterpart. It is harmless as long as it is
+  read-only. *[choice]* Read `purpose` through the reference (or slot 40, which does not insert) and walk the
+  capacity maps only in `UpdateCapacity` (§7.2).
 
 ### 6.4 Applying the census
 

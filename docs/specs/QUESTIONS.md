@@ -766,8 +766,15 @@ current answer is in brackets.
   - **What the original would do.** It skips the clear, keeps the stale nodes and inserts into the stale tree,
     overwriting matching keys in place. The count ends as the number of new nodes only.
   - **Verdict.** That is a corrupt map, so refusing it is fine.
-- **DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
-  only the purpose. Intended? [walks at every cell]
+- ~~**DQ5:** the census asks for the profile at every cell, so the capacity walk runs there too, although §6.3 needs
+  only the purpose. Intended? [walks at every cell]~~ **ANSWERED 2026-10-14** from the exe (`PerformCensus`: BDS
+  slot 39 at `0x006A5A53`, `purpose` read at `0x006A5A5D`) and written into demand.md §6.3. **Not intended: the
+  original does no walk.**
+  - **What the original does.** At each cell that passes the lot tests, slot 39 returns a reference into the
+    profile table, and only `purpose` (+0x00) is read. Nothing is copied or walked.
+  - **The glue's walk.** Walking the capacity maps per cell has no original counterpart. It is harmless while it is
+    read-only.
+  - *[choice]* Read `purpose` only, and walk the maps only in `UpdateCapacity` (§7.2).
 - **DQ6:** the header colour of a copied capacity map is assumed to be 0. [colour 1 refused]
 - **DQ7:** limits of 16 maps, 128 capacity entries and 4,096 summary nodes. Are larger real maps possible? [refused
   above them]
