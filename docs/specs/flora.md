@@ -250,7 +250,7 @@ lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617
    a null test, and the result is ignored (`0x006B2A0C`–`0x006B2A1F`). The arguments are (`0xAB99A64B`, a plain
    `const char*` to `"PlaceFlora"` at `0x00AB1428`, **null**), so null parameter info is the original's. The
    server's slot 6 (`0x0092B075`, pops 12, AL) refuses an ID of 0, a null name or an ID already registered;
-   otherwise it stores the command, passes the info to its own slot 8 `SetCommandParameterInfo(id, info)`
+   otherwise it stores the command, passes the info to its own slot 8 `RegisterCommandParameterInfo(id, info)`
    (`0x0092AD10`, pops 8) and announces the registration. Slot 8 copies a non-empty info string as the command's
    help text; for a null or empty one it writes `"Format: <name>\nOutput: <none>"` (format at `0x00AD1738`)
    instead, but only when the server's own help flag (`+0x48`) is set, and otherwise leaves the text empty.
@@ -995,7 +995,7 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 20 | `+0x50` | RemoveAgent(target) | 4 | bool |
 | `cIGZMessageServer2` (`0x00AD1BF4`) | 4 / 5 / 6 | `+0x10/+0x14/+0x18` | MessagePost(msg, false) / AddNotification / RemoveNotification | 8 each | bool |
 | `cIGZCommandServer` (`0x00AD17A0`) | 6 | `+0x18` | RegisterCommand(u32 id, const char* name, const char* paramInfo) (`0x0092B075`; false for id 0, null name or an existing id) | 12 | AL |
-| | 8 | `+0x20` | SetCommandParameterInfo(u32 id, const char* info) (`0x0092AD10`; null or empty → default text when the server's help flag is set, §4.1 step 3) | 8 | AL |
+| | 8 | `+0x20` | RegisterCommandParameterInfo(u32 id, const char* info) (`0x0092AD10`; null or empty → default text when the server's help flag is set, §4.1 step 3) | 8 | AL |
 | | 9 | `+0x24` | UnregisterCommand(id) | 4 | bool |
 | `cIGZCheatCodeManager` (`0x00ACFCD0`) | 3 / 4 | `+0x0C` / `+0x10` | RegisterCheatCode(id, const cIGZString&) / UnregisterCheatCode(id) | 8 / 4 | bool |
 | | 7 / 8 | `+0x1C` / `+0x20` | AddNotification2 / RemoveNotification2(target, id) | 8 / 8 | bool |
