@@ -1213,6 +1213,11 @@ With a null deal, power and plumbing skip the recheck after a deal change, and t
 *[choice]* Create the deal's object (the wrapper) when the report is posted, and put it in the message for statuses
 0–7; the message's reference keeps it alive until delivery (NG5). Status 8 stays without a deal.
 
+**NG32 (glue). The shadow's connection-state comparison.** Which states the shadow compares, and when, is the
+implementer's choice. One fact bears on it: a connection's state changes outside the simulator's own calls. The
+power and plumbing simulators set the visited and inactive bits on their own schedule (§17 question 4), and the
+traffic simulator's `UpdateTrafficVolume` clears the volume-dirty flag (NG8).
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

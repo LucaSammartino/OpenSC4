@@ -2668,7 +2668,9 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (subscribers of `0xEA418D8F`: power, plumbing, utility advisor; status-8 posters)
   and written into neighbors §15.4. Statuses 0–7 always carry the deal; power and plumbing read it on 0, the advisor on
   3–6. Recommend creating the wrapper when posting; only status 8 is posted without a deal.
-- **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
+- ~~**NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. Noted in neighbors §15.4, with the
+  callers that change connection state outside the simulator.
 - **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
 - **NG34:** A null connection reference in a save. [skipped]
 
