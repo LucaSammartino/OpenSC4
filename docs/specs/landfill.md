@@ -916,6 +916,28 @@ landfill occupant, which `CreateLandfillOccupant` ensures by removing the old ti
 of the landfill occupant at the cell, or `kDefaultLandfillTileCost` when the cell has no landfill occupant (empty
 cells, including cells whose tile is mask 0). Shipped: an empty cell costs 5, a tile 10–40 (§4.1).
 
+**Where the tile cost comes from** *[compat]* (LG11; `getLandfillTileCost`, `0x006BA3C0`, pop 8, EDX:EAX). For
+each mask cell:
+
+1. Take the occupant manager from the **global** city (`0x00B43CEC`, slot 34) and hold it.
+2. Look up the landfill occupant at the cell (slot 33, type `0x6A11BD2B`, §4.8.6).
+3. If there is none, the cost is `kDefaultLandfillTileCost`.
+4. Otherwise the cost is `cSCPropertyHelp::GetPropertyValue(occupant.AsPropertyHolder(), 0xEA54D286, &v)` (occupant
+   slot 6), as an int64. It starts as `kDefaultLandfillTileCost` and is kept if the property is missing. The
+   occupant's holder has no properties of its own (every saved tile has none, §6.4), so the value comes from its
+   default exemplar, **the tile exemplar** attached in §4.8.1 step 3. Then release the occupant.
+5. Release the occupant manager.
+
+So the cost **is** read from the tile exemplar, through the occupant. A modded tile exemplar changes the
+maintenance.
+
+Examples with the shipped exemplars:
+- a 2 × 2 zone whose one heap is active has four corner tiles `0x034E0000`, so 4 × 10 = **40** (test 6);
+- a 3 × 3 zone with all four heaps active has four corners (10), four edges `0x02F90000` (20) and the centre
+  `0x02FA0000` (40), so **160**.
+
+With the default for every cell, those zones would cost 20 and 45.
+
 #### 4.9.2 `GetCurrentBudget()` and `GetEfficiency()`
 
 - `GetCurrentBudget()` (slot 8) = `department.GetLineItem(30).GetCurrentExpenses()` (int64). The department is

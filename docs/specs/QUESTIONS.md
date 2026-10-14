@@ -1263,7 +1263,12 @@ before and after). The glue's current answer is in brackets.
   discard pops an empty x87 register. That is a masked stack underflow: it sets the sticky IE and SF status flags
   (it would trap if IE were unmasked) and stores no value. Using the "result" would read the NaN indefinite. Declare
   the slot `void`. Written into landfill.md §4.2 and §8.
-- **LG11:** should the tile item cost be read from the tile exemplar? [no]
+- ~~**LG11:** should the tile item cost be read from the tile exemplar? [no]~~ **ANSWERED 2026-10-14** from the exe
+  (`getLandfillTileCost` `0x006BA3C0`). **Yes.** It reads `0xEA54D286` through the tile occupant's property holder,
+  and its only source is the attached tile exemplar. `kDefaultLandfillTileCost` is used only where a cell has no
+  tile, or the property is missing. **The bracket matches only if the glue's fixed costs equal the shipped tile
+  exemplars** (10/20/20/30/40). Using the default for every cell gives, for example, 45 instead of 160 for a full
+  3 × 3 zone. Written into landfill.md §4.9.1.
 - **LG12:** should the shadow clamp GetGarbageSupply? [live plus delta, clamped]
 - **LG13:** on Shutdown, does a zone release its zot or also remove the prop? [release only]
 - **LG14:** the shadow's supply is live plus delta, clamped. [choice]
