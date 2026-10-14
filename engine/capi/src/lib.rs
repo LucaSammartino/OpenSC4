@@ -21,9 +21,9 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use fc4_core::host::{AgentDelivery, Broadcast, Clock, TimerSource};
 use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
-use fc4_core::{AgentHandle, Message, Simulator, Tuning};
+use fc4_core::{AgentHandle, Message, Simulator, Tuning, Turbo};
 
-pub const FC4_ABI_VERSION: u32 = 37;
+pub const FC4_ABI_VERSION: u32 = 44;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -669,6 +669,46 @@ pub unsafe extern "C" fn fc4_sim_get_calibration(
     true
 }
 
+// ---- turbo clock (tooling, not simulator.md; fc4_core::Turbo) ---------------------
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_set_turbo(sim: *mut fc4_sim, on: bool, frame_ms: u32, until_julian: i32) -> bool {
+    with_sim(sim, false, |s| {
+        s.set_turbo(Turbo {
+            on,
+            frame_ms,
+            until_julian,
+        })
+    })
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_get_turbo(
+    sim: *const fc4_sim,
+    on: *mut bool,
+    frame_ms: *mut u32,
+    until_julian: *mut i32,
+) -> bool {
+    let Some(t) = with_sim(sim, None, |s| Some(s.turbo())) else {
+        return false;
+    };
+    if let Some(p) = on.as_mut() {
+        *p = t.on;
+    }
+    if let Some(p) = frame_ms.as_mut() {
+        *p = t.frame_ms;
+    }
+    if let Some(p) = until_julian.as_mut() {
+        *p = t.until_julian;
+    }
+    true
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn fc4_sim_take_turbo_auto_off(sim: *mut fc4_sim) -> i32 {
+    with_sim(sim, 0, |s| s.take_turbo_auto_off().unwrap_or(0))
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn fc4_sim_get_debug(sim: *const fc4_sim, out: *mut fc4_debug) -> bool {
     let Some(o) = out.as_mut() else { return false };
@@ -735,10 +775,12 @@ pub mod aura_shadow;
 pub mod budget;
 pub mod crime;
 pub mod demand;
+pub mod development;
 pub mod flammability;
 pub mod flammability_shadow;
 pub mod flora;
 pub mod flora_shadow;
+pub mod growth;
 pub mod hostgrid;
 pub mod landfill;
 pub mod landfill_shadow;
@@ -777,6 +819,9 @@ mod crime_tests;
 
 #[cfg(test)]
 mod demand_tests;
+
+#[cfg(test)]
+mod development_tests;
 
 #[cfg(test)]
 mod flora_tests;

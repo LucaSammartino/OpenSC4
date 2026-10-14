@@ -39,7 +39,11 @@
 //     (references not looked at, nothing kept past the counter).
 // The shadow sees a pass start (the passCounter moves: state 0 ran; §6.1
 // PS6), replays FreeCity4's pass on the original's record over private grid
-// copies, compares at the original's swap (the published grid cell by cell,
+// copies, state by state (each of our states 2 to 5 just before the delivery
+// in which the original runs it, on the original's flag map of that moment,
+// so a building changed between the steps is seen as the original sees it;
+// no time limit: a pass is followed until its swap or restart, however many
+// days it takes), compares at the original's swap (the published grid cell by cell,
 // the producers, deal usage, water connections) and after its state 8
 // (totals, building counts, cost, demand, pipes, sources, budget items,
 // ageing). Demand is the original's running sum (§5.3), loaded and moved by
@@ -61,7 +65,8 @@
 // into "plumbing shadow (cont.)" lines):
 //   plumbing shadow: ON (...) | requested ... but INACTIVE (...)   game start
 //   plumbing shadow YYYY-MM-DD pass N: aligned=start|swap exact=1|0 ...;
-//     grid WxH cells=.. differing=.. max|diff|=..; ...; mismatches=N
+//     grid WxH cells=.. differing=.. max|diff|=..; ...; deliveries=K days=D;
+//     mismatches=N
 //   plumbing shadow YYYY-MM-DD month: ...; mismatches=N; months=M clean=C
 //   plumbing shadow YYYY-MM-DD[ pass N]: INCOMPLETE (why); not compared
 //

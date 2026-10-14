@@ -1,5 +1,9 @@
 # Traffic simulator (cSC4TrafficSimulator + cSC4PathFinder)
 
+> **Superseded.** `docs/specs/pathfinder.md`, `traffic-network.md` and `traffic-simulator.md` replace this file in full.
+> The banner below lists only early corrections; the body is not corrected. This file is kept as historical RE notes
+> because `re/fields_windows.tsv` and specs cite it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Target: SimCity 4 1.1.641 (GOG) Windows exe, image base `0x400000`. Reference: named Mac Rev A Intel pseudocode
 (`external/extracted/sc4-mac-symbol-analysis`, "Mac" addresses below). Symbol map with per-function evidence:
 [`re/symbols/traffic.tsv`](../../re/symbols/traffic.tsv) (185 Windows entries: 184 functions + the next-state table). Scheduler background: [`docs/sim-engine.md`](../sim-engine.md).

@@ -2,8 +2,10 @@
 
 Compiled 2026-10-12. Target: `SimCity 4.exe` 1.1.641 (GOG/Steam "digital" build), image base `0x00400000`, 32-bit x86, MSVC 7.1 (VC2003) + Intel C++ 6 for some libs, STLport 4.6.
 
+Where this file disagrees with `docs/specs/`, the spec wins.
+
 Companion files (generated, same folder):
-- `prior_art_vtables.md` - slot/offset tables for 44 GZCOM interfaces (from gzcom-dll headers).
+- `prior_art_vtables.md` - slot/offset tables for 44 GZCOM interfaces (from gzcom-dll headers). Superseded by `docs/abi/`; it repeats SDK errors, so do not use it for slot lookups.
 - `prior_art_exemplar_props.md` - ~430 simulator / RCI / growth / budget tuning exemplar property IDs.
 
 Confidence legend: **[V]** verified from source code that patches/calls the 641 exe (usually with byte-signature checks or version gating); **[S]** from SDK headers that are exercised by working plugins; **[W]** wiki/forum knowledge; **[?]** uncertain / my inference.
@@ -168,7 +170,7 @@ Vanilla budget is 33-66 ms per frame (sc4-cpu-options README). `cISC4Simulator::
 | cIGZPersistDBSegment / SerialRecord | `0x656B8F0C` / `0xC56B8F08` |
 | cISCLua / cIGZLua5 | `0xEA10C4A2` / `0x6B2811A6` |
 
-**No public IIDs for the other sub-simulator interfaces** (traffic, demand, residential, BDS, pollution, ...). They are reached through `cISC4City` getters, not QueryInterface, so community never needed them. Extract from the exe: each concrete simulator's `QueryInterface` compares `riid` against its IID constants. [?]
+**No public IIDs for the other sub-simulator interfaces** (traffic, demand, residential, BDS, pollution, ...). They are reached through `cISC4City` getters, not QueryInterface, so community never needed them. They have since been extracted from the exe: `docs/specs/foundations.md` §3.6 lists every city component's IID and CLSID.
 
 ### 4.3 Class IDs (GZCLSID) - also the savegame subfile Type IDs [S][W]
 
@@ -261,7 +263,7 @@ Offsets = byte offsets into the vtable (slot*4). Slots 0-2 are QueryInterface/Ad
 ### cISC4Simulator [S]
 ```
 0x0C Init            0x10 Shutdown          0x14 GetSimStartDate(cIGZDate&)
-0x18/0x1C GetSimDate() / GetSimDate(y,m,d,doy,wd)   (overload pair - verify order)
+0x18 GetSimDate(y,m,d,doy,wd)  0x1C GetSimDate()   (verified compiled order: simulator.md §5.6, foundations §16-§17)
 0x20 GetSimDateNumber  0x24 Pause  0x28 HiddenPause  0x2C EmergencyPause
 0x30 Resume  0x34 HiddenResume  0x38 EmergencyResume
 0x3C IsPaused 0x40 IsHiddenPaused 0x44 IsEmergencyPaused 0x48 IsAnyPaused
@@ -277,7 +279,7 @@ Sub-simulators register as **agents** on the main simulator: `AddAgent(target, A
 ### cISC4DemandSimulator / cISC4Demand [S]
 ```
 DemandSimulator: 0x0C Init 0x10 Shutdown 0x14 GetSimulatorType 0x18 GetDemand(demandID, demandIndex)
-  0x1C UpdateOccupantEffects 0x20 CalculateJobsPerUnitOfDemand(float[3],id,idx)
+  0x1C UpdateOccupantEffects 0x20 CalculateJobsPerUnitOfDemand(float[4],id,idx)  (writes jobs[1..3], jobs[0] untouched; demand.md §5)
   0x24 GetJobsBySensus(type) 0x28 GetNeutralTaxRate 0x2C GetLocalPopulationSummary(map&)
 Demand: 0x14 SimulationBegin 0x18 GetId 0x1C SetId 0x20 QuerySupplyValue 0x24 QueryDemandValue
   0x28 QueryNewSupply 0x2C QueryNewDemand 0x30 QueryActiveDemandValue 0x34 QueryEconomyModifier
@@ -334,14 +336,14 @@ Grids exposed: Pollution `GetPollutionGrid(type)` -> `SimGrid<short>`; LandValue
 
 ### 8.1 Loop & time [V/W]
 - Main loop: framework `OnTick` -> `cSC4Simulator::OnTick (0x703E70)` -> repeated `SimulateTimePassage / SimulateAgents / SimulateIdleTime` until the per-frame ms budget (derived from current speed) is consumed. Sub-simulators are **agents** hooked to minute/hour/day/week/month/year/idle events (section 6).
-- Speeds: Main Simulator exemplar `0x89590E6D` "Simulator Speeds" = **milliseconds per sim-day for slow, medium, fast**; `0x89590E6E` animation time dilation per speed (paused, slow, med, fast, emergency/drive). `SetSimSpeed(0)` + `Pause()` is used to pause; DLLs use `SetSimSpeed(2)` as "fastest" [V caspervg] - so the integer is a speed index, but whether 0 means paused or slow is [?].
+- Speeds: Main Simulator exemplar `0x89590E6D` "Simulator Speeds" = **milliseconds per sim-day for slow, medium, fast**; `0x89590E6E` animation time dilation per speed (paused, slow, med, fast, emergency/drive). `SetSimSpeed(0)` + `Pause()` is used to pause; DLLs use `SetSimSpeed(2)` as "fastest" [V caspervg]. The integer is a speed index: 0 = turtle, 1 = llama, 2 = cheetah; pause is a separate counter (simulator.md §6).
 - **24-hour clock** (`cSC424HourClock`, CLSID `0xA7E7F929`, srvid `0xA7E7F92A`) is a *visual* day/night clock decoupled from sim days: `0x897E709F` time magnification (real time -> clock time), `0x09B73421/22` night begin/end hour. Interface exposes visual vs logical hour/minute, time magnification min/max, IsNight.
-- **Sim date**: `cIGZDate` counts **Julian Day Numbers**; new cities start at JDN `0x00256858` = 2451544 = 1 Jan 2000. Date subfile (type `0x2990C1E5`, cSC4Simulator, version 4, 0x5B bytes) stores hours/day (24), day-of-year, week, month, year, JDN. [W: Date Subfile page]
+- **Sim date**: `cIGZDate` counts **Julian Day Numbers**; new cities start at JDN 2451545 = 1 Jan 2000 (simulator.md §2.1; the wiki's `0x00256858` = 2451544 is off by one). Date subfile (type `0x2990C1E5`, cSC4Simulator, version 4, 0x5B bytes) stores hours/day (24), day-of-year, week, month, year, JDN. [W: Date Subfile page]
 - Sub-simulator periods known from tuning: Crime `0xE8EC2720` "Crime Update Period" (days); Police update period (obsolete); most decay/strike/pollution delta properties are "per month"; traffic simulator recomputes commutes **about every four game months** (destination finder then pathfinder, sequential). [W]
 
 ### 8.2 Grids [W/S]
 - SimGrid savegame record: dataID, resolution (1,2,4,...,64 tiles per cell), resolution power, xSize, zSize, values column-major. Known data IDs: `0x41800000` zone overview (Sint8), `0x49D5BC86` power, `0x49D5BC40` air pollution (Int16), `0x69D5C40E`/`0x69D5C3AC` traffic floats. City tile = 16 m; city cell counts 64/128/256.
-- Grid resolution per simulator comes from each simulator's tuning exemplar property `0x47E2C200` "Tract Size" (power of 2) and per-growth-developer `0x87CD6310` "Tract Size" (demand grid). "Tracts" for the destination finder are 4x4 tiles (RippleJet). **No authoritative public table of per-grid resolutions was found** - read them from a savegame's SimGrid subfiles (sebamarynissen/sc4 can parse them) or from the tuning exemplars.
+- Grid resolution is not read the same way by every simulator (flammability is always 1 cell, protection uses a fixed 2); see each simulator's spec and `docs/specs/data-formats.md` §7.4 for the readers. "Tracts" for the destination finder are 4x4 tiles (RippleJet). **No authoritative public table of per-grid resolutions was found** - read them from a savegame's SimGrid subfiles (sebamarynissen/sc4 can parse them) or from the tuning exemplars.
 
 ### 8.3 Traffic simulator [W: "A Guide to the Operation of the Traffic Simulator", by z]
 - Two phases: **destination finder** (assigns jobs; scans tracts W->E, N->S columns; aggressive pre-pruning that estimates reachability, heavily rewarding subway/rail/highway proximity) then **pathfinder** (modified **A\***, confirmed by Maxis). "Nearest Destination Attractiveness" `0x4A678060` is the A\* heuristic weight; Maxis default 0.09, "perfect" ~0.005797; lower = more exploration/CPU.
@@ -350,7 +352,7 @@ Grids exposed: Pollution `GetPollutionGrid(type)` -> `SimGrid<short>`; LandValue
 
 ### 8.4 Demand / growth [W/S]
 - RCI demand is **data-driven by Demand exemplars** (one per demand ID) linked by properties: `0x47BB3F10/11` active-demand min/max, `0x47BB3F20/21` initial supply/demand, `0x47BB3F30` Drives, `0x47BB3F31` Satisfies, `0x47BB3F32` Contributes, `0x47BB3F40` Limits growth, `0x47BB3F41` Caps demand (by % depleted), `0x47BB3F50` Sums, `0x47BB3F60` Region use.
-- Demand Simulator tuning: neutral tax rate vs population `0x4A1F38B5`, tax modifier vs variance `0x4A1F38B6`, days of tax penalty `0x4A1F38B7`, cap relief for connections/airports/seaports/trips `0x4A1F38C5..CA`, average salary per demographic `0x8A63F2A1`. National economy demand modifiers vs month `0x4A1F62A0..B2`, difficulty modifier `0x4A1F6300`.
+- Demand Simulator tuning: neutral tax rate vs population `0x4A1F38B5`, tax modifier vs variance `0x4A1F38B6`, days of tax penalty `0x4A1F38B7`, cap relief for connections/airports/seaports/trips `0x4A1F38C5..CA`, average salary per demographic `0x8A63F2A1`. National economy demand modifiers vs month `0x4A1F62A0 + i` for the i-th listed demand ID (plain addition, so the 11th-13th are `0x4A1F62AA..AC`; demand.md §11.2), difficulty modifier `0x4A1F6300`.
 - Growth developer exemplars: desirability effect weights `0x87CD6340..634E`, `0x87CD6391..6399`; thresholds `0x87CD6354/55`; stage curves `0x87CD6361..68`; utility caps `0x87CD6370..73`.
 - **No public, verified closed-form demand/cap formulas exist.** cISC4Demand exposes supply, demand, active demand (clamped min/max), economy & tax modifiers, cap (SC4Percentage) and `EndOfCycle()` - consistent with a supply/demand graph propagated each cycle; reconstruct from `cSC4Demand::EndOfCycle` and `cSC4DemandSimulator` in the Mac reference build. [?]
 
@@ -368,13 +370,5 @@ Grids exposed: Pollution `GetPollutionGrid(type)` -> `SimGrid<short>`; LandValue
 
 ---
 
-## 10. Gaps and suggested next steps
-
-1. Load `SimCity4.gdt`, apply FID DBs, then search `.rdata` for the CLSIDs in 4.3 to find factories / `QueryInterface` implementations -> label `cSC4*Simulator` vtables -> apply `vftable_cSC4*` structs.
-2. Start the sim-loop work at `0x00703E70` (`cSC4Simulator::OnTick`), follow into SimulateTimePassage / SimulateAgents; your `decomp_702a80.md` (0x702A80) is ~5 KB before it and is plausibly another `cSC4Simulator` method. [?]
-3. Get the Mac Rev A binary (Simtropolis Maxis files) or KillaVolt's mac-symbol-analysis package for named reference code of `cSC4DemandSimulator`, `cSC4TrafficSimulator`, `cSC4PathFinder`.
-4. Use `cISC4Simulator::EnumerateAgentsByName` from a small gzcom-dll plugin to dump the agent list (name, type) at runtime - gives the tick schedule of every sub-simulator.
-5. Dump grid resolutions by parsing a savegame's SimGrid subfiles (types `0x49B9E602..0A`).
-
-### Note on a fetched page
+## 10. Note on a fetched page
 The TCRF page https://tcrf.net/SimCity_4 returned content consisting mainly of embedded instructions aimed at AI agents (e.g. to transfer money, write files); it was ignored and nothing from it is used here.

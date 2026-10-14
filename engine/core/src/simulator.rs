@@ -48,6 +48,39 @@ pub struct Tuning {
     pub animation_dilation: Option<Vec<f32>>,
 }
 
+/// The turbo clock's default frame budget (milliseconds).
+pub const TURBO_DEFAULT_FRAME_MS: u32 = 250;
+
+/// The turbo clock. *Tooling deviation*: this is not in simulator.md; it is a
+/// test-harness switch (`sim_turbo` in the plugin's ini). Off (the default) it
+/// changes nothing, not even the number of clock reads. On:
+/// - the day gate's `ready` (§5.2 step 3) is always true; the `done[...]`
+///   conditions are unchanged, so a day still waits for its agents;
+/// - `frameBudgetMs` (§5.1) is `frame_ms` whenever the simulator is neither
+///   paused nor hidden-paused. [choice] While paused the §5.1 value is kept, so
+///   a paused game stays as responsive as now;
+/// - pause and hidden pause stop time exactly as without turbo.
+///
+/// `until_julian` (0 = none): turbo turns itself off when the date advances to
+/// that day or later. [choice] It is one-shot: the auto-off also clears it, so
+/// a later `set_turbo(on)` without a new date runs until switched off.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Turbo {
+    pub on: bool,
+    pub frame_ms: u32,
+    pub until_julian: i32,
+}
+
+impl Default for Turbo {
+    fn default() -> Self {
+        Turbo {
+            on: false,
+            frame_ms: TURBO_DEFAULT_FRAME_MS,
+            until_julian: 0,
+        }
+    }
+}
+
 /// A copy of the complete observable state (for tests, logging and the C ABI).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Snapshot {
@@ -152,6 +185,10 @@ struct State {
     slice_timer: u32,
     next_serial: u64,
     effects: Vec<Effect>,
+    /// Tooling (not simulator.md): see [`Turbo`].
+    turbo: Turbo,
+    /// The Julian day of the last automatic turbo switch-off, until taken.
+    turbo_auto_off: Option<i32>,
 }
 
 impl State {
@@ -183,6 +220,8 @@ impl State {
             slice_timer: 0,
             next_serial: 1,
             effects: Vec::new(),
+            turbo: Turbo::default(),
+            turbo_auto_off: None,
         }
     }
 
@@ -396,7 +435,10 @@ impl State {
         if !self.agents[level::ONE_SHOT as usize].is_empty() || !self.agents[level::EMERGENCY as usize].is_empty() {
             return;
         }
-        let ready = host.now_ms().wrapping_sub(self.interval_timer) >= self.ms_per_day;
+        // Tooling deviation (turbo, not §5.2): `ready` is always true while the
+        // turbo clock is on. The clock is still read first, so turbo off reads
+        // it exactly as often as before.
+        let ready = host.now_ms().wrapping_sub(self.interval_timer) >= self.ms_per_day || self.turbo.on;
         let done = |s: &State, l: u32| s.cursors[l as usize].is_none();
         let gate = self.gate_level;
 
@@ -466,6 +508,14 @@ impl State {
                 self.level_fired[level::YEAR as usize] = true;
                 self.level_counters[level::YEAR as usize] = d.year as u32;
                 self.post(msg::SIM_NEW_YEAR, jd, 0, i64::from(d.year));
+            }
+            // Tooling deviation (turbo, not §5.2): the first day on or after
+            // `until_julian` switches turbo off. The day itself was opened by
+            // turbo; the next one waits for msPerDay again.
+            if self.turbo.on && self.turbo.until_julian != 0 && self.julian >= self.turbo.until_julian {
+                self.turbo.on = false;
+                self.turbo.until_julian = 0;
+                self.turbo_auto_off = Some(self.julian);
             }
         }
     }
@@ -637,6 +687,11 @@ impl Simulator {
                 33
             };
             s.frame_budget_ms = (target - i64::from(elapsed)).max(15) as u32;
+            // Tooling deviation (turbo, not §5.1): a fixed budget at any speed
+            // while running; [choice] the §5.1 value while paused or hidden.
+            if s.turbo.on && s.pause_count <= 0 && s.hidden_pause_count <= 0 {
+                s.frame_budget_ms = s.turbo.frame_ms;
+            }
             if s.initialized && !s.in_tick {
                 s.in_tick = true;
                 s.slice_timer = host.now_ms();
@@ -1109,6 +1164,28 @@ impl Simulator {
         self.timers.borrow().as_ref().map(|(_, c)| *c)
     }
 
+    // ---- turbo clock (tooling, not simulator.md) ----------------------------
+
+    /// Sets the turbo clock (see [`Turbo`]). Takes effect at the next tick's
+    /// budget and the next day gate. Leaves a pending auto-off record alone.
+    /// Always returns true.
+    pub fn set_turbo(&self, t: Turbo) -> bool {
+        self.with(|s, _| {
+            s.turbo = t;
+            true
+        })
+    }
+
+    pub fn turbo(&self) -> Turbo {
+        self.read(|s| s.turbo)
+    }
+
+    /// The Julian day on which turbo last switched itself off (`until_julian`
+    /// reached), once; `None` if it has not since the last call.
+    pub fn take_turbo_auto_off(&self) -> Option<i32> {
+        self.with(|s, _| s.turbo_auto_off.take())
+    }
+
     // ---- inspection --------------------------------------------------------
 
     pub fn snapshot(&self) -> Snapshot {
@@ -1121,7 +1198,8 @@ impl Simulator {
         self.read(|s| {
             let now = self.host.now_ms();
             let interval_elapsed_ms = now.wrapping_sub(s.interval_timer);
-            let ready = interval_elapsed_ms >= s.ms_per_day;
+            // As simulate_time_passage: the turbo clock (tooling) is always ready.
+            let ready = interval_elapsed_ms >= s.ms_per_day || s.turbo.on;
             let done = |l: u32| s.cursors[l as usize].is_none();
             let tomorrow = julian::date_fields(s.julian + 1);
             let starts_week = tomorrow.weekday == 1;

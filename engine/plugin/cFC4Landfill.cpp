@@ -59,6 +59,7 @@
 #include "cS3DVector3.h"
 
 #include <cstddef>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <vector>
@@ -141,8 +142,6 @@ void NoteOnce(bool& done, const char* text) {
     fc4::Log("%s", text);
 }
 bool g_noteTexture = false;
-bool g_noteTile = false;
-bool g_noteTileInsert = false;
 bool g_noteEffects = false;
 bool g_noteZot = false;
 bool g_noteView = false;
@@ -910,52 +909,163 @@ void RemoveBaseTexture(void* u, int32_t x, int32_t z) {
 // still holds its reference (the quirk of step 7 is not reproduced); release.
 // The core set the cell's active-landfill flag already. Returns the
 // occupant's token (the occupant manager holds it), 0 when none was made: a
-// missing exemplar (the original crashes) or class, or a refused insert. The
-// cell (x, z) is not needed: the position places the occupant.
-uint64_t InsertLandfillTile(void* u, int32_t /*x*/, int32_t /*z*/, uint32_t tile, int32_t orientation,
-                            const float* xyz) {
+// missing exemplar (the original crashes) or class, no exemplar holder, or a
+// refused insert. The cell (x, z) only goes into the log lines: the position
+// places the occupant.
+//
+// The exemplar holder: QI 0x0AC2B5F7 on the occupant, the spec's route
+// (§4.8.1 [choice]). [choice] When the occupant does not answer it, the same
+// QI on its property holder (occupant slot 6): the spec places the holder in
+// the occupant (the sub-object at +0x20, step 3) but does not say which of
+// the object's QueryInterfaces answer 0x0AC2B5F7; spec question (r6b: 12
+// tiles failed without saying at which step). Without a holder nothing more
+// is called: SetTileID dereferences a missing exemplar (§4.8.1).
+//
+// Diagnostics (r6b): the first kTileFailuresLogged failures are logged in
+// full, each with the step that failed and what every step before it
+// returned or read back (the tile cost through the property holder after
+// SetDefaultExemplar, the type, the flags, Init and IsInitialized, the
+// bounding box, InsertOccupant and flag 1); the first success too. Later
+// failures are counted only (tilesFailed).
+constexpr uint32_t kTileFailuresLogged = 4;
+constexpr uint32_t kOccupantTypeLandfill = 0x6A11BD2B;
+constexpr uint32_t kTileCostProperty = 0xEA54D286;
+uint32_t g_tileFailuresLogged = 0;
+bool g_noteTileMade = false;
+
+struct TileTrace {
+    uint32_t tile = 0;
+    int32_t x = 0, z = 0, orientation = 0;
+    float pos[3] = {0.0f, 0.0f, 0.0f};
+    const char* failed = nullptr;  // the step that failed; nullptr: made
+    bool exemplar = false, created = false, occupant = false;
+    const char* holder = "not reached";
+    bool attached = false;  // SetDefaultExemplar called
+    bool costVisible = false;
+    uint32_t type = 0, flags = 0;
+    bool init = false, initialized = false;
+    cS3DVector3 boxMin, boxMax;
+    bool insertTried = false, inserted = false, flag1 = false;
+};
+
+void LogTileTrace(const TileTrace& t, uint32_t failures) {
+    const char* yes = "yes";
+    const char* no = "no";
+    char box[160] = "not reached";
+    char after[480] = "";
+    if (t.attached) {
+        std::snprintf(box, sizeof(box), "(%.2f, %.2f, %.2f)-(%.2f, %.2f, %.2f)", t.boxMin.fX, t.boxMin.fY,
+                      t.boxMin.fZ, t.boxMax.fX, t.boxMax.fY, t.boxMax.fZ);
+        std::snprintf(after, sizeof(after),
+                      "; tile cost 0x%08X through the property holder after SetDefaultExemplar: %s; type 0x%08X "
+                      "(0x%08X expected); flags before Init 0x%X; Init %s, IsInitialized %s; bounding box %s; "
+                      "InsertOccupant %s; flag 1 %s",
+                      kTileCostProperty, t.costVisible ? "found" : "absent", t.type, kOccupantTypeLandfill, t.flags,
+                      t.init ? "true" : "false", t.initialized ? yes : no, box,
+                      t.insertTried ? (t.inserted ? "true" : "false") : "not reached", t.flag1 ? "set" : "clear");
+    }
+    if (t.failed == nullptr) {
+        fc4::Log("landfill: game tile made (first one; the next are counted in tilesInserted): tile 0x%08X "
+                 "orientation %d at cell (%d, %d), position (%.2f, %.2f, %.2f); exemplar holder by %s%s",
+                 t.tile, t.orientation, t.x, t.z, t.pos[0], t.pos[1], t.pos[2], t.holder, after);
+        return;
+    }
+    fc4::Log("landfill: WARNING game tile failure %u: tile 0x%08X orientation %d at cell (%d, %d), position "
+             "(%.2f, %.2f, %.2f) not made: %s. Steps: exemplar (0x%08X, 0x%08X, 0x%08X) %s; GZCOM "
+             "GetClassObject(0x%08X, 0x%08X) %s; AsOccupant %s; exemplar holder (QI 0x%08X) %s%s. The tile is kept "
+             "in FreeCity4%s",
+             failures, t.tile, t.orientation, t.x, t.z, t.pos[0], t.pos[1], t.pos[2], t.failed, kTileExemplarType,
+             kTileExemplarGroup, t.tile, t.exemplar ? "found" : "not found",
+             kCLSID_cSC4LandfillOccupant, kIID_cISC4LandfillOccupant,
+             t.exemplar ? (t.created ? "made one" : "failed") : "not reached",
+             t.created ? (t.occupant ? "ok" : "null") : "not reached", kIID_cISCExemplarPropertyHolder, t.holder,
+             after,
+             failures == kTileFailuresLogged ? "; later failures are counted only (tilesFailed)" : "");
+}
+
+uint64_t InsertLandfillTile(void* u, int32_t x, int32_t z, uint32_t tile, int32_t orientation, const float* xyz) {
     fc4::LandfillContext* c = Ctx(u);
     cISC4OccupantManager* om = Occupants(u, "landfill tile creation (kept in FreeCity4)");
     if (om == nullptr || xyz == nullptr) return 0;
-    fc4::props::Exemplar ex;
-    if (!ex.Load(kTileExemplarType, kTileExemplarGroup, tile) || ex.Resource() == nullptr) {
-        ++c->tilesFailed;
-        return 0;
-    }
-    cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
-    void* p = nullptr;
-    if (com == nullptr || !com->GetClassObject(kCLSID_cSC4LandfillOccupant, kIID_cISC4LandfillOccupant, &p) ||
-        p == nullptr) {
-        ++c->tilesFailed;
-        NoteOnce(g_noteTile, "landfill: WARNING could not create a landfill occupant through GZCOM (class "
-                             "0x8A22BEBE); the tiles are kept in FreeCity4 (no model, not saved by the game)");
-        return 0;
-    }
-    cISC4LandfillOccupant* t = static_cast<cISC4LandfillOccupant*>(p);
-    FC4_ACQUIRED(static_cast<cIGZUnknown*>(t), "GetClassObject");
+    TileTrace tr;
+    tr.tile = tile;
+    tr.x = x;
+    tr.z = z;
+    tr.orientation = orientation;
+    tr.pos[0] = xyz[0];
+    tr.pos[1] = xyz[1];
+    tr.pos[2] = xyz[2];
     uint64_t token = 0;
-    cISCExemplarPropertyHolder* holder = Query<cISCExemplarPropertyHolder>(t, kIID_cISCExemplarPropertyHolder);
-    cISC4Occupant* occ = t->AsOccupant();  // slot 5
-    if (holder != nullptr && occ != nullptr) {
-        holder->SetDefaultExemplar(ex.Resource());  // slot 3: takes its own reference
-        t->SetTileID(tile);                         // slot 6
-        t->SetOrientation(orientation);             // slot 8
-        occ->SetFlag(kTileFlag);
-        occ->SetRemovalFlags(kTileRemovalFlags);
-        const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
-        occ->SetPosition(&v);
-        t->Init();  // slot 3
-        if (om->InsertOccupant(occ, 0)) token = TokenOf(occ);  // slot 20
+    fc4::props::Exemplar ex;
+    cISC4LandfillOccupant* t = nullptr;
+    tr.exemplar = ex.Load(kTileExemplarType, kTileExemplarGroup, tile) && ex.Resource() != nullptr;
+    if (!tr.exemplar) {
+        tr.failed = "the tile exemplar was not found";
+    } else {
+        cIGZCOM* com = RZGetCOMDllDirector() ? GZCOM() : nullptr;
+        void* p = nullptr;
+        tr.created = com != nullptr &&
+                     com->GetClassObject(kCLSID_cSC4LandfillOccupant, kIID_cISC4LandfillOccupant, &p) && p != nullptr;
+        if (!tr.created) {
+            tr.failed = "GZCOM could not make a landfill occupant";
+        } else {
+            t = static_cast<cISC4LandfillOccupant*>(p);
+            FC4_ACQUIRED(static_cast<cIGZUnknown*>(t), "GetClassObject");
+        }
     }
-    Drop(holder);
+    if (t != nullptr) {
+        cISC4Occupant* occ = t->AsOccupant();  // slot 5
+        tr.occupant = occ != nullptr;
+        cISCExemplarPropertyHolder* holder = nullptr;
+        if (occ == nullptr) {
+            tr.failed = "AsOccupant (slot 5) returned null";
+        } else {
+            holder = Query<cISCExemplarPropertyHolder>(t, kIID_cISCExemplarPropertyHolder);
+            tr.holder = "QI on the occupant";
+            if (holder == nullptr) {
+                holder = Query<cISCExemplarPropertyHolder>(occ->AsPropertyHolder(), kIID_cISCExemplarPropertyHolder);
+                tr.holder = holder ? "QI on its property holder (the occupant did not answer)"
+                                   : "neither the occupant nor its property holder answers the QI";
+            }
+            if (holder == nullptr) tr.failed = "no exemplar holder";
+        }
+        if (holder != nullptr) {
+            holder->SetDefaultExemplar(ex.Resource());  // slot 3: takes its own reference
+            tr.attached = true;
+            tr.costVisible = fc4::props::Has(occ->AsPropertyHolder(), kTileCostProperty);
+            t->SetTileID(tile);              // slot 6
+            t->SetOrientation(orientation);  // slot 8
+            occ->SetFlag(kTileFlag);
+            occ->SetRemovalFlags(kTileRemovalFlags);
+            const cS3DVector3 v(xyz[0], xyz[1], xyz[2]);
+            occ->SetPosition(&v);
+            tr.type = static_cast<uint32_t>(occ->GetType());  // slot 7
+            tr.flags = occ->GetFlags();
+            tr.init = t->Init();                          // slot 3
+            tr.initialized = occ->IsInitialized();        // slot 5
+            occ->GetBoundingBox(&tr.boxMin, &tr.boxMax);  // slot 10: the box InsertOccupant lists
+            tr.insertTried = true;
+            tr.inserted = om->InsertOccupant(occ, 0);  // slot 20
+            tr.flag1 = occ->IsFlagSet(kOccupantFlagInserted);
+            if (tr.inserted) {
+                token = TokenOf(occ);
+            } else {
+                tr.failed = "InsertOccupant (slot 20) returned false";
+            }
+        }
+        Drop(holder);
+    }
     if (token != 0) {
         ++c->tilesInserted;
+        if (!g_noteTileMade) {
+            g_noteTileMade = true;
+            LogTileTrace(tr, 0);
+        }
     } else {
         ++c->tilesFailed;
-        NoteOnce(g_noteTileInsert,
-                 "landfill: WARNING a landfill occupant could not be set up or inserted; that tile is kept in FreeCity4");
+        if (g_tileFailuresLogged < kTileFailuresLogged) LogTileTrace(tr, ++g_tileFailuresLogged);
     }
-    FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(t));
+    if (t != nullptr) FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(t));
     return token;
 }
 
