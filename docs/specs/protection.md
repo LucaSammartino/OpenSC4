@@ -46,7 +46,7 @@ releases and jailbreaks (§9). Crime events from the crime simulator become arre
 | `cIGZSerializable` `0xE4FDA3D4` | serializable sub-object (§15.5) | same |
 | Not answered | everything else → AL = 0 | same |
 | City component | slot **#25** (foundations §3.6) | slot **#33** |
-| City getter | `cISC4City` slot 57 `+0xE4` *[inferred from the SDK order; the body is a folded one-line getter]*; the game caches it in global `0x00B43D78` | `cISC4City` slot 65 `+0x104` `GetPoliceSimulator`; cached in global `0x00B43D98` |
+| City getter | `cISC4City` slot 57 `+0xE4` (`GetFireProtectionSimulator`). Its body `0x006DC690`, a folded one-line getter, returns the city's `+0x174`. The new-city path creates that member as class `0x2990C05A` / IID `0x88F54C7B` (`0x0045ADF7`), and the city `Read` fills it from component ref #25 (`0x0045CEDB`). The game caches it in global `0x00B43D78` (`0x00601E8A`) | `cISC4City` slot 65 `+0x104` `GetPoliceSimulator`; cached in global `0x00B43D98` |
 | Init order (foundations §3.7) | after crime, before flammability | after land value, before traffic |
 | Object size | 0x108 bytes (factory `0x006ADB80`) | 0x168 bytes (factory `0x006E2720`) |
 
