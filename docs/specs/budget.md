@@ -576,8 +576,9 @@ the neighbours simulator. Deal prices are defined in the neighbours spec, includ
 `0xAA5CF1E3` EndGameForBudgetFailure (no data fields). There is no grace period, counter or warning in this
 subsystem. The 3D view handles the message: if modal dialogs can be shown it runs the budget-failure
 ("you're fired") sequence at once, otherwise it queues the message (once) and handles it when dialogs become safe.
-Advisor warnings come from elsewhere. Direct purchases cannot cause bankruptcy because `WithdrawFunds` refuses
-to overdraw (§6).
+The sequence shows a dialog (only if popup dialogs are enabled) and then **closes the city to the region view
+without saving**, popups or not (modal-dialogs.md §4.1). Advisor warnings come from elsewhere. Direct purchases
+cannot cause bankruptcy because `WithdrawFunds` refuses to overdraw (§6).
 
 ### 5.7 Daily simulation (on SimNewDay)
 
@@ -1016,8 +1017,9 @@ updated by the original; they are kept only so that save records keep their layo
    implementation in the original order matches it.
 8. Which departments are locally funded in the shipped game, and each department's `pMax` (set by the service
    simulators; out of scope here).
-9. What the budget-failure sequence in the 3D view does (UI end-game), and whether anything else listens for
-   `0xAA5CF1E3`.
+9. *(resolved, modal-dialogs.md §4.1)* The budget-failure sequence pauses, shows scripted dialog `0x0A5CF71D`
+   when popups are enabled (its answer is ignored), resumes and requests the region view without saving. No other
+   subscriber to `0xAA5CF1E3` was found.
 10. Which of the two budget sub-panels each ToggleBudgetDialog value opens (UI only).
 11. Behaviour of `ComputeTax` for a building whose wealth is below its lot's wealth (negative waning index) in the
     original; we use 1.0 *[choice]*.
