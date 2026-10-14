@@ -46,12 +46,29 @@ fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t co
     return p;
 }
 
-fc4_props* ToCoreAll(const cISCPropertyHolder* holder) {
+fc4_props* ToCoreAll(const cISCPropertyHolder* holder, cISCResExemplar* res, ToCoreAllStats* stats) {
     if (holder == nullptr) return nullptr;
     fc4_props* p = fc4_props_create();
     if (p == nullptr) return nullptr;
-    for (uint32_t id : PropertyIds(holder)) CopyToCore(holder, id, p);
+    ToCoreAllStats st;
+    for (const EffectiveProperty& e : EffectiveProperties(holder, res)) {
+        // An inherited property is read through the exemplar first (its
+        // GetProperty resolves the cohorts, as the original's reads do), and
+        // from the cohort that has it if the exemplar does not answer.
+        const bool copied = CopyToCore(holder, e.id, p) || (e.source != holder && CopyToCore(e.source, e.id, p));
+        if (!copied) continue;
+        if (e.depth == 0) {
+            ++st.own;
+        } else {
+            ++st.inherited;
+        }
+    }
+    if (stats != nullptr) *stats = st;
     return p;
+}
+
+fc4_props* ToCoreAll(const Exemplar& ex, ToCoreAllStats* stats) {
+    return ToCoreAll(ex.Holder(), ex.Resource(), stats);
 }
 
 }  // namespace fc4::props

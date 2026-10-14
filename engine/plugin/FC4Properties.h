@@ -87,6 +87,29 @@ bool Copy(const cISCPropertyHolder* src, cISCPropertyHolder* dst, uint32_t id);
 // in the holder's order. Empty for nullptr.
 std::vector<uint32_t> PropertyIds(const cISCPropertyHolder* holder);
 
+// One effective property (data-formats §4.4) and the holder it comes from:
+// `holder` itself for an own property, else the nearest cohort's holder that
+// has it (`depth` 1 = the parent cohort, 2 = its parent, ...; 0 = own).
+struct EffectiveProperty {
+    uint32_t id;
+    const cISCPropertyHolder* source;  // borrowed: lives as long as the exemplar
+    uint32_t depth;
+};
+
+// The holder's effective property IDs (data-formats §4.4): its own
+// (PropertyIds, in the holder's order), then each property of its parent
+// cohort that it does not have, then those of the cohort's parent, and so on.
+// In the game a holder's EnumProperties (slot 20, cSCPropertyHolder's) lists
+// only the own properties, while GetProperty (slot 9, the exemplar's own
+// implementation) resolves the cohorts, so the cohorts are walked here:
+// exemplar slot 9 GetCohort, cohort slot 6 GetParent (both borrowed; each
+// pointer is confirmed with QueryInterface 0x452160FB), cohort slot 8
+// AsISCPropertyHolder. `res` is the exemplar behind `holder`; nullptr asks the
+// holder (QueryInterface 0xA52160F5). A holder that is not an exemplar gives
+// its own properties only. [choice] At most 32 cohorts, stopping at a repeated
+// one (data-formats §4.4's limit for loading a chain).
+std::vector<EffectiveProperty> EffectiveProperties(const cISCPropertyHolder* holder, cISCResExemplar* res = nullptr);
+
 // Copies property `id` into a core property holder with its exact variant type
 // and shape (fc4_props_set_typed). False if absent or of a type the core does
 // not keep (empty, pointers, objects).

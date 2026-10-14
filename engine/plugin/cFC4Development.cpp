@@ -471,7 +471,7 @@ void Exemplars(void* u, const uint32_t* types, size_t n, fc4_development_exempla
     }
     std::vector<cGZPersistResourceKey> keys;
     if (!ExemplarKeys(keys)) return;
-    uint32_t visited = 0;
+    uint32_t visited = 0, withInherited = 0, inherited = 0;
     for (const cGZPersistResourceKey& k : keys) {
         if (k.type != kExemplarResourceType) continue;
         fc4::props::Exemplar ex;
@@ -479,7 +479,12 @@ void Exemplars(void* u, const uint32_t* types, size_t n, fc4_development_exempla
         std::vector<uint32_t> t;
         if (!fc4::props::GetU32s(ex.Holder(), kPropExemplarType, t) || t.empty()) continue;
         if (n != 0 && std::find(types, types + n, t[0]) == types + n) continue;
-        fc4_props* props = fc4::props::ToCoreAll(ex.Holder());
+        // The effective properties (data-formats §4.4): most buildings have
+        // their ExemplarType, purpose, capacity and families in a cohort.
+        fc4::props::ToCoreAllStats st;
+        fc4_props* props = fc4::props::ToCoreAll(ex, &st);
+        if (st.inherited != 0) ++withInherited;
+        inherited += st.inherited;
         std::string name;
         const bool hasName = t[0] == kExemplarTypeBuilding && LocalizedName(ex.Holder(), name);
         const fc4_res_key key{k.type, k.group, k.instance};
@@ -487,8 +492,9 @@ void Exemplars(void* u, const uint32_t* types, size_t n, fc4_development_exempla
         ++visited;
     }
     if (!Ctx(u)->readOnly) {
-        fc4::Log("development: %u exemplar keys, %u exemplars of %u type(s) visited", static_cast<unsigned>(keys.size()),
-                 visited, static_cast<unsigned>(n));
+        fc4::Log("development: %u exemplar keys, %u exemplars of %u type(s) visited (%u with %u properties inherited "
+                 "from cohorts)",
+                 static_cast<unsigned>(keys.size()), visited, static_cast<unsigned>(n), withInherited, inherited);
     }
 }
 
@@ -579,7 +585,7 @@ fc4_props* Tuning(void* u) {
         if (!Ctx(u)->readOnly) fc4::Log("development: tuning exemplar unavailable; the code defaults stay");
         return nullptr;
     }
-    return fc4::props::ToCoreAll(ex.Holder());
+    return fc4::props::ToCoreAll(ex);
 }
 
 // ---- framework (§1.3, §1.4, §5) ----------------------------------------------------------------------

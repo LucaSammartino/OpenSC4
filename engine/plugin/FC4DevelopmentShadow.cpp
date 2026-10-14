@@ -610,7 +610,9 @@ Dev* DevFor(cIGZMessageTarget2* target) {
             FC4_RELEASE(u);
         } else {
             d->orig = reinterpret_cast<cFC4ISC4GrowthDeveloper*>(u);
-            d->type = d->orig->GetType();  // slot 5
+            // The developer type (0x1010 ... 0x4400) is slot 6, GetSubType;
+            // slot 5, GetType, is the target zone (1, 2, 3), growth §10.1.
+            d->type = static_cast<int32_t>(d->orig->GetSubType());  // slot 6
         }
     }
     g.devs.push_back(std::move(d));
@@ -735,7 +737,7 @@ void Baseline(Dev& d, cISC4City* city) {
                        static_cast<uint32_t>(d.type));
         return;
     }
-    if (!fc4_growth_init(gs->core, props::ToCoreAll(ex.Holder()))) {  // the props are consumed
+    if (!fc4_growth_init(gs->core, props::ToCoreAll(ex))) {  // the props are consumed
         d.failed = "the shadow core's Init failed (a service is missing)";
         return;
     }
