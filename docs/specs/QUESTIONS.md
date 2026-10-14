@@ -2841,3 +2841,39 @@ connection type). The current answer is in brackets.
   reads yet. [kept as one value; the doc says such a reader must treat it as empty]
 - **ZQ13:** Does a real-mode Place empty the draft cache even when the Place fails, and before the solve? [yes, at
   the start of every real-mode Place; no vector depends on it]
+
+## From the development glue and shadow (filed by the coordinator from the `devglue` lane's report, 2026-10-14)
+
+The building development simulator and the growth developers are replaced as one unit (`enable = development`;
+building-development.md §9, growth-developer.md §12), with a read-only `development_shadow`. Each question is marked
+in the code; the implemented answer is in brackets.
+
+- **DG1:** The return channel of `AddToDemandValue`. [bool in AL; no x87]
+- **DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]
+- **DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
+  with an accept-all filter, into a B hash_set]
+- **DG4:** The budget item cost at +0x38. [0]
+- **DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
+  `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]
+- **DG6:** BDS slots 23, 26 and 29. [false, logged once]
+- **DG7:** The static cleanup through app slot 69. [not registered, logged]
+- **DG8:** "Declined by stage" in the month line. [counted by wealth only]
+- **DG9:** When the decline plan line is written. [at BDS state 4 → 0]
+- **DG10:** The `cSC4LotConfigurationObject` layout. [the SDK header]
+- **DG11:** An empty capacity vector against a present-but-empty one. [`n_capacities > 0` gives one map]
+- **DG12:** A zero profile inserted in advance. [replaced in place]
+- **DG13:** The cheat notification ID. [the cheat ID]
+- **DG14:** The name fallback. [GameString, otherwise cRZBaseString]
+- **DG15:** The lot slope read. [slot 19]
+- **DG16:** The advice subject. [not created]
+- **DG17:** The building type filter's slot 3. [bool(uint32)]
+- **DG18:** The `GrowthItem` stage width. [masked to uint8]
+- **DG19:** A zone type out of bounds. [0]
+- **DG20:** Lot configuration zones: 0..15, where `fc4.h` allows 0..16. [0..15]
+- **DG21:** An off-thread message arriving without the lock. [dropped]
+- **DG22:** ABI numbering after a merge. [renumbered by the coordinator: ABI 35]
+- **DG23:** The `wall_clock_seed` for the `0xFFFFFFFF` key seed. [the development session seed]
+- **DG24:** A null property holder. [false]
+- **DG25:** The shadow's `building_purpose`. [slot 40, no insert]
+- **DG26:** Growth developer slots 10 and 28. [the full EAX, 0 or 1]
+- **DG27:** The off-thread fallback for slot 30. [−4 / 20]
