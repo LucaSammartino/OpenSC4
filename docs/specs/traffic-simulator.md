@@ -686,7 +686,8 @@ destination byte `&= 0xF8` (bits 0–2 cleared, *[quirk]* bit 3 = freight destin
 **StartRecalc** (state 0, `0x00717C90`): remembers the cycle start date (`GetSimDateNumber`); income and fee
 accumulators := 0.0; `jobCapacity[k]`, `attempted[k]`, `routed[k]` := 0; `rerouteBucket := (rerouteBucket + 1) & 3`;
 car and freight length sums and counts := 0; then `RecalculateNeighborConnectionCapacities` (`0x00714E60`,
-traffic-network.md). Finishes in one call.
+traffic-network.md §2.7.4: regional job capacities per established neighbour pool, the default pool's freight
+counter, and destination bits plus `freeDest` on the off-map edge cells; not a no-op, TS12). Finishes in one call.
 
 **DoMonthlySimulation** (`0x00718AC0`), in this order:
 

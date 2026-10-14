@@ -1274,7 +1274,11 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   its capacity, ratio and previous load. A ferry terminal gives its last-period riders three times, and 1.0. A strike
   zeroes all but the maximum capacity (switch) and the cost. The cost is the purpose-`0xCA550301` budget item's
   cost × department funding, truncated. Written as traffic-simulator.md §4.16 with an example.
-- **TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]
+- ~~**TS12 — §4.12:** what does RecalculateNeighborConnectionCapacities do? [nothing]~~ **ANSWERED 2026-10-14** from
+  the exe: not nothing. It is traffic-network.md §2.7.4 (written with PF6; re-checked against `0x00714E60`: the
+  demand nodes `0x2010/0x2020/0x2030` at `0x10000` truncated, `GetConnectedCities(list, false)`, per-pool
+  `trunc(r24(r24(E/T) × J))` with unsigned `T` and `J`, slot-19 writes, then the edge pass that sets destination bits
+  and counts `freeDest`). Pointer added to traffic-simulator.md §4.12.
 - **TS13 — §4.5:** a route with an off-map root is encoded as the in-city cell while its unit steps are relative to
   the off-map cell. [decoded literally: shifted by one cell]
 - **TS14 — §4.3:** what does ConfirmRoute check? [during a strike any route using types 2, 3, 6, 7 or 8 fails; each
