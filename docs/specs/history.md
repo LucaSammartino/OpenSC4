@@ -89,17 +89,26 @@ trend bar (`cSC4WinTrendBar`, UI) also subscribes to `0x89EFA536` and sees every
 key, data2 = value) and **sends** it synchronously (`MessageSend`) through the message server, then releases it.
 It does not touch the series directly: the warehouse's own `DoMessage` stores it, and any other subscriber sees it.
 Several producers send the same message themselves instead of calling slot 12 (residential `0x006F7D00` and
-`PostPopulationChange`, the landfill helper `0x006B8BC0`, `0x006E9070`). The slot's return value is not
-meaningful (it is whatever the message's final `Release` leaves in EAX); *[choice]* FreeCity4 returns true.
+`PostPopulationChange`, the landfill helper `0x006B8BC0`, `0x006E9070`). The slot's return value is whatever the
+message's final `Release` leaves in EAX (HW12). The standard message's `Release` (`0x009132C1`) returns the new count,
+or 0 when it destroys the message. The slot creates the message with count 0, takes one reference, sends it and
+releases it. Unless a subscriber kept a reference during the send (none in the shipped game does), the release
+destroys the message and the slot returns **EAX = 0, so AL = false**. No shipped caller reads the result: the 48
+producer call sites found by their keys all discard it. *[compat]* FreeCity4 returns false (0).
 
 `Store(key, value)` (`0x00476EE0`):
 
 1. Find the series, creating an empty one with `maxCount = 0` if the key is new.
 2. `day :=` the simulator's current date number (simulator slot 8).
 3. If the series has points and `day ≤ last.date` (unsigned): **overwrite the last point's value** and stop. (So a
-   second record on the same day replaces the first.)
+   second record on the same day replaces the first.) An empty series compares `day` with 0, so a record on day
+   number 0 into an empty series is lost (the original writes it into the list header) *[quirk]*; no real date is
+   0.
 4. Otherwise, if `maxCount ≠ 0` and the point count is `≥ maxCount`, erase the **first** point (one only). Then
-   append `{value, day}`.
+   append `{value, day}`. The count is a u32 compared **unsigned** with `maxCount` (`0x00476F8C`, HW8), so a
+   `maxCount` of `0xFFFFFFFF` (from `SetSize(key, −1)`, §4.2) never trims, and a series that is already longer than
+   its `maxCount` (possible after `Read`, which does not trim) keeps its length: each record drops one point and
+   appends one.
 
 ### 4.2 Queue length
 
@@ -179,6 +188,29 @@ widening flag. Its **base** is `from`'s day number (used by the statistics, §4.
     successor;
   - otherwise the points in `[from, to]` (a range that runs to the last point is not widened).
 
+**How the range is found** (HW6; `cVecRange` constructor `0x00475B00`). The series is a linked list; the range is a
+pair of positions, a begin and an exclusive end, found by one walk from the first point. All date comparisons are
+unsigned.
+
+1. With widening and a non-empty series, two tests come first: `from > last.date` gives the last point alone;
+   otherwise `to < first.date` gives the first point alone.
+2. Walk the points in order. Until the range has begun, each point P is tested **first** against `to`:
+   - `P.date > to`: with widening the range is P's predecessor (if any) and P; without widening it is empty. Stop.
+   - otherwise, if `P.date ≥ from`, the range begins at P, and P goes on to the next test.
+3. Once the range has begun, the first point P with `P.date > to` ends it (P is excluded). If widening is on and the
+   range holds exactly one point B (P comes right after B), it becomes B's predecessor (if any), B and P. Stop.
+4. A walk that reaches the end after the range began gives a range that runs to the last point, never widened. A
+   walk that never began gives an empty range.
+
+The walk costs one step per point before the range's end (series hold at most a few hundred points, §7.1).
+
+**`from > to`.** No point can begin the range (it would need `from ≤ date ≤ to`). Without widening the range is
+therefore empty. With widening, on a non-empty series, step 1 gives the last point if `from` is after it, or the
+first point if `to` is before it; otherwise the walk stops at the **first point after `to`**, and the range is that
+point and its predecessor. Example: points on days 10, 20, 30 and 40, `from = 35`, `to = 15`: the range is the
+points on days 10 and 20 (not 30 and 40), with base 35. The Lua `trend_count(type, 0)` (advisors.md) asks for
+`[now + 1, now]`, which reaches this case; with a point on `now` or earlier, step 1 gives the last point.
+
 ### 4.7 Queries *[compat]*
 
 All four return false (and leave their outputs untouched) when the key is missing.
@@ -190,6 +222,32 @@ deviations, 0 when n = 0); `r = Σ((x − meanX)/sx · (y − meanY)/sy) / n`, w
 `slope = (sy / sx) · r` and `intercept = (Σy − slope · Σx) / n`, the value at `x = 0`, i.e. at `from`. An empty
 range has no line (false). The sums are held in `double` variables, but the x87 precision of the caller applies
 (foundations §18): 24-bit from the simulators, 53-bit inside Lua calls.
+
+**Operation order** (HW5, HW11; verified in the bytes). "Rounded" below means rounded once, at the caller's precision,
+from the exact result of that one operation on its exact operands. Integer operands (values, `x`, `n`) are loaded
+exactly, never rounded to float first. At 24-bit precision this is a 24-bit significand; the x87's wider exponent
+range never matters at these magnitudes. Values stored in the `double` fields are exact copies of the rounded
+register values.
+
+1. Sums (`0x004756C0`), for each point of the range in list order: `n += 1` (a 64-bit integer); `Σy := Σy + value`,
+   rounded; then `Σx := Σx + x`, rounded, where `x = date − base` is computed in 32 bits and read as a signed
+   int32. Then `meanX := Σx / n` and `meanY := Σy / n`, each rounded (0 when `n = 0`).
+2. Spreads (`0x00475770`): `Sxx` and `Syy` start at 0. For each point: `dx := x − meanX` (rounded),
+   `Sxx := Sxx + dx × dx` (product rounded, then sum rounded), then the same for `dy := value − meanY` and `Syy`. Then
+   `sx := √(Sxx / n)` and `sy := √(Syy / n)`, the division and the root each rounded (0 when `n = 0`).
+3. Correlation (`0x00475820`): `r := 0` if `sx = 0`, `sy = 0` or `n = 0`. Otherwise compute the reciprocals
+   `ix := 1 / sx` and `iy := 1 / sy` once (each rounded), then, starting from `S := 0`, for each point:
+   `a := (x − meanX) × ix`, `b := (value − meanY) × iy`, `S := S + a × b`. Each subtraction, product and addition
+   is rounded. Finally `r := S / n`, rounded. So the standardised values are **multiplied by the reciprocal**, not
+   divided by `sx` and `sy`. The grouping is "product of the two standardised values, summed, then divided by n".
+4. The line (`0x00475CC0`): if `sx = 0`, `slope := 0` and `intercept := f32(` the range's first point's value `)`.
+   Otherwise `s := (sy / sx) × r` (two roundings), `slope := f32(s)`, and
+   `intercept := f32((Σy − s × Σx) / n)` (three roundings). The intercept uses the **unrounded** `s`, which differs
+   from the float `slope` only at 53-bit precision.
+
+**Precision values** (HW10). The game's precision helper has modes 24, 53 and 64 bits, but nothing in the game
+selects 64 (foundations §18.1), so every call runs at 24 or 53 bits. *[choice]* FreeCity4 may treat any value
+other than 24 as 53; there is no original behaviour to match.
 
 | Method | Range | Result |
 |---|---|---|
@@ -208,6 +266,15 @@ the value of the regression line through it and its two neighbours** *[quirk]* (
 on `from`, call `GetPoint(key, from)` through the interface (slot 8) and, if it succeeds, treat its value like a
 point; the same for `to`. Then `avg := sum / count`; return true. (With a non-empty series `GetPoint` always
 succeeds, so `count ≥ 1`.)
+
+Details (`0x00476280`, HW9). The two flags are set by comparing each point's date with `from` and with `to`
+separately, and both tests come after the loop, so with `from = to` and no point on that date, `GetPoint(key, from)`
+is called **twice** (once as `from`, once as `to`) and its value is added to `sum` twice and counts twice; with a point
+on that date, neither call happens. Each addition is `sum := f32(sum + v)` with `v` the exact integer value (or the
+float from `GetPoint`), and `count := f32(count + 1)`. A point value is compared exactly with the float `min` / `max`
+and stored as `f32(value)`. With `from > to` the range is empty (§4.6), so the result is built from the two
+`GetPoint` values alone. Example: one point (10, 4) and `from = to = 15`: `GetPoint(15)` gives 4 twice, so `min = max
+= 4`, `avg = 8 / 2 = 4`; with points (10, 4) and (20, 8), `GetPoint(15)` gives 6 twice and `avg = 6`.
 
 ### 4.8 Worked examples
 
@@ -282,8 +349,29 @@ seriesCount × {                     (ascending key)
    - a date of `0xCDCDCDCD` becomes `prev + 1`;
    - a date `≤ prev` (unsigned) overwrites the **last** point's value (with no point yet it writes into the list
      header, *[quirk]*; FreeCity4 drops it *[choice]*); otherwise the point is appended and `prev := date`.
-3. Insert the series under its key; if the key already exists, the new series is discarded.
-4. Return true unless the stream reports an error.
+     Since `prev` starts at 0 for every series, the only date dropped this way is 0 (HW7).
+3. Insert the series under its key. If the key already exists (the record lists a key twice, or the map already
+   held it), the new series is discarded and **`Read` returns false at once** (`0x00476D99` → `0x00476DFE`): the
+   rest of the record is not read, and the series inserted before stay. (`Write` never writes a key twice, so this
+   needs a hand-made or corrupt record.)
+4. After the last series, return true unless the stream reports an error.
+
+**Stream failures** (HW7). `Read` does not test individual reads. A failed read leaves its destination unchanged and
+fails every later read (foundations §2.1), and the loops run on with the values left from earlier reads:
+
+- a failure among the points of a series stops it from growing. The later iterations repeat the last date read and
+  only rewrite the last point with the value it has. The series is then inserted with the points read before the
+  failure. One exception: if only a value read failed, a point with the previous point's value and the new date is
+  appended;
+- a failure on the next series' key repeats the previous key, so step 3 stops the read with false;
+- a failure on `maxCount` or `pointCount`, after a good key, inserts a series under that key with the previous
+  series' `maxCount` and usually one stale point (the previous series' last date and value), then the next key
+  stops the read. For the first series of a record the stale values are whatever the stack held;
+- in every case the result is false.
+
+*[choice]* FreeCity4 stops at the first failed read and returns false, keeping the series completed before it and
+dropping the partly read one. This differs from the original only in that partial series (whose content depends on
+stale values), which no shipped save produces: every corpus record parses to its end (§7.1).
 
 ### 7.1 Corpus validation
 
@@ -348,7 +436,9 @@ leaves `min`, `max` and `avg` untouched, so the caller keeps whatever its variab
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (HW1–HW4).
+See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (HW1–HW4). HW5–HW12
+(section "From the history warehouse and 24-hour clock cores") are answered in §4.1 (HW8, HW12), §4.6 (HW6), §4.7
+(HW5, HW9, HW10, HW11) and §7 (HW7).
 
 ## 12. Conformance tests (must exist in `engine/conformance`)
 
@@ -374,3 +464,15 @@ See QUESTIONS.md, section "From the commercial, industrial, civic, park, history
 10. **Save**: write → read → write is byte-identical for v2; a v1 record with the triple 2000-01-01 date reads as
     one point with the last value; version 3 is rejected; `0xCDCDCDCD` dates become `prev + 1`; all 421 corpus
     records parse.
+11. **Inverted ranges** (HW6): points on days 10, 20, 30, 40 (values 1, 2, 3, 4), `from = 35`, `to = 15`:
+    `GetCount` gives 2 (days 10 and 20); `from = 50`, `to = 45` gives 1 (the last point); `from = 8`, `to = 5`
+    gives 1 (the first point); `GetMinMaxAverage(35, 15)` reads no point and adds `GetPoint(35)` and `GetPoint(15)`.
+12. **Statistics order** (HW5, HW11): at 24-bit precision, points at `from`, `from + 1` and `from + 3` with values
+    0, 1 and 1: `GetTrend` gives slope `0x3E924922` (0.28571421) and intercept `0x3E924928` (0.28571439). (Dividing
+    by `sx` and `sy` instead of multiplying by the reciprocals would give `0x3E924924` and `0x3E924925`.) With values
+    0, 3 and 8 it gives slope `0x40292492` and intercept `0x3E12492B`. These were computed by applying the rounding
+    rules of §4.7 step by step.
+13. **GetMinMaxAverage with `from = to`** (HW9): the two examples of §4.7 (avg 4 and 6, count 2).
+14. **Read stops on a duplicate key** (HW7): a v2 record listing keys A, A, B reads A, returns false, and B is
+    absent.
+15. **RecordHistoryData** (HW12) returns false; **Store** with `maxCount = 0xFFFFFFFF` never trims (HW8).
