@@ -3283,7 +3283,15 @@ The building development simulator and the growth developers are replaced as one
 building-development.md §9, growth-developer.md §12), with a read-only `development_shadow`. Each question is marked
 in the code; the implemented answer is in brackets.
 
-- **DG1:** The return channel of `AddToDemandValue`. [bool in AL; no x87]
+- ~~**DG1:** The return channel of `AddToDemandValue`. [bool in AL; no x87]~~
+  **ANSWERED 2026-10-14** from the exe (`cSC4Demand::AddToDemandValue` `0x005D4C70`: load, add, store-and-pop, AL = 1,
+  `ret 4`) and written into growth-developer §5.3, §11 and §13.1 (quirk 11 withdrawn). It adds the amount to the
+  node's float32 demand value and returns true in AL; the x87 stack is left as found. **The bracket matches**; the spec's
+  old "ST0, never popped" was wrong (docs/abi already says `eax-or-void`). Bears on the run 102 record: the same
+  section now records that the original's constructor never initialises total capacity (`+0x108`), so the saved
+  `capacity=1036996237` (`0x3DCF4E8D`, a float bit pattern) is the original's own garbage, not a misread; zone, purpose,
+  wealth and source are tuning set by `Init` after `Read`, and five grid references of six is the record's shape
+  (growth-developer §2, §9). *[choice]* total capacity 0 for a new city.
 - **DG2:** The timer that slices state 18. [a real timer, QueryPerformanceCounter]
 - **DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
   with an accept-all filter, into a B hash_set]
