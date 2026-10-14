@@ -559,7 +559,9 @@ void PlumbingShadowStartup(bool simulatorReplaced, bool plumbingReplaced) {
     if (simulatorReplaced && !plumbingReplaced) {
         Log("plumbing shadow: ON (plumbing_shadow from %s): at each SimIdle and SimNewDay of the ORIGINAL plumbing "
             "simulator (one pass state each), FreeCity4's water pass replayed on the original's record from the "
-            "start of its pass (its passCounter moved: state 0 ran; or from its swap, then not exact) and compared "
+            "start of its pass (its passCounter moved: state 0 ran; or from its swap, then not exact), state by "
+            "state: each of our states 2 to 5 just before the original's, on its flag map of the moment, with no "
+            "time limit (a pass is followed until its swap or its restart), and compared "
             "at its swap (the published grid cell by cell, producers' production, efficiency, pollution and water "
             "used, deal usage, water connections) and after its state 8 (produced, consumed, imported, exported, "
             "watered and unwatered cells, cost, demand, pipes, distressed, burst, sources, budget items, ageing); "

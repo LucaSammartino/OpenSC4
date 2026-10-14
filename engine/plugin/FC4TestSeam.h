@@ -139,6 +139,11 @@
 //         classes' instead of the compat table's, to read the unadjusted grid
 //         at primary +0x84 (FC4ProtectionShadow.h, PR5); both null: back to
 //         the compat table. Returns 1.
+//   op 34 kFC4SeamDevelopmentShadow a = const FC4DevelopmentShadowTestInput*
+//         (FC4DevelopmentShadow.h): the development shadow's list comparison
+//         (mode 0: the mismatch count) or its record bridge (mode 1: a growth
+//         developer's record read into a new read-only core: 1 read, 0
+//         refused, -2 no record); -1: a null or malformed input.
 //   op 35 kFC4SeamAuraShadowDeliver a = const FC4AuraShadowDeliverInput*
 //         (FC4AuraShadow.h): one delivery to a fake original aura simulator
 //         through the aura shadow (its state read before and after, our
@@ -156,6 +161,10 @@
 //         (instead of the compat table's), one of its messages delivered
 //         with a given city, or the probe stopped; see GrowthProbeTest for
 //         the return values (-1: null argument).
+//   op 46 kFC4SeamScript          a = const char* path (the harness lane,
+//         FC4Script.h): loads that script in place of the current one, as the
+//         `script` setting does at game start. Returns the number of actions
+//         it will run, -1 (cannot be read), -2 (refused: parse errors).
 #pragma once
 
 #include <cstdint>
@@ -207,9 +216,11 @@ enum : uint32_t {
     kFC4SeamVariant = 30,
     kFC4SeamX87Check = 31,
     kFC4SeamProtectionShadowVtables = 32,
+    kFC4SeamDevelopmentShadow = 34,
     kFC4SeamAuraShadowDeliver = 35,
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
+    kFC4SeamScript = 46,  // the harness lane
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

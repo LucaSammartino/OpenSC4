@@ -1,5 +1,7 @@
 # SC4 simulator tuning exemplar property IDs (extracted)
 
+**Note:** the names below are community labels. The specs in `docs/specs/` and `docs/specs/data-formats.md` §7 own the meaning where they differ (for example, the seaport cap-relief pair `0x4a1f38c7`/`0x4a1f38ca` is crossed in code, and `0xe911e2fc` is dead: the code uses a literal 1.1).
+
 Source: SC4Devotion wiki 'Exemplar Properties' page (archived copy, https://web.archive.org/web/2024/https://wiki.sc4devotion.com/index.php?title=Exemplar_Properties ; live wiki is behind a Cloudflare challenge). Community-maintained; descriptions are Maxis property-editor strings where available, otherwise community guesses. '(Obs)' = obsolete per Maxis XML.
 
 Known tuning-exemplar TGIs (verified in DLL source): Traffic Simulator = 0x6534284A / 0xE7E2C2DB / 0xC9133286 (sc4-park-and-ride-ordinance); Building Development Simulator = 0x6534284A / 0xE7E2C2DB / 0xE8DA7677 (sc4-no-kick-out). Group 0xE7E2C2DB appears to be the simulator-tuning group.

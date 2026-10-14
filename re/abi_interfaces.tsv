@@ -177,3 +177,7 @@ cIGZSerializable(FloraOccupant)	cSC4FloraOccupant	00a88564	6	docs/specs/lot-reco
 cIGZSerializable(PropOccupant)	cSC4PropOccupant	00aa484c	6	docs/specs/lot-records.md
 cIGZSerializable(PropOccupantVisualEffect)	cSC4PropOccupantVisualEffect	00aa4dc4	6	docs/specs/lot-records.md
 cIGZSerializable(ConstructionOccupant)	cSC4ConstructionOccupant	00aa219c	6	docs/specs/lot-records.md
+cIGZWinMgr	cGZWinMgrW32	00ae46e8	64	docs/specs/modal-dialogs.md
+cIGZWin	cGZWinGen	00adc678	148	docs/specs/modal-dialogs.md
+cIGZMessageServer	cGZMessageServer	00ad1cd8	12	docs/specs/modal-dialogs.md
+cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	4	docs/specs/modal-dialogs.md

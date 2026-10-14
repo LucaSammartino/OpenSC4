@@ -48,7 +48,12 @@
 #include "cFC4Residential.h"
 #include "cFC4ZoneManager.h"
 #include "FC4NeighborsShadow.h"
+#include "FC4DevelopmentShadow.h"
 #include "cFC4Neighbors.h"
+#include "cFC4Development.h"
+#include "cFC4GrowthDeveloper.h"
+#include "FC4Turbo.h"  // the harness lane: sim_turbo
+#include "FC4Script.h"  // the harness lane: script
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -197,6 +202,15 @@ const ClassEntry kNeighborsClasses[] = {
     {kFC4_CLSID_cSC4NeighborsSimulator, "cSC4NeighborsSimulator", &CreateFC4NeighborsSimulator},
 };
 
+// docs/specs/building-development.md and growth-developer.md: the building
+// development simulator and the growth developers, replaced as one unit (§9,
+// growth §12). Off by default (M4 glue trial): `enable = development`.
+const ClassEntry kDevelopmentClasses[] = {
+    {kFC4_CLSID_cSC4BuildingDevelopmentSimulator, "cSC4BuildingDevelopmentSimulator",
+     &CreateFC4BuildingDevelopmentSimulator},
+    {kFC4_CLSID_cSC4GrowthDeveloper, "cSC4GrowthDeveloper", &CreateFC4GrowthDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -219,6 +233,8 @@ const Subsystem kSubsystems[] = {
      false},
     {"zones", nullptr, kZonesClasses, sizeof(kZonesClasses) / sizeof(kZonesClasses[0]), false},
     {"neighbors", nullptr, kNeighborsClasses, sizeof(kNeighborsClasses) / sizeof(kNeighborsClasses[0]), false},
+    {"development", nullptr, kDevelopmentClasses, sizeof(kDevelopmentClasses) / sizeof(kDevelopmentClasses[0]),
+     false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -336,6 +352,12 @@ void Resolve() {
     ZonesShadowStartup(enabledKey("zones"));  // zones_shadow = 1 only
     // The neighbours shadow (FC4NeighborsShadow.h; it compares the original neighbours simulator).
     NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
+    // The development shadow (FC4DevelopmentShadow.h; it compares the original BDS and growth developers).
+    DevelopmentShadowStartup(g_enabled[0], enabledKey("development"));
+    // The turbo clock (FC4Turbo.h; tooling): only our simulator has it.
+    TurboReload(g_enabled[0]);
+    // Scripted actions (FC4Script.h; tooling): the whole file is parsed now.
+    ScriptReload();
 }
 
 }  // namespace

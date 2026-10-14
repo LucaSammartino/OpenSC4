@@ -440,6 +440,11 @@ impl ZonesHost for World {
     fn street_place(&self, kind: u32, a: (i32, i32), b: (i32, i32), real_mode: bool) -> bool {
         self.street_place_count.set(self.street_place_count.get() + 1);
         self.log_place(a, b, real_mode);
+        if real_mode {
+            // §8.8 lifetime: a real-mode Place empties the tool's cell cache
+            // (before its solve), the street drafts with it.
+            self.drafts.borrow_mut().remove(&3);
+        }
         // The stub: a segment fails when it contains a fail cell.
         let fail_cells = self.street_fail_cells.borrow();
         let cells = line_cells(a, b);
@@ -449,8 +454,12 @@ impl ZonesHost for World {
         if !real_mode {
             // Test 33: each cell of a..b with no network becomes a street
             // draft (flags 0x8) whose mask has a nonzero byte for each edge
-            // towards a neighbouring cell of the same segment; a later draft
-            // on the same cell adds its bytes.
+            // towards a neighbouring cell of the same segment. A later draft
+            // on the same cell ORs its flags and its bytes, as the original
+            // does (§8.8, ZQ11). The stub keeps test 33's two simplifications
+            // (§8.8, ZQ12: the original would also draft a covered network
+            // cell and the network cells around it, and lengthen a segment
+            // into an earlier draft); no checked result depends on them.
             let nets = self.nets.borrow();
             let mut drafts = self.drafts.borrow_mut();
             let street = drafts.entry(3).or_default();

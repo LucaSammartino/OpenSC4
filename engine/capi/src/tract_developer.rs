@@ -525,6 +525,9 @@ impl TractDeveloperHost for CHost {
             land_value_min: o.land_value_min,
             land_value_max: o.land_value_max,
             building_type: o.building_type,
+            // Read only by the BDS's PlopBuilding; the tract developer
+            // never reads it, so the host does not report it.
+            orientation: 0,
             x: o.x,
             z: o.z,
         }
