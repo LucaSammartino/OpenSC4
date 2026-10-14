@@ -789,6 +789,8 @@ public:
     virtual void UpdateOccupantEffects(uint32_t buildingType, SC4Percentage const& oldPct,
                                        SC4Percentage const& newPct) = 0;          // 7
     virtual void CalculateJobsPerUnitOfDemand(float* jobs, uint32_t demandID, uint32_t demandIndex) = 0;  // 8
+    // 9: EAX = the low 32 bits of _ftol, no clamp (a negative product is a
+    // negative int32); EDX is not meaningful (demand.md §5, DQ10, DQ12).
     virtual uint32_t GetJobsBySensus(uint32_t type) = 0;                          // 9
     virtual float GetNeutralTaxRate() = 0;                                        // 10
     virtual void GetLocalPopulationSummary(std::map<uint32_t, int32_t>& summary) const = 0;  // 11

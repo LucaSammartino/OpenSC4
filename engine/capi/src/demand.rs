@@ -653,7 +653,8 @@ pub unsafe extern "C" fn fc4_demand_sim_jobs_per_unit(
     }
 }
 
-/// `GetJobsBySensus(type)` (§5).
+/// `GetJobsBySensus(type)` (§5, DQ10): `(jobs[3] + jobs[2]) + jobs[1]` times
+/// the supply, the low 32 bits of `_ftol` with no clamp (slot 9 returns EAX).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_demand_sim_jobs_by_census(s: *const fc4_demand_sim, census_type: u32) -> u32 {
     with_sim(s, 0, |x| x.jobs_by_census(census_type))

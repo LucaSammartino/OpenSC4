@@ -1618,7 +1618,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
 | §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
-| §5 `CalculateJobsPerUnitOfDemand` scale `f32(u32 percent) × 0.01f` (corrected 2026-10-14; 33 → `0x3EA8F5C2`) and `GetJobsBySensus` | `d16_14_jobs_per_unit_scale` |
+| §5 `CalculateJobsPerUnitOfDemand` scale, the §4.1 link factor (33 → `0x3EA8F5C2`; DQ12: two roundings from 2^31 up, 3242996796 → `0x4BF76BC7`) and `GetJobsBySensus` (DQ10: `(jobs[3] + jobs[2]) + jobs[1]`, 1/3/96 % × 1000 → 999) | `d16_14_jobs_per_unit_scale` |
 
 ## Coverage (ordinance §13)
 
