@@ -109,6 +109,8 @@ INTERFACES = [
     ("cISC4NetworkManager", "cISC4NetworkManager", "cISC4NetworkManager.h", True),
     ("cISC4NetworkTool(PowerLine)", "cFC4ISC4NetworkTool", FC4, True),
     ("cISC4NeighborDeal", "cISC4NeighborDeal", "cISC4NeighborDeal.h", True),
+    # Neighbours (docs/specs/neighbors.md section 4.2): the connection's traffic source.
+    ("cISC4TrafficSource", "cISC4TrafficSource", "cISC4TrafficSource.h", True),
     ("cISC4View3DWin", "cISC4View3DWin", "cISC4View3DWin.h", True),
     ("cISC4PowerLineOccupant", "cISC4PowerLineOccupant", "cISC4PowerLineOccupant.h", True),
     ("cISC4PowerPoleOccupant", "cFC4ISC4PowerPoleOccupant", FC4, True),

@@ -64,8 +64,9 @@ constexpr uint32_t kMsgSimNewMonth = 0x66956816;
 constexpr uint32_t kMsgConnectionsReady = 0x6AC284F3;  // foundations.md 11.6; popup_dialogs = 0 waits for it
 constexpr uint32_t kMsgPreCityShutdown = 0x26D31EC2;   // the autotest's "ended" verdict
 constexpr uint32_t kMsgPostCityShutdown = 0x26D31EC3;
-// The aura simulator's cycle-completed message (aura.md §11.1): the aura
-// shadow's clock (FC4AuraShadow.h).
+// The aura simulator's cycle-completed message (aura.md §11.1). The aura
+// shadow (FC4AuraShadow.h) no longer uses it: it is posted and arrives
+// later than the original's state 17 (§5.3).
 constexpr uint32_t kMsgAuraCycleCompleted = 0x2A09B21A;
 constexpr uint32_t kObserverMessages[] = {kMsgPostCityInit,     kMsgSimNewDay,       kMsgSimNewMonth,
                                          kMsgConnectionsReady, kMsgPreCityShutdown, kMsgPostCityShutdown,

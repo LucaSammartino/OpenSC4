@@ -377,6 +377,17 @@ fn tract_priority() {
     assert_eq!(s.tract_raw(3, 0), 0);
 }
 
+/// §6.5 worked example (FL5, FL6): Smoke Detectors (g = 0.95f), the
+/// shipped no-water factor 1.25: raw 68 gives 65 watered, 81 not; raw 84
+/// gives 80 / 100; raw 89 gives 85 / 106.
+#[test]
+fn no_water_factor_worked_example() {
+    for (r, watered, dry) in [(68u8, 65u8, 81u8), (84, 80, 100), (89, 85, 106)] {
+        assert_eq!(daily_value(r, 0.95, true, 1.25), watered, "raw {r} watered");
+        assert_eq!(daily_value(r, 0.95, false, 1.25), dry, "raw {r} not watered");
+    }
+}
+
 /// §16 tests 3 and 4.
 #[test]
 fn daily_values_and_candidates() {

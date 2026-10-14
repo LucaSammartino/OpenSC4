@@ -25,6 +25,8 @@ use crate::props::fc4_props;
 use crate::test_streams::{istream, ostream, In, Out};
 
 type U = *mut c_void;
+/// A segment record's key: segment, type, group, instance.
+type SegKey = (u64, u32, u32, u32);
 
 // ---- empty tables (other tests use them) ------------------------------------------------------------
 
@@ -76,6 +78,22 @@ struct World {
     on_insert: RefCell<Option<Box<dyn Fn()>>>,
     ground: Cell<f32>,
     moisture: Cell<u32>,
+    /// Obliteration segments: (segment, type, group, instance) -> bytes.
+    segments: RefCell<BTreeMap<SegKey, Vec<u8>>>,
+    streams: RefCell<BTreeMap<u64, SegStream>>,
+    next_stream: Cell<u64>,
+    /// The new-city specification's obliterated segment (0 = none).
+    obliterated: Cell<u64>,
+}
+
+/// One open record of an obliteration segment.
+#[derive(Clone, Debug, Default)]
+struct SegStream {
+    key: SegKey,
+    write: bool,
+    bytes: Vec<u8>,
+    pos: usize,
+    error: bool,
 }
 
 fn w(u: U) -> &'static World {
@@ -403,6 +421,115 @@ unsafe extern "C" fn in_cells(u: U, r: *const fc4_cell_rect, t: u32, cb: fc4_tok
 }
 unsafe extern "C" fn in_manager_cells(u: U, t: u32, cb: fc4_token_callback, ctx: *mut c_void) {
     in_cells(u, std::ptr::null(), t, cb, ctx)
+}
+
+unsafe extern "C" fn seg_open(u: U, seg: u64, t: u32, g: u32, i: u32, write: bool) -> u64 {
+    let w = w(u);
+    let key = (seg, t, g, i);
+    let bytes = if write {
+        Vec::new()
+    } else {
+        match w.segments.borrow().get(&key) {
+            Some(b) => b.clone(),
+            None => return 0,
+        }
+    };
+    let id = w.next_stream.get() + 1;
+    w.next_stream.set(id);
+    w.streams.borrow_mut().insert(
+        id,
+        SegStream {
+            key,
+            write,
+            bytes,
+            ..Default::default()
+        },
+    );
+    w.log
+        .borrow_mut()
+        .push(format!("open {i} {}", if write { "w" } else { "r" }));
+    id
+}
+unsafe extern "C" fn seg_close(u: U, s: u64) {
+    let w = w(u);
+    let st = w.streams.borrow_mut().remove(&s);
+    if let Some(st) = st.filter(|st| st.write) {
+        w.segments.borrow_mut().insert(st.key, st.bytes);
+    }
+    w.log.borrow_mut().push("close".into());
+}
+fn with_stream<T>(u: U, s: u64, f: impl FnOnce(&mut SegStream) -> T) -> Option<T> {
+    w(u).streams.borrow_mut().get_mut(&s).map(f)
+}
+fn take(st: &mut SegStream, n: usize) -> Option<Vec<u8>> {
+    if st.pos + n > st.bytes.len() {
+        st.error = true;
+        return None;
+    }
+    st.pos += n;
+    Some(st.bytes[st.pos - n..st.pos].to_vec())
+}
+unsafe extern "C" fn put_u16(u: U, s: u64, v: u16) -> bool {
+    with_stream(u, s, |st| st.bytes.extend(v.to_le_bytes())).is_some()
+}
+unsafe extern "C" fn put_u32(u: U, s: u64, v: u32) -> bool {
+    with_stream(u, s, |st| st.bytes.extend(v.to_le_bytes())).is_some()
+}
+unsafe extern "C" fn get_u16(u: U, s: u64, out: *mut u16) -> bool {
+    match with_stream(u, s, |st| take(st, 2)).flatten() {
+        Some(b) => {
+            *out = u16::from_le_bytes([b[0], b[1]]);
+            true
+        }
+        None => false,
+    }
+}
+unsafe extern "C" fn get_u32(u: U, s: u64, out: *mut u32) -> bool {
+    match with_stream(u, s, |st| take(st, 4)).flatten() {
+        Some(b) => {
+            *out = u32::from_le_bytes([b[0], b[1], b[2], b[3]]);
+            true
+        }
+        None => false,
+    }
+}
+unsafe extern "C" fn stream_error(u: U, s: u64) -> bool {
+    with_stream(u, s, |st| st.error).unwrap_or(true)
+}
+/// A stand-in occupant record: u16 3, the flora type, flag 1 as a byte.
+unsafe extern "C" fn write_occ(u: U, o: u64, s: u64) -> bool {
+    let o = w(u).occ(o);
+    with_stream(u, s, |st| {
+        st.bytes.extend(3u16.to_le_bytes());
+        st.bytes.extend(o.flora.flora_type.to_le_bytes());
+        st.bytes.push(u8::from(o.in_manager));
+    })
+    .is_some()
+}
+unsafe extern "C" fn read_occ(u: U, o: u64, s: u64) -> bool {
+    let Some(b) = with_stream(u, s, |st| take(st, 7)).flatten() else {
+        return false;
+    };
+    with_flora(u, o, |x| {
+        x.flora.flora_type = u32::from_le_bytes([b[2], b[3], b[4], b[5]])
+    });
+    true
+}
+unsafe extern "C" fn obliterated(u: U) -> u64 {
+    w(u).obliterated.get()
+}
+
+fn segment_host(h: &mut fc4_flora_host) {
+    h.obliterated_segment = Some(obliterated);
+    h.segment_open = Some(seg_open);
+    h.segment_close = Some(seg_close);
+    h.stream_put_u16 = Some(put_u16);
+    h.stream_put_u32 = Some(put_u32);
+    h.stream_get_u16 = Some(get_u16);
+    h.stream_get_u32 = Some(get_u32);
+    h.stream_error = Some(stream_error);
+    h.write_occupant = Some(write_occ);
+    h.read_occupant = Some(read_occ);
 }
 
 fn world_host(w: &World) -> fc4_flora_host {
@@ -1098,5 +1225,79 @@ fn shadow_registry_and_month_compare_a_faithful_original() {
             -1
         );
         fc4_flora_shadow_destroy(shadow);
+    }
+}
+
+/// §10.3 (FQ3) through the C host: every record starts with u16 0; the
+/// count record is u16 0, u32 count; the replacement city's Init reads them
+/// back and inserts the occupants.
+#[test]
+fn obliteration_records_go_through_the_host_streams() {
+    let fx = Fixture::new();
+    let w = &fx.world;
+    w.add_flora(1, 100.0, 100.0, 0x1000, 2, 5000);
+    w.add_flora(2, 200.0, 100.0, 0x2000, 1, 5000);
+    let mut h = world_host(w);
+    segment_host(&mut h);
+    unsafe {
+        let f = fc4_flora_create(&h, fx.reg, 8, 1, 2);
+        assert!(fc4_flora_init(f));
+        w.log.borrow_mut().clear();
+        assert!(fc4_flora_save_obliterated(f, 77));
+        {
+            let segs = w.segments.borrow();
+            assert_eq!(segs[&(77, 0xC9BB_3FC6, 0xC9BB_3FC7, 1)], [0, 0, 2, 0, 0, 0]);
+            assert_eq!(segs[&(77, 0xC9BB_3FC6, 0x4A66_4F83, 0)], [0, 0, 3, 0, 0, 0x10, 0, 0, 0]);
+            assert_eq!(segs[&(77, 0xC9BB_3FC6, 0x4A66_4F83, 1)], [0, 0, 3, 0, 0, 0x20, 0, 0, 0]);
+        }
+        assert!(w.occ(1).in_manager && w.occ(2).in_manager, "flag 1 set again");
+        assert_eq!(
+            w.log.borrow().as_slice(),
+            ["open 1 w", "close", "open 0 w", "close", "open 1 w", "close"]
+        );
+        fc4_flora_shutdown(f);
+        fc4_flora_destroy(f);
+        // The replacement city (no flora of its own) re-creates them.
+        w.occs.borrow_mut().clear();
+        w.obliterated.set(77);
+        let first = w.next.get();
+        let g = fc4_flora_create(&h, fx.reg, 9, 1, 2);
+        assert!(fc4_flora_init(g));
+        let made: Vec<(u32, bool, i64)> = (first..w.next.get())
+            .map(|id| (w.occ(id).flora.flora_type, w.occ(id).in_manager, w.refs_of(id)))
+            .collect();
+        assert_eq!(made, [(0x1000, true, 1), (0x2000, true, 1)]);
+        fc4_flora_shutdown(g);
+        fc4_flora_destroy(g);
+        // A segment without the count record restores nothing.
+        w.obliterated.set(78);
+        let first = w.next.get();
+        let g = fc4_flora_create(&h, fx.reg, 10, 1, 2);
+        assert!(fc4_flora_init(g));
+        assert_eq!(w.next.get(), first);
+        fc4_flora_shutdown(g);
+        fc4_flora_destroy(g);
+    }
+}
+
+/// FQ14: after an exemplar-change reload key 0 is gone from the map (and the
+/// any-thread snapshot) until the next Init puts it back.
+#[test]
+fn a_reload_drops_key_0_until_the_next_init() {
+    let fx = Fixture::new();
+    unsafe {
+        assert!(fc4_flora_registry_is_type_valid(fx.reg, 0));
+        let mut m = message(msg::EXEMPLAR_CHANGED, 0);
+        m.data2 = 0x1000;
+        assert!(fc4_flora_do_message(fx.f, &m));
+        assert!(fc4_flora_registry_is_type_valid(fx.reg, 0x1000));
+        assert!(!fc4_flora_registry_is_type_valid(fx.reg, 0));
+        assert_eq!(fc4_flora_registry_record(fx.reg, 0), 0);
+        let h = world_host(&fx.world);
+        let g = fc4_flora_create(&h, fx.reg, 11, 1, 2);
+        assert!(fc4_flora_init(g));
+        assert!(fc4_flora_registry_is_type_valid(fx.reg, 0));
+        fc4_flora_shutdown(g);
+        fc4_flora_destroy(g);
     }
 }

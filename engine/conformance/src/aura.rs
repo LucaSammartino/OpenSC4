@@ -132,7 +132,8 @@ pub(crate) struct World {
     funding: RefCell<BTreeMap<u32, f32>>,
     tax: RefCell<[f32; 12]>,
     offset: Cell<i32>,
-    land_value_type: Cell<i32>,
+    /// `None`: the city has no land value simulator (§6.5.1, AU10).
+    land_value_type: Cell<Option<i32>>,
     timer_expired: Cell<bool>,
     /// Clock reads that answer "not expired" after each timer start before
     /// the timer expires (`None`: `timer_expired` answers every read).
@@ -154,7 +155,7 @@ impl World {
             next_token: Cell::new(0x100),
             date: Cell::new(1000),
             tuning: RefCell::new(Some(Rc::new(shipped_tuning()))),
-            land_value_type: Cell::new(1),
+            land_value_type: Cell::new(Some(1)),
             timer_expired: Cell::new(false),
             registry_ok: Cell::new(true),
             seed: Cell::new(1),
@@ -307,7 +308,7 @@ impl AuraHost for World {
             .map(|l| l.info)
             .find(|r| (r.x1..=r.x2).contains(&x) && (r.z1..=r.z2).contains(&z))
     }
-    fn land_value_type(&self, _x: i32, _z: i32) -> i32 {
+    fn land_value_type(&self, _x: i32, _z: i32) -> Option<i32> {
         self.land_value_type.get()
     }
     fn occupant_has_property(&self, occ: u64, prop: u32) -> bool {
@@ -655,8 +656,12 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "ordinance_offset") {
         w.offset.set(i64_of(v, "ordinance_offset")? as i32);
     }
-    if let Some(v) = opt(op, "land_value_type") {
-        w.land_value_type.set(i64_of(v, "land_value_type")? as i32);
+    // `null`: no land value simulator.
+    if let Some(v) = op.get("land_value_type") {
+        w.land_value_type.set(match v {
+            Json::Null => None,
+            v => Some(i64_of(v, "land_value_type")? as i32),
+        });
     }
     if let Some(v) = opt(op, "timer_expired") {
         w.timer_expired.set(bool_of(v, "timer_expired")?);

@@ -77,25 +77,41 @@
 //!   (foundations §18) before `ceil` / `floor`; `avg + globalEffect` and `d`
 //!   are computed in 64 bits.
 //! - §6.16: hotspot arithmetic is done in 64 bits and stored as 32 bits.
-//! - §7: Sint32-array properties shorter than two values read the missing
-//!   values as 0 (the original reads past the array); `PositionToCell`'s
+//! - §7 (AU4): an effect property is used only as a Sint32 or Uint32 array
+//!   (bitwise) of at least two values; anything else (a scalar, one value,
+//!   another element type) is absent: no cone. The original reads the word
+//!   at variant + 4 as an int32 array whatever the type and count (garbage
+//!   past a one-value array, a crash for a scalar). `PositionToCell`'s
 //!   result flag is ignored; "distance to the edge" is the absolute
 //!   difference in `f32`.
 //! - §6, §10: a curve property with fewer than two values (a scalar, a
 //!   one-element or an empty array) or a non-numeric one is **absent**: the
 //!   stage is skipped (state 6 still advances). The original builds a curve
 //!   with no points and evaluates it (a crash, or a stale value after an
-//!   in-place reload). Missing elements of the transient arrays read as 0.
+//!   in-place reload).
+//! - §10 (AU2): a transient type's {magnitude, radius} is taken only from
+//!   a Float32 array of at least two values; anything else keeps {0, 0}
+//!   (the original copies raw words and reads `v[0]`, `v[1]` unchecked).
+//! - §10 (AU11): the base-aura table is the aura's own storage (no other
+//!   code reads it), so it is kept in the object; the host's
+//!   `publish_base_aura` is told the tuned values and may ignore them.
+//! - §6.5.1 (AU10): without a land value simulator the value/wealth term is
+//!   skipped (the result is the lot average), as if the curve were absent
+//!   (the original calls through a null pointer).
 //! - §11.3: `Read` writes each field as it reads it. Grid references are
 //!   null-first (foundations §2.7): a reference that fails, or that does not
 //!   resolve to a grid of the expected element type, leaves its slot empty
 //!   (`Init` recreates it), and so does every later reference once the
 //!   stream is in error; the grid the slot held is released (the original
 //!   leaks it; on the game's load path the slots are empty). A plain field
-//!   whose read fails keeps its value. The department map is replaced by
-//!   the entries read in full (a null reference adds none, a duplicate ID
-//!   keeps the later grid); the hotspot list likewise. Counts are bounded
-//!   by the stream: reading stops at the first stream error.
+//!   whose read fails keeps its value. The department map is **merged**
+//!   (AU1): each entry read in full sets `map[id] := grid`, IDs not in the
+//!   record stay (a null reference adds or changes nothing, [choice]; a
+//!   duplicate ID keeps the later grid; a replaced grid is released, the
+//!   original leaks it). Hotspots are **appended** after the ones held.
+//!   Counts are bounded by the stream: reading stops at the first stream
+//!   error; a count that cannot be read is 0 ([choice]: the original loops
+//!   over an uninitialised count).
 //! - Unknown pipeline states (only reachable through debug setters) reset
 //!   the state to 0.
 
@@ -323,8 +339,9 @@ pub trait AuraHost: GridProvider<i8> + GridProvider<i16> {
     fn sim_date_number(&self) -> u32;
     /// The "Aura Simulator" exemplar ([`TUNING_KEY`]), if it loads.
     fn tuning(&self) -> Option<Rc<PropertyHolder>>;
-    /// The process-wide base-aura table keyed by developer type (§10), written
-    /// after every tuning read: R$, R$$, R$$$.
+    /// The tuned base auras after every tuning read: R$, R$$, R$$$. The
+    /// original copies them into a process-wide table (§10) that only the
+    /// aura itself reads (AU11), so a host may ignore them.
     fn publish_base_aura(&self, base_aura: [i32; 3]);
 
     // ---- lots ----
@@ -334,13 +351,17 @@ pub trait AuraHost: GridProvider<i8> + GridProvider<i16> {
     fn lot_iterator(&self) -> Box<dyn LotIterator>;
     /// `cISC4LotManager::GetLot(x, z, false)` (cells).
     fn lot_at(&self, x: i32, z: i32) -> Option<LotInfo>;
-    /// `cISC4LandValueSimulator::GetLandValueType(x, z)` (1..3).
-    fn land_value_type(&self, x: i32, z: i32) -> i32;
+    /// `cISC4LandValueSimulator::GetLandValueType(x, z)` (1..3); `None`
+    /// when the city has no land value simulator (§6.5.1, AU10: the
+    /// value/wealth term is then skipped).
+    fn land_value_type(&self, x: i32, z: i32) -> Option<i32>;
 
     // ---- occupants ----
     /// `HasProperty(id)` on the occupant's property holder.
     fn occupant_has_property(&self, occupant: u64, prop: u32) -> bool;
-    /// `GetProperty(id)->RefSint32()`: the Sint32 array, or `None`.
+    /// `GetProperty(id)->RefSint32()`: the Sint32 (or Uint32, bitwise)
+    /// array, or `None`. The core treats fewer than two values as absent
+    /// (§7, AU4).
     fn occupant_sint32s(&self, occupant: u64, prop: u32) -> Option<Vec<i32>>;
     /// `cISC4Occupant::GetType()`.
     fn occupant_type(&self, occupant: u64) -> u32;

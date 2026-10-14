@@ -793,8 +793,11 @@ initialized, an occupant manager that accepts inserts, the shipped "Flora Tuning
 step 1, period 24, wild seeds 0, elevation scale 800) and a process-wide registry shared by every simulator of the
 vector (`flora_registry reset` starts a new process). Occupants are numbers; the simulator's new occupants get IDs
 from 1000 on. A flora occupant's bounding box is its position ± its record's half width (1) in x and z and
-[y, y + height (3)], unless `bbox` is given. The occupant manager lists only inserted occupants (flag 1). Host
-references are counted per occupant (an inserted occupant holds one). The scripted generator returns queued
+[y, y + height (3)], unless `bbox` is given. The occupant manager lists only inserted occupants (flag 1); its box
+query is the original's (§6.4.2): an occupant is returned when the 64 m index cells it is listed in (its box,
+inset by 0.1 on x and z where wider than 1 m) meet the query's cells (clamped to 0..191) and its box overlaps the
+query box strictly on x, y and z; a cell query (§6.10.4) is the box query of the cells' world box (inset 0.1 m,
+y unbounded). Host references are counted per occupant (an inserted occupant holds one). The scripted generator returns queued
 integers (`range_i32`, `uniform_u32`; empty → the lower bound / 0), queued uniforms `u` (`uniform`; `range_f64`
 returns `r24(r24(u × r24(b − a)) + a)`; empty → 0.5) and queued Gaussians (empty → 0); every draw is an `rng` event.
 `rng: {seed, process_clock?}` uses the real generator (`FloraRng`) instead.
@@ -803,7 +806,7 @@ returns `r24(r24(u × r24(b − a)) + a)`; empty → 0.5) and queued Gaussians (
 
 | op | Arguments | Effect |
 |---|---|---|
-| `flora_env` | any of `exists`, `size` (`[x, z]` m), `cells` (`[x, z]`), `established`, `date` (the sim date number), `terrain_initialized`, `sea`, `ground`, `grounds` (`[[x0, z0, x1, z1, h]]`, last match wins), `normal_y`, `normals` (`[[x0, z0, x1, z1, y]]`), `lots` (`[[x0, z0, x1, z1]]`), `moisture`, `moistures` (`[[x0, z0, x1, z1, m]]`), `manager` (an occupant manager exists), `insert_ok`, `segment` (the new-city specification's obliterated segment, or null), `occupants` (`[{id, type ("flora", "building", "prop", "landfill", "network" or an ID), pos?, bbox? ([[x, y, z], [x, y, z]]), in_manager? (true), preview?, network? (flags), flora_type?, birth?, last_seed?, state?, orientation?, record? (type or null; default the flora type)}]`), `forget` (IDs to drop) | the scripted city |
+| `flora_env` | any of `exists`, `size` (`[x, z]` m), `cells` (`[x, z]`), `established`, `date` (the sim date number), `terrain_initialized`, `sea`, `ground`, `grounds` (`[[x0, z0, x1, z1, h]]`, last match wins), `normal_y`, `normals` (`[[x0, z0, x1, z1, y]]`), `lots` (`[[x0, z0, x1, z1]]`), `moisture`, `moistures` (`[[x0, z0, x1, z1, m]]`), `manager` (an occupant manager exists), `insert_ok`, `segment` (the new-city specification's obliterated segment, or null), `segment_records` (`[{segment, key: [t, g, i], hex (the record's bytes) or null (removed)}]`), `segment_error_keys` (keys whose streams report `GetError`), `occupants` (`[{id, type ("flora", "building", "prop", "landfill", "network" or an ID), pos?, bbox? ([[x, y, z], [x, y, z]]), in_manager? (true), preview?, network? (flags), flora_type?, birth?, last_seed?, state?, orientation?, record? (type or null; default the flora type)}]`), `forget` (IDs to drop) | the scripted city |
 | `flora_types` | `types` (`[{type, exemplar_type? (0x0F), next?, water?, floats? (values of 0x083DC35B) or the named floats maturity, seeding_age, interval, seeds, spread, lifespan, max_age, slope, min_score, probability, half_width, unused, clearance, height, cluster_radius?, cluster_height?, table? (one value for all 256 cells), table_cells? ([[e, m, v]]; without `table` the rest is 0.6 where both indices are in 5..12, else 0), never_auto?, flag_switch?, families?, plop_cost?, props? (extra property map)}]`), `append?` | the flora exemplars, in enumeration order |
 | `flora_tuning` | `none: true` (no exemplar), or `shipped?` (true), `props?`, `remove?` | the tuning exemplar |
 | `flora_registry` | `reset?` (a new process registry), `default_flags?` (the key-0 record's flags, [choice] default 7), `app_shutdown?` | the process-wide registry |
@@ -817,15 +820,15 @@ returns `r24(r24(u × r24(b − a)) + a)`; empty → 0.5) and queued Gaussians (
 | `flora_init` / `flora_shutdown` | `expect?` | `Init` / `Shutdown` |
 | `flora_message` | `type` (`SimNewDay`, `SimNewMonth`, `InsertOccupant`, `RemoveOccupant`, `TerrainHeightsChanged`, `ExemplarChanged`, `CityEstablished`, `CityObliterated`, `PlaceFlora`, `Cheat` or an ID), `data1..3?` (`data3` may be an occupant type name), `occupant?` (void1), `text?` (the cheat line), `params?` (`[[as_u32, as_f32]]`), `expect?` | `DoMessage` |
 | `flora_days` | `count?` (1) | SimNewDay messages |
-| `flora_call` | `method`, `args?`, `expect?` | pure: `elevation_index` (`[alt, sea, water, scale]`), `table_byte`, `blocks_per_month` (`[cx, cz, period]`), `scale_wild_seeds` (`[w, sx, sz]`), `blocks_flora` (`[type, flags or null]`), `query_interface` (`"primary"`, `"message_target"`, `"serializable"` or false), `advance_cluster_type`; simulator: `elevation_index_at` (`[x, z, water]`), `score` (`[type, x, z]`), `best_type` (→ `[type, score]`), `location_ok` (`[type, x, z, exclude?]`), `add_new` (`[type, [x, y, z], force]` → `{occupant, pos}`), `add_flora_occupant`, `drop_seed`, `simulate_existing` (`[occupant]`), `monthly`, `wild_seeds`, `daily`, `kill`, `occupant_inserted` (`[occupant, type]`), `terrain_change` (`[[x0, z0, x1, z1]]`), `demolish`, `demolish_cells`, `demolish_bbox` (`[min, max]`), `cost`, `enable_flora`, `blast` (`[n, m, s]`), `static_data` (→ type or null), `all_types`, `all_types_into` (`[buffer length or null, count]` → `{ret, count, copied}`), `family_types`, `is_valid`, `is_family_valid`, `types_by_filter` (`[accepted types or null]` → `{ret, set}`), `types_by_family`, `add_static` (`[type spec or null]`), `save_obliterated` / `restore_obliterated` (`[segment]`), `read_tuning`, `exemplar_changed` (`[inst]`), `add_ref`, `release`, `draw_uniform` |
-| `flora_set` | `state`: any of `enabled`, `propagation`, `propagation_forced`, `preserve`, `size`, `cells`, `today`, `period`, `blocks_per_month`, `wild_seeds_per_month`, `keep_iterator_flag`, `elevation_scale`, `burn_accumulator`, `burnt_removal_accumulator`, `burn_rate`, `burnt_removal_step` | pokes state (test setup) |
+| `flora_call` | `method`, `args?`, `expect?` | pure: `elevation_index` (`[alt, sea, water, scale]`), `table_byte`, `blocks_per_month` (`[cx, cz, period]`), `scale_wild_seeds` (`[w, sx, sz]`), `blocks_flora` (`[type, flags or null]`), `query_interface` (`"primary"`, `"message_target"`, `"serializable"` or false), `advance_cluster_type`; simulator: `elevation_index_at` (`[x, z, water]`), `score` (`[type, x, z]`), `best_type` (→ `[type, score]`), `location_ok` (`[type, x, z, exclude?]`), `add_new` (`[type, [x, y, z], force]` → `{occupant, pos}`), `add_flora_occupant`, `drop_seed`, `simulate_existing` (`[occupant]`), `monthly`, `wild_seeds`, `daily`, `kill`, `occupant_inserted` (`[occupant, type]`), `terrain_change` (`[[x0, z0, x1, z1]]`), `demolish`, `demolish_cells`, `demolish_bbox` (`[min, max]`), `cost`, `enable_flora`, `blast` (`[n, m, s]`), `static_data` (→ type or null), `all_types`, `all_types_into` (`[buffer length or null, count]` → `{ret, count, copied}`), `family_types`, `is_valid`, `is_family_valid`, `types_by_filter` (`[accepted types or null]` → `{ret, set}`), `types_by_family`, `add_static` (`[type spec or null]`), `save_obliterated` / `restore_obliterated` (`[segment]`), `occupants_in_cells` (`[rect, type]`: the scripted manager's cell query → IDs); pure (§6.4.2, §6.10.4): `manager_cell` (`[p]`), `manager_listing` (`[min, max]` → `[x0, z0, x1, z1]`), `manager_query` (`[occupant min, occupant max, query min, query max]` → returned), `cell_query_box` (`[rect or null, [cells x, cells z]]` → `{cells, min, max}`), `read_tuning`, `exemplar_changed` (`[inst]`), `add_ref`, `release`, `draw_uniform` |
+| `flora_set` | `iterator_table?` (`[[bx, bz]]`: a running table-mode iterator that visits exactly these blocks, in order), `state`: any of `enabled`, `propagation`, `propagation_forced`, `preserve`, `size`, `cells`, `today`, `period`, `blocks_per_month`, `wild_seeds_per_month`, `keep_iterator_flag`, `elevation_scale`, `burn_accumulator`, `burnt_removal_accumulator`, `burn_rate`, `burnt_removal_step` | pokes state (test setup) |
 | `flora_expect` | `state`: the fields above plus `initialized`, `ref_count`, `destroyed`, `burnt` (occupant IDs), `simulator_held`, `rng` (`[lcg, mul, flag, cached]`), `iterator` (partial: `state`, `mode`, `dirty`, `rect`, `count`, `table_len`, `index`, `current`, `step`) | the simulator state |
 | `flora_expect_occupant` | `occupant`, any of `exists`, `in_manager`, `type`, `flora_type`, `birth`, `last_seed`, `state`, `orientation`, `record`, `pos` | an occupant |
 | `flora_expect_record` | `type`, any of `exists`, `next`, `seed_type`, `water`, `flags`, the named floats, `cluster_radius`, `cluster_height`, `unnamed`, `families`, `plop_cost`, `table` (`[[e, m, byte]]`) | a static flora record |
 | `flora_expect_registry` | any of `types` (the type array), `keys` (map keys, ascending), `families`, `family` (`{id: [types]}`), `loaded`, `default_flags` | the registry |
 | `flora_expect_rand` | `calls` | C `rand()` calls (block shuffles) since the last check (or `flora_create` / `flora_load`) |
 | `flora_expect_refs` | `refs` (`{"id": count}`) | host reference counts |
-| `flora_expect_segment` | `segment`, `count?`, `records?` (`[{key: [t, g, i], u32? or flora_type?}]`) | an obliteration segment |
+| `flora_expect_segment` | `segment`, `count?`, `records?` (`[{key: [t, g, i], hex? (the whole record) or prefix? (its first bytes)}]`), `absent?` (keys) | an obliteration segment's records |
 | `flora_expect_events` / `flora_expect_event_count` / `flora_clear_events` | see the shared conventions | host calls |
 | `flora_save` / `flora_load` / `flora_expect_save` | `slot`; load: `rng?`, `expect?`, `crt_seed?` | the class-object store; burnt-list occupants are host objects of class `0x0CC00001` |
 | `flora_patch` / `flora_expect_payload` | see the shared conventions (the simulator's record) | |
@@ -836,8 +839,11 @@ Flora events: `app_callback`, `post` (`type`, `data2`), `subscribe` / `unsubscri
 `release_services`, `register_cheat` / `unregister_cheat` (`id`, `name`), `rng` (`method`, arguments, `value`), and
 per occupant (`occupant`): `create`, `set_type` / `set_birth` / `set_last_seed` / `set_state` / `set_orientation`
 (`value`), `set_record` (`record`), `set_position` (`pos`), `set_flag` (`on`), `change` (0x99EF1145), `init`,
-`insert`, `remove`, `move`, `read_occupant` (`key`); `seg_write` (`segment`, `key`, `value` or `occupant` and
-`in_manager`).
+`insert`, `remove`, `move`, `write_occupant` (`in_manager`), `read_occupant` (`key`); `seg_open` (`segment`, `key`,
+`write`, `stream` or null), `seg_close` (`stream`). Segment streams count from 1; a write always opens, a read only
+a stored record; a written record is stored when its stream closes without an error. An occupant's own record is a
+stand-in for lot-records.md §11: `u16 3`, flora type, birth date, last seeding date (`u32` each), state (`i8`),
+orientation (`u8`), position (3 × `f32`), flag 1 (`u8`), little-endian, 29 bytes.
 
 ## Development helper ops
 
@@ -1585,6 +1591,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 |---|---|
 | 1 funds | `b15_01_funds` |
 | 2 tax | `b15_02_tax` |
+| 2 tax: the total is a float32 running sum in lot order (BQ3, the §5.2 worked example: 6567 in list order, 6566 reversed, lines 3848 + 2718) | `b15_02b_tax_lot_order` |
 | 3 settlement | `b15_03_settlement` |
 | 4 year end | `b15_04_year_end` |
 | 5 bankruptcy | `b15_05_bankruptcy` |
@@ -1618,7 +1625,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
 | §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
-| §5 `CalculateJobsPerUnitOfDemand` scale `f32(u32 percent) × 0.01f` (corrected 2026-10-14; 33 → `0x3EA8F5C2`) and `GetJobsBySensus` | `d16_14_jobs_per_unit_scale` |
+| §5 `CalculateJobsPerUnitOfDemand` scale, the §4.1 link factor (33 → `0x3EA8F5C2`; DQ12: two roundings from 2^31 up, 3242996796 → `0x4BF76BC7`) and `GetJobsBySensus` (DQ10: `(jobs[3] + jobs[2]) + jobs[1]`, 1/3/96 % × 1000 → 999) | `d16_14_jobs_per_unit_scale` |
 
 ## Coverage (ordinance §13)
 
@@ -2272,9 +2279,11 @@ Not covered by a vector, and why:
 
 | §15 item | Vector |
 |---|---|
-| 1 proximity, one source (Manhattan R$, 255 for R$$ / R$$$; RS5) | `rs15_01_proximity_one_source` |
+| 1 proximity, one source (RG23: the seed fills only the z = 0 edge, so every map is 1 there and 0 elsewhere; RS5) | `rs15_01_proximity_one_source` |
+| 1 a key on the z = 0 edge (R$ (3, 0) = 0, R$$ unchanged; RG23) | `rs15_01c_proximity_edge_key` |
+| 1 the §5.3 worked example (4 × 4, R$$ and R$$$ reuse the grid; RG23) | `rs15_01b_proximity_worked_example` |
 | 2 proximity cap (200 at x = 200, 255 at x = 280) | `rs15_02_proximity_cap` |
-| 3 proximity, coarser target (tract (1, 0) = 0, (0, 0) = 1) | `rs15_03_proximity_coarser_target` |
+| 3 proximity, coarser target (RG23: tract (1, 1) overwrites (1, 0)'s 0; (0, 0) = (1, 0) = 1, (0, 1) = (1, 1) = 0) | `rs15_03_proximity_coarser_target` |
 | 4 decay (10 → 9.8, 0.1 → 0) | `rs15_04_decay` |
 | 5 newcomers' age (35) | `rs15_05_06_newcomers_age` |
 | 6 age quirk (71) | `rs15_05_06_newcomers_age` |
@@ -2312,8 +2321,8 @@ Not covered by a vector, and why:
 
 - **The 5 ms CPU-cycle slicer (§5.2)** is replaced by a work budget ([choice]); test 19 pins the budget's resume
   behaviour, not the clock.
-- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
-  `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
+- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros on
+  `rs15_01`'s z = 0 edge, where the maps hold 1; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
 
 ## Coverage (residential education and health §11)
 

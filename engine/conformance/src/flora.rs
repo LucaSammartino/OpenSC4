@@ -7,8 +7,10 @@
 //! Conformance ops for `docs/specs/flora.md`: a scripted city implementing
 //! `FloraHost` (city size and cells, the clock, a terrain with ground,
 //! normal, lot and moisture rectangles, an occupant manager holding
-//! occupants with types, positions, boxes and flora values, flora
-//! exemplars, the tuning exemplar, the obliteration segments), a scriptable
+//! occupants with types, positions, boxes and flora values and answering
+//! box and cell queries through the 64 m index of §6.4.2, flora
+//! exemplars, the tuning exemplar, the obliteration segments as byte
+//! records), a scriptable
 //! generator, a process-wide flora registry, and ops that drive the flora
 //! simulator. See README.md ("Flora ops").
 
@@ -17,12 +19,13 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::rc::{Rc, Weak};
 
 use fc4_core::flora::{
-    advance_cluster_type, blocks_flora, blocks_per_month, elevation_index, msg, occupant_type, prop, query_interface,
-    scale_wild_seeds, table_byte, CellRect, CommandParam, FloraHost, FloraInterface, FloraOccupant, FloraRandom,
+    advance_cluster_type, blocks_flora, blocks_per_month, cell_query_box, elevation_index, manager_cell,
+    manager_listing, manager_query_returns, msg, occupant_type, prop, query_interface, scale_wild_seeds,
+    standard_cell_corners, table_byte, CellRect, CommandParam, FloraHost, FloraInterface, FloraOccupant, FloraRandom,
     FloraRecord, FloraRegistry, FloraRng, FloraSim, Message, OccupantFilter, OccupantId, RngState, SegmentId,
-    SharedRegistry, Vec3, CLSID_FLORA_SIMULATOR, IID_OCCUPANT,
+    SharedRegistry, StreamId, Vec3, CLSID_FLORA_SIMULATOR, IID_OCCUPANT,
 };
-use fc4_core::grid::IteratorState;
+use fc4_core::grid::{IteratorState, MODE_TABLE};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{CrtRand, FixedSeeds};
 use fc4_core::store::{load_store, save_store, LoadRegistry, Package};
@@ -40,8 +43,8 @@ use crate::scalar::{
 const OCCUPANT_CLASS: u32 = 0x0CC0_0001;
 /// The first ID of occupants the simulator creates.
 const FIRST_CREATED: u64 = 1000;
-/// The cell width of the scripted city (metres).
-const CELL: f32 = 16.0;
+/// The length of the stand-in occupant record ([`occ_record`]).
+const OCC_RECORD_LEN: usize = 29;
 
 /// The 14 float names of property `0x083DC35B`, in order.
 const FLOAT_NAMES: [&str; 14] = [
@@ -74,10 +77,15 @@ struct Occ {
     record: Option<u32>,
 }
 
+/// One open record of an obliteration segment.
 #[derive(Clone, Debug)]
-enum SegRec {
-    U32(u32),
-    Occ(Occ),
+struct Strm {
+    seg: u64,
+    key: ResKey,
+    write: bool,
+    bytes: Vec<u8>,
+    pos: usize,
+    error: bool,
 }
 
 type Rect = [f32; 4];
@@ -119,7 +127,10 @@ pub(crate) struct World {
     manager: Cell<bool>,
     insert_ok: Cell<bool>,
     refs: RefCell<BTreeMap<u64, i64>>,
-    segments: RefCell<BTreeMap<u64, BTreeMap<ResKey, SegRec>>>,
+    segments: RefCell<BTreeMap<u64, BTreeMap<ResKey, Vec<u8>>>>,
+    streams: RefCell<BTreeMap<u64, Strm>>,
+    next_stream: Cell<u64>,
+    segment_errors: RefCell<Vec<ResKey>>,
     crt_mark: Cell<CrtRand>,
 }
 
@@ -127,12 +138,24 @@ fn in_rect(r: &Rect, x: f32, z: f32) -> bool {
     r[0] <= x && x <= r[2] && r[1] <= z && z <= r[3]
 }
 
-/// The scripted occupant manager's box query (`GetOccupantsByBBox`): closed
-/// boxes, so point footprints and flat query boxes are found. This is the
-/// test host's own query, not the simulator's `BoundingBoxesIntersect`
-/// (strict, `boxes_intersect`), which the simulator applies on top (§6.4).
-fn query_meets(a: (Vec3, Vec3), b: (Vec3, Vec3)) -> bool {
-    (0..3).all(|i| a.0[i] <= b.1[i] && b.0[i] <= a.1[i])
+/// The stand-in of a flora occupant's own record (lot-records.md §11
+/// starts with its `u16` version 3): `u16 3`, type, birth, last seeding date
+/// (`u32` each), state (`i8`), orientation (`u8`), position (3 × `f32`),
+/// flag 1 (`u8`); little-endian, [`OCC_RECORD_LEN`] bytes.
+fn occ_record(o: &Occ) -> Vec<u8> {
+    let f = o.flora.unwrap_or_default();
+    let mut b = Vec::with_capacity(OCC_RECORD_LEN);
+    b.extend(3u16.to_le_bytes());
+    b.extend(f.flora_type.to_le_bytes());
+    b.extend(f.birth_date.to_le_bytes());
+    b.extend(f.last_seeding_date.to_le_bytes());
+    b.push(f.state as u8);
+    b.push(f.orientation);
+    for v in o.pos {
+        b.extend(v.to_le_bytes());
+    }
+    b.push(u8::from(o.in_manager));
+    b
 }
 
 /// A scripted generator: queued integers (range / uniform u32 results),
@@ -599,95 +622,182 @@ impl FloraHost for World {
     fn move_occupant(&self, occ: OccupantId) {
         self.ev("move", occ, vec![]);
     }
+    /// The occupant manager's box query (slots 36 / 37) through its 64 m
+    /// index (§6.4.2): listed in one of the query's cells (the listing is
+    /// taken from the current box: the simulator moves an inserted occupant
+    /// only with `MoveOccupant`, which lists it again) and strictly
+    /// overlapping. Results in occupant order.
     fn occupants_in_bbox(&self, min: Vec3, max: Vec3, filter: OccupantFilter) -> Vec<OccupantId> {
         let occs: Vec<(u64, Occ)> = self.occs.borrow().iter().map(|(&k, v)| (k, v.clone())).collect();
         occs.into_iter()
             .filter(|(_, o)| {
+                let b = self.bbox(o);
                 o.in_manager
                     && match filter {
                         OccupantFilter::Type(t) => o.t == t,
                         OccupantFilter::Blocking => blocks_flora(o.t, o.network),
                     }
-                    && query_meets(self.bbox(o), (min, max))
+                    && manager_query_returns(manager_listing(b.0, b.1), b, (min, max))
             })
             .map(|(k, _)| k)
             .collect()
     }
+    /// `GetOccupantsByStandardCityCells` (§6.10.4): the corners settled for
+    /// the city's cell counts, the world box of those cells, then the box
+    /// query with a type filter.
     fn occupants_in_cells(&self, rect: Option<CellRect>, occ_type: u32) -> Vec<OccupantId> {
-        self.occs
-            .borrow()
-            .iter()
-            .filter(|(_, o)| {
-                let cx = (o.pos[0] / CELL).floor() as i32;
-                let cz = (o.pos[2] / CELL).floor() as i32;
-                o.in_manager
-                    && o.t == occ_type
-                    && rect.map_or(true, |(x0, z0, x1, z1)| x0 <= cx && cx <= x1 && z0 <= cz && cz <= z1)
-            })
-            .map(|(&k, _)| k)
-            .collect()
+        let (min, max) = cell_query_box(standard_cell_corners(rect, self.cells.get()));
+        self.occupants_in_bbox(min, max, OccupantFilter::Type(occ_type))
     }
     fn occupants_in_manager_cells(&self, occ_type: u32) -> Vec<OccupantId> {
         self.occupants_in_cells(None, occ_type)
     }
 
-    fn segment_write_u32(&self, seg: SegmentId, key: ResKey, value: u32) -> bool {
+    /// A record opens for writing always, for reading when it exists; a
+    /// key listed in `segment_error_keys` opens with `GetError()` set.
+    fn segment_open(&self, seg: SegmentId, key: ResKey, write: bool) -> Option<StreamId> {
+        let bytes = if write {
+            Some(Vec::new())
+        } else {
+            self.segments.borrow().get(&seg).and_then(|r| r.get(&key)).cloned()
+        };
+        let id = bytes.map(|bytes| {
+            let id = self.next_stream.get() + 1;
+            self.next_stream.set(id);
+            let error = self.segment_errors.borrow().contains(&key);
+            let s = Strm {
+                seg,
+                key,
+                write,
+                bytes,
+                pos: 0,
+                error,
+            };
+            self.streams.borrow_mut().insert(id, s);
+            id
+        });
         self.events.push(
-            "seg_write",
+            "seg_open",
             vec![
                 ("segment", ji(seg as i64)),
                 ("key", key_json(key)),
-                ("value", ji(value)),
+                ("write", Json::Bool(write)),
+                ("stream", id.map_or(Json::Null, |v| ji(v as i64))),
             ],
         );
-        self.segments
-            .borrow_mut()
-            .entry(seg)
-            .or_default()
-            .insert(key, SegRec::U32(value));
-        true
+        id
     }
-    fn segment_read_u32(&self, seg: SegmentId, key: ResKey) -> Option<u32> {
-        match self.segments.borrow().get(&seg)?.get(&key)? {
-            SegRec::U32(v) => Some(*v),
-            SegRec::Occ(_) => None,
+    /// A written record is stored when it closes, unless its stream has an
+    /// error.
+    fn segment_close(&self, s: StreamId) {
+        self.events.push("seg_close", vec![("stream", ji(s as i64))]);
+        let st = self.streams.borrow_mut().remove(&s);
+        if let Some(st) = st.filter(|st| st.write && !st.error) {
+            self.segments
+                .borrow_mut()
+                .entry(st.seg)
+                .or_default()
+                .insert(st.key, st.bytes);
         }
     }
-    fn segment_write_occupant(&self, seg: SegmentId, key: ResKey, occ: OccupantId) -> bool {
+    fn stream_put_u16(&self, s: StreamId, v: u16) {
+        self.put(s, &v.to_le_bytes());
+    }
+    fn stream_put_u32(&self, s: StreamId, v: u32) {
+        self.put(s, &v.to_le_bytes());
+    }
+    fn stream_get_u16(&self, s: StreamId) -> Option<u16> {
+        self.take(s, 2).map(|b| u16::from_le_bytes([b[0], b[1]]))
+    }
+    fn stream_get_u32(&self, s: StreamId) -> Option<u32> {
+        self.take(s, 4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+    }
+    fn stream_error(&self, s: StreamId) -> bool {
+        self.streams.borrow().get(&s).map_or(true, |st| st.error)
+    }
+    fn write_occupant(&self, occ: OccupantId, s: StreamId) -> bool {
         let Some(o) = self.occs.borrow().get(&occ).cloned() else {
             return false;
         };
-        self.events.push(
-            "seg_write",
-            vec![
-                ("segment", ji(seg as i64)),
-                ("key", key_json(key)),
-                ("occupant", ji(occ as i64)),
-                ("in_manager", Json::Bool(o.in_manager)),
-            ],
-        );
-        self.segments
-            .borrow_mut()
-            .entry(seg)
-            .or_default()
-            .insert(key, SegRec::Occ(o));
+        self.ev("write_occupant", occ, vec![("in_manager", Json::Bool(o.in_manager))]);
+        self.put(s, &occ_record(&o))
+    }
+    /// Reads the stand-in record ([`occ_record`]) into the occupant: type,
+    /// dates, state, orientation, position and its record type; flag 1 is
+    /// left to `InsertOccupant`. A short record or a version other than 3
+    /// leaves the occupant unchanged (false).
+    fn read_occupant(&self, occ: OccupantId, s: StreamId) -> bool {
+        let key = self.streams.borrow().get(&s).map(|st| st.key);
+        self.ev("read_occupant", occ, vec![("key", key.map_or(Json::Null, key_json))]);
+        let Some(b) = self.take(s, OCC_RECORD_LEN) else {
+            return false;
+        };
+        let u32_at = |i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+        if u16::from_le_bytes([b[0], b[1]]) != 3 {
+            return false;
+        }
+        let fo = FloraOccupant {
+            flora_type: u32_at(2),
+            birth_date: u32_at(6),
+            last_seeding_date: u32_at(10),
+            state: b[14] as i8,
+            orientation: b[15],
+        };
+        let pos = [
+            f32::from_bits(u32_at(16)),
+            f32::from_bits(u32_at(20)),
+            f32::from_bits(u32_at(24)),
+        ];
+        self.occ_mut(occ, |o| {
+            o.flora = Some(fo);
+            o.pos = pos;
+            o.record = Some(fo.flora_type);
+        });
         true
     }
-    fn segment_read_flora_occupant(&self, seg: SegmentId, key: ResKey) -> Option<OccupantId> {
-        let rec = self.segments.borrow().get(&seg)?.get(&key)?.clone();
-        let mut o = match rec {
-            SegRec::Occ(o) => o,
-            SegRec::U32(_) => Occ {
-                t: occupant_type::FLORA,
-                flora: Some(FloraOccupant::default()),
-                ..Occ::default()
-            },
-        };
-        o.in_manager = false;
-        let id = self.new_occupant(o);
-        self.ev("read_occupant", id, vec![("key", key_json(key))]);
-        Some(id)
+}
+
+impl World {
+    /// Appends to a written record; false (nothing written) on a stream
+    /// with an error.
+    fn put(&self, s: StreamId, b: &[u8]) -> bool {
+        let mut streams = self.streams.borrow_mut();
+        match streams.get_mut(&s) {
+            Some(st) if st.write && !st.error => {
+                st.bytes.extend_from_slice(b);
+                true
+            }
+            _ => false,
+        }
     }
+    /// Takes `n` bytes of a read record; past its end the stream's error is
+    /// set (sticky).
+    fn take(&self, s: StreamId, n: usize) -> Option<Vec<u8>> {
+        let mut streams = self.streams.borrow_mut();
+        let st = streams.get_mut(&s)?;
+        if st.write || st.error || st.pos + n > st.bytes.len() {
+            st.error = true;
+            return None;
+        }
+        st.pos += n;
+        Some(st.bytes[st.pos - n..st.pos].to_vec())
+    }
+}
+
+fn res_key(j: &Json) -> R<ResKey> {
+    let k = arr(j, "key")?;
+    if k.len() != 3 {
+        return Err("'key' must be [type, group, instance]".into());
+    }
+    Ok(ResKey {
+        type_id: u32_of(&k[0], "key")?,
+        group: u32_of(&k[1], "key")?,
+        instance: u32_of(&k[2], "key")?,
+    })
+}
+
+fn cell_rect_json(r: CellRect) -> Json {
+    Json::Array(vec![ji(r.0), ji(r.1), ji(r.2), ji(r.3)])
 }
 
 fn key_json(k: ResKey) -> Json {
@@ -931,6 +1041,24 @@ fn env(w: &World, op: &Json) -> R<()> {
             Json::Null => None,
             v => Some(u64::from(u32_of(v, "segment")?)),
         });
+    }
+    if let Some(v) = opt(op, "segment_records") {
+        for e in arr(v, "segment_records")? {
+            let seg = u64::from(u32_of(field(e, "segment")?, "segment")?);
+            let key = res_key(field(e, "key")?)?;
+            let mut segs = w.segments.borrow_mut();
+            match e.get("hex") {
+                None | Some(Json::Null) => {
+                    segs.entry(seg).or_default().remove(&key);
+                }
+                Some(h) => {
+                    segs.entry(seg).or_default().insert(key, hex_decode(str_of(h, "hex")?)?);
+                }
+            }
+        }
+    }
+    if let Some(v) = opt(op, "segment_error_keys") {
+        *w.segment_errors.borrow_mut() = arr(v, "segment_error_keys")?.iter().map(res_key).collect::<R<_>>()?;
     }
     if let Some(v) = opt(op, "occupants") {
         for e in arr(v, "occupants")? {
@@ -1228,6 +1356,37 @@ fn call(w: &World, op: &Json) -> R<()> {
             a_u(op, 0)?,
             a_u(op, 1)?,
         ))),
+        // The occupant manager's 64 m index (§6.4.2, §6.10.4).
+        "manager_cell" => Some(ji(manager_cell(a_f(op, 0)?))),
+        "manager_listing" => Some(cell_rect_json(manager_listing(
+            vec3(arg(op, 0)?, "min")?,
+            vec3(arg(op, 1)?, "max")?,
+        ))),
+        "manager_query" => {
+            let occ = (vec3(arg(op, 0)?, "occupant min")?, vec3(arg(op, 1)?, "occupant max")?);
+            let q = (vec3(arg(op, 2)?, "query min")?, vec3(arg(op, 3)?, "query max")?);
+            Some(Json::Bool(manager_query_returns(manager_listing(occ.0, occ.1), occ, q)))
+        }
+        "cell_query_box" => {
+            let corners = match opt_arg(op, 0) {
+                None => None,
+                Some(r) => Some(cell_rect(r, "corners")?),
+            };
+            let (nx, nz) = pair_f(arg(op, 1)?, "cells")?;
+            let cells = standard_cell_corners(corners, (nx as i32, nz as i32));
+            let (mn, mx) = cell_query_box(cells);
+            Some(Json::Object(vec![
+                ("cells".into(), cell_rect_json(cells)),
+                ("min".into(), vec3_json(mn)),
+                ("max".into(), vec3_json(mx)),
+            ]))
+        }
+        // The scripted occupant manager's own cell query (§6.10.4).
+        "occupants_in_cells" => {
+            let r = cell_rect(arg(op, 0)?, "rect")?;
+            let ids = w.occupants_in_cells(Some(r), type_of(arg(op, 1)?)?);
+            Some(Json::Array(ids.into_iter().map(|o| ji(o as i64)).collect()))
+        }
         _ => None,
     };
     if let Some(g) = got {
@@ -1366,6 +1525,21 @@ fn call(w: &World, op: &Json) -> R<()> {
 
 fn set(w: &World, op: &Json) -> R<()> {
     let s = w.sim()?;
+    if let Some(v) = opt(op, "iterator_table") {
+        // A table-mode iterator that visits exactly these blocks, in order.
+        let mut table = Vec::new();
+        for e in arr(v, "iterator_table")? {
+            let (bx, bz) = pair_f(e, "iterator_table")?;
+            table.push(((bx as u16) << 8) | (bz as u16 & 0xFF));
+        }
+        let mut d = s.data_mut();
+        let it = &mut d.iterator;
+        it.mode = MODE_TABLE;
+        it.table = table;
+        it.index = 0;
+        it.state = IteratorState::Running;
+        it.state_raw = 1;
+    }
     let Some(state) = opt(op, "state") else { return Ok(()) };
     let mut d = s.data_mut();
     for (k, v) in state.as_object().ok_or("'state' must be an object")? {
@@ -1612,7 +1786,8 @@ fn expect_refs(w: &World, op: &Json) -> R<()> {
 }
 
 /// `flora_expect_segment`: `segment`, `count?` (records), `records?`
-/// (`[{key: [t, g, i], u32? | flora_type? …}]`).
+/// (`[{key: [t, g, i], hex? (the whole record), prefix? (its first bytes)}]`),
+/// `absent?` (keys).
 fn expect_segment(w: &World, op: &Json) -> R<()> {
     let seg = u64::from(u32_of(field(op, "segment")?, "segment")?);
     let segs = w.segments.borrow();
@@ -1625,35 +1800,35 @@ fn expect_segment(w: &World, op: &Json) -> R<()> {
     }
     if let Some(list) = opt(op, "records") {
         for e in arr(list, "records")? {
-            let k = arr(field(e, "key")?, "key")?;
-            if k.len() != 3 {
-                return Err("'key' must be [type, group, instance]".into());
-            }
-            let key = ResKey {
-                type_id: u32_of(&k[0], "key")?,
-                group: u32_of(&k[1], "key")?,
-                instance: u32_of(&k[2], "key")?,
-            };
+            let key = res_key(field(e, "key")?)?;
             let rec = recs.get(&key).ok_or_else(|| format!("no record {key:?}"))?;
-            match rec {
-                SegRec::U32(v) => {
-                    if let Some(want) = opt(e, "u32") {
-                        if i64::from(*v) != i64_of(want, "u32")? {
-                            return Err(format!("record {key:?} = {v}"));
-                        }
-                    }
+            if let Some(h) = opt(e, "hex") {
+                let want = hex_decode(str_of(h, "hex")?)?;
+                if *rec != want {
+                    return Err(format!(
+                        "record {key:?} = {}, expected {}",
+                        hex_encode(rec),
+                        hex_encode(&want)
+                    ));
                 }
-                SegRec::Occ(o) => {
-                    if let Some(want) = opt(e, "flora_type") {
-                        let got = o.flora.map_or(0, |f| f.flora_type);
-                        if i64::from(got) != i64_of(want, "flora_type")? {
-                            return Err(format!("record {key:?} flora type {got}"));
-                        }
-                    }
-                    if opt(e, "u32").is_some() {
-                        return Err(format!("record {key:?} holds an occupant"));
-                    }
+            }
+            if let Some(h) = opt(e, "prefix") {
+                let want = hex_decode(str_of(h, "prefix")?)?;
+                if !rec.starts_with(&want) {
+                    return Err(format!(
+                        "record {key:?} = {}, expected {}…",
+                        hex_encode(rec),
+                        hex_encode(&want)
+                    ));
                 }
+            }
+        }
+    }
+    if let Some(list) = opt(op, "absent") {
+        for k in arr(list, "absent")? {
+            let key = res_key(k)?;
+            if recs.contains_key(&key) {
+                return Err(format!("record {key:?} is present"));
             }
         }
     }

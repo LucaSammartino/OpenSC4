@@ -80,6 +80,8 @@ struct World {
     trip_caps: RefCell<HashMap<u64, [u32; 4]>>,
     /// Navigable cells: (depth, body of water).
     water: RefCell<HashMap<(i32, i32), (f32, u16)>>,
+    /// The cells `is_navigable` was asked about, in order.
+    navigable_asked: RefCell<Vec<(i32, i32)>>,
     under_water: RefCell<HashSet<(i32, i32)>>,
     damaged: RefCell<HashSet<(i32, i32)>>,
     /// Neighbour connections: (token, type, cell).
@@ -314,6 +316,7 @@ impl NetworkHost for World {
         self.under_water.borrow().contains(&(x, z))
     }
     fn is_navigable(&self, x: i32, z: i32) -> bool {
+        self.navigable_asked.borrow_mut().push((x, z));
         self.water.borrow().contains_key(&(x, z))
     }
     fn water_depth(&self, x: i32, z: i32) -> f32 {
@@ -634,6 +637,11 @@ fn t03_region_query() {
 /// A cross centred at (2, 2) of the given network type: straight arm pieces,
 /// and a centre with all 12 (e → x ≠ e) connections.
 fn cross(ty: u32) -> Rc<NetworkModel> {
+    cross_in(ty).1
+}
+
+/// [`cross`], with its world.
+fn cross_in(ty: u32) -> (Rc<World>, Rc<NetworkModel>) {
     let w = World::new(4, 4);
     let m = model(&w);
     let all: Vec<(u32, u32)> = (0..4)
@@ -652,7 +660,7 @@ fn cross(ty: u32) -> Rc<NetworkModel> {
     m.do_post_city_init();
     assert_eq!(car(&m, 2, 2).conn_count, 12);
     m.update_intersection_data();
-    m
+    (w, m)
 }
 
 #[test]
@@ -681,6 +689,48 @@ fn t04_road_cross() {
     for (x, z) in [(0, 2), (2, 0)] {
         assert_eq!(bits(car(&m, x, z).inv_cap), 0x3A91_A2B5);
     }
+}
+
+/// TN21, the §4.6 worked example (shipped N = 3): a Street tunnel cell with
+/// 2 connections whose exit leads straight into a 4-way intersection one cell
+/// away. The start cell gets the same checks as every other cell, so a
+/// tunnel start cell is not extended: its search ends at once with
+/// `best = N + 1` and it keeps `0x3C23D70A` (100), not `0x3C4CCCCC`
+/// (80.00001). The intersection itself still gets `0x3C6A0EA1`.
+#[test]
+fn t04_tunnel_start_cell_is_not_extended() {
+    let (w, m) = cross_in(STREET);
+    assert_eq!(bits(car(&m, 1, 2).inv_cap), 0x3C4C_CCCC, "before: distance 1");
+    // The tunnel bit comes from a tunnel record keyed by the cell (§4.2
+    // step 5), so the portal is an occupant of a tunnel type (Road; Street
+    // is not in the §4.8 order) at (1, 2) that the network rebuild does not
+    // list; the Street piece there keeps the car record's type.
+    let portal = |pos: [f32; 3], other: u64| Occ {
+        kind: Kind::Building,
+        pos,
+        types: vec![net_type::ROAD],
+        tunnel: true,
+        paired: Some(other),
+        ..Occ::default()
+    };
+    w.add(50, portal(centre(1, 2), 51));
+    w.add(51, portal([24.0, 0.0, -88.0], 50));
+    assert!(m.tunnel_changed(50, false));
+    m.do_connections_changed(CellRect::new(1, 2, 1, 2));
+    assert_eq!(conn(&m, 1, 2).wormhole & wormhole::TUNNEL, wormhole::TUNNEL);
+    assert_eq!(u32::from(car(&m, 1, 2).net_type), STREET);
+    assert_eq!(car(&m, 1, 2).conn_count, 2);
+    m.update_intersection_data();
+    assert_eq!(bits(car(&m, 1, 2).inv_cap), 0x3C23_D70A, "the table value");
+    assert_eq!(m.get_capacity(1, 1, 2), 100.0);
+    assert_eq!(bits(car(&m, 2, 2).inv_cap), 0x3C6A_0EA1, "the intersection");
+    for (x, z) in [(3, 2), (2, 1), (2, 3)] {
+        assert_eq!(bits(car(&m, x, z).inv_cap), 0x3C4C_CCCC, "({x},{z})");
+    }
+    assert_eq!(bits(car(&m, 2, 0).inv_cap), 0x3C36_0B61);
+    // TN5: (0, 2) reaches the tunnel cell at depth 1 but does not go on
+    // through it, so it no longer finds the intersection.
+    assert_eq!(bits(car(&m, 0, 2).inv_cap), 0x3C23_D70A);
 }
 
 #[test]
@@ -1056,9 +1106,13 @@ fn rule_bytes_of_property() {
     assert_eq!(rule_entries(&b), vec![0x0101_8000, 0x0101_8001]);
     let two = Variant::array(mem::UINT32, vec![Elem::U32(0x0101_8000), Elem::U32(7)]);
     assert_eq!(rule_bytes(&two), vec![0x00, 0x80], "count 2: not a multiple of 4");
-    // A scalar has count 0; so do an empty variant and an object.
+    // A scalar has count 0; so do an empty variant and an object reference
+    // (TN22: the count is its own field, which the object setter leaves 0).
     assert!(rule_bytes(&Variant::Scalar(Elem::U32(0x0101_8000))).is_empty());
     assert!(rule_bytes(&Variant::Empty).is_empty());
+    assert!(rule_bytes(&Variant::Object(crate::stream::RefValue::Null)).is_empty());
+    let host = crate::stream::RefValue::Host { token: 9, class_id: 1 };
+    assert!(rule_bytes(&Variant::Object(host)).is_empty());
 }
 
 #[test]
@@ -1508,6 +1562,24 @@ fn lot_activation_returns_on_a_partial_rule() {
         LotActivation::Done { switch_created: true }
     );
     assert!(m.state().switches.get(2).expect("switch 2").rules.is_empty());
+    // TN22: an empty value and an object reference have count 0 as well; the
+    // property is present, so each builds a switch with no rules (mode mask
+    // 0, flags 0, no access point).
+    let object = Variant::Object(crate::stream::RefValue::Host { token: 9, class_id: 1 });
+    for (i, v) in [Variant::Empty, object].into_iter().enumerate() {
+        let (b, lot, x, id) = (45 + i as u64, 13 + i as u64, [1, 3][i], 3 + i as u32);
+        building(&w, b, CellRect::new(x, 6, x, 6), vec![(prop::SWITCH_RULES, v)]);
+        plain_lot(&w, lot, CellRect::new(x, 6, x, 6), b);
+        assert_eq!(
+            m.lot_activated_outcome(lot),
+            LotActivation::Done { switch_created: true }
+        );
+        let s = m.state();
+        let sw = s.switches.get(id).expect("a switch with no rules");
+        assert!(sw.rules.is_empty());
+        assert_eq!((sw.flags, sw.mode_mask(), sw.has_access_point), (0, 0, false));
+        assert_eq!((s.switch_id_at(x, 6), s.switch_mode_at(x, 6)), (id, 0));
+    }
     // Neither property: no switch, no rebuild, but step 7 still follows.
     building(&w, 44, CellRect::new(3, 4, 3, 4), Vec::new());
     plain_lot(&w, 11, CellRect::new(3, 4, 3, 4), 44);
@@ -1627,6 +1699,15 @@ fn post_load_reread_and_access_points() {
         },
         TransitSwitch {
             has_access_point: true,
+            ..base.clone()
+        },
+        // No building, flag 4 and an access point (a loaded switch whose
+        // building reference was null).
+        TransitSwitch {
+            flags: 0x04,
+            has_access_point: true,
+            access_x: 3,
+            access_z: 6,
             ..base
         },
     ];
@@ -1664,12 +1745,63 @@ fn post_load_reread_and_access_points() {
     assert_eq!(s4.flags, 0x4C);
     assert!(s4.has_access_point);
     assert_eq!((s4.access_x, s4.access_z), (7, 7));
-    // 5 and 6: not re-read [choice]; 5 keeps flag 4 and gets no NW cell,
-    // 6 has flag 4 clear → no access point.
-    assert_eq!((sw(5).to_mask, sw(5).has_access_point), (0x1234, false));
+    // 5, 6 and 7: building 0, not re-read (TN23 [choice]); 5 keeps flag 4
+    // and gets no NW cell, 6 has flag 4 clear → no access point, 7 keeps
+    // flag 4 and its access point and cell as they are.
+    assert_eq!(
+        (sw(5).to_mask, sw(5).flags, sw(5).has_access_point),
+        (0x1234, 0x04, false)
+    );
     assert_eq!((sw(6).to_mask, sw(6).has_access_point), (0x1234, false));
+    let s7 = sw(7);
+    assert_eq!((s7.rules.len(), s7.to_mask, s7.flags), (1, 0x1234, 0x04));
+    assert!(s7.has_access_point);
+    assert_eq!((s7.access_x, s7.access_z), (3, 6));
     // The mode-mask grid is not rewritten.
     assert_eq!(s.switch_mode_at(2, 2), 0x99);
+}
+
+/// TN25, the §4.7.2 worked example: a switch saved with `81 F0 07 07`,
+/// `82 F0 07 07` (m = 2, el train only), loaded after its exemplar became
+/// `81 F0 06 06`, `82 F0 06 06` (n = 2, subway only). *[choice]* FreeCity4
+/// follows the current property: the two subway rules, flags `0x04`, and,
+/// since the save had no access point, the NW cell. The original would hold
+/// all four rules (old first), take flags `0x08` from the first two (flag 4
+/// clear, so no access point) and build both kinds of connections.
+#[test]
+fn post_load_changed_station_follows_the_property() {
+    let w = World::new(8, 8);
+    let m = model(&w);
+    let saved = [0x81, 0xF0, 0x07, 0x07, 0x82, 0xF0, 0x07, 0x07];
+    let now = [0x81, 0xF0, 0x06, 0x06, 0x82, 0xF0, 0x06, 0x06];
+    building(
+        &w,
+        40,
+        CellRect::new(2, 2, 3, 3),
+        vec![(prop::SWITCH_RULES, u8_prop(&now))],
+    );
+    plain_lot(&w, 7, CellRect::new(2, 2, 3, 3), 40);
+    let old = read_rules(0, &rule_entries(&saved));
+    assert_eq!((old.flags, old.to_mask), (0x08, 0x0080), "the saved rules' flags");
+    m.update_state(|s| {
+        *s.switches.entry(1, TransitSwitch::default) = TransitSwitch {
+            building: 40,
+            rules: old.rules.clone(),
+            flags: old.flags,
+            ..TransitSwitch::default()
+        };
+    });
+    m.post_city_init_rebuild();
+    let s = m.state();
+    let sw = s.switches.get(1).expect("switch 1");
+    assert_eq!(
+        sw.rules,
+        read_rules(0, &rule_entries(&now)).rules,
+        "replaced, not appended"
+    );
+    assert_eq!((sw.flags, sw.to_mask), (0x04, 0x0040));
+    assert!(sw.has_access_point);
+    assert_eq!((sw.access_x, sw.access_z), (2, 2));
 }
 
 #[test]
@@ -1893,7 +2025,13 @@ fn water_occupant_marks_its_bounding_cells() {
     bridge(3, (6, 0), CellRect::new(6, 0, 9, 1));
     m.occupant_changed(3, false);
     assert_eq!(m.state().water.dirty_rect, CellRect::new(2, 0, 9, 1));
+    w.navigable_asked.borrow_mut().clear();
     m.water_update();
+    // TN24 [choice]: only the in-map cells of the unclamped rectangle are
+    // asked about (and written): x 2..7 of rows 0 and 1, not x 8 and 9.
+    let asked = w.navigable_asked.borrow().clone();
+    assert_eq!(asked.len(), 12);
+    assert!(asked.iter().all(|&(x, z)| (2..8).contains(&x) && (0..2).contains(&z)));
     let s = m.state();
     assert!(!s.water.dirty);
     let row1: Vec<u8> = (0..8).map(|x| s.water.depth_at(x, 1)).collect();

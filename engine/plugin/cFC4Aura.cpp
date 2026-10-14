@@ -18,6 +18,7 @@
 #include "FC4CrimeInterfaces.h"
 #include "FC4Diag.h"
 #include "FC4Fpu.h"
+#include "FC4GameMap.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -75,11 +76,6 @@ constexpr uint32_t kTuningType = 0x6534284A;
 constexpr uint32_t kTuningGroup = 0xE7E2C2DB;
 constexpr uint32_t kTuningInstance = 0xAA023079;
 
-/// The developer types a lot's populations are asked for (§6.5.1, [choice]):
-/// the demand nodes' IDs, which are the building development simulator's
-/// developer types (docs/abi/layouts.md, "The capacity maps").
-constexpr uint32_t kDeveloperTypes[] = {0x1010, 0x1020, 0x1030, 0x3110, 0x3120, 0x3130,
-                                        0x3320, 0x3330, 0x4100, 0x4200, 0x4300, 0x4400};
 
 const char* const kInputName[FC4_AURA_INPUT_COUNT] = {
     "air pollution", "water pollution", "garbage",    "radiation",     "school grades", "hospital grades",
@@ -167,26 +163,30 @@ fc4_props* Tuning(void* u) {
     return fc4::props::ToCoreAll(ex.Holder());
 }
 
-// §10: the base auras go to a process-wide table keyed by developer type that
-// other code reads [inferred]. Its layout and readers are not specified (§16
-// question 7), so [choice] it is not written; logged once.
+// §10 "The base-aura table" (AU11): the original copies the tuned base auras
+// into a process-wide table that only the aura itself reads (tuning, state 4,
+// LotBaseAura). The core keeps them in its object [choice, the spec's], so
+// nothing is written here; the values are logged once.
 void PublishBaseAura(void* u, const int32_t* base) {
     if (G(u)->loggedBaseAura || base == nullptr) return;
     G(u)->loggedBaseAura = true;
-    fc4::Log("aura: base auras R$/R$$/R$$$ = %d/%d/%d not copied to the process-wide developer-type table (its "
-             "layout and readers are not specified: aura.md §10, §16 question 7) [choice]",
+    fc4::Log("aura: base auras R$/R$$/R$$$ = %d/%d/%d (kept in the simulator: the original's process-wide table "
+             "has no other reader, aura.md §10)",
              base[0], base[1], base[2]);
 }
 
 // ---- lots (§6.4, §6.5, §6.13 rule R, §7) ------------------------------------------------------------
 
-// [choice] The safe lot iterator's layout is not in docs/abi, so state 4's
+// [choice] §6.5 "The safe lot iterator" (AU5, the spec's choice): state 4's
 // walk is a list of the lots found by GetLot(x, z, false) (lot manager slot
 // 6, borrowed) over every cell, each lot once, with the cell it was found
-// at. A lot is only reached again if GetLot still returns it at that cell
-// (a lot removed between state 4 and state 5's later calls is skipped; the
-// pointer is compared, never followed). The stamp (max) does not depend on
-// the order (§6.5).
+// at, instead of the game's iterator block. A lot is only reached again if
+// GetLot still returns it at that cell (a lot removed between state 4 and
+// state 5's later calls is skipped; the pointer is compared, never
+// followed). The stamp (max) does not depend on the order (§6.5). AU9: the
+// original keeps one iterator for the object's life and rewinds it at every
+// state 4; nothing observable depends on it, and the walk is rebuilt at each
+// state 4 here.
 struct LotWalk {
     struct Entry {
         cISC4Lot* lot;
@@ -236,24 +236,42 @@ void FillRect(cFC4ISC4Lot* l, fc4_aura_lot* out) {
     out->zone_type = static_cast<uint32_t>(l->GetZoneType());  // slot 31
 }
 
-// [choice] §6.5.1's GetPopulations (lot slot 54) returns a container that is
-// not in docs/abi; the (developer type, count) pairs are read with
-// GetPopulation(type) (slot 53) for each developer type instead, and only
-// non-zero counts are passed on. A lot whose only residential entry holds 0
-// next to a non-residential one therefore reads -128 instead of 0 (spec
-// question).
+// §6.5.1 "The population container" (AU3): GetPopulations (lot slot 54)
+// returns a pointer to the lot's own std::vector<std::map<uint32_t,
+// uint16_t>> (lot + 0x54; docs/abi/interfaces.tsv). Every map in vector
+// order and every entry in key order is passed on, counts of 0 included (a
+// residential entry with count 0 counts as seen, and every key counts in the
+// total). Plain reads of the game's memory (FC4GameMap.h), under SehGuard; a
+// container that fails the checks or faults passes nothing (the lot reads
+// -128), logged once.
+struct PopulationRead {
+    const void* vector;
+    fc4::GameCapacityRead* read;
+};
+
+void PopulationReadFn(void* c) {
+    auto* s = static_cast<PopulationRead*>(c);
+    fc4::ReadGameMapVectorU16(s->vector, s->read);
+}
+
 void Populations(void* u, cFC4ISC4Lot* l, fc4_aura_population_sink sink, void* ctx) {
     if (sink == nullptr) return;
-    if (!Gate(u, fc4::Sw::AuraPopulations, "aura lot GetPopulation (none: every lot -128)")) return;
-    if (!G(u)->loggedPopulations && G(u)->gated) {
-        G(u)->loggedPopulations = true;
-        fc4::Log("aura: lot populations read with GetPopulation(type) (lot slot 53) for the 12 developer types; "
-                 "GetPopulations (slot 54) is not called: its container is not in docs/abi [choice]");
+    if (!Gate(u, fc4::Sw::AuraPopulations, "aura lot GetPopulations (none: every lot -128)")) return;
+    const void* vector = reinterpret_cast<const void*>(l->GetPopulations());  // slot 54, the lot's own vector
+    fc4::GameCapacityRead r;
+    PopulationRead step{vector, &r};
+    const bool clean = fc4::SehGuard("aura lot GetPopulations read", &PopulationReadFn, &step);
+    if (!clean || r.status != fc4::GameMapStatus::Ok) {
+        if (!G(u)->loggedPopulations) {
+            G(u)->loggedPopulations = true;
+            fc4::Log("%s: WARNING lot %p: its population maps (GetPopulations, lot slot 54) %s%s; the lot reads no "
+                     "populations (-128); logged once",
+                     G(u)->tag, static_cast<void*>(l), clean ? "failed the checks: " : "faulted",
+                     clean ? fc4::GameMapStatusName(r.status) : "");
+        }
+        return;
     }
-    for (uint32_t type : kDeveloperTypes) {
-        const uint16_t n = l->GetPopulation(static_cast<cFC4ISC4Lot::DeveloperType>(type));
-        if (n != 0) sink(ctx, type, static_cast<int32_t>(n));
-    }
+    for (uint32_t i = 0; i < r.count; ++i) sink(ctx, r.entries[i].devType, static_cast<int32_t>(r.entries[i].amount));
 }
 
 bool LotNext(void* u, uint64_t t, fc4_aura_lot* out, fc4_aura_population_sink sink, void* ctx) {
@@ -289,13 +307,14 @@ bool LotAt(void* u, int32_t x, int32_t z, fc4_aura_lot* out) {
     return true;
 }
 
-// GetLandValueType (land value slot 5). [choice] Without a land value
-// simulator the type is 0 (the original has one in every city; spec silent).
+// GetLandValueType (land value slot 5). §6.5.1 (AU10) [choice]: without a
+// land value simulator the value/wealth term is skipped (-1 = none, fc4.h);
+// the original calls through null. A gated read counts as none too.
 int32_t LandValueType(void* u, int32_t x, int32_t z) {
-    if (!Gate(u, fc4::Sw::AuraLandValue, "aura GetLandValueType (0)")) return 0;
+    if (!Gate(u, fc4::Sw::AuraLandValue, "aura GetLandValueType (none: no value/wealth term)")) return -1;
     cISC4City* c = City(u);
     cISC4LandValueSimulator* lv = c ? c->GetLandValueSimulator() : nullptr;  // borrowed
-    return lv ? static_cast<int32_t>(lv->GetLandValueType(x, z)) : 0;
+    return lv ? static_cast<int32_t>(lv->GetLandValueType(x, z)) : -1;
 }
 
 // ---- occupants (§5.2, §7) ---------------------------------------------------------------------------
@@ -358,8 +377,10 @@ float TaxRate(void* u, int32_t index) {
     return b ? b->GetTaxRate(static_cast<uint32_t>(index)) : 0.0f;  // slot 36, ST0
 }
 
-// GetCumulativeOffset (ordinance slot 24): an int32 in EAX (the SDK says
-// int64; called through the docs/abi declaration, FC4Interfaces.h).
+// GetCumulativeOffset (ordinance slot 24): an int32 in EAX, the callee pops
+// 8, EDX is a leftover (§13 SDK errors, AU8: the SDK's int64 would read a
+// garbage high half); called through the docs/abi declaration
+// (FC4Interfaces.h).
 int32_t CumulativeOffset(void* u, uint32_t prop, uint32_t index) {
     if (!Gate(u, fc4::Sw::AuraOrdinance, "aura GetCumulativeOffset (0)")) return 0;
     cISC4City* c = City(u);
@@ -533,6 +554,8 @@ LONGLONG QpcFrequency() {
 
 // [choice] The deadline is taken on the performance counter (the original
 // reads the TSC with the simulator's cycles-per-millisecond; simulator §5.5).
+// §6.5 (AU12): the clock only decides how many lots one state-5 call stamps;
+// the stamp is a maximum, so the work grid is the same for any clock.
 void LimitTimerStart(void* u, uint32_t ms) {
     G(u)->deadline = QpcNow() + static_cast<LONGLONG>(ms) * QpcFrequency() / 1000;
 }
@@ -563,7 +586,8 @@ void RemoveAgent(void* u) {
 
 // §4.3: the "aura" node of the game-data registry. Not published (budget's
 // node is not either: creating registry entries with callbacks is not in
-// docs/abi); §4.3 [choice]: "failure is not an error".
+// docs/abi); §4.3 [choice]: "failure is not an error". AU6: no shipped file
+// calls add_transient_effect or end_strike, so only mods would notice.
 bool RegistryAdd(void* u) {
     if (!G(u)->loggedRegistry) {
         G(u)->loggedRegistry = true;

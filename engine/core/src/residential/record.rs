@@ -19,15 +19,17 @@
 //! - always: state 1 → 13, 2 → 14, 3 → 15, tuningLoaded := false,
 //!   cityStarted := true.
 //!
-//! *[choice]* (§9.2, RS9 / RS11 / RS14 / RS15) A stream error or a **damaged**
-//! record makes `Read` return false and leave the simulator as it was (on
-//! the original's only path, as constructed, so cityStarted stays false): no
-//! field is committed and every reference the parse acquired is released
-//! (occupants with `release`, departments with `release_department`; grids
-//! are dropped). A record is damaged when a coverage or building-list vector
-//! count is not 7 (school) / 3 (hospital), the saved state is above 15, or
-//! the population tract size P is 0 or above 256 (P is an s32 compared as
-//! signed, so a negative P is accepted *[question]*).
+//! *[choice]* (§9.2, RS9 / RS11 / RS14 / RS15 / EH14) A stream error or a
+//! **damaged** record makes `Read` return false and leave the simulator as it
+//! was (on the original's only path, as constructed, so cityStarted stays
+//! false): no field is committed and every reference the parse acquired is
+//! released (occupants with `release`, departments with `release_department`;
+//! grids are dropped). A record is damaged when a coverage or building-list
+//! vector count is not 7 (school) / 3 (hospital), the saved state is above
+//! 15, or a tract size is outside 1…256 read as **signed** (so 0 and every
+//! negative value are rejected): P, E, or the loaded R$ population grid's own
+//! `GetTractSize()`, which is state 4's S (§5.5). The original keeps them all
+//! unchecked (EH14).
 //!
 //! *[choice]* (RS12) Null list entries are dropped, not appended: a null
 //! reference or one the host cannot resolve never reaches a list, so no pass
@@ -60,9 +62,14 @@ pub const SCHOOL_VECTOR_LEN: u32 = 7;
 pub const HOSPITAL_VECTOR_LEN: u32 = 3;
 /// The largest saved state (§5.1, RS14); above it the record is damaged.
 pub const MAX_SAVED_STATE: u32 = 15;
-/// The largest population tract size `Read` accepts (§5.5 RS15); 0 is
-/// damaged too.
+/// The largest tract size `Read` accepts for P, E and the loaded R$
+/// population grid (§5.5 RS15, EH14); below 1 is damaged too.
 pub const MAX_SAVED_TRACT_SIZE: i32 = 256;
+
+/// A tract size `Read` accepts (§5.5 *[choice]*, EH14): 1…256 as signed.
+fn tract_size_ok(s: i32) -> bool {
+    (1..=MAX_SAVED_TRACT_SIZE).contains(&s)
+}
 
 fn put_grid<T: GridElem>(out: &mut dyn OutStream, g: &Option<Rc<dyn TractGrid<T>>>) {
     out.put_ref(&g.as_ref().map_or(RefValue::Null, |g| g.save_ref()));
@@ -264,17 +271,27 @@ impl Parse<'_> {
         self.s.proximity_size = inp.get_i32()?;
         self.s.grids.proximity = self.grids3(inp)?;
         let p = inp.get_i32()?;
-        if p == 0 || p > MAX_SAVED_TRACT_SIZE {
-            return None; // RS15
+        if !tract_size_ok(p) {
+            return None; // RS15, EH14
         }
         self.s.population_size = p;
         self.s.grids.population = self.grids3(inp)?;
+        // EH14: state 4's S is the R$ population grid's own size.
+        if let Some(g) = &self.s.grids.population[0] {
+            if !tract_size_ok(g.geometry().tract_size) {
+                return None;
+            }
+        }
         self.s.grids.age = self.grid(inp)?;
         self.s.grids.school_coverage = self.grid_vector::<{ SCHOOL_VECTOR_LEN as usize }>(inp)?;
         self.s.grids.hospital_coverage = self.grid_vector::<{ HOSPITAL_VECTOR_LEN as usize }>(inp)?;
         self.s.grids.school_grade = self.grid(inp)?;
         self.s.grids.hospital_grade = self.grid(inp)?;
-        self.s.eq_size = inp.get_i32()?;
+        let e = inp.get_i32()?;
+        if !tract_size_ok(e) {
+            return None; // EH14
+        }
+        self.s.eq_size = e;
         self.s.grids.eq = self.grids3(inp)?;
         self.s.grids.hq = self.grids3(inp)?;
         self.s.unused_float1 = inp.get_f32()?;

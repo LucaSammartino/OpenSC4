@@ -426,11 +426,10 @@ impl AuraSim {
             self.add_transient_effect_type(pos[0], pos[2], 3);
         }
         let (cx, cz) = self.centre_cell(pos[0], pos[2]);
-        let values = |prop: u32| {
-            self.host.occupant_sint32s(occ, prop).map(|v| {
-                let at = |i: usize| v.get(i).copied().unwrap_or(0);
-                (at(0), at(1))
-            })
+        // [choice] AU4: fewer than two values is absent (no cone).
+        let values = |prop: u32| match self.host.occupant_sint32s(occ, prop) {
+            Some(v) if v.len() >= 2 => Some((v[0], v[1])),
+            _ => None,
         };
         let cone16 = |grid: &G16, mag: i32, radius: i32| {
             let geo = grid.geometry();
@@ -609,21 +608,20 @@ impl AuraSim {
         Some(GridProvider::<i16>::resolve_grid(&*self.host, &r))
     }
 
-    /// The department block (§11.2): replaces the map with the entries read
-    /// in full ([choice]: a null or failed reference adds no entry; a
-    /// duplicate ID keeps the later grid). Nothing changes when the count
-    /// cannot be read.
+    /// The department block (§11.2), **merged** into the map (§11.3, AU1:
+    /// `map[departmentID] := grid`; IDs not in the record stay). [choice] A
+    /// null or failed reference adds or changes nothing; a duplicate ID
+    /// keeps the later grid; a grid replaced is released (the original
+    /// leaks it). Nothing changes when the count cannot be read.
     fn read_departments(&self, inp: &mut dyn InStream) {
         let Some(count) = inp.get_u32() else { return };
-        let mut map = BTreeMap::new();
         for _ in 0..count {
             let Some(id) = inp.get_u32() else { break };
             let Some(g) = self.get16(inp) else { break };
             if let Some(g) = g {
-                map.insert(id, g);
+                self.g.borrow_mut().departments.insert(id, g);
             }
         }
-        self.g.borrow_mut().departments = map;
     }
 }
 
@@ -724,8 +722,8 @@ impl SaveObject for AuraSim {
             if let Some(v) = inp.get_i16() {
                 d.min_rating = v;
             }
+            // §11.3 (AU1): appended after the hotspots already held.
             if let Some(count) = inp.get_u32() {
-                d.hotspots.clear();
                 for _ in 0..count {
                     let (Some(x), Some(z), Some(weight)) = (inp.get_i32(), inp.get_i32(), inp.get_i32()) else {
                         break;

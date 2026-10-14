@@ -311,7 +311,8 @@ impl CrimeHost for World {
         match self.ltext.borrow().get(&(k.type_id, k.group, k.instance)) {
             None => LtextLoad::Missing,
             Some((s, true)) => LtextLoad::Loaded(s.as_bytes().to_vec()),
-            Some((s, false)) => LtextLoad::DetokenizeFailed(s.as_bytes().to_vec()),
+            // CQ16: the text a failed detokenizer left is discarded.
+            Some((_, false)) => LtextLoad::DetokenizeFailed,
         }
     }
     fn population_grids(&self) -> [Option<Rc<dyn TractGrid<u16>>>; 3] {

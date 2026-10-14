@@ -2254,3 +2254,112 @@ way.
   code as a reading, not a finding]
 - **SV2 — ordinance §9.1:** does anything other than the ordinance simulator hold a foreign (plugin) ordinance read
   from a save? [assumed no; released as ours]
+
+## From the neighbours glue and shadow (filed by the coordinator from the `neighglue` lane's report, 2026-10-14)
+
+About `docs/specs/neighbors.md` and the neighbours glue (`cFC4NeighborsSimulator`, `FC4NeighboursShadow`). The current
+answer is in brackets.
+
+- ~~**NG1:** Property holder semantics for our own objects (connections, deals). [sorted by property id, values copied;
+  `GetPropertyList` returns false; data as a Uint8 array]~~ **ANSWERED 2026-10-14** (coordinator, run r50e2): copies are wrong. The
+  holder keeps the caller's object (AddRef) and returns it borrowed; callers write its variant in place
+  (foundations §10.2, "Ownership"). With copies, the traffic simulator's trip-capacity store used a freed
+  property and the game crashed.
+- **NG2:** Object-valued properties on our connection objects. [dropped from the core sync]
+- **NG3:** Does the region reach our connection objects non-virtually (by field offset)? [unknown; the risk is noted]
+- **NG4:** `AddDeal` with a foreign (original) deal object. [copied into a deal of ours]
+- **NG5:** The lifetime of the deal wrapper objects. [created lazily, parked at zero references]
+- **NG6:** Getters called from other threads. [the lock is tried for 20 ms, then the mirror or a neutral value is
+  returned and counted as a fallback]
+- **NG7:** The shadow's state it cannot read from the original. [ready = 1, uiDisabled = 0]
+- **NG8:** The volume-dirty flag. [true once after creation]
+- **NG9:** `SetType` and similar setters on foreign connections. [ignored]
+- **NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]
+- **NG11:** Slots 32/33 (64-bit values). [the low 32 bits]
+- **NG12:** The return channel of the regional city getters 50–64. [double (x87)]
+- **NG13:** The return of deal `Copy`. [void]
+- **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]
+- **NG15:** `GetCity` with out-of-range cells. [passed on as uint32]
+- **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
+- **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]
+- **NG18:** A deal holder not reachable by QueryInterface. [left open]
+- **NG19:** No city on the other side of a connection. [targets 0]
+- **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]
+- **NG21:** The return of `UpdateTrafficVolume`. [true]
+- **NG22:** `cISCProperty` Write/Read. [through the segment stream]
+- **NG23:** The size query of `GetPropertyData`. [left open]
+- **NG24:** Regional cities held across calls. [AddRef until the outermost exit]
+- **NG25:** The marker query type. [`0xA823821E`]
+- **NG26:** Traffic source `QueryInterface`. [forwarded to the connection]
+- **NG27:** `GetPropertyU32` on array properties. [the first element]
+- **NG28:** The shadow's statistics tolerance. [relative 1e-6]
+- **NG29:** Network flag bits used as type numbers. [left open]
+- **NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]
+- **NG31:** Status reports from deals with no host object. [left open]
+- **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]
+- **NG33:** A message from another thread that cannot get the lock. [dropped, returns true]
+- **NG34:** A null connection reference in a save. [skipped]
+
+## From applying the aura, education/health and flora answers (filed by the coordinator from the `apply5` lane's report, 2026-10-14)
+
+AU1–AU15, EH1–EH14 and FQ1–FQ15 are applied (the aura shadow follows the original's state field; the flora obliteration
+record goes through record streams, switch `flora_obliteration`). Not applied: a call-order test for EH1, and the aura
+shadow's riot roll (wall-clock RNG). The current answer is in brackets.
+
+- **AQ1:** REH: the totals record's leftover fields +0x14..+0x24. [they start at 0]
+- **AQ2:** REH §4.8: S_EQ against member E. [E is kept]
+- **AQ3:** S_EQ for the HQ variants. [E]
+- **AQ4:** FQ3 save: is flag 1 toggled only when the obliteration record opens? [yes]
+- **AQ5:** FQ3 restore: is the record closed right after `Read`, before `Init` and `InsertOccupant`? [yes]
+- **AQ6:** FQ3: a failed `GetUint32` of the count. [the count stays 0]
+- **AQ7:** FQ6: is the 64 m listing clamped to 0..191? [not clamped; only the query is]
+- **AQ8:** A bound on the obliteration open attempts. [choice: at most `MAX_OBLITERATED` = 2^24; the original has no
+  bound]
+- **AQ9:** Flora shadow: which box gives the 64 m listing? [choice: the census box taken before the pass]
+- **AQ10:** Plugin: `OpenOStream`/`OpenIStream` returns false but writes a stream pointer. [treated as not open;
+  nothing released]
+
+## From applying the crime, traffic network and HG answers (filed by the coordinator from the `apply7b` lane's report, 2026-10-14)
+
+CQ16–CQ22, the crime errata, TN21–TN25 and HG1 are applied (CQ16 and TN21 changed behaviour; the clock-seed helper
+moved to `rng.rs`). Not done: the development simulator's own clock seed still XORs by itself (the development glue
+lane owns those files); TN22/TN24 have unit tests but no vectors. The current answer is in brackets.
+
+- **CQ23:** CQ17 follow-up: what does a name key `0x8A416B2E` stored as a non-u32 array of 3 or more elements give?
+  The original copies 12 raw bytes. [FreeCity4 converts the values to numbers, so a u8 array [a, b, c] gives G = b, I
+  = c; a string counts as missing]
+- **CQ24:** CQ20 follow-up: the original reads the name key from a second, uncached load of the type's exemplar.
+  [FreeCity4 reads it from the same cached load as the other properties; the two differ only if the cached copy was
+  changed in memory]
+- **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
+  tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
+  sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
+
+## From applying the residential, budget, demand, land value and flammability answers (filed by the coordinator from the `apply7a` lane's report, 2026-10-14)
+
+RG23 (+RG17), BQ3, DQ10–DQ12, LV1–LV4 and FL1–FL6 are applied: the proximity seed writes only `z = 0`; the budget
+total is a float32 running sum in master-list lot order; the land value shadow orders developers by pointer and
+snapshots maps while slot 10 is true; the flammability shadow polls the plumbing watered grid. The current answer is
+in brackets.
+
+- **RG24:** RG23: what does the proximity seed do when there is no building map? [writes FAR to `(x, 0)` only and
+  keeps every other cell; a choice]
+- **BQ4:** BQ3: releasing the safe lot iterator. The lane unlinks its nodes by hand, the same as `std::list::remove`
+  at `0x00809580`, and frees each with allocator B, instead of calling `0x00809580`. [an equivalent unlink; the block
+  is leaked, not freed, if no node is found]
+- **BQ5:** BQ3: does ComputeTax hold references on the lots it visits? [borrowed, no AddRef]
+- **BQ6:** BQ3: the walk requires the master lot list object at lot manager + `0x5C`. [otherwise refused, with the
+  `GetLotsInCellRect` fallback]
+- **BQ7:** BQ3: line and total values outside the int32 range. [the low 32 bits of `_ftol`]
+- **BQ8:** The land value and flammability host tables grew (new last callbacks) without an ABI bump, so a table of
+  the old size is now refused by the `struct_size` check. [no bump; refused]
+- **LV5:** LV2: a developer first seen while its slot 10 is false gets no snapshot until slot 10 turns true, so there
+  is no second candidate in that window. [no snapshot]
+- **FL7:** FL5/FL6: exactness assumes the plumbing pass-end message (posted in state 8) is delivered before the next
+  pass swaps its grid (end of state 6). Two passes between polls would bring the pointer back unseen. [assumed; polled
+  at every forwarded message and at the cycle end]
+- **FL8:** FL5/FL6: a pass first seen by the comparison's own poll, after the wrap day's early visits. [those tracts
+  are accepted by the existing previous-value rule, at most 2 × tractsPerDay "unvisited"; marks are not carried into
+  the next cycle]
+- **FL9:** FL5/FL6 with FreeCity4's own plumbing: detection relies on its published grid alternating too, which it
+  does today. [pointer detection only]

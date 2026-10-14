@@ -336,7 +336,8 @@ Consequences *[compat]*:
   once, and then returns (developers with `ad ≤ 5` are skipped, not spun on).
 - Draw sequence: identical to the original's for the iterations that run. A budget stop leaves the generator
   untouched for the rest of the day (no draw for an iteration that does not run).
-- **Default**: to be calibrated in the original (§12), not guessed. Until then the default is unlimited.
+- **Default**: **0 (unlimited)**, from the calibration in the original (§12.1): on the reference machine the
+  3 ms timer never cuts a day's attempts short.
 - **Observable effect of the budget** (for the M4 exit tests):
   - At or above the number of qualifying developers (at most 13 with the shipped exemplars) the budget has **no
     effect**: every qualifying developer attempts once per day, as in the original on a fast enough machine.
@@ -1128,3 +1129,17 @@ The observer logs, **per game day** (one `DoDailySimulation` call, `0x0069B6D0`;
 The default is the distribution of `attempts` on days with `cut` = true (when no day is cut on the reference
 machine, the budget is unlimited). Log the city size and population with each day; attempt cost grows with the
 number of candidate lots.
+
+### 12.1 Result (run 93, 2026-10-14)
+
+- **Setup**: the original simulator, BDS and tract developer; the test city (626–742 lots, population 15,000–27,500);
+  14,339 game days (2026-01 → 2065-03) at full speed, the CPU 96–100 % busy with other work.
+- **Cost**: 48,106 attempts at 159 µs each (mean 574,000 cycles). A day's attempts take 0.5–1 ms. Only 15 day lines
+  exceed 3 ms, and only 2 single attempts did (6.1 ms at most).
+- **Attempts against qualifying**: Σattempts / Σqualifying = 0.72, steady over the 39 years. The gap is the picks that end
+  without a call (a qualifying developer with no growth list or an empty one), which are not units (§4.4.1). The
+  timer cannot explain it, because the attempts finish well inside 3 ms.
+- **Conclusion**: no day is cut on the reference machine, so the default is unlimited (§4.4.1).
+- **Open**: the cost per attempt grows with the candidate lots. A large city (13 qualifying developers at more than
+  230 µs each) could reach 3 ms, but such a run has not been made. The original would then drop the low-demand
+  developers' attempts on slow days, a machine-dependent effect that FreeCity4 does not reproduce by default.

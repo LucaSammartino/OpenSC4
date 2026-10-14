@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use super::*;
 use crate::grid::{CityDims, CoreGrids, SimGrid};
-use crate::stream::{ByteReader, ByteWriter, SaveObject};
+use crate::stream::{ByteReader, ByteWriter, RefValue, SaveObject};
 
 #[derive(Clone, Default)]
 struct Occ {
@@ -32,7 +32,7 @@ struct Fake {
     tax: RefCell<[f32; 12]>,
     offset: Cell<i32>,
     occupants: RefCell<BTreeMap<u64, Occ>>,
-    land_value_type: Cell<i32>,
+    land_value_type: Cell<Option<i32>>,
     crime: Rc<SimGrid<u8>>,
     trip: Rc<SimGrid<u8>>,
     pops: [Rc<SimGrid<u16>>; 3],
@@ -51,7 +51,7 @@ impl Fake {
             tax: RefCell::new([9.0; 12]),
             offset: Cell::new(0),
             occupants: RefCell::new(BTreeMap::new()),
-            land_value_type: Cell::new(1),
+            land_value_type: Cell::new(Some(1)),
             crime: SimGrid::create(&city, 0, 4),
             trip: SimGrid::create(&city, 0, 4),
             pops: [
@@ -119,7 +119,7 @@ impl AuraHost for Fake {
             .map(|l| l.info)
             .find(|r| (r.x1..=r.x2).contains(&x) && (r.z1..=r.z2).contains(&z))
     }
-    fn land_value_type(&self, _x: i32, _z: i32) -> i32 {
+    fn land_value_type(&self, _x: i32, _z: i32) -> Option<i32> {
         self.land_value_type.get()
     }
     fn occupant_has_property(&self, occ: u64, prop: u32) -> bool {
@@ -365,8 +365,24 @@ fn tax_change_and_lot_base_aura() {
     assert_eq!(s.lot_base_aura(&lot), -1); // trunc(−150 / 80)
     s.read_tuning();
     s.data_mut().effective_base_aura = [-5, 0, 0];
-    f.land_value_type.set(2);
+    f.land_value_type.set(Some(2));
     assert_eq!(s.lot_base_aura(&lot), -4); // −1 + trunc(curve(2 − 1))
+
+    // [choice] AU10 (§6.5.1): no land value simulator → no value/wealth
+    // term (the average), not type 0 (−1 + trunc(curve(0 − 1)) = 2).
+    f.land_value_type.set(None);
+    assert_eq!(s.lot_base_aura(&lot), -1);
+    f.land_value_type.set(Some(0));
+    assert_eq!(s.lot_base_aura(&lot), 2);
+    f.land_value_type.set(Some(2));
+    // §6.5.1 test 5: a residential entry with count 0 counts as seen
+    // (trunc(0 / 40) = 0, then the term for d = 2 − 2 = 0), and the
+    // entries of several maps add up ({R$ 30} and {R$ 10}: trunc(−200 / 40)).
+    let mut zero = residential_lot(0, 0, 1, 1, vec![(0x1010, 0), (0x3110, 40)]);
+    zero.occupant_wealth = 2;
+    assert_eq!(s.lot_base_aura(&zero), 0);
+    zero.populations = vec![(0x1010, 30), (0x1010, 10)];
+    assert_eq!(s.lot_base_aura(&zero), -5);
     lot.populations = vec![(0x3110, 5)];
     assert_eq!(s.lot_base_aura(&lot), -128);
     lot.building = None;
@@ -567,7 +583,8 @@ fn occupant_cones() {
     s.occupant_changed(6, true);
     assert_eq!(s.department_ids(), [0x8A41_6368]);
     assert_eq!(s.department_grid(0x8A41_6368).unwrap().get(2, 5), 40);
-    // Preview occupants are ignored; short arrays read missing values as 0.
+    // Preview occupants are ignored; [choice] AU4: fewer than two values is
+    // absent (no cone; the original reads past the array).
     let mut p = Occ::default();
     p.props.insert(ids::PROP_PREVIEW_OCCUPANT, vec![1]);
     p.props.insert(ids::PROP_MAYOR_RATING_EFFECT, vec![7]);
@@ -579,6 +596,83 @@ fn occupant_cones() {
     });
     s.occupant_changed(7, true);
     assert!(all_zero(&*s.building_effect_grid().unwrap()));
+    let mut short = Occ::default();
+    short.props.insert(ids::PROP_PARK_EFFECT, vec![50]);
+    short.props.insert(ids::PROP_MAYOR_RATING_EFFECT, vec![]);
+    f.occupants.borrow_mut().insert(8, short);
+    s.occupant_changed(8, true);
+    assert!(all_zero(&*s.raw_park_grid().unwrap()));
+    assert!(all_zero(&*s.building_effect_grid().unwrap()));
+    // Two values or more: the first two (extra values ignored).
+    let mut long = Occ::default();
+    long.props.insert(ids::PROP_MAYOR_RATING_EFFECT, vec![7, 4, 99]);
+    f.occupants.borrow_mut().insert(9, long);
+    s.occupant_changed(9, true);
+    assert_eq!(s.building_effect_grid().unwrap().get(0, 0), 7);
+}
+
+/// §11.3 (AU1), test 16: `Read` into a used object merges the departments
+/// (an ID already held gets the record's grid, other IDs stay) and appends
+/// the hotspots.
+#[test]
+fn read_into_a_used_object_merges() {
+    let f = Fake::new(16);
+    let src = sim(&f);
+    for (id, v) in [(0x10u32, 11i16), (0x20, 22)] {
+        let g = GridProvider::<i16>::create_grid(&*f, id, 4).unwrap();
+        g.fill(v);
+        src.g.borrow_mut().departments.insert(id, g);
+    }
+    src.data_mut().hotspots = vec![Hotspot { x: 9, z: 10, weight: 4 }];
+    let b = record(&src);
+    // The record's references in write order (§11.2): seven grids, then the
+    // departments by ID.
+    let refs = {
+        let g = src.g.borrow();
+        let mut v: Vec<RefValue> = [&g.aura, &g.base, &g.transient, &g.building_effect]
+            .iter()
+            .map(|x| x.as_ref().unwrap().save_ref())
+            .collect();
+        let i16s: Vec<RefValue> = [&g.park_map, &g.raw_park, &g.landmark_map]
+            .iter()
+            .map(|x| x.as_ref().unwrap().save_ref())
+            .collect();
+        // aura, park map, raw park, base, transient, building effect, landmark.
+        v = vec![
+            v[0].clone(),
+            i16s[0].clone(),
+            i16s[1].clone(),
+            v[1].clone(),
+            v[2].clone(),
+            v[3].clone(),
+            i16s[2].clone(),
+        ];
+        v.extend(g.departments.values().map(|d| d.save_ref()));
+        v
+    };
+    struct Order(Vec<RefValue>);
+    impl crate::stream::RefResolver for Order {
+        fn resolve(&mut self, _class_id: u32, object_id: u32) -> Option<RefValue> {
+            self.0.get((object_id as usize).wrapping_sub(1)).cloned()
+        }
+    }
+    let mut order = Order(refs);
+
+    let used = sim(&f);
+    for (id, v) in [(0x10u32, 1i16), (0x30, 3)] {
+        let g = GridProvider::<i16>::create_grid(&*f, id, 4).unwrap();
+        g.fill(v);
+        used.g.borrow_mut().departments.insert(id, g);
+    }
+    used.data_mut().hotspots = vec![Hotspot { x: 1, z: 2, weight: 5 }];
+    assert!(used.read(&mut ByteReader::with_resolver(&b, &mut order)));
+    assert_eq!(used.department_ids(), [0x10, 0x20, 0x30]);
+    let at = |id: u32| used.department_grid(id).unwrap().get(0, 0);
+    assert_eq!((at(0x10), at(0x20), at(0x30)), (11, 22, 3));
+    assert_eq!(
+        used.data().hotspots,
+        [Hotspot { x: 1, z: 2, weight: 5 }, Hotspot { x: 9, z: 10, weight: 4 }]
+    );
 }
 
 #[test]
@@ -637,6 +731,7 @@ fn record_layout_and_hostile_reads() {
     let at = b.len() - 16;
     huge[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
     assert!(!u.read(&mut ByteReader::new(&huge)));
+    assert_eq!(u.data().hotspots.len(), 1, "the one whole entry before the end");
     // Version 8: one extra reference, no department block.
     let mut v8 = b[..2 + 28].to_vec();
     v8[0] = 8;
@@ -644,7 +739,7 @@ fn record_layout_and_hostile_reads() {
     v8.extend_from_slice(&b[2 + 28 + 4..]);
     assert!(u.read(&mut ByteReader::new(&v8)));
     assert!(u.data().re_add_landmarks);
-    assert_eq!(u.data().hotspots.len(), 1);
+    assert_eq!(u.data().hotspots.len(), 2, "appended (§11.3, AU1)");
 }
 
 #[test]

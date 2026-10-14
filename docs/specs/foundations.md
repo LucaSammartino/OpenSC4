@@ -1037,6 +1037,26 @@ In memory a holder keeps its properties **sorted by ascending unsigned property 
 Adding a property whose ID is already present **replaces** that property in place. Adding never fails. The
 `bool` argument of the SDK's `AddProperty(cISCProperty*, bool)` has no effect.
 
+**Ownership: the holder keeps objects, not copies** *[compat]* (run r50e2, 2026-10-14). Any holder that game code
+can reach must follow this, including a FreeCity4 object's own holder:
+- `AddProperty(cISCProperty* p, bool)` (slot 15) stores **`p` itself** and AddRefs it. It does not copy it.
+- Callers go on using `p` after the call, even after they Release their own reference.
+- `GetProperty(id)` (slot 9) returns the stored object **borrowed** (no AddRef). The callers never Release it.
+- The property's `GetPropertyValue()` (slot 5) returns its variant borrowed.
+- Callers write the value **in place** through the variant's data pointers: the u16-array data getter (variant
+  slot 99) and the u32-array data getter (slot 103). They also replace the data through the copying setter
+  (slot 102, `SetValUint32(data, count)`).
+- So the stored object, its variant and that variant's data must stay the same objects for the life of the
+  holder entry.
+
+Example: the traffic simulator's element store (traffic-simulator.md §4.2) on a holder without `0x8A0B4100`:
+1. It creates the game's own property and gives it a 12-element u16 array.
+2. `SetPropertyID(0x8A0B4100)`, then `holder.AddProperty(p, false)`, then `p.Release()`.
+3. `p.GetPropertyValue()`: the variant's type, then its data getter, and a write to one element.
+
+A holder that copies `p` frees it at step 2 (the caller held the only reference), and step 3 calls through freed
+memory. Later readers (`GetProperty(0x8A0B4100)` → value → data getter) must also see the element written at step 3.
+
 ```
 uint16  version = 2
 uint32  count
