@@ -664,6 +664,15 @@ fields below follow it and are u32 unless marked:
 The school query fails (AL = 0) only if one of capacity, effective capacity, served or grade is missing. A
 divisor of 0 divides by zero *[quirk]*.
 
+**Order of the tests and partial writes** *[compat]* (school `0x006F91C0`, hospital `0x006F7E80`). Both read, in
+this order: capacity (a probe, then again straight into +0x14), effective capacity (straight into +0x18), served
+(straight into +0x24, still raw), grade (into a local). The hospital query then requires the staff item
+(`0xCA565486`) **last**; the school query does not. The first missing one returns AL = 0 at once. So a failed query
+leaves the fields read before the failure in the record (+0x14, +0x18, +0x24 with a raw `0xFFFFFFFF`), and every
+other field as the caller left it. Only a successful query writes +0x1C to +0x38 and maps served `0xFFFFFFFF` to
+0. Example: a hospital with every property but no staff item → AL = 0 with +0x14, +0x18 and +0x24 already
+written.
+
 **Ratings** `GetSchoolSystemRating` / `GetHealthSystemRating` (12/13), returned through a hidden pointer as
 SC4Percentage:
 

@@ -1085,7 +1085,11 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   **ANSWERED 2026-10-14** from the exe (`EstimateIdealFunding` `0x006FD701`–`0x006FD72B`) and written into REH
   §4.10. **Yes, the property**, read into a value preset to `0xFFFFFFFF`, so a missing property also fails. The
   ratio then uses the query data's served (+0x24) and capacity (+0x14), which equal the properties at that point.
-- **EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]
+- ~~**EH10:** does the hospital query fail on missing fields, testing the staff item last? [yes]~~ **ANSWERED
+  2026-10-14** from the exe (`GetHospitalQueryData` `0x006F7E80`, staff test `0x006F7F37`; school `0x006F91C0`) and
+  written into REH §4.11 ("Order of the tests and partial writes"). **Yes**: capacity, effective capacity, served,
+  grade, then the staff item. Also: capacity, effective capacity and served are read straight into the record, so
+  a failed query leaves them written (served raw) and the rest untouched.
 - **EH11:** what does the ratings query's record start at? [zero]
 - **EH12:** do the system totals count only successful queries and add onto the caller's record? [yes]
 - **EH13:** in `AddRadiusEffectWithCurves`, with n = 0 is pop' = pop, and is the same tract index used for all
