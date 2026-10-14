@@ -92,6 +92,14 @@ item is part of the class's save record (residential.md §3 and §9.1 are normat
 | strike start day (0 = not striking) | `0xEAA69F83` | `0xEAA69F83` | u32 | strikes (§4.9) |
 | auto-budget | `0x6C05FC4D` | `0x6C05FC4D` | bool | slot 57 / UI |
 
+All six are **scalars** *[compat]* (RG16). The class writes them with three helpers, u32 `0x005FE3C0`, float
+`0x005FE4F0` and bool `0x005FE210`. Each looks the property up (holder slot 9), creates it when missing (a new
+property object, vtable `0x00AA6988`, added with holder slot 15), then calls the variant's scalar setter:
+`SetValUint32` (slot 26), `SetValFloat32` (slot 38) or `SetValBool` (slot 11). The setter (`0x0091587D` for u32)
+clears any other content, an array included, and stores a single value of type 6 (u32), `0x0A` (f32) or 1 (bool).
+So whatever a building's exemplar or an earlier write put there, after the class writes it the property is a
+scalar of the type in the table.
+
 ## 3. Agents and cadence
 
 Agent registration is described in residential.md §4.3, the state list in §5.1. The education/health work is done in these

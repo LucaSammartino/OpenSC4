@@ -2211,7 +2211,11 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   and written into REH §4.1 (building identity) and §5. **Confirmed; the bracket matches.** The lists hold
   `AsOccupant()` pointers and removal compares `AsOccupant()`. The strike-begin message carries that list pointer as
   both void1 and IGZUnknown, with data2 = 1; the strike-end message sets only data2 = 0 and data3 = the length.
-- **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
+- ~~**RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]~~ **ANSWERED
+  2026-10-14** from the exe (helpers `0x005FE3C0`, `0x005FE4F0`, `0x005FE210`; `SetValUint32` `0x0091587D`) and
+  written into REH §2 (per-building state). **Scalars; the bracket matches.** Each helper creates the property if it
+  is missing and calls the variant's scalar setter, which replaces any other content (an array too) with one value of
+  the property's type.
 - ~~**RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
   [assumed]~~ **ANSWERED 2026-10-14** from the exe (slot 61 `0x006FAEC0`: allocations at `0x006FAF30` and
   `0x006FAFBA`; slots 47/49 through `GetBuildings` `0x006FACE0`, allocation at `0x006FADA3`) and written into
