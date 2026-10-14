@@ -74,12 +74,22 @@ pub struct PipeFunding {
 /// `ApplyPipeFunding(f)` steps 1–3 (§7.1): the condition from the previous
 /// one and the funding fraction `f`, the distressed target and the bound of
 /// the burst draw (the draw itself is random).
+///
+/// PS2: the curve is the condition's change per month, so the condition
+/// moves gradually with the funding. Above 1 it is set to 1 and the pipe test
+/// is skipped *[quirk]*: with no pipes it stays 1 once a step takes it there.
 pub fn pipe_funding(tuning: &Tuning, condition: f32, num_pipes: u32, f: f32) -> PipeFunding {
-    let mut cond = condition - tuning.pipe_decay_curve.eval(f * 100.0);
-    cond = if cond.is_nan() { 0.0 } else { cond.clamp(0.0, 1.0) };
-    if num_pipes == 0 {
-        cond = 0.0;
-    }
+    let raw = condition - tuning.pipe_decay_curve.eval(f * 100.0);
+    let cond = if raw > 1.0 {
+        1.0
+    } else if raw < 0.0 || num_pipes == 0 {
+        0.0
+    } else if raw.is_nan() {
+        // [choice] the spec does not say how a NaN compares here: 0.
+        0.0
+    } else {
+        raw
+    };
     let target = trunc_i64(fmul_i(f64::from(num_pipes), cond)) as u32;
     let twice = (2.0 * f64::from(target as i32)) as f32;
     let burst_max = trunc_i64(twice * tuning.burst_probability) as i32;

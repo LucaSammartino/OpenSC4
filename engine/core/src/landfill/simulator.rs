@@ -199,9 +199,11 @@ impl LandfillDeveloper {
         true
     }
 
-    /// `Shutdown()` (slot 4): unsubscribe the five messages; for every zone
-    /// `Shutdown` and `Release`; clear the list; release the department, then
-    /// the services; `RemoveAgent`.
+    /// `Shutdown()` (slot 4), all inside "if initialised" (§1.2; otherwise it
+    /// returns true at once): clear the flag; unsubscribe the five messages;
+    /// for every zone `Shutdown` (which removes and releases an initialised
+    /// zone's zot, LG13) and `Release`; clear the list; release the
+    /// department, then the services; `RemoveAgent`.
     ///
     /// *[choice]* The original (LF3, `0x006B94B0`) releases the message server
     /// right after the unsubscribes, before the zones are shut down, and the
@@ -219,6 +221,10 @@ impl LandfillDeveloper {
     /// What can be observed is the unsubscription, done first here as in the
     /// original.
     pub fn shutdown(&self) -> bool {
+        if !self.initialised.get() {
+            return true;
+        }
+        self.initialised.set(false);
         for m in msg::SUBSCRIPTIONS {
             self.host.unsubscribe(m);
         }

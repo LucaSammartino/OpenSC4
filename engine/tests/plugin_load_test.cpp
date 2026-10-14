@@ -85,6 +85,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -1157,8 +1158,9 @@ void OwSet(FakeOrigPower& o, uint32_t state, FakePowerRecord next) {
 }
 
 intptr_t PowerShadowOnce(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, uint32_t type,
-                         bool fresh) {
-    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u};  // 2000-02-01
+                         bool fresh, bool midCity = false) {
+    FC4PowerShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, type, 2451576, fresh ? 1u : 0u,
+                               midCity ? 1u : 0u};  // 2000-02-01
     return seam(kFC4SeamPowerShadow, &in, nullptr);
 }
 
@@ -1372,9 +1374,9 @@ intptr_t CrimeShadowOnce(FC4TestSeamFn seam, FakeOrigCrime& o, cIGZMessageTarget
 // record (§9) through the segment stream's WriteGZSerializable; the grid
 // references are two fake cSC4SimGrid<uint8> (class 0x49B9E602, through a
 // serializable stand-in each) answering geometry (slots 10-17) and
-// GetTractValue (22). The second grid starts with stale values, so after the
-// first pass's swap the shadow finds a cell the next state 2 changes and sees
-// the second pass start. `wrongCell` flips (2,2) of the grid the second pass
+// GetTractValue (22). The second grid starts with stale values (a loaded
+// city's last pass). The passCounter (record field 7) moves in state 0 only,
+// so the shadow sees each pass start. `wrongCell` flips (2,2) of the grid the second pass
 // publishes; `watered` is what GetNumWateredBuildings (slot 21) answers. The
 // city answers GetPlumbingSimulator (compiled slot 64); `noCity` returns null
 // there. Any other call aborts.
@@ -1606,17 +1608,21 @@ void OpbReset(FakeOrigPlumbing& o, bool wrongCell, uint32_t watered) {
     o.grids[1].v[1 * 4 + 1] = 3;  // a watered lot cell of the last pass
 }
 
-// One run: twelve SimIdle (the first pass: its start is not seen), a
-// SimNewMonth (the pipe funding; it also sets the recompute) and twelve
-// SimIdle (the second pass, seen from its start), all on 2000-02-01.
-intptr_t PlumbingShadowRun(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target) {
+// One run: twelve SimIdle (the first pass), a SimNewMonth (the pipe funding;
+// it also sets the recompute) and twelve SimIdle (the second pass), all on
+// 2000-02-01. Both passes are seen from their start (the passCounter the
+// fake's state 0 moves, plumbing.md §6.1 PS6). The shadow is made as at a
+// city start unless `midCity` (then the month's distressed count is not
+// exact, PS3).
+intptr_t PlumbingShadowRun(FC4TestSeamFn seam, FakeObject* city, cIGZMessageTarget2* target, bool midCity = false) {
     static uint32_t types[25];
     static int32_t julians[25];
     for (int i = 0; i < 25; ++i) {
         types[i] = i == 12 ? kMsgSimNewMonth : kMsgSimIdle;
         julians[i] = 2451576;
     }
-    FC4PlumbingShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, types, julians, 25, 0, nullptr};
+    FC4PlumbingShadowTestInput in{reinterpret_cast<cISC4City*>(city), target, types, julians, 25, 0, nullptr,
+                                  midCity ? 1u : 0u};
     return seam(kFC4SeamPlumbingShadow, &in, nullptr);
 }
 
@@ -3351,6 +3357,52 @@ public:
     bool operator<(cIGZMessage2 const&) const override { return false; }
 };
 
+// LG20: a DoMessage from another thread waits for the lock instead of being
+// dropped. The probe records when the developer asks it for its standard
+// interface (after taking the lock); the holder keeps the lock for 60 ms
+// while another thread delivers the probe.
+class LandfillProbeMessage final : public cIGZMessage2 {
+public:
+    std::atomic<bool> handled{false};
+    std::atomic<DWORD> at{0};
+    bool QueryInterface(uint32_t, void**) override {
+        at = GetTickCount();
+        handled = true;
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
+class LandfillHoldMessage final : public cIGZMessage2 {
+public:
+    LandfillHoldMessage(cIGZMessageTarget2* t, LandfillProbeMessage* p) : mt(t), probe(p) {}
+    cIGZMessageTarget2* mt;
+    LandfillProbeMessage* probe;
+    std::thread worker;
+    bool probeBeforeRelease = true;
+    DWORD released = 0;
+    bool QueryInterface(uint32_t, void**) override {
+        worker = std::thread([this] { mt->DoMessage(probe); });
+        Sleep(60);
+        probeBeforeRelease = probe->handled.load();
+        released = GetTickCount();
+        return false;
+    }
+    uint32_t AddRef() override { return 1; }
+    uint32_t Release() override { return 1; }
+    bool Create(uint32_t, void**) const override { return false; }
+    uint32_t GetType() const override { return kMsgSimNewDay; }
+    void SetType(uint32_t) override {}
+    bool operator==(cIGZMessage2 const&) const override { return false; }
+    bool operator<(cIGZMessage2 const&) const override { return false; }
+};
+
 void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) {
     LandfillLockHeldMessage msg(d);
     CHECK(mt->DoMessage(&msg));
@@ -3363,6 +3415,15 @@ void CheckLandfillThreads(cFC4ISC4LandfillDeveloper* d, cIGZMessageTarget2* mt) 
     std::thread t([&] { m = d->GetMaintenanceCosts(); });
     t.join();
     CHECK(m == 0);
+    // LG20: the other thread's message waited 60 ms (well past the getters'
+    // 20) and was then handled, after the holder let go.
+    LandfillProbeMessage probe;
+    LandfillHoldMessage hold(mt, &probe);
+    CHECK(mt->DoMessage(&hold));
+    if (hold.worker.joinable()) hold.worker.join();
+    CHECK(!hold.probeBeforeRelease);
+    CHECK(probe.handled.load());
+    CHECK(probe.at.load() >= hold.released);
 }
 
 // An "original" landfill developer: QueryInterface answers its agent
@@ -3593,6 +3654,8 @@ int LandfillEnableTest(const std::string& dll, const std::string& ini, const std
     CHECK(CountOf(text, "landfill: WARNING a cell region does not have the documented layout (rect 10,20..11,22, "
                         "map 5x3, 1 words per row); it is ignored") == 1);
     CHECK(text.find("landfill: GetLandfillZoneFromCell returns null") != std::string::npos);
+    // LG20: the one message from another thread was logged and waited (no fallback).
+    CHECK(CountOf(text, "(not the main thread); it waits for the lock") == 1);
     CHECK(text.find("landfill Shutdown: 2 months, 4 fallbacks") != std::string::npos);
     CHECK(text.find("cFC4LandfillDeveloper destroyed (4 fallbacks)") != std::string::npos);
     CHECK(CountOf(text, "cFC4LandfillDeveloper destroyed (0 fallbacks)") == 2);
@@ -9016,10 +9079,20 @@ int main(int argc, char** argv) {
             CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true) == 1);
             OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
             CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
+            // The same on a shadow switched on mid-city: the original's
+            // ordinance factor is not known until a month start (power.md
+            // §8, PW7), so the neighbours step's difference is not exact (0).
+            std::memset(ow.cells, 0, sizeof(ow.cells));
+            OwSet(ow, 2, FakePowerRecord{0, 0, 0, 3});
+            ow.poke = 5 * 32 + 7;
+            ow.pokeValue = 2;
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, true, true) == 0);
+            OwSet(ow, 3, FakePowerRecord{0, 0, 0, 4});
+            CHECK(PowerShadowOnce(seam, &ow.city, agent, kMsgSimIdle, false) == 0);
             std::memset(ow.cells, 0, sizeof(ow.cells));
             CHECK(PowerShadowOnce(seam, &ow.city, reinterpret_cast<cIGZMessageTarget2*>(&ow.other), kMsgSimIdle,
                                   true) == -1);
-            CHECK(ow.deliveries == 8 && ow.writes == 14);
+            CHECK(ow.deliveries == 10 && ow.writes == 18);
             CHECK(ow.refs == 1);  // every QueryInterface released
             CheckCw("power shadow");
         }
@@ -9053,11 +9126,11 @@ int main(int argc, char** argv) {
         // The plumbing shadow (op 22) next to an "original" plumbing simulator:
         // runs of 25 deliveries, a fresh shadow each. No city, a city without a
         // plumbing simulator, or an agent that is not the original's: left to
-        // the caller (-1), every delivery made once. Clean: the first pass
-        // (start not seen: not exact, not counted), a clean month, the second
-        // pass seen from its start and exact (0). One published cell wrong in
-        // the second pass (1); one scalar (the watered buildings) wrong (1;
-        // in the first pass too, but that one is not exact).
+        // the caller (-1), every delivery made once. Clean: two passes, each
+        // seen from its start (the passCounter moved) and exact, and a clean
+        // month (0). One published cell wrong in the second pass (1); one
+        // scalar (the watered buildings) wrong in both passes (2). Made
+        // mid-city: clean, the month's distressed count not exact (0).
         if (seam != nullptr) {
             static FakeOrigPlumbing opb;
             InitFakeOrigPlumbing(opb);
@@ -9077,8 +9150,11 @@ int main(int argc, char** argv) {
             OpbReset(opb, true, 0);
             CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 1);
             OpbReset(opb, false, 3);
-            CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 1);
+            CHECK(PlumbingShadowRun(seam, &opb.city, agent) == 2);
             CHECK(opb.deliveries == 150);
+            OpbReset(opb, false, 0);
+            CHECK(PlumbingShadowRun(seam, &opb.city, agent, true) == 0);
+            CHECK(opb.deliveries == 175);
             CHECK(opb.refs == 1);  // every QueryInterface released
             CheckCw("plumbing shadow");
         }
@@ -9218,21 +9294,29 @@ int main(int argc, char** argv) {
     CHECK(CountOf(text, "pollution shadow month to ") == 1);
     CHECK(text.find("pollution shadow: ON") == std::string::npos);  // off by default
     // The power shadow (test seam op 21): two months (clean, ring index
-    // skewed), two cycles (clean; one grid cell off).
+    // skewed), three cycles (clean; one grid cell off; the same mid-city, not
+    // exact).
     CHECK(text.find("power shadow: the original power simulator ") != std::string::npos);
     CHECK(text.find("power shadow 2000-02-01 month: 1024 cells compared; production=0/0 consumption=0/0 import=0/0 "
                     "export=0/0 demand=0/0 requirement=0/0 consumers=0/0 powered=0/0 unpowered=0/0 plants=0/0 "
                     "aged=0/0 distressed=0/0 overworked=0/0 deficit=0/0 poles=0/0 broken=0/0; brokenFraction from 0 "
-                    "at the shadow's start (2000-02-01); not_exact=0; mismatches=0") != std::string::npos);
-    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the shadow's start "
-                    "(2000-02-01); not_exact=0; mismatches=1") != std::string::npos);
+                    "at the city start, as the original's (power.md §7.6; first step 2000-02-01); not_exact=0; "
+                    "mismatches=0") != std::string::npos);
+    CHECK(text.find("broken=0/0; fields orig/ours: ringIndex=2/1; brokenFraction from 0 at the city start, as the "
+                    "original's (power.md §7.6; first step 2000-02-01); not_exact=0; mismatches=1") !=
+          std::string::npos);
+    CHECK(text.find("power shadow: comparing with the original power simulator ") != std::string::npos);
+    CHECK(text.find(") from the city start (its unsaved values known: ") != std::string::npos);
+    CHECK(text.find(") from mid-city (not known: the ordinance factor until the first month") != std::string::npos);
+    CHECK(text.find("NOT EXACT: the ordinance factor is not known until the first month (the shadow started "
+                    "mid-city; power.md §8)") != std::string::npos);
     CHECK(CountOf(text, "power shadow 2000-02-01 bookkeeping: ") == 2);
     CHECK(CountOf(text, "consumption map 0/1024 cells differ max|d|=0; wire 0 cells differ;") == 2);
     CHECK(CountOf(text, "power shadow month to 2000-02-01: deliveries=1 steps=0 idle passed through=0 not "
                         "enabled=0 cycles=0") == 2);
     CHECK(text.find("power shadow 2000-02-01 cycle: steps 2 3 (cycle start not observed) on 32x32 cells; grid 2048 "
                     "cells compared, max|d|=0; first differing cells: none;") != std::string::npos);
-    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 2);
+    CHECK(CountOf(text, "power shadow 2000-02-01 cycle: ") == 3);
     CHECK(text.find("power shadow: ON") == std::string::npos);  // off by default
     // The crime shadow (test seam op 13): a clean month, a skewed one, an
     // unobserved state 4; four runs, each a new "original".
@@ -9255,30 +9339,45 @@ int main(int argc, char** argv) {
     CHECK(text.find("crime shadow 2000-02-05: INCOMPLETE") == std::string::npos);
     CHECK(text.find("crime shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("crime shadow: requested") == std::string::npos);
-    // The plumbing shadow (test seam op 22): three runs taken (clean, one
-    // wrong cell, one wrong scalar), each a first pass replayed from its swap
-    // (not exact), a month and a second pass seen from its start.
-    CHECK(CountOf(text, "plumbing shadow: comparing with the original plumbing simulator ") == 3);
-    CHECK(text.find("plumbing shadow 2000-02-01 pass 1: aligned=swap exact=0 (start not seen); grid 4x4 cells=16 "
-                    "differing=0 max|diff|=0; producers 0; ") != std::string::npos);
+    // The plumbing shadow (test seam op 22): four runs taken (clean, one
+    // wrong cell, one wrong scalar, clean made mid-city), each two passes
+    // seen from their start (the passCounter, plumbing.md §6.1 PS6) and
+    // exact, and a month. The fake's record names no department: the funding
+    // is the department found by its ID (PS5), noted on the month line.
+    CHECK(CountOf(text, "plumbing shadow: comparing with the original plumbing simulator ") == 4);
+    CHECK(CountOf(text, "; made at the city start (the original's pipe condition is known: 0)") == 3);
+    CHECK(CountOf(text, "; made mid-city (the original's pipe condition is not known: the distressed count is not "
+                        "exact)") == 1);
+    CHECK(text.find("plumbing shadow 2000-02-01 pass 1: aligned=start exact=1; grid 4x4 cells=16 differing=0 "
+                    "max|diff|=0; producers 0; ") != std::string::npos);
+    CHECK(text.find("plumbing shadow 2000-02-01 pass 1: aligned=swap") == std::string::npos);
     CHECK(text.find("plumbing shadow 2000-02-01 month: pipes=0 distressedBefore=0 burstBefore=0; distressed "
                     "orig/ours=0/0; burst orig/ours=+0/+0; pipeCondition ours=0.0000 (orig not readable; its "
-                    "distressed count implies 0 (no pipes)); funding=1.000; mismatches=0; months=1 clean=1; passes "
-                    "since the last month line: seen=1 compared=1 clean=0 notExact=1") != std::string::npos);
-    CHECK(CountOf(text, "plumbing shadow 2000-02-01 month: ") == 3);
+                    "distressed count implies 0 (no pipes)); funding from department 0xaa4014b4 by ID (the record "
+                    "names no department); funding=1.000; mismatches=0; months=1 clean=1; passes since the last "
+                    "month line: seen=1 compared=1 clean=1 notExact=0") != std::string::npos);
+    CHECK(text.find("plumbing shadow 2000-02-01 month: pipes=0 distressedBefore=0 burstBefore=0; distressed "
+                    "orig/ours=0/0 burst +0 (ours allows 0..0) (not exact: the original's pipe condition is not "
+                    "known, the shadow started mid-city; plumbing.md §7.1 PS3); ") != std::string::npos);
+    CHECK(CountOf(text, "plumbing shadow 2000-02-01 month: ") == 4);
+    CHECK(CountOf(text, "; funding=1.000; mismatches=0; months=1 clean=1; passes since the last month line: ") == 4);
     CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=0 "
                     "max|diff|=0; ") != std::string::npos);
     CHECK(text.find("; produced orig/ours=0/0; consumed orig/ours=0/0; imported orig/ours=0/0; exported "
                     "orig/ours=0/0; wateredCells orig/ours=0/0; unwateredCells orig/ours=0/0; cost orig/ours=0/0; "
                     "demand orig/ours=0/0; pipes orig/ours=0/0; distressed orig/ours=0/0; burst orig/ours=0/0; "
                     "sources orig/ours=0/0; maintenance compared=0 differing=0; ageing=yes; condition orig/ours=[]; "
-                    "deliveries=4; mismatches=0; passes compared=2 clean=1") != std::string::npos);
+                    "deliveries=5; mismatches=0; passes compared=2 clean=2") != std::string::npos);
     CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=1 "
                     "max|diff|=1 first (x,z) orig/ours: (2,2) 1/0; ") != std::string::npos);
     CHECK(CountOf(text, "wateredCells orig/ours=3/0!; ") == 2);
-    CHECK(text.find("deliveries=2; mismatches=0 (not exact: 1 differences not counted); passes compared=1 clean=0") !=
-          std::string::npos);
-    CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=0") == 2);
+    CHECK(CountOf(text, "; ageing=no; deliveries=5; mismatches=1; passes compared=1 clean=0") == 1);
+    CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=1") == 1);  // the wrong cell
+    CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=0") == 1);  // the wrong scalar, again
+    // Made mid-city around no month: whether the first state 8 aged shows in
+    // the producers' condition (none here: not aged; PS7).
+    CHECK(text.find("; ageing=no (inferred: no producer's condition changed; plumbing.md §6.7, PS7); deliveries=5; "
+                    "mismatches=0; passes compared=1 clean=1") != std::string::npos);
     CHECK(text.find("plumbing shadow: ON (plumbing_shadow from FC4_PLUMBING_SHADOW): at each SimIdle and SimNewDay "
                     "of the ORIGINAL plumbing simulator (one pass state each), FreeCity4's water pass replayed") !=
           std::string::npos);
@@ -9286,7 +9385,7 @@ int main(int argc, char** argv) {
                     "read through the original's own Write into memory. Not compared (not readable read-only): pipe "
                     "watered states") != std::string::npos);
     CHECK(text.find("plumbing shadow: requested") == std::string::npos);
-    CHECK(CountOf(text, "plumbing shadow 2000-02-01 pass ") == 6);  // no INCOMPLETE pass line
+    CHECK(CountOf(text, "plumbing shadow 2000-02-01 pass ") == 8);  // no INCOMPLETE pass line
     CHECK(text.find("DLL_PROCESS_ATTACH") != std::string::npos);
     CHECK(text.find("cFC4Director constructed") != std::string::npos);
     CHECK(text.find("EnumClassObjects: reporting clsid 0x2990C1E5") != std::string::npos);

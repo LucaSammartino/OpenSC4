@@ -117,6 +117,8 @@
 #include "cISC4Advice.h"
 #include "cISC4Advisor.h"
 #include "cISC4AdvisorSystem.h"
+#include "cISC4LotBaseTextureOccupant.h"
+#include "cIGZCOM.h"
 #include "cISC4EffectsManager.h"
 #include "cISC4VisualEffect.h"
 #include "cISC4LotConfiguration.h"
@@ -387,8 +389,9 @@ const SlotCount kReviewedSlotCounts[] = {
      "the SDK declares slots 0-22; the building development simulator calls slot 7 (GetAdvisor) only "
      "(building-development.md §4.10). Slots 23-28 are not declared"},
     {"cISCExemplarPropertyHolder", 5, 4,
-     "the table lists slot 3 (SetDefaultExemplar) only, the one the building development simulator calls "
-     "(building-development.md §4.9); slot 4 is the SDK's GetDefaultExemplar"},
+     "the table has the one row the landfill spec added (slot 3 SetDefaultExemplar, landfill LG3); the SDK's slot 4 "
+     "GetDefaultExemplar has no row. The landfill developer (§4.8.1) and the building development simulator "
+     "(building-development.md §4.9) call slot 3 only"},
     {"cIGZCommandParameterSet", 15, 7,
      "the table lists slots 3, 5 and 6 only; the building development simulator calls slots 3 "
      "(GetParameterCount) and 5 (operator[]) (building-development.md §4.12)"},

@@ -91,6 +91,34 @@ enum Effect {
     Release(AgentHandle),
 }
 
+/// The fixed rank of a month-level agent (foundations §13.4), by the name it
+/// registers with; `None` = no rank (registration order, ahead of the tail).
+/// Other levels have no ranks (foundations §13.5).
+///
+/// - *[compat]* landfill developer (1), the two port developers (2),
+///   neighbours (3), ordinance (4): the landfill's month runs after
+///   pollution's and the budget's and before the neighbours' and the
+///   ordinance's (landfill.md §3.3, LG6).
+/// - *[choice]* commercial (5), land value (6).
+///
+/// The names are matched rather than the targets, so the original's agents
+/// registered with this simulator get the same ranks. The port developers'
+/// and the commercial simulator's `AddAgent` names are not in the specs (a
+/// question), so ranks 2 and 5 have no name yet and those agents keep
+/// registration order.
+fn tail_rank(lvl: u32, name: &str) -> Option<u8> {
+    if lvl != level::MONTH {
+        return None;
+    }
+    match name {
+        "cSC4LandfillDeveloper" => Some(1),
+        "cSC4NeighborsSimulator" => Some(3),
+        "cSC4OrdinanceSimulator" => Some(4),
+        "cSC4LandValueSimulator" => Some(6),
+        _ => None,
+    }
+}
+
 const DEFAULT_MS_PER_DAY_TABLE: [u32; 3] = [5000, 1000, 100];
 const DEFAULT_ANIMATION_DILATION: [f32; 5] = [0.0, 1.0, 1.5, 2.0, 1.0];
 const TARGET_FPS_BY_SPEED: [i32; 3] = [30, 20, 15];
@@ -204,14 +232,41 @@ impl State {
         let enabled = self.enabled_for_flags(flags);
         let serial = self.next_serial;
         self.next_serial += 1;
-        // [choice] registration order (spec §4).
-        self.agents[l].push(AgentEntry {
-            handle,
-            name: name.to_owned(),
-            flags,
-            enabled,
-            serial,
-        });
+        // [choice] registration order (spec §4), with the month level's
+        // fixed-rank tail (foundations §13.4): an agent without a rank goes
+        // after every other agent without one and before the ranked tail; a
+        // ranked agent goes after every agent of the same or a lower rank.
+        let rank = tail_rank(lvl, name);
+        let list = &self.agents[l];
+        let p = match rank {
+            None => list.iter().position(|e| tail_rank(lvl, &e.name).is_some()),
+            Some(r) => list.iter().position(|e| tail_rank(lvl, &e.name).is_some_and(|q| q > r)),
+        }
+        .unwrap_or(list.len());
+        self.agents[l].insert(
+            p,
+            AgentEntry {
+                handle,
+                name: name.to_owned(),
+                flags,
+                enabled,
+                serial,
+            },
+        );
+        // A cursor at or after the insertion point keeps its agent. [choice]
+        // An agent inserted before the cursor of a pass under way waits for
+        // the next interval, as an ordered set's iteration would skip it.
+        let fix = |c: &mut Option<usize>| {
+            if let Some(ci) = *c {
+                if p <= ci {
+                    *c = Some(ci + 1);
+                }
+            }
+        };
+        fix(&mut self.cursors[l]);
+        if l == level::IDLE as usize {
+            fix(&mut self.idle_cursor);
+        }
         self.effects.push(Effect::AddRef(handle));
         true
     }
@@ -1106,7 +1161,8 @@ impl Simulator {
         })
     }
 
-    /// The registration at `index` of `lvl` (registration order), for diagnostics.
+    /// The registration at `index` of `lvl` (delivery order: registration
+    /// order with the month level's ranked tail last), for diagnostics.
     pub fn agent_info(&self, lvl: u32, index: usize) -> Option<AgentInfo> {
         self.read(|s| {
             s.agents.get(lvl as usize)?.get(index).map(|e| AgentInfo {

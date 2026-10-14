@@ -19,20 +19,27 @@
 //! (`fc4_ref::core_handle` set) are given one here, so both cases end up the
 //! same.
 //!
-//! **Landfill tiles are kept here** (§4.8.1 step 3): the core builds each
+//! **Landfill tiles** (§4.8.1 step 3, LG3): the core builds each
 //! `cSC4LandfillOccupant` and hands it over to be inserted into the occupant
-//! manager. How the game's occupant takes its tile exemplar is not in the
-//! spec or docs/abi, so no game occupant is created: the tile lives in a
-//! registry here under a token with bit 63 set, which every occupant callback
-//! of the core understands (`occupant_at` of the landfill type finds it
-//! first, removal, position, flags, the item cost of §4.9.1). The game sees
-//! no tile: the cell keeps pollution's active-landfill flag (§4.8.2), and the
-//! flora filter, the query tool and `PlaceZone` (§9) do not see an occupant.
-//! Landfill tiles the ORIGINAL developer created (a city it saved) are game
-//! occupants and are found, priced and removed through the host as usual.
-//! Tiles are not saved; after a load they are rebuilt on PostCityInit, before
-//! the core's own handling, from the active-landfill flags of the zones' mask
-//! cells ([`Handle::rebuild_tiles`], [choice]).
+//! manager. With the host's `insert_landfill_tile` (live mode) the host
+//! builds the GAME occupant from the tile ID, orientation and position, with
+//! the tile exemplar attached (§4.8.1's [choice] route through public
+//! interfaces), and inserts it; from then on the tile is a game occupant like
+//! one the original made: found through `occupant_at`, priced from its tile
+//! exemplar (§4.9.1, LG11), removed through `occupant_remove`, and saved by
+//! the occupant manager (§6.4, LG8). Without the callback, when it makes no
+//! occupant, and always in shadow mode, the tile lives in a registry here
+//! under a token with bit 63 set, which every occupant callback of the core
+//! understands (`occupant_at` of the landfill type finds it first, removal,
+//! position, flags, the item cost of §4.9.1); the game then sees no tile.
+//!
+//! **Tiles across a load** (§6.4, LG8): the original saves its tiles and does
+//! not rebuild them, and neither does this layer for a cell that has one.
+//! [choice] A mask cell whose active-landfill flag is set but which has no
+//! landfill occupant (a city saved by an older FreeCity4, which kept its
+//! tiles here) gets its tile back on PostCityInit, before the core's own
+//! handling, chosen as §4.8 would from the saved heaps with orientation 0 and
+//! no `rand()` draw ([`Handle::rebuild_tiles`]).
 //!
 //! Re-entrancy: the core holds no borrow across a host callback. A message
 //! delivered while a call is running is queued and handled when the outermost
@@ -136,6 +143,12 @@ pub struct fc4_landfill_state {
     pub maintenance: i64,
     /// The sanitation department held (borrowed token; 0 = none).
     pub department: u64,
+    /// Tiles inserted into the game as `cSC4LandfillOccupant`s through
+    /// `insert_landfill_tile` since the object was created (§4.8.1, LG3).
+    pub game_tiles: u32,
+    /// `insert_landfill_tile` calls that made no game tile (the tile was kept
+    /// here instead).
+    pub game_tile_failures: u32,
 }
 
 /// Everything the landfill developer asks of the game (fc4.h
@@ -242,13 +255,20 @@ pub struct fc4_landfill_host {
     // history (§5)
     /// (series, value): `MessageSend` of `0x89EFA536`.
     pub send_history: Option<unsafe extern "C" fn(U, u32, u32)>,
+    // tiles (§4.8.1 step 3, LG3; appended in ABI 33)
+    /// (x, z, tile ID, orientation, world x/y/z): build a game
+    /// `cSC4LandfillOccupant` with the tile exemplar attached, flag 4,
+    /// removal flags 2 and that position, `Init` it and insert it into the
+    /// occupant manager. Its `cISC4Occupant` token (borrowed: the occupant
+    /// manager holds it), 0 when none was made (the tile is then kept here).
+    pub insert_landfill_tile: Option<unsafe extern "C" fn(U, i32, i32, u32, i32, *const f32) -> u64>,
 }
 
 const _: () = {
     assert!(std::mem::size_of::<fc4_landfill_region>() == if cfg!(target_pointer_width = "32") { 24 } else { 32 });
     assert!(std::mem::size_of::<fc4_landfill_effects>() == 16);
-    assert!(std::mem::size_of::<fc4_landfill_state>() == 104);
-    assert!(std::mem::size_of::<fc4_landfill_host>() == if cfg!(target_pointer_width = "32") { 248 } else { 496 });
+    assert!(std::mem::size_of::<fc4_landfill_state>() == 112);
+    assert!(std::mem::size_of::<fc4_landfill_host>() == if cfg!(target_pointer_width = "32") { 252 } else { 504 });
 };
 
 /// Token bit of the tiles kept here (host tokens are pointers).
@@ -353,6 +373,10 @@ pub(crate) struct CHost {
     rec: RefCell<Rec>,
     /// Live: the cells this object flagged (and the rebuild found flagged).
     active: RefCell<BTreeSet<(i32, i32)>>,
+    /// Tiles inserted into the game, and `insert_landfill_tile` calls that
+    /// made none (fc4_landfill_state).
+    game_tiles: Cell<u32>,
+    game_tile_failures: Cell<u32>,
 }
 
 impl CHost {
@@ -363,7 +387,36 @@ impl CHost {
             tiles: RefCell::new(Tiles::default()),
             rec: RefCell::new(Rec::default()),
             active: RefCell::new(BTreeSet::new()),
+            game_tiles: Cell::new(0),
+            game_tile_failures: Cell::new(0),
         }
+    }
+
+    /// Puts a tile the core built (§4.8.1 step 3) into its cell: a game
+    /// occupant through `insert_landfill_tile` (live mode, LG3), or the
+    /// registry here (no callback, the callback made none, or shadow mode).
+    fn place_tile(&self, occ: &Rc<LandfillOccupant>, x: i32, z: i32) {
+        if !self.shadow && self.c.insert_landfill_tile.is_some() {
+            let p = occ.position();
+            let token = cb!(
+                self,
+                insert_landfill_tile,
+                0,
+                x,
+                z,
+                occ.tile_id(),
+                occ.orientation(),
+                p.as_ptr()
+            );
+            if token != 0 && token & VIRTUAL_TILE == 0 {
+                occ.set_token(token);
+                self.game_tiles.set(self.game_tiles.get().wrapping_add(1));
+                return;
+            }
+            self.game_tile_failures
+                .set(self.game_tile_failures.get().wrapping_add(1));
+        }
+        self.insert_tile(occ, x, z);
     }
 
     pub(crate) fn rec(&self) -> Rec {
@@ -581,7 +634,10 @@ impl LandfillHost for CHost {
             return live;
         }
         // [choice] The supply as the original's run would see it: the live
-        // value plus our own changes, clamped to the u32 range.
+        // value plus our own changes, clamped to the u32 range. LG12/LG14
+        // (§4.7.1): the month's intakes sum to at most the supply, so the
+        // clamp never engages except for a negative supply from a damaged
+        // save, and "live plus delta" equals the original's.
         let v = i64::from(live) + self.rec.borrow().supply_delta;
         v.clamp(0, i64::from(u32::MAX)) as u32
     }
@@ -693,8 +749,9 @@ impl LandfillHost for CHost {
         let t = opt(cb!(self, occupant_at, 0, x, z, occupant_type))?;
         (!self.hidden(t)).then_some(t)
     }
+    // [choice] Always true: a tile the game did not take is kept here.
     fn insert_landfill_occupant(&self, occupant: &Rc<LandfillOccupant>, x: i32, z: i32) -> bool {
-        self.insert_tile(occupant, x, z);
+        self.place_tile(occupant, x, z);
         self.rec.borrow_mut().tiles_created += 1;
         true
     }
@@ -1093,11 +1150,14 @@ impl Handle {
         self.dev.do_message(m);
     }
 
-    /// After a load (tooling, [choice]): the tiles kept here are not saved,
-    /// so every mask cell of every zone whose active-landfill flag is set and
-    /// that has no landfill occupant gets its tile back, chosen as §4.8 would
-    /// from the saved heaps (the interior tile without a `rand()` draw:
-    /// orientation 0). Nothing is told to the game. Returns the tiles made.
+    /// After a load ([choice], §6.4 LG8): game tiles are saved by the
+    /// occupant manager and found here, so only a mask cell whose
+    /// active-landfill flag is set and that has no landfill occupant (a city
+    /// saved while the tiles were kept in this layer) gets its tile back,
+    /// chosen as §4.8 would from the saved heaps (the interior tile without a
+    /// `rand()` draw: orientation 0), as a game occupant when the host can
+    /// make one ([`CHost::place_tile`]). The pollution flag is left as it
+    /// is. Returns the tiles made.
     fn rebuild_tiles(&self) -> u32 {
         let host = &self.host;
         if host.c.is_active_landfill.is_none() {
@@ -1122,7 +1182,7 @@ impl Handle {
                     continue;
                 }
                 let occ = host.build_tile(x, z, tile_id, orientation);
-                host.insert_tile(&occ, x, z);
+                host.place_tile(&occ, x, z);
                 made += 1;
             }
         }
@@ -1191,7 +1251,8 @@ pub unsafe extern "C" fn fc4_landfill_destroy(p: *mut fc4_landfill) {
     guard((), || {
         let b = Box::from_raw(p as *mut Handle);
         // An initialised object released everything at Shutdown (the plugin
-        // shuts it down first), so there is nothing left then.
+        // shuts it down first), so there is nothing left then; a developer
+        // that was never initialised still holds its zones' zots.
         for z in b.zots() {
             b.host.release(z);
         }
@@ -1208,17 +1269,28 @@ pub unsafe extern "C" fn fc4_landfill_init(p: *mut fc4_landfill) -> bool {
     dev(p, false, LandfillDeveloper::init)
 }
 
-/// `Shutdown` (§1.2): always true. [choice] The zones are dropped without
-/// their zot props being removed (the spec does not say what a zone does with
-/// its zot on Shutdown); the reference held on each is released here, after
-/// the core's Shutdown. The tiles kept here are dropped.
+/// `Shutdown` (§1.2): always true. Each initialised zone removes its zot prop
+/// (`RemovePropA`) and releases it in the core (§4.4.9, LG13). [choice] A
+/// zone that was never initialised keeps its zot in the original; its
+/// reference is released here, after the core's Shutdown, so it does not
+/// leak. A developer that was never initialised keeps its zones, and
+/// [`fc4_landfill_destroy`] releases them. The tiles kept here are dropped.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_landfill_shutdown(p: *mut fc4_landfill) -> bool {
     with_handle(p, false, |h| {
         h.call(|h| {
-            let zots = h.zots();
+            let kept: Vec<u64> = if h.dev.is_initialised() {
+                h.dev
+                    .zone_list()
+                    .iter()
+                    .filter(|z| !z.is_initialised())
+                    .filter_map(|z| z.zot())
+                    .collect()
+            } else {
+                Vec::new()
+            };
             let ok = h.dev.shutdown();
-            for z in zots {
+            for z in kept {
                 h.host.release(z);
             }
             *h.host.tiles.borrow_mut() = Tiles::default();
@@ -1348,6 +1420,8 @@ pub unsafe extern "C" fn fc4_landfill_get_state(p: *const fc4_landfill, out: *mu
             supply_delta: rec.supply_delta,
             maintenance: st.maintenance,
             department: st.department.unwrap_or(0),
+            game_tiles: h.host.game_tiles.get(),
+            game_tile_failures: h.host.game_tile_failures.get(),
             ..Default::default()
         };
         for z in h.dev.zone_list() {

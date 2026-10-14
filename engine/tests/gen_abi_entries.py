@@ -188,6 +188,11 @@ INTERFACES = [
     ("cISC4LandfillDeveloper", "cFC4ISC4LandfillDeveloper", FC4, True),
     ("cISC4LandfillOccupant", "cISC4LandfillOccupant", "cISC4LandfillOccupant.h", True),
     ("cISC4TrafficNetworkMap", "cFC4ISC4TrafficNetworkMap", FC4, True),
+    # (landfill.md 4.8.1, 4.8.4, 4.8.5: the tiles' exemplar holder, the
+    # landfill ground texture, and GZCOM, which creates both)
+    ("cISCExemplarPropertyHolder", "cISCExemplarPropertyHolder", "cISCExemplarPropertyHolder.h", True),
+    ("vt:cSC4LotBaseTextureOccupant::vftable", "cISC4LotBaseTextureOccupant", "cISC4LotBaseTextureOccupant.h", True),
+    ("vt:cGZCOM::vftable", "cIGZCOM", "cIGZCOM.h", True),
     # Residential (docs/specs/residential.md section 10): implemented through the
     # compiled slot order (the vt: row above also checks the class slots), and
     # the sub-object interfaces of its own vtables.
@@ -213,7 +218,6 @@ INTERFACES = [
     ("cISC4LotConfigurationManager", "cISC4LotConfigurationManager", "cISC4LotConfigurationManager.h", True),
     ("cISC4AdvisorSystem", "cISC4AdvisorSystem", "cISC4AdvisorSystem.h", True),
     ("cISC4Advisor", "cISC4Advisor", "cISC4Advisor.h", True),
-    ("cISCExemplarPropertyHolder", "cISCExemplarPropertyHolder", "cISCExemplarPropertyHolder.h", True),
     ("cIGZCommandParameterSet", "cIGZCommandParameterSet", "cIGZCommandParameterSet.h", True),
     ("cIGZMessageServer2", "cIGZMessageServer2", "cIGZMessageServer2.h", True),
     ("cISC4DemandSimulator", "cISC4DemandSimulator", "cISC4DemandSimulator.h", True),

@@ -34,20 +34,28 @@
 //     counters of slots 12-23, GetWaterProducerInfo (24), each water
 //     connection's GetVisitedThisCycle, and its record through its own Write
 //     (cIGZSerializable) into a memory stream (references queried for the
-//     grid, occupant, pipe and department interfaces).
-// The shadow sees a pass start (a cell of the next working grid changes:
-// state 2 ran), replays FreeCity4's pass on the original's record over
-// private grid copies, compares at the original's swap (the published grid
-// cell by cell, the producers, deal usage, water connections) and after its
-// state 8 (totals, building counts, cost, demand, pipes, sources, budget
-// items, ageing). A month compares the pipe funding (§7.1): the distressed
-// count exactly, the random new bursts by range ("not exact").
+//     grid, occupant, pipe and department interfaces); after every delivery
+//     its passCounter through the same Write into a header-only stream
+//     (references not looked at, nothing kept past the counter).
+// The shadow sees a pass start (the passCounter moves: state 0 ran; §6.1
+// PS6), replays FreeCity4's pass on the original's record over private grid
+// copies, compares at the original's swap (the published grid cell by cell,
+// the producers, deal usage, water connections) and after its state 8
+// (totals, building counts, cost, demand, pipes, sources, budget items,
+// ageing). Demand is the original's running sum (§5.3), loaded and moved by
+// the occupant messages delivered during the pass, never recomputed: ours
+// is taken from the record at the comparison (PS4, PS8). Whether a state 8
+// the shadow did not see coming aged shows in the producers' condition
+// (PS7). A month compares the pipe funding (§7.1) with the funding of the
+// simulator's own department (the one its record names, PS5): the
+// distressed count exactly when the shadow was made at the city start
+// (PlumbingShadowCityInit: the original's pipe condition is then 0, PS3),
+// otherwise "not exact"; the random new bursts by range ("not exact").
 //
 // Not readable read-only, hence not compared (logged at game start): the
 // pipes' watered states (a non-virtual call), redisplay, posts, history,
 // line-item expenses, lot conditions, deal flags, the original's pipe
-// condition (not saved) and pass state. Demand is an incremental sum kept by
-// the inserts (§5.3): carried from the original's record, not recomputed.
+// condition (not saved; known only at a city start) and pass state.
 //
 // Log lines (always written, not the verbose channel; longer lines are split
 // into "plumbing shadow (cont.)" lines):
@@ -80,10 +88,19 @@ void PlumbingShadowStartup(bool simulatorReplaced, bool plumbingReplaced);
 bool PlumbingShadowDeliver(cIGZMessageTarget2* target, const char* agentName, cIGZMessage2* msg, uint32_t type,
                            int64_t data1, bool* finished);
 
+// cFC4Simulator at PostCityInit (the city finished Init, before its first
+// delivery): if the shadow is on and the city's plumbing simulator is the
+// original, makes the shadow of a city start (fc4_plumbing_shadow_city_start:
+// the month's distressed count compared exactly). A shadow made by a later
+// delivery (the shadow switched on mid-city) does not know the original's
+// pipe condition.
+void PlumbingShadowCityInit();
+
 }  // namespace fc4
 
 // Test seam op 22 (FC4TestSeam.h): a run of deliveries to a fake original,
-// with one shadow for the whole run (a fresh one per call). Only the city's
+// with one shadow for the whole run (a fresh one per call, made as at a city
+// start unless `midCity`). Only the city's
 // GetPlumbingSimulator (compiled slot 64) is called on `city`; the read-only
 // host's services stay null (neutral reads).
 struct FC4PlumbingShadowTestInput {
@@ -95,6 +112,7 @@ struct FC4PlumbingShadowTestInput {
     uint32_t passesPerDay;  // plumbing_shadow_passes for the run (0 = every pass)
     int32_t* results;       // out, may be null: per delivery, the counted differences of a comparison
                             // finished in it, -1 none, -3 not taken (the caller delivered it)
+    uint32_t midCity;       // 1: the shadow is made as mid-city (the original's pipe condition not known)
 };
 // Returns the sum of the counted differences of the comparisons finished
 // (passes and months), -1 if the shadow took no delivery, -2 if it took some

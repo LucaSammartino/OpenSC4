@@ -310,20 +310,26 @@ plugin.
        (`GarbagePutInLandfill`), sets the active-landfill flag of every tile cell, levels the zone through the lot
        developer, books line item 30 of the sanitation department, and places the zot prop, all through the game's
        interfaces. The getters are answered from any thread (another thread waits up to 20 ms for the object's
-       lock, then answers from the last snapshot and counts a fallback). Landfill tiles are kept in FreeCity4,
-       not in the game: attaching a tile exemplar to the game's `cSC4LandfillOccupant` is not documented, so the
-       cells keep pollution's active-landfill flag (what the simulation reads) but no tile model is drawn, the
-       query tool shows no tile, and the tiles are rebuilt from the flags at `PostCityInit` after a load. Left
-       out and logged once: `SetEmptyCellTexture` (the base-texture occupant's factory is not documented: no
-       landfill ground texture), the zone effects (garbage trucks and seagulls, §4.10, rendering only), the zot's
-       orientation (the view service of §4.7.5 is not documented: 0), the 3D view level, and
-       `GetLandfillZoneFromCell` (null, which §9 allows). The log has a status line at `Init`, `Read` and every
-       month from the first (`landfill month: init=… loaded=… zones=… connected=… cells=… heaps=… valid=…
+       lock, then answers from the last snapshot and counts a fallback); `DoMessage` waits for the lock on every
+       thread and logs the first few messages from a thread other than the main one (`landfill: DoMessage 0x…
+       on thread … (not the main thread); it waits for the lock`). Landfill tiles are game
+       `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
+       model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
+       game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
+       active-landfill flag; a load rebuilds only those). New landfill cells get the landfill ground texture (a
+       usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
+       month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
+       pollution or the budget). Left out and logged once: the zone effects (garbage trucks and seagulls, §4.10,
+       rendering only), the zot's orientation (the view rotation of §4.7.5 is not read: 0), the 3D view level,
+       and `GetLandfillZoneFromCell` (null, which §9 allows). The log has a status line at `Init`, `Read` and
+       every month from the first (`landfill month: init=… loaded=… zones=… connected=… cells=… heaps=… valid=…
        active=… stored=… capacity=… used=… free=… reported=… moved=… supplyDelta=… maintenance=… activeCells=…
-       tiles=… rebuilt=… zots=… department=… reentrant=… fallbacks=… placeZones=… zotsPlaced=… zotsFailed=…
-       zotsRemoved=… occupantsRemoved=… levellings=… history=… months=…`), `landfill Write -> 1`, `landfill
-       Read -> 1`, `landfill Shutdown: M months, F fallbacks` and `cFC4LandfillDeveloper destroyed (F
-       fallbacks)`. A cell region whose cell map does not match its rectangle is ignored and logged once
+       tiles=… rebuilt=… gameTiles=… gameTileFailures=… zots=… department=… reentrant=… fallbacks=…
+       offThreadMessages=… placeZones=… zotsPlaced=… zotsFailed=… zotsRemoved=… occupantsRemoved=…
+       tilesInserted=… tilesFailed=… textures=… texturesFailed=… texturesRemoved=… levellings=… history=…
+       months=…`), `landfill Write -> 1`, `landfill Read -> 1`, `landfill Shutdown: M months, F fallbacks` and
+       `cFC4LandfillDeveloper destroyed (F fallbacks)`. A cell region whose cell map does not match its
+       rectangle is ignored and logged once
        (`landfill: WARNING a cell region does not have the documented layout …`). Its game calls have their own
        switches (default `1`, environment `FC4_LANDFILL_<KEY>`): `landfill_terrain`, `landfill_levelling`,
        `landfill_pollution`, `landfill_budget`, `landfill_zoning`, `landfill_occupants`, `landfill_props`,
@@ -803,19 +809,26 @@ plugin.
      properties, deal usage, connection flags and budget item costs go to overlays inside the shadow). Then the
      original's delivery, unchanged; after: the record and the counts again, compared
      (`fc4_power_shadow_finish`): every record field, the consumption map, the mark / wire / powered bitmaps, the
-     powered grid cell by cell, the plant counts and the property / deal / connection / item writes. A step whose
-     wire bits changed runs again with the changed bits' bounding box as the dirty rectangle (the original's is
-     not saved); a shortfall network whose result depends on the original's `rand()` (§6.3 step 6) runs again
+     powered grid cell by cell, the plant counts and the property / deal / connection / item writes. The
+     original's unsaved values are known from the **city start**: at PostCityInit our simulator makes the shadow
+     (`PowerShadowCityInit`) with the ordinance factor read then, pass import / export / demand and
+     brokenFraction 0 (power spec §8, §9.1, §7.6: what the original's `Init` leaves after a load), and the
+     removals, zoning changes and tuning reloads the original receives are forwarded to it
+     (`fc4_power_shadow_message`), so each wire rebuild uses the original's dirty rectangle (§5.3, PW5) and the
+     factor follows the original's (PW7). A shadow switched on **mid-city** (a settings change) does not know
+     them: states 1 and 2 are `not_exact` until the first month, state 3's totals until the first state 0, the
+     month's broken count always, and a wire rebuild before its first step runs again with the changed bits'
+     bounding box. A shortfall network whose result depends on the original's `rand()` (§6.3 step 6) runs again
      with the original's powered bits as the block iterator's target, which recovers the original's draw when
      the blocks are the same, else the cells are counted as `not_exact`. Nothing is written to the game. **Not
      compared** (said in the start line): posted messages, history values, budget line items, demolitions, lot
-     conditions, the poles the month's `random_shuffle` picks (the broken count is compared), deal flags, the
-     original's pass import / export / demand before its first observed state 0 (`not_exact`), and its dirty
-     rectangle. Lines (always written; longer ones continue on `power shadow (cont.)` lines):
+     conditions, the poles the month's `random_shuffle` picks (the broken count is compared), deal flags. Lines
+     (always written; longer ones continue on `power shadow (cont.)` lines):
 
      ```
      power shadow: ON (power_shadow from …): …                                  (game start)
-     power shadow: comparing with the original power simulator … (city …); …    (each city)
+     power shadow: comparing with the original power simulator … (city …) from the city start|from mid-city
+       (…); …                                                                     (each city)
      power shadow yyyy-mm-dd cycle: steps 4>0 0 1 2 3 on WxH cells; grid N cells compared, max|d|=D; first
        differing cells: grid(x,z) o/b [step] …; production=o/b consumption=o/b import=o/b export=o/b demand=o/b
        requirement=o/b consumers=o/b powered=o/b unpowered=o/b plants=o/b aged=o/b distressed=o/b
@@ -828,17 +841,23 @@ plugin.
      power shadow yyyy-mm-dd bookkeeping: the original's running counts (orig) vs FreeCity4's insertion (§5.1)
        of the N live occupants and a wire rebuild of the whole map (ours), orig/ours: consumers=…;
        requirement=…; plantCount=…; poleCount=…; costBase=…; consumption map d/N cells differ max|d|=…; wire
-       … cells differ; …; mismatches=M
-     power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
-       (clean …, lines …) incomplete=… reruns=… uncached=… factor=… pass totals known|unknown; not_exact=K;
+       … cells differ; baseline (the first line …): N differences …  (first line) | inherited (as at the
+       baseline line …) N [..]; in flight (changed since the last line) N [..]; gone since the last line N [..];
+       baseline entries gone (in flight then) N [..]; persistent (the same at two lines, not inherited) N [..];
        mismatches=M
+     power shadow month to yyyy-mm-dd: deliveries=… steps=… idle passed through=… not enabled=… cycles=…
+       (clean …, lines …) incomplete=… reruns=… uncached=… factor=…[ (not known)] pass totals known|unknown
+       dirty rectangle known|unknown; not_exact=K; mismatches=M
      power shadow yyyy-mm-dd step|month: INCOMPLETE (why); not compared
      ```
 
      The first four clean cycles of each month are logged, later ones only counted (`power_shadow_lines` caps
-     the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping line, `not_exact=0`
-     (or only on the first cycle, before a state 0 was seen) and no `INCOMPLETE` line. The bookkeeping line
-     can differ by a few when the original still has §5 messages queued at the month.
+     the cycle lines with a difference a month). Success is `mismatches=0` on every cycle, month and bookkeeping
+     line, `not_exact=0` from a city start (mid-city: only until the first month) and no `INCOMPLETE` line. The
+     bookkeeping line (power spec §5.2, PW8) compares running counts the original inherits from the save and
+     never rebuilds: its first line is the baseline (differences inherited from the save, or occupants still in
+     flight); later a difference equal to the baseline's is inherited, one that changed since the last line is
+     in flight, and only one that stays the same at two lines without being inherited is a mismatch.
    - **Plumbing shadow** (`plumbing_shadow = 1`, env `FC4_PLUMBING_SHADOW`; off by default;
      `plumbing_shadow_cells = N`, env `FC4_PLUMBING_SHADOW_CELLS`, default 8, 1..64, the differing cells listed per
      line; `plumbing_shadow_passes = N`, env `FC4_PLUMBING_SHADOW_PASSES`, default 4, the passes replayed per game
@@ -846,26 +865,34 @@ plugin.
      plumbing simulator** (do not enable `plumbing`); otherwise it logs `plumbing shadow: requested … but
      INACTIVE` at game start. The original runs one pass state per `SimIdle` / `SimNewDay` (plumbing spec §6);
      our simulator wraps each `SimIdle`, `SimNewDay` and `SimNewMonth` delivery to its agent. At the start of a
-     pass (seen as a change of one probe cell of the next working grid; otherwise at the original's swap, then
-     the pass is `exact=0`) the original's own `Write` (`cIGZSerializable`) goes into a memory stream and
-     FreeCity4's core (`fc4_plumbing_shadow`) replays the pass on private copies of the record's grids, reading
+     pass (its passCounter, record field 7, moved: state 0 ran, plumbing spec §6.1 PS6; read after every
+     delivery through the original's own `Write` into a header-only stream; a pass already running when the
+     shadow started is followed from the original's swap, then `exact=0`) the original's own `Write`
+     (`cIGZSerializable`) goes into a memory stream and FreeCity4's core (`fc4_plumbing_shadow`) replays the
+     pass on private copies of the record's grids, reading
      every other input live through a read-only host table (no write callback; its grid table only reads). At the
      original's swap the published grid is compared cell by cell, with each producer's production, efficiency,
      pollution and water used, the polluted count and average pollution, the deal usage and the water
      connections; after its state 8, the produced, consumed, imported and exported water, the watered and
-     unwatered cells, cost, demand, pipes, distressed and burst pipes, sources, each producer's budget item and
-     (on an ageing pass) its condition. At each `SimNewMonth` the pipe funding (§7.1) is checked: the distressed
-     count exactly, the new bursts (the original's random draw) by range, marked not exact. **Not compared**
-     (said in the start line, not readable read-only): the pipes' watered states (a non-virtual call),
-     redisplay, posts, history, line-item expenses, lot conditions, deal flags, the original's pipe condition
-     (not saved) and its pass state; demand (an incremental sum kept by the inserts, §5.3) is carried from the
-     original's record, not recomputed. Our `pipeCondition` is a distress fraction: `0.000` is real at 50%
-     funding or more (it is not saved either; the shadow tracks it from city load, starting at 0). Lines
+     unwatered cells, cost, demand (the original's running sum, loaded and moved by the occupant messages during
+     the pass, never recomputed: ours is the record's at the comparison, PS4 / PS8), pipes, distressed and burst
+     pipes, sources, each producer's budget item and (on an ageing pass) its condition; when the shadow cannot
+     know whether a state 8 aged (made mid-city around a month), the producers' conditions show it (PS7,
+     `ageing=yes|no (inferred: …)`). At each `SimNewMonth` the pipe funding (§7.1) of the simulator's own
+     department (the one its record names, PS5) is checked: the distressed count exactly when the shadow was
+     made at the city start (`PostCityInit`: the original's pipe condition is 0 after every load, PS3), else
+     marked not exact (the shadow started mid-city); the new bursts (the original's random draw) by range,
+     marked not exact. **Not compared** (said in the start line, not readable read-only): the pipes' watered
+     states (a non-virtual call), redisplay, posts, history, line-item expenses, lot conditions, deal flags, the
+     original's pipe condition (not saved; known only at the city start) and its pass state. Our
+     `pipeCondition` is a distress fraction that moves each month by the funding curve (PS2; a step above 1 sets
+     1); it is not saved either: the shadow tracks it from the city start, starting at 0. Lines
      (always written; longer ones continue on `plumbing shadow (cont.)` lines):
 
      ```
      plumbing shadow: ON (plumbing_shadow from …): …                              (game start)
-     plumbing shadow: comparing with the original plumbing simulator … (city …); …   (each city)
+     plumbing shadow: comparing with the original plumbing simulator … (city …); …; made at the city start (…)
+       | made mid-city (…)                                                       (each city)
      plumbing shadow yyyy-mm-dd pass N: aligned=start|swap exact=1|0 [(why not)]; grid XxZ cells=C differing=D
        max|diff|=M [first (x,z) orig/ours: (x,z) a/b, …]; producers P; production orig/ours=[…]; efficiency …;
        polluted …; used …; numPolluted orig/ours=a/b; averagePollution …; deals compared=… differing=…;
@@ -875,15 +902,19 @@ plugin.
        [condition orig/ours=[…]]; deliveries=K; mismatches=N [(not exact: n differences not counted)];
        passes compared=… clean=…
      plumbing shadow yyyy-mm-dd month: pipes=P distressedBefore=… burstBefore=…; distressed orig/ours=a/b;
-       burst orig/ours=+0/+0 | burst +n (not exact: …; ours allows 0..m); pipeCondition ours=… (orig not
-       readable; its distressed count implies …); funding=F; mismatches=N; months=M clean=C; passes since the
-       last month line: seen=… compared=… clean=… notExact=… incomplete=… differing=…
+       burst orig/ours=+0/+0 | burst +n (not exact: …; ours allows 0..m) | distressed orig/ours=a/b burst +n
+       (ours allows 0..m) (not exact: the original's pipe condition is not known, …); pipeCondition ours=… (orig
+       not readable; its distressed count implies …)[; funding from department … by ID (why)]; funding=F;
+       mismatches=N; months=M clean=C; passes since the last month line: seen=… compared=… clean=… notExact=…
+       incomplete=… differing=…
      plumbing shadow yyyy-mm-dd[ pass N]: INCOMPLETE (why); not compared
      ```
 
      A `!` marks a differing scalar. Success is `mismatches=0` on every `aligned=start exact=1` pass line and
      on every month line (`clean` equal to `months`), with `incomplete=0`. Passes followed from the swap
-     (`exact=0`, the first pass after load) only report their differences.
+     (`exact=0`: the pass already running when a shadow switched on mid-city started) or changed while they ran
+     (`exact=0 (…)`) only report their differences. With the shadow on when the city loads, every pass is seen
+     from its start.
    - **Land value shadow** (`landvalue_shadow = 1`, env `FC4_LANDVALUE_SHADOW`; off by default;
      `landvalue_shadow_cells = N`, env `FC4_LANDVALUE_SHADOW_CELLS`, default 4, 1..64): a same-process
      differential of the land value grids. It needs the **original** land value simulator (do not enable
