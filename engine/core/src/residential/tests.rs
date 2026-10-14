@@ -5,19 +5,21 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! Unit tests of the residential simulator against a fake host: the §15
-//! tests of `docs/specs/residential.md` (named `t01_…` to `t24_…`), the
-//! tests of `residential-education-health.md` §11 that this core decides
-//! (named `reh…`), the RS answers, the lifecycle and the save record.
+//! tests of `docs/specs/residential.md` (named `t01_…` to `t24_…`), the 24
+//! tests of `residential-education-health.md` §11 (named `reh01_…` to
+//! `reh24_…`), the RS answers, the lifecycle and the save record.
 //!
 //! The fake host keeps core [`SimGrid`]s, logs every call the simulator
-//! makes, and hands the simulator a scripted generator that records each
+//! makes, models a small budget simulator (items, departments, line items),
+//! the occupants' properties and lots and the ordinances that are on, and
+//! hands the simulator a scripted generator that records each
 //! `RandomDoubleRangeUniform(a, b)` and returns queued values (`b` when the
 //! queue is empty, which never starts a strike or an effect).
 
 #![allow(clippy::needless_range_loop)]
 
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::rc::Rc;
 
 use super::*;
@@ -50,9 +52,8 @@ enum Ev {
     ReleaseDepartment(u64),
     /// `Shutdown` of a grid, by instance ID (the temporary grid is 0).
     ShutdownGrid(u32),
+    /// `GetOrdinanceOnArray` (one per ordinance-effect read, REH §4.3).
     Ordinance,
-    StrikeChecks,
-    BuildingChanged(u64, bool),
     History(u32, i32),
     Effect,
     Transform([f32; 3]),
@@ -60,6 +61,17 @@ enum Ev {
     Strike(u32, Option<u64>, u32, u32),
     AddRef(u64),
     Release(u64),
+    // ---- the budget simulator (REH §4.1, §4.2) ----
+    ChangeLine(u64, u32, u32),
+    AddLocal(u64, u64, u32),
+    RemoveLocal(u64, u64, u32),
+    SetLocal(u64, u64, f32, u32),
+    CreateLine(u64, u32, bool),
+    RemoveLine(u64, u32),
+    LineCount(u64, i64),
+    DisplayFlag(u64, u32, bool),
+    /// Automata controllers: (name, occupant, added).
+    Controllers(String, u64, bool),
 }
 
 struct Host {
@@ -86,14 +98,24 @@ struct Host {
     refs: RefCell<BTreeMap<u64, i64>>,
     bool_props: RefCell<BTreeMap<(u64, u32), bool>>,
     next_department: Cell<u64>,
-    ordinance: Cell<(f32, f32)>,
-    building_dirty: Cell<bool>,
-    /// The served counts the coverage hook returns (schools, hospitals).
-    served: Cell<(i32, i32)>,
-    strike_chance: Cell<f32>,
-    /// The strike hook draws once per school building and starts a strike
-    /// below 50.
-    strike_rolls: Cell<bool>,
+    /// Occupant properties other than the bool ones.
+    props: RefCell<BTreeMap<(u64, u32), Variant>>,
+    building_types: RefCell<BTreeMap<u64, u32>>,
+    slot11: RefCell<BTreeMap<u64, u32>>,
+    lots: RefCell<BTreeMap<u64, (f32, f32)>>,
+    positions: RefCell<BTreeMap<u64, (f32, f32)>>,
+    /// Budget items by (occupant, purpose).
+    items: RefCell<BTreeMap<(u64, u32), BudgetItem>>,
+    /// `GetDepartmentBudget`: department ID → token.
+    departments: RefCell<BTreeMap<u32, u64>>,
+    funding: RefCell<BTreeMap<u64, f32>>,
+    locally_funded: RefCell<BTreeSet<(u64, u64, u32)>>,
+    /// Line items by (department, line) and their counts.
+    line_items: RefCell<BTreeMap<(u64, u32), u64>>,
+    line_counts: RefCell<BTreeMap<u64, i64>>,
+    next_line_item: Cell<u64>,
+    /// The ordinances that are on, by ID, with their misc properties.
+    ordinances: RefCell<BTreeMap<u32, Rc<PropertyHolder>>>,
     draws: RefCell<Vec<(f64, f64)>>,
     queue: RefCell<VecDeque<f64>>,
 }
@@ -119,11 +141,19 @@ impl Host {
             refs: RefCell::new(BTreeMap::new()),
             bool_props: RefCell::new(BTreeMap::new()),
             next_department: Cell::new(900),
-            ordinance: Cell::new((1.0, 1.0)),
-            building_dirty: Cell::new(false),
-            served: Cell::new((0, 0)),
-            strike_chance: Cell::new(0.0),
-            strike_rolls: Cell::new(false),
+            props: RefCell::new(BTreeMap::new()),
+            building_types: RefCell::new(BTreeMap::new()),
+            slot11: RefCell::new(BTreeMap::new()),
+            lots: RefCell::new(BTreeMap::new()),
+            positions: RefCell::new(BTreeMap::new()),
+            items: RefCell::new(BTreeMap::new()),
+            departments: RefCell::new(BTreeMap::new()),
+            funding: RefCell::new(BTreeMap::new()),
+            locally_funded: RefCell::new(BTreeSet::new()),
+            line_items: RefCell::new(BTreeMap::new()),
+            line_counts: RefCell::new(BTreeMap::new()),
+            next_line_item: Cell::new(700),
+            ordinances: RefCell::new(BTreeMap::new()),
             draws: RefCell::new(Vec::new()),
             queue: RefCell::new(VecDeque::new()),
         })
@@ -158,6 +188,47 @@ impl Host {
         for w in 0..3 {
             self.developers[w].set(x, z, new[w] as i16);
         }
+    }
+
+    /// Makes `occ` a building occupant in `groups`.
+    fn building(&self, occ: u64, groups: &[u32]) {
+        self.groups.borrow_mut().insert(occ, groups.to_vec());
+    }
+
+    fn set_prop(&self, occ: u64, id: u32, v: Variant) {
+        self.props.borrow_mut().insert((occ, id), v);
+    }
+
+    fn prop(&self, occ: u64, id: u32) -> Option<Variant> {
+        self.props.borrow().get(&(occ, id)).cloned()
+    }
+
+    fn prop_u32(&self, occ: u64, id: u32) -> Option<u32> {
+        match self.prop(occ, id)? {
+            Variant::Scalar(e) => Some(e.as_i64() as u32),
+            _ => None,
+        }
+    }
+
+    fn prop_f32(&self, occ: u64, id: u32) -> Option<f32> {
+        match self.prop(occ, id)? {
+            Variant::Scalar(Elem::F32(x)) => Some(x),
+            _ => None,
+        }
+    }
+
+    /// A department `GetDepartmentBudget(id)` returns, at `funding`.
+    fn department(&self, id: u32, token: u64, funding: f32) {
+        self.departments.borrow_mut().insert(id, token);
+        self.funding.borrow_mut().insert(token, funding);
+    }
+
+    fn item(&self, occ: u64, purpose: u32, item: BudgetItem) {
+        self.items.borrow_mut().insert((occ, purpose), item);
+    }
+
+    fn enact(&self, id: u32, p: PropertyHolder) {
+        self.ordinances.borrow_mut().insert(id, Rc::new(p));
     }
 }
 
@@ -238,6 +309,7 @@ impl ResidentialHost for Host {
     }
     fn release_department(&self, department: u64) {
         self.ev(Ev::ReleaseDepartment(department));
+        *self.refs.borrow_mut().entry(department).or_insert(0) -= 1;
     }
     fn shutdown_grid_u8(&self, grid: &Rc<dyn TractGrid<u8>>) {
         self.ev(Ev::ShutdownGrid(instance_of(grid)));
@@ -326,53 +398,100 @@ impl ResidentialHost for Host {
     }
 }
 
-impl EducationHealth for Host {
-    fn refresh_ordinance_effects(&self) {
-        self.ev(Ev::Ordinance);
+impl EducationHealthHost for Host {
+    fn budget_item(&self, occupant: u64, purpose: u32) -> Option<BudgetItem> {
+        self.items.borrow().get(&(occupant, purpose)).copied()
     }
-    fn ordinance_decay_products(&self) -> (f32, f32) {
-        self.ordinance.get()
-    }
-    fn strike_checks(
-        &self,
-        lists: &OccupantLists,
-        _tuning: &SimulatorTuning,
-        education: &mut DepartmentBlock,
-        _health: &mut DepartmentBlock,
-        rng: &mut dyn ResidentialRandom,
-    ) {
-        self.ev(Ev::StrikeChecks);
-        if !self.strike_rolls.get() {
-            return;
-        }
-        for occ in lists.school_groups.iter().flatten().flatten() {
-            let r = rng.range_f64(0.0, 100.0);
-            if r < 50.0 && education.begin_strike(self.today.get()) {
-                self.post_strike_message(education.id, Some(*occ), 1, 0);
+    fn change_budget_item_line(&self, occupant: u64, index: u32, line: u32) {
+        self.ev(Ev::ChangeLine(occupant, index, line));
+        for ((o, _), item) in self.items.borrow_mut().iter_mut() {
+            if *o == occupant && item.index == index {
+                item.line = line;
             }
         }
     }
-    fn building_changed(&self, building: u64, inserted: bool, lists: &mut OccupantLists) -> bool {
-        self.ev(Ev::BuildingChanged(building, inserted));
-        if inserted {
-            self.add_ref(building);
-            lists.pending_school.push(Some(building));
-        } else {
-            lists.pending_school.retain(|&o| o != Some(building));
-            self.release(building);
-        }
-        self.building_dirty.get()
+    fn department_budget(&self, department_id: u32) -> Option<u64> {
+        self.departments.borrow().get(&department_id).copied()
     }
-    fn update_coverage(&self, school: bool, _state: &ResidentialState) -> i32 {
-        let (s, h) = self.served.get();
-        if school {
-            s
-        } else {
-            h
+    fn department_funding(&self, department: u64) -> f32 {
+        self.funding.borrow().get(&department).copied().unwrap_or(1.0)
+    }
+    fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool {
+        self.locally_funded.borrow().contains(&(department, occupant, purpose))
+    }
+    fn add_locally_funded(&self, department: u64, occupant: u64, purpose: u32) {
+        self.ev(Ev::AddLocal(department, occupant, purpose));
+        self.locally_funded.borrow_mut().insert((department, occupant, purpose));
+    }
+    fn remove_locally_funded(&self, department: u64, occupant: u64, purpose: u32) {
+        self.ev(Ev::RemoveLocal(department, occupant, purpose));
+        self.locally_funded
+            .borrow_mut()
+            .remove(&(department, occupant, purpose));
+    }
+    fn set_local_funding(&self, department: u64, occupant: u64, fraction: f32, purpose: u32) {
+        self.ev(Ev::SetLocal(department, occupant, fraction, purpose));
+        if let Some(item) = self.items.borrow_mut().get_mut(&(occupant, purpose)) {
+            item.local_funding = fraction;
         }
     }
-    fn chance_of_strike(&self, _school: bool, _state: &ResidentialState) -> f32 {
-        self.strike_chance.get()
+    fn line_item(&self, department: u64, line: u32) -> Option<u64> {
+        self.line_items.borrow().get(&(department, line)).copied()
+    }
+    fn create_line_item_for_building_type(&self, department: u64, line: u32, local: bool) -> Option<u64> {
+        self.ev(Ev::CreateLine(department, line, local));
+        let t = self.next_line_item.get();
+        self.next_line_item.set(t + 1);
+        self.line_items.borrow_mut().insert((department, line), t);
+        Some(t)
+    }
+    fn remove_line_item(&self, department: u64, line: u32) {
+        self.ev(Ev::RemoveLine(department, line));
+        self.line_items.borrow_mut().remove(&(department, line));
+    }
+    fn line_item_count(&self, line_item: u64) -> i64 {
+        self.line_counts.borrow().get(&line_item).copied().unwrap_or(0)
+    }
+    fn set_line_item_count(&self, line_item: u64, count: i64) {
+        self.ev(Ev::LineCount(line_item, count));
+        self.line_counts.borrow_mut().insert(line_item, count);
+    }
+    fn set_line_item_display_flag(&self, line_item: u64, flag: u32, on: bool) {
+        self.ev(Ev::DisplayFlag(line_item, flag, on));
+    }
+    fn occupant_property(&self, occupant: u64, id: u32) -> Option<Variant> {
+        self.prop(occupant, id)
+    }
+    fn set_occupant_u32(&self, occupant: u64, id: u32, value: u32) {
+        self.set_prop(occupant, id, Variant::Scalar(Elem::U32(value)));
+    }
+    fn set_occupant_f32(&self, occupant: u64, id: u32, value: f32) {
+        self.set_prop(occupant, id, f(value));
+    }
+    fn building_type(&self, building: u64) -> u32 {
+        self.building_types.borrow().get(&building).copied().unwrap_or(0)
+    }
+    fn building_slot11(&self, building: u64) -> u32 {
+        self.slot11.borrow().get(&building).copied().unwrap_or(0)
+    }
+    fn occupant_lot_center(&self, occupant: u64) -> Option<(f32, f32)> {
+        self.lots.borrow().get(&occupant).copied()
+    }
+    fn occupant_position(&self, occupant: u64) -> (f32, f32) {
+        self.positions.borrow().get(&occupant).copied().unwrap_or((0.0, 0.0))
+    }
+    fn ordinances_on(&self) -> Vec<u32> {
+        self.ev(Ev::Ordinance);
+        self.ordinances.borrow().keys().copied().collect()
+    }
+    fn ordinance_properties(&self, id: u32) -> Option<Rc<PropertyHolder>> {
+        self.ordinances.borrow().get(&id).cloned()
+    }
+    fn add_controllers(&self, name: &str, occupant: u64) {
+        self.ev(Ev::Controllers(name.to_string(), occupant, true));
+    }
+    fn remove_controllers(&self, name: &str, occupant: u64) {
+        self.ev(Ev::Controllers(name.to_string(), occupant, false));
     }
 }
 
@@ -518,6 +637,82 @@ impl Fx {
 /// Address-only identity of a shared grid.
 fn addr<T: GridElem>(g: &Rc<dyn TractGrid<T>>) -> *const () {
     Rc::as_ptr(g).cast::<()>()
+}
+
+// ---- education / health helpers ----
+
+fn u(v: u32) -> Variant {
+    Variant::Scalar(Elem::U32(v))
+}
+
+/// A property holder (an ordinance's misc properties).
+fn props(entries: &[(u32, Variant)]) -> PropertyHolder {
+    let mut h = PropertyHolder::default();
+    for (id, v) in entries {
+        h.add(*id, v.clone());
+    }
+    h
+}
+
+/// A service building: a building occupant in group `svc.groups[i]` with
+/// capacity, coverage radius and lot centre, placed straight into group list
+/// `i` with one reference (as state 0 would after `DoBuildingChanged`).
+fn service(fx: &Fx, occ: u64, svc: &Service, i: usize, capacity: u32, radius: f32, centre: (f32, f32)) {
+    fx.h.building(occ, &[svc.groups[i]]);
+    fx.h.set_prop(occ, svc.capacity, u(capacity));
+    fx.h.set_prop(occ, svc.radius, f(radius));
+    fx.h.lots.borrow_mut().insert(occ, centre);
+    fx.h.add_ref(occ);
+    fx.s.with_state(|s| {
+        let l = if svc.school {
+            &mut s.lists.school_groups[i]
+        } else {
+            &mut s.lists.hospital_groups[i]
+        };
+        l.push(Some(occ));
+    });
+    fx.h.take_events();
+}
+
+/// A service building in the service's "can strike" group with a grade.
+fn striker(fx: &Fx, occ: u64, svc: &Service, i: usize, grade: f32) {
+    service(fx, occ, svc, i, 100, 10.0, (32.0, 32.0));
+    fx.h.groups.borrow_mut().get_mut(&occ).unwrap().push(svc.strike_group);
+    fx.h.set_prop(occ, svc.grade, f(grade));
+}
+
+/// The query properties (REH §4.11) of a building.
+fn graded(fx: &Fx, occ: u64, svc: &Service, eff_cap: u32, served: u32, grade: f32) {
+    fx.h.set_prop(occ, svc.effective_capacity, u(eff_cap));
+    fx.h.set_prop(occ, svc.served, u(served));
+    fx.h.set_prop(occ, svc.grade, f(grade));
+}
+
+/// A `Read` that failed left the simulator as constructed (RS9 [choice]).
+fn assert_constructed(fx: &Fx) {
+    let (s, c) = (fx.s.snapshot(), ResidentialState::default());
+    assert!(!s.city_started && !s.initialized);
+    assert_eq!(
+        (
+            s.state,
+            s.population,
+            s.running_population,
+            s.le_sum,
+            s.population_size,
+            s.eq_size
+        ),
+        (
+            c.state,
+            c.population,
+            c.running_population,
+            c.le_sum,
+            c.population_size,
+            c.eq_size
+        )
+    );
+    assert_eq!(s.lists, c.lists);
+    assert_eq!((s.health, s.education), (c.health, c.education));
+    assert!(s.grids.eq[0].is_none() && s.grids.school_coverage[0].is_none());
 }
 
 // ================================================================ §15
@@ -741,25 +936,21 @@ fn rs2_month_read_per_tract() {
     assert_eq!((fx.age(0, 0), fx.age(1, 0)), (40, 41));
 }
 
-/// §15 test 8 (corrected for RS1): age 70 > LE 61 → age 40; EQ 50 and HQ 60
-/// times the float32 0.79999995; the histogram adds trunc(EQ) = 39.
+/// §15 test 8 (corrected for RS1 and RS7): EQ/HQ stored as 50.2 / 60.2
+/// decay by 0.2f to exactly 50.0 / 60.0; the shipped curve gives LE 65 at HQ
+/// 60, so leSum += 13000; age 70 > 65 → age 40, EQ and HQ times the float32
+/// 0.79999995; the histogram adds trunc(EQ) = 39.
 #[test]
 fn t08_generational_reset() {
-    let fx = Fx::with(
-        4,
-        Some(tuned(|t| {
-            flat_le(t, 61.0);
-            no_decay(t);
-        })),
-    );
+    let fx = Fx::new(4);
     let reset = fx.s.snapshot().population_tuning.eq_reset;
     assert_eq!(reset.to_bits(), 0x3F4C_CCCC);
     fx.set_tract(
         0,
         0,
         Tract {
-            eq: [50.0, 0.0, 0.0],
-            hq: [60.0, 0.0, 0.0],
+            eq: [f32::from_bits(0x4248_CCCD), 0.0, 0.0],
+            hq: [f32::from_bits(0x4270_CCCD), 0.0, 0.0],
             age: 70,
             ..steady([200, 0, 0])
         },
@@ -769,6 +960,7 @@ fn t08_generational_reset() {
     assert_eq!(fx.eq(0, 0)[0].to_bits(), 0x421F_FFFF);
     assert_eq!(fx.hq(0, 0)[0].to_bits(), 0x423F_FFFF);
     let s = fx.s.snapshot();
+    assert_eq!(s.le_sum, 13_000);
     assert_eq!(age_bucket(40), 6);
     assert_eq!(s.age_count[6], 200);
     assert_eq!(s.age_eq_sum[6], 39 * 200);
@@ -852,11 +1044,18 @@ fn t11_average_life_expectancy() {
 }
 
 /// §15 test 12 / REH test 11: the per-mille history, rounded half to even,
-/// with the served counters filled by the coverage states (5, 7).
+/// with the served counters filled by the coverage states (5, 7): three
+/// schools and one hospital of units 0 on a tract of population 1 count it
+/// once each (REH §4.4 [quirk]), and their EQ / HQ boosts of 1.0 per building
+/// leave the global values below 1.
 #[test]
 fn t12_per_mille() {
     let fx = Fx::new(4);
-    fx.h.served.set((3, 1));
+    fx.set_tract(0, 0, steady([1, 0, 0]));
+    for occ in 1..=3 {
+        service(&fx, occ, &SCHOOL, 0, 100, 10.0, (32.0, 32.0));
+    }
+    service(&fx, 4, &HOSPITAL, 0, 100, 10.0, (32.0, 32.0));
     fx.s.with_state(|s| {
         s.population = 2000;
         s.state = state::SCHOOL_COVERAGE;
@@ -864,6 +1063,10 @@ fn t12_per_mille() {
     while fx.state() != state::IDLE {
         fx.step();
     }
+    let s = fx.s.snapshot();
+    assert_eq!((s.school_covered, s.hospital_covered), (3, 1));
+    assert_eq!(fx.eq(0, 0)[0], 3.0);
+    assert_eq!(fx.hq(0, 0)[0], 1.0);
     assert_eq!(
         fx.h.history(),
         vec![
@@ -1231,37 +1434,59 @@ fn reh08_strike_end_message() {
     assert_eq!(fx.h.take_events(), vec![Ev::Strike(msg::HEALTH_STRIKE, None, 0, 101)]);
 }
 
-/// REH test 9 (the part this core does): on strike → 1.0; otherwise the
-/// hook's combined chance.
+/// REH test 9: two groups with chances 0.5 and 0.5 → 0.75; on strike →
+/// 1.0. *[quirk]* A non-member reuses the previous c, and g carries over a
+/// missing grade.
 #[test]
 fn reh09_chance_of_strike() {
     let fx = Fx::new(4);
-    fx.h.strike_chance.set(0.75);
+    for (occ, i) in [(1, 0), (2, 1)] {
+        striker(&fx, occ, &SCHOOL, i, 0.4);
+    }
     assert_eq!(fx.s.chance_of_school_strike(), 0.75);
-    assert_eq!(fx.s.chance_of_health_strike(), 0.75);
-    fx.s.with_state(|s| s.health.strike_flag = 1);
-    assert_eq!(fx.s.chance_of_health_strike(), 1.0);
-    assert_eq!(fx.s.chance_of_school_strike(), 0.75);
+    assert_eq!(fx.s.chance_of_health_strike(), 0.0);
+    fx.s.with_state(|s| s.education.strike_flag = 1);
+    assert_eq!(fx.s.chance_of_school_strike(), 1.0);
+    fx.s.with_state(|s| s.education.strike_flag = 0);
+
+    // Group 0 gets a non-member (reuses c = 0.5) and a member without a grade
+    // (g stays 0.4): q = 1 − 0.5³ = 0.875; with group 1: 1 − 0.125 × 0.5.
+    service(&fx, 3, &SCHOOL, 0, 100, 10.0, (32.0, 32.0));
+    striker(&fx, 4, &SCHOOL, 0, 0.4);
+    fx.h.props.borrow_mut().remove(&(4, SCHOOL.grade));
+    assert_eq!(fx.s.chance_of_school_strike(), 0.9375);
+    // A non-member first reuses c = 0.
+    let fx = Fx::new(4);
+    service(&fx, 5, &HOSPITAL, 0, 100, 10.0, (32.0, 32.0));
+    striker(&fx, 6, &HOSPITAL, 0, 0.4);
+    assert_eq!(fx.s.chance_of_health_strike(), 0.5);
 }
 
-/// The strike hook runs in state 0 on the class's generator, and the core
-/// stores the department blocks it changed (REH §4.9).
+/// The monthly strike check runs in state 0 on the class's generator (one
+/// draw per eligible non-striking building, REH §4.9), before the
+/// ordinance-effect read.
 #[test]
-fn state0_strike_hook_shares_the_generator() {
+fn state0_strike_check_shares_the_generator() {
     let fx = Fx::new(4);
-    fx.h.strike_rolls.set(true);
     fx.h.today.set(1234);
-    fx.s.with_state(|s| s.lists.school_groups[0] = vec![Some(31), Some(32)]);
+    striker(&fx, 31, &SCHOOL, 0, 0.4);
+    striker(&fx, 32, &SCHOOL, 0, 0.4);
     fx.h.queue.borrow_mut().extend([10.0, 99.0]);
     assert_eq!(fx.step(), state::SEED_LOW);
     assert_eq!(*fx.h.draws.borrow(), vec![(0.0, 100.0), (0.0, 100.0)]);
-    let ev = fx.h.take_events();
-    assert_eq!(ev[0], Ev::StrikeChecks);
-    assert_eq!(ev[1], Ev::Strike(msg::SCHOOL_STRIKE, Some(31), 1, 0));
-    assert_eq!(ev[2], Ev::Ordinance);
+    assert_eq!(
+        fx.h.take_events(),
+        vec![
+            Ev::Controllers(STRIKING_EDUCATION.to_string(), 31, true),
+            Ev::Strike(msg::SCHOOL_STRIKE, Some(31), 1, 0),
+            Ev::Ordinance,
+        ]
+    );
     let b = fx.s.snapshot().education;
     assert_eq!((b.strike_flag, b.strike_start), (1, 1234));
     assert!(fx.s.school_is_on_strike());
+    assert_eq!(fx.h.prop_u32(31, PROP_STRIKE_DAY), Some(1234));
+    assert_eq!(fx.h.prop_u32(32, PROP_STRIKE_DAY), None);
 }
 
 /// REH test 12: tract quotient and the average grid.
@@ -1726,11 +1951,17 @@ fn states_follow_the_cycle_order() {
 }
 
 /// §7.1: the population tuning is re-read at the first state-4 call of each
-/// cycle, with the decays scaled by the ordinance products.
+/// cycle, with the decays scaled by the ordinance decay products (REH §4.3:
+/// school 50 % and health 200 %, read at `Init`).
 #[test]
 fn population_tuning_reread_with_ordinance_products() {
-    let fx = Fx::new(4);
-    fx.h.ordinance.set((0.5, 2.0));
+    let fx = Fx::constructed(CityDims::square(4), 4, Some(shipped_tuning()));
+    fx.h.enact(
+        0x10,
+        props(&[(SCHOOL.ord_decay, f(50.0)), (HOSPITAL.ord_decay, f(200.0))]),
+    );
+    assert!(fx.s.init());
+    assert_eq!(fx.s.ordinance_decay_products(), (0.5, 2.0));
     *fx.h.tuning.borrow_mut() = Some(Rc::new(tuned(|t| t.add(id::EQ_DECAY, f(1.0)))));
     fx.set_tract(
         0,
@@ -1799,11 +2030,14 @@ fn state0_lists_and_building_slots() {
     assert_eq!(fx.h.ref_count(8), 1);
 }
 
-/// §4.3: occupant messages reach `DoBuildingChanged` only for buildings.
+/// §4.3: occupant messages reach `DoBuildingChanged` only for buildings; a
+/// school recognised by its group (no budget item, REH §4.1) is added to
+/// the pending list with one reference and removed with its release.
 #[test]
 fn occupant_messages() {
     let fx = Fx::new(4);
-    fx.h.groups.borrow_mut().insert(8, vec![0x150F]);
+    fx.h.building(8, &[0x1503]);
+    fx.h.set_prop(8, SCHOOL.capacity, u(1500));
     fx.s.with_state(|s| s.dirty = false);
     let mut m = ResidentialMessage {
         msg_type: msg::OCCUPANT_INSERTED,
@@ -1811,20 +2045,25 @@ fn occupant_messages() {
         void1: Some(8),
         ..ResidentialMessage::default()
     };
-    // Not dirty when the hook says so.
     assert!(fx.s.do_message(&m));
-    assert_eq!(fx.h.take_events(), vec![Ev::BuildingChanged(8, true), Ev::AddRef(8)]);
+    assert_eq!(fx.h.take_events(), vec![Ev::AddRef(8)]);
     let s = fx.s.snapshot();
     assert_eq!(s.lists.pending_school, vec![Some(8)]);
-    assert!(!s.dirty);
-    // Removed, with the dirty flag.
-    fx.h.building_dirty.set(true);
+    assert!(s.lists.pending_hospital.is_empty());
+    assert!(s.dirty);
+    assert_eq!(fx.h.prop_u32(8, SCHOOL.served), Some(NOT_GRADED));
+    assert_eq!(fx.h.prop_u32(8, SCHOOL.effective_capacity), Some(1500));
+    assert_eq!(fx.h.prop_f32(8, SCHOOL.grade), Some(1.0));
+    assert_eq!(fx.h.prop_f32(8, SCHOOL.staff_ratio), Some(1.0));
+    // Removed: erased from the pending list, released, dirty.
+    fx.s.with_state(|s| s.dirty = false);
     m.msg_type = msg::OCCUPANT_REMOVED;
     assert!(fx.s.do_message(&m));
-    assert_eq!(fx.h.take_events(), vec![Ev::BuildingChanged(8, false), Ev::Release(8)]);
+    assert_eq!(fx.h.take_events(), vec![Ev::Release(8)]);
     let s = fx.s.snapshot();
     assert!(s.lists.pending_school.is_empty() && s.dirty);
     // Another occupant type, or an occupant that is not a building: nothing.
+    fx.s.with_state(|s| s.dirty = false);
     m.data3 = 0x1234;
     assert!(fx.s.do_message(&m));
     m.data3 = OCCUPANT_TYPE_BUILDING;
@@ -1832,6 +2071,16 @@ fn occupant_messages() {
     assert!(fx.s.do_message(&m));
     m.void1 = None;
     assert!(fx.s.do_message(&m));
+    assert!(fx.h.take_events().is_empty());
+    assert!(!fx.s.snapshot().dirty);
+    // A building that is no service: only the slot-11 test (REH §4.1 step 4).
+    fx.h.building(10, &[0x9999]);
+    m.void1 = Some(10);
+    assert!(fx.s.do_message(&m));
+    assert!(!fx.s.snapshot().dirty);
+    fx.h.slot11.borrow_mut().insert(10, 1);
+    assert!(fx.s.do_message(&m));
+    assert!(fx.s.snapshot().dirty);
     assert!(fx.h.take_events().is_empty());
 }
 
@@ -1879,11 +2128,11 @@ fn small_slots() {
     assert!(fx.s.get_auto_budget(5));
     assert_eq!(fx.h.bool_props.borrow().get(&(5, 0x6C05_FC4D)), Some(&true));
 
-    // 19: the default hook (no budget item) sets the dirty flag; true.
+    // 19: no budget item sets the dirty flag; true.
     fx.s.with_state(|s| s.dirty = false);
     assert!(fx.s.set_occupant_funding(5, 1.0, 1.0, true));
     assert!(fx.s.snapshot().dirty);
-    // The education/health defaults of a city without service buildings.
+    // The education/health values of a city without service buildings.
     assert_eq!(fx.s.occupant_funding(5, true), (1.0, 1.0));
     assert_eq!(fx.s.school_system_rating(), 0.0);
     assert_eq!(fx.s.hospital_system_totals(&[0x1512], &mut QueryData::default()), 0);
@@ -2047,10 +2296,13 @@ fn record_round_trip() {
     a.grids().eq[0].as_ref().unwrap().set(1, 1, 42.0);
     let (bytes, entries) = record(&a.s);
 
-    // Into a constructed object, as the class store does.
+    // Into a constructed object, as the class store does. The null entry of
+    // the other list is dropped (RS12).
     let b = Fx::constructed(CityDims::square(8), 4, Some(shipped_tuning()));
     assert!(load(&b, &bytes, &entries));
+    a.s.with_state(|s| s.lists.other.retain(Option::is_some));
     let (sa, sb) = (a.s.snapshot(), b.s.snapshot());
+    assert_eq!(sb.lists.other, vec![Some(12)]);
     assert_eq!(sb.lists, sa.lists);
     assert_eq!(sb.health, sa.health);
     assert_eq!(sb.education, sa.education);
@@ -2067,11 +2319,13 @@ fn record_round_trip() {
     for t in [11, 12, 13, 14, 15, 900, 901, 902, 903] {
         assert_eq!(b.h.ref_count(t), 1, "token {t}");
     }
-    // Written again: the same bytes.
-    assert_eq!(record(&b.s).0, bytes);
+    // Written again: the record without the null entry.
+    assert_eq!(record(&b.s).0.len(), bytes.len() - 4);
+    assert_eq!(record(&b.s).0, record(&a.s).0);
 }
 
-/// §15 test 20: version fix-ups, and `Read` always returns true.
+/// §15 test 20: version fix-ups; every version is read (RS9), and a record
+/// cut short returns false and leaves the simulator as constructed.
 #[test]
 fn t20_read_versions() {
     let a = Fx::new(8);
@@ -2127,15 +2381,21 @@ fn t20_read_versions() {
         assert_eq!(b.state(), to, "state {from}");
     }
 
-    // Any version, and any truncation, returns true.
+    // Any version with a complete record returns true.
     for v in [0u16, 1, 5, 6, 8, 0xFFFF] {
         let b = Fx::constructed(CityDims::square(8), 4, None);
         assert!(load(&b, &as_version(&bytes, v, V7_LEN), &entries), "version {v}");
+        assert!(b.s.snapshot().city_started);
     }
+    // A record cut short: false, as constructed, and every reference the
+    // parse acquired is released (RS9 [choice]).
     for n in 0..bytes.len() {
         let b = Fx::constructed(CityDims::square(8), 4, None);
-        assert!(load(&b, &bytes[..n], &entries), "length {n}");
-        assert!(b.s.snapshot().city_started);
+        assert!(!load(&b, &bytes[..n], &entries), "length {n}");
+        assert_constructed(&b);
+        for t in 900..904 {
+            assert_eq!(b.h.ref_count(t), 0, "length {n}, department {t}");
+        }
     }
 }
 

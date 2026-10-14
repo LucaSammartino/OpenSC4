@@ -1,8 +1,8 @@
 {
   "format": 1,
   "name": "residential_record",
-  "spec": ["residential 9.1", "residential 9.2", "foundations 2.7"],
-  "description": "The version-7 record (section 9.1). With every grid and department present and empty lists it is 452 bytes: the version (2 bytes, 7), then the 25 grid references and 4 department references (8 bytes each: object ID, class ID), the sizes, and at offset 230 the state (u32), the saved dirty byte (dirty or state != 10), the population (i32), ... Each list is a u32 count and its references; a null reference is 4 bytes (object ID 0), so four references and one null add 36 bytes. Round trip: a record read into a constructed simulator (as the class store does) restores the state, the blocks, the lists (each occupant and department coming with one reference), the iterator (step 3, advanced twice over 2 x 2 tracts: done at (0, 3)), the two unused floats and the auto-budget flags; it sets 'city started' and leaves 'initialised' and 'tuning loaded' clear; written again it gives the same bytes.",
+  "spec": ["residential 9.1", "residential 9.2", "foundations 2.7", "RS12"],
+  "description": "The version-7 record (section 9.1). With every grid and department present and empty lists it is 452 bytes: the version (2 bytes, 7), then the 25 grid references and 4 department references (8 bytes each: object ID, class ID), the sizes, and at offset 230 the state (u32), the saved dirty byte (dirty or state != 10), the population (i32), ... Each list is a u32 count and its references; a null reference is 4 bytes (object ID 0), so four references and one null add 36 bytes. Round trip: a record read into a constructed simulator (as the class store does) restores the state, the blocks, the lists (each occupant and department coming with one reference), the iterator (step 3, advanced twice over 2 x 2 tracts: done at (0, 3)), the two unused floats and the auto-budget flags; it sets 'city started' and leaves 'initialised' and 'tuning loaded' clear. The null reference is dropped on Read (RS12 [choice]), so the record written again is 4 bytes shorter (496 -> 492); with the null put back it gives the same bytes.",
   "steps": [
     {"op": "residential_env", "cells": [8, 8]},
     {"op": "residential_create"},
@@ -29,14 +29,14 @@
       "school_auto_budget": true
     }},
     {"op": "residential_grid_set", "grid": "eq1", "cells": [[1, 1, 42]]},
-    {"op": "residential_write", "slot": "rt", "expect": true},
+    {"op": "residential_write", "slot": "rt", "expect": true, "length": 496},
     {"op": "residential_read", "slot": "rt", "expect": true},
     {"op": "residential_expect", "state": {
       "state": 6, "population": 1234, "running_population": 99, "le_sum": 4294967301,
       "unused": [1.5, -2.0],
       "health": {"strike_flag": 1, "strike_start": 777},
       "education": {"min_grade": 0.5},
-      "lists": {"pending_school": [11], "pending_hospital": [], "other": [12, null], "school_groups": [[], [], [13], [], [], [], []], "hospital_groups": [[15], [], []], "health_affecting": [14]},
+      "lists": {"pending_school": [11], "pending_hospital": [], "other": [12], "school_groups": [[], [], [13], [], [], [], []], "hospital_groups": [[15], [], []], "health_affecting": [14]},
       "iterator": {"state": "done", "x": 0, "z": 3, "step": 3, "rect": [0, 0, 1, 1]},
       "school_auto_budget": true, "hospital_auto_budget": false,
       "city_started": true, "initialized": false, "tuning_loaded": false,
@@ -44,7 +44,9 @@
     }},
     {"op": "residential_expect_grid", "grid": "eq1", "cells": [[1, 1, 42]]},
     {"op": "residential_expect_refs", "refs": {"11": 1, "12": 1, "13": 1, "14": 1, "15": 1, "900": 1, "901": 1, "902": 1, "903": 1}},
-    {"op": "residential_write", "slot": "rt2", "expect": true},
-    {"op": "residential_expect_record", "slot": "rt2", "same_as": "rt"}
+    {"op": "residential_write", "slot": "rt2", "expect": true, "length": 492},
+    {"op": "residential_set", "state": {"lists": {"other": [12, null]}}},
+    {"op": "residential_write", "slot": "rt3", "expect": true},
+    {"op": "residential_expect_record", "slot": "rt3", "same_as": "rt"}
   ]
 }

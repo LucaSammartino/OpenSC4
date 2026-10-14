@@ -24,27 +24,25 @@
 //!   lifecycle of §4, `DoMessage` (§4.3), the daily state machine
 //!   (§5.1–§5.2), `DoPopulationChange` (§5.5), `PostPopulationChange` (§5.6),
 //!   the history of §5.7, the queries of §6 and the slot table of §10.
+//! - `education_health.rs`: the education and health half (REH):
+//!   recognition and budget registration (REH §4.1), the health-affecting
+//!   pending list (§5.8), funding and efficiency (REH §4.2), the ordinance
+//!   effects (REH §4.3), coverage (REH §4.4), grading and the EQ/HQ boost
+//!   (REH §4.5, §4.6), the monthly strike check and the strike chance (REH
+//!   §4.9), the auto-budget and ideal funding (REH §4.10) and the query
+//!   slots (REH §4.11).
 //! - `record.rs`: the save record of §9.
 //! - `tests.rs`: the fake host and the §15 / REH §11 tests.
 //!
 //! # The education and health half
 //!
-//! REH specifies the school and hospital building recognition, the coverage
-//! maps, the grading, the strike rolls, the auto-budget, the query data and
-//! the system ratings. That work needs the budget simulator's departments
-//! and line items, the occupant and lot managers, the ordinance simulator
-//! and the automata controller manager, and it is large enough to be its own
-//! lane. This module keeps the **frame** those states run in — the state
-//! machine, the grids they write, the lists and department blocks they
-//! read, the counters they fill and the record that saves them — and hands
-//! the building work to the [`EducationHealth`] hooks, whose defaults are
-//! exact for a city with no service building. What REH defines on that
-//! frame alone is implemented here: the newcomer EQ/HQ blend (REH §4.7 step
-//! 4), `GetTractQuotient` and the EQ/HQ/LE queries (REH §4.8), the strike
-//! flags, `EndSchoolStrike` / `EndHealthStrike` and the on-strike chance
-//! (slots 6–11, REH §4.9), the state-0 distribution of the pending lists and
-//! the building counts and lists (slots 46–49, 61; REH §4.1), and the
-//! ordinance decay products that scale the two decays (§7.1).
+//! REH is one class with residential.md, so it is implemented on the same
+//! [`ResidentialSim`] and state. Everything it reaches outside the class —
+//! the budget simulator's items, departments and line items, the occupants'
+//! property holders, types and lots, the ordinance simulator and the
+//! automata controller manager — goes through [`EducationHealthHost`], a
+//! supertrait of [`ResidentialHost`]. Its literal readings (`[question]`)
+//! and choices are listed in `education_health.rs`.
 //!
 //! # Choices (`[choice]`), limits and inferences (`[inferred]`)
 //!
@@ -54,8 +52,9 @@
 //!   uses `derive_seed(session, 0x4990C013)`. [`ResidentialRng::new`] keeps
 //!   the original's clock seed for hosts that supply one. The stream is
 //!   shared by the buzzards rolls (§5.5) and the monthly strike rolls
-//!   (REH §4.9); [`EducationHealth::strike_checks`] receives it so the host
-//!   draws in the original's order. No RNG state is saved (foundations §6.2).
+//!   (REH §4.9), which draw from it in the original's order (one draw per
+//!   eligible non-striking building in state 0). No RNG state is saved
+//!   (foundations §6.2).
 //! - **Time slicer** (§5.2): the 5 ms CPU-cycle budget is replaced by a
 //!   deterministic work budget, [`ResidentialSim::work_budget`] (default
 //!   [`DEFAULT_WORK_BUDGET`] = `u32::MAX`, effectively unbounded). One work
@@ -115,23 +114,17 @@
 //! - **`GetCellEQByWealth` / `GetCellHQByWealth`** (slots 37/38) take the
 //!   wealth byte decremented as `u8`, so wealth 0 or > 3 reads out of bounds
 //!   in the original *[quirk]*; FreeCity4 returns 0.0 ([choice]).
-//! - **Occupant lists** hold `Option` tokens because `Read` appends null
-//!   references (§9.2). [choice] A null entry is skipped where the original
-//!   would dereference it: the state-0 distribution drops it, and slots 47,
-//!   49 and 61 do not hand it out. The counts of slots 46/48 include it (the
-//!   list sizes do).
-//! - **The other list** (§9.1) *[inferred]*: it sits with the two pending
-//!   lists in the record and slot 61 appends it after the health-affecting
-//!   list, so it is the pending health-affecting list; state 0 "moves pending
-//!   health-affecting buildings" (REH §3) by appending every entry to the
-//!   health-affecting list and clearing it. Who fills it is not specified
-//!   (REH §4.1 step 3 defers to residential.md, which is silent), so only
-//!   [`EducationHealth::building_changed`] does.
-//! - **`Read`** (§9.2) never rejects a version, always returns true and
-//!   ignores stream errors: parsing stops at the first failure and keeps
-//!   what was read, then the version fix-ups and the state remap run (see
-//!   `record.rs`). A list count of 0 or ≥ [`MAX_LIST_COUNT`] reads no
-//!   references, and null references are appended as `None`.
+//! - **Occupant lists** hold `Option` tokens, but `Read` drops null
+//!   references (RS12 *[choice]*), so no list entry is ever `None`; the
+//!   passes still skip one rather than dereference it.
+//! - **The other list** (§5.8, RS8) is the pending health-affecting list:
+//!   `DoBuildingChanged` appends a health-affecting building to it, and state
+//!   0 appends every entry to the health-affecting list and clears it.
+//! - **`Read`** (§9.2) accepts every version. A stream error or a damaged
+//!   record (vector counts other than 7 / 3, a state above 15, P = 0 or P >
+//!   256) returns false and leaves the simulator as it was (RS9, RS11, RS14,
+//!   RS15 *[choice]*; see `record.rs`). A list count of 0 or ≥
+//!   [`MAX_LIST_COUNT`] reads no references.
 //! - **Histograms** (§9.3 *[choice]*): zeroed at construction, so a save
 //!   taken during state 4 gives that month's age-group history zeros rather
 //!   than uninitialised memory. The loaded running population is kept, so
@@ -141,7 +134,7 @@
 //!   saved and set as specified; the two unused floats are carried through
 //!   the record untouched (§3); `ToggleTractTracking`, `TrackTracts` and
 //!   `OutputTractInfo` are no-ops (§10.1 slots 59, 62, 63); the grade totals
-//!   (REH §2, never read) belong to the [`EducationHealth`] host.
+//!   (REH §2, RS13) are kept and accumulated but never read or saved.
 //! - **Day-level order** (§4.3, foundations §13.5): registration order is
 //!   the *[choice]* — the original's order is heap-address order and is not
 //!   stable between sessions, so there is nothing to match. Note the
@@ -164,6 +157,7 @@
 //!
 //! Host callbacks must not call back into the residential simulator.
 
+mod education_health;
 mod geometry;
 mod record;
 mod simulator;
@@ -172,6 +166,11 @@ mod tuning;
 #[cfg(test)]
 mod tests;
 
+pub use education_health::{
+    add_radius_effect_with_curves, decay_product, flat_curve, ordinance_modifiers, tracts_in_radius, BudgetItem,
+    OrdinanceEffect, RadiusEffect, Service, FLAT_CURVE, HOSPITAL, LINE_ITEM_DISPLAY_FLAG, NOT_GRADED,
+    PROP_HEALTH_AFFECTING, PROP_STRIKE_DAY, SCHOOL, STRIKING_EDUCATION, STRIKING_HEALTH,
+};
 pub use geometry::{copy_proximity, distance_pass, distance_to_convergence, seed_proximity, FAR, MAX_PASSES};
 pub use record::RECORD_VERSION;
 pub use simulator::{
@@ -190,6 +189,7 @@ use std::rc::Rc;
 
 use crate::property::PropertyHolder;
 use crate::stream::RefValue;
+use crate::variant::Variant;
 
 /// Class ID (`GetGZCLSID`, §1).
 pub const CLSID_RESIDENTIAL_SIMULATOR: u32 = 0x4990_C013;
@@ -493,10 +493,10 @@ pub mod group {
 }
 
 /// Everything the residential simulator reads from, or does to, the rest of
-/// the game (§11.1), apart from the education and health half
-/// ([`EducationHealth`]). Objects are host tokens. Re-entrancy: callbacks
+/// the game (§11.1), with the education and health half's needs in
+/// [`EducationHealthHost`]. Objects are host tokens. Re-entrancy: callbacks
 /// must not call back into the residential simulator.
-pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f32> + EducationHealth {
+pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f32> + EducationHealthHost {
     // ---- lifecycle (§4.1, §4.2) ----
     /// `Init` step 1: take and `AddRef` the city, the building development
     /// simulator and the occupant manager, each only if not already held.
@@ -625,116 +625,78 @@ pub trait ResidentialHost: GridProvider<u8> + GridProvider<u16> + GridProvider<f
     fn resolve_ref(&self, r: &RefValue, iid: u32) -> Option<u64>;
 }
 
-/// The education and health half (REH) as hooks into the frame this module
-/// implements. Every method has a default that is exact for a city with **no
-/// school, hospital or health-affecting building and no ordinance**: no
-/// strike roll, no coverage, no grade, no budget item. A host that
-/// implements the REH building work overrides them; the core keeps the state
-/// they read and write (the grids, the lists, the department blocks) and
-/// does itself everything REH defines on that state alone (§10.1 slots 6–11,
-/// 46–49, 61 and the state-0 distribution of REH §4.1).
-///
-/// A hook receives a **copy** of the simulator state (no borrow is held
-/// across it); only what a hook returns, or the `&mut` arguments it is
-/// given, is written back.
-pub trait EducationHealth {
-    /// `Init` step 7 and state 0: rebuild the two ordinance-effect lists
-    /// (REH §4.3). State 0 clears both first; `Init` does not, but the lists
-    /// are empty then.
-    fn refresh_ordinance_effects(&self) {}
-    /// `(eduProd, healthProd)`: Π of the decay multipliers in the education
-    /// list and in the health list, each 1.0 for an empty list and
-    /// multiplying in list order (REH §4.3, §7.1). Read whenever the
-    /// population tuning is read.
-    fn ordinance_decay_products(&self) -> (f32, f32) {
-        (1.0, 1.0)
-    }
-    /// State 0: reset the two grade totals, then `DoMonthlyStrikeCheck` for
-    /// the school group lists, then for the hospital group lists (REH §3,
-    /// §4.9). **`rng` is the class's shared `cRZRandom`**: each eligible
-    /// non-striking building takes exactly one
-    /// `RandomDoubleRangeUniform(0.0, 100.0)` draw from it, in group-list
-    /// order, even when the chance is 0. `BeginStrike` / `EndStrike` are
-    /// [`DepartmentBlock::begin_strike`] / [`DepartmentBlock::end_strike`] on
-    /// the two blocks, which the core stores back, followed by
-    /// [`ResidentialHost::post_strike_message`].
-    fn strike_checks(
-        &self,
-        _lists: &OccupantLists,
-        _tuning: &SimulatorTuning,
-        _education: &mut DepartmentBlock,
-        _health: &mut DepartmentBlock,
-        _rng: &mut dyn ResidentialRandom,
-    ) {
-    }
-    /// §4.3 `DoBuildingChanged(building, inserted)` (REH §4.1): recognise the
-    /// building, register it with the budget and append it to (inserted) or
-    /// erase it from (removed) the lists, holding / releasing one reference.
-    /// Returns whether the dirty flag is set (REH §4.1: by a recognised
-    /// school or hospital and by step 4). Default: no service building.
-    fn building_changed(&self, _building: u64, _inserted: bool, _lists: &mut OccupantLists) -> bool {
-        false
-    }
-    /// States 5 / 7: `UpdateCoverageMap` for the school groups 0..6 or the
-    /// hospital groups 0..2 in order (REH §4.4), returning the served count.
-    /// The core has already zeroed the served counter and every coverage
-    /// grid of the service (each `UpdateCoverageMap` starts with
-    /// `SetTractValues(0)`, and a group only reads lower groups' grids).
-    fn update_coverage(&self, _school: bool, _state: &ResidentialState) -> i32 {
-        0
-    }
-    /// States 6 / 8: for each group and each building in list order the
-    /// auto-budget step, then `ComputeOccupantGrade` (REH §4.5, §4.6, §4.10).
-    /// The core has already zeroed the grade grid. Returns whether an
-    /// auto-budget `SetOccupantFundingPercentages` set the dirty flag.
-    fn grade(&self, _school: bool, _state: &ResidentialState) -> bool {
-        false
-    }
-    /// Slots 10 / 11 when the service is **not** on strike (the core returns
-    /// 1.0 otherwise): `p := (c + p) − c × p` over the group lists (REH §4.9).
-    fn chance_of_strike(&self, _school: bool, _state: &ResidentialState) -> f32 {
-        0.0
-    }
-    /// Slots 12 / 13 (REH §4.11). With no building, Σ effective capacity is
-    /// 0, so 0.0.
-    fn system_rating(&self, _school: bool, _state: &ResidentialState) -> f32 {
-        0.0
-    }
-    /// Slots 14 / 15: accumulate the query fields of the group lists whose ID
-    /// is in `groups` into `totals`; the number of buildings counted (REH
-    /// §4.11).
-    fn system_totals(&self, _school: bool, _groups: &[u32], _totals: &mut QueryData, _state: &ResidentialState) -> u32 {
-        0
-    }
-    /// Slot 19 (REH §4.2): set the staff then vehicle local funding. Returns
-    /// whether the call ends **with** the dirty flag set (a missing budget
-    /// item) rather than without (a null department). Default: no budget
-    /// item, so true.
-    fn set_occupant_funding(&self, _occupant: u64, _staff: f32, _vehicle: f32, _is_school: bool) -> bool {
-        true
-    }
-    /// Slot 20: `(staff, vehicle)`; `(1.0, 1.0)` without a staff item.
-    fn occupant_funding(&self, _occupant: u64, _is_school: bool) -> (f32, f32) {
-        (1.0, 1.0)
-    }
-    /// Slots 26 / 27: the query-tool record (REH §4.11); `None` = AL 0.
-    fn query_data(&self, _school: bool, _occupant: u64) -> Option<QueryData> {
-        None
-    }
-    /// Slot 28 `EstimateCurrentOccupantCapacity`: `(capacity, staff)`
-    /// (REH §4.11).
-    fn estimate_occupant_capacity(&self, _occupant: u64) -> (u32, u32) {
-        (0, 0)
-    }
-    /// Slot 45 `GetOccupantCoverage`: `(distance at level, radius)`
-    /// (REH §4.11); `None` = AL 0.
-    fn occupant_coverage(&self, _occupant: u64, _level: f32) -> Option<(f32, f32)> {
-        None
-    }
-    /// Slot 58 `EstimateIdealFunding` (REH §4.10); `None` = AL 0.
-    fn estimate_ideal_funding(&self, _occupant: u64) -> Option<f32> {
-        None
-    }
+/// What the education and health half (REH, `education_health.rs`) reads
+/// from, or does to, the rest of the game: the budget simulator's items,
+/// departments and line items (budget.md), the occupants' property holders
+/// and lots, the ordinance simulator and the automata controller manager.
+/// Objects are host tokens; a department is the token
+/// [`EducationHealthHost::department_budget`] returns. Re-entrancy: callbacks
+/// must not call back into the residential simulator.
+pub trait EducationHealthHost {
+    // ---- budget (REH §4.1, §4.2; budget.md) ----
+    /// `budget.GetBudgetItemForPurpose(holder, purpose)`: the occupant's item
+    /// for a purpose, or `None` when the call fails.
+    fn budget_item(&self, occupant: u64, purpose: u32) -> Option<BudgetItem>;
+    /// `budget.ChangeBudgetItemLine(holder, index, line)` (REH §4.1: a line of
+    /// 0 becomes the building type).
+    fn change_budget_item_line(&self, occupant: u64, index: u32, line: u32);
+    /// `budget.GetDepartmentBudget(id)`: `None` for a null department.
+    fn department_budget(&self, department_id: u32) -> Option<u64>;
+    /// `*dept.GetFundingPercentage()` (a fraction).
+    fn department_funding(&self, department: u64) -> f32;
+    /// `dept.IsLocallyFundedObjectInDepartment(holder, purpose)`.
+    fn is_locally_funded(&self, department: u64, occupant: u64, purpose: u32) -> bool;
+    /// `dept.AddLocallyFundedObject(holder, purpose)` /
+    /// `RemoveLocallyFundedObject(holder, purpose)`.
+    fn add_locally_funded(&self, department: u64, occupant: u64, purpose: u32);
+    fn remove_locally_funded(&self, department: u64, occupant: u64, purpose: u32);
+    /// `dept.SetLocalFundingPercent(holder, fraction, purpose)` (slot 19).
+    fn set_local_funding(&self, department: u64, occupant: u64, fraction: f32, purpose: u32);
+    /// `dept.GetLineItem(line)`: `None` for a null line item.
+    fn line_item(&self, department: u64, line: u32) -> Option<u64>;
+    /// `dept.CreateLineItemForBuildingType(line, local)`.
+    fn create_line_item_for_building_type(&self, department: u64, line: u32, local: bool) -> Option<u64>;
+    /// `dept.RemoveLineItem(line)`.
+    fn remove_line_item(&self, department: u64, line: u32);
+    /// The line item's 64-bit count (line item slots 8 / 9).
+    fn line_item_count(&self, line_item: u64) -> i64;
+    fn set_line_item_count(&self, line_item: u64, count: i64);
+    /// `line.SetDisplayFlag(flag, on)`.
+    fn set_line_item_display_flag(&self, line_item: u64, flag: u32, on: bool);
+
+    // ---- occupants (REH §2, §4.1, §4.4–§4.6) ----
+    /// A property of the occupant's property holder (`AsPropertyHolder`), as
+    /// stored; `None` when absent. The getters read its first element (u32 /
+    /// f32) or the whole value (u32 arrays, curves).
+    fn occupant_property(&self, occupant: u64, id: u32) -> Option<Variant>;
+    /// Creates or sets a u32 / f32 property of the occupant (§2's
+    /// per-building state and the strike day).
+    fn set_occupant_u32(&self, occupant: u64, id: u32, value: u32);
+    fn set_occupant_f32(&self, occupant: u64, id: u32, value: f32);
+    /// `b.GetBuildingType()`.
+    fn building_type(&self, building: u64) -> u32;
+    /// The building's slot-11 value, first u32 (REH §4.1 step 4).
+    fn building_slot11(&self, building: u64) -> u32;
+    /// `lotManager.GetOccupantLot(occ)` → `lot.GetCenter()` as (x, z); `None`
+    /// when the occupant has no lot.
+    fn occupant_lot_center(&self, occupant: u64) -> Option<(f32, f32)>;
+    /// `occ.GetPosition()` as (x, z).
+    fn occupant_position(&self, occupant: u64) -> (f32, f32);
+
+    // ---- ordinances (REH §4.3) ----
+    /// `GetOrdinanceOnCount` / `GetOrdinanceOnArray`: the IDs of the
+    /// ordinances that are on, in ascending ID order.
+    fn ordinances_on(&self) -> Vec<u32>;
+    /// `GetOrdinanceByID(id)` → `GetMiscProperties()`; `None` skips the
+    /// ordinance.
+    fn ordinance_properties(&self, id: u32) -> Option<Rc<PropertyHolder>>;
+
+    // ---- automata (REH §4.9) ----
+    /// `city.GetAutomataControllerManager()`:
+    /// `AddControllersFromOccupantGroup(name, occ, 0)` on a strike start and
+    /// `RemoveControllers(name, occ)` on its end.
+    fn add_controllers(&self, name: &str, occupant: u64);
+    fn remove_controllers(&self, name: &str, occupant: u64);
 }
 
 /// The occupant lists of §3 / §9.1, in save order. All are host tokens; the
