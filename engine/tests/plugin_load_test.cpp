@@ -2832,6 +2832,85 @@ intptr_t FloraShadowOnce(FC4TestSeamFn seam, FakeObject* city, FakeObject* targe
     return seam(kFC4SeamFloraShadow, &in, registry);
 }
 
+// An obliteration segment (flora §10.3, FQ3): the segment answers
+// cISC4DBSegment (0x499899DA) only; that interface opens one write stream
+// (slot 8) and closes it (slot 9); the stream keeps what its PutUint16 /
+// PutUint32 (slots 7 / 9) get, little-endian, and reports no error (slot 18).
+// `refs` starts with the caller's own reference. Any other call aborts.
+struct FakeSegment {
+    FakeVtable segVt, dbVt, outVt;
+    FakeObject seg{}, db{}, out{};
+    int refs = 1;
+    int opens = 0;
+    int closes = 0;
+    uint32_t key[3] = {};  // type, group, instance
+    std::vector<uint8_t> bytes;
+};
+
+FakeSegment* g_fseg = nullptr;
+
+bool __fastcall FsegQi(void* self, void*, uint32_t iid, void** out) {  // 0 (segment)
+    if (out == nullptr || self != &g_fseg->seg || iid != 0x499899DAu) return false;
+    *out = &g_fseg->db;
+    ++g_fseg->refs;
+    return true;
+}
+bool __fastcall FsegNoQi(void*, void*, uint32_t, void**) { return false; }                    // 0 (db, stream)
+uint32_t __fastcall FsegAddRef(void*, void*) { return static_cast<uint32_t>(++g_fseg->refs); }   // 1
+uint32_t __fastcall FsegRelease(void*, void*) { return static_cast<uint32_t>(--g_fseg->refs); }  // 2
+bool __fastcall FsegOpenO(void*, void*, const uint32_t* key, void** out, bool) {                // db 8
+    ++g_fseg->opens;
+    std::memcpy(g_fseg->key, key, sizeof(g_fseg->key));
+    *out = &g_fseg->out;
+    ++g_fseg->refs;
+    return true;
+}
+void __fastcall FsegCloseO(void*, void*, void*) { ++g_fseg->closes; }  // db 9
+bool __fastcall FsegPut16(void*, void*, uint16_t v) {                 // stream 7
+    for (int i = 0; i < 2; ++i) g_fseg->bytes.push_back(static_cast<uint8_t>(v >> (8 * i)));
+    return true;
+}
+bool __fastcall FsegPut32(void*, void*, uint32_t v) {  // stream 9
+    for (int i = 0; i < 4; ++i) g_fseg->bytes.push_back(static_cast<uint8_t>(v >> (8 * i)));
+    return true;
+}
+int32_t __fastcall FsegError(void*, void*) { return 0; }  // stream 18
+
+void InitFakeSegment(FakeSegment& s) {
+    g_fseg = &s;
+    for (FakeVtable* vt : {&s.segVt, &s.dbVt, &s.outVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&FsegNoQi);
+        vt->slots[1] = reinterpret_cast<void*>(&FsegAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&FsegRelease);
+    }
+    s.segVt.slots[0] = reinterpret_cast<void*>(&FsegQi);
+    s.dbVt.slots[8] = reinterpret_cast<void*>(&FsegOpenO);
+    s.dbVt.slots[9] = reinterpret_cast<void*>(&FsegCloseO);
+    s.outVt.slots[7] = reinterpret_cast<void*>(&FsegPut16);
+    s.outVt.slots[9] = reinterpret_cast<void*>(&FsegPut32);
+    s.outVt.slots[18] = reinterpret_cast<void*>(&FsegError);
+    s.seg.vtbl = s.segVt.slots.data();
+    s.db.vtbl = s.dbVt.slots.data();
+    s.out.vtbl = s.outVt.slots.data();
+}
+
+// A plugin's flora type filter (flora §11.1 slot 13, FQ9): slot 3 accepts one
+// type and records every type it is asked about. Any other call aborts (the
+// simulator takes no reference on it).
+struct FakeFloraFilter {
+    FakeVtable vt;
+    FakeObject obj{};
+    uint32_t accept = 0;
+    std::vector<uint32_t> asked;
+};
+
+FakeFloraFilter* g_ffilt = nullptr;
+
+bool __fastcall FfiltIncluded(void*, void*, uint32_t type) {  // 3
+    g_ffilt->asked.push_back(type);
+    return type == g_ffilt->accept;
+}
+
 // The calls that need a city do nothing without one (no occupant manager, no
 // terrain): nothing found, nothing planted, nothing removed.
 void CheckFloraNoCity(cISC4FloraSimulator* f) {
@@ -2850,7 +2929,7 @@ void CheckFloraNoCity(cISC4FloraSimulator* f) {
     const float mx[3] = {64.0f, 100.0f, 64.0f};
     CHECK(f->DemolishFloraInBoundingBox(mn, mx, 0));
     CHECK(f->GetCostOfOccupantDemolition(nullptr, 0) == 0);
-    CHECK(f->SaveObliterated(nullptr));  // logged once: not saved
+    CHECK(f->SaveObliterated(nullptr));  // no segment: nothing opens, true (§10.3)
 }
 
 int FloraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
@@ -2949,6 +3028,32 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
             flora->GetAllFloraTypes(types, cap);
             CHECK(cap == 1 && types[0] == added.type);
             CheckFloraNoCity(flora);
+            // §10.3 (FQ3): without a city there are no occupants, so
+            // SaveObliterated writes the count record alone, u16 0 then u32 0,
+            // through the segment's cISC4DBSegment, closes it and releases
+            // both references.
+            static FakeSegment fseg;
+            InitFakeSegment(fseg);
+            CHECK(flora->SaveObliterated(reinterpret_cast<cIGZPersistDBSegment*>(&fseg.seg)));
+            CHECK(fseg.opens == 1 && fseg.closes == 1);
+            CHECK(fseg.key[0] == 0xC9BB3FC6u && fseg.key[1] == 0xC9BB3FC7u && fseg.key[2] == 1u);
+            CHECK((fseg.bytes == std::vector<uint8_t>{0, 0, 0, 0, 0, 0}));
+            CHECK(fseg.refs == 1);
+            // §11.1 slot 13 (FQ9): the map {0, added} in ascending order, each
+            // key asked of the filter's slot 3; the accepted count returned.
+            // (No game allocator here: the inserts fail, the count does not
+            // depend on them.)
+            static FakeFloraFilter filt;
+            g_ffilt = &filt;
+            filt.vt.slots[3] = reinterpret_cast<void*>(&FfiltIncluded);
+            filt.obj.vtbl = filt.vt.slots.data();
+            filt.accept = added.type;
+            intptr_t set[5] = {};  // an empty hash_set<uint32_t> (0x14 bytes)
+            CHECK(flora->GetFloraTypesByFilter(set[0], reinterpret_cast<cISC4FloraTypeFilter*>(&filt.obj)) == 1);
+            CHECK((filt.asked == std::vector<uint32_t>{0u, added.type}));
+            filt.accept = 0x12345678u;
+            CHECK(flora->GetFloraTypesByFilter(set[0], reinterpret_cast<cISC4FloraTypeFilter*>(&filt.obj)) == 0);
+            CHECK(flora->GetFloraTypesByFilter(set[0], nullptr) == 2);  // null: every key
             float score = -1.0f;
             CHECK(flora->GetBestFloraTypeForLocation(10.0f, 10.0f, score) == 0);
             // Days and a month without a city.
@@ -3006,7 +3111,7 @@ int FloraEnableTest(const std::string& dll, const std::string& ini, const std::s
     CHECK(text.find("flora Init -: flora=- (no census: no occupant manager)") != std::string::npos);
     CHECK(text.find("is not registered [choice]: the records are kept") != std::string::npos);
     CHECK(text.find("flora: no resource manager; no flora exemplars") != std::string::npos);
-    CHECK(text.find("flora: SaveObliterated(") != std::string::npos);
+    CHECK(text.find("flora: SaveObliterated(00000000) -> 1") != std::string::npos);
     CHECK(text.find("flora Shutdown (3 days, 2 months, ") != std::string::npos);
     CHECK(text.find("cFC4FloraSimulator destroyed") != std::string::npos);
     CHECK(text.find("flora shadow: requested (flora_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
@@ -4665,7 +4770,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 136): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 137): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -6503,11 +6608,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 136 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 136 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 137 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 137 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 136): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 137): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

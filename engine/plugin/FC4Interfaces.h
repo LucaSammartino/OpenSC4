@@ -1471,6 +1471,17 @@ public:
     virtual void* FindNetworkTile(int32_t x, int32_t z, uint32_t flagMask, bool flag) = 0;  // 8
 };
 
+// ---- flora (docs/specs/flora.md §11.1) ------------------------------------------------------------
+
+// cISC4FloraTypeFilter: caller-supplied (the SDK only forward-declares it).
+// The flora simulator's slot 13 asks its slot 3 +0x0C about every type and
+// calls no other slot (flora §11.1, FQ9; docs/abi: pops 4, AL).
+class cISC4FloraTypeFilter;
+class cFC4ISC4FloraTypeFilter : public cIGZUnknown {
+public:
+    virtual bool IsFloraTypeIncluded(uint32_t floraType) = 0;  // 3
+};
+
 namespace fc4 {
 // A simulator handed out by the game (cISC4City::GetSimulator), seen through
 // the verified slot order instead of the SDK's declaration.
@@ -1570,5 +1581,10 @@ inline cISC4DispatchSource* AsSdk(cFC4ISC4DispatchSource* p) { return reinterpre
 // call it only through the verified declaration (§7.1).
 inline cFC4ISC4LandfillDeveloper* AsGame(cISC4LandfillDeveloper* p) {
     return reinterpret_cast<cFC4ISC4LandfillDeveloper*>(p);
+}
+// A plugin's flora type filter (flora §11.1 slot 13), seen through its one
+// verified slot.
+inline cFC4ISC4FloraTypeFilter* AsGame(cISC4FloraTypeFilter* p) {
+    return reinterpret_cast<cFC4ISC4FloraTypeFilter*>(p);
 }
 }  // namespace fc4

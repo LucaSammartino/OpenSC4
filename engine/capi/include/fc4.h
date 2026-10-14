@@ -69,7 +69,8 @@ extern "C" {
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
- * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant). */
+ * 30 = the aura shadow follows the original step by step (fc4_aura_shadow_before_step / _step / _occupant);
+ *      fc4_flora_host's obliteration segment callbacks become record streams (§10.3). */
 #define FC4_ABI_VERSION 30u
 
 /* Return codes of fc4_sim_load. */
@@ -3120,15 +3121,21 @@ typedef struct fc4_flora_host {
     void (*occupants_in_cells)(void* user, const fc4_cell_rect* rect, uint32_t occ_type, fc4_token_callback cb,
                                void* ctx);
     void (*occupants_in_manager_cells)(void* user, uint32_t occ_type, fc4_token_callback cb, void* ctx);
-    /* obliteration segment (§10.3) */
-    bool (*segment_write_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                              uint32_t value);
-    bool (*segment_read_u32)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                             uint32_t* out);
-    bool (*segment_write_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
-                                   uint64_t occ);
-    uint64_t (*segment_read_flora_occupant)(void* user, uint64_t seg, uint32_t type, uint32_t group,
-                                            uint32_t instance);
+    /* obliteration segment (§10.3, ABI 30): QueryInterface for cISC4DBSegment,
+     * then OpenOStream(key, &s, true) (`write`) or OpenIStream(key, &s); the
+     * stream token, 0 = not open. The core puts / gets each record's u16
+     * version itself. */
+    uint64_t (*segment_open)(void* user, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance,
+                             bool write);
+    void (*segment_close)(void* user, uint64_t stream); /* Close*Stream, then both references released */
+    bool (*stream_put_u16)(void* user, uint64_t stream, uint16_t v);
+    bool (*stream_put_u32)(void* user, uint64_t stream, uint32_t v);
+    bool (*stream_get_u16)(void* user, uint64_t stream, uint16_t* out); /* false: failed, *out untouched */
+    bool (*stream_get_u32)(void* user, uint64_t stream, uint32_t* out);
+    bool (*stream_error)(void* user, uint64_t stream); /* GetError() != 0 */
+    /* the occupant's cIGZSerializable::Write / Read on the stream */
+    bool (*write_occupant)(void* user, uint64_t occ, uint64_t stream);
+    bool (*read_occupant)(void* user, uint64_t occ, uint64_t stream);
 } fc4_flora_host;
 
 /* The registry (one per process; the host table is copied). */
@@ -3136,7 +3143,8 @@ fc4_flora_registry* fc4_flora_registry_create(const fc4_flora_registry_host* hos
 void fc4_flora_registry_destroy(fc4_flora_registry* r); /* the simulators keep theirs alive */
 /* Any thread: */
 uint64_t fc4_flora_registry_record(const fc4_flora_registry* r, uint32_t type_id); /* slot 7; 0 = none */
-bool fc4_flora_registry_is_type_valid(const fc4_flora_registry* r, uint32_t type_id);   /* slot 11 */
+/* Slot 11; 0 is valid after an Init, invalid after an exemplar-change reload until the next Init (FQ14). */
+bool fc4_flora_registry_is_type_valid(const fc4_flora_registry* r, uint32_t type_id);
 bool fc4_flora_registry_is_family_valid(const fc4_flora_registry* r, uint32_t id);      /* slot 12 */
 /* Slot 9: NULL buffer: *count := N; else copies min(*count, N) and stores it. */
 uint32_t fc4_flora_registry_types_into(const fc4_flora_registry* r, uint32_t* buffer, uint32_t* count);
@@ -4021,7 +4029,7 @@ static_assert(sizeof(fc4_flora_param) == 8, "fc4_flora_param layout");
 static_assert(sizeof(fc4_flora_message) == (sizeof(void*) == 4 ? 40 : 56), "fc4_flora_message layout");
 static_assert(sizeof(fc4_flora_state) == 180, "fc4_flora_state layout");
 static_assert(sizeof(fc4_flora_registry_host) == (sizeof(void*) == 4 ? 20 : 40), "fc4_flora_registry_host layout");
-static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 240 : 480), "fc4_flora_host layout");
+static_assert(sizeof(fc4_flora_host) == (sizeof(void*) == 4 ? 260 : 520), "fc4_flora_host layout");
 static_assert(sizeof(fc4_flora_census_entry) == 72, "fc4_flora_census_entry layout");
 static_assert(sizeof(fc4_flora_shadow_month_in) == (sizeof(void*) == 4 ? 56 : 96),
               "fc4_flora_shadow_month_in layout");

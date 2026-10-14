@@ -268,6 +268,8 @@ enum class Sw : unsigned {
     FloraPosts,      // flora_posts: FloraTypesUpdated (off: not posted)
     FloraCheats,     // flora_cheats: the "Flora" cheat and the PlaceFlora command registrations
     FloraExemplars,  // flora_exemplars: the flora exemplar enumeration (off: no flora types)
+    FloraObliteration,  // flora_obliteration: the obliterated city's segment records (cISC4DBSegment and its
+                        //   streams, the occupants' Write / Read; off: nothing saved, nothing restored)
     // Landfill developer host callbacks (cFC4Landfill.cpp), one per group of
     // game calls; only used when the landfill subsystem is enabled.
     LandfillTerrain,     // landfill_terrain: terrain altitude and sea level reads, SetAltitude,

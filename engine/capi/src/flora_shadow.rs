@@ -31,14 +31,19 @@
 //!    blocks the pass visited are recovered from the record's iterator
 //!    (before: `table[index..]`; after a wrap, the reshuffled table's
 //!    `[..index]`), the occupants of each visited block found as the game's
-//!    cell query finds them (box against the block's world box, [choice]
-//!    closed), and §6.7.2 applied visit by visit with
+//!    cell query finds them (§6.7.1, §6.4.2, FQ15: listed in one of the
+//!    block's 64 m occupant-manager cells, from its box with the 0.1 m
+//!    inset, and overlapping the block's world box strictly; [choice] the
+//!    listing is taken from the census box before the pass, as flora boxes
+//!    change only through `MoveOccupant`, which lists them again), and
+//!    §6.7.2 applied visit by visit with
 //!    [`fc4_core::flora::predict_visit`] (the deterministic part: rebirth,
 //!    stage, removal, last seeding date), with the original's own records,
 //!    `today` = data1, the original's propagation flag, the simulator's day
 //!    number, and the score from the moisture type and terrain altitude the
 //!    host read at each occupant before the pass, the sea level and our
-//!    elevation scale (the tuning exemplar's `0xC9DBDD02`, §7; not saved).
+//!    elevation scale (the tuning exemplar's `0xC9DBDD02`, §7, FQ7: the
+//!    original's record does not save it).
 //!    Compared: state, birth date, last seeding date, type and position of
 //!    every occupant present before and after; predicted removals against
 //!    absence; occupants outside the visited blocks must not change; the
@@ -55,8 +60,8 @@ use std::ffi::c_void;
 use std::fmt::Write as _;
 
 use fc4_core::flora::{
-    elevation_index, predict_visit, prop, score_from_table, FloraOccupant, FloraRecord, FloraRegistry, Vec3,
-    MAX_BLOCKS_PER_MONTH,
+    cell_query_box, elevation_index, manager_listing, manager_query_returns, predict_visit, prop, score_from_table,
+    FloraOccupant, FloraRecord, FloraRegistry, Vec3, MAX_BLOCKS_PER_MONTH,
 };
 use fc4_core::grid::{CellIterator, IteratorState, MODE_TABLE};
 use fc4_core::julian::civil_from_julian;
@@ -268,17 +273,16 @@ fn visited_blocks(before: &CellIterator, after: &CellIterator, k: u32) -> Result
 
 /// The world box of block `(bx, bz)` (cells `2bx..2bx+1`, `2bz..2bz+1`),
 /// as the occupant manager's cell query builds it (§6.10.4).
-fn block_box(bx: i32, bz: i32) -> ([f32; 2], [f32; 2]) {
-    let (x0, z0) = (bx.wrapping_mul(2) as f32, bz.wrapping_mul(2) as f32);
-    (
-        [16.0 * x0 + 0.1, 16.0 * z0 + 0.1],
-        [16.0 * (x0 + 2.0) - 0.1, 16.0 * (z0 + 2.0) - 0.1],
-    )
+fn block_box(bx: i32, bz: i32) -> (Vec3, Vec3) {
+    let (x0, z0) = (bx.wrapping_mul(2), bz.wrapping_mul(2));
+    cell_query_box((x0, z0, x0.wrapping_add(1), z0.wrapping_add(1)))
 }
 
-/// [choice] The cell query's membership test: closed, x and z only.
-fn in_block(e: &fc4_flora_census_entry, b: &([f32; 2], [f32; 2])) -> bool {
-    e.bbox_min[0] <= b.1[0] && b.0[0] <= e.bbox_max[0] && e.bbox_min[2] <= b.1[1] && b.0[1] <= e.bbox_max[2]
+/// Whether the block query `b` returns the occupant (§6.4.2, FQ15): listed
+/// in one of the query's 64 m cells and strictly overlapping.
+fn in_block(e: &fc4_flora_census_entry, b: &(Vec3, Vec3)) -> bool {
+    let occ = (e.bbox_min, e.bbox_max);
+    manager_query_returns(manager_listing(occ.0, occ.1), occ, *b)
 }
 
 // ---- the shadow -------------------------------------------------------------------------------------
@@ -343,7 +347,7 @@ pub unsafe extern "C" fn fc4_flora_shadow_destroy(p: *mut fc4_flora_shadow) {
 }
 
 /// The tuning exemplar (`tuning`: NEW, taken; NULL = missing): the elevation
-/// scale `16 / v` of property `0xC9DBDD02` (§7), else 0.08. Returns it.
+/// scale `16 / v` of property `0xC9DBDD02` (§7, FQ7), else 0.08. Returns it.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flora_shadow_set_tuning(p: *mut fc4_flora_shadow, tuning: *mut fc4_props) -> f32 {
     let t = take_props(tuning);
@@ -879,7 +883,34 @@ mod tests {
         assert_eq!(visited_blocks(&ex, &d, 1).unwrap(), (vec![(0, 5)], true));
         assert_eq!(visited_blocks(&a, &a, 0).unwrap(), (vec![], false));
         assert!(visited_blocks(&a, &b, 1).is_err(), "moved too far");
-        assert_eq!(block_box(1, 2), ([32.1, 64.1], [63.9, 95.9]));
+        assert_eq!(block_box(1, 2), ([32.1, -f32::MAX, 64.1], [63.9, f32::MAX, 95.9]));
+    }
+
+    /// Test 38 (§6.7.1, FQ15): which blocks visit a plant near a 64 m line.
+    #[test]
+    fn blocks_visit_as_the_64_m_index_lists() {
+        let entry = |x: f32, z: f32, hw: f32| fc4_flora_census_entry {
+            bbox_min: [x - hw, 260.0, z - hw],
+            bbox_max: [x + hw, 270.0, z + hw],
+            ..Default::default()
+        };
+        let visits = |e: &fc4_flora_census_entry| -> Vec<(i32, i32)> {
+            [(53, 9), (54, 9), (53, 10), (54, 10)]
+                .into_iter()
+                .filter(|&(bx, bz)| in_block(e, &block_box(bx, bz)))
+                .collect()
+        };
+        // Oak Tree clump 5 0x14C279F4: box z from 319.84396, listed from
+        // 319.94396 (z cell 69); the blocks below the line do not return it.
+        let oak = entry(1726.9807, 328.84396, 9.0);
+        assert_eq!(visits(&oak), [(53, 10), (54, 10)]);
+        // 0.2 m below the line: listed from 319.9 (z cell 68), all four.
+        assert_eq!(
+            visits(&entry(1726.9807, 328.8, 9.0)),
+            [(53, 9), (54, 9), (53, 10), (54, 10)]
+        );
+        // 0.8 m wide (no inset), box z 319.86 .. 320.66, listed from z cell 68.
+        assert_eq!(visits(&entry(1726.9807, 320.26, 0.4)), [(53, 9), (53, 10)]);
     }
 
     /// The record our own simulator writes parses (the original's has the

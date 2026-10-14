@@ -48,6 +48,7 @@
 #include "cIGZVariant.h"
 #include "cISC4App.h"
 #include "cISC4City.h"
+#include "cISC4DBSegment.h"
 #include "cISC4FloraOccupant.h"
 #include "cISC4LotManager.h"
 #include "cISC4NetworkOccupant.h"
@@ -174,7 +175,9 @@ uint32_t g_blocks = 0;  // blocks built (process lifetime)
 // The registry's create_block (fc4_flora_registry_host): a block with the
 // record's values holding `exemplar` (its reference passes to the block), one
 // reference of ours for the life of the process (§13.2 [choice]: no game
-// Release ever sees a count of 1). [choice] The family vector stays null:
+// Release ever sees a count of 1; FQ8: the original drops the registry's
+// references only in its process-exit callback, so nothing observes the
+// difference). [choice] The family vector stays null:
 // only the game's Release reads it, and Release never frees our blocks.
 uint64_t CreateBlock(void*, const fc4_flora_record* rec, uint64_t exemplar) {
     if (rec == nullptr || !Gate(fc4::Sw::FloraRecords, "flora record block (none: GetStaticFloraData returns null)")) {
@@ -283,30 +286,28 @@ void FloraExemplars(void*, fc4_flora_exemplar_visitor visit, void* ctx) {
 }
 
 // §4.1 step 12, §10.3: the obliterated city's segment is
-// SC4NewCitySpecification::obliteratedCityDBSegment (SDK, +0x204). Reading
-// its records needs cIGZPersistDBSegment, which is not in docs/abi: the
-// restore is not done [spec question], logged whenever a segment is there.
+// SC4NewCitySpecification::obliteratedCityDBSegment (SDK, +0x204), borrowed
+// from the specification while Init restores its trees (FQ3): the core reads
+// the records through the segment callbacks (SegmentOpen and the rest).
 uint64_t ObliteratedSegment(void*) {
     cIGZPersistDBSegment* seg = nullptr;
     WithApp([&](cISC4App* app) {
         SC4NewCitySpecification* spec = app->GetNewCitySpecification();  // slot 39
         if (spec != nullptr) seg = spec->obliteratedCityDBSegment;
     });
-    if (seg != nullptr) {
-        fc4::Log("flora: the obliterated city's segment %p is NOT restored: cIGZPersistDBSegment's record reads are "
-                 "not in docs/abi (flora.md §10.3; spec question); its trees are not re-created",
-                 static_cast<void*>(seg));
-    }
-    return 0;
+    if (seg == nullptr) return 0;
+    if (!Gate(fc4::Sw::FloraObliteration, "flora obliterated-city restore (its trees are not re-created)")) return 0;
+    fc4::Log("flora: restoring the obliterated city's flora from segment %p (§10.3)", static_cast<void*>(seg));
+    return TokenOf(seg);
 }
 
 bool g_loggedShutdownCallback = false;
 
 // §4.1 step 2: cISC4App slot 69 RegisterShutdownCallbackFunction(cb, 0).
-// [choice, spec question] Not registered: the callback releases the records,
-// and ours are kept for the life of the process (§13.2), so it would only
-// empty the registry while the game may still read it; the call's timing
-// against this DLL's unload is not documented.
+// [choice] Not registered (FQ2, FQ8: no observable original behaviour). The
+// original's callback only drops the map's reference to each record and
+// empties the map and the type array, at process exit; ours are kept for the
+// life of the process (§13.2).
 void RegisterAppShutdownCallback(void*) {
     LogOnce(g_loggedShutdownCallback,
             "flora: the application shutdown callback (§4.1 step 2) is not registered [choice]: the records are kept "
@@ -603,12 +604,12 @@ void Deliver(void* u, std::shared_ptr<OccList> list, fc4_token_callback cb, void
 // GetOccupantsByBBox(list, min, max, type, -1) (typed overload, compiled slot
 // 37; one reference per occupant in an SC4List).
 //
-// [choice, spec question] The blocking filter of §6.4.1 is an object passed to
-// the FILTER overload (slot 36); cISC4OccupantFilter is not in
-// docs/abi/interfaces.tsv, so its vtable is not verified. The typed overload is
-// called once per accepted type (flora, building, landfill, prop, network)
-// and network occupants are kept when GetNetworkFlag() & 0x1F4F is non-zero:
-// an occupant has exactly one type, so the union is what the filter accepts.
+// The blocking filter of §6.4.1 (FQ4): the original passes its filter object
+// to the FILTER overload (slot 36). Here the typed overload is called once per
+// accepted type (flora, building, landfill, prop, network) and network
+// occupants are kept when GetNetworkFlag() & 0x1F4F is non-zero (one that does
+// not answer cISC4NetworkOccupant does not block): the same set (an occupant
+// has exactly one type), only in another order, which nothing observes.
 void OccupantsInBbox(void* u, const float* min3, const float* max3, uint32_t type, bool blocking,
                      fc4_token_callback cb, void* ctx) {
     if (min3 == nullptr || max3 == nullptr || cb == nullptr) return;
@@ -658,6 +659,135 @@ void OccupantsInManagerCells(void* u, uint32_t type, fc4_token_callback cb, void
     auto list = std::make_shared<OccList>();
     om->GetOccupantsByOccupantManagerCells(*list, nullptr, nullptr, type, 0xFFFFFFFFu);
     Deliver(u, std::move(list), cb, ctx, [](cISC4Occupant*) { return true; });
+}
+
+// ---- the obliterated city's records (§10.3, FQ3) ------------------------------------------------------
+
+// A record open on the obliterated city's segment; its address is the core's
+// stream token. One reference each on the segment's cISC4DBSegment
+// (QueryInterface) and on the stream Open*Stream handed over; exactly one of
+// `in` and `out` is set.
+struct SegRecord {
+    cISC4DBSegment* seg = nullptr;
+    cFC4ISC4DBSegmentIStream* in = nullptr;
+    cFC4ISC4DBSegmentOStream* out = nullptr;
+};
+
+SegRecord* RecordOf(uint64_t t) { return reinterpret_cast<SegRecord*>(static_cast<uintptr_t>(t)); }
+
+cIGZOStream* OutOf(uint64_t t) {
+    SegRecord* r = RecordOf(t);
+    return r != nullptr ? r->out : nullptr;
+}
+
+cIGZIStream* InOf(uint64_t t) {
+    SegRecord* r = RecordOf(t);
+    return r != nullptr ? r->in : nullptr;
+}
+
+// QueryInterface the segment for cISC4DBSegment (0x499899DA), then
+// OpenOStream(key, &s, true) (slot 8) or OpenIStream(key, &s) (slot 5), AL.
+// 0 (not open) when either fails. The core puts / gets the record's u16
+// version and tests GetError itself.
+uint64_t SegmentOpen(void*, uint64_t seg, uint32_t type, uint32_t group, uint32_t instance, bool write) {
+    if (seg == 0 || !Gate(fc4::Sw::FloraObliteration, "flora obliteration record (not open)")) return 0;
+    cISC4DBSegment* db = Query<cISC4DBSegment>(FromToken(seg), GZIID_cISC4DBSegment);
+    if (db == nullptr) return 0;
+    SegRecord* r = new (std::nothrow) SegRecord();
+    if (r == nullptr) {
+        Drop(db);
+        return 0;
+    }
+    r->seg = db;
+    const cGZPersistResourceKey key(type, group, instance);
+    if (write) {
+        cISC4DBSegmentOStream* s = nullptr;
+        if (db->OpenOStream(key, &s, true) && s != nullptr) {  // slot 8
+            r->out = reinterpret_cast<cFC4ISC4DBSegmentOStream*>(s);
+            FC4_ACQUIRED(static_cast<cIGZUnknown*>(r->out), "OpenOStream");
+        }
+    } else {
+        cISC4DBSegmentIStream* s = nullptr;
+        if (db->OpenIStream(key, &s) && s != nullptr) {  // slot 5
+            r->in = reinterpret_cast<cFC4ISC4DBSegmentIStream*>(s);
+            FC4_ACQUIRED(static_cast<cIGZUnknown*>(r->in), "OpenIStream");
+        }
+    }
+    if (r->in == nullptr && r->out == nullptr) {
+        Drop(db);
+        delete r;
+        return 0;
+    }
+    return TokenOf(r);
+}
+
+// CloseOStream (slot 9) or CloseIStream (slot 6), then both references are
+// released: the stream's (a temporary the segment created for us) and the
+// segment interface's.
+void SegmentClose(void*, uint64_t t) {
+    SegRecord* r = RecordOf(t);
+    if (r == nullptr) return;
+    if (r->out != nullptr) {
+        r->seg->CloseOStream(reinterpret_cast<cISC4DBSegmentOStream*>(r->out));
+        FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(r->out));
+    }
+    if (r->in != nullptr) {
+        r->seg->CloseIStream(reinterpret_cast<cISC4DBSegmentIStream*>(r->in));
+        FC4_RELEASE_CREATED(static_cast<cIGZUnknown*>(r->in));
+    }
+    Drop(r->seg);
+    delete r;
+}
+
+// The record streams' slots 7 (u16), 9 (u32) and 18 (GetError, sticky).
+bool StreamPutU16(void*, uint64_t t, uint16_t v) {
+    cIGZOStream* s = OutOf(t);
+    return s != nullptr && s->SetUint16(v);
+}
+
+bool StreamPutU32(void*, uint64_t t, uint32_t v) {
+    cIGZOStream* s = OutOf(t);
+    return s != nullptr && s->SetUint32(v);
+}
+
+bool StreamGetU16(void*, uint64_t t, uint16_t* out) {
+    cIGZIStream* s = InOf(t);
+    uint16_t v = 0;
+    if (s == nullptr || out == nullptr || !s->GetUint16(v)) return false;
+    *out = v;
+    return true;
+}
+
+bool StreamGetU32(void*, uint64_t t, uint32_t* out) {
+    cIGZIStream* s = InOf(t);
+    uint32_t v = 0;
+    if (s == nullptr || out == nullptr || !s->GetUint32(v)) return false;
+    *out = v;
+    return true;
+}
+
+bool StreamError(void*, uint64_t t) {
+    if (cIGZOStream* o = OutOf(t)) return o->GetError() != 0;
+    if (cIGZIStream* i = InOf(t)) return i->GetError() != 0;
+    return true;
+}
+
+// The occupant's own record (lot-records.md §11): its cIGZSerializable Write
+// (slot 3) / Read (slot 4) on the record's stream.
+bool WriteOccupant(void*, uint64_t occ, uint64_t t) {
+    cIGZOStream* s = OutOf(t);
+    if (occ == 0 || s == nullptr) return false;
+    bool ok = false;
+    WithQi<cIGZSerializable>(OccOf(occ), GZIID_cIGZSerializable, [&](cIGZSerializable* z) { ok = z->Write(*s); });
+    return ok;
+}
+
+bool ReadOccupant(void*, uint64_t occ, uint64_t t) {
+    cIGZIStream* s = InOf(t);
+    if (occ == 0 || s == nullptr) return false;
+    bool ok = false;
+    WithQi<cIGZSerializable>(OccOf(occ), GZIID_cIGZSerializable, [&](cIGZSerializable* z) { ok = z->Read(*s); });
+    return ok;
 }
 
 fc4_flora_host MakeHost(cFC4FloraSimulator* self) {
@@ -723,18 +853,23 @@ fc4_flora_host MakeHost(cFC4FloraSimulator* self) {
     h.occupants_in_bbox = &OccupantsInBbox;
     h.occupants_in_cells = &OccupantsInCells;
     h.occupants_in_manager_cells = &OccupantsInManagerCells;
-    // The obliteration segment's record I/O (§10.3) is not in docs/abi: no
-    // callbacks (SaveObliterated never calls the core, the restore never runs).
-    h.segment_write_u32 = nullptr;
-    h.segment_read_u32 = nullptr;
-    h.segment_write_occupant = nullptr;
-    h.segment_read_flora_occupant = nullptr;
+    // the obliterated city's records (§10.3)
+    h.segment_open = &SegmentOpen;
+    h.segment_close = &SegmentClose;
+    h.stream_put_u16 = &StreamPutU16;
+    h.stream_put_u32 = &StreamPutU32;
+    h.stream_get_u16 = &StreamGetU16;
+    h.stream_get_u32 = &StreamGetU32;
+    h.stream_error = &StreamError;
+    h.write_occupant = &WriteOccupant;
+    h.read_occupant = &ReadOccupant;
     return h;
 }
 
-// PlaceFlora's parameters (§5): param 0 as u32, params 1 and 2 as floats,
-// through the command parameter set's slot 5 (§12; SDK operator[]) and the
-// variant's verified slots 24 / 36 (FC4Interfaces.h).
+// PlaceFlora's parameters (§5, FQ10): param 0 as u32, params 1 and 2 as
+// floats, through the command parameter set's slot 5 (§12; SDK operator[],
+// pops 4; the original's never returns null, a missing index gives the set's
+// empty variant) and the variant's slots 24 / 36 (FC4Interfaces.h).
 size_t ReadPlaceFloraParams(cIGZCommandParameterSet* ps, fc4_flora_param* out) {
     if (ps == nullptr || !Gate(fc4::Sw::FloraCheats, "flora PlaceFlora parameters (none)")) return 0;
     size_t n = 0;
@@ -813,12 +948,14 @@ std::recursive_mutex& FloraLock() {
     return m;
 }
 
-// §4.1 step 2. [choice, spec question] The key list comes from
-// GetAvailableResourceList(&list, filter) with an exemplar-type filter, as the
-// demand glue does (run 42), not slot 18 GetAvailableResourceListForType: the
-// order is the same (built segment by segment), and this list is proven to be
-// a temporary of ours. Keys are read by index (Size / GetKey), the list's
-// order, instead of EnumKeys' callback.
+// §4.1 step 2 (FQ1: equivalent). The key list comes from
+// GetAvailableResourceList(&list, filter) (slot 17) with a filter accepting
+// exactly the keys of type 0x6534284A, which is all slot 18
+// GetAvailableResourceListForType does (the same list in the same order,
+// built segment by segment); this list is proven to be a temporary of ours
+// (run 42). Keys are read by index (Size / GetKey): the sequence EnumKeys
+// walks, first to last. Property 0x10 and every flora value are read through
+// the effective list, parent cohort included (FQ13, FC4CoreProps.h).
 void FloraForEachExemplar(bool keepRefs, bool gated, fc4_flora_exemplar_visitor visit, void* ctx) {
     if (visit == nullptr) return;
     if (gated && (!Gate(Sw::FloraExemplars, "flora exemplar enumeration (no flora types)") ||
@@ -1112,7 +1249,9 @@ void cFC4FloraSimulator::UnregisterCheat(uint32_t id) {
     cheatId_ = 0;
 }
 
-// §4.1 step 3: RegisterCommand(id, "PlaceFlora", null) (command server slot 6).
+// §4.1 step 3: RegisterCommand(id, "PlaceFlora", null) (command server slot 6;
+// FQ12: null parameter info is the original's). Its result is ignored, so
+// Shutdown unregisters the ID either way (§4.2).
 void cFC4FloraSimulator::RegisterCommand(uint32_t id, const char* name) {
     if (commandId_ != 0 || name == nullptr) return;
     if (std::strcmp(name, kPlaceFloraName) != 0) {
@@ -1124,7 +1263,8 @@ void cFC4FloraSimulator::RegisterCommand(uint32_t id, const char* name) {
         fc4::Log("flora: no command server; PlaceFlora not registered");
         return;
     }
-    if (cs->RegisterCommand(id, kPlaceFloraName, nullptr)) commandId_ = id;  // parameter info null (§4.1)
+    cs->RegisterCommand(id, kPlaceFloraName, nullptr);  // result ignored (FQ12)
+    commandId_ = id;
 }
 
 // §4.2: UnregisterCommand (slot 9), only what was registered.
@@ -1271,6 +1411,20 @@ void AppendU32(void* ctx, uint64_t v) {
 void InsertU32(void* ctx, uint64_t v) {
     static_cast<fc4::GameHashSetU32<>*>(ctx)->insert(static_cast<uint32_t>(v));
 }
+
+// Slot 13 with a filter: the caller's set, the filter, the keys it accepted.
+struct FilteredInsert {
+    fc4::GameHashSetU32<>* set;
+    cFC4ISC4FloraTypeFilter* filter;
+    uint32_t accepted;
+};
+void InsertIfIncluded(void* ctx, uint64_t v) {
+    auto* c = static_cast<FilteredInsert*>(ctx);
+    const uint32_t type = static_cast<uint32_t>(v);
+    if (!c->filter->IsFloraTypeIncluded(type)) return;  // filter slot 3, AL
+    c->set->insert(type);
+    ++c->accepted;
+}
 }  // namespace
 
 // Slots 8 and 10: the game's vector (B, allocators.md): cleared (buffer
@@ -1295,19 +1449,18 @@ bool cFC4FloraSimulator::IsFloraFamilyTypeValid(uint32_t type) {
     return fc4_flora_registry_is_family_valid(fc4::FloraRegistry(), type);
 }
 
-// Slot 13: every map key (0 included) into the caller's hash_set (not
-// cleared: a union), the number of insert attempts returned.
-// [spec question] With a non-null filter: cISC4FloraTypeFilter (its slot 3)
-// is not in docs/abi, so nothing is inserted and 0 is returned (logged once).
+// Slot 13 (§11.1, FQ9): every map key in ascending order (key 0 included
+// while present), each asked of the filter's slot 3 IsFloraTypeIncluded (a
+// null filter accepts every key); the accepted keys go into the caller's
+// hash_set (not cleared: a union) and their number is returned, keys the set
+// already held included. The filter runs after the registry's snapshot is
+// released (fc4_flora_registry_list).
 uint32_t cFC4FloraSimulator::GetFloraTypesByFilter(intptr_t& hashSet, cISC4FloraTypeFilter* filter) {
-    if (filter != nullptr) {
-        static bool logged = false;
-        LogOnce(logged, "flora: GetFloraTypesByFilter with a filter: cISC4FloraTypeFilter is not in docs/abi; nothing "
-                        "inserted, 0 returned (spec question)");
-        return 0;
-    }
     auto* set = reinterpret_cast<fc4::GameHashSetU32<>*>(&hashSet);
-    return fc4_flora_registry_list(fc4::FloraRegistry(), 1, &InsertU32, set);
+    if (filter == nullptr) return fc4_flora_registry_list(fc4::FloraRegistry(), 1, &InsertU32, set);
+    FilteredInsert c{set, fc4::AsGame(filter), 0};
+    fc4_flora_registry_list(fc4::FloraRegistry(), 1, &InsertIfIncluded, &c);
+    return c.accepted;
 }
 
 // Slot 14: the family's types into the caller's hash_set; their count.
@@ -1376,19 +1529,15 @@ bool cFC4FloraSimulator::KillFloraOccupant(cISC4Occupant* occupant) {
     return fc4_flora_kill(core_, TokenOf(occupant));
 }
 
-// Slot 24 (§10.3). [spec question] cIGZPersistDBSegment's record writes are
-// not in docs/abi: nothing is written (the core is not called, so no flag 1
-// toggles), true returned as the original does; logged once.
+// Slot 24 (§10.3, FQ3): the core writes the count record and one record per
+// flora occupant through the segment callbacks (SegmentOpen and the rest);
+// true whatever happened.
 bool cFC4FloraSimulator::SaveObliterated(cIGZPersistDBSegment* segment) {
+    CoreCall call(this);
     NoteThread("FloraSimulator::SaveObliterated");
-    static bool logged = false;
-    if (!logged) {
-        logged = true;
-        fc4::Log("flora: SaveObliterated(%p): the obliterated city's flora is NOT saved: cIGZPersistDBSegment's record "
-                 "writes are not in docs/abi (flora.md §10.3; spec question)",
-                 static_cast<void*>(segment));
-    }
-    return true;
+    const bool ok = fc4_flora_save_obliterated(core_, TokenOf(segment));
+    fc4::Log("flora: SaveObliterated(%p) -> %d (§10.3)", static_cast<void*>(segment), ok ? 1 : 0);
+    return ok;
 }
 
 // ---- messages (§5) ---------------------------------------------------------------------------------------

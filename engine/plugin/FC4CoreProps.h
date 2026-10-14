@@ -36,9 +36,11 @@ struct Spec {
 // nullptr. The caller destroys it (fc4_props_destroy) or uses CoreProps.
 fc4_props* ToCore(const cISCPropertyHolder* holder, const Spec* specs, size_t count);
 
-// A new fc4_props with ALL of the holder's own properties, each with its exact
-// variant type and shape (FC4Properties.h CopyToCore). Properties of a parent
-// cohort are not included [choice]. nullptr if `holder` is nullptr.
+// A new fc4_props with ALL of the holder's properties, each with its exact
+// variant type and shape (FC4Properties.h CopyToCore). EnumProperties walks
+// the effective list (data-formats §4.4), so properties inherited from a
+// parent cohort are included and an own property overrides them, as the
+// original flora reads them (flora §3.3, FQ13). nullptr if `holder` is nullptr.
 fc4_props* ToCoreAll(const cISCPropertyHolder* holder);
 
 // Owns an fc4_props.

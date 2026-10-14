@@ -301,7 +301,7 @@ plugin.
 
        Its game calls have their own switches (default `1`, environment `FC4_FLORA_<KEY>`): `flora_occupants`,
        `flora_create`, `flora_manager`, `flora_queries`, `flora_terrain`, `flora_weather`, `flora_records`,
-       `flora_posts`, `flora_cheats`, `flora_exemplars` (see `plugin/FC4Config.h`).
+       `flora_posts`, `flora_cheats`, `flora_exemplars`, `flora_obliteration` (see `plugin/FC4Config.h`).
      - `landfill`: the landfill developer (`cSC4LandfillDeveloper`, landfill spec). It reports the free capacity
        to the pollution simulator (`SetGarbageCapacity`), moves garbage out of its supply into the heaps
        (`GarbagePutInLandfill`), sets the active-landfill flag of every tile cell, levels the zone through the lot
