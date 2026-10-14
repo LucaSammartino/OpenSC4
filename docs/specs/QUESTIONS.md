@@ -2274,7 +2274,17 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 
 About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the core. The current answer is in brackets.
 
-- **TN26 — traffic-network §2.7:** the sweep and the edge pass when Z < X: where do they stop? [at the array end]
+- ~~**TN26 — traffic-network §2.7:** the sweep and the edge pass when Z < X: where do they stop? [at the array end]~~
+  **ANSWERED 2026-10-14** from the exe (sweep 0x007138B0 bound at 0x0071392D, edge pass 0x007151E0/0x0071531F, both
+  `+0x194` = X − 1; arrays sized in Init 0x0071E944–0x0071E989) and written into traffic-network §2.7.3 ("When Z ≠ X")
+  and §2.7.4 step 6.
+  - Both loops use X − 1 for all four arrays, while the z-indexed arrays have Z records.
+    - With Z > X, records X−1 … Z−1 are skipped.
+    - With Z < X, the original reads past the end of those arrays. The edge pass can then write: it may clear a "pool"
+      word in heap memory and set destination bits outside the map's border.
+  - Unreachable in the game: every region city is square.
+  - The bracket is a sound *[choice]*: stop each loop at `min(X − 1, its length)`, which is the original for every
+    square city.
 - **TN27 — §2.7:** `FindNeighborConnection` and the pool-ID lookup for travel types above 8. [no types match]
 - **TN28 — §2.7:** `GetTrafficNeighborConnection` for a corner cell or a cell inside the city. [an empty record]
 - ~~**ZQ11 — zones test 33:** a second draft `Place` on the same cell. [the mask bytes are merged (OR); inferred]~~

@@ -369,6 +369,17 @@ without limit and no commuters.
 1. Collect the pool IDs of records 0 … X−2 of each of the four arrays. The bound is X−1 for all four arrays
    *[quirk]*: the last record of every array is never looked at. The z-indexed arrays use the x bound, which is
    the same in the game's square cities.
+
+   **When Z ≠ X** (TN26). The bound is `X − 1` (member `+0x194`, `0x0071392D`) for all four arrays, while Init
+   sizes the z-indexed arrays (sides 0 and 2) to Z (`0x0071E944`–`0x0071E989`).
+   - Z > X: their records X−1 … Z−1 are never looked at.
+   - Z < X: the loop reads records Z … X−2, past the end of those arrays (heap memory). Here a garbage pool ID only
+     keeps a pool alive, but the edge pass (§2.7.4 step 6) also writes. With a garbage non-zero mask, it can clear
+     the "pool" word in that memory and set destination bits outside the off-map border of the destination map.
+
+   No shipped city has Z ≠ X: every region city is square (64, 128 or 256 cells a side). *[choice]* Stop each
+   loop at its own array: `j < min(X − 1, length)`, where length is Z for sides 0 and 2 and X for sides 1 and 3.
+   This is the original for every square city.
 2. Release every pool whose ID was not collected, and remove it from the map.
 
 A pool used only by the last cell of an edge (z = Z−1 on sides 0 and 2, x = X−1 on sides 1 and 3) is therefore
@@ -397,7 +408,8 @@ StartRecalc (traffic-simulator.md §4.3) ends with this pass. It runs on the mai
    - `SetMaxTripCapacity(pool, 3, 0xFFFFFFFF)` and arrived-this-cycle `[3] := 0`.
    Pools that match no city keep their old capacities and counts.
 5. **Default pool**: arrived-this-cycle `[3] := 0`.
-6. **Edge pass**: for side d = 0…3 and index j = 0 … X−2 (the same bound as the sweep, *[quirk]*), skip records
+6. **Edge pass**: for side d = 0…3 and index j = 0 … X−2 (the same bound as the sweep, *[quirk]*; for Z ≠ X see
+   §2.7.3, TN26), skip records
    with mask 0. The off-map cell is (−1, j), (j, −1), (X, j) or (j, Z) for d = 0, 1, 2, 3. If `HasMapExit(cell)`
    is true, take the holder: pool 0 → the default pool; an ID with no pool → `rec.pool := 0` and the default pool;
    otherwise that pool. There is no mask test here. Then for k = 0…3: if `GetMaxTripCapacity(holder, k) ≠ 0`
