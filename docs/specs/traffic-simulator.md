@@ -1422,6 +1422,17 @@ Rows 14–19 are partly given by type sequence; the meaning of each unnamed scal
 internal counter that FreeCity4 writes back unchanged. The full write order with addresses is in the evidence file named in
 §10 Q5. FreeCity4 writes version `0x29` only.
 
+**The scanning iterator in row 14** (TS31). Read replaces the iterator with a new one (`0x00722623`; the old one is
+not freed) and fills its eight fields from the record without any check (`0x005DA410`). The scanning phases step
+it with an inline GetNext (`0x0071A1A5`, `0x0070F514`, `0x0070E585`, `0x00711120`, `0x0070F771`, `0x00716240`) that
+tests only two values: state byte 2 is done and 0 is fresh. **Every other byte, 1 and any unknown 3…255, acts as
+running** (simgrid.md §7.4), so the scan steps on from the saved cell. The byte is not rewritten until the scan
+ends (2) or the iterator is reset, so an unknown value is also written back by the next save. Each scanning state
+resets the iterator to (0, 0) on entry (`0x00721308`), so a loaded iterator matters only for a save taken
+mid-scan. Example: state byte 7, current (5, 3), step 1, rectangle [0, 63] × [0, 63]: the next GetNext returns
+(6, 3) and the scan goes on; a byte of 2 would end the phase at once. *[compat]* FreeCity4 keeps the raw byte and
+treats it in the same way.
+
 ### 6.2 What must survive a save
 
 The six published grids (consumers read them right after load), the volume grids (the next CreateMaps uses them),

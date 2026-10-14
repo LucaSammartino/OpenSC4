@@ -1417,7 +1417,10 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   original but stands as a *[choice]*. Past the version test (< `0x13`: false, nothing changed) the original writes
   into the simulator as it reads, nulls each ref before reading it, sizes the destination map from uninitialised
   locals on an error, and returns `!GetError()`, which the loader ignores. Written into traffic-simulator.md §6.1.
-- **TS31:** an unknown iterator-state byte in the record? [Done]
+- ~~**TS31:** an unknown iterator-state byte in the record? [Done]~~ **ANSWERED 2026-10-14** from the exe (reader
+  `0x005DA410`, inline GetNext e.g. `0x0071A1A5`): the bracket does not match. Read stores the byte unchecked, and
+  GetNext tests only 2 (done) and 0 (fresh); any other byte acts as running, so the scan steps on from the saved
+  cell, and the byte is written back unchanged until the scan ends. Written into traffic-simulator.md §6.1.
 - **TS32:** record versions above 0x29? [read with the 0x29 layout]
 - **TS33:** Read's own switch flags: is 0x40 set for a subway / el-train rule? [yes, as the re-read does; TN25]
 - **TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
