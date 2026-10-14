@@ -1855,8 +1855,13 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG15:** a building's identity is its `AsOccupant()` pointer, used for the lists, the strike message's void1
   and IGZUnknown, and record references. Right? [yes]
 - **RG16:** per-building properties: scalars of their type (bool, u32, f32), or arrays? [scalars]
-- **RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
-  [assumed]
+- ~~**RG17:** slots 47, 49 and 61 append to the caller's list with the game allocator. Is that so for slot 61?
+  [assumed]~~ **ANSWERED 2026-10-14** from the exe (slot 61 `0x006FAEC0`: allocations at `0x006FAF30` and
+  `0x006FAFBA`; slots 47/49 through `GetBuildings` `0x006FACE0`, allocation at `0x006FADA3`) and written into
+  residential.md §10.1 (slot 61 row). **The bracket matches: yes.** All three take each 12-byte node from the framework
+  allocator service (allocator A, the cached pointer at `0x00B207E4`, slot 3), link it at the tail of the caller's
+  list and `AddRef` the occupant. This is the allocator of the SDK's `SC4List`, so the caller frees the nodes the
+  usual way.
 - **RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
   [released]
 - **RG19:** what goes in a strike message's data1? [0]

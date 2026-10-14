@@ -897,7 +897,7 @@ All methods are `__thiscall`; "pop" is the number of argument bytes the callee r
 | 58 | `+0xE8` | EstimateIdealFunding(occ, SC4Percentage&) | `006FD680` | 8 | AL | other spec |
 | 59 | `+0xEC` | ToggleTractTracking(int32, int32) | `006F7DC0` | 8 | none | no-op |
 | 60 | `+0xF0` | scalar deleting destructor(flags) | `00700330` | 4 | EAX = this | class only |
-| 61 | `+0xF4` | GetHealthAffectingBuildings(list&) | `006FAEC0` | 4 | — | class only: appends the health-affecting list and the other list, each occupant `AddRef`ed |
+| 61 | `+0xF4` | GetHealthAffectingBuildings(list&) | `006FAEC0` | 4 | — | class only: appends the health-affecting list and the other list, each occupant `AddRef`ed. Each node is 12 bytes from the framework allocator service (allocator A of docs/abi/allocators.md, cached at `0x00B207E4`, slot 3; `0x006FAF30`, `0x006FAFBA`), linked at the tail. Slots 47/49 (`GetBuildings`, `0x006FADA3`) do the same (RG17). |
 | 62 | `+0xF8` | TrackTracts() | `00407990` | 0 | none | class only: no-op |
 | 63 | `+0xFC` | OutputTractInfo(…) | `006F7DC0` | 8 | none | class only: no-op (shared with 59) |
 
