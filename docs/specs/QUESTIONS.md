@@ -527,7 +527,12 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
 About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (optional `crime_seed`); shadow
 `crime_shadow = 1`. The glue's current answer is in brackets.
 
-- **CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]
+- ~~**CQ1:** `GetCrimeIncidentArray`: allocators.md does not list its container. [the game's allocator]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006A1960`, resize `0x006A1380`, growth `0x0069FE90`; caller
+  `0x00553370`) and written into crime.md §11.4 and §14.2. **The bracket is right, and the allocator is B** (the
+  STL node allocator, `0x0090CF54`/`0x0090CF63`): `out` is a default-allocator `std::vector`. The only caller
+  passes an empty vector and frees the buffer with B. New elements of lot-less incidents are a fill value with a
+  zero icon key and 16 uninitialised bytes; *[choice]* zero-fill. allocators.md needs a row (coordinator).
 - **CQ2:** `PropProfile.crimeIncidentID` is read at offset 24, from the SDK layout; layouts.md does not list
   `PropProfile`. [24]
 - **CQ3:** lot `GetCenter` (slot 15): docs/abi says ST0, §13 says the out parameter with nothing left on the x87

@@ -549,7 +549,23 @@ reference is released before returning), or null.
 
 Resize `out` to the incident count. For each incident that has a lot:
 `out[i] = {cellX, cellZ from city.PositionToCell(lot.GetCenter()), type ID, visuals flag, icon key}`.
-Elements of incidents without a lot (possible after a load) keep their previous content. Return `count > 0`.
+Elements of incidents without a lot (possible after a load) are not written. Return `count > 0` (signed).
+
+**Container and allocator** *[compat]* (`0x006A1960`; resize `0x006A1380`, growth `0x0069FE90`):
+
+- `out` is a `std::vector<tCrimeEvent>` with the default allocator, so its buffer is a **B** block (the STL node
+  allocator, `docs/abi/allocators.md`): allocated with `0x0090CF54`, freed with `0x0090CF63`.
+- Growing beyond the capacity allocates a new B buffer of `size + max(size, added)` elements (exactly the count
+  when `out` is empty), copies the old elements and frees the old buffer with B. Shrinking only moves `end`, and
+  a resize within the capacity keeps the buffer.
+- The only caller (the traffic effect manager, `0x00553370`) passes a zeroed vector (no buffer) on every call. It
+  frees the buffer with `0x0090CF63` afterwards, whatever the return value.
+- A replacement must allocate the buffer with B and free any buffer it replaces with B. `SC4Vector` (allocator A)
+  is not compatible.
+- New elements are copies of the resize's fill value. That is a stack temporary whose icon key (+0x10..+0x1B) is
+  zeroed and whose first 16 bytes are uninitialised (`0x006A198B`–`0x006A1997`). So an incident without a lot
+  yields an element with icon key (0, 0, 0) and garbage cell, type and visuals fields. *[choice]* FreeCity4
+  zero-fills new elements.
 
 `tCrimeEvent` is **28 bytes**: `u32 cellX; u32 cellZ; u32 typeID; u8 visualsCreated; 3 bytes padding;
 cGZPersistResourceKey iconKey (type, group, instance)`. *[compat]* The traffic effect manager walks the array
@@ -725,9 +741,9 @@ functions directly or reads its members. The only outside references are the COM
   `0x89C498BE` on the **same object** that the class store saves for CLSID `0x8990C09A`. Otherwise loaded cities
   lose crime props, or the load fails.
 - **`GetCrimeIncidentArray` resizes the caller's vector** *[compat, blocker for a naive port]*. The storage is
-  owned and later freed by game code, so a replacement must allocate it with the **game's** allocator (the same
-  operator new / STLport allocator as the original), not its own CRT heap. The element layout must be exactly the
-  28-byte `tCrimeEvent` of §11.4.
+  owned and later freed by game code, so a replacement must allocate it with the game's **STL node allocator**
+  (B: `0x0090CF54` / `0x0090CF63`, §11.4), not its own CRT heap or the framework service. The element layout
+  must be exactly the 28-byte `tCrimeEvent` of §11.4.
 - `GetCrimeGrid` and `GetNearestCrimeSim/Prop` return borrowed pointers. Callers do not release them.
 - The police simulator depends on `0x0A159D95` with the fields of §10, and on being called once per month
   through `ProcessMonthlyCrimeStats` after `ResetUnjailedCriminals`. A replacement must keep both.
