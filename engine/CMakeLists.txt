@@ -200,6 +200,10 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4CrimeInterfaces.h
         plugin/FC4CrimeShadow.cpp
         plugin/FC4CrimeShadow.h
+        plugin/cFC4Aura.cpp
+        plugin/cFC4Aura.h
+        plugin/FC4AuraShadow.cpp
+        plugin/FC4AuraShadow.h
         # gzcom-dll SDK sources (LGPL-2.1-or-later). Not the SDK's
         # cRZMessage2Standard: foundations §5.1 says it differs from the game.
         "${FC4_GZCOM_DIR}/src/cRZCOMDllDirector.cpp"
@@ -242,6 +246,14 @@ if(FC4_IS_WIN32_X86)
     target_compile_definitions(fc4_game_container_test PRIVATE _CRT_SECURE_NO_WARNINGS NOMINMAX)
     target_compile_options(fc4_game_container_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
     add_test(NAME game_container_test COMMAND fc4_game_container_test)
+
+    # The game's STLport map (plugin/FC4GameMap.h): the read-only walk, the
+    # building profile capacity maps and the GetLocalPopulationSummary fill,
+    # against fake maps built as docs/abi/allocators.md describes them.
+    add_executable(fc4_game_map_test tests/game_map_test.cpp)
+    target_include_directories(fc4_game_map_test PRIVATE plugin)
+    target_compile_options(fc4_game_map_test PRIVATE /W3 /permissive- /utf-8 /EHsc)
+    add_test(NAME game_map_test COMMAND fc4_game_map_test)
 
     # foundations §16: the slot layout of every game interface we implement.
     add_executable(fc4_vtable_layout_test tests/vtable_layout_test.cpp)
@@ -324,6 +336,11 @@ if(FC4_IS_WIN32_X86)
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-protection-shadow)
     set_tests_properties(plugin_ini_enable_protection_test plugin_ini_protection_shadow_test
         PROPERTIES RUN_SERIAL TRUE)
+    # Aura (aura.md): `enable = aura` (no city: neutral getters, lifecycle,
+    # status lines) and the aura grid shadow on a fake original (seam op 14).
+    add_test(NAME plugin_ini_enable_aura_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-aura)
+    set_tests_properties(plugin_ini_enable_aura_test PROPERTIES RUN_SERIAL TRUE)
 else()
     message(STATUS "FreeCity4.dll is only built with MSVC for 32-bit x86; skipping the plugin target.")
 endif()

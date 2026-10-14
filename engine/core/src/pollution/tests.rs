@@ -319,6 +319,66 @@ fn relaxation_and_water_stop_at_one() {
     assert_eq!(water.get(40, 40), 0);
 }
 
+/// PG14, §4.4.4 step 10: the neighbour special case always calls `SetWaterValue` (with 1 or 0) without comparing,
+/// so v = 1, W = 0 with a neighbour > 1 keeps the 1 and still marks `dirtyWater`. The spec's example: shipped
+/// `maxWaterDelta` 150, the tract of cell (4, 6) at 1 and the −x tract (cell (3, 6)) at 5.
+#[test]
+fn water_special_case_marks_dirty_without_change() {
+    let h = host(128);
+    let s = sim(&h);
+    let water = s.snapshot().grids[G_WATER_VAL].clone().unwrap();
+    water.set(2, 3, 1);
+    water.set(1, 3, 5);
+    s.with_state(|st| st.dirty_water = false);
+    visit(&s, 4, 6);
+    assert_eq!(water.get(2, 3), 1);
+    assert_eq!(water.get(1, 3), 5);
+    assert!(s.snapshot().dirty_water);
+    // The next end of cycle posts "water changed" and clears the flag.
+    h.posts.borrow_mut().clear();
+    s.run_end_of_cycle();
+    assert!(h.posts.borrow().contains(&(msg::WATER_CHANGED, 0)));
+    assert!(!s.snapshot().dirty_water);
+    // No neighbour > 1 (the own-tract reads see 1): the case writes 0, and marks the flag.
+    water.set(1, 3, 0);
+    visit(&s, 4, 6);
+    assert_eq!(water.get(2, 3), 0);
+    assert!(s.snapshot().dirty_water);
+    // v = W = 0: no write, so the flag stays clear.
+    s.with_state(|st| st.dirty_water = false);
+    visit(&s, 4, 6);
+    assert_eq!(water.get(2, 3), 0);
+    assert!(!s.snapshot().dirty_water);
+}
+
+/// §4.4.4 steps 9–10 *[compat]*: with a delta of 0 (not shipped) every visit with v ≠ target rewrites the unchanged
+/// value and marks the flag; v = target writes nothing.
+#[test]
+fn zero_delta_rewrites_unchanged_values() {
+    let h = host(128);
+    let mut t = shipped_tuning();
+    t.add(tuning_id::MAX_AIR_DELTA, u32v(0));
+    t.add(tuning_id::MAX_WATER_DELTA, u32v(0));
+    *h.tuning.borrow_mut() = Some(Rc::new(t));
+    let s = sim(&h);
+    let st = s.snapshot();
+    let air = st.grids[G_AIR_VAL].clone().unwrap();
+    let water = st.grids[G_WATER_VAL].clone().unwrap();
+    air.set(5, 5, 9);
+    water.set(5, 5, 7);
+    s.with_state(|st| (st.dirty_air, st.dirty_water) = (false, false));
+    visit(&s, 10, 10);
+    assert_eq!((air.get(5, 5), water.get(5, 5)), (9, 7));
+    let st = s.snapshot();
+    assert!(st.dirty_air && st.dirty_water);
+    air.set(5, 5, 0);
+    water.set(5, 5, 0);
+    s.with_state(|st| (st.dirty_air, st.dirty_water) = (false, false));
+    visit(&s, 10, 10);
+    let st = s.snapshot();
+    assert!(!st.dirty_air && !st.dirty_water);
+}
+
 #[test]
 fn dispose_quirk_and_landfill() {
     let h = host(64);

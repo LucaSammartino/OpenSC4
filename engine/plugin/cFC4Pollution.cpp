@@ -769,6 +769,19 @@ void cFC4PollutionSimulator::LogState(const char* what) {
              static_cast<long long>(st.last_month[4]), static_cast<long long>(st.last_month[5]),
              static_cast<long long>(st.last_month[6]), static_cast<long long>(st.last_month_cost),
              static_cast<void*>(FromToken(st.department)), st.effects_visible, grids);
+    // A month with a grid that has no tracts: the daily tract visits (§4.4.4)
+    // cannot run. At `Read` a grid can still be 0 x 0 (the game reads its
+    // record later); by the first month it must have its geometry.
+    if (!emptyGridWarned_ && std::strcmp(what, "month") == 0) {
+        for (uint32_t i = 0; i < 8; ++i) {
+            const uint64_t grid = fc4_pollution_grid_by_index(core_, i);
+            if (grid == 0 || st.grids[i].tracts != 0) continue;
+            emptyGridWarned_ = true;
+            fc4::Log("pollution: WARNING grid %s (%p) has 0 tracts at a month (init=%u tractsPerDay=%u; logged once)",
+                     kGrid[i], static_cast<void*>(FromToken(grid)), st.initialized, st.tracts_per_day);
+            break;
+        }
+    }
 }
 
 // ---- lifecycle (§4.1) ---------------------------------------------------------------------------

@@ -19,6 +19,8 @@
 // Usage: fc4_plugin_load_test <path to FreeCity4.dll>
 
 #include "cIGZCOMDirector.h"
+#include "cISC4AuraSimulator.h"
+#include "SC4Point.h"
 #include "cIGZDate.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageTarget2.h"
@@ -38,10 +40,13 @@
 #include "SC4List.h"
 #include "SC4Percentage.h"
 #include "cRZBaseString.h"
+#include "FC4AuraShadow.h"
 #include "FC4BudgetShadow.h"
 #include "FC4CrimeInterfaces.h"
 #include "FC4CrimeShadow.h"
 #include "FC4DemandShadow.h"
+#include "FC4GameMap.h"
+#include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
 #include "cS3DVector3.h"
 #include "cIGZOStream.h"
@@ -109,6 +114,35 @@ constexpr uint32_t kCLSID_Crime = 0x8990C09A;
 constexpr uint32_t kIID_cISC4CrimeSimulator = 0x67659555;
 
 void CollectClass(uint32_t clsid, uint32_t, void* ctx) { static_cast<std::vector<uint32_t>*>(ctx)->push_back(clsid); }
+
+// demand capacity seam (op 20): every (map, developer type, amount) reported.
+void CollectCapacity(void* ctx, uint32_t map, uint32_t devType, uint16_t amount) {
+    static_cast<std::vector<std::array<uint32_t, 3>>*>(ctx)->push_back({map, devType, amount});
+}
+
+// A building profile with one capacity map {0x1010: 12, 0x1020: 7, 0x1030: 3}, built as
+// docs/abi/allocators.md ("map and set") and layouts.md (the vector at +0x0C) describe it:
+// root 0x1020 black, 0x1010 and 0x1030 red; the high half of each value is junk.
+struct FakeCapacityProfile {
+    fc4::GameMapNode header{}, a{}, r{}, c{};
+    fc4::GameMapObject map{};
+    unsigned char bytes[0x40]{};
+    FakeCapacityProfile() {
+        header.color = fc4::kGameMapRed;
+        header.parent = &r;
+        header.left = &a;
+        header.right = &c;
+        r = {fc4::kGameMapBlack, {}, &header, &a, &c, 0x1020, 0xDEAD0007u};
+        a = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1010, 0xDEAD000Cu};
+        c = {fc4::kGameMapRed, {}, &r, nullptr, nullptr, 0x1030, 0xDEAD0003u};
+        map = {&header, 3, 0};
+        SetVector(&map, &map + 1, &map + 1);
+    }
+    void SetVector(const void* begin, const void* end, const void* cap) {
+        const void* v[3] = {begin, end, cap};
+        std::memcpy(bytes + fc4::kProfileCapacityVectorOffset, v, sizeof(v));
+    }
+};
 
 // A handled access violation in the HOST's code (not the DLL's): the DLL's
 // vectored handler must log it with the call ring.
@@ -1084,7 +1118,7 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
         WriteTextFile(ini, "[autotest]\nautotest_save_after_months = 2\nautotest_save_fast = 0\nobserve = 1\n");
     } else if (scenario == "panic") {
         WriteTextFile(ini, "[autotest]\n");
-    } else {  // stalled: passthrough (the observer alone)
+    } else {  // stalled, ended: passthrough (the observer alone)
         WriteTextFile(ini, "[subsystems]\ndisable = all\n[autotest]\nautotest_seconds = 60\n");
     }
     HMODULE h = LoadLibraryA(dll.c_str());
@@ -1140,6 +1174,13 @@ int AutotestChild(const std::string& dll, const std::string& ini, const std::str
             ForeignFault();  // then keep ticking until the DLL ends the process
         }
         if (scenario == "stalled" && ms >= 500) Sleep(INFINITE);  // the main thread stops ticking
+        if (scenario == "ended" && ms >= 500) {
+            // The game shuts the city down by itself (a bankrupt city) long
+            // before the 60 s deadline: the run ends at PostCityShutdown.
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC2u)), nullptr);
+            seam(kFC4SeamObserverMessage, reinterpret_cast<void*>(static_cast<uintptr_t>(0x26D31EC3u)), nullptr);
+            return 3;  // not reached: the DLL terminates the process
+        }
         if (ms > 60000) return 3;
     }
 }
@@ -1593,6 +1634,9 @@ int ProtectionEnableTest(const std::string& dll, const std::string& ini, const s
     CHECK(text.find("protection month (fire): init=0") != std::string::npos);
     CHECK(text.find("protection month (police): init=0") != std::string::npos);
     CHECK(text.find("protection month (police jails): jails=0") != std::string::npos);
+    // Without a grid there is no 0 x 0 grid to warn about (the WARNING needs
+    // a non-null coverage grid with no tracts).
+    CHECK(text.find("WARNING the coverage grid") == std::string::npos);
     CHECK(text.find("protection Init (fire): init=1") != std::string::npos);
     CHECK(text.find("protection Init (police): init=1") != std::string::npos);
     CHECK(text.find("fallbacks=0") != std::string::npos);
@@ -1744,6 +1788,208 @@ int ProtectionShadowTest(const std::string& dll, const std::string& ini, const s
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- aura (aura.md): the replacement without a city, and the grid shadow (test seam op 14) ----------
+constexpr uint32_t kCLSID_Aura = 0x0990BDD8;
+constexpr uint32_t kIID_cISC4AuraSimulator = 0xC773E880;
+constexpr uint32_t kIID_cIGZMessageTarget2Aura = 0x452294AA;
+
+// An "original" aura simulator whose record (its own Write, cIGZSerializable)
+// is the version alone (a uint16 9): no grid references, so the shadow takes
+// no baseline and reports each cycle INCOMPLETE without calling anything
+// else. The city answers GetAuraSimulator (compiled slot 51), CellWidthX / Z
+// (91, 92) and CellCountX / Z (93, 94); `noAura` returns null at 51, `ours`
+// our own simulator. Any other call aborts.
+struct FakeOrigAura {
+    FakeVtable simVt, serVt, cityVt, noAuraVt, oursVt;
+    FakeObject sim{}, ser{}, city{}, noAura{}, ours{};
+    void* ourSim = nullptr;
+    int refs = 1;
+    int writes = 0;
+};
+
+FakeOrigAura* g_oa = nullptr;
+
+bool __fastcall OaQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;  // (the reference audit asks other IIDs)
+    *out = &g_oa->ser;
+    ++g_oa->refs;
+    return true;
+}
+uint32_t __fastcall OaAddRef(void*, void*) { return static_cast<uint32_t>(++g_oa->refs); }   // 1
+uint32_t __fastcall OaRelease(void*, void*) { return static_cast<uint32_t>(--g_oa->refs); }  // 2
+bool __fastcall OaWrite(void*, void*, cIGZOStream* s) {                                       // serializable 3
+    ++g_oa->writes;
+    return s->SetUint16(9);
+}
+uint32_t __fastcall OaClsid(void*, void*) { return kCLSID_Aura; }  // serializable 5
+void* __fastcall OaCityAura(void*, void*) { return &g_oa->sim; }   // city 51
+void* __fastcall OaCityNoAura(void*, void*) { return nullptr; }    // city 51
+void* __fastcall OaCityOurs(void*, void*) { return g_oa->ourSim; }  // city 51
+float __fastcall OaCellWidth(void*, void*) { return 16.0f; }       // city 91, 92
+uint32_t __fastcall OaCellCount(void*, void*) { return 64; }       // city 93, 94
+
+void InitFakeOrigAura(FakeOrigAura& o) {
+    g_oa = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&OaQi);
+        vt->slots[1] = reinterpret_cast<void*>(&OaAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&OaRelease);
+    }
+    o.serVt.slots[3] = reinterpret_cast<void*>(&OaWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&OaClsid);
+    o.cityVt.slots[51] = reinterpret_cast<void*>(&OaCityAura);
+    o.cityVt.slots[91] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[92] = reinterpret_cast<void*>(&OaCellWidth);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&OaCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&OaCellCount);
+    o.noAuraVt.slots[51] = reinterpret_cast<void*>(&OaCityNoAura);
+    o.oursVt.slots[51] = reinterpret_cast<void*>(&OaCityOurs);
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noAura.vtbl = o.noAuraVt.slots.data();
+    o.ours.vtbl = o.oursVt.slots.data();
+}
+
+intptr_t AuraShadowOnce(FC4TestSeamFn seam, FakeObject* city, int32_t julian, bool baseline) {
+    FC4AuraShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, baseline ? 1u : 0u};
+    return seam(kFC4SeamAuraShadow, &in, nullptr);
+}
+
+// The neutral answers without a city (§8: no grids, ratings 0).
+void CheckAuraNeutral(cISC4AuraSimulator* a) {
+    CHECK(a->GetMayorRating() == 0);
+    CHECK(a->GetAuraValue(3, 4) == 0);
+    SC4Point<long> p{7, 7};
+    CHECK(a->GetMaxMayorRating(p) == 0);
+    CHECK(a->GetMinMayorRating(p) == 0);
+    CHECK(a->GetAuraGrid() == nullptr);
+    CHECK(a->GetTransientAuraGrid() == nullptr);
+    CHECK(a->GetParkMap() == nullptr);
+    CHECK(a->GetLandmarkMap() == nullptr);
+}
+
+int AuraEnableTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    // Off by default; `enable = aura` registers the aura simulator. The aura
+    // shadow (it compares against the original) is then inactive.
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_AURA_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = aura\n[tools]\naura_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigAura orig;
+    InitFakeOrigAura(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        // simulator (1) + budget (3) + aura (1); never the game's grid classes.
+        CHECK(classes.size() == 5);
+        for (uint32_t c : classes) CHECK(c < 0x49B9E600 || c > 0x49B9E60B);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Aura) == 1);
+
+        void* obj = nullptr;
+        CHECK(director->GetClassObject(kCLSID_Aura, kIID_cISC4AuraSimulator, &obj));
+        auto* aura = static_cast<cISC4AuraSimulator*>(obj);
+        if (aura != nullptr) {
+            // §1: the primary for its IID and cIGZUnknown; the message target
+            // and serializable; nothing else (the out pointer untouched).
+            void* p = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZUnknown, &p) && p == static_cast<void*>(aura));
+            static_cast<cIGZUnknown*>(p)->Release();
+            cIGZMessageTarget2* mt = nullptr;
+            CHECK(aura->QueryInterface(kIID_cIGZMessageTarget2Aura, reinterpret_cast<void**>(&mt)) && mt != nullptr);
+            cIGZSerializable* ser = nullptr;
+            CHECK(aura->QueryInterface(GZIID_cIGZSerializable, reinterpret_cast<void**>(&ser)) && ser != nullptr);
+            if (ser != nullptr) {
+                CHECK(ser->GetGZCLSID() == kCLSID_Aura);
+                ser->Release();
+            }
+            p = reinterpret_cast<void*>(0x1234);
+            CHECK(!aura->QueryInterface(0x12345678, &p) && p == reinterpret_cast<void*>(0x1234));
+            CheckAuraNeutral(aura);
+            // Without a city: the month line before Init, a clean lifecycle,
+            // and the transient effects and strike busting do nothing harmful.
+            if (mt != nullptr) {
+                TypeMessage month(kMsgSimNewMonth);
+                CHECK(mt->DoMessage(&month));
+            }
+            CHECK(aura->Init());
+            CHECK(aura->Init());
+            CheckAuraNeutral(aura);
+            aura->AddTransientEffect(10.0f, 20.0f, 30.0f, 5.0f);
+            aura->AddTransientEffect(10.0f, 20.0f, 0x12345678u);
+            aura->BustStrike(cISC4AuraSimulator::StrikeBusterAll);
+            // Five days: states 1 -> 2 -> 3 -> 4, where a city without lots
+            // ends the cycle silently (§6.4 [quirk]): no cycle line, no post.
+            if (mt != nullptr) {
+                for (int i = 0; i < 5; ++i) {
+                    TypeMessage day(kMsgSimNewDay);
+                    CHECK(mt->DoMessage(&day));
+                }
+            }
+            // Getters from a second thread (they read the snapshot only).
+            int8_t rating = 99;
+            cISC4SimGrid<int8_t>* grid = reinterpret_cast<cISC4SimGrid<int8_t>*>(0x1);
+            std::thread t([&] {
+                rating = aura->GetMayorRating();
+                grid = aura->GetAuraGrid();
+            });
+            t.join();
+            CHECK(rating == 0 && grid == nullptr);
+            CheckAuraNeutral(aura);
+            // The shadow (test seam op 14) refuses our own simulator.
+            orig.ourSim = aura;
+            CHECK(AuraShadowOnce(seam, &orig.ours, 0, true) == -1);
+            if (mt != nullptr) mt->Release();
+            CHECK(aura->Shutdown());
+            CHECK(aura->Release() == 0);
+        }
+        // The shadow on fake originals: no city, a city without an aura
+        // simulator, then the original whose record does not parse: no
+        // baseline (0), and the cycle compares nothing (-2).
+        CHECK(AuraShadowOnce(seam, nullptr, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.noAura, 0, true) == -1);
+        CHECK(AuraShadowOnce(seam, &orig.city, 0, true) == 0);
+        CHECK(AuraShadowOnce(seam, &orig.city, 2451576, false) == -2);  // 2000-02-01
+        CHECK(orig.writes == 2);
+        CHECK(orig.refs == 1);  // every QueryInterface released
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("subsystem 'aura': enabled (1 class replaced) by FreeCity4.ini (enable=)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") != std::string::npos);
+    CHECK(text.find("aura month: init=0 state=1") != std::string::npos);
+    CHECK(text.find("aura Init: init=1") != std::string::npos);
+    CHECK(text.find("lot walks=0 lots=0; inputs none missing so far") != std::string::npos);
+    CHECK(text.find("aura cycle ") == std::string::npos);
+    CHECK(text.find("aura Shutdown (5 days, 1 months, 0 cycles)") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator destroyed") != std::string::npos);
+    CHECK(text.find("aura shadow: requested (aura_shadow from FreeCity4.ini) but INACTIVE") != std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);
+    CHECK(text.find("aura shadow: inactive: the city's aura simulator is FreeCity4's own") != std::string::npos);
+    CHECK(text.find("aura shadow: the city has no aura simulator; nothing compared") != std::string::npos);
+    CHECK(text.find("aura shadow: comparing with the original aura simulator") != std::string::npos);
+    CHECK(text.find("(city ") != std::string::npos && text.find("64 x 64 cells); differing tracts listed per grid: 4") !=
+                                                          std::string::npos);
+    CHECK(text.find("aura shadow: no baseline at city load (the original's record did not parse); the first cycle "
+                    "only takes one") != std::string::npos);
+    CHECK(text.find("aura shadow 2000-02-01 cycle 1: INCOMPLETE (the original's record did not parse); the next "
+                    "cycle only takes a baseline") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin aura enable test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -1775,6 +2021,8 @@ int main(int argc, char** argv) {
     // Protection (protection.md): the replacement, and the grid shadow.
     if (mode == "--ini-enable-protection") return ProtectionEnableTest(dll, ini, log);
     if (mode == "--ini-protection-shadow") return ProtectionShadowTest(dll, ini, log);
+    // Aura (aura.md): the replacement, and the grid shadow on fake originals.
+    if (mode == "--ini-enable-aura") return AuraEnableTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -1825,6 +2073,22 @@ int main(int argc, char** argv) {
               std::string::npos);
         CHECK(text.find("autotest: TerminateProcess(exit code 0) from the watchdog thread") != std::string::npos);
         CHECK(text.find("for 4294967") == std::string::npos);  // no unsigned underflow in any duration
+
+        // 3b. Ended (passthrough): the game shuts the city down 0.5 s into a 60 s
+        // run; verdict "ended" at its PostCityShutdown, with the last day played.
+        CHECK(RunChild(dllArg + "--autotest-child-ended", 30000, &ms) == 0);
+        std::printf("autotest ended child: %lu ms\n", static_cast<unsigned long>(ms));
+        CHECK(ms < 15000);
+        text = ReadFile(log);
+        CHECK(text.find("autotest: WARNING the game is shutting the city down by itself 0 s after the clock started, "
+                        "before the 60 s deadline (julian 2451600)") != std::string::npos);
+        CHECK(text.find("autotest: the game ended the city before the deadline (PostCityShutdown)") !=
+              std::string::npos);
+        CHECK(text.find("AUTOTEST VERDICT: ended (foreign_exceptions=0, watchdog_stalls=0, rtc=0, overruns=0, "
+                        "ref_warnings=0, julian=2451600, switches_off=-, disabled=simulator,budget)") !=
+              std::string::npos);
+        CHECK(text.find("autotest: TerminateProcess(exit code 0) from the observer (city ended)") != std::string::npos);
+        CHECK(CountOf(text, "AUTOTEST VERDICT:") == 1);
 
         // A Rust panic in the core: reported in the log (message, location,
         // backtrace, the last interface calls) before the abort.
@@ -1893,7 +2157,7 @@ int main(int argc, char** argv) {
         CHECK(text.find("config (game start): ") != std::string::npos);
         CHECK(text.find("FreeCity4.ini found; budget_default=1; set by ini: lot_scan=0; set by env: -") !=
               std::string::npos);
-        CHECK(text.find("config (game start): budget switches OFF (1 of 91): lot_scan") != std::string::npos);
+        CHECK(text.find("config (game start): budget switches OFF (1 of 105): lot_scan") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key 'bogus_key' in FreeCity4.ini (ignored)") != std::string::npos);
         if (g_failures == 0) std::printf("plugin ini disable test: all checks passed\n");
         return g_failures == 0 ? 0 : 1;
@@ -2208,9 +2472,46 @@ int main(int argc, char** argv) {
                 CHECK(jobs[0] == 0.0f && jobs[1] == 0.0f && jobs[2] == 0.0f);
                 SC4Percentage full{1.0f}, half{0.5f};
                 sim->UpdateOccupantEffects(0xBEEF, full, half);  // no effects: nothing happens
+                // Not the identified executable: the game's map functions cannot be
+                // called, so the caller's map is left untouched (logged once).
                 std::map<uint32_t, int32_t> summary;
                 sim->GetLocalPopulationSummary(summary);
-                CHECK(summary.empty());  // [choice] the caller's map is not written
+                CHECK(summary.empty());
+
+                // The building profile's capacity maps (seam op 20: the read the
+                // census and §7.2 make through the host's building_profile).
+                auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+                CHECK(seam != nullptr);
+                if (seam != nullptr) {
+                    FakeCapacityProfile prof;
+                    std::vector<std::array<uint32_t, 3>> got;
+                    FC4DemandCapacityTestInput in{prof.bytes, 0xBEEF, &CollectCapacity, &got};
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 3);
+                    CHECK(got.size() == 3);
+                    if (got.size() == 3) {
+                        CHECK((got[0] == std::array<uint32_t, 3>{0, 0x1010, 12}));
+                        CHECK((got[1] == std::array<uint32_t, 3>{0, 0x1020, 7}));
+                        CHECK((got[2] == std::array<uint32_t, 3>{0, 0x1030, 3}));
+                    }
+                    // No capacity property: no maps, nothing reported.
+                    got.clear();
+                    prof.SetVector(nullptr, nullptr, nullptr);
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == 0 && got.empty());
+                    // A wrong count: refused as a whole.
+                    prof.SetVector(&prof.map, &prof.map + 1, &prof.map + 1);
+                    prof.map.count = 4;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    // A cycle (the largest node's right link back at the root).
+                    prof.map.count = 3;
+                    prof.c.right = &prof.r;
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    prof.c.right = nullptr;
+                    // A vector that points at unreadable memory: the fault is caught.
+                    prof.SetVector(reinterpret_cast<void*>(0x10), reinterpret_cast<void*>(0x1C),
+                                   reinterpret_cast<void*>(0x1C));
+                    CHECK(seam(kFC4SeamDemandCapacity, &in, nullptr) == -1 && got.empty());
+                    CHECK(seam(kFC4SeamDemandCapacity, nullptr, nullptr) == -1);
+                }
 
                 // A node, created through GZCOM (as the class store does).
                 void* o = nullptr;
@@ -2269,7 +2570,22 @@ int main(int argc, char** argv) {
         CHECK(text.find("subsystem 'ordinance': off by default") != std::string::npos);
         CHECK(text.find("demand Init: ok=1") != std::string::npos);
         CHECK(text.find("demand month: 0 nodes") != std::string::npos);
-        CHECK(text.find("GetLocalPopulationSummary: 0 entries not copied") != std::string::npos);
+        // The month line: what the glue moved (the seam's reads have no simulator, so they are not counted).
+        CHECK(text.find("export cities; capacity: reads=0 entries=0 units=0 (occupancy: reads=0 units=0) "
+                        "refused=0; summary: calls=1 copied=0 untouched=1 failed=0") != std::string::npos);
+        CHECK(text.find("demand: GetLocalPopulationSummary: 0 entries not copied (the executable is not "
+                        "identified") != std::string::npos);
+        CHECK(text.find("compat: direct call map operator[] NOT available (executable not identified)") !=
+              std::string::npos);
+        CHECK(text.find("demand: capacity map read: building type 0x0000BEEF, 1 map(s), 3 entries: 0x1010=12, "
+                        "0x1020=7, 0x1030=3") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (node count "
+                        "differs from the map's count); no capacity reported") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: capacity map 0 of 1 refused (inconsistent "
+                        "link)") != std::string::npos);
+        CHECK(text.find("STRUCTURED EXCEPTION caught in demand capacity map read") != std::string::npos);
+        CHECK(text.find("demand: WARNING building type 0x0000BEEF: reading its capacity maps faulted") !=
+              std::string::npos);
         CHECK(text.find("demand Shutdown") != std::string::npos);
         CHECK(text.find("cFC4DemandSimulator destroyed") != std::string::npos);
         CHECK(text.find("config: WARNING unknown key") == std::string::npos);
@@ -3268,6 +3584,10 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4OrdinanceSimulator(") == std::string::npos);
     CHECK(text.find("subsystem 'demand': off by default") != std::string::npos);
     CHECK(text.find("cFC4DemandSimulator(") == std::string::npos);
+    CHECK(text.find("subsystem 'aura': off by default") != std::string::npos);
+    CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
+    CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
+    CHECK(text.find("aura shadow: requested") == std::string::npos);
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);
@@ -3351,11 +3671,11 @@ int main(int argc, char** argv) {
                     "250.5/-/-/-12.0/-/-/40.0/-/7.5/-/-/0.0 population R/C/I=1234/480/160") != std::string::npos);
     CHECK(text.find("[INCOMPLETE") == std::string::npos);
     // Bisection configuration.
-    CHECK(text.find("config (game start): all 91 budget switches ON") != std::string::npos);
-    CHECK(text.find("config (city load: budget Init): all 91 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (game start): all 105 budget switches ON") != std::string::npos);
+    CHECK(text.find("config (city load: budget Init): all 105 budget switches ON") != std::string::npos);
     CHECK(text.find("set by ini: property_writes=0, cheats=1, holder_refs=0; set by env: disaster=0") !=
           std::string::npos);
-    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 91): property_writes, disaster, "
+    CHECK(text.find("config (city load: budget Init): budget switches OFF (3 of 105): property_writes, disaster, "
                     "holder_refs") != std::string::npos);
     CHECK(text.find("switch 'holder_refs' off: AddRef of a game object for the budget core skipped") !=
           std::string::npos);

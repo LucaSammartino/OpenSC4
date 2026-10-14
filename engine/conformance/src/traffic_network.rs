@@ -20,9 +20,9 @@ use fc4_core::grid::{CellRect, CityDims, CoreGrids, GridProvider, TractGrid};
 use fc4_core::property::PropertyHolder;
 use fc4_core::rng::{FixedSeeds, RzRandom};
 use fc4_core::traffic_network::{
-    depth_byte, encode_route, heuristic, inverse_max_speed, net_type, read_rules, route_cost, side_of, step_cost,
-    travel, tunnel_distance, CellRegion, NeighbourEdge, NetworkHost, NetworkInfo, NetworkModel, PathInfo,
-    SwitchQueryTarget, TransitSwitch, Tuning, PATH_TYPE_CAR,
+    depth_byte, encode_route, heuristic, inverse_max_speed, net_type, read_rules, route_cost, rule_bytes, rule_entries,
+    side_of, step_cost, travel, tunnel_distance, CellRegion, LotActivation, NeighbourEdge, NetworkHost, NetworkInfo,
+    NetworkModel, PathInfo, Rule, SwitchQueryTarget, TransitSwitch, Tuning, PATH_TYPE_CAR,
 };
 use fc4_core::variant::Variant;
 
@@ -30,7 +30,8 @@ use crate::foundations::{hex_decode, hex_encode};
 use crate::json::Json;
 use crate::runner::HostRef;
 use crate::scalar::{
-    self, arg, arr, bool_of, check_expect, f32_of, holder_of, i64_of, ji, matches, opt, show, str_of, u32_of, R,
+    self, arg, arr, bool_of, check_expect, f32_of, holder_of, i64_of, ji, matches, opt, show, str_of, u32_of,
+    variant_of, R,
 };
 
 // ---- the scripted world ---------------------------------------------------------------------------
@@ -744,11 +745,23 @@ fn curve(w: &World, op: &Json) -> R<()> {
     Ok(())
 }
 
-/// A switch table entry set directly (test setup, §11 test 10).
+/// A switch table entry set directly (test setup: §11 test 10, and a
+/// switch as a load leaves it for the DoPostCityInit re-read, §4.7.2).
 fn switch(w: &World, op: &Json) -> R<()> {
     let id = u32_of(scalar::opt(op, "id").ok_or("missing 'id'")?, "id")?;
     let get = |k: &str| opt(op, k).map(|v| f32_of(v, k)).transpose();
     let (load, capacity, tf) = (get("load")?, get("capacity")?, get("time_factor")?);
+    let int = |k: &str| opt(op, k).map(|v| i64_of(v, k)).transpose();
+    let (building, flags, to_mask) = (int("building")?, int("flags")?, int("to_mask")?);
+    let has_access = opt(op, "has_access_point")
+        .map(|v| bool_of(v, "has_access_point"))
+        .transpose()?;
+    let access = opt(op, "access").map(|v| pair(v, "access")).transpose()?;
+    let rules = opt(op, "rules")
+        .map(|v| arr(v, "rules")?.iter().map(rule_of).collect::<R<Vec<Rule>>>())
+        .transpose()?;
+    let cells = opt(op, "cells").map(|c| cell_list(c, "cells")).transpose()?;
+    let mode = int("mode_mask")?.unwrap_or(0) as u8;
     w.model()?.update_state(|s| {
         let sw = s.switches.entry(id, TransitSwitch::default);
         if let Some(v) = load {
@@ -760,8 +773,65 @@ fn switch(w: &World, op: &Json) -> R<()> {
         if let Some(v) = tf {
             sw.time_factor = v;
         }
+        if let Some(v) = building {
+            sw.building = v as u64;
+        }
+        if let Some(v) = flags {
+            sw.flags = v as u8;
+        }
+        if let Some(v) = to_mask {
+            sw.to_mask = v as u16;
+        }
+        if let Some(v) = has_access {
+            sw.has_access_point = v;
+        }
+        if let Some((x, z)) = access {
+            (sw.access_x, sw.access_z) = (x as u8, z as u8);
+        }
+        if let Some(r) = rules {
+            sw.rules = r;
+        }
+        for &(x, z) in cells.iter().flatten() {
+            if let Some(g) = &s.switch_id {
+                g.set(x, z, id);
+            }
+            if let Some(g) = &s.switch_mode {
+                g.set(x, z, mode);
+            }
+        }
     });
     Ok(())
+}
+
+/// A rule as `{kind, side: [4 bools], from, to}` (all optional, default 0 /
+/// false), the shape `tn_expect_switch` reports.
+fn rule_of(j: &Json) -> R<Rule> {
+    let int = |k: &str| {
+        opt(j, k)
+            .map(|v| u32_of(v, k))
+            .transpose()
+            .map(|v| v.unwrap_or(0) as u8)
+    };
+    let mut side = [false; 4];
+    if let Some(sd) = opt(j, "side") {
+        match arr(sd, "side")? {
+            [a, b, c, d] => {
+                side = [
+                    bool_of(a, "side")?,
+                    bool_of(b, "side")?,
+                    bool_of(c, "side")?,
+                    bool_of(d, "side")?,
+                ]
+            }
+            _ => return Err("'side' must have 4 values".into()),
+        }
+    }
+    Ok(Rule {
+        kind: int("kind")?,
+        side,
+        from: int("from")?,
+        to: int("to")?,
+    })
 }
 
 /// Pokes a cell connection record (test setup, §11 test 6).
@@ -868,6 +938,19 @@ fn call(w: &World, op: &Json) -> R<()> {
         "get_occupant_count_for_all_subnetworks" => jlist(&m.get_occupant_count_for_all_subnetworks(uarg(op, 0)?)),
         "transit_switch_entry_cost" => fb(m.transit_switch_entry_cost(uarg(op, 0)?)),
         "lot_activated" => Json::Bool(m.lot_activated(lot(0)?)),
+        "lot_activated_outcome" => {
+            let out = m.lot_activated_outcome(lot(0)?);
+            let name = match out {
+                LotActivation::NoBuilding => "no_building",
+                LotActivation::Returned => "returned",
+                LotActivation::Done { .. } => "done",
+            };
+            obj(vec![
+                ("outcome", Json::Str(name.into())),
+                ("switch_created", Json::Bool(out.switch_created())),
+                ("continues", Json::Bool(out.continues())),
+            ])
+        }
         "lot_deactivated" => {
             m.lot_deactivated(lot(0)?);
             Json::Null
@@ -994,18 +1077,11 @@ fn eval(op: &Json) -> R<()> {
             speeds[0][0] = fa(0)?;
             fb(inverse_max_speed(&speeds, fa(1)?)[0][0])
         }
-        "read_rules" => {
-            let rs = read_rules(uarg(op, 0)?, &u32_list(arg(op, 1)?, "entries")?);
-            let sw = TransitSwitch {
-                rules: rs.rules.clone(),
-                ..TransitSwitch::default()
-            };
-            obj(vec![
-                ("rules", Json::Array(rs.rules.iter().map(rule_json).collect())),
-                ("to_mask", ji(rs.to_mask)),
-                ("flags", ji(rs.flags)),
-                ("mode_mask", ji(sw.mode_mask())),
-            ])
+        "read_rules" => rules_json(read_rules(uarg(op, 0)?, &u32_list(arg(op, 1)?, "entries")?), None),
+        "rule_bytes" => jlist(&rule_bytes(&variant_of(arg(op, 0)?)?)),
+        "read_rule_property" => {
+            let bytes = rule_bytes(&variant_of(arg(op, 1)?)?);
+            rules_json(read_rules(uarg(op, 0)?, &rule_entries(&bytes)), Some(bytes.len()))
         }
         other => return Err(format!("unknown fn '{other}'")),
     };
@@ -1016,7 +1092,26 @@ fn eval(op: &Json) -> R<()> {
     }
 }
 
-fn rule_json(r: &fc4_core::traffic_network::Rule) -> Json {
+/// `{rules, to_mask, flags, mode_mask}`, plus `count` (the byte count) for
+/// a property.
+fn rules_json(rs: fc4_core::traffic_network::RuleSet, count: Option<usize>) -> Json {
+    let sw = TransitSwitch {
+        rules: rs.rules.clone(),
+        ..TransitSwitch::default()
+    };
+    let mut fields = vec![
+        ("rules", Json::Array(rs.rules.iter().map(rule_json).collect())),
+        ("to_mask", ji(rs.to_mask)),
+        ("flags", ji(rs.flags)),
+        ("mode_mask", ji(sw.mode_mask())),
+    ];
+    if let Some(n) = count {
+        fields.push(("count", ji(n as i64)));
+    }
+    obj(fields)
+}
+
+fn rule_json(r: &Rule) -> Json {
     obj(vec![
         ("kind", ji(r.kind)),
         ("side", Json::Array(r.side.iter().map(|&b| Json::Bool(b)).collect())),
@@ -1113,6 +1208,16 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
         ("terminal_count", ji(s.ferries.len() as i64)),
         ("ferry_pass_running", Json::Bool(s.ferry_pass.running)),
         ("ferry_pass_terminal", ji(s.ferry_pass.terminal as i64)),
+        ("water_dirty", Json::Bool(s.water.dirty)),
+        (
+            "water_dirty_rect",
+            Json::Array(vec![
+                ji(s.water.dirty_rect.x1),
+                ji(s.water.dirty_rect.z1),
+                ji(s.water.dirty_rect.x2),
+                ji(s.water.dirty_rect.z2),
+            ]),
+        ),
         ("edge_density_keys", jlist(&keys)),
         (
             "inv_cap_table",
