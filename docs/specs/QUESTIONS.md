@@ -545,8 +545,16 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   original returns live values with no locking. If the fallbacks ever fire, they differ from it. A `Mutex` that
   answers exactly from any thread would be closer than fallbacks. *[inferred: no thread trace; static reachability
   through the globals only]*
-- **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
-  its elements, which leaks the caller's references as the original does. Intended? [reproduced]
+- ~~**PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
+  its elements, which leaks the caller's references as the original does. Intended? [reproduced]~~ **ANSWERED
+  2026-10-14** from the exe (shared helper `0x006DFC70`; list clear `0x00413E60`; every original caller) and written
+  into protection.md §15.4 and §16 quirk 7. **Confirmed; the bracket matches.**
+  - **What the helper does.** It clears the list with the plain list clear, which frees the nodes and never calls
+    `Release`. Then it appends the simulator's list, calling `AddRef` on each element.
+  - **Original callers are not affected.** Every one passes a fresh empty list and calls `ReleaseOccupantList`
+    afterwards: `0x00416189`, `0x004164B1`, `0x007A1A8E`, `0x007A1AF0`, and the dispatch manager at `0x0046AFA2` and
+    `0x0046B116`. So the leak happens only for a plug-in caller that passes a non-empty list.
+  - *[choice]* Reproduce it. Releasing instead would over-release a list of borrowed pointers.
 - ~~**PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]~~
   **ANSWERED 2026-10-14** from the exe (setters `0x005FE3C0`/`0x005FE6B0`; variant slot 26 `0x0091587D` and slot 102
   `0x00915014`; every protection call site) and written into protection.md §14.

@@ -1203,6 +1203,25 @@ the count in EAX, so a caller reading AL sees false for 256 stations or a multip
 | 10 | `+0x28` | `006F56E0` | same | RevokeDispatchFromStation(occ, u32 id) (thunk to `0x006F5620`) | 8 | AL |
 | 11 | `+0x2C` | `006AD5B0` | `006E0C00` | GetDispatchAutomataProperties(…) (§8.2) | 20 | AL |
 
+**How the list getters fill the caller's list** *[compat]* (PR8). Fire slot 22, police slots 21 and 32, police
+slot 42 (when the jailbreak list is non-empty) and dispatch-source slot 6 all use one helper, `0x006DFC70`.
+
+1. **Clear.** It empties the caller's list with the plain list clear `0x00413E60`. That returns each node to the
+   list allocator (`0x00B207E4`, slot 4) and **does not `Release` the element**.
+2. **Copy.** It appends the simulator's own list, calling `AddRef` (slot 1) on each element.
+3. **Return** the number appended.
+
+Effect on callers:
+
+- **Original callers never lose a reference.** Every one builds a fresh empty list just before the call and
+  hands it to `ReleaseOccupantList` (occupant manager slot 48) afterwards. The calls through the fire and police
+  globals are at `0x00416189`, `0x004164B1`, `0x007A1A8E` and `0x007A1AF0`. The dispatch manager's calls to
+  slot 6 are at `0x0046AFA2` and `0x0046B116`, released at `0x0046B03B` and `0x0046B47C`.
+- **Only a non-empty list leaks.** If a caller passes one, the references its elements held are dropped without a
+  `Release`.
+- *[choice]* **Reproduce it.** No original caller can tell the difference. Releasing would over-release a list
+  that holds borrowed pointers.
+
 ### 15.5 `cIGZSerializable`, vtables fire `0x00AB10D0`, police `0x00AB23FC`, 6 slots
 
 Slots 0–2 thunks; 3 `Write(cIGZOStream&)` (fire `006AD250`, police `006E03F0`) pop 4, AL; 4
@@ -1224,6 +1243,7 @@ Slots 0–2 thunks; 3 `Write(cIGZOStream&)` (fire `006AD250`, police `006E03F0`)
 6. `DispatchFromStation` succeeds with an out-of-range ID when no unit is free and clears a requested unit's
    bit without checking it (§8.2).
 7. `GetStrikingStations` appends without clearing; `GetJailbreakBuildings` leaves the list as is when empty.
+   The clearing getters drop the caller's old elements without `Release` (§15.4).
 8. Demolished jails stay in the jailbreak list (§9.4).
 9. Fire and police `Read` return true after the base record was rejected.
 10. `GetJailedPercentage` returns NaN when both jailed and capacity are 0.
