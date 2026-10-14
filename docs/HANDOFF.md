@@ -122,19 +122,20 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   - **`apply3`**: PR1–PR13 (except PR4/PR6/PR7), DQ3–DQ8, PG4–PG13 (may take ABI 27, seam op 32);
 >   - **neighbours glue + shadow** (`cFC4NeighborsSimulator`, `neighbours_shadow`; ABI 28, seam op 33; renumber at
 >     merge);
->   - RE `re-answers4` (AU13–AU15, AU1–AU12, EH1–EH14, FQ1–FQ15) and `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8,
->     LG1–LG20).
+>   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
+>     `development_shadow`; ABI 29, seam op 34);
+>   - **`apply5`**: AU1–AU15 (the aura shadow rebuilt on the original's state field, §14.3), EH1–EH14, FQ1–FQ15 (the
+>     64 m index query of FQ15, inherited flora properties); ABI 30 / seam op 35 if needed;
+>   - RE `re-answers5` (TS1–TS34, PW1–PW8, PS1–PS8, LG1–LG20) and `re-answers6` (LV1–LV4, FL1–FL6, DQ10–DQ12,
+>     CQ16–CQ22, TN21–TN25, HG1, the crime errata; then RG, TN26–28, ZQ11–12, LF6, NB18, EX21–33). RE `re-answers4`
+>     is merged (`79d619c`; its `docs/abi` rows in `83aa768`).
 >   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
 >   gate its worktree; renumber ABI/seam ops/switch counts at that point. If `git merge-tree` shows no conflict,
 >   the coordinator may merge main into the lane's worktree itself and gate that.
 > - **Open follow-ups:**
 >   - **residential in game**: `tools/regress.ps1` now runs `residential_shadow`; add `residential` to the replace
 >     list once a run with it is clean;
->   - **run 85** (all-original soak) against run 84: a bias in our replacements or variance;
->   - **RE `re-answers6`** (prompt in the session scratchpad, launch when an RE lane finishes): LV1–LV4, FL1–FL6,
->     DQ10–DQ12, CQ16–CQ22, TN21–TN25, HG1, and the crime errata from the audit (§11.4 second caller `0x7A2F60`,
->     §14.1 the patrol car calls `GetNearestCrimeProp`); later RG1–RG22, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
->     EX21–EX33;
+>   - run 85 settled run 84: the original's own path spans it (no bias; `docs/manual-checks.md`);
 >   - zones glue (M4); development glue (BDS, growth, tract and lot developers: building-development.md §9);
 >     traffic glue (M5);
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag> -Dll <dll>` (all shadows at once + all
