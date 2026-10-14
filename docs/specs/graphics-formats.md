@@ -305,8 +305,16 @@ check and does not load. There is no in-file compression: codes with bit 7 set a
 | Frame checks | every multi-entry record has equal height, code, M and width across frames |
 | Failures | 0 (all accepted by §2.7) |
 
-The 24 `0x7B` entries live in group `0x891B0E1A` and cannot be created as textures under DX7; their consumers
-(terrain brushes, water) are GF4.
+The 24 `0x7B` entries live in group `0x891B0E1A`. DX7 cannot create them as textures, but nothing creates them as
+textures: they are read on the CPU (GF4). `cSTETerrainView3D::InitializeCityEdgeLayerHeights` (`0x00757300`) loads
+the two 257 × 1 ramps (`0xCA5CC9C0`, `0xCA5CC9C1`), reads their 257 pixel values one by one through the bitmap's
+pixel getter (slot `0x54`) and turns each into a height, filling two tables of 257 floats (`0x00B4BE10`,
+`0x00B4C214`). `cSTETerrain::ApplyBrushComponents` (`0x0074D730`) loads each brush component's bitmap from the
+group through the resource manager (interface `0x1AB50C3F`) and samples it on the CPU; the 22 square `0x7B` entries
+are those brush shapes *[inferred: the instances come from the brush data]*. The other users of the group
+(underground `0x0065D810`, lava `0x0075EDC0`, ripples `0x00760EE0`, retaining walls `0x005E1620`) were not traced
+to their instances. FreeCity4's reader must therefore give the terrain code the raw indices of `0x7B` frames, not
+only RGBA8.
 
 ---
 
@@ -951,6 +959,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 3. GF3: whether DX7 really shows DXT1 index-3 texels as transparent when A = 0.
    **Answered** (§2.11): yes; alpha-tested or blended materials drop them, others show them black.
 4. GF4: who uses the 24 `0x7B` grey-ramp entries in group `0x891B0E1A`, and through which path.
+   **Answered** (§2.13): CPU reads (city-edge height ramps, terrain brushes), never the texture path.
 5. GF5: defaults of the draw settings that override material filters and wrap.
    **Answered** (§3.8): `kForcePointSampling`, `kForceBilinear`, `kForceTextureRepeat`; all off.
 6. GF6: byte order of the vertex colour element.

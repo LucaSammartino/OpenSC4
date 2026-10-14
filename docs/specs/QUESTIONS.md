@@ -2773,10 +2773,15 @@ exe and the shipped data alone.
   surface always decodes 3-colour-mode index 3 as (0, 0, 0, 0), whatever A says. Materials with alpha test or blending
   drop those texels; a material with neither shows them black. The bracket (decode them transparent) matches. Not
   checked in game.
-- **GF4 — §2.13:** the 24 `0x7B` entries (64 × 64 and similar, identity grey-ramp `0x24` palettes) are in group
+- ~~**GF4 — §2.13:** the 24 `0x7B` entries (64 × 64 and similar, identity grey-ramp `0x24` palettes) are in group
   `0x891B0E1A`, used by terrain brushes, water and underground code (`0x0074D730`, `0x00752240`, `0x0065D810`).
   Which of them reads these, and does it go through the texture path (which DX7 cannot create) or read the pixels
-  from `cS3DShapeFile` directly? [inferred: CPU reads of intensity maps]
+  from `cS3DShapeFile` directly? [inferred: CPU reads of intensity maps]~~
+  **ANSWERED 2026-10-14** from the exe (`cSTETerrainView3D::InitializeCityEdgeLayerHeights` `0x00757300`,
+  `cSTETerrain::ApplyBrushComponents` `0x0074D730` with resource interface `0x1AB50C3F`) and written into
+  graphics-formats §2.13. They are read on the CPU, never through the texture path. The two 257 × 1 ramps (`0xCA5CC9C0`,
+  `0xCA5CC9C1`) are read pixel by pixel into the city-edge layer height tables. The brushes sample their bitmaps on the
+  CPU; that the 22 square entries are those brushes is inferred, not traced to the brush data. The bracket matches.
 - ~~**GF5 — §3.8:** `SetTexFiltering` (`0x007D4280`) overrides the material's filters with (nearest, nearest) or
   (linear, linear-mipmap-linear) when one of two draw settings is on, and `0x007D41E0` can override wrap. Which
   settings are these, what are their defaults, and which is on in normal play? Without an override, 137,480 shipped
