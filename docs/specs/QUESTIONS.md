@@ -2589,7 +2589,10 @@ answer is in brackets.
 - ~~**NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]~~
   **ANSWERED 2026-10-14** from the exe (`0x006D4860`, NB17) and noted in neighbors §15.4. The original's value is
   garbage and every shipped caller ignores it, so the bracket stands.
-- **NG11:** Slots 32/33 (64-bit values). [the low 32 bits]
+- ~~**NG11:** Slots 32/33 (64-bit values). [the low 32 bits]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CF860`, `0x006CF8D0` and their eleven call sites) and written into
+  neighbors §15.4. Both return an int64 in EDX:EAX, and every caller (finance advisor, budget simulator, budget
+  windows) reads EDX. The bracket is wrong: return the full 64 bits. `docs/abi` rows 32/33 need `edx:eax`.
 - **NG12:** The return channel of the regional city getters 50–64. [double (x87)]
 - **NG13:** The return of deal `Copy`. [void]
 - **NG14:** `RequestCreateConnection`: the yes/no dialog. [confirmed without the dialog, logged once]

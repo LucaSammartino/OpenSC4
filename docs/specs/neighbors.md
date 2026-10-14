@@ -1005,6 +1005,24 @@ bracket stands.
 **NG10. The return of `CreateConnection`.** Not meaningful in the original (§6.2, NB17), and every shipped caller
 ignores it. Any value works; the bracket stands.
 
+**NG11. Slots 32 and 33 return 64 bits.** `GetTotalMonthlyNeighborDealIncome` (`0x006CF860`) and
+`GetTotalMonthlyNeighborDealExpense` (`0x006CF8D0`) return a signed 64-bit sum in EDX:EAX. Every caller reads both
+halves:
+
+| Caller | Sites |
+|---|---|
+| finance advisor `update_variables` | `0x00413CA8`, `0x00413CD0` |
+| budget simulator `GetTotalMonthlyExpense`, `GetTotalMonthlyIncome`, `DoMonthlySimulation` | `0x006909AA`, `0x00690A67`, `0x00692601` |
+| budget window `CalculateValues` | `0x00767520`, `0x00767554` |
+| budget sub-window `initNeighborBudget`, `updateNeighborBudget` | `0x007806EA`, `0x00781836`, `0x00783DCD`, `0x0078549F` |
+
+The bracket (the low 32 bits) is wrong: EDX then holds whatever the shim's code left there, and the budget books it as
+the high half. Return the full `int64`.
+
+Example: two sell deals costing 2,000,000 and 3,000,000 per month. The income is 5,000,000 = `0x00000000004C4B40`:
+EAX = `0x004C4B40`, EDX = 0. If EDX were left at, say, `0x0012F8A0` (a stack address), the budget would book
+`0x0012F8A0004C4B40`, about 5.3 × 10^15.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
