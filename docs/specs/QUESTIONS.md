@@ -2328,9 +2328,16 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   - The bracket differs. The test-33 stub may keep it, because no checked result depends on it: in (e) the original
     also drafts (12, 9) with an edge towards (12, 10), which only `ExistsConnectionOfType` could see, and no call to
     it comes after that Place. A replacement network tool must follow §8.8.
-- **LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
+- ~~**LF6 — LF3:** should the core add the message-server release callback (an ABI bump) to match the original's
   shutdown order? [no: one `release_services` call after the zones shut down; LF3 says the difference cannot be
-  observed]
+  observed]~~ **ANSWERED 2026-10-14** from the exe (message server global 0x00B43CCC written only in `SL::OnAppInit1`
+  at 0x006024BB) and written into landfill §1.2.
+  - No original behaviour; the implementer's choice stands. The message server is the framework's application-lifetime
+    service, so the developer's release of it is never the last one and its timing cannot be observed. No ABI bump is
+    needed.
+  - What could be observed is the unsubscription, which the original does before the zones shut down. One
+    `release_services` call afterwards is equivalent while no message reaches the developer in between, which holds
+    (LF3).
 - **NB18 — NB12:** the shim supplies the game's global `cISC4City` pointer through the new host method
   `current_city_object`. Is that the object `UpdateCommodityStats` compares against? [yes; the test hosts use a
   token distinct from every regional city ID]
