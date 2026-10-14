@@ -393,7 +393,7 @@ Called with the day's running "remaining" capacities (§4.4.1). `g` is a float.
 1. If `g ≤ 0`: return 0.
 2. **Export**: `room := exportCapacity − exported` (32-bit, the low half of the int64 counter). If `room > 0`:
    `x := min(g, room)`; `exported := trunc(exported + x)`; `g −= x`.
-3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g` (unsigned `wteRemaining` as float):
+3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g` (unsigned; compared as below):
    `wteRemaining −= floor(g)` (the 1.5·2²³ floor of §4.12, not `_ftol`), `x := g`,
    `g := 0`; **otherwise `wteRemaining := 0` and nothing is taken** *[quirk]* (a plant with less remaining
    capacity than the offered amount is emptied without burning anything). `wte := trunc(wte + x)`.
@@ -411,6 +411,28 @@ Called with the day's running "remaining" capacities (§4.4.1). `g` is a float.
 7. Return the total taken from steps 2–6 (float).
 
 The decomposition allowance (`0x09135479`, shipped 2000 per month) is consumed first-come in visit order.
+
+**How `remaining > g` is compared in steps 3 and 4 (PG8) *[compat]*.** The remaining capacity is converted as
+**unsigned** (waste-to-energy `0x006E38EA`–`0x006E3903`, incinerators `0x006E39A5`–`0x006E39BE`). The code loads
+it as a signed 32-bit integer onto the x87 stack. If its top bit is set, it adds 2³² (`4294967296.0f`,
+`0x00A80AA8`). It then compares the result with the `float32` `g`. The value is never stored as a `float32`, so:
+
+- **Below 2³¹** the comparison is **exact**: the integer itself is compared with `g`.
+- **From 2³¹ up**, the add of 2³² runs under the main thread's 24-bit precision (foundations §18.1). The value is
+  therefore rounded to `float32` (nearest, ties to even) before the comparison.
+
+A replacement gets the same result by converting the value to `f64` (exact for every `u32`) and comparing it with
+`g as f64` when the value is below 2³¹, and by comparing `(value as f32) > g` otherwise.
+
+| Remaining | `g` | Original (`remaining > g`) | Converting to `f32` first |
+|---|---|---|---|
+| 1,000 | 999.5 | true | true |
+| 16,777,217 (2²⁴ + 1) | 16,777,216.0 | **true** (exact) | false (rounds to 16,777,216) |
+| 2,147,483,649 (2³¹ + 1) | 2,147,483,648.0 | **false** (rounded to 2³¹) | false |
+| 3,000,000,000 | 2,999,999,744.0 | true | true |
+
+The remaining capacities are sums of the plants' unused capacities (§4.4.1). Every method agrees while they stay
+below 2²⁴.
 
 #### 4.6.2 Supply, capacity and landfill flags
 

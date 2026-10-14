@@ -404,7 +404,15 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   **The bracket matches; reproduce it as a *[quirk]*.** After a load the sum restarts at 0. Only the first end of
   cycle after the load differs, by one entry each in `0xEA110137` and `0xEA110138`. Whether it was intended
   cannot be read from the exe.
-- **PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]
+- ~~**PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]~~
+  **ANSWERED 2026-10-14** from the exe (waste-to-energy `0x006E38EA`–`0x006E3903`, incinerators
+  `0x006E39A5`–`0x006E39BE`; constant `4294967296.0f` at `0x00A80AA8`) and written into pollution.md §4.6.1 with a
+  table. **Unsigned, so the bracket matches, but it is not rounded to `float32`.**
+  - **How it converts.** The value is loaded as signed, and 2³² is added when its top bit is set. It is then
+    compared on the x87 stack with the `float32` `g`.
+  - **Below 2³¹** the comparison is exact. For example, 2²⁴ + 1 > 16,777,216.0 is true.
+  - **From 2³¹ up** the add rounds the value to `float32` under the 24-bit precision.
+  - **In practice.** Both differ from a plain `f32` conversion only above 2²⁴. Steps 3 and 4 behave the same.
 - **PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]
 - **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]
 - **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
