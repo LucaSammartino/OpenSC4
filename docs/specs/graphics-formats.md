@@ -179,7 +179,8 @@ the info-only open alike (FS3). Otherwise, with frame 0's header (code C, width 
 2. **H must be a power of two** (the test is "H & −H equals H", so 0 passes). **W is not checked**: the shipped
    data has two 257 × 1 entries, and they load.
 3. The minimum level dimension is m = 4 for DXT codes (`0x60`–`0x62`), else 1. The texture's dimensions are
-   max(W, m) × max(H, m); the level count is M + 1.
+   max(W, m) × max(H, m); the level count is M + 1. W and H are the sign-extended values and both tests are
+   signed (FS6): a negative H fails rule 2 (H = −4: −H & H = 4, not −4), and a negative W becomes m.
 4. Every further entry (frame) must equal frame 0 in **height, code and M**, else the load fails. Width is not
    compared; all frames are laid out with frame 0's dimensions (§2.8), so a narrower later frame is misread
    *[quirk]* (none shipped).

@@ -2895,8 +2895,11 @@ variant (GF3). The current answer is in brackets.
   `SetBindingImageData` reads the stored pair at `0x00809BA7`) and written into graphics-formats §2.10. Every frame uses
   frame 0's (format, type); a later frame's A is never read. The bracket (each frame its own pair) differs. Report frame
   0's pair for every frame. The decoded pixels are the same either way, since the decoder ignores A (§2.11).
-- **FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
-  negative height fails; max(W, m) is signed, so a negative width becomes m]
+- ~~**FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
+  negative height fails; max(W, m) is signed, so a negative width becomes m]~~
+  **ANSWERED 2026-10-14** from the exe (`SerialRead` `0x0080094E`–`0x0080095A` power-of-two test on the 32-bit
+  sign-extended height; `0x00800964`/`0x00800976` signed max) and written into graphics-formats §2.7. A negative height
+  fails the test, and a negative width becomes m. The bracket matches.
 - **FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.
   [the missing bytes read as zero, whole blocks are decoded, and the image is cropped]
 - **FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]
