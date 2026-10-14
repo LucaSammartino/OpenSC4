@@ -52,8 +52,9 @@
 //         mismatch count, -1 (not taken) or -2 (delivered, nothing compared).
 //   op 12 kFC4SeamRefAuditRelease  a = cIGZUnknown* (a game object whose
 //         Release returns 0), b = mode: bit 0 = note an acquired reference
-//         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED
-//         (else FC4_RELEASE); returns the reference warnings it caused.
+//         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED,
+//         bit 2 = with FC4_RELEASE_AT_DESTRUCTION (else FC4_RELEASE); returns
+//         the reference warnings it caused.
 //   op 13 kFC4SeamCrimeShadow      a = const FC4CrimeShadowTestInput*
 //         (FC4CrimeShadow.h): one crime-shadow month (SimNewMonth, then
 //         SimNewDay up to pipeline state 4) to a fake "original" crime

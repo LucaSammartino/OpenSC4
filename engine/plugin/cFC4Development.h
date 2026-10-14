@@ -67,6 +67,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -157,6 +158,26 @@ fc4_development_host MakeDevelopmentHost(DevelopmentContext* ctx, const HostGrid
 void ReleaseDevelopmentContext(DevelopmentContext* ctx);
 // Releases the tokens kept for the outermost call.
 void DropHeldTokens(DevelopmentContext* ctx);
+
+// Tooling (log lines only; no game write): what a month of development did to
+// the city's lots, for comparing a run of the original development unit (the
+// shadow's "development lots ... (the original's)") with one of ours
+// ("development lots ... (ours)").
+//
+// The StateChanged flow: lot state changes (lot-developer.md, HabitationState
+// 0..6; 7 = any other value) since the last Take().
+struct LotFlow {
+    uint32_t changes[8][8] = {};
+    void Note(uint32_t from, uint32_t to);
+    // "from>to:n ..." for the nonzero pairs ("-" for none); then cleared.
+    std::string Take();
+};
+
+// The city's lots now, through lot manager slot 6 GetLot(x, z, true) for
+// every cell (borrowed, each lot once): states, the livable ones, vacancy
+// reasons, and the livable buildings whose wealth exceeds their lot's
+// occupant wealth (budget.md 5.2's waning-wealth multiplier).
+std::string LotCensus(cISC4City* city);
 
 }  // namespace fc4
 
@@ -291,6 +312,7 @@ private:
     uint8_t lastPlanState_ = 0;
     uint32_t days_ = 0, months_ = 0, plans_ = 0;
     uint32_t lastNewDay_ = 0;  // data1 of the last SimNewDay (the date without a city)
+    fc4::LotFlow lotFlow_;     // StateChanged flow since the last month line
     uint32_t StatusDay();
 };
 

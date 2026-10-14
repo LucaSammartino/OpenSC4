@@ -4864,6 +4864,24 @@ void AbiCollect157_cISC4NetworkTool(std::vector<AbiMethod>& m) {
     m.push_back(AbiM(&C::DestroyOccupantsAndResolve, "DestroyOccupantsAndResolve"));
 }
 
+void AbiCollect158_cISCResExemplarCohort(std::vector<AbiMethod>& m) {
+    using C = cISCResExemplarCohort;
+    m.push_back(AbiM(&C::QueryInterface, "QueryInterface"));
+    m.push_back(AbiM(&C::AddRef, "AddRef"));
+    m.push_back(AbiM(&C::Release, "Release"));
+    m.push_back(AbiM(&C::Write, "Write"));
+    m.push_back(AbiM(&C::Read, "Read"));
+    m.push_back(AbiM(&C::GetGZCLSID, "GetGZCLSID"));
+    m.push_back(AbiM(&C::GetParent, "GetParent"));
+    m.push_back(AbiM(&C::SetParent, "SetParent"));
+    m.push_back(AbiM(static_cast<cISCPropertyHolder* (C::*)()>(&C::AsISCPropertyHolder), "AsISCPropertyHolder()"));
+    m.push_back(AbiM(static_cast<cISCPropertyHolder* (C::*)() const>(&C::AsISCPropertyHolder), "AsISCPropertyHolder() const"));
+    m.push_back(AbiM(&C::IsPropertyLocal, "IsPropertyLocal"));
+    m.push_back(AbiM(&C::GetKey, "GetKey"));
+    m.push_back(AbiM(&C::SetKey, "SetKey"));
+    m.push_back(AbiM(&C::CompactProperties, "CompactProperties"));
+}
+
 const AbiInterface kAbiInterfaces[] = {
     {"cISC4Simulator", "cFC4ISC4Simulator", true, &AbiCollect0_cFC4ISC4Simulator},
     {"cISC4BudgetSimulator", "cFC4ISC4BudgetSimulator", true, &AbiCollect1_cFC4ISC4BudgetSimulator},
@@ -5023,4 +5041,5 @@ const AbiInterface kAbiInterfaces[] = {
     {"cISC4WeatherSimulator", "cISC4WeatherSimulator", false, &AbiCollect155_cISC4WeatherSimulator},
     {"cISC4GameDataRegistry", "cISC4GameDataRegistry", false, &AbiCollect156_cISC4GameDataRegistry},
     {"cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", false, &AbiCollect157_cISC4NetworkTool},
+    {"cISCResExemplarCohort", "cISCResExemplarCohort", true, &AbiCollect158_cISCResExemplarCohort},
 };

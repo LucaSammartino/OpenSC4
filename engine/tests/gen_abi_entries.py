@@ -258,6 +258,8 @@ INTERFACES = [
     ("cISC4WeatherSimulator", "cISC4WeatherSimulator", "cISC4WeatherSimulator.h", False),
     ("cISC4GameDataRegistry", "cISC4GameDataRegistry", "cISC4GameDataRegistry.h", False),
     ("cISC4NetworkTool(PowerLine)", "cISC4NetworkTool", "cISC4NetworkTool.h", False),
+    # The cohort chain behind an exemplar (data-formats §4.4): FC4Properties.cpp EffectiveProperties.
+    ("cISCResExemplarCohort", "cISCResExemplarCohort", "cISCResExemplarCohort.h", True),
 ]
 
 BASE_HEADERS = {"cIGZSerializable": "cIGZSerializable.h"}

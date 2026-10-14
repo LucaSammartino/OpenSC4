@@ -89,6 +89,7 @@
 #include "cIGZDate.h"
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
+#include "cISCResExemplarCohort.h"
 #include "cIGZMessageTarget2.h"
 #include "cIGZSerializable.h"
 #include "cISC4GrowthDeveloper.h"
@@ -354,8 +355,13 @@ const SlotCount kReviewedSlotCounts[] = {
      "the SDK declares slots 0-73; the plugin calls slots 8, 12 and 59 only (power §11.1). Slots 74-80 are not "
      "declared"},
     {"cISCResExemplar", 14, 16,
-     "the SDK declares slots 0-13; the plugin calls slot 6 (AsISCPropertyHolder) only (FC4Properties.cpp). Slots "
-     "14-15 (DebugInstanceTag and one unnamed, both popping 4; rows added in main) are not declared"},
+     "the SDK declares slots 0-13; the plugin calls slots 6 (AsISCPropertyHolder) and 9 (GetCohort) only "
+     "(FC4Properties.cpp). Slots 14-15 (DebugInstanceTag and one unnamed, both popping 4; rows added in main) are "
+     "not declared"},
+    {"cISCResExemplarCohort", 14, 16,
+     "the SDK declares slots 0-13; the plugin calls slots 6 (GetParent) and 8 (AsISCPropertyHolder) only "
+     "(FC4Properties.cpp EffectiveProperties). Slots 14-15 (DebugInstanceTag and one unnamed, both popping 4) are "
+     "not declared"},
     {"cISC4NetworkTool(PowerLine)", 11, 83,
      "cFC4ISC4NetworkTool declares slots 3-10 only: the power simulator calls Init, Shutdown and UpdateOnZoneChange "
      "(power §11.1)"},

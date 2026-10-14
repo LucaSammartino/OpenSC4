@@ -78,6 +78,9 @@ struct GrowthContext {
     LONGLONG deadline = 0;
     // Observability.
     uint32_t sourceMaps = 0, missingSourceMaps = 0, populationUpdates = 0;
+    // Set while the destructor runs the core's final Release, whose releases
+    // (the special-building copy, §1.3) are the destructor's (DG28).
+    bool destroying = false;
 };
 
 // The host table over `ctx`.
