@@ -42,6 +42,7 @@ pub mod landvalue;
 pub mod lot_developer;
 pub mod neighbors;
 pub mod ordinance;
+pub mod parks;
 pub mod pathfinder;
 pub mod plumbing;
 pub mod pollution;
