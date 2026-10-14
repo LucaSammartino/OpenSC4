@@ -402,6 +402,36 @@ landfill, prop) plus a network query keeping flag & `0x1F4F` ≠ 0 returns **the
 instead of in the manager's cell order. `LocationIsOKForNewFlora` does not depend on the order: it fails if any
 of them overlaps, and every reference is released either way.
 
+#### 6.4.2 What an occupant-manager box query returns *[compat]*
+
+Every flora query ends in occupant manager slot 36 (`0x004A0670`): the box queries of §6.4 and §6.5, the typed
+query (slot 37) and the cell queries (slot 41 → 40 → 36, §6.10.4, used by the monthly visit). Slot 36 does not
+test every occupant; it reads a coarse index (verified, FQ6):
+
+- **The index.** 192 × 192 cells of 64 m; city (0, 0) is cell (64, 64). A coordinate `p` maps to
+  `cell(p) := rhe(f32(f32(p + 4096) × (1/64)) − 0.499f)` (slot 15, `0x0049E0E0`; `rhe` = round half to even, crime.md
+  §6; `float32` constants 4096, 0.015625, 0.499 at `0x00A8F7C0`, `0x00A8F7B8`, `0x00A8F7BC`). That is
+  `floor((p + 4096) / 64)`, except that a coordinate **less than 64·(0.5 − 0.499f) ≈ 0.06399918 m below a 64 m
+  line maps to the cell above** the line.
+- **Listing** (`InsertOccupant` slot 20 `0x0049EF60`, `MoveOccupant` slot 24 `0x0049F3C0`): take the occupant's
+  box at that moment; on x and on z separately, if `max − min > 1.0` (`0x00A81228`), move both ends inwards by
+  `0.1f` (`0x00A8F768`, `float32` add and subtract). The occupant is listed in every cell from
+  `(cell(min.x), cell(min.z))` to `(cell(max.x), cell(max.z))`. y plays no part.
+- **Query**: map the query box's two corners to cells, clamped to 0..191 (`0x0049DF00`). The candidates are the
+  occupants listed in that cell rectangle, each taken once. A candidate is returned if the filter (if any)
+  accepts it (§6.4.1) and its **current** box overlaps the query box **strictly** on x, y and z:
+  `occMin < qMax` and `qMin < occMax` (`float32` compares; an unordered compare, NaN, counts as overlapping), the
+  same rule as §6.4's `Intersects`. Boxes that only touch are **not** returned. The last argument is a count
+  limit (−1 = none; 0 returns false at once); an uninitialized manager returns false.
+
+So "in the box" means: listed in one of the query's 64 m cells **and** strictly overlapping. The two differ for
+a box wider than 1 m whose low edge lies in `[X − 0.164, X − 0.1)` below a 64 m line `X`: its listing starts at
+`edge + 0.1 ≥ X − 0.064`, in the cell above `X`, so a query box that ends at `X − 0.1` (for example the monthly
+block just below `X`, §6.7.1) overlaps it strictly but never returns it. Example: a box z 319.844 … 337.844 is
+listed from 319.944 (0.056 below 320, so z cell 69, city z 320 … 384); the block query z 288.1 … 319.9 reads z cell
+68 only and does not return it, although 319.844 < 319.9. Lines at odd multiples of 32 m lie inside a cell and do
+not matter.
+
 ### 6.5 Planting (`AddNewFloraOccupant(type, pos, force)` → occupant or null)
 
 `pos` is a caller-owned float[3] **that the function rewrites** *[quirk]*.
@@ -1105,3 +1135,10 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
     period saved as 0 (the original faults on the division).
 36. **No weather** *[choice]*: no weather simulator, a type whose table byte at `[e][0]` is 153 → score 0.6
     (moisture 0); the original crashes.
+37. **Box query** (§6.4.2): `cell(0)` = 64, `cell(63.93)` = 64, `cell(63.94)` = 65, `cell(64)` = 65, `cell(−0.5)`
+    = 63, `cell(319.936)` = 68, `cell(319.937)` = 69. A box x 100 … 101 (width 1.0) is listed from `cell(100)`; a
+    box x 100 … 102 from `cell(100.1)` to `cell(101.9)`. Strict: an occupant box x 10 … 20 is not returned by a
+    query whose max.x is 10 or whose min.x is 20, and is returned when max.x is 10.000001. Listing: an occupant
+    box (1717.9807, ·, 319.84396) … (1735.9807, ·, 337.84396) (x cells 90–91, z cell 69) is **not** returned by
+    the query (1696.1, −FLT_MAX, 288.1) … (1727.9, +FLT_MAX, 319.9) and is returned by (1696.1, −FLT_MAX, 320.1) …
+    (1727.9, +FLT_MAX, 351.9).

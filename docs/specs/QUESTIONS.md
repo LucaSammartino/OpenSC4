@@ -1167,8 +1167,14 @@ part of §8 is not compared). The glue's current answer is in brackets.
   `value >> 4` from a zero-extended byte, so EAX is 0..15 with the upper bits zero and AL loses nothing. The
   declaration should still be a 32-bit return: original flora uses all of EAX as the table offset, so a
   FreeCity4 weather must return a clean EAX (already in §13.2).
-- **FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
-  [closed]
+- ~~**FQ6:** "occupant in a visited block" (shadow) uses a closed box, edges included, like the host's box query.
+  [closed]~~ **ANSWERED 2026-10-14** from the exe (box query `0x004A0670`, its cell mapping `0x0049E0E0` and clamp
+  `0x0049DF00`, listing in `InsertOccupant` `0x0049EF60` / `MoveOccupant` `0x0049F3C0`) and written into flora.md
+  §6.4.2 and test 37. **No, on two counts.** The host's test is strict (open) on x, y and z, so touching boxes
+  are not returned. And it only looks at occupants listed in the query's 64 m index cells; an occupant is
+  listed from its box shrunk by 0.1 m per side (boxes wider than 1 m), with coordinates up to 0.064 m below a
+  64 m line counted in the cell above. A box whose low edge is 0.1–0.164 m below such a line overlaps the block
+  below it but is not returned for it (this is FQ15).
 - **FQ7:** the shadow takes the elevation scale from the tuning exemplar's `0xC9DBDD02`; the record does not save
   it. [as stated]
 - **FQ8:** blocks are never freed and the registry is never cleared at app shutdown. [as stated]
