@@ -2654,7 +2654,10 @@ answer is in brackets.
   first element ("0" if empty). The bracket matches for unsigned integer arrays; other element types were not traced.
 - ~~**NG28:** The shadow's statistics tolerance. [relative 1e-6]~~
   **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. Noted in neighbors §15.4.
-- **NG29:** Network flag bits used as type numbers. [left open]
+- ~~**NG29:** Network flag bits used as type numbers. [left open]~~
+  **ANSWERED 2026-10-14** from the exe (network occupant slot 22 `0x00619520`, table `0x00AA7CE8`, slot 8 `0x00604D10`)
+  and written into neighbors §15.4. §6.5 passes type numbers; the occupant maps each to `1 << type` and tests it
+  against its flags.
 - **NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]
 - **NG31:** Status reports from deals with no host object. [left open]
 - **NG32:** The shadow's connection-state comparison. [the original's after-state against our before-state]

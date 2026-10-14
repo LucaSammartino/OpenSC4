@@ -1160,6 +1160,17 @@ The bracket (the first element) matches for unsigned integer arrays, which is wh
 **NG28 (glue). The shadow's statistics tolerance.** The commodity statistics are `double` arithmetic in the original
 (§8.2); the tolerance the shadow allows is the implementer's choice.
 
+**NG29. Network types and network flag bits.** The numbers in §6.5 (4, 11, 0, 6, 12, 2, 7, 8, 9, 1) are network
+**type** numbers (the SDK's network types: Road 0, Rail 1, Highway 2, Street 3, Pipe 4, PowerLine 5, Avenue 6,
+Subway 7, LightRail 8, Monorail 9, OneWayRoad 10, DirtRoad 11, GroundHighway 12). The original passes each to
+`cISC4NetworkOccupant` slot 22 (`0x00619520`). That slot turns the type into its flag bit through a table
+(`0x00AA7CE8`: `1 << type` for types 0–12) and tail-calls slot 8, which returns whether all bits of the mask are set
+in the occupant's network flags.
+
+So the test is `flags & (1 << type) ≠ 0`. A glue that reads the occupant's flag word must shift; one that calls slot
+22 must pass the type number, not the bit. Example: an occupant carrying road and rail has flags `0x0003`; slot 22
+answers true for 0 and 1, so Road then Rail match, and the later one, Rail, wins (§6.5).
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
