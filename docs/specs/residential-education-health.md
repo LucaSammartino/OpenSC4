@@ -974,6 +974,10 @@ Notes:
 
 Each message is a new `cRZMessage2Standard` released after posting.
 
+Every field the table does not name is **0 or null** *[compat]* (RG19): the message constructor (`0x009134D6`)
+zeroes `+0x04` to `+0x28`, and neither strike call sets data1 (so data1 = 0 in both), data3 on begin, or
+void1/IGZUnknown on end.
+
 ## 6. Persistence
 
 The layout is in residential.md §9. Meaning only:

@@ -2229,7 +2229,9 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   the simulator global without `AddRef` and keeps no member; `Shutdown` asks the city for the simulator again for
   `RemoveAgent` and releases nothing. A glue that takes a reference at Init and releases it after `RemoveAgent` is
   equivalent, since the city outlives both calls.
-- **RG19:** what goes in a strike message's data1? [0]
+- ~~**RG19:** what goes in a strike message's data1? [0]~~ **ANSWERED 2026-10-14** from the exe (message constructor
+  `0x009134D6`; `BeginStrike` `0x006F84C0`, `EndStrike` `0x006F8570`) and written into REH §5. **0; the bracket
+  matches.** The constructor zeroes every field and neither strike call sets data1.
 - **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
