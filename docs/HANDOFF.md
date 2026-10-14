@@ -7,7 +7,7 @@ operating knowledge that is still true.
 
 ## 0. Current state
 
-*Last updated 2026-10-14, at the merge of `harness` (`6147be6`), after run 103.*
+*Last updated 2026-10-14, at the merge of the harness follow-up (`0786064`), after run 103.*
 
 - **main:** `FC4_ABI_VERSION` 41, 171 plugin switches, 658 conformance vectors. Last gate (harness): cargo 1717/0,
   clippy clean, ctest 43/43. Test switches `sim_turbo`, `autotest_end_date`, `script` (engine/README). Every glue except the simulator and the budget is off by default (`enable = <key>`).
@@ -26,7 +26,7 @@ Resume a paused lane with `SendMessage` to its agent ID; its worktree and transc
 
 | Lane | Agent ID | Worktree (`.claude/worktrees/`) / branch | Reserved | State |
 |---|---|---|---|---|
-| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | merged `6147be6`; **resumed**: turbo must wait for ConnectionsReady (in game it reached 2026-04 before popups were off, and an advisor question held the city), plus a `save` script action |
+| harness: `sim_turbo`, `autotest_end_date`, `script = <file>` | `a313b6961fe7dfb95` | `agent-a313b6961fe7dfb95` | ABI 41, seam op 46 | merged `6147be6` and `0786064` (turbo waits for ConnectionsReady: in game it had reached 2026-04 before popups were off; script `save` through `cISC4App::SaveCity`); turbo measured about 100 game days/s in game |
 | RE: how a modal dialog ends (`docs/specs/modal-dialogs.md`, cIGZWinMgr/cIGZWin ABI rows), so the plugin can end dialogs without screenshots | `a8cff00ae9bf35e79` | own worktree | - | running |
 | game slots (tools only): several game instances at once (`-UserDir` per slot, the `SimCity 4 Mutex` handle swapped), `ingame_run -Slot`, `regress -Parallel`, a per-worktree run queue (`tools/game_queue.ps1`, `docs/harness.md`), regress deltas | `a7cd31c14f8cfa636` | `agent-a7cd31c14f8cfa636` | - | running; owns the game while it works |
 | development glue fixes (devglue2) | `a054ba812e30f4fd3` | `agent-a054ba812e30f4fd3` / `devglue2` | ABI 42 if needed | paused; fix list sent (below) |
