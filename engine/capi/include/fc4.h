@@ -62,8 +62,9 @@ extern "C" {
  * 17 = adds the pollution simulator (fc4_pollution) and its shadow (fc4_pollution_shadow);
  * 18 = adds the protection simulators (fc4_protection);
  * 19 = adds the crime simulator and the crime shadow (fc4_crime / fc4_crime_shadow);
- * 20 = adds the aura simulator (fc4_aura) and its shadow (fc4_aura_shadow). */
-#define FC4_ABI_VERSION 20u
+ * 20 = adds the aura simulator (fc4_aura) and its shadow (fc4_aura_shadow);
+ * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow). */
+#define FC4_ABI_VERSION 25u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -2713,6 +2714,125 @@ int32_t fc4_aura_shadow_cycle(fc4_aura_shadow* s, const fc4_aura_capture* captur
                               fc4_bytes_sink sink, void* ctx);
 bool fc4_aura_shadow_get_stats(fc4_aura_shadow* s, fc4_aura_shadow_stats* out);
 
+/* ---- land value shadow (tooling; engine/capi/src/landvalue_shadow.rs) -------
+ *
+ * With the ORIGINAL land value simulator running: at the end of each of its
+ * passes (LandValueMapChanged 0x87CC75B3, posted at the end of state 8) the
+ * plugin reads its grids and scalars through the interface and FreeCity4's
+ * pass (states 0-8) runs on the original's live inputs through a read-only
+ * host table (write callbacks NULL; our grids are local, the intrinsic grid
+ * starts as a copy of the original's). Compared: intrinsic, total and slope
+ * grids tract by tract, GetLandValueType at each total tract's first cell,
+ * the average, the mode altitude and the record's mean altitude. */
+typedef struct fc4_landvalue_shadow fc4_landvalue_shadow;
+
+/* What the plugin read from the original (grids x outer, count_x * count_z). */
+typedef struct fc4_landvalue_original {
+    uint32_t struct_size;
+    uint32_t has_record; /* non-zero: its own Write parsed (version 1) */
+    fc4_grid_geometry intrinsic_geometry; /* slot 7 */
+    const uint8_t* intrinsic;
+    fc4_grid_geometry total_geometry; /* slot 8 */
+    const uint8_t* total;
+    fc4_grid_geometry slope_geometry; /* slot 9 */
+    const float* slope;
+    const uint8_t* types; /* slot 5 at (tx*S, tz*S) per total tract; NULL = not read */
+    uint8_t average;        /* slot 10 */
+    uint8_t record_average; /* the record's average */
+    uint8_t record_flag;    /* the record's byte 5: dirty or a pass running */
+    uint8_t reserved;
+    float mode_altitude; /* slot 11 */
+    float mean_altitude; /* the record's mean altitude (no getter) */
+} fc4_landvalue_original;
+
+typedef struct fc4_landvalue_shadow_stats {
+    uint32_t struct_size;
+    uint32_t passes, compared, clean;
+    int32_t last_mismatches; /* -1 = not compared */
+    uint32_t intrinsic_mismatches, total_mismatches, slope_mismatches, type_mismatches, scalar_mismatches;
+    uint32_t desirability_reruns;  /* passes compared with a developer's previous desirability map */
+    uint32_t desirability_changes; /* map changes seen by note_day */
+} fc4_landvalue_shadow_stats;
+
+/* `host`: only its read callbacks are called (create_grid, the writes,
+ * release, the history and post may be NULL). `tuning`: the exemplar (copied;
+ * NULL = missing: code defaults). `max_cells`: differing tracts listed per
+ * grid (0 = 4, at most 64). */
+fc4_landvalue_shadow* fc4_landvalue_shadow_create(const fc4_landvalue_host* host, const fc4_landvalue_tuning* tuning,
+                                                  uint32_t max_cells);
+void fc4_landvalue_shadow_destroy(fc4_landvalue_shadow* s);
+/* SimNewDay: notes each listed developer's desirability map (read-only);
+ * returns how many changed since the previous note. */
+uint32_t fc4_landvalue_shadow_note_day(fc4_landvalue_shadow* s);
+/* The end of an original pass: one line to `sink`. Returns the differences,
+ * -1 when nothing was compared (INCOMPLETE). */
+int32_t fc4_landvalue_shadow_compare(fc4_landvalue_shadow* s, const fc4_landvalue_original* orig, int32_t julian,
+                                     fc4_bytes_sink sink, void* ctx);
+bool fc4_landvalue_shadow_get_stats(const fc4_landvalue_shadow* s, fc4_landvalue_shadow_stats* out);
+
+/* ---- flammability shadow (tooling; engine/capi/src/flammability_shadow.rs) --
+ *
+ * With the ORIGINAL flammability simulator running: a mirror simulator (ours,
+ * on its own grids) gets the original's six messages
+ * (fc4_flammability_shadow_message, before the original handles each) and
+ * reads live inputs through a read-only host table; at each of the
+ * original's cycle ends (SimCycleComplete 0x08F415FE) the plugin reads the
+ * original's record and getters and the shadow compares: the raw grid
+ * exactly, the adjusted grid against the values the cycle could have
+ * written, the average's range, the multiplier, the hotspots (every rotation
+ * of the visiting order), and the getters (slots 6-8) on the resynchronised
+ * mirror. The fire roll, the iterator start and the hotspot shuffle (random
+ * draws) are not compared. */
+typedef struct fc4_flammability_shadow fc4_flammability_shadow;
+
+typedef struct fc4_flammability_hotspot {
+    int32_t x, z, weight;
+} fc4_flammability_hotspot;
+
+typedef struct fc4_flammability_original {
+    uint32_t struct_size;
+    uint32_t has_record; /* non-zero: its own Write parsed (version 2) */
+    uint64_t simulator;  /* the original's identity (a new one restarts the baseline) */
+    fc4_grid_geometry geometry;     /* the record's adjusted grid */
+    fc4_grid_geometry raw_geometry; /* the record's raw grid */
+    const uint8_t* adjusted;        /* x outer */
+    const uint8_t* raw;
+    const fc4_flammability_hotspot* hotspots; /* the record's, in list order */
+    const uint8_t* flammable;                 /* slot 6 per city cell, x outer; NULL = not read */
+    uint32_t hotspot_count;
+    float global_multiplier; /* the record's */
+    uint8_t average;         /* the record's */
+    uint8_t average_getter;  /* slot 8 */
+    uint8_t hotspot_found;   /* slot 7's result */
+    uint8_t hotspot_value;
+    int32_t hotspot_x, hotspot_z;
+    int32_t cells_x, cells_z; /* the city's cell counts (flammable) */
+} fc4_flammability_original;
+
+typedef struct fc4_flammability_shadow_stats {
+    uint32_t struct_size;
+    uint32_t cycles, compared, clean;
+    int32_t last_mismatches; /* -1 = not compared */
+    uint32_t raw_mismatches, adjusted_mismatches, unvisited, scalar_mismatches, hotspot_mismatches,
+        getter_mismatches;
+    uint32_t events; /* messages mirrored */
+} fc4_flammability_shadow_stats;
+
+/* `host`: only its read callbacks are called (the grid API, record_history,
+ * ignite_cell, set_fire_cause, random_lot and post may be NULL).
+ * `max_cells`: differing tracts listed per grid (0 = 4, at most 64). */
+fc4_flammability_shadow* fc4_flammability_shadow_create(const fc4_flammability_host* host, uint32_t max_cells);
+void fc4_flammability_shadow_destroy(fc4_flammability_shadow* s);
+/* One of the original's six messages; false when not mirrored (no baseline
+ * yet, or another type). */
+bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flammability_message* m);
+/* The original's cycle end: the first (or after a new simulator) is the
+ * baseline; later ones are compared. One line. Returns the differences, -1
+ * when nothing was compared. */
+int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
+                                      int32_t julian, fc4_bytes_sink sink, void* ctx);
+bool fc4_flammability_shadow_get_stats(const fc4_flammability_shadow* s, fc4_flammability_shadow_stats* out);
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -2809,6 +2929,11 @@ static_assert(sizeof(fc4_aura_host) == (sizeof(void*) == 4 ? 176 : 352), "fc4_au
 static_assert(sizeof(fc4_aura_capture_ref) == 16, "fc4_aura_capture_ref layout");
 static_assert(sizeof(fc4_aura_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_aura_capture layout");
 static_assert(sizeof(fc4_aura_shadow_stats) == 64, "fc4_aura_shadow_stats layout");
+static_assert(sizeof(fc4_landvalue_original) == (sizeof(void*) == 4 ? 132 : 152), "fc4_landvalue_original layout");
+static_assert(sizeof(fc4_landvalue_shadow_stats) == 48, "fc4_landvalue_shadow_stats layout");
+static_assert(sizeof(fc4_flammability_hotspot) == 12, "fc4_flammability_hotspot layout");
+static_assert(sizeof(fc4_flammability_original) == (sizeof(void*) == 4 ? 128 : 144), "fc4_flammability_original layout");
+static_assert(sizeof(fc4_flammability_shadow_stats) == 48, "fc4_flammability_shadow_stats layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
