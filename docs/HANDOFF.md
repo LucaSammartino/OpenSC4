@@ -143,7 +143,6 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   neighbours, so its replace half fails until that fix merges.
 > - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lanes in
 >   `.claude/worktrees/re-answers4`, `re-answers5`):
->   - **neighbours fix** (merged lane, back on its branch): holder ownership and the ReloadCity re-fetch (r50e2);
 >   - **development glue + shadow** (BDS `0x8990BE7A` and the growth developers `0x0990C138` as one unit,
 >     `development_shadow`; ABI 29, seam op 34);
 >   - **zones glue, phase 1** (`cFC4ZoneManager` replacement + `zones_shadow`; the zone developer / lot manager stays
@@ -155,12 +154,15 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >     unavoidable);
 >   - **`apply6b`**: PW1–PW8, PS1–PS8, LG1–LG20 into the power, plumbing and landfill cores, glue and shadows (the
 >     PW8/PW3/PS4/PS8 shadow comparisons; LG2/LG3 landfill texture and tile exemplar; ABI 33, seam op 37 if needed);
->   - RE `re-answers7` (RG1–RG22 except RG17, PR14–PR16, PG15, DQ13, SV1–SV2, TN26–TN28, ZQ11–ZQ12, LF6, NB18,
->     EX21–EX33). Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`;
->     rows `a9eef99`), `re-answers6` (`d9db98f`: LV, FL, DQ10–12, RG23, RG17, BQ3, CQ16–22, TN21–25, HG1, the crime
->     errata; row `bbee494`).
->   - RE **`re-formats2`** (M6): a new `docs/specs/graphics-formats.md` for FSH textures and S3D models, with a survey
->     of the shipped data and conformance tests (GF questions); then an `engine/formats` lane;
+>   - **`apply8a`**: re-answers7's RG1–RG22 (RG22: residential slots 37/38 return in x87), PR14–PR16, PG15, DQ13,
+>     SV1–SV2, LF6, NB18, and RG13 in the budget core (×0.01f); ABI 38 / seam op 43 if needed;
+>   - **`apply8b`**: EX21–EX33 (EX29 corrects EX8: Float32 text has 17 significant digits), ZQ11–ZQ12 (draft Place),
+>     TN26–TN28; ABI 39 / seam op 44 if needed;
+>   - **`formats3`** (M6): the FSH and S3D readers in `engine/formats` from `docs/specs/graphics-formats.md` (§10
+>     checklist, §8 tests 1–43, `fc4-dat fsh|s3d`);
+>   - Merged RE lanes: `re-answers4` (`79d619c`; `docs/abi` rows `83aa768`), `re-answers5` (`fdc6893`; rows
+>     `a9eef99`), `re-answers6` (`d9db98f`; row `bbee494`), `re-answers7` (`59495b4`; rows `402072f`),
+>     `re-formats2` (`c2c59cf`: graphics-formats.md, GF1–GF12). No RE lane is running.
 >   - **Next to launch, M5 traffic glue phase 1** (prompt in the session scratchpad, `trafficglue-task.txt`): the
 >     traffic simulator + pathfinder replacement unit (class `0x6990C1AA`, our slot-6 pathfinders, §6 record),
 >     ABI 37. Launch it once `apply6a` merges (TS1–TS34 change the core it hosts).
