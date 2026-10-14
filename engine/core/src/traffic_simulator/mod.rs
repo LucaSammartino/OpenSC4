@@ -73,6 +73,7 @@ mod adapters;
 mod cycle;
 mod maps;
 mod monthly;
+mod pools;
 mod record;
 mod route;
 mod state;
@@ -82,9 +83,12 @@ pub mod tuning;
 #[cfg(test)]
 mod tests;
 
-pub use adapters::{capacity_element, capacity_values, set_capacity_element, NetAdapter, CAPACITY_LEN};
+pub use adapters::{
+    capacity_element, capacity_values, set_capacity_element, HolderStore, Holders, NetAdapter, CAPACITY_LEN,
+};
 pub use maps::{air_polluting_byte, background_value, congestion_byte};
 pub use monthly::{damage_target, kind as damage_kind, STRIKE_KEEP, STRIKE_MAX_MONTHS, STRIKE_SCALE, STRIKE_START};
+pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL_TOKEN_BASE};
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, RouteCell};
 pub use state::{
@@ -370,6 +374,18 @@ pub struct Message {
     pub object: u64,
 }
 
+/// An established neighbouring city reached by a transport connection, as
+/// the pool capacities need it (traffic-network.md §2.7.4 steps 2–4).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NeighbourCity {
+    /// `GetPosition()` (regional-city slot 5): the region cell of the
+    /// city's corner.
+    pub position: (i32, i32),
+    /// `GetExtrapolatedPopulation(0x2010 + 0x10·w)` (regional-city slot 17),
+    /// w = 0…2.
+    pub population: [i32; 3],
+}
+
 /// A `u8` grid.
 pub type GridU8 = Rc<dyn TractGrid<u8>>;
 /// An `f32` grid.
@@ -383,6 +399,8 @@ pub type GridF32 = Rc<dyn TractGrid<f32>>;
 /// except for three questions the simulator answers itself
 /// (`max_trip_capacity`, `is_road_damaged`, `neighbor_pool_holder`): a host
 /// may implement those three as it likes, the simulator never calls them.
+/// The neighbour pools are the simulator's ([`Pools`]); their holder tokens
+/// are reserved ([`POOL_TOKEN_BASE`]).
 ///
 /// Host callbacks must not call back into the simulator (a re-entrant call
 /// finds no state and does nothing).
@@ -463,18 +481,32 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// Replaces the source's trip list.
     fn set_trip_list(&self, source: Source, trips: Vec<TripData>);
 
-    // ---- neighbour connections (§4.1.4, §4.6) ----
-    /// Neighbour simulator slot 13: the connection's property holder.
+    // ---- neighbour connections (§4.1.4, §4.6; traffic-network.md §2.7) ----
+    /// The connection's own property holder (connection slot 3,
+    /// traffic-network.md §2.7.5).
     fn connection_holder(&self, connection: u64) -> u64;
     /// Reads and clears the connection's "volume dirty" flag (§4.1.4).
     fn take_connection_volume_dirty(&self, connection: u64) -> bool;
     /// Neighbour simulator slot 11 `FindConnection(type, x, z)`.
     fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64>;
-    /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`). The
-    /// pathfinder reads `GetTrafficNeighborConnection`'s cost and the ferry
-    /// terminals' neighbour links from the network state itself
-    /// (traffic-network.md §2.7.1, pathfinder.md §4.6, §4.13; PF5, PF6).
-    fn neighbor_pool_property_holder(&self, t: u32, x: i32, z: i32) -> Option<u64>;
+    /// The connection's neighbour-connection type (the type DoPostCityInit
+    /// passes to Add, traffic-network.md §2.7.2).
+    fn connection_type(&self, connection: u64) -> u32;
+    /// Neighbour simulator slot 13 `FindConnectionOnOtherSide(conn)`: the
+    /// neighbouring city's end of the connection (§2.7.2 step 3).
+    fn connection_on_other_side(&self, connection: u64) -> Option<u64>;
+    /// §2.7.2 step 5: the city on the other side (connection slot 9) when
+    /// there is one and it is established (regional-city slot 43), as its
+    /// `GetPosition()` (slot 5); `None` otherwise.
+    fn established_city_position(&self, connection: u64) -> Option<(i32, i32)>;
+    /// Neighbour simulator slot 21 `GetConnectedCities(list, false)`, in
+    /// list order, with each city's position and extrapolated populations
+    /// (§2.7.4 steps 2–4).
+    fn connected_cities(&self) -> Vec<NeighbourCity>;
+    /// The regional jobs of wealth `w` (§2.7.4 step 1): the demand
+    /// simulator's `GetDemand(0x2010 + 0x10·w, 0x10000)` and its
+    /// `QueryDemandValue()`; `None` when the node is missing.
+    fn regional_demand(&self, w: u32) -> Option<f32>;
 
     // ---- other simulators ----
     /// Residential simulator slot 30 `GetCellWorkforcePercent(x, z)`.
@@ -516,6 +548,9 @@ pub struct TrafficSimulator {
     pub(crate) net: Rc<NetworkModel>,
     /// The damage sets, shared with the network adapter (`IsRoadDamaged`).
     pub(crate) damage: Rc<RefCell<DamageState>>,
+    /// The neighbour pools, shared with the network adapter
+    /// (traffic-network.md §2.7.3).
+    pub(crate) pools: Rc<RefCell<Pools>>,
     pub(crate) st: RefCell<Option<Box<State>>>,
 }
 
@@ -526,9 +561,11 @@ impl TrafficSimulator {
     /// *[choice]*).
     pub fn new(host: Rc<dyn TrafficSimHost>, session_seed: u32) -> Rc<TrafficSimulator> {
         let damage = Rc::new(RefCell::new(DamageState::default()));
+        let pools = Rc::new(RefCell::new(Pools::default()));
         let adapter: Rc<dyn NetworkHost> = Rc::new(NetAdapter {
             host: host.clone(),
             damage: damage.clone(),
+            pools: pools.clone(),
         });
         let net = NetworkModel::new(adapter);
         let seed = crate::rng::derive_seed(session_seed, RNG_K);
@@ -536,6 +573,7 @@ impl TrafficSimulator {
             host,
             net,
             damage,
+            pools,
             st: RefCell::new(Some(Box::new(State::new(seed)))),
         })
     }
@@ -558,6 +596,25 @@ impl TrafficSimulator {
     /// Changes the damage sets directly (hosts restoring state, tests).
     pub fn update_damage<R>(&self, f: impl FnOnce(&mut DamageState) -> R) -> R {
         f(&mut self.damage.borrow_mut())
+    }
+
+    /// The neighbour pools.
+    pub fn pools(&self) -> std::cell::Ref<'_, Pools> {
+        self.pools.borrow()
+    }
+
+    /// Changes the pools directly (hosts restoring state, tests).
+    pub fn update_pools<R>(&self, f: impl FnOnce(&mut Pools) -> R) -> R {
+        f(&mut self.pools.borrow_mut())
+    }
+
+    /// The simulator's view of the property holders: pool tokens are its
+    /// pools, any other token the host's.
+    pub fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: &*self.host,
+            pools: &self.pools,
+        }
     }
 
     /// Runs `f` with the state taken out (see the module documentation);
@@ -583,6 +640,7 @@ impl TrafficSimulator {
                 st: &mut st,
                 cx,
                 dmg: &self.damage,
+                pools: &self.pools,
             };
             f(&mut run)
         });
@@ -783,24 +841,25 @@ impl TrafficSimulator {
 
     // ---- slots 19–21: capacities (§4.2) ----
 
-    /// `SetMaxTripCapacity(holder, k, value)` (slot 19).
+    /// `SetMaxTripCapacity(holder, k, value)` (slot 19), through the
+    /// element store (§4.2, TS18). A pool token reaches the pool.
     pub fn set_max_trip_capacity(&self, holder: u64, k: u32, value: u32) {
-        adapters::set_capacity_element(&*self.host, holder, k as usize, value);
+        adapters::set_capacity_element(&self.holders(), holder, k as usize, value);
     }
 
     /// `GetMaxTripCapacity(holder, k)` (slot 20).
     pub fn max_trip_capacity(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, k as usize)
+        adapters::capacity_element(&self.holders(), holder, k as usize)
     }
 
     /// `GetTrafficArrived(holder, k)` (slot 21): arrived **last** cycle.
     pub fn traffic_arrived(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, 8 + k as usize)
+        adapters::capacity_element(&self.holders(), holder, 8 + k as usize)
     }
 
     /// The trips arrived this cycle (`0x0070DFF0`).
     pub fn traffic_arrived_this_cycle(&self, holder: u64, k: u32) -> u32 {
-        adapters::capacity_element(&*self.host, holder, 4 + k as usize)
+        adapters::capacity_element(&self.holders(), holder, 4 + k as usize)
     }
 
     // ---- slots 22–27 ----

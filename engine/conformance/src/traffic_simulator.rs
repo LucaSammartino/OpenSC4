@@ -24,9 +24,10 @@ use fc4_core::stream::{ByteReader, ByteWriter, RefResolver, RefValue, Registered
 use fc4_core::traffic_network::{NetworkHost, PathInfo};
 use fc4_core::traffic_simulator::{
     air_polluting_byte, background_value, capacity_element, cell_key16, congestion_byte, damage_target, decode_route,
-    industrial_trips, invert_congestion_curve, legacy_density, read_trip, reconcile_connection, reconcile_lot,
-    residential_commuters, residential_split, trip_length_byte, write_trip, AccidentEntry, DamageBlock, Message,
-    SimMessage, SimTuning, Source, TrafficSimHost, TrafficSimulator, TripData, CARPOOL_ORDINANCE,
+    industrial_trips, invert_congestion_curve, legacy_density, pool_of_token, pool_token, read_trip,
+    reconcile_connection, reconcile_lot, residential_commuters, residential_split, trip_length_byte, write_trip,
+    AccidentEntry, DamageBlock, HolderStore, Message, NeighbourCity, SimMessage, SimTuning, Source, TrafficSimHost,
+    TrafficSimulator, TripData, CARPOOL_ORDINANCE,
 };
 use fc4_core::variant::{mem, Elem, Variant};
 
@@ -52,12 +53,17 @@ struct Lot {
     strategy_byte: u8,
 }
 
-/// A scripted neighbour connection.
-#[derive(Clone, Debug)]
+/// A scripted neighbour connection: `conn_type` `None` answers
+/// `FindConnection` for any type (and reports type 0); `other_side` is
+/// `FindConnectionOnOtherSide`; `city` the established city's position.
+#[derive(Clone, Debug, Default)]
 struct Conn {
     cell: (i32, i32),
     holder: u64,
     dirty: bool,
+    conn_type: Option<u32>,
+    other_side: Option<u64>,
+    city: Option<(i32, i32)>,
 }
 
 /// A scripted network occupant (§3.6): the flag word (bit `1 << t` per
@@ -111,6 +117,10 @@ struct World {
     /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
     /// with the cell counts they priced.
     costs: RefCell<Vec<(bool, [u32; 13])>>,
+    /// The established neighbouring cities (traffic-network.md §2.7.4).
+    cities: RefCell<Vec<NeighbourCity>>,
+    /// The regional demand per wealth (§2.7.4 step 1).
+    demand: RefCell<[Option<f32>; 3]>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -149,6 +159,8 @@ impl World {
             saved: RefCell::new(HashMap::new()),
             occs: RefCell::new(HashMap::new()),
             costs: RefCell::new(Vec::new()),
+            cities: RefCell::new(Vec::new()),
+            demand: RefCell::new([None; 3]),
         }
     }
 
@@ -178,6 +190,24 @@ impl World {
 
     fn set_prop(&self, holder: u64, id: u32, v: Variant) {
         self.holders.borrow_mut().entry(holder).or_default().insert(id, v);
+    }
+
+    /// A property of a holder token: a pool token (`{"pool": id}`) reads
+    /// the simulator's pool, any other the stub's holder.
+    fn any_prop(&self, holder: u64, id: u32) -> R<Option<Variant>> {
+        if pool_of_token(holder).is_some() {
+            return Ok(self.sim()?.holders().get_property(holder, id));
+        }
+        Ok(self.prop(holder, id))
+    }
+
+    fn set_any_prop(&self, holder: u64, id: u32, v: Variant) -> R<()> {
+        if pool_of_token(holder).is_some() {
+            self.sim()?.holders().put_property(holder, id, v);
+        } else {
+            self.set_prop(holder, id, v);
+        }
+        Ok(())
     }
 
     fn dims(&self) -> CityDims {
@@ -477,15 +507,40 @@ impl TrafficSimHost for World {
             None => false,
         }
     }
-    fn find_connection(&self, _connection_type: u32, x: i32, z: i32) -> Option<u64> {
+    fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64> {
         self.conns
             .borrow()
             .iter()
-            .find(|(_, c)| c.cell == (x, z))
+            .find(|(_, c)| c.cell == (x, z) && c.conn_type.map_or(true, |t| t == connection_type))
             .map(|(id, _)| *id)
     }
-    fn neighbor_pool_property_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
-        None
+    fn connection_type(&self, connection: u64) -> u32 {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.conn_type)
+            .unwrap_or(0)
+    }
+    fn connection_on_other_side(&self, connection: u64) -> Option<u64> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.other_side)
+    }
+    fn established_city_position(&self, connection: u64) -> Option<(i32, i32)> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.city)
+    }
+    fn connected_cities(&self) -> Vec<NeighbourCity> {
+        self.cities.borrow().clone()
+    }
+    fn regional_demand(&self, w: u32) -> Option<f32> {
+        self.demand.borrow().get(w as usize).copied().flatten()
     }
     fn workforce_percent(&self, _x: i32, _z: i32) -> f32 {
         self.workforce.get()
@@ -592,6 +647,15 @@ fn i32_of(j: &Json, what: &str) -> R<i32> {
 
 fn u64_of(j: &Json, what: &str) -> R<u64> {
     Ok(i64_of(j, what)? as u64)
+}
+
+/// A holder token: a number, or `{"pool": id}` for the simulator's
+/// neighbour pool `id` (0 = the default pool).
+fn holder_of(j: &Json, what: &str) -> R<u64> {
+    match j.get("pool") {
+        Some(p) => Ok(pool_token(u32_of(p, "pool")? as u16)),
+        None => u64_of(j, what),
+    }
 }
 
 fn pair(j: &Json, what: &str) -> R<(i32, i32)> {
@@ -853,6 +917,29 @@ fn env(w: &World, op: &Json) -> R<()> {
     if let Some(v) = opt(op, "budget_items") {
         w.budget_items.set(i64_of(v, "budget_items")?);
     }
+    if let Some(v) = opt(op, "cities") {
+        let mut cities = Vec::new();
+        for e in arr(v, "cities")? {
+            match arr(e, "cities")? {
+                [px, pz, e0, e1, e2] => cities.push(NeighbourCity {
+                    position: (i32_of(px, "x")?, i32_of(pz, "z")?),
+                    population: [i32_of(e0, "E")?, i32_of(e1, "E")?, i32_of(e2, "E")?],
+                }),
+                _ => return Err("each cities entry is [x, z, E0, E1, E2]".into()),
+            }
+        }
+        *w.cities.borrow_mut() = cities;
+    }
+    if let Some(v) = opt(op, "regional_demand") {
+        let mut d = [None; 3];
+        for (o, e) in d.iter_mut().zip(arr(v, "regional_demand")?) {
+            *o = match e {
+                Json::Null => None,
+                v => Some(fv(v, "regional_demand")?),
+            };
+        }
+        *w.demand.borrow_mut() = d;
+    }
     Ok(())
 }
 
@@ -908,6 +995,12 @@ fn connection(w: &World, op: &Json) -> R<()> {
         cell: pair(field(op, "cell")?, "cell")?,
         holder,
         dirty: opt(op, "dirty").map_or(Ok(true), |v| bool_of(v, "dirty"))?,
+        conn_type: opt(op, "type").map(|v| u32_of(v, "type")).transpose()?,
+        other_side: opt(op, "other_side").map(|v| u64_of(v, "other_side")).transpose()?,
+        city: match op.get("city") {
+            None | Some(Json::Null) => None,
+            Some(v) => Some(pair(v, "city")?),
+        },
     };
     {
         let mut conns = w.conns.borrow_mut();
@@ -942,16 +1035,14 @@ fn set_trips(w: &World, op: &Json) -> R<()> {
 }
 
 fn set_capacity(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
-    w.set_prop(holder, 0x8A0B_4100, u16_variant(&u32s(field(op, "values")?, "values")?));
-    Ok(())
+    let holder = holder_of(field(op, "holder")?, "holder")?;
+    w.set_any_prop(holder, 0x8A0B_4100, u16_variant(&u32s(field(op, "values")?, "values")?))
 }
 
 fn set_prop(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
+    let holder = holder_of(field(op, "holder")?, "holder")?;
     let id = u32_of(field(op, "id")?, "id")?;
-    w.set_prop(holder, id, scalar::variant_of(field(op, "value")?)?);
-    Ok(())
+    w.set_any_prop(holder, id, scalar::variant_of(field(op, "value")?)?)
 }
 
 fn init(w: &Rc<World>, op: &Json) -> R<()> {
@@ -1392,13 +1483,35 @@ fn call(w: &Rc<World>, op: &Json) -> R<()> {
         "query_interface" => jb(s.query_interface(uarg(op, 0)?)),
         "simulator_type" => ji(s.simulator_type()),
         "desired_lot_insertion_point" => jb(s.desired_lot_insertion_point()),
-        "max_trip_capacity" => ji(s.max_trip_capacity(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "max_trip_capacity" => ji(s.max_trip_capacity(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
         "set_max_trip_capacity" => {
-            s.set_max_trip_capacity(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?, uarg(op, 2)?);
+            s.set_max_trip_capacity(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?, uarg(op, 2)?);
             Json::Null
         }
-        "traffic_arrived" => ji(s.traffic_arrived(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
-        "traffic_arrived_this_cycle" => ji(s.traffic_arrived_this_cycle(u64_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "traffic_arrived" => ji(s.traffic_arrived(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?)),
+        "traffic_arrived_this_cycle" => {
+            ji(s.traffic_arrived_this_cycle(holder_of(arg(op, 0)?, "holder")?, uarg(op, 1)?))
+        }
+        "neighbour_record" => {
+            // traffic-network.md §2.7: the edge record of an off-map cell.
+            let r = s.network().traffic_neighbor_connection(iarg(op, 0)?, iarg(op, 1)?);
+            obj(vec![("mask", ji(r.mask)), ("pool", ji(r.pool)), ("cost", fb(r.cost))])
+        }
+        "pool_ids" => {
+            let ids: Vec<u16> = s.pools().map.keys().copied().collect();
+            jlist(&ids)
+        }
+        "set_connection" => {
+            // traffic-network.md §4.3 `SetConnection(x, z, e, x', t)`.
+            s.network().set_connection(
+                iarg(op, 0)?,
+                iarg(op, 1)?,
+                uarg(op, 2)? as usize,
+                uarg(op, 3)? as usize,
+                uarg(op, 4)? as usize,
+            );
+            Json::Null
+        }
         "destination_byte" => ji(s.destination_byte(iarg(op, 0)?, iarg(op, 1)?)),
         "rng_uniform" => {
             let (n, count) = (uarg(op, 0)?, uarg(op, 1)?);
@@ -2016,9 +2129,9 @@ fn expect_world(w: &World, op: &Json) -> R<()> {
 /// `holder`, `id`, `expect` (null = absent; else the element values as a
 /// list, a scalar as a one-element list).
 fn expect_prop(w: &World, op: &Json) -> R<()> {
-    let holder = u64_of(field(op, "holder")?, "holder")?;
+    let holder = holder_of(field(op, "holder")?, "holder")?;
     let id = u32_of(field(op, "id")?, "id")?;
-    let got = match w.prop(holder, id) {
+    let got = match w.any_prop(holder, id)? {
         None => Json::Null,
         Some(v) => Json::Array(
             v.items()
@@ -2037,6 +2150,22 @@ fn expect_prop(w: &World, op: &Json) -> R<()> {
             show(&got),
             show(want)
         ));
+    }
+    // `elem`: the element type, "u16" or "u32" (§4.2, TS18).
+    if let Some(e) = opt(op, "elem") {
+        let want = str_of(e, "elem")?;
+        let got = w.any_prop(holder, id)?.and_then(|v| {
+            v.items().first().map(|e| match e {
+                Elem::U16(_) => "u16",
+                Elem::U32(_) => "u32",
+                _ => "other",
+            })
+        });
+        if got != Some(want) {
+            return Err(format!(
+                "property 0x{id:08X} of {holder}: elements {got:?}, expected {want}"
+            ));
+        }
     }
     Ok(())
 }

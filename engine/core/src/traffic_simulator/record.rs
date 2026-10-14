@@ -15,6 +15,8 @@
 //! *[choice]*; the original writes as it reads and leaves a partly loaded
 //! simulator with null refs (§6.1 "A failed Read", TS30).
 
+use std::collections::BTreeMap;
+
 use crate::grid::{CellRect, GridProvider, ScanIterator, ScanState};
 use crate::property::PropertyHolder;
 use crate::stl::StlHashMap;
@@ -25,6 +27,7 @@ use crate::traffic_network::{
 };
 
 use super::cycle::Run;
+use super::pools::Pools;
 use super::state::{DamageBlock, DamageState, StatRow, State, StatsSet, SwitchStat, SWITCH_STATS};
 use super::{ref_iid, GridF32, GridU8, TrafficSimHost, TrafficSimulator, TripData, MIN_RECORD_VERSION, RECORD_VERSION};
 
@@ -207,7 +210,14 @@ fn put_terminal(out: &mut dyn OutStream, t: &FerryTerminal) {
 }
 
 /// `Write` (`0x00712400`): version 41.
-fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &NetworkState, d: &DamageState) {
+fn write_record(
+    out: &mut dyn OutStream,
+    h: &dyn TrafficSimHost,
+    s: &State,
+    n: &NetworkState,
+    d: &DamageState,
+    pools: &Pools,
+) {
     let obj = |t: u64| if t == 0 { RefValue::Null } else { h.object_ref(t) };
     out.put_u16(RECORD_VERSION);
     for v in [DIM_A, DIM_B, DIM_C, DIM_D] {
@@ -363,9 +373,10 @@ fn write_record(out: &mut dyn OutStream, h: &dyn TrafficSimHost, s: &State, n: &
     for k in 0..4 {
         out.put_u32(s.free(k));
     }
-    out.put_u32(e.holder_map.len() as u32);
-    for (key, holder) in &e.holder_map {
-        out.put_u16(*key);
+    // The neighbour pools, by ascending ID (traffic-network.md §2.7.3).
+    out.put_u32(pools.map.len() as u32);
+    for (id, holder) in &pools.map {
+        out.put_u16(*id);
         holder.write(out);
     }
     for i in 0..9 {
@@ -405,6 +416,8 @@ struct Parse<'a> {
     s: State,
     n: NetPart,
     dmg: DamageState,
+    /// The neighbour pools of row 19.
+    pools: BTreeMap<u16, PropertyHolder>,
 }
 
 /// A float edge-density value of a v < 20 record: round half to even,
@@ -918,17 +931,18 @@ impl Parse<'_> {
         for (k, f) in free.iter().enumerate() {
             self.s.set_free(k, *f);
         }
+        // The neighbour pools; a repeated ID keeps the last *[choice]*.
         let n = inp.get_u32()?;
-        let mut map = Vec::new();
+        let mut map = BTreeMap::new();
         for _ in 0..n {
             let key = inp.get_u16()?;
             let mut holder = PropertyHolder::new();
             if !holder.read(inp) {
                 return None;
             }
-            map.push((key, holder));
+            map.insert(key, holder);
         }
-        self.s.extras.holder_map = map;
+        self.pools = map;
         if v >= 27 {
             for i in 0..self.d {
                 let a = inp.get_u32()?;
@@ -983,6 +997,7 @@ impl Run<'_, '_> {
                 intersection_rect: CellRect::new(0, 0, 0, 0),
             },
             dmg: DamageState::default(),
+            pools: BTreeMap::new(),
         };
         if p.record(inp).is_none() || inp.error() != 0 {
             // Release what the parse resolved.
@@ -1030,6 +1045,8 @@ impl Run<'_, '_> {
             }
         }
         *self.dmg.borrow_mut() = p.dmg;
+        // The pools are replaced; the default pool is Init's.
+        self.pools.borrow_mut().map = p.pools;
         for b in old_buildings {
             self.cx.h.release(b);
         }
@@ -1045,7 +1062,8 @@ impl TrafficSimulator {
     pub fn write(&self, out: &mut dyn OutStream) -> bool {
         self.run(|r| {
             let d = r.dmg.borrow().clone();
-            write_record(out, r.h, r.st, r.cx.s, &d);
+            let pools = r.pools.borrow().clone();
+            write_record(out, r.h, r.st, r.cx.s, &d, &pools);
             true
         }) && out.error() == 0
     }

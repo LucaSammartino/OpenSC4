@@ -45,8 +45,10 @@ pub fn damage_target(curve: &crate::curve::ResponseCurve, f: f32, d: f32, cell_c
 impl Run<'_, '_> {
     // ---- §4.12 StartRecalc and FinalCalculations ----
 
-    /// StartRecalc (state 0, `0x00717C90`). `RecalculateNeighborConnection
-    /// Capacities` is not specified by traffic-network.md *[question]*.
+    /// StartRecalc (state 0, `0x00717C90`, §4.3, §4.12), ending with the
+    /// neighbour pool capacities and the edge destinations
+    /// (`RecalculateNeighborConnectionCapacities`, traffic-network.md §2.7.4,
+    /// TS12).
     pub(crate) fn start_recalc(&mut self) {
         let st = &mut *self.st;
         st.cycle_start_date = self.h.sim_date_number();
@@ -60,6 +62,7 @@ impl Run<'_, '_> {
         st.car_len_count = 0;
         st.freight_len_sum = 0.0;
         st.freight_count = 0;
+        self.recalculate_neighbor_capacities();
     }
 
     /// FinalCalculations (state 8, `0x0070E7D0`).

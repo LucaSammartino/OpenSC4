@@ -8,11 +8,12 @@
 //! and the destination capacities (§4.2).
 
 use crate::grid::CellRect;
+use crate::traffic_network::ANY_TRAVEL_TYPE;
 use crate::traffic_network::{cell_key, wormhole, NetworkState, TrafficEdgeDensity, DX, DZ, NET_OF_TRAVEL};
 use crate::variant::{mem, Elem, Variant};
 use crate::x87::{r24, rhe};
 
-use super::adapters::{capacity_element, set_capacity_element};
+use super::adapters::{capacity_element, neighbor_pool_holder, set_capacity_element};
 use super::cycle::Run;
 use super::{prop, TripData, CARPOOL_ORDINANCE};
 
@@ -176,28 +177,29 @@ pub mod mode {
 
 impl Run<'_, '_> {
     /// The destination holder (§4.2): the lot at the cell (in city) or the
-    /// neighbour pool of the off-map cell (`GetNeighborPoolPropertyHolder(−1,
-    /// x, z)`); with the lot when there is one.
-    pub(crate) fn destination_holder(&self, x: i32, z: i32) -> (Option<u64>, Option<u64>) {
+    /// neighbour pool of the off-map cell (`GetNeighborPoolPropertyHolder(t,
+    /// x, z)`, `t` = −1 for CapacityStillAvailable); with the lot when there
+    /// is one.
+    pub(crate) fn destination_holder(&mut self, x: i32, z: i32, t: u32) -> (Option<u64>, Option<u64>) {
         if self.cx.s.in_city(x, z) {
             let lot = self.h.lot_at(x, z, false);
             let holder = lot.map(|l| self.h.lot_holder(l)).filter(|&h| h != 0);
             (holder, lot)
         } else {
-            (self.h.neighbor_pool_property_holder(u32::MAX, x, z), None)
+            (neighbor_pool_holder(self.cx.s, self.pools, t, x, z), None)
         }
     }
 
     /// `CapacityStillAvailable(trip)` (`0x007136B0`, §4.2): `max(k) −
     /// arrivedThisCycle(k) ≥ count` (unsigned), `k` = the trip type; with no
     /// holder `0 ≥ count`.
-    pub(crate) fn capacity_still_available(&self, trip: &TripData) -> bool {
-        let (holder, _) = self.destination_holder(i32::from(trip.dest_x), i32::from(trip.dest_z));
+    pub(crate) fn capacity_still_available(&mut self, trip: &TripData) -> bool {
+        let (holder, _) = self.destination_holder(i32::from(trip.dest_x), i32::from(trip.dest_z), ANY_TRAVEL_TYPE);
         match holder {
             Some(holder) => {
                 let k = usize::from(trip.trip_type);
-                let max = capacity_element(self.h, holder, k);
-                let arrived = capacity_element(self.h, holder, 4 + k);
+                let max = capacity_element(&self.holders(), holder, k);
+                let arrived = capacity_element(&self.holders(), holder, 4 + k);
                 max.wrapping_sub(arrived) >= trip.count
             }
             None => trip.count == 0,
@@ -205,21 +207,36 @@ impl Run<'_, '_> {
     }
 
     /// `ApplyTrafficToDestination(count, x, z, lastTravelType, type)`
-    /// (`0x00714740`, §4.2). No holder: nothing *[choice]*. A neighbour pool
-    /// also gets `count` added to element `lastTravelType` of its u32[9]
-    /// property `0xAA9EA81A + type`. When the arrivals reach the maximum, the
-    /// destination bit is cleared over the lot's rect (for a pool, at the
-    /// cell *[choice]*) and `freeDest[type]` is decremented (wrapping, on
+    /// (`0x00714740`, §4.2, TS18). An off-map cell asks the pool for
+    /// `lastTravelType`. No holder: nothing *[choice]* (an off-map cell then
+    /// has no connection for that travel type either). Off the map, the
+    /// connection that `FindNeighborConnection(lastTravelType, x, z)` finds
+    /// gets, on its **own** holder, `count` added to element
+    /// `lastTravelType` of the u32[9] `0xAA9EA81A + type` (type < 3 only)
+    /// and the pool's new arrived total in element `4 + type` of its
+    /// `0x8A0B4100`. When the arrivals reach the maximum (read before the
+    /// store), the destination bit is cleared over the lot's rect (off the
+    /// map, at the cell) and `freeDest[type]` is decremented (wrapping, on
     /// every such call *[quirk]*).
     pub(crate) fn apply_traffic_to_destination(&mut self, count: u32, x: i32, z: i32, last_t: u8, trip_type: u8) {
-        let (holder, lot) = self.destination_holder(x, z);
+        let (holder, lot) = self.destination_holder(x, z, u32::from(last_t));
         let Some(holder) = holder else { return };
         let k = usize::from(trip_type);
-        if lot.is_none() {
+        let conn = if lot.is_none() && !self.cx.s.in_city(x, z) {
+            let h = self.h;
+            self.cx
+                .s
+                .find_neighbor_connection(u32::from(last_t), x, z, |c| h.find_connection(c, x, z))
+                .map(|c| h.connection_holder(c))
+                .filter(|&c| c != 0)
+        } else {
+            None
+        };
+        if let (Some(ch), true) = (conn, trip_type < 3) {
             let id = prop::POOL_ARRIVALS.wrapping_add(u32::from(trip_type));
             let mut v: Vec<u32> = self
                 .h
-                .holder_property(holder, id)
+                .holder_property(ch, id)
                 .map(|v| v.items().iter().map(|e| e.as_i64() as u32).collect())
                 .unwrap_or_default();
             if v.len() < 9 {
@@ -229,14 +246,18 @@ impl Run<'_, '_> {
                 *e = e.wrapping_add(count);
             }
             self.h.set_holder_property(
-                holder,
+                ch,
                 id,
                 Variant::array(mem::UINT32, v.into_iter().map(Elem::U32).collect()),
             );
         }
-        let arrived = capacity_element(self.h, holder, 4 + k).wrapping_add(count);
-        set_capacity_element(self.h, holder, 4 + k, arrived);
-        let max = capacity_element(self.h, holder, k);
+        let holders = self.holders();
+        let max = capacity_element(&holders, holder, k);
+        let arrived = capacity_element(&holders, holder, 4 + k).wrapping_add(count);
+        set_capacity_element(&holders, holder, 4 + k, arrived);
+        if let Some(ch) = conn {
+            set_capacity_element(&holders, ch, 4 + k, arrived);
+        }
         if arrived >= max {
             let bit = 1u8.checked_shl(u32::from(trip_type)).unwrap_or(0);
             let rect = match lot {

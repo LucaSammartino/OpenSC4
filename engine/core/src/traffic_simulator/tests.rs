@@ -19,7 +19,7 @@ use crate::grid::{CityDims, CoreGrids, GridProvider, TractGrid};
 use crate::property::PropertyHolder;
 use crate::rng::{FixedSeeds, RzRandomSuper};
 use crate::stream::{ByteReader, ByteWriter, RefResolver, RegisteredObject, SaveRegistry};
-use crate::traffic_network::{net_type, NetworkHost, PathInfo};
+use crate::traffic_network::{net_type, side, travel, NetworkHost, PathInfo};
 use crate::variant::{mem, Elem, Variant};
 
 // ---------------------------------------------------------------------------
@@ -58,12 +58,17 @@ impl Lot {
     }
 }
 
-/// A scripted neighbour connection.
-#[derive(Clone, Debug)]
+/// A scripted neighbour connection: `conn_type` `None` answers
+/// `FindConnection` for any type (and reports type 0); `other_side` is
+/// `FindConnectionOnOtherSide`; `city` the established city's position.
+#[derive(Clone, Debug, Default)]
 struct Conn {
     cell: (i32, i32),
     holder: u64,
     dirty: bool,
+    conn_type: Option<u32>,
+    other_side: Option<u64>,
+    city: Option<(i32, i32)>,
 }
 
 /// A scripted network occupant (§3.6): the flag word (bit `1 << t` per
@@ -111,6 +116,10 @@ struct World {
     /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
     /// with the cell counts they priced.
     costs: RefCell<Vec<(bool, [u32; 13])>>,
+    /// The established neighbouring cities (traffic-network.md §2.7.4).
+    cities: RefCell<Vec<NeighbourCity>>,
+    /// The regional demand per wealth (§2.7.4 step 1).
+    demand: RefCell<[Option<f32>; 3]>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -458,15 +467,40 @@ impl TrafficSimHost for World {
             None => false,
         }
     }
-    fn find_connection(&self, _connection_type: u32, x: i32, z: i32) -> Option<u64> {
+    fn find_connection(&self, connection_type: u32, x: i32, z: i32) -> Option<u64> {
         self.conns
             .borrow()
             .iter()
-            .find(|(_, c)| c.cell == (x, z))
+            .find(|(_, c)| c.cell == (x, z) && c.conn_type.map_or(true, |t| t == connection_type))
             .map(|(id, _)| *id)
     }
-    fn neighbor_pool_property_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
-        None
+    fn connection_type(&self, connection: u64) -> u32 {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.conn_type)
+            .unwrap_or(0)
+    }
+    fn connection_on_other_side(&self, connection: u64) -> Option<u64> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.other_side)
+    }
+    fn established_city_position(&self, connection: u64) -> Option<(i32, i32)> {
+        self.conns
+            .borrow()
+            .iter()
+            .find(|(id, _)| *id == connection)
+            .and_then(|(_, c)| c.city)
+    }
+    fn connected_cities(&self) -> Vec<NeighbourCity> {
+        self.cities.borrow().clone()
+    }
+    fn regional_demand(&self, w: u32) -> Option<f32> {
+        self.demand.borrow().get(w as usize).copied().flatten()
     }
     fn workforce_percent(&self, _x: i32, _z: i32) -> f32 {
         self.workforce.get()
@@ -998,6 +1032,7 @@ fn t14_neighbour_reconcile() {
             cell: (-1, 3),
             holder: 70,
             dirty: true,
+            ..Conn::default()
         },
     ));
     w.set_prop(
@@ -1738,4 +1773,414 @@ fn statistics_slots() {
         priced[priced.len() - 2..],
         [(false, records.map(u32::from)), (true, records.map(u32::from))]
     );
+}
+
+// ---------------------------------------------------------------------------
+// The neighbour pools (traffic-network.md §2.7.2–§2.7.5; TS2, TS6, TS12, TS18)
+// ---------------------------------------------------------------------------
+
+fn u16s(v: &[u32]) -> Variant {
+    Variant::array(mem::UINT16, v.iter().map(|&e| Elem::U16(e as u16)).collect())
+}
+
+fn u32s(v: &[u32]) -> Variant {
+    Variant::array(mem::UINT32, v.iter().map(|&e| Elem::U32(e)).collect())
+}
+
+fn neighbour_message(s: &TrafficSimulator, added: bool, conn_type: u32, x: i32, z: i32) {
+    s.do_message(&Message {
+        msg_type: if added {
+            msg::NEIGHBOUR_ADDED
+        } else {
+            msg::NEIGHBOUR_REMOVED
+        },
+        data1: conn_type,
+        data2: x as u32,
+        data3: z as u32,
+        ..Message::default()
+    });
+}
+
+/// §4.2 (TS18): the element store creates, keeps u16 below `0xFFFF`,
+/// promotes the whole array at `0xFFFF` and never goes back; a mistyped
+/// property counts as missing *[choice]*.
+#[test]
+fn ts18_element_store() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(4, 4, 5, 5), 12));
+    w.set_prop(
+        12,
+        prop::TRIP_CAPACITY,
+        u16s(&[100, 0, 0, 0, 65530, 0, 0, 0, 7, 0, 0, 0]),
+    );
+    let s = sim(&w);
+    // The spec's example: 65530 + 10 = 65540 promotes all twelve values.
+    s.apply_traffic_to_destination(10, 4, 4, travel::CAR as u8, 0);
+    assert_eq!(
+        w.prop(12, prop::TRIP_CAPACITY),
+        Some(u32s(&[100, 0, 0, 0, 65540, 0, 0, 0, 7, 0, 0, 0]))
+    );
+    // A small value keeps the u32 array.
+    s.set_max_trip_capacity(12, 1, 5);
+    assert_eq!(
+        w.prop(12, prop::TRIP_CAPACITY),
+        Some(u32s(&[100, 5, 0, 0, 65540, 0, 0, 0, 7, 0, 0, 0]))
+    );
+    // Missing: created as 12 u16 zeros.
+    s.set_max_trip_capacity(13, 2, 9);
+    assert_eq!(
+        w.prop(13, prop::TRIP_CAPACITY),
+        Some(u16s(&[0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    );
+    // 0xFFFF itself promotes.
+    s.set_max_trip_capacity(14, 0, 0xFFFF);
+    assert_eq!(
+        w.prop(14, prop::TRIP_CAPACITY),
+        Some(u32s(&[0xFFFF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    );
+    // A short array reads 0 and is replaced on a write.
+    w.set_prop(15, prop::TRIP_CAPACITY, u16s(&[1, 2, 3, 4, 5]));
+    assert_eq!(s.max_trip_capacity(15, 0), 0);
+    s.set_max_trip_capacity(15, 1, 3);
+    assert_eq!(
+        w.prop(15, prop::TRIP_CAPACITY),
+        Some(u16s(&[0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    );
+}
+
+/// State 5 (§4.11, TS18): the roll goes through the element store, so a lot
+/// without the property gets one.
+#[test]
+fn ts18_clear_trip_destinations_creates_the_property() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(2, 2, 2, 2), 12));
+    w.add_lot(2, Lot::new(CellRect::new(4, 4, 4, 4), 13));
+    w.set_prop(13, prop::TRIP_CAPACITY, u16s(&[4, 0, 0, 0, 3, 2, 1, 0, 9, 9, 9, 9]));
+    let s = sim(&w);
+    s.enter_cycle_state(cycle_state::CLEAR_DESTINATIONS);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(w.prop(12, prop::TRIP_CAPACITY), Some(u16s(&[0; 12])));
+    assert_eq!(
+        w.prop(13, prop::TRIP_CAPACITY),
+        Some(u16s(&[4, 0, 0, 0, 0, 0, 0, 0, 3, 2, 1, 0]))
+    );
+}
+
+/// traffic-network.md §2.7.2 (TS6): Add sets the mask, grows the cost and
+/// finds or creates the city's pool; Remove clears the type, and the last
+/// type also the pool (swept), the destination bits and `freeDest`.
+#[test]
+fn ts6_add_and_remove_neighbour_connections() {
+    let w = World::new();
+    let road = 2u32;
+    let rail = 1u32;
+    let push = |id: u64, c: Conn| w.conns.borrow_mut().push((id, c));
+    // A's road at (−1, 5); its other side stored a trip length of 120.
+    push(
+        77,
+        Conn {
+            cell: (-1, 5),
+            holder: 70,
+            conn_type: Some(road),
+            other_side: Some(88),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    );
+    push(
+        88,
+        Conn {
+            cell: (99, 99),
+            holder: 80,
+            conn_type: Some(road),
+            ..Conn::default()
+        },
+    );
+    w.set_prop(80, prop::CONNECTION_TRIP_LENGTH, Variant::Scalar(Elem::F32(120.0)));
+    // A's rail at the same cell, no other side.
+    push(
+        78,
+        Conn {
+            cell: (-1, 5),
+            holder: 71,
+            conn_type: Some(rail),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    );
+    // A's road at (3, −1), and B's road at (8, 2); C at (3, 8) is not
+    // established.
+    push(
+        79,
+        Conn {
+            cell: (3, -1),
+            holder: 72,
+            conn_type: Some(road),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    );
+    push(
+        90,
+        Conn {
+            cell: (8, 2),
+            holder: 73,
+            conn_type: Some(road),
+            city: Some((11, 20)),
+            ..Conn::default()
+        },
+    );
+    push(
+        91,
+        Conn {
+            cell: (3, 8),
+            holder: 74,
+            conn_type: Some(road),
+            ..Conn::default()
+        },
+    );
+    let s = sim(&w);
+    let rec = |x: i32, z: i32| {
+        let r = s.network().traffic_neighbor_connection(x, z);
+        (r.mask, r.pool, r.cost)
+    };
+    let cmt = s.read_state(|st| st.tuning.commute_max_time);
+    assert!(cmt < 120.0);
+    neighbour_message(&s, true, road, -1, 5);
+    assert_eq!(rec(-1, 5), (1 << road, 1, 120.0));
+    // The cost only grows: the rail Add offers commuteMaxTime.
+    neighbour_message(&s, true, rail, -1, 5);
+    assert_eq!(rec(-1, 5), (1 << road | 1 << rail, 1, 120.0));
+    neighbour_message(&s, true, road, 3, -1);
+    neighbour_message(&s, true, road, 8, 2);
+    neighbour_message(&s, true, road, 3, 8);
+    assert_eq!(rec(3, -1), (1 << road, 1, cmt));
+    assert_eq!(rec(8, 2), (1 << road, 2, cmt));
+    assert_eq!(rec(3, 8), (1 << road, 0, cmt));
+    // No connection of that type: nothing.
+    neighbour_message(&s, true, 9, 3, 8);
+    assert_eq!(rec(3, 8), (1 << road, 0, cmt));
+    let ids = |s: &TrafficSimulator| s.pools().map.keys().copied().collect::<Vec<u16>>();
+    assert_eq!(ids(&s), vec![1, 2]);
+    // The pools carry only the position.
+    let pos = |id: u16, p: u32| {
+        s.pools().map[&id]
+            .get(p)
+            .and_then(|v| v.items().first().map(|e| e.as_i64()))
+    };
+    assert_eq!((pos(2, POOL_CITY_X), pos(2, POOL_CITY_Z)), (Some(11), Some(20)));
+
+    // Remove: B's last type. The pool is swept, the destination bits go
+    // and `freeDest` drops once per set bit.
+    s.update_state(|st| {
+        st.set_dest_byte(8, 2, 0b1011);
+        for k in 0..4 {
+            st.set_free(k, 5);
+        }
+    });
+    neighbour_message(&s, false, road, 8, 2);
+    assert_eq!(rec(8, 2), (0, 0, cmt));
+    assert_eq!(ids(&s), vec![1]);
+    assert_eq!(s.destination_byte(8, 2), 0);
+    assert_eq!(s.free_destinations(), [4, 4, 5, 4]);
+    // Removing one of two types keeps the record's pool.
+    neighbour_message(&s, false, road, -1, 5);
+    assert_eq!(rec(-1, 5), (1 << rail, 1, 120.0));
+    // B again: the smallest unused ID ≥ 1 is 2.
+    neighbour_message(&s, true, road, 8, 2);
+    assert_eq!(rec(8, 2), (1 << road, 2, cmt));
+    assert_eq!(ids(&s), vec![1, 2]);
+}
+
+/// traffic-network.md §2.7.4 (TS12): the spec's example. StartRecalc shares
+/// the regional jobs out by population and sets the edge cells'
+/// destination bits.
+#[test]
+fn ts12_neighbour_capacities_example() {
+    let w = World::new();
+    let road = 2u32;
+    w.conns.borrow_mut().extend([
+        (
+            77,
+            Conn {
+                cell: (-1, 5),
+                holder: 70,
+                conn_type: Some(road),
+                city: Some((10, 20)),
+                ..Conn::default()
+            },
+        ),
+        (
+            78,
+            Conn {
+                cell: (8, 2),
+                holder: 71,
+                conn_type: Some(road),
+                city: Some((11, 20)),
+                ..Conn::default()
+            },
+        ),
+    ]);
+    *w.cities.borrow_mut() = vec![
+        NeighbourCity {
+            position: (10, 20),
+            population: [300, 1, 0],
+        },
+        NeighbourCity {
+            position: (11, 20),
+            population: [100, 2, 0],
+        },
+    ];
+    *w.demand.borrow_mut() = [Some(800.0), Some(10.0), Some(0.0)];
+    let s = sim(&w);
+    // A road exit west at (0, 5): HasMapExit(−1, 5). B's cell has none.
+    s.network().set_connection(0, 5, side::EAST, side::WEST, travel::CAR);
+    neighbour_message(&s, true, road, -1, 5);
+    neighbour_message(&s, true, road, 8, 2);
+    // Arrivals this cycle are reset.
+    s.set_max_trip_capacity(pool_token(1), 4, 33);
+    s.set_max_trip_capacity(pool_token(0), 7, 44);
+    s.enter_cycle_state(cycle_state::START_RECALC);
+    assert!(s.work_on_sim_cycle());
+    let caps = |id: u16| capacity_values(&s.holders(), pool_token(id)).unwrap();
+    assert_eq!(caps(1), vec![600, 3, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(caps(2), vec![200, 6, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_eq!(caps(0), vec![0, 0, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // The edge pass: bits 0, 1 and 3 at (−1, 5); (8, 2) has no map exit.
+    assert_eq!(s.destination_byte(-1, 5), 0b1011);
+    assert_eq!(s.destination_byte(8, 2), 0);
+    assert_eq!(s.free_destinations(), [1, 1, 0, 1]);
+    // A missing demand node is 0 *[choice]*.
+    w.demand.borrow_mut()[0] = None;
+    s.enter_cycle_state(cycle_state::START_RECALC);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(caps(1)[..4], [0, 3, 0, u32::MAX]);
+    // The count goes up again even with the bit set *[quirk]*.
+    assert_eq!(s.free_destinations(), [1, 2, 0, 2]);
+}
+
+/// traffic-network.md §2.7.5 (TS2): state 11 rolls each connection's own
+/// holder.
+#[test]
+fn ts2_neighbour_roll() {
+    let w = World::new();
+    w.conns.borrow_mut().extend([
+        (
+            77,
+            Conn {
+                cell: (-1, 5),
+                holder: 70,
+                ..Conn::default()
+            },
+        ),
+        (
+            78,
+            Conn {
+                cell: (8, 2),
+                holder: 71,
+                ..Conn::default()
+            },
+        ),
+    ]);
+    w.set_prop(70, prop::POOL_ARRIVALS + 1, u32s(&[0, 5, 0, 0, 0, 0, 0, 0, 0]));
+    w.set_prop(70, prop::TRIP_CAPACITY, u16s(&[7, 7, 7, 7, 1, 2, 3, 4, 9, 9, 9, 9]));
+    let s = sim(&w);
+    s.enter_cycle_state(cycle_state::UPDATE_NEIGHBOURS);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(w.prop(70, prop::NEIGHBOUR_TARGETS), None);
+    assert_eq!(
+        w.prop(70, prop::NEIGHBOUR_TARGETS + 1),
+        Some(u32s(&[0, 5, 0, 0, 0, 0, 0, 0, 0]))
+    );
+    for h in [70, 71] {
+        for i in 0..3 {
+            assert_eq!(w.prop(h, prop::POOL_ARRIVALS + i), Some(u32s(&[0; 9])));
+        }
+    }
+    assert_eq!(
+        w.prop(70, prop::TRIP_CAPACITY),
+        Some(u16s(&[7, 7, 7, 7, 0, 0, 0, 0, 1, 2, 3, 4]))
+    );
+    assert_eq!(w.prop(71, prop::TRIP_CAPACITY), Some(u16s(&[0; 12])));
+}
+
+/// §4.2: off the map, the pool counts the arrivals; the connection's own
+/// holder gets the per-travel-type array and the pool's new total.
+#[test]
+fn ts_apply_traffic_to_neighbour_destination() {
+    let w = World::new();
+    let road = 2u32;
+    w.conns.borrow_mut().push((
+        77,
+        Conn {
+            cell: (-1, 5),
+            holder: 70,
+            conn_type: Some(road),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    ));
+    let s = sim(&w);
+    neighbour_message(&s, true, road, -1, 5);
+    let pool = pool_token(1);
+    s.set_max_trip_capacity(pool, 0, 50);
+    s.update_state(|st| {
+        st.set_dest_byte(-1, 5, 0b0001);
+        st.set_free(0, 3);
+    });
+    let car = travel::CAR as u8;
+    s.apply_traffic_to_destination(30, -1, 5, car, 0);
+    assert_eq!(s.traffic_arrived_this_cycle(pool, 0), 30);
+    assert_eq!(
+        w.prop(70, prop::POOL_ARRIVALS),
+        Some(u32s(&[0, 30, 0, 0, 0, 0, 0, 0, 0]))
+    );
+    assert_eq!(capacity(&w, 70, 4), 30);
+    assert_eq!(s.destination_byte(-1, 5), 0b0001);
+    // 55 ≥ 50: the bit goes and `freeDest[0]` drops.
+    s.apply_traffic_to_destination(25, -1, 5, car, 0);
+    assert_eq!(s.traffic_arrived_this_cycle(pool, 0), 55);
+    assert_eq!(
+        w.prop(70, prop::POOL_ARRIVALS),
+        Some(u32s(&[0, 55, 0, 0, 0, 0, 0, 0, 0]))
+    );
+    assert_eq!(s.destination_byte(-1, 5), 0);
+    assert_eq!(s.free_destinations()[0], 2);
+    // Freight (type 3) has no arrivals array; the connection still gets the
+    // pool's total.
+    s.apply_traffic_to_destination(4, -1, 5, travel::FREIGHT_TRUCK as u8, 3);
+    assert_eq!(s.traffic_arrived_this_cycle(pool, 3), 4);
+    assert_eq!(capacity(&w, 70, 7), 4);
+    assert_eq!(w.prop(70, prop::POOL_ARRIVALS + 1), None);
+    assert_eq!(w.prop(70, prop::POOL_ARRIVALS + 2), None);
+    // A travel type no connection type at the cell carries: no holder.
+    s.apply_traffic_to_destination(5, -1, 5, travel::PASSENGER_TRAIN as u8, 1);
+    assert_eq!(s.traffic_arrived_this_cycle(pool, 1), 0);
+    assert_eq!(capacity(&w, 70, 5), 0);
+}
+
+/// §6.1 row 19: the pools are saved by ID with their properties.
+#[test]
+fn pools_round_trip() {
+    let w = World::new();
+    let s = sim(&w);
+    s.update_pools(|p| {
+        let a = p.create(10, 20).unwrap();
+        let b = p.create(-3, 7).unwrap();
+        assert_eq!((a, b), (1, 2));
+    });
+    s.set_max_trip_capacity(pool_token(2), 0, 70_000);
+    s.set_max_trip_capacity(pool_token(1), 5, 3);
+    let (bytes, entries) = record(&s);
+    let w2 = World::new();
+    let s2 = sim(&w2);
+    s2.update_pools(|p| {
+        p.create(1, 1);
+    });
+    let mut res = Resolver(entries, w2.clone());
+    assert!(s2.read(&mut ByteReader::with_resolver(&bytes, &mut res)));
+    assert_eq!(s2.pools().map, s.pools().map);
+    assert_eq!(s2.max_trip_capacity(pool_token(2), 0), 70_000);
+    // The default pool is not saved: Init made it.
+    assert_eq!(s2.max_trip_capacity(pool_token(0), 3), u32::MAX);
 }

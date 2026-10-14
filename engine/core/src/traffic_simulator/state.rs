@@ -12,7 +12,6 @@ use std::collections::BTreeMap;
 
 use crate::grid::ScanIterator;
 use crate::pathfinder::{Pathfinder, SharedWorkCheck};
-use crate::property::PropertyHolder;
 use crate::rng::{CrtRand, FixedSeeds, RzRandomSuper};
 use crate::stl::{StlHashSet, STL_DEFAULT_HINT};
 
@@ -225,8 +224,6 @@ pub struct SaveExtras {
     pub pacing_i32: i32,
     /// The two u32 after `dayIndex`.
     pub pacing_u32: [u32; 2],
-    /// The property-holder map (u16 key → plain property holder).
-    pub holder_map: Vec<(u16, PropertyHolder)>,
 }
 
 impl Default for SaveExtras {
@@ -249,7 +246,6 @@ impl Default for SaveExtras {
             context_flags: [0; 2],
             pacing_i32: 0,
             pacing_u32: [0; 2],
-            holder_map: Vec::new(),
         }
     }
 }

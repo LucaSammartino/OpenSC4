@@ -284,6 +284,15 @@ pub trait PathfinderHost {
     fn used_trip_capacity(&self, holder: u64, k: u32) -> u32;
     /// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`).
     fn neighbor_pool_holder(&self, t: u32, x: i32, z: i32) -> Option<u64>;
+    /// The same question with the network state at hand, which is what the
+    /// search asks: a host that keeps the pools resolves the record's pool
+    /// ID here (and resets a stale one, traffic-network.md §2.7.1). The
+    /// default ignores the state and asks
+    /// [`PathfinderHost::neighbor_pool_holder`].
+    fn neighbor_pool_holder_in(&self, net: &mut NetworkState, t: u32, x: i32, z: i32) -> Option<u64> {
+        let _ = net;
+        self.neighbor_pool_holder(t, x, z)
+    }
 
     // ---- income (§4.17) ----
     /// The simulator's double income accumulator.

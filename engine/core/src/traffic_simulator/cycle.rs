@@ -16,7 +16,8 @@ use crate::traffic_network::{inverse_max_speed, Cx, NetworkState};
 use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
-use super::adapters::{capacity_element, PfAdapter};
+use super::adapters::{capacity_element, set_capacity_element, Holders, PfAdapter};
+use super::pools::{pool_token, Pools};
 use super::state::{DamageBlock, DamageState, StatRow, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
 use super::{
     cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, Source, TrafficSimHost, TrafficSimulator,
@@ -49,9 +50,18 @@ pub(crate) struct Run<'r, 'c> {
     pub(crate) st: &'r mut State,
     pub(crate) cx: &'r mut Cx<'c>,
     pub(crate) dmg: &'r RefCell<DamageState>,
+    pub(crate) pools: &'r RefCell<Pools>,
 }
 
 impl Run<'_, '_> {
+    /// The property holders as the simulator sees them (pools included).
+    pub(crate) fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: self.h,
+            pools: self.pools,
+        }
+    }
+
     // ---- pathfinders ----
 
     /// `CreatePathFinder` (slot 6): a pathfinder initialised against the
@@ -60,6 +70,7 @@ impl Run<'_, '_> {
         let host = PfAdapter {
             h: self.h,
             st: &*self.st,
+            pools: self.pools,
         };
         Pathfinder::create(&host, self.st.shared.clone())
     }
@@ -69,6 +80,7 @@ impl Run<'_, '_> {
         let host = PfAdapter {
             h: self.h,
             st: &*self.st,
+            pools: self.pools,
         };
         pf.find_path(&mut PathCx {
             net: &mut *self.cx.s,
@@ -242,9 +254,10 @@ impl Run<'_, '_> {
                 self.clear_trip_destinations();
                 true
             }
-            // UpdateNeighborConnections (`0x00714BE0`): traffic-network.md
-            // does not specify it *[question]*; nothing to do.
-            cs::UPDATE_NEIGHBOURS => true,
+            cs::UPDATE_NEIGHBOURS => {
+                self.update_neighbor_connections();
+                true
+            }
             cs::REDUCE_SWITCHES => {
                 self.reduce_transit_switches();
                 true
@@ -657,6 +670,11 @@ impl TrafficSimulator {
             s.roads = roads;
             s.mass_transit = transit;
         });
+        // Step 7 (here, before the pathfinders): the default pool,
+        // `SetMaxTripCapacity(default, 3, 0xFFFFFFFF)` (traffic-network.md
+        // §2.7.3).
+        *self.pools.borrow_mut() = Pools::default();
+        set_capacity_element(&self.holders(), pool_token(0), 3, u32::MAX);
         // Step 6: the two pathfinders.
         self.run(|r| {
             let pf = r.create_path_finder();
@@ -771,9 +789,14 @@ impl TrafficSimulator {
                     self.update_transit_multiplier();
                 }
             }
-            // Adding / removing a neighbour connection: neither spec says
-            // what the network part does *[question]*.
-            msg::NEIGHBOUR_ADDED | msg::NEIGHBOUR_REMOVED => {}
+            // traffic-network.md §2.7.2 (TS6): data1 type, data2 x, data3 z.
+            // Neither touches the network-changed byte.
+            msg::NEIGHBOUR_ADDED => {
+                self.run(|r| r.add_neighbor_connection(m.data1, m.data2 as i32, m.data3 as i32));
+            }
+            msg::NEIGHBOUR_REMOVED => {
+                self.run(|r| r.remove_neighbor_connection(m.data1, m.data2 as i32, m.data3 as i32));
+            }
             msg::TUNING_RELOAD => {
                 if m.data1 == msg::TUNING_GROUP && m.data2 == msg::TUNING_INSTANCE {
                     self.read_tunable_values();

@@ -12,7 +12,7 @@ use crate::curve::ResponseCurve;
 use crate::traffic_network::{NetworkState, NET_OF_TRAVEL};
 use crate::x87::{r24, rhe};
 
-use super::adapters::{capacity_element, update_capacity};
+use super::adapters::{capacity_element, set_capacity_element};
 use super::cycle::Run;
 use super::state::{AccidentEntry, StatRow, BRIDGE_SLOT};
 use super::tuning::SimTuning;
@@ -313,17 +313,18 @@ impl Run<'_, '_> {
         self.h.post_message(SimMessage::of_type(msg::TRAFFIC_MAP_CHANGED));
     }
 
-    /// ClearTripDestinations (state 5, §4.11).
+    /// ClearTripDestinations (state 5, §4.11): each lot once, at its origin
+    /// cell; the roll goes through the element store (TS18), so a lot
+    /// without the property gets one.
     pub(crate) fn clear_trip_destinations(&mut self) {
         while let Some((x, z)) = self.st.scan.next_cell() {
             let Some(lot) = self.h.lot_at(x, z, true) else { continue };
             let holder = self.h.lot_holder(lot);
-            update_capacity(self.h, holder, |v| {
-                for k in 0..4 {
-                    v[8 + k] = v[4 + k];
-                    v[4 + k] = 0;
-                }
-            });
+            for k in 0..4 {
+                let v = capacity_element(self.h, holder, 4 + k);
+                set_capacity_element(self.h, holder, 8 + k, v);
+                set_capacity_element(self.h, holder, 4 + k, 0);
+            }
             for k in 0..3 {
                 let c = capacity_element(self.h, holder, k);
                 self.st.job_capacity[k] = self.st.job_capacity[k].wrapping_add(c);

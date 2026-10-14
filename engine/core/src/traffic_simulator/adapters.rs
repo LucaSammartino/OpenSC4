@@ -15,90 +15,134 @@ use std::rc::Rc;
 use crate::grid::{CellRect, GridProvider, TractGrid};
 use crate::pathfinder::{PathfinderHost, TravelTables};
 use crate::stream::RefValue;
-use crate::traffic_network::{NetworkHost, PathInfo};
+use crate::traffic_network::{NetworkHost, NetworkState, PathInfo};
 use crate::variant::{mem, Elem, Variant};
 
+use super::pools::{pool_of_token, pool_token, Pools};
 use super::state::{DamageState, State};
 use super::{prop, TrafficSimHost};
 
 /// The number of elements of the trip capacity property (§4.2).
 pub const CAPACITY_LEN: usize = 12;
 
+/// Where a holder's properties live: the host's holders, or the
+/// simulator's neighbour pools through [`Holders`].
+pub trait HolderStore {
+    fn get_property(&self, holder: u64, id: u32) -> Option<Variant>;
+    fn put_property(&self, holder: u64, id: u32, value: Variant);
+}
+
+impl<T: NetworkHost + ?Sized> HolderStore for T {
+    fn get_property(&self, holder: u64, id: u32) -> Option<Variant> {
+        self.holder_property(holder, id)
+    }
+    fn put_property(&self, holder: u64, id: u32, value: Variant) {
+        self.set_holder_property(holder, id, value)
+    }
+}
+
+/// The simulator's view of the holders: a pool token
+/// ([`super::pools::pool_token`]) is one of the simulator's pools, every
+/// other token the host's. A token of a pool that no longer exists has no
+/// properties and ignores writes.
+pub struct Holders<'a> {
+    pub h: &'a dyn TrafficSimHost,
+    pub pools: &'a RefCell<Pools>,
+}
+
+impl HolderStore for Holders<'_> {
+    fn get_property(&self, holder: u64, id: u32) -> Option<Variant> {
+        match pool_of_token(holder) {
+            Some(p) => self.pools.borrow().holder(p).and_then(|h| h.get(id).cloned()),
+            None => self.h.holder_property(holder, id),
+        }
+    }
+    fn put_property(&self, holder: u64, id: u32, value: Variant) {
+        match pool_of_token(holder) {
+            Some(p) => {
+                if let Some(h) = self.pools.borrow_mut().holder_mut(p) {
+                    h.add(id, value);
+                }
+            }
+            None => self.h.set_holder_property(holder, id, value),
+        }
+    }
+}
+
+/// The capacity property as (u32 elements, the 12 values) when it is a
+/// 12-element u16 (`0x8004`) or u32 array. The original checks only the
+/// variant type and reads any other type as u32 data with no count check;
+/// *[choice]* anything else counts as missing (§4.2, TS18).
+fn capacity_array(v: &Variant) -> Option<(bool, [u32; CAPACITY_LEN])> {
+    match v {
+        Variant::Array { elem, items }
+            if items.len() == CAPACITY_LEN && (*elem == mem::UINT16 || *elem == mem::UINT32) =>
+        {
+            let mut out = [0u32; CAPACITY_LEN];
+            for (o, e) in out.iter_mut().zip(items) {
+                *o = e.as_i64() as u32;
+            }
+            Some((*elem == mem::UINT32, out))
+        }
+        _ => None,
+    }
+}
+
 /// The elements of property `0x8A0B4100` of a holder as u32, `None` when the
-/// property is missing (or the holder is null).
-pub fn capacity_values<H: NetworkHost + ?Sized>(h: &H, holder: u64) -> Option<Vec<u32>> {
+/// property is missing (or not a 12-element u16 / u32 array, or the holder
+/// is null).
+pub fn capacity_values<H: HolderStore + ?Sized>(h: &H, holder: u64) -> Option<Vec<u32>> {
     if holder == 0 {
         return None;
     }
-    h.holder_property(holder, prop::TRIP_CAPACITY)
-        .map(|v| v.items().iter().map(|e| e.as_i64() as u32).collect())
+    h.get_property(holder, prop::TRIP_CAPACITY)
+        .as_ref()
+        .and_then(capacity_array)
+        .map(|(_, v)| v.to_vec())
 }
 
 /// Element `i` of the capacity property, 0 when missing (§4.2:
 /// `GetMaxTripCapacity` is element `k`, arrived this cycle `4 + k`, arrived
 /// last cycle `8 + k`).
-pub fn capacity_element<H: NetworkHost + ?Sized>(h: &H, holder: u64, i: usize) -> u32 {
+pub fn capacity_element<H: HolderStore + ?Sized>(h: &H, holder: u64, i: usize) -> u32 {
     capacity_values(h, holder).and_then(|v| v.get(i).copied()).unwrap_or(0)
 }
 
-/// Writes the capacity property from its elements: padded to 12 elements;
-/// u16 elements until a value reaches `0xFFFF`, then (and from then on) u32
-/// (§4.2) *[choice: the exact promotion rule is not stated]*.
-fn store_capacity<H: NetworkHost + ?Sized>(h: &H, holder: u64, mut vals: Vec<u32>, was_wide: bool) {
-    if vals.len() < CAPACITY_LEN {
-        vals.resize(CAPACITY_LEN, 0);
+/// The element store `SetTripCapacity` (`0x0070DE70`, §4.2, TS18), the path
+/// of every write: a missing property is created as 12 u16 zeros; a u16
+/// array takes `value` as u16 while it is below `0xFFFF`, and is promoted
+/// to a u32 array (the 12 values zero-extended) by a value `≥ 0xFFFF`; a u32
+/// array never goes back. A null holder, or an index past the 12 elements,
+/// changes nothing *[choice]*.
+pub fn set_capacity_element<H: HolderStore + ?Sized>(h: &H, holder: u64, i: usize, value: u32) {
+    if holder == 0 || i >= CAPACITY_LEN {
+        return;
     }
-    let wide = was_wide || vals.iter().any(|&v| v >= 0xFFFF);
+    let (mut wide, mut vals) = h
+        .get_property(holder, prop::TRIP_CAPACITY)
+        .as_ref()
+        .and_then(capacity_array)
+        .unwrap_or((false, [0; CAPACITY_LEN]));
+    if value >= 0xFFFF {
+        wide = true;
+    }
+    vals[i] = value;
     let var = if wide {
         Variant::array(mem::UINT32, vals.into_iter().map(Elem::U32).collect())
     } else {
         Variant::array(mem::UINT16, vals.into_iter().map(|v| Elem::U16(v as u16)).collect())
     };
-    h.set_holder_property(holder, prop::TRIP_CAPACITY, var);
+    h.put_property(holder, prop::TRIP_CAPACITY, var);
 }
 
-fn is_wide(v: &Variant) -> bool {
-    matches!(
-        v.items().first(),
-        Some(Elem::U32(_) | Elem::I32(_) | Elem::U64(_) | Elem::I64(_))
-    )
-}
-
-/// `SetMaxTripCapacity`-style write of element `i` (§4.2: creates the
-/// property if missing). An index beyond the property is ignored.
-pub fn set_capacity_element<H: NetworkHost + ?Sized>(h: &H, holder: u64, i: usize, value: u32) {
-    if holder == 0 {
-        return;
-    }
-    let existing = h.holder_property(holder, prop::TRIP_CAPACITY);
-    let wide = existing.as_ref().is_some_and(is_wide);
-    let mut vals: Vec<u32> = existing
-        .map(|v| v.items().iter().map(|e| e.as_i64() as u32).collect())
-        .unwrap_or_default();
-    if vals.len() < CAPACITY_LEN {
-        vals.resize(CAPACITY_LEN, 0);
-    }
-    let Some(slot) = vals.get_mut(i) else { return };
-    *slot = value;
-    store_capacity(h, holder, vals, wide);
-}
-
-/// Rewrites an existing capacity property through `f` (no-op when it is
-/// missing).
-pub fn update_capacity<H: NetworkHost + ?Sized>(h: &H, holder: u64, f: impl FnOnce(&mut Vec<u32>)) {
-    if holder == 0 {
-        return;
-    }
-    let Some(existing) = h.holder_property(holder, prop::TRIP_CAPACITY) else {
-        return;
-    };
-    let wide = is_wide(&existing);
-    let mut vals: Vec<u32> = existing.items().iter().map(|e| e.as_i64() as u32).collect();
-    if vals.len() < CAPACITY_LEN {
-        vals.resize(CAPACITY_LEN, 0);
-    }
-    f(&mut vals);
-    store_capacity(h, holder, vals, wide);
+/// `GetNeighborPoolPropertyHolder(t, x, z)` (`0x007114E0`,
+/// traffic-network.md §2.7.1) over the record at the off-map cell: null
+/// when the record has none of the wanted connection types and no ferry;
+/// else the pool's token, the default pool's for pool 0 or for a stale ID
+/// (which the record forgets, *[compat]*).
+pub fn neighbor_pool_holder(s: &mut NetworkState, pools: &RefCell<Pools>, t: u32, x: i32, z: i32) -> Option<u64> {
+    let p = pools.borrow();
+    s.neighbor_pool_id(t, x, z, |id| p.exists(id)).map(pool_token)
 }
 
 /// The network model's host: everything forwards to the simulator's host,
@@ -107,6 +151,16 @@ pub fn update_capacity<H: NetworkHost + ?Sized>(h: &H, holder: u64, f: impl FnOn
 pub struct NetAdapter {
     pub host: Rc<dyn TrafficSimHost>,
     pub damage: Rc<RefCell<DamageState>>,
+    pub pools: Rc<RefCell<Pools>>,
+}
+
+impl NetAdapter {
+    fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: &*self.host,
+            pools: &self.pools,
+        }
+    }
 }
 
 impl GridProvider<u32> for NetAdapter {
@@ -215,13 +269,18 @@ impl NetworkHost for NetAdapter {
     fn remove_holder_property(&self, holder: u64, id: u32) -> bool {
         self.host.remove_holder_property(holder, id)
     }
-    /// `GetMaxTripCapacity(holder, k)` (slot 20, §4.2).
+    /// `GetMaxTripCapacity(holder, k)` (slot 20, §4.2), pools included.
     fn max_trip_capacity(&self, holder: u64, k: u32) -> u32 {
-        capacity_element(&*self.host, holder, k as usize)
+        capacity_element(&self.holders(), holder, k as usize)
     }
-    /// `GetNeighborPoolPropertyHolder(1, x, z)` (traffic-network.md §4.12).
-    fn neighbor_pool_holder(&self, x: i32, z: i32) -> Option<u64> {
-        self.host.neighbor_pool_property_holder(1, x, z)
+    /// Not asked: the model asks [`NetworkHost::neighbor_pool_holder_in`].
+    fn neighbor_pool_holder(&self, _x: i32, _z: i32) -> Option<u64> {
+        None
+    }
+    /// `GetNeighborPoolPropertyHolder(1, x, z)` (traffic-network.md §4.12)
+    /// over the simulator's pools.
+    fn neighbor_pool_holder_in(&self, s: &mut NetworkState, x: i32, z: i32) -> Option<u64> {
+        neighbor_pool_holder(s, &self.pools, 1, x, z)
     }
     /// `IsRoadDamaged` (slot 16): the damaged road set.
     fn is_road_damaged(&self, x: i32, z: i32) -> bool {
@@ -265,6 +324,16 @@ impl NetworkHost for NetAdapter {
 pub struct PfAdapter<'a> {
     pub h: &'a dyn TrafficSimHost,
     pub st: &'a State,
+    pub pools: &'a RefCell<Pools>,
+}
+
+impl PfAdapter<'_> {
+    fn holders(&self) -> Holders<'_> {
+        Holders {
+            h: self.h,
+            pools: self.pools,
+        }
+    }
 }
 
 impl PathfinderHost for PfAdapter<'_> {
@@ -322,13 +391,17 @@ impl PathfinderHost for PfAdapter<'_> {
         self.st.set_free(k as usize, n);
     }
     fn max_trip_capacity(&self, holder: u64, k: u32) -> u32 {
-        capacity_element(self.h, holder, k as usize)
+        capacity_element(&self.holders(), holder, k as usize)
     }
     fn used_trip_capacity(&self, holder: u64, k: u32) -> u32 {
-        capacity_element(self.h, holder, 4 + k as usize)
+        capacity_element(&self.holders(), holder, 4 + k as usize)
     }
-    fn neighbor_pool_holder(&self, t: u32, x: i32, z: i32) -> Option<u64> {
-        self.h.neighbor_pool_property_holder(t, x, z)
+    /// Not asked: the search asks [`PathfinderHost::neighbor_pool_holder_in`].
+    fn neighbor_pool_holder(&self, _t: u32, _x: i32, _z: i32) -> Option<u64> {
+        None
+    }
+    fn neighbor_pool_holder_in(&self, net: &mut NetworkState, t: u32, x: i32, z: i32) -> Option<u64> {
+        neighbor_pool_holder(net, self.pools, t, x, z)
     }
     fn income_accumulator(&self) -> f64 {
         self.st.income_acc.get()
