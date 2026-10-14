@@ -989,6 +989,12 @@ The bracket (ready = 1, uiDisabled = 0) is wrong in two windows:
 *[choice]* The shadow holds the original object, so it should read these bytes at the offsets above rather than
 assume them.
 
+**NG8. The volume-dirty flag.** The flag (a byte at connection `+0x40`) is set by the connection's constructor and
+by nothing else: not by `Read`, `Repair` or the simulator. `UpdateTrafficVolume` clears it as its first action when
+it is set (`0x006D4C2B`), before it looks for the other side. So each connection object syncs once: a new connection
+after creation, a loaded one after the load (the load constructs it). If the other side has no matching connection
+at that moment, the trip list is cleared (NG19) and that object never syncs again. The bracket matches.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

@@ -2578,7 +2578,10 @@ answer is in brackets.
   `+0x0C`, initialized `+0x0D`, dealsDirty `+0x3C`, statsDirty `+0x3D`, uiDisabled `+0x3E`, busy `+0x3F`. The bracket
   is wrong before ConnectionsReady (ready 0) and while the budget window's neighbour tab is open (uiDisabled 1). Read
   the bytes.
-- **NG8:** The volume-dirty flag. [true once after creation]
+- ~~**NG8:** The volume-dirty flag. [true once after creation]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4C10`, flag at connection `+0x40`) and written into neighbors §15.4. Set
+  only by the constructor; cleared at the start of the first `UpdateTrafficVolume`, even when no other side is found.
+  The bracket matches.
 - **NG9:** `SetType` and similar setters on foreign connections. [ignored]
 - **NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]
 - **NG11:** Slots 32/33 (64-bit values). [the low 32 bits]
