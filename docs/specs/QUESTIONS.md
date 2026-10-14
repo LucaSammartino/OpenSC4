@@ -1070,7 +1070,12 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   §4.5. **No, two of three.** The tract list and the boost use the lot centre, else `GetPosition`. "Served" takes
   the building's own tract from the occupant's `GetPosition` only, with no lot lookup, so the two tracts can
   differ (worked example in §4.5).
-- **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
+- ~~**EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]~~
+  **ANSWERED 2026-10-14** from the exe (slot 28 `0x006FD510`, slot 58 `0x006FD680`, slot 45 `0x006FD260`) and
+  written into REH §4.10 and §4.11. **The bracket differs (school first in both).** Slot 28: school if the building
+  has the school capacity `0x8922041B`, else hospital (unchecked). Slot 58: school if the school query succeeds,
+  else hospital if the hospital query succeeds, else AL = 0. Also slot 45's "hospital wins" covers only the radius,
+  kind and ordinance list; its school flag stays set. No shipped building has both capacities, so only mods see it.
 - **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
   radius 0]
 - **EH9:** does the ideal funding test the served property itself for `0xFFFFFFFF`? [yes, the property]

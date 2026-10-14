@@ -618,8 +618,10 @@ if EstimateIdealFunding(occ, &a):                                        (slot 5
 Only the staff percentage changes; the vehicle percentage is written back unchanged. The auto-budget step runs
 **before** the building is graded, so it uses last cycle's served population.
 
-**EstimateIdealFunding(occ, &f)**:
+**EstimateIdealFunding(occ, &f)** (slot 58, `0x006FD680`):
 
+- **Service** *[compat]*: school if `GetSchoolQueryData` (slot 26) succeeds; otherwise hospital if
+  `GetHospitalQueryData` (slot 27) succeeds; otherwise AL = 0. The school is tried first.
 - Fails (AL = 0) if the building's query data fails (§4.11) or served = `0xFFFFFFFF` (not graded yet).
 - r := float(served) / float(trunc(float(capacity) × m2)) (u32 operands). A zero divisor gives inf or NaN.
 - effCurve is the service's "Funding To Efficiency" curve and L its max allowed funding.
@@ -672,7 +674,10 @@ SC4Percentage:
 - Return the **number of buildings counted** in EAX.
 - *[quirk]* `groups` must not be null. Null is dereferenced and crashes; an empty vector counts nothing.
 
-**EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28):
+**EstimateCurrentOccupantCapacity(occ, &cap, &staff)** (28, `0x006FD510`):
+
+- **Service** *[compat]*: school if the building has the school capacity `0x8922041B`, otherwise hospital (with
+  no test that the hospital capacity exists; a missing one reads as 0, so cap = staff = 0).
 
 - e1 from the efficiency ratings with **ignoreStrike = true**.
 - cap := trunc((float(capacity) × e1) × m2).
@@ -681,7 +686,11 @@ SC4Percentage:
 **GetOccupantCoverage(occ, const SC4Percentage& level, float& dist, float& radius)** (45):
 
 - Kind: school if the building has `0x8922041B`; hospital if it has `0x69220415` (hospital wins if both).
-  Neither → AL = 0.
+  Neither → AL = 0 and no output is written.
+- *[quirk]* "Hospital wins" covers only the radius property, the kind property and the ordinance list. The
+  school/hospital flag passed to the efficiency ratings and to the building-curve read is set by the school test
+  and not cleared by the hospital test (`0x006FD2A2`, `0x006FD2D8`). So a building with both capacities uses the
+  school curves and funding with the hospital radius. No shipped building has both (§4.1).
 - radius := (e2 × m1) × coverage radius.
 - dist := the distance at which the building's distance curve (c3) falls to level × 100:
   - walk the points from the second one on, keeping the last point P_prev with y > level × 100;
@@ -692,6 +701,10 @@ SC4Percentage:
   - *[quirk]* The x_prev term has no 0.01 factor.
   - With the default flat curve (0,100)(100,100): level < 1 gives dist = 0, and level = 1 gives NaN.
 - AL = 1 when found.
+
+**Which service the three methods pick** (summary): slot 45 tests school then hospital (hospital properties win,
+flag above); slot 28 tests only the school capacity (school first); slot 58 tries the school query, then the
+hospital query (school first). They differ only for a building with both capacities.
 
 ### 4.12 History
 
