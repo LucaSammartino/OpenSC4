@@ -2611,7 +2611,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`0x006D4A53`–`0x006D4B15`; prop manager slots 15 and 19) and written into
   neighbors §15.4. `CreateProp`, position and orientation, the bool properties, `AddCityProp`, then `Release`. The
   bracket matches; a failed `CreateProp` just skips the marker.
-- **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]
+- ~~**NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006CEF62` `GetPosition`, `0x006CEF7E` `PositionToCell`) and written into
+  neighbors §6.5 and §15.4. The original converts the occupant's position to a cell for networks and poles alike. The
+  bracket agrees whenever the occupant lies in its own cell; recommend the original's rule.
 - **NG18:** A deal holder not reachable by QueryInterface. [left open]
 - **NG19:** No city on the other side of a connection. [targets 0]
 - **NG20:** The `GetSourceCells` rectangle. [(x, z, x, z)]

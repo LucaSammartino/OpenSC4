@@ -370,7 +370,8 @@ data3 = z of the connection cell).
 - Occupant type `0x2890D4DE` (power pole *[inferred]*) → PowerPole.
 - Otherwise nothing.
 
-Then find the occupant's cell `(cx, cz)`. If `cx == 0` delete the connection `(type, −1, cz)`; else if
+Then find the occupant's cell `(cx, cz)` from its position: `GetPosition` (occupant slot 8), then the city's
+`PositionToCell` (slot 95), for networks and poles alike (NG17, §15.4). If `cx == 0` delete the connection `(type, −1, cz)`; else if
 `cx == countX − 1` delete `(type, countX, cz)`. Independently, if `cz == 0` delete `(type, cx, −1)`; else if
 `cz == countZ − 1` delete `(type, cx, countZ)`.
 
@@ -1054,6 +1055,15 @@ which is none: the map has entries only for cells covered by a city. The bracket
 4. Release its own reference to the prop.
 
 The bracket (`CreateProp` + `AddCityProp`, then our reference released) matches.
+
+**NG17. The occupant's cell in `DeleteOccupantConnection`.** The original asks neither the network nor the pole for
+a cell. For both kinds it takes the occupant's position (`cISC4Occupant::GetPosition`, slot 8, `0x006CEF62`) and
+converts it with the city's `PositionToCell(x, z, &cx, &cz)` (slot 95, `0x006CEF7E`): 16 m cells from the city's
+(0, 0) corner, rounded down. §6.5 then uses `(cx, cz)`.
+
+The bracket (the network's `GetOccupiedCell`, else the pole's `GetCell`) gives the same cell for any occupant whose
+position lies inside its own cell, which is the normal case. *[choice]* Use the original's rule; it costs nothing and
+removes the doubt for odd occupants.
 
 ## 16. Original quirks (reproduced)
 
