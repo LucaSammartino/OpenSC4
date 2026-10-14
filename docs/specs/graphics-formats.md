@@ -165,7 +165,10 @@ Notes:
 - A code with bit 7 set (a "compressed bitmap" code `0xE0`–`0xFF`) is outside `0x60`–`0x7F` and rejected.
 - For `0x7B` the palette check reads the palette info filled by §2.5. When no palette was found the info is not
   written, and the check reads whatever the caller's stack held *[quirk]*. FreeCity4 rejects `0x7B` without a
-  256 × 1 palette *[choice]*.
+  256 × 1 palette *[choice]*. Only frame 0's palette is checked: the format is decided once, from frame 0 (§2.10),
+  and later frames need no palette, which is never applied anyway (FS4). FreeCity4 checks frame 0 the same way and
+  decodes a later frame with no usable palette as grey, (i, i, i, 255) for index i, which is the original's
+  luminance upload read unsigned *[choice]*.
 
 ### 2.7 What the factory accepts (`SerialRead` `0x00800860`) *[compat]*
 

@@ -2882,8 +2882,13 @@ variant (GF3). The current answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`SerialRead` `0x008008D0`–`0x008008DB`: the count from the header, 0 →
   fail) and written into graphics-formats §2.7. A zero count fails the load before any entry is read, in both the full
   and the info-only open. The bracket (rejected) matches.
-- **FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
-  all 256 entries inside the record]
+- ~~**FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
+  all 256 entries inside the record]~~
+  **ANSWERED 2026-10-14** from the exe (`SerialRead` reads the palette info and calls `GetTypeAndFormat` for frame 0
+  only, `0x008008DE`–`0x0080090D`; the frame loop compares headers only) and written into graphics-formats §2.6. Only
+  frame 0 is checked, and the palette is never applied. The bracket (every frame needs one) is stricter than the
+  original. Check frame 0 only, and decode a later frame with no usable palette as the grey the original uploads
+  *[choice]*.
 - **FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
   `Fsh::format()` is frame 0's]
 - **FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
