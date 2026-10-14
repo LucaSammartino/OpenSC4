@@ -1476,6 +1476,19 @@ Header used below: `45 51 5A 42 31 23 23 23` (`EQZB1###`), parent `00`×12, then
 | text parent key order group, instance, type | same (§4.3) | confirmed |
 | text: 2 bytes after the signature | skipped unchecked (§4.3) | match |
 | LTEXT `u16` count + `u16` marker, 8-bit form must have exact length | 24-bit count, §2.3 quirks, trailing bytes ignored (§6.1) | relax length; 24-bit count |
+| getters on Empty and object values return None (QUESTIONS EX1, EX5) | Empty reads as 0, 0.0 or false and succeeds; the string getter writes the text and returns false; an object gives its address (§5.1) | follow for Empty; object as missing *[choice]* |
+| Uint64 to float unsigned (EX2) | unsigned, but only 24 significant bits on the main thread, even for Float64 (§5.1) | round to 24 bits |
+| float to integer saturates, NaN gives 0 (EX3) | truncated to int64, low bits kept (wraps); NaN and ±∞ give `0x8000000000000000` (§5.1) | follow |
+| RZChar zero-extended (EX4) | Char and RZChar sign-extended (§5.1) | follow |
+| void array as text: first byte as `%u` (EX6) | empty text, so 0 (§5.1) | follow |
+| floats as text with `%.24g` (EX8) | fixed-point `_fcvt` digits, at most 24 after the leading zeros, cut; no exponent (§5.1) | follow |
+| round-trip parse (EX9) | as bracketed, plus: char targets always get 0; Bool from floating-point text is value ≠ 0 (§5.1) | follow |
+| text ParentCohort: exactly 3 fields, leading spaces trimmed (EX10) | fields not counted, a missing one reads 0; nothing trimmed inside the braces (§4.3) | follow |
+| text reps trimmed (EX11) | not trimmed; rule N (§4.3) | follow |
+| more text reps than the record length fails (EX12) | no cap; missing values read 0; a huge reps crashes (§4.3) | fill with 0; *[choice]* fail above 16 MiB |
+| Float32 text parsed as f64, then rounded to f32 (EX14) | the game's digit-by-digit parser at 24-bit precision; 10ⁿ wraps in 32 bits (§4.3) | follow |
+| kind-1 key resolvable when in a package index (EX15) | needs a factory for the type and a successful read (§4.6) | follow |
+| holder slot 5 not implemented (EX17) | raw copy from a void array; false for every other type (§5.2) | implement (always false on shipped data) |
 
 ---
 
