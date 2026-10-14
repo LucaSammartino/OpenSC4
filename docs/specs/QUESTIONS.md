@@ -503,6 +503,9 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
     destructor, or with a layout-identical struct, as the original does.
   - **Testing.** The path runs only when a station starts or ends a strike, or on a jailbreak start, so a quiet
     test city may never reach it.
+  - **The glue is safe.** The coordinator checked the glue: its `SC4String` has exactly this layout (begin, end,
+    capacity, refcount; 0x14 bytes; always a heap buffer). So there is no crash risk. The layout goes into
+    `docs/abi/layouts.md`.
 - ~~**PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
   only police slot 65. [57]~~ **ANSWERED 2026-10-14** from the exe (slot 57 body `0x006DC690`; city new-city path
   `0x0045ADF7`; city `Read` `0x0045CEDB`; cache fill `0x00601E8A` → `0x00B43D78`) and written into protection.md §1.
