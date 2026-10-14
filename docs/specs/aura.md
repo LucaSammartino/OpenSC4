@@ -104,7 +104,7 @@ The landmark map does **not** feed the aura; only the developers read it.
 | previousTaxRate[12] (f32) | −1.0 each | no | baseline tax rates for §6.5.2 |
 | longDecay, shortDecay (f32) | 0.6, 0.4 | no | tuning (§10) |
 | baseAura[3] (s32: R$, R$$, R$$$) | 0 | no | tuning (§10) |
-| effectiveBaseAura[3] (s32) | — | no | base + tax-change effect (§6.5.2) |
+| effectiveBaseAura[3] (s32) | — | no | base + tax-change effect (§6.5.2); kept in the process-wide table of §10, not in the object |
 | hotspotThreshold, hotspotRadius, hotspotMinWeight (s32) | 0, 0, 0 (tuning sets 196, 8, 16 or the shipped values) | no | §10 |
 | transient magnitude[4], radius[4] (f32) | 0 | no | per transient effect type (§8.1) |
 | curves: park, air, water, garbage, radiation, school, hospital, crime, trip length, congestion, tax change, value/wealth, riot | none | no | §10 |
@@ -158,9 +158,12 @@ Callbacks (each returns true):
   `BustStrike(type)` (§8.4).
 
 The shipped base scripts only declare empty placeholders `sc4game.aura.add_transient_effect(x, z, radius,
-magnitude)` and `sc4game.aura.end_strike(department)` and define constants `END_STRIKE_ALL = 0`, `POLICE = 1`,
-`FIRE = 2`, `HEALTH = 3`, `EDUCATION = 4`; no call was found in the extracted base scripts *[inferred: Rush Hour
-scripts not searched]*. *[choice]* Publish the node when the registry is available; failure is not an error.
+magnitude)` and `sc4game.aura.end_strike(department)` (`SimCity_1.dat`, Lua `0xCA63E2A3 / 0x4A5E8EF6 /
+0xFFBF9CCF`) and define constants `END_STRIKE_ALL = 0`, `POLICE = 1`, `FIRE = 2`, `HEALTH = 3`, `EDUCATION = 4`
+(`0xFFA9DAF4`). No shipped file calls either command and none uses the constants: every decompressed entry of
+`SimCity_1.dat` to `SimCity_5.dat` and `EP1.dat` was searched. So the node matters only to mods. *[choice]* Publish
+the node when the registry is available; failure is not an error. A stub (no node) behaves the same with the
+shipped data.
 
 `Shutdown` removes the node (`RemoveChildEntry(cIGZUnknown*)`, slot 7); its children go with it.
 
@@ -207,7 +210,7 @@ agent (level 6) sets state 1, so state 1 runs on the next `DoIdle` (usually the 
 
 Data read from other simulators in the same cycle (residential population and education/health grids, crime,
 pollution, traffic, land value) is whatever they hold at the moment of the step; no ordering with their monthly
-work is guaranteed (foundations §13).
+work is guaranteed (foundations §13). §5.3 lists which state reads what.
 
 ### 5.2 Subscribed messages
 
@@ -217,6 +220,74 @@ work is guaranteed (foundations §13).
 | occupant inserted `0x99EF1142` / removed `0x99EF1143` | `occupant := void1`. If its property holder **has** property `0x029244DB` (presence test; the preview-occupant marker, foundations §5.2) → ignore. Otherwise `OccupantChanged(occupant, add = (type == 0x99EF1142))` (§7). |
 | ordinance updated `0xC2C09554` | `globalEffect := ordinance.GetCumulativeOffset(0xAA5B8407, 0)` (ordinance §6.1; int32). |
 | `0xC53D10AA` | if `data1 == 0xE7E2C2DB` and `data2 == 0xAA023079` (the tuning exemplar's group and instance) → re-read the tuning (§10). |
+
+### 5.3 What each state reads, and when *[compat]*
+
+Each `DoIdle` call runs **one** step (§5.1). So each input is read at the moment its state runs, not at the end of
+the cycle. The inputs, by state:
+
+| State | Reads | Owner of the data |
+|---|---|---|
+| 1 | `GetSimDateNumber()` | simulator |
+| 2 | Parks funding (`GetDepartmentBudget(0x8A4260A6)`, `GetFundingPercentage`); the raw park grid | budget; own grid, changed by §7 |
+| 3 | the department map; one department's landmark grid and its funding per call | own grids (§7); budget |
+| 4 | `GetLotCount()`; the 12 `GetTaxRate(t)` (only when the tax curve exists) | lot manager; budget |
+| 5 | per lot: `GetBuilding`, `GetPopulations`, `GetBoundingRect`, `GetOccupantWealth`, and `GetLandValueType` at the lot centre | lots (growth, lot developer); land value simulator |
+| 6 | the park map (state 2's result) | own |
+| 7 | the four pollution grids | pollution simulator |
+| 8 / 9 | the school / hospital grade map; for rule R, `GetLot(x, z, false)` and `GetZoneType` per cell | residential simulator; lots |
+| 10 | the crime grid | crime simulator |
+| 11 / 12 | the trip-length / congestion map; rule R as in 8 | traffic simulator; lots |
+| 13 | the building-effect grid | own, changed by §7 |
+| 14 | `GetCumulativeOffset(0xAA5B8407, 0)` | ordinance simulator |
+| 15 | the base and transient grids; the three population grids (`GetPopulationGrids`) | own; residential simulator |
+| 16 | the random generator; the riot manager | own; disaster layer |
+| 17 | the transient grid | own |
+
+**When.** State 1 runs at the first idle pass after the month agent (§5.1), normally on the 1st of the month. Every
+later step is one `SimIdle` delivery (one per idle pass) or one `SimNewDay` delivery. Between two aura steps, every
+other idle agent gets its own call in the same pass: growth developers, building development, commercial, crime,
+land value, residential, the prop developer, power, plumbing, neighbours and demand (the order logged in run
+r7c3f). When a day boundary falls inside the cycle, that day's day agents also run between two steps. These include
+the traffic simulator, which rewrites the trip length of each source it finishes (traffic-simulator.md §4.6) and the
+congestion map in its state 4, and pollution's day pass. So the grids read by the later states can be newer than
+those read by the earlier ones.
+
+**Occupant changes arrive late.** The occupant inserted and removed messages are **posted** (queued, flora.md §9).
+The cones of §7 therefore reach the raw park grid, the department landmark grids and the building-effect grid only
+at a later message-server tick (foundations §5). A cycle that runs in the same frame as the insertion uses the
+grids from before it in states 2, 3 and 13. The park and landmark maps then catch up one cycle later.
+
+**The end message arrives late too.** `0x2A09B21A` is posted at state 17 (§11.1). It reaches its subscribers at a
+later message-server tick, after any occupant messages posted before it. At that moment the inputs can differ from
+what the states read. In run r7c3f the cycle that starts on the 1st was delivered on day 1 to day 5 of the month.
+
+**Arithmetic.** State 5's lot value (`0x0068CE00`), the rule A and rule R callbacks (`0x0068BBB0`, `0x0068BDA0`,
+`0x0068BE10`, `0x0068BE70`, `0x0068BEE0`), state 14 (`0x0068F6FE`–`0x0068F94E`) and state 15 (`0x0068DA80`) were
+checked against the instructions. They have no rounding step beyond §6:
+- the lot value is an integer division then an integer clamp, then `trunc(curve)` added and clamped again;
+- each rule A stage is one `_ftol` of `work + curve(source)`, summed at 24-bit precision;
+- the base is an integer division, `+ globalEffect`, the decay step of §6.14 and one clamp.
+
+A comparison taken at the end message, rather than when each state runs, therefore shows timing differences, not
+rounding differences. §14.3 gives a way to read the inputs at the original's own moments.
+
+**Worked examples** (the first in-game aura shadow, run r7c3f, Spandau, 32 × 32 tracts).
+- *Park and landmark maps, cycles 2 and 3.* A landfill tile occupant (group `0x07BDDF1C`) carries both a park and a
+  landmark effect of {−100, 32}. Its cone has radius 32 / 4 = 8 tracts and covers exactly **193** tracts (simgrid
+  §7.1). Two tiles in one tract give 193 tracts with a centre of −200. Two tiles in neighbouring tracts give **208**
+  tracts with a maximum of −100 + round(−100 + 1 × 12.5) = **−188**. These match the reported 193 / 200 and 208 /
+  188.
+  The landfill developer creates tiles in its month agent on the 1st (landfill.md §4.8). Their posted insert
+  messages arrive after the original's states 2 and 3 of that cycle, but before the end message.
+- *Single tracts near 180.* `|d| = 182` in the base grid with `|d| = 54` in the aura grid means one side holds
+  **−128** (no data) and the other holds 54: 54 − (−128) = 182, and the aura of a −128 tract is 0 (§6.15). The same
+  holds for 188 / 60 and 175 / 47. In such a tract, one side saw a residential lot with a building and a non-zero
+  count, and the other did not. A tract that was −128 takes `clamp(new)` at once (§6.14), so the gap is the whole
+  value, not one decay step.
+- *Differences of 1 to 3.* A base near its equilibrium has `d` close to 0, and any non-zero `d` moves it by at least
+  one (§6.14). So a block average that is one unit off, which one cell's work value can cause, already changes the
+  base by 1. A `d` of +1 on one side against −1 on the other changes it by 2.
 
 ## 6. The monthly pipeline *[compat]*
 
@@ -271,10 +342,30 @@ order (the first one when the cursor is −1):
 So N departments take N + 1 calls. If the cursor's department has disappeared from the map, the cursor is reset to
 −1 and the state moves to 4 **without** publishing *[quirk]*.
 
+**When the park and landmark maps change *[compat]*.** Only states 2 and 3 write them, once per cycle:
+- The park map is rebuilt in **every** state 2. Every tract is written from the raw park grid, so nothing needs
+  clearing first.
+- The landmark map is replaced in state 3, when the last department is done: landmark work is copied over it. The
+  first department overwrites landmark work, so nothing is cleared first either. With an empty department map the
+  landmark map is never written, so it keeps what it held (the loaded grid, or 0 from creation).
+- A load restores both maps from the save (§11.3). Nothing recomputes them at load or at `Init`.
+- Inserting or removing an occupant changes only the raw park grid, a department grid or the building-effect grid
+  (§7), and only when the posted message is delivered (§5.3). The park and landmark maps follow at the next state 2
+  or 3.
+
+So a park whose insert message is delivered after state 2 (or 3) of a cycle reaches the map one cycle later. §5.3
+has the worked example: the landfill tiles created on the 1st are in the maps of the following cycle.
+
 ### 6.4 State 4 — prepare
-Fill the work grid with −128. Get a fresh safe lot iterator from the lot manager. If `lotManager.GetLotCount() ==
-0` → state 0: the cycle ends **without** updating the rating or posting the end message *[quirk]*. Otherwise run
+Fill the work grid with −128. If the object has no lot iterator yet, get one from the lot manager (slot 15) and keep
+it; otherwise **rewind** the one it has to the first lot (`0x0068F32F`–`0x0068F353`). If `lotManager.GetLotCount()
+== 0` → state 0: the cycle ends **without** updating the rating or posting the end message *[quirk]*. Otherwise run
 the tax-change computation (§6.5.2) and → 5.
+
+*[compat]* (corrected: the iterator is not fresh each cycle.) One iterator serves every cycle of the object's life.
+It stays registered with the lot manager between cycles, including after an empty-city cycle, and is released only
+by `Shutdown` (§4.2). Nothing observable depends on this: a registered iterator only follows lot removals, and state
+4 rewinds it before use.
 
 ### 6.5 State 5 — residential lots (time-sliced)
 
@@ -282,6 +373,34 @@ Uses the CPU-cycle limit timer (simulator §5.5) with a budget of `ms` milliseco
 `b := LotBaseAura(lot)` (§6.5.1); for every cell in the lot's bounding rectangle (inclusive, cell units):
 `work := max(work, b)` (signed). When the iterator is exhausted → 6; otherwise the state stays 5 and the next call
 continues.
+
+**The safe lot iterator (ABI) *[compat]*.** Lot manager slot 15 (`0x00734850`, which moves to the lot list object at
+lot manager + 0x5C and continues at `0x00734860`) allocates an 8-byte block from the global heap (allocator C,
+`0x005E55E0`): {+0 current list node, +4 the lot list object}. It points it at the first lot and registers it in the
+list object's iterator list (list object + 4, node insert `0x0072BA10`), so a lot removal moves it past the removed
+lot. The lot list is a doubly linked list of 12-byte nodes {next, prev, `cISC4Lot*`} with a head node; the list
+object's first word points to the head. Taking the next lot (`0x0045D3F0`): if the current node is the head, the
+walk is over; else the lot is the node's value and current := next. The block is released by a non-virtual
+function (`0x0045D5B0`): unregister (`std::list::remove`, `0x00809580`, on list object + 4), then free with C
+(`0x005E5620`). docs/abi/allocators.md (table 1, `GetSafeLotIterator`) has the same facts. `GetLotCount` (slot 16,
+`0x00809250`) returns the count kept at lot manager + 0x64.
+
+*[choice]* A replacement need not use the iterator. Walking the cells with `GetLot(x, z, false)` and stamping each
+lot once gives the same work grid, because stamping takes the maximum and is order-independent (§6.5). Only the
+moment each lot is read differs, as with the time slicing.
+
+**Which lots, and where the clamps are *[compat]*.** State 5 is the only state that reads lots for their value. It
+takes each lot as the iterator reaches it, between the end of state 4 and the end of state 5. A lot built,
+demolished or filled with residents outside that window counts in the next cycle. Rules R (states 8, 9, 11, 12) look
+up lots again, but only to choose cells. The clamps come in this order:
+1. A lot's value is clamped to −127..127 twice (§6.5.1: after the average, and after the value/wealth term).
+2. Stamping takes the maximum of the clamped values, cell by cell.
+3. Each of states 6–13 clamps every cell it changes (rule A).
+4. State 14 averages the cells of the tract that are not −128, adds `globalEffect` and clamps once more.
+
+A lot's value is never added to the base. When the old base is −128 (no lot until now), the base takes the clamped
+new value at once, not one decay step. So a residential lot that one run saw and the other did not, alone in its
+tract, makes the whole value differ: base 54 against −128 (difference 182) and aura 54 against 0 (§5.3).
 
 **Time slicing** (shared timer helper: constructor `0x0068CC20`, deadline `0x0068BF50`, check `0x0068BF80`,
 adaptation `0x0068B960`):
@@ -305,7 +424,9 @@ adaptation `0x0068B960`):
 
 None of this changes results: the stamping (`max`) is order-independent and the original's slicing already depends
 on the CPU clock. *[choice]* FreeCity4 may keep `step` and `miss` per simulator instead of per process (the only
-difference is the starting step after a city change).
+difference is the starting step after a city change). The clock is also free: the original reads the processor's time-stamp counter, but a
+replacement may use `QueryPerformanceCounter` or any monotonic clock *[choice]*. The clock only decides how many
+lots one call stamps.
 
 #### 6.5.1 `LotBaseAura(lot)`
 
@@ -319,6 +440,32 @@ difference is the starting step after a city change).
 - If the value/wealth curve exists: `cx := trunc((x1 + x2) / 2)`, `cz` likewise (lot bounding rectangle, cells);
   `d := landValue.GetLandValueType(cx, cz) − lot.GetOccupantWealth()` (both 1..3, so d ∈ −2..2);
   result `:= clamp(avg + trunc(curve(d)))`. Otherwise the result is `avg`.
+- **No land value simulator**: the original tests only the curve. It then calls the land value simulator through its
+  global pointer with no null check (`0x0068CFB7`), so a city without one crashes at the first residential lot.
+  This cannot happen in the shipped game, which always creates it. *[choice]* FreeCity4 skips the value/wealth term
+  (result `avg`), as if the curve were absent. Using land value type 0 instead would give `d = −wealth` and bias
+  every lot by `+3` to `+5` with the shipped curve.
+
+**The population container *[compat]*.** `GetPopulations()` returns a pointer to the lot's own
+`std::vector<std::map<uint32_t, uint16_t>>` (the lot + 0x54, `0x006C21E0`). It is an STLport vector {begin, end,
+capacity_end} of 12-byte map objects; each map node is 0x18 bytes with the developer type at +0x10 and the count
+(uint16) at +0x14 (docs/abi/allocators.md, *map and set*; allocator B). Saved lots hold 0 or 1 maps (lot-records.md
+rows 20–21). The walk (`0x0068CE60`–`0x0068CF23`) takes every map in vector order and every entry in ascending key
+order. An entry counts as residential when its key is one of the three types of the base-aura table (§10), **even
+when its count is 0**. `sum` and `total` are int32.
+
+`GetPopulation(type)` (slot 53, `0x006C04A0`, pops 4, returns uint16 in AX) looks the type up in each map without
+inserting and returns the sum of the counts, wrapped to 16 bits. A loop over the 12 developer types with slot 53
+gives the same result as the walk except in three cases:
+- a residential type present with count 0: the walk has seen a residential entry, the loop has not (0 and absent
+  both read 0);
+- a key outside the 12 types: its count is in the walk's `total` only;
+- a type whose counts in several maps sum above 65535: the loop wraps.
+
+Saved lots do hold counts of 0 (lot-records.md row 21), so the first case happens in play. Example with effective
+R$ = −5: a lot with {R$ 0, CS$ 40} gives `trunc(0 / 40) = 0`, then the value/wealth term (0 when d = 0), so **0**;
+the slot 53 loop gives **−128**. A lot with {R$ 30, an unknown type 10} gives `trunc(−150 / 40) = −3` against
+`trunc(−150 / 30) = −5`. FreeCity4 reads the container through slot 54.
 
 #### 6.5.2 Tax-change effect (state 4)
 `effectiveBaseAura[i] := baseAura[i]` for the three wealths. If the tax-change curve exists, for every tax index
@@ -439,11 +586,12 @@ cycle-completed message (§11.1). State := 0.
 ## 7. Occupant effects *[compat]*
 
 `OccupantChanged(occupant, add)` (from §5.2). `sign := add ? +1 : −1`. Values come from Sint32-array properties
-`v` of the occupant's property holder: `v[0]` = magnitude, `v[1]` = radius (no length check *[quirk]*). The radius
-is divided by the grid's tract size **in cells** (4), so it acts as a radius in **cells** (city tiles) *[compat]*,
-unlike the transient radius (metres, §8.2). Shipped examples (`SimCity_1.dat`): Big Ben landmark effect {40, 20}
-(5 tracts), its mayor-rating effect `0xCA5B9305` {7, 256} (64 tracts: the whole of a large city), cemetery
-{2, 220}, prison {−7, 440}; landfill park and landmark effects {−100, 32}.
+`v` of the occupant's property holder: `v[0]` = magnitude, `v[1]` = radius (no type or length check *[quirk]*, see
+"How the values are read" below). The radius is divided by the grid's tract size **in cells** (4), so it acts as a
+radius in **cells** (city tiles) *[compat]*, unlike the transient radius (metres, §8.2). Shipped examples
+(`SimCity_1.dat`): Big Ben landmark effect {40, 20} (5 tracts), its mayor-rating effect `0xCA5B9305` {7, 256} (64
+tracts: the whole of a large city), cemetery {2, 220}, prison {−7, 440}; landfill park and landmark effects
+{−100, 32}.
 
 1. **Network piece**: if `add` and the occupant type is `0xC772BF98` (network occupant *[inferred]*):
    `AddTransientEffect(position.x, position.z, 3)` (§8.1; shipped 0/0, so nothing happens).
@@ -462,6 +610,23 @@ unlike the transient radius (metres, §8.2). Shipped examples (`SimCity_1.dat`):
 
 Each is one call of `AddRadiusEffect` (simgrid §7.1; int16 variant for park/landmark, int8 for the building
 effect) with arguments (grid data, countX, countZ, tx, tz, radius, centre value, 0).
+
+**How the values are read *[compat]*.** For each property: holder `GetProperty(id)` (slot 9), the property's value
+(slot 5), then the variant's `RefSint32()` (slot 105, `+0x1A4`). That slot's body (`0x0060CE80`) is shared by every
+`RefX` slot of the variant class (vtable `0x00AA6788`): it returns the word at variant + 4 whatever the type. For an
+array that word is the data pointer; for a scalar it is the value itself (`GetValSint32` reads it there,
+`0x00917721`). There is no type or count check, so the original does this:
+
+| Property holds | Original |
+|---|---|
+| Sint32 or Uint32 array of 2 or more values (shipped: Sint32) | `v[0]`, `v[1]` as int32 (a Uint32 bit for bit) |
+| an array of 1 value | `v[1]` read past the end of the array: garbage radius |
+| an array of another element type | the raw bytes read as int32: meaningless values (Float32 −100.0 reads as −1 027 080 192), and past the end for 8- and 16-bit elements |
+| a scalar | the value used as a pointer: a crash for small values, garbage otherwise |
+
+*[choice]* FreeCity4 takes a Sint32 or Uint32 array (bitwise) with at least 2 values; anything else counts as absent
+(no cone). This equals the original for every Sint32 or Uint32 array of 2 or more values, the only form that gives
+meaningful values.
 
 **Landmark department** (§7.2): `dept := budget.GetBudgetItemForPurpose(holder, 0xAA59670C, &item) ?
 item.departmentID : 0`. If the map has no grid for `dept`: on add create one (int16, CLSID `0x49B9E605`, instance
@@ -538,10 +703,44 @@ stage is skipped, §6). Shipped values are from re/tuning/simulators.md.
 | `0xEA0232A0` | s32[3] | {hotspotThreshold, hotspotRadius, hotspotMinWeight} | {−50, 3, 4} | {196, 8, 16}, used unless the property has **exactly 3** values |
 | `0xEA0232A1` | curve | hotspot weight → riot chance (%) | (0,0) (5,10) (10,60) (20,100) | none (deleted before each read) |
 
-After reading, the three base aura values are copied into a process-wide table keyed by developer type (also read by
-other code *[inferred]*). The transient arrays: magnitude := `v[0]`, radius := `v[1]`. They are shipped as f32[2] and copied **raw** into a
+After reading, the three base aura values are copied into a process-wide table keyed by developer type (`.data`
+`0x00B0D150`; see below). The transient arrays: magnitude := `v[0]`, radius := `v[1]`. They are shipped as f32[2] and copied **raw** into a
 float vector (`0x005FFCC0`, at `0x0068D94E`) with no type check or conversion (corrected: not s32 converted to
 float; a property stored with another type would be reinterpreted bit for bit, data-formats.md §5).
+
+**The base-aura table *[compat]*.** A static table of three 20-byte entries, ended by an entry whose developer type
+is 0:
+
+| Entry | Developer type | Tax index | Wealth | Tuned base | Effective base |
+|---|---|---|---|---|---|
+| +0x00 | `0x1010` R$ | 0 | 0 | +0x0C | +0x10 |
+| +0x14 | `0x1020` R$$ | 1 | 1 | +0x20 | +0x24 |
+| +0x28 | `0x1030` R$$$ | 2 | 2 | +0x34 | +0x38 |
+
+The tuning read copies `baseAura` R$, R$$, R$$$ into the entries' tuned bases (`0x0068D8E2`–`0x0068D91B`). State 4 copies
+tuned into effective and adds the tax-change effect by tax index (`0x0068C000`, §6.5.2). `LotBaseAura` finds a
+population key in the table and reads the effective base (§6.5.1). No other code refers to the table: every
+instruction in the executable that names an address inside it is in one of those three places. Since the table is per process, the effective values
+survive a city change, but state 4 always rewrites them before state 5 reads them. So nothing observable depends
+on where they are kept, and a replacement may keep them in its object *[choice]*.
+
+**Transient tuning in detail *[compat]*.** For each of the four properties, magnitude and radius are first set to 0
+and a local float vector is emptied. The copy helper (`0x005FFCC0`) returns false only when the property is missing.
+Otherwise it sizes the vector to the variant's count (slot 4) and copies that many raw 32-bit words from the
+variant's data (slot 111), and returns **true** even when the count is 0. The aura then reads `v[0]` and `v[1]`
+with no size check (`0x0068D958`–`0x0068D966`):
+
+| Property holds | Original |
+|---|---|
+| a Float32 array of 2 or more values (shipped) | magnitude `v[0]`, radius `v[1]`; extra values ignored |
+| a Float32 array of 1 value | magnitude `v[0]`; radius read past the end of the one-value block (garbage) |
+| a scalar (count 0) or an empty array | the vector is empty, so the read goes through a null pointer: **crash** |
+| a 32-bit integer array | the integer bits taken as floats (for example −20 becomes a NaN, 128 a denormal near 1.8e−43) |
+| an array of 8-, 16- or 64-bit values | `count` 32-bit words copied from a smaller (or larger) buffer: garbage |
+
+*[choice]* FreeCity4 uses `v[0]` and `v[1]` only for a Float32 array of at least 2 values; in every other case the
+type keeps {0, 0}, as if the property were missing. Reading the shipped values through the property's Float32 values
+gives exactly the raw copy's numbers.
 
 ## 11. Messages posted and persistence
 
@@ -590,11 +789,13 @@ What `Read` (`0x0068E340`) does with state already in the object *[compat]*:
 - **Grid references** (the seven grids, and each department grid): the reference helper sets the destination to
   null first and then stores the resolved grid; the grid it held before is **not released** (foundations §2.7
   item 3). A failed reference leaves null.
-- **Department map: not cleared, merged.** For each saved entry, `map[departmentID] := grid` (map `operator[]`):
-  a new ID is inserted; an ID already present has its grid pointer **replaced** without releasing the old grid
-  (a leak); entries whose IDs are not in the record stay untouched. A version-8 record does not touch the map.
-- **Hotspot list: appended.** Each saved hotspot is appended at the end of the current list in record order; the
-  list is not cleared first, so hotspots already held stay in front (like flammability §10's hotspot read).
+- **Department map: not cleared, merged.** For each saved entry, `map[departmentID] := grid` (map `operator[]`
+  `0x00497A00`, called at `0x0068E45F`): a new ID is inserted; an ID already present has its grid pointer
+  **replaced** without releasing the old grid (a leak); entries whose IDs are not in the record stay untouched. A
+  version-8 record does not touch the map.
+- **Hotspot list: appended.** Each saved hotspot is appended at the end of the current list in record order (a node
+  linked in before the list's end, `0x0068E548`–`0x0068E552`); the list is not cleared first, so hotspots already
+  held stay in front (like flammability §10's hotspot read).
 - **Scalars** (`unusedRating`, `mayorRating`, the max/min locations and ratings) are overwritten.
 - The game calls `Read` on the object the class store has just created for the load (foundations §2.7), whose
   map and list are empty, so merge/append and replace give the same result in play *[inferred: no other caller
@@ -692,7 +893,7 @@ All are `__thiscall`; "pops" = callee-pop bytes.
 | | 31 `+0x7C` | `GetZoneType()` | 0 | EAX |
 | | 41 `+0xA4` | `GetOccupantWealth()` | 0 | EAX |
 | | 48 `+0xC0` | `GetBuilding()` | 0 | EAX |
-| | 54 `+0xD8` | `GetPopulations()` | 0 | EAX |
+| | 54 `+0xD8` | `GetPopulations()` → pointer to the lot's `vector<map<uint32, uint16>>` (lot + 0x54, §6.5.1) | 0 | EAX |
 | `cISC4LandValueSimulator` (`0x00AB1670`) | 5 `+0x14` | `GetLandValueType(int32 x, int32 z)` | 8 | EAX |
 | `cISC4CrimeSimulator` (`0x00AB0DC8`) | 5 `+0x14` | `GetCrimeGrid()` (uint8) | 0 | EAX |
 | `cISC4PollutionSimulator` (`0x00AB2630`) | 5 `+0x14` | `GetPollutionGrid(int32 type)` | 4 | EAX |
@@ -716,7 +917,10 @@ All are `__thiscall`; "pops" = callee-pop bytes.
 **SDK errors in dependencies** (for the owners of those specs): residential `GetPopulationGrids` — all three
 parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the first as a reference; residential slots
 39/40 (SDK `int32 GetSchoolAverageGradeMap()` / `GetHospitalAverageGradeMap()`) return `cISC4SimGrid<float>*`
-(same register, so callers can cast).
+(same register, so callers can cast). Ordinance slot 24 `GetCumulativeOffset` (`0x0080DD70`): the SDK declares an int64
+return, but the original sums int32 values into EAX and returns with `ret 8`. EDX is never set for the caller (it
+holds whatever the last call left there), so a caller declared with int64 reads a garbage high half. Declare it
+int32.
 
 ## 14. Interactions and replaceability
 
@@ -753,6 +957,33 @@ parameters are outputs (`cISC4SimGrid<uint16>*&`), the SDK declares only the fir
 - `GetParkMap`/`GetLandmarkMap` are inputs to the growth and tract developers' desirability: their scale (park cone
   magnitudes × funding fraction) must match.
 
+### 14.3 Running beside the original (shadow comparison) *[choice]*
+
+A shadow that runs a whole cycle when `0x2A09B21A` arrives reads every input later than the original did (§5.3). It
+therefore shows timing differences, which hide real ones. A shadow that tracks the original **step by step** reads the
+same inputs:
+
+- After each delivery of SimIdle or SimNewDay to the original's agent, read the original's **state** (s32). When it
+  has moved from s to s′, run our steps s, s+1, …, s′−1 at once, before any other agent runs. If the original went
+  back to 0 from state 4 (empty lot list) or from state 17, run up to the end of the cycle.
+- State 5 is spread over several calls. The simplest match is to run our whole state 5 in the call where the original
+  leaves it. A lot added or removed between two of the original's slices can still differ; the work grid comparison
+  below shows such lots.
+- Apply occupant inserted and removed to our raw park, department and building-effect grids when the original
+  receives them (the same posted message, §5.3), not when the occupant is created.
+- For a per-step diagnostic, compare our work grid with the original's after each step from 5 to 13. The original's
+  work grid keeps its values from state 13 until the next state 4, so at the end message it still holds the inputs
+  of state 14.
+- Tax baseline: the original takes `previousTaxRate` in the first state 4 after its object was created, so in the
+  first cycle after a load (§6.5.2). A shadow that starts at the first cycle after the load and reads the tax rates
+  in our state 4 has the same baseline; one that starts later, or reads them at the end message, can differ.
+
+The original object, as offsets from its `cISC4AuraSimulator` pointer (constructor `0x0068D110`, `Init`
+`0x0068E6B0`): `cIGZMessageTarget2` sub-object +0x04 (the agent registered with the simulator), `cIGZSerializable`
++0x08; grids: aura +0x40, work +0x44, base +0x48, transient +0x4C, building effect +0x50, raw park +0x54, park map
++0x58, department map +0x5C, landmark map +0x68, landmark work +0x6C; state (s32) +0x70; cycleStartDay +0x74; lot
+iterator +0x78; departmentCursor +0x7C; mayorRating +0x84; globalEffect +0x88; previousTaxRate[12] (f32) +0x94.
+
 ## 15. Original quirks (reproduced)
 
 Non-residential population dilutes the lot average (§6.5.1); the tax-change baseline is never updated (§6.5.2);
@@ -780,7 +1011,8 @@ FreeCity4 maps by centre cell *[choice]*).
    §6.5 for the helper's adaptation rule.)
 6. *(resolved)* The riot start position is in **cells**, and the riot manager reads it as cells (§6.16), unlike the
    earthquake's `AttemptDisasterStart`, which takes world units (budget errata item 6).
-7. Who reads the process-wide base-aura table written at tuning time (§10).
+7. *(resolved)* The process-wide base-aura table (`0x00B0D150`) is read and written only by the aura's own code; it
+   holds the tuned and effective base auras (§10).
 8. Whether the 0x99EF1142 handler's "has property" test also applies to network occupants (the network transient is
    reached only when the marker is absent).
 9. Occupant effect radii are divided by the tract size in cells (§7), the transient radius by the tract width in
@@ -812,7 +1044,8 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
    trunc(curve(1)) = −5`; rate 7 → `+7`; rate 9 again → 0 (no change, effective = base).
 5. **Lot base aura**: effective R$ = −5, R$$ = 0; lot with R$ 30, R$$ 10 → `trunc(−150 / 40) = −3`; with an extra
    commercial entry of 40 → `trunc(−150 / 80) = −1`; land value type 2 and wealth 1 → `−1 + trunc(curve(1)) = −4`;
-   no residential entry → −128.
+   no residential entry → −128; {R$ 0, CS$ 40} (a residential entry with count 0) → **0**, not −128 (§6.5.1); two
+   maps {R$ 30} and {R$ 10} → `trunc(−200 / 40) = −5`.
 6. **Work stamping**: two overlapping lots with values −4 and 3 → the shared cells hold 3; cells outside any lot
    stay −128 and are unaffected by every later stage.
 7. **Curves on cells**: work 10, park map 50 → 12; park 100 → 13; crime 40 → 15; crime 255 → `clamp(10 − 50) =
@@ -847,7 +1080,8 @@ Shipped tuning unless stated; S = 4; curves per foundations §4.
     at x1 = 10 → cell 11 regardless of position; no lot → the position's own cell. A landmark whose budget item has
     department `0x8A416368` creates a department grid with instance ID `0x8A416368` on insert; a removal with no
     grid changes nothing. Mayor-rating effect {7, 256} → radius 64 tracts on the building-effect grid, centre tract
-    from the occupant position (not the lot centre).
+    from the occupant position (not the lot centre). The park property as Uint32 {50, 22} → the same cone as
+    Sint32; as Float32 {50, 22}, as Sint32 {50} or as a Sint32 scalar → no cone *[choice]* (§7).
 16. **Persistence**: write → read → write is byte-identical (v9, two departments, three hotspots); version 7 →
     false; a version-8 record with one extra grid reference loads, has no departments, and re-stamps landmarks at
     PostCityInit; version 10 is rejected by FreeCity4 *[choice]*. **Read into a used object** (§11.3): an object
