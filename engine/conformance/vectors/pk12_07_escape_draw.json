@@ -1,0 +1,97 @@
+{
+  "format": 1,
+  "name": "park_escape_draw",
+  "spec": ["parks 4.4", "parks 4.5", "parks 4.6", "parks 5", "parks 12.7"],
+  "description": "p = escapeCurve(f x 100) x 0.01 in single precision, widened: with the shipped curve f = 0.5 gives float32(7 x 0.01f) = 0.0700000003 (and 0 %, 25 %, 100 %, 120 % give 0.39999998, 0.099999994, 0.0099999998, 0.0099999998). A stub draw of 0.07 (double) escapes (r < p strictly), 0.0700001 does not. The escape draws RandomUint32Uniform(n), posts 0xAA667CE2 with void1 = the manager and IGZUnknown = the zoo, then adds 'zoomanji' to the zoo when the automata controller manager exists. A null zoo entry stops the escape after the index draw. No zoos: no draw; no parks: no draw.",
+  "steps": [
+    {"op": "park_env", "tuning": "shipped", "random": "stub"},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_call", "method": "escape_probability", "args": [0.5], "expect": 0.0700000003, "expect_bits": "0x3FB1EB8520000000"},
+    {"op": "park_call", "method": "escape_probability", "args": [0.0], "expect": 0.39999998, "expect_bits": "0x3FD9999980000000"},
+    {"op": "park_call", "method": "escape_probability", "args": [0.25], "expect": 0.099999994, "expect_bits": "0x3FB9999980000000"},
+    {"op": "park_call", "method": "escape_probability", "args": [1.0], "expect": 0.0099999998, "expect_bits": "0x3F847AE140000000"},
+    {"op": "park_call", "method": "escape_probability", "args": [1.2], "expect": 0.0099999998, "expect_bits": "0x3F847AE140000000"},
+
+    {"op": "park_building", "occupant": "0x30", "groups": ["zoo"]},
+    {"op": "park_building", "occupant": "0x32", "groups": ["park"], "lot": "0x33"},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x30", "expect": true},
+    {"op": "park_env", "funding": {"0x8A4260A6": 0.5}, "doubles": [0.0]},
+    {"op": "park_clear_events"},
+    {"op": "park_call", "method": "monthly", "note": "a zoo but no park: nothing"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x32", "expect": true},
+    {"op": "park_env", "doubles": [], "note": "the queued 0.0 is still first"},
+    {"op": "park_clear_events"},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "set_condition", "lot": "0x33", "condition": 2},
+      {"event": "double"},
+      {"event": "u32", "n": 1},
+      {"event": "post", "type": "0xAA667CE2", "void1": "0xA000", "unknown": "0x30"},
+      {"event": "controllers", "name": "zoomanji", "occupant": "0x30"}
+    ]},
+    {"op": "park_env", "doubles": [0.07]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"},
+      {"event": "u32", "n": 1},
+      {"event": "post", "type": "0xAA667CE2", "void1": "0xA000", "unknown": "0x30"},
+      {"event": "controllers", "name": "zoomanji", "occupant": "0x30"}
+    ]},
+    {"op": "park_env", "doubles": [0.0700001]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"}
+    ]},
+    {"op": "park_env", "doubles": [0.0700000003]},
+    {"op": "park_call", "method": "monthly", "note": "0.0700000003 rounds to above float32 p"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"}
+    ]},
+
+    {"op": "park_env", "automata": false, "doubles": [0.0]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"},
+      {"event": "u32", "n": 1},
+      {"event": "post", "type": "0xAA667CE2", "void1": "0xA000", "unknown": "0x30"}
+    ]},
+    {"op": "park_env", "automata": true},
+
+    {"op": "park_building", "occupant": "0x34", "groups": ["zoo"]},
+    {"op": "park_message", "type": "OccupantInserted", "occupant": "0x34", "expect": true},
+    {"op": "park_env", "doubles": [0.0], "u32s": [0]},
+    {"op": "park_clear_events"},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"},
+      {"event": "u32", "n": 2},
+      {"event": "post", "unknown": "0x30"},
+      {"event": "controllers", "occupant": "0x30"}
+    ]},
+    {"op": "park_env", "doubles": [0.0]},
+    {"op": "park_call", "method": "monthly", "note": "the stub answers n - 1 = 1"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"},
+      {"event": "u32", "n": 2},
+      {"event": "post", "unknown": "0x34"},
+      {"event": "controllers", "occupant": "0x34"}
+    ]},
+
+    {"op": "park_set", "zoos": [null, "0x30"]},
+    {"op": "park_env", "doubles": [0.0], "u32s": [0]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": [
+      {"event": "double"},
+      {"event": "u32", "n": 2}
+    ]},
+
+    {"op": "park_set", "zoos": []},
+    {"op": "park_env", "doubles": [0.0]},
+    {"op": "park_call", "method": "monthly"},
+    {"op": "park_expect_events", "events": []},
+    {"op": "park_call", "method": "zoo_escape", "note": "n = 0: nothing is drawn"},
+    {"op": "park_expect_events", "events": []}
+  ]
+}
