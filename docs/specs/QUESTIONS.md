@@ -2832,7 +2832,10 @@ exe and the shipped data alone.
 About `docs/specs/zones.md` and the zone manager glue (`cFC4ZoneManager`, `FC4ZonesShadow`; phase 1, the zone
 developer stays original). The current answer is in brackets.
 
-- **ZG1:** The tuning exemplar type: `0xA52160F5` or §4's `0x6534284A`? [`0x6534284A`]
+- ~~**ZG1:** The tuning exemplar type: `0xA52160F5` or §4's `0x6534284A`? [`0x6534284A`]~~
+  **ANSWERED 2026-10-14** from the exe (`ReadSimulatorTunableValues` `0x004DC460`: key `0x004DC49B`–`0x004DC4AB`,
+  resource call `0x004DC4B6`) and written into zones §4. The type is `0x6534284A`; `0xA52160F5` is the interface ID
+  asked of the resource manager with that key. The bracket matches.
 - **ZG2:** An oversized region or a bad §11.4 layout passed to PlaceZone. [fails with error 0 and touches nothing]
 - **ZG3:** The zone display alpha after `Read`. [the alpha read]
 - **ZG4:** A second `Read`: the services the first one set. [replaced; the old ones released]

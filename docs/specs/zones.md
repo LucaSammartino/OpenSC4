@@ -186,7 +186,9 @@ inserts a zero entry (§11.1), which then appears in the next save *[quirk]*.
 ## 4. Tuning *[compat]*
 
 Exemplar "Zone Manager" `0xE9482490`, type `0x6534284A`, group `0xE7E2C2DB`, read by `ReadSimulatorTunableValues`
-(`0x004DC460`) at every `Init`. The two cost arrays are zeroed first. Each array property is read as **exactly 16**
+(`0x004DC460`) at every `Init`. The key is built as (type `0x6534284A`, group `0xE7E2C2DB`, instance `0xE9482490`)
+(`0x004DC49B`–`0x004DC4AB`); `0xA52160F5` is the interface ID passed with it to the resource manager (slot 3,
+`0x004DC4B6`), not a type (ZG1). The two cost arrays are zeroed first. Each array property is read as **exactly 16**
 values through the variant's `Ref*` accessor, with no count or type check; a missing exemplar or property leaves the
 array unchanged. Names from `re/tuning/simulators.md`.
 
