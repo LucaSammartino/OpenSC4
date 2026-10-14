@@ -411,7 +411,15 @@ For each mask cell of `rect ∩ zone rect`:
 - `direct = true` (never used by the shipped code): `terrain.SetAltitude(clamped rect, altitude, 1, 5)` (slot 49)
   with the rect clamped to `[0, cellCountX] × [0, cellCountZ]`.
 - `direct = false`: `buildingDevelopment.GetLotDeveloper().AttemptAreaLevelling(rect, 0.0, true, true,
-  FLT_MAX, null)` (lot developer slot 21; result ignored).
+  FLT_MAX, null)` (lot developer slot 21; result ignored). The rect is the **unclamped** argument (`push ebx` at
+  `0x006BA78B`): the clamp above is computed on both paths but used only by the direct one.
+
+  *Which `true` is which* (LF1): the call site pushes the literals `1` (`0x006BA787`) and `1` (`0x006BA785`) as the
+  third and fourth arguments, `withWater` and `waterFlag`. Inside `0x006C44F0` the third argument is the one that
+  reaches `GetAverageAreaAltitude` and `GetAreaSlope` (steps 1 and 3 below); the fourth goes only to
+  `ModifyTerrainHeight`, as its **second** bool (step 4; the first is the literal `1`). The landfill's second
+  `true` is therefore `waterFlag`. Because both are `true`, swapping them changes nothing the landfill can
+  observe.
 
 **What `AttemptAreaLevelling(rect, f, withWater, waterFlag, maxAreaSlope, lot)` actually does** *[compat]*
 (`0x006C44F0`, pop 24; verified from the assembly — Ghidra's decompilation of this function is unreliable, it
@@ -431,7 +439,8 @@ renders the float argument as a pointer and drops the vertex average):
    `cISC4Demolition`), a ten-argument terrain call whose last two arguments are the literal `5` and a null
    pointer, and return its result. The SDK names this `cISC4Demolition::ModifyTerrainHeight(bool, bool, int, int,
    int, int, float, cISC4Lot*, uint32_t, int64_t*)`, i.e. **reason 5** and no cost output; the rect arguments are
-   `x1, z1, x2 + 1, z2 + 1` and the float is the step-1 average. **The terrain is levelled to `avg`.**
+   `x1, z1, x2 + 1, z2 + 1` and the float is the step-1 average. **The terrain is levelled to `avg`.** The full
+   argument list is `(1, waterFlag, x1, z1, x2 + 1, z2 + 1, avg, lot, 5, null)` (`0x006C4552`–`0x006C457D`).
 
 *[quirk]* **The float argument `f` is never read** — no instruction in `0x006C44F0` touches the second parameter's
 stack slot. Passing `0.0` is therefore harmless *and* meaningless: the target altitude is always the vertex

@@ -414,8 +414,11 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
 About `docs/specs/landfill.md` (tests §11 1–23, vectors `lf11_*`) and `docs/specs/neighbors.md` (tests §18 1–12,
 vectors `nb18_*`). The core's current answer is in brackets.
 
-- **LF1:** which of `AttemptAreaLevelling`'s two bools is the landfill's second `true`? Test 22 cannot tell them
-  apart. [passed as `waterFlag`]
+- ~~**LF1:** which of `AttemptAreaLevelling`'s two bools is the landfill's second `true`? Test 22 cannot tell them
+  apart. [passed as `waterFlag`]~~ **ANSWERED 2026-10-14** from the exe: the bracket matches. The third argument
+  (`withWater`) feeds the vertex average and the slope test; the fourth (`waterFlag`) is `ModifyTerrainHeight`'s
+  second bool (`0x006C44F0`). Both are literal 1 (`0x006BA785`/`0x006BA787`), so the order is unobservable. Also:
+  this path passes the **unclamped** rect (landfill.md §4.5.3).
 - **LF2 — zone `Init`:** is "levelAltitude is exactly 0.0" an exact float compare? [−0.0 counts as zero; NaN does
   not]
 - **LF3:** in what order does Shutdown release the message server and the city? [one `release_services` call after
