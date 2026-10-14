@@ -2641,7 +2641,10 @@ answer is in brackets.
 - ~~**NG24:** Regional cities held across calls. [AddRef until the outermost exit]~~
   **ANSWERED 2026-10-14**: no original behaviour (the original holds regional cities only within one call); the
   implementer's choice stands. Noted in neighbors §15.4.
-- **NG25:** The marker query type. [`0xA823821E`]
+- ~~**NG25:** The marker query type. [`0xA823821E`]~~
+  **ANSWERED 2026-10-14** from the exe (prop manager slot 18 `0x004A1DB0`, filter `0x004A2210`; `0x006D0CA2` and the
+  delete path) and written into neighbors §15.4. The original asks for city props (type `0xA823821E` and usage 1) in the
+  cell, then tests `0xCAA46595`. The type matches; add the usage test or use `GetCityProps`.
 - **NG26:** Traffic source `QueryInterface`. [forwarded to the connection]
 - **NG27:** `GetPropertyU32` on array properties. [the first element]
 - **NG28:** The shadow's statistics tolerance. [relative 1e-6]

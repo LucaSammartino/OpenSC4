@@ -1123,6 +1123,20 @@ With `length = 3` → true, `length = 3`, `01 02 03` copied. A `Uint32` property
 §6.2) and holds them only inside one call (the list of `GetAdjacentCities` in `Init` and `ProposeDeals`). How long
 the glue holds its own references is the implementer's choice.
 
+**NG25. Finding the marker props.** The original never names `0xA823821E` itself. It asks the prop manager for the
+**city props** in the inner cell, `GetCityProps(list, rect)` (prop manager slot 18, `0x004A1DB0`), and keeps those
+whose bool property `0xCAA46595` is true:
+
+- `GetCityProps` runs the occupant manager's rectangle query with the prop manager's filter. The filter passes an
+  occupant only if its type is `0xA823821E` (prop) **and** its prop usage is 1 (city prop, set by `AddCityProp`).
+- Deleting a connection (§6.4) removes each match with the prop manager's `RemovePropA` (slot 29). The terrain
+  handler (§11.1) moves each match and updates it in the occupant manager.
+
+The bracket's type, `0xA823821E`, is right, but the original also requires usage 1. A lot or street prop carrying
+`0xCAA46595` would be ignored by the original and found by a type-only query. Shipped data puts that property only
+on the markers, which are city props, so the two agree in practice. *[choice]* Call `GetCityProps`, or add the usage
+test.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
