@@ -233,7 +233,7 @@ n := dispatchManager.GetDispatchCount(type)
 ids := dispatchManager.GetDispatchIDArray(type)   (a stack buffer when n < 64)
 for each id:
     if GetDispatchInfo(id, &info) and info.active:
-        e := GetDispatchEffect(info.automaton)     (§7.2)
+        e := GetDispatchEffect(info.station)       (§7.2; the record's +0x20, §5)
         cone as above, centred on info's position (x, z)
 ```
 
@@ -501,11 +501,19 @@ radius := radius × e; centre := trunc(centre × e); outer := trunc(outer × e);
 department's `GetFundingPercentage()` fraction; prop stations ignore local funding, road access and strikes.
 *[compat]*
 
-### 7.2 `GetDispatchEffect(automaton)` (message-target slot 12)
+### 7.2 `GetDispatchEffect(station)` (message-target slot 12)
 
-centre / outer / radius from the automaton occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
+centre / outer / radius from the occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
 `0x29233E9C`, police `0x48D71ED9` / `0x48D71EDA` / `0x48D71EDB`. Position 0 (the caller uses the dispatch's
 position). No efficiency scaling. AL = 1 if read.
+
+*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). The only caller,
+`UpdateUnadjusted` (`0x006F5DB1`), passes the dispatch record's `+0x20`. That is the **source station** the unit
+left from (§5), not the vehicle. The shipped data agrees: these six properties exist only on the station building
+exemplars (group `0x07BDDF1C`: three fire stations, four police stations), never on a vehicle. The pointer is
+already a `cISC4Occupant*`, and the original uses it **borrowed**: it does no QueryInterface and no AddRef, and
+the dispatch record holds the reference. A replacement that QIs it for `0x26BB767E` gets the same object with one
+more reference, which it must release.
 
 ### 7.3 Coverage queries
 
@@ -1126,7 +1134,7 @@ the count in EAX, so a caller reading AL sees false for 256 stations or a multip
 | 9 | `+0x24` | `006F6250` | `006E0B80` | DoOccupantChanged(occ) | 4 | none meaningful |
 | 10 | `+0x28` | `006AD190` | `006E02F0` | SetStationAvailabilityFlags(occ, u32) | 8 | none meaningful |
 | 11 | `+0x2C` | `006AD6B0` | `006E0C50` | ProtectionGetStationFunding(occ, float*) | 8 | AL |
-| 12 | `+0x30` | `006AD720` | `006E0CB0` | GetDispatchEffect(occ automaton, effect&) | 8 | AL |
+| 12 | `+0x30` | `006AD720` | `006E0CB0` | GetDispatchEffect(occ station, effect&) | 8 | AL |
 | 13 | `+0x34` | `008CD450` | `004E13E0` | GetDispatchType → fire 1, police 0 | 0 | EAX |
 | 14 | `+0x38` | `006AD7C0` | `006E0D50` | GetStationEffect(occ, effect&) | 8 | AL |
 | 15 | `+0x3C` | `006AD170` | `006E02D0` | SetStationBaseCallNumber(occ, u32) | 8 | none meaningful |

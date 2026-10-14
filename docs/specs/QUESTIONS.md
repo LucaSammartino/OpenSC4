@@ -482,8 +482,13 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
   - **Also.** The record is 44 bytes, copied with no AddRef. `+0x14`–`+0x1C` is the position and `+0x20` the
     source station. `EndDispatch` already revokes the unit, so the simulator's own revoke on the end message fails
     harmlessly.
-- **PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
-  as borrowed. Right identity? [as stated]
+- ~~**PR2:** the dispatch automaton is handed to the core by a `cISC4Occupant` (`0x26BB767E`) QueryInterface, treated
+  as borrowed. Right identity? [as stated]~~ **ANSWERED 2026-10-14** from the exe (`UpdateUnadjusted` `0x006F5DB1`;
+  `InitDispatch` `0x00469E50`) and the shipped exemplars, and written into protection.md §7.2 and §5.1.
+  **Borrowed is right; "automaton" is the wrong identity.** The occupant passed to `GetDispatchEffect` is the
+  record's `+0x20`, the **source station** the unit left from, already a `cISC4Occupant*`. The original does no QI
+  and no AddRef. The dispatch effect properties (`0x29233E9A–C`, `0x48D71ED9–DB`) exist only on the shipped station
+  exemplars. A QI for `0x26BB767E` returns the same object plus a reference, which the glue must release.
 - **PR3:** `AddControllersFromOccupantGroup(name, occ, 0)` and its Remove: the name as an `SC4String` gives slots 10
   and 12. Right overload? [yes]
 - ~~**PR4:** the fire simulator getter is city slot 57, inferred from the SDK order; the shadow depends on it. §14 lists
