@@ -634,23 +634,66 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   (Float32 1e30 gives 31 digits). NaN and infinities print as `1.#INF`, `-1.#IND` and the like *[inferred from the
   MSVC runtime]*. Values do not always survive the round trip: Float32 3.14159 comes back 2 ulps lower
   (data-formats.md §5.1).
-- **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
-  anywhere after the first digit]
-- **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]
-- **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
-  exactly]
-- **EX12:** is there a cap on reps? [more reps than the record length fails]
-- **EX13:** are numeric values cut at `}` too? [no, only strings]
-- **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
-- **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
-  from the package index]
-- **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
-  as a scalar 0 (§4.3). Intended? [scalar 0]
-- **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]
-- **EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]
-- **EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
-  fails only on depth is retried when reached shallower]
-- **EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]
+- ~~**EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
+  anywhere after the first digit]~~ **ANSWERED 2026-10-14** from the exe (`0x009167C5`): **the bracket
+  matches**, with additions. `0x` is lowercase only, must start the text and be followed by a hex digit (16
+  digits at most). "After a digit" applies only to `e`/`E` and means any earlier digit; `.` makes the text
+  floating point wherever it is. `t`/`true`/`f`/`false` are case-sensitive whole-text matches. Char targets
+  always get 0 (data-formats.md §5.1, with examples).
+- ~~**EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0067DFD0`): **the bracket does not match.** Fields are not counted:
+  a fourth and later field is ignored, and a missing field reads 0. Nothing inside the braces is trimmed: a
+  space after `{` or `,` makes a `0x` field read 0, while a decimal field survives (data-formats.md §4.3).
+- ~~**EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
+  exactly]~~ **ANSWERED 2026-10-14** from the exe (`0x0067E250`, `0x0067E780`): **the bracket matches for
+  PropCount and the type name, not for reps.** PropCount is trimmed of spaces and tabs like every `name=value`
+  line. The type name is compared exactly, with no trimming at the `:`. reps is not trimmed: rule N reads it, so
+  a leading space is harmless for decimal but turns `0x3` into 0. Rule N saturates at `0xFFFFFFFF`; too few
+  property lines fail the read (data-formats.md §4.3).
+- ~~**EX12:** is there a cap on reps? [more reps than the record length fails]~~ **ANSWERED 2026-10-14** from the
+  exe (`0x0067E780`): **the bracket does not match.** There is no cap and no failure: missing values read 0
+  and extra values are ignored. A huge reps crashes the original, because the buffer size (reps × element size,
+  32-bit) wraps or cannot be allocated, and the result is not checked. Recommended *[choice]*: fill with 0 and
+  fail the read above 16 MiB of values (data-formats.md §4.3).
+- ~~**EX13:** are numeric values cut at `}` too? [no, only strings]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x0067E780`): **the bracket matches in effect.** Only strings are cut at `}`; a number stops at the first
+  character that cannot continue it, so `}` ends it anyway (the last Float32 array value is split at `}`, with the
+  same result). Leading spaces are trimmed for array values only, which matters for `0x` in rule N. Uint64 and
+  Sint64 are hexadecimal with no sign (data-formats.md §4.3).
+- ~~**EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]~~ **ANSWERED 2026-10-14**
+  from the exe (`0x00910426`): **the first half of the bracket does not match; "no hex/inf/nan" does.** The game's
+  own parser adds the digits one by one in x87 arithmetic, rounded at every step to the main thread's 24-bit
+  precision; the exponent's power of ten is a wrapping 32-bit integer. So `0.05` gives `0x3D4CCCCC`, not
+  `0x3D4CCCCD`, `1e10` gives 1,410,065,408, and `1e32` gives 0 (data-formats.md §4.3, with examples).
+- ~~**EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
+  from the package index]~~ **ANSWERED 2026-10-14** from the exe (`0x009732EB`, `0x00972EAE`): **the first half
+  matches, the second does not.** A key resolves if a resource cache already holds it, or if a factory is
+  registered for its type, a loaded package holds the record, and the factory's read succeeds. Index presence
+  alone is not enough. Any type with a factory counts, not only exemplars and cohorts (data-formats.md §4.6).
+- ~~**EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
+  as a scalar 0 (§4.3). Intended? [scalar 0]~~ **ANSWERED 2026-10-14** from the exe (`0x0067E780`, `0x005FFB40`):
+  **the bracket matches.** The original stores a scalar Uint8 0. Both readers of these properties use a byte-list
+  getter that copies `GetCount()` bytes, 0 for a scalar, so the lot gets no wealth or purpose types. That is
+  the same as an empty array, so the difference is not observable (data-formats.md §4.3).
+- ~~**EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]~~
+  **ANSWERED 2026-10-14** from the exe (`0x005FD290`, `0x00915714`): **the bracket does not match.** The original
+  implements it as a raw copy from a **void array** only (memory type `0x8000`): at most `length` bytes, with
+  `length` lowered to the array's size. Any other type returns false, with no conversion. No shipped record has a
+  void array, so on shipped data it always returns false, and "not implemented" (always false) is not
+  observable there (data-formats.md §5.2).
+- ~~**EX18:** are §10.3 tests 18–22 (resource-manager load order) in scope for `engine/formats`? [out of scope]~~
+  **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. The tests check the resource
+  manager and startup registration (§3, §3.1), not the package reader, so they belong to whichever module
+  implements §3.1 (data-formats.md §10.3).
+- ~~**EX19:** how is depth counted for `MAX_PARENT_DEPTH`? [at most 32 nested loads below the record; a record that
+  fails only on depth is retried when reached shallower]~~ **ANSWERED 2026-10-14** from the exe (`0x009732EB`):
+  no original behaviour for the limit, because the original has none (§4.4); the implementer's choice stands.
+  The retry half is consistent with the original, which caches only successful loads, so a failed key is loaded
+  again on the next request (data-formats.md §4.4).
+- ~~**EX20 — §5.2:** a raw accessor on a type mismatch. [choice: a missing value]~~ **ANSWERED 2026-10-14** from
+  the exe (`0x0060CE80`, `0x005FD610`–`0x005FD640`): the original does not check. It returns the stored bytes reinterpreted,
+  such as `0x40300000` for a Float32 2.75 read as Uint32, or a heap address for an array. That is garbage
+  for the caller, so the *[choice]* of a missing value stands (data-formats.md §5.2).
 
 ## From the protection glue and grid shadow (filed by the coordinator from the lane's report, 2026-10-14; merged)
 
@@ -1390,3 +1433,7 @@ brackets.
 - **FL3:** a tract-size difference between the original and ours is reported as `INCOMPLETE`. [INCOMPLETE]
 - **FL4:** the message server's delivery order to the original's target and to the mirror is unspecified; both read
   the same game state. Is that enough? [assumed so]
+- **FL5 — first in-game shadow (run 82, coordinator):** 64 of 65 compared cycles exact; in cycle 66 (2033-03-15)
+  a 2×2 block of adjusted tracts, (7..8, 53..54), is 81 in the original and 65 in ours (max |d| 21; raw grid
+  identical). One lot's flammability contribution changed in a way the mirror missed or counted differently: which
+  event sets an adjusted tract outside the day visit (a lot condition or occupant change mid-cycle)?
