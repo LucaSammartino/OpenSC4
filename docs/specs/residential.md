@@ -35,8 +35,9 @@ The residential simulator keeps, per **population tract** (normally 4 × 4 cells
 level (R$, R$$, R$$$), their education quotient (EQ), health quotient (HQ) and a single **average age**. Once per
 month it:
 
-- rebuilds three **proximity maps**: for each wealth level, the Manhattan distance (in cells, capped at 255) from
-  every cell to the nearest residential building of that wealth (§5.3);
+- rebuilds three **proximity maps**, one per wealth level. They are meant to hold the Manhattan distance from every
+  cell to the nearest residential building of that wealth. Because of a seed defect, the original's maps hold 0
+  everywhere except along the z = 0 edge, where they hold 1 (0 under a building of that wealth) (§5.3);
 - copies the residential population from the growth developers' population maps, decays EQ and HQ (HQ also by
   pollution), blends in newcomers, ages the tract and applies the **generational reset** when the average age
   exceeds the tract's life expectancy; it may spawn a **buzzards** effect over sick tracts (§5.5);
@@ -233,20 +234,32 @@ uninterrupted pass. Consumers can observe a partially updated population/EQ/HQ/a
 
 For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
-1. **Seed**. key := BDS `GetBuildingMapKey(purpose 1, w)` (slot 42) = `(purpose << 2) + w + 1` = **6, 7, 8**. map :=
-   BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building keys). The temporary grid (tract size = proximity
-   size) is filled per tract t:
-   - equal tract shifts: t := 0 if `map[t] = key`, else 255;
-   - temporary grid finer than the map (d = shift difference): t := 0 if `map[x >> d][z >> d] = key`, else 255;
-   - temporary grid coarser: t := 0 if **any** map tract it covers equals key, else 255.
+1. **Seed** *[compat]* (QUESTIONS RG23; `0x005E4FA0`). key := BDS `GetBuildingMapKey(purpose 1, w)` (slot 42) =
+   `(purpose << 2) + w + 1` = **6, 7, 8**. map := BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building
+   keys, tract size 1). The seed visits every temporary-grid tract (x, z), x outer and z inner, and computes a
+   seed value:
+   - equal tract shifts (the shipped case): 0 if `map[x][0] = key`, else 255;
+   - temporary grid finer than the map (d = shift difference): 0 if `map[x >> d][z >> d] = key`, else 255;
+   - temporary grid coarser: 0 if **any** map tract it covers equals key, else 255.
+
+   **The value is always stored in element 0 of row x, the cell (x, 0), never in (x, z).** The destination is
+   the row's start address with no z offset (loaded at `0x005E503B`; stores at `0x005E505B`, `0x005E508A`,
+   `0x005E50FB`). In the equal-shift case the source has no z offset either: it compares `map[x][0]`. So:
+   - only the z = 0 edge is seeded, and the last z (countZ − 1) decides it. In the shipped case every z gives the
+     same value, so (x, 0) := 0 if `map[x][0] = key`, else 255;
+   - every other cell keeps what the temporary grid already held. State 13 creates the grid when it is absent, and
+     a fresh grid is all 0 (simgrid §4.2). States 14 and 15 reuse the grid that holds the previous wealth's
+     result, which is 0 off the edge, because a pass can only lower a value. So off the edge it is 0 for every
+     wealth.
 2. **Distance passes**. One pass over the `countX × countZ` temporary grid:
    - for each x (row): sweep z = 0 → countZ − 1 with a running d starting at 255: `d := min(d + 1, v)`; store d;
      then the same sweep from z = countZ − 1 down to 0;
    - then for each z (column): the same forward and backward sweeps along x;
    - the pass reports "changed" if any stored value differs from the value it replaced.
 
-   Passes repeat until one reports no change. The result is the **Manhattan distance** (in proximity tracts =
-   cells) to the nearest key tract, **capped at 255**; with no key tract every value is 255.
+   Passes repeat until one reports no change. The converged grid holds, for every cell, the Manhattan distance (in
+   proximity tracts = cells) to the nearest cell that held 0, **capped at 255**. The passes are correct; the seed
+   (step 1) is not. On a correctly seeded grid they would give the distance to the nearest key tract.
 
    *[compat]* (RS5, from the exe; one pass is `0x005E4E80`) **The running `d` is a 32-bit register** (`EDX`). It
    is set to 255 at the start of every sweep, and the step `d + 1` is a 32-bit `inc`, so it cannot wrap. The
@@ -266,7 +279,39 @@ For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 States 13 and 14 seed only; states 1 and 2 run the passes (time-sliced, one pass per loop iteration) and copy.
 State 15 seeds R$$$ and runs the full transform at once (not time-sliced); state 3 then runs one pass (no change),
 copies and frees the temporary grid. States 13, 14 and 15 create the temporary grid only if it does not exist,
-so R$$ and R$$$ reuse the R$ grid (the seed overwrites every tract).
+so R$$ and R$$$ reuse the R$ grid. The seed overwrites only the z = 0 edge (step 1).
+
+**What the proximity maps hold** *[compat]* (QUESTIONS RG23). With the shipped sizes (proximity, temporary grid and
+building map all tract size 1), proximity grid w is:
+- (x, 0) = 0 where `map[x][0]` is key w (a wealth-w residential building on the z = 0 edge);
+- (x, 0) = 1 everywhere else on that edge (seed 255, then 1 from its 0 neighbour (x, 1));
+- (x, z) = 0 for every z ≥ 1.
+
+It depends only on the building map's z = 0 edge. **How far one call gets:** states 1 and 2 need two passes. The
+first lowers the edge's 255s to 1 and reports a change, and the second reports none. State 3 needs one pass. The
+loop checks the time only between passes (§5.2, `0x006FF904`), so a call normally finishes the state: passes,
+copy, next state, return true. If the check fires after pass 1, the call returns false and the next call runs
+pass 2 and copies, with the same result. (If every edge cell holds the key, pass 1 already reports no change.)
+
+The intended distance transform is **not** the game's behaviour. FreeCity4 must reproduce the seed as described,
+because the maps feed the growth developers. Their state 5 takes the 4 × 4 floor mean `(sum >> 2) >> 2`
+(growth-developer §4.3). A 4 × 4 block holds at most four 1s, so that mean is 0 for every tract, and the shipped
+proximity curves `0x87CD6343/44/45` are read at 0 everywhere. `EstimateDesirability` reads single cells, which give
+1 only on the z = 0 edge.
+
+Worked example (4 × 4 city; building map key 6 at (1, 0), (1, 1) and (2, 3), key 7 at (3, 0), no key 8). Rows are
+x = 0..3, each row lists z = 0..3:
+
+| Grid | Original | Intended distance (not the game) |
+|---|---|---|
+| R$ (key 6) | `[1,0,0,0] [0,0,0,0] [1,0,0,0] [1,0,0,0]` | `[1,1,2,2] [0,0,1,1] [1,1,1,0] [2,2,2,1]` |
+| R$$ (key 7) | `[1,0,0,0] [1,0,0,0] [1,0,0,0] [0,0,0,0]` | `[3,4,5,6] [2,3,4,5] [1,2,3,4] [0,1,2,3]` |
+| R$$$ (no key 8) | `[1,0,0,0] [1,0,0,0] [1,0,0,0] [1,0,0,0]` | 255 everywhere |
+
+R$ step by step: state 13 creates a zero grid and seeds the edge (x, 0) := 255, 0, 255, 255, since only `map[1][0]`
+is 6. Pass 1's backward row sweep lowers each 255 to `min(0 + 1, 255)` = 1 from (x, 1), and the column sweeps change
+nothing. Pass 2 reports no change, and state 1 copies. The keys at (1, 1) and (2, 3) are never seen. The run 86
+corner, 1, 0, 0, 0 along t(0, 0..3), has the first row's pattern.
 
 ### 5.4 Histogram reset (state 11)
 
@@ -957,6 +1002,8 @@ only through the interface (search of every reference to the global and to city 
 7. Strike state does not survive save/load (§9.3); a save during state 4 double-counts population (§9.3).
 8. History `0x4A8A3FE2`/`0x4A8A3FE5` are written in opposite orders in the two branches of state 9 (§5.7).
 9. Slots 21/22 create a new grid on every call (callers must release it).
+10. The proximity seed writes only cell (x, 0) of each row, so the proximity maps are 1 on the z = 0 edge and 0
+    elsewhere instead of distances (§5.3, RG23).
 
 ## 13. Open questions
 
@@ -989,6 +1036,9 @@ only through the interface (search of every reference to the global and to city 
   - The reset percentages' code defaults are 0.7, but the shipped values are 0.8.
   - The state is at the object's offset `+0x94` on Windows; `+0x90` is relative to the message-target sub-object.
   - Life expectancy is evaluated at cell coordinates (tract × P), after the EQ/HQ updates.
+- This spec, RG23 (2026-10-14, from the exe): §5.3 described the seed the code was meant to perform (every tract
+  seeded, distances out). The original seeds only the cell (x, 0) of each row, so the proximity maps are 1 on the
+  z = 0 edge and 0 elsewhere. §5.3, §12 and §15 tests 1 and 3 now say so.
 - This spec, round 3 (RS1, 2026-10-13): every `× 0.01` is the float32 `0.01f`, so the shipped reset percent is
   0.79999995, not 0.8, and §15 test 8's EQ/HQ results were one float below what round 3 stated. Test 10's values
   were right, but only with the float32 rounding of each product, which §5.6 step 4 now states.
@@ -1003,11 +1053,15 @@ only through the interface (search of every reference to the global and to city 
 
 Unless stated: shipped tuning, ordinance products 1.0, P = E = 4, no pollution, month ≠ 12.
 
-1. **Proximity, one source**: 5 × 5 building map with key 6 only at (2, 2) → proximity R$ = |x − 2| + |z − 2|
-   ((0, 0) = 4, (4, 2) = 2); proximity R$$ (no key 7) = 255 everywhere.
-2. **Proximity, cap**: 300 × 1 map with key 7 at (0, 0) → value at x = 200 is 200, at x = 280 is 255.
-3. **Proximity, coarser target**: proximity size 2, building map size 1, key at map cell (3, 1) → target tract
-   (1, 0) = 0, (0, 0) = 1.
+1. **Proximity, one source** (RG23): 5 × 5 building map with key 6 only at (2, 2) → proximity R$ and R$$ (no
+   key 7) are both 1 at (x, 0) for every x and 0 elsewhere; (0, 0) = 1, (2, 2) = 0, (4, 2) = 0. Adding key 6 at
+   (3, 0) makes R$ (3, 0) = 0 and leaves R$$ unchanged. The §5.3 worked example gives the full 4 × 4 grids.
+2. **Proximity, cap**: 300 × 1 map with key 7 at (0, 0) → value at x = 200 is 200, at x = 280 is 255. With
+   countZ = 1 every cell is on the z = 0 edge, so the seed defect does not show and the passes give distances.
+3. **Proximity, coarser target** (RG23): proximity size 2, 4 × 4 building map of size 1, key at map cell (3, 1) →
+   2 × 2 target. The seed for tract (1, 0) finds the key and stores 0 in (1, 0). The seed for tract (1, 1) (map
+   cells x 2..3, z 2..3) finds none and stores 255 in the same cell (1, 0). The result is (0, 0) = 1, (1, 0) = 1,
+   (0, 1) = 0, (1, 1) = 0.
 4. **Decay**: EQ 10, HQ 10 → 9.8 and 9.8 (EQdecay = HQdecay = 0.2). EQ 0.1 → 0.
 5. **Newcomers' age**: pops (100, 0, 0) → (150, 0, 0), age 40, LE 100 → age **35**.
 6. **Age quirk**: (100, 0, 0) → (50, 10, 0), age 40, LE 100 → age **71** ((100·40 + 10·30) ÷ 60).

@@ -1795,14 +1795,25 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
   `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
-- **RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
+- ~~**RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
   exactly (all 25 grids, the saved fields, the per-building properties, funding and the scalars: population, EQ,
   HQ, life expectancy). States 1, 2 and 3 (the proximity grids R$, R$$, R$$$) differ in about 16,000 of 16,384
   cells: at the corner the original's grid reads 1, 0, 0, 0 along t(0,0..3) and ours 104, 103, 102, 101 (R$; R$$
   106.., R$$$ 116..). Ours looks like a distance ramp counting down from the corner; the original's is 0 or 1
   there. What do states 1–3 write into the proximity grid (a distance, a count within a radius, a flag), from
   which seed (the building map's keys `4p + w + 1`?), and how far does one state's call get? The shadow re-seeds
-  this temporary grid from the building map as it stands. [ours as residential.md reads today]
+  this temporary grid from the building map as it stands. [ours as residential.md reads today]~~ **ANSWERED
+  2026-10-14** from the exe (seed `0x005E4FA0`: row start loaded at `0x005E503B`, stores `0x005E505B`, `0x005E508A`,
+  `0x005E50FB`; states 13/14/15 at `0x006FF854`–`0x006FF87C` and on; pass loop `0x006FF8D0`–`0x006FF923`) and
+  written into residential.md §5.3 (worked example), §12 item 10 and §15 tests 1 and 3. **The bracket does not
+  match.** The seed uses the keys `4p + w + 1` (6, 7, 8) and the passes are as written. But the seed stores every
+  value in element 0 of row x, the cell (x, 0), and in the shipped equal-size case it also reads `map[x][0]`. So
+  only the z = 0 edge is seeded: 0 where `map[x][0]` is the key, 255 elsewhere. Every other cell keeps the
+  temporary grid's 0 (fresh grid, or the previous wealth's result, which is 0 off the edge). The passes then give
+  (x, 0) = 1 (or 0 under a key) and 0 everywhere else, which is the corner's 1, 0, 0, 0. States 1 and 2 converge
+  in two passes and state 3 in one, so one call normally completes the state; the time check sits between passes.
+  FreeCity4 must reproduce this *[compat]*, since the growth developers' 4 × 4 floor mean of these maps is then 0
+  for every tract. The commercial CO proximity maps use the same seed (simgrid §7.5).
 
 ## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
 

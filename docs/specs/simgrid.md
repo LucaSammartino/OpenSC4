@@ -363,7 +363,9 @@ yet; their users' specs will describe them. The residential simulator's helpers 
   population): residential-education-health.md, "Coverage maps" and "EQ and HQ boost".
 - The L1 distance transform used for the proximity maps (`0x005E4FA0` seed from a building-key map, `0x005E4E80`
   one forward/backward row-then-column pass, `0x005E4D60` repeat until unchanged, `0x005E5130` seed plus full
-  transform): residential.md, "Proximity maps".
+  transform): residential.md, "Proximity maps". *[quirk]* The seed stores every value in element 0 of its row, so
+  only the z = 0 edge is seeded (RG23). The commercial simulator's two CO proximity maps use `0x005E5130` too
+  (`DoIdle`, `0x0069ED30`), seeding the maps themselves, so the same defect applies there.
 
 ## 8. Original quirks (reproduced)
 
