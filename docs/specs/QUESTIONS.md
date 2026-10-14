@@ -425,8 +425,13 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   pollution.md §4.4.3. **The original has no such path: a null pointer crashes on the first read, and the city
   always creates the simulator.** The *[choice]* of 1.0 stands. It equals `GetCumulativeFactor` with no enacted
   ordinance carrying the property (ordinance.md §6.1).
-- **PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
-  bool. Confirm. [int32]
+- ~~**PG11 — slots 29/30:** they return int32 (the applied delta and the argument respectively) where the SDK has
+  bool. Confirm. [int32]~~ **ANSWERED 2026-10-14** from the exe (slot 29 `0x006E32E0`, slot 30 `0x006E5050`; every
+  call site checked) and written into pollution.md §8.1 with a table. **Confirmed; the bracket matches.**
+  - **Neither is a `bool`.** EAX holds the applied delta (taken before the final clamp at 0) and the argument
+    respectively. AL is just the low byte, so `AddToGarbageSupply(256)` gives AL 0.
+  - **No caller reads either value.** That covers the landfill developer, the landfill zones and the simulator
+    itself.
 - **PG12 — §5.2 posts:** no void or IGZUnknown is set on them, since the spec names none. Confirm. [none set]
 - **PG13 — slot 5:** what does it return for a type above 3? [null; choice]
 - ~~**PG14 — in-game differential (run 68, coordinator): `dirtyWater` after a day.** With the original pollution

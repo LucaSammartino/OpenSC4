@@ -989,6 +989,36 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 Slots 31 and 32 share their bodies with unrelated getters in the original (identical code folding); this has no
 behavioural effect.
 
+**What slots 29 and 30 leave in EAX (PG11) *[compat]*.** Neither slot sets AL as a `bool`. EAX simply holds the
+last value the body computed.
+
+- **Slot 29, `AddToGarbageSupply(n)`** (`0x006E32E0`), with `s` the supply on entry:
+
+  | `n` | Delta |
+  |---|---|
+  | > 0 | `min(n, 0x7FFFFFFF − s)` (saturating) |
+  | 0 | 0 |
+  | < 0 | `n` if `s + n ≥ 0`, else `−s` |
+
+  The supply becomes `s + delta`, then is set to 0 if negative. That last case is reachable only when `s` was
+  already negative, from a damaged save. EAX = the delta **before** that last clamp.
+- **Slot 30, `SetGarbageCapacity(n)`** (`0x006E5050`) stores `n`. EAX = `n`.
+
+No caller in the executable reads either value. The landfill developer (`0x006B9230`, `0x006B92F6`), the landfill
+zones (`0x006BB88D`, `0x006BD44F`) and the simulator itself (`0x006E3B1A`, `0x006E3B34`, `0x006E40D9`,
+`0x006E83DA`, `0x006E889C`, `0x006E89BC`, `0x006E8CF9`) all overwrite or ignore EAX. These are the only sites
+found by scanning for calls through `+0x74` / `+0x78` after a load of the simulator pointer, whether from the
+global `0x00B43D9C`, from the copies held by the landfill classes and the zone manager, or from `this`.
+
+| Call | EAX after | AL read as an SDK `bool` |
+|---|---|---|
+| `s` = 1,000, `AddToGarbageSupply(256)` | 256 | 0 (false) |
+| `s` = 2,147,483,632, `AddToGarbageSupply(100)` | 15 | 15 (true) |
+| `s` = 50, `AddToGarbageSupply(−80)` | −50 (`0xFFFFFFCE`) | `0xCE` (true) |
+| `SetGarbageCapacity(110000)` | 110,000 (`0x0001ADB0`) | `0xB0` (true) |
+
+A replacement returns these `int32` values, and callers must not treat them as `bool`.
+
 ### 8.2 `cIGZSerializable` (vtable `0x00AB25E8`)
 
 | Slot | Method | Pop | Return |
