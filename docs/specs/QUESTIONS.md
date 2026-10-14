@@ -3288,8 +3288,21 @@ in the code; the implemented answer is in brackets.
 - **DG3:** The layout behind `GetLotConfigurationMap`. [lot configuration manager slot 9 `GetLotConfigurationsByFilter`
   with an accept-all filter, into a B hash_set]
 - **DG4:** The budget item cost at +0x38. [0]
-- **DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
-  `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]
+- ~~**DG5:** How a building occupant's properties are loaded. [a GZCOM occupant, `SetBuildingType`, `GetResource`, QI
+  `0x0AC2B5F7` and `SetDefaultExemplar`; a failure gives false]~~
+  **ANSWERED 2026-10-14** from the exe (slot 7 `0x00698DE0`, loader `0x00698490`, constructor `0x00458E90`, GZCOM
+  factory `0x00458F40`, QI chain `0x004587D0` → `0x005E89C0` → `0x005FD310`) and written into building-development
+  §4.9.1. The original creates the building with the class's own allocator and constructor (count 0), AddRefs, then
+  `SetBuildingType`, the loader, `GetBoundingBox` / orientation swap / `SetBoundingBox`, the altitude, `SetPosition`,
+  `SetOrientation`, `Init`, the insert and one Release. The loader QIs `0x0AC2B5F7` on the `cISC4Occupant`, falls back
+  to `GetBuildingType` for type 0, looks the type up in the key map, `GetResource(key, 0xA52160F5)`,
+  `SetDefaultExemplar`, then sets the box to `(0,0,0)`–occupant size `0x27812810`; **it returns true on every path**.
+  The bracket differs in two points: a failed load does not give false (the building is still inserted, with an empty
+  box), and the box from `0x27812810` is part of the load. QI `0x0AC2B5F7` succeeds for buildings because their QI
+  chain ends in the property-holder base, which the landfill occupant's does not (in-game: 154 of 154 succeeded).
+  Bears on the five references on `0xA9BD882D`: `CreateInstance(0xA9BD882D)` already returns count 1 (the director's
+  QI AddRefs), so an AddRef copied from the BDS's `new` path leaves one reference per building. *[choice]*: no extra
+  AddRef after GZCOM creation; keep the original's always-true load.
 - **DG6:** BDS slots 23, 26 and 29. [false, logged once]
 - **DG7:** The static cleanup through app slot 69. [not registered, logged]
 - **DG8:** "Declined by stage" in the month line. [counted by wealth only]

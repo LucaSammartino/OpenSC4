@@ -600,16 +600,17 @@ All pass → true (`reason` untouched).
 
 - `AddNewBuildingOccupant(type, float pos[3], orientation)` (slot 7, `0x00698DE0`): false/null unless
   `IsBuildingTypeValid(type)` and `LocationIsOKForNewBuilding(type, pos[0], pos[2])`. Creates a building occupant
-  (`0x5C` bytes, `0x00458A60` / `0x00458E90`), sets its type, loads its properties (`0x00698490`; failure → release,
-  return null), takes its bounding box, swaps the box's x and z extents for orientation 1 or 3 and stores it back.
+  (`0x5C` bytes, `0x00458A60` / `0x00458E90`), sets its type, loads its properties (`0x00698490`, §4.9.1; it always
+  reports success), takes its bounding box, swaps the box's x and z extents for orientation 1 or 3 and stores it back.
+  The exact call order is §4.9.1.
   If `pos[1] < 0` (strictly; NaN does not count) the altitude is replaced by
   `lotDeveloper.GetLowestOrHighestAreaAltitude({min.x, min.z, max.x, max.z}, false, true)` (slot 16) — with the
   **box's** local coordinates, not offset by the position *[quirk]*. Then sets the position and orientation, initialises
   the occupant and inserts it (`AddNewBuildingOccupant(occupant)`, slot 8, through the vtable). Returns the
   occupant (borrowed: the occupant manager holds the reference) or **null**.
   **References** *[compat]*: the BDS AddRefs the new occupant once (its creation reference, count 1) and releases
-  that reference on **every** exit after creation (`0x00698F1B`): property-load failure, insert failure (slot 8
-  false) and success alike. On insert failure it therefore returns null and holds nothing; the occupant is destroyed
+  that reference on **every** exit after creation (`0x00698F1B`): insert failure (slot 8 false) and success alike
+  (a property-load failure branch exists but cannot be taken, §4.9.1). On insert failure it therefore returns null and holds nothing; the occupant is destroyed
   unless the occupant manager kept a reference of its own. On success the return value is the pointer after that
   release, kept alive only by the occupant manager. A caller never releases the result.
 - `AddNewBuildingOccupant(type, cx, cz, orientation)` (slot 6) = slot 7 with
@@ -624,6 +625,84 @@ All pass → true (`reason` untouched).
 - `DemolishFoundationOccupant(occupant, u)` (25): `occupantManager` slot 21 `(occupant, true, false)`.
 - `GetCostOfOccupantDemolition(building, u)` (10): int64 property `0x099AFACD` of the occupant, default 0 (u unused).
   The foundation overload (9) returns 0.
+
+#### 4.9.1 Creating a building occupant: call order, loader and layout *[compat]* (DG5)
+
+The BDS does not create buildings through GZCOM: it calls the class's own pool allocator (`0x00458A60`, `0x5C`
+bytes) and constructor (`0x00458E90`), so the new object's reference count is **0** until the BDS AddRefs it. The
+same class is also registered with GZCOM as class `0xA9BD882D` (factory `0x00458F40`, registered at `0x0046068F`):
+the factory takes a block from the same pool and runs the same constructor, and the GZCOM director then calls
+`QueryInterface(iid)`, which AddRefs. **An object from `CreateInstance(0xA9BD882D, iid)` therefore already carries
+the caller's reference (count 1)**: a creator that AddRefs it again, as the BDS does after `new`, holds two
+references and must release two. One extra AddRef per building gives a building that is never destroyed (one
+reference left after demolition).
+
+Call order of slot 7 (`0x00698DE0`; `occ` = the `cISC4BuildingOccupant` interface at `+0x00` of the object, `o` =
+its `cISC4Occupant` sub-object at `+0x04`):
+
+| Step | Call | Notes |
+|---|---|---|
+| 1 | BDS slot 15 `IsBuildingTypeValid(type)` | false → return null |
+| 2 | BDS slot 5 `LocationIsOKForNewBuilding(type, pos[0], pos[2])` | false → return null |
+| 3 | allocate and construct; `occ.AddRef()` | count 1 |
+| 4 | `occ` slot 5 `SetBuildingType(type)` | stores the type at `+0x38` |
+| 5 | `LoadBuildingOccupantProperties(occ, type)` (`0x00698490`, below) | always true |
+| 6 | `o` slot 10 `GetBoundingBox(min&, max&)` | the local box set by step 5 |
+| 7 | orientation 1 or 3: swap `min.x ↔ min.z` and `max.x ↔ max.z` | |
+| 8 | `occ` slot 8 `SetBoundingBox(min, max)` | |
+| 9 | if `pos[1] < 0`: `pos[1] := lotDeveloper` slot 16 (§4.9) | writes the caller's `pos[1]` |
+| 10 | `o` slot 9 `SetPosition(pos)` | |
+| 11 | `occ` slot 15 `SetOrientation(orientation)` | clamps to 0..3 |
+| 12 | `o` slot 3 `Init()` | |
+| 13 | BDS slot 8 `AddNewBuildingOccupant(occ)` → occupant manager slot 20 `InsertOccupant(o, false)` | |
+| 14 | `occ.Release()` | on every path after step 3 |
+
+**The loader** `0x00698490(occ, type)` returns **true on every path** (pop 8, AL = 1):
+
+1. `o := occ.AsOccupant()`; `x := o.QueryInterface(0x0AC2B5F7)` (`cISCExemplarPropertyHolder`; null if it fails).
+2. If `type = 0`, `type := occ.GetBuildingType()`.
+3. Look `type` up in the catalogue's key map (§4.7.1.2, no insertion). Absent → step 7.
+4. Resource manager slot 3 `GetResource(key, 0xA52160F5, &ex, 0, 0)`. False → step 7.
+5. `x.SetDefaultExemplar(ex)` (holder slot 3). *[quirk]* `x` is not null-checked; for this class it never is null.
+6. `h := o.AsPropertyHolder()` (occupant slot 6); `p := h.GetProperty(0x27812810)` (occupant size). If `p` exists:
+   `occ.SetBoundingBox((0, 0, 0), size)`, where `size` is the property's three float32 values (variant slot 111,
+   the raw value pointer; no type or count check). Release `ex`.
+7. Release `x` if it is not null; return true.
+
+So the property lookup in step 6 goes through the occupant's own holder, which falls back to the default exemplar set
+in step 5 (and the exemplar's cohorts, data-formats §4.4). A type that is valid but whose exemplar fails to load
+gives a building with the constructor's empty box (all zeros) and no default exemplar, and the BDS still inserts it.
+
+**Why `0x0AC2B5F7` works for buildings and not for landfill tiles** (re-answers8 LG27): the building occupant's
+`QueryInterface` (`0x004587D0`) answers `0x87DDA3A9` (`cISC4BuildingOccupant`) itself and passes every other IID to
+the `cSC4Occupant` base (`0x005E89C0`, `this + 4`), which answers `1`, `0x26BB767E`, `0xE4FDA3D4` and passes the
+rest to the property-holder base (`0x005FD310`, object `+0x0C`); that base answers `0x0AC2B5F7` with object
+**`+0x20`** and `0x25216283` with `+0x0C`. All sub-objects reach the same chain, so the QI succeeds from any
+interface of a building. The landfill occupant's `QueryInterface` (`0x00477130`) ends its chain without that last
+base, so for landfill tiles the holder must be reached by offset (layouts.md). (In-game: the devglue2 run created 154
+buildings through QI `0x0AC2B5F7` with no failure.)
+
+**Layout** (the original class; a replacement creating game buildings uses the original class, so these are facts
+about the object it receives):
+
+| Offset | What |
+|---|---|
+| `+0x00` | `cISC4BuildingOccupant` (vtable `0x00A872C0`) |
+| `+0x04` | `cISC4Occupant` (vtable `0x00A87238`); the `cSC4Occupant` base starts here |
+| `+0x08` | vtable `0x00A8721C` (answers `0xE4FDA3D4`) |
+| `+0x0C` | the property holder (vtable `0x00A871B8`); `o.AsPropertyHolder()` returns it |
+| `+0x20` | `cISCExemplarPropertyHolder` (vtable `0x00A871A0`) |
+| `+0x24` | the default exemplar: `SetDefaultExemplar` (holder slot 3, `0x00458E60`) AddRefs the new one, then releases the old; `GetDefaultExemplar` (slot 4) returns it without AddRef |
+| `+0x28` | occupant type `0x278128A0` |
+| `+0x38` | building type (slot 4 / slot 5) |
+| `+0x3C` | box minimum x, y, z (float32 ×3) |
+| `+0x48` | box maximum x, y, z (float32 ×3) |
+| `+0x54` | orientation (uint8, 0..3) |
+
+*[choice]* A replacement that creates a building through GZCOM follows the table above from step 4 with the object
+GZCOM returned, does **not** AddRef it again, and releases it once after step 13. A replacement that loads
+properties itself may treat a failed `GetResource` as the original does (insert the building anyway) or refuse the
+building; FreeCity4 keeps the original's behaviour.
 
 ### 4.10 `DoBuildingChanged(lot, wealth, built)` (`0x0069CA80`)
 
