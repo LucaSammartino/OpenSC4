@@ -417,7 +417,7 @@ Packed layout (bit position, width, element size; `StandardVFElementOffset` `0x0
 | 2 | 5 | 4 | 4 bytes *[inferred]* |
 | 3 | 6 | 12 | normal, 3 × f32 |
 | 4 | 7 | 4 | 4 bytes *[inferred]* |
-| 5 | 8–9 | 4 | colour, 32-bit (byte order GF6) |
+| 5 | 8–9 | 4 | colour, 32-bit: bytes B, G, R, A (below) |
 | 6 | 10–13 | 4 | 1-component texture coordinates |
 | 7 | 14–17 | 8 | 2-component texture coordinates (u, v as f32) |
 | 8 | 18–21 | 12 | 3-component texture coordinates |
@@ -451,6 +451,10 @@ Standard formats (`PackStandardVertexFormat` table at `0x008D028C`):
 
 Any other standard number packs to 0 (stride 0, §3.4). Shipped: `0x80004001` 165,256 blocks; standard 2 (new
 layout) 1,526; standard 2 (legacy, S = 20) 286; `0x80004101` 2 blocks (one model). Vertex counts 1–1,898.
+
+The colour element is a Direct3D colour, bytes B, G, R, A (GF6): DX7 sets the diffuse flag (`0x40`) in the vertex
+format for it (`0x008891EA`) and copies the 32-bit word unchanged into the Direct3D vertex (`0x0088C7D0` for
+`0x80004101`). OpenGL not traced.
 
 ### 3.6 INDX *[compat]*
 
@@ -963,6 +967,7 @@ Also filed in QUESTIONS.md, "From the graphics formats spec", GF1–GF12.
 5. GF5: defaults of the draw settings that override material filters and wrap.
    **Answered** (§3.8): `kForcePointSampling`, `kForceBilinear`, `kForceTextureRepeat`; all off.
 6. GF6: byte order of the vertex colour element.
+   **Answered** (§3.5): bytes B, G, R, A, copied unchanged into the Direct3D diffuse colour.
 7. GF7: RKT4/RKT5 layouts.
 8. GF8: where the detail global `0x00B216FC` is set.
    **Answered** (§4.2): `kModelLODOffset` clamped to 0–2, set by the Texture Quality option.

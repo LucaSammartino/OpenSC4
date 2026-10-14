@@ -2792,8 +2792,11 @@ exe and the shipped data alone.
   `kForcePointSampling` (nearest, nearest) and `kForceBilinear` (linear, linear-mipmap-linear); wrap is
   `kForceTextureRepeat`. All three default to false and no shipped rule sets them. So in normal play none applies, and
   (0, 0) means nearest with no mipmaps. The bracket's guess (trilinear on by default) is wrong.
-- **GF6 — §3.5:** byte order of the 32-bit vertex colour element (only `0x80004101`, 2 shipped blocks in model
-  `0xCB93E2B4`). [inferred: Direct3D colour, bytes B, G, R, A]
+- ~~**GF6 — §3.5:** byte order of the 32-bit vertex colour element (only `0x80004101`, 2 shipped blocks in model
+  `0xCB93E2B4`). [inferred: Direct3D colour, bytes B, G, R, A]~~
+  **ANSWERED 2026-10-14** from the exe (DX7 vertex format `0x008891C0`, diffuse flag at `0x008891EA`; copy for
+  `0x80004101` `0x0088C7D0`) and written into graphics-formats §3.5. DX7 copies the 32-bit colour unchanged into the
+  vertex's Direct3D diffuse colour, so the bytes are B, G, R, A. The bracket matches. OpenGL not traced.
 - **GF7 — §4.2:** layouts of RKT4 (`0x27812824`) and RKT5 (`0x27812825`), read by `GetAllModelInstanceIDs`
   (`0x00496C90`, `0x00497120`) and `IsStaticBuilding` (`0x00583B10`), not by `GetModelInstanceID`. [out of scope
   here; for the building-rendering lane]
