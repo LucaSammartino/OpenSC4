@@ -269,15 +269,18 @@ impl Cx<'_> {
     /// appended.
     pub(crate) fn ferry_activated(&mut self, lot: u64, building: u64, lot_rect: CellRect) -> bool {
         let h = self.h;
-        // Step 1: the ferry type (u8); stop if missing, > 2, or 16 already.
+        // Step 1: the ferry type (u8); stop if missing, ≥ 2, or 16 already.
+        // Type 2 never activates in the original (its "count" is a heap
+        // pointer, TN18), so it is rejected with the types above 2.
         let Some(ty) = h
             .occupant_property(building, prop::FERRY_TYPE)
             .and_then(|v| v.items().first().map(|e| e.as_i64() as u8))
         else {
             return false;
         };
-        if ty > 2 || self.s.ferry_counts[usize::from(ty)] >= MAX_TERMINALS_PER_TYPE {
-            return false;
+        match self.s.ferry_counts.get(usize::from(ty)) {
+            Some(&n) if n < MAX_TERMINALS_PER_TYPE => {}
+            _ => return false,
         }
         // Step 2: classify the prop occupants of the lot rectangle; later
         // props of a kind overwrite earlier ones.
@@ -290,8 +293,9 @@ impl Cx<'_> {
                 ferry_prop::ARRIVAL => arr = Some((cx, cz)),
                 ferry_prop::WATER => {
                     // The first side whose neighbour is outside the lot
-                    // rectangle and under water. A water prop with no such
-                    // side leaves an earlier one [choice].
+                    // rectangle and under water; the water cell is that
+                    // neighbour N. A water prop with no such side writes
+                    // nothing, so an earlier one stays (TN10).
                     let found = (0..side::COUNT).map(|d| (cx + DX[d], cz + DZ[d])).find(|&(nx, nz)| {
                         let outside = nx < lot_rect.x1 || nx > lot_rect.x2 || nz < lot_rect.z1 || nz > lot_rect.z2;
                         outside && h.cell_under_water(nx, nz)
@@ -407,9 +411,11 @@ impl Cx<'_> {
         }) else {
             return;
         };
-        // Step 1: its type count, not below 0.
-        let ty = usize::from(s.ferries[pos].ferry_type).min(2);
-        s.ferry_counts[ty] = s.ferry_counts[ty].saturating_sub(1);
+        // Step 1: its type count, not below 0 (only types 0 and 1 have one,
+        // TN18).
+        if let Some(n) = s.ferry_counts.get_mut(usize::from(s.ferries[pos].ferry_type)) {
+            *n = n.saturating_sub(1);
+        }
         // Step 2: in every terminal reached through its links, delete the
         // link back to it.
         let key = s.ferries[pos].departure_key();
@@ -545,8 +551,9 @@ impl NetworkModel {
         })
     }
 
-    /// `GetFerryTerminalCount(type)` (slot 32). The original has no bounds
-    /// check; a type above 2 gives 0 [choice].
+    /// `GetFerryTerminalCount(type)` (slot 32, §4.9.5). The original has no
+    /// bounds check and reads unrelated members for a type ≥ 2; FreeCity4
+    /// returns 0 for every type ≥ 2 (TN18).
     pub fn ferry_terminal_count(&self, ferry_type: u32) -> u32 {
         self.s
             .borrow()
@@ -609,8 +616,7 @@ impl NetworkModel {
 
     /// `GetFerryRoutesInUse(list<FerryRouteInfo>&)` (slot 31, §4.9.5). A link
     /// is in use when either "last" counter (`counters[0]`, `counters[2]`) is
-    /// non-zero; the reported counters are the "last" ones [inferred: the
-    /// test uses them].
+    /// non-zero, and the reported counters are the "last" ones too (TN9).
     pub fn ferry_routes_in_use(&self) -> Vec<FerryRouteInfo> {
         // The lots first (host calls), so no borrow is held across them.
         let lot_cells: Vec<(i32, i32)> = self
