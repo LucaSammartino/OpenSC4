@@ -45,7 +45,10 @@
 //!
 //! **Not readable, hence not compared** ([`NOT_COMPARED`], logged once at
 //! start-up): the temporary proximity grid (not saved: a delivery in states
-//! 1-3 re-seeds it from the building map as it stands); the age histogram,
+//! 1-3 re-seeds it from the building map as it stands; RG23: the seed writes
+//! only the z = 0 edge and the original's grid is 0 everywhere else, as a
+//! fresh grid is, so the re-seed is exact unless that edge of the building
+//! map changed since the seed day); the age histogram,
 //! the coverage counters and the grade totals (not saved; history inputs
 //! only); the history values and the posted strike messages; the state-0
 //! strike rolls (the original's clock-seeded `cRZRandom`), so on state-0 days
@@ -168,7 +171,8 @@ const _: () = {
 /// ([`fc4_residential_shadow_describe`]).
 pub const NOT_COMPARED: &str =
     "the temporary proximity grid (not saved: a delivery in states 1-3 re-seeds it from the \
-     building map as it stands); the age histogram, the coverage counters and the grade totals (not saved; history \
+     building map as it stands; exact unless the map's z = 0 edge changed since the seed day, RG23); the age \
+     histogram, the coverage counters and the grade totals (not saved; history \
      inputs only); history values and posted strike messages; the state-0 strike rolls (the original's clock-seeded \
      cRZRandom), so on state-0 days the strike flags, strike start days and buildings' strike days; automata \
      controllers, budget line items and locally funded objects; visual effects (buzzards); the ordinance effects \
@@ -1453,7 +1457,12 @@ impl Shadow {
         });
         let mut notes = Vec::new();
         // The temporary grid is not saved (`Read` turns states 1-3 into 13-15):
-        // seed it first.
+        // seed it first. [compat] (RG23): the seed writes only the z = 0 edge
+        // and reads only `map[x][0]`; off the edge the original's grid holds
+        // 0 in every one of states 1-3 (a fresh grid, then a previous wealth's
+        // passes, which leave 0 there), as our fresh grid does. So the re-seed
+        // gives the original's grid unless the building map's z = 0 edge
+        // changed between the seed day and this one.
         if (st::PROXIMITY_LOW..=st::PROXIMITY_HIGH).contains(&p.raw.state) {
             sim.do_daily_simulation();
             notes.push("temporary grid re-seeded from the building map as it stands".to_string());

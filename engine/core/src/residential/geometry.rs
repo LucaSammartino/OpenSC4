@@ -5,7 +5,9 @@
 // Licensed under GPL-3.0-or-later; see LICENSE at the repository root.
 
 //! The proximity maps of §5.3: the seed from the BDS building map and the
-//! four-sweep distance passes that turn it into a Manhattan distance field.
+//! four-sweep distance passes. The passes give a Manhattan distance field,
+//! but the seed fills only the z = 0 edge *[compat]* (RG23), so the shipped
+//! maps are 1 on that edge (0 under a key) and 0 everywhere else.
 
 use crate::grid::{process_two_grids, TractGrid, MAX_TRACTS};
 
@@ -17,13 +19,19 @@ pub const FAR: u8 = 255;
 /// (a grid with a huge tract count cannot make this loop run forever).
 pub const MAX_PASSES: u32 = 256;
 
-/// §5.3 step 1: fills `target` (the temporary proximity grid) per tract,
-/// 0 where `map` holds `key` and [`FAR`] elsewhere. The three cases are the
-/// shift comparison the spec gives:
+/// §5.3 step 1 *[compat]* (RG23): the seed. It visits every `target` tract
+/// (x, z), x outer and z inner, and computes 0 where `map` holds `key` and
+/// [`FAR`] elsewhere, with the spec's shift comparison:
 ///
-/// - equal shifts: `map[x][z]`;
+/// - equal shifts (the shipped case): `map[x][0]`, with **no z offset**;
 /// - `target` finer by d: `map[x >> d][z >> d]`;
 /// - `target` coarser by d: 0 when **any** map tract it covers equals `key`.
+///
+/// Every value is stored in **(x, 0)**, never in (x, z): the original writes
+/// the row's first element. So only the z = 0 edge is seeded, the last z
+/// (countZ − 1) decides each edge cell, and every other cell keeps what the
+/// grid already held (0 on a fresh grid, and 0 off the edge after a previous
+/// wealth's passes, since a pass can only lower a value).
 ///
 /// Out-of-range map reads give 0 ([`TractGrid`]'s rule), which is not `key`
 /// for the residential keys 6–8, so they seed [`FAR`].
@@ -35,7 +43,8 @@ pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: 
     );
     let hit = |tx: i32, tz: i32| -> u8 {
         let found = if st == sm {
-            map.get(tx, tz) == key
+            // [compat] (RG23): the equal-shift source has no z offset either.
+            map.get(tx, 0) == key
         } else if st < sm {
             let d = (sm - st) as u32;
             map.get(tx >> d, tz >> d) == key
@@ -57,8 +66,22 @@ pub fn seed_proximity(target: &dyn TractGrid<u8>, map: &dyn TractGrid<u8>, key: 
     };
     for x in 0..cx {
         for z in 0..cz {
-            target.set(x, z, hit(x, z));
+            // [compat] (RG23): the row's first element, not (x, z).
+            target.set(x, 0, hit(x, z));
         }
+    }
+}
+
+/// [choice] The seed with no building map: [`seed_proximity`] against a map
+/// that holds no key, so (x, 0) := [`FAR`] for every row of a grid with at
+/// least one z, and every other cell keeps its value (§5.3 step 1, RG23).
+pub fn seed_proximity_no_map(target: &dyn TractGrid<u8>) {
+    let cx = target.count_x().clamp(0, MAX_TRACTS);
+    if target.count_z() <= 0 {
+        return;
+    }
+    for x in 0..cx {
+        target.set(x, 0, FAR);
     }
 }
 
@@ -144,31 +167,81 @@ mod tests {
         )
     }
 
-    /// §15 test 1: one source at (2, 2) of a 5 × 5 map gives |x − 2| + |z − 2|.
+    /// Row-major `[x][z]` values of a `cx × cz` grid.
+    fn rows(t: &SimGrid<u8>, cx: i32, cz: i32) -> Vec<Vec<u8>> {
+        (0..cx).map(|x| (0..cz).map(|z| t.get(x, z)).collect()).collect()
+    }
+
+    /// §15 test 1 (RG23): one source at (2, 2) of a 5 × 5 map. The seed
+    /// reads `map[x][0]` only, so the key is never seen: the edge seeds 255,
+    /// the passes lower it to 1, and every other cell stays 0.
     #[test]
-    fn one_source_is_manhattan() {
+    fn one_source_seeds_only_the_edge() {
         let map = prox(5, 5);
         map.set(2, 2, 6);
         let t = prox(5, 5);
         seed_proximity(&*t, &*map, 6);
-        assert_eq!(t.get(2, 2), 0);
-        assert_eq!(t.get(0, 0), FAR);
+        for x in 0..5 {
+            assert_eq!(t.get(x, 0), FAR, "seed ({x},0)");
+            for z in 1..5 {
+                assert_eq!(t.get(x, z), 0, "seed ({x},{z})");
+            }
+        }
         distance_to_convergence(&*t, 5, 5);
         for x in 0..5 {
             for z in 0..5 {
-                assert_eq!(
-                    u32::from(t.get(x, z)),
-                    (x - 2).unsigned_abs() + (z - 2).unsigned_abs(),
-                    "({x},{z})"
-                );
+                assert_eq!(t.get(x, z), u8::from(z == 0), "({x},{z})");
             }
         }
-        assert_eq!((t.get(0, 0), t.get(4, 2)), (4, 2));
-        // No key 7 anywhere: every value stays FAR.
-        let t2 = prox(5, 5);
-        seed_proximity(&*t2, &*map, 7);
-        distance_to_convergence(&*t2, 5, 5);
-        assert!(t2.values().iter().all(|&v| v == FAR));
+        assert_eq!((t.get(0, 0), t.get(2, 2), t.get(4, 2)), (1, 0, 0));
+        // Key 6 also at (3, 0): R$ (3, 0) = 0; no key 7 anywhere leaves the
+        // R$$ edge at 1.
+        map.set(3, 0, 6);
+        let r1 = prox(5, 5);
+        seed_proximity(&*r1, &*map, 6);
+        distance_to_convergence(&*r1, 5, 5);
+        assert_eq!(
+            rows(&r1, 5, 5).iter().map(|r| r[0]).collect::<Vec<_>>(),
+            vec![1, 1, 1, 0, 1]
+        );
+        let r2 = prox(5, 5);
+        seed_proximity(&*r2, &*map, 7);
+        distance_to_convergence(&*r2, 5, 5);
+        assert_eq!(rows(&r2, 5, 5), rows(&t, 5, 5));
+    }
+
+    /// §5.3 worked example (RG23): 4 × 4, key 6 at (1, 0), (1, 1), (2, 3),
+    /// key 7 at (3, 0), no key 8; one temporary grid reused across wealths.
+    #[test]
+    fn worked_example_reuses_the_grid() {
+        let map = prox(4, 4);
+        for (x, z) in [(1, 0), (1, 1), (2, 3)] {
+            map.set(x, z, 6);
+        }
+        map.set(3, 0, 7);
+        let t = prox(4, 4);
+        let mut got = Vec::new();
+        for key in [6, 7, 8] {
+            seed_proximity(&*t, &*map, key);
+            distance_to_convergence(&*t, 4, 4);
+            got.push(rows(&t, 4, 4));
+        }
+        let edge = |e: [u8; 4]| -> Vec<Vec<u8>> { e.iter().map(|&v| vec![v, 0, 0, 0]).collect() };
+        assert_eq!(got[0], edge([1, 0, 1, 1]), "R$");
+        assert_eq!(got[1], edge([1, 1, 1, 0]), "R$$");
+        assert_eq!(got[2], edge([1, 1, 1, 1]), "R$$$");
+        // Two passes: pass 1 lowers the edge 255s to 1, pass 2 sees no change.
+        seed_proximity(&*t, &*map, 6);
+        assert_eq!(distance_to_convergence(&*t, 4, 4), 2);
+    }
+
+    /// [choice] No building map: the edge seeds FAR, the rest is kept.
+    #[test]
+    fn no_map_seeds_the_edge_far() {
+        let t = prox(3, 2);
+        t.set(1, 1, 9);
+        seed_proximity_no_map(&*t);
+        assert_eq!(rows(&t, 3, 2), vec![vec![FAR, 0], vec![FAR, 9], vec![FAR, 0]]);
     }
 
     /// §15 test 2: a 300 × 1 map with the key at (0, 0) caps at 255.
@@ -182,38 +255,57 @@ mod tests {
         assert_eq!((t.get(200, 0), t.get(280, 0)), (200, FAR));
     }
 
-    /// §15 test 3: a coarser target (proximity size 2, map size 1) with the
-    /// key at map cell (3, 1).
+    /// §15 test 3 (RG23): a coarser target (proximity size 2, map size 1) on
+    /// a 4 × 4 map with the key at map cell (3, 1). Tract (1, 0) finds the
+    /// key and stores 0 in (1, 0); tract (1, 1) (map x 2..3, z 2..3) finds
+    /// none and stores 255 in the same cell.
     #[test]
-    fn coarser_target_covers_any_cell() {
+    fn coarser_target_last_z_decides() {
         let city = CityDims {
-            cells_x: 8,
-            cells_z: 8,
+            cells_x: 4,
+            cells_z: 4,
             ..CityDims::square(256)
         };
         let map = SimGrid::<u8>::create(&city, 0, 1);
         map.set(3, 1, 6);
         let t = SimGrid::<u8>::create(&city, 0, 2);
+        assert_eq!((t.count_x(), t.count_z()), (2, 2));
         seed_proximity(&*t, &*map, 6);
+        assert_eq!(rows(&t, 2, 2), vec![vec![FAR, 0], vec![FAR, 0]]);
         distance_to_convergence(&*t, t.count_x(), t.count_z());
-        assert_eq!((t.get(1, 0), t.get(0, 0)), (0, 1));
+        assert_eq!(rows(&t, 2, 2), vec![vec![1, 0], vec![1, 0]]);
+        // A one-z target has no later z to overwrite the hit.
+        let line = CityDims {
+            cells_x: 4,
+            cells_z: 2,
+            ..CityDims::square(256)
+        };
+        let m1 = SimGrid::<u8>::create(&line, 0, 1);
+        m1.set(3, 1, 6);
+        let t1 = SimGrid::<u8>::create(&line, 0, 2);
+        seed_proximity(&*t1, &*m1, 6);
+        assert_eq!((t1.get(0, 0), t1.get(1, 0)), (FAR, 0));
     }
 
-    /// A finer target reads the containing coarser map tract.
+    /// A finer target reads the containing coarser map tract of the last z
+    /// and stores it in (x, 0) (RG23).
     #[test]
-    fn finer_target_reads_containing_tract() {
+    fn finer_target_reads_last_z_tract() {
         let city = CityDims::square(8);
         let map = SimGrid::<u8>::create(&city, 0, 4);
-        map.set(1, 0, 8);
+        // Map tract (1, 1) covers cells x 4..7, z 4..7: the last z (7) of
+        // rows 4..7 reads it.
+        map.set(1, 1, 8);
+        // Map tract (0, 0) covers x 0..3, z 0..3: no last z reads it.
+        map.set(0, 0, 8);
         let t = SimGrid::<u8>::create(&city, 0, 1);
         seed_proximity(&*t, &*map, 8);
-        // Map tract (1, 0) covers cells x 4..7, z 0..3.
-        for x in 4..8 {
-            for z in 0..4 {
+        for x in 0..8 {
+            assert_eq!(t.get(x, 0), if x >= 4 { 0 } else { FAR }, "({x},0)");
+            for z in 1..8 {
                 assert_eq!(t.get(x, z), 0, "({x},{z})");
             }
         }
-        assert_eq!(t.get(0, 0), FAR);
     }
 
     /// A pass reports "changed" only when it stores a different value.

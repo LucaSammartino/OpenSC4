@@ -33,17 +33,17 @@
 // call (fc4_aura_ratings / fc4_aura_grid), never the core's state; slot 5
 // then reads the game's aura grid as the original does.
 //
-// Inputs the spec reads through interfaces we cannot call (logged once, the
-// spec's neutral value used; spec questions in the lane report):
-//   - the lot manager's safe lot iterator (§6.4; its layout is not in
-//     docs/abi): [choice] the lots are found by GetLot(x, z, false) over every
-//     cell, each lot once, when state 4 prepares the walk;
-//   - GetPopulations (§6.5.1, lot slot 54; the returned container is not in
-//     docs/abi): [choice] GetPopulation(type) (lot slot 53) for the twelve
-//     developer types of the demand nodes, the non-zero ones as pairs;
-//   - the game-data registry node "aura" (§4.3): not published (as budget);
-//   - the process-wide base-aura table (§10): not written (its layout and
-//     readers are unknown, §16 question 7).
+// Where the glue departs from the original's mechanism (the spec's choices):
+//   - the lot manager's safe lot iterator (§6.5, AU5): [choice] the lots are
+//     found by GetLot(x, z, false) over every cell, each lot once, when state
+//     4 prepares the walk (the stamp is a maximum: the order does not matter);
+//   - GetPopulations (§6.5.1, AU3): lot slot 54's vector of
+//     map<uint32_t, uint16_t> is read in place (FC4GameMap.h), every entry,
+//     counts of 0 included;
+//   - the game-data registry node "aura" (§4.3, AU6): not published (as
+//     budget; no shipped file calls its commands);
+//   - the process-wide base-aura table (§10, AU11): not written (only the
+//     aura reads it; the core keeps the values in its object).
 #pragma once
 
 #include "FC4Config.h"

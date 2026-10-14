@@ -45,6 +45,8 @@
 #include "FC4FlammabilityShadow.h"
 #include "FC4ResidentialShadow.h"
 #include "cFC4Residential.h"
+#include "FC4NeighborsShadow.h"
+#include "cFC4Neighbors.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -181,6 +183,12 @@ const ClassEntry kResidentialClasses[] = {
     {kFC4_CLSID_cSC4ResidentialSimulator, "cSC4ResidentialSimulator", &CreateFC4ResidentialSimulator},
 };
 
+// docs/specs/neighbors.md §1 (the simulator; its connection and deal objects
+// have no factory, §15.2). Off by default (glue trial): `enable = neighbors`.
+const ClassEntry kNeighborsClasses[] = {
+    {kFC4_CLSID_cSC4NeighborsSimulator, "cSC4NeighborsSimulator", &CreateFC4NeighborsSimulator},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -201,6 +209,7 @@ const Subsystem kSubsystems[] = {
     {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
     {"residential", nullptr, kResidentialClasses, sizeof(kResidentialClasses) / sizeof(kResidentialClasses[0]),
      false},
+    {"neighbors", nullptr, kNeighborsClasses, sizeof(kNeighborsClasses) / sizeof(kNeighborsClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -299,8 +308,8 @@ void Resolve() {
         return false;
     };
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
-    // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
-    AuraShadowStartup(enabledKey("aura"));
+    // The aura shadow (FC4AuraShadow.h; it follows the original aura simulator).
+    AuraShadowStartup(g_enabled[0], enabledKey("aura"));
     // The flora census shadow (FC4FloraShadow.h; it compares the original flora simulator).
     FloraShadowStartup(g_enabled[0], enabledKey("flora"));
     // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
@@ -315,6 +324,8 @@ void Resolve() {
     FlammabilityShadowStartup(enabledKey("flammability"));
     // The residential shadow (FC4ResidentialShadow.h; it compares the original residential simulator).
     ResidentialShadowStartup(g_enabled[0], enabledKey("residential"));
+    // The neighbours shadow (FC4NeighborsShadow.h; it compares the original neighbours simulator).
+    NeighborsShadowStartup(g_enabled[0], enabledKey("neighbors"));
 }
 
 }  // namespace

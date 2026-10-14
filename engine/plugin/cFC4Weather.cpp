@@ -447,7 +447,11 @@ void cFC4WeatherSimulator::GetMoistureValueMapPtr(FC4ByteGridVector*& out) {
     out = &grid_;
 }
 
-uint8_t cFC4WeatherSimulator::GetMoistureType(float x, float z) { return fc4_weather_moisture_type(core_, x, z); }
+// The 0..15 value is returned zero-extended: the original flora adds all of
+// EAX to a table offset (flora.md §6.2, FQ5).
+uint32_t cFC4WeatherSimulator::GetMoistureType(float x, float z) {
+    return static_cast<uint32_t>(fc4_weather_moisture_type(core_, x, z));
+}
 
 void cFC4WeatherSimulator::SetManualMoistureAddition(float x0, float z0, float x1, float z1, float v) {
     fc4_weather_set_manual_moisture_addition(core_, x0, z0, x1, z1, v);

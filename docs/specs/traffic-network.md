@@ -295,6 +295,27 @@ It never fails and checks no range: a corner cell such as (−1, −1) reads ind
 in-city cell gets side-3 record x. Every caller passes an off-map edge cell, so neither happens in the game.
 *[choice]* Return an empty record (mask 0, pool 0, cost 0.0) for any other cell.
 
+In full (TN28), the original returns a pointer for every cell:
+
+| Cell | Record returned |
+|---|---|
+| x < 0, any z | side-0 index z. For z = −1 or z = Z this is the 8 bytes before or after the array (heap memory) |
+| x > X−1, any z | side-2 index z, with the same overrun at z = −1 and z = Z |
+| 0 ≤ x ≤ X−1, z < 0 | side-1 index x: the correct record when z = −1 |
+| 0 ≤ x ≤ X−1, z ≥ 0 | side-3 index x. For an in-city cell this is the record of (x, Z), a real record |
+
+So a corner cell reads, and through Add (`0x007153F5`) would write, heap memory. An in-city cell aliases the edge
+record below it, and an Add there would change that record. The callers:
+
+- the pathfinder (`0x006D87ED`), only for a cell off the map;
+- FindNeighborConnection (`0x007104F3`), after its in-city test;
+- Add (`0x007153F5`), with a neighbour connection's cell;
+- the trip end tests at `0x0071C8BC` and `0x0071C934`, only for an off-map trip end.
+
+GetNeighborPoolPropertyHolder repeats the same tests inline (`0x00711500`–`0x0071153E`). Every one of these cells
+is the off-map cell of a neighbour connection, which is always an edge cell next to the map. So the empty record of
+the *[choice]* is never observable against the original. Writes to it must be discarded.
+
 **FindNeighborConnection(t, x, z)** (`0x007104A0`) finds the neighbour connection that a trip of travel type `t`
 uses at an off-map cell. For an in-city cell the result is none. Otherwise let `wanted := connMask(net(t))` (table
 below) and `rec` the cell's record. For connection type `c` = 0…12 in ascending order, with bit `c` set in both
@@ -311,6 +332,20 @@ found is the result; none found → none.
 | 3 | Subway | `0x40` | Subway |
 | 4 | Light rail | `0x80` | LightRail |
 | 5 | Monorail | `0x800` | Monorail |
+
+**Travel types outside 0…8** (TN27). `net(t)` is a u32[9] table at `0x00AB31A8` (0, 1, 1, 2, 1, 2, 3, 4, 5 for
+t = 0…8). Both lookups index it, and then the mask table above, with no range check (`0x007104D7`, `0x007114ED`).
+For t ≥ 9 the original reads the read-only data that follows:
+
+- t = 9…26 find 0, so the mask is the pedestrian one, `0x704`;
+- t = 27…30 find 2, 1, 3 and 4;
+- t = 31 finds 6, whose mask word is 0;
+- larger t read further unrelated words.
+
+This never happens in the game. The callers pass −1 (the pool lookup only, `0x00713703`), 1 (`0x00716751`) or a
+trip's travel type, which is 0…8 (`0x006D79D7`, `0x007147B8`, `0x007147C9`). *[choice]* Use `wanted := 0` for any
+t outside 0…8, except t = −1 in the pool lookup, which keeps all bits. FindNeighborConnection then gives none. The
+pool lookup gives null, except at a record with the Ferry bit (step 2 below).
 
 **GetNeighborPoolPropertyHolder(t, x, z)** (`0x007114E0`) gives the property holder that carries the destination
 capacity of an off-map cell (traffic-simulator.md §4.2; pathfinder.md §4.10.1):
@@ -369,6 +404,17 @@ without limit and no commuters.
 1. Collect the pool IDs of records 0 … X−2 of each of the four arrays. The bound is X−1 for all four arrays
    *[quirk]*: the last record of every array is never looked at. The z-indexed arrays use the x bound, which is
    the same in the game's square cities.
+
+   **When Z ≠ X** (TN26). The bound is `X − 1` (member `+0x194`, `0x0071392D`) for all four arrays, while Init
+   sizes the z-indexed arrays (sides 0 and 2) to Z (`0x0071E944`–`0x0071E989`).
+   - Z > X: their records X−1 … Z−1 are never looked at.
+   - Z < X: the loop reads records Z … X−2, past the end of those arrays (heap memory). Here a garbage pool ID only
+     keeps a pool alive, but the edge pass (§2.7.4 step 6) also writes. With a garbage non-zero mask, it can clear
+     the "pool" word in that memory and set destination bits outside the off-map border of the destination map.
+
+   No shipped city has Z ≠ X: every region city is square (64, 128 or 256 cells a side). *[choice]* Stop each
+   loop at its own array: `j < min(X − 1, length)`, where length is Z for sides 0 and 2 and X for sides 1 and 3.
+   This is the original for every square city.
 2. Release every pool whose ID was not collected, and remove it from the map.
 
 A pool used only by the last cell of an edge (z = Z−1 on sides 0 and 2, x = X−1 on sides 1 and 3) is therefore
@@ -397,7 +443,8 @@ StartRecalc (traffic-simulator.md §4.3) ends with this pass. It runs on the mai
    - `SetMaxTripCapacity(pool, 3, 0xFFFFFFFF)` and arrived-this-cycle `[3] := 0`.
    Pools that match no city keep their old capacities and counts.
 5. **Default pool**: arrived-this-cycle `[3] := 0`.
-6. **Edge pass**: for side d = 0…3 and index j = 0 … X−2 (the same bound as the sweep, *[quirk]*), skip records
+6. **Edge pass**: for side d = 0…3 and index j = 0 … X−2 (the same bound as the sweep, *[quirk]*; for Z ≠ X see
+   §2.7.3, TN26), skip records
    with mask 0. The off-map cell is (−1, j), (j, −1), (X, j) or (j, Z) for d = 0, 1, 2, 3. If `HasMapExit(cell)`
    is true, take the holder: pool 0 → the default pool; an ID with no pool → `rec.pool := 0` and the default pool;
    otherwise that pool. There is no mask test here. Then for k = 0…3: if `GetMaxTripCapacity(holder, k) ≠ 0`

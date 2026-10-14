@@ -480,6 +480,10 @@ impl NetworkState {
     /// `TransitSwitchEntryCost(id)` (§4.7.3, x87 return).
     ///
     /// 1. Look the switch up with insert-if-missing semantics *[quirk]*.
+    ///    *[choice]* (TN23) The inserted switch is all zeros, so an unknown
+    ///    ID costs `0x7EFFFFFF` (0/0 is NaN). The original copies an
+    ///    uninitialised stack temporary (only the second counter and the
+    ///    rules zeroed), so its cost for an unknown ID is not reproducible.
     /// 2. `q = r24(load / capacity)`.
     /// 3. `q < 5.0` (ordered): `r24(r24(Curve(q) × transitMultiplier) ×
     ///    timeFactor)`.
@@ -549,9 +553,12 @@ impl NetworkState {
     /// "counts as intersection" flag is set. Tunnel cells and cells without
     /// car info are reached (and may be intersections) but not extended
     /// (TN5: the intersection test runs first, then the stops). The start
-    /// cell itself is always extended, tunnel or not *[inferred: the stops
-    /// apply to the cells the search enters]*. The bounds check compares
-    /// both coordinates with X−1 *[quirk]*.
+    /// cell gets the same checks (TN21): it has a car record with
+    /// `connCount ≤ 2` and depth 0 is below `best`, but a **tunnel start
+    /// cell is not extended**, so its search ends at once with
+    /// `best = N + 1` and the cell keeps its table value (a Street tunnel
+    /// next to an intersection stays at 100, not 80). The bounds check
+    /// compares both coordinates with X−1 *[quirk]*.
     ///
     /// The original searches depth-first; the smallest depth at which an
     /// intersection is reached is the same for every visiting order, so this
@@ -561,6 +568,9 @@ impl NetworkState {
             return 0;
         }
         let mut best = n + 1;
+        if self.wormhole_at(x, z) & wormhole::TUNNEL != 0 {
+            return best; // TN21: a tunnel start cell is not extended
+        }
         let max = self.count_x - 1; // the quirk: both coordinates against X−1
         let mut seen = std::collections::HashSet::new();
         seen.insert((x, z));

@@ -307,7 +307,10 @@ pub struct LandValueSim {
     alt: AltitudeParams,
     average: u8,
     tuning: Tuning,
-    /// Growth developer → weight, in tuning order [choice] (§7.4).
+    /// Growth developer → weight, in tuning order [choice] (§7.4); the
+    /// original's order is ascending developer address (LV1), which
+    /// [`order_developers_by_address`](LandValueSim::order_developers_by_address)
+    /// gives a shadow whose tokens are the original's pointers.
     developers: Vec<(u64, f32)>,
     cursor: usize,
 }
@@ -502,6 +505,18 @@ impl LandValueSim {
     }
 
     // ---- lifecycle (§4) --------------------------------------------------------------------------
+
+    /// Orders the developer list as the original does *[compat]* (§7.4,
+    /// LV1): its list is a `map<uint32, float>` keyed by the developer
+    /// pointer, walked from the smallest key, so the developers apply in
+    /// ascending **unsigned 32-bit** order of their pointers. A shadow of the
+    /// original calls this after [`init`](Self::init), its tokens being the
+    /// pointers `GetDeveloper(ID)` returns. The list is already one entry per
+    /// pointer (a later duplicate's weight wins), so there are no ties.
+    /// FreeCity4's own simulator keeps tuning order *[choice]*.
+    pub fn order_developers_by_address(&mut self) {
+        self.developers.sort_by_key(|&(dev, _)| dev as u32);
+    }
 
     /// The core part of `Init` (§4.1 steps 2–7, 10). The GZCOM object takes
     /// the services, registers the agents and subscribes to the messages.

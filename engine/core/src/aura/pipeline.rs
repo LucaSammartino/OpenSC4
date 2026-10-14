@@ -368,18 +368,19 @@ impl AuraSim {
             return -128;
         }
         let avg = clamp_aura(i64::from(sum / total));
-        match curve {
-            Some(c) => {
-                let r = &lot.info;
-                let cx = ((i64::from(r.x1) + i64::from(r.x2)) / 2) as i32;
-                let cz = ((i64::from(r.z1) + i64::from(r.z2)) / 2) as i32;
-                let d = self.host.land_value_type(cx, cz).wrapping_sub(lot.occupant_wealth);
-                // 32-bit add of the low 32 bits of `_ftol`, then clamp (§6).
-                let e = trunc32(f64::from(c.eval(d as f32)));
-                clamp_aura(i64::from(i32::from(avg).wrapping_add(e)))
-            }
-            None => avg,
-        }
+        let Some(c) = curve else { return avg };
+        let r = &lot.info;
+        let cx = ((i64::from(r.x1) + i64::from(r.x2)) / 2) as i32;
+        let cz = ((i64::from(r.z1) + i64::from(r.z2)) / 2) as i32;
+        // [choice] AU10: no land value simulator → no value/wealth term, as
+        // if the curve were absent (the original calls through null).
+        let Some(value_type) = self.host.land_value_type(cx, cz) else {
+            return avg;
+        };
+        let d = value_type.wrapping_sub(lot.occupant_wealth);
+        // 32-bit add of the low 32 bits of `_ftol`, then clamp (§6).
+        let e = trunc32(f64::from(c.eval(d as f32)));
+        clamp_aura(i64::from(i32::from(avg).wrapping_add(e)))
     }
 
     /// Rules A and R (§6.13): only work cells ≠ −128 change; with

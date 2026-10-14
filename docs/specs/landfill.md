@@ -121,6 +121,14 @@ service references, never the developer's, and posts nothing the developer subsc
 server together with the other services after the zones (one `release_services` call) is not observable. Matching
 the original order costs nothing and is recommended.
 
+**A separate release for the message server** (LF6): no original behaviour; the implementer's choice stands. The
+message server is the framework's system service. Its global (`0x00B43CCC`) is set once, at application start
+(`SL::OnAppInit1`, `0x006024BB`), and the service lives as long as the application. The developer's reference is
+therefore never the last one, and when it is released cannot be seen. What could be seen is when the developer
+**stops receiving** its five messages, which the original does before the first zone `Shutdown` (step 2). One
+`release_services` call after the zones is equivalent provided no message reaches the developer between the start
+of `Shutdown` and that call. The zones post none of the five while they shut down.
+
 ## 2. State
 
 ### 2.1 Developer

@@ -190,6 +190,28 @@ map is filled in listing order with overwrite). Inside one package the first ind
 **Factories.** The object type is chosen by the key's **type ID** (one factory per type). The factory's read
 checks the record type again (§4.1, §6).
 
+**When records are read** (EX31). Registering a segment (slot 27 at the front, `0x0097437B`; slot 28 at the back,
+`0x009743C1`; both first drop an earlier registration of the same segment, slot 29 `0x009742B7`) only adds it to
+the list: it reads no record, runs no factory and leaves the cache alone. A factory runs **lazily**, inside
+`GetResource` (`0x009732EB`), when a key is requested and no registered resource cache returns it. The loader
+(slot 46, `0x00972EAE`) then picks the factory by the key's type and reads the record from the first segment that
+has the key **at that moment**. A successful result is offered to the registered caches in turn and kept by the
+first that accepts its key (slot 44, `0x009733C6`). A failure is not kept, so the next request reads again
+(§4.4). Consequences:
+
+- A factory registered late applies to every later request for a key of its type that is not cached, including
+  keys in segments registered before it.
+- A key that no one has requested yet is read from whichever segment wins when it is first requested, even if
+  that segment was added after the key's first segment.
+- A record that failed, for example because its parent cohort was in no segment yet, loads on a later request
+  once a segment with the parent has been added.
+
+*[choice]* Reading every record when its package is loaded (eagerly) gives the same results if all three hold:
+(1) all packages are loaded before the first lookup, or a later package's record replaces an earlier read of the
+same key that has not been looked up yet; (2) a record that failed is read again when a later package is loaded,
+or at its next lookup; (3) a factory registered later is also applied to the records of packages loaded before
+it. Reading lazily at the first lookup, as the original does, meets them without extra work.
+
 ### 3.1 Load order at startup
 
 At startup the application registers, **each at the front** (so every later registration has higher priority):
@@ -363,11 +385,37 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     - `1e32` and any larger exponent give 0 (10ⁿ mod 2³² is 0 from n = 32), `1e-32` gives +∞ and `0e-32` gives
       NaN.
 
+    Details of the arithmetic (`0x00910426`):
+    - **Constants** (EX21). 10.0 (`0x00AA2028`) and 0.1 (`0x00A9EFE0`, bits `0x3FB999999999999A`) are doubles,
+      used directly as double operands. So each scale step rounds the exact product scale × 0.1 (double) once. With
+      `0.1f` instead, `0.05` would give `0x3D4CCCCE`.
+    - **Roundings per digit** (EX22). An integer digit rounds twice: value × 10 (`fmul`), then + digit (`faddp`),
+      each to the caller's precision (`0x00910476`–`0x0091048A`). A fraction digit rounds three times: scale × 0.1,
+      digit × scale, then + value (`0x009104A7`–`0x009104BB`). Storing each partial value as a double between digits
+      loses nothing more. Worked example (24-bit): `33573415` gives 33,573,412.0. The steps are 3,357,341 × 10 =
+      33,573,410, which rounds (a tie, to even) to 33,573,408; then + 5 = 33,573,413, which rounds to 33,573,412. One
+      rounding of the exact 33,573,415 would give 33,573,416.0.
+    - **Exponent** (EX23). After the mantissa, whatever it consumed, an `e` or `E` starts the exponent
+      (`0x009104C2`). It takes one optional `+` or `-` (`0x009104D4`–`0x009104DE`), then decimal digits; with no
+      digits the exponent is 0. So the exponent is read even when no mantissa digit came first, and the value is
+      then 0 × 10ⁿ:
+      - `e5` and `.e5` give 0, `-e5` gives −0.0, and `2.5e+3` gives 2500;
+      - `e-32` gives NaN, as `0e-32` does: 10³² wraps to 0, 1/0 is +∞, and 0 × ∞ is the default NaN, stored as
+        `0xFFC00000`;
+      - `1e` gives 1.
+
+      In the §5.1 round trip, an `e` with no digit before it stops the classifier first, so `e5` there is the
+      unsigned number 0 and never reaches this parser.
+
     Shipped text Float32 values are small integers, which are exact. *[inferred: text exemplars are read on the
     main thread at 24-bit precision; at 53-bit precision `0.05` would give `0x3D4CCCCD`]*
-  - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true` (`1` gives false);
+  - `Bool`: leading spaces **and tabs** trimmed, lower-cased; true exactly when it begins with `true` (`1` gives
+    false). The trim is `cRZString::LTrim` (`0x0090E869`), whose set is space and tab (`0x00ACE73C`), the same as
+    for array values (EX26). So `{\ttrue}` (a tab) is true;
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
-    cannot contain `}` *[quirk]*.
+    cannot contain `}` *[quirk]*. The trim removes spaces and tabs at both ends (`cRZString::Trim` `0x0090E8A6`,
+    the set at `0x00ACE73C`; EX27). It runs before the quotes are removed, so white space inside the quotes stays:
+    `{ " a " }` gives ` a ` (with its spaces).
 - The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
   (`0x0067E780`). It reads `reps` values in turn, dropping the text up to each next `,`; when no `,` is left the
   rest of the text is dropped, so **missing values read as 0** (false for Bool, 0.0 for Float32) and values beyond
@@ -404,6 +452,32 @@ original stores, and it is not observable as different from an empty array. Both
 `0x0060F710`) use the byte-list getter `0x005FFB40`, which copies `GetCount()` bytes from the raw data
 pointer (§5.2), and `GetCount()` is 0 for a scalar. So the lot gets **no** wealth or purpose types.
 `Uint8:1:{}` would instead give one type, 0.
+
+**Writing text** (EX32). The exemplar factory's `SerialWrite` (`0x00680030`) writes the text form when the
+factory's write-mode byte is non-zero and the binary form when it is 0. The factory's constructor sets it to 1
+(`0x0067E373`); slot 12 (`0x0067CB10`) changes it, and a pattern search found no caller *[inferred: callers not
+fully traced]*. So whenever the game writes an exemplar (foundations §10.3, "Write side extra"), it is probably
+text. Each Float32 value, scalar or array element, is printed with `%f` (six decimals, from the runtime's 17
+significant digits rounded half-up, §5.1) and then trimmed (`RemoveUnnecessaryFloatingPointDigits`,
+`0x0067C2B0`). The trim removes the zeros at the end of the fraction, then a `.` left at the end, and a text made
+only of `0` and `.` becomes `0`. The writer **never fails**, and it does not always reproduce the value, read
+back with the 24-bit parser above:
+
+| Float32 | written | read back |
+|---|---|---|
+| 3.14159 (`0x40490FD0`) | `3.14159` | `0x40490FCE` |
+| 0.05 (`0x3D4CCCCD`) | `0.05` | `0x3D4CCCCC` |
+| 1.0000001 (`0x3F800001`) | `1` | `0x3F800000` |
+| 123456.85 (`0x47F1206D`) | `123456.851563` | `0x47F1206C` |
+| 1e-7 (`0x33D6BF95`) | `0` | 0 |
+| −1e-7 (`0xB3D6BF95`) | `-0` | zero |
+| 0.1 (`0x3DCCCCCD`) | `0.1` | `0x3DCCCCCD` |
+| 1e30 (`0x7149F2CA`) | `1000000015047466200000000000000` | `0x7149F2CA` |
+
+NaN and infinities come out as the runtime's `%f` text trimmed the same way, `1.#QNAN`, `1.#INF`, `-1.#IND`
+*[inferred from the MSVC runtime]*, which read back as ±1. *[choice]* FreeCity4 need not copy this lossy text:
+the reader accepts both forms, so a writer may emit text that reads back exactly, refuse a value it cannot
+reproduce, or write the binary form.
 
 ### 4.4 Parents and inheritance *[compat]*
 
@@ -522,17 +596,44 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   as 0.
 - **Floats as text** (`RZFtoaEnglishA` `0x0091052A`, called with a 64-byte buffer and 24 digits; a Float32 is
   widened to double first) are **fixed-point, never with an exponent**: `-` for a negative value, the integer digits
-  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros, and at
-  most **24 further digits, cut, not rounded** (zeros at the end of a cut are kept; with nothing cut, trailing zeros
-  are not printed). The digits are those of the C runtime's `_fcvt(x, 64)`, so the exact binary value. Examples:
-  2.75 gives `2.75`; Float32 0.1 gives `0.100000001490116119384765`; Float32 0.001 gives
-  `0.00100000004749745130538940`; Float32 1e30 gives `1000000015047466219876688855040`. A Float64 whose text passes
-  63 characters is cut there. NaN and infinities come out as the C runtime prints them: `1.#INF`, `-1.#INF`,
-  `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`,
-  `1#IND` are in the exe]*, which parse back as ±1. **The round trip is not exact**: the parser (`RZStrtodEnglishA`,
-  §4.3 Float32) adds the digits one by one at the main thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`),
-  printed `3.141590118408203125`, reads back as `0x40490FCE`, and Float32 0.05 (`0x3D4CCCCD`) as `0x3D4CCCCC`.
-  2.75, 1.5 and other short binary fractions survive.
+  in full (`0` when |x| < 1), then, if a non-zero fraction digit exists, `.`, the fraction's leading zeros and the
+  digits up to the last non-zero one. The digits are those of the C runtime's `_fcvt(x, 64)`, which asks the
+  runtime's decimal conversion (`$I10_OUTPUT` `0x00A04942`, called from `_fltout2` at `0x00A027A0`) for **17
+  significant digits, rounded half-up** (a tie rounds away from zero), and pads them with zeros (`_fptostr`
+  `0x00A0264A`). So a value prints its first 17 significant digits and never more; an integer part longer than 17
+  digits ends in zeros. The printer's own limit of 24 digits after the fraction's leading zeros never takes effect,
+  because at most 17 of them can be non-zero (EX29). Examples: 2.75 gives `2.75`; Float32 0.1 (exactly
+  0.100000001490116119384765625) gives `0.10000000149011612`; Float32 0.001 gives `0.0010000000474974513`; Float32
+  1e30 (exactly 1000000015047466219876688855040) gives `1000000015047466200000000000000`; Float32 2⁻²⁵ (exactly
+  0.0000000298023223876953125, a tie at the 18th digit) gives `0.000000029802322387695313`. NaN and infinities come
+  out as the C runtime prints them: `1.#INF`, `-1.#INF`, `1.#QNAN`, `-1.#IND` (the default NaN) *[inferred from the
+  MSVC runtime; its strings `1#INF`, `1#QNAN`, `1#SNAN`, `1#IND` are in the exe]*, which parse back as ±1. **The
+  round trip is not exact**: the parser (`RZStrtodEnglishA`, §4.3 Float32) adds the digits one by one at the main
+  thread's 24-bit precision, so Float32 3.14159 (`0x40490FD0`), printed `3.1415901184082031`, reads back as
+  `0x40490FCE`; Float32 0.05 (`0x3D4CCCCD`), printed `0.05000000074505806`, as `0x3D4CCCCC`; and Float32 0.001
+  (`0x3A83126F`) as `0x3A83126E`. 2.75, 1.5 and other short binary fractions survive, and so do Float32 0.1 and
+  1e30.
+
+  **The 63-character cut** (EX29) applies to every float, a Float32 included. A text longer than 63 characters is
+  cut to its first 63 and the printer returns false; both callers (`0x00916F77`, `0x0091711E`) ignore the result
+  and keep the cut text. A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the
+  seven values `0x80000001` to `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th
+  digit is lost. For example `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`,
+  44 zeros and `1401298464324817`, 63 characters. The positive values fit exactly (63 characters), and from
+  `0x80000008` (−1.12e-44) on there is one leading zero fewer. A Float64 reaches the cut more often: for example
+  −1e62 (`-` and 63 digits), 1e63 (64 digits), and tiny values whose fraction runs past 61 places.
+
+  **Negative zero** (EX24) prints `0`, for a Float32 and a Float64 alike. The runtime's digit conversion
+  (`0x00A04942`) takes a zero's sign from the sign bit but then resets it to "positive" on its zero path
+  (`0x00A04BC1`). So `_fcvt` reports no sign, and the printer writes no `-`, then `0` (|x| < 1) and no fraction.
+
+  **Signalling NaN** (EX28) prints as a quiet NaN, `1.#QNAN` or `-1.#QNAN`, for a Float32 **and a Float64**. Both
+  call sites load the value onto the x87 stack (`fld dword` at `0x00916F62`/`0x009170FD`, `fld qword` at
+  `0x00916F67`/`0x00917117`) and store it as a double, and the printer loads it again (`0x00910542`). Loading a
+  Float32 or Float64 sNaN raises the invalid-operation exception, which is masked (foundations §18.1). The value is
+  then quieted, keeping its sign and payload. So the runtime's `1#SNAN` case (`0x00A049E6`) is never reached from
+  here. A quieted sNaN keeps a non-zero payload below the quiet bit, so it is never the default-NaN pattern that
+  prints as `-1.#IND`.
 - Text of a **scalar** (what `GetProperty(id, cIGZString&)` writes for one): integers with the formats above, Bool
   `0`/`1`, floats as for arrays, a Char or RZChar **its one character** (a zero byte gives a one-character text
   holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
@@ -557,6 +658,14 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
      prefix**. Signed and unsigned give the same bits; they differ only for float targets, where an unsigned
      value takes the 24-bit path above ("Unsigned 64-bit…") and a signed one is converted exactly, then rounded
      to the target.
+
+     **Signed text into a Float32** (EX25): the int64 is loaded exactly (`fild`) and stored to the Float32 once
+     (`0x00916BF6`–`0x00916BF9`; Float64 `0x00916C58`). That is one rounding from the exact value, so `-16777217`
+     gives −16,777,216.0 (a tie, to even). A **Sint64 scalar** read as Float32 rounds twice: first to the double
+     that the converter stores (`0x00915B85`, which writes the variant's double), then to Float32. The two differ
+     only above 2⁵³ in magnitude. Worked example: −18,014,399,583,223,809 (−(2⁵⁴ + 2³⁰ + 1)) as text gives
+     −18,014,400,656,965,632.0 (−(2⁵⁴ + 2³¹)). As a Sint64 scalar it becomes the double −(2⁵⁴ + 2³⁰), which is a
+     tie for Float32 and goes to even: −18,014,398,509,481,984.0 (−2⁵⁴).
   5. Then the target. Integer types keep the low bits; floating point is first truncated toward zero as in
      "Floats to integers". **Bool** is value ≠ 0, so floating-point text **`0.5` gives true** (a Float32 scalar
      0.5 gives false, because it is truncated first) and NaN text gives true. Float32 and Float64 as in the table.
@@ -593,6 +702,11 @@ a void array `01 02 03` read with `length` 8 copies 3 bytes and sets `length` to
 bytes and leaves `length` at 2; a Uint8 array `01 02 03` gives false. No shipped record has a void array, so on
 shipped data slot 5 always returns false.
 
+The buffer's own size is not passed (EX30). The original trusts `length` as the room available and copies with a
+plain memory copy (`0x009F19B0`), so a caller whose buffer is shorter than `length` is overrun whenever the array is
+longer than the buffer. *[choice]* An interface that knows the buffer's size copies at most that many bytes. This is
+not observable on shipped data.
+
 Call sites using the `AsX()` and `RefX()` accessors expect a fixed stored type; with shipped data that type is
 always present. On a mismatch the original reads whatever bytes the variant holds: `AsX()` loads 1, 2, 4 or 8
 bytes from the value field at offset 4 (`0x0040CE50`, `0x0060CE80`, `0x005FD610`–`0x005FD640`). Worked
@@ -600,6 +714,24 @@ examples: a Float32 2.75 read with `AsUint32()` gives `0x40300000`; a 32-bit sca
 `AsFloat64()` takes its upper half from the variant's next field, which is not part of the value; an array read
 with `AsUint32()` gives its heap address. *[choice]* Because the result is another type's bits or an address,
 FreeCity4 converts element-wise where a spec says so, and otherwise treats a type mismatch as a missing property.
+
+**The vector helpers** (EX33) used by the readers (§7.5) do the same for whole arrays. `vec<bool>`
+(`0x005FF000`), `vec<u32>` (`0x005FF510`), `vec<u8>` (`0x005FFB40`), `vec<s32>` (`0x005FFC00`), `vec<f32>`
+(`0x005FFCC0`) and `vec<s64>` (`0x005FFD80`) each take the property's raw data pointer and `GetCount()`, resize the
+output to that count and copy count elements **of their own width**, with no type check and no conversion
+(`vec<bool>` makes each byte a bit, non-zero being true). So:
+
+- A stored type of the same width gives its bits: a Float32 array `{2.75}` read with `vec<u32>` gives
+  `{0x40300000}`, not 2.
+- A narrower stored type is over-read: a Uint8 array of 3 read with `vec<f32>` copies 12 bytes from a 3-byte
+  buffer, the last 9 from whatever follows it in memory.
+- A wider stored type gives its leading bytes: a Uint32 array `{0x11223344, 5}` read with `vec<u8>` gives
+  `{0x44, 0x33}`.
+- A scalar has count 0 and gives an empty vector (§4.3, `Uint8:0:{}`).
+
+On shipped data every raw read finds the type it expects except one, property `0xEA0232A0` (shipped Sint32, read
+with `vec<u32>`), where copying and converting give the same bits (§7.4). *[choice]* Converting every element as
+in §5.1 is not observable on shipped data, and it replaces the over-read with defined values.
 
 ### 5.3 Exemplar lookup helper
 
@@ -1476,7 +1608,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
     and read as Bool gives true. RZChar `0xE9` read as Uint32 gives `0xFFFFFFE9`. `GetValFloat64` on Uint64
     16,777,217 gives 16,777,216.0.
 58. **Float text round trip**: Float32 `0x40490FD0` (3.14159) read with `GetProperty(id, cIGZString&)` gives
-    `3.141590118408203125` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
+    `3.1415901184082031` and false. A string holding that text, read with `GetValFloat32`, gives `0x40490FCE`.
 59. **Empty and void**: a tag-0 property read with `GetProperty(id, uint32&)` gives true and 0, and with
     `GetProperty(id, cIGZString&)` gives false and the empty text. A void array `31 32` read with
     `GetProperty(id, uint32&)` gives true and 0. Read with slot 5 and `length` 8, it copies `31 32` and sets
@@ -1508,7 +1640,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 | float to integer saturates, NaN gives 0 (EX3) | truncated to int64, low bits kept (wraps); NaN and ±∞ give `0x8000000000000000` (§5.1) | follow |
 | RZChar zero-extended (EX4) | Char and RZChar sign-extended (§5.1) | follow |
 | void array as text: first byte as `%u` (EX6) | empty text, so 0 (§5.1) | follow |
-| floats as text with `%.24g` (EX8) | fixed-point `_fcvt` digits, at most 24 after the leading zeros, cut; no exponent (§5.1) | follow |
+| floats as text with `%.24g` (EX8) | fixed-point, 17 significant digits rounded half-up, trailing fraction zeros dropped, cut at 63 characters; no exponent (§5.1, EX29) | follow |
 | round-trip parse (EX9) | as bracketed, plus: char targets always get 0; Bool from floating-point text is value ≠ 0 (§5.1) | follow |
 | text ParentCohort: exactly 3 fields, leading spaces trimmed (EX10) | fields not counted, a missing one reads 0; nothing trimmed inside the braces (§4.3) | follow |
 | text reps trimmed (EX11) | not trimmed; rule N (§4.3) | follow |
@@ -1516,6 +1648,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 | Float32 text parsed as f64, then rounded to f32 (EX14) | the game's digit-by-digit parser at 24-bit precision; 10ⁿ wraps in 32 bits (§4.3) | follow |
 | kind-1 key resolvable when in a package index (EX15) | needs a factory for the type and a successful read (§4.6) | follow |
 | holder slot 5 not implemented (EX17) | raw copy from a void array; false for every other type (§5.2) | implement (always false on shipped data) |
+| factories run eagerly in `load_package` (EX31) | lazily, at the first `GetResource` of an uncached key, from the segment winning then; failures are read again (§3) | eager allowed under the three conditions of §3 *[choice]* |
 
 ---
 

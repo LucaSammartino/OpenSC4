@@ -90,6 +90,26 @@ under it is the fire simulator. There is no registered class for the base alone.
   2. its own record in a save (saved by ref; instance `0x89D5B91A` fire, `0x49D5BBCE` police);
   3. inferred from the adjusted grid, which equals `clamp(unadjusted, 0, 255)` only in tracts the daily iterator
      or a box update has copied since the last change.
+- **Recognising the original class before reading `+0x84`** *[compat]* (PR16). Only on the identified executable
+  (the build these addresses come from), and only for the pointer the city returns (`GetFireProtectionSimulator`, slot 57, and
+  `GetPoliceSimulator`, slot 65; the city keeps them at `+0x174` / `+0x194` and the game caches them in
+  `0x00B43D78` / `0x00B43D98`). That pointer is the object's start, the primary interface.
+  - **Test**: its first dword equals the primary vtable, `0x00AB1160` (fire) or `0x00AB2490` (police) (§15.1,
+    §15.2). Only the class's constructor and destructor write those values (fire `0x006ADA67` / `0x006ADB27`,
+    police `0x006E1F9D` / `0x006E16ED`); during construction the base's vtable is there instead. A
+    replacement registered under the same class ID, or a wrapper around the original, has its own vtable and
+    fails the test, so its `+0x84` is never read.
+  - **Lifetime**: the base constructor clears the member (`0x006F6986`); `ProtectionInit` or the load fills it;
+    `ProtectionShutdown` releases the grid and clears the member again (`0x006F580D`, §4.2). So a null pointer
+    means "no grid now", and a read is safe only between `Init` and `Shutdown`.
+  - **Optional check of the grid itself** through its own interface: `GetInstanceID()` (slot 5) is `0x89D5B91A`
+    (fire) or `0x49D5BBCE` (police) after `Init`, also on a loaded city, and `GetTractSize()` is 2.
+- **Judging unadjusted mismatches** (PR16). No original behaviour bears on it: the original never compares the
+  grids, so whether a shadow judges or only logs them is the implementer's choice. Facts that matter for the
+  choice: the unadjusted grid is rebuilt from scratch on every station, funding, strike or dispatch change (§5.1),
+  so it carries no lag, unlike the adjusted grid; but its dispatch cones (§5, active / inactive) follow the
+  automata, which a shadow may not mirror, so tracts under an active dispatch can differ for reasons outside the
+  simulator.
 - Other code reads the adjusted grid through `GetCellValue`, `GetAverageValueInCellRect`, raw `GetGridData`
   (the map view) and `+0x20` (fires). See §13.
 
@@ -208,9 +228,28 @@ flammability and the department. Police: `Shutdown` and release the helicopter s
 `0x0A159D95`; base shutdown; release the jail list, the locally-funded-jail list and the jailbreak list
 (occupant manager `ReleaseOccupantList`); release the crime simulator, the department and the jail department.
 
-Base shutdown: unregister from the dispatch manager; release the station list; unsubscribe the nine messages;
-release the message server; remove its agents from the simulator; release the grids. *[inferred: the order
-after the unsubscriptions was not traced in full]*
+**Base shutdown** (`ProtectionShutdown`, `0x006F56F0`) *[compat]* (PR15; traced in full, offsets relative to the
+base sub-object at `+0x08`), in this order:
+
+1. Unregister the dispatch-source sub-object from the dispatch manager (city slot 39 `+0x9C`, fetched from the
+   city global now; manager slot 14 `+0x38`).
+2. Hand the station list (`+0x80`) to the occupant manager (city slot 34 `+0x88`; slot 48 `+0xC0`,
+   `ReleaseOccupantList`).
+3. If the message server (`+0x68`) is held: unsubscribe the nine messages (server slot 6 `+0x18`) in the order
+   `0x99EF1142`, `0x99EF1143`, `0xC8DAC052`, `0x08DAC3E7`, `0xE94671EB`, `0xE94671EC`, `0xE94671ED`,
+   `0x894671F6`, `0xC53D10AA` (`0x006F5744`–`0x006F57BA`; not the subscription order of §4.1, which has
+   `0x894671F6` before the active / inactive pair), then release it and clear the member.
+4. `RemoveAgent(this)` (slot 20 `+0x50`) on `city.GetSimulator()` (slot 50 `+0xC8`), skipped when null. The
+   simulator is not held, so nothing is released.
+5. For the adjusted grid (`+0x78`), then the unadjusted grid (`+0x7C`): `Shutdown` (`+0x10`), `Release`, clear
+   the member.
+6. Release the zone manager (`+0x70`), the budget simulator (`+0x6C`) and the city (`+0x64`), in that order, each
+   cleared.
+
+AL = 1. So the budget simulator and the zone manager are held from base init (taken only if not already held)
+to step 6 of the **base** shutdown, which runs before the class releases flammability or crime and its
+departments. A read-only shadow host that asks the city for them each time sees the same objects; it holds no
+reference across the session and cannot observe the difference.
 
 ---
 
@@ -226,7 +265,7 @@ after the unsubscriptions was not traced in full]*
 | occupant state changed | `0xC8DAC052` | same skip; else §5.2 change |
 | funding percentage changed | `0x08DAC3E7` | if data2 == this department's ID and the station list is not empty: rebuild the **unadjusted** grid only (§5.1) *[quirk]* |
 | dispatch begin | `0xE94671EB` | no effect (data1 is compared with the dispatch type, nothing follows) |
-| dispatch active / inactive | `0xE94671EC` / `0xE94671ED` | if data1 == this class's dispatch type: `GetDispatchInfo(data2)`; if it returns exactly 1, `UpdateBothGridsByPosition` (§5.2) at the dispatch's position with the radius of its `GetDispatchEffect`. Active and inactive behave the same (the flag passed along is unused) |
+| dispatch active / inactive | `0xE94671EC` / `0xE94671ED` | if data1 == this class's dispatch type: `GetDispatchInfo(data2)`; if it returns exactly 1, `UpdateBothGridsByPosition` (§5.2) at the dispatch's position with the radius of its `GetDispatchEffect`. Active and inactive behave the same (the flag passed along is unused). Details below (PR14) |
 | dispatch end | `0x894671F6` | if data1 == the dispatch type: `GetDispatchInfo(data2)`; if found, `RevokeDispatchFromStation(info.station, info.callID)` (§8.2); no grid update |
 | reload tuning | `0xC53D10AA` | if data1 == `0xE7E2C2DB` and data2 == this class's tuning instance (fire `0x68F5524A`, police `0x28DFCF89`): re-read the tuning (§6.7) |
 | police only: crime | `0x0A159D95` | §9.2 |
@@ -247,6 +286,21 @@ manager's record: 11 `u32`, 44 bytes, **with no AddRef**. The simulator reads th
 `EndDispatch` itself calls the source's `RevokeDispatchFromStation(+0x20, +0x08)` before the end message reaches
 the simulator. So the simulator's own revoke on `0x894671F6` finds the unit's bit already set, and fails with no
 effect. *[compat]*
+
+**The active / inactive handler** *[compat]* (PR14). The message handler (`0x006F647F`) calls
+`DoDispatchActivated(id, active)` (`0x006F61F0`) with active = 1 for `0xE94671EC` and 0 for `0xE94671ED`; the
+flag is never read. The function:
+
+1. does nothing if the dispatch manager global (`0x00B43D04`) is null;
+2. calls the manager's slot 10 (`+0x28`) `GetDispatchInfo(data2, &info)` and goes on only if AL is exactly 1;
+3. calls its own `GetDispatchEffect(info.station, &effect)` (message-target slot 12, `+0x30`) with
+   **`info.station` = the record's `+0x20`**, the same occupant `UpdateUnadjusted` passes (§7.2). The effect
+   record is an uninitialised stack record, and the call's AL is **ignored**;
+4. calls `UpdateBothGridsByPosition(info.x (+0x14), info.z (+0x1C), effect.radius)` (`0x006F6110`, §5.2).
+
+The radius is therefore the station's dispatch radius scaled by its efficiency (§7.2). *[quirk]* When
+`GetDispatchEffect` fails (the station has no dispatch centre value, or it is 0), it has not written the radius,
+and the update uses a stack leftover. *[choice]* FreeCity4 skips the update when `GetDispatchEffect` fails.
 
 The class `DoMessage` (message-target slot 3) always returns true (finished; simulator spec); the base handler
 it calls returns false for messages it does not handle, but that value is not passed on. The simulator receives the day message once per
@@ -569,10 +623,27 @@ department's `GetFundingPercentage()` fraction; prop stations ignore local fundi
 
 centre / outer / radius from the occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
 `0x29233E9C`, police `0x48D71ED9` / `0x48D71EDA` / `0x48D71EDB`. Position 0 (the caller uses the dispatch's
-position). No efficiency scaling. AL = 1 if read.
+position).
 
-*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). The only caller,
-`UpdateUnadjusted` (`0x006F5DB1`), passes the dispatch record's `+0x20`. That is the **source station** the unit
+*(Corrected, PR14: the effect **is** scaled by the station's efficiency, and AL depends on the centre only.)*
+Fire `0x006AD720`, police `0x006E0CB0`, the same steps:
+
+1. x := z := 0 (`+0x00`, `+0x04`) and centre := 0 (`+0x0C`); read the centre (s32).
+2. If the centre is absent or 0: AL = 0. Outer, radius and the original centre keep the caller's values.
+3. Read outer (s32, `+0x10`), then radius (f32, `+0x08`). An absent one keeps the caller's value; neither read
+   can fail the call.
+4. Original centre (`+0x14`) := centre.
+5. e := `GetStationEfficiency(station)` (fire slot 10 `+0x28`, police slot 25 `+0x64`; result through a hidden
+   pointer; §6.2, so funding, road access and strikes count), then `AdjustProtectionEffect` (`0x006F56A0`, §7.1):
+   radius := radius × e, centre := trunc(centre × e), outer := trunc(outer × e).
+6. AL = 1.
+
+Example: a fire station with dispatch centre 100, outer 20 and radius 300.0 at efficiency 0.5 gives centre 50,
+outer 10, radius 150.0 and original centre 100.
+
+*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). There are **two**
+callers (corrected, PR14): `UpdateUnadjusted` (`0x006F5DB1`) and the dispatch active / inactive handler
+(`0x006F6221`, §5). Both pass the dispatch record's `+0x20`. That is the **source station** the unit
 left from (§5), not the vehicle. The shipped data agrees: these six properties exist only on the station building
 exemplars (group `0x07BDDF1C`: three fire stations, four police stations), never on a vehicle. The pointer is
 already a `cISC4Occupant*`, and the original uses it **borrowed**: it does no QueryInterface and no AddRef, and

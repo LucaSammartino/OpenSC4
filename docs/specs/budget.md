@@ -509,7 +509,8 @@ Both orders give the same lines: R$ `trunc(3848.8726)` = 3848 and CS$ `trunc(271
   `0x4A5A495E` add their monthly income to an Income-type line on activation, §12).
 - Line-item **current expenses** are recomputed (§7.2) and summed.
 - **Funding → effectiveness**: the budget only stores each building's local funding fraction (property
-  `0xEA54D287` / 100, default 1.0). Service simulators read it through `GetBudgetItemForPurpose(holder, purpose)`
+  `0xEA54D287` × 0.01f, default 1.0; RG13: a float32 multiplication, not a division, so the round trip through
+  `ChangeBudgetItemLocalFunding`, which stores float32(q × 100.0f), is inexact: 0.43 reads back as 0.42999998). Service simulators read it through `GetBudgetItemForPurpose(holder, purpose)`
   and map it through their own response curves (e.g. power-plant efficiency =
   `curve(localFunding × 100) / 100 × condition`). Those curves belong to the service-simulator specs.
 
@@ -627,7 +628,7 @@ moves on days.
 | `GetAllLoans(vec)` | Clear `vec`; per bond in issue order: `{monthsRemaining, yearsRemaining}` = `(dueMonth − month, dueYear − year)` normalised so months is 0..11, `totalLoanAmount = amount`, `remainingPayment = principalLeft`, `monthlyPayment`. |
 | `GetLoanTimeInMonths()` | `BondPaybackMonths`. |
 | `GetMonthlyPaymentForLoan(L)` / `GetFullCostOfLoan(L)` | §5.4. |
-| `GetBudgetItemInfo(holder, vec)` | If `holder` lacks `0xEA54D283` or it is empty → false, `vec` untouched. Otherwise clear `vec` and fill one `BudgetItem` per department entry, using the defaults of §2 for short arrays and `localFundingPercentage = pct/100` → true. |
+| `GetBudgetItemInfo(holder, vec)` | If `holder` lacks `0xEA54D283` or it is empty → false, `vec` untouched. Otherwise clear `vec` and fill one `BudgetItem` per department entry, using the defaults of §2 for short arrays and `localFundingPercentage = float32(pct × 0.01f)` (RG13; not `pct/100`) → true. |
 | `GetBudgetItemForPurpose(holder, purpose, item)` | The first item whose purpose matches → copy into `item`, true; else false. |
 | `ChangeBudgetItemLine(holder, index, line)` | *(The SDK calls the 2nd argument "purpose"; it is the item index.)* If `index` is inside the line array, set entry `index` to `line` and write the whole array back as a property of `holder` (an instance override). No money moves. |
 | `ChangeBudgetItemCost(holder, index, cost)` | The same for the cost array. No money moves. |

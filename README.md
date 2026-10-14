@@ -60,11 +60,13 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Zones follow-up (merged 8ee3253): ZQ2/ZQ3/ZQ5/ZQ6 answered from the exe and applied; `DetermineLotSize` filter in the core; tests 30–32 as vectors `zn15_32`–`zn15_35`. ZQ7–ZQ10 filed
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
 - [ ] Zones glue (phase 1, the zone manager: lane running)
+- [x] **Neighbours glue** and its shadow (merged 50e2dc5, fixed 5e61237): the shadow matches the original every month (92/92); the replacement runs clean with the other fourteen (regress rneigh2). The first in-game run crashed until our property holder kept the game's own property objects (foundations §10.2)
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
 - [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed
 - [x] **Residential glue** and its shadow (merged bc7ffa0): in game since run 86. The replacement runs clean for 39 game years (run 89) and saves and reloads (runs 88, 91); the shadow matches the original on 12 of 15 daily states, every grid and scalar (the proximity states differ, RG23); the original's EQ/HQ path (run 90b) and ours (run 89) decline the same way
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
-- [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original (the growth probe lane is running)
+- [x] Daily growth budget calibrated in the original (growth probe merged 393a529; run 93: 14,339 days, the 3 ms timer never cuts, so the default is unlimited)
+- [ ] Seeding rules (foundations §6.3)
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
 
 **M5: traffic**

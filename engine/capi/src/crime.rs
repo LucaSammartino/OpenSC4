@@ -20,7 +20,8 @@
 //! generator with `derive_seed(session_seed, 0x6C09C3F6)` (foundations §6.3:
 //! the original seeds it with its `cRZTime` value, seconds since 1901-01-01
 //! UTC, XOR that constant, §9 / CQ5; the plugin's session seed is that
-//! value, `time() + 2177452800`, unless `crime_seed` fixes it).
+//! value, `time() + 2177452800` (`fc4_core::rng::rz_time_from_unix`, shared
+//! by every clock-seeded generator, CQ21), unless `crime_seed` fixes it).
 //!
 //! Threads (foundations §19): the game calls getters from a second thread
 //! while the main thread is inside a call. The getters marked "any thread"
@@ -329,8 +330,9 @@ impl CHost {
 
     /// §7 steps 2 and 3 (CQ8). The callback returns true when the name
     /// loaded (the sink got the detokenized text); false with text delivered
-    /// = the detokenizer returned false (the name keeps that text); false
-    /// with nothing delivered = no such LTEXT.
+    /// = the detokenizer returned false; false with nothing delivered = no
+    /// such LTEXT. A failed load discards whatever the sink got: the name is
+    /// empty unless `0xAA12FCB0` exists (CQ16).
     fn ltext_of(&self, key: ResKey) -> LtextLoad {
         let mut text = SinkText::default();
         let loaded = cb!(
@@ -345,7 +347,7 @@ impl CHost {
         );
         match (loaded, text.delivered) {
             (true, _) => LtextLoad::Loaded(text.bytes),
-            (false, true) => LtextLoad::DetokenizeFailed(text.bytes),
+            (false, true) => LtextLoad::DetokenizeFailed,
             (false, false) => LtextLoad::Missing,
         }
     }
@@ -1293,8 +1295,9 @@ mod ltext_tests {
             instance,
         };
         assert_eq!(host.ltext_of(key(1)), LtextLoad::Loaded(b"ok".to_vec()));
-        assert_eq!(host.ltext_of(key(2)), LtextLoad::DetokenizeFailed(b"#tok#".to_vec()));
-        assert_eq!(host.ltext_of(key(3)), LtextLoad::DetokenizeFailed(Vec::new()));
+        // CQ16: the text a failed detokenizer left is discarded.
+        assert_eq!(host.ltext_of(key(2)), LtextLoad::DetokenizeFailed);
+        assert_eq!(host.ltext_of(key(3)), LtextLoad::DetokenizeFailed);
         assert_eq!(host.ltext_of(key(4)), LtextLoad::Missing);
         // No callback: missing.
         h.ltext = None;

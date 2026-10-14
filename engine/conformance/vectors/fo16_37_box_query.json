@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "flora_box_query",
+  "spec": ["flora 6.4.2", "flora 6.10.4", "FQ6"],
+  "description": "Derived by hand from flora 6.4.2 and 6.10.4 (test 37 of 16; FQ6). The occupant manager's 64 m index: cell(p) = rhe(f32(f32(p + 4096) * (1/64)) - 0.499f): cell(0) = 64, cell(63.93) = 64, cell(63.94) = 65, cell(64) = 65, cell(-0.5) = 63, cell(319.936) = 68 (the value rounds to exactly 68.5, half to even), cell(319.937) = 69. Listing: a box wider than 1 m on an axis is inset by 0.1f on that axis first: x 100 .. 101 (width 1.0) from cell(100); x 100 .. 102 from cell(100.1) to cell(101.9); x 63.9 .. 65.9 from cell(64.0) = 65, while x 63.9 .. 64.8 (0.9 wide) starts in cell(63.9) = 64; y plays no part. Query: the corners' cells clamped to 0..191, then a strict overlap on x, y and z: an occupant box x 10 .. 20 is not returned by a query ending at x 10 or starting at x 20, and is returned when the query ends at 10.000001. The listing window: Oak Tree clump 5's box (1717.9807, 319.84396) .. (1735.9807, 337.84396) is listed in x cells 90-91, z cell 69 (from 319.94396), so the block query z 288.1 .. 319.9 (z cell 68 only) does not return it although it overlaps, and the query z 320.1 .. 351.9 does. Cell queries (6.10.4): corners (10, 10)..(11, 11) give the world box (160.1, -FLT_MAX, 160.1) .. (191.9, +FLT_MAX, 191.9); corners (-5, 3)..(70, 3) in a 64 x 64 city are cells x 0..63, z 3..3; null corners are (0, 0)..(64, 64).",
+  "steps": [
+    {"op": "flora_call", "method": "manager_cell", "args": [0], "expect": 64},
+    {"op": "flora_call", "method": "manager_cell", "args": [63.93], "expect": 64},
+    {"op": "flora_call", "method": "manager_cell", "args": [63.94], "expect": 65},
+    {"op": "flora_call", "method": "manager_cell", "args": [64], "expect": 65},
+    {"op": "flora_call", "method": "manager_cell", "args": [-0.5], "expect": 63},
+    {"op": "flora_call", "method": "manager_cell", "args": [319.936], "expect": 68},
+    {"op": "flora_call", "method": "manager_cell", "args": [319.937], "expect": 69},
+    {"op": "flora_call", "method": "manager_cell", "args": [100.1], "expect": 65},
+    {"op": "flora_call", "method": "manager_listing", "args": [[100, 0, 5], [101, 9, 5]], "expect": [65, 64, 65, 64]},
+    {"op": "flora_call", "method": "manager_listing", "args": [[100, 0, 5], [102, 9, 5]], "expect": [65, 64, 65, 64]},
+    {"op": "flora_call", "method": "manager_listing", "args": [[63.9, 0, 63.9], [65.9, 9, 64.8]], "expect": [65, 64, 65, 65]},
+    {"op": "flora_call", "method": "manager_listing", "args": [[1717.9807, 0, 319.84396], [1735.9807, 10, 337.84396]], "expect": [90, 69, 91, 69]},
+    {"op": "flora_call", "method": "manager_query", "args": [[10, 0, 10], [20, 5, 20], [0, -3.4028235e38, 0], [10, 3.4028235e38, 30]], "expect": false},
+    {"op": "flora_call", "method": "manager_query", "args": [[10, 0, 10], [20, 5, 20], [20, -3.4028235e38, 0], [30, 3.4028235e38, 30]], "expect": false},
+    {"op": "flora_call", "method": "manager_query", "args": [[10, 0, 10], [20, 5, 20], [0, -3.4028235e38, 0], [10.000001, 3.4028235e38, 30]], "expect": true},
+    {"op": "flora_call", "method": "manager_query", "args": [[10, 0, 10], [20, 5, 20], [0, 5, 0], [30, 9, 30]], "expect": false},
+    {"op": "flora_call", "method": "manager_query", "args": [[1717.9807, 0, 319.84396], [1735.9807, 10, 337.84396], [1696.1, -3.4028235e38, 288.1], [1727.9, 3.4028235e38, 319.9]], "expect": false},
+    {"op": "flora_call", "method": "manager_query", "args": [[1717.9807, 0, 319.84396], [1735.9807, 10, 337.84396], [1696.1, -3.4028235e38, 320.1], [1727.9, 3.4028235e38, 351.9]], "expect": true},
+    {"op": "flora_call", "method": "manager_query", "args": [[1717.9807, 0, 319.8], [1735.9807, 10, 337.8], [1696.1, -3.4028235e38, 288.1], [1727.9, 3.4028235e38, 319.9]], "expect": true},
+    {"op": "flora_call", "method": "cell_query_box", "args": [[10, 10, 11, 11], [64, 64]],
+      "expect": {"cells": [10, 10, 11, 11], "min": [160.1, -3.4028235e38, 160.1], "max": [191.9, 3.4028235e38, 191.9]}},
+    {"op": "flora_call", "method": "cell_query_box", "args": [[-5, 3, 70, 3], [64, 64]],
+      "expect": {"cells": [0, 3, 63, 3], "min": [0.1, -3.4028235e38, 48.1], "max": [1023.9, 3.4028235e38, 63.9]}},
+    {"op": "flora_call", "method": "cell_query_box", "args": [null, [64, 64]],
+      "expect": {"cells": [0, 0, 64, 64], "min": [0.1, -3.4028235e38, 0.1], "max": [1039.9, 3.4028235e38, 1039.9]}}
+  ]
+}

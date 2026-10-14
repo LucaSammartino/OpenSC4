@@ -593,6 +593,18 @@ simulator itself in §7.1, §7.3 and §14. The regional-city object of our own c
 here, it would do nothing. FreeCity4 must therefore key this call on the city: a handle that is either the current
 city or not.
 
+**Which pointer is "the current city"** (NB18). The test is raw pointer equality with the global at `0x00B43CEC`
+(`0x006D2A40`). The only writes to that global are:
+- the city's constructor (`cSC4City::cSC4City`, through the setter `0x00601C10` at `0x0045A34A`), which stores the
+  object's own address, its primary `cISC4City` interface;
+- `SL::OnCityShutdown` (`0x0060210E`), which stores null.
+
+So the global holds the city object's `cISC4City*` from construction until city shutdown, and a host method that
+returns exactly that pointer gives the subject the original compares against. The match is by address. Any other
+interface pointer of the same object, or a wrapper around it, does not match, and the call then does nothing. How
+a test host represents "the current city" is glue: no original behaviour, and the implementer's choice of a token
+distinct from every regional-city ID stands.
+
 `R` is then fetched from the region without a null check (`0x006D2A6C`). With no current regional city the original
 crashes; *[choice]* FreeCity4 returns at once in that case.
 
@@ -806,8 +818,14 @@ If not initialized:
    `0x26D31EC5`, `0x26D31EC4`. Hold the city.
 4. `Repair(R)` every connection with the current regional city `R`.
 5. For each adjacent established city: `region.ReloadCity` it (refreshes its record from disk).
-6. `R.UpdateLocalDeals()`; clear the deal list.
-7. For each adjacent established city `C ≠ R` (in reverse list order): `C.UpdateLocalDeals()`; for each deal `d`
+   *[compat]* `ReloadCity` **replaces** the region's regional city object at that position: the region drops its
+   reference to the old object and holds a new one (run r50e2: `141D1414 → 17F41C14`). The list from
+   `GetAdjacentCities` holds a reference to each entry. The original releases each entry right after its
+   `ReloadCity`, which frees the old object, and then **calls `GetAdjacentCities` again** for steps 6–7. No
+   reference to an object from before the reload is used after step 5. A last-reference release here is expected;
+   the old object is no longer the region's.
+6. `R.UpdateLocalDeals()`, with `R` the current regional city asked for again after step 5; clear the deal list.
+7. For each adjacent established city `C ≠ R` of the **new** list (in reverse list order): `C.UpdateLocalDeals()`; for each deal `d`
    in `C.GetLocalDeals()` (from the back): `d.Clone(&e, false)`; if `e`'s other-side city exists:
    `e.SetFlags(Silent, false)`, append `e`, and shift its four dates by `today − e.currentDate` (so
    `currentDate = today` and the remaining term is kept).

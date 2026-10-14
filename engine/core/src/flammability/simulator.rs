@@ -646,6 +646,10 @@ impl FlammabilitySim {
                         d.tuning.hotspot_threshold,
                     )
                 };
+                // [compat] (§6.5, FL5/FL6): the watered state as plumbing
+                // slot 11 answers on the day of the visit (it changes only
+                // when a plumbing pass ends); the occupant handlers never
+                // apply the no-water factor.
                 // [choice] No plumbing simulator: not watered (§4.1 step 5).
                 let watered = self.host.is_cell_watered(x, z).unwrap_or(false);
                 v = daily_value(r, g, watered, no_water);

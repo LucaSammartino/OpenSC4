@@ -122,6 +122,7 @@ struct Month {
     bool tuningLoaded;
     fc4_tax_scan scan;
     bool scanned;
+    const char* lotWalk;  // how ForEachLot walked the lots (BudgetLastLotWalk)
     std::vector<LotRec> lots;
     int32_t curX, curZ;
     bool curLocated;
@@ -228,6 +229,7 @@ void BeforeStep(void*) {
     // [compat] the original's CS$$$ weight bug (§13.1) is what it computes.
     m.scanned = fc4_budget_shadow_tax(&host, tuning, false, m.difficulty, m.rates, &OnTaxLot, nullptr, &m.scan);
     SetBudgetLotTap(nullptr, nullptr);
+    m.lotWalk = g_testMode ? "test lots" : BudgetLastLotWalk();
 }
 
 // Step 3, just after it.
@@ -427,9 +429,17 @@ int Report(bool beforeClean, bool afterClean) {
         LogTypeLots(prefix, t, diff, &budgetLines);
     }
     if (totalMis && typeMis == 0) {
-        Log("%s: total differs with every type equal: the lot order (budget §5.2 [choice]: float sums; ±1 per 1000 "
-            "lots allowed)",
-            prefix);
+        // BQ3: the total is a float32 running sum in lot order, never the sum of
+        // the lines; over the master list it is the original's to the simoleon.
+        if (m.lotWalk != nullptr && strcmp(m.lotWalk, "master list") == 0) {
+            Log("%s: total differs with every type equal, over the master list (the original's lot order, BQ3: "
+                "the total should be exact): a lot tax differs within its type's truncation",
+                prefix);
+        } else {
+            Log("%s: total differs with every type equal: the lot order (lots by %s, not the master list: budget "
+                "§5.2 [choice], the float32 running total; ±1 per 1000 lots allowed)",
+                prefix, m.lotWalk != nullptr ? m.lotWalk : "?");
+        }
     }
     return mismatches;
 }

@@ -87,6 +87,17 @@
 //   residential_shadow_cells = N  its differing cells listed per grid (default 4)
 //   residential_seed = N          the residential generator's session seed (default:
 //                                 the cRZTime clock, residential.md §3; cFC4Residential.cpp)
+//   neighbours_shadow = 0 / 1     the neighbours shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL neighbours simulator: do
+//                                 not enable neighbors; FC4NeighborsShadow.h)
+//   neighbors_seed = N            the deal proposal generator's session seed (default:
+//                                 the cRZTime clock; cFC4Neighbors.cpp)
+//   neighbors_two_curves = 0 / 1  neighbors.md §8.3 two price curves [choice] (default 0)
+//   growth_probe = 0 / 1          the growth calibration probe (default 0; needs the
+//                                 ORIGINAL BDS and tract developer; counts the tract
+//                                 developer's Grow calls per game day; env
+//                                 FC4_GROWTH_PROBE; read at PostAppInit;
+//                                 FC4GrowthProbe.h)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.
@@ -268,6 +279,8 @@ enum class Sw : unsigned {
     FloraPosts,      // flora_posts: FloraTypesUpdated (off: not posted)
     FloraCheats,     // flora_cheats: the "Flora" cheat and the PlaceFlora command registrations
     FloraExemplars,  // flora_exemplars: the flora exemplar enumeration (off: no flora types)
+    FloraObliteration,  // flora_obliteration: the obliterated city's segment records (cISC4DBSegment and its
+                        //   streams, the occupants' Write / Read; off: nothing saved, nothing restored)
     // Landfill developer host callbacks (cFC4Landfill.cpp), one per group of
     // game calls; only used when the landfill subsystem is enabled.
     LandfillTerrain,     // landfill_terrain: terrain altitude and sea level reads, SetAltitude,
@@ -302,6 +315,22 @@ enum class Sw : unsigned {
     ResidentialHistory,    // residential_history: history records (MessageSend) and queue lengths
     ResidentialLots,       // residential_lots: GetOccupantLot and its centre (off: the building's position)
     ResidentialTerrain,    // residential_terrain: GetAltitude (off: 0)
+    // Neighbours simulator host callbacks (cFC4Neighbors.cpp), one per group of
+    // game calls; only used when the neighbors subsystem is enabled.
+    NeighborsRegionReads,   // neighbors_region_reads: the regional cities (app, region GetCity) and their
+                            //   connections (FindConnection / GetAllConnections) (off: no city, none)
+    NeighborsRegionWrites,  // neighbors_region_writes: SetBudget / SetIncome / the five statistics and
+                            //   UpdateImportExport on regional cities (off: not written)
+    NeighborsDeals,         // neighbors_deals: Update / Get / SetLocalDeals (off: none, not stored)
+    NeighborsReload,        // neighbors_reload: region ReloadCity in Init (off: not reloaded)
+    NeighborsSymmetric,     // neighbors_symmetric: ChangeSymmetricConnection (off: not changed)
+    NeighborsMarkers,       // neighbors_markers: the connection marker props, their lookup and moves and
+                            //   the terrain heights (off: no marker, height 0)
+    NeighborsPosts,         // neighbors_posts: the deal status reports and connection messages (off: not
+                            //   sent; the connection log line stays)
+    NeighborsHistory,       // neighbors_history: history records (MessageSend)
+    NeighborsFigures,       // neighbors_figures: the budget, utility and landfill figures of
+                            //   UpdateCommodityStats (off: 0, no departments)
     Count
 };
 

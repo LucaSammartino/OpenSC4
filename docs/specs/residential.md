@@ -137,7 +137,9 @@ per simgrid §6.4 with the same element type, tract size and instance ID.
 2. If no message server is held, take it (return **false** if there is none) and subscribe the message target to
    `0x99EF1142` and `0x99EF1143` (occupant inserted / removed).
 3. Take the budget simulator (`city.GetBudgetSimulator()`) if not held.
-4. Take the simulator; if there is none, return **false**. Register the agent (§4.3).
+4. Take the simulator; if there is none, return **false**. Register the agent (§4.3). *[compat]* (RG18) The
+   simulator is **borrowed**: step 4 reads the global `0x00B43D5C` (`0x006FEC0E`) with no `AddRef` and keeps no
+   member for it. Null returns false; otherwise the four `AddAgent` calls follow at once.
 5. History warehouse: `SetHistoryDataQueueLength(id, 2)` for `0xCA545CAB + g` and `0xCA545CCA + g`
    (g = 0..8, interleaved per g), then `0x4A8A3FE2` and `0x4A8A3FE5`.
 6. **New city only** (cityStarted false): P := E := R$ developer's population-map tract size; population := 0;
@@ -157,7 +159,9 @@ population tuning is read once at `Init` and again at the next state 4.
 
 ### 4.2 `Shutdown()` → AL = 1
 
-If initialised: initialised := false; `RemoveAgent(target)` on the simulator; unsubscribe both messages; release
+If initialised: initialised := false; `RemoveAgent(target)` on the simulator (fetched again from the city, slot 50
+`+0xC8`, at `0x006F980D`; skipped when null; **not released**, since Init took no reference, RG18); unsubscribe
+both messages; release
 the message server, the budget simulator and the four departments; for every grid `Shutdown`, `Release` and
 forget it; release the demand node, the temporary grid (if any), the city, the BDS, the occupant manager and the
 developers; hand every occupant list to the occupant manager (slot 48, `+0xC0`, *[inferred]*: releases the list's
@@ -235,7 +239,10 @@ uninterrupted pass. Consumers can observe a partially updated population/EQ/HQ/a
 For wealth w ∈ {1, 2, 3} (R$, R$$, R$$$):
 
 1. **Seed** *[compat]* (QUESTIONS RG23; `0x005E4FA0`). key := BDS `GetBuildingMapKey(purpose 1, w)` (slot 42) =
-   `(purpose << 2) + w + 1` = **6, 7, 8**. map := BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building
+   `(purpose << 2) + w + 1` = **6, 7, 8**. *[compat]* (RG20) Slot 42 sets only AL (building-development.md §7.1);
+   the class pushes the whole EAX as the seed helper's key argument (calls at `0x006FF863`, `0x006FF9E8`,
+   `0x006FFB56`), and the helper loads and compares it as a **byte** (`0x005E5049`, `0x005E5078`,
+   `0x005E50CC`). Only the low 8 bits matter. map := BDS `GetBuildingMap()` (slot 41; a `uint8` grid of building
    keys, tract size 1). The seed visits every temporary-grid tract (x, z), x outer and z inner, and computes a
    seed value:
    - equal tract shifts (the shipped case): 0 if `map[x][0] = key`, else 255;

@@ -35,7 +35,8 @@
 //! - the intrinsic, total and slope grids, tract by tract (the slope
 //!   bitwise);
 //! - `GetLandValueType` (slot 5) at the first cell of every total tract,
-//!   against our thresholds applied to the original's value there (§7.6);
+//!   against our thresholds applied to the original's value there (§7.6;
+//!   *[compat]* LV4: the type is uniform over a tract, so this is exact);
 //! - the average (slot 10), the mode altitude (slot 11, bitwise) and the
 //!   mean altitude (the record, §10: it has no getter; bitwise).
 //!
@@ -51,14 +52,25 @@
 //! so the record's byte 5 is 1 (`settled=0`) and a difference may be such a
 //! change. The growth developers' desirability maps are not covered by the
 //! dirty flag: they are republished about once a month, near the month
-//! start, where passes start too. The shadow therefore keeps, per listed
-//! developer, the map as read at each SimNewDay
-//! ([`fc4_landvalue_shadow_note_day`]); when the total grid differs and the
-//! map changed since the previous note, our pass runs again with the map
-//! from before the change and the better result is kept (`desirability=
-//! previous`). With more than one listed developer the original applies
-//! them in address order (§7.4), ours in tuning order [choice]; the shipped
-//! tuning lists one.
+//! start, where passes start too. *[compat]* (§7.4, LV2): a developer's
+//! published map changes only in its state-17 call, in one piece, and at
+//! most once between the original's state 7 and the comparison, so there
+//! are exactly two candidates: the map before the developer's last state-17
+//! copy, and the live one. The shadow snapshots each listed developer's map
+//! at each SimNewDay ([`fc4_landvalue_shadow_note_day`]) and after each
+//! comparison, but only while the developer's slot 10
+//! (`GrowthAndDeclineListsAreValid`, `state < 17`) is true, when the map
+//! cannot change; the last such snapshot before a change is the map from
+//! before the copy (with the host's slot-10 callback NULL, every note
+//! snapshots). When the total grid differs and the other candidate differs
+//! from the live map, our pass runs again with it and the better result is
+//! kept (`desirability=previous`).
+//!
+//! *[compat]* (§7.4, LV1): the original applies the listed developers in
+//! ascending unsigned order of their pointers (a map keyed by the pointer),
+//! not in tuning order; our pass is told to do the same
+//! ([`LandValueSim::order_developers_by_address`]), the tokens being the
+//! pointers `GetDeveloper(ID)` returns.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
@@ -134,7 +146,7 @@ pub struct fc4_landvalue_shadow_stats {
     pub scalar_mismatches: u32,
     /// Passes compared with a developer's previous desirability map.
     pub desirability_reruns: u32,
-    /// Desirability map changes seen by `note_day`.
+    /// Snapshot changes (`note_day` and after each comparison; LV2).
     pub desirability_changes: u32,
 }
 
@@ -505,11 +517,15 @@ fn mark(same: bool) -> &'static str {
 
 // ---- the shadow ---------------------------------------------------------------------------------
 
-/// One listed developer's desirability map as last noted.
+/// One listed developer's desirability map as last snapshotted (LV2).
 struct DMap {
     grid: u64,
     geom: GridGeometry,
+    /// The last snapshot taken while slot 10 was true (the map cannot change
+    /// then).
     latest: Vec<i16>,
+    /// The snapshot before `latest` changed: the map before the developer's
+    /// last state-17 copy, once `latest` has caught up with the copy.
     previous: Option<Vec<i16>>,
 }
 
@@ -550,8 +566,9 @@ impl Shadow {
         }
     }
 
-    /// A developer's live desirability map: its grid token, geometry and values.
-    fn read_map(&self, id: u32) -> Option<(u64, GridGeometry, Vec<i16>)> {
+    /// A developer's live desirability map: the developer token, the grid
+    /// token, its geometry and values.
+    fn read_map(&self, id: u32) -> Option<(u64, u64, GridGeometry, Vec<i16>)> {
         let c = &self.host.c;
         let dev = c.developer(id);
         if dev == 0 {
@@ -567,17 +584,23 @@ impl Shadow {
         }
         let mut v = vec![0i16; geom.len()];
         c.grid_read_i16(grid, &mut v);
-        Some((grid, geom, v))
+        Some((dev, grid, geom, v))
     }
 
-    /// Notes every listed developer's map; returns how many changed.
+    /// Snapshots every listed developer's map whose slot 10 is true (or
+    /// unknown); returns how many snapshots changed (LV2).
     fn note(&mut self) -> u32 {
         let mut changed = 0;
         for id in self.developer_ids() {
-            let Some((grid, geom, v)) = self.read_map(id) else {
+            let Some((dev, grid, geom, v)) = self.read_map(id) else {
                 self.maps.remove(&id);
                 continue;
             };
+            // Slot 10 false: state 17 is pending or done, the map may be
+            // changing this update; keep the snapshot from before it.
+            if self.host.c.developer_lists_valid(dev) == Some(false) {
+                continue;
+            }
             match self.maps.get_mut(&id) {
                 Some(m) if m.grid == grid && same_counts(&m.geom, &geom) => {
                     if m.latest != v {
@@ -602,12 +625,13 @@ impl Shadow {
         changed
     }
 
-    /// The maps to try instead of the live ones: per developer, the noted
-    /// map when it differs from the live one, else the one before it.
+    /// The second candidate per developer (LV2), to try instead of the live
+    /// map: the last snapshot when the live map differs from it (a copy
+    /// since), else the snapshot before it (the map before the last copy).
     fn alternatives(&self) -> BTreeMap<u64, (GridGeometry, Vec<i16>)> {
         let mut out = BTreeMap::new();
         for (&id, m) in &self.maps {
-            let Some((grid, geom, live)) = self.read_map(id) else {
+            let Some((_, grid, geom, live)) = self.read_map(id) else {
                 continue;
             };
             if grid != m.grid || !same_counts(&geom, &m.geom) {
@@ -641,6 +665,9 @@ impl Shadow {
         h.history.set(None);
         let mut sim = LandValueSim::new(Box::new(HostRef(h.clone())));
         sim.init(self.tuning.as_ref());
+        // [compat] (§7.4, LV1): the original's order, ascending developer
+        // pointer; our tokens are those pointers.
+        sim.order_developers_by_address();
         let mut calls = 0;
         while sim.pipeline_state() != STATE_FINISHED && calls < MAX_CALLS {
             sim.step(u32::MAX);
@@ -925,8 +952,9 @@ pub unsafe extern "C" fn fc4_landvalue_shadow_destroy(s: *mut fc4_landvalue_shad
     guard((), || drop(Box::from_raw(s as *mut Handle)));
 }
 
-/// SimNewDay: notes every listed developer's desirability map (read-only).
-/// Returns how many changed since the previous note.
+/// SimNewDay: snapshots every listed developer's desirability map
+/// (read-only) while its slot 10 is true or unknown (LV2). Returns how many
+/// snapshots changed.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_landvalue_shadow_note_day(s: *mut fc4_landvalue_shadow) -> u32 {
     with_shadow(s, 0, Shadow::note)

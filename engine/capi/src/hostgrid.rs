@@ -83,6 +83,17 @@ macro_rules! gcb {
 /// computed 0 tracts per day (protection.md §4.1 base init steps 2 and 6,
 /// §11: recomputed on load, from the grid as it is at `Init`).
 ///
+/// Why the first non-empty geometry is the final one (HG1, foundations
+/// §3.7): every saved object is created and read in the store load, in
+/// ascending class ID and record order, before `cSC4City::Init` runs; a
+/// reference only creates the empty object, whose own `Read` comes when the
+/// walk reaches its entry. So a subsystem whose class ID is below the grids'
+/// (`0x49B9E602`; fire protection, power, plumbing, residential) sees its
+/// grids empty during `Read`, and every subsystem sees them final by `Init`.
+/// Caveat: a grid saved as 0 × 0 stays empty after its `Read`, so "empty"
+/// cannot tell it from a grid not yet read; such a grid is asked again on
+/// every call and never kept.
+///
 /// Threads: the kept value is written once, on the first call that sees a
 /// non-empty geometry. The simulators make that call on the main thread
 /// (their `Init` sizes from it; pollution warms every grid at `Read` and
@@ -387,7 +398,9 @@ mod tests {
     /// until the game reads the grid's own record, which can come after its
     /// owner's record (the protection in-game fault: fire's grid was 0 × 0 at
     /// fire's `Read`). An empty geometry is asked again on every call; the
-    /// first non-empty one is kept.
+    /// first non-empty one is kept, and it is final (HG1: every saved record
+    /// is read before any `Init`, each once; a grid saved as 0 × 0 stays
+    /// empty and is never kept).
     #[test]
     fn an_empty_geometry_is_asked_again_and_a_known_one_is_kept() {
         let f = Fake::default();
