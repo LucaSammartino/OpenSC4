@@ -62,9 +62,12 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 >   - answers-apply: pollution PG14 (`dirtyWater`) and the traffic network TN1–TN20 answers (stays out of the
 >     traffic simulator's §4.14/§6 parts);
 >   - protection fix: the fire grid's geometry taken at Init, not Read (and the same check on every other glue);
+>   - **power shadow** (`power_shadow = 1`): our power core on the original's live inputs, to settle run 69;
 >   - RE `re-answers2` (CQ, PR, DQ, PG4–PG13) and `re-answers3` (PF, ZQ, LF, NB, EX).
 > - **Open follow-ups:**
->   - original-power soak versus run 69; possibly a power shadow lane;
+>   - soak pair on `ae82e65` (detached, `build-runs/soak-pair.ps1`): run 71 = run 69's eight replacements, run 72 =
+>     the same with the original power simulator; compare the power observe lines and the money;
+>   - grid shadows still missing for the M3 exit: land value, flammability, plumbing (power's is in a lane);
 >   - residential glue (after REH) and zones glue (M4); neighbours glue;
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
