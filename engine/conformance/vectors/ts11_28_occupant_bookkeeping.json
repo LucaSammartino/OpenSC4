@@ -1,0 +1,352 @@
+{
+  "format": 1,
+  "name": "ts11_28_occupant_bookkeeping",
+  "spec": [
+    "traffic-simulator 3.6",
+    "traffic-simulator 4.12"
+  ],
+  "description": "§3.6 worked example (TS4). 100 road calls so far: cells[0] = 100, roadCellCount 100, damagedRoadCount 3, pothole count 3, (12, 34) damaged. Bulldozing its road piece (flags Road only, message 0x99EF1143): step 2 calls DoRoadChanged(occ, false, 0); cells[0] = 99 and the roads budget is priced from it; the key 0x0C22 is not intact but damaged: erased, damagedRoadCount 2, pothole count 2, 0x69247DC8 (12, 34, 0) posted, roadCellCount 99. A level crossing at (20, 5), flags Road | Rail: step 2 inserts 0x1405 into the intact road set, cells[0] = 100, roadCellCount 100, the roads budget priced; step 4 bumps cells[1] and skips the rail sets (Road is set), then prices the mass-transit budget. Then §4.12 / §3.6: ApplyRoadFunding re-sets the pothole count only in a month when the road target changes, to the low 16 bits of the target. 100 % funding, rate 0: target 0 against 2 damaged, so the count := 0; a pothole count set to 9 then stays in a month with no change; rate 1.0 with 70000 cells at 0 % funding: target 70000, count 70000 mod 65536 = 4464.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        64,
+        64
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cells_per_type": [
+          100,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "potholes": 3
+      }
+    },
+    {
+      "op": "ts_damage",
+      "kind": "road",
+      "damaged": [
+        [
+          12,
+          34
+        ],
+        [
+          1,
+          1
+        ],
+        [
+          2,
+          2
+        ]
+      ],
+      "cell_count": 100
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "cell_count": 100,
+        "damaged_count": 3
+      }
+    },
+    {
+      "op": "ts_occupant",
+      "id": 1,
+      "flags": 1,
+      "cell": [
+        12,
+        34
+      ],
+      "note": "Road only"
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x99EF1143",
+        0,
+        0,
+        "0xC772BF98",
+        1
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cells_per_type": [
+          99,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "potholes": 2
+      }
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "cell_count": 99,
+        "damaged_count": 2,
+        "damaged_cells": [
+          [
+            1,
+            1
+          ],
+          [
+            2,
+            2
+          ]
+        ],
+        "intact": 0
+      }
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "network_costs": [
+          [
+            false,
+            [
+              99,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        ]
+      },
+      "posted_includes": [
+        [
+          "0x69247DC8",
+          12,
+          34,
+          0
+        ]
+      ]
+    },
+    {
+      "op": "ts_occupant",
+      "id": 2,
+      "flags": 3,
+      "cell": [
+        20,
+        5
+      ],
+      "note": "Road | Rail: a level crossing"
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x99EF1142",
+        0,
+        0,
+        "0xC772BF98",
+        2
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cells_per_type": [
+          100,
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "potholes": 2
+      }
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "cell_count": 100,
+        "damaged_count": 2,
+        "intact": 1
+      }
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "rail",
+      "state": {
+        "cell_count": 0,
+        "intact": 0,
+        "damaged": 0
+      }
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "network_costs": [
+          [
+            false,
+            [
+              99,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            false,
+            [
+              100,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ],
+          [
+            true,
+            [
+              100,
+              1,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation",
+      "note": "100 % funding: rate 0, target 0 against damagedRoadCount 2"
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "damaged_count": 0,
+        "damaged": 0
+      }
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "potholes": 0
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "potholes": 9
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation",
+      "note": "target 0 = damaged 0: no change"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "potholes": 9
+      }
+    },
+    {
+      "op": "ts_damage",
+      "kind": "road",
+      "rate": 1.0,
+      "cell_count": 70000
+    },
+    {
+      "op": "ts_env",
+      "roads_funding": 0.0
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation",
+      "note": "rate min(1, 1.02) = 1: target 70000"
+    },
+    {
+      "op": "ts_expect_damage",
+      "kind": "road",
+      "state": {
+        "damaged_count": 70000,
+        "rate": "0x3F800000"
+      }
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "potholes": 4464
+      }
+    }
+  ]
+}

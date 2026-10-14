@@ -17,7 +17,7 @@ use crate::variant::{Elem, Variant};
 use crate::x87::{ftol, r24};
 
 use super::adapters::{capacity_element, PfAdapter};
-use super::state::{DamageState, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
+use super::state::{DamageBlock, DamageState, StatRow, State, PASS_COUNTERS, PC_REROUTE_BUCKET, PC_REROUTE_COUNTER};
 use super::{
     cell_key16, cycle_state as cs, dept, grid_id, msg, prop, Message, Source, TrafficSimHost, TrafficSimulator,
     AGENT_FLAGS, AGENT_LEVELS, AGENT_NAME,
@@ -26,11 +26,21 @@ use super::{
 /// The network-occupant type of the occupant messages (§3.1).
 const NETWORK_OCCUPANT_TYPE: u32 = crate::traffic_network::occupant_type::NETWORK;
 
-/// The network types whose occupants change the road damage set, and the
-/// rail one (traffic-network.md §3: DoRoadChanged for 6, 0, 10, 3, 2, 12;
-/// DoRailChanged for 1).
-const ROAD_TYPES: [u32; 6] = [6, 0, 10, 3, 2, 12];
-const RAIL_TYPE: u32 = 1;
+/// The network types of the bookkeeping calls (§3.6, TS4): Avenue and Road
+/// each, then the first of OneWayRoad, Street, Highway, GroundHighway; Rail;
+/// Subway.
+const AVENUE: u32 = 6;
+const ROAD: u32 = 0;
+const ROAD_LIKE: [u32; 4] = [10, 3, 2, 12];
+const RAIL: u32 = 1;
+const SUBWAY: u32 = 7;
+/// Highway and GroundHighway are not in the pothole sets (§3.6).
+const HIGHWAYS: [u32; 2] = [2, 12];
+/// The network flag that keeps a subway occupant out of the count (§3.6
+/// step 5, slot 8).
+const SUBWAY_SKIP_FLAG: u32 = 0x8000_0000;
+/// The level-crossing test of DoRailChanged (slot 9, any of Road | Street).
+const LEVEL_CROSSING_MASK: u32 = 9;
 
 /// The context of every operation that touches both the simulator state and
 /// the network state (see the module documentation of `mod.rs`).
@@ -303,11 +313,14 @@ impl Run<'_, '_> {
             }
             cs::CREATE_MAPS => {
                 self.reset_scan();
+                // The statistics reset (§4.9): max −1.0, the copied fields
+                // and the record counts 0.
                 let w = &mut self.st.stats_work;
-                w.rows = Default::default();
-                w.aggregate = Default::default();
-                w.over = [0; 13];
-                w.aggregate_over = 0;
+                w.rows = [StatRow::RESET; 13];
+                w.bridge = StatRow::RESET;
+                w.records = [0; 13];
+                w.bridge_records = 0;
+                self.st.stat_counts = [0; 14];
                 if let Some(g) = &self.st.commercial_work {
                     g.fill(0);
                 }
@@ -403,35 +416,104 @@ impl Run<'_, '_> {
 
     // ---- §3.1 messages that need both states ----
 
-    /// The occupant messages (§3.1, traffic-network.md §3).
+    /// The occupant messages (§3.1, traffic-network.md §3): the bookkeeping
+    /// of §3.6 first (`0x00724334`–`0x0072442E`, TS4), then the network part.
     fn occupant_message(&mut self, object: u64, removed: bool) {
         let Some(occ) = self.h.as_network_occupant(object) else {
             // A failed cast still marks the occupants as changed.
             self.cx.s.occupants_changed = true;
             return;
         };
-        // The simulator's bookkeeping first (DoRoadChanged / DoRailChanged):
-        // FreeCity4 keeps the damage blocks' intact sets
-        // *[question: the functions are not specified]*.
-        let road = ROAD_TYPES.iter().any(|&t| self.h.is_of_type(occ, t));
-        let rail = self.h.is_of_type(occ, RAIL_TYPE);
-        if road || rail {
-            let p = self.h.occupant_position(occ);
-            let (x, z) = self.h.position_to_cell(p[0], p[2]);
-            let key = cell_key16(x, z);
-            let mut guard = self.dmg.borrow_mut();
-            let d = &mut *guard;
-            for (hit, block) in [(road, &mut d.road), (rail, &mut d.rail)] {
-                if hit {
-                    if removed {
-                        block.remove_cell(key);
-                    } else {
-                        block.insert_cell(key);
-                    }
-                }
-            }
+        let ins = !removed;
+        let has = |t: u32| self.h.is_of_type(occ, t);
+        let (avenue, road) = (has(AVENUE), has(ROAD));
+        let road_like = ROAD_LIKE.into_iter().find(|&t| has(t));
+        let rail = has(RAIL);
+        let subway = has(SUBWAY) && !self.h.has_network_flag(occ, SUBWAY_SKIP_FLAG);
+        if avenue {
+            self.do_road_changed(occ, ins, AVENUE);
+        }
+        if road {
+            self.do_road_changed(occ, ins, ROAD);
+        }
+        if let Some(t) = road_like {
+            self.do_road_changed(occ, ins, t);
+        }
+        if rail {
+            self.do_rail_changed(occ, ins);
+        }
+        if subway {
+            self.do_subway_changed(ins);
         }
         self.cx.occupant_changed(occ, removed);
+    }
+
+    /// `bump(t)` (§3.6): `cells[t] += 1` on insert; on remove `cells[t] −= 1`
+    /// only when it is above 0.
+    fn bump(&mut self, t: u32, ins: bool) {
+        let Some(c) = self.st.cells_per_type.get_mut(t as usize) else {
+            return;
+        };
+        if ins {
+            *c = c.wrapping_add(1);
+        } else if *c > 0 {
+            *c -= 1;
+        }
+    }
+
+    /// `DoRoadChanged(occ, ins, t)` (`0x007155D0`, §3.6).
+    fn do_road_changed(&mut self, occ: u64, ins: bool, t: u32) {
+        let p = self.h.occupant_position(occ);
+        let (x, z) = self.h.position_to_cell(p[0], p[2]);
+        self.bump(t, ins);
+        self.update_roads_budget();
+        if HIGHWAYS.contains(&t) {
+            return;
+        }
+        let repaired = {
+            let mut d = self.dmg.borrow_mut();
+            change_cell(&mut d.road, cell_key16(x, z), ins)
+        };
+        if repaired {
+            self.repaired_cell(x, z);
+        }
+    }
+
+    /// `DoRailChanged(occ, ins)` (`0x00715790`, §3.6): a level crossing (Road
+    /// or Street) skips the rail sets.
+    fn do_rail_changed(&mut self, occ: u64, ins: bool) {
+        self.bump(RAIL, ins);
+        if !self.h.has_any_network_flag(occ, LEVEL_CROSSING_MASK) {
+            let (x, z) = self.h.network_occupant_cell(occ);
+            let repaired = {
+                let mut d = self.dmg.borrow_mut();
+                change_cell(&mut d.rail, cell_key16(x, z), ins)
+            };
+            if repaired {
+                // The road pothole count, also for rail *[quirk]*.
+                self.repaired_cell(x, z);
+            }
+        }
+        self.update_mass_transit_budget();
+    }
+
+    /// `DoSubwayChanged(ins)` (`0x0070EA70`, §3.6).
+    fn do_subway_changed(&mut self, ins: bool) {
+        self.bump(SUBWAY, ins);
+        self.update_mass_transit_budget();
+    }
+
+    /// A damaged cell repaired by removal (§3.6): the published pothole
+    /// count −= 1 (wrapping) and `0x69247DC8 (x, z, 0)` is posted.
+    fn repaired_cell(&mut self, x: i32, z: i32) {
+        let p = &mut self.st.stats_last.potholes;
+        *p = p.wrapping_sub(1);
+        self.h.post_message(super::SimMessage {
+            msg_type: msg::CELL_DAMAGE,
+            data1: x as u32,
+            data2: z as u32,
+            data3: 0,
+        });
     }
 
     /// `DoLotActivated` (§4.1.3; the network part is traffic-network.md
@@ -503,6 +585,27 @@ impl Run<'_, '_> {
             cells.retain(|&c| c != (rect.x1, rect.z1));
         }
     }
+}
+
+/// Steps 5–6 of DoRoadChanged on one damage block (§3.6). Insert: the key
+/// joins the intact set unless already there (the damaged set is not looked
+/// at), and `cellCount += 1` in every case. Remove: the key leaves the
+/// intact set, or else the damaged set (`damagedCount −= 1`; the result is
+/// true); `cellCount −= 1` in every case (u32, wrapping *[compat]*).
+fn change_cell(b: &mut DamageBlock, key: u16, ins: bool) -> bool {
+    let k = u32::from(key);
+    if ins {
+        b.intact.insert(k);
+        b.cell_count = b.cell_count.wrapping_add(1);
+        return false;
+    }
+    let mut repaired = false;
+    if !b.intact.remove(k) && b.damaged.remove(k) {
+        b.damaged_count = b.damaged_count.wrapping_sub(1);
+        repaired = true;
+    }
+    b.cell_count = b.cell_count.wrapping_sub(1);
+    repaired
 }
 
 impl TrafficSimulator {

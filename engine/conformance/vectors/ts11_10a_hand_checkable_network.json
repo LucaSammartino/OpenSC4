@@ -10,7 +10,7 @@
     "traffic-simulator 4.12",
     "traffic-simulator 11.10"
   ],
-  "description": "Conformance test 10 (§11), mode 0. 8 x 8 city, street (0,3)...(4,3), lot A (2,2), job lot B (4,4) with max[0] = 100; route 01 02 03 41 02 0A with count 40: road volume 40.0 at (2,3), (3,3), (4,3); edge densities (key bit 24 clear, type 1) (2,3) current[4*1+2], (3,3) current[4*0+2], (4,3) current[4*0+3] = 40; lot B arrivedThisCycle[0] = 40; income 0. CreateMaps on (3,3): r = 2.5, peak ratio 2.5, peak volume 40, volume reset to 0 (densityReduction 0), one over-capacity street cell per route cell; CreateFinalMap: congestion 157, air-polluting 4, TrafficMapChanged posted. CompleteTripSourceCalculations for A with tripLength 3.0: trip-length 128 at (2,2), attempted[0] = routed[0] = 40, carLenSum 120, carLenCount 40, car count 40 in the per-type counts, the trip flagged routed-last-pass (8); FinalCalculations: avgCarCommute 3.0; the monthly history 0x8A5D4116 <- 75.",
+  "description": "Conformance test 10 (§11), mode 0. 8 x 8 city, street (0,3)...(4,3), lot A (2,2), job lot B (4,4) with max[0] = 100; route 01 02 03 41 02 0A with count 40: road volume 40.0 at (2,3), (3,3), (4,3); edge densities (key bit 24 clear, type 1) (2,3) current[4*1+2], (3,3) current[4*0+2], (4,3) current[4*0+3] = 40; lot B arrivedThisCycle[0] = 40; income 0. CreateMaps on (3,3): r = 2.5, peak ratio 2.5, peak volume 40, volume reset to 0 (densityReduction 0), the street statistics (TS9): all 5 street records count, congested 3 (r = 2.5 > 1 on the route cells), average 7.5 / 5 = 1.5, max 2.5 first reached at (2,3); every other slot, the bridge slot 13 included, has no record and publishes zeros; the published record counts are also the new cell counts; CreateFinalMap: congestion 157, air-polluting 4, TrafficMapChanged posted. CompleteTripSourceCalculations for A with tripLength 3.0: trip-length 128 at (2,2), attempted[0] = routed[0] = 40, carLenSum 120, carLenCount 40, car count 40 in the per-type counts, the trip flagged routed-last-pass (8); FinalCalculations: avgCarCommute 3.0; the monthly history 0x8A5D4116 <- 75.",
   "steps": [
     {
       "op": "ts_lot",
@@ -198,11 +198,154 @@
       "op": "ts_expect_state",
       "state": {
         "cycle_state": 4,
-        "stats_over": [
+        "stats_records": [
           0,
           0,
           0,
-          3,
+          5,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "stats_rows": [
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": "0x3FC00000",
+            "congested": 3,
+            "max": "0x40200000",
+            "max_cell": [
+              2,
+              3
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          },
+          {
+            "sum": 0,
+            "congested": 0,
+            "max": 0,
+            "max_cell": [
+              0,
+              0
+            ]
+          }
+        ],
+        "cells_per_type": [
+          0,
+          0,
+          0,
+          5,
           0,
           0,
           0,

@@ -123,7 +123,7 @@ fn put_iterator(out: &mut dyn OutStream, it: &ScanIterator, raw: Option<u8>) {
 
 fn put_row(out: &mut dyn OutStream, r: &StatRow) {
     out.put_f32(r.sum);
-    out.put_u32(r.count);
+    out.put_u32(r.congested);
     out.put_i32(r.max_x);
     out.put_i32(r.max_z);
     out.put_f32(r.max);
@@ -133,12 +133,12 @@ fn put_stats(out: &mut dyn OutStream, s: &StatsSet) {
     for r in &s.rows {
         put_row(out, r);
     }
-    put_row(out, &s.aggregate);
-    for &o in &s.over {
+    put_row(out, &s.bridge);
+    for &o in &s.records {
         out.put_u16(o);
     }
-    out.put_u16(s.aggregate_over);
-    out.put_u16(s.extra_u16);
+    out.put_u16(s.bridge_records);
+    out.put_u16(s.potholes);
     out.put_i32(SWITCH_STATS as i32);
     for e in &s.switch_stats {
         out.put_u16(e.a);
@@ -505,7 +505,7 @@ impl Parse<'_> {
     fn row(inp: &mut dyn InStream) -> Option<StatRow> {
         Some(StatRow {
             sum: inp.get_f32()?,
-            count: inp.get_u32()?,
+            congested: inp.get_u32()?,
             max_x: inp.get_i32()?,
             max_z: inp.get_i32()?,
             max: inp.get_f32()?,
@@ -534,13 +534,13 @@ impl Parse<'_> {
             for i in 0..self.b {
                 let r = Self::row(inp)?;
                 if i == 0 {
-                    s.aggregate = r;
+                    s.bridge = r;
                 }
             }
         }
         for i in 0..self.a {
             let o = inp.get_u16()?;
-            if let Some(slot) = s.over.get_mut(i) {
+            if let Some(slot) = s.records.get_mut(i) {
                 *slot = o;
             }
         }
@@ -548,11 +548,11 @@ impl Parse<'_> {
             for i in 0..self.b {
                 let o = inp.get_u16()?;
                 if i == 0 {
-                    s.aggregate_over = o;
+                    s.bridge_records = o;
                 }
             }
         }
-        s.extra_u16 = inp.get_u16()?;
+        s.potholes = inp.get_u16()?;
         let e = if v >= 34 { inp.get_i32()?.max(0) as usize } else { 3 };
         for i in 0..e {
             let a = inp.get_u16()?;

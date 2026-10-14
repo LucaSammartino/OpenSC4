@@ -114,6 +114,11 @@ impl Run<'_, '_> {
             let mut d = self.dmg.borrow_mut();
             let b = if kind == kind::ROAD { &mut d.road } else { &mut d.rail };
             b.damaged_count = target;
+            // Road only: the published pothole count := the low 16 bits of
+            // `damagedCount` (`0x00717DF2`, §3.6, §4.12).
+            if kind == kind::ROAD {
+                self.st.stats_last.potholes = target as u16;
+            }
         }
     }
 

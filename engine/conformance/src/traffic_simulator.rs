@@ -60,6 +60,16 @@ struct Conn {
     dirty: bool,
 }
 
+/// A scripted network occupant (§3.6): the flag word (bit `1 << t` per
+/// network type; bit 31 the subway skip), the position (the middle of its
+/// cell) and its own cell (slot 59).
+#[derive(Clone, Copy, Debug)]
+struct Occ {
+    flags: u32,
+    pos: [f32; 3],
+    cell: (i32, i32),
+}
+
 /// The department tokens: `dept_base + i` in creation order (a fixture
 /// stand-in with no original counterpart, TS34).
 const DEPT_BASE: u64 = 900;
@@ -97,6 +107,10 @@ struct World {
     budget_items: Cell<i64>,
     sim: RefCell<Option<Rc<TrafficSimulator>>>,
     saved: RefCell<HashMap<String, Saved>>,
+    occs: RefCell<HashMap<u64, Occ>>,
+    /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
+    /// with the cell counts they priced.
+    costs: RefCell<Vec<(bool, [u32; 13])>>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -133,7 +147,13 @@ impl World {
             budget_items: Cell::new(0),
             sim: RefCell::new(None),
             saved: RefCell::new(HashMap::new()),
+            occs: RefCell::new(HashMap::new()),
+            costs: RefCell::new(Vec::new()),
         }
+    }
+
+    fn occ_flags(&self, occ: u64) -> u32 {
+        self.occs.borrow().get(&occ).map_or(0, |o| o.flags)
     }
 
     fn lot(&self, id: u64) -> Option<Lot> {
@@ -218,8 +238,8 @@ impl NetworkHost for World {
     fn prop_occupants_in_rect(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
     }
-    fn occupant_position(&self, _occ: u64) -> [f32; 3] {
-        [0.0; 3]
+    fn occupant_position(&self, occ: u64) -> [f32; 3] {
+        self.occs.borrow().get(&occ).map_or([0.0; 3], |o| o.pos)
     }
     fn occupant_bounding_cells(&self, _occ: u64) -> CellRect {
         CellRect::new(0, 0, 0, 0)
@@ -230,14 +250,14 @@ impl NetworkHost for World {
     fn occupant_property(&self, _occ: u64, _id: u32) -> Option<Variant> {
         None
     }
-    fn has_network_flag(&self, _occ: u64, _flag: u32) -> bool {
-        false
+    fn has_network_flag(&self, occ: u64, flag: u32) -> bool {
+        self.occs.borrow().contains_key(&occ) && self.occ_flags(occ) & flag == flag
     }
-    fn has_any_network_flag(&self, _occ: u64, _mask: u32) -> bool {
-        false
+    fn has_any_network_flag(&self, occ: u64, mask: u32) -> bool {
+        self.occ_flags(occ) & mask != 0
     }
-    fn is_of_type(&self, _occ: u64, _network_type: u32) -> bool {
-        false
+    fn is_of_type(&self, occ: u64, network_type: u32) -> bool {
+        network_type < 32 && self.occ_flags(occ) & (1 << network_type) != 0
     }
     fn path_connection(&self, _occ: u64, _path_type: u32, _entry: u32, _exit: u32) -> bool {
         false
@@ -405,7 +425,9 @@ impl TrafficSimHost for World {
     fn set_line_item_income(&self, department: u64, item: u32, income: i64) {
         self.incomes.borrow_mut().push((department, item, income));
     }
-    fn update_network_costs(&self, _department: u64, _mass_transit: bool, _cells: &[u32; 13], _costs: &[f32; 13]) {}
+    fn update_network_costs(&self, _department: u64, mass_transit: bool, cells: &[u32; 13], _costs: &[f32; 13]) {
+        self.costs.borrow_mut().push((mass_transit, *cells));
+    }
     fn activate_budget_items(&self, _building: u64, _lot: Option<u64>) -> i64 {
         self.budget_items.get()
     }
@@ -480,8 +502,11 @@ impl TrafficSimHost for World {
     fn ordinance_property(&self, _id: u32, _prop: u32) -> Option<Variant> {
         None
     }
-    fn as_network_occupant(&self, _object: u64) -> Option<u64> {
-        None
+    fn as_network_occupant(&self, object: u64) -> Option<u64> {
+        self.occs.borrow().contains_key(&object).then_some(object)
+    }
+    fn network_occupant_cell(&self, occ: u64) -> (i32, i32) {
+        self.occs.borrow().get(&occ).map_or((0, 0), |o| o.cell)
     }
     fn occupants_in_cells(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
@@ -535,6 +560,8 @@ pub(crate) fn exec(host: &HostRef, name: &str, op: &Json) -> Option<R<()>> {
         "street" => street(&w, op),
         "state" => state(&w, op),
         "damage" => damage(&w, op),
+        "occupant" => occupant(&w, op),
+        "edge" => set_edge(&w, op),
         "grid" => set_grid(&w, op),
         "call" => call(&w, op),
         "eval" => eval(op),
@@ -1103,6 +1130,14 @@ fn state(w: &World, op: &Json) -> R<()> {
                             .collect::<R<_>>()?;
                     }
                     "rng_seed" => st.rng = seed_rng(u32_of(v, &k)?),
+                    "cells_per_type" => {
+                        let v = u32s(v, &k)?;
+                        if v.len() != 13 {
+                            return Err("'cells_per_type' needs 13 counts".into());
+                        }
+                        st.cells_per_type.copy_from_slice(&v);
+                    }
+                    "potholes" => st.stats_last.potholes = u32_of(v, &k)? as u16,
                     "income_acc" => st.income_acc.set(dv(v, &k)?),
                     other => return Err(format!("unknown state field '{other}'")),
                 }
@@ -1123,7 +1158,8 @@ fn block<'a>(d: &'a mut fc4_core::traffic_simulator::DamageState, kind: &str) ->
 }
 
 /// Damage sets: `kind` (`road` / `rail`), `intact?` and `damaged?` cells
-/// (added through the cell bookkeeping, damaged ones moved), `rate?`.
+/// (added through the cell bookkeeping, damaged ones moved), `rate?`, then
+/// `cell_count?` and `damaged_count?` set as given.
 fn damage(w: &World, op: &Json) -> R<()> {
     let s = w.sim()?;
     let kind = str_of(field(op, "kind")?, "kind")?.to_string();
@@ -1132,6 +1168,10 @@ fn damage(w: &World, op: &Json) -> R<()> {
     };
     let (intact, damaged) = (cells("intact")?, cells("damaged")?);
     let rate = opt(op, "rate").map(|v| fv(v, "rate")).transpose()?;
+    let cell_count = opt(op, "cell_count").map(|v| u32_of(v, "cell_count")).transpose()?;
+    let damaged_count = opt(op, "damaged_count")
+        .map(|v| u32_of(v, "damaged_count"))
+        .transpose()?;
     s.update_damage(|d| -> R<()> {
         let b = block(d, &kind)?;
         for (x, z) in intact {
@@ -1147,8 +1187,52 @@ fn damage(w: &World, op: &Json) -> R<()> {
         if let Some(r) = rate {
             b.rate = r;
         }
+        if let Some(n) = cell_count {
+            b.cell_count = n;
+        }
+        if let Some(n) = damaged_count {
+            b.damaged_count = n;
+        }
         Ok(())
     })
+}
+
+/// A network occupant (§3.6): `id`, `flags` (bit `1 << t` per network
+/// type), `cell` (its position, the middle of the cell), `own?` (its own
+/// cell, slot 59; default `cell`).
+fn occupant(w: &World, op: &Json) -> R<()> {
+    let id = u64_of(field(op, "id")?, "id")?;
+    let flags = u32_of(field(op, "flags")?, "flags")?;
+    let (x, z) = pair(field(op, "cell")?, "cell")?;
+    let own = opt(op, "own").map_or(Ok((x, z)), |v| pair(v, "own"))?;
+    let pos = [x as f32 * 16.0 + 8.0, 0.0, z as f32 * 16.0 + 8.0];
+    w.occs.borrow_mut().insert(id, Occ { flags, pos, cell: own });
+    Ok(())
+}
+
+/// Edge-density usages: `usage` (`[[x, z, t, evening, value]]`).
+fn set_edge(w: &World, op: &Json) -> R<()> {
+    let s = w.sim()?;
+    let mut recs = Vec::new();
+    for e in arr(field(op, "usage")?, "usage")? {
+        match arr(e, "usage")? {
+            [x, z, t, ev, v] => recs.push((
+                i32_of(x, "x")?,
+                i32_of(z, "z")?,
+                u32_of(t, "t")?,
+                bool_of(ev, "evening")?,
+                u32_of(v, "value")? as u16,
+            )),
+            _ => return Err("each usage entry is [x, z, t, evening, value]".into()),
+        }
+    }
+    s.network().update_state(|n| {
+        for (x, z, t, ev, v) in recs {
+            let k = fc4_core::traffic_network::NetworkState::edge_key(x, z, t, ev);
+            n.edge_density.entry(k, Default::default).usage = v;
+        }
+    });
+    Ok(())
 }
 
 type U8Grid = Rc<dyn TractGrid<u8>>;
@@ -1647,10 +1731,11 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 Json::Array(
                     set.rows
                         .iter()
+                        .chain(std::iter::once(&set.bridge))
                         .map(|r| {
                             obj(vec![
                                 ("sum", fb(r.sum)),
-                                ("count", ji(r.count)),
+                                ("congested", ji(r.congested)),
                                 ("max", fb(r.max)),
                                 ("max_cell", jcell((r.max_x, r.max_z))),
                             ])
@@ -1708,8 +1793,9 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("type_count_published", jlist(&st.type_count_published)),
                 ("ferry_total", ji(st.ferry_total)),
                 ("cells_per_type", jlist(&st.cells_per_type)),
-                ("stats_over", jlist(&st.stats_last.over)),
+                ("stats_records", jlist(&st.stats_last.records)),
                 ("stats_rows", rows(&st.stats_last)),
+                ("potholes", ji(st.stats_last.potholes)),
                 ("next_accident_check", ji(st.next_accident_check as i64)),
                 (
                     "accident_check",
@@ -1874,6 +1960,16 @@ fn expect_world(w: &World, op: &Json) -> R<()> {
         (
             "released_departments".to_string(),
             Json::Array(w.released_departments.borrow().iter().map(|&d| ji(d as i64)).collect()),
+        ),
+        (
+            "network_costs".to_string(),
+            Json::Array(
+                w.costs
+                    .borrow()
+                    .iter()
+                    .map(|(mt, cells)| Json::Array(vec![jb(*mt), jlist(cells)]))
+                    .collect(),
+            ),
         ),
         (
             "refs".to_string(),

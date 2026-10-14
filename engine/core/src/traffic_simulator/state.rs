@@ -43,17 +43,34 @@ pub struct AccidentEntry {
     pub p: f32,
 }
 
-/// One row of the per-network-type statistics (§4.9; save-records §7.1.1).
+/// One row of the per-network-type statistics (§4.9 step 3 "statistics",
+/// TS9; save-records §7.1.1).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StatRow {
     /// The sum of the volume/capacity ratios (the working set) or their
     /// average (the published set).
     pub sum: f32,
-    pub count: u32,
+    /// The count of records with `r > 1.0` (the saved u32 of the row).
+    pub congested: u32,
     pub max_x: i32,
     pub max_z: i32,
     pub max: f32,
 }
+
+impl StatRow {
+    /// The state-2 entry reset (§4.9): `max := −1.0`, the other fields 0.
+    pub const RESET: StatRow = StatRow {
+        sum: 0.0,
+        congested: 0,
+        max_x: 0,
+        max_z: 0,
+        max: -1.0,
+    };
+}
+
+/// The bridge slot of the statistics (§4.9, TS9): records whose network
+/// info has flag bit 0 (network flag `0x40000`).
+pub const BRIDGE_SLOT: usize = 13;
 
 /// One per-switch-type record of the statistics block (save-records §7.1.1:
 /// `u16, f32, s32, s32, f32`). Not computed by the code of this spec; kept
@@ -70,20 +87,24 @@ pub struct SwitchStat {
 /// The number of per-switch-type records (save-records §7.1.1, `E = 12`).
 pub const SWITCH_STATS: usize = 12;
 
-/// A statistics block (§4.9, the slot-34 `TrafficStats`).
+/// A statistics block (§4.9, the slot-34 `TrafficStats`; §6.1 row 16).
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatsSet {
     /// One row per network type.
     pub rows: [StatRow; 13],
-    /// The aggregate row (`B = 1`), not computed by this spec's code.
-    pub aggregate: StatRow,
-    /// The over-capacity counts (`r > 1`) per network type.
-    pub over: [u16; 13],
-    /// The aggregate over-capacity count.
-    pub aggregate_over: u16,
+    /// The bridge row (slot 13, TS9), published by the traffic advisor as
+    /// the bridge congestion.
+    pub bridge: StatRow,
+    /// The network-info records per type (u16, wrapping); in the published
+    /// set these are also the cell counts (§4.9 end of pass, TS9).
+    pub records: [u16; 13],
+    /// The bridge records (never published).
+    pub bridge_records: u16,
+    /// The u16 after the bridge records: in the published set the pothole
+    /// count (`0x134`, §3.6, §4.12); the working set's is saved unchanged.
+    pub potholes: u16,
     /// The unnamed fields of the block (save-records §12 Q2), saved
     /// unchanged.
-    pub extra_u16: u16,
     pub switch_stats: [SwitchStat; SWITCH_STATS],
     pub f1: f32,
     pub f2: f32,
@@ -96,10 +117,10 @@ impl Default for StatsSet {
     fn default() -> Self {
         StatsSet {
             rows: [StatRow::default(); 13],
-            aggregate: StatRow::default(),
-            over: [0; 13],
-            aggregate_over: 0,
-            extra_u16: 0,
+            bridge: StatRow::default(),
+            records: [0; 13],
+            bridge_records: 0,
+            potholes: 0,
             switch_stats: [SwitchStat::default(); SWITCH_STATS],
             f1: 0.0,
             f2: 0.0,
@@ -136,22 +157,15 @@ impl Default for DamageBlock {
 }
 
 impl DamageBlock {
-    /// A network cell was inserted (DoRoadChanged / DoRailChanged
-    /// *[question: not specified]*): the key joins the intact set unless it
-    /// is in either set already.
+    /// A setup helper for hosts restoring state and for tests, not the
+    /// occupant bookkeeping (that is §3.6, `DoRoadChanged`): the key joins
+    /// the intact set unless it is in either set already, and `cellCount`
+    /// becomes the size of the two sets.
     pub fn insert_cell(&mut self, key: u16) {
         let k = u32::from(key);
         if !self.intact.contains(k) && !self.damaged.contains(k) {
             self.intact.insert(k);
         }
-        self.cell_count = (self.intact.len() + self.damaged.len()) as u32;
-    }
-
-    /// A network cell was removed: the key leaves both sets.
-    pub fn remove_cell(&mut self, key: u16) {
-        let k = u32::from(key);
-        self.intact.remove(k);
-        self.damaged.remove(k);
         self.cell_count = (self.intact.len() + self.damaged.len()) as u32;
     }
 }
@@ -292,7 +306,12 @@ pub struct State {
     pub stats_last: StatsSet,
     /// The working set.
     pub stats_work: StatsSet,
-    /// The cell counts per network type (§4.9).
+    /// The per-slot record counts `count[s]` (u32, s = 0…13) the averages
+    /// divide by (§4.9). Not saved: CreateMaps runs in one call.
+    pub stat_counts: [u32; 14],
+    /// `cells[t]`, the cell counts per network type (§3.6, saved in §6.1 row
+    /// 18): bumped by the occupant messages, replaced by the record counts
+    /// at the end of every CreateMaps pass (§4.9, TS9).
     pub cells_per_type: [u32; 13],
 
     // ---- money (§3.3, §4.5, §4.12) ----
@@ -417,6 +436,7 @@ impl State {
             next_accident_check: 0,
             stats_last: StatsSet::default(),
             stats_work: StatsSet::default(),
+            stat_counts: [0; 14],
             cells_per_type: [0; 13],
             budget_total: 0,
             transit_income: 0.0,

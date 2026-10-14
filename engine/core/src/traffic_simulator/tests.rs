@@ -66,6 +66,16 @@ struct Conn {
     dirty: bool,
 }
 
+/// A scripted network occupant (§3.6): the flag word (bit `1 << t` per
+/// network type, as `IsOfType`; bit 31 the subway skip), the position
+/// (occupant slot 8) and the network occupant's own cell (slot 59).
+#[derive(Clone, Copy, Debug)]
+struct Occ {
+    flags: u32,
+    pos: [f32; 3],
+    cell: (i32, i32),
+}
+
 /// The department tokens are `DEPT_BASE + i`.
 const DEPT_BASE: u64 = 0xD000;
 /// The class ID of the host references written by the stub.
@@ -97,6 +107,10 @@ struct World {
     accidents: RefCell<Vec<(i32, i32, i64)>>,
     refs: RefCell<HashMap<u64, i32>>,
     released_departments: RefCell<Vec<u64>>,
+    occs: RefCell<HashMap<u64, Occ>>,
+    /// `UpdateRoadsBudget` (false) / `UpdateMassTransitBudget` (true) calls
+    /// with the cell counts they priced.
+    costs: RefCell<Vec<(bool, [u32; 13])>>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -145,6 +159,17 @@ impl World {
         self.trips.borrow().get(&src).cloned().unwrap_or_default()
     }
 
+    /// A network occupant with `flags`, positioned in the middle of `cell`,
+    /// whose own cell is `own` (§3.6).
+    fn add_occ(&self, id: u64, flags: u32, cell: (i32, i32), own: (i32, i32)) {
+        let pos = [cell.0 as f32 * 16.0 + 8.0, 0.0, cell.1 as f32 * 16.0 + 8.0];
+        self.occs.borrow_mut().insert(id, Occ { flags, pos, cell: own });
+    }
+
+    fn occ_flags(&self, occ: u64) -> u32 {
+        self.occs.borrow().get(&occ).map_or(0, |o| o.flags)
+    }
+
     fn dims(&self) -> CityDims {
         let (x, z) = self.cells.get();
         CityDims {
@@ -189,8 +214,8 @@ impl NetworkHost for World {
     fn prop_occupants_in_rect(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
     }
-    fn occupant_position(&self, _occ: u64) -> [f32; 3] {
-        [0.0; 3]
+    fn occupant_position(&self, occ: u64) -> [f32; 3] {
+        self.occs.borrow().get(&occ).map_or([0.0; 3], |o| o.pos)
     }
     fn occupant_bounding_cells(&self, _occ: u64) -> CellRect {
         CellRect::new(0, 0, 0, 0)
@@ -201,14 +226,14 @@ impl NetworkHost for World {
     fn occupant_property(&self, _occ: u64, _id: u32) -> Option<Variant> {
         None
     }
-    fn has_network_flag(&self, _occ: u64, _flag: u32) -> bool {
-        false
+    fn has_network_flag(&self, occ: u64, flag: u32) -> bool {
+        self.occ_flags(occ) & flag == flag && self.occs.borrow().contains_key(&occ)
     }
-    fn has_any_network_flag(&self, _occ: u64, _mask: u32) -> bool {
-        false
+    fn has_any_network_flag(&self, occ: u64, mask: u32) -> bool {
+        self.occ_flags(occ) & mask != 0
     }
-    fn is_of_type(&self, _occ: u64, _network_type: u32) -> bool {
-        false
+    fn is_of_type(&self, occ: u64, network_type: u32) -> bool {
+        network_type < 32 && self.occ_flags(occ) & (1 << network_type) != 0
     }
     fn path_connection(&self, _occ: u64, _path_type: u32, _entry: u32, _exit: u32) -> bool {
         false
@@ -377,7 +402,9 @@ impl TrafficSimHost for World {
     fn set_line_item_income(&self, department: u64, item: u32, income: i64) {
         self.incomes.borrow_mut().push((department, item, income));
     }
-    fn update_network_costs(&self, _department: u64, _mass_transit: bool, _cells: &[u32; 13], _costs: &[f32; 13]) {}
+    fn update_network_costs(&self, _department: u64, mass_transit: bool, cells: &[u32; 13], _costs: &[f32; 13]) {
+        self.costs.borrow_mut().push((mass_transit, *cells));
+    }
     fn activate_budget_items(&self, _building: u64, _lot: Option<u64>) -> i64 {
         0
     }
@@ -456,8 +483,11 @@ impl TrafficSimHost for World {
     fn ordinance_property(&self, _id: u32, _prop: u32) -> Option<Variant> {
         None
     }
-    fn as_network_occupant(&self, _object: u64) -> Option<u64> {
-        None
+    fn as_network_occupant(&self, object: u64) -> Option<u64> {
+        self.occs.borrow().contains_key(&object).then_some(object)
+    }
+    fn network_occupant_cell(&self, occ: u64) -> (i32, i32) {
+        self.occs.borrow().get(&occ).map_or((0, 0), |o| o.cell)
     }
     fn occupants_in_cells(&self, _rect: CellRect) -> Vec<u64> {
         Vec::new()
@@ -802,8 +832,15 @@ fn t10_hand_checkable_network() {
     assert_eq!(s.peak_ratio_grid().unwrap().get(3, 3), 2.5);
     assert_eq!(s.peak_volume_grid().unwrap().get(3, 3), 40.0);
     assert_eq!(volume(&s, 1, 3, 3), 0.0);
-    // r = 2.5 > 1: one over-capacity street cell per route cell.
-    assert_eq!(s.read_state(|st| st.stats_last.over[net_type::STREET as usize]), 3);
+    // The statistics (§4.9, TS9): all five street records count; r = 2.5
+    // > 1 on the three route cells (congested 3), r = 0 on (0, 3) and
+    // (1, 3); the average is 7.5 / 5 = 1.5.
+    let (records, row) = s.read_state(|st| {
+        let t = net_type::STREET as usize;
+        (st.stats_last.records[t], st.stats_last.rows[t])
+    });
+    assert_eq!(records, 5);
+    assert_eq!((row.sum, row.congested, row.max), (1.5, 3, 2.5));
     assert!(s.work_on_sim_cycle());
     assert_eq!(s.congestion_map().unwrap().get(3, 3), 157);
     assert_eq!(s.air_polluting_traffic_map().unwrap().get(3, 3), 4);
@@ -1389,4 +1426,316 @@ fn edge_density_dump_and_reduce() {
     // GetTravelTimeRatio: usage 40 × 0.0625 = 2.5 → the curve at 2.5.
     let c = s.read_state(|st| st.tuning.congestion_curve.eval(2.5));
     assert_eq!(bits(s.travel_time_ratio(3, 3, 1)), bits(c));
+}
+
+// ---------------------------------------------------------------------------
+// §3.6 occupant bookkeeping (TS4), §4.9 the window (TS8) and the statistics
+// (TS9), §4.12 the pothole count
+// ---------------------------------------------------------------------------
+
+fn bit(t: u32) -> u32 {
+    1 << t
+}
+
+fn occupant_msg(s: &TrafficSimulator, id: u64, ins: bool) {
+    s.do_message(&Message {
+        msg_type: if ins {
+            msg::OCCUPANT_INSERTED
+        } else {
+            msg::OCCUPANT_REMOVED
+        },
+        data3: crate::traffic_network::occupant_type::NETWORK,
+        object: id,
+        ..Message::default()
+    });
+}
+
+fn damage_posts(w: &World) -> Vec<(u32, u32, u32)> {
+    w.posted
+        .borrow()
+        .iter()
+        .filter(|m| m.msg_type == msg::CELL_DAMAGE)
+        .map(|m| (m.data1, m.data2, m.data3))
+        .collect()
+}
+
+fn key(x: i32, z: i32) -> u32 {
+    u32::from(cell_key16(x, z))
+}
+
+/// §3.6, the worked example: bulldozing a damaged road piece, then placing
+/// a level crossing.
+#[test]
+fn occupant_bookkeeping_worked_example() {
+    let w = World::new();
+    w.cells.set((64, 64));
+    let s = sim(&w);
+    s.update_state(|st| {
+        st.cells_per_type[0] = 100;
+        st.stats_last.potholes = 3;
+    });
+    s.update_damage(|d| {
+        for (x, z) in [(12, 34), (1, 1), (2, 2)] {
+            d.road.damaged.insert(key(x, z));
+        }
+        d.road.cell_count = 100;
+        d.road.damaged_count = 3;
+    });
+    w.add_occ(1, bit(net_type::ROAD), (12, 34), (12, 34));
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 1, false);
+    assert_eq!(
+        s.read_state(|st| (st.cells_per_type[0], st.stats_last.potholes)),
+        (99, 2)
+    );
+    {
+        let d = s.damage();
+        assert_eq!((d.road.damaged_count, d.road.cell_count), (2, 99));
+        assert!(!d.road.damaged.contains(key(12, 34)));
+    }
+    assert_eq!(damage_posts(&w), vec![(12, 34, 0)]);
+    let priced: Vec<(bool, u32)> = w.costs.borrow().iter().map(|c| (c.0, c.1[0])).collect();
+    assert_eq!(priced, vec![(false, 99)]);
+
+    // The level crossing at (20, 5), Road | Rail.
+    let rail = s.read_state(|st| st.cells_per_type[1]);
+    w.add_occ(2, bit(net_type::ROAD) | bit(net_type::RAIL), (20, 5), (20, 5));
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 2, true);
+    assert_eq!(
+        s.read_state(|st| (st.cells_per_type[0], st.cells_per_type[1])),
+        (100, rail + 1)
+    );
+    {
+        let d = s.damage();
+        assert!(d.road.intact.contains(key(20, 5)));
+        assert_eq!(d.road.cell_count, 100);
+        assert_eq!((d.rail.cell_count, d.rail.intact.len()), (0, 0));
+    }
+    // The roads budget after step 2, the mass-transit budget after step 4.
+    let priced: Vec<(bool, u32, u32)> = w.costs.borrow().iter().map(|c| (c.0, c.1[0], c.1[1])).collect();
+    assert_eq!(priced, vec![(false, 100, rail), (true, 100, rail + 1)]);
+    assert_eq!(damage_posts(&w).len(), 1);
+}
+
+/// §3.6: the call order and the per-call counts.
+#[test]
+fn occupant_bookkeeping_rules() {
+    let w = World::new();
+    w.cells.set((64, 64));
+    let s = sim(&w);
+    let cells = |t: u32| s.read_state(|st| st.cells_per_type[t as usize]);
+    let road_count = || s.damage().road.cell_count;
+
+    // Avenue and Road: steps 1 and 2, two calls, one key.
+    w.add_occ(1, bit(net_type::AVENUE) | bit(net_type::ROAD), (3, 3), (3, 3));
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 1, true);
+    assert_eq!(
+        (cells(net_type::AVENUE), cells(net_type::ROAD), road_count()),
+        (1, 1, 2)
+    );
+    assert_eq!(w.costs.borrow().len(), 2);
+    // Re-inserted at a cell it holds: the count counts calls, not cells.
+    occupant_msg(&s, 1, true);
+    assert_eq!((road_count(), s.damage().road.intact.len()), (4, 1));
+
+    // Step 3 takes only the first of OneWayRoad, Street, Highway,
+    // GroundHighway.
+    w.add_occ(2, bit(net_type::STREET) | bit(net_type::ONE_WAY_ROAD), (4, 3), (4, 3));
+    occupant_msg(&s, 2, true);
+    assert_eq!((cells(net_type::ONE_WAY_ROAD), cells(net_type::STREET)), (1, 0));
+    assert_eq!(road_count(), 5);
+
+    // A highway is bumped and priced but is not in the pothole sets.
+    w.add_occ(3, bit(net_type::HIGHWAY), (5, 5), (5, 5));
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 3, true);
+    assert_eq!((cells(net_type::HIGHWAY), road_count()), (1, 5));
+    assert!(!s.damage().road.intact.contains(key(5, 5)));
+    assert_eq!(w.costs.borrow().len(), 1);
+
+    // DirtRoad, LightRail and Monorail get no bookkeeping.
+    w.add_occ(
+        4,
+        bit(net_type::DIRT_ROAD) | bit(net_type::LIGHT_RAIL) | bit(net_type::MONORAIL),
+        (6, 6),
+        (6, 6),
+    );
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 4, true);
+    assert!(w.costs.borrow().is_empty());
+    assert_eq!(cells(net_type::DIRT_ROAD), 0);
+
+    // Subway: bit 31 keeps it out.
+    w.add_occ(5, bit(net_type::SUBWAY) | 0x8000_0000, (7, 7), (7, 7));
+    occupant_msg(&s, 5, true);
+    assert_eq!(cells(net_type::SUBWAY), 0);
+    w.add_occ(6, bit(net_type::SUBWAY), (7, 7), (7, 7));
+    w.costs.borrow_mut().clear();
+    occupant_msg(&s, 6, true);
+    assert_eq!(cells(net_type::SUBWAY), 1);
+    assert_eq!(w.costs.borrow().iter().map(|c| c.0).collect::<Vec<_>>(), vec![true]);
+
+    // Remove at 0: `cells[t]` stays 0, the cell count wraps.
+    s.update_damage(|d| d.road.cell_count = 0);
+    w.add_occ(7, bit(net_type::STREET), (9, 9), (9, 9));
+    occupant_msg(&s, 7, false);
+    assert_eq!((cells(net_type::STREET), road_count()), (0, u32::MAX));
+    assert!(damage_posts(&w).is_empty());
+
+    // Rail: the occupant's own cell (slot 59), not its position. Removing a
+    // damaged rail cell drops the road pothole count *[quirk]*.
+    w.add_occ(8, bit(net_type::RAIL), (1, 1), (6, 6));
+    occupant_msg(&s, 8, true);
+    assert!(s.damage().rail.intact.contains(key(6, 6)));
+    assert_eq!(s.damage().rail.cell_count, 1);
+    s.update_damage(|d| {
+        d.rail.intact.remove(key(6, 6));
+        d.rail.damaged.insert(key(6, 6));
+        d.rail.damaged_count = 1;
+    });
+    s.update_state(|st| st.stats_last.potholes = 0);
+    occupant_msg(&s, 8, false);
+    assert_eq!((s.damage().rail.damaged_count, s.damage().rail.cell_count), (0, 0));
+    assert_eq!(s.read_state(|st| st.stats_last.potholes), 0xFFFF);
+    assert_eq!(damage_posts(&w), vec![(6, 6, 0)]);
+}
+
+/// §4.12 and §3.6: ApplyRoadFunding re-sets the pothole count only in a
+/// month when the road target changes, to the low 16 bits of the target.
+#[test]
+fn road_funding_sets_pothole_count() {
+    let w = World::new();
+    let s = sim(&w);
+    let roads = s.read_state(|st| st.roads).unwrap();
+    // 100 % funding, rate 0, target 0 = damaged 0: no change, the count
+    // keeps its drops.
+    s.update_state(|st| st.stats_last.potholes = 9);
+    s.do_monthly_simulation();
+    assert_eq!(s.read_state(|st| st.stats_last.potholes), 9);
+    // 0 % funding: rate 0.02, 50 cells → target 1.
+    w.funding.borrow_mut().insert(roads, 0.0);
+    s.update_damage(|d| {
+        for x in 0..5 {
+            d.road.insert_cell(cell_key16(x, 1));
+        }
+        d.road.cell_count = 50;
+    });
+    s.do_monthly_simulation();
+    assert_eq!(s.damage().road.damaged_count, 1);
+    assert_eq!(s.read_state(|st| st.stats_last.potholes), 1);
+    // Rate 1.0, 70000 cells → target 70000; the count is its low 16 bits.
+    s.update_damage(|d| {
+        d.road.rate = 1.0;
+        d.road.cell_count = 70_000;
+    });
+    s.do_monthly_simulation();
+    assert_eq!(s.damage().road.damaged_count, 70_000);
+    assert_eq!(s.read_state(|st| st.stats_last.potholes), (70_000 & 0xFFFF) as u16);
+}
+
+/// The usage of travel type `t` at `(x, z)`.
+fn set_usage(n: &mut crate::traffic_network::NetworkState, x: i32, z: i32, t: u32, evening: bool, v: u16) {
+    let k = crate::traffic_network::NetworkState::edge_key(x, z, t, evening);
+    n.edge_density.entry(k, Default::default).usage = v;
+}
+
+/// §4.9 step 2 (TS8), the worked example: block (2, 3).
+#[test]
+fn commercial_window_worked_example() {
+    use super::maps::{commercial_cell_value, commercial_window};
+    let mut n = crate::traffic_network::NetworkState::default();
+    (n.count_x, n.count_z) = (32, 32);
+    // Morning: road 300 + 40 + 100 = 440 at (13, 14); el-train 500 at
+    // (9, 10).
+    set_usage(&mut n, 13, 14, 1, false, 300);
+    set_usage(&mut n, 13, 14, 2, false, 40);
+    set_usage(&mut n, 13, 14, 4, false, 100);
+    set_usage(&mut n, 9, 10, 7, false, 500);
+    // Evening: monorail 380 at (6, 12), less elsewhere.
+    set_usage(&mut n, 6, 12, 8, true, 380);
+    set_usage(&mut n, 11, 17, 1, true, 200);
+    // Outside the window: the corners, x = 14 on a block row, rows 9 and
+    // 18; pedestrian and rail types add nothing.
+    set_usage(&mut n, 6, 10, 7, false, 1000);
+    set_usage(&mut n, 14, 13, 1, false, 1500);
+    set_usage(&mut n, 9, 18, 1, false, 3000);
+    set_usage(&mut n, 9, 9, 1, true, 3000);
+    set_usage(&mut n, 10, 13, 0, false, 4000);
+    set_usage(&mut n, 10, 13, 5, false, 4000);
+    assert_eq!(commercial_cell_value(&n, 13, 14, false), 440);
+    assert_eq!(commercial_window(&n, 2, 3), 880);
+    // r24(880 × 0.128) = 112.64 → 113.
+    let scale = SimTuning::default().commercial_scale;
+    assert_eq!(crate::x87::rhe(crate::x87::r24(880.0 * f64::from(scale)) as f32), 113);
+    // The road sum is u16: 65000 + 1000 wraps to 464.
+    set_usage(&mut n, 0, 0, 1, false, 65_000);
+    set_usage(&mut n, 0, 0, 2, false, 1000);
+    assert_eq!(commercial_window(&n, 0, 0), 464);
+    // A 256-wide city: the east-most block column reads x = 0 and 1 on its
+    // own rows (the key's low byte, no upper clamp) *[compat]*.
+    let mut n = crate::traffic_network::NetworkState::default();
+    (n.count_x, n.count_z) = (256, 256);
+    set_usage(&mut n, 1, 2, 7, false, 77);
+    assert_eq!(commercial_window(&n, 63, 0), 77);
+    set_usage(&mut n, 0, 4, 7, true, 5);
+    assert_eq!(commercial_window(&n, 63, 0), 77);
+}
+
+/// §4.9 step 3 (TS9): every record counts, the pedestrian one included;
+/// flag bit 0 picks the bridge slot; `max` starts at −1.0; the end of the
+/// pass replaces the cell counts.
+#[test]
+fn statistics_slots() {
+    let w = World::new();
+    let s = sim(&w);
+    s.network().update_state(|n| {
+        let mut add = |net: u32, x: i32, ty: u32, inv: f32, flags: u8| {
+            let r = n.append_info(net, x, 1).unwrap();
+            r.inv_cap = inv;
+            r.net_type = ty as u8;
+            r.flags = flags;
+        };
+        add(1, 1, net_type::ROAD, 0.5, 0);
+        add(0, 1, net_type::ROAD, 0.5, 0);
+        add(1, 2, net_type::ROAD, 0.25, 1);
+        add(1, 3, net_type::STREET, 1.0, 0);
+        add(1, 4, net_type::ONE_WAY_ROAD, 1.0, 0);
+    });
+    let set = |n: usize, x: i32, v: f32| s.volume_grid(n).unwrap().set(x, 1, v);
+    set(1, 1, 4.0);
+    set(0, 1, 1.0);
+    set(1, 2, 8.0);
+    set(1, 3, 0.5);
+    s.update_state(|st| st.cells_per_type = [7; 13]);
+    s.enter_cycle_state(cycle_state::CREATE_MAPS);
+    assert!(s.work_on_sim_cycle());
+    let last = s.read_state(|st| st.stats_last.clone());
+    let row = |sum: f32, congested: u32, (max_x, max_z): (i32, i32), max: f32| StatRow {
+        sum,
+        congested,
+        max_x,
+        max_z,
+        max,
+    };
+    // Road: r = 2.0 (car) and 0.5 (pedestrian).
+    assert_eq!(last.rows[0], row(1.25, 1, (1, 1), 2.0));
+    assert_eq!(last.rows[3], row(0.5, 0, (3, 1), 0.5));
+    // r = 0 still beats the starting −1.0.
+    assert_eq!(last.rows[10], row(0.0, 0, (4, 1), 0.0));
+    // A slot with no record publishes zeros *[question]*.
+    assert_eq!(last.rows[1], StatRow::default());
+    // The bridge: r = 2.0, not in the type's count.
+    assert_eq!(last.bridge, row(2.0, 1, (2, 1), 2.0));
+    let mut records = [0u16; 13];
+    (records[0], records[3], records[10]) = (2, 1, 1);
+    assert_eq!(last.records, records);
+    assert_eq!(s.read_state(|st| st.cells_per_type), records.map(u32::from));
+    // The budgets priced the new counts.
+    let priced = w.costs.borrow();
+    assert_eq!(
+        priced[priced.len() - 2..],
+        [(false, records.map(u32::from)), (true, records.map(u32::from))]
+    );
 }

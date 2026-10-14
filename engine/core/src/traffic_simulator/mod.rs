@@ -491,6 +491,9 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     // ---- occupants ----
     /// `QueryInterface(0xA821EF94)` on a message object (§3.1).
     fn as_network_occupant(&self, object: u64) -> Option<u64>;
+    /// `cISC4NetworkOccupant` slot 59: the network occupant's own cell
+    /// (DoRailChanged, §3.6 step 3).
+    fn network_occupant_cell(&self, occ: u64) -> (i32, i32);
     /// Occupant manager slot 40 over a cell rectangle (pathfinder filter 2).
     fn occupants_in_cells(&self, rect: CellRect) -> Vec<u64>;
     /// `cISC4OccupantFilter::IsOccupantIncluded`.
