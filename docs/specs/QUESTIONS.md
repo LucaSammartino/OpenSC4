@@ -1743,6 +1743,14 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
 - **RG22 — `docs/abi`:** residential slots 37/38 (`GetCellEQByWealth`/`GetCellHQByWealth`) are `via-call`, low
   confidence, in `interfaces.tsv`, while residential.md §10.1 says ST0 (they end by calling the float grid's
   `GetTractValue`, x87 high). Should the rows say x87? [declared float, on the spec's word]
+- **RG23 — first in-game residential shadow (run 86, coordinator):** every cycle, 12 of 15 daily states match
+  exactly (all 25 grids, the saved fields, the per-building properties, funding and the scalars: population, EQ,
+  HQ, life expectancy). States 1, 2 and 3 (the proximity grids R$, R$$, R$$$) differ in about 16,000 of 16,384
+  cells: at the corner the original's grid reads 1, 0, 0, 0 along t(0,0..3) and ours 104, 103, 102, 101 (R$; R$$
+  106.., R$$$ 116..). Ours looks like a distance ramp counting down from the corner; the original's is 0 or 1
+  there. What do states 1–3 write into the proximity grid (a distance, a count within a radius, a flag), from
+  which seed (the building map's keys `4p + w + 1`?), and how far does one state's call get? The shadow re-seeds
+  this temporary grid from the building map as it stands. [ours as residential.md reads today]
 
 ## From applying the pathfinder, zones, landfill and neighbours answers (filed by the coordinator from the `apply4b` lane's report, 2026-10-14)
 
@@ -1761,3 +1769,29 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
   token distinct from every regional city ID]
 - Not applied: PF6 beyond the record level (pools, capacities and the roll stay traffic-simulator host methods, as
   the answer says); NB12/NB17 glue (there is no neighbours glue yet).
+
+## From applying the protection, demand and pollution answers (filed by the coordinator from the `apply3` lane's report, 2026-10-14)
+
+About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in brackets.
+
+- **PR14 — protection §5:** the dispatch active/inactive handler: which occupant does `GetDispatchEffect` read?
+  [`info.station`, as UpdateUnadjusted; inferred]
+- **PG15 — PG11, slot 29:** with a negative supply and n > 0, is `0x7FFFFFFF − s` computed in int32 (wrapping) or
+  exactly? [exactly, in 64 bits, so the change equals n]
+- **PR15 — PR12:** how long does the protection simulator hold the budget simulator and the zone manager? [taken in
+  base init only if not already held, released at the end of Shutdown; the read-only shadow host asks the city each
+  time]
+- **PR16 — PR5:** how does a shadow recognise the original class before reading +0x84, and are unadjusted
+  mismatches judged like the adjusted grid's? [by the primary vtable against the §15.1/§15.2 addresses (compat
+  table, identified executable only; otherwise not read); logged, not judged]
+- **DQ13 — DQ5:** does the default `building_purpose` go through `building_profile`, and may the host's visitor be
+  NULL? [yes to both]
+
+## From the budget shadow (coordinator, run 86)
+
+- **BQ3 — budget.md, the monthly settlement total:** in run 86 (`regress rbc7f`), 30 of 31 months match. In
+  2028-08 every one of the twelve tax lines is equal (1762, 767, 123, 98, 101, 30, 83, 34, 0, 1547, 290, 0), but the
+  total income is 4839 in the original and 4840 in ours (net 792/793). The lines sum to 4835, so the total is not
+  their integer sum: it comes from unrounded values. Which values does the original add for the total (float
+  per-lot sums, or per-line floats before display rounding), in which order and width, and how is the total
+  rounded? First seen in this run; runs 80–83 had none in 93–95 months. [ours as budget.md reads today]
