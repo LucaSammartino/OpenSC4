@@ -389,6 +389,12 @@ Then for each direction `d` = 0, 1, 2, 3:
 
 The bit `d` of `exits` is not required for a switch move.
 
+A nibble `t2` of 9…14 (no shipped switch rule produces one) passes only if bit `t2` of the allowed mask is set
+(`0x006D97D1`–`0x006D97DD`: `test` of the u16 mask against `1 << t2`). No game caller sets a bit above 8 (the masks
+are `0x1CF`, `0x3`, `0x30`, `0x2`, `1 << strategy` with strategy 0…8, and copies of them; traffic-simulator.md §4.4),
+so such a nibble is ignored in practice. With such a bit set, the original would index its 9-entry tables
+(`network`, `maxCost`, `invMaxSpeed`) past their ends. *[choice]* FreeCity4 ignores a nibble above 8 (PF13).
+
 #### 4.8.3 Wormholes (in-city node)
 
 In this order, from the wormhole byte of `c`'s cell:
