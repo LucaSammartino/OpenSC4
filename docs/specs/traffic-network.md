@@ -710,6 +710,15 @@ They give N/4 rules, taken whole from the first N/4 entries (`b0` = each entry's
 DoLotActivated stops unless N is a multiple of 4. A scalar has count 0, so it gives a switch with no rules. FreeCity4
 reads the same raw bytes.
 
+**Empty and object-reference values (TN22, from the exe).** These have count 0 as well. The count is a field of its
+own (`+0x10`, read by `GetCount` `0x0040CE60`), not derived from the type:
+- the constructors and `Destroy` (`0x00914EA3`, run when the type changes) set it to 0;
+- storing an object reference (`0x00915A5F`, type `0x10`) does not touch it.
+
+So the copy takes 0 bytes, even though the raw accessor returns the object pointer. The property counts as present,
+so DoLotActivated passes step 1 (0 is a multiple of 4) and builds a switch with no rules: mode mask 0, flags 0, no
+access point. Only an absent property skips the switch (`0x005FFBF5` returns false).
+
 **After a load (TN3, from the exe).** The save **does** contain the rules: `Read` reads them for record versions
 above `0x1C` (§6). `DoPostCityInit` still calls this function for **every** switch in the table (`0x00720466`). The
 function appends and never clears: `0x00711CD0` only reserves room, and each rule is pushed after the existing ones.

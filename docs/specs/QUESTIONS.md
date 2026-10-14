@@ -1130,8 +1130,12 @@ About `docs/specs/traffic-network.md`. The core's current answer is in brackets.
   The start cell goes through the same checks as every other cell. A tunnel start cell is not extended, so its
   search ends at once with `best = N + 1` and it keeps its table value (a Street tunnel next to an intersection
   stays at capacity 100, not 80).
-- **TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
-  with no rules]
+- ~~**TN22 — §4.7.2:** what count does an object-reference or empty variant give for `0xE90E25A1`? [0: a switch
+  with no rules]~~ **ANSWERED 2026-10-14** from the exe (`GetCount` `0x0040CE60` reads field `+0x10`; constructors
+  and `Destroy` `0x00914EA3` zero it; the object-reference setter `0x00915A5F` leaves it; the reader `0x005FFB40`
+  copies `count` bytes) and written into traffic-network §4.7.2 ("Empty and object-reference values"). **The bracket
+  matches.** Both give count 0, so 0 bytes are copied and DoLotActivated builds a switch with no rules (mode mask 0,
+  flags 0, no access point). Only an absent property skips the switch.
 - **TN23 — §4.7.2 TN3/TN4:** how do the DoPostCityInit walks treat a switch with building 0 (a default inserted by
   a §4.7.3/§4.7.4 lookup), where the original would use a null building? [not re-read; flag 4 clear still clears the
   access point; flag 4 set gets no NW cell]
