@@ -487,9 +487,17 @@ About `docs/specs/protection.md` (fire and police) and its `docs/abi` rows. The 
 - **PR5:** is there a read-only way to get the original's unadjusted int16 grid? [no; only the adjusted grid is
   compared]
 - **PR6:** city slot 97: interfaces.tsv says ST0, §14 lists only its outputs. [outputs used, ST0 discarded]
-- **PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
+- ~~**PR7:** which slots does the game call from its second thread, and are these fallbacks acceptable: lists return 0
   untouched; chance of strike, efficiency and radius return 0; strike length 0xFFFFFFFF with no date, else 0; scalars
-  from the month-end snapshot? [as stated]
+  from the month-end snapshot? [as stated]~~ **ANSWERED 2026-10-14** from the exe (all 79 reads of the fire and police
+  globals `0x00B43D78`/`0x00B43D98`, by containing function; the ambience condition evaluators
+  `0x004E2AA0`–`0x004E2CB0`) and written into protection.md §13.1. **None is known; no original behaviour; the
+  implementer's choice stands.** Every reader of the protection globals is main-thread code: simulator agents, view
+  input controls, UI windows, automata, the disaster layer, the advisors. The measured off-main caller (`IsPaused`,
+  foundations §19.2) fits the ambience sound system, whose conditions read only the simulator and view globals. The
+  original returns live values with no locking. If the fallbacks ever fire, they differ from it. A `Mutex` that
+  answers exactly from any thread would be closer than fallbacks. *[inferred: no thread trace; static reachability
+  through the globals only]*
 - **PR8:** slots 21/22/32, dispatch-source slot 6 and slot 42 (non-empty) clear the caller's list without releasing
   its elements, which leaks the caller's references as the original does. Intended? [reproduced]
 - **PR9:** the property setters `0x005FE3C0` / `0x005FE6B0`: scalar u32 or a one-element vector? [open]

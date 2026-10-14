@@ -880,6 +880,22 @@ All are posted (queued) through the message server with `cRZMessage2Standard`.
 | Map view (`cSC4WinMapView::Update`) | both adjusted grids **raw** through `GetGridData() const` |
 | Map highlights | `GetFireStations`, `GetPoliceStations` |
 
+**Threads** *[inferred]*. The original has no locking (foundations §19.1). Every one of the 79 reads of the two
+globals sits in a function of one of these kinds:
+
+- a simulator agent or message handler;
+- a view input control (query, lot placement);
+- a UI window (budget, map view);
+- an automaton (fire truck, patrol car, getaway van);
+- the disaster layer, the advisors, a MySim;
+- the coverage-radius helper or the city-init/shutdown cache fill.
+
+All of these are driven from the main thread. The one off-main caller measured so far, `IsPaused` on a game thread
+(foundations §19.2), fits the ambience sound system. Its condition objects (evaluators `0x004E2AA0`–`0x004E2CB0`,
+for example `0x004E2C20` = `IsPaused() and not IsEmergencyPaused()`) read only the simulator global `0x00B43D5C`
+and view globals, never `0x00B43D78` or `0x00B43D98`. So no protection slot is known to be called off the main
+thread, and a replacement's off-main fallbacks are not original behaviour.
+
 ### 13.2 Replaceability findings
 
 - Both classes are created through the GZCOM class registry (city slot and class store), so a FreeCity4 class
