@@ -52,6 +52,8 @@
 #include "FC4GameMap.h"
 #include "cFC4Demand.h"
 #include "FC4PollutionShadow.h"
+#include "FC4FlammabilityShadow.h"
+#include "FC4LandValueShadow.h"
 #include "FC4LandfillShadow.h"
 #include "FC4PlumbingShadow.h"
 #include "FC4PowerShadow.h"
@@ -3134,6 +3136,533 @@ int LandfillEnableTest(const std::string& dll, const std::string& ini, const std
     return g_failures == 0 ? 0 : 1;
 }
 
+// ---- land value and flammability grid shadows (test seam ops 23, 24) ---------------------------------
+constexpr uint32_t kCLSID_Flammability = 0xE990C045;
+constexpr uint32_t kIID_cISC4FlammabilitySimulator = 0x48F41617;
+constexpr uint32_t kCLSID_SimGridUint8 = 0x49B9E602;
+constexpr uint32_t kIID_cISC4SimGrid = 0xC9BD939A;
+constexpr uint32_t kIID_cISC4Lot = 0xE818FCED;
+constexpr uint32_t kMsgInsertOccupantFl = 0x99EF1142;
+constexpr uint32_t kMsgConditionChangedFl = 0xE99B3D4D;
+
+// A fake simulation grid (cISC4SimGrid<T>, simgrid.md): the geometry slots
+// (10-17) and GetTractValue (22), values x outer; AddRef / Release (1, 2)
+// count into `refs`; QueryInterface (0) answers nothing. Every other slot
+// traps: the shadows only read.
+struct FakeGrid {
+    void** vtbl;
+    int32_t tractSize, shift, countX, countZ;
+    const uint8_t* u8;
+    const float* f32;
+    int* refs;
+    int reads;
+};
+
+int32_t __fastcall FgTractSize(FakeGrid* g, void*) { return g->tractSize; }  // 10
+int32_t __fastcall FgShift(FakeGrid* g, void*) { return g->shift; }          // 11
+int32_t __fastcall FgCountX(FakeGrid* g, void*) { return g->countX; }        // 12
+int32_t __fastcall FgCountZ(FakeGrid* g, void*) { return g->countZ; }        // 13
+float __fastcall FgWidth(FakeGrid* g, void*) { return 16.0f * static_cast<float>(g->tractSize); }        // 14, 15
+float __fastcall FgInvWidth(FakeGrid* g, void*) { return 1.0f / (16.0f * static_cast<float>(g->tractSize)); }  // 16, 17
+uint8_t __fastcall FgU8(FakeGrid* g, void*, int32_t x, int32_t z) {  // 22 (uint8)
+    ++g->reads;
+    return (x >= 0 && x < g->countX && z >= 0 && z < g->countZ) ? g->u8[x * g->countZ + z] : 0;
+}
+float __fastcall FgF32(FakeGrid* g, void*, int32_t x, int32_t z) {  // 22 (float)
+    ++g->reads;
+    return (x >= 0 && x < g->countX && z >= 0 && z < g->countZ) ? g->f32[x * g->countZ + z] : 0.0f;
+}
+bool __fastcall FgQi(FakeGrid*, void*, uint32_t, void**) { return false; }  // 0 (the reference audit asks)
+uint32_t __fastcall FgAddRef(FakeGrid* g, void*) { return static_cast<uint32_t>(++*g->refs); }   // 1
+uint32_t __fastcall FgRelease(FakeGrid* g, void*) { return static_cast<uint32_t>(--*g->refs); }  // 2
+
+void InitGridVtable(FakeVtable& vt, bool isFloat) {
+    vt.slots[0] = reinterpret_cast<void*>(&FgQi);
+    vt.slots[1] = reinterpret_cast<void*>(&FgAddRef);
+    vt.slots[2] = reinterpret_cast<void*>(&FgRelease);
+    vt.slots[10] = reinterpret_cast<void*>(&FgTractSize);
+    vt.slots[11] = reinterpret_cast<void*>(&FgShift);
+    vt.slots[12] = reinterpret_cast<void*>(&FgCountX);
+    vt.slots[13] = reinterpret_cast<void*>(&FgCountZ);
+    vt.slots[14] = reinterpret_cast<void*>(&FgWidth);
+    vt.slots[15] = reinterpret_cast<void*>(&FgWidth);
+    vt.slots[16] = reinterpret_cast<void*>(&FgInvWidth);
+    vt.slots[17] = reinterpret_cast<void*>(&FgInvWidth);
+    vt.slots[22] = isFloat ? reinterpret_cast<void*>(&FgF32) : reinterpret_cast<void*>(&FgU8);
+}
+
+void SetGrid(FakeGrid& g, FakeVtable& vt, int32_t size, int32_t shift, int32_t cx, int32_t cz, int* refs) {
+    g.vtbl = vt.slots.data();
+    g.tractSize = size;
+    g.shift = shift;
+    g.countX = cx;
+    g.countZ = cz;
+    g.refs = refs;
+}
+
+// An "original" land value simulator (landvalue.md §11.1) on an 8 x 6 cell
+// city: intrinsic and total 4 x 3 tracts (S = 2), slope 1 x 1 (S = 8). The
+// city answers GetLandValueSimulator (compiled slot 61) and null for the zone
+// manager (36), the building development simulator (53) and the terrain (84),
+// so our pass reads no land: scratch 0, no water bonus, no altitude curve
+// (the code defaults: the intrinsic grid is kept), no developer, average 0,
+// mode altitude min(16, max(0, 0)) = 0, mean 0, slope 0 (§6, §7). The clean
+// original therefore has total = intrinsic, slope 0 and the three scalars 0.
+// The record (its own Write) is version 1 with three null references.
+struct FakeOrigLv {
+    FakeVtable simVt, serVt, cityVt, noLvVt, u8Vt, f32Vt;
+    FakeObject sim{}, ser{}, city{}, noLv{};
+    FakeGrid intrinsic{}, total{}, slope{};
+    uint8_t intrinsicV[12] = {10, 60, 90, 20, 55, 130, 0, 74, 75, 49, 50, 200};  // [x][z]
+    uint8_t totalV[12] = {10, 60, 90, 20, 55, 130, 0, 74, 75, 49, 50, 200};
+    float slopeV[1] = {0.0f};
+    uint16_t version = 1;
+    uint8_t flag = 0, average = 0;
+    float mode = 0.0f, mean = 0.0f;
+    int refs = 1, gridRefs = 1, writes = 0, typeCalls = 0;
+};
+
+FakeOrigLv* g_lv = nullptr;
+
+bool __fastcall LvQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;
+    *out = &g_lv->ser;
+    ++g_lv->refs;
+    return true;
+}
+uint32_t __fastcall LvAddRef(void*, void*) { return static_cast<uint32_t>(++g_lv->refs); }   // 1
+uint32_t __fastcall LvRelease(void*, void*) { return static_cast<uint32_t>(--g_lv->refs); }  // 2
+int32_t __fastcall LvType(void*, void*, int32_t x, int32_t z) {                              // 5 (cell coordinates)
+    ++g_lv->typeCalls;
+    const uint8_t v = g_lv->totalV[(x / 2) * 3 + z / 2];
+    return v < 50 ? 1 : (v < 75 ? 2 : 3);  // the code-default boundaries 50, 75 (§8)
+}
+void* __fastcall LvIntrinsic(void*, void*) { return &g_lv->intrinsic; }  // 7
+void* __fastcall LvTotal(void*, void*) { return &g_lv->total; }          // 8
+void* __fastcall LvSlope(void*, void*) { return &g_lv->slope; }          // 9
+uint8_t __fastcall LvAverage(void*, void*) { return g_lv->average; }     // 10
+float __fastcall LvMode(void*, void*) { return g_lv->mode; }             // 11
+bool __fastcall LvWrite(void*, void*, cIGZOStream* s) {                  // serializable 3 (§10)
+    ++g_lv->writes;
+    s->SetUint16(g_lv->version);
+    for (int i = 0; i < 3; ++i) s->SetUint32(0);  // null references
+    s->SetUint8(g_lv->flag);
+    s->SetUint8(g_lv->average);
+    return s->SetFloat32(g_lv->mean);
+}
+uint32_t __fastcall LvClsid(void*, void*) { return kCLSID_LandValue; }  // serializable 5
+void* __fastcall LvCitySim(void*, void*) { return &g_lv->sim; }         // city 61
+void* __fastcall LvCityNull(void*, void*) { return nullptr; }           // city 36, 53, 84; noLv 61
+
+void InitFakeOrigLv(FakeOrigLv& o) {
+    g_lv = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&LvQi);
+        vt->slots[1] = reinterpret_cast<void*>(&LvAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&LvRelease);
+    }
+    o.simVt.slots[5] = reinterpret_cast<void*>(&LvType);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&LvIntrinsic);
+    o.simVt.slots[8] = reinterpret_cast<void*>(&LvTotal);
+    o.simVt.slots[9] = reinterpret_cast<void*>(&LvSlope);
+    o.simVt.slots[10] = reinterpret_cast<void*>(&LvAverage);
+    o.simVt.slots[11] = reinterpret_cast<void*>(&LvMode);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&LvWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&LvClsid);
+    for (int s : {36, 53, 84}) o.cityVt.slots[s] = reinterpret_cast<void*>(&LvCityNull);
+    o.cityVt.slots[61] = reinterpret_cast<void*>(&LvCitySim);
+    o.noLvVt.slots[61] = reinterpret_cast<void*>(&LvCityNull);
+    InitGridVtable(o.u8Vt, false);
+    InitGridVtable(o.f32Vt, true);
+    SetGrid(o.intrinsic, o.u8Vt, 2, 1, 4, 3, &o.gridRefs);
+    SetGrid(o.total, o.u8Vt, 2, 1, 4, 3, &o.gridRefs);
+    SetGrid(o.slope, o.f32Vt, 8, 3, 1, 1, &o.gridRefs);
+    o.intrinsic.u8 = o.intrinsicV;
+    o.total.u8 = o.totalV;
+    o.slope.f32 = o.slopeV;
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noLv.vtbl = o.noLvVt.slots.data();
+}
+
+intptr_t LvShadowOnce(FC4TestSeamFn seam, void* city, int32_t julian, uint32_t event) {
+    FC4LandValueShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, event};
+    return seam(kFC4SeamLandValueShadow, &in, nullptr);
+}
+
+int LandValueShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW_CELLS", nullptr);
+    WriteTextFile(ini, "[tools]\nlandvalue_shadow = 1\nlandvalue_shadow_cells = 3\ndigest = 0\nobserve = 0\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigLv orig;
+    InitFakeOrigLv(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the shadow's setting
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LandValue) == 0);  // the original stays
+        // No city, a city without a land value simulator: not run.
+        CHECK(LvShadowOnce(seam, nullptr, 2451576, 0) == -1);
+        CHECK(LvShadowOnce(seam, &orig.noLv, 2451576, 0) == -1);
+        CHECK(LvShadowOnce(seam, nullptr, 2451576, 1) == -1);
+        // 1. Clean: our pass equals the original's (2000-02-01).
+        CHECK(LvShadowOnce(seam, &orig.city, 2451576, 0) == 0);
+        // A day: no developer listed (code defaults), so no map changed.
+        CHECK(LvShadowOnce(seam, &orig.city, 2451577, 1) == 0);
+        // 2. One wrong tract: the original's total (1, 2) is 131, ours 130.
+        orig.totalV[1 * 3 + 2] = 131;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451605, 0) == 1);
+        orig.totalV[1 * 3 + 2] = 130;
+        // 3. One wrong scalar: the original's average is 7 (ours 0); its record still says 0.
+        orig.average = 7;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451636, 0) == 1);
+        orig.average = 0;
+        // 4. One wrong record scalar (no getter): the mean altitude; and the
+        // record says dirty-or-running (settled=0), which is not a difference.
+        orig.mean = 2.5f;
+        orig.flag = 1;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451666, 0) == 1);
+        orig.mean = 0.0f;
+        orig.flag = 0;
+        // 5. A record that does not parse: compared without it.
+        orig.version = 9;
+        CHECK(LvShadowOnce(seam, &orig.city, 2451697, 0) == 0);
+        orig.version = 1;
+        // 6. PostCityShutdown drops the shadow core; the next pass is pass 1 of a new one.
+        CHECK(LvShadowOnce(seam, &orig.city, 0, 2) == 0);
+        CHECK(LvShadowOnce(seam, &orig.city, 2451727, 0) == 0);
+        CHECK(orig.writes == 6);
+        CHECK(orig.typeCalls == 6 * 12);
+        CHECK(orig.refs == 1);      // every QueryInterface released
+        CHECK(orig.gridRefs == 1);  // the grids are borrowed: no AddRef, no Release
+        CHECK(orig.total.reads == 6 * 12 && orig.intrinsic.reads == 6 * 12 && orig.slope.reads == 6);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("landvalue shadow: ON (landvalue_shadow from FreeCity4.ini)") != std::string::npos);
+    CHECK(text.find("landvalue shadow: NOT readable read-only (left out of the comparison)") != std::string::npos);
+    CHECK(text.find("landvalue shadow: the city has no land value simulator; nothing compared") != std::string::npos);
+    CHECK(CountOf(text, "landvalue shadow: comparing with the original land value simulator") == 2);
+    CHECK(text.find("tuning the code defaults (no exemplar); differing tracts listed per grid: 3") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-02-01 pass 1: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
+                    "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=0 max|d|=0; slope cells=1 "
+                    "mismatched=0 max|d|=0; types mismatched=0/12; average orig/ours=0/0; modeAlt orig/ours=0/0; "
+                    "meanAlt orig/ours=0/0; settled=1; desirability=none (no developer listed); mismatches=0; "
+                    "passes=1 clean=1\r\n") != std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-03-01 pass 2: compared on 4x3 tracts (S=2), slope 1x1 (S=8): intrinsic "
+                    "cells=12 mismatched=0 max|d|=0; total cells=12 mismatched=1 max|d|=1;") != std::string::npos);
+    CHECK(text.find("mismatches=1; passes=2 clean=1; first differing (x,z) orig/ours: total (1,2) 131/130") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-04-01 pass 3: ") != std::string::npos);
+    CHECK(text.find("; average orig/ours=7/0!; modeAlt orig/ours=0/0; meanAlt orig/ours=0/0; settled=1;") !=
+          std::string::npos);
+    CHECK(text.find("meanAlt orig/ours=2.5/0!; settled=0 (the original's record says dirty or a pass running") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: the original's record (its own Write) did not parse; the mean altitude and the "
+                    "settled flag are not compared") != std::string::npos);
+    CHECK(text.find("meanAlt not read (no record); settled=?; desirability=none (no developer listed); mismatches=0; "
+                    "passes=5 clean=2") != std::string::npos);
+    CHECK(text.find("landvalue shadow 2000-07-01 pass 1: ") != std::string::npos);
+    CHECK(text.find("INCOMPLETE") == std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landvalue shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// An "original" flammability simulator (flammability.md §11.1) on an 8 x 8
+// city: both grids 8 x 8 tracts (S = 1), raw all 0 (no occupant), so no
+// daily refresh writes a tract and every adjusted value must stay as the
+// previous cycle left it; no zone manager, plumbing, weather, ordinance,
+// occupant or lot manager (city slots 36, 64, 70, 63, 34, 33 return null),
+// so the average is 0 and there are no hotspots. Its record (§10) writes
+// both grids through WriteGZSerializable (each answers cISC4SimGrid
+// 0xC9BD939A). Slot 6 answers from the adjusted grid, slot 7 false, slot 8
+// the average.
+struct FakeGridSer {
+    void** vtbl;
+    FakeGrid* grid;
+};
+
+struct FakeOrigFl {
+    FakeVtable simVt, serVt, cityVt, noFlVt, gridVt, gridSerVt, notLotVt;
+    FakeObject sim{}, ser{}, city{}, noFl{}, notLot{};
+    FakeGrid adjusted{}, raw{};
+    FakeGridSer adjustedSer{}, rawSer{};
+    uint8_t adjustedV[64] = {};
+    uint8_t rawV[64] = {};
+    uint16_t version = 2;
+    float g = 1.0f;
+    uint8_t average = 0;
+    int refs = 1, gridRefs = 1, writes = 0, flammableCalls = 0, hotspotCalls = 0, notLotQi = 0;
+};
+
+FakeOrigFl* g_fl = nullptr;
+
+bool __fastcall FlQi(void*, void*, uint32_t iid, void** out) {  // 0 (simulator, serializable)
+    if (out == nullptr || iid != GZIID_cIGZSerializable) return false;
+    *out = &g_fl->ser;
+    ++g_fl->refs;
+    return true;
+}
+uint32_t __fastcall FlAddRef(void*, void*) { return static_cast<uint32_t>(++g_fl->refs); }   // 1
+uint32_t __fastcall FlRelease(void*, void*) { return static_cast<uint32_t>(--g_fl->refs); }  // 2
+bool __fastcall FlFlammable(void*, void*, int x, int z) {                                    // 6 (cells)
+    ++g_fl->flammableCalls;
+    return x >= 0 && x < 8 && z >= 0 && z < 8 && g_fl->adjustedV[x * 8 + z] != 0;
+}
+bool __fastcall FlHotspot(void*, void*, uint8_t*, int*, int*) {  // 7: no hotspot, nothing written
+    ++g_fl->hotspotCalls;
+    return false;
+}
+uint8_t __fastcall FlAverage(void*, void*) { return g_fl->average; }  // 8
+bool __fastcall FlWrite(void*, void*, cIGZOStream* s) {               // serializable 3 (§10)
+    ++g_fl->writes;
+    s->SetUint16(g_fl->version);
+    void* p = nullptr;
+    if (s->QueryInterface(kFC4_IID_cISC4DBSegmentOStream, &p) && p != nullptr) {
+        auto* db = static_cast<cFC4ISC4DBSegmentOStream*>(p);
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_fl->adjustedSer));
+        db->WriteGZSerializable(reinterpret_cast<cIGZSerializable*>(&g_fl->rawSer));
+        db->Release();
+    }
+    s->SetFloat32(g_fl->g);
+    s->SetUint8(g_fl->average);
+    return s->SetUint32(0);  // no hotspot
+}
+uint32_t __fastcall FlClsid(void*, void*) { return kCLSID_Flammability; }  // serializable 5
+bool __fastcall GsQi(FakeGridSer* self, void*, uint32_t iid, void** out) {  // grid serializable 0
+    if (out == nullptr || iid != kIID_cISC4SimGrid) return false;
+    *out = self->grid;
+    ++g_fl->gridRefs;
+    return true;
+}
+uint32_t __fastcall GsAddRef(void*, void*) { return static_cast<uint32_t>(++g_fl->gridRefs); }   // 1
+uint32_t __fastcall GsRelease(void*, void*) { return static_cast<uint32_t>(--g_fl->gridRefs); }  // 2
+uint32_t __fastcall GsClsid(void*, void*) { return kCLSID_SimGridUint8; }                        // 5
+bool __fastcall NotLotQi(void*, void*, uint32_t, void**) {                                       // 0
+    ++g_fl->notLotQi;
+    return false;
+}
+void* __fastcall FlCitySim(void*, void*) { return &g_fl->sim; }  // city 58
+void* __fastcall FlCityNull(void*, void*) { return nullptr; }    // city 33, 34, 36, 63, 64, 70; noFl 58
+uint32_t __fastcall FlCellCount(void*, void*) { return 8; }      // city 93, 94
+
+void InitFakeOrigFl(FakeOrigFl& o) {
+    g_fl = &o;
+    for (FakeVtable* vt : {&o.simVt, &o.serVt}) {
+        vt->slots[0] = reinterpret_cast<void*>(&FlQi);
+        vt->slots[1] = reinterpret_cast<void*>(&FlAddRef);
+        vt->slots[2] = reinterpret_cast<void*>(&FlRelease);
+    }
+    o.simVt.slots[6] = reinterpret_cast<void*>(&FlFlammable);
+    o.simVt.slots[7] = reinterpret_cast<void*>(&FlHotspot);
+    o.simVt.slots[8] = reinterpret_cast<void*>(&FlAverage);
+    o.serVt.slots[3] = reinterpret_cast<void*>(&FlWrite);
+    o.serVt.slots[5] = reinterpret_cast<void*>(&FlClsid);
+    o.gridSerVt.slots[0] = reinterpret_cast<void*>(&GsQi);
+    o.gridSerVt.slots[1] = reinterpret_cast<void*>(&GsAddRef);
+    o.gridSerVt.slots[2] = reinterpret_cast<void*>(&GsRelease);
+    o.gridSerVt.slots[5] = reinterpret_cast<void*>(&GsClsid);
+    o.notLotVt.slots[0] = reinterpret_cast<void*>(&NotLotQi);
+    for (int s : {33, 34, 36, 63, 64, 70}) o.cityVt.slots[s] = reinterpret_cast<void*>(&FlCityNull);
+    o.cityVt.slots[58] = reinterpret_cast<void*>(&FlCitySim);
+    o.cityVt.slots[93] = reinterpret_cast<void*>(&FlCellCount);
+    o.cityVt.slots[94] = reinterpret_cast<void*>(&FlCellCount);
+    o.noFlVt.slots[58] = reinterpret_cast<void*>(&FlCityNull);
+    InitGridVtable(o.gridVt, false);
+    SetGrid(o.adjusted, o.gridVt, 1, 0, 8, 8, &o.gridRefs);
+    SetGrid(o.raw, o.gridVt, 1, 0, 8, 8, &o.gridRefs);
+    o.adjusted.u8 = o.adjustedV;
+    o.raw.u8 = o.rawV;
+    o.adjustedSer = {o.gridSerVt.slots.data(), &o.adjusted};
+    o.rawSer = {o.gridSerVt.slots.data(), &o.raw};
+    for (int i = 0; i < 64; i += 5) o.adjustedV[i] = static_cast<uint8_t>(40 + i);  // the previous cycles' values
+    o.sim.vtbl = o.simVt.slots.data();
+    o.ser.vtbl = o.serVt.slots.data();
+    o.city.vtbl = o.cityVt.slots.data();
+    o.noFl.vtbl = o.noFlVt.slots.data();
+    o.notLot.vtbl = o.notLotVt.slots.data();
+}
+
+intptr_t FlShadowOnce(FC4TestSeamFn seam, void* city, int32_t julian, uint32_t event, uint32_t msgType = 0,
+                      void* void1 = nullptr, void* unknown = nullptr) {
+    FC4FlammabilityShadowTestInput in{reinterpret_cast<cISC4City*>(city), julian, event, msgType,
+                                      static_cast<cIGZUnknown*>(void1), static_cast<cIGZUnknown*>(unknown)};
+    return seam(kFC4SeamFlammabilityShadow, &in, nullptr);
+}
+
+int FlammabilityShadowTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW_CELLS", nullptr);
+    WriteTextFile(ini, "[tools]\nflammability_shadow = 1\ndigest = 0\nobserve = 0\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeOrigFl orig;
+    InitFakeOrigFl(orig);
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);  // game start: the shadow's setting
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flammability) == 0);  // the original stays
+        // No city, a city without a flammability simulator: not run.
+        CHECK(FlShadowOnce(seam, nullptr, 2451546, 1) == -1);
+        CHECK(FlShadowOnce(seam, &orig.noFl, 2451546, 1) == -1);
+        CHECK(FlShadowOnce(seam, nullptr, 0, 0, kMsgInsertOccupantFl) == -1);
+        // A message before the first cycle end: no mirror yet.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 0);
+        // The first cycle end (the empty one of the first day) is the baseline.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451546, 1) == -2);  // 2000-01-02
+        // Mirrored messages: an occupant message without an occupant, and a
+        // condition change whose object is not a lot (both no-ops in the core).
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgInsertOccupantFl) == 1);
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 0, kMsgConditionChangedFl, nullptr, &orig.notLot) == 1);
+        CHECK(orig.notLotQi == 1);
+        // 1. Clean.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451586, 1) == 0);  // 2000-02-11
+        // 2. One wrong tract: adjusted (3, 4) became 9 although its raw value is 0.
+        orig.adjustedV[3 * 8 + 4] = 9;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451626, 1) == 1);
+        // 3. One wrong scalar: the multiplier changed without a season or ordinance message.
+        orig.g = 0.5f;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451666, 1) == 1);
+        // The shadow took the original's state: the next cycle is clean.
+        CHECK(FlShadowOnce(seam, &orig.city, 2451706, 1) == 0);
+        // 4. A record that does not parse: INCOMPLETE, then a new baseline.
+        orig.version = 3;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451746, 1) == -2);
+        orig.version = 2;
+        CHECK(FlShadowOnce(seam, &orig.city, 2451786, 1) == -2);
+        CHECK(FlShadowOnce(seam, &orig.city, 2451826, 1) == 0);
+        // 5. PostCityShutdown drops the shadow core; the next cycle is a baseline again.
+        CHECK(FlShadowOnce(seam, &orig.city, 0, 2) == 0);
+        CHECK(FlShadowOnce(seam, &orig.city, 2451866, 1) == -2);
+        CHECK(orig.writes == 9);
+        CHECK(orig.flammableCalls == 9 * 64);
+        CHECK(orig.hotspotCalls == 9);
+        CHECK(orig.refs == 1);      // every QueryInterface released
+        CHECK(orig.gridRefs == 1);  // each grid's cISC4SimGrid reference released at once
+        CHECK(orig.adjusted.reads == 8 * 64 && orig.raw.reads == 8 * 64);  // not when the record did not parse
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("flammability shadow: ON (flammability_shadow from FreeCity4.ini)") != std::string::npos);
+    CHECK(text.find("flammability shadow: NOT readable read-only (left out of the comparison)") != std::string::npos);
+    CHECK(text.find("flammability shadow: the city has no flammability simulator; nothing compared") !=
+          std::string::npos);
+    CHECK(CountOf(text, "flammability shadow: following the original flammability simulator of city ") == 2);
+    CHECK(text.find("flammability shadow 2000-01-02 cycle 1: baseline (first cycle seen): our simulator takes the "
+                    "original's grids (8x8 tracts, tractsPerDay=") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-02-11 cycle 2: tracts=8x8 (S=1) tractsPerDay=") != std::string::npos);
+    CHECK(text.find("raw cells=64 mismatched=0 max|d|=0; adjusted cells=64 mismatched=0 max|d|=0") !=
+          std::string::npos);
+    CHECK(text.find("average orig/ours=0/0; multiplier orig/ours=1/1; hotspots orig/ours=0/0") != std::string::npos);
+    CHECK(text.find("events=2;") != std::string::npos);
+    CHECK(text.find("flammable getter cells=64 mismatched=0; mismatches=0; cycles=1 clean=1") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-03-22 cycle 3: ") != std::string::npos);
+    CHECK(text.find("adjusted cells=64 mismatched=1 max|d|=9") != std::string::npos);
+    CHECK(text.find("mismatches=1; cycles=2 clean=1") != std::string::npos);
+    CHECK(text.find("multiplier orig/ours=0.5/1!") != std::string::npos);
+    CHECK(text.find("mismatches=1; cycles=3 clean=1") != std::string::npos);
+    CHECK(text.find("mismatches=0; cycles=4 clean=2") != std::string::npos);
+    CHECK(text.find("flammability shadow: the original's record (its own Write) did not parse") != std::string::npos);
+    CHECK(text.find("cycle 6: INCOMPLETE (the original's record (its own Write) could not be read); not compared, "
+                    "the next cycle is a new baseline") != std::string::npos);
+    CHECK(text.find("cycle 7: baseline (first cycle seen)") != std::string::npos);
+    CHECK(text.find("mismatches=0; cycles=5 clean=3") != std::string::npos);
+    CHECK(text.find("flammability shadow 2000-11-17 cycle 1: baseline (first cycle seen)") != std::string::npos);
+    CHECK(text.find("structured exception") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin flammability shadow test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
+// Both shadows requested with our simulators enabled: inactive at game start,
+// and each refuses a city whose simulator is ours.
+void* g_ourLv = nullptr;
+void* g_ourFl = nullptr;
+void* __fastcall OursLv(void*, void*) { return g_ourLv; }  // city 61
+void* __fastcall OursFl(void*, void*) { return g_ourFl; }  // city 58
+
+int LvFlShadowInactiveTest(const std::string& dll, const std::string& ini, const std::string& log) {
+    SetEnvironmentVariableA("FC4_DISABLE", nullptr);
+    SetEnvironmentVariableA("FC4_ENABLE", nullptr);
+    SetEnvironmentVariableA("FC4_LANDVALUE_SHADOW", nullptr);
+    SetEnvironmentVariableA("FC4_FLAMMABILITY_SHADOW", nullptr);
+    WriteTextFile(ini, "[subsystems]\nenable = landvalue, flammability\n[tools]\nlandvalue_shadow = 1\n"
+                       "flammability_shadow = 1\n");
+    HMODULE hd = LoadLibraryA(dll.c_str());
+    CHECK(hd != nullptr);
+    if (hd == nullptr) return 1;
+    auto getDirector = reinterpret_cast<cIGZCOMDirector* (*)()>(GetProcAddress(hd, "GZDllGetGZCOMDirector"));
+    auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+    cIGZCOMDirector* director = getDirector ? getDirector() : nullptr;
+    CHECK(director != nullptr && seam != nullptr);
+    static FakeVtable cityVt;
+    static FakeObject city{};
+    cityVt.slots[58] = reinterpret_cast<void*>(&OursFl);
+    cityVt.slots[61] = reinterpret_cast<void*>(&OursLv);
+    city.vtbl = cityVt.slots.data();
+    if (director != nullptr && seam != nullptr) {
+        std::vector<uint32_t> classes;
+        director->EnumClassObjects(&CollectClass, &classes);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_LandValue) == 1);
+        CHECK(std::count(classes.begin(), classes.end(), kCLSID_Flammability) == 1);
+        CHECK(director->GetClassObject(kCLSID_LandValue, kIID_cISC4LandValueSimulator, &g_ourLv) && g_ourLv);
+        CHECK(director->GetClassObject(kCLSID_Flammability, kIID_cISC4FlammabilitySimulator, &g_ourFl) && g_ourFl);
+        if (g_ourLv != nullptr && g_ourFl != nullptr) {
+            CHECK(LvShadowOnce(seam, &city, 2451576, 0) == -1);
+            CHECK(LvShadowOnce(seam, &city, 2451576, 1) == -1);
+            CHECK(FlShadowOnce(seam, &city, 2451576, 1) == -1);
+            CHECK(FlShadowOnce(seam, &city, 0, 0, kMsgInsertOccupantFl) == -1);
+        }
+        if (g_ourLv != nullptr) CHECK(static_cast<cIGZUnknown*>(g_ourLv)->Release() == 0);
+        if (g_ourFl != nullptr) CHECK(static_cast<cIGZUnknown*>(g_ourFl)->Release() == 0);
+    }
+    FreeLibrary(hd);
+    DeleteFileA(ini.c_str());
+    const std::string text = ReadFile(log);
+    CHECK(text.find("landvalue shadow: requested (landvalue_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("flammability shadow: requested (flammability_shadow from FreeCity4.ini) but INACTIVE") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: ON") == std::string::npos);
+    CHECK(text.find("flammability shadow: ON") == std::string::npos);
+    CHECK(text.find("landvalue shadow: inactive: the city's land value simulator is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("flammability shadow: inactive: the city's flammability simulator is FreeCity4's own") !=
+          std::string::npos);
+    CHECK(text.find("landvalue shadow: comparing") == std::string::npos);
+    CHECK(text.find("flammability shadow: following") == std::string::npos);
+    CHECK(text.find("config: WARNING unknown key") == std::string::npos);
+    CHECK(text.find("WARNING: released last reference") == std::string::npos);
+    CHECK(text.find("WARNING: over-release") == std::string::npos);
+    if (g_failures == 0) std::printf("plugin landvalue / flammability shadow inactive test: all checks passed\n");
+    return g_failures == 0 ? 0 : 1;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -3171,6 +3700,10 @@ int main(int argc, char** argv) {
     if (mode == "--ini-enable-flora") return FloraEnableTest(dll, ini, log);
     // Landfill (landfill.md): the replacement, and the shadow on fake originals.
     if (mode == "--ini-enable-landfill") return LandfillEnableTest(dll, ini, log);
+    // Land value and flammability grid shadows on fake originals; both inactive with ours.
+    if (mode == "--ini-landvalue-shadow") return LandValueShadowTest(dll, ini, log);
+    if (mode == "--ini-flammability-shadow") return FlammabilityShadowTest(dll, ini, log);
+    if (mode == "--ini-lvfl-shadow-inactive") return LvFlShadowInactiveTest(dll, ini, log);
 
     if (mode == "--autotest") {
         // Autotest: the verdict line, then TerminateProcess(exit code 0).
@@ -4874,6 +5407,8 @@ int main(int argc, char** argv) {
     CHECK(text.find("cFC4AuraSimulator(") == std::string::npos);
     CHECK(text.find("aura shadow: ON") == std::string::npos);  // off by default
     CHECK(text.find("aura shadow: requested") == std::string::npos);
+    CHECK(text.find("landvalue shadow") == std::string::npos);     // off by default: not a word
+    CHECK(text.find("flammability shadow") == std::string::npos);  // off by default: not a word
     CHECK(text.find("GetClassObject enter (clsid=0x2990C1E5, iid=0x8695664E") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x8695664E) -> 1") != std::string::npos);
     CHECK(text.find("GetClassObject exit (clsid=0x2990C1E5, iid=0x0BADF00D) -> 0") != std::string::npos);

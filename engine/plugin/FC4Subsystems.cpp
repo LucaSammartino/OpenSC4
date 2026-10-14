@@ -41,6 +41,8 @@
 #include "cFC4Flora.h"
 #include "FC4LandfillShadow.h"
 #include "cFC4Landfill.h"
+#include "FC4LandValueShadow.h"
+#include "FC4FlammabilityShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -297,6 +299,10 @@ void Resolve() {
     PowerShadowStartup(g_enabled[0], enabledKey("power"));
     // The plumbing shadow (FC4PlumbingShadow.h; it compares the original plumbing simulator).
     PlumbingShadowStartup(g_enabled[0], enabledKey("plumbing"));
+    // The land value and flammability grid shadows (FC4LandValueShadow.h,
+    // FC4FlammabilityShadow.h; they compare the original simulators).
+    LandValueShadowStartup(enabledKey("landvalue"));
+    FlammabilityShadowStartup(enabledKey("flammability"));
 }
 
 }  // namespace
