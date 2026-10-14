@@ -715,6 +715,24 @@ examples: a Float32 2.75 read with `AsUint32()` gives `0x40300000`; a 32-bit sca
 with `AsUint32()` gives its heap address. *[choice]* Because the result is another type's bits or an address,
 FreeCity4 converts element-wise where a spec says so, and otherwise treats a type mismatch as a missing property.
 
+**The vector helpers** (EX33) used by the readers (§7.5) do the same for whole arrays. `vec<bool>`
+(`0x005FF000`), `vec<u32>` (`0x005FF510`), `vec<u8>` (`0x005FFB40`), `vec<s32>` (`0x005FFC00`), `vec<f32>`
+(`0x005FFCC0`) and `vec<s64>` (`0x005FFD80`) each take the property's raw data pointer and `GetCount()`, resize the
+output to that count and copy count elements **of their own width**, with no type check and no conversion
+(`vec<bool>` makes each byte a bit, non-zero being true). So:
+
+- A stored type of the same width gives its bits: a Float32 array `{2.75}` read with `vec<u32>` gives
+  `{0x40300000}`, not 2.
+- A narrower stored type is over-read: a Uint8 array of 3 read with `vec<f32>` copies 12 bytes from a 3-byte
+  buffer, the last 9 from whatever follows it in memory.
+- A wider stored type gives its leading bytes: a Uint32 array `{0x11223344, 5}` read with `vec<u8>` gives
+  `{0x44, 0x33}`.
+- A scalar has count 0 and gives an empty vector (§4.3, `Uint8:0:{}`).
+
+On shipped data every raw read finds the type it expects except one, property `0xEA0232A0` (shipped Sint32, read
+with `vec<u32>`), where copying and converting give the same bits (§7.4). *[choice]* Converting every element as
+in §5.1 is not observable on shipped data, and it replaces the over-read with defined values.
+
 ### 5.3 Exemplar lookup helper
 
 `SC4GetExemplarProperty(instance, propertyID)` (`0x005F95E0`) loads the exemplar (`0x6534284A`, group 0,

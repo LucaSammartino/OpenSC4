@@ -2159,8 +2159,17 @@ answer is in brackets.
     found by pattern search). So any exemplar the game writes into a save is probably text.
   - The reader accepts both forms, so FreeCity4's writer need not copy the loss. Failing with `Unsupported`, writing
     text that reads back exactly, or writing binary are all compatible.
-- **EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a
-  Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]
+- ~~**EX33 — §5.1:** the core property readers apply the scalar conversion steps to every array element (e.g. a
+  Float32 array read as `u32`). Right for readers that use raw access plus their own conversion? [every element]~~
+  **ANSWERED 2026-10-14** from the exe (`0x005FF000`, `0x005FF510`, `0x005FFB40`, `0x005FFC00`, `0x005FFCC0`,
+  `0x005FFD80`, bit copy `0x005FDDC0`) and written into data-formats.md §5.2 "The vector helpers". **The bracket does
+  not match the original**, but the *[choice]* stands.
+  - The original's vector helpers convert nothing. They copy `GetCount()` elements of their own width from the raw
+    data pointer: the same width gives the bits, a narrower stored type is over-read past its buffer, a wider one
+    gives its leading bytes, and a scalar gives an empty vector.
+  - On shipped data only `0xEA0232A0` (Sint32 read as `vec<u32>`) meets a different type, and there copying and
+    converting give the same bits (§7.4). So converting every element is not observable, and it replaces the over-read
+    with defined values.
 - Not applied: the scalar RZUnicodeChar text rule (one byte when ≤ 0xFF): the reader cannot produce that scalar
   (tag `0x0D` is not read).
 
