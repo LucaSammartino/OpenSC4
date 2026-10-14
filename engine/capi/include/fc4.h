@@ -2004,6 +2004,11 @@ typedef struct fc4_flammability_host {
     void (*set_fire_cause)(void* user, uint32_t cause);
     /* messages: MessagePost with void1 = IGZUnknown = the simulator (§9). */
     void (*post)(void* user, uint32_t msg_type);
+    /* Plumbing slot 7 GetWateredGrid(): the published watered grid as a
+     * token (0 = none). Its object alternates at every plumbing pass
+     * (plumbing §2), so a change tells a pass ended (§6.5, FL5/FL6). Read by
+     * the flammability shadow only; NULL = not polled. */
+    uint64_t (*watered_grid)(void* user);
 } fc4_flammability_host;
 
 fc4_flammability* fc4_flammability_create(const fc4_flammability_host* host, uint64_t token, uint32_t wall_clock_seed,
@@ -3553,11 +3558,16 @@ typedef struct fc4_flammability_shadow_stats {
 fc4_flammability_shadow* fc4_flammability_shadow_create(const fc4_flammability_host* host, uint32_t max_cells);
 void fc4_flammability_shadow_destroy(fc4_flammability_shadow* s);
 /* One of the original's six messages; false when not mirrored (no baseline
- * yet, or another type). */
+ * yet, or another type). Every call (any type, e.g. the plumbing pass end
+ * WaterMapChanged 0x6946DC34) first polls host->watered_grid: a changed
+ * pointer means a plumbing pass ended, and the tracts whose watered state
+ * changed are marked for the cycle (§6.5, FL5/FL6). */
 bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flammability_message* m);
 /* The original's cycle end: the first (or after a new simulator) is the
- * baseline; later ones are compared. One line. Returns the differences, -1
- * when nothing was compared. */
+ * baseline; later ones are compared (after a poll of host->watered_grid; a
+ * tract marked by a pass in the cycle may hold its value under either
+ * watered state). One line. Returns the differences, -1 when nothing was
+ * compared. */
 int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
                                       int32_t julian, fc4_bytes_sink sink, void* ctx);
 /* The counters as the last call that finished left them (callable from the
@@ -3973,7 +3983,7 @@ static_assert(sizeof(fc4_plumbing_original) == (sizeof(void*) == 4 ? 28 : 56), "
 static_assert(sizeof(fc4_plumbing_shadow_stats) == 72, "fc4_plumbing_shadow_stats layout");
 static_assert(sizeof(fc4_flammability_message) == 24, "fc4_flammability_message layout");
 static_assert(sizeof(fc4_flammability_state) == 80, "fc4_flammability_state layout");
-static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 132 : 264), "fc4_flammability_host layout");
+static_assert(sizeof(fc4_flammability_host) == (sizeof(void*) == 4 ? 136 : 272), "fc4_flammability_host layout");
 static_assert(sizeof(fc4_pollution_budget_item) == 32, "fc4_pollution_budget_item layout");
 static_assert(sizeof(fc4_pollution_grid_stats) == 24, "fc4_pollution_grid_stats layout");
 static_assert(sizeof(fc4_pollution_state) == 408, "fc4_pollution_state layout");

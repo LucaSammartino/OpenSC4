@@ -28,7 +28,11 @@
 //! every message the original subscribes to (§5: the three occupant
 //! messages, season change, ordinance updated, condition changed) from the
 //! plugin, in the same delivery as the original's, and reads the same live
-//! inputs through a read-only host table. It does not run the daily refresh:
+//! inputs through a read-only host table. *[compat]* (§5, FL4): one send
+//! delivers to the subscribers in subscription order, so the original, which
+//! subscribes in its `Init`, handles each message just before the later
+//! mirror, and the handlers read nothing the subscribers in between write.
+//! It does not run the daily refresh:
 //! the original's start tract is a `rand()` draw (§7) that cannot be read.
 //! At each cycle end:
 //!
@@ -40,10 +44,16 @@
 //!   updates wrote, or its previous value. A tract whose inputs did not
 //!   change in the cycle must hold its daily value exactly (or its previous
 //!   value: tracts visited on the wrap day before the previous comparison,
-//!   counted as "unvisited", at most 2 × tractsPerDay [choice]);
+//!   counted as "unvisited", at most 2 × tractsPerDay; *[compat]* §9, FL1:
+//!   SimCycleComplete is delivered at the next frame's message-server tick,
+//!   by when at most the rest of the wrap day and, at speed 2, one more day
+//!   are visited, so the bound is right for shipped tuning);
 //! - the **average** must lie in the range those values and the zoning (at
 //!   both ends of the cycle) allow; exact when nothing changed;
-//! - the **multiplier**, bitwise;
+//! - the **multiplier**, bitwise (*[compat]* §6.4, FL2: only the
+//!   constructor, `Read` and the SeasonChange / OrdinanceUpdated branch write
+//!   it, so the mirror takes the original's at the baseline and recomputes it
+//!   on the same two messages);
 //! - the **hotspots**: the hot tracts in visiting order are a rotation of the
 //!   fixed prime-step order (§6.5); every rotation is tried with our
 //!   `ComputeHotspotList` (§6.7) and one must give the original's list. When
@@ -54,6 +64,25 @@
 //!
 //! Then the mirror takes the original's grids, multiplier, average and
 //! hotspots, so one difference is reported once.
+//!
+//! **The watered state is the one at the visit** *[compat]* (§6.5, FL5,
+//! FL6): the day visit applies the no-water factor (1.25 shipped) from
+//! plumbing slot 11 as it answers that day, and that answer changes only
+//! when a plumbing pass ends and swaps its published grid in. Every shadow
+//! call (each forwarded message, including the plumbing pass end
+//! WaterMapChanged `0x6946DC34`, and the cycle end) first polls the plumbing
+//! simulator's `GetWateredGrid()` (slot 7, host `watered_grid`): the
+//! published grid's object alternates at every pass, so a changed pointer
+//! means a pass ended; the watered states are then read again and the
+//! tracts whose state changed are marked. A marked tract (or one whose
+//! state differs between the two cycle ends) may hold its daily value under
+//! either state; every other tract is checked under its one state, as
+//! before. Two passes between polls would bring the pointer back unseen;
+//! the pass-end message gives one poll per pass. With `watered_grid` NULL
+//! only the two cycle ends are compared.
+//!
+//! A tract size other than 1 is reported `INCOMPLETE` (§2, FL3: no original
+//! behaviour to match; the implementer's choice stands).
 //!
 //! Not compared: the fire roll (a clock-seeded generator), the hotspot
 //! shuffle and the iterator start (`rand()`), the random lot, the candidate
@@ -353,6 +382,9 @@ unsafe fn orig_of(p: *const fc4_flammability_original) -> Result<Orig, String> {
     if geom.count_x != raw_geom.count_x || geom.count_z != raw_geom.count_z {
         return Err("the original's adjusted and raw grids differ in geometry".into());
     }
+    // [choice] (§2, FL3): the original creates its grids with S = 1 and never
+    // changes it, so another size needs a save it did not write; there is no
+    // original behaviour to match, and the shadow reports it INCOMPLETE.
     if geom.tract_size != 1 || raw_geom.tract_size != 1 {
         return Err(format!(
             "the original's grids have tract size {}/{}; FreeCity4 supports only 1 (§14.4)",
@@ -484,6 +516,14 @@ struct Mirror {
     /// The multipliers of this cycle (the first is the previous cycle end's).
     gs: Vec<f32>,
     events: u32,
+    /// FL5/FL6 (§6.5): the plumbing simulator's published watered grid as
+    /// last polled (`None`: not polled), the watered states read then, the
+    /// tracts whose state changed at a pass seen since the previous cycle
+    /// end, and how many passes were seen.
+    watered_grid: Option<u64>,
+    w_seen: Vec<bool>,
+    w_changed: Vec<bool>,
+    passes: u32,
 }
 
 struct Shadow {
@@ -514,6 +554,44 @@ impl Shadow {
 
     fn zoned(&self, x: i32, z: i32) -> bool {
         self.host.c.zone_type(x, z).unwrap_or(0) != 0
+    }
+
+    /// The watered state per tract now (x outer).
+    fn watered_states(&self, g: &GridGeometry) -> Vec<bool> {
+        let mut w = Vec::with_capacity(g.len());
+        for x in 0..g.count_x {
+            for z in 0..g.count_z {
+                w.push(self.watered(x, z));
+            }
+        }
+        w
+    }
+
+    /// FL5/FL6 (§6.5): when the plumbing simulator's published grid is
+    /// another object than at the last poll, a pass ended: the watered
+    /// states are read again and the tracts that changed are marked.
+    fn poll(&mut self) {
+        let Some(p) = self.host.c.watered_grid() else {
+            return;
+        };
+        let Some(geom) = self
+            .mirror
+            .as_ref()
+            .filter(|m| m.watered_grid != Some(p))
+            .map(|m| m.geom)
+        else {
+            return;
+        };
+        let w = self.watered_states(&geom);
+        let m = self.mirror.as_mut().expect("mirror");
+        for (i, (&now, &seen)) in w.iter().zip(m.w_seen.iter()).enumerate() {
+            if now != seen {
+                m.w_changed[i] = true;
+            }
+        }
+        m.w_seen = w;
+        m.watered_grid = Some(p);
+        m.passes = m.passes.wrapping_add(1);
     }
 
     /// The inputs per tract now: watered, zoned.
@@ -559,6 +637,10 @@ impl Shadow {
             z_prev: Vec::new(),
             gs: Vec::new(),
             events: 0,
+            watered_grid: h.c.watered_grid(),
+            w_seen: Vec::new(),
+            w_changed: Vec::new(),
+            passes: 0,
         };
         let (w, z) = self.inputs(&o.geom);
         Self::resync(&mut m, o, w, z);
@@ -580,13 +662,17 @@ impl Shadow {
         }
         m.a_prev = o.adjusted.clone();
         m.r_prev = o.raw.clone();
+        m.w_changed = vec![false; w.len()];
+        m.w_seen = w.clone();
         m.w_prev = w;
         m.z_prev = z;
         m.gs = vec![o.g];
         m.events = 0;
+        m.passes = 0;
     }
 
     fn message(&mut self, m: &fc4_flammability_message) -> bool {
+        self.poll();
         let Some(mirror) = self.mirror.as_mut() else {
             return false;
         };
@@ -662,6 +748,7 @@ impl Shadow {
                 Err(why) => (-1, format!("{head}: INCOMPLETE ({why}); not compared")),
             };
         }
+        self.poll();
         let mut m = self.mirror.take().expect("mirror");
         let (n, line, w, z) = self.compare(&mut m, &o, &head);
         Self::resync(&mut m, &o, w, z);
@@ -724,7 +811,9 @@ impl Shadow {
                 }
                 let r_set: Vec<u8> = rs.get(&i).cloned().unwrap_or_else(|| vec![r_prev]);
                 let u_set: &[u8] = us.get(&i).map_or(&[], |v| v.as_slice());
-                let w_set: Vec<bool> = if m.w_prev[i] == w_end[i] {
+                // [compat] (§6.5, FL5/FL6): both watered states when it
+                // changed at a pass in the cycle or between the cycle ends.
+                let w_set: Vec<bool> = if m.w_prev[i] == w_end[i] && !m.w_changed[i] {
                     vec![w_end[i]]
                 } else {
                     vec![false, true]
@@ -998,6 +1087,14 @@ impl Shadow {
             line += &format!("; first differing (x,z) orig/ours: {}", firsts.join("; "));
         }
         line += &format!("; events={}", m.events);
+        line += &match m.watered_grid {
+            Some(_) => format!(
+                "; plumbing passes={} (tracts whose watered state changed: {})",
+                m.passes,
+                (0..n).filter(|&i| m.w_changed[i] || m.w_prev[i] != w_end[i]).count()
+            ),
+            None => "; plumbing passes not polled".to_string(),
+        };
         (mismatches, line, w_end, z_end)
     }
 
@@ -1142,9 +1239,11 @@ pub unsafe extern "C" fn fc4_flammability_shadow_destroy(s: *mut fc4_flammabilit
 }
 
 /// One of the original's six messages (§5), in the same delivery as the
-/// original's (the order of the two targets is the message server's: both
-/// read the same game state): the mirror handles it too. False when it was not mirrored
-/// (no baseline yet, or another type).
+/// original's (FL4: subscription order, the original first; both read the
+/// same game state): the mirror handles it too. False when it was not
+/// mirrored (no baseline yet, or another type). Every call, of any type
+/// (the plugin also forwards the plumbing pass end), first polls the
+/// plumbing simulator's published grid (FL5/FL6).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flammability_shadow_message(
     s: *mut fc4_flammability_shadow,
