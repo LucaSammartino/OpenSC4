@@ -373,7 +373,7 @@ fall between two polls in the original:
 - **A pass aborted after its swap.** A water deal status message (`0xEA418D8F` with data1 0, plumbing §5.1) sets state
   9 and the recompute flag in any state. If it arrives in state 7, the pass has swapped but never reaches state 8, so
   it posts no pass-end message. The restart swaps again after 2N + 5 calls (N networks, plumbing §6). The pass's own
-  water deal flag changes in states 4 and 8 post such messages.
+  water deal flag changes in state 4 post such messages (those of state 8 come after its pass-end message).
 - **A restart in the same frame.** A pass that ends with the recompute flag already set (by a building or pipe change,
   a pipe burst or the month, plumbing §5 and §7.1) restarts at the next call (plumbing §6, step 2). The simulator
   repeats its idle round until the frame budget is spent (simulator §5.1), one plumbing call per round, so the restart
