@@ -52,6 +52,11 @@ struct Game {
     agents: RefCell<Vec<(u32, String, u32)>>,
     subscriptions: RefCell<Vec<u32>>,
     sim: Cell<*mut fc4_neighbors>,
+    /// Foreign deals (NG4): state by token, the calls made (token, op, a, b)
+    /// and the references released.
+    foreign_deals: RefCell<HashMap<u64, fc4_neighbor_deal_data>>,
+    deal_calls: RefCell<Vec<(u64, u32, i64, i64)>>,
+    released_deals: RefCell<Vec<u64>>,
 }
 
 fn g(u: *mut c_void) -> &'static Game {
@@ -194,6 +199,32 @@ unsafe extern "C" fn release_connection(u: *mut c_void, t: u64) {
     }
 }
 unsafe extern "C" fn marker_props(_: *mut c_void, _: i32, _: i32, _: fc4_token_callback, _: *mut c_void) {}
+unsafe extern "C" fn foreign_deal(u: *mut c_void, t: u64, out: *mut fc4_neighbor_deal_data) -> bool {
+    match g(u).foreign_deals.borrow().get(&t) {
+        Some(d) => {
+            *out = *d;
+            true
+        }
+        None => false,
+    }
+}
+unsafe extern "C" fn foreign_deal_call(u: *mut c_void, t: u64, op: u32, a: i64, b: i64) -> bool {
+    let game = g(u);
+    game.deal_calls.borrow_mut().push((t, op, a, b));
+    let mut all = game.foreign_deals.borrow_mut();
+    let Some(d) = all.get_mut(&t) else { return false };
+    match op {
+        10 => d.current_date = a as u32,
+        12 => d.amount = a as i32,
+        17 if b != 0 => d.flags |= a as u32,
+        17 => d.flags &= !(a as u32),
+        _ => {}
+    }
+    true
+}
+unsafe extern "C" fn release_deal(u: *mut c_void, t: u64) {
+    g(u).released_deals.borrow_mut().push(t);
+}
 
 fn host(game: &Game) -> fc4_neighbors_host {
     fc4_neighbors_host {
@@ -248,6 +279,9 @@ fn host(game: &Game) -> fc4_neighbors_host {
         set_foreign_connection_flags: Some(set_foreign_connection_flags),
         repair_foreign_connection: Some(repair_foreign_connection),
         release_connection: Some(release_connection),
+        foreign_deal: Some(foreign_deal),
+        foreign_deal_call: Some(foreign_deal_call),
+        release_deal: Some(release_deal),
     }
 }
 
@@ -515,6 +549,66 @@ fn neighbors_deal_objects_and_reports() {
     }
 }
 
+/// NG4 through the C ABI: the foreign deal's token is listed as is, read and
+/// driven through the callbacks, and released when the list lets it go.
+/// NG11: its cost past 2^32 comes back whole from the int64 total.
+#[test]
+fn neighbors_foreign_deal_is_kept_and_released() {
+    const F: u64 = 0xD00D;
+    let game = game();
+    game.foreign_deals.borrow_mut().insert(
+        F,
+        fc4_neighbor_deal_data {
+            deal_type: deal_type::SELL_WATER,
+            other_x: 1,
+            other_z: 3,
+            city_x: 3,
+            city_z: 3,
+            amount: 40,
+            flags: flag::ACTIVE | flag::SILENT,
+            cost: 6_000_000_000,
+            start_date: 900,
+            expiration_date: 2000,
+            current_date: 990,
+            ..Default::default()
+        },
+    );
+    let h = host(&game);
+    unsafe {
+        let p = fc4_neighbors_create(&h, 0x51, 7);
+        game.sim.set(p);
+        assert!(fc4_neighbors_init(p));
+        let m = fc4_neighbors_message {
+            msg_type: msg::CONNECTIONS_READY,
+            ..Default::default()
+        };
+        assert!(fc4_neighbors_do_message(p, &m));
+        assert!(!fc4_neighbors_add_foreign_deal(p, 0));
+        game.set_local.borrow_mut().clear();
+        assert!(fc4_neighbors_add_foreign_deal(p, F));
+        // SetFlags(Silent, false) went to the object (op 17).
+        assert_eq!(game.deal_calls.borrow()[0], (F, 17, i64::from(flag::SILENT), 0));
+        assert_eq!(game.foreign_deals.borrow()[&F].flags, flag::ACTIVE);
+        assert_eq!(*game.set_local.borrow(), vec![(W, 1), (R, 1)]);
+        // FindDeals hands out the caller's object itself; no object of ours was made.
+        assert_eq!(
+            collect(|cb, ctx| fc4_neighbors_find_deals(p, 0, 0, 0, cb, ctx)),
+            vec![F]
+        );
+        assert!(game.deal_objects.borrow().is_empty());
+        assert_eq!(fc4_neighbors_total_income(p), 6_000_000_000);
+        let mut out = [fc4_neighbor_deal_data::default(); 2];
+        assert_eq!(fc4_neighbors_deal_data(p, out.as_mut_ptr(), 2), 1);
+        assert_eq!((out[0].cost, out[0].amount), (6_000_000_000, 40));
+        assert!(game.released_deals.borrow().is_empty());
+        // Shutdown releases the reference AddDeal was given, once.
+        assert!(fc4_neighbors_shutdown(p));
+        assert_eq!(*game.released_deals.borrow(), vec![F]);
+        fc4_neighbors_destroy(p);
+        assert_eq!(*game.released_deals.borrow(), vec![F]);
+    }
+}
+
 fn shadow_city(token: u64, pos: (i32, i32), size: (i32, i32)) -> fc4_neighbors_shadow_city {
     fc4_neighbors_shadow_city {
         token,
@@ -530,87 +624,217 @@ fn shadow_city(token: u64, pos: (i32, i32), size: (i32, i32)) -> fc4_neighbors_s
     }
 }
 
+/// The shadow snapshot of `neighbors_shadow_month_on_a_snapshot`: R imports
+/// 30 water from W over R's pipe (−1, 6); W's pipe answers.
+struct ShadowSnapshot {
+    cities: [fc4_neighbors_shadow_city; 2],
+    conns: [fc4_neighbors_shadow_conn; 2],
+    deals: [fc4_neighbor_deal_data; 1],
+}
+
+/// The original's state bytes of the shadow input (NG7).
+#[derive(Clone, Copy)]
+struct OriginalBytes {
+    ready: u8,
+    ui_disabled: u8,
+    deals_dirty: u8,
+    stats_dirty: u8,
+    busy: u8,
+}
+
+const LOADED_CITY: OriginalBytes = OriginalBytes {
+    ready: 1,
+    ui_disabled: 0,
+    deals_dirty: 0,
+    stats_dirty: 0,
+    busy: 0,
+};
+
+impl ShadowSnapshot {
+    fn new() -> ShadowSnapshot {
+        let mut r = shadow_city(R, (3, 3), (1, 1));
+        let mut w = shadow_city(W, (1, 3), (2, 2));
+        // Stored values: the L contribution (30 imported by R, 30 exported by
+        // W) plus an O part of 5 on each.
+        r.stats[1][1] = 35.0;
+        w.stats[0][1] = 35.0;
+        let pipe = |city, token, x, other_x| fc4_neighbors_shadow_conn {
+            city,
+            token,
+            state: fc4_neighbor_connection_state {
+                conn_type: conn_type::PIPE,
+                x,
+                z: 6,
+                other_x,
+                other_z: 3,
+                visited: 0,
+                active: 1,
+                reserved: [0; 2],
+            },
+        };
+        ShadowSnapshot {
+            cities: [r, w],
+            conns: [pipe(R, 0xA100, -1, 2), pipe(W, 0xA200, 128, 3)],
+            deals: [fc4_neighbor_deal_data {
+                deal_type: deal_type::BUY_WATER,
+                other_x: 1,
+                other_z: 3,
+                city_x: 3,
+                city_z: 3,
+                amount: 30,
+                flags: flag::ACTIVE,
+                cost: 90,
+                start_date: 900,
+                expiration_date: 5000,
+                current_date: 990,
+                ..Default::default()
+            }],
+        }
+    }
+
+    fn input(&self, b: OriginalBytes) -> fc4_neighbors_shadow_input {
+        fc4_neighbors_shadow_input {
+            struct_size: std::mem::size_of::<fc4_neighbors_shadow_input>() as u32,
+            today: 1000,
+            count_x: 64,
+            count_z: 64,
+            current_city: R,
+            city_object: CITY,
+            landfill_usage: 0,
+            landfill_capacity: 0,
+            ready: b.ready,
+            ui_disabled: b.ui_disabled,
+            two_curves: 0,
+            deals_dirty: b.deals_dirty,
+            stats_dirty: b.stats_dirty,
+            busy: b.busy,
+            reserved: [0; 2],
+            figures: fc4_neighbors_figures {
+                total_funds: 50_000.0,
+                water_capacity: 100.0,
+                water_demand: 120.0,
+                ..Default::default()
+            },
+            tuning: std::ptr::null(),
+            cities: self.cities.as_ptr(),
+            city_count: self.cities.len(),
+            conns: self.conns.as_ptr(),
+            conn_count: self.conns.len(),
+            deals: self.deals.as_ptr(),
+            deal_count: self.deals.len(),
+        }
+    }
+}
+
+/// NG7 (neighbors.md §15.4): the shadow takes the original's state bytes as
+/// given. Before ConnectionsReady (ready 0) the month does nothing; while the
+/// budget window's neighbour tab is open (uiDisabled) the state machine is
+/// skipped (the deal keeps its date) but UpdateCommodityStats still pushes; a
+/// busy original only gets the retry report. The dirty bytes decide a day's
+/// push.
+#[test]
+fn neighbors_shadow_uses_the_originals_state_bytes() {
+    let snap = ShadowSnapshot::new();
+    let message = |msg_type| fc4_neighbors_message {
+        msg_type,
+        ..Default::default()
+    };
+    let counters = |p| {
+        let mut k = fc4_neighbors_shadow_counters::default();
+        assert!(unsafe { fc4_neighbors_shadow_get_counters(p, &mut k) });
+        k
+    };
+    // (bytes, the deal's current date after the month, the month pushed, retries)
+    let months = [
+        (LOADED_CITY, 1000, true, 0),
+        (
+            OriginalBytes {
+                ready: 0,
+                ..LOADED_CITY
+            },
+            990,
+            false,
+            0,
+        ),
+        (
+            OriginalBytes {
+                ui_disabled: 1,
+                ..LOADED_CITY
+            },
+            990,
+            true,
+            0,
+        ),
+        (OriginalBytes { busy: 1, ..LOADED_CITY }, 990, false, 1),
+    ];
+    for (i, (bytes, date, pushed, retries)) in months.into_iter().enumerate() {
+        let input = snap.input(bytes);
+        unsafe {
+            let p = fc4_neighbors_shadow_create(&input);
+            assert!(!p.is_null());
+            let mut s = fc4_neighbors_state::default();
+            assert!(fc4_neighbors_get_state(p, &mut s));
+            assert_eq!(
+                (s.ready, s.ui_disabled, s.busy),
+                (bytes.ready, bytes.ui_disabled, bytes.busy),
+                "month {i}: the bytes as given"
+            );
+            assert!(fc4_neighbors_do_message(p, &message(msg::SIM_NEW_MONTH)));
+            let mut out = [fc4_neighbor_deal_data::default(); 2];
+            assert_eq!(fc4_neighbors_deal_data(p, out.as_mut_ptr(), out.len()), 1);
+            assert_eq!(out[0].current_date, date, "month {i}: the deal's current date");
+            let k = counters(p);
+            assert_eq!(k.set_local_deals > 0, pushed, "month {i}: the push");
+            assert_eq!(k.retries, retries, "month {i}: the retry report");
+            fc4_neighbors_destroy(p);
+        }
+    }
+    // A day pushes what is dirty (§11.1): (bytes, SetLocalDeals, UpdateImportExport).
+    let days = [
+        (LOADED_CITY, false, false),
+        (
+            OriginalBytes {
+                deals_dirty: 1,
+                ..LOADED_CITY
+            },
+            true,
+            false,
+        ),
+        (
+            OriginalBytes {
+                stats_dirty: 1,
+                ..LOADED_CITY
+            },
+            false,
+            true,
+        ),
+    ];
+    for (i, (bytes, deals, stats)) in days.into_iter().enumerate() {
+        let input = snap.input(bytes);
+        unsafe {
+            let p = fc4_neighbors_shadow_create(&input);
+            assert!(!p.is_null());
+            let mut s = fc4_neighbors_state::default();
+            assert!(fc4_neighbors_get_state(p, &mut s));
+            assert_eq!(
+                (s.deals_dirty, s.stats_dirty),
+                (bytes.deals_dirty, bytes.stats_dirty),
+                "day {i}: the bytes as given"
+            );
+            assert!(fc4_neighbors_do_message(p, &message(msg::SIM_NEW_DAY)));
+            let k = counters(p);
+            assert_eq!(k.set_local_deals > 0, deals, "day {i}: SetLocalDeals");
+            assert_eq!(k.update_import_export > 0, stats, "day {i}: UpdateImportExport");
+            fc4_neighbors_destroy(p);
+        }
+    }
+}
+
 #[test]
 fn neighbors_shadow_month_on_a_snapshot() {
     // R imports 30 water from W over R's pipe (−1, 6); W's pipe answers.
-    let mut r = shadow_city(R, (3, 3), (1, 1));
-    let mut w = shadow_city(W, (1, 3), (2, 2));
-    // Stored values: the L contribution (30 imported by R, 30 exported by W)
-    // plus an O part of 5 on each.
-    r.stats[1][1] = 35.0;
-    w.stats[0][1] = 35.0;
-    let cities = [r, w];
-    let conns = [
-        fc4_neighbors_shadow_conn {
-            city: R,
-            token: 0xA100,
-            state: fc4_neighbor_connection_state {
-                conn_type: conn_type::PIPE,
-                x: -1,
-                z: 6,
-                other_x: 2,
-                other_z: 3,
-                visited: 0,
-                active: 1,
-                reserved: [0; 2],
-            },
-        },
-        fc4_neighbors_shadow_conn {
-            city: W,
-            token: 0xA200,
-            state: fc4_neighbor_connection_state {
-                conn_type: conn_type::PIPE,
-                x: 128,
-                z: 6,
-                other_x: 3,
-                other_z: 3,
-                visited: 0,
-                active: 1,
-                reserved: [0; 2],
-            },
-        },
-    ];
-    let deals = [fc4_neighbor_deal_data {
-        deal_type: deal_type::BUY_WATER,
-        other_x: 1,
-        other_z: 3,
-        city_x: 3,
-        city_z: 3,
-        amount: 30,
-        flags: flag::ACTIVE,
-        cost: 90,
-        start_date: 900,
-        expiration_date: 5000,
-        current_date: 990,
-        ..Default::default()
-    }];
-    let input = fc4_neighbors_shadow_input {
-        struct_size: std::mem::size_of::<fc4_neighbors_shadow_input>() as u32,
-        today: 1000,
-        count_x: 64,
-        count_z: 64,
-        current_city: R,
-        city_object: CITY,
-        landfill_usage: 0,
-        landfill_capacity: 0,
-        ready: 1,
-        ui_disabled: 0,
-        two_curves: 0,
-        reserved: [0; 5],
-        figures: fc4_neighbors_figures {
-            total_funds: 50_000.0,
-            water_capacity: 100.0,
-            water_demand: 120.0,
-            ..Default::default()
-        },
-        tuning: std::ptr::null(),
-        cities: cities.as_ptr(),
-        city_count: cities.len(),
-        conns: conns.as_ptr(),
-        conn_count: conns.len(),
-        deals: deals.as_ptr(),
-        deal_count: deals.len(),
-    };
+    let snap = ShadowSnapshot::new();
+    let input = snap.input(LOADED_CITY);
     unsafe {
         let p = fc4_neighbors_shadow_create(&input);
         assert!(!p.is_null());

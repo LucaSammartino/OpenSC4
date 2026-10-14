@@ -1035,6 +1035,21 @@ last value the body computed.
   positive value; the test `s + n ≥ 0` then keeps delta = n and the supply becomes that wrapped positive sum,
   with no clamp. For s ≥ 0 this cannot happen. *[choice]* FreeCity4 may reproduce it or clamp; only a damaged
   save can hold a negative supply.
+
+  **When the wrap happens** (PG16; `0x006E3301`–`0x006E332F`). For n < 0 the original forms `t := s + n` in int32.
+  If `t ≥ 0` (signed) it keeps delta = n and stores `t`, which is not clamped because it is not negative.
+  Otherwise delta := `−s` and the supply becomes 0. The sum wraps only when `s + n < −2^31`, that is, when the
+  saved supply lies within `|n|` of `−2^31`. Any other negative supply goes to 0 in both versions.
+
+  | s | n | Original: delta, supply after | Clamped (bracket): delta, supply after |
+  |---|---|---|---|
+  | −1,000 | −5 | 1,000, 0 | 1,000, 0 |
+  | `−0x7FFFFF00` (−2,147,483,392) | −512 | −512, `0x7FFFFF00` (2,147,483,392) | `0x7FFFFF00`, 0 |
+
+  In the second row the original turns a nearly minimal supply into a nearly maximal one. Only a damaged save
+  reaches either row, so whether FreeCity4 copies the wrap is the implementer's choice, and the clamp is
+  acceptable. Reproducing the wrap costs only the int32 add and the two signed tests above, and is what a
+  conformance test against the original would expect.
 - **Slot 30, `SetGarbageCapacity(n)`** (`0x006E5050`) stores `n`. EAX = `n`.
 
 No caller in the executable reads either value. The landfill developer (`0x006B9230`, `0x006B92F6`), the landfill

@@ -184,8 +184,42 @@ add a segment at the **front** or at the **back**.
 multi-package segment, a key present in several of its packages resolves to the package **listed last** (its key
 map is filled in listing order with overwrite). Inside one package the first index entry wins (§2.3).
 
-**Cache.** `GetResource` looks in the resource cache first; a resource object already loaded is returned as is
-*[inferred: cache entries are not invalidated when a segment is added later]*.
+**Cache** (EX37). `GetResource` asks the registered resource caches first, and a resource object already cached is
+returned as is. The manager's constructor (`0x009744B2`) creates **one default cache** (vtable `0x00AD9428`) and
+registers it in its cache list (`+0x88`, `0x00974544`–`0x00974574`); no other registration was found. The default
+cache:
+
+- accepts every key: it has no key filter unless one is set, and none is at construction (`0x0097BFAC`);
+- keeps a counted reference to every resource that loads successfully, keyed by type, group and instance (insert
+  `0x0097C595`; a key already present keeps its first object);
+- returns that object, with a new reference, to every later request for the key (`0x0097C36E`), before any segment
+  is consulted;
+- is not touched when a segment is registered or removed (slots 27, 28, 29). So a key read once keeps its first
+  record even after a later segment that has the key is added in front.
+
+An entry leaves the cache only by:
+
+- removal of that key (manager slot 9, `0x0097341B`, asks every cache that has it);
+- a full clear (cache slot 18, `0x0097C452`);
+- a **purge**, which drops the entries that only the cache still references (cache slot 20, `0x0097C48F`). A purge
+  runs on demand (manager slot 43 → cache slot 17, `0x0097BF63`, which repeats it up to 8 times while it drops
+  something). It also runs automatically on every 129th call of cache slot 14 (`0x0097BF43`), but only when the
+  auto-purge flag (manager slot 42 → cache slot 16) is on.
+
+*[unsettled: the callers of manager slots 9, 42 and 43 and of cache slot 14 were not traced. An in-game probe that
+reads the default cache's entry count before and after a month would settle whether purges happen in play.]*
+A purged record is read again at its next request, from the segment that wins then.
+
+Worked example: package P1 holds exemplar K = A. K is looked up, giving A, which the cache keeps. Package P2 with
+K = B is then registered at the front. The next lookup of K still gives A. Only if A was purged in between (no one
+but the cache held it) does it give B.
+
+FreeCity4's store has no cache, so in this example it gives B. The two agree whenever every package is registered
+before the first lookup. In the shipped game every data package is registered in one pass at startup (§3.1),
+before a city loads, and the city's save goes to the back, so it never displaces a key that is already found
+*[inferred: a lookup during the startup pass itself was not ruled out]*. *[choice]* No cache is kept.
+A replacement that registers packages after lookups have started must keep the first record of every key looked up
+to match the original.
 
 **Factories.** The object type is chosen by the key's **type ID** (one factory per type). The factory's read
 checks the record type again (§4.1, §6).
@@ -211,6 +245,16 @@ first that accepts its key (slot 44, `0x009733C6`). A failure is not kept, so th
 same key that has not been looked up yet; (2) a record that failed is read again when a later package is loaded,
 or at its next lookup; (3) a factory registered later is also applied to the records of packages loaded before
 it. Reading lazily at the first lookup, as the original does, meets them without extra work.
+
+**A factory added late** (EX38). The original never refuses one: the factory is found by type at each uncached
+request (slot 46), so it serves every key of its type requested from then on, in segments registered before it as
+well. Worked example: P1 holds a record of type T and is registered; nothing has requested it; then a factory for T
+is added. The next request for the record builds it with the new factory. FreeCity4's store reads eagerly and
+refuses a factory added after the first package (`add_factory` returns false). That breaks condition (3) above,
+so it gives the same results only while every factory is added before the first package is loaded. *[choice]*
+Refusing is acceptable on that condition, which holds when FreeCity4 registers all its factories at startup.
+A refused factory must be logged as an error, never ignored silently. A store that must accept late factories
+applies each one to the records of its type in the packages already loaded, as condition (3) says.
 
 ### 3.1 Load order at startup
 
@@ -374,7 +418,9 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     fraction digit multiplies a running scale by 0.1 and adds digit × scale. Every step is rounded to the caller's
     precision, **24 bits on the main thread** (foundations §18.2), and the result is stored as Float32. An `e` or
     `E` exponent is read as a 32-bit integer; the power 10ⁿ is computed **in 32-bit integer arithmetic, wrapping**
-    (`0x009103DA`), then multiplied in, or divided for a negative exponent. There is no hex, `inf` or `nan`:
+    (`0x009103DA`), then multiplied in. A negative exponent is **not** a division: the parser first rounds the
+    reciprocal 1/10ⁿ to the caller's precision, then multiplies it in, so the result is rounded twice
+    (`0x00910507`–`0x0091050B`, EX35). There is no hex, `inf` or `nan`:
     parsing stops at the first character that does not fit, so `inf` gives 0 and `1.#INF` gives 1. The same parser
     serves the §5.1 text round trip, where a Float64 target gets the same 24-bit value. Worked examples (24-bit):
     - `0.05` gives `0x3D4CCCCC`, where a correctly rounded parse gives `0x3D4CCCCD`;
@@ -382,6 +428,10 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
     - `0.1`, `0.3`, `123.456` and `2.5e3` come out correctly rounded;
     - `1e10` gives 1,410,065,408 (10¹⁰ mod 2³²), `1e12` gives −727,379,968, and `1e-10` gives about
       7.09 × 10⁻¹⁰;
+    - negative exponents round twice: `9e-1` gives `0x3F666667`, because 1/10 rounds to `0x3DCCCCCD` and
+      9 × 0.100000001490116… = 0.900000013411… rounds up, where one division gives `0x3F666666`. Likewise `5e-2`
+      gives `0x3D4CCCCC` (one division: `0x3D4CCCCD`) and `2.5e-3` gives `0x3B23D70B` (one division:
+      `0x3B23D70A`). `1e-1`, `3e-1`, `7e-1`, `1e-3` and `1.5e-2` come out the same either way;
     - `1e32` and any larger exponent give 0 (10ⁿ mod 2³² is 0 from n = 32), `1e-32` gives +∞ and `0e-32` gives
       NaN.
 
@@ -401,7 +451,9 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
       then 0 × 10ⁿ:
       - `e5` and `.e5` give 0, `-e5` gives −0.0, and `2.5e+3` gives 2500;
       - `e-32` gives NaN, as `0e-32` does: 10³² wraps to 0, 1/0 is +∞, and 0 × ∞ is the default NaN, stored as
-        `0xFFC00000`;
+        `0xFFC00000`. A single division 0/0 would give the same NaN (EX35);
+      - a leading `-` is applied last, by `fchs` on the result (`0x00910526`), and it flips a NaN's sign too
+        (EX36): `-e-32` and `-0e-32` give `0x7FC00000`, and `-1e-32` gives −∞;
       - `1e` gives 1.
 
       In the §5.1 round trip, an `e` with no digit before it stops the classifier first, so `e5` there is the
@@ -487,8 +539,28 @@ Each exemplar or cohort keeps two property lists, both sorted by ascending unsig
 - the **effective** list = the parent's effective list, then the own properties applied on top (an own property
   replaces the parent's property with the same ID).
 
-All lookups (`HasProperty`, `GetProperty(id)`, the typed getters of §5, `GetPropertyList`, `EnumProperties`) use
-the **effective** list. `IsPropertyLocal(id)` (`cISCResExemplar` slot 8) tests the own list only.
+The lookups `HasProperty` (holder slot 3, `0x0067C620`), `GetProperty(id)` (slot 9, `0x0067C670`), the typed getters
+of §5 (slots 5–8 call slot 9) and `GetPropertyList` (slot 4, `0x0067C4B0`) use the **effective** list: a binary
+search (`0x005FE940`) in a sorted vector of `{id, property}` pairs (property-holder sub-object `+0x18`/`+0x1C`); the
+parent chain is **not** walked at lookup time, because the vector already holds every inherited property.
+`IsPropertyLocal(id)` (`cISCResExemplar` slot 8, `0x0067C210`) tests the own list only (`+0x08`/`+0x0C`).
+
+**Correction (DG29): `EnumProperties` lists the own properties only.** Exemplars and cohorts do not override the
+base `cSCPropertyHolder::EnumProperties` (slots 19 and 20, `0x005FDA80` / `0x005FDA50`), which walks the own list
+(`+0x08`). An earlier version of this section listed it with the effective lookups. The **effective enumerator is
+`GetPropertyList`**: it creates a new `cIGZUnknownList` (`0x0090DC0F`), adds every property of the effective list in
+ascending ID order (list slot 7), and returns it with one reference, which the caller releases; it returns false
+(and no list) for a null out-pointer. Occupants differ: an occupant's holder (`cSCExemplarPropertyHolder`, e.g. a
+building's `+0x0C`, building-development §4.9.1) answers `GetProperty` from its own list, then from its default
+exemplar's effective list, and its `EnumProperties` (`0x005FEE10` / `0x005FEF00`) visits its own properties, then
+the exemplar's `GetPropertyList` minus the IDs it overrides.
+
+Worked example: an exemplar E whose record holds only a name and a capacity, with parent cohort C holding
+`ExemplarType` = 2 and a family list `0x27812870`. `GetProperty(0x10)` on E finds 2 and E's `GetPropertyList`
+contains `0x10` and `0x27812870`, but E's `EnumProperties` visits only the name and the capacity. This is the shipped
+case: of the 743 building types in the shipped `.dat` files (the devglue shadow counted 744 in game), 653 inherit
+`ExemplarType` 2 from a cohort and 90 carry it themselves, and all 556 building exemplars with a family list inherit
+it. A reader that sees own properties only finds 90 building types and no families.
 
 - The effective list is **built when the parent is set and updated on every add**: it is a snapshot. Changing a
   cohort later does not change exemplars already built from it *[compat]* (the game never changes cohorts at run
@@ -616,12 +688,40 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
 
   **The 63-character cut** (EX29) applies to every float, a Float32 included. A text longer than 63 characters is
   cut to its first 63 and the printer returns false; both callers (`0x00916F77`, `0x0091711E`) ignore the result
-  and keep the cut text. A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the
-  seven values `0x80000001` to `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th
-  digit is lost. For example `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`,
-  44 zeros and `1401298464324817`, 63 characters. The positive values fit exactly (63 characters), and from
-  `0x80000008` (−1.12e-44) on there is one leading zero fewer. A Float64 reaches the cut more often: for example
-  −1e62 (`-` and 63 digits), 1e63 (64 digits), and tiny values whose fraction runs past 61 places.
+  and keep the cut text. When the cut falls among the significant fraction digits, that is, a digit after the
+  fraction's leading zeros is still to be written when 64 characters are already there, the printer also
+  **strips trailing zeros** from the 63 characters it keeps (`0x00910672`–`0x00910697`). A cut anywhere else, and a
+  text of exactly 64 characters, is not stripped (`0x00910647`, `0x00910662`). Worked example: Float64
+  1.0000000000000002e-47 (digits `10000000000000002` after 46 leading zeros) needs 65 characters; the cut keeps
+  `0.`, 46 zeros and `100000000000000`, and the strip leaves `0.`, 46 zeros and `1`, 49 characters.
+  A Float32 reaches the cut only as a **negative subnormal below 1e-44 in magnitude**, the seven values `0x80000001` to
+  `0x80000007`: `-0.`, 44 leading zeros and 17 digits make 64 characters, so the 17th digit is lost. For example
+  `0x80000001` (−1.40129846432481707…e-45, 17 digits `14012984643248171`) gives `-0.`, 44 zeros and `1401298464324817`,
+  63 characters. The positive values fit exactly (63 characters), and from `0x80000008` (−1.12e-44) on there is one
+  leading zero fewer. A Float64 reaches the cut more often: for example −1e62 (`-` and 63 digits), 1e63 (64 digits), and
+  tiny values whose fraction runs past 61 places.
+
+  **Below 10⁻⁴⁸ the digits are rounded a second time** (EX34). `_fcvt(x, 64)` (`0x009F662C`) keeps digits only up
+  to the 64th decimal place. With the 17-digit value written as 0.d₁d₂… × 10^decpt, `_fpcvt` (`0x009F65CF`) asks
+  `_fptostr` (`0x00A0264A`) for 64 + decpt digits. When that is fewer than 17, which happens when decpt ≤ −48
+  (the 17-digit value is below 10⁻⁴⁸), `_fptostr` keeps that many digits and rounds **half-up** on the next one, a
+  carry running through 9s (`0x00A0268E`–`0x00A0269E`). At decpt = −64 it keeps no digit and rounds on the first;
+  below that it keeps nothing and does not round. From 10⁻⁴⁸ up to 10⁻⁴⁷ all 17 digits still fit. The second
+  rounding can change the visible text, because a positive value shows places 1 to 61 before the cut:
+
+  - 2e-49 (the double 1.99999999999999987…e-49, digits `19999999999999999` from place 49): 16 digits are kept and
+    the 17th, a 9, rounds them up, so it prints `0.`, 48 zeros and `2` (51 characters). With one rounding it
+    would print `0.`, 48 zeros and `1999999999999` (63 characters, cut).
+  - 1e-48 (the double 9.9999999999999997…e-49) rounds up the same way to `0.`, 47 zeros and `1` (50 characters).
+  - 9.5e-65 (digits `95000000000000004` from place 65) rounds up to a 1 at the 64th place. The text would be
+    `0.`, 63 zeros and `1`; the cut falls among the leading zeros, so it prints `0.` and 61 zeros (63 characters,
+    nothing stripped).
+  - 4e-65, and 5e-65 (the double 4.99999999999999998…e-65), round down to no digit and print `0`, as does
+    every value below that.
+
+  **A tiny negative value keeps its sign.** `_fcvt` reports the sign of any non-zero value (`0x009F6616`), even
+  when no digit is left. So −4e-65 prints `-0` and −9.5e-65 prints `-0.` and 60 zeros (63 characters). Only a
+  true −0.0 prints `0` (EX24, below).
 
   **Negative zero** (EX24) prints `0`, for a Float32 and a Float64 alike. The runtime's digit conversion
   (`0x00A04942`) takes a zero's sign from the sign bit but then resets it to "positive" on its zero path
@@ -728,6 +828,29 @@ output to that count and copy count elements **of their own width**, with no typ
 - A wider stored type gives its leading bytes: a Uint32 array `{0x11223344, 5}` read with `vec<u8>` gives
   `{0x44, 0x33}`.
 - A scalar has count 0 and gives an empty vector (§4.3, `Uint8:0:{}`).
+
+**Shipped scalars that only a vector helper reads** (EX39). A sweep of the binary exemplars and cohorts of the
+shipped `.dat` files (2026-10-14), against every property ID passed to a vector helper, finds four properties
+stored as scalars (key type 0) in some records. The original reads each of those records as an **empty** vector:
+
+| Property | Helper and readers | Scalar records | Effect in the original |
+|---|---|---|---|
+| `0x88EDC793` (lot configuration zone types) | `vec<u8>`: `0x0047A0EC`, `0x0060F690` | 10, all Uint8 0; landmark lots such as `LM6x6_LincolnCenter` | no zone type |
+| `0x88EDC795` (wealth types) | `vec<u8>`: `0x0047A16C`, `0x0060F710` | 161, all Uint8 0 | no wealth type |
+| `0x88EDC796` (purpose types) | `vec<u8>`: `0x0047A20C` | 172, all Uint8 0 | no purpose type |
+| `0xEA54D286` (budget item cost) | `vec<s64>`: `0x0069112B`, `0x0069131A`, `0x00693899` (budget simulator) | 2: landfill tiles `0x02F10000` (1) and `0x034E0000` (10) | no cost entry |
+
+The scalar records of the first three are 172 lot configurations (exemplar type 16): all 172 hold `0x88EDC796`
+as a scalar, 161 of them `0x88EDC795` too, and 10 of those also `0x88EDC793`. The budget simulator checks each index
+against each array's size and gives 0 for a missing entry (`0x006939A9`); whether it reads landfill tiles was not
+traced. The landfill maintenance cost reads the same property with the converting getter `0x005FD4B0` instead, so for it
+the two tiles cost 1 and 10 (landfill §4.9.1). So the original's result differs by reader, and only the vector helpers
+give "empty".
+
+A vector reader that returns a scalar's one value gives these 172 lot configurations a bit 0 in their purpose set
+(and, for some, in their wealth and zone sets) that the original does not give them. FreeCity4's vector readers must
+therefore return an **empty** vector for a scalar, as the original does, and keep the one value only in the converting
+getters (§5.1).
 
 On shipped data every raw read finds the type it expects except one, property `0xEA0232A0` (shipped Sint32, read
 with `vec<u32>`), where copying and converting give the same bits (§7.4). *[choice]* Converting every element as
@@ -1640,7 +1763,7 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 | float to integer saturates, NaN gives 0 (EX3) | truncated to int64, low bits kept (wraps); NaN and ±∞ give `0x8000000000000000` (§5.1) | follow |
 | RZChar zero-extended (EX4) | Char and RZChar sign-extended (§5.1) | follow |
 | void array as text: first byte as `%u` (EX6) | empty text, so 0 (§5.1) | follow |
-| floats as text with `%.24g` (EX8) | fixed-point, 17 significant digits rounded half-up, trailing fraction zeros dropped, cut at 63 characters; no exponent (§5.1, EX29) | follow |
+| floats as text with `%.24g` (EX8) | fixed-point, 17 significant digits rounded half-up, trailing fraction zeros dropped, cut at 63 characters (zeros stripped again when the cut falls among the digits); below 10⁻⁴⁸ rounded half-up again at the 64th place (EX34); no exponent (§5.1, EX29) | follow |
 | round-trip parse (EX9) | as bracketed, plus: char targets always get 0; Bool from floating-point text is value ≠ 0 (§5.1) | follow |
 | text ParentCohort: exactly 3 fields, leading spaces trimmed (EX10) | fields not counted, a missing one reads 0; nothing trimmed inside the braces (§4.3) | follow |
 | text reps trimmed (EX11) | not trimmed; rule N (§4.3) | follow |
@@ -1656,7 +1779,8 @@ Text lines below go into a record shaped like test 37, with `PropCount` set to m
 
 1. How the current language ID is chosen at startup (registry `Language` value, command line, folder probing) and
    the full ID → directory table.
-2. Whether the resource cache can hold a stale object after a plugin segment is added during a session (not done
-   by the shipped game).
+2. ~~Whether the resource cache can hold a stale object after a plugin segment is added during a session (not done
+   by the shipped game).~~ Answered in §3 (EX37): it can. The default cache keeps the first record of every key
+   until the key is removed or purged; only the callers of the purge are untraced.
 3. Cycle behaviour of cohort chains (§4.4) is inferred, not observed.
 4. The QFS 4-byte prefix is checked only against 16 MiB; whether any path compares it with the index size.

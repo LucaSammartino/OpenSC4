@@ -606,6 +606,27 @@ interface pointer of the same object, or a wrapper around it, does not match, an
 a test host represents "the current city" is glue: no original behaviour, and the implementer's choice of a token
 distinct from every regional-city ID stands.
 
+**`cISC4App::GetCity` gives the same pointer** *[compat]* (NB19; `0x0081F910`, `cSC4App::NewCity` `0x004548B0`,
+`cSC4App::PartialCloseCity` `0x00454AEC`). `GetCity` is `cISC4App` (IID `0x26CE01C0`, vtable `0x00A86AF0`)
+slot 37 (`+0x94`, pop 0, EAX). It returns the application's city member (`cISC4App*` + 0x50, the application
+object's `+0x5C`), **borrowed**, with no `AddRef`.
+
+- `NewCity` allocates the city (`0x20C` bytes), runs its constructor and stores the result in that member
+  (`0x00454908`). The constructor returns the object's own address, the address it has just passed to
+  `SL::OnCityCreate` for the global `0x00B43CEC`. Both are the primary `cISC4City` interface.
+- `PartialCloseCity` posts `0x26D31EC2`, calls the city's `Shutdown`, posts `0x26D31EC3`, releases the city and
+  nulls the member.
+
+So from construction until the city closes, `GetCity()` returns exactly the pointer that the identity test
+compares against, and a host that answers with it matches the original. The two differ only after the city's
+`Shutdown`. The member is nulled right after `PartialCloseCity`'s release. The global is nulled by the function at
+`0x00602100` (the NB18 null write `0x0060210E`), which the city's destructor calls (`0x0045A468`) and which
+clears the global only if it still holds that city. So the global can outlive the member while other
+references keep the city alive. No month agent runs after the city's `Shutdown`.
+
+Example: if `GetCity()` returns `0x1F3A0000`, the global holds `0x1F3A0000` too, and a call with that pointer
+proceeds. A call with the same city's `cIGZSerializable` sub-object (another address) does nothing.
+
 `R` is then fetched from the region without a null check (`0x006D2A6C`). With no current regional city the original
 crashes; *[choice]* FreeCity4 returns at once in that case.
 

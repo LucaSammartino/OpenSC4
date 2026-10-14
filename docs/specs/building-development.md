@@ -71,6 +71,12 @@ Runs once (an `initialized` flag; a second call returns true at once).
    `0x10`): 2 → building (`AddBuildingData`), `0x11` → foundation (`0x00698F50`), `0x15` → lot retaining wall
    (`0x00698FC0`); other types are ignored. Then post `kSC4MessageBuildingTypesUpdated` (§5) and build the maximum
    density table (§4.7.4).
+   *[compat]* (DG7) The callback runs only at **application shutdown** (`cISC4App` slot 69 is
+   `RegisterShutdownCallbackFunction(cb, 0)`). It does nothing unless the static flag (`0x00B48540`) is set; then it
+   clears the flag, unregisters itself (app slot 70 `+0x118`, same arguments), and empties the nine catalogue
+   containers (key, name ×2, profile and family maps, the maximum density table, the foundation and wall key maps),
+   returning true. Nothing in a session depends on it; a replacement whose catalogue is freed with the process need
+   not register anything.
 2. **Developers**: enumerate the type-`0x6534284A` keys again and call `CreateDeveloper` for every exemplar whose
    `ExemplarType` is **4** (§1.5).
 3. **Tuning**: `ReadSimulatorTunableValues` (§4.13).
@@ -89,7 +95,10 @@ Runs once (an `initialized` flag; a second call returns true at once).
 9. Register the agent at levels **0, 4, 6 and 10**, each with name `"cSC4BuildingDevelopmentSimulator"` and flags
    2 (enabled only when the city is established) (simulator slot 19 `+0x4C`).
 10. Register and subscribe three cheats with the cheat code manager (slots 3 and 7): `0x491865E1` "HowDryIAm",
-    `0x08DAD89A` "FightThePower", `0x6AB6A2D7` "Barstuck".
+    `0x08DAD89A` "FightThePower", `0x6AB6A2D7` "Barstuck". For each: `RegisterCheatCode(id, name)` (slot 3), then
+    `AddNotification2(target, id)` (slot 7) with **the cheat's own ID** (`0x0069D5E9`–`0x0069D60B` and the two that
+    follow), never 0 (DG13). The cheat manager then sends `0x230E27AC` with data1 = the ID only for those three
+    cheats (flora.md §4.1 step 11 describes the manager's matching rule).
 11. Return true.
 
 ### 1.4 `Shutdown()` → true (slot 4, `0x0069A210`)
@@ -291,6 +300,7 @@ while pending is not empty:
         if there is an item:
             insert (item.x, item.z) into marks[t]
             built := tractDeveloper.Grow({D, item.x, item.z, item.stage}, outcomes, flag)   -- §8, slot 5
+                                                    -- item.stage = the low byte of maxStage (DG18)
             if built > 0 (signed): lastSuccessfulBuild[t] := today
     remove t from pending
 ```
@@ -323,6 +333,8 @@ Consequences *[compat]*:
   This depends on the machine's speed and cannot be reproduced.
 - *[choice]* FreeCity4 replaces the 3 ms timer with a deterministic **daily growth budget** (§4.4.1). There is
   no spin, no timer and no step adaptation.
+- *[compat]* (DG18) The growth item's third field is an `int32` (growth-developer §5.4); `Grow` copies only its **low
+  byte** into the profile's `uint8` stage (`0x0069B349`). Shipped values are 1..8, so nothing is lost.
 - The outcome list passed to `Grow` is created empty by the BDS, filled by the tract developer and freed by the
   BDS (allocator B, §9.2); its content is not used. `flag` starts false and is not read afterwards.
 
@@ -390,20 +402,24 @@ below posts ActiveDemandChanged (`0x426840A0`, data1 = 0) like any node (demand 
 
 #### 4.7.1 Buildings
 
-For each building exemplar (ExemplarType 2) the **building type** is the exemplar's instance ID.
+For each building exemplar (ExemplarType 2) the **building type** is the exemplar's instance ID. *[compat]* Every
+property here, `ExemplarType` included, is read with the exemplar's **effective** lookups, so values inherited from
+parent cohorts count (data-formats §4.4): 653 of the 743 shipped building exemplars get `ExemplarType` 2 and all of
+their family lists only from a cohort. A catalogue built from own properties (for example through `EnumProperties`)
+has 90 types and no families; the devglue shadow's `types=744/91` (manual-checks run 101) is this difference.
 `AddBuildingData` stores type → exemplar key (a later exemplar with the same instance replaces the key) and calls
 `LoadBuildingProperties(holder, type)` (`0x0069B910`), which fills:
 
 | Field | Source |
 |---|---|
-| exemplar name (`GetExemplarName`) | property `0x20` (exemplar name), else "" |
-| building name (`GetBuildingName`) | localized string `0x8A416A99` (`SC4LoadExemplarString`); if absent, property `0x899AFBAD`; else "" |
+| exemplar name (`GetExemplarName`) | property `0x20` (exemplar name, variant slot 55 into the string), else "" |
+| building name (`GetBuildingName`) | localized string `0x8A416A99` (`SC4LoadExemplarString` `0x00603220`: the property holds an LTEXT key, crime.md §7 "Name"); if that fails, property `0x899AFBAD` as a string; else "". DG14: both names are stored by value as `cRZString` objects (vtable `0x00A80810`) inside the name maps, and slots 37/38 return a borrowed `cIGZString*` to them; the string class is not observable through the interface |
 | profile.wealth | property `0x27812832` (uint8); outside 0–3 → 0 (with a debug message) |
 | profile.purpose | property `0x27812833` (uint8), default 0 |
-| profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16 |
+| profile capacities satisfied | property `0x27812834`: pairs (developer type, amount) → a map developer type → uint16. DG11: when the property **exists**, exactly one map is pushed into the profile's vector, **even when it has no values** (an empty map); only a missing property leaves the vector empty (`0x0069BBB7`, push `0x0069BC46`–`0x0069BC7E`). An odd count reads one value past the end for the last pair (`0x0069BC18`) *[quirk]*; *[choice]* ignore an unpaired last value (no shipped exemplar has one *[inferred]*) |
 | profile.capacity | the amount of that map for `GetDeveloperType(purpose, wealth)` (0 if absent) |
 | profile.categoryFlags | property `0xAA1DD396` (occupant groups, uint32 list): §4.7.1.1 |
-| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]* |
+| further profile fields | `0x27812836` (bool), `0x499AFA38` (uint8, default 30), occupant size `0x27812810` (3 floats), plop cost `0x49CAC341` (int64), budget item cost (budget simulator); not used by growth *[inferred: field mapping to the SDK's BuildingProfile]*. DG4: the budget item cost (`+0x38`, int64) is the sum of the `cost` fields (`BudgetItem` `+0x10`, int64) of the items that budget simulator slot 50 `GetBudgetItemInfo(holder, vector&)` returns for the exemplar (`0x0069BE00`–`0x0069BE3F`), 0 when it returns none; e.g. two items costing 120 and 80 give 200. No reader of `+0x38` was found in the exe *[inferred]* |
 | families | property `0x27812870` (uint32 list): the type is appended to each family's member list |
 
 The profile that `GetBuildingProfile` inserts for an unknown type (§4.7.2) is all zero, including the
@@ -498,7 +514,7 @@ expansion of §4.7.4 *[compat]*. "Hash order" below is the key map's enumeration
 | `IsBuildingInFamily(b, f)` (20) | `b = f`, or b is a member of family f |
 | `GetBuildingTypesByFamily(vector&, f)` (18) | f is a family: the vector **becomes** a copy of the member list (assignment, B); returns the member count. Else f is a building type: the vector is cleared and holds f; **returns 0** *[quirk]*. Else: unchanged, returns 0 |
 | `GetBuildingTypesByFamily(hash_set&, f)` (19) | same, but **inserts** into the set (no clear); returns the member count, 0 for a single type |
-| `GetBuildingTypesByFilter(hash_set&, filter)` (17) | for each building type in hash order: if `filter` is null or `filter.slot3(type)` is true, insert; returns the number of types that passed |
+| `GetBuildingTypesByFilter(hash_set&, filter)` (17) | for each building type in hash order: if `filter` is null or `filter.slot3(type)` is true, insert; returns the number of types that passed. The filter's slot 3 is `bool(uint32 type)`: pop 4, result tested in AL (`0x00699C94`, DG17). The exe has no filter class and no caller of this slot *[inferred]* |
 | `GetBuildingProfile(t)` (39) | reference to the stored profile; **inserts a zero profile** for an unknown type *[compat]* (the catalogue grows) |
 | `GetBuildingProfilePtr(t)` (40) | pointer, null for an unknown type |
 | `GetBuildingKeyFromType(t, key&)` (14) | true and the key, or false and key unchanged |
@@ -528,7 +544,7 @@ otherwise false. (A denser zone accepts lower-density buildings of the same fami
 #### 4.7.4 Maximum density table (`CalculateMaxCapacity` `0x0069C370`, `GetMaxCapacity` slot 45)
 
 Built once at the static initialisation, from every lot configuration (lot configuration manager `0x00B43D18`, slot
-20 `GetLotConfigurationMap`):
+20 `GetLotConfigurationMap`, layout below):
 
 ```
 (w, h) := config.GetSize();  area := w · h (int)
@@ -548,7 +564,7 @@ for each ID in obj's ID list:
     prof := GetBuildingProfile(T);  skip if prof.purpose = 0
     d := r24(r24(float(prof.capacity) / float(area)) + 0.5)
     if d < 1.0 and prof.capacity > 0: d := 1.0
-    for zone z in 0..15 with config.IsCompatibleWithZoneType(z):        -- slot 15
+    for zone z in 0..15 with config.IsCompatibleWithZoneType(z):        -- slot 15; z = 16+ is never asked (0x0069C975)
         key := (z, uint8(4·purpose + wealth + 1));  table[key] := max(table[key], d)   -- inserted if absent
 ```
 
@@ -562,8 +578,26 @@ reproduce it. When the exemplar does not load, the fit test is skipped and T is 
 inserts a zero profile for a T without one (purpose 0: skipped). The order of S does not matter (the table keeps
 maxima).
 
+**Inputs** *[compat]* (DG3, DG10):
+
+- `GetLotConfigurationMap()` (`0x00489720`, pop 0, EAX) returns the address of the manager's process-wide STLport
+  `hash_map` (`0x00B216C8`), not a copy and with no reference: the shape of allocators.md *hash_set* (object
+  `0x14` bytes, bucket vector at `+0x04`/`+0x08`, identity hash, count at `+0x10`) with 12-byte nodes
+  `{next, uint32 key, cISC4LotConfiguration* value}`; the key is the configuration's ID *[inferred]*. The BDS
+  walks it read-only (begin `0x004B0390`: buckets 0..n−1, each chain from its head). The map holds the references;
+  a reader must not release the values. Equivalent input: slot 9 `GetLotConfigurationsByFilter(set, null)` returns
+  the same configurations (every one passes a null filter, `0x0048B2E7`), but **AddRefs each** into the caller's B
+  `hash_set` (allocators.md row 79), so the caller releases each one. The table keeps maxima, so the order of the
+  configurations does not matter.
+- `GetPrimaryBuildingConfigurationObject()` (lot configuration slot 24, `0x00477DF0`) returns a pointer into the
+  configuration's object vector (stride `0x34`): the first object whose type byte is 0 (building), or null. The
+  object is the SDK's `cSC4LotConfigurationObject` exactly: type `+0x00`, flags `+0x01`, rotation `+0x02`, mirrored
+  `+0x03`, x/y/z `+0x04`/`+0x08`/`+0x0C`, rectangle `+0x10`…`+0x1C`, foundation `+0x20`, object ID `+0x24`, ID
+  vector (begin/end/capacity) `+0x28`/`+0x2C`/`+0x30`. The BDS reads rotation, x, z and the ID vector.
+
 `GetMaxCapacity(zone, p, w)` returns `float(trunc(table[(zone, GetBuildingMapKey(p, w))]))` in **ST0**, or 0.0 if the
-key is absent: the largest "capacity per cell, rounded half up, at least 1" of any building of that purpose and
+key is absent (DG19: any zone outside 0..15, and any zone no configuration allows, is simply absent; no bounds check
+is needed or made): the largest "capacity per cell, rounded half up, at least 1" of any building of that purpose and
 wealth that fits a lot configuration allowed in that zone. *[compat]* SDK error, §7.1.
 
 ### 4.8 `IsSuitableForConstruction(profile, reason&)` (slot 46, `0x00695430`)
@@ -600,18 +634,20 @@ All pass → true (`reason` untouched).
 
 - `AddNewBuildingOccupant(type, float pos[3], orientation)` (slot 7, `0x00698DE0`): false/null unless
   `IsBuildingTypeValid(type)` and `LocationIsOKForNewBuilding(type, pos[0], pos[2])`. Creates a building occupant
-  (`0x5C` bytes, `0x00458A60` / `0x00458E90`), sets its type, loads its properties (`0x00698490`; failure → release,
-  return null), takes its bounding box, swaps the box's x and z extents for orientation 1 or 3 and stores it back.
+  (`0x5C` bytes, `0x00458A60` / `0x00458E90`), sets its type, loads its properties (`0x00698490`, §4.9.1; it always
+  reports success), takes its bounding box, swaps the box's x and z extents for orientation 1 or 3 and stores it back.
+  The exact call order is §4.9.1.
   If `pos[1] < 0` (strictly; NaN does not count) the altitude is replaced by
   `lotDeveloper.GetLowestOrHighestAreaAltitude({min.x, min.z, max.x, max.z}, false, true)` (slot 16) — with the
   **box's** local coordinates, not offset by the position *[quirk]*. Then sets the position and orientation, initialises
   the occupant and inserts it (`AddNewBuildingOccupant(occupant)`, slot 8, through the vtable). Returns the
   occupant (borrowed: the occupant manager holds the reference) or **null**.
   **References** *[compat]*: the BDS AddRefs the new occupant once (its creation reference, count 1) and releases
-  that reference on **every** exit after creation (`0x00698F1B`): property-load failure, insert failure (slot 8
-  false) and success alike. On insert failure it therefore returns null and holds nothing; the occupant is destroyed
-  unless the occupant manager kept a reference of its own. On success the return value is the pointer after that
-  release, kept alive only by the occupant manager. A caller never releases the result.
+  that reference on **every** exit after creation (`0x00698F1B`): insert failure (slot 8 false) and success alike
+  (a property-load failure branch exists but cannot be taken, §4.9.1). On insert failure it therefore returns null and
+  holds nothing; the occupant is destroyed unless the occupant manager kept a reference of its own. On success the
+  return value is the pointer after that release, kept alive only by the occupant manager. A caller never releases the
+  result.
 - `AddNewBuildingOccupant(type, cx, cz, orientation)` (slot 6) = slot 7 with
   `pos = (centreX, terrain.GetAltitude(centreX, centreZ), centreZ)` of the cell (city `CellCenterToPosition`).
 - `PlopBuilding(profile)` (slot 47, `0x00695570`) = slot 6 (through the vtable) with
@@ -624,6 +660,144 @@ All pass → true (`reason` untouched).
 - `DemolishFoundationOccupant(occupant, u)` (25): `occupantManager` slot 21 `(occupant, true, false)`.
 - `GetCostOfOccupantDemolition(building, u)` (10): int64 property `0x099AFACD` of the occupant, default 0 (u unused).
   The foundation overload (9) returns 0.
+
+#### 4.9.1 Creating a building occupant: call order, loader and layout *[compat]* (DG5)
+
+The BDS does not create buildings through GZCOM: it calls the class's own pool allocator (`0x00458A60`, `0x5C`
+bytes) and constructor (`0x00458E90`), so the new object's reference count is **0** until the BDS AddRefs it. The
+same class is also registered with GZCOM as class `0xA9BD882D` (factory `0x00458F40`, registered at `0x0046068F`):
+the factory takes a block from the same pool and runs the same constructor, and the GZCOM director then calls
+`QueryInterface(iid)`, which AddRefs. **An object from `CreateInstance(0xA9BD882D, iid)` therefore already carries
+the caller's reference (count 1)**: a creator that AddRefs it again, as the BDS does after `new`, holds two
+references and must release two. One extra AddRef per building gives a building that is never destroyed (one
+reference left after demolition).
+
+Call order of slot 7 (`0x00698DE0`; `occ` = the `cISC4BuildingOccupant` interface at `+0x00` of the object, `o` =
+its `cISC4Occupant` sub-object at `+0x04`):
+
+| Step | Call | Notes |
+|---|---|---|
+| 1 | BDS slot 15 `IsBuildingTypeValid(type)` | false → return null |
+| 2 | BDS slot 5 `LocationIsOKForNewBuilding(type, pos[0], pos[2])` | false → return null |
+| 3 | allocate and construct; `occ.AddRef()` | count 1 |
+| 4 | `occ` slot 5 `SetBuildingType(type)` | stores the type at `+0x38` |
+| 5 | `LoadBuildingOccupantProperties(occ, type)` (`0x00698490`, below) | always true |
+| 6 | `o` slot 10 `GetBoundingBox(min&, max&)` | the local box set by step 5 |
+| 7 | orientation 1 or 3: swap `min.x ↔ min.z` and `max.x ↔ max.z` | |
+| 8 | `occ` slot 8 `SetBoundingBox(min, max)` | |
+| 9 | if `pos[1] < 0`: `pos[1] := lotDeveloper` slot 16 (§4.9) | writes the caller's `pos[1]` |
+| 10 | `o` slot 9 `SetPosition(pos)` | |
+| 11 | `occ` slot 15 `SetOrientation(orientation)` | clamps to 0..3 |
+| 12 | `o` slot 3 `Init()` | |
+| 13 | BDS slot 8 `AddNewBuildingOccupant(occ)` → occupant manager slot 20 `InsertOccupant(o, false)` | |
+| 14 | `occ.Release()` | on every path after step 3 |
+
+**The loader** `0x00698490(occ, type)` returns **true on every path** (pop 8, AL = 1):
+
+1. `o := occ.AsOccupant()`; `x := o.QueryInterface(0x0AC2B5F7)` (`cISCExemplarPropertyHolder`; null if it fails).
+2. If `type = 0`, `type := occ.GetBuildingType()`.
+3. Look `type` up in the catalogue's key map (§4.7.1.2, no insertion). Absent → step 7.
+4. Resource manager slot 3 `GetResource(key, 0xA52160F5, &ex, 0, 0)`. False → step 7.
+5. `x.SetDefaultExemplar(ex)` (holder slot 3). *[quirk]* `x` is not null-checked; for this class it never is null.
+6. `h := o.AsPropertyHolder()` (occupant slot 6); `p := h.GetProperty(0x27812810)` (occupant size). If `p` exists:
+   `occ.SetBoundingBox((0, 0, 0), size)`, where `size` is the property's three float32 values (variant slot 111,
+   the raw value pointer; no type or count check). Release `ex`.
+7. Release `x` if it is not null; return true.
+
+So the property lookup in step 6 goes through the occupant's own holder, which falls back to the default exemplar set
+in step 5 (and the exemplar's cohorts, data-formats §4.4). A type that is valid but whose exemplar fails to load
+gives a building with the constructor's empty box (all zeros) and no default exemplar, and the BDS still inserts it.
+
+**Why `0x0AC2B5F7` works for buildings and not for landfill tiles** (re-answers8 LG27): the building occupant's
+`QueryInterface` (`0x004587D0`) answers `0x87DDA3A9` (`cISC4BuildingOccupant`) itself and passes every other IID to
+the `cSC4Occupant` base (`0x005E89C0`, `this + 4`), which answers `1`, `0x26BB767E`, `0xE4FDA3D4` and passes the
+rest to the property-holder base (`0x005FD310`, object `+0x0C`); that base answers `0x0AC2B5F7` with object
+**`+0x20`** and `0x25216283` with `+0x0C`. All sub-objects reach the same chain, so the QI succeeds from any
+interface of a building. The landfill occupant's `QueryInterface` (`0x00477130`) ends its chain without that last
+base, so for landfill tiles the holder must be reached by offset (layouts.md). (In-game: the devglue2 run created 154
+buildings through QI `0x0AC2B5F7` with no failure.)
+
+**Layout** (the original class; a replacement creating game buildings uses the original class, so these are facts
+about the object it receives):
+
+| Offset | What |
+|---|---|
+| `+0x00` | `cISC4BuildingOccupant` (vtable `0x00A872C0`) |
+| `+0x04` | `cISC4Occupant` (vtable `0x00A87238`); the `cSC4Occupant` base starts here |
+| `+0x08` | vtable `0x00A8721C` (answers `0xE4FDA3D4`) |
+| `+0x0C` | the property holder (vtable `0x00A871B8`); `o.AsPropertyHolder()` returns it |
+| `+0x20` | `cISCExemplarPropertyHolder` (vtable `0x00A871A0`) |
+| `+0x24` | the default exemplar: `SetDefaultExemplar` (holder slot 3, `0x00458E60`) AddRefs the new one, then releases the old; `GetDefaultExemplar` (slot 4) returns it without AddRef |
+| `+0x28` | occupant type `0x278128A0` |
+| `+0x38` | building type (slot 4 / slot 5) |
+| `+0x3C` | box minimum x, y, z (float32 ×3) |
+| `+0x48` | box maximum x, y, z (float32 ×3) |
+| `+0x54` | orientation (uint8, 0..3) |
+
+*[choice]* A replacement that creates a building through GZCOM follows the table above from step 4 with the object
+GZCOM returned, does **not** AddRef it again, and releases it once after step 13. A replacement that loads
+properties itself may treat a failed `GetResource` as the original does (insert the building anyway) or refuse the
+building; FreeCity4 keeps the original's behaviour.
+
+#### 4.9.2 Foundations and retaining walls (slots 23, 26, 29) *[compat]* (DG6)
+
+The growth path never uses these slots, but the **original lot developer and retaining-wall code call them**, so a
+replacement BDS must implement them: returning false means no building ever gets a foundation (lot developer
+§11.1 slots 48–61, "added through BDS slot 23") and no retaining wall is ever created (the wall factory
+`0x005E3122` gives up when slot 29 fails).
+
+**Catalogues.** Exemplars with `ExemplarType` `0x11` go into the **foundation key map** (`0x00B485B8`) and `0x15`
+into the **retaining-wall key map** (`0x00B485CC`) at the static initialisation (§1.3; `0x00698F50`,
+`0x00698FC0`): type = the exemplar's instance → its key, with the same hash map, insert and order rules as the
+building key map (§4.7.1.2). No properties are read at that time. Slots 21/22 and 27/28 read these maps (§4.7.2).
+
+**`LoadFoundationProperties(occ, type)`** (slot 26, `0x006982B0`, pop 8, AL):
+
+1. `o := occ.AsOccupant()`; `h := o.AsPropertyHolder()`; `x := o.QueryInterface(0x0AC2B5F7)` (the foundation's QI,
+   `0x005D6160`, answers `0xC8FCE101` and passes the rest to the same base chain as buildings, §4.9.1, so `x` is
+   object `+0x20`).
+2. If `type = 0`: `type := occ.GetFoundationType()` (slot 4).
+3. `type` not in the foundation key map → **false**. `GetResource(key, 0xA52160F5, &ex, 0, 0)` false → **false**.
+4. `x.SetDefaultExemplar(ex)`; if `h` has property `0x88FCC3E3` (read as float32, variant slot 37):
+   `occ.SetMaxHeight(value)` (slot 7). Release `ex`. **True.**
+5. Every exit releases `x` if it is not null.
+
+**`LoadLotRetainingWallProperties(occ, type)`** (slot 29, `0x006983C0`, pop 8, AL): the same steps 1–3 with the
+wall key map and `occ.GetRetainingWallType()` (slot 11) as the fallback; then `x.SetDefaultExemplar(ex)`, release
+`ex`, **true**. No property is read.
+
+**`AddNewFoundationOccupant(type, usage, float pos[3], sizeX, sizeZ, orientation, base)`** (slot 23, `0x00695AF0`,
+pop 28, AL):
+
+1. Create a foundation occupant with the class's pool allocator and constructor (`0x005D6220` / `0x005D6440`,
+   `0x5C` bytes, count 0) and AddRef it. `occ.SetFoundationType(type)` (slot 5).
+2. `LoadFoundationProperties(occ, type)` through the vtable (slot 26). False → release, return **false**.
+3. Rectangle (float32 stores; `hx := sizeX × 0.5`, `hz := sizeZ × 0.5`):
+   `x0 := pos.x − hx + 0.5`, `z0 := r24(pos.z − hz) + 0.5`, `x1 := r24(pos.x + hx) − 0.5`,
+   `z1 := r24(pos.z + hz) − 0.5`. Cells (`0x00695610`): each value × 0.0625, truncated toward zero; then
+   `x0 := max(x0, 0)`, `z0 := max(z0, 0)`, `x1 := min(x1, cellsX − 1)`, `z1 := min(z1, cellsZ − 1)` (the terrain cell
+   counts cached by `Init`, §1.3 step 5). No other clamp.
+4. If `pos.y < 0` (strictly; NaN does not count): `pos.y := lotDeveloper.GetLowestOrHighestAreaAltitude(cells,
+   false, true)` (slot 17, the integer overload: the **highest** altitude, with water). The caller's array is
+   written.
+5. `b := base` if `base ≥ 0` (NaN counts as ≥ 0), else `b := lotDeveloper` slot 17 `(cells, true, true)` (the
+   **lowest** altitude). `height := pos.y − b`; if `height < 0.5`, `height := 0.5` (NaN stays).
+6. `o.SetPosition(pos)` (occupant slot 9); `occ.SetSize({sizeX, height, sizeZ})` (slot 8);
+   `occ.SetUsage(usage)` (slot 10, stored as a byte); `occ.SetOrientation(orientation)` (slot 12, clamped to 0..3);
+   `o.Init()`.
+7. `ok := AddNewFoundationOccupant(occ)` (slot 24, through the vtable: the occupant manager insert of §4.9).
+   Release once. Return `ok`.
+
+Worked example: a 2 × 3-cell footprint (sizeX 32, sizeZ 48) centred at `pos = (96, −1, 184)` with base −1 on a 64 × 64
+city: `hx = 16`, `hz = 24`; rectangle (80.5, 160.5)–(111.5, 207.5); cells (5, 10)–(6, 12), exactly the footprint's
+2 × 3 cells (the 0.5 insets keep a cell-aligned footprint from reaching its neighbours). `pos.y` becomes the highest
+altitude over those cells, `b` the lowest; with 310 and 304 the size is (32, 6, 48); on flat ground the height is
+the minimum 0.5.
+
+Foundation occupant (type `0x68FD0C69`, IID `0xC8FCE101`) fields used here: foundation type `+0x38`, maximum height
+`+0x3C` (float), size `+0x4C`…`+0x54`, usage `+0x58` (int8; slot 9 sign-extends), orientation `+0x59` (int8).
+*[choice]* A replacement may create the occupant through GZCOM (then without the extra AddRef, §4.9.1), or forward the
+three slots to an original BDS kept alive for the purpose; it must not return false for valid input.
 
 ### 4.10 `DoBuildingChanged(lot, wealth, built)` (`0x0069CA80`)
 
@@ -644,7 +818,9 @@ if built and P.purpose ≠ 0 and P.wealth = wealth:
             release the subject
 ```
 
-*[quirk]* The event is pushed with a **null** subject; the filled subject is discarded. The advisor is not null
+*[quirk]* The event is pushed with a **null** subject; the filled subject is discarded. (DG16) Creating and filling
+the subject has no effect outside it (its references to the lot are dropped with it), so a replacement may skip the
+subject; it must still update `highestStage[t]` and push `0x4A64A9CC` with a null subject. The advisor is not null
 checked. The building map cell value is `4·purpose + wealth + 1`, so residential keys are 6, 7, 8 (residential spec
 §4); it is cleared to 0 when the lot leaves states 2/3.
 
@@ -660,7 +836,9 @@ Nothing for an empty rectangle. Lots = `lotManager.GetLotsInCellRect(rect, false
 - `kind ∈ {1, 2, 3}`: for each lot:
   `d := r24(terrain.GetAltitude(cx, cz) − cy)` with `(cx, cy, cz) := lot.GetCenter()`;
   `A := atan(r24(lotDeveloper.GetLotSlope(lot, false) × r24(1 / CellWidthX)))`,
-  `B := atan(r24(lot.GetSlope() × r24(1 / CellWidthX)))` (each arctangent rounded to float32).
+  `B := atan(r24(lot.GetSlope() × r24(1 / CellWidthX)))` (each arctangent rounded to float32). `GetLotSlope` is lot
+  developer slot 30 (`+0x78`, pop 8, ST0, `0x006987AA`); `lot.GetSlope()` is lot slot 19 (`+0x4C`, ST0,
+  `0x0069879C`) (DG15).
   If `−1 ≤ d ≤ 2` (NaN counts as inside) and `r24(A − B) ≤ 0.08726647` (5°, float32 `0x3DB2B8C3`):
   `UpdateLotElements(lot, kind)`. Otherwise the change is too big: a lot that `IsInDemolishableState()` is queued for
   demolition; any other lot's rectangle is dezoned at once (`zoneManager.PlaceZone(region, zone 0, true,
@@ -835,13 +1013,13 @@ EAX = 32-bit, EDX:EAX = 64-bit, ST0 = x87.
 | 20 | +0x50 | `bool IsBuildingInFamily(uint32 type, uint32 family)` | 8 | AL | | `0x00697FE0` |
 | 21 | +0x54 | `uint32 GetAllFoundationTypes(vector<uint32>&)` | 4 | EAX count | **SDK error**: count, not bool | `0x00698050` |
 | 22 | +0x58 | `bool GetFoundationKeyFromType(uint32, cGZPersistResourceKey&)` | 8 | AL | | `0x00698120` |
-| 23 | +0x5C | `bool AddNewFoundationOccupant(uint32, int32, f32*, f32, f32, int32, f32)` | 28 | AL | foundation placement (not used by growth) | `0x00695AF0` |
+| 23 | +0x5C | `bool AddNewFoundationOccupant(uint32 type, int32 usage, f32* pos, f32 sizeX, f32 sizeZ, int32 orientation, f32 base)` | 28 | AL | §4.9.2 (called by the lot developer) | `0x00695AF0` |
 | 24 | +0x60 | `bool AddNewFoundationOccupant(cISC4FoundationOccupant*)` | 4 | AL | §4.9 (same body as 8) | `0x00695740` |
 | 25 | +0x64 | `bool DemolishFoundationOccupant(cISC4FoundationOccupant*, uint32)` | 8 | AL (via call) | §4.9 | `0x00695770` |
-| 26 | +0x68 | `bool LoadFoundationProperties(cISC4FoundationOccupant*, uint32)` | 8 | AL | | `0x006982B0` |
+| 26 | +0x68 | `bool LoadFoundationProperties(cISC4FoundationOccupant*, uint32)` | 8 | AL | §4.9.2 | `0x006982B0` |
 | 27 | +0x6C | `uint32 GetAllLotRetainingWallTypes(vector<uint32>&)` | 4 | EAX count | **SDK error**: count, not bool | `0x00698180` |
 | 28 | +0x70 | `bool GetLotRetainingWallKeyFromType(uint32, cGZPersistResourceKey&)` | 8 | AL | | `0x00698250` |
-| 29 | +0x74 | `bool LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant*, uint32)` | 8 | AL | | `0x006983C0` |
+| 29 | +0x74 | `bool LoadLotRetainingWallProperties(cISC4LotRetainingWallOccupant*, uint32)` | 8 | AL | §4.9.2 (called by the retaining-wall code) | `0x006983C0` |
 | 30 | +0x78 | `DeveloperType GetDeveloperType(PurposeType, WealthType)` | 8 | EAX | §4.7.3 | `0x00698D60` |
 | 31 | +0x7C | `WealthType GetWealth(DeveloperType)` | 4 | EAX | §4.7.3 | `0x00698D80` |
 | 32 | +0x80 | `cISC4GrowthDeveloper* GetDeveloper(DeveloperType)` | 4 | EAX | map lookup, null if absent, **no AddRef** | `0x00696C80` |

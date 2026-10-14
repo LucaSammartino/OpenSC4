@@ -94,10 +94,11 @@ constexpr uint32_t kOccupantTypeBaseTexture = 0x497F6D9D;
 /// RemoveOccupant's `msgData` of §4.8.3 `(occupant, 1, 3)`.
 constexpr uint32_t kRemoveMsgData = 3;
 
-// Landfill tiles (§4.8.1 step 3, LG3): the class, its exemplar holder and
-// the tile exemplars' type and group (the instance is the tile ID).
+// Landfill tiles (§4.8.1 step 3, LG3): the class and the tile exemplars'
+// type and group (the instance is the tile ID). The exemplar holder is not
+// reached by QueryInterface: no interface of the tile answers 0x0AC2B5F7
+// (LG27; InsertLandfillTile).
 constexpr uint32_t kCLSID_cSC4LandfillOccupant = 0x8A22BEBE;
-constexpr uint32_t kIID_cISCExemplarPropertyHolder = 0x0AC2B5F7;
 constexpr uint32_t kTileExemplarType = 0x6534284A;
 constexpr uint32_t kTileExemplarGroup = 0x07BDDF1C;
 constexpr uint32_t kTileFlag = 4;          // SetFlag(4)
@@ -899,37 +900,52 @@ void RemoveBaseTexture(void* u, int32_t x, int32_t z) {
     }
 }
 
-// §4.8.1 step 3 (LG3), the [choice] route through public interfaces: load the
-// tile exemplar (0x6534284A, 0x07BDDF1C, tile); CreateInstance(0x8A22BEBE,
-// 0x2A15F262); SetDefaultExemplar(ex) on its cISCExemplarPropertyHolder
-// (0x0AC2B5F7, slot 3, result not defined); SetTileID(tile) (slot 6, now
+// §4.8.1 step 3 (LG3, LG27-LG29), the [choice] route from outside the class,
+// in the original's order: load the tile exemplar (0x6534284A, 0x07BDDF1C,
+// tile); CreateInstance(0x8A22BEBE, 0x2A15F262) (the default constructor: tile
+// 0x02F10000, orientation 0, and, like the tile constructor, type 0x6A11BD2B
+// and flag 4, LG28); SetDefaultExemplar(ex) (slot 3, result not defined) on
+// the tile's cISCExemplarPropertyHolder; SetTileID(tile) (slot 6, now
 // harmless: the key already has that instance; the previous ID it returns is
-// ignored); SetOrientation (slot 8); SetFlag(4), SetRemovalFlags(2),
-// SetPosition; Init; InsertOccupant(occ, 0) (slot 20) while this function
-// still holds its reference (the quirk of step 7 is not reproduced); release.
-// The core set the cell's active-landfill flag already. Returns the
-// occupant's token (the occupant manager holds it), 0 when none was made: a
-// missing exemplar (the original crashes) or class, no exemplar holder, or a
-// refused insert. The cell (x, z) only goes into the log lines: the position
-// places the occupant.
+// ignored); SetOrientation (slot 8); SetFlag(4) (a no-op after the
+// constructor, LG28), SetRemovalFlags(2), SetPosition; Init; InsertOccupant(occ,
+// 0) (slot 20) while this function still holds its reference (the quirk of
+// step 7 is not reproduced); release. The core set the cell's active-landfill
+// flag already. Returns the occupant's token (the occupant manager holds it),
+// 0 when none was made: a missing exemplar (the original crashes) or class, a
+// tile whose layout is not the documented one, or a refused insert. The cell
+// (x, z) only goes into the log lines: the position places the occupant.
 //
-// The exemplar holder: QI 0x0AC2B5F7 on the occupant, the spec's route
-// (§4.8.1 [choice]). [choice] When the occupant does not answer it, the same
-// QI on its property holder (occupant slot 6): the spec places the holder in
-// the occupant (the sub-object at +0x20, step 3) but does not say which of
-// the object's QueryInterfaces answer 0x0AC2B5F7; spec question (r6b: 12
-// tiles failed without saying at which step). Without a holder nothing more
-// is called: SetTileID dereferences a missing exemplar (§4.8.1).
+// The exemplar holder (LG27, landfill §4.8.1 "The tile's interfaces",
+// docs/abi/layouts.md "Landfill tile occupant"): no QueryInterface of the tile
+// answers 0x0AC2B5F7 (runs 100 and 103: every tile failed there), so the
+// holder is reached by its place, as the original calls it (directly on the
+// object it constructed): the sub-object at cISC4LandfillOccupant* + 0x20 =
+// AsPropertyHolder() + 0x14 = cISC4Occupant* + 0x1C (the cSC4Occupant base
+// fixes it). [choice] (the spec's: this route, not the layout-free Read
+// route) The layout is checked first through the two interface calls that
+// return sub-objects of the same object: AsOccupant() (slot 5) must be +0x04
+// and AsPropertyHolder() (occupant slot 6) +0x0C; otherwise nothing more is
+// called (SetTileID dereferences a missing exemplar, §4.8.1) and the tile is
+// kept in FreeCity4. After SetDefaultExemplar, GetDefaultExemplar (holder slot
+// 4, no AddRef) must return the exemplar.
 //
-// Diagnostics (r6b): the first kTileFailuresLogged failures are logged in
-// full, each with the step that failed and what every step before it
-// returned or read back (the tile cost through the property holder after
-// SetDefaultExemplar, the type, the flags, Init and IsInitialized, the
-// bounding box, InsertOccupant and flag 1); the first success too. Later
-// failures are counted only (tilesFailed).
+// Diagnostics: the first kTileFailuresLogged failures are logged in full, each
+// with the step that failed and what every step before it returned or read
+// back; the first success too. Later failures are counted only (tilesFailed).
+// A refused insert names the LG29 case: InsertOccupant (slot 20) returns false
+// only for (1) a null occupant, (2) flag 1 already set before the insert, (3)
+// a null AsPropertyHolder() after its Init, or (4) an occupant already listed
+// in the first cell it would be listed in; never for the type, the initialised
+// state or the box (LG29), which are logged for information only.
 constexpr uint32_t kTileFailuresLogged = 4;
 constexpr uint32_t kOccupantTypeLandfill = 0x6A11BD2B;
 constexpr uint32_t kTileCostProperty = 0xEA54D286;
+// LG27 (layouts.md): the sub-objects of a cSC4LandfillOccupant, from the
+// cISC4LandfillOccupant interface at the object's start.
+constexpr ptrdiff_t kTileOccupantOffset = 0x04;        // cISC4Occupant
+constexpr ptrdiff_t kTilePropertyHolderOffset = 0x0C;  // cISCPropertyHolder (AsPropertyHolder)
+constexpr ptrdiff_t kTileExemplarHolderOffset = 0x20;  // cISCExemplarPropertyHolder
 uint32_t g_tileFailuresLogged = 0;
 bool g_noteTileMade = false;
 
@@ -940,47 +956,66 @@ struct TileTrace {
     const char* failed = nullptr;  // the step that failed; nullptr: made
     bool exemplar = false, created = false, occupant = false;
     const char* holder = "not reached";
-    bool attached = false;  // SetDefaultExemplar called
+    ptrdiff_t occOffset = 0, holderOffset = 0;  // AsOccupant / AsPropertyHolder from the object start
+    bool attached = false;      // SetDefaultExemplar called
+    bool exemplarBack = false;  // GetDefaultExemplar returned it
     bool costVisible = false;
     uint32_t type = 0, flags = 0;
     bool init = false, initialized = false;
     cS3DVector3 boxMin, boxMax;
+    bool flag1Before = false, propertyHolderAfter = false;  // the LG29 conditions just before the insert
     bool insertTried = false, inserted = false, flag1 = false;
+    const char* lg29 = "";  // the LG29 case of a refused insert
+    uint32_t listedAtCell = 0;   // landfill occupants listed at (x, z) after a refused insert
+    bool selfListedAtCell = false;
 };
 
 void LogTileTrace(const TileTrace& t, uint32_t failures) {
     const char* yes = "yes";
     const char* no = "no";
     char box[160] = "not reached";
-    char after[480] = "";
+    char after[640] = "";
     if (t.attached) {
         std::snprintf(box, sizeof(box), "(%.2f, %.2f, %.2f)-(%.2f, %.2f, %.2f)", t.boxMin.fX, t.boxMin.fY,
                       t.boxMin.fZ, t.boxMax.fX, t.boxMax.fY, t.boxMax.fZ);
         std::snprintf(after, sizeof(after),
-                      "; tile cost 0x%08X through the property holder after SetDefaultExemplar: %s; type 0x%08X "
-                      "(0x%08X expected); flags before Init 0x%X; Init %s, IsInitialized %s; bounding box %s; "
-                      "InsertOccupant %s; flag 1 %s",
-                      kTileCostProperty, t.costVisible ? "found" : "absent", t.type, kOccupantTypeLandfill, t.flags,
-                      t.init ? "true" : "false", t.initialized ? yes : no, box,
-                      t.insertTried ? (t.inserted ? "true" : "false") : "not reached", t.flag1 ? "set" : "clear");
+                      "; GetDefaultExemplar %s; tile cost 0x%08X through the property holder: %s; type 0x%08X "
+                      "(LG28: 0x%08X); flags before Init 0x%X; Init %s, IsInitialized %s; bounding box %s; before "
+                      "the insert (LG29): flag 1 %s, AsPropertyHolder %s; InsertOccupant %s%s; flag 1 %s",
+                      t.exemplarBack ? "returns it" : "does NOT return it", kTileCostProperty,
+                      t.costVisible ? "found" : "absent", t.type, kOccupantTypeLandfill, t.flags,
+                      t.init ? "true" : "false", t.initialized ? yes : no, box, t.flag1Before ? "SET" : "clear",
+                      t.propertyHolderAfter ? "non-null" : "NULL",
+                      t.insertTried ? (t.inserted ? "true" : "false") : "not reached", t.lg29,
+                      t.flag1 ? "set" : "clear");
+        if (t.insertTried && !t.inserted) {
+            const size_t len = std::strlen(after);
+            std::snprintf(after + len, sizeof(after) - len,
+                          "; afterwards %u landfill occupant(s) listed at cell (%d, %d), this one %s",
+                          t.listedAtCell, t.x, t.z, t.selfListedAtCell ? "among them" : "not among them");
+        }
     }
     if (t.failed == nullptr) {
         fc4::Log("landfill: game tile made (first one; the next are counted in tilesInserted): tile 0x%08X "
-                 "orientation %d at cell (%d, %d), position (%.2f, %.2f, %.2f); exemplar holder by %s%s",
+                 "orientation %d at cell (%d, %d), position (%.2f, %.2f, %.2f); exemplar holder %s%s",
                  t.tile, t.orientation, t.x, t.z, t.pos[0], t.pos[1], t.pos[2], t.holder, after);
         return;
     }
     fc4::Log("landfill: WARNING game tile failure %u: tile 0x%08X orientation %d at cell (%d, %d), position "
              "(%.2f, %.2f, %.2f) not made: %s. Steps: exemplar (0x%08X, 0x%08X, 0x%08X) %s; GZCOM "
-             "GetClassObject(0x%08X, 0x%08X) %s; AsOccupant %s; exemplar holder (QI 0x%08X) %s%s. The tile is kept "
-             "in FreeCity4%s",
+             "GetClassObject(0x%08X, 0x%08X) %s; AsOccupant %s (object +0x%X), AsPropertyHolder object +0x%X; "
+             "exemplar holder %s%s. The tile is kept in FreeCity4%s",
              failures, t.tile, t.orientation, t.x, t.z, t.pos[0], t.pos[1], t.pos[2], t.failed, kTileExemplarType,
              kTileExemplarGroup, t.tile, t.exemplar ? "found" : "not found",
              kCLSID_cSC4LandfillOccupant, kIID_cISC4LandfillOccupant,
              t.exemplar ? (t.created ? "made one" : "failed") : "not reached",
-             t.created ? (t.occupant ? "ok" : "null") : "not reached", kIID_cISCExemplarPropertyHolder, t.holder,
-             after,
+             t.created ? (t.occupant ? "ok" : "null") : "not reached", static_cast<unsigned>(t.occOffset),
+             static_cast<unsigned>(t.holderOffset), t.holder, after,
              failures == kTileFailuresLogged ? "; later failures are counted only (tilesFailed)" : "");
+}
+
+ptrdiff_t OffsetFrom(const void* base, const void* p) {
+    return p == nullptr ? -1 : static_cast<const char*>(p) - static_cast<const char*>(base);
 }
 
 uint64_t InsertLandfillTile(void* u, int32_t x, int32_t z, uint32_t tile, int32_t orientation, const float* xyz) {
@@ -1020,18 +1055,22 @@ uint64_t InsertLandfillTile(void* u, int32_t x, int32_t z, uint32_t tile, int32_
         if (occ == nullptr) {
             tr.failed = "AsOccupant (slot 5) returned null";
         } else {
-            holder = Query<cISCExemplarPropertyHolder>(t, kIID_cISCExemplarPropertyHolder);
-            tr.holder = "QI on the occupant";
-            if (holder == nullptr) {
-                holder = Query<cISCExemplarPropertyHolder>(occ->AsPropertyHolder(), kIID_cISCExemplarPropertyHolder);
-                tr.holder = holder ? "QI on its property holder (the occupant did not answer)"
-                                   : "neither the occupant nor its property holder answers the QI";
+            // LG27: the holder by its place, after the layout check.
+            tr.occOffset = OffsetFrom(t, occ);
+            tr.holderOffset = OffsetFrom(t, occ->AsPropertyHolder());  // occupant slot 6
+            if (tr.occOffset == kTileOccupantOffset && tr.holderOffset == kTilePropertyHolderOffset) {
+                holder = reinterpret_cast<cISCExemplarPropertyHolder*>(reinterpret_cast<char*>(t) +
+                                                                       kTileExemplarHolderOffset);
+                tr.holder = "at the occupant + 0x20 (LG27, called directly as the original does)";
+            } else {
+                tr.holder = "not used: the tile's layout is not the documented one (LG27)";
+                tr.failed = "the tile's sub-objects are not where layouts.md puts them";
             }
-            if (holder == nullptr) tr.failed = "no exemplar holder";
         }
         if (holder != nullptr) {
             holder->SetDefaultExemplar(ex.Resource());  // slot 3: takes its own reference
             tr.attached = true;
+            tr.exemplarBack = holder->GetDefaultExemplar() == ex.Resource();  // slot 4, no AddRef
             tr.costVisible = fc4::props::Has(occ->AsPropertyHolder(), kTileCostProperty);
             t->SetTileID(tile);              // slot 6
             t->SetOrientation(orientation);  // slot 8
@@ -1044,16 +1083,27 @@ uint64_t InsertLandfillTile(void* u, int32_t x, int32_t z, uint32_t tile, int32_
             tr.init = t->Init();                          // slot 3
             tr.initialized = occ->IsInitialized();        // slot 5
             occ->GetBoundingBox(&tr.boxMin, &tr.boxMax);  // slot 10: the box InsertOccupant lists
+            tr.flag1Before = occ->IsFlagSet(kOccupantFlagInserted);
+            tr.propertyHolderAfter = occ->AsPropertyHolder() != nullptr;
             tr.insertTried = true;
             tr.inserted = om->InsertOccupant(occ, 0);  // slot 20
             tr.flag1 = occ->IsFlagSet(kOccupantFlagInserted);
             if (tr.inserted) {
                 token = TokenOf(occ);
             } else {
+                // LG29: the case, in the insert's own order.
                 tr.failed = "InsertOccupant (slot 20) returned false";
+                tr.lg29 = tr.flag1Before ? " (LG29 case 2: flag 1 was already set)"
+                          : !tr.propertyHolderAfter
+                              ? " (LG29 case 3: AsPropertyHolder returned null)"
+                              : " (LG29 case 4 by elimination: already listed in its first cell)";
+                for (cISC4Occupant* o : *OccupantsInCell(u, om, x, z, kOccupantTypeLandfill)) {
+                    if (o == nullptr) continue;
+                    ++tr.listedAtCell;
+                    tr.selfListedAtCell = tr.selfListedAtCell || o == occ;
+                }
             }
         }
-        Drop(holder);
     }
     if (token != 0) {
         ++c->tilesInserted;

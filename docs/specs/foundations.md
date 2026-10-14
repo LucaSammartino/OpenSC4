@@ -1618,6 +1618,30 @@ Concretely, month-level (level 6) agents are ordered by:
 - **Registration order for everything else**, i.e. the first 18 agents, whose relative order is genuinely unknown
   (§15 questions 5 and 7).
 
+**Agent names of the tail** (AO1; the names the originals pass to `AddAgent`, so a rank can be keyed by name):
+
+| Tail agent | `AddAgent` name | Levels registered (in order), flags | Evidence |
+|---|---|---|---|
+| landfill developer | `"cSC4LandfillDeveloper"` | 6; 2 | landfill §1.1 |
+| airport developer **and** seaport developer | `"cSC4PortDeveloper"` (**the same name for both**) | 6; 2 | shared base `cSC4PortDeveloper::Init` `0x006EA950` (string `0x00A89650`, level push `0x006EA989`), called by both derived `Init`s |
+| neighbours | `"cSC4NeighborsSimulator"` | 6, 4, 10; 2 | neighbors §14.1 |
+| ordinance | `"cSC4OrdinanceSimulator"` | 6; 2 | ordinance §8.1 |
+| commercial | `"cSC4CommercialSimulator"` | 0, 10, 4, 6; 2 | `Init` `0x0069EF90` (string `0x00A89920`, calls `0x0069EFDC`–`0x0069F00F`) |
+| land value | `"cSC4LandValueSimulator"` | 0, 10, 4, 6; 2 | landvalue §4.1 |
+
+Because both port developers share one name, a name-keyed rank gives them the same rank; their order between
+themselves is free (*[choice]*: registration order). `GetAgentEnabled` / `SetAgentEnabled("cSC4PortDeveloper")`
+(simulator §4) likewise act on both.
+
+**With the original simulator** (AO2) the order stays ascending target-pointer order (§13.1) and nothing in the
+original can re-rank it. A glue object registered there gets the rank of whatever address it has. The observed
+placement of the original landfill developer (after pollution and budget, before neighbours and ordinance, in all
+logged sessions) comes from where the game's own heap put it; a glue target allocated elsewhere (the plug-in's CRT
+heap) can land anywhere. No original behaviour fixes this, so logging the order at `AddAgent` with a warning when
+the derived requirement fails is the right minimum. *[choice]* A glue that wants the original's placement passes as
+its month target a small forwarding object allocated from the game's own heap at the point in city `Init` where the
+original object is created (§3.7), which reproduces the original's distribution but still not a guarantee.
+
 That placement satisfies all three derived requirements at once: pollution and budget are both in the first 18, so
 they precede the landfill developer; the landfill developer precedes neighbours and ordinance because all three are
 in the fixed tail in that order; and budget precedes ordinance and neighbours for the same reason (§13.3).

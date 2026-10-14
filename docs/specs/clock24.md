@@ -123,8 +123,8 @@ minute(s)  = (s − hour(s) × 3600) / 60
 second(s)  = s − (hour(s) × 60 + minute(s)) × 60
 GetHour / GetMinute / GetSeconds                  use seconds
 GetVisualHour / GetVisualMinute / GetVisualSeconds use visualSeconds
-GetTimePercentage(out)       *out := f32(seconds)       × 1.1574074e-05f   (0x37C22E45; seconds as unsigned)
-GetVisualTimePercentage(out) *out := f32(visualSeconds) × 1.1574074e-05f
+GetTimePercentage(out)       *out := f32(seconds × 1.1574074e-05f)   (0x37422E45 = f32(1/86400); seconds unsigned)
+GetVisualTimePercentage(out) *out := f32(visualSeconds × 1.1574074e-05f)
 isNightHour(h) = ((h − nightStart + 24) mod 24) < ((nightEnd − nightStart + 24) mod 24)
 IsNight()      = isNightHour(GetVisualHour())
 GetEventHour(i) = nightStart if i = 0, nightEnd if i = 1, else 0
@@ -133,13 +133,25 @@ GetEventHour(i) = nightStart if i = 0, nightEnd if i = 1, else 0
 With the shipped hours (night 20 → 1) the night hours are 20, 21, 22, 23 and 0, and the day hours are 1 to 19. With
 the constructor's hours (20 → 4) the night hours are 20 to 3. If `nightStart = nightEnd` no hour is night.
 
+**The percentage factor** (CK7). The constant at `0x00A86508` is the float `0x37422E45` = 1.1574074e-05 =
+f32(1/86400), shared by both getters (`0x00445420`, `0x00445450`); an earlier version of this table gave its bit
+pattern as `0x37C22E45` (1/43200), which was a typo. The getter loads the u32 with the unsigned-to-float idiom (an
+exact integer load, plus 2^32 when the top bit is set; `seconds` is always below 86,400, so the correction never
+fires), multiplies once by the float constant under the session's precision and stores a float. The value is
+therefore the product rounded once to float. Examples: noon (43,200) gives exactly **0.5** (`0x3F000000`); 06:00
+gives 0.25; 18:00 gives 0.75; 23:59:59 (86,399) gives 0.99998844 (`0x3F7FFF3E`); one second gives the constant
+itself.
+
 ### 4.2 `Init()` and `Shutdown()`
 
 `Init`: if `initialized`, return true. Otherwise:
 
 1. Add the system service to the framework (`AddSystemService`), then add it to the on-idle list (`AddToOnIdle`).
-2. If the cheat code manager exists, register the two cheats and subscribe to them (§3.2).
-3. If `pauseCount = 0` and `hiddenPauseCount = 0`, start the timer.
+2. If the cheat code manager exists, handle the cheats one at a time (CK12): register `WhatTimeIzIt`
+   (`RegisterCheatCode`, manager slot 3), subscribe the message target to it (manager slot 7, with the cheat ID),
+   then register `Stopwatch` and subscribe to it. Without a manager, skip both.
+3. If `pauseCount = 0` and `hiddenPauseCount = 0` (both **exactly** 0), start the timer. A negative saved count
+   leaves the timer stopped (§4.7, CK14).
 4. Read the tuning (§6).
 5. Set `initialized` and return true.
 
@@ -151,7 +163,9 @@ magnification and night hours. Only `pauseCount`, `maxMagnification` and `second
 
 1. Reset the timer (stopped, elapsed 0) and set `seconds := 0`.
 2. Handle the dead object at `+0x8C` (§2).
-3. Unregister both cheats (for each, remove the notification and then the cheat code).
+3. Only if the cheat code manager exists (CK13): for `WhatTimeIzIt` and then `Stopwatch`, remove the notification
+   (manager slot 8, target and cheat ID), then unregister the cheat code (manager slot 4). Without a manager,
+   nothing is unregistered and nothing is logged.
 4. Remove the clock from the on-idle list, then remove the system service.
 5. Clear `initialized` and return true.
 
@@ -175,21 +189,47 @@ timer.Restart()                                           elapsed := 0, running
 return true
 ```
 
-- The constant is the float `0x358637BD` (9.99999997e-07). The two products are rounded to float. Under the session's
-  24-bit x87 precision (foundations §18), `float32` arithmetic reproduces them.
-- `trunc` truncates toward zero.
+- The constant is the float `0x358637BD` (9.99999997e-07, at `0x00A86510`). The two products are rounded to float.
+  Under the session's 24-bit x87 precision (foundations §18), `float32` arithmetic reproduces them. There is no
+  float store between them: each multiplication is rounded by the precision control alone (`0x0044584F` …
+  `0x00445864`).
+- **Converting `e`** (CK9). `e` is loaded exactly as an integer; when its top bit is set (e ≥ 2^31, a timer that ran
+  for more than about 36 minutes at unit 3 without a step) 2^32 is added, which rounds `e` to float at 24-bit
+  precision. So `f32(e × magnification)` is the product of the **exact** `e` and the magnification, rounded once,
+  for every `e` below 2^31, and the product of `f32(e)` above. Since every product above 1200 is clamped, the
+  difference cannot change a step.
+- **`trunc` and the step's type** (CK8). The truncation is the C runtime's `_ftol` (`0x009EEF04`, foundations §18.1):
+  toward zero, to a 64-bit integer, of which the clock keeps the low 32 bits as an **unsigned** step. Both tests
+  (`≤ 60` at `0x0044586B`, `> 1200` at `0x00445874`) are unsigned comparisons. Consequences, all reachable only
+  with a negative or NaN magnification (a negative minimum through `SetTimeMagnificationMinMax`, or a NaN passed to
+  `SetTimeMagnification`, §4.6):
+  - a product of −1 or less wraps to a step of 2^32 − n, which is above 1200, so the clock advances by 1200;
+  - a product between −1 and 0 truncates to 0: no step;
+  - a NaN product, or one of 2^63 or more, gives 0: no step, ever, while the magnification stays NaN.
 - Until more than 60 game seconds have built up, the timer is **not** restarted, so short idle passes add up.
 - Each step discards the fraction of a game second left after truncation: less than 1 of at least 61, so the day
   runs up to about 1.6 % slower than the magnification says *[quirk]* (CK5). The time between crossing the threshold
   and the idle pass that notices it is not lost; it is part of `e`.
 - A long stall (more than 1200 / magnification real seconds) advances the clock by **at most 20 game minutes**.
 
-**Timer model.** `Start` starts the timer if it is stopped and keeps the elapsed time it already has. `Stop` adds the
-running interval to the elapsed time. `Restart` sets the elapsed time to 0 and keeps the timer running. `Reset`
-stops it and sets it to 0. `GetElapsedTime` is the elapsed time plus the current running interval, converted to the
-unit and truncated to 32 bits. The original subtracts a calibrated call overhead per interval, and counts at least
-one tick. *[choice]* FreeCity4 may use any monotonic clock with microsecond resolution and skip the overhead
-correction (CK2).
+**Timer model.** The timer (`cRZTimer`, `0x008905C4` `Start`, `0x008905F0` `Stop`, `0x0089058F` `Restart`,
+`0x0088FF0A` `Reset`, `0x00890198` `GetElapsedTime`) holds an accumulated elapsed time and a start tick; it is
+**running** exactly when the start tick is non-zero.
+
+- `Start` keeps the accumulated time and sets the start tick to now. It does not test whether the timer already
+  runs: on a running timer it drops the interval since the last start. The clock never calls it on a running timer
+  (§4.2 step 3 and §4.7 start it only after a stop, or on a fresh timer), so *[choice]* FreeCity4 may treat `Start`
+  on a running timer as doing nothing.
+- `Stop` adds the running interval to the accumulated time and clears the start tick; on a stopped timer it does
+  nothing.
+- `Restart` sets the accumulated time to 0 and the start tick to now, **whether or not the timer was running**: on
+  a stopped timer it starts it (CK15). `OnIdle` calls it only after a step, when the timer is running.
+- `Reset` stops it and sets it to 0.
+- `GetElapsedTime` is the accumulated time plus, when running, the current interval, converted to the unit and
+  truncated to 32 bits. A stopped timer reports its accumulated time unchanged (0 for a timer that never ran).
+
+The original subtracts a calibrated call overhead per interval, and counts at least one tick per interval.
+*[choice]* FreeCity4 may use any monotonic clock with microsecond resolution and skip the overhead correction (CK2).
 
 ### 4.4 `ChangeVisualTime(v)` (`0x00445680`)
 
@@ -252,6 +292,29 @@ All four return true. The timer runs only while both counters are 0. A pause kee
 after a resume can come early. The game uses only the **hidden** pause (§9). The visible pause is reached only
 through the Stopwatch cheat.
 
+**Signed counters and exact tests** (CK14). Both counters are signed 32-bit. The tests are of three kinds, and the
+difference matters only for a negative count, which can come only from a save (`pauseCount` is saved as an `s32`
+with no range check; `hiddenPauseCount` is not saved):
+
+| Test | Where | Kind |
+|---|---|---|
+| `OnIdle` returns early | §4.3 | the count is **> 0** (signed) |
+| `IsPaused` / `IsHiddenPaused` | §8 slots 25, 27 | **> 0** (signed) |
+| `Pause(false)` / `HiddenPause(false)` decrements | above | only when the count is **> 0** |
+| `Pause(true)` / `HiddenPause(true)` stops the timer and posts | above | the count, after `+1`, is **exactly 1** |
+| stop or start the timer "if the other counter is 0" | above | the other counter is **exactly 0** |
+| `Init` starts the timer | §4.2 step 3 | both counters are **exactly 0** |
+
+So a saved `pauseCount = −1` gives: `IsPaused` false, `Pause(false)` does nothing, `OnIdle` does not return early,
+but `Init` **does not start the timer**. A stopped timer that never ran reports 0 (§4.3), so every `OnIdle` sees a
+step of 0 and the **clock stays frozen** at the saved time, and in mode 0 the visual time stays at noon (§4.9). No
+hidden pause cycle restarts it either, because `HiddenPause(false)` starts the timer only when `pauseCount` is
+exactly 0. The clock resumes only after `Stopwatch pause` (−1 → 0, no message, the timer still stopped) followed by
+either a hidden pause cycle (any popup or game pause: `HiddenPause(true)` then `(false)` starts the timer) or
+`Stopwatch pause` and `Stopwatch resume` (0 → 1 posts PauseChanged (1, 0), 1 → 0 starts the timer and posts
+PauseChanged (0, 0)). Any other negative count behaves the same, with one more `Stopwatch pause` per unit. The
+corpus has no such save (§7).
+
 ### 4.8 Cheats (`DoMessage`, message `0x230E27AC`)
 
 The cheat message's `data1` is the cheat ID and `void2` is the typed text (a string object). The text is split into
@@ -264,6 +327,33 @@ arguments with the framework's command-line parser; `argv[0]` is the cheat name.
 
 `atol` stops at the first non-digit and returns 0 for no digits: `WhatTimeIzIt abc` sets the hour to 0, and
 `Stopwatch magnify 0.5` gives 0, which is clamped to 0.05.
+
+**Splitting the text** (CK11; the framework's command-line object, `0x00914E14` → `0x00914C70`):
+
+1. The separators are exactly **space, tab and newline** (`\r` and other characters are ordinary).
+2. Separators at the start and the end of the text are removed. An empty result gives no arguments at all.
+3. The text is scanned left to right with a count of `"` characters seen since the current argument began. A
+   separator ends the argument only when that count is **even**; the count then restarts at 0, and any further
+   separators that follow are skipped (a run of separators is one break). A separator inside an odd number of
+   quotes is part of the argument.
+4. The text after the last break is the last argument.
+5. Each argument that both **starts and ends** with `"` loses its last character and then, if it is not empty, its
+   first. No other quote is removed: `a"b c"d` is the one argument `a"b c"d`, `"x y"` is `x y`, `""` is an empty
+   argument, a lone `"` becomes an empty argument, and `"abc` (no closing quote) keeps its quote and runs to the
+   end of the text.
+
+`argv[0]` is the cheat name as typed; only the argument count and `argv[1]`, `argv[2]` are used.
+
+**`atol`** (CK10; the C runtime's, `0x009EF7C2`): skip leading white space (the C locale's `isspace`), then one
+optional `+` or `-`, then accumulate decimal digits as `total := total × 10 + digit` in **32-bit arithmetic that
+wraps** (no overflow check), stop at the first non-digit, and negate the total for `-`. So `4294967296` gives 0,
+`3000000000` gives −1,294,967,296 and `-1` gives −1. The two uses:
+
+- `WhatTimeIzIt`: the result goes to `SetHour` as a u32, so `WhatTimeIzIt -1` is `SetHour(4294967295)`, which is
+  reduced mod 24 to **15** (§4.6).
+- `Stopwatch magnify`: the result is converted as a **signed** 32-bit integer to float (exact load, then a float
+  store: rounded to nearest float), then passed to `SetTimeMagnification`. A negative or wrapped-negative value is
+  clamped to the minimum (0.05); `magnify 16777217` gives 16777216.0, clamped to 2000.
 
 ### 4.9 Worked examples
 
@@ -445,7 +535,9 @@ developer.
 
 ## 11. Open questions
 
-See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (CK1–CK6).
+See QUESTIONS.md, section "From the commercial, industrial, civic, park, history and clock specs" (CK1–CK6). CK7–CK15
+(section "From the history warehouse and 24-hour clock cores") are answered in §4.1 (CK7), §4.2 (CK12, CK13), §4.3
+(CK8, CK9, CK15), §4.7 (CK14) and §4.8 (CK10, CK11).
 
 ## 12. Conformance tests (must exist in `engine/conformance`)
 
@@ -505,3 +597,23 @@ Use a fake timer whose elapsed microseconds the test sets.
     - all 421 corpus records read, and rewriting them gives version 2 with the same values.
 13. **Load order**: a save with magnification 50, max 1500 and night 22 / 5, loaded with the shipped exemplar, ends with
     magnification 135.0, max 1500 and night 20 / 1. `visualSeconds` stays 43,200 until the first step.
+14. **Percentage** (CK7): `GetTimePercentage` writes `0x3F000000` (0.5) at 43,200, 0.25 at 21,600 and `0x3F7FFF3E`
+    at 86,399; the factor's bits are `0x37422E45`.
+15. **Step conversion** (CK8, CK9): with min −10 and magnification −5 (set through `SetTimeMagnificationMinMax(−10,
+    2000)` then `SetTimeMagnification(−5)`), `e = 1,000,000` adds 1200; with magnification −0.5, `e = 1,000,000`
+    changes nothing; with a NaN magnification no `e` ever steps; `e = 0x80000000` with magnification 135 adds 1200.
+16. **Negative pause count** (CK14): a save with `pauseCount = −1` loads with `IsPaused` false, and after `Init` no
+    `e` steps the clock (the timer was never started); `Pause(false)` does nothing; `HiddenPause(true)` then
+    `(false)` still steps nothing; `Pause(true)` (count 0, no message), then `HiddenPause(true)`, `(false)` starts
+    the timer and the next large enough `e` steps.
+17. **Timer** (CK15): `Restart` on a stopped timer leaves it running with elapsed 0; `Stop` on a stopped timer
+    changes nothing.
+18. **Cheat parsing** (CK10, CK11):
+    - `  Stopwatch   pause  ` pauses (leading, trailing and repeated blanks);
+    - `Stopwatch "pause"` pauses (outer quotes removed); `Stopwatch "pa use"` does nothing (`pa use`);
+      `Stopwatch pa"use` does nothing;
+    - `WhatTimeIzIt -1` sets 15:00; `WhatTimeIzIt 4294967303` (wraps to 7) sets 07:00;
+    - `Stopwatch magnify 3000000000` (wraps negative) gives 0.05.
+19. **Cheat registration** (CK12, CK13): `Init` with a manager calls register `0x281F7858`, subscribe `0x281F7858`,
+    register `0xC9B73FBB`, subscribe `0xC9B73FBB`, in that order; `Shutdown` calls remove-notification then
+    unregister for each, in the same cheat order; without a manager neither happens.

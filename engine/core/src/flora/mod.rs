@@ -117,11 +117,11 @@
 //!   of the list it clears; null or unresolvable references are not kept; a
 //!   failed iterator or generator read keeps the previous one.
 //! - Obliteration (§10.3): at most [`MAX_OBLITERATED`] occupant records are
-//!   opened (the original has no bound). [question] An occupant whose record
-//!   does not open keeps flag 1 (it is cleared and set again only around its
-//!   `Write`); a restored occupant's record is closed right after its
-//!   `Read`, before `Init` and `InsertOccupant`; a count record whose
-//!   `GetUint32` fails leaves the count at 0.
+//!   opened (the original has no bound; AQ8). *[compat]* An occupant whose
+//!   record does not open keeps flag 1 (it is cleared and set again only
+//!   around its `Write`, AQ4); a restored occupant's record is closed after
+//!   its `Read`, `Init`, `InsertOccupant` and `Release` (AQ5); a count record
+//!   whose `GetUint32` fails leaves the count at 0 (AQ6).
 //! - Reference count: `Release` from a count ≤ 1 calls `Shutdown`, returns 0
 //!   and marks the object destroyed; the plugin then drops it (§1).
 //! - Interface returns: "AL only" slots return a clean bool (§11.1's own
@@ -746,9 +746,13 @@ pub fn manager_cell(p: f32) -> i32 {
 /// The cells `(x0, z0, x1, z1)` an occupant is listed in (§6.4.2,
 /// `InsertOccupant` / `MoveOccupant`), from its box at that moment: on x and
 /// on z separately, a box wider than 1 m (`max − min > 1.0`, `float32`) has
-/// both ends moved inwards by `0.1f` first. y plays no part. [question] The
-/// range is not clamped to the grid (an occupant outside it is listed in no
-/// cell a query reads).
+/// both ends moved inwards by `0.1f` first. y plays no part.
+///
+/// *[choice]* (§6.4.2, AQ7, recommended): each cell is clamped to
+/// `0..=191`, like the query's. The original keeps each cell's low byte with
+/// no test against 192, so an edge more than a city width outside the city
+/// writes past its index or is listed nowhere; inside the index nothing
+/// changes.
 pub fn manager_listing(min: Vec3, max: Vec3) -> CellRect {
     let inset = |lo: f32, hi: f32| {
         if hi - lo > 1.0 {
@@ -759,7 +763,8 @@ pub fn manager_listing(min: Vec3, max: Vec3) -> CellRect {
     };
     let (x0, x1) = inset(min[0], max[0]);
     let (z0, z1) = inset(min[2], max[2]);
-    (manager_cell(x0), manager_cell(z0), manager_cell(x1), manager_cell(z1))
+    let c = |p: f32| manager_cell(p).clamp(0, MANAGER_GRID - 1);
+    (c(x0), c(z0), c(x1), c(z1))
 }
 
 /// The cells a box query reads (§6.4.2): both corners mapped to cells and

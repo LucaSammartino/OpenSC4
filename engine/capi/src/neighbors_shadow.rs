@@ -88,12 +88,17 @@ pub struct fc4_neighbors_shadow_input {
     pub city_object: u64,
     pub landfill_usage: u32,
     pub landfill_capacity: u32,
-    /// ConnectionsReady seen since the city loaded (the original's flag is
-    /// not readable).
+    /// The original's state bytes as the shim read them (neighbors.md §15.4
+    /// NG7): ready `+0x0C` (ConnectionsReady seen), uiDisabled `+0x3E`,
+    /// dealsDirty `+0x3C`, statsDirty `+0x3D`, busy `+0x3F`.
     pub ready: u8,
     pub ui_disabled: u8,
     pub two_curves: u8,
-    pub reserved: [u8; 5],
+    /// ABI 45 (0 before: the earlier fixed values).
+    pub deals_dirty: u8,
+    pub stats_dirty: u8,
+    pub busy: u8,
+    pub reserved: [u8; 2],
     pub figures: fc4_neighbors_figures,
     /// The tuning exemplar's properties (borrowed; copied), NULL = missing.
     pub tuning: *const fc4_props,
@@ -512,9 +517,11 @@ pub unsafe extern "C" fn fc4_neighbors_shadow_create(input: *const fc4_neighbors
         for d in deals {
             sim.adopt_deal(&NeighborDeal::from_data(d));
         }
+        // NG7 (neighbors.md §15.4): the original's own bytes, not assumed.
         sim.set_ready(i.ready != 0);
         sim.set_ui_disable_flag(i.ui_disabled != 0);
-        sim.set_dirty(false, false);
+        sim.set_dirty(i.deals_dirty != 0, i.stats_dirty != 0);
+        sim.set_busy(i.busy != 0);
         sh.counters.set(fc4_neighbors_shadow_counters::default());
         shadow_handle(host, sim, sh)
     })

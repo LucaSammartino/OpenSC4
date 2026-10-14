@@ -175,6 +175,14 @@
 //         lane, FC4Dialogs.h): the dialog closer's test hooks (a window
 //         manager, a legacy message server and a cSC4WinGameDelay vtable used
 //         instead of the game's; start, stop, counts); -1 for a null input.
+//   op 48 kFC4SeamNeighborsApp    a = cISC4App* (borrowed; null: the
+//         framework's again): the app whose GetPopupDialogsEnabled (slot 23)
+//         the neighbours simulator's RequestCreateConnection reads (NG14,
+//         cFC4Neighbors.h NeighborsTestSetApp). Returns 1. With `b`
+//         non-null instead: a = cISC4NeighborDeal* (borrowed), b =
+//         cISC4NeighborDeal** receiving a new deal of ours with a's state
+//         (one reference for the caller; NeighborsTestCopyDeal, NG4).
+//         Returns 1, 0 if none was made.
 #pragma once
 
 #include <cstdint>
@@ -231,8 +239,10 @@ enum : uint32_t {
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
     kFC4SeamTraffic = 42,
+    kFC4SeamTract = 45,   // the tract developer (cFC4TractDeveloper.h FC4TractTestInput)
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
+    kFC4SeamNeighborsApp = 48,  // the neighbours apply lane (NG14)
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

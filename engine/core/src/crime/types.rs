@@ -129,23 +129,37 @@ impl From<Option<Vec<u8>>> for LtextLoad {
     }
 }
 
+/// A key property read as the original reads the name and icon keys (§7
+/// "How step 1 reads the key" and "Other value types", CQ17, CQ23): the
+/// first 12 bytes of the value's data (its raw storage, [`raw_array_bytes`])
+/// as three little-endian `u32`, whatever the element type. No value is
+/// converted: a u16 array gives `e[2] + (e[3] << 16)` as value [1], an f32
+/// array the bits, a string its bytes. [choice] (CQ23, recommended; CQ17) A
+/// value with fewer than 12 data bytes, a scalar, an object or an empty
+/// value counts as missing: the original reads past the data block there
+/// (garbage, or a fault for a scalar).
+pub fn raw_key3(h: &PropertyHolder, id: u32) -> Option<[u32; 3]> {
+    let b = raw_array_bytes(h.get(id)?)?;
+    if b.len() < 12 {
+        return None;
+    }
+    let word = |i: usize| u32::from_le_bytes([b[i], b[i + 1], b[i + 2], b[i + 3]]);
+    Some([word(0), word(4), word(8)])
+}
+
 /// The LTEXT key of a crime type's name (§7 step 1): values [1] and [2] of
-/// `0x8A416B2E` are the group and instance, [0] is ignored and the type is
-/// always [`NAME_LTEXT_TYPE`]. `None` (the load fails) when the property is
-/// missing or not numeric. [choice] (CQ17) A value with fewer than 3
-/// elements, or a scalar, counts as missing: no lookup, the load fails. The
-/// original copies three `uint32` from the value's data pointer with no type
-/// or count check, so it reads past a short value (garbage, or a fault for a
-/// scalar) and its lookup almost always misses; this gives that usual
+/// `0x8A416B2E` (bytes 4-7 and 8-11 of its data, [`raw_key3`]) are the group
+/// and instance, [0] is ignored and the type is always [`NAME_LTEXT_TYPE`].
+/// `None` (no lookup, the load fails) when the property is missing or holds
+/// fewer than 12 data bytes ([choice] CQ17, CQ23): the original's lookup of
+/// a key read past the data almost always misses, so this gives its usual
 /// outcome without reading past the data.
 pub fn name_ltext_key(h: &PropertyHolder) -> Option<ResKey> {
-    props::u32s(h, prop::TYPE_NAME_KEY)
-        .filter(|v| v.len() >= 3)
-        .map(|v| ResKey {
-            type_id: NAME_LTEXT_TYPE,
-            group: v[1],
-            instance: v[2],
-        })
+    raw_key3(h, prop::TYPE_NAME_KEY).map(|v| ResKey {
+        type_id: NAME_LTEXT_TYPE,
+        group: v[1],
+        instance: v[2],
+    })
 }
 
 /// §7 step 4 (data-formats §6.1): every U+2022 (`E2 80 A2`) becomes U+200B
@@ -181,15 +195,17 @@ impl CrimeType {
                 props::string_of(h, prop::TYPE_NAME).unwrap_or_default()
             }
         };
-        let icon_values = props::u32s(h, prop::TYPE_ICON).unwrap_or_default();
-        let part = |i: usize| icon_values.get(i).copied().unwrap_or(0);
+        // The icon key goes through the same reader as the name key (§7
+        // "Other value types", CQ23): missing or under 12 data bytes gives
+        // the default (0, 0, 0).
+        let [icon_type, icon_group, icon_instance] = raw_key3(h, prop::TYPE_ICON).unwrap_or([0; 3]);
         CrimeType {
             id: instance,
             name,
             icon: ResKey {
-                type_id: part(0),
-                group: part(1),
-                instance: part(2),
+                type_id: icon_type,
+                group: icon_group,
+                instance: icon_instance,
             },
             zone_mask: mask_of(h, prop::TYPE_ZONE_MASK),
             wealth_mask: mask_of(h, prop::TYPE_WEALTH_MASK),
@@ -548,6 +564,8 @@ mod tests {
             Variant::array(mem::UINT32, vec![Elem::U32(1), Elem::U32(2), Elem::U32(3)]),
         );
         h.add(prop::TYPE_NAME, Variant::string(b"fallback"));
+        // CQ23 [choice]: one u32 (4 data bytes) is under 12 bytes: missing,
+        // the default (0, 0, 0).
         h.add(prop::TYPE_ICON, Variant::array(mem::UINT32, vec![Elem::U32(7)]));
         let t = CrimeType::from_exemplar(9, &h, &|k| (k.instance == 3).then(|| b"ltext".to_vec()).into());
         assert_eq!(t.name, b"ltext");
@@ -555,7 +573,7 @@ mod tests {
         assert_eq!(
             t.icon,
             ResKey {
-                type_id: 7,
+                type_id: 0,
                 group: 0,
                 instance: 0
             }
@@ -636,6 +654,63 @@ mod tests {
             let t = CrimeType::from_exemplar(1, &short, &|_| panic!("no lookup without a key"));
             assert!(t.name.is_empty());
         }
+        // CQ23: other value types are not converted: the first 12 data bytes
+        // as three little-endian u32 (§7 "Other value types" worked examples).
+        let named = |key: Variant| {
+            let mut h = PropertyHolder::new();
+            h.add(prop::TYPE_NAME_KEY, key);
+            name_ltext_key(&h).map(|k| (k.type_id, k.group, k.instance))
+        };
+        let u16s = [0x960B, 0x2026, 0x4AE0, 0x0A55, 0xA698, 0xEA5E];
+        assert_eq!(
+            named(Variant::array(
+                mem::UINT16,
+                u16s.iter().map(|&x| Elem::U16(x)).collect()
+            )),
+            Some((NAME_LTEXT_TYPE, 0x0A55_4AE0, 0xEA5E_A698)),
+            "the shipped Generic key as u16"
+        );
+        assert_eq!(
+            named(Variant::array(
+                mem::FLOAT32,
+                vec![Elem::F32(0.0), Elem::F32(1.0), Elem::F32(2.0)]
+            )),
+            Some((NAME_LTEXT_TYPE, 0x3F80_0000, 0x4000_0000))
+        );
+        assert_eq!(
+            named(Variant::string(b"ABCDEFGHIJKL")),
+            Some((NAME_LTEXT_TYPE, 0x4847_4645, 0x4C4B_4A49))
+        );
+        assert_eq!(
+            named(Variant::array(
+                mem::SINT64,
+                vec![Elem::I64(0x1111_2222_3333_4444), Elem::I64(0x5555_6666_7777_8888)]
+            )),
+            Some((NAME_LTEXT_TYPE, 0x1111_2222, 0x7777_8888)),
+            "64-bit: the high half of e[0], the low half of e[1]"
+        );
+        // [choice] Under 12 data bytes: missing, no lookup (a u8 [a, b, c] is
+        // 3 bytes, a string of 11 bytes, a u16 array of 5).
+        assert_eq!(
+            named(Variant::array(mem::UINT8, vec![Elem::U8(1), Elem::U8(2), Elem::U8(3)])),
+            None
+        );
+        assert_eq!(named(Variant::string(b"ABCDEFGHIJK")), None);
+        assert_eq!(
+            named(Variant::array(
+                mem::UINT16,
+                u16s[..5].iter().map(|&x| Elem::U16(x)).collect()
+            )),
+            None
+        );
+        // The icon key through the same reader: bytes 0-3 are its type.
+        let mut h = PropertyHolder::new();
+        h.add(
+            prop::TYPE_ICON,
+            Variant::array(mem::UINT16, [1, 0, 2, 0, 3, 0].iter().map(|&x| Elem::U16(x)).collect()),
+        );
+        let t = CrimeType::from_exemplar(1, &h, &|_| LtextLoad::Missing);
+        assert_eq!((t.icon.type_id, t.icon.group, t.icon.instance), (1, 2, 3));
         // Other bytes stay, a cut-off sequence too.
         let mut v = vec![0xE2, 0x80, 0xA2, 0xE2, 0x80];
         bullets_to_zero_width_spaces(&mut v);

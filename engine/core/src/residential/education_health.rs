@@ -65,7 +65,9 @@
 //!     starts at 0.
 //! 12. EH12 (§4.11): the totals reset the caller's +0x14..+0x28 first, then
 //!     count and add **every** building that has one of the groups, whatever
-//!     its query returned.
+//!     its query returned. AQ1: their own record's +0x14..+0x24 are stack
+//!     leftovers in the original until a query writes them; *[choice]* they
+//!     start at 0.
 //! 13. EH13 (§4.6): with n = 0, eff and pop are used unscaled; population,
 //!     coverage and target are read at the same (x, z), the age grid at cell
 //!     (x × S_t, z × S_t). *[choice]* A tract outside a smaller source grid
@@ -1577,8 +1579,11 @@ impl ResidentialSim {
         totals.effective_per_staff = 0;
         totals.served = 0;
         totals.grade = 0.0;
-        // [question] The record starts with stack leftovers in +0x14..+0x24
-        // (+0x28 is 0); FreeCity4 starts it at 0, as EH11's ratings record.
+        // [choice] (§4.11, AQ1, recommended): the original sets up its record
+        // once with only +0x10, +0x28, +0x2C and +0x34, so +0x14..+0x24 hold
+        // stack leftovers until a query writes them (a farmer's market
+        // counted first adds two leftover words at +0x1C and +0x20).
+        // FreeCity4 starts them at 0, as EH11's ratings record.
         let mut q = QueryData::default();
         let mut count = 0u32;
         for occ in self.group_lists(svc).into_iter().flatten().flatten() {

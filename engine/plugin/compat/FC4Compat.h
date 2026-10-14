@@ -78,6 +78,10 @@ struct ExecutableVersion {
     // `cSC4WinGameDelay::vftable`, whose slots are the cIGZWin ones), so the
     // closer can leave SC4GameDelay's invisible modal window alone.
     uint32_t gameDelayWindowVtableVA;
+    // The original neighbours simulator's cISC4NeighborsSimulator vtable
+    // (neighbors.md compiled slot table, §15.4 NG7): the neighbours shadow
+    // reads the object's state bytes only when its vtable is this one.
+    uint32_t neighborsSimulatorVtableVA;
 };
 
 // The running executable if it is a table entry loaded at its preferred base
@@ -144,6 +148,10 @@ const void* AuraSimulatorVtable();
 // address is not committed data inside its image whose first entry is code
 // inside the image. Compared, never called through.
 const void* GameDelayWindowVtable();
+// The original neighbours simulator's cISC4NeighborsSimulator vtable
+// (neighbors.md §15.4 NG7), or nullptr (logged once; the same checks). For
+// the neighbours shadow's raw read of the original's state bytes.
+const void* NeighborsSimulatorVtable();
 
 // The compatibility table.
 const ExecutableVersion* SupportedVersions(int* count);
