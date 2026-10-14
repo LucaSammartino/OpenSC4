@@ -60,8 +60,9 @@ extern "C" {
  * 15 = adds the budget shadow's tax scan (fc4_budget_shadow_tax);
  * 16 = adds the demand shadow (fc4_demand_shadow);
  * 17 = adds the pollution simulator (fc4_pollution) and its shadow (fc4_pollution_shadow);
- * 18 = adds the protection simulators (fc4_protection). */
-#define FC4_ABI_VERSION 18u
+ * 18 = adds the protection simulators (fc4_protection);
+ * 20 = adds the landfill developer (fc4_landfill) and its shadow (fc4_landfill_shadow). */
+#define FC4_ABI_VERSION 20u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
