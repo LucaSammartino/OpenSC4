@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "park_tuning",
+  "spec": ["parks 2", "parks 4.1", "parks 6", "parks 12.2"],
+  "description": "The \"Parks Manager\" exemplar is read at the first Init. Shipped: threshold 25.0, curve (0,40)(25,10)(100,1). An exemplar without the curve property: the code default (0,50)(100,1). No exemplar: the constructor's threshold 0.25 and an empty curve, which evaluates to 0 (no escape). A missing threshold property keeps 0.25. The tuning is read once per object: a later Init does not read it again.",
+  "steps": [
+    {"op": "park_env", "tuning": "shipped"},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 25.0, "curve_points": 3, "curve": [[0, 40], [25, 10], [100, 1]], "tuning_read": true}},
+
+    {"op": "park_env", "tuning": "no_curve"},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 25.0, "curve_points": 2, "curve": [[0, 50], [100, 1]]}},
+
+    {"op": "park_env", "tuning": null},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 0.25, "curve_points": 0, "curve": [], "tuning_read": true}},
+    {"op": "park_call", "method": "escape_probability", "args": [0.5], "expect": 0.0},
+    {"op": "park_call", "method": "escape_probability", "args": [0.0], "expect": 0.0},
+
+    {"op": "park_env", "tuning": {"props": {"0x4A6676AD": {"f32": [0, 20, 100, 2]}}}},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 0.25, "curve": [[0, 20], [100, 2]]}},
+
+    {"op": "park_env", "tuning": {"props": {"0xCA480830": {"f32": 0.4}}}},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect", "state": {"threshold": 0.4000000059604645, "curve": [[0, 50], [100, 1]]}},
+
+    {"op": "park_env", "tuning": "shipped"},
+    {"op": "park_create"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_shutdown", "expect": true},
+    {"op": "park_env", "tuning": null},
+    {"op": "park_clear_events"},
+    {"op": "park_init", "expect": true},
+    {"op": "park_expect_event_count", "filter": {"event": "tuning"}, "count": 0},
+    {"op": "park_expect", "state": {"threshold": 25.0, "curve_points": 3}}
+  ]
+}

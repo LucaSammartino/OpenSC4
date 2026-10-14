@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "civic_ape_escape",
+  "spec": ["civic-buildings 4.6", "civic-buildings 5", "civic-buildings 12.7"],
+  "description": "With Disease Research Centers listed, each month makes one temporary generator seeded derive(S, 0x0A413481 ^ n) (S = 0x12345678 here: 0x187562F9, then 0x187562F8, ...) and draws RandomDoubleUniform; a draw of 0.009999999776482582 (float32 0.01 widened) escapes, the double 0.01 does not. The index draw is RandomUint32Uniform(n) (the stub answers n - 1) and the escape adds the 'ape_escape' automata to that occupant. Without an automata controller manager nothing happens after the draws; a null entry escapes nothing; without a center nothing is drawn.",
+  "steps": [
+    {"op": "civic_env", "random": "stub"},
+    {"op": "civic_create", "session_seed": "0x12345678"},
+    {"op": "civic_init", "expect": true},
+    {"op": "civic_set", "disease_centers": ["0x70", "0x71"]},
+    {"op": "civic_env", "doubles": [0.009999999776482582]},
+    {"op": "civic_clear_events"},
+    {"op": "civic_call", "method": "monthly"},
+    {"op": "civic_expect_events", "events": [
+      {"event": "seed", "seed": "0x187562F9"},
+      {"event": "double"},
+      {"event": "u32", "n": 2},
+      {"event": "controllers", "name": "ape_escape", "occupant": "0x71"}
+    ]},
+    {"op": "civic_env", "doubles": [0.01]},
+    {"op": "civic_call", "method": "monthly"},
+    {"op": "civic_expect_events", "events": [
+      {"event": "seed", "seed": "0x187562F8"},
+      {"event": "double"}
+    ]},
+    {"op": "civic_env", "automata": false, "doubles": [0.0]},
+    {"op": "civic_call", "method": "monthly"},
+    {"op": "civic_expect_events", "events": [
+      {"event": "seed", "seed": "0x187562FB"},
+      {"event": "double"},
+      {"event": "u32", "n": 2}
+    ]},
+    {"op": "civic_env", "automata": true, "doubles": [0.0]},
+    {"op": "civic_set", "disease_centers": ["0x70", null]},
+    {"op": "civic_call", "method": "monthly"},
+    {"op": "civic_expect_events", "events": [
+      {"event": "seed", "seed": "0x187562FA"},
+      {"event": "double"},
+      {"event": "u32", "n": 2}
+    ]},
+    {"op": "civic_expect", "state": {"temporaries": 4}},
+    {"op": "civic_set", "disease_centers": []},
+    {"op": "civic_call", "method": "monthly"},
+    {"op": "civic_expect_events", "events": []},
+    {"op": "civic_expect", "state": {"temporaries": 4}}
+  ]
+}

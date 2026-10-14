@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "commercial_proximity_map",
+  "spec": ["commercial-industrial 4.6", "commercial-industrial 13.7"],
+  "description": "GetProximityMap(0x3320) returns CO$$ and GetProximityMap(0x3330) CO$$$; 0x3110, 0x3310 and 0 return null; the simulator's reference count is unchanged (no reference is added to it). Before Init (no grids) both return null.",
+  "steps": [
+    {"op": "commercial_env", "cells": 8},
+    {"op": "commercial_create"},
+    {"op": "commercial_proximity_map", "developer": "0x3320", "expect": null},
+    {"op": "commercial_proximity_map", "developer": "0x3330", "expect": null},
+    {"op": "commercial_init", "expect": true},
+    {"op": "commercial_proximity_map", "developer": "0x3320", "expect": "CO2"},
+    {"op": "commercial_proximity_map", "developer": "0x3330", "expect": "CO3"},
+    {"op": "commercial_proximity_map", "developer": "0x3110", "expect": null},
+    {"op": "commercial_proximity_map", "developer": "0x3310", "expect": null},
+    {"op": "commercial_proximity_map", "developer": 0, "expect": null},
+    {"op": "commercial_expect", "state": {"ref_count": 0}}
+  ]
+}

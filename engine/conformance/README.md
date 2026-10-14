@@ -1595,6 +1595,141 @@ that only moves when a vector moves it, a cheat code manager (present by default
 | `ck_record` | `hex` (compares `Write`), or `read` (hex, read into the current clock) with `expect?` and `remaining?` | the 26-byte record (§7) |
 | `ck_expect_events` / `ck_expect_event_count` / `ck_clear_events` | as the other cores | events: `post {msg, name, data2, data3}` (names `HourChanged`, `TimeTick`, `VisualHourChanged`, `VisualTimeTick`, `DayNightChanged`, `PauseChanged`, `HiddenPauseChanged`), `add_system_service`, `remove_system_service`, `add_to_on_idle`, `remove_from_on_idle`, `register_cheat {id, name}`, `add_cheat_notification {id}`, `remove_cheat_notification {id}`, `unregister_cheat {id}` |
 
+## Commercial and industrial ops
+
+The commercial and industrial vectors (`ci13_…`) drive `fc4_core::commercial` (`docs/specs/commercial-industrial.md`):
+the commercial simulator (`CommercialSim`) over one scripted city implementing `CommercialHost`, and the industrial
+stub (`IndustrialSim`, which has no host). Commercial op names start with `commercial_`, industrial ones with
+`industrial_`. The default world: an 8 × 8-cell city with a demand simulator answering both nodes `0x3000` and
+`0x3800` (a node's token is its ID), no building map, building-map keys `(purpose << 2) + wealth + 1`, and no
+occupants. The two proximity grids are core `SimGrid`s the world makes; a record read back shares the writer's
+grids.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `commercial_env` | any of `cells` (the square city's side), `nodes` (the node IDs the demand simulator answers), `demand` (whether the city has a demand simulator), `map` (`{key, cells: [[x, z]]}` or `{fill, cells: [{x, z, v}]}`; null = no building map), `keys` (`[{purpose, wealth, key}]`), `purposes` (`{"occupant": purpose}`: the building occupants) | the world |
+| `commercial_create` / `industrial_create` | | a new constructed object, which replaces the current one |
+| `commercial_set` | `dirty?`, `state?` | pokes the state (test setup) |
+| `commercial_set_grid` | `grid` (`CO2` = CO$$, `CO3` = CO$$$), `fill?`, `cells?` (`[{x, z, v}]`) | writes a proximity grid |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `commercial_init` / `commercial_shutdown`, `industrial_init` / `industrial_shutdown` | `expect?` | `Init` / `Shutdown` |
+| `*_add_ref` / `*_release` | `expect?` | `AddRef` / `Release` (the count returned) |
+| `*_identity` | `iids` (`{"0xIID": bool}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `commercial_message` / `industrial_message` | `type` (`SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, … or an ID), `data3?` (default the building type `0x278128A0` for the occupant messages), `occupant?` (void1), `expect?` | `DoMessage` |
+| `commercial_idle` | `count?` (1) | `DoIdle` steps |
+| `commercial_expect` | `state` (partial: `initialized`, `dirty`, `state`, `flag` (the saved byte), `ref_count`, `destroyed`, `city_held`, `bds_held`, `message_server_held`, `nodes` (tokens or null), `co2` / `co3` (the grids' instances, null: none), `tract_size`) | the simulator state |
+| `industrial_expect` | `state` (partial: `initialized`, `ref_count`, `destroyed`) | the stub's state |
+| `commercial_expect_grid` | `grid`; `rows` (`rows[z][x]`, every cell), or `cells` (`[{x, z, v}]`) with `rest?` (every other cell), or `count` (`{"value": cells}`) | a proximity grid |
+| `commercial_proximity_map` | `developer`, `expect` (`"CO2"`, `"CO3"` or null) | `GetProximityMap` |
+| `*_write` | `slot?`, `expect?`, `length?`, `hex?` | `Write`; the bytes and the registry entries are kept in `slot` |
+| `*_read` | `slot` or `hex`, `version?` (rewrites the first two bytes), `reuse?`, `expect?` | `Read` into a new constructed object, or with `reuse` into the current one |
+| `commercial_expect_record` | `slot`, any of `same_as`, `length`, `at` (`[{offset, hex}]`) | record bytes |
+| `commercial_expect_events` / `commercial_expect_event_count` / `commercial_clear_events` | see the shared conventions | host calls |
+
+Commercial events: `agent` (`level`, `name`, `flags`), `remove_agent`, `acquire_message_server`,
+`release_message_server`, `subscribe` / `unsubscribe` (`type`), `acquire_city` / `release_city`, `acquire_bds` /
+`release_bds`, `demand_node` (`id`), `release_demand_node` (`node`), `shutdown_grid` (`instance`).
+
+## Civic building ops
+
+The civic building vectors (`cb12_…`) drive `fc4_core::civic::CivicSim` (`docs/specs/civic-buildings.md`) over one
+scripted city implementing `CivicHost`. Every op name starts with `civic_`. The default world: no departments (the
+simulator's own are created at `Init`; a department's token is its ID), no funding (unreadable), no occupants or
+lots, an automata controller manager, and the stub generator (session seed `0x12345678`). A line item's token is
+`(department << 32) | line`. The stub generator logs `seed` (`seed`) when the simulator makes a temporary generator,
+then `double` and `u32` (`n`) for each draw; doubles come from the `doubles` queue (then 1.0), indices from `u32s`
+(then n − 1). With `random: "default"` the core's own generator (`RzRandomSuper`, foundations §6.3) is used.
+
+References are counted per token (AddRef − Release, plus the one a resolved save reference hands over); a reference
+that does not resolve (not a known department or occupant) reads as null and its count is given back.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `civic_env` | any of `departments` (IDs that exist already), `funding` (`{"0xID": fraction or "nan"}`), `automata`, `random` (`"stub"` or `"default"`), `doubles`, `u32s` (appended to the queues) | the world |
+| `civic_building` | `occupant`, `occupant_type?` (`0x278128A0`), `building?` (true: the building interface answers), `type?` (the building type), `key?` (the building key's instance), `conditional?` (property `0xEA3209F8`), `exclusion?` (property `0xEA2E078B`), `groups?`, `lot?` (default occupant + 1; null: none), `condition?` (0) | an occupant and its lot |
+| `civic_item` | `occupant`, `purpose` (`"maintenance"`, `"income"` or an ID), `department`, `line?` (0), `cost`, `index?` (0); or `remove: true` | a budget item |
+| `civic_lot` | `lot`, `building` (null: none), `condition?` | a lot |
+| `civic_set_line` | `department`, `line`, `income?`, `type?` | an existing line item |
+| `civic_create` | `session_seed?` | a new constructed simulator, which replaces the current one |
+| `civic_set` | `disease_centers?`, `maintained?` (token lists, null entries allowed, no reference taken), `exclusions?` (IDs inserted in order) | pokes the state (test setup) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `civic_init` / `civic_shutdown` / `civic_add_ref` / `civic_release` | `expect?` | the lifecycle slots |
+| `civic_identity` | `iids` (`{"0xIID": bool}`), `class` | `QueryInterface` and `GetGZCLSID` |
+| `civic_message` | `type` (`SimNewMonth`, `OccupantInserted`, `OccupantRemoved`, `LotStateChanged` or an ID), `occupant?` (void1), `lot?` (the IGZUnknown), `data2?`, `expect?` | `DoMessage` |
+| `civic_call` | `method`, `args?`, `expect?` | `is_building_excluded [id]`, `get_status [key]` (`{status, count, tooltip}` or null), `update_status [key, status, count, tooltip]`, `or_status [key, bits]` (a write through the pointer `get_status` returns; false when there is no entry), `landmark_count`, `monthly`, `lot_activated [lot]`, `building_removed [occupant]` |
+| `civic_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `landmarks`, `maintained`, `disease_centers`, `exclusions` and `status_keys` (in hash order), `temporaries` (generators made), `landmark_count`) | the simulator state |
+| `civic_expect_line` | `department`, `line`, `state` (partial: `expenses`, `income`, `type`) or `absent: true` | a line item |
+| `civic_expect_item` | `occupant`, `purpose`, `state` (partial: `line`, `department`, `cost`, `index`) or `absent: true` | a budget item |
+| `civic_expect_conditions` | `conditions` (`{"lot": condition}`) | lot conditions |
+| `civic_expect_refs` | `refs` (`{"token": count}`) | references held |
+| `civic_write` | `slot?`, `expect?`, `length?`, `hex?` | `Write`; the bytes and the registry entries are kept in `slot` |
+| `civic_read` | `slot` or `hex` (references resolve to their object IDs), `version?`, `length?` (truncates), `reuse?`, `expect?` | `Read` into a new constructed simulator, or with `reuse` into the current one |
+| `civic_expect_record` | `slot`, any of `same_as`, `length`, `at` | record bytes |
+| `civic_expect_events` / `civic_expect_event_count` / `civic_clear_events` | see the shared conventions | host calls |
+
+Civic events: `agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`),
+`register_lua` / `unregister_lua`, `add_ref` / `release` (`token`), `create_department` (`id`, `group`),
+`department_name` (`department`, `group`, `instance`), `max_funding` (`department`, `max`), `change_line`
+(`occupant`, `index`, `line`), `remove_item` (`occupant`, `index`), `create_line` (`department`, `line`, `local`),
+`remove_line` (`department`, `line`), `set_line_type` (`line`, `type`), `set_condition` (`lot`, `condition`),
+`controllers` (`name`, `occupant`; only with an automata controller manager), and the stub's `seed`, `double`, `u32`.
+
+## Park ops
+
+The park vectors (`pk12_…`) drive `fc4_core::parks::ParkManager` (`docs/specs/parks.md`) over one scripted city
+implementing `ParkHost`. Every op name starts with `park_`. The default world: every service present (city, budget,
+lot manager, message server), no departments (the manager creates Parks and Recreation at `Init`; a department's
+token is its ID), creation succeeds, no funding (unreadable), no tuning exemplar, no occupants, an automata
+controller manager, and the stub generator (the same queues and events as the civic one, without `seed`). The
+manager's own token is `0xA000`. A line item's token is `(department << 32) | line`. References and save references
+are counted as for the civic ops.
+
+### Setup
+
+| op | Arguments | Effect |
+|---|---|---|
+| `park_env` | any of `services` (`{city, budget, lot_manager, message_server: bool}`), `departments`, `create_departments`, `create_lines` (whether creation succeeds), `funding` (`{"0xID": fraction, "nan" or null}`; null: unreadable), `tuning` (`"shipped"`, `"no_curve"` (the shipped threshold only), null (no exemplar) or `{props: {"0xID": value}}`), `automata`, `random` (`"stub"` or `"default"`), `doubles`, `u32s` | the world |
+| `park_building` | `occupant`, `occupant_type?` (`0x278128A0`), `building?` (true: `QueryInterface(0x87DDA3A9)` answers), `type?`, `groups?` (`"park"`, `"zoo"` or IDs), `preview?` (property `0x029244DB` present), `lot?` (the lot at its position; default occupant + 1, null: none), `condition?` | an occupant and its lot |
+| `park_item` | `occupant`, `department`, `line?` (0), `cost`, `index?` (0), `purpose?` (`0xCA639989`); or `remove: true` | a budget item |
+| `park_line` | `department`, `line`, `expenses?`, `secondary?` | creates or updates a line item |
+| `park_create` | `session_seed?` | a new constructed manager, which replaces the current one |
+| `park_set` | `parks?`, `zoos?` (token lists, null entries allowed, no reference taken), `underfunded?` (the latch) | pokes the state (test setup) |
+
+### Calls and checks
+
+| op | Arguments | Effect / check |
+|---|---|---|
+| `park_init` / `park_shutdown` / `park_add_ref` / `park_release` | `expect?` | the lifecycle slots |
+| `park_identity` | `iids`, `class` | `QueryInterface` and `GetGZCLSID` |
+| `park_message` | `type` (`SimNewMonth`, `OccupantInserted`, `OccupantRemoved` or an ID), `occupant?` (void1), `expect?` | `DoMessage` |
+| `park_call` | `method`, `args?`, `expect?`, `expect_bits?` (the double's bit pattern, `"0x…"`) | `monthly`, `zoo_escape`, `escape_probability [f]` (`p` of §4.4 step 5 with the manager's curve) |
+| `park_expect` | `state` (partial: `initialized`, `destroyed`, `ref_count`, `tuning_read`, `underfunded`, `parks`, `zoos`, `city_held`, `budget_held`, `message_server_held`, `lot_manager_held`, `department`, `threshold`, `curve_points`, `curve` (`[[x, y]]`)) | the manager state |
+| `park_expect_line` | `department`, `line`, `state` (partial: `expenses`, `secondary`, `display` (the display flags set)) or `absent: true` | a line item |
+| `park_expect_item` | `occupant`, `purpose?`, `state` (partial: `line`, `department`, `cost`, `index`) | a budget item |
+| `park_expect_conditions` / `park_expect_refs` | as for the civic ops | lot conditions / references held |
+| `park_write` / `park_read` / `park_expect_record` | as for the civic ops | the record |
+| `park_expect_events` / `park_expect_event_count` / `park_clear_events` | see the shared conventions | host calls |
+
+Park events: `tuning` (the exemplar was asked for), `acquire` (`service`, `ok`), `release_service` (`service`),
+`agent` (`level`, `name`, `flags`), `remove_agent`, `subscribe` / `unsubscribe` (`type`), `add_ref` / `release`
+(`token`), `create_department` (`id`, `group`), `department_name` (`department`, `group`, `instance`),
+`max_funding` (`department`, `max`), `change_line` (`occupant`, `index`, `line`), `create_line` (`department`,
+`line`, `local`), `display_flag` (`line`, `flag`, `on`), `set_condition` (`lot`, `condition`), `post` (`type`,
+`void1`, `unknown`: the posted ZooEscape), `controllers` (`name`, `occupant`; only with an automata controller
+manager), and the stub's `double`, `u32` (`n`).
+
 ## Adding a vector
 
 1. Name it after the spec section it mainly covers, for example `s5_3_….json` (simulator), `f7_…` (foundations
@@ -2528,3 +2663,54 @@ Not covered by a vector, and why:
   corpus's shape instead.
 - **`GetTimePercentage`** uses `1.1574074e-05f` (`0x37422E45`, 1/86400), not the spec's `0x37C22E45` (1/43200,
   which gives 1.0 at noon) *[choice]*; `ck12_01_construction` pins 0.5 at noon.
+
+## Coverage (commercial and industrial §13)
+
+| §13 item | Vector |
+|---|---|
+| 1 identity of both classes | `ci13_01_identity` |
+| 2 commercial Init: a missing node, both nodes (the grids, agents and subscriptions); Shutdown | `ci13_02_init` |
+| 3 dirty marking (purpose 3, purpose 1, a network, a preview occupant) | `ci13_03_dirty_marking` |
+| 4 state machine (0, 2, 3; the maps change on the second and third calls; clean state 3) | `ci13_04_state_machine` |
+| 5 map content (the edge-only seed, RG23) | `ci13_05_map_content` |
+| 6 loaded grids (the rebuild runs in place) | `ci13_06_loaded_grids` |
+| 7 `GetProximityMap` | `ci13_07_proximity_map` |
+| 8 save (the flag, version 2 rejected, the rebuild after a flag-1 read; the industrial record) | `ci13_08_save` |
+| 9 corpus: synthetic records of the shapes §8.3 reports | `ci13_09_corpus_shapes` |
+
+Not covered by a vector: the 421-save corpus itself (item 9) is not available to this suite; `ci13_09` replays the
+record shapes the spec reports.
+
+## Coverage (civic buildings §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 Init (the three departments, Landmarks held, subscriptions, the agent, Lua), a loaded Landmarks reused, Shutdown, Release | `cb12_01_init` |
+| 2 exclusion (insert, remove, a non-building occupant; no preview test; one of two equal IDs removed) | `cb12_02_exclusion` |
+| 3 counts (insert, remove, the 16-bit wrap; no entry; `0xEA3209F8 = false`; no key) | `cb12_03_counts` |
+| 4 activation (data2 2 and 3, the line, +30 / +60, a lot without a building, a missing department) | `cb12_04_activation` |
+| 5 income (the line keyed by the building type, type 1, removal deletes it; 500 → 200; an existing line keeps its type) | `cb12_05_income` |
+| 6 monthly condition (0.49, 0.5, NaN; condition 1 stays) | `cb12_06_monthly_condition` |
+| 7 ape escape (the temporary generator's seed, the float32 threshold, the index draw, no controller manager, a null entry, no centre) | `cb12_07_ape_escape` |
+| 8 status API (update, get, unknown key, a write through the pointer) | `cb12_08_status_api` |
+| 9 save (the `mod 193` order, byte-identical, version 5 rejected, a cut record, a read over a running simulator) | `cb12_09_save` |
+| 10 corpus: synthetic records of the §7.1 shapes, colliding keys, the list-count limit | `cb12_10_corpus_shapes` |
+
+Not covered by a vector: the 421-save corpus itself (item 10) is not available to this suite; `cb12_10` replays the
+shapes of the §7.1 table.
+
+## Coverage (parks §12)
+
+| §12 item | Vector |
+|---|---|
+| 1 Init (the department only when missing, a department that cannot be created, missing services), Shutdown, Release | `pk12_01_init` |
+| 2 tuning (shipped, without the curve, none, custom, read once per object) | `pk12_02_tuning` |
+| 3 insert (the line, display flag 2, 10 / 1, 20 / 2, a preview occupant; zoos; the failed building interface; a missing department; a line that cannot be created) | `pk12_03_insert` |
+| 4 remove (15 / 3 → 0 / 0, the line stays, a duplicate removed with one release; zoos) | `pk12_04_remove` |
+| 5 distress latch (0.25, 0.2, 0.3, NaN; no zoo: no draw; no park: nothing; unreadable funding) | `pk12_05_distress_latch` |
+| 6 shipped threshold (PK1: run down at the first pass, never restored below 2500 %, again after a reload) | `pk12_06_shipped_threshold` |
+| 7 escape draw (`p` bit for bit, 0.07 escapes, 0.0700001 does not, the message and `zoomanji`, the index draw, a null entry) | `pk12_07_escape_draw` |
+| 8 save (byte-identical, versions 1 and 3 rejected, a cut record, unresolvable references, the list-count limit; the corpus shapes: empty, 1, 3, 6 and 9 parks) | `pk12_08_save` |
+
+Not covered by a vector: the 421-save corpus itself (part of item 8) is not available to this suite; `pk12_08`
+replays the record shapes §7 reports.
