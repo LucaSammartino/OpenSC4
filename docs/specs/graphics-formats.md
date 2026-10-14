@@ -169,7 +169,8 @@ Notes:
 
 ### 2.7 What the factory accepts (`SerialRead` `0x00800860`) *[compat]*
 
-With frame 0's header (code C, width W, height H, mip count M):
+A record with `count` = 0 fails at once, before any entry is read (`0x008008D0`–`0x008008DB`), in the full and
+the info-only open alike (FS3). Otherwise, with frame 0's header (code C, width W, height H, mip count M):
 
 1. The code must map (§2.6), else the load fails.
 2. **H must be a power of two** (the test is "H & −H equals H", so 0 passes). **W is not checked**: the shipped

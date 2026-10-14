@@ -2878,7 +2878,10 @@ variant (GF3). The current answer is in brackets.
   reads whatever follows. The bracket's test (packed fits, aligned overruns: accept; not even packed: reject) is the
   implementer's choice and stands. The sweep reproduces it independently: 167 accepted that way, 0 rejected. In every
   one of the 167 the aligned layout overruns by exactly 8 bytes.
-- **FS3:** A record with `count` = 0 has no frame 0. [rejected]
+- ~~**FS3:** A record with `count` = 0 has no frame 0. [rejected]~~
+  **ANSWERED 2026-10-14** from the exe (`SerialRead` `0x008008D0`–`0x008008DB`: the count from the header, 0 →
+  fail) and written into graphics-formats §2.7. A zero count fails the load before any entry is read, in both the full
+  and the info-only open. The bracket (rejected) matches.
 - **FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
   all 256 entries inside the record]
 - **FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
