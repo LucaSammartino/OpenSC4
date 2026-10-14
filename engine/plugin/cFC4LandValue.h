@@ -18,7 +18,9 @@
 // Grid ownership (simgrid.md §6.3): other subsystems read the land value grids'
 // memory directly, so the grids are the GAME's own cSC4SimGrid objects, created
 // through GZCOM (CLSIDs 0x49B9E602 / 0x49B9E60A, registered by the game). We
-// never register those class IDs.
+// never register those class IDs. Each grid reference the core holds is ours,
+// whether CreateGrid made it or a save handed it over in Read; the shared
+// host-grid code (FC4HostGrid.h) creates and releases them.
 //
 // The subsystem is OFF by default: FreeCity4.ini `enable = landvalue` turns it
 // on (FC4Subsystems.h); `disable` still wins.
@@ -77,9 +79,16 @@ public:
     cISC4City* City() const { return city_; }
     cISTETerrain* Terrain() const { return terrain_; }
     cISC4ZoneManager* ZoneManager() const { return zoneManager_; }
+    // A grid reference the core gave back; `left` = the count its Release
+    // returned (0: ours was the last).
+    void NoteGridRelease(uint32_t left) {
+        ++gridReleases_;
+        if (left == 0) ++gridLastReleases_;
+    }
 
 private:
     void RegisterAgents(bool add);
+    void LogGridReleases(const char* when);
 
     uint32_t refCount_ = 0;
     bool destroying_ = false;
@@ -93,6 +102,8 @@ private:
     bool agentsRegistered_ = false;
     uint32_t lastState_ = 9;
     uint32_t passes_ = 0;
+    uint32_t gridReleases_ = 0;      // since the last LogGridReleases
+    uint32_t gridLastReleases_ = 0;  // of those, the grid's last reference
 };
 
 // Factory for the subsystem table (reference count 0).

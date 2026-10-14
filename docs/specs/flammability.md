@@ -59,6 +59,10 @@ no method of another simulator, so the order does not matter for `Init` itself.
   `SetTractSize(S)`; a grid loaded from a save keeps its saved tract size. With `S = 1` a tract **is** a city
   cell, and this spec writes "tract" and "cell" interchangeably except where noted. Places where the original
   would misbehave with `S > 1` are listed in §14.
+  A tract size other than 1 can therefore only come from a save the original game did not write (a damaged or
+  foreign record): the original creates both grids with S = 1 and never changes a grid's tract size. There is no
+  original behaviour to match for a tract-size difference between the original's grids and a replacement's
+  (QUESTIONS FL3); a shadow reporting it as `INCOMPLETE` is the implementer's choice and stands.
 - `countX`, `countZ`: the **city's** `CellCountX/Z` (read at `Init`), used for bounds checks.
 - The grid's own `GetTractCountX/Z` sizes the daily iterator and `tractsPerDay`.
 
@@ -167,6 +171,22 @@ subscription set of §4.1 exactly and must not re-read its tuning on `0xC53D10AA
 
 Property `0x029244DB` is the **preview occupant** marker (foundations §5.2): the lot-placement and toll-booth tools
 set it on the temporary occupants they show under the cursor, and every grid simulator skips those occupants.
+
+**Delivery order of the six messages** (QUESTIONS FL4; foundations §5.1). All six are delivered by the message
+server's send: queued posts are sent from its tick, and a direct send runs at once. The send calls `DoMessage` on
+the subscribers of the type in **subscription order**, from a snapshot taken before the first call, and then on
+the wildcard subscribers. The order is therefore deterministic, not unspecified. This simulator subscribes in its
+`Init`, so any target that subscribes later (a shadow's mirror) receives each message after it, in the same send,
+with no other message in between. Only subscribers registered between the two can run in between. The handlers
+read only:
+- the occupant itself (type, property `0x29244DB5`, preview marker, bounding cells);
+- its lot's condition, through the lot manager;
+- the occupant manager's contents (removal, §6.3);
+- the ordinance factor and the season (g, §6.4).
+
+No other subscriber of these types writes those during its own `DoMessage` *[inferred from the other simulators'
+specs: their handlers write their own state, budget lines and, in plumbing's case, the occupant's property
+`0x2A58D350`, none of which this simulator reads]*. Both receivers see the same state, as the mirror assumes.
 
 Same-day ordering: the day agent reads the plumbing simulator's watered state (`IsCellWatered`) and the zone
 manager's zone types as they stand when it runs. No result of another level-4 agent of the same day is needed
@@ -277,6 +297,16 @@ globalMultiplier := float32(f)
 
 Shipped: summer multiplier 1.0, so only Smoke Detectors matter (0.95). Code default summer 1.2.
 
+**Who writes `globalMultiplier`** *[compat]* (QUESTIONS FL2, from the exe). Exactly three places: the constructor
+(0), `Read` (the saved value) and `DoMessage` on SeasonChange or OrdinanceUpdated (`0x006AFB87`, the only call of
+`ComputeGlobalMultiplier`). `Init`, the day agent, `EndOfCycle` and the occupant handlers only read it. So:
+- a new city keeps g = 0 until the first of those two messages (§14.2);
+- a loaded city keeps its saved g until then;
+- from any moment on, g equals its value at that moment until the next SeasonChange or OrdinanceUpdated.
+
+A mirror that takes the original's g at its baseline and recomputes it on the same two messages, with the formula
+above, holds the original's g at all times. With shipped tuning g ∈ {0, 0.95, 1.0}.
+
 The original calls both simulators without a null check (and could not get here without them, §4.1 step 5).
 *[choice]* FreeCity4: a missing ordinance simulator gives factor 1.0, a missing weather simulator "not summer".
 
@@ -305,6 +335,37 @@ while n ≠ 0:
 plumbing simulator nor the cached zone manager is null-checked (§4.1 step 5): without a zone manager the original
 crashes at the first visited tract. *[choice]* FreeCity4: missing plumbing → not watered; missing zone manager →
 unzoned.
+
+**The watered state is the one at the visit** *[compat]* (QUESTIONS FL5, FL6, from the exe, `0x006AF8D0`). The
+no-water factor is applied only here, from plumbing slot 11 as it answers on the day the tract is visited. Slot 11
+reads the plumbing simulator's *published* grid, which changes only when a plumbing pass ends: the pass swaps its
+freshly built grid in whole (plumbing §2, §6.5). A pass runs at least once a month (plumbing §7.1), more often after
+pipe and building changes. So within one 40-day cycle a tract's watered state can change, and the adjusted grid
+then mixes both states: tracts visited before the change carry the old state's factor until their next visit. The
+plumbing simulator runs another pass after every building or pipe insertion or removal, pipe burst and water deal
+change (they set its recompute flag, plumbing §5.1–§6), so the watered map changes often while a city grows. The occupant handlers (§6.3) never
+apply the factor.
+
+Nothing else scales adjusted values:
+- fires, disasters and the fire manager only read the grid (§13.1);
+- an ordinance or season change sets g (§6.4), which is city-wide and never a ratio of 1.25 with shipped tuning
+  (g ∈ {0, 0.95, 1.0});
+- the shipped no-water factor `0x29B4013B` is exactly 1.25.
+
+A region at 1.25 times the expected value is therefore a set of tracts that were **not watered when visited** but
+are watered when compared. Plausible causes *[inferred: the run logs do not show the plumbing state]*: a building
+whose lot cells the plumbing pass had not yet marked when the visit came (FL5's 2 × 2 block), or a water network
+that grew or recovered from a shortage mid-cycle (FL6's 595 tracts). A change the other way gives 0.8.
+
+Worked example (Smoke Detectors, g = 0.95f; raw 68):
+- watered at the visit: `roundHE(68 × 0.95f)` = roundHE(64.6) = **65**;
+- not watered: `roundHE(65 × 1.25f)` = roundHE(81.25) = **81** (FL5's pair);
+- likewise raw 84 → 80 / 100 and raw 89 → 85 / 106 (FL6's column).
+
+A mirror that evaluates the watered state at comparison time must accept, for each tract whose watered state
+changed since the cycle began, the value under either state. The plumbing simulator's published grid object
+alternates at every pass (plumbing §2), so a change of `GetWateredGrid()`'s pointer tells the mirror that a pass
+ended. It can then record which tracts changed state.
 
 Each cycle visits every tract exactly once, `tractsPerDay` tracts per day; the wrap usually falls inside a day and
 that day continues into the next cycle. Because the iterator count is 0 after `Init` (§4.1), the **first** call
@@ -437,6 +498,30 @@ absent (foundations §4.1 already lets FreeCity4 treat single-value curve proper
 No subscriber of `0x08F415FE` was found in the executable *[inferred]*. The fire manager calls of §6.8 post the
 fire manager's own messages. History type `0x2A11CB48` has no other reference in the executable; graph
 definitions in data files may read it *[inferred]*.
+
+**When SimCycleComplete arrives** *[compat]* (QUESTIONS FL1, from the exe). The message is queued during the day
+agent and delivered at the start of the **next frame**, so a subscriber sees the new cycle already under way:
+- The framework ticks its services in descending tick priority (insertion in `AddToTick` `0x00879BB9`, walk in
+  `OnTick` `0x0087A74B`). The message server's priority is 5,000,000 (`0x0092EB23`) and the simulator's is
+  −2,000,000 (`0x00704120`), so in every frame the message server ticks **before** the simulator.
+- The message server's tick (`0x0092E040`) sends queued messages until the queue is empty, including messages
+  posted during that tick (its drain flag is set to 1 by the constructor).
+- The post happens inside the simulator's tick (§6.5, during `DoDailySimulation`). It therefore waits for the next
+  frame's message-server tick, and nothing can deliver it in between except a nested framework tick.
+
+Between the post and the delivery the flammability day agent keeps running: the rest of the wrap day (up to
+`tractsPerDay` tracts, all in the new cycle's order; it is `tractsPerDay` exactly when the previous cycle ended on
+the last tract of a day), plus one more `tractsPerDay` for every further SimNewDay the simulator opens in the same
+tick. A further day needs `msPerDay` to elapse within one simulator tick (simulator §5.1–§5.2). The tick lasts at
+most about `1000 / targetFps` ms: 66 ms at speed 2, 50 ms at speed 1, 33 ms at speed 0. With the shipped
+`msPerDay` {2000, 1000, 50} a second day fits only at speed 2. So at delivery, **at most 2 × `tractsPerDay`**
+tracts have been visited in the new cycle (at most `tractsPerDay` at speeds 0 and 1). A shadow's bound of
+2 × `tractsPerDay` is right for shipped tuning. A mod with a shorter day at speed 2 raises it to about
+(1 + ⌊66 / msPerDay⌋) × `tractsPerDay`.
+
+Example (128² city, `tractsPerDay` 409, speed 2): the cycle ends after 300 tracts of a day. The day visits its last
+109 tracts in the new cycle; if a second day opens in the same tick, 409 more. The comparison then sees up to 518
+new-cycle tracts; the bound is 818.
 
 ## 10. Persistence (`cIGZSerializable`, `GetGZCLSID() = 0xE990C045`) *[compat]*
 
