@@ -568,7 +568,10 @@ vectors `pf11_15`–`pf11_28`. The core's current answer is in brackets.
   (`FindPath` `0x006D97D1`–`0x006D97DD`) and written into §4.8.2 (b). The only gate is bit `t2` of the u16 allowed
   mask, and no game caller sets a bit above 8, so the original ignores such a nibble in practice; with such a bit
   set it would index its 9-entry tables past their ends. **The bracket is equivalent and stands as a [choice].**
-- **PF14:** distance-table indices outside −1…W / −1…H (unreachable). [the formula]
+- ~~**PF14:** distance-table indices outside −1…W / −1…H (unreachable). [the formula]~~ **ANSWERED 2026-10-14**
+  from the exe (`H` `0x006D6160`, `SetupDistanceTables` `0x006D6040`, `RecalculateNodeScores` `0x006D6825`) and
+  written into §4.4 ("Index range"). **Confirmed unreachable:** every cell whose `H` is read is in city or one step
+  off it. The original has no check and would read the neighbouring heap. **The bracket stands as a [choice].**
 - **PF15:** the entry side of a ferry neighbour-link exit node. [`EdgeTo(off → edge)`; assumes adjacent cells]
 - Deviations from the compiled interface (choices): `SetStartingCostArray` copies the 9 floats; `SetRouteInfo` keeps
   its own route list; the process-wide work-check values are one shared cell.

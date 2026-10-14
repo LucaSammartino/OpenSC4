@@ -226,6 +226,13 @@ At every call, in this order:
 **Distance tables** (from the end rect `(ex0, ez0, ex1, ez1)`): for `i` = −1 … W, `dX[i] = ex0 − i` if `i < ex0`,
 `0` if `ex0 ≤ i ≤ ex1`, `i − ex1` if `i > ex1`; `dZ` likewise over −1 … H. Integers.
 
+**Index range** (PF14). The tables are read only for cells outside the search rect: `H` (`0x006D6160`) at the
+cell AddTripNode or CreateStartNodes is given, and RecalculateNodeScores at a node's own cell (§4.18). In every game
+flow those cells are in the city or one cell off it: in-city cells for moves, tunnels, ferry links and starts, and
+the in-city cell for an exit node (§4.8.2), whose own cell is one step off the map. So the index stays in −1…W and
+−1…H. The original does not check it; an index outside would read the heap next to the table. *[choice]* For such an
+index FreeCity4 applies the formula above (`ex0 − i` or `i − ex1`).
+
 **Heuristic** `H(x, z)`: 0.0 if `(x, z)` is inside the search rect (inclusive); otherwise the float conversion of the
 integer `dX[x] + dZ[z]` (exact). The score of a node is `f = r24(r24(H(x, z) × w) + g)`. So the search is plain
 Dijkstra within 4 cells of the start and weighted A\* beyond. *[compat]*
