@@ -21,10 +21,14 @@
 //                          count, the depth is capped, every link it follows
 //                          must be non-null and point back (child -> parent),
 //                          keys must increase, and a step limit stops a cycle.
+//   ReadGameMapVectorU16   a std::vector<std::map<uint32_t, uint16_t>>
+//                          object {begin, end, capacity_end} of 12-byte
+//                          maps, through WalkGameMap; all or nothing.
 //   ReadProfileCapacities  the capacity maps of a building profile
-//                          (docs/abi/layouts.md: a vector of
-//                          map<uint32_t, uint16_t> at +0x0C/+0x10/+0x14),
-//                          through WalkGameMap; all or nothing.
+//                          (docs/abi/layouts.md: such a vector at +0x0C).
+//                          A lot's populations (lot slot 54 returns the
+//                          vector at lot + 0x54, aura.md §6.5.1) are read
+//                          with ReadGameMapVectorU16.
 //   FillGameMapI32         empties and fills a map<uint32_t, int32_t> the game
 //                          owns with the game's own subtree free and
 //                          operator[] (docs/abi/direct-calls.md), whose
@@ -244,25 +248,29 @@ struct GameCapacityRead {
     GameCapacityEntry entries[kMaxCapacityEntries];
 };
 
-// Reads every (developer type, amount) of every capacity map of the 0x40-byte
-// profile at `profile`, map by map, each in key order. All or nothing: on any
-// inconsistency `status` says why and `count` is 0. Never writes the profile.
-inline void ReadProfileCapacities(const void* profile, GameCapacityRead* out) {
+// Reads every (key, uint16 value) of every map of the STLport vector object
+// at `vector` ({begin, end, capacity_end} of 12-byte map<uint32_t, uint16_t>),
+// map by map, each in key order; entries whose value is 0 are kept. All or
+// nothing: on any inconsistency `status` says why and `count` is 0. Never
+// writes. A never-pushed vector (begin = end = capacity_end = null) has no
+// maps.
+inline void ReadGameMapVectorU16(const void* vector, GameCapacityRead* out) {
     out->status = GameMapStatus::Ok;
     out->maps = 0;
     out->badMap = 0;
     out->count = 0;
-    if (profile == nullptr) {
+    if (vector == nullptr) {
         out->status = GameMapStatus::NullMap;
         return;
     }
     const GameMapObject* v[3] = {};
-    std::memcpy(v, static_cast<const unsigned char*>(profile) + kProfileCapacityVectorOffset, sizeof(v));
+    std::memcpy(v, vector, sizeof(v));
     const uintptr_t begin = reinterpret_cast<uintptr_t>(v[0]);
     const uintptr_t end = reinterpret_cast<uintptr_t>(v[1]);
     const uintptr_t cap = reinterpret_cast<uintptr_t>(v[2]);
     if (begin == 0) {
-        // No property 0x27812834: the vector was never pushed to (begin = end = null).
+        // Never pushed to (begin = end = null): a profile without property
+        // 0x27812834, or a lot with no population maps.
         if (end != 0 || cap != 0) out->status = GameMapStatus::BadVector;
         return;
     }
@@ -289,6 +297,17 @@ inline void ReadProfileCapacities(const void* profile, GameCapacityRead* out) {
         }
     }
     out->count = n;
+}
+
+// Reads every (developer type, amount) of every capacity map of the 0x40-byte
+// profile at `profile` (its vector at +0x0C), as ReadGameMapVectorU16. Never
+// writes the profile.
+inline void ReadProfileCapacities(const void* profile, GameCapacityRead* out) {
+    if (profile == nullptr) {
+        ReadGameMapVectorU16(nullptr, out);
+        return;
+    }
+    ReadGameMapVectorU16(static_cast<const unsigned char*>(profile) + kProfileCapacityVectorOffset, out);
 }
 
 // ---- filling a map the game owns (direct-calls.md) ------------------------------------------------

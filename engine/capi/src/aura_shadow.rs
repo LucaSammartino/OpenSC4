@@ -251,7 +251,7 @@ impl AuraHost for ShadowHost {
     fn lot_at(&self, x: i32, z: i32) -> Option<LotInfo> {
         self.c.lot_at(x, z)
     }
-    fn land_value_type(&self, x: i32, z: i32) -> i32 {
+    fn land_value_type(&self, x: i32, z: i32) -> Option<i32> {
         self.c.land_value_type(x, z)
     }
     fn occupant_has_property(&self, occupant: u64, prop: u32) -> bool {

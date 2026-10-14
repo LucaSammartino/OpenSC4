@@ -2758,7 +2758,8 @@ typedef struct fc4_aura_lot {
     uint64_t building;
 } fc4_aura_lot;
 
-/* One (developer type, count) pair of GetPopulations (slot 54). */
+/* One (developer type, count) pair of GetPopulations (slot 54): every entry
+ * of every map, counts of 0 included (aura.md 6.5.1). */
 typedef void (*fc4_aura_population_sink)(void* ctx, uint32_t developer_type, int32_t count);
 
 /* What any thread may read: slots 8-10 and the four grid tokens of slots
@@ -2810,6 +2811,8 @@ typedef struct fc4_aura_host {
     bool (*lot_next)(void* user, uint64_t it, fc4_aura_lot* out, fc4_aura_population_sink sink, void* ctx);
     void (*lot_iterator_release)(void* user, uint64_t it);
     bool (*lot_at)(void* user, int32_t x, int32_t z, fc4_aura_lot* out); /* GetLot(x, z, false) */
+    /* GetLandValueType(x, z); negative = no land value simulator (aura.md 6.5.1,
+     * AU10: the value/wealth term is skipped); NULL reads as none */
     int32_t (*land_value_type)(void* user, int32_t x, int32_t z);
     /* occupants */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);

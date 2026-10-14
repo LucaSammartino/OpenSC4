@@ -691,6 +691,23 @@ fn calls_during_a_call_are_queued() {
 }
 
 #[test]
+fn sint32s_reads_integer_arrays_of_two_or_more() {
+    // §7 "How the values are read", [choice] AU4: a Sint32 or Uint32 array
+    // (bitwise) of at least two values; anything else is absent (no cone).
+    use fc4_core::variant::{Elem, Variant};
+    let a = |elem: u16, items: Vec<Elem>| Variant::array(elem, items);
+    let pair = a(mem::SINT32, vec![Elem::I32(50), Elem::I32(22)]);
+    assert_eq!(sint32s(&pair), Some(vec![50, 22]));
+    let bits = vec![Elem::U32(0xFFFF_FF9C), Elem::U32(32), Elem::U32(7)];
+    assert_eq!(sint32s(&a(mem::UINT32, bits)), Some(vec![-100, 32, 7]));
+    assert_eq!(sint32s(&a(mem::SINT32, vec![Elem::I32(50)])), None);
+    assert_eq!(sint32s(&a(mem::SINT32, vec![])), None);
+    assert_eq!(sint32s(&Variant::Scalar(Elem::I32(50))), None);
+    assert_eq!(sint32s(&a(mem::FLOAT32, vec![Elem::F32(50.0), Elem::F32(22.0)])), None);
+    assert_eq!(sint32s(&a(mem::SINT16, vec![Elem::I16(50), Elem::I16(22)])), None);
+}
+
+#[test]
 fn record_round_trip_through_host_streams() {
     let g = Game::new();
     let p = started(&g);
