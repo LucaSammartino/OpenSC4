@@ -577,6 +577,18 @@ With `R` = the current regional city:
    `0xEA46934F`; `wte` = full expenses of line item `0x1F470000` of the power department. **Before** evaluating the
    garbage curve, the simulator loads property `0x4B61FFC9` into its curve (§8.3).
 
+   The `free / (12 × years)` term (NB13) works as follows:
+   - `years` is read as f32 into a local that is given **no default** first (`0x006D2AE3`–`0x006D2B0A`).
+   - `12 × years` is stored as float32. The u32 `free` is converted and divided by it on the x87 (`0x006D309C`).
+   - A **present** `years = 0` is divided by literally. With `free > 0` the term is +∞, so `produced` is +∞: `R`
+     stores +∞ (`SetProduced` takes a double), the garbage cost-per-unit input `x / ∞` is 0, and the `0x4B54F333`
+     history entry is 0 (`_ftol2`'s low dword).
+   - With `free = 0`, a present 0 gives 0/0 = NaN instead, and `produced` is NaN.
+   - A **missing** property leaves whatever was on the stack: the original's result is undefined. *[choice]*
+     FreeCity4 treats a missing `years` as making the term 0.
+
+   The shipped exemplar has `years = 1`, so only mods reach either case.
+
    Then `R.SetProduced(c, produced)`, `SetDemanded(c, demanded)`, `SetExported(c, exp)`, `SetImported(c, imp)`,
    `SetCostPerUnit(c, costPerUnit)`, and record history: power `0xAA11F837` ← imported, `0xAA11F83A` ←
    exported; water `0x0A14EBB5` ← imported, `0xCA14EBC6` ← exported; garbage `0xEA11017B` ← exported,
@@ -685,7 +697,7 @@ Exemplar `0x6534284A / 0x7A4A8458 / 0x6A469021` "Neighbor Deals" (`SimCity_1.dat
 | `0xCA469346` | 0.5 | 1 | maximum markup |
 | `0x6B588FAD` | 90 | 0 | grace period (days) |
 | `0x8B58C59E` | 90 | 0 | probation period (days) |
-| `0xEA46934F` | 1 | 5 in proposals, 0 in the deal simulation, unset in `UpdateCommodityStats` (*[choice]* 0 → treat the free-landfill term as 0) | landfill horizon and maximum deal term (years) |
+| `0xEA46934F` | 1 | 5 in proposals, 0 in the deal simulation; in `UpdateCommodityStats` an **uninitialized** stack slot (§8.2; *[choice]* missing → treat the free-landfill term as 0) | landfill horizon and maximum deal term (years) |
 | `0xAA46934B` | 1 | 1 | minimum deal term (years) |
 | `0xCA46931F` | 60 | 1 | proposal: budget must exceed this × the deal cost |
 | `0xEA4AE9EF` | 5000 | 0 | proposal: minimum payer budget |

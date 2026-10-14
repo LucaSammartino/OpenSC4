@@ -497,7 +497,11 @@ vectors `nb18_*`). The core's current answer is in brackets.
   identity with the current city. Null or any other pointer, including our own regional-city object, does nothing.
   The core should take a city handle. Also, `R` is not null-checked (`0x006D2A6C`); returning early there is a
   *[choice]* (neighbors.md §8.2).
-- **NB13:** a present `0xEA46934F` of 0 is divided by literally (inf or NaN); a missing one gives 0. [as stated]
+- ~~**NB13:** a present `0xEA46934F` of 0 is divided by literally (inf or NaN); a missing one gives 0. [as stated]~~
+  **ANSWERED 2026-10-14** from the exe. Present 0: the bracket matches; the x87 divide at `0x006D309C` gives +∞, or
+  NaN when free = 0. Missing: the original divides by an **uninitialized** stack float (no default is written before
+  the read, `0x006D2AE3`). Its result is undefined, so "missing gives 0" is kept as a *[choice]* (neighbors.md §8.2,
+  §12).
 - **NB14:** the order of `GetAdjacentCities`. [choice: by region position, x then z]
 - **NB15:** without a current regional city, the UpdateState budget test is skipped. [skipped]
 - **NB16:** a missing payer at renewal counts as "cannot afford". [yes]
