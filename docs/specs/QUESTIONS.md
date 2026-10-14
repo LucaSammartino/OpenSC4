@@ -596,8 +596,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   own parser adds the digits one by one in x87 arithmetic, rounded at every step to the main thread's 24-bit
   precision; the exponent's power of ten is a wrapping 32-bit integer. So `0.05` gives `0x3D4CCCCC`, not
   `0x3D4CCCCD`, `1e10` gives 1,410,065,408, and `1e32` gives 0 (data-formats.md §4.3, with examples).
-- **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
-  from the package index]
+- ~~**EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
+  from the package index]~~ **ANSWERED 2026-10-14** from the exe (`0x009732EB`, `0x00972EAE`): **the first half
+  matches, the second does not.** A key resolves if a resource cache already holds it, or if a factory is
+  registered for its type, a loaded package holds the record, and the factory's read succeeds. Index presence
+  alone is not enough. Any type with a factory counts, not only exemplars and cohorts (data-formats.md §4.6).
 - **EX16:** shipped data: `Plugin_002_TheLivingMall.dat` writes `Uint8:0:{}` for two LotConfig properties, now read
   as a scalar 0 (§4.3). Intended? [scalar 0]
 - **EX17:** slot 5 `GetProperty(id, void*, uint32&)`: what type does the caller request? [not implemented]

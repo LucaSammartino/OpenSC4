@@ -428,8 +428,17 @@ property always wins over any ancestor's. No shipped record has duplicates.
 
 A kind-1 property holds a resource: its key (type, group, instance) is loaded through the resource manager
 (`cIGZPersistResource`, `0x456B8F1D`) while the exemplar is read, and the property keeps the loaded object. If the
-resource cannot be loaded, **the exemplar read fails**. No shipped record uses kind 1; the text form cannot express
-it. *[choice]* FreeCity4 reads kind 1 for compatibility but no simulation code depends on it.
+resource cannot be loaded, **the exemplar read fails**. The resource manager (`0x009732EB`) can load a key when:
+
+- a resource cache already holds an object with that key; or
+- (`0x00972EAE`) a factory is registered for the key's **type**, a loaded package holds a record with that key,
+  and the factory's read of that record succeeds.
+
+A key that is in a package index but has no factory for its type does not load. Neither does a key whose
+record fails to read, such as a cohort whose own parent fails. Any type with a factory counts, not only
+exemplars and cohorts *[inferred: the registered factory set was not enumerated]*. No shipped record uses
+kind 1; the text form cannot express it. *[choice]* FreeCity4 reads kind 1 for compatibility but no simulation
+code depends on it.
 
 ---
 
