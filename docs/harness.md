@@ -95,9 +95,13 @@ after `timeout` plus 15 minutes, ask the coordinator (the queue may be stopped).
 
 - There is no keyboard or mouse: the game runs minimized and is never brought to the front. No UI-driven tests, no
   Ctrl+S. Drive the city with `script = <file>` actions instead (including `save`).
-- Game dialogs (advisor popups and the like, drawn by the game) are not clicked away. Keep `popup_dialogs = 0` (the
-  queue adds it). If one still holds the city, the verdict file has a `held:` line ("held by a dialog since <game
-  date>"), and the run usually ends at its timeout.
+- Game dialogs (advisor popups and the like, drawn by the game) are not clicked away from outside. Keep
+  `popup_dialogs = 0` (the queue adds it). With a DLL from main `dba09eb` or later, `close_dialogs = 1` makes the
+  plugin itself end each game modal dialog by its default button (fallback `EndModal`), logs a `dialogs: closed …`
+  line per dialog and adds `dialogs_closed=N` to the verdict; with it, `popup_dialogs = 1` runs reach their end date
+  too (`docs/specs/modal-dialogs.md`; bankruptcy, Lua error boxes and Windows message boxes are not covered). If a
+  dialog still holds the city, the verdict file has a `held:` line ("held by a dialog since <game date>"), and the
+  run usually ends at its timeout.
 - Windows message boxes (class `#32770`, e.g. an assert or runtime error box; no plugin code runs while one is open)
   are read and closed from outside: OK if there is one, else Cancel, else WM_CLOSE (a Yes/No box stays open and is
   reported). Each gives a `dialog:` line with its title and text. One whose title says "Error" before the plugin
