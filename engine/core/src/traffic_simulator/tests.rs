@@ -1784,7 +1784,7 @@ fn statistics_slots() {
     assert_eq!(last.rows[3], row(0.5, 0, (3, 1), 0.5));
     // r = 0 still beats the starting −1.0.
     assert_eq!(last.rows[10], row(0.0, 0, (4, 1), 0.0));
-    // A slot with no record publishes zeros *[question]*.
+    // A slot with no record publishes zeros (TS40: the reset zeroes the rows).
     assert_eq!(last.rows[1], StatRow::default());
     // The bridge: r = 2.0, not in the type's count.
     assert_eq!(last.bridge, row(2.0, 1, (2, 1), 2.0));
@@ -3169,4 +3169,181 @@ fn ts19_get_lot_origin_only_in_state_5_and_10() {
         assert_eq!(s.destination_byte(x, z), 1);
     }
     assert_eq!(s.free_destinations()[0], 1);
+}
+
+// ---- re-answers8 (TS35-TS49) ----
+
+/// §3.3 (TS35): entering 17 zeroes pass counter 1; entering 18 zeroes the
+/// day index, processed and `passTotal`, not counter 1, which keeps the
+/// re-route count of state 17 through state 18.
+#[test]
+fn ts35_entering_18_keeps_pass_counter_1() {
+    use super::state::PC_REROUTE_COUNTER;
+    let w = World::new();
+    let s = sim(&w);
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::CONFIRM_TRIPS;
+        st.pass_counters[PC_REROUTE_COUNTER] = 7;
+    });
+    // 16 with no source finishes and enters 17.
+    assert!(s.do_daily_simulation());
+    assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+    assert_eq!(s.read_state(|st| st.pass_counters[PC_REROUTE_COUNTER]), 0);
+    // 17 with no trip finishes and enters 18: counter 1 is kept.
+    s.update_state(|st| {
+        st.pass_counters[PC_REROUTE_COUNTER] = 7;
+        st.pass_total = 33;
+        st.to_search = 40;
+        st.processed = 5;
+        st.day_index = 2;
+    });
+    assert!(s.do_daily_simulation());
+    assert_eq!(s.cycle_state(), cycle_state::FULL_TRIPS);
+    assert_eq!(
+        s.read_state(|st| (
+            st.pass_counters[PC_REROUTE_COUNTER],
+            st.pass_total,
+            st.total,
+            st.days,
+            st.processed,
+            st.day_index
+        )),
+        (7, 0, 40, 2, 0, 0)
+    );
+}
+
+/// §3.2, §3.5 step 11 (TS44, TS45): the two s16 phase positions. The 16–18
+/// entry action zeroes them; a trip phase stores the cell of the source it
+/// takes; the resume compares them as 16-bit values; FinishTripMap stores
+/// each lot's location as it takes it.
+#[test]
+fn ts44_ts45_phase_positions() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
+    // x = 65 538 is 2 as an s16.
+    w.add_lot(2, Lot::new(CellRect::new(65_538, 2, 65_538, 2), 12));
+    let s = sim(&w);
+    for state in [
+        cycle_state::CONFIRM_TRIPS,
+        cycle_state::REROUTE_TRIPS,
+        cycle_state::FULL_TRIPS,
+    ] {
+        s.update_state(|st| st.extras.phase_positions = [5, 6]);
+        s.enter_cycle_state(state);
+        assert_eq!(s.read_state(|st| st.extras.phase_positions), [0, 0], "state {state}");
+    }
+    // One ConfirmTrips slice of one unit takes lot 1.
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    assert!(!s.work_on_sim_cycle());
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [1, 1]);
+    // The resume finds lot 2 at (2, 2) by its 16-bit x.
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        st.extras.phase_positions = [2, 2];
+    });
+    s.do_post_city_init();
+    assert_eq!(s.read_state(|st| st.current), Some(Source::Lot(2)));
+    // FinishTripMap: the last lot's location, as an s16 pair.
+    s.update_state(|st| st.extras.phase_positions = [9, 9]);
+    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.cycle_state(), cycle_state::CREATE_MAPS);
+    assert_eq!(s.read_state(|st| st.extras.phase_positions), [2, 2]);
+}
+
+/// §4.9 step 1 (TS40): the state-2 reset zeroes the working rows; a
+/// separate comparison value starts at −1.0. A slot whose only record has
+/// a NaN ratio never beats it, so its max fields stay 0 (not −1.0), and
+/// its average is NaN.
+#[test]
+fn ts40_statistics_reset_and_nan_record() {
+    let w = World::new();
+    let s = sim(&w);
+    s.network().update_state(|n| {
+        let r = n.append_info(1, 5, 1).unwrap();
+        r.inv_cap = 1.0;
+        r.net_type = net_type::AVENUE as u8;
+    });
+    s.volume_grid(1).unwrap().set(5, 1, f32::NAN);
+    s.update_state(|st| st.stats_work.rows[0].max = 9.0);
+    s.enter_cycle_state(cycle_state::CREATE_MAPS);
+    assert_eq!(s.read_state(|st| st.stats_work.rows[0]), StatRow::default());
+    assert_eq!(s.read_state(|st| st.stat_max_cmp), [-1.0; 14]);
+    assert!(s.work_on_sim_cycle());
+    let row = s.read_state(|st| st.stats_last.rows[net_type::AVENUE as usize]);
+    assert!(row.sum.is_nan());
+    assert_eq!((row.congested, row.max_x, row.max_z, row.max.to_bits()), (0, 0, 0, 0));
+    assert_eq!(s.read_state(|st| st.stats_last.records[net_type::AVENUE as usize]), 1);
+    // The working rows of empty slots are saved as zeros.
+    assert_eq!(s.read_state(|st| st.stats_work.rows[0]), StatRow::default());
+}
+
+/// traffic-network.md §2.7.2 step 5 (TS42): with IDs 1…65535 in use the
+/// search wraps to key 0. The new holder is the map's own key-0 pool: the
+/// record's pool is 0 (the default pool), but StartRecalc's search by city
+/// position sets that holder's capacities, not the default pool's.
+#[test]
+fn ts42_pool_id_search_wraps_to_key_0() {
+    let w = World::new();
+    let road = 2u32;
+    w.conns.borrow_mut().push((
+        77,
+        Conn {
+            cell: (-1, 5),
+            holder: 70,
+            conn_type: Some(road),
+            city: Some((10, 20)),
+            ..Conn::default()
+        },
+    ));
+    *w.cities.borrow_mut() = vec![NeighbourCity {
+        position: (10, 20),
+        population: [300, 1, 0],
+    }];
+    *w.demand.borrow_mut() = [Some(800.0), Some(10.0), Some(0.0)];
+    let s = sim(&w);
+    s.update_pools(|p| {
+        for id in 1..=u16::MAX {
+            p.map.insert(id, PropertyHolder::new());
+        }
+    });
+    s.network().set_connection(0, 5, side::EAST, side::WEST, travel::CAR);
+    neighbour_message(&s, true, road, -1, 5);
+    assert!(s.pools().map.contains_key(&0));
+    assert_eq!(s.pools().find(10, 20), Some(0));
+    assert_eq!(s.network().traffic_neighbor_connection(-1, 5).pool, 0);
+    s.enter_cycle_state(cycle_state::START_RECALC);
+    assert!(s.work_on_sim_cycle());
+    let caps = |t: u64| capacity_values(&s.holders(), t).unwrap();
+    assert_eq!(
+        caps(POOL_KEY0_TOKEN),
+        vec![800, 10, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]
+    );
+    assert_eq!(caps(pool_token(0)), vec![0, 0, 0, u32::MAX, 0, 0, 0, 0, 0, 0, 0, 0]);
+    // The edge pass reads the default pool for record pool 0: bit 3 only.
+    assert_eq!(s.destination_byte(-1, 5), 0b1000);
+    // With key 0 taken too the original never ends; nothing is created.
+    assert_eq!(s.update_pools(|p| p.create(1, 1)), None);
+    // The sweep keeps key 0 while a swept record has pool 0.
+    assert!(s.network().pool_ids_in_use().contains(&0));
+}
+
+/// §4.16 (TS46): the int64 cost is loaded exactly and the product with the
+/// f32 fraction rounded once: 16,777,217 at 0.75 is 12,582,913 (12,582,912
+/// when the cost is converted to f32 first).
+#[test]
+fn ts46_station_cost_rounds_once() {
+    let w = World::new();
+    let s = sim(&w);
+    let dept = w.department_budget(dept::MASS_TRANSIT).expect("mass transit");
+    w.funding.borrow_mut().insert(dept, 0.75);
+    w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 16_777_217));
+    set_switches(&s, &[(3, 3, 5)], &[(5, 0.0)]);
+    s.network()
+        .update_state(|n| n.switches.get_mut(5).unwrap().building = 900);
+    assert_eq!(s.transit_switch_query_data(3, 3).map(|q| q.cost), Some(12_582_913));
+    // Below 2^24 both readings agree: 150 at 0.75 = 112.5 → 112.
+    w.query_items.borrow_mut().insert(900, (dept::MASS_TRANSIT, 150));
+    assert_eq!(s.transit_switch_query_data(3, 3).map(|q| q.cost), Some(112));
 }
