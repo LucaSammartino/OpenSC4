@@ -1510,6 +1510,128 @@ public:
     virtual int32_t GetMaxZoneSize(int32_t type) = 0;                                     // 20
 };
 
+// ---- traffic (docs/specs/traffic-simulator.md §7, traffic-network.md §7.1, pathfinder.md §7) -------------
+
+class cISC4Occupant;
+
+// GetTrafficEdgeDensity's record (traffic-simulator.md §4.8, 0x42 bytes, read
+// as 33 u16: usage at +0x20).
+struct FC4TrafficEdgeDensity {
+    uint16_t last[16];
+    uint16_t usage;
+    uint16_t current[16];
+};
+static_assert(sizeof(FC4TrafficEdgeDensity) == 0x42, "TrafficEdgeDensity is 0x42 bytes");
+
+// GetTransitSwitchQueryData's out (traffic-simulator.md §4.16, five 32-bit fields).
+struct FC4TransitSwitchQueryData {
+    uint32_t available;
+    uint32_t maxCapacity;
+    float loadFraction;
+    uint32_t usage;
+    uint32_t cost;
+};
+
+// cISC4PathFinder (IID 0xAA0DB766, vtable 0x00AB2150, 34 slots; pathfinder.md
+// §7). No SDK header exists. Slot 33 is the class's scalar deleting
+// destructor (not part of the interface): an implementing class's virtual
+// destructor lands there. Slots 25 and 26 return in ST0.
+class cFC4ISC4PathFinder : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual void SetFlag(uint32_t flags) = 0;                                    // 5
+    virtual void ClearFlag(uint32_t flags) = 0;                                  // 6
+    virtual void ClearAllFlags() = 0;                                            // 7
+    // 8: a std::deque<RouteData>* of the caller (3-byte elements), or null.
+    virtual void SetRouteInfo(void* routeDeque) = 0;                             // 8
+    virtual void SetTripDestinationFilter(uint32_t filter) = 0;                  // 9
+    virtual void SetDestinationFlag(uint8_t bits) = 0;                           // 10
+    virtual void ClearDestinationFlag(uint8_t bits) = 0;                         // 11
+    virtual void ClearAllDestinationFlags() = 0;                                 // 12
+    virtual void SetTravelTypeFlag(uint16_t mask, bool alsoStarting) = 0;        // 13
+    virtual void ClearTravelTypeFlag(uint16_t mask) = 0;                         // 14
+    virtual void ClearAllTravelTypeFlags() = 0;                                  // 15
+    virtual void SetStartingCostArray(float* costs9) = 0;                        // 16
+    virtual void SetMaxTripLength(float length) = 0;                             // 17
+    virtual void SetTrafficDensity(uint32_t trips) = 0;                          // 18
+    virtual void SetStartRect(SC4Rect<int32_t> rect) = 0;                        // 19 (by value)
+    virtual void SetEndRect(SC4Rect<int32_t> rect) = 0;                          // 20 (by value)
+    virtual void SetMaxWorkTime(uint32_t ms) = 0;                                // 21
+    virtual void Reset() = 0;                                                    // 22
+    virtual uint32_t FindPath() = 0;                                             // 23
+    virtual uint32_t GetTrafficArrived() = 0;                                    // 24
+    virtual float GetTripLength() = 0;                                           // 25
+    virtual float GetTripLengthScaledForDisplay() = 0;                           // 26
+    virtual void GetEndCell(int32_t& x, int32_t& z) const = 0;                   // 27
+    virtual uint8_t GetLastTravelType() const = 0;                               // 28
+    virtual void ApplyTraffic(uint32_t style) = 0;                               // 29
+    virtual bool WasTripReversible() = 0;                                        // 30
+    virtual void ReleasePathNodes() = 0;                                         // 31
+    // 32: the caller's std::vector<uint8_t> (B) and mask (allocators.md).
+    virtual void GetCompressedRoute(fc4::GameVector<uint8_t>& out, uint32_t& mask) = 0;  // 32
+};
+
+// cISC4TrafficSimulator as compiled (IID 0x68027F37, vtable 0x00AB33D0, 44
+// slots; traffic-simulator.md §7, traffic-network.md §7.1). SDK errors fixed:
+// slots 11, 23 return in ST0; 19 and 26 return nothing (26 takes a pointer to
+// an STL vector of floats, B); 22, 29 and 34 return pointers; 23 and 25 take a
+// transit network 0-5; 28-31 and 39-42 fill STL containers (allocators.md),
+// and a replacement returns true where the original returns garbage
+// (traffic-network.md §7.1 [choice]). Slot 43 is the class's scalar deleting
+// destructor (not part of the interface).
+class cFC4ISC4TrafficSimulator : public cIGZUnknown {
+public:
+    virtual bool Init() = 0;                                                     // 3
+    virtual bool Shutdown() = 0;                                                 // 4
+    virtual uint32_t GetSimulatorType() = 0;                                     // 5
+    virtual bool CreatePathFinder(cFC4ISC4PathFinder** out) = 0;                 // 6
+    virtual bool SetupPathFinderForLot(cFC4ISC4PathFinder* pf, cISC4Lot* lot) = 0;  // 7
+    virtual cISC4SimGrid<uint8_t>* GetAirPollutingTrafficMap() = 0;              // 8
+    virtual cISC4SimGrid<uint8_t>* GetCommercialTrafficMap() = 0;                // 9
+    virtual cISC4SimGrid<uint8_t>* GetCongestionMap() = 0;                       // 10
+    virtual float GetBackgroundTraffic(int32_t x, int32_t z) = 0;                // 11
+    virtual FC4TrafficEdgeDensity* GetTrafficEdgeDensity(uint8_t x, uint8_t z, uint32_t travelType,
+                                                         bool evening) = 0;      // 12
+    virtual cISC4SimGrid<uint8_t>* GetTripLengthMap() = 0;                       // 13
+    virtual float GetTripScale() = 0;                                            // 14
+    virtual float GetTripScaleForDisplay() = 0;                                  // 15
+    virtual bool IsRoadDamaged(int32_t x, int32_t z) = 0;                        // 16
+    virtual bool CheckRailAccident(int32_t x, int32_t z) = 0;                    // 17
+    virtual float GetLastMonthlyIncome() = 0;                                    // 18
+    virtual void SetMaxTripCapacity(cISCPropertyHolder* holder, uint32_t k, uint32_t value) = 0;  // 19
+    virtual uint32_t GetMaxTripCapacity(cISCPropertyHolder* holder, uint32_t k) = 0;  // 20
+    virtual uint32_t GetTrafficArrived(cISCPropertyHolder* holder, uint32_t k) = 0;   // 21
+    // 22: the lot manager's safe lot iterator during the lot sweep, else null.
+    virtual void* GetDesiredLotInsertionPoint() = 0;                             // 22
+    virtual float GetCapacity(uint32_t transitNetwork, int32_t x, int32_t z) = 0;  // 23
+    virtual float GetTravelTimeRatio(int32_t x, int32_t z, uint32_t travelType) = 0;  // 24
+    virtual uint32_t GetConnectionCount(uint32_t transitNetwork, int32_t x, int32_t z) = 0;  // 25
+    virtual void GetTravelStrategyPercentages(uint32_t wealth, fc4::GameVector<float>* out) = 0;  // 26
+    virtual float GetFreightScalingFactor() = 0;                                 // 27
+    // 28: ilist<cISC4Occupant*> (allocator A): SC4List's layout and allocator.
+    virtual bool GetTransitSwitches(SC4List<cISC4Occupant*>& list) = 0;          // 28
+    // 29: a pointer to a std::vector<uint8_t> the simulator owns, or null.
+    virtual fc4::GameVector<uint8_t>* GetFerryRouteBetweenTiles(int32_t x1, int32_t z1, int32_t x2,
+                                                                int32_t z2) = 0;  // 29
+    // 30, 31: a std::list of vector<uint8_t> / of FerryRouteInfo (B nodes).
+    virtual bool GetAllFerryRoutes(void* list) = 0;                              // 30
+    virtual bool GetFerryRoutesInUse(void* list) = 0;                            // 31
+    virtual uint32_t GetFerryTerminalCount(uint32_t type) = 0;                   // 32
+    virtual bool GetWaterRoute(int32_t x1, int32_t z1, int32_t x2, int32_t z2,
+                               fc4::GameVector<uint8_t>& out) = 0;               // 33
+    // 34: the statistics block (FC4_TRAFFIC_STATS_BLOCK bytes, fc4.h).
+    virtual const uint8_t* GetTrafficStats() = 0;                                // 34
+    virtual bool GetTransitSwitchQueryData(uint32_t x, uint32_t z, FC4TransitSwitchQueryData& out) = 0;  // 35
+    virtual bool AreLotsConnected(cISC4Lot* a, cISC4Lot* b) = 0;                 // 36
+    virtual uint32_t GetConnectedOccupantCount(cISC4Lot* lot, uint32_t developerType) = 0;  // 37
+    virtual uint32_t GetConnectedDestinationCount(cISC4Lot* lot, int32_t k) = 0;  // 38
+    virtual bool GetSubnetworksForLot(cISC4Lot* lot, fc4::GameVector<uint32_t>& out) = 0;  // 39
+    virtual bool GetSubnetworksInRectangle(SC4Rect<int32_t> const& rect, fc4::GameVector<uint32_t>& out) = 0;  // 40
+    virtual bool GetSubnetworksInRegion(SC4CellRegion<long> const& region, fc4::GameVector<uint32_t>& out) = 0;  // 41
+    virtual bool GetOccupantCountForAllSubnetworks(uint32_t developerType, fc4::GameVector<uint32_t>& out) = 0;  // 42
+};
+
 // ---- flora (docs/specs/flora.md §11.1) ------------------------------------------------------------
 
 // cISC4FloraTypeFilter: caller-supplied (the SDK only forward-declares it).

@@ -311,7 +311,7 @@ const MAX_REGION_CELLS: i64 = 1 << 20;
 /// The region a host hands in. `None` when it is too large. An empty
 /// rectangle (x1 < x0 or z1 < z0) is a region with no cells, as the game's
 /// would be.
-unsafe fn region_in(r: &fc4_zone_region) -> Option<CellRegion> {
+pub(crate) unsafe fn region_in(r: &fc4_zone_region) -> Option<CellRegion> {
     let w = i64::from(r.x1) - i64::from(r.x0) + 1;
     let h = i64::from(r.z1) - i64::from(r.z0) + 1;
     if w > MAX_REGION_SIDE || h > MAX_REGION_SIDE || w.max(0) * h.max(0) > MAX_REGION_CELLS {

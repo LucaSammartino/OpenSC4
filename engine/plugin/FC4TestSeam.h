@@ -52,8 +52,9 @@
 //         mismatch count, -1 (not taken) or -2 (delivered, nothing compared).
 //   op 12 kFC4SeamRefAuditRelease  a = cIGZUnknown* (a game object whose
 //         Release returns 0), b = mode: bit 0 = note an acquired reference
-//         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED
-//         (else FC4_RELEASE); returns the reference warnings it caused.
+//         first (FC4_ACQUIRED), bit 1 = release with FC4_RELEASE_CREATED,
+//         bit 2 = with FC4_RELEASE_AT_DESTRUCTION (else FC4_RELEASE); returns
+//         the reference warnings it caused.
 //   op 13 kFC4SeamCrimeShadow      a = const FC4CrimeShadowTestInput*
 //         (FC4CrimeShadow.h): one crime-shadow month (SimNewMonth, then
 //         SimNewDay up to pipeline state 4) to a fake "original" crime
@@ -161,6 +162,11 @@
 //         (instead of the compat table's), one of its messages delivered
 //         with a given city, or the probe stopped; see GrowthProbeTest for
 //         the return values (-1: null argument).
+//   op 42 kFC4SeamTraffic          a = const FC4TrafficTestInput*
+//         (cFC4TrafficSimulator.h): the traffic simulator's test hooks (a
+//         host table answering instead of the game, a post sink), or the
+//         count of live slot-6 pathfinders. Returns what TrafficTestSeam
+//         returns, -1 for a null argument.
 //   op 46 kFC4SeamScript          a = const char* path (the harness lane,
 //         FC4Script.h): loads that script in place of the current one, as the
 //         `script` setting does at game start. Returns the number of actions
@@ -224,6 +230,7 @@ enum : uint32_t {
     kFC4SeamAuraShadowDeliver = 35,
     kFC4SeamZones = 38,
     kFC4SeamGrowthProbe = 39,
+    kFC4SeamTraffic = 42,
     kFC4SeamScript = 46,  // the harness lane
     kFC4SeamDialogs = 47,  // the harness lane
 };

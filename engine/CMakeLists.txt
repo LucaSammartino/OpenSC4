@@ -251,6 +251,9 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4DevelopmentShadow.h
         plugin/FC4DevelopmentInterfaces.h
         plugin/FC4GameMapBuild.h
+        # The traffic simulator, its network model and its pathfinders (M5 glue).
+        plugin/cFC4TrafficSimulator.cpp
+        plugin/cFC4TrafficSimulator.h
         # The harness lane's tooling: sim_turbo, autotest_end_date, script, close_dialogs.
         plugin/FC4HarnessLogic.h
         plugin/FC4Turbo.cpp
@@ -475,6 +478,13 @@ if(FC4_IS_WIN32_X86)
     add_test(NAME plugin_ini_enable_neighbors_test
         COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-neighbors)
     set_tests_properties(plugin_ini_enable_neighbors_test PROPERTIES RUN_SERIAL TRUE)
+    # Traffic (traffic-simulator.md, traffic-network.md, pathfinder.md): `enable =
+    # traffic` (no city: the QI table, the x87 slots, the record round trip,
+    # status lines) and, through seam op 42 with a stub host, the slot-6
+    # pathfinders (FindPath, the compressed route, the caller's route deque).
+    add_test(NAME plugin_ini_enable_traffic_test
+        COMMAND fc4_plugin_load_test "$<TARGET_FILE:FreeCity4>" --ini-enable-traffic)
+    set_tests_properties(plugin_ini_enable_traffic_test PROPERTIES RUN_SERIAL TRUE)
     # References read from a save (in-game run 88): land value grids and a
     # foreign ordinance, with and without a save before Shutdown, and land value
     # grids created through GZCOM; no reference warning, each released once.

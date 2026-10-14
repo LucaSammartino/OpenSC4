@@ -3423,3 +3423,93 @@ answer is in brackets; each entry says what would settle it.
   takes an out pointer and pops 4 bytes. `GetEventHour` takes a dword index, not a `bool`. [the game's form is
   binding (clock24.md §8), and docs/abi should note it. Plugins built on the SDK declaration would corrupt the
   stack in the original too]
+
+## From the power shadow under the turbo clock (filed by the coordinator from the `powerturbo` lane's report, 2026-10-14)
+
+The power shadow's bookkeeping lines were exact at normal speed but not under `sim_turbo` (regress gsT1: 306 of 352).
+The cause was the shadow's classifier, not the power core: building messages still in flight at a month line, which
+turbo makes more frequent. The lane fixed it in the shadow (exact under turbo and at normal speed) and implemented
+the brackets below, marked *[choice]* in code.
+
+- **PW9:** power §5.2 takes the first bookkeeping line as the baseline of differences inherited from the save, but
+  that line can have building messages in flight. Should the spec say how the baseline is chosen? [the first line
+  equal to its predecessor; never edited afterwards; an entry that reads 0 is listed as absent and counts as
+  inherited again when it returns; a non-inherited difference is a mismatch only when it is unchanged at a line
+  where nothing else changed, or unchanged across three lines]
+- **PW10:** given §5.3 (PW5: a partial rebuild leaves bits set outside the rebuilt area, and no insertion filters
+  run during a rebuild), should the bookkeeping line compare wire bits at all? [listed as "wire bits, not counted";
+  kept out of the baseline and the mismatch count. The cycle lines still compare every rebuild's wire bits exactly.
+  No counted check then covers the wire bits that §5.1 insertion sets directly]
+- **PW11:** under turbo the baseline can settle late (the 9th line in one run), so a real difference that appears
+  earlier is taken as inherited; and a frame that opens two month days keeps the first day's messages in flight at
+  the second, which then looks settled. Is a count of queued occupant messages (from the message server) a
+  documented, reliable signal that the shadow could use instead of this guesswork? [not used]
+
+## From applying the graphics-format answers (filed by the coordinator from the `apply9c` lane's report, 2026-10-14)
+
+- **FS15:** FS4: a later `0x7B` frame that has its own valid 256 × 1 palette. Does the original use that palette,
+  frame 0's, or upload grey? §2.6 covers only a frame with no usable palette. [its own palette; a palette that is
+  missing, the wrong size, outside the record, or behind a chain that leaves the record counts as "no usable
+  palette" → grey, and the record is still accepted]
+- **FS16:** FS12: the original's `towlower` works on UTF-16 code units, so it probably does not lower characters
+  outside the BMP. Should FreeCity4 match that? [no: every character is lowered by Unicode simple case mapping, as
+  §3.11 says]
+- **FS17:** §2.13 does not record the 15 shipped frames, in multi-frame DXT1 records, whose own A field would give the
+  other DXT1 format (they report frame 0's format since FS5; the pixels are the same). Should it? [no code depends
+  on it]
+
+## From the development glue fixes (filed by the coordinator from the `devglue2` lane's report, 2026-10-14)
+
+devglue2 made the development replacement work in game: the catalogue loads 744/744 types and 281 families (a
+building's own property list holds only its own properties; most building data sits in parent cohorts), the
+shadow is exact (305/305 lines), and the replacement grows like the original at equal pacing without going
+bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failures), unlike the landfill tile (LG27).
+
+- **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
+  that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
+  free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken]
+- **DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
+  holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
+  [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]
+- **DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
+  in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]
+- **DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
+  lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
+  frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
+  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]
+
+## From the traffic glue, phase 1 (filed by the coordinator from the `trafficglue` lane's report, 2026-10-14)
+
+Our traffic simulator (with the pathfinder) replaces the original in game (`enable = traffic`): clean under turbo,
+at normal speed for 84 months and across two saves, with 0 reference warnings. There is no traffic shadow yet.
+The lane's implemented answers are in brackets; most are glue choices that need only a confirmation or a spec line.
+
+- **TG1:** `FindPath` with a route deque. [returns 0, logged once, counted; the deque is untouched]
+- **TG2:** host callbacks left NULL: `path_info` and its helpers, `sim_clock_ms`, `update_network_costs`,
+  `lot_strategy_byte`, `take_connection_volume_dirty`, `occupants_in_cells`, `occupant_filter_includes`,
+  `cell_has_network_occupant`, `tunnel_paired_portal`, `view_cell_rect`, `create_accident`. Which of these does
+  the original need for the simulation (not the view)? [all NULL in phase 1]
+- **TG3:** the trip record layout. [FreeCity4's own `FC4TripData`]
+- **TG4:** `Init` after state was loaded by `Read`. [the loaded state is kept]
+- **TG5:** slot 34's record size. [0x23C]
+- **TG6:** slot 22. [returns null, logged]
+- **TG7:** departments. [`Get`, else `Create(id, 0)`; `SetMaxAllowedFunding`; line items 1–6]
+- **TG8:** `GetLanguageUtility`. [borrowed, not AddRef'd]
+- **TG9:** `DoLotActivated` budget items. [copied, then `AddBudgetItemToBudget(lot holder, item.index)`]
+- **TG10:** lot order. [the master list through the safe iterator; a rect query as fallback]
+- **TG11:** `Shutdown`. [unsubscribe; `RemoveAgentAllLevels`]
+- **TG12:** `department_funding` with a null department. [1.0]
+- **TG13:** slot 12. [a ring of 64 records]
+- **TG14:** slot 29. [a vector kept per tile pair]
+- **TG15:** slots 20/21 called off the main thread. [a direct property read]
+- **TG16:** a lot's `AsTrafficSource`. [borrowed]
+- **TG17:** `CreatePathFinder(null)`. [false]
+- **TG18:** `SetupPathFinderForLot` with a pathfinder the original created. [false]
+- **TG19:** stale lot or connection tokens. [refused; a connection removed mid-phase is skipped]
+- **TG20:** which messages carry an object. [only the lot message `0xE8BDA2E7` and the occupant messages
+  `0x99EF1142`/`0x99EF1143`]
+- **TG21:** a message on another thread while the lock is busy; slot 19 while the lock is busy. [dropped; slot 19
+  counted as a fallback]
+- **TG22:** units per slice against the original's 4 ms deadline (traffic-simulator §3.4). [16 deterministic units
+  per slice; our turbo runs at about 43–46 game days/s with traffic against about 76 without]

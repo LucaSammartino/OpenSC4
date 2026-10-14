@@ -76,6 +76,7 @@
 class cIGZMessage2;
 class cIGZMessageTarget2;
 class cIGZUnknown;
+class cISCPropertyHolder;
 
 namespace fc4 {
 
@@ -99,7 +100,15 @@ bool DevelopmentShadowDeliver(cIGZMessageTarget2* target, const char* agentName,
 //           order, or as a multiset with asSet); returns the mismatch count;
 //   mode 1: the shadow's record bridge: `developer`'s record (through its own
 //           Write) read into a new read-only growth core (fc4_growth_read);
-//           returns 1 (read), 0 (refused) or -2 (no record).
+//           returns 1 (read), 0 (refused) or -2 (no record);
+//   mode 2: the shadow's developer identity: `developer` taken as an
+//           original growth developer's agent (QueryInterface 0xE7CDD662, as
+//           the deliveries are); returns the developer type the shadow names
+//           it by and loads its exemplar with (slot 6), or -2 when it is not
+//           one to shadow; the entry is dropped again;
+//   mode 3: the properties a core gets from an exemplar's holder (FC4CoreProps
+//           ToCoreAll: its own and those inherited from its cohorts); returns
+//           the number copied and logs each (own or the cohort depth).
 // -1: a null or malformed input.
 struct FC4DevelopmentShadowTestInput {
     uint32_t mode;
@@ -108,7 +117,8 @@ struct FC4DevelopmentShadowTestInput {
     const int32_t* ours;  // mode 0: oursCount triples
     size_t oursCount;
     int32_t asSet;
-    cIGZUnknown* developer;  // mode 1 (borrowed)
+    cIGZUnknown* developer;  // modes 1 and 2 (borrowed)
+    const cISCPropertyHolder* holder;  // mode 3 (borrowed)
 };
 
 intptr_t DevelopmentShadowTest(const FC4DevelopmentShadowTestInput* in);

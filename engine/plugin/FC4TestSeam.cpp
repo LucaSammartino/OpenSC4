@@ -42,6 +42,7 @@
 #include "cFC4Landfill.h"
 #include "cFC4Plumbing.h"
 #include "cFC4Power.h"
+#include "cFC4TrafficSimulator.h"
 #include "cFC4ZoneManager.h"
 #include "cFC4Protection.h"
 #include "cFC4Variant.h"
@@ -92,6 +93,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             if ((mode & 1) != 0) FC4_ACQUIRED(o, "test seam");
             if ((mode & 2) != 0) {
                 FC4_RELEASE_CREATED(o);
+            } else if ((mode & 4) != 0) {
+                FC4_RELEASE_AT_DESTRUCTION(o);
             } else {
                 FC4_RELEASE(o);
             }
@@ -170,6 +173,8 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return 1;
         case kFC4SeamZones:
             return a == nullptr ? -1 : ZonesTestSeam(static_cast<const FC4ZonesTestInput*>(a));
+        case kFC4SeamTraffic:
+            return a == nullptr ? -1 : TrafficTestSeam(static_cast<const FC4TrafficTestInput*>(a));
         case kFC4SeamGrowthProbe:
             return GrowthProbeTest(static_cast<const FC4GrowthProbeTestInput*>(a));
         case kFC4SeamScript:  // the harness lane (FC4Script.h)

@@ -391,6 +391,85 @@ fn record_versions() {
     assert!(!SaveObject::read(&*d, &mut ByteReader::new(&good[..8])));
 }
 
+/// FIXTURE: the 50 payload bytes of ONE class-store entry (object 0x0EC6381C)
+/// of the growth developer class record `(0x0990C138, 0x299B2D1B, 0)` in the
+/// test city save (FC4 Test, City - Konradshohe.sc4), and nothing else.
+/// Its total capacity is `0x3DCF4E8D`: the original writes an uninitialised
+/// word there (save-records §6, fill patterns), which run 102 logged as
+/// `capacity=1036996237`.
+const KONRADSHOHE_GROWTH_RECORD: [u8; 50] = [
+    0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8d, 0x4e, 0xcf, 0x3d, 0x18, 0x12, 0x94, 0x17, 0x02, 0xe6, 0xb9, 0x49, 0x98,
+    0x12, 0x94, 0x17, 0x05, 0xe6, 0xb9, 0x49, 0x18, 0x13, 0x94, 0x17, 0x05, 0xe6, 0xb9, 0x49, 0x98, 0x13, 0x94, 0x17,
+    0x04, 0xe6, 0xb9, 0x49, 0x18, 0x14, 0x94, 0x17, 0x04, 0xe6, 0xb9, 0x49,
+];
+
+/// Resolves the record's grid references to new core grids (the class store's
+/// part, foundations §2.7) and remembers what was asked.
+struct SavedGrids {
+    city: CityDims,
+    asked: Vec<(u32, u32)>,
+}
+
+impl crate::stream::RefResolver for SavedGrids {
+    fn resolve(&mut self, class_id: u32, object_id: u32) -> Option<RefValue> {
+        self.asked.push((class_id, object_id));
+        let o: Rc<dyn SaveObject> = match class_id {
+            0x49B9_E602 => SimGrid::<u8>::create(&self.city, object_id, 4),
+            0x49B9_E605 => SimGrid::<i16>::create(&self.city, object_id, 4),
+            0x49B9_E604 => SimGrid::<u16>::create(&self.city, object_id, 4),
+            _ => return None,
+        };
+        Some(RefValue::Object(o))
+    }
+}
+
+#[test]
+fn reads_a_saved_record_byte_for_byte() {
+    // §9 against a real record: version 1, last phantom sum 0, the total
+    // capacity word carried unchanged, then the five grid references in
+    // order (zoned u8, D i16, population i16, built u16, maximum u16).
+    let host = Fake::new(128);
+    let st = GrowthStatics::new(0, &seeds());
+    let d = GrowthDeveloper::new(host.clone() as Rc<dyn GrowthDeveloperHost>, st, 1);
+    let mut grids = SavedGrids {
+        city: CityDims::square(128),
+        asked: Vec::new(),
+    };
+    {
+        let mut r = ByteReader::with_resolver(&KONRADSHOHE_GROWTH_RECORD, &mut grids);
+        assert!(SaveObject::read(&*d, &mut r));
+        assert_eq!(r.remaining(), 0);
+    }
+    assert_eq!(d.data().last_phantom_sum, 0);
+    assert_eq!(d.data().total_capacity as u32, 0x3DCF_4E8D);
+    assert_eq!(
+        grids.asked,
+        [
+            (0x49B9_E602, 0x1794_1218),
+            (0x49B9_E605, 0x1794_1298),
+            (0x49B9_E605, 0x1794_1318),
+            (0x49B9_E604, 0x1794_1398),
+            (0x49B9_E604, 0x1794_1418),
+        ]
+    );
+    assert!(d.zoned_count_map().is_some());
+    assert!(d.desirability_map().is_some());
+    assert!(d.population_map().is_some());
+    assert!(d.capacity_map().is_some());
+    assert!(d.max_capacity_map().is_some());
+    // Written again: the same bytes, the object IDs renumbered by the store.
+    let reg = Rc::new(RefCell::new(crate::stream::SaveRegistry::new()));
+    let mut w = ByteWriter::with_registry(reg);
+    assert!(SaveObject::write(&*d, &mut w));
+    let out = w.bytes();
+    assert_eq!(out.len(), KONRADSHOHE_GROWTH_RECORD.len());
+    assert_eq!(&out[..10], &KONRADSHOHE_GROWTH_RECORD[..10]);
+    for (k, at) in (10..50).step_by(8).enumerate() {
+        assert_eq!(u32::from_le_bytes(out[at..at + 4].try_into().unwrap()), k as u32 + 1);
+        assert_eq!(&out[at + 4..at + 8], &KONRADSHOHE_GROWTH_RECORD[at + 4..at + 8]);
+    }
+}
+
 #[test]
 fn shipped_exemplars_read() {
     let host = Fake::new(16);

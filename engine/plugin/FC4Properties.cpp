@@ -28,8 +28,11 @@
 #include "cISCProperty.h"
 #include "cISCPropertyHolder.h"
 #include "cISCResExemplar.h"
+#include "cISCResExemplarCohort.h"
 
+#include <algorithm>
 #include <cstring>
+#include <unordered_set>
 
 namespace fc4 {
 namespace props {
@@ -291,6 +294,55 @@ std::vector<uint32_t> PropertyIds(const cISCPropertyHolder* holder) {
     }
     AsGame(holder)->EnumProperties(&CollectId, &ids);  // slot 20
     return ids;
+}
+
+namespace {
+
+// `o` as a cohort (QueryInterface 0x452160FB, one reference), or nullptr.
+cISCResExemplarCohort* AsCohort(cIGZUnknown* o) {
+    if (o == nullptr) return nullptr;
+    void* p = nullptr;
+    if (!o->QueryInterface(GZIID_cISCResExemplarCohort, &p) || p == nullptr) return nullptr;
+    auto* c = static_cast<cISCResExemplarCohort*>(p);
+    FC4_ACQUIRED(c, "QueryInterface");
+    return c;
+}
+
+}  // namespace
+
+std::vector<EffectiveProperty> EffectiveProperties(const cISCPropertyHolder* holder, cISCResExemplar* res) {
+    std::vector<EffectiveProperty> out;
+    if (holder == nullptr) return out;
+    std::unordered_set<uint32_t> seen;
+    for (uint32_t id : PropertyIds(holder)) {
+        if (seen.insert(id).second) out.push_back(EffectiveProperty{id, holder, 0});
+    }
+    if (!On(Sw::PropertyReads)) return out;  // PropertyIds noted the skip
+    cISCResExemplar* asked = nullptr;
+    if (res == nullptr) {
+        void* p = nullptr;
+        auto* u = const_cast<cIGZUnknown*>(static_cast<const cIGZUnknown*>(holder));
+        if (!u->QueryInterface(GZIID_cISCResExemplar, &p) || p == nullptr) return out;  // not an exemplar
+        asked = static_cast<cISCResExemplar*>(p);
+        FC4_ACQUIRED(asked, "QueryInterface");
+        res = asked;
+    }
+    cISCResExemplarCohort* cohort = AsCohort(static_cast<cIGZUnknown*>(res->GetCohort()));  // slot 9, borrowed
+    std::vector<const cISCResExemplarCohort*> visited;
+    for (uint32_t depth = 1; cohort != nullptr && depth <= 32; ++depth) {
+        if (std::find(visited.begin(), visited.end(), cohort) != visited.end()) break;  // a cycle
+        visited.push_back(cohort);
+        const cISCPropertyHolder* h = cohort->AsISCPropertyHolder();  // slot 8 (slot 9 is the same thunk)
+        for (uint32_t id : PropertyIds(h)) {
+            if (seen.insert(id).second) out.push_back(EffectiveProperty{id, h, depth});
+        }
+        cISCResExemplarCohort* next = AsCohort(static_cast<cIGZUnknown*>(cohort->GetParent()));  // slot 6
+        FC4_RELEASE(cohort);
+        cohort = next;
+    }
+    if (cohort != nullptr) FC4_RELEASE(cohort);
+    if (asked != nullptr) FC4_RELEASE(asked);
+    return out;
 }
 
 bool CopyToCore(const cISCPropertyHolder* holder, uint32_t id, fc4_props* out) {

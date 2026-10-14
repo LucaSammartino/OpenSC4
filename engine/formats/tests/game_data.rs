@@ -308,6 +308,12 @@ struct GraphicsStats {
     fsh_uncreated_type: usize,
     fsh_codes: BTreeMap<u8, usize>,
     fsh_zero_filled: usize,
+    /// Mip-padding entries whose last level reads the following `0x70` block's header, inside `size` (GF9).
+    fsh_padding_reads_name_block: usize,
+    /// Frames whose own code and A would give another pair than frame 0's, which every frame reports (FS5).
+    fsh_own_pair_differs: usize,
+    /// `0x7B` frames after frame 0 without a usable palette, which decode as grey (FS4).
+    fsh_index8_without_palette: usize,
     fsh_size_not_record_length: usize,
     fsh_decoded_levels: usize,
     fsh_dxt1_a: BTreeMap<i16, usize>,
@@ -421,6 +427,26 @@ fn sweep_fsh_and_s3d() {
                 }
                 if fr.zero_filled {
                     g.fsh_zero_filled += 1;
+                    // §2.8 (GF9): the last level starts at the entry's end, on the `0x70` name block, and stays
+                    // inside the record.
+                    let last = f.levels.len() - 1;
+                    let start = u64::from(fr.pixel_start()) + f.levels[last].offset;
+                    let bytes = f.level_data(i, last).unwrap_or_default();
+                    if e.tgi.group == GROUP_TEXTURES
+                        && start == u64::from(fr.data_end)
+                        && start + f.levels[last].size <= f.data().len() as u64
+                        && bytes.first() == Some(&0x70)
+                    {
+                        g.fsh_padding_reads_name_block += 1;
+                    }
+                }
+                if fc4_formats::fsh::format_and_type(fr.header.code, fr.header.a())
+                    != Some((fr.format, fr.component_type))
+                {
+                    g.fsh_own_pair_differs += 1;
+                }
+                if i > 0 && fr.header.code == 0x7B && fr.palette.is_none() {
+                    g.fsh_index8_without_palette += 1;
                 }
                 for a in f.attachments(i) {
                     *g.fsh_attachments.entry(a.code).or_default() += 1;
@@ -447,7 +473,8 @@ fn sweep_fsh_and_s3d() {
                     && (f.width, f.height, f.mip_count(), fr.header.a()) == (128, 128, 7, 1)
                     && offsets == [0, 8192, 10240, 10752, 10880, 10912, 10928, 10944]
                     && fr.data_end - fr.pixel_start() == 10944
-                    && fr.zero_filled;
+                    && fr.zero_filled
+                    && f.level_data(0, 7).as_deref() == Some(&[0x70, 0, 0, 0, 0x31, 0x30, 0x45, 0x43][..]);
                 g.shipped_checks
                     .push(format!("test 19 {}: {}", e.tgi, if ok { "ok" } else { "FAIL" }));
                 if !ok {
@@ -555,6 +582,11 @@ fn sweep_fsh_and_s3d() {
         g.fsh_zero_filled,
         g.fsh_decoded_levels
     );
+    eprintln!(
+        "[fsh] mip-padding entries whose last level reads the 0x70 block {}; frames whose own (format, type) \
+         differs from frame 0's {}; later 0x7B frames without a palette {}",
+        g.fsh_padding_reads_name_block, g.fsh_own_pair_differs, g.fsh_index8_without_palette
+    );
     let hexmap = |m: &BTreeMap<u8, usize>| m.iter().map(|(k, v)| format!("{k:#04X}:{v}")).collect::<Vec<_>>();
     eprintln!("[fsh] by file {:?}", g.fsh_by_file);
     eprintln!(
@@ -629,7 +661,11 @@ fn sweep_fsh_and_s3d() {
         codes,
         [(0x60, 19_357), (0x61, 25_957), (0x7B, 24), (0x7D, 40), (0x7F, 9)]
     );
-    assert_eq!(g.fsh_zero_filled, 167, "DXT1 entries that need the §2.8 zero-fill");
+    assert_eq!(g.fsh_zero_filled, 167, "DXT1 entries with the §2.8 unpadded mips");
+    assert_eq!(
+        g.fsh_padding_reads_name_block, 167,
+        "§8.4 test 42: their last level reads the following name block"
+    );
     assert_eq!(g.shipped_checks.len(), 2, "tests 19 and 20 found their records");
     assert_eq!(g.s3d_records, 42_915, "S3D records");
     assert_eq!(g.s3d_compressed, 42_868, "compressed S3D records");

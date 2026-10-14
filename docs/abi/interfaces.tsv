@@ -3824,7 +3824,6 @@ cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	2	+0x8	0069eb50	cSC4Co
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	3	+0xC	0069ef90	cSC4CommercialSimulator::Init	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	4	+0x10	0069eb80	cSC4CommercialSimulator::Shutdown	0	0	eax-or-void	medium	
 cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	5	+0x14	0069ead0	cSC4CommercialSimulator::GetProximityMap	4	1	eax-or-void	medium	
-cISC4CommercialSimulator	cSC4CommercialSimulator	00ab0ccc	6	+0x18	0069eb20	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	0	+0x0	00698d50		8	2	eax-or-void	medium	tail->00695290
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	1	+0x4	00520110		0	0	eax-or-void	medium	tail->00695330
 cIGZSerializable(BuildingDevelopment)	cSC4BuildingDevelopmentSimulator	00ab0ac0	2	+0x8	00698dd0		0	0	eax-or-void	medium	tail->006959b0
@@ -4403,7 +4402,6 @@ cIGZMessageTarget(AudioEventHandler)	cSC4AudioEventHandler	00a94154	3	+0xC	004ef
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	0	+0x0	00477210	QueryInterface (thunk, this-4 -> 0x00477130)	8	2	al	high	same IID set as above (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	6	+0x18	006c2040	AsPropertyHolder	0	0	eax	high	this+8, null for a null this; exemplar holder = result+0x14 (LG27)
 cISC4Occupant	cSC4LandfillOccupant	00a8cda0	7	+0x1C	006bdd80	GetType	0	0	eax	high	returns [this+0x24]; 0x6A11BD2B for landfill tiles (LG28)
-cIGZMessage2Standard	cRZMessage2Standard (ZoningChange subclass)	00a92d40	37	+0x94	004dcc10	scalar deleting destructor	4	1	eax	high	calls 0x004DCC30 (frees void2 with C); slots 0-36 identical to 00acec00
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	6	+0x18	007ddec0	GetBool(index)	4	1	al	high	byte at [this+0xC] + index*32 + 0x1C; interface name inferred (GF5)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	7	+0x1C	007ddee0	GetInt(index)	4	1	eax	high	[this+0x18] + index*40 + 0x1C; kModelLODOffset = 22 (GF8)
 cISC4RenderProperties	cSC4RenderProperties	00abb6c0	8	+0x20	007ddf00	GetFloat(index)	4	1	x87	high	[this+0x24] + index*40 + 0x1C
@@ -4432,13 +4430,11 @@ cISC4Region	cSC4Region	00a8fa40	21	+0x54	004a4cc0	GetWaterPrefs	8	2	eax-or-void	
 cISC4Region	cSC4Region	00a8fa40	22	+0x58	004a5400	ResetTutorialCity	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	23	+0x5C	004a4c20	GetCityLocations	4	1	eax-or-void	medium	
 cISC4Region	cSC4Region	00a8fa40	24	+0x60	004a45a0	GetBoundingRect	4	1	eax-or-void	medium	
-cISC4Region	cSC4Region	00a8fa40	25	+0x64	004a53e0	scalar deleting destructor	4	1	eax	medium	
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	0	+0x0	006b8970	cSC4IndustrialSimulator::QueryInterface	8	2	eax-or-void	high	AL
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	2	+0x8	006d5140	Release (shared with cSC4ParkManager)	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	3	+0xC	006b89f0	cSC4IndustrialSimulator::Init	0	0	eax-or-void	high	AL=1
 cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	4	+0x10	006b8a10	cSC4IndustrialSimulator::Shutdown	0	0	eax-or-void	high	AL=1
-cISC4IndustrialSimulator	cSC4IndustrialSimulator	00ab1530	5	+0x14	006b8a40	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 commercial-industrial.md
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	0	+0x0	0069d6c0	cSC4CivicBuildingSimulator::QueryInterface	8	2	eax-or-void	high	AL
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	1	+0x4	004664a0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	2	+0x8	0069d7a0	cSC4CivicBuildingSimulator::Release	0	0	eax-or-void	high	EAX new count
@@ -4448,13 +4444,11 @@ cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	5	+0x14	0069e5b0
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	6	+0x18	0069d8d0	cSC4CivicBuildingSimulator::GetConditionalBuildingStatus	4	1	eax-or-void	high	EAX pointer into the map or null; callers write through it
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	7	+0x1C	0069e9f0	cSC4CivicBuildingSimulator::UpdateConditionalBuildingStatus	8	2	eax-or-void	low	no meaningful return although the SDK says bool; arg 2 is read only
 cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	8	+0x20	0069e5d0	cSC4CivicBuildingSimulator::GetLandmarkCount	0	0	eax-or-void	high	EAX; counts every maintained building
-cISC4CivicBuildingSimulator	cSC4CivicBuildingSimulator	00ab0c7c	9	+0x24	0069e700	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 civic-buildings.md
 cISC4ParkManager	cSC4ParkManager	00ab20ac	0	+0x0	006d5060	cSC4ParkManager::QueryInterface	8	2	eax-or-void	high	AL
 cISC4ParkManager	cSC4ParkManager	00ab20ac	1	+0x4	004f7ba0	AddRef (shared code)	0	0	eax-or-void	high	EAX new count
 cISC4ParkManager	cSC4ParkManager	00ab20ac	2	+0x8	006d5140	cSC4ParkManager::Release (shared with the industrial simulator)	0	0	eax-or-void	high	EAX new count; 0 when destroyed
 cISC4ParkManager	cSC4ParkManager	00ab20ac	3	+0xC	006d5b00	cSC4ParkManager::Init	0	0	eax-or-void	high	AL=1
 cISC4ParkManager	cSC4ParkManager	00ab20ac	4	+0x10	006d5420	cSC4ParkManager::Shutdown	0	0	eax-or-void	high	AL=1
-cISC4ParkManager	cSC4ParkManager	00ab20ac	5	+0x14	006d5860	deleting destructor	4	1	eax-or-void	high	not an interface method; re-specs9 parks.md
 cISC424HourClock	cSC424HourClock	00a86588	0	+0x0	00444e40	cSC424HourClock::QueryInterface	8	2	eax-or-void	high	AL; other IIDs tail-call cRZSystemService::QueryInterface on this+0xC
 cISC424HourClock	cSC424HourClock	00a86588	1	+0x4	00825d60	cSC424HourClock::AddRef	0	0	eax-or-void	high	EAX new count (+0x2C)
 cISC424HourClock	cSC424HourClock	00a86588	2	+0x8	004451f0	cSC424HourClock::Release	0	0	eax-or-void	high	EAX new count; destroys at <=1 without decrementing

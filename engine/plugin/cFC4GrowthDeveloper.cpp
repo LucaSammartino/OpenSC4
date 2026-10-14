@@ -274,7 +274,19 @@ void GridSetTractSize(void*, uint64_t grid, int32_t size) {
 }
 
 void AddRefToken(void*, uint64_t t) { AddRefAny(FromToken(t)); }
-void ReleaseToken(void*, uint64_t t) { ReleaseAny(FromToken(t)); }
+// [choice] (DG28) In the destructor (§1.3: the special-building copy stays
+// until then) a game object's release is audited as the destructor's: a
+// developer loaded from a save is also held by the load's object table,
+// which an unsaved city frees after the occupants' other holders, so its
+// copy can hold their last references, as the original's does.
+void ReleaseToken(void* u, uint64_t t) {
+    cIGZUnknown* o = FromToken(t);
+    if (o != nullptr && G(u)->destroying && !fc4::IsOurObject(o)) {
+        FC4_RELEASE_AT_DESTRUCTION(o);
+        return;
+    }
+    ReleaseAny(o);
+}
 
 // ---- demand and neighbours (§4.8, §5.3, §5.5) -------------------------------------------------------
 
@@ -702,6 +714,7 @@ cFC4GrowthDeveloper::cFC4GrowthDeveloper() {
 
 cFC4GrowthDeveloper::~cFC4GrowthDeveloper() {
     fc4::DevelopmentLock lock;
+    ctx_.destroying = true;
     fc4_growth_destroy(core_);  // the final Release: Shutdown if still initialised, every token released
     core_ = nullptr;
     fc4::ReleaseGrowthContext(&ctx_);
