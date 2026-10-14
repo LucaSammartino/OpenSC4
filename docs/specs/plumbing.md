@@ -349,6 +349,13 @@ fit *[inferred]* a building replaced by another at the same anchor cell during t
 comparison, or treat a demand change during the pass like a flag-map change. A live simulator that applies step 2
 at each delivery has no such difference.
 
+**Demand after a load** (PS4) *[compat]*. `Read` loads demand (§9 field 15), and nothing recomputes it from the
+occupants. A replacement must load it too and carry on with the running sum. In the eight base-game saves with
+buildings (Konradshohe, Tegel, Spandau, Fulham, Kensington and the three Timbuktu tutorials) the saved demand
+equals the sum of the sint32 `0xC8ED2D84` over the saved buildings exactly. Konradshohe, for example, has 23845
+over 729 consumers. So a recount would give the same start here, unlike power's counts (power.md §5.2, PW8). It
+would still differ wherever exemplars changed after the buildings were inserted.
+
 ### 5.4 Pipes (`DoPipeChanged(netOcc, insert)`) *[compat]*
 
 1. `occ := netOcc + 4`. The original converts `cISC4NetworkOccupant*` to `cISC4Occupant*` with a fixed pointer

@@ -1518,8 +1518,12 @@ shadow's current answer is in brackets.
   then repairs the saved distressed pipes down to the new target. The ageing flag is not saved either, so a save
   taken between a month start and its state 8 loses that month's ageing. Written into plumbing.md §7.1 with an
   example.
-- **PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
-  original's record instead of recomputing it. Acceptable? [taken from the record]
+- ~~**PS4 — §5.3:** demand is a running sum the original builds as things are added; the shadow takes it from the
+  original's record instead of recomputing it. Acceptable? [taken from the record]~~ **ANSWERED 2026-10-14** from the
+  exe (demand is written only by `DoBuildingChanged` and `Read`) and the shipped saves: **yes, the bracket matches.**
+  The original never recomputes it either. Take it at the comparison, not at the pass start (PS8). In the eight
+  base-game saves with buildings the saved demand equals a recount of the saved buildings exactly (Konradshohe 23845),
+  so here, unlike power (PW8), nothing is inherited. Written into plumbing.md §5.3.
 - **PS5:** the monthly funding comes from department `0xAA4014B4`, a choice the spec does not state. Which
   department? [`0xAA4014B4`]
 - **PS6:** a pass's start is seen only when state 2 changes a probe cell; if the next working grid already matches
