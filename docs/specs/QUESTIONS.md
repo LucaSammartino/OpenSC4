@@ -1145,9 +1145,15 @@ part of §8 is not compared). The glue's current answer is in brackets.
   to each record and empties the map and the type array at process exit. For the record: callbacks run inside
   the app's `Shutdown`, in registration order, after PreAppShutdown and before PostAppShutdown reach the framework
   hooks, so a DLL's callback would still be loaded when it runs.
-- **FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
+- ~~**FQ3 — §10.3:** `cIGZPersistDBSegment`'s record read/write is not in `docs/abi`, so saving and restoring an
   obliterated city's trees is off (`SaveObliterated` writes nothing and returns true; a restore is logged when the
-  segment at +0x204 is non-null). Layout and slots? [off]
+  segment at +0x204 is non-null). Layout and slots? [off]~~ **ANSWERED 2026-10-14** from the exe (save
+  `0x006B2760`, restore `0x006B0660`, the record-stream helpers `0x005D9DB0` / `0x005D9C90`, segment vtable
+  `0x00AA2654`, stream vtables `0x00AA2280` / `0x00AA2310`) and written into flora.md §10.3, §12 and test 30.
+  **The bracket (off) loses trees across obliteration.** Query the segment for `cISC4DBSegment` `0x499899DA`;
+  slots 8/9 open/close a write stream, 5/6 a read stream; stream slots 7, 9, 18 = u16, u32, GetError.
+  *Correction to §10.3:* each record starts with a u16 version 0 (count record: `u16 0, u32 count`; occupant
+  record: `u16 0` then the occupant's own version-3 record); the reader ignores the u16.
 - **FQ4:** `cISC4OccupantFilter` is not in `docs/abi`. Instead of the filter overload (slot 36) the glue calls the
   typed box query (slot 37) for flora, building, landfill and prop, then for networks keeping those with
   `GetNetworkFlag() & 0x1F4F` non-zero. Same set? [as stated]

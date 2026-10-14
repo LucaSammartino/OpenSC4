@@ -738,6 +738,35 @@ manager exists: reads the count; for each `i < count` whose record opens: create
 it (result ignored), `cISC4Occupant::Init()`, `InsertOccupant(occ, 0)`, release. Returns true (false only
 without an occupant manager). So **trees survive obliteration** *[compat]*.
 
+**Record layout and calls** (verified, FQ3; save `0x006B2760`, restore `0x006B0660`, the game's record-stream
+helpers `0x005D9F00` / `0x005D9DB0` (write) and `0x005D9E70` / `0x005D9C90` (read)). *Correction:* every record
+starts with a **u16 record version, 0**, written by the helper before the payload:
+
+| Record | Bytes |
+|---|---|
+| count (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) | `u16 0`, `u32 count` (6 bytes) |
+| occupant `i` (`0xC9BB3FC6`, `0x4A664F83`, `i`) | `u16 0`, then the flora occupant's own record (lot-records.md §11, which starts with its own `u16` version 3) |
+
+Opening a record for writing: query the given `cIGZPersistDBSegment` for `cISC4DBSegment` (IID `0x499899DA`);
+`OpenOStream(key, &stream, true)` (slot 8); write `u16 0` (stream slot 7); if `GetError()` (stream slot 18) is
+non-zero, close it again (`CloseOStream`, slot 9) and treat the record as not open. Closing: `CloseOStream`
+(slot 9), then both references are released. Reading is the same with `OpenIStream(key, &stream)` (slot 5),
+`GetUint16` (slot 7; the value is kept by the helper and **never checked** by flora) and `CloseIStream` (slot 6).
+A segment that does not answer the IID, or a key that does not open, gives "not open": nothing is written or read.
+
+- Save: the count record is written even when the count is 0. `i` is the occupant's position in the list and
+  advances for every occupant, also when its record does not open. The count is written with `PutUint32`
+  (stream slot 9) and the occupant record by the occupant's `cIGZSerializable::Write` on the same stream (the
+  segment streams begin with the `cIGZOStream` / `cIGZIStream` slots). Returns true (AL = 1) whatever happened.
+- Restore: `count` starts at 0 and is read with `GetUint32` (stream slot 9) only if the count record opens; the
+  count is read **before** the occupant-manager test, so without an occupant manager the function returns false
+  after reading it. Each occupant: pooled `new` (92 bytes) and constructor, `AddRef`, `Read` from the stream,
+  `Init`, `InsertOccupant(occ, 0)` (slot 20), `Release`; records that do not open are skipped. There is no upper
+  bound on `count` (a damaged count means as many open attempts).
+
+Example: three flora occupants → count record `00 00 03 00 00 00`; records `i` = 0, 1, 2, each `00 00` followed by
+that occupant's version-3 record.
+
 ---
 
 ## 11. Interfaces (compiled slot tables) *[compat]*
@@ -829,6 +858,9 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check` and th
 | | 7 / 8 | `+0x1C` / `+0x20` | AddNotification2 / RemoveNotification2(target, id) | 8 / 8 | bool |
 | `cISC4App` (global `0x00B43C94`) | 39 | `+0x9C` | GetNewCitySpecification → `SC4NewCitySpecification*` (field `obliteratedCityDBSegment` read) | 0 | EAX ptr |
 | | 69 | `+0x114` | RegisterShutdownCallbackFunction(cb, data) | 8 | bool |
+| `cISC4DBSegment` (IID `0x499899DA`, vtable `0x00AA2654`; queried from the `cIGZPersistDBSegment`, §10.3) | 5 / 6 | `+0x14` / `+0x18` | OpenIStream(const key&, IStream**) / CloseIStream(IStream*) | 8 / 4 | AL / ignored |
+| | 8 / 9 | `+0x20` / `+0x24` | OpenOStream(const key&, OStream**, bool = true) / CloseOStream(OStream*) | 12 / 4 | AL / ignored |
+| `cISC4DBSegmentIStream` (`0x00AA2280`) / `…OStream` (`0x00AA2310`) | 7 / 9 / 18 | `+0x1C` / `+0x24` / `+0x48` | Get-/PutUint16, Get-/PutUint32 (4 bytes each, EAX 0/1); GetError() (EAX 1 = error, sticky) | 4 / 4 / 0 | EAX |
 | `cIGZPersistResourceManager` (`0x00AD89D0`) | 3 | `+0x0C` | GetResource(key, `0xA52160F5`, out, 0, 0) | 20 | AL |
 | | 17 | `+0x44` | GetAvailableResourceList(list**, key filter) (slot 18 = slot 17 with a type filter, §4.1 step 2) | 8 | EAX count |
 | | 18 | `+0x48` | GetAvailableResourceListForType(list**, `0x6534284A`) | 8 | EAX |
@@ -1034,8 +1066,10 @@ Unless stated: record defaults of §3.3, shipped tuning (§7), a 64 × 64-cell c
 28. **Init after load**: saved period 6 with shipped tuning → period 24, blocksPerMonth 42, iterator reshuffled.
 29. **GetAllFloraTypes(buffer, count)**: N = 7, null buffer → count 7, returns 7; count 3 → 3 copied, returns 3;
     count 10 → count := 7.
-30. **Obliteration**: 3 flora saved → record (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) = u32 3 and records
-    (`0xC9BB3FC6`, `0x4A664F83`, 0..2); the new city's `Init` re-creates and inserts 3 flora occupants.
+30. **Obliteration**: 3 flora saved → record (`0xC9BB3FC6`, `0xC9BB3FC7`, 1) = `00 00 03 00 00 00` (u16 0, u32 3)
+    and records (`0xC9BB3FC6`, `0x4A664F83`, 0..2), each `00 00` then the occupant's version-3 record; the new
+    city's `Init` re-creates and inserts 3 flora occupants. A count record whose u16 is 7 restores the same
+    (the version is not checked); no count record → nothing restored.
 31. **AdvanceClusterType**: chain S → M → L: (S, S) → M; (S, M) → L; (M, S) → L; (L, S) → 0 (next(L) = 0); unrelated
     types → 0.
 32. **Seed types**: chain S → C registered C then S → C seeds S; registered S then C → C seeds C.
