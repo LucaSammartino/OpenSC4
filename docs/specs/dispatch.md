@@ -192,8 +192,9 @@ simulators' next full rebuild (protection.md §8.3 assumes inactive comes first)
 `CanDispatch(type, x, z)` (slot 5): the source's `CanDispatch`, or false without a source. `GetDispatchInfo(id,
 &info)` (slot 10): docs/abi/layouts.md (the SDK names the first parameter `type`; it is the **ID**).
 `GetDispatchCount(type)` (slot 11): records of that type. `GetDispatchIDArray(type, buf, &n)` (slot 12): writes the
-IDs of that type in list order until `n` are written; `n` is **not** updated and nothing is returned (EAX
-undefined; the SDK declares `uint32_t`). `GetAutomatonFromPylon(p)` (slot 20): the vehicle of the record that holds
+IDs of that type in list order and returns the number written in EAX. It stops when that number equals `n`; the
+comparison follows each write, so `n = 0` means no limit (docs/abi/allocators.md, *Dispatch ID array*). `n` is read,
+never written. `GetAutomatonFromPylon(p)` (slot 20): the vehicle of the record that holds
 `p` (borrowed), or null. `GetDispatchSource(type)` (slot 15): borrowed, may be null.
 
 ### 4.7 Worked example
@@ -266,7 +267,7 @@ with 4 were presumably written by an earlier build whose "none" was 4 *[inferred
 | 9 | `+0x24` | `RevokeAllDispatches(type)` — **SDK error**: the SDK declares no argument | `0x00469D10` | 1 | 4 | AL (1) |
 | 10 | `+0x28` | `GetDispatchInfo(id, DispatchInfo&)` | `0x00469D40` | 2 | 8 | AL |
 | 11 | `+0x2C` | `GetDispatchCount(type)` | `0x00469D80` | 1 | 4 | EAX |
-| 12 | `+0x30` | `GetDispatchIDArray(type, u32* buf, u32& n)` | `0x00469DA0` | 3 | 12 | none (EAX undefined) |
+| 12 | `+0x30` | `GetDispatchIDArray(type, u32* buf, u32& n)` | `0x00469DA0` | 3 | 12 | EAX (number written) |
 | 13 | `+0x34` | `RegisterDispatchSource(src)` (holds a reference; no duplicate check) | `0x0046AE00` | 1 | 4 | none |
 | 14 | `+0x38` | `UnregisterDispatchSource(src)` (first match; releases) | `0x0046A5D0` | 1 | 4 | none |
 | 15 | `+0x3C` | `GetDispatchSource(type)` | `0x004698B0` | 1 | 4 | EAX (borrowed) |
@@ -296,7 +297,7 @@ with 4 were presumably written by an earlier build whose "none" was 4 *[inferred
 4. `InitDispatch` without a pylon and outside the open tool creates a pylon it never stores (§4.2).
 5. `nextID` advances even when the dispatch fails.
 6. `Read` appends to the existing list and sets `loaded` before checking the version (§7).
-7. `GetDispatchIDArray` does not report how many IDs it wrote.
+7. `GetDispatchIDArray` with `n = 0` writes every matching ID: the limit is checked only after a write.
 
 ## 11. Open questions
 
