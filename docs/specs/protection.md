@@ -226,7 +226,7 @@ after the unsubscriptions was not traced in full]*
 | occupant state changed | `0xC8DAC052` | same skip; else §5.2 change |
 | funding percentage changed | `0x08DAC3E7` | if data2 == this department's ID and the station list is not empty: rebuild the **unadjusted** grid only (§5.1) *[quirk]* |
 | dispatch begin | `0xE94671EB` | no effect (data1 is compared with the dispatch type, nothing follows) |
-| dispatch active / inactive | `0xE94671EC` / `0xE94671ED` | if data1 == this class's dispatch type: `GetDispatchInfo(data2)`; if it returns exactly 1, `UpdateBothGridsByPosition` (§5.2) at the dispatch's position with the radius of its `GetDispatchEffect`. Active and inactive behave the same (the flag passed along is unused) |
+| dispatch active / inactive | `0xE94671EC` / `0xE94671ED` | if data1 == this class's dispatch type: `GetDispatchInfo(data2)`; if it returns exactly 1, `UpdateBothGridsByPosition` (§5.2) at the dispatch's position with the radius of its `GetDispatchEffect`. Active and inactive behave the same (the flag passed along is unused). Details below (PR14) |
 | dispatch end | `0x894671F6` | if data1 == the dispatch type: `GetDispatchInfo(data2)`; if found, `RevokeDispatchFromStation(info.station, info.callID)` (§8.2); no grid update |
 | reload tuning | `0xC53D10AA` | if data1 == `0xE7E2C2DB` and data2 == this class's tuning instance (fire `0x68F5524A`, police `0x28DFCF89`): re-read the tuning (§6.7) |
 | police only: crime | `0x0A159D95` | §9.2 |
@@ -247,6 +247,21 @@ manager's record: 11 `u32`, 44 bytes, **with no AddRef**. The simulator reads th
 `EndDispatch` itself calls the source's `RevokeDispatchFromStation(+0x20, +0x08)` before the end message reaches
 the simulator. So the simulator's own revoke on `0x894671F6` finds the unit's bit already set, and fails with no
 effect. *[compat]*
+
+**The active / inactive handler** *[compat]* (PR14). The message handler (`0x006F647F`) calls
+`DoDispatchActivated(id, active)` (`0x006F61F0`) with active = 1 for `0xE94671EC` and 0 for `0xE94671ED`; the
+flag is never read. The function:
+
+1. does nothing if the dispatch manager global (`0x00B43D04`) is null;
+2. calls the manager's slot 10 (`+0x28`) `GetDispatchInfo(data2, &info)` and goes on only if AL is exactly 1;
+3. calls its own `GetDispatchEffect(info.station, &effect)` (message-target slot 12, `+0x30`) with
+   **`info.station` = the record's `+0x20`**, the same occupant `UpdateUnadjusted` passes (§7.2). The effect
+   record is an uninitialised stack record, and the call's AL is **ignored**;
+4. calls `UpdateBothGridsByPosition(info.x (+0x14), info.z (+0x1C), effect.radius)` (`0x006F6110`, §5.2).
+
+The radius is therefore the station's dispatch radius scaled by its efficiency (§7.2). *[quirk]* When
+`GetDispatchEffect` fails (the station has no dispatch centre value, or it is 0), it has not written the radius,
+and the update uses a stack leftover. *[choice]* FreeCity4 skips the update when `GetDispatchEffect` fails.
 
 The class `DoMessage` (message-target slot 3) always returns true (finished; simulator spec); the base handler
 it calls returns false for messages it does not handle, but that value is not passed on. The simulator receives the day message once per
@@ -569,10 +584,27 @@ department's `GetFundingPercentage()` fraction; prop stations ignore local fundi
 
 centre / outer / radius from the occupant's properties: fire `0x29233E9A` / `0x29233E9B` /
 `0x29233E9C`, police `0x48D71ED9` / `0x48D71EDA` / `0x48D71EDB`. Position 0 (the caller uses the dispatch's
-position). No efficiency scaling. AL = 1 if read.
+position).
 
-*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). The only caller,
-`UpdateUnadjusted` (`0x006F5DB1`), passes the dispatch record's `+0x20`. That is the **source station** the unit
+*(Corrected, PR14: the effect **is** scaled by the station's efficiency, and AL depends on the centre only.)*
+Fire `0x006AD720`, police `0x006E0CB0`, the same steps:
+
+1. x := z := 0 (`+0x00`, `+0x04`) and centre := 0 (`+0x0C`); read the centre (s32).
+2. If the centre is absent or 0: AL = 0. Outer, radius and the original centre keep the caller's values.
+3. Read outer (s32, `+0x10`), then radius (f32, `+0x08`). An absent one keeps the caller's value; neither read
+   can fail the call.
+4. Original centre (`+0x14`) := centre.
+5. e := `GetStationEfficiency(station)` (fire slot 10 `+0x28`, police slot 25 `+0x64`; result through a hidden
+   pointer; §6.2, so funding, road access and strikes count), then `AdjustProtectionEffect` (`0x006F56A0`, §7.1):
+   radius := radius × e, centre := trunc(centre × e), outer := trunc(outer × e).
+6. AL = 1.
+
+Example: a fire station with dispatch centre 100, outer 20 and radius 300.0 at efficiency 0.5 gives centre 50,
+outer 10, radius 150.0 and original centre 100.
+
+*Which occupant* *[compat]* (PR2; corrected: an earlier version called it the automaton). There are **two**
+callers (corrected, PR14): `UpdateUnadjusted` (`0x006F5DB1`) and the dispatch active / inactive handler
+(`0x006F6221`, §5). Both pass the dispatch record's `+0x20`. That is the **source station** the unit
 left from (§5), not the vehicle. The shipped data agrees: these six properties exist only on the station building
 exemplars (group `0x07BDDF1C`: three fire stations, four police stations), never on a vehicle. The pointer is
 already a `cISC4Occupant*`, and the original uses it **borrowed**: it does no QueryInterface and no AddRef, and

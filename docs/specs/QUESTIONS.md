@@ -2292,8 +2292,18 @@ About PF1–PF15, ZQ4/ZQ7–ZQ10, LF1–LF5 and NB1–NB17 as applied in the cor
 
 About PR1–PR13, DQ3–DQ8 and PG4–PG13 as applied. The current answer is in brackets.
 
-- **PR14 — protection §5:** the dispatch active/inactive handler: which occupant does `GetDispatchEffect` read?
-  [`info.station`, as UpdateUnadjusted; inferred]
+- ~~**PR14 — protection §5:** the dispatch active/inactive handler: which occupant does `GetDispatchEffect` read?
+  [`info.station`, as UpdateUnadjusted; inferred]~~ **ANSWERED 2026-10-14** from the exe (handler `0x006F647F` →
+  `DoDispatchActivated` `0x006F61F0`; `GetDispatchEffect` fire `0x006AD720`, police `0x006E0CB0`;
+  `AdjustProtectionEffect` `0x006F56A0`) and written into protection.md §5 (the active / inactive handler) and §7.2.
+  **`info.station` (record `+0x20`); the bracket matches, now confirmed.** Two corrections to protection.md came out
+  of it:
+  - **§7.2 had one caller; there are two.** `UpdateUnadjusted` and this handler both pass the record's `+0x20`.
+  - **§7.2 said "no efficiency scaling"; the effect is scaled.** `GetDispatchEffect` fails (AL = 0) only for an absent
+    or zero centre; otherwise it reads outer and radius (an absent one keeps the caller's value) and scales all three
+    by `GetStationEfficiency(station)`.
+  - **Handler quirk.** The handler ignores `GetDispatchEffect`'s AL and passes an uninitialised stack radius when it
+    fails. *[choice]* FreeCity4 skips the update then.
 - **PG15 — PG11, slot 29:** with a negative supply and n > 0, is `0x7FFFFFFF − s` computed in int32 (wrapping) or
   exactly? [exactly, in 64 bits, so the change equals n]
 - **PR15 — PR12:** how long does the protection simulator hold the budget simulator and the zone manager? [taken in
