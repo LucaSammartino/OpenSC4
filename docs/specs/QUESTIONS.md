@@ -565,8 +565,12 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   (Float32 1e30 gives 31 digits). NaN and infinities print as `1.#INF`, `-1.#IND` and the like *[inferred from the
   MSVC runtime]*. Values do not always survive the round trip: Float32 3.14159 comes back 2 ulps lower
   (data-formats.md §5.1).
-- **EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
-  anywhere after the first digit]
+- ~~**EX9:** is the round-trip parse's `0x` case-sensitive, and what does "after a digit" mean? [lowercase only;
+  anywhere after the first digit]~~ **ANSWERED 2026-10-14** from the exe (`0x009167C5`): **the bracket
+  matches**, with additions. `0x` is lowercase only, must start the text and be followed by a hex digit (16
+  digits at most). "After a digit" applies only to `e`/`E` and means any earlier digit; `.` makes the text
+  floating point wherever it is. `t`/`true`/`f`/`false` are case-sensitive whole-text matches. Char targets
+  always get 0 (data-formats.md §5.1, with examples).
 - **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]
 - **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
   exactly]

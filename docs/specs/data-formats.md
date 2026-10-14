@@ -468,10 +468,35 @@ result is a heap address. Only kind-1 properties (§4.6) hold objects, and no sh
   holding NUL), an RZUnicodeChar its character as one byte when it is `0xFF` or less, otherwise `?`. Worked
   example: RZChar `0x41` gives `A`; RZUnicodeChar `0x00E9` gives the byte `0xE9`, `0x20AC` gives `?` (note the
   array rule above keeps only units below `0x80`).
-- Parsing: `t` or `true` → 1, `f` or `false` → 0 *[inferred: case-sensitive]*; text beginning `0x` followed by a hex digit →
-  unsigned hexadecimal; text containing `.` or `e`/`E` after a digit → floating point (then truncated toward zero
-  for integer targets); text containing `-` → signed int64; otherwise unsigned int64; then the target width as in
-  the table.
+- **Parsing** (`ConvertFromString` `0x009167C5`), in this order:
+  1. The **whole text** `t` or `true` gives 1 and `f` or `false` gives 0, **case-sensitive** (`T`, `True`, `TRUE`
+     go on to step 3 and parse as 0).
+  2. Text that **starts with lowercase `0x`** and has a hex digit as its third character is unsigned hexadecimal
+     (`RZAtoUint64HexA` `0x0090FD90`): at most **16** hex digits after the `0x`, up to the first non-hex character;
+     digits after the sixteenth are ignored. `0X` is not recognised, and neither is `0x` after a leading space.
+  3. Otherwise the characters are scanned from the start, setting three flags. `.` sets *dot* wherever it is, with
+     or without digits. `-` sets *minus*. `e` or `E` sets *exponent* only if **some earlier character was a decimal
+     digit**, not necessarily the one just before it. The scan **stops early** at an `e`/`E` with no digit before
+     it, at a second `e`/`E`, at a second `-` (counted separately before and after the exponent letter) and at a
+     second `.` after the exponent letter; the flags already set decide. A second `.` before any exponent letter
+     makes the text floating point at once.
+  4. *dot* or *exponent* set: **floating point** (`RZAtofEnglishA` `0x00910991`, the parser of §4.3 Float32).
+     Otherwise *minus* set: signed decimal; otherwise unsigned decimal. Both decimal cases use `RZAtoi64A`
+     (`0x0090FC6F`): leading white space skipped, one optional `+` or `-`, then decimal digits up to the first
+     other character, accumulated in 64 bits with wraparound. There is **no hexadecimal without the `0x`
+     prefix**. Signed and unsigned give the same bits; they differ only for float targets, where an unsigned
+     value takes the 24-bit path above ("Unsigned 64-bit…") and a signed one is converted exactly, then rounded
+     to the target.
+  5. Then the target. Integer types keep the low bits; floating point is first truncated toward zero as in
+     "Floats to integers". **Bool** is value ≠ 0, so floating-point text **`0.5` gives true** (a Float32 scalar
+     0.5 gives false, because it is truncated first) and NaN text gives true. Float32 and Float64 as in the table.
+     **Char, RZChar and RZUnicodeChar targets always get 0**, and the getter succeeds.
+
+  Worked examples, read with `GetProperty(id, uint32&)`: `0x1F` gives 31; `0X1F` gives 0; `1A` gives 1; `true`
+  gives 1 and `TRUE` gives 0; `-5` gives `0xFFFFFFFB`; `1-2` gives 1; `e5` gives 0 (no digit before the `e`);
+  `1e3` gives 1000; `.5` gives 0 (and 0.5 as Float32); `1.2.3` gives 1 (floating point, which stops at the second
+  `.`); `12 apples` gives 12 (the `e` of `apples` follows a digit, so the text is parsed as floating point, which
+  stops at the space); `0x123456789ABCDEF012` read as Uint64 gives `0x123456789ABCDEF0`.
 
 Consequences that matter for tuning *[compat]*:
 
