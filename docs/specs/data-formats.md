@@ -308,7 +308,15 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
 1. The first line must be `name=value` with name `ParentCohort` (case-insensitive, both sides trimmed). The value
    must begin with `Key:{` and end with `}` (case-sensitive). It holds three numbers separated by commas in the
    order **group, instance, type**. All three zero = no parent; otherwise the parent is loaded as in §4.2 and a
-   failure fails the read.
+   failure fails the read. The fields are **not counted** (`0x0067DFD0`): the reader drops the text up to the
+   `{` and reads the group with rule N, then drops the text up to the next `,` and reads the instance, then the
+   same for the type. Fields after the third are ignored. When there is no further `,` the rest of the text is
+   dropped and that field and any later one read **0**. Nothing inside the braces is trimmed; rule N skips no
+   white space before choosing the base, so a **space after `{` or `,` turns a `0x` field into 0** (a decimal
+   field survives, because `strtoul` skips it). Worked examples: `Key:{0x1,0x2,0x3,0x4}` gives group 1,
+   instance 2, type 3; `Key:{0x1, 0x2, 0x3}` gives group 1, instance 0, type 0; `Key:{1, 2, 3}` gives 1, 2,
+   3; `Key:{0x1,0x2}` gives type 0, so the parent key is not all zero and its load fails; `Key:{}` gives three
+   zeros, no parent.
 2. The next line must be `PropCount=<number>` (name case-insensitive).
 3. Exactly `PropCount` property lines follow:
 
@@ -335,7 +343,8 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
 **Rule N** (number text): if it begins with `0x` or `0X`, hexadecimal. Otherwise, scan from the start: if a letter
 `a`–`f`/`A`–`F` appears before the first character that is not a hex digit, hexadecimal; else decimal. The
 conversion is C `strtoul` in that base (a leading `-` negates modulo 2³²). So `16` = 16, `1A` = 26, `0x10` = 16,
-`-1` = `0xFFFFFFFF`.
+`-1` = `0xFFFFFFFF`. The base is chosen on the raw text (`RZConvertToUint32A` `0x0090FE93`): a leading space
+stops the scan with base 10, and `strtoul` then skips the space, so ` 16` = 16, ` 1A` = 1 and ` 0x10` = 0.
 
 Shipped text exemplars: two, both in `Plugin_002_TheLivingMall.dat` (`0xCA386E22`/`0x04C00000` and
 `0xA8FBD372`/`0x6AC4085B`). The first starts:

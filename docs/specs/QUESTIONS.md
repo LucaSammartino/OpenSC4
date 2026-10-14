@@ -571,7 +571,10 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   digits at most). "After a digit" applies only to `e`/`E` and means any earlier digit; `.` makes the text
   floating point wherever it is. `t`/`true`/`f`/`false` are case-sensitive whole-text matches. Char targets
   always get 0 (data-formats.md §5.1, with examples).
-- **EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]
+- ~~**EX10:** the ParentCohort line: field count and spacing. [exactly 3 fields, leading spaces trimmed]~~
+  **ANSWERED 2026-10-14** from the exe (`0x0067DFD0`): **the bracket does not match.** Fields are not counted:
+  a fourth and later field is ignored, and a missing field reads 0. Nothing inside the braces is trimmed: a
+  space after `{` or `,` makes a `0x` field read 0, while a decimal field survives (data-formats.md §4.3).
 - **EX11:** are PropCount, reps and the type name trimmed? [PropCount and reps trimmed; the type name must match
   exactly]
 - **EX12:** is there a cap on reps? [more reps than the record length fails]
