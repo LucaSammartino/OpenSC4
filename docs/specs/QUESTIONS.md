@@ -3720,16 +3720,16 @@ bankrupt. QI `0x0AC2B5F7` on new building occupants works (154 created, 0 failur
 - **DG28:** the growth developer's special-building copy is released last, in its destructor; in an unsaved city
   that release is the last reference (the five warnings on class `0xA9BD882D` in run 102). Does the original also
   free those occupants there, after the load's object table has dropped its references? [yes, assumed; the release
-  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken]
-- **DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
+  is marked expected (`FC4_RELEASE_AT_DESTRUCTION`), and still warns if the reference was never taken] *Lead from re-answers9 (DG5):* `CreateInstance(0xA9BD882D)` already returns a count of 1, so an extra AddRef after it leaves one reference too many per building; the five warnings may come from that, not from destructor timing.
+- ~~**DG29:** data-formats §4.4 says `EnumProperties` gives the effective property list, but in game it lists only a
   holder's own properties. Is there an effective enumerator, and what does the original's lookup do with cohorts?
-  [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]
+  [the glue walks the parent cohort chain itself (`EffectiveProperties`), with cycle detection]~~ **Answered (re-answers9, data-formats §4.4):** `EnumProperties` (slots 19/20) walks only the own list; every lookup binary-searches a sorted vector that already holds the inherited properties; the effective enumerator is slot 4 `GetPropertyList` (ascending ID order, one reference). The glue's own chain walk is acceptable when own properties win.
 - **DG30:** the suitability comparison tests each building type at a cell whose zone fits it, rotating through lots
   in state 1, lots in other states and empty cells. Tooling only. [accepted as tooling]
-- **DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
+- ~~**DG31:** with the original simulators, a city run at about 85 game days per real second (`sim_turbo`) ends with
   lower income (3540-3647 against 4202-4593 at 8-20 days/s) and negative funds. Which original work is bound to
   frames or real time rather than game days? [unknown; compare runs only at equal pacing. Separately, our
-  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]
+  development unit costs about 3× per game day: 23-29 days/s under turbo against the original's 80-90]~~ **Answered (re-answers9, simulator §5.7):** four kinds of original work are paced by frames or real time: idle cycles with a per-day bound (growth developers, aura, plumbing); idle cycles restarted only when finished (demand census, land value, crime, power, the BDS monthly rebuild: whole months are skipped when they fall behind); real-time budgets inside day work (the BDS 3 ms cut); and posted messages delivered frame by frame. Original runs compare only at equal pacing up to about 20 days/s (cheetah is 50 ms per day); 85 days/s measures the pacing, not the simulation.
 
 ## From the traffic glue, phase 1 (filed by the coordinator from the `trafficglue` lane's report, 2026-10-14)
 
