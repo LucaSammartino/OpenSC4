@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "crime_type_names",
+  "spec": ["crime 7", "data-formats 6.1", "data-formats 6.2"],
+  "description": "The crime type name load of 7 (CQ8). (1) Values [1] and [2] of 0x8A416B2E are the LTEXT group G and instance I; value [0] is ignored and the LTEXT type is always 0x2026960B: type 0x50 names its key with type 0x12345678 and still gets the text of (0x2026960B, G, I). (2) The host looks up (0x2026960B, G + language ID, I), then (0x2026960B, G, I) (data-formats 6.2; the plugin's part, this host's table holds what that lookup finds). (3) The text is copied and detokenized; (4) every U+2022 becomes U+200B (data-formats 6.1): 0x51's 'A\u2022B\u2022' loads as 'A\u200BB\u200B'. If the load fails, the inline string 0xAA12FCB0 replaces the name when present (0x52: no such LTEXT -> 'Inline'; 0x53: the detokenizer returned false -> 'Inline'); otherwise the name stays as the load left it: [choice] the copied text, without step 4, when the detokenizer returned false (0x54: '#who#\u2022'), empty when there was no LTEXT (0x55). [choice] A key with fewer than 3 values is missing (0x56 -> 'Inline'). The inline string is read only when the load fails (0x57 has both: the LTEXT wins). Hand-derived from the four steps.",
+  "steps": [
+    {"op": "crime_env", "ltext": [
+      {"key": ["0x2026960B", "0x6A231EAA", "0x100"], "text": "Shoplifting"},
+      {"key": ["0x2026960B", "0x6A231EAA", "0x101"], "text": "A\u2022B\u2022"},
+      {"key": ["0x2026960B", "0x6A231EAA", "0x103"], "text": "#who#\u2022", "detokenized": false},
+      {"key": ["0x2026960B", "0x6A231EAA", "0x107"], "text": "Loaded"},
+      {"key": ["0x12345678", "0x6A231EAA", "0x100"], "text": "never asked for"}]},
+    {"op": "crime_types", "shipped": false, "types": [
+      {"id": "0x50", "props": {"0x8A416B2E": {"u32": ["0x12345678", "0x6A231EAA", "0x100"]}}},
+      {"id": "0x51", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x101"]}}},
+      {"id": "0x52", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x102"]}, "0xAA12FCB0": {"str": "Inline"}}},
+      {"id": "0x53", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x103"]}, "0xAA12FCB0": {"str": "Inline"}}},
+      {"id": "0x54", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x103"]}}},
+      {"id": "0x55", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x105"]}}},
+      {"id": "0x56", "props": {"0x8A416B2E": {"u32": ["0x6A231EAA", "0x100"]}, "0xAA12FCB0": {"str": "Inline"}}},
+      {"id": "0x57", "props": {"0x8A416B2E": {"u32": ["0x2026960B", "0x6A231EAA", "0x107"]}, "0xAA12FCB0": {"str": "Inline"}}}]},
+    {"op": "crime_create"},
+    {"op": "crime_init"},
+    {"op": "crime_expect", "state": {"types": [
+      {"id": "0x50", "name": "Shoplifting"},
+      {"id": "0x51", "name": "A\u200BB\u200B"},
+      {"id": "0x52", "name": "Inline"},
+      {"id": "0x53", "name": "Inline"},
+      {"id": "0x54", "name": "#who#\u2022"},
+      {"id": "0x55", "name": ""},
+      {"id": "0x56", "name": "Inline"},
+      {"id": "0x57", "name": "Loaded"}]}}
+  ]
+}

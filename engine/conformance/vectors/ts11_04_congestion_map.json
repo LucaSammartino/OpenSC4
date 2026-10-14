@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "name": "ts11_04_congestion_map",
+  "spec": [
+    "traffic-simulator 4.9",
+    "traffic-simulator 4.10",
+    "traffic-simulator 11.4"
+  ],
+  "description": "Conformance test 4 (§11). Peak ratio D -> congestion byte with the shipped inverted curve: 0.5 -> 1; 1.0 -> 1; 1.5 -> c = 0x3FA27628 (1.2692308) -> 29; 2.0 -> c = 0x3FC4EC4F -> 59; 2.5 -> c = 0x401BE5BE (2.4358974) -> 157; 3.0 -> 255; 4.0 -> 255. Peak volume 0 -> 0. Arguments: [peak volume, peak ratio].",
+  "steps": [
+    {
+      "op": "ts_eval",
+      "fn": "congestion_curve",
+      "args": [
+        1.5
+      ],
+      "expect": "0x3FA27628"
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_curve",
+      "args": [
+        2.0
+      ],
+      "expect": "0x3FC4EC4F"
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_curve",
+      "args": [
+        2.5
+      ],
+      "expect": "0x401BE5BE"
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        0.5
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        1.0
+      ],
+      "expect": 1
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        1.5
+      ],
+      "expect": 29
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        2.0
+      ],
+      "expect": 59
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        2.5
+      ],
+      "expect": 157
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        3.0
+      ],
+      "expect": 255
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        1.0,
+        4.0
+      ],
+      "expect": 255
+    },
+    {
+      "op": "ts_eval",
+      "fn": "congestion_byte",
+      "args": [
+        0.0,
+        2.5
+      ],
+      "expect": 0,
+      "note": "peak volume 0"
+    }
+  ]
+}

@@ -36,6 +36,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] x87 precision: diagnosed **and worked around** — the game runs 24-bit all session; our DLL's presence raises it to 53-bit (foundations §18.2). Since 63e88f1 the plugin re-asserts 24-bit at `PostAppInit`, and the control word reads `0x007F` for the rest of the session. The *trigger* is still not located (foundations §19.4); the re-assert makes it moot for differential work
 - [x] Budget differential: **ours matches the original exactly** (run 39, the same-process shadow differential, merged 6ca4b65). On the same lots at the same moment, all 12 tax types, total tax, income, expense and net were identical: 5 of 5 month-ends on Spandau (run 39) and 35 of 35 on Konradshohe, 2026-02 to 2028-12 with about 700 lots (run 41), with 0 mismatches. Separate-run comparisons (runs 35/36) could not settle per-type tax, because the original is not deterministic from run to run; the shadow (`budget_shadow = 1` with `disable = budget`) removes that
 - [x] Budget and demand match the original (M2 exit). **Budget:** identical on every month-end, 5 of 5 on Spandau (run 39) and 35 of 35 on Konradshohe (run 41). **Demand:** bit-identical, 160 of 160 days and 6 of 6 modifier checks (run 44), after the one difference the shadow found was traced to the exe (tax ratio = maxRate·0.1f × a float32 reciprocal of neutral; demand.md §8.1) and fixed in 42f7649. Both checks are same-process shadow differentials (`budget_shadow`, `demand_shadow`), opt-in
+- [x] Demand glue reads the building-profile capacity maps and fills `GetLocalPopulationSummary` through the game's own STLport map (merged ae82e65); run 61's soak had found demand frozen without them
 
 **M3: grid sims**
 - [x] Cores: SimGrid, land value, pollution, crime, aura, flammability, power, plumbing, protection, flora
@@ -43,7 +44,12 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Power glue (merged 63e88f1; runs 27/28 clean, production 5997→6000, 409 cells powered, 0 unpowered)
 - [x] Plumbing and flammability glue (merged 9f741de), **now run in game** (runs 33–38): the water pass on a real network (2 producers, 403 pipes, watered = building cells), fire rolls about every 40 days, and the cross-subsystem `IsCellWatered` read is live. Run 37 caught a use-after-free on fire ignition (a borrowed manager was released), fixed in 95db886; run 38 went through a real fire and a full Shutdown with 0 reference warnings
 - [x] **Pollution glue** (merged d743db2; run 67 clean over 73 months) and its same-process **grid shadow: identical to the original on all eight grids, cell by cell, for 94 months** (run 68). The one difference is a `dirtyWater` flag on 104 days with identical grids (PG14, being traced in the exe)
-- [ ] Protection (gated), crime, flora, aura and landfill glue (lanes running)
+- [x] **Protection glue** (fire + police, merged 29b3fcb) and its **grid shadow: identical to the original, cell by cell, for 97 months** (run 70). The fire grid read 0×0 after a load; fixed in f7a9f16 (run 73: fire cycles running)
+- [x] **Crime glue** (merged 941c34f) and its **grid shadow: 96 of 96 months identical**, hotspot included (run 70b); the replacement runs clean for 97 months
+- [x] **Aura glue** and its shadow (merged 7c3f3a2; run 75b: the replacement runs clean; the shadow is close but not exact, AU13–AU15)
+- [x] **Flora glue** and census shadow (merged f8ebce0) and **landfill developer glue** and shadow (merged c2ada06); first in-game runs next
+- [x] **All ten replacements together track the original for 36 game years** (runs 77/78 on Konradshohe: the same funds curve and the same end in 2062)
+- [ ] Shadows for power, plumbing, land value and flammability (lanes running)
 - [ ] Grid snapshots match within tolerance (M3 exit)
 
 **M4: growth**
@@ -54,6 +60,7 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 - [x] Landfill tests 1–23 (`lf11_*`) and the **neighbours core** with tests 1–12 (`nb18_*`) (merged 026fd9e)
 - [ ] Zones glue
 - [x] **Residential simulator core** (merged 737bcc5): all 24 residential §15 tests as unit tests and `rs15_*` vectors, the save record, RS1–RS6 applied; REH building work is left to host hooks. RS7–RS17 filed
+- [x] **Residential education and health core** (REH §2–§7, merged e520128): all 24 REH §11 tests as unit tests and `reh11_*` vectors (36 new vectors), RS7–RS17 applied, EH1–EH14 filed; the glue lane (M4) is next
 - [x] GD/BD/TD spec questions answered in the named specs (8fdea4e)
 - [ ] Seeding rules (foundations §6.3) and the daily growth budget calibrated in the original
 - [ ] Glue, and the growth statistics distribution matches across seeded runs (M4 exit)
@@ -61,7 +68,9 @@ the plugin code in `engine/plugin` that runs the core inside the real game. Mile
 **M5: traffic**
 - [x] Specs: traffic simulator, traffic network, pathfinder
 - [x] Traffic network core (merged dd240c9: 50 unit tests, 20 conformance vectors for all twelve §11 tests; §4.14 and §6 persistence wait for the traffic simulator). Twenty spec questions filed as TN1–TN20
-- [ ] Pathfinder and traffic simulator cores, glue, calibration; commute and volume maps match (M5 exit)
+- [x] Pathfinder core (merged 36ababe: 28 `pf11_*` vectors, PF1–PF15 filed)
+- [x] **Traffic simulator core** (merged a11eb7d: all 15 §11 tests as unit tests and 29 `ts11_*` vectors; TS1–TS34 filed)
+- [ ] Traffic glue, calibration; commute and volume maps match (M5 exit)
 
 **M6+: beyond simulation**
 - [x] Specs: game data formats (DBPF, exemplars, tuning catalogue, 601f3a9), lot/occupant save records (0460f3a), city save records validated against 417 saves (e69009f)

@@ -23,7 +23,7 @@ use fc4_core::julian;
 use fc4_core::save::{LoadError, RECORD_LAYOUT_V4, SAVE_VERSION};
 use fc4_core::{AgentHandle, Message, Simulator, Tuning};
 
-pub const FC4_ABI_VERSION: u32 = 19;
+pub const FC4_ABI_VERSION: u32 = 25;
 
 pub const FC4_OK: i32 = 0;
 pub const FC4_ERR_UNSUPPORTED_VERSION: i32 = -1;
@@ -730,18 +730,28 @@ pub unsafe extern "C" fn fc4_sim_get_agent_info(
     true
 }
 
+pub mod aura;
+pub mod aura_shadow;
 pub mod budget;
 pub mod crime;
 pub mod demand;
 pub mod flammability;
+pub mod flammability_shadow;
+pub mod flora;
+pub mod flora_shadow;
 pub mod hostgrid;
+pub mod landfill;
+pub mod landfill_shadow;
 pub mod landvalue;
+pub mod landvalue_shadow;
 pub mod ordinance;
 pub mod panic_log;
 pub mod plumbing;
+pub mod plumbing_shadow;
 pub mod pollution;
 pub mod pollution_shadow;
 pub mod power;
+pub mod power_shadow;
 pub mod props;
 pub mod protection;
 pub mod stream;
@@ -749,6 +759,9 @@ pub mod weather;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod aura_tests;
 
 #[cfg(test)]
 mod budget_tests;
@@ -760,16 +773,34 @@ mod crime_tests;
 mod demand_tests;
 
 #[cfg(test)]
+mod flora_tests;
+
+#[cfg(test)]
+mod landfill_tests;
+
+#[cfg(test)]
 mod landvalue_tests;
 
 #[cfg(test)]
+mod landvalue_shadow_tests;
+
+#[cfg(test)]
+mod flammability_shadow_tests;
+
+#[cfg(test)]
 mod ordinance_tests;
+
+#[cfg(test)]
+mod plumbing_shadow_tests;
 
 #[cfg(test)]
 mod pollution_tests;
 
 #[cfg(test)]
 mod power_tests;
+
+#[cfg(test)]
+mod power_shadow_tests;
 
 #[cfg(test)]
 mod protection_tests;

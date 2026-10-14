@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "name": "ts11_25_init_and_identity",
+  "spec": [
+    "traffic-simulator 1",
+    "traffic-simulator 7"
+  ],
+  "description": "§1, §7: Init registers the agents (levels 0, 6, 4) and the nine subscriptions in order, creates the roads and mass transit departments (max funding 120 % -> 1.2) and the grids; QueryInterface answers the traffic simulator IID; GetSimulatorType 0x88027F0D; trip scale 6, for display 25; GetDesiredLotInsertionPoint false after construction; Shutdown releases both departments and the grids.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "agents": [
+          0,
+          6,
+          4
+        ],
+        "subscriptions": [
+          "0x99EF1142",
+          "0x99EF1143",
+          "0x26D31EC1",
+          "0xE8BDA2E7",
+          "0xC53D10AA",
+          "0x8A0D15DA",
+          "0xEA0D163E",
+          "0x08DAC3E7",
+          "0xC2C09554"
+        ],
+        "departments": [
+          [
+            "0xC921CEEA",
+            "0x3F99999A"
+          ],
+          [
+            "0xC921CEEB",
+            "0x3F99999A"
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "query_interface",
+      "args": [
+        "0x68027F37"
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "simulator_type",
+      "expect": "0x88027F0D"
+    },
+    {
+      "op": "ts_call",
+      "method": "trip_scale",
+      "expect": "0x40C00000"
+    },
+    {
+      "op": "ts_call",
+      "method": "trip_scale_for_display",
+      "expect": "0x41C80000"
+    },
+    {
+      "op": "ts_call",
+      "method": "desired_lot_insertion_point",
+      "expect": false
+    },
+    {
+      "op": "ts_call",
+      "method": "shutdown",
+      "expect": true
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "released_departments": [
+          900,
+          901
+        ]
+      }
+    }
+  ]
+}

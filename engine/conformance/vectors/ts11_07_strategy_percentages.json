@@ -1,0 +1,115 @@
+{
+  "format": 1,
+  "name": "ts11_07_strategy_percentages",
+  "spec": [
+    "traffic-simulator 4.1",
+    "traffic-simulator 7",
+    "traffic-simulator 11.7"
+  ],
+  "description": "Conformance test 7 (§11). pct = (80, 20, 0) -> GetTravelStrategyPercentages = 0x3F4CCCCC, 0x3E4CCCCC, 0. A lot with 30 commuters (< 50) puts all of them on the first strategy whose threshold (cumulative 1 + round(p x 100): 81, 101, 101) exceeds the lot's strategy byte: byte 80 -> strategy 0, 81 -> strategy 1, 100 -> strategy 1; byte 0 -> strategy 0 even with pct = (0, 50, 50) (thresholds 1, 51, 101).",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "pct": [
+          [
+            1,
+            [
+              80,
+              20,
+              0
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "travel_strategy_percentages",
+      "args": [
+        1
+      ],
+      "expect": [
+        "0x3F4CCCCC",
+        "0x3E4CCCCC",
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split",
+      "args": [
+        30,
+        [
+          "0x3F4CCCCC",
+          "0x3E4CCCCC",
+          0
+        ],
+        80
+      ],
+      "expect": [
+        30,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split",
+      "args": [
+        30,
+        [
+          "0x3F4CCCCC",
+          "0x3E4CCCCC",
+          0
+        ],
+        81
+      ],
+      "expect": [
+        0,
+        30,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split",
+      "args": [
+        30,
+        [
+          "0x3F4CCCCC",
+          "0x3E4CCCCC",
+          0
+        ],
+        100
+      ],
+      "expect": [
+        0,
+        30,
+        0
+      ]
+    },
+    {
+      "op": "ts_eval",
+      "fn": "residential_split_pct",
+      "args": [
+        30,
+        [
+          0,
+          50,
+          50
+        ],
+        0
+      ],
+      "expect": [
+        30,
+        0,
+        0
+      ]
+    }
+  ]
+}

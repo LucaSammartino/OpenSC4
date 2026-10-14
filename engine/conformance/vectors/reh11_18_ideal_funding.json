@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "reh11_ideal_funding",
+  "spec": ["REH 4.10", "REH 11.18"],
+  "description": "REH test 18 (slot 58): the shipped school efficiency curve (0,0) (100,100) (120,110) and max funding 120 x 0.01f = 1.1999999 (0x3F999999). Capacity 1000, served 500 -> r = 0.5, and effCurve(50) x 0.01 = 0.5 = r -> 0.5. Served 1500 -> r = 1.5: the efficiency never reaches it, so f climbs past the max and is clamped to 0x3F999999. Not graded yet (served 0xFFFFFFFF) or no query data -> AL = 0 (null).",
+  "steps": [
+    {"op": "residential_env", "groups": {"1": ["0x150F"]}, "props": {"1": {"0x8922041B": {"u32": 1000}, "0xE9244B2E": {"u32": 1000}, "0x09220161": {"u32": 500}, "0x292453C5": {"f32": 1}}}},
+    {"op": "residential_create"},
+    {"op": "residential_init", "expect": true},
+    {"op": "residential_call", "method": "estimate_ideal_funding", "args": [1], "expect": 0.5},
+    {"op": "residential_env", "props": {"1": {"0x09220161": {"u32": 1500}}}},
+    {"op": "residential_call", "method": "estimate_ideal_funding", "args": [1], "bits": true, "expect": "0x3F999999"},
+    {"op": "residential_env", "props": {"1": {"0x09220161": {"u32": 4294967295}}}},
+    {"op": "residential_call", "method": "estimate_ideal_funding", "args": [1], "expect": null},
+    {"op": "residential_call", "method": "estimate_ideal_funding", "args": [99], "expect": null},
+    {"op": "residential_call", "method": "slot", "args": [58], "expect": ["EstimateIdealFunding", 8, "AL"]}
+  ]
+}

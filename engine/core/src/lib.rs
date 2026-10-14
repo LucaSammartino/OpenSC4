@@ -57,6 +57,7 @@ pub mod store;
 pub mod stream;
 pub mod tract_developer;
 pub mod traffic_network;
+pub mod traffic_simulator;
 pub mod variant;
 pub mod weather;
 pub mod x87;

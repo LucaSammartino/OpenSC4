@@ -103,6 +103,12 @@
 #include "cISC4AutomataControllerManager.h"
 #include "cISC4PropManager.h"
 #include "cISC4PropOccupant.h"
+#include "cISC4AuraSimulator.h"
+#include "cISC4FloraSimulator.h"
+#include "cISC4FloraOccupant.h"
+#include "cIGZCheatCodeManager.h"
+#include "cIGZCommandServer.h"
+#include "cISC4LandfillOccupant.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -352,6 +358,15 @@ const SlotCount kReviewedSlotCounts[] = {
     {"cISC4CrimeSimulator", 14, 16,
      "slot 14 is cSC4CrimeSimulator's scalar deleting destructor (pops 4) and slot 15 its GetSimulatorType: "
      "class-private (crime spec section 1: 14 interface slots; cFC4CrimeSimulator declares both)"},
+    {"cISC4AuraSimulator", 16, 17,
+     "slot 16 is cSC4AuraSimulator's scalar deleting destructor (pops 4): class-private (aura spec section 12.1: "
+     "16 interface slots + destructor)"},
+    {"cISC4FloraSimulator", 25, 26,
+     "slot 25 is cSC4FloraSimulator's scalar deleting destructor (pops 4): class-private (flora spec section 11.1: "
+     "3 + 22 interface slots + destructor; only the game's own Release calls it)"},
+    {"cISC4TrafficNetworkMap", 9, 52,
+     "cFC4ISC4TrafficNetworkMap declares slots 3-8 only: the landfill developer calls slot 8 (FindNetworkTile) "
+     "only (landfill §4.4.5, §8)"},
 };
 
 const SlotCount* ReviewedSlotCount(const char* table, int declared, int tableSlots) {
@@ -390,6 +405,9 @@ const Waiver kWaivers[] = {
      "the SDK says int64, the game returns 32 bits in eax; cFC4OrdinanceSimulator implements it with the "
      "sign-extended sum in edx:eax, so a caller reading eax sees the original's value"},
     {"vt:cSC4City::vftable", "cISC4City", 96, "CellCornerToPosition", "the game returns in ST0"},
+    {"cIGZCheatCodeManager", "cIGZCheatCodeManager", 14, "HasUserUsedCheat",
+     "the SDK says bool, the game returns 64 bits in edx:eax; the flora glue calls slots 3, 4, 7 and 8 only "
+     "(flora spec sections 4.1 and 4.2)"},
     {"vt:cSC4City::vftable", "cISC4City", 97, "CellCenterToPosition", "the game returns in ST0"},
     // cISC4ResidentialSimulator, cISC4DemandSimulator, cISC4Demand and
     // cISC4RegionalCity are declared in FC4Interfaces.h (demand spec §14);
@@ -407,6 +425,13 @@ const Waiver kWaivers[] = {
     {"cISC4SimGrid<int16>", "cISC4SimGrid<int16_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
     {"cISC4SimGrid<float>", "cISC4SimGrid<float>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    // The aura simulator's grids (aura.md section 14.2).
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 20, "TractCornerToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<int8>", "cISC4SimGrid<int8_t>", 21, "TractCenterToPosition", "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 20, "TractCornerToPosition",
+     "the game returns in ST0 (SDK: bool)"},
+    {"cISC4SimGrid<uint16>", "cISC4SimGrid<uint16_t>", 21, "TractCenterToPosition",
+     "the game returns in ST0 (SDK: bool)"},
     {"cISTETerrain", "cISTETerrain", 6, "CellWidth", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 27, "GetLerpedNormal", "the game returns in ST0 (SDK: 32-bit)"},
     {"cISTETerrain", "cISTETerrain", 59, "BeginBrushScrub", "pops 8 (SDK: 4 bytes)"},

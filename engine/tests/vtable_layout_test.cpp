@@ -428,7 +428,7 @@ struct LotManagerProbe final : cFC4ISC4LotManager {
     intptr_t GetSafeLotIterator() override { g_hit = 15; return static_cast<intptr_t>(0); }
     int32_t GetLotCount() override { g_hit = 16; return static_cast<int32_t>(0); }
     int32_t GetLotSavvyTerrainVertexAltitude(int32_t x, int32_t y, cISC4Lot* lot, bool& ok) override { g_hit = 17; return static_cast<int32_t>(0); }
-    int32_t GetLotSavvyTerrainAltitude(float x, float y, bool& ok) override { g_hit = 18; return static_cast<int32_t>(0); }
+    float GetLotSavvyTerrainAltitude(float x, float z, bool* onLot) override { g_hit = 18; return static_cast<float>(0); }
     int32_t GetLotSavvyCellAltitude(int32_t cellX, int32_t cellZ, bool& ok) override { g_hit = 19; return static_cast<int32_t>(0); }
     int32_t CanCreateLot(int32_t x, int32_t z, int32_t w, int32_t h, bool zoneNotNeeded, bool ignoreConfig, cISC4LotConfiguration* config) override { g_hit = 20; return static_cast<int32_t>(0); }
     int32_t CanCreatePloppedLot(SC4Rect<long> bounds, int32_t n, cISC4LotConfiguration* config) override { g_hit = 21; return static_cast<int32_t>(0); }
@@ -447,7 +447,7 @@ const Expect kLotManager[] = {
     {11, 3, false, "GetVerticesAtEdgeOfLot"}, {12, 3, false, "GetNeighborCellsAtEdgeOfLot"},
     {13, 0, false, "GetRandomLot"}, {14, 1, false, "GetOccupantLot"}, {15, 0, false, "GetSafeLotIterator"},
     {16, 0, false, "GetLotCount"}, {17, 4, false, "GetLotSavvyTerrainVertexAltitude"},
-    {18, 3, false, "GetLotSavvyTerrainAltitude"}, {19, 3, false, "GetLotSavvyCellAltitude"},
+    {18, 3, true, "GetLotSavvyTerrainAltitude"}, {19, 3, false, "GetLotSavvyCellAltitude"},
     {20, 7, false, "CanCreateLot"}, {21, 6, false, "CanCreatePloppedLot"}, {22, 9, false, "CreateLotIfPossible"},
     {23, 6, false, "CreateLot"}, {24, 1, false, "DeleteLot"}, {25, 4, false, "DeleteLots"},
     {26, 4, false, "GetLotVertexAltitudeAdjustmentRange"}, {27, 0, false, "GetMaximumCapacityGrid"},
@@ -469,7 +469,7 @@ struct LotProbe final : cFC4ISC4Lot {
     uint32_t GetFlags() const override { g_hit = 12; return static_cast<uint32_t>(0); }
     bool SetFlags(uint32_t flags) override { g_hit = 13; return static_cast<bool>(0); }
     bool GetBoundingRect(SC4Rect<int32_t>& rect) const override { g_hit = 14; return static_cast<bool>(0); }
-    float GetCenter(float* center) const override { g_hit = 15; return 0.0f; }
+    void GetCenter(float* center) const override { g_hit = 15; }
     float GetAltitude() const override { g_hit = 16; return static_cast<float>(0); }
     bool SetAltitude(float altitude) override { g_hit = 17; return static_cast<bool>(0); }
     float GetSlope() const override { g_hit = 18; return static_cast<float>(0); }
@@ -531,7 +531,7 @@ const Expect kLot[] = {
     {6, 0, false, "IsInitialized"}, {7, 0, false, "Shutdown"}, {8, 0, false, "PostCityInit"},
     {9, 0, false, "GetLotConfiguration"}, {10, 1, false, "SetLotConfiguration"},
     {11, 1, false, "GetLotConfigurationObject"}, {12, 0, false, "GetFlags"}, {13, 1, false, "SetFlags"},
-    {14, 1, false, "GetBoundingRect"}, {15, 1, true, "GetCenter"}, {16, 0, true, "GetAltitude"},
+    {14, 1, false, "GetBoundingRect"}, {15, 1, false, "GetCenter"}, {16, 0, true, "GetAltitude"},
     {17, 1, false, "SetAltitude"}, {18, 0, true, "GetSlope"}, {19, 0, true, "GetSlopeAtTimeOfConstruction"},
     {20, 0, false, "UpdateSlope"}, {21, 2, false, "GetLocation"}, {22, 2, false, "GetSize"},
     {23, 0, false, "GetFacing"}, {24, 1, false, "SetFacing"}, {25, 0, false, "GetUnit"}, {26, 1, false, "SetUnit"},

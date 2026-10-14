@@ -1,0 +1,101 @@
+{
+  "format": 1,
+  "name": "ts11_22_strike_transitions",
+  "spec": [
+    "traffic-simulator 4.12",
+    "traffic-simulator 5"
+  ],
+  "description": "§4.12 step 2: transit funding 50 % with expenses > 0 gives p = 0.2; the first word of seed 1 (u = 0.328) > 0.2, no strike (state 2). Funding 0 %: p = 0.7 > 0.434 (the second word): the strike starts (state 0); the next month it is on (state 1, months 0, flag set), then months 1; full funding ends it (state 2, flag clear). Messages: strike starts, on, over.",
+  "steps": [
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_env",
+      "transit_funding": 0.5
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "budget_total": 5,
+        "rng_seed": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "strike_state": 2
+      }
+    },
+    {
+      "op": "ts_env",
+      "transit_funding": 0.0
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "strike_state": 0
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "strike_state": 1,
+        "strike_months": 0,
+        "strike_flag": true
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "strike_months": 1
+      }
+    },
+    {
+      "op": "ts_env",
+      "transit_funding": 1.0
+    },
+    {
+      "op": "ts_call",
+      "method": "do_monthly_simulation"
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "strike_state": 2,
+        "strike_flag": false
+      }
+    },
+    {
+      "op": "ts_expect_world",
+      "posted_includes": [
+        [
+          "0x69247DC6"
+        ],
+        [
+          "0x69247DC4"
+        ],
+        [
+          "0x69247DC5"
+        ]
+      ]
+    }
+  ]
+}

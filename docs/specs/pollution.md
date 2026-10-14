@@ -154,8 +154,9 @@ game never does]*. They are re-read on `Init` and on message `0xCA1B151C` (§7.1
    4. Iterator: table mode, rectangle `[0, tractCountX − 1] × [0, tractCountZ − 1]`, `Reset(shuffle)`, then one
       `GetNext` → `(tx, tz)`; `cellX := 2·tx`, `cellZ := 2·tz`.
    5. Clear the four dirty flags.
-   6. `propDeveloper.AddPropRequester(prop-requester interface)` (compiled slot 5). *[quirk]* This happens only
-      for a new city; see §10.2 question 1.
+   6. `propDeveloper.AddPropRequester(prop-requester interface)` (compiled slot 5). This happens only for a new
+      city. A loaded city gets the registration back from the prop developer's own save (§10.2 question 1), so
+      the requester must **not** be added again there.
 3. If **not initialized**:
    1. Set `initialized`; read tuning (§7.1).
    2. `simulator.AddAgent(self, 6, "cSC4PollutionSimulator", 2)` then `AddAgent(self, 4, "cSC4PollutionSimulator", 2)`
@@ -278,6 +279,16 @@ Read once per day from the ordinance simulator (`GetCumulativeFactor(id, index)`
 | `fGarbage` | `0xE8F79C90`, 0 |
 | zone multipliers for zone type z = 0..15 | air `0x8A67E373`, water `0x8A67E374`, garbage `0x8A67E376`, index z |
 
+These are 52 calls in all (`0x006E83DD`–`0x006E8479`), made once per day before the visit loop, each storing its
+`float32` result.
+
+**No ordinance simulator (PG10).** The original has no path for this case. The day pass calls through the held
+pointer without checking it, so a null pointer would crash on the first read (`0x006E83E0`). The city always
+creates an ordinance simulator, so the case does not arise in the game. *[choice]* With no ordinance simulator,
+treat every factor and multiplier as **1.0**. That is exactly what `GetCumulativeFactor` returns when no enacted
+ordinance carries the property (ordinance.md §6.1), so a city without the simulator behaves like a city with no
+ordinances.
+
 #### 4.4.4 One tract visit (repeated `tractsPerDay` times)
 
 Let `(x, z) := (cellX, cellZ)` (cell coordinates of the tract's corner) and `t := (x/2, z/2)`.
@@ -392,7 +403,7 @@ Called with the day's running "remaining" capacities (§4.4.1). `g` is a float.
 1. If `g ≤ 0`: return 0.
 2. **Export**: `room := exportCapacity − exported` (32-bit, the low half of the int64 counter). If `room > 0`:
    `x := min(g, room)`; `exported := trunc(exported + x)`; `g −= x`.
-3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g` (unsigned `wteRemaining` as float):
+3. **Waste-to-energy**: if `wteRemaining ≠ 0`: if `wteRemaining > g` (unsigned; compared as below):
    `wteRemaining −= floor(g)` (the 1.5·2²³ floor of §4.12, not `_ftol`), `x := g`,
    `g := 0`; **otherwise `wteRemaining := 0` and nothing is taken** *[quirk]* (a plant with less remaining
    capacity than the offered amount is emptied without burning anything). `wte := trunc(wte + x)`.
@@ -410,6 +421,46 @@ Called with the day's running "remaining" capacities (§4.4.1). `g` is a float.
 7. Return the total taken from steps 2–6 (float).
 
 The decomposition allowance (`0x09135479`, shipped 2000 per month) is consumed first-come in visit order.
+
+**How `remaining > g` is compared in steps 3 and 4 (PG8) *[compat]*.** The remaining capacity is converted as
+**unsigned** (waste-to-energy `0x006E38EA`–`0x006E3903`, incinerators `0x006E39A5`–`0x006E39BE`). The code loads
+it as a signed 32-bit integer onto the x87 stack. If its top bit is set, it adds 2³² (`4294967296.0f`,
+`0x00A80AA8`). It then compares the result with the `float32` `g`. The value is never stored as a `float32`, so:
+
+- **Below 2³¹** the comparison is **exact**: the integer itself is compared with `g`.
+- **From 2³¹ up**, the add of 2³² runs under the main thread's 24-bit precision (foundations §18.1). The value is
+  therefore rounded to `float32` (nearest, ties to even) before the comparison.
+
+A replacement gets the same result by converting the value to `f64` (exact for every `u32`) and comparing it with
+`g as f64` when the value is below 2³¹, and by comparing `(value as f32) > g` otherwise.
+
+| Remaining | `g` | Original (`remaining > g`) | Converting to `f32` first |
+|---|---|---|---|
+| 1,000 | 999.5 | true | true |
+| 16,777,217 (2²⁴ + 1) | 16,777,216.0 | **true** (exact) | false (rounds to 16,777,216) |
+| 2,147,483,649 (2³¹ + 1) | 2,147,483,648.0 | **false** (rounded to 2³¹) | false |
+| 3,000,000,000 | 2,999,999,744.0 | true | true |
+
+The remaining capacities are sums of the plants' unused capacities (§4.4.1). Every method agrees while they stay
+below 2²⁴.
+
+**Step 5's landfill values are constant within one day pass (PG9).** Step 5 calls `GetLandfillUsage` (slot 10,
+`0x006E3A73`) and `GetLandfillTileCount` (slot 11, `0x006E3A93`) on every `Dispose` call. Within one delivery of
+the day agent (§5.1; the agent finishes in one delivery), every call returns the same values.
+
+- **Usage and capacity** are cached totals in the landfill developer (landfill.md §4.6.5). `GetLandfillUsage`
+  (`0x006B9820`) only reads them. They are written only by the constructor (`0x006B9780`) and by
+  `UpdateCapacityValues` (`0x006B8F20`).
+- **`UpdateCapacityValues` has three callers.** They are the landfill month agent (`0x006B9302`), the zoning
+  message `0x07699455` (`0x006B9CE2`) and PostCityInit after a load (`0x006B9F2B`). None of them runs inside
+  pollution's day pass.
+- **Nothing the pass does reaches the landfill developer.** `AddToGarbageSupply` changes only pollution's own
+  `garbageSupply`. The garbage moves into landfill tiles only in the landfill month agent.
+- **The tile count** is a zone-14 cell count, which changes only through zoning.
+
+Between two day passes the values can change: after zoning, after the landfill month agent on the 1st, or after
+the PostCityInit that follows a load. Reading them once per day pass is therefore exact. They must be read again
+on each day.
 
 #### 4.6.2 Supply, capacity and landfill flags
 
@@ -573,6 +624,41 @@ Runs monthly, on PostCityInit `0x26D31EC1`, when `effectsVisible` changes, and a
 3. Random draws: the water effect's position uses the pollution file's own `cRZRandomSuper` (foundations §6.2)
    with `RandomDoubleRangeUniform` — **2 draws per newly created water effect** (x then z), none otherwise.
 
+**Calls and layouts** *[compat]* (PG4). The air path's calls are at `0x006E6836`–`0x006E693D`; the water path's
+are the same.
+
+| Object | Slot | Call | Pop | Return |
+|---|---|---|---|---|
+| `cISC4EffectsManager` (`0x00A9F264`, simulator `+0x38`) | 6 `+0x18` | `CreateVisualEffect(uint32 effect, uint32 kind, cISC4VisualEffect** out)` (`0x00593AE0`). It returns false and leaves `*out` alone for an unknown effect; otherwise it stores a new effect in `*out` with one reference. The original tests `*out`, not AL | 12 | AL |
+| visual effect (vtable `0x00AA1170`) | 3 `+0x0C` | `Start(bool)`, always with 0 here | 4 | — |
+| | 4 `+0x10` | `Stop(bool)`, always with 0 here | 4 | — |
+| | 5 `+0x14` | `IsStarted()`: the byte at `+0x24` (`0x007D6680`, a folded getter) | 0 | AL |
+| | 8 `+0x20` | `SetTransform(const cS3DTransform*)` (`0x005BE880`) | 4 | — |
+| | 12 `+0x30` | `SetParameter(uint32 index, const float* values, uint32 count)`, here `(2 or 3, &s, 1)` | 12 | — |
+| | 2 `+0x08` | `Release` | 0 | — |
+
+`cS3DTransform` is 0x38 bytes. The copy it is read by (`0x005BEC20`) takes byte `+0x01` and the 13 floats at
+`+0x04`–`+0x37`:
+
+| Offset | Field | Set by the pollution code |
+|---|---|---|
+| `+0x00` | byte, a revision counter (the receiver keeps its own) | 0, then incremented to 1 |
+| `+0x01` | byte, flags | bit 0 set *[meaning not traced]* |
+| `+0x04`–`+0x27` | 3 × 3 rotation matrix, 9 floats, row by row | identity: 1.0 at `+0x04`, `+0x14`, `+0x24`; 0 elsewhere |
+| `+0x28`–`+0x33` | translation x, y, z | the world position of the table above |
+| `+0x34` | uniform scale | 1.0 |
+
+**Not drawing the effects.** That is the implementer's choice, but two parts of this pass are not visual and
+must still run:
+
+- **The `rand()` call.** The effect iterator's reset makes one C `rand()` call (step 1). That stream is shared
+  with every other main-thread `rand()` user, such as iterator shuffles (foundations §12.1, §12.3). Skipping the
+  pass would shift every later draw.
+- **The worst tracts.** Slots 17–19 return them (§8.1).
+
+The two water-position draws are safe to drop. The `cRZRandomSuper` at `0x00B49BD0` is used only at `0x006E668C`
+and `0x006E66DB` (and its static constructor `0x00A74E41`).
+
 ### 4.11 Prop requests (`cISC4PropRequester`)
 
 `GetRequestedShare(rect)`: sum `GetGarbageValue` (own slot 9) over every cell of the inclusive cell rectangle,
@@ -637,6 +723,21 @@ All are posted (queued) standard messages with data1..4 = 0 unless stated.
 | `0xDA6DD2CB` | garbage changed (end of cycle, `dirtyGarbage`) |
 | `0xEA418D8F` | end of cycle, data1 = 8 (§4.8) |
 
+**The other fields are empty (PG12) *[compat]*.** All five posts (`0x006E70EA` after `AddRadiationToCity`, and
+`0x006E7A64`, `0x006E7A7E`, `0x006E7A98`, `0x006E7AB2`, `0x006E7B3D` at the end of cycle) call the game's
+six-argument post helper `0x005F98C0` (type, data1..4, IGZUnknown). That helper calls `0x005F9800` with "post" =
+true. For each message, `0x005F9800`:
+
+1. Creates a `cRZMessage2Standard`, whose constructor (`0x009134D6`) zeroes every field.
+2. Sets the type and data1..4.
+3. Sets the IGZUnknown through slot 33 (`0x0091346B`) to the sixth argument. Pollution always passes **null**, so
+   the "has IGZUnknown" flag (bit 7 of the byte at `+8`) stays clear.
+4. Never sets void1 (slot 12), so it stays **null** from the constructor.
+5. Posts the message with `MessagePost(msg, false)` (queued) and releases its own reference.
+
+A replacement posts the same: data as in the table, void1 null, IGZUnknown null. If there is no message server
+(`0x00B43CCC` is null), the helper posts nothing.
+
 ### 5.3 Messages handled
 
 | Type | Action |
@@ -691,6 +792,25 @@ and the table holds the shuffled packed `(tx << 8) | tz` entries (32 KB for a la
 
 **Write** returns true.
 
+**`Write` changes nothing (PG6).** `Write` (`0x006E3380`–`0x006E371A`) only reads the simulator. It stores to no
+member, clears no dirty flag and allocates nothing. The iterator's writer (`0x005DAB70`) only reads the iterator.
+Calling `Write` outside a save, for example to capture the state, is therefore safe for the simulator. Its other
+effects all go through the stream it is given:
+
+- **Refs.** Each `ref` goes through `SC4WriteGZSerializable` (`0x005D99A0`), which first asks the stream for
+  `cISC4DBSegmentOStream` (`0x6999A8FB`).
+  - **If the stream refuses,** the ref writes **nothing**, not even a null ID. The helper returns false, which
+    `Write` ignores, and the referenced object is not touched.
+  - **If the stream answers,** the helper asks the object for `cIGZSerializable` (`0xE4FDA3D4`) and passes it to
+    the stream's `WriteGZSerializable` (slot 26, `+0x68`). It then releases both pointers, so the object's
+    reference count ends where it started. On the game's save stream, that call also registers the object with
+    the class-object store (foundations §2.7). A capture must therefore never use a save's stream.
+- **Lists.** The list writer (`0x005DAFF0`) counts the nodes by walking the list, writes the count as `u32`, and
+  then writes each entry as a ref, as above.
+
+A capture through a stream that refuses `0x6999A8FB` therefore gets every field of the layout above in order,
+except the 8 grid refs, the list entries (the four counts are still there) and the department.
+
 **Read**:
 - `version > 4` → fail. Versions 0–4 are accepted.
 - Grid refs are read with IID `0xC9BD939A`, list refs with IID `0x26BB767E` (occupant), the department with IID
@@ -724,6 +844,28 @@ rejected version (> 4) consumes only the version and also leaves everything unch
 **Not saved** (recomputed or reset after load): `radiationSum` (restarts at 0 mid-cycle *[quirk]*), tuning and
 `costPerUnit`, `effectsVisible` (back to true), effect objects and the effect iterator, worst tracts (refreshed by
 PostCityInit), `initialized`.
+
+**`radiationSum` across a load (PG7) *[quirk]*.** Reproduce this; it is the original's behaviour. Whether it was
+intended cannot be read from the exe.
+- `Write` skips the field: it writes `developedTracts` and then `avgGarbage`, with nothing between them.
+- `Read` does not touch it.
+- The constructor sets it to 0 (`0x006E206A`, from a zero global).
+- `Init`'s new-city setup, which a loaded city skips, also zeroes it (`0x006E7288`).
+
+After a load, the field therefore holds 0, while the iterator position, `developedTracts` and the other sums
+continue from the save. The first end of cycle after the load uses only the radiation of the tracts visited since
+the load. It zeroes the sum again (§4.8 step 6), so the divergence lasts **one** cycle: one entry in each of
+`0xEA110137` and `0xEA110138`.
+
+*Example.* The save falls mid-cycle with `radiationSum` = 30. The rest of the cycle adds 10, `developedTracts` is
+50 at the end, and `avgAir` = 500.
+
+| | `radiationSum` at end | `radPct` | `0xEA110137` | `0xEA110138` |
+|---|---|---|---|---|
+| No save and load | 40 | 40 × 100 / 50 = 80 | 40 | 580 |
+| Saved and loaded | 10 | 10 × 100 / 50 = 20 | 10 | 520 |
+
+The next cycle is the same in both runs.
 
 ## 7. Tuning
 
@@ -800,7 +942,7 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 | 2 | +0x8 | `Release()` | 0 | EAX | | |
 | 3 | +0xC | `Init()` | 0 | AL true | §4.1 | |
 | 4 | +0x10 | `Shutdown()` | 0 | AL true | §4.1 | |
-| 5 | +0x14 | `cISC4SimGrid<int16>* GetPollutionGrid(type)` | 4 | EAX | 0 → air **value**, 1 → water value, 2 → garbage value, **3 → radiation source**; no `AddRef`. Other types read the member at `valueGrids[type]` (mod 2³²) *[quirk]*: 4 and 5 return `cellX` / `cellZ` as a pointer, 6–9 the four occupant lists' internal head pointers, higher values later members; **no type ≥ 4 ever yields a grid**. (Only the wrapped values `0xFFFFFFFC`–`0xFFFFFFFF` reach the air/water/garbage/radiation **source** grids.) No original caller passes a type outside 0..3 *[inferred: aura, MySim and map view use 0..3]*. *[choice]* Return null for every type other than 0..3. | semantics undocumented |
+| 5 | +0x14 | `cISC4SimGrid<int16>* GetPollutionGrid(type)` | 4 | EAX | 0 → air **value**, 1 → water value, 2 → garbage value, **3 → radiation source**; no `AddRef`. Other types read the member at `valueGrids[type]` (mod 2³²) *[quirk]*: 4 and 5 return `cellX` / `cellZ` as a pointer, 6–9 the four occupant lists' internal head pointers, higher values later members; **no type ≥ 4 ever yields a grid**. (Only the wrapped values `0xFFFFFFFC`–`0xFFFFFFFF` reach the air/water/garbage/radiation **source** grids.) A type whose address falls outside the object reads unrelated memory and can fault. **No original caller passes a type outside 0..3** (PG13). MySim `0x0042AF78` passes 0. The query tool's tip `0x004C5CD2` loops over 0..3 and `0x004C5DA1` passes 2. Its desirability equation `0x004C9935` makes 4 iterations. The growth developer's `0x006B500E` and `0x006B6225` loop over 0..3. The map view `0x007A3357`–`0x007A3411` passes 0, 1, 2 and 3. Aura state 7 (aura.md §6.7) loops over 0..3. *[choice]* Return null for every type other than 0..3. | semantics undocumented |
 | 6 | +0x18 | `uint16 GetPollutionValue(type, cellX, cellZ)` | 12 | **AX only** | max(0, **source** grid `type` value). Upper 16 bits of EAX are garbage. Types 4–7 read the value grids *[quirk]*. | type OK; reads sources, not values |
 | 7 | +0x1C | `GetAirValue(cellX, cellZ, int32& v)` | 12 | none | `v :=` air value (sign-extended) | **SDK `bool`**: EAX = v. Replacement returns true. |
 | 8 | +0x20 | `GetWaterValue(...)` | 12 | none | water value | same |
@@ -861,6 +1003,36 @@ Calling convention: `thiscall`, callee pops its stack arguments. "Pop" is in byt
 
 Slots 31 and 32 share their bodies with unrelated getters in the original (identical code folding); this has no
 behavioural effect.
+
+**What slots 29 and 30 leave in EAX (PG11) *[compat]*.** Neither slot sets AL as a `bool`. EAX simply holds the
+last value the body computed.
+
+- **Slot 29, `AddToGarbageSupply(n)`** (`0x006E32E0`), with `s` the supply on entry:
+
+  | `n` | Delta |
+  |---|---|
+  | > 0 | `min(n, 0x7FFFFFFF − s)` (saturating) |
+  | 0 | 0 |
+  | < 0 | `n` if `s + n ≥ 0`, else `−s` |
+
+  The supply becomes `s + delta`, then is set to 0 if negative. That last case is reachable only when `s` was
+  already negative, from a damaged save. EAX = the delta **before** that last clamp.
+- **Slot 30, `SetGarbageCapacity(n)`** (`0x006E5050`) stores `n`. EAX = `n`.
+
+No caller in the executable reads either value. The landfill developer (`0x006B9230`, `0x006B92F6`), the landfill
+zones (`0x006BB88D`, `0x006BD44F`) and the simulator itself (`0x006E3B1A`, `0x006E3B34`, `0x006E40D9`,
+`0x006E83DA`, `0x006E889C`, `0x006E89BC`, `0x006E8CF9`) all overwrite or ignore EAX. These are the only sites
+found by scanning for calls through `+0x74` / `+0x78` after a load of the simulator pointer, whether from the
+global `0x00B43D9C`, from the copies held by the landfill classes and the zone manager, or from `this`.
+
+| Call | EAX after | AL read as an SDK `bool` |
+|---|---|---|
+| `s` = 1,000, `AddToGarbageSupply(256)` | 256 | 0 (false) |
+| `s` = 2,147,483,632, `AddToGarbageSupply(100)` | 15 | 15 (true) |
+| `s` = 50, `AddToGarbageSupply(−80)` | −50 (`0xFFFFFFCE`) | `0xCE` (true) |
+| `SetGarbageCapacity(110000)` | 110,000 (`0x0001ADB0`) | `0xB0` (true) |
+
+A replacement returns these `int32` values, and callers must not treat them as `bool`.
 
 ### 8.2 `cIGZSerializable` (vtable `0x00AB25E8`)
 
@@ -957,8 +1129,16 @@ Findings:
 
 ### 10.2 Open questions
 
-1. **Prop requester after load**: `AddPropRequester` is only called for a new city. Whether the prop developer
-   restores requesters from its own save (so loaded cities still get garbage props) was not traced.
+1. *(resolved, PG5)* **Prop requester after load**: `AddPropRequester` is only called for a new city. A loaded
+   city keeps its garbage props because the prop developer saves its requesters itself:
+   - **`Write`** (`0x006F1970`–`0x006F19B6`) writes the requester count, then each requester by ref. The
+     requesters are the vector at prop developer `+0x9FC`.
+   - **`Read`** (`0x006F3680`–`0x006F36C8`) resizes that vector and reads each ref with IID `0x89C498BE`.
+   - So after a load the vector again points at the loaded pollution simulator's requester sub-object.
+   - **Do not add it again.** `AddPropRequester` (`0x006F21C0`) appends with no duplicate check, so a second call
+     would register the requester twice.
+   - **For a replacement.** It must answer IID `0x89C498BE` and be saved by ref under its class ID, so that this
+     ref resolves to it.
 2. *(resolved)* `0xC6CDBF1A` is PreViewLevelChange, sent synchronously by the 3D view; effects are visible only in
    the surface view (foundations §5.2).
 3. The water effect is positioned at height 0 at a jittered block **corner**; whether that is intentional (sea

@@ -327,6 +327,8 @@ impl CrimeSim {
                 }
             }
             msg::ORDINANCE_UPDATED => {
+                // [choice] §4.1 step 6, §16 Q1 (CQ6): with no ordinance
+                // simulator the factor is left unchanged (1.0 since Init).
                 if let Some(f) = self.host.ordinance_crime_factor() {
                     self.d.borrow_mut().ordinance_factor = f;
                 }
@@ -392,7 +394,9 @@ impl CrimeSim {
 
     // ---- algorithms (§6) --------------------------------------------------------------------------
 
-    /// `DoCensus` (§6.1).
+    /// `DoCensus` (§6.1): `GetPopulationGrids` (residential slot 25) first,
+    /// then `GetEQGrids` (slot 23); only their three out pointers are used,
+    /// never the return value (§13, CQ15).
     pub fn do_census(&self) {
         let pops = self.host.population_grids();
         let eqs = self.host.eq_grids();
@@ -960,7 +964,9 @@ impl SaveObject for CrimeSim {
     /// list, clears every incident's visuals flag, sets `loadedFromSave` and
     /// returns true (§12). [choice] On a stream error it returns false and
     /// changes nothing: `loadedFromSave` stays clear and the lots read are
-    /// released, so the next `Init` sets the city up as new.
+    /// released, so the next `Init` sets the city up as new. (CQ9: the
+    /// original reads on, sets `loadedFromSave` and is left unusable; §12
+    /// keeps this choice.)
     fn read(&self, inp: &mut dyn InStream) -> bool {
         let Some(version) = inp.get_u16() else { return false };
         if version != CRIME_RECORD_VERSION {
@@ -1033,6 +1039,7 @@ mod tests {
         pops: RefCell<Vec<Rc<SimGrid<u16>>>>,
         eqs: RefCell<Vec<Rc<SimGrid<f32>>>>,
         demands: RefCell<BTreeMap<u32, DemandValues>>,
+        no_ordinance: Cell<bool>,
         police: RefCell<Option<Rc<SimGrid<u8>>>>,
         released: Cell<i32>,
         lots: RefCell<BTreeMap<u64, Lot>>,
@@ -1113,14 +1120,16 @@ mod tests {
                 .map(|(i, h)| (i, Rc::new(h)))
                 .collect()
         }
-        fn ltext(&self, _k: ResKey) -> Option<Vec<u8>> {
-            None
+        fn ltext(&self, _k: ResKey) -> crate::crime::LtextLoad {
+            crate::crime::LtextLoad::Missing
         }
         fn population_grids(&self) -> [Option<Rc<dyn TractGrid<u16>>>; 3] {
+            self.push("population_grids".into());
             let p = self.pops.borrow();
             [0, 1, 2].map(|i| p.get(i).map(|g| g.clone() as Rc<dyn TractGrid<u16>>))
         }
         fn eq_grids(&self) -> [Option<Rc<dyn TractGrid<f32>>>; 3] {
+            self.push("eq_grids".into());
             let p = self.eqs.borrow();
             [0, 1, 2].map(|i| p.get(i).map(|g| g.clone() as Rc<dyn TractGrid<f32>>))
         }
@@ -1142,7 +1151,7 @@ mod tests {
             self.push("stats".into());
         }
         fn ordinance_crime_factor(&self) -> Option<f32> {
-            Some(0.5)
+            (!self.no_ordinance.get()).then_some(0.5)
         }
         fn random_lot(&self) -> Option<LotRef> {
             self.random_calls.set(self.random_calls.get() + 1);
@@ -1337,7 +1346,19 @@ mod tests {
             states.push(sim.data().state);
         }
         assert_eq!(states, vec![1, 2, 3, 4, 5, 6, 6]);
-        assert_eq!(f.take(), vec!["jail", "reset_unjailed", "stats", "map_updated"]);
+        // §13 (CQ15): the census asks GetPopulationGrids (slot 25) first, then
+        // GetEQGrids (slot 23); their return values are not used.
+        assert_eq!(
+            f.take(),
+            vec![
+                "population_grids",
+                "eq_grids",
+                "jail",
+                "reset_unjailed",
+                "stats",
+                "map_updated"
+            ]
+        );
     }
 
     /// Tests 8, 14 and 15.
@@ -1738,6 +1759,11 @@ mod tests {
             let d = loaded.data();
             assert_eq!((d.hotspot_value, d.ordinance_factor, d.state), (0, 1.0, STATE_IDLE));
         }
+        // CQ6: OrdinanceUpdated without an ordinance simulator leaves the 1.0.
+        f2.no_ordinance.set(true);
+        loaded.handle_message(msg(msg::ORDINANCE_UPDATED));
+        assert_eq!(loaded.data().ordinance_factor, 1.0);
+        f2.no_ordinance.set(false);
         // A second Read appends its incidents and clears every visuals flag.
         loaded.data_mut().incidents[0].visuals_created = true;
         let mut res = Resolver(map.clone());

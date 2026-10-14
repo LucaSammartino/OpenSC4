@@ -27,12 +27,22 @@
 #include "cFC4Ordinance.h"
 #include "cFC4Power.h"
 #include "cFC4Plumbing.h"
+#include "FC4PlumbingShadow.h"
 #include "cFC4Flammability.h"
 #include "FC4PollutionShadow.h"
+#include "FC4PowerShadow.h"
 #include "cFC4Pollution.h"
 #include "FC4ProtectionShadow.h"
 #include "cFC4Protection.h"
 #include "cFC4Crime.h"
+#include "FC4AuraShadow.h"
+#include "cFC4Aura.h"
+#include "FC4FloraShadow.h"
+#include "cFC4Flora.h"
+#include "FC4LandfillShadow.h"
+#include "cFC4Landfill.h"
+#include "FC4LandValueShadow.h"
+#include "FC4FlammabilityShadow.h"
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -147,6 +157,22 @@ const ClassEntry kCrimeClasses[] = {
     {0x8990C09A, "cSC4CrimeSimulator", &CreateFC4CrimeSimulator},
 };
 
+// docs/specs/aura.md §1. Off by default (M3 glue trial): `enable = aura`.
+const ClassEntry kAuraClasses[] = {
+    {0x0990BDD8, "cSC4AuraSimulator", &CreateFC4AuraSimulator},
+};
+
+// docs/specs/flora.md §1. Off by default (M3 glue trial): `enable = flora`.
+// The flora occupant class (0xA9C05C85) stays the game's (§13.2).
+const ClassEntry kFloraClasses[] = {
+    {kFC4_CLSID_cSC4FloraSimulator, "cSC4FloraSimulator", &CreateFC4FloraSimulator},
+};
+
+// docs/specs/landfill.md §1. Off by default (M3 glue trial): `enable = landfill`.
+const ClassEntry kLandfillClasses[] = {
+    {0xEA09D4AE, "cSC4LandfillDeveloper", &CreateFC4LandfillDeveloper},
+};
+
 const Subsystem kSubsystems[] = {
     {"simulator", "FC4_DISABLE_SIMULATOR", kSimulatorClasses, sizeof(kSimulatorClasses) / sizeof(kSimulatorClasses[0]),
      true},
@@ -162,6 +188,9 @@ const Subsystem kSubsystems[] = {
     {"pollution", nullptr, kPollutionClasses, sizeof(kPollutionClasses) / sizeof(kPollutionClasses[0]), false},
     {"protection", nullptr, kProtectionClasses, sizeof(kProtectionClasses) / sizeof(kProtectionClasses[0]), false},
     {"crime", nullptr, kCrimeClasses, sizeof(kCrimeClasses) / sizeof(kCrimeClasses[0]), false},
+    {"aura", nullptr, kAuraClasses, sizeof(kAuraClasses) / sizeof(kAuraClasses[0]), false},
+    {"flora", nullptr, kFloraClasses, sizeof(kFloraClasses) / sizeof(kFloraClasses[0]), false},
+    {"landfill", nullptr, kLandfillClasses, sizeof(kLandfillClasses) / sizeof(kLandfillClasses[0]), false},
 };
 
 constexpr size_t kSubsystemCount = sizeof(kSubsystems) / sizeof(kSubsystems[0]);
@@ -260,6 +289,20 @@ void Resolve() {
         return false;
     };
     CrimeShadowStartup(g_enabled[0], enabledKey("crime"));
+    // The aura grid shadow (FC4AuraShadow.h; it compares the original aura simulator).
+    AuraShadowStartup(enabledKey("aura"));
+    // The flora census shadow (FC4FloraShadow.h; it compares the original flora simulator).
+    FloraShadowStartup(g_enabled[0], enabledKey("flora"));
+    // The landfill shadow (FC4LandfillShadow.h; it compares the original landfill developer).
+    LandfillShadowStartup(g_enabled[0], enabledKey("landfill"));
+    // The power shadow (FC4PowerShadow.h; it compares the original power simulator).
+    PowerShadowStartup(g_enabled[0], enabledKey("power"));
+    // The plumbing shadow (FC4PlumbingShadow.h; it compares the original plumbing simulator).
+    PlumbingShadowStartup(g_enabled[0], enabledKey("plumbing"));
+    // The land value and flammability grid shadows (FC4LandValueShadow.h,
+    // FC4FlammabilityShadow.h; they compare the original simulators).
+    LandValueShadowStartup(enabledKey("landvalue"));
+    FlammabilityShadowStartup(enabledKey("flammability"));
 }
 
 }  // namespace

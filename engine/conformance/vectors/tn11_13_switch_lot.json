@@ -7,7 +7,7 @@
     "traffic-network 4.7.4",
     "traffic-network 4.7.5"
   ],
-  "description": "Extra (§4.7). A lot (1,1)-(2,1), facing 1, whose building has rules [0x01018000] (test 11's rule: kind 0, side north, Car -> Car), capacity 100 and time factor 0.5. Activation: ID 1 and mode mask 2 over the lot rectangle, next ID 2, one building reference, then DoConnectionsChanged(lot). The switch phase clears the switch cells' words (no same-switch rule for east or west) and, for the north neighbour N = (1,0) with ns = SideOf(cell -> N) = 3 and a Car record, adds exit 3 to N's entries 0 and 2 (0x0808) and exits 0 and 2 to entry 3 (0x5000) on top of the piece's 0x0104: conn[1] = 0x590C; conn[2] and conn[4] keep 0x0104. Deactivation releases the building, erases the switch, zeroes both grids and rebuilds (x1-1 .. x2+1).",
+  "description": "Extra (§4.7). A lot (1,1)-(2,1), facing 1, whose building has rules as the raw bytes of a u8 array, 00 80 01 01 (4.7.2: every shipped switch stores u8 bytes, 4 per rule; this is test 11's rule 0x01018000: kind 0, side north, Car -> Car), capacity 100 and time factor 0.5. Activation: ID 1 and mode mask 2 over the lot rectangle, next ID 2, one building reference, then DoConnectionsChanged(lot). The switch phase clears the switch cells' words (no same-switch rule for east or west) and, for the north neighbour N = (1,0) with ns = SideOf(cell -> N) = 3 and a Car record, adds exit 3 to N's entries 0 and 2 (0x0808) and exits 0 and 2 to entry 3 (0x5000) on top of the piece's 0x0104: conn[1] = 0x590C; conn[2] and conn[4] keep 0x0104. Deactivation releases the building, erases the switch, zeroes both grids and rebuilds (x1-1 .. x2+1).",
   "steps": [
     {
       "op": "tn_env",
@@ -52,8 +52,11 @@
       ],
       "props": {
         "0xE90E25A1": {
-          "u32": [
-            16875520
+          "u8": [
+            0,
+            128,
+            1,
+            1
           ]
         },
         "0xE90E25A3": {

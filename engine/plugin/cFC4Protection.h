@@ -27,14 +27,21 @@
 // Both grids are the GAME's own cSC4SimGrid (uint8 adjusted, int16
 // unadjusted, §2; FC4HostGrid.h): the map view reads the adjusted grid raw.
 //
-// Threads. The game calls the getters from a second thread while the main
-// thread is inside a tick (HANDOFF §5.1), and the core is single-threaded, so
-// every call into it holds this object's lock. The main thread waits for the
-// lock; any other thread tries for up to kLockWaitMs and otherwise answers
-// from a snapshot of the cheap scalar values (taken at the end of every
-// main-thread call) or with the neutral value, and counts a fallback (the
-// month status line). Nothing a getter on another thread reads lives in a
-// RefCell outside that lock.
+// Threads (protection.md §13.1, PR7). No protection slot is known to be
+// called off the main thread: every reader of the game's fire and police
+// globals is main-thread code [inferred: static reachability, no thread
+// trace]; the original answers live values without locking. The game does
+// call other simulators' getters from a second thread while the main thread
+// is inside a tick (HANDOFF §5.1), and the core is single-threaded, so every
+// call into it still holds this object's lock ([choice] kept while §13.1 is
+// inferred). The main thread waits for the lock; any other thread tries for
+// up to kLockWaitMs and otherwise answers from a snapshot of the cheap scalar
+// values (taken at the end of every main-thread call) or with the neutral
+// value, and counts a fallback (the month status line, fallbacks=). The
+// fallbacks are NOT original behaviour (§13.1): a non-zero count means an
+// off-main caller exists and the answers may differ from the original's.
+// Nothing a getter on another thread reads lives in a RefCell outside that
+// lock.
 //
 // The subsystem is OFF by default: FreeCity4.ini `enable = protection` turns
 // both classes on together (§13.2: [choice] replace both together);
@@ -131,7 +138,8 @@ public:
     // How long a thread other than the main one waits for the lock.
     static constexpr uint32_t kLockWaitMs = 20;
 
-    // Observability: calls answered from the snapshot / neutral value.
+    // Observability: calls answered from the snapshot / neutral value (not
+    // original behaviour, §13.1 / PR7: expected to stay 0).
     uint32_t Fallbacks() const { return fallbacks_.load(); }
 
 protected:
@@ -244,6 +252,8 @@ private:
     SC4Percentage pct_{0.0f};  // what GetPercentCoverage points at (stable)
     uint32_t months_ = 0;
     uint32_t days_ = 0;
+    // The month line's WARNING about a 0 x 0 coverage grid, once per object.
+    bool emptyGridWarned_ = false;
 };
 
 class cFC4FireProtectionSimulator final : public cFC4ISC4FireProtectionSimulator, public cFC4ProtectionBase {

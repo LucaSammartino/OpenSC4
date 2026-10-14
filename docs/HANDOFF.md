@@ -33,23 +33,72 @@ The progress checklist in [README.md](../README.md#progress) tracks milestones; 
 > - **Merged this session:**
 >   - traffic network core (`dd240c9`: TN1–TN20 filed); residential core (`737bcc5`: RS7–RS17 filed);
 >   - host grids released with `FC4_RELEASE_CREATED` (`bbe9181`);
->   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14);
+>   - spec answers part 1 (`ac19c1e`), part 2 (`5b305c6`), part 3 (`6d0a68a`: CR1 ConnectionsReady, TN4–TN14),
+>     part 4 (`a4d54b0`: PG14 `dirtyWater`, PG1–PG3, TN15–TN18, RS7–RS17);
 >   - zones ZQ2/ZQ3/ZQ5/ZQ6 follow-up (`8ee3253`: tests 30–32 as vectors `zn15_32`–`zn15_35`; ZQ7–ZQ10 filed);
 >   - **pollution glue + grid shadow** (`d743db2`; ABI 17; PG1–PG14 filed). In game: run 67 clean over 73 months;
 >     run 68 **shadow identical on all eight grids for 94 months**, one flag-only difference (`dirtyWater`, PG14);
->   - **protection glue (fire + police) + grid shadow** (`29b3fcb`; ABI 18; 80 plugin switches; PR1–PR13 filed);
+>     the PG1–PG3 `docs/abi` rows corrected and their waivers dropped (`6aea1a5`);
+>   - **protection glue (fire + police) + grid shadow** (`29b3fcb`; ABI 18; PR1–PR13 filed);
+>   - **crime glue + grid shadow** (`941c34f`; ABI 19; 91 plugin switches; CQ1–CQ15 filed);
+>   - **demand glue fix** (`ae82e65`): capacity maps and `GetLocalPopulationSummary` through the game's STLport map
+>     (`FC4GameMap.h`; switches `demand_capacity`, `demand_direct_calls`; DQ3–DQ8 filed);
 >   - landfill tests 1–23 + **neighbours core** (`026fd9e`; LF1–LF5, NB1–NB17); `exemplar.rs` (`64a25d2`; EX1–EX20);
 >     **pathfinder core** (`36ababe`; 28 `pf11_*` vectors; PF1–PF15);
->   - RE: `re-abi` (`4611f56`: STLport map/set layout, map `operator[]` direct call, BuildingProfile layout).
-> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE in `.claude/worktrees/re-answers`):
->   - glue + shadow: crime (takes ABI 19), aura, flora, landfill developer (each bumps the ABI; renumber at merge
->     and rerun `python tests/gen_abi_entries.py`; fix the plugin switch-count checks in `plugin_load_test`);
->   - demand glue fix: capacity maps and `GetLocalPopulationSummary` through the new STLport docs (run 61 found
->     demand frozen);
->   - traffic simulator core (M5), on the merged pathfinder;
->   - RE `re-answers`: PG14 first, then TN15–TN19, RS7–RS17, PG1–PG3.
+>   - RE: `re-abi` (`4611f56`: STLport map/set layout, map `operator[]` direct call, BuildingProfile layout);
+>   - harness: observe line shows the power getters (`7c94135`), `tools/regress.ps1` + `tools/run_summary.ps1`,
+>     **autotest verdict `ended`** when the game shuts the city down by itself (`0173fe3`; run 69 had none),
+>     `tools/compare_soaks.ps1` (two soaks side by side), and an `ingame_run` verdict read race fixed (`e5fd34a`);
+>   - **protection fix** (`f7a9f16`): a host grid keeps its geometry only once non-empty (fire was 0×0 after a load;
+>     pollution had the same latent fault; HG1 filed);
+>   - **answers applied** (`4619a6f`): PG14 `dirtyWater`, TN1–TN20 in the traffic network core (TN21–TN25 filed).
+>   - **aura glue + grid shadow** (`7c3f3a2`; ABI 20; seam op 14; 105 plugin switches; AU1–AU12 filed);
+>   - RE `re-answers2` part 1 (`3844508`: CQ1–CQ15, PR4, PR7, DQ9); `cRZString` layout in `docs/abi/layouts.md`
+>     (`2f37965`, PR3: no risk, the SDK's `SC4String` matches);
+>   - **diagnostics** (`f518e37`): the foreign-exception report lists the registers and the return addresses into
+>     the executable; heartbeats end with the memory (address space used, largest free block, private bytes);
+>     `tools/addr2func.py` maps executable addresses to function names (coordinator only, reads RE material);
+>   - **REH core** (`e520128`, education and health; RS7–RS17 applied; EH1–EH14 filed).
+>   - **flora glue + census shadow** (`f8ebce0`; ABI 21; seam op 17; FQ1–FQ14), **landfill developer glue + shadow**
+>     (`c2ada06`; ABI 22; seam op 18; 125 plugin switches; LG1–LG20), **traffic simulator core** (`a11eb7d`, M5;
+>     29 `ts11_*` vectors; TS1–TS34), **power shadow** (`290093b`; ABI 23; seam op 21; PW1–PW7), **plumbing shadow**
+>     (`571a47e`; ABI 24; seam op 22; PS1–PS7);
+>   - RE `re-answers2` part 2 (`363bddb`: PR1–PR13, DQ3–DQ8, PG4–PG13 in the specs) and its `docs/abi` corrections
+>     (`7d2f368`: lot `GetCenter` and city slots 96/97 return nothing; our `GetCenter` declaration is now `void`).
+>     **Protection and landfill still call city slot 97 through a float-returning pointer (PR6)**: next apply lane;
+>   - tools: `regress.ps1` runs every shadow (flora, landfill, power, plumbing added) and all thirteen replacements;
+>     `run_summary.ps1` reads `mismatched N`, `clean`, flora's dated month lines and `Shutdown:` lines.
+> - **In game this session after the merges:** run 69 (soak 2, 8 replacements): the game ended the city in 2057,
+>   bankrupt (funds −103,047). **Runs 71/72 settle it: with our power and with the original's, the city follows the
+>   same path and ends in 2060-12 at about −100k funds** (aging plants, no player); our power tracks the original. Run 70 (`regress r941c`): PASS; **protection shadow 194/194 clean (first in-game
+>   protection run)**; **but the fire replacement's grid is 0×0 after a load, so its cycle never runs** (lane below).
+>   Crime shadow clean (0 mismatched cells, hotspot equal) in the first crime run.
+>   Run 73 (`regress r4619`): PASS, fire fixed, pollution shadow 94/94. Run 75b (`regress r7c3f`, first aura run):
+>   PASS; the aura shadow is close but not exact (AU13–AU15). **Run 74 (soak 3, all ten replacements on
+>   Konradshohe): `corrupt` 15 s after load**: the game's own allocator (`0x5B9FC0`, behind `operator new`) got NULL
+>   from `malloc` for a block over 4 KiB and wrote through it; no FreeCity4 frame on the stack. Memory was not short
+>   (run 76: 722 of 2047 MiB used, largest free block 955 MiB), so the game asked for a garbage size. Runs 76 (300 s)
+>   and 77 (900 s soak) repeated run 74 with the new report, then run 79: **no fault in 3 repeats**. A static audit
+>   workflow (five RE auditors, adversarial verify) is looking for game code that sizes an allocation from data we
+>   hand it. **Runs 77/78 (all ten replacements against all original, Konradshohe): the same funds curve for 36
+>   game years and the same end, 2062-06 at −100k** (run 75's survival to 2064 was variance).
+>   **Run 80 (`regress r2900`)**: thirteen replacements clean; landfill shadow 94/94; power shadow exact on all 213
+>   cycles and 94 months (bookkeeping lines off by ~3 consumers, PW8); flora registry identical, one tree in 23 of
+>   94 months (FQ15).
+> - **Lanes running** (clean-room engine lanes in `.claude/worktrees/agent-*`; RE lane in
+>   `.claude/worktrees/re-answers3`):
+>   - land value + flammability shadows (ABI 25, seam ops 23–24); **residential glue + shadow (M4, ABI 26, seam op 25)**;
+>   - `apply2`: DQ9 (the neutral tax rate's float sum), CQ1–CQ15, PR4/PR7 into the cores and glue;
+>   - RE `re-answers3` (PF, ZQ, LF, NB, EX);
+>   - workflow `run74-garbage-new-audit` (read-only; result goes to the coordinator).
+>   Merge order rule: merge one lane, then have the next lane `git merge main` itself (it knows its files), then
+>   gate its worktree; renumber ABI/seam ops/switch counts at that point.
 > - **Open follow-ups:**
->   - residential glue and zones glue (M4); neighbours glue; a TN-apply lane after TN4–TN19 are all answered;
+>   - **run 74's crash**: catch it again with the new report, map the frames with `tools/addr2func.py --log`;
+>   - **apply3** (after `apply2`): PR1–PR13 (except PR4/PR7), DQ3–DQ8, PG4–PG13, and PR6 (city slot 97 is void) in
+>     protection and landfill;
+>   - RE lanes for the open batches: AU1–AU15, EH1–EH14, FQ1–FQ15, LG1–LG20, TS1–TS34, PW1–PW8, PS1–PS7;
+>   - zones glue (M4); neighbours glue; traffic glue (M5);
 >   - after each merge that stages a new DLL: `tools/regress.ps1 -Tag <tag>` (all shadows at once + all
 >     replacements at once, one table; `tools/run_summary.ps1 -Log <log>` summarises any single run).
 > - **Coordinator gate:** `build-runs/coord-full-verify.ps1 -Engine <worktree>\engine -Tag <tag>` (cargo summed,

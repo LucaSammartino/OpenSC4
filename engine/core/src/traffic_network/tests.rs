@@ -17,6 +17,7 @@ use crate::curve::ResponseCurve;
 use crate::grid::{CityDims, CoreGrids, GridProvider, TractGrid};
 use crate::rng::{FixedSeeds, RzRandom};
 use crate::variant::{mem, Elem, Variant};
+use crate::x87;
 
 // ---------------------------------------------------------------------------
 // The stub host
@@ -54,6 +55,8 @@ struct Occ {
     /// Removed from the occupant manager (still readable, as a removed
     /// occupant is while its message is handled).
     gone: bool,
+    /// The bounding city cells (slot 11); `None` = the position cell.
+    bounding: Option<CellRect>,
 }
 
 #[derive(Clone, Debug)]
@@ -198,9 +201,11 @@ impl NetworkHost for World {
         self.occ(occ).pos
     }
     fn occupant_bounding_cells(&self, occ: u64) -> CellRect {
-        let p = self.occ(occ).pos;
-        let (x, z) = self.position_to_cell(p[0], p[2]);
-        CellRect::new(x, z, x, z)
+        let o = self.occ(occ);
+        o.bounding.unwrap_or_else(|| {
+            let (x, z) = self.position_to_cell(o.pos[0], o.pos[2]);
+            CellRect::new(x, z, x, z)
+        })
     }
     fn prop_type(&self, occ: u64) -> u32 {
         self.occ(occ).prop_type
@@ -565,14 +570,14 @@ fn lot_world() -> (Rc<World>, Rc<NetworkModel>) {
 #[test]
 fn t03_lot_ring_and_lists() {
     let (w, m) = lot_world();
-    // L1's ring, corners excluded: (1,1), (1,3), (0,2), (2,2) as a set.
+    // L1's ring, corners excluded, in boundary order (§4.12, TN7): (1,1),
+    // (0,2), (2,2), (1,3).
     let ring = m.state().grow_clamp(CellRect::new(1, 2, 1, 2), 1);
-    let mut cells: Vec<(i32, i32)> = boundary_cells(ring)
+    let cells: Vec<(i32, i32)> = boundary_cells(ring)
         .into_iter()
         .filter(|&(x, z)| x == 1 || z == 2)
         .collect();
-    cells.sort_unstable();
-    assert_eq!(cells, vec![(0, 2), (1, 1), (1, 3), (2, 2)]);
+    assert_eq!(cells, vec![(1, 1), (0, 2), (2, 2), (1, 3)]);
     assert_eq!(m.lot_subnetworks(L1), Some(vec![1]));
     assert_eq!(m.lot_subnetworks(L2), Some(vec![1]));
     // The list is a u32 array property (§4.12 step 3).
@@ -590,6 +595,11 @@ fn t03_queries() {
     assert_eq!(m.get_connected_destination_count(L1, 1), 7);
     assert_eq!(m.get_connected_destination_count(L1, 0), 5);
     assert_eq!(m.get_connected_destination_count(L1, 4), 0);
+    // §4.13: FreeCity4 returns 0 for every k < 0 (TN17; the original reads
+    // unrelated words, e.g. a heap pointer for k = −3).
+    for k in [-1, -3, -4, -7, i32::MIN] {
+        assert_eq!(m.get_connected_destination_count(L1, k), 0, "k = {k}");
+    }
     assert_eq!(m.get_connected_occupant_count(L2, DEV), 3);
     assert_eq!(m.get_occupant_count_for_all_subnetworks(DEV), vec![0, 3]);
     assert_eq!(m.get_subnetworks_in_rectangle(CellRect::new(0, 0, 3, 3)), vec![1]);
@@ -797,8 +807,8 @@ fn t07_tunnel_cost() {
     };
     w.add(1, portal([8.0, 0.0, 24.0], 2));
     w.add(2, portal([72.0, 0.0, 24.0], 1));
-    // Shipped speeds on Road: Car 31 (§4.8 example); Walk 3.5 *[inferred
-    // from the stated Walk cost 0x3F8C6F2E]*; PassengerTrain none.
+    // Shipped speeds on Road (§11 test 7, traffic-simulator.md §4.14, TN20):
+    // Car 31, Walk 3.5, PassengerTrain 0.
     let mut speeds = [[0.0f32; net_type::COUNT]; travel::COUNT];
     speeds[travel::CAR][net_type::ROAD as usize] = 31.0;
     speeds[travel::WALK][net_type::ROAD as usize] = 3.5;
@@ -878,6 +888,10 @@ fn t08_step_costs() {
     assert_eq!(step_cost(200, 0.0), 1.0);
     assert_eq!(step_cost(100, 0.0), 3.0);
     assert_eq!(step_cost(0, 0.0), 5.0);
+    // Every constant is a float32 (TN14): r24(47 × 0.2f) = 0x41166667, and
+    // the step is 0x4081EB85 (the double 0.2 would give 0x4081EB86).
+    assert_eq!(bits(x87::r24(47.0 * f64::from(0.2f32)) as f32), 0x4116_6667);
+    assert_eq!(bits(step_cost(47, 0.0)), 0x4081_EB85);
 }
 
 fn water_world() -> (Rc<World>, Rc<NetworkModel>) {
@@ -1015,11 +1029,65 @@ fn rule_kind_and_flags() {
 }
 
 #[test]
-fn u32_entries_of_property() {
-    let v = Variant::array(mem::UINT32, vec![Elem::U32(0x0101_8000), Elem::U32(7)]);
-    assert_eq!(u32_entries(&v), Some(vec![0x0101_8000, 7]));
-    let bytes = Variant::array(mem::UINT8, vec![Elem::U8(1), Elem::U8(2), Elem::U8(3)]);
-    assert_eq!(u32_entries(&bytes), None, "a byte size not a multiple of 4");
+fn t11_rule_rotation_from_bytes() {
+    // Test 11's rule as the raw bytes a shipped u8 array holds (§4.7.2).
+    let v = Variant::array(mem::UINT8, [0x00, 0x80, 0x01, 0x01].map(Elem::U8).to_vec());
+    let bytes = rule_bytes(&v);
+    assert_eq!(rule_entries(&bytes), vec![0x0101_8000]);
+    assert_eq!(read_rules(1, &rule_entries(&bytes)), read_rules(1, &[0x0101_8000]));
+}
+
+#[test]
+fn rule_bytes_of_property() {
+    // §4.7.2: GetCount() bytes of the variant's data, whatever its type.
+    let u8s = Variant::array(mem::UINT8, (1..=8).map(Elem::U8).collect());
+    assert_eq!(rule_bytes(&u8s), (1..=8).collect::<Vec<u8>>());
+    assert_eq!(rule_entries(&rule_bytes(&u8s)), vec![0x0403_0201, 0x0807_0605]);
+    // A byte count not a multiple of 4: the bytes are all there, and the
+    // ⌊count / 4⌋ rules ignore the tail (DoLotActivated refuses it first).
+    let six = Variant::array(mem::UINT8, (1..=6).map(Elem::U8).collect());
+    assert_eq!(rule_bytes(&six).len(), 6);
+    assert_eq!(rule_entries(&rule_bytes(&six)), vec![0x0403_0201]);
+    // *[quirk]* A u32 array of N entries gives only its first N bytes: the
+    // first N/4 entries whole.
+    let u32s = Variant::array(mem::UINT32, (0..8).map(|i| Elem::U32(0x0101_8000 + i)).collect());
+    let b = rule_bytes(&u32s);
+    assert_eq!(b.len(), 8);
+    assert_eq!(rule_entries(&b), vec![0x0101_8000, 0x0101_8001]);
+    let two = Variant::array(mem::UINT32, vec![Elem::U32(0x0101_8000), Elem::U32(7)]);
+    assert_eq!(rule_bytes(&two), vec![0x00, 0x80], "count 2: not a multiple of 4");
+    // A scalar has count 0; so do an empty variant and an object.
+    assert!(rule_bytes(&Variant::Scalar(Elem::U32(0x0101_8000))).is_empty());
+    assert!(rule_bytes(&Variant::Empty).is_empty());
+}
+
+#[test]
+fn switch_flags_from_all_rules() {
+    // §4.7.2 worked example (TN19): the light-rail/subway station's bytes
+    // 81 F0 07 07, 82 F0 07 06, 81 F0 06 07, 82 F0 07 07.
+    let v = Variant::array(
+        mem::UINT8,
+        [
+            0x81, 0xF0, 0x07, 0x07, 0x82, 0xF0, 0x07, 0x06, 0x81, 0xF0, 0x06, 0x07, 0x82, 0xF0, 0x07, 0x07,
+        ]
+        .map(Elem::U8)
+        .to_vec(),
+    );
+    for facing in 0..4 {
+        let rs = read_rules(facing, &rule_entries(&rule_bytes(&v)));
+        let kinds: Vec<u8> = rs.rules.iter().map(|r| r.kind).collect();
+        assert_eq!(kinds, vec![0, 1, 0, 1]);
+        assert!(rs.rules.iter().all(|r| r.side == [true; 4]), "all four sides");
+        let ft: Vec<(u8, u8)> = rs.rules.iter().map(|r| (r.from, r.to)).collect();
+        assert_eq!(ft, vec![(7, 7), (7, 6), (6, 7), (7, 7)]);
+        assert_eq!(rs.to_mask, 0x0080);
+        assert_eq!(rs.flags, 0x4C, "0x08 | 0x04 (from kind-1 rule 2) | 0x40");
+        let sw = TransitSwitch {
+            rules: rs.rules,
+            ..TransitSwitch::default()
+        };
+        assert_eq!(sw.mode_mask(), 0xC0);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1286,10 +1354,8 @@ fn transit_switch_lot_activation_and_removal() {
     // A street piece north of the switch lot.
     w.piece(1, 1, 0, &[STREET], &[(0, 2), (2, 0)], &[]);
     let mut props = HashMap::new();
-    props.insert(
-        prop::SWITCH_RULES,
-        Variant::array(mem::UINT32, vec![Elem::U32(0x0101_8000)]),
-    );
+    // Test 11's rule as the raw bytes of a u8 array (§4.7.2).
+    props.insert(prop::SWITCH_RULES, u8_prop(&[0x00, 0x80, 0x01, 0x01]));
     props.insert(prop::SWITCH_CAPACITY, Variant::Scalar(Elem::F32(100.0)));
     props.insert(prop::SWITCH_TIME_FACTOR, Variant::Scalar(Elem::F32(0.5)));
     w.add(
@@ -1342,6 +1408,268 @@ fn transit_switch_lot_activation_and_removal() {
     assert_eq!(s.switch_id_at(1, 1), 0);
     assert_eq!(s.switch_mode_at(1, 1), 0);
     assert_eq!(w.refs.borrow().get(&40), Some(&0));
+}
+
+/// A building occupant with the given properties and bounding cells.
+fn building(w: &World, id: u64, bounding: CellRect, props: Vec<(u32, Variant)>) {
+    w.add(
+        id,
+        Occ {
+            kind: Kind::Building,
+            pos: centre(bounding.x1, bounding.z1),
+            props: props.into_iter().collect(),
+            bounding: Some(bounding),
+            ..Occ::default()
+        },
+    );
+}
+
+fn u8_prop(bytes: &[u8]) -> Variant {
+    Variant::array(mem::UINT8, bytes.iter().copied().map(Elem::U8).collect())
+}
+
+fn plain_lot(w: &World, id: u64, rect: CellRect, building: u64) {
+    w.add_lot(
+        id,
+        Lot {
+            rect,
+            facing: 0,
+            building: Some(building),
+            holder: 0,
+            pops: Vec::new(),
+        },
+    );
+}
+
+/// The light-rail/subway station's rules (§4.7.2 worked example).
+const SUBWAY_STATION: [u8; 16] = [
+    0x81, 0xF0, 0x07, 0x07, 0x82, 0xF0, 0x07, 0x06, 0x81, 0xF0, 0x06, 0x07, 0x82, 0xF0, 0x07, 0x07,
+];
+
+#[test]
+fn lot_activation_returns_on_a_partial_rule() {
+    // §4.7.1 step 1 (TN1): a byte size (element count) that is not a
+    // multiple of 4 returns from DoLotActivated: no switch, no ferry part, no
+    // rebuild, and no step 7.
+    let w = World::new(8, 8);
+    let m = model(&w);
+    // A street piece inside each lot that only a rebuild of the lot would
+    // pick up (it is never announced).
+    for (i, x) in [1, 3, 5].into_iter().enumerate() {
+        w.piece(100 + i as u64, x, 1, &[STREET], &[(0, 2), (2, 0)], &[]);
+    }
+    let odd = [
+        u8_prop(&[0x00, 0x80, 0x01, 0x01, 0x00, 0x80]),
+        // A u32 array of 2 entries has count 2 (§4.7.2 quirk).
+        Variant::array(mem::UINT32, vec![Elem::U32(0x0101_8000), Elem::U32(0x0101_8000)]),
+    ];
+    for (i, v) in odd.into_iter().enumerate() {
+        let (b, lot, x) = (40 + i as u64, 7 + i as u64, [1, 3][i]);
+        let props = vec![
+            (prop::SWITCH_RULES, v),
+            (prop::FERRY_TYPE, Variant::Scalar(Elem::U8(0))),
+        ];
+        building(&w, b, CellRect::new(x, 1, x, 1), props);
+        plain_lot(&w, lot, CellRect::new(x, 1, x, 1), b);
+        let out = m.lot_activated_outcome(lot);
+        assert_eq!(out, LotActivation::Returned);
+        assert!(!out.continues() && !out.switch_created());
+        let s = m.state();
+        assert!(s.switches.keys().is_empty(), "no switch");
+        assert_eq!(s.next_switch_id, 1);
+        assert_eq!((s.switch_id_at(x, 1), s.switch_mode_at(x, 1)), (0, 0));
+        assert!(s.car_info(x, 1).is_none(), "no DoConnectionsChanged");
+        assert!(w.refs.borrow().get(&b).is_none(), "no building reference");
+    }
+    // A u32 array of 4 entries has count 4: one rule, the first entry whole
+    // *[quirk]*; the activation goes on, with the rebuild.
+    let four = Variant::array(
+        mem::UINT32,
+        (0..4).map(|i| Elem::U32(0x0101_8000 + (i << 24))).collect(),
+    );
+    building(&w, 42, CellRect::new(5, 1, 5, 1), vec![(prop::SWITCH_RULES, four)]);
+    plain_lot(&w, 9, CellRect::new(5, 1, 5, 1), 42);
+    let out = m.lot_activated_outcome(9);
+    assert_eq!(out, LotActivation::Done { switch_created: true });
+    assert!(out.continues());
+    {
+        let s = m.state();
+        let sw = s.switches.get(1).expect("switch 1");
+        assert_eq!(sw.rules.len(), 1);
+        assert_eq!((sw.rules[0].from, sw.rules[0].to), (1, 1));
+        assert!(s.car_info(5, 1).is_some(), "rebuilt");
+    }
+    // A scalar has count 0: a switch with no rules.
+    let scalar = Variant::Scalar(Elem::U32(7));
+    building(&w, 43, CellRect::new(1, 4, 1, 4), vec![(prop::SWITCH_RULES, scalar)]);
+    plain_lot(&w, 10, CellRect::new(1, 4, 1, 4), 43);
+    assert_eq!(
+        m.lot_activated_outcome(10),
+        LotActivation::Done { switch_created: true }
+    );
+    assert!(m.state().switches.get(2).expect("switch 2").rules.is_empty());
+    // Neither property: no switch, no rebuild, but step 7 still follows.
+    building(&w, 44, CellRect::new(3, 4, 3, 4), Vec::new());
+    plain_lot(&w, 11, CellRect::new(3, 4, 3, 4), 44);
+    assert_eq!(
+        m.lot_activated_outcome(11),
+        LotActivation::Done { switch_created: false }
+    );
+    // No building: nothing at all.
+    w.add_lot(
+        12,
+        Lot {
+            rect: CellRect::new(5, 4, 5, 4),
+            facing: 0,
+            building: None,
+            holder: 0,
+            pops: Vec::new(),
+        },
+    );
+    let out = m.lot_activated_outcome(12);
+    assert_eq!(out, LotActivation::NoBuilding);
+    assert!(!out.continues());
+}
+
+#[test]
+fn activation_access_point_searches_occupants() {
+    // §4.7.1 step 3 with the TN19 station (flag 4 from its kind-1 rule): the
+    // first subway access occupant in the lot gives the access point.
+    let w = World::new(8, 8);
+    let m = model(&w);
+    let rules = vec![(prop::SWITCH_RULES, u8_prop(&SUBWAY_STATION))];
+    building(&w, 40, CellRect::new(2, 2, 3, 3), rules);
+    plain_lot(&w, 7, CellRect::new(2, 2, 3, 3), 40);
+    w.add(
+        50,
+        Occ {
+            kind: Kind::Subway,
+            pos: centre(3, 3),
+            ..Occ::default()
+        },
+    );
+    assert!(m.lot_activated(7));
+    let s = m.state();
+    let sw = s.switches.get(1).expect("switch 1");
+    assert_eq!((sw.flags, sw.to_mask, sw.rules.len()), (0x4C, 0x0080, 4));
+    assert_eq!(s.switch_mode_at(2, 2), 0xC0);
+    assert!(sw.has_access_point);
+    assert_eq!((sw.access_x, sw.access_z), (3, 3));
+}
+
+#[test]
+fn post_load_reread_and_access_points() {
+    // DoPostCityInit steps 1 and 2 (§1, §4.7.2, TN3 and TN4) over switches
+    // as a load leaves them.
+    let w = World::new(8, 8);
+    let m = model(&w);
+    let station = || vec![(prop::SWITCH_RULES, u8_prop(&SUBWAY_STATION))];
+    // 40: a lot, the station's rules; a subway occupant the re-read ignores.
+    building(&w, 40, CellRect::new(2, 2, 3, 3), station());
+    plain_lot(&w, 7, CellRect::new(2, 2, 3, 3), 40);
+    w.add(
+        50,
+        Occ {
+            kind: Kind::Subway,
+            pos: centre(3, 3),
+            ..Occ::default()
+        },
+    );
+    // 41: no lot at its NW cell.
+    building(&w, 41, CellRect::new(5, 5, 5, 5), station());
+    // 42: a lot, no subway rule, a saved access point.
+    let test11 = vec![(prop::SWITCH_RULES, u8_prop(&[0x00, 0x80, 0x01, 0x01]))];
+    building(&w, 42, CellRect::new(0, 5, 0, 5), test11);
+    plain_lot(&w, 8, CellRect::new(0, 5, 0, 5), 42);
+    // 43: a lot, the station's rules, a saved access point.
+    building(&w, 43, CellRect::new(6, 0, 6, 0), station());
+    plain_lot(&w, 9, CellRect::new(6, 0, 6, 0), 43);
+    let saved = vec![Rule {
+        kind: 0,
+        side: [true; 4],
+        from: 2,
+        to: 2,
+    }];
+    let base = TransitSwitch {
+        rules: saved.clone(),
+        to_mask: 0x1234,
+        ..TransitSwitch::default()
+    };
+    let loaded = [
+        TransitSwitch {
+            building: 40,
+            ..base.clone()
+        },
+        TransitSwitch {
+            building: 41,
+            flags: 0x05,
+            ..base.clone()
+        },
+        TransitSwitch {
+            building: 42,
+            flags: 0x04,
+            has_access_point: true,
+            access_x: 4,
+            access_z: 4,
+            ..base.clone()
+        },
+        TransitSwitch {
+            building: 43,
+            has_access_point: true,
+            access_x: 7,
+            access_z: 7,
+            ..base.clone()
+        },
+        // No building (a default inserted by a lookup), stale fields.
+        TransitSwitch {
+            flags: 0x04,
+            ..base.clone()
+        },
+        TransitSwitch {
+            has_access_point: true,
+            ..base
+        },
+    ];
+    m.update_state(|s| {
+        for (i, sw) in loaded.into_iter().enumerate() {
+            *s.switches.entry(i as u32 + 1, TransitSwitch::default) = sw;
+        }
+        if let Some(g) = &s.switch_mode {
+            g.set(2, 2, 0x99);
+        }
+    });
+    m.post_city_init_rebuild();
+    let s = m.state();
+    let sw = |id| s.switches.get(id).expect("switch").clone();
+    // 1: the rules replaced (4, not 1 + 4), the mask and flags rebuilt; flag
+    // 4 without an access point → the building's NW cell, no occupant
+    // search.
+    let s1 = sw(1);
+    assert_eq!(s1.rules, read_rules(0, &rule_entries(&SUBWAY_STATION)).rules);
+    assert_eq!((s1.to_mask, s1.flags), (0x0080, 0x4C));
+    assert!(s1.has_access_point);
+    assert_eq!((s1.access_x, s1.access_z), (2, 2));
+    // 2: no lot → rules and flags as loaded, mask 0; flag 4 → NW cell.
+    let s2 = sw(2);
+    assert_eq!((s2.rules.clone(), s2.to_mask, s2.flags), (saved, 0, 0x05));
+    assert!(s2.has_access_point);
+    assert_eq!((s2.access_x, s2.access_z), (5, 5));
+    // 3: flag 4 cleared by the re-read → no access point; the bytes stay.
+    let s3 = sw(3);
+    assert_eq!((s3.to_mask, s3.flags), (0x0002, 0));
+    assert!(!s3.has_access_point);
+    assert_eq!((s3.access_x, s3.access_z), (4, 4));
+    // 4: flag 4 with a saved access point → kept.
+    let s4 = sw(4);
+    assert_eq!(s4.flags, 0x4C);
+    assert!(s4.has_access_point);
+    assert_eq!((s4.access_x, s4.access_z), (7, 7));
+    // 5 and 6: not re-read [choice]; 5 keeps flag 4 and gets no NW cell,
+    // 6 has flag 4 clear → no access point.
+    assert_eq!((sw(5).to_mask, sw(5).has_access_point), (0x1234, false));
+    assert_eq!((sw(6).to_mask, sw(6).has_access_point), (0x1234, false));
+    // The mode-mask grid is not rewritten.
+    assert_eq!(s.switch_mode_at(2, 2), 0x99);
 }
 
 #[test]
@@ -1442,6 +1770,134 @@ fn ferry_terminals_route_and_link() {
     assert!(s.ferries[0].links.is_empty());
     assert_eq!(s.ferry_counts[1], 1);
     assert_eq!(s.wormhole_at(1, 2) & wormhole::FERRY, wormhole::FERRY, "no rebuild");
+}
+
+/// A ferry lot at column x (rows 1 and 2) of the given type, with props
+/// `(cell, prop type)` in order.
+fn ferry_lot(w: &World, lot: u64, building_id: u64, x: i32, ty: u8, props: &[((i32, i32), u32)]) {
+    building(
+        w,
+        building_id,
+        CellRect::new(x, 2, x, 2),
+        vec![(prop::FERRY_TYPE, Variant::Scalar(Elem::U8(ty)))],
+    );
+    for (i, &((px, pz), pt)) in props.iter().enumerate() {
+        w.add(
+            building_id * 10 + i as u64,
+            Occ {
+                kind: Kind::Prop,
+                pos: centre(px, pz),
+                prop_type: pt,
+                ..Occ::default()
+            },
+        );
+    }
+    plain_lot(w, lot, CellRect::new(x, 1, x, 2), building_id);
+}
+
+fn water_row_world() -> (Rc<World>, Rc<NetworkModel>) {
+    let w = World::new(8, 8);
+    let m = model(&w);
+    for x in 0..8 {
+        w.water.borrow_mut().insert((x, 0), (40.7, 1));
+        w.under_water.borrow_mut().insert((x, 0));
+    }
+    m.do_post_city_init();
+    (w, m)
+}
+
+const DEP: u32 = ferry_prop::DEPARTURE;
+const ARR: u32 = ferry_prop::ARRIVAL;
+const WAT: u32 = ferry_prop::WATER;
+
+#[test]
+fn ferry_water_prop_without_a_side_keeps_the_earlier_cell() {
+    // §4.9.1 step 2 (TN10): the water cell is the neighbour N; a later water
+    // prop with no qualifying side writes nothing.
+    let (w, m) = water_row_world();
+    ferry_lot(
+        &w,
+        8,
+        60,
+        1,
+        0,
+        &[((1, 2), DEP), ((1, 2), ARR), ((1, 1), WAT), ((1, 2), WAT)],
+    );
+    m.lot_activated(8);
+    {
+        let s = m.state();
+        assert_eq!(s.ferries.len(), 1);
+        let t = &s.ferries[0];
+        assert_eq!((t.water_x, t.water_z), (1, 0), "N of (1, 1), kept");
+    }
+    // Only a water prop with no qualifying side: not found, no terminal.
+    ferry_lot(&w, 9, 70, 4, 0, &[((4, 2), DEP), ((4, 2), ARR), ((4, 2), WAT)]);
+    m.lot_activated(9);
+    assert_eq!(m.state().ferries.len(), 1);
+    assert_eq!(m.ferry_terminal_count(0), 1);
+}
+
+#[test]
+fn ferry_type_two_never_activates() {
+    // §4.9.1 step 1 and §4.9.5 (TN18): type 2 is rejected, and the count of
+    // every type ≥ 2 is 0.
+    let (w, m) = water_row_world();
+    for (lot, b, x, ty) in [(8, 60, 1, 2u8), (9, 70, 3, 3), (10, 80, 5, 0)] {
+        ferry_lot(&w, lot, b, x, ty, &[((x, 2), DEP), ((x, 2), ARR), ((x, 1), WAT)]);
+        m.lot_activated(lot);
+    }
+    {
+        let s = m.state();
+        assert_eq!(s.ferries.len(), 1);
+        assert_eq!(s.ferries[0].ferry_type, 0);
+        assert_eq!(s.ferry_counts, [1, 0]);
+    }
+    let counts: Vec<u32> = (0..6).map(|t| m.ferry_terminal_count(t)).collect();
+    assert_eq!(counts, vec![1, 0, 0, 0, 0, 0]);
+    assert_eq!(m.ferry_terminal_count(u32::MAX), 0);
+}
+
+#[test]
+fn water_occupant_marks_its_bounding_cells() {
+    // §4.10.1 (TN15): r = the occupant's bounding cells; only the NW cell is
+    // tested; dirty ∪= r, not grown, not clamped.
+    let (w, m) = water_row_world();
+    // The surface water changes under a clean map; only dirty cells follow.
+    for x in 0..8 {
+        w.water.borrow_mut().insert((x, 1), (40.7, 1));
+    }
+    let bridge = |id: u64, at: (i32, i32), r: CellRect| {
+        w.add(
+            id,
+            Occ {
+                pos: centre(at.0, at.1),
+                types: vec![STREET],
+                bounding: Some(r),
+                ..Occ::default()
+            },
+        );
+    };
+    // NW cell (1, 1) is dry although the position cell (2, 0) is under water.
+    bridge(1, (2, 0), CellRect::new(1, 1, 2, 2));
+    m.occupant_changed(1, false);
+    assert!(!m.state().water.dirty, "only the NW corner is tested");
+    // NW cell (2, 0) under water: dirty = (2, 0, 3, 1), not grown.
+    bridge(2, (3, 1), CellRect::new(2, 0, 3, 1));
+    m.occupant_changed(2, false);
+    {
+        let s = m.state();
+        assert!(s.water.dirty);
+        assert_eq!(s.water.dirty_rect, CellRect::new(2, 0, 3, 1));
+    }
+    // A union with a rectangle past the map edge, not clamped.
+    bridge(3, (6, 0), CellRect::new(6, 0, 9, 1));
+    m.occupant_changed(3, false);
+    assert_eq!(m.state().water.dirty_rect, CellRect::new(2, 0, 9, 1));
+    m.water_update();
+    let s = m.state();
+    assert!(!s.water.dirty);
+    let row1: Vec<u8> = (0..8).map(|x| s.water.depth_at(x, 1)).collect();
+    assert_eq!(row1, vec![0, 0, 200, 200, 200, 200, 200, 200]);
 }
 
 #[test]
