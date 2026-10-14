@@ -332,6 +332,44 @@ impl Run<'_, '_> {
         h.set_trip_list(src, trips);
     }
 
+    // ---- §4.1 the traffic-source iterator ----
+
+    /// `Reset` of the traffic-source iterator (§4.1, TS20): the neighbour
+    /// connections listed now, the lot walk rewound; no source held.
+    pub(crate) fn reset_sources(&mut self) {
+        let conns = self.h.all_connections();
+        self.st.iter.reset(conns);
+        self.st.current = None;
+    }
+
+    /// `GetNext` of the traffic-source iterator (§4.1, TS20): the next lot
+    /// of the live walk, then the connections of the snapshot.
+    pub(crate) fn next_source(&mut self) -> Option<Source> {
+        if !self.st.iter.lots_done {
+            let lots = self.h.lots();
+            if let Some(l) = self.st.iter.next_lot(lots) {
+                return Some(Source::Lot(l));
+            }
+        }
+        self.st.iter.next_connection().map(Source::Connection)
+    }
+
+    /// The location the iterator yields with a source (§4.1): a lot's
+    /// location (lot slot 21), a connection's cell.
+    pub(crate) fn source_cell(&self, src: Source) -> (i32, i32) {
+        match src {
+            Source::Lot(l) => self.h.lot_location(l),
+            Source::Connection(c) => self.h.connection_cell(c),
+        }
+    }
+
+    /// A trip phase takes `src`: its cell is stored for the load resume
+    /// (§3.5 step 11, §6.1 row 14 *[question: the field]*).
+    fn take_source(&mut self, src: Source) {
+        let (x, z) = self.source_cell(src);
+        self.st.extras.phase_positions = [x as i16, z as i16];
+    }
+
     // ---- §4.3 ConfirmTrips ----
 
     /// One slice of ConfirmTrips (state 16, §3.4): at most N sources.
@@ -342,9 +380,10 @@ impl Run<'_, '_> {
             if units >= n {
                 return false;
             }
-            let Some(&src) = self.st.sources.get(self.st.source_pos) else {
+            let Some(src) = self.next_source() else {
                 return true;
             };
+            self.take_source(src);
             self.st.source_pos += 1;
             self.update_traffic_volume(src);
             self.confirm_source(src);
@@ -439,8 +478,16 @@ impl Run<'_, '_> {
         let n = self.st.tuning.traffic_units_per_slice.max(1);
         let mut units = 0;
         loop {
-            let Some(&src) = self.st.sources.get(self.st.source_pos) else {
-                return true;
+            let src = match self.st.current {
+                Some(s) => s,
+                None => {
+                    let Some(s) = self.next_source() else {
+                        return true;
+                    };
+                    self.take_source(s);
+                    self.st.current = Some(s);
+                    s
+                }
             };
             let mut trips = self.h.trip_list(src);
             let next = (self.st.trip_pos..trips.len()).find(|&i| trips[i].status == want);
@@ -453,6 +500,7 @@ impl Run<'_, '_> {
                     merge_search(&mut trips);
                 }
                 self.h.set_trip_list(src, trips);
+                self.st.current = None;
                 self.st.source_pos += 1;
                 self.st.trip_pos = 0;
                 continue;
@@ -753,37 +801,46 @@ impl Run<'_, '_> {
 
     // ---- §4.7 FinishTripMap ----
 
-    /// FinishTripMap (state 15, §4.7).
+    /// FinishTripMap (state 15, §4.7, TS26), in one call. After a load in
+    /// state 15 the lot walk starts after the lot DoPostCityInit found at
+    /// the saved cell (§3.5 step 11).
     pub(crate) fn finish_trip_map(&mut self) {
         let h = self.h;
-        for lot in h.lots() {
+        let mut lots = h.lots();
+        if let Some(after) = self.st.finish_resume.take() {
+            if let Some(i) = lots.iter().position(|&l| l == after) {
+                lots.drain(..=i);
+            }
+        }
+        for lot in lots {
             h.clear_lot_flag(lot, 0x80);
             let zone = h.lot_zone(lot);
             if !(zone == 8 || zone == 9) || h.lot_has_road_access(lot) {
                 continue;
             }
             let Some(g) = self.st.trip_length.clone() else { continue };
+            // `value := 0`; the linked lot's location, else the donor cell.
             let from = match h.lot_link(lot) {
                 Some(link) => Some(h.lot_location(link)),
                 None => self.search_trip_length_donor(lot, zone),
             };
-            if let Some((sx, sz)) = from {
-                let v = g.get_cell_value(sx, sz);
-                let r = h.lot_bounding_rect(lot);
-                for x in r.x1..=r.x2 {
-                    for z in r.z1..=r.z2 {
-                        g.set(x, z, v);
-                    }
+            let v = from.map_or(0, |(sx, sz)| g.get_cell_value(sx, sz));
+            // No donor writes 0 over the rect (TS26).
+            let r = h.lot_bounding_rect(lot);
+            for x in r.x1..=r.x2 {
+                for z in r.z1..=r.z2 {
+                    g.set(x, z, v);
                 }
             }
         }
     }
 
-    /// The outward search of §4.7 from the lot's location: distance 1, 2, …,
-    /// the four directions (−x, −z, +x, +z) at each distance
-    /// *[choice: distance-major]*; a direction stops when it leaves the city,
-    /// finds no lot or a lot of another zone; the first lot of the same zone
-    /// with road access is the donor (its cell).
+    /// The outward search of §4.7 (`0x00710016`–`0x007101D7`, TS26) from the
+    /// lot's location: distance 1, 2, …, at each distance the open
+    /// directions −x, −z, +x, +z. A cell outside the city, with no lot or
+    /// with a lot of another zone closes its direction; the lot itself and
+    /// a same-zone lot without road access are passed over; the first
+    /// same-zone lot with road access ends the search at that cell.
     fn search_trip_length_donor(&self, lot: u64, zone: u32) -> Option<(i32, i32)> {
         let (x0, z0) = self.h.lot_location(lot);
         let mut alive = [true; 4];

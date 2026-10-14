@@ -120,6 +120,8 @@ struct World {
     cities: RefCell<Vec<NeighbourCity>>,
     /// The regional demand per wealth (§2.7.4 step 1).
     demand: RefCell<[Option<f32>; 3]>,
+    /// The cost of a deactivated lot's `0xCA550301` budget item (§4.1.3).
+    item_cost: Cell<i64>,
 }
 
 fn inside(r: CellRect, x: i32, z: i32) -> bool {
@@ -416,6 +418,9 @@ impl TrafficSimHost for World {
     }
     fn activate_budget_items(&self, _building: u64, _lot: Option<u64>) -> i64 {
         0
+    }
+    fn deactivate_budget_items(&self, _holder: u64) -> i64 {
+        self.item_cost.get()
     }
     fn record_history(&self, series: u32, value: u32) {
         self.history.borrow_mut().push((series, value));
@@ -2183,4 +2188,303 @@ fn pools_round_trip() {
     assert_eq!(s2.max_trip_capacity(pool_token(2), 0), 70_000);
     // The default pool is not saved: Init made it.
     assert_eq!(s2.max_trip_capacity(pool_token(0), 3), u32::MAX);
+}
+
+// ---------------------------------------------------------------------------
+// §3.5 DoPostCityInit (TS7), §4.1 the source iterator (TS20), §4.1.3
+// deactivation (TS23), §4.7 FinishTripMap (TS26), §4.8 (TS22)
+// ---------------------------------------------------------------------------
+
+/// §4.1 (TS20): the lots are walked live, the connections are a snapshot.
+#[test]
+fn ts20_source_iterator_walk() {
+    let mut it = SourceIter::default();
+    it.reset(vec![77, 78]);
+    assert_eq!(it.next_lot(vec![1, 2, 3]), Some(1));
+    // 2 removed before the walk reaches it, 4 appended: 3, then 4.
+    assert_eq!(it.next_lot(vec![1, 3, 4]), Some(3));
+    // The last lot returned is removed: its successor still comes.
+    assert_eq!(it.next_lot(vec![1, 4]), Some(4));
+    assert_eq!(it.next_lot(vec![1, 4, 5]), Some(5));
+    assert_eq!(it.next_lot(vec![1, 4, 5]), None);
+    // Past the end the walk is in the connections.
+    assert_eq!(it.next_lot(vec![1, 4, 5, 6]), None);
+    assert_eq!(it.next_connection(), Some(77));
+    assert_eq!(it.next_connection(), Some(78));
+    assert_eq!(it.next_connection(), None);
+}
+
+/// §4.1 (TS20) through ConfirmTrips: a lot added during the phase is
+/// visited, a removed one skipped, and a connection added after `Reset` is
+/// not. Each source taken stores its cell (§3.5 step 11).
+#[test]
+fn ts20_confirm_trips_live_lots() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
+    w.add_lot(2, Lot::new(CellRect::new(2, 2, 2, 2), 12));
+    w.conns.borrow_mut().push((
+        77,
+        Conn {
+            cell: (-1, 5),
+            holder: 70,
+            ..Conn::default()
+        },
+    ));
+    let s = sim(&w);
+    s.set_traffic_units_per_slice(1);
+    s.enter_cycle_state(cycle_state::CONFIRM_TRIPS);
+    let step = |s: &TrafficSimulator| {
+        let done = s.work_on_sim_cycle();
+        (done, s.read_state(|st| st.extras.phase_positions))
+    };
+    assert_eq!(step(&s), (false, [1, 1]));
+    w.lots.borrow_mut().retain(|(id, _)| *id != 2);
+    w.add_lot(3, Lot::new(CellRect::new(3, 4, 3, 4), 13));
+    w.conns.borrow_mut().push((
+        78,
+        Conn {
+            cell: (8, 2),
+            holder: 71,
+            ..Conn::default()
+        },
+    ));
+    assert_eq!(step(&s), (false, [3, 4]));
+    assert_eq!(step(&s), (false, [-1, 5]));
+    // 78 came after the snapshot: the phase is done.
+    assert!(step(&s).0);
+    assert_eq!(s.cycle_state(), cycle_state::REROUTE_TRIPS);
+}
+
+/// §3.5 (TS7): DoPostCityInit registers the connections, sweeps the pools,
+/// runs the boundary pass, maps state 12/13 to 8, rebuilds the buckets,
+/// sets `days` and prices both budgets.
+#[test]
+fn ts7_post_city_init() {
+    let w = World::new();
+    // A ferry connection (mask bit 9: HasMapExit true) and a road one.
+    w.conns.borrow_mut().extend([
+        (
+            77,
+            Conn {
+                cell: (-1, 5),
+                holder: 70,
+                conn_type: Some(9),
+                city: Some((10, 20)),
+                ..Conn::default()
+            },
+        ),
+        (
+            78,
+            Conn {
+                cell: (3, 8),
+                holder: 71,
+                conn_type: Some(2),
+                ..Conn::default()
+            },
+        ),
+    ]);
+    for i in 0..20u64 {
+        let (x, z) = ((i % 4) as i32, (i / 4) as i32);
+        w.add_lot(100 + i, Lot::new(CellRect::new(x, z, x, z), 200 + i));
+    }
+    w.set_prop(205, prop::STRATEGY_BUCKET, Variant::Scalar(Elem::U32(3)));
+    w.set_prop(202, prop::STRATEGY_BUCKET, Variant::Scalar(Elem::U32(3)));
+    w.set_prop(207, prop::STRATEGY_BUCKET, Variant::Scalar(Elem::U32(1)));
+    let s = sim(&w);
+    // A pool no record names, and stale buckets.
+    s.update_pools(|p| {
+        p.create(50, 50);
+        p.create(51, 51);
+    });
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::SUBNETWORK_INFO;
+        st.buckets.insert(9, vec![(7, 7)]);
+        for x in -1..=8 {
+            for z in [-1, 8] {
+                st.set_dest_byte(x, z, 0xF);
+                st.set_dest_byte(z, x, 0xF);
+            }
+        }
+        st.set_free(0, 4);
+        st.cells_per_type = [2; 13];
+    });
+    let priced = w.costs.borrow().len();
+    s.do_post_city_init();
+    let r = s.network().traffic_neighbor_connection(-1, 5);
+    // Pools 1 and 2 were taken, so the Add created pool 3; the sweep then
+    // released 1 and 2, which no record names.
+    assert_eq!((r.mask, r.pool), (1 << 9, 3));
+    assert_eq!(s.network().traffic_neighbor_connection(3, 8).mask, 1 << 2);
+    assert_eq!(s.pools().map.keys().copied().collect::<Vec<_>>(), vec![3]);
+    // The ring: only (−1, 5) has a map exit.
+    assert_eq!(s.destination_byte(-1, 5), 0xF);
+    assert_eq!(s.destination_byte(-1, 4), 0);
+    assert_eq!(s.destination_byte(3, 8), 0);
+    assert_eq!(s.destination_byte(-1, -1), 0);
+    assert_eq!(s.free_destinations()[0], 4);
+    assert_eq!(s.cycle_state(), cycle_state::FINAL_CALCULATIONS);
+    let buckets = s.read_state(|st| st.buckets.clone());
+    assert_eq!(
+        buckets.into_iter().collect::<Vec<_>>(),
+        vec![(1, vec![(3, 1)]), (3, vec![(2, 0), (1, 1)])]
+    );
+    assert_eq!(s.read_state(|st| st.days), 1);
+    let costs = w.costs.borrow();
+    assert_eq!(costs[priced..], [(true, [2; 13]), (false, [2; 13])]);
+}
+
+/// §3.5 step 11 (TS7): the resume by the loaded state.
+#[test]
+fn ts7_post_city_init_resume() {
+    let w = World::new();
+    w.add_lot(1, Lot::new(CellRect::new(1, 1, 1, 1), 11));
+    w.add_lot(2, Lot::new(CellRect::new(2, 2, 3, 3), 12));
+    w.add_lot(3, Lot::new(CellRect::new(4, 4, 4, 4), 13));
+    let s = sim(&w);
+    // 18: the source at the saved cell is held; the walk goes on after it.
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        st.extras.phase_positions = [2, 2];
+    });
+    s.do_post_city_init();
+    assert_eq!(s.read_state(|st| st.current), Some(Source::Lot(2)));
+    assert_eq!(s.read_state(|st| st.days), 0);
+    // No source at the saved cell: reset again, none held.
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::CONFIRM_TRIPS;
+        st.extras.phase_positions = [3, 3];
+    });
+    s.do_post_city_init();
+    assert_eq!(s.read_state(|st| (st.current, st.iter.last_lot)), (None, None));
+    // 15: past the lot at the saved cell (any cell of it).
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FINISH_TRIP_MAP;
+        st.extras.phase_positions = [3, 3];
+    });
+    s.do_post_city_init();
+    assert_eq!(s.read_state(|st| st.finish_resume), Some(2));
+    // Ferries: only in state 19.
+    let running = |s: &TrafficSimulator| s.network().update_state(|n| n.ferry_pass.running);
+    s.network().update_state(|n| n.ferry_pass.running = false);
+    s.update_state(|st| st.cycle_state = cycle_state::START_RECALC);
+    s.do_post_city_init();
+    assert!(!running(&s));
+    s.update_state(|st| st.cycle_state = cycle_state::FERRY_ROUTES);
+    s.do_post_city_init();
+    assert!(running(&s));
+    // 1 and 14: `freeDest` zeroed, then ClearTripDestinations and
+    // RefreshCommuteMap over the city, then state 0.
+    set_capacity(&w, 13, &[5]);
+    s.update_state(|st| {
+        st.cycle_state = 14;
+        st.set_free(2, 9);
+    });
+    s.do_post_city_init();
+    assert_eq!(s.cycle_state(), cycle_state::START_RECALC);
+    assert_eq!(s.free_destinations(), [1, 0, 0, 0]);
+    assert_eq!(s.destination_byte(4, 4), 1);
+}
+
+/// §4.7 (TS26): the spec's example, and no donor writes 0.
+#[test]
+fn ts26_finish_trip_map_example() {
+    let w = World::new();
+    w.cells.set((32, 32));
+    let lot = |zone: u32, road: bool, r: CellRect, holder: u64| Lot {
+        zone,
+        road_access: road,
+        ..Lot::new(r, holder)
+    };
+    w.add_lot(1, lot(8, false, CellRect::new(20, 20, 20, 21), 11));
+    w.add_lot(2, lot(1, true, CellRect::new(19, 20, 19, 20), 12));
+    w.add_lot(3, lot(8, false, CellRect::new(21, 20, 21, 20), 13));
+    w.add_lot(4, lot(8, true, CellRect::new(22, 19, 22, 20), 14));
+    // A lone lot with no donor.
+    w.add_lot(5, lot(9, false, CellRect::new(5, 5, 6, 5), 15));
+    let s = sim(&w);
+    s.update_state(|st| {
+        let g = st.trip_length.as_ref().unwrap();
+        g.set(22, 20, 37);
+        g.set(22, 19, 99);
+        g.set(5, 5, 7);
+        g.set(6, 5, 7);
+    });
+    s.enter_cycle_state(cycle_state::FINISH_TRIP_MAP);
+    assert!(s.work_on_sim_cycle());
+    let at = |x, z| s.trip_length_map().unwrap().get_cell_value(x, z);
+    assert_eq!((at(20, 20), at(20, 21)), (37, 37));
+    assert_eq!((at(5, 5), at(6, 5)), (0, 0));
+}
+
+/// §4.1.3 (TS23): the spec's example, deactivated in state 18, and in
+/// state 10 `freeDest` is kept.
+#[test]
+fn ts23_lot_deactivation_example() {
+    let w = World::new();
+    w.cells.set((32, 32));
+    w.add_lot(1, Lot::new(CellRect::new(10, 20, 11, 21), 11));
+    w.add_lot(2, Lot::new(CellRect::new(14, 20, 14, 20), 12));
+    w.set_prop(11, prop::STRATEGY_BUCKET, Variant::Scalar(Elem::U32(4)));
+    w.item_cost.set(250);
+    let s = sim(&w);
+    s.update_state(|st| {
+        st.cycle_state = cycle_state::FULL_TRIPS;
+        for x in 10..=11 {
+            for z in 20..=21 {
+                st.set_dest_byte(x, z, 3);
+            }
+        }
+        st.set_dest_byte(14, 20, 1);
+        for k in 0..4 {
+            st.set_free(k, 5);
+        }
+        st.buckets.insert(4, vec![(14, 20), (10, 20), (10, 20)]);
+        st.budget_total = 1000;
+    });
+    let deactivate = |s: &TrafficSimulator, lot: u64| {
+        s.do_message(&Message {
+            msg_type: msg::LOT_STATE_CHANGED,
+            data1: 3,
+            object: lot,
+            ..Message::default()
+        })
+    };
+    deactivate(&s, 1);
+    assert_eq!(s.free_destinations(), [4, 4, 5, 5]);
+    for (x, z) in [(10, 20), (11, 20), (10, 21), (11, 21)] {
+        assert_eq!(s.destination_byte(x, z), 0);
+    }
+    // Only the first entry at the lot's location goes.
+    assert_eq!(s.read_state(|st| st.buckets[&4].clone()), vec![(14, 20), (10, 20)]);
+    assert_eq!(s.read_state(|st| st.budget_total), 750);
+    // State 10: the bytes go, `freeDest` stays.
+    s.update_state(|st| st.cycle_state = cycle_state::REFRESH_COMMUTE);
+    deactivate(&s, 2);
+    assert_eq!(s.destination_byte(14, 20), 0);
+    assert_eq!(s.free_destinations(), [4, 4, 5, 5]);
+}
+
+/// §4.8 (TS22): after the scan, each terminal's arrival cell is cleared; its
+/// departure cell only when the scan reaches it (network info).
+#[test]
+fn ts22_reduce_ferry_arrival_cells() {
+    let w = World::new();
+    let s = sim(&w);
+    s.network().update_state(|n| {
+        n.ferries.push(crate::traffic_network::FerryTerminal {
+            dep_x: 1,
+            dep_z: 1,
+            arr_x: 6,
+            arr_z: 6,
+            ..Default::default()
+        });
+        for (x, z) in [(1, 1), (6, 6)] {
+            let k = crate::traffic_network::NetworkState::edge_key(x, z, 1, false);
+            n.edge_density.entry(k, Default::default).current = [7; 16];
+        }
+    });
+    s.enter_cycle_state(cycle_state::REDUCE_EDGES);
+    assert!(s.work_on_sim_cycle());
+    assert_eq!(s.traffic_edge_density(6, 6, 1, false).current, [0; 16]);
+    assert_eq!(s.traffic_edge_density(1, 1, 1, false).current, [7; 16]);
 }

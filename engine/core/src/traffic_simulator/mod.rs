@@ -92,8 +92,8 @@ pub use pools::{pool_of_token, pool_token, Pools, POOL_CITY_X, POOL_CITY_Z, POOL
 pub use record::{legacy_density, read_mask_and_flags, read_trip, write_trip, TRIP_RECORD_VERSION};
 pub use route::{decode_route, RouteCell};
 pub use state::{
-    AccidentEntry, DamageBlock, DamageState, SaveExtras, StatRow, State, StatsSet, SwitchStat, PC_REROUTE_BUCKET,
-    PC_SOURCE_COUNTER,
+    AccidentEntry, DamageBlock, DamageState, SaveExtras, SourceIter, StatRow, State, StatsSet, SwitchStat,
+    PC_REROUTE_BUCKET, PC_SOURCE_COUNTER,
 };
 pub use trips::{
     ceil_idiom, floor_idiom, industrial_trips, merge_routed, merge_search, reconcile_connection, reconcile_lot,
@@ -451,6 +451,11 @@ pub trait TrafficSimHost: NetworkHost + GridProvider<f32> {
     /// the int64 to add to the total `E` (non-zero only on the `0xCA550301`
     /// path).
     fn activate_budget_items(&self, building: u64, lot: Option<u64>) -> i64;
+    /// §4.1.3 DoLotDeactivated step 3 (TS23): with the lot's own holder,
+    /// slot 51 for `0xCA550301` and, if found, slot 56; then, independently,
+    /// the same for `0x0C3BF549`. Returns the `0xCA550301` item's cost (the
+    /// int64 at `+0x10`) to subtract from `E`, 0 when there is none.
+    fn deactivate_budget_items(&self, holder: u64) -> i64;
 
     // ---- history (§4.12) ----
     fn record_history(&self, series: u32, value: u32);

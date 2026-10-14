@@ -461,6 +461,10 @@ impl TrafficSimHost for World {
     fn activate_budget_items(&self, _building: u64, _lot: Option<u64>) -> i64 {
         self.budget_items.get()
     }
+    /// The `0xCA550301` item's cost: the same `budget_items` stand-in.
+    fn deactivate_budget_items(&self, _holder: u64) -> i64 {
+        self.budget_items.get()
+    }
     fn record_history(&self, series: u32, value: u32) {
         self.history.borrow_mut().push((series, value));
     }
@@ -1221,6 +1225,10 @@ fn state(w: &World, op: &Json) -> R<()> {
                             .collect::<R<_>>()?;
                     }
                     "rng_seed" => st.rng = seed_rng(u32_of(v, &k)?),
+                    "phase_positions" => {
+                        let (x, z) = pair(v, &k)?;
+                        st.extras.phase_positions = [x as i16, z as i16];
+                    }
                     "cells_per_type" => {
                         let v = u32s(v, &k)?;
                         if v.len() != 13 {
@@ -1867,7 +1875,17 @@ fn expect_state(w: &World, op: &Json) -> R<()> {
                 ("to_reroute", ji(st.to_reroute)),
                 ("to_search", ji(st.to_search)),
                 ("source_pos", ji(st.source_pos as u32)),
-                ("source_count", ji(st.sources.len() as u32)),
+                ("source_count", ji(st.iter.conns.len() as u32)),
+                ("phase_positions", jlist(&st.extras.phase_positions)),
+                (
+                    "held_source",
+                    match st.current {
+                        None => Json::Null,
+                        Some(Source::Lot(l)) => Json::Array(vec![Json::Str("lot".into()), ji(l as i64)]),
+                        Some(Source::Connection(c)) => Json::Array(vec![Json::Str("connection".into()), ji(c as i64)]),
+                    },
+                ),
+                ("finish_resume", st.finish_resume.map_or(Json::Null, |l| ji(l as i64))),
                 ("pass_counters", jlist(&st.pass_counters)),
                 ("strategy_bucket", ji(st.strategy_bucket)),
                 ("strategy_bucket_counter", ji(st.strategy_bucket_counter)),

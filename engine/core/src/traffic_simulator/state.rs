@@ -8,7 +8,7 @@
 //! inspect, save and restore it.
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::grid::ScanIterator;
 use crate::pathfinder::{Pathfinder, SharedWorkCheck};
@@ -184,6 +184,76 @@ impl DamageState {
     }
 }
 
+/// The traffic-source iterator (`Reset` `0x007107A0`, `GetNext`
+/// `0x007107F0`; §4.1, TS20): all lots in the lot manager's list order, then
+/// all neighbour connections. The connections are a snapshot taken by
+/// `Reset`; the lots are walked live, so a lot removed before the walk
+/// reaches it is skipped and a lot added during the phase is visited.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SourceIter {
+    /// The connections the last `Reset` listed (counted references in the
+    /// original: a connection removed during the phase is still visited).
+    pub conns: Vec<u64>,
+    /// The next connection to return.
+    pub conn_pos: usize,
+    /// The lot list as the walk last read it.
+    pub lots_seen: Vec<u64>,
+    /// The last lot returned; `None` before the first.
+    pub last_lot: Option<u64>,
+    /// The walk has passed the last lot.
+    pub lots_done: bool,
+}
+
+impl SourceIter {
+    /// `Reset`: the connection snapshot; the lot walk back at the start.
+    pub fn reset(&mut self, conns: Vec<u64>) {
+        *self = SourceIter {
+            conns,
+            ..SourceIter::default()
+        };
+    }
+
+    /// The next lot of the live walk, given the lot manager's list now. The
+    /// list only appends (zones.md §8.1) and removal keeps the order, so the
+    /// lot after the last one returned is the first lot after it, in the
+    /// list as last read, that is still listed; else the first lot appended
+    /// since. `None` (and the walk leaves the lots) at the end.
+    pub fn next_lot(&mut self, lots: Vec<u64>) -> Option<u64> {
+        if self.lots_done {
+            return None;
+        }
+        let next = match self.last_lot {
+            None => lots.first().copied(),
+            Some(last) => {
+                let now: HashSet<u64> = lots.iter().copied().collect();
+                let seen: HashSet<u64> = self.lots_seen.iter().copied().collect();
+                let after = match self.lots_seen.iter().position(|&l| l == last) {
+                    Some(i) => &self.lots_seen[i + 1..],
+                    None => &[][..],
+                };
+                after
+                    .iter()
+                    .copied()
+                    .find(|l| now.contains(l))
+                    .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
+            }
+        };
+        self.lots_seen = lots;
+        match next {
+            Some(l) => self.last_lot = Some(l),
+            None => self.lots_done = true,
+        }
+        next
+    }
+
+    /// The next connection of the snapshot.
+    pub fn next_connection(&mut self) -> Option<u64> {
+        let c = self.conns.get(self.conn_pos).copied()?;
+        self.conn_pos += 1;
+        Some(c)
+    }
+}
+
 /// The record fields whose meaning is not specified (save-records §12 Q2):
 /// Read keeps them and Write writes them back unchanged.
 #[derive(Clone, Debug, PartialEq)]
@@ -199,7 +269,11 @@ pub struct SaveExtras {
     /// scan ends or the iterator is reset. `None` writes the iterator's own
     /// byte.
     pub scan_state_byte: Option<u8>,
-    /// The two phase positions (s16; u8 before version 25).
+    /// The two phase positions (s16; u8 before version 25). The trip phases
+    /// store the cell of the source they take here, and the DoPostCityInit
+    /// resume (§3.5 step 11) looks for it *[question: §3.5 names "the saved
+    /// source cell" of row 14 without naming the field; these are the
+    /// row's only cell-sized pair besides the re-route context's]*.
     pub phase_positions: [i16; 2],
     /// The lot iterator position (30 bytes: s8, s8, 7 × s32).
     pub lot_iter: [u8; 30],
@@ -356,10 +430,16 @@ pub struct State {
     pub pass_counters: [u32; PASS_COUNTERS],
 
     // ---- trip phase context (§4.3, §4.4) ----
-    /// The traffic sources of the running trip phase, as the iterator
-    /// listed them at the phase start *[choice]*.
-    pub sources: Vec<Source>,
-    /// The current source (index into `sources`).
+    /// The traffic-source iterator of the running trip phase (§4.1, TS20).
+    pub iter: SourceIter,
+    /// The held current source of ReRouteTrips / FullTrips, whose trips are
+    /// being examined; `None`: the next unit takes a new source.
+    pub current: Option<Source>,
+    /// FinishTripMap after a load in state 15 (§3.5 step 11): the lot whose
+    /// successor the lot walk starts at; consumed by the phase.
+    pub finish_resume: Option<u64>,
+    /// The sources the running phase has taken (ConfirmTrips) or finished
+    /// (ReRouteTrips, FullTrips).
     pub source_pos: usize,
     /// The next trip of the current source to examine.
     pub trip_pos: usize,
@@ -461,7 +541,9 @@ impl State {
             to_reroute: 0,
             to_search: 0,
             pass_counters: [0; PASS_COUNTERS],
-            sources: Vec::new(),
+            iter: SourceIter::default(),
+            current: None,
+            finish_resume: None,
             source_pos: 0,
             trip_pos: 0,
             continue_search: false,

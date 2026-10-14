@@ -1,0 +1,677 @@
+{
+  "format": 1,
+  "name": "ts11_35_post_city_init",
+  "spec": [
+    "traffic-simulator 3.5",
+    "traffic-network 1",
+    "traffic-network 2.7.2"
+  ],
+  "description": "§3.5 (TS7), in order: the network rebuild; step 4 an Add per neighbour connection (the ferry connection at (-1, 5) to the established city (10, 20) gets mask bit 9 and pool 1; the road connection at (3, 8) has no established city: pool 0), then the pool sweep; step 5 the boundary pass: every ring cell whose HasMapExit is false gets destination byte 0 - only (-1, 5) has an exit (the ferry bit) and keeps 0xF - with freeDest untouched; step 8 the loaded state 13 becomes 8; step 12 the buckets are rebuilt from the lots' 0x691C863C in list order at each lot's location (the stale bucket 9 goes); step 13 days = 20 lots div 18 = 1; step 14 UpdateMassTransitBudget, then UpdateRoadsBudget, priced from the loaded cell counts.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 70,
+      "type": 9,
+      "city": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 78,
+      "cell": [
+        3,
+        8
+      ],
+      "holder": 71,
+      "type": 2
+    },
+    {
+      "op": "ts_lot",
+      "id": 100,
+      "rect": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "holder": 200
+    },
+    {
+      "op": "ts_lot",
+      "id": 101,
+      "rect": [
+        1,
+        0,
+        1,
+        0
+      ],
+      "holder": 201
+    },
+    {
+      "op": "ts_lot",
+      "id": 102,
+      "rect": [
+        2,
+        0,
+        2,
+        0
+      ],
+      "holder": 202
+    },
+    {
+      "op": "ts_lot",
+      "id": 103,
+      "rect": [
+        3,
+        0,
+        3,
+        0
+      ],
+      "holder": 203
+    },
+    {
+      "op": "ts_lot",
+      "id": 104,
+      "rect": [
+        0,
+        1,
+        0,
+        1
+      ],
+      "holder": 204
+    },
+    {
+      "op": "ts_lot",
+      "id": 105,
+      "rect": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "holder": 205
+    },
+    {
+      "op": "ts_lot",
+      "id": 106,
+      "rect": [
+        2,
+        1,
+        2,
+        1
+      ],
+      "holder": 206
+    },
+    {
+      "op": "ts_lot",
+      "id": 107,
+      "rect": [
+        3,
+        1,
+        3,
+        1
+      ],
+      "holder": 207
+    },
+    {
+      "op": "ts_lot",
+      "id": 108,
+      "rect": [
+        0,
+        2,
+        0,
+        2
+      ],
+      "holder": 208
+    },
+    {
+      "op": "ts_lot",
+      "id": 109,
+      "rect": [
+        1,
+        2,
+        1,
+        2
+      ],
+      "holder": 209
+    },
+    {
+      "op": "ts_lot",
+      "id": 110,
+      "rect": [
+        2,
+        2,
+        2,
+        2
+      ],
+      "holder": 210
+    },
+    {
+      "op": "ts_lot",
+      "id": 111,
+      "rect": [
+        3,
+        2,
+        3,
+        2
+      ],
+      "holder": 211
+    },
+    {
+      "op": "ts_lot",
+      "id": 112,
+      "rect": [
+        0,
+        3,
+        0,
+        3
+      ],
+      "holder": 212
+    },
+    {
+      "op": "ts_lot",
+      "id": 113,
+      "rect": [
+        1,
+        3,
+        1,
+        3
+      ],
+      "holder": 213
+    },
+    {
+      "op": "ts_lot",
+      "id": 114,
+      "rect": [
+        2,
+        3,
+        2,
+        3
+      ],
+      "holder": 214
+    },
+    {
+      "op": "ts_lot",
+      "id": 115,
+      "rect": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "holder": 215
+    },
+    {
+      "op": "ts_lot",
+      "id": 116,
+      "rect": [
+        0,
+        4,
+        0,
+        4
+      ],
+      "holder": 216
+    },
+    {
+      "op": "ts_lot",
+      "id": 117,
+      "rect": [
+        1,
+        4,
+        1,
+        4
+      ],
+      "holder": 217
+    },
+    {
+      "op": "ts_lot",
+      "id": 118,
+      "rect": [
+        2,
+        4,
+        2,
+        4
+      ],
+      "holder": 218
+    },
+    {
+      "op": "ts_lot",
+      "id": 119,
+      "rect": [
+        3,
+        4,
+        3,
+        4
+      ],
+      "holder": 219
+    },
+    {
+      "op": "ts_prop",
+      "holder": 205,
+      "id": "0x691C863C",
+      "value": {
+        "u32": 3
+      }
+    },
+    {
+      "op": "ts_prop",
+      "holder": 202,
+      "id": "0x691C863C",
+      "value": {
+        "u32": 3
+      }
+    },
+    {
+      "op": "ts_prop",
+      "holder": 207,
+      "id": "0x691C863C",
+      "value": {
+        "u32": 1
+      }
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "cycle_state": 13,
+        "buckets": [
+          [
+            9,
+            [
+              [
+                7,
+                7
+              ]
+            ]
+          ]
+        ],
+        "dest": [
+          [
+            -1,
+            -1,
+            15
+          ],
+          [
+            -1,
+            8,
+            15
+          ],
+          [
+            0,
+            -1,
+            15
+          ],
+          [
+            0,
+            8,
+            15
+          ],
+          [
+            1,
+            -1,
+            15
+          ],
+          [
+            1,
+            8,
+            15
+          ],
+          [
+            2,
+            -1,
+            15
+          ],
+          [
+            2,
+            8,
+            15
+          ],
+          [
+            3,
+            -1,
+            15
+          ],
+          [
+            3,
+            8,
+            15
+          ],
+          [
+            4,
+            -1,
+            15
+          ],
+          [
+            4,
+            8,
+            15
+          ],
+          [
+            5,
+            -1,
+            15
+          ],
+          [
+            5,
+            8,
+            15
+          ],
+          [
+            6,
+            -1,
+            15
+          ],
+          [
+            6,
+            8,
+            15
+          ],
+          [
+            7,
+            -1,
+            15
+          ],
+          [
+            7,
+            8,
+            15
+          ],
+          [
+            8,
+            -1,
+            15
+          ],
+          [
+            8,
+            8,
+            15
+          ],
+          [
+            -1,
+            0,
+            15
+          ],
+          [
+            8,
+            0,
+            15
+          ],
+          [
+            -1,
+            1,
+            15
+          ],
+          [
+            8,
+            1,
+            15
+          ],
+          [
+            -1,
+            2,
+            15
+          ],
+          [
+            8,
+            2,
+            15
+          ],
+          [
+            -1,
+            3,
+            15
+          ],
+          [
+            8,
+            3,
+            15
+          ],
+          [
+            -1,
+            4,
+            15
+          ],
+          [
+            8,
+            4,
+            15
+          ],
+          [
+            -1,
+            5,
+            15
+          ],
+          [
+            8,
+            5,
+            15
+          ],
+          [
+            -1,
+            6,
+            15
+          ],
+          [
+            8,
+            6,
+            15
+          ],
+          [
+            -1,
+            7,
+            15
+          ],
+          [
+            8,
+            7,
+            15
+          ]
+        ],
+        "free": [
+          4,
+          0,
+          0,
+          0
+        ],
+        "cells_per_type": [
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2,
+          2
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_post_city_init"
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": {
+        "mask": 512,
+        "pool": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        3,
+        8
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 0
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": [
+        1
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": 15
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        -1,
+        4
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        3,
+        8
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        -1,
+        -1
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        8,
+        8
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        4,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "cycle_state": 8,
+        "days": 1,
+        "buckets": [
+          [
+            1,
+            [
+              [
+                3,
+                1
+              ]
+            ]
+          ],
+          [
+            3,
+            [
+              [
+                2,
+                0
+              ],
+              [
+                1,
+                1
+              ]
+            ]
+          ]
+        ]
+      }
+    },
+    {
+      "op": "ts_expect_world",
+      "state": {
+        "network_costs": [
+          [
+            true,
+            [
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2
+            ]
+          ],
+          [
+            false,
+            [
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2,
+              2
+            ]
+          ]
+        ]
+      }
+    }
+  ]
+}
