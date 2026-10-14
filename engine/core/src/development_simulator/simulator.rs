@@ -1034,12 +1034,14 @@ impl DevelopmentSim {
             return None;
         }
         let h = &self.host;
+        // DG5 (§4.9.1): the host's occupant comes from `CreateInstance(0xA9BD882D)`
+        // with the caller's reference already counted, so it is not AddRef'd
+        // again; the loader reports success on every path, so a building whose
+        // exemplar does not load is still inserted, with the constructor's empty
+        // box.
         let occ = h.create_building_occupant()?;
         h.set_building_type(occ, t);
-        if !h.load_building_occupant(occ, t) {
-            h.release(occ);
-            return None;
-        }
+        self.load_building_occupant_properties(occ, t);
         let (mut min, mut max) = h.occupant_bounding_box(occ);
         if orientation == 1 || orientation == 3 {
             min.swap(0, 2);
@@ -1091,6 +1093,138 @@ impl DevelopmentSim {
     /// `GetCostOfOccupantDemolition(foundation, u)` (9): 0.
     pub fn cost_of_foundation_demolition(&self, _occ: OccupantId) -> i64 {
         0
+    }
+
+    /// `LoadBuildingOccupantProperties(occ, type)` (`0x00698490`, §4.9.1,
+    /// DG5): the type's exemplar becomes the occupant's default exemplar and
+    /// the occupant size `0x27812810` sets the box `(0, 0, 0)`–size. True on
+    /// every path: an unknown type or an exemplar that does not load leaves
+    /// the occupant as it was.
+    pub fn load_building_occupant_properties(&self, occ: OccupantId, t: u32) -> bool {
+        let h = &self.host;
+        let t = if t == 0 { h.building_type(occ) } else { t };
+        let key = self.process.catalogue().building_key(t);
+        let Some(key) = key else { return true };
+        if !h.set_default_exemplar(occ, key) {
+            return true;
+        }
+        if let Some(v) = h.occupant_property_f32s(occ, prop::OCCUPANT_SIZE) {
+            // [spec question, choice] The original reads three float32 values
+            // through the raw value pointer with no type or count check; a
+            // property with fewer values gives 0 for the missing ones here.
+            let mut size = [0.0f32; 3];
+            for (slot, x) in size.iter_mut().zip(v) {
+                *slot = x;
+            }
+            h.set_occupant_bounding_box(occ, [0.0; 3], size);
+        }
+        true
+    }
+
+    /// `LoadFoundationProperties(occ, type)` (26, §4.9.2, DG6): the type's
+    /// exemplar (foundation key map) becomes the occupant's default
+    /// exemplar, and property `0x88FCC3E3`, when present, its maximum height.
+    /// False for a type that is not in the map or an exemplar that does not
+    /// load.
+    pub fn load_foundation_properties(&self, occ: OccupantId, t: u32) -> bool {
+        let h = &self.host;
+        if occ == 0 {
+            return false; // [choice] a null occupant (the original does not test it)
+        }
+        let t = if t == 0 { h.foundation_type(occ) } else { t };
+        let key = self.process.catalogue().foundation_key(t);
+        let Some(key) = key else { return false };
+        if !h.set_default_exemplar(occ, key) {
+            return false;
+        }
+        if let Some(v) = h.occupant_property_f32s(occ, prop::FOUNDATION_MAX_HEIGHT) {
+            // [spec question, choice] The original reads the value with the
+            // variant's float32 getter; a present property without values
+            // gives 0 here.
+            h.set_foundation_max_height(occ, v.first().copied().unwrap_or(0.0));
+        }
+        true
+    }
+
+    /// `LoadLotRetainingWallProperties(occ, type)` (29, §4.9.2, DG6): as
+    /// slot 26 with the retaining-wall key map and no property read.
+    pub fn load_retaining_wall_properties(&self, occ: OccupantId, t: u32) -> bool {
+        let h = &self.host;
+        if occ == 0 {
+            return false; // [choice] as slot 26
+        }
+        let t = if t == 0 { h.retaining_wall_type(occ) } else { t };
+        let key = self.process.catalogue().retaining_wall_key(t);
+        let Some(key) = key else { return false };
+        h.set_default_exemplar(occ, key)
+    }
+
+    /// `AddNewFoundationOccupant(type, usage, pos, sizeX, sizeZ, orientation,
+    /// base)` (23, `0x00695AF0`, §4.9.2, DG6; lot-developer.md §17.5.3). The
+    /// foundation's position is its top centre; `pos[1] < 0` is replaced by
+    /// the highest altitude over its cells, written into `pos`. Returns the
+    /// insert's result; false only when the occupant cannot be created or
+    /// the type's properties do not load.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_new_foundation_occupant(
+        &self,
+        t: u32,
+        usage: i32,
+        pos: &mut Vec3,
+        size_x: f32,
+        size_z: f32,
+        orientation: i32,
+        base: f32,
+    ) -> bool {
+        let h = self.host.clone();
+        let Some(occ) = h.create_foundation_occupant() else {
+            return false;
+        };
+        h.set_foundation_type(occ, t);
+        if !self.load_foundation_properties(occ, t) {
+            h.release(occ);
+            return false;
+        }
+        let cells = self.foundation_cells(pos, size_x, size_z);
+        // Step 4: strictly below 0 (NaN does not count).
+        if pos[1] < 0.0 {
+            pos[1] = h.area_altitude_cells(cells, false, true);
+        }
+        // Step 5: a NaN base counts as >= 0.
+        let b = if base < 0.0 { h.area_altitude_cells(cells, true, true) } else { base };
+        let mut height = r24(f64::from(pos[1]) - f64::from(b));
+        if height < 0.5 {
+            height = 0.5;
+        }
+        h.set_occupant_position(occ, *pos);
+        h.set_foundation_size(occ, [size_x, height, size_z]);
+        h.set_foundation_usage(occ, usage);
+        h.set_foundation_orientation(occ, orientation);
+        h.init_occupant(occ);
+        let ok = self.insert_building_occupant(occ);
+        h.release(occ);
+        ok
+    }
+
+    /// The cells under a foundation (§4.9.2 step 3, `0x00695610`): the
+    /// footprint inset by half a metre (float32 stores), each corner × 0.0625
+    /// truncated toward zero, the low corner raised to 0 and the high corner
+    /// lowered to the cell counts cached by `Init`; no other clamp.
+    pub fn foundation_cells(&self, pos: &Vec3, size_x: f32, size_z: f32) -> CellRect {
+        let hx = r24(f64::from(size_x) * 0.5);
+        let hz = r24(f64::from(size_z) * 0.5);
+        let x0 = r24(f64::from(r24(f64::from(pos[0]) - f64::from(hx))) + 0.5);
+        let z0 = r24(f64::from(r24(f64::from(pos[2]) - f64::from(hz))) + 0.5);
+        let x1 = r24(f64::from(r24(f64::from(pos[0]) + f64::from(hx))) - 0.5);
+        let z1 = r24(f64::from(r24(f64::from(pos[2]) + f64::from(hz))) - 0.5);
+        let cell = |v: f32| ftol32(f64::from(r24(f64::from(v) * 0.0625)));
+        let (cx, cz) = self.d.borrow().cell_counts;
+        (
+            cell(x0).max(0),
+            cell(z0).max(0),
+            cell(x1).min(cx - 1),
+            cell(z1).min(cz - 1),
+        )
     }
 
     /// The PlaceBuilding command (§4.12): `AddNewBuildingOccupant(type,
