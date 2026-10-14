@@ -894,6 +894,18 @@ anyway.
    the insert.
 8. Return `occupantManager.InsertOccupant(o.AsOccupant(), 0)` (slot 20).
 
+**When the insert returns false** (LG29, occupant manager slot 20, `0x0049EF60`), in this order: (1) the occupant is
+null; (2) its flag 1 (bit 0, in an occupant manager) is already set, tested before anything else (`0x0049EF8A`); (3)
+after `AddRef` and `Init` (a no-op for an initialised occupant, `0x005E8C90`), `AsPropertyHolder()` (slot 6) returns
+null, which no `cSC4Occupant` class does (`0x0049EFBB`); (4) the occupant is already in the list of the first cell it
+would be listed in, its low x and low z cell (`0x0049F158`–`0x0049F182`). Nothing else fails: not the type (never
+read), not the initialised state (the insert initialises), and not the box (a cell range that comes out empty succeeds
+and lists nothing; for cells outside the index see flora §6.4.2). On success it sets flag 1 and posts `0x99EF1142`
+with its second argument (`0x0049F200`–`0x0049F214`). After failure (3) or (4) its reference is released again, but
+the `Init` and the stored cell rectangle remain. A saved record's flags byte keeps bit 0 (lot-records.md §2.3), so an
+occupant read from one is refused by (2) unless the bit is cleared first; flora's obliteration save clears it around
+its `Write` (flora §10.3).
+
 Dead branch: `0x006BC88D`–`0x006BC8B4` handles `tile = 0x02F10000`. It calls `SetRemovalFlags(1)` and
 `SetIsActiveLandfill(x, z, false)`, sets `isEmpty := true`, then calls `SetEmptyCellTexture`. Step 2 of
 `CreateLandfillOccupant` has already returned for that tile, so this branch never runs. It is the only code found that

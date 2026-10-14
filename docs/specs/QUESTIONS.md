@@ -3273,5 +3273,10 @@ step and adds a fallback. The current answer is in brackets.
   the tile constructor. Flag 4 is set by the base constructor for every occupant, so the two constructors differ only in
   tile and orientation (the spec's "flag 4 not set" was wrong and is corrected). InsertOccupant never reads the type
   (LG29). The bracket matches.
-- **LG29:** When does InsertOccupant (`0x0049EF60`) return false: already inserted, not initialised, its box, or its
-  type? [each failure is logged with those values]
+- ~~**LG29:** When does InsertOccupant (`0x0049EF60`) return false: already inserted, not initialised, its box, or its
+  type? [each failure is logged with those values]~~
+  **ANSWERED 2026-10-14** from the exe (`InsertOccupant` `0x0049EF60`: flag test `0x0049EF8A`, holder test `0x0049EFBB`,
+  first-cell duplicate scan `0x0049F158`–`0x0049F182`) and written into landfill §4.8.1. Only for a null occupant, an
+  occupant whose flag 1 ("inserted") is already set, a null `AsPropertyHolder()` (never for game occupants), or an
+  occupant already listed in its first cell. Never for the type, the initialised state (the insert calls `Init` itself)
+  or the box. Logging these is the implementer's choice; the bracket stands.
