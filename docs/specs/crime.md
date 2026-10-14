@@ -536,6 +536,21 @@ Query the occupant manager (`GetOccupantsByBBox`, filter overload) with the box 
 - for sims: occupants with `GetType() = 0x496E5783` that are in occupant group `0x4102`;
 - for props: occupants with `GetType() = 0xA823821E` that have property `0x8AA864D5`.
 
+How the original queries *[compat for the result]* (`0x006A10F0` sims, `0x006A0E50` props): it allocates a
+12-byte filter object per call (global heap C; vtables `0x00AB0D4C`/`0x00AB0D34` for sims,
+`0x00AB0D18`/`0x00AB0D00` for props) whose slot 3 `IsOccupantIncluded` is exactly the test above (`0x0069F4D0`,
+`0x0069F490`). It calls occupant-manager **slot 36** `(list, &min, &max, filter, 0xFFFFFFFF)` on a fresh `ilist`
+(head from the framework service, A). When that returns true it walks the list and then calls slot 48
+`ReleaseOccupantList`. Finally it frees the nodes and the head and releases the filter. The manager calls only
+the filter's slot 3, once per occupant in the box, and appends the accepted ones in its own walk order.
+
+*[choice]* Equivalent: the typed overload, slot 37 `(list, &min, &max, type, 0xFFFFFFFF)` with type
+`0x496E5783` (sims) or `0xA823821E` (props), followed by the group test (sims) or the property test (props) on
+each listed occupant **before** it can become a candidate. Slot 37 stores the type in the manager's own filter,
+whose test is `GetType() == type` (`0x004BDF90` → `0x005E9740`), and forwards to slot 36. The walk is the same, so
+the qualifying occupants and their order are the same. The extra AddRef/Release of the non-qualifying ones is not
+observable.
+
 Start with `best := radius`. For each result, `d :=` its 3-D distance to `pos` (`GetPosition`), computed as
 `float32` operations in this order *[compat]* (foundations §18): `dx := occ.x − pos.x`, `dy := occ.y − pos.y`,
 `dz := occ.z − pos.z`, then `d := sqrt((dy·dy + dz·dz) + dx·dx)`, every subtraction, product, sum and the square
@@ -683,8 +698,9 @@ Callee-pop and return channel checked with `tools/abi_extract.py --check`. "Byte
 | `cISC4BuildingOccupant` | 3 | `+0x0C` | AsOccupant *[inferred name]* | 0 | EAX ptr |
 | | 11 | `+0x2C` | GetBuildingProfile (purpose at +0, wealth at +4) | — | EAX ptr |
 | `cISC4ZoneManager` (`0x00A92E00`) | 12 | `+0x30` | GetZoneType(x, z) | 8 | EAX enum |
-| `cISC4OccupantManager` (`0x00A8F7F0`) | 36 | `+0x90` | GetOccupantsByBBox(list&, const float min[3], const float max[3], filter*, 0xFFFFFFFF) *[inferred: last arg]* | 20 | bool |
-| | 48 | `+0xC0` | releases the returned list *[inferred]* | 4 | — |
+| `cISC4OccupantManager` (`0x00A8F7F0`) | 36 | `+0x90` | GetOccupantsByBBox(list&, const float min[3], const float max[3], filter*, flags) — the original passes its own filter and flags `0xFFFFFFFF` (`0x006A121D`, `0x006A0F7D`); §11.3 | 20 | AL |
+| | 37 | `+0x94` | the typed overload `(list&, min, max, type, flags)`: FreeCity4's equivalent (§11.3) | 20 | AL |
+| | 48 | `+0xC0` | ReleaseOccupantList (one Release per element, nodes freed with A; allocators.md) | 4 | — |
 | `cISC4Occupant` (`0x00AA41D8`) | 6 | `+0x18` | AsPropertyHolder | 0 | EAX ptr |
 | | 7 | `+0x1C` | GetType | 0 | EAX |
 | | 8 | `+0x20` | GetPosition(cS3DVector3&) | 4 | EAX |
@@ -784,7 +800,8 @@ Corrections to `docs/subsystems/grid-sims.md` §6:
    occupant group `0x4102` is unknown. The IID `0xA9B40F05` is presumably `cISC4Automaton`.
 4. *(resolved)* The crime type list is in the resource manager's key-list order, which for the shipped types is
    ascending instance (§7); it is observable through §6.7.
-5. The last argument of `GetOccupantsByBBox` and the method behind occupant-manager slot 48.
+5. *(resolved, §11.3 and §13)* The last argument of `GetOccupantsByBBox` is the flags word, `0xFFFFFFFF`; slot
+   48 is `ReleaseOccupantList`.
 6. The meaning of the two unused saved `u32` values.
 7. The fire cause value 2 (arson) and what `SetCause` changes in the fire's behaviour.
 8. Crime type names (§7): the shipped name keys are missing from the shipped locale packages. Whether

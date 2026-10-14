@@ -544,8 +544,14 @@ About `docs/specs/crime.md` and its `docs/abi` rows. Ini: `enable = crime` (opti
   `fstp` stores, and the last value is popped (`fstp st(0)`, `0x006BF5B6`), so the **x87 stack is empty** on
   return. Declare it returning the pointer (or void), never `float`: popping ST0 after the call would underflow
   the x87 stack. The glue's ST0 branch should never fire. The abi row is the coordinator's to fix.
-- **CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
-  argument 0xFFFFFFFF]
+- ~~**CQ4:** `GetOccupantsByBBox`: §13 names the filter overload (slot 36). [the typed overload, slot 37, last
+  argument 0xFFFFFFFF]~~ **ANSWERED 2026-10-14** from the exe (`GetNearestCrimeSim` `0x006A121D`,
+  `GetNearestCrimeProp` `0x006A0F7D`; filters `0x0069F4D0`/`0x0069F490`; slot 37 `0x0049DD40`; the manager's
+  typed filter `0x004BDF90` → `0x005E9740`) and written into crime.md §11.3 and §13, closing §16 Q5. The original
+  calls **slot 36** with a per-call filter object of its own (type plus group, or type plus property) and flags
+  `0xFFFFFFFF`. **The bracket is equivalent**, as long as the group or property test is applied to each listed
+  occupant before it can become a candidate. Slot 37's filter is `GetType() == type`, and the walk and order are
+  the same.
 - **CQ5:** the session seed "local wall-clock seconds". [`_mkgmtime(localtime(now))`]
 - **CQ6 — §16.1:** the ordinance crime factor after a load with no ordinance simulator. [left unchanged]
 - **CQ7:** the prop requester is never unregistered at Shutdown; the spec is silent. [not unregistered]
