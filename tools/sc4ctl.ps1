@@ -7,6 +7,7 @@ Usage:
   powershell -File tools\sc4ctl.ps1 snap  build-runs\x.png   # PNG of the 800x600 client area
   powershell -File tools\sc4ctl.ps1 click 526 410            # posted left click at client (x, y)
   powershell -File tools\sc4ctl.ps1 rclick 400 300           # posted right click
+  powershell -File tools\sc4ctl.ps1 drag 300 300 "360,340"    # posted left-button drag from (x1, y1) to (x2, y2), e.g. a zone tool drag
   powershell -File tools\sc4ctl.ps1 key  S ctrl              # posted key (WM_KEYDOWN/UP), optional modifiers ctrl,shift,alt
   powershell -File tools\sc4ctl.ps1 realkey S ctrl           # real input (SendInput); brings the window to the front
   powershell -File tools\sc4ctl.ps1 realclick 526 410        # real input click; brings the window to the front
@@ -234,6 +235,24 @@ switch ($Cmd.ToLower()) {
         [FC4Ctl]::PostMessage($h, $down, [IntPtr]$btn, $l) | Out-Null; Start-Sleep -Milliseconds 100
         [FC4Ctl]::PostMessage($h, $upm, [IntPtr]0, $l) | Out-Null
         Write-Output "posted $Cmd at client ($x, $y)"
+    }
+    "drag" {
+        # Left button down at (A, B), moves with MK_LBUTTON in 8 steps, up at the end point given as one argument,
+        # "x2,y2" (the script takes three positional values). Posted, like click, so it needs no focus.
+        $h = GameWindow
+        $pre = ClearDialogs $h "" 3
+        if ($pre[1] -notmatch "^clear: hidden=0 after 0 click") { Write-Output ("(first " + $pre[1] + ")"); Start-Sleep -Milliseconds 1000 }
+        $to = ($C -split "[ ,]+") | Where-Object { $_ -ne "" }
+        if ($to.Count -ne 2) { throw "drag needs: drag x1 y1 'x2,y2'" }
+        $x1 = [int]$A; $y1 = [int]$B; $x2 = [int]$to[0]; $y2 = [int]$to[1]
+        [FC4Ctl]::PostMessage($h, 0x0200, [IntPtr]0, (MakeLParam $x1 $y1)) | Out-Null; Start-Sleep -Milliseconds 150
+        [FC4Ctl]::PostMessage($h, 0x0201, [IntPtr]1, (MakeLParam $x1 $y1)) | Out-Null; Start-Sleep -Milliseconds 150
+        for ($i = 1; $i -le 8; $i++) {
+            $x = [int]($x1 + ($x2 - $x1) * $i / 8); $y = [int]($y1 + ($y2 - $y1) * $i / 8)
+            [FC4Ctl]::PostMessage($h, 0x0200, [IntPtr]1, (MakeLParam $x $y)) | Out-Null; Start-Sleep -Milliseconds 120
+        }
+        [FC4Ctl]::PostMessage($h, 0x0202, [IntPtr]0, (MakeLParam $x2 $y2)) | Out-Null
+        Write-Output "posted drag from client ($x1, $y1) to ($x2, $y2)"
     }
     "key" {
         $h = GameWindow
