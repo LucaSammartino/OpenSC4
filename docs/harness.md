@@ -130,7 +130,8 @@ It logs to `build-runs\game-queue.log` of that checkout. `-Once` runs what is qu
 only those checkouts. Slot games live in `build-runs\sc4slots\slotN` of the main checkout (the game ignores a
 `-UserDir` with a path component that starts with `.`, such as `.claude`, and falls back to Documents). Stopping the
 queue does not stop the games it started; their runs end at their timeout, their results are lost, and the restarted
-queue runs those requests again (in other slots while the old games still hold theirs).
+queue runs those requests again (in other slots while the old games still hold theirs). Restart at a quiet moment:
+`-Status` (below) shows what runs.
 
 **Your requests go first.** A request in the main checkout's `build-runs\game-queue\` is taken before any waiting lane
 request (a running game is never stopped; yours gets the next free slot). With `priority = high` it also goes before
@@ -181,9 +182,9 @@ slots. Slot N runs on logical CPU 2N: on this i7-12700K, slots 1 to 7 each get t
 slots 8 and 9 land on E-cores (16, 18) and run slower.
 
 **How many slots.** Measured 2026-10-14 with the queue on slots 1-3 and the lanes building at the same time: extra
-games in slots 4-9 (`ingame_run -Slot N`, main's DLL, 16 replacements, turbo to 2032-01-01). Up to 7 games at once:
-no failed start, every verdict clean, at least 45 GB free (a game uses about 400 MB), total CPU 55-87% on average.
-A game's speed depends on the build load on its pinned CPU far more than on the number of games: the same run did
-16 days/s alone during a heavy build and 31-43 days/s with 6 other games; slots 8 and 9 (E-cores) did 24-25 days/s
-next to 31-39 on P-cores. Use `-Slots 6` (CPUs 2-12; P-cores 0 and 7 and the E-cores stay for the builds and the
-system); 7 is the most that keeps one P-core per game; do not use 8 or 9.
+games in slots 4-9 (`ingame_run -Slot N`, main's DLL, 16 replacements, turbo to 2032-01-01). Up to 8 games at once:
+no failed start in 26 extra games, every verdict clean, at least 44 GB free (a game uses about 400 MB), total CPU
+55-87% on average. A game's speed depends on the build load on its pinned CPU far more than on the number of games:
+slot 4 did 32 days/s with 2 other games and 33 with 7 others a minute earlier, but 16 days/s during a heavy build;
+slots 8 and 9 (E-cores) did 22-26 days/s next to 31-40 on P-cores. Use `-Slots 6` (CPUs 2-12; P-cores 0 and 7 and
+the E-cores stay for the builds and the system); 7 is the most that keeps one P-core per game; do not use 8 or 9.
