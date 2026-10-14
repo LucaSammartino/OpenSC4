@@ -2223,8 +2223,12 @@ About `docs/specs/residential-education-health.md` (REH) and the residential glu
   allocator service (allocator A, the cached pointer at `0x00B207E4`, slot 3), link it at the tail of the caller's
   list and `AddRef` the occupant. This is the allocator of the SDK's `SC4List`, so the caller frees the nodes the
   usual way.
-- **RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
-  [released]
+- ~~**RG18:** the simulator taken at Init step 4 is released after `RemoveAgent`; REH §4.2 has no matching release.
+  [released]~~ **ANSWERED 2026-10-14** from the exe (`Init` `0x006FEC0E`; `Shutdown` `0x006F980D`) and written into
+  residential.md §4.1 step 4 and §4.2. **The original holds no reference: the simulator is borrowed.** `Init` reads
+  the simulator global without `AddRef` and keeps no member; `Shutdown` asks the city for the simulator again for
+  `RemoveAgent` and releases nothing. A glue that takes a reference at Init and releases it after `RemoveAgent` is
+  equivalent, since the city outlives both calls.
 - **RG19:** what goes in a strike message's data1? [0]
 - **RG20:** `GetBuildingMapKey` returns 32 bits; only the low 8 are used. Right? [yes]
 - **RG21:** the strike clock seed is `time() + 2177452800` (the cRZTime epoch), as in crime. [yes]

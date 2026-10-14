@@ -137,7 +137,9 @@ per simgrid §6.4 with the same element type, tract size and instance ID.
 2. If no message server is held, take it (return **false** if there is none) and subscribe the message target to
    `0x99EF1142` and `0x99EF1143` (occupant inserted / removed).
 3. Take the budget simulator (`city.GetBudgetSimulator()`) if not held.
-4. Take the simulator; if there is none, return **false**. Register the agent (§4.3).
+4. Take the simulator; if there is none, return **false**. Register the agent (§4.3). *[compat]* (RG18) The
+   simulator is **borrowed**: step 4 reads the global `0x00B43D5C` (`0x006FEC0E`) with no `AddRef` and keeps no
+   member for it. Null returns false; otherwise the four `AddAgent` calls follow at once.
 5. History warehouse: `SetHistoryDataQueueLength(id, 2)` for `0xCA545CAB + g` and `0xCA545CCA + g`
    (g = 0..8, interleaved per g), then `0x4A8A3FE2` and `0x4A8A3FE5`.
 6. **New city only** (cityStarted false): P := E := R$ developer's population-map tract size; population := 0;
@@ -157,7 +159,9 @@ population tuning is read once at `Init` and again at the next state 4.
 
 ### 4.2 `Shutdown()` → AL = 1
 
-If initialised: initialised := false; `RemoveAgent(target)` on the simulator; unsubscribe both messages; release
+If initialised: initialised := false; `RemoveAgent(target)` on the simulator (fetched again from the city, slot 50
+`+0xC8`, at `0x006F980D`; skipped when null; **not released**, since Init took no reference, RG18); unsubscribe
+both messages; release
 the message server, the budget simulator and the four departments; for every grid `Shutdown`, `Release` and
 forget it; release the demand node, the temporary grid (if any), the city, the BDS, the occupant manager and the
 developers; hand every occupant list to the occupant manager (slot 48, `+0xC0`, *[inferred]*: releases the list's
