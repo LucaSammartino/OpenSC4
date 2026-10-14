@@ -2272,9 +2272,11 @@ Not covered by a vector, and why:
 
 | §15 item | Vector |
 |---|---|
-| 1 proximity, one source (Manhattan R$, 255 for R$$ / R$$$; RS5) | `rs15_01_proximity_one_source` |
+| 1 proximity, one source (RG23: the seed fills only the z = 0 edge, so every map is 1 there and 0 elsewhere; RS5) | `rs15_01_proximity_one_source` |
+| 1 a key on the z = 0 edge (R$ (3, 0) = 0, R$$ unchanged; RG23) | `rs15_01c_proximity_edge_key` |
+| 1 the §5.3 worked example (4 × 4, R$$ and R$$$ reuse the grid; RG23) | `rs15_01b_proximity_worked_example` |
 | 2 proximity cap (200 at x = 200, 255 at x = 280) | `rs15_02_proximity_cap` |
-| 3 proximity, coarser target (tract (1, 0) = 0, (0, 0) = 1) | `rs15_03_proximity_coarser_target` |
+| 3 proximity, coarser target (RG23: tract (1, 1) overwrites (1, 0)'s 0; (0, 0) = (1, 0) = 1, (0, 1) = (1, 1) = 0) | `rs15_03_proximity_coarser_target` |
 | 4 decay (10 → 9.8, 0.1 → 0) | `rs15_04_decay` |
 | 5 newcomers' age (35) | `rs15_05_06_newcomers_age` |
 | 6 age quirk (71) | `rs15_05_06_newcomers_age` |
@@ -2312,8 +2314,8 @@ Not covered by a vector, and why:
 
 - **The 5 ms CPU-cycle slicer (§5.2)** is replaced by a work budget ([choice]); test 19 pins the budget's resume
   behaviour, not the clock.
-- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros into
-  `rs15_01`'s R$$ / R$$$ maps; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
+- **RS5** has no vector of its own: a byte-wide running distance would wrap 255 + 1 to 0 and put zeros on
+  `rs15_01`'s z = 0 edge, where the maps hold 1; the single-row example of RS5 is a `fc4-core` unit test (`rs5_distance_does_not_wrap`).
 
 ## Coverage (residential education and health §11)
 

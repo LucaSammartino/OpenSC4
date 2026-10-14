@@ -1696,7 +1696,9 @@ pub unsafe extern "C" fn fc4_residential_occupant_coverage(
 }
 
 /// Slots 47 / 49 / 61 (`FC4_RESIDENTIAL_LIST_*`): each occupant is passed to
-/// `sink` with one reference handed out (`hand_out`) for the caller's list.
+/// `sink` with one reference handed out (`hand_out`) for the caller's list,
+/// which the glue appends at the tail with allocator A (RG17: as the
+/// original, for all three slots).
 /// `groups` NULL = every group (`has_groups` false); the pending list always
 /// follows (REH §4.1). Slot 61 ignores `groups`. Returns the count.
 #[no_mangle]
