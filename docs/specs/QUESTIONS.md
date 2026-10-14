@@ -2642,8 +2642,8 @@ answer is in brackets.
   **ANSWERED 2026-10-14**: no original behaviour (the original holds regional cities only within one call); the
   implementer's choice stands. Noted in neighbors §15.4.
 - ~~**NG25:** The marker query type. [`0xA823821E`]~~
-  **ANSWERED 2026-10-14** from the exe (prop manager slot 18 `0x004A1DB0`, filter `0x004A2210`; `0x006D0CA2` and the
-  delete path) and written into neighbors §15.4. The original asks for city props (type `0xA823821E` and usage 1) in the
+  **ANSWERED 2026-10-14** from the exe (prop manager slot 18 `0x004A1DB0`, filter `0x004A2210`; calls at `0x006D189A`,
+  `0x006D18D6` and `0x006D0D65`) and written into neighbors §15.4. The original asks for city props (type `0xA823821E` and usage 1) in the
   cell, then tests `0xCAA46595`. The type matches; add the usage test or use `GetCityProps`.
 - ~~**NG26:** Traffic source `QueryInterface`. [forwarded to the connection]~~
   **ANSWERED 2026-10-14** from the exe (thunk `0x006D47F0` → `0x006CE000`) and written into neighbors §15.4. Forwarded

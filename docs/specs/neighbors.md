@@ -1129,8 +1129,9 @@ whose bool property `0xCAA46595` is true:
 
 - `GetCityProps` runs the occupant manager's rectangle query with the prop manager's filter. The filter passes an
   occupant only if its type is `0xA823821E` (prop) **and** its prop usage is 1 (city prop, set by `AddCityProp`).
-- Deleting a connection (§6.4) removes each match with the prop manager's `RemovePropA` (slot 29). The terrain
-  handler (§11.1) moves each match and updates it in the occupant manager.
+- Deleting a connection (§6.4) asks at `0x006D189A` and removes each match with the prop manager's `RemovePropA`
+  (slot 29, `0x006D18D6`). The terrain handler (§11.1) asks at `0x006D0D65`, moves each match and updates it in the
+  occupant manager (`0x006D0DB3`).
 
 The bracket's type, `0xA823821E`, is right, but the original also requires usage 1. A lot or street prop carrying
 `0xCAA46595` would be ignored by the original and found by a type-only query. Shipped data puts that property only
