@@ -397,8 +397,13 @@ About `docs/specs/pollution.md` and its `docs/abi` rows. The glue's current answ
   - **If the stream answers,** each object is QueryInterface'd and released again, so its reference count does not
     change. A save's own stream would also register the object with the class-object store, so never capture
     through it.
-- **PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
-  run without the load. Intended? [as the spec]
+- ~~**PG7:** `radiationSum` is not saved, so the radiation history at the end of a cycle after a load diverges from a
+  run without the load. Intended? [as the spec]~~ **ANSWERED 2026-10-14** from the exe (`Write` skips the field
+  between `developedTracts` and `avgGarbage`; `Read` never touches it; ctor `0x006E206A` sets it to 0; new-city
+  zeroing `0x006E7288`; end-of-cycle zeroing `0x006E7A34`) and written into pollution.md §6 with a worked example.
+  **The bracket matches; reproduce it as a *[quirk]*.** After a load the sum restarts at 0. Only the first end of
+  cycle after the load differs, by one entry each in `0xEA110137` and `0xEA110138`. Whether it was intended
+  cannot be read from the exe.
 - **PG8 — §4.6.1 step 3:** is the unsigned `wteRemaining` converted to float as signed or unsigned? [as written]
 - **PG9:** can landfill usage change within a day? [the shadow keeps the first value it reads]
 - **PG10:** without an ordinance simulator, `cumulative_factor` returns 1.0. [choice]

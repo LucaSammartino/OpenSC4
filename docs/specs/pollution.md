@@ -780,6 +780,28 @@ rejected version (> 4) consumes only the version and also leaves everything unch
 `costPerUnit`, `effectsVisible` (back to true), effect objects and the effect iterator, worst tracts (refreshed by
 PostCityInit), `initialized`.
 
+**`radiationSum` across a load (PG7) *[quirk]*.** Reproduce this; it is the original's behaviour. Whether it was
+intended cannot be read from the exe.
+- `Write` skips the field: it writes `developedTracts` and then `avgGarbage`, with nothing between them.
+- `Read` does not touch it.
+- The constructor sets it to 0 (`0x006E206A`, from a zero global).
+- `Init`'s new-city setup, which a loaded city skips, also zeroes it (`0x006E7288`).
+
+After a load, the field therefore holds 0, while the iterator position, `developedTracts` and the other sums
+continue from the save. The first end of cycle after the load uses only the radiation of the tracts visited since
+the load. It zeroes the sum again (§4.8 step 6), so the divergence lasts **one** cycle: one entry in each of
+`0xEA110137` and `0xEA110138`.
+
+*Example.* The save falls mid-cycle with `radiationSum` = 30. The rest of the cycle adds 10, `developedTracts` is
+50 at the end, and `avgAir` = 500.
+
+| | `radiationSum` at end | `radPct` | `0xEA110137` | `0xEA110138` |
+|---|---|---|---|---|
+| No save and load | 40 | 40 × 100 / 50 = 80 | 40 | 580 |
+| Saved and loaded | 10 | 10 × 100 / 50 = 20 | 10 | 520 |
+
+The next cycle is the same in both runs.
+
 ## 7. Tuning
 
 ### 7.1 Exemplar
