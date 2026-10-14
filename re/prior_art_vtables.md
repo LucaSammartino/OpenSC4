@@ -1,5 +1,10 @@
 # GZCOM interface vtable slot tables (generated)
 
+> **Superseded.** Use `docs/abi/interfaces.tsv` and `docs/abi/vtables.tsv` (exe-derived) and `docs/specs/foundations.md`
+> §16-§17. This table repeats SDK errors (for example cISC4PoliceSimulator slots 29-31, cISC4TractDeveloper::Grow's return
+> type, the cISC4Simulator overload order), so never use it for slot lookups. It is kept as historical RE notes because
+> `re/prior_art.md` and `docs/subsystems/clock-budget-neighbors.md` cite it by name. Where it disagrees with `docs/specs/`, the spec wins.
+
 Generated from nsgomez/gzcom-dll @5af73c5 (2026-10-11) headers, https://github.com/nsgomez/gzcom-dll/tree/master/gzcom-dll/include .
 Slot = declaration order after cIGZUnknown (QueryInterface=0, AddRef=1, Release=2); byte offset = slot*4 (32-bit x86, __thiscall).
 

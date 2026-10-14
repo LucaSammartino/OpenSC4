@@ -2,6 +2,8 @@
 
 **Status: local draft. Not submitted upstream.** Reporting these to the SDK maintainers is a separate, public step that needs the project owner's approval.
 
+**Status 2026-10-14:** still not submitted. The evidence predates the 2026-10-14 ABI corrections and the 8 new interface mappings in `docs/abi/interfaces.tsv`, so the SDK comparison must be re-run (and the upstream tip re-checked) before any submission, which needs the user's OK.
+
 This document lists places where the [gzcom-dll](https://github.com/nsgomez/gzcom-dll) SDK headers and sources, as vendored in `engine/third_party/gzcom-dll`, disagree with the binary interface of the game. It records **ABI facts only**: vtable slots, callee-popped byte counts, argument types and sizes, return channels, container layouts and allocators. It contains no game logic.
 
 **Vendored revision:** the SDK is a git submodule pinned to `5af73c5` ("Fix a few cISC4RegionalCity return values", 2026-10-11), which is the upstream `master` tip as of the 2026-10-13 re-check. The submodule gitlink records the exact upstream revision, so there is no ambiguity about which copy these findings describe. *(An earlier draft named `3a1144f` as the baseline and said the revision was unrecorded; that was wrong — corrected 2026-10-13.)*

@@ -316,7 +316,15 @@ plugin.
        `cSC4LandfillOccupant`s made through GZCOM with their tile exemplar attached (`SetDefaultExemplar`), so the
        model is drawn, the query tool shows them, the maintenance reads each tile's cost from its exemplar and the
        game saves them; a tile that cannot be made is kept in FreeCity4 (the cell keeps pollution's
-       active-landfill flag; a load rebuilds only those). New landfill cells get the landfill ground texture (a
+       active-landfill flag; a load rebuilds only those). The first tile made is logged in full (`landfill: game
+       tile made (first one; …): tile 0x… orientation … at cell (x, z), position (…); exemplar holder by QI on the
+       occupant; tile cost 0xEA54D286 … found; type 0x6A11BD2B …; Init true, IsInitialized yes; bounding box …;
+       InsertOccupant true; flag 1 set`), and so are the first four failures, each with the step that failed and
+       what every step before it gave (`landfill: WARNING game tile failure N: tile … not made: <step>. Steps:
+       exemplar (0x6534284A, 0x07BDDF1C, 0x…) found; GZCOM GetClassObject(0x8A22BEBE, 0x2A15F262) made one;
+       AsOccupant ok; exemplar holder (QI 0x0AC2B5F7) …`); later failures are counted in `tilesFailed`. When the
+       occupant does not answer the exemplar-holder QI, its property holder (occupant slot 6) is asked.
+       New landfill cells get the landfill ground texture (a
        usage-1 `cSC4LotBaseTextureOccupant`). At `Init` the log says how the month agent is ordered (`landfill:
        month agent registered with …`; with the game's simulator a `WARNING` when the landfill would run before
        pollution or the budget). Left out and logged once: the zone effects (garbage trucks and seagulls, §4.10,
@@ -938,7 +946,13 @@ plugin.
      shadow started is followed from the original's swap, then `exact=0`) the original's own `Write`
      (`cIGZSerializable`) goes into a memory stream and FreeCity4's core (`fc4_plumbing_shadow`) replays the
      pass on private copies of the record's grids, reading
-     every other input live through a read-only host table (no write callback; its grid table only reads). At the
+     every other input live through a read-only host table (no write callback; its grid table only reads). It
+     runs state by state: each of our states 2 to 5 just before the delivery in which the original runs the same
+     state, on the original's flag map of that moment (from its record), so a building inserted, removed or
+     changed between the steps is read as the original reads it (§5.3 PS8). A pass has no time limit: the
+     original's states 6 and 7 are time-sliced and a loaded game delivers few `SimIdle`, so a pass may take days
+     (`days=` in its line); it is followed until its swap or its restart. Only a flag-map change during the
+     original's state 6 (after ours, which is not sliced) makes it `exact=0 (flag map changed during state 6)`. At the
      original's swap the published grid is compared cell by cell, with each producer's production, efficiency,
      pollution and water used, the polluted count and average pollution, the deal usage and the water
      connections; after its state 8, the produced, consumed, imported and exported water, the watered and
@@ -967,7 +981,7 @@ plugin.
        connections compared=… active differing=… visited compared=… differing=…; produced orig/ours=a/b;
        consumed …; imported …; exported …; wateredCells …; unwateredCells …; cost …; demand …; pipes …;
        distressed …; burst …; sources …; maintenance compared=… differing=…; ageing=yes|no|unknown
-       [condition orig/ours=[…]]; deliveries=K; mismatches=N [(not exact: n differences not counted)];
+       [condition orig/ours=[…]]; deliveries=K days=D; mismatches=N [(not exact: n differences not counted)];
        passes compared=… clean=…
      plumbing shadow yyyy-mm-dd month: pipes=P distressedBefore=… burstBefore=…; distressed orig/ours=a/b;
        burst orig/ours=+0/+0 | burst +n (not exact: …; ours allows 0..m) | distressed orig/ours=a/b burst +n

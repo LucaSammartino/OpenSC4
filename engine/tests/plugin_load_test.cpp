@@ -9937,17 +9937,17 @@ int main(int argc, char** argv) {
                     "orig/ours=0/0; wateredCells orig/ours=0/0; unwateredCells orig/ours=0/0; cost orig/ours=0/0; "
                     "demand orig/ours=0/0; pipes orig/ours=0/0; distressed orig/ours=0/0; burst orig/ours=0/0; "
                     "sources orig/ours=0/0; maintenance compared=0 differing=0; ageing=yes; condition orig/ours=[]; "
-                    "deliveries=5; mismatches=0; passes compared=2 clean=2") != std::string::npos);
+                    "deliveries=5 days=0; mismatches=0; passes compared=2 clean=2") != std::string::npos);
     CHECK(text.find("plumbing shadow 2000-02-01 pass 2: aligned=start exact=1; grid 4x4 cells=16 differing=1 "
                     "max|diff|=1 first (x,z) orig/ours: (2,2) 1/0; ") != std::string::npos);
     CHECK(CountOf(text, "wateredCells orig/ours=3/0!; ") == 2);
-    CHECK(CountOf(text, "; ageing=no; deliveries=5; mismatches=1; passes compared=1 clean=0") == 1);
+    CHECK(CountOf(text, "; ageing=no; deliveries=5 days=0; mismatches=1; passes compared=1 clean=0") == 1);
     CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=1") == 1);  // the wrong cell
     CHECK(CountOf(text, "; mismatches=1; passes compared=2 clean=0") == 1);  // the wrong scalar, again
     // Made mid-city around no month: whether the first state 8 aged shows in
     // the producers' condition (none here: not aged; PS7).
-    CHECK(text.find("; ageing=no (inferred: no producer's condition changed; plumbing.md §6.7, PS7); deliveries=5; "
-                    "mismatches=0; passes compared=1 clean=1") != std::string::npos);
+    CHECK(text.find("; ageing=no (inferred: no producer's condition changed; plumbing.md §6.7, PS7); deliveries=5 "
+                    "days=0; mismatches=0; passes compared=1 clean=1") != std::string::npos);
     CHECK(text.find("plumbing shadow: ON (plumbing_shadow from FC4_PLUMBING_SHADOW): at each SimIdle and SimNewDay "
                     "of the ORIGINAL plumbing simulator (one pass state each), FreeCity4's water pass replayed") !=
           std::string::npos);
