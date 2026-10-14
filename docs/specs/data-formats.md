@@ -344,7 +344,15 @@ checked) and splits the rest into lines at `\n`, removing one trailing `\r`. Emp
   - `Bool`: lower-cased, leading spaces trimmed; true exactly when it begins with `true`;
   - `String`: everything up to the first `}`, trimmed, then one leading `"` and one trailing `"` removed. A string
     cannot contain `}` *[quirk]*.
-- The reader does not check that the number of values matches `reps`; missing values read as 0 *[inferred]*.
+- The reader does not check that the number of values matches `reps`, and there is **no cap** on `reps`
+  (`0x0067E780`). It reads `reps` values in turn, dropping the text up to each next `,`; when no `,` is left the
+  rest of the text is dropped, so **missing values read as 0** (false for Bool, 0.0 for Float32) and values beyond
+  `reps` are ignored. Worked examples: `Uint32:4:{1,2}` gives `{1, 2, 0, 0}`; `Uint32:1:{1,2}` gives `{1}`.
+  The values go into a buffer of `reps` × element size bytes, computed in 32 bits, and the allocation's result
+  is not checked, so a **huge `reps` crashes the original**. From `0x40000000` Uint32 values the size wraps to a
+  small buffer, which the loop overruns. A size too large to allocate has the same effect. *[choice]*
+  FreeCity4 fills missing values with 0 as the original does, and fails the read when `reps` × element size
+  exceeds 16 MiB. Shipped text records use `reps` 13 at most.
 
 **Rule N** (number text): if it begins with `0x` or `0X`, hexadecimal. Otherwise, scan from the start: if a letter
 `a`–`f`/`A`–`F` appears before the first character that is not a hex digit, hexadecimal; else decimal. The

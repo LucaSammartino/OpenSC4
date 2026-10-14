@@ -581,7 +581,11 @@ sweep loads 9,347 of 9,347 exemplars. The reader's current answer is in brackets
   line. The type name is compared exactly, with no trimming at the `:`. reps is not trimmed: rule N reads it, so
   a leading space is harmless for decimal but turns `0x3` into 0. Rule N saturates at `0xFFFFFFFF`; too few
   property lines fail the read (data-formats.md §4.3).
-- **EX12:** is there a cap on reps? [more reps than the record length fails]
+- ~~**EX12:** is there a cap on reps? [more reps than the record length fails]~~ **ANSWERED 2026-10-14** from the
+  exe (`0x0067E780`): **the bracket does not match.** There is no cap and no failure: missing values read 0
+  and extra values are ignored. A huge reps crashes the original, because the buffer size (reps × element size,
+  32-bit) wraps or cannot be allocated, and the result is not checked. Recommended *[choice]*: fill with 0 and
+  fail the read above 16 MiB of values (data-formats.md §4.3).
 - **EX13:** are numeric values cut at `}` too? [no, only strings]
 - **EX14:** how is Float32 text parsed? [as f64, then rounded to f32; no hex/inf/nan]
 - **EX15:** what counts as a resolvable kind-1 resource key? [an exemplar or cohort that loads, or a key registered
