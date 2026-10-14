@@ -61,6 +61,12 @@
 //   aura_shadow = 0 / 1           the aura grid shadow (default 0; needs the ORIGINAL
 //                                 aura simulator: do not enable aura; FC4AuraShadow.h)
 //   aura_shadow_cells = N         its differing tracts listed per grid (default 4)
+//   power_shadow = 0 / 1          the power shadow (default 0; needs FreeCity4's
+//                                 simulator and the ORIGINAL power simulator: do not
+//                                 enable power; FC4PowerShadow.h)
+//   power_shadow_cells = N        its differing cells listed per line (default 8)
+//   power_shadow_lines = N        its cycle lines with a difference per month
+//                                 (default 32; -1 = every cycle)
 //
 // A switch that is off turns its behaviour into a safe no-op that returns a
 // neutral value; FreeCity4.log lists the switches that are off at each load.

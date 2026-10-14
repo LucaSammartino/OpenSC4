@@ -2171,8 +2171,10 @@ impl Shadow {
 
     fn wants(&mut self, msg_type: u32, event: bool) -> bool {
         match msg_type {
-            msg::SIM_NEW_MONTH => true,
-            msg::SIM_NEW_DAY | msg::SIM_IDLE => {
+            // Once a game day: also catches a recompute requested other than
+            // by a message.
+            msg::SIM_NEW_MONTH | msg::SIM_NEW_DAY => true,
+            msg::SIM_IDLE => {
                 if event || !self.mirror.known || !self.mirror.idle {
                     true
                 } else {
@@ -2286,8 +2288,8 @@ pub unsafe extern "C" fn fc4_power_shadow_destroy(s: *mut fc4_power_shadow) {
     guard((), || drop(Box::from_raw(s as *mut Shadow)));
 }
 
-/// Whether the delivery of `msg_type` must be wrapped: every SimNewMonth;
-/// a SimNewDay or SimIdle (one `DoIdle` step) unless the original was idle
+/// Whether the delivery of `msg_type` must be wrapped: every SimNewMonth and
+/// SimNewDay; a SimIdle (one `DoIdle` step) unless the original was idle
 /// after its last wrapped delivery (state 4 without a recompute request:
 /// its `DoIdle` does nothing) and `event` is false (`event`: one of the
 /// original's messages, §5, arrived since the last wrapped delivery; it may

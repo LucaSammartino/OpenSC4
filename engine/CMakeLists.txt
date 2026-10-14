@@ -191,6 +191,8 @@ if(FC4_IS_WIN32_X86)
         plugin/cFC4Pollution.h
         plugin/FC4PollutionShadow.cpp
         plugin/FC4PollutionShadow.h
+        plugin/FC4PowerShadow.cpp
+        plugin/FC4PowerShadow.h
         plugin/cFC4Protection.cpp
         plugin/cFC4Protection.h
         plugin/FC4ProtectionShadow.cpp
