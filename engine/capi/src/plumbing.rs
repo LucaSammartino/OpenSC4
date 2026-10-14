@@ -492,7 +492,14 @@ impl PlumbingHost for CHost {
         opt(cb!(self, line_item, 0, dept, line))
     }
     fn create_line_item_for_building_type(&self, dept: u64, line: u32, locally_funded: bool) -> Option<u64> {
-        opt(cb!(self, create_line_item_for_building_type, 0, dept, line, locally_funded))
+        opt(cb!(
+            self,
+            create_line_item_for_building_type,
+            0,
+            dept,
+            line,
+            locally_funded
+        ))
     }
     fn set_line_item_display_flag(&self, line_item: u64, flag: u32, on: bool) {
         cb!(self, set_line_item_display_flag, (), line_item, flag, on)
@@ -774,7 +781,9 @@ pub unsafe extern "C" fn fc4_plumbing_get_producer_info(
     out: *mut fc4_plumbing_producer_info,
 ) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    let Some(i) = sim(p, None, |s| s.water_producer_info(occ)) else { return false };
+    let Some(i) = sim(p, None, |s| s.water_producer_info(occ)) else {
+        return false;
+    };
     *o = fc4_plumbing_producer_info {
         production: i.production,
         max_capacity: i.max_capacity,
@@ -793,7 +802,9 @@ pub unsafe extern "C" fn fc4_plumbing_producer_condition_percent(
     out: *mut f32,
 ) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    let Some(v) = sim(p, None, |s| s.water_producer_condition_percent(occ)) else { return false };
+    let Some(v) = sim(p, None, |s| s.water_producer_condition_percent(occ)) else {
+        return false;
+    };
     *o = v;
     true
 }
@@ -806,7 +817,9 @@ pub unsafe extern "C" fn fc4_plumbing_occupant_monthly_upkeep_cost(
     out: *mut i64,
 ) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    let Some(v) = sim(p, None, |s| s.occupant_monthly_upkeep_cost(occ)) else { return false };
+    let Some(v) = sim(p, None, |s| s.occupant_monthly_upkeep_cost(occ)) else {
+        return false;
+    };
     *o = v;
     true
 }
@@ -860,16 +873,24 @@ pub unsafe extern "C" fn fc4_plumbing_water_producers(
 /// Slots 6 / 7: the published grid's token (borrowed; 0 = none).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_plumbing_watered_grid(p: *const fc4_plumbing) -> u64 {
-    sim(p, 0, |s| {
-        grid_token(&s.watered_grid())
-    })
+    sim(p, 0, |s| grid_token(&s.watered_grid()))
+}
+
+/// Test seam (no C entry point): cells per `DoIdle` in states 6 and 7
+/// (`None`: the whole state), so a test's stand-in for the original slices
+/// them as the original does (plumbing.md §6).
+#[cfg(test)]
+pub(crate) fn test_set_slice_cells(p: *mut fc4_plumbing, cells: Option<u32>) {
+    sim(p, (), |s| s.set_slice_cells(cells))
 }
 
 /// Diagnostics.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_plumbing_get_state(p: *const fc4_plumbing, out: *mut fc4_plumbing_state) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    let Some(h) = (p as *const Handle).as_ref() else { return false };
+    let Some(h) = (p as *const Handle).as_ref() else {
+        return false;
+    };
     guard(false, || {
         let s = h.sim.snapshot();
         let reentrant = h.reentrant.get();

@@ -1877,8 +1877,13 @@ bool fc4_plumbing_read(fc4_plumbing* p, const fc4_istream* in);         /* §9: 
  * own Write, through `capture`) after state 1 and runs FreeCity4's pass on it
  * over private grid copies, reading every input through the host table (read
  * callbacks and the grid table's geometry / get only; nothing is written to
- * the game). At the original's swap (GetWateredGrid changes) it compares the
- * published grid cell by cell, the producers, deals and water connections;
+ * the game). Our states 2 to 5 run one per delivery, each in the
+ * fc4_plumbing_shadow_before of the delivery in which the original runs the
+ * same state, on the original's flag map of that moment (from its record), so
+ * they read what the original reads; a pass has no time limit (it is followed
+ * until its swap or its restart). At the original's swap (GetWateredGrid
+ * changes) it compares the published grid cell by cell, the producers, deals
+ * and water connections;
  * after the original's state 8, the totals, the building counts, demand (the
  * original's running sum, read then; PS4, PS8), pipes, sources and the
  * producers' budget items and condition (ageing inferred from the conditions
