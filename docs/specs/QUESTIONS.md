@@ -1383,7 +1383,12 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   each bit set at the rect's NW cell, unless in state 10. It also removes the switch (with a rebuild), the
   `0xCA550301` budget item (`E −= cost`), the `0x0C3BF549` item and the ferry terminal. Written into
   traffic-simulator.md §4.1.3.
-- **TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]
+- ~~**TS24:** is the direction towards a non-adjacent rectangle defined? [yes, always]~~ **ANSWERED 2026-10-14** from
+  the exe: yes, for both rect cases: the first cell's entry towards `R` (`0x00719B2D`) and the mode-1 last exit
+  towards `sourceRect`. In modes 0 and 2 the last exit points at the cell `(destX, destZ)` and is defined only one
+  step away. Also: `R` is the destination's rect in mode 1. Other sides are the reader's. An undefined side at a
+  non-last in-city cell ends ApplyRoute and loses the route's income and fees (*[quirk]*, rare). Written into
+  traffic-simulator.md §4.5.
 - **TS25:** when is "the last switch seen" on a route updated? [at every in-city cell, so leaving and re-entering a
   station counts again]
 - **TS26:** FinishTripMap donor search order? [distance first, then −x, −z, +x, +z]

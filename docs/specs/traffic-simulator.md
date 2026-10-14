@@ -814,14 +814,29 @@ first trip's type.
      commuters by car, Carpool off, `Q = 37.0`, through a toll booth with toll 0.1 (f32 `0.100000001`):
      `r24(37 × 0.1)` = 3.70000005 (the f32 nearest 3.7), added to `fees` and at month end to the toll income
      (§4.12). A return leg through the same booth is a separate ApplyRoute and charges again; mode 2 charges once.
-  3. **Edge density** (§4.8): entry side `e` = direction from the cell to the previous route cell (for the first cell:
-     towards the source rect, `x < x0 → step +x`, `x > x1 → −x`, else `z < z0 → +z`, else `−z`); exit side `o` =
-     direction from the cell to the next route cell, or at the last cell towards `(destX, destZ)` (mode 0, 2) or
-     towards the source rect (mode 1); a direction is only defined for a one-cell step (else no update). With both
-     defined: record key `(mode = 1) << 24 | t << 16 | x << 8 | z`, `current[4e + o] := min(0xFFFF, current + Qi)`.
+  3. **Edge density** (§4.8): `e` and `o` are the route reader's entry and exit sides of the cell (§4.3, as
+     ConfirmRoute reads them; around a jump they follow the reader's jump rules). There are two overrides (TS24):
+     - the **first** cell's entry is the side towards `R`: `x < x0 → +x`, `x > x1 → −x`, else `z < z0 → +z`,
+       else `−z` (`0x00719B2D`). This is always defined, however far the rect is;
+     - the **last** cell's exit, in modes 0 and 2, is the unit step from the cell to `(destX, destZ)`. It is
+       defined only when that cell is exactly one step away along x or z (16-bit differences), so no update when
+       the destination is the cell itself or farther away. In mode 1 it is the side towards the `sourceRect`
+       parameter (not `R`): `x < x0 → +x`, `x > x1 → −x`, `z < z0 → +z`, else `−z`. This is always defined; a cell
+       inside the rect gives `−z`.
+
+     With both defined: record key `(mode = 1) << 24 | t << 16 | x << 8 | z`, `current[4e + o] := min(0xFFFF,
+     current + Qi)`.
      **Mode 2 also adds `Qi` to the record with key `1 << 24 | t << 16 | x << 8 | z` at index `4o + e`** (the mirrored
      direction) *[compat]*. The pathfinder's `ApplyTraffic` (pathfinder.md §4.17, no known caller) mirrors the same
      way (corrected by PF2).
+
+     At the last cell an undefined side only skips this update. At any **other** in-city cell, an undefined side
+     ends ApplyRoute at once (`0x00719DC3` → `0x0071A0AF`) *[quirk]*. Steps 4–5 of the cell, all later cells, the
+     destination step and the final accumulation are skipped, so the route's `I` and `fees` are lost. Volume,
+     switch usage and edge densities already added stay. The reader leaves a side undefined only around a jump
+     to an x-neighbour (`dx = ±1`, `dz = 0`, §4.3). For example, a ferry departure cell beside the in-city edge
+     cell of its neighbour link: the off-map node is written as that edge cell (pathfinder.md §4.15). *[choice]*
+     Follow the original.
   4. **Ferry legs** (TS16, `0x00719E8F`–`0x0071A054`): only at a cell that is not the last, when the **next** route
      record has the jump flag (pathfinder.md §4.15) and the cell is the departure cell of a terminal `T`
      (traffic-network.md §2.6). Then:
