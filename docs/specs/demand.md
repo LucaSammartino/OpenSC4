@@ -211,10 +211,24 @@ instance ID is the node key.
 | `0x47BB3F60` | Region Use | uint8 | `SetRegionUse(v)`; 0 if absent | 40 |
 
 Link factors: `percent · 0.01` for Drives/Satisfies/Contributes, where `percent` is an unsigned integer that may
-exceed 100 (the shipped data uses 0…1500). *[compat]* The original computes `r24(float(percent) · 0.01f)`. The
-integer is converted with `FILD`, plus 2^32 when its sign bit is set. It is multiplied by the **float32** constant
-`0.01f` (`0x00A823A4`, bytes `0A D7 23 3C` = `0x3C23D70A`) and stored as float32. The three sites in
-`CreateDemandFromExemplar` are `0x006A5514`, `0x006A5604` and `0x006A56F4`. Caps and Sums carry factor 1.0, which is never used.
+exceed 100 (the shipped data uses 0…1500). *[compat]* The integer is loaded with `FILD`, which is exact. When its
+sign bit is set, the original then adds 2^32 (the float 4294967296.0 at `0x00A80AA8`). It multiplies by
+the **float32** constant `0.01f` (`0x00A823A4`, bytes `0A D7 23 3C` = `0x3C23D70A`) and stores a float32. On the
+main thread every `FADD` and `FMUL` rounds to 24 bits (foundations §18), so (QUESTIONS DQ12):
+
+| `percent` | Factor | Roundings |
+|---|---|---|
+| below 2^31 | `r24(percent × 0.01f)` | one: the exact integer times the constant |
+| 2^31 and above | `r24(r24(percent) × 0.01f)` | two: the `FADD` of 2^32 rounds the integer to 24 bits first |
+
+Below 2^24 the integer is exact as a float, so the factor equals `f32(percent) × 0.01f` and the shipped data
+cannot tell the forms apart. Above 2^24 they can differ in the last bit:
+- 16777217 (2^24 + 1, first row) gives 167772.171875 (`0x4823D70B`); rounding the integer to float first would give
+  167772.15625 (`0x4823D70A`);
+- 3242996796 (second row) gives 32429966.0 (`0x4BF76BC7`); a single rounding would give 32429968.0 (`0x4BF76BC8`).
+
+The three sites in `CreateDemandFromExemplar` are `0x006A5514`, `0x006A5604` and `0x006A56F4`. Slot 8
+`CalculateJobsPerUnitOfDemand` (§5) uses the same instructions. Caps and Sums carry factor 1.0, which is never used.
 
 ### 4.2 Building the graph (part of `Init`, §13)
 
@@ -325,7 +339,7 @@ The full table is in the data files. FreeCity4 must not embed it.
 | `GetSimulatorType()` | returns the constant `0x279681D7` *[compat]* |
 | `GetDemand(demandID, demandIndex)` | If the simulator is not initialized, call `Init()` first *[compat]*. Look up key `demandID + demandIndex`; return the node or null. No reference is added. |
 | `UpdateOccupantEffects(buildingType, oldPct, newPct)` | If `oldPct ≠ newPct`: **AddAgentEffect(buildingType, remove, oldPct)**, then **AddAgentEffect(buildingType, add, newPct)** (§7.1). Re-scales a building's demand effects, for example when its funding or effectiveness changes. *[compat]* The SDK declares the first parameter as `SC4Percentage` by value. It is really the `uint32` building type (same size and slot). |
-| `CalculateJobsPerUnitOfDemand(float jobs[4], demandID, demandIndex)` | **Returns nothing, and leaves the x87 stack as it found it** (corrected 2026-10-14; slot 8, `+0x20`, pops 12). `jobs` points to **four** floats (the lot's `GetJobs` record): the three outputs are `jobs[1]`, `jobs[2]`, `jobs[3]` (byte offsets `+4`, `+8`, `+0xC`); **`jobs[0]` is never touched**. Set `jobs[1..3] := 0`. Load the exemplar `0x6534284A / 0xC7BB4816 / (demandID + demandIndex)` from the resource manager (the current data, not the link table). For each Drives pair `(target, percent)`: if `target = demandIndex + 0x2010` then `jobs[1] := f32(percent) × 0.01f`; `+0x2020` → `jobs[2]`; `+0x2030` → `jobs[3]`. `percent` is read as an **unsigned** 32-bit integer, and the scale is one float multiply by the float constant 0.01f (`0x3C23D70A`, 0.0099999998), **not** a division by 100; the last bit differs, e.g. 33 gives 0.32999998 (`0x3EA8F5C2`), not 0.33000001. Missing exemplar or property: all zero. |
+| `CalculateJobsPerUnitOfDemand(float jobs[4], demandID, demandIndex)` | **Returns nothing, and leaves the x87 stack as it found it** (corrected 2026-10-14; slot 8, `+0x20`, pops 12). `jobs` points to **four** floats (the lot's `GetJobs` record): the three outputs are `jobs[1]`, `jobs[2]`, `jobs[3]` (byte offsets `+4`, `+8`, `+0xC`); **`jobs[0]` is never touched**. Set `jobs[1..3] := 0`. Load the exemplar `0x6534284A / 0xC7BB4816 / (demandID + demandIndex)` from the resource manager (the current data, not the link table). For each Drives pair `(target, percent)`: if `target = demandIndex + 0x2010` then `jobs[1] := factor(percent)`; `+0x2020` → `jobs[2]`; `+0x2030` → `jobs[3]`, where `factor` is the link factor of §4.1 (the same instructions: exact `FILD`, `+2^32` when the sign bit is set, one `FMUL` by the float constant 0.01f, `0x3C23D70A`, 0.0099999998). `percent` is read as an **unsigned** 32-bit integer, and the scale is a multiply, **not** a division by 100; the last bit differs, e.g. 33 gives 0.32999998 (`0x3EA8F5C2`), not 0.33000001. Missing exemplar or property: all zero. |
 | `GetJobsBySensus(type)` | 0 (EAX) if `type` ∈ {`0x1011`, `0x1021`, `0x1031`}. Otherwise slot 8 `CalculateJobsPerUnitOfDemand(j, type, 0)` into a local four-float record; `s := f32(f32(j[3] + j[2]) + j[1])`; `x := f32(node[type].supply × s)`; return the low 32 bits of `x` truncated toward zero to 64 bits (`_ftol`), with **no clamp** (corrected 2026-10-14; arithmetic below). `j[0]` is neither written nor read. *[choice]* A missing node returns 0 (the original inserts a null map entry and crashes). |
 | `GetNeutralTaxRate()` | `curveNeutral(s)` (§11.1), **unclamped**, with `s := f32(f32(I + C) + R)`, where `I`, `C`, `R` are `node[0x4001]`, `node[0x3001]`, `node[0x1001]` `.supply`. The sum is evaluated **I + C first, then + R**, each addition rounded to `float32` (below). *[choice]* If the curve is absent or a node is missing, its term is 0 and an absent curve yields 0 (the original crashes). |
 | `GetLocalPopulationSummary(map<uint32,int32>&)` | Clear the map. For each node in key order: regionUse 1 → `map[key] := trunc(supply)`; regionUse 2 → `map[key] := trunc(demand)`; others skipped. This is the per-city summary the region view stores for neighbours *[inferred]*. The game's map layout, the original's insert and a worked example: [docs/abi/allocators.md](../abi/allocators.md) *map and set*, *GetLocalPopulationSummary*. |

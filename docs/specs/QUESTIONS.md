@@ -1748,8 +1748,14 @@ void and writes jobs[1..3] of a four-float record). The current answer is in bra
   read its offsets `+0xC`, `+8`, `+4`) and written into demand.md §5. **The bracket matches.** jobs[0] is
   uninitialised stack that nothing writes or reads, and jobs[3] is summed. "j0 + j1 + j2" was a misreading from
   before the slot-8 correction. Nothing to model.
-- **DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
-  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]
+- ~~**DQ12 — §5 against §4.1:** §5 says `f32(percent) × 0.01f`, while §4.1 describes an exact FILD followed by a
+  single rounding. They agree for every percent below 2^24; which is the game's? [the §4.1 link factor]~~
+  **ANSWERED 2026-10-14** from the exe (slot 8 `0x006A2469`–`0x006A24CD`, the graph builder's `0x006A5514`,
+  `0x006A5604`, `0x006A56F4`; the 2^32 constant at `0x00A80AA8`) and written into demand.md §4.1 and the §5 slot 8
+  row. **The bracket matches; both use the same instructions.** One correction for very large percents: below 2^31 it
+  is one rounding, `r24(percent × 0.01f)`. From 2^31 up, the `FADD` of 2^32 rounds the integer first, so it is
+  `r24(r24(percent) × 0.01f)`. Example: 3242996796 gives `0x4BF76BC7`, not `0x4BF76BC8`. The shipped percents (at most
+  1500) cannot tell any of these apart.
 - Not a spec question: whether the WOW64 `CONTEXT` TagWord is the full or the abridged tag. The crash report logs
   both; the lane's host test shows the full tag (0xFFFF empty, 0x3FFF with one value) next to FXSAVE's 0x00/0x80.
 
