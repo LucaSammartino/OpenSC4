@@ -1002,6 +1002,9 @@ change on a foreign connection matches the original. The state that does change 
 interface on a foreign connection: `Repair`, `SetVisitedThisCycle`, `SetIsActive` and the property holder. The
 bracket stands.
 
+**NG10. The return of `CreateConnection`.** Not meaningful in the original (§6.2, NB17), and every shipped caller
+ignores it. Any value works; the bracket stands.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

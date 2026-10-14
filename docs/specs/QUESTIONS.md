@@ -2586,7 +2586,9 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (connection vtable `0x00AB2034`; the NG3 field scan; writes in `CreateConnection`,
   `Read` and `Repair`) and written into neighbors §15.4. Type and cell never change after creation, so ignoring is
   right. `Repair`, `SetVisitedThisCycle`, `SetIsActive` and holder writes must go through the interface.
-- **NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]
+- ~~**NG10:** The return of `CreateConnection`. [our pointer, borrowed; null if the connection already exists]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4860`, NB17) and noted in neighbors §15.4. The original's value is
+  garbage and every shipped caller ignores it, so the bracket stands.
 - **NG11:** Slots 32/33 (64-bit values). [the low 32 bits]
 - **NG12:** The return channel of the regional city getters 50–64. [double (x87)]
 - **NG13:** The return of deal `Copy`. [void]
