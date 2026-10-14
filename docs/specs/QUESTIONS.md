@@ -1299,8 +1299,12 @@ before and after). The glue's current answer is in brackets.
   returns the city's `cISC4TrafficNetworkMap*`: the interface pointer created with IID `0xCA0F81B9`, **borrowed**, with
   no `AddRef`. `PopulateZone` calls its slot 8 directly, with no QI and no release. Written into landfill.md §4.4.5
   and §8.
-- **LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
-  city's simulator, held until RemoveAgent]
+- ~~**LG18 — §1.1/§1.2:** which simulator does the original use for AddAgent before services are acquired? [the app's
+  city's simulator, held until RemoveAgent]~~ **ANSWERED 2026-10-14** from the exe (`Init` `0x006B9D98`–`0x006B9DBA`;
+  `Shutdown` `0x006B95D3`–`0x006B95ED`; `SL::OnCityInit` `0x00601C20`). The **city's simulator** (city slot 50), read
+  from the cache global `0x00B43D5C` that `SL::OnCityInit` fills. It is not held. `RemoveAgent` fetches it again from
+  the global city. **The bracket matches**: it is the same object, and only the hold adds a reference count. Written
+  into landfill.md §1.1.
 - **LG19 — foundations §6/§12:** the core uses its own CRT-style generator per object (state 1), not the game's
   unseeded per-thread `rand()` sequence. Acceptable?
 - **LG20:** a message from another thread that cannot get the lock is dropped. Acceptable?

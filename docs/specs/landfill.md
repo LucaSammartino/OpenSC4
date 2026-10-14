@@ -88,6 +88,12 @@ only in the branch that takes the message server. With the server already held, 
 - `PopulateZone` takes the network map from the global city (§4.4.5);
 - `AddZot` uses the terrain and prop manager globals `0x00B43CF4` and `0x00B43D10`.
 
+**The simulator** (LG18). `AddAgent` runs **before** any service is taken (step 2). It goes through the global
+`0x00B43D5C`, which `SL::OnCityInit` (`0x00601C20`) fills with `city.GetSimulator()` (city slot 50) and
+`SL::OnCityShutdown` (`0x00601FF0`) clears. Init does not check the global for null or hold a reference to it
+(`0x006B9D98`–`0x006B9DBA`). `Shutdown` fetches the simulator again from the global city's slot 50 for
+`RemoveAgent` (`0x006B95D3`–`0x006B95ED`, §1.2 step 5). Both calls therefore reach the city's own simulator.
+
 A held reference and a per-call fetch name the same object for the whole life of the city. So holding only the city
 and the message server changes reference counts and nothing else, provided nothing calls a service after the city
 has destroyed it. Nothing in §1.2 does.
