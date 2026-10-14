@@ -881,6 +881,8 @@ public:
     virtual uint8_t GetGlobalLE() = 0;                                            // 34  (SDK: float)
     virtual float GetCellEQ(uint32_t cellX, uint32_t cellZ) = 0;                  // 35
     virtual float GetCellHQ(uint32_t cellX, uint32_t cellZ) = 0;                  // 36
+    // 37/38 return in x87 ST0 (re-answers7 RG22: docs/abi interfaces.tsv x87, high; they end in the float
+    // grid's GetTractValue): declared float, so abi_conformance_test checks the channel.
     virtual float GetCellEQByWealth(uint32_t cellX, uint32_t cellZ, WealthType wealth) = 0;  // 37
     virtual float GetCellHQByWealth(uint32_t cellX, uint32_t cellZ, WealthType wealth) = 0;  // 38
     virtual cISC4SimGrid<float>* GetSchoolAverageGradeMap() = 0;                 // 39  (SDK: int32)

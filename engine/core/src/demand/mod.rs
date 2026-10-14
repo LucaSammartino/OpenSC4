@@ -276,6 +276,10 @@ pub trait DemandHost {
     /// DQ5: the original reads `purpose` at +0x00 and walks no capacity map);
     /// `None` = no profile (purpose 0). A host should answer without reading
     /// the capacity maps; the default goes through [`Self::building_profile`].
+    /// DQ13 (answered: yes to both, with one condition): the default is
+    /// faithful as long as an unknown type yields purpose 0, as the
+    /// original's inserted zero profile does (`None` or `Some(0)` here: the
+    /// census reads both as purpose 0); the host's visitor may be null.
     fn building_purpose(&self, building_type: u32) -> Option<u32> {
         self.building_profile(building_type).map(|p| p.purpose)
     }

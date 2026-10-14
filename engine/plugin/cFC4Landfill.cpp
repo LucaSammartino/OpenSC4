@@ -294,7 +294,9 @@ void AcquireServices(void* u) {
     }
 }
 
-// §1.2: the last service step of Shutdown.
+// §1.2: the last service step of Shutdown. LF6 (answered; the choice
+// stands): one call after the zones shut down; the message server's release
+// is never its last, so when it happens cannot be observed.
 void ReleaseServices(void* u) {
     fc4::LandfillContext* c = Ctx(u);
     if (c->msgServer != nullptr) FC4_RELEASE(c->msgServer);

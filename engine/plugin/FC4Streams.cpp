@@ -183,7 +183,10 @@ bool IStreamAdapter::ReadRef(uint32_t iid, fc4_ref* out) {
     if (obj == nullptr) return true;  // null reference
     FC4_ACQUIRED(obj, "ReadGZSerializable");
 
-    // [inferred] The object comes back with a reference owned by us.
+    // The object comes back with a reference owned by us. SV1 (answered,
+    // foundations §2.7): a read that creates the object hands the destination
+    // GetClassObject's reference (the table keeps another), one that resolves
+    // a known object AddRefs it for the destination; either way +1 for us.
     out->class_id = obj->GetGZCLSID();
     if (OurObjectRef(obj, iid, out)) return true;
     if (iid == 0 || iid == GZIID_cIGZSerializable) {

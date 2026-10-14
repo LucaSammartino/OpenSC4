@@ -56,6 +56,9 @@ impl Fake {
     fn set(&self, o: u64, id: u32, v: Variant) {
         self.props.borrow_mut().insert((o, id), v);
     }
+    fn unset(&self, o: u64, id: u32) {
+        self.props.borrow_mut().remove(&(o, id));
+    }
     fn get_u32(&self, o: u64, id: u32) -> Option<u32> {
         self.props
             .borrow()
@@ -790,13 +793,17 @@ fn call_numbers_and_dispatch() {
     assert_eq!(host.get_u32(3, p.mask_prop), Some(0b11));
 }
 
-/// §5.1 / §7.2 (PR2): the dispatch cone comes from the source station's
-/// dispatch effect (the record's +0x20).
+/// §5.1 / §7.2 (PR2, PR14): the dispatch cone comes from the source station's
+/// dispatch effect (the record's +0x20), scaled by its efficiency.
 #[test]
 fn dispatch_cone_and_box_copy() {
     let (host, sim) = setup(ProtectionKind::Fire, 64, &[]);
+    shipped(&host, ProtectionKind::Fire);
     sim.init();
     let p = ProtectionKind::Fire.params();
+    // Full local funding: efficiency 1 with the shipped curve (PR14 scales
+    // the dispatch effect; a station without an item has funding 0).
+    host.item(77, p.purpose, 1.0, true);
     host.set(77, p.dispatch_effect_props[0], Variant::Scalar(Elem::I32(40)));
     host.set(77, p.dispatch_effect_props[1], Variant::Scalar(Elem::I32(40)));
     host.set(77, p.dispatch_effect_props[2], Variant::Scalar(Elem::F32(64.0)));
@@ -837,6 +844,79 @@ fn dispatch_cone_and_box_copy() {
     host.dispatches.borrow_mut()[0].1.station = 78 + 1;
     sim.update_unadjusted();
     assert_eq!(unadj.get(10, 10), 0);
+}
+
+/// §7.2 corrected (PR14): `GetDispatchEffect` fails only on an absent or
+/// zero centre, keeps the caller's outer and radius when absent, and scales
+/// by `GetStationEfficiency`; the active / inactive handler skips the update
+/// when it fails ([choice]).
+#[test]
+fn dispatch_effect_is_scaled_and_fails_on_the_centre_only() {
+    let (host, sim) = setup(ProtectionKind::Police, 64, &[]);
+    shipped(&host, ProtectionKind::Police);
+    sim.init();
+    let p = ProtectionKind::Police.params();
+    host.station(5, ProtectionKind::Police, 10, 0, 50.0, [0.0, 0.0, 0.0], 1);
+    // The spec's example: centre 100, outer 20, radius 300 at efficiency 0.5
+    // (shipped police curve: local funding 0.5 -> 50 -> 0.5).
+    host.item(5, p.purpose, 0.5, true);
+    host.set(5, p.dispatch_effect_props[0], Variant::Scalar(Elem::I32(100)));
+    host.set(5, p.dispatch_effect_props[1], Variant::Scalar(Elem::I32(20)));
+    host.set(5, p.dispatch_effect_props[2], Variant::Scalar(Elem::F32(300.0)));
+    assert!(close(sim.station_efficiency(5), 0.5));
+    let (ok, e) = sim.dispatch_effect(5);
+    assert!(ok);
+    assert_eq!((e.centre, e.outer, e.original_centre), (50, 10, 100));
+    assert!(close(e.radius, 150.0));
+    assert!(close(sim.station_dispatch_radius(5), 150.0));
+    // An absent outer and radius keep the caller's record; still AL = 1.
+    host.unset(5, p.dispatch_effect_props[1]);
+    host.unset(5, p.dispatch_effect_props[2]);
+    let mut rec = Effect {
+        x: 7.0,
+        z: 8.0,
+        outer: 6,
+        radius: 64.0,
+        original_centre: 3,
+        ..Effect::default()
+    };
+    assert!(sim.dispatch_effect_into(5, &mut rec));
+    assert_eq!((rec.x, rec.z), (0.0, 0.0));
+    assert_eq!((rec.centre, rec.outer, rec.original_centre), (50, 3, 100));
+    assert!(close(rec.radius, 32.0));
+    // A zero centre fails: x, z and the centre are 0, the rest is the caller's.
+    host.set(5, p.dispatch_effect_props[0], Variant::Scalar(Elem::I32(0)));
+    let mut rec = Effect {
+        x: 7.0,
+        z: 8.0,
+        centre: 9,
+        outer: 6,
+        radius: 64.0,
+        original_centre: 3,
+    };
+    assert!(!sim.dispatch_effect_into(5, &mut rec));
+    assert_eq!((rec.x, rec.z, rec.centre), (0.0, 0.0, 0));
+    assert_eq!((rec.outer, rec.radius, rec.original_centre), (6, 64.0, 3));
+    assert_eq!(sim.station_dispatch_radius(5), 0.0);
+    // The handler skips the box update when the effect fails: a mark in the
+    // adjusted grid stays.
+    host.dispatches.borrow_mut().push((
+        4,
+        DispatchInfo {
+            station: 5,
+            call_id: 4,
+            active: true,
+            x: 330.0,
+            z: 330.0,
+        },
+    ));
+    let adj = sim.coverage_grid().unwrap();
+    adj.set(10, 10, 77);
+    let mut m = ProtectionMessage::of_type(msg::DISPATCH_ACTIVE);
+    m.data1 = p.dispatch_type;
+    m.data2 = 4;
+    sim.handle_message(m);
+    assert_eq!(adj.get(10, 10), 77);
 }
 
 #[test]

@@ -593,7 +593,9 @@ impl ResidentialSim {
 
     /// `GetOrdinanceEffects(healthList, schoolList)`: one element per service
     /// for each ordinance that is on, in ascending ID order, appended to the
-    /// lists. State 0 clears them first (`clear`); `Init` does not.
+    /// lists. State 0 clears them first (`clear`); `Init` does not. RG7
+    /// (answered): the original reads them only in `Init` and in state 0;
+    /// between two state 0s the lists stay as read.
     pub(super) fn read_ordinance_effects(&self, clear: bool) {
         let h = &*self.host;
         let mut school = Vec::new();
@@ -652,6 +654,12 @@ impl ResidentialSim {
     /// Slot 20 `GetOccupantFundingPercentages(occ, &a, &b, isSchool)`: no staff
     /// item → 1.0 / 1.0; a null staff department leaves both unchanged; b is
     /// 1.0 without a vehicle item and unchanged with a null vehicle department.
+    /// RG10 (answered; the bracket "1.0" differed): 1.0 only for a missing
+    /// item, never for a missing department. A department whose funding the
+    /// host cannot read (`None`) is treated as missing too: that output (and,
+    /// for the staff department, b) keeps the caller's value. [choice] The
+    /// original always reads a present department's funding; `None` exists
+    /// only for a host that cannot.
     pub fn get_occupant_funding(&self, occ: u64, a: &mut f32, b: &mut f32, is_school: bool) {
         let h = &*self.host;
         let svc = Service::of(is_school);
@@ -666,17 +674,20 @@ impl ResidentialSim {
         *a = if h.is_locally_funded(dept, occ, svc.staff_purpose) {
             item.local_funding
         } else {
-            h.department_funding(dept)
+            match h.department_funding(dept) {
+                Some(f) => f,
+                None => return,
+            }
         };
         match h.budget_item(occ, svc.vehicle_purpose) {
             None => *b = 1.0,
             Some(v) => {
                 if let Some(vd) = h.department_budget(v.department) {
-                    *b = if h.is_locally_funded(vd, occ, svc.vehicle_purpose) {
-                        v.local_funding
-                    } else {
-                        h.department_funding(vd)
-                    };
+                    if h.is_locally_funded(vd, occ, svc.vehicle_purpose) {
+                        *b = v.local_funding;
+                    } else if let Some(f) = h.department_funding(vd) {
+                        *b = f;
+                    }
                 }
             }
         }
