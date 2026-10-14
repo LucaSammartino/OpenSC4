@@ -7,9 +7,9 @@
 //! The land value shadow against a fake game whose "original" is our own
 //! simulator (fc4_landvalue_*): a clean pass, one wrong tract, one wrong
 //! scalar, a desirability map changed after the pass, the read-only
-//! contract and the INCOMPLETE paths.
+//! contract, the INCOMPLETE paths and the stats getter inside a pass.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::ffi::c_void;
 
@@ -543,6 +543,52 @@ fn incomplete_and_null_safety() {
         );
         assert!(fc4_landvalue_shadow_get_stats(s, &mut st));
         assert_eq!((st.passes, st.compared, st.last_mismatches), (2, 0, -1));
+        fc4_landvalue_shadow_destroy(s);
+    }
+}
+
+thread_local! {
+    /// The shadow a host callback asks for its counters, and what it got:
+    /// (answers, passes seen).
+    static SHADOW: Cell<*mut fc4_landvalue_shadow> = const { Cell::new(std::ptr::null_mut()) };
+    static INSIDE: Cell<(u32, u32)> = const { Cell::new((0, 0)) };
+}
+
+unsafe extern "C" fn slope_and_stats(u: *mut c_void, x1: i32, z1: i32, x2: i32, z2: i32) -> f32 {
+    let mut st = fc4_landvalue_shadow_stats::default();
+    if fc4_landvalue_shadow_get_stats(SHADOW.with(Cell::get), &mut st) {
+        INSIDE.with(|c| c.set((c.get().0 + 1, st.passes)));
+    }
+    area_slope(u, x1, z1, x2, z2)
+}
+
+#[test]
+fn stats_getter_inside_a_pass() {
+    unsafe {
+        let g = Game::default();
+        let t = tuning(&SHIPPED);
+        let orig = Original::run(&g, &t);
+        let r = read(&g, &orig);
+        let ro = fc4_landvalue_host {
+            area_slope: Some(slope_and_stats),
+            ..read_only(&g)
+        };
+        let s = fc4_landvalue_shadow_create(&ro, &t, 0);
+        assert!(!s.is_null());
+        SHADOW.with(|c| c.set(s));
+        let mut lines = Vec::new();
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        // The getter answers from inside our pass (state 5 asks for the area
+        // slope), with the counters of the last call that finished.
+        let (answers, passes) = INSIDE.with(Cell::get);
+        assert!(answers > 0);
+        assert_eq!(passes, 0);
+        assert_eq!(compare(s, &r, &mut lines), 0, "{lines:?}");
+        assert_eq!(INSIDE.with(Cell::get).1, 1);
+        let mut st = fc4_landvalue_shadow_stats::default();
+        assert!(fc4_landvalue_shadow_get_stats(s, &mut st));
+        assert_eq!((st.passes, st.compared, st.clean), (2, 2, 2));
+        SHADOW.with(|c| c.set(std::ptr::null_mut()));
         fc4_landvalue_shadow_destroy(s);
     }
 }

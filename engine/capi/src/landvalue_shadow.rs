@@ -830,17 +830,30 @@ impl Shadow {
     }
 }
 
-type Handle = RefCell<Shadow>;
+/// What a handle points at. The counters the stats getter reads are a copy
+/// in a `Cell`, outside the shadow's `RefCell`: the getter never borrows, so
+/// it answers from anywhere (a host callback, the sink), with the counters
+/// of the last call that finished.
+struct Handle {
+    stats: Cell<fc4_landvalue_shadow_stats>,
+    shadow: RefCell<Shadow>,
+}
+
+fn handle<'a>(p: *const fc4_landvalue_shadow) -> Option<&'a Handle> {
+    // SAFETY: documented precondition: NULL or a live fc4_landvalue_shadow*.
+    unsafe { (p as *const Handle).as_ref() }
+}
 
 fn with_shadow<R>(p: *const fc4_landvalue_shadow, fallback: R, f: impl FnOnce(&mut Shadow) -> R) -> R {
-    // SAFETY: documented precondition: NULL or a live fc4_landvalue_shadow*.
-    let Some(h) = (unsafe { (p as *const Handle).as_ref() }) else {
+    let Some(h) = handle(p) else {
         return fallback;
     };
-    let Ok(mut s) = h.try_borrow_mut() else {
+    let Ok(mut s) = h.shadow.try_borrow_mut() else {
         return fallback;
     };
-    guard(fallback, || f(&mut s))
+    let r = guard(fallback, || f(&mut s));
+    h.stats.set(s.stats);
+    r
 }
 
 pub(crate) unsafe fn emit(line: &str, sink: fc4_bytes_sink, ctx: *mut c_void) {
@@ -897,7 +910,10 @@ pub unsafe extern "C" fn fc4_landvalue_shadow_create(
                 ..Default::default()
             },
         };
-        Box::into_raw(Box::new(RefCell::new(shadow))) as *mut fc4_landvalue_shadow
+        Box::into_raw(Box::new(Handle {
+            stats: Cell::new(shadow.stats),
+            shadow: RefCell::new(shadow),
+        })) as *mut fc4_landvalue_shadow
     })
 }
 
@@ -941,8 +957,7 @@ pub unsafe extern "C" fn fc4_landvalue_shadow_get_stats(
     out: *mut fc4_landvalue_shadow_stats,
 ) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    with_shadow(s, false, |sh| {
-        *o = sh.stats;
-        true
-    })
+    let Some(h) = handle(s) else { return false };
+    *o = h.stats.get();
+    true
 }

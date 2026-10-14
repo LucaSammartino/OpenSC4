@@ -27,7 +27,7 @@
 //! A mirror simulator (ours, on its own grids, never on the game's) gets
 //! every message the original subscribes to (§5: the three occupant
 //! messages, season change, ordinance updated, condition changed) from the
-//! plugin, right before the original handles it, and reads the same live
+//! plugin, in the same delivery as the original's, and reads the same live
 //! inputs through a read-only host table. It does not run the daily refresh:
 //! the original's start tract is a `rand()` draw (§7) that cannot be read.
 //! At each cycle end:
@@ -1064,17 +1064,30 @@ impl Shadow {
     }
 }
 
-type Handle = RefCell<Shadow>;
+/// What a handle points at. The counters the stats getter reads are a copy
+/// in a `Cell`, outside the shadow's `RefCell`: the getter never borrows, so
+/// it answers from anywhere (a host callback, the sink), with the counters
+/// of the last call that finished.
+struct Handle {
+    stats: Cell<fc4_flammability_shadow_stats>,
+    shadow: RefCell<Shadow>,
+}
+
+fn handle<'a>(p: *const fc4_flammability_shadow) -> Option<&'a Handle> {
+    // SAFETY: documented precondition: NULL or a live fc4_flammability_shadow*.
+    unsafe { (p as *const Handle).as_ref() }
+}
 
 fn with_shadow<R>(p: *const fc4_flammability_shadow, fallback: R, f: impl FnOnce(&mut Shadow) -> R) -> R {
-    // SAFETY: documented precondition: NULL or a live fc4_flammability_shadow*.
-    let Some(h) = (unsafe { (p as *const Handle).as_ref() }) else {
+    let Some(h) = handle(p) else {
         return fallback;
     };
-    let Ok(mut s) = h.try_borrow_mut() else {
+    let Ok(mut s) = h.shadow.try_borrow_mut() else {
         return fallback;
     };
-    guard(fallback, || f(&mut s))
+    let r = guard(fallback, || f(&mut s));
+    h.stats.set(s.stats);
+    r
 }
 
 /// Creates a shadow over a read-only host table: only its read callbacks
@@ -1113,7 +1126,10 @@ pub unsafe extern "C" fn fc4_flammability_shadow_create(
                 ..Default::default()
             },
         };
-        Box::into_raw(Box::new(RefCell::new(shadow))) as *mut fc4_flammability_shadow
+        Box::into_raw(Box::new(Handle {
+            stats: Cell::new(shadow.stats),
+            shadow: RefCell::new(shadow),
+        })) as *mut fc4_flammability_shadow
     })
 }
 
@@ -1125,8 +1141,9 @@ pub unsafe extern "C" fn fc4_flammability_shadow_destroy(s: *mut fc4_flammabilit
     guard((), || drop(Box::from_raw(s as *mut Handle)));
 }
 
-/// One of the original's six messages (§5), right before the original
-/// handles it: the mirror handles it too. False when it was not mirrored
+/// One of the original's six messages (§5), in the same delivery as the
+/// original's (the order of the two targets is the message server's: both
+/// read the same game state): the mirror handles it too. False when it was not mirrored
 /// (no baseline yet, or another type).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_flammability_shadow_message(
@@ -1162,8 +1179,7 @@ pub unsafe extern "C" fn fc4_flammability_shadow_get_stats(
     out: *mut fc4_flammability_shadow_stats,
 ) -> bool {
     let Some(o) = out.as_mut() else { return false };
-    with_shadow(s, false, |sh| {
-        *o = sh.stats;
-        true
-    })
+    let Some(h) = handle(s) else { return false };
+    *o = h.stats.get();
+    true
 }

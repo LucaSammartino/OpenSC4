@@ -2768,13 +2768,15 @@ uint32_t fc4_landvalue_shadow_note_day(fc4_landvalue_shadow* s);
  * -1 when nothing was compared (INCOMPLETE). */
 int32_t fc4_landvalue_shadow_compare(fc4_landvalue_shadow* s, const fc4_landvalue_original* orig, int32_t julian,
                                      fc4_bytes_sink sink, void* ctx);
+/* The counters as the last call that finished left them (callable from the
+ * sink or a host callback). */
 bool fc4_landvalue_shadow_get_stats(const fc4_landvalue_shadow* s, fc4_landvalue_shadow_stats* out);
 
 /* ---- flammability shadow (tooling; engine/capi/src/flammability_shadow.rs) --
  *
  * With the ORIGINAL flammability simulator running: a mirror simulator (ours,
  * on its own grids) gets the original's six messages
- * (fc4_flammability_shadow_message, before the original handles each) and
+ * (fc4_flammability_shadow_message, in the same delivery as the original's) and
  * reads live inputs through a read-only host table; at each of the
  * original's cycle ends (SimCycleComplete 0x08F415FE) the plugin reads the
  * original's record and getters and the shadow compares: the raw grid
@@ -2831,6 +2833,8 @@ bool fc4_flammability_shadow_message(fc4_flammability_shadow* s, const fc4_flamm
  * when nothing was compared. */
 int32_t fc4_flammability_shadow_cycle(fc4_flammability_shadow* s, const fc4_flammability_original* orig,
                                       int32_t julian, fc4_bytes_sink sink, void* ctx);
+/* The counters as the last call that finished left them (callable from the
+ * sink or a host callback). */
 bool fc4_flammability_shadow_get_stats(const fc4_flammability_shadow* s, fc4_flammability_shadow_stats* out);
 
 /* ---- inspection ------------------------------------------------------------ */
