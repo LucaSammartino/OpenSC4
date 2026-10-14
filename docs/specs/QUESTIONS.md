@@ -1432,7 +1432,7 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
 - ~~**TS34 (fixtures only):** every cell reports a network occupant; department funding defaults to 1.0; department
   tokens are 900+.~~ **ANSWERED 2026-10-14**: no original behaviour; the implementer's choice stands. These are
   test-world stand-ins. The one with an original counterpart agrees: a department created by `CreateDepartmentBudget`
-  starts at 100 % funding, a fraction of 1.0 (budget.md, department table). The traffic simulator's `Init` then
+  starts at 100 % funding, a fraction of 1.0 (budget.md §6). The traffic simulator's `Init` then
   sets its maximum to the TS29 value (1.1999999 shipped).
 - Not covered by vectors: path searches over a real network (the vector world has no network occupants; test 10
   drives ApplyRoute with the spec's route bytes); switches, tunnels and ferries in the save record round-trip only
