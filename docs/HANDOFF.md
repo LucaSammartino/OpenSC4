@@ -42,7 +42,7 @@ worktree: paste what it needs into the message, or copy files into its `build-ru
 | apply9c: graphics formats FS4-FS14, GF1-GF9 | `a1ec5d982a5986c5a` | worktree | - | merged `f427e44`; FS15-FS17 |
 | apply9d: education/health AQ1-AQ3, flora AQ7/AQ10, residential RG24, flammability FL7/FL8 | `a1a2a3d5ee6186779` | worktree | - (none used) | merged `ccfe2b4`; AQ11-AQ13, FL10-FL13 |
 | RE specs 9 (commercial/industrial, civic, parks, history warehouse, 24-hour clock) | `a3547ddd1232ef1f1` | `re-specs9` | - | merged `a3599a0`; ABI rows `340ad36` |
-| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 50 | running |
+| cores10a: history warehouse + 24-hour clock cores | `aaba26b7267188fb1` | worktree | ABI 46 | merged `0757437`; CK7-CK15, HW5-HW12; glue not started |
 | cores10b: commercial + industrial + civic buildings + park manager cores | `a195154e182349440` | worktree | ABI 51 | running |
 | RE specs 10: city situation manager, demolition utility, dispatch manager, airport/seaport developers, prop developer (city detail manager if time) | `a576c1f88a67e75e5` | `re-specs10` | - | running |
 | RE answers 9: DG1-DG27 (DG5 first: how a building occupant gets its exemplar), LG21-LG26, AO1-AO2, PR/RG/NB/PG, EX34-EX39, ZQ13 | `a847980b29901cc38` | `re-answers9` | - | running |
