@@ -66,17 +66,20 @@
 //!
 //! [`Property`] has the raw accessors of §5.2 (`as_u32`, `u32s`, `count`, ...: no conversion, a type mismatch is a
 //! missing value *\[choice\]*), holder slot 5 ([`Property::get_void`]: a void array only) and the converting
-//! getters of §5.1 (`get_u32`, `get_f32`, `get_string`, ...): same type as is; a scalar converts through int64 or
-//! float64 (floats truncated and wrapped, Char and RZChar signed, unsigned 64-bit values kept to 24 significant
-//! bits); an array, a string and an Empty value go through a text round trip ([`Property::text`], parsed as
-//! `ConvertFromString` does). An object (kind-1) value is a missing property *\[choice\]*.
+//! getters of §5.1 (`get_u32`, `get_f32`, `get_string_into`, ...): same type as is; a scalar converts through
+//! int64 or float64 (floats truncated and wrapped, Char and RZChar signed, a Uint64 and a Uint32 from 2³¹ kept to
+//! 24 significant bits); an array, a string and an Empty value go through a text round trip ([`Property::text`],
+//! parsed as `ConvertFromString` does). An Empty value (tag 0, §4.2) is a property like any other: it is present,
+//! has no value bytes, and reads as 0. An object (kind-1) value is a missing property *\[choice\]*.
 //!
 //! # Choices
 //!
 //! Places marked *\[choice\]* below are FreeCity4 decisions where the spec is silent or leaves it to us. The main
 //! ones: cycles and chains deeper than [`MAX_PARENT_DEPTH`] fail the load (§4.4 *\[choice\]*); strings are read
 //! with the standalone §2.3 rules (quirks not reproduced, foundations §2.3 *\[choice\]*); binary array counts that
-//! cannot fit in the record are rejected; text `reps` above 16 MiB of values fail the read (§4.3 *\[choice\]*).
+//! cannot fit in the record are rejected; text `reps` above 16 MiB of values fail the read (§4.3 *\[choice\]*); an
+//! object value is a missing property for every getter (§5.1 *\[choice\]*); a raw accessor on the wrong type is a
+//! missing value (§5.2 *\[choice\]*).
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
@@ -683,7 +686,7 @@ impl Property {
     ///   Char array all their characters; an RZUnicodeChar array all its units, each below `0x80` as that byte and
     ///   any other as `?`; a void array the empty text (EX6).
     /// - A scalar: integers in decimal, Bool `0` / `1`, an RZChar its one character (EX7).
-    /// - Floats: [`format_float`] (fixed-point, at most 24 digits after the fraction's leading zeros, cut; EX8).
+    /// - Floats: `RZFtoaEnglishA` (fixed-point, at most 24 digits after the fraction's leading zeros, cut; EX8).
     /// - An Empty value: the empty text (EX5).
     ///
     /// `None` for an object (kind-1) value: the original prints its text or its address, *\[choice\]* FreeCity4
@@ -1332,7 +1335,7 @@ impl Exemplar {
     ///    second `:` directly. Values are separated by commas; an **array's** values have their leading spaces and
     ///    tabs trimmed, a scalar's value does not (EX13: `Uint32:0:{ 0x10}` gives 0, `Uint32:1:{ 0x10}` gives {16}).
     ///    Integers up to 32 bits: rule N, truncated to the type's width; `Uint64` / `Sint64`: hexadecimal, at most
-    ///    16 digits, no sign ([`atou64_hex`]); `Float32`: the game's parser ([`parse_float`]); `Bool`: true when the
+    ///    16 digits, no sign (`RZAtoUint64HexA`); `Float32`: the game's parser ([`parse_float`]); `Bool`: true when the
     ///    lower-cased value, leading spaces trimmed, begins with `true`; `String`: up to the first `}`, trimmed, one
     ///    `"` removed at each end, `reps` ignored. The reader takes `reps` values (one for `reps` 0): missing values
     ///    read as 0 and extra ones are ignored, with no cap (EX12); *\[choice\]* above 16 MiB of values
@@ -2048,10 +2051,12 @@ impl ExemplarStore {
         self.resources.insert(tgi)
     }
 
-    /// Registers a factory for resources of `type_id` (§4.6, `0x00972EAE`): from then on, [`ExemplarStore::load_package`]
-    /// runs `read` on every entry of that type, and an entry whose read succeeds loads as a kind-1 resource. The
-    /// exemplar and cohort types have the store's own factories and cannot be registered (returns false). This
-    /// crate registers no other factory: the set the original registers was not enumerated (§4.6 *\[inferred\]*).
+    /// Registers a factory for resources of `type_id` (§4.6, `0x00972EAE`): from then on,
+    /// [`ExemplarStore::load_package`] runs `read` on every entry of that type, and an entry whose read succeeds
+    /// loads as a kind-1 resource. The exemplar and cohort types have the store's own factories and cannot be
+    /// registered (returns false). This crate registers no other factory: the set the original registers was not
+    /// enumerated (§4.6 *\[inferred\]*). A factory registered after a package was loaded applies from the next
+    /// [`ExemplarStore::load_package`] on; registering a type again replaces its factory.
     pub fn add_factory(&mut self, type_id: u32, read: impl Fn(&[u8]) -> bool + 'static) -> bool {
         if Kind::from_type_id(type_id).is_some() {
             return false;
