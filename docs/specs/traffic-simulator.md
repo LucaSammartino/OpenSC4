@@ -753,9 +753,39 @@ record).
 Per cell (x innermost), with `B` = peak volume grid, `D` = peak ratio grid:
 
 1. `B := 0`, `D := 0`.
-2. If `x mod 4 = 0` and `z mod 4 = 0`: `commercialWork[x/4][z/4] := min(255, round(r24(v × commercialScale)))` where
-   `v` = `0x00714AA0`: the sum of the maximum morning and the maximum evening edge-density usage of road, el-train and
-   monorail over a window around the 4×4 block *[inferred: exact window, traffic-network.md]*.
+2. If `x mod 4 = 0` and `z mod 4 = 0`: `commercialWork[x/4][z/4] := min(255, round(r24(float(v) × commercialScale)))`,
+   where `v` is the commercial traffic window value of block `(bx, bz) = (x/4, z/4)` (`0x00714AA0`, TS8). Rounding is
+   to nearest, ties to even: the f32 magic-number trick `+ 12582912.0f`, `0x0071A271`. Definitions:
+   * **Cell value** `cv(x, z, k)` (`0x00714940`), `k` = the `evening` byte of §4.8 (0 or 1), with `usage(x, z, t, k)`
+     = the `usage` field of the edge-density record (§4.8; 0 when there is no record). The cell value is the maximum
+     (u16) of three per-network sums:
+     * road: `usage(t = 1 Car) + usage(2 Bus) + usage(4 FreightTruck)`, summed in u16 (mod 2¹⁶);
+     * el-train: `usage(7)`;
+     * monorail: `usage(8)`.
+
+     Travel types whose network (traffic-network.md §2.1, table `0x00AB31A8`) is pedestrian, rail or subway add
+     nothing.
+   * **Window** of block `(bx, bz)`, with `X0 = 4·bx` and `Z0 = 4·bz`: a plus shape, the 4 × 4 block widened by 2
+     cells on each side in each direction, without the corners:
+     * `z` runs from `max(0, Z0 − 2)` to `min(H, Z0 + 6) − 1`;
+     * on the block's own rows (`Z0 ≤ z < Z0 + 4`), `x` runs from `max(0, X0 − 2)` to `X0 + 5`;
+     * on the other rows, `x` runs from `X0` to `X0 + 3`.
+
+     That is at most 48 cells.
+   * `v := (maxM + maxE) mod 2¹⁶`, where `maxM` = the maximum over the window of `cv(·, ·, 0)` and `maxE` = the
+     maximum of `cv(·, ·, 1)`. The two maxima are taken independently and may come from different cells. The sum
+     is truncated to u16 by the caller.
+   * *[quirk]* The `x` range on the block rows has **no upper clamp**, and the record key uses the low byte of `x`.
+     So in a 256-wide city the east-most block column (`X0 = 252`) also reads cells `x = 0` and `x = 1` on the same
+     rows: the west edge. In 64- and 128-wide cities, `x = W` and `W + 1` have no records and give 0. Keep it
+     *[compat]*.
+
+   Worked example, block (2, 3): `X0 = 8`, `Z0 = 12`. The window is rows 12–15 with x = 6–13, and rows 10, 11, 16, 17
+   with x = 8–11 (48 cells).
+   * Morning: at (13, 14), Car 300 + Bus 40 + FreightTruck 100 = road 440. At (9, 10), el-train 500. So `maxM` =
+     500.
+   * Evening: the largest cell value is 380, at (6, 12). So `maxE` = 380.
+   * `v` = 880. With `commercialScale` 0.128: `r24(880 × 0.128)` = 112.64, so `commercialWork[2][3]` = 113.
 3. For transit network `n` = 0…5 with network info `e` at the cell (`vol := volume[n]`):
    * `n ∉ {2, 3}` (not rail, not subway): `B := max(B, vol)`;
    * `r := r24(vol × e.invCapacity)`; `D := max(D, r)`;

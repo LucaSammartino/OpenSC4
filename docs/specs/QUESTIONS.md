@@ -1282,8 +1282,13 @@ TN1, TN3, TN14, TN15 and TN18 hold against the merged network core. The core's a
   iterator, ferry re-route **only in state 19**), the strategy-bucket multimap rebuilt from the lots,
   `days := lotCount div 18`, and both department-cost updates. Written as traffic-simulator.md §3.5; §3.3 gains the
   missing `dayIndex < days` guard; traffic-network.md §1 step 8 and §4.9.3 corrected.
-- **TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
-  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]
+- ~~**TS8 — §4.9 step 2:** what is the commercial traffic window? [the 4 × 4 block at (x, z); travel types car 1,
+  el-train 7, monorail 8; maximum morning usage plus maximum evening usage]~~ **ANSWERED 2026-10-14** from the exe
+  (`0x00714AA0`, `0x00714940`): partly. The window is a plus shape: the block widened by 2 cells each way without
+  the corners, up to 48 cells, clamped at 0 and at H, but **not** at W on the block rows (x mod 256: the east
+  column of a 256 city reads x = 0, 1 *[quirk]*). The per-cell value is the max of road (Car + Bus + FreightTruck,
+  u16 sum), el-train and monorail `usage`. `v = (maxMorning + maxEvening) mod 2¹⁶`, rounded ties-to-even after
+  the scale. Written into traffic-simulator.md §4.9 step 2 with an example.
 - **TS9 — §4.9:** which records are "not excluded" from the statistics? [flag bit 0 clear]
 - **TS10 — slot 7 SetupPathFinderForLot:** what else is configured? [the lot rectangle as start, plus SetupTrip
   steps 3–4 only]
