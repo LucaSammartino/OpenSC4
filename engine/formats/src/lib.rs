@@ -23,7 +23,8 @@
 //! - [`ltext`]: localized text (LTEXT) entries.
 //!
 //! Written from public format documentation (see `README.md`), then brought in line with
-//! `docs/specs/data-formats.md` and `docs/specs/foundations.md` (§2.3, §3.1, §9.2).
+//! `docs/specs/data-formats.md` and `docs/specs/foundations.md` (§2.3, §3.1, §9.2, and §18 for the x87
+//! arithmetic of the getters and the text parser).
 //! Places where the documentation leaves a decision open are tagged `\[choice\]`. Nothing here panics on bad
 //! input: every parser returns a [`Result`].
 

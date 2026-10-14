@@ -46,7 +46,9 @@ the same counts, and all 9,347 `.dat` exemplars and cohorts load (every binary r
 in ascending ID order with no duplicates, so the re-encode is still identical). Two text properties of
 `Plugin_002_TheLivingMall.dat` read differently: `LotConfigPropertyWealthTypes` and
 `LotConfigPropertyPurposeTypes` are `Uint8:0:{}`, which §4.3 reads as a scalar 0 (`reps` 0 is one value, missing
-values are 0), where the old reader made an empty array.
+values are 0), where the old reader made an empty array. The original stores the same scalar 0, and its readers
+of these two properties copy `GetCount()` bytes, 0 for a scalar, so the result is the same as an empty array
+(data-formats §4.3, EX16).
 
 ## Sources
 
@@ -88,13 +90,26 @@ Where the documentation was silent or wrong, the code decides and tags the decis
   key) and a `u32` foundations §9.2 disk tag, so the "unused" and key-type high bytes must be 0; tag `0x000C` is
   one RZChar byte, not a string; Empty, void, Char and RZUnicodeChar arrays and the Uint64 / Sint8 / Sint16 /
   Float64 types are read. A parent key that does not load as a cohort, or a kind-1 resource that does not load,
-  fails the whole record. `[choice]`: cycles and chains deeper than 32 fail the load (the original recurses).
+  fails the whole record. A kind-1 resource of another type loads only when a resource cache holds it
+  (`ExemplarStore::add_resource`) or a factory registered for its type (`add_factory`) reads it from a loaded
+  package; an index entry alone is not enough (§4.6). `[choice]`: cycles and chains deeper than 32 fail the load
+  (the original recurses); a record that failed only on depth is loaded again when reached shallower.
 - Text exemplars follow §4.3: the 2 bytes after the signature are skipped unchecked, numbers use rule N (`10` is
-  decimal, `1A` hexadecimal), type names are case-sensitive, exactly `PropCount` lines are read, `reps` values are
-  taken with missing ones 0, 64-bit values are hexadecimal, and a string ends at the first `}`.
+  decimal, `1A` hexadecimal) on the raw text, type names are case-sensitive and not trimmed, exactly `PropCount`
+  lines are read. `ParentCohort` fields are not counted (a missing one is 0, nothing inside the braces is trimmed);
+  `reps` and a scalar's value are not trimmed, an array's values are; `reps` values are taken with missing ones 0
+  and no cap in the original (`[choice]` the read fails above 16 MiB of values); 64-bit values are hexadecimal
+  without a sign; only a string ends at the first `}`. Float32 values go through the game's own decimal parser at
+  the main thread's 24-bit x87 precision (`exemplar::parse_float`), so `0.05` is `0x3D4CCCCC` and `1e10`
+  1,410,065,408 (10ⁿ wraps in 32 bits). The text writer emits Float32 text that this parser reads back exactly.
 - Getters follow §5: `as_u32` / `u32s` / `count` ... are the raw accessors (`[choice]` a type mismatch is a missing
-  value), `get_u32` / `get_f32` / `get_string` ... convert (int64 or float64 for scalars, a text round trip of the
-  first element for arrays and strings).
+  value, where the original reinterprets the bytes), `get_u32` / `get_f32` / `get_string_into` ... convert: a
+  scalar through int64 (floats truncated by `_ftol`, wrapping; Char and RZChar sign-extended) or float64 (Uint32 from
+  2³¹ and every Uint64 keep 24 significant bits); arrays, strings and Empty through the text round trip (the first
+  element of a numeric array, floats in fixed point and not exact on the way back, a void array as the empty text).
+  Empty reads as 0 and succeeds; the string getter writes any value's text and returns true only for a string;
+  `[choice]` an object (kind-1) value is a missing property. `get_void` is holder slot 5: a raw copy from a void
+  array only.
 - Duplicates: `Package::find` returns the **first** index entry with a key, and the first DIR record wins
   (data-formats §2.3, §2.5); inside an exemplar the last property with an ID wins (§4.5), and both property lists
   are sorted by unsigned ID; `ExemplarStore` lets a later insert replace an earlier one (load order).
