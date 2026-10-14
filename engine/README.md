@@ -198,7 +198,10 @@ plugin.
        grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
-       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. The grids' geometry (tracts, tracts per
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. `fallbacks` counts calls from a thread
+       other than the main one that could not get the lock in 20 ms and were answered from a snapshot or a neutral
+       value; no protection slot is known to be called off the main thread (protection spec §13.1), so it should stay
+       0, and a non-zero count is a finding. The grids' geometry (tracts, tracts per
        day, the iterator rectangle) is taken at `Init`: on a loaded city the `Read` line can show `tracts=0x0` with a
        non-null `grid=`, because the game reads the grid's own record after the simulator's. A month that still
        finds the coverage grid without tracts logs `protection (fire|police): WARNING the coverage grid … has 0x0
