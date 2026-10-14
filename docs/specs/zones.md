@@ -449,8 +449,13 @@ Chooses the lot width/depth used by `Parcellize` from the developers that would 
    width), else (2, 2). `minDepth := maxDepth := depth`; then over **all** configurations of the hash set (not only
    those that passed the size filter of step 6), in hash order, with `width mod sx = 0` (unsigned), widen
    `[minDepth, maxDepth]` to include `sz` (unsigned compares; cfg slot 7 again). This walk releases every
-   configuration of the set once.
+   configuration of the set once. `width mod sx` is an unsigned `div` (`0x007332AA`), so a configuration in the set
+   with `sx = 0` is a divide fault and crashes the original. The shipped configurations all have `sx ≥ 1`.
+   *[choice]* FreeCity4 treats a configuration with `sx = 0` as failing step 6's size filter and skips it in this
+   walk.
    If `maxDepth − minDepth < 2` (unsigned): `minDepth := (minDepth > 2) ? maxDepth − 2 : 1`; `maxDepth := minDepth + 2`.
+   `minDepth > 2` is unsigned too (`cmp`, then `jbe` at `0x00733342`, ZQ10); with real depths (1–3) the signedness
+   does not matter.
 8. Block depth by zone density (`0x00458960`: zones 1, 4 → 1; 2, 5 → 2; 3, 6, 7, 8, 9 → 3; any other → 0) when a
    best developer exists and its purpose (growth developer slot 7) is 1 (residential): density 1 → `3 · depth`,
    2 → `ftol(r24(float(depth) × 2.5))` (depth converted as unsigned; 2 → 5, 3 → 7, 4 → 10), 3 → `2 · depth`.
