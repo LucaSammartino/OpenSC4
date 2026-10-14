@@ -343,24 +343,35 @@ void cFC4BudgetSimulator::RegisterCheats() {
     cIGZCheatCodeManager* cm = sc4->GetCheatCodeManager();
     if (cm != nullptr && cm->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cheatMgr_))) {
         FC4_ACQUIRED(cheatMgr_, "QueryInterface");
+        // Spec §4.1 step 6 (flora.md §4.1 step 11, FQ11): each cheat is
+        // subscribed with its own ID, never 0 (0 would deliver every cheat).
+        cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
         cheatMgr_->RegisterCheatCode(kCheatRiskyMoney, cRZBaseString("RiskyMoney"));
+        cheatMgr_->AddNotification2(target, kCheatRiskyMoney);
         cheatMgr_->RegisterCheatCode(kCheatWeaknessPays, cRZBaseString("WeaknessPays"));
+        cheatMgr_->AddNotification2(target, kCheatWeaknessPays);
         if (sc4->GetDebugFunctionalityEnabled()) {
             cheatMgr_->RegisterCheatCode(kCheatMoolah, cRZBaseString("Moolah"));
+            cheatMgr_->AddNotification2(target, kCheatMoolah);
             moolahRegistered_ = true;
         }
-        cheatMgr_->AddNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     }
     FC4_RELEASE(sc4);
 }
 
 void cFC4BudgetSimulator::UnregisterCheats() {
     if (cheatMgr_ == nullptr) return;
+    // Spec §4.2 (FQ11): the same (target, ID) pairs the subscription added.
+    cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
     cheatMgr_->UnregisterCheatCode(kCheatRiskyMoney);
+    cheatMgr_->RemoveNotification2(target, kCheatRiskyMoney);
     cheatMgr_->UnregisterCheatCode(kCheatWeaknessPays);
-    if (moolahRegistered_) cheatMgr_->UnregisterCheatCode(kCheatMoolah);
+    cheatMgr_->RemoveNotification2(target, kCheatWeaknessPays);
+    if (moolahRegistered_) {
+        cheatMgr_->UnregisterCheatCode(kCheatMoolah);
+        cheatMgr_->RemoveNotification2(target, kCheatMoolah);
+    }
     moolahRegistered_ = false;
-    cheatMgr_->RemoveNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     FC4_RELEASE(cheatMgr_);
     cheatMgr_ = nullptr;
 }

@@ -397,12 +397,12 @@ float LotSavvyAltitude(void* u, float x, float z, bool* onLot) {
 }
 
 // Weather slot 19 (§6.2). [choice, §14 quirk 15] No weather simulator: 0.
-// [spec question] Read as the verified declaration returns it (AL, uint8_t);
-// the moisture types are 0..15.
+// All of EAX is the value (FQ5): the original weather returns 0..15
+// zero-extended, and the index uses the whole register.
 uint32_t MoistureType(void* u, float x, float z) {
     if (!Gate(fc4::Sw::FloraWeather, "flora GetMoistureType (0)")) return 0;
     cISC4WeatherSimulator* w = Self(u)->Weather();
-    return w ? static_cast<uint32_t>(fc4::AsGame(w)->GetMoistureType(x, z)) : 0u;
+    return w ? fc4::AsGame(w)->GetMoistureType(x, z) : 0u;
 }
 
 // ---- occupants -------------------------------------------------------------------------------------
@@ -1083,9 +1083,8 @@ void cFC4FloraSimulator::RemoveAgent() {
 }
 
 // §4.1 step 11: RegisterCheatCode(id, name) (slot 3) and AddNotification2
-// (slot 7). [spec question] The notification is added for the cheat's id, as
-// §4.1 step 11 says ("subscribe the message target to it"); the budget and the
-// simulator glue pass 0.
+// (slot 7) with the cheat's own ID (FQ11): only "Flora ..." lines reach us;
+// 0 would deliver every cheat. The budget and the simulator do the same.
 void cFC4FloraSimulator::RegisterCheat(uint32_t id, const char* name) {
     if (cheatMgr_ != nullptr) return;
     WithApp([&](cISC4App* sc4) {
@@ -1102,7 +1101,8 @@ void cFC4FloraSimulator::RegisterCheat(uint32_t id, const char* name) {
     });
 }
 
-// §4.2: RemoveNotification2 (slot 8), then UnregisterCheatCode (slot 4).
+// §4.2: RemoveNotification2 (slot 8) for the same (target, ID) pair (FQ11),
+// then UnregisterCheatCode (slot 4).
 void cFC4FloraSimulator::UnregisterCheat(uint32_t id) {
     if (cheatMgr_ == nullptr) return;
     cheatMgr_->RemoveNotification2(Target(), id);

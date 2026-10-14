@@ -664,25 +664,33 @@ void cFC4Simulator::RegisterCheats() {
     cIGZCheatCodeManager* cm = sc4->GetCheatCodeManager();
     if (cm != nullptr && cm->QueryInterface(kIID_cIGZCheatCodeManager, reinterpret_cast<void**>(&cheatMgr_))) {
         FC4_ACQUIRED(cheatMgr_, "QueryInterface");
+        // Spec §9 step 9 (flora.md §4.1 step 11, FQ11): each cheat is
+        // subscribed with its own ID, never 0. The manager delivers a cheat
+        // to the pairs whose ID equals it or is 0, so 0 would also deliver
+        // every other cheat; a pair already present is refused.
+        cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
         cheatMgr_->RegisterCheatCode(kCheatFPS, cRZBaseString("FPS"));
+        cheatMgr_->AddNotification2(target, kCheatFPS);
         if (sc4->GetDebugFunctionalityEnabled()) {
             cheatMgr_->RegisterCheatCode(kCheatSimDate, cRZBaseString("SimDate"));
+            cheatMgr_->AddNotification2(target, kCheatSimDate);
             simDateCheatRegistered_ = true;
         }
-        // [choice] One subscription covers both cheats: the SDK documents the
-        // message-ID argument as unused, so subscribing twice could double-deliver.
-        cheatMgr_->AddNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     }
     FC4_RELEASE(sc4);
 }
 
 void cFC4Simulator::UnregisterCheats() {
     if (cheatMgr_ == nullptr) return;
+    // Spec §9 Shutdown step 1 (FQ11): the same (target, ID) pairs as Init.
+    cIGZMessageTarget2* target = static_cast<cIGZMessageTarget2*>(this);
     cheatMgr_->UnregisterCheatCode(kCheatFPS);
-    if (simDateCheatRegistered_) cheatMgr_->UnregisterCheatCode(kCheatSimDate);
+    cheatMgr_->RemoveNotification2(target, kCheatFPS);
+    if (simDateCheatRegistered_) {
+        cheatMgr_->UnregisterCheatCode(kCheatSimDate);
+        cheatMgr_->RemoveNotification2(target, kCheatSimDate);
+    }
     simDateCheatRegistered_ = false;
-    // [choice] Also unsubscribe so the manager never calls a dead object.
-    cheatMgr_->RemoveNotification2(static_cast<cIGZMessageTarget2*>(this), 0);
     FC4_RELEASE(cheatMgr_);
     cheatMgr_ = nullptr;
 }

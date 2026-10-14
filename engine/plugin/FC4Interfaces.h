@@ -655,7 +655,7 @@ public:
     virtual void UpdateMoisture(SC4Rect<int32_t> const& rect) = 0;                // 16
     virtual uint8_t GetMoistureValue(float x, float z) = 0;                       // 17
     virtual void GetMoistureValueMapPtr(FC4ByteGridVector*& out) = 0;             // 18
-    virtual uint8_t GetMoistureType(float x, float z) = 0;                        // 19
+    virtual uint32_t GetMoistureType(float x, float z) = 0;  // 19 (flora.md §6.2, FQ5: 0..15, all of EAX)
     virtual void SetManualMoistureAddition(float x0, float z0, float x1, float z1, float v) = 0;  // 20
     virtual float GetHumidity(float x, float z) = 0;                              // 21
     virtual float GetAmbientWind(cS3DVector2& wind) = 0;                          // 22
