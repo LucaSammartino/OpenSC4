@@ -245,6 +245,16 @@ lot-records.md §11 (Write `0x00472990`, Read `0x00472A20`; validated on 744,617
 10. `propagation := not city.GetEstablished()` (city slot 22, AL); then if propagationForced, propagation := true.
 11. Register the cheat code `0x095BDC9C` with the string `"Flora"` (cheat manager slot 3 `+0xC`) and subscribe the
     message target to it (slot 7 `+0x1C`, `AddNotification2`).
+
+    *[compat]* **The notification ID** (verified, FQ11). The call is `AddNotification2(target, 0x095BDC9C)`
+    (`0x006B2C77`), and `Shutdown` removes the same pair (`RemoveNotification2(target, 0x095BDC9C)`,
+    `0x006AFDDD`). The cheat manager keeps a list of (target, ID) pairs (`0x009212A6`: a pair already present is
+    refused) and, when a cheat is entered, sends `0x230E27AC` with data1 = the cheat's ID to every pair whose ID
+    **equals that cheat's ID or is 0** (`0x00920F34`–`0x00920F3E`). With the original's ID only "Flora …"
+    lines reach flora, so the "another cheat" branch of §5 is reachable only by a message sent to flora
+    directly; with 0, every cheat would reach it and each non-Flora cheat would take the exemplar-changed path.
+    The original budget (`0xCBF31943`, `0x4AB87766`, `0x493F4FE6`; `0x00693135` …) and simulator (`0x0AC07E24`,
+    `0x8A78BEFF`; `0x007033B1` …) likewise subscribe with their own cheat IDs, never 0.
 12. `spec := app.GetNewCitySpecification()` (`cISC4App` slot 39 `+0x9C`). If
     `spec.obliteratedCityDBSegment` (SDK `SC4NewCitySpecification`, offset `0x204`) is non-null, restore the
     obliterated flora from it (§10.3).

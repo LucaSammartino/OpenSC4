@@ -1198,8 +1198,13 @@ part of §8 is not compared). The glue's current answer is in brackets.
   slot 5 `0x0092A162`; variant slots `0x0091560F`, `0x0091567A`) and written into flora.md §5 and §12. **Right.**
   Slot 5 `operator[](u32)` pops 4 and never returns null (a missing index gives the set's empty variant); slot 24
   `GetValUint32()` (EAX) and slot 36 `GetValFloat32()` (ST0) wrap the converting getters with a 0 default.
-- **FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
-  Which is right? [`0x095BDC9C` for flora]
+- ~~**FQ11:** the cheat notification uses id `0x095BDC9C` as the spec says, but the budget and simulator glue pass 0.
+  Which is right? [`0x095BDC9C` for flora]~~ **ANSWERED 2026-10-14** from the exe (flora `0x006B2C77` and
+  `0x006AFDDD`; the cheat manager's `AddNotification2` `0x009212A6` and dispatch `0x00920F34`–`0x00920F3E`; budget
+  `0x00693135`; simulator `0x007033B1`) and written into flora.md §4.1 step 11. **The cheat ID is right, for all
+  three.** The original budget and simulator also pass their own cheat IDs. ID 0 means "every cheat": the
+  manager delivers a cheat to each pair whose ID matches it or is 0, so the budget and simulator glue with 0
+  receive all cheats (and must remove the pair with the same ID they added).
 - **FQ12:** `RegisterCommand`'s parameter info is null, as the spec says. [null]
 - **FQ13:** `ToCoreAll` leaves out parent-cohort properties (existing plugin behaviour). Does flora need them?
   [left out]
