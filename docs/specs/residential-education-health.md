@@ -167,6 +167,14 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
        `AddLocallyFundedObject` or `RemoveLocallyFundedObject` with that purpose.
    - **Added:** create and set served := `0xFFFFFFFF`, grade := 1.0, staff ratio := 1.0, effective capacity :=
      capacity (`0x69220415`). AddRef. Append to the pending hospital list. Set the dirty flag.
+   - *[quirk]* **No capacity property.** The getter (`0x005FD480`) returns false and leaves its output alone, and
+     the output is a stack slot this call used before. So the effective capacity written is: for a hospital with
+     the staff item, the low 32 bits of the health department's object pointer (stored there at `0x006FB1A5`);
+     for a school with the staff item, the school line item's pointer (`0x006FB41F`); for a building found
+     through its groups only, whatever the slot held. The value is visible to the query data (§4.11 +0x18), the
+     ratings and the totals until the next state 6 or 8 grades the building. No shipped building is affected:
+     all 18 school and hospital buildings of `SimCity_1.dat`–`SimCity_5.dat` and `EP1.dat` have their capacity.
+     *[choice]* FreeCity4 writes 0.
    - **Removed:** erase it from the first group list that contains it, else from the pending list. Release.
      Set the dirty flag.
 2. **School test.** The same with staff purpose `0xEA5654B6`, bus purpose `0x4A5654BA`, groups `0x1503` or
@@ -347,8 +355,11 @@ building of every group in state 6 or 8. Inputs:
 
 - radius: as in §4.4. If it is missing: served := 0, effective capacity := 0, grade := 0.0. The staff ratio is
   not touched. Nothing else happens.
-- capacity (u32, `0x8922041B` / `0x69220415`). A missing capacity is treated as 0 *[inferred: the getter's
-  output is pre-set to 0]*.
+- capacity (u32, `0x8922041B` / `0x69220415`). *[quirk]* (corrected: not 0.) A missing capacity leaves the
+  getter's output alone, and that stack slot holds the **coverage-radius property ID** stored there at the start
+  (`0x006FD9D7` / `0x006FDA20`; read at `0x006FDBB7`). So a building with a radius but no capacity is graded with
+  capacity `0x691B42B3` = 1 763 394 227 (school) or `0x091B42A2` = 152 781 474 (hospital). No shipped building
+  has a radius without a capacity (§4.1). *[choice]* FreeCity4 uses 0.
 - e1, e2 from `GetOccupantEfficiencyRatings(isSchool, ignoreStrike = false)`; base := base staff efficiency.
 - The building's three curves: age (c1), wealth (c2), distance (c3). See the table below. Each is loaded with
   the property-pointer loader after a rebuild from the code default (0,100)(100,100), so the pattern is

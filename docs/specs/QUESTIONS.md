@@ -1057,7 +1057,13 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   used unchecked at `0x006FB200`; schools `0x006FB41B`) and written into REH §4.1. **No: the original crashes.** It
   fetches the line item and calls it with no null check. With consistent budget data the line item exists
   whenever a building of that line is removed. *[choice]* skip the count step and `RemoveLineItem` (the bracket).
-- **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
+- ~~**EH5:** a building added without a capacity: is its effective capacity 0? [yes]~~ **ANSWERED 2026-10-14** from
+  the exe (`DoBuildingChanged` capacity reads `0x006FB741` / `0x006FB8A2`, getter `0x005FD480`; grading
+  `0x006FDBB7`) and written into REH §4.1 and §4.5 (corrected). **No: the original writes a leftover.** The getter
+  leaves its output alone, so the add writes a stack leftover (the health department pointer, the school line
+  item pointer, or older garbage), and grading uses the coverage-radius property ID as the capacity (not 0, as
+  §4.5 had inferred). No shipped building lacks a capacity (all 18 school and hospital buildings checked).
+  *[choice]* 0 in both places (the bracket).
 - **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
 - **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]
 - **EH8:** slot 45 with no matching point or no radius? [AL = 1 whenever the building's kind is found, distance 0,
