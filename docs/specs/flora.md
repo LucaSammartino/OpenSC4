@@ -318,7 +318,7 @@ results, so flora's position in the month list (foundations §13.2: registration
 | CityEstablished `0x26D31EC4` | `propagation := propagationForced`. |
 | CityObliterated `0x26D31EC5` | `propagation := true`. |
 | PlaceFlora command `0xAB99A64B` | `params := void1` (command parameter set). type := param 0 as u32; `p1, p2` := params 1 and 2 as floats; `AddNewFloraOccupant(type, {p1, p2, −1}, false)`. *[quirk]* p2 lands in **y** and z = −1, so the location check always fails and nothing is planted (§14). Reads (verified, FQ10; `0x006B3497`–`0x006B34F6`): parameter-set slot 5 `operator[](0)`, `(1)`, `(2)` in that order, then variant slot 24 `GetValUint32()` for 0 and slot 36 `GetValFloat32()` for 1 and 2 (§12); a missing parameter reads the set's empty variant; the result of own slot 17 is ignored. |
-| Cheat `0x230E27AC` | If data1 = `0x095BDC9C` and the command line has ≥ 2 words: §5.2. Otherwise (another cheat, or a bare "Flora"): handled **exactly like `0xC53D10AA`** below *[quirk]*. |
+| Cheat `0x230E27AC` | If data1 = `0x095BDC9C` and the command line has ≥ 2 words: §5.2. Otherwise (another cheat, or a bare "Flora"): handled **exactly like `0xC53D10AA`** below *[quirk]*. With the original subscription (§4.1 step 11) only "Flora …" cheats are delivered, so "another cheat" arrives only when sent to flora directly. |
 | Exemplar changed `0xC53D10AA` | `inst := data2` (data1 is read and ignored). If `GetStaticFloraData(inst)` is non-null: clear the type array, the type map and the family map (records are **not** released, *[quirk]* leak) and reload all flora types (§4.1 step 2, including the FloraTypesUpdated post). Then, if `inst = 0x1A2FDB6A`, re-read the tuning (§7). The group is never checked *[quirk]*. |
 | anything else | ignored |
 
@@ -1112,7 +1112,7 @@ Quirks *[quirk]*:
    be clear, which makes type-0 planting requests fail there; a second city leaks a new record. The byte is heap
    leftovers; FreeCity4 fixes it at `0x01` *[choice]* (§3.2).
 2. Exemplar-changed handling reloads all types when `data2` is any registered type (including 0), ignores the
-   group, leaks the old records, and the cheat message falls into the same handler for any non-flora cheat.
+   group, leaks the old records, and the cheat message falls into the same handler for any non-flora cheat (sent directly; the subscription delivers only Flora cheats, §4.1 step 11).
 3. PlaceFlora puts parameter 2 into `y` and `z = −1`, so it never plants.
 4. `AddNewFloraOccupant` rewrites the caller's position array and removes merged flora before its final
    location check.
