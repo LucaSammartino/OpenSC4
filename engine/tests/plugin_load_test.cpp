@@ -8643,6 +8643,8 @@ void TrOccupantBounds(void*, uint64_t occ, fc4_cell_rect* out) {
 bool TrOccupantProperty(void*, uint64_t, uint32_t, fc4_props*) { return false; }
 uint32_t TrPropType(void*, uint64_t) { return 0; }
 bool TrIsTunnel(void*, uint64_t) { return false; }
+// The street pieces have no path info: no turn-around (traffic-network.md §4.2 step 3).
+uint64_t TrNoPathInfo(void*, uint64_t) { return 0; }
 void TrPostSink(void*, cIGZMessage2Standard*) { ++g_tr->posts; }
 void* TrAllocate(uint32_t size) {
     void* p = std::calloc(1, size);
@@ -8692,6 +8694,7 @@ fc4_traffic_host TrafficStubHost(TrafficStub& s) {
     h.occupant_property = &TrOccupantProperty;
     h.prop_type = &TrPropType;
     h.is_tunnel = &TrIsTunnel;
+    h.path_info = &TrNoPathInfo;
     return h;
 }
 
