@@ -1144,6 +1144,19 @@ That `QueryInterface` answers only `1` and `0x0773FEF2` (the connection's main i
 only through `AsTrafficSource` and `AsISCPropertyHolder`. So `QueryInterface(1)` on the traffic source returns the
 connection's main interface (AddRef'd), not the traffic source.
 
+**NG27. `GetProperty(id, uint32&)` (holder slot 8) on an array.** The original (`0x005FD230`) asks the variant for a
+`Uint32` (variant slot 25, `0x009176C8`). A scalar `Uint32` is returned as is. Any other type goes through the
+variant's generic conversion: the value is turned into text and the text is parsed back as a `Uint32`. For an array
+the text is its **first element** only (`%u` for unsigned, `%d` for signed integers, `"1"`/`"0"` for bools), or `"0"`
+for an empty array. So a `Uint32` or `Uint16` array gives its first element, and an empty one gives 0; the result is
+true in both cases.
+
+Example: the trip-capacity property `0x8A0B4100` as 12 × u16 `{30, 0, …}` reads as 30; promoted to u32 it still
+reads as 30.
+
+The bracket (the first element) matches for unsigned integer arrays, which is what connections carry. For float,
+64-bit, negative and raw-byte values the result depends on the text parser (`0x009167C5`), which was not traced.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).

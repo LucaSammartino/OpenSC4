@@ -2648,7 +2648,10 @@ answer is in brackets.
 - ~~**NG26:** Traffic source `QueryInterface`. [forwarded to the connection]~~
   **ANSWERED 2026-10-14** from the exe (thunk `0x006D47F0` → `0x006CE000`) and written into neighbors §15.4. Forwarded
   to the connection, which answers only `1`, `0x0773FEF2` and `0xE4FDA3D4`. The bracket matches.
-- **NG27:** `GetPropertyU32` on array properties. [the first element]
+- ~~**NG27:** `GetPropertyU32` on array properties. [the first element]~~
+  **ANSWERED 2026-10-14** from the exe (holder slot 8 `0x005FD230`, variant `0x009176C8`, conversion `0x00917350`
+  via text `0x00916EAA`) and written into neighbors §15.4. Non-scalars convert through text, and an array's text is its
+  first element ("0" if empty). The bracket matches for unsigned integer arrays; other element types were not traced.
 - **NG28:** The shadow's statistics tolerance. [relative 1e-6]
 - **NG29:** Network flag bits used as type numbers. [left open]
 - **NG30:** `ReloadCity` through the SDK `cISC4Region`, which is not in `docs/abi`. [gated, with an identity check]
