@@ -3861,3 +3861,44 @@ left for the coordinator or a glue lane, since engine lanes cannot read the save
 - **HW10:** precision values other than 24. [all treated as 53 bits]
 - **HW11:** 24-bit sums of int32 operands. [the exact sum, rounded once]
 - **HW12:** `RecordHistoryData`'s return value. [true]
+
+## From the commercial, industrial, civic and park cores (filed by the coordinator from the `cores10b` lane's report, 2026-10-14)
+
+cores10b implemented the four cores (merged `ab3c1c3`, ABI 47). Every listed spec test is a unit test and a
+conformance vector (`ci13_*`, `cb12_*`, `pk12_*`). The 421-save corpus tests (commercial-industrial §13.9, civic §12.10,
+parks §12.8) wait for a glue lane's save sweep, which the coordinator runs.
+
+- **CM4:** commercial `Init` after a failed `Init` (§4.1 sets `initialized` in step 1). [returns true at once and
+  creates no grids]
+- **CM5:** commercial rebuild with no building map: RG24 says the shared seed helper `0x005E4FA0` writes nothing; do the
+  passes of helper `0x005E5130` still run? [yes: nothing is seeded, then the passes run, so a fresh grid stays 0 and a
+  loaded grid is only lowered]
+- **CM6:** a commercial grid absent at a rebuild (failed `Init`, or an unresolved save reference). [the rebuild does
+  nothing; the state machine still advances]
+- **CM7:** a commercial state outside 0..3. [nothing happens]
+- **CM8:** commercial `Read`. [atomic; the old grids are released before being replaced (§8.1 quirk)]
+- **CM9:** the commercial message server. [unsubscribe and release only when one is held]
+- **IN2:** industrial `Shutdown`: the spec gives only "AL (1)". [clears `initialized`, returns true]
+- **CB6:** civic `Read` order: inserting the file's entries in order, as STLport does, would reverse each bucket chain,
+  so §12 test 9 could not be byte-identical. [grow the table first, then insert in reverse; a key already present, or
+  repeated in the file, keeps its first value]
+- **CB7:** civic `Release` (slot 2). [sibling rule: above 1 it decrements; otherwise Shutdown, destroy, return 0]
+- **CB8:** civic null list entries. [the monthly pass skips them; an ape escape that draws one does nothing]
+- **CB9:** a business-deal income line that cannot be created (CB5). [skipped]
+- **CB10:** a civic department that cannot be created in `Init`. [no name or maximum is set and nothing is held]
+- **CB11:** a civic department whose funding cannot be read in the monthly pass. [that entry is skipped]
+- **CB12:** civic `DoBuildingRemoved` step 3. [releases only when a matching entry was found and erased]
+- **CB13:** civic `Read`. [atomic; the old Landmarks department is released, the old list entries are not]
+- **CB14:** the civic temporary generators' counter n is not saved. [seed derive(S, 0x0A413481 ^ n), n counting the
+  generators this object has made]
+- **PK4:** park tuning with no exemplar. [threshold 0.25 and an empty curve, which gives 0, so no zoo escapes; the
+  tuning is read once per object]
+- **PK5:** park insert when the item names a missing department, or a line item cannot be created. [steps 5–7 are
+  skipped; the line item is skipped]
+- **PK6:** park monthly pass with no held department or unreadable funding. [stops after step 1]
+- **PK7:** park zoo removal of an occupant that was not listed. [released once anyway: the literal reading]
+- **PK8:** park `Read`. [atomic; the lists are replaced without releasing their old entries]
+- **PK9:** the park generator. [`cRZRandomSuper` seeded with derive(S, 0xAA3FE6BC)]
+- **RN1:** foundations §6: in a mutation check, session seeds `0x1234` and `0x1235` gave identical park draws. Since
+  `derive` is an XOR, the generator seems to ignore bit 0 of its seed. Does the original `cRZRandomSuper` (or its
+  seeding) also drop bit 0, and does it matter for any other generator? [not investigated]
