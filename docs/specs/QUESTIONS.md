@@ -1052,7 +1052,11 @@ brackets; the module doc of `core/src/residential/education_health.rs` lists 1 t
   from the exe (`DoBuildingChanged` `0x006FB120`: hospital `0x006FB17F`, school `0x006FB39A`) and written into REH
   §4.1. **Yes.** The call stores the building type into its own copy of the item right after `ChangeBudgetItemLine`,
   and every later step of the call uses that line; the item is not read again.
-- **EH4:** on removal with no line item for the line, is the count step skipped? [skipped]
+- ~~**EH4:** on removal with no line item for the line, is the count step skipped? [skipped]~~ **ANSWERED
+  2026-10-14** from the exe (`DoBuildingChanged`: removal path `0x006FB677` → count step `0x006FB1F4`; line item
+  used unchecked at `0x006FB200`; schools `0x006FB41B`) and written into REH §4.1. **No: the original crashes.** It
+  fetches the line item and calls it with no null check. With consistent budget data the line item exists
+  whenever a building of that line is removed. *[choice]* skip the count step and `RemoveLineItem` (the bracket).
 - **EH5:** a building added without a capacity: is its effective capacity 0? [yes]
 - **EH6:** do "served", the tract list and the boost all use the lot centre, else `GetPosition`? [yes, all three]
 - **EH7:** how do slots 28 and 58 pick the service? [like slot 45: hospital capacity first, then school]

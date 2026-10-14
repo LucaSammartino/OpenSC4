@@ -158,6 +158,11 @@ data3 = `0x278128A0` (building occupant) and void1 = the occupant. The class ask
      - when removed: `RemoveLocallyFundedObject(holder, 0xCA565486)`;
      - the line item's 64-bit count (line slot 8 get / slot 9 set) is changed by +1 or −1; when removed and the
        count reaches 0, `RemoveLineItem(line)`;
+     - *[quirk]* on removal the line item is fetched with `GetLineItem(line)` and used with **no null check**
+       (`0x006FB1FD`–`0x006FB20C`; schools `0x006FB418`–`0x006FB427`). If the department has no line item for the
+       line, the original calls through a null pointer and crashes. With consistent budget data this does not
+       happen: the add created the line item and the count keeps it alive while a building uses it. *[choice]*
+       FreeCity4 skips the count step and `RemoveLineItem` when the line item is missing;
      - then, if the ambulance purpose `0xEA56549E` has an item: its department (null aborts),
        `AddLocallyFundedObject` or `RemoveLocallyFundedObject` with that purpose.
    - **Added:** create and set served := `0xFFFFFFFF`, grade := 1.0, staff ratio := 1.0, effective capacity :=
