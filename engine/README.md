@@ -162,7 +162,8 @@ plugin.
        of §4.10 (`cISC4VisualEffect` / `cS3DTransform` are not in docs/abi). The log has a status line at `Init`,
        `Read` and every month (`pollution month: init=… cells=… lists wtp/inc/wte/rec=… avg air/water/garbage=…
        supply=… capacity=… last month produced/…/landfilled=… cost=…; grids airSrc nonzero/tracts sum [min..max],
-       …`). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
+       …`; at `Read` a grid can still have 0 tracts, its record is read later; a month that finds one so logs
+       `pollution: WARNING grid … has 0 tracts at a month …` once). Its game calls have their own switches (default `1`, environment `FC4_POLLUTION_<KEY>`):
        `pollution_occupants`, `pollution_lots`, `pollution_neighbors`, `pollution_budget`,
        `pollution_grid_writes`, `pollution_posts`, `pollution_history`, `pollution_ordinance`,
        `pollution_traffic`, `pollution_zoning`, `pollution_power`, `pollution_landfill`, `pollution_population`,
@@ -181,7 +182,11 @@ plugin.
        grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
-       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`.
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. The grids' geometry (tracts, tracts per
+       day, the iterator rectangle) is taken at `Init`: on a loaded city the `Read` line can show `tracts=0x0` with a
+       non-null `grid=`, because the game reads the grid's own record after the simulator's. A month that still
+       finds the coverage grid without tracts logs `protection (fire|police): WARNING the coverage grid … has 0x0
+       tracts at a month (init=… tractsPerDay=…): no daily cycle runs (logged once)`.
      - `crime`: the crime simulator (`cSC4CrimeSimulator`, crime spec; its crime and crime-effect grids are the
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
