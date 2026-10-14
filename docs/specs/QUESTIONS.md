@@ -2764,9 +2764,15 @@ lane owns those files); TN22/TN24 have unit tests but no vectors. The current an
   `0x6534284A`, group `0xEA12F32C`), so they read the same record. They differ only if the cached copy was changed in
   memory (the loader only reads it; other writers were not traced) or if the uncached load alone fails, which sends the
   name to `0xAA12FCB0`. The bracket matches; the implementer's choice stands.
-- **TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
+- ~~**TN29:** TN21 worked example: Street (3) is not in the §4.8 tunnel type order, so a Street portal never gets a
   tunnel record. How does a "Street tunnel cell" get the tunnel bit in the game? [any tunnel record keyed by the cell
-  sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]
+  sets the bit; the test and vector tn11_04d put a Road portal over a Street piece]~~
+  **ANSWERED 2026-10-14** from the exe (`DoConnectionsChanged` step 5, `0x0071B390`–`0x0071B3FF`; tunnel insert
+  `0x007140E0`) and written into traffic-network §4.2 step 5 and §4.6. Only through its cell key: step 5 sets wormhole
+  bit 2 on every cell whose key is in the tunnel table, with no network or type test. So a cell whose car record is
+  typed Street gets the bit when a portal of a listed type is keyed at the same cell; a Street portal itself never gets
+  a record. The bracket matches, and tn11_04d is a valid synthetic case. Whether the game's tools can build such a cell
+  was not traced.
 
 ## From applying the residential, budget, demand, land value and flammability answers (filed by the coordinator from the `apply7a` lane's report, 2026-10-14)
 

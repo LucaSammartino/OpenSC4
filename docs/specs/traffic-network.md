@@ -564,7 +564,9 @@ This rebuilds the graph over a rectangle. In this order:
          is looked up on its own. A missing one is inserted as an all-zero record (a copy of the shared zero record
          `0x00AB31D0`, `0x42` bytes). An existing one is left as it is, so its counts are **not** reset here.
 4. **Transit switches** over **R1** = R grown by 1 more and clamped (so the original rectangle + 3). See §4.7.4.
-5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`.
+5. **Tunnels**: every cell of R1 that is a key of the tunnel table gets `wormhole |= 2`. The test is the key alone
+   (`0x0071B390`–`0x0071B3FF`): the bit is set whatever the tunnel record's network and mask and whatever type the
+   cell's own network records have (TN29).
 6. **Ferries**: every terminal is processed in list order (§4.9.2).
 7. Set the "subnetworks stale" and "network changed" flags. Free the occupant list.
 
@@ -680,6 +682,14 @@ With the shipped values, a Street (100) gives:
 Worked example (TN21), with the shipped N = 3: a Street tunnel cell with 2 connections whose exit leads straight into
 a 4-way intersection one cell away. Extending the start cell would give `best = 1` and `0x3C4CCCCC` (80.00001). The
 original does not extend it, so the cell keeps `0x3C23D70A` (100). The intersection itself still gets `0x3C6A0EA1`.
+
+**How a Street cell becomes a tunnel cell** (TN29). No Street portal has a tunnel record: Street (3) is not in the
+§4.8 type order, so its insert stops at step 2. The bit of §4.2 step 5 depends on the cell key only, so a cell whose
+car record is typed Street gets it when a portal of one of the listed types is keyed at that cell and the cell's car
+record ends up typed Street (in §4.2 step 3 the occupant order decides the type of a shared cell). The worked example
+is such a cell; vector tn11_04d builds it with a Road portal and a Street piece in one cell. Whether the game's
+network tools can put a Street piece in a portal's cell was not traced. A Road tunnel cell behaves the same way with
+the Road values.
 
 ### 4.7 Transit switches
 
