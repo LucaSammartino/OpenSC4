@@ -2607,7 +2607,10 @@ answer is in brackets.
   **ANSWERED 2026-10-14** from the exe (`cSC4Region::GetCity` `0x004A4930`) and noted in neighbors §15.4. A hash lookup
   on the 32-bit pair; the bit pattern is what counts, so passing it as uint32 is fine and an out-of-range cell gives
   null.
-- **NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]
+- ~~**NG16:** Creating the connection marker. [`CreateProp` + `AddCityProp`, then our reference released]~~
+  **ANSWERED 2026-10-14** from the exe (`0x006D4A53`–`0x006D4B15`; prop manager slots 15 and 19) and written into
+  neighbors §15.4. `CreateProp`, position and orientation, the bool properties, `AddCityProp`, then `Release`. The
+  bracket matches; a failed `CreateProp` just skips the marker.
 - **NG17:** The occupant cell of a connection. [the network's `GetOccupiedCell`, else the pole's `GetCell`]
 - **NG18:** A deal holder not reachable by QueryInterface. [left open]
 - **NG19:** No city on the other side of a connection. [targets 0]

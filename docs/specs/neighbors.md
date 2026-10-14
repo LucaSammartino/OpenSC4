@@ -1044,6 +1044,17 @@ pair up in its hash map, keyed by `SC4Point<long>`, and returns the map's holder
 32-bit values have the same bits, so a negative cell passed as `uint32` finds the same entry as the signed value,
 which is none: the map has entries only for cells covered by a city. The bracket is fine.
 
+**NG16. Creating the marker prop.** The original (`0x006D4A53`–`0x006D4B15`) uses the city's prop manager:
+
+1. `CreateProp(0x29F10000, &prop)` (prop manager slot 15). If it fails, there is no marker; the created message
+   (§6.3 step 4) is still posted.
+2. Position the prop at the inner cell's centre and height (§6.3), set its orientation, and add the bool
+   properties of §6.3 through its holder (holder slot 13, `AddProperty(id, 1, false)`).
+3. `AddCityProp` with the prop's occupant interface (prop manager slot 19, the one-argument overload).
+4. Release its own reference to the prop.
+
+The bracket (`CreateProp` + `AddCityProp`, then our reference released) matches.
+
 ## 16. Original quirks (reproduced)
 
 1. Deal pricing uses the garbage curve after the first update (§8.3).
