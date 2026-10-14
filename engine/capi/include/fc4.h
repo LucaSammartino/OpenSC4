@@ -69,8 +69,9 @@ extern "C" {
  * 24 = adds the plumbing shadow (fc4_plumbing_shadow);
  * 25 = adds the land value and flammability shadows (fc4_landvalue_shadow / fc4_flammability_shadow);
  * 26 = adds the residential simulator (fc4_residential) and its shadow (fc4_residential_shadow);
- * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5). */
-#define FC4_ABI_VERSION 27u
+ * 27 = adds fc4_protection_shadow_unadjusted_grid (protection.md §2, PR5);
+ * 29 = adds the building development simulator and growth developers (fc4_development / fc4_growth). */
+#define FC4_ABI_VERSION 29u
 
 /* Return codes of fc4_sim_load. */
 #define FC4_OK                    0
@@ -3882,6 +3883,460 @@ bool fc4_residential_shadow_get_stats(fc4_residential_shadow* s, fc4_residential
 /* One line: what is not readable, hence not compared. */
 void fc4_residential_shadow_describe(fc4_bytes_sink sink, void* ctx);
 
+/* ---- development (docs/specs/building-development.md, growth-developer.md) ----
+ *
+ * The building development simulator (class 0x8990BE7A) and the growth
+ * developers (class 0x0990C138), replaced as one unit. The host implements
+ * fc4_development_host (every DevelopmentHost / GrowthDevelopers method of
+ * engine/core/src/development_simulator, in the traits' order) and
+ * fc4_growth_host (engine/core/src/growth_developer); the plugin's classes
+ * forward their slots to the fc4_development_* / fc4_growth_* functions.
+ *
+ * The process-wide statics (BDS §2: the building catalogue, the tried-tract
+ * marks and the BDS generator; growth §7: the salt generator and the time
+ * slice step) are one fc4_development_process and one fc4_growth_statics the
+ * host creates once per process. The catalogue is exported from the process
+ * (fc4_development_catalogue_*) so the host can keep the game-layout copies
+ * slots 11-22, 27-28, 37-40, 42-43 and 45 return.
+ *
+ * Tokens are opaque host identities: developers (cISC4GrowthDeveloper*),
+ * lots, occupants, the construction node (cISC4Demand*) and grids
+ * (fc4_grid_api). 0 is the null object. The cores own one reference on every
+ * developer, special building, node, source demand and source map token they
+ * keep, and on every occupant create_building_occupant hands over. A saved
+ * reference read back for one of the host's objects arrives with that
+ * reference; one naming a FreeCity4 object (fc4_ref::core_handle set) is
+ * given one (add_ref). Lot tokens are borrowed.
+ *
+ * Re-entrancy: no core borrow is held across a host callback; a message
+ * delivered while a call on the same handle is running is queued until the
+ * outermost call returns, other re-entrant calls run at once (counted in
+ * reentrant_calls). Threads: single-threaded cores; the plugin serialises
+ * every call on the BDS, its process statics and every growth developer with
+ * one process-wide lock. */
+typedef struct fc4_development_process fc4_development_process;
+typedef struct fc4_development fc4_development;
+typedef struct fc4_growth_statics fc4_growth_statics;
+typedef struct fc4_growth fc4_growth;
+
+typedef struct fc4_res_key {
+    uint32_t type_id, group, instance;
+} fc4_res_key;
+
+/* GrowthProfile: the developer token, the tract and its stage (the tract
+ * developer reads the low byte). */
+typedef struct fc4_growth_profile {
+    uint64_t developer;
+    int32_t x, z, stage;
+    uint32_t reserved;
+} fc4_growth_profile;
+
+/* One growth or decline list entry: the game's 12-byte {x, z, stage}. */
+typedef struct fc4_growth_item {
+    int32_t x, z, max_stage;
+} fc4_growth_item;
+
+/* ConstructionProfile in the game's layout (BDS §4.8: 0x24 bytes). */
+typedef struct fc4_construction_profile {
+    int32_t zone;
+    int32_t unknown2;
+    uint32_t wealth, purpose;
+    uint8_t land_value_min, land_value_max;
+    uint8_t reserved[2];
+    uint32_t building_type;
+    int32_t orientation;
+    int32_t x, z;
+} fc4_construction_profile;
+
+/* One lot configuration as the maximum density table reads it (§4.7.4). */
+typedef struct fc4_lot_config {
+    uint32_t size_x, size_z;
+    uint32_t zones;       /* bit z set: IsCompatibleWithZoneType(z), z in 0..16 */
+    uint32_t has_primary; /* 1: a primary building configuration object */
+    uint32_t orientation;
+    float x, z;
+    uint32_t n_ids;
+    const uint32_t* ids; /* the object's building or family IDs */
+} fc4_lot_config;
+
+/* The catalogue's building profile (§2; the host builds the game layout). */
+typedef struct fc4_building_profile {
+    uint32_t purpose, wealth;
+    uint16_t capacity;
+    uint8_t value_499afa38;
+    uint8_t flag_27812836;
+    uint32_t category_flags;
+    float occupant_size[3];
+    uint32_t reserved0;
+    int64_t plop_cost;
+    uint32_t n_capacities; /* capacity table entries (handed to the callback) */
+    uint32_t reserved1;
+} fc4_building_profile;
+
+typedef struct fc4_development_message {
+    uint32_t msg_type, data1, data2, data3, data4;
+    uint32_t reserved;
+    uint64_t occupant; /* GetVoid1() as a cISC4Occupant (occupant messages), 0 otherwise */
+    uint64_t lot;      /* GetIGZUnknown() as a cISC4Lot (StateChanged), 0 otherwise */
+} fc4_development_message;
+
+/* One PlaceBuilding command parameter. */
+typedef struct fc4_command_param {
+    uint32_t as_u32;
+    float as_f32;
+} fc4_command_param;
+
+/* The advice subject §4.10 builds and discards. */
+typedef struct fc4_advice_subject {
+    float x, z;
+    uint32_t data1;
+    uint32_t reserved;
+    uint64_t lot;
+} fc4_advice_subject;
+
+/* One decline plan entry. */
+typedef struct fc4_plan_entry {
+    uint32_t day;
+    int32_t x, z;
+    uint32_t stage;
+    uint64_t developer;
+} fc4_plan_entry;
+
+/* Diagnostics; the counters are cumulative since the handle was created. */
+typedef struct fc4_development_state {
+    uint32_t struct_size; /* = sizeof(fc4_development_state) */
+    uint8_t initialized, loaded;
+    uint8_t state;  /* the planning state machine, 0-4 (§4.2) */
+    uint8_t cheats; /* bit 0 ignore plumbing, 1 power, 2 caps, 3 debug growth, 4 coffee bar */
+    uint32_t developers, special_buildings, highest_stages, decline_plan;
+    uint32_t marked_types, marked_cells;
+    uint32_t building_types; /* in the process catalogue */
+    uint32_t grow_budget;    /* §4.4.1; 0xFFFFFFFF = unlimited */
+    int32_t total_resources, free_resources;
+    float supply, demand;
+    uint32_t grow_calls, built;       /* tract developer Grow calls, those > 0 */
+    uint32_t decline_calls, declined; /* tract developer Decline calls, those > 0 */
+    uint32_t built_by_wealth[4];      /* by the developer's wealth */
+    uint32_t declined_by_wealth[4];
+    uint32_t built_by_stage[16]; /* by the profile's stage (larger count as 15) */
+    uint32_t reentrant_calls;
+    int32_t cell_count_x, cell_count_z;
+    uint32_t reserved;
+    uint64_t rng_steps; /* of the process-wide BDS generator */
+    uint64_t building_map;
+    uint64_t construction_node;
+} fc4_development_state;
+
+/* One exemplar: NEW props (the callee owns them; may be NULL) and the
+ * localized building name (property 0x8A416A99) when has_name. */
+typedef void (*fc4_development_exemplar_visitor)(void* ctx, const fc4_res_key* key, fc4_props* props,
+                                                 const uint8_t* name, size_t name_len, bool has_name);
+typedef void (*fc4_lot_config_visitor)(void* ctx, const fc4_lot_config* config);
+/* A growth or decline list, delivered in one call. */
+typedef void (*fc4_growth_items_sink)(void* ctx, const fc4_growth_item* items, size_t n);
+typedef void (*fc4_type_token_callback)(void* ctx, uint32_t key, uint64_t token);
+typedef void (*fc4_type_value_callback)(void* ctx, uint32_t key, uint32_t value);
+typedef void (*fc4_plan_entry_callback)(void* ctx, const fc4_plan_entry* e);
+/* One maximum density entry: zone, building map key, the raw entry and
+ * GetMaxCapacity's value for it (float(trunc(entry))). */
+typedef void (*fc4_density_callback)(void* ctx, uint32_t zone, uint32_t key, float entry, float max_capacity);
+typedef void (*fc4_key_float_callback)(void* ctx, uint32_t key, float value);
+
+typedef struct fc4_development_host {
+    uint32_t struct_size; /* sizeof(fc4_development_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* clock, city, terrain */
+    uint32_t (*sim_day)(void* user);
+    uint32_t (*difficulty)(void* user);
+    void (*cell_widths)(void* user, float* out2);
+    void (*terrain_cell_counts)(void* user, int32_t* out2);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    void (*cell_center)(void* user, int32_t x, int32_t z, float* out3);
+    float (*altitude)(void* user, float x, float z);
+    /* resources: every exemplar whose ExemplarType is one of `types` (all
+     * when n_types is 0), in the resource key list's order */
+    void (*exemplars)(void* user, const uint32_t* types, size_t n_types, fc4_development_exemplar_visitor visit,
+                      void* ctx);
+    void (*lot_configurations)(void* user, fc4_lot_config_visitor visit, void* ctx);
+    fc4_props* (*tuning)(void* user); /* NEW props (the core destroys them), NULL if missing */
+    /* framework */
+    void (*register_static_cleanup)(void* user);
+    void (*post_building_types_updated)(void* user, uint32_t count);
+    void (*subscribe)(void* user, const uint32_t* types, size_t n);
+    void (*unsubscribe)(void* user, const uint32_t* types, size_t n);
+    void (*register_command)(void* user, uint32_t id, const char* name, size_t len);
+    void (*unregister_command)(void* user, uint32_t id);
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    void (*register_cheat)(void* user, uint32_t id, const char* name, size_t len);
+    void (*unregister_cheat)(void* user, uint32_t id);
+    void (*acquire_services)(void* user);
+    void (*release_services)(void* user);
+    /* demand */
+    bool (*census_supply)(void* user, uint32_t id, float* out);
+    uint64_t (*create_construction_node)(void* user); /* new cSC4Demand, one reference, not Inited */
+    void (*node_init)(void* user, uint64_t node);
+    void (*node_shutdown)(void* user, uint64_t node);
+    float (*node_supply)(void* user, uint64_t node);
+    float (*node_demand)(void* user, uint64_t node);
+    void (*node_set_supply)(void* user, uint64_t node, float v);
+    void (*node_set_demand)(void* user, uint64_t node, float v);
+    void (*node_add_to_demand)(void* user, uint64_t node, float v);
+    bool (*node_end_of_cycle)(void* user, uint64_t node);
+    float (*demand_active_value)(void* user, uint64_t node); /* a developer's source node */
+    /* tract developer: Grow (the host makes and frees the outcome list; flag
+     * arrives false) and Decline */
+    int32_t (*tract_grow)(void* user, const fc4_growth_profile* profile, bool* flag);
+    int32_t (*tract_decline)(void* user, const fc4_growth_profile* profile);
+    /* lots, lot manager, lot developer */
+    uint32_t (*lot_building_type)(void* user, uint64_t lot);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    bool (*lot_growth_stage)(void* user, uint64_t lot, uint8_t* out);
+    uint64_t (*lot_building)(void* user, uint64_t lot);
+    uint32_t (*lot_state)(void* user, uint64_t lot);
+    void (*lot_center)(void* user, uint64_t lot, float* out3);
+    float (*lot_slope)(void* user, uint64_t lot);
+    bool (*lot_demolishable)(void* user, uint64_t lot);
+    uint64_t (*lot_at)(void* user, int32_t x, int32_t z); /* GetLot(x, z, true), borrowed */
+    /* borrowed tokens kept alive until the outermost BDS call returns */
+    void (*lots_in_cell_rect)(void* user, const fc4_cell_rect* rect, fc4_token_callback cb, void* ctx);
+    float (*lot_developer_slope)(void* user, uint64_t lot);
+    void (*update_lot_elements)(void* user, uint64_t lot, uint32_t kind);
+    float (*area_altitude)(void* user, const float* rect4);
+    /* zones, land value, power, demolition, budget */
+    int8_t (*zone_type)(void* user, int32_t x, int32_t z);
+    void (*dezone)(void* user, const fc4_cell_rect* rect, bool flag);
+    bool (*powered)(void* user, int32_t x, int32_t z);
+    uint32_t (*land_value_type)(void* user, int32_t x, int32_t z);
+    uint8_t (*land_value)(void* user, int32_t x, int32_t z);
+    int64_t (*demolish_lots)(void* user, const uint64_t* lots, size_t n); /* the cost */
+    int64_t (*total_funds)(void* user);
+    void (*set_total_funds)(void* user, int64_t v);
+    /* occupants */
+    bool (*has_occupant_manager)(void* user);
+    bool (*insert_occupant)(void* user, uint64_t occ);
+    bool (*remove_occupant)(void* user, uint64_t occ);
+    bool (*building_occupant_at_cell)(void* user, int32_t x, int32_t z);
+    bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
+    bool (*occupant_property_i64)(void* user, uint64_t occ, uint32_t id, int64_t* out);
+    bool (*occupant_in_group)(void* user, uint64_t occ, uint32_t group);
+    void (*occupant_position)(void* user, uint64_t occ, float* out3);
+    uint64_t (*create_building_occupant)(void* user); /* one reference for the core */
+    void (*set_building_type)(void* user, uint64_t occ, uint32_t type);
+    bool (*load_building_occupant)(void* user, uint64_t occ, uint32_t type); /* §4.9 */
+    void (*occupant_bounding_box)(void* user, uint64_t occ, float* out6);    /* min then max */
+    void (*set_occupant_bounding_box)(void* user, uint64_t occ, const float* box6);
+    void (*set_occupant_position)(void* user, uint64_t occ, const float* pos3);
+    void (*set_occupant_orientation)(void* user, uint64_t occ, int32_t orientation);
+    void (*init_occupant)(void* user, uint64_t occ);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* advisors */
+    void (*push_advisor_event)(void* user, uint32_t advisor, uint32_t event, const fc4_advice_subject* subject);
+    /* growth developers (the game's cISC4GrowthDeveloper slots) */
+    uint64_t (*create_developer)(void* user, const fc4_res_key* key); /* class 0x0990C138, one reference */
+    bool (*developer_init)(void* user, uint64_t dev, const fc4_res_key* key); /* Init(holder of key) */
+    bool (*developer_shutdown)(void* user, uint64_t dev);
+    uint32_t (*developer_sub_type)(void* user, uint64_t dev);
+    uint32_t (*developer_purpose)(void* user, uint64_t dev);
+    bool (*developer_lists_valid)(void* user, uint64_t dev);
+    /* which: 0 GetGrowthList, 1 GetDeclineList; delivered in one call */
+    void (*developer_list)(void* user, uint64_t dev, uint32_t which, fc4_growth_items_sink sink, void* ctx);
+    uint64_t (*developer_source_demand)(void* user, uint64_t dev);
+    void (*developer_start_map_update)(void* user, uint64_t dev);
+    bool (*developer_map_update_finished)(void* user, uint64_t dev);
+} fc4_development_host;
+
+/* The process statics; `session_seed` fixes the clock seeds (tests). */
+fc4_development_process* fc4_development_process_create(uint32_t session_seed);
+void fc4_development_process_destroy(fc4_development_process* pp);
+bool fc4_development_catalogue_loaded(const fc4_development_process* pp); /* §1.3 step 1 has run */
+/* which: 0 building types, 1 families, 2 foundation types, 3 wall types,
+ * 4 profiled types. Returns the count; copies at most n. */
+size_t fc4_development_catalogue_types(const fc4_development_process* pp, uint32_t which, uint32_t* out, size_t n);
+size_t fc4_development_catalogue_family(const fc4_development_process* pp, uint32_t family, uint32_t* out, size_t n);
+/* which: 0 building, 2 foundation, 3 wall exemplar key of type t */
+bool fc4_development_catalogue_key(const fc4_development_process* pp, uint32_t which, uint32_t t, fc4_res_key* out);
+/* which: 0 exemplar name (0x20), 1 localized building name; valid building types only */
+bool fc4_development_catalogue_name(const fc4_development_process* pp, uint32_t which, uint32_t t,
+                                   fc4_bytes_sink sink, void* ctx);
+/* The profile of t; the capacity table goes to cb (key, capacity). */
+bool fc4_development_catalogue_profile(const fc4_development_process* pp, uint32_t t, fc4_building_profile* out,
+                                       fc4_type_value_callback cb, void* ctx);
+size_t fc4_development_catalogue_density(const fc4_development_process* pp, fc4_density_callback cb, void* ctx);
+float fc4_development_catalogue_max_capacity(const fc4_development_process* pp, uint32_t zone, uint32_t purpose,
+                                             uint32_t wealth); /* slot 45 */
+uint32_t fc4_development_developer_type(uint32_t purpose, uint32_t wealth);
+uint32_t fc4_development_wealth_of(uint32_t dev_type);
+uint32_t fc4_development_building_map_key(uint32_t purpose, uint32_t wealth); /* 4p + w + 1 */
+/* 0 none, 1 primary, 2 message target, 3 message target 2, 4 serializable */
+uint32_t fc4_development_query_interface(uint32_t iid);
+
+fc4_development* fc4_development_create(const fc4_development_host* host, const fc4_development_process* pp,
+                                        uint64_t token);
+void fc4_development_destroy(fc4_development* p); /* releases every token the core holds */
+bool fc4_development_init(fc4_development* p);    /* §1.3 */
+bool fc4_development_shutdown(fc4_development* p);
+bool fc4_development_do_message(fc4_development* p, const fc4_development_message* m,
+                                const fc4_command_param* params, size_t n_params);
+void fc4_development_set_grow_budget(fc4_development* p, uint32_t n); /* §4.4.1; 0 = unlimited */
+/* The primary interface (§7.1); the slot in the comment. */
+bool fc4_development_location_is_ok(const fc4_development* p, uint32_t t, float x, float z); /* 5 */
+uint64_t fc4_development_add_building_at_cell(fc4_development* p, uint32_t t, int32_t cx, int32_t cz,
+                                              int32_t orientation); /* 6 */
+uint64_t fc4_development_add_building(fc4_development* p, uint32_t t, const float* pos3, int32_t orientation); /* 7 */
+bool fc4_development_insert_occupant(fc4_development* p, uint64_t occ);    /* 8 / 24 */
+int64_t fc4_development_demolition_cost(const fc4_development* p, uint64_t occ); /* 10 */
+bool fc4_development_demolish_foundation(fc4_development* p, uint64_t occ); /* 25 */
+uint64_t fc4_development_developer(const fc4_development* p, uint32_t dev_type); /* 32, borrowed */
+uint32_t fc4_development_developers(const fc4_development* p, fc4_type_token_callback cb, void* ctx); /* 34 */
+uint64_t fc4_development_building_map(const fc4_development* p);                                     /* 41 */
+uint32_t fc4_development_special_buildings(const fc4_development* p, fc4_token_callback cb, void* ctx); /* 44 */
+/* 46: `reason` written only on failure */
+bool fc4_development_is_suitable(const fc4_development* p, const fc4_construction_profile* profile, int32_t* reason);
+uint64_t fc4_development_plop_building(fc4_development* p, const fc4_construction_profile* profile); /* 47 */
+int32_t fc4_development_free_resources(const fc4_development* p);                                    /* 48 */
+int32_t fc4_development_total_resources(const fc4_development* p);                                   /* 49 */
+bool fc4_development_claim(fc4_development* p, uint16_t amount);                                      /* 50 */
+bool fc4_development_release_resources(fc4_development* p, uint16_t amount);                         /* 51 */
+int32_t fc4_development_last_successful_build(const fc4_development* p, uint32_t dev_type);           /* 52 */
+float fc4_development_stage_population_multiplier(const fc4_development* p);                         /* 53 */
+bool fc4_development_cheat(const fc4_development* p, uint32_t which); /* 54-58: which 0..4 */
+uint32_t fc4_development_highest_stages(const fc4_development* p, fc4_type_value_callback cb, void* ctx);
+uint32_t fc4_development_decline_plan(const fc4_development* p, fc4_plan_entry_callback cb, void* ctx);
+bool fc4_development_get_state(const fc4_development* p, fc4_development_state* out);
+bool fc4_development_write(const fc4_development* p, const fc4_ostream* out); /* record v4 (§6) */
+bool fc4_development_read(fc4_development* p, const fc4_istream* in);        /* before Init */
+
+/* ---- growth developer (docs/specs/growth-developer.md) ---- */
+typedef struct fc4_growth_message {
+    uint32_t msg_type, data1, data2, data3, data4;
+    int32_t rect[4]; /* ZoningChange: void2's {x1, z1, x2, z2} */
+    uint32_t reserved;
+    uint64_t unknown; /* StateChanged: GetIGZUnknown() as a lot (borrowed), 0 = none */
+} fc4_growth_message;
+
+typedef struct fc4_growth_state {
+    uint32_t struct_size; /* = sizeof(fc4_growth_state) */
+    uint8_t initialized;
+    uint8_t update_state; /* 0 idle, 1..20 (§3.2) */
+    uint8_t has_salt, message_server;
+    uint32_t developer_type, purpose, wealth;
+    int32_t target_zone;
+    uint32_t growth_items, decline_items;
+    int32_t total_capacity, last_phantom_sum;
+    float last_city_size; /* of the last state 20 (§5.5) */
+    uint32_t last_salt, start_day, specials, services, tract_size, reentrant_calls, reserved;
+    uint64_t draws; /* salts drawn from the shared generator (all developers) */
+    uint64_t source_demand;
+    uint64_t desirability_map, capacity_map, population_map, max_capacity_map, zoned_map, working_map;
+} fc4_growth_state;
+
+/* source_map codes */
+#define FC4_GROWTH_SOURCE_INTRINSIC_LAND_VALUE  0u
+#define FC4_GROWTH_SOURCE_TOTAL_LAND_VALUE      1u
+#define FC4_GROWTH_SOURCE_SLOPE                 2u
+#define FC4_GROWTH_SOURCE_RESIDENTIAL_PROXIMITY 3u /* arg: wealth */
+#define FC4_GROWTH_SOURCE_COMMERCIAL_PROXIMITY  4u /* arg: type */
+#define FC4_GROWTH_SOURCE_PARK                  5u
+#define FC4_GROWTH_SOURCE_POLLUTION             6u /* arg: index */
+#define FC4_GROWTH_SOURCE_SCHOOL_GRADE          7u
+#define FC4_GROWTH_SOURCE_HOSPITAL_GRADE        8u
+#define FC4_GROWTH_SOURCE_CRIME                 9u
+#define FC4_GROWTH_SOURCE_TRIP_LENGTH           10u
+#define FC4_GROWTH_SOURCE_COMMERCIAL_TRAFFIC    11u
+#define FC4_GROWTH_SOURCE_LANDMARK              12u
+#define FC4_GROWTH_SOURCE_TRANSIENT_AURA        13u
+
+typedef struct fc4_growth_host {
+    uint32_t struct_size; /* sizeof(fc4_growth_host) */
+    void* user;
+    fc4_grid_api grids;
+    /* lifecycle; services: 0 city, 1 BDS, 2 occupant manager, 3 zone
+     * manager, 4 land value, 5 traffic (false when null) */
+    bool (*acquire_service)(void* user, uint32_t service);
+    void (*release_service)(void* user, uint32_t service);
+    bool (*acquire_message_server)(void* user);
+    void (*release_message_server)(void* user);
+    void (*subscribe)(void* user, const uint32_t* types, size_t n);
+    void (*unsubscribe)(void* user, const uint32_t* types, size_t n);
+    bool (*simulator_present)(void* user);
+    void (*add_agent)(void* user, uint32_t level, const char* name, size_t len, uint32_t flags);
+    void (*remove_agent)(void* user);
+    uint32_t (*sim_date_number)(void* user);
+    void (*grid_set_tract_size)(void* user, uint64_t grid, int32_t size);
+    void (*add_ref)(void* user, uint64_t token);
+    void (*release)(void* user, uint64_t token);
+    /* demand and neighbours */
+    uint64_t (*get_demand)(void* user, uint32_t id, uint32_t index); /* borrowed */
+    float (*query_supply)(void* user, uint64_t node);
+    void (*add_to_demand_value)(void* user, uint64_t node, float v);
+    float (*active_demand)(void* user, uint64_t node);
+    uint32_t (*connected_cities)(void* user);
+    uint32_t (*all_connected_cities)(void* user);
+    /* the BDS */
+    float (*stage_population_multiplier)(void* user);
+    uint64_t (*tract_developer)(void* user); /* borrowed */
+    void (*special_buildings)(void* user, fc4_token_callback cb, void* ctx); /* borrowed, list order */
+    float (*max_capacity)(void* user, int32_t zone, uint32_t purpose, uint32_t wealth);
+    uint32_t (*building_purpose)(void* user, uint32_t type);
+    /* the tract developer */
+    void (*update_population)(void* user, uint64_t tract_developer, const fc4_growth_profile* profile);
+    /* zones, lots, occupants, city */
+    int8_t (*zone_type)(void* user, int32_t x, int32_t z);
+    uint32_t (*lot_building_type)(void* user, uint64_t lot, bool flag);
+    uint16_t (*lot_capacity)(void* user, uint64_t lot, uint32_t dev_type, bool flag);
+    void (*lot_size)(void* user, uint64_t lot, uint8_t* out2);
+    void (*lot_bounding_rect)(void* user, uint64_t lot, fc4_cell_rect* out);
+    void (*lot_location)(void* user, uint64_t lot, int32_t* out2);
+    bool (*occupant_property)(void* user, uint64_t occ, uint32_t id, fc4_props* scratch);
+    void (*occupant_position)(void* user, uint64_t occ, float* out3);
+    void (*position_to_cell)(void* user, float x, float z, int32_t* out2);
+    /* source maps: a grid token with one reference for the core; 0 = null */
+    uint64_t (*source_map)(void* user, uint32_t code, uint32_t arg);
+    /* time slicing and seeds */
+    void (*limit_timer_start)(void* user, uint32_t ms);
+    bool (*limit_timer_expired)(void* user);
+    uint32_t (*wall_clock_seed)(void* user);
+} fc4_growth_host;
+
+fc4_growth_statics* fc4_growth_statics_create(uint32_t session_seed);
+void fc4_growth_statics_destroy(fc4_growth_statics* s);
+/* 0 none, 1 primary, 2 message target 2, 3 serializable */
+uint32_t fc4_growth_query_interface(uint32_t iid);
+fc4_growth* fc4_growth_create(const fc4_growth_host* host, const fc4_growth_statics* statics, uint64_t token);
+void fc4_growth_destroy(fc4_growth* p);                /* releases every token the core holds */
+bool fc4_growth_init(fc4_growth* p, fc4_props* props); /* slot 3; props NEW (consumed), NULL fails */
+bool fc4_growth_shutdown(fc4_growth* p);
+bool fc4_growth_do_message(fc4_growth* p, const fc4_growth_message* m);
+int32_t fc4_growth_target_zone(const fc4_growth* p);
+uint32_t fc4_growth_sub_type(const fc4_growth* p);
+uint32_t fc4_growth_purpose(const fc4_growth* p);
+uint32_t fc4_growth_wealth(const fc4_growth* p);
+/* Writes the info fields (zone .. land value range); the rest untouched. */
+void fc4_growth_construction_info(const fc4_growth* p, fc4_construction_profile* out);
+bool fc4_growth_lists_valid(const fc4_growth* p);
+/* which: 0 growth, 1 decline (after the §5.4 sort). Returns the count; copies at most n. */
+size_t fc4_growth_list(const fc4_growth* p, uint32_t which, fc4_growth_item* out, size_t n);
+/* which: 0 D, 1 capacity, 2 population, 3 max capacity, 4 zoned, 5 working (borrowed) */
+uint64_t fc4_growth_grid(const fc4_growth* p, uint32_t which);
+int32_t fc4_growth_total_capacity(const fc4_growth* p);
+uint64_t fc4_growth_source_demand(const fc4_growth* p);
+void fc4_growth_caps(const fc4_growth* p, uint8_t* out4);
+int32_t fc4_growth_desirability_threshold(const fc4_growth* p);
+float fc4_growth_abandonment_threshold(fc4_growth* p, int32_t key);
+uint32_t fc4_growth_monopoly_use(const fc4_growth* p);
+size_t fc4_growth_styles(const fc4_growth* p, fc4_key_float_callback cb, void* ctx);
+void fc4_growth_start_map_update(fc4_growth* p);
+bool fc4_growth_map_update_finished(const fc4_growth* p);
+int32_t fc4_growth_estimate_desirability(const fc4_growth* p, int32_t x, int32_t z);
+void fc4_growth_subjective_thresholds(const fc4_growth* p, int32_t i, int32_t* min, int32_t* max);
+bool fc4_growth_source_active_demand(const fc4_growth* p, float* out);
+bool fc4_growth_get_state(const fc4_growth* p, fc4_growth_state* out);
+bool fc4_growth_write(const fc4_growth* p, const fc4_ostream* out); /* record v1 */
+bool fc4_growth_read(fc4_growth* p, const fc4_istream* in);        /* before Init */
+
 /* ---- inspection ------------------------------------------------------------ */
 bool fc4_sim_get_state(const fc4_sim* sim, fc4_state* out);
 /* Diagnostics: reads the clock once, changes nothing. */
@@ -4018,6 +4473,21 @@ static_assert(sizeof(fc4_residential_capture_ref) == 32, "fc4_residential_captur
 static_assert(sizeof(fc4_residential_capture) == (sizeof(void*) == 4 ? 24 : 40), "fc4_residential_capture layout");
 static_assert(sizeof(fc4_residential_shadow_scalars) == 24, "fc4_residential_shadow_scalars layout");
 static_assert(sizeof(fc4_residential_shadow_stats) == 72, "fc4_residential_shadow_stats layout");
+static_assert(sizeof(fc4_res_key) == 12, "fc4_res_key layout");
+static_assert(sizeof(fc4_growth_profile) == 24, "fc4_growth_profile layout");
+static_assert(sizeof(fc4_growth_item) == 12, "fc4_growth_item layout");
+static_assert(sizeof(fc4_construction_profile) == 0x24, "fc4_construction_profile layout");
+static_assert(sizeof(fc4_lot_config) == (sizeof(void*) == 4 ? 36 : 40), "fc4_lot_config layout");
+static_assert(sizeof(fc4_building_profile) == 48, "fc4_building_profile layout");
+static_assert(sizeof(fc4_development_message) == 40, "fc4_development_message layout");
+static_assert(sizeof(fc4_command_param) == 8, "fc4_command_param layout");
+static_assert(sizeof(fc4_advice_subject) == 24, "fc4_advice_subject layout");
+static_assert(sizeof(fc4_plan_entry) == 24, "fc4_plan_entry layout");
+static_assert(sizeof(fc4_development_state) == 208, "fc4_development_state layout");
+static_assert(sizeof(fc4_development_host) == (sizeof(void*) == 4 ? 388 : 776), "fc4_development_host layout");
+static_assert(sizeof(fc4_growth_message) == 48, "fc4_growth_message layout");
+static_assert(sizeof(fc4_growth_state) == 136, "fc4_growth_state layout");
+static_assert(sizeof(fc4_growth_host) == (sizeof(void*) == 4 ? 200 : 400), "fc4_growth_host layout");
 #else
 _Static_assert(sizeof(fc4_message) == 32, "fc4_message layout");
 _Static_assert(sizeof(fc4_date) == 24, "fc4_date layout");
