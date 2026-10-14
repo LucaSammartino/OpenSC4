@@ -642,7 +642,7 @@ pub unsafe extern "C" fn fc4_demand_sim_jobs_by_census(s: *const fc4_demand_sim,
     with_sim(s, 0, |x| x.jobs_by_census(census_type))
 }
 
-/// `GetNeutralTaxRate()` (§5), unclamped.
+/// `GetNeutralTaxRate()` (§5), unclamped; the sum is `f32(f32(I + C) + R)`.
 #[no_mangle]
 pub unsafe extern "C" fn fc4_demand_sim_neutral_tax_rate(s: *const fc4_demand_sim) -> f32 {
     with_sim(s, 0.0, |x| x.neutral_tax_rate())
@@ -917,8 +917,9 @@ pub unsafe extern "C" fn fc4_demand_shadow_propagate(
     true
 }
 
-/// `GetNeutralTaxRate()` (§5, unclamped) from the supplies of `0x1001`,
-/// `0x3001`, `0x4001` (0 for a missing node).
+/// `GetNeutralTaxRate()` (§5, unclamped) from the supplies `r`, `c`, `i` of
+/// `0x1001`, `0x3001`, `0x4001` (0 for a missing node): the simulator's own
+/// function, so the sum is `f32(f32(i + c) + r)` (§5, DQ9).
 #[no_mangle]
 pub unsafe extern "C" fn fc4_demand_shadow_neutral_tax_rate(
     s: *const fc4_demand_shadow,

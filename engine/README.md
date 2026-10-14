@@ -201,7 +201,10 @@ plugin.
        grid=… air=…`, once per game month `protection month (fire|police): … stations=… coveredCells=…
        maxCoverage=… avg=… pct=… dispatches=… units=… strike=… reentrant=… fallbacks=… posts=…` (police adds
        `protection month (police jails): jails=… capacity=… population=…`), `protection Read/Write (…) -> 1`,
-       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. The grids' geometry (tracts, tracts per
+       `protection Shutdown (…)`, `cFC4…Simulator destroyed (N fallbacks)`. `fallbacks` counts calls from a thread
+       other than the main one that could not get the lock in 20 ms and were answered from a snapshot or a neutral
+       value; no protection slot is known to be called off the main thread (protection spec §13.1), so it should stay
+       0, and a non-zero count is a finding. The grids' geometry (tracts, tracts per
        day, the iterator rectangle) is taken at `Init`: on a loaded city the `Read` line can show `tracts=0x0` with a
        non-null `grid=`, because the game reads the grid's own record after the simulator's. A month that still
        finds the coverage grid without tracts logs `protection (fire|police): WARNING the coverage grid … has 0x0
@@ -210,9 +213,12 @@ plugin.
        game's own `cSC4SimGrid<uint8>`, created through GZCOM; police coverage comes through whatever police
        simulator the city has). The getters are answered from any thread (they read a snapshot); the prop
        requester's calls run on the main thread only (a call from another thread is answered 0 and logged once).
-       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the local wall
-       clock in seconds at the first crime simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`,
-       decimal or `0x…`) for a repeatable run. The log has a status line at `Init` and `Read` (`crime Init:
+       The random generator is seeded with `derive_seed(S, 0x6C09C3F6)`, `S` the session seed: the original's
+       `cRZTime` clock (seconds since 1901-01-01 UTC, `time() + 2177452800`, crime spec §9) at the first crime
+       simulator of the process, or `crime_seed = N` (env `FC4_CRIME_SEED`, decimal or `0x…`) for a repeatable
+       run. Crime type names follow crime spec §7: the LTEXT (`0x2026960B`, group + language ID, instance), then
+       (group, instance), detokenized by the game's string detokenizer, U+2022 → U+200B; `0xAA12FCB0` if that
+       fails. The log has a status line at `Init` and `Read` (`crime Init:
        init=… state=… types=… S=… decay=…`) and one every month from the first (`crime month yyyy-mm:
        crimes=N prevented=P arson=A/T incidents=I grid sum/max=… (tracts=…) average=… hotspot=(x,z)=v props
        requested=R selected=K/Q jailed=J released=L criminal base=B to commit=C attempts=… (no lot …) police
@@ -884,7 +890,8 @@ plugin.
   `cFC4Date`), `cFC4IGZVariant` (implemented by `cFC4Variant`, the only variant we hand to the game; never pass
   the SDK's `cRZBaseVariant`, whose slots 8 and 60 differ from the game's), `cFC4ISCPropertyHolder`,
   `cFC4ISC4LotManager`, `cFC4ISC4Lot`, and `cFC4ISC4NeighborsSimulator` (from the ABI table: slots 32/33
-  return 32 bits). Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
+  return 32 bits). `cFC4ISCStringDetokenizer` (`plugin/FC4CrimeInterfaces.h`) follows lua-host §10.1, whose
+  slot 8 is the resource-key `Detokenize` and slot 9 the string one. Interfaces still used through SDK declarations: `cIGZString`, `cISC4LineItem`,
   `cISC4BuildingDevelopmentSimulator`, `cISC4DisasterManager`, `cIGZPersistResourceManager`,
   `cISC4HistoryWarehouse`, `cISC4OrdinanceSimulator`, `cISCResExemplar`.
 - **ABI conformance** (`tests/abi_conformance_test.cpp`, CTest `abi_conformance_test`): every declaration above

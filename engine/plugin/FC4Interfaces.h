@@ -512,9 +512,10 @@ public:
     virtual uint32_t GetFlags() const = 0;                                       // 12
     virtual bool SetFlags(uint32_t flags) = 0;                                   // 13
     virtual bool GetBoundingRect(SC4Rect<int32_t>& rect) const = 0;              // 14
-    // docs/abi (re-answers2 CQ3): the result goes through the out pointer and
-    // nothing is left on the x87 stack (the SDK says bool). The crime glue calls
-    // it through LotCenterRaw, which checks ST0 either way.
+    // docs/abi and crime.md §13 (CQ3): the result goes only through the out
+    // pointer (EAX = &out) and nothing is left on the x87 stack (the SDK says
+    // bool). The crime glue calls it through LotCenterRaw, which reads the out
+    // parameter and keeps an ST0 check only as a counted diagnostic.
     virtual void GetCenter(float* center) const = 0;                             // 15
     virtual float GetAltitude() const = 0;                                       // 16
     virtual bool SetAltitude(float altitude) = 0;                                // 17

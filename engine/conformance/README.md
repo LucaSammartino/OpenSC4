@@ -319,7 +319,7 @@ starts with `demand_`.
 | `demand_init` / `demand_shutdown` | `expect?` | `Init` / `Shutdown` (core parts) |
 | `demand_message` | `type` (`SimBegin`, `SimNewDay`, `SimNewMonth`, `SimIdle`, `PreSave`, `ConnectionCreated`, `ConnectionDeleted`, `IngredChangesMade` or an ID), `data1?`, `data2?`, `data3?`, `expect?` | `DoMessage` |
 | `demand_state_changed` | `lot`, `old`, `new`, `building_type`, `wealth` | kMessageStateChanged (§7) |
-| `demand_call` | `method`, `args?`, `expect?` | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
+| `demand_call` | `method`, `args?`, `expect?`, `expect_bits?` (the float32 bits of a float result, `"0x…"`) | a simulator method: `get_demand`, `simulator_type`, `update_occupant_effects`, `jobs_per_unit`, `jobs_by_census`, `neutral_tax_rate`, `local_population_summary`, `do_idle`, `propagate` (DoDemandIndexLinks), `simulator_begin`, `daily`, `monthly`, `update_modifiers`, `evaluate_connection_utilization`, `export_demand`, `reset_regional_demands`, `perform_census`, `apply_census`, `record_census_history`, `add_agent_effect`, `update_capacity`, `set_economy_bonuses`, `reload_tuning` |
 | `demand_new_node` | `node` (label) | a free-standing node (class factory) |
 | `demand_node` | `node` (label) or `key`, `method`, `args?`, `expect?` | a node method by snake-case name (`add_to_supply`, `end_of_cycle`, `set_active_max`, `calculate_active_demand` (`args: [smooth]`), …) |
 | `demand_expect_node` | `node` or `key`, `state` (partial: `id`, `supply`, `demand`, `new_supply`, `new_demand`, `active_demand`, `active_min`, `active_max`, `economy_modifier`, `tax_modifier`, `demand_cap`, `region_use`, `flag`, `loaded_from_save`, `initialized`) | the node state |
@@ -556,10 +556,10 @@ and props by integer tokens. The fake lot class (for saves) is `0x12345678`.
 
 | op | Arguments | Effect |
 |---|---|---|
-| `crime_env` | any of `cells` (`[x, z]`), `clear_zones`, `zones` (`[{x, z, w?, d?, v}]` cell zone types), `demand` (`{"0x4100": [value, max, min] \| null}`), `jail` (`GetJailPopulation`), `released` (`ResetUnjailedCriminals`), `ordinance` (the cumulative factor, `null` = no ordinance simulator), `disaster_layer` (default true), `police` (`{size?, fill?, cells?: [[x, z, v]]}` or `null`; default none), `ltext` (`[{key: [t, g, i], text}]`) | the fake world |
+| `crime_env` | any of `cells` (`[x, z]`), `clear_zones`, `zones` (`[{x, z, w?, d?, v}]` cell zone types), `demand` (`{"0x4100": [value, max, min] \| null}`), `jail` (`GetJailPopulation`), `released` (`ResetUnjailedCriminals`), `ordinance` (the cumulative factor, `null` = no ordinance simulator), `disaster_layer` (default true), `police` (`{size?, fill?, cells?: [[x, z, v]]}` or `null`; default none), `ltext` (`[{key: [t, g, i], text, detokenized?}]`: what the host's §7 lookup finds; `detokenized: false` = the game's detokenizer returns false on it) | the fake world |
 | `crime_residential` | `wealth` (0..2), `size?` (default 2), `pop` / `eq` (`[[x, z, v]]`), or `none` | that wealth's population (u16) and EQ (f32) grids |
 | `crime_lots` | `lots` (`[{id, rect: [x1, z1, x2, z2], location? ([x, z], default the rect corner; `null` = GetLocation fails), condition?, building? ({token?, purpose, wealth}; default none), center? (default the rect middle)}]`), `random` (the `GetRandomLot` results in order, ids or `null`) | lots and the random-lot queue (an exhausted queue gives no lot) |
-| `crime_occupants` | `occupants` (`[{id, preview?, effect? (u8 array for 0xCA5B9306), pos}]`) | occupants for the inserted / removed messages |
+| `crime_occupants` | `occupants` (`[{id, preview?, effect? (u8 array for 0xCA5B9306, or a typed value such as `{"u32": [100, 8]}` handed over as its raw little-endian storage; a scalar is no bytes), pos}]`) | occupants for the inserted / removed messages |
 | `crime_nearby` | `occupants` (`[{token, type, group?, incident_property?, pos, iid? (default true), state?}]`) | what the occupant manager's box query sees (it applies the x/z box) |
 | `crime_props` | `props` (`{"0xPROP": crimeIncidentID}`) | prop profiles for `SelectProp` |
 | `crime_types` | `shipped?` (default true), `types` (`[{id, props?}]`, property maps appended in order) | the crime type exemplars the next load reads |
@@ -1608,6 +1608,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 10 region | `d16_10_region` |
 | 11 history | `d16_11_history` |
 | 12 save round trip | `d16_12_save` |
+| §5 `GetNeutralTaxRate` sum order (DQ9, the §5 worked example) | `d16_13_neutral_rate_sum_order` |
 
 ## Coverage (ordinance §13)
 
@@ -1769,7 +1770,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | 8 stamp and hotspot | `c17_08_stamp_hotspot` |
 | 9 type selection (and §6.8 severity 0) | `c17_09_type_selection` |
 | 10 mask parsing (and the §7 type list) | `c17_10_masks` |
-| 11 crime-effect cone | `c17_11_crime_effect` |
+| 11 crime-effect cone (and the §6.10 raw-byte read, CQ13) | `c17_11_crime_effect`, `c17_25_crime_effect_raw` |
 | 12 average crime | `c17_12_average` |
 | 13 pipeline | `c17_13_pipeline` |
 | 14 RNG draw count (and the §6.1 24-bit sequences of a seeded generator) | `c17_14_rng_draws`, `c17_23_rng_seeded` |
@@ -1784,6 +1785,7 @@ Grids: `air`, `congestion`, `trip_length`, `commercial`, `commercial_work` (byte
 | §8 tuning | `c17_19_tuning` |
 | §11.3 nearest crime sim / prop | `c17_20_nearest` |
 | §6.8 arson | `c17_21_arson` |
+| §7 type names (CQ8: LTEXT key, U+2022, fallback) | `c17_24_type_names` |
 
 ## Coverage (aura §17)
 

@@ -181,6 +181,8 @@ INTERFACES = [
     ("cISC4LandfillDeveloper", "cFC4ISC4LandfillDeveloper", FC4, True),
     ("cISC4LandfillOccupant", "cISC4LandfillOccupant", "cISC4LandfillOccupant.h", True),
     ("cISC4TrafficNetworkMap", "cFC4ISC4TrafficNetworkMap", FC4, True),
+    # Crime type names (crime.md section 7 step 3; lua-host.md section 10.1).
+    ("cISCStringDetokenizer", "cFC4ISCStringDetokenizer", FC4C, True),
     # The SDK declarations we replaced, and interfaces the plugin does not use yet: reported only.
     ("cISC4Simulator", "cISC4Simulator", "cISC4Simulator.h", False),
     ("cISC4BudgetSimulator", "cISC4BudgetSimulator", "cISC4BudgetSimulator.h", False),

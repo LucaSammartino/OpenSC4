@@ -389,6 +389,34 @@ uint16_t RawCw() {
     return cw;
 }
 
+// The x87 stack top (status word bits 11-13): unchanged across a call that
+// leaves the stack balanced.
+unsigned X87Top() {
+    uint16_t sw = 0;
+    __asm fnstsw sw
+    return (sw >> 11) & 7u;
+}
+
+// A lot whose slot 15 behaves like cSC4Lot::GetCenter (crime.md §13, CQ3):
+// thiscall with one stack argument (here __fastcall with an unused EDX), the
+// result in the out parameter, EAX = &out, nothing left on the x87 stack.
+void* __fastcall FakeLotGetCenter(void*, void*, float* out) {
+    out[0] = 256.5f;
+    out[1] = 10.0f;
+    out[2] = 512.25f;
+    return out;
+}
+// The docs/abi reading (a float in ST0), to exercise the glue's diagnostic.
+float __fastcall FakeLotGetCenterSt0(void*, void*, float* out) {
+    out[0] = 1.0f;
+    out[1] = 2.0f;
+    out[2] = 3.0f;
+    return 7.0f;
+}
+struct FakeLotObject {
+    void* const* vtable;
+};
+
 uint16_t g_cwExpected = 0;
 bool g_cwChanged = false;
 
@@ -4513,7 +4541,8 @@ int main(int argc, char** argv) {
             auto* cr = static_cast<cFC4ISC4CrimeSimulator*>(obj);
             if (cr != nullptr) {
                 // §1: four interfaces and cIGZUnknown (the primary one), one
-                // reference count; any other IID: false and the out pointer null.
+                // reference count; any other IID: false and the out pointer
+                // untouched (CQ14).
                 void* p = nullptr;
                 CHECK(cr->QueryInterface(0x452294AAu, &p) && p != nullptr);
                 if (p) static_cast<cIGZUnknown*>(p)->Release();
@@ -4546,7 +4575,9 @@ int main(int argc, char** argv) {
                 if (u) static_cast<cIGZUnknown*>(u)->Release();
                 void* untouched = reinterpret_cast<void*>(0xDEADBEEF);
                 CHECK(!cr->QueryInterface(0xE98B2F57u, &untouched));  // cIGZMessageTarget: not answered
-                CHECK(untouched == nullptr);
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
+                CHECK(!cr->QueryInterface(0x12345678u, &untouched));  // any other IID
+                CHECK(untouched == reinterpret_cast<void*>(0xDEADBEEF));
                 // Class slot 15 (class-private, after the destructor at 14):
                 // GetSimulatorType.
                 using TypeFn = uint32_t(__thiscall*)(void*);
@@ -4567,6 +4598,25 @@ int main(int argc, char** argv) {
                     CHECK(!cr->GetCrimeIncidentArray(reinterpret_cast<fc4::GameVector<FC4CrimeEvent>&>(v)));
                     CHECK(v.size() == 0);
                 }
+                {
+                    // §11.4 (CQ1): the incident array grows like the game's
+                    // vector resize: exactly the count when empty, else
+                    // size + max(size, added); within the capacity, kept.
+                    fc4::GameVector<FC4CrimeEvent, TestHeap> g;
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3);
+                    for (uint32_t i = 0; i < 3; ++i) {
+                        FC4CrimeEvent e{};
+                        e.typeID = 100 + i;
+                        CHECK(g.push_back(e));
+                    }
+                    FC4CrimeEvent* const first = g.begin();
+                    CHECK(g.reserve_for_resize(2) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(3) && g.capacity() == 3 && g.begin() == first);
+                    CHECK(g.reserve_for_resize(4) && g.capacity() == 6);  // 3 + max(3, 1)
+                    CHECK(g.size() == 3 && g[0].typeID == 100 && g[2].typeID == 102);
+                    CHECK(g.reserve_for_resize(13) && g.capacity() == 13);  // 3 + max(3, 10)
+                    CHECK(g.size() == 3 && g[1].typeID == 101);
+                }
                 CHECK(!cr->SetVisualsCreated(0, true));
                 CHECK(!cr->GetVisualsCreated(0));
                 // Init without a city or GZCOM: no agent, a clean lifecycle.
@@ -4575,6 +4625,63 @@ int main(int argc, char** argv) {
                 CHECK(cr->Shutdown());
                 CHECK(cr->Release() == 0);
             }
+        }
+        // Test seam op 26. §6.10 (CQ13): the crime effect is the property's raw storage (the
+        // variant's data pointer, slot 95, whatever its type), no conversion.
+        auto seam = reinterpret_cast<FC4TestSeamFn>(GetProcAddress(hd, "FC4TestSeam"));
+        CHECK(seam != nullptr);
+        if (seam != nullptr) {
+            FakeHolder holder;
+            auto put = [&holder](uint32_t id, auto fill) {
+                cRZBaseVariant v;
+                fill(v);
+                holder.AddPropertyVariant(id, fc4::AsGame(static_cast<cIGZVariant const*>(&v)), false);
+            };
+            uint8_t u8s[2] = {100, 8};
+            uint32_t u32s[2] = {100, 8};
+            float f32s[2] = {100.0f, 8.0f};
+            uint16_t u16s[1] = {0x0864};
+            put(1u, [&](cRZBaseVariant& v) { v.RefUint8(u8s, 2); });
+            put(2u, [&](cRZBaseVariant& v) { v.RefUint32(u32s, 2); });
+            put(3u, [&](cRZBaseVariant& v) { v.RefFloat32(f32s, 2); });
+            put(4u, [&](cRZBaseVariant& v) { v.RefUint16(u16s, 1); });
+            put(5u, [](cRZBaseVariant& v) { v.SetValUint8(100); });
+            FC4RawArrayBytesTestIo io{};
+            auto read = [&](uint32_t id) {
+                io = FC4RawArrayBytesTestIo{};
+                io.id = id;
+                return seam(kFC4SeamRawArrayBytes, holder.AsSdk(), &io);
+            };
+            // Uint8 {100, 8}: m = 100, r = 8.
+            CHECK(read(1) == 1 && io.len == 2 && io.bytes[0] == 100 && io.bytes[1] == 8);
+            // Uint32 {100, 8}: 64 00 00 00 08 00 00 00, so m = 100, r = 0.
+            CHECK(read(2) == 1 && io.len == 8 && io.bytes[0] == 100 && io.bytes[1] == 0 && io.bytes[4] == 8);
+            // Float32 {100, 8}: 00 00 C8 42 ..., so m = 0, r = 0.
+            CHECK(read(3) == 1 && io.len == 8 && io.bytes[0] == 0 && io.bytes[1] == 0 && io.bytes[2] == 0xC8 &&
+                  io.bytes[3] == 0x42);
+            // One Uint16 0x0864: 64 08, so m = 100, r = 8.
+            CHECK(read(4) == 1 && io.len == 2 && io.bytes[0] == 0x64 && io.bytes[1] == 0x08);
+            CHECK(read(5) == 0);  // [choice] a scalar: no bytes
+            CHECK(read(6) == 0);  // absent
+            CHECK(seam(kFC4SeamRawArrayBytes, nullptr, &io) == -1);
+
+            // Test seam op 27. §13 (CQ3): lot GetCenter (slot 15) answers in the out
+            // parameter with the x87 stack empty; the thunk pops ST0 only if
+            // it is not empty (a counted diagnostic), so the stack stays
+            // balanced either way.
+            void* vt[16] = {};
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenter);
+            FakeLotObject lot{vt};
+            float c[3] = {0.0f, 0.0f, 0.0f};
+            const unsigned top = X87Top();
+            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 0);
+            CHECK(c[0] == 256.5f && c[1] == 10.0f && c[2] == 512.25f);
+            CHECK(X87Top() == top);
+            vt[15] = reinterpret_cast<void*>(&FakeLotGetCenterSt0);
+            CHECK(seam(kFC4SeamLotCenter, &lot, c) == 1);
+            CHECK(c[0] == 1.0f && c[2] == 3.0f);
+            CHECK(X87Top() == top);
+            CHECK(seam(kFC4SeamLotCenter, nullptr, c) == -1);
         }
         FreeLibrary(hd);
         DeleteFileA(ini.c_str());

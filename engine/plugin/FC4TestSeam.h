@@ -107,11 +107,28 @@
 //         messages, a SimCycleComplete, PostCityShutdown); returns the cycle's
 //         difference count, -1 (not run) or -2 (ran, nothing compared: the
 //         baseline or INCOMPLETE); a message: 1 mirrored, 0 not.
+//         (25 is held by a parallel glue lane.)
+//   op 26 kFC4SeamRawArrayBytes    a = cISCPropertyHolder*, b =
+//         FC4RawArrayBytesTestIo*: fc4::props::GetRawArrayBytes of property
+//         b->id (the crime effect read, crime.md §6.10 / CQ13): b->len = the
+//         size, b->bytes = its first 32 bytes; returns 1 (read), 0 (absent,
+//         scalar or object array) or -1 (null argument).
+//   op 27 kFC4SeamLotCenter        a = cISC4Lot*, b = float[3]: the crime
+//         glue's lot GetCenter thunk (slot 15, crime.md §13 / CQ3) into b;
+//         returns 1 if ST0 held a value after the call (popped), 0 if the
+//         x87 stack was empty (the original), -1 (null argument).
 #pragma once
 
 #include <cstdint>
 
 class cIGZMessage2Standard;
+
+// kFC4SeamRawArrayBytes's in/out block.
+struct FC4RawArrayBytesTestIo {
+    uint32_t id;
+    uint32_t len;
+    uint8_t bytes[32];
+};
 
 enum : uint32_t {
     kFC4SeamBudgetPostSink = 1,
@@ -136,6 +153,8 @@ enum : uint32_t {
     kFC4SeamPlumbingShadow = 22,
     kFC4SeamLandValueShadow = 23,
     kFC4SeamFlammabilityShadow = 24,
+    kFC4SeamRawArrayBytes = 26,
+    kFC4SeamLotCenter = 27,
 };
 
 using FC4PostSinkFn = void (*)(void* context, cIGZMessage2Standard* msg);

@@ -28,11 +28,16 @@
 #include "FC4PollutionShadow.h"
 #include "FC4PowerShadow.h"
 #include "FC4Popups.h"
+#include "FC4Properties.h"
 #include "FC4RefAudit.h"
+#include "cFC4Crime.h"
 #include "cFC4Demand.h"
 #include "cFC4Flammability.h"
 #include "cFC4Power.h"
 #include "fc4.h"
+
+#include <cstring>
+#include <vector>
 
 extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void* a, void* b) {
     switch (op) {
@@ -96,6 +101,18 @@ extern "C" __declspec(dllexport) intptr_t __cdecl FC4TestSeam(uint32_t op, void*
             return LandValueShadowTest(static_cast<const FC4LandValueShadowTestInput*>(a));
         case kFC4SeamFlammabilityShadow:
             return FlammabilityShadowTest(static_cast<const FC4FlammabilityShadowTestInput*>(a));
+        case kFC4SeamRawArrayBytes: {
+            auto* io = static_cast<FC4RawArrayBytesTestIo*>(b);
+            if (a == nullptr || io == nullptr) return -1;
+            std::vector<uint8_t> bytes;
+            if (!fc4::props::GetRawArrayBytes(static_cast<const cISCPropertyHolder*>(a), io->id, bytes)) return 0;
+            io->len = static_cast<uint32_t>(bytes.size());
+            if (!bytes.empty())
+                std::memcpy(io->bytes, bytes.data(), bytes.size() < sizeof(io->bytes) ? bytes.size() : sizeof(io->bytes));
+            return 1;
+        }
+        case kFC4SeamLotCenter:
+            return fc4::CrimeTestLotCenter(a, static_cast<float*>(b));
         case kFC4SeamRustPanic:
             fc4_debug_panic();
             return 1;  // only if the build unwinds

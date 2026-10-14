@@ -28,11 +28,10 @@
 #include "GZServPtrs.h"
 #include "SC4List.h"
 #include "SC4Rect.h"
-#include "StringResourceKey.h"
-#include "StringResourceManager.h"
 #include "cGZPersistResourceKey.h"
 #include "cIGZApp.h"
 #include "cIGZFrameWork.h"
+#include "cIGZLanguageManager.h"
 #include "cIGZMessage2.h"
 #include "cIGZMessage2Standard.h"
 #include "cIGZMessageServer2.h"
@@ -62,6 +61,7 @@
 #include "cISC4Simulator.h"
 #include "cISC4ZoneManager.h"
 #include "cISCPropertyHolder.h"
+#include "cISCStringDetokenizer.h"
 #include "cRZAutoRefCount.h"
 #include "cRZBaseString.h"
 #include "cRZCOMDllDirector.h"
@@ -217,7 +217,8 @@ private:
 // §7: GetAvailableResourceList(&list, filter) with a null list pointer on
 // entry; the manager returns a new list with one reference, ours to free
 // (as demand's enumeration, run 42). The core orders the keys ([choice]
-// ascending instance, §7).
+// ascending instance, §7; CQ10: the original's key-list order, which is
+// ascending instance for the 14 shipped types).
 void ForEachTypeKey(void*, fc4_key_visitor visit, void* ctx) {
     if (visit == nullptr) return;
     if (!Gate(fc4::Sw::ExemplarLoads, "crime type enumeration (no crime types)")) return;
@@ -257,16 +258,79 @@ fc4_props* ExemplarProps(void*, uint32_t type, uint32_t group, uint32_t instance
     return fc4::props::ToCoreAll(ex.Holder());
 }
 
-// The display name (§7: SC4LoadExemplarString's LTEXT lookup).
-bool Ltext(void*, uint32_t, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
-    if (!Gate(fc4::Sw::Ltext, "crime type name LTEXT (not found)")) return false;
-    cRZAutoRefCount<cIGZString> s;  // the SDK helper owns the reference
-    if (!StringResourceManager::GetLocalizedString(StringResourceKey(group, instance), s)) return false;
-    if (s && sink != nullptr) {
-        const char* p = s->ToChar();
-        if (p != nullptr) sink(ctx, reinterpret_cast<const uint8_t*>(p), s->Strlen());
+// One LTEXT resource as a new string with our reference, or null.
+// [choice] GetPrivateResource, as the SDK's StringResourceManager reads LTEXT
+// (the spec does not say which call; both give the same text).
+cIGZString* LoadLtextString(cIGZPersistResourceManager* rm, uint32_t type, uint32_t group, uint32_t instance) {
+    const cGZPersistResourceKey key(type, group, instance);
+    FC4_OUT(cIGZString*, out, "cIGZString* (GetPrivateResource out pointer)");
+    const bool ok = rm->GetPrivateResource(key, GZIID_cIGZString, reinterpret_cast<void**>(out.ptr()), 0, nullptr);
+    out.Check();
+    if (out.get() == nullptr) return nullptr;
+    FC4_ACQUIRED(out.get(), "GetPrivateResource");
+    if (!ok) {
+        FC4_RELEASE_CREATED(out.get());
+        return nullptr;
     }
-    return true;
+    return out.get();
+}
+
+// The game's string detokenizer (cISC4App +0xA8, lua-host.md §10.1) with a
+// reference of ours, or null. [choice] GetStringDetokenizer is taken as
+// returning a borrowed pointer, like GetCity (spec question); our AddRef /
+// Release pair keeps the object alive across the call either way.
+cFC4ISCStringDetokenizer* AcquireDetokenizer() {
+    cIGZFrameWork* fw = RZGetFrameWork();
+    cIGZApp* app = fw ? fw->Application() : nullptr;
+    cISC4App* sc4 = nullptr;
+    if (app == nullptr || !app->QueryInterface(GZIID_cISC4App, reinterpret_cast<void**>(&sc4)) || sc4 == nullptr)
+        return nullptr;
+    FC4_ACQUIRED(sc4, "QueryInterface");
+    cISCStringDetokenizer* d = sc4->GetStringDetokenizer();
+    if (d != nullptr) FC4_ADDREF(d);
+    FC4_RELEASE(sc4);
+    return reinterpret_cast<cFC4ISCStringDetokenizer*>(d);
+}
+
+// A crime type's display name, §7 steps 2 and 3 (CQ8; data-formats §6.1,
+// §6.2). The core passes (0x2026960B, G, I): value [0] of 0x8A416B2E is
+// ignored, and step 4 (U+2022 -> U+200B) is the core's.
+//   2. (type, G + language ID, I); if that is missing and the language ID is
+//      not 0, (type, G, I). Group and instance 0 are looked up like any other
+//      key (the SDK helper refuses them; the original does not).
+//   3. The text is copied into the name and the detokenizer runs on the copy
+//      in place (slot 9, Detokenize(string, string), with the same string as
+//      input and output). It returning false fails the load, but the name
+//      keeps the text: the sink gets it and the callback returns false (fc4.h).
+//      With no detokenizer the step is skipped.
+// [choice] With no language manager the language ID is 0 (one lookup).
+bool Ltext(void*, uint32_t type, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx) {
+    if (!Gate(fc4::Sw::Ltext, "crime type name LTEXT (not found)")) return false;
+    cIGZPersistResourceManagerPtr rm;
+    if (!rm) return false;
+    cIGZLanguageManagerPtr lm;
+    const uint32_t language = lm ? lm->GetCurrentLanguage() : 0;
+    cIGZString* text = LoadLtextString(rm, type, group + language, instance);
+    if (text == nullptr && language != 0) text = LoadLtextString(rm, type, group, instance);
+    if (text == nullptr) return false;
+    cRZBaseString name;
+    if (text->ToChar() != nullptr) name.FromChar(text->ToChar(), text->Strlen());
+    FC4_RELEASE_CREATED(text);
+    bool ok = true;
+    if (cFC4ISCStringDetokenizer* det = AcquireDetokenizer()) {
+        ok = det->DetokenizeString(name, name);
+        FC4_RELEASE(det);
+        if (!ok) {
+            fc4::Log("crime: type name LTEXT %08X-%08X-%08X: the detokenizer returned false; the name keeps "
+                     "the text (§7 step 3)",
+                     type, group, instance);
+        }
+    }
+    if (sink != nullptr) {
+        const char* p = name.ToChar();
+        sink(ctx, reinterpret_cast<const uint8_t*>(p != nullptr ? p : ""), p != nullptr ? name.Strlen() : 0);
+    }
+    return ok;
 }
 
 // ---- lifecycle glue (§4) ------------------------------------------------------------------------
@@ -282,7 +346,9 @@ void AcquireServicesCb(void* u) { Self(u)->AcquireServices(); }
 void ReleaseServicesCb(void* u) { Self(u)->ReleaseServices(); }
 
 // §4.1 step 8: AddPropRequester (prop developer slot 5) on the prop-requester
-// sub-object. §4.2: never unregistered.
+// sub-object. §4.2 (CQ7, confirmed): never unregistered; Shutdown makes no
+// prop-developer call. The prop developer AddRefs the requester here and
+// releases it at its own Shutdown, so this object lives until then.
 void AddPropRequesterCb(void* u) {
     if (!Gate(fc4::Sw::CrimeProps, "crime AddPropRequester (not registered)")) return;
     cISC4City* c = Self(u)->City();
@@ -300,6 +366,8 @@ void AddPropRequesterCb(void* u) {
 
 // GetPopulationGrids / GetEQGrids (residential slots 25 / 23): three out
 // pointers, each AddRef'd for us (§13); the core releases them (grids.release).
+// The return value is ignored, as the original's census ignores it (§13,
+// CQ15); the core asks for the population grids first, then the EQ grids.
 template <class T, class F>
 void ThreeGrids(void* u, uint64_t* out3, F call, const char* what) {
     if (out3 == nullptr) return;
@@ -347,8 +415,9 @@ bool Demand(void* u, uint32_t id, float* value, float* max, float* min) {
 
 // ---- police and ordinances (§6.4, §6.6) ----------------------------------------------------------
 
-// Police slot 5: borrowed (no AddRef by the police simulator); one reference
-// is taken here and handed to the core (fc4.h), which releases it.
+// Police slot 5: the uint8 grid (§13, CQ11 confirmed; the SDK says short),
+// borrowed (no AddRef by the police simulator); one reference is taken here
+// and handed to the core (fc4.h), which releases it.
 uint64_t PoliceGrid(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime GetPolicePowerGrid (no coverage)")) return 0;
     cFC4ISC4PoliceSimulator* p = Police(u);
@@ -370,7 +439,7 @@ uint32_t JailPopulation(void* u) {
 int32_t ResetUnjailedCriminals(void* u) {
     if (!Gate(fc4::Sw::CrimePolice, "crime ResetUnjailedCriminals (0)")) return 0;
     cFC4ISC4PoliceSimulator* p = Police(u);
-    const int32_t r = p ? p->ResetUnjailedCriminals() : 0;  // slot 27, int32 count (§13)
+    const int32_t r = p ? p->ResetUnjailedCriminals() : 0;  // slot 27, int32 count in EAX (§13, CQ11)
     Self(u)->Probe().released = r;
     return r;
 }
@@ -381,7 +450,8 @@ void ProcessMonthlyCrimeStats(void* u) {
 }
 
 // §5: GetCumulativeFactor(0x28ED0380, 0); false = no ordinance simulator
-// ([choice] the factor is left unchanged).
+// ([choice] §4.1 step 6, §16 Q1, CQ6: the factor is left unchanged, i.e. the
+// 1.0 that Init step 9 sets; the original crashes in Init without one).
 bool OrdinanceCrimeFactor(void* u, float* out) {
     if (!Gate(fc4::Sw::CrimeOrdinance, "crime GetCumulativeFactor (factor unchanged)")) return false;
     cISC4OrdinanceSimulator* o = Self(u)->Ordinance();
@@ -453,12 +523,15 @@ bool LotBuilding(void*, uint64_t lot, uint64_t* building, uint32_t* purpose, uin
 }
 
 // Lot slot 15 (+0x3C), GetCenter(cS3DVector3&) const: thiscall, one 4-byte
-// argument popped by the callee. §13 says the result is in the out parameter
-// and the function leaves nothing on the x87 stack (it ends with FSTP);
-// docs/abi tags its return as x87 (ST0). [choice] Both readings are
-// survived: after the call ST0 is examined (FXAM) and popped unless it is
-// empty, so the FPU stack stays balanced either way; the out parameter is the
-// value used. Returns whether ST0 held a value (counted for the month line).
+// argument popped by the callee. §13 (CQ3, from cSC4Lot::GetCenter, the only
+// implementation): the result is only in the out parameter, EAX = &out, and
+// the x87 stack is EMPTY on return (the last value is popped); docs/abi and
+// FC4Interfaces.h now declare it returning nothing. This thunk calls it so the
+// x87 stack can be checked after the call. The out parameter is the value
+// used; EAX is ignored. The FXAM after the call is a counted diagnostic only: ST0 should
+// always be empty; if it ever is not, it is popped (keeping the stack
+// balanced), counted for the month line (`center st0=a/b`) and logged once.
+// Returns whether ST0 held a value.
 bool LotCenterRaw(cISC4Lot* lot, float* out3) {
     void* self = lot;
     void* fn = (*reinterpret_cast<void***>(lot))[15];
@@ -487,6 +560,12 @@ void LotCenterCell(void* u, uint64_t lot, int32_t* x, int32_t* z) {
         float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         if (LotCenterRaw(RawLot(lot), v)) {
             ++Self(u)->Probe().centerSt0;
+            static bool warned = false;  // main thread only
+            if (!warned) {
+                warned = true;
+                fc4::Log("crime: WARNING lot GetCenter (slot 15) left a value in ST0; popped (crime.md §13, CQ3: "
+                         "the x87 stack should be empty; logged once per process, counted as center st0=)");
+            }
         } else {
             ++Self(u)->Probe().centerEmptySt0;
         }
@@ -519,18 +598,17 @@ bool OccupantHasProperty(void*, uint64_t occ, uint32_t id) {
     return h != nullptr && h->HasProperty(id);
 }
 
-// §6.10: the property as a byte array {m, r}. [choice] Read with the
-// type-converting numeric reader (each element's low byte): exact for the
-// u8 array the property holds; the original's RefUint8 on another variant
-// type is not specified.
+// §6.10 (CQ13): the property's raw storage, as the original reads it: the
+// variant's data pointer (RefUint8, slot 95) whatever its type, with no
+// numeric conversion; the core takes bytes 0 and 1 as {m, r}. [choice] A
+// scalar (the original dereferences its value) or an object array is "no
+// bytes"; the core skips fewer than 2 bytes.
 bool OccupantPropertyBytes(void*, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx) {
     if (occ == 0 || !Gate(fc4::Sw::CrimeOccupants, "crime occupant property read (absent)")) return false;
     cISCPropertyHolder* h = OccOf(occ)->AsPropertyHolder();
     if (h == nullptr) return false;
-    std::vector<uint32_t> v;
-    if (!fc4::props::GetU32s(h, id, v)) return false;
-    std::vector<uint8_t> bytes(v.size());
-    for (size_t i = 0; i < v.size(); ++i) bytes[i] = static_cast<uint8_t>(v[i]);
+    std::vector<uint8_t> bytes;
+    if (!fc4::props::GetRawArrayBytes(h, id, bytes)) return false;
     if (sink != nullptr && !bytes.empty()) sink(ctx, bytes.data(), bytes.size());
     return true;
 }
@@ -544,13 +622,16 @@ void OccupantPosition(void*, uint64_t occ, float* xyz) {
     xyz[2] = v.fZ;
 }
 
-// §11.3: the box query. [choice] §13 names the FILTER overload (slot 36) with
-// a type-and-group / type-and-property filter; cISC4OccupantFilter is not in
-// docs/abi/interfaces.tsv, so the verified TYPED overload (slot 37, which
-// forwards to slot 36 with a type filter, allocators.md) is called with the
-// type, and the second condition is reported per occupant for the core's
-// selection (fc4_crime_nearest_of). The last argument is 0xFFFFFFFF ("all
-// flags", §16 Q5). The list (A, one reference each) is released when it goes.
+// §11.3: the box query. The original calls the FILTER overload (slot 36)
+// with a type-and-group / type-and-property filter object of its own; this
+// calls the TYPED overload (slot 37, verified; it forwards to slot 36 with a
+// GetType() == type filter), the §11.3 [choice] the spec calls equivalent
+// (CQ4): the second condition is reported per occupant, and the core's
+// selection (fc4_crime_nearest_of) applies it to each listed occupant before
+// it can become a candidate, so the qualifying occupants and their order are
+// the same. The last argument is 0xFFFFFFFF (all flags). The QI of every
+// listed occupant is an extra AddRef/Release the spec calls unobservable.
+// The list (A, one reference each) is released when it goes.
 template <class F>
 void QueryBox(cISC4OccupantManager* om, const float* min3, const float* max3, uint32_t kind, F each) {
     const bool sim = kind == FC4_CRIME_NEAREST_SIM;
@@ -592,10 +673,11 @@ void OccupantsInBox(void* u, const float* min3, const float* max3, uint32_t kind
     QueryBox(om, min3, max3, kind, [&](cISC4Occupant*, const fc4_crime_nearby& n) { cb(ctx, &n); });
 }
 
-// §11.6: PropManager.GetPropProfile(id) (slot 13) -> PropProfile.crimeIncidentID.
-// [choice] The field is read at offset 24, the SDK's PropProfile layout
-// (u32 class, cS3DVector3 size, u32 satisfaction, u8 wealth, u32 incident
-// ID); docs/abi/layouts.md does not list PropProfile (spec question).
+// §11.6, §13: PropManager.GetPropProfile(id) (slot 13) -> PropProfile.crimeIncidentID,
+// the u32 at +0x18 (24) of the returned profile (CQ2, confirmed; the SDK's
+// PropProfile layout: u32 class, cS3DVector3 size, u32 satisfaction, u8
+// wealth, u32 incident ID). Nothing else of the profile is read.
+static_assert(sizeof(cISC4PropOccupant::PropProfile) == 28, "PropProfile: the incident ID is the last u32, at +0x18");
 uint32_t PropCrimeIncidentId(void* u, uint32_t prop) {
     if (!Gate(fc4::Sw::CrimeProps, "crime GetPropProfile (generic)")) return 0;
     cISC4City* c = Self(u)->City();
@@ -620,7 +702,8 @@ bool DisasterLayerPresent(void* u) {
 // layer and the manager are BORROWED (flammability run 37); only the
 // QueryInterface result is ours, released once. [choice] A missing manager or
 // interface (the original does not check, §6.8 [quirk]) skips the fire.
-// SetCause follows IgniteOccupant whatever it returned (the literal §6.8).
+// SetCause follows IgniteOccupant whatever it returned (§6.8, CQ12
+// confirmed: the original does not test IgniteOccupant's AL).
 void Ignite(void* u, uint64_t building, uint32_t cause) {
     ++Self(u)->Probe().igniteCalls;
     if (building == 0 || !Gate(fc4::Sw::CrimeFire, "crime IgniteOccupant (no fire)")) return;
@@ -721,9 +804,13 @@ fc4_crime_host MakeHost(cFC4CrimeSimulator* self, const fc4::HostGridContext* gr
 }
 
 // The session seed S (foundations §6.3): FreeCity4.ini `crime_seed` (env
-// FC4_CRIME_SEED) when set, else the local wall-clock seconds like the
-// original (§9). [choice] "Local seconds" = the local calendar time read as
-// seconds since 1970-01-01 (the original's epoch is not specified).
+// FC4_CRIME_SEED) when set, else the cRZTime value for "now" like the
+// original (§9, CQ5): u32 seconds since 1901-01-01 00:00 UTC, computed as
+// time() + 2177452800 (fc4_core::crime::rz_time_from_unix). [choice] (§9)
+// The library's own time-zone arithmetic (a fixed pre-2007 US daylight rule)
+// is skipped: the original's value is one hour off where the host's daylight
+// rule disagrees, and 0 in that rule's spring-forward hour. The core seeds
+// the generator with derive_seed(S, 0x6C09C3F6) = S XOR 0x6C09C3F6.
 uint32_t SessionSeed(bool* fixed) {
     const std::string s = fc4::Setting("crime_seed", "FC4_CRIME_SEED");
     if (!s.empty()) {
@@ -735,10 +822,8 @@ uint32_t SessionSeed(bool* fixed) {
         }
     }
     *fixed = false;
-    const std::time_t now = std::time(nullptr);
-    std::tm local{};
-    if (localtime_s(&local, &now) != 0) return static_cast<uint32_t>(now);
-    return static_cast<uint32_t>(_mkgmtime(&local));
+    constexpr int64_t kRzTimeUnixOffset = 2177452800;  // 1901-01-01 to 1970-01-01, 25 202 days
+    return static_cast<uint32_t>(static_cast<int64_t>(std::time(nullptr)) + kRzTimeUnixOffset);
 }
 
 uint32_t TruncAverage(uint32_t bits) {
@@ -762,6 +847,11 @@ fc4_crime_host CrimeReadOnlyHost() {
     h.ltext = &Ltext;
     return h;
 }
+
+int CrimeTestLotCenter(void* lot, float* out3) {
+    if (lot == nullptr || out3 == nullptr) return -1;
+    return LotCenterRaw(static_cast<cISC4Lot*>(lot), out3) ? 1 : 0;
+}
 }  // namespace fc4
 
 // ---- object -------------------------------------------------------------------------------------
@@ -779,7 +869,7 @@ cFC4CrimeSimulator::cFC4CrimeSimulator() {
     core_ = fc4_crime_create(&host_, SelfToken(), seed);
     if (core_ == nullptr) fc4::Log("cFC4CrimeSimulator: core creation failed");
     fc4::Log("cFC4CrimeSimulator(%p) created, core %p, session seed 0x%08X (%s)", static_cast<void*>(this),
-             static_cast<void*>(core_), seed, fixed ? "crime_seed" : "local wall clock");
+             static_cast<void*>(core_), seed, fixed ? "crime_seed" : "cRZTime");
 }
 
 cFC4CrimeSimulator::~cFC4CrimeSimulator() {
@@ -808,9 +898,9 @@ bool cFC4CrimeSimulator::QueryInterface(uint32_t riid, void** ppvObj) {
             *ppvObj = static_cast<cIGZSerializable*>(this);
             break;
         default:
-            // §1: false and the out pointer null; in particular cIGZMessageTarget
-            // (0xE98B2F57) is not answered.
-            *ppvObj = nullptr;
+            // §1 (CQ14): false with the out pointer untouched, like every
+            // simulator class; in particular cIGZMessageTarget (0xE98B2F57) is
+            // not answered.
             return false;
     }
     AddRef();
@@ -1060,11 +1150,14 @@ cISC4PropOccupant* cFC4CrimeSimulator::GetNearestCrimeProp(cS3DVector3 const& po
     return reinterpret_cast<cISC4PropOccupant*>(Nearest(pos, radius, FC4_CRIME_NEAREST_PROP));
 }
 
-// §11.4, §14.2: the caller's vector is resized with the GAME's allocator (B,
-// the STL node allocator; [choice] docs/abi/allocators.md does not list this
-// method, the spec says "the same operator new / STLport allocator as the
-// original"). Elements of incidents without a lot keep their previous
-// content (zero when new). Without the allocator, nothing is touched.
+// §11.4, §14.2 (CQ1, confirmed): `out` is a default-allocator std::vector, so
+// its buffer is a B block (the STL node allocator): grown like the original's
+// resize (past the capacity, a new B buffer of size + max(size, added)
+// elements, the old one freed with B; within it, the buffer is kept).
+// Elements of incidents without a lot are not written: existing ones keep
+// their content, new ones are zero ([choice] §11.4: the original's fill value
+// has 16 uninitialised bytes and a zero icon key). Without the allocator,
+// nothing is touched.
 bool cFC4CrimeSimulator::GetCrimeIncidentArray(fc4::GameVector<FC4CrimeEvent>& out) {
     if (fc4::OnMainThread()) ++incidentArrayCalls_;
     const uint32_t n = fc4_crime_incident_count(core_);
@@ -1081,7 +1174,7 @@ bool cFC4CrimeSimulator::GetCrimeIncidentArray(fc4::GameVector<FC4CrimeEvent>& o
         return false;
     }
     std::vector<FC4CrimeEvent> old(out.begin(), out.end());
-    if (!out.reserve(count)) return false;
+    if (!out.reserve_for_resize(count)) return false;
     out.clear();
     for (size_t i = 0; i < count; ++i) {
         FC4CrimeEvent e{};

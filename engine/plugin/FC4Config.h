@@ -45,7 +45,7 @@
 //                                 original crime simulator; FC4CrimeShadow.h)
 //   crime_shadow_cells = N        its differing cells listed per month (default 8)
 //   crime_seed = N                the crime generator's session seed (default:
-//                                 the local wall clock; cFC4Crime.cpp)
+//                                 the cRZTime clock, crime.md §9; cFC4Crime.cpp)
 //   popup_dialogs = 0 / 1         unattended runs: 0 = cISC4App::SetPopupDialogsEnabled(false)
 //                                 once per process (advisor popups dropped without
 //                                 the hidden pause, generic dialogs answer without

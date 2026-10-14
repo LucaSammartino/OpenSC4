@@ -1271,7 +1271,8 @@ bool fc4_demand_shadow_is_fed(const fc4_demand_shadow* s, uint32_t key);
  * order; may equal `input`); `stats` may be NULL. False on bad arguments. */
 bool fc4_demand_shadow_propagate(const fc4_demand_shadow* s, const fc4_demand_node_state* input, uint32_t count,
                                  fc4_demand_node_state* output, fc4_demand_shadow_stats* stats);
-/* GetNeutralTaxRate (unclamped) from the supplies of 0x1001, 0x3001, 0x4001. */
+/* GetNeutralTaxRate (unclamped) from the supplies r, c, i of 0x1001, 0x3001, 0x4001; the sum is
+ * f32(f32(i + c) + r), as the simulator's (demand §5, DQ9). */
 float fc4_demand_shadow_neutral_tax_rate(const fc4_demand_shadow* s, float r, float c, float i);
 /* §8.1 from those supplies, the saved CO / I economy bonuses, and host's today,
  * history_max, ordinance_factor and nation_economy_modifier (no other callback). */
@@ -2479,7 +2480,9 @@ size_t fc4_protection_shadow_grid(const fc4_protection* p, uint8_t* out, size_t 
  *
  * The crime type list and the generator are process-wide (§7, §9): the first
  * fc4_crime_create seeds the generator with derive_seed(session_seed,
- * 0x6C09C3F6) (foundations §6.3); later objects share both.
+ * 0x6C09C3F6) (foundations §6.3); later objects share both. The original's
+ * session value is cRZTime, u32 seconds since 1901-01-01 00:00 UTC
+ * (time() + 2177452800, §9 / CQ5).
  *
  * Threads (foundations §19): the game calls getters from a second thread while
  * the main thread is inside a call. The functions marked "any thread" read a
@@ -2566,6 +2569,13 @@ typedef struct fc4_crime_host {
     fc4_props* (*tuning)(void* user); /* a NEW fc4_props (the core destroys it), NULL if missing */
     void (*for_each_type_key)(void* user, fc4_key_visitor visit, void* ctx);
     fc4_props* (*exemplar)(void* user, uint32_t type_id, uint32_t group, uint32_t instance); /* NEW or NULL */
+    /* A crime type name, §7 steps 2-3 (CQ8): type_id is always 0x2026960B.
+     * Look up (type, group + language ID, instance), then (type, group,
+     * instance) if that is missing and the language ID is not 0; copy the text
+     * and detokenize it in place (skipped with no detokenizer). true: loaded,
+     * the text went to the sink. false and text sent to the sink: the
+     * detokenizer returned false (the name keeps that text). false and nothing
+     * sent: no such LTEXT. The core replaces U+2022 itself (step 4). */
     bool (*ltext)(void* user, uint32_t type_id, uint32_t group, uint32_t instance, fc4_bytes_sink sink, void* ctx);
     /* residential and demand (§6.1, §6.2): three grid tokens, one reference each */
     void (*population_grids)(void* user, uint64_t* out3);
@@ -2590,6 +2600,9 @@ typedef struct fc4_crime_host {
     void (*release)(void* user, uint64_t token);
     /* occupants and props (§6.10, §11.3, §11.6) */
     bool (*occupant_has_property)(void* user, uint64_t occ, uint32_t id);
+    /* The raw storage of an array property (count x element size bytes, the
+     * variant's RefUint8 data whatever its type, no conversion; §6.10, CQ13);
+     * false if absent or not an array. */
     bool (*occupant_property_bytes)(void* user, uint64_t occ, uint32_t id, fc4_bytes_sink sink, void* ctx);
     void (*occupant_position)(void* user, uint64_t occ, float* xyz);
     void (*occupants_in_box)(void* user, const float* min3, const float* max3, uint32_t kind,
