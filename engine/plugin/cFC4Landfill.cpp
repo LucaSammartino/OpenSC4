@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -885,6 +886,7 @@ void SendHistory(void* u, uint32_t series, uint32_t value) {
     cFC4Message2Standard* msg =
         FC4MakeMessage(kMsgHistoryRecord, static_cast<intptr_t>(series), static_cast<intptr_t>(value), 0);
     ms->MessageSend(msg);
+    FC4_X87_CHECK("landfill MessageSend (after)");  // the game's handlers ran synchronously (FC4Fpu.h)
     msg->Release();
     ++c->historySends;
 }
@@ -1187,6 +1189,7 @@ intptr_t cFC4LandfillDeveloper::GetLandfillZoneFromCell(int32_t, int32_t) {
 
 bool cFC4LandfillDeveloper::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("landfill DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     Section sec(this);
     if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     const uint32_t type = pMessage->GetType();

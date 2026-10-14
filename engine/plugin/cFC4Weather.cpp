@@ -16,6 +16,7 @@
 #include "FC4Checked.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
 #include "FC4RefAudit.h"
@@ -468,6 +469,7 @@ float cFC4WeatherSimulator::GetWindAtCell(int32_t, int32_t, cS3DVector2& wind) {
 
 bool cFC4WeatherSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("weather DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     uint32_t data1 = 0, data3 = 0;
     cIGZMessage2Standard* m = nullptr;

@@ -165,6 +165,20 @@ int ForeignFault() {
     return 0;
 }
 
+// Another faulting address, with one value (1.0) on the x87 stack at the
+// fault: the crash report's fpu line must show it (TOP 7, one register).
+int ForeignFaultX87() {
+    int r = 0;
+    __asm fld1
+    __try {
+        *static_cast<volatile int*>(nullptr) = 2;
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        r = 1;
+    }
+    __asm fstp st(0)
+    return r;
+}
+
 // A building's property holder with just what the budget reads and writes
 // (budget-item arrays), laid out like the game's (foundations §17.2): the
 // plugin calls holders only through those slots.
@@ -5202,6 +5216,61 @@ int main(int argc, char** argv) {
             CHECK(fire.refs == 1);
         }
 
+        // The x87 return channels (docs/abi corrected 2026-10-14), called the
+        // game's way: nothing may be left on, or taken off, the x87 stack.
+        if (seam != nullptr) {
+            static FakePipeCity pipe;
+            InitFakePipeCity(pipe);
+            // City slot 97 is void: protection and landfill call it so (op 28).
+            FC4CellCenterTestIo io{3, 5, 0.0f, 0.0f, 0.0f, 0.0f};
+            const unsigned top = X87Top();
+            CHECK(seam(kFC4SeamCellCenter, &pipe.city, &io) == 1);
+            CHECK(X87Top() == top);  // a float declaration popped an empty register here
+            CHECK(io.protectionX == 56.0f && io.protectionZ == 88.0f);
+            CHECK(io.landfillX == 56.0f && io.landfillZ == 88.0f);
+            CHECK(seam(kFC4SeamCellCenter, nullptr, &io) == -1);
+            // Plumbing §7.1 step 4: the AttemptDisasterStart result is ignored,
+            // never released (op 29). The old glue released it (refs 0).
+            const int32_t xz[2] = {12, 34};
+            CHECK(seam(kFC4SeamPipeBurst, &pipe.city, const_cast<int32_t*>(xz)) == 1);
+            CHECK(pipe.attempts == 1 && pipe.x == 12 && pipe.z == 34);
+            CHECK(pipe.instRefs == 1);
+            CHECK(seam(kFC4SeamPipeBurst, nullptr, const_cast<int32_t*>(xz)) == -1);
+            // cIGZVariant slot 41 SetValFloat64(double) is void (op 30): pops 8,
+            // nothing in ST0.
+            cFC4IGZVariant* v = nullptr;
+            CHECK(seam(kFC4SeamVariant, &v, nullptr) == 1 && v != nullptr);
+            if (v != nullptr) {
+                const double d = 2.5;
+                uint32_t w[2] = {0, 0};
+                std::memcpy(w, &d, sizeof(w));
+                const fc4test::SlotCall r = fc4test::CallSlot(v, 41, {w[0], w[1]});
+                CHECK(r.espDelta == 0 && r.x87Pushed == 0);
+                CHECK(v->GetValFloat64() == 2.5);
+                CHECK(v->Release() == 0);  // the heap copy is deleted
+            }
+            CHECK(seam(kFC4SeamVariant, nullptr, nullptr) == -1);
+            // The x87 leftover guard (op 31, FC4Fpu.h): a clean stack is 0 and
+            // writes nothing; two values left are found (and logged once for
+            // the site this game month, counted every time); nothing is popped.
+            CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
+            __asm {
+                fld1
+                fldz
+            }
+            const intptr_t found = seam(kFC4SeamX87Check, nullptr, nullptr);
+            const intptr_t again = seam(kFC4SeamX87Check, nullptr, nullptr);
+            const unsigned topLeft = X87Top();
+            __asm {
+                fstp st(0)
+                fstp st(0)
+            }
+            CHECK(found == 2 && again == 2);
+            CHECK(topLeft == ((top - 2u) & 7u));
+            CHECK(X87Top() == top);
+            CHECK(seam(kFC4SeamX87Check, nullptr, nullptr) == 0);
+        }
+
         // The budget shadow next to an "original" budget: the same values
         // give no mismatch; the original counting the not-livable CS$ lot
         // gives one (type 3), attributed to that lot. Any write to the fake
@@ -5455,9 +5524,27 @@ int main(int argc, char** argv) {
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFault() == 1);
     CHECK(ForeignFault() == 1);
+    CHECK(ForeignFaultX87() == 1);
     const std::string text = ReadFile(log);
-    CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 2);
+    CHECK(CountOf(text, "first-chance exception OUTSIDE FreeCity4.dll in fc4_plugin_load_test.exe+0x") == 3);
     CHECK(text.find("(report 2 of at most 2 for this address)") != std::string::npos);
+    // ... with the x87 state at the fault (an empty stack here) and the raw
+    // dwords at esp (FC4Diag.cpp, FC4DiagContext.h).
+    CHECK(text.find("  fpu: CW=0x") != std::string::npos);
+    CHECK(text.find(") TW=0x") != std::string::npos);
+    CHECK(text.find("[FXSAVE FTW=0x00 occupied=0] indefinite NaN: ") != std::string::npos);
+    // ForeignFaultX87: 1.0 in ST0 (physical register 7). Under WOW64 the
+    // context's TagWord is the full tag (0x3FFF), not the abridged byte.
+    CHECK(text.find("(TOP=7 SF=0 IE=0 C1=0) TW=0x3FFF occupied=1 [FXSAVE FTW=0x80 occupied=1] indefinite NaN: none") !=
+          std::string::npos);
+    CHECK(text.find("  esp dwords: 0x") != std::string::npos);
+    // The x87 leftover guard (test seam op 31): the first finding at a site
+    // this game month is logged, the second only counted; the heartbeat
+    // carries the total.
+    CHECK(CountOf(text, "x87 leftovers at 'test seam': 2 register(s) occupied (FSW=0x") == 1);
+    CHECK(text.find("previous check 'test seam' had 0; game month ") != std::string::npos);
+    CHECK(text.find("| x87 leftovers: ") != std::string::npos);
+    CHECK(text.find("x87 leftovers at 'test seam'") == text.find("x87 leftovers at '"));  // no other site
     // Watchdog (hang diagnostics).
     CHECK(text.find("watchdog: started for main thread") != std::string::npos);
     CHECK(text.find("WATCHDOG: main thread (tid ") != std::string::npos);

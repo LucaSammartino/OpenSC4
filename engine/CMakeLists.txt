@@ -152,6 +152,7 @@ if(FC4_IS_WIN32_X86)
         plugin/FC4Popups.h
         plugin/FC4Fpu.h
         plugin/FC4FpuLogic.h
+        plugin/FC4DiagContext.h
         plugin/FC4TestSeam.cpp
         plugin/FC4TestSeam.h
         plugin/cFC4Variant.cpp

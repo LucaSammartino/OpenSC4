@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -1200,6 +1201,7 @@ bool cFC4CrimeSimulator::GetVisualsCreated(uint32_t index) { return fc4_crime_ge
 
 bool cFC4CrimeSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("crime DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     CoreCall call(this);
     fc4_crime_message m{};
     m.msg_type = pMessage->GetType();

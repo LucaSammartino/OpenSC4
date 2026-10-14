@@ -17,6 +17,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameList.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
@@ -1394,6 +1395,7 @@ bool cFC4FloraSimulator::SaveObliterated(cIGZPersistDBSegment* segment) {
 
 bool cFC4FloraSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("flora DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     CoreCall call(this);
     ++probes_.messages;
     fc4_flora_message m{};

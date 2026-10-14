@@ -14,6 +14,7 @@
 #include "cFC4LandValue.h"
 
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -529,6 +530,7 @@ float cFC4LandValueSimulator::GetModeAltitude() { return fc4_landvalue_mode_alti
 
 bool cFC4LandValueSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("land value DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     int64_t data3 = 0;
     if (type == kMsgSimIdle) {

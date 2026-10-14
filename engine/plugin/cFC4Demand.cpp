@@ -18,6 +18,7 @@
 #include "FC4CoreProps.h"
 #include "FC4DemandShadow.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4GameMap.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -1108,6 +1109,7 @@ void cFC4DemandSimulator::GetLocalPopulationSummary(std::map<uint32_t, int32_t>&
 
 bool cFC4DemandSimulator::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("demand DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     const uint32_t type = pMessage->GetType();
     cIGZMessage2Standard* m = nullptr;
     if (pMessage->QueryInterface(GZIID_cIGZMessage2Standard, reinterpret_cast<void**>(&m)) && m != nullptr) {

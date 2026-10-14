@@ -16,6 +16,7 @@
 #include "FC4Config.h"
 #include "FC4CoreProps.h"
 #include "FC4Diag.h"
+#include "FC4Fpu.h"
 #include "FC4Interfaces.h"
 #include "FC4Log.h"
 #include "FC4Properties.h"
@@ -1261,6 +1262,7 @@ uint32_t cFC4ProtectionBase::StationCrimeCountImpl(cISC4Occupant* s) {
 
 bool cFC4ProtectionBase::DoMessage(cIGZMessage2* pMessage) {
     if (pMessage == nullptr || core_ == nullptr) return true;
+    FC4_X87_SCOPE("protection DoMessage", pMessage->GetType());  // x87 leftover guard (FC4Fpu.h)
     Section sec(this);
     if (!sec.ok()) return true;  // [choice] a message from another thread that cannot get the lock is dropped
     fc4_protection_message m{};
