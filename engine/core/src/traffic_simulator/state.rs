@@ -8,21 +8,28 @@
 //! inspect, save and restore it.
 
 use std::cell::Cell;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 use crate::grid::ScanIterator;
 use crate::pathfinder::{Pathfinder, SharedWorkCheck};
-use crate::property::PropertyHolder;
 use crate::rng::{CrtRand, FixedSeeds, RzRandomSuper};
 use crate::stl::{StlHashSet, STL_DEFAULT_HINT};
 
 use super::tuning::SimTuning;
 use super::{cell_key16, GridF32, GridU8, Source};
 
+/// The re-route counter: +1 per search ReRouteTrips finds (§4.4, TS21);
+/// kept by the pacing reset on entering 16, zeroed on entering 17 (§3.3,
+/// TS1).
+pub const PC_REROUTE_COUNTER: usize = 1;
 /// The pass counter that holds `rerouteBucket` (§4.3, save row 15).
 pub const PC_REROUTE_BUCKET: usize = 2;
 /// The pass counter that holds the source counter (§4.3).
 pub const PC_SOURCE_COUNTER: usize = 3;
+/// ReRouteTrips' capacity send-backs (`0x0071D20D`, §4.4, TS21).
+pub const PC_CAPACITY_SEND_BACKS: usize = 4;
+/// FullTrips' splits (`0x0071D75A`, §4.4, TS21).
+pub const PC_SPLITS: usize = 9;
 /// The number of pass counters saved (§6.1 row 15).
 pub const PASS_COUNTERS: usize = 10;
 
@@ -35,17 +42,34 @@ pub struct AccidentEntry {
     pub p: f32,
 }
 
-/// One row of the per-network-type statistics (§4.9; save-records §7.1.1).
+/// One row of the per-network-type statistics (§4.9 step 3 "statistics",
+/// TS9; save-records §7.1.1).
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct StatRow {
     /// The sum of the volume/capacity ratios (the working set) or their
     /// average (the published set).
     pub sum: f32,
-    pub count: u32,
+    /// The count of records with `r > 1.0` (the saved u32 of the row).
+    pub congested: u32,
     pub max_x: i32,
     pub max_z: i32,
     pub max: f32,
 }
+
+impl StatRow {
+    /// The state-2 entry reset (§4.9): `max := −1.0`, the other fields 0.
+    pub const RESET: StatRow = StatRow {
+        sum: 0.0,
+        congested: 0,
+        max_x: 0,
+        max_z: 0,
+        max: -1.0,
+    };
+}
+
+/// The bridge slot of the statistics (§4.9, TS9): records whose network
+/// info has flag bit 0 (network flag `0x40000`).
+pub const BRIDGE_SLOT: usize = 13;
 
 /// One per-switch-type record of the statistics block (save-records §7.1.1:
 /// `u16, f32, s32, s32, f32`). Not computed by the code of this spec; kept
@@ -62,20 +86,24 @@ pub struct SwitchStat {
 /// The number of per-switch-type records (save-records §7.1.1, `E = 12`).
 pub const SWITCH_STATS: usize = 12;
 
-/// A statistics block (§4.9, the slot-34 `TrafficStats`).
+/// A statistics block (§4.9, the slot-34 `TrafficStats`; §6.1 row 16).
 #[derive(Clone, Debug, PartialEq)]
 pub struct StatsSet {
     /// One row per network type.
     pub rows: [StatRow; 13],
-    /// The aggregate row (`B = 1`), not computed by this spec's code.
-    pub aggregate: StatRow,
-    /// The over-capacity counts (`r > 1`) per network type.
-    pub over: [u16; 13],
-    /// The aggregate over-capacity count.
-    pub aggregate_over: u16,
+    /// The bridge row (slot 13, TS9), published by the traffic advisor as
+    /// the bridge congestion.
+    pub bridge: StatRow,
+    /// The network-info records per type (u16, wrapping); in the published
+    /// set these are also the cell counts (§4.9 end of pass, TS9).
+    pub records: [u16; 13],
+    /// The bridge records (never published).
+    pub bridge_records: u16,
+    /// The u16 after the bridge records: in the published set the pothole
+    /// count (`0x134`, §3.6, §4.12); the working set's is saved unchanged.
+    pub potholes: u16,
     /// The unnamed fields of the block (save-records §12 Q2), saved
     /// unchanged.
-    pub extra_u16: u16,
     pub switch_stats: [SwitchStat; SWITCH_STATS],
     pub f1: f32,
     pub f2: f32,
@@ -88,10 +116,10 @@ impl Default for StatsSet {
     fn default() -> Self {
         StatsSet {
             rows: [StatRow::default(); 13],
-            aggregate: StatRow::default(),
-            over: [0; 13],
-            aggregate_over: 0,
-            extra_u16: 0,
+            bridge: StatRow::default(),
+            records: [0; 13],
+            bridge_records: 0,
+            potholes: 0,
             switch_stats: [SwitchStat::default(); SWITCH_STATS],
             f1: 0.0,
             f2: 0.0,
@@ -128,22 +156,15 @@ impl Default for DamageBlock {
 }
 
 impl DamageBlock {
-    /// A network cell was inserted (DoRoadChanged / DoRailChanged
-    /// *[question: not specified]*): the key joins the intact set unless it
-    /// is in either set already.
+    /// A setup helper for hosts restoring state and for tests, not the
+    /// occupant bookkeeping (that is §3.6, `DoRoadChanged`): the key joins
+    /// the intact set unless it is in either set already, and `cellCount`
+    /// becomes the size of the two sets.
     pub fn insert_cell(&mut self, key: u16) {
         let k = u32::from(key);
         if !self.intact.contains(k) && !self.damaged.contains(k) {
             self.intact.insert(k);
         }
-        self.cell_count = (self.intact.len() + self.damaged.len()) as u32;
-    }
-
-    /// A network cell was removed: the key leaves both sets.
-    pub fn remove_cell(&mut self, key: u16) {
-        let k = u32::from(key);
-        self.intact.remove(k);
-        self.damaged.remove(k);
         self.cell_count = (self.intact.len() + self.damaged.len()) as u32;
     }
 }
@@ -163,13 +184,96 @@ impl DamageState {
     }
 }
 
+/// The traffic-source iterator (`Reset` `0x007107A0`, `GetNext`
+/// `0x007107F0`; §4.1, TS20): all lots in the lot manager's list order, then
+/// all neighbour connections. The connections are a snapshot taken by
+/// `Reset`; the lots are walked live, so a lot removed before the walk
+/// reaches it is skipped and a lot added during the phase is visited.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct SourceIter {
+    /// The connections the last `Reset` listed (counted references in the
+    /// original: a connection removed during the phase is still visited).
+    pub conns: Vec<u64>,
+    /// The next connection to return.
+    pub conn_pos: usize,
+    /// The lot list as the walk last read it.
+    pub lots_seen: Vec<u64>,
+    /// The last lot returned; `None` before the first.
+    pub last_lot: Option<u64>,
+    /// The walk has passed the last lot.
+    pub lots_done: bool,
+}
+
+impl SourceIter {
+    /// `Reset`: the connection snapshot; the lot walk back at the start.
+    pub fn reset(&mut self, conns: Vec<u64>) {
+        *self = SourceIter {
+            conns,
+            ..SourceIter::default()
+        };
+    }
+
+    /// The next lot of the live walk, given the lot manager's list now. The
+    /// list only appends (zones.md §8.1) and removal keeps the order, so the
+    /// lot after the last one returned is the first lot after it, in the
+    /// list as last read, that is still listed; else the first lot appended
+    /// since. `None` (and the walk leaves the lots) at the end.
+    pub fn next_lot(&mut self, lots: Vec<u64>) -> Option<u64> {
+        if self.lots_done {
+            return None;
+        }
+        let next = match self.last_lot {
+            None => lots.first().copied(),
+            Some(last) => {
+                let now: HashSet<u64> = lots.iter().copied().collect();
+                let seen: HashSet<u64> = self.lots_seen.iter().copied().collect();
+                let after = match self.lots_seen.iter().position(|&l| l == last) {
+                    Some(i) => &self.lots_seen[i + 1..],
+                    None => &[][..],
+                };
+                after
+                    .iter()
+                    .copied()
+                    .find(|l| now.contains(l))
+                    .or_else(|| lots.iter().copied().find(|l| !seen.contains(l)))
+            }
+        };
+        self.lots_seen = lots;
+        match next {
+            Some(l) => self.last_lot = Some(l),
+            None => self.lots_done = true,
+        }
+        next
+    }
+
+    /// The next connection of the snapshot.
+    pub fn next_connection(&mut self) -> Option<u64> {
+        let c = self.conns.get(self.conn_pos).copied()?;
+        self.conn_pos += 1;
+        Some(c)
+    }
+}
+
 /// The record fields whose meaning is not specified (save-records §12 Q2):
 /// Read keeps them and Write writes them back unchanged.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SaveExtras {
-    /// The bool after the intersection dirty rectangle.
-    pub bool_after_rect: bool,
-    /// The two phase positions (s16; u8 before version 25).
+    /// The bool after the intersection dirty rectangle: the network-changed
+    /// byte (§3.1, §6.1 row 14, TS5). Set by SimBegin and by every network
+    /// occupant message, cleared by the constructor, saved and loaded, read
+    /// by nothing.
+    pub network_changed_byte: bool,
+    /// The raw state byte of a loaded running scan iterator (§6.1 "The
+    /// scanning iterator in row 14", TS31): any byte other than 0 (fresh)
+    /// and 2 (done) acts as running and is written back unchanged until the
+    /// scan ends or the iterator is reset. `None` writes the iterator's own
+    /// byte.
+    pub scan_state_byte: Option<u8>,
+    /// The two phase positions (s16; u8 before version 25). The trip phases
+    /// store the cell of the source they take here, and the DoPostCityInit
+    /// resume (§3.5 step 11) looks for it *[question: §3.5 names "the saved
+    /// source cell" of row 14 without naming the field; these are the
+    /// row's only cell-sized pair besides the re-route context's]*.
     pub phase_positions: [i16; 2],
     /// The lot iterator position (30 bytes: s8, s8, 7 × s32).
     pub lot_iter: [u8; 30],
@@ -194,14 +298,13 @@ pub struct SaveExtras {
     pub pacing_i32: i32,
     /// The two u32 after `dayIndex`.
     pub pacing_u32: [u32; 2],
-    /// The property-holder map (u16 key → plain property holder).
-    pub holder_map: Vec<(u16, PropertyHolder)>,
 }
 
 impl Default for SaveExtras {
     fn default() -> Self {
         SaveExtras {
-            bool_after_rect: false,
+            network_changed_byte: false,
+            scan_state_byte: None,
             phase_positions: [0; 2],
             lot_iter: [0; 30],
             context_bools: [false; 2],
@@ -217,7 +320,6 @@ impl Default for SaveExtras {
             context_flags: [0; 2],
             pacing_i32: 0,
             pacing_u32: [0; 2],
-            holder_map: Vec::new(),
         }
     }
 }
@@ -274,7 +376,12 @@ pub struct State {
     pub stats_last: StatsSet,
     /// The working set.
     pub stats_work: StatsSet,
-    /// The cell counts per network type (§4.9).
+    /// The per-slot record counts `count[s]` (u32, s = 0…13) the averages
+    /// divide by (§4.9). Not saved: CreateMaps runs in one call.
+    pub stat_counts: [u32; 14],
+    /// `cells[t]`, the cell counts per network type (§3.6, saved in §6.1 row
+    /// 18): bumped by the occupant messages, replaced by the record counts
+    /// at the end of every CreateMaps pass (§4.9, TS9).
     pub cells_per_type: [u32; 13],
 
     // ---- money (§3.3, §4.5, §4.12) ----
@@ -323,10 +430,16 @@ pub struct State {
     pub pass_counters: [u32; PASS_COUNTERS],
 
     // ---- trip phase context (§4.3, §4.4) ----
-    /// The traffic sources of the running trip phase, as the iterator
-    /// listed them at the phase start *[choice]*.
-    pub sources: Vec<Source>,
-    /// The current source (index into `sources`).
+    /// The traffic-source iterator of the running trip phase (§4.1, TS20).
+    pub iter: SourceIter,
+    /// The held current source of ReRouteTrips / FullTrips, whose trips are
+    /// being examined; `None`: the next unit takes a new source.
+    pub current: Option<Source>,
+    /// FinishTripMap after a load in state 15 (§3.5 step 11): the lot whose
+    /// successor the lot walk starts at; consumed by the phase.
+    pub finish_resume: Option<u64>,
+    /// The sources the running phase has taken (ConfirmTrips) or finished
+    /// (ReRouteTrips, FullTrips).
     pub source_pos: usize,
     /// The next trip of the current source to examine.
     pub trip_pos: usize,
@@ -399,6 +512,7 @@ impl State {
             next_accident_check: 0,
             stats_last: StatsSet::default(),
             stats_work: StatsSet::default(),
+            stat_counts: [0; 14],
             cells_per_type: [0; 13],
             budget_total: 0,
             transit_income: 0.0,
@@ -427,7 +541,9 @@ impl State {
             to_reroute: 0,
             to_search: 0,
             pass_counters: [0; PASS_COUNTERS],
-            sources: Vec::new(),
+            iter: SourceIter::default(),
+            current: None,
+            finish_resume: None,
             source_pos: 0,
             trip_pos: 0,
             continue_search: false,

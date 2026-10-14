@@ -1,0 +1,144 @@
+{
+  "format": 1,
+  "name": "ts11_38_finish_trip_map",
+  "spec": [
+    "traffic-simulator 4.7"
+  ],
+  "description": "§4.7 worked example (TS26): a zone-8 lot without road access at location (20, 20), rect (20, 20)-(20, 21). Distance 1: -x (19, 20) a lot of another zone, closed; -z (20, 19) no lot, closed; +x (21, 20) a same-zone lot without road access, passed over; +z (20, 21) the lot itself, passed over. Distance 2: +x (22, 20) a same-zone lot with road access whose map byte is 37 (its location (22, 19) holds 99): 37 is written into (20, 20) and (20, 21). A zone-9 lot at (5, 5)-(6, 5) with no donor gets 0 over its rect.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        32,
+        32
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        20,
+        20,
+        20,
+        21
+      ],
+      "zone": 8,
+      "road_access": false
+    },
+    {
+      "op": "ts_lot",
+      "id": 2,
+      "rect": [
+        19,
+        20,
+        19,
+        20
+      ],
+      "zone": 1
+    },
+    {
+      "op": "ts_lot",
+      "id": 3,
+      "rect": [
+        21,
+        20,
+        21,
+        20
+      ],
+      "zone": 8,
+      "road_access": false
+    },
+    {
+      "op": "ts_lot",
+      "id": 4,
+      "rect": [
+        22,
+        19,
+        22,
+        20
+      ],
+      "zone": 8
+    },
+    {
+      "op": "ts_lot",
+      "id": 5,
+      "rect": [
+        5,
+        5,
+        6,
+        5
+      ],
+      "zone": 9,
+      "road_access": false
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_grid",
+      "grid": "trip_length",
+      "values": [
+        [
+          22,
+          20,
+          37
+        ],
+        [
+          22,
+          19,
+          99
+        ],
+        [
+          5,
+          5,
+          7
+        ],
+        [
+          6,
+          5,
+          7
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "enter_cycle_state",
+      "args": [
+        15
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "work_on_sim_cycle",
+      "args": [],
+      "expect": true
+    },
+    {
+      "op": "ts_expect_grid",
+      "grid": "trip_length",
+      "values": [
+        [
+          20,
+          20,
+          37
+        ],
+        [
+          20,
+          21,
+          37
+        ],
+        [
+          5,
+          5,
+          0
+        ],
+        [
+          6,
+          5,
+          0
+        ]
+      ]
+    }
+  ]
+}

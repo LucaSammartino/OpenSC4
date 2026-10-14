@@ -1,0 +1,468 @@
+{
+  "format": 1,
+  "name": "ts11_41_ferry_legs",
+  "spec": [
+    "traffic-simulator 4.5",
+    "traffic-network 2.6"
+  ],
+  "description": "§4.5 step 4 (TS16), fare 0.01 and no per-tile income. Worked example, mode 2: 30 pedestrians cross from terminal A (departure (2,2)) by the 0x80 jump to terminal B's arrival cell (6,3): A's riders += 60, I = r24(30 x 0.01f) = 0.29999998, A's link to B current A += 30, B's link to A current B += 30. Mode 0 adds A's riders once and current A; mode 1 current B. A crossing to a neighbour link's in-city edge cell (0,6), mode 2: current A and B. The crossing in from a neighbour at the first cell (0x00719A4E): (0,5) is beside R = (-1,5) on x only, is terminal 3's arrival cell, and its neighbour link's off-map cell is R's corner: current A += 30 (mode 0), I := 0.29999998, riders not counted. A first cell beside R on both coordinates: nothing.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "ferry_fare": 0.01,
+        "income_per_tile": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    },
+    {
+      "op": "ts_net",
+      "terminals": [
+        {
+          "dep": [
+            2,
+            2
+          ],
+          "arr": [
+            2,
+            1
+          ],
+          "links": [
+            [
+              6,
+              2
+            ]
+          ]
+        },
+        {
+          "dep": [
+            6,
+            2
+          ],
+          "arr": [
+            6,
+            3
+          ],
+          "links": [
+            [
+              2,
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000102400102800603400102",
+        30,
+        [
+          0,
+          2,
+          0,
+          2
+        ],
+        [
+          7,
+          4
+        ],
+        2,
+        0
+      ],
+      "note": "mode 2, A -> B"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          0,
+          {
+            "riders_current": 60,
+            "links": [
+              [
+                0,
+                30,
+                0,
+                0
+              ]
+            ]
+          }
+        ],
+        [
+          1,
+          {
+            "riders_current": 0,
+            "links": [
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "income_acc": "0x3FD3333320000000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000102400102800603400102",
+        30,
+        [
+          0,
+          2,
+          0,
+          2
+        ],
+        [
+          7,
+          4
+        ],
+        0,
+        0
+      ],
+      "note": "mode 0"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          0,
+          {
+            "riders_current": 90,
+            "links": [
+              [
+                0,
+                60,
+                0,
+                0
+              ]
+            ]
+          }
+        ],
+        [
+          1,
+          {
+            "riders_current": 0,
+            "links": [
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000102400102800603400102",
+        30,
+        [
+          0,
+          2,
+          0,
+          2
+        ],
+        [
+          7,
+          4
+        ],
+        1,
+        0
+      ],
+      "note": "mode 1"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          0,
+          {
+            "riders_current": 120,
+            "links": [
+              [
+                0,
+                60,
+                0,
+                30
+              ]
+            ]
+          }
+        ],
+        [
+          1,
+          {
+            "riders_current": 0,
+            "links": [
+              [
+                0,
+                0,
+                0,
+                30
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "income_acc": 0
+      }
+    },
+    {
+      "op": "ts_net",
+      "terminals": [
+        {
+          "dep": [
+            3,
+            6
+          ],
+          "arr": [
+            3,
+            7
+          ],
+          "neighbour_links": [
+            [
+              -1,
+              6,
+              0,
+              6
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000406400100800006",
+        30,
+        [
+          5,
+          6,
+          5,
+          6
+        ],
+        [
+          -1,
+          6
+        ],
+        2,
+        0
+      ],
+      "note": "terminal 2 to its neighbour link's edge cell (0,6), mode 2"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          2,
+          {
+            "riders_current": 60,
+            "neighbour_links": [
+              [
+                0,
+                30,
+                0,
+                30
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "income_acc": "0x3FD3333320000000"
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "income_acc": 0
+      }
+    },
+    {
+      "op": "ts_net",
+      "terminals": [
+        {
+          "dep": [
+            5,
+            7
+          ],
+          "arr": [
+            0,
+            5
+          ],
+          "neighbour_links": [
+            [
+              -1,
+              5,
+              0,
+              5
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000005400102",
+        30,
+        [
+          -1,
+          5,
+          -1,
+          5
+        ],
+        [
+          2,
+          5
+        ],
+        0,
+        0
+      ],
+      "note": "first cell (0,5): terminal 3's arrival, beside R on x only"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          3,
+          {
+            "riders_current": 0,
+            "neighbour_links": [
+              [
+                0,
+                30,
+                0,
+                0
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "income_acc": "0x3FD3333320000000"
+      }
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "income_acc": 0
+      }
+    },
+    {
+      "op": "ts_net",
+      "terminals": [
+        {
+          "dep": [
+            5,
+            6
+          ],
+          "arr": [
+            1,
+            1
+          ],
+          "neighbour_links": [
+            [
+              0,
+              0,
+              1,
+              0
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "apply_route",
+      "args": [
+        "000101400102",
+        30,
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          3,
+          1
+        ],
+        0,
+        0
+      ],
+      "note": "first cell (1,1): beside R on x and z"
+    },
+    {
+      "op": "ts_expect_net",
+      "terminals": [
+        [
+          4,
+          {
+            "neighbour_links": [
+              [
+                0,
+                0,
+                0,
+                0
+              ]
+            ]
+          }
+        ]
+      ]
+    },
+    {
+      "op": "ts_expect_state",
+      "state": {
+        "income_acc": "0x0000000000000000"
+      }
+    }
+  ]
+}

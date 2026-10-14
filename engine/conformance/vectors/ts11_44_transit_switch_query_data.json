@@ -1,0 +1,171 @@
+{
+  "format": 1,
+  "name": "ts11_44_transit_switch_query_data",
+  "spec": [
+    "traffic-simulator 4.16"
+  ],
+  "description": "§4.16 worked example (TS11): a subway station (switch 5 at (3,3), building 900) with capacity 2500.0, last cycle's load 3100.0 (ratio 1.0), a 0xCA550301 budget item of 150 in the mass-transit department funded at 0.9: out = {2500, 2500, 1.0f, 3100, 135} (r24(150 x 0.9) = 135.0); during a strike {0, 2500, 0.0f, 0, 135}. A ferry terminal whose lot cell (7,6) lies in lot 1 (6,6)-(7,7), riders last period 42, the lot's building with an item of 100: {42, 42, 1.0f, 42, 90} at any cell of the lot; during a strike {0, 0, 0.0f, 0, 90}. Nothing at (2,2), and switch ID 6 at (1,1) with no switch behind it [choice]: false.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ],
+      "transit_funding": 0.9,
+      "query_items": [
+        [
+          900,
+          3374436075,
+          150
+        ],
+        [
+          131073,
+          3374436075,
+          100
+        ]
+      ]
+    },
+    {
+      "op": "ts_lot",
+      "id": 1,
+      "rect": [
+        6,
+        6,
+        7,
+        7
+      ]
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_net",
+      "switch_ids": [
+        [
+          3,
+          3,
+          5
+        ],
+        [
+          1,
+          1,
+          6
+        ]
+      ],
+      "switches": [
+        [
+          5,
+          {
+            "building": 900,
+            "capacity": 2500,
+            "prev_usage": 3100,
+            "ratio": 1
+          }
+        ]
+      ],
+      "terminals": [
+        {
+          "dep": [
+            0,
+            0
+          ],
+          "arr": [
+            0,
+            1
+          ],
+          "lot": [
+            7,
+            6
+          ],
+          "riders_last": 42
+        }
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        3,
+        3
+      ],
+      "expect": {
+        "available": 2500,
+        "max_capacity": 2500,
+        "load_fraction": "0x3F800000",
+        "usage": 3100,
+        "cost": 135
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        7,
+        7
+      ],
+      "expect": {
+        "available": 42,
+        "max_capacity": 42,
+        "load_fraction": "0x3F800000",
+        "usage": 42,
+        "cost": 90
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        2,
+        2
+      ],
+      "expect": null
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        1,
+        1
+      ],
+      "expect": null
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "strike_state": 1
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        3,
+        3
+      ],
+      "expect": {
+        "available": 0,
+        "max_capacity": 2500,
+        "load_fraction": 0,
+        "usage": 0,
+        "cost": 135
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "transit_switch_query_data",
+      "args": [
+        6,
+        6
+      ],
+      "expect": {
+        "available": 0,
+        "max_capacity": 0,
+        "load_fraction": 0,
+        "usage": 0,
+        "cost": 90
+      }
+    }
+  ]
+}

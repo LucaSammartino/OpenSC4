@@ -2718,3 +2718,60 @@ developer stays original). The current answer is in brackets.
   without flags]
 - **ZG16:** Are `*outCost` and `*outError` written on an early size-check failure? [the shadow fills the original's
   with 0 first; our core writes 0]
+- **ZG17 — zones §6, in game (regress rzones, coordinator):** the zones shadow's 1×1 PlaceZone dry run (checkSlope,
+  size check, commit=false) with zone type 14 fails with error 3 on both sides, but the original writes a cost
+  (36–208, varying by month and place) and ours writes 0. 15 of 92 months differ, only in this case. What does the
+  original write to `*outCost` when PlaceZone fails with error 3, and for which zone types? [ours: 0]
+
+## From the FSH and S3D readers (filed by the coordinator from the `formats3` lane's report, 2026-10-14)
+
+About `docs/specs/graphics-formats.md` and `engine/formats` (`fsh`, `s3d`, `keys`). All §8 tests 1–43 pass; the
+release sweep reproduces the §8.4 counts. Not done: the info-only open of §2.9; a DXT1 A = 0 opaque-black decoder
+variant (GF3). The current answer is in brackets.
+
+- **FS1:** §2.8 says bytes "beyond the entry" read as zero, but not where an entry ends. [it ends at the first of: its
+  attached block (`next`), another entry's header, or `size`; only positions at or after its pixel start count]
+- **FS2:** Q2 rejects what does not fit "except the mip-padding case": how is that case told from a truncated entry?
+  [if the levels fit packed back to back but the 16-byte-aligned layout overruns, zero-fill; if even the packed levels
+  do not fit, reject. Shipped data: exactly 167 zero-filled, 0 rejected]
+- **FS3:** A record with `count` = 0 has no frame 0. [rejected]
+- **FS4:** The original checks the `0x7B` palette on frame 0 only. [every `0x7B` frame needs a 256 × 1 palette with
+  all 256 entries inside the record]
+- **FS5:** For DXT1, the field A could differ between frames. [each frame reports its own (format, type);
+  `Fsh::format()` is frame 0's]
+- **FS6:** Negative sign-extended dimensions. [the power-of-two test is on the 32-bit sign-extended height, so a
+  negative height fails; max(W, m) is signed, so a negative width becomes m]
+- **FS7:** A DXT width that is not a multiple of 4: the level size from the formula is smaller than the whole blocks.
+  [the missing bytes read as zero, whole blocks are decoded, and the image is cropped]
+- **FS8:** The DXT5 alpha divisions (/7, /5) have no stated rounding. [rounded down, as for DXT1]
+- **FS9:** A vertex format with stride below 12, or with no position, while the bounding box reads 3 floats per
+  vertex. [stride < 12 is rejected; no position with stride ≥ 12 is accepted and its box uses the first 12 bytes]
+- **FS10:** A legacy VERT stride S below the format's standard stride, or a legacy block with an unknown format. [both
+  rejected]
+- **FS11:** PROP is "sorted after reading", but the sort key is not given. [file order kept]
+- **FS12:** REGP lower-casing: ASCII or locale-aware? Which encoding for byte names? [ASCII lower-casing; names
+  decoded as UTF-8 when valid, else Latin-1]
+- **FS13:** §4.1 when the fallback texture itself does not load. [the fallback key is returned anyway]
+- **FS14:** RKT lookups with a zoom above 4, a detail above 2, a rotation above 3, or too few values. [no model
+  (`None`); RKT0 ignores zoom and detail; the RKT1 addition wraps]
+
+## From applying the traffic simulator answers (filed by the coordinator from the `apply6a` lane's report, 2026-10-14)
+
+TS1–TS34 are applied to the traffic simulator core (vectors ts11_27–ts11_46 new; ts11_10a and ts11_25 adjusted). The
+host gained connection, region, budget and drive-side methods. The current answer is in brackets.
+
+- **TS35:** Does entering state 18 zero pass counter 1? [yes]
+- **TS36:** After a dx = ±1 jump, what entry does the cell carry? [none]
+- **TS37:** Does a missing funding percent leave the default? [unchanged]
+- **TS38:** §8 and §4.1.4 name slot 13 differently from §2.7.2. Which is right? [the code keeps its existing naming]
+- **TS39:** What is the "jump flag" in TS16? [the 0x80 flag of the next jump record]
+- **TS40:** What does a statistics slot with no record publish? [zeros]
+- **TS41:** A pool ID repeated in row 19: which entry wins? [the last one]
+- **TS42:** Pool ID overflow. [pool 0]
+- **TS43:** A missing regional demand node. [0]
+- **TS44:** Which row-14 field holds the saved source cell? [`phase_positions` s16×2, the lot location]
+- **TS45:** Which cell is saved for the state-15 resume? [the same `phase_positions`]
+- **TS46:** How is §4.16's `float(item.cost)` computed? [converted to f32 first, then × funding, r24]
+- **TS47:** A strategy above 2 in SetupPathFinderForLot. [ignored; a choice in code]
+- **TS48:** A damaged travel type above 8. [adds nothing in ApplyRoute and fails ConfirmRoute; a choice]
+- **TS49:** A switch ID with no switch behind it in GetTransitSwitchQueryData. [returns false; a choice]

@@ -1,0 +1,422 @@
+{
+  "format": 1,
+  "name": "ts11_31_neighbour_connections_add_remove",
+  "spec": [
+    "traffic-network 2.7.2",
+    "traffic-network 2.7.3"
+  ],
+  "description": "traffic-network.md §2.7.2-§2.7.3 (TS6): messages 0x8A0D15DA / 0xEA0D163E with data1 type, data2 x, data3 z. Add finds the connection (FindConnection), sets the mask bit, raises the cost to commuteMaxTime (90.0) or to the other side's 0xCA947077 (120.0) - the cost only grows - and gives the record the pool of the established city on the other side, found by position or created under the smallest unused ID >= 1; a city that is not established gives pool 0; no connection of the type: nothing. Remove clears the type; the last type also sets pool 0, runs the pool sweep (pool 2 released), decrements freeDest once per set destination bit (0b1011 at (8, 2)) and zeroes the byte; the cost stays. Removing one of two types changes nothing else. B's next Add creates pool 2 again.",
+  "steps": [
+    {
+      "op": "ts_env",
+      "cells": [
+        8,
+        8
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 77,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 70,
+      "type": 2,
+      "city": [
+        10,
+        20
+      ],
+      "other_side": 88
+    },
+    {
+      "op": "ts_connection",
+      "id": 88,
+      "cell": [
+        99,
+        99
+      ],
+      "holder": 80,
+      "type": 2
+    },
+    {
+      "op": "ts_prop",
+      "holder": 80,
+      "id": "0xCA947077",
+      "value": {
+        "f32": 120.0
+      }
+    },
+    {
+      "op": "ts_connection",
+      "id": 78,
+      "cell": [
+        -1,
+        5
+      ],
+      "holder": 71,
+      "type": 1,
+      "city": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 79,
+      "cell": [
+        3,
+        -1
+      ],
+      "holder": 72,
+      "type": 2,
+      "city": [
+        10,
+        20
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 90,
+      "cell": [
+        8,
+        2
+      ],
+      "holder": 73,
+      "type": 2,
+      "city": [
+        11,
+        20
+      ]
+    },
+    {
+      "op": "ts_connection",
+      "id": 91,
+      "cell": [
+        3,
+        8
+      ],
+      "holder": 74,
+      "type": 2
+    },
+    {
+      "op": "ts_init",
+      "expect": true
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "commute_max_time": 90.0
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 1,
+        "cost": "0x42F00000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        1,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": {
+        "mask": 6,
+        "pool": 1,
+        "cost": "0x42F00000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        3,
+        -1,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        8,
+        2,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        3,
+        8,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        3,
+        -1
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 1,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        8,
+        2
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 2,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        3,
+        8
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 0,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        9,
+        3,
+        8,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        3,
+        8
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 0,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": [
+        1,
+        2
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": {
+        "pool": 2
+      },
+      "id": "0x4A23576B",
+      "expect": [
+        11
+      ]
+    },
+    {
+      "op": "ts_expect_prop",
+      "holder": {
+        "pool": 2
+      },
+      "id": "0x4A23576C",
+      "expect": [
+        20
+      ]
+    },
+    {
+      "op": "ts_state",
+      "state": {
+        "dest": [
+          [
+            8,
+            2,
+            11
+          ]
+        ],
+        "free": [
+          5,
+          5,
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xEA0D163E",
+        2,
+        8,
+        2,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        8,
+        2
+      ],
+      "expect": {
+        "mask": 0,
+        "pool": 0,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": [
+        1
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "destination_byte",
+      "args": [
+        8,
+        2
+      ],
+      "expect": 0
+    },
+    {
+      "op": "ts_call",
+      "method": "free_destinations",
+      "args": [],
+      "expect": [
+        4,
+        4,
+        5,
+        4
+      ]
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0xEA0D163E",
+        2,
+        -1,
+        5,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        -1,
+        5
+      ],
+      "expect": {
+        "mask": 2,
+        "pool": 1,
+        "cost": "0x42F00000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "do_message",
+      "args": [
+        "0x8A0D15DA",
+        2,
+        8,
+        2,
+        0
+      ],
+      "expect": true
+    },
+    {
+      "op": "ts_call",
+      "method": "neighbour_record",
+      "args": [
+        8,
+        2
+      ],
+      "expect": {
+        "mask": 4,
+        "pool": 2,
+        "cost": "0x42B40000"
+      }
+    },
+    {
+      "op": "ts_call",
+      "method": "pool_ids",
+      "args": [],
+      "expect": [
+        1,
+        2
+      ]
+    }
+  ]
+}
